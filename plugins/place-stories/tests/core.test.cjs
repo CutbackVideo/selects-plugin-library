@@ -1,0 +1,31 @@
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..');const panel=fs.readFileSync(path.join(root,'panel.tsx'),'utf8');
+const planner=fs.readFileSync(path.join(root,'planner.js'),'utf8');const box={console,Math,Number,Object,Array,String,Set,Map};vm.createContext(box);vm.runInContext(planner+';globalThis.plan=planStory;',box);
+const makePlace=(n)=>({id:'p'+n,name:'Place '+n,description:'A quiet place with open views.',included:true,files:[{path:'/raw/'+n+'a.mp4',duration:8},{path:'/raw/'+n+'b.mp4',duration:8}],picks:[{path:'/raw/'+n+'a.mp4',start:1,end:6,cropX:.5,cropY:.5},{path:'/raw/'+n+'b.mp4',start:1,end:6,cropX:.5,cropY:.5}]});
+const story={settings:{pace:'balanced',intro:true},places:[makePlace(1),makePlace(2)]};const plan=box.plan(story);assert.equal(plan.places.length,2);assert.equal(plan.segments.length,5);assert(Math.abs(plan.seconds-9.4)<1e-8);assert(plan.opening);assert.equal(story.places[0].picks[0].end,6);
+const first=plan.segments[0];assert(plan.segments.slice(1).filter(s=>s.path===first.path).every(s=>s.end<=first.start||s.start>=first.end));assert.throws(()=>box.plan({settings:story.settings,places:[{...makePlace(1),picks:[{path:'/foreign',start:0,end:1}]}]}));
+const one={settings:{pace:'balanced',intro:true},places:[{...makePlace(1),files:[{path:'/raw/a.mp4',duration:5}],picks:[{path:'/raw/a.mp4',start:0,end:5}]}]};assert(box.plan(one).openingSkipped);
+const globals=panel.slice(panel.indexOf('const VERSION='),panel.indexOf('async function readFrames'));const test={console,Date,Math,JSON,Map,Set,Object,Array,String,Number,RegExp,Promise,setTimeout,clearTimeout,window:{}};vm.createContext(test);vm.runInContext(globals+';globalThis.api={english,mediaTask,newStory};',test);assert.equal(test.api.english(String.fromCharCode(0xac00),'Location 01'),'Location 01');assert.equal(test.api.newStory('one').projectId,'one');
+let live=0,max=0;const delay=ms=>new Promise(r=>setTimeout(r,ms));
+(async()=>{
+ await Promise.all(Array.from({length:12},()=>test.api.mediaTask(async()=>{live++;max=Math.max(max,live);await delay(2);live--;})));assert.equal(max,4);
+ const program=fs.readFileSync(path.join(root,'assemble-base.js'),'utf8');
+ async function native(existing=false,recover=false,foreign=false){
+  let clips=[],version=0,creates=0,commits=0,frameSize=null;const events=[];
+  const files=[{type:'video',path:'/raw/1a.mp4',resourceId:'raw-a',durationSeconds:8,frameSize:{width:1920,height:1080}},{type:'video',path:'/raw/1b.mp4',resourceId:'raw-b',durationSeconds:8,frameSize:{width:1080,height:1920}}];
+  const cfg={projectId:'project-one',folderName:'raw',draftName:'Test story',sequenceId:existing?'saved-id':null,recoverOnly:recover,frameSize:{width:720,height:1280},places:[{name:'A'}],segments:[{path:foreign?'/foreign/file':files[0].path,start:1,end:3,place:-1,cropX:.5,cropY:.5},{path:files[1].path,start:1,end:4,place:0,cropX:.5,cropY:.5}]};
+  cfg.sourceFiles=files;
+  if(existing)clips=[{clipId:1,resourceId:'fresh-a',startFrame:0,endFrame:60},{clipId:2,resourceId:'fresh-b',startFrame:60,endFrame:150}];
+  const d={async meta(){return {name:cfg.draftName,fps:30,frameSize};},async insertResource(x){events.push('insert');const last=clips.at(-1)?.endFrame||0;clips.push({clipId:clips.length+1,resourceId:x.resourceId.replace('raw-','fresh-'),startFrame:last,endFrame:last+Math.round((x.sourceRange.endSeconds-x.sourceRange.startSeconds)*30)});version++;},async setFrameSize(x){events.push('canvas');frameSize=x;version++;},async clips(){return clips.map(c=>({...c,version}));},async setClipTransform({clip}){assert.equal(clip.version,version);version++;events.push('transform');},async commitAll(){commits++;return {createdDraftId:'new-id'};}};
+  const p={async meta(){return {draftIds:existing?['saved-id']:[]};},async sourceFiles(){return {fileTree:files};},async createDraft(opts){if(opts.name==='Source identity check'){const probe=[];return {async insertResource(x){probe.push({resourceId:x.resourceId.replace('raw-','fresh-')});},async clips(){return probe;}};}creates++;return d;}};
+  const run=new Function('selects',program.replace('__CONFIG__',()=>JSON.stringify(cfg)).replace(/^/,'return (async()=>{')+'\n})();');
+  let result,error;try{result=await run({project:id=>{assert.equal(id,'project-one');return p;},draft:id=>{assert.equal(id,'saved-id');return d;}});}catch(e){error=e;}
+  return {result,error,creates,commits,events};
+ }
+ let r=await native();assert.equal(r.creates,1);assert.equal(r.result.clipCount,2);assert(r.events.indexOf('canvas')>r.events.lastIndexOf('insert'));
+ r=await native(true,true);assert.equal(r.creates,0);assert.equal(r.commits,0);assert.equal(r.result.sequenceId,'saved-id');
+ r=await native(false,true);assert(r.error);assert.equal(r.creates,0);
+ r=await native(false,false,true);assert(r.error);assert.equal(r.creates,0);
+ const hangul=/[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/;function audit(dir){for(const file of fs.readdirSync(dir)){const f=path.join(dir,file);if(fs.statSync(f).isDirectory()){audit(f);continue;}if(/\.(tsx|js|json|md|cjs)$/.test(f))assert(!hangul.test(fs.readFileSync(f,'utf8')),'Non-English authored text: '+file);}}audit(root);
+ console.log(JSON.stringify({plannerPreservesInputs:true,noOpeningReuse:true,invalidSourceRejected:true,decoderConcurrency:max,canonicalPathsResolveFreshIds:true,canvasSetAfterInsertion:true,liveClipHandlesRefreshed:true,recoveryDoesNotDuplicate:true,missingRecoveryDoesNotCreate:true,authoredTextAudit:'passed'}));
+})().catch(e=>{console.error(e);process.exit(1)});

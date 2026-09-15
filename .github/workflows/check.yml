@@ -12,3 +12,11 @@ jobs:
       - run: python3 tools/check_public.py
       - run: python3 tools/plugin_files.py check
       - run: python3 -m unittest discover -s tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test Place Stories
+        run: |
+          node plugins/place-stories/tests/core.test.cjs
+          node plugins/place-stories/tests/create.test.cjs
+          node plugins/place-stories/tests/path-collision.test.cjs
