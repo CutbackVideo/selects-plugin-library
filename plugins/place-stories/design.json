@@ -1,0 +1,20 @@
+{
+  "name": "Place Stories",
+  "version": 1,
+  "language": "en-US",
+  "output": "editable-draft",
+  "visualDirection": "A quiet, photo-first field guide with editorial typography.",
+  "titleFont": "Georgia",
+  "bodyFont": "Arial",
+  "accent": "#d8c6aa",
+  "textColor": "#faf9f6",
+  "defaultAspect": "portrait",
+  "defaultPace": "balanced",
+  "secondsPerPlace": {"quick": 2.6, "balanced": 3.5, "unhurried": 4.5},
+  "introSeconds": 2.4,
+  "descriptionMaxWords": 14,
+  "descriptionMaxCharacters": 110,
+  "motion": {"enterSeconds": 0.3, "exitSeconds": 0.2, "liftPixelsAt720": 12},
+  "safeMarginPixelsAt720": 56,
+  "principles": ["Footage comes first", "One clear action", "Progressive disclosure", "No mandatory review gate", "All source clips remain editable"]
+}
