@@ -1,0 +1,10 @@
+.local/
+__pycache__/
+*.pyc
+*.onnx
+*.mp4
+.DS_Store
+
+*.webm
+*.mov
+*.png

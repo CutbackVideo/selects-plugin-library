@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "portrait-stage",
+  "version": "0.1.0-alpha.2",
+  "name": "Portrait Stage",
+  "summary": "Create an editable portrait Draft with separate person, background, title, and original audio.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "panel.tsx",
+    "requirements.txt",
+    "scripts/portrait_stage.py",
+    "scripts/create-draft.js",
+    ".gitignore",
+    "THIRD_PARTY.md"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified."
+  }
+}
