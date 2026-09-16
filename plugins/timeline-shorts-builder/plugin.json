@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "timeline-shorts-builder",
+  "version": "0.1.0-alpha.1",
+  "name": "Timeline Shorts Builder",
+  "summary": "Create an editable vertical Draft that pairs a bottom-anchored video grid with a data-driven Selects timeline using the source Draft's real track order and clip thumbnails.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS development builds"
+    ],
+    "selects": "Requires Panel support, generated-media authoring, and the host FileSystem and SequenceRepository adapters. Released-version and Windows/Linux compatibility are unverified."
+  }
+}
