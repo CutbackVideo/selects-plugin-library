@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "postcard-cutout-studio",
+  "version": "0.1.0-alpha.1",
+  "name": "Postcard Cutout Studio",
+  "summary": "Build an editable travel-postcard Draft with generated or local cutouts, independent background panels, repeated photo clips, and editable title graphics.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx",
+    "pipeline.py",
+    "filmstrip.py",
+    "scene_preview.py",
+    "rvm/setup.sh",
+    "rvm/run.sh",
+    "rvm/runtime.py",
+    "rvm/benchmark.py",
+    "rvm/requirements-hashed.txt",
+    "rvm/THIRD_PARTY.md",
+    ".gitignore"
+  ],
+  "compatibility": {
+    "platforms": ["macOS arm64 (developed and tested)"],
+    "selects": "Requires Panel, generated-media authoring, Draft-authoring, and Export workflow support. Released-version and Windows/Linux compatibility are unverified."
+  }
+}
