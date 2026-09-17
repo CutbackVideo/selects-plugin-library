@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "multicam-generator",
+  "version": "0.1.0-alpha.1",
+  "name": "Multicam Generator",
+  "summary": "Generate an alternate camera view with lip sync to original speech and place it as a separate editable clip above the source.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS development builds"
+    ],
+    "selects": "Requires Panel SDK askAI/runScript/runShell, managed media generation, and internal timeline, filesystem and FFmpeg adapters. Released-version and Windows/Linux compatibility are unverified."
+  }
+}

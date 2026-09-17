@@ -4,6 +4,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 
 | Plugin | Status |
 | --- | --- |
+| [Multicam Generator](plugins/multicam-generator) | Experimental |
 | [Portrait Stage](plugins/portrait-stage) | Experimental |
 | [Place Stories](plugins/place-stories) | Experimental |
 | [Postcard Cutout Studio](plugins/postcard-cutout-studio) | Experimental |
