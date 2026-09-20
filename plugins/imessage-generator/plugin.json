@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "imessage-generator",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "iMessage Generator",
   "summary": "Insert an iMessage-style chat conversation overlay into the current Draft, with optional synced text-to-speech narration (free local Kokoro voices or ElevenLabs cloud voices).",
   "status": "experimental",

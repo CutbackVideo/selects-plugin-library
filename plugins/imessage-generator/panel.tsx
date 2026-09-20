@@ -162,7 +162,7 @@ function scheduleStory(settings, availableSeconds) {
     throw new Error('"'+label+'" has a 0s duration. Raise its [bracket] value above 0.');
   }
   const tail=Number(settings.tailSeconds),raw=holds.reduce((a,b)=>a+b,0)+tail,target=settings.fit?Math.min(availableSeconds,120):raw;
-  if(!Number.isFinite(target)||target<=0)throw new Error('There is no background footage after the start time.');
+  if(!Number.isFinite(target)||target<=0)throw new Error('The playhead is at the end of the Draft. Move the timeline playhead earlier to make room for the conversation.');
   if(!settings.fit&&raw>availableSeconds+.001)throw new Error('Needs '+raw.toFixed(1)+'s but only '+Math.max(0,availableSeconds).toFixed(1)+'s of background is available. Turn on Fit to compress it, or move the playhead earlier.');
   const factor=target/raw;let t=0;const messages=rows.map((r,i)=>{const m={side:r.side,text:r.text,page:r.page,start:t,duration:holds[i]*factor};t+=m.duration;return m;});
   const minHold=Math.min(...messages.map(r=>r.duration));
@@ -369,7 +369,7 @@ export default function IMessageGenerator({sdk,context}) {
   const startLabel=info?Math.floor(startFrame/info.fps/60)+':'+String(Math.floor((startFrame/info.fps)%60)).padStart(2,'0'):'0:00';
   let plan=null,error='',scriptRows=[];
   try{
-    scriptRows=parseScript(settings.script);const available=info?(info.endFrame-startFrame)/info.fps:60;
+    scriptRows=parseScript(settings.script);const available=info?(info.endFrame-startFrame)/info.fps:60;if(info&&available<=0)throw new Error('The playhead is at the end of the Draft. Move the timeline playhead earlier to make room for the conversation.');
     if(voiceMode&&!voiceReady){const estimate={...settings,timingMode:'manual',fit:false,script:scriptRows.map((r,i)=>(i&&r.page!==scriptRows[i-1].page?'---\n':'')+(r.side==='left'?'Them: ':'Me: ')+r.text).join('\n')};plan=scheduleStory(estimate,Infinity);if(plan.duration>available)plan=scheduleStory({...estimate,fit:true},available);plan.estimated=true;}
     else plan=scheduleStory(settings,available);
   }catch(e){error=String(e.message||e);}
@@ -534,7 +534,7 @@ export default function IMessageGenerator({sdk,context}) {
         const owner=(await selects.listProjects()).find(p=>p.id===pid);if(!owner||!owner.draftIds.includes(sid))throw new Error('This Draft does not belong to the current Project.');
         const p=selects.project(pid),d=selects.draft(sid),m=await d.meta(),main=await d.clips({trackScope:'main'});
         const end=main.reduce((n,c)=>Math.max(n,c.endFrame),0),start=Math.max(0,Math.min(Math.round(settings.startSeconds*m.fps),Math.max(0,end-2)));
-        if(end-start<2)throw new Error('There is no background after the start time.');
+        if(end-start<2)throw new Error('The playhead is too close to the end of the Draft. Move it earlier to make room for the conversation.');
         const plan=scheduleStory(settings,(end-start)/m.fps);
         const expectedFrame=${JSON.stringify({width:fresh.width,height:fresh.height})};if(!settings.portrait&&(m.frameSize.width!==expectedFrame.width||m.frameSize.height!==expectedFrame.height))throw new Error('Output dimensions changed. Reload before applying.');
         if(narration&&Math.abs(narration.conversationDuration-plan.duration)>.001)throw new Error('Timing changed before apply. Try again with the current settings.');

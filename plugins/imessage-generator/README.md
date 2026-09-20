@@ -33,11 +33,13 @@ third-party model/service licensing.
 1. Open a Draft, position the playhead where the overlay should start.
 2. Open **iMessage Generator**, write or paste a script on the **Script**
    tab (see the built-in example for the format).
-3. Choose a voice engine on the **Voice** tab: set up the free local engine
-   once, or connect an ElevenLabs API key.
-4. **Generate voices** to preview timing, then **Apply to Draft** to insert
-   the overlay (and narration, if used) at the playhead.
-5. Export the finished video through **Handoff → Export**.
+3. On the **Voice** tab, choose **Voice** for narration or **Silent** to create
+   bubbles without audio. Silent mode uses the Time tab for message pacing.
+4. If using Voice, set up the free local engine once or connect an ElevenLabs
+   API key, then **Generate voices**.
+5. Click **Apply to Draft** to insert the overlay (and narration, if used) at
+   the current playhead.
+6. Export the finished video through **Handoff → Export**.
 
 ## Limitations
 
