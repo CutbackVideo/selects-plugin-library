@@ -27,5 +27,11 @@
       "macOS development builds"
     ],
     "selects": "Requires generated-media authoring and the host FileSystem, CutbackMediaPicker, and ProjectFileTree adapters. Released-version and Windows compatibility are unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
   }
 }
