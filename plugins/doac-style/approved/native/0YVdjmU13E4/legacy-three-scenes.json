@@ -1,0 +1,1005 @@
+[
+  {
+    "scene": "not",
+    "text": "NOT",
+    "x": 235,
+    "y": 1171,
+    "width": 322,
+    "height": 111,
+    "color": "white",
+    "at": 216,
+    "font": "/System/Library/Fonts/Helvetica.ttc",
+    "index": 1,
+    "fontName": [
+      "Helvetica",
+      "Bold"
+    ],
+    "trackingAt180": 2.0,
+    "iou": 0.8625114573785518,
+    "nativeWidth": 417,
+    "nativeHeight": 133,
+    "glyphIoU": 0.9588774118105633,
+    "glyphs": [
+      {
+        "char": "N",
+        "x": 235,
+        "y": 1172,
+        "w": 95,
+        "h": 109,
+        "at": 216
+      },
+      {
+        "char": "O",
+        "x": 345,
+        "y": 1171,
+        "w": 106,
+        "h": 111,
+        "at": 216
+      },
+      {
+        "char": "T",
+        "x": 459,
+        "y": 1172,
+        "w": 94,
+        "h": 109,
+        "at": 216
+      }
+    ],
+    "strokeAt200": 6,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  },
+  {
+    "scene": "not",
+    "text": "HOW IT",
+    "x": 547,
+    "y": 1215,
+    "width": 308,
+    "height": 63,
+    "color": "white",
+    "at": 220,
+    "font": "/System/Library/Fonts/HelveticaNeue.ttc",
+    "index": 0,
+    "fontName": [
+      "Helvetica Neue",
+      "Regular"
+    ],
+    "trackingAt180": 1.0,
+    "iou": 0.8486590038314177,
+    "nativeWidth": 639,
+    "nativeHeight": 133,
+    "glyphIoU": 0.9492042440318302,
+    "glyphs": [
+      {
+        "char": "H",
+        "x": 547,
+        "y": 1215,
+        "w": 51,
+        "h": 62,
+        "at": 220
+      },
+      {
+        "char": "O",
+        "x": 610,
+        "y": 1215,
+        "w": 57,
+        "h": 63,
+        "at": 220
+      },
+      {
+        "char": "W",
+        "x": 672,
+        "y": 1215,
+        "w": 82,
+        "h": 62,
+        "at": 220
+      },
+      {
+        "char": "I",
+        "x": 784,
+        "y": 1215,
+        "w": 11,
+        "h": 62,
+        "at": 223
+      },
+      {
+        "char": "T",
+        "x": 806,
+        "y": 1215,
+        "w": 49,
+        "h": 62,
+        "at": 223
+      }
+    ],
+    "strokeAt200": 4,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  },
+  {
+    "scene": "not",
+    "text": "WORKS",
+    "x": 235,
+    "y": 1288,
+    "width": 625,
+    "height": 121,
+    "color": "white",
+    "at": 225,
+    "font": "/System/Library/Fonts/HelveticaNeue.ttc",
+    "index": 1,
+    "fontName": [
+      "Helvetica Neue",
+      "Bold"
+    ],
+    "trackingAt180": -4.5,
+    "iou": 0.7586854114529663,
+    "nativeWidth": 518,
+    "nativeHeight": 133,
+    "glyphIoU": 0.9075877737341439,
+    "glyphs": [
+      {
+        "char": "W",
+        "x": 235,
+        "y": 1290,
+        "w": 170,
+        "h": 117,
+        "at": 225
+      },
+      {
+        "char": "O",
+        "x": 410,
+        "y": 1288,
+        "w": 114,
+        "h": 121,
+        "at": 225
+      },
+      {
+        "char": "R",
+        "x": 541,
+        "y": 1290,
+        "w": 97,
+        "h": 117,
+        "at": 225
+      },
+      {
+        "char": "K",
+        "x": 650,
+        "y": 1290,
+        "w": 106,
+        "h": 117,
+        "at": 225
+      },
+      {
+        "char": "S",
+        "x": 763,
+        "y": 1288,
+        "w": 97,
+        "h": 120,
+        "at": 225
+      }
+    ],
+    "strokeAt200": 6,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  },
+  {
+    "scene": "not",
+    "text": "IN REAL LIFE",
+    "x": 301,
+    "y": 1423,
+    "width": 553,
+    "height": 66,
+    "color": "white",
+    "at": 236,
+    "font": "/System/Library/Fonts/HelveticaNeue.ttc",
+    "index": 0,
+    "fontName": [
+      "Helvetica Neue",
+      "Regular"
+    ],
+    "trackingAt180": 3.0,
+    "iou": 0.81062424969988,
+    "nativeWidth": 1161,
+    "nativeHeight": 129,
+    "glyphIoU": 0.9112780963680707,
+    "glyphs": [
+      {
+        "char": "I",
+        "x": 301,
+        "y": 1423,
+        "w": 12,
+        "h": 66,
+        "at": 236
+      },
+      {
+        "char": "N",
+        "x": 327,
+        "y": 1423,
+        "w": 55,
+        "h": 66,
+        "at": 236
+      },
+      {
+        "char": "R",
+        "x": 418,
+        "y": 1423,
+        "w": 50,
+        "h": 66,
+        "at": 239
+      },
+      {
+        "char": "E",
+        "x": 478,
+        "y": 1423,
+        "w": 44,
+        "h": 66,
+        "at": 239
+      },
+      {
+        "char": "A",
+        "x": 531,
+        "y": 1423,
+        "w": 61,
+        "h": 66,
+        "at": 239
+      },
+      {
+        "char": "L",
+        "x": 602,
+        "y": 1423,
+        "w": 41,
+        "h": 66,
+        "at": 239
+      },
+      {
+        "char": "L",
+        "x": 677,
+        "y": 1423,
+        "w": 41,
+        "h": 66,
+        "at": 241
+      },
+      {
+        "char": "I",
+        "x": 730,
+        "y": 1423,
+        "w": 12,
+        "h": 66,
+        "at": 241
+      },
+      {
+        "char": "F",
+        "x": 756,
+        "y": 1423,
+        "w": 42,
+        "h": 66,
+        "at": 241
+      },
+      {
+        "char": "E",
+        "x": 810,
+        "y": 1423,
+        "w": 44,
+        "h": 66,
+        "at": 241
+      }
+    ],
+    "strokeAt200": 5,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  },
+  {
+    "scene": "three",
+    "text": "3",
+    "x": 244,
+    "y": 1170,
+    "width": 106,
+    "height": 161,
+    "color": "red",
+    "at": 1738,
+    "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "index": 0,
+    "fontName": [
+      "Arial",
+      "Bold"
+    ],
+    "trackingAt180": -6.0,
+    "iou": 0.8573344336703115,
+    "nativeWidth": 107,
+    "nativeHeight": 133,
+    "glyphIoU": 0.8735548380377044,
+    "glyphs": [
+      {
+        "char": "3",
+        "x": 244,
+        "y": 1170,
+        "w": 106,
+        "h": 161,
+        "at": 1738
+      }
+    ],
+    "rotation": 0,
+    "strokeAt200": 2,
+    "rgb": [
+      188,
+      57,
+      62
+    ]
+  },
+  {
+    "scene": "three",
+    "text": "THERE ARE",
+    "x": 355,
+    "y": 1174,
+    "width": 491,
+    "height": 64,
+    "color": "white",
+    "at": 1734,
+    "font": "/System/Library/Fonts/HelveticaNeue.ttc",
+    "index": 0,
+    "fontName": [
+      "Helvetica Neue",
+      "Regular"
+    ],
+    "trackingAt180": 1.5,
+    "iou": 0.6814855270344075,
+    "nativeWidth": 1150,
+    "nativeHeight": 129,
+    "glyphIoU": 0.8806871951663391,
+    "glyphs": [
+      {
+        "char": "T",
+        "x": 355,
+        "y": 1174,
+        "w": 51,
+        "h": 64,
+        "at": 1734
+      },
+      {
+        "char": "H",
+        "x": 418,
+        "y": 1174,
+        "w": 53,
+        "h": 64,
+        "at": 1734
+      },
+      {
+        "char": "E",
+        "x": 485,
+        "y": 1174,
+        "w": 42,
+        "h": 64,
+        "at": 1734
+      },
+      {
+        "char": "R",
+        "x": 541,
+        "y": 1174,
+        "w": 49,
+        "h": 64,
+        "at": 1734
+      },
+      {
+        "char": "E",
+        "x": 600,
+        "y": 1174,
+        "w": 42,
+        "h": 64,
+        "at": 1734
+      },
+      {
+        "char": "A",
+        "x": 675,
+        "y": 1174,
+        "w": 59,
+        "h": 64,
+        "at": 1734
+      },
+      {
+        "char": "R",
+        "x": 745,
+        "y": 1174,
+        "w": 49,
+        "h": 64,
+        "at": 1734
+      },
+      {
+        "char": "E",
+        "x": 804,
+        "y": 1174,
+        "w": 42,
+        "h": 64,
+        "at": 1734
+      }
+    ],
+    "strokeAt200": 4,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  },
+  {
+    "scene": "three",
+    "text": "COMMON",
+    "x": 356,
+    "y": 1257,
+    "width": 492,
+    "height": 75,
+    "color": "white",
+    "at": 1753,
+    "font": "/System/Library/Fonts/HelveticaNeue.ttc",
+    "index": 1,
+    "fontName": [
+      "Helvetica Neue",
+      "Bold"
+    ],
+    "trackingAt180": 1.0,
+    "iou": 0.798332303891291,
+    "nativeWidth": 859,
+    "nativeHeight": 135,
+    "glyphIoU": 0.9235938703878093,
+    "glyphs": [
+      {
+        "char": "C",
+        "x": 356,
+        "y": 1257,
+        "w": 68,
+        "h": 75,
+        "at": 1753
+      },
+      {
+        "char": "O",
+        "x": 434,
+        "y": 1257,
+        "w": 71,
+        "h": 75,
+        "at": 1753
+      },
+      {
+        "char": "M",
+        "x": 515,
+        "y": 1257,
+        "w": 84,
+        "h": 74,
+        "at": 1753
+      },
+      {
+        "char": "M",
+        "x": 610,
+        "y": 1257,
+        "w": 84,
+        "h": 74,
+        "at": 1753
+      },
+      {
+        "char": "O",
+        "x": 704,
+        "y": 1257,
+        "w": 71,
+        "h": 75,
+        "at": 1753
+      },
+      {
+        "char": "N",
+        "x": 785,
+        "y": 1257,
+        "w": 63,
+        "h": 74,
+        "at": 1753
+      }
+    ],
+    "strokeAt200": 5,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  },
+  {
+    "scene": "three",
+    "text": "MISTAKES",
+    "x": 244,
+    "y": 1344,
+    "width": 611,
+    "height": 72,
+    "color": "white",
+    "at": 1761,
+    "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+    "index": 0,
+    "fontName": [
+      "Arial Black",
+      "Regular"
+    ],
+    "trackingAt180": -6.0,
+    "iou": 0.7952729693741678,
+    "nativeWidth": 990,
+    "nativeHeight": 133,
+    "glyphIoU": 0.8751057136091472,
+    "glyphs": [
+      {
+        "char": "M",
+        "x": 244,
+        "y": 1344,
+        "w": 97,
+        "h": 71,
+        "at": 1761
+      },
+      {
+        "char": "I",
+        "x": 351,
+        "y": 1344,
+        "w": 22,
+        "h": 71,
+        "at": 1761
+      },
+      {
+        "char": "S",
+        "x": 380,
+        "y": 1344,
+        "w": 74,
+        "h": 72,
+        "at": 1761
+      },
+      {
+        "char": "T",
+        "x": 458,
+        "y": 1344,
+        "w": 81,
+        "h": 71,
+        "at": 1761
+      },
+      {
+        "char": "A",
+        "x": 527,
+        "y": 1344,
+        "w": 92,
+        "h": 71,
+        "at": 1761
+      },
+      {
+        "char": "K",
+        "x": 624,
+        "y": 1344,
+        "w": 79,
+        "h": 71,
+        "at": 1761
+      },
+      {
+        "char": "E",
+        "x": 709,
+        "y": 1344,
+        "w": 66,
+        "h": 71,
+        "at": 1761
+      },
+      {
+        "char": "S",
+        "x": 781,
+        "y": 1344,
+        "w": 74,
+        "h": 72,
+        "at": 1761
+      }
+    ],
+    "strokeAt200": 1,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  },
+  {
+    "scene": "flag",
+    "text": "THIS FEELS",
+    "x": 242,
+    "y": 1169,
+    "width": 588,
+    "height": 79,
+    "color": "white",
+    "at": 2033,
+    "font": "/System/Library/Fonts/HelveticaNeue.ttc",
+    "index": 0,
+    "fontName": [
+      "Helvetica Neue",
+      "Regular"
+    ],
+    "trackingAt180": 4.5,
+    "iou": 0.7040669022848325,
+    "nativeWidth": 1041,
+    "nativeHeight": 135,
+    "glyphIoU": 0.9279820774821048,
+    "glyphs": [
+      {
+        "char": "T",
+        "x": 242,
+        "y": 1170,
+        "w": 60,
+        "h": 77,
+        "at": 2033
+      },
+      {
+        "char": "H",
+        "x": 315,
+        "y": 1170,
+        "w": 64,
+        "h": 77,
+        "at": 2033
+      },
+      {
+        "char": "I",
+        "x": 395,
+        "y": 1170,
+        "w": 14,
+        "h": 77,
+        "at": 2033
+      },
+      {
+        "char": "S",
+        "x": 422,
+        "y": 1169,
+        "w": 59,
+        "h": 79,
+        "at": 2033
+      },
+      {
+        "char": "F",
+        "x": 520,
+        "y": 1170,
+        "w": 50,
+        "h": 77,
+        "at": 2033
+      },
+      {
+        "char": "E",
+        "x": 583,
+        "y": 1170,
+        "w": 50,
+        "h": 77,
+        "at": 2033
+      },
+      {
+        "char": "E",
+        "x": 648,
+        "y": 1170,
+        "w": 51,
+        "h": 77,
+        "at": 2033
+      },
+      {
+        "char": "L",
+        "x": 714,
+        "y": 1170,
+        "w": 47,
+        "h": 77,
+        "at": 2033
+      },
+      {
+        "char": "S",
+        "x": 772,
+        "y": 1169,
+        "w": 58,
+        "h": 79,
+        "at": 2033
+      }
+    ],
+    "strokeAt200": 4,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  },
+  {
+    "scene": "flag",
+    "text": "LIKE A",
+    "x": 265,
+    "y": 1263,
+    "width": 587,
+    "height": 140,
+    "color": "white",
+    "at": 2033,
+    "font": "/System/Library/Fonts/HelveticaNeue.ttc",
+    "index": 10,
+    "fontName": [
+      "Helvetica Neue",
+      "Medium"
+    ],
+    "trackingAt180": 6.5,
+    "iou": 0.8918499882986193,
+    "nativeWidth": 610,
+    "nativeHeight": 129,
+    "glyphIoU": 0.9143535698382069,
+    "glyphs": [
+      {
+        "char": "L",
+        "x": 265,
+        "y": 1263,
+        "w": 88,
+        "h": 140,
+        "at": 2033
+      },
+      {
+        "char": "I",
+        "x": 377,
+        "y": 1263,
+        "w": 25,
+        "h": 140,
+        "at": 2033
+      },
+      {
+        "char": "K",
+        "x": 432,
+        "y": 1263,
+        "w": 112,
+        "h": 140,
+        "at": 2033
+      },
+      {
+        "char": "E",
+        "x": 564,
+        "y": 1263,
+        "w": 92,
+        "h": 140,
+        "at": 2033
+      },
+      {
+        "char": "A",
+        "x": 722,
+        "y": 1263,
+        "w": 130,
+        "h": 140,
+        "at": 2033
+      }
+    ],
+    "strokeAt200": 2,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  },
+  {
+    "scene": "flag",
+    "text": "RED FLAG",
+    "x": 250,
+    "y": 1412,
+    "width": 610,
+    "height": 78,
+    "color": "red",
+    "at": 2033,
+    "font": "/System/Library/Fonts/Helvetica.ttc",
+    "index": 1,
+    "fontName": [
+      "Helvetica",
+      "Bold"
+    ],
+    "trackingAt180": -6.0,
+    "iou": 0.8132394738581532,
+    "nativeWidth": 935,
+    "nativeHeight": 133,
+    "glyphIoU": 0.8980846535824072,
+    "glyphs": [
+      {
+        "char": "R",
+        "x": 250,
+        "y": 1414,
+        "w": 84,
+        "h": 76,
+        "at": 2033
+      },
+      {
+        "char": "E",
+        "x": 342,
+        "y": 1414,
+        "w": 72,
+        "h": 75,
+        "at": 2033
+      },
+      {
+        "char": "D",
+        "x": 420,
+        "y": 1414,
+        "w": 84,
+        "h": 76,
+        "at": 2033
+      },
+      {
+        "char": "F",
+        "x": 540,
+        "y": 1414,
+        "w": 70,
+        "h": 76,
+        "at": 2033
+      },
+      {
+        "char": "L",
+        "x": 616,
+        "y": 1414,
+        "w": 64,
+        "h": 76,
+        "at": 2033
+      },
+      {
+        "char": "A",
+        "x": 680,
+        "y": 1414,
+        "w": 98,
+        "h": 76,
+        "at": 2033
+      },
+      {
+        "char": "G",
+        "x": 776,
+        "y": 1412,
+        "w": 84,
+        "h": 78,
+        "at": 2033
+      }
+    ],
+    "strokeAt200": 6,
+    "rgb": [
+      252,
+      69,
+      71
+    ]
+  },
+  {
+    "scene": "three",
+    "text": "2",
+    "x": 231,
+    "y": 1173,
+    "width": 117,
+    "height": 157,
+    "color": "white",
+    "at": 1734,
+    "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "index": 0,
+    "fontName": [
+      "Arial",
+      "Bold"
+    ],
+    "trackingAt180": -6.0,
+    "iou": 0.7431039041156253,
+    "nativeWidth": 88,
+    "nativeHeight": 128,
+    "glyphIoU": 0.7745003927044245,
+    "glyphs": [
+      {
+        "char": "2",
+        "x": 231,
+        "y": 1173,
+        "w": 117,
+        "h": 157,
+        "at": 1734
+      }
+    ],
+    "rotation": 0,
+    "strokeAt200": 2,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  },
+  {
+    "scene": "three",
+    "text": "PEOPLE MAKE",
+    "x": 245,
+    "y": 1429,
+    "width": 607,
+    "height": 65,
+    "color": "white",
+    "at": 1776,
+    "font": "/System/Library/Fonts/HelveticaNeue.ttc",
+    "index": 0,
+    "fontName": [
+      "Helvetica Neue",
+      "Regular"
+    ],
+    "trackingAt180": 6.0,
+    "iou": 0.7802186140295023,
+    "nativeWidth": 1345,
+    "nativeHeight": 135,
+    "glyphIoU": 0.9160495290005332,
+    "glyphs": [
+      {
+        "char": "P",
+        "x": 245,
+        "y": 1430,
+        "w": 46,
+        "h": 63,
+        "at": 1776
+      },
+      {
+        "char": "E",
+        "x": 302,
+        "y": 1430,
+        "w": 42,
+        "h": 63,
+        "at": 1776
+      },
+      {
+        "char": "O",
+        "x": 354,
+        "y": 1429,
+        "w": 59,
+        "h": 65,
+        "at": 1776
+      },
+      {
+        "char": "P",
+        "x": 424,
+        "y": 1430,
+        "w": 46,
+        "h": 63,
+        "at": 1776
+      },
+      {
+        "char": "L",
+        "x": 481,
+        "y": 1430,
+        "w": 40,
+        "h": 63,
+        "at": 1776
+      },
+      {
+        "char": "E",
+        "x": 531,
+        "y": 1430,
+        "w": 42,
+        "h": 63,
+        "at": 1776
+      },
+      {
+        "char": "M",
+        "x": 607,
+        "y": 1430,
+        "w": 66,
+        "h": 63,
+        "at": 1782
+      },
+      {
+        "char": "A",
+        "x": 683,
+        "y": 1430,
+        "w": 58,
+        "h": 63,
+        "at": 1782
+      },
+      {
+        "char": "K",
+        "x": 750,
+        "y": 1430,
+        "w": 51,
+        "h": 63,
+        "at": 1782
+      },
+      {
+        "char": "E",
+        "x": 810,
+        "y": 1430,
+        "w": 42,
+        "h": 63,
+        "at": 1782
+      }
+    ],
+    "strokeAt200": 4,
+    "rgb": [
+      253,
+      253,
+      253
+    ]
+  }
+]

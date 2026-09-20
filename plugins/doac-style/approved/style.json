@@ -1,0 +1,79 @@
+{
+  "version": "1.0.0",
+  "reference": "agency-film-v12",
+  "canvas": [
+    1080,
+    1920
+  ],
+  "workingCanvas": [
+    540,
+    960
+  ],
+  "emphasisCenter": [
+    540,
+    1400
+  ],
+  "ordinary": {
+    "font": "Helvetica Neue Bold",
+    "size": 52,
+    "baselineGap": 62,
+    "color": "white"
+  },
+  "templates": [
+    "05",
+    "06",
+    "09",
+    "13",
+    "19",
+    "21",
+    "23",
+    "24",
+    "33",
+    "38",
+    "11",
+    "22",
+    "40"
+  ],
+  "excluded": [
+    "32",
+    "34"
+  ],
+  "case": "Follow each original slot",
+  "speakerColor": "Replace source yellow with white",
+  "notes": "AI selects emphasis ranges and compatible template roles; the local engine handles ordinary phrases, fitting, timing and validation.",
+  "selectionPool": [
+    "02",
+    "03",
+    "04",
+    "05",
+    "06",
+    "07",
+    "08",
+    "09",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40"
+  ],
+  "selectionPolicy": "Consider all 32 first; unconnected selections require an adapter, never silently substitute an easy template."
+}
