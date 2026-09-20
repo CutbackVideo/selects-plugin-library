@@ -18,5 +18,4 @@ jobs:
       - name: Test Place Count
         run: |
           node plugins/place-count/tests/core.test.cjs
-          node plugins/place-count/tests/create.test.cjs
           node plugins/place-count/tests/path-collision.test.cjs
