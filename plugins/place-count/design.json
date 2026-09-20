@@ -1,5 +1,5 @@
 {
-  "name": "Place Stories",
+  "name": "Place Count",
   "version": 1,
   "language": "en-US",
   "output": "editable-draft",
@@ -9,7 +9,7 @@
   "accent": "#d8c6aa",
   "textColor": "#faf9f6",
   "defaultAspect": "portrait",
-  "defaultPace": "balanced",
+  "defaultPace": "quick",
   "secondsPerPlace": {"quick": 2.6, "balanced": 3.5, "unhurried": 4.5},
   "introSeconds": 2.4,
   "descriptionMaxWords": 14,

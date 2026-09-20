@@ -28,7 +28,7 @@ const clips=await d.clips({trackScope:'main'});
 if(clips.length!==cfg.segments.length||clips.some((c,i)=>c.resourceId!==expectedAliases[i]))throw Error('Existing draft structure does not match this build.');
 const regions=[];
 for(let i=-1;i<cfg.places.length;i++){const indices=cfg.segments.map((s,j)=>s.place===i?j:-1).filter(j=>j>=0);if(indices.length)regions.push({place:i,startFrame:clips[indices[0]].startFrame,endFrame:clips[indices.at(-1)].endFrame});}
-const result=matches.length?null:await d.commitAll('Create an editable Place Stories draft');
+const result=matches.length?null:await d.commitAll('Create an editable Place Count draft');
 const sequenceId=matches[0]||result?.createdDraftId;
 if(!sequenceId)throw Error('The saved draft identifier is unavailable.');
 return {sequenceId,regions,clipCount:clips.length,frameSize:(await d.meta()).frameSize,fps:(await d.meta()).fps,endFrame:clips.at(-1).endFrame,existing:!!matches.length};
