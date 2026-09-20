@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "imessage-generator",
+  "version": "0.1.0-alpha.2",
+  "name": "iMessage Generator",
+  "summary": "Insert an iMessage-style chat conversation overlay into the current Draft, with optional synced text-to-speech narration (free local Kokoro voices or ElevenLabs cloud voices).",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS development builds"
+    ],
+    "selects": "Requires Panel SDK runScript/runShell/call, generated-media authoring, and Project file-tree adapters. Released-version and Windows/Linux compatibility are unverified."
+  }
+}

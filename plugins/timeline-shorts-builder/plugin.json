@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "timeline-shorts-builder",
+  "version": "0.2.0-alpha.1",
+  "name": "Timeline Shorts Builder",
+  "summary": "Create an editable vertical Draft with uncropped native-size media above an optimized, export-safe Selects-style timeline.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS development builds"
+    ],
+    "selects": "Requires Panel support, generated-media authoring, and the host FileSystem, SequenceRepository, and SequenceEdit adapters. Worker and OffscreenCanvas support are optional; the panel falls back to sequential UI-thread image conversion. Released-version and Windows/Linux compatibility are unverified."
+  }
+}
