@@ -1,1 +1,27 @@
-{"schemaVersion":1,"id":"ali-abdaal-style","version":"0.1.0","name":"Ali Abdaal Style","summary":"Turn an analyzed talking-head draft into a concise, editable editorial short with visual beats, captions, and camera motion.","status":"experimental","entrypoint":"SKILL.md","installation":"INSTALL.md","files":["SKILL.md","INSTALL.md","panel.tsx"],"compatibility":{"platforms":["macOS arm64"],"selects":"Development build only. Released-version compatibility is unverified."}}
+{
+  "schemaVersion": 1,
+  "id": "ali-abdaal-style",
+  "version": "0.1.0",
+  "name": "Ali Abdaal Style",
+  "summary": "Turn an analyzed talking-head draft into a concise, editable editorial short with visual beats, captions, and camera motion.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  }
+}
