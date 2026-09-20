@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "ali-abdaal-style",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": "Ali Abdaal Style",
-  "summary": "Turn an analyzed talking-head draft into a concise, editable editorial short with visual beats, captions, and camera motion.",
+  "summary": "Turn a talking-head draft into an editable 9:16 editorial short with scene-aware camera motion, captions, and graphics.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
