@@ -43,6 +43,19 @@ class PluginFilesTest(unittest.TestCase):
                          {'plugin.json', 'SKILL.md', 'INSTALL.md', 'scripts/use.py'})
         self.assertEqual((self.target / 'scripts/use.py').read_bytes(), b'portable source')
 
+    def test_preview_metadata_does_not_download_gallery_media(self):
+        self.manifest['preview'] = {'video': 'preview.mp4', 'poster': 'poster.webp', 'width': 540, 'height': 960}
+        with patch.object(plugins, 'fetch', side_effect=self.fetch):
+            plugins.download('example', self.target, COMMIT)
+        self.assertFalse(any(url.endswith(('.mp4', '.webp')) for url in self.calls))
+
+    def test_preview_paths_and_dimensions_are_validated(self):
+        for preview in ({'video': '../preview.mp4', 'poster': 'poster.webp', 'width': 540, 'height': 960},
+                        {'video': 'preview.mp4', 'poster': 'poster.webp', 'width': 0, 'height': 960}):
+            self.manifest['preview'] = preview
+            with self.assertRaises(ValueError):
+                plugins.validate_manifest(self.manifest)
+
     def test_full_commit_needs_no_branch_lookup(self):
         with patch.object(plugins, 'fetch', side_effect=self.fetch):
             plugins.download('example', self.target, COMMIT)

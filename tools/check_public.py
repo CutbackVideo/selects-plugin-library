@@ -16,6 +16,13 @@ BLOCKED = {'.local', '.env', '.venv', 'venv', 'node_modules', '__pycache__'}
 
 
 def inspect(name, data):
+    # Only canonical, bounded gallery assets are permitted as public binaries.
+    if re.fullmatch(r'plugins/[a-z0-9]+(?:-[a-z0-9]+)*/(?:preview\.mp4|poster\.webp)', name):
+        if name.endswith('.mp4'):
+            valid = 12 <= len(data) <= 8 * 1024 * 1024 and data[4:8] == b'ftyp'
+        else:
+            valid = 12 <= len(data) <= 512 * 1024 and data[:4] == b'RIFF' and data[8:12] == b'WEBP'
+        return [] if valid else ['Invalid or oversized preview asset']
     findings = []
     path = Path(name)
     if any(part in BLOCKED for part in path.parts) or path.suffix in {'.onnx', '.mp4', '.webm', '.pyc', '.pem', '.key'}:

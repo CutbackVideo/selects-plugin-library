@@ -18,5 +18,11 @@
       "macOS development builds"
     ],
     "selects": "Requires Panel SDK runScript/runShell/call, generated-media authoring, and Project file-tree adapters. Released-version and Windows/Linux compatibility are unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
   }
 }
