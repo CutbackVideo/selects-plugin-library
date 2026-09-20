@@ -24,7 +24,15 @@
     ".gitignore"
   ],
   "compatibility": {
-    "platforms": ["macOS arm64 (developed and tested)"],
+    "platforms": [
+      "macOS arm64 (developed and tested)"
+    ],
     "selects": "Requires Panel, generated-media authoring, Draft-authoring, and Export workflow support. Released-version and Windows/Linux compatibility are unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 960,
+    "height": 540
   }
 }

@@ -49,6 +49,15 @@ def validate_manifest(manifest):
         relative_file(name)
     for key in ('entrypoint', 'installation'):
         require(manifest.get(key) in files, 'Entrypoint/install guide must be included')
+    preview = manifest.get('preview')
+    if preview is not None:
+        require(isinstance(preview, dict), 'Invalid preview metadata')
+        require(preview.get('video') == 'preview.mp4' and preview.get('poster') == 'poster.webp',
+                'Preview paths must use canonical filenames')
+        require(all(type(preview.get(key)) is int and 0 < preview[key] <= 4096
+                    for key in ('width', 'height')), 'Invalid preview dimensions')
+        require(not any(name in files for name in ('preview.mp4', 'poster.webp')),
+                'Gallery previews must not be installation files')
     return files + ['plugin.json']
 
 
@@ -57,6 +66,8 @@ def check(pid, root=ROOT):
     manifest = json.loads((directory / 'plugin.json').read_text())
     require(manifest['id'] == pid, 'Folder and plugin ID differ')
     names = validate_manifest(manifest)
+    if manifest.get('preview') is not None:
+        names += ['preview.mp4', 'poster.webp']
     total = 0
     for name in names:
         path = directory / name
