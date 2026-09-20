@@ -1,0 +1,514 @@
+[
+  {
+    "id": "02",
+    "name": "Hero word with supporting text",
+    "score": 2.5,
+    "band": "medium",
+    "axes": {
+      "motion": 1,
+      "typography": 4,
+      "layout": 3,
+      "color": 2
+    },
+    "condition": "Argument or rebuttal",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "03",
+    "name": "Stable phrase block",
+    "score": 2.5,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 3,
+      "layout": 3,
+      "color": 2
+    },
+    "condition": "Short question or phrase",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "04",
+    "name": "Asymmetric staircase",
+    "score": 2.7,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 3,
+      "layout": 4,
+      "color": 2
+    },
+    "condition": "Condition or longer question",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "05",
+    "name": "Large number with supporting text",
+    "score": 4.0,
+    "band": "high",
+    "axes": {
+      "motion": 4,
+      "typography": 4,
+      "layout": 4,
+      "color": 4
+    },
+    "condition": "Spoken count or number",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "06",
+    "name": "Same-row size contrast",
+    "score": 3.0,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 4,
+      "color": 2
+    },
+    "condition": "Parallel concepts",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "07",
+    "name": "Weighted final word",
+    "score": 3.0,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 3,
+      "color": 3
+    },
+    "condition": "A sentence ending in its main point",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "08",
+    "name": "Oversized reaction",
+    "score": 3.4,
+    "band": "medium",
+    "axes": {
+      "motion": 3,
+      "typography": 5,
+      "layout": 2,
+      "color": 3
+    },
+    "condition": "Actual surprise or reaction",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "09",
+    "name": "Serif keyword with sans connectors",
+    "score": 3.2,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 4,
+      "color": 3
+    },
+    "condition": "Concept or key noun",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "11",
+    "name": "Brush keyword",
+    "score": 4.0,
+    "band": "high",
+    "axes": {
+      "motion": 3,
+      "typography": 5,
+      "layout": 4,
+      "color": 4
+    },
+    "condition": "A thought, attitude or action suited to brush lettering",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "12",
+    "name": "Mixed-type sentence",
+    "score": 4.2,
+    "band": "high",
+    "axes": {
+      "motion": 3,
+      "typography": 5,
+      "layout": 5,
+      "color": 4
+    },
+    "condition": "A changing situation with distinct typographic roles",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "13",
+    "name": "Condensed keyword",
+    "score": 3.1,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 3,
+      "color": 4
+    },
+    "condition": "Strong claim or long keyword",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "14",
+    "name": "Fixed phrase with replacing ending",
+    "score": 4,
+    "band": "high",
+    "axes": {
+      "motion": 5,
+      "typography": 3,
+      "layout": 3,
+      "color": 3
+    },
+    "condition": "An actual list with changing endings",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "15",
+    "name": "Word correction",
+    "score": 3.4,
+    "band": "medium",
+    "axes": {
+      "motion": 4,
+      "typography": 3,
+      "layout": 3,
+      "color": 3
+    },
+    "condition": "An actual spoken correction",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "16",
+    "name": "Digit-by-digit number change",
+    "score": 4.3,
+    "band": "high",
+    "axes": {
+      "motion": 5,
+      "typography": 5,
+      "layout": 3,
+      "color": 3
+    },
+    "condition": "An actual changing three-digit number",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "17",
+    "name": "Number in a question",
+    "score": 2.8,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 3,
+      "color": 2
+    },
+    "condition": "A number within a question",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "18",
+    "name": "Four-line negative statement",
+    "score": 3.2,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 4,
+      "color": 3
+    },
+    "condition": "A longer negative statement or rebuttal",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "19",
+    "name": "Stacked question",
+    "score": 3.2,
+    "band": "medium",
+    "axes": {
+      "motion": 3,
+      "typography": 4,
+      "layout": 3,
+      "color": 2
+    },
+    "condition": "An actual short question",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "20",
+    "name": "Tall question block",
+    "score": 3.4,
+    "band": "medium",
+    "axes": {
+      "motion": 4,
+      "typography": 3,
+      "layout": 4,
+      "color": 2
+    },
+    "condition": "A short question or quick transition",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "21",
+    "name": "Color conclusion block",
+    "score": 3.3,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 4,
+      "color": 4
+    },
+    "condition": "Conclusion, risk or contrast",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "22",
+    "name": "Oversized central word",
+    "score": 4.0,
+    "band": "high",
+    "axes": {
+      "motion": 3,
+      "typography": 5,
+      "layout": 5,
+      "color": 3
+    },
+    "condition": "Scale or a forceful central keyword",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "23",
+    "name": "Small connectors around a keyword",
+    "score": 3.0,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 4,
+      "color": 2
+    },
+    "condition": "A key concept surrounded by connectors",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "24",
+    "name": "Mixed-case hierarchy",
+    "score": 3.2,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 4,
+      "color": 3
+    },
+    "condition": "A change of tone or alternating emphasis",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "25",
+    "name": "Single-word color accent",
+    "score": 1.8,
+    "band": "low",
+    "axes": {
+      "motion": 1,
+      "typography": 2,
+      "layout": 2,
+      "color": 3
+    },
+    "condition": "Light emphasis within an explanation",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "32",
+    "name": "Horizontal blur reaction",
+    "score": 4,
+    "band": "high",
+    "axes": {
+      "motion": 5,
+      "typography": 4,
+      "layout": 2,
+      "color": 2
+    },
+    "condition": "An actual reaction only",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "33",
+    "name": "Long keyword below an introduction",
+    "score": 2.5,
+    "band": "medium",
+    "axes": {
+      "motion": 1,
+      "typography": 4,
+      "layout": 3,
+      "color": 2
+    },
+    "condition": "Short introduction followed by a long keyword",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "34",
+    "name": "Playful two-word stack",
+    "score": 2.8,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 3,
+      "color": 2
+    },
+    "condition": "A playful or casual tone only",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "35",
+    "name": "Three-row width contrast",
+    "score": 3.0,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 4,
+      "color": 2
+    },
+    "condition": "Three short semantic units",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "36",
+    "name": "Connectors and nouns",
+    "score": 3.0,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 4,
+      "color": 2
+    },
+    "condition": "Alternating concepts and connectors",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "37",
+    "name": "Progressive sentence build",
+    "score": 4.1,
+    "band": "high",
+    "axes": {
+      "motion": 4,
+      "typography": 4,
+      "layout": 5,
+      "color": 3
+    },
+    "condition": "A progressively developed argument",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "38",
+    "name": "Color lead with large conclusion",
+    "score": 3.1,
+    "band": "medium",
+    "axes": {
+      "motion": 2,
+      "typography": 4,
+      "layout": 3,
+      "color": 4
+    },
+    "condition": "Lead-in and strong conclusion",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "39",
+    "name": "Accumulating warning",
+    "score": 3.0,
+    "band": "medium",
+    "axes": {
+      "motion": 3,
+      "typography": 3,
+      "layout": 3,
+      "color": 3
+    },
+    "condition": "An actual warning or prohibition",
+    "filmReady": false,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  },
+  {
+    "id": "40",
+    "name": "Glitch and hold",
+    "score": 4,
+    "band": "high",
+    "axes": {
+      "motion": 5,
+      "typography": 4,
+      "layout": 3,
+      "color": 3
+    },
+    "condition": "A brief AI, digital or technology keyword",
+    "filmReady": true,
+    "qualityNote": "Reference candidate; film adapter required unless filmReady is true",
+    "assessment": "Subjective visual-energy score, not reproduction accuracy"
+  }
+]

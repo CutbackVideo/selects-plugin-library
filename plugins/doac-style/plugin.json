@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "doac-style",
+  "version": "0.1.0",
+  "name": "DOAC Style",
+  "summary": "Create expressive, speech-timed captions on a separate editable vertical Draft.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "INSTALL.md",
+    "SKILL.md",
+    "approved/PLANNING.md",
+    "approved/README.md",
+    "approved/caption-scene.tsx.txt",
+    "approved/compile-captions.py",
+    "approved/engine.py",
+    "approved/font-requirements.json",
+    "approved/geometry.py",
+    "approved/native/0YVdjmU13E4/legacy-three-scenes.json",
+    "approved/native/0YVdjmU13E4/plan.json",
+    "approved/native/0YVdjmU13E4/renderer.py",
+    "approved/native/8_dh-IB9jZ8/plan.json",
+    "approved/native/NhbCBo1KuU8/plan.json",
+    "approved/native/fonts/permanentmarker/LICENSE.txt",
+    "approved/native/fonts/permanentmarker/PermanentMarker-Regular.ttf.b64",
+    "approved/native/renderer.py",
+    "approved/native/shortlist.json",
+    "approved/native/template-layout.py",
+    "approved/native/template-service.py",
+    "approved/panel-mode.source.txt",
+    "approved/requirements.txt",
+    "approved/rhythm.py",
+    "approved/style.json",
+    "approved/template-energy.json",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified."
+  }
+}

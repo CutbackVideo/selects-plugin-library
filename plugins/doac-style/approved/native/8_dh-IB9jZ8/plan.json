@@ -1,0 +1,6189 @@
+{
+  "id": "8_dh-IB9jZ8",
+  "source": "reference-assets/editorial-v2/8_dh-IB9jZ8/reference.mp4",
+  "fps": 30,
+  "count": 2006,
+  "events": [
+    {
+      "id": 1,
+      "start": 0,
+      "end": 93,
+      "text": "Reference visual annotation",
+      "kind": "N",
+      "samples": [
+        19,
+        59,
+        90
+      ],
+      "observed": {
+        "start_frame": "0",
+        "end_frame": "93",
+        "start_seconds": "0.000",
+        "end_seconds_exclusive": "3.133",
+        "kind": "N"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0001.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0002.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0003.png"
+      ],
+      "runs": []
+    },
+    {
+      "id": 2,
+      "start": 94,
+      "end": 140,
+      "text": "Trump would start a / war with Iran",
+      "kind": "G",
+      "samples": [
+        96,
+        110,
+        124
+      ],
+      "observed": {
+        "start_frame": "94",
+        "end_frame": "140",
+        "start_seconds": "3.133",
+        "end_seconds_exclusive": "4.700",
+        "phrase": "Trump would start a / war with Iran",
+        "kind": "G"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0004.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0005.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0006.png"
+      ],
+      "runs": [
+        {
+          "text": "Trump",
+          "x": 300,
+          "y": 886,
+          "w": 169,
+          "h": 52,
+          "rgb": [
+            235,
+            246,
+            236
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.05263157894736842,
+          "sample": 110,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0005.png",
+          "at": 94,
+          "until": 140
+        },
+        {
+          "text": "would",
+          "x": 498,
+          "y": 886,
+          "w": 158,
+          "h": 42,
+          "rgb": [
+            239,
+            253,
+            239
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.0559748427672956,
+          "sample": 110,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0005.png",
+          "at": 94,
+          "until": 140
+        },
+        {
+          "text": "start",
+          "x": 686,
+          "y": 900,
+          "w": 110,
+          "h": 28,
+          "rgb": [
+            225,
+            242,
+            234
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.06200177147918512,
+          "sample": 110,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0005.png",
+          "at": 94,
+          "until": 140
+        },
+        {
+          "text": "war",
+          "x": 236,
+          "y": 961,
+          "w": 105,
+          "h": 47,
+          "rgb": [
+            153,
+            44,
+            40
+          ],
+          "mode": "red",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.09458948164964057,
+          "sample": 110,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0005.png",
+          "at": 94,
+          "until": 140
+        },
+        {
+          "text": "with",
+          "x": 370,
+          "y": 968,
+          "w": 113,
+          "h": 42,
+          "rgb": [
+            230,
+            248,
+            231
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.06337687469762941,
+          "sample": 110,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0005.png",
+          "at": 94,
+          "until": 140
+        },
+        {
+          "text": "Iran",
+          "x": 521,
+          "y": 970,
+          "w": 107,
+          "h": 42,
+          "rgb": [
+            221,
+            254,
+            234
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.14558629776021081,
+          "sample": 124,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0006.png",
+          "at": 94,
+          "until": 140
+        },
+        {
+          "text": "a",
+          "x": 820,
+          "y": 894,
+          "w": 30,
+          "h": 44,
+          "at": 94,
+          "until": 140,
+          "font": "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "rgb": [
+            250,
+            250,
+            250
+          ],
+          "mode": "white",
+          "iou": 0,
+          "manual": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "start": 141,
+      "end": 231,
+      "text": "Prof. JIANG XUEQIN / VIRAL / GEOPOLITICAL / COMMENTATOR",
+      "kind": "G",
+      "samples": [
+        159,
+        198,
+        228
+      ],
+      "observed": {
+        "start_frame": "141",
+        "end_frame": "231",
+        "start_seconds": "4.700",
+        "end_seconds_exclusive": "7.733",
+        "phrase": "Prof. JIANG XUEQIN / VIRAL / GEOPOLITICAL / COMMENTATOR",
+        "kind": "G"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0007.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0008.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0009.png"
+      ],
+      "runs": [
+        {
+          "text": "JIANG",
+          "x": 308,
+          "y": 498,
+          "w": 430,
+          "h": 87,
+          "rgb": [
+            4,
+            158,
+            166
+          ],
+          "mode": "cyan",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.8000718648939993,
+          "sample": 159,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0007.png",
+          "at": 141,
+          "until": 231
+        },
+        {
+          "text": "XUEQIN",
+          "x": 387,
+          "y": 611,
+          "w": 541,
+          "h": 99,
+          "rgb": [
+            4,
+            183,
+            191
+          ],
+          "mode": "cyan",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.6135363471630622,
+          "sample": 198,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0008.png",
+          "at": 141,
+          "until": 231
+        },
+        {
+          "text": "VIRAL",
+          "x": 336,
+          "y": 1248,
+          "w": 318,
+          "h": 73,
+          "rgb": [
+            195,
+            0,
+            4
+          ],
+          "mode": "red",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.7132855567805954,
+          "sample": 159,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0007.png",
+          "at": 146,
+          "until": 231
+        },
+        {
+          "text": "GEOPOLITICAL",
+          "x": 192,
+          "y": 1353,
+          "w": 717,
+          "h": 69,
+          "rgb": [
+            61,
+            174,
+            6
+          ],
+          "mode": "green",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.7304664022118043,
+          "sample": 198,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0008.png",
+          "at": 150,
+          "until": 231
+        },
+        {
+          "text": "Prof.",
+          "x": 256,
+          "y": 388,
+          "w": 208,
+          "h": 77,
+          "at": 141,
+          "until": 231,
+          "font": "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "rgb": [
+            250,
+            250,
+            250
+          ],
+          "mode": "white",
+          "iou": 0,
+          "manual": true
+        },
+        {
+          "text": "COMMENTATOR",
+          "x": 184,
+          "y": 1455,
+          "w": 720,
+          "h": 62,
+          "at": 160,
+          "until": 231,
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "rgb": [
+            204,
+            214,
+            222
+          ],
+          "mode": "white",
+          "iou": 0,
+          "manual": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "start": 232,
+      "end": 278,
+      "text": "And you've made a series / of new predictions.",
+      "kind": "Y",
+      "samples": [
+        241,
+        261,
+        275
+      ],
+      "observed": {
+        "start_frame": "232",
+        "end_frame": "278",
+        "start_seconds": "7.733",
+        "end_seconds_exclusive": "9.300",
+        "phrase": "And you've made a series / of new predictions.",
+        "kind": "Y"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0010.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0011.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0012.png"
+      ],
+      "runs": [
+        {
+          "text": "And",
+          "x": 246,
+          "y": 1393,
+          "w": 90,
+          "h": 36,
+          "rgb": [
+            246,
+            206,
+            13
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8179611650485437,
+          "sample": 241,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0010.png",
+          "at": 232,
+          "until": 278
+        },
+        {
+          "text": "you've",
+          "x": 352,
+          "y": 1393,
+          "w": 148,
+          "h": 46,
+          "rgb": [
+            245,
+            207,
+            16
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8147694818441452,
+          "sample": 241,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0010.png",
+          "at": 232,
+          "until": 278
+        },
+        {
+          "text": "made",
+          "x": 516,
+          "y": 1393,
+          "w": 125,
+          "h": 36,
+          "rgb": [
+            245,
+            207,
+            16
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8566964285714286,
+          "sample": 241,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0010.png",
+          "at": 232,
+          "until": 278
+        },
+        {
+          "text": "a",
+          "x": 656,
+          "y": 1402,
+          "w": 24,
+          "h": 27,
+          "rgb": [
+            244,
+            207,
+            15
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8411016949152542,
+          "sample": 275,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0012.png",
+          "at": 232,
+          "until": 278
+        },
+        {
+          "text": "series",
+          "x": 696,
+          "y": 1392,
+          "w": 138,
+          "h": 37,
+          "rgb": [
+            244,
+            207,
+            17
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8349397590361446,
+          "sample": 241,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0010.png",
+          "at": 232,
+          "until": 278
+        },
+        {
+          "text": "of",
+          "x": 320,
+          "y": 1449,
+          "w": 45,
+          "h": 38,
+          "rgb": [
+            245,
+            206,
+            16
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8906633906633906,
+          "sample": 241,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0010.png",
+          "at": 232,
+          "until": 278
+        },
+        {
+          "text": "predictions.",
+          "x": 489,
+          "y": 1449,
+          "w": 271,
+          "h": 47,
+          "rgb": [
+            245,
+            207,
+            17
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.7774173930670991,
+          "sample": 241,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0010.png",
+          "at": 232,
+          "until": 278
+        },
+        {
+          "text": "new",
+          "x": 380,
+          "y": 1459,
+          "w": 94,
+          "h": 28,
+          "rgb": [
+            244,
+            207,
+            16
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8918380889183809,
+          "sample": 241,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0010.png",
+          "at": 232,
+          "until": 278
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "start": 279,
+      "end": 308,
+      "text": "Yes, and I'll explain",
+      "kind": "S",
+      "samples": [
+        285,
+        297,
+        305
+      ],
+      "observed": {
+        "start_frame": "279",
+        "end_frame": "308",
+        "start_seconds": "9.300",
+        "end_seconds_exclusive": "10.300",
+        "phrase": "Yes, and I'll explain",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0013.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0014.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0015.png"
+      ],
+      "runs": [
+        {
+          "text": "Yes,",
+          "x": 324,
+          "y": 1426,
+          "w": 93,
+          "h": 44,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7311355311355311,
+          "sample": 285,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0013.png",
+          "at": 279,
+          "until": 308
+        },
+        {
+          "text": "and",
+          "x": 433,
+          "y": 1426,
+          "w": 82,
+          "h": 36,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8959276018099548,
+          "sample": 305,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0015.png",
+          "at": 279,
+          "until": 308
+        },
+        {
+          "text": "i'll",
+          "x": 533,
+          "y": 1424,
+          "w": 42,
+          "h": 37,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7801578354002254,
+          "sample": 285,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0013.png",
+          "at": 279,
+          "until": 308
+        },
+        {
+          "text": "explain",
+          "x": 593,
+          "y": 1424,
+          "w": 161,
+          "h": 47,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.4260195483653522,
+          "sample": 285,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0013.png",
+          "at": 279,
+          "until": 308
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "start": 309,
+      "end": 343,
+      "text": "each / prediction / one by / one",
+      "kind": "H",
+      "samples": [
+        316,
+        330,
+        340
+      ],
+      "observed": {
+        "start_frame": "309",
+        "end_frame": "343",
+        "start_seconds": "10.300",
+        "end_seconds_exclusive": "11.467",
+        "phrase": "each / prediction / one by / one",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0016.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0017.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0018.png"
+      ],
+      "runs": [
+        {
+          "text": "each",
+          "x": 229,
+          "y": 1059,
+          "w": 321,
+          "h": 106,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.5993294662338353,
+          "sample": 316,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0016.png",
+          "at": 309,
+          "until": 343
+        },
+        {
+          "text": "prediction",
+          "x": 237,
+          "y": 1175,
+          "w": 539,
+          "h": 96,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.8120549632423695,
+          "sample": 316,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0016.png",
+          "at": 314,
+          "until": 343
+        },
+        {
+          "text": "by",
+          "x": 611,
+          "y": 1280,
+          "w": 166,
+          "h": 103,
+          "rgb": [
+            255,
+            253,
+            254
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.45787362086258776,
+          "sample": 340,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0018.png",
+          "at": 331,
+          "until": 343
+        },
+        {
+          "text": "one",
+          "x": 297,
+          "y": 1276,
+          "w": 284,
+          "h": 86,
+          "rgb": [
+            252,
+            250,
+            252
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8435417327832434,
+          "sample": 330,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0017.png",
+          "at": 326,
+          "until": 343
+        },
+        {
+          "text": "one",
+          "x": 423,
+          "y": 1395,
+          "w": 399,
+          "h": 109,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7441609058063782,
+          "sample": 340,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0018.png",
+          "at": 336,
+          "until": 343
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "start": 344,
+      "end": 379,
+      "text": "Okay, so first",
+      "kind": "S",
+      "samples": [
+        351,
+        366,
+        376
+      ],
+      "observed": {
+        "start_frame": "344",
+        "end_frame": "379",
+        "start_seconds": "11.467",
+        "end_seconds_exclusive": "12.667",
+        "phrase": "Okay, so first",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0019.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0020.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0021.png"
+      ],
+      "runs": [
+        {
+          "text": "Okay,",
+          "x": 391,
+          "y": 1426,
+          "w": 125,
+          "h": 45,
+          "rgb": [
+            253,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7957677165354331,
+          "sample": 351,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0019.png",
+          "at": 344,
+          "until": 379
+        },
+        {
+          "text": "first",
+          "x": 598,
+          "y": 1424,
+          "w": 92,
+          "h": 37,
+          "rgb": [
+            255,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8627062706270627,
+          "sample": 351,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0019.png",
+          "at": 344,
+          "until": 379
+        },
+        {
+          "text": "so",
+          "x": 532,
+          "y": 1434,
+          "w": 52,
+          "h": 28,
+          "rgb": [
+            255,
+            250,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.9052496798975672,
+          "sample": 376,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0021.png",
+          "at": 344,
+          "until": 379
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "start": 380,
+      "end": 395,
+      "text": "I predict that",
+      "kind": "S",
+      "samples": [
+        383,
+        389,
+        392
+      ],
+      "observed": {
+        "start_frame": "380",
+        "end_frame": "395",
+        "start_seconds": "12.667",
+        "end_seconds_exclusive": "13.200",
+        "phrase": "I predict that",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0022.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0023.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0024.png"
+      ],
+      "runs": [
+        {
+          "text": "I",
+          "x": 395,
+          "y": 1426,
+          "w": 7,
+          "h": 35,
+          "rgb": [
+            255,
+            250,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.9918367346938776,
+          "sample": 383,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0022.png",
+          "at": 380,
+          "until": 395
+        },
+        {
+          "text": "predict",
+          "x": 420,
+          "y": 1424,
+          "w": 160,
+          "h": 47,
+          "rgb": [
+            255,
+            250,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8545454545454545,
+          "sample": 383,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0022.png",
+          "at": 380,
+          "until": 395
+        },
+        {
+          "text": "that",
+          "x": 595,
+          "y": 1426,
+          "w": 91,
+          "h": 36,
+          "rgb": [
+            255,
+            250,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8355263157894737,
+          "sample": 383,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0022.png",
+          "at": 380,
+          "until": 395
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "start": 396,
+      "end": 430,
+      "text": "Trump will get a third term.",
+      "kind": "S",
+      "samples": [
+        403,
+        417,
+        427
+      ],
+      "observed": {
+        "start_frame": "396",
+        "end_frame": "430",
+        "start_seconds": "13.200",
+        "end_seconds_exclusive": "14.367",
+        "phrase": "Trump will get a third term.",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0025.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0026.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0027.png"
+      ],
+      "runs": [
+        {
+          "text": "Trump",
+          "x": 231,
+          "y": 1426,
+          "w": 146,
+          "h": 45,
+          "rgb": [
+            255,
+            253,
+            253
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8381529850746269,
+          "sample": 403,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0025.png",
+          "at": 396,
+          "until": 430
+        },
+        {
+          "text": "will",
+          "x": 392,
+          "y": 1424,
+          "w": 74,
+          "h": 37,
+          "rgb": [
+            255,
+            252,
+            250
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7798098024871982,
+          "sample": 403,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0025.png",
+          "at": 396,
+          "until": 430
+        },
+        {
+          "text": "get",
+          "x": 483,
+          "y": 1429,
+          "w": 73,
+          "h": 43,
+          "rgb": [
+            255,
+            253,
+            253
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.696078431372549,
+          "sample": 403,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0025.png",
+          "at": 396,
+          "until": 430
+        },
+        {
+          "text": "third",
+          "x": 610,
+          "y": 1424,
+          "w": 105,
+          "h": 38,
+          "rgb": [
+            255,
+            250,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7888067581837381,
+          "sample": 403,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0025.png",
+          "at": 396,
+          "until": 430
+        },
+        {
+          "text": "term.",
+          "x": 731,
+          "y": 1429,
+          "w": 118,
+          "h": 33,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7037463976945245,
+          "sample": 403,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0025.png",
+          "at": 396,
+          "until": 430
+        },
+        {
+          "text": "a",
+          "x": 571,
+          "y": 1435,
+          "w": 23,
+          "h": 27,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7929411764705883,
+          "sample": 403,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0025.png",
+          "at": 396,
+          "until": 430
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "start": 431,
+      "end": 443,
+      "text": "But,",
+      "kind": "Y",
+      "samples": [
+        433,
+        439,
+        440
+      ],
+      "observed": {
+        "start_frame": "431",
+        "end_frame": "443",
+        "start_seconds": "14.367",
+        "end_seconds_exclusive": "14.800",
+        "phrase": "But,",
+        "kind": "Y"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0028.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0029.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0030.png"
+      ],
+      "runs": [
+        {
+          "text": "But,",
+          "x": 497,
+          "y": 1426,
+          "w": 87,
+          "h": 44,
+          "rgb": [
+            244,
+            208,
+            20
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7487548422800221,
+          "sample": 433,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0028.png",
+          "at": 431,
+          "until": 443
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "start": 444,
+      "end": 481,
+      "text": "ISN'T THIS / CONSTITUTIONALLY / ILLEGAL?",
+      "kind": "H",
+      "samples": [
+        451,
+        467,
+        478
+      ],
+      "observed": {
+        "start_frame": "444",
+        "end_frame": "481",
+        "start_seconds": "14.800",
+        "end_seconds_exclusive": "16.067",
+        "phrase": "ISN'T THIS / CONSTITUTIONALLY / ILLEGAL?",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0031.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0032.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0033.png"
+      ],
+      "runs": [
+        {
+          "text": "ISN'T",
+          "x": 226,
+          "y": 1275,
+          "w": 239,
+          "h": 73,
+          "rgb": [
+            249,
+            207,
+            4
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8913178487144454,
+          "sample": 451,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0031.png",
+          "at": 444,
+          "until": 481
+        },
+        {
+          "text": "THIS",
+          "x": 498,
+          "y": 1275,
+          "w": 220,
+          "h": 73,
+          "rgb": [
+            249,
+            207,
+            5
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7858967807869187,
+          "sample": 451,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0031.png",
+          "at": 444,
+          "until": 481
+        },
+        {
+          "text": "CONSTITUTIONALLY",
+          "x": 156,
+          "y": 1356,
+          "w": 696,
+          "h": 47,
+          "rgb": [
+            246,
+            207,
+            10
+          ],
+          "mode": "yellow",
+          "font": "reference-assets/reference-replicas-four-v1/font-study/instances/playfairdisplay-900.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.31950881839523265,
+          "sample": 467,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0032.png",
+          "at": 453,
+          "until": 481,
+          "shadowOpacity": 0.5
+        },
+        {
+          "text": "ILLEGAL?",
+          "x": 283,
+          "y": 1413,
+          "w": 554,
+          "h": 88,
+          "rgb": [
+            252,
+            207,
+            3
+          ],
+          "mode": "yellow",
+          "font": "reference-assets/reference-replicas-four-v1/font-study/instances/inter-900.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 2,
+          "iou": 0.7572443757133915,
+          "sample": 478,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0033.png",
+          "at": 475,
+          "until": 481
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "start": 482,
+      "end": 507,
+      "text": "IT'S NOT",
+      "kind": "H",
+      "samples": [
+        487,
+        498,
+        504
+      ],
+      "observed": {
+        "start_frame": "482",
+        "end_frame": "507",
+        "start_seconds": "16.067",
+        "end_seconds_exclusive": "16.933",
+        "phrase": "IT'S NOT",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0034.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0035.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0036.png"
+      ],
+      "runs": [
+        {
+          "text": "IT'S",
+          "x": 238,
+          "y": 1391,
+          "w": 244,
+          "h": 107,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8046571798188874,
+          "sample": 498,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0035.png",
+          "at": 482,
+          "until": 507
+        },
+        {
+          "text": "NOT",
+          "x": 533,
+          "y": 1391,
+          "w": 304,
+          "h": 107,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.92266318537859,
+          "sample": 498,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0035.png",
+          "at": 482,
+          "until": 507
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "start": 508,
+      "end": 584,
+      "text": "THE / PRESIDENT / NOW HAS / EMERGENCY / WAR POWERS",
+      "kind": "H",
+      "samples": [
+        523,
+        556,
+        581
+      ],
+      "observed": {
+        "start_frame": "508",
+        "end_frame": "584",
+        "start_seconds": "16.933",
+        "end_seconds_exclusive": "19.500",
+        "phrase": "THE / PRESIDENT / NOW HAS / EMERGENCY / WAR POWERS",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0037.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0038.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0039.png"
+      ],
+      "runs": [
+        {
+          "text": "THE",
+          "x": 332,
+          "y": 1125,
+          "w": 129,
+          "h": 57,
+          "rgb": [
+            215,
+            213,
+            213
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.23132639203259395,
+          "sample": 523,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0037.png",
+          "at": 508,
+          "until": 584
+        },
+        {
+          "text": "PRESIDENT",
+          "x": 236,
+          "y": 1204,
+          "w": 560,
+          "h": 71,
+          "rgb": [
+            231,
+            230,
+            231
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7971073044602457,
+          "sample": 523,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0037.png",
+          "at": 513,
+          "until": 584
+        },
+        {
+          "text": "NOW",
+          "x": 334,
+          "y": 1295,
+          "w": 151,
+          "h": 46,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8553000560852496,
+          "sample": 523,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0037.png",
+          "at": 522,
+          "until": 584
+        },
+        {
+          "text": "HAS",
+          "x": 507,
+          "y": 1295,
+          "w": 126,
+          "h": 46,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.5198838248436104,
+          "sample": 556,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0038.png",
+          "at": 527,
+          "until": 584
+        },
+        {
+          "text": "EMERGENCY",
+          "x": 238,
+          "y": 1350,
+          "w": 609,
+          "h": 70,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7787958115183246,
+          "sample": 556,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0038.png",
+          "at": 542,
+          "until": 584
+        },
+        {
+          "text": "WAR",
+          "x": 240,
+          "y": 1432,
+          "w": 170,
+          "h": 69,
+          "rgb": [
+            179,
+            36,
+            41
+          ],
+          "mode": "red",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7540306462358428,
+          "sample": 556,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0038.png",
+          "at": 555,
+          "until": 584
+        },
+        {
+          "text": "POWERS",
+          "x": 439,
+          "y": 1432,
+          "w": 403,
+          "h": 68,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7978846558619238,
+          "sample": 581,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0039.png",
+          "at": 567,
+          "until": 584
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "start": 585,
+      "end": 607,
+      "text": "AND SO HE CAN / ACTUALLY",
+      "kind": "H",
+      "samples": [
+        589,
+        599,
+        604
+      ],
+      "observed": {
+        "start_frame": "585",
+        "end_frame": "607",
+        "start_seconds": "19.500",
+        "end_seconds_exclusive": "20.267",
+        "phrase": "AND SO HE CAN / ACTUALLY",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0040.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0041.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0042.png"
+      ],
+      "runs": [
+        {
+          "text": "AND",
+          "x": 230,
+          "y": 1341,
+          "w": 164,
+          "h": 56,
+          "rgb": [
+            254,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7011809363137916,
+          "sample": 599,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0041.png",
+          "at": 585,
+          "until": 607
+        },
+        {
+          "text": "SO",
+          "x": 423,
+          "y": 1341,
+          "w": 105,
+          "h": 57,
+          "rgb": [
+            255,
+            250,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.827373211963589,
+          "sample": 599,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0041.png",
+          "at": 585,
+          "until": 607
+        },
+        {
+          "text": "HE",
+          "x": 554,
+          "y": 1341,
+          "w": 93,
+          "h": 54,
+          "rgb": [
+            255,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7283531409168081,
+          "sample": 599,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0041.png",
+          "at": 585,
+          "until": 607
+        },
+        {
+          "text": "CAN",
+          "x": 675,
+          "y": 1341,
+          "w": 164,
+          "h": 55,
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.7872340425531915,
+          "sample": 599,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0041.png",
+          "at": 585,
+          "until": 607
+        },
+        {
+          "text": "ACTUALLY",
+          "x": 227,
+          "y": 1408,
+          "w": 617,
+          "h": 86,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.5725187413026889,
+          "sample": 604,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0042.png",
+          "at": 585,
+          "until": 607
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "start": 608,
+      "end": 634,
+      "text": "DELAY THE / ELECTION",
+      "kind": "H",
+      "samples": [
+        613,
+        624,
+        631
+      ],
+      "observed": {
+        "start_frame": "608",
+        "end_frame": "634",
+        "start_seconds": "20.267",
+        "end_seconds_exclusive": "21.167",
+        "phrase": "DELAY THE / ELECTION",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0043.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0044.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0045.png"
+      ],
+      "runs": [
+        {
+          "text": "DELAY",
+          "x": 230,
+          "y": 1322,
+          "w": 366,
+          "h": 80,
+          "rgb": [
+            159,
+            58,
+            64
+          ],
+          "mode": "red",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8673945183668827,
+          "sample": 631,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0045.png",
+          "at": 608,
+          "until": 634,
+          "timingSource": "source-frame-review"
+        },
+        {
+          "text": "THE",
+          "x": 625,
+          "y": 1323,
+          "w": 217,
+          "h": 79,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.848831840428479,
+          "sample": 624,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0044.png",
+          "at": 608,
+          "until": 634,
+          "timingSource": "source-frame-review"
+        },
+        {
+          "text": "ELECTION",
+          "x": 231,
+          "y": 1416,
+          "w": 604,
+          "h": 89,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8215157432267512,
+          "sample": 624,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0044.png",
+          "at": 618,
+          "until": 634
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "start": 635,
+      "end": 670,
+      "text": "My second prediction is",
+      "kind": "S",
+      "samples": [
+        642,
+        657,
+        667
+      ],
+      "observed": {
+        "start_frame": "635",
+        "end_frame": "670",
+        "start_seconds": "21.167",
+        "end_seconds_exclusive": "22.367",
+        "phrase": "My second prediction is",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0046.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0047.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0048.png"
+      ],
+      "runs": [
+        {
+          "text": "My",
+          "x": 267,
+          "y": 1426,
+          "w": 66,
+          "h": 45,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8317836010143702,
+          "sample": 642,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0046.png",
+          "at": 635,
+          "until": 670
+        },
+        {
+          "text": "second",
+          "x": 349,
+          "y": 1426,
+          "w": 165,
+          "h": 35,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8577813896789923,
+          "sample": 642,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0046.png",
+          "at": 635,
+          "until": 670
+        },
+        {
+          "text": "prediction",
+          "x": 533,
+          "y": 1424,
+          "w": 230,
+          "h": 47,
+          "rgb": [
+            253,
+            252,
+            254
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8436830835117773,
+          "sample": 642,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0046.png",
+          "at": 635,
+          "until": 670
+        },
+        {
+          "text": "is",
+          "x": 780,
+          "y": 1424,
+          "w": 35,
+          "h": 37,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8105590062111802,
+          "sample": 642,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0046.png",
+          "at": 635,
+          "until": 670
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "start": 671,
+      "end": 722,
+      "text": "Iran is now a / forever war",
+      "kind": "S",
+      "samples": [
+        681,
+        703,
+        719
+      ],
+      "observed": {
+        "start_frame": "671",
+        "end_frame": "722",
+        "start_seconds": "22.367",
+        "end_seconds_exclusive": "24.100",
+        "phrase": "Iran is now a / forever war",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0049.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0050.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0051.png"
+      ],
+      "runs": [
+        {
+          "text": "Iran",
+          "x": 399,
+          "y": 1394,
+          "w": 82,
+          "h": 35,
+          "rgb": [
+            255,
+            253,
+            250
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8582317073170732,
+          "sample": 681,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0049.png",
+          "at": 671,
+          "until": 722
+        },
+        {
+          "text": "is",
+          "x": 499,
+          "y": 1392,
+          "w": 34,
+          "h": 37,
+          "rgb": [
+            255,
+            252,
+            252
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8915470494417863,
+          "sample": 681,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0049.png",
+          "at": 671,
+          "until": 722
+        },
+        {
+          "text": "now",
+          "x": 550,
+          "y": 1402,
+          "w": 94,
+          "h": 27,
+          "rgb": [
+            255,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.900939985538684,
+          "sample": 681,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0049.png",
+          "at": 671,
+          "until": 722
+        },
+        {
+          "text": "a",
+          "x": 659,
+          "y": 1402,
+          "w": 23,
+          "h": 27,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8883374689826302,
+          "sample": 681,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0049.png",
+          "at": 671,
+          "until": 722
+        },
+        {
+          "text": "forever",
+          "x": 408,
+          "y": 1450,
+          "w": 165,
+          "h": 37,
+          "rgb": [
+            199,
+            64,
+            71
+          ],
+          "mode": "red",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.8232248520710059,
+          "sample": 681,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0049.png",
+          "at": 671,
+          "until": 722
+        },
+        {
+          "text": "war",
+          "x": 583,
+          "y": 1451,
+          "w": 91,
+          "h": 36,
+          "rgb": [
+            252,
+            252,
+            252
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.6666666666666666,
+          "sample": 703,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0050.png",
+          "at": 671,
+          "until": 722,
+          "manual": true
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "start": 723,
+      "end": 724,
+      "text": "Reference visual annotation",
+      "kind": "N",
+      "samples": [
+        723,
+        724
+      ],
+      "observed": {
+        "start_frame": "723",
+        "end_frame": "724",
+        "start_seconds": "24.100",
+        "end_seconds_exclusive": "24.167",
+        "kind": "N"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0052.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0053.png"
+      ],
+      "runs": []
+    },
+    {
+      "id": 19,
+      "start": 725,
+      "end": 782,
+      "text": "AND THE US WILL / INSTITUTE / A NATIONAL / DRAFT",
+      "kind": "H",
+      "samples": [
+        736,
+        761,
+        779
+      ],
+      "observed": {
+        "start_frame": "725",
+        "end_frame": "782",
+        "start_seconds": "24.167",
+        "end_seconds_exclusive": "26.100",
+        "phrase": "AND THE US WILL / INSTITUTE / A NATIONAL / DRAFT",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0054.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0055.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0056.png"
+      ],
+      "runs": [
+        {
+          "text": "US",
+          "x": 485,
+          "y": 1090,
+          "w": 147,
+          "h": 83,
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.9128457749147404,
+          "sample": 736,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0054.png",
+          "at": 734,
+          "until": 782
+        },
+        {
+          "text": "WILL",
+          "x": 653,
+          "y": 1114,
+          "w": 186,
+          "h": 55,
+          "rgb": [
+            225,
+            225,
+            225
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.41501715492214303,
+          "sample": 779,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0056.png",
+          "at": 742,
+          "until": 782
+        },
+        {
+          "text": "AND",
+          "x": 240,
+          "y": 1135,
+          "w": 103,
+          "h": 36,
+          "rgb": [
+            255,
+            250,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7268244575936884,
+          "sample": 736,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0054.png",
+          "at": 725,
+          "until": 782
+        },
+        {
+          "text": "THE",
+          "x": 363,
+          "y": 1135,
+          "w": 96,
+          "h": 36,
+          "rgb": [
+            255,
+            252,
+            248
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.6937869822485208,
+          "sample": 736,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0054.png",
+          "at": 725,
+          "until": 782
+        },
+        {
+          "text": "INSTITUTE",
+          "x": 230,
+          "y": 1181,
+          "w": 609,
+          "h": 84,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8490843470124315,
+          "sample": 761,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0055.png",
+          "at": 747,
+          "until": 782
+        },
+        {
+          "text": "A",
+          "x": 231,
+          "y": 1279,
+          "w": 66,
+          "h": 73,
+          "rgb": [
+            255,
+            252,
+            250
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8731899956121105,
+          "sample": 761,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0055.png",
+          "at": 760,
+          "until": 782
+        },
+        {
+          "text": "NATIONAL",
+          "x": 333,
+          "y": 1278,
+          "w": 509,
+          "h": 75,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.717253249451006,
+          "sample": 761,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0055.png",
+          "at": 760,
+          "until": 782
+        },
+        {
+          "text": "DRAFT",
+          "x": 232,
+          "y": 1366,
+          "w": 611,
+          "h": 129,
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.9002672345400643,
+          "sample": 779,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0056.png",
+          "at": 770,
+          "until": 782
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "start": 783,
+      "end": 843,
+      "text": "Meaning that if you're / between 18–24",
+      "kind": "S",
+      "samples": [
+        795,
+        821,
+        840
+      ],
+      "observed": {
+        "start_frame": "783",
+        "end_frame": "843",
+        "start_seconds": "26.100",
+        "end_seconds_exclusive": "28.133",
+        "phrase": "Meaning that if you're / between 18–24",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0057.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0058.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0059.png"
+      ],
+      "runs": [
+        {
+          "text": "Meaning",
+          "x": 292,
+          "y": 1392,
+          "w": 194,
+          "h": 47,
+          "rgb": [
+            253,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7623265426631237,
+          "sample": 795,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0057.png",
+          "at": 783,
+          "until": 843
+        },
+        {
+          "text": "that",
+          "x": 503,
+          "y": 1394,
+          "w": 91,
+          "h": 35,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8755821689953427,
+          "sample": 821,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0058.png",
+          "at": 783,
+          "until": 843
+        },
+        {
+          "text": "if",
+          "x": 610,
+          "y": 1392,
+          "w": 27,
+          "h": 37,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.842560553633218,
+          "sample": 795,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0057.png",
+          "at": 783,
+          "until": 843
+        },
+        {
+          "text": "you're",
+          "x": 651,
+          "y": 1394,
+          "w": 138,
+          "h": 44,
+          "rgb": [
+            253,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.806060606060606,
+          "sample": 795,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0057.png",
+          "at": 783,
+          "until": 843
+        },
+        {
+          "text": "between",
+          "x": 368,
+          "y": 1451,
+          "w": 196,
+          "h": 36,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7801724137931034,
+          "sample": 795,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0057.png",
+          "at": 783,
+          "until": 843
+        },
+        {
+          "text": "18-24",
+          "x": 582,
+          "y": 1451,
+          "w": 131,
+          "h": 36,
+          "rgb": [
+            253,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.4974019839395371,
+          "sample": 795,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0057.png",
+          "at": 783,
+          "until": 843
+        },
+        {
+          "text": "18 - 24",
+          "x": 316,
+          "y": 535,
+          "w": 449,
+          "h": 176,
+          "at": 815,
+          "until": 843,
+          "font": "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "rgb": [
+            250,
+            250,
+            250
+          ],
+          "mode": "white",
+          "iou": 0,
+          "manual": true
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "start": 844,
+      "end": 873,
+      "text": "in America / and you're male,",
+      "kind": "S",
+      "samples": [
+        850,
+        862,
+        870
+      ],
+      "observed": {
+        "start_frame": "844",
+        "end_frame": "873",
+        "start_seconds": "28.133",
+        "end_seconds_exclusive": "29.133",
+        "phrase": "in America / and you're male,",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0060.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0061.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0062.png"
+      ],
+      "runs": [
+        {
+          "text": "in",
+          "x": 419,
+          "y": 1392,
+          "w": 36,
+          "h": 37,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8652037617554859,
+          "sample": 850,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0060.png",
+          "at": 844,
+          "until": 873
+        },
+        {
+          "text": "America",
+          "x": 471,
+          "y": 1392,
+          "w": 189,
+          "h": 37,
+          "rgb": [
+            253,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8041237113402062,
+          "sample": 850,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0060.png",
+          "at": 844,
+          "until": 873
+        },
+        {
+          "text": "and",
+          "x": 353,
+          "y": 1451,
+          "w": 82,
+          "h": 36,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8966817496229261,
+          "sample": 850,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0060.png",
+          "at": 844,
+          "until": 873
+        },
+        {
+          "text": "you're",
+          "x": 452,
+          "y": 1451,
+          "w": 138,
+          "h": 45,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8020937188434696,
+          "sample": 850,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0060.png",
+          "at": 844,
+          "until": 873
+        },
+        {
+          "text": "male,",
+          "x": 607,
+          "y": 1451,
+          "w": 119,
+          "h": 44,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.6582914572864321,
+          "sample": 850,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0060.png",
+          "at": 844,
+          "until": 873
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "start": 874,
+      "end": 895,
+      "text": "you'll be automatically",
+      "kind": "S",
+      "samples": [
+        878,
+        886,
+        890
+      ],
+      "observed": {
+        "start_frame": "874",
+        "end_frame": "893",
+        "start_seconds": "29.133",
+        "end_seconds_exclusive": "29.800",
+        "phrase": "you'll be automatically",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0063.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0064.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0065.png"
+      ],
+      "runs": [
+        {
+          "text": "you'll",
+          "x": 283,
+          "y": 1426,
+          "w": 116,
+          "h": 45,
+          "rgb": [
+            252,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8505039193729004,
+          "sample": 878,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0063.png",
+          "at": 874,
+          "until": 895
+        },
+        {
+          "text": "be",
+          "x": 417,
+          "y": 1426,
+          "w": 54,
+          "h": 35,
+          "rgb": [
+            252,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.9113247863247863,
+          "sample": 878,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0063.png",
+          "at": 874,
+          "until": 895
+        },
+        {
+          "text": "automatically",
+          "x": 487,
+          "y": 1424,
+          "w": 310,
+          "h": 47,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7775800711743772,
+          "sample": 878,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0063.png",
+          "at": 874,
+          "until": 895
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "start": 896,
+      "end": 950,
+      "text": "put into the draft system.",
+      "kind": "S",
+      "samples": [
+        905,
+        929,
+        947
+      ],
+      "observed": {
+        "start_frame": "894",
+        "end_frame": "950",
+        "start_seconds": "29.800",
+        "end_seconds_exclusive": "31.700",
+        "phrase": "put into the draft system.",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0066.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0067.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0068.png"
+      ],
+      "runs": [
+        {
+          "text": "put",
+          "x": 250,
+          "y": 1428,
+          "w": 73,
+          "h": 43,
+          "rgb": [
+            253,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7838044308632544,
+          "sample": 905,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0066.png",
+          "at": 896,
+          "until": 950,
+          "timingSource": "source-frame-review"
+        },
+        {
+          "text": "into",
+          "x": 339,
+          "y": 1424,
+          "w": 84,
+          "h": 37,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8325958702064897,
+          "sample": 905,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0066.png",
+          "at": 896,
+          "until": 950,
+          "timingSource": "source-frame-review"
+        },
+        {
+          "text": "the",
+          "x": 438,
+          "y": 1426,
+          "w": 74,
+          "h": 35,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8620689655172413,
+          "sample": 905,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0066.png",
+          "at": 896,
+          "until": 950,
+          "timingSource": "source-frame-review"
+        },
+        {
+          "text": "draft",
+          "x": 528,
+          "y": 1424,
+          "w": 109,
+          "h": 38,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7473193473193473,
+          "sample": 905,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0066.png",
+          "at": 896,
+          "until": 950,
+          "timingSource": "source-frame-review"
+        },
+        {
+          "text": "system.",
+          "x": 652,
+          "y": 1428,
+          "w": 179,
+          "h": 43,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7458441078684891,
+          "sample": 905,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0066.png",
+          "at": 896,
+          "until": 950,
+          "timingSource": "source-frame-review"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "start": 951,
+      "end": 991,
+      "text": "AND THEY JUST / PASSED A / LAW",
+      "kind": "H",
+      "samples": [
+        959,
+        976,
+        988
+      ],
+      "observed": {
+        "start_frame": "951",
+        "end_frame": "991",
+        "start_seconds": "31.700",
+        "end_seconds_exclusive": "33.067",
+        "phrase": "AND THEY JUST / PASSED A / LAW",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0069.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0070.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0071.png"
+      ],
+      "runs": [
+        {
+          "text": "AND",
+          "x": 234,
+          "y": 1139,
+          "w": 162,
+          "h": 56,
+          "rgb": [
+            254,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8371195885126447,
+          "sample": 959,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0069.png",
+          "at": 951,
+          "until": 991
+        },
+        {
+          "text": "THEY",
+          "x": 422,
+          "y": 1139,
+          "w": 203,
+          "h": 56,
+          "rgb": [
+            255,
+            252,
+            253
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7075,
+          "sample": 959,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0069.png",
+          "at": 958,
+          "until": 991
+        },
+        {
+          "text": "JUST",
+          "x": 649,
+          "y": 1139,
+          "w": 195,
+          "h": 56,
+          "rgb": [
+            255,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8552085608211399,
+          "sample": 976,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0070.png",
+          "at": 963,
+          "until": 991
+        },
+        {
+          "text": "PASSED",
+          "x": 233,
+          "y": 1208,
+          "w": 490,
+          "h": 106,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.687034652633936,
+          "sample": 976,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0070.png",
+          "at": 968,
+          "until": 991
+        },
+        {
+          "text": "A",
+          "x": 757,
+          "y": 1209,
+          "w": 83,
+          "h": 90,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.9117732982763658,
+          "sample": 976,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0070.png",
+          "at": 972,
+          "until": 991
+        },
+        {
+          "text": "LAW",
+          "x": 233,
+          "y": 1318,
+          "w": 608,
+          "h": 185,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -3,
+          "iou": 0.6638709128065395,
+          "sample": 976,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0070.png",
+          "at": 975,
+          "until": 991,
+          "shadowOpacity": 0.5
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "start": 992,
+      "end": 1027,
+      "text": "THAT SAYS THAT / STARTING / DECEMBER",
+      "kind": "H",
+      "samples": [
+        999,
+        1014,
+        1024
+      ],
+      "observed": {
+        "start_frame": "992",
+        "end_frame": "1027",
+        "start_seconds": "33.067",
+        "end_seconds_exclusive": "34.267",
+        "phrase": "THAT SAYS THAT / STARTING / DECEMBER",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0072.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0073.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0074.png"
+      ],
+      "runs": [
+        {
+          "text": "THAT",
+          "x": 234,
+          "y": 1254,
+          "w": 187,
+          "h": 52,
+          "rgb": [
+            255,
+            251,
+            253
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.7003645200486027,
+          "sample": 999,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0072.png",
+          "at": 992,
+          "until": 1027
+        },
+        {
+          "text": "SAYS",
+          "x": 445,
+          "y": 1254,
+          "w": 182,
+          "h": 52,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.804251550044287,
+          "sample": 999,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0072.png",
+          "at": 994,
+          "until": 1027
+        },
+        {
+          "text": "THAT",
+          "x": 651,
+          "y": 1254,
+          "w": 186,
+          "h": 52,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.696969696969697,
+          "sample": 999,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0072.png",
+          "at": 998,
+          "until": 1027
+        },
+        {
+          "text": "STARTING",
+          "x": 233,
+          "y": 1318,
+          "w": 611,
+          "h": 88,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8392054428380513,
+          "sample": 1014,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0073.png",
+          "at": 1001,
+          "until": 1027
+        },
+        {
+          "text": "DECEMBER",
+          "x": 235,
+          "y": 1417,
+          "w": 613,
+          "h": 81,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.6787165661770564,
+          "sample": 1014,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0073.png",
+          "at": 1010,
+          "until": 1027
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "start": 1028,
+      "end": 1076,
+      "text": "you will be automatically / registered.",
+      "kind": "S",
+      "samples": [
+        1038,
+        1058,
+        1073
+      ],
+      "observed": {
+        "start_frame": "1028",
+        "end_frame": "1076",
+        "start_seconds": "34.267",
+        "end_seconds_exclusive": "35.900",
+        "phrase": "you will be automatically / registered.",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0075.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0076.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0077.png"
+      ],
+      "runs": [
+        {
+          "text": "you",
+          "x": 247,
+          "y": 1402,
+          "w": 81,
+          "h": 36,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8683127572016461,
+          "sample": 1038,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0075.png",
+          "at": 1028,
+          "until": 1076
+        },
+        {
+          "text": "will",
+          "x": 344,
+          "y": 1392,
+          "w": 74,
+          "h": 37,
+          "rgb": [
+            255,
+            252,
+            253
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8239178283198826,
+          "sample": 1038,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0075.png",
+          "at": 1028,
+          "until": 1076
+        },
+        {
+          "text": "be",
+          "x": 436,
+          "y": 1393,
+          "w": 54,
+          "h": 36,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.9058823529411765,
+          "sample": 1058,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0076.png",
+          "at": 1028,
+          "until": 1076
+        },
+        {
+          "text": "automatically",
+          "x": 505,
+          "y": 1391,
+          "w": 329,
+          "h": 47,
+          "rgb": [
+            254,
+            252,
+            254
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.7584042404798438,
+          "sample": 1038,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0075.png",
+          "at": 1028,
+          "until": 1076
+        },
+        {
+          "text": "registered.",
+          "x": 418,
+          "y": 1449,
+          "w": 246,
+          "h": 47,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.719945970283656,
+          "sample": 1038,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0075.png",
+          "at": 1028,
+          "until": 1076
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "start": 1077,
+      "end": 1107,
+      "text": "Which means,",
+      "kind": "Y",
+      "samples": [
+        1083,
+        1096,
+        1104
+      ],
+      "observed": {
+        "start_frame": "1077",
+        "end_frame": "1107",
+        "start_seconds": "35.900",
+        "end_seconds_exclusive": "36.933",
+        "phrase": "Which means,",
+        "kind": "Y"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0078.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0079.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0080.png"
+      ],
+      "runs": [
+        {
+          "text": "Which",
+          "x": 377,
+          "y": 1424,
+          "w": 144,
+          "h": 38,
+          "rgb": [
+            243,
+            208,
+            21
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.867474441499432,
+          "sample": 1083,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0078.png",
+          "at": 1077,
+          "until": 1107
+        },
+        {
+          "text": "means,",
+          "x": 538,
+          "y": 1434,
+          "w": 163,
+          "h": 36,
+          "rgb": [
+            243,
+            208,
+            21
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8580129425199847,
+          "sample": 1083,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0078.png",
+          "at": 1077,
+          "until": 1107
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "start": 1108,
+      "end": 1162,
+      "text": "YOU'RE / OBLIGED / TO GO AND / FIGHT?",
+      "kind": "H",
+      "samples": [
+        1119,
+        1142,
+        1159
+      ],
+      "observed": {
+        "start_frame": "1108",
+        "end_frame": "1162",
+        "start_seconds": "36.933",
+        "end_seconds_exclusive": "38.767",
+        "phrase": "YOU'RE / OBLIGED / TO GO AND / FIGHT?",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0081.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0082.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0083.png"
+      ],
+      "runs": [
+        {
+          "text": "YOU'RE",
+          "x": 248,
+          "y": 1168,
+          "w": 269,
+          "h": 56,
+          "rgb": [
+            248,
+            207,
+            8
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.6796884083246134,
+          "sample": 1119,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0081.png",
+          "at": 1108,
+          "until": 1162
+        },
+        {
+          "text": "OBLIGED",
+          "x": 186,
+          "y": 1232,
+          "w": 549,
+          "h": 92,
+          "rgb": [
+            252,
+            207,
+            1
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.8457693786413509,
+          "sample": 1119,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0081.png",
+          "at": 1108,
+          "until": 1162
+        },
+        {
+          "text": "TO",
+          "x": 291,
+          "y": 1333,
+          "w": 107,
+          "h": 61,
+          "rgb": [
+            249,
+            207,
+            5
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.9017443930224279,
+          "sample": 1142,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0082.png",
+          "at": 1138,
+          "until": 1162
+        },
+        {
+          "text": "GO",
+          "x": 428,
+          "y": 1333,
+          "w": 116,
+          "h": 61,
+          "rgb": [
+            248,
+            207,
+            7
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.882134703196347,
+          "sample": 1142,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0082.png",
+          "at": 1138,
+          "until": 1162
+        },
+        {
+          "text": "AND",
+          "x": 570,
+          "y": 1334,
+          "w": 173,
+          "h": 59,
+          "rgb": [
+            249,
+            207,
+            5
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8696310312204352,
+          "sample": 1142,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0082.png",
+          "at": 1138,
+          "until": 1162
+        },
+        {
+          "text": "FIGHT?",
+          "x": 282,
+          "y": 1407,
+          "w": 567,
+          "h": 94,
+          "rgb": [
+            252,
+            207,
+            1
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.5575104004462315,
+          "sample": 1159,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0083.png",
+          "at": 1149,
+          "until": 1162
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "start": 1163,
+      "end": 1179,
+      "text": "exactly",
+      "kind": "H",
+      "samples": [
+        1166,
+        1173,
+        1176
+      ],
+      "observed": {
+        "start_frame": "1163",
+        "end_frame": "1179",
+        "start_seconds": "38.767",
+        "end_seconds_exclusive": "39.333",
+        "phrase": "exactly",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0084.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0085.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0086.png"
+      ],
+      "runs": [
+        {
+          "text": "exactly",
+          "x": 232,
+          "y": 1349,
+          "w": 603,
+          "h": 184,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Georgia.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.6534753250243558,
+          "sample": 1176,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0086.png",
+          "at": 1163,
+          "until": 1179,
+          "timingSource": "source-frame-review"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "start": 1180,
+      "end": 1216,
+      "text": "Next, the world",
+      "kind": "S",
+      "samples": [
+        1187,
+        1203,
+        1213
+      ],
+      "observed": {
+        "start_frame": "1180",
+        "end_frame": "1216",
+        "start_seconds": "39.333",
+        "end_seconds_exclusive": "40.567",
+        "phrase": "Next, the world",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0087.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0088.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0089.png"
+      ],
+      "runs": [
+        {
+          "text": "Next,",
+          "x": 367,
+          "y": 1426,
+          "w": 116,
+          "h": 44,
+          "rgb": [
+            255,
+            251,
+            247
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8040646169880146,
+          "sample": 1187,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0087.png",
+          "at": 1180,
+          "until": 1216
+        },
+        {
+          "text": "the",
+          "x": 499,
+          "y": 1426,
+          "w": 73,
+          "h": 36,
+          "rgb": [
+            255,
+            251,
+            247
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8982188295165394,
+          "sample": 1187,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0087.png",
+          "at": 1180,
+          "until": 1216
+        },
+        {
+          "text": "world",
+          "x": 587,
+          "y": 1426,
+          "w": 126,
+          "h": 36,
+          "rgb": [
+            255,
+            251,
+            248
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.9108649789029536,
+          "sample": 1187,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0087.png",
+          "at": 1180,
+          "until": 1216
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "start": 1217,
+      "end": 1271,
+      "text": "Reference visual annotation",
+      "kind": "P",
+      "samples": [
+        1228,
+        1251,
+        1268
+      ],
+      "observed": {
+        "start_frame": "1217",
+        "end_frame": "1271",
+        "start_seconds": "40.567",
+        "end_seconds_exclusive": "42.400",
+        "kind": "P"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0090.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0091.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0092.png"
+      ],
+      "runs": []
+    },
+    {
+      "id": 32,
+      "start": 1272,
+      "end": 1313,
+      "text": "So, whatever you do online,",
+      "kind": "S",
+      "samples": [
+        1280,
+        1298,
+        1310
+      ],
+      "observed": {
+        "start_frame": "1272",
+        "end_frame": "1313",
+        "start_seconds": "42.400",
+        "end_seconds_exclusive": "43.800",
+        "phrase": "So, whatever you do online,",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0093.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0094.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0095.png"
+      ],
+      "runs": [
+        {
+          "text": "So,",
+          "x": 224,
+          "y": 1426,
+          "w": 68,
+          "h": 44,
+          "rgb": [
+            255,
+            252,
+            253
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7726001863932899,
+          "sample": 1280,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0093.png",
+          "at": 1272,
+          "until": 1313
+        },
+        {
+          "text": "whatever",
+          "x": 308,
+          "y": 1426,
+          "w": 215,
+          "h": 36,
+          "rgb": [
+            255,
+            253,
+            254
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7485154394299287,
+          "sample": 1280,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0093.png",
+          "at": 1272,
+          "until": 1313
+        },
+        {
+          "text": "do",
+          "x": 635,
+          "y": 1426,
+          "w": 55,
+          "h": 35,
+          "rgb": [
+            255,
+            252,
+            254
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8415300546448088,
+          "sample": 1280,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0093.png",
+          "at": 1272,
+          "until": 1313
+        },
+        {
+          "text": "online,",
+          "x": 706,
+          "y": 1424,
+          "w": 150,
+          "h": 46,
+          "rgb": [
+            255,
+            253,
+            254
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7383136740934906,
+          "sample": 1280,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0093.png",
+          "at": 1272,
+          "until": 1313
+        },
+        {
+          "text": "you",
+          "x": 537,
+          "y": 1434,
+          "w": 81,
+          "h": 37,
+          "rgb": [
+            255,
+            253,
+            253
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8836633663366337,
+          "sample": 1280,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0093.png",
+          "at": 1272,
+          "until": 1313
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "start": 1314,
+      "end": 1357,
+      "text": "it's being recorded,",
+      "kind": "S",
+      "samples": [
+        1323,
+        1341,
+        1354
+      ],
+      "observed": {
+        "start_frame": "1314",
+        "end_frame": "1357",
+        "start_seconds": "43.800",
+        "end_seconds_exclusive": "45.267",
+        "phrase": "it's being recorded,",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0096.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0097.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0098.png"
+      ],
+      "runs": [
+        {
+          "text": "it's",
+          "x": 321,
+          "y": 1425,
+          "w": 61,
+          "h": 37,
+          "rgb": [
+            251,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7504537205081669,
+          "sample": 1323,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0096.png",
+          "at": 1314,
+          "until": 1357
+        },
+        {
+          "text": "being",
+          "x": 399,
+          "y": 1425,
+          "w": 124,
+          "h": 47,
+          "rgb": [
+            252,
+            255,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8653229500687127,
+          "sample": 1323,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0096.png",
+          "at": 1314,
+          "until": 1357
+        },
+        {
+          "text": "recorded,",
+          "x": 541,
+          "y": 1426,
+          "w": 218,
+          "h": 44,
+          "rgb": [
+            252,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8002989536621824,
+          "sample": 1323,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0096.png",
+          "at": 1314,
+          "until": 1357
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "start": 1358,
+      "end": 1409,
+      "text": "to figure out / how to control you.",
+      "kind": "S",
+      "samples": [
+        1368,
+        1390,
+        1406
+      ],
+      "observed": {
+        "start_frame": "1358",
+        "end_frame": "1409",
+        "start_seconds": "45.267",
+        "end_seconds_exclusive": "47.000",
+        "phrase": "to figure out / how to control you.",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0099.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0100.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0101.png"
+      ],
+      "runs": [
+        {
+          "text": "to",
+          "x": 399,
+          "y": 1396,
+          "w": 44,
+          "h": 33,
+          "rgb": [
+            250,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7438356164383562,
+          "sample": 1368,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0099.png",
+          "at": 1358,
+          "until": 1409
+        },
+        {
+          "text": "figure",
+          "x": 458,
+          "y": 1392,
+          "w": 134,
+          "h": 47,
+          "rgb": [
+            251,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8580441640378549,
+          "sample": 1368,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0099.png",
+          "at": 1358,
+          "until": 1409
+        },
+        {
+          "text": "out",
+          "x": 607,
+          "y": 1396,
+          "w": 73,
+          "h": 33,
+          "rgb": [
+            247,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8024263431542461,
+          "sample": 1368,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0099.png",
+          "at": 1358,
+          "until": 1409
+        },
+        {
+          "text": "how",
+          "x": 322,
+          "y": 1451,
+          "w": 93,
+          "h": 35,
+          "rgb": [
+            251,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8555399719495091,
+          "sample": 1368,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0099.png",
+          "at": 1358,
+          "until": 1409
+        },
+        {
+          "text": "to",
+          "x": 430,
+          "y": 1453,
+          "w": 44,
+          "h": 34,
+          "rgb": [
+            250,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8010610079575596,
+          "sample": 1368,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0099.png",
+          "at": 1358,
+          "until": 1409
+        },
+        {
+          "text": "control",
+          "x": 490,
+          "y": 1451,
+          "w": 158,
+          "h": 36,
+          "rgb": [
+            251,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7982744453574363,
+          "sample": 1368,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0099.png",
+          "at": 1358,
+          "until": 1409
+        },
+        {
+          "text": "you.",
+          "x": 665,
+          "y": 1460,
+          "w": 94,
+          "h": 36,
+          "rgb": [
+            251,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8519108280254777,
+          "sample": 1368,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0099.png",
+          "at": 1358,
+          "until": 1409
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "start": 1410,
+      "end": 1460,
+      "text": "And then this is most / controversial prediction.",
+      "kind": "S",
+      "samples": [
+        1420,
+        1442,
+        1457
+      ],
+      "observed": {
+        "start_frame": "1410",
+        "end_frame": "1460",
+        "start_seconds": "47.000",
+        "end_seconds_exclusive": "48.700",
+        "phrase": "And then this is most / controversial prediction.",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0102.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0103.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0104.png"
+      ],
+      "runs": [
+        {
+          "text": "And",
+          "x": 296,
+          "y": 1393,
+          "w": 90,
+          "h": 36,
+          "rgb": [
+            255,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8039735099337748,
+          "sample": 1457,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0104.png",
+          "at": 1410,
+          "until": 1460
+        },
+        {
+          "text": "then",
+          "x": 402,
+          "y": 1393,
+          "w": 102,
+          "h": 36,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8417528910529519,
+          "sample": 1420,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0102.png",
+          "at": 1410,
+          "until": 1460
+        },
+        {
+          "text": "this",
+          "x": 520,
+          "y": 1392,
+          "w": 84,
+          "h": 37,
+          "rgb": [
+            254,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8024357239512855,
+          "sample": 1420,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0102.png",
+          "at": 1410,
+          "until": 1460
+        },
+        {
+          "text": "is",
+          "x": 620,
+          "y": 1392,
+          "w": 35,
+          "h": 37,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8587479935794543,
+          "sample": 1420,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0102.png",
+          "at": 1410,
+          "until": 1460
+        },
+        {
+          "text": "most",
+          "x": 671,
+          "y": 1396,
+          "w": 113,
+          "h": 33,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7913247362250879,
+          "sample": 1420,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0102.png",
+          "at": 1410,
+          "until": 1460
+        },
+        {
+          "text": "controversial",
+          "x": 260,
+          "y": 1449,
+          "w": 298,
+          "h": 38,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.815278377211912,
+          "sample": 1420,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0102.png",
+          "at": 1410,
+          "until": 1460
+        },
+        {
+          "text": "prediction.",
+          "x": 576,
+          "y": 1449,
+          "w": 244,
+          "h": 47,
+          "rgb": [
+            253,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8341564855731739,
+          "sample": 1420,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0102.png",
+          "at": 1410,
+          "until": 1460
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "start": 1461,
+      "end": 1490,
+      "text": "this is / pretty bad",
+      "kind": "H",
+      "samples": [
+        1467,
+        1479,
+        1487
+      ],
+      "observed": {
+        "start_frame": "1461",
+        "end_frame": "1490",
+        "start_seconds": "48.700",
+        "end_seconds_exclusive": "49.700",
+        "phrase": "this is / pretty bad",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0105.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0106.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0107.png"
+      ],
+      "runs": [
+        {
+          "text": "this",
+          "x": 235,
+          "y": 1321,
+          "w": 173,
+          "h": 77,
+          "rgb": [
+            255,
+            253,
+            250
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7500805152979066,
+          "sample": 1467,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0105.png",
+          "at": 1461,
+          "until": 1490
+        },
+        {
+          "text": "is",
+          "x": 442,
+          "y": 1321,
+          "w": 70,
+          "h": 77,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8706389651117209,
+          "sample": 1467,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0105.png",
+          "at": 1461,
+          "until": 1490
+        },
+        {
+          "text": "pretty",
+          "x": 233,
+          "y": 1410,
+          "w": 355,
+          "h": 110,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.596906592931824,
+          "sample": 1479,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0106.png",
+          "at": 1473,
+          "until": 1490
+        },
+        {
+          "text": "bad",
+          "x": 606,
+          "y": 1410,
+          "w": 232,
+          "h": 96,
+          "rgb": [
+            134,
+            0,
+            3
+          ],
+          "mode": "red",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.8722381635581061,
+          "sample": 1479,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0106.png",
+          "at": 1478,
+          "until": 1490
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "start": 1491,
+      "end": 1498,
+      "text": "Reference visual annotation",
+      "kind": "N",
+      "samples": [
+        1492,
+        1495
+      ],
+      "observed": {
+        "start_frame": "1491",
+        "end_frame": "1498",
+        "start_seconds": "49.700",
+        "end_seconds_exclusive": "49.967",
+        "kind": "N",
+        "camera_relationship": "hostcut"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0108.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0109.png"
+      ],
+      "runs": []
+    },
+    {
+      "id": 38,
+      "start": 1499,
+      "end": 1537,
+      "text": "and i'll / explain / why",
+      "kind": "H",
+      "samples": [
+        1507,
+        1523,
+        1534
+      ],
+      "observed": {
+        "start_frame": "1499",
+        "end_frame": "1537",
+        "start_seconds": "49.967",
+        "end_seconds_exclusive": "51.267",
+        "phrase": "and i'll / explain / why",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0110.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0111.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0112.png"
+      ],
+      "runs": [
+        {
+          "text": "and",
+          "x": 162,
+          "y": 1246,
+          "w": 122,
+          "h": 53,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.890020366598778,
+          "sample": 1507,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0110.png",
+          "at": 1499,
+          "until": 1537
+        },
+        {
+          "text": "i'll",
+          "x": 310,
+          "y": 1244,
+          "w": 63,
+          "h": 54,
+          "rgb": [
+            255,
+            253,
+            248
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8899196042053185,
+          "sample": 1534,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0112.png",
+          "at": 1499,
+          "until": 1537
+        },
+        {
+          "text": "explain",
+          "x": 164,
+          "y": 1299,
+          "w": 487,
+          "h": 128,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.5090949621043246,
+          "sample": 1507,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0110.png",
+          "at": 1505,
+          "until": 1537,
+          "shadowOpacity": 0.5
+        },
+        {
+          "text": "why",
+          "x": 515,
+          "y": 1385,
+          "w": 326,
+          "h": 146,
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "mode": "white",
+          "font": "reference-assets/reference-replicas-four-v1/font-study/instances/inter-italic-900.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7538818815172351,
+          "sample": 1534,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0112.png",
+          "at": 1518,
+          "until": 1537
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "start": 1538,
+      "end": 1580,
+      "text": "And also, I will / tell you why",
+      "kind": "S",
+      "samples": [
+        1546,
+        1564,
+        1577
+      ],
+      "observed": {
+        "start_frame": "1538",
+        "end_frame": "1580",
+        "start_seconds": "51.267",
+        "end_seconds_exclusive": "52.700",
+        "phrase": "And also, I will / tell you why",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0113.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0114.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0115.png"
+      ],
+      "runs": [
+        {
+          "text": "And",
+          "x": 376,
+          "y": 1393,
+          "w": 94,
+          "h": 35,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.26101413133832085,
+          "sample": 1546,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0113.png",
+          "at": 1538,
+          "until": 1580,
+          "manual": true
+        },
+        {
+          "text": "also,",
+          "x": 483,
+          "y": 1393,
+          "w": 104,
+          "h": 44,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8761528326745718,
+          "sample": 1546,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0113.png",
+          "at": 1538,
+          "until": 1580
+        },
+        {
+          "text": "I",
+          "x": 605,
+          "y": 1393,
+          "w": 7,
+          "h": 35,
+          "rgb": [
+            251,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.9877551020408163,
+          "sample": 1546,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0113.png",
+          "at": 1538,
+          "until": 1580
+        },
+        {
+          "text": "will",
+          "x": 625,
+          "y": 1392,
+          "w": 77,
+          "h": 35,
+          "rgb": [
+            250,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.2738314317261686,
+          "sample": 1546,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0113.png",
+          "at": 1538,
+          "until": 1580,
+          "manual": true
+        },
+        {
+          "text": "tell",
+          "x": 403,
+          "y": 1451,
+          "w": 67,
+          "h": 35,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8262748487467588,
+          "sample": 1546,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0113.png",
+          "at": 1538,
+          "until": 1580
+        },
+        {
+          "text": "you",
+          "x": 486,
+          "y": 1459,
+          "w": 81,
+          "h": 37,
+          "rgb": [
+            254,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8903544929925804,
+          "sample": 1546,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0113.png",
+          "at": 1538,
+          "until": 1580
+        },
+        {
+          "text": "why",
+          "x": 583,
+          "y": 1451,
+          "w": 94,
+          "h": 45,
+          "rgb": [
+            255,
+            251,
+            251
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.45352400408580185,
+          "sample": 1546,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0113.png",
+          "at": 1538,
+          "until": 1580
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "start": 1581,
+      "end": 1629,
+      "text": "this war can only / lead to WWIII.",
+      "kind": "S",
+      "samples": [
+        1591,
+        1611,
+        1626
+      ],
+      "observed": {
+        "start_frame": "1581",
+        "end_frame": "1629",
+        "start_seconds": "52.700",
+        "end_seconds_exclusive": "54.333",
+        "phrase": "this war can only / lead to WWIII.",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0116.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0117.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0118.png"
+      ],
+      "runs": [
+        {
+          "text": "this",
+          "x": 345,
+          "y": 1392,
+          "w": 84,
+          "h": 37,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7595367847411444,
+          "sample": 1591,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0116.png",
+          "at": 1581,
+          "until": 1629
+        },
+        {
+          "text": "can",
+          "x": 543,
+          "y": 1402,
+          "w": 80,
+          "h": 27,
+          "rgb": [
+            253,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.891156462585034,
+          "sample": 1591,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0116.png",
+          "at": 1581,
+          "until": 1629
+        },
+        {
+          "text": "only",
+          "x": 640,
+          "y": 1394,
+          "w": 95,
+          "h": 44,
+          "rgb": [
+            253,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8783977110157367,
+          "sample": 1591,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0116.png",
+          "at": 1581,
+          "until": 1629
+        },
+        {
+          "text": "WWIII",
+          "x": 552,
+          "y": 1444,
+          "w": 153,
+          "h": 51,
+          "rgb": [
+            178,
+            65,
+            69
+          ],
+          "mode": "red",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.5285095031677226,
+          "sample": 1591,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0116.png",
+          "at": 1581,
+          "until": 1629
+        },
+        {
+          "text": "lead",
+          "x": 385,
+          "y": 1451,
+          "w": 92,
+          "h": 36,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8847352024922118,
+          "sample": 1591,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0116.png",
+          "at": 1581,
+          "until": 1629
+        },
+        {
+          "text": "to",
+          "x": 494,
+          "y": 1453,
+          "w": 44,
+          "h": 34,
+          "rgb": [
+            254,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8340026773761714,
+          "sample": 1591,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0116.png",
+          "at": 1581,
+          "until": 1629
+        },
+        {
+          "text": "war",
+          "x": 447,
+          "y": 1391,
+          "w": 72,
+          "h": 36,
+          "at": 1581,
+          "until": 1629,
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "rgb": [
+            250,
+            250,
+            250
+          ],
+          "mode": "white",
+          "iou": 0,
+          "manual": true
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "start": 1630,
+      "end": 1682,
+      "text": "Why there's a very / strong possibility",
+      "kind": "S",
+      "samples": [
+        1640,
+        1663,
+        1679
+      ],
+      "observed": {
+        "start_frame": "1630",
+        "end_frame": "1682",
+        "start_seconds": "54.333",
+        "end_seconds_exclusive": "56.100",
+        "phrase": "Why there's a very / strong possibility",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0119.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0120.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0121.png"
+      ],
+      "runs": [
+        {
+          "text": "Why",
+          "x": 328,
+          "y": 1393,
+          "w": 106,
+          "h": 45,
+          "rgb": [
+            253,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.7097887020267356,
+          "sample": 1640,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0119.png",
+          "at": 1630,
+          "until": 1682
+        },
+        {
+          "text": "there's",
+          "x": 444,
+          "y": 1393,
+          "w": 157,
+          "h": 36,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7288937409024745,
+          "sample": 1640,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0119.png",
+          "at": 1630,
+          "until": 1682
+        },
+        {
+          "text": "a",
+          "x": 616,
+          "y": 1402,
+          "w": 23,
+          "h": 27,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8513189448441247,
+          "sample": 1640,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0119.png",
+          "at": 1630,
+          "until": 1682
+        },
+        {
+          "text": "very",
+          "x": 655,
+          "y": 1402,
+          "w": 101,
+          "h": 36,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8126702997275205,
+          "sample": 1640,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0119.png",
+          "at": 1630,
+          "until": 1682
+        },
+        {
+          "text": "possibility",
+          "x": 506,
+          "y": 1449,
+          "w": 233,
+          "h": 47,
+          "rgb": [
+            253,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7423898228078146,
+          "sample": 1640,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0119.png",
+          "at": 1630,
+          "until": 1682
+        },
+        {
+          "text": "strong",
+          "x": 342,
+          "y": 1454,
+          "w": 146,
+          "h": 43,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7123947051744886,
+          "sample": 1640,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0119.png",
+          "at": 1630,
+          "until": 1682
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "start": 1683,
+      "end": 1729,
+      "text": "that the American empire / will collapse.",
+      "kind": "S",
+      "samples": [
+        1692,
+        1712,
+        1726
+      ],
+      "observed": {
+        "start_frame": "1683",
+        "end_frame": "1729",
+        "start_seconds": "56.100",
+        "end_seconds_exclusive": "57.667",
+        "phrase": "that the American empire / will collapse.",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0122.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0123.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0124.png"
+      ],
+      "runs": [
+        {
+          "text": "that",
+          "x": 246,
+          "y": 1393,
+          "w": 92,
+          "h": 36,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8622754491017964,
+          "sample": 1692,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0122.png",
+          "at": 1683,
+          "until": 1729
+        },
+        {
+          "text": "the",
+          "x": 352,
+          "y": 1393,
+          "w": 74,
+          "h": 36,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8695652173913043,
+          "sample": 1692,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0122.png",
+          "at": 1683,
+          "until": 1729
+        },
+        {
+          "text": "American",
+          "x": 441,
+          "y": 1392,
+          "w": 218,
+          "h": 37,
+          "rgb": [
+            255,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8139810426540285,
+          "sample": 1692,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0122.png",
+          "at": 1683,
+          "until": 1729
+        },
+        {
+          "text": "empire",
+          "x": 676,
+          "y": 1392,
+          "w": 157,
+          "h": 46,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8959295006294586,
+          "sample": 1692,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0122.png",
+          "at": 1683,
+          "until": 1729
+        },
+        {
+          "text": "will",
+          "x": 388,
+          "y": 1449,
+          "w": 74,
+          "h": 37,
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7985074626865671,
+          "sample": 1692,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0122.png",
+          "at": 1683,
+          "until": 1729
+        },
+        {
+          "text": "collapse.",
+          "x": 478,
+          "y": 1451,
+          "w": 215,
+          "h": 45,
+          "rgb": [
+            253,
+            252,
+            254
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8314740090197009,
+          "sample": 1692,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0122.png",
+          "at": 1683,
+          "until": 1729
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "start": 1730,
+      "end": 1771,
+      "text": "And also, I'll show you",
+      "kind": "S",
+      "samples": [
+        1738,
+        1756,
+        1768
+      ],
+      "observed": {
+        "start_frame": "1730",
+        "end_frame": "1771",
+        "start_seconds": "57.667",
+        "end_seconds_exclusive": "59.067",
+        "phrase": "And also, I'll show you",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0125.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0126.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0127.png"
+      ],
+      "runs": [
+        {
+          "text": "And",
+          "x": 287,
+          "y": 1426,
+          "w": 90,
+          "h": 35,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7992073976221928,
+          "sample": 1738,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0125.png",
+          "at": 1730,
+          "until": 1771
+        },
+        {
+          "text": "also,",
+          "x": 394,
+          "y": 1426,
+          "w": 104,
+          "h": 44,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8180064308681672,
+          "sample": 1738,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0125.png",
+          "at": 1730,
+          "until": 1771
+        },
+        {
+          "text": "show",
+          "x": 575,
+          "y": 1426,
+          "w": 121,
+          "h": 35,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8132875143184422,
+          "sample": 1738,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0125.png",
+          "at": 1730,
+          "until": 1771
+        },
+        {
+          "text": "you",
+          "x": 710,
+          "y": 1434,
+          "w": 81,
+          "h": 37,
+          "rgb": [
+            252,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.9092422980849292,
+          "sample": 1738,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0125.png",
+          "at": 1730,
+          "until": 1771
+        },
+        {
+          "text": "I'll",
+          "x": 517,
+          "y": 1426,
+          "w": 44,
+          "h": 35,
+          "at": 1730,
+          "until": 1771,
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "rgb": [
+            250,
+            250,
+            250
+          ],
+          "mode": "white",
+          "iou": 0,
+          "manual": true
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "start": 1772,
+      "end": 1817,
+      "text": "what the Russians will do",
+      "kind": "S",
+      "samples": [
+        1781,
+        1800,
+        1814
+      ],
+      "observed": {
+        "start_frame": "1772",
+        "end_frame": "1817",
+        "start_seconds": "59.067",
+        "end_seconds_exclusive": "60.600",
+        "phrase": "what the Russians will do",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0128.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0129.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0130.png"
+      ],
+      "runs": [
+        {
+          "text": "what",
+          "x": 248,
+          "y": 1426,
+          "w": 113,
+          "h": 36,
+          "rgb": [
+            254,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.879815986198965,
+          "sample": 1781,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0128.png",
+          "at": 1772,
+          "until": 1817
+        },
+        {
+          "text": "the",
+          "x": 376,
+          "y": 1426,
+          "w": 73,
+          "h": 36,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8756260434056762,
+          "sample": 1781,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0128.png",
+          "at": 1772,
+          "until": 1817
+        },
+        {
+          "text": "Russians",
+          "x": 467,
+          "y": 1425,
+          "w": 203,
+          "h": 37,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7464863431450544,
+          "sample": 1781,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0128.png",
+          "at": 1772,
+          "until": 1817
+        },
+        {
+          "text": "will",
+          "x": 685,
+          "y": 1425,
+          "w": 74,
+          "h": 36,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8541666666666666,
+          "sample": 1781,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0128.png",
+          "at": 1772,
+          "until": 1817
+        },
+        {
+          "text": "do",
+          "x": 776,
+          "y": 1426,
+          "w": 55,
+          "h": 36,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.9247434435575826,
+          "sample": 1781,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0128.png",
+          "at": 1772,
+          "until": 1817
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "start": 1818,
+      "end": 1873,
+      "text": "and how the private / bankers",
+      "kind": "S",
+      "samples": [
+        1829,
+        1853,
+        1870
+      ],
+      "observed": {
+        "start_frame": "1818",
+        "end_frame": "1873",
+        "start_seconds": "60.600",
+        "end_seconds_exclusive": "62.467",
+        "phrase": "and how the private / bankers",
+        "kind": "S"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0131.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0132.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0133.png"
+      ],
+      "runs": [
+        {
+          "text": "and",
+          "x": 312,
+          "y": 1393,
+          "w": 82,
+          "h": 36,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.9093610698365527,
+          "sample": 1853,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0132.png",
+          "at": 1818,
+          "until": 1873
+        },
+        {
+          "text": "how",
+          "x": 412,
+          "y": 1394,
+          "w": 94,
+          "h": 35,
+          "rgb": [
+            254,
+            251,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.863950276243094,
+          "sample": 1829,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0131.png",
+          "at": 1818,
+          "until": 1873
+        },
+        {
+          "text": "the",
+          "x": 520,
+          "y": 1394,
+          "w": 74,
+          "h": 35,
+          "rgb": [
+            254,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8280730897009967,
+          "sample": 1829,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0131.png",
+          "at": 1818,
+          "until": 1873
+        },
+        {
+          "text": "private",
+          "x": 611,
+          "y": 1392,
+          "w": 157,
+          "h": 46,
+          "rgb": [
+            254,
+            253,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.7522796352583586,
+          "sample": 1829,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0131.png",
+          "at": 1818,
+          "until": 1873
+        },
+        {
+          "text": "bankers",
+          "x": 450,
+          "y": 1451,
+          "w": 182,
+          "h": 36,
+          "rgb": [
+            254,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.8810619469026548,
+          "sample": 1829,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0131.png",
+          "at": 1818,
+          "until": 1873
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "start": 1874,
+      "end": 1895,
+      "text": "ARE / CONTROLLING / YOU",
+      "kind": "H",
+      "samples": [
+        1878,
+        1887,
+        1892
+      ],
+      "observed": {
+        "start_frame": "1874",
+        "end_frame": "1895",
+        "start_seconds": "62.467",
+        "end_seconds_exclusive": "63.200",
+        "phrase": "ARE / CONTROLLING / YOU",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0134.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0135.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0136.png"
+      ],
+      "runs": [
+        {
+          "text": "ARE",
+          "x": 281,
+          "y": 1161,
+          "w": 233,
+          "h": 88,
+          "rgb": [
+            255,
+            254,
+            252
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.7826048329779673,
+          "sample": 1878,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0134.png",
+          "at": 1874,
+          "until": 1895
+        },
+        {
+          "text": "CONTROLLING",
+          "x": 228,
+          "y": 1262,
+          "w": 614,
+          "h": 82,
+          "rgb": [
+            169,
+            38,
+            41
+          ],
+          "mode": "red",
+          "font": "/System/Library/Fonts/HelveticaNeue.ttc",
+          "index": 9,
+          "stroke": 0,
+          "tracking": 2,
+          "iou": 0.5882132951039362,
+          "sample": 1878,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0134.png",
+          "at": 1877,
+          "until": 1895,
+          "manual": true
+        },
+        {
+          "text": "YOU",
+          "x": 392,
+          "y": 1351,
+          "w": 448,
+          "h": 155,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.9059549650861731,
+          "sample": 1887,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0135.png",
+          "at": 1887,
+          "until": 1895
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "start": 1896,
+      "end": 1964,
+      "text": "Reference visual annotation",
+      "kind": "G",
+      "samples": [
+        1910,
+        1939,
+        1961
+      ],
+      "observed": {
+        "start_frame": "1896",
+        "end_frame": "1964",
+        "start_seconds": "63.200",
+        "end_seconds_exclusive": "65.500",
+        "kind": "G"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0137.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0138.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0139.png"
+      ],
+      "runs": [
+        {
+          "text": "out",
+          "x": 414,
+          "y": 1153,
+          "w": 101,
+          "h": 44,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.820814479638009,
+          "sample": 1910,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0137.png",
+          "at": 1896,
+          "until": 1964
+        },
+        {
+          "text": "now",
+          "x": 537,
+          "y": 1161,
+          "w": 128,
+          "h": 36,
+          "rgb": [
+            253,
+            252,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.869597895527997,
+          "sample": 1910,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0137.png",
+          "at": 1896,
+          "until": 1964
+        },
+        {
+          "text": "OF",
+          "x": 637,
+          "y": 1229,
+          "w": 59,
+          "h": 28,
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.4912854030501089,
+          "sample": 1910,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0137.png",
+          "at": 1896,
+          "until": 1964
+        },
+        {
+          "text": "THE",
+          "x": 335,
+          "y": 1230,
+          "w": 90,
+          "h": 27,
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.47103274559193953,
+          "sample": 1910,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0137.png",
+          "at": 1896,
+          "until": 1964
+        },
+        {
+          "text": "DIARY",
+          "x": 458,
+          "y": 1230,
+          "w": 148,
+          "h": 27,
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.3316717791411043,
+          "sample": 1910,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0137.png",
+          "at": 1896,
+          "until": 1964
+        },
+        {
+          "text": "A",
+          "x": 726,
+          "y": 1230,
+          "w": 26,
+          "h": 27,
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7894736842105263,
+          "sample": 1910,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0137.png",
+          "at": 1896,
+          "until": 1964
+        },
+        {
+          "text": "CEO",
+          "x": 331,
+          "y": 1275,
+          "w": 425,
+          "h": 126,
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": 0,
+          "iou": 0.6936570484301513,
+          "sample": 1910,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0137.png",
+          "at": 1896,
+          "until": 1964
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "start": 1965,
+      "end": 2002,
+      "text": "so let's / TALK / about / THAT",
+      "kind": "H",
+      "samples": [
+        1972,
+        1988,
+        1999
+      ],
+      "observed": {
+        "start_frame": "1965",
+        "end_frame": "2002",
+        "start_seconds": "65.500",
+        "end_seconds_exclusive": "66.767",
+        "phrase": "so let's / TALK / about / THAT",
+        "kind": "H"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0140.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0141.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0142.png"
+      ],
+      "runs": [
+        {
+          "text": "let's",
+          "x": 354,
+          "y": 1074,
+          "w": 178,
+          "h": 73,
+          "rgb": [
+            227,
+            190,
+            29
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.8369151251360174,
+          "sample": 1988,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0141.png",
+          "at": 1965,
+          "until": 2002
+        },
+        {
+          "text": "so",
+          "x": 220,
+          "y": 1092,
+          "w": 102,
+          "h": 54,
+          "rgb": [
+            248,
+            207,
+            7
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.9281280627245998,
+          "sample": 1972,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0140.png",
+          "at": 1965,
+          "until": 2002
+        },
+        {
+          "text": "TALK",
+          "x": 175,
+          "y": 1166,
+          "w": 435,
+          "h": 124,
+          "rgb": [
+            249,
+            205,
+            7
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.6349953189139881,
+          "sample": 1999,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0142.png",
+          "at": 1978,
+          "until": 2002
+        },
+        {
+          "text": "about",
+          "x": 206,
+          "y": 1306,
+          "w": 334,
+          "h": 88,
+          "rgb": [
+            240,
+            199,
+            14
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.8915151904425461,
+          "sample": 1999,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0142.png",
+          "at": 1983,
+          "until": 2002
+        },
+        {
+          "text": "THAT",
+          "x": 296,
+          "y": 1411,
+          "w": 342,
+          "h": 89,
+          "rgb": [
+            250,
+            207,
+            1
+          ],
+          "mode": "yellow",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.6984842277755019,
+          "sample": 1999,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0142.png",
+          "at": 1990,
+          "until": 2002,
+          "manual": true
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "start": 2003,
+      "end": 2005,
+      "text": "6 BILLION / PEOPLE WILL / STARVE",
+      "kind": "G",
+      "samples": [
+        2003,
+        2004
+      ],
+      "observed": {
+        "start_frame": "2003",
+        "end_frame": "2005",
+        "start_seconds": "66.767",
+        "end_seconds_exclusive": "66.867",
+        "phrase": "6 BILLION / PEOPLE WILL / STARVE",
+        "kind": "G"
+      },
+      "images": [
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0143.png",
+        "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0144.png"
+      ],
+      "runs": [
+        {
+          "text": "6",
+          "x": 64,
+          "y": 964,
+          "w": 118,
+          "h": 152,
+          "rgb": [
+            253,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.9116961012995668,
+          "sample": 2003,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0143.png",
+          "at": 2003,
+          "until": 2005
+        },
+        {
+          "text": "BILLION",
+          "x": 246,
+          "y": 964,
+          "w": 769,
+          "h": 152,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.7213299232736573,
+          "sample": 2003,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0143.png",
+          "at": 2003,
+          "until": 2005
+        },
+        {
+          "text": "PEOPLE",
+          "x": 63,
+          "y": 1159,
+          "w": 556,
+          "h": 109,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": 0,
+          "iou": 0.7999372396873395,
+          "sample": 2003,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0143.png",
+          "at": 2003,
+          "until": 2005
+        },
+        {
+          "text": "WILL",
+          "x": 661,
+          "y": 1160,
+          "w": 357,
+          "h": 107,
+          "rgb": [
+            255,
+            254,
+            255
+          ],
+          "mode": "white",
+          "font": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "index": 0,
+          "stroke": 1,
+          "tracking": -1.5,
+          "iou": 0.6112633939695988,
+          "sample": 2003,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0143.png",
+          "at": 2003,
+          "until": 2005
+        },
+        {
+          "text": "STARVE",
+          "x": 63,
+          "y": 1310,
+          "w": 956,
+          "h": 180,
+          "rgb": [
+            251,
+            0,
+            2
+          ],
+          "mode": "red",
+          "font": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+          "index": 0,
+          "stroke": 0,
+          "tracking": -1.5,
+          "iou": 0.8363126806340804,
+          "sample": 2003,
+          "image": "reference-assets/reference-replicas-four-v1/8_dh-IB9jZ8/source/0143.png",
+          "at": 2003,
+          "until": 2005
+        }
+      ]
+    }
+  ]
+}

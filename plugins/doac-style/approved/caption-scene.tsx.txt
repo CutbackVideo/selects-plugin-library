@@ -1,0 +1,14 @@
+import React from 'react';
+import {Img,useCurrentFrame,useVideoConfig} from 'remotion';
+export default function CaptionScene({data}) {
+ const frame=useCurrentFrame(),{width,height,fps}=useVideoConfig();
+ const t=Math.max(0,Math.min(data.frameMap.length-1,Math.floor(frame*data.fps/fps+0.00001)));
+ const n=data.frameMap[t]||0;
+ return <div style={{position:'absolute',inset:0,pointerEvents:'none',overflow:'hidden'}}>
+  <div style={{position:'absolute',width:540,height:960,transform:`scale(${width/540},${height/960})`,transformOrigin:'0 0'}}>
+   <div style={{position:'absolute',left:data.x,top:data.y,width:data.w,height:data.h,overflow:'hidden',transform:`scale(${Number(data.size||100)/100})`,transformOrigin:'center'}}>
+    <Img src={data.atlas} style={{position:'absolute',maxWidth:'none',width:data.cols*data.w,height:data.rows*data.h,left:-(n%data.cols)*data.w,top:-Math.floor(n/data.cols)*data.h}}/>
+   </div>
+  </div>
+ </div>;
+}
