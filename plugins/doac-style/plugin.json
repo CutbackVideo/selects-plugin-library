@@ -40,5 +40,11 @@
       "macOS arm64"
     ],
     "selects": "Development build only. Released-version compatibility is unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
   }
 }
