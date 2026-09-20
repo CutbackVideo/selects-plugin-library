@@ -10,6 +10,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Postcard Cutout Studio](plugins/postcard-cutout-studio) | Experimental |
 | [Timeline Shorts Builder](plugins/timeline-shorts-builder) | Experimental |
 | [iMessage Generator](plugins/imessage-generator) | Experimental |
+| [Ali Abdaal Style](plugins/ali-abdaal-style) | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 
