@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "place-count",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "name": "Place Count",
   "summary": "Turn location folders into an editable travel-story Draft with separate source clips, titles, descriptions, and optional music.",
   "status": "experimental",

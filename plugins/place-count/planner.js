@@ -10,12 +10,14 @@ function planStory(story) {
   }));
   const segments = []; let opening = null;
   if (story.settings.intro) {
-    const total = windows[0].reduce((n,w) => n+w.available, 0);
-    const candidate = windows[0].find(w => w.available >= 2.4 && total - 2.4 >= Math.min(pace,total));
-    if (candidate) {
+    const first = windows[0];
+    const candidates = first.map((w,i) => ({w,i})).filter(({w,i}) => w.available >= 2.4 && first.some((other,j) => j !== i && other.path !== w.path && other.available >= 1));
+    const chosen = candidates[candidates.length - 1];
+    if (chosen) {
+      const candidate = chosen.w;
       opening = {path:candidate.path,start:candidate.end-2.4,end:candidate.end,place:-1,cropX:candidate.cropX??0.5,cropY:candidate.cropY??0.5};
       segments.push(opening);
-      candidate.end -= 2.4;candidate.available -= 2.4;
+      windows[0] = first.filter((_,i) => i !== chosen.i);
     }
   }
   places.forEach((place,index) => {
@@ -23,7 +25,7 @@ function planStory(story) {
     const total = pool.reduce((n,w) => n+w.available,0);
     let remaining = Math.min(pace,total);
     if (remaining < 1) throw Error('Each place needs at least one second of selected footage.');
-    let cutsLeft = Math.min(2,pool.length);
+    let cutsLeft = Math.min(story.settings.pace === 'quick' ? 3 : 2,pool.length);
     for (const w of pool) {
       if (remaining < 0.001) break;
       const take = Math.min(w.available, remaining / Math.max(1,cutsLeft));
