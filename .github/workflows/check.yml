@@ -15,8 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Test Place Stories
+      - name: Test Place Count
         run: |
-          node plugins/place-stories/tests/core.test.cjs
-          node plugins/place-stories/tests/create.test.cjs
-          node plugins/place-stories/tests/path-collision.test.cjs
+          node plugins/place-count/tests/core.test.cjs
+          node plugins/place-count/tests/path-collision.test.cjs

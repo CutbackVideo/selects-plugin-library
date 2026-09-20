@@ -1,4 +1,4 @@
-# Place Stories
+# Place Count
 
 Turn location folders into a photo-first, editable travel story.
 
@@ -6,7 +6,7 @@ Turn location folders into a photo-first, editable travel story.
 
 ## Use
 
-1. Open a Selects project and the **Place Stories** panel.
+1. Open a Selects project and the **Place Count** panel.
 2. Choose **Choose footage** and select a parent folder with one subfolder per place. Up to 20 places and 24 video files per place are supported. Folders are identified by their full paths, so different libraries can use the same folder names.
 3. Optionally edit your title, place names, or short descriptions through **Edit details**. **Story settings** controls portrait or landscape format, pace, opening title, accent color, optional music, and original clip audio.
 4. Choose **Create draft**. Smart assist selects footage and writes concise English descriptions grounded in the contact images. It does not browse the web or start source analysis. If assist cannot finish a place, valid current selections are retained with a notice; unavailable descriptions stay empty.
@@ -22,7 +22,7 @@ Warm ivory typography, restrained serif titles, concise descriptions, a fine acc
 
 Frame contact images are decoded locally with the host browser and cached per project. Smart assist sends the chosen location's label and contact images to the signed-in Selects AI profile, with at most two requests per panel instance. No separate provider key is required. This is sampled-frame selection, not continuous-motion verification.
 
-Workspaces use project-scoped browser storage. Contact images, recovery data, and history live under `<home>/.selects/plugin-data/place-stories/<project-id>`. Keep those files while using recovery or history. Existing projects, prior plugin data, and source files are not deleted. An optional **Import previous footage selection** action imports only an older workspace's location and clip selections.
+Workspaces use project-scoped browser storage. Contact images, recovery data, and history live under `<home>/.selects/plugin-data/place-count/<project-id>`. Keep those files while using recovery or history. Existing projects, prior plugin data, and source files are not deleted. An optional **Import previous footage selection** action imports only an older workspace's location and clip selections.
 
 ## Limits and verification
 
