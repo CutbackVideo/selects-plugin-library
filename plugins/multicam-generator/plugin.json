@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "multicam-generator",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "Multicam Generator",
   "summary": "Generate an alternate camera view with lip sync to original speech and place it as a separate editable clip above the source.",
   "status": "experimental",
