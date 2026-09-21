@@ -2,7 +2,7 @@
 
 Generate an alternate camera view from a continuous source shot and add it as a separate editable video clip above the original in the current Selects Draft. Original tracks and audio are preserved. This is AI viewpoint generation, not synchronization of recorded cameras.
 
-**Experimental · 0.1.0-alpha.1**
+**Experimental · 0.1.0-alpha.2**
 
 ## Setup
 
@@ -15,6 +15,10 @@ Follow [INSTALL.md](INSTALL.md). See [THIRD_PARTY.md](THIRD_PARTY.md) for depend
 3. Click **Generate angle**. The panel inspects three source frames, uploads the prepared video and speech through Selects, generates an angle, and performs lip-sync correction. Generation uses account credits and sends source media to managed generation services.
 4. Review the separate **Generated angle** clip. Trim, move or remove it in the timeline; original audio remains underneath. **Show result** returns to the shot, **Regenerate this shot** replaces the previous generated lane after success, and **Start a new shot** clears the completed panel request.
 5. Export the finished video through **Handoff → Export**.
+
+## Camera presets
+
+Choose among 23 presets grouped into Classic, Cinematic and Experimental. The panel shows the selected composition description. Experimental viewpoints may reconstruct unseen details and be less consistent with the source.
 
 ## Recovery and limitations
 

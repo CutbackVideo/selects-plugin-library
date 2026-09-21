@@ -39,6 +39,22 @@ export const ANGLES = [
     "Keep original angle",
     "Keep the original camera position and framing.",
   ],
+  ["medium", "Medium portrait", "Stationary eye-level camera framing the subject from mid-chest upward, with comfortable headroom and natural lens perspective.", "Cinematic"],
+  ["low", "Low-angle hero", "Stationary camera below chest height looking gently upward toward the subject, with a confident cinematic composition and natural lens perspective.", "Cinematic"],
+  ["tight-three-quarter", "Tight three-quarter", "Stationary camera 45 degrees to the side, framing the face and shoulders tightly with natural portrait perspective. Preserve the original gaze direction.", "Cinematic"],
+  ["environmental", "Environmental portrait", "Stationary wide camera placing the subject in one third of the frame and emphasizing the existing room. Keep the subject recognizable; do not invent decor.", "Cinematic"],
+  ["compressed", "Distant portrait", "Stationary camera farther from the subject with a longer-lens portrait composition, chest-up framing and restrained perspective compression. Preserve the existing lighting.", "Cinematic"],
+  ["over-shoulder", "Over-the-shoulder", "Stationary view over the shoulder of another person already visible in the source toward the main subject. If no second person is present, use a clean rear three-quarter view of the main subject; never add a person.", "Cinematic"],
+  ["dutch", "Dutch tilt", "Stationary camera with a deliberate 20-degree clockwise roll, creating a diagonal composition. Keep the subject and room upright in the world; tilt only the camera.", "Experimental"],
+  ["birds-eye", "Bird’s-eye view", "Stationary camera directly overhead looking vertically down at the subject and existing surroundings, with natural rectilinear perspective. Preserve body pose and action.", "Experimental"],
+  ["floor", "Floor-level view", "Stationary camera close to the floor looking upward toward the subject, creating a dramatic low viewpoint. Keep natural rectilinear perspective and original body proportions.", "Experimental"],
+  ["ceiling-corner", "Ceiling-corner view", "Stationary wide camera high in a corner of the existing room looking diagonally downward toward the subject. No surveillance overlays, timestamps or added objects.", "Experimental"],
+  ["negative-space", "Extreme negative space", "Stationary eye-level wide composition with the subject near the far left edge and most of the frame showing empty existing background to the right. Do not add scenery.", "Experimental"],
+  ["extreme-close", "Extreme close-up", "Stationary intimate crop of the face, from just above the eyebrows to just below the mouth, emphasizing eyes and microexpressions without altering expression or speech timing.", "Experimental"],
+  ["foreground-frame", "Foreground frame", "Stationary camera looking past an existing foreground object at the subject, using that object as a partial edge frame without hiding the face. If unavailable, use a tight off-center composition; never add props.", "Experimental"],
+  ["table-level", "Table-level view", "Stationary camera at the height of an existing tabletop, looking across it toward the subject with hands in the foreground when visible. If there is no table, use a waist-height viewpoint. Never invent furniture.", "Experimental"],
+  ["rear-three-quarter", "Rear three-quarter", "Stationary camera approximately 135 degrees around from the original viewpoint, looking past the back of the subject’s shoulder with a sliver of profile visible. Preserve pose and gaze; do not turn the subject toward the lens.", "Experimental"],
+  ["diagonal-wide", "Diagonal wide", "Stationary wide camera at a 45-degree side position with a subtle 10-degree counterclockwise roll. Place the subject in the lower-right third, using the existing room’s lines for a bold diagonal composition.", "Experimental"],
 ];
 export const BASE_PROMPT = `Use the input video as the sole identity, scene and motion reference. Preserve the exact people, faces, hair, clothing, objects, setting and lighting. Preserve gestures, body actions and speech timing frame by frame. Change the camera viewpoint, not the person's pose. Keep one continuous shot, a stationary camera and natural lens perspective. No orbit, extra people, added objects, cuts or generated speech. Preserve expression and gaze unless explicitly requested otherwise. Only requested angle, framing, gaze or expression changes override their corresponding defaults. For expression changes retain identity and speech mouth timing; preserve everything else.`;
 export function promptFor(angle, notes, observation) {
@@ -1170,16 +1186,28 @@ function Session({ sdk, context }) {
       <label htmlFor="mc-angle">Camera angle</label>
       <select
         id="mc-angle"
+        aria-describedby="mc-angle-description"
+        style={{ minWidth: 0, width: "100%" }}
         value={angle}
         disabled={disabled}
         onChange={(e) => setAngle(e.target.value)}
       >
-        {ANGLES.map(([id, label]) => (
-          <option key={id} value={id}>
-            {label}
-          </option>
+        {["Classic", "Cinematic", "Experimental"].map((group) => (
+          <optgroup key={group} label={group}>
+            {ANGLES.filter((a) => (a[3] || "Classic") === group).map(([id, label]) => (
+              <option key={id} value={id}>{label}</option>
+            ))}
+          </optgroup>
         ))}
       </select>
+      <small id="mc-angle-description" style={{ color: "var(--panel-muted-fg)" }}>
+        {ANGLES.find((a) => a[0] === angle)?.[2]}
+      </small>
+      {ANGLES.find((a) => a[0] === angle)?.[3] === "Experimental" && (
+        <small style={{ color: "var(--panel-muted-fg)" }}>
+          Experimental viewpoints may reconstruct unseen details and be less consistent with the source.
+        </small>
+      )}
       <label htmlFor="mc-length">Length · seconds</label>
       <input
         id="mc-length"
