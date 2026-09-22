@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "id": "vlog-opening",
+  "version": "0.1.0",
+  "name": "Vlog Opening",
+  "summary": "Build a 12-22s vlog opening as a new Draft in one of three styles, chosen from the analysed footage of the open Project.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified."
+  },
+  "localized": {
+    "de": {
+      "name": "Vlog-Opener",
+      "summary": "Baut aus dem analysierten Material des offenen Projekts einen 12-22 Sekunden langen Vlog-Vorspann als neuen Draft, in einem von drei Stilen."
+    },
+    "es": {
+      "name": "Intro de vlog",
+      "summary": "Crea una intro de vlog de 12 a 22 segundos como nuevo Draft, en uno de tres estilos, a partir del material analizado del proyecto abierto."
+    },
+    "fr": {
+      "name": "Intro de vlog",
+      "summary": "Construit une intro de vlog de 12 a 22 secondes comme nouveau Draft, dans l'un des trois styles, a partir des rushes analyses du projet ouvert."
+    },
+    "it": {
+      "name": "Apertura vlog",
+      "summary": "Crea un'apertura per vlog di 12-22 secondi come nuovo Draft, in uno di tre stili, dal materiale analizzato del progetto aperto."
+    },
+    "ja": {
+      "name": "Vlog オープニング",
+      "summary": "開いているプロジェクトの解析済み素材から、3 つのスタイルのいずれかで 12〜22 秒の Vlog オープニングを新しい Draft として作成します。"
+    },
+    "pt": {
+      "name": "Abertura de vlog",
+      "summary": "Cria uma abertura de vlog de 12 a 22 segundos como novo Draft, em um de tres estilos, a partir do material analisado do projeto aberto."
+    },
+    "tr": {
+      "name": "Vlog acilisi",
+      "summary": "Acik projenin analiz edilmis goruntulerinden, uc stilden biriyle 12-22 saniyelik bir vlog acilisi olusturur ve yeni bir Draft olarak kaydeder."
+    },
+    "zh": {
+      "name": "Vlog 片头",
+      "summary": "根据当前项目中已分析的素材，以三种风格之一生成 12-22 秒的 Vlog 片头，并保存为新的 Draft。"
+    }
+  }
+}
