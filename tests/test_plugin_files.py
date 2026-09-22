@@ -118,6 +118,36 @@ class PluginFilesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'regular file'):
             plugins.check('example', self.root)
 
+    def write_local_plugin(self):
+        source = self.root / 'plugins/example'
+        source.mkdir(parents=True, exist_ok=True)
+        (source / 'plugin.json').write_text(json.dumps(self.manifest))
+        for name in self.manifest['files']:
+            path = source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('portable source')
+
+    def test_local_check_accepts_legacy_and_optional_translations(self):
+        self.manifest.update(name='Example', summary='Original fallback')
+        self.write_local_plugin()
+        original = plugins.check('example', self.root)
+        for localized in ({}, {'ko': {'name': '\uc608\uc81c', 'summary': '\uc608\uc81c \ud50c\ub7ec\uadf8\uc778'}}):
+            with self.subTest(localized=localized):
+                self.manifest['localized'] = localized
+                self.write_local_plugin()
+                self.assertEqual(plugins.check('example', self.root), original)
+
+    def test_local_check_rejects_malformed_translation_metadata(self):
+        for localized in (None, [], 'invalid', {'ko': []},
+                          {'ko': {'name': 'Example'}},
+                          {'ko': {'name': 42, 'summary': 'Example'}},
+                          {'ko': {'name': 'Example', 'summary': []}}):
+            with self.subTest(localized=localized):
+                self.manifest['localized'] = localized
+                self.write_local_plugin()
+                with self.assertRaisesRegex(ValueError, 'Invalid localized'):
+                    plugins.check('example', self.root)
+
 
 if __name__ == '__main__':
     unittest.main()
