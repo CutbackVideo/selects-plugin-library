@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "vlog-edit",
+  "version": "0.1.0",
+  "name": "Vlog Edit",
+  "summary": "Assemble a vlog from a real archive of video plus many unanalyzable photos: survey coverage, find the story shape, build photo B-roll blocks with generated voiceover and music, trim dead air, and add dissolves and editable titles.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified."
+  },
+  "localized": {
+    "de": {
+      "name": "Vlog-Schnitt",
+      "summary": "Baut einen Vlog aus einem echten Archiv aus Videos und vielen nicht analysierbaren Fotos: Sichtung des Materials, Story-Struktur, Foto-B-Roll-Blocke mit generiertem Voiceover und Musik, Kurzen von Leerlauf, Uberblendungen und editierbare Titel."
+    },
+    "es": {
+      "name": "Montaje de vlog",
+      "summary": "Monta un vlog a partir de un archivo real de video y muchas fotos no analizables: revision del material, estructura narrativa, bloques de fotos como recurso con voz en off y musica generadas, recorte de silencios, fundidos y titulos editables."
+    },
+    "fr": {
+      "name": "Montage de vlog",
+      "summary": "Monte un vlog a partir d'une vraie archive de videos et de nombreuses photos non analysables : inventaire des rushes, structure narrative, blocs de photos avec voix off et musique generees, suppression des temps morts, fondus et titres modifiables."
+    },
+    "it": {
+      "name": "Montaggio vlog",
+      "summary": "Costruisce un vlog da un archivio reale di video e molte foto non analizzabili: analisi del materiale, struttura narrativa, blocchi di foto con voce fuori campo e musica generate, taglio dei tempi morti, dissolvenze e titoli modificabili."
+    },
+    "ja": {
+      "name": "Vlog 編集",
+      "summary": "映像と解析できない大量の写真からなる実際のアーカイブから Vlog を構成します。素材の全体把握、物語の構成、生成した音声ナレーションと音楽による写真ブロック、無音の整理、ディゾルブ、編集可能なタイトルまでを扱います。"
+    },
+    "pt": {
+      "name": "Montagem de vlog",
+      "summary": "Monta um vlog a partir de um arquivo real de video e muitas fotos nao analisaveis: levantamento do material, estrutura narrativa, blocos de fotos com locucao e musica geradas, corte de silencios, dissolucoes e titulos editaveis."
+    },
+    "tr": {
+      "name": "Vlog kurgusu",
+      "summary": "Videolar ve analiz edilemeyen cok sayida fotograftan olusan gercek bir arsivden vlog kurar: malzeme dokumu, hikaye yapisi, uretilen dis ses ve muzikle fotograf bloklari, olu zaman temizligi, gecisler ve duzenlenebilir basliklar."
+    },
+    "zh": {
+      "name": "Vlog 剪辑",
+      "summary": "从真实素材库中剪出 Vlog，兼顾视频与大量无法分析的照片：素材盘点、故事结构、配以生成旁白与音乐的照片段落、清理冷场、叠化转场以及可编辑字幕标题。"
+    }
+  }
+}
