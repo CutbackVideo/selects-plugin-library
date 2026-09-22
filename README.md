@@ -12,6 +12,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [iMessage Generator](plugins/imessage-generator) | Experimental |
 | [Ali Abdaal Style](plugins/ali-abdaal-style) | Experimental |
 | [DOAC Style](plugins/doac-style) | Experimental |
+| [Tetris](plugins/tetris) | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 

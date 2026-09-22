@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "tetris",
+  "version": "0.1.0",
+  "name": "Tetris",
+  "summary": "A playable Tetris panel with a Game Boy-style title screen, four difficulty modes, local records, synthesised sound effects, and head-to-head play against another Selects user over a public relay.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS",
+      "Linux"
+    ],
+    "selects": "Single player needs only the Panel SDK. Two-player mode needs sdk.runShell, python3 on PATH, and outbound TCP 1883. Windows is unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 400,
+    "height": 500
+  }
+}
