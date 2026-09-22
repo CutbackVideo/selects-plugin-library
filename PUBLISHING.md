@@ -7,6 +7,33 @@
 
 Only designated Cutback maintainers publish. Each Git commit preserves a version of the plugin. No separate release or archive is needed.
 
+## Localized library metadata
+
+Keep the top-level `name` and `summary` as the original fallback text.
+`plugin.json` may also include a `localized` object keyed by app language code:
+
+```json
+"localized": {
+  "de": {
+    "name": "Beispiel",
+    "summary": "Ein Beispiel-Plugin."
+  }
+}
+```
+
+`localized` is optional, and each language entry is optional. When supplied,
+an entry is an object with string `name` and `summary` fields. An empty
+`localized` object is valid. The app selects the entry matching its language;
+if that entry is absent, it uses the top-level `name` and `summary`.
+No other metadata fields are localized by this contract.
+
+For public plugins, the authoring agent writes translations directly for
+`de en es fr it ja ko pt tr zh`. This is authoring guidance: the manifest
+validator does not require translations, an English dictionary, or all ten
+languages. There is no CI translation pipeline or translation build step.
+The separate public-source checker currently rejects literal Korean text;
+that existing restriction is not changed by this metadata contract.
+
 ## Gallery previews
 
 A plugin may include `preview.mp4` (H.264 MP4, at most 8 MiB) and

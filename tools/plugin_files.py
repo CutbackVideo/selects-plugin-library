@@ -49,6 +49,12 @@ def validate_manifest(manifest):
         relative_file(name)
     for key in ('entrypoint', 'installation'):
         require(manifest.get(key) in files, 'Entrypoint/install guide must be included')
+    if 'localized' in manifest:
+        localized = manifest['localized']
+        require(isinstance(localized, dict), 'Invalid localized metadata')
+        for entry in localized.values():
+            require(isinstance(entry, dict) and all(isinstance(entry.get(key), str)
+                    for key in ('name', 'summary')), 'Invalid localized name/summary')
     preview = manifest.get('preview')
     if preview is not None:
         require(isinstance(preview, dict), 'Invalid preview metadata')
