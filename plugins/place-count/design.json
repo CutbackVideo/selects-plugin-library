@@ -17,9 +17,40 @@
   "introClearFramesBeforeCut": 6,
   "defaultAspect": "portrait",
   "defaultPace": "quick",
-  "secondsPerPlace": {"quick": 2.6, "balanced": 3.5, "unhurried": 4.5},
-  "introSeconds": 2.4,
+  "secondsPerPlace": {
+    "quick": 2.609,
+    "balanced": 3.913,
+    "unhurried": 4.565
+  },
+  "introSeconds": 2.609,
   "noteMaxWords": 6,
   "noteMaxCharacters": 42,
-  "principles": ["Footage comes first", "Analyze, review, then create", "All source clips remain editable", "No sponsor banners"]
+  "principles": [
+    "Footage comes first",
+    "Analyze, review, then create",
+    "All source clips remain editable",
+    "No sponsor banners"
+  ],
+  "tempoBpm": 92,
+  "beatsPerPlace": {
+    "quick": 4,
+    "balanced": 6,
+    "unhurried": 7
+  },
+  "cutBeats": {
+    "quick": [
+      1,
+      1,
+      2
+    ],
+    "balanced": [
+      2,
+      4
+    ],
+    "unhurried": [
+      3,
+      4
+    ]
+  },
+  "music": "place-count-theme.m4a"
 }

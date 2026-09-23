@@ -21,3 +21,20 @@ class PreviewAssetTest(unittest.TestCase):
         self.assertTrue(public.inspect('plugins/example/poster.webp', b'not an image'))
         self.assertTrue(public.inspect('plugins/example/preview.mp4', b'0000ftypisom0' + b'0' * (8 * 1024 * 1024)))
         self.assertTrue(public.inspect('plugins/example/poster.webp', b'RIFF0000WEBP' + b'0' * (512 * 1024)))
+
+
+class AudioAssetTest(unittest.TestCase):
+    def test_real_audio_in_a_plugin_passes(self):
+        self.assertEqual(public.inspect('plugins/example/theme.m4a', b'\x00\x00\x00\x20ftypM4A '), [])
+        self.assertEqual(public.inspect('plugins/example/sfx/click.wav', b'RIFF\x24\x00\x00\x00WAVEfmt '), [])
+        self.assertEqual(public.inspect('plugins/example/sfx/hit.mp3', b'ID3\x04\x00'), [])
+        self.assertEqual(public.inspect('plugins/example/sfx/raw.mp3', b'\xff\xfb\x90\x00'), [])
+
+    def test_renamed_or_misplaced_audio_is_blocked(self):
+        self.assertTrue(public.inspect('plugins/example/theme.m4a', b'not audio at all'))
+        self.assertTrue(public.inspect('plugins/example/click.wav', b'RIFF0000WEBP'))
+        self.assertTrue(public.inspect('theme.m4a', b'\x00\x00\x00\x20ftypM4A \xff\xfe\x80'))
+        self.assertTrue(public.inspect('plugins/example/.local/theme.m4a', b'\x00\x00\x00\x20ftypM4A '))
+
+    def test_oversized_audio_is_blocked(self):
+        self.assertTrue(public.inspect('plugins/example/theme.m4a', b'\x00\x00\x00\x20ftypM4A ' + b'0' * (20 * 1024 * 1024)))

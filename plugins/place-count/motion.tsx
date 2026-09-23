@@ -16,9 +16,10 @@ export default function PlaceCountTitle({data}) {
   const f = frame * 30 / fps;
   const intro = data.kind === 'intro';
   // Each title lands two frames after its cut and clears before the next
-  // one: nine frames early for a place, six for the opening. No fades.
+  // one: half a beat of the 92 BPM theme early for a place, six frames for
+  // the opening. No fades.
   const delay = Number(data.delayFrames ?? (intro ? 0 : 2));
-  const clear = Number(data.clearFrames ?? (intro ? 6 : 9));
+  const clear = Number(data.clearFrames ?? (intro ? 6 : 0.5 * 60 / 92 * 30));
   if (f < delay || f >= durationInFrames * 30 / fps - clear) return null;
 
   const family = data.titleFont || 'Times New Roman';

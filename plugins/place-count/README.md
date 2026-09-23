@@ -17,7 +17,7 @@ There is no mandatory review screen. The output is an editable Selects Draft: or
 
 ## Look and feel
 
-A numbered travel-list reel: yellow Times place titles as "1. Name", a short white note beneath, centred in the upper third with a soft shadow and no backing panel, and a curved "N Places to Visit" opening over the city and country. Values are measured from the reference reel and kept in `design.json`. Notes aim for one line: 6 words and 42 characters. Quick pace gives each place about 2.6 seconds; Balanced and Unhurried alternatives are available. An opening is omitted if it would require repeating the same source moment.
+A numbered travel-list reel: yellow Times place titles as "1. Name", a short white note beneath, centred in the upper third with a soft shadow and no backing panel, and a curved "N Places to Visit" opening over the city and country. Values are measured from the reference reel and kept in `design.json`. Notes aim for one line: 6 words and 42 characters. Timing follows the theme music at 92 BPM: the opening and each Quick-pace place last one bar (2.6 seconds), Balanced places 6 beats (3.9 seconds) and Unhurried places 7 beats (4.6 seconds), and the cuts inside a place fall on beats. An opening is omitted if it would require repeating the same source moment.
 
 ## Local processing and data
 
@@ -28,7 +28,7 @@ Workspaces use project-scoped browser storage. Contact images, recovery data, an
 ## Limits and verification
 
 - Codec preview support follows the host browser. Some media that Selects can edit may not be browser-decodable. Valid current selections can still be used; offline selected sources block creation.
-- Original clip audio is off by default. Supply your own music or enable original audio. Short music tracks are not silently looped.
+- Every Draft gets the bundled theme music unless you add your own track or clear **Place Count theme music** in Story settings. It is cut to the story's length and faded out over its last 1.5 seconds; see [THIRD_PARTY.md](THIRD_PARTY.md) for its source and terms. Original clip audio is off by default. Short music tracks you supply are not silently looped.
 - Asset loading relies on host adapters exposed through `window.parent.__DI__`. They are runtime-checked but are not stable public plugin APIs.
 - Native image compatibility and portrait, landscape, opening, and text-motion rendering were checked in non-committed simulations. Planner, source-path collision, alias normalization, recovery, concurrency, and create-flow tests use isolated fixtures or mocked services.
 - Full live smart-assist runs, all supported codecs, clean-machine installation, and cross-platform behavior need further QA. These source checks do not prove every output's editorial quality.

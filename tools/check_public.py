@@ -15,6 +15,14 @@ RULES = {
 BLOCKED = {'.local', '.env', '.venv', 'venv', 'node_modules', '__pycache__'}
 
 
+def is_audio(name, data):
+    if name.endswith('.m4a'):
+        return len(data) >= 12 and data[4:8] == b'ftyp'
+    if name.endswith('.wav'):
+        return len(data) >= 12 and data[:4] == b'RIFF' and data[8:12] == b'WAVE'
+    return data[:3] == b'ID3' or (len(data) >= 2 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0)
+
+
 def inspect(name, data):
     # Only canonical, bounded gallery assets are permitted as public binaries.
     if re.fullmatch(r'plugins/[a-z0-9]+(?:-[a-z0-9]+)*/(?:preview\.mp4|poster\.webp)', name):
@@ -23,6 +31,10 @@ def inspect(name, data):
         else:
             valid = 12 <= len(data) <= 512 * 1024 and data[:4] == b'RIFF' and data[8:12] == b'WEBP'
         return [] if valid else ['Invalid or oversized preview asset']
+    # Audio a plugin ships (music, sound effects) is allowed when the file
+    # really is audio and stays a reasonable size for the Git history.
+    if re.fullmatch(r'plugins/[a-z0-9]+(?:-[a-z0-9]+)*/.+\.(?:m4a|wav|mp3)', name) and not BLOCKED & set(Path(name).parts):
+        return [] if is_audio(name, data) and len(data) <= 20 * 1024 * 1024 else ['Invalid or oversized audio asset']
     findings = []
     path = Path(name)
     if any(part in BLOCKED for part in path.parts) or path.suffix in {'.onnx', '.mp4', '.webm', '.pyc', '.pem', '.key'}:
