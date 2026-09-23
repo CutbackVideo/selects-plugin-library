@@ -1,44 +1,86 @@
 ---
 name: postcard-cutout-studio
-description: Build an editable travel-postcard Draft with a selected subject range, generated or local alpha cutout, independent background panels and photos, and editable title graphics.
-triggers: ["postcard cutout studio", "layered postcard cutout", "editable travel postcard"]
+description: Build an editable "moving postcard" travel opener Draft from a folder of videos and photos — a cut-out subject over snapping background panels, a scrambled title with synced sound effects, and a photo ending cut on the beat.
+triggers: ["postcard cutout studio", "moving postcard", "travel postcard opener", "layered postcard cutout"]
 ---
 
 # Postcard Cutout Studio
 
-Use the installed Panel for a reusable layered postcard assembly. This plugin is separate from `swiss-postcard-style` and must not replace it.
+Use the installed Panel. It builds a new Draft in the open Project; it never edits
+an existing Draft. This plugin is separate from `swiss-postcard-style` and must not
+replace it.
 
-## Inputs
+## Using the Panel
 
-- One source video and a selected 8.5-second window. The Main timeline uses the first 8.25 seconds.
-- One to six background videos, ordered left to right.
-- One to twelve photos, repeated as 27 independent 0.2-second Image clips.
-- A new or existing cutout. The cloud route uses Selects generated-media background removal. The optional local route uses RVM after explicit setup.
-- Canvas ratio, contain/cover fitting, title, subtitle, font, and colors.
+1. Open a Project, then open **Postcard Cutout Studio** from the Plugin list.
+2. **Choose Folder** (or drop a folder). Nothing is imported until you create.
+3. Click tiles to select, in order. The first video picked is the subject (★);
+   click another tile's number to make it the subject instead. With both videos
+   and photos picked, the other videos become background panels, left to right
+   (up to six), and the photos are the ending picks (up to twelve). With only one
+   kind, the first six after the subject become panels and the rest are the
+   ending picks. A photo used as a panel goes in as a still video.
+4. Enter the **Title**. **Options** holds the subtitle, subject start time, format
+   (Match subject, Landscape 16:9, Portrait 9:16, Square 1:1), framing (Fill frame
+   or Fit entire video), font, colours and **All caps** (on by default).
+5. **Create**. The Draft is named after the title; if that name is taken it becomes
+   `Title (1)`, `Title (2)`, and so on. After changing settings the button reads
+   **Rebuild**; with nothing changed it reads **Open**. **Start over** picks a new folder.
 
-## Editable Draft contract
+Cloud background removal may use credits. A verified cutout is reused for the same
+source and range, so rebuilding with new settings does not pay for it again.
 
-- Keep the source Main clip, every background panel, every photo occurrence, cutout foreground, curtain, and title as separate timeline items.
-- Keep the original source range and source audio in Main.
-- Use one foreground effect and one initial `commitAll` for assembly.
-- Create a new Draft for each build and preserve existing Drafts.
-- Final video output uses the Selects Export workflow; the plugin does not flatten the postcard into an assembly input.
+## What the Draft contains
+
+The clock is copied from the reference reel and lives in `TIMING` in `panel.tsx`:
+
+- 0–1.52 s: the subject on Main. Background panels snap in left to right every
+  0.174 s from 0.18 s, each with a shutter click. The cut-out subject stays on top,
+  turning into a white silhouette at 1.43 s under a tone and a riser that cut with
+  the flash.
+- 2.38, 2.87, 3.37 s: the picture closes in three bites, a ratchet on each.
+- 4.06 s: the subtitle lands with a click. 4.51 s: the title arrives scrambled,
+  re-rolls on every tick of its sound, and lands its last letter on the last tick.
+- From 5.95 s: a slit opens behind the title while the ending cuts on every 16th
+  note of the music, to 13.575 s. The ending draws on every clip except the
+  subject: a video gives a different moment each time it returns, a photo repeats
+  only when there is no video, and no clip plays twice running while another is
+  left.
+
+Every picture fills what it shows in. Panels fill their own strip with the clip
+centred in it; ending clips fill the frame; with Fill frame the subject is moved
+so the person, found from the cutout, sits in the middle, and the cutout moves
+with it.
+
+Every piece is its own clip so it can be edited alone: panels (green), the cutout
+and the white flash (violet), the `Close 1–3`, `Reveal`, `Subtitle` and `Title`
+motion graphics (red, with editable text, font, colour and size), and the sound
+effects (yellow) on a few shared tracks plus the music. Source footage goes in
+silent, so the only audio is the postcard's own. The Draft is saved with a single
+commit.
 
 ## Safety and persistence
 
-- A generation request is submitted once per run. An uncertain status is resumed by job ID and never replaced by another paid request.
-- Each run owns immutable mask assets and a distinct foreground Resource. Keep run media while any Draft references it.
-- Saved source bindings use full source paths and are revalidated against the current Project.
-- Existing runs are resumed rather than silently duplicated.
+- A background-removal request is submitted once per run. An unfinished run is
+  resumed by job ID when the Panel reopens, never replaced by a second paid request.
+- Run state, masks, held clips and sounds live in the Panel folder. Keep them while
+  any Draft references them.
+- The cutout masks are served by a loopback service on this computer. After a
+  restart, open the Panel before previewing or exporting an existing postcard Draft.
 
 ## Review
 
-After a build, re-read the saved Draft and confirm its canvas, source window, six or fewer background clips, 27 photo clips, one distinct foreground Resource, and two graphics. Inspect representative frames for foreground edges, panel coverage, white-flash timing, title spacing, and photo reveal. Verify the final exported file can be fully decoded.
+After a build, re-read the saved Draft and confirm: the canvas; the subject on Main
+from 0 to 1.52 s; at most six panels; one `Cutout` and one `White flash` clip on the
+distinct foreground Resource; `Close 1–3`, `Reveal`, `Subtitle` and `Title`
+graphics; the sound clips sharing a few tracks; and the ending slices on the beat.
+Inspect frames around 0.9, 1.45, 2.5, 4.3, 5.5 and 8 s.
 
 ## Known limitations
 
-- Experimental macOS arm64 implementation. Native Panel-click E2E, app/OS restart, Intel Mac, Windows, and Linux are unverified.
-- The read-only loopback mask service must be restored by opening the Panel after a restart before preview or Export.
-- Cover fitting can crop a moving subject; use source ratio or contain when continuous subject visibility matters.
-- In the tested 29.97 fps project, a 472-frame Draft exported a 471-frame video stream while retaining 15.749 seconds of container duration.
-- The optional local RVM route has different edge quality from the cloud route and requires separate GPL-3.0 model/runtime review.
+- macOS only; tested on Apple silicon with a Selects development build.
+- The title look uses DIN Condensed and Avenir Next, which macOS provides. Other
+  systems fall back to other fonts.
+- Fill frame keeps the subject centred but crops the rest of a wide scene; use Fit
+  entire video when the whole frame must stay visible.
+- See [THIRD_PARTY.md](THIRD_PARTY.md) for where the sounds and the music come from.

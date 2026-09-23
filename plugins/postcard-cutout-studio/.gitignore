@@ -4,6 +4,10 @@ __pycache__/
 panel-state.json
 runs/
 logs/
+held/
+cutout-inputs/
+preview-cache/
+sfx/*.wav
 *.lock
 service.json
 asset-service*.log

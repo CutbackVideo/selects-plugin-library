@@ -1,0 +1,103 @@
+{
+ "panel.1": {
+  "file": "panel-shutter-v4-1.wav",
+  "duration": 0.278,
+  "soundSeconds": 0.158,
+  "note": "Pentax K1000 Camera Shutter - freesound.org/s/579883 (CC0); take 1: pitch x1.000, own stereo room",
+  "sha256": "1d1b69eec23ebdb219e47b439bd1ae345f0b31f4d5cf6a0ba1a90300c2c09f7d"
+ },
+ "panel.2": {
+  "file": "panel-shutter-v4-2.wav",
+  "duration": 0.278,
+  "soundSeconds": 0.158,
+  "note": "Pentax K1000 Camera Shutter - freesound.org/s/579883 (CC0); take 2: pitch x0.965, own stereo room",
+  "sha256": "d3acb7634dbe07806b8c4e833306d86885d791dbc181a9000c521bb010f2dd85"
+ },
+ "panel.3": {
+  "file": "panel-shutter-v4-3.wav",
+  "duration": 0.278,
+  "soundSeconds": 0.158,
+  "note": "Pentax K1000 Camera Shutter - freesound.org/s/579883 (CC0); take 3: pitch x1.030, own stereo room",
+  "sha256": "c2290991a6533c2184991a9652adb8368529cba45ad0a5b9d7361de4126ec323"
+ },
+ "panel.4": {
+  "file": "panel-shutter-v4-4.wav",
+  "duration": 0.278,
+  "soundSeconds": 0.158,
+  "note": "Pentax K1000 Camera Shutter - freesound.org/s/579883 (CC0); take 4: pitch x0.985, own stereo room",
+  "sha256": "b6285b8badd99de1f4a02d1933167124efb4c3ec31fa840d4095e0dbba466c53"
+ },
+ "panel.5": {
+  "file": "panel-shutter-v4-5.wav",
+  "duration": 0.278,
+  "soundSeconds": 0.158,
+  "note": "Pentax K1000 Camera Shutter - freesound.org/s/579883 (CC0); take 5: pitch x1.045, own stereo room",
+  "sha256": "089a10581b6f98b648fd1104d7c0773d8226eb69a9d3e8188dc523a69492e378"
+ },
+ "panel.6": {
+  "file": "panel-shutter-v4-6.wav",
+  "duration": 0.278,
+  "soundSeconds": 0.158,
+  "note": "Pentax K1000 Camera Shutter - freesound.org/s/579883 (CC0); take 6: pitch x0.975, own stereo room",
+  "sha256": "97ccea6b7679687817b2e78afe4a28bf1c598171f750ff0006b136490d294bba"
+ },
+ "curtain.1": {
+  "file": "ratchet-v4-1.wav",
+  "duration": 0.368,
+  "soundSeconds": 0.248,
+  "note": "ratchet socket wrench tool - freesound.org/s/551497 (CC0), bite 1 of 3, stereo",
+  "sha256": "66f91c6f27853bd7c6afd203af154e84c17b08e1ef77ac0bfba6400ff5025642"
+ },
+ "curtain.2": {
+  "file": "ratchet-v4-2.wav",
+  "duration": 0.366,
+  "soundSeconds": 0.246,
+  "note": "ratchet socket wrench tool - freesound.org/s/551497 (CC0), bite 2 of 3, stereo",
+  "sha256": "676a4733265dc5338b380b45b5bd51cbaeab32546e6c3313a2fc108262ba41ff"
+ },
+ "curtain.3": {
+  "file": "ratchet-v4-3.wav",
+  "duration": 0.358,
+  "soundSeconds": 0.238,
+  "note": "ratchet socket wrench tool - freesound.org/s/551497 (CC0), bite 3 of 3, stereo",
+  "sha256": "21e815031fa5306d74395ca2e6100957badcce23d1f88c3d66c12dd0f7ff3a07"
+ },
+ "scramble": {
+  "file": "scramble-v4.wav",
+  "duration": 1.232,
+  "soundSeconds": 0.992,
+  "note": "Typewriter snippet 02 - freesound.org/s/360602 (CC0): 12 ticks on the reference spacing, each its own pitch/level/side; the title lands its last letter on the 12th tick",
+  "ticks": 12,
+  "sha256": "d1361f89c55fee5ed5c7cca6684eceb73c906f97eac8bfc3385465c9323de6cd"
+ },
+ "title": {
+  "file": "title-shutter-v5.wav",
+  "duration": 0.21,
+  "soundSeconds": 0.09,
+  "note": "35mm Film Camera Shutter With Motorised Winder (3) - freesound.org/s/693869 by Fission9 (CC0), one click at 0.64s, EQ and level matched to the reference",
+  "sha256": "349006ffe472f934f74a65aa1c6e5c9afd04c6b2cf8d82d7ce916c72a0289de4"
+ },
+ "tone": {
+  "file": "tone-v4.wav",
+  "duration": 2.87,
+  "soundSeconds": 2.75,
+  "note": "synthesized to the reference: 958 Hz, 2541 Hz and 4592 Hz partials swelling into the flash, cut as it ends, each ear moving on its own",
+  "sha256": "8b1cf56ea4d4f544b7f82cf3fb1c5ec65e0c777f42d5bd78cf41dc2227680e76"
+ },
+ "riser": {
+  "file": "riser-v4.wav",
+  "duration": 2.89,
+  "soundSeconds": 2.77,
+  "note": "synthesized to the reference: rumble and air swelling into the flash, cut as it ends, a low rumble dying away under the curtain",
+  "sha256": "417db0505bcb50a2a59c32737e758ef3fe67a5bc12e54793e8cda2c38ae908e2"
+ },
+ "music": {
+  "file": "music-strings-v1.wav",
+  "duration": 7.688,
+  "soundSeconds": 7.568,
+  "bpm": 122.88,
+  "sixteenth": 0.12207,
+  "note": "Generated with ElevenLabs Music v2.5 for this plugin: a string ostinato at 122.88 BPM in A minor. Starts on its first note; the ending cuts on every 16th note of it.",
+  "sha256": "552be01e1b73da02825c92889b2a8a01521c71403ad010c0ab984ab3fe510041"
+ }
+}
