@@ -140,6 +140,13 @@ function startOver(){
   setError('');setStatus('');setQuery('');setPage(0);
   setFolder(null);setFolderIds([]);clearPicks();
 }
+async function abandonRun(){
+  if(folderBusy.current||busyRef.current||!run||!canAbandon)return;
+  try{await helper(sdk,'update',{runId:run.runId,patch:{phase:'abandoned'},stage:'pipeline',status:'abandoned',details:{by:'user',from:run.phase}});}
+  catch(e){setError(e instanceof Error?e.message:String(e));return;}
+  setRun(null);setError('');setStatus('');setQuery('');setPage(0);
+  setFolder(null);setFolderIds([]);clearPicks();
+}
 async function chooseFolder(){
   if(folderBusy.current||busyRef.current||locked)return;
   folderBusy.current=true;setPicking(true);setError('');
@@ -369,6 +376,9 @@ if(current.phase==='draftReady'&&kind==='export')current=await exportRun(current
 
 const active=run&&!['draftReady','complete','abandoned','exportFailed','generationFailed'].includes(run.phase);
 const locked=busy||loading||!!active;
+// A run whose last attempt failed can be let go, unless a paid cutout is still
+// on its way: the cutout it already made stays reusable.
+const canAbandon=!!active&&!busy&&!!error&&!['generationSubmitting','generationPending'].includes(run?.phase);
 const action=primaryAction(run,s);
 const hasDraft=!!run?.draftId&&requestKey(s)===requestKey(run.settings);
 // A finished or unfinished run with no folder open has no grid to stand on, so
@@ -633,7 +643,7 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
     {/* The kit's Actions stacks every button full width under 360px, which
         made this bar four lines tall in a docked panel. This row keeps the
         two buttons side by side at any width; only the count wraps above. */}
-    <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error)} busyLabel={friendlyPhase(run?.phase)} disabled={loading||picking||(!active&&!hasDraft&&!!blocker)} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
+    <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}{canAbandon&&<ui.Button variant="ghost" onClick={()=>void abandonRun()}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error)} busyLabel={friendlyPhase(run?.phase)} disabled={loading||picking||(!active&&!hasDraft&&!!blocker)} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
   </footer>}
 </div>;
 }
