@@ -1,10 +1,10 @@
 # Install Multicam Generator
 
-1. Use a Selects build supporting user Panels, `sdk.askAI`, `sdk.runScript`, `sdk.runShell`, managed media generation, and the internal timeline/filesystem/FFmpeg adapters used by this panel.
-2. Confirm your account has access to Kling O1 Edit Video [Pro] and Sync Lipsync. Generation consumes credits; no external provider credentials are needed.
-3. Copy this package's `panel.tsx` unchanged to `SELECTS_USER_PANELS_ROOT/multicam-generator/panel.tsx`, using the environment-provided panels root. Create that directory if needed. Do not register it via a separate API. Preserve any existing custom panel before replacement.
-4. Reload the Panels list if necessary and open **Multicam Generator**.
+1. Use a Selects build with user Panels, `sdk.askAI`, `sdk.runScript`, `sdk.runShell`, managed media generation, and the internal timeline/filesystem/FFmpeg adapters. Selects Staging 2.0.443 on macOS was tested. Omni's direct native generation requires the `MediaGeneration` service (host 2.0.433 or newer) and account access.
+2. Confirm your account can use your chosen video model and Sync Lipsync 2 Pro. Generation can consume credits and uploads the selected source media to Selects-managed services. No provider key is required.
+3. Preserve any existing custom panel, then copy this package's `panel.tsx` unchanged to `SELECTS_USER_PANELS_ROOT/multicam-generator/panel.tsx`, using the environment-provided panels root. Create the directory if needed; no registration API is required.
+4. Reopen **Multicam Generator** in the Plugin list. Embedded previews and translations need no separate files.
 
-React is supplied by the Selects panel host. Media preparation uses the host FFmpeg/FFprobe adapters; no model weights or Node dependencies need to be installed. Python 3 on PATH enables optional local diagnostic logging; a logging failure retains the error in local storage.
+React and FFmpeg/FFprobe are supplied by Selects. Do not install Node dependencies or model weights for this plugin. Python 3 on PATH enables optional diagnostic logging; if it is unavailable, the error remains in local storage.
 
-See [README.md](README.md) for operation, recovery, costs and limitations. Removing the installed panel removes the UI; it does not delete generated project media, clips or local job cache.
+See [README.md](README.md) for operation and known limitations, including the AI-mediated request issue affecting non-Omni paths. Completed results are added automatically as separate editable clips. Removing the panel does not delete project media, clips or local cache.
