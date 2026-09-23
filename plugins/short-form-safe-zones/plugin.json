@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "short-form-safe-zones",
+  "version": "0.1.0",
+  "name": "Short Form Safe Zones",
+  "summary": "Overlay TikTok, Reels, Shorts, Stories and LinkedIn safe-zone guides and composition grids as a removable clip in the Draft preview.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS"
+    ],
+    "selects": "Requires Panel support. Released-version and Windows/Linux compatibility are unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  },
+  "localized": {
+    "de": {
+      "name": "Sicherheitszonen für Kurzvideos",
+      "summary": "Blendet Sicherheitszonen und Kompositionsraster für TikTok, Reels, Shorts, Stories und LinkedIn als entfernbaren Clip in der Vorschau ein."
+    },
+    "es": {
+      "name": "Zonas Seguras para Videos Cortos",
+      "summary": "Superpone guías de zonas seguras y cuadrículas de composición de TikTok, Reels, Shorts, Stories y LinkedIn como un clip eliminable en la vista previa."
+    },
+    "fr": {
+      "name": "Zones de Sécurité Format Court",
+      "summary": "Superpose les zones de sécurité et grilles de composition de TikTok, Reels, Shorts, Stories et LinkedIn sous forme de clip amovible dans l'aperçu."
+    },
+    "it": {
+      "name": "Zone Sicure per i Video Brevi",
+      "summary": "Sovrappone le zone di sicurezza e le griglie di composizione di TikTok, Reels, Shorts, Stories e LinkedIn come clip rimovibile nell'anteprima."
+    },
+    "ja": {
+      "name": "ショート動画セーフゾーン",
+      "summary": "TikTok、Reels、Shorts、Stories、LinkedInのセーフゾーンと構図グリッドを、プレビュー内の削除可能なクリップとして重ねて表示します。"
+    },
+    "pt": {
+      "name": "Zonas Seguras para Vídeos Curtos",
+      "summary": "Sobrepõe guias de zonas seguras e grades de composição do TikTok, Reels, Shorts, Stories e LinkedIn como um clipe removível na pré-visualização."
+    },
+    "tr": {
+      "name": "Kısa Video Güvenli Alanları",
+      "summary": "TikTok, Reels, Shorts, Stories ve LinkedIn güvenli alan kılavuzlarını ve kompozisyon ızgaralarını önizlemede kaldırılabilir bir klip olarak gösterir."
+    },
+    "zh": {
+      "name": "短视频安全区",
+      "summary": "在预览中以可移除片段的形式叠加 TikTok、Reels、Shorts、Stories 和 LinkedIn 的安全区参考线与构图网格。"
+    }
+  }
+}
