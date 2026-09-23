@@ -12,14 +12,45 @@
   "noteSizeAt720": 34,
   "titleTopAt1280": 379,
   "shadow": "0 1px 2px rgba(0,0,0,0.7), 0 0 6px rgba(0,0,0,0.55), 0 0 16px rgba(0,0,0,0.35)",
-  "titleDelayFrames": 2,
+  "titleDelayFrames": 0,
   "titleClearFramesBeforeCut": 9,
   "introClearFramesBeforeCut": 6,
   "defaultAspect": "portrait",
   "defaultPace": "quick",
-  "secondsPerPlace": {"quick": 2.6, "balanced": 3.5, "unhurried": 4.5},
-  "introSeconds": 2.4,
+  "secondsPerPlace": {
+    "quick": 2.609,
+    "balanced": 3.913,
+    "unhurried": 4.565
+  },
+  "introSeconds": 2.609,
   "noteMaxWords": 6,
   "noteMaxCharacters": 42,
-  "principles": ["Footage comes first", "Analyze, review, then create", "All source clips remain editable", "No sponsor banners"]
+  "principles": [
+    "Footage comes first",
+    "Analyze, review, then create",
+    "All source clips remain editable",
+    "No sponsor banners"
+  ],
+  "tempoBpm": 92,
+  "beatsPerPlace": {
+    "quick": 4,
+    "balanced": 6,
+    "unhurried": 7
+  },
+  "cutBeats": {
+    "quick": [
+      1,
+      1,
+      2
+    ],
+    "balanced": [
+      2,
+      4
+    ],
+    "unhurried": [
+      3,
+      4
+    ]
+  },
+  "music": "place-count-theme.m4a"
 }

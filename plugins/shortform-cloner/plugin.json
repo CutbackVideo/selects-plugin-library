@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "shortform-cloner",
+  "version": "0.2.0-alpha.2",
+  "name": "Selects Clips",
+  "summary": "Turn long videos into editable shorts with reference-inspired styles, captions and AI review.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "setup.command",
+    "panel.tsx",
+    "setup.ps1",
+    "verify_runtime.py"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS",
+      "Windows"
+    ],
+    "selects": "Existing documented Panels APIs: call, askAI, runShell and runScript; native draft editing, generated-media authoring, frame capture, ordinary video export and workflow inspection. SDK declarations checked against installed Selects 2.0.430. Account must have plugin/generated-media authoring enabled. No host patch or private browser service. Python 3.9+, yt-dlp, ffmpeg and ffprobe required. Windows native end-to-end validation pending."
+  },
+  "localized": {
+    "en": {
+      "name": "Selects Clips",
+      "summary": "Turn long videos into editable shorts with reference-inspired styles, captions and AI review."
+    },
+    "de": {
+      "name": "Selects Clips",
+      "summary": "Erstelle aus langen Videos bearbeitbare Kurzvideos mit referenzbasierten Stilen, Untertiteln und KI-Pr\u00fcfung."
+    },
+    "es": {
+      "name": "Selects Clips",
+      "summary": "Convierte videos largos en clips editables con estilos de referencia, subt\u00edtulos y revisi\u00f3n con IA."
+    },
+    "fr": {
+      "name": "Selects Clips",
+      "summary": "Transformez vos longues vid\u00e9os en clips modifiables avec styles de r\u00e9f\u00e9rence, sous-titres et v\u00e9rification par IA."
+    },
+    "it": {
+      "name": "Selects Clips",
+      "summary": "Trasforma video lunghi in clip modificabili con stili di riferimento, sottotitoli e revisione IA."
+    },
+    "ja": {
+      "name": "Selects Clips",
+      "summary": "\u9577\u3044\u52d5\u753b\u304b\u3089\u3001\u53c2\u8003\u52d5\u753b\u306e\u30b9\u30bf\u30a4\u30eb\u30fb\u5b57\u5e55\u30fbAI\u30ec\u30d3\u30e5\u30fc\u4ed8\u304d\u306e\u7de8\u96c6\u53ef\u80fd\u306a\u30b7\u30e7\u30fc\u30c8\u52d5\u753b\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "Selects Clips",
+      "summary": "\uae34 \uc601\uc0c1\uc5d0\uc11c \ub808\ud37c\ub7f0\uc2a4 \uc2a4\ud0c0\uc77c, \uc790\ub9c9, AI \ub9ac\ubdf0\ub97c \uc801\uc6a9\ud55c \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc20f\ud3fc\uc744 \ub9cc\ub4dc\uc138\uc694."
+    },
+    "pt": {
+      "name": "Selects Clips",
+      "summary": "Transforme v\u00eddeos longos em clipes edit\u00e1veis com estilos de refer\u00eancia, legendas e revis\u00e3o por IA."
+    },
+    "tr": {
+      "name": "Selects Clips",
+      "summary": "Uzun videolar\u0131 referans stilleri, altyaz\u0131lar ve yapay zek\u00e2 incelemesiyle d\u00fczenlenebilir k\u0131sa videolara d\u00f6n\u00fc\u015ft\u00fcr\u00fcn."
+    },
+    "zh": {
+      "name": "Selects Clips",
+      "summary": "\u5c06\u957f\u89c6\u9891\u8f6c\u4e3a\u53ef\u7f16\u8f91\u7684\u77ed\u89c6\u9891\uff0c\u7ed3\u5408\u53c2\u8003\u98ce\u683c\u3001\u5b57\u5e55\u548c AI \u5ba1\u6838\u3002"
+    }
+  }
+}

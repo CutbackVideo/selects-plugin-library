@@ -13,7 +13,8 @@ if(cfg.recoverOnly&&!matches.length)throw Error('No saved draft matches this bui
 const d=matches.length?selects.draft(matches[0]):await p.createDraft({name:cfg.draftName});
 const expectedAliases=[];
 if(!matches.length){
- for(const s of cfg.segments){await d.insertResource({resourceId:source.get(pathKey(s.path)).resourceId,sourceRange:{startSeconds:s.start,endSeconds:s.end}});expectedAliases.push((await d.clips({trackScope:'main'})).at(-1).resourceId);}
+ const rate=(await d.meta()).fps;let at=0;
+ for(const s of cfg.segments){const f=source.get(pathKey(s.path)),from=Math.round(at*rate),to=Math.round((at+s.end-s.start)*rate);at+=s.end-s.start;await d.insertResource({resourceId:f.resourceId,sourceRange:{startSeconds:s.start,endSeconds:Math.min(f.durationSeconds,s.start+(to-from)/rate)}});expectedAliases.push((await d.clips({trackScope:'main'})).at(-1).resourceId);}
  await d.setFrameSize(cfg.frameSize);
  for(let i=0;i<cfg.segments.length;i++){
   const clip=(await d.clips({trackScope:'main'}))[i];const s=cfg.segments[i];const f=source.get(pathKey(s.path));const w=f.frameSize.width,h=f.frameSize.height,W=cfg.frameSize.width,H=cfg.frameSize.height;
