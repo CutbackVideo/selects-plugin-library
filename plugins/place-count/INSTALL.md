@@ -17,12 +17,13 @@ The runtime needs no separately installed Python, Pillow, FFmpeg, model, or prov
 
 1. Download the manifest and every listed file from the same Git commit. Keep their relative paths in a persistent package folder.
 2. Before updating an installation, finish active panel operations. Preserve the existing panel, modified assets, project-scoped workspaces, and runtime data; do not replace or remove them without a backup.
-3. Resolve the current user's home directory through the host FileSystem service or the operating system. Create `.selects/templates/place-count` beneath that home directory. Copy these four files there from the downloaded package:
+3. Resolve the current user's home directory through the host FileSystem service or the operating system. Create `.selects/templates/place-count` beneath that home directory. Copy these files there from the downloaded package:
 
    - `motion.tsx`
    - `assemble-base.js`
    - `apply-design.js`
    - `finish-draft.js`
+   - `place-count-theme.m4a` (default music; without it Drafts are built with no music)
 
    Preserve existing customized files before replacement. The panel loads these exact names; keeping the source folder alone is not sufficient. Do not copy test fixtures, models, or runtime data into the asset directory.
 
