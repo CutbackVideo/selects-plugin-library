@@ -28,7 +28,7 @@ Workspaces use project-scoped browser storage. Contact images, recovery data, an
 ## Limits and verification
 
 - Codec preview support follows the host browser. Some media that Selects can edit may not be browser-decodable. Valid current selections can still be used; offline selected sources block creation.
-- Every Draft gets the bundled theme music unless you add your own track or clear **Place Count theme music** in Story settings. It is cut to the story's length and faded out over its last 1.5 seconds; see [THIRD_PARTY.md](THIRD_PARTY.md) for its source and terms. Original clip audio is off by default. Short music tracks you supply are not silently looped.
+- Every Draft gets the bundled theme music unless you add your own track or clear **Place Count theme music** in Story settings. It is cut to the story's length and faded out over its last 1.5 seconds; see [THIRD_PARTY.md](THIRD_PARTY.md) for its source. Original clip audio is off by default. Short music tracks you supply are not silently looped.
 - Asset loading relies on host adapters exposed through `window.parent.__DI__`. They are runtime-checked but are not stable public plugin APIs.
 - Native image compatibility and portrait, landscape, opening, and text-motion rendering were checked in non-committed simulations. Planner, source-path collision, alias normalization, recovery, concurrency, and create-flow tests use isolated fixtures or mocked services.
 - Full live smart-assist runs, all supported codecs, clean-machine installation, and cross-platform behavior need further QA. These source checks do not prove every output's editorial quality.
