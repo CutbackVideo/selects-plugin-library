@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "20vc-style",
+  "version": "0.1.0",
+  "name": "20VC Style",
+  "summary": "Edit conversation, interview, or podcast footage into a separate editable portrait short with reaction-led camera cuts, real split tracks, meaning-linked B-roll, readable outlined captions, and restrained transitions and sound effects.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified."
+  },
+  "localized": {
+    "de": {
+      "name": "20VC-Stil",
+      "summary": "Schneidet Gesprächs-, Interview- oder Podcast-Material zu einem separaten, editierbaren Hochformat-Short mit reaktionsgeführten Kameraschnitten, echten Split-Spuren, passendem B-Roll, gut lesbaren Untertiteln sowie dezenten Übergängen und Soundeffekten."
+    },
+    "es": {
+      "name": "Estilo 20VC",
+      "summary": "Edita material de conversación, entrevista o pódcast en un short vertical editable e independiente, con cortes de cámara guiados por reacciones, pistas divididas reales, recursos visuales pertinentes, subtítulos legibles y transiciones y efectos de sonido sobrios."
+    },
+    "fr": {
+      "name": "Style 20VC",
+      "summary": "Monte des rushes de conversation, d'interview ou de podcast en un short vertical modifiable et distinct, avec des plans guidés par les réactions, de vraies pistes en écran partagé, des plans de coupe pertinents, des sous-titres lisibles ainsi que des transitions et effets sonores sobres."
+    },
+    "it": {
+      "name": "Stile 20VC",
+      "summary": "Monta riprese di conversazioni, interviste o podcast in uno short verticale separato e modificabile, con stacchi guidati dalle reazioni, vere tracce in split screen, B-roll pertinente, sottotitoli leggibili e transizioni ed effetti sonori sobri."
+    },
+    "ja": {
+      "name": "20VC スタイル",
+      "summary": "対談・インタビュー・ポッドキャスト素材から、編集可能な別の縦型ショートを作成します。リアクション重視のカメラ切り替え、実際の分割トラック、意味に合った B ロール、読みやすい字幕、控えめなトランジションと効果音を扱います。"
+    },
+    "pt": {
+      "name": "Estilo 20VC",
+      "summary": "Edita gravações de conversa, entrevista ou podcast em um short vertical editável e separado, com cortes de câmera guiados por reações, faixas divididas reais, B-roll pertinente, legendas legíveis e transições e efeitos sonoros discretos."
+    },
+    "tr": {
+      "name": "20VC Stili",
+      "summary": "Sohbet, röportaj veya podcast görüntülerini tepki odaklı kamera geçişleri, gerçek bölünmüş izler, anlamlı ara görüntüler, okunaklı altyazılar ve ölçülü geçiş ve ses efektleriyle ayrı, düzenlenebilir dikey bir kısa videoya dönüştürür."
+    },
+    "zh": {
+      "name": "20VC 风格",
+      "summary": "将对谈、访谈或播客素材剪辑成独立、可编辑的竖版短视频：以反应为主导的机位切换、真实的分屏轨道、贴合语义的 B-roll、清晰易读的字幕，以及克制的转场和音效。"
+    }
+  }
+}
