@@ -1829,7 +1829,7 @@ function Session({ sdk, context }) {
             setSavedRequest(prior);
           }
           save(null); setModelKey("seedance25"); setDuration(5); setAngle("right");
-          setCustomAngle(""); setNotes(""); 
+          setCustomAngle(""); setNotes("");
           setError(""); setDetail(null); setStage("");
         } catch { setError("Could not save the previous request. Check your available storage."); }
       }}>Start over</button>
