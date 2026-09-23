@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "place-count",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "name": "Place Count",
-  "summary": "Turn location folders into an editable travel-story Draft with separate source clips, titles, descriptions, and optional music.",
+  "summary": "Group trip footage into places by capture time and GPS, then build an editable travel-story Draft with separate source clips, titles, descriptions, and optional music.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -17,10 +17,12 @@
     "apply-design.js",
     "finish-draft.js",
     "planner.js",
+    "places.js",
     "design.json",
     "tests/core.test.cjs",
     "tests/create.test.cjs",
-    "tests/path-collision.test.cjs"
+    "tests/path-collision.test.cjs",
+    "tests/places.test.cjs"
   ],
   "compatibility": {
     "platforms": [

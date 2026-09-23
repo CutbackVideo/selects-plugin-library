@@ -4,7 +4,7 @@ const d=selects.draft(cfg.sequenceId);const cs=await d.clips({trackScope:'all'})
 if(!cfg.sourceAudio)await d.setAudioTracks({target:await d.rangeAtFrames(0,end),audioSourceIndexes:[]});
 if(cfg.music&&!cs.some(c=>c.trackKind==='audio')){
  const listing=await p.sourceFiles({folder:'(root)'});const music=listing.fileTree.find(f=>f.type==='audio'&&f.path===cfg.music.path);
- if(!music||!music.durationSeconds)throw Error('The selected music is unavailable.');
+ if(!music||music.type==='dir'||!music.durationSeconds)throw Error('The selected music is unavailable.');
  const musicEnd=Math.min(end,Math.floor(music.durationSeconds*(await d.meta()).fps));
  if(musicEnd>0)await d.overlayResource({resource:p.resource(music.resourceId),over:await d.rangeAtFrames(0,musicEnd),sourceStartSeconds:0});
 }

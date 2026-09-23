@@ -1,44 +1,64 @@
 import React from 'react';
 import {useCurrentFrame, useVideoConfig} from 'remotion';
 
-// Editable, photo-first typography. No flattened footage is generated.
-export default function PlaceStoryType({data}) {
+// Reference-matched travel-list typography, measured from the source reel:
+// yellow Times place titles numbered "1. Name", a short white line beneath,
+// centred in the upper third with a soft drop shadow and no backing panel,
+// and a curved "N Places to Visit" opening over the city name. Every value
+// below is an editable parameter of this graphic; no footage is flattened.
+export default function PlaceCountTitle({data}) {
   const frame = useCurrentFrame();
-  const {width, height, fps, durationInFrames} = useVideoConfig();
+  const {width, height, fps} = useVideoConfig();
   const wide = width > height;
-  const scale = wide ? height / 720 : width / 720;
-  const margin = (wide ? 48 : 56) * scale;
-  const smooth = n => { const t = Math.max(0, Math.min(1, n)); return t*t*(3-2*t); };
-  const enter = smooth(frame / Math.max(1, fps * 0.3));
-  const exit = smooth((durationInFrames - 1 - frame) / Math.max(1, fps * 0.2));
-  const opacity = Math.min(enter, exit);
-  const accent = data.accent || '#d8c6aa';
-  const title = String(data.title || 'Untitled place');
-  const description = String(data.description || '');
+  // Measurements are in the reference's 720x1280 frame. A landscape frame
+  // keeps the same type proportions against its shorter side.
+  const s = wide ? (height / 720) * 0.8 : width / 720;
+  const f = frame * 30 / fps;
   const intro = data.kind === 'intro';
-  const titleSize = intro ? (title.length > 26 ? 78 : 102) : (title.length > 42 ? 46 : title.length > 26 ? 54 : 66);
-  const maxWidth = wide ? width * 0.69 : width - margin * 2;
-  const textY = intro ? height * 0.39 : undefined;
-  const bottom = intro ? undefined : (wide ? 48 : 148) * scale;
-  const fade = Number(data.contrast ?? 0.72);
-  return <div style={{position:'absolute', inset:0, overflow:'hidden'}}>
-    <div style={{position:'absolute', inset:0, background:intro
-      ? `linear-gradient(180deg, rgba(8,12,14,${fade*0.08}) 0%, rgba(8,12,14,${fade*0.44}) 47%, rgba(8,12,14,${fade*0.8}) 100%)`
-      : `linear-gradient(180deg, rgba(8,12,14,0) 37%, rgba(8,12,14,${fade*0.2}) 61%, rgba(8,12,14,${fade}) 100%)`}} />
-    <div style={{position:'absolute', left:margin, top:textY, bottom, width:maxWidth,
-      opacity, transform:`translateY(${(1-enter)*12*scale}px)`, color:'#faf9f6', textAlign:'left'}}>
-      <div style={{display:'flex', alignItems:'center', gap:12*scale, marginBottom:18*scale,
-        fontFamily:'Arial', fontWeight:500, fontSize:17*scale, letterSpacing:3.2*scale, lineHeight:1.3}}>
-        <span style={{width:30*scale, height:1*scale, background:accent, flexShrink:0}} />
-        <span style={{color:accent}}>{intro ? (data.eyebrow || 'A FIELD GUIDE') : String(data.index || 1).padStart(2,'0') + ' / ' + String(data.count || 1).padStart(2,'0')}</span>
-      </div>
-      <div style={{fontFamily:data.titleFont || 'Georgia', fontWeight:400,
-        fontSize:titleSize*scale, letterSpacing:-1.8*scale, lineHeight:1.04,
-        whiteSpace:'pre-line', overflowWrap:'break-word'}}>{title}</div>
-      {description && <div style={{fontFamily:'Arial', fontWeight:400, fontSize:(intro ? 25 : 26)*scale,
-        lineHeight:1.38, letterSpacing:0.05*scale, color:'rgba(250,249,246,0.82)',
-        maxWidth:wide ? maxWidth*0.82 : maxWidth, marginTop:18*scale,
-        whiteSpace:'pre-line'}}>{description}</div>}
-    </div>
+  // The reference lands each title two frames after its cut.
+  const delay = Number(data.delayFrames ?? (intro ? 0 : 2));
+  if (f < delay) return null;
+
+  const family = data.titleFont || 'Times New Roman';
+  const yellow = data.accent || '#e5dc32';
+  const white = '#ffffff';
+  // A tight drop shadow for the letter edges plus a wide soft glow, so the
+  // titles stay readable over sky and other bright footage without a panel.
+  const shadow = `0 ${s}px ${2 * s}px rgba(0,0,0,0.7), 0 0 ${6 * s}px rgba(0,0,0,0.55), 0 0 ${16 * s}px rgba(0,0,0,0.35)`;
+  const title = String(data.title || '');
+  const note = String(data.description || '');
+
+  if (intro) {
+    // Vertical positions are the reference's, re-centred for landscape.
+    const top = wide ? height / 2 - 150 * s : 218 * s;
+    const count = Number(data.count || 0);
+    return <div style={{position:'absolute', inset:0, fontFamily:family, fontWeight:400,
+      textAlign:'center', color:white, textShadow:shadow}}>
+      <svg viewBox="0 0 720 230" style={{position:'absolute', top, left:'50%',
+        transform:'translateX(-50%)', width:720 * s, height:230 * s, overflow:'visible'}}>
+        <defs><path id="place-count-arc" d="M 84 173 Q 360 5 636 173"/></defs>
+        <text fill={yellow} fontSize="62" fontFamily={family} fontWeight="400">
+          <textPath href="#place-count-arc" startOffset="50%" textAnchor="middle">
+            {count > 0 ? `${count} Places to Visit` : 'Places to Visit'}
+          </textPath>
+        </text>
+      </svg>
+      <div style={{position:'absolute', top:top + 108 * s, width:'100%', fontSize:56 * s,
+        lineHeight:1, color:yellow}}>in</div>
+      <div style={{position:'absolute', top:top + 132 * s, width:'100%', padding:`0 ${28 * s}px`,
+        boxSizing:'border-box', fontSize:(title.length > 12 ? 96 : 132) * s, lineHeight:1}}>{title}</div>
+      {note && <div style={{position:'absolute', top:top + 248 * s, width:'100%', fontSize:60 * s,
+        lineHeight:1, fontStyle:'italic'}}>{note}</div>}
+    </div>;
+  }
+
+  const prefix = data.index && !/^\d+\./.test(title) ? `${data.index}. ` : '';
+  const top = wide ? height * 0.3 : 388 * s;
+  return <div style={{position:'absolute', inset:0, boxSizing:'border-box', paddingTop:top,
+    fontFamily:family, fontWeight:400, textAlign:'center', textShadow:shadow}}>
+    <div style={{fontSize:50 * s, lineHeight:1.04, color:yellow, padding:`0 ${28 * s}px`,
+      whiteSpace:'pre-line', overflowWrap:'break-word'}}>{prefix}{title}</div>
+    {note && <div style={{fontSize:32 * s, lineHeight:1.12, color:white, padding:`0 ${28 * s}px`,
+      marginTop:8 * s, whiteSpace:'pre-line', overflowWrap:'break-word'}}>{note}</div>}
   </div>;
 }

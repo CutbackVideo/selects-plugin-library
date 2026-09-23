@@ -19,3 +19,4 @@ jobs:
         run: |
           node plugins/place-count/tests/core.test.cjs
           node plugins/place-count/tests/path-collision.test.cjs
+          node plugins/place-count/tests/places.test.cjs
