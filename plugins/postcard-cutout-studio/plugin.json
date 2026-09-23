@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "postcard-cutout-studio",
-  "version": "0.1.0-alpha.1",
+  "version": "0.2.0-alpha.1",
   "name": "Postcard Cutout Studio",
-  "summary": "Build an editable travel-postcard Draft with generated or local cutouts, independent background panels, repeated photo clips, and editable title graphics.",
+  "summary": "Turn a folder of travel videos and photos into an editable moving-postcard opener: a cut-out subject over snapping panels, a scrambled title with synced sound, and a photo ending cut to the beat.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -13,26 +13,76 @@
     "THIRD_PARTY.md",
     "panel.tsx",
     "pipeline.py",
-    "filmstrip.py",
     "scene_preview.py",
-    "rvm/setup.sh",
-    "rvm/run.sh",
-    "rvm/runtime.py",
-    "rvm/benchmark.py",
-    "rvm/requirements-hashed.txt",
-    "rvm/THIRD_PARTY.md",
+    "sfx/manifest.json",
+    "sfx/music-strings-v1.wav.b64",
+    "sfx/panel-shutter-v4-1.wav.b64",
+    "sfx/panel-shutter-v4-2.wav.b64",
+    "sfx/panel-shutter-v4-3.wav.b64",
+    "sfx/panel-shutter-v4-4.wav.b64",
+    "sfx/panel-shutter-v4-5.wav.b64",
+    "sfx/panel-shutter-v4-6.wav.b64",
+    "sfx/ratchet-v4-1.wav.b64",
+    "sfx/ratchet-v4-2.wav.b64",
+    "sfx/ratchet-v4-3.wav.b64",
+    "sfx/riser-v4.wav.b64",
+    "sfx/scramble-v4.wav.b64",
+    "sfx/title-shutter-v5.wav.b64",
+    "sfx/tone-v4.wav.b64",
     ".gitignore"
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64 (developed and tested)"
+      "macOS arm64"
     ],
-    "selects": "Requires Panel, generated-media authoring, Draft-authoring, and Export workflow support. Released-version and Windows/Linux compatibility are unverified."
+    "selects": "Tested in a Selects development build (develop, 2026-09-23) on macOS arm64. Requires Panel runScript/runShell, managed media generation through the MediaGeneration service (host 2.0.433+), and Draft authoring. Windows is unsupported (the helper uses Unix-only APIs); other builds are unverified."
   },
   "preview": {
     "video": "preview.mp4",
     "poster": "poster.webp",
     "width": 960,
     "height": 540
+  },
+  "localized": {
+    "de": {
+      "name": "Postkarten-Freisteller-Studio",
+      "summary": "Macht aus einem Ordner mit Reisevideos und Fotos ein bearbeitbares Intro als bewegte Postkarte: ein freigestelltes Motiv \u00fcber einrastenden Bildstreifen, ein Titel mit synchronen Soundeffekten und ein Foto-Finale im Takt."
+    },
+    "en": {
+      "name": "Postcard Cutout Studio",
+      "summary": "Turn a folder of travel videos and photos into an editable moving-postcard opener: a cut-out subject over snapping panels, a scrambled title with synced sound, and a photo ending cut to the beat."
+    },
+    "es": {
+      "name": "Estudio de postales recortadas",
+      "summary": "Convierte una carpeta de v\u00eddeos y fotos de viaje en una apertura editable de postal animada: el sujeto recortado sobre paneles que aparecen, un t\u00edtulo con efectos de sonido sincronizados y un final de fotos al ritmo."
+    },
+    "fr": {
+      "name": "Studio de cartes postales d\u00e9tour\u00e9es",
+      "summary": "Transforme un dossier de vid\u00e9os et de photos de voyage en ouverture de carte postale anim\u00e9e modifiable : un sujet d\u00e9tour\u00e9 sur des panneaux qui apparaissent, un titre aux effets sonores synchronis\u00e9s et un final photo mont\u00e9 sur le rythme."
+    },
+    "it": {
+      "name": "Studio cartoline scontornate",
+      "summary": "Trasforma una cartella di video e foto di viaggio in un'apertura modificabile a cartolina animata: il soggetto scontornato su pannelli che compaiono, un titolo con effetti sonori sincronizzati e un finale di foto a tempo."
+    },
+    "ja": {
+      "name": "\u30dd\u30b9\u30c8\u30ab\u30fc\u30c9\u30fb\u30ab\u30c3\u30c8\u30a2\u30a6\u30c8\u30fb\u30b9\u30bf\u30b8\u30aa",
+      "summary": "\u65c5\u884c\u306e\u52d5\u753b\u3068\u5199\u771f\u306e\u30d5\u30a9\u30eb\u30c0\u30fc\u304b\u3089\u3001\u7de8\u96c6\u3067\u304d\u308b\u300c\u52d5\u304f\u30dd\u30b9\u30c8\u30ab\u30fc\u30c9\u300d\u306e\u30aa\u30fc\u30d7\u30cb\u30f3\u30b0\u3092\u4f5c\u308a\u307e\u3059\u3002\u5207\u308a\u629c\u3044\u305f\u88ab\u5199\u4f53\u3068\u6b21\u3005\u306b\u73fe\u308c\u308b\u30d1\u30cd\u30eb\u3001\u52b9\u679c\u97f3\u306b\u5408\u308f\u305b\u3066\u63c3\u3046\u30bf\u30a4\u30c8\u30eb\u3001\u30d3\u30fc\u30c8\u306b\u5408\u308f\u305b\u3066\u5207\u308a\u66ff\u308f\u308b\u5199\u771f\u306e\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0\u304c\u5165\u308a\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "\ud3ec\uc2a4\ud2b8\uce74\ub4dc \ucef7\uc544\uc6c3 \uc2a4\ud29c\ub514\uc624",
+      "summary": "\uc5ec\ud589 \uc601\uc0c1\uacfc \uc0ac\uc9c4 \ud3f4\ub354\ub85c \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc6c0\uc9c1\uc774\ub294 \uc5fd\uc11c \uc624\ud504\ub2dd\uc744 \ub9cc\ub4ed\ub2c8\ub2e4. \ubc30\uacbd\uc744 \uc624\ub824\ub0b8 \ud53c\uc0ac\uccb4\uc640 \ucc28\ub840\ub85c \ub098\ud0c0\ub098\ub294 \ud328\ub110, \ud6a8\uacfc\uc74c\uc5d0 \ub9de\ucdb0 \uc11e\uc774\ub294 \uc81c\ubaa9, \ube44\ud2b8\uc5d0 \ub9de\ucdb0 \ub118\uc5b4\uac00\ub294 \uc0ac\uc9c4 \uc5d4\ub529\uc774 \ub2f4\uae41\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Est\u00fadio de postais recortados",
+      "summary": "Transforma uma pasta de v\u00eddeos e fotos de viagem numa abertura edit\u00e1vel de postal animado: o tema recortado sobre pain\u00e9is que surgem, um t\u00edtulo com efeitos sonoros sincronizados e um final de fotos ao ritmo."
+    },
+    "tr": {
+      "name": "Kartpostal Dekupe St\u00fcdyosu",
+      "summary": "Seyahat videolar\u0131 ve foto\u011fraflar\u0131ndan olu\u015fan bir klas\u00f6r\u00fc d\u00fczenlenebilir hareketli kartpostal a\u00e7\u0131l\u0131\u015f\u0131na d\u00f6n\u00fc\u015ft\u00fcr\u00fcr: beliren panellerin \u00fczerinde dekupe edilmi\u015f \u00f6zne, senkron ses efektli bir ba\u015fl\u0131k ve ritme g\u00f6re kesilen foto\u011fraf finali."
+    },
+    "zh": {
+      "name": "\u660e\u4fe1\u7247\u62a0\u50cf\u5de5\u4f5c\u5ba4",
+      "summary": "\u628a\u4e00\u4e2a\u6587\u4ef6\u5939\u7684\u65c5\u884c\u89c6\u9891\u548c\u7167\u7247\u505a\u6210\u53ef\u7f16\u8f91\u7684\u201c\u52a8\u6001\u660e\u4fe1\u7247\u201d\u7247\u5934\uff1a\u62a0\u51fa\u7684\u4e3b\u4f53\u53e0\u5728\u4f9d\u6b21\u51fa\u73b0\u7684\u80cc\u666f\u6761\u4e0a\uff0c\u6807\u9898\u968f\u97f3\u6548\u6eda\u52a8\u5b9a\u683c\uff0c\u7ed3\u5c3e\u7167\u7247\u6309\u8282\u62cd\u5207\u6362\u3002"
+    }
   }
 }
