@@ -17,12 +17,12 @@ replace it.
 3. Click tiles to select, in order. The first video picked is the subject (★);
    click another tile's number to make it the subject instead. With both videos
    and photos picked, the other videos become background panels, left to right
-   (up to six), and the photos play in the ending (up to twelve). With only one
-   kind, the first six after the subject become panels and the rest play in the
-   ending.
+   (up to six), and the photos are the ending picks (up to twelve). With only one
+   kind, the first six after the subject become panels and the rest are the
+   ending picks. A photo used as a panel goes in as a still video.
 4. Enter the **Title**. **Options** holds the subtitle, subject start time, format
    (Match subject, Landscape 16:9, Portrait 9:16, Square 1:1), framing (Fill frame
-   or Fit entire video), font and colours.
+   or Fit entire video), font, colours and **All caps** (on by default).
 5. **Create**. The Draft is named after the title; if that name is taken it becomes
    `Title (1)`, `Title (2)`, and so on. After changing settings the button reads
    **Rebuild**; with nothing changed it reads **Open**. **Start over** picks a new folder.
@@ -42,7 +42,15 @@ The clock is copied from the reference reel and lives in `TIMING` in `panel.tsx`
 - 4.06 s: the subtitle lands with a click. 4.51 s: the title arrives scrambled,
   re-rolls on every tick of its sound, and lands its last letter on the last tick.
 - From 5.95 s: a slit opens behind the title while the ending cuts on every 16th
-  note of the music, to 13.575 s.
+  note of the music, to 13.575 s. The ending draws on every clip except the
+  subject: a video gives a different moment each time it returns, a photo repeats
+  only when there is no video, and no clip plays twice running while another is
+  left.
+
+Every picture fills what it shows in. Panels fill their own strip with the clip
+centred in it; ending clips fill the frame; with Fill frame the subject is moved
+so the person, found from the cutout, sits in the middle, and the cutout moves
+with it.
 
 Every piece is its own clip so it can be edited alone: panels (green), the cutout
 and the white flash (violet), the `Close 1–3`, `Reveal`, `Subtitle` and `Title`
@@ -73,6 +81,6 @@ Inspect frames around 0.9, 1.45, 2.5, 4.3, 5.5 and 8 s.
 - macOS only; tested on Apple silicon with a Selects development build.
 - The title look uses DIN Condensed and Avenir Next, which macOS provides. Other
   systems fall back to other fonts.
-- Fill frame can crop a moving subject; use Fit entire video or Match subject when
-  the whole subject must stay visible.
+- Fill frame keeps the subject centred but crops the rest of a wide scene; use Fit
+  entire video when the whole frame must stay visible.
 - See [THIRD_PARTY.md](THIRD_PARTY.md) for where the sounds and the music come from.

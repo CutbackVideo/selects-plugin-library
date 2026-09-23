@@ -419,11 +419,79 @@ def fetch_result(a):
  tmp.rename(dest)
  return {'path':str(dest),'cached':False}
 
+# --- Framing ------------------------------------------------------------------
+# The Draft conforms every picture to fit the frame; the assembly then scales and
+# shifts it to fill instead. That needs each picture's size as it is shown, which
+# for a phone photo means after its EXIF turn and for a phone video after its
+# rotation, and the subject's place in its own frame, read off the cutout masks.
+
+def exif_turned(path):
+ """Whether a JPEG's EXIF orientation shows it turned a quarter (tags 5-8)."""
+ try:
+  with open(path,'rb') as f:
+   if f.read(2)!=b'\xff\xd8':return False
+   while True:
+    marker=f.read(2)
+    if len(marker)<2 or marker[0]!=0xFF or marker[1] in (0xD9,0xDA):return False
+    size=int.from_bytes(f.read(2),'big');body=f.read(size-2)
+    if marker[1]==0xE1 and body[:6]==b'Exif\0\0':
+     t=body[6:];order='little' if t[:2]==b'II' else 'big';ifd=int.from_bytes(t[4:8],order)
+     for i in range(int.from_bytes(t[ifd:ifd+2],order)):
+      e=t[ifd+2+12*i:ifd+14+12*i]
+      if int.from_bytes(e[:2],order)==0x0112:return int.from_bytes(e[8:10],order) in (5,6,7,8)
+     return False
+ except (OSError,ValueError,IndexError):return False
+
+def shown_size(path):
+ r=subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=width,height:stream_side_data=rotation','-of','json',path],capture_output=True,text=True,timeout=20)
+ st=(json.loads(r.stdout or '{}').get('streams') or [{}])[0];w,h=st.get('width'),st.get('height')
+ if not(w and h):return None
+ turn=any(abs(int(sd.get('rotation',0)))%180==90 for sd in st.get('side_data_list',[]))
+ if not moving(path):turn=exif_turned(path)
+ return {'width':h,'height':w} if turn else {'width':w,'height':h}
+
+def sizes(a):
+ paths=list(dict.fromkeys(a.get('paths',[])))
+ with concurrent.futures.ThreadPoolExecutor(8) as pool:return dict(zip(paths,pool.map(shown_size,paths)))
+
+def subject_box(a):
+ """Where the subject sits in its frame, 0-1 from the top left, across the whole
+ cutout: the 2nd-98th percentile of mask coverage on each axis, so a stray hair
+ or a flicker at the edge does not pull the framing."""
+ lock=runpath(a['runId'])/'run.lock'
+ with lock.open('a') as f:
+  fcntl.flock(f,fcntl.LOCK_EX);d=load(a['runId']);m=d.get('mask',{})
+  if 'box' in m:return m['box']
+  W=160;cols=[0]*W;rows=None;total=0
+  raw=subprocess.run(['ffmpeg','-v','error','-i',str(pathlib.Path(m['path'])/'mask_%06d.png'),'-vf','scale=%d:-2,format=gray'%W,'-f','rawvideo','-'],capture_output=True,timeout=60).stdout
+  first=pathlib.Path(m['path'])/'mask_000001.png'
+  pw,ph=(lambda s:(s['width'],s['height']))(shown_size(str(first)) or {'width':16,'height':9})
+  H=max(2,round(W*ph/pw/2)*2);rows=[0]*H
+  for k in range(len(raw)//(W*H)):
+   frame=raw[k*W*H:(k+1)*W*H]
+   for y in range(H):
+    line=frame[y*W:(y+1)*W];n=0
+    for x,v in enumerate(line):
+     if v>127:cols[x]+=1;n+=1
+    rows[y]+=n;total+=n
+  def span(c):
+   lo=hi=None;acc=0
+   for i,v in enumerate(c):
+    acc+=v
+    if lo is None and acc>=total*.02:lo=i
+    if hi is None and acc>=total*.98:hi=i+1
+   return lo/len(c),hi/len(c)
+  box=None
+  if total:(x0,x1),(y0,y1)=span(cols),span(rows);box={'x0':round(x0,4),'x1':round(x1,4),'y0':round(y0,4),'y1':round(y1,4)}
+  d['mask']={**m,'box':box};save(d);return box
+
 LIGHT={'load','init','update','event','claim','reuse','hold','silent','cutout-input','tile','folder-media','settings-load','settings-save','job-record','foreground'}
 
 def main(op,a):
  if op not in LIGHT:heavy()
  if op=='folder-media':return folder_media(a)
+ if op=='sizes':return sizes(a)
+ if op=='subject-box':return subject_box(a)
  if op=='tile':return tile_preview(a)
  if op=='hold':return hold_clip(a)
  if op=='silent':
