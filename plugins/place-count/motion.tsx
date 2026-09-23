@@ -1,26 +1,28 @@
 import React from 'react';
 import {useCurrentFrame, useVideoConfig} from 'remotion';
 
-// Reference-matched travel-list typography, measured from the source reel:
-// yellow Times place titles numbered "1. Name", a short white line beneath,
+// Travel-list typography measured from the Place Count gallery preview:
+// gold Times place titles numbered "1. Name", a short white line beneath,
 // centred in the upper third with a soft drop shadow and no backing panel,
 // and a curved "N Places to Visit" opening over the city name. Every value
 // below is an editable parameter of this graphic; no footage is flattened.
 export default function PlaceCountTitle({data}) {
   const frame = useCurrentFrame();
-  const {width, height, fps} = useVideoConfig();
+  const {width, height, fps, durationInFrames} = useVideoConfig();
   const wide = width > height;
   // Measurements are in the reference's 720x1280 frame. A landscape frame
   // keeps the same type proportions against its shorter side.
   const s = wide ? (height / 720) * 0.8 : width / 720;
   const f = frame * 30 / fps;
   const intro = data.kind === 'intro';
-  // The reference lands each title two frames after its cut.
+  // Each title lands two frames after its cut and clears before the next
+  // one: nine frames early for a place, six for the opening. No fades.
   const delay = Number(data.delayFrames ?? (intro ? 0 : 2));
-  if (f < delay) return null;
+  const clear = Number(data.clearFrames ?? (intro ? 6 : 9));
+  if (f < delay || f >= durationInFrames * 30 / fps - clear) return null;
 
   const family = data.titleFont || 'Times New Roman';
-  const yellow = data.accent || '#e5dc32';
+  const yellow = data.accent || '#f8d103';
   const white = '#ffffff';
   // A tight drop shadow for the letter edges plus a wide soft glow, so the
   // titles stay readable over sky and other bright footage without a panel.
@@ -36,29 +38,30 @@ export default function PlaceCountTitle({data}) {
       textAlign:'center', color:white, textShadow:shadow}}>
       <svg viewBox="0 0 720 230" style={{position:'absolute', top, left:'50%',
         transform:'translateX(-50%)', width:720 * s, height:230 * s, overflow:'visible'}}>
-        <defs><path id="place-count-arc" d="M 84 173 Q 360 5 636 173"/></defs>
-        <text fill={yellow} fontSize="62" fontFamily={family} fontWeight="400">
+        <defs><path id="place-count-arc" d="M 96 198 Q 360 -35 624 198"/></defs>
+        <text fill={yellow} fontSize="65" fontFamily={family} fontWeight="400">
           <textPath href="#place-count-arc" startOffset="50%" textAnchor="middle">
             {count > 0 ? `${count} Places to Visit` : 'Places to Visit'}
           </textPath>
         </text>
       </svg>
-      <div style={{position:'absolute', top:top + 108 * s, width:'100%', fontSize:56 * s,
+      <div style={{position:'absolute', top:top + 101 * s, width:'100%', fontSize:67 * s,
         lineHeight:1, color:yellow}}>in</div>
-      <div style={{position:'absolute', top:top + 132 * s, width:'100%', padding:`0 ${28 * s}px`,
-        boxSizing:'border-box', fontSize:(title.length > 12 ? 96 : 132) * s, lineHeight:1}}>{title}</div>
-      {note && <div style={{position:'absolute', top:top + 248 * s, width:'100%', fontSize:60 * s,
+      <div style={{position:'absolute', top:top + 170 * s, width:'100%', padding:`0 ${28 * s}px`,
+        boxSizing:'border-box', fontSize:Math.min(106, 640 / (Math.max(1, title.length) * 0.47)) * s,
+        lineHeight:1}}>{title}</div>
+      {note && <div style={{position:'absolute', top:top + 293 * s, width:'100%', fontSize:54 * s,
         lineHeight:1, fontStyle:'italic'}}>{note}</div>}
     </div>;
   }
 
   const prefix = data.index && !/^\d+\./.test(title) ? `${data.index}. ` : '';
-  const top = wide ? height * 0.3 : 388 * s;
+  const top = wide ? height * 0.3 : 379 * s;
   return <div style={{position:'absolute', inset:0, boxSizing:'border-box', paddingTop:top,
     fontFamily:family, fontWeight:400, textAlign:'center', textShadow:shadow}}>
-    <div style={{fontSize:50 * s, lineHeight:1.04, color:yellow, padding:`0 ${28 * s}px`,
+    <div style={{fontSize:53 * s, lineHeight:1.04, color:yellow, padding:`0 ${28 * s}px`,
       whiteSpace:'pre-line', overflowWrap:'break-word'}}>{prefix}{title}</div>
-    {note && <div style={{fontSize:32 * s, lineHeight:1.12, color:white, padding:`0 ${28 * s}px`,
-      marginTop:8 * s, whiteSpace:'pre-line', overflowWrap:'break-word'}}>{note}</div>}
+    {note && <div style={{fontSize:34 * s, lineHeight:1.12, color:white, padding:`0 ${28 * s}px`,
+      marginTop:10 * s, whiteSpace:'pre-line', overflowWrap:'break-word'}}>{note}</div>}
   </div>;
 }

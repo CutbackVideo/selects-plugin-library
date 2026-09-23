@@ -17,7 +17,7 @@ There is no mandatory review screen. The output is an editable Selects Draft: or
 
 ## Look and feel
 
-A numbered travel-list reel: yellow Times place titles as "1. Name", a short white note beneath, centred in the upper third with a soft shadow and no backing panel, and a curved "N Places to Visit" opening over the city and country. Values are measured from the reference reel and kept in `design.json`. Notes aim for 8 words and 70 characters. Quick pace gives each place about 2.6 seconds; Balanced and Unhurried alternatives are available. An opening is omitted if it would require repeating the same source moment.
+A numbered travel-list reel: yellow Times place titles as "1. Name", a short white note beneath, centred in the upper third with a soft shadow and no backing panel, and a curved "N Places to Visit" opening over the city and country. Values are measured from the reference reel and kept in `design.json`. Notes aim for one line: 6 words and 42 characters. Quick pace gives each place about 2.6 seconds; Balanced and Unhurried alternatives are available. An opening is omitted if it would require repeating the same source moment.
 
 ## Local processing and data
 
