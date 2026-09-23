@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "multicam-generator",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "name": "Multicam Generator",
   "summary": "Choose a model and camera angle, generate with original-speech lip sync, and automatically add a separate editable clip to your Draft.",
   "status": "experimental",
@@ -17,7 +17,7 @@
     "platforms": [
       "macOS development builds"
     ],
-    "selects": "Tested in Selects Staging 2.0.443 on macOS. Requires Panel SDK askAI/runScript/runShell, managed media generation, and internal timeline/filesystem/FFmpeg adapters. Native Omni generation requires MediaGeneration service support (host 2.0.433+). Other builds and platforms are unverified."
+    "selects": "Tested in Selects Staging 2.0.443 on macOS. Requires Panel SDK askAI (including image attachments), runScript and runShell, managed media generation, and internal timeline/filesystem/FFmpeg adapters. Native Omni generation requires MediaGeneration service support (host 2.0.433+). Other builds and platforms are unverified."
   },
   "preview": {
     "video": "preview.mp4",
