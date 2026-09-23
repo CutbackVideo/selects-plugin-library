@@ -15,10 +15,10 @@ export default function PlaceCountTitle({data}) {
   const s = wide ? (height / 720) * 0.8 : width / 720;
   const f = frame * 30 / fps;
   const intro = data.kind === 'intro';
-  // Each title lands two frames after its cut and clears before the next
-  // one: half a beat of the 92 BPM theme early for a place, six frames for
-  // the opening. No fades.
-  const delay = Number(data.delayFrames ?? (intro ? 0 : 2));
+  // Each title lands on its cut, which is on the beat, and clears before the
+  // next one: half a beat of the 92 BPM theme early for a place, six frames
+  // for the opening. No fades.
+  const delay = Number(data.delayFrames ?? 0);
   const clear = Number(data.clearFrames ?? (intro ? 6 : 0.5 * 60 / 92 * 30));
   if (f < delay || f >= durationInFrames * 30 / fps - clear) return null;
 
