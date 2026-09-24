@@ -7,7 +7,19 @@ def heavy():
  start-up, and most calls (ledger updates, holds) need neither."""
  global urllib,http,concurrent
  import urllib.request,http.server,concurrent.futures
-STORE=pathlib.Path(__file__).resolve().parent
+PKG=pathlib.Path(__file__).resolve().parent
+
+def store():
+ """Where runs, cutouts, held clips and sounds live. Before 0.2.0-alpha.4 they
+ sat beside this script in the Panel folder, and existing Drafts point there
+ (sound and clip paths, the mask service's saved port), so a store already in
+ use stays in use. New installs keep runtime data in plugin-data."""
+ data=pathlib.Path.home()/'.selects'/'plugin-data'/'postcard-cutout-studio'
+ panels=os.environ.get('SELECTS_USER_PANELS_ROOT')
+ earlier=pathlib.Path(panels)/'postcard-cutout-studio' if panels else None
+ if not data.exists() and earlier and ((earlier/'runs').is_dir() or (earlier/'service.json').is_file()):return earlier
+ return data
+STORE=store()
 RUNS=STORE/'runs'
 DEFAULT_LOG=str(STORE/'logs')
 
@@ -223,12 +235,23 @@ HOLD_ROOT=STORE/'held'
 INPUT_ROOT=STORE/'cutout-inputs'
 SFX_ROOT=STORE/'sfx'
 
+def unpack_sound(v,dest):
+ """Decode one bundled sound into the store. Drafts reference sounds by path
+ and every file name is versioned, so an existing file is never rewritten."""
+ src=PKG/'sfx'/(v['file']+'.b64')
+ if dest.is_file() or not src.is_file():return
+ data=base64.b64decode(src.read_bytes())
+ if hashlib.sha256(data).hexdigest()!=v.get('sha256'):raise RuntimeError('Bundled sound does not match its manifest: '+v['file'])
+ dest.parent.mkdir(parents=True,exist_ok=True);tmp=dest.with_name(dest.name+'.tmp-'+str(os.getpid()));tmp.write_bytes(data);tmp.replace(dest)
+
 def sfx_manifest():
- """The postcard's sound effects, shipped beside this script: where each file
- is and how long it runs, so the Draft can lay it down without probing it."""
+ """The postcard's sound effects, listed in the package's manifest and decoded
+ into the store on first use: where each file is and how long it runs, so the
+ Draft can lay it down without probing it."""
  out={}
- for key,v in read(SFX_ROOT/'manifest.json',{}).items():
+ for key,v in read(PKG/'sfx'/'manifest.json',{}).items():
   f=SFX_ROOT/v['file']
+  unpack_sound(v,f)
   if f.is_file():out[key]={'path':str(f),'duration':v['duration'],'soundSeconds':v.get('soundSeconds',v['duration']),**{k:v[k] for k in ('sixteenth','ticks') if k in v}}
  return out
 HOLD_FPS=30
@@ -541,9 +564,9 @@ def main(op,a):
      if response.read(8)!=b'\x89PNG\r\n\x1a\n':raise RuntimeError('RVM preview HTTP verification failed')
    with (root/'preview-events.jsonl').open('a') as log:log.write(json.dumps({**stamp(),**meta})+'\n')
    return meta
- if op=='settings-load':return read(STORE.parent.parent/'skills'/'postcard-cutout-studio'/'panel-state.json',{}).get(a['projectId'],{})
+ if op=='settings-load':return read(STORE/'panel-state.json',{}).get(a['projectId'],{})
  if op=='settings-save':
-  path=STORE.parent.parent/'skills'/'postcard-cutout-studio'/'panel-state.json'
+  path=STORE/'panel-state.json'
   with (STORE/'settings.lock').open('a') as lock:
    fcntl.flock(lock,fcntl.LOCK_EX);settings=read(path,{});settings[a['projectId']]={**settings.get(a['projectId'],{}),**a['settings']};write(path,settings)
   return {'saved':True}

@@ -1,11 +1,30 @@
 # Publishing
 
-1. Add or update `plugins/<id>/`. List portable files in `plugin.json`; include concise English usage and setup instructions. Exclude runtimes, models, credentials, personal paths and test data.
+1. Add or update `plugins/<id>/`. List portable files in `plugin.json`; include concise English usage and setup instructions. Exclude runtimes, models, credentials, personal paths and test data. Follow the [installation layout](#installation-layout); `tools/plugin_files.py check` enforces it.
 2. Run `python3 tools/check_public.py`, `python3 tools/plugin_files.py check`, and `python3 -m unittest discover -s tests`.
 3. Submit a pull request and merge after checks pass. Share the plugin's folder link.
 4. Verify anonymous download from the merged commit with `python3 tools/plugin_files.py download <id> --ref <commit> --destination <new-folder>`.
 
 Only designated Cutback maintainers publish. Each Git commit preserves a version of the plugin. No separate release or archive is needed.
+
+## Installation layout
+
+Every plugin installs the same way, so the app and the install agent treat all
+plugins alike:
+
+- `panel.tsx`, if the plugin has a Panel, goes to `SELECTS_USER_PANELS_ROOT/<id>/panel.tsx`.
+  That folder holds nothing else. Its name is the plugin ID, which is how the app
+  recognizes the installation.
+- Every other listed file goes beneath `SELECTS_USER_SKILLS_ROOT/<id>`, keeping its
+  relative path. A Panel reads its scripts, templates and assets from there
+  (`$SELECTS_USER_SKILLS_ROOT/<id>/...` in a shell command). A folder without
+  `SKILL.md` is not listed as a Skill.
+- Files the plugin creates while running (runs, caches, logs, generated media) go
+  beneath `.selects/plugin-data/<id>` in the user's home, never in either install
+  folder, so an update never replaces them.
+
+`INSTALL.md` covers only what this layout does not: dependencies, models and
+checks. It does not copy files anywhere else.
 
 ## Localized library metadata
 

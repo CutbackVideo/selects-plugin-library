@@ -67,11 +67,40 @@ def validate_manifest(manifest):
     return files + ['plugin.json']
 
 
+TEXT_SUFFIXES = {'.md', '.txt', '.json', '.py', '.sh', '.js', '.cjs', '.mjs', '.ts', '.tsx', '.command', '.ps1'}
+PANELS_PATH = re.compile(r'SELECTS_USER_PANELS_ROOT%?\}?[/\\]([^\s"\'`)]*)')
+SKILLS_PATH = re.compile(r'SELECTS_USER_SKILLS_ROOT%?\}?[/\\]([^\s"\'`)/\\]*)')
+HOME_PATH = re.compile(r'\.selects[/\\](panels|skills|templates)[/\\]([^\s"\'`)]*)')
+HOME_JOIN = re.compile(r'[\'"]\.selects[\'"]\s*,\s*[\'"](panels|skills|templates)[\'"]\s*,\s*[\'"]([^\'"]*)[\'"]')
+
+
+def check_layout(pid, name, text):
+    """Every plugin installs the same way: the Panels folder holds only
+    `<id>/panel.tsx`, and every other file is read from the plugin's own folder
+    beneath SELECTS_USER_SKILLS_ROOT. Paths a plugin creates at runtime belong
+    under `.selects/plugin-data/<id>` and are not checked here."""
+    panel = {pid + '/panel.tsx', pid + '\\panel.tsx'}
+    for path in PANELS_PATH.findall(text):
+        require(path in panel, f'{name}: SELECTS_USER_PANELS_ROOT holds only {pid}/panel.tsx, not {path}')
+    for folder in SKILLS_PATH.findall(text):
+        require(folder in ('', pid), f'{name}: read only this plugin\'s folder beneath SELECTS_USER_SKILLS_ROOT, not {folder}')
+    for kind, path in HOME_PATH.findall(text) + HOME_JOIN.findall(text):
+        path = path.replace('\\', '/')
+        allowed = (kind == 'panels' and path == pid + '/panel.tsx') or (
+            kind == 'skills' and (path == pid or path.startswith(pid + '/')))
+        require(allowed, f'{name}: .selects/{kind}/{path} is outside the install layout; '
+                f'use SELECTS_USER_SKILLS_ROOT/{pid} for bundled files')
+
+
 def check(pid, root=ROOT):
     directory = Path(root).resolve() / 'plugins' / plugin_id(pid)
     manifest = json.loads((directory / 'plugin.json').read_text())
     require(manifest['id'] == pid, 'Folder and plugin ID differ')
     names = validate_manifest(manifest)
+    for name in names:
+        path = directory / name
+        if path.suffix in TEXT_SUFFIXES and path.is_file():
+            check_layout(pid, name, path.read_text(errors='replace'))
     if manifest.get('preview') is not None:
         names += ['preview.mp4', 'poster.webp']
     total = 0
