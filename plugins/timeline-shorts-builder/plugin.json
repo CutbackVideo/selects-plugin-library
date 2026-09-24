@@ -18,5 +18,11 @@
       "macOS development builds"
     ],
     "selects": "Requires Panel support, generated-media authoring, and the host FileSystem, SequenceRepository, and SequenceEdit adapters. Worker and OffscreenCanvas support are optional; the panel falls back to sequential UI-thread image conversion. Released-version and Windows/Linux compatibility are unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 576,
+    "height": 1024
   }
 }
