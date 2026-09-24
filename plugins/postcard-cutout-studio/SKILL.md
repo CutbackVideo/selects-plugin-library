@@ -7,8 +7,7 @@ triggers: ["postcard cutout studio", "moving postcard", "travel postcard opener"
 # Postcard Cutout Studio
 
 Use the installed Panel. It builds a new Draft in the open Project; it never edits
-an existing Draft. This plugin is separate from `swiss-postcard-style` and must not
-replace it.
+an existing Draft.
 
 ## Using the Panel
 

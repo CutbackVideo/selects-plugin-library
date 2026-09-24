@@ -7,11 +7,11 @@ Turn a folder of trip footage into an editable, numbered travel-story reel.
 ## Use
 
 1. Open a Selects project and the **Place Count** panel.
-2. Choose **Choose folder** and select your footage. Clips are grouped into places by when and where they were shot; a folder already sorted into subfolders keeps one place per subfolder. Up to 20 places and 24 video files per place are supported. Folders are identified by their full paths, so different libraries can use the same folder names.
-3. Optionally edit your title, place names, or short descriptions through **Edit details**. **Story settings** controls portrait or landscape format, pace, opening title, accent color, optional music, and original clip audio.
-4. Choose **Analyze footage**. It names the trip, then looks at each place's contact images to name it, write a short note, and pick its clips. It does not browse the web or start source analysis. Review and edit the results; **Re-analyze** runs it again without overwriting text you typed. If a place cannot be analyzed, its current clips are kept with a notice.
+2. Choose **Choose folder** and select your footage. Clips are grouped into places by when and where they were shot; a folder already sorted into subfolders keeps one place per subfolder. A story has 1 to 20 places. Folders are identified by their full paths, so different libraries can use the same folder names.
+3. Type the story title and opening subtitle in the panel. Each place's name and description can be edited in place, its checkbox includes or leaves it out, and **Clips and timing** shows its clips. The **Story settings** button beside the folder name controls portrait or landscape format, pace, opening title, accent color, music, and original clip audio.
+4. Choose **Analyze footage**. It names the trip, then looks at each place's contact images to name it, write a short note, and pick its clips. It does not browse the web or start source analysis. Review and edit the results; **Re-analyze** runs it again without overwriting a name or description you typed. If a place cannot be analyzed, its current clips are kept with a notice, and **Retry failed** analyzes only those places again.
 5. Choose **Create draft**. This builds the Draft from what you reviewed and makes no AI requests. The Draft is named after the trip, such as "Los Angeles"; later versions become "Los Angeles (1)", "Los Angeles (2)", and so on.
-6. Open the saved Draft and edit it in Selects. Use **More → New story**, **Duplicate story**, or **Recent stories** for another version. Use **Recover draft** after an interrupted build; recovery looks for the existing Draft before continuing.
+6. Choose **Open draft** and edit it in Selects. **Make another version** keeps your places and settings for a new Draft; the home button returns to folder selection. If a build is interrupted, **Recover draft** looks for the existing Draft before continuing.
 
 There is no mandatory review screen. The output is an editable Selects Draft: original source clips, text graphics, and optional user-selected music remain separate. The plugin does not flatten footage into one rendered clip. Export finished video separately through **Handoff → Export**.
 
@@ -23,7 +23,7 @@ A numbered travel-list reel: yellow Times place titles as "1. Name", a short whi
 
 Frame contact images are decoded locally with the host browser and cached per project, then attached to the request; they are not added to your project. Analysis sends those contact sheets, each place's folder label, and the GPS position its clips recorded (when they carry one) to the signed-in Selects AI profile: one request for the trip title and one per place whose selection is not already cached. No separate provider key is required. This is sampled-frame selection, not continuous-motion verification.
 
-Workspaces use project-scoped browser storage. Contact images, recovery data, and history live under `<home>/.selects/plugin-data/place-count/<project-id>`. Keep those files while using recovery or history. Existing projects, prior plugin data, and source files are not deleted. An optional **Import previous footage selection** action imports only an older workspace's location and clip selections.
+Workspaces use project-scoped browser storage. Contact images and recovery data live under `<home>/.selects/plugin-data/place-count/<project-id>`. Keep those files while using recovery. Existing projects, prior plugin data, and source files are not deleted.
 
 ## Limits and verification
 
