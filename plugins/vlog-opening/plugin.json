@@ -18,6 +18,12 @@
     ],
     "selects": "Development build only. Released-version compatibility is unverified."
   },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 960,
+    "height": 540
+  },
   "localized": {
     "de": {
       "name": "Vlog-Opener",
