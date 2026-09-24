@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "postcard-cutout-studio",
-  "version": "0.2.0-alpha.3",
+  "version": "0.2.0-alpha.4",
   "name": "Postcard Cutout Studio",
   "summary": "Turn a folder of travel videos and photos into an editable moving-postcard opener: a cut-out subject over snapping panels, a scrambled title with synced sound, and a photo ending cut to the beat.",
   "status": "experimental",

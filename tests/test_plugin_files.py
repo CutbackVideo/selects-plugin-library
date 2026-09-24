@@ -148,6 +148,33 @@ class PluginFilesTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'Invalid localized'):
                     plugins.check('example', self.root)
 
+    def test_install_layout_allows_the_panel_file_and_this_plugins_skills_folder(self):
+        for text in ('Copy `panel.tsx` to `SELECTS_USER_PANELS_ROOT/example/panel.tsx`.',
+                     'Create `example` beneath `SELECTS_USER_PANELS_ROOT`.',
+                     'python3 "$SELECTS_USER_SKILLS_ROOT/example/scripts/use.py"',
+                     'Default: `.selects/panels/example/panel.tsx` beneath your home.',
+                     "f.join(f.homedir(),'.selects','skills','example','motion.tsx')",
+                     "f.join(f.homedir(),'.selects','plugin-data','example',pid)"):
+            with self.subTest(text=text):
+                plugins.check_layout('example', 'INSTALL.md', text)
+
+    def test_install_layout_rejects_files_outside_the_two_install_folders(self):
+        for text in ('cp -R approved "$SELECTS_USER_PANELS_ROOT/example/"',
+                     'python3 "$SELECTS_USER_PANELS_ROOT/example/pipeline.py"',
+                     'python3 "$HOME/.selects/panels/example/pipeline.py"',
+                     'cat "$SELECTS_USER_SKILLS_ROOT/other-plugin/SKILL.md"',
+                     'Copy the templates to `.selects/templates/example`.',
+                     "f.join(f.homedir(),'.selects','templates','example','motion.tsx')"):
+            with self.subTest(text=text):
+                with self.assertRaisesRegex(ValueError, 'SELECTS_USER_|install layout'):
+                    plugins.check_layout('example', 'INSTALL.md', text)
+
+    def test_local_check_applies_the_install_layout_to_listed_text_files(self):
+        self.write_local_plugin()
+        (self.root / 'plugins/example/scripts/use.py').write_text('open("$SELECTS_USER_PANELS_ROOT/example/data.json")')
+        with self.assertRaisesRegex(ValueError, 'scripts/use.py'):
+            plugins.check('example', self.root)
+
 
 if __name__ == '__main__':
     unittest.main()

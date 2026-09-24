@@ -62,8 +62,9 @@ commit.
 
 - A background-removal request is submitted once per run. An unfinished run is
   resumed by job ID when the Panel reopens, never replaced by a second paid request.
-- Run state, masks, held clips and sounds live in the Panel folder. Keep them while
-  any Draft references them.
+- Run state, masks, held clips and sounds live beneath
+  `.selects/plugin-data/postcard-cutout-studio` (installs before 0.2.0-alpha.4 keep
+  using the Panel folder). Keep them while any Draft references them.
 - The cutout masks are served by a loopback service on this computer. After a
   restart, open the Panel before previewing or exporting an existing postcard Draft.
 
