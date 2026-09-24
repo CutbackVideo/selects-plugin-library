@@ -8,7 +8,7 @@
 The optional Python helper performs the download without GitHub authentication:
 
 ```sh
-python3 tools/plugin_files.py download portrait-stage --destination ./portrait-stage
+python3 tools/plugin_files.py download place-count --destination ./place-count
 ```
 
 Use `--ref <commit>` to reproduce a specific revision. The helper downloads source files only; it does not install dependencies or register panels. Its Python requirement is independent of the plugin's runtime.
