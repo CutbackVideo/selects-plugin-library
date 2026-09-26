@@ -547,11 +547,11 @@ export default function SkyFlight({ data }) {
           {clouds.slice(0, 2).map(([cx, cy, w, s]) => <path key={s} d={cloudPath(cx, cy, w, s)} fill="#ffffff" strokeWidth="6" />)}
           <path d={trail} fill="none" strokeWidth="5" strokeDasharray="18 22" opacity="0.7" />
           <g transform={"translate(" + x + " " + y + ") rotate(" + angle + ") translate(-150 -60)"} strokeWidth="6">
-            <path d="M132 64 L180 8 L214 8 L186 64 Z" fill={accent} />
+            <path d="M206 64 L150 8 L118 8 L150 64 Z" fill={accent} />
             <path d="M26 64 L10 14 L44 14 L78 62 Z" fill={accent} />
             <path d="M16 84 C16 70 36 62 62 62 L246 62 C276 62 296 72 296 84 C296 96 276 104 246 104 L62 104 C36 104 16 98 16 84 Z" fill="#f4f1ea" />
             {[92, 120, 148, 176, 204].map((cx) => <circle key={cx} cx={cx} cy="80" r="7" fill={ink} stroke="none" />)}
-            <path d="M126 98 L190 150 L222 150 L178 98 Z" fill={accent} />
+            <path d="M210 98 L148 150 L116 150 L152 98 Z" fill={accent} />
           </g>
           {clouds.slice(2).map(([cx, cy, w, s]) => <path key={s} d={cloudPath(cx, cy, w, s)} fill="#ffffff" strokeWidth="6" />)}
         </g>
