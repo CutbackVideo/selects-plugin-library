@@ -351,30 +351,37 @@ const quad = (u0, v0, u1, v1) => {
   return "M" + p.map((q) => q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" L") + " Z";
 };
 
-// A looping pen line across the blanket (a trochoid: loops where r > a).
-const loops = (x0, y0, len, a, r, tilt) => {
-  let d = "";
-  for (let i = 0; i <= 160; i++) {
-    const t = (i / 160) * len;
-    const x = a * t - r * Math.sin(t), y = -r * Math.cos(t);
-    const px = x0 + x * Math.cos(tilt) - y * Math.sin(tilt);
-    const py = y0 + x * Math.sin(tilt) + y * Math.cos(tilt);
-    d += (i ? " L" : "M") + px.toFixed(1) + " " + py.toFixed(1);
-  }
-  return d;
+// The table top in perspective: its far edge across the frame, its near edge
+// well beyond it, so the checks shrink toward the back.
+const TABLE = [[-260, 450], [2180, 450], [2900, 1180], [-980, 1180]];
+const onTable = (u, v) => {
+  const top = [TABLE[0][0] + (TABLE[1][0] - TABLE[0][0]) * u, TABLE[0][1]];
+  const bot = [TABLE[3][0] + (TABLE[2][0] - TABLE[3][0]) * u, TABLE[3][1]];
+  return [top[0] + (bot[0] - top[0]) * v, top[1] + (bot[1] - top[1]) * v];
+};
+const band = (u0, v0, u1, v1) => {
+  const p = [onTable(u0, v0), onTable(u1, v0), onTable(u1, v1), onTable(u0, v1)];
+  return "M" + p.map((q) => q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" L") + " Z";
+};
+// Mix a #rrggbb colour toward white.
+const tint = (hex, amount) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  const n = m ? parseInt(m[1], 16) : 0xe58497;
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (255 - v) * amount));
+  return "rgb(" + c.join(",") + ")";
 };
 
-// The first shot on a hand-drawn laptop resting on a polka-dot blanket. The
-// camera zooms in like stop motion: it holds, then jumps closer in steps that
-// land on the beat, each slightly off-angle, and reaches the full frame on the
-// cut. Lines redraw every few frames so the drawing boils like hand animation.
+// The first shot on a hand-drawn laptop on a checkered tablecloth coloured
+// from the footage. The camera zooms in like stop motion: it holds, then
+// jumps closer in steps that land on the beat, each slightly off-angle, and
+// reaches the full frame on the cut. Lines redraw every few frames so the
+// drawing boils like hand animation.
 export default function DeskScene({ Source, children, data }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const d = data || {};
   const paper = d.paper || "#fbf8ee";
-  const blanket = d.blanket || "#f8dfe3";
-  const dots = d.dots || "#e58497";
+  const check = d.check || "#e58497";
   const body = d.laptop || "#cfcfd1";
   const ink = d.ink || "#262626";
   const beat = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : fps * 0.4;
@@ -398,6 +405,15 @@ export default function DeskScene({ Source, children, data }) {
   const tick = Math.floor(frame / 3) + step * 17;
   const id = "desk" + tick;
 
+  const depth = (k) => Math.pow(k / 7, 1.45);
+  const cells = [];
+  for (let j = 0; j < 7; j++) {
+    for (let i = 0; i < 16; i++) {
+      if ((i + j) % 2) continue;
+      cells.push(<path key={"c" + i + "-" + j} d={band(i / 16, depth(j), (i + 1) / 16, depth(j + 1))} />);
+    }
+  }
+
   const keys = [];
   const rows = [[11, 0.08, 0.2], [11, 0.24, 0.36], [10, 0.4, 0.52]];
   rows.forEach(([n, v0, v1], r) => {
@@ -420,31 +436,18 @@ export default function DeskScene({ Source, children, data }) {
               <feDisplacementMap in="SourceGraphic" scale="7" xChannelSelector="R" yChannelSelector="G" />
             </filter>
             <filter id={id + "c"} x="-20%" y="-20%" width="140%" height="140%">
-              <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="3" seed={tick + 5} />
-              <feDisplacementMap in="SourceGraphic" scale="26" xChannelSelector="R" yChannelSelector="G" />
+              <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed={tick + 5} />
+              <feDisplacementMap in="SourceGraphic" scale="9" xChannelSelector="R" yChannelSelector="G" />
             </filter>
-            <clipPath id={id + "k"}>
-              <path d="M-80 470 C 200 380, 520 430, 820 400 S 1500 380, 1720 430 S 2000 520, 2000 560 L 2000 1200 L -80 1200 Z" />
-            </clipPath>
           </defs>
-          {/* Blanket, its crayon dots and the looping pen lines. */}
-          <path d="M-80 470 C 200 380, 520 430, 820 400 S 1500 380, 1720 430 S 2000 520, 2000 560 L 2000 1200 L -80 1200 Z" fill={blanket} />
-          <g clipPath={"url(#" + id + "k)"}>
-            <g filter={"url(#" + id + "c)"} fill={dots} opacity="0.85">
-              {[[120, 560], [420, 520], [760, 610], [1180, 560], [1560, 520], [1840, 640], [260, 800], [600, 880], [980, 820], [1380, 860], [1740, 900], [120, 1020], [860, 1040], [1260, 1060], [1600, 1080]].map(([x, y], i) => (
-                <ellipse key={i} cx={x} cy={y} rx={70 + rand(i) * 18} ry={62 + rand(i + 9) * 16} />
-              ))}
-            </g>
-            <g filter={"url(#" + id + "b)"} stroke={ink} strokeWidth="2.2" fill="none" opacity="0.8">
-              <path d={loops(-60, 700, 26, 26, 46, -0.35)} />
-              <path d={loops(380, 1060, 22, 30, 50, -1.05)} />
-              <path d={loops(1180, 1080, 20, 28, 48, -1.2)} />
-              <path d={loops(1500, 620, 14, 28, 44, 0.25)} />
-              <path d={loops(760, 1090, 12, 30, 46, -0.8)} />
-            </g>
+          {/* Checkered tablecloth: alternating squares of the footage colour
+              over a pale tint of it, smaller toward the back. */}
+          <path d={band(0, 0, 1, 1)} fill={tint(check, 0.78)} />
+          <g filter={"url(#" + id + "c)"} fill={tint(check, 0.12)}>
+            {cells}
           </g>
           <g filter={"url(#" + id + "b)"} stroke={ink} strokeLinecap="round" strokeLinejoin="round" fill="none">
-            <path d="M-80 470 C 200 380, 520 430, 820 400 S 1500 380, 1720 430 S 2000 520, 2000 560" strokeWidth="4" />
+            <path d={"M" + TABLE[0][0] + " " + TABLE[0][1] + " L" + TABLE[1][0] + " " + TABLE[1][1]} strokeWidth="4" />
             {/* Laptop: deck, keys, trackpad, lid. */}
             <path d={"M" + DECK.map((p) => p[0] + " " + p[1]).join(" L") + " Z"} fill={body} strokeWidth="5" />
             <g strokeWidth="3" fill="none" opacity="0.75">{keys}</g>
@@ -1146,21 +1149,21 @@ if (STYLE === "motion") {
   const hero = clips[0];
   const heroLen = hero.endFrame - hero.startFrame;
   // The stop-motion zoom takes three steps, one per beat, and the step after
-  // the last is the cut; the illustration keeps its own colours.
+  // the last is the cut. The tablecloth takes the most vivid colour sampled
+  // from the chosen clips, so it changes with the footage.
   const stepF = BEAT_F > 0 ? BEAT_F : F(0.4);
   const holdF = Math.max(6, Math.round(heroLen - 3 * stepF));
   await d.addVideoEffect({
     clip: hero, label: "Desk scene -> stop-motion zoom", tsxCode: GFX.desk,
     parameters: {
       holdFrames: holdF, beatFrames: stepF,
-      paper: "#fbf8ee", blanket: "#f8dfe3", dots: "#e58497", laptop: "#cfcfd1",
+      paper: "#fbf8ee", check: PALETTE.accent, laptop: "#cfcfd1",
     },
     editableParameters: [
       { key: "holdFrames", label: "Zoom starts (frame)", type: "number", defaultValue: holdF, min: 0, max: 400, step: 1 },
       { key: "beatFrames", label: "Frames per zoom step", type: "number", defaultValue: stepF, min: 2, max: 60, step: 1 },
       { key: "paper", label: "Paper", type: "color", defaultValue: "#fbf8ee" },
-      { key: "blanket", label: "Blanket", type: "color", defaultValue: "#f8dfe3" },
-      { key: "dots", label: "Blanket dots", type: "color", defaultValue: "#e58497" },
+      { key: "check", label: "Tablecloth", type: "color", defaultValue: PALETTE.accent },
       { key: "laptop", label: "Laptop", type: "color", defaultValue: "#cfcfd1" },
     ],
   });
