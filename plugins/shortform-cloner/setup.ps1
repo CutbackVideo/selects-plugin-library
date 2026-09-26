@@ -32,6 +32,10 @@ if (-not (Get-Command yt-dlp -ErrorAction SilentlyContinue)) { Install-Package '
 if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue) -or -not (Get-Command ffprobe -ErrorAction SilentlyContinue)) { Install-Package 'Gyan.FFmpeg' }
 $verifyArgs = @((Join-Path $PSScriptRoot 'verify_runtime.py'))
 if ($pythonLauncher -eq 'py') { $verifyArgs = @('-3') + $verifyArgs }
+# YouTube downloads need a JavaScript runtime for yt-dlp: Deno, or Node.js 22 or newer.
+$jsRuntimeArgs = $verifyArgs + @('--js-runtime')
+& $pythonLauncher @jsRuntimeArgs
+if ($LASTEXITCODE -eq 3) { Install-Package 'DenoLand.Deno' }
 & $pythonLauncher @verifyArgs
 if ($LASTEXITCODE -ne 0) { throw 'Runtime verification failed. Resolve the error above before installing.' }
 $panelRoot = $env:SELECTS_USER_PANELS_ROOT

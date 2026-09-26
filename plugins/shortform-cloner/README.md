@@ -4,7 +4,7 @@
 
 Selects Clips is an AI clipping workflow for podcasts, interviews and other long videos. Save a look from reference shorts, choose how many clips to create, and refine footage, captions and graphics directly in Selects. English interface; macOS and Windows setup scripts included.
 
-**Experimental release · 0.2.0-alpha.2.** Style matching can still require manual correction. Cropping and captions already burned into source footage are known limitations; AI steps can time out. Failed reviews and unfinished drafts are labelled explicitly. Native Windows end-to-end testing is pending.
+**Experimental release · 0.2.0-alpha.3.** Style matching can still require manual correction. Cropping and captions already burned into source footage are known limitations; AI steps can time out. Failed reviews and unfinished drafts are labelled explicitly. Native Windows end-to-end testing is pending.
 
 ## Use
 
@@ -32,7 +32,7 @@ Open video in browser opens your normal system browser. Complete any sign-in you
 
 ## Installation and limits
 
-See [INSTALL.md](INSTALL.md). Python 3.9+, yt-dlp, FFmpeg and ffprobe are checked by setup. No npm dependencies or separate AI-provider key are required at runtime.
+See [INSTALL.md](INSTALL.md). Python 3.9+, yt-dlp, FFmpeg, ffprobe and a JavaScript runtime for YouTube (Deno, or Node.js 22+) are checked by setup. No npm dependencies or separate AI-provider key are required at runtime.
 
 Results are AI assessments, not exact-copy or audience-performance guarantees. Selected-frame inspection is not full audio listening. Automatic checks cover persistence, recovery, cookie fallback, output comparisons, exact tail recovery and Windows path/lock branches. Native Windows end-to-end validation remains pending. This release is experimental until the remaining release checks are complete.
 

@@ -22,6 +22,16 @@ if [ "${#missing[@]}" -gt 0 ]; then
   export PATH="$(brew --prefix)/bin:$PATH"
 fi
 plugin_dir="$(cd "$(dirname "$0")" && pwd)"
+# YouTube downloads need a JavaScript runtime for yt-dlp: Deno, or Node.js 22 or newer.
+js_status=0
+python3 "$plugin_dir/verify_runtime.py" --js-runtime || js_status=$?
+if [ "$js_status" -eq 3 ]; then
+  if ! command -v brew >/dev/null 2>&1; then
+    echo 'YouTube downloads need Deno or Node.js 22 or newer. Install Homebrew from https://brew.sh, or Deno from https://deno.com, then run this setup again.'
+    exit 1
+  fi
+  brew install deno
+fi
 python3 "$plugin_dir/verify_runtime.py"
 panel_root="${SELECTS_USER_PANELS_ROOT:-$HOME/.selects/panels}"
 mkdir -p "$panel_root/shortform-cloner"

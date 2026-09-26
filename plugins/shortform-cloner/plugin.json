@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "shortform-cloner",
-  "version": "0.2.0-alpha.2",
+  "version": "0.2.0-alpha.3",
   "name": "Selects Clips",
   "summary": "Turn long videos into editable shorts with reference-inspired styles, captions and AI review.",
   "status": "experimental",
@@ -21,7 +21,7 @@
       "macOS",
       "Windows"
     ],
-    "selects": "Existing documented Panels APIs: call, askAI, runShell and runScript; native draft editing, generated-media authoring, frame capture, ordinary video export and workflow inspection. SDK declarations checked against installed Selects 2.0.430. Account must have plugin/generated-media authoring enabled. No host patch or private browser service. Python 3.9+, yt-dlp, ffmpeg and ffprobe required. Windows native end-to-end validation pending."
+    "selects": "Existing documented Panels APIs: call, askAI, runShell and runScript; native draft editing, generated-media authoring, frame capture, ordinary video export and workflow inspection. SDK declarations checked against installed Selects 2.0.430. Account must have plugin/generated-media authoring enabled. No host patch or private browser service. Python 3.9+, yt-dlp, ffmpeg and ffprobe required, plus Deno or Node.js 22+ for YouTube. Windows native end-to-end validation pending."
   },
   "localized": {
     "en": {

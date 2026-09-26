@@ -29,6 +29,9 @@ with tempfile.TemporaryDirectory(prefix='setup-check-',dir=root) as scratch:
         payload=json.loads(result.stdout)
         if result.returncode or not payload.get('ok'):raise RuntimeError(payload.get('error','Helper failed'))
         return payload['result']
+    if sys.argv[1:]==['--js-runtime']:
+        # Setup asks this before installing Deno: exit 3 when yt-dlp has no JavaScript runtime for YouTube.
+        raise SystemExit(0 if call({'op':'environment'})['jsRuntimes'] else 3)
     value={'id':'setup-check','name':'Unicode \u65e5\u672c\u8a9e \ud55c\uae00 caf\u00e9'}
     call({'op':'save','kind':'styles','id':value['id'],'revision':0,'value':value})
     assert call({'op':'get','kind':'styles','id':value['id']})['name']==value['name']
@@ -40,6 +43,9 @@ with tempfile.TemporaryDirectory(prefix='setup-check-',dir=root) as scratch:
     environment=call({'op':'environment'})
     missing=[tool for tool,available in environment['tools'].items() if not available]
     if missing:raise SystemExit('Missing tools: '+', '.join(missing)+'. Restart your terminal after installation and run setup again.')
+    if environment['ytDlpCurrent'] is False:raise SystemExit('This yt-dlp version cannot download from YouTube. Update yt-dlp with the tool that installed it (for example brew upgrade yt-dlp or winget upgrade yt-dlp.yt-dlp), then run setup again.')
+    if not environment['jsRuntimes']:raise SystemExit('YouTube downloads need Deno or Node.js 22 or newer. Install Deno from https://deno.com, then run setup again.')
     print('Runtime checks passed: persistence, Unicode, file lock, revision checks and media tools.')
+    print('JavaScript runtime for YouTube:',environment['jsRuntimes'][0])
     print('Detected browser profiles:',environment['browserProfiles'])
     print('Cookie decryption and video downloading are checked only when you request a video.')
