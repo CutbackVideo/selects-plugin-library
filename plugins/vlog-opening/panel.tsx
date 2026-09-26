@@ -416,27 +416,6 @@ function readinessScript(projectId: string) {
 const p = selects.project(${JSON.stringify(projectId)});
 const res = await p.resources();
 const video = res.filter(r => r.type === "Video" && r.hasAnalysis && (r.durationSeconds || 0) >= 1.2);
-const paths = {};
-const walk = (n) => {
-  if (n.type === "dir") (n.children || []).forEach(walk);
-  else if (n.path) paths[n.resourceId] = n.path;
-};
-try {
-  const sf = await p.sourceFiles();
-  const tree = "fileTree" in sf ? sf.fileTree : null;
-  if (tree) tree.forEach(walk);
-  else {
-    const org = await p.organizeClips();
-    for (const f of (org.folders || [])) {
-      try { const detail = await p.sourceFiles({ folder: f.path || f.name }); ("fileTree" in detail ? detail.fileTree || [] : []).forEach(walk); } catch (e) {}
-    }
-    try { const rootDetail = await p.sourceFiles({ folder: "(root)" }); ("fileTree" in rootDetail ? rootDetail.fileTree || [] : []).forEach(walk); } catch (e) {}
-  }
-} catch (e) {}
-const audio = res
-  .filter(r => r.type === "Audio")
-  .map(r => ({ id: r.resourceId, name: r.name, seconds: r.durationSeconds || 0, path: paths[r.resourceId] || null }));
-audio.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 let speech = 0;
 const probe = video.slice().sort((a, b) => (b.durationSeconds || 0) - (a.durationSeconds || 0)).slice(0, 12);
 for (let i = 0; i < probe.length; i += 6) {
@@ -448,7 +427,7 @@ for (let i = 0; i < probe.length; i += 6) {
   }));
   speech += rows.reduce((a, b) => a + b, 0);
 }
-return { clips: video.length, probed: probe.length, withSpeech: speech, audio, totalSeconds: Math.round(video.reduce((a, r) => a + (r.durationSeconds || 0), 0)) };
+return { clips: video.length, probed: probe.length, withSpeech: speech, totalSeconds: Math.round(video.reduce((a, r) => a + (r.durationSeconds || 0), 0)) };
 `;
 }
 
@@ -1041,13 +1020,10 @@ export default function Panel({ sdk, context, ui }: any) {
         c.label +
         (c.forStyle === style ? "  ·  recommended" : ""),
     }));
-    if (ownFile) opts.push({ value: "file", label: (playing === "file" ? "♪ " : "") + "Your file: " + ownFile.name });
+    opts.push({ value: "file", label: (playing === "file" ? "♪ " : "") + (ownFile ? "Your own music: " + ownFile.name : "Your own music…") });
     opts.push({ value: "none", label: "No music" });
-    for (const a of ready?.audio ?? []) {
-      opts.push({ value: "res:" + a.id, label: (playing === "res:" + a.id ? "♪ " : "") + a.name });
-    }
     return opts;
-  }, [ready, style, playing, ownFile]);
+  }, [style, playing, ownFile]);
 
   const cueId = music.startsWith("cue:") ? music.slice(4) : null;
 
@@ -1064,18 +1040,14 @@ export default function Panel({ sdk, context, ui }: any) {
 
   const selectedAudio = music === "file" && ownFile
     ? { name: ownFile.name, path: ownFile.path, seconds: 0 }
-    : music.startsWith("res:")
-      ? (ready?.audio ?? []).find((a: any) => a.id === music.slice(4)) || null
-      : null;
+    : null;
+  // Own music is chosen but no file is in yet; the drop zone below asks for it.
+  const needsFile = music === "file" && !ownFile;
 
   function chooseOwnFile(file: { path: string; name: string } | null) {
     delete clipCache.current["file"];
+    stopAudition();
     setOwnFile(file);
-    if (file) { chooseMusic("file"); return; }
-    if (music === "file") {
-      const pick = CUES.find(c => c.forStyle === style) || CUES[0];
-      chooseMusic("cue:" + pick.id);
-    }
   }
   const canAudition = Boolean(cueId) || Boolean(selectedAudio && selectedAudio.path);
 
@@ -1143,7 +1115,6 @@ export default function Panel({ sdk, context, ui }: any) {
 
   async function resolveMusic(): Promise<{ id: string | null; note: string }> {
     if (music === "none") return { id: null, note: "no music" };
-    if (music.startsWith("res:")) return { id: music.slice(4), note: "project audio" };
     if (music === "file") {
       if (!ownFile) return { id: null, note: "no music file chosen" };
       try {
@@ -1348,14 +1319,16 @@ export default function Panel({ sdk, context, ui }: any) {
           onClick={toggleAudition}
         />
       </div>
-      <ui.FileDrop
-        accept={["audio"]}
-        value={ownFile}
-        onChange={chooseOwnFile}
-        onReject={(reason: string) =>
-          setStatus({ tone: "error", text: reason === "type" ? "Choose an audio file." : "Could not use that file." })}
-        disabled={busy}
-      />
+      {music === "file" ? (
+        <ui.FileDrop
+          accept={["audio"]}
+          value={ownFile}
+          onChange={chooseOwnFile}
+          onReject={(reason: string) =>
+            setStatus({ tone: "error", text: reason === "type" ? "Choose an audio file." : "Could not use that file." })}
+          disabled={busy}
+        />
+      ) : null}
 
       <ui.Toggle label="Cinematic black bars" value={letterbox} onChange={setLetterbox} />
       <ui.Toggle label="Mute location audio" value={muteSource} onChange={setMuteSource} />
@@ -1366,7 +1339,7 @@ export default function Panel({ sdk, context, ui }: any) {
       {busy ? <ui.Progress label={step || "Working"} /> : null}
 
       <ui.Actions>
-        <ui.Button variant="primary" busy={busy} busyLabel="Building" onClick={build} disabled={busy || blocked}>
+        <ui.Button variant="primary" busy={busy} busyLabel="Building" onClick={build} disabled={busy || blocked || needsFile}>
           Build opening
         </ui.Button>
       </ui.Actions>

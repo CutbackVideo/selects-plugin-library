@@ -32,9 +32,9 @@ answers is reported rather than silently skipped.
   no analysed speech.
 - **Music** - one of three bundled cues, a cinematic score, a playful vlog cue
   and a lo-fi cafe bed, each recommended for one style and chosen with it by
-  default; any audio file already in the Project; your own file, dropped or
-  picked below the list and imported when the opening is built; or no music.
-  Press the play button to hear a six second excerpt.
+  default; **Your own music**, which opens a drop zone for a file from disk
+  that is imported when the opening is built; or no music. Press the play
+  button to hear a six second excerpt.
 - **Cinematic black bars** - 2.39:1 bars, on by default for the whip style.
 - **Mute location audio** - on for the two picture-led styles, off for quotes.
 
@@ -47,7 +47,7 @@ live preview rather than typed into the panel.
 Analysed video in the open Project. The quotes style additionally needs
 analysed speech. The motion style samples colours with `ffmpeg`, and music
 previews use `ffmpeg` too; without it the palette falls back to a built-in one
-and previews of Project or dropped files are unavailable; the bundled cues'
+and previews of your own file are unavailable; the bundled cues'
 previews are embedded and always play. A chosen cue or file is imported into the
 Project once and reused on later builds. Building always creates a new Draft and
 never edits an existing one.
