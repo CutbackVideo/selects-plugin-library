@@ -31,11 +31,139 @@ const STYLES = [
 // Always applied, so the opening hands off cleanly to the next timeline.
 const FADE_SECONDS = 0.6;
 
-const CUES = [
-  { id: "cinematic", file: "cue-whip-cinematic.mp3", label: "Cinematic score", forStyle: "whip" },
-  { id: "vlog", file: "cue-motion-vlog.mp3", label: "Playful vlog cue", forStyle: "motion" },
-  { id: "cafe", file: "cue-quotes-cafe.mp3", label: "Lo-fi cafe bed", forStyle: "quotes" },
-] as const;
+// A cue's beat grid, measured from the file: onset peaks fitted by least
+// squares to one steady tempo, every strong onset within 37 ms of the grid.
+// beat0 is a beat in cue seconds and period one beat. hit, last and end count
+// beats from beat0: the first big accent, the landing a finale or title card
+// starts on, and the point where the cue has rung out.
+type Grid = { period: number; beat0: number; hit: number; last: number; end: number };
+
+const CUES: ReadonlyArray<{ id: string; file: string; label: string; forStyle: string; grid: Grid }> = [
+  // 110 bpm. A swell, the first hit at 2.04s, a final hit 18 beats later,
+  // faded by beat 23.
+  { id: "cinematic", file: "cue-whip-cinematic.mp3", label: "Cinematic score", forStyle: "whip",
+    grid: { period: 0.54648, beat0: 2.0434, hit: 0, last: 18, end: 23 } },
+  // 148 bpm in four-beat bars; the band is in from bar two, and its last chord
+  // has faded by beat 43.
+  { id: "vlog", file: "cue-motion-vlog.mp3", label: "Playful vlog cue", forStyle: "motion",
+    grid: { period: 0.40556, beat0: 0.1943, hit: 4, last: 36, end: 43 } },
+  // 80 bpm. Four seconds of pads, then the groove from beat 5 to beat 20.
+  { id: "cafe", file: "cue-quotes-cafe.mp3", label: "Lo-fi cafe bed", forStyle: "quotes",
+    grid: { period: 0.75244, beat0: 0.3407, hit: 5, last: 20, end: 22 } },
+];
+
+const atBeat = (g: Grid, beat: number) => g.beat0 + beat * g.period;
+
+// Spreads shots over [from, to] in proportion to their template lengths, then
+// moves every cut to the nearest `unit` beats of the grid through `origin` (a
+// half beat for burst shots). Cuts are snapped as absolute times, so rounding
+// never accumulates, and the last shot ends on `to` itself. Returns each
+// shot's end.
+function cutsOnBeat(shots: Array<{ dur: number; fixed?: boolean }>, from: number, to: number, g: Grid, origin: number, unit = 1): number[] {
+  const half = g.period / 2;
+  const fixedSum = shots.filter(x => x.fixed).length * half;
+  const freeSum = shots.filter(x => !x.fixed).reduce((a, x) => a + x.dur, 0);
+  const scale = freeSum > 0 ? Math.max(0.2, (to - from - fixedSum) / freeSum) : 1;
+  // The grid point at or after (dir 1), before (dir -1) or nearest (dir 0) t.
+  const snap = (t: number, step: number, dir: number) => {
+    const k = (t - origin) / step;
+    return origin + (dir > 0 ? Math.ceil(k - 1e-6) : dir < 0 ? Math.floor(k + 1e-6) : Math.round(k)) * step;
+  };
+  const ends: number[] = [];
+  let planned = from;
+  let prev = from;
+  shots.forEach((shot, i) => {
+    planned += shot.fixed ? half : shot.dur * scale;
+    if (i === shots.length - 1) { ends.push(to); return; }
+    // At least a beat long (half for a burst), and leave every later shot at
+    // least half a beat before `to`. When the style's step cannot meet both,
+    // fall back to single beats, then half beats, staying on the grid.
+    const min = shot.fixed ? half : g.period;
+    const latest = to - (shots.length - 1 - i) * half;
+    let t = NaN;
+    for (const step of shot.fixed ? [half] : [g.period * unit, g.period, half]) {
+      let c = snap(planned, step, 0);
+      if (c < prev + min - 1e-6) c = snap(prev + min, step, 1);
+      if (c > latest + 1e-6) c = snap(latest, step, -1);
+      if (c >= prev + Math.min(min, half) - 1e-6 && c <= latest + 1e-6) { t = c; break; }
+    }
+    if (Number.isNaN(t)) t = Math.min(latest, prev + half);
+    ends.push(t);
+    prev = t;
+  });
+  return ends;
+}
+
+// Where every shot ends when the opening follows a cue's beat: the whip intro
+// runs up to the first hit and its title card holds from the final hit until
+// the cue rings out; motion cuts on bar lines and ends its sign-off with the
+// cue, the sky flight taking a slot after the second shot. `ends` exclude the sky gap, because
+// the gap is inserted after assembly.
+function beatPlan(style: string, beats: any[], g: Grid) {
+  if (style === "whip") {
+    const hit = atBeat(g, g.hit);
+    const ends = [hit, ...cutsOnBeat(beats.slice(1), hit, atBeat(g, g.last), g, g.beat0)];
+    return { ends, gapSeconds: 0, titleEnd: atBeat(g, g.end) };
+  }
+  const shots = [...beats.slice(0, 2), { dur: 2.0 }, ...beats.slice(2)];
+  const body = cutsOnBeat(shots.slice(0, -1), 0, atBeat(g, g.last), g, g.beat0, 4);
+  const all = [...body, atBeat(g, g.end)];
+  const gapSeconds = all[2] - all[1];
+  const ends = [all[0], all[1], ...all.slice(3).map(t => t - gapSeconds)];
+  return { ends, gapSeconds, titleEnd: null };
+}
+
+// Quote lengths come from speech, so each cut moves to the next half beat after
+// its line (or the one before, when the source has no room), and the cue starts
+// so that its groove enters on the first cut.
+function quotePlan(beats: any[], g: Grid) {
+  const half = g.period / 2;
+  const first = beats[0].b - beats[0].a;
+  const musicStart = Math.max(0, atBeat(g, g.hit) - first);
+  const origin = g.beat0 - musicStart;
+  const ends: number[] = [];
+  let prev = 0;
+  beats.forEach((q: any, i: number) => {
+    const natural = prev + (q.b - q.a);
+    if (i === 0 && musicStart > 0) { ends.push(natural); prev = natural; return; }
+    const room = prev + ((q.total || q.b) - q.a);
+    let t = origin + Math.ceil((natural - 0.12 - origin) / half) * half;
+    if (t > room) t = origin + Math.floor((natural - origin) / half) * half;
+    if (t < prev + half) t = Math.min(room, prev + half);
+    ends.push(t);
+    prev = t;
+  });
+  return { ends, musicStart };
+}
+
+// A window of `dur` seconds around a scene-search hit, kept inside the source.
+function placeWindow(total: number, t: number, dur: number) {
+  const s = Math.max(0, Math.min(t - dur * 0.35, total - dur));
+  return { a: Math.round(s * 100) / 100, b: Math.round((s + dur) * 100) / 100 };
+}
+
+// Re-cuts each beat's source window to its planned length and records the
+// timeline time it must end on, which assembly lands on the frame.
+function retime(beats: any[], ends: number[]) {
+  let start = 0;
+  let prev: any = null;
+  return beats.map((beat: any, i: number) => {
+    const dur = Math.max(0.1, ends[i] - start);
+    start = ends[i];
+    let win: { a: number; b: number };
+    if (beat.continues && prev) {
+      win = { a: prev.b, b: Math.round(Math.min(beat.total, prev.b + dur) * 100) / 100 };
+    } else if (typeof beat.t === "number") {
+      win = placeWindow(beat.total, beat.t, dur);
+    } else {
+      const a = Math.max(0, Math.min(beat.a, (beat.total || beat.a + dur) - dur));
+      win = { a: Math.round(a * 100) / 100, b: Math.round((a + dur) * 100) / 100 };
+    }
+    const next = { ...beat, ...win, t1: Math.round(ends[i] * 1000) / 1000 };
+    prev = next;
+    return next;
+  });
+}
 
 // Six-second auditions of the bundled cues, so the picker can be listened to.
 const AUDITIONS: Record<string, string> = {
@@ -202,33 +330,136 @@ export default function TitleCard({ data }) {
 
 const GFX_DESK = `
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
+// The drawing is authored on a 1920x1080 sheet. The laptop screen is the
+// 16:9 rectangle the first shot plays in.
+const W = 1920, H = 1080;
+const SX = 700, SY = 120, SW = 600, SH = 338;
+const rand = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const pct = (v, of) => (v / of) * 100 + "%";
+
+// The keyboard deck, a quadrilateral seen in perspective below the screen.
+const DECK = [[SX - 6, SY + SH + 40], [SX + SW + 6, SY + SH + 40], [SX + SW + 120, 1010], [SX - 190, 1010]];
+const onDeck = (u, v) => {
+  const top = [DECK[0][0] + (DECK[1][0] - DECK[0][0]) * u, DECK[0][1] + (DECK[1][1] - DECK[0][1]) * u];
+  const bot = [DECK[3][0] + (DECK[2][0] - DECK[3][0]) * u, DECK[3][1] + (DECK[2][1] - DECK[3][1]) * u];
+  return [top[0] + (bot[0] - top[0]) * v, top[1] + (bot[1] - top[1]) * v];
+};
+const quad = (u0, v0, u1, v1) => {
+  const p = [onDeck(u0, v0), onDeck(u1, v0), onDeck(u1, v1), onDeck(u0, v1)];
+  return "M" + p.map((q) => q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" L") + " Z";
+};
+
+// The table top in perspective: its far edge across the frame, its near edge
+// well beyond it, so the checks shrink toward the back.
+const TABLE = [[-260, 450], [2180, 450], [2900, 1180], [-980, 1180]];
+const onTable = (u, v) => {
+  const top = [TABLE[0][0] + (TABLE[1][0] - TABLE[0][0]) * u, TABLE[0][1]];
+  const bot = [TABLE[3][0] + (TABLE[2][0] - TABLE[3][0]) * u, TABLE[3][1]];
+  return [top[0] + (bot[0] - top[0]) * v, top[1] + (bot[1] - top[1]) * v];
+};
+const band = (u0, v0, u1, v1) => {
+  const p = [onTable(u0, v0), onTable(u1, v0), onTable(u1, v1), onTable(u0, v1)];
+  return "M" + p.map((q) => q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" L") + " Z";
+};
+// Mix a #rrggbb colour toward white.
+const tint = (hex, amount) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  const n = m ? parseInt(m[1], 16) : 0xe58497;
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (255 - v) * amount));
+  return "rgb(" + c.join(",") + ")";
+};
+
+// The first shot on a hand-drawn laptop on a checkered tablecloth coloured
+// from the footage. The camera zooms in like stop motion: it holds, then
+// jumps closer in steps that land on the beat, each slightly off-angle, and
+// reaches the full frame on the cut. Lines redraw every few frames so the
+// drawing boils like hand animation.
 export default function DeskScene({ Source, children, data }) {
   const frame = useCurrentFrame();
-  const hold = data && typeof data.holdFrames === "number" ? data.holdFrames : 70;
-  const push = data && typeof data.pushFrames === "number" ? data.pushFrames : 22;
-  const paper = (data && data.paper) || "#eef3f6";
-  const surface = (data && data.surface) || "#b9c8da";
-  const accent = (data && data.accent) || "#a79289";
-  const chrome = (data && data.chrome) || "#3a3630";
-  const t = interpolate(frame, [hold, hold + push], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const e = t * t * (3 - 2 * t);
-  const s0 = 34;
-  const w = s0 + (100 - s0) * e;
-  const cx = 50, cy = 43 + (50 - 43) * e;
-  const roomOpacity = 1 - e;
-  const rect = { position: "absolute", left: (cx - w / 2) + "%", top: (cy - w / 2) + "%", width: w + "%", height: w + "%", overflow: "hidden", borderRadius: (0.6 * (1 - e)) + "vw", backgroundColor: "#000" };
-  const lid = { position: "absolute", left: (cx - w / 2 - 1.1) + "%", top: (cy - w / 2 - 1.8) + "%", width: (w + 2.2) + "%", height: (w + 3.6) + "%", backgroundColor: chrome, borderRadius: "1vw", opacity: roomOpacity };
-  const base = { position: "absolute", left: (cx - w / 2 - 7) + "%", top: (cy + w / 2 + 1.8) + "%", width: (w + 14) + "%", height: "3.2%", backgroundColor: chrome, filter: "brightness(1.35)", borderRadius: "0 0 1.2vw 1.2vw", opacity: roomOpacity };
+  const { fps } = useVideoConfig();
+  const d = data || {};
+  const paper = d.paper || "#fbf8ee";
+  const check = d.check || "#e58497";
+  const body = d.laptop || "#cfcfd1";
+  const ink = d.ink || "#262626";
+  const beat = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : fps * 0.4;
+  const hold = typeof d.holdFrames === "number" ? d.holdFrames : 60;
+
+  // Stop-motion steps toward the screen; the step after the last is the cut.
+  const STEPS = [0, 0.34, 0.66, 0.9];
+  const TURN = [0, -1.8, 1.3, -0.6];
+  const step = frame < hold ? 0 : Math.min(STEPS.length - 1, 1 + Math.floor((frame - hold) / beat));
+  const q = STEPS[step];
+  const full = W / SW;
+  const scale = 1 + (full - 1) * q;
+  const cx = ((SX + SW / 2) / W) * 100, cy = ((SY + SH / 2) / H) * 100;
+  const nudgeX = step ? (rand(step * 7.3) - 0.5) * 4 : 0;
+  const nudgeY = step ? (rand(step * 3.1) - 0.5) * 3 : 0;
+  const camera = {
+    transformOrigin: cx + "% " + cy + "%",
+    transform: "translate(" + ((50 - cx) * q + nudgeX) + "%," + ((50 - cy) * q + nudgeY) + "%) rotate(" + TURN[step] + "deg) scale(" + scale + ")",
+  };
+  // Boil: a new drawing every three frames, and on every step.
+  const tick = Math.floor(frame / 3) + step * 17;
+  const id = "desk" + tick;
+
+  const depth = (k) => Math.pow(k / 7, 1.45);
+  const cells = [];
+  for (let j = 0; j < 7; j++) {
+    for (let i = 0; i < 16; i++) {
+      if ((i + j) % 2) continue;
+      cells.push(<path key={"c" + i + "-" + j} d={band(i / 16, depth(j), (i + 1) / 16, depth(j + 1))} />);
+    }
+  }
+
+  const keys = [];
+  const rows = [[11, 0.08, 0.2], [11, 0.24, 0.36], [10, 0.4, 0.52]];
+  rows.forEach(([n, v0, v1], r) => {
+    for (let k = 0; k < n; k++) {
+      const u0 = 0.07 + (k / n) * 0.86 + (r === 2 ? 0.03 : 0), u1 = u0 + 0.86 / n - 0.012;
+      const c = onDeck((u0 + u1) / 2, (v0 + v1) / 2);
+      const s = rand(r * 31 + k);
+      keys.push(<path key={"k" + r + k} d={quad(u0, v0, u1, v1)} />);
+      keys.push(<path key={"s" + r + k} d={"M" + (c[0] - 12) + " " + (c[1] + 4) + " q " + (6 + s * 8) + " " + (-14 - s * 6) + " " + (14 + s * 6) + " " + (-4 + s * 6) + " t " + (8 - s * 4) + " " + (6 + s * 4)} strokeWidth="2.5" />);
+    }
+  });
+
   return (
-    <AbsoluteFill style={{ backgroundColor: paper }}>
-      <AbsoluteFill style={{ opacity: roomOpacity, background: "linear-gradient(160deg,#f6fafc 0%," + paper + " 50%," + surface + " 100%)" }} />
-      <div style={{ position: "absolute", left: "4%", top: "56%", width: "92%", height: "48%", backgroundColor: surface, borderRadius: "3vw", opacity: roomOpacity }} />
-      <div style={{ position: "absolute", left: "10%", top: "10%", width: "13%", height: "23%", backgroundColor: accent, borderRadius: "1.5vw", opacity: roomOpacity * 0.85 }} />
-      <div style={lid} />
-      <div style={base} />
-      <div style={rect}>{Source ? <Source /> : children}</div>
+    <AbsoluteFill style={{ backgroundColor: paper, overflow: "hidden" }}>
+      <AbsoluteFill style={camera}>
+        <svg viewBox={"0 0 " + W + " " + H} preserveAspectRatio="xMidYMid slice" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}>
+          <defs>
+            <filter id={id + "b"} x="-10%" y="-10%" width="120%" height="120%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed={tick} />
+              <feDisplacementMap in="SourceGraphic" scale="7" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+            <filter id={id + "c"} x="-20%" y="-20%" width="140%" height="140%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed={tick + 5} />
+              <feDisplacementMap in="SourceGraphic" scale="9" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+          </defs>
+          {/* Checkered tablecloth: alternating squares of the footage colour
+              over a pale tint of it, smaller toward the back. */}
+          <path d={band(0, 0, 1, 1)} fill={tint(check, 0.78)} />
+          <g filter={"url(#" + id + "c)"} fill={tint(check, 0.12)}>
+            {cells}
+          </g>
+          <g filter={"url(#" + id + "b)"} stroke={ink} strokeLinecap="round" strokeLinejoin="round" fill="none">
+            <path d={"M" + TABLE[0][0] + " " + TABLE[0][1] + " L" + TABLE[1][0] + " " + TABLE[1][1]} strokeWidth="4" />
+            {/* Laptop: deck, keys, trackpad, lid. */}
+            <path d={"M" + DECK.map((p) => p[0] + " " + p[1]).join(" L") + " Z"} fill={body} strokeWidth="5" />
+            <g strokeWidth="3" fill="none" opacity="0.75">{keys}</g>
+            <path d={quad(0.24, 0.57, 0.76, 0.64)} strokeWidth="3" opacity="0.75" />
+            <path d={quad(0.36, 0.7, 0.64, 0.95)} strokeWidth="3.5" opacity="0.75" />
+            <rect x={SX - 26} y={SY - 26} width={SW + 52} height={SH + 60} rx="22" fill={body} strokeWidth="5" />
+          </g>
+        </svg>
+        <div style={{ position: "absolute", left: pct(SX, W), top: pct(SY, H), width: pct(SW, W), height: pct(SH, H), overflow: "hidden", backgroundColor: "#000", outline: "0.2vw solid " + ink }}>
+          {Source ? <Source /> : children}
+        </div>
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 }
@@ -236,39 +467,95 @@ export default function DeskScene({ Source, children, data }) {
 
 const GFX_SKY = `
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";
+import { AbsoluteFill, useCurrentFrame } from "remotion";
 
+// Drawn on a 1920x1080 sheet, in the desk scene's style: flat colour, ink
+// outlines, linework that boils, and motion held on twos.
+const W = 1920, H = 1080;
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+// The route: a quadratic curve rising left to right, in sheet units.
+const P0 = [-260, 820], P1 = [800, 180], P2 = [2200, 380];
+const at = (t) => [
+  (1 - t) * (1 - t) * P0[0] + 2 * (1 - t) * t * P1[0] + t * t * P2[0],
+  (1 - t) * (1 - t) * P0[1] + 2 * (1 - t) * t * P1[1] + t * t * P2[1],
+];
+
+// A cloud: a flat bottom and a row of rounded bumps on top.
+function cloudPath(x, y, w, seed) {
+  const bumps = [0.26, 0.34, 0.22, 0.18].map((b, i) => b + ((seed * (i + 3)) % 7) / 100);
+  const total = bumps.reduce((a, b) => a + b, 0);
+  let d = "M" + x + " " + y;
+  bumps.forEach((b) => {
+    const bw = (b / total) * w;
+    d += " a " + (bw / 2) + " " + (bw * 0.62) + " 0 0 1 " + bw + " 0";
+  });
+  return d + " Q " + (x + w / 2) + " " + (y + w * 0.1) + " " + x + " " + y + " Z";
+}
+
+// The flight between places: a plane follows a curved route across a flat
+// sky, drawing a dashed trail, past outlined clouds and a sun whose rays
+// pulse on the beat. Wing and tail take the footage colour.
 export default function SkyFlight({ data }) {
   const frame = useCurrentFrame();
-  const len = data && typeof data.lengthFrames === "number" ? data.lengthFrames : 60;
-  const top = (data && data.skyTop) || "#4d7ec4";
-  const mid = (data && data.skyMid) || "#7db9f2";
-  const low = (data && data.skyLow) || "#eef3f6";
-  const planeBody = (data && data.planeColor) || "#1f3a5f";
-  const wing = (data && data.wingColor) || "#8998b3";
-  const p = Math.min(1, Math.max(0, frame / len));
-  const x = interpolate(p, [0, 1], [-18, 112]);
-  const y = interpolate(p, [0, 0.5, 1], [62, 44, 30]);
-  const cloudA = interpolate(p, [0, 1], [10, -22]);
-  const cloudB = interpolate(p, [0, 1], [70, 38]);
-  const dashes = [];
-  for (let i = 1; i <= 14; i++) {
-    const dx = x - i * 5.2;
-    const dy = y + i * 1.15;
-    if (dx < -8) continue;
-    dashes.push(<div key={i} style={{ position: "absolute", left: dx + "%", top: dy + "%", width: "1.7%", height: "0.5%", borderRadius: "1vw", backgroundColor: "#f6fafc", opacity: Math.max(0, 0.85 - i * 0.06) }} />);
+  const d = data || {};
+  const len = typeof d.lengthFrames === "number" && d.lengthFrames > 1 ? d.lengthFrames : 60;
+  const beat = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : 0;
+  const sky = d.sky || "#9cc4ec";
+  const accent = d.accent || "#e58497";
+  const ink = d.ink || "#262626";
+
+  // Hand-animated timing: a new position every second frame.
+  const f = Math.floor(frame / 2) * 2;
+  const p = clamp01(f / len);
+  const tp = 0.2 * p + 0.8 * easeInOutSine(p);
+  const [x, y0] = at(tp);
+  const [x2, y2] = at(Math.min(1, tp + 0.01));
+  const angle = Math.atan2(y2 - y0, x2 - x) * 180 / Math.PI;
+  const pulse = beat ? Math.exp(-(frame % beat) / (beat * 0.25)) : 0;
+  const y = y0 - 14 * pulse;
+  const tick = Math.floor(frame / 3);
+  const id = "sky" + tick;
+
+  let trail = "";
+  for (let i = 0; i <= 60; i++) {
+    const q = at((i / 60) * Math.max(0, tp - 0.03));
+    trail += (i ? " L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1);
   }
+  const rays = Array.from({ length: 10 }, (_, i) => {
+    const a = (i / 10) * Math.PI * 2 + f * 0.01;
+    const r0 = 118, r1 = 150 + 22 * pulse;
+    return <path key={i} d={"M" + (1560 + Math.cos(a) * r0) + " " + (200 + Math.sin(a) * r0) + " L" + (1560 + Math.cos(a) * r1) + " " + (200 + Math.sin(a) * r1)} strokeWidth="6" />;
+  });
+  const clouds = [
+    [1240 - 520 * p, 330, 420, 1], [120 - 380 * p, 560, 360, 2],
+    [1500 - 900 * p, 900, 620, 3], [300 - 700 * p, 1050, 520, 4],
+  ];
+
   return (
-    <AbsoluteFill style={{ background: "linear-gradient(180deg," + top + " 0%," + mid + " 45%," + low + " 100%)" }}>
-      <div style={{ position: "absolute", left: "72%", top: "14%", width: "12%", height: "21%", borderRadius: "50%", backgroundColor: "#f6fafc", opacity: 0.85 }} />
-      <div style={{ position: "absolute", left: cloudA + "%", top: "22%", width: "26%", height: "13%", borderRadius: "6vw", backgroundColor: "#f6fafc", opacity: 0.82 }} />
-      <div style={{ position: "absolute", left: cloudB + "%", top: "66%", width: "34%", height: "15%", borderRadius: "8vw", backgroundColor: "#dbe6ef", opacity: 0.8 }} />
-      {dashes}
-      <div style={{ position: "absolute", left: x + "%", top: y + "%", width: "9%", height: "5%", transform: "rotate(-12deg)" }}>
-        <div style={{ position: "absolute", left: 0, top: "38%", width: "100%", height: "26%", borderRadius: "2vw", backgroundColor: planeBody }} />
-        <div style={{ position: "absolute", left: "34%", top: "-46%", width: "26%", height: "120%", borderRadius: "1vw", backgroundColor: wing, transform: "rotate(14deg)" }} />
-        <div style={{ position: "absolute", left: "2%", top: "-30%", width: "16%", height: "70%", borderRadius: "0.6vw", backgroundColor: planeBody }} />
-      </div>
+    <AbsoluteFill style={{ backgroundColor: sky }}>
+      <svg viewBox={"0 0 " + W + " " + H} preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%" }}>
+        <defs>
+          <filter id={id} x="-10%" y="-10%" width="120%" height="120%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed={tick} />
+            <feDisplacementMap in="SourceGraphic" scale="7" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+        <g filter={"url(#" + id + ")"} stroke={ink} strokeLinecap="round" strokeLinejoin="round">
+          <g>{rays}</g>
+          <circle cx="1560" cy="200" r="96" fill="#f7d86b" strokeWidth="6" />
+          {clouds.slice(0, 2).map(([cx, cy, w, s]) => <path key={s} d={cloudPath(cx, cy, w, s)} fill="#ffffff" strokeWidth="6" />)}
+          <path d={trail} fill="none" strokeWidth="5" strokeDasharray="18 22" opacity="0.7" />
+          <g transform={"translate(" + x + " " + y + ") rotate(" + angle + ") translate(-150 -60)"} strokeWidth="6">
+            <path d="M206 64 L150 8 L118 8 L150 64 Z" fill={accent} />
+            <path d="M26 64 L10 14 L44 14 L78 62 Z" fill={accent} />
+            <path d="M16 84 C16 70 36 62 62 62 L246 62 C276 62 296 72 296 84 C296 96 276 104 246 104 L62 104 C36 104 16 98 16 84 Z" fill="#f4f1ea" />
+            {[92, 120, 148, 176, 204].map((cx) => <circle key={cx} cx={cx} cy="80" r="7" fill={ink} stroke="none" />)}
+            <path d="M210 98 L148 150 L116 150 L152 98 Z" fill={accent} />
+          </g>
+          {clouds.slice(2).map(([cx, cy, w, s]) => <path key={s} d={cloudPath(cx, cy, w, s)} fill="#ffffff" strokeWidth="6" />)}
+        </g>
+      </svg>
     </AbsoluteFill>
   );
 }
@@ -276,30 +563,64 @@ export default function SkyFlight({ data }) {
 
 const GFX_LABEL = `
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+const rgba = (hex, a) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  const n = m ? parseInt(m[1], 16) : 0x132851;
+  return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+};
+const bounce = (t) => {
+  const n = 7.5625, k = 2.75;
+  if (t < 1 / k) return n * t * t;
+  if (t < 2 / k) return n * (t -= 1.5 / k) * t + 0.75;
+  if (t < 2.5 / k) return n * (t -= 2.25 / k) * t + 0.9375;
+  return n * (t -= 2.625 / k) * t + 0.984375;
+};
+
+// A place name for the shot. A pin drops in on the cut, the handwritten name
+// wipes in over the next beat and an underline draws after it; the pin bobs
+// on each beat, and the label clears one beat before the next cut.
 export default function PlaceLabel({ data }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const text = (data && data.text) || "";
-  const sub = (data && data.sub) || "";
-  const ink = (data && data.ink) || "#eef3f6";
-  const shadow = (data && data.shadow) || "#132851";
-  const family = data && typeof data.fontFamily === "string" && data.fontFamily.trim() !== ""
-    ? '"' + data.fontFamily.trim() + '", "Snell Roundhand", cursive'
+  const d = data || {};
+  const text = d.text || "";
+  const sub = d.sub || "";
+  const ink = d.ink || "#eef3f6";
+  const shadow = d.shadow || "#132851";
+  const beatIn = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : 0;
+  const beat = beatIn || fps * 0.5;
+  const len = typeof d.lengthFrames === "number" && d.lengthFrames > 0 ? d.lengthFrames : fps * 2;
+  const family = typeof d.fontFamily === "string" && d.fontFamily.trim() !== ""
+    ? '"' + d.fontFamily.trim() + '", "Snell Roundhand", cursive'
     : '"Snell Roundhand", "Apple Chancery", "Brush Script MT", cursive';
-  const inT = interpolate(frame, [0, Math.round(fps * 0.45)], [0, 1], { extrapolateRight: "clamp" });
-  const outT = interpolate(frame, [Math.round(fps * 1.6), Math.round(fps * 2.0)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const op = Math.min(inT, outT);
-  const line = interpolate(frame, [Math.round(fps * 0.25), Math.round(fps * 0.9)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const glow = "0 0.4vh 1.8vh " + shadow;
   if (!text) return <AbsoluteFill />;
+
+  const drop = bounce(clamp01(frame / (beat * 0.9)));
+  const wipe = easeOut(clamp01((frame - beat * 0.4) / beat));
+  const line = easeOut(clamp01((frame - beat * 1.2) / beat));
+  const out = easeOut(clamp01((frame - (len - beat)) / (beat * 0.8)));
+  const pulse = beatIn ? Math.exp(-(frame % beat) / (beat * 0.25)) : 0;
+  const size = 10 * Math.max(0.5, Math.min(1, 16 / Math.max(1, String(text).length)));
+  const glow = "0 0.4vh 1.6vh " + shadow;
   return (
-    <AbsoluteFill>
-      <div style={{ position: "absolute", left: "7%", bottom: "12%", opacity: op, transform: "translateY(" + ((1 - inT) * 26) + "px)" }}>
-        <div style={{ fontFamily: family, color: ink, fontSize: (9 * Math.max(0.45, Math.min(1, 14 / Math.max(1, String(text).length)))) + "vh", lineHeight: 1.05, maxWidth: "62vw", textShadow: glow }}>{text}</div>
-        <div style={{ marginTop: "1vh", height: "0.5vh", width: (line * 100) + "%", maxWidth: "34vw", backgroundColor: ink, borderRadius: "1vh", boxShadow: glow }} />
-        {sub ? <div style={{ marginTop: "1.4vh", fontFamily: '"Helvetica Neue", Arial, sans-serif', color: ink, fontSize: "2vh", letterSpacing: "0.42em", textIndent: "0.42em", opacity: line, textShadow: glow }}>{sub}</div> : null}
+    <AbsoluteFill style={{ opacity: 1 - out }}>
+      <AbsoluteFill style={{ background: "linear-gradient(20deg," + rgba(shadow, 0.7) + " 0%," + rgba(shadow, 0.25) + " 34%," + rgba(shadow, 0) + " 60%)", opacity: wipe }} />
+      <div style={{ position: "absolute", left: "6%", bottom: "11%", display: "flex", alignItems: "flex-end", gap: "1.6vh", transform: "translateY(" + out * 3 + "vh)" }}>
+        <svg viewBox="0 0 24 32" style={{ width: "4.2vh", marginBottom: "1.2vh", transform: "translateY(" + ((1 - drop) * -14 - 0.8 * pulse) + "vh)", filter: "drop-shadow(0 0.5vh 0.6vh rgba(0,0,0,0.35))" }}>
+          <path d="M12 31 C12 31 2 18 2 11 A10 10 0 0 1 22 11 C22 18 12 31 12 31 Z" fill={ink} />
+          <circle cx="12" cy="11" r="4" fill={shadow} />
+        </svg>
+        <div>
+          <div style={{ fontFamily: family, color: ink, fontSize: size + "vh", lineHeight: 1.05, maxWidth: "62vw", textShadow: glow, clipPath: "inset(-30% " + (100 - wipe * 115) + "% -30% -8%)" }}>{text}</div>
+          <svg viewBox="0 0 100 8" preserveAspectRatio="none" style={{ display: "block", width: "100%", height: "1.4vh", marginTop: "0.6vh", overflow: "visible", clipPath: "inset(-100% " + (100 - line * 100) + "% -100% -2%)" }}>
+            <path d="M1 5 C 25 1, 55 8, 99 3" stroke={ink} strokeWidth="2.4" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+          {sub ? <div style={{ marginTop: "1.2vh", fontFamily: '"Helvetica Neue", Arial, sans-serif', color: ink, fontSize: "2vh", letterSpacing: "0.42em", textIndent: "0.42em", opacity: line, textShadow: glow }}>{sub}</div> : null}
+        </div>
       </div>
     </AbsoluteFill>
   );
@@ -308,29 +629,65 @@ export default function PlaceLabel({ data }) {
 
 const GFX_SIGNOFF = `
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+const rgba = (hex, a) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  const n = m ? parseInt(m[1], 16) : 0x132851;
+  return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+};
+const pop = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2));
+
+function Sparkle({ x, y, s, color }) {
+  return (
+    <svg viewBox="-10 -10 20 20" style={{ position: "absolute", left: x + "%", top: y + "%", width: "5vh", transform: "translate(-50%,-50%) scale(" + s + ")" }}>
+      <path d="M0 -9 C1 -2 2 -1 9 0 C2 1 1 2 0 9 C-1 2 -2 1 -9 0 C-2 -1 -1 -2 0 -9 Z" fill={color} />
+    </svg>
+  );
+}
+
+// The sign-off over the last shot: the title writes on across two beats, a
+// hand-drawn swash underlines it, and three sparkles pop on the beats after,
+// over a soft vignette that keeps the title readable.
 export default function Signoff({ data }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const title = (data && data.title) || "";
-  const sub = (data && data.sub) || "";
-  const ink = (data && data.ink) || "#f6fafc";
-  const shadow = (data && data.shadow) || "#132851";
-  const family = data && typeof data.fontFamily === "string" && data.fontFamily.trim() !== ""
-    ? '"' + data.fontFamily.trim() + '", "Snell Roundhand", cursive'
+  const d = data || {};
+  const title = d.title || "";
+  const sub = d.sub || "";
+  const ink = d.ink || "#f6fafc";
+  const shadow = d.shadow || "#132851";
+  const beatIn = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : 0;
+  const beat = beatIn || fps * 0.5;
+  const len = typeof d.lengthFrames === "number" && d.lengthFrames > 0 ? d.lengthFrames : fps * 3;
+  const family = typeof d.fontFamily === "string" && d.fontFamily.trim() !== ""
+    ? '"' + d.fontFamily.trim() + '", "Snell Roundhand", cursive'
     : '"Snell Roundhand", "Apple Chancery", "Brush Script MT", cursive';
   const fit = Math.max(0.4, Math.min(1, 11 / Math.max(1, String(title).length)));
-  const appear = interpolate(frame, [Math.round(fps * 0.5), Math.round(fps * 1.15)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const stroke = interpolate(frame, [Math.round(fps * 1.0), Math.round(fps * 1.8)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const subOp = interpolate(frame, [Math.round(fps * 1.3), Math.round(fps * 1.8)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+
+  const veil = easeOut(clamp01(frame / beat));
+  const write = easeOut(clamp01((frame - beat * 0.5) / (beat * 2)));
+  const swash = easeOut(clamp01((frame - beat * 2.2) / beat));
+  const subOp = easeOut(clamp01((frame - beat * 3) / beat));
+  const pulse = beatIn ? Math.exp(-(frame % beat) / (beat * 0.25)) : 0;
+  const drift = 1 + 0.04 * clamp01(frame / len);
   const glow = "0 0.6vh 2.6vh " + shadow;
+  const sparkles = [[10, 30, 3], [92, 58, 4], [84, 16, 5]].map(([x, y, b], i) => {
+    const t = clamp01((frame - beat * b) / (beat * 0.6));
+    return <Sparkle key={i} x={x} y={y} s={pop(t) * (1 + 0.25 * pulse)} color={ink} />;
+  });
   return (
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-      <div style={{ textAlign: "center", opacity: appear, transform: "scale(" + (0.92 + 0.08 * appear) + ")" }}>
-        <div style={{ fontFamily: family, color: ink, fontSize: (16 * fit) + "vh", lineHeight: 1.06, maxWidth: "86vw", textShadow: glow }}>{title}</div>
-        <div style={{ margin: "1.2vh auto 0", height: "0.6vh", width: (stroke * 38) + "vw", backgroundColor: ink, borderRadius: "1vh", boxShadow: glow }} />
-        {sub ? <div style={{ marginTop: "2.2vh", fontFamily: '"Helvetica Neue", Arial, sans-serif', color: ink, fontSize: "2.2vh", letterSpacing: "0.55em", textIndent: "0.55em", opacity: subOp, textShadow: glow }}>{sub}</div> : null}
+      <AbsoluteFill style={{ background: "radial-gradient(ellipse at center," + rgba(shadow, 0.5) + " 0%," + rgba(shadow, 0.22) + " 45%," + rgba(shadow, 0) + " 75%)", opacity: veil }} />
+      <div style={{ position: "relative", textAlign: "center", transform: "scale(" + drift + ")", padding: "4vh 6vw" }}>
+        <div style={{ fontFamily: family, color: ink, fontSize: 16 * fit + "vh", lineHeight: 1.06, maxWidth: "86vw", textShadow: glow, clipPath: "inset(-40% " + (100 - write * 120) + "% -40% -12%)" }}>{title}</div>
+        <svg viewBox="0 0 100 12" preserveAspectRatio="none" style={{ display: "block", width: "80%", height: "3vh", margin: "0.4vh auto 0", overflow: "visible", clipPath: "inset(-100% " + (100 - swash * 100) + "% -100% -2%)" }}>
+          <path d="M2 8 C 20 2, 40 11, 60 6 S 90 2, 98 5" stroke={ink} strokeWidth="2.8" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" style={{ filter: "drop-shadow(" + glow + ")" }} />
+        </svg>
+        {sub ? <div style={{ marginTop: "2vh", fontFamily: '"Helvetica Neue", Arial, sans-serif', color: ink, fontSize: "2.2vh", letterSpacing: "0.55em", textIndent: "0.55em", opacity: subOp, textShadow: glow }}>{sub}</div> : null}
+        {sparkles}
       </div>
     </AbsoluteFill>
   );
@@ -437,8 +794,29 @@ function ensureMusicScript(projectId: string, absPath: string) {
   return `
 const p = selects.project(${JSON.stringify(projectId)});
 const before = await p.resources();
-const hit = before.find(r => r.type === "Audio" && (r.name === ${JSON.stringify(base)} || r.name === ${JSON.stringify(stem)}));
-if (hit) return { resourceId: hit.resourceId, imported: false, name: hit.name };
+const named = before.filter(r => r.type === "Audio" && (r.name === ${JSON.stringify(base)} || r.name === ${JSON.stringify(stem)}));
+if (named.length) {
+  // A same-named import can point at a file that has since moved or been
+  // deleted, so reuse only one that is this very file.
+  const paths = {};
+  const walk = (n) => {
+    if (n.type === "dir") (n.children || []).forEach(walk);
+    else if (n.path) paths[n.resourceId] = n.path;
+  };
+  try {
+    const sf = await p.sourceFiles();
+    if ("fileTree" in sf && sf.fileTree) sf.fileTree.forEach(walk);
+    else {
+      const org = await p.organizeClips();
+      const folders = (org.folders || []).map(f => f.path || f.name).concat(["(root)"]);
+      for (const folder of folders) {
+        try { const detail = await p.sourceFiles({ folder }); ("fileTree" in detail ? detail.fileTree || [] : []).forEach(walk); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+  const hit = named.find(r => paths[r.resourceId] === ${JSON.stringify(absPath)});
+  if (hit) return { resourceId: hit.resourceId, imported: false, name: hit.name };
+}
 const r = await p.importFiles({ paths: [${JSON.stringify(absPath)}] });
 const after = await p.resources();
 const added = after.find(x => r.addedResourceIds.includes(x.resourceId));
@@ -542,10 +920,7 @@ function assignBeats(template: any[], hitsByRole: Record<string, any[]>, pool: a
   const dropped: any[] = [];
   const order = template.map((b: any, i: number) => ({ b, i })).sort((x, y) => y.b.dur - x.b.dur || x.i - y.i);
   const slots: any[] = new Array(template.length).fill(null);
-  const place = (total: number, t: number, dur: number) => {
-    const s = Math.max(0, Math.min(t - dur * 0.35, total - dur));
-    return { a: Math.round(s * 100) / 100, b: Math.round((s + dur) * 100) / 100 };
-  };
+  const place = placeWindow;
   const overlaps = (rid: string, a: number, b: number) => usedWin.some(w => w.rid === rid && a < w.b && b > w.a);
   for (const entry of order) {
     const b = entry.b;
@@ -555,7 +930,7 @@ function assignBeats(template: any[], hitsByRole: Record<string, any[]>, pool: a
       const room = prev.total - prev.b;
       if (room >= b.dur * 0.6) {
         const dur = Math.min(b.dur, room);
-        const next = { role: b.role, rid: prev.rid, name: prev.name, total: prev.total, a: prev.b, b: Math.round((prev.b + dur) * 100) / 100, path: prev.path, continues: true };
+        const next = { role: b.role, rid: prev.rid, name: prev.name, total: prev.total, a: prev.b, b: Math.round((prev.b + dur) * 100) / 100, path: prev.path, continues: true, dur: b.dur };
         usedWin.push({ rid: prev.rid, a: next.a, b: next.b });
         beats.push(next);
         slots[entry.i] = next;
@@ -587,7 +962,7 @@ function assignBeats(template: any[], hitsByRole: Record<string, any[]>, pool: a
     const win = place(pick.row.total, pick.h.t, b.dur);
     usedRes.add(pick.h.rid);
     usedWin.push({ rid: pick.h.rid, a: win.a, b: win.b });
-    const placed = { role: b.role, rid: pick.h.rid, name: pick.row.name, total: pick.row.total, a: win.a, b: win.b, score: pick.h.score, path: pick.row.path };
+    const placed = { role: b.role, rid: pick.h.rid, name: pick.row.name, total: pick.row.total, a: win.a, b: win.b, score: pick.h.score, path: pick.row.path, t: pick.h.t, dur: b.dur, fixed: b.fixed };
     beats.push(placed);
     slots[entry.i] = placed;
   }
@@ -676,18 +1051,30 @@ function assembleScript(projectId: string, draftName: string, beats: any[]) {
 const p = selects.project(${JSON.stringify(projectId)});
 const BEATS: any[] = ${JSON.stringify(beats)};
 const d = await p.createDraft({ name: ${JSON.stringify(draftName)} });
+const placedMain = async () => (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
+let rate = 0;
+let endFrame = 0;
 for (const b of BEATS) {
   // Never ask for more than the source holds, whatever the caller computed.
   const limit = typeof b.total === "number" && b.total > 0 ? b.total : b.b;
-  const end = Math.min(b.b, Math.floor(limit * 100) / 100);
+  let end = Math.min(b.b, Math.floor(limit * 100) / 100);
   const start = Math.max(0, Math.min(b.a, end - 0.2));
+  // A beat-timed clip ends on its planned frame, so frame rounding in earlier
+  // clips is absorbed here instead of drifting off the beat.
+  if (rate && typeof b.t1 === "number") {
+    const frames = Math.round(b.t1 * rate) - endFrame;
+    if (frames >= 2) end = Math.min(Math.floor(limit * 100) / 100, start + frames / rate);
+  }
   if (!(end > start)) continue;
   await d.insertResource({ resourceId: b.rid, sourceRange: { startSeconds: start, endSeconds: end } });
+  const rows = await placedMain();
+  endFrame = rows.reduce((a, c) => Math.max(a, c.endFrame), 0);
+  // Derive the frame rate from what was actually placed; never assume 30.
+  if (!rate && rows.length) rate = Math.max(1, Math.round((rows[0].endFrame - rows[0].startFrame) / (end - start)));
 }
-const clips = (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
+const clips = await placedMain();
 if (!clips.length) return { error: "nothing_placed" };
-// Derive the frame rate from what was actually placed; never assume 30.
-const fps = Math.max(1, Math.round((clips[0].endFrame - clips[0].startFrame) / (BEATS[0].b - BEATS[0].a)));
+const fps = rate;
 const commit = await d.commitAll("Vlog Opening: assemble beats");
 return {
   sequenceId: commit.createdDraftId,
@@ -701,9 +1088,16 @@ return {
 function decorateScript(opts: {
   sequenceId: string; style: string; fps: number; title: string; subtitle: string;
   letterbox: boolean; palette: Record<string, string>;
+  gapSeconds: number; titleEnd: number | null; burstSeconds: number;
+  beatSeconds: number;
 }) {
   return `
 const d = selects.draft(${JSON.stringify(opts.sequenceId)});
+const GAP_S: number = ${opts.gapSeconds};
+const TITLE_END: number | null = ${JSON.stringify(opts.titleEnd)};
+const BURST_S: number = ${opts.burstSeconds};
+// One beat in frames, or 0 without a known beat.
+const BEAT_F: number = ${opts.beatSeconds} * ${opts.fps};
 const STYLE: string = ${JSON.stringify(opts.style)};
 const TITLE: string = ${JSON.stringify(opts.title)};
 const SUBTITLE: string = ${JSON.stringify(opts.subtitle)};
@@ -746,7 +1140,7 @@ if (STYLE === "whip") {
       clips = (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
     }
   }
-  const burst = clips.filter(c => c.endFrame - c.startFrame <= F(0.34));
+  const burst = clips.filter(c => c.endFrame - c.startFrame <= F(BURST_S));
   if (burst.length) {
     const s = burst[0].startFrame;
     const e = burst[burst.length - 1].endFrame;
@@ -758,7 +1152,9 @@ if (STYLE === "whip") {
   }
   if (TITLE) {
     await d.addMotionGraphic({
-      label: "Title card", tsxCode: GFX.card, durationSeconds: 1.4,
+      // On a cue, the card holds from the final hit until the cue rings out.
+      label: "Title card", tsxCode: GFX.card,
+      durationSeconds: TITLE_END === null ? 1.4 : Math.max(0.8, TITLE_END - mainEnd() / fps),
       parameters: { title: TITLE, subtitle: SUBTITLE, ink: "#f4f1ec", fontFamily: "" },
       editableParameters: [
         { key: "title", label: "Title", type: "text", defaultValue: TITLE },
@@ -777,31 +1173,33 @@ if (STYLE === "whip") {
 if (STYLE === "motion") {
   const hero = clips[0];
   const heroLen = hero.endFrame - hero.startFrame;
+  // The stop-motion zoom takes three steps, one per beat, and the step after
+  // the last is the cut. The tablecloth takes the most vivid colour sampled
+  // from the chosen clips, so it changes with the footage.
+  const stepF = BEAT_F > 0 ? BEAT_F : F(0.4);
+  const holdF = Math.max(6, Math.round(heroLen - 3 * stepF));
   await d.addVideoEffect({
-    clip: hero, label: "Desk scene -> push in", tsxCode: GFX.desk,
+    clip: hero, label: "Desk scene -> stop-motion zoom", tsxCode: GFX.desk,
     parameters: {
-      holdFrames: Math.max(6, heroLen - F(0.75)),
-      pushFrames: Math.min(F(0.75), Math.max(4, heroLen - 6)),
-      paper: PALETTE.paper, surface: PALETTE.surface, accent: PALETTE.accent, chrome: PALETTE.chrome,
+      holdFrames: holdF, beatFrames: stepF,
+      paper: "#fbf8ee", check: PALETTE.accent, laptop: "#cfcfd1",
     },
     editableParameters: [
-      { key: "holdFrames", label: "Hold (frames)", type: "number", defaultValue: 70, min: 0, max: 400, step: 1 },
-      { key: "pushFrames", label: "Push-in (frames)", type: "number", defaultValue: 22, min: 4, max: 120, step: 1 },
-      { key: "paper", label: "Room light", type: "color", defaultValue: PALETTE.paper },
-      { key: "surface", label: "Room surface", type: "color", defaultValue: PALETTE.surface },
-      { key: "accent", label: "Prop accent", type: "color", defaultValue: PALETTE.accent },
-      { key: "chrome", label: "Device body", type: "color", defaultValue: PALETTE.chrome },
+      { key: "holdFrames", label: "Zoom starts (frame)", type: "number", defaultValue: holdF, min: 0, max: 400, step: 1 },
+      { key: "beatFrames", label: "Frames per zoom step", type: "number", defaultValue: stepF, min: 2, max: 60, step: 1 },
+      { key: "paper", label: "Paper", type: "color", defaultValue: "#fbf8ee" },
+      { key: "check", label: "Tablecloth", type: "color", defaultValue: PALETTE.accent },
+      { key: "laptop", label: "Laptop", type: "color", defaultValue: "#cfcfd1" },
     ],
   });
   const anchor = clips[Math.min(1, clips.length - 1)];
-  await d.insertGap({ at: { after: await d.rangeAtFrames(anchor.startFrame, anchor.endFrame) }, seconds: 2.0 });
-  await addGfx(GFX.sky, anchor.endFrame, anchor.endFrame + F(2.0), "Sky flight",
-    { lengthFrames: F(2.0), skyTop: PALETTE.skyTop, skyMid: PALETTE.skyMid, skyLow: PALETTE.paper, planeColor: PALETTE.deep, wingColor: PALETTE.surface },
+  await d.insertGap({ at: { after: await d.rangeAtFrames(anchor.startFrame, anchor.endFrame) }, seconds: GAP_S });
+  await addGfx(GFX.sky, anchor.endFrame, anchor.endFrame + F(GAP_S), "Sky flight",
+    // Flat sky and the tablecloth's footage colour on the plane's wings.
+    { lengthFrames: F(GAP_S), beatFrames: BEAT_F, sky: PALETTE.skyMid, accent: PALETTE.accent },
     [
-      { key: "skyTop", label: "Sky top", type: "color", defaultValue: PALETTE.skyTop },
-      { key: "skyMid", label: "Sky middle", type: "color", defaultValue: PALETTE.skyMid },
-      { key: "skyLow", label: "Horizon", type: "color", defaultValue: PALETTE.paper },
-      { key: "planeColor", label: "Plane", type: "color", defaultValue: PALETTE.deep },
+      { key: "sky", label: "Sky", type: "color", defaultValue: PALETTE.skyMid },
+      { key: "accent", label: "Wings and tail", type: "color", defaultValue: PALETTE.accent },
     ]);
   clips = (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
   let chapters = [];
@@ -812,8 +1210,9 @@ if (STYLE === "motion") {
     const text = ch ? String(ch.title || ch.chapterTitle || "") : "";
     const label = text || SUBTITLE;
     if (!label) { notes.push("no chapter title for a label"); continue; }
-    await addGfx(GFX.label, c.startFrame + F(0.2), c.endFrame, "Label - " + label,
-      { text: label, sub: "", ink: PALETTE.paper, shadow: PALETTE.night, fontFamily: "" },
+    // Labels start on the cut, which is on the beat.
+    await addGfx(GFX.label, c.startFrame, c.endFrame, "Label - " + label,
+      { text: label, sub: "", ink: PALETTE.paper, shadow: PALETTE.night, fontFamily: "", beatFrames: BEAT_F, lengthFrames: c.endFrame - c.startFrame },
       [
         { key: "text", label: "Place", type: "text", defaultValue: label },
         { key: "sub", label: "Caption", type: "text", defaultValue: "" },
@@ -824,7 +1223,7 @@ if (STYLE === "motion") {
   if (TITLE) {
     const last = clips[clips.length - 1];
     await addGfx(GFX.signoff, last.startFrame, last.endFrame, "Handwritten title",
-      { title: TITLE, sub: SUBTITLE, ink: "#f6fafc", shadow: PALETTE.night, fontFamily: "" },
+      { title: TITLE, sub: SUBTITLE, ink: "#f6fafc", shadow: PALETTE.night, fontFamily: "", beatFrames: BEAT_F, lengthFrames: last.endFrame - last.startFrame },
       [
         { key: "title", label: "Title", type: "text", defaultValue: TITLE },
         { key: "sub", label: "Subtitle", type: "text", defaultValue: SUBTITLE },
@@ -870,6 +1269,7 @@ return { notes, graphics: after.filter(c => c.trackKind === "video").length, mai
 function finishScript(opts: {
   sequenceId: string; fps: number; musicResourceId: string | null;
   muteSource: boolean; fadeSeconds: number; projectId: string; beats: any[];
+  musicStart: number;
 }) {
   return `
 const p = selects.project(${JSON.stringify(opts.projectId)});
@@ -890,7 +1290,7 @@ if (MUTE) {
 if (MUSIC) {
   rows = await d.clips({ trackScope: "all" });
   const total = rows.reduce((a, c) => Math.max(a, c.endFrame), 0);
-  try { await d.overlayResource({ resource: p.resource(MUSIC), over: await d.rangeAtFrames(0, total), sourceStartSeconds: 0 }); }
+  try { await d.overlayResource({ resource: p.resource(MUSIC), over: await d.rangeAtFrames(0, total), sourceStartSeconds: ${opts.musicStart} }); }
   catch (e) { notes.push("music could not be placed"); }
 }
 if (FADE_S > 0) {
@@ -1156,8 +1556,11 @@ export default function Panel({ sdk, context, ui }: any) {
       let beats: any[] = [];
       let dropped: any[] = [];
       let scanNotes: string[] = [];
+      // Bundled cues carry a measured beat grid; own music and silence keep
+      // the template's own timing.
+      const grid = music.startsWith("cue:") ? (CUES.find(c => c.id === music.slice(4))?.grid ?? null) : null;
       if (style === "quotes") {
-        const budget = 22;
+        const budget = grid ? Math.min(22, atBeat(grid, grid.end) - atBeat(grid, grid.hit) + 2.5) : 22;
         const r = await sdk.runScript({ summary: "Find quotable lines", script: selectQuotesScript(projectId, budget, 30), allowCommit: false });
         if (r.isError) { setStatus({ tone: "error", text: r.output }); return; }
         if (r.result?.error === "no_speech") { setStatus({ tone: "error", text: "No analysed speech in this project, so the quotes style has nothing to cut." }); return; }
@@ -1198,6 +1601,21 @@ export default function Panel({ sdk, context, ui }: any) {
       }
       if (beats.length < 3) { setStatus({ tone: "error", text: "Only " + beats.length + " usable beat(s) found — this project needs more analysed footage." }); return; }
 
+      let gapSeconds = 2.0;
+      let titleEnd: number | null = null;
+      let musicStart = 0;
+      if (grid && style === "quotes") {
+        const plan = quotePlan(beats, grid);
+        beats = retime(beats, plan.ends);
+        musicStart = Math.round(plan.musicStart * 1000) / 1000;
+      } else if (grid) {
+        const plan = beatPlan(style, beats, grid);
+        beats = retime(beats, plan.ends);
+        gapSeconds = plan.gapSeconds;
+        titleEnd = plan.titleEnd;
+      }
+      const burstSeconds = grid ? grid.period / 2 + 0.05 : 0.34;
+
       setStep("Sampling colours…");
       const palette = style === "motion" ? await samplePalette(beats) : { ...FALLBACK_PALETTE };
 
@@ -1217,14 +1635,17 @@ export default function Panel({ sdk, context, ui }: any) {
       setStep("Adding the look…");
       const dec = await sdk.runScript({
         summary: "Style the opening", allowCommit: true,
-        script: decorateScript({ sequenceId, style, fps, title, subtitle, letterbox, palette }),
+        script: decorateScript({
+          sequenceId, style, fps, title, subtitle, letterbox, palette, gapSeconds, titleEnd, burstSeconds,
+          beatSeconds: grid ? grid.period : 0,
+        }),
       });
       if (dec.isError) { setStatus({ tone: "error", text: dec.output }); return; }
 
       setStep("Music and fade…");
       const fin = await sdk.runScript({
         summary: "Add music and fade", allowCommit: true,
-        script: finishScript({ sequenceId, fps, musicResourceId: chosen.id, muteSource, fadeSeconds: FADE_SECONDS, projectId, beats }),
+        script: finishScript({ sequenceId, fps, musicResourceId: chosen.id, muteSource, fadeSeconds: FADE_SECONDS, projectId, beats, musicStart }),
       });
       if (fin.isError) { setStatus({ tone: "error", text: fin.output }); return; }
       if (fin.result == null) { setStatus({ tone: "error", text: "The build finished but returned nothing to show." }); return; }
