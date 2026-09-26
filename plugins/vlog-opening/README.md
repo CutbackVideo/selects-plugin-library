@@ -30,7 +30,6 @@ answers is reported rather than silently skipped.
 
 - **Style** - three preview tiles; the unavailable one dims when a Project has
   no analysed speech.
-- **Length** - short, standard or long, scaling the beat template.
 - **Music** - one of three bundled cues, a cinematic score, a playful vlog cue
   and a lo-fi cafe bed, each recommended for one style and chosen with it by
   default; any audio file already in the Project; your own file, dropped or

@@ -20,8 +20,8 @@ to sample colours for the motion style and to make music previews; both degrade
 gracefully when it is missing.
 
 A first build scans the footage once per role, which takes a couple of minutes
-on a large Project; scans are cached for the session, so changing style or
-length afterwards is fast.
+on a large Project; scans are cached for the session, so changing style
+afterwards is fast.
 
 ## Uninstall
 

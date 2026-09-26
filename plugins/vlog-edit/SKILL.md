@@ -92,8 +92,8 @@ location sound; then generated music. Generation is a paid job, so state the
 number of cues and their lengths and ask **once** for all of them together.
 
 **Opening.** Offer the Vlog Opening plugin for a 12-22 second opening in one of
-three styles: whip cut, motion graphics, or funny quotes. If
-`$SELECTS_USER_PANELS_ROOT/vlog-opening/panel.tsx` exists, tell the user to
+three styles: whip cut, motion graphics, or funny quotes. If the Panels root
+(`SELECTS_USER_PANELS_ROOT`) has a `vlog-opening` folder, tell the user to
 open **Vlog Opening** from the Plugin list, pick a style and music, and press
 **Build opening**; it creates its own Draft and never edits yours. Otherwise
 offer to install library plugin `vlog-opening` first. If the user builds one,

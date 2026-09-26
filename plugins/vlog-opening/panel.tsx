@@ -28,14 +28,6 @@ const STYLES = [
   { value: "quotes", label: "Funny quotes", short: "Quotes" },
 ] as const;
 
-const LENGTHS = [
-  { value: "short", label: "Short" },
-  { value: "standard", label: "Standard" },
-  { value: "long", label: "Long" },
-] as const;
-
-const LENGTH_SCALE: Record<string, number> = { short: 0.75, standard: 1, long: 1.35 };
-
 // Always applied, so the opening hands off cleanly to the next timeline.
 const FADE_SECONDS = 0.6;
 
@@ -63,7 +55,7 @@ const ROLE_QUERIES: Record<string, string> = {
   finale: "people walking at sunset or golden hour, wide shot",
 };
 
-// Beat templates. Durations in seconds; burst beats stay fixed when scaled.
+// Beat templates. Durations in seconds.
 const TEMPLATES: Record<string, Array<{ role: string; dur: number; fixed?: boolean; optional?: number }>> = {
   whip: [
     { role: "hook", dur: 2.2 },
@@ -997,7 +989,6 @@ function paletteFromSamples(samples: number[][]): Record<string, string> {
 
 export default function Panel({ sdk, context, ui }: any) {
   const [style, setStyle] = React.useState<string>("whip");
-  const [length, setLength] = React.useState<string>("standard");
   const [music, setMusic] = React.useState<string>("cue:cinematic");
   const [playing, setPlaying] = React.useState<string | null>(null);
   // Music from disk, imported into the Project when the opening is built.
@@ -1186,7 +1177,6 @@ export default function Panel({ sdk, context, ui }: any) {
     if (!projectId) { setStatus({ tone: "error", text: "Open a Project first." }); return; }
     setBusy(true); setStatus(null); setResult(null);
     try {
-      const scale = LENGTH_SCALE[length] ?? 1;
       // Seeded from the Project name and edited later in the Inspector, where
       // every title, label and watermark is an editable parameter.
       const title = String(context?.projectName || "Opening").slice(0, 48);
@@ -1196,14 +1186,14 @@ export default function Panel({ sdk, context, ui }: any) {
       let dropped: any[] = [];
       let scanNotes: string[] = [];
       if (style === "quotes") {
-        const budget = Math.round(22 * scale);
+        const budget = 22;
         const r = await sdk.runScript({ summary: "Find quotable lines", script: selectQuotesScript(projectId, budget, 30), allowCommit: false });
         if (r.isError) { setStatus({ tone: "error", text: r.output }); return; }
         if (r.result?.error === "no_speech") { setStatus({ tone: "error", text: "No analysed speech in this project, so the quotes style has nothing to cut." }); return; }
         if (r.result?.error === "no_analyzed_video") { setStatus({ tone: "error", text: "No analysed video in this project yet." }); return; }
         beats = r.result?.beats ?? [];
       } else {
-        const template = TEMPLATES[style].map(b => ({ ...b, dur: b.fixed ? b.dur : Math.round(b.dur * scale * 100) / 100 }));
+        const template = TEMPLATES[style].map(b => ({ ...b }));
         setStep("Reading the footage…");
         const poolRun = await sdk.runScript({ summary: "Read footage pool", script: poolScript(projectId, style === "whip" ? 16 : 18), allowCommit: false });
         if (poolRun.isError) { setStatus({ tone: "error", text: poolRun.output }); return; }
@@ -1346,13 +1336,6 @@ export default function Panel({ sdk, context, ui }: any) {
           })}
         </div>
       </div>
-
-      <ui.Segmented
-        label="Length"
-        value={length}
-        onChange={(v: string) => setLength(v)}
-        options={LENGTHS.map(l => ({ value: l.value, label: l.label }))}
-      />
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", maxWidth: "var(--panel-field-max, 480px)" }}>
         <div style={{ flex: "1 1 0", minWidth: 0 }}>
