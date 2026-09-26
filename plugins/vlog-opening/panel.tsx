@@ -330,82 +330,131 @@ export default function TitleCard({ data }) {
 
 const GFX_DESK = `
 import React from "react";
-import { AbsoluteFill, useCurrentFrame } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
-const clamp01 = (v) => Math.min(1, Math.max(0, v));
-const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+// The drawing is authored on a 1920x1080 sheet. The laptop screen is the
+// 16:9 rectangle the first shot plays in.
+const W = 1920, H = 1080;
+const SX = 700, SY = 120, SW = 600, SH = 338;
+const rand = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const pct = (v, of) => (v / of) * 100 + "%";
 
-// A desk scene around the first shot. The shot plays on the laptop screen, the
-// room breathes on the beat, and the camera pushes into the screen over the
-// last beats so the shot fills the frame exactly on the cut.
+// The keyboard deck, a quadrilateral seen in perspective below the screen.
+const DECK = [[SX - 6, SY + SH + 40], [SX + SW + 6, SY + SH + 40], [SX + SW + 120, 1010], [SX - 190, 1010]];
+const onDeck = (u, v) => {
+  const top = [DECK[0][0] + (DECK[1][0] - DECK[0][0]) * u, DECK[0][1] + (DECK[1][1] - DECK[0][1]) * u];
+  const bot = [DECK[3][0] + (DECK[2][0] - DECK[3][0]) * u, DECK[3][1] + (DECK[2][1] - DECK[3][1]) * u];
+  return [top[0] + (bot[0] - top[0]) * v, top[1] + (bot[1] - top[1]) * v];
+};
+const quad = (u0, v0, u1, v1) => {
+  const p = [onDeck(u0, v0), onDeck(u1, v0), onDeck(u1, v1), onDeck(u0, v1)];
+  return "M" + p.map((q) => q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" L") + " Z";
+};
+
+// A looping pen line across the blanket (a trochoid: loops where r > a).
+const loops = (x0, y0, len, a, r, tilt) => {
+  let d = "";
+  for (let i = 0; i <= 160; i++) {
+    const t = (i / 160) * len;
+    const x = a * t - r * Math.sin(t), y = -r * Math.cos(t);
+    const px = x0 + x * Math.cos(tilt) - y * Math.sin(tilt);
+    const py = y0 + x * Math.sin(tilt) + y * Math.cos(tilt);
+    d += (i ? " L" : "M") + px.toFixed(1) + " " + py.toFixed(1);
+  }
+  return d;
+};
+
+// The first shot on a hand-drawn laptop resting on a polka-dot blanket. The
+// camera zooms in like stop motion: it holds, then jumps closer in steps that
+// land on the beat, each slightly off-angle, and reaches the full frame on the
+// cut. Lines redraw every few frames so the drawing boils like hand animation.
 export default function DeskScene({ Source, children, data }) {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const d = data || {};
-  const hold = typeof d.holdFrames === "number" ? d.holdFrames : 70;
-  const push = Math.max(1, typeof d.pushFrames === "number" ? d.pushFrames : 22);
-  const beat = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : 0;
-  const offset = typeof d.beatOffsetFrames === "number" ? d.beatOffsetFrames : 0;
-  const paper = d.paper || "#eef3f6";
-  const surface = d.surface || "#b9c8da";
-  const accent = d.accent || "#a79289";
-  const chrome = d.chrome || "#3a3630";
+  const paper = d.paper || "#fbf8ee";
+  const blanket = d.blanket || "#f8dfe3";
+  const dots = d.dots || "#e58497";
+  const body = d.laptop || "#cfcfd1";
+  const ink = d.ink || "#262626";
+  const beat = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : fps * 0.4;
+  const hold = typeof d.holdFrames === "number" ? d.holdFrames : 60;
 
-  const e = easeInOut(clamp01((frame - hold) / push));
-  const since = beat && frame >= offset ? (frame - offset) % beat : 0;
-  const pulse = beat && frame >= offset ? Math.exp(-since / (beat * 0.25)) : 0;
-
-  // The screen keeps the frame's aspect, so at full push it is the frame.
-  const w0 = 36, cx = 50, cy = 41;
-  const drift = 1 + 0.035 * clamp01(frame / Math.max(1, hold));
-  const scale = drift + (100 / w0 - drift) * e;
+  // Stop-motion steps toward the screen; the step after the last is the cut.
+  const STEPS = [0, 0.34, 0.66, 0.9];
+  const TURN = [0, -1.8, 1.3, -0.6];
+  const step = frame < hold ? 0 : Math.min(STEPS.length - 1, 1 + Math.floor((frame - hold) / beat));
+  const q = STEPS[step];
+  const full = W / SW;
+  const scale = 1 + (full - 1) * q;
+  const cx = ((SX + SW / 2) / W) * 100, cy = ((SY + SH / 2) / H) * 100;
+  const nudgeX = step ? (rand(step * 7.3) - 0.5) * 4 : 0;
+  const nudgeY = step ? (rand(step * 3.1) - 0.5) * 3 : 0;
   const camera = {
     transformOrigin: cx + "% " + cy + "%",
-    transform: "translate(" + (50 - cx) * e + "%," + (50 - cy) * e + "%) scale(" + scale + ")",
+    transform: "translate(" + ((50 - cx) * q + nudgeX) + "%," + ((50 - cy) * q + nudgeY) + "%) rotate(" + TURN[step] + "deg) scale(" + scale + ")",
   };
-  const t = frame / 30;
-  const sway = Math.sin(t * 1.7) * 2.2 + pulse * 2.5;
-  const steam = [0, 1, 2].map((i) => {
-    const phase = (t * 0.55 + i / 3) % 1;
-    return (
-      <path key={i}
-        d={"M " + (6 + i * 4) + " 30 C " + (2 + i * 4) + " 22, " + (10 + i * 4) + " 16, " + (6 + i * 4) + " 8"}
-        stroke="#ffffff" strokeWidth="1.6" fill="none" strokeLinecap="round"
-        opacity={0.55 * Math.sin(phase * Math.PI)}
-        transform={"translate(0," + (-phase * 10) + ")"} />
-    );
+  // Boil: a new drawing every three frames, and on every step.
+  const tick = Math.floor(frame / 3) + step * 17;
+  const id = "desk" + tick;
+
+  const keys = [];
+  const rows = [[11, 0.08, 0.2], [11, 0.24, 0.36], [10, 0.4, 0.52]];
+  rows.forEach(([n, v0, v1], r) => {
+    for (let k = 0; k < n; k++) {
+      const u0 = 0.07 + (k / n) * 0.86 + (r === 2 ? 0.03 : 0), u1 = u0 + 0.86 / n - 0.012;
+      const c = onDeck((u0 + u1) / 2, (v0 + v1) / 2);
+      const s = rand(r * 31 + k);
+      keys.push(<path key={"k" + r + k} d={quad(u0, v0, u1, v1)} />);
+      keys.push(<path key={"s" + r + k} d={"M" + (c[0] - 12) + " " + (c[1] + 4) + " q " + (6 + s * 8) + " " + (-14 - s * 6) + " " + (14 + s * 6) + " " + (-4 + s * 6) + " t " + (8 - s * 4) + " " + (6 + s * 4)} strokeWidth="2.5" />);
+    }
   });
 
   return (
     <AbsoluteFill style={{ backgroundColor: paper, overflow: "hidden" }}>
       <AbsoluteFill style={camera}>
-        {/* Wall, window and the light it throws. */}
-        <AbsoluteFill style={{ background: "linear-gradient(170deg," + paper + " 0%," + surface + " 100%)" }} />
-        <div style={{ position: "absolute", left: "5%", top: "9%", width: "19%", height: "36%", borderRadius: "0.8vh", border: "0.9vh solid " + chrome, background: "linear-gradient(180deg,#9cc4ec 0%,#d9ecfb 70%," + paper + " 100%)", boxShadow: "0 1vh 3vh rgba(0,0,0,0.18)", opacity: 0.95 }}>
-          <div style={{ position: "absolute", left: "48%", top: 0, width: "0.7vh", height: "100%", backgroundColor: chrome }} />
-          <div style={{ position: "absolute", top: "46%", left: 0, height: "0.7vh", width: "100%", backgroundColor: chrome }} />
-        </div>
-        <div style={{ position: "absolute", left: "12%", top: "40%", width: "34%", height: "40%", background: "linear-gradient(180deg,rgba(255,250,235,0.35),rgba(255,250,235,0))", clipPath: "polygon(8% 0,40% 0,100% 100%,0 100%)" }} />
-        {/* Notes pinned to the wall; they twitch on the beat. */}
-        <div style={{ position: "absolute", left: "73%", top: "12%", width: "6.5%", height: "11%", backgroundColor: "#f6e27a", transform: "rotate(" + (-6 + pulse * 3) + "deg)", boxShadow: "0 0.6vh 1.2vh rgba(0,0,0,0.15)" }} />
-        <div style={{ position: "absolute", left: "81%", top: "16%", width: "6%", height: "10%", backgroundColor: accent, transform: "rotate(" + (5 - pulse * 3) + "deg)", boxShadow: "0 0.6vh 1.2vh rgba(0,0,0,0.15)" }} />
-        {/* Desk. */}
-        <div style={{ position: "absolute", left: "-5%", top: "66%", width: "110%", height: "40%", background: "linear-gradient(180deg," + accent + " 0%,#5b4636 100%)", boxShadow: "0 -1vh 3vh rgba(0,0,0,0.18)" }} />
-        {/* Laptop: bezel, screen, base. */}
-        <div style={{ position: "absolute", left: (cx - w0 / 2 - 1.2) + "%", top: (cy - w0 / 2 - 2) + "%", width: (w0 + 2.4) + "%", height: (w0 + 4) + "%", backgroundColor: chrome, borderRadius: "1.4vh", boxShadow: "0 0 " + (3 + 5 * pulse) + "vh rgba(170,210,255," + (0.25 + 0.35 * pulse) + ")" }} />
-        <div style={{ position: "absolute", left: (cx - w0 / 2) + "%", top: (cy - w0 / 2) + "%", width: w0 + "%", height: w0 + "%", overflow: "hidden", backgroundColor: "#000", borderRadius: (0.5 * (1 - e)) + "vh" }}>
+        <svg viewBox={"0 0 " + W + " " + H} preserveAspectRatio="xMidYMid slice" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}>
+          <defs>
+            <filter id={id + "b"} x="-10%" y="-10%" width="120%" height="120%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed={tick} />
+              <feDisplacementMap in="SourceGraphic" scale="7" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+            <filter id={id + "c"} x="-20%" y="-20%" width="140%" height="140%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="3" seed={tick + 5} />
+              <feDisplacementMap in="SourceGraphic" scale="26" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+            <clipPath id={id + "k"}>
+              <path d="M-80 470 C 200 380, 520 430, 820 400 S 1500 380, 1720 430 S 2000 520, 2000 560 L 2000 1200 L -80 1200 Z" />
+            </clipPath>
+          </defs>
+          {/* Blanket, its crayon dots and the looping pen lines. */}
+          <path d="M-80 470 C 200 380, 520 430, 820 400 S 1500 380, 1720 430 S 2000 520, 2000 560 L 2000 1200 L -80 1200 Z" fill={blanket} />
+          <g clipPath={"url(#" + id + "k)"}>
+            <g filter={"url(#" + id + "c)"} fill={dots} opacity="0.85">
+              {[[120, 560], [420, 520], [760, 610], [1180, 560], [1560, 520], [1840, 640], [260, 800], [600, 880], [980, 820], [1380, 860], [1740, 900], [120, 1020], [860, 1040], [1260, 1060], [1600, 1080]].map(([x, y], i) => (
+                <ellipse key={i} cx={x} cy={y} rx={70 + rand(i) * 18} ry={62 + rand(i + 9) * 16} />
+              ))}
+            </g>
+            <g filter={"url(#" + id + "b)"} stroke={ink} strokeWidth="2.2" fill="none" opacity="0.8">
+              <path d={loops(-60, 700, 26, 26, 46, -0.35)} />
+              <path d={loops(380, 1060, 22, 30, 50, -1.05)} />
+              <path d={loops(1180, 1080, 20, 28, 48, -1.2)} />
+              <path d={loops(1500, 620, 14, 28, 44, 0.25)} />
+              <path d={loops(760, 1090, 12, 30, 46, -0.8)} />
+            </g>
+          </g>
+          <g filter={"url(#" + id + "b)"} stroke={ink} strokeLinecap="round" strokeLinejoin="round" fill="none">
+            <path d="M-80 470 C 200 380, 520 430, 820 400 S 1500 380, 1720 430 S 2000 520, 2000 560" strokeWidth="4" />
+            {/* Laptop: deck, keys, trackpad, lid. */}
+            <path d={"M" + DECK.map((p) => p[0] + " " + p[1]).join(" L") + " Z"} fill={body} strokeWidth="5" />
+            <g strokeWidth="3" fill="none" opacity="0.75">{keys}</g>
+            <path d={quad(0.24, 0.57, 0.76, 0.64)} strokeWidth="3" opacity="0.75" />
+            <path d={quad(0.36, 0.7, 0.64, 0.95)} strokeWidth="3.5" opacity="0.75" />
+            <rect x={SX - 26} y={SY - 26} width={SW + 52} height={SH + 60} rx="22" fill={body} strokeWidth="5" />
+          </g>
+        </svg>
+        <div style={{ position: "absolute", left: pct(SX, W), top: pct(SY, H), width: pct(SW, W), height: pct(SH, H), overflow: "hidden", backgroundColor: "#000", outline: "0.2vw solid " + ink }}>
           {Source ? <Source /> : children}
-        </div>
-        <div style={{ position: "absolute", left: (cx - w0 / 2 - 6) + "%", top: (cy + w0 / 2 + 2) + "%", width: (w0 + 12) + "%", height: "4.5%", backgroundColor: chrome, filter: "brightness(1.5)", clipPath: "polygon(4% 0,96% 0,100% 100%,0 100%)", boxShadow: "0 1vh 2vh rgba(0,0,0,0.25)" }} />
-        {/* Mug with steam. */}
-        <div style={{ position: "absolute", left: "76%", top: "57%", width: "6%", height: "11%", backgroundColor: "#f4efe8", borderRadius: "0.5vh 0.5vh 1.4vh 1.4vh", boxShadow: "0 1vh 1.5vh rgba(0,0,0,0.2)" }} />
-        <div style={{ position: "absolute", left: "81.5%", top: "59.5%", width: "2.2%", height: "5%", border: "0.8vh solid #f4efe8", borderLeft: "none", borderRadius: "0 2vh 2vh 0" }} />
-        <svg style={{ position: "absolute", left: "75.5%", top: "44%", width: "7%", height: "14%" }} viewBox="0 0 20 34">{steam}</svg>
-        {/* Plant: sways, and nods on the beat. */}
-        <div style={{ position: "absolute", left: "87%", top: "46%", width: "9%", height: "22%", transformOrigin: "50% 100%", transform: "rotate(" + sway + "deg) scaleY(" + (1 + 0.04 * pulse) + ")" }}>
-          {[-38, -14, 10, 34].map((a, i) => (
-            <div key={i} style={{ position: "absolute", left: "38%", bottom: "30%", width: "24%", height: "70%", borderRadius: "50%", backgroundColor: i % 2 ? "#5f9b6e" : "#4a8a5c", transformOrigin: "50% 100%", transform: "rotate(" + a + "deg)" }} />
-          ))}
-          <div style={{ position: "absolute", left: "22%", bottom: 0, width: "56%", height: "34%", backgroundColor: "#c26f4d", borderRadius: "0 0 1.2vh 1.2vh" }} />
         </div>
       </AbsoluteFill>
     </AbsoluteFill>
@@ -1012,16 +1061,15 @@ function decorateScript(opts: {
   sequenceId: string; style: string; fps: number; title: string; subtitle: string;
   letterbox: boolean; palette: Record<string, string>;
   gapSeconds: number; titleEnd: number | null; burstSeconds: number;
-  beatSeconds: number; beatZeroSeconds: number;
+  beatSeconds: number;
 }) {
   return `
 const d = selects.draft(${JSON.stringify(opts.sequenceId)});
 const GAP_S: number = ${opts.gapSeconds};
 const TITLE_END: number | null = ${JSON.stringify(opts.titleEnd)};
 const BURST_S: number = ${opts.burstSeconds};
-// One beat in frames (0 without a known beat) and where the first one falls.
+// One beat in frames, or 0 without a known beat.
 const BEAT_F: number = ${opts.beatSeconds} * ${opts.fps};
-const BEAT_OFFSET_F: number = BEAT_F > 0 ? (((${opts.beatZeroSeconds} * ${opts.fps}) % BEAT_F) + BEAT_F) % BEAT_F : 0;
 const STYLE: string = ${JSON.stringify(opts.style)};
 const TITLE: string = ${JSON.stringify(opts.title)};
 const SUBTITLE: string = ${JSON.stringify(opts.subtitle)};
@@ -1097,23 +1145,23 @@ if (STYLE === "whip") {
 if (STYLE === "motion") {
   const hero = clips[0];
   const heroLen = hero.endFrame - hero.startFrame;
-  // On a beat, the push-in takes the last two beats and lands on the cut.
-  const pushF = Math.min(BEAT_F > 0 ? Math.round(BEAT_F * 2) : F(0.75), Math.max(4, heroLen - 6));
+  // The stop-motion zoom takes three steps, one per beat, and the step after
+  // the last is the cut; the illustration keeps its own colours.
+  const stepF = BEAT_F > 0 ? BEAT_F : F(0.4);
+  const holdF = Math.max(6, Math.round(heroLen - 3 * stepF));
   await d.addVideoEffect({
-    clip: hero, label: "Desk scene -> push in", tsxCode: GFX.desk,
+    clip: hero, label: "Desk scene -> stop-motion zoom", tsxCode: GFX.desk,
     parameters: {
-      holdFrames: Math.max(6, heroLen - pushF),
-      pushFrames: pushF,
-      beatFrames: BEAT_F, beatOffsetFrames: BEAT_OFFSET_F,
-      paper: PALETTE.paper, surface: PALETTE.surface, accent: PALETTE.accent, chrome: PALETTE.chrome,
+      holdFrames: holdF, beatFrames: stepF,
+      paper: "#fbf8ee", blanket: "#f8dfe3", dots: "#e58497", laptop: "#cfcfd1",
     },
     editableParameters: [
-      { key: "holdFrames", label: "Hold (frames)", type: "number", defaultValue: 70, min: 0, max: 400, step: 1 },
-      { key: "pushFrames", label: "Push-in (frames)", type: "number", defaultValue: 22, min: 4, max: 120, step: 1 },
-      { key: "paper", label: "Room light", type: "color", defaultValue: PALETTE.paper },
-      { key: "surface", label: "Room surface", type: "color", defaultValue: PALETTE.surface },
-      { key: "accent", label: "Prop accent", type: "color", defaultValue: PALETTE.accent },
-      { key: "chrome", label: "Device body", type: "color", defaultValue: PALETTE.chrome },
+      { key: "holdFrames", label: "Zoom starts (frame)", type: "number", defaultValue: holdF, min: 0, max: 400, step: 1 },
+      { key: "beatFrames", label: "Frames per zoom step", type: "number", defaultValue: stepF, min: 2, max: 60, step: 1 },
+      { key: "paper", label: "Paper", type: "color", defaultValue: "#fbf8ee" },
+      { key: "blanket", label: "Blanket", type: "color", defaultValue: "#f8dfe3" },
+      { key: "dots", label: "Blanket dots", type: "color", defaultValue: "#e58497" },
+      { key: "laptop", label: "Laptop", type: "color", defaultValue: "#cfcfd1" },
     ],
   });
   const anchor = clips[Math.min(1, clips.length - 1)];
@@ -1562,7 +1610,7 @@ export default function Panel({ sdk, context, ui }: any) {
         summary: "Style the opening", allowCommit: true,
         script: decorateScript({
           sequenceId, style, fps, title, subtitle, letterbox, palette, gapSeconds, titleEnd, burstSeconds,
-          beatSeconds: grid ? grid.period : 0, beatZeroSeconds: grid ? grid.beat0 - musicStart : 0,
+          beatSeconds: grid ? grid.period : 0,
         }),
       });
       if (dec.isError) { setStatus({ tone: "error", text: dec.output }); return; }

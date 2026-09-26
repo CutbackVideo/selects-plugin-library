@@ -10,7 +10,7 @@ so the same button works on a trip, a wedding or a product shoot.
 | Style | What it makes |
 |---|---|
 | **Whip cut** | A fast montage: a long opening shot, a travel beat, four quarter-second burst cuts, then landscape and people beats. Cuts are joined with authored directional smear transitions, two white flashes around the burst, optional cinematic black bars, and a title card. |
-| **Motion graphics** | The first shot plays on a laptop in an illustrated room (window light, mug, plant) and the camera pushes into the screen; a plane then banks across a cloudy sky, pinned place labels taken from the Draft's chapter titles drop in, and the title writes itself on over the closing shot with a swash and sparkles. Its palette is sampled from the clips it chose. |
+| **Motion graphics** | The first shot plays on a hand-drawn laptop resting on a polka-dot blanket, and the camera zooms into the screen like stop motion, in held steps on the beat, while the drawing boils; a plane then banks across a cloudy sky, pinned place labels taken from the Draft's chapter titles drop in, and the title writes itself on over the closing shot with a swash and sparkles. Its palette is sampled from the clips it chose. |
 | **Funny quotes** | A cold open: an iris opening on the first line, a script title, a watermark, then a run of talking-head lines picked from the transcript. Clip dialogue is kept rather than muted. |
 
 Every opening ends with a 0.6 second fade to black so it cuts cleanly into the
@@ -40,8 +40,8 @@ laid out on it:
 Every cut is snapped as an absolute time, and assembly lands each clip on its
 planned frame, so nothing drifts over the length of the opening. The opening
 ends where the cue has faded, rather than mid-decay or after it. The motion
-style's graphics also move on the beat: the desk screen glows and the plant
-nods, the plane bobs, place pins bounce, and the sign-off's sparkles pop. A cue can be used with any
+style's graphics also move on the beat: the stop-motion zoom steps land on
+beats, the plane bobs, place pins bounce, and the sign-off's sparkles pop. A cue can be used with any
 style; the style then follows that cue's grid. Your own music has no known
 grid, so it keeps the template's own timing.
 
