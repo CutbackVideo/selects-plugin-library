@@ -39,12 +39,14 @@ const FADE_SECONDS = 0.6;
 type Grid = { period: number; beat0: number; hit: number; last: number; end: number };
 
 const CUES: ReadonlyArray<{ id: string; file: string; label: string; forStyle: string; grid: Grid }> = [
-  // 110 bpm. A swell, the first hit at 2.04s, a final hit 18 beats later.
+  // 110 bpm. A swell, the first hit at 2.04s, a final hit 18 beats later,
+  // faded by beat 23.
   { id: "cinematic", file: "cue-whip-cinematic.mp3", label: "Cinematic score", forStyle: "whip",
-    grid: { period: 0.54648, beat0: 2.0434, hit: 0, last: 18, end: 22 } },
-  // 148 bpm in four-beat bars; the band is in from bar two, out after bar ten.
+    grid: { period: 0.54648, beat0: 2.0434, hit: 0, last: 18, end: 23 } },
+  // 148 bpm in four-beat bars; the band is in from bar two, and its last chord
+  // has faded by beat 43.
   { id: "vlog", file: "cue-motion-vlog.mp3", label: "Playful vlog cue", forStyle: "motion",
-    grid: { period: 0.40556, beat0: 0.1943, hit: 4, last: 36, end: 41 } },
+    grid: { period: 0.40556, beat0: 0.1943, hit: 4, last: 36, end: 43 } },
   // 80 bpm. Four seconds of pads, then the groove from beat 5 to beat 20.
   { id: "cafe", file: "cue-quotes-cafe.mp3", label: "Lo-fi cafe bed", forStyle: "quotes",
     grid: { period: 0.75244, beat0: 0.3407, hit: 5, last: 20, end: 22 } },
@@ -62,15 +64,30 @@ function cutsOnBeat(shots: Array<{ dur: number; fixed?: boolean }>, from: number
   const fixedSum = shots.filter(x => x.fixed).length * half;
   const freeSum = shots.filter(x => !x.fixed).reduce((a, x) => a + x.dur, 0);
   const scale = freeSum > 0 ? Math.max(0.2, (to - from - fixedSum) / freeSum) : 1;
+  // The grid point at or after (dir 1), before (dir -1) or nearest (dir 0) t.
+  const snap = (t: number, step: number, dir: number) => {
+    const k = (t - origin) / step;
+    return origin + (dir > 0 ? Math.ceil(k - 1e-6) : dir < 0 ? Math.floor(k + 1e-6) : Math.round(k)) * step;
+  };
   const ends: number[] = [];
   let planned = from;
   let prev = from;
   shots.forEach((shot, i) => {
     planned += shot.fixed ? half : shot.dur * scale;
     if (i === shots.length - 1) { ends.push(to); return; }
-    const step = shot.fixed ? half : g.period * unit;
-    let t = origin + Math.round((planned - origin) / step) * step;
-    if (t < prev + step - 1e-6) t = prev + step;
+    // At least a beat long (half for a burst), and leave every later shot at
+    // least half a beat before `to`. When the style's step cannot meet both,
+    // fall back to single beats, then half beats, staying on the grid.
+    const min = shot.fixed ? half : g.period;
+    const latest = to - (shots.length - 1 - i) * half;
+    let t = NaN;
+    for (const step of shot.fixed ? [half] : [g.period * unit, g.period, half]) {
+      let c = snap(planned, step, 0);
+      if (c < prev + min - 1e-6) c = snap(prev + min, step, 1);
+      if (c > latest + 1e-6) c = snap(latest, step, -1);
+      if (c >= prev + Math.min(min, half) - 1e-6 && c <= latest + 1e-6) { t = c; break; }
+    }
+    if (Number.isNaN(t)) t = Math.min(latest, prev + half);
     ends.push(t);
     prev = t;
   });
@@ -79,8 +96,8 @@ function cutsOnBeat(shots: Array<{ dur: number; fixed?: boolean }>, from: number
 
 // Where every shot ends when the opening follows a cue's beat: the whip intro
 // runs up to the first hit and its title card holds from the final hit until
-// the cue rings out; motion cuts every two beats and ends its sign-off with
-// the cue, the sky flight taking a slot after the second shot. `ends` exclude the sky gap, because
+// the cue rings out; motion cuts on bar lines and ends its sign-off with the
+// cue, the sky flight taking a slot after the second shot. `ends` exclude the sky gap, because
 // the gap is inserted after assembly.
 function beatPlan(style: string, beats: any[], g: Grid) {
   if (style === "whip") {
@@ -89,7 +106,7 @@ function beatPlan(style: string, beats: any[], g: Grid) {
     return { ends, gapSeconds: 0, titleEnd: atBeat(g, g.end) };
   }
   const shots = [...beats.slice(0, 2), { dur: 2.0 }, ...beats.slice(2)];
-  const body = cutsOnBeat(shots.slice(0, -1), 0, atBeat(g, g.last), g, g.beat0, 2);
+  const body = cutsOnBeat(shots.slice(0, -1), 0, atBeat(g, g.last), g, g.beat0, 4);
   const all = [...body, atBeat(g, g.end)];
   const gapSeconds = all[2] - all[1];
   const ends = [all[0], all[1], ...all.slice(3).map(t => t - gapSeconds)];
@@ -313,33 +330,84 @@ export default function TitleCard({ data }) {
 
 const GFX_DESK = `
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";
+import { AbsoluteFill, useCurrentFrame } from "remotion";
 
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+// A desk scene around the first shot. The shot plays on the laptop screen, the
+// room breathes on the beat, and the camera pushes into the screen over the
+// last beats so the shot fills the frame exactly on the cut.
 export default function DeskScene({ Source, children, data }) {
   const frame = useCurrentFrame();
-  const hold = data && typeof data.holdFrames === "number" ? data.holdFrames : 70;
-  const push = data && typeof data.pushFrames === "number" ? data.pushFrames : 22;
-  const paper = (data && data.paper) || "#eef3f6";
-  const surface = (data && data.surface) || "#b9c8da";
-  const accent = (data && data.accent) || "#a79289";
-  const chrome = (data && data.chrome) || "#3a3630";
-  const t = interpolate(frame, [hold, hold + push], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const e = t * t * (3 - 2 * t);
-  const s0 = 34;
-  const w = s0 + (100 - s0) * e;
-  const cx = 50, cy = 43 + (50 - 43) * e;
-  const roomOpacity = 1 - e;
-  const rect = { position: "absolute", left: (cx - w / 2) + "%", top: (cy - w / 2) + "%", width: w + "%", height: w + "%", overflow: "hidden", borderRadius: (0.6 * (1 - e)) + "vw", backgroundColor: "#000" };
-  const lid = { position: "absolute", left: (cx - w / 2 - 1.1) + "%", top: (cy - w / 2 - 1.8) + "%", width: (w + 2.2) + "%", height: (w + 3.6) + "%", backgroundColor: chrome, borderRadius: "1vw", opacity: roomOpacity };
-  const base = { position: "absolute", left: (cx - w / 2 - 7) + "%", top: (cy + w / 2 + 1.8) + "%", width: (w + 14) + "%", height: "3.2%", backgroundColor: chrome, filter: "brightness(1.35)", borderRadius: "0 0 1.2vw 1.2vw", opacity: roomOpacity };
+  const d = data || {};
+  const hold = typeof d.holdFrames === "number" ? d.holdFrames : 70;
+  const push = Math.max(1, typeof d.pushFrames === "number" ? d.pushFrames : 22);
+  const beat = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : 0;
+  const offset = typeof d.beatOffsetFrames === "number" ? d.beatOffsetFrames : 0;
+  const paper = d.paper || "#eef3f6";
+  const surface = d.surface || "#b9c8da";
+  const accent = d.accent || "#a79289";
+  const chrome = d.chrome || "#3a3630";
+
+  const e = easeInOut(clamp01((frame - hold) / push));
+  const since = beat && frame >= offset ? (frame - offset) % beat : 0;
+  const pulse = beat && frame >= offset ? Math.exp(-since / (beat * 0.25)) : 0;
+
+  // The screen keeps the frame's aspect, so at full push it is the frame.
+  const w0 = 36, cx = 50, cy = 41;
+  const drift = 1 + 0.035 * clamp01(frame / Math.max(1, hold));
+  const scale = drift + (100 / w0 - drift) * e;
+  const camera = {
+    transformOrigin: cx + "% " + cy + "%",
+    transform: "translate(" + (50 - cx) * e + "%," + (50 - cy) * e + "%) scale(" + scale + ")",
+  };
+  const t = frame / 30;
+  const sway = Math.sin(t * 1.7) * 2.2 + pulse * 2.5;
+  const steam = [0, 1, 2].map((i) => {
+    const phase = (t * 0.55 + i / 3) % 1;
+    return (
+      <path key={i}
+        d={"M " + (6 + i * 4) + " 30 C " + (2 + i * 4) + " 22, " + (10 + i * 4) + " 16, " + (6 + i * 4) + " 8"}
+        stroke="#ffffff" strokeWidth="1.6" fill="none" strokeLinecap="round"
+        opacity={0.55 * Math.sin(phase * Math.PI)}
+        transform={"translate(0," + (-phase * 10) + ")"} />
+    );
+  });
+
   return (
-    <AbsoluteFill style={{ backgroundColor: paper }}>
-      <AbsoluteFill style={{ opacity: roomOpacity, background: "linear-gradient(160deg,#f6fafc 0%," + paper + " 50%," + surface + " 100%)" }} />
-      <div style={{ position: "absolute", left: "4%", top: "56%", width: "92%", height: "48%", backgroundColor: surface, borderRadius: "3vw", opacity: roomOpacity }} />
-      <div style={{ position: "absolute", left: "10%", top: "10%", width: "13%", height: "23%", backgroundColor: accent, borderRadius: "1.5vw", opacity: roomOpacity * 0.85 }} />
-      <div style={lid} />
-      <div style={base} />
-      <div style={rect}>{Source ? <Source /> : children}</div>
+    <AbsoluteFill style={{ backgroundColor: paper, overflow: "hidden" }}>
+      <AbsoluteFill style={camera}>
+        {/* Wall, window and the light it throws. */}
+        <AbsoluteFill style={{ background: "linear-gradient(170deg," + paper + " 0%," + surface + " 100%)" }} />
+        <div style={{ position: "absolute", left: "5%", top: "9%", width: "19%", height: "36%", borderRadius: "0.8vh", border: "0.9vh solid " + chrome, background: "linear-gradient(180deg,#9cc4ec 0%,#d9ecfb 70%," + paper + " 100%)", boxShadow: "0 1vh 3vh rgba(0,0,0,0.18)", opacity: 0.95 }}>
+          <div style={{ position: "absolute", left: "48%", top: 0, width: "0.7vh", height: "100%", backgroundColor: chrome }} />
+          <div style={{ position: "absolute", top: "46%", left: 0, height: "0.7vh", width: "100%", backgroundColor: chrome }} />
+        </div>
+        <div style={{ position: "absolute", left: "12%", top: "40%", width: "34%", height: "40%", background: "linear-gradient(180deg,rgba(255,250,235,0.35),rgba(255,250,235,0))", clipPath: "polygon(8% 0,40% 0,100% 100%,0 100%)" }} />
+        {/* Notes pinned to the wall; they twitch on the beat. */}
+        <div style={{ position: "absolute", left: "73%", top: "12%", width: "6.5%", height: "11%", backgroundColor: "#f6e27a", transform: "rotate(" + (-6 + pulse * 3) + "deg)", boxShadow: "0 0.6vh 1.2vh rgba(0,0,0,0.15)" }} />
+        <div style={{ position: "absolute", left: "81%", top: "16%", width: "6%", height: "10%", backgroundColor: accent, transform: "rotate(" + (5 - pulse * 3) + "deg)", boxShadow: "0 0.6vh 1.2vh rgba(0,0,0,0.15)" }} />
+        {/* Desk. */}
+        <div style={{ position: "absolute", left: "-5%", top: "66%", width: "110%", height: "40%", background: "linear-gradient(180deg," + accent + " 0%,#5b4636 100%)", boxShadow: "0 -1vh 3vh rgba(0,0,0,0.18)" }} />
+        {/* Laptop: bezel, screen, base. */}
+        <div style={{ position: "absolute", left: (cx - w0 / 2 - 1.2) + "%", top: (cy - w0 / 2 - 2) + "%", width: (w0 + 2.4) + "%", height: (w0 + 4) + "%", backgroundColor: chrome, borderRadius: "1.4vh", boxShadow: "0 0 " + (3 + 5 * pulse) + "vh rgba(170,210,255," + (0.25 + 0.35 * pulse) + ")" }} />
+        <div style={{ position: "absolute", left: (cx - w0 / 2) + "%", top: (cy - w0 / 2) + "%", width: w0 + "%", height: w0 + "%", overflow: "hidden", backgroundColor: "#000", borderRadius: (0.5 * (1 - e)) + "vh" }}>
+          {Source ? <Source /> : children}
+        </div>
+        <div style={{ position: "absolute", left: (cx - w0 / 2 - 6) + "%", top: (cy + w0 / 2 + 2) + "%", width: (w0 + 12) + "%", height: "4.5%", backgroundColor: chrome, filter: "brightness(1.5)", clipPath: "polygon(4% 0,96% 0,100% 100%,0 100%)", boxShadow: "0 1vh 2vh rgba(0,0,0,0.25)" }} />
+        {/* Mug with steam. */}
+        <div style={{ position: "absolute", left: "76%", top: "57%", width: "6%", height: "11%", backgroundColor: "#f4efe8", borderRadius: "0.5vh 0.5vh 1.4vh 1.4vh", boxShadow: "0 1vh 1.5vh rgba(0,0,0,0.2)" }} />
+        <div style={{ position: "absolute", left: "81.5%", top: "59.5%", width: "2.2%", height: "5%", border: "0.8vh solid #f4efe8", borderLeft: "none", borderRadius: "0 2vh 2vh 0" }} />
+        <svg style={{ position: "absolute", left: "75.5%", top: "44%", width: "7%", height: "14%" }} viewBox="0 0 20 34">{steam}</svg>
+        {/* Plant: sways, and nods on the beat. */}
+        <div style={{ position: "absolute", left: "87%", top: "46%", width: "9%", height: "22%", transformOrigin: "50% 100%", transform: "rotate(" + sway + "deg) scaleY(" + (1 + 0.04 * pulse) + ")" }}>
+          {[-38, -14, 10, 34].map((a, i) => (
+            <div key={i} style={{ position: "absolute", left: "38%", bottom: "30%", width: "24%", height: "70%", borderRadius: "50%", backgroundColor: i % 2 ? "#5f9b6e" : "#4a8a5c", transformOrigin: "50% 100%", transform: "rotate(" + a + "deg)" }} />
+          ))}
+          <div style={{ position: "absolute", left: "22%", bottom: 0, width: "56%", height: "34%", backgroundColor: "#c26f4d", borderRadius: "0 0 1.2vh 1.2vh" }} />
+        </div>
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 }
@@ -347,39 +415,70 @@ export default function DeskScene({ Source, children, data }) {
 
 const GFX_SKY = `
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";
+import { AbsoluteFill, useCurrentFrame } from "remotion";
 
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+// Flight path in % of the frame: a quadratic curve rising left to right.
+const P0 = [-14, 74], P1 = [42, 18], P2 = [114, 34];
+const at = (t) => [
+  (1 - t) * (1 - t) * P0[0] + 2 * (1 - t) * t * P1[0] + t * t * P2[0],
+  (1 - t) * (1 - t) * P0[1] + 2 * (1 - t) * t * P1[1] + t * t * P2[1],
+];
+
+function Cloud({ x, y, size, opacity, tint }) {
+  const puffs = [[0, 30, 46], [22, 8, 58], [48, 18, 50], [70, 34, 40], [30, 38, 44]];
+  return (
+    <div style={{ position: "absolute", left: x + "%", top: y + "%", width: size + "%", height: size * 0.45 + "%", opacity }}>
+      {puffs.map((p, i) => (
+        <div key={i} style={{ position: "absolute", left: p[0] + "%", top: p[1] + "%", width: p[2] + "%", aspectRatio: "1", borderRadius: "50%", backgroundColor: tint, filter: "blur(0.35vh)" }} />
+      ))}
+    </div>
+  );
+}
+
+// The flight between places: a plane banks along a curved route over
+// drifting cloud layers, drawing a dotted trail, and bobs on each beat.
 export default function SkyFlight({ data }) {
   const frame = useCurrentFrame();
-  const len = data && typeof data.lengthFrames === "number" ? data.lengthFrames : 60;
-  const top = (data && data.skyTop) || "#4d7ec4";
-  const mid = (data && data.skyMid) || "#7db9f2";
-  const low = (data && data.skyLow) || "#eef3f6";
-  const planeBody = (data && data.planeColor) || "#1f3a5f";
-  const wing = (data && data.wingColor) || "#8998b3";
-  const p = Math.min(1, Math.max(0, frame / len));
-  const x = interpolate(p, [0, 1], [-18, 112]);
-  const y = interpolate(p, [0, 0.5, 1], [62, 44, 30]);
-  const cloudA = interpolate(p, [0, 1], [10, -22]);
-  const cloudB = interpolate(p, [0, 1], [70, 38]);
-  const dashes = [];
-  for (let i = 1; i <= 14; i++) {
-    const dx = x - i * 5.2;
-    const dy = y + i * 1.15;
-    if (dx < -8) continue;
-    dashes.push(<div key={i} style={{ position: "absolute", left: dx + "%", top: dy + "%", width: "1.7%", height: "0.5%", borderRadius: "1vw", backgroundColor: "#f6fafc", opacity: Math.max(0, 0.85 - i * 0.06) }} />);
+  const d = data || {};
+  const len = typeof d.lengthFrames === "number" && d.lengthFrames > 1 ? d.lengthFrames : 60;
+  const beat = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : 0;
+  const top = d.skyTop || "#4d7ec4";
+  const mid = d.skyMid || "#7db9f2";
+  const low = d.skyLow || "#eef3f6";
+  const body = d.planeColor || "#1f3a5f";
+  const wing = d.wingColor || "#8998b3";
+
+  const p = clamp01(frame / len);
+  const tp = 0.2 * p + 0.8 * easeInOutSine(p);
+  const [x, y0] = at(tp);
+  const [x2, y2] = at(Math.min(1, tp + 0.01));
+  const angle = Math.atan2(y2 - y0, (x2 - x) * 1.78) * 180 / Math.PI;
+  const pulse = beat ? Math.exp(-(frame % beat) / (beat * 0.25)) : 0;
+  const y = y0 - 1.2 * pulse;
+  const trail = [];
+  for (let i = 1; i <= 40; i++) {
+    const tt = (i / 40) * tp;
+    if (tp - tt < 0.02) continue;
+    const q = at(tt);
+    trail.push(<div key={i} style={{ position: "absolute", left: q[0] + "%", top: q[1] + 2.2 + "%", width: "0.9vh", height: "0.9vh", borderRadius: "50%", backgroundColor: "#ffffff", opacity: 0.25 + 0.55 * (tt / Math.max(0.001, tp)) }} />);
   }
   return (
-    <AbsoluteFill style={{ background: "linear-gradient(180deg," + top + " 0%," + mid + " 45%," + low + " 100%)" }}>
-      <div style={{ position: "absolute", left: "72%", top: "14%", width: "12%", height: "21%", borderRadius: "50%", backgroundColor: "#f6fafc", opacity: 0.85 }} />
-      <div style={{ position: "absolute", left: cloudA + "%", top: "22%", width: "26%", height: "13%", borderRadius: "6vw", backgroundColor: "#f6fafc", opacity: 0.82 }} />
-      <div style={{ position: "absolute", left: cloudB + "%", top: "66%", width: "34%", height: "15%", borderRadius: "8vw", backgroundColor: "#dbe6ef", opacity: 0.8 }} />
-      {dashes}
-      <div style={{ position: "absolute", left: x + "%", top: y + "%", width: "9%", height: "5%", transform: "rotate(-12deg)" }}>
-        <div style={{ position: "absolute", left: 0, top: "38%", width: "100%", height: "26%", borderRadius: "2vw", backgroundColor: planeBody }} />
-        <div style={{ position: "absolute", left: "34%", top: "-46%", width: "26%", height: "120%", borderRadius: "1vw", backgroundColor: wing, transform: "rotate(14deg)" }} />
-        <div style={{ position: "absolute", left: "2%", top: "-30%", width: "16%", height: "70%", borderRadius: "0.6vw", backgroundColor: planeBody }} />
-      </div>
+    <AbsoluteFill style={{ background: "linear-gradient(180deg," + top + " 0%," + mid + " 55%," + low + " 100%)", overflow: "hidden" }}>
+      <div style={{ position: "absolute", left: "70%", top: "8%", width: "18%", aspectRatio: "1", borderRadius: "50%", background: "radial-gradient(circle,#fff8e1 0%,#fff3c4 28%,rgba(255,243,196,0.35) 45%,rgba(255,243,196,0) 70%)", transform: "scale(" + (1 + 0.06 * pulse) + ")" }} />
+      <Cloud x={60 - 30 * p} y={18} size={26} opacity={0.55} tint="#ffffff" />
+      <Cloud x={8 - 22 * p} y={40} size={22} opacity={0.5} tint="#f4f8fc" />
+      {trail}
+      <svg viewBox="0 0 100 40" style={{ position: "absolute", left: x - 6 + "%", top: y - 2.4 + "%", width: "12%", transform: "rotate(" + angle + "deg)", filter: "drop-shadow(0 0.8vh 0.8vh rgba(0,0,0,0.2))" }}>
+        <path d="M44 16 L60 2 L69 2 L58 16 Z" fill={wing} />
+        <path d="M9 17 L4 3 L14 3 L25 16 Z" fill={body} />
+        <path d="M5 22 C5 18 12 16 20 16 L82 16 C92 16 98 19 98 22 C98 25 92 27 82 27 L20 27 C12 27 5 26 5 22 Z" fill={body} />
+        {[30, 38, 46, 54, 62, 70].map((cxw) => <circle key={cxw} cx={cxw} cy="20.5" r="1.4" fill="#e8f1fb" />)}
+        <path d="M42 25 L63 39 L72 39 L58 25 Z" fill={wing} />
+      </svg>
+      <Cloud x={96 - 80 * p} y={62} size={40} opacity={0.85} tint="#ffffff" />
+      <Cloud x={-30 + 60 * p} y={78} size={34} opacity={0.7} tint="#eef4fa" />
     </AbsoluteFill>
   );
 }
@@ -387,30 +486,64 @@ export default function SkyFlight({ data }) {
 
 const GFX_LABEL = `
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+const rgba = (hex, a) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  const n = m ? parseInt(m[1], 16) : 0x132851;
+  return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+};
+const bounce = (t) => {
+  const n = 7.5625, k = 2.75;
+  if (t < 1 / k) return n * t * t;
+  if (t < 2 / k) return n * (t -= 1.5 / k) * t + 0.75;
+  if (t < 2.5 / k) return n * (t -= 2.25 / k) * t + 0.9375;
+  return n * (t -= 2.625 / k) * t + 0.984375;
+};
+
+// A place name for the shot. A pin drops in on the cut, the handwritten name
+// wipes in over the next beat and an underline draws after it; the pin bobs
+// on each beat, and the label clears one beat before the next cut.
 export default function PlaceLabel({ data }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const text = (data && data.text) || "";
-  const sub = (data && data.sub) || "";
-  const ink = (data && data.ink) || "#eef3f6";
-  const shadow = (data && data.shadow) || "#132851";
-  const family = data && typeof data.fontFamily === "string" && data.fontFamily.trim() !== ""
-    ? '"' + data.fontFamily.trim() + '", "Snell Roundhand", cursive'
+  const d = data || {};
+  const text = d.text || "";
+  const sub = d.sub || "";
+  const ink = d.ink || "#eef3f6";
+  const shadow = d.shadow || "#132851";
+  const beatIn = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : 0;
+  const beat = beatIn || fps * 0.5;
+  const len = typeof d.lengthFrames === "number" && d.lengthFrames > 0 ? d.lengthFrames : fps * 2;
+  const family = typeof d.fontFamily === "string" && d.fontFamily.trim() !== ""
+    ? '"' + d.fontFamily.trim() + '", "Snell Roundhand", cursive'
     : '"Snell Roundhand", "Apple Chancery", "Brush Script MT", cursive';
-  const inT = interpolate(frame, [0, Math.round(fps * 0.45)], [0, 1], { extrapolateRight: "clamp" });
-  const outT = interpolate(frame, [Math.round(fps * 1.6), Math.round(fps * 2.0)], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const op = Math.min(inT, outT);
-  const line = interpolate(frame, [Math.round(fps * 0.25), Math.round(fps * 0.9)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const glow = "0 0.4vh 1.8vh " + shadow;
   if (!text) return <AbsoluteFill />;
+
+  const drop = bounce(clamp01(frame / (beat * 0.9)));
+  const wipe = easeOut(clamp01((frame - beat * 0.4) / beat));
+  const line = easeOut(clamp01((frame - beat * 1.2) / beat));
+  const out = easeOut(clamp01((frame - (len - beat)) / (beat * 0.8)));
+  const pulse = beatIn ? Math.exp(-(frame % beat) / (beat * 0.25)) : 0;
+  const size = 10 * Math.max(0.5, Math.min(1, 16 / Math.max(1, String(text).length)));
+  const glow = "0 0.4vh 1.6vh " + shadow;
   return (
-    <AbsoluteFill>
-      <div style={{ position: "absolute", left: "7%", bottom: "12%", opacity: op, transform: "translateY(" + ((1 - inT) * 26) + "px)" }}>
-        <div style={{ fontFamily: family, color: ink, fontSize: (9 * Math.max(0.45, Math.min(1, 14 / Math.max(1, String(text).length)))) + "vh", lineHeight: 1.05, maxWidth: "62vw", textShadow: glow }}>{text}</div>
-        <div style={{ marginTop: "1vh", height: "0.5vh", width: (line * 100) + "%", maxWidth: "34vw", backgroundColor: ink, borderRadius: "1vh", boxShadow: glow }} />
-        {sub ? <div style={{ marginTop: "1.4vh", fontFamily: '"Helvetica Neue", Arial, sans-serif', color: ink, fontSize: "2vh", letterSpacing: "0.42em", textIndent: "0.42em", opacity: line, textShadow: glow }}>{sub}</div> : null}
+    <AbsoluteFill style={{ opacity: 1 - out }}>
+      <AbsoluteFill style={{ background: "linear-gradient(20deg," + rgba(shadow, 0.7) + " 0%," + rgba(shadow, 0.25) + " 34%," + rgba(shadow, 0) + " 60%)", opacity: wipe }} />
+      <div style={{ position: "absolute", left: "6%", bottom: "11%", display: "flex", alignItems: "flex-end", gap: "1.6vh", transform: "translateY(" + out * 3 + "vh)" }}>
+        <svg viewBox="0 0 24 32" style={{ width: "4.2vh", marginBottom: "1.2vh", transform: "translateY(" + ((1 - drop) * -14 - 0.8 * pulse) + "vh)", filter: "drop-shadow(0 0.5vh 0.6vh rgba(0,0,0,0.35))" }}>
+          <path d="M12 31 C12 31 2 18 2 11 A10 10 0 0 1 22 11 C22 18 12 31 12 31 Z" fill={ink} />
+          <circle cx="12" cy="11" r="4" fill={shadow} />
+        </svg>
+        <div>
+          <div style={{ fontFamily: family, color: ink, fontSize: size + "vh", lineHeight: 1.05, maxWidth: "62vw", textShadow: glow, clipPath: "inset(-30% " + (100 - wipe * 115) + "% -30% -8%)" }}>{text}</div>
+          <svg viewBox="0 0 100 8" preserveAspectRatio="none" style={{ display: "block", width: "100%", height: "1.4vh", marginTop: "0.6vh", overflow: "visible", clipPath: "inset(-100% " + (100 - line * 100) + "% -100% -2%)" }}>
+            <path d="M1 5 C 25 1, 55 8, 99 3" stroke={ink} strokeWidth="2.4" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+          {sub ? <div style={{ marginTop: "1.2vh", fontFamily: '"Helvetica Neue", Arial, sans-serif', color: ink, fontSize: "2vh", letterSpacing: "0.42em", textIndent: "0.42em", opacity: line, textShadow: glow }}>{sub}</div> : null}
+        </div>
       </div>
     </AbsoluteFill>
   );
@@ -419,29 +552,65 @@ export default function PlaceLabel({ data }) {
 
 const GFX_SIGNOFF = `
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+const rgba = (hex, a) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  const n = m ? parseInt(m[1], 16) : 0x132851;
+  return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+};
+const pop = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2));
+
+function Sparkle({ x, y, s, color }) {
+  return (
+    <svg viewBox="-10 -10 20 20" style={{ position: "absolute", left: x + "%", top: y + "%", width: "5vh", transform: "translate(-50%,-50%) scale(" + s + ")" }}>
+      <path d="M0 -9 C1 -2 2 -1 9 0 C2 1 1 2 0 9 C-1 2 -2 1 -9 0 C-2 -1 -1 -2 0 -9 Z" fill={color} />
+    </svg>
+  );
+}
+
+// The sign-off over the last shot: the title writes on across two beats, a
+// hand-drawn swash underlines it, and three sparkles pop on the beats after,
+// over a soft vignette that keeps the title readable.
 export default function Signoff({ data }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const title = (data && data.title) || "";
-  const sub = (data && data.sub) || "";
-  const ink = (data && data.ink) || "#f6fafc";
-  const shadow = (data && data.shadow) || "#132851";
-  const family = data && typeof data.fontFamily === "string" && data.fontFamily.trim() !== ""
-    ? '"' + data.fontFamily.trim() + '", "Snell Roundhand", cursive'
+  const d = data || {};
+  const title = d.title || "";
+  const sub = d.sub || "";
+  const ink = d.ink || "#f6fafc";
+  const shadow = d.shadow || "#132851";
+  const beatIn = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : 0;
+  const beat = beatIn || fps * 0.5;
+  const len = typeof d.lengthFrames === "number" && d.lengthFrames > 0 ? d.lengthFrames : fps * 3;
+  const family = typeof d.fontFamily === "string" && d.fontFamily.trim() !== ""
+    ? '"' + d.fontFamily.trim() + '", "Snell Roundhand", cursive'
     : '"Snell Roundhand", "Apple Chancery", "Brush Script MT", cursive';
   const fit = Math.max(0.4, Math.min(1, 11 / Math.max(1, String(title).length)));
-  const appear = interpolate(frame, [Math.round(fps * 0.5), Math.round(fps * 1.15)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const stroke = interpolate(frame, [Math.round(fps * 1.0), Math.round(fps * 1.8)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const subOp = interpolate(frame, [Math.round(fps * 1.3), Math.round(fps * 1.8)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+
+  const veil = easeOut(clamp01(frame / beat));
+  const write = easeOut(clamp01((frame - beat * 0.5) / (beat * 2)));
+  const swash = easeOut(clamp01((frame - beat * 2.2) / beat));
+  const subOp = easeOut(clamp01((frame - beat * 3) / beat));
+  const pulse = beatIn ? Math.exp(-(frame % beat) / (beat * 0.25)) : 0;
+  const drift = 1 + 0.04 * clamp01(frame / len);
   const glow = "0 0.6vh 2.6vh " + shadow;
+  const sparkles = [[10, 30, 3], [92, 58, 4], [84, 16, 5]].map(([x, y, b], i) => {
+    const t = clamp01((frame - beat * b) / (beat * 0.6));
+    return <Sparkle key={i} x={x} y={y} s={pop(t) * (1 + 0.25 * pulse)} color={ink} />;
+  });
   return (
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-      <div style={{ textAlign: "center", opacity: appear, transform: "scale(" + (0.92 + 0.08 * appear) + ")" }}>
-        <div style={{ fontFamily: family, color: ink, fontSize: (16 * fit) + "vh", lineHeight: 1.06, maxWidth: "86vw", textShadow: glow }}>{title}</div>
-        <div style={{ margin: "1.2vh auto 0", height: "0.6vh", width: (stroke * 38) + "vw", backgroundColor: ink, borderRadius: "1vh", boxShadow: glow }} />
-        {sub ? <div style={{ marginTop: "2.2vh", fontFamily: '"Helvetica Neue", Arial, sans-serif', color: ink, fontSize: "2.2vh", letterSpacing: "0.55em", textIndent: "0.55em", opacity: subOp, textShadow: glow }}>{sub}</div> : null}
+      <AbsoluteFill style={{ background: "radial-gradient(ellipse at center," + rgba(shadow, 0.5) + " 0%," + rgba(shadow, 0.22) + " 45%," + rgba(shadow, 0) + " 75%)", opacity: veil }} />
+      <div style={{ position: "relative", textAlign: "center", transform: "scale(" + drift + ")", padding: "4vh 6vw" }}>
+        <div style={{ fontFamily: family, color: ink, fontSize: 16 * fit + "vh", lineHeight: 1.06, maxWidth: "86vw", textShadow: glow, clipPath: "inset(-40% " + (100 - write * 120) + "% -40% -12%)" }}>{title}</div>
+        <svg viewBox="0 0 100 12" preserveAspectRatio="none" style={{ display: "block", width: "80%", height: "3vh", margin: "0.4vh auto 0", overflow: "visible", clipPath: "inset(-100% " + (100 - swash * 100) + "% -100% -2%)" }}>
+          <path d="M2 8 C 20 2, 40 11, 60 6 S 90 2, 98 5" stroke={ink} strokeWidth="2.8" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" style={{ filter: "drop-shadow(" + glow + ")" }} />
+        </svg>
+        {sub ? <div style={{ marginTop: "2vh", fontFamily: '"Helvetica Neue", Arial, sans-serif', color: ink, fontSize: "2.2vh", letterSpacing: "0.55em", textIndent: "0.55em", opacity: subOp, textShadow: glow }}>{sub}</div> : null}
+        {sparkles}
       </div>
     </AbsoluteFill>
   );
@@ -548,8 +717,29 @@ function ensureMusicScript(projectId: string, absPath: string) {
   return `
 const p = selects.project(${JSON.stringify(projectId)});
 const before = await p.resources();
-const hit = before.find(r => r.type === "Audio" && (r.name === ${JSON.stringify(base)} || r.name === ${JSON.stringify(stem)}));
-if (hit) return { resourceId: hit.resourceId, imported: false, name: hit.name };
+const named = before.filter(r => r.type === "Audio" && (r.name === ${JSON.stringify(base)} || r.name === ${JSON.stringify(stem)}));
+if (named.length) {
+  // A same-named import can point at a file that has since moved or been
+  // deleted, so reuse only one that is this very file.
+  const paths = {};
+  const walk = (n) => {
+    if (n.type === "dir") (n.children || []).forEach(walk);
+    else if (n.path) paths[n.resourceId] = n.path;
+  };
+  try {
+    const sf = await p.sourceFiles();
+    if ("fileTree" in sf && sf.fileTree) sf.fileTree.forEach(walk);
+    else {
+      const org = await p.organizeClips();
+      const folders = (org.folders || []).map(f => f.path || f.name).concat(["(root)"]);
+      for (const folder of folders) {
+        try { const detail = await p.sourceFiles({ folder }); ("fileTree" in detail ? detail.fileTree || [] : []).forEach(walk); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+  const hit = named.find(r => paths[r.resourceId] === ${JSON.stringify(absPath)});
+  if (hit) return { resourceId: hit.resourceId, imported: false, name: hit.name };
+}
 const r = await p.importFiles({ paths: [${JSON.stringify(absPath)}] });
 const after = await p.resources();
 const added = after.find(x => r.addedResourceIds.includes(x.resourceId));
@@ -822,12 +1012,16 @@ function decorateScript(opts: {
   sequenceId: string; style: string; fps: number; title: string; subtitle: string;
   letterbox: boolean; palette: Record<string, string>;
   gapSeconds: number; titleEnd: number | null; burstSeconds: number;
+  beatSeconds: number; beatZeroSeconds: number;
 }) {
   return `
 const d = selects.draft(${JSON.stringify(opts.sequenceId)});
 const GAP_S: number = ${opts.gapSeconds};
 const TITLE_END: number | null = ${JSON.stringify(opts.titleEnd)};
 const BURST_S: number = ${opts.burstSeconds};
+// One beat in frames (0 without a known beat) and where the first one falls.
+const BEAT_F: number = ${opts.beatSeconds} * ${opts.fps};
+const BEAT_OFFSET_F: number = BEAT_F > 0 ? (((${opts.beatZeroSeconds} * ${opts.fps}) % BEAT_F) + BEAT_F) % BEAT_F : 0;
 const STYLE: string = ${JSON.stringify(opts.style)};
 const TITLE: string = ${JSON.stringify(opts.title)};
 const SUBTITLE: string = ${JSON.stringify(opts.subtitle)};
@@ -903,11 +1097,14 @@ if (STYLE === "whip") {
 if (STYLE === "motion") {
   const hero = clips[0];
   const heroLen = hero.endFrame - hero.startFrame;
+  // On a beat, the push-in takes the last two beats and lands on the cut.
+  const pushF = Math.min(BEAT_F > 0 ? Math.round(BEAT_F * 2) : F(0.75), Math.max(4, heroLen - 6));
   await d.addVideoEffect({
     clip: hero, label: "Desk scene -> push in", tsxCode: GFX.desk,
     parameters: {
-      holdFrames: Math.max(6, heroLen - F(0.75)),
-      pushFrames: Math.min(F(0.75), Math.max(4, heroLen - 6)),
+      holdFrames: Math.max(6, heroLen - pushF),
+      pushFrames: pushF,
+      beatFrames: BEAT_F, beatOffsetFrames: BEAT_OFFSET_F,
       paper: PALETTE.paper, surface: PALETTE.surface, accent: PALETTE.accent, chrome: PALETTE.chrome,
     },
     editableParameters: [
@@ -922,7 +1119,7 @@ if (STYLE === "motion") {
   const anchor = clips[Math.min(1, clips.length - 1)];
   await d.insertGap({ at: { after: await d.rangeAtFrames(anchor.startFrame, anchor.endFrame) }, seconds: GAP_S });
   await addGfx(GFX.sky, anchor.endFrame, anchor.endFrame + F(GAP_S), "Sky flight",
-    { lengthFrames: F(GAP_S), skyTop: PALETTE.skyTop, skyMid: PALETTE.skyMid, skyLow: PALETTE.paper, planeColor: PALETTE.deep, wingColor: PALETTE.surface },
+    { lengthFrames: F(GAP_S), beatFrames: BEAT_F, skyTop: PALETTE.skyTop, skyMid: PALETTE.skyMid, skyLow: PALETTE.paper, planeColor: PALETTE.deep, wingColor: PALETTE.surface },
     [
       { key: "skyTop", label: "Sky top", type: "color", defaultValue: PALETTE.skyTop },
       { key: "skyMid", label: "Sky middle", type: "color", defaultValue: PALETTE.skyMid },
@@ -938,8 +1135,9 @@ if (STYLE === "motion") {
     const text = ch ? String(ch.title || ch.chapterTitle || "") : "";
     const label = text || SUBTITLE;
     if (!label) { notes.push("no chapter title for a label"); continue; }
-    await addGfx(GFX.label, c.startFrame + F(0.2), c.endFrame, "Label - " + label,
-      { text: label, sub: "", ink: PALETTE.paper, shadow: PALETTE.night, fontFamily: "" },
+    // Labels start on the cut, which is on the beat.
+    await addGfx(GFX.label, c.startFrame, c.endFrame, "Label - " + label,
+      { text: label, sub: "", ink: PALETTE.paper, shadow: PALETTE.night, fontFamily: "", beatFrames: BEAT_F, lengthFrames: c.endFrame - c.startFrame },
       [
         { key: "text", label: "Place", type: "text", defaultValue: label },
         { key: "sub", label: "Caption", type: "text", defaultValue: "" },
@@ -950,7 +1148,7 @@ if (STYLE === "motion") {
   if (TITLE) {
     const last = clips[clips.length - 1];
     await addGfx(GFX.signoff, last.startFrame, last.endFrame, "Handwritten title",
-      { title: TITLE, sub: SUBTITLE, ink: "#f6fafc", shadow: PALETTE.night, fontFamily: "" },
+      { title: TITLE, sub: SUBTITLE, ink: "#f6fafc", shadow: PALETTE.night, fontFamily: "", beatFrames: BEAT_F, lengthFrames: last.endFrame - last.startFrame },
       [
         { key: "title", label: "Title", type: "text", defaultValue: TITLE },
         { key: "sub", label: "Subtitle", type: "text", defaultValue: SUBTITLE },
@@ -1362,7 +1560,10 @@ export default function Panel({ sdk, context, ui }: any) {
       setStep("Adding the look…");
       const dec = await sdk.runScript({
         summary: "Style the opening", allowCommit: true,
-        script: decorateScript({ sequenceId, style, fps, title, subtitle, letterbox, palette, gapSeconds, titleEnd, burstSeconds }),
+        script: decorateScript({
+          sequenceId, style, fps, title, subtitle, letterbox, palette, gapSeconds, titleEnd, burstSeconds,
+          beatSeconds: grid ? grid.period : 0, beatZeroSeconds: grid ? grid.beat0 - musicStart : 0,
+        }),
       });
       if (dec.isError) { setStatus({ tone: "error", text: dec.output }); return; }
 

@@ -10,7 +10,7 @@ so the same button works on a trip, a wedding or a product shoot.
 | Style | What it makes |
 |---|---|
 | **Whip cut** | A fast montage: a long opening shot, a travel beat, four quarter-second burst cuts, then landscape and people beats. Cuts are joined with authored directional smear transitions, two white flashes around the burst, optional cinematic black bars, and a title card. |
-| **Motion graphics** | A push-in out of an illustrated device screen holding the first shot, an illustrated flight beat, hand-drawn place labels taken from the Draft's chapter titles, and a handwritten sign-off over the closing shot. Its palette is sampled from the clips it chose. |
+| **Motion graphics** | The first shot plays on a laptop in an illustrated room (window light, mug, plant) and the camera pushes into the screen; a plane then banks across a cloudy sky, pinned place labels taken from the Draft's chapter titles drop in, and the title writes itself on over the closing shot with a swash and sparkles. Its palette is sampled from the clips it chose. |
 | **Funny quotes** | A cold open: an iris opening on the first line, a script title, a watermark, then a run of talking-head lines picked from the transcript. Clip dialogue is kept rather than muted. |
 
 Every opening ends with a 0.6 second fade to black so it cuts cleanly into the
@@ -33,13 +33,15 @@ laid out on it:
 
 | Cue | Tempo | Structure the cut follows |
 |---|---|---|
-| Cinematic score | 110 bpm | The opening shot holds through the swell and cuts on the first hit (2.04s); cuts then land on beats, the burst on half beats; the title card arrives on the final hit, 18 beats later, and holds until the cue rings out. |
-| Playful vlog cue | 148 bpm | Cuts every two beats, mostly on bar lines; the sign-off takes the last bar and ends with the cue. |
+| Cinematic score | 110 bpm | The opening shot holds through the swell and cuts on the first hit (2.04s); cuts then land on beats, the burst on half beats; the title card arrives on the final hit, 18 beats later, and holds until the cue has faded. |
+| Playful vlog cue | 148 bpm | Cuts on bar lines; the desk push-in lands on the first bar line, labels drop in on their cut, and the sign-off starts on the last downbeat and ends once the final chord has faded. |
 | Lo-fi cafe bed | 80 bpm | Each quote's cut moves to the nearest half beat after the line, and the cue starts so its groove enters on the first cut. |
 
 Every cut is snapped as an absolute time, and assembly lands each clip on its
 planned frame, so nothing drifts over the length of the opening. The opening
-ends where the cue rings out rather than after it. A cue can be used with any
+ends where the cue has faded, rather than mid-decay or after it. The motion
+style's graphics also move on the beat: the desk screen glows and the plant
+nods, the plane bobs, place pins bounce, and the sign-off's sparkles pop. A cue can be used with any
 style; the style then follows that cue's grid. Your own music has no known
 grid, so it keeps the template's own timing.
 
