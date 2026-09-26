@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "vlog-opening",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": "Vlog Opening",
   "summary": "Build a 12-22s vlog opening as a new Draft in one of three styles, chosen from the analysed footage of the open Project.",
   "status": "experimental",
@@ -10,7 +10,10 @@
   "files": [
     "README.md",
     "INSTALL.md",
-    "panel.tsx"
+    "panel.tsx",
+    "assets/cue-whip-cinematic.mp3",
+    "assets/cue-motion-vlog.mp3",
+    "assets/cue-quotes-cafe.mp3"
   ],
   "compatibility": {
     "platforms": [

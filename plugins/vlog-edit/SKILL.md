@@ -9,6 +9,10 @@ For edits assembled from a real archive rather than a planned shoot: many short
 clips, many photos, no script, and no shot list. Trips, events, projects, and
 any stretch of life someone filmed as it happened.
 
+Music and the opening are part of the edit, not extras. Put both in the plan
+the user approves; asking permission for them is not a reason to leave them
+out. If the user declines either one, say so in the final report.
+
 ## Survey before proposing anything
 
 Never plan from clip count alone. Build a per-session table of: video seconds,
@@ -36,17 +40,28 @@ transcript, scene search, or `resource()` handle for them. Do not offer or
 promise photo analysis, and do not quietly drop photos from planning because
 they carry no metadata.
 
-Inspect them directly instead — build contact sheets and look at them:
+Inspect them directly instead — build contact sheets and look at **every**
+photo. A photo you have not seen cannot be ranked, so it cannot be left out of
+the edit either:
 
-1. Sample every Nth photo per group (~24-30 per sheet), scale and label each
-   with its filename, then tile into one sheet per group.
+1. Tile **all** photos of each group, in timestamp order, into as many sheets
+   as it takes (~24-30 per sheet), scaling and labelling each with its
+   filename. 800 photos is about 30 sheets; that is a normal survey, not a
+   reason to sample.
 2. The browser cannot open `file://`. Serve the sheet directory over local
    HTTP. A plain background launch dies with the shell call that started it —
    detach it so it survives.
 3. Wrap each sheet in a minimal HTML page with the image at a fixed large
    width, then screenshot the image element. Screenshotting a raw PNG makes the
    browser fit it to the window and renders it unreadably small.
-4. Close tabs and stop the server when the survey is done.
+4. Look at every sheet. Record a shortlist and a hero list by filename as you
+   go, and treat near-identical bursts as one moment, keeping the best frame.
+5. Close tabs and stop the server when the survey is done.
+
+Report coverage as photos reviewed out of the total, e.g. "793 of 793". If a
+full pass is genuinely impossible, say so, state the exact count reviewed, and
+ask before choosing only from a sample. Never present a sample as a review of
+all photos.
 
 ## Find the shape
 
@@ -67,6 +82,26 @@ each makes the other land.
 Photo blocks: about 3s holds for ordinary frames, 4-5s for hero frames. Group
 by subject or place, not strictly by timestamp. Where a photo-only stretch is
 strong enough to stand alone, keep it and write voiceover for it.
+
+## Plan the music and the opening
+
+**Music.** Plan one cue per act and a mood for each. Take music from the first
+source that is available: music the user names or supplies (import the file);
+audio already in the Project, after asking which of it is music rather than
+location sound; then generated music. Generation is a paid job, so state the
+number of cues and their lengths and ask **once** for all of them together.
+
+**Opening.** Offer the Vlog Opening plugin for a 12-22 second opening in one of
+three styles: whip cut, motion graphics, or funny quotes. If
+`$SELECTS_USER_PANELS_ROOT/vlog-opening/panel.tsx` exists, tell the user to
+open **Vlog Opening** from the Plugin list, pick a style and music, and press
+**Build opening**; it creates its own Draft and never edits yours. Otherwise
+offer to install library plugin `vlog-opening` first. If the user builds one,
+copy the opening Draft to the head of the vlog during picture assembly, before
+any vlog audio is placed, and start the vlog's own music after it.
+
+Present the acts, their material, the photo blocks, the music plan and the
+opening choice, and get approval before building.
 
 ## Voiceover
 
@@ -162,6 +197,10 @@ Read the saved Draft back in a separate call and confirm duration and clip
 count, that every intended removal is absent and every replacement present,
 that all voiceover and music clips exist, and that music gaps fall exactly
 where intended.
+
+The report states photo coverage (reviewed out of total, and how many were
+used), which music was placed per act and where it came from, and whether an
+opening was added.
 
 Frame capture can time out on large Drafts, including on ordinary frames, so a
 timeout is not evidence that a graphic is broken. When you cannot see pixels,
