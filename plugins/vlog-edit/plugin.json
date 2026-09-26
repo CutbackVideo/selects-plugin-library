@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "vlog-edit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": "Vlog Edit",
   "summary": "Assemble a vlog from a real archive of video plus many unanalyzable photos: survey coverage, find the story shape, build photo B-roll blocks with generated voiceover and music, trim dead air, and add dissolves and editable titles.",
   "status": "experimental",
