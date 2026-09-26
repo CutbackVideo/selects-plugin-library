@@ -26,6 +26,23 @@ settings produces the same cut. Scene search is retried across several passes
 because the backend drops requests when the app is busy; any clip that never
 answers is reported rather than silently skipped.
 
+## Cutting on the beat
+
+Each bundled cue carries a beat grid measured from the file, and the cut is
+laid out on it:
+
+| Cue | Tempo | Structure the cut follows |
+|---|---|---|
+| Cinematic score | 110 bpm | The opening shot holds through the swell and cuts on the first hit (2.04s); cuts then land on beats, the burst on half beats; the title card arrives on the final hit, 18 beats later, and holds until the cue rings out. |
+| Playful vlog cue | 148 bpm | Cuts every two beats, mostly on bar lines; the sign-off takes the last bar and ends with the cue. |
+| Lo-fi cafe bed | 80 bpm | Each quote's cut moves to the nearest half beat after the line, and the cue starts so its groove enters on the first cut. |
+
+Every cut is snapped as an absolute time, and assembly lands each clip on its
+planned frame, so nothing drifts over the length of the opening. The opening
+ends where the cue rings out rather than after it. A cue can be used with any
+style; the style then follows that cue's grid. Your own music has no known
+grid, so it keeps the template's own timing.
+
 ## Controls
 
 - **Style** - three preview tiles; the unavailable one dims when a Project has

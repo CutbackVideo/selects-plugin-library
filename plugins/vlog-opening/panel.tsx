@@ -31,11 +31,122 @@ const STYLES = [
 // Always applied, so the opening hands off cleanly to the next timeline.
 const FADE_SECONDS = 0.6;
 
-const CUES = [
-  { id: "cinematic", file: "cue-whip-cinematic.mp3", label: "Cinematic score", forStyle: "whip" },
-  { id: "vlog", file: "cue-motion-vlog.mp3", label: "Playful vlog cue", forStyle: "motion" },
-  { id: "cafe", file: "cue-quotes-cafe.mp3", label: "Lo-fi cafe bed", forStyle: "quotes" },
-] as const;
+// A cue's beat grid, measured from the file: onset peaks fitted by least
+// squares to one steady tempo, every strong onset within 37 ms of the grid.
+// beat0 is a beat in cue seconds and period one beat. hit, last and end count
+// beats from beat0: the first big accent, the landing a finale or title card
+// starts on, and the point where the cue has rung out.
+type Grid = { period: number; beat0: number; hit: number; last: number; end: number };
+
+const CUES: ReadonlyArray<{ id: string; file: string; label: string; forStyle: string; grid: Grid }> = [
+  // 110 bpm. A swell, the first hit at 2.04s, a final hit 18 beats later.
+  { id: "cinematic", file: "cue-whip-cinematic.mp3", label: "Cinematic score", forStyle: "whip",
+    grid: { period: 0.54648, beat0: 2.0434, hit: 0, last: 18, end: 22 } },
+  // 148 bpm in four-beat bars; the band is in from bar two, out after bar ten.
+  { id: "vlog", file: "cue-motion-vlog.mp3", label: "Playful vlog cue", forStyle: "motion",
+    grid: { period: 0.40556, beat0: 0.1943, hit: 4, last: 36, end: 41 } },
+  // 80 bpm. Four seconds of pads, then the groove from beat 5 to beat 20.
+  { id: "cafe", file: "cue-quotes-cafe.mp3", label: "Lo-fi cafe bed", forStyle: "quotes",
+    grid: { period: 0.75244, beat0: 0.3407, hit: 5, last: 20, end: 22 } },
+];
+
+const atBeat = (g: Grid, beat: number) => g.beat0 + beat * g.period;
+
+// Spreads shots over [from, to] in proportion to their template lengths, then
+// moves every cut to the nearest `unit` beats of the grid through `origin` (a
+// half beat for burst shots). Cuts are snapped as absolute times, so rounding
+// never accumulates, and the last shot ends on `to` itself. Returns each
+// shot's end.
+function cutsOnBeat(shots: Array<{ dur: number; fixed?: boolean }>, from: number, to: number, g: Grid, origin: number, unit = 1): number[] {
+  const half = g.period / 2;
+  const fixedSum = shots.filter(x => x.fixed).length * half;
+  const freeSum = shots.filter(x => !x.fixed).reduce((a, x) => a + x.dur, 0);
+  const scale = freeSum > 0 ? Math.max(0.2, (to - from - fixedSum) / freeSum) : 1;
+  const ends: number[] = [];
+  let planned = from;
+  let prev = from;
+  shots.forEach((shot, i) => {
+    planned += shot.fixed ? half : shot.dur * scale;
+    if (i === shots.length - 1) { ends.push(to); return; }
+    const step = shot.fixed ? half : g.period * unit;
+    let t = origin + Math.round((planned - origin) / step) * step;
+    if (t < prev + step - 1e-6) t = prev + step;
+    ends.push(t);
+    prev = t;
+  });
+  return ends;
+}
+
+// Where every shot ends when the opening follows a cue's beat: the whip intro
+// runs up to the first hit and its title card holds from the final hit until
+// the cue rings out; motion cuts every two beats and ends its sign-off with
+// the cue, the sky flight taking a slot after the second shot. `ends` exclude the sky gap, because
+// the gap is inserted after assembly.
+function beatPlan(style: string, beats: any[], g: Grid) {
+  if (style === "whip") {
+    const hit = atBeat(g, g.hit);
+    const ends = [hit, ...cutsOnBeat(beats.slice(1), hit, atBeat(g, g.last), g, g.beat0)];
+    return { ends, gapSeconds: 0, titleEnd: atBeat(g, g.end) };
+  }
+  const shots = [...beats.slice(0, 2), { dur: 2.0 }, ...beats.slice(2)];
+  const body = cutsOnBeat(shots.slice(0, -1), 0, atBeat(g, g.last), g, g.beat0, 2);
+  const all = [...body, atBeat(g, g.end)];
+  const gapSeconds = all[2] - all[1];
+  const ends = [all[0], all[1], ...all.slice(3).map(t => t - gapSeconds)];
+  return { ends, gapSeconds, titleEnd: null };
+}
+
+// Quote lengths come from speech, so each cut moves to the next half beat after
+// its line (or the one before, when the source has no room), and the cue starts
+// so that its groove enters on the first cut.
+function quotePlan(beats: any[], g: Grid) {
+  const half = g.period / 2;
+  const first = beats[0].b - beats[0].a;
+  const musicStart = Math.max(0, atBeat(g, g.hit) - first);
+  const origin = g.beat0 - musicStart;
+  const ends: number[] = [];
+  let prev = 0;
+  beats.forEach((q: any, i: number) => {
+    const natural = prev + (q.b - q.a);
+    if (i === 0 && musicStart > 0) { ends.push(natural); prev = natural; return; }
+    const room = prev + ((q.total || q.b) - q.a);
+    let t = origin + Math.ceil((natural - 0.12 - origin) / half) * half;
+    if (t > room) t = origin + Math.floor((natural - origin) / half) * half;
+    if (t < prev + half) t = Math.min(room, prev + half);
+    ends.push(t);
+    prev = t;
+  });
+  return { ends, musicStart };
+}
+
+// A window of `dur` seconds around a scene-search hit, kept inside the source.
+function placeWindow(total: number, t: number, dur: number) {
+  const s = Math.max(0, Math.min(t - dur * 0.35, total - dur));
+  return { a: Math.round(s * 100) / 100, b: Math.round((s + dur) * 100) / 100 };
+}
+
+// Re-cuts each beat's source window to its planned length and records the
+// timeline time it must end on, which assembly lands on the frame.
+function retime(beats: any[], ends: number[]) {
+  let start = 0;
+  let prev: any = null;
+  return beats.map((beat: any, i: number) => {
+    const dur = Math.max(0.1, ends[i] - start);
+    start = ends[i];
+    let win: { a: number; b: number };
+    if (beat.continues && prev) {
+      win = { a: prev.b, b: Math.round(Math.min(beat.total, prev.b + dur) * 100) / 100 };
+    } else if (typeof beat.t === "number") {
+      win = placeWindow(beat.total, beat.t, dur);
+    } else {
+      const a = Math.max(0, Math.min(beat.a, (beat.total || beat.a + dur) - dur));
+      win = { a: Math.round(a * 100) / 100, b: Math.round((a + dur) * 100) / 100 };
+    }
+    const next = { ...beat, ...win, t1: Math.round(ends[i] * 1000) / 1000 };
+    prev = next;
+    return next;
+  });
+}
 
 // Six-second auditions of the bundled cues, so the picker can be listened to.
 const AUDITIONS: Record<string, string> = {
@@ -542,10 +653,7 @@ function assignBeats(template: any[], hitsByRole: Record<string, any[]>, pool: a
   const dropped: any[] = [];
   const order = template.map((b: any, i: number) => ({ b, i })).sort((x, y) => y.b.dur - x.b.dur || x.i - y.i);
   const slots: any[] = new Array(template.length).fill(null);
-  const place = (total: number, t: number, dur: number) => {
-    const s = Math.max(0, Math.min(t - dur * 0.35, total - dur));
-    return { a: Math.round(s * 100) / 100, b: Math.round((s + dur) * 100) / 100 };
-  };
+  const place = placeWindow;
   const overlaps = (rid: string, a: number, b: number) => usedWin.some(w => w.rid === rid && a < w.b && b > w.a);
   for (const entry of order) {
     const b = entry.b;
@@ -555,7 +663,7 @@ function assignBeats(template: any[], hitsByRole: Record<string, any[]>, pool: a
       const room = prev.total - prev.b;
       if (room >= b.dur * 0.6) {
         const dur = Math.min(b.dur, room);
-        const next = { role: b.role, rid: prev.rid, name: prev.name, total: prev.total, a: prev.b, b: Math.round((prev.b + dur) * 100) / 100, path: prev.path, continues: true };
+        const next = { role: b.role, rid: prev.rid, name: prev.name, total: prev.total, a: prev.b, b: Math.round((prev.b + dur) * 100) / 100, path: prev.path, continues: true, dur: b.dur };
         usedWin.push({ rid: prev.rid, a: next.a, b: next.b });
         beats.push(next);
         slots[entry.i] = next;
@@ -587,7 +695,7 @@ function assignBeats(template: any[], hitsByRole: Record<string, any[]>, pool: a
     const win = place(pick.row.total, pick.h.t, b.dur);
     usedRes.add(pick.h.rid);
     usedWin.push({ rid: pick.h.rid, a: win.a, b: win.b });
-    const placed = { role: b.role, rid: pick.h.rid, name: pick.row.name, total: pick.row.total, a: win.a, b: win.b, score: pick.h.score, path: pick.row.path };
+    const placed = { role: b.role, rid: pick.h.rid, name: pick.row.name, total: pick.row.total, a: win.a, b: win.b, score: pick.h.score, path: pick.row.path, t: pick.h.t, dur: b.dur, fixed: b.fixed };
     beats.push(placed);
     slots[entry.i] = placed;
   }
@@ -676,18 +784,30 @@ function assembleScript(projectId: string, draftName: string, beats: any[]) {
 const p = selects.project(${JSON.stringify(projectId)});
 const BEATS: any[] = ${JSON.stringify(beats)};
 const d = await p.createDraft({ name: ${JSON.stringify(draftName)} });
+const placedMain = async () => (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
+let rate = 0;
+let endFrame = 0;
 for (const b of BEATS) {
   // Never ask for more than the source holds, whatever the caller computed.
   const limit = typeof b.total === "number" && b.total > 0 ? b.total : b.b;
-  const end = Math.min(b.b, Math.floor(limit * 100) / 100);
+  let end = Math.min(b.b, Math.floor(limit * 100) / 100);
   const start = Math.max(0, Math.min(b.a, end - 0.2));
+  // A beat-timed clip ends on its planned frame, so frame rounding in earlier
+  // clips is absorbed here instead of drifting off the beat.
+  if (rate && typeof b.t1 === "number") {
+    const frames = Math.round(b.t1 * rate) - endFrame;
+    if (frames >= 2) end = Math.min(Math.floor(limit * 100) / 100, start + frames / rate);
+  }
   if (!(end > start)) continue;
   await d.insertResource({ resourceId: b.rid, sourceRange: { startSeconds: start, endSeconds: end } });
+  const rows = await placedMain();
+  endFrame = rows.reduce((a, c) => Math.max(a, c.endFrame), 0);
+  // Derive the frame rate from what was actually placed; never assume 30.
+  if (!rate && rows.length) rate = Math.max(1, Math.round((rows[0].endFrame - rows[0].startFrame) / (end - start)));
 }
-const clips = (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
+const clips = await placedMain();
 if (!clips.length) return { error: "nothing_placed" };
-// Derive the frame rate from what was actually placed; never assume 30.
-const fps = Math.max(1, Math.round((clips[0].endFrame - clips[0].startFrame) / (BEATS[0].b - BEATS[0].a)));
+const fps = rate;
 const commit = await d.commitAll("Vlog Opening: assemble beats");
 return {
   sequenceId: commit.createdDraftId,
@@ -701,9 +821,13 @@ return {
 function decorateScript(opts: {
   sequenceId: string; style: string; fps: number; title: string; subtitle: string;
   letterbox: boolean; palette: Record<string, string>;
+  gapSeconds: number; titleEnd: number | null; burstSeconds: number;
 }) {
   return `
 const d = selects.draft(${JSON.stringify(opts.sequenceId)});
+const GAP_S: number = ${opts.gapSeconds};
+const TITLE_END: number | null = ${JSON.stringify(opts.titleEnd)};
+const BURST_S: number = ${opts.burstSeconds};
 const STYLE: string = ${JSON.stringify(opts.style)};
 const TITLE: string = ${JSON.stringify(opts.title)};
 const SUBTITLE: string = ${JSON.stringify(opts.subtitle)};
@@ -746,7 +870,7 @@ if (STYLE === "whip") {
       clips = (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
     }
   }
-  const burst = clips.filter(c => c.endFrame - c.startFrame <= F(0.34));
+  const burst = clips.filter(c => c.endFrame - c.startFrame <= F(BURST_S));
   if (burst.length) {
     const s = burst[0].startFrame;
     const e = burst[burst.length - 1].endFrame;
@@ -758,7 +882,9 @@ if (STYLE === "whip") {
   }
   if (TITLE) {
     await d.addMotionGraphic({
-      label: "Title card", tsxCode: GFX.card, durationSeconds: 1.4,
+      // On a cue, the card holds from the final hit until the cue rings out.
+      label: "Title card", tsxCode: GFX.card,
+      durationSeconds: TITLE_END === null ? 1.4 : Math.max(0.8, TITLE_END - mainEnd() / fps),
       parameters: { title: TITLE, subtitle: SUBTITLE, ink: "#f4f1ec", fontFamily: "" },
       editableParameters: [
         { key: "title", label: "Title", type: "text", defaultValue: TITLE },
@@ -794,9 +920,9 @@ if (STYLE === "motion") {
     ],
   });
   const anchor = clips[Math.min(1, clips.length - 1)];
-  await d.insertGap({ at: { after: await d.rangeAtFrames(anchor.startFrame, anchor.endFrame) }, seconds: 2.0 });
-  await addGfx(GFX.sky, anchor.endFrame, anchor.endFrame + F(2.0), "Sky flight",
-    { lengthFrames: F(2.0), skyTop: PALETTE.skyTop, skyMid: PALETTE.skyMid, skyLow: PALETTE.paper, planeColor: PALETTE.deep, wingColor: PALETTE.surface },
+  await d.insertGap({ at: { after: await d.rangeAtFrames(anchor.startFrame, anchor.endFrame) }, seconds: GAP_S });
+  await addGfx(GFX.sky, anchor.endFrame, anchor.endFrame + F(GAP_S), "Sky flight",
+    { lengthFrames: F(GAP_S), skyTop: PALETTE.skyTop, skyMid: PALETTE.skyMid, skyLow: PALETTE.paper, planeColor: PALETTE.deep, wingColor: PALETTE.surface },
     [
       { key: "skyTop", label: "Sky top", type: "color", defaultValue: PALETTE.skyTop },
       { key: "skyMid", label: "Sky middle", type: "color", defaultValue: PALETTE.skyMid },
@@ -870,6 +996,7 @@ return { notes, graphics: after.filter(c => c.trackKind === "video").length, mai
 function finishScript(opts: {
   sequenceId: string; fps: number; musicResourceId: string | null;
   muteSource: boolean; fadeSeconds: number; projectId: string; beats: any[];
+  musicStart: number;
 }) {
   return `
 const p = selects.project(${JSON.stringify(opts.projectId)});
@@ -890,7 +1017,7 @@ if (MUTE) {
 if (MUSIC) {
   rows = await d.clips({ trackScope: "all" });
   const total = rows.reduce((a, c) => Math.max(a, c.endFrame), 0);
-  try { await d.overlayResource({ resource: p.resource(MUSIC), over: await d.rangeAtFrames(0, total), sourceStartSeconds: 0 }); }
+  try { await d.overlayResource({ resource: p.resource(MUSIC), over: await d.rangeAtFrames(0, total), sourceStartSeconds: ${opts.musicStart} }); }
   catch (e) { notes.push("music could not be placed"); }
 }
 if (FADE_S > 0) {
@@ -1156,8 +1283,11 @@ export default function Panel({ sdk, context, ui }: any) {
       let beats: any[] = [];
       let dropped: any[] = [];
       let scanNotes: string[] = [];
+      // Bundled cues carry a measured beat grid; own music and silence keep
+      // the template's own timing.
+      const grid = music.startsWith("cue:") ? (CUES.find(c => c.id === music.slice(4))?.grid ?? null) : null;
       if (style === "quotes") {
-        const budget = 22;
+        const budget = grid ? Math.min(22, atBeat(grid, grid.end) - atBeat(grid, grid.hit) + 2.5) : 22;
         const r = await sdk.runScript({ summary: "Find quotable lines", script: selectQuotesScript(projectId, budget, 30), allowCommit: false });
         if (r.isError) { setStatus({ tone: "error", text: r.output }); return; }
         if (r.result?.error === "no_speech") { setStatus({ tone: "error", text: "No analysed speech in this project, so the quotes style has nothing to cut." }); return; }
@@ -1198,6 +1328,21 @@ export default function Panel({ sdk, context, ui }: any) {
       }
       if (beats.length < 3) { setStatus({ tone: "error", text: "Only " + beats.length + " usable beat(s) found — this project needs more analysed footage." }); return; }
 
+      let gapSeconds = 2.0;
+      let titleEnd: number | null = null;
+      let musicStart = 0;
+      if (grid && style === "quotes") {
+        const plan = quotePlan(beats, grid);
+        beats = retime(beats, plan.ends);
+        musicStart = Math.round(plan.musicStart * 1000) / 1000;
+      } else if (grid) {
+        const plan = beatPlan(style, beats, grid);
+        beats = retime(beats, plan.ends);
+        gapSeconds = plan.gapSeconds;
+        titleEnd = plan.titleEnd;
+      }
+      const burstSeconds = grid ? grid.period / 2 + 0.05 : 0.34;
+
       setStep("Sampling colours…");
       const palette = style === "motion" ? await samplePalette(beats) : { ...FALLBACK_PALETTE };
 
@@ -1217,14 +1362,14 @@ export default function Panel({ sdk, context, ui }: any) {
       setStep("Adding the look…");
       const dec = await sdk.runScript({
         summary: "Style the opening", allowCommit: true,
-        script: decorateScript({ sequenceId, style, fps, title, subtitle, letterbox, palette }),
+        script: decorateScript({ sequenceId, style, fps, title, subtitle, letterbox, palette, gapSeconds, titleEnd, burstSeconds }),
       });
       if (dec.isError) { setStatus({ tone: "error", text: dec.output }); return; }
 
       setStep("Music and fade…");
       const fin = await sdk.runScript({
         summary: "Add music and fade", allowCommit: true,
-        script: finishScript({ sequenceId, fps, musicResourceId: chosen.id, muteSource, fadeSeconds: FADE_SECONDS, projectId, beats }),
+        script: finishScript({ sequenceId, fps, musicResourceId: chosen.id, muteSource, fadeSeconds: FADE_SECONDS, projectId, beats, musicStart }),
       });
       if (fin.isError) { setStatus({ tone: "error", text: fin.output }); return; }
       if (fin.result == null) { setStatus({ tone: "error", text: "The build finished but returned nothing to show." }); return; }
