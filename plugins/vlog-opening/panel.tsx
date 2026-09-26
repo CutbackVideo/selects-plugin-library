@@ -469,68 +469,93 @@ const GFX_SKY = `
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 
+// Drawn on a 1920x1080 sheet, in the desk scene's style: flat colour, ink
+// outlines, linework that boils, and motion held on twos.
+const W = 1920, H = 1080;
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
 const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
-// Flight path in % of the frame: a quadratic curve rising left to right.
-const P0 = [-14, 74], P1 = [42, 18], P2 = [114, 34];
+// The route: a quadratic curve rising left to right, in sheet units.
+const P0 = [-260, 820], P1 = [800, 180], P2 = [2200, 380];
 const at = (t) => [
   (1 - t) * (1 - t) * P0[0] + 2 * (1 - t) * t * P1[0] + t * t * P2[0],
   (1 - t) * (1 - t) * P0[1] + 2 * (1 - t) * t * P1[1] + t * t * P2[1],
 ];
 
-function Cloud({ x, y, size, opacity, tint }) {
-  const puffs = [[0, 30, 46], [22, 8, 58], [48, 18, 50], [70, 34, 40], [30, 38, 44]];
-  return (
-    <div style={{ position: "absolute", left: x + "%", top: y + "%", width: size + "%", height: size * 0.45 + "%", opacity }}>
-      {puffs.map((p, i) => (
-        <div key={i} style={{ position: "absolute", left: p[0] + "%", top: p[1] + "%", width: p[2] + "%", aspectRatio: "1", borderRadius: "50%", backgroundColor: tint, filter: "blur(0.35vh)" }} />
-      ))}
-    </div>
-  );
+// A cloud: a flat bottom and a row of rounded bumps on top.
+function cloudPath(x, y, w, seed) {
+  const bumps = [0.26, 0.34, 0.22, 0.18].map((b, i) => b + ((seed * (i + 3)) % 7) / 100);
+  const total = bumps.reduce((a, b) => a + b, 0);
+  let d = "M" + x + " " + y;
+  bumps.forEach((b) => {
+    const bw = (b / total) * w;
+    d += " a " + (bw / 2) + " " + (bw * 0.62) + " 0 0 1 " + bw + " 0";
+  });
+  return d + " Q " + (x + w / 2) + " " + (y + w * 0.1) + " " + x + " " + y + " Z";
 }
 
-// The flight between places: a plane banks along a curved route over
-// drifting cloud layers, drawing a dotted trail, and bobs on each beat.
+// The flight between places: a plane follows a curved route across a flat
+// sky, drawing a dashed trail, past outlined clouds and a sun whose rays
+// pulse on the beat. Wing and tail take the footage colour.
 export default function SkyFlight({ data }) {
   const frame = useCurrentFrame();
   const d = data || {};
   const len = typeof d.lengthFrames === "number" && d.lengthFrames > 1 ? d.lengthFrames : 60;
   const beat = typeof d.beatFrames === "number" && d.beatFrames > 0 ? d.beatFrames : 0;
-  const top = d.skyTop || "#4d7ec4";
-  const mid = d.skyMid || "#7db9f2";
-  const low = d.skyLow || "#eef3f6";
-  const body = d.planeColor || "#1f3a5f";
-  const wing = d.wingColor || "#8998b3";
+  const sky = d.sky || "#9cc4ec";
+  const accent = d.accent || "#e58497";
+  const ink = d.ink || "#262626";
 
-  const p = clamp01(frame / len);
+  // Hand-animated timing: a new position every second frame.
+  const f = Math.floor(frame / 2) * 2;
+  const p = clamp01(f / len);
   const tp = 0.2 * p + 0.8 * easeInOutSine(p);
   const [x, y0] = at(tp);
   const [x2, y2] = at(Math.min(1, tp + 0.01));
-  const angle = Math.atan2(y2 - y0, (x2 - x) * 1.78) * 180 / Math.PI;
+  const angle = Math.atan2(y2 - y0, x2 - x) * 180 / Math.PI;
   const pulse = beat ? Math.exp(-(frame % beat) / (beat * 0.25)) : 0;
-  const y = y0 - 1.2 * pulse;
-  const trail = [];
-  for (let i = 1; i <= 40; i++) {
-    const tt = (i / 40) * tp;
-    if (tp - tt < 0.02) continue;
-    const q = at(tt);
-    trail.push(<div key={i} style={{ position: "absolute", left: q[0] + "%", top: q[1] + 2.2 + "%", width: "0.9vh", height: "0.9vh", borderRadius: "50%", backgroundColor: "#ffffff", opacity: 0.25 + 0.55 * (tt / Math.max(0.001, tp)) }} />);
+  const y = y0 - 14 * pulse;
+  const tick = Math.floor(frame / 3);
+  const id = "sky" + tick;
+
+  let trail = "";
+  for (let i = 0; i <= 60; i++) {
+    const q = at((i / 60) * Math.max(0, tp - 0.03));
+    trail += (i ? " L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1);
   }
+  const rays = Array.from({ length: 10 }, (_, i) => {
+    const a = (i / 10) * Math.PI * 2 + f * 0.01;
+    const r0 = 118, r1 = 150 + 22 * pulse;
+    return <path key={i} d={"M" + (1560 + Math.cos(a) * r0) + " " + (200 + Math.sin(a) * r0) + " L" + (1560 + Math.cos(a) * r1) + " " + (200 + Math.sin(a) * r1)} strokeWidth="6" />;
+  });
+  const clouds = [
+    [1240 - 520 * p, 330, 420, 1], [120 - 380 * p, 560, 360, 2],
+    [1500 - 900 * p, 900, 620, 3], [300 - 700 * p, 1050, 520, 4],
+  ];
+
   return (
-    <AbsoluteFill style={{ background: "linear-gradient(180deg," + top + " 0%," + mid + " 55%," + low + " 100%)", overflow: "hidden" }}>
-      <div style={{ position: "absolute", left: "70%", top: "8%", width: "18%", aspectRatio: "1", borderRadius: "50%", background: "radial-gradient(circle,#fff8e1 0%,#fff3c4 28%,rgba(255,243,196,0.35) 45%,rgba(255,243,196,0) 70%)", transform: "scale(" + (1 + 0.06 * pulse) + ")" }} />
-      <Cloud x={60 - 30 * p} y={18} size={26} opacity={0.55} tint="#ffffff" />
-      <Cloud x={8 - 22 * p} y={40} size={22} opacity={0.5} tint="#f4f8fc" />
-      {trail}
-      <svg viewBox="0 0 100 40" style={{ position: "absolute", left: x - 6 + "%", top: y - 2.4 + "%", width: "12%", transform: "rotate(" + angle + "deg)", filter: "drop-shadow(0 0.8vh 0.8vh rgba(0,0,0,0.2))" }}>
-        <path d="M44 16 L60 2 L69 2 L58 16 Z" fill={wing} />
-        <path d="M9 17 L4 3 L14 3 L25 16 Z" fill={body} />
-        <path d="M5 22 C5 18 12 16 20 16 L82 16 C92 16 98 19 98 22 C98 25 92 27 82 27 L20 27 C12 27 5 26 5 22 Z" fill={body} />
-        {[30, 38, 46, 54, 62, 70].map((cxw) => <circle key={cxw} cx={cxw} cy="20.5" r="1.4" fill="#e8f1fb" />)}
-        <path d="M42 25 L63 39 L72 39 L58 25 Z" fill={wing} />
+    <AbsoluteFill style={{ backgroundColor: sky }}>
+      <svg viewBox={"0 0 " + W + " " + H} preserveAspectRatio="xMidYMid slice" style={{ width: "100%", height: "100%" }}>
+        <defs>
+          <filter id={id} x="-10%" y="-10%" width="120%" height="120%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed={tick} />
+            <feDisplacementMap in="SourceGraphic" scale="7" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+        <g filter={"url(#" + id + ")"} stroke={ink} strokeLinecap="round" strokeLinejoin="round">
+          <g>{rays}</g>
+          <circle cx="1560" cy="200" r="96" fill="#f7d86b" strokeWidth="6" />
+          {clouds.slice(0, 2).map(([cx, cy, w, s]) => <path key={s} d={cloudPath(cx, cy, w, s)} fill="#ffffff" strokeWidth="6" />)}
+          <path d={trail} fill="none" strokeWidth="5" strokeDasharray="18 22" opacity="0.7" />
+          <g transform={"translate(" + x + " " + y + ") rotate(" + angle + ") translate(-150 -60)"} strokeWidth="6">
+            <path d="M132 64 L180 8 L214 8 L186 64 Z" fill={accent} />
+            <path d="M26 64 L10 14 L44 14 L78 62 Z" fill={accent} />
+            <path d="M16 84 C16 70 36 62 62 62 L246 62 C276 62 296 72 296 84 C296 96 276 104 246 104 L62 104 C36 104 16 98 16 84 Z" fill="#f4f1ea" />
+            {[92, 120, 148, 176, 204].map((cx) => <circle key={cx} cx={cx} cy="80" r="7" fill={ink} stroke="none" />)}
+            <path d="M126 98 L190 150 L222 150 L178 98 Z" fill={accent} />
+          </g>
+          {clouds.slice(2).map(([cx, cy, w, s]) => <path key={s} d={cloudPath(cx, cy, w, s)} fill="#ffffff" strokeWidth="6" />)}
+        </g>
       </svg>
-      <Cloud x={96 - 80 * p} y={62} size={40} opacity={0.85} tint="#ffffff" />
-      <Cloud x={-30 + 60 * p} y={78} size={34} opacity={0.7} tint="#eef4fa" />
     </AbsoluteFill>
   );
 }
@@ -1170,12 +1195,11 @@ if (STYLE === "motion") {
   const anchor = clips[Math.min(1, clips.length - 1)];
   await d.insertGap({ at: { after: await d.rangeAtFrames(anchor.startFrame, anchor.endFrame) }, seconds: GAP_S });
   await addGfx(GFX.sky, anchor.endFrame, anchor.endFrame + F(GAP_S), "Sky flight",
-    { lengthFrames: F(GAP_S), beatFrames: BEAT_F, skyTop: PALETTE.skyTop, skyMid: PALETTE.skyMid, skyLow: PALETTE.paper, planeColor: PALETTE.deep, wingColor: PALETTE.surface },
+    // Flat sky and the tablecloth's footage colour on the plane's wings.
+    { lengthFrames: F(GAP_S), beatFrames: BEAT_F, sky: PALETTE.skyMid, accent: PALETTE.accent },
     [
-      { key: "skyTop", label: "Sky top", type: "color", defaultValue: PALETTE.skyTop },
-      { key: "skyMid", label: "Sky middle", type: "color", defaultValue: PALETTE.skyMid },
-      { key: "skyLow", label: "Horizon", type: "color", defaultValue: PALETTE.paper },
-      { key: "planeColor", label: "Plane", type: "color", defaultValue: PALETTE.deep },
+      { key: "sky", label: "Sky", type: "color", defaultValue: PALETTE.skyMid },
+      { key: "accent", label: "Wings and tail", type: "color", defaultValue: PALETTE.accent },
     ]);
   clips = (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
   let chapters = [];

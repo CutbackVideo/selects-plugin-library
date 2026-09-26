@@ -10,7 +10,7 @@ so the same button works on a trip, a wedding or a product shoot.
 | Style | What it makes |
 |---|---|
 | **Whip cut** | A fast montage: a long opening shot, a travel beat, four quarter-second burst cuts, then landscape and people beats. Cuts are joined with authored directional smear transitions, two white flashes around the burst, optional cinematic black bars, and a title card. |
-| **Motion graphics** | The first shot plays on a hand-drawn laptop on a checkered tablecloth coloured from the footage, and the camera zooms into the screen like stop motion, in held steps on the beat, while the drawing boils; a plane then banks across a cloudy sky, pinned place labels taken from the Draft's chapter titles drop in, and the title writes itself on over the closing shot with a swash and sparkles. Its palette is sampled from the clips it chose. |
+| **Motion graphics** | The first shot plays on a hand-drawn laptop on a checkered tablecloth coloured from the footage, and the camera zooms into the screen like stop motion, in held steps on the beat, while the drawing boils; a plane in the same drawn style then flies a dashed route past outlined clouds, pinned place labels taken from the Draft's chapter titles drop in, and the title writes itself on over the closing shot with a swash and sparkles. Its palette is sampled from the clips it chose. |
 | **Funny quotes** | A cold open: an iris opening on the first line, a script title, a watermark, then a run of talking-head lines picked from the transcript. Clip dialogue is kept rather than muted. |
 
 Every opening ends with a 0.6 second fade to black so it cuts cleanly into the
