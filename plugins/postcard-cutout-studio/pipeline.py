@@ -131,24 +131,47 @@ def reuse_cutout(d):
  d['sourceIdentity']=identity;save(d)
  return d
 
+MEDIA_EXTENSIONS={'.mp4','.mov','.mkv','.webm','.m4v','.png','.jpg','.jpeg','.webp'}
+
 def folder_media(a):
- root=pathlib.Path(a['path']).resolve(strict=True)
- if not root.is_dir():raise ValueError('Choose a folder, not an individual file.')
- extensions={'.mp4','.mov','.mkv','.webm','.m4v','.png','.jpg','.jpeg','.webp'}
- files=[];unreadable=[];limited=False;visited=0
+ """The media in every source the person added, as one list: `paths` holds
+ folders and single files in the order they were added (`path` is the one
+ folder older panels send). Each file is listed once, however many sources
+ reach it. With one folder, names are relative to it, as they always were;
+ with several, each is prefixed by the folder it came from."""
+ sources=a.get('paths') or [a['path']]
+ roots=[];files=[];seen=set();unreadable=[];limited=False;visited=0;named=[]
  def onerror(error):unreadable.append(str(error.filename))
- for folder,dirs,names in os.walk(root,followlinks=False,onerror=onerror):
-  dirs[:]=sorted(d for d in dirs if not d.startswith('.') and not pathlib.Path(folder,d).is_symlink())
-  for name in sorted(names):
-   visited+=1
-   if visited>10000:limited=True;break
-   path=pathlib.Path(folder,name)
-   if not name.startswith('.') and path.suffix.lower() in extensions and not path.is_symlink():files.append(path)
+ def add(path,label,root):
+  if path in seen:return
+  seen.add(path);files.append((path,label))
+  if root not in named:named.append(root)
+ for raw in sources:
+  try:root=pathlib.Path(raw).resolve(strict=True)
+  except OSError:unreadable.append(str(raw));continue
+  roots.append(root)
+  if root.is_file():
+   if root.suffix.lower() in MEDIA_EXTENSIONS:add(root,root.name,root)
+   continue
+  for folder,dirs,names in os.walk(root,followlinks=False,onerror=onerror):
+   dirs[:]=sorted(d for d in dirs if not d.startswith('.') and not pathlib.Path(folder,d).is_symlink())
+   for name in sorted(names):
+    visited+=1
+    if visited>10000:limited=True;break
+    path=pathlib.Path(folder,name)
+    if not name.startswith('.') and path.suffix.lower() in MEDIA_EXTENSIONS and not path.is_symlink():
+     add(path,str(path.relative_to(root)) if len(sources)==1 else str(pathlib.Path(root.name,path.relative_to(root))),root)
+   if limited:break
   if limited:break
+ if not roots:raise ValueError('None of the chosen folders or files could be read.')
  offset=max(0,int(a.get('offset',0)));query=str(a.get('query','')).casefold()
- files=[path for path in files if query in str(path.relative_to(root)).casefold()]
+ files=[(path,label) for path,label in files if query in label.casefold()]
  page=files[offset:offset+24]
- return {'path':str(root),'name':root.name,'total':len(files),'limited':limited,'unreadable':len(unreadable),'rows':[{'path':str(path),'name':path.name,'relativePath':str(path.relative_to(root)),'resourceId':'local:'+str(path)} for path in page]}
+ # Named by the sources that brought something: a file already inside an
+ # added folder is not one more source.
+ named=named or roots
+ name=named[0].name if len(named)==1 else named[0].name+' + '+str(len(named)-1)+' more'
+ return {'path':str(roots[0]),'paths':[str(root) for root in roots],'name':name,'total':len(files),'limited':limited,'unreadable':len(unreadable),'rows':[{'path':str(path),'name':path.name,'relativePath':label,'resourceId':'local:'+str(path)} for path,label in page]}
 
 # Square tiles, as a library of mixed portrait and landscape media wants: a
 # 3:2 crop of a 9:16 clip is a letterbox of its middle, and the grid read as a

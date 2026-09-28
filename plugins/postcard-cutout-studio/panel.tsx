@@ -114,21 +114,22 @@ const [badgeHover,setBadgeHover]=useState(null);
 const stripAsked=useRef(new Set()),hoverTimer=useRef(0);
 const [folder,setFolder]=useState(null),[folderIds,setFolderIds]=useState([]),[selection,setSelection]=useState([]),[picking,setPicking]=useState(false);
 const folderBusy=useRef(false);
-async function readFolder(path,offset=0,search=''){
+// The folders and files added so far, in the order they were added. The grid
+// lists the media of all of them together.
+const sources=folder?.paths||(folder?.path?[folder.path]:[]);
+async function readFolder(paths,offset=0,search=''){
   setLoading(true);setError('');
   try{
-    const result=await helper(sdk,'folder-media',{path,offset,query:search});guard(context.projectId);
+    const result=await helper(sdk,'folder-media',{paths,offset,query:search});guard(context.projectId);
     setRows(old=>{const byPath=new Map(old.map(row=>[row.path,row]));return [...byPath.values(),...result.rows.filter(row=>!byPath.has(row.path))]});
     setFolderIds(result.rows.map(row=>rows.find(old=>old.path===row.path)?.resourceId||row.resourceId));
     setFolder(result);setPage(offset/24);
   }catch(e){setError('Could not open this folder.');setStatus(String(e.message||e));}
   finally{setLoading(false);}
 }
-// A new folder is a fresh start. Picks used to carry over when the folder
-// changed, and the grid then showed only the new folder while the count still
-// held clips from the old one — selections nobody could see or undo. A
-// finished postcard is let go too (its Draft stays in the project); the title
-// stays.
+// Starting over is a fresh start. A finished postcard is let go too (its Draft
+// stays in the project); the title stays. Adding media is not: the grid keeps
+// every source added, so the picks already made stay in view.
 function clearPicks(){
   setSelection([]);setCustomize(false);
   setS(old=>({...old,subjectId:'',subjectStartSec:0,bgIds:[],photoIds:[]}));
@@ -147,25 +148,45 @@ async function abandonRun(){
   setRun(null);setError('');setStatus('');setQuery('');setPage(0);
   setFolder(null);setFolderIds([]);clearPicks();
 }
+// Adds to what is already listed; the picks made so far are kept.
+async function addSources(paths){
+  const next=[...new Set([...sources,...paths])];
+  if(next.length===sources.length)return;
+  setQuery('');await readFolder(next);
+}
+// The app's media picker takes several folders and files at once. Binaries
+// without it (or that refuse it) fall back to the one-folder picker.
+async function pickSources(picker){
+  if(typeof picker?.pickMediaFiles==='function'){
+    try{const picked=await picker.pickMediaFiles();return picked?(picked.entries||[]).map(entry=>entry.path).filter(Boolean):[];}
+    catch(e){if(typeof picker?.pickDirectoryPath!=='function')throw e;}
+  }
+  if(typeof picker?.pickDirectoryPath!=='function'||(typeof picker.isAvailablePickDirectoryPath==='function'&&!picker.isAvailablePickDirectoryPath()))throw Error('This app version does not support choosing folders. Drop a folder here, or update Selects.');
+  const path=await picker.pickDirectoryPath();
+  return path?[path]:[];
+}
 async function chooseFolder(){
   if(folderBusy.current||busyRef.current||locked)return;
   folderBusy.current=true;setPicking(true);setError('');
   try{
-    const picker=window.parent?.__DI__?.CutbackMediaPicker;
-    if(typeof picker?.pickDirectoryPath!=='function'||(typeof picker.isAvailablePickDirectoryPath==='function'&&!picker.isAvailablePickDirectoryPath()))throw Error('This app version does not support choosing folders. Drop a folder here, or update Selects.');
-    const path=await picker.pickDirectoryPath();guard(context.projectId);
-    if(path){setQuery('');await readFolder(path);}
-  }catch(e){setError('Could not choose a folder.');setStatus(String(e.message||e));}
+    const paths=await pickSources(window.parent?.__DI__?.CutbackMediaPicker);guard(context.projectId);
+    if(paths.length)await addSources(paths);
+  }catch(e){setError('Could not add that media.');setStatus(String(e.message||e));}
   finally{folderBusy.current=false;setPicking(false);}
 }
 async function dropFolder(event){
   event.preventDefault();
   if(folderBusy.current||busyRef.current||locked)return;
-  const files=event.dataTransfer.files;
-  if(files.length!==1){setError('Drop one folder at a time. Your selections will be kept.');return;}
+  const files=[...event.dataTransfer.files];
+  if(!files.length)return;
   folderBusy.current=true;setPicking(true);setError('');
-  try{const path=await droppedFolderPath(files[0]);guard(context.projectId);if(!path)throw Error('Drop a folder saved on this computer.');setQuery('');clearPicks();await readFolder(path);}
-  catch(e){setError('Could not open the dropped folder.');setStatus(String(e.message||e));}
+  try{
+    const paths=[];
+    for(const file of files){const path=await droppedFolderPath(file);guard(context.projectId);if(path)paths.push(path);}
+    if(!paths.length)throw Error('Drop folders or files saved on this computer.');
+    await addSources(paths);
+  }
+  catch(e){setError('Could not add the dropped media.');setStatus(String(e.message||e));}
   finally{folderBusy.current=false;setPicking(false);}
 }
 
@@ -540,8 +561,8 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
   {!folder&&selection.length===0&&!active&&!hasDraft?<div onDragOver={event=>event.preventDefault()} onDrop={dropFolder} style={{...pane,padding:GAP_LG+' '+GAP_LG,textAlign:'center',display:'grid',gap:GAP_LG}}>
     <div style={{display:'flex',justifyContent:'center'}}><ui.Icon name="folder" size={16}/></div>
     <strong>Start with a folder of memories.</strong>
-    <p style={{...muted,margin:0}}>Drop a folder here, or choose one below.<br/>Nothing is imported until you create.</p>
-    <ui.Actions><ui.Button variant="primary" disabled={picking||loading} onClick={chooseFolder}>Choose Folder</ui.Button></ui.Actions>
+    <p style={{...muted,margin:0}}>Drop folders or files here, or choose them below. You can add more later.<br/>Nothing is imported until you create.</p>
+    <ui.Actions><ui.Button variant="primary" disabled={picking||loading} onClick={chooseFolder}>Choose Media</ui.Button></ui.Actions>
   </div>:cardView?<>
     {/* What was made, and the two things to do with it. The screen this
         replaced showed the setup form again, so finishing a postcard looked
@@ -557,13 +578,13 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
     </div>
   </>:<>
     <div onDragOver={event=>event.preventDefault()} onDrop={dropFolder} style={{marginBottom:GAP_LG}}>
-      <ui.Row><strong style={{minWidth:0,overflowWrap:'anywhere'}}>{folder?.name||'Your media'}</strong><ui.Button variant="ghost" disabled={locked||picking} onClick={startOver}>Start over</ui.Button></ui.Row>
-      <p style={{...muted,margin:GAP+' 0 0'}}>Click to select. The ★ is your subject — click a number to change it.</p>
+      <ui.Row><strong title={sources.join('\n')} style={{minWidth:0,overflowWrap:'anywhere'}}>{folder?.name||'Your media'}</strong><span style={{display:'flex',gap:GAP,marginLeft:'auto'}}><ui.Button variant="ghost" disabled={locked||picking||loading} onClick={chooseFolder}>Add Media</ui.Button><ui.Button variant="ghost" disabled={locked||picking} onClick={startOver}>Start over</ui.Button></span></ui.Row>
+      <p style={{...muted,margin:GAP+' 0 0'}}>Click to select. The ★ is your subject — click a number to change it. Drop more folders or files here to add them.</p>
     </div>
     {folder?.limited&&<ui.Message>Showing media from the first 10,000 files. Choose a smaller folder to see more.</ui.Message>}
-    {!!folder?.unreadable&&<ui.Message>Some subfolders could not be read. Check their access permissions.</ui.Message>}
-    {loading?<ui.Progress label="Reading this folder…"/>:<>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(84px,100%),1fr))',gap:GAP}}>
+    {!!folder?.unreadable&&<ui.Message>Some folders or files could not be read. Check their access permissions.</ui.Message>}
+    {loading?<ui.Progress label="Reading your media…"/>:<>
+      <div onDragOver={event=>event.preventDefault()} onDrop={dropFolder} style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(84px,100%),1fr))',gap:GAP}}>
         {shown.map(row=>{
           const selected=selection.includes(row.resourceId),isMain=s.subjectId===row.resourceId;
           // The subject wears the star; the rest count up from 1 in the order picked,
@@ -603,8 +624,8 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
           </div>;
         })}
       </div>
-      {!shown.length&&<ui.Message>No supported videos or photos in this folder. Choose another folder.</ui.Message>}
-      {folder?.total>24&&<ui.Row><ui.Button variant="ghost" disabled={locked||picking||page===0} onClick={()=>readFolder(folder.path,(page-1)*24)}>Previous</ui.Button><small>{page+1} / {Math.ceil(folder.total/24)}</small><ui.Button variant="ghost" disabled={locked||picking||(page+1)*24>=folder.total} onClick={()=>readFolder(folder.path,(page+1)*24)}>Next</ui.Button></ui.Row>}
+      {!shown.length&&<ui.Message>No supported videos or photos here yet. Add more media.</ui.Message>}
+      {folder?.total>24&&<ui.Row><ui.Button variant="ghost" disabled={locked||picking||page===0} onClick={()=>readFolder(sources,(page-1)*24)}>Previous</ui.Button><small>{page+1} / {Math.ceil(folder.total/24)}</small><ui.Button variant="ghost" disabled={locked||picking||(page+1)*24>=folder.total} onClick={()=>readFolder(sources,(page+1)*24)}>Next</ui.Button></ui.Row>}
     </>}
     {selection.some(id=>!folderIds.includes(id))&&<div style={{marginTop:GAP_LG,display:'grid',gap:GAP}}>
       {<details><summary>Selected from other pages or folders</summary>{selection.filter(id=>!folderIds.includes(id)).map(id=><ui.Row key={id}><small style={{minWidth:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{id===s.subjectId?'\u2605 ':''}{byId.get(id)?.name}</small><ui.Button variant="ghost" disabled={locked} onClick={()=>toggleMedia(byId.get(id))}>Remove</ui.Button></ui.Row>)}</details>}
@@ -652,8 +673,11 @@ function droppedFolderPath(file){
   return new Promise((resolve,reject)=>{
     const callId=dropRequestId--;
     const finish=(error,value)=>{clearTimeout(timer);window.removeEventListener('message',answer);error?reject(error):resolve(value);};
-    const answer=event=>{if(event.source===window.parent&&event.data?.type==='panel:sdk-result'&&event.data.callId===callId)finish(event.data.ok?null:Error(event.data.error),event.data.value);};
-    const timer=setTimeout(()=>finish(Error('The app did not resolve the dropped folder. Use Choose Folder instead.')),15000);
+    // The app answers from its editor window. Docked, that is this frame's
+    // parent; undocked, the parent is the Panel's own window and the answer
+    // comes from the editor that opened it.
+    const answer=event=>{if((event.source===window.parent||event.source===window.parent.opener)&&event.data?.type==='panel:sdk-result'&&event.data.callId===callId)finish(event.data.ok?null:Error(event.data.error),event.data.value);};
+    const timer=setTimeout(()=>finish(Error('The app did not resolve the dropped media. Use Choose Media instead.')),15000);
     window.addEventListener('message',answer);
     window.parent.postMessage({type:'panel:file-path',callId,file},'*');
   });

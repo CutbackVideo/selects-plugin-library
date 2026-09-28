@@ -12,7 +12,9 @@ an existing Draft.
 ## Using the Panel
 
 1. Open a Project, then open **Postcard Cutout Studio** from the Plugin list.
-2. **Choose Folder** (or drop a folder). Nothing is imported until you create.
+2. **Choose Media**: pick one or more folders or files (or drop them). **Add Media**,
+   or dropping more onto the grid, adds further sources and keeps your picks.
+   Nothing is imported until you create.
 3. Click tiles to select, in order. The first video picked is the subject (★);
    click another tile's number to make it the subject instead. With both videos
    and photos picked, the other videos become background panels, left to right
@@ -24,7 +26,7 @@ an existing Draft.
    or Fit entire video), font, colours and **All caps** (on by default).
 5. **Create**. The Draft is named after the title; if that name is taken it becomes
    `Title (1)`, `Title (2)`, and so on. After changing settings the button reads
-   **Rebuild**; with nothing changed it reads **Open**. **Start over** picks a new folder.
+   **Rebuild**; with nothing changed it reads **Open**. **Start over** clears the media and picks.
 
 Cloud background removal may use credits. A verified cutout is reused for the same
 source and range, so rebuilding with new settings does not pay for it again.
