@@ -13,6 +13,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Ali Abdaal Style](plugins/ali-abdaal-style) | Experimental |
 | [DOAC Style](plugins/doac-style) | Experimental |
 | [a16z Style Captions](plugins/a16z-style-captions) — blur-to-sharp editorial captions | Experimental |
+| [Depth Type Captions](plugins/depth-type-captions) — typography that wraps around the speaker | Experimental |
 | [Tetris](plugins/tetris) | Experimental |
 | [Vlog Edit](plugins/vlog-edit) | Experimental |
 | [Podcast Hook Captions](plugins/podcast-hook-captions) — yellow word-pop captions and kinetic hook titles for podcast shorts | Experimental |
