@@ -48,6 +48,10 @@
       "name": "Vlog オープニング",
       "summary": "開いているプロジェクトの解析済み素材から、3 つのスタイルのいずれかで 12〜22 秒の Vlog オープニングを新しい Draft として作成します。"
     },
+    "ko": {
+      "name": "\ube0c\uc774\ub85c\uadf8 \uc624\ud504\ub2dd",
+      "summary": "\uc5f4\ub9b0 \ud504\ub85c\uc81d\ud2b8\uc758 \ubd84\uc11d\ub41c \uc18c\uc7ac\ub85c \uc138 \uac00\uc9c0 \uc2a4\ud0c0\uc77c \uc911 \ud558\ub098\ub97c \uace8\ub77c 12~22\ucd08 \uae38\uc774\uc758 \ube0c\uc774\ub85c\uadf8 \uc624\ud504\ub2dd\uc744 \uc0c8 \ucd08\uc548\uc73c\ub85c \ub9cc\ub4ed\ub2c8\ub2e4."
+    },
     "pt": {
       "name": "Abertura de vlog",
       "summary": "Cria uma abertura de vlog de 12 a 22 segundos como novo Draft, em um de tres estilos, a partir do material analisado do projeto aberto."

@@ -38,6 +38,10 @@
       "name": "Vlog 編集",
       "summary": "映像と解析できない大量の写真からなる実際のアーカイブから Vlog を構成します。素材の全体把握、物語の構成、生成した音声ナレーションと音楽による写真ブロック、無音の整理、ディゾルブ、編集可能なタイトルまでを扱います。"
     },
+    "ko": {
+      "name": "\ube0c\uc774\ub85c\uadf8 \ud3b8\uc9d1",
+      "summary": "\uc601\uc0c1\uacfc \ubd84\uc11d\ud560 \uc218 \uc5c6\ub294 \ub300\ub7c9\uc758 \uc0ac\uc9c4\uc73c\ub85c \uc774\ub8e8\uc5b4\uc9c4 \uc2e4\uc81c \uc544\uce74\uc774\ube0c\ub85c \ube0c\uc774\ub85c\uadf8\ub97c \uad6c\uc131\ud569\ub2c8\ub2e4. \uc18c\uc7ac \ud30c\uc545, \uc2a4\ud1a0\ub9ac \uad6c\uc131, \uc0dd\uc131\ud55c \ub0b4\ub808\uc774\uc158\uacfc \uc74c\uc545\uc744 \uc785\ud78c \uc0ac\uc9c4 B-roll \ube14\ub85d, \ubb34\uc74c \uad6c\uac04 \uc815\ub9ac, \ub514\uc878\ube0c\uc640 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc81c\ubaa9\uae4c\uc9c0 \ub2e4\ub8f9\ub2c8\ub2e4."
+    },
     "pt": {
       "name": "Montagem de vlog",
       "summary": "Monta um vlog a partir de um arquivo real de video e muitas fotos nao analisaveis: levantamento do material, estrutura narrativa, blocos de fotos com locucao e musica geradas, corte de silencios, dissolucoes e titulos editaveis."

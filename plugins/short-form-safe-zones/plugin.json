@@ -45,6 +45,10 @@
       "name": "ショート動画セーフゾーン",
       "summary": "TikTok、Reels、Shorts、Stories、LinkedInのセーフゾーンと構図グリッドを、プレビュー内の削除可能なクリップとして重ねて表示します。"
     },
+    "ko": {
+      "name": "\uc20f\ud3fc \uc138\uc774\ud504 \uc874",
+      "summary": "TikTok, Reels, Shorts, Stories, LinkedIn\uc758 \uc138\uc774\ud504 \uc874 \uac00\uc774\ub4dc\uc640 \uad6c\ub3c4 \uadf8\ub9ac\ub4dc\ub97c \ucd08\uc548 \ubbf8\ub9ac\ubcf4\uae30\uc5d0 \uc0ad\uc81c \uac00\ub2a5\ud55c \ud074\ub9bd\uc73c\ub85c \uacb9\uccd0 \ud45c\uc2dc\ud569\ub2c8\ub2e4."
+    },
     "pt": {
       "name": "Zonas Seguras para Vídeos Curtos",
       "summary": "Sobrepõe guias de zonas seguras e grades de composição do TikTok, Reels, Shorts, Stories e LinkedIn como um clipe removível na pré-visualização."
