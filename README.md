@@ -12,6 +12,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [iMessage Generator](plugins/imessage-generator) | Experimental |
 | [Ali Abdaal Style](plugins/ali-abdaal-style) | Experimental |
 | [DOAC Style](plugins/doac-style) | Experimental |
+| [a16z Style Captions](plugins/a16z-style-captions) — blur-to-sharp editorial captions | Experimental |
 | [Tetris](plugins/tetris) | Experimental |
 | [Vlog Edit](plugins/vlog-edit) | Experimental |
 
