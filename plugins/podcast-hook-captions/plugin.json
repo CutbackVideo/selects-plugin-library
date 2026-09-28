@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "podcast-hook-captions",
+  "version": "0.1.0",
+  "name": "Podcast Hook Captions",
+  "summary": "Turn a podcast Draft into an editable short-form reel: yellow word-pop captions, kinetic hook titles, a warm punch-in look, optional B-roll and synced sound effects.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx",
+    "person-cutout.swift",
+    "fonts/SixCaps-Regular.woff2.b64",
+    "fonts/OFL-SixCaps.txt",
+    ".gitignore"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Tested in a Selects build on macOS 26 arm64 (2026-09). Requires Panel runScript/runShell, Draft authoring and frame capture, Node.js 18+ on PATH, and Xcode Command Line Tools for the optional segmentation helper. Other builds and Intel Macs are unverified."
+  },
+  "localized": {
+    "de": {
+      "name": "Podcast-Hook-Untertitel",
+      "summary": "Macht aus einem Podcast-Draft einen bearbeitbaren Kurzclip: gelbe Wort-f\u00fcr-Wort-Untertitel, kinetische Hook-Titel, ein warmer Punch-in-Look, optionale B-Roll und synchrone Soundeffekte."
+    },
+    "en": {
+      "name": "Podcast Hook Captions",
+      "summary": "Turn a podcast Draft into an editable short-form reel: yellow word-pop captions, kinetic hook titles, a warm punch-in look, optional B-roll and synced sound effects."
+    },
+    "es": {
+      "name": "Subt\u00edtulos gancho para p\u00f3dcast",
+      "summary": "Convierte un Draft de p\u00f3dcast en un clip corto editable: subt\u00edtulos amarillos palabra a palabra, t\u00edtulos gancho cin\u00e9ticos, un look c\u00e1lido con zoom, B-roll opcional y efectos de sonido sincronizados."
+    },
+    "fr": {
+      "name": "Sous-titres accroche podcast",
+      "summary": "Transforme un Draft de podcast en clip court modifiable : sous-titres jaunes mot \u00e0 mot, titres d'accroche anim\u00e9s, un look chaud avec zooms, B-roll en option et effets sonores synchronis\u00e9s."
+    },
+    "it": {
+      "name": "Sottotitoli hook per podcast",
+      "summary": "Trasforma un Draft di podcast in un clip breve modificabile: sottotitoli gialli parola per parola, titoli hook cinetici, un look caldo con zoom, B-roll opzionale ed effetti sonori sincronizzati."
+    },
+    "ja": {
+      "name": "\u30dd\u30c3\u30c9\u30ad\u30e3\u30b9\u30c8\u30fb\u30d5\u30c3\u30af\u5b57\u5e55",
+      "summary": "\u30dd\u30c3\u30c9\u30ad\u30e3\u30b9\u30c8\u306eDraft\u3092\u7de8\u96c6\u53ef\u80fd\u306a\u30b7\u30e7\u30fc\u30c8\u52d5\u753b\u306b\u4ed5\u4e0a\u3052\u307e\u3059\u3002\u5358\u8a9e\u3054\u3068\u306b\u5f3e\u3080\u9ec4\u8272\u306e\u5b57\u5e55\u3001\u52d5\u304d\u306e\u3042\u308b\u30d5\u30c3\u30af\u30bf\u30a4\u30c8\u30eb\u3001\u6696\u8272\u306e\u30d1\u30f3\u30c1\u30a4\u30f3\u30eb\u30c3\u30af\u3001\u4efb\u610f\u306eB\u30ed\u30fc\u30eb\u3001\u540c\u671f\u3057\u305f\u52b9\u679c\u97f3\u304c\u5165\u308a\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "\ud31f\uce90\uc2a4\ud2b8 \ud6c5 \uc790\ub9c9",
+      "summary": "\ud31f\uce90\uc2a4\ud2b8 Draft\ub97c \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc20f\ud3fc \ub9b4\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. \ub2e8\uc5b4\ub9c8\ub2e4 \ud280\uc5b4\ub098\uc624\ub294 \ub178\ub780 \uc790\ub9c9, \uc6c0\uc9c1\uc774\ub294 \ud6c5 \ud0c0\uc774\ud2c0, \ub530\ub73b\ud55c \ud380\uce58\uc778 \ub8e9, \uc120\ud0dd\ud615 B\ub864, \uc2f1\ud06c\ub41c \ud6a8\uacfc\uc74c\uc774 \ub4e4\uc5b4\uac11\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Legendas de gancho para podcast",
+      "summary": "Transforma um Draft de podcast num clipe curto edit\u00e1vel: legendas amarelas palavra a palavra, t\u00edtulos de gancho cin\u00e9ticos, um visual quente com zoom, B-roll opcional e efeitos sonoros sincronizados."
+    },
+    "tr": {
+      "name": "Podcast Kanca Altyaz\u0131lar\u0131",
+      "summary": "Bir podcast Draft'\u0131n\u0131 d\u00fczenlenebilir k\u0131sa videoya d\u00f6n\u00fc\u015ft\u00fcr\u00fcr: kelime kelime beliren sar\u0131 altyaz\u0131lar, hareketli kanca ba\u015fl\u0131klar\u0131, s\u0131cak yak\u0131nla\u015ft\u0131rma g\u00f6r\u00fcn\u00fcm\u00fc, iste\u011fe ba\u011fl\u0131 B-roll ve senkron ses efektleri."
+    },
+    "zh": {
+      "name": "\u64ad\u5ba2\u94a9\u5b50\u5b57\u5e55",
+      "summary": "\u628a\u64ad\u5ba2 Draft \u505a\u6210\u53ef\u7f16\u8f91\u7684\u77ed\u89c6\u9891\uff1a\u9010\u8bcd\u5f39\u51fa\u7684\u9ec4\u8272\u5b57\u5e55\u3001\u52a8\u6001\u94a9\u5b50\u6807\u9898\u3001\u6696\u8272\u63a8\u8fd1\u6548\u679c\u3001\u53ef\u9009 B-roll\uff0c\u4ee5\u53ca\u540c\u6b65\u7684\u97f3\u6548\u3002"
+    }
+  }
+}

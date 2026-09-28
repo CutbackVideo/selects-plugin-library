@@ -15,6 +15,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [a16z Style Captions](plugins/a16z-style-captions) — blur-to-sharp editorial captions | Experimental |
 | [Tetris](plugins/tetris) | Experimental |
 | [Vlog Edit](plugins/vlog-edit) | Experimental |
+| [Podcast Hook Captions](plugins/podcast-hook-captions) — yellow word-pop captions and kinetic hook titles for podcast shorts | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 
