@@ -74,6 +74,11 @@ for (const b of ['night', 'red', 'kraft', 'photo']) assert.equal(N({ backdrop: b
 assert.equal(N({ backdrop: 'photo', allowPhotoBackdrop: false }).allowPhotoBackdrop, false);
 assert.equal(N({ backdropColor: '#AA1122' }).backdropColor, '#aa1122');
 assert.equal(N({ backdropColor: 'red; x' }).backdropColor, null);
+assert.equal(N({ backdropColor: '#AA1122FF' }).backdropColor, '#aa1122', '#rrggbbaa: alpha dropped (the backdrop is opaque)');
+assert.equal(N({ backdropColor: '#a12f' }).backdropColor, '#a12', '#rgba: alpha dropped');
+assert.equal(N({ backdropColor: '#a12' }).backdropColor, '#a12');
+assert.equal(N({ backdropColor: '#aa11223' }).backdropColor, null, '7 hex digits');
+assert.equal(N({ backdropColor: '#aa11' + '22334' }).backdropColor, null, '9 hex digits');
 assert.equal(N({ clock: 'source', originFrame: 90 }).clock, 'source');
 assert.equal(N({ clock: 'nope' }).clock, 'clip');
 assert.equal(N({ motion: 'spin' }).motion, 'off');
