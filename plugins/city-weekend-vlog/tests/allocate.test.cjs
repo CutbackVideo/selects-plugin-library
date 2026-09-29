@@ -158,11 +158,31 @@ assert.equal(p14.picks.length, 14);
 // Duplicate photo rids count once.
 assert.equal(j(P.cwvPlanBuild({ candidates: photoSet(15).concat(photoSet(15)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' })).ok, false);
 
-// Plenty of real hits: photos are never needed.
-const richPhotos = j(P.cwvPlanBuild({ candidates: rich.concat(photoSet(10)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
+// Photo share: even with plenty of real hits, about a third of the slots are photos, spread out (never two in a row
+// here), title slots included for some seeds, deterministic per seed.
+assert.ok(a.picks.every(p => p.kind === 'video'));
+let titlePhotos = 0;
+for (const seed of ['s1', 's2', 's3', 's4', 's5', 's6']) for (const burst of ['sixteenth', 'eighth']) {
+  const rp = j(P.cwvPlanBuild({ candidates: rich.concat(photoSet(10)), bpm: 99.2, fps: 30, montageShots: 7, seed, burst }));
+  assert.equal(rp.photoShots, Math.round(rp.picks.length / 3), 'a third of ' + rp.picks.length + ' slots');
+  assert.equal(maxRun(rp.picks), 1, 'photo slots are spread out');
+  onceEach(rp.picks);
+  assert.deepEqual(j(P.cwvPlanBuild({ candidates: rich.concat(photoSet(10)), bpm: 99.2, fps: 30, montageShots: 7, seed, burst })), rp, 'deterministic');
+  titlePhotos += rp.picks.slice(0, rp.titleSlots).filter(p => p.kind === 'photo').length;
+}
+assert.ok(titlePhotos > 0, 'photos also land in the title');
+// Fewer photos than the share: every photo is used, no more.
+assert.equal(j(P.cwvPlanBuild({ candidates: rich.concat(photoSet(3)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' })).photoShots, 3);
+// photoShare 0 turns photo slots off: plenty of real hits then need no photo, and unused photos change nothing.
+const richPhotos = j(P.cwvPlanBuild({ candidates: rich.concat(photoSet(10)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1', photoShare: 0 }));
 assert.equal(richPhotos.photoShots, 0);
 assert.deepEqual(richPhotos.picks, a.picks, 'unused photos change nothing');
-assert.ok(a.picks.every(p => p.kind === 'video'));
+// The live mix: 4 videos and 22 photos (nature test Project) gets at least a third photos at every length.
+for (const n of [4, 7, 12]) {
+  const nat = j(P.cwvPlanBuild({ candidates: collapsed.concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: n, seed: '1', burst: 'eighth' }));
+  assert.ok(nat.photoShots >= Math.round(nat.picks.length / 3), 'nature mix ' + n + ': ' + nat.photoShots + ' of ' + nat.picks.length);
+  assert.ok(maxRun(nat.picks) <= 2);
+}
 
 // Tier order on single slots.
 const hit = (rid, role, extra) => ({ rid, role, t: 5, score: 0.5, sourceDuration: 30, ...extra });
@@ -186,8 +206,7 @@ for (const seed of ['s1', 's2', 's3']) for (const n of [4, 7, 12]) {
   const mix = j(P.cwvPlanBuild({ candidates: collapsed.concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: n, seed }));
   assert.equal(mix.ok, true);
   assert.equal(mix.montageShots, n);
-  if (base.fillerShots > 0) assert.ok(mix.photoShots > 0, 'photos are used when real hits run out');
-  else assert.equal(mix.photoShots, 0, 'enough real hits: no photos');
+  assert.ok(mix.photoShots >= Math.round(mix.picks.length / 3), 'at least the photo share');
   assert.ok(mix.fillerShots <= base.fillerShots, 'photos replace fillers first');
   assert.ok(maxRun(mix.picks) <= 2, 'never more than two photos in a row (' + seed + ', ' + n + ')');
   assert.equal(mix.photoRunRelaxed, undefined);
@@ -195,9 +214,10 @@ for (const seed of ['s1', 's2', 's3']) for (const n of [4, 7, 12]) {
   assert.equal(mix.picks.filter(p => p.kind === 'photo').length, mix.photoShots);
   assert.deepEqual(j(P.cwvPlanBuild({ candidates: collapsed.concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: n, seed })), mix, 'deterministic');
 }
-// The burst encourages photos: with street-only footage the landmark burst (slots 3-10) has no preferred hit, so
-// photos take it ahead of the street hits, two at a time; outside the burst street hits keep their place.
-const mixBurst = j(P.cwvPlanBuild({ candidates: rich.filter(x => x.role === 'street').concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
+// The burst encourages photos beyond the share: with street-only footage the landmark burst (slots 3-10) has no
+// preferred hit, so photos take it ahead of the street hits, two at a time; outside the burst street hits keep their
+// place (shown without photo slots).
+const mixBurst = j(P.cwvPlanBuild({ candidates: rich.filter(x => x.role === 'street').concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1', photoShare: 0 }));
 assert.equal(mixBurst.ok, true);
 assert.equal(mixBurst.picks.slice(3, 11).map(p => (p.kind === 'photo' ? 'P' : 'v')).join(''), 'PPvPPvPP');
 assert.ok(maxRun(mixBurst.picks) <= 2);

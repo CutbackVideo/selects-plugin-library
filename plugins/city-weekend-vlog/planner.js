@@ -35,10 +35,13 @@ const CWV_FILLER_SCORE = -2;
 // offset can lengthen a shot by a frame after planning.
 const CWV_SOURCE_TAIL = 0.05;
 // Photos (Image resources) have no scene search. Each one fills at most one slot of any length up to the 5 s an
-// image source lasts. They rank after every real video hit and before fillers, except in the title burst, where
-// they rank right after the preferred roles. At most CWV_PHOTO_RUN_MAX photos play in a row while anything else fits.
+// image source lasts. About CWV_PHOTO_SHARE of the slots, evenly spread from a seeded offset (title included), are
+// photo slots where an unused photo comes first. Elsewhere photos rank after every real video hit and before
+// fillers, except in the title burst, where they rank right after the preferred roles. At most CWV_PHOTO_RUN_MAX
+// photos play in a row while anything else fits.
 const CWV_PHOTO_HOLD_MAX = 5;
 const CWV_PHOTO_RUN_MAX = 2;
+const CWV_PHOTO_SHARE = 1 / 3;
 
 function cwvVideoBeats(montageShots) { return CWV_TITLE_TOTAL_BEATS + CWV_MONTAGE_BEATS * montageShots; }
 function cwvVideoSeconds(bpm, montageShots) { return cwvVideoBeats(montageShots) * 60 / bpm; }
@@ -184,6 +187,14 @@ function cwvAllocate(opts) {
   const used = {}, recent = [], picks = [], photoUsed = {};
   const pool = candidates.filter(c => c.sourceDuration > 0);
   let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, photoRunRelaxed = false, adjacentRepeats = 0, prevRid = null;
+  // Photo slots: round(share x slots) of the slots a photo can hold, capped by the photos available, spaced evenly.
+  // opts.photoShare overrides CWV_PHOTO_SHARE (0 turns photo slots off).
+  const photoSlots = {};
+  const holdable = opts.slots.filter(sl => sl.seconds <= CWV_PHOTO_HOLD_MAX + 1e-9);
+  const share = opts.photoShare == null ? CWV_PHOTO_SHARE : opts.photoShare;
+  const target = Math.min(photos.length, holdable.length, Math.round(opts.slots.length * share));
+  const phase = cwvHash(opts.seed + ':photo-slots');
+  for (let k = 0; k < target; k++) photoSlots[holdable[Math.floor((k + phase) * holdable.length / target)].index] = true;
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
   // `exclude` is a rid that may not be used (the previous shot's source).
   function searchVideo(slot, rankOf, exclude) {
@@ -222,9 +233,11 @@ function cwvAllocate(opts) {
       const preferred = () => searchVideo(slot, c => roles.indexOf(c.role), exclude);
       const anyReal = () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude);
       const filler = () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1), exclude);
-      // Tiers, best first: preferred-role hits, any-role hits, photos, fillers. The title burst lifts photos above the
-      // any-role tier. After CWV_PHOTO_RUN_MAX photos in a row, a photo is only the last resort.
-      const tiers = slot.section === 'burst' ? [preferred, photo, anyReal, filler] : [preferred, anyReal, photo, filler];
+      // Tiers, best first: preferred-role hits, any-role hits, photos, fillers. A photo slot puts photos first; the
+      // title burst lifts them above the any-role tier. After CWV_PHOTO_RUN_MAX photos in a row, a photo is only the
+      // last resort.
+      const tiers = photoSlots[slot.index] ? [photo, preferred, anyReal, filler]
+        : slot.section === 'burst' ? [preferred, photo, anyReal, filler] : [preferred, anyReal, photo, filler];
       for (const tier of tiers) {
         if (runFull && tier === photo) continue;
         const b = tier();
@@ -257,7 +270,8 @@ function cwvAllocate(opts) {
 }
 
 // Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
-// opts.burst picks the title variant and opts.sectionStart shifts the cuts with the music (see cwvSchedule).
+// opts.burst picks the title variant and opts.sectionStart shifts the cuts with the music (see cwvSchedule);
+// opts.photoShare overrides CWV_PHOTO_SHARE.
 // Filler candidates are added to every attempt.
 // Photo candidates ({ rid, kind: 'photo' }) join every attempt, so a Project with only photos builds too.
 function cwvPlanBuild(opts) {
@@ -268,7 +282,7 @@ function cwvPlanBuild(opts) {
   for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
     const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n, burst, sectionStart: opts.sectionStart });
     const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, section: s.section, seconds: (s.endFrame - s.startFrame) / opts.fps }));
-    const alloc = cwvAllocate({ candidates, slots, seed: opts.seed });
+    const alloc = cwvAllocate({ candidates, slots, seed: opts.seed, photoShare: opts.photoShare });
     if (alloc.missing === 0) {
       const plan = { ok: true, schedule, burst, titleSlots: schedule.titleSlots, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
       if (alloc.photoRunRelaxed) plan.photoRunRelaxed = true;
