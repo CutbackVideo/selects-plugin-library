@@ -9,7 +9,8 @@ if [ ! -x "$PY/python" ]; then
   python3 -m venv "$TMPDIR/cwv-fonts"
   "$PY/pip" install -q fonttools brotli
 fi
-OUT="$(cd "$(dirname "$0")/.." && pwd)/assets/fonts"
+DEV="$(cd "$(dirname "$0")" && pwd)"
+OUT="$DEV/../assets/fonts"
 WORK="$TMPDIR/cwv-fonts-src"; mkdir -p "$OUT/licenses" "$WORK"
 RAW=https://raw.githubusercontent.com/google/fonts/main
 UNI="U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD"
@@ -39,12 +40,15 @@ FONTS=(
 for row in "${FONTS[@]}"; do
   IFS='|' read -r name src axis <<<"$row"
   curl -sfL "$RAW/$src" -o "$WORK/$name.ttf"
+  # Each OFL family ships its own OFL.txt (it carries that family's copyright notice).
+  case "$src" in ofl/*) dir="${src#ofl/}"; dir="${dir%%/*}"; curl -sfL "$RAW/ofl/$dir/OFL.txt" -o "$OUT/licenses/$dir-OFL.txt";; esac
   if [ "$axis" != "-" ]; then "$PY/fonttools" varLib.instancer "$WORK/$name.ttf" "$axis" -o "$WORK/$name.static.ttf" -q; mv "$WORK/$name.static.ttf" "$WORK/$name.ttf"; fi
   # Default layout features (not '*') and no hinting keep subsets under the size guard; Caveat also drops calt, whose alternates alone exceed it.
   EXTRA=(); if [ "$name" = "caveat" ]; then EXTRA=(--layout-features-=calt); fi
   "$PY/pyftsubset" "$WORK/$name.ttf" --unicodes="$UNI" --flavor=woff2 --no-hinting --desubroutinize ${EXTRA[@]+"${EXTRA[@]}"} --output-file="$WORK/$name.woff2"
+  # Subsets are OFL Modified Versions: rename them to the CWV family so no Reserved Font Name is kept.
+  "$PY/python" "$DEV/rename-font.py" "$WORK/$name.woff2" "$OUT/presets.json" "$name.woff2.b64"
   base64 -i "$WORK/$name.woff2" | tr -d '\n' > "$OUT/$name.woff2.b64"
 done
-curl -sfL "$RAW/ofl/instrumentserif/OFL.txt" -o "$OUT/licenses/OFL.txt"
 curl -sfL "$RAW/apache/yellowtail/LICENSE.txt" -o "$OUT/licenses/Apache-2.0.txt"
 echo "fonts written to $OUT"
