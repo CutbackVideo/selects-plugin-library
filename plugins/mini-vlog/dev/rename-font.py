@@ -8,15 +8,19 @@ ascent (tallest of b d h k l) and descent (lowest of g p q y), the centre and
 half height of the i/j dots and the advance width of every mapped character, all in font units.
 The title layout measures text from these tables, so Node tests and the panel
 lay the title out exactly like the rendered graphic (kerning is ignored).
-Usage: rename-font.py <font.woff2> <presets.json> <file name in presets>
+Any other name record that still contains a Reserved Font Name declared in the
+licence (quoted after "Reserved Font Name") is dropped; the copyright notice
+(ID 0) is kept as OFL requires. Fails if the new family name uses an RFN.
+Usage: rename-font.py <font.woff2> <presets.json> <file name in presets> <OFL.txt>
 """
 import json
+import re
 import sys
 
 from fontTools.pens.boundsPen import BoundsPen
 from fontTools.ttLib import TTFont
 
-font_path, presets_path, file_name = sys.argv[1:4]
+font_path, presets_path, file_name, licence_path = sys.argv[1:5]
 with open(presets_path, encoding='utf-8') as fh:
     doc = json.load(fh)
 families = {f['family'] for p in doc['presets'] for f in p['fonts'] if f['file'] == file_name}
@@ -45,6 +49,17 @@ if name.getName(17, 3, 1, 0x409) is not None or name.getName(17, 1, 0, 0) is not
 for name_id, value in values.items():
     name.removeNames(nameID=name_id)
     name.setName(value, name_id, 3, 1, 0x409)
+
+# Reserved Font Names: the quoted names after "Reserved Font Name(s)" in the copyright lines.
+with open(licence_path, encoding='utf-8') as fh:
+    header = fh.read().split('This Font Software is licensed')[0]
+rfns = []
+for m in re.finditer(r"Reserved Font Names?\s*((?:[,\s]*(?:and\s+)?['\"\u2018\u201c][^'\"\u2019\u201d]+['\"\u2019\u201d])+)", header):
+    rfns += re.findall(r"['\"\u2018\u201c]([^'\"\u2019\u201d]+)['\"\u2019\u201d]", m.group(1))
+for rfn in rfns:
+    if rfn.lower() in family.lower() or rfn.lower() in file_name.lower():
+        sys.exit(f'{file_name}: {family} uses the Reserved Font Name {rfn!r}')
+name.names = [r for r in name.names if r.nameID == 0 or not any(rfn.lower() in r.toUnicode().lower() for rfn in rfns)]
 font.save(font_path)
 
 # --- metrics ---------------------------------------------------------------
@@ -102,7 +117,9 @@ doc.setdefault('metrics', {})[family] = {
     'dots': dots,
     'advances': advances,
 }
-doc['metrics'] = dict(sorted(doc['metrics'].items()))
+# Drop metrics of families no preset uses any more (e.g. after a rename).
+used = {f['family'] for p in doc['presets'] for f in p['fonts']}
+doc['metrics'] = {k: v for k, v in sorted(doc['metrics'].items()) if k in used}
 
 # Presets stay readable (indented); each family's metrics go on one line.
 lines = ['{', '  "version": ' + json.dumps(doc['version']) + ',', '  "presets": ' + json.dumps(doc['presets'], indent=2, ensure_ascii=True).replace('\n', '\n  ') + ',', '  "metrics": {']
@@ -112,4 +129,4 @@ for i, (fam, m) in enumerate(items):
 lines += ['  }', '}']
 with open(presets_path, 'w', encoding='utf-8') as fh:
     fh.write('\n'.join(lines) + '\n')
-print(f'{file_name}: {family}')
+print(f'{file_name}: {family} (reserved: {", ".join(rfns) or "none"})')

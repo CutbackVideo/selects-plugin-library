@@ -18,11 +18,12 @@ WORK="$TMPDIR/mv-fonts-src"; mkdir -p "$OUT/licenses" "$WORK"
 RAW=https://raw.githubusercontent.com/google/fonts/main
 # Latin-1 plus common punctuation; U+0131/U+0237 are the dotless i/j the sparkles sit on.
 UNI="U+0000-00FF,U+0131,U+0152-0153,U+0237,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD"
+# Output names avoid each licence's Reserved Font Name (Quicksand's subset is "MV Rounded Bold").
 # name|source path|variable axis instance or -
 FONTS=(
   "dm-serif-display|ofl/dmserifdisplay/DMSerifDisplay-Regular.ttf|-"
   "dm-serif-display-italic|ofl/dmserifdisplay/DMSerifDisplay-Italic.ttf|-"
-  "quicksand-bold|ofl/quicksand/Quicksand%5Bwght%5D.ttf|wght=700"
+  "mv-rounded-bold|ofl/quicksand/Quicksand%5Bwght%5D.ttf|wght=700"
   "dm-mono|ofl/dmmono/DMMono-Regular.ttf|-"
 )
 for row in "${FONTS[@]}"; do
@@ -35,7 +36,7 @@ for row in "${FONTS[@]}"; do
   "$PY/pyftsubset" "$WORK/$name.ttf" --unicodes="$UNI" --flavor=woff2 --no-hinting --desubroutinize --output-file="$WORK/$name.woff2"
   # Subsets are OFL Modified Versions: rename them to the MV family so no Reserved Font Name
   # is kept, and store the advance widths the title layout measures text with.
-  "$PY/python" "$DEV/rename-font.py" "$WORK/$name.woff2" "$OUT/presets.json" "$name.woff2.b64"
+  "$PY/python" "$DEV/rename-font.py" "$WORK/$name.woff2" "$OUT/presets.json" "$name.woff2.b64" "$OUT/licenses/$dir-OFL.txt"
   base64 -i "$WORK/$name.woff2" | tr -d '\n' > "$OUT/$name.woff2.b64"
 done
 echo "fonts written to $OUT"
