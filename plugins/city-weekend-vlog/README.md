@@ -45,7 +45,8 @@ clips first.
 Progress is shown as five steps: Choosing shots, Preparing music, Creating
 Draft, Adding title and look, and Opening Draft. When the build finishes, the
 new Draft opens and a link to it is shown. **Create another version** makes
-another Draft with a different shot choice.
+another Draft with a different shot choice, reusing the shot search and
+showing the same steps.
 
 ## Music
 
@@ -63,8 +64,8 @@ Choose a **Track**:
 The waveform below the track shows a box as long as the video. Click the
 waveform to move the box and choose where in the track the video starts.
 The box snaps to bars (4 beats), so the cuts stay on the beat. It starts on
-the most energetic section. **Preview this section** plays 6 seconds from the
-box start.
+the most energetic section. **Preview this section** plays the whole
+section; press it again to stop.
 
 **Your own music**: drop an audio file. The plugin listens for the beat and
 uses it when the detected beat grid is reliable. Songs slower than 70 BPM, or
@@ -99,6 +100,18 @@ system fallback font.
 - **Keep original clip sound**: off by default, which mutes the clips'
   location sound.
 - **Warm look**: on by default.
+- **Choose clips**: a checklist of the analysed clips, each with its length
+  and shape (Tall, Wide or Square). All clips are used by default; **All**
+  and **None** select or clear the whole list. A new selection searches its
+  clips again on the next build, and the readiness line shows how many clips
+  are selected. If the selected clips cannot supply 17 usable shots, the
+  build says how many it found.
+
+If your footage cannot fill every montage shot of the chosen length, the
+build uses fewer and says so next to the result: "Your footage fits N montage
+shots, so this video is about X s instead of Y s. Add more clips for the full
+length." After a build, the readiness line also shows how many montage shots
+the footage fits.
 
 With no music and no original sound, the panel warns "Silent video".
 

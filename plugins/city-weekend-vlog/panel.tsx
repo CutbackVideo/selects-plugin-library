@@ -275,6 +275,12 @@ function previewSize(text: string, base: number, scale: number) { return Math.mi
 // Title preview line slots, sized for the largest state scale so the box never changes height while fonts cycle.
 const PREVIEW_BIG = 34, PREVIEW_SMALL = 15, PREVIEW_MAX_SCALE_FLOOR = 1.15;
 
+// A short orientation hint for the clip list; nothing when the frame size is unknown.
+function shapeHint(width: number | null, height: number | null) {
+  if (!(width! > 0) || !(height! > 0)) return "";
+  const r = width! / height!;
+  return r < 0.9 ? "Tall" : r > 1.1 ? "Wide" : "Square";
+}
 function fmtTime(seconds: number) {
   const s = Math.max(0, Math.round(seconds));
   return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
@@ -566,6 +572,7 @@ export default function Panel({ sdk, context, ui }: any) {
   React.useEffect(() => {
     // Drop everything tied to the previous Project so a build never mixes Projects.
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
+    setOnly(null);
     invSigRef.current = null;
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
     if (!projectId) return;
@@ -796,12 +803,25 @@ export default function Panel({ sdk, context, ui }: any) {
       check();
       if (!a.sequenceId) throw new Error("The Draft \"" + name + "\" was saved, but Selects did not report its id, so the title and look could not be added. Open it from the Drafts list, or build again.");
       const sched = cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: plan.montageShots });
+      // The planner drops montage shots when the footage cannot fill them; tell the user the real length at the Draft fps.
+      const shortened = plan.montageShots < fitted ? { shots: plan.montageShots, seconds: sched.totalFrames / a.fps,
+        fullSeconds: cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: fitted }).totalFrames / a.fps } : null;
       advance("draft", 1);
-      setResult({ sequenceId: a.sequenceId, decorated: false, sched, plan, seed: nextSeed, mute: !keepSound, notes: a.notes || [], link: null });
+      setResult({ sequenceId: a.sequenceId, decorated: false, sched, plan, seed: nextSeed, mute: !keepSound, notes: a.notes || [], link: null, shortened });
       await decorate(a.sequenceId, sched, plan, nextSeed, !keepSound, check);
     } catch (e: any) {
       if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) });
     } finally { endRun(pid); }
+  }
+
+  // Another version: same clips and cached scene search, a new seed. The previous result goes first, then the
+  // build shows its steps from the start, like Build.
+  function buildAnother() {
+    if (busyRef.current) return;
+    setResult(null); setStatus(null);
+    const s = seed + 1;
+    setSeed(s);
+    build(s);
   }
 
   async function finishTitle() {
@@ -863,12 +883,35 @@ export default function Panel({ sdk, context, ui }: any) {
     }
   }
 
+  // Clip selection ("Choose clips"): `only` holds rids in inventory order, or null for every clip.
+  const allRids: string[] = inventory ? inventory.resources.map((r: any) => r.rid) : [];
+  const selectedRids = only ? allRids.filter((rid) => only.includes(rid)) : allRids;
+  const chooseClips = (next: string[]) => {
+    if (busyRef.current) return;
+    const keep = new Set(next);
+    const ordered = allRids.filter((rid) => keep.has(rid));
+    setOnly(ordered.length === allRids.length ? null : ordered);
+    // A new selection needs a new scene search.
+    setCandidates(null);
+  };
+  const toggleClip = (rid: string, on: boolean) => chooseClips(on ? [...selectedRids, rid] : selectedRids.filter((x) => x !== rid));
+  // Once a build has searched the current selection, the footage's montage capacity is known: plan it for the readiness line.
+  const candKey = projectId + "|" + JSON.stringify(only);
+  const fitsShots = React.useMemo(() => {
+    if (!candidates || candidates.key !== candKey || !(grid.bpm > 0)) return null;
+    const p = cwvPlanBuild({ candidates: candidates.list, bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed) });
+    return p.ok ? p.montageShots : null;
+  }, [candidates, candKey, grid.bpm, requested, seed]);
   const pending = inventory?.skipped?.unanalysed || 0;
+  const clipCount = only ? selectedRids.length + " of " + allRids.length + " clips selected" : allRids.length + " analysed clips";
   const readiness = !inventory ? (invError ? "Could not read the clips in this Project: " + invError : "Checking clips…")
     : inventory.resources.length === 0 ? (pending > 0
       ? pending + " clips are still being analysed. This updates automatically when they finish."
       : "No analysed video in this Project yet. Add and analyse video clips; this updates automatically.")
-    : "Ready: " + inventory.resources.length + " analysed clips · about " + Math.round(videoSeconds) + " s" + (inventory.skipped.unanalysed ? " · " + inventory.skipped.unanalysed + " clips not analysed yet" : "");
+    : selectedRids.length === 0 ? "No clips selected. Choose clips in Advanced."
+    : "Ready: " + clipCount + (fitsShots != null && fitsShots < requested
+      ? " · footage fits " + fitsShots + " montage shots · about " + Math.round(cwvVideoSeconds(grid.bpm, fitsShots)) + " s"
+      : " · about " + Math.round(videoSeconds) + " s") + (inventory.skipped.unanalysed ? " · " + inventory.skipped.unanalysed + " clips not analysed yet" : "");
   const peaks: number[] = grid.peaks || [];
   const total = ownMusic ? (ownDuration || 1) : (cue ? cue.duration : 1);
   const silent = cueId === "none" && !ownMusic && !keepSound;
@@ -952,6 +995,33 @@ export default function Panel({ sdk, context, ui }: any) {
         <ui.Toggle label="Keep original clip sound" value={keepSound} onChange={setKeepSound} />
         <ui.Toggle label="Warm look" value={warm} onChange={setWarm} />
         {silent ? <ui.Message tone="muted">Silent video: no music and no original clip sound.</ui.Message> : null}
+        {inventory && allRids.length ? (
+          <div role="group" aria-label="Choose clips" style={{ minWidth: 0 }}>
+            <ui.Row gap={4} align="center">
+              <small style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {"Choose clips (" + selectedRids.length + "/" + allRids.length + ")"}
+              </small>
+              <ui.Button variant="ghost" disabled={busy || !only} onClick={() => chooseClips(allRids)}>All</ui.Button>
+              <ui.Button variant="ghost" disabled={busy || selectedRids.length === 0} onClick={() => chooseClips([])}>None</ui.Button>
+            </ui.Row>
+            {/* One row per clip: the name truncates, duration and shape stay visible; long lists scroll inside. */}
+            <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
+              {inventory.resources.map((r: any) => {
+                const on = selectedRids.includes(r.rid);
+                const hint = shapeHint(r.width, r.height);
+                const meta = fmtTime(r.duration) + (hint ? " · " + hint : "");
+                return (
+                  <label key={r.rid} title={r.name + " · " + meta}
+                    style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, padding: "4px 6px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
+                    <input type="checkbox" checked={on} disabled={busy} onChange={(e) => toggleClip(r.rid, e.currentTarget.checked)} style={{ flexShrink: 0, margin: 0 }} />
+                    <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+                    <span style={{ flexShrink: 0, fontSize: 11, color: "var(--panel-muted-fg)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{meta}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </ui.Section>
       {progress ? <ui.Progress value={progress.value} label={progress.label} steps={CWV_BUILD_STEPS.map((s) => s.label)} current={progress.current} />
         : busy ? <ui.Progress label={step || "Working"} /> : null}
@@ -967,12 +1037,18 @@ export default function Panel({ sdk, context, ui }: any) {
           <ui.IconButton icon="copy" label="Copy the link to the new Draft" onClick={() => { navigator.clipboard?.writeText(result.link).catch(() => null); }} />
         </ui.Row>
       ) : null}
+      {result?.shortened ? (
+        <ui.Message tone="muted">
+          {"Your footage fits " + result.shortened.shots + " montage shots, so this video is about " + Math.round(result.shortened.seconds) + " s instead of "
+            + Math.round(result.shortened.fullSeconds) + " s. Add more clips for the full length."}
+        </ui.Message>
+      ) : null}
       {result?.notes?.length ? <ui.Message tone="muted">{"Note: " + result.notes.join("; ") + "."}</ui.Message> : null}
       {result?.plan?.relaxedTalking ? <ui.Message tone="muted">Some shots may include people talking; there wasn't enough other footage.</ui.Message> : null}
       <ui.Actions>
         {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>Finish title and look</ui.Button> : null}
-        {result ? <ui.Button onClick={() => { if (busyRef.current) return; const s = seed + 1; setSeed(s); build(s); }} disabled={busy}>Create another version</ui.Button> : null}
-        <ui.Button variant="primary" busy={busy} busyLabel={step || "Building"} onClick={() => build(seed)} disabled={busy || !inventory || !inventory.resources.length}>Build</ui.Button>
+        {result ? <ui.Button onClick={buildAnother} disabled={busy}>Create another version</ui.Button> : null}
+        <ui.Button variant="primary" busy={busy} busyLabel={step || "Building"} onClick={() => build(seed)} disabled={busy || !inventory || !selectedRids.length}>Build</ui.Button>
       </ui.Actions>
     </ui.Stack>
   );

@@ -41,4 +41,13 @@ assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('
 // Script configs arrive as JSON.parse(...) so the SDK type check sees `any`, not widened literal types.
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 assert.ok(/decorateJs, \{ sequenceId, mute,/.test(panel) && panel.includes('result.mute !== false'), 'decorate mutes, also on retry');
+// Shortened montage note, "Create another version" flow and the clip checklist.
+for (const phrase of ['montage shots, so this video is about', 'Add more clips for the full length', 'plan.montageShots < fitted', 'footage fits ', 'function buildAnother()', 'onClick={buildAnother}', 'Choose clips', 'type="checkbox"', 'textOverflow: "ellipsis"', 'setOnly(null)', 'chooseClips(allRids)', 'chooseClips([])', 'clips selected', 'No clips selected']) assert.ok(panel.includes(phrase), phrase);
+const anotherBody = panel.slice(panel.indexOf('function buildAnother()'), panel.indexOf('async function finishTitle('));
+assert.ok(anotherBody.indexOf('setResult(null)') >= 0 && anotherBody.indexOf('setResult(null)') < anotherBody.indexOf('build(s)'), 'another version clears the old result before building');
+assert.ok(/const s = seed \+ 1;/.test(anotherBody), 'another version changes the seed');
+const chooseBody = panel.slice(panel.indexOf('const chooseClips ='), panel.indexOf('const toggleClip ='));
+assert.ok(chooseBody.includes('setCandidates(null)') && chooseBody.includes('ordered.length === allRids.length ? null : ordered'), 'a new selection drops the cache; all clips means only = null');
+assert.ok(panel.includes('const candKey = projectId + "|" + JSON.stringify(only);') && panel.includes('const key = pid + "|" + JSON.stringify(only);'), 'readiness and build share the pid|only cache key');
+assert.ok(panel.indexOf('React.useMemo(') < panel.indexOf('if (!projectId) return <ui'), 'the fitted-count hook stays before the early return');
 console.log(JSON.stringify({ panel: 'ok' }));
