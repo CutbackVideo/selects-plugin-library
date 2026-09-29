@@ -25,4 +25,13 @@ assert.ok(!/--text-tertiary/.test(panel), '--text-tertiary is not a panel token'
 assert.ok(!/var\(--accent\b/.test(panel), '--accent is not a panel token');
 // Title preview keeps one height: fixed slots sized for the largest scale, clipped by the box.
 for (const phrase of ['height: previewBox', 'slotStyle(bigSlot)', 'slotStyle(smallSlot)', 'maxScale']) assert.ok(panel.includes(phrase), phrase);
+// Section preview: play/stop toggle, cancellable preparation, playhead, auto-stop and a full-length clip read from a file.
+for (const phrase of ['Stop preview', 'Cancel preview', 'requestAnimationFrame', 'cancelAnimationFrame', '"Escape"', 'previewTokenRef', 'stopPreview()', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', 'preview-*.mp3', 'readText(roots.data', '[cueId, ownMusic?.path, section, length]']) assert.ok(panel.includes(phrase), phrase);
+assert.ok(!/-t 6 -i/.test(panel), 'the preview plays the whole section, not 6 s');
+assert.ok(!/-f mp3 - \| base64/.test(panel), 'the preview no longer pipes audio through stdout');
+assert.ok(/-t " \+ dur\.toFixed\(2\)/.test(panel), 'the preview length is videoSeconds');
+assert.ok(panel.indexOf('[cueId, ownMusic?.path, section, length]') < panel.indexOf('if (!projectId) return <ui'), 'preview auto-stop hook stays before the early return');
+const buildBody = panel.slice(panel.indexOf('async function build('), panel.indexOf('async function finishTitle('));
+assert.ok(buildBody.includes('stopPreview()'), 'Build stops the preview');
+assert.ok(panel.slice(panel.indexOf('async function finishTitle('), panel.indexOf('async function decorate(')).includes('stopPreview()'), 'Finish stops the preview');
 console.log(JSON.stringify({ panel: 'ok' }));

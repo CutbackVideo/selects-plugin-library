@@ -285,9 +285,10 @@ function themeColor(el: Element, ctx: CanvasRenderingContext2D, name: string, fa
 const WAVE_HEIGHT = 56;
 
 // Music section slider: waveform on a canvas with a draggable, bar-snapped window over the chosen section.
-function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, onChange, disabled }: {
+// While `audio` plays, a playhead follows its currentTime inside the window, redrawn on every animation frame.
+function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, onChange, disabled, audio }: {
   peaks: number[]; total: number; section: number | null; videoSeconds: number; barSeconds: number;
-  snap: (v: number) => number | null; onChange: (v: number | null) => void; disabled: boolean;
+  snap: (v: number) => number | null; onChange: (v: number | null) => void; disabled: boolean; audio: HTMLAudioElement | null;
 }) {
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -308,11 +309,15 @@ function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, 
 
   // Bundled peaks can exceed 1.0 slightly, so scale by the loudest bar when it does.
   const peakMax = Math.max(1, ...peaks);
-  React.useEffect(() => {
+  // The latest draw, so the animation loop always paints with the current props. `playAt` is seconds into the section.
+  const drawRef = React.useRef<(playAt: number | null) => void>(() => {});
+  drawRef.current = (playAt: number | null) => {
     const canvas = canvasRef.current, wrap = wrapRef.current;
     if (!canvas || !wrap || width <= 0) return;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(width * dpr); canvas.height = Math.round(WAVE_HEIGHT * dpr);
+    const cw = Math.round(width * dpr), chh = Math.round(WAVE_HEIGHT * dpr);
+    if (canvas.width !== cw) canvas.width = cw;
+    if (canvas.height !== chh) canvas.height = chh;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -356,8 +361,23 @@ function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, 
         if ((ctx as any).roundRect) (ctx as any).roundRect(gx, mid - gh / 2, gw, gh, 2); else ctx.rect(gx, mid - gh / 2, gw, gh);
         ctx.fill();
       }
+      // Playhead: a vertical line at the playing position, kept inside the window.
+      if (playAt != null) {
+        const px = Math.min(x0 + w - 1, Math.max(x0 + 1, ((section + Math.min(playAt, videoSeconds)) / total) * width));
+        ctx.fillStyle = themeColor(wrap, ctx, "--panel-fg", "#ffffff");
+        ctx.fillRect(px - 1, 0, 2, WAVE_HEIGHT);
+      }
     }
-  }, [width, peaks, peakMax, section, videoSeconds, total]);
+  };
+  React.useEffect(() => { if (!audio) drawRef.current(null); }, [width, peaks, peakMax, section, videoSeconds, total, audio]);
+  // Playback drives the playhead with requestAnimationFrame; the loop ends when playback stops.
+  React.useEffect(() => {
+    if (!audio) return;
+    let frame = 0;
+    const step = () => { drawRef.current(audio.currentTime); frame = requestAnimationFrame(step); };
+    frame = requestAnimationFrame(step);
+    return () => { cancelAnimationFrame(frame); drawRef.current(null); };
+  }, [audio]);
 
   const timeAt = (clientX: number) => {
     const r = wrapRef.current!.getBoundingClientRect();
@@ -453,6 +473,10 @@ export default function Panel({ sdk, context, ui }: any) {
   const [status, setStatus] = React.useState<{ tone: string; text: string } | null>(null);
   const [result, setResult] = React.useState<any>(null);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const previewTokenRef = React.useRef(0);
+  const previewUrlRef = React.useRef<string | null>(null);
+  const [playState, setPlayState] = React.useState<"idle" | "loading" | "playing">("idle");
+  const [playingAudio, setPlayingAudio] = React.useState<HTMLAudioElement | null>(null);
 
   const run = async (summary: string, script: string, allowCommit = false) => {
     let r = await sdk.runScript({ summary, script, allowCommit });
@@ -569,7 +593,8 @@ export default function Panel({ sdk, context, ui }: any) {
         if (alive) setStatus({ tone: "error", text: "City Weekend Vlog could not start: " + (e?.message || e) + ". Reinstall the plugin if this persists." });
       } finally { if (alive) setStep(""); }
     })();
-    return () => { alive = false; if (audioRef.current) audioRef.current.pause(); };
+    // Project switch or unmount stops a preview, including one still being prepared.
+    return () => { alive = false; stopPreview(); };
   }, [projectId]);
 
   // Clips still being analysed (or none yet): re-read the inventory every 10 s until they are ready.
@@ -620,6 +645,8 @@ export default function Panel({ sdk, context, ui }: any) {
   }, [assets, cueId, ownMusic?.path, ownGrid]);
   // A new length keeps the chosen start and only re-clamps it (spec section 5).
   React.useEffect(() => { setSection((s) => snap(s ?? 0)); }, [length]);
+  // A new track, section or length makes a running preview stale, so it stops.
+  React.useEffect(() => { stopPreview(); }, [cueId, ownMusic?.path, section, length]);
 
   async function detectOwnMusic(file: { path: string; name: string }) {
     if (busyRef.current || !roots) return;
@@ -648,18 +675,55 @@ export default function Panel({ sdk, context, ui }: any) {
     } finally { busyRef.current = false; setBusy(false); setStep(""); }
   }
 
+  // Section preview: "idle" -> "loading" (ffmpeg cut) -> "playing". Every start or stop bumps the token, so a late
+  // result from a cancelled preparation is dropped.
+  function stopPreview() {
+    previewTokenRef.current++;
+    const a = audioRef.current;
+    audioRef.current = null;
+    if (a) { a.onended = null; a.pause(); }
+    if (previewUrlRef.current) { try { URL.revokeObjectURL(previewUrlRef.current); } catch { /* data URL */ } previewUrlRef.current = null; }
+    if (mountedRef.current) { setPlayState("idle"); setPlayingAudio(null); }
+  }
+
   async function preview() {
-    if ((!ownMusic && !cue) || !roots) return;
+    if (playState !== "idle") { stopPreview(); return; }
+    if ((!ownMusic && !cue) || !roots || section == null) return;
+    stopPreview();
+    const token = previewTokenRef.current;
+    const live = () => previewTokenRef.current === token && mountedRef.current;
+    setPlayState("loading");
     try {
       const file = ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file;
-      const cmd = "ffmpeg -nostdin -v error -ss " + (section || 0).toFixed(2) + " -t 6 -i " + sq(file) + " -ac 1 -ar 22050 -b:a 24k -af \"afade=t=out:st=5.6:d=0.4\" -f mp3 - | base64 | tr -d '\\n'";
-      const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 30000, maxOutputBytes: 49152 });
-      const b64 = String(r?.stdout ?? "").replace(/\s+/g, "");
-      if (r?.isError || r?.truncated || b64.length < 200) throw new Error(r?.stderr || "no audio came back");
-      if (audioRef.current) audioRef.current.pause();
-      audioRef.current = new Audio("data:audio/mpeg;base64," + b64);
-      await audioRef.current.play();
+      // The whole section, written to a file (stdout is too small for ~23 s) and read back as base64 text.
+      // Earlier previews are removed first so the data folder never collects them.
+      const dur = videoSeconds, base = roots.data + "/preview-" + token;
+      const cmd = "rm -f " + sq(roots.data) + "/preview-*.mp3 " + sq(roots.data) + "/preview-*.b64; "
+        + "ffmpeg -nostdin -v error -y -ss " + section.toFixed(2) + " -t " + dur.toFixed(2) + " -i " + sq(file)
+        + " -ac 1 -ar 22050 -b:a 48k -af \"afade=t=out:st=" + Math.max(0, dur - 0.4).toFixed(2) + ":d=0.4\" -f mp3 " + sq(base + ".mp3")
+        + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64");
+      const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 60000 });
+      if (!live()) return;
+      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw new Error(r?.stderr || "the preview could not be cut");
+      const b64 = (await readText(roots.data, "preview-" + token + ".b64")).replace(/\s+/g, "");
+      if (!live()) return;
+      if (b64.length < 200) throw new Error("no audio came back");
+      let url: string;
+      if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+        const bin = atob(b64), bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+        previewUrlRef.current = url;
+      } else url = "data:audio/mpeg;base64," + b64;
+      const audio = new Audio(url);
+      audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
+      audioRef.current = audio;
+      await audio.play();
+      if (!live() || audioRef.current !== audio) { audio.pause(); return; }
+      setPlayState("playing"); setPlayingAudio(audio);
     } catch (e: any) {
+      if (!live()) return;
+      stopPreview();
       setStatus({ tone: "error", text: "Could not play a preview: " + (e?.message || e) + "." });
     }
   }
@@ -683,6 +747,7 @@ export default function Panel({ sdk, context, ui }: any) {
     const pid = projectId;
     const check = () => { if (projectRef.current !== pid) throw STALE; };
     busyRef.current = true;
+    stopPreview();
     setBusy(true); setStatus(null); setResult(null);
     advance("shots", 0);
     try {
@@ -738,7 +803,7 @@ export default function Panel({ sdk, context, ui }: any) {
     if (busyRef.current || !result || !assets || !roots) return;
     const pid = projectId;
     const check = () => { if (projectRef.current !== pid) throw STALE; };
-    busyRef.current = true; setBusy(true); setStatus(null);
+    busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
     try { await decorate(result.sequenceId, result.sched, result.plan, result.seed, check); }
     catch (e: any) { if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) }); }
     finally { endRun(pid); }
@@ -861,11 +926,15 @@ export default function Panel({ sdk, context, ui }: any) {
           onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
         {!canOwnMusic ? <ui.Message tone="muted">Install ffmpeg and Node.js 18+ to preview music or use your own track.</ui.Message> : null}
         {ownMusic || cue ? (
-          <div>
+          // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
+          <div onKeyDown={(e) => { if (e.key === "Escape" && playState !== "idle") { e.preventDefault(); stopPreview(); } }}>
             <SectionSlider peaks={peaks} total={total} section={section} videoSeconds={videoSeconds} barSeconds={(4 * 60) / grid.bpm}
-              snap={snap} onChange={setSection} disabled={busy} />
+              snap={snap} onChange={setSection} disabled={busy} audio={playingAudio} />
             <ui.Row gap={8} align="center">
-              <ui.IconButton icon="play" label="Preview this section" onClick={preview} disabled={busy || !tools.ffmpeg} />
+              {/* The kit has no stop icon; "pause" marks stop, and the label says what it does. */}
+              <ui.IconButton icon={playState === "playing" ? "pause" : playState === "loading" ? "loading" : "play"}
+                label={playState === "playing" ? "Stop preview" : playState === "loading" ? "Cancel preview" : "Preview this section"}
+                onClick={preview} disabled={busy || !tools.ffmpeg || (playState === "idle" && section == null)} />
               <span>{ownMusic && !ownDuration ? (busy ? "Reading the music…" : "The length of this music is unknown")
                 : section == null ? "This music is too short for this length" : "Starts at " + section.toFixed(1) + " s"}</span>
             </ui.Row>
