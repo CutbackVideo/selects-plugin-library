@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "id": "the-end-credits",
+  "version": "0.1.0-alpha.1",
+  "name": "THE END Credits",
+  "summary": "Turn travel footage into a 16:9 end-credits roll: THE END types in, the credits scroll up while your clips play in a small window, as a new editable Draft.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "INSTALL.md",
+    "README.md",
+    "THIRD_PARTY.md",
+    "assets/cinematic-look.tsx",
+    "assets/credits-graphic.tsx",
+    "assets/cues/dream-synth.mp3",
+    "assets/cues/manifest.json",
+    "assets/cues/orchestral.mp3",
+    "assets/cues/piano-strings.mp3",
+    "assets/cues/post-rock.mp3",
+    "assets/cues/rhodes-soul.mp3",
+    "assets/fonts/licenses/poppins-OFL.txt",
+    "assets/fonts/licenses/robotoserif-OFL.txt",
+    "assets/fonts/tec-credits-sans.woff2.b64",
+    "assets/fonts/tec-title-serif.woff2.b64",
+    "assets/opening.tsx",
+    "assets/shot-frame.tsx",
+    "beat-detect.cjs",
+    "panel.tsx",
+    "planner.js",
+    "scripts/assemble.js",
+    "scripts/decorate.js",
+    "scripts/ensure-audio.js",
+    "scripts/inventory.js",
+    "scripts/search.js",
+    "tests/allocate.test.cjs",
+    "tests/beat-detect.test.cjs",
+    "tests/credits.test.cjs",
+    "tests/cues.test.cjs",
+    "tests/fonts.test.cjs",
+    "tests/frame.test.cjs",
+    "tests/graphic.test.cjs",
+    "tests/look.test.cjs",
+    "tests/panel.test.cjs",
+    "tests/planner.test.cjs",
+    "tests/scripts-edit.test.cjs",
+    "tests/scripts-read.test.cjs"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg and Node.js 18+ on PATH only for music previews and your own music."
+  },
+  "localized": {
+    "de": {
+      "name": "THE END Credits",
+      "summary": "Macht aus Reiseaufnahmen einen 16:9-Abspann: THE END wird eingetippt, der Abspann l\u00e4uft nach oben, w\u00e4hrend deine Clips in einem kleinen Fenster spielen \u2013 als neuer, bearbeitbarer Draft."
+    },
+    "en": {
+      "name": "THE END Credits",
+      "summary": "Turn travel footage into a 16:9 end-credits roll: THE END types in, the credits scroll up while your clips play in a small window, as a new editable Draft."
+    },
+    "es": {
+      "name": "THE END Credits",
+      "summary": "Convierte tus tomas de viaje en unos cr\u00e9ditos finales 16:9: THE END se escribe, los cr\u00e9ditos suben mientras tus clips se reproducen en una ventana peque\u00f1a, como un nuevo Draft editable."
+    },
+    "fr": {
+      "name": "THE END Credits",
+      "summary": "Transforme vos images de voyage en g\u00e9n\u00e9rique de fin 16:9 : THE END s'\u00e9crit, le g\u00e9n\u00e9rique d\u00e9file vers le haut pendant que vos clips passent dans une petite fen\u00eatre, dans un nouveau Draft modifiable."
+    },
+    "it": {
+      "name": "THE END Credits",
+      "summary": "Trasforma le riprese di viaggio in titoli di coda 16:9: THE END compare digitato, i titoli scorrono verso l'alto mentre le tue clip passano in una piccola finestra, come nuovo Draft modificabile."
+    },
+    "ja": {
+      "name": "THE END \u30af\u30ec\u30b8\u30c3\u30c8",
+      "summary": "\u65c5\u306e\u6620\u50cf\u304b\u3089 16:9 \u306e\u30a8\u30f3\u30c9\u30af\u30ec\u30b8\u30c3\u30c8\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002THE END \u304c\u30bf\u30a4\u30d7\u3055\u308c\u3001\u5c0f\u3055\u306a\u30a6\u30a3\u30f3\u30c9\u30a6\u3067\u6620\u50cf\u304c\u6d41\u308c\u308b\u4e2d\u3001\u30af\u30ec\u30b8\u30c3\u30c8\u304c\u4e0a\u3078\u30b9\u30af\u30ed\u30fc\u30eb\u3057\u307e\u3059\u3002\u7de8\u96c6\u53ef\u80fd\u306a\u65b0\u3057\u3044 Draft \u3068\u3057\u3066\u4fdd\u5b58\u3055\u308c\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "THE END \ud06c\ub808\ub527",
+      "summary": "\uc5ec\ud589 \uc601\uc0c1\uc744 16:9 \uc5d4\ub529 \ud06c\ub808\ub527\uc73c\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. THE END\uac00 \ud0c0\uc774\ud551\ub418\uace0, \uc791\uc740 \ucc3d\uc5d0\uc11c \ud074\ub9bd\uc774 \uc7ac\uc0dd\ub418\ub294 \ub3d9\uc548 \ud06c\ub808\ub527\uc774 \uc704\ub85c \uc62c\ub77c\uac00\uba70, \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc0c8 Draft\ub85c \uc800\uc7a5\ub429\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "THE END Credits",
+      "summary": "Transforma imagens de viagem em cr\u00e9ditos finais 16:9: THE END \u00e9 digitado, os cr\u00e9ditos sobem enquanto seus clipes passam em uma pequena janela, como um novo Draft edit\u00e1vel."
+    },
+    "tr": {
+      "name": "THE END Credits",
+      "summary": "Seyahat g\u00f6r\u00fcnt\u00fclerini 16:9 bir biti\u015f jeneri\u011fine d\u00f6n\u00fc\u015ft\u00fcr\u00fcr: THE END yaz\u0131l\u0131r, klipleriniz k\u00fc\u00e7\u00fck bir pencerede oynarken jenerik yukar\u0131 kayar; d\u00fczenlenebilir yeni bir Draft olarak kaydedilir."
+    },
+    "zh": {
+      "name": "THE END \u7247\u5c3e\u5b57\u5e55",
+      "summary": "\u5c06\u65c5\u884c\u7d20\u6750\u5236\u4f5c\u6210 16:9 \u7247\u5c3e\u5b57\u5e55\uff1aTHE END \u9010\u5b57\u6253\u51fa\uff0c\u5b57\u5e55\u5411\u4e0a\u6eda\u52a8\uff0c\u540c\u65f6\u4f60\u7684\u7247\u6bb5\u5728\u5c0f\u7a97\u53e3\u4e2d\u64ad\u653e\uff0c\u5e76\u4fdd\u5b58\u4e3a\u53ef\u7f16\u8f91\u7684\u65b0 Draft\u3002"
+    }
+  }
+}
