@@ -39,10 +39,10 @@ source file.
 
 The video lasts (shots x beats per shot) beats and is always whole groups of
 four shots. **Length** Short, Standard (the default) or Long asks for 12, 24
-or 36 shots. With Weekend Indie Pop (112 BPM) and Pace Quick that is about
-6.4, 12.9 and 19.3 seconds. Relaxed doubles Short and Standard (12.9 and
-25.7 s); Long with Relaxed is capped by the track at 32 shots (34.3 s, see
-[Music](#music)).
+or 36 shots. With Bedroom Pop (108 BPM, the default track) and Pace Quick
+that is about 6.7, 13.3 and 20.0 seconds, and Relaxed doubles them (13.3,
+26.7 and 40.0 s). On the shorter reused tracks Long with Relaxed is capped
+by the track (see [Music](#music)).
 
 ## Default path
 
@@ -111,7 +111,9 @@ alternatives under an "Alternatives" heading, each with its tempo (for example
 
 | Track | Tempo | Group |
 | --- | --- | --- |
-| Weekend Indie Pop (default) | 112 BPM | Reference |
+| Bedroom Pop (default) | 108 BPM | Reference |
+| Acoustic Pop | 104 BPM | Reference |
+| Weekend Indie Pop | 112 BPM | Reference |
 | Golden Hour Disco | 104 BPM | Reference |
 | Sunny Soul Strut | 99 BPM | Alternatives |
 | Easy Sunday Lo-fi | 88 BPM | Alternatives |
@@ -121,12 +123,13 @@ alternatives under an "Alternatives" heading, each with its tempo (for example
 The reference tracks suit the style best; the alternatives are slower. The
 bundled tracks are instrumentals at about -14 LUFS.
 
-**Beat and bar.** On Weekend Indie Pop and Golden Hour Disco the beat is
-reliable but the start of each bar is not: their first beat of a bar is
-barely stronger than the others (1.20 and 1.25 times, where 1.5 is needed).
-With these two tracks the cuts land on the beat, but the video may start
-and end mid-bar. Sunny Soul Strut and Easy Sunday Lo-fi have clear bars, so
-their videos start on the first beat of a bar and last whole bars.
+**Beat and bar.** On Acoustic Pop, Weekend Indie Pop and Golden Hour Disco
+the beat is reliable but the start of each bar is not: their first beat of a
+bar is barely stronger than the others (1.43, 1.20 and 1.25 times, where 1.5
+is needed). With these three tracks the cuts land on the beat, but the video
+may start and end mid-bar. Bedroom Pop, Sunny Soul Strut and Easy Sunday
+Lo-fi have clear bars, so their videos start on the first beat of a bar and
+last whole bars.
 
 The waveform under "Music section — drag to choose" shows a box as long as
 the video. Drag the box (or press on the waveform) to choose where in the
@@ -139,15 +142,16 @@ section** plays the whole section; press it again (**Stop preview**) or press
 Esc to stop. Selects starts the music on a video frame, which can move it by
 up to half a frame; the cuts move with it.
 
-**When the track is too short.** Each bundled track is 40 seconds long.
-When the chosen length does not fit between the start of the track and its
+**When the track is too short.** Bedroom Pop and Acoustic Pop are 60
+seconds long; the other bundled tracks are 40 seconds long. When the chosen length does not fit between the start of the track and its
 end, the video uses the largest group of four shots that fits, and the panel
 says so under Pace before you build. With Pace Relaxed on Weekend Indie Pop,
 Long reads "Long: 32 of 36 shots fit this track (34.3 s)"; a length that fits
 reads, for example, "Standard: 24 shots (12.9 s)". The box can only move to
 starts where that length fits. Every bundled track fits Long with Pace Quick.
-With Relaxed, Weekend Indie Pop, Golden Hour Disco and Sunny Soul Strut fit
-at most 32 shots, and Easy Sunday Lo-fi at most 24. The picture never outruns
+With Relaxed, Bedroom Pop and Acoustic Pop fit all 36 shots (40.0 and 41.5
+s), Weekend Indie Pop, Golden Hour Disco and Sunny Soul Strut fit at most 32
+shots, and Easy Sunday Lo-fi at most 24. The picture never outruns
 the music, and the music is never cut mid-shot.
 
 **Your own music**: drop an audio file. The plugin listens for the beat and
@@ -296,8 +300,9 @@ Finished videos are exported from the Draft with **Handoff → Export**.
 - The title preset cannot be switched in Adjust. To change it, pick another
   preset in the panel and build again. Rebuilding creates a new Draft and does
   not keep Adjust edits.
-- On Weekend Indie Pop, Golden Hour Disco and your own music the cuts follow
-  the beat, but bar starts are best effort (see [Music](#music)).
+- On Acoustic Pop, Weekend Indie Pop, Golden Hour Disco and your own music
+  the cuts follow the beat, but bar starts are best effort (see
+  [Music](#music)).
 - The Draft is built in two commits: first the clips, their crop, their
   Ambient sound level and the music; then the title, the Soft look, the photo
   motion and, with Clip sound Off, the clips' muted sound (Selects can change
