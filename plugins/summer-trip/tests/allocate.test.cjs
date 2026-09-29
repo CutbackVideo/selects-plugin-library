@@ -3,7 +3,7 @@ const fs = require('node:fs'), path = require('node:path'), vm = require('node:v
 const root = path.resolve(__dirname, '..');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
 vm.createContext(box);
-vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={stAllocate,stPlanBuild,stFillers,stHash,stWindow,stProgress,stPhotoMotions,stSchedule,stFrameSchedule,ST_BUILD_STEPS,ST_MONTAGE_ROLES,ST_FILLER_MAX};', box);
+vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={stAllocate,stPlanBuild,stFillers,stHash,stMixHash,stWindow,stProgress,stPhotoMotions,stSchedule,stFrameSchedule,ST_BUILD_STEPS,ST_MONTAGE_ROLES,ST_FILLER_MAX};', box);
 const P = box.P, j = v => JSON.parse(JSON.stringify(v));
 let checks = 0;
 const eq = (a, b, m) => { assert.deepEqual(j(a), j(b), m); checks++; };
@@ -137,12 +137,14 @@ const collapsed = [];
   const times = Array.from({ length: 6 }, (_, k) => Math.round(k * dur / 6 * 1000) / 1000);
   roles.forEach((role, ri) => [0, 1].forEach(k => collapsed.push({ rid, role, t: times[(ri + k * 3 + r) % 6], score: 0.15 + ((r * 13 + ri * 7 + k * 5) % 25) / 100, sourceDuration: dur })));
 });
+let longFillers = 0;
 for (const seed of ['s1', 's2', 's3']) for (const n of [6, 8, 12]) {
   const r = j(P.stPlanBuild({ candidates: collapsed, bpm: 120, fps: 30, montageShots: n, seed }));
   checkPlan(r, collapsed, 30, 'collapsed ' + seed + '/' + n);
   eq(r.montageShots, n, 'requested ' + n + ' fits with fillers');
-  if (n === 12) ok(r.fillerShots > 0);
+  if (n === 12) longFillers += r.fillerShots;
 }
+ok(longFillers > 0, 'Long needs filler windows on collapsed hits');
 
 // Shortage rule (spec 15.4).
 // Fewer than six distinct resources: disabled with the count.
@@ -284,3 +286,15 @@ for (const s of P.ST_BUILD_STEPS) for (const f of [0, 0.5, 1]) { const v = P.stP
 assert.throws(() => P.stProgress('nope', 0)); checks++;
 
 console.log(JSON.stringify({ allocate: 'ok', checks }));
+
+// Another version (a new seed) varies the opening: opener, place and grid picks differ across seeds when several
+// good hits exist (live finding: FNV-only hashing gave every seed the same opening).
+{
+  const opens = new Set();
+  for (const seed of ['1', '2', '3', '4', '5', '6']) {
+    const r = j(P.stPlanBuild({ candidates: rich, bpm: 120, fps: 30, montageShots: 8, seed }));
+    opens.add([r.picks.main[0].rid, r.picks.main[1].rid, ...r.picks.grid.map(g => g.rid)].join(','));
+  }
+  ok(opens.size >= 3, 'six seeds give at least three different openings (' + opens.size + ')');
+  ok(P.stMixHash('1:fixed:r0') !== P.stMixHash('1:fixed:r1') && Math.abs(P.stMixHash('1:fixed:r0') - P.stMixHash('1:fixed:r1')) > 0.01, 'mixed hash spreads neighbouring rids');
+}

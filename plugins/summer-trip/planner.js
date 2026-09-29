@@ -73,6 +73,10 @@ const ST_FILLER_STEP = 0.5;
 const ST_FILLER_EDGE = 0.25;
 const ST_FILLER_SCORE = -2;
 const ST_FILLER_MAX = 48;
+// Seeded spread for the opener, place and grid picks: live scene-search scores of the good hits for a role sit within
+// about 0.1 of each other (0.2-0.56 overall), so another version can swap between them without taking weak hits.
+const ST_FIXED_JITTER = 0.12;
+const ST_FIXED_ROLE_PENALTY = 0.04;
 // A video window ends at least this far before the end of its source.
 const ST_SOURCE_TAIL = 0.15;
 // Windows taken from one source keep at least this gap (unless the last-resort overlap pass needs them).
@@ -426,6 +430,13 @@ function stHash(str) {
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0) / 4294967296;
 }
+// stHash with a murmur3 finaliser: FNV-1a alone maps strings that differ only in their last characters (rids
+// "r0", "r1", …) to nearly the same value, which made the seeded fixed-slot spread a no-op.
+function stMixHash(str) {
+  let h = Math.round(stHash(str) * 4294967296) >>> 0;
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
 
 // Filler candidates on each video source in the candidates: every ST_FILLER_STEP s from ST_FILLER_EDGE to
 // duration - ST_FILLER_EDGE, or ST_FILLER_MAX evenly spaced times when that grid would be longer. Sorted by rid, time.
@@ -477,9 +488,13 @@ function stAllocate(opts) {
     .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
   // Per-candidate seeded values, computed once (hashing per slot is slow on long sources).
   const valueOf = new Map();
-  for (const c of pool) valueOf.set(c, c.score + stHash(seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05);
+  for (const c of pool) valueOf.set(c, c.score + stMixHash(seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05);
+  // The opener, place and grid slots are picked first, so without extra variety every version shows the same opening.
+  // They rank by a larger seeded value: another version picks among the good hits of the role (live finding).
+  const fixedValueOf = new Map();
+  for (const c of pool) fixedValueOf.set(c, c.score + stMixHash(seed + ':fixed:' + c.rid) * ST_FIXED_JITTER);
   const photoValue = {};
-  for (const p of photos) photoValue[p.rid] = stHash(seed + ':photo:' + p.rid);
+  for (const p of photos) photoValue[p.rid] = stMixHash(seed + ':photo:' + p.rid);
 
   const uses = {}, windows = {}, picks = [];
   const fixedRids = [];     // opener, place and grid resources: all different
@@ -498,14 +513,18 @@ function stAllocate(opts) {
 
   function bestVideo(slot, excluded, tierOf, overlap) {
     let best = null;
+    const fixedSlot = slot.section === 'opener' || slot.section === 'place' || slot.section === 'grid';
+    const values = fixedSlot ? fixedValueOf : valueOf;
     for (const c of pool) {
       if (excluded[c.rid]) continue;
-      const tier = tierOf(c);
-      if (tier < 0) continue;
+      const rawTier = tierOf(c);
+      if (rawTier < 0) continue;
+      // Fixed slots: the role order is a small score penalty instead of a strict tier, so the seed can pick among good hits.
+      const tier = fixedSlot ? 0 : rawTier;
       const w = stWindow(c.t, slot.frames, fps, c.sourceDuration);
       if (!w) continue;
       if (!overlap && (windows[c.rid] || []).some(([a, b]) => w.start < b + ST_WINDOW_GAP - 1e-9 && w.end > a - ST_WINDOW_GAP + 1e-9)) continue;
-      const use = uses[c.rid] || 0, value = valueOf.get(c);
+      const use = uses[c.rid] || 0, value = values.get(c) - (fixedSlot ? ST_FIXED_ROLE_PENALTY * rawTier : 0);
       const better = !best || use < best.use || (use === best.use && (tier < best.tier || (tier === best.tier &&
         (value > best.value + 1e-12 || (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)))))));
       if (better) best = { c, use, tier, value, start: w.start, end: w.end };
