@@ -207,8 +207,9 @@ function mvLockupLayout(data, width, height) {
   var W = width > 0 ? width : 1920, H = height > 0 ? height : 1080;
   var preset = MV_FACES[data.preset] ? data.preset : "mini-vlog";
   var raw = data.fields || {};
-  var clean = function (v) { return typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""; };
-  var fields = { big: clean(raw.big), small: clean(raw.small), tag: clean(raw.tag), year: clean(raw.year), top: clean(raw.top), bottom: clean(raw.bottom) };
+  // Adjust edits land on flat keys (data.big, data.small, ...), so a flat string wins over data.fields.
+  var pick = function (k) { var v = typeof data[k] === "string" ? data[k] : raw[k]; return typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""; };
+  var fields = { big: pick("big"), small: pick("small"), tag: pick("tag"), year: pick("year"), top: pick("top"), bottom: pick("bottom") };
   if (!fields.big) return [];
   var num = function (v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
   var S = num(data.size, 100, 60, 160) / 100;
@@ -292,7 +293,7 @@ export default function MiniVlogTitle({ data }: { data: any }) {
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ position: "absolute", left: 0, top: 0, overflow: "visible", filter: shadow > 0 ? `drop-shadow(0 ${drop}px ${blur}px rgba(0,0,0,${shadow}))` : undefined }}>
         {items.map((it, i) =>
           it.kind === "text" ? (
-            <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={`"${it.font.family}", ${FALLBACK}`} fontStyle={it.font.style} fontWeight={it.font.weight} style={{ whiteSpace: "pre", fontKerning: "none" }}>{it.text}</text>
+            <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={`"${it.font.family}", ${FALLBACK}`} fontStyle={it.font.style} fontWeight={it.font.weight} style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none" }}>{it.text}</text>
           ) : (
             <path key={i} d={it.kind === "sparkle" ? mvSparklePath(it.x, it.y, it.size) : mvStarPath(it.x, it.y, it.size)} fill={it.color} />
           ),

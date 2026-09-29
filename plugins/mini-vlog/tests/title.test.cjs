@@ -109,6 +109,11 @@ const mBig = presets.metrics['MV DM Serif Display Italic'];
   // Missing metrics never throw (fallback advances).
   const bare = box.L({ preset: 'mini-vlog', fields: { big: 'mini', small: 'vlog' } }, W, H);
   assert.ok(bare.length >= 2);
+  // Adjust parameters are flat keys (data.big, data.small, ...) and win over data.fields.
+  const flat = JSON.parse(JSON.stringify(box.L({ ...DEFAULT, preset: 'mini-vlog', big: 'mini', small: 'vlog', fonts: fontsFor('mini-vlog') }, W, H)));
+  assert.deepEqual(flat, lay('mini-vlog', { big: 'mini', small: 'vlog' }));
+  const edited = lay('mini-vlog', { big: 'mini', small: 'vlog' }, { big: 'tea', small: '' });
+  assert.equal(one(edited, 'big').text, 'tea'); assert.equal(part(edited, 'small').length, 0);
   // Unknown preset falls back to Mini vlog.
   assert.equal(JSON.parse(JSON.stringify(box.L({ ...DEFAULT, preset: 'nope', fields: { big: 'mini', small: 'vlog' }, fonts: fontsFor('mini-vlog') }, W, H))).filter(i => i.part === 'small').length, 1);
 }
@@ -186,4 +191,6 @@ assert.ok(src.includes('delayRender') && src.includes('continueRender'), 'waits 
 assert.ok(src.includes('@font-face') && src.includes('data:font/woff2;base64,'), 'injects fonts');
 assert.ok(src.includes('useVideoConfig'), 'reads the canvas size');
 assert.ok(!src.includes('useCurrentFrame'), 'static: no frame dependency');
+// Measured widths ignore kerning and ligatures, so the render turns both off.
+assert.ok(src.includes('fontKerning: "none"') && src.includes('fontVariantLigatures: "none"'), 'no kerning or ligatures');
 console.log(JSON.stringify({ title: 'ok' }));
