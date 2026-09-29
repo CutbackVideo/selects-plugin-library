@@ -6,18 +6,21 @@ const assert = require('node:assert/strict'), { execFileSync, spawnSync } = requ
 const root = path.resolve(__dirname, '..');
 const dir = path.join(root, 'assets', 'cues');
 const build = path.join(root, 'dev', 'build-cues.cjs');
-const { analyzeCue, findSwell, GENERATOR } = require(build);
+const { analyzeCue, findSwell, findSwellFallback, GENERATOR } = require(build);
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 const sr = 22050;
 
-const KEYS = ['id', 'title', 'file', 'bpm', 'detectedBpm', 'firstBeat', 'phraseBeats', 'swell', 'usableEnd', 'driftBpm', 'lufs', 'durationSeconds', 'sha256', 'provenance'];
+const KEYS = ['id', 'title', 'file', 'bpm', 'detectedBpm', 'firstBeat', 'phraseBeats', 'swell', 'swellFallback', 'usableEnd', 'driftBpm', 'lufs', 'durationSeconds', 'sha256', 'provenance'];
 function checkEntry(c) {
-  assert.deepEqual(Object.keys(c).sort(), [...KEYS].sort(), 'manifest keys of ' + c.id);
+  // `default: true` marks the panel's default cue; it is absent on the others.
+  assert.deepEqual(Object.keys(c).filter(k => k !== 'default').sort(), [...KEYS].sort(), 'manifest keys of ' + c.id);
+  if ('default' in c) assert.equal(c.default, true, c.id + ' default is true or absent');
   assert.match(c.id, /^[a-z0-9]+(-[a-z0-9]+)*$/);
   assert.ok(typeof c.title === 'string' && c.title.length > 0, c.id + ' title');
   assert.equal(c.file, c.id + '.mp3');
-  assert.ok(c.bpm >= 60 && c.bpm <= 66, c.id + ' felt bpm ' + c.bpm);
-  assert.ok(Math.abs(c.detectedBpm - 2 * c.bpm) < 1e-9 || c.detectedBpm === c.bpm, c.id + ' detectedBpm ' + c.detectedBpm);
+  // Felt 60-66 bpm; the build halves detector readings in [119.5, 132.5] (a nominal 60 bpm cue reads 119.95).
+  assert.ok(c.bpm >= 59.75 && c.bpm <= 66.25, c.id + ' felt bpm ' + c.bpm);
+  assert.ok(Math.abs(c.detectedBpm - 2 * c.bpm) < 1e-9, c.id + ' detectedBpm ' + c.detectedBpm);
   assert.equal(c.phraseBeats, 4);
   const bar = c.phraseBeats * 60 / c.bpm;
   assert.ok(c.firstBeat >= 0 && c.firstBeat < 60 / c.bpm + 5, c.id + ' firstBeat ' + c.firstBeat);
@@ -28,6 +31,11 @@ function checkEntry(c) {
     assert.ok(Math.round(k) >= 1 && Math.abs(c.swell - (c.firstBeat + Math.round(k) * bar)) <= 0.002, c.id + ' swell on a bar downbeat ' + c.swell);
     assert.ok(c.swell < c.usableEnd, c.id + ' swell inside the cue');
   }
+  // The fallback anchor is always there: a bar downbeat at or after the 5.1 s lead-in whose phrase fits the cue.
+  assert.ok(typeof c.swellFallback === 'number', c.id + ' swellFallback');
+  const kf = Math.round((c.swellFallback - c.firstBeat) / bar);
+  assert.ok(kf >= 1 && Math.abs(c.swellFallback - (c.firstBeat + kf * bar)) <= 0.002, c.id + ' swellFallback on a bar downbeat ' + c.swellFallback);
+  assert.ok(c.swellFallback >= 5.1 - 1e-9 && c.swellFallback + bar <= c.usableEnd + 1e-6, c.id + ' swellFallback range ' + c.swellFallback);
   assert.ok(Math.abs(c.driftBpm) <= 1.5, c.id + ' drift ' + c.driftBpm);
   assert.ok(Math.abs(c.lufs + 14) <= 0.5, c.id + ' lufs ' + c.lufs);
   assert.match(c.sha256, /^[0-9a-f]{64}$/);
@@ -49,6 +57,12 @@ assert.equal(m.version, 1);
 assert.ok(Array.isArray(m.cues));
 assert.equal(new Set(m.cues.map(c => c.id)).size, m.cues.length, 'unique ids');
 m.cues.forEach(checkEntry);
+if (m.cues.length) assert.equal(m.cues.filter(c => c.default).length, 1, 'exactly one default cue');
+// The bundled set (GATE-MUSIC, 2026-09-30): ids, nominal felt tempo, and the default.
+const NOMINAL = { 'piano-strings': 62, 'rhodes-soul': 64, 'post-rock': 66, orchestral: 60, 'dream-synth': 65 };
+assert.deepEqual(m.cues.map(c => c.id), Object.keys(NOMINAL));
+for (const c of m.cues) assert.ok(Math.abs(c.bpm - NOMINAL[c.id]) <= 0.5, c.id + ' bpm ' + c.bpm + ' vs nominal ' + NOMINAL[c.id]);
+assert.deepEqual(m.cues.filter(c => c.default).map(c => c.id), ['post-rock']);
 const mp3s = fs.readdirSync(dir).filter(f => f.endsWith('.mp3')).sort();
 assert.deepEqual(mp3s, m.cues.map(c => c.file).sort(), 'every cue file is listed and every listed file exists');
 for (const c of m.cues) {
@@ -61,7 +75,8 @@ for (const c of m.cues) {
 // 2. Synthetic cues. A pad chord (so the track has a realistic crest factor and loudnorm stays linear) and a kick +
 // click on every felt beat; `ticks` adds soft 8th-note clicks between the beats; `quietBars` bars at -10 dB, then
 // full level from that bar's downbeat. `bpmAt(t)` gives the tempo (constant unless testing drift).
-function fixture({ bpm = 62, first = 0.25, bars = 16, quietBars = 2, ticks = false, bpmAt = null, tickFirst = false } = {}) {
+// `kick: false` leaves only the 1 kHz clicks (no low band), louder on the beats than the ticks.
+function fixture({ bpm = 62, first = 0.25, bars = 16, quietBars = 2, ticks = false, bpmAt = null, tickFirst = false, kick: withKick = true } = {}) {
   const pf = 60 / bpm, seconds = first + bars * 4 * pf + 1.5;
   const x = new Float32Array(Math.round(seconds * sr));
   const swellT = first + quietBars * 4 * pf;
@@ -73,7 +88,7 @@ function fixture({ bpm = 62, first = 0.25, bars = 16, quietBars = 2, ticks = fal
   const hit = (t, g, kick) => {
     const i0 = Math.round(t * sr);
     for (let k = 0; k < 6000 && i0 + k < x.length; k++) {
-      x[i0 + k] += g * ((kick ? 0.2 * Math.sin(2 * Math.PI * (55 + 60 * Math.exp(-k / 400)) * k / sr) * Math.exp(-k / 3000) : 0) +
+      x[i0 + k] += g * ((kick && withKick ? 0.2 * Math.sin(2 * Math.PI * (55 + 60 * Math.exp(-k / 400)) * k / sr) * Math.exp(-k / 3000) : 0) +
         (kick ? 0.1 : 0.03) * Math.sin(2 * Math.PI * 1000 * k / sr) * Math.exp(-k / 80));
     }
   };
@@ -101,9 +116,17 @@ function fixture({ bpm = 62, first = 0.25, bars = 16, quietBars = 2, ticks = fal
   const { x } = fixture({ bars: 12, first: 0.25 + 30 / 62, ticks: true, tickFirst: true });
   const g = analyzeCue(x, sr);
   assert.deepEqual(g.problems, []);
-  assert.ok(g.parity[0] !== g.parity[1], 'parities differ ' + g.parity);
+  assert.equal(g.parity.basis, 'low', 'the kick decides: ' + JSON.stringify(g.parity));
+  assert.equal(g.parity.line, 1, 'detector beat 1 (the kick) is the felt beat: ' + JSON.stringify(g.parity));
   assert.ok(Math.abs(g.firstBeat - (0.25 + 30 / 62)) < 0.02, 'felt first beat on the kick, not the tick: ' + g.firstBeat);
   assert.ok(Math.abs(g.bpm - 62) <= 0.5, 'felt bpm with ticks ' + g.bpm);
+}
+// Without a low band (clicks only, louder on the beats) the broadband onset envelope decides the same way.
+{
+  const { x } = fixture({ bars: 12, first: 0.25 + 30 / 62, ticks: true, tickFirst: true, kick: false });
+  const g = analyzeCue(x, sr);
+  assert.deepEqual(g.problems, []);
+  assert.ok(Math.abs(g.firstBeat - (0.25 + 30 / 62)) < 0.02, 'felt first beat on the loud click: ' + g.firstBeat + ' ' + JSON.stringify(g.parity));
 }
 // A cue whose tempo moves from 62 to 64 bpm half way is rejected for drift.
 {
@@ -127,6 +150,18 @@ function fixture({ bpm = 62, first = 0.25, bars = 16, quietBars = 2, ticks = fal
   assert.equal(findSwell(series.map(p => ({ t: p.t, S: p.S === -20 ? -25 : p.S })), 2, 60), null);
 }
 
+// findSwellFallback on a short-term series (S at t covers [t - 3, t]). bpm 60, firstBeat 1: bar downbeats 1, 5, 9,
+// 13, ...; a phrase's loudness is the mean S over t in [d + 3, d + 4]. The biggest rise (+10 LU into the phrase at
+// 5 s) is before the 5.1 s lead-in, so the anchor is the +4 LU rise into the phrase at 13 s.
+{
+  const series = [];
+  for (let i = 1; i < 400; i++) { const t = i / 10; series.push({ t, S: t < 3 ? -120.7 : t < 8 ? -40 : t < 16 ? -30 : -26 }); }
+  assert.equal(findSwellFallback(series, 1, 60, 39.9), 13);
+  // Ties go to the first: a flat track anchors on the first allowed downbeat (9 s: 5 s is before the lead-in).
+  assert.equal(findSwellFallback(series.map(p => ({ t: p.t, S: p.t < 3 ? p.S : -20 })), 1, 60, 39.9), 9);
+  assert.equal(findSwellFallback(series, 1, 60, 12), null, 'no phrase fits');
+}
+
 // 2b. End to end through ffmpeg: build-cues.cjs on a 62 bpm cue with 2 quiet bars, into a temp folder.
 if (hasFfmpeg) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tec-cues-'));
@@ -140,7 +175,7 @@ if (hasFfmpeg) {
     fs.writeFileSync(raw, Buffer.from(drifting.buffer));
     execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-f', 'f32le', '-ar', String(sr), '-ac', '1', '-i', raw, '-b:a', '192k', path.join(tmp, 'drifting.mp3')]);
     fs.writeFileSync(path.join(tmp, 'cues.json'), JSON.stringify([
-      { id: 'synthetic-swell', title: 'Synthetic Swell', source: 'fixture.mp3', prompt: 'test fixture: 62 bpm kick and pad, 2 quiet bars' },
+      { id: 'synthetic-swell', title: 'Synthetic Swell', source: 'fixture.mp3', prompt: 'test fixture: 62 bpm kick and pad, 2 quiet bars', default: true },
       { id: 'synthetic-drift', title: 'Synthetic Drift', source: 'drifting.mp3', prompt: 'test fixture: 62 to 64 bpm' },
     ]));
     const out = path.join(tmp, 'out');
@@ -153,11 +188,13 @@ if (hasFfmpeg) {
     assert.deepEqual(fs.readdirSync(out).filter(f => f.endsWith('.mp3')), ['synthetic-swell.mp3'], 'no mp3 for the rejected cue');
     const c = built.cues[0];
     checkEntry(c);
+    assert.equal(c.default, true, 'default flag carried');
     assert.ok(Math.abs(c.bpm - 62) <= 0.5, 'bpm ' + c.bpm);
     assert.ok(Math.abs(c.detectedBpm - 124) <= 1, 'detectedBpm ' + c.detectedBpm);
     // mp3 encoder delay shifts the audio by a few ms; the first beat stays within 30 ms of the first kick.
     assert.ok(Math.abs(c.firstBeat - first) < 0.03, 'firstBeat ' + c.firstBeat);
     assert.ok(Math.abs(c.swell - swellT) <= 0.1, 'swell ' + c.swell + ' vs bar 3 downbeat ' + swellT.toFixed(3));
+    assert.ok(Math.abs(c.swellFallback - swellT) <= 0.1, 'swellFallback ' + c.swellFallback);
     assert.ok(Math.abs(c.driftBpm) <= 0.1, 'drift ' + c.driftBpm);
     assert.ok(Math.abs(lufsOf(path.join(out, c.file)) + 14) <= 0.5, 'measured loudness');
     assert.equal(c.provenance.prompt, 'test fixture: 62 bpm kick and pad, 2 quiet bars');
