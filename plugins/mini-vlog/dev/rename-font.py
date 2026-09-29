@@ -32,8 +32,8 @@ ps_name = family.replace(' ', '')
 
 font = TTFont(font_path)
 name = font['name']
-# Each MV family holds a single face; italics are their own family (e.g. "MV DM Serif
-# Display" vs "MV DM Serif Display Italic"), so the subfamily follows the italic flag.
+# Each MV family holds a single face; an italic is its own family (e.g. "MV Instrument
+# Serif Italic"), so the subfamily follows the italic flag.
 subfamily = 'Italic' if font['OS/2'].fsSelection & 1 else 'Regular'
 version = font['head'].fontRevision
 values = {

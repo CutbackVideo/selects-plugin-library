@@ -6,7 +6,12 @@
 
 ## Fonts
 
-The title fonts are bundled in `assets/fonts/` as base64-encoded WOFF2 text (`*.woff2.b64`). Each is a **Latin subset** of the Google Fonts release, with hinting removed and, for the variable Quicksand family, a single static Bold (700) instance. A subset is a Modified Version under the SIL Open Font License, so every font is **renamed** with an `MV ` prefix in its name table and in the title: `MV DM Serif Display`, `MV Instrument Serif Italic`, `MV Rounded Bold` (from Quicksand, whose name is reserved) and `MV DM Mono`. The fonts are embedded in the title graphic's parameters when a Draft is built.
+The title fonts are bundled in `assets/fonts/` as base64-encoded WOFF2 text (`*.woff2.b64`). Each is a **Latin subset** of the Google Fonts release, with hinting removed and, for the variable Quicksand family, a single static Bold (700) instance. A subset is a Modified Version under the SIL Open Font License. Every bundled font carries an `MV ` prefix in its name table and in the title, and the Quicksand subset is named `MV Rounded Bold` because "Quicksand" is a Reserved Font Name:
+
+- `MV Instrument Serif Italic`: the big word of the Mini vlog title;
+- `MV DM Serif Display`: the small word of the Mini vlog title;
+- `MV Rounded Bold` (a subset of Quicksand Bold): the big words and tag of A day in my life and the big word of A small glimpse;
+- `MV DM Mono`: the top and bottom lines of A small glimpse. The fonts are embedded in the title graphic's parameters when a Draft is built.
 
 The subsets cover Latin text only. Other scripts are drawn in a system font.
 
@@ -21,7 +26,7 @@ Each family's licence text is in `assets/fonts/licenses/`.
 
 ## Music
 
-The four bundled tracks in `assets/cues/` were generated for the Selects plugin library with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Each is a 40-second instrumental, loudness-normalized to -14 LUFS and encoded at 192 kbps. The same files are also bundled with another plugin in this library; they are unchanged here. Their generation prompts were not recorded. Tempo, first beat, usable end, bar confidence, list group and content hash are recorded in `assets/cues/manifest.json`.
+The four bundled tracks in `assets/cues/` were generated for the Selects plugin library with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Each is a 40-second instrumental, loudness-normalized to about -14 LUFS and encoded at 192 kbps. The same files are also bundled with another plugin in this library; they are unchanged here. Their generation prompts were not recorded. Tempo, first beat, usable end, bar confidence, list group and content hash are recorded in `assets/cues/manifest.json`.
 
 The tracks are bundled for use in the videos this plugin builds and are not for redistribution as standalone tracks.
 
