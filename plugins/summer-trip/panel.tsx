@@ -1102,7 +1102,7 @@ function stPlanOptions(o) {
 }
 
 // Sound effect files: decoded from sfx/<file>.b64 into `dir` under their stable names (shutter-N.wav, whoosh-1.wav);
-// ensure-audio.js imports each once per Project (it matches Audio resources by path, then by file name).
+// ensure-audio.js imports each once per Project (plugin-owned files match Audio resources by path, then by file name).
 function stSfxFiles(manifest, dir) {
   return Object.keys(manifest || {}).sort().map(key => ({ key, b64: 'sfx/' + manifest[key].file + '.b64', path: dir + '/' + manifest[key].file, seconds: manifest[key].duration }));
 }
@@ -1851,7 +1851,8 @@ export default function Panel({ sdk, context, ui }: any) {
   }
 
   // The muffled copy of the user's own music: baked once as .wav into the data folder (the file name, from the music's
-  // hash, is the cache key), then imported once per Project by ensure-audio.js (matched by name). A partial bake is
+  // hash, is the cache key), then imported once per Project by ensure-audio.js (matched by path or file name; the
+  // user's own music itself matches by path only). A partial bake is
   // written under a temporary name and renamed, so a failed run never leaves a truncated copy behind.
   async function bakeOwnMuffle(path: string, name: string, check: () => void) {
     const hash = (await shell("Read your music", TOOL_PATH + "shasum -a 256 < " + sq(path) + " | cut -c1-8", 60000)).trim();
@@ -1921,10 +1922,11 @@ export default function Panel({ sdk, context, ui }: any) {
       advance("music", 0);
       const notes: string[] = [];
       const m: any = musicAt.music;
-      const files: { key: string; path: string }[] = [];
+      const files: { key: string; path: string; matchByName?: boolean }[] = [];
       if (m.kind !== "none") {
         const dry = m.kind === "cue" ? roots.plugin + "/assets/cues/" + m.cue.file : musicAt.ownPath!;
-        files.push({ key: "dry", path: dry });
+        // The user's own file matches an existing resource by path only; bundled and baked files also by name.
+        files.push(m.kind === "cue" ? { key: "dry", path: dry } : { key: "dry", path: dry, matchByName: false });
         if (musicAt.muffle) {
           if (m.kind === "cue") { if (m.cue.muffledFile) files.push({ key: "wet", path: roots.plugin + "/assets/cues/" + m.cue.muffledFile }); else notes.push("ending muffle skipped (this track has no muffled copy)"); }
           else {

@@ -71,6 +71,7 @@ assert.ok(!/dq\((file|ownMusic|roots|path|out|src|dry)/.test(panel), 'user paths
 assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json") + " largest"') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))'), 'own-music analysis via a file, drop pick largest');
 assert.ok(panel.includes('stMuffleCommand(path, part)') && panel.includes('roots!.data + "/" + stOwnMuffledName(name, hash)') && panel.includes('shasum -a 256 < " + sq(path) + " | cut -c1-8'), 'own music muffled as a cached .wav');
 assert.ok(panel.includes('base64 -d < ') && panel.includes('base64 -D < '), 'SFX decode works with both base64 flavours');
+assert.ok(panel.includes('{ key: "dry", path: dry, matchByName: false }'), 'own music matches an existing resource by path only');
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 // Commits are never resent: run() resends only a non-committing call on a lost session.
 assert.ok(/if \(r\.isError && !allowCommit && \/No valid session ID\//.test(panel));
@@ -112,7 +113,7 @@ assert.equal(X.stCoverFor({ width: 1920, height: 1080 }), 1);
 assert.ok(near(X.stCoverFor({ width: 1080, height: 1920 }), (1920 / 1080) ** 2));
 assert.ok(near(X.stCoverFor({ width: 1440, height: 1080 }), (16 / 9) / (4 / 3)));
 assert.equal(X.stCoverFor(null), 1);
-// Own-music muffled copy: <base>-muffled-<hash8>.wav (stable, the cache key ensure-audio.js dedupes on).
+// Own-music muffled copy: <base>-muffled-<hash8>.wav (stable, the cache key; ensure-audio.js may reuse it by file name).
 assert.equal(X.stOwnMuffledName('My Song (final).mp3', '0a1b2c3d'), 'My-Song-final-.wav'.replace('.wav', '') + '-muffled-0a1b2c3d.wav');
 assert.equal(X.stOwnMuffledName('/x/y/summer.m4a', 'deadbeef'), 'summer-muffled-deadbeef.wav');
 // The muffle command quotes user paths.
@@ -156,7 +157,7 @@ const oo = X.stPlanOptions({ music: mOwn, section: 2, candidates: [], fps: 30, m
 assert.ok(oo.onsets.length === 1 && oo.lowConfidence === false && oo.sectionStart === 2 && !oo.bundled);
 assert.equal(X.stPlanOptions({ music: mFixed, section: 2, candidates: [], fps: 30, montageShots: 8, seed: 1 }).lowConfidence, true);
 assert.equal('sectionStart' in X.stPlanOptions({ music: X.stMusicFor({ choice: 'none' }), section: 2, candidates: [], fps: 30, montageShots: 8, seed: 1 }), false);
-// SFX: decoded under their stable names (ensure-audio dedupes by file name), shutter lengths per take.
+// SFX: decoded under their stable names (ensure-audio reuses them by path or file name), shutter lengths per take.
 const sfxManifest = JSON.parse(read('sfx/manifest.json'));
 const sfxFiles = X.stSfxFiles(sfxManifest, '/data/sfx');
 assert.deepEqual(j(sfxFiles.map(f => f.path)), ['/data/sfx/shutter-1.wav', '/data/sfx/shutter-2.wav', '/data/sfx/shutter-3.wav', '/data/sfx/shutter-4.wav', '/data/sfx/whoosh-1.wav']);

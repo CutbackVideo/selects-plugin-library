@@ -117,8 +117,11 @@ Returns `{ titleAdded, labelsAdded, muted, muteKept, gridSound: { mode, routed, 
 filmFrame, motion }, kept: { … } }, committed, alreadyDone, notes }`.
 
 ### ensure-audio.js
-`{ projectId, files: [{ key, path }] }` → `{ ids: { [key]: resourceId }, imported: [key], missing: [key] }` (imports only missing
-files in one importFiles call; matches Audio resources by path, then by file name).
+`{ projectId, files: [{ key, path, matchByName? }] }` → `{ ids: { [key]: resourceId }, imported: [key], missing: [key] }` (imports
+only missing files in one importFiles call; matches Audio resources by path, then by file name). `matchByName: false` (set by the
+panel and `dev/adapter.mjs` on the `dry` entry when it is the user's own music) matches by path only, so another song with the same
+file name is never reused; after the import it may match by name among the resources that import added. Plugin-owned files (bundled
+cues and their muffled copies, sound effects, the hash-named muffled copy of own music) omit it and keep the name fallback.
 
 ### inventory.js
 `{ projectId, only: null | [rid], known?: { [rid]: size }, measureMs?: 8000, probeMs?: 4000 }` →
