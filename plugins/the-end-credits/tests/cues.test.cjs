@@ -10,7 +10,7 @@ const { analyzeCue, findSwell, findSwellFallback, GENERATOR } = require(build);
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 const sr = 22050;
 
-const KEYS = ['id', 'title', 'file', 'bpm', 'detectedBpm', 'firstBeat', 'phraseBeats', 'swell', 'swellFallback', 'usableEnd', 'driftBpm', 'lufs', 'durationSeconds', 'sha256', 'provenance'];
+const KEYS = ['id', 'title', 'file', 'bpm', 'detectedBpm', 'firstBeat', 'phraseBeats', 'swell', 'swellSource', 'swellFallback', 'usableEnd', 'driftBpm', 'lufs', 'durationSeconds', 'sha256', 'provenance'];
 function checkEntry(c) {
   // `default: true` marks the panel's default cue; it is absent on the others.
   assert.deepEqual(Object.keys(c).filter(k => k !== 'default').sort(), [...KEYS].sort(), 'manifest keys of ' + c.id);
@@ -31,6 +31,8 @@ function checkEntry(c) {
     assert.ok(Math.round(k) >= 1 && Math.abs(c.swell - (c.firstBeat + Math.round(k) * bar)) <= 0.002, c.id + ' swell on a bar downbeat ' + c.swell);
     assert.ok(c.swell < c.usableEnd, c.id + ' swell inside the cue');
   }
+  assert.ok(['auto', 'manual'].includes(c.swellSource), c.id + ' swellSource');
+  if (c.swellSource === 'manual') assert.equal(typeof c.swell, 'number', c.id + ' manual swell is a number');
   // The fallback anchor is always there: a bar downbeat at or after the 5.1 s lead-in whose phrase fits the cue.
   assert.ok(typeof c.swellFallback === 'number', c.id + ' swellFallback');
   const kf = Math.round((c.swellFallback - c.firstBeat) / bar);
@@ -63,6 +65,19 @@ const NOMINAL = { 'piano-strings': 62, 'rhodes-soul': 64, 'post-rock': 66, orche
 assert.deepEqual(m.cues.map(c => c.id), Object.keys(NOMINAL));
 for (const c of m.cues) assert.ok(Math.abs(c.bpm - NOMINAL[c.id]) <= 0.5, c.id + ' bpm ' + c.bpm + ' vs nominal ' + NOMINAL[c.id]);
 assert.deepEqual(m.cues.filter(c => c.default).map(c => c.id), ['post-rock']);
+// Anchor rulings (2026-09-30): post-rock at the full-band entry (bar 4), orchestral at the start of the rise,
+// piano (flat) early at bar 3; rhodes and dream-synth keep the measured swell (dream-synth: null, so its fallback).
+if (m.cues.length) {
+  const src = Object.fromEntries(m.cues.map(c => [c.id, c.swellSource]));
+  assert.deepEqual(src, { 'piano-strings': 'manual', 'rhodes-soul': 'auto', 'post-rock': 'manual', orchestral: 'manual', 'dream-synth': 'auto' });
+  const byId = Object.fromEntries(m.cues.map(c => [c.id, c]));
+  const barOf = c => 4 * 60 / c.bpm;
+  assert.ok(Math.abs(byId['post-rock'].swell - (byId['post-rock'].firstBeat + 3 * barOf(byId['post-rock']))) <= 0.002, 'post-rock swell at bar 4 of the grid');
+  assert.ok(Math.abs(byId['post-rock'].swell - 14.577) <= 0.01, 'post-rock swell ' + byId['post-rock'].swell);
+  assert.equal(byId.orchestral.swell, byId.orchestral.swellFallback, 'orchestral swell on the start of the rise');
+  assert.ok(Math.abs(byId['piano-strings'].swell - (byId['piano-strings'].firstBeat + 2 * barOf(byId['piano-strings']))) <= 0.002, 'piano swell at bar 3');
+  assert.equal(byId['dream-synth'].swell, null);
+}
 const mp3s = fs.readdirSync(dir).filter(f => f.endsWith('.mp3')).sort();
 assert.deepEqual(mp3s, m.cues.map(c => c.file).sort(), 'every cue file is listed and every listed file exists');
 for (const c of m.cues) {
@@ -177,6 +192,8 @@ if (hasFfmpeg) {
     fs.writeFileSync(path.join(tmp, 'cues.json'), JSON.stringify([
       { id: 'synthetic-swell', title: 'Synthetic Swell', source: 'fixture.mp3', prompt: 'test fixture: 62 bpm kick and pad, 2 quiet bars', default: true },
       { id: 'synthetic-drift', title: 'Synthetic Drift', source: 'drifting.mp3', prompt: 'test fixture: 62 to 64 bpm' },
+      // A manual swell near the bar-4 downbeat (first + 12 beats = 11.863 s) snaps onto it.
+      { id: 'synthetic-manual', title: 'Synthetic Manual', source: 'fixture.mp3', prompt: 'test fixture: manual swell', swell: 12.3 },
     ]));
     const out = path.join(tmp, 'out');
     const r = spawnSync('node', [build, '--out', out, path.join(tmp, 'cues.json')]);
@@ -184,11 +201,17 @@ if (hasFfmpeg) {
     assert.match(r.stderr.toString(), /synthetic-drift REJECTED: .*drift/);
     const built = JSON.parse(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8'));
     assert.equal(built.version, 1);
-    assert.deepEqual(built.cues.map(c => c.id), ['synthetic-swell']);
-    assert.deepEqual(fs.readdirSync(out).filter(f => f.endsWith('.mp3')), ['synthetic-swell.mp3'], 'no mp3 for the rejected cue');
+    assert.deepEqual(built.cues.map(c => c.id), ['synthetic-swell', 'synthetic-manual']);
+    assert.deepEqual(fs.readdirSync(out).filter(f => f.endsWith('.mp3')).sort(), ['synthetic-manual.mp3', 'synthetic-swell.mp3'], 'no mp3 for the rejected cue');
+    const manual = built.cues[1];
+    checkEntry(manual);
+    assert.equal(manual.swellSource, 'manual');
+    assert.ok(Math.abs(manual.swell - (manual.firstBeat + 3 * 4 * 60 / manual.bpm)) <= 0.002, 'manual swell snapped to bar 4: ' + manual.swell);
+    assert.equal(manual.swellFallback, built.cues[0].swellFallback, 'fallback still measured');
     const c = built.cues[0];
     checkEntry(c);
     assert.equal(c.default, true, 'default flag carried');
+    assert.equal(c.swellSource, 'auto');
     assert.ok(Math.abs(c.bpm - 62) <= 0.5, 'bpm ' + c.bpm);
     assert.ok(Math.abs(c.detectedBpm - 124) <= 1, 'detectedBpm ' + c.detectedBpm);
     // mp3 encoder delay shifts the audio by a few ms; the first beat stays within 30 ms of the first kick.

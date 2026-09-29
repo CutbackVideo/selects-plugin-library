@@ -5,12 +5,14 @@
 //
 // Usage: node dev/build-cues.cjs [--out <dir>] <cues.json>
 //   cues.json: [{ "id": "kebab-id", "title": "Title", "source": "file.mp3", "prompt": "the generation prompt",
-//                 "default": true (optional, one cue: the panel's default) }, ...]
+//                 "default": true (optional, one cue: the panel's default),
+//                 "swell": 14.6 (optional, seconds: a manual swell, snapped to the nearest felt-bar downbeat) }, ...]
 //   `source` is resolved against the folder of cues.json. --out defaults to assets/cues next to this script.
 //   Cues already in <out>/manifest.json with other ids are kept; an entry with the same id is replaced.
 //   A rejected cue (tempo outside 60-66 felt bpm, |driftBpm| > 1.5, or loudness off -14 LUFS by > 0.5 LU) gets no
 //   mp3 and no entry; the other cues are still written and the exit status is 2.
 //
+// `swellSource` is "manual" when cues.json set the swell, else "auto" (findSwell).
 // Section anchor for the planner (spec R3 default j): `swell` when it is not null (a >= 6 LU rise on a bar
 // downbeat), else `swellFallback` (the bar downbeat >= 5.1 s with the largest phrase-energy rise). Both are on the
 // felt-bar grid firstBeat + k * phraseBeats * 60 / bpm; swellFallback is written for every cue.
@@ -188,13 +190,18 @@ function buildCue(cue, sourceFile, outDir) {
   if (!(Math.abs(lufs - TARGET_LUFS) <= LUFS_TOLERANCE)) problems.push('loudness ' + lufs + ' LUFS after two-pass loudnorm');
   if (problems.length) { fs.rmSync(dst, { force: true }); return { rejected: problems }; }
   const usableEnd = round(durationSeconds - 0.1, 3);
-  const swell = findSwell(series, g.firstBeat, g.bpm);
+  // A manual swell (cues.json "swell", seconds) is snapped to the nearest felt-bar downbeat after firstBeat.
+  const bar = PHRASE_BEATS * 60 / g.bpm;
+  const swellSource = cue.swell == null ? 'auto' : 'manual';
+  const swell = swellSource === 'manual'
+    ? round(g.firstBeat + Math.max(1, Math.round((cue.swell - g.firstBeat) / bar)) * bar, 3)
+    : findSwell(series, g.firstBeat, g.bpm);
   const swellFallback = findSwellFallback(series, g.firstBeat, g.bpm, usableEnd);
-  console.log(cue.id, JSON.stringify({ detectedBpm: g.detectedBpm, bpm: g.bpm, firstBeat: g.firstBeat, parity: g.parity, swell, swellFallback, driftBpm: g.driftBpm, lufs, truePeak, loudness: mode }));
+  console.log(cue.id, JSON.stringify({ detectedBpm: g.detectedBpm, bpm: g.bpm, firstBeat: g.firstBeat, parity: g.parity, swell, swellSource, swellFallback, driftBpm: g.driftBpm, lufs, truePeak, loudness: mode }));
   return {
     entry: {
       id: cue.id, title: cue.title, file,
-      bpm: g.bpm, detectedBpm: g.detectedBpm, firstBeat: g.firstBeat, phraseBeats: PHRASE_BEATS, swell, swellFallback,
+      bpm: g.bpm, detectedBpm: g.detectedBpm, firstBeat: g.firstBeat, phraseBeats: PHRASE_BEATS, swell, swellSource, swellFallback,
       usableEnd, driftBpm: g.driftBpm, lufs, durationSeconds,
       sha256: crypto.createHash('sha256').update(fs.readFileSync(dst)).digest('hex'),
       provenance: { generator: GENERATOR, prompt: cue.prompt },
@@ -218,6 +225,7 @@ if (require.main === module) {
   let failed = 0;
   for (const cue of list) {
     for (const k of ['id', 'title', 'source', 'prompt']) if (typeof cue[k] !== 'string' || !cue[k]) throw Error('cue ' + JSON.stringify(cue) + ': missing ' + k);
+    if (cue.swell != null && !(typeof cue.swell === 'number' && cue.swell >= 0)) throw Error(cue.id + ': swell must be seconds');
     if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(cue.id)) throw Error(cue.id + ': ids are kebab-case');
     const r = buildCue(cue, path.resolve(base, cue.source), outDir);
     const i = manifest.cues.findIndex(c => c.id === cue.id);
