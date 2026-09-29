@@ -75,6 +75,45 @@ assert.equal(pref.picks[0].rid, 'b');
 const bad = P.cwvAllocate({ candidates: [{ rid: 'a', role: 'street', t: NaN, score: 1, sourceDuration: 30 }, { rid: 'b', role: 'street', t: 5, score: Infinity, sourceDuration: 30 }], slots: [{ index: 0, role: 'street', seconds: 1 }], seed: 'x' });
 assert.equal(bad.filled, 0);
 
+// Live case: 4 short portrait sources where nobody talks. searchScenes still returns 4 talking hits per clip with
+// scores comparable to the other roles; they must not block the footage, so the plan succeeds without the relax.
+const live = [];
+[12, 12, 11, 33].forEach((dur, r) => ['street', 'architecture', 'landmark', 'park', 'detail', 'wide', 'talking'].forEach((role, ri) => {
+  for (let k = 0; k < 4; k++) {
+    const t = Math.round(((k + 0.5) * dur / 4 + (ri - 3) * 0.3) * 10) / 10;
+    live.push({ rid: 'v' + r, role, t, score: (role === 'talking' ? 0.15 : 0.10) + ((r * 13 + ri * 7 + k * 5) % 25) / 100, sourceDuration: dur });
+  }
+}));
+const lv = j(P.cwvPlanBuild({ candidates: live, bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' }));
+assert.equal(lv.ok, true);
+assert.equal(lv.relaxedTalking, undefined);
+assert.ok(lv.montageShots >= 4);
+assert.equal(a.relaxedTalking, undefined);
+
+// A clearly dominant talking hit (0.6 against 0.2 nearby) is still avoided; a comparable one is not.
+const dom = talk => P.cwvAllocate({ candidates: [
+  { rid: 'a', role: 'street', t: 5, score: 0.3, sourceDuration: 30 },
+  { rid: 'a', role: 'street', t: 15, score: 0.2, sourceDuration: 30 },
+  { rid: 'a', role: 'detail', t: 5.5, score: 0.2, sourceDuration: 30 },
+  { rid: 'a', role: 'talking', t: 5, score: talk, sourceDuration: 30 }], slots: [{ index: 0, role: 'street', seconds: 1 }], seed: 'x' });
+assert.equal(dom(0.6).picks[0].startSeconds, 14.5);
+assert.equal(dom(0.32).picks[0].startSeconds, 4.5);
+// With no other-role hit within 1 s, a talking hit blocks only when its own score reaches CWV_TALKING_MIN.
+const lone = talk => P.cwvAllocate({ candidates: [
+  { rid: 'a', role: 'street', t: 3.8, score: 0.3, sourceDuration: 30 },
+  { rid: 'a', role: 'talking', t: 5, score: talk, sourceDuration: 30 }], slots: [{ index: 0, role: 'street', seconds: 1 }], seed: 'x' });
+assert.equal(lone(0.35).filled, 0);
+assert.equal(lone(0.2).filled, 1);
+
+// Avoidance makes every length infeasible; the retry without it succeeds and says so.
+const talkAll = mk(40, 4, roles).concat(Array.from({ length: 40 }, (_, r) => ({ rid: 'm' + r, role: 'talking', t: 2, score: 0.9, sourceDuration: 4 })));
+const rx = j(P.cwvPlanBuild({ candidates: talkAll, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
+assert.equal(rx.ok, true);
+assert.equal(rx.relaxedTalking, true);
+assert.equal(rx.picks.length, 13 + rx.montageShots);
+assert.ok(rx.picks.every(Boolean));
+assert.equal(P.cwvAllocate({ candidates: talkAll, slots: rx.schedule.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / 30 })), seed: 's1' }).filled, 0);
+
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.CWV_BUILD_STEPS.length, 5);
 assert.equal(P.CWV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);
