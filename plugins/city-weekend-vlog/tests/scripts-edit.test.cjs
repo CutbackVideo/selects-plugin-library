@@ -14,7 +14,7 @@ function mockDraft(fps) {
     setClipTransform: async (o) => log.push(['transform', o.clip.clipId, o.scale]),
     rangeAtFrames: async (a, b) => ({ a, b }),
     setAudioTracks: async (o) => log.push(['mute', o.audioSourceIndexes]),
-    overlayResource: async (o) => { clips.push({ clipId: 99, resourceId: 'm', trackKind: 'audio', startFrame: 0, endFrame: frame }); log.push(['music', o.sourceStartSeconds]); return { inserted: 1 }; },
+    overlayResource: async (o) => { clips.push({ clipId: 99, resourceId: o.resource.id, trackKind: 'audio', startFrame: 0, endFrame: frame }); log.push(['music', o.sourceStartSeconds]); return { inserted: 1 }; },
     setClipAudio: async (o) => log.push(['fade', o.clip.clipId, o.fadeInSeconds, o.fadeOutSeconds]),
     addMotionGraphic: async (o) => log.push(['title', o.within, o.label]),
     addVideoEffect: async (o) => log.push(['warm', o.clip.clipId, o.parameters.strength]),
@@ -37,8 +37,16 @@ function mockDraft(fps) {
   assert.ok(Math.abs(t[0][2].x - (1920 / 1080) / (1080 / 1920)) < 1e-6 || t[0][2].x > 1, 'cover scale');
   assert.deepEqual(m.log.find(x => x[0] === 'mute')[1], []);
   assert.equal(m.log.find(x => x[0] === 'music')[1], 4.847);
-  assert.deepEqual(m.log.find(x => x[0] === 'fade').slice(2), [0, 0.12]);
+  assert.deepEqual(m.log.find(x => x[0] === 'fade').slice(1), [99, 0, 0.12]);
   assert.equal(m.log.filter(x => x[0] === 'commit').length, 1);
+
+  // Pre-existing audio (one with the same resource id as the music) must not be mistaken for the new clip.
+  const m3 = mockDraft(30);
+  m3.clips.push({ clipId: 50, resourceId: 'r9', trackKind: 'audio', startFrame: 0, endFrame: 10 }, { clipId: 51, resourceId: 'other', trackKind: 'audio', startFrame: 0, endFrame: 10 });
+  const sel4 = { project: () => ({ createDraft: async () => m3.d, resource: id => ({ id }) }) };
+  const r3 = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [{ rid: 'r0', startSeconds: 0, endSeconds: 1 }], boundaries: [0, 1], crops: {}, mute: false, music: { resourceId: 'r9', sectionStart: 1 } })(sel4);
+  assert.deepEqual(m3.log.filter(x => x[0] === 'fade').map(x => x[1]), [99], 'fade targets only the new music clip');
+  assert.deepEqual(r3.notes, []);
 
   const bad = mockDraft(30); bad.d.setAudioTracks = async () => { throw Error('nope'); };
   const sel2 = { project: () => ({ createDraft: async () => bad.d, resource: id => ({ id }) }) };
