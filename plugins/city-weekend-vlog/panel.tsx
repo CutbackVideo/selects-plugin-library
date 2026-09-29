@@ -339,10 +339,56 @@ export default function Panel({ sdk, context, ui }: any) {
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
   };
 
+  // Inventory bookkeeping: the inventory script, the last clip set seen, the title values we suggested, and a load in flight.
+  const inventoryJsRef = React.useRef<string | null>(null);
+  const invSigRef = React.useRef<string | null>(null);
+  const autoRef = React.useRef<{ pid: string | null; line1: string; place: string }>({ pid: null, line1: "", place: "" });
+  const invLoadingRef = React.useRef<string | null>(null);
+  const mountedRef = React.useRef(true);
+  const [invError, setInvError] = React.useState<string | null>(null);
+  const [invLoading, setInvLoading] = React.useState(false);
+
+  // Reads the Project's footage inventory. Never writes state for a stale Project, and never runs during a build.
+  async function loadInventory(pid: string | null = projectRef.current, alive: () => boolean = () => true) {
+    const script = inventoryJsRef.current;
+    // One read per Project at a time; a read for another Project never blocks this one.
+    if (!pid || !script || busyRef.current || invLoadingRef.current === pid) return;
+    const live = () => mountedRef.current && alive() && projectRef.current === pid;
+    invLoadingRef.current = pid; setInvLoading(true);
+    try {
+      const inv = await run("Read footage", fill(script, { projectId: pid, only: null }));
+      // A build that started meanwhile keeps the clip set it began with; the next refresh picks this up.
+      if (!live() || busyRef.current) return;
+      const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + (inv.skipped?.unanalysed || 0);
+      // A changed clip set drops the cached scene search so a build never uses stale candidates.
+      if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
+      setInventory(inv); setInvError(null);
+      // Prefill the title on the first load for this Project; later only replace values the user has not edited.
+      const day = suggestDay(inv.resources.map((r: any) => r.recordedAt));
+      const auto = autoRef.current;
+      if (auto.pid !== pid) {
+        const where = suggestPlace(context?.projectName);
+        autoRef.current = { pid, line1: day, place: where };
+        setLine1(day); setPlace(where);
+      } else if (auto.line1 !== day) {
+        const prev = auto.line1;
+        autoRef.current = { ...auto, line1: day };
+        setLine1((cur) => (cur === prev ? day : cur));
+      }
+    } catch (e: any) {
+      if (live()) setInvError(String(e?.message || e));
+    } finally {
+      if (invLoadingRef.current === pid) invLoadingRef.current = null;
+      if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
+    }
+  }
+  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+
   // Mount and Project switch: reset per-Project state, resolve folders, read bundled assets, inventory the Project.
   React.useEffect(() => {
     // Drop everything tied to the previous Project so a build never mixes Projects.
-    setCandidates(null); setResult(null); setStatus(null); setInventory(null);
+    setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
+    invSigRef.current = null;
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
     if (!projectId) return;
     let alive = true;
@@ -367,17 +413,34 @@ export default function Panel({ sdk, context, ui }: any) {
           read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-graphic.tsx"), read("assets/warm-look.tsx")]);
         if (!alive) return;
         setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, warmTsx });
+        inventoryJsRef.current = inventoryJs;
         setStep("Checking clips");
-        const inv = await run("Read footage", fill(inventoryJs, { projectId, only: null }));
-        if (!alive) return;
-        setInventory(inv);
-        setLine1(suggestDay(inv.resources.map((r: any) => r.recordedAt)));
-        setPlace(suggestPlace(context?.projectName));
+        await loadInventory(projectId, () => alive);
       } catch (e: any) {
         if (alive) setStatus({ tone: "error", text: "City Weekend Vlog could not start: " + (e?.message || e) + ". Reinstall the plugin if this persists." });
       } finally { if (alive) setStep(""); }
     })();
     return () => { alive = false; if (audioRef.current) audioRef.current.pause(); };
+  }, [projectId]);
+
+  // Clips still being analysed (or none yet): re-read the inventory every 10 s until they are ready.
+  // The effect re-arms on each new inventory, and stops on unmount, Project switch and while busy.
+  const needsPoll = !!inventory && (inventory.skipped?.unanalysed > 0 || inventory.resources.length === 0);
+  React.useEffect(() => {
+    if (!projectId || !needsPoll || busy) return;
+    const pid = projectId;
+    const t = setInterval(() => { loadInventory(pid); }, 10000);
+    return () => clearInterval(t);
+  }, [projectId, needsPoll, busy]);
+  // Coming back to the panel (tab shown or window focused) re-reads the inventory.
+  React.useEffect(() => {
+    if (!projectId) return;
+    const pid = projectId;
+    const onVisible = () => { if (document.visibilityState === "visible") loadInventory(pid); };
+    const onFocus = () => { loadInventory(pid); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    return () => { document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onFocus); };
   }, [projectId]);
 
   // Fonts for the tiles (every preset's state A) and the live preview (all states of the chosen preset).
@@ -580,8 +643,11 @@ export default function Panel({ sdk, context, ui }: any) {
     }
   }
 
-  const readiness = !inventory ? "Checking clips…"
-    : inventory.resources.length === 0 ? "No analysed video in this Project yet. Analyse your clips, then reopen this panel."
+  const pending = inventory?.skipped?.unanalysed || 0;
+  const readiness = !inventory ? (invError ? "Could not read the clips in this Project: " + invError : "Checking clips…")
+    : inventory.resources.length === 0 ? (pending > 0
+      ? pending + " clips are still being analysed. This updates automatically when they finish."
+      : "No analysed video in this Project yet. Add and analyse video clips; this updates automatically.")
     : "Ready: " + inventory.resources.length + " analysed clips · about " + Math.round(videoSeconds) + " s" + (inventory.skipped.unanalysed ? " · " + inventory.skipped.unanalysed + " clips not analysed yet" : "");
   const peaks: number[] = grid.peaks || [];
   // Bundled peaks can exceed 1.0 slightly, so scale by the loudest bar when it does.
@@ -599,7 +665,11 @@ export default function Panel({ sdk, context, ui }: any) {
 
   return (
     <ui.Stack gap={16}>
-      <ui.Message tone="muted">{readiness}</ui.Message>
+      <ui.Row gap={8} align="center">
+        <ui.Message tone={!inventory && invError ? "error" : "muted"}>{readiness}</ui.Message>
+        <ui.Button variant="ghost" busy={invLoading} busyLabel="Refreshing" disabled={busy || !assets} onClick={() => loadInventory()}>Refresh</ui.Button>
+      </ui.Row>
+      {inventory && invError ? <ui.Message tone="error">{"Could not refresh the clip list: " + invError}</ui.Message> : null}
       <ui.Section title="Title">
         <ui.TextField label="First line" value={line1} onChange={setLine1} />
         <ui.TextField label="Connector" value={connector} onChange={setConnector} />
