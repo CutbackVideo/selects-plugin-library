@@ -26,13 +26,26 @@ Each family's licence text is in `assets/fonts/licenses/`.
 
 ## Music
 
-The four bundled tracks in `assets/cues/` were generated for the Selects plugin library with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Each is a 40-second instrumental, loudness-normalized to about -14 LUFS and encoded at 192 kbps. The same files are also bundled with another plugin in this library; they are unchanged here. Their generation prompts were not recorded. Tempo, first beat, usable end, bar confidence, list group and content hash are recorded in `assets/cues/manifest.json`.
+The six bundled tracks in `assets/cues/` were generated for the Selects plugin library with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Each is an instrumental, loudness-normalized to about -14 LUFS and encoded at 192 kbps. Tempo, first beat, usable end, bar confidence and the measured downbeat ratio, list group and content hash are recorded in `assets/cues/manifest.json`.
+
+- **Bedroom Pop** and **Acoustic Pop** were generated for this plugin (instrumental only, 60 seconds, delivered as 44.1 kHz 128 kbps MP3) from the prompts below.
+- **Weekend Indie Pop**, **Golden Hour Disco**, **Sunny Soul Strut** and **Easy Sunday Lo-fi** are 40-second tracks that are also bundled with another plugin in this library; they are unchanged here. Their generation prompts were not recorded.
 
 The tracks are bundled for use in the videos this plugin builds and are not for redistribution as standalone tracks.
 
 | Track | File | Tempo | Group |
 | --- | --- | --- | --- |
+| Bedroom Pop | `bedroom-pop-108.mp3` | 108 BPM | Reference |
+| Acoustic Pop | `acoustic-pop-104.mp3` | 104 BPM | Reference |
 | Weekend Indie Pop | `weekend-indie-pop.mp3` | 112 BPM | Reference |
 | Golden Hour Disco | `golden-hour-disco.mp3` | 104 BPM | Reference |
 | Sunny Soul Strut | `sunny-soul-strut.mp3` | 99 BPM | Alternatives |
 | Easy Sunday Lo-fi | `easy-sunday-lofi.mp3` | 88 BPM | Alternatives |
+
+Prompt for Bedroom Pop (`bedroom-pop-108.mp3`):
+
+> Cute, bright instrumental bedroom-pop at exactly 108 BPM in 4/4, sunny, light, cozy daily-vlog mood, no vocals. Drums are the loudest element in the mix: a soft but punchy kick on every beat, a clean snare and clap on beats 2 and 4 for a clear backbeat, and steady straight 8th-note hi-hats (not 16ths, not swung). The drums start within the first second with a strong downbeat on bar 1, with no fade-in and no ambient intro. Add a short drum fill at the end of every 4 bars. Keep the tempo steady and quantized, with no rubato, tempo changes or breakdowns. Plucky clean electric guitar, a warm bass line, glockenspiel and soft synth pads sit underneath the drums. The track is 60 seconds long.
+
+Prompt for Acoustic Pop (`acoustic-pop-104.mp3`):
+
+> Soft, happy instrumental acoustic-pop at exactly 104 BPM in 4/4, warm morning-coffee daily-vlog mood, no vocals. Drums are the loudest element in the mix: a round, punchy kick on beats 1 and 3 plus light kicks on 2 and 4, a crisp snare and hand clap on beats 2 and 4 for a clear backbeat, and straight 8th-note shaker and hi-hat (not 16ths, not swung). The drums start within the first second with a strong downbeat on bar 1, with no fade-in and no ambient intro. Add a short drum fill at the end of every 4 bars. Keep the tempo steady and quantized, with no rubato, tempo changes or breakdowns. Strummed acoustic guitar, ukulele, a warm bass line and light piano sit underneath the drums. The track is 60 seconds long.
