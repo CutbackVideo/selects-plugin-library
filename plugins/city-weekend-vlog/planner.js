@@ -84,3 +84,96 @@ function cwvDefaultSection(opts) {
   }
   return best ? best.start : null;
 }
+
+function cwvHash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) / 4294967296;
+}
+
+// Which candidate roles may fill a slot role, best first.
+const CWV_ROLE_FALLBACK = {
+  street: ['street', 'detail', 'architecture'],
+  architecture: ['architecture', 'landmark', 'street'],
+  landmark: ['landmark', 'architecture', 'park', 'wide'],
+  wide: ['wide', 'park', 'landmark'],
+  park: ['park', 'wide', 'detail'],
+  detail: ['detail', 'street', 'architecture'],
+};
+
+function cwvAllocate(opts) {
+  const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
+  const used = {}, avoid = {}, recent = [], picks = [];
+  opts.candidates.filter(c => c.role === 'talking').forEach(c => { (avoid[c.rid] = avoid[c.rid] || []).push([c.t - 1, c.t + 1]); });
+  const pool = opts.candidates.filter(c => c.role !== 'talking' && c.sourceDuration > 0);
+  let missing = 0;
+  for (const slot of opts.slots) {
+    const roles = CWV_ROLE_FALLBACK[slot.role] || [slot.role];
+    let best = null;
+    for (const c of pool) {
+      const rank = roles.indexOf(c.role);
+      if (rank < 0 || c.sourceDuration < slot.seconds) continue;
+      const start = Math.max(0, Math.min(c.sourceDuration - slot.seconds, c.t - slot.seconds / 2));
+      const end = start + slot.seconds;
+      if ((used[c.rid] || []).some(([a, b]) => start < b + gap && end > a - gap)) continue;
+      if ((avoid[c.rid] || []).some(([a, b]) => start < b && end > a)) continue;
+      const repeats = recent.filter(r => r === c.rid).length;
+      const value = c.score - rank * 0.15 - repeats * 0.2 + cwvHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05;
+      const better = !best || value > best.value + 1e-12 ||
+        (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)));
+      if (better) best = { value, c, start, end };
+    }
+    if (!best) { missing++; picks.push(null); continue; }
+    (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
+    recent.push(best.c.rid);
+    if (recent.length > 3) recent.shift();
+    picks.push({ slot: slot.index, rid: best.c.rid, startSeconds: best.start, endSeconds: best.end });
+  }
+  return { picks, filled: picks.filter(Boolean).length, missing };
+}
+
+function cwvPlanBuild(opts) {
+  const full = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: opts.montageShots });
+  const slots = full.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
+  const alloc = cwvAllocate({ candidates: opts.candidates, slots, seed: opts.seed });
+  const titleCount = CWV_TITLE_BEATS.length;
+  const titleOk = alloc.picks.slice(0, titleCount).every(Boolean);
+  let n = 0;
+  while (n < opts.montageShots && alloc.picks[titleCount + n]) n++;
+  if (!titleOk || n < CWV_MIN_MONTAGE) return { ok: false, usableShots: alloc.filled, needed: CWV_MIN_WINDOWS };
+  return {
+    ok: true,
+    schedule: cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n }),
+    picks: alloc.picks.slice(0, titleCount + n),
+    montageShots: n,
+    usableShots: alloc.filled,
+    needed: CWV_MIN_WINDOWS,
+  };
+}
+
+// Build steps shown in the panel's progress bar, with each step's share of the bar in percent.
+const CWV_BUILD_STEPS = [
+  { id: 'shots', label: 'Choosing shots', weight: 40 },
+  { id: 'music', label: 'Preparing music', weight: 10 },
+  { id: 'draft', label: 'Creating Draft', weight: 25 },
+  { id: 'look', label: 'Adding title and look', weight: 20 },
+  { id: 'open', label: 'Opening Draft', weight: 5 },
+];
+
+// Progress for a step that is `fraction` done. Floors the percent so 100% only shows at the very end.
+function cwvProgress(stepId, fraction, detail) {
+  const i = CWV_BUILD_STEPS.findIndex(s => s.id === stepId);
+  if (i < 0) throw new Error('unknown build step ' + stepId);
+  const total = CWV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0);
+  const before = CWV_BUILD_STEPS.slice(0, i).reduce((a, s) => a + s.weight, 0);
+  const f = Math.min(1, Math.max(0, Number(fraction) || 0));
+  const value = (before + CWV_BUILD_STEPS[i].weight * f) / total;
+  const percent = Math.floor(value * 100 + 1e-9);
+  const step = CWV_BUILD_STEPS[i];
+  return {
+    value,
+    percent,
+    current: i,
+    label: 'Step ' + (i + 1) + '/' + CWV_BUILD_STEPS.length + ' · ' + step.label + (detail ? ' (' + detail + ')' : '') + ' · ' + percent + '%',
+  };
+}
