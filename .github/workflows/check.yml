@@ -33,3 +33,7 @@ jobs:
           node plugins/city-weekend-vlog/tests/scripts-read.test.cjs
           node plugins/city-weekend-vlog/tests/title.test.cjs
           node plugins/city-weekend-vlog/tests/warm.test.cjs
+      - name: Test Torn Paper Love
+        run: |
+          node plugins/torn-paper-love/tests/beat-detect.test.cjs
+          node plugins/torn-paper-love/tests/cues.test.cjs
