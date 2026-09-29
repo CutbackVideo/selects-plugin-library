@@ -1,4 +1,14 @@
 // @name City Weekend Vlog
+// @name:de Städte-Wochenend-Vlog
+// @name:en City Weekend Vlog
+// @name:es Vlog de fin de semana en la ciudad
+// @name:fr Vlog week-end en ville
+// @name:it Vlog weekend in città
+// @name:ja シティ週末 Vlog
+// @name:ko City Weekend Vlog
+// @name:pt Vlog de fim de semana na cidade
+// @name:tr Şehirde Hafta Sonu Vlogu
+// @name:zh 城市周末 Vlog
 // @icon sparkles
 // Builds a beat-synced 9:16 city weekend vlog with a font-switching title as a new, editable Draft.
 import React from "react";

@@ -20,3 +20,15 @@ jobs:
           node plugins/place-count/tests/core.test.cjs
           node plugins/place-count/tests/path-collision.test.cjs
           node plugins/place-count/tests/places.test.cjs
+      - name: Test City Weekend Vlog
+        run: |
+          node plugins/city-weekend-vlog/tests/allocate.test.cjs
+          node plugins/city-weekend-vlog/tests/beat-detect.test.cjs
+          node plugins/city-weekend-vlog/tests/cues.test.cjs
+          node plugins/city-weekend-vlog/tests/fonts.test.cjs
+          node plugins/city-weekend-vlog/tests/panel.test.cjs
+          node plugins/city-weekend-vlog/tests/planner.test.cjs
+          node plugins/city-weekend-vlog/tests/scripts-edit.test.cjs
+          node plugins/city-weekend-vlog/tests/scripts-read.test.cjs
+          node plugins/city-weekend-vlog/tests/title.test.cjs
+          node plugins/city-weekend-vlog/tests/warm.test.cjs
