@@ -4,7 +4,7 @@ const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
 vm.createContext(box);
-vm.runInContext(source + ';globalThis.P={cwvSchedule,cwvFitMontage,cwvSnapSection,cwvDefaultSection,cwvVideoSeconds,cwvBurstFor,cwvMinWindows,cwvMusicOffset,CWV_TITLE_BEATS,CWV_TITLE_ROLES,CWV_FONT_STATES,CWV_TITLE_BEATS_EIGHTH,CWV_TITLE_ROLES_EIGHTH,CWV_FONT_STATES_EIGHTH,CWV_MIN_WINDOWS};', box);
+vm.runInContext(source + ';globalThis.P={cwvSnapCuts,cwvPlanBuild,CWV_TITLE_TOTAL_BEATS,cwvSchedule,cwvFitMontage,cwvSnapSection,cwvDefaultSection,cwvVideoSeconds,cwvBurstFor,cwvMinWindows,cwvMusicOffset,CWV_TITLE_BEATS,CWV_TITLE_ROLES,CWV_FONT_STATES,CWV_TITLE_BEATS_EIGHTH,CWV_TITLE_ROLES_EIGHTH,CWV_FONT_STATES_EIGHTH,CWV_MIN_WINDOWS};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
 
@@ -102,4 +102,135 @@ assert.equal(P.cwvSnapSection({ value: 0, firstBeat: 0, bpm: 99.02, usableEnd: 5
 const energy = Array(64).fill(0.1); for (let i = 16; i < 64; i++) energy[i] = 0.9;
 assert.equal(P.cwvDefaultSection({ firstBeat: 0, bpm: 99.02, beatEnergy: energy, usableEnd: 39.3, videoSeconds: vid }), 4 * bar);
 assert.equal(P.cwvDefaultSection({ firstBeat: 0, bpm: 99.02, beatEnergy: Array(64).fill(0.5), usableEnd: 39.3, videoSeconds: vid }), 0);
+
+// ---- Onset-anchored cuts (cwvSnapCuts) ----
+const B = 60 / 99.2;                                  // one beat at the reference tempo (W = 0.1 beat = 60.5 ms)
+const grid16 = j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 4 })).cuts;
+const tpl16 = { beats: P.CWV_TITLE_BEATS.concat([2, 2, 2, 2]), burstFrom: 3, burstTo: 7 };
+const snap = (onsets, o = {}, g = grid16, t = tpl16) => j(P.cwvSnapCuts(g, t, onsets, { bpm: 99.2, fps: 30, sectionStart: 0, thresholds: { l: 2, m: 2, h: 2 }, ...o }));
+const logAt = (r, i) => r.log.find(e => e.index === i);
+// The schedule's grid cuts are its beat boundaries in seconds.
+assert.deepEqual(grid16, [0, ...[1.5, 3, 4, 4.25, 4.5, 4.75, 5, 5.5, 6, 6.5, 7, 8, 10, 12, 14, 16].map(b => b * B)]);
+// No onsets: exactly the grid, and the schedule is unchanged.
+assert.deepEqual(snap([]).cuts, grid16);
+assert.deepEqual(snap(null).cuts, grid16);
+assert.deepEqual(j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, sectionStart: 0, onsets: [] })).slots, j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, sectionStart: 0 })).slots);
+// A snappable cut (montage, index 13 = beat 10) moves onto an onset inside the window; the window is 0.1 beat
+// (60.5 ms at 99.2 BPM) ...
+assert.equal(snap([[10 * B + 0.058, 'l', 5]]).cuts[13], 10 * B + 0.058);
+assert.equal(snap([[10 * B + 0.062, 'l', 5]]).cuts[13], 10 * B);
+assert.equal(snap([[10 * B - 0.058, 'h', 5]]).cuts[13], 10 * B - 0.058);
+// ... capped at 70 ms at slower tempi (0.1 beat is 75 ms at 80 BPM).
+const B80 = 0.75, grid80 = j(P.cwvSchedule({ bpm: 80, fps: 30, montageShots: 4 })).cuts;
+const snap80 = on => j(P.cwvSnapCuts(grid80, tpl16, on, { bpm: 80, fps: 30, sectionStart: 0 }));
+assert.equal(snap80([[10 * B80 + 0.068, 'l', 5]]).cuts[13], 10 * B80 + 0.068);
+assert.equal(snap80([[10 * B80 + 0.072, 'l', 5]]).cuts[13], 10 * B80, 'the 70 ms cap');
+assert.equal(snap80([[10 * B80 + 0.072, 'l', 5]]).log.find(e => e.index === 13).reason, 'no onset');
+// Strength: at least max(2, the band threshold).
+assert.equal(snap([[10 * B + 0.02, 'l', 1.9]], { thresholds: {} }).cuts[13], 10 * B, 'below 2');
+assert.equal(snap([[10 * B + 0.02, 'l', 2]], { thresholds: {} }).cuts[13], 10 * B + 0.02, 'at 2');
+assert.equal(snap([[10 * B + 0.02, 'l', 3.9]], { thresholds: { l: 4 } }).cuts[13], 10 * B, 'below the band threshold');
+assert.equal(snap([[10 * B + 0.02, 'l', 4]], { thresholds: { l: 4 } }).cuts[13], 10 * B + 0.02, 'at the band threshold');
+// Bands: low and high first, by strength over threshold; mid only when neither has an onset in the window.
+const th = { thresholds: { l: 4, m: 2, h: 3 } };
+assert.equal(snap([[10 * B + 0.004, 'm', 9], [10 * B + 0.04, 'l', 4.4]], th).cuts[13], 10 * B + 0.04, 'low beats a stronger, nearer mid');
+assert.equal(snap([[10 * B + 0.004, 'm', 9], [10 * B + 0.04, 'h', 3]], th).cuts[13], 10 * B + 0.04, 'high beats mid');
+assert.equal(snap([[10 * B + 0.004, 'm', 2.5]], th).cuts[13], 10 * B + 0.004, 'mid as the fallback');
+assert.equal(logAt(snap([[10 * B + 0.004, 'm', 2.5]], th), 13).band, 'm');
+assert.equal(snap([[10 * B + 0.03, 'l', 8], [10 * B - 0.01, 'h', 4.5]], th).cuts[13], 10 * B + 0.03, 'the higher ratio wins (2.0 vs 1.5)');
+assert.equal(snap([[10 * B + 0.03, 'l', 8], [10 * B - 0.01, 'h', 6]], th).cuts[13], 10 * B - 0.01, 'equal ratios: the nearer onset');
+// Which cuts snap: the burst anchor (index 3), cuts that start a slot of at least one beat (1, 2, 11, 12 and the
+// montage), never the burst's own cuts or the half-beat run; frame 0 and the end never move.
+const everywhere = grid16.map(g => [g + 0.03, 'l', 5]);
+const all = snap(everywhere);
+assert.deepEqual(all.log.filter(e => e.reason === 'onset').map(e => e.index), [1, 2, 3, 11, 12, 13, 14, 15]);
+assert.deepEqual(all.log.filter(e => e.kind === 'burst').map(e => e.index), [4, 5, 6, 7]);
+assert.deepEqual(all.log.filter(e => e.kind === 'grid').map(e => e.index), [8, 9, 10]);
+assert.equal(all.cuts[0], 0); assert.equal(all.cuts[16], grid16[16]);
+for (const i of [8, 9, 10]) assert.equal(all.cuts[i], grid16[i], 'the half-beat run returns to the grid');
+// Burst spacing: the burst is laid out from the snapped anchor in fixed alternating frames (4.54 frames per 16th at
+// 30 fps), and the first half-beat shot absorbs the shift.
+const anchored = snap([[4 * B + 0.058, 'm', 5]]);
+assert.equal(anchored.cuts[3], 4 * B + 0.058);
+for (const i of [4, 5, 6, 7]) assert.ok(Math.abs(anchored.cuts[i] - (grid16[i] + 0.058)) < 1e-12, 'burst cut ' + i + ' keeps the template spacing');
+assert.deepEqual(anchored.frames.slice(3, 8).map((f, k, a) => (k ? f - a[k - 1] : 0)).slice(1), [5, 4, 5, 4]);
+assert.equal(anchored.cuts[8], grid16[8]);
+assert.equal(anchored.frames[8] - anchored.frames[7], Math.round(5.5 * B * 30) - Math.round((5 * B + 0.058) * 30), 'the first half-beat shot is shorter');
+// Snapping never puts a cut more than half a frame before its onset, at any frame rate and music offset.
+for (const fps of [23.976, 24, 25, 29.97, 30, 60]) {
+  for (const ss of [0, 0.013, 7.31, 14.58]) {
+    const on = grid16.slice(1, -1).map((g, k) => [ss + g + ((k * 7919) % 110 - 55) / 1000, 'l', 5]);
+    const r = j(P.cwvSnapCuts(grid16, tpl16, on, { bpm: 99.2, fps, sectionStart: ss }));
+    const off = P.cwvMusicOffset(ss, fps);
+    r.log.filter(e => e.reason === 'onset').forEach(e => {
+      assert.ok(r.frames[e.index] / fps - (e.onset + off) >= -0.5 / fps - 1e-9, 'half a frame early at most (' + fps + ', ' + ss + ', cut ' + e.index + ')');
+      assert.ok(r.frames[e.index] / fps - (e.onset + off) <= 0.5 / fps + 1e-9, 'nearest frame');
+    });
+  }
+}
+// Onsets are in music seconds: the section start shifts them onto the timeline.
+assert.ok(Math.abs(snap([[20 + 10 * B + 0.02, 'l', 5]], { sectionStart: 20 }).cuts[13] - (10 * B + 0.02)) < 1e-9);
+// Minimum shot: a snap that leaves a neighbour below 4 frames, or below 0.75 of its template length, is reverted.
+// Template [1.02 s, 0.16 s, 1.82 s] at 60 BPM: moving the cut at 1.18 s to 1.145 s keeps 0.78 of the middle shot
+// but leaves it 3 frames long.
+const tinyGrid = [0, 1.02, 1.18, 3], tinyTpl = { beats: [1.02, 0.16, 1.82], burstFrom: -1, burstTo: -1 };
+const tiny = j(P.cwvSnapCuts(tinyGrid, tinyTpl, [[1.145, 'l', 5]], { bpm: 60, fps: 30, sectionStart: 0 }));
+assert.equal(tiny.cuts[2], 1.18);
+assert.match(tiny.log.find(e => e.index === 2).reason, /reverted: slot 1 min-frames/);
+assert.equal(j(P.cwvSnapCuts(tinyGrid, tinyTpl, [[1.16, 'l', 5]], { bpm: 60, fps: 30, sectionStart: 0 })).cuts[2], 1.16, '4 frames is enough');
+// Low confidence (fixed timing, beat not found): only low-band onsets, within +/- 120 ms regardless of the tempo.
+const grid8 = j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, burst: 'eighth' })).cuts;
+const tpl8 = { beats: P.CWV_TITLE_BEATS_EIGHTH.concat([2, 2, 2, 2]), burstFrom: 3, burstTo: 5 };
+const low = (on, o = {}) => j(P.cwvSnapCuts(grid8, tpl8, on, { bpm: 99.2, fps: 30, sectionStart: 0, lowConfidence: true, ...o }));
+assert.equal(low([[10 * B + 0.1, 'l', 5]]).cuts[11], 10 * B + 0.1, 'a bass onset 100 ms away');
+assert.equal(low([[10 * B + 0.125, 'l', 5]]).cuts[11], 10 * B, 'beyond 120 ms');
+assert.equal(low([[10 * B + 0.02, 'h', 9], [10 * B + 0.02, 'm', 9]]).cuts[11], 10 * B, 'high and mid are ignored');
+// ... where the 0.75 rule binds: the hold (index 9, beat 7) pulled 100 ms early would leave the half-beat shot before
+// it at 0.67 of its length, so it stays; 70 ms early leaves 0.77.
+assert.equal(low([[7 * B - 0.1, 'l', 5]]).cuts[9], 7 * B);
+assert.match(low([[7 * B - 0.1, 'l', 5]]).log.find(e => e.index === 9).reason, /reverted: slot 8 min-share/);
+assert.equal(low([[7 * B - 0.07, 'l', 5]]).cuts[9], 7 * B - 0.07);
+// The same happens to the anchor of a burst: its first half-beat shot must keep 0.75 of its length.
+assert.match(low([[4 * B + 0.1, 'l', 5]]).log.find(e => e.index === 3).reason, /reverted: slot 5 min-share/);
+// Deterministic: the same input gives the same cuts; input order does not matter.
+const shuffled = everywhere.slice().reverse();
+assert.deepEqual(snap(shuffled).cuts, all.cuts);
+
+// The schedule uses the snapped cuts for every frame: slots, the title's font switches (on the burst cuts), the
+// connector and place lines and the title end (title -> montage cut). line1 stays on its grid position.
+const on16 = [[4 * B + 0.05, 'h', 6], [1.5 * B - 0.03, 'l', 6], [8 * B + 0.04, 'l', 6], [5.5 * B + 0.03, 'l', 9]];
+const ss = j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, sectionStart: 0, onsets: on16, onsetThresholds: { l: 3, m: 3, h: 3 } }));
+const plain = j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, sectionStart: 0 }));
+assert.equal(ss.cuts[3], 4 * B + 0.05);
+assert.equal(ss.cuts[1], 1.5 * B - 0.03);
+assert.equal(ss.cuts[12], 8 * B + 0.04);
+assert.equal(ss.cuts[8], plain.cuts[8], 'half-beat cut on the grid despite a strong onset');
+ss.slots.forEach((x, i) => { assert.equal(x.startFrame, Math.round(ss.cuts[i] * 30) || 0); assert.equal(x.endFrame, Math.round(ss.cuts[i + 1] * 30)); });
+for (let i = 1; i < ss.slots.length; i++) assert.equal(ss.slots[i].startFrame, ss.slots[i - 1].endFrame, 'contiguous');
+assert.deepEqual(ss.title.fontSwitches.map(x => x.frame), [2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => ss.slots[i].startFrame));
+assert.notEqual(ss.title.fontSwitches[1].frame, plain.title.fontSwitches[1].frame, 'the burst font switch moved with its cut');
+assert.equal(ss.title.connectorFrame, ss.slots[1].startFrame);
+assert.equal(ss.title.endFrame, ss.slots[11].endFrame);
+assert.equal(ss.title.endFrame, Math.round((8 * B + 0.04) * 30));
+assert.equal(ss.title.line1Frame, plain.title.line1Frame);
+assert.equal(ss.totalFrames, plain.totalFrames, 'the end never moves');
+assert.ok(ss.snapLog.length === ss.slots.length - 1);
+// Without music (no section start) nothing snaps.
+assert.deepEqual(j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, onsets: on16 })).cuts, plain.cuts);
+// cuts: reusing the planned seconds at the Draft's real rate gives the frames assemble.js places (same expression),
+// with the music offset of that rate.
+for (const fps of [23.976, 25, 29.97]) {
+  const at = j(P.cwvSchedule({ bpm: 99.2, fps, montageShots: 4, sectionStart: 14.58, cuts: ss.cuts }));
+  const off = P.cwvMusicOffset(14.58, fps);
+  at.slots.forEach((x, i) => assert.equal(x.endFrame, Math.round((ss.cuts[i + 1] + off) * fps)));
+  assert.deepEqual(at.title.fontSwitches.map(x => x.frame), [2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => at.slots[i].startFrame));
+}
+assert.throws(() => P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 5, cuts: ss.cuts }), /cuts do not match/);
+// The plan allocates shots for the snapped slot lengths and hands the cuts on.
+const cands = []; for (let r = 0; r < 12; r++) for (const role of ['street', 'architecture', 'landmark', 'wide', 'park', 'detail']) cands.push({ rid: 'r' + r, role, t: 5 + r, score: 1, sourceDuration: 30 });
+const plan = j(P.cwvPlanBuild({ candidates: cands, bpm: 99.2, fps: 30, montageShots: 4, seed: '1', burst: 'sixteenth', sectionStart: 0, onsets: on16, onsetThresholds: { l: 3, m: 3, h: 3 } }));
+assert.ok(plan.ok);
+assert.deepEqual(plan.schedule.cuts, ss.cuts);
+plan.picks.forEach((k, i) => { if (k.kind === 'video') assert.ok(Math.abs((k.endSeconds - k.startSeconds) - (ss.slots[i].endFrame - ss.slots[i].startFrame) / 30) < 1e-9, 'shot ' + i + ' fits its snapped slot'); });
+
 console.log(JSON.stringify({ planner: 'ok' }));

@@ -61,9 +61,94 @@ function cwvMusicOffset(sectionStart, fps) {
   return typeof sectionStart === 'number' && isFinite(sectionStart) && fps > 0 ? sectionStart - Math.round(sectionStart * fps) / fps : 0;
 }
 
+// Onset-anchored cuts (spec section 2). The cuts stay on the rhythm template's grid; a snappable cut moves onto a
+// strong music onset near it. Snappable: the first cut of the title burst (its anchor) and every cut that starts a
+// slot of at least one beat (the title's opening cuts, the hold, the title -> montage cut and every montage cut).
+// The burst's later cuts, and the cut that ends it, keep the template spacing from the anchor; the half-beat run
+// after the burst and every other cut stay on the grid, so the first half-beat shot absorbs the anchor's shift.
+const CWV_SNAP_WINDOW_BEATS = 0.10;          // search window: +/- this share of a beat ...
+const CWV_SNAP_WINDOW_MAX = 0.070;           // ... capped at this many seconds
+const CWV_SNAP_MIN_STRENGTH = 2;             // an onset's strength (over its band median) must reach max(this, band threshold)
+const CWV_SNAP_MIN_FRAMES = 4;               // no snap may leave a shot shorter than this (or than its template, if shorter)
+const CWV_SNAP_MIN_SHARE = 0.75;             // ... or shorter than this share of its template length
+// Music whose beat was not found reliably (fixed shot lengths): only bass onsets, within a fixed window.
+const CWV_SNAP_LOW_CONFIDENCE_WINDOW = 0.120;
+const CWV_SNAP_BANDS = [['l', 'h'], ['m']];  // low and high first, mid only when neither has an onset in the window
+
+// boundaries: the grid's cut times in seconds from the section start ([0, end of slot 0, ..., end of the last slot]).
+// template: { beats: [each slot's length in beats], burstFrom, burstTo } where slots burstFrom..burstTo-1 are the
+// title burst. onsets: [[seconds in the music source, band 'l' | 'm' | 'h', strength], ...].
+// opts: { bpm, fps, sectionStart (the music second at the section start; onsets are shifted by it), thresholds?:
+// { l, m, h }, lowConfidence?: true for fixed timing }. Returns { cuts: seconds like boundaries, frames: the cuts at
+// opts.fps with the music offset (same expression as cwvSchedule and assemble.js), log: one entry per inner cut }.
+// A snapped cut sits exactly on its onset, so rounding it to a frame at any rate never puts it more than half a frame
+// before the onset. Frame counts for the minimum shot are checked at opts.fps.
+function cwvSnapCuts(boundaries, template, onsets, opts) {
+  const fps = opts.fps, beat = 60 / opts.bpm, low = !!opts.lowConfidence;
+  const offset = cwvMusicOffset(opts.sectionStart, fps);
+  const frameOf = x => (x === 0 ? 0 : Math.round((x + offset) * fps));
+  const reach = low ? CWV_SNAP_LOW_CONFIDENCE_WINDOW : Math.min(CWV_SNAP_WINDOW_BEATS * beat, CWV_SNAP_WINDOW_MAX);
+  const bandSets = low ? [['l']] : CWV_SNAP_BANDS;
+  const thr = band => Math.max(CWV_SNAP_MIN_STRENGTH, (opts.thresholds && opts.thresholds[band]) || 0);
+  const shift = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
+  const list = (onsets || []).filter(o => o && isFinite(o[0]) && isFinite(o[2]) && o[2] >= thr(o[1]))
+    .map(o => ({ x: o[0] - shift, band: o[1], strength: o[2], ratio: o[2] / thr(o[1]) }));
+  const n = boundaries.length - 1, beats = template.beats || [];
+  const from = template.burstFrom, to = template.burstTo;
+  const cuts = boundaries.slice(), log = [];
+  // The onset a cut at grid time g moves to, or null.
+  const pick = g => {
+    for (const bands of bandSets) {
+      let best = null;
+      for (const o of list) {
+        if (bands.indexOf(o.band) < 0 || Math.abs(o.x - g) > reach + 1e-9) continue;
+        const d = Math.abs(o.x - g);
+        if (!best || o.ratio > best.ratio + 1e-9 || (Math.abs(o.ratio - best.ratio) <= 1e-9 && (d < best.d - 1e-9 || (Math.abs(d - best.d) <= 1e-9 && o.x < best.x)))) best = { ...o, d };
+      }
+      if (best) return best;
+    }
+    return null;
+  };
+  // The first shot in [a, b) that a snap would make too short, or null.
+  const tooShort = (next, a, b) => {
+    for (let k = Math.max(0, a); k <= Math.min(n - 1, b); k++) {
+      const frames = frameOf(next[k + 1]) - frameOf(next[k]), grid = frameOf(boundaries[k + 1]) - frameOf(boundaries[k]);
+      if (frames < Math.min(CWV_SNAP_MIN_FRAMES, grid)) return { slot: k, reason: 'min-frames' };
+      if (next[k + 1] - next[k] < CWV_SNAP_MIN_SHARE * (boundaries[k + 1] - boundaries[k]) - 1e-9) return { slot: k, reason: 'min-share' };
+    }
+    return null;
+  };
+  for (let i = 1; i < n; i++) {
+    const g = boundaries[i];
+    const anchor = i === from, chained = i > from && i <= to;
+    if (chained) {
+      // Template spacing from the (possibly moved) anchor.
+      cuts[i] = cuts[from] + (g - boundaries[from]);
+      log.push({ index: i, kind: 'burst', grid: g, seconds: cuts[i], shiftMs: Math.round((cuts[i] - g) * 1e4) / 10, reason: 'from anchor' });
+      continue;
+    }
+    if (!anchor && !(beats[i] >= 1)) { log.push({ index: i, kind: 'grid', grid: g, seconds: g, shiftMs: 0, reason: 'grid' }); continue; }
+    const kind = anchor ? 'anchor' : 'beat';
+    const o = pick(g);
+    if (!o) { log.push({ index: i, kind, grid: g, seconds: g, shiftMs: 0, reason: 'no onset' }); continue; }
+    const next = cuts.slice();
+    next[i] = o.x;
+    if (anchor) for (let k = from + 1; k <= to; k++) next[k] = o.x + (boundaries[k] - g);
+    const bad = tooShort(next, i - 1, anchor ? to : i);
+    const entry = { index: i, kind, grid: g, onset: o.x, band: o.band, strength: o.strength, ratio: Math.round(o.ratio * 100) / 100 };
+    if (bad) { log.push({ ...entry, seconds: g, shiftMs: 0, reason: 'reverted: slot ' + bad.slot + ' ' + bad.reason }); continue; }
+    cuts[i] = o.x;
+    log.push({ ...entry, seconds: o.x, shiftMs: Math.round((o.x - g) * 1e4) / 10, reason: 'onset' });
+  }
+  return { cuts, frames: cuts.map(frameOf), log, window: reach };
+}
+
 // opts: { bpm, fps, montageShots, burst?: 'sixteenth' | 'eighth' (default 'sixteenth'), sectionStart?: seconds into
-// the music (omit without music) }. Slots carry their beat span (startBeat, endBeat) and frames; `titleSlots` is the
-// number of title slots; `offset` is the music offset every boundary is shifted by.
+// the music (omit without music), onsets?, onsetThresholds?, lowConfidence? (cwvSnapCuts; used only with a
+// sectionStart), cuts?: cut seconds decided earlier (a schedule's `cuts`, reused as they are) }. Slots carry their
+// grid beat span (startBeat, endBeat) and frames; `titleSlots` is the number of title slots; `offset` is the music
+// offset every boundary is shifted by; `cuts` are the boundaries in seconds from the section start (the grid, or the
+// snapped cuts) and `snapLog` explains each snappable cut.
 function cwvSchedule(opts) {
   const bpm = opts.bpm, fps = opts.fps, n = opts.montageShots;
   if (!(bpm > 0) || !(fps > 0) || !(n >= 0)) throw Error('cwvSchedule needs bpm, fps and montageShots');
@@ -73,7 +158,21 @@ function cwvSchedule(opts) {
   // never accumulate rounding. The video always starts at frame 0. assemble.js places cuts with the same expression.
   const offset = cwvMusicOffset(opts.sectionStart, fps);
   const frameAt = beats => (beats === 0 ? 0 : Math.round((beats * (60 / bpm) + offset) * fps));
+  const frameOfSeconds = x => (x === 0 ? 0 : Math.round((x + offset) * fps));
   const beats = title.beats.concat(Array(n).fill(CWV_MONTAGE_BEATS));
+  const grid = [0];
+  beats.reduce((at, b) => { grid.push((at + b) * (60 / bpm)); return at + b; }, 0);
+  // The burst: the sub-beat shots from the first landmark slot on (four 16ths or two 8ths).
+  const burstFrom = 3, burstTo = burstFrom + (burst === 'eighth' ? 2 : 4);
+  let cuts = grid, snapLog = [];
+  if (Array.isArray(opts.cuts)) {
+    if (opts.cuts.length !== grid.length) throw Error('cwvSchedule: cuts do not match the slots');
+    cuts = opts.cuts.slice();
+  } else if (opts.onsets && opts.onsets.length && typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart)) {
+    const snapped = cwvSnapCuts(grid, { beats, burstFrom, burstTo }, opts.onsets,
+      { bpm, fps, sectionStart: opts.sectionStart, thresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence });
+    cuts = snapped.cuts; snapLog = snapped.log;
+  }
   const slots = [];
   let at = 0;
   beats.forEach((b, i) => {
@@ -84,8 +183,8 @@ function cwvSchedule(opts) {
       section: inTitle ? (i < 3 ? 'opening' : i < T - 1 ? 'burst' : 'hold') : 'montage',
       startBeat: at,
       endBeat: at + b,
-      startFrame: frameAt(at),
-      endFrame: frameAt(at + b),
+      startFrame: frameOfSeconds(cuts[i]),
+      endFrame: frameOfSeconds(cuts[i + 1]),
     });
     at += b;
   });
@@ -98,6 +197,8 @@ function cwvSchedule(opts) {
     burst,
     titleSlots: T,
     offset,
+    cuts,
+    snapLog,
     slots,
     totalFrames: slots[slots.length - 1].endFrame,
     title: {
@@ -271,7 +372,8 @@ function cwvAllocate(opts) {
 
 // Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
 // opts.burst picks the title variant and opts.sectionStart shifts the cuts with the music (see cwvSchedule);
-// opts.photoShare overrides CWV_PHOTO_SHARE.
+// opts.onsets, opts.onsetThresholds and opts.lowConfidence snap the cuts to the music's onsets (cwvSnapCuts), so the
+// slot lengths the shots are chosen for are the snapped ones; opts.photoShare overrides CWV_PHOTO_SHARE.
 // Filler candidates are added to every attempt.
 // Photo candidates ({ rid, kind: 'photo' }) join every attempt, so a Project with only photos builds too.
 function cwvPlanBuild(opts) {
@@ -280,7 +382,8 @@ function cwvPlanBuild(opts) {
   const burst = opts.burst === 'eighth' ? 'eighth' : 'sixteenth', needed = cwvMinWindows(burst);
   let best = { filled: 0, photoShots: 0 };
   for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
-    const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n, burst, sectionStart: opts.sectionStart });
+    const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n, burst, sectionStart: opts.sectionStart,
+      onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence });
     const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, section: s.section, seconds: (s.endFrame - s.startFrame) / opts.fps }));
     const alloc = cwvAllocate({ candidates, slots, seed: opts.seed, photoShare: opts.photoShare });
     if (alloc.missing === 0) {
