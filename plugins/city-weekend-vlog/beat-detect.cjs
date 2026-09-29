@@ -5,11 +5,13 @@ const WIN = 1024, HOP = 256;
 // Frame f analyses samples [f*HOP - WIN, f*HOP) (negative indices read as silence, so an onset
 // at t = 0 still registers). Its flux measures what entered since frame f-1, i.e. samples
 // [f*HOP - HOP, f*HOP); each frame is stamped at the middle of that span so onset times are
-// unbiased (stamping at the window start put every onset ~36 ms early).
+// approximately unbiased, +7 ms on clicks (stamping at the window start put every onset ~36 ms early).
 const FRAME_LAG = -HOP / 2;
 // An onset must rise at least this far above the local flux mean, relative to that mean.
 // Measured on picked peaks: white noise 0.05-0.19, a real 99 BPM track 1.15-4.0, clicks 7-11.
 const MIN_PROMINENCE = 0.5;
+// A beat window below this fraction of the track's median per-beat RMS (-20 dB) is leading silence.
+const SILENT_BEAT = 0.1;
 
 function fft(re, im) {
   const n = re.length;
@@ -130,11 +132,22 @@ function analyze(samples, sampleRate) {
   }
   phase = ((phase % period) + period) % period;
   if (phase > period - 0.03) phase = Math.max(0, phase - period);
-  // The first beat is the first grid line the music actually hits, not a grid line in leading silence.
-  const hit = t => onsets.some(o => Math.abs(o - t) < 0.07);
+  // The first beat is the first grid line that is not leading silence. Judge by level, not by
+  // onsets: a first beat with a soft attack (a pad swelling in) is audible music with no onset.
+  // Each beat window starts 30 ms early so it holds its own attack but not the next one.
+  const beatRms = t => {
+    const a = Math.max(0, Math.floor((t - 0.03) * sampleRate)), z = Math.min(samples.length, Math.floor((t + period - 0.03) * sampleRate));
+    let q = 0;
+    for (let i = a; i < z; i++) q += samples[i] * samples[i];
+    return Math.sqrt(q / Math.max(1, z - a));
+  };
+  const levels = [];
+  for (let t = phase; t + period <= durationSeconds; t += period) levels.push(beatRms(t));
+  levels.sort((a, b) => a - b);
+  const quiet = SILENT_BEAT * (levels.length ? levels[Math.floor(levels.length / 2)] : 0);
   let firstBeat = phase;
-  while (firstBeat + period < t1 && !hit(firstBeat)) firstBeat += period;
-  if (!hit(firstBeat)) firstBeat = phase;
+  while (firstBeat + period < durationSeconds && beatRms(firstBeat) <= quiet) firstBeat += period;
+  if (beatRms(firstBeat) <= quiet) firstBeat = phase;
   const residuals = [];
   let beats = 0;
   for (let t = firstBeat; t < durationSeconds; t += period) {

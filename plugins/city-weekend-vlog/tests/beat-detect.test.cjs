@@ -30,4 +30,24 @@ const tmp = path.join(require('node:os').tmpdir(), 'cwv-beat-test.f32');
 fs.writeFileSync(tmp, Buffer.from(clickTrack(100, 0, 20).buffer));
 const out = JSON.parse(execFileSync('node', [path.join(root, 'beat-detect.cjs'), tmp, String(sr)]).toString().trim().split('\n').pop());
 assert.ok(Math.abs(out.bpm - 100) < 0.2);
+
+// A track that starts on the beat anchors the grid at 0.
+const c = analyze(clickTrack(100, 0, 20), sr);
+assert.ok(Math.abs(c.firstBeat) < 0.03, 'firstBeat at 0: ' + c.firstBeat);
+
+// A soft first beat is still music: it must not be skipped as leading silence.
+const soft = clickTrack(100, 0, 20);
+for (let k = 0; k < 400; k++) soft[k] *= 0.3;
+const d = analyze(soft, sr);
+assert.ok(Math.abs(d.firstBeat) < 0.03, 'soft firstBeat ' + d.firstBeat);
+assert.equal(d.accepted, true);
+
+// A first beat with no attack (a pad swelling in, as in the weekend-indie-pop cue) is audible
+// music too; the grid line at 0 must not be skipped as leading silence.
+const swell = clickTrack(100, 0.6, 20);
+for (let i = 0; i < Math.round(0.6 * sr); i++) swell[i] += 0.3 * (i / (0.6 * sr)) * Math.sin(2 * Math.PI * 220 * i / sr);
+const e = analyze(swell, sr);
+assert.ok(Math.abs(e.firstBeat) < 0.03, 'swell firstBeat ' + e.firstBeat);
+assert.equal(e.accepted, true);
+
 console.log(JSON.stringify({ beatDetect: 'ok' }));
