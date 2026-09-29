@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "cues": [
+    {
+      "id": "piano-strings",
+      "title": "Last Light Ballad",
+      "file": "piano-strings.mp3",
+      "bpm": 62,
+      "detectedBpm": 124,
+      "firstBeat": 2.056,
+      "phraseBeats": 4,
+      "swell": 9.798,
+      "swellSource": "manual",
+      "swellFallback": 48.508,
+      "usableEnd": 69.987,
+      "driftBpm": -0.03,
+      "lufs": -14.1,
+      "durationSeconds": 70.087,
+      "sha256": "a0bfab57c03a60c70c44d16c62c8677f7682450ac2bca2985311fdcfc99728d7",
+      "provenance": {
+        "generator": "ElevenLabs Music v2.5 via Selects chat",
+        "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: piano+strings ballad 62 bpm"
+      }
+    },
+    {
+      "id": "rhodes-soul",
+      "title": "Late Night Rhodes",
+      "file": "rhodes-soul.mp3",
+      "bpm": 63.995,
+      "detectedBpm": 127.99,
+      "firstBeat": 0.034,
+      "phraseBeats": 4,
+      "swell": 30.036,
+      "swellSource": "auto",
+      "swellFallback": 30.036,
+      "usableEnd": 69.987,
+      "driftBpm": 0.05,
+      "lufs": -14,
+      "durationSeconds": 70.087,
+      "sha256": "e22111ba3fa007be9d69134fa50e4da7e7f04b621a57a7e0d8e5817548e3536f",
+      "provenance": {
+        "generator": "ElevenLabs Music v2.5 via Selects chat",
+        "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: Rhodes soul ambient 64 bpm"
+      }
+    },
+    {
+      "id": "post-rock",
+      "title": "Open Road Swell",
+      "file": "post-rock.mp3",
+      "bpm": 66,
+      "detectedBpm": 132,
+      "firstBeat": 3.668,
+      "phraseBeats": 4,
+      "swell": 14.577,
+      "swellSource": "manual",
+      "swellFallback": 10.941,
+      "usableEnd": 69.934,
+      "driftBpm": 0,
+      "lufs": -14.2,
+      "durationSeconds": 70.034,
+      "sha256": "f31076aca3173b088189ad69a2b8a8182d21bce42daa9bc3c206664868aaebea",
+      "provenance": {
+        "generator": "ElevenLabs Music v2.5 via Selects chat",
+        "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: post-rock swell 66 bpm"
+      },
+      "default": true
+    },
+    {
+      "id": "orchestral",
+      "title": "Final Scene",
+      "file": "orchestral.mp3",
+      "bpm": 59.975,
+      "detectedBpm": 119.95,
+      "firstBeat": 0.532,
+      "phraseBeats": 4,
+      "swell": 20.54,
+      "swellSource": "manual",
+      "swellFallback": 20.54,
+      "usableEnd": 87.933,
+      "driftBpm": 0.03,
+      "lufs": -14.2,
+      "durationSeconds": 88.033,
+      "sha256": "a77786f53418f162450f0be8838407775ac316465809c0c6471bed2b3833b38f",
+      "provenance": {
+        "generator": "ElevenLabs Music v2.5 via Selects chat",
+        "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: orchestral film theme 60 bpm"
+      }
+    },
+    {
+      "id": "dream-synth",
+      "title": "Golden Hour Synth",
+      "file": "dream-synth.mp3",
+      "bpm": 65.005,
+      "detectedBpm": 130.01,
+      "firstBeat": 0.046,
+      "phraseBeats": 4,
+      "swell": null,
+      "swellSource": "auto",
+      "swellFallback": 14.814,
+      "usableEnd": 69.934,
+      "driftBpm": 0.01,
+      "lufs": -14,
+      "durationSeconds": 70.034,
+      "sha256": "a2c72b5adf083b4bcc5ef627e5380e47182bd667610d2a64eca003d06740c9f0",
+      "provenance": {
+        "generator": "ElevenLabs Music v2.5 via Selects chat",
+        "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: dreamy analog synth 65 bpm"
+      }
+    }
+  ]
+}
