@@ -99,14 +99,14 @@ t('credit layout: Classic reference geometry', () => {
   assert.equal(lay.W, 1920);
   near(lay.centerX, 0.223 * 1920, 1e-9); near(lay.maxWidth, 768, 1e-9);
   assert.deepEqual(lay.title, { top: 425, bottom: 598 });
-  assert.equal(lay.firstRoleTop, 703, 'first role 105 px below the title');
+  assert.equal(lay.firstRoleTop, 699, 'first role 101 px below the title box (graphic baseline model)');
   lay.rows.forEach((r, i) => {
-    assert.equal(r.top, 703 + 123 * i); assert.equal(r.pitch, 123);
+    assert.equal(r.top, 699 + 123 * i); assert.equal(r.pitch, 123);
     assert.equal(r.role.top, r.top); assert.equal(r.name.top, r.top + 43);
     assert.equal(r.role.fontPx, 28); assert.equal(r.name.fontPx, 24);
     assert.equal(r.role.lines.length, 1); assert.equal(r.name.lines.length, 1);
   });
-  assert.equal(lay.lastRoleTop, 703 + 9 * 123);
+  assert.equal(lay.lastRoleTop, 699 + 9 * 123);
   assert.deepEqual(lay.rowTops, lay.rows.map(r => r.top));
   // Full frame: the right-third column, same vertical model.
   const full = j(P.tecCreditLayout({ rows: crew(), layout: 'full', H: 1080, measure }));
@@ -114,7 +114,7 @@ t('credit layout: Classic reference geometry', () => {
   assert.deepEqual(full.rowTops, lay.rowTops);
   // Scaled by H / 1080.
   const small = j(P.tecCreditLayout({ rows: crew(), layout: 'classic', H: 720, measure }));
-  near(small.firstRoleTop, 703 * 2 / 3, 1e-9); near(small.rows[1].top - small.rows[0].top, 82, 1e-9); near(small.rows[0].role.fontPx, 28 * 2 / 3, 1e-9);
+  near(small.firstRoleTop, 699 * 2 / 3, 1e-9); near(small.rows[1].top - small.rows[0].top, 82, 1e-9); near(small.rows[0].role.fontPx, 28 * 2 / 3, 1e-9);
   // No rows.
   const none = j(P.tecCreditLayout({ rows: [], layout: 'classic', H: 1080, measure }));
   assert.equal(none.lastRoleTop, null); assert.deepEqual(none.rows, []);
@@ -138,15 +138,15 @@ t('long lines fit down to 70 %, then wrap to 2 lines and grow the pitch', () => 
   const word = j(P.tecFitLine('x'.repeat(120), 28, 768, measure, 'role'));
   assert.equal(word.lines.length, 1); assert.equal(word.scale, 0.7); assert.equal(word.overflow, true);
   assert.deepEqual(j(P.tecFitLine('', 24, 768, measure, 'name')).lines, []);
-  // In the layout the wrapped role pushes its name and the next pair down by one role line (36 px).
+  // In the layout the wrapped role pushes its name and the next pair down by one role line (39.2 px = 1.4 em).
   const lay = j(P.tecCreditLayout({ rows: [{ role: long, name: 'Ana' }, { role: 'Editor', name: long }, { role: 'Sound', name: 'Bo' }], layout: 'classic', H: 1080, measure }));
   assert.equal(lay.rows[0].role.lines.length, 2);
-  assert.equal(lay.rows[0].name.top, 703 + 43 + 36);
-  assert.equal(lay.rows[0].pitch, 123 + 36);
-  assert.equal(lay.rows[1].top, 703 + 159);
-  // A wrapped name grows its pair by one name line (31 px).
-  assert.equal(lay.rows[1].name.lines.length, 2); assert.equal(lay.rows[1].pitch, 123 + 31);
-  assert.equal(lay.rows[2].top, 703 + 159 + 154);
+  assert.ok(Math.abs(lay.rows[0].name.top - (699 + 43 + 39.2)) < 1e-9);
+  assert.ok(Math.abs(lay.rows[0].pitch - (123 + 39.2)) < 1e-9);
+  assert.ok(Math.abs(lay.rows[1].top - (699 + 162.2)) < 1e-9);
+  // A wrapped name grows its pair by one name line (33.6 px = 1.4 em).
+  assert.equal(lay.rows[1].name.lines.length, 2); assert.ok(Math.abs(lay.rows[1].pitch - (123 + 33.6)) < 1e-9);
+  assert.ok(Math.abs(lay.rows[2].top - (699 + 162.2 + 156.6)) < 1e-9);
   // Full frame's narrower column (576 px) wraps sooner.
   const mid = 'x'.repeat(40); // 616 px: fits Classic, fitted in Full frame (93.5 %)
   assert.equal(j(P.tecFitLine(mid, 28, 768, measure, 'role')).scale, 1);
@@ -162,8 +162,8 @@ t('roll speed at Standard, 62 bpm: Codex figures within 0.5 px/s (R5/R7)', () =>
   assert.equal(k4.pxPerSec, 67 * 0.6); assert.equal(k4.clamped, 'low'); assert.equal(k4.endsEarly, true);
   assert.equal(k0.pxPerSec, 67); assert.equal(k0.rawPxPerSec, null); assert.equal(k0.clamped, null); assert.equal(k0.endsEarly, false);
   // The exact model: the last role's top reaches 0.07 H at the end.
-  near(k10.rawPxPerSec, (703 + 9 * 123 - 0.07 * 1080) / (standardEnd - 5.1), 1e-9);
-  near(703 + 9 * 123 - k10.pxPerSec * (standardEnd - 5.1), 75.6, 1e-6);
+  near(k10.rawPxPerSec, (699 + 9 * 123 - 0.07 * 1080) / (standardEnd - 5.1), 1e-9);
+  near(699 + 9 * 123 - k10.pxPerSec * (standardEnd - 5.1), 75.6, 1e-6);
   assert.deepEqual(k10.hiddenRows, []); assert.equal(k10.removeRows, 0);
   near(k10.minPxPerSec, 40.2, 1e-9); near(k10.maxPxPerSec, 107.2, 1e-9);
   // Scaled by H / 1080.
@@ -197,7 +197,7 @@ t('roll speed: too many rows clamp high and name the hidden rows', () => {
 
 t('credit metrics are the reference numbers', () => {
   const M = j(P.TEC_CREDIT_METRICS);
-  assert.equal(M.titleTop, 425); assert.equal(M.titleCap, 173); assert.equal(M.titleToFirstRole, 105);
+  assert.equal(M.titleTop, 425); assert.equal(M.titleCap, 173); assert.equal(M.titleToFirstRole, 101); // matches the graphic: title baseline 594 + 105 = first role line top 699
   assert.equal(M.roleSize, 28); assert.equal(M.nameSize, 24); assert.equal(M.roleToName, 43); assert.equal(M.pairPitch, 123);
   assert.equal(M.minFit, 0.7); assert.equal(M.endY, 0.07); assert.equal(M.basePxPerSec, 67);
   assert.deepEqual([M.minSpeed, M.maxSpeed], [0.6, 1.6]);

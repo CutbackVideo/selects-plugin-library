@@ -266,7 +266,8 @@ export default function TheEndCredits({ data }) {
   const typed = tecTypedCount(t, glyphs.length);
   const titleBaseline = pose.cy + (TEC_TITLE.cap * pose.size) / 2 - scroll;
   const overlay = layout === "full" ? tecFullOverlay(t, L) : null;
-  const creditsOpacity = tecCreditsOpacity(t);
+  // Full frame: the credits arrive with the right gradient, after the big title has moved over.
+  const creditsOpacity = overlay ? overlay.gradient : tecCreditsOpacity(t);
   const mask = tecMaskCss();
   const lh = TEC_CREDITS.ascent + TEC_CREDITS.descent;
 

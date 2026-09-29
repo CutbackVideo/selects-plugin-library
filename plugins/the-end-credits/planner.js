@@ -476,9 +476,9 @@ function tecPresetRows(presetId, info) {
 // minFit of its size; beyond that it wraps to 2 lines (word boundary, most balanced split) and the pair's pitch
 // grows by that line's height (roleLine / nameLine). The roll speed targets the last role's top at endY * H.
 const TEC_CREDIT_METRICS = {
-  titleTop: 425, titleCap: 173, titleToFirstRole: 105,
+  titleTop: 425, titleCap: 173, titleToFirstRole: 101,
   roleSize: 28, nameSize: 24, roleToName: 43, pairPitch: 123,
-  roleLine: 36, nameLine: 31, minFit: 0.7, maxLines: 2,
+  roleLine: 39.2, nameLine: 33.6, minFit: 0.7, maxLines: 2,
   classic: { centerX: 0.223, maxWidth: 0.40 },
   full: { centerX: 0.78, maxWidth: 0.30 },
   endY: 0.07, basePxPerSec: 67, minSpeed: 0.6, maxSpeed: 1.6,
