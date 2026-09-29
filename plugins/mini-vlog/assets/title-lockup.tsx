@@ -16,11 +16,11 @@ var MV_FACES = {
     small: { family: "MV DM Serif Display", style: "normal", weight: 400 },
   },
   "day-in-my-life": {
-    big: { family: "MV Quicksand Bold", style: "normal", weight: 700 },
-    tag: { family: "MV Quicksand Bold", style: "normal", weight: 700 },
+    big: { family: "MV Rounded Bold", style: "normal", weight: 700 },
+    tag: { family: "MV Rounded Bold", style: "normal", weight: 700 },
   },
   "small-glimpse": {
-    big: { family: "MV Quicksand Bold", style: "normal", weight: 700 },
+    big: { family: "MV Rounded Bold", style: "normal", weight: 700 },
     mono: { family: "MV DM Mono", style: "normal", weight: 400 },
   },
 };
