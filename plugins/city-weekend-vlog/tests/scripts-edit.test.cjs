@@ -3,9 +3,9 @@ const fs = require('node:fs'), path = require('node:path'), assert = require('no
 const dir = path.resolve(__dirname, '..', 'scripts');
 const load = (name, cfg) => new Function('selects', `return (async()=>{${fs.readFileSync(path.join(dir, name), 'utf8').replace('__CONFIG__', () => JSON.stringify(cfg))}})();`);
 function mockDraft(fps) {
-  const log = [], clips = [];
+  const log = [], clips = [], graphics = [], effects = {};
   let frame = 0;
-  return { log, clips, d: {
+  return { log, clips, graphics, effects, d: {
     meta: async () => ({ fps, frameSize: { width: 1920, height: 1080 } }),
     setFrameSize: async (s) => log.push(['size', s]),
     insertResource: async ({ resourceId, sourceRange }) => { const len = Math.round((sourceRange.endSeconds - sourceRange.startSeconds) * fps); clips.push({ clipId: clips.length + 1, resourceId, trackKind: 'main', startFrame: frame, endFrame: frame + len }); frame += len; log.push(['insert', resourceId, sourceRange]); },
@@ -16,8 +16,10 @@ function mockDraft(fps) {
     setAudioTracks: async (o) => log.push(['mute', o.audioSourceIndexes]),
     overlayResource: async (o) => { clips.push({ clipId: 99, resourceId: o.resource.id, trackKind: 'audio', startFrame: 0, endFrame: frame }); log.push(['music', o.sourceStartSeconds]); return { inserted: 1 }; },
     setClipAudio: async (o) => log.push(['fade', o.clip.clipId, o.fadeInSeconds, o.fadeOutSeconds]),
-    addMotionGraphic: async (o) => log.push(['title', o.within, o.label]),
-    addVideoEffect: async (o) => log.push(['warm', o.clip.clipId, o.parameters.strength]),
+    addMotionGraphic: async (o) => { graphics.push({ name: o.label, clip: {} }); log.push(['title', o.within, o.label]); },
+    addVideoEffect: async (o) => { (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label }); log.push(['warm', o.clip.clipId, o.parameters.strength]); },
+    motionGraphics: async () => graphics.map(g => ({ ...g })),
+    videoEffects: async (clip) => (effects[clip.clipId] || []).map(e => ({ ...e })),
     commitAll: async (reason) => { log.push(['commit', reason]); return { createdDraftId: 'seq-new' }; },
   } };
 }
@@ -55,8 +57,24 @@ function mockDraft(fps) {
   const m2 = mockDraft(30); m2.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 }, { clipId: 3, resourceId: 'm', trackKind: 'audio', startFrame: 0, endFrame: 60 });
   const sel3 = { draft: () => m2.d };
   const dres = await load('decorate.js', { sequenceId: 'seq-new', titleEnd: 45, title: { tsx: 'x', parameters: { line1: 'Saturday' }, editableParameters: [] }, warm: { tsx: 'y', strength: 0.35 } })(sel3);
-  assert.deepEqual(dres, { title: true, effects: 2 });
+  assert.deepEqual(dres, { title: true, titleAdded: true, effects: 2, effectsKept: 0, committed: true });
   assert.deepEqual(m2.log.find(x => x[0] === 'title')[1], { a: 0, b: 45 });
   assert.equal(m2.log.filter(x => x[0] === 'commit').length, 1);
+
+  // Retrying on an already decorated Draft adds nothing and does not commit again.
+  const cfgD = { sequenceId: 'seq-new', titleEnd: 45, title: { tsx: 'x', parameters: { line1: 'Saturday' }, editableParameters: [] }, warm: { tsx: 'y', strength: 0.35 } };
+  const again = await load('decorate.js', cfgD)(sel3);
+  assert.deepEqual(again, { title: true, titleAdded: false, effects: 0, effectsKept: 2, committed: false });
+  assert.equal(m2.log.filter(x => x[0] === 'title').length, 1, 'title is not duplicated');
+  assert.equal(m2.log.filter(x => x[0] === 'warm').length, 2, 'warm effects are not duplicated');
+  assert.equal(m2.log.filter(x => x[0] === 'commit').length, 1, 'no second commit');
+
+  // A partial earlier attempt: the title exists, one clip already has the warm look.
+  const m4 = mockDraft(30); m4.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 });
+  m4.graphics.push({ name: 'City Weekend title', clip: {} }); m4.effects[1] = [{ name: 'Warm look', effectName: 'Warm look' }];
+  const part = await load('decorate.js', cfgD)({ draft: () => m4.d });
+  assert.deepEqual(part, { title: true, titleAdded: false, effects: 1, effectsKept: 1, committed: true });
+  assert.deepEqual(m4.log.filter(x => x[0] === 'warm').map(x => x[1]), [2]);
+  assert.equal(m4.log.filter(x => x[0] === 'title').length, 0);
   console.log(JSON.stringify({ scriptsEdit: 'ok' }));
 })().catch(e => { console.error(e); process.exit(1); });
