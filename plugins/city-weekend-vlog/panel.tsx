@@ -104,18 +104,26 @@ function cwvMusicOffset(sectionStart, fps) {
 }
 
 // Onset-anchored cuts (spec section 2). The cuts stay on the rhythm template's grid; a snappable cut moves onto a
-// strong music onset near it. Snappable: the first cut of the title burst (its anchor) and every cut that starts a
-// slot of at least one beat (the title's opening cuts, the hold, the title -> montage cut and every montage cut).
-// The burst's later cuts, and the cut that ends it, keep the template spacing from the anchor; the half-beat run
-// after the burst and every other cut stay on the grid, so the first half-beat shot absorbs the anchor's shift.
+// clearly strong music onset near it, and only when nothing already marks the grid position. Snappable: the first cut
+// of the title burst (its anchor) and every cut that starts a slot of at least one beat (the title's opening cuts, the
+// hold, the title -> montage cut and every montage cut). The burst's later cuts, and the cut that ends it, keep the
+// template spacing from the anchor; the half-beat run after the burst and every other cut stay on the grid, so the
+// first half-beat shot absorbs the anchor's shift.
+// v2.6 (conservative snap; live Brooklyn Boom Bap cuts snapped 32-47 ms onto low-band onsets at 1.04-1.5 of their
+// threshold and landed off the audible accent): a cut stays on the grid when a qualifying onset of any band lies within
+// one frame of it; otherwise the candidate must reach CWV_SNAP_MIN_RATIO of its band threshold, candidates rank by
+// ratio - CWV_SNAP_DISTANCE_COST * |offset| / window, and a low-band candidate must also beat the grid position's own
+// onset (the strongest qualifying onset nearer the grid, else the band threshold, ratio 1) by CWV_SNAP_LOW_MARGIN.
 const CWV_SNAP_WINDOW_BEATS = 0.10;          // search window: +/- this share of a beat ...
 const CWV_SNAP_WINDOW_MAX = 0.070;           // ... capped at this many seconds
 const CWV_SNAP_MIN_STRENGTH = 2;             // an onset's strength (over its band median) must reach max(this, band threshold)
+const CWV_SNAP_MIN_RATIO = 1.5;              // a snap target's strength over that threshold (the bundled cues' far onsets reach 1.28)
+const CWV_SNAP_DISTANCE_COST = 0.5;          // score = ratio - this * |offset| / window: an onset at the window edge loses 0.5
+const CWV_SNAP_LOW_MARGIN = 0.25;            // a low-band target's ratio over the grid position's own onset ratio
 const CWV_SNAP_MIN_FRAMES = 4;               // no snap may leave a shot shorter than this (or than its template, if shorter)
 const CWV_SNAP_MIN_SHARE = 0.75;             // ... or shorter than this share of its template length
 // Music whose beat was not found reliably (fixed shot lengths): only bass onsets, within a fixed window.
 const CWV_SNAP_LOW_CONFIDENCE_WINDOW = 0.120;
-const CWV_SNAP_BANDS = [['l', 'h'], ['m']];  // low and high first, mid only when neither has an onset in the window
 
 // boundaries: the grid's cut times in seconds from the section start ([0, end of slot 0, ..., end of the last slot]).
 // template: { beats: [each slot's length in beats], burstFrom, burstTo } where slots burstFrom..burstTo-1 are the
@@ -124,13 +132,13 @@ const CWV_SNAP_BANDS = [['l', 'h'], ['m']];  // low and high first, mid only whe
 // { l, m, h }, lowConfidence?: true for fixed timing }. Returns { cuts: seconds like boundaries, frames: the cuts at
 // opts.fps with the music offset (same expression as cwvSchedule and assemble.js), log: one entry per inner cut }.
 // A snapped cut sits exactly on its onset, so rounding it to a frame at any rate never puts it more than half a frame
-// before the onset. Frame counts for the minimum shot are checked at opts.fps.
+// before the onset. Frame counts for the minimum shot, and the one-frame "already on an onset" test, use opts.fps.
 function cwvSnapCuts(boundaries, template, onsets, opts) {
   const fps = opts.fps, beat = 60 / opts.bpm, low = !!opts.lowConfidence;
   const offset = cwvMusicOffset(opts.sectionStart, fps);
   const frameOf = x => (x === 0 ? 0 : Math.round((x + offset) * fps));
   const reach = low ? CWV_SNAP_LOW_CONFIDENCE_WINDOW : Math.min(CWV_SNAP_WINDOW_BEATS * beat, CWV_SNAP_WINDOW_MAX);
-  const bandSets = low ? [['l']] : CWV_SNAP_BANDS;
+  const bands = low ? ['l'] : ['l', 'm', 'h'];
   const thr = band => Math.max(CWV_SNAP_MIN_STRENGTH, (opts.thresholds && opts.thresholds[band]) || 0);
   const shift = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
   const list = (onsets || []).filter(o => o && isFinite(o[0]) && isFinite(o[2]) && o[2] >= thr(o[1]))
@@ -138,18 +146,26 @@ function cwvSnapCuts(boundaries, template, onsets, opts) {
   const n = boundaries.length - 1, beats = template.beats || [];
   const from = template.burstFrom, to = template.burstTo;
   const cuts = boundaries.slice(), log = [];
-  // The onset a cut at grid time g moves to, or null.
+  // The onset a cut at grid time g moves to ({ ...onset, d }), or { none: reason } when it stays on the grid.
   const pick = g => {
-    for (const bands of bandSets) {
-      let best = null;
-      for (const o of list) {
-        if (bands.indexOf(o.band) < 0 || Math.abs(o.x - g) > reach + 1e-9) continue;
-        const d = Math.abs(o.x - g);
-        if (!best || o.ratio > best.ratio + 1e-9 || (Math.abs(o.ratio - best.ratio) <= 1e-9 && (d < best.d - 1e-9 || (Math.abs(d - best.d) <= 1e-9 && o.x < best.x)))) best = { ...o, d };
+    const near = list.filter(o => Math.abs(o.x - g) <= reach + 1e-9).map(o => ({ ...o, d: Math.abs(o.x - g) }));
+    const onGrid = near.filter(o => o.d <= 1 / fps + 1e-9).sort((p, q) => p.d - q.d || p.x - q.x);
+    if (onGrid.length) return { none: 'on grid (' + onGrid[0].band + ' onset within a frame)' };
+    const usable = near.filter(o => bands.indexOf(o.band) >= 0);
+    if (!usable.length) return { none: 'no onset' };
+    let best = null, why = 'weak onset';
+    for (const o of usable) {
+      if (o.ratio < CWV_SNAP_MIN_RATIO - 1e-9) continue;
+      if (o.band === 'l') {
+        // The grid position's own onset: the strongest qualifying onset nearer the grid (ratio 1 = the threshold when
+        // there is none, since a weaker one would not be listed).
+        const own = near.reduce((m, q) => (q.d < o.d - 1e-9 && q.ratio > m ? q.ratio : m), 1);
+        if (o.ratio < own + CWV_SNAP_LOW_MARGIN - 1e-9) { why = 'low onset not above the grid'; continue; }
       }
-      if (best) return best;
+      const score = o.ratio - CWV_SNAP_DISTANCE_COST * o.d / reach;
+      if (!best || score > best.score + 1e-9 || (Math.abs(score - best.score) <= 1e-9 && (o.d < best.d - 1e-9 || (Math.abs(o.d - best.d) <= 1e-9 && o.x < best.x)))) best = { ...o, score };
     }
-    return null;
+    return best || { none: why };
   };
   // The first shot in [a, b) that a snap would make too short, or null.
   const tooShort = (next, a, b) => {
@@ -174,7 +190,7 @@ function cwvSnapCuts(boundaries, template, onsets, opts) {
     if (!anchor && !(beats[i] >= 1)) { log.push({ index: i, kind: 'grid', grid: g, seconds: g, shiftMs: 0, reason: 'grid' }); continue; }
     const kind = anchor ? 'anchor' : 'beat';
     const o = pick(g);
-    if (!o) { log.push({ index: i, kind, grid: g, seconds: g, shiftMs: 0, reason: 'no onset' }); continue; }
+    if (o.none) { log.push({ index: i, kind, grid: g, seconds: g, shiftMs: 0, reason: o.none }); continue; }
     const next = cuts.slice();
     next[i] = o.x;
     if (anchor && frameOf(o.x) !== frameOf(g)) for (let k = from + 1; k <= to; k++) next[k] = o.x + (boundaries[k] - g);

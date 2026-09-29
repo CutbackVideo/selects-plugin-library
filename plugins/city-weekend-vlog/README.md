@@ -17,10 +17,12 @@ or any source file.
   drum-forward tracks), otherwise two
   half-beat shots, so there are 12 or 10 title shots. Apart from that burst
   every cut lands on a beat or half-beat. A cut that starts a shot of a beat
-  or more, and the first cut of the burst, moves onto a strong drum or bass
-  hit when one is within a tenth of a beat (at most 70 ms); the rest of the
-  burst follows it when that moves it to another frame, and every other cut
-  stays on the grid.
+  or more, and the first cut of the burst, moves onto a clearly strong drum
+  or bass hit within a tenth of a beat (at most 70 ms), but only when no hit
+  is already within a frame of the beat; a bass hit must also be clearly
+  stronger than the hit nearer the beat. The rest of the burst follows the
+  first cut when it moves, and every other cut stays on the grid. The
+  bundled tracks are tight enough that their cuts stay on the grid.
 - **Montage (2 beats per shot).** Street, architecture, park and detail shots,
   7 by default. It starts on the first beat of a bar.
 - A 1080x1920 canvas. Landscape clips and photos get a centre crop.
