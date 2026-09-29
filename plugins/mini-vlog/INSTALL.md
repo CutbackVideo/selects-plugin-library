@@ -52,8 +52,9 @@ never in either install folder:
    and `SELECTS_USER_SKILLS_ROOT/mini-vlog/` contains `planner.js`,
    `scripts/assemble.js`, `assets/cues/manifest.json` and
    `assets/fonts/presets.json`.
-2. Open a Project with analysed video clips and open the panel. The top line
-   reads, for example, "Ready: 6 clips · 12 photos · about 13 s", the Track
+2. Open a Project with analysed video clips and open the panel. The
+   readiness line at the bottom of the Length section reads, for example,
+   "Ready: 6 clips · 12 photos · about 13 s", the Track
    list shows the four bundled tracks (two reference tracks, then two
    alternatives), and the Title preview renders in its own typefaces.
 3. With at least 4 usable shots from 2 different clips or photos, press
