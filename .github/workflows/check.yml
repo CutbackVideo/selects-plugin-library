@@ -39,3 +39,9 @@ jobs:
           node plugins/summer-trip/tests/cues.test.cjs
           node plugins/summer-trip/tests/muffle.test.cjs
           node plugins/summer-trip/tests/sfx.test.cjs
+          node plugins/summer-trip/tests/effects.test.cjs
+          node plugins/summer-trip/tests/motion.test.cjs
+          node plugins/summer-trip/tests/planner.test.cjs
+          node plugins/summer-trip/tests/allocate.test.cjs
+          node plugins/summer-trip/tests/scripts-edit.test.cjs
+          node plugins/summer-trip/tests/scripts-read.test.cjs
