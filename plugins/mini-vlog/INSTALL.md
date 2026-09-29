@@ -53,10 +53,9 @@ never in either install folder:
    `scripts/assemble.js`, `assets/cues/manifest.json` and
    `assets/fonts/presets.json`.
 2. Open a Project with analysed video clips and open the panel. The top line
-   reads "Ready: N clips · about N s" ("Ready: N clips · N photos · about N s"
-   when the Project has photos), the Track list shows the four bundled
-   tracks (two reference tracks, then two alternatives), and the Title
-   preview renders in its own typefaces.
+   reads, for example, "Ready: 6 clips · 12 photos · about 13 s", the Track
+   list shows the four bundled tracks (two reference tracks, then two
+   alternatives), and the Title preview renders in its own typefaces.
 3. With at least 4 usable shots from 2 different clips or photos, press
    **Build**. A new 16:9 Draft opens at 1920x1080 with the title, the clips
    and the music.
