@@ -14,7 +14,7 @@
 
 ## Dependencies
 
-The bundled music tracks, the title, the warm look and the Draft build need
+The bundled music tracks, the title, the Soft look and the Draft build need
 nothing beyond Selects. Two optional features use command-line tools. The
 panel finds them on the shell `PATH` and also in `/opt/homebrew/bin`,
 `/usr/local/bin` and the newest nvm Node (`~/.nvm/versions/node/*/bin`), so
@@ -53,11 +53,11 @@ never in either install folder:
    `scripts/assemble.js`, `assets/cues/manifest.json` and
    `assets/fonts/presets.json`.
 2. Open a Project with analysed video clips and open the panel. The top line
-   reads "Ready: N clips · about N s" ("Ready: N clips · N photos · about N s"
-   when the Project has photos), the Track list shows the seven
-   bundled tracks, and the Font style tiles render in their own typefaces.
-3. With at least 16 usable shots (14 for a track with the half-beat burst),
-   press **Build**. A new Draft opens at 1080x1920 with the title, the clips
+   reads, for example, "Ready: 6 clips · 12 photos · about 13 s", the Track
+   list shows the four bundled tracks (two reference tracks, then two
+   alternatives), and the Title preview renders in its own typefaces.
+3. With at least 4 usable shots from 2 different clips or photos, press
+   **Build**. A new 16:9 Draft opens at 1920x1080 with the title, the clips
    and the music.
 4. Optional: if ffmpeg and Node.js are installed, **Your own music** appears
    in the Track list and **Preview this section** plays the chosen section.

@@ -17,13 +17,13 @@ for (const preset of p.presets) {
 const EXPECTED = {
   'dm-serif-display.woff2.b64': ['MV DM Serif Display', 'normal', 400],
   'dm-serif-display-italic.woff2.b64': ['MV DM Serif Display Italic', 'italic', 400],
-  'quicksand-bold.woff2.b64': ['MV Quicksand Bold', 'normal', 700],
+  'mv-rounded-bold.woff2.b64': ['MV Rounded Bold', 'normal', 700],
   'dm-mono.woff2.b64': ['MV DM Mono', 'normal', 400],
 };
 const roles = (id) => Object.fromEntries(byId[id].fonts.map(f => [f.role, f.family]));
 assert.deepEqual(roles('mini-vlog'), { big: 'MV DM Serif Display Italic', small: 'MV DM Serif Display' });
-assert.deepEqual(roles('day-in-my-life'), { big: 'MV Quicksand Bold', tag: 'MV Quicksand Bold' });
-assert.deepEqual(roles('small-glimpse'), { big: 'MV Quicksand Bold', mono: 'MV DM Mono' });
+assert.deepEqual(roles('day-in-my-life'), { big: 'MV Rounded Bold', tag: 'MV Rounded Bold' });
+assert.deepEqual(roles('small-glimpse'), { big: 'MV Rounded Bold', mono: 'MV DM Mono' });
 const files = new Set();
 for (const preset of p.presets) for (const f of preset.fonts) {
   assert.ok(f.family.startsWith('MV '), f.family);
@@ -93,19 +93,46 @@ function woff2Tables(bin) {
   return { data, tables };
 }
 // Subset fonts are Modified Versions under OFL: they must be renamed away from any Reserved Font Name.
+const LICENCE = {
+  'dm-serif-display.woff2.b64': 'dmserifdisplay-OFL.txt',
+  'dm-serif-display-italic.woff2.b64': 'dmserifdisplay-OFL.txt',
+  'mv-rounded-bold.woff2.b64': 'quicksand-OFL.txt',
+  'dm-mono.woff2.b64': 'dmmono-OFL.txt',
+};
+// Quoted names after "Reserved Font Name(s)" in a licence's copyright lines ('x', "x" or curly quotes).
+function reservedNames(lic) {
+  const text = fs.readFileSync(path.join(dir, 'licenses', lic), 'utf8').split(/This Font Software is licensed/)[0];
+  const out = [];
+  for (const m of text.matchAll(/Reserved Font Names?\s*((?:[,\s]*(?:and\s+)?['"\u2018\u201c][^'"\u2019\u201d]+['"\u2019\u201d])+)/g)) {
+    for (const q of m[1].matchAll(/['"\u2018\u201c]([^'"\u2019\u201d]+)['"\u2019\u201d]/g)) out.push(q[1]);
+  }
+  return out;
+}
+assert.deepEqual(reservedNames('dmserifdisplay-OFL.txt'), ['Source']);
+assert.deepEqual(reservedNames('quicksand-OFL.txt'), ['Quicksand']);
+assert.deepEqual(reservedNames('dmmono-OFL.txt'), []);
 for (const file of files) {
   const family = EXPECTED[file][0];
   const { data, tables } = woff2Tables(Buffer.from(fs.readFileSync(path.join(dir, file), 'utf8').replace(/\s+/g, ''), 'base64'));
   const t = tables.find(x => x.tag === 'name');
   const name = data.subarray(t.offset, t.offset + t.length);
-  const count = name.readUInt16BE(2), strOff = name.readUInt16BE(4), ids = {};
+  const count = name.readUInt16BE(2), strOff = name.readUInt16BE(4), ids = {}, records = [];
   for (let i = 0; i < count; i++) {
     const r = 6 + i * 12, platform = name.readUInt16BE(r), nameID = name.readUInt16BE(r + 6);
     const len = name.readUInt16BE(r + 8), at = strOff + name.readUInt16BE(r + 10);
-    if (platform !== 3) continue;
     // Copy before swap16: it swaps in place and records may share the same string bytes.
-    ids[nameID] = Buffer.from(name.subarray(at, at + len)).swap16().toString('utf16le');
+    const text = platform === 1 ? name.subarray(at, at + len).toString('latin1') : Buffer.from(name.subarray(at, at + len)).swap16().toString('utf16le');
+    records.push({ nameID, text });
+    if (platform === 3) ids[nameID] = text;
   }
+  // No record may carry a Reserved Font Name declared in the family's licence. The copyright
+  // notice (ID 0) is exempt: OFL requires it to be kept, and it is where the RFN is declared.
+  const rfns = reservedNames(LICENCE[file]);
+  for (const r of records) for (const rfn of rfns) {
+    if (r.nameID === 0) continue;
+    assert.ok(!r.text.toLowerCase().includes(rfn.toLowerCase()), `${file} name ID ${r.nameID} contains Reserved Font Name ${rfn}: ${r.text}`);
+  }
+  for (const rfn of rfns) assert.ok(!file.toLowerCase().includes(rfn.toLowerCase()) && !family.toLowerCase().includes(rfn.toLowerCase()), file + ' / ' + family + ' uses ' + rfn);
   assert.equal(ids[1], family, file + ' name ID 1');
   assert.equal(ids[4], family, file + ' name ID 4');
   assert.equal(ids[6], family.replace(/ /g, ''), file + ' name ID 6');
