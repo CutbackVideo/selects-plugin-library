@@ -163,7 +163,7 @@ export default function Panel({ sdk, context, ui }) {
         throw new Error('Media conversion result does not match the requested inputs.');
       }
       requestPaths.push(...group.sources.map((source, i) => ({ sourceResourceId: source.resourceId,
-        path: output[i].outputPath })));
+        sourcePath: source.path, path: output[i].outputPath })));
     }
     if (!requestPaths.length) return media;
     if (!isCurrent()) throw new Error(t.changed);
@@ -218,7 +218,7 @@ export default function Panel({ sdk, context, ui }) {
     if (imported.result.status !== 'prepared' || !imported.result.baseResourceId) {
       throw new Error('Black Main video import could not be verified.');
     }
-    return imported.result.baseResourceId;
+    return { resourceId: imported.result.baseResourceId, path: imported.result.path };
   }
 
   async function createGallery() {
@@ -229,7 +229,8 @@ export default function Panel({ sdk, context, ui }) {
       if (assigned !== 21) throw new Error(t.missing);
       input = { operation: 'create', projectId, name: name.trim(), durationFrames,
         media: slots.map(item => ({ ...inventory.media.find(media => media.resourceId === item.resourceId), focusX: item.focusX, focusY: item.focusY })),
-        music: selectedMusic ? { resourceId: selectedMusic.resourceId, durationFrames: selectedMusic.durationFrames, startFrame: 0 } : null };
+        music: selectedMusic ? { resourceId: selectedMusic.resourceId, path: selectedMusic.path,
+          durationFrames: selectedMusic.durationFrames, startFrame: 0 } : null };
       if (!input.name || input.media.some(item => !item.resourceId)) throw new Error(t.missing);
     } catch (error) { setStatus({ tone: 'error', text: String(error?.message || error) }); return; }
     running.current = true; setBusy(true); setStatus(null);
@@ -240,8 +241,10 @@ export default function Panel({ sdk, context, ui }) {
       input.media = await prepareVisuals(input.media, input.durationFrames, projectId,
         () => { dispatched = true; }, () => sameContext(projectId, sequenceId) && requestedKey === key);
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
-      input.baseResourceId = await prepareBase(input.durationFrames, projectId,
+      const preparedBase = await prepareBase(input.durationFrames, projectId,
         () => { dispatched = true; }, () => sameContext(projectId, sequenceId) && requestedKey === key);
+      input.baseResourceId = preparedBase.resourceId;
+      input.basePath = preparedBase.path;
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
       const script = buildScript(input);
       dispatched = true;

@@ -56,7 +56,8 @@ const media = Array.from({ length: 22 }, (_, i) => ({ resourceId: `r${i + 1}`, n
   kind: 'image', width: 1000, height: 1000, path: `/fixture/photo-${i + 1}.jpg` }));
 const baseConversion = { exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60,
   durationFrames: 853, outputPath: '/cache/black-base.mp4' }) };
-const baseImport = { result: { status: 'prepared', baseResourceId: 'black-main' } };
+const baseImport = { result: { status: 'prepared', baseResourceId: 'black-main',
+  path: '/cache/black-base.mp4' } };
 
 test('auto-assign keeps the 21 original photos selectable after their converted videos are imported', async () => {
   const photos = media.slice(0, 21);
@@ -141,6 +142,10 @@ test('a short video is extended before placement while long videos remain untouc
   assert.equal(shellCalls.length, 3);
   const created = calls.find(item => item.operation === 'create');
   assert.equal(created.baseResourceId, 'black-main');
+  assert.equal(created.basePath, '/cache/black-base.mp4');
+  assert.equal(calls.filter(item => item.operation === 'importConverted').find(item =>
+    item.converted.some(entry => entry.sourceResourceId === 'short-1')).converted.find(entry =>
+    entry.sourceResourceId === 'short-1').sourcePath, '/fixture/short.mp4');
   assert.equal(created.media[19].resourceId, 'held-1');
   assert.equal(created.media[20].resourceId, 'long-1');
   view.unmount(); cleanup();
@@ -184,7 +189,10 @@ test('21-slot create uses one shared script and does not save on load', async ()
   assert.equal(mutation.allowCommit, true);
   assert.equal(request.media.length, 21);
   assert.equal(request.baseResourceId, 'black-main');
+  assert.equal(request.basePath, '/cache/black-base.mp4');
   assert.deepEqual(request.media.map(item => item.resourceId), media.slice(0, 21).map((_, i) => `v${i + 1}`));
+  assert.deepEqual(request.media.map(item => item.path), media.slice(0, 21).map((_, i) => `/cache/still-${i + 1}.mp4`));
+  assert.ok(imports.every(call => JSON.parse(call.script).converted.every(item => typeof item.sourcePath === 'string')));
   assert.ok(request.media.every(item => item.kind === 'video'));
   assert.equal(request.manualBpm, 113);
   assert.equal(request.music, null);

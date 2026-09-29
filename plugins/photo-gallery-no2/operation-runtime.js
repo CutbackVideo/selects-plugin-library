@@ -15,6 +15,15 @@ export default function PhotoGalleryTile({Source,data}) {
 
 function galleryFail(message) { throw new Error(message); }
 
+function galleryResolveResource(items, resourceId, path, label) {
+  const byId = items.find((item) => item.resourceId === resourceId);
+  if (typeof path !== 'string' || !path.startsWith('/')) galleryFail(`${label} path is required`);
+  if (byId?.path === path) return byId;
+  const matches = items.filter((item) => item.path === path);
+  if (matches.length !== 1) galleryFail(`${label} path is missing or ambiguous in this Project`);
+  return matches[0];
+}
+
 async function galleryInventory(project) {
   const resources = await project.resources();
   const byId = new Map();
@@ -96,15 +105,14 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
   if (!Array.isArray(input.converted) || input.converted.length < 1 || input.converted.length > 21) {
     galleryFail('Provide one to 21 converted still-video files');
   }
-  const sources = new Map();
-  for (const item of inventory.media) sources.set(item.resourceId, item);
   const seenSources = new Set();
   for (const item of input.converted) {
-    if (!sources.has(item?.sourceResourceId) || seenSources.has(item.sourceResourceId) ||
+    const source = galleryResolveResource(inventory.media, item?.sourceResourceId, item?.sourcePath, 'Selected source');
+    if (!source || seenSources.has(source.resourceId) ||
         typeof item.path !== 'string' || !/^\/(?:[^\0]+)\.mp4$/i.test(item.path)) {
       galleryFail('A prepared clip does not match one distinct Project photo or video and absolute MP4 path');
     }
-    seenSources.add(item.sourceResourceId);
+    seenSources.add(source.resourceId);
   }
   const paths = [...new Set(input.converted.map((item) => item.path))];
   const probe = await selects.media.probe({ filePaths: paths });
@@ -128,7 +136,9 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
     if (!video || video.durationFrames == null || video.durationFrames < requiredFrames) {
       galleryFail('Converted still-video import or length could not be verified; inspect Project files before retrying');
     }
-    return { sourceResourceId: item.sourceResourceId, resourceId: video.resourceId,
+    const source = galleryResolveResource(fresh.media, item.sourceResourceId, item.sourcePath, 'Selected source');
+    return { sourceResourceId: item.sourceResourceId, resolvedSourceResourceId: source?.resourceId,
+      resourceId: video.resourceId,
       path: item.path, width: video.width, height: video.height, durationFrames: video.durationFrames };
   });
   return { status: 'prepared', converted };
@@ -159,23 +169,21 @@ async function galleryImportBase(selects, project, input, inventory, onImportSta
 }
 
 async function galleryPreflight(selects, project, input, inventory) {
-  const mediaById = new Map(), audioById = new Map();
-  for (const item of inventory.media) mediaById.set(item.resourceId, item);
-  for (const item of inventory.audio) audioById.set(item.resourceId, item);
-  const base = mediaById.get(input.baseResourceId);
+  const base = galleryResolveResource(inventory.media, input.baseResourceId, input.basePath, 'Black Main');
   if (!base || base.kind !== 'video' || base.width !== 1080 || base.height !== 1920 ||
       base.durationFrames !== (input.durationFrames ?? 853)) {
     galleryFail('Prepare a full-length 1080×1920 black Main video before creating this Draft');
   }
   const chosen = input.media.map((item, i) => {
-    const fresh = mediaById.get(item.resourceId);
+    const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);
     if (!fresh) galleryFail(`Slot ${i + 1} media is missing or moved`);
     return { ...fresh, focusX: item.focusX, focusY: item.focusY };
   });
   if (chosen.some((item) => item.kind === 'image')) {
     galleryFail('Convert Project photos to individual video Resources before creating this Draft');
   }
-  const music = input.music == null ? null : audioById.get(input.music.resourceId);
+  const music = input.music == null ? null :
+    galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');
   if (input.music != null && !music) galleryFail('Selected music is missing or moved');
   const selectedMusic = music && { ...music, startFrame: input.music.startFrame ?? 0 };
   const plan = planGallery({ media: chosen, music: selectedMusic, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames });
