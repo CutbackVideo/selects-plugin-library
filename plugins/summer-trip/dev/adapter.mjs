@@ -146,7 +146,9 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
       if (!bpm) throw Error('cue ' + cue.id + ' has no usable tempo');
       const c = { ...cue, bpm };
       const sec = pickSection(c, row.section, n);
-      return { kind, label: cue.title || cue.id, cue, grid: { bpm, firstBeat: cue.firstBeat, accepted: true, bundled: true, titleHits: cue.titleHits || null },
+      return { kind, label: cue.title || cue.id, cue, grid: { bpm, firstBeat: cue.firstBeat, accepted: true, bundled: true,
+        // As in the panel: the cue's title hits apply only in its drop section.
+        titleHits: sec.kind === 'drop' ? (cue.titleHits || null) : null },
         sectionStart: sec.start, sectionKind: sec.kind, notes: sec.note ? [sec.note] : [],
         files: { dry: cueFile(cue.file), wet: cue.muffledFile ? cueFile(cue.muffledFile) : null } };
     }
