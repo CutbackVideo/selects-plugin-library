@@ -8,7 +8,10 @@ const load = (name, cfg) => new Function('selects', `return (async()=>{${fs.read
 // Photo resources (`photos`) and videos without an audio stream (`silent`) have no sound: muting leaves their audio
 // routing null. setAudioTracks returns an EditDiff whose opCount counts the clips whose routing changed.
 // `adoptFps` models footage at another rate: the first insert switches the Draft to it before the clip is conformed.
-function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [], silent = [], adoptFps = null } = {}) {
+// Like Selects (probed on Staging), a source range is placed as round(end * fps) - round(start * fps) frames: each end
+// snaps to a Draft frame on its own, so a start on a half frame loses or gains one. `durations` ({ rid: seconds }) caps
+// a video's source at its whole Draft frames: an end past floor(duration * fps) / fps is invalid_source_range.
+function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [], silent = [], adoptFps = null, durations = {} } = {}) {
   const log = [], clips = [], graphics = [], effects = {};
   let frame = 0, committed = false, frameSize = { width: 1920, height: 1080 }, inserted = false;
   return { log, clips, graphics, effects, reopen() { unsaved = false; committed = false; }, d: {
@@ -17,7 +20,8 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
     insertResource: async ({ resourceId, sourceRange }) => {
       if (!inserted) { inserted = true; frameSize = { ...adopt }; if (adoptFps) fps = adoptFps; }
       if (photos.includes(resourceId) && sourceRange.endSeconds > 5 + 1e-9) throw Error('invalid_source_range');
-      const len = Math.round((sourceRange.endSeconds - sourceRange.startSeconds) * fps); clips.push({ clipId: clips.length + 1, resourceId, trackKind: 'main', startFrame: frame, endFrame: frame + len, audioSourceIndexes: null }); frame += len; log.push(['insert', resourceId, sourceRange]); },
+      if (sourceRange.startSeconds < 0 || (durations[resourceId] != null && sourceRange.endSeconds > Math.floor(durations[resourceId] * fps) / fps + 1e-9)) throw Error('invalid_source_range');
+      const len = Math.round(sourceRange.endSeconds * fps) - Math.round(sourceRange.startSeconds * fps); clips.push({ clipId: clips.length + 1, resourceId, trackKind: 'main', startFrame: frame, endFrame: frame + len, audioSourceIndexes: null }); frame += len; log.push(['insert', resourceId, sourceRange]); },
     clips: async ({ trackScope } = {}) => clips.filter(c => trackScope !== 'main' || c.trackKind === 'main').map(c => ({ ...c })),
     clipTransform: async () => ({ scale: { x: 1, y: 1 }, position: { x: 0, y: 0 } }),
     setClipTransform: async (o) => log.push(['transform', o.clip.clipId, o.scale]),
@@ -267,6 +271,41 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   const mn = mockDraft(30);
   await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [{ rid: 'r0', startSeconds: 0, endSeconds: 1 }], boundaries: [0, 1.0056], crops: {}, music: null })({ project: () => ({ createDraft: async () => mn.d, resource: id => ({ id }) }) });
   assert.deepEqual(mn.clips.map(c => c.endFrame), [30], 'no music, no offset');
+
+  // Live paris-soul (25 fps): a source start on a half frame (1.7 s = frame 42.5) made Selects place 14 frames for a
+  // 15-frame slot, so the cut landed a frame early and the next clip made up for it. Source windows are aimed at whole
+  // Draft frames, so every clip gets exactly the frames its slot wants.
+  const half = mockDraft(25);
+  const hb = [0, 0.6060606060606061, 1.2121212121212122, 1.8181818181818183];
+  const rh = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [
+    { rid: 'r4', kind: 'video', startSeconds: 11.7, endSeconds: 12.3 }, { rid: 'r14', kind: 'video', startSeconds: 1.7, endSeconds: 2.3 },
+    { rid: 'r12', kind: 'video', startSeconds: 9.7, endSeconds: 10.3 }],
+    boundaries: hb, crops: {}, music: { resourceId: 'r9', sectionStart: 24.27042424242424 } })({ project: () => ({ createDraft: async () => half.d, resource: id => ({ id }) }) });
+  const offH = 24.27042424242424 - Math.round(24.27042424242424 * 25) / 25;
+  assert.deepEqual(half.clips.filter(c => c.trackKind === 'main').map(c => c.endFrame), hb.slice(1).map(b => Math.round((b + offH) * 25)), 'every cut on its planned frame');
+  assert.deepEqual(half.clips.filter(c => c.trackKind === 'main').map(c => c.endFrame), [15, 30, 45]);
+  assert.equal(rh.totalFrames, 45);
+  for (const x of half.log.filter(y => y[0] === 'insert')) assert.ok(Math.abs(x[2].startSeconds * 25 - Math.round(x[2].startSeconds * 25)) < 1e-6, 'source start on a Draft frame');
+
+  // Live d-lofi (23.976 fps): the plan (at 30 fps) ended a 1.333 s window 0.05 s before the source's 21.292 s, but at
+  // the real rate the slot is 33 frames (1.376 s) and Selects caps the source at its whole frames (510 = 21.271 s), so
+  // the insert failed. The window slides back to end inside the source (the pick carries its sourceDuration).
+  const F24 = 24000 / 1001;
+  const tb = [0, 1.3636363636363635, 2.727272727272727];
+  // The live start (19.9087 s) and one a frame later, where snapping the start to a frame alone does not help.
+  for (const late of [19.9087, 19.95]) {
+    const tail = mockDraft(F24, { durations: { r12: 21.292 } });
+    const rt = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [
+      { rid: 'r4', kind: 'video', startSeconds: 2, endSeconds: 3.3333, sourceDuration: 9.4 },
+      { rid: 'r12', kind: 'video', startSeconds: late, endSeconds: late + 1.3333, sourceDuration: 21.292 }],
+      boundaries: tb, crops: {}, music: { resourceId: 'r9', sectionStart: 0.026 } })({ project: () => ({ createDraft: async () => tail.d, resource: id => ({ id }) }) });
+    const offT = 0.026 - Math.round(0.026 * F24) / F24;
+    assert.deepEqual(tail.clips.map(c => c.endFrame).slice(0, 2), tb.slice(1).map(b => Math.round((b + offT) * F24)));
+    const lastIns = tail.log.filter(y => y[0] === 'insert')[1][2];
+    assert.ok(lastIns.endSeconds <= Math.floor(21.292 * F24) / F24 + 1e-9, 'window ends inside the source');
+    assert.ok(late - lastIns.startSeconds < 0.1, 'slid back by a few frames only');
+    assert.equal(rt.placed, 2);
+  }
 
   // Clip sound. Ambient lowers every video clip on Main to cfg.ambientDb (the music stays at 0 dB), before the one
   // commit; photos have no sound and are skipped. Full and Off leave the level alone (Off mutes in decorate).

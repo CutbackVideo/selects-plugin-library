@@ -214,6 +214,14 @@ assert.equal(j(P.mvAllocate({ candidates: [mk('v', 'drink', 5, 1, 30), photo('p'
 assert.equal(j(P.mvAllocate({ candidates: [mk('a', 'drink', NaN, 1, 30), mk('b', 'drink', 5, Infinity, 30)], slots: [drinkSlot], seed: 'x' })).filled, 0);
 // A real hit is centred in its window.
 assert.ok(Math.abs(one([mk('a', 'park', 7, 0.05, 20)], drinkSlot).startSeconds - 6.4) < 1e-9);
+// A window near the end of its source ends MV_SOURCE_TAIL (0.15 s) before it: at the Draft's real rate a slot can grow
+// by about 1/30 + 1/fps s and Selects caps a source at its whole frames (live d-lofi at 23.976 fps), so a source must
+// hold the slot plus that margin. Video picks carry their sourceDuration so assemble.js can keep the window inside.
+const nearEnd = one([mk('a', 'drink', 19.5, 1, 20)], drinkSlot);
+assert.ok(Math.abs(nearEnd.endSeconds - (20 - 0.15)) < 1e-9, 'ends 0.15 s before the source end');
+assert.equal(nearEnd.sourceDuration, 20);
+assert.equal(j(P.mvAllocate({ candidates: [mk('a', 'drink', 0.6, 1, 1.3)], slots: [drinkSlot], seed: 'x', photoShare: 0 })).filled, 0, 'a source only 0.1 s longer than the slot is skipped');
+assert.equal(j(P.mvAllocate({ candidates: [mk('a', 'drink', 0.6, 1, 1.35)], slots: [drinkSlot], seed: 'x', photoShare: 0 })).filled, 1);
 // Filler grid: every 0.5 s from 0.25 s to duration - 0.25 s, per source, in rid order.
 const grid = j(P.mvFillers([mk('b', 'street', 1, 1, 2), mk('a', 'park', 1, 1, 1.1)]));
 assert.deepEqual(grid.map(g => g.rid + '@' + g.t), ['a@0.25', 'a@0.75', 'b@0.25', 'b@0.75', 'b@1.25', 'b@1.75']);
