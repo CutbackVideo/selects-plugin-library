@@ -59,4 +59,7 @@ const chooseP = panel.slice(panel.indexOf('const choosePhotos ='), panel.indexOf
 assert.ok(!chooseP.includes('setCandidates(null)'), 'choosing photos keeps the scene search');
 assert.ok(panel.indexOf('const [usePhotos') < panel.indexOf('if (!projectId) return <ui'), 'photo hooks stay before the early return');
 assert.ok(/needsPoll = [^\n]*inventory\.photos/.test(panel), 'a photos-only Project does not poll');
+// Talking avoidance is gone: six scene-search queries per clip, no talking query and no relax note.
+assert.ok(!/talking/i.test(panel), 'no talking query or note');
+assert.equal((panel.slice(panel.indexOf('const CWV_QUERIES'), panel.indexOf('};', panel.indexOf('const CWV_QUERIES'))).match(/^  \w+: "/gm) || []).length, 6, 'six queries');
 console.log(JSON.stringify({ panel: 'ok' }));

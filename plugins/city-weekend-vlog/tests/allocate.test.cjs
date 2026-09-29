@@ -30,11 +30,6 @@ assert.deepEqual(j(P.cwvPlanBuild({ candidates: rich, bpm: 99.2, fps: 30, montag
 const b = j(P.cwvPlanBuild({ candidates: rich, bpm: 99.2, fps: 30, montageShots: 7, seed: 's2' }));
 assert.notDeepEqual(b.picks, a.picks);
 
-// Talking windows are avoided.
-const talky = rich.concat([{ rid: 'r0', role: 'talking', t: 5, score: 1, sourceDuration: 30 }]);
-j(P.cwvPlanBuild({ candidates: talky, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' })).picks
-  .filter(p => p.rid === 'r0').forEach(p => assert.ok(p.endSeconds <= 4 || p.startSeconds >= 6));
-
 // Shortage: 2 short sources cannot fill 17 slots.
 const poor = [{ rid: 'r0', role: 'street', t: 1, score: 1, sourceDuration: 3 }, { rid: 'r1', role: 'park', t: 1, score: 1, sourceDuration: 3 }];
 const c = j(P.cwvPlanBuild({ candidates: poor, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
@@ -75,45 +70,6 @@ assert.equal(pref.picks[0].rid, 'b');
 const bad = P.cwvAllocate({ candidates: [{ rid: 'a', role: 'street', t: NaN, score: 1, sourceDuration: 30 }, { rid: 'b', role: 'street', t: 5, score: Infinity, sourceDuration: 30 }], slots: [{ index: 0, role: 'street', seconds: 1 }], seed: 'x' });
 assert.equal(bad.filled, 0);
 
-// Live case: 4 short portrait sources where nobody talks. searchScenes still returns 4 talking hits per clip with
-// scores comparable to the other roles; they must not block the footage, so the plan succeeds without the relax.
-const live = [];
-[12, 12, 11, 33].forEach((dur, r) => ['street', 'architecture', 'landmark', 'park', 'detail', 'wide', 'talking'].forEach((role, ri) => {
-  for (let k = 0; k < 4; k++) {
-    const t = Math.round(((k + 0.5) * dur / 4 + (ri - 3) * 0.3) * 10) / 10;
-    live.push({ rid: 'v' + r, role, t, score: (role === 'talking' ? 0.15 : 0.10) + ((r * 13 + ri * 7 + k * 5) % 25) / 100, sourceDuration: dur });
-  }
-}));
-const lv = j(P.cwvPlanBuild({ candidates: live, bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' }));
-assert.equal(lv.ok, true);
-assert.equal(lv.relaxedTalking, undefined);
-assert.ok(lv.montageShots >= 4);
-assert.equal(a.relaxedTalking, undefined);
-
-// A clearly dominant talking hit (0.6 against 0.2 nearby) is still avoided; a comparable one is not.
-const dom = talk => P.cwvAllocate({ candidates: [
-  { rid: 'a', role: 'street', t: 5, score: 0.3, sourceDuration: 30 },
-  { rid: 'a', role: 'street', t: 15, score: 0.2, sourceDuration: 30 },
-  { rid: 'a', role: 'detail', t: 5.5, score: 0.2, sourceDuration: 30 },
-  { rid: 'a', role: 'talking', t: 5, score: talk, sourceDuration: 30 }], slots: [{ index: 0, role: 'street', seconds: 1 }], seed: 'x' });
-assert.equal(dom(0.6).picks[0].startSeconds, 14.5);
-assert.equal(dom(0.32).picks[0].startSeconds, 4.5);
-// With no other-role hit within 1 s, a talking hit blocks only when its own score reaches CWV_TALKING_MIN.
-const lone = talk => P.cwvAllocate({ candidates: [
-  { rid: 'a', role: 'street', t: 3.8, score: 0.3, sourceDuration: 30 },
-  { rid: 'a', role: 'talking', t: 5, score: talk, sourceDuration: 30 }], slots: [{ index: 0, role: 'street', seconds: 1 }], seed: 'x' });
-assert.equal(lone(0.35).filled, 0);
-assert.equal(lone(0.2).filled, 1);
-
-// Avoidance makes every length infeasible; the retry without it succeeds and says so.
-const talkAll = mk(40, 4, roles).concat(Array.from({ length: 40 }, (_, r) => ({ rid: 'm' + r, role: 'talking', t: 2, score: 0.9, sourceDuration: 4 })));
-const rx = j(P.cwvPlanBuild({ candidates: talkAll, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
-assert.equal(rx.ok, true);
-assert.equal(rx.relaxedTalking, true);
-assert.equal(rx.picks.length, 13 + rx.montageShots);
-assert.ok(rx.picks.every(Boolean));
-assert.equal(P.cwvAllocate({ candidates: talkAll, slots: rx.schedule.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / 30 })), seed: 's1' }).filled, 0);
-
 // Scene-search hits collapse onto ~6 distinct times per clip (live readback on 4 clips of 24.6/9.7/8.7/5.5 s).
 // Without fillers every length shrank to 4-5 montage shots; evenly spaced fillers let every requested length fit.
 const collapsed = [];
@@ -129,7 +85,6 @@ for (const seed of ['s1', 's2', 's3']) for (const n of [4, 7, 12]) {
   const r = j(P.cwvPlanBuild({ candidates: collapsed, bpm: 99.2, fps: 30, montageShots: n, seed }));
   assert.equal(r.ok, true);
   assert.equal(r.montageShots, n, 'requested ' + n + ' fits with fillers (seed ' + seed + ')');
-  assert.equal(r.relaxedTalking, undefined);
   assert.ok(r.picks.every(Boolean));
   if (n === 12) assert.ok(r.fillerShots > 0);
   const spans = {};
@@ -160,14 +115,6 @@ const realOnly = { rid: 'a', role: 'wide', t: 7, score: 0.05, sourceDuration: 20
 const r1 = plan1([realOnly]);
 assert.equal(r1.fillerShots, 0);
 assert.ok(Math.abs(r1.picks[0].startSeconds - 6.4) < 1e-9, 'centred on the real hit');
-// The same hit inside a dominant talking window is blocked, so a filler takes the slot outside that window.
-const r2 = plan1([realOnly, { rid: 'a', role: 'talking', t: 7, score: 0.9, sourceDuration: 20 }]);
-assert.equal(r2.fillerShots, 1);
-assert.ok(r2.picks[0].endSeconds <= 6 + 1e-9 || r2.picks[0].startSeconds >= 8 - 1e-9);
-// Fillers never count as a rival hit: a lone talking hit at 0.35 still blocks its ±1 s window.
-const r3 = plan1([{ rid: 'a', role: 'talking', t: 5, score: 0.35, sourceDuration: 10 }, { rid: 'a', role: 'street', t: 3.8, score: 0.3, sourceDuration: 10 }]);
-assert.equal(r3.fillerShots, 1);
-assert.ok(r3.picks[0].endSeconds <= 4 + 1e-9 || r3.picks[0].startSeconds >= 6 - 1e-9);
 // Filler grid: every 0.5 s from 0.25 s to duration - 0.25 s, per source, deterministic order.
 const grid = P.cwvFillers([{ rid: 'b', role: 'street', t: 1, score: 1, sourceDuration: 2 }, { rid: 'a', role: 'park', t: 1, score: 1, sourceDuration: 1.1 }]);
 assert.deepEqual(j(grid).map(g => g.rid + '@' + g.t), ['a@0.25', 'a@0.75', 'b@0.25', 'b@0.75', 'b@1.25', 'b@1.75']);

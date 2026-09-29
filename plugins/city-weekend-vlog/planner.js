@@ -12,10 +12,6 @@ const CWV_MAX_MONTAGE = 12;
 const CWV_MIN_WINDOWS = CWV_TITLE_BEATS.length + CWV_MIN_MONTAGE;
 const CWV_LINE1_OFFSET_BEATS = 0.25;
 const CWV_REFERENCE_BPM = 99.2;
-// searchScenes always returns its nearest hits, even on clips where nobody talks, so a talking hit only
-// blocks footage when it beats the best other-role hit near it by this margin, or, with none near, reaches CWV_TALKING_MIN.
-const CWV_TALKING_MARGIN = 0.05;
-const CWV_TALKING_MIN = 0.3;
 // Scene-search hits collapse onto a few distinct times per clip, so every searched source also gets evenly spaced
 // 'filler' candidates. They score below any real hit and are only used by the last tier, after photos.
 const CWV_FILLER_STEP = 0.5;
@@ -141,17 +137,8 @@ function cwvAllocate(opts) {
   const photoSeen = {};
   const photos = opts.candidates.filter(c => c && c.kind === 'photo' && typeof c.rid === 'string' && !photoSeen[c.rid] && (photoSeen[c.rid] = true))
     .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
-  const used = {}, avoid = {}, recent = [], picks = [], photoUsed = {};
-  // Only a dominant talking hit becomes a ±1 s avoid window; avoidTalking: false disables avoidance entirely.
-  if (opts.avoidTalking !== false) {
-    candidates.filter(c => c.role === 'talking').forEach(c => {
-      let rival = -Infinity;
-      for (const o of candidates) if (o.role !== 'talking' && o.role !== 'filler' && o.rid === c.rid && Math.abs(o.t - c.t) <= 1 && o.score > rival) rival = o.score;
-      const dominant = rival === -Infinity ? c.score >= CWV_TALKING_MIN : c.score >= rival + CWV_TALKING_MARGIN - 1e-9;
-      if (dominant) (avoid[c.rid] = avoid[c.rid] || []).push([c.t - 1, c.t + 1]);
-    });
-  }
-  const pool = candidates.filter(c => c.role !== 'talking' && c.sourceDuration > 0);
+  const used = {}, recent = [], picks = [], photoUsed = {};
+  const pool = candidates.filter(c => c.sourceDuration > 0);
   let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, photoRunRelaxed = false;
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
   function searchVideo(slot, rankOf) {
@@ -162,7 +149,6 @@ function cwvAllocate(opts) {
       const start = Math.max(0, Math.min(c.sourceDuration - slot.seconds, c.t - slot.seconds / 2));
       const end = start + slot.seconds;
       if ((used[c.rid] || []).some(([a, b]) => start < b + gap && end > a - gap)) continue;
-      if ((avoid[c.rid] || []).some(([a, b]) => start < b && end > a)) continue;
       const repeats = recent.filter(r => r === c.rid).length;
       const value = c.score - rank * 0.15 - repeats * 0.2 + cwvHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05;
       const better = !best || value > best.value + 1e-12 ||
@@ -216,26 +202,23 @@ function cwvAllocate(opts) {
 }
 
 // Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
-// Filler candidates are added to every attempt. If no length fits while avoiding talking, the same range is tried once more without that avoidance (relaxedTalking).
+// Filler candidates are added to every attempt.
 // Photo candidates ({ rid, kind: 'photo' }) join every attempt, so a Project with only photos builds too.
 function cwvPlanBuild(opts) {
   const top = Math.min(CWV_MAX_MONTAGE, Math.max(CWV_MIN_MONTAGE, opts.montageShots));
   const candidates = opts.candidates.concat(cwvFillers(opts.candidates));
   let best = { filled: 0, photoShots: 0 };
-  for (const avoidTalking of [true, false]) {
-    for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
-      const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n });
-      const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, section: s.section, seconds: (s.endFrame - s.startFrame) / opts.fps }));
-      const alloc = cwvAllocate({ candidates, slots, seed: opts.seed, avoidTalking });
-      if (alloc.missing === 0) {
-        const plan = { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
-        if (!avoidTalking) plan.relaxedTalking = true;
-        if (alloc.photoRunRelaxed) plan.photoRunRelaxed = true;
-        return plan;
-      }
-      // Report the better of the two shortest attempts: each fills fewer than CWV_MIN_WINDOWS slots, so usableShots < needed.
-      if (n === CWV_MIN_MONTAGE && alloc.filled > best.filled) best = alloc;
+  for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
+    const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n });
+    const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, section: s.section, seconds: (s.endFrame - s.startFrame) / opts.fps }));
+    const alloc = cwvAllocate({ candidates, slots, seed: opts.seed });
+    if (alloc.missing === 0) {
+      const plan = { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
+      if (alloc.photoRunRelaxed) plan.photoRunRelaxed = true;
+      return plan;
     }
+    // The shortest attempt fills fewer than CWV_MIN_WINDOWS slots, so usableShots < needed.
+    if (n === CWV_MIN_MONTAGE) best = alloc;
   }
   return { ok: false, usableShots: best.filled, needed: CWV_MIN_WINDOWS, photoShots: best.photoShots };
 }
