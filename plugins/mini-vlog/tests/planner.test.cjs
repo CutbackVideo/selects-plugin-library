@@ -1,274 +1,150 @@
 // plugins/mini-vlog/tests/planner.test.cjs
-const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), assert = require('node:assert/strict');
-const root = path.resolve(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
-const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
-vm.createContext(box);
-vm.runInContext(source + ';globalThis.P={mvSnapCuts,mvPlanBuild,MV_TITLE_TOTAL_BEATS,mvSchedule,mvFitMontage,mvSnapSection,mvDefaultSection,mvVideoSeconds,mvBurstFor,mvMinWindows,mvMusicOffset,MV_TITLE_BEATS,MV_TITLE_ROLES,MV_FONT_STATES,MV_TITLE_BEATS_EIGHTH,MV_TITLE_ROLES_EIGHTH,MV_FONT_STATES_EIGHTH,MV_MIN_WINDOWS};', box);
-const P = box.P;
+const assert = require('assert'); const fs = require('fs'); const vm = require('vm');
+const ctx = {}; vm.createContext(ctx); vm.runInContext(fs.readFileSync(__dirname + '/../planner.js', 'utf8'), ctx);
+// Objects built inside the vm context have that realm's prototypes, which deepStrictEqual rejects; compare plain copies.
 const j = v => JSON.parse(JSON.stringify(v));
+const F = 30000 / 1001;
 
-// Title section is exactly 8 beats (two bars) in both burst variants, cut on 8th notes except the 16th burst.
-assert.equal(P.MV_TITLE_BEATS.reduce((a, b) => a + b, 0), 8);
-assert.equal(P.MV_TITLE_BEATS_EIGHTH.reduce((a, b) => a + b, 0), 8);
-assert.equal(P.MV_TITLE_BEATS.length, 12);
-assert.equal(P.MV_TITLE_BEATS_EIGHTH.length, 10);
-assert.equal(P.MV_MIN_WINDOWS, 16);
-assert.equal(P.mvMinWindows('sixteenth'), 16);
-assert.equal(P.mvMinWindows('eighth'), 14);
-for (const [beats, roles, fonts] of [[P.MV_TITLE_BEATS, P.MV_TITLE_ROLES, P.MV_FONT_STATES], [P.MV_TITLE_BEATS_EIGHTH, P.MV_TITLE_ROLES_EIGHTH, P.MV_FONT_STATES_EIGHTH]]) {
-  assert.equal(roles.length, beats.length); assert.equal(fonts.length, beats.length);
-  assert.deepEqual(j(roles.slice(0, 3)), ['street', 'architecture', 'street']);
-  assert.equal(roles[roles.length - 1], 'wide');
-  assert.ok(roles.slice(3, -1).every(r => r === 'landmark'));
-  assert.deepEqual(j(fonts.slice(0, 3)), [null, null, 'A']);
-  assert.deepEqual(j(fonts.slice(-5)), ['B', 'C', 'D', 'A', 'A'], 'the 8th run cycles B->C->D->A and the hold stays on A');
-  // Every title cut except the 16th burst sits on an 8th note.
-  let at = 0; for (const b of beats) { at += b; if (b >= 0.5) assert.equal(at * 2, Math.round(at * 2)); }
-}
-// Burst choice: the 16th burst needs a 16th-onset ratio of at least 0.35; unknown ratios get 8ths.
-assert.equal(P.mvBurstFor(0.35), 'sixteenth');
-assert.equal(P.mvBurstFor(0.349), 'eighth');
-assert.equal(P.mvBurstFor(null), 'eighth');
-assert.equal(P.mvBurstFor(undefined), 'eighth');
+// Constants.
+const K = j(vm.runInContext('({ MV_LENGTHS, MV_MIN_SHOTS, MV_TEMPO_MIN, MV_TEMPO_MAX, MV_FALLBACK_SHOT, MV_ROLES, MV_ROLE_FALLBACK })', ctx));
+assert.deepStrictEqual(K.MV_LENGTHS, { short: 12, standard: 24, long: 36 });
+assert.strictEqual(K.MV_MIN_SHOTS, 4);
+assert.strictEqual(K.MV_TEMPO_MIN, 70); assert.strictEqual(K.MV_TEMPO_MAX, 160);
+assert.deepStrictEqual(K.MV_FALLBACK_SHOT, { quick: 0.55, relaxed: 1.10 });
+assert.deepStrictEqual(K.MV_ROLES, ['drink', 'street', 'food', 'park', 'book', 'transit', 'flowers', 'cafe']);
+assert.deepStrictEqual(K.MV_ROLE_FALLBACK, { drink: ['cafe', 'food'], cafe: ['drink', 'book', 'food'], food: ['drink', 'cafe'], book: ['cafe'], street: ['transit', 'park'], transit: ['street'], park: ['flowers', 'street'], flowers: ['park'] });
+// The CWV title machinery is gone.
+for (const name of ['MV_TITLE_BEATS', 'MV_FONT_STATES', 'mvTitle', 'mvMinWindows', 'mvBurstFor', 'mvFitMontage', 'MV_MONTAGE_ROLES'])
+  assert.strictEqual(vm.runInContext('typeof ' + name, ctx), 'undefined', name + ' removed');
 
-// Reference tempo, 30 fps, 7 montage shots, 16th burst (the default).
-const s = j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 7 }));
-const f = b => Math.round(b * (60 / 99.2) * 30);
-assert.equal(s.burst, 'sixteenth');
-assert.equal(s.titleSlots, 12);
-assert.equal(s.slots.length, 19);
-assert.deepEqual(s.slots.slice(0, 5).map(x => [x.startFrame, x.endFrame]), [[0, f(1.5)], [f(1.5), f(3)], [f(3), f(4)], [f(4), f(4.25)], [f(4.25), f(4.5)]]);
-assert.deepEqual(s.slots.slice(0, 12).map(x => x.section), ['opening', 'opening', 'opening', 'burst', 'burst', 'burst', 'burst', 'burst', 'burst', 'burst', 'burst', 'hold']);
-assert.equal(s.slots[12].section, 'montage');
-assert.deepEqual(s.slots.map(x => x.endBeat), [1.5, 3, 4, 4.25, 4.5, 4.75, 5, 5.5, 6, 6.5, 7, 8, 10, 12, 14, 16, 18, 20, 22]);
-assert.equal(s.slots[12].startBeat, 8, 'the montage starts on the downbeat of bar 3');
-assert.equal(s.title.endFrame, s.slots[11].endFrame);
-assert.equal(s.title.endFrame, f(8));
-assert.equal(s.totalFrames, f(22));
-for (let i = 1; i < s.slots.length; i++) assert.equal(s.slots[i].startFrame, s.slots[i - 1].endFrame, 'no gaps');
-assert.equal(s.title.line1Frame, f(0.25));
-assert.equal(s.title.connectorFrame, s.slots[1].startFrame);
-assert.equal(s.title.placeFrame, s.slots[2].startFrame);
-assert.deepEqual(s.title.fontSwitches.map(x => x.state), ['A', 'B', 'C', 'D', 'A', 'B', 'C', 'D', 'A']);
-assert.deepEqual(s.title.fontSwitches.map(x => x.frame), [2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => s.slots[i].startFrame));
-assert.deepEqual(s.slots.slice(12).map(x => x.role), ['architecture', 'park', 'street', 'detail', 'architecture', 'park', 'street']);
+// pace guard
+assert.deepStrictEqual(j(ctx.mvBeatsPerShot('quick', 108)), { beats: 1, overridden: false });
+assert.deepStrictEqual(j(ctx.mvBeatsPerShot('quick', 158)), { beats: 2, overridden: true });
+assert.deepStrictEqual(j(ctx.mvBeatsPerShot('relaxed', 108)), { beats: 2, overridden: false });
+assert.deepStrictEqual(j(ctx.mvBeatsPerShot('relaxed', 84)), { beats: 1, overridden: true });
+assert.deepStrictEqual(j(ctx.mvBeatsPerShot('quick', 150)), { beats: 1, overridden: false });
+assert.deepStrictEqual(j(ctx.mvBeatsPerShot('relaxed', 86)), { beats: 2, overridden: false });
+assert.strictEqual(ctx.mvGridUsable({ bpm: 65, accepted: true }), false);
+assert.strictEqual(ctx.mvGridUsable({ bpm: 108, accepted: true }), true);
+assert.strictEqual(ctx.mvGridUsable({ bpm: 70, accepted: true }), true);
+assert.strictEqual(ctx.mvGridUsable({ bpm: 160, accepted: true }), true);
+assert.strictEqual(ctx.mvGridUsable({ bpm: 161, accepted: true }), false);
+assert.strictEqual(ctx.mvGridUsable({ bpm: 108, accepted: false }), false);
+assert.strictEqual(ctx.mvGridUsable({ bpm: null, accepted: true }), false);
+// shot length
+assert.ok(Math.abs(ctx.mvShotSeconds({ bpm: 108, beatsPerShot: 1, pace: 'quick', gridded: true }) - 60 / 108) < 1e-12);
+assert.ok(Math.abs(ctx.mvShotSeconds({ bpm: 108, beatsPerShot: 2, pace: 'relaxed', gridded: true }) - 120 / 108) < 1e-12);
+assert.strictEqual(ctx.mvShotSeconds({ bpm: null, beatsPerShot: 1, pace: 'quick', gridded: false }), 0.55);
+assert.strictEqual(ctx.mvShotSeconds({ bpm: 200, beatsPerShot: 2, pace: 'relaxed', gridded: false }), 1.10);
 
-// The 8th burst: 10 title slots, same 8 beats, same montage.
-const e = j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 7, burst: 'eighth' }));
-assert.equal(e.burst, 'eighth');
-assert.equal(e.titleSlots, 10);
-assert.equal(e.slots.length, 17);
-assert.deepEqual(e.slots.slice(0, 10).map(x => x.endBeat), [1.5, 3, 4, 4.5, 5, 5.5, 6, 6.5, 7, 8]);
-assert.deepEqual(e.slots.slice(0, 10).map(x => x.section), ['opening', 'opening', 'opening', 'burst', 'burst', 'burst', 'burst', 'burst', 'burst', 'hold']);
-assert.equal(e.title.endFrame, s.title.endFrame);
-assert.equal(e.totalFrames, s.totalFrames);
-assert.deepEqual(e.title.fontSwitches.map(x => x.state), ['A', 'B', 'C', 'B', 'C', 'D', 'A']);
-assert.deepEqual(e.title.fontSwitches.map(x => x.frame), [2, 3, 4, 5, 6, 7, 8].map(i => e.slots[i].startFrame));
-assert.deepEqual(e.slots.slice(10).map(x => x.role), ['architecture', 'park', 'street', 'detail', 'architecture', 'park', 'street']);
-// Music offset: Selects snaps the music's source start to a frame, so the cuts shift by
-// delta = sectionStart - round(sectionStart * fps) / fps, never by more than half a frame; frame 0 stays 0.
-assert.equal(P.mvMusicOffset(null, 30), 0);
-assert.equal(P.mvMusicOffset(14.5, 30), 0);
-assert.ok(Math.abs(P.mvMusicOffset(14.58, 30) - (14.58 - 437 / 30)) < 1e-12, 'C1: bar at 14.58 s plays from 14.567 s');
-assert.ok(Math.abs(P.mvMusicOffset(4.845, 30) - 0.35 / 30) < 1e-9);
-for (let x = 0; x < 40; x += 0.137) assert.ok(Math.abs(P.mvMusicOffset(x, 30)) <= 0.5 / 30 + 1e-12);
-const d0 = j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 7 }));
-const d1 = j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 7, sectionStart: 14.58 }));
-assert.equal(d0.offset, 0);
-assert.ok(Math.abs(d1.offset - P.mvMusicOffset(14.58, 30)) < 1e-12);
-assert.equal(d1.slots[0].startFrame, 0, 'the video starts at frame 0');
-d1.slots.forEach((x, i) => assert.equal(x.endFrame, Math.round((x.endBeat * (60 / 99.2) + d1.offset) * 30), 'slot ' + i + ' end'));
-assert.ok(d1.slots.some((x, i) => x.endFrame !== d0.slots[i].endFrame), 'the offset moves some cuts');
-assert.equal(d1.title.line1Frame, Math.round((0.25 * (60 / 99.2) + d1.offset) * 30));
-// A start exactly between two frames never pushes the first frame off 0.
-assert.equal(P.mvSchedule({ bpm: 120, fps: 30, montageShots: 4, sectionStart: 0.5 / 30 }).slots[0].startFrame, 0);
-// Video length: 8 + 2N beats.
-assert.equal(P.mvVideoSeconds(99.2, 7), 22 * 60 / 99.2);
+// frame fixture (spec §14.7)
+const end = (shots, b) => ctx.mvSchedule({ bpm: 108, fps: F, shots, beatsPerShot: b }).totalFrames;
+assert.deepStrictEqual([end(12,1), end(24,1), end(36,1)], [200, 400, 599]);
+assert.deepStrictEqual([end(12,2), end(24,2), end(36,2)], [400, 799, 1199]);
+const s = ctx.mvSchedule({ bpm: 108, fps: F, shots: 24, beatsPerShot: 1 });
+assert.strictEqual(s.slots.length, 24); assert.strictEqual(s.slots[0].startFrame, 0);
+s.slots.forEach((x, i) => { if (i) assert.strictEqual(x.startFrame, s.slots[i - 1].endFrame); assert.ok(x.endFrame - x.startFrame >= 16 && x.endFrame - x.startFrame <= 17); });
+assert.deepStrictEqual(j(s.slots.slice(0, 9).map(x => x.role)), ['drink','street','food','park','book','transit','flowers','cafe','drink']);
+assert.strictEqual(s.gridded, true); assert.strictEqual(s.offset, 0);
+assert.deepStrictEqual(j(Object.keys(s.slots[0]).sort()), ['endBeat', 'endFrame', 'index', 'role', 'startBeat', 'startFrame']);
+s.slots.forEach((x, i) => { assert.strictEqual(x.index, i); assert.strictEqual(x.startBeat, i); assert.strictEqual(x.endBeat, i + 1); });
+const r2 = ctx.mvSchedule({ bpm: 108, fps: F, shots: 12, beatsPerShot: 2 });
+assert.deepStrictEqual(j(r2.slots.map(x => x.endBeat)), [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24]);
+// Absolute boundaries: every cut is round(beats * 60 / bpm * fps), no accumulated rounding.
+r2.slots.forEach(x => assert.strictEqual(x.endFrame, Math.round(x.endBeat * 60 / 108 * F)));
+assert.throws(() => ctx.mvSchedule({ bpm: 108, fps: F, shots: 0, beatsPerShot: 1 }));
 
-// Montage fit: 40 s cue at 99 BPM starting at 0 fits 12; starting at 30 s fits fewer; too late fits none.
-assert.equal(P.mvFitMontage({ bpm: 99.02, sectionStart: 0, usableEnd: 39.3, requested: 12 }), 12);
-assert.equal(P.mvFitMontage({ bpm: 99.02, sectionStart: 26.66, usableEnd: 39.3, requested: 12 }), 6);
-assert.equal(P.mvFitMontage({ bpm: 99.02, sectionStart: 32, usableEnd: 39.3, requested: 7 }), 0);
+// music offset: sectionStart 1.0 at 29.97 -> round(29.97)=30 -> delta = 1 - 30/F
+assert.ok(Math.abs(ctx.mvMusicOffset(1.0, F) - (1 - 30 / F)) < 1e-12);
+assert.strictEqual(ctx.mvMusicOffset(null, F), 0);
+const o = ctx.mvSchedule({ bpm: 108, fps: F, shots: 12, beatsPerShot: 1, sectionStart: 1.0 });
+assert.strictEqual(o.slots[0].startFrame, 0);
+o.slots.forEach(x => assert.strictEqual(x.endFrame, Math.round((x.endBeat * 60 / 108 + o.offset) * F)));
 
-// Section snapping to bars; clamp so the video fits.
-const bar = 4 * 60 / 99.02, vid = P.mvVideoSeconds(99.02, 7);
-assert.equal(P.mvSnapSection({ value: 5.1, firstBeat: 0, bpm: 99.02, usableEnd: 39.3, videoSeconds: vid, gridAccepted: true }), 2 * bar);
-assert.equal(P.mvSnapSection({ value: 99, firstBeat: 0, bpm: 99.02, usableEnd: 39.3, videoSeconds: vid, gridAccepted: true }), 10 * bar);
-assert.equal(P.mvSnapSection({ value: 3.14159, firstBeat: 0, bpm: 99.02, usableEnd: 39.3, videoSeconds: vid, gridAccepted: false }), 3.1);
-assert.equal(P.mvSnapSection({ value: 0, firstBeat: 0, bpm: 99.02, usableEnd: 5, videoSeconds: vid, gridAccepted: true }), null);
+// capacity (weekend-indie-pop 111.99: firstBeat 0.027, usableEnd 34.82)
+const q = 60 / 111.99;
+assert.strictEqual(ctx.mvFitShots({ requested: 36, sectionStart: 0.027, usableEnd: 34.82, shotSeconds: q }), 36);
+assert.strictEqual(ctx.mvFitShots({ requested: 36, sectionStart: 0.027, usableEnd: 34.82, shotSeconds: 2 * q }), 32);
+assert.strictEqual(ctx.mvFitShots({ requested: 12, sectionStart: 0, usableEnd: 1, shotSeconds: 0.5 }), 0);
+assert.strictEqual(ctx.mvFitShots({ requested: 24, sectionStart: 0, usableEnd: Infinity, shotSeconds: 0.55 }), 24);
+assert.strictEqual(ctx.mvFitShots({ requested: 12, sectionStart: 0, usableEnd: 2, shotSeconds: 0.5 }), 4, 'exactly 4 shots fit');
 
-// Default section = most energetic bar-aligned window (earliest on ties).
+// no grid: fixed shots
+const g = ctx.mvSchedule({ bpm: null, fps: F, shots: 12, beatsPerShot: 1, shotSeconds: 0.55 });
+assert.strictEqual(g.gridded, false); assert.strictEqual(g.totalFrames, Math.round(12 * 0.55 * F));
+g.slots.forEach((x, i) => { assert.strictEqual(x.startBeat, null); assert.strictEqual(x.endBeat, null); assert.strictEqual(x.endFrame, Math.round((i + 1) * 0.55 * F)); });
+
+// Sections (CWV maths): snap to bars and clamp so the video fits; default = most energetic bar-aligned window.
+const bar = 4 * 60 / 99.02, vid = 24 * 60 / 99.02;
+assert.strictEqual(ctx.mvSnapSection({ value: 5.1, firstBeat: 0, bpm: 99.02, usableEnd: 39.3, videoSeconds: vid, gridAccepted: true }), 2 * bar);
+assert.strictEqual(ctx.mvSnapSection({ value: 99, firstBeat: 0, bpm: 99.02, usableEnd: 39.3, videoSeconds: vid, gridAccepted: true }), 10 * bar);
+assert.strictEqual(ctx.mvSnapSection({ value: 3.14159, firstBeat: 0, bpm: 99.02, usableEnd: 39.3, videoSeconds: vid, gridAccepted: false }), 3.1);
+assert.strictEqual(ctx.mvSnapSection({ value: 0, firstBeat: 0, bpm: 99.02, usableEnd: 5, videoSeconds: vid, gridAccepted: true }), null);
 const energy = Array(64).fill(0.1); for (let i = 16; i < 64; i++) energy[i] = 0.9;
-assert.equal(P.mvDefaultSection({ firstBeat: 0, bpm: 99.02, beatEnergy: energy, usableEnd: 39.3, videoSeconds: vid }), 4 * bar);
-assert.equal(P.mvDefaultSection({ firstBeat: 0, bpm: 99.02, beatEnergy: Array(64).fill(0.5), usableEnd: 39.3, videoSeconds: vid }), 0);
+for (const downbeatHigh of [true, false, undefined]) {
+  assert.strictEqual(ctx.mvDefaultSection({ firstBeat: 0, bpm: 99.02, beatEnergy: energy, usableEnd: 39.3, videoSeconds: vid, downbeatHigh }), 4 * bar);
+  assert.strictEqual(ctx.mvDefaultSection({ firstBeat: 0, bpm: 99.02, beatEnergy: Array(64).fill(0.5), usableEnd: 39.3, videoSeconds: vid, downbeatHigh }), 0);
+}
 
-// ---- Onset-anchored cuts (mvSnapCuts) ----
-const B = 60 / 99.2;                                  // one beat at the reference tempo (W = 0.1 beat = 60.5 ms)
-const grid16 = j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 4 })).cuts;
-const tpl16 = { beats: P.MV_TITLE_BEATS.concat([2, 2, 2, 2]), burstFrom: 3, burstTo: 7 };
-const snap = (onsets, o = {}, g = grid16, t = tpl16) => j(P.mvSnapCuts(g, t, onsets, { bpm: 99.2, fps: 30, sectionStart: 0, thresholds: { l: 2, m: 2, h: 2 }, ...o }));
+// ---- Onset snapping (mvSnapCuts, CWV rules without the burst template) ----
+const B = 60 / 99.2;
+const grid = j(ctx.mvSchedule({ bpm: 99.2, fps: 30, shots: 12, beatsPerShot: 1 }).cuts);
+assert.deepStrictEqual(grid, Array.from({ length: 13 }, (_, k) => k * B));
+const snap = (onsets, opt = {}, gr = grid) => j(ctx.mvSnapCuts(gr, onsets, { bpm: 99.2, fps: 30, sectionStart: 0, thresholds: { l: 2, m: 2, h: 2 }, ...opt }));
 const logAt = (r, i) => r.log.find(e => e.index === i);
-// The schedule's grid cuts are its beat boundaries in seconds.
-assert.deepEqual(grid16, [0, ...[1.5, 3, 4, 4.25, 4.5, 4.75, 5, 5.5, 6, 6.5, 7, 8, 10, 12, 14, 16].map(b => b * B)]);
-// No onsets: exactly the grid, and the schedule is unchanged.
-assert.deepEqual(snap([]).cuts, grid16);
-assert.deepEqual(snap(null).cuts, grid16);
-assert.deepEqual(j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, sectionStart: 0, onsets: [] })).slots, j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, sectionStart: 0 })).slots);
-// A snappable cut (montage, index 13 = beat 10) moves onto an onset inside the window; the window is 0.1 beat
-// (60.5 ms at 99.2 BPM) ...
-assert.equal(snap([[10 * B + 0.058, 'l', 5]]).cuts[13], 10 * B + 0.058);
-assert.equal(snap([[10 * B + 0.062, 'l', 5]]).cuts[13], 10 * B);
-assert.equal(snap([[10 * B - 0.058, 'h', 5]]).cuts[13], 10 * B - 0.058);
-// ... capped at 70 ms at slower tempi (0.1 beat is 75 ms at 80 BPM).
-const B80 = 0.75, grid80 = j(P.mvSchedule({ bpm: 80, fps: 30, montageShots: 4 })).cuts;
-const snap80 = on => j(P.mvSnapCuts(grid80, tpl16, on, { bpm: 80, fps: 30, sectionStart: 0 }));
-assert.equal(snap80([[10 * B80 + 0.068, 'l', 5]]).cuts[13], 10 * B80 + 0.068);
-assert.equal(snap80([[10 * B80 + 0.072, 'l', 5]]).cuts[13], 10 * B80, 'the 70 ms cap');
-assert.equal(snap80([[10 * B80 + 0.072, 'l', 5]]).log.find(e => e.index === 13).reason, 'no onset');
-// Strength: an onset is listed at max(2, the band threshold); a snap target needs 1.5 times that (v2.6). The onsets
-// sit 45 ms from the grid, more than a frame at 30 fps.
-assert.equal(logAt(snap([[10 * B + 0.045, 'l', 1.9]], { thresholds: {} }), 13).reason, 'no onset', 'below 2 is not an onset');
-assert.equal(snap([[10 * B + 0.045, 'l', 2.9]], { thresholds: {} }).cuts[13], 10 * B, 'ratio 1.45');
-assert.equal(logAt(snap([[10 * B + 0.045, 'l', 2.9]], { thresholds: {} }), 13).reason, 'weak onset');
-assert.equal(snap([[10 * B + 0.045, 'l', 3]], { thresholds: {} }).cuts[13], 10 * B + 0.045, 'ratio 1.5');
-assert.equal(snap([[10 * B + 0.045, 'l', 5.9]], { thresholds: { l: 4 } }).cuts[13], 10 * B, 'below 1.5 of the band threshold');
-assert.equal(snap([[10 * B + 0.045, 'l', 6]], { thresholds: { l: 4 } }).cuts[13], 10 * B + 0.045, 'at 1.5 of the band threshold');
-// Already on an onset: a qualifying onset of any band within one frame of the grid keeps the cut there, however
-// strong a farther onset is (Brooklyn Boom Bap live, cut 12: mid -2 ms at 1.23, low +47 ms at 1.04; here the low one
-// is strong).
-assert.equal(snap([[10 * B + 0.03, 'l', 9]]).cuts[13], 10 * B, 'a strong onset 30 ms away is within the frame');
-assert.match(logAt(snap([[10 * B + 0.03, 'l', 9]]), 13).reason, /^on grid \(l onset/);
-assert.equal(snap([[10 * B - 0.002, 'h', 2], [10 * B + 0.047, 'l', 9]]).cuts[13], 10 * B, 'a threshold-level hat on the grid');
-assert.match(logAt(snap([[10 * B - 0.002, 'm', 2], [10 * B + 0.047, 'l', 9]]), 13).reason, /^on grid \(m onset/);
-assert.equal(snap([[10 * B + 0.035, 'l', 9]]).cuts[13], 10 * B + 0.035, 'just beyond a frame');
-assert.equal(snap([[10 * B + 0.02, 'l', 9]], { fps: 60 }).cuts[13], 10 * B + 0.02, 'a frame is 16.7 ms at 60 fps');
-assert.equal(snap([[10 * B + 0.047, 'l', 4.8]], { thresholds: { l: 4.6, m: 6.2, h: 6.3 } }).cuts[13], 10 * B, 'Brooklyn cut 12 without its mid onset: 1.04 is weak');
-// Score: ratio - 0.5 * |offset| / window, over all bands (v2.6; no band goes first). A nearer, weaker onset beats a
-// farther one unless the farther one is clearly stronger.
-const th = { thresholds: { l: 4, m: 2, h: 3 } };
-assert.equal(snap([[10 * B + 0.036, 'm', 4], [10 * B - 0.060, 'h', 6.3]], th).cuts[13], 10 * B + 0.036, 'mid 2.0 at 36 ms (1.70) beats high 2.1 at 60 ms (1.60)');
-assert.equal(logAt(snap([[10 * B + 0.036, 'm', 4], [10 * B - 0.060, 'h', 6.3]], th), 13).band, 'm');
-assert.equal(snap([[10 * B + 0.036, 'm', 4], [10 * B - 0.060, 'h', 9]], th).cuts[13], 10 * B - 0.060, 'high 3.0 at 60 ms (2.50) wins');
-assert.equal(snap([[10 * B + 0.045, 'm', 4], [10 * B - 0.045, 'h', 6]], th).cuts[13], 10 * B - 0.045, 'equal scores: the earlier of two equally near onsets');
-assert.equal(snap([[10 * B + 0.04, 'm', 4], [10 * B - 0.05, 'h', 6]], th).cuts[13], 10 * B + 0.04, 'equal ratios: the nearer onset');
-// Low band: the target must also beat the grid position's own onset (the strongest qualifying onset nearer the grid,
-// else ratio 1) by 0.25. Brooklyn Boom Bap live, cut 11: mid -3 ms at 1.47 and low +32 ms at 1.50; at 60 fps the mid
-// onset (here -20 ms) is outside the frame, so only this guard keeps the cut.
+assert.deepStrictEqual(snap([]).cuts, grid);
+assert.deepStrictEqual(snap(null).cuts, grid);
+// Window: 0.1 beat (60.5 ms at 99.2 bpm).
+assert.strictEqual(snap([[5 * B + 0.058, 'l', 5]]).cuts[5], 5 * B + 0.058);
+assert.strictEqual(snap([[5 * B + 0.062, 'l', 5]]).cuts[5], 5 * B);
+// Strength floors.
+assert.strictEqual(snap([[5 * B + 0.045, 'l', 2.9]], { thresholds: {} }).cuts[5], 5 * B, 'ratio 1.45');
+assert.strictEqual(logAt(snap([[5 * B + 0.045, 'l', 2.9]], { thresholds: {} }), 5).reason, 'weak onset');
+assert.strictEqual(snap([[5 * B + 0.045, 'l', 3]], { thresholds: {} }).cuts[5], 5 * B + 0.045, 'ratio 1.5');
+// Already on an onset within a frame: stays.
+assert.strictEqual(snap([[5 * B + 0.03, 'l', 9]]).cuts[5], 5 * B);
+assert.match(logAt(snap([[5 * B + 0.03, 'l', 9]]), 5).reason, /^on grid/);
+// Low band must beat the grid position's own onset by 0.25.
 const bk = { fps: 60, thresholds: { l: 4.6, m: 6.2, h: 6.3 } };
-assert.equal(snap([[10 * B - 0.02, 'm', 9.1], [10 * B + 0.032, 'l', 6.9]], bk).cuts[13], 10 * B, 'low 1.50 vs its grid onset 1.47');
-assert.equal(logAt(snap([[10 * B - 0.02, 'm', 9.1], [10 * B + 0.032, 'l', 6.9]], bk), 13).reason, 'low onset not above the grid');
-assert.equal(snap([[10 * B - 0.02, 'm', 9.1], [10 * B + 0.032, 'l', 7.95]], bk).cuts[13], 10 * B + 0.032, 'low 1.73 clears 1.47 + 0.25');
-assert.equal(snap([[10 * B - 0.02, 'm', 9.1], [10 * B + 0.032, 'h', 9.45]], bk).cuts[13], 10 * B + 0.032, 'the guard is for the low band only');
-assert.equal(snap([[10 * B + 0.05, 'l', 4]]).cuts[13], 10 * B + 0.05, 'a lone low onset needs only the 1.5 floor');
-// Which cuts snap: the burst anchor (index 3), cuts that start a slot of at least one beat (1, 2, 11, 12 and the
-// montage), never the burst's own cuts or the half-beat run; frame 0 and the end never move.
-const everywhere = grid16.map(g => [g + 0.045, 'l', 5]);
-const all = snap(everywhere);
-assert.deepEqual(all.log.filter(e => e.reason === 'onset').map(e => e.index), [1, 2, 3, 11, 12, 13, 14, 15]);
-assert.deepEqual(all.log.filter(e => e.kind === 'burst').map(e => e.index), [4, 5, 6, 7]);
-assert.deepEqual(all.log.filter(e => e.kind === 'grid').map(e => e.index), [8, 9, 10]);
-assert.equal(all.cuts[0], 0); assert.equal(all.cuts[16], grid16[16]);
-for (const i of [8, 9, 10]) assert.equal(all.cuts[i], grid16[i], 'the half-beat run returns to the grid');
-// Burst spacing (the reference's anchor nudge: 58 ms after the grid onto a clear mid onset, nothing on the grid): the
-// burst is laid out from the snapped anchor in fixed alternating frames (4.54 frames per 16th at 30 fps), and the
-// first half-beat shot absorbs the shift.
-const anchored = snap([[4 * B + 0.058, 'm', 5]]);
-assert.equal(anchored.cuts[3], 4 * B + 0.058);
-for (const i of [4, 5, 6, 7]) assert.ok(Math.abs(anchored.cuts[i] - (grid16[i] + 0.058)) < 1e-12, 'burst cut ' + i + ' keeps the template spacing');
-assert.deepEqual(anchored.frames.slice(3, 8).map((f, k, a) => (k ? f - a[k - 1] : 0)).slice(1), [5, 4, 5, 4]);
-assert.equal(anchored.cuts[8], grid16[8]);
-assert.equal(anchored.frames[8] - anchored.frames[7], Math.round(5.5 * B * 30) - Math.round((5 * B + 0.058) * 30), 'the first half-beat shot is shorter');
-// An onset on the anchor's grid frame keeps the anchor, and so the whole burst, on the grid (v2.6: a cut within a
-// frame of an onset never moves; v2.5 moved the anchor onto it and kept the burst on the grid only while the anchor
-// kept its frame). Any snap moves a cut by more than a frame, so the burst is re-laid from every snapped anchor.
-const gridFrames = anchored.frames.map((_, i) => (grid16[i] === 0 ? 0 : Math.round(grid16[i] * 30)));
-const subFrame = snap([[4 * B - 0.0007, 'm', 5]]);
-assert.equal(subFrame.cuts[3], grid16[3], 'the anchor stays on the grid');
-assert.match(logAt(subFrame, 3).reason, /^on grid/);
-for (const i of [4, 5, 6, 7]) {
-  assert.equal(subFrame.cuts[i], grid16[i], 'burst cut ' + i + ' stays on the grid');
-  assert.equal(logAt(subFrame, i).reason, 'grid (anchor frame unchanged)');
-}
-assert.deepEqual(subFrame.frames, gridFrames, 'every frame is the grid frame');
-// Snapping never puts a cut more than half a frame before its onset, at any frame rate and music offset.
-for (const fps of [23.976, 24, 25, 29.97, 30, 60]) {
-  for (const ss of [0, 0.013, 7.31, 14.58]) {
-    const on = grid16.slice(1, -1).map((g, k) => [ss + g + ((k * 7919) % 110 - 55) / 1000, 'l', 5]);
-    const r = j(P.mvSnapCuts(grid16, tpl16, on, { bpm: 99.2, fps, sectionStart: ss }));
-    const off = P.mvMusicOffset(ss, fps);
-    assert.ok(r.log.some(e => e.reason === 'onset'), 'some cuts snap (' + fps + ', ' + ss + ')');
-    r.log.filter(e => e.reason === 'onset').forEach(e => {
-      assert.ok(r.frames[e.index] / fps - (e.onset + off) >= -0.5 / fps - 1e-9, 'half a frame early at most (' + fps + ', ' + ss + ', cut ' + e.index + ')');
-      assert.ok(r.frames[e.index] / fps - (e.onset + off) <= 0.5 / fps + 1e-9, 'nearest frame');
-    });
-  }
-}
-// Onsets are in music seconds: the section start shifts them onto the timeline.
-assert.ok(Math.abs(snap([[20 + 10 * B + 0.045, 'l', 5]], { sectionStart: 20 }).cuts[13] - (10 * B + 0.045)) < 1e-9);
-// Minimum shot: a snap that leaves a neighbour below 4 frames, or below 0.75 of its template length, is reverted.
-// Template [1.02 s, 0.17 s, 1.81 s] at 60 BPM: moving the cut at 1.19 s to 1.145 s (45 ms, beyond a frame) keeps 0.74
-// of the middle shot but first leaves it 3 frames long; 1.153 s leaves 4 frames and 0.78.
-const tinyGrid = [0, 1.02, 1.19, 3], tinyTpl = { beats: [1.02, 0.17, 1.81], burstFrom: -1, burstTo: -1 };
-const tiny = j(P.mvSnapCuts(tinyGrid, tinyTpl, [[1.145, 'l', 5]], { bpm: 60, fps: 30, sectionStart: 0 }));
-assert.equal(tiny.cuts[2], 1.19);
+assert.strictEqual(snap([[5 * B - 0.02, 'm', 9.1], [5 * B + 0.032, 'l', 6.9]], bk).cuts[5], 5 * B);
+assert.strictEqual(snap([[5 * B - 0.02, 'm', 9.1], [5 * B + 0.032, 'l', 7.95]], bk).cuts[5], 5 * B + 0.032);
+// Every inner cut is snappable (each starts a >= 1-beat slot); frame 0 and the end never move.
+const all = snap(grid.map(x => [x + 0.045, 'l', 5]));
+assert.deepStrictEqual(all.log.map(e => e.index), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+assert.ok(all.log.every(e => e.reason === 'onset'));
+assert.strictEqual(all.cuts[0], 0); assert.strictEqual(all.cuts[12], grid[12]);
+// Minimum shot: a snap leaving a neighbour below 0.75 of its length is reverted.
+const tiny = j(ctx.mvSnapCuts([0, 1.02, 1.19, 3], [[1.145, 'l', 5]], { bpm: 60, fps: 30, sectionStart: 0 }));
+assert.strictEqual(tiny.cuts[2], 1.19);
 assert.match(tiny.log.find(e => e.index === 2).reason, /reverted: slot 1 min-frames/);
-assert.equal(j(P.mvSnapCuts(tinyGrid, tinyTpl, [[1.153, 'l', 5]], { bpm: 60, fps: 30, sectionStart: 0 })).cuts[2], 1.153, '4 frames is enough');
-// Low confidence (fixed timing, beat not found): only low-band onsets, within +/- 120 ms regardless of the tempo.
-const grid8 = j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, burst: 'eighth' })).cuts;
-const tpl8 = { beats: P.MV_TITLE_BEATS_EIGHTH.concat([2, 2, 2, 2]), burstFrom: 3, burstTo: 5 };
-const low = (on, o = {}) => j(P.mvSnapCuts(grid8, tpl8, on, { bpm: 99.2, fps: 30, sectionStart: 0, lowConfidence: true, ...o }));
-assert.equal(low([[10 * B + 0.1, 'l', 5]]).cuts[11], 10 * B + 0.1, 'a bass onset 100 ms away');
-assert.equal(low([[10 * B + 0.125, 'l', 5]]).cuts[11], 10 * B, 'beyond 120 ms');
-assert.equal(low([[10 * B + 0.05, 'h', 9], [10 * B + 0.05, 'm', 9]]).cuts[11], 10 * B, 'high and mid are ignored');
-assert.equal(low([[10 * B + 0.1, 'l', 2.9]]).cuts[11], 10 * B, 'the 1.5 floor applies');
-assert.equal(low([[10 * B + 0.1, 'l', 5], [10 * B + 0.01, 'h', 2]]).cuts[11], 10 * B, 'so does an onset of any band on the grid');
-// ... where the 0.75 rule binds: the hold (index 9, beat 7) pulled 100 ms early would leave the half-beat shot before
-// it at 0.67 of its length, so it stays; 70 ms early leaves 0.77.
-assert.equal(low([[7 * B - 0.1, 'l', 5]]).cuts[9], 7 * B);
-assert.match(low([[7 * B - 0.1, 'l', 5]]).log.find(e => e.index === 9).reason, /reverted: slot 8 min-share/);
-assert.equal(low([[7 * B - 0.07, 'l', 5]]).cuts[9], 7 * B - 0.07);
-// The same happens to the anchor of a burst: its first half-beat shot must keep 0.75 of its length.
-assert.match(low([[4 * B + 0.1, 'l', 5]]).log.find(e => e.index === 3).reason, /reverted: slot 5 min-share/);
-// Deterministic: the same input gives the same cuts; input order does not matter.
-const shuffled = everywhere.slice().reverse();
-assert.deepEqual(snap(shuffled).cuts, all.cuts);
-
-// The schedule uses the snapped cuts for every frame: slots, the title's font switches (on the burst cuts), the
-// connector and place lines and the title end (title -> montage cut). line1 stays on its grid position.
-const on16 = [[4 * B + 0.05, 'h', 6], [1.5 * B - 0.045, 'l', 6], [8 * B + 0.04, 'l', 6], [5.5 * B + 0.04, 'l', 9]];
-const ss = j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, sectionStart: 0, onsets: on16, onsetThresholds: { l: 3, m: 3, h: 3 } }));
-const plain = j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, sectionStart: 0 }));
-assert.equal(ss.cuts[3], 4 * B + 0.05);
-assert.equal(ss.cuts[1], 1.5 * B - 0.045);
-assert.equal(ss.cuts[12], 8 * B + 0.04);
-assert.equal(ss.cuts[8], plain.cuts[8], 'half-beat cut on the grid despite a strong onset');
-ss.slots.forEach((x, i) => { assert.equal(x.startFrame, Math.round(ss.cuts[i] * 30) || 0); assert.equal(x.endFrame, Math.round(ss.cuts[i + 1] * 30)); });
-for (let i = 1; i < ss.slots.length; i++) assert.equal(ss.slots[i].startFrame, ss.slots[i - 1].endFrame, 'contiguous');
-assert.deepEqual(ss.title.fontSwitches.map(x => x.frame), [2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => ss.slots[i].startFrame));
-assert.notEqual(ss.title.fontSwitches[1].frame, plain.title.fontSwitches[1].frame, 'the burst font switch moved with its cut');
-assert.equal(ss.title.connectorFrame, ss.slots[1].startFrame);
-assert.equal(ss.title.endFrame, ss.slots[11].endFrame);
-assert.equal(ss.title.endFrame, Math.round((8 * B + 0.04) * 30));
-assert.equal(ss.title.line1Frame, plain.title.line1Frame);
-assert.equal(ss.totalFrames, plain.totalFrames, 'the end never moves');
-assert.ok(ss.snapLog.length === ss.slots.length - 1);
-// Without music (no section start) nothing snaps.
-assert.deepEqual(j(P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 4, onsets: on16 })).cuts, plain.cuts);
-// cuts: reusing the planned seconds at the Draft's real rate gives the frames assemble.js places (same expression),
-// with the music offset of that rate.
-for (const fps of [23.976, 25, 29.97]) {
-  const at = j(P.mvSchedule({ bpm: 99.2, fps, montageShots: 4, sectionStart: 14.58, cuts: ss.cuts }));
-  const off = P.mvMusicOffset(14.58, fps);
-  at.slots.forEach((x, i) => assert.equal(x.endFrame, Math.round((ss.cuts[i + 1] + off) * fps)));
-  assert.deepEqual(at.title.fontSwitches.map(x => x.frame), [2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => at.slots[i].startFrame));
+// Onsets are in music seconds: the section start shifts them.
+assert.ok(Math.abs(snap([[20 + 5 * B + 0.045, 'l', 5]], { sectionStart: 20 }).cuts[5] - (5 * B + 0.045)) < 1e-9);
+// Low confidence: low band only, +/-120 ms.
+assert.strictEqual(snap([[5 * B + 0.1, 'l', 5]], { lowConfidence: true }).cuts[5], 5 * B + 0.1);
+assert.strictEqual(snap([[5 * B + 0.05, 'h', 9]], { lowConfidence: true }).cuts[5], 5 * B);
+// Never more than half a frame early, at any rate and offset.
+for (const fps of [23.976, 25, 29.97, 30, 60]) for (const ss of [0, 0.013, 7.31, 14.58]) {
+  const on = grid.slice(1, -1).map((x, k) => [ss + x + ((k * 7919) % 110 - 55) / 1000, 'l', 5]);
+  const r = j(ctx.mvSnapCuts(grid, on, { bpm: 99.2, fps, sectionStart: ss }));
+  const off = ctx.mvMusicOffset(ss, fps);
+  assert.ok(r.log.some(e => e.reason === 'onset'));
+  r.log.filter(e => e.reason === 'onset').forEach(e => assert.ok(Math.abs(r.frames[e.index] / fps - (e.onset + off)) <= 0.5 / fps + 1e-9));
 }
-assert.throws(() => P.mvSchedule({ bpm: 99.2, fps: 30, montageShots: 5, cuts: ss.cuts }), /cuts do not match/);
-// The plan allocates shots for the snapped slot lengths and hands the cuts on.
-const cands = []; for (let r = 0; r < 12; r++) for (const role of ['street', 'architecture', 'landmark', 'wide', 'park', 'detail']) cands.push({ rid: 'r' + r, role, t: 5 + r, score: 1, sourceDuration: 30 });
-const plan = j(P.mvPlanBuild({ candidates: cands, bpm: 99.2, fps: 30, montageShots: 4, seed: '1', burst: 'sixteenth', sectionStart: 0, onsets: on16, onsetThresholds: { l: 3, m: 3, h: 3 } }));
-assert.ok(plan.ok);
-assert.deepEqual(plan.schedule.cuts, ss.cuts);
-plan.picks.forEach((k, i) => { if (k.kind === 'video') assert.ok(Math.abs((k.endSeconds - k.startSeconds) - (ss.slots[i].endFrame - ss.slots[i].startFrame) / 30) < 1e-9, 'shot ' + i + ' fits its snapped slot'); });
+// The schedule uses snapped cuts; without music (no section start) nothing snaps; reused cuts keep their seconds.
+const on = [[3 * B + 0.045, 'l', 6], [7 * B - 0.045, 'h', 6]];
+const sn = j(ctx.mvSchedule({ bpm: 99.2, fps: 30, shots: 12, beatsPerShot: 1, sectionStart: 0, onsets: on, onsetThresholds: { l: 3, m: 3, h: 3 } }));
+assert.strictEqual(sn.cuts[3], 3 * B + 0.045); assert.strictEqual(sn.cuts[7], 7 * B - 0.045);
+assert.strictEqual(sn.slots[3].startFrame, Math.round((3 * B + 0.045) * 30));
+assert.strictEqual(sn.snapLog.length, 11);
+assert.deepStrictEqual(j(ctx.mvSchedule({ bpm: 99.2, fps: 30, shots: 12, beatsPerShot: 1, onsets: on }).cuts), grid);
+const re = j(ctx.mvSchedule({ bpm: 99.2, fps: 25, shots: 12, beatsPerShot: 1, sectionStart: 14.58, cuts: sn.cuts }));
+re.slots.forEach((x, i) => assert.strictEqual(x.endFrame, Math.round((sn.cuts[i + 1] + ctx.mvMusicOffset(14.58, 25)) * 25)));
+assert.throws(() => ctx.mvSchedule({ bpm: 99.2, fps: 30, shots: 8, beatsPerShot: 1, cuts: sn.cuts }), /cuts do not match/);
+// No grid with music: low-band snapping within 120 ms.
+const ng = j(ctx.mvSchedule({ bpm: null, fps: 30, shots: 8, beatsPerShot: 1, shotSeconds: 0.55, sectionStart: 0, onsets: [[2.2 + 0.1, 'l', 5], [1.1 + 0.05, 'h', 9]] }));
+assert.strictEqual(ng.cuts[4], 2.2 + 0.1); assert.strictEqual(ng.cuts[2], 1.1);
 
-console.log(JSON.stringify({ planner: 'ok' }));
+// Progress (CWV labels).
+assert.strictEqual(ctx.mvProgress('shots', 0).label, 'Step 1/5 · Choosing shots · 0%');
+assert.strictEqual(ctx.mvProgress('open', 1).percent, 100);
+console.log('planner ok');

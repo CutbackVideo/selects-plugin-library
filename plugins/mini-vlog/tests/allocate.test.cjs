@@ -1,270 +1,189 @@
+// plugins/mini-vlog/tests/allocate.test.cjs
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
 vm.createContext(box);
-vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={mvAllocate,mvPlanBuild,mvFillers,mvHash,mvProgress,MV_BUILD_STEPS};', box);
+vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={mvAllocate,mvPlanBuild,mvFillers,mvHash,mvProgress,mvSchedule,MV_BUILD_STEPS,MV_ROLES};', box);
 const P = box.P, j = v => JSON.parse(JSON.stringify(v));
-const roles = ['street', 'architecture', 'landmark', 'park', 'detail', 'wide'];
-// 12 sources x 6 roles x 2 hits = plenty of candidates, each source 30 s long.
-const rich = [];
-for (let r = 0; r < 12; r++) for (const role of roles) for (const t of [5, 20]) rich.push({ rid: 'r' + r, role, t: t + r * 0.1, score: 0.5 + ((r * 7 + roles.indexOf(role)) % 10) / 20, sourceDuration: 30 });
+const F = 30000 / 1001;
+const ROLES = j(P.MV_ROLES);
 
-const a = j(P.mvPlanBuild({ candidates: rich, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
-assert.equal(a.ok, true);
-assert.equal(a.picks.length, 19);
-assert.equal(a.burst, 'sixteenth');
-assert.equal(a.titleSlots, 12);
-assert.equal(a.montageShots, 7);
-// Windows stay in bounds, have the slot's length and never overlap within one source.
-const bySource = {};
-a.picks.forEach((p, i) => {
-  const slot = a.schedule.slots[i];
-  assert.ok(p.startSeconds >= 0 && p.endSeconds <= 30);
-  assert.ok(Math.abs((p.endSeconds - p.startSeconds) - (slot.endFrame - slot.startFrame) / 30) < 1e-9);
-  (bySource[p.rid] = bySource[p.rid] || []).push([p.startSeconds, p.endSeconds]);
-});
-for (const list of Object.values(bySource)) {
-  list.sort((x, y) => x[0] - y[0]);
-  for (let i = 1; i < list.length; i++) assert.ok(list[i][0] >= list[i - 1][1], 'no overlap');
-}
-// Deterministic for the same seed; a different seed changes at least one pick.
-assert.deepEqual(j(P.mvPlanBuild({ candidates: rich, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' })).picks, a.picks);
-const b = j(P.mvPlanBuild({ candidates: rich, bpm: 99.2, fps: 30, montageShots: 7, seed: 's2' }));
-assert.notDeepEqual(b.picks, a.picks);
-
-// Shortage: 2 short sources cannot fill 16 slots (14 with the 8th burst).
-const poor = [{ rid: 'r0', role: 'street', t: 1, score: 1, sourceDuration: 3 }, { rid: 'r1', role: 'park', t: 1, score: 1, sourceDuration: 3 }];
-const c = j(P.mvPlanBuild({ candidates: poor, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
-assert.equal(c.ok, false);
-assert.equal(c.needed, 16);
-assert.equal(j(P.mvPlanBuild({ candidates: poor, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1', burst: 'eighth' })).needed, 14);
-assert.ok(c.usableShots < c.needed);
-
-// (a) Limited footage: montage shrinks to what fits (>= 4) instead of failing; deterministic per seed.
-const mk = (n, dur, roleList) => { const out = []; for (let r = 0; r < n; r++) for (const role of roleList) out.push({ rid: 'm' + r, role, t: dur / 2, score: 0.6, sourceDuration: dur }); return out; };
-let shrunk = null;
-for (let n = 8; n <= 40 && !shrunk; n++) {
-  const r = j(P.mvPlanBuild({ candidates: mk(n, 4, roles), bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' }));
-  if (r.ok && r.montageShots < 12) shrunk = { n, r };
-}
-assert.ok(shrunk, 'some footage level shrinks the montage');
-assert.ok(shrunk.r.montageShots >= 4 && shrunk.r.montageShots < 12);
-assert.equal(shrunk.r.picks.length, 12 + shrunk.r.montageShots);
-assert.ok(shrunk.r.picks.every(Boolean));
-// (e) Determinism for the shrunk case.
-assert.deepEqual(j(P.mvPlanBuild({ candidates: mk(shrunk.n, 4, roles), bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' })), shrunk.r);
-
-// (b) No footage for the first montage role (architecture) or its fallbacks: a later-role fallback still fills it.
-const noArch = rich.filter(x => x.role !== 'architecture' && x.role !== 'landmark');
-const e2 = j(P.mvPlanBuild({ candidates: noArch, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
-assert.equal(e2.ok, true);
-assert.equal(e2.picks.length, 12 + e2.montageShots);
-
-// (c) Street/detail-only footage still builds (last-resort tier).
-const sd = rich.filter(x => x.role === 'street' || x.role === 'detail');
-const e3 = j(P.mvPlanBuild({ candidates: sd, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
-assert.equal(e3.ok, true);
-assert.equal(e3.picks.length, 12 + e3.montageShots);
-
-// A preferred role wins over the last-resort tier even with a much lower score.
-const pref = P.mvAllocate({ candidates: [{ rid: 'a', role: 'wide', t: 5, score: 1, sourceDuration: 30 }, { rid: 'b', role: 'street', t: 5, score: 0, sourceDuration: 30 }], slots: [{ index: 0, role: 'street', seconds: 1 }], seed: 'x' });
-assert.equal(pref.picks[0].rid, 'b');
-// Non-finite candidate fields are ignored.
-const bad = P.mvAllocate({ candidates: [{ rid: 'a', role: 'street', t: NaN, score: 1, sourceDuration: 30 }, { rid: 'b', role: 'street', t: 5, score: Infinity, sourceDuration: 30 }], slots: [{ index: 0, role: 'street', seconds: 1 }], seed: 'x' });
-assert.equal(bad.filled, 0);
-
-// Scene-search hits collapse onto ~6 distinct times per clip (live readback on 4 clips of 24.6/9.7/8.7/5.5 s).
-// Without fillers every length shrank to 4-5 montage shots; evenly spaced fillers let every requested length fit.
-const collapsed = [];
-[['c0', 24.6], ['c1', 9.7], ['c2', 8.7], ['c3', 5.5]].forEach(([rid, dur], r) => {
-  const times = Array.from({ length: 6 }, (_, k) => Math.round(k * dur / 6 * 1000) / 1000);
-  roles.forEach((role, ri) => [0, 1].forEach(k => {
-    const t = times[(ri + k * 3 + r) % times.length];
-    collapsed.push({ rid, role, t, score: 0.15 + ((r * 13 + ri * 7 + k * 5) % 25) / 100, sourceDuration: dur });
-  }));
-});
-for (const rid of ['c0', 'c1', 'c2', 'c3']) assert.ok(new Set(collapsed.filter(c => c.rid === rid).map(c => c.t)).size <= 6);
-for (const seed of ['s1', 's2', 's3']) for (const n of [4, 7, 12]) {
-  const r = j(P.mvPlanBuild({ candidates: collapsed, bpm: 99.2, fps: 30, montageShots: n, seed }));
-  assert.equal(r.ok, true);
-  assert.equal(r.montageShots, n, 'requested ' + n + ' fits with fillers (seed ' + seed + ')');
-  assert.ok(r.picks.every(Boolean));
-  if (n === 12) assert.ok(r.fillerShots > 0);
-  const spans = {};
-  r.picks.forEach((p, i) => {
-    const d = { c0: 24.6, c1: 9.7, c2: 8.7, c3: 5.5 }[p.rid];
-    assert.ok(p.startSeconds >= -1e-9 && p.endSeconds <= d + 1e-9, 'filler windows stay in the source');
-    (spans[p.rid] = spans[p.rid] || []).push([p.startSeconds, p.endSeconds]);
-  });
-  for (const list of Object.values(spans)) {
-    list.sort((x, y) => x[0] - y[0]);
-    for (let i = 1; i < list.length; i++) assert.ok(list[i][0] >= list[i - 1][1] + 0.5 - 1e-9, 'gap between windows');
-  }
-}
-// Fillers spread across sources: the repeat penalty applies to them too.
-const fl = j(P.mvPlanBuild({ candidates: collapsed, bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' }));
-assert.deepEqual(j(P.mvPlanBuild({ candidates: collapsed, bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' })), fl);
-assert.ok(new Set(fl.picks.map(p => p.rid)).size === 4);
-// Plenty of real hits: fillers never leak in.
-assert.equal(a.fillerShots, 0);
-
-// Fillers exist only through mvPlanBuild; a real hit wins over them whenever it fits, even outside the fallback roles.
-const oneSlot = [{ index: 13, role: 'street', seconds: 1.2 }];
-const plan1 = (cands) => {
-  const all = cands.concat(P.mvFillers(cands));
-  return P.mvAllocate({ candidates: all, slots: oneSlot, seed: 'x' });
+// Helpers (brief): mk(rid, role, t, score) -> a video hit; photo(rid) -> a photo candidate.
+const mk = (rid, role, t, score, sourceDuration = 60) => ({ rid, role, t, score, sourceDuration });
+const photo = rid => ({ rid, kind: 'photo' });
+const photos = (n, prefix = 'p') => Array.from({ length: n }, (_, i) => photo(prefix + String(i).padStart(2, '0')));
+// A long video with hits for every role, spread out so the windows never collide.
+const video = (rid, score = 0.5, dur = 60) => {
+  const out = [];
+  for (let k = 0; k * 1.5 + 1 < dur - 1; k++) out.push(mk(rid, ROLES[k % ROLES.length], 1 + k * 1.5, score, dur));
+  return out;
 };
-const realOnly = { rid: 'a', role: 'wide', t: 7, score: 0.05, sourceDuration: 20 };
-const r1 = plan1([realOnly]);
-assert.equal(r1.fillerShots, 0);
-assert.ok(Math.abs(r1.picks[0].startSeconds - 6.4) < 1e-9, 'centred on the real hit');
-// Filler grid: every 0.5 s from 0.25 s to duration - 0.25 s, per source, deterministic order.
-const grid = P.mvFillers([{ rid: 'b', role: 'street', t: 1, score: 1, sourceDuration: 2 }, { rid: 'a', role: 'park', t: 1, score: 1, sourceDuration: 1.1 }]);
-assert.deepEqual(j(grid).map(g => g.rid + '@' + g.t), ['a@0.25', 'a@0.75', 'b@0.25', 'b@0.75', 'b@1.25', 'b@1.75']);
-assert.ok(grid.every(g => g.role === 'filler' && g.score < 0));
-
-// Photos: { rid, kind: 'photo' } candidates, one use each, no role.
-const photoSet = n => Array.from({ length: n }, (_, i) => ({ rid: 'p' + String(i).padStart(2, '0'), kind: 'photo' }));
+const slotsOf = (n, seconds = 0.55) => Array.from({ length: n }, (_, i) => ({ index: i, role: ROLES[i % ROLES.length], seconds }));
+const adjacent = picks => picks.some((p, i) => i > 0 && p && picks[i - 1] && p.rid === picks[i - 1].rid);
 const maxRun = picks => { let run = 0, best = 0; for (const p of picks) { run = p && p.kind === 'photo' ? run + 1 : 0; best = Math.max(best, run); } return best; };
-const onceEach = picks => { const ids = picks.filter(p => p.kind === 'photo').map(p => p.rid); assert.equal(new Set(ids).size, ids.length, 'one use per photo'); };
-// Photos only (no analysed video): 22 photos build a full plan; every pick is a photo with the slot's hold.
-const po = j(P.mvPlanBuild({ candidates: photoSet(22), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
-assert.equal(po.ok, true);
-assert.equal(po.montageShots, 7);
-assert.equal(po.photoShots, 19);
-assert.equal(po.fillerShots, 0);
-assert.equal(po.photoRunRelaxed, true, 'photos only cannot keep the two-in-a-row rule');
-po.picks.forEach((p, i) => {
-  const slot = po.schedule.slots[i];
-  assert.deepEqual(Object.keys(p).sort(), ['holdSeconds', 'kind', 'rid', 'slot']);
-  assert.equal(p.kind, 'photo');
-  assert.ok(Math.abs(p.holdSeconds - (slot.endFrame - slot.startFrame) / 30) < 1e-9);
-});
-onceEach(po.picks);
-assert.deepEqual(j(P.mvPlanBuild({ candidates: photoSet(22), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' })), po, 'deterministic');
-assert.notDeepEqual(j(P.mvPlanBuild({ candidates: photoSet(22), bpm: 99.2, fps: 30, montageShots: 7, seed: 's2' })).picks, po.picks);
-// 16 photos fit exactly the shortest plan; 15 do not, and the shortage counts them. The 8th burst needs 14.
-const p16 = j(P.mvPlanBuild({ candidates: photoSet(16), bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' }));
-assert.equal(p16.ok, true);
-assert.equal(p16.montageShots, 4);
-const p15 = j(P.mvPlanBuild({ candidates: photoSet(15), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
-assert.equal(p15.ok, false);
-assert.equal(p15.usableShots, 15);
-assert.equal(p15.photoShots, 15);
-assert.ok(p15.usableShots < p15.needed);
-const p14 = j(P.mvPlanBuild({ candidates: photoSet(14), bpm: 99.2, fps: 30, montageShots: 12, seed: 's1', burst: 'eighth' }));
-assert.equal(p14.ok, true);
-assert.equal(p14.picks.length, 14);
-// Duplicate photo rids count once.
-assert.equal(j(P.mvPlanBuild({ candidates: photoSet(15).concat(photoSet(15)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' })).ok, false);
+const plan = (candidates, extra = {}) => j(P.mvPlanBuild({ candidates, bpm: 108, accepted: true, fps: F, pace: 'quick', requested: 12, seed: 's1', ...extra }));
 
-// Photo share: even with plenty of real hits, about a third of the slots are photos, spread out (never two in a row
-// here), title slots included for some seeds, deterministic per seed.
-assert.ok(a.picks.every(p => p.kind === 'video'));
-let titlePhotos = 0;
-for (const seed of ['s1', 's2', 's3', 's4', 's5', 's6']) for (const burst of ['sixteenth', 'eighth']) {
-  const rp = j(P.mvPlanBuild({ candidates: rich.concat(photoSet(10)), bpm: 99.2, fps: 30, montageShots: 7, seed, burst }));
-  assert.equal(rp.photoShots, Math.round(rp.picks.length / 3), 'a third of ' + rp.picks.length + ' slots');
-  assert.equal(maxRun(rp.picks), 1, 'photo slots are spread out');
-  onceEach(rp.picks);
-  assert.deepEqual(j(P.mvPlanBuild({ candidates: rich.concat(photoSet(10)), bpm: 99.2, fps: 30, montageShots: 7, seed, burst })), rp, 'deterministic');
-  titlePhotos += rp.picks.slice(0, rp.titleSlots).filter(p => p.kind === 'photo').length;
+// 1) Strict adjacency: two videos only, 12 slots -> filled, alternating sources.
+const two = video('a').concat(video('b'));
+for (const seed of ['s1', 's2', 's3']) {
+  const r = j(P.mvAllocate({ candidates: two, slots: slotsOf(12), seed }));
+  assert.equal(r.missing, 0); assert.equal(r.filled, 12);
+  assert.ok(!adjacent(r.picks), 'no two shots in a row from one source');
+  r.picks.forEach((p, i) => { if (i > 1) assert.equal(p.rid, r.picks[i - 2].rid, 'two sources alternate'); });
+  assert.deepEqual(Object.keys(r).sort(), ['filled', 'fillerShots', 'missing', 'photoShots', 'picks']);
 }
-assert.ok(titlePhotos > 0, 'photos also land in the title');
+const twoPlan = plan(two);
+assert.equal(twoPlan.ok, true); assert.equal(twoPlan.shots, 12); assert.ok(!adjacent(twoPlan.picks));
+// The previous source is excluded from every tier: its only preferred hit loses to another source's filler, and with
+// a single source the second slot stays empty (no relaxation).
+const twoSrc = [mk('a', 'street', 5, 0.9, 30), mk('a', 'street', 20, 0.9, 30), mk('b', 'park', 5, 0.5, 30)];
+const street = i => ({ index: i, role: 'street', seconds: 1.2 });
+assert.deepEqual(j(P.mvAllocate({ candidates: twoSrc.concat(P.mvFillers(twoSrc)), slots: [street(0), street(1)], seed: 'x' })).picks.map(p => p.rid), ['a', 'b']);
+const oneSrc = j(P.mvAllocate({ candidates: [mk('a', 'street', 5, 0.5, 30), mk('a', 'street', 20, 0.5, 30)], slots: [street(0), street(1)], seed: 'x' }));
+assert.equal(oneSrc.picks[0].rid, 'a'); assert.equal(oneSrc.picks[1], null); assert.equal(oneSrc.missing, 1);
+
+// 2) One resource: every candidate from rid 'a' (however many hits) -> one-resource.
+const solo = plan(video('a'));
+assert.equal(solo.ok, false); assert.equal(solo.reason, 'one-resource');
+assert.equal(plan(photos(1)).reason, 'one-resource');
+assert.equal(plan([]).reason, 'one-resource');
+assert.equal(plan(photos(1).concat(photos(1))).reason, 'one-resource', 'duplicate rids count once');
+
+// 3) Photo run: 3 videos + 10 photos, 24 slots -> a third photos, never 3 in a row.
+const three = video('a').concat(video('b'), video('c'));
+for (const seed of ['s1', 's2', 's3', 's4', 's5', 's6']) {
+  const r = j(P.mvAllocate({ candidates: three.concat(photos(10)), slots: slotsOf(24), seed }));
+  assert.equal(r.missing, 0);
+  assert.equal(r.photoShots, Math.round(24 / 3)); assert.equal(r.photoShots, 8);
+  assert.ok(maxRun(r.picks) <= 2, 'at most two photos in a row');
+  assert.ok(!adjacent(r.picks));
+  const ids = r.picks.filter(p => p.kind === 'photo').map(p => p.rid);
+  assert.equal(new Set(ids).size, ids.length, 'one use per photo');
+  r.picks.filter(p => p.kind === 'photo').forEach(p => assert.deepEqual(Object.keys(p).sort(), ['holdSeconds', 'kind', 'rid', 'slot']));
+}
+// photoShare 0: no photo slots; plenty of real hits then need no photo.
+assert.equal(j(P.mvAllocate({ candidates: three.concat(photos(10)), slots: slotsOf(24), seed: 's1', photoShare: 0 })).photoShots, 0);
 // Fewer photos than the share: every photo is used, no more.
-assert.equal(j(P.mvPlanBuild({ candidates: rich.concat(photoSet(3)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' })).photoShots, 3);
-// photoShare 0 turns photo slots off: plenty of real hits then need no photo, and unused photos change nothing.
-const richPhotos = j(P.mvPlanBuild({ candidates: rich.concat(photoSet(10)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1', photoShare: 0 }));
-assert.equal(richPhotos.photoShots, 0);
-assert.deepEqual(richPhotos.picks, a.picks, 'unused photos change nothing');
-// The live mix: 4 videos and 22 photos (nature test Project) gets at least a third photos at every length.
-for (const n of [4, 7, 12]) {
-  const nat = j(P.mvPlanBuild({ candidates: collapsed.concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: n, seed: '1', burst: 'eighth' }));
-  assert.ok(nat.photoShots >= Math.round(nat.picks.length / 3), 'nature mix ' + n + ': ' + nat.photoShots + ' of ' + nat.picks.length);
-  assert.ok(maxRun(nat.picks) <= 2);
+assert.equal(j(P.mvAllocate({ candidates: three.concat(photos(3)), slots: slotsOf(24), seed: 's1' })).photoShots, 3);
+// No photo candidates: photo slots fall back to videos.
+assert.equal(j(P.mvAllocate({ candidates: three, slots: slotsOf(24), seed: 's1' })).missing, 0);
+// The run rule is strict: fillers of one video and photos on a strip of street slots go P P v P P v P (the third photo
+// never comes, even where a photo slot would want it).
+const strip = Array.from({ length: 7 }, (_, i) => street(i));
+const onlyFillers = P.mvFillers([mk('v', 'park', 5, 0.5, 60)]);
+for (const seed of ['x', 'y', 'z']) {
+  const st = j(P.mvAllocate({ candidates: onlyFillers.concat(photos(10)), slots: strip, seed }));
+  assert.deepEqual(st.picks.map(p => p.kind), ['photo', 'photo', 'video', 'photo', 'photo', 'video', 'photo']);
+  assert.equal(st.photoShots, 5); assert.equal(st.fillerShots, 2);
 }
+// With the video out of room the run limit still holds: the slot stays empty instead.
+const shortStrip = j(P.mvAllocate({ candidates: [mk('v', 'street', 0.6, 0.5, 1.9)].concat(photos(10)), slots: strip.map(s => ({ ...s, seconds: 1.2 })), seed: 'x', photoShare: 0 }));
+assert.ok(maxRun(shortStrip.picks) <= 2);
+assert.ok(shortStrip.missing > 0);
 
-// Tier order on single slots.
-const hit = (rid, role, extra) => ({ rid, role, t: 5, score: 0.5, sourceDuration: 30, ...extra });
-const one = (cands, slot) => j(P.mvAllocate({ candidates: cands, slots: [slot], seed: 'x' })).picks[0];
-const streetSlot = { index: 13, role: 'street', section: 'montage', seconds: 1.2 };
-// A preferred-role hit beats a photo; an any-role hit beats a photo outside the burst.
-assert.equal(one([hit('v', 'street'), { rid: 'p', kind: 'photo' }], streetSlot).kind, 'video');
-assert.equal(one([hit('v', 'wide', { score: 0.01 }), { rid: 'p', kind: 'photo' }], streetSlot).rid, 'v');
-// A photo beats fillers.
-assert.equal(one(P.mvFillers([hit('v', 'street')]).concat([{ rid: 'p', kind: 'photo' }]), streetSlot).rid, 'p');
-// In the title burst a photo beats an any-role hit, but not a preferred one.
-const burstSlot = { index: 4, role: 'landmark', section: 'burst', seconds: 0.15 };
-assert.equal(one([hit('v', 'street'), { rid: 'p', kind: 'photo' }], burstSlot).rid, 'p');
-assert.equal(one([hit('v', 'landmark'), { rid: 'p', kind: 'photo' }], burstSlot).rid, 'v');
+// 4) Photo-only pool: no run limit, adjacency still holds. Each photo holds one slot (as in CWV), so 6 photos fill 6
+// slots; asked for 12 the plan shrinks to the 4 shots they can hold.
+const po6 = j(P.mvAllocate({ candidates: photos(6), slots: slotsOf(6), seed: 's1' }));
+assert.equal(po6.missing, 0); assert.equal(po6.photoShots, 6); assert.equal(maxRun(po6.picks), 6); assert.ok(!adjacent(po6.picks));
+const poPlan = plan(photos(6), { requested: 12 });
+assert.equal(poPlan.ok, true); assert.equal(poPlan.shots, 4); assert.equal(maxRun(poPlan.picks), 4); assert.ok(!adjacent(poPlan.picks));
+assert.equal(poPlan.photoShots, 4); assert.equal(poPlan.fillerShots, 0);
+const po24 = plan(photos(24), { requested: 24 });
+assert.equal(po24.ok, true); assert.equal(po24.shots, 24); assert.equal(maxRun(po24.picks), 24);
+po24.picks.forEach((p, i) => { const sl = po24.schedule.slots[i]; assert.ok(Math.abs(p.holdSeconds - (sl.endFrame - sl.startFrame) / F) < 1e-9); });
 // A photo cannot hold longer than the 5 s an image source lasts.
-assert.equal(one([{ rid: 'p', kind: 'photo' }], { index: 13, role: 'street', section: 'montage', seconds: 5.5 }), null);
+assert.equal(j(P.mvAllocate({ candidates: photos(1), slots: [{ index: 0, role: 'drink', seconds: 5.5 }], seed: 'x' })).picks[0], null);
 
-// Mixed footage that runs out of real hits (collapsed scene search): photos come before fillers, at most two in a row.
-for (const seed of ['s1', 's2', 's3']) for (const n of [4, 7, 12]) {
-  const base = j(P.mvPlanBuild({ candidates: collapsed, bpm: 99.2, fps: 30, montageShots: n, seed }));
-  const mix = j(P.mvPlanBuild({ candidates: collapsed.concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: n, seed }));
-  assert.equal(mix.ok, true);
-  assert.equal(mix.montageShots, n);
-  assert.ok(mix.photoShots >= Math.round(mix.picks.length / 3), 'at least the photo share');
-  assert.ok(mix.fillerShots <= base.fillerShots, 'photos replace fillers first');
-  assert.ok(maxRun(mix.picks) <= 2, 'never more than two photos in a row (' + seed + ', ' + n + ')');
-  assert.equal(mix.photoRunRelaxed, undefined);
-  onceEach(mix.picks);
-  assert.equal(mix.picks.filter(p => p.kind === 'photo').length, mix.photoShots);
-  assert.deepEqual(j(P.mvPlanBuild({ candidates: collapsed.concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: n, seed })), mix, 'deterministic');
-}
-// The burst encourages photos beyond the share: with street-only footage the landmark burst (slots 3-10) has no
-// preferred hit, so photos take it ahead of the street hits, two at a time; outside the burst street hits keep their
-// place (shown without photo slots).
-const mixBurst = j(P.mvPlanBuild({ candidates: rich.filter(x => x.role === 'street').concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1', photoShare: 0 }));
-assert.equal(mixBurst.ok, true);
-assert.equal(mixBurst.picks.slice(3, 11).map(p => (p.kind === 'photo' ? 'P' : 'v')).join(''), 'PPvPPvPP');
-assert.ok(maxRun(mixBurst.picks) <= 2);
-assert.equal(mixBurst.picks[0].kind, 'video', 'a street slot keeps its preferred street hit');
-// The run rule on a strip of slots: two photos, then a filler, then photos again.
-const strip = Array.from({ length: 7 }, (_, i) => ({ index: 13 + i, role: 'street', section: 'montage', seconds: 1.2 }));
-const st = j(P.mvAllocate({ candidates: P.mvFillers([hit('v', 'park', { sourceDuration: 60 })]).concat(photoSet(10)), slots: strip, seed: 'x' }));
-assert.deepEqual(st.picks.map(p => p.kind), ['photo', 'photo', 'video', 'photo', 'photo', 'video', 'photo']);
-assert.equal(st.photoShots, 5);
-assert.equal(st.fillerShots, 2);
+// 5) Shrink: supply that fills only 13 slots under the strict rules -> 12 shots.
+// One strong long video plus six one-window clips (1.2 s: a second 0.55 s window never fits with the 0.5 s gap). The
+// best any order can do is a s a s ... a = 13, so 16 fails and 12 fits.
+const singles = Array.from({ length: 6 }, (_, i) => ROLES.map(role => mk('s' + i, role, 0.6, 0.1, 1.2))).flat();
+const shrink = plan(video('a', 1).concat(singles), { requested: 16 });
+assert.equal(shrink.ok, true); assert.equal(shrink.shots, 12); assert.equal(shrink.requested, 16);
+assert.equal(shrink.fittedByMusic, false, 'the footage shrank it, not the music');
+assert.ok(!adjacent(shrink.picks));
+assert.equal(shrink.picks.filter(p => p.rid === 'a').length, 6);
+// The same with photos: 13 photos only.
+const shrinkP = plan(photos(13), { requested: 16 });
+assert.equal(shrinkP.ok, true); assert.equal(shrinkP.shots, 12);
+// Fewer than 4: too-few, with the shots the 4-slot attempt managed.
+const tooFew = plan([mk('a', 'drink', 0.6, 0.5, 1.2), mk('b', 'street', 0.6, 0.5, 1.2)]);
+assert.equal(tooFew.ok, false); assert.equal(tooFew.reason, 'too-few'); assert.equal(tooFew.usableShots, 2);
+assert.equal(plan(photos(3)).reason, 'too-few');
 
-// No two shots in a row from the same source while anything else fits.
-const adjacent = picks => picks.reduce((n, p, i) => n + (i > 0 && p && picks[i - 1] && p.rid === picks[i - 1].rid ? 1 : 0), 0);
-for (const seed of ['s1', 's2', 's3']) for (const n of [4, 7, 12]) for (const burst of ['sixteenth', 'eighth']) {
-  for (const cands of [rich, collapsed, collapsed.concat(photoSet(22)), rich.filter(x => x.role === 'street')]) {
-    const r = j(P.mvPlanBuild({ candidates: cands, bpm: 99.2, fps: 30, montageShots: n, seed, burst }));
-    assert.equal(r.ok, true);
-    // Every repeat is one the allocator could not avoid, and it is counted for the panel note.
-    assert.equal(adjacent(r.picks), r.adjacentRepeats || 0, 'repeats are counted (' + seed + ', ' + n + ', ' + burst + ')');
-    // Only the collapsed four-clip footage runs out: its long montage ends with the one clip that has time left.
-    if (cands !== collapsed || n < 12) assert.equal(r.adjacentRepeats, undefined, 'no adjacent repeats (' + seed + ', ' + n + ', ' + burst + ')');
-  }
+// 6) Music cap: requested 36, Relaxed, weekend-indie-pop (111.99 bpm, firstBeat 0.027, usableEnd 34.82) -> 32 shots.
+const rich = []; for (let r = 0; r < 12; r++) rich.push(...video('r' + r, 0.5 + (r % 5) / 10, 90));
+const cap = j(P.mvPlanBuild({ candidates: rich, bpm: 111.99, accepted: true, fps: F, pace: 'relaxed', requested: 36, sectionStart: 0.027, usableEnd: 34.82, seed: 's1' }));
+assert.equal(cap.ok, true);
+assert.equal(cap.shots, 32); assert.equal(cap.requested, 36); assert.equal(cap.fittedByMusic, true);
+assert.equal(cap.beatsPerShot, 2); assert.equal(cap.overridden, false);
+assert.ok(Math.abs(cap.shotSeconds - 120 / 111.99) < 1e-12);
+assert.equal(cap.picks.length, 32); assert.equal(cap.schedule.slots.length, 32); assert.equal(cap.schedule.gridded, true);
+assert.ok(0.027 + cap.schedule.totalFrames / F <= 34.82 + 1 / F, 'the picture never outruns the music');
+assert.deepEqual(Object.keys(cap).sort(), ['beatsPerShot', 'fillerShots', 'fittedByMusic', 'ok', 'overridden', 'photoShots', 'picks', 'requested', 'schedule', 'shotSeconds', 'shots']);
+// Quick at the same start fits all 36.
+const capQ = j(P.mvPlanBuild({ candidates: rich, bpm: 111.99, accepted: true, fps: F, pace: 'quick', requested: 36, sectionStart: 0.027, usableEnd: 34.82, seed: 's1' }));
+assert.equal(capQ.shots, 36); assert.equal(capQ.fittedByMusic, false);
+// Music too short for even 4 shots.
+const tooShort = j(P.mvPlanBuild({ candidates: rich, bpm: 111.99, accepted: true, fps: F, pace: 'relaxed', requested: 12, sectionStart: 30, usableEnd: 34, seed: 's1' }));
+assert.equal(tooShort.ok, false); assert.equal(tooShort.reason, 'music-too-short'); assert.equal(tooShort.usableShots, 0);
+// Pace guard: Quick at 158 bpm uses 2 beats.
+const fast = j(P.mvPlanBuild({ candidates: rich, bpm: 158, accepted: true, fps: F, pace: 'quick', requested: 12, seed: 's1' }));
+assert.equal(fast.beatsPerShot, 2); assert.equal(fast.overridden, true);
+// No usable grid (65 bpm, or not accepted): fixed 0.55 s / 1.10 s shots, no beats.
+for (const [bpm, accepted] of [[65, true], [108, false], [null, false]]) {
+  const ng = j(P.mvPlanBuild({ candidates: rich, bpm, accepted, fps: F, pace: 'quick', requested: 12, seed: 's1' }));
+  assert.equal(ng.ok, true); assert.equal(ng.schedule.gridded, false); assert.equal(ng.shotSeconds, 0.55);
+  assert.equal(ng.beatsPerShot, null); assert.equal(ng.overridden, false);
+  assert.equal(ng.schedule.totalFrames, Math.round(12 * 0.55 * F));
 }
-// The previous source is excluded from every tier, even when it is the only preferred-role hit: another source's
-// filler takes the slot.
-const twoSrc = [hit('a', 'street', { t: 5, score: 0.9 }), hit('a', 'street', { t: 20, score: 0.9 }), hit('b', 'park', { t: 5, sourceDuration: 30 })];
-const tw = j(P.mvAllocate({ candidates: twoSrc.concat(P.mvFillers(twoSrc)), slots: [streetSlot, { ...streetSlot, index: 14 }], seed: 'x' }));
-assert.deepEqual(tw.picks.map(p => p.rid), ['a', 'b']);
-assert.equal(tw.adjacentRepeats, 0);
-// A single source: the repeat is unavoidable, so it is allowed and counted.
-const oneSrc = [hit('a', 'street', { t: 5 }), hit('a', 'street', { t: 20 })];
-const os = j(P.mvAllocate({ candidates: oneSrc, slots: [streetSlot, { ...streetSlot, index: 14 }], seed: 'x' }));
-assert.deepEqual(os.picks.map(p => p.rid), ['a', 'a']);
-assert.equal(os.adjacentRepeats, 1);
-const osPlan = j(P.mvPlanBuild({ candidates: [{ rid: 'solo', role: 'street', t: 30, score: 0.5, sourceDuration: 120 }], bpm: 99.2, fps: 30, montageShots: 4, seed: 's1' }));
-assert.equal(osPlan.ok, true);
-assert.equal(osPlan.adjacentRepeats, osPlan.picks.length - 1, 'every cut of a one-clip plan is a repeat');
+assert.equal(j(P.mvPlanBuild({ candidates: rich, bpm: null, accepted: false, fps: F, pace: 'relaxed', requested: 12, seed: 's1' })).shotSeconds, 1.1);
+
+// Windows stay in their source, have the slot's length and never overlap (with the gap) within one source.
+const spans = {};
+cap.picks.forEach((p, i) => {
+  const sl = cap.schedule.slots[i];
+  if (p.kind !== 'video') return;
+  assert.ok(p.startSeconds >= 0 && p.endSeconds <= 90);
+  assert.ok(Math.abs((p.endSeconds - p.startSeconds) - (sl.endFrame - sl.startFrame) / F) < 1e-9);
+  (spans[p.rid] = spans[p.rid] || []).push([p.startSeconds, p.endSeconds]);
+});
+for (const list of Object.values(spans)) { list.sort((x, y) => x[0] - y[0]); for (let i = 1; i < list.length; i++) assert.ok(list[i][0] >= list[i - 1][1] + 0.5 - 1e-9); }
+// Plenty of real hits: fillers never leak in.
+assert.equal(cap.fillerShots, 0);
+
+// 7) Determinism: same seed -> identical picks; another seed -> other picks for a 4-video pool.
+const four = video('a').concat(video('b'), video('c'), video('d'));
+const d1 = plan(four, { seed: '1', requested: 24 }), d1b = plan(four, { seed: '1', requested: 24 }), d2 = plan(four, { seed: '2', requested: 24 });
+assert.equal(d1.ok, true);
+assert.deepEqual(d1b, d1);
+assert.notDeepEqual(d2.picks, d1.picks);
+
+// Tiers on single slots: preferred role (with its fallbacks) > any real hit > photo > filler.
+const one = (cands, slot) => j(P.mvAllocate({ candidates: cands, slots: [slot], seed: 'x', photoShare: 0 })).picks[0];
+const drinkSlot = { index: 0, role: 'drink', seconds: 1.2 };
+assert.equal(one([mk('a', 'street', 5, 1, 30), mk('b', 'drink', 5, 0, 30)], drinkSlot).rid, 'b', 'the slot role beats a higher score');
+assert.equal(one([mk('a', 'street', 5, 1, 30), mk('b', 'cafe', 5, 0, 30)], drinkSlot).rid, 'b', 'a fallback role beats any other role');
+assert.equal(one([mk('a', 'food', 5, 0.9, 30), mk('b', 'cafe', 5, 0.9, 30)], drinkSlot).rid, 'b', 'cafe is the first fallback for drink');
+assert.equal(one([mk('v', 'street', 5, 0.01, 30), photo('p')], drinkSlot).rid, 'v', 'any real hit beats a photo');
+assert.equal(one(P.mvFillers([mk('v', 'street', 5, 0.5, 30)]).concat([photo('p')]), drinkSlot).rid, 'p', 'a photo beats fillers');
+// A photo slot puts photos first.
+assert.equal(j(P.mvAllocate({ candidates: [mk('v', 'drink', 5, 1, 30), photo('p')], slots: [drinkSlot], seed: 'x', photoShare: 1 })).picks[0].rid, 'p');
+// Non-finite candidate fields are ignored.
+assert.equal(j(P.mvAllocate({ candidates: [mk('a', 'drink', NaN, 1, 30), mk('b', 'drink', 5, Infinity, 30)], slots: [drinkSlot], seed: 'x' })).filled, 0);
+// A real hit is centred in its window.
+assert.ok(Math.abs(one([mk('a', 'park', 7, 0.05, 20)], drinkSlot).startSeconds - 6.4) < 1e-9);
+// Filler grid: every 0.5 s from 0.25 s to duration - 0.25 s, per source, in rid order.
+const grid = j(P.mvFillers([mk('b', 'street', 1, 1, 2), mk('a', 'park', 1, 1, 1.1)]));
+assert.deepEqual(grid.map(g => g.rid + '@' + g.t), ['a@0.25', 'a@0.75', 'b@0.25', 'b@0.75', 'b@1.25', 'b@1.75']);
+assert.ok(grid.every(g => g.role === 'filler' && g.score < 0));
 
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.MV_BUILD_STEPS.length, 5);
 assert.equal(P.MV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);
-assert.equal(P.mvProgress('shots', 0).label, 'Step 1/5 · Choosing shots · 0%');
 assert.equal(P.mvProgress('shots', 0.5, '12/24 clips checked').label, 'Step 1/5 · Choosing shots (12/24 clips checked) · 20%');
 assert.equal(P.mvProgress('draft', 0).percent, 50);
-assert.equal(P.mvProgress('draft', 0).current, 2);
 assert.equal(P.mvProgress('open', 0.99).percent, 99);
-assert.equal(P.mvProgress('open', 1).percent, 100);
 assert.equal(P.mvProgress('music', 7).percent, 50, 'fraction is clamped');
 let last = -1;
 for (const s of P.MV_BUILD_STEPS) for (const f of [0, 0.5, 1]) { const v = P.mvProgress(s.id, f).value; assert.ok(v >= last); last = v; }

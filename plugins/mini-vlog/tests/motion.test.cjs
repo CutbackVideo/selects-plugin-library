@@ -56,25 +56,28 @@ for (const motion of P.MV_PHOTO_MOTIONS) for (const strength of [0, 0.5, 1, 1.5,
     }
   }
 
-// Motion choice: montage photos only, never twice in a row, alternating directions, deterministic per seed.
+// Motion choice: every photo pick gets a motion (the title covers the whole video, so no slot is excluded); never the
+// same motion or family twice in a row, alternating directions, deterministic per seed.
 const land = { width: 1920, height: 1080 }, tall = { width: 1080, height: 1920 }, square = { width: 898, height: 898 };
 const picks = [];
-for (let i = 0; i < 13; i++) picks.push(i % 3 ? { slot: i, rid: 't' + i, kind: 'photo', holdSeconds: 0.3 } : { slot: i, rid: 'v', kind: 'video', startSeconds: 0, endSeconds: 1 });
-for (let i = 13; i < 60; i++) picks.push(i % 4 === 0 ? { slot: i, rid: 'v', kind: 'video', startSeconds: 0, endSeconds: 1 } : { slot: i, rid: 'm' + i, kind: 'photo', holdSeconds: 1.2 });
+for (let i = 0; i < 60; i++) picks.push(i % 4 === 0 ? { slot: i, rid: 'v' + i, kind: 'video', startSeconds: 0, endSeconds: 1 } : { slot: i, rid: 'm' + i, kind: 'photo', holdSeconds: i < 13 ? 0.55 : 1.1 });
 const sizes = {};
 picks.forEach((p, i) => { sizes[p.rid] = [land, tall, square][i % 3]; });
 const family = m => (m.startsWith('drift-') ? 'drift' : m);
 for (const seed of ['1', '2', '3', '4']) {
   const ms = j(P.mvPhotoMotions(picks, seed, sizes));
   assert.equal(ms.length, picks.length);
-  picks.forEach((p, i) => { if (p.kind !== 'photo' || p.slot < 13) assert.equal(ms[i], null, 'title photos and videos stay still'); else assert.ok(P.MV_PHOTO_MOTIONS.includes(ms[i].motion)); });
+  picks.forEach((p, i) => { if (p.kind !== 'photo') assert.equal(ms[i], null, 'videos stay still'); else assert.ok(P.MV_PHOTO_MOTIONS.includes(ms[i].motion), 'photo ' + i + ' moves'); });
+  // Photos in the first slots move too (CWV kept its title photos still).
+  assert.ok(ms[1] && ms[2] && ms[3], 'the first photos move');
   const seq = ms.filter(Boolean);
-  assert.equal(seq.length, picks.filter(p => p.kind === 'photo' && p.slot >= 13).length);
+  assert.equal(seq.length, picks.filter(p => p.kind === 'photo').length);
   for (let i = 1; i < seq.length; i++) {
     assert.notEqual(seq[i].motion, seq[i - 1].motion, 'no immediate repeat');
     assert.notEqual(family(seq[i].motion), family(seq[i - 1].motion), 'no immediate repeat of a family');
   }
-  // Orientation: portrait photos drift vertically, landscape and square ones horizontally.
+  // Orientation: portrait photos drift vertically (the 16:9 crop has room top and bottom), landscape and square ones
+  // horizontally.
   picks.forEach((p, i) => {
     if (!ms[i]) return;
     const portrait = sizes[p.rid].height > sizes[p.rid].width;
@@ -87,11 +90,14 @@ for (const seed of ['1', '2', '3', '4']) {
     const s = signs(f);
     for (let i = 1; i < s.length; i++) assert.equal(s[i], -s[i - 1], 'directions alternate');
   }
-  assert.ok(new Set(seq.map(m => family(m.motion))).size === 5, 'all families appear over a long montage');
+  assert.ok(new Set(seq.map(m => family(m.motion))).size === 5, 'all families appear over a long run');
   assert.deepEqual(j(P.mvPhotoMotions(picks, seed, sizes)), ms, 'deterministic');
 }
 assert.notDeepEqual(j(P.mvPhotoMotions(picks, '1', sizes)), j(P.mvPhotoMotions(picks, '2', sizes)), 'another seed, other motions');
-// Unknown sizes count as landscape; no photos means no motions.
-assert.ok(j(P.mvPhotoMotions([{ slot: 13, rid: 'x', kind: 'photo', holdSeconds: 1 }], '1', null))[0].axis === 'x');
-assert.deepEqual(j(P.mvPhotoMotions([null, { slot: 13, rid: 'v', kind: 'video' }], '1', {})), [null, null]);
+// A photo in slot 0 moves; unknown sizes count as landscape; no photos means no motions.
+const first = j(P.mvPhotoMotions([{ slot: 0, rid: 'x', kind: 'photo', holdSeconds: 0.55 }], '1', null))[0];
+assert.ok(first && first.axis === 'x');
+assert.deepEqual(j(P.mvPhotoMotions([null, { slot: 0, rid: 'v', kind: 'video' }], '1', {})), [null, null]);
+// The signature has no titleSlots: a fourth argument changes nothing.
+assert.deepEqual(j(P.mvPhotoMotions(picks, '1', sizes, 13)), j(P.mvPhotoMotions(picks, '1', sizes)));
 console.log(JSON.stringify({ motion: 'ok' }));
