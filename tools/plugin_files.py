@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MAX_FILE = 32 * 1024 * 1024
 MAX_TOTAL = 256 * 1024 * 1024
 BLOCKED = {'.local', '.git', '.env', '__pycache__', 'node_modules', '.venv', 'venv'}
+PREVIEW_MEDIA = {'video': 'preview.mp4', 'poster': 'poster.webp'}
 
 
 def require(condition, message):
@@ -58,7 +59,8 @@ def validate_manifest(manifest):
     preview = manifest.get('preview')
     if preview is not None:
         require(isinstance(preview, dict), 'Invalid preview metadata')
-        require(preview.get('video') == 'preview.mp4' and preview.get('poster') == 'poster.webp',
+        require(any(key in preview for key in PREVIEW_MEDIA)
+                and all(preview[key] == name for key, name in PREVIEW_MEDIA.items() if key in preview),
                 'Preview paths must use canonical filenames')
         require(all(type(preview.get(key)) is int and 0 < preview[key] <= 4096
                     for key in ('width', 'height')), 'Invalid preview dimensions')
@@ -102,7 +104,7 @@ def check(pid, root=ROOT):
         if path.suffix in TEXT_SUFFIXES and path.is_file():
             check_layout(pid, name, path.read_text(errors='replace'))
     if manifest.get('preview') is not None:
-        names += ['preview.mp4', 'poster.webp']
+        names += [name for key, name in PREVIEW_MEDIA.items() if key in manifest['preview']]
     total = 0
     for name in names:
         path = directory / name

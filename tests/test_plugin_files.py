@@ -44,17 +44,49 @@ class PluginFilesTest(unittest.TestCase):
         self.assertEqual((self.target / 'scripts/use.py').read_bytes(), b'portable source')
 
     def test_preview_metadata_does_not_download_gallery_media(self):
-        self.manifest['preview'] = {'video': 'preview.mp4', 'poster': 'poster.webp', 'width': 540, 'height': 960}
-        with patch.object(plugins, 'fetch', side_effect=self.fetch):
-            plugins.download('example', self.target, COMMIT)
-        self.assertFalse(any(url.endswith(('.mp4', '.webp')) for url in self.calls))
+        for media in ({'video': 'preview.mp4', 'poster': 'poster.webp'},
+                      {'poster': 'poster.webp'}, {'video': 'preview.mp4'}):
+            with self.subTest(media=media):
+                self.manifest['preview'] = dict(media, width=540, height=960)
+                destination = self.root / ('download-' + '-'.join(media))
+                self.calls = []
+                with patch.object(plugins, 'fetch', side_effect=self.fetch):
+                    plugins.download('example', destination, COMMIT)
+                self.assertFalse(any(url.endswith(('.mp4', '.webp')) for url in self.calls))
+                self.assertEqual({p.name for p in destination.iterdir()},
+                                 {'plugin.json', 'SKILL.md', 'INSTALL.md', 'scripts'})
 
     def test_preview_paths_and_dimensions_are_validated(self):
         for preview in ({'video': '../preview.mp4', 'poster': 'poster.webp', 'width': 540, 'height': 960},
-                        {'video': 'preview.mp4', 'poster': 'poster.webp', 'width': 0, 'height': 960}):
-            self.manifest['preview'] = preview
-            with self.assertRaises(ValueError):
-                plugins.validate_manifest(self.manifest)
+                        {'video': 'preview.mp4', 'poster': 'poster.webp', 'width': 0, 'height': 960},
+                        {}, {'width': 1024, 'height': 1024},
+                        {'poster': 'cover.webp', 'width': 1024, 'height': 1024},
+                        {'poster': 'poster.webp', 'video': None, 'width': 1024, 'height': 1024},
+                        {'poster': 'poster.webp', 'width': True, 'height': 1024},
+                        {'poster': 'poster.webp', 'width': 1024},
+                        {'video': 'preview.mp4', 'width': 4097, 'height': 960}):
+            with self.subTest(preview=preview):
+                self.manifest['preview'] = preview
+                with self.assertRaises(ValueError):
+                    plugins.validate_manifest(self.manifest)
+
+    def test_local_check_requires_only_declared_preview_media(self):
+        for key, name in (('poster', 'poster.webp'), ('video', 'preview.mp4')):
+            with self.subTest(media=key):
+                self.manifest['preview'] = {key: name, 'width': 1024, 'height': 1024}
+                self.write_local_plugin()
+                with self.assertRaisesRegex(ValueError, name):
+                    plugins.check('example', self.root)
+                media = self.root / 'plugins/example' / name
+                media.write_bytes(b'gallery media')
+                self.assertEqual(plugins.check('example', self.root)['files'], 5)
+                media.unlink()
+
+    def test_preview_media_cannot_be_installation_files(self):
+        self.manifest['preview'] = {'poster': 'poster.webp', 'width': 1024, 'height': 1024}
+        self.manifest['files'].append('poster.webp')
+        with self.assertRaisesRegex(ValueError, 'must not be installation files'):
+            plugins.validate_manifest(self.manifest)
 
     def test_full_commit_needs_no_branch_lookup(self):
         with patch.object(plugins, 'fetch', side_effect=self.fetch):
