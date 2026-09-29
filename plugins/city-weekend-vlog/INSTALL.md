@@ -40,6 +40,8 @@ never in either install folder:
 - `own-music.f32`: your own music decoded for beat detection (up to about
   32 MB). It is deleted as soon as detection finishes; the detected beat is
   kept only while the panel is open.
+- `own-music.json`: the detected beat and music onsets of the last track you
+  dropped (tens of KB). The next track replaces it.
 - `preview-N.mp3` and `preview-N.b64`: the section preview. The mp3 is
   deleted once it is converted to text, and the text copy is replaced by the next
   preview.

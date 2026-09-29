@@ -15,7 +15,10 @@ or any source file.
   it disappears. The burst follows the music: four quarter-beat shots when
   the track has a clear 16th-note pulse (Sunny Soul Strut), otherwise two
   half-beat shots, so there are 12 or 10 title shots. Apart from that burst
-  every cut lands on a beat or half-beat.
+  every cut lands on a beat or half-beat. A cut that starts a shot of a beat
+  or more, and the first cut of the burst, moves onto a strong drum or bass
+  hit when one is within a tenth of a beat (at most 70 ms); the rest of the
+  burst follows it, and every other cut stays on the grid.
 - **Montage (2 beats per shot).** Street, architecture, park and detail shots,
   7 by default. It starts on the first beat of a bar.
 - A 1080x1920 canvas. Landscape clips and photos get a centre crop.
@@ -83,7 +86,8 @@ section; press it again (or Esc) to stop.
 uses it when the detected beat grid is reliable. It also measures how
 strongly the music marks 16th notes to choose the title burst. Songs slower than 70 BPM, or
 songs whose beat cannot be detected reliably, fall back to fixed timing at
-99.2 BPM, and the panel says "cuts use the original rhythm". Without a
+99.2 BPM, and the panel says "cuts use the original rhythm". Those cuts
+still move onto a nearby bass hit (within 120 ms). Without a
 reliable grid, the box moves in 0.1 s steps instead of bars. Your own music
 and the previews need ffmpeg; your own music also needs Node.js 18 or later
 (see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.
