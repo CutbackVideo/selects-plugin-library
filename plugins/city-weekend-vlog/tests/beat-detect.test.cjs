@@ -18,6 +18,13 @@ assert.equal(a.accepted, true);
 assert.equal(a.peaks.length, 400);
 assert.ok(a.beatEnergy.length >= 55);
 
+// phaseBeats (dev/build-cues.cjs only) moves the fitted grid before the first beat is chosen: half a beat back from
+// 0.5 s at 120 BPM puts the first beat at 0.25 s, on the same tempo.
+const half = analyze(clickTrack(120, 0.5, 30), sr, { phaseBeats: -0.5 });
+assert.ok(Math.abs(half.firstBeat - 0.25) < 0.02, 'phaseBeats firstBeat ' + half.firstBeat);
+assert.equal(half.bpm, a.bpm);
+assert.equal(analyze(clickTrack(120, 0.5, 30), sr, { phaseBeats: 0 }).firstBeat, a.firstBeat);
+
 const b = analyze(clickTrack(66, 0.2, 30), sr);          // below range: resolved to double tempo
 assert.ok(Math.abs(b.bpm - 132) < 0.3 || Math.abs(b.bpm - 66) < 0.2, 'bpm ' + b.bpm);
 

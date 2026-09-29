@@ -179,7 +179,9 @@ function bandOnsets(samples, sampleRate) {
   return { onsets, thresholds };
 }
 
-function analyze(samples, sampleRate) {
+// opts.phaseBeats (dev only, default 0): move the fitted grid by this many beats before the first beat is chosen,
+// for a cue whose grid locked onto the 8th off-beats (dev/build-cues.cjs; never set for own music).
+function analyze(samples, sampleRate, opts) {
   const durationSeconds = samples.length / sampleRate;
   const { env, strong } = onsetEnvelope(samples);
   const fps = sampleRate / HOP;
@@ -219,6 +221,7 @@ function analyze(samples, sampleRate) {
     const fit = sxx > 0 ? sxy / sxx : period;
     if (Math.abs(fit - period) < 0.01 * period) { period = fit; phase = mt - fit * mk; }
   }
+  if (opts && opts.phaseBeats) phase += opts.phaseBeats * period;
   phase = ((phase % period) + period) % period;
   if (phase > period - 0.03) phase = Math.max(0, phase - period);
   // The first beat is the first grid line that is not leading silence. Judge by level, not by
