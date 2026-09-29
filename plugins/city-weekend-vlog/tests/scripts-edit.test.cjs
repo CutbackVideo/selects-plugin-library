@@ -5,8 +5,9 @@ const load = (name, cfg) => new Function('selects', `return (async()=>{${fs.read
 // Models Selects: a Draft created in this run_script call has no saved audio-track inventory, so
 // setAudioTracks throws until it is reopened (selects.draft) in a later call; commitAll runs once per call.
 // Like Selects, a new Draft adopts its first clip's frame size (`adopt`) on the first insert, over an earlier setFrameSize.
-// Photo resources (`photos`) have no sound: muting leaves their audio routing null.
-function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [] } = {}) {
+// Photo resources (`photos`) and videos without an audio stream (`silent`) have no sound: muting leaves their audio
+// routing null. setAudioTracks returns an EditDiff whose opCount counts the clips whose routing changed.
+function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [], silent = [] } = {}) {
   const log = [], clips = [], graphics = [], effects = {};
   let frame = 0, committed = false, frameSize = { width: 1920, height: 1080 }, inserted = false;
   return { log, clips, graphics, effects, reopen() { unsaved = false; committed = false; }, d: {
@@ -22,8 +23,13 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
     rangeAtFrames: async (a, b) => ({ a, b }),
     setAudioTracks: async (o) => {
       if (unsaved) throw Error('audio_track_inventory_unavailable: Could not load audio tracks for draft "x": Error: Project not found for sequence x');
-      for (const c of clips) if (c.trackKind === 'main' && !photos.includes(c.resourceId)) c.audioSourceIndexes = [...o.audioSourceIndexes];
+      let opCount = 0;
+      for (const c of clips) {
+        if (c.trackKind !== 'main' || photos.includes(c.resourceId) || silent.includes(c.resourceId)) continue;
+        if (JSON.stringify(c.audioSourceIndexes) !== JSON.stringify(o.audioSourceIndexes)) { c.audioSourceIndexes = [...o.audioSourceIndexes]; opCount++; }
+      }
       log.push(['mute', o.audioSourceIndexes]);
+      return { beforeDurationFrames: frame, afterDurationFrames: frame, deltaFrames: 0, opCount, removedDurationFrames: 0, warnings: [] };
     },
     overlayResource: async (o) => { clips.push({ clipId: 99, resourceId: o.resource.id, trackKind: 'audio', startFrame: 0, endFrame: frame }); log.push(['music', o.sourceStartSeconds]); return { inserted: 1 }; },
     setClipAudio: async (o) => {
@@ -69,7 +75,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   m.reopen();
   const cfgM = { sequenceId: 'seq-new', mute: true, titleEnd: 45, title: { tsx: 'x', parameters: {}, editableParameters: [] }, warm: null };
   const dm = await load('decorate.js', cfgM)(selects);
-  assert.deepEqual(dm, { title: true, titleAdded: true, effects: 0, effectsKept: 0, muted: true, muteKept: false, committed: true });
+  assert.deepEqual(dm, { title: true, titleAdded: true, effects: 0, effectsKept: 0, muted: true, muteKept: false, committed: true, alreadyDone: false });
   const mi = m.log.findIndex(x => x[0] === 'mute');
   assert.deepEqual(m.log[mi][1], []);
   assert.ok(mi < m.log.findIndex(x => x[0] === 'title'), 'mute comes first');
@@ -79,7 +85,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   // Retrying an already muted and titled Draft neither mutes nor commits again.
   m.reopen();
   const dm2 = await load('decorate.js', cfgM)(selects);
-  assert.deepEqual(dm2, { title: true, titleAdded: false, effects: 0, effectsKept: 0, muted: false, muteKept: true, committed: false });
+  assert.deepEqual(dm2, { title: true, titleAdded: false, effects: 0, effectsKept: 0, muted: false, muteKept: true, committed: false, alreadyDone: true });
   assert.equal(m.log.filter(x => x[0] === 'mute').length, 1);
 
   // Pre-existing audio (one with the same resource id as the music) must not be mistaken for the new clip.
@@ -96,17 +102,35 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   await assert.rejects(load('decorate.js', { sequenceId: 's', mute: true, titleEnd: 10, title: { tsx: 'x', parameters: {}, editableParameters: [] }, warm: null })({ draft: () => bad.d }), /mute the clips' own sound: nope/);
   assert.equal(bad.log.filter(x => x[0] === 'commit' || x[0] === 'title').length, 0);
 
+  // Silent sources (no audio stream) keep null routing after muting. A first run on an all-silent Draft mutes nothing:
+  // muted is false and the title still commits.
+  const cfgS = { sequenceId: 's', mute: true, titleEnd: 10, title: { tsx: 'x', parameters: {}, editableParameters: [] }, warm: null };
+  const ms = mockDraft(30, { silent: ['s0', 's1'] });
+  ms.clips.push({ clipId: 1, resourceId: 's0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null }, { clipId: 2, resourceId: 's1', trackKind: 'main', startFrame: 30, endFrame: 60, audioSourceIndexes: null });
+  const dsil = await load('decorate.js', cfgS)({ draft: () => ms.d });
+  assert.deepEqual(dsil, { title: true, titleAdded: true, effects: 0, effectsKept: 0, muted: false, muteKept: true, committed: true, alreadyDone: false });
+  assert.equal(ms.log.filter(x => x[0] === 'commit').length, 1);
+  // Retry after a landed but unreported commit on a Draft with one silent and one muted video: the null routing sends
+  // the mute again, it changes nothing (opCount 0), and nothing is committed ("Nothing to stage" otherwise).
+  const mr = mockDraft(30, { silent: ['s0'] });
+  mr.clips.push({ clipId: 1, resourceId: 's0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null }, { clipId: 2, resourceId: 'r0', trackKind: 'main', startFrame: 30, endFrame: 60, audioSourceIndexes: [] });
+  mr.graphics.push({ name: 'City Weekend title', clip: {} });
+  mr.d.commitAll = async () => { throw Error('Nothing to stage'); };
+  const dret = await load('decorate.js', cfgS)({ draft: () => mr.d });
+  assert.deepEqual(dret, { title: true, titleAdded: false, effects: 0, effectsKept: 0, muted: false, muteKept: true, committed: false, alreadyDone: true });
+  assert.equal(mr.log.filter(x => x[0] === 'mute').length, 1, 'the mute was attempted');
+
   const m2 = mockDraft(30); m2.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 }, { clipId: 3, resourceId: 'm', trackKind: 'audio', startFrame: 0, endFrame: 60 });
   const sel3 = { draft: () => m2.d };
   const dres = await load('decorate.js', { sequenceId: 'seq-new', titleEnd: 45, title: { tsx: 'x', parameters: { line1: 'Saturday' }, editableParameters: [] }, warm: { tsx: 'y', strength: 0.35 } })(sel3);
-  assert.deepEqual(dres, { title: true, titleAdded: true, effects: 2, effectsKept: 0, muted: false, muteKept: false, committed: true });
+  assert.deepEqual(dres, { title: true, titleAdded: true, effects: 2, effectsKept: 0, muted: false, muteKept: false, committed: true, alreadyDone: false });
   assert.deepEqual(m2.log.find(x => x[0] === 'title')[1], { a: 0, b: 45 });
   assert.equal(m2.log.filter(x => x[0] === 'commit').length, 1);
 
   // Retrying on an already decorated Draft adds nothing and does not commit again.
   const cfgD = { sequenceId: 'seq-new', titleEnd: 45, title: { tsx: 'x', parameters: { line1: 'Saturday' }, editableParameters: [] }, warm: { tsx: 'y', strength: 0.35 } };
   const again = await load('decorate.js', cfgD)(sel3);
-  assert.deepEqual(again, { title: true, titleAdded: false, effects: 0, effectsKept: 2, muted: false, muteKept: false, committed: false });
+  assert.deepEqual(again, { title: true, titleAdded: false, effects: 0, effectsKept: 2, muted: false, muteKept: false, committed: false, alreadyDone: true });
   assert.equal(m2.log.filter(x => x[0] === 'title').length, 1, 'title is not duplicated');
   assert.equal(m2.log.filter(x => x[0] === 'warm').length, 2, 'warm effects are not duplicated');
   assert.equal(m2.log.filter(x => x[0] === 'commit').length, 1, 'no second commit');
@@ -115,7 +139,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   const m4 = mockDraft(30); m4.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 });
   m4.graphics.push({ name: 'City Weekend title', clip: {} }); m4.effects[1] = [{ name: 'Warm look', effectName: 'Warm look' }];
   const part = await load('decorate.js', cfgD)({ draft: () => m4.d });
-  assert.deepEqual(part, { title: true, titleAdded: false, effects: 1, effectsKept: 1, muted: false, muteKept: false, committed: true });
+  assert.deepEqual(part, { title: true, titleAdded: false, effects: 1, effectsKept: 1, muted: false, muteKept: false, committed: true, alreadyDone: false });
   assert.deepEqual(m4.log.filter(x => x[0] === 'warm').map(x => x[1]), [2]);
   assert.equal(m4.log.filter(x => x[0] === 'title').length, 0);
 
@@ -155,7 +179,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   const cfgP = { sequenceId: 'seq-new', mute: true, titleEnd: 59, title: { tsx: 'x', parameters: {}, editableParameters: [] }, warm: { tsx: 'y', strength: 0.35 }, photos: ['p1', 'p2', 'p3'],
     motion: { tsx: 'motion', strength: 1, options: opts, byRid: { p2: { motion: 'tilt', direction: -1, axis: 'x', cover: 1.333 }, p3: { motion: 'push-in', direction: 1, axis: 'y', cover: 1 } } }, photoEffects: false };
   const dp = await load('decorate.js', cfgP)(selP);
-  assert.deepEqual(dp, { title: true, titleAdded: true, effects: 1, effectsKept: 0, muted: true, muteKept: false, committed: true, photos: { motions: 0, motionsKept: 0, effectsSkipped: 3 } });
+  assert.deepEqual(dp, { title: true, titleAdded: true, effects: 1, effectsKept: 0, muted: true, muteKept: false, committed: true, alreadyDone: false, photos: { motions: 0, motionsKept: 0, effectsSkipped: 3 } });
   assert.deepEqual(mp.clips.map(c => c.audioSourceIndexes), [null, [], null, null]);
   mp.reopen();
   const dp2 = await load('decorate.js', cfgP)(selP);

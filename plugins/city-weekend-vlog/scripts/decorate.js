@@ -16,8 +16,12 @@ if (cfg.mute) {
   if (videos.every(c => Array.isArray(c.audioSourceIndexes) && c.audioSourceIndexes.length === 0)) muteKept = true;
   else {
     const end = main.reduce((a, c) => Math.max(a, c.endFrame), 0);
-    try { await d.setAudioTracks({ target: await d.rangeAtFrames(0, end), audioSourceIndexes: [] }); muted = true; }
+    // Clips whose source has no audio stream keep null routing after muting, so the check above cannot see a finished
+    // mute on them. The EditDiff decides: opCount 0 means already muted or nothing to mute (an all-silent Draft).
+    let diff;
+    try { diff = await d.setAudioTracks({ target: await d.rangeAtFrames(0, end), audioSourceIndexes: [] }); }
     catch (e) { throw Error('Could not mute the clips\' own sound: ' + (e && e.message || e)); }
+    if (diff && diff.opCount === 0) muteKept = true; else muted = true;
   }
 }
 const hasTitle = (await d.motionGraphics()).some(g => g.name === TITLE_LABEL);
@@ -55,7 +59,9 @@ if (cfg.warm) {
     effects++;
   }
 }
+// Commit only when this run added or changed something: commitAll rejects an empty change ("Nothing to stage"), which a
+// retry after a landed but unreported commit would otherwise hit. Nothing to do is success (alreadyDone).
 const committed = muted || !hasTitle || effects > 0 || motions > 0;
 if (committed) await d.commitAll('City Weekend Vlog: title and look');
-const out = { title: true, titleAdded: !hasTitle, effects, effectsKept, muted, muteKept, committed };
+const out = { title: true, titleAdded: !hasTitle, effects, effectsKept, muted, muteKept, committed, alreadyDone: !committed };
 return photoIds.size ? { ...out, photos: { motions, motionsKept, effectsSkipped: photoEffectsSkipped } } : out;
