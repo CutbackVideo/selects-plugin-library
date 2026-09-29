@@ -1,0 +1,13 @@
+[
+ {"key":"d-indie","project":"daily","pid":"@daily","cue":"weekend-indie-pop","preset":"mini-vlog","length":"standard","pace":"quick","clipSound":"ambient","soft":true,"usePhotos":true,"section":"default","seeds":[1,2],"export":true},
+ {"key":"d-disco","project":"daily","pid":"@daily","cue":"golden-hour-disco","preset":"day-in-my-life","length":"long","pace":"relaxed","clipSound":"full","soft":false,"usePhotos":true,"section":"early"},
+ {"key":"d-soul","project":"daily","pid":"@daily","cue":"sunny-soul-strut","preset":"small-glimpse","length":"short","pace":"quick","clipSound":"off","soft":true,"usePhotos":false,"section":"late"},
+ {"key":"d-lofi","project":"daily","pid":"@daily","cue":"easy-sunday-lofi","preset":"mini-vlog","length":"long","pace":"relaxed","clipSound":"ambient","soft":true,"usePhotos":true,"section":"default","fields":{"big":"springtime","small":"in the city"},"export":true},
+ {"key":"d-silent","project":"daily","pid":"@daily","cue":"none","preset":"day-in-my-life","length":"standard","pace":"quick","clipSound":"off","soft":true,"usePhotos":true,"section":"default","fields":{"big":"weekend days"}},
+ {"key":"d-nomusic","project":"daily","pid":"@daily","cue":"none","preset":"small-glimpse","length":"short","pace":"relaxed","clipSound":"ambient","soft":false,"usePhotos":false,"section":"default","fields":{"big":"wonderland"},"seeds":[1,2]},
+ {"key":"d-soul-2","project":"daily","pid":"@daily","cue":"sunny-soul-strut","preset":"day-in-my-life","length":"standard","pace":"relaxed","clipSound":"full","soft":true,"usePhotos":true,"section":"early"},
+ {"key":"ny-indie","project":"ny","pid":"@ny","cue":"weekend-indie-pop","preset":"small-glimpse","length":"long","pace":"relaxed","clipSound":"full","soft":true,"usePhotos":true,"section":"late","capture":true},
+ {"key":"ny-lofi","project":"ny","pid":"@ny","cue":"easy-sunday-lofi","preset":"mini-vlog","length":"standard","pace":"quick","clipSound":"off","soft":false,"usePhotos":true,"section":"early"},
+ {"key":"tokyo-disco","project":"tokyo","pid":"@tokyo","cue":"golden-hour-disco","preset":"mini-vlog","length":"short","pace":"quick","clipSound":"ambient","soft":false,"usePhotos":true,"section":"default"},
+ {"key":"tokyo-soul","project":"tokyo","pid":"@tokyo","cue":"sunny-soul-strut","preset":"small-glimpse","length":"standard","pace":"quick","clipSound":"full","soft":true,"usePhotos":false,"section":"late","capture":true}
+]
