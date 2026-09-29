@@ -1,6 +1,6 @@
 // Mini Vlog title: one static lockup over the whole video in one of three layouts
 // ("Mini vlog", "A day in my life", "A small glimpse"). Nothing animates.
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AbsoluteFill, continueRender, delayRender, useVideoConfig } from "remotion";
 
 // mv-lockup:start
@@ -27,6 +27,7 @@ var MV_FACES = {
 // Used only when a family's metrics are missing: a generic 0.56 em advance.
 var MV_FALLBACK_METRICS = { unitsPerEm: 1000, xHeight: 500, capHeight: 700, ascent: 720, descent: -220, dots: { i: [150, 650], j: [150, 650] }, advances: {} };
 var MV_FIT = 0.6; // max lockup width, fraction of canvas width
+var MV_MINI_WIDTH = (0.155 * 1920) / 1080; // "mini" advance width at size 100, fraction of height
 
 function mvFace(data, preset, role) {
   var face = MV_FACES[preset][role];
@@ -51,12 +52,13 @@ function mvTextWidth(text, m, px) {
 // Ink extents above / below the baseline in em, from the characters present.
 function mvInk(text, m) {
   var up = m.xHeight, down = 0;
-  if (/[A-Z0-9bdfhkltÀ-Þß!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.ascent, m.capHeight);
+  if (/[A-Z0-9bdfhklt\u00c0-\u00de\u00df!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.ascent, m.capHeight);
   else if (/[ij]/.test(text)) up = Math.max(up, m.dots.i[1] + 0.07 * m.unitsPerEm);
   if (/[gjpqy,;()[\]{}|]/.test(text)) down = -m.descent;
   return { up: up / m.unitsPerEm, down: down / m.unitsPerEm };
 }
 
+// Boxes span the advance width, not the ink: an italic's overhang can reach past box[2].
 function mvText(part, text, f, x, y, size, color) {
   var w = mvTextWidth(text, f.m, size), ink = mvInk(text, f.m);
   return { kind: "text", part: part, text: text, font: { family: f.family, style: f.style, weight: f.weight }, x: x, y: y, size: size, color: color, w: w, box: [x, y - ink.up * size, x + w, y + ink.down * size] };
@@ -90,25 +92,30 @@ function mvSplit(text, hyphen) {
 function mvLayoutMini(data, fields, H, S, col) {
   var fb = mvFace(data, "mini-vlog", "big"), fs = mvFace(data, "mini-vlog", "small"), mb = fb.m;
   var items = [];
-  var Fb = ((0.083 * H) / (mb.xHeight / mb.unitsPerEm)) * S;
+  // Footprint wins over x-height: at size 100 "mini" is 0.155 of a 16:9 canvas's width
+  // (No.17 measures ~290-300 px at 1920x1080), expressed relative to the height.
+  var Fb = ((MV_MINI_WIDTH * H) / mvTextWidth("mini", mb, 1)) * S;
   // Sparkled i/j are drawn dotless when the font has the glyph, so the sparkle replaces the dot.
   var chars = fields.big.split(""), marks = [];
   for (var i = 0; i < chars.length && marks.length < (data.sparkles === false ? 0 : 3); i++) {
     var ch = chars[i];
     if (ch !== "i" && ch !== "j") continue;
     marks.push(i);
-    var dotless = ch === "i" ? "ı" : "ȷ";
+    var dotless = ch === "i" ? "\u0131" : "\u0237";
     if (typeof mb.advances[dotless] === "number") chars[i] = dotless;
   }
   var bigText = chars.join("");
   var wb = mvTextWidth(bigText, mb, Fb);
   var big = mvText("big", bigText, fb, -wb / 2, 0, Fb, col.primary);
   items.push(big);
-  var spark = 0.17 * Fb;
+  var spark = 0.19 * Fb;
   for (var k = 0; k < marks.length; k++) {
     var dot = mb.dots[fields.big.charAt(marks[k])] || mb.dots.i;
     var px = big.x + mvTextWidth(bigText.slice(0, marks[k]), mb, Fb) + (dot[0] / mb.unitsPerEm) * Fb;
-    items.push(mvMark("sparkle", "sparkle", px, -(dot[1] / mb.unitsPerEm) * Fb, spark, col.primary));
+    var py = -(dot[1] / mb.unitsPerEm) * Fb;
+    // A letter that kept its dot (no dotless glyph, e.g. j in DM Serif) gets the sparkle above the dot.
+    if (bigText.charAt(marks[k]) === fields.big.charAt(marks[k])) py = -((dot[1] + (dot[2] || 0.06 * mb.unitsPerEm)) / mb.unitsPerEm) * Fb - 0.03 * Fb - spark / 2;
+    items.push(mvMark("sparkle", "sparkle", px, py, spark, col.primary));
   }
   if (data.sparkles !== false && marks.length === 0) {
     items.push(mvMark("sparkle", "sparkle", big.box[2] + 0.04 * Fb, big.box[1] - 0.06 * Fb, spark, col.primary));
@@ -136,9 +143,12 @@ function mvLayoutDay(data, fields, H, S, col) {
   // Row 1: star + year centred on the big line's x-height band, then the first big line.
   var y1 = 0, band1 = y1 - (xh * Fb) / 2, x = 0;
   if (fields.year) {
-    var sy = 0.3 * Fb;
-    if (accents) row1.push(mvMark("star", "star", x + sy / 2, band1, sy, col.secondary));
-    x += sy + 0.06 * Fb;
+    // The star only takes room when it is drawn.
+    if (accents) {
+      var sy = 0.3 * Fb;
+      row1.push(mvMark("star", "star", x + sy / 2, band1, sy, col.secondary));
+      x += sy + 0.06 * Fb;
+    }
     var year = mvText("year", fields.year, fb, x, band1 + (cap * Fy) / 2, Fy, col.secondary);
     row1.push(year);
     x = year.box[2] + 0.12 * Fb;
@@ -260,7 +270,8 @@ function mvStarPath(cx, cy, size) {
 const FALLBACK = '"Helvetica Neue", Arial, sans-serif';
 const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 
-export default function MiniVlogTitle({ data }: { data: any }) {
+export default function MiniVlogTitle({ data: raw }: { data: any }) {
+  const data = (raw || {}) as any;
   const config = useVideoConfig();
   const width = num(config && config.width, 1920);
   const height = num(config && config.height, 1080);
@@ -283,7 +294,8 @@ export default function MiniVlogTitle({ data }: { data: any }) {
   // Never leave the render blocked if the graphic unmounts before the fonts settle.
   useEffect(() => release, []);
 
-  const items: any[] = mvLockupLayout(data, width, height);
+  // Static: the layout depends only on the parameters and the canvas size.
+  const items: any[] = useMemo(() => mvLockupLayout(data, width, height), [raw, width, height]);
   const shadow = Math.max(0, Math.min(1, num(data.shadow, 0.35)));
   const fontFaces = fonts.map((f) => `@font-face{font-family:"${f.family}";src:url("data:font/woff2;base64,${f.b64}") format("woff2");font-style:${f.style};font-weight:${f.weight};}`).join("");
   const blur = height * 0.012, drop = height * 0.004;

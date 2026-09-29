@@ -4,8 +4,8 @@
 A subset is a Modified Version under the SIL OFL, so it must not keep a Reserved
 Font Name. Rewrites name IDs 1, 3, 4, 6 and 16 (and 2/17 where needed) in place.
 Then writes presets.json `metrics[family]`: unitsPerEm, xHeight, capHeight, ink
-ascent (tallest of b d h k l) and descent (lowest of g p q y), the centre of the
-i/j dots and the advance width of every mapped character, all in font units.
+ascent (tallest of b d h k l) and descent (lowest of g p q y), the centre and
+half height of the i/j dots and the advance width of every mapped character, all in font units.
 The title layout measures text from these tables, so Node tests and the panel
 lay the title out exactly like the rendered graphic (kerning is ignored).
 Usage: rename-font.py <font.woff2> <presets.json> <file name in presets>
@@ -60,7 +60,7 @@ def bounds(ch):
 
 
 def dot_centre(ch):
-    """Centre of the glyph's topmost contour (the dot of i/j), or None."""
+    """[centre x, centre y, half height] of the topmost contour (the dot of i/j), or None."""
     glyf = font['glyf']
     g = glyf[cmap[ord(ch)]]
     if g.isComposite():
@@ -85,7 +85,7 @@ def dot_centre(ch):
                 best = box
     if best is None:
         return None
-    return [round((best[0] + best[2]) / 2), round((best[1] + best[3]) / 2)]
+    return [round((best[0] + best[2]) / 2), round((best[1] + best[3]) / 2), round((best[3] - best[1]) / 2)]
 
 
 os2 = font['OS/2']

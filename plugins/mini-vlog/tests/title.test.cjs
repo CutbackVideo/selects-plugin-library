@@ -10,7 +10,7 @@ assert.ok(!/^\s*(import|export)\b/m.test(block), 'block has no import/export');
 assert.ok(!/<[A-Za-z]/.test(block.replace(/\/\/.*$/gm, '')), 'block has no JSX');
 // (TS-only syntax would make the vm / new Function evaluation below throw.)
 const box = {}; vm.createContext(box);
-vm.runInContext(block + ';globalThis.L=mvLockupLayout;globalThis.SP=mvSparklePath;globalThis.ST=mvStarPath;globalThis.B=mvLockupBounds;', box);
+vm.runInContext(block + ';globalThis.L=mvLockupLayout;globalThis.SP=mvSparklePath;globalThis.ST=mvStarPath;globalThis.B=mvLockupBounds;globalThis.F=MV_FACES;', box);
 // Also loadable the way the panel does it.
 assert.equal(typeof new Function(block + ';return mvLockupLayout;')(), 'function');
 
@@ -38,8 +38,9 @@ const mBig = presets.metrics['MV DM Serif Display Italic'];
   assert.deepEqual(big.font, { family: 'MV DM Serif Display Italic', style: 'italic', weight: 400 });
   assert.deepEqual(small.font, { family: 'MV DM Serif Display', style: 'normal', weight: 400 });
   assert.equal(big.color, '#F7C8E6'); assert.equal(small.color, '#FFFFFF');
-  // Body (x-height) is 8.3 % of the canvas height, from the font's measured x-height.
-  near(big.size * mBig.xHeight / mBig.unitsPerEm, 0.083 * H, 0.5, 'big x-height px');
+  // Footprint wins (controller ruling): "mini" is about 0.155 W wide at size 100, like No.17 (~290-300 px).
+  assert.ok(big.w >= 0.145 * W && big.w <= 0.165 * W, 'mini advance width ' + big.w);
+  near(big.w, 0.155 * W, 1, 'mini width calibrated');
   // Lockup (both lines + sparkles) centred at (0.49 W, 0.52 H); big word centred on x.
   const b = bounds(it);
   near(b.cx, 0.49 * W, 0.01 * W, 'lockup centre x'); near(b.cy, 0.52 * H, 0.01 * H, 'lockup centre y');
@@ -73,9 +74,15 @@ const mBig = presets.metrics['MV DM Serif Display Italic'];
   assert.equal(kinds(lay('mini-vlog', { big: 'vlog life', small: '' }), 'sparkle').length, 1);
   assert.equal(kinds(lay('mini-vlog', { big: 'iiiii', small: '' }), 'sparkle').length, 3);
   assert.equal(one(lay('mini-vlog', { big: 'iiiii', small: '' }), 'big').text, 'ıııii', 'only sparkled i lose their dots');
-  // DM Serif has no dotless j: the j keeps its glyph and the sparkle sits on its dot.
+  // DM Serif has no dotless j: the j keeps its dot and the sparkle floats clear above it.
   const j = lay('mini-vlog', { big: 'jam', small: '' });
   assert.equal(kinds(j, 'sparkle').length, 1); assert.equal(one(j, 'big').text, 'jam');
+  {
+    const jb = one(j, 'big'), js = kinds(j, 'sparkle')[0], dj = mBig.dots.j;
+    const dotTop = jb.y - ((dj[1] + dj[2]) / mBig.unitsPerEm) * jb.size;
+    assert.ok(js.y + js.size / 2 < dotTop - 0.01 * jb.size, 'sparkle clears the j dot');
+    near(js.x, jb.x + (dj[0] / mBig.unitsPerEm) * jb.size, 0.5, 'sparkle centred over the j dot');
+  }
   const off = lay('mini-vlog', { big: 'mini', small: 'vlog' }, { sparkles: false });
   assert.equal(kinds(off, 'sparkle').length, 0); assert.equal(one(off, 'big').text, 'mini');
 }
@@ -147,8 +154,13 @@ const mBig = presets.metrics['MV DM Serif Display Italic'];
   const single = lay('day-in-my-life', { year: '2026', big: 'weekend', tag: 'a day in my life' });
   assert.equal(part(single, 'big1').length, 0);
   assert.ok(one(single, 'year').y < one(single, 'big2').y);
-  // Accents off hides the stars.
-  assert.equal(kinds(lay('day-in-my-life', { year: '2026', big: 'mini vlog', tag: 'a day in my life' }, { sparkles: false }), 'star').length, 0);
+  // Accents off hides the stars without reserving their space: row 1 keeps its year-to-word gap
+  // and nothing (visible or not) sits left of the year.
+  const plain = lay('day-in-my-life', { year: '2026', big: 'mini vlog', tag: 'a day in my life' }, { sparkles: false });
+  assert.equal(kinds(plain, 'star').length, 0);
+  const py = one(plain, 'year'), pb1 = one(plain, 'big1');
+  near((pb1.x - (py.x + py.w)) / pb1.size, (b1.x - (year.x + year.w)) / b1.size, 1e-6, 'year gap');
+  assert.ok(py.box[0] >= bounds(plain).x0 - 1e-6);
 }
 
 // --- A small glimpse -----------------------------------------------------------------
@@ -186,6 +198,12 @@ assert.match(box.ST(100, 100, 40), /^M[\d.\- ,]+.*Z$/);
   const it = lay('mini-vlog', { big: 'mini', small: 'vlog' }), b = bounds(it), hb = JSON.parse(JSON.stringify(box.B(it)));
   assert.deepEqual(hb.map(v => Math.round(v)), [b.x0, b.y0, b.x1, b.y1].map(v => Math.round(v)));
 }
+// MV_FACES (the block's role -> face table) mirrors presets.json fonts.
+for (const p of presets.presets) for (const f of p.fonts) {
+  assert.deepEqual(JSON.parse(JSON.stringify(box.F[p.id][f.role])), { family: f.family, style: f.style, weight: f.weight }, p.id + ' ' + f.role);
+}
+for (const id of Object.keys(box.F)) assert.deepEqual(Object.keys(box.F[id]).sort(), preset(id).fonts.map(f => f.role).sort(), id + ' roles');
+assert.ok(src.includes('useMemo(') && src.slice(end).includes('(raw || {})'), 'component guards data and memoizes the layout');
 for (const key of ['preset', 'fields', 'primary', 'secondary', 'shadow', 'size', 'sparkles', 'fonts']) assert.ok(src.includes('data.' + key) || new RegExp('\\b' + key + '\\b').test(block), key);
 assert.ok(src.includes('delayRender') && src.includes('continueRender'), 'waits for fonts');
 assert.ok(src.includes('@font-face') && src.includes('data:font/woff2;base64,'), 'injects fonts');

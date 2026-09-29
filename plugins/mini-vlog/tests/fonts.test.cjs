@@ -49,7 +49,8 @@ for (const [family] of Object.values(EXPECTED)) {
   assert.ok(m, 'metrics for ' + family);
   assert.ok(m.unitsPerEm > 0 && m.xHeight > 0 && m.capHeight > 0 && m.ascent > 0 && m.descent < 0, family + ' vertical metrics');
   for (const ch of 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -') assert.ok(m.advances[ch] > 0 || (ch === ' ' && m.advances[ch] >= 0), family + ' advance ' + JSON.stringify(ch));
-  assert.ok(Array.isArray(m.dots.i) && m.dots.i.length === 2, family + ' i dot');
+  // [centre x, centre y, half height] of the dot contour.
+  for (const ch of ['i', 'j']) assert.ok(Array.isArray(m.dots[ch]) && m.dots[ch].length === 3 && m.dots[ch][2] > 0, family + ' ' + ch + ' dot');
   assert.ok(m.dots.i[1] > m.xHeight, family + ' i dot sits above the x-height');
 }
 assert.ok(p.metrics['MV DM Serif Display Italic'].advances['\u0131'] > 0, 'dotless i for sparkles');
