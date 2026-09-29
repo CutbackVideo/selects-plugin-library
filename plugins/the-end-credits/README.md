@@ -135,7 +135,7 @@ also needs Node.js 18 or later (see [INSTALL.md](INSTALL.md)). The bundled
 tracks work without them.
 
 **No music** builds with fixed 3.9 s shots. With Clip sound also **Off**, the
-panel warns "Silent video".
+panel warns "Silent video: no music and Clip sound is Off."
 
 ## Clip sound
 
