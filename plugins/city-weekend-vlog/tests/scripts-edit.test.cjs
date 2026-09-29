@@ -7,14 +7,15 @@ const load = (name, cfg) => new Function('selects', `return (async()=>{${fs.read
 // Like Selects, a new Draft adopts its first clip's frame size (`adopt`) on the first insert, over an earlier setFrameSize.
 // Photo resources (`photos`) and videos without an audio stream (`silent`) have no sound: muting leaves their audio
 // routing null. setAudioTracks returns an EditDiff whose opCount counts the clips whose routing changed.
-function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [], silent = [] } = {}) {
+// `adoptFps` models footage at another rate: the first insert switches the Draft to it before the clip is conformed.
+function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [], silent = [], adoptFps = null } = {}) {
   const log = [], clips = [], graphics = [], effects = {};
   let frame = 0, committed = false, frameSize = { width: 1920, height: 1080 }, inserted = false;
   return { log, clips, graphics, effects, reopen() { unsaved = false; committed = false; }, d: {
     meta: async () => ({ fps, frameSize: { ...frameSize } }),
     setFrameSize: async (s) => { frameSize = { ...s }; log.push(['size', s]); },
     insertResource: async ({ resourceId, sourceRange }) => {
-      if (!inserted) { inserted = true; frameSize = { ...adopt }; }
+      if (!inserted) { inserted = true; frameSize = { ...adopt }; if (adoptFps) fps = adoptFps; }
       if (photos.includes(resourceId) && sourceRange.endSeconds > 5 + 1e-9) throw Error('invalid_source_range');
       const len = Math.round((sourceRange.endSeconds - sourceRange.startSeconds) * fps); clips.push({ clipId: clips.length + 1, resourceId, trackKind: 'main', startFrame: frame, endFrame: frame + len, audioSourceIndexes: null }); frame += len; log.push(['insert', resourceId, sourceRange]); },
     clips: async ({ trackScope } = {}) => clips.filter(c => trackScope !== 'main' || c.trackKind === 'main').map(c => ({ ...c })),
@@ -63,7 +64,8 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.deepEqual((await m.d.meta()).frameSize, { width: 1080, height: 1920 });
   const t = m.log.filter(x => x[0] === 'transform');
   assert.equal(t.length, 2, 'only the landscape clips are cropped');
-  assert.ok(Math.abs(t[0][2].x - (1920 / 1080) / (1080 / 1920)) < 1e-6 || t[0][2].x > 1, 'cover scale');
+  // Cover scale for a 16:9 source on the 9:16 canvas: fill / fit = (1920/1080) / (1080/1920) ≈ 3.16.
+  for (const x of t) { assert.ok(Math.abs(x[2].x - (1920 / 1080) / (1080 / 1920)) < 1e-6, 'cover scale ' + x[2].x); assert.equal(x[2].y, x[2].x); }
   assert.equal(m.log.filter(x => x[0] === 'mute').length, 0, 'assemble leaves muting to decorate');
   assert.equal(m.log.find(x => x[0] === 'music')[1], 4.847);
   assert.deepEqual(m.log.find(x => x[0] === 'fade').slice(1), [99, 0, 0.12]);
@@ -87,6 +89,28 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   const dm2 = await load('decorate.js', cfgM)(selects);
   assert.deepEqual(dm2, { title: true, titleAdded: false, effects: 0, effectsKept: 0, muted: false, muteKept: true, committed: false, alreadyDone: true });
   assert.equal(m.log.filter(x => x[0] === 'mute').length, 1);
+
+  // 24 fps footage in a Draft that starts at 30 fps: the first insert switches the rate, so assembly starts again on a
+  // fresh Draft aimed at 24 fps. Only that Draft is committed, and every boundary (the first included) lands on it.
+  const drafts = [];
+  const sel24 = { project: () => ({ createDraft: async () => { const x = mockDraft(30, { adoptFps: 24 }); drafts.push(x); return x.d; }, resource: id => ({ id }) }) };
+  const r24 = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [
+    { rid: 'r0', startSeconds: 2, endSeconds: 3.0667 }, { rid: 'r1', startSeconds: 5, endSeconds: 5.9 }, { rid: 'r0', startSeconds: 8, endSeconds: 8.6 }],
+    boundaries, crops: {}, music: { resourceId: 'r9', sectionStart: 4.847 } })(sel24);
+  assert.equal(drafts.length, 2, 'a fresh Draft once the rate is known');
+  assert.equal(drafts[0].log.filter(x => x[0] === 'commit').length, 0, 'the first attempt is not saved');
+  assert.equal(drafts[1].log.filter(x => x[0] === 'commit').length, 1);
+  assert.equal(r24.fps, 24);
+  const off24 = 4.847 - Math.round(4.847 * 24) / 24;
+  const want24 = boundaries.slice(1).map(b => Math.round((b + off24) * 24));
+  assert.deepEqual(drafts[1].clips.filter(c => c.trackKind === 'main').map(c => c.endFrame), want24);
+  assert.equal(r24.totalFrames, want24[2]);
+  assert.deepEqual((await drafts[1].d.meta()).frameSize, { width: 1080, height: 1920 });
+  // Footage at the Draft's own rate lays the clips once.
+  const once = [];
+  await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [{ rid: 'r0', startSeconds: 0, endSeconds: 1 }], boundaries: [0, 1], crops: {}, music: null })(
+    { project: () => ({ createDraft: async () => { const x = mockDraft(30, { adoptFps: 30 }); once.push(x); return x.d; }, resource: id => ({ id }) }) });
+  assert.equal(once.length, 1);
 
   // Pre-existing audio (one with the same resource id as the music) must not be mistaken for the new clip.
   const m3 = mockDraft(30);

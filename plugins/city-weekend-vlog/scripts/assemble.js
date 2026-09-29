@@ -1,30 +1,45 @@
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
-const d = await p.createDraft({ name: cfg.draftName });
 const notes = [];
 const W = 1080, H = 1920;
-await d.setFrameSize({ width: W, height: H });
-let fps = (await d.meta()).fps;
+let d, fps, endFrame;
 const main = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null);
-let endFrame = 0;
 // Selects snaps the music's source start to a frame, which shifts the whole track by up to half a frame; every cut
 // moves with it so it stays on the beat (planner.js cwvMusicOffset, same expression).
 const offset = f => (cfg.music ? cfg.music.sectionStart - Math.round(cfg.music.sectionStart * f) / f : 0);
-for (let i = 0; i < cfg.picks.length; i++) {
-  const pick = cfg.picks[i];
-  // Aim each clip's end at its planned boundary frame at the Draft's real rate so rounding never drifts.
-  // cfg.boundaries are seconds from the start of the music section (beat * 60 / bpm).
-  const want = Math.round((cfg.boundaries[i + 1] + offset(fps)) * fps) - endFrame;
-  // A photo holds for the slot from the start of its (5 s) image source.
-  const start = pick.kind === 'photo' ? 0 : pick.startSeconds;
-  await d.insertResource({ resourceId: pick.rid, sourceRange: { startSeconds: start, endSeconds: start + want / fps } });
-  endFrame = (await main()).reduce((a, c) => Math.max(a, c.endFrame), 0);
-  // The first clip sets the Draft's rate; later boundaries use it.
-  if (i === 0) fps = (await d.meta()).fps;
-}
-// A new Draft adopts its first clip's frame size on the first insert, so the 9:16 canvas is set again afterwards.
-const size0 = (await d.meta()).frameSize;
-if (size0.width !== W || size0.height !== H) await d.setFrameSize({ width: W, height: H });
+// Lays the Main clips on a new Draft, aiming every boundary at `rate` (or the new Draft's own rate).
+// A new Draft adopts its first clip's rate and frame size on the first insert. When the rate changes there, the clips
+// were aimed at the wrong rate, so this returns the real rate unless `final`; the caller then lays them again on a
+// fresh Draft. The discarded Draft is never committed, so it is not saved.
+const lay = async (rate, final) => {
+  d = await p.createDraft({ name: cfg.draftName });
+  await d.setFrameSize({ width: W, height: H });
+  fps = rate || (await d.meta()).fps;
+  endFrame = 0;
+  for (let i = 0; i < cfg.picks.length; i++) {
+    const pick = cfg.picks[i];
+    // Aim each clip's end at its planned boundary frame at the Draft's real rate so rounding never drifts.
+    // cfg.boundaries are seconds from the start of the music section (beat * 60 / bpm).
+    const want = Math.round((cfg.boundaries[i + 1] + offset(fps)) * fps) - endFrame;
+    // A photo holds for the slot from the start of its (5 s) image source.
+    const start = pick.kind === 'photo' ? 0 : pick.startSeconds;
+    await d.insertResource({ resourceId: pick.rid, sourceRange: { startSeconds: start, endSeconds: start + want / fps } });
+    endFrame = (await main()).reduce((a, c) => Math.max(a, c.endFrame), 0);
+    if (i === 0) {
+      // The first insert adopted the clip's frame size, so the 9:16 canvas is set again before the rate is read.
+      const size0 = (await d.meta()).frameSize;
+      if (size0.width !== W || size0.height !== H) await d.setFrameSize({ width: W, height: H });
+      const real = (await d.meta()).fps;
+      if (real !== fps) {
+        if (!final) return real;
+        fps = real;
+      }
+    }
+  }
+  return null;
+};
+const real = await lay(null, false);
+if (real) await lay(real, true);
 // Photo sizes the inventory could not measure: an unsaved scratch Draft adopts the photo's frame size.
 const crops = Object.assign({}, cfg.crops);
 for (const pick of cfg.picks) {
