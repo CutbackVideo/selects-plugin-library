@@ -597,7 +597,8 @@ function stSlots(schedule, frames, fps) {
   return out;
 }
 
-function stFmtSeconds(x) { return String(Math.ceil(x * 10 - 1e-6) / 10); }
+// Seconds for a reason string, rounded up to 0.1 s ("5.9").
+function stFmtSeconds(x) { return (Math.ceil(x * 10 - 1e-6) / 10).toFixed(1); }
 
 // Plans a build (spec 5, 15.4). opts: {
 //   candidates: search hits [{ rid, role, t, score, sourceDuration }] + photos [{ rid, kind: 'photo' }],
