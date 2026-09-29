@@ -56,7 +56,8 @@ for (let i = 0; i < ids.length; i++) {
   await d.addVideoEffect({ clip, label: TORN_LABEL, tsxCode: cfg.torn.tsx,
     parameters: { ...entry.data, holdFrames: clip.endFrame - clip.startFrame, originFrame },
     // JSON-inlined definitions widen their literal `type`; cast for run_script's type check.
-    editableParameters: /** @type {any} */ (cfg.torn.editable) });
+    // Each clip's Inspector shows its own values (tear seed, tilt, look) as the defaults.
+    editableParameters: /** @type {any} */ (cfg.torn.editable.map(e => (e.key in entry.data ? { ...e, defaultValue: entry.data[e.key] } : e))) });
   effects++;
 }
 const lettersFound = (await d.motionGraphics()).some(g => g.name === LETTERS_LABEL);

@@ -168,7 +168,7 @@ for (const [st, fps] of [[s, 25], [s, 29.97], [L, 25], [L, 29.97], [plan({ pace:
   D.torn.clips.forEach((c, i) => {
     const slot = st.slots[i], t = st.transitions[i], d = c.data;
     assert.equal(c.sourceStartSeconds, slot.kind === 'video' ? slot.startSeconds : 0);
-    assert.equal(d.seed, P.tplSeedFor(slot.identity, st.options.seed));
+    assert.equal(d.seed, P.tplSeedFor(slot.identity, st.options.seed) % 10000, "tear seed fits the 0-9999 Inspector field");
     if (seedOf[slot.identity] != null) assert.equal(d.seed, seedOf[slot.identity], 'both passes share the tear');
     seedOf[slot.identity] = d.seed;
     assert.equal(d.entry, t.entry);

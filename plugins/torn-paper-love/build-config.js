@@ -232,7 +232,7 @@ function tplTornEditable(state) {
     { key: 'edge', label: 'Edge width', type: 'number', defaultValue: TPL_EDGE, min: 0.5, max: 3, step: 0.1 },
     { key: 'inset', label: 'Photo size', type: 'number', defaultValue: TPL_INSET, min: 70, max: 95, step: 1 },
     { key: 'tilt', label: 'Tilt', type: 'number', defaultValue: 0, min: -5, max: 5, step: 0.5 },
-    { key: 'seed', label: 'Tear seed', type: 'number', defaultValue: 0, min: 0, max: 4294967295, step: 1 },
+    { key: 'seed', label: 'Tear seed', type: 'number', defaultValue: 0, min: 0, max: 9999, step: 1 },
     { key: 'motion', label: 'Photo motion', type: 'select', defaultValue: 'off', options: [
       { label: 'Off', value: 'off' }, { label: 'Push in', value: 'push-in' }, { label: 'Pull out', value: 'pull-out' }, { label: 'Drift', value: 'drift' }] },
     { key: 'motionStrength', label: 'Motion strength', type: 'number', defaultValue: TPL_MOTION_STRENGTH, min: 0, max: 1, step: 0.05 },
@@ -260,7 +260,7 @@ function tplDecorateConfig(state, assembled, assets) {
   const timing = tplTimingAt(state, fps, assembled.frames);
   const clips = state.slots.map((x, i) => {
     const t = state.transitions[i];
-    const seed = tplSeedFor(x.identity, o.seed);
+    const seed = tplSeedFor(x.identity, o.seed) % 10000; // small enough for an Inspector field
     const size = state.sizes[x.rid];
     const tilt = o.tilt ? Math.round((tplRandom(seed + ':tilt') * 2 - 1) * TPL_TILT_MAX * 100) / 100 : 0;
     return {
