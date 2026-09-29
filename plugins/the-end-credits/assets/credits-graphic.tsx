@@ -26,7 +26,9 @@ var TEC_CREDITS = { ascent: 1.05, descent: 0.35, roleSize: 28, nameSize: 24, gap
 var TEC_TYPING = { start: 0.47, maxSlot: 0.42, budget: 4.4 };
 var TEC_CREDITS_FADE = { from: 4.0, to: 6.0 };
 var TEC_MASK = { band: 0.14, floor: 0.35 };
-var TEC_FULL_FX = { moveSec: 0.8, overlayLead: 0.5, overlaySec: 1.0, scrim: 0.25, gradFrom: 0.45, gradTo: 1.0, gradAlpha: 0.7 };
+// The gradient is clear up to gradFrom, reaches gradAlpha at gradTo and holds to the right edge, so the whole credit
+// column (63-93 % of W) sits on the dark part (live check: cream text over a white wall was hard to read).
+var TEC_FULL_FX = { moveSec: 0.8, overlayLead: 0.5, overlaySec: 1.0, scrim: 0.25, gradFrom: 0.4, gradTo: 0.62, gradAlpha: 0.75 };
 
 function tecClamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
@@ -296,6 +298,7 @@ export default function TheEndCredits({ data }) {
           position: "absolute", left: credits.colX - credits.colW / 2, width: credits.colW, top,
           textAlign: "center", whiteSpace: "nowrap", fontFamily: creditFace.stack, fontWeight: creditFace.weight,
           fontStyle: creditFace.style, fontSize: size, lineHeight: `${lh * size}px`, color: creditColor,
+          textShadow: layout === "full" ? `0 ${0.002 * H}px ${0.008 * H}px rgba(0,0,0,0.7)` : "none",
         }}
       >
         {text}
@@ -316,7 +319,7 @@ export default function TheEndCredits({ data }) {
         <AbsoluteFill
           style={{
             opacity: overlay.gradient,
-            backgroundImage: `linear-gradient(to right, rgba(0,0,0,0) ${TEC_FULL_FX.gradFrom * 100}%, rgba(0,0,0,${TEC_FULL_FX.gradAlpha}) ${TEC_FULL_FX.gradTo * 100}%)`,
+            backgroundImage: `linear-gradient(to right, rgba(0,0,0,0) ${TEC_FULL_FX.gradFrom * 100}%, rgba(0,0,0,${TEC_FULL_FX.gradAlpha}) ${TEC_FULL_FX.gradTo * 100}%, rgba(0,0,0,${TEC_FULL_FX.gradAlpha}) 100%)`,
           }}
         />
       ) : null}
