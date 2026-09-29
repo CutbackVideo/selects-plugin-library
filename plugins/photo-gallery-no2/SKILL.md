@@ -7,6 +7,8 @@ description: Create a 21-tile Photo Gallery Draft in Selects from ordered origin
 
 Use this skill for the 3-column × 7-row format of [the reference TikTok](https://www.tiktok.com/@yana_zinooyoon/video/7487656824712350994). Recreate the grid, reveal order, and simultaneous grayscale-to-color switch; the 21 tile contents may differ. Each chosen JPG/PNG remains its original Image Resource and becomes a separate editable Image clip. Do not convert photos to MP4, flatten the gallery, or silently fill a missing slot. A black Main video is unnecessary: the shared operation creates a 853-frame gap-backed Draft.
 
+The original has visible movement in tiles **4, 6, 11, 17, 19, and 21** (one-based, left-to-right then top-to-bottom). For a motion-faithful result, assign Video Resources to those six slots and Images to the other 15; the actual content may differ. The panel offers a reference-mix assignment button when the Project contains exactly 15 Images and 6 Videos, and warns if the selected complete set has still Images in moving slots. Users may deliberately choose another mix, but an all-Image output only validates the grid and timing, not the original movement.
+
 ## Shared operations
 
 The panel and chat use the same `planGallery` contract, preflight, styling, and readback operations from `build-script.mjs`; do not recreate these rules in a prompt. The panel alone can access Selects' native Image-placement service. `run_script` cannot call it. Feed operation JSON through stdin or a temporary file, never shell-interpolated user text. Run `inspect`, `preflight`, and `verifyCreated` with `allowCommit:false`; mutating operations require `allowCommit:true`. Read [INSTALL.md](INSTALL.md) for current capability limits.

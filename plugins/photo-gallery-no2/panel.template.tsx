@@ -5,6 +5,7 @@ import React from 'react';
 /*__SHARED_SCRIPT_BUILDER__*/
 
 const SLOT_KEYS = Array.from({ length: 21 }, (_, i) => `tile-${String(i + 1).padStart(2, '0')}`);
+const REFERENCE_VIDEO_SLOTS = new Set([4, 6, 11, 17, 19, 21]);
 const emptySlots = () => SLOT_KEYS.map(() => ({ resourceId: '', focusX: 0.5, focusY: 0.5 }));
 const shellQuote = value => "'" + String(value).replace(/'/g, "'\"'\"'") + "'";
 const STRINGS = {
@@ -14,6 +15,8 @@ const STRINGS = {
     createMode: '\uc0c8 \ud3b8\uc9d1\ubcf8',
     slot: '\uce78', media: '\uc0ac\uc9c4 \ub610\ub294 \uc601\uc0c1', choose: '\ubbf8\ub514\uc5b4 \uc120\ud0dd', noMedia: '\ud504\ub85c\uc81d\ud2b8\uc5d0 \uc0ac\uc9c4 \ub610\ub294 \uc601\uc0c1\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.',
     assigned: '\uc9c0\uc815\ud55c \uce78', fill: '21\uac1c\ub97c \ubaa9\ub85d \uc21c\uc11c\ub85c \uc9c0\uc815', fillHint: '\uc0ac\uc9c4 21\uac1c\uac00 \uc788\uc73c\uba74 \uc0ac\uc9c4\uc744 \uc6b0\uc120\ud569\ub2c8\ub2e4. \uac19\uc740 \ubbf8\ub514\uc5b4\ub97c \uc5ec\ub7ec \uce78\uc5d0 \uc4f0\ub824\uba74 \uac01 \uce78\uc5d0\uc11c \uc9c1\uc811 \uace0\ub974\uc138\uc694.',
+    referenceMix: '\uc6d0\ubcf8 \uc6c0\uc9c1\uc784 \uad6c\uc131\uc73c\ub85c \uc9c0\uc815 (\uc0ac\uc9c4 15 + \uc601\uc0c1 6)',
+    motionMissing: '\uc6d0\ubcf8\uc5d0\uc11c\ub294 \ub2e4\uc74c \uce78\uc774 \uc6c0\uc9c1\uc785\ub2c8\ub2e4. \ud604\uc7ac \uc0ac\uc9c4\uc73c\ub85c \uc9c0\uc815\ub41c \uce78: ',
     focusX: '\uac00\ub85c \ucd08\uc810', focusY: '\uc138\ub85c \ucd08\uc810',
     editLimits: "\uc0dd\uc131\ub41c 21\uce78\uc740 Selects \ud0c0\uc784\ub77c\uc778\uc5d0\uc11c \uac01\uac01 \ud3b8\uc9d1\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc758 \uae30\uc874 \ud3b8\uc9d1\ubcf8 \ud55c \uce78\ub9cc \ubc14\uafb8\uae30\ub294 \uc544\uc9c1 \uc9c0\uc6d0\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     music: '\uc74c\uc545', noMusic: '\uc74c\uc545 \uc5c6\uc74c',
@@ -31,6 +34,7 @@ const STRINGS = {
     createMode: 'New Draft',
     slot: 'Tile', media: 'Photo or video', choose: 'Choose media', noMedia: 'No photos or videos in this project.',
     assigned: 'Assigned tiles', fill: 'Assign all 21 in listed order', fillHint: 'When there are 21 photos, they take priority. To reuse an item, choose it for each tile explicitly.',
+    referenceMix: 'Assign reference mix', motionMissing: 'The reference moves in these tiles, which currently contain still photos: ',
     focusX: 'Horizontal focus', focusY: 'Vertical focus',
     editLimits: 'Each of the 21 tiles can be edited in the Selects timeline. Plugin-guided single-tile replacement is not yet available.',
     music: 'Music', noMusic: 'No music',
@@ -70,7 +74,11 @@ export default function Panel({ sdk, context, ui }) {
   const selectedMusic = inventory?.audio?.find(item => item.resourceId === musicChoice);
   const assigned = slots.filter(item => !!item.resourceId).length;
   const photos = inventory?.media?.filter(item => item.kind === 'image') || [];
+  const videos = inventory?.media?.filter(item => item.kind === 'video') || [];
   const autoFillMedia = photos.length === 21 ? photos : inventory?.media?.length === 21 ? inventory.media : null;
+  const canAssignReferenceMix = inventory?.media?.length === 21 && photos.length === 15 && videos.length === 6;
+  const missingMotion = assigned === 21 ? [...REFERENCE_VIDEO_SLOTS].filter(number =>
+    inventory.media.find(item => item.resourceId === slots[number - 1].resourceId)?.kind !== 'video') : [];
   const sameContext = (projectId, sequenceId) => current.current.projectId === projectId && current.current.sequenceId === sequenceId;
 
   React.useEffect(() => {
@@ -278,7 +286,13 @@ export default function Panel({ sdk, context, ui }) {
     {ready && <ui.Section title={t.media}>
       <p>{t.assigned}: {assigned}/21</p>
       {autoFillMedia && <ui.Button variant="secondary" onClick={() => setSlots(autoFillMedia.map(item => ({ resourceId: item.resourceId, focusX: 0.5, focusY: 0.5 })))} disabled={busy}>{t.fill}</ui.Button>}
+      {canAssignReferenceMix && <ui.Button variant="secondary" onClick={() => {
+        let photoIndex = 0, videoIndex = 0;
+        setSlots(SLOT_KEYS.map((_, index) => ({ resourceId: (REFERENCE_VIDEO_SLOTS.has(index + 1)
+          ? videos[videoIndex++] : photos[photoIndex++]).resourceId, focusX: 0.5, focusY: 0.5 })));
+      }} disabled={busy}>{t.referenceMix}</ui.Button>}
       {autoFillMedia && <small>{t.fillHint}</small>}
+      {missingMotion.length > 0 && <small>{t.motionMissing}{missingMotion.join(', ')}</small>}
       {inventory.media.length === 0 && <ui.Message tone="error">{t.noMedia}</ui.Message>}
       <ui.Select label={t.slot} value={selectedSlot} onChange={setSelectedSlot} options={SLOT_KEYS.map((value, i) => ({ value: String(i), label: String(i + 1).padStart(2, '0') + ' · ' + (slots[i].resourceId ? (inventory.media.find(media => media.resourceId === slots[i].resourceId)?.name || slots[i].resourceId) : t.choose) }))}/>
       <ui.Select label={t.media} value={slot.resourceId || null} onChange={resourceId => updateSlot({ resourceId })} options={inventory.media.map(item => ({ value: item.resourceId, label: item.name + ' · ' + item.kind }))} placeholder={t.choose} disabled={busy}/>

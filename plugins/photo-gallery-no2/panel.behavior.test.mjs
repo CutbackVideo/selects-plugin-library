@@ -107,6 +107,7 @@ test('21 original photos follow one panel action through preflight, native place
   const h = harness();
   await assignAndCreate(h.view);
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
+  assert.match(h.view.container.textContent, /reference moves in these tiles.*4, 6, 11, 17, 19, 21/);
   assert.deepEqual(h.calls.map(call => call.input.operation),
     ['inspect', 'preflight', 'createBase', 'fillBase', 'styleExisting', 'verifyCreated']);
   assert.deepEqual(h.nativeCalls, ['resources', 'resources', 'fps', 'place']);
@@ -125,6 +126,24 @@ test('a mixed photo/video gallery preserves its selected video slot', async () =
   assert.equal(placed[20].path, '/fixture/moving.mp4');
   assert.ok(h.calls.some(call => call.input.operation === 'placeVideosExisting'));
   assert.equal(h.nativeCalls.filter(item => item === 'place').length, 1);
+});
+
+test('an exact 15-photo/6-video selection assigns motion to the observed reference slots', async () => {
+  const stills = photos.slice(0, 15);
+  const videos = Array.from({ length: 6 }, (_, i) => ({ resourceId: `video-${i + 1}`,
+    name: `Video ${i + 1}`, kind: 'video', width: 128, height: 96,
+    durationFrames: 900, path: `/fixture/video-${i + 1}.mp4` }));
+  const h = harness([...stills, ...videos]);
+  fireEvent.click(h.view.getByRole('button', { name: 'Load project media' }));
+  fireEvent.click(await waitFor(() => h.view.getByRole('button', { name: 'Assign reference mix' })));
+  fireEvent.click(h.view.getByLabelText('Enter BPM manually'));
+  fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
+  await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
+  const assigned = h.calls.find(call => call.input.operation === 'styleExisting').input.media;
+  assert.deepEqual(assigned.flatMap((item, index) => item.kind === 'video' ? [index + 1] : []),
+    [4, 6, 11, 17, 19, 21]);
+  assert.deepEqual(assigned.filter(item => item.kind === 'video').map(item => item.resourceId),
+    videos.map(item => item.resourceId));
 });
 
 test('a short video is extended before any Draft is created', async () => {
