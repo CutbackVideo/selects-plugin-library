@@ -47,3 +47,4 @@ jobs:
           node plugins/summer-trip/tests/scripts-read.test.cjs
           node plugins/summer-trip/tests/title.test.cjs
           node plugins/summer-trip/tests/fonts.test.cjs
+          node plugins/summer-trip/tests/panel.test.cjs
