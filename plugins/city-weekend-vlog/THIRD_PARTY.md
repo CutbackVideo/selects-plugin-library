@@ -56,7 +56,7 @@ Brooklyn Boom Bap, Downtown Funk Break and Sunset Afro House were added on 2026-
 
 ## Gallery preview footage
 
-`preview.mp4` and `poster.webp` are not installed with the plugin. They show a City Weekend Vlog build (Sunset Afro House, Retro Diner, "saturday / in / TOKYO") made from these Pexels clips under the Pexels License (https://www.pexels.com/license/):
+`preview.mp4` and `poster.webp` are not installed with the plugin. They show a City Weekend Vlog build (Brooklyn Boom Bap, Travel Journal, "saturday / in / TOKYO") made from these Pexels clips under the Pexels License (https://www.pexels.com/license/):
 
 - Tokyo skyscraper street scene, by Muhammed Fatih KARAKUŞ: https://www.pexels.com/video/urban-scene-with-tokyo-skyscraper-38788065/
 - Tokyo Station area high-rises, daylight, by DOAN HUY: https://www.pexels.com/video/tokyo-station-17850329/
