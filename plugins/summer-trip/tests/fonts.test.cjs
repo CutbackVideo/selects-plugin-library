@@ -29,11 +29,16 @@ for (const preset of p.presets) {
   for (const r of ROLES) assert.ok(preset.roles[r] && p.fonts[preset.roles[r].file], preset.id + ' role ' + r);
   const used = [...new Set(ROLES.map(r => preset.roles[r].file))].sort();
   assert.deepEqual([...preset.fonts].sort(), used, preset.id + ' lists only (and all) the fonts it uses');
-  // Payload: the preset's base64 fonts (both graphics together, a worst case) + both TSX sources stay well under the
-  // ~260 KB run_script payload.
-  const fontBytes = preset.fonts.reduce((a, f) => a + b64Of(f).length, 0);
-  sizes[preset.id] = { fonts: fontBytes, tsx: tsxBytes, total: fontBytes + tsxBytes };
-  assert.ok(fontBytes + tsxBytes <= 180000, preset.id + ' payload ' + (fontBytes + tsxBytes));
+  // Payload: decorate sends BOTH graphics in one run_script call and each graphic carries its own `fonts` map (the label
+  // faces appear in both), so the realistic size is title fonts + labels fonts + both TSX sources. Lane 4's effect TSX and
+  // decorate.js ride in the same call, so this slice must stay well under the ~260 KB run_script payload.
+  const titleFiles = [...new Set(['line1', 'season', 'label', 'labelItalic'].map(r => preset.roles[r].file))];
+  const labelFiles = [...new Set(['label', 'labelItalic', 'place', 'placePrefix'].map(r => preset.roles[r].file))];
+  const sum = files => files.reduce((a, f) => a + b64Of(f).length, 0);
+  const titleFonts = sum(titleFiles), labelFonts = sum(labelFiles);
+  const total = titleFonts + labelFonts + tsxBytes;
+  sizes[preset.id] = { titleFonts, labelFonts, tsx: tsxBytes, total };
+  assert.ok(total <= 180000, preset.id + ' payload ' + total);
   for (const k of ['line1', 'season', 'labels', 'place']) assert.match(preset.colors[k], /^#[0-9A-F]{6}$/i, preset.id + ' color ' + k);
 }
 assert.equal(p.presets.find(x => x.id === 'poster').roles.season.file, 'anton.woff2.b64');

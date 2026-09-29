@@ -107,6 +107,9 @@ are **flat top-level keys** because the Inspector edits one top-level key per ed
   placeY (38.9), prefixScale, prefixDrop, placeCapRatio, marginPct, faces, fonts }`.
 - `faces`: `{ [role]: { family, case, tracking, scaleX, fillWidth? } }` (title roles line1/season/label/labelItalic; labels roles
   label/labelItalic/place/placePrefix). `fonts`: `{ [family]: base64 }` — only the chosen preset's families.
+- Faces: every `ST ...` family is a single face. The graphics declare each `@font-face` as normal/400 and never request
+  italic/bold in CSS (the family itself is the italic/bold face); the panel preview must register them the same way (ignore
+  `style`/`weight` in presets.json, which are informational), or the preview and the render will disagree.
 - `fontsB64`: `{ [file]: base64 text }` for `stPresetFontFiles(presets, presetId)` (read `assets/fonts/<file>`); a build embeds
   only the chosen preset's fonts.
 - Adjust: `stEditable(ST_TITLE_EDITABLE, params)` / `stEditable(ST_LABELS_EDITABLE, params)` (defaultValue = the parameter).
