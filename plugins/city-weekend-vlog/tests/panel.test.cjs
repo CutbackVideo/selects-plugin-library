@@ -19,4 +19,10 @@ assert.match(panel, /No valid session ID/);
 assert.ok(!/reopen this panel/.test(panel), 'reopening the panel does not re-read the inventory');
 assert.ok(panel.indexOf('addEventListener("visibilitychange"') < panel.indexOf('if (!projectId) return <ui'), 'hooks stay before the early return');
 assert.ok(!/Streamable HTTP error/.test(panel), 'only the session-id failure is resent');
+// Music section slider: a canvas waveform with a draggable, keyboard-operable window, drawn in theme colours.
+for (const phrase of ['role="slider"', 'aria-valuenow', 'aria-valuetext', '--panel-accent', '--panel-muted-fg', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"grabbing"', '"ArrowLeft"', '"Home"', '"End"', 'drag to choose', 'fmtTime(total)', 'Starts at ']) assert.ok(panel.includes(phrase), phrase);
+assert.ok(!/--text-tertiary/.test(panel), '--text-tertiary is not a panel token');
+assert.ok(!/var\(--accent\b/.test(panel), '--accent is not a panel token');
+// Title preview keeps one height: fixed slots sized for the largest scale, clipped by the box.
+for (const phrase of ['height: previewBox', 'slotStyle(bigSlot)', 'slotStyle(smallSlot)', 'maxScale']) assert.ok(panel.includes(phrase), phrase);
 console.log(JSON.stringify({ panel: 'ok' }));

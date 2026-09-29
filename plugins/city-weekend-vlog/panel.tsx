@@ -267,6 +267,155 @@ function faceStyle(s: any) {
 }
 // Preview font size: shrink long lines so they stay inside the preview box.
 function previewSize(text: string, base: number, scale: number) { return Math.min(base, (base * 11) / Math.max(11, text.length)) * (scale || 1); }
+// Title preview line slots, sized for the largest state scale so the box never changes height while fonts cycle.
+const PREVIEW_BIG = 34, PREVIEW_SMALL = 15, PREVIEW_MAX_SCALE_FLOOR = 1.15;
+
+function fmtTime(seconds: number) {
+  const s = Math.max(0, Math.round(seconds));
+  return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+// Resolves a --panel-* colour for canvas drawing; falls back when the token is missing or not a colour.
+function themeColor(el: Element, ctx: CanvasRenderingContext2D, name: string, fallback: string) {
+  const v = getComputedStyle(el).getPropertyValue(name).trim();
+  if (!v) return fallback;
+  ctx.fillStyle = "#010203";
+  ctx.fillStyle = v;
+  return ctx.fillStyle === "#010203" ? fallback : v;
+}
+const WAVE_HEIGHT = 56;
+
+// Music section slider: waveform on a canvas with a draggable, bar-snapped window over the chosen section.
+function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, onChange, disabled }: {
+  peaks: number[]; total: number; section: number | null; videoSeconds: number; barSeconds: number;
+  snap: (v: number) => number | null; onChange: (v: number | null) => void; disabled: boolean;
+}) {
+  const wrapRef = React.useRef<HTMLDivElement | null>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const dragRef = React.useRef<{ offset: number } | null>(null);
+  const [width, setWidth] = React.useState(0);
+  const [dragging, setDragging] = React.useState(false);
+  const [focused, setFocused] = React.useState(false);
+
+  React.useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    setWidth(el.clientWidth);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Bundled peaks can exceed 1.0 slightly, so scale by the loudest bar when it does.
+  const peakMax = Math.max(1, ...peaks);
+  React.useEffect(() => {
+    const canvas = canvasRef.current, wrap = wrapRef.current;
+    if (!canvas || !wrap || width <= 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * dpr); canvas.height = Math.round(WAVE_HEIGHT * dpr);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, WAVE_HEIGHT);
+    const accent = themeColor(wrap, ctx, "--panel-accent", "#f6c343");
+    const muted = themeColor(wrap, ctx, "--panel-muted-fg", "#8a8a8a");
+    const mid = WAVE_HEIGHT / 2;
+    const x0 = section == null ? -1 : (section / total) * width;
+    const x1 = section == null ? -1 : Math.min(width, ((section + videoSeconds) / total) * width);
+    const inside = (x: number) => x >= x0 && x <= x1;
+    // Selected window: translucent fill under the bars.
+    if (section != null) {
+      ctx.globalAlpha = 0.18; ctx.fillStyle = accent;
+      ctx.fillRect(x0, 0, Math.max(2, x1 - x0), WAVE_HEIGHT);
+      ctx.globalAlpha = 1;
+    }
+    // Mirrored bars, one per ~2.5 CSS px; each bar is the loudest peak it covers.
+    const pitch = 2.5, count = Math.max(1, Math.floor(width / pitch)), barW = Math.max(1, pitch * 0.6);
+    for (let i = 0; i < count; i++) {
+      const x = i * pitch + (pitch - barW) / 2;
+      let p = 0;
+      if (peaks.length) {
+        const a = Math.floor((i / count) * peaks.length), b = Math.max(a + 1, Math.floor(((i + 1) / count) * peaks.length));
+        for (let j = a; j < b && j < peaks.length; j++) p = Math.max(p, peaks[j] || 0);
+      }
+      const h = Math.max(1, (p / peakMax) * (mid - 3));
+      const on = inside(x + barW / 2);
+      ctx.globalAlpha = on ? 1 : 0.4; ctx.fillStyle = on ? accent : muted;
+      ctx.fillRect(x, mid - h, barW, h * 2);
+    }
+    ctx.globalAlpha = 1;
+    // Window border and two grip handles so it reads as draggable.
+    if (section != null) {
+      const w = Math.max(2, x1 - x0);
+      ctx.strokeStyle = accent; ctx.lineWidth = 1.5;
+      ctx.strokeRect(x0 + 0.75, 0.75, Math.max(0.5, w - 1.5), WAVE_HEIGHT - 1.5);
+      ctx.fillStyle = accent;
+      const gh = Math.min(18, WAVE_HEIGHT * 0.4), gw = 4;
+      for (const gx of [x0 + 1, x0 + w - 1 - gw]) {
+        ctx.beginPath();
+        if ((ctx as any).roundRect) (ctx as any).roundRect(gx, mid - gh / 2, gw, gh, 2); else ctx.rect(gx, mid - gh / 2, gw, gh);
+        ctx.fill();
+      }
+    }
+  }, [width, peaks, peakMax, section, videoSeconds, total]);
+
+  const timeAt = (clientX: number) => {
+    const r = wrapRef.current!.getBoundingClientRect();
+    return (Math.min(Math.max(0, clientX - r.left), r.width) / Math.max(1, r.width)) * total;
+  };
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled || e.button !== 0) return;
+    const t = timeAt(e.clientX);
+    const s = section ?? 0;
+    // Grabbing the window keeps the grab point; anywhere else centres the window there.
+    const offset = section != null && t >= s && t <= s + videoSeconds ? t - s : videoSeconds / 2;
+    dragRef.current = { offset };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* capture is optional */ }
+    setDragging(true);
+    onChange(snap(t - offset));
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    onChange(snap(timeAt(e.clientX) - dragRef.current.offset));
+  };
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    if (e.type === "pointerup") onChange(snap(timeAt(e.clientX) - dragRef.current.offset));
+    dragRef.current = null; setDragging(false);
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+  };
+  const first = snap(0), last = snap(total);
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled || section == null) return;
+    let next: number | null | undefined;
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") next = snap(section - barSeconds);
+    else if (e.key === "ArrowRight" || e.key === "ArrowUp") next = snap(section + barSeconds);
+    else if (e.key === "Home") next = first;
+    else if (e.key === "End") next = last;
+    else return;
+    e.preventDefault();
+    onChange(next);
+  };
+
+  return (
+    <div>
+      <small style={{ display: "block", marginBottom: 4 }}>{"Music section — drag to choose"}</small>
+      <div ref={wrapRef} role="slider" tabIndex={disabled ? -1 : 0} aria-label="Music section"
+        aria-valuemin={Number((first ?? 0).toFixed(1))} aria-valuemax={Number((last ?? 0).toFixed(1))} aria-valuenow={Number((section ?? 0).toFixed(1))}
+        aria-valuetext={section == null ? "This music is too short for this length" : "Starts at " + section.toFixed(1) + " s"} aria-disabled={disabled || undefined}
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} onKeyDown={onKeyDown}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        style={{ position: "relative", width: "100%", minWidth: 0, height: WAVE_HEIGHT, touchAction: "none", userSelect: "none", outline: "none",
+          cursor: disabled ? "default" : dragging ? "grabbing" : "grab", borderRadius: "var(--panel-radius, 6px)",
+          boxShadow: focused ? "0 0 0 2px var(--panel-accent, #f6c343)" : "inset 0 0 0 1px var(--panel-border, rgba(128, 128, 128, 0.35))", opacity: disabled ? 0.6 : 1 }}>
+        <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: WAVE_HEIGHT, pointerEvents: "none" }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--panel-muted-fg)", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
+        <span>0:00</span><span>{fmtTime(total)}</span>
+      </div>
+    </div>
+  );
+}
 
 export default function Panel({ sdk, context, ui }: any) {
   const projectId = context?.projectId ?? null;
@@ -650,16 +799,19 @@ export default function Panel({ sdk, context, ui }: any) {
       : "No analysed video in this Project yet. Add and analyse video clips; this updates automatically.")
     : "Ready: " + inventory.resources.length + " analysed clips · about " + Math.round(videoSeconds) + " s" + (inventory.skipped.unanalysed ? " · " + inventory.skipped.unanalysed + " clips not analysed yet" : "");
   const peaks: number[] = grid.peaks || [];
-  // Bundled peaks can exceed 1.0 slightly, so scale by the loudest bar when it does.
-  const peakMax = Math.max(1, ...peaks);
   const total = ownMusic ? (ownDuration || 1) : (cue ? cue.duration : 1);
-  const boxLeft = ((section || 0) / total) * 100, boxWidth = Math.min(100 - boxLeft, (videoSeconds / total) * 100);
   const silent = cueId === "none" && !ownMusic && !keepSound;
   const canOwnMusic = tools.ffmpeg && tools.node;
   const presetList: any[] = assets?.presets.presets || [];
   const chosen = presetList.find((x) => x.id === preset) || null;
   const swapKey = STATE_KEYS[tick % STATE_KEYS.length];
   const placeText = place.trim();
+  // Fixed preview geometry: the largest state scale across all presets (never below PREVIEW_MAX_SCALE_FLOOR).
+  const maxScale = presetList.reduce((m, p) => Math.max(m, ...STATE_KEYS.map((k) => Number(p.states?.[k]?.scale) || 1)), PREVIEW_MAX_SCALE_FLOOR);
+  const bigSlot = Math.ceil(PREVIEW_BIG * maxScale * 1.3), smallSlot = Math.ceil(PREVIEW_SMALL * maxScale * 1.3);
+  // Three slots plus gaps, and room for the -7 degree tilt.
+  const previewBox = bigSlot * 2 + smallSlot + 4 + 40;
+  const slotStyle = (h: number) => ({ height: h, maxWidth: "100%", display: "flex", alignItems: "center", justifyContent: "center", overflow: "visible" }) as any;
 
   if (!projectId) return <ui.Message tone="error">Open a Project to build a City Weekend Vlog.</ui.Message>;
 
@@ -676,11 +828,13 @@ export default function Panel({ sdk, context, ui }: any) {
         <ui.TextField label="Place" value={place} onChange={setPlace} />
         {chosen ? (
           // Live preview: the swapping line (place, or line 1 when place is empty) cycles the preset's A/B/C/D states.
-          <div aria-label="Title preview" style={{ background: "#26231f", borderRadius: 8, padding: "22px 12px", overflow: "hidden", display: "flex", justifyContent: "center" }}>
-            <div style={{ transform: "rotate(-7deg)", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, maxWidth: "100%", color: "#F6ECB8", lineHeight: 1.05, textAlign: "center", whiteSpace: "nowrap", textShadow: "0 2px 8px rgba(0,0,0," + chosen.shadow + ")" }}>
-              <div style={{ ...faceStyle(chosen.states[placeText ? "A" : swapKey]), fontSize: previewSize(line1, 34, chosen.states[placeText ? "A" : swapKey].scale) }}>{line1 || "\u00a0"}</div>
-              {placeText ? <div style={{ ...faceStyle(chosen.states.A), fontSize: 15 * chosen.states.A.scale }}>{connector}</div> : null}
-              {placeText ? <div style={{ ...faceStyle(chosen.states[swapKey]), fontSize: previewSize(placeText, 34, chosen.states[swapKey].scale) }}>{placeText}</div> : null}
+          // Every line sits in a fixed-height slot sized for the largest scale of any preset, so the box keeps one height
+          // while the fonts cycle and when the preset changes; long text shrinks via previewSize and never wraps.
+          <div aria-label="Title preview" style={{ background: "#26231f", borderRadius: 8, height: previewBox, boxSizing: "border-box", padding: "0 12px", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ transform: "rotate(-7deg)", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: "100%", minWidth: 0, color: "#F6ECB8", lineHeight: 1, textAlign: "center", whiteSpace: "nowrap", textShadow: "0 2px 8px rgba(0,0,0," + chosen.shadow + ")" }}>
+              <div style={{ ...slotStyle(bigSlot), ...faceStyle(chosen.states[placeText ? "A" : swapKey]), fontSize: previewSize(line1, PREVIEW_BIG, chosen.states[placeText ? "A" : swapKey].scale) }}>{line1 || "\u00a0"}</div>
+              {placeText ? <div style={{ ...slotStyle(smallSlot), ...faceStyle(chosen.states.A), fontSize: PREVIEW_SMALL * chosen.states.A.scale }}>{connector}</div> : null}
+              {placeText ? <div style={{ ...slotStyle(bigSlot), ...faceStyle(chosen.states[swapKey]), fontSize: previewSize(placeText, PREVIEW_BIG, chosen.states[swapKey].scale) }}>{placeText}</div> : null}
             </div>
           </div>
         ) : null}
@@ -692,7 +846,7 @@ export default function Panel({ sdk, context, ui }: any) {
             return (
               <button key={p.id} type="button" aria-pressed={on} disabled={busy} onClick={() => setPreset(p.id)}
                 style={{ flex: "1 1 96px", minWidth: 0, minHeight: 52, padding: "8px 6px", borderRadius: 8, cursor: busy ? "default" : "pointer", color: "inherit",
-                  background: on ? "rgba(246, 195, 67, 0.16)" : "transparent", border: on ? "2px solid var(--accent, #f6c343)" : "1px solid rgba(128, 128, 128, 0.45)",
+                  background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 16%, transparent)" : "transparent", border: on ? "2px solid var(--panel-accent, #f6c343)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))",
                   ...faceStyle(p.states.A), textTransform: "none", fontSize: 20 * (p.states.A.scale || 1), lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {p.label}
               </button>
@@ -708,11 +862,8 @@ export default function Panel({ sdk, context, ui }: any) {
         {!canOwnMusic ? <ui.Message tone="muted">Install ffmpeg and Node.js 18+ to preview music or use your own track.</ui.Message> : null}
         {ownMusic || cue ? (
           <div>
-            <div style={{ position: "relative", height: 48, display: "flex", alignItems: "center", gap: 1, cursor: "pointer" }}
-              onClick={(e) => { const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect(); setSection(snap(((e.clientX - r.left) / r.width) * total)); }}>
-              {peaks.map((p: number, i: number) => <div key={i} style={{ flex: 1, height: Math.max(2, (p / peakMax) * 44), background: "var(--text-tertiary, #888)" }} />)}
-              <div style={{ position: "absolute", top: 0, bottom: 0, left: boxLeft + "%", width: boxWidth + "%", border: "2px solid var(--accent, #f6c343)", borderRadius: 4, pointerEvents: "none" }} />
-            </div>
+            <SectionSlider peaks={peaks} total={total} section={section} videoSeconds={videoSeconds} barSeconds={(4 * 60) / grid.bpm}
+              snap={snap} onChange={setSection} disabled={busy} />
             <ui.Row gap={8} align="center">
               <ui.IconButton icon="play" label="Preview this section" onClick={preview} disabled={busy || !tools.ffmpeg} />
               <span>{ownMusic && !ownDuration ? (busy ? "Reading the music…" : "The length of this music is unknown")
