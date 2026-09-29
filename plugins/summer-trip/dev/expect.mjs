@@ -70,7 +70,7 @@ export function stExpectations(input) {
   for (let i = 0; i < nMain; i++) {
     const fx = [];
     if (motion.has(i) && photoIdx.has(i) && i >= 2 && i <= lastMontage) fx.push(ST_NAMES.motion);
-    if (input.look) fx.push(ST_NAMES.look);
+    if (input.look || i === lastMontage) fx.push(ST_NAMES.look); // look off keeps a strength-0 look on the last montage clip (leak)
     if (i >= endingFirst) fx.push(ST_NAMES.filmFrame);
     effectsMain.push(fx);
   }
@@ -113,7 +113,7 @@ export function stExpectations(input) {
     ],
     effectsMain, grid, planGrid,
     effectCounts: {
-      [ST_NAMES.look]: input.look ? nMain + grid.length : 0,
+      [ST_NAMES.look]: input.look ? nMain + grid.length : 1,
       [ST_NAMES.filmFrame]: 3,
       [ST_NAMES.gridPanel]: grid.filter(g => g.effects.includes(ST_NAMES.gridPanel)).length,
       [ST_NAMES.motion]: effectsMain.filter(fx => fx.includes(ST_NAMES.motion)).length,

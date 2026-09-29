@@ -248,7 +248,7 @@ function readbackOf(m, fps) {
   assert.equal(s2.replan, null, 'planned at the real fps (the last one seen)');
   assert.equal(s2.fpsGuess, 29.97, 'later plans start from the real fps seen before');
   const dc2 = A.decorateConfig(s2, a2);
-  assert.equal(dc2.look, null);
+  assert.equal(dc2.look.gradeOff, true); assert.equal(dc2.look.strength, 0); // look off keeps the leak on the last montage clip
   assert.equal(dc2.mute, true);
   assert.deepEqual(dc2.title.parameters.wordTimes.length, 6);
   assert.equal(dc2.title.parameters.preset, 'poster');
@@ -256,7 +256,8 @@ function readbackOf(m, fps) {
   assert.deepEqual(exp2.music, { none: true });
   assert.deepEqual(exp2.sfx, { none: true });
   assert.deepEqual(exp2.clipSound, { mode: 'off' });
-  assert.ok(exp2.effectsMain.every((fx2, i) => fx2.length === (i >= exp2.effectsMain.length - 3 ? 1 : 0)), 'film frame only on the ending when the look is off');
+  const lastM2 = exp2.effectsMain.length - 4;
+  assert.ok(exp2.effectsMain.every((fx2, i) => fx2.length === (i >= exp2.effectsMain.length - 3 || i === lastM2 ? 1 : 0)), 'look off: film frame on the ending, a strength-0 look (leak) only on the last montage clip');
   const ev2 = stVisibleEvents(s2.plan.schedule, s2.frames);
   assert.equal(ev2.filter(e => e.kind === 'cut').length, 12 + 3);
 

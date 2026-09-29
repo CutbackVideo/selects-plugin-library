@@ -120,7 +120,7 @@ const leakInSeconds = (fr.leakFrames.b - fr.endingFrame) / fps;
 // out on the canvas, not on a cover-cropped portrait or photo box.
 const lookFor = (clip, sourceStartSeconds, leakOut, canvasInBox) => ({
   tsx: cfg.look.tsx,
-  parameters: { strength: cfg.look.strength, leakOutSeconds: leakOut, leakStrength: leakStrength(cfg.look), clipSeconds: (clip.endFrame - clip.startFrame) / fps, sourceStartSeconds, timeOrigin,
+  parameters: { strength: cfg.look.gradeOff ? 0 : cfg.look.strength, leakOutSeconds: leakOut, leakStrength: leakStrength(cfg.look), clipSeconds: (clip.endFrame - clip.startFrame) / fps, sourceStartSeconds, timeOrigin,
     ...(canvasInBox ? { canvasInBox } : {}) },
   editableParameters: [
     { key: 'strength', label: 'Summer look', type: 'number', defaultValue: cfg.look.strength, min: 0, max: 1, step: 0.05 },
@@ -153,7 +153,8 @@ for (let i = 0; i < nMain; i++) {
       editableParameters: motionDefs(mm) }));
   }
   // Summer look on every clip; the last montage clip carries the outgoing leak (a quarter beat before the ending cut).
-  if (cfg.look) {
+  // Look off (gradeOff): no grade anywhere, but the last montage clip keeps a strength-0 look for its outgoing leak.
+  if (cfg.look && (!cfg.look.gradeOff || i === lastMontage)) {
     await ensure(clip.clipId, 'look', LOOK, async c => (i === lastMontage
       ? lookFor(c, ss, leakOutSeconds, stCanvasInBox(sizes[c.resourceId], await d.clipTransform(c)))
       : lookFor(c, ss, 0)));
@@ -184,7 +185,7 @@ for (let i = 0; i < nMain; i++) {
 for (const gp of cfg.gridPlaced || []) {
   const clip = gridClip(await all(), gp);
   if (!clip) { missing++; continue; }
-  if (cfg.look) await ensure(clip.clipId, 'look', LOOK, c => lookFor(c, gp.sourceStart || 0, 0));
+  if (cfg.look && !cfg.look.gradeOff) await ensure(clip.clipId, 'look', LOOK, c => lookFor(c, gp.sourceStart || 0, 0));
   if (cfg.gridPanel && !is169(sizes[gp.rid])) {
     await ensure(clip.clipId, 'gridPanel', GRID, async c => {
       const q = QUAD_RECT[gp.quad];

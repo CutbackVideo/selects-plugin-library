@@ -111,7 +111,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
       const pcm = execFileSync(process.env.FFMPEG_DIR ? path.join(process.env.FFMPEG_DIR, 'ffmpeg') : 'ffmpeg',
         ['-nostdin', '-v', 'error', '-i', file, '-ac', '1', '-ar', '22050', '-f', 'f32le', '-'], { maxBuffer: 1 << 30 });
       const samples = new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
-      const a = analyze(samples, 22050);
+      const a = analyze(samples, 22050, { dropPick: 'largest' });
       analysis = { bpm: a.bpm, firstBeat: a.firstBeat, accepted: a.accepted, durationSeconds: a.durationSeconds, beatEnergy: a.beatEnergy,
         onsets: a.onsets, onsetThresholds: a.onsetThresholds, drop: a.drop, sixteenthRatio: a.sixteenthRatio };
       fs.writeFileSync(cachePath, JSON.stringify(analysis));
@@ -382,7 +382,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
         mute: row.clipSound === 'off', gridSound: row.gridSound,
         title: { tsx: tsx('title-graphic'), parameters: titleParams, editableParameters: j(G.stEditable(G.ST_TITLE_EDITABLE, titleParams)) },
         labels: { tsx: tsx('labels-graphic'), parameters: labelsParams, editableParameters: j(G.stEditable(G.ST_LABELS_EDITABLE, labelsParams)) },
-        look: row.look ? { tsx: tsx('summer-look'), strength: row.lookStrength, leakStrength: row.leakStrength, timeOrigin: ST_PANEL.TIME_ORIGIN } : null,
+        look: { tsx: tsx('summer-look'), strength: row.look ? row.lookStrength : 0, leakStrength: row.leakStrength, gradeOff: !row.look, timeOrigin: ST_PANEL.TIME_ORIGIN },
         gridPanel: { tsx: tsx('grid-panel') },
         filmFrame: { tsx: tsx('film-frame'), window: { ...ST_PANEL.FILM_WINDOW }, leakStrength: row.leakStrength, timeOrigin: ST_PANEL.TIME_ORIGIN },
         motion: { tsx: tsx('photo-motion'), strength: ST_PANEL.MOTION_STRENGTH, options: ST_PANEL.MOTION_OPTIONS, byClipIndex },
