@@ -173,6 +173,89 @@ const grid = P.cwvFillers([{ rid: 'b', role: 'street', t: 1, score: 1, sourceDur
 assert.deepEqual(j(grid).map(g => g.rid + '@' + g.t), ['a@0.25', 'a@0.75', 'b@0.25', 'b@0.75', 'b@1.25', 'b@1.75']);
 assert.ok(grid.every(g => g.role === 'filler' && g.score < 0));
 
+// Photos: { rid, kind: 'photo' } candidates, one use each, no role.
+const photoSet = n => Array.from({ length: n }, (_, i) => ({ rid: 'p' + String(i).padStart(2, '0'), kind: 'photo' }));
+const maxRun = picks => { let run = 0, best = 0; for (const p of picks) { run = p && p.kind === 'photo' ? run + 1 : 0; best = Math.max(best, run); } return best; };
+const onceEach = picks => { const ids = picks.filter(p => p.kind === 'photo').map(p => p.rid); assert.equal(new Set(ids).size, ids.length, 'one use per photo'); };
+// Photos only (no analysed video): 22 photos build a full plan; every pick is a photo with the slot's hold.
+const po = j(P.cwvPlanBuild({ candidates: photoSet(22), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
+assert.equal(po.ok, true);
+assert.equal(po.montageShots, 7);
+assert.equal(po.photoShots, 20);
+assert.equal(po.fillerShots, 0);
+assert.equal(po.photoRunRelaxed, true, 'photos only cannot keep the two-in-a-row rule');
+po.picks.forEach((p, i) => {
+  const slot = po.schedule.slots[i];
+  assert.deepEqual(Object.keys(p).sort(), ['holdSeconds', 'kind', 'rid', 'slot']);
+  assert.equal(p.kind, 'photo');
+  assert.ok(Math.abs(p.holdSeconds - (slot.endFrame - slot.startFrame) / 30) < 1e-9);
+});
+onceEach(po.picks);
+assert.deepEqual(j(P.cwvPlanBuild({ candidates: photoSet(22), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' })), po, 'deterministic');
+assert.notDeepEqual(j(P.cwvPlanBuild({ candidates: photoSet(22), bpm: 99.2, fps: 30, montageShots: 7, seed: 's2' })).picks, po.picks);
+// 17 photos fit exactly the shortest plan; 16 do not, and the shortage counts them.
+const p17 = j(P.cwvPlanBuild({ candidates: photoSet(17), bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' }));
+assert.equal(p17.ok, true);
+assert.equal(p17.montageShots, 4);
+const p16 = j(P.cwvPlanBuild({ candidates: photoSet(16), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
+assert.equal(p16.ok, false);
+assert.equal(p16.usableShots, 16);
+assert.equal(p16.photoShots, 16);
+assert.ok(p16.usableShots < p16.needed);
+// Duplicate photo rids count once.
+assert.equal(j(P.cwvPlanBuild({ candidates: photoSet(16).concat(photoSet(16)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' })).ok, false);
+
+// Plenty of real hits: photos are never needed.
+const richPhotos = j(P.cwvPlanBuild({ candidates: rich.concat(photoSet(10)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
+assert.equal(richPhotos.photoShots, 0);
+assert.deepEqual(richPhotos.picks, a.picks, 'unused photos change nothing');
+assert.ok(a.picks.every(p => p.kind === 'video'));
+
+// Tier order on single slots.
+const hit = (rid, role, extra) => ({ rid, role, t: 5, score: 0.5, sourceDuration: 30, ...extra });
+const one = (cands, slot) => j(P.cwvAllocate({ candidates: cands, slots: [slot], seed: 'x' })).picks[0];
+const streetSlot = { index: 13, role: 'street', section: 'montage', seconds: 1.2 };
+// A preferred-role hit beats a photo; an any-role hit beats a photo outside the burst.
+assert.equal(one([hit('v', 'street'), { rid: 'p', kind: 'photo' }], streetSlot).kind, 'video');
+assert.equal(one([hit('v', 'wide', { score: 0.01 }), { rid: 'p', kind: 'photo' }], streetSlot).rid, 'v');
+// A photo beats fillers.
+assert.equal(one(P.cwvFillers([hit('v', 'street')]).concat([{ rid: 'p', kind: 'photo' }]), streetSlot).rid, 'p');
+// In the title burst a photo beats an any-role hit, but not a preferred one.
+const burstSlot = { index: 4, role: 'landmark', section: 'burst', seconds: 0.15 };
+assert.equal(one([hit('v', 'street'), { rid: 'p', kind: 'photo' }], burstSlot).rid, 'p');
+assert.equal(one([hit('v', 'landmark'), { rid: 'p', kind: 'photo' }], burstSlot).rid, 'v');
+// A photo cannot hold longer than the 5 s an image source lasts.
+assert.equal(one([{ rid: 'p', kind: 'photo' }], { index: 13, role: 'street', section: 'montage', seconds: 5.5 }), null);
+
+// Mixed footage that runs out of real hits (collapsed scene search): photos come before fillers, at most two in a row.
+for (const seed of ['s1', 's2', 's3']) for (const n of [4, 7, 12]) {
+  const base = j(P.cwvPlanBuild({ candidates: collapsed, bpm: 99.2, fps: 30, montageShots: n, seed }));
+  const mix = j(P.cwvPlanBuild({ candidates: collapsed.concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: n, seed }));
+  assert.equal(mix.ok, true);
+  assert.equal(mix.montageShots, n);
+  if (base.fillerShots > 0) assert.ok(mix.photoShots > 0, 'photos are used when real hits run out');
+  else assert.equal(mix.photoShots, 0, 'enough real hits: no photos');
+  assert.ok(mix.fillerShots <= base.fillerShots, 'photos replace fillers first');
+  assert.ok(maxRun(mix.picks) <= 2, 'never more than two photos in a row (' + seed + ', ' + n + ')');
+  assert.equal(mix.photoRunRelaxed, undefined);
+  onceEach(mix.picks);
+  assert.equal(mix.picks.filter(p => p.kind === 'photo').length, mix.photoShots);
+  assert.deepEqual(j(P.cwvPlanBuild({ candidates: collapsed.concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: n, seed })), mix, 'deterministic');
+}
+// The burst encourages photos: with street-only footage the landmark burst (slots 3-11) has no preferred hit, so
+// photos take it ahead of the street hits, two at a time; outside the burst street hits keep their place.
+const mixBurst = j(P.cwvPlanBuild({ candidates: rich.filter(x => x.role === 'street').concat(photoSet(22)), bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
+assert.equal(mixBurst.ok, true);
+assert.equal(mixBurst.picks.slice(3, 12).map(p => (p.kind === 'photo' ? 'P' : 'v')).join(''), 'PPvPPvPPv');
+assert.ok(maxRun(mixBurst.picks) <= 2);
+assert.equal(mixBurst.picks[0].kind, 'video', 'a street slot keeps its preferred street hit');
+// The run rule on a strip of slots: two photos, then a filler, then photos again.
+const strip = Array.from({ length: 7 }, (_, i) => ({ index: 13 + i, role: 'street', section: 'montage', seconds: 1.2 }));
+const st = j(P.cwvAllocate({ candidates: P.cwvFillers([hit('v', 'park', { sourceDuration: 60 })]).concat(photoSet(10)), slots: strip, seed: 'x' }));
+assert.deepEqual(st.picks.map(p => p.kind), ['photo', 'photo', 'video', 'photo', 'photo', 'video', 'photo']);
+assert.equal(st.photoShots, 5);
+assert.equal(st.fillerShots, 2);
+
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.CWV_BUILD_STEPS.length, 5);
 assert.equal(P.CWV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);

@@ -25,6 +25,15 @@ const CWV_QUERIES = {
   wide: "wide open view of sky, lawn or skyline",
   talking: "person talking to the camera",
 };
+// Photo clips get no Video Effects (warm look, motion) yet: the Selects renderer cannot draw an effect on an image
+// clip (it probes the image for audio and the frame fails to render). Flip this once that works.
+const PHOTO_EFFECTS = false;
+const MOTION_OPTIONS = [
+  { label: "Push in", value: "push-in" }, { label: "Pull out", value: "pull-out" },
+  { label: "Drift left", value: "drift-left" }, { label: "Drift right", value: "drift-right" },
+  { label: "Drift up", value: "drift-up" }, { label: "Drift down", value: "drift-down" },
+  { label: "Tilt", value: "tilt" }, { label: "Push and drift", value: "push-drift" },
+];
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 // cwv-planner:start
@@ -47,10 +56,15 @@ const CWV_REFERENCE_BPM = 99.2;
 const CWV_TALKING_MARGIN = 0.05;
 const CWV_TALKING_MIN = 0.3;
 // Scene-search hits collapse onto a few distinct times per clip, so every searched source also gets evenly spaced
-// 'filler' candidates. They score below any real hit and are only used by the last-resort any-role tier.
+// 'filler' candidates. They score below any real hit and are only used by the last tier, after photos.
 const CWV_FILLER_STEP = 0.5;
 const CWV_FILLER_EDGE = 0.25;
 const CWV_FILLER_SCORE = -2;
+// Photos (Image resources) have no scene search. Each one fills at most one slot of any length up to the 5 s an
+// image source lasts. They rank after every real video hit and before fillers, except in the title burst, where
+// they rank right after the preferred roles. At most CWV_PHOTO_RUN_MAX photos play in a row while anything else fits.
+const CWV_PHOTO_HOLD_MAX = 5;
+const CWV_PHOTO_RUN_MAX = 2;
 
 function cwvVideoBeats(montageShots) { return CWV_TITLE_TOTAL_BEATS + CWV_MONTAGE_BEATS * montageShots; }
 function cwvVideoSeconds(bpm, montageShots) { return cwvVideoBeats(montageShots) * 60 / bpm; }
@@ -161,8 +175,12 @@ const CWV_ROLE_FALLBACK = {
 function cwvAllocate(opts) {
   const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
   const finite = v => typeof v === 'number' && isFinite(v);
-  const candidates = opts.candidates.filter(c => c && finite(c.t) && finite(c.score) && finite(c.sourceDuration));
-  const used = {}, avoid = {}, recent = [], picks = [];
+  const candidates = opts.candidates.filter(c => c && c.kind !== 'photo' && finite(c.t) && finite(c.score) && finite(c.sourceDuration));
+  // One photo candidate per rid, in rid order so the result never depends on input order.
+  const photoSeen = {};
+  const photos = opts.candidates.filter(c => c && c.kind === 'photo' && typeof c.rid === 'string' && !photoSeen[c.rid] && (photoSeen[c.rid] = true))
+    .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
+  const used = {}, avoid = {}, recent = [], picks = [], photoUsed = {};
   // Only a dominant talking hit becomes a ±1 s avoid window; avoidTalking: false disables avoidance entirely.
   if (opts.avoidTalking !== false) {
     candidates.filter(c => c.role === 'talking').forEach(c => {
@@ -173,12 +191,12 @@ function cwvAllocate(opts) {
     });
   }
   const pool = candidates.filter(c => c.role !== 'talking' && c.sourceDuration > 0);
-  let missing = 0, fillerShots = 0;
-  // Best fitting candidate for a slot. With roles == null, any non-talking role, fillers included, is accepted (last resort).
-  function search(slot, roles) {
+  let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, photoRunRelaxed = false;
+  // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
+  function searchVideo(slot, rankOf) {
     let best = null;
     for (const c of pool) {
-      const rank = roles ? roles.indexOf(c.role) : 0;
+      const rank = rankOf(c);
       if (rank < 0 || c.sourceDuration < slot.seconds) continue;
       const start = Math.max(0, Math.min(c.sourceDuration - slot.seconds, c.t - slot.seconds / 2));
       const end = start + slot.seconds;
@@ -192,40 +210,105 @@ function cwvAllocate(opts) {
     }
     return best;
   }
+  // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos.
+  function searchPhoto(slot) {
+    if (slot.seconds > CWV_PHOTO_HOLD_MAX + 1e-9) return null;
+    let best = null;
+    for (const c of photos) {
+      if (photoUsed[c.rid]) continue;
+      const value = cwvHash(opts.seed + ':photo:' + c.rid);
+      if (!best || value > best.value + 1e-12) best = { value, c, photo: true };
+    }
+    return best;
+  }
   for (const slot of opts.slots) {
-    // Preferred roles always win; any other role is only used when none of them fits.
-    const best = search(slot, CWV_ROLE_FALLBACK[slot.role] || [slot.role]) || search(slot, null);
-    if (!best) { missing++; picks.push(null); continue; }
-    (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
-    if (best.c.role === 'filler') fillerShots++;
+    const roles = CWV_ROLE_FALLBACK[slot.role] || [slot.role];
+    const preferred = () => searchVideo(slot, c => roles.indexOf(c.role));
+    const anyReal = () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0));
+    const photo = () => searchPhoto(slot);
+    const filler = () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1));
+    // Tiers, best first: preferred-role hits, any-role hits, photos, fillers. The title burst lifts photos above the
+    // any-role tier. After CWV_PHOTO_RUN_MAX photos in a row, a photo is only the last resort.
+    const tiers = slot.section === 'burst' ? [preferred, photo, anyReal, filler] : [preferred, anyReal, photo, filler];
+    const runFull = photoRun >= CWV_PHOTO_RUN_MAX;
+    let best = null;
+    for (const tier of tiers) {
+      if (runFull && tier === photo) continue;
+      if ((best = tier())) break;
+    }
+    if (!best && runFull && (best = photo())) photoRunRelaxed = true;
+    if (!best) { missing++; picks.push(null); photoRun = 0; continue; }
     recent.push(best.c.rid);
     if (recent.length > 3) recent.shift();
-    picks.push({ slot: slot.index, rid: best.c.rid, startSeconds: best.start, endSeconds: best.end });
+    if (best.photo) {
+      photoUsed[best.c.rid] = true;
+      photoShots++; photoRun++;
+      picks.push({ slot: slot.index, rid: best.c.rid, kind: 'photo', holdSeconds: slot.seconds });
+      continue;
+    }
+    photoRun = 0;
+    (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
+    if (best.c.role === 'filler') fillerShots++;
+    picks.push({ slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end });
   }
-  return { picks, filled: picks.filter(Boolean).length, missing, fillerShots };
+  return { picks, filled: picks.filter(Boolean).length, missing, fillerShots, photoShots, photoRunRelaxed };
 }
 
 // Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
 // Filler candidates are added to every attempt. If no length fits while avoiding talking, the same range is tried once more without that avoidance (relaxedTalking).
+// Photo candidates ({ rid, kind: 'photo' }) join every attempt, so a Project with only photos builds too.
 function cwvPlanBuild(opts) {
   const top = Math.min(CWV_MAX_MONTAGE, Math.max(CWV_MIN_MONTAGE, opts.montageShots));
   const candidates = opts.candidates.concat(cwvFillers(opts.candidates));
-  let bestFilled = 0;
+  let best = { filled: 0, photoShots: 0 };
   for (const avoidTalking of [true, false]) {
     for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
       const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n });
-      const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
+      const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, section: s.section, seconds: (s.endFrame - s.startFrame) / opts.fps }));
       const alloc = cwvAllocate({ candidates, slots, seed: opts.seed, avoidTalking });
       if (alloc.missing === 0) {
-        const plan = { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS, fillerShots: alloc.fillerShots };
+        const plan = { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
         if (!avoidTalking) plan.relaxedTalking = true;
+        if (alloc.photoRunRelaxed) plan.photoRunRelaxed = true;
         return plan;
       }
       // Report the better of the two shortest attempts: each fills fewer than CWV_MIN_WINDOWS slots, so usableShots < needed.
-      if (n === CWV_MIN_MONTAGE) bestFilled = Math.max(bestFilled, alloc.filled);
+      if (n === CWV_MIN_MONTAGE && alloc.filled > best.filled) best = alloc;
     }
   }
-  return { ok: false, usableShots: bestFilled, needed: CWV_MIN_WINDOWS };
+  return { ok: false, usableShots: best.filled, needed: CWV_MIN_WINDOWS, photoShots: best.photoShots };
+}
+
+// Photo motions for montage photos, in pick order. Title photos (slots before the montage) stay still (null).
+// Deterministic per seed; never the same motion twice in a row, never the same family (drift, tilt, ...) twice in a row;
+// drift, tilt and push-drift directions alternate. Drift follows the photo: vertical for portrait, horizontal otherwise.
+// Each entry is { motion, direction: 1 | -1, axis: 'x' | 'y' } for assets/photo-motion.tsx.
+// `sizes` maps rid -> { width, height }; an unknown size counts as landscape.
+const CWV_PHOTO_MOTIONS = ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift'];
+const CWV_MOTION_FAMILIES = ['push-in', 'pull-out', 'drift', 'tilt', 'push-drift'];
+function cwvPhotoMotions(picks, seed, sizes) {
+  const out = [];
+  let lastFamily = null, driftSign = { x: 1, y: 1 }, tiltSign = 1, pushDriftSign = 1, k = 0;
+  for (const pick of picks) {
+    if (!pick || pick.kind !== 'photo' || !(pick.slot >= CWV_TITLE_BEATS.length)) { out.push(null); continue; }
+    const size = sizes && sizes[pick.rid];
+    const portrait = !!(size && size.height > size.width);
+    const families = CWV_MOTION_FAMILIES.filter(f => f !== lastFamily)
+      .map(f => ({ f, v: cwvHash(seed + ':motion:' + k + ':' + f) }))
+      .sort((a, b) => b.v - a.v || (a.f < b.f ? -1 : 1));
+    const family = families[0].f;
+    let motion = family, direction = 1;
+    if (family === 'drift') {
+      const axis = portrait ? 'y' : 'x';
+      direction = driftSign[axis]; driftSign[axis] = -direction;
+      motion = axis === 'x' ? (direction > 0 ? 'drift-right' : 'drift-left') : (direction > 0 ? 'drift-down' : 'drift-up');
+    } else if (family === 'tilt') { direction = tiltSign; tiltSign = -tiltSign; }
+    else if (family === 'push-drift') { direction = pushDriftSign; pushDriftSign = -pushDriftSign; }
+    // axis: the drift direction of push-drift (and of the drift motions), along the side the 9:16 crop has room on.
+    out.push({ motion, direction, axis: portrait ? 'y' : 'x' });
+    lastFamily = family; k++;
+  }
+  return out;
 }
 
 // Build steps shown in the panel's progress bar, with each step's share of the bar in percent.
@@ -300,6 +383,14 @@ function previewSize(text: string, base: number, scale: number) { return Math.mi
 // Title preview line slots, sized for the largest state scale so the box never changes height while fonts cycle.
 const PREVIEW_BIG = 34, PREVIEW_SMALL = 15, PREVIEW_MAX_SCALE_FLOOR = 1.15;
 
+// The photo rids a build uses: the selected photos (all when `onlyPhotos` is null), none while Use photos is off.
+function selectedPhotoRidsOf(inventory: any, onlyPhotos: string[] | null, usePhotos: boolean): string[] {
+  if (!usePhotos || !inventory) return [];
+  return (inventory.photos || []).map((r: any) => r.rid as string).filter((rid: string) => !onlyPhotos || onlyPhotos.includes(rid));
+}
+function photoCandsOf(inventory: any, onlyPhotos: string[] | null, usePhotos: boolean) {
+  return selectedPhotoRidsOf(inventory, onlyPhotos, usePhotos).map((rid) => ({ rid, kind: "photo" }));
+}
 // A short orientation hint for the clip list; nothing when the frame size is unknown.
 function shapeHint(width: number | null, height: number | null) {
   if (!(width! > 0) || !(height! > 0)) return "";
@@ -492,6 +583,10 @@ export default function Panel({ sdk, context, ui }: any) {
   const [keepSound, setKeepSound] = React.useState(false);
   const [warm, setWarm] = React.useState(true);
   const [only, setOnly] = React.useState<string[] | null>(null);
+  // Photos: on by default. `onlyPhotos` is the photo selection (null = all); `only` stays the video selection, so
+  // choosing photos never invalidates the scene search.
+  const [usePhotos, setUsePhotos] = React.useState(true);
+  const [onlyPhotos, setOnlyPhotos] = React.useState<string[] | null>(null);
   const [section, setSection] = React.useState<number | null>(0);
   const [seed, setSeed] = React.useState(1);
   const [busy, setBusy] = React.useState(false);
@@ -551,6 +646,8 @@ export default function Panel({ sdk, context, ui }: any) {
   // Inventory bookkeeping: the inventory script, the last clip set seen, the title values we suggested, and a load in flight.
   const inventoryJsRef = React.useRef<string | null>(null);
   const invSigRef = React.useRef<string | null>(null);
+  // Photo sizes measured by earlier inventory reads, passed back so a refresh does not measure them again.
+  const photoSizesRef = React.useRef<Record<string, { width: number; height: number }>>({});
   const autoRef = React.useRef<{ pid: string | null; line1: string; place: string }>({ pid: null, line1: "", place: "" });
   const invLoadingRef = React.useRef<string | null>(null);
   const mountedRef = React.useRef(true);
@@ -565,15 +662,17 @@ export default function Panel({ sdk, context, ui }: any) {
     const live = () => mountedRef.current && alive() && projectRef.current === pid;
     invLoadingRef.current = pid; setInvLoading(true);
     try {
-      const inv = await run("Read footage", fill(script, { projectId: pid, only: null }));
+      const inv = await run("Read footage", fill(script, { projectId: pid, only: null, known: photoSizesRef.current }));
       // A build that started meanwhile keeps the clip set it began with; the next refresh picks this up.
       if (!live() || busyRef.current) return;
+      inv.photos = inv.photos || [];
+      for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizesRef.current[ph.rid] = { width: ph.width, height: ph.height };
       const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + (inv.skipped?.unanalysed || 0);
       // A changed clip set drops the cached scene search so a build never uses stale candidates.
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
       setInventory(inv); setInvError(null);
       // Prefill the title on the first load for this Project; later only replace values the user has not edited.
-      const day = suggestDay(inv.resources.map((r: any) => r.recordedAt));
+      const day = suggestDay([...inv.resources, ...inv.photos].map((r: any) => r.recordedAt));
       const auto = autoRef.current;
       if (auto.pid !== pid) {
         const where = suggestPlace(context?.projectName);
@@ -597,8 +696,8 @@ export default function Panel({ sdk, context, ui }: any) {
   React.useEffect(() => {
     // Drop everything tied to the previous Project so a build never mixes Projects.
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
-    setOnly(null);
-    invSigRef.current = null;
+    setOnly(null); setOnlyPhotos(null);
+    invSigRef.current = null; photoSizesRef.current = {};
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
     if (!projectId) return;
     let alive = true;
@@ -618,11 +717,12 @@ export default function Panel({ sdk, context, ui }: any) {
         if (!alive) return;
         setTools({ ffmpeg: have.includes("ffmpeg"), node: have.includes("node") });
         const read = (rel: string) => readText(plugin, rel);
-        const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, warmTsx] = await Promise.all([
+        const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, warmTsx, motionTsx] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("scripts/inventory.js"), read("scripts/search.js"),
-          read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-graphic.tsx"), read("assets/warm-look.tsx")]);
+          read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-graphic.tsx"), read("assets/warm-look.tsx"),
+          read("assets/photo-motion.tsx")]);
         if (!alive) return;
-        setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, warmTsx });
+        setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, warmTsx, motionTsx });
         inventoryJsRef.current = inventoryJs;
         setStep("Checking clips");
         await loadInventory(projectId, () => alive);
@@ -636,7 +736,8 @@ export default function Panel({ sdk, context, ui }: any) {
 
   // Clips still being analysed (or none yet): re-read the inventory every 10 s until they are ready.
   // The effect re-arms on each new inventory, and stops on unmount, Project switch and while busy.
-  const needsPoll = !!inventory && (inventory.skipped?.unanalysed > 0 || inventory.resources.length === 0);
+  // A Project with only photos has nothing to wait for, so it does not poll (each read measures new photos).
+  const needsPoll = !!inventory && (inventory.skipped?.unanalysed > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
@@ -804,14 +905,18 @@ export default function Panel({ sdk, context, ui }: any) {
         setCandidates(found);
       }
       advance("shots", 1);
+      // Photos join as candidates without a search: each can fill one slot.
+      const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
       const start = grid.accepted ? snap(section || 0) : (section || 0);
       const fitted = cwvFitMontage({ bpm: grid.bpm, sectionStart: start ?? 0, usableEnd: grid.usableEnd, requested });
       if (!fitted) throw new Error("This music section is too short for the video. Move the section earlier or pick a shorter length.");
       // Plan at 30 fps for allocation; assembly re-snaps every boundary at the Draft's real rate.
-      const plan = cwvPlanBuild({ candidates: found.list, bpm: grid.bpm, fps: 30, montageShots: fitted, seed: String(nextSeed) });
+      const plan = cwvPlanBuild({ candidates: found.list.concat(photoCands), bpm: grid.bpm, fps: 30, montageShots: fitted, seed: String(nextSeed) });
       if (!plan.ok) {
         const retry = found.failed.length ? " Could not check " + found.failed.length + " clips; press Build to retry them." : "";
-        throw new Error("Found " + plan.usableShots + " usable shots; this style needs at least " + plan.needed + ". Add more varied footage or select more clips." + retry);
+        const fromPhotos = photoCands.length ? " (" + plan.photoShots + " of them photos)" : "";
+        throw new Error("Found " + plan.usableShots + " usable shots" + fromPhotos + "; this style needs at least " + plan.needed + ". Add more varied footage"
+          + (usePhotos ? " or photos" : "") + " or select more clips." + retry);
       }
       advance("music", 0);
       const music = cueId === "none" ? null
@@ -821,7 +926,9 @@ export default function Panel({ sdk, context, ui }: any) {
       const beatsAt = [0]; plan.schedule.slots.forEach((_s: any, i: number) => beatsAt.push(beatsAt[i] + (i < 13 ? CWV_TITLE_BEATS[i] : 2)));
       advance("music", 1);
       advance("draft", 0);
-      const crops = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, { width: r.width, height: r.height }]));
+      // Photo sizes the inventory has not measured yet stay out; assemble.js measures those itself.
+      const crops = Object.fromEntries([...inventory.resources, ...(inventory.photos || []).filter((r: any) => r.width > 0 && r.height > 0)]
+        .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
       const name = "City Weekend Vlog " + new Date().toISOString().slice(0, 16).replace("T", " ");
       const a = await run("Assemble City Weekend Vlog", fill(assets.scripts.assembleJs, {
         projectId: pid, draftName: name, picks: plan.picks, boundaries: beatsAt.map((b) => b * beat), crops,
@@ -884,7 +991,20 @@ export default function Panel({ sdk, context, ui }: any) {
         { key: "rotation", label: "Tilt", type: "number", defaultValue: -7, min: -20, max: 20, step: 1 },
         { key: "position", label: "Height (%)", type: "number", defaultValue: 46, min: 20, max: 80, step: 1 },
       ];
-      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId, mute, titleEnd: sched.title.endFrame, title: { tsx: assets.titleTsx, parameters, editableParameters }, warm: warm ? { tsx: assets.warmTsx, strength: 0.35 } : null }), true);
+      // Photos in this Draft and a planned motion for each montage photo (title photos stay still).
+      const photoRids = [...new Set(plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
+      const sizes: Record<string, { width: number; height: number }> = { ...photoSizesRef.current };
+      const moves = cwvPhotoMotions(plan.picks, String(usedSeed), sizes);
+      const byRid: Record<string, any> = {};
+      plan.picks.forEach((k: any, i: number) => {
+        if (!moves[i]) return;
+        const sz = sizes[k.rid];
+        // The clip's cover-crop scale, so the motion's drift stays inside the photo.
+        const cover = sz ? Math.max(1080 / sz.width, 1920 / sz.height) / Math.min(1080 / sz.width, 1920 / sz.height) : 1;
+        byRid[k.rid] = { ...moves[i], cover };
+      });
+      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId, mute, titleEnd: sched.title.endFrame, title: { tsx: assets.titleTsx, parameters, editableParameters }, warm: warm ? { tsx: assets.warmTsx, strength: 0.35 } : null,
+        photos: photoRids, motion: { tsx: assets.motionTsx, strength: 1, options: MOTION_OPTIONS, byRid }, photoEffects: PHOTO_EFFECTS }), true);
     } catch (e: any) {
       if (e === STALE) throw e;
       throw new Error("The Draft was created, but it could not be finished (muting its clips, title and look): " + (e?.message || e) + ". Press Finish title and look to try again.");
@@ -921,20 +1041,46 @@ export default function Panel({ sdk, context, ui }: any) {
     setCandidates(null);
   };
   const toggleClip = (rid: string, on: boolean) => chooseClips(on ? [...selectedRids, rid] : selectedRids.filter((x) => x !== rid));
+  // Photo selection: `onlyPhotos` in inventory order, or null for every photo. Photos are not searched, so choosing
+  // them keeps the cached scene search.
+  const photoList: any[] = inventory?.photos || [];
+  const allPhotoRids: string[] = photoList.map((r: any) => r.rid);
+  const selectedPhotoRids = onlyPhotos ? allPhotoRids.filter((rid) => onlyPhotos.includes(rid)) : allPhotoRids;
+  const choosePhotos = (next: string[]) => {
+    if (busyRef.current) return;
+    const keep = new Set(next);
+    const ordered = allPhotoRids.filter((rid) => keep.has(rid));
+    setOnlyPhotos(ordered.length === allPhotoRids.length ? null : ordered);
+  };
+  const togglePhoto = (rid: string, on: boolean) => choosePhotos(on ? [...selectedPhotoRids, rid] : selectedPhotoRids.filter((x) => x !== rid));
+  const usedPhotoCount = usePhotos ? selectedPhotoRids.length : 0;
+  // Photos only: 17 shots are needed before a build can succeed.
+  const canBuild = !!inventory && (selectedRids.length > 0 || usedPhotoCount >= CWV_MIN_WINDOWS);
   // Once a build has searched the current selection, the footage's montage capacity is known: plan it for the readiness line.
   const candKey = projectId + "|" + JSON.stringify(only);
   const fitsShots = React.useMemo(() => {
-    if (!candidates || candidates.key !== candKey || !(grid.bpm > 0)) return null;
-    const p = cwvPlanBuild({ candidates: candidates.list, bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed) });
+    if (!candidates || candidates.key !== candKey || !(grid.bpm > 0)) {
+      // With no video selected there is nothing to search: the photos alone decide the fit.
+      if (!inventory || selectedRids.length || !(grid.bpm > 0)) return null;
+      const p = cwvPlanBuild({ candidates: photoCandsOf(inventory, onlyPhotos, usePhotos), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed) });
+      return p.ok ? p.montageShots : null;
+    }
+    const p = cwvPlanBuild({ candidates: candidates.list.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed) });
     return p.ok ? p.montageShots : null;
-  }, [candidates, candKey, grid.bpm, requested, seed]);
+  }, [candidates, candKey, grid.bpm, requested, seed, inventory, onlyPhotos, usePhotos]);
   const pending = inventory?.skipped?.unanalysed || 0;
-  const clipCount = only ? selectedRids.length + " of " + allRids.length + " clips selected" : allRids.length + " analysed clips";
+  const clipCount = [
+    allRids.length ? (only ? selectedRids.length + " of " + allRids.length + " clips selected" : allRids.length + " clips") : "",
+    usePhotos && allPhotoRids.length ? (onlyPhotos ? selectedPhotoRids.length + " of " + allPhotoRids.length + " photos selected" : allPhotoRids.length + " photos") : "",
+  ].filter(Boolean).join(" · ");
   const readiness = !inventory ? (invError ? "Could not read the clips in this Project: " + invError : "Checking clips…")
-    : inventory.resources.length === 0 ? (pending > 0
+    : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0
       ? pending + " clips are still being analysed. This updates automatically when they finish."
-      : "No analysed video in this Project yet. Add and analyse video clips; this updates automatically.")
-    : selectedRids.length === 0 ? "No clips selected. Choose clips in Advanced."
+      : "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.")
+    : inventory.resources.length === 0 && !usePhotos ? (pending > 0 ? pending + " clips are still being analysed. " : "") + "Turn on Use photos in Advanced to build from this Project's photos."
+    : selectedRids.length === 0 && usedPhotoCount === 0 ? "No clips selected. Choose clips in Advanced."
+    : !canBuild ? "Only " + usedPhotoCount + " photos and no analysed video: this style needs at least " + CWV_MIN_WINDOWS + " shots. Add photos or video clips."
+      + (pending > 0 ? " " + pending + " clips are still being analysed." : "")
     : "Ready: " + clipCount + (fitsShots != null && fitsShots < requested
       ? " · footage fits " + fitsShots + " montage shots · about " + Math.round(cwvVideoSeconds(grid.bpm, fitsShots)) + " s"
       : " · about " + Math.round(videoSeconds) + " s") + (inventory.skipped.unanalysed ? " · " + inventory.skipped.unanalysed + " clips not analysed yet" : "");
@@ -1020,15 +1166,16 @@ export default function Panel({ sdk, context, ui }: any) {
         <ui.Segmented label="Length" value={length} onChange={setLength} options={[{ label: "Short", value: "short" }, { label: "Standard", value: "standard" }, { label: "Long", value: "long" }]} />
         <ui.Toggle label="Keep original clip sound" value={keepSound} onChange={setKeepSound} />
         <ui.Toggle label="Warm look" value={warm} onChange={setWarm} />
+        <ui.Toggle label="Use photos" value={usePhotos} onChange={setUsePhotos} />
         {silent ? <ui.Message tone="muted">Silent video: no music and no original clip sound.</ui.Message> : null}
-        {inventory && allRids.length ? (
+        {inventory && (allRids.length || allPhotoRids.length) ? (
           <div role="group" aria-label="Choose clips" style={{ minWidth: 0 }}>
             <ui.Row gap={4} align="center">
               <small style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {"Choose clips (" + selectedRids.length + "/" + allRids.length + ")"}
+                {"Choose clips (" + (selectedRids.length + selectedPhotoRids.length) + "/" + (allRids.length + allPhotoRids.length) + ")"}
               </small>
-              <ui.Button variant="ghost" disabled={busy || !only} onClick={() => chooseClips(allRids)}>All</ui.Button>
-              <ui.Button variant="ghost" disabled={busy || selectedRids.length === 0} onClick={() => chooseClips([])}>None</ui.Button>
+              <ui.Button variant="ghost" disabled={busy || (!only && !onlyPhotos)} onClick={() => { chooseClips(allRids); choosePhotos(allPhotoRids); }}>All</ui.Button>
+              <ui.Button variant="ghost" disabled={busy || selectedRids.length + selectedPhotoRids.length === 0} onClick={() => { chooseClips([]); choosePhotos([]); }}>None</ui.Button>
             </ui.Row>
             {/* One row per clip: the name truncates, duration and shape stay visible; long lists scroll inside. */}
             <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
@@ -1040,6 +1187,21 @@ export default function Panel({ sdk, context, ui }: any) {
                   <label key={r.rid} title={r.name + " · " + meta}
                     style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, padding: "4px 6px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
                     <input type="checkbox" checked={on} disabled={busy} onChange={(e) => toggleClip(r.rid, e.currentTarget.checked)} style={{ flexShrink: 0, margin: 0 }} />
+                    <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+                    <span style={{ flexShrink: 0, fontSize: 11, color: "var(--panel-muted-fg)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{meta}</span>
+                  </label>
+                );
+              })}
+              {/* Photos follow the clips, marked "Photo"; they are unavailable while Use photos is off. */}
+              {photoList.map((r: any) => {
+                const on = usePhotos && selectedPhotoRids.includes(r.rid);
+                const off = busy || !usePhotos;
+                const hint = shapeHint(r.width, r.height);
+                const meta = "Photo" + (hint ? " · " + hint : "");
+                return (
+                  <label key={r.rid} title={r.name + " · " + meta + (usePhotos ? "" : " · Use photos is off")}
+                    style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, padding: "4px 6px", cursor: off ? "default" : "pointer", opacity: off ? 0.6 : 1 }}>
+                    <input type="checkbox" checked={on} disabled={off} onChange={(e) => togglePhoto(r.rid, e.currentTarget.checked)} style={{ flexShrink: 0, margin: 0 }} />
                     <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
                     <span style={{ flexShrink: 0, fontSize: 11, color: "var(--panel-muted-fg)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{meta}</span>
                   </label>
@@ -1074,7 +1236,7 @@ export default function Panel({ sdk, context, ui }: any) {
       <ui.Actions>
         {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>Finish title and look</ui.Button> : null}
         {result ? <ui.Button onClick={buildAnother} disabled={busy}>Create another version</ui.Button> : null}
-        <ui.Button variant="primary" busy={busy} busyLabel={step || "Building"} onClick={() => build(seed)} disabled={busy || !inventory || !selectedRids.length}>Build</ui.Button>
+        <ui.Button variant="primary" busy={busy} busyLabel={step || "Building"} onClick={() => build(seed)} disabled={busy || !canBuild}>Build</ui.Button>
       </ui.Actions>
     </ui.Stack>
   );

@@ -17,10 +17,15 @@ const CWV_REFERENCE_BPM = 99.2;
 const CWV_TALKING_MARGIN = 0.05;
 const CWV_TALKING_MIN = 0.3;
 // Scene-search hits collapse onto a few distinct times per clip, so every searched source also gets evenly spaced
-// 'filler' candidates. They score below any real hit and are only used by the last-resort any-role tier.
+// 'filler' candidates. They score below any real hit and are only used by the last tier, after photos.
 const CWV_FILLER_STEP = 0.5;
 const CWV_FILLER_EDGE = 0.25;
 const CWV_FILLER_SCORE = -2;
+// Photos (Image resources) have no scene search. Each one fills at most one slot of any length up to the 5 s an
+// image source lasts. They rank after every real video hit and before fillers, except in the title burst, where
+// they rank right after the preferred roles. At most CWV_PHOTO_RUN_MAX photos play in a row while anything else fits.
+const CWV_PHOTO_HOLD_MAX = 5;
+const CWV_PHOTO_RUN_MAX = 2;
 
 function cwvVideoBeats(montageShots) { return CWV_TITLE_TOTAL_BEATS + CWV_MONTAGE_BEATS * montageShots; }
 function cwvVideoSeconds(bpm, montageShots) { return cwvVideoBeats(montageShots) * 60 / bpm; }
@@ -131,8 +136,12 @@ const CWV_ROLE_FALLBACK = {
 function cwvAllocate(opts) {
   const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
   const finite = v => typeof v === 'number' && isFinite(v);
-  const candidates = opts.candidates.filter(c => c && finite(c.t) && finite(c.score) && finite(c.sourceDuration));
-  const used = {}, avoid = {}, recent = [], picks = [];
+  const candidates = opts.candidates.filter(c => c && c.kind !== 'photo' && finite(c.t) && finite(c.score) && finite(c.sourceDuration));
+  // One photo candidate per rid, in rid order so the result never depends on input order.
+  const photoSeen = {};
+  const photos = opts.candidates.filter(c => c && c.kind === 'photo' && typeof c.rid === 'string' && !photoSeen[c.rid] && (photoSeen[c.rid] = true))
+    .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
+  const used = {}, avoid = {}, recent = [], picks = [], photoUsed = {};
   // Only a dominant talking hit becomes a ±1 s avoid window; avoidTalking: false disables avoidance entirely.
   if (opts.avoidTalking !== false) {
     candidates.filter(c => c.role === 'talking').forEach(c => {
@@ -143,12 +152,12 @@ function cwvAllocate(opts) {
     });
   }
   const pool = candidates.filter(c => c.role !== 'talking' && c.sourceDuration > 0);
-  let missing = 0, fillerShots = 0;
-  // Best fitting candidate for a slot. With roles == null, any non-talking role, fillers included, is accepted (last resort).
-  function search(slot, roles) {
+  let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, photoRunRelaxed = false;
+  // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
+  function searchVideo(slot, rankOf) {
     let best = null;
     for (const c of pool) {
-      const rank = roles ? roles.indexOf(c.role) : 0;
+      const rank = rankOf(c);
       if (rank < 0 || c.sourceDuration < slot.seconds) continue;
       const start = Math.max(0, Math.min(c.sourceDuration - slot.seconds, c.t - slot.seconds / 2));
       const end = start + slot.seconds;
@@ -162,40 +171,105 @@ function cwvAllocate(opts) {
     }
     return best;
   }
+  // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos.
+  function searchPhoto(slot) {
+    if (slot.seconds > CWV_PHOTO_HOLD_MAX + 1e-9) return null;
+    let best = null;
+    for (const c of photos) {
+      if (photoUsed[c.rid]) continue;
+      const value = cwvHash(opts.seed + ':photo:' + c.rid);
+      if (!best || value > best.value + 1e-12) best = { value, c, photo: true };
+    }
+    return best;
+  }
   for (const slot of opts.slots) {
-    // Preferred roles always win; any other role is only used when none of them fits.
-    const best = search(slot, CWV_ROLE_FALLBACK[slot.role] || [slot.role]) || search(slot, null);
-    if (!best) { missing++; picks.push(null); continue; }
-    (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
-    if (best.c.role === 'filler') fillerShots++;
+    const roles = CWV_ROLE_FALLBACK[slot.role] || [slot.role];
+    const preferred = () => searchVideo(slot, c => roles.indexOf(c.role));
+    const anyReal = () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0));
+    const photo = () => searchPhoto(slot);
+    const filler = () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1));
+    // Tiers, best first: preferred-role hits, any-role hits, photos, fillers. The title burst lifts photos above the
+    // any-role tier. After CWV_PHOTO_RUN_MAX photos in a row, a photo is only the last resort.
+    const tiers = slot.section === 'burst' ? [preferred, photo, anyReal, filler] : [preferred, anyReal, photo, filler];
+    const runFull = photoRun >= CWV_PHOTO_RUN_MAX;
+    let best = null;
+    for (const tier of tiers) {
+      if (runFull && tier === photo) continue;
+      if ((best = tier())) break;
+    }
+    if (!best && runFull && (best = photo())) photoRunRelaxed = true;
+    if (!best) { missing++; picks.push(null); photoRun = 0; continue; }
     recent.push(best.c.rid);
     if (recent.length > 3) recent.shift();
-    picks.push({ slot: slot.index, rid: best.c.rid, startSeconds: best.start, endSeconds: best.end });
+    if (best.photo) {
+      photoUsed[best.c.rid] = true;
+      photoShots++; photoRun++;
+      picks.push({ slot: slot.index, rid: best.c.rid, kind: 'photo', holdSeconds: slot.seconds });
+      continue;
+    }
+    photoRun = 0;
+    (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
+    if (best.c.role === 'filler') fillerShots++;
+    picks.push({ slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end });
   }
-  return { picks, filled: picks.filter(Boolean).length, missing, fillerShots };
+  return { picks, filled: picks.filter(Boolean).length, missing, fillerShots, photoShots, photoRunRelaxed };
 }
 
 // Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
 // Filler candidates are added to every attempt. If no length fits while avoiding talking, the same range is tried once more without that avoidance (relaxedTalking).
+// Photo candidates ({ rid, kind: 'photo' }) join every attempt, so a Project with only photos builds too.
 function cwvPlanBuild(opts) {
   const top = Math.min(CWV_MAX_MONTAGE, Math.max(CWV_MIN_MONTAGE, opts.montageShots));
   const candidates = opts.candidates.concat(cwvFillers(opts.candidates));
-  let bestFilled = 0;
+  let best = { filled: 0, photoShots: 0 };
   for (const avoidTalking of [true, false]) {
     for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
       const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n });
-      const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
+      const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, section: s.section, seconds: (s.endFrame - s.startFrame) / opts.fps }));
       const alloc = cwvAllocate({ candidates, slots, seed: opts.seed, avoidTalking });
       if (alloc.missing === 0) {
-        const plan = { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS, fillerShots: alloc.fillerShots };
+        const plan = { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
         if (!avoidTalking) plan.relaxedTalking = true;
+        if (alloc.photoRunRelaxed) plan.photoRunRelaxed = true;
         return plan;
       }
       // Report the better of the two shortest attempts: each fills fewer than CWV_MIN_WINDOWS slots, so usableShots < needed.
-      if (n === CWV_MIN_MONTAGE) bestFilled = Math.max(bestFilled, alloc.filled);
+      if (n === CWV_MIN_MONTAGE && alloc.filled > best.filled) best = alloc;
     }
   }
-  return { ok: false, usableShots: bestFilled, needed: CWV_MIN_WINDOWS };
+  return { ok: false, usableShots: best.filled, needed: CWV_MIN_WINDOWS, photoShots: best.photoShots };
+}
+
+// Photo motions for montage photos, in pick order. Title photos (slots before the montage) stay still (null).
+// Deterministic per seed; never the same motion twice in a row, never the same family (drift, tilt, ...) twice in a row;
+// drift, tilt and push-drift directions alternate. Drift follows the photo: vertical for portrait, horizontal otherwise.
+// Each entry is { motion, direction: 1 | -1, axis: 'x' | 'y' } for assets/photo-motion.tsx.
+// `sizes` maps rid -> { width, height }; an unknown size counts as landscape.
+const CWV_PHOTO_MOTIONS = ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift'];
+const CWV_MOTION_FAMILIES = ['push-in', 'pull-out', 'drift', 'tilt', 'push-drift'];
+function cwvPhotoMotions(picks, seed, sizes) {
+  const out = [];
+  let lastFamily = null, driftSign = { x: 1, y: 1 }, tiltSign = 1, pushDriftSign = 1, k = 0;
+  for (const pick of picks) {
+    if (!pick || pick.kind !== 'photo' || !(pick.slot >= CWV_TITLE_BEATS.length)) { out.push(null); continue; }
+    const size = sizes && sizes[pick.rid];
+    const portrait = !!(size && size.height > size.width);
+    const families = CWV_MOTION_FAMILIES.filter(f => f !== lastFamily)
+      .map(f => ({ f, v: cwvHash(seed + ':motion:' + k + ':' + f) }))
+      .sort((a, b) => b.v - a.v || (a.f < b.f ? -1 : 1));
+    const family = families[0].f;
+    let motion = family, direction = 1;
+    if (family === 'drift') {
+      const axis = portrait ? 'y' : 'x';
+      direction = driftSign[axis]; driftSign[axis] = -direction;
+      motion = axis === 'x' ? (direction > 0 ? 'drift-right' : 'drift-left') : (direction > 0 ? 'drift-down' : 'drift-up');
+    } else if (family === 'tilt') { direction = tiltSign; tiltSign = -tiltSign; }
+    else if (family === 'push-drift') { direction = pushDriftSign; pushDriftSign = -pushDriftSign; }
+    // axis: the drift direction of push-drift (and of the drift motions), along the side the 9:16 crop has room on.
+    out.push({ motion, direction, axis: portrait ? 'y' : 'x' });
+    lastFamily = family; k++;
+  }
+  return out;
 }
 
 // Build steps shown in the panel's progress bar, with each step's share of the bar in percent.
