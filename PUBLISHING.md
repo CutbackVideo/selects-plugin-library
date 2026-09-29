@@ -55,8 +55,8 @@ that existing restriction is not changed by this metadata contract.
 
 ## Gallery previews
 
-A plugin may include `preview.mp4` (H.264 MP4, at most 8 MiB) and
-`poster.webp` (WebP, at most 512 KiB) at its root. Review their visible
+A plugin may include `preview.mp4` (H.264 MP4, at most 8 MiB),
+`poster.webp` (WebP, at most 512 KiB), or both at its root. Review their visible
 content before publishing; file-header checks do not review media content.
 Use a compact preview, preserve its aspect ratio, and enable MP4 fast start.
 
@@ -72,5 +72,9 @@ Declare them in `plugin.json` under `preview`, for example:
 ```
 
 Paths are relative to the plugin folder at the same Git commit as the manifest.
+For a still-image preview, omit `video` and declare only `poster`, `width` and
+`height`. A video-only preview may omit `poster`. When `preview` is present,
+at least one media file and positive integer dimensions are required. The app
+shows the video when available, otherwise the poster, otherwise a default icon.
 These are gallery assets, not installation files: keep them out of `files`.
 Preview-only changes do not change the plugin runtime version.
