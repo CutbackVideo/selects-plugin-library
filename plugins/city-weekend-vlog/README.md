@@ -19,7 +19,8 @@ or any source file.
   every cut lands on a beat or half-beat. A cut that starts a shot of a beat
   or more, and the first cut of the burst, moves onto a strong drum or bass
   hit when one is within a tenth of a beat (at most 70 ms); the rest of the
-  burst follows it, and every other cut stays on the grid.
+  burst follows it when that moves it to another frame, and every other cut
+  stays on the grid.
 - **Montage (2 beats per shot).** Street, architecture, park and detail shots,
   7 by default. It starts on the first beat of a bar.
 - A 1080x1920 canvas. Landscape clips and photos get a centre crop.
