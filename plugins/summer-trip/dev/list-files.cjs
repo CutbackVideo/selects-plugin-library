@@ -50,7 +50,7 @@ if (require.main === module) {
     const m = JSON.parse(text);
     m.files = files;
     // Keep the manifest ASCII-only (localized text as \uXXXX escapes; check_public rejects literal Hangul).
-    const out = JSON.stringify(m, null, 2).replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')) + '\n';
+    const out = JSON.stringify(m, null, 2).replace(/[\u007f-\uffff]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')) + '\n';
     fs.writeFileSync(file, out);
     console.log('plugin.json files: ' + files.length);
   } else console.log(JSON.stringify(files, null, 1));

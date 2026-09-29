@@ -240,7 +240,8 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
       return { ok: unknown.length === 0 && missing.length === 0, counts, missing, unknown, unverified };
     },
 
-    inventory(row, { readOnly } = {}) {
+    inventory(r0, { readOnly } = {}) {
+      const row = expandEnv(r0); // the kit's build-driver passes matrix rows unexpanded
       return { summary: 'Read footage', script: 'scripts/inventory.js', config: { projectId: row.pid, only: row.only || null, known: {}, ...(readOnly ? { measureMs: 0, probeMs: 0 } : {}) } };
     },
 
@@ -248,7 +249,8 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
       return { rids: inv.resources.map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
     },
 
-    search(row, rids) {
+    search(r0, rids) {
+      const row = expandEnv(r0);
       return { summary: 'Search travel shots', script: 'scripts/search.js', config: { projectId: row.pid, rids, queries: j(P.ST_QUERIES), pageSize: ST_PANEL.SEARCH_PAGE } };
     },
 

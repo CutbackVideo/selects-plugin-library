@@ -95,8 +95,8 @@ Choose a **Track**:
   lands on the drop; otherwise the panel says "No drop found: the grid
   starts after the 2-bar title". Songs whose beat cannot be detected
   reliably, or that stay under 70 BPM, use approximate timing (a fixed 0.5 s
-  beat whose main cuts move onto a strong bass hit within 120 ms), and the
-  panel says so. Your own music needs ffmpeg and Node.js 18 or later (see
+  beat; the drop, the first montage cut and the ending may move onto a
+  strong bass hit within 120 ms), and the panel says so. Your own music needs ffmpeg and Node.js 18 or later (see
   [INSTALL.md](INSTALL.md)).
 - **No music**: fixed timing at 120 BPM (a 0.5 s beat).
 
