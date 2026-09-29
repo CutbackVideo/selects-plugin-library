@@ -127,6 +127,12 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   bad.d.setAudioTracks = async () => { throw Error('nope'); };
   await assert.rejects(load('decorate.js', { sequenceId: 's', mute: true, videoEnd: 10, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null })({ draft: () => bad.d }), /mute the clips' own sound: nope/);
   assert.equal(bad.log.filter(x => x[0] === 'commit' || x[0] === 'title').length, 0);
+  // The title needs the video's end frame: a missing or non-positive videoEnd fails before anything is touched.
+  for (const videoEnd of [undefined, 0, -5, 'x']) {
+    const g = mockDraft(30); g.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null });
+    await assert.rejects(load('decorate.js', { sequenceId: 's', mute: true, videoEnd, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null })({ draft: () => g.d }), /decorate: cfg\.videoEnd missing/);
+    assert.equal(g.log.length, 0, 'nothing is changed without videoEnd');
+  }
 
   // Silent sources (no audio stream) keep null routing after muting. A first run on an all-silent Draft mutes nothing:
   // muted is false and the title still commits.

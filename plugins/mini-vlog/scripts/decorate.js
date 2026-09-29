@@ -1,4 +1,5 @@
 const cfg = __CONFIG__;
+if (!(cfg.videoEnd > 0)) throw Error('decorate: cfg.videoEnd missing');
 const d = selects.draft(cfg.sequenceId);
 const TITLE_LABEL = 'Mini vlog title', SOFT_LABEL = 'Soft look', MOTION_LABEL = 'Photo motion';
 // Photo resource ids in this Draft. Photos have no sound, so their audio routing stays null after muting.
