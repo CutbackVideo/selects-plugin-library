@@ -18,9 +18,9 @@ const CUES = [
   // best bar phase) -> low: the kick is four on the floor, so no beat of the bar stands out (low-band medians by bar
   // position 0.96 / 1.05 / 1.02 / 0.97).
   { id: 'brooklyn-boom-bap', label: 'Brooklyn Boom Bap', source: 'boom-bap-neosoul-90bpm.mp3', downbeatConfidence: 'high' },
-  // The fitted grid locks onto the 8th off-beats (first beat 0.341 s): on it the mid band shows no backbeat. Half a
-  // beat earlier (0.035 s) the kick opens bar 1 at 0.03 s and the snare lands on beats 2 and 4.
-  { id: 'downtown-funk-break', label: 'Downtown Funk Break', source: 'funk-breakbeat-98bpm.mp3', downbeatConfidence: 'high', phaseBeats: -0.5 },
+  // The broadband fit locks onto the 8th off-beats (0.341 s); beat-detect.cjs's phase check (v2.6) moves it half a beat
+  // to 0.034 s, where the kick opens bar 1 at 0.03 s and the snare lands on beats 2 and 4 (v2.5 set phaseBeats: -0.5).
+  { id: 'downtown-funk-break', label: 'Downtown Funk Break', source: 'funk-breakbeat-98bpm.mp3', downbeatConfidence: 'high' },
   { id: 'sunset-afro-house', label: 'Sunset Afro House', source: 'afro-house-lite-115bpm.mp3', downbeatConfidence: 'low' },
 ];
 const src = process.argv[2];
@@ -69,6 +69,7 @@ for (const c of CUES) {
     lufs = measure();
   }
   const samples = decode(dst);
+  // phaseBeats: a manual half-beat correction for a cue whose grid the phase check does not fix (none since v2.6).
   const a = analyze(samples, 22050, { phaseBeats: c.phaseBeats || 0 });
   const usableEnd = Math.round(Math.min(a.durationSeconds, a.lastOnsetSeconds + 0.5) * 100) / 100;
   cues.push({

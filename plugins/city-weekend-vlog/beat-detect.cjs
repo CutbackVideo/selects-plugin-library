@@ -141,7 +141,9 @@ function percentile(values, q) {
 // Returns { onsets: [[seconds, band 'l' | 'm' | 'h', strength], ...] sorted by time (qualifying onsets only; time to
 // the millisecond, strength to 0.1), thresholds: { l, m, h } (floored to 0.1, so every listed strength reaches its
 // band's threshold) }.
-function bandOnsets(samples, sampleRate) {
+// The smoothed flux of each band ([low, mid, high] Float64Arrays), the hop in samples and the frame count; frame i is
+// stamped at i * hop / sampleRate, so an onset peaking at frame i is at that time + BAND_ONSET_LAG.
+function bandFlux(samples, sampleRate) {
   const scale = Math.max(1, Math.round(sampleRate / 22050));
   const nfft = 1024 * scale, hop = 64 * scale, lag = 2;
   const frames = Math.floor(samples.length / hop) + 1;
@@ -159,10 +161,22 @@ function bandOnsets(samples, sampleRate) {
     if (f < lag) continue;
     bins.forEach(([k0, k1], b) => { let s = 0; for (let k = k0; k < k1; k++) s += Math.max(0, cur[k] - old[k]); flux[b][f] = s; });
   }
+  const smooth = flux.map(d => {
+    const e = new Float64Array(frames);
+    for (let f = 0; f < frames; f++) e[f] = ((f > 0 ? d[f - 1] : 0) + d[f] + (f + 1 < frames ? d[f + 1] : 0)) / 3;
+    return e;
+  });
+  return { flux: smooth, hop, frames };
+}
+
+// Returns { onsets: [[seconds, band 'l' | 'm' | 'h', strength], ...] sorted by time (qualifying onsets only; time to
+// the millisecond, strength to 0.1), thresholds: { l, m, h } (floored to 0.1, so every listed strength reaches its
+// band's threshold) }. `flux` (a bandFlux result) is reused when given.
+function bandOnsets(samples, sampleRate, flux) {
+  const { flux: smooth, hop, frames } = flux || bandFlux(samples, sampleRate);
   const gap = Math.round(0.05 * sampleRate / hop), onsets = [], thresholds = {};
   ONSET_BANDS.forEach(([band], b) => {
-    const d = flux[b], e = new Float64Array(frames);
-    for (let f = 0; f < frames; f++) e[f] = ((f > 0 ? d[f - 1] : 0) + d[f] + (f + 1 < frames ? d[f + 1] : 0)) / 3;
+    const e = smooth[b];
     const med = (percentile(Array.from(e), 0.5) || 0) + 1e-9;
     const peaks = [];
     for (let i = 1; i < frames - 1; i++) {
@@ -179,8 +193,43 @@ function bandOnsets(samples, sampleRate) {
   return { onsets, thresholds };
 }
 
-// opts.phaseBeats (dev only, default 0): move the fitted grid by this many beats before the first beat is chosen,
-// for a cue whose grid locked onto the 8th off-beats (dev/build-cues.cjs; never set for own music).
+// Phase sanity check (v2.6). The broadband fit can lock onto the 8th off-beats when hats or ghost notes on the "and"s
+// carry more flux than the beats (Downtown Funk Break: first beat 0.341 s, half a beat late). On the beat the kick
+// (low band) should hit, and in 4/4 pop and funk the snare (mid band) marks every other beat (the backbeat, 2 and 4).
+// For the fitted phase and the phase half a beat on, over [0, t1): low = the mean low-band flux peak within
+// PHASE_WINDOW of each grid line; backbeat = the mean mid-band peak on the stronger of the two alternating beat sets
+// (which beat is 1 is unknown). The phase moves only when the other grid wins on both, by PHASE_LOW_MARGIN and
+// PHASE_BACKBEAT_MARGIN: a track with its bass on the off-beats (Weekend Indie Pop: low 1.66x on the off-beats, but
+// backbeat 1.01x) or the reference edit's music (low 1.28x, backbeat 0.76x) keeps its grid. Measured on the bundled
+// cues' fitted grids: Downtown Funk Break low 1.16x / backbeat 1.22x on the other phase; every other cue, the reference
+// audio and the two Sinatra references at most 1.03x backbeat when low is above 1.
+const PHASE_WINDOW = 0.03;
+const PHASE_LOW_MARGIN = 1.05;
+const PHASE_BACKBEAT_MARGIN = 1.1;
+function phaseEvidence(bf, sampleRate, attack, period, t1) {
+  const peak = (e, t) => {
+    const c = (t - BAND_ONSET_LAG) * sampleRate / bf.hop, r = PHASE_WINDOW * sampleRate / bf.hop;
+    let m = 0;
+    for (let i = Math.max(0, Math.floor(c - r)); i <= Math.min(e.length - 1, Math.ceil(c + r)); i++) if (e[i] > m) m = e[i];
+    return m;
+  };
+  let low = 0, n = 0;
+  const mid = [0, 0], count = [0, 0];
+  for (let t = attack; t < t1 - 0.05; t += period, n++) {
+    low += peak(bf.flux[0], t);
+    mid[n % 2] += peak(bf.flux[1], t); count[n % 2]++;
+  }
+  return { beats: n, low: n ? low / n : 0, backbeat: Math.max(count[0] ? mid[0] / count[0] : 0, count[1] ? mid[1] / count[1] : 0) };
+}
+// true when the grid half a beat on is clearly the beat (phaseEvidence of both, at the attack times).
+function offBeatLocked(bf, sampleRate, attack, period, t1) {
+  const fit = phaseEvidence(bf, sampleRate, attack, period, t1), alt = phaseEvidence(bf, sampleRate, attack + period / 2, period, t1);
+  if (fit.beats < 8 || alt.beats < 8 || !(fit.low > 0) || !(fit.backbeat > 0)) return false;
+  return alt.low >= PHASE_LOW_MARGIN * fit.low && alt.backbeat >= PHASE_BACKBEAT_MARGIN * fit.backbeat;
+}
+
+// opts.phaseBeats (dev only, default 0): move the grid by this many beats before the first beat is chosen, after the
+// phase sanity check (offBeatLocked); no bundled cue needs it since v2.6.
 function analyze(samples, sampleRate, opts) {
   const durationSeconds = samples.length / sampleRate;
   const { env, strong } = onsetEnvelope(samples);
@@ -221,6 +270,9 @@ function analyze(samples, sampleRate, opts) {
     const fit = sxx > 0 ? sxy / sxx : period;
     if (Math.abs(fit - period) < 0.01 * period) { period = fit; phase = mt - fit * mk; }
   }
+  // The fitted phase is on the onset-envelope peaks, ONSET_LAG after the attacks that the band flux is stamped at.
+  const bf = bandFlux(samples, sampleRate);
+  if (offBeatLocked(bf, sampleRate, phase - ONSET_LAG, period, t1)) phase += period / 2;
   if (opts && opts.phaseBeats) phase += opts.phaseBeats * period;
   phase = ((phase % period) + period) % period;
   if (phase > period - 0.03) phase = Math.max(0, phase - period);
@@ -262,7 +314,7 @@ function analyze(samples, sampleRate, opts) {
     for (let i = b * bucket; i < Math.min(samples.length, (b + 1) * bucket); i++) m = Math.max(m, Math.abs(samples[i]));
     peaks.push(Math.round(m * 1000) / 1000);
   }
-  const bands = bandOnsets(samples, sampleRate);
+  const bands = bandOnsets(samples, sampleRate, bf);
   const beatEnergy = [];
   for (let t = firstBeat; t + period <= durationSeconds; t += period) {
     let s = 0;
@@ -288,7 +340,7 @@ function analyze(samples, sampleRate, opts) {
   };
 }
 
-module.exports = { analyze, sixteenthRatio, bandOnsets };
+module.exports = { analyze, sixteenthRatio, bandOnsets, bandFlux };
 
 if (require.main === module) {
   try {

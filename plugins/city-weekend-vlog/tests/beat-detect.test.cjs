@@ -18,12 +18,37 @@ assert.equal(a.accepted, true);
 assert.equal(a.peaks.length, 400);
 assert.ok(a.beatEnergy.length >= 55);
 
-// phaseBeats (dev/build-cues.cjs only) moves the fitted grid before the first beat is chosen: half a beat back from
+// phaseBeats (dev only) moves the fitted grid before the first beat is chosen: half a beat back from
 // 0.5 s at 120 BPM puts the first beat at 0.25 s, on the same tempo.
 const half = analyze(clickTrack(120, 0.5, 30), sr, { phaseBeats: -0.5 });
 assert.ok(Math.abs(half.firstBeat - 0.25) < 0.02, 'phaseBeats firstBeat ' + half.firstBeat);
 assert.equal(half.bpm, a.bpm);
 assert.equal(analyze(clickTrack(120, 0.5, 30), sr, { phaseBeats: 0 }).firstBeat, a.firstBeat);
+
+// Phase sanity check (v2.6): a kit whose loud hats sit on the 8th off-beats makes the broadband fit lock onto them;
+// the kick on every beat and the snare on every other beat (the backbeat) move the grid back half a beat. Beats at
+// 0.3 + 0.5 k s (120 BPM), hats at 0.55 + 0.5 k s.
+function offBeatKit({ snare = true } = {}) {
+  let s = 7; const rnd = () => ((s = Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296 - 0.5;
+  const x = new Float32Array(20 * sr).map(() => rnd() * 0.002);
+  const add = (t, n, f) => { const i0 = Math.round(t * sr); for (let k = 0; k < n && i0 + k < x.length; k++) x[i0 + k] += f(k); };
+  for (let k = 0; 0.3 + k * 0.5 < 19.5; k++) {
+    const t = 0.3 + k * 0.5;
+    add(t, 6000, i => 0.5 * Math.sin(2 * Math.PI * (55 + 60 * Math.exp(-i / 400)) * i / sr) * Math.exp(-i / 3000) + 0.1 * rnd() * Math.exp(-i / 40));
+    if (snare && k % 2) add(t, 4000, i => 0.1 * (Math.sin(2 * Math.PI * 330 * i / sr) + Math.sin(2 * Math.PI * 720 * i / sr) + Math.sin(2 * Math.PI * 1250 * i / sr)) * Math.exp(-i / 900));
+    add(t + 0.25, 2500, i => 0.3 * rnd() * Math.exp(-i / 250) * (i % 2 ? 1 : -1));
+  }
+  return x;
+}
+const kitOn = analyze(offBeatKit(), sr);
+assert.ok(Math.abs(kitOn.bpm - 120) < 0.2, 'kit bpm ' + kitOn.bpm);
+assert.ok(Math.abs(kitOn.firstBeat - 0.3) < 0.01, 'on the kick, not the hats: ' + kitOn.firstBeat);
+assert.equal(kitOn.accepted, true);
+// Without the backbeat the evidence is not clear, and the fitted grid (on the hats) stays.
+const kitNoSnare = analyze(offBeatKit({ snare: false }), sr);
+assert.ok(Math.abs(kitNoSnare.firstBeat - 0.05) < 0.01, 'fitted grid kept on the hats: ' + kitNoSnare.firstBeat);
+// phaseBeats still applies after the check.
+assert.ok(Math.abs(analyze(offBeatKit(), sr, { phaseBeats: -0.5 }).firstBeat - 0.05) < 0.01, 'phaseBeats after the check');
 
 const b = analyze(clickTrack(66, 0.2, 30), sr);          // below range: resolved to double tempo
 assert.ok(Math.abs(b.bpm - 132) < 0.3 || Math.abs(b.bpm - 66) < 0.2, 'bpm ' + b.bpm);

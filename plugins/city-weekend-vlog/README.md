@@ -90,11 +90,13 @@ can move it by up to half a frame; the cuts move with it. **Preview this section
 section; press it again (or Esc) to stop.
 
 **Your own music**: drop an audio file. The plugin listens for the beat and
-uses it when the detected beat grid is reliable. It also measures how
+uses it when the detected beat grid is reliable. When the detected beats
+land halfway between the kicks and snare hits, it moves the grid half a beat
+onto them. It also measures how
 strongly the music marks 16th notes to choose the title burst. Songs slower than 70 BPM, or
 songs whose beat cannot be detected reliably, fall back to fixed timing at
 99.2 BPM, and the panel says "cuts use the original rhythm". Those cuts
-still move onto a nearby bass hit (within 120 ms). Without a
+still move onto a clearly strong bass hit nearby (within 120 ms). Without a
 reliable grid, the box moves in 0.1 s steps instead of bars. Your own music
 and the previews need ffmpeg; your own music also needs Node.js 18 or later
 (see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.

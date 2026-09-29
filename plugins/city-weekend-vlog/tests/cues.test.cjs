@@ -42,9 +42,21 @@ for (const c of m.cues) {
 // Measured on the bundled cues: Sunny Soul Strut and the three drum-forward cues (v2.5) have a clear enough 16th pulse
 // for the 16th burst.
 assert.deepEqual(m.cues.map(c => c.sixteenthRatio >= 0.35), [true, false, false, false, true, true, true]);
-// Downtown Funk Break's grid is moved half a beat onto its backbeat (dev/build-cues.cjs phaseBeats); the others are
-// the detector's own grid. downbeatConfidence: beat-1 low-band clarity >= 1.5 (see dev/build-cues.cjs).
+// Every grid is the detector's own (v2.6: its phase check moves Downtown Funk Break's fitted grid half a beat, off the
+// 8th off-beats onto the kick and backbeat, so no cue needs a phaseBeats override). downbeatConfidence: beat-1 low-band clarity >= 1.5 (see dev/build-cues.cjs).
 assert.deepEqual(m.cues.map(c => c.downbeatConfidence), ['high', 'low', 'high', 'low', 'high', 'high', 'low']);
 // The existing four cues are unchanged by the v2.5 build.
 assert.deepEqual(m.cues.slice(0, 4).map(c => c.sha256.slice(0, 12)), ['cedd6c13db48', 'f35098387dc8', '7c251130324e', '892819e9d672']);
+// beat-detect.cjs reproduces every shipped first beat and tempo from the mp3 (when ffmpeg is available).
+const { execFileSync, spawnSync } = require('node:child_process');
+if (spawnSync('ffmpeg', ['-version']).status === 0) {
+  const { analyze } = require(path.resolve(__dirname, '..', 'beat-detect.cjs'));
+  for (const c of m.cues) {
+    const pcm = execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-i', path.join(dir, c.file), '-ac', '1', '-ar', '22050', '-f', 'f32le', '-'], { maxBuffer: 1 << 28 });
+    const a = analyze(new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4)), 22050);
+    assert.equal(a.bpm, c.bpm, c.id + ' bpm reproduced');
+    assert.ok(Math.abs(a.firstBeat - c.firstBeat) <= 0.001, c.id + ' firstBeat reproduced: ' + a.firstBeat + ' vs ' + c.firstBeat);
+    assert.equal(a.accepted, true, c.id + ' accepted');
+  }
+}
 console.log(JSON.stringify({ cues: 'ok' }));
