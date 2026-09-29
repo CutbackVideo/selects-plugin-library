@@ -103,15 +103,17 @@ const CWV_ROLE_FALLBACK = {
 
 function cwvAllocate(opts) {
   const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
+  const finite = v => typeof v === 'number' && isFinite(v);
+  const candidates = opts.candidates.filter(c => c && finite(c.t) && finite(c.score) && finite(c.sourceDuration));
   const used = {}, avoid = {}, recent = [], picks = [];
-  opts.candidates.filter(c => c.role === 'talking').forEach(c => { (avoid[c.rid] = avoid[c.rid] || []).push([c.t - 1, c.t + 1]); });
-  const pool = opts.candidates.filter(c => c.role !== 'talking' && c.sourceDuration > 0);
+  candidates.filter(c => c.role === 'talking').forEach(c => { (avoid[c.rid] = avoid[c.rid] || []).push([c.t - 1, c.t + 1]); });
+  const pool = candidates.filter(c => c.role !== 'talking' && c.sourceDuration > 0);
   let missing = 0;
-  for (const slot of opts.slots) {
-    const roles = CWV_ROLE_FALLBACK[slot.role] || [slot.role];
+  // Best fitting candidate for a slot. With roles == null, any non-talking role is accepted (last resort).
+  function search(slot, roles) {
     let best = null;
     for (const c of pool) {
-      const rank = roles.indexOf(c.role);
+      const rank = roles ? roles.indexOf(c.role) : 0;
       if (rank < 0 || c.sourceDuration < slot.seconds) continue;
       const start = Math.max(0, Math.min(c.sourceDuration - slot.seconds, c.t - slot.seconds / 2));
       const end = start + slot.seconds;
@@ -123,6 +125,11 @@ function cwvAllocate(opts) {
         (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)));
       if (better) best = { value, c, start, end };
     }
+    return best;
+  }
+  for (const slot of opts.slots) {
+    // Preferred roles always win; any other role is only used when none of them fits.
+    const best = search(slot, CWV_ROLE_FALLBACK[slot.role] || [slot.role]) || search(slot, null);
     if (!best) { missing++; picks.push(null); continue; }
     (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
     recent.push(best.c.rid);
@@ -132,23 +139,20 @@ function cwvAllocate(opts) {
   return { picks, filled: picks.filter(Boolean).length, missing };
 }
 
+// Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
 function cwvPlanBuild(opts) {
-  const full = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: opts.montageShots });
-  const slots = full.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
-  const alloc = cwvAllocate({ candidates: opts.candidates, slots, seed: opts.seed });
-  const titleCount = CWV_TITLE_BEATS.length;
-  const titleOk = alloc.picks.slice(0, titleCount).every(Boolean);
-  let n = 0;
-  while (n < opts.montageShots && alloc.picks[titleCount + n]) n++;
-  if (!titleOk || n < CWV_MIN_MONTAGE) return { ok: false, usableShots: alloc.filled, needed: CWV_MIN_WINDOWS };
-  return {
-    ok: true,
-    schedule: cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n }),
-    picks: alloc.picks.slice(0, titleCount + n),
-    montageShots: n,
-    usableShots: alloc.filled,
-    needed: CWV_MIN_WINDOWS,
-  };
+  const top = Math.min(CWV_MAX_MONTAGE, Math.max(CWV_MIN_MONTAGE, opts.montageShots));
+  let lastFilled = 0;
+  for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
+    const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n });
+    const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
+    const alloc = cwvAllocate({ candidates: opts.candidates, slots, seed: opts.seed });
+    lastFilled = alloc.filled;
+    if (alloc.missing === 0) {
+      return { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS };
+    }
+  }
+  return { ok: false, usableShots: lastFilled, needed: CWV_MIN_WINDOWS };
 }
 
 // Build steps shown in the panel's progress bar, with each step's share of the bar in percent.

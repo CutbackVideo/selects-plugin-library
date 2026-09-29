@@ -40,12 +40,40 @@ const poor = [{ rid: 'r0', role: 'street', t: 1, score: 1, sourceDuration: 3 }, 
 const c = j(P.cwvPlanBuild({ candidates: poor, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
 assert.equal(c.ok, false);
 assert.equal(c.needed, 17);
-assert.ok(c.usableShots < 17);
+assert.ok(c.usableShots < c.needed);
 
-// Montage shrinks to what fits (>= 4) instead of failing.
-const mid = rich.filter(x => ['r0', 'r1', 'r2'].includes(x.rid)).map(x => Object.assign({}, x, { sourceDuration: 9 }));
-const d = j(P.cwvPlanBuild({ candidates: mid, bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' }));
-if (d.ok) assert.ok(d.montageShots >= 4 && d.montageShots <= 12 && d.picks.length === 13 + d.montageShots);
+// (a) Limited footage: montage shrinks to what fits (>= 4) instead of failing; deterministic per seed.
+const mk = (n, dur, roleList) => { const out = []; for (let r = 0; r < n; r++) for (const role of roleList) out.push({ rid: 'm' + r, role, t: dur / 2, score: 0.6, sourceDuration: dur }); return out; };
+let shrunk = null;
+for (let n = 8; n <= 40 && !shrunk; n++) {
+  const r = j(P.cwvPlanBuild({ candidates: mk(n, 4, roles), bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' }));
+  if (r.ok && r.montageShots < 12) shrunk = { n, r };
+}
+assert.ok(shrunk, 'some footage level shrinks the montage');
+assert.ok(shrunk.r.montageShots >= 4 && shrunk.r.montageShots < 12);
+assert.equal(shrunk.r.picks.length, 13 + shrunk.r.montageShots);
+assert.ok(shrunk.r.picks.every(Boolean));
+// (e) Determinism for the shrunk case.
+assert.deepEqual(j(P.cwvPlanBuild({ candidates: mk(shrunk.n, 4, roles), bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' })), shrunk.r);
+
+// (b) No footage for the first montage role (architecture) or its fallbacks: a later-role fallback still fills it.
+const noArch = rich.filter(x => x.role !== 'architecture' && x.role !== 'landmark');
+const e2 = j(P.cwvPlanBuild({ candidates: noArch, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
+assert.equal(e2.ok, true);
+assert.equal(e2.picks.length, 13 + e2.montageShots);
+
+// (c) Street/detail-only footage still builds (last-resort tier).
+const sd = rich.filter(x => x.role === 'street' || x.role === 'detail');
+const e3 = j(P.cwvPlanBuild({ candidates: sd, bpm: 99.2, fps: 30, montageShots: 7, seed: 's1' }));
+assert.equal(e3.ok, true);
+assert.equal(e3.picks.length, 13 + e3.montageShots);
+
+// A preferred role wins over the last-resort tier even with a much lower score.
+const pref = P.cwvAllocate({ candidates: [{ rid: 'a', role: 'wide', t: 5, score: 1, sourceDuration: 30 }, { rid: 'b', role: 'street', t: 5, score: 0, sourceDuration: 30 }], slots: [{ index: 0, role: 'street', seconds: 1 }], seed: 'x' });
+assert.equal(pref.picks[0].rid, 'b');
+// Non-finite candidate fields are ignored.
+const bad = P.cwvAllocate({ candidates: [{ rid: 'a', role: 'street', t: NaN, score: 1, sourceDuration: 30 }, { rid: 'b', role: 'street', t: 5, score: Infinity, sourceDuration: 30 }], slots: [{ index: 0, role: 'street', seconds: 1 }], seed: 'x' });
+assert.equal(bad.filled, 0);
 
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.CWV_BUILD_STEPS.length, 5);
