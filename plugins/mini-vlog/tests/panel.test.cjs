@@ -10,7 +10,13 @@ const presets = JSON.parse(fs.readFileSync(path.join(root, 'assets', 'fonts', 'p
 const pStart = panel.indexOf('// mv-planner:start\n'), pEnd = panel.indexOf('// mv-planner:end');
 assert.ok(pStart >= 0 && pEnd > pStart, 'planner markers');
 assert.equal(panel.slice(pStart + '// mv-planner:start\n'.length, pEnd).trim(), planner.trim(), 'panel.tsx must embed planner.js verbatim');
-const ui = panel.slice(pEnd);
+// The title layout block of assets/title-lockup.tsx is embedded verbatim too (the preview uses the Draft's layout code).
+const lockupTsx0 = fs.readFileSync(path.join(root, 'assets', 'title-lockup.tsx'), 'utf8');
+const lStart = panel.indexOf('// mv-lockup:start'), lEnd = panel.indexOf('// mv-lockup:end');
+assert.ok(lStart > pEnd && lEnd > lStart, 'lockup markers after the planner');
+assert.equal(panel.slice(lStart, lEnd), lockupTsx0.slice(lockupTsx0.indexOf('// mv-lockup:start'), lockupTsx0.indexOf('// mv-lockup:end')), 'panel.tsx must embed the mv-lockup block verbatim');
+assert.equal(panel.split('// mv-lockup:start').length, 2, 'one lockup block');
+const ui = panel.slice(pEnd, lStart) + panel.slice(lEnd);
 const outside = panel.slice(0, pStart) + ui;
 
 // Header: the name, ten localised names (ko in Latin letters), the icon and the plugin id.
@@ -62,9 +68,11 @@ assert.deepEqual(order.slice().sort((a, b) => a - b), order, 'Title, Music, Leng
 for (const s of ['label="Length"', 'label="Pace"', 'value: "quick"', 'value: "relaxed"', 'label="Clip sound"', 'label="Soft look"', 'label="Use photos"', 'Choose clips']) assert.ok(ui.includes(s), s);
 
 // Title: three preset tiles, per-preset fields with max lengths, @year resolved, live preview from the shared layout code.
-for (const s of ['aria-pressed', 'fieldsBy', '.slice(0, fl.max)', '"@year"', 'inventory?.latestYear', 'new Date().getFullYear()', '// mv-lockup:start', '// mv-lockup:end', 'new Function(',
+for (const s of ['aria-pressed', 'fieldsBy', '.slice(0, fl.max)', '"@year"', 'inventory?.latestYear', 'new Date().getFullYear()', 
   'mvLockupLayout(', 'mvSparklePath(', 'mvStarPath(', 'height: PREVIEW_HEIGHT', 'fontKerning: "none"', 'fontVariantLigatures: "none"', 'FontFace', 'Preview unavailable']) assert.ok(ui.includes(s), s);
 assert.ok(!/states\b/.test(ui), 'no CWV font states');
+assert.ok(!/new Function|\beval\(/.test(ui), 'no runtime evaluation in the panel');
+assert.ok(ui.includes('} catch { return null; }') && ui.includes('{assets && previewItems ? ('), 'a layout error falls back to "Preview unavailable"');
 // The lockup block evaluates as plain JS, as the panel does it.
 const lb = lockupTsx.slice(lockupTsx.indexOf('// mv-lockup:start'), lockupTsx.indexOf('// mv-lockup:end'));
 const lockup = new Function(lb + '\nreturn { mvLockupLayout: mvLockupLayout, mvSparklePath: mvSparklePath, mvStarPath: mvStarPath };')();
@@ -78,7 +86,7 @@ for (const p of presets.presets) for (const f of p.fields) assert.ok(f.max > 0, 
 for (const s of ['group !== "alternative"', 'group === "alternative"', '>Alternatives<', '"Your own music"', '"No music"', 'role="radiogroup"', 'musicKind !== "none" ?']) assert.ok(ui.includes(s), s);
 
 // Length, pace and capacity (spec 14.1 / 14.2).
-for (const s of ['mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted })', 'mvBeatsPerShot(pace, grid.bpm)', 'mvShotSeconds(', 'mvFitShots(', ' shots fit this track (', 'Quick uses 2 beats', 'Relaxed uses 1 beat', 'approximate timing']) assert.ok(ui.includes(s), s);
+for (const s of ['mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted })', 'mvBeatsPerShot(pace, grid.bpm)', 'mvShotSeconds(', 'mvFitShots(', ' shots fit this track (', 'Quick uses 2 beats', 'Relaxed uses 1 beat', 'approximate timing', '"Tempo outside 70\\u2013160 bpm ("', 'No steady beat']) assert.ok(ui.includes(s), s);
 assert.ok(ui.includes('"one-resource": "Add at least 2 clips or photos"') && ui.includes('"too-few": "Your footage fits fewer than 4 shots"')
   && ui.includes('"music-too-short": "This track is too short for 4 shots from this section"'), 'fail reason messages');
 assert.equal((ui.match(/mvPlanBuild\(/g) || []).length, 2, 'the build plan and the readiness plan');
@@ -88,7 +96,7 @@ assert.ok(ui.includes('const snapCuts = { onsets: grid.onsets, onsetThresholds: 
 assert.ok(ui.includes('if (!usePhotos || !inventory) return [];'), 'photos off -> no photo candidates');
 assert.equal((ui.match(/photoCandsOf\(inventory, onlyPhotos, usePhotos\)/g) || []).length, 2);
 // Build is disabled with the reason.
-assert.ok(ui.includes('disabled={busy || !canBuild}') && ui.includes('MV_FAIL[readyPlan.reason]'), 'disabled Build with the planner reason');
+assert.ok(ui.includes('disabled={busy || !canBuild}') && ui.includes('MV_FAIL[plan.reason]') && ui.includes('const blockReason = blockFor(readyPlan);'), 'disabled Build with the planner reason');
 
 // Orchestration: frozen inputs, project guard after every await, Draft id kept, recovery by name, one assemble call.
 const build = ui.slice(ui.indexOf('async function build('), ui.indexOf('function buildAnother('));
@@ -106,6 +114,11 @@ for (const body of [build, decorate]) {
 assert.equal((ui.match(/run\("Assemble Mini Vlog"/g) || []).length, 1, 'assemble is called once and never resent');
 assert.ok(build.includes('findDraftByName(pid, frozen.draftName)'), 'lost assemble reply -> look the Draft up by name');
 assert.ok(ui.includes('(await p.meta()).draftIds') && ui.includes('m.name !== name'), 'lookup reads the Drafts by name');
+assert.ok(ui.includes('.slice(-" + DRAFT_LOOKUP_MAX + ").reverse()') && panel.includes('const DRAFT_LOOKUP_MAX = 50;'), 'lookup reads at most the 50 most recent Drafts, newest first');
+assert.ok(/if \(m\.name !== name\) continue;[^]*?return \{ sequenceId: id/.test(ui), 'first match returns');
+// The readiness gate uses the seed each button builds with: Build = seed, Create another version = seed + 1.
+assert.ok(ui.includes('planAt(seed)') && ui.includes('planAt(seed + 1)'), 'gates for both seeds');
+assert.ok(ui.includes('onClick={buildAnother} disabled={busy || !canBuildAnother}'), 'another version gated with seed + 1');
 assert.ok(build.includes('"Mini Vlog " + '), 'Draft name');
 assert.ok(finish.includes('decorate(result, check)') && decorate.includes('const f = res.frozen;'), 'Finish title and look reuses the frozen inputs');
 assert.ok(ui.includes('title, look and clip sound are not applied yet'), 'unfinished build message');
