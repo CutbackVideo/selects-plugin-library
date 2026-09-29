@@ -191,6 +191,8 @@ function buildCue(cue, sourceFile, outDir) {
   if (problems.length) { fs.rmSync(dst, { force: true }); return { rejected: problems }; }
   const usableEnd = round(durationSeconds - 0.1, 3);
   // A manual swell (cues.json "swell", seconds) is snapped to the nearest felt-bar downbeat after firstBeat.
+  // The manifest keeps it to the ms, so it can sit up to 0.5 ms off its downbeat; the planner's default j allows
+  // for that (tecSection rounds up only past 1e-3 of a phrase).
   const bar = PHRASE_BEATS * 60 / g.bpm;
   const swellSource = cue.swell == null ? 'auto' : 'manual';
   const swell = swellSource === 'manual'

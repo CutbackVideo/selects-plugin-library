@@ -30,7 +30,7 @@ for (const name of ['assets/cues/manifest.json', 'scripts/inventory.js', 'script
   assert.ok(panel.includes(name.includes('/') && !name.startsWith('beat') ? '"' + name + '"' : name), 'panel reads ' + name);
   assert.ok(fs.existsSync(path.join(root, name)), name + ' exists');
 }
-assert.ok(!panel.includes('opening.tsx'), 'the Opening generator was dropped (probe P1)');
+assert.ok(!panel.includes('opening.tsx') && !fs.existsSync(path.join(root, 'assets', 'opening.tsx')), 'the Opening generator was dropped (probe P1): the Classic lead-in is a gap');
 
 // CWV guards.
 for (const phrase of ['projectRef', 'No valid session ID', 'visibilitychange', 'addEventListener("focus"', '10000', '>Refresh<', 'Stop preview', 'Cancel preview',
@@ -198,7 +198,8 @@ for (const cue of manifest.cues) {
     assert.equal(fit.key === key, !!sec, cue.id + ' ' + key + ': the fit offer matches the section');
     if (!sec) continue;
     assert.ok(sec.start >= 0 && sec.start + api.tecVideoSeconds(api.TEC_LENGTHS[key], P) <= cue.usableEnd + 1e-9, cue.id + ' ' + key + ' in bounds');
-    if (key === 'standard') assert.ok(sec.start + 5.1 >= swell - 1e-6 || sec.j === sec.jMax, cue.id + ': the reveal is on or after the swell');
+    // On the swell's own downbeat (the manifest's ms rounding can put the swell a fraction of a ms after it), unless clamped.
+    if (key === 'standard') assert.ok(Math.abs(sec.start + 5.1 - swell) <= 1e-3 || sec.j === sec.jMax || sec.j === sec.jMin, cue.id + ': the reveal is on the swell');
   }
 }
 console.log(JSON.stringify({ panel: 'ok', decoratePayload: payload.length }));

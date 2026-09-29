@@ -16,7 +16,8 @@
 //   preset filmCrew|personal|travel|empty, rows [{ role, name }] (overrides the preset), title, clipSound
 //   ambient|off|full, look true|false, photos true|false, section default|early|late|<seconds>, projectName (the
 //   Personal/Travel place guess; inventory.js does not return the Project name), project (which Staging Project type
-//   the row needs; documentation for --check only).
+//   the row needs; documentation for --check only), fitLength true|false (default false: a Length the track is too
+//   short for fails the row with the panel's message; true builds the longest Length that fits instead).
 import vm from 'node:vm';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -40,6 +41,9 @@ const W = 1920, H = 1080, A = W / H;
 const AMBIENT_DB = -18;            // spec §10 / GATE-A 4
 const MUSIC_FADE_OUT = 1.5;        // spec R3
 const LOOK_STRENGTH = 0.3;         // spec §8
+// The panel's build record (panel.tsx WINDOWS / FADES): the shot window in % of the canvas and the Shot frame fades.
+const WINDOWS = { classic: { x: 50.73, y: 12.69, w: 42.6 }, full: { x: 0, y: 0, w: 100 } };
+const FADES = { inSec: 0.5, outSec: 1.13 };
 const TITLE_COLOR = '#FBE4BB', CREDIT_COLOR = '#F0EBDD';
 const GRAPHIC_LABEL = 'THE END credits', LOOK_LABEL = 'Cinematic look', FRAME_LABEL = 'Shot frame';
 const FONTS = [
@@ -65,14 +69,14 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   const cues = JSON.parse(read('assets/cues/manifest.json')).cues;
   const defaultCue = (cues.find(c => c.default) || cues[0]).id;
   const ROW_DEFAULTS = { layout: 'classic', cue: defaultCue, length: P.TEC_DEFAULT_LENGTH, preset: P.TEC_DEFAULT_PRESET, title: 'THE END',
-    clipSound: 'ambient', look: true, photos: true, section: 'default', projectName: '' };
+    clipSound: 'ambient', look: true, photos: true, section: 'default', projectName: '', fitLength: false };
   const withDefaults = r0 => ({ ...ROW_DEFAULTS, ...r0 });
   const cueKind = cue => (cue === 'none' ? 'none' : String(cue).startsWith('own:') ? 'own' : 'bundled');
   const ownCache = new Map();
 
   // Own music, like the panel: decode to mono 22.05 kHz f32 (first 6 min) and run the plugin's beat-detect.cjs.
-  // The "loudest part" is the phrase (m detector beats, or 3.9 s windows with fixed timing) with the highest RMS.
-  // NEEDS_CONTEXT: the panel (written in parallel) owns the exact loudest-part rule.
+  // The "loudest part" is the panel's: planner.js tecLoudest on the detector result (beat energy, or the waveform
+  // peaks with fixed timing).
   function ownMusic(spec) {
     const file = expandPath(spec.slice(4));
     if (ownCache.has(file)) return ownCache.get(file);
@@ -80,20 +84,12 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     const buf = execFileSync(ffmpeg(), ['-nostdin', '-v', 'error', '-t', '360', '-i', file, '-ac', '1', '-ar', '22050', '-f', 'f32le', 'pipe:1'], { maxBuffer: 64 << 20 });
     const samples = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 4));
     const det = createRequire(path.join(pluginDir, 'beat-detect.cjs'))(path.join(pluginDir, 'beat-detect.cjs')).analyze(samples, 22050);
-    const phrase = P.tecPhrase({ bpm: det.bpm, accepted: det.accepted });
-    const rms = (a, b) => { let s = 0; const i0 = Math.max(0, Math.floor(a * 22050)), i1 = Math.min(samples.length, Math.floor(b * 22050)); for (let i = i0; i < i1; i++) s += samples[i] * samples[i]; return Math.sqrt(s / Math.max(1, i1 - i0)); };
-    let loudest = null, best = -1;
-    if (!phrase.fixed) {
-      const e = det.beatEnergy || [];
-      for (let k = 0; (k + 1) * phrase.m <= e.length; k++) {
-        const v = e.slice(k * phrase.m, (k + 1) * phrase.m).reduce((x, y) => x + y, 0) / phrase.m;
-        if (v > best) { best = v; loudest = det.firstBeat + k * phrase.P; }
-      }
-    } else {
-      for (let t = 0; t + phrase.P <= det.durationSeconds; t += 0.1) { const v = rms(t, t + phrase.P); if (v > best) { best = v; loudest = Math.round(t * 10) / 10; } }
-    }
+    // Panel: an accepted detection gives tecPhrase(bpm), else the fixed 3.9 s phrase; firstBeat is 0 with fixed timing.
+    const phrase = det.accepted ? P.tecPhrase({ bpm: det.bpm, accepted: true }) : P.tecPhrase({});
+    const firstBeat = phrase.fixed ? 0 : det.firstBeat;
+    const loudest = P.tecLoudest({ ...det, firstBeat, durationSeconds: det.durationSeconds }, phrase.P, phrase.m, phrase.fixed);
     const out = { file, name: path.basename(file), detector: { bpm: det.bpm, firstBeat: det.firstBeat, accepted: det.accepted, durationSeconds: det.durationSeconds },
-      bpm: det.bpm, firstBeat: phrase.fixed ? 0 : det.firstBeat, usableEnd: det.durationSeconds - P.TEC_MUSIC_END_MARGIN, swell: loudest, phrase };
+      bpm: det.bpm, firstBeat, usableEnd: det.durationSeconds - P.TEC_MUSIC_END_MARGIN, swell: loudest, phrase };
     ownCache.set(file, out);
     return out;
   }
@@ -114,15 +110,15 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
 
   const sectionValue = v => (v === 'early' ? -1e6 : v === 'late' ? 1e6 : typeof v === 'number' ? v : undefined);
 
-  // Credits: rows override > preset ('empty' = no rows). Personal/Travel counts come from the built picks (Full frame
-  // counts shot 0, spec R4) and the dates from the picked sources. NEEDS_CONTEXT: the panel fills these before Build.
-  function creditRows(row, music, picks, inv) {
+  // Credits: rows override > preset ('empty' = no rows). Like the panel's creditInfo, the Personal/Travel counts are
+  // the selected clips and (with photos on) the selected photos, and the dates come from every inventoried clip and
+  // photo, not from the picks. The inventory is already narrowed by row.only (the panel's dates span the whole Project).
+  function creditRows(row, music, inv) {
     if (Array.isArray(row.rows)) return j(P.tecCleanRows(row.rows));
     if (row.preset === 'empty') return [];
-    const byRid = Object.fromEntries([...inv.resources, ...(inv.photos || [])].map(r => [r.rid, r]));
-    const info = { projectName: row.projectName, dates: picks.map(k => byRid[k.rid] && byRid[k.rid].recordedAt).filter(Boolean),
+    const info = { projectName: row.projectName, dates: [...inv.resources, ...(inv.photos || [])].map(r => r.recordedAt).filter(Boolean),
       cueTitle: music.kind === 'bundled' ? music.title : '', ownMusicName: music.kind === 'own' ? music.own.name : '',
-      clips: picks.filter(k => k.kind !== 'photo').length, photos: picks.filter(k => k.kind === 'photo').length };
+      clips: inv.resources.length, photos: row.photos ? (inv.photos || []).length : 0 };
     return j(P.tecPresetRows(row.preset, info));
   }
 
@@ -130,6 +126,10 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     const lay = P.tecCreditLayout({ rows, layout, H, W, measure });
     return { layout: lay, roll: j(P.tecRollSpeed({ endSec, L, H, lastRoleStartY: lay.lastRoleTop, rowTops: lay.rowTops })) };
   };
+  // The panel's frozen build record (panel.tsx build()), minus the title and rows the graphic parameters carry.
+  const buildRecord = (s, a) => ({ layout: s.layout, sequenceId: a.sequenceId, fps: a.fps, frames: a.frames, speedPxPerSec: s.roll.pxPerSec,
+    window: WINDOWS[s.layout], look: { on: !!s.row.look, strength: LOOK_STRENGTH }, clipSound: s.row.clipSound, photos: s.photos, sources: s.sources,
+    fades: FADES, musicFadeOut: MUSIC_FADE_OUT });
   const coverScale = aspect => (aspect > 0 && Math.abs(aspect - A) > 0.01 ? Math.max(A / aspect, aspect / A) : 1);
 
   const api = {
@@ -167,7 +167,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         if (!Array.isArray(r.rows) && !PRESETS.includes(r.preset)) unknown.push(r.key + ': preset ' + r.preset);
         if (!CLIP_SOUNDS.includes(r.clipSound)) unknown.push(r.key + ': clipSound ' + r.clipSound);
         if (!(SECTIONS.includes(r.section) || typeof r.section === 'number')) unknown.push(r.key + ': section ' + r.section);
-        if (typeof r.look !== 'boolean' || typeof r.photos !== 'boolean') unknown.push(r.key + ': look/photos must be booleans');
+        if (typeof r.look !== 'boolean' || typeof r.photos !== 'boolean' || typeof r.fitLength !== 'boolean') unknown.push(r.key + ': look/photos/fitLength must be booleans');
         if (!r.project) unknown.push(r.key + ': no project type');
       }
       // '<fill>' pids are allowed offline (--check, --plan-only with fixtures); a real build needs the Staging Project id.
@@ -203,9 +203,12 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         const sec = n => j(P.tecSection({ firstBeat: g.firstBeat, P: Pp, videoSeconds: P.tecVideoSeconds(n, Pp), usableEnd: g.usableEnd, swell: g.swell, value: sectionValue(row.section), fixed: g.fixed }));
         section = sec(N);
         if (!section) {
-          // The panel offers the longest Length that fits; Build is disabled when not even Short fits.
+          // The panel refuses to build ("This track is too short for this Length.") and only suggests the longest Length
+          // that fits; a row with fitLength: true takes that suggestion (and fails with the panel's needs line when not even
+          // Short fits).
           const fit = j(P.tecFitLength({ firstBeat: g.firstBeat, P: Pp, usableEnd: g.usableEnd, fixed: g.fixed, requested: row.length }));
-          if (!fit.key) throw Error('This track is too short (needs >= ' + fit.needSeconds + ' s)');
+          if (!row.fitLength) throw Error('This track is too short for this Length.');
+          if (!fit.key) throw Error('This track is too short (needs \u2265 ' + fit.needSeconds + ' s).');
           N = fit.N; lengthKey = fit.key; section = sec(N);
         }
       }
@@ -227,7 +230,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         byRid[k.rid] = { motion: m.motion, direction: m.direction, axis: m.axis };
         photos[k.rid] = { aspect: sources[k.rid] ? sources[k.rid].aspect : null, ...byRid[k.rid] };
       });
-      const rows = creditRows(row, music, plan.picks, inv);
+      const rows = creditRows(row, music, inv);
       const title = String(row.title);
       const est = rollFor(rows, layout, plan.timeline.total, L); // at the planned seconds; afterAssemble redoes it at the real frames
       const planSummary = { layout, cue: row.cue, P: +Pp.toFixed(4), m: music.phrase.m, fixed: music.phrase.fixed, length: lengthKey, requestedLength: row.length,
@@ -267,26 +270,27 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const scalars = {};
       rows.forEach((r, i) => { scalars['role' + (i + 1)] = r.role; scalars['name' + (i + 1)] = r.name; });
       // credits-graphic.tsx data contract (the TSX is authoritative: revealFrame, rows).
-      const parameters = { layout: s.layout, fps: a.fps, revealFrame: a.frames[1], title: s.title, showTitle: true, titleColor: TITLE_COLOR, creditColor: CREDIT_COLOR,
-        rows, rowCount: rows.length, ...scalars, speedPxPerSec: s.roll.pxPerSec, speed: 1, fonts };
+      // endFrame like the panel: the graphic fits its roll speed to its own layout between revealFrame and endFrame.
+      const parameters = { layout: s.layout, fps: a.fps, revealFrame: a.frames[1], endFrame: a.frames[a.frames.length - 1], title: s.title, showTitle: true,
+        titleColor: TITLE_COLOR, creditColor: CREDIT_COLOR, rows, rowCount: rows.length, ...scalars, speedPxPerSec: s.roll.pxPerSec, speed: 1, fonts };
       const editableParameters = [
         { key: 'title', label: 'Title', type: 'text', defaultValue: s.title },
-        { key: 'showTitle', label: 'Show title', type: 'boolean', defaultValue: true },
         { key: 'titleColor', label: 'Title color', type: 'color', defaultValue: TITLE_COLOR },
-        { key: 'creditColor', label: 'Credit color', type: 'color', defaultValue: CREDIT_COLOR },
+        { key: 'creditColor', label: 'Credits color', type: 'color', defaultValue: CREDIT_COLOR },
         { key: 'speed', label: 'Roll speed', type: 'number', defaultValue: 1, min: 0.5, max: 2, step: 0.05 },
+        { key: 'showTitle', label: 'Show title', type: 'boolean', defaultValue: true },
         ...rows.flatMap((r, i) => [
           { key: 'role' + (i + 1), label: 'Role ' + (i + 1), type: 'text', defaultValue: r.role },
           { key: 'name' + (i + 1), label: 'Name ' + (i + 1), type: 'text', defaultValue: r.name },
         ]),
       ];
-      // decorate.js contract; window and fades are left to its defaults (Classic/Full window, 0.5 s in, 1.13 s out).
+      // decorate.js contract, with the panel's build record (window, fades, music fade, look strength).
       return { summary: 'Add credits and look', script: 'scripts/decorate.js', allowCommit: true, config: {
-        sequenceId: a.sequenceId, layout: s.layout, fps: a.fps, frames: a.frames, clipSound: s.row.clipSound,
+        ...buildRecord(s, a),
         graphic: { tsx: read('assets/credits-graphic.tsx'), parameters, editableParameters },
         frame: { tsx: read('assets/shot-frame.tsx') },
         look: { tsx: read('assets/cinematic-look.tsx'), strength: LOOK_STRENGTH, on: !!s.row.look },
-        photos: s.photos, photoMotion: { byRid: s.byRid }, sources: s.sources } };
+        photoMotion: { byRid: s.byRid } } };
     },
 
     // Read by the kit readback for the generic keys and by dev/readback-tec.mjs for mainStartFrame, stack, photoRids
@@ -327,11 +331,12 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const tolMs = 500 / a.fps + 1; // spec R2: half a frame at the Draft fps + 1 ms
       return {
         rec: { inputs: { layout: s.layout, cue: row.cue, length: row.length, preset: Array.isArray(row.rows) ? 'rows' : row.preset, title: s.title, clipSound: row.clipSound,
-          look: row.look, photos: row.photos, section: row.section, project: row.project },
+          look: row.look, photos: row.photos, section: row.section, fitLength: row.fitLength, project: row.project },
           name: s.draftName, plan: s.planSummary, fitted: s.fitted, sectionStart: s.start, section: s.section, phrase: s.music.phrase, own: s.music.own ? s.music.own.detector : null,
-          frames: a.frames, rows: s.rows, roll: s.roll, creditLayout: s.creditLayout, expected: api.expected(s, a), evalToleranceMs: tolMs,
+          frames: a.frames, plannedFrames: a.plannedFrames || null, window: WINDOWS[s.layout], fades: FADES, musicFadeOut: MUSIC_FADE_OUT,
+          look: { on: !!row.look, strength: LOOK_STRENGTH }, rows: s.rows, roll: s.roll, creditLayout: s.creditLayout, expected: api.expected(s, a), evalToleranceMs: tolMs,
           picks: plan.picks.map(p => (p.kind === 'photo' ? 'P:' + p.rid : p.rid + '@' + (p.startSeconds ?? 0).toFixed(2))) },
-        cuts: { fps: a.fps, cuts: idx.map(i => a.frames[i]), gridCuts: idx.map(i => a.frames[i]), cutSeconds: idx.map(i => s.boundaries[i]),
+        cuts: { fps: a.fps, cuts: idx.map(i => a.frames[i]), gridCuts: idx.map(i => (a.plannedFrames || a.frames)[i]), cutSeconds: idx.map(i => s.boundaries[i]),
           ...(bpm ? { bpm, beats: idx.map(i => +(s.boundaries[i] * bpm / 60).toFixed(4)) } : {}),
           sectionStart: s.start, cue: row.cue, layout: s.layout, reveal: a.frames[1], end: a.frames[a.frames.length - 1], toleranceMs: tolMs },
       };

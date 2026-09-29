@@ -9,14 +9,15 @@ const load = (name, cfg) => new Function('selects', `return (async()=>{${plain(f
 // Models Selects:
 // - a Draft created in this run_script call has no saved audio-track inventory, so setAudioTracks throws until it is
 //   reopened (selects.draft) in a later call; commitAll runs once per call;
+// - `longAt` makes one insert a frame longer than asked;
 // - a new Draft adopts its first clip's frame size (`adopt`) and, with `adoptFps`, its rate on the first insert;
 // - photos (`photos`) and videos without an audio stream (`silent`) keep null audio routing after muting; the EditDiff
 //   opCount counts the clips whose routing changed; image sources are 5 s long;
 // - insertGap puts a blank Main row (resourceId null) before its position and ripples later Main clips;
 // - videoEffects is the ordered per-clip stack; addVideoEffect appends.
-function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [], silent = [], adoptFps = null } = {}) {
+function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [], silent = [], adoptFps = null, longAt = null } = {}) {
   const log = [], clips = [], graphics = [], effects = {};
-  let committed = false, frameSize = { width: 1920, height: 1080 }, inserted = false, nextId = 1;
+  let committed = false, frameSize = { width: 1920, height: 1080 }, inserted = false, nextId = 1, inserts = 0;
   const mainEnd = () => clips.filter(c => c.trackKind === 'main').reduce((a, c) => Math.max(a, c.endFrame), 0);
   return { log, clips, graphics, effects, get fps() { return fps; }, reopen() { unsaved = false; committed = false; }, d: {
     meta: async () => ({ fps, frameSize: { ...frameSize }, durationFrames: mainEnd() }),
@@ -25,7 +26,8 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
       assert.equal(at, undefined, 'shots append');
       if (!inserted) { inserted = true; frameSize = { ...adopt }; if (adoptFps) fps = adoptFps; }
       if (photos.includes(resourceId) && sourceRange.endSeconds > 5 + 1e-9) throw Error('invalid_source_range');
-      const start = mainEnd(), len = Math.round((sourceRange.endSeconds - sourceRange.startSeconds) * fps);
+      // `longAt`: that insert (0-based) rounds one frame long, as Selects can when a source range is not frame-exact.
+      const start = mainEnd(), len = Math.round((sourceRange.endSeconds - sourceRange.startSeconds) * fps) + (inserts++ === longAt ? 1 : 0);
       clips.push({ clipId: nextId++, resourceId, trackKind: 'main', startFrame: start, endFrame: start + len, audioSourceIndexes: null });
       log.push(['insert', resourceId, sourceRange]);
     },
@@ -188,7 +190,25 @@ const record = (r, extra = {}) => ({ layout: 'classic', sequenceId: r.sequenceId
   assert.equal(rc.soundClips, 3);
   assert.equal(kinds(mc.log, 'commit').length, 1);
   assert.equal(kinds(mc.log, 'mute').length, 0, 'assemble leaves Off to decorate');
-  assert.deepEqual(Object.keys(rc).sort(), ['clips', 'covered', 'fps', 'frames', 'notes', 'sequenceId', 'soundClips']);
+  assert.deepEqual(Object.keys(rc).sort(), ['clips', 'covered', 'fps', 'frames', 'notes', 'plannedFrames', 'sequenceId', 'soundClips']);
+  assert.deepEqual(rc.plannedFrames, rc.frames, 'on plan: the laid frames are the planned ones');
+
+  // 2b. An insert that rounds one frame long: frames are the laid clips' own, plannedFrames the grid, and a note.
+  for (const layout of ['classic', 'full']) {
+    const ml = mockDraft(29.97, { longAt: 1 });
+    const picksL = (layout === 'full' ? [vid('v4', 1)] : []).concat(picksC);
+    const rl = await load('assemble.js', { projectId: 'p', draftName: 'x', layout, picks: picksL, boundaries: bc, L,
+      music: { resourceId: 'm', sectionStart: sc }, clipSound: 'ambient', ambientDb: -18, sources, musicFadeOut: 1.5 })(project(ml));
+    const laid = shotRows(ml);
+    const fromClips = (layout === 'classic' ? [0, laid[0].startFrame] : [0]).concat(laid.map(c => c.endFrame));
+    assert.deepEqual(rl.frames, fromClips, layout + ': frames from the laid clips');
+    assert.deepEqual(rl.plannedFrames, fc, layout + ': the planned grid');
+    // The long insert (index 1) ends a frame late; lay() re-aims the next one at the grid, so only that cut moves.
+    const moved = rl.frames.map((f, i) => f - fc[i]);
+    const at = layout === 'classic' ? 3 : 2;
+    assert.deepEqual(moved, fc.map((_, i) => (i === at ? 1 : 0)), layout + ': one cut a frame late ' + JSON.stringify(moved));
+    assert.deepEqual(rl.notes, ['the cuts are off the planned frames']);
+  }
 
   // 4. Decorate (Classic): the graphic over [0, end), then per shot the look and the Shot frame, one commit.
   mc.reopen();

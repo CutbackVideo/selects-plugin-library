@@ -10,19 +10,20 @@ existing Draft or any source file.
 
 Two layouts:
 
-- **Classic window (default).** A black 1920x1080 frame. The title and the
+- **Classic (window)**, the default. A black 1920x1080 frame. The title and the
   credits sit in the left column and your clips play in a small window on the
   right (about 43% of the frame width). Each clip is cover-cropped into the
   window, so portrait clips and photos are never letterboxed. The window
   itself never moves.
-- **Full frame.** The clips fill the whole frame. A big **THE END** types over
+- **Full frame**. The clips fill the whole frame. A big **THE END** types over
   a first, extra shot, then moves to the right third of the frame where the
   credits roll over a soft dark gradient.
 
 Both layouts share this timeline:
 
-- **Lead-in (5.1 s).** Black (Classic) or the first shot (Full frame), while
-  the title types in one letter at a time.
+- **Lead-in (5.1 s).** Black (Classic: an empty gap on the timeline before
+  the first shot) or the first shot (Full frame), while the title types in one
+  letter at a time.
 - **Shots.** Hard cuts, one every music phrase (4 beats, about 3.9 s), with no
   transitions. The window reveal, or the credits roll in Full frame, starts on
   a musical downbeat.
@@ -35,8 +36,9 @@ Both layouts share this timeline:
 
 1. Open a Project whose video clips are analysed (or that has photos), then
    open **THE END Credits** from the Plugin list. The top line shows how many
-   analysed clips and photos were found and the approximate length, for
-   example "Ready: 5 clips · 8 photos · about 33 s".
+   analysed clips and photos were found, the number of shots and the
+   approximate length, for example "Ready: 5 clips · 8 photos · 7 shots ·
+   about 31 s".
 2. Check the **Title** (default "THE END") and the **Credits** list.
 3. Press **Build**.
 
@@ -44,9 +46,10 @@ The build needs at least **4 usable clips or photos** (5 in Full frame,
 which adds an opening shot). If there are fewer, the panel says how many it
 found. It does not start analysis on its own, so analyse your clips first.
 
-Progress is shown as five steps: Choosing shots, Preparing music, Creating
-Draft, Adding title and look, and Opening Draft. When the build finishes, the
-new Draft opens and a link to it is shown. **Create another version** makes
+Progress is shown as five steps: Finding shots, Planning the edit, Preparing
+music, Creating Draft, and Adding credits and look (which ends by opening the
+Draft). When the build finishes, the new Draft opens and a link to it is
+shown. **Create another version** makes
 another Draft with a different shot choice. If the last step fails, the Draft
 is kept and **Finish title and look** completes it with the settings it was
 built with.
@@ -56,11 +59,11 @@ built with.
 The **Credits** section has a preset and an editable list of rows. Each row is
 a role and a name.
 
-- **Film crew (default)** is the classic ten-row list (Director,
+- **Film crew** (default) is the classic ten-row list (Director,
   Screenwriter, Editor and so on) with `[Name Here]` placeholders.
 - **Personal** fills the rows from the Project: place, capture dates, the
-  music, the number of clips and photos, and "Edited with Selects". A row
-  with no value is dropped.
+  music, the number of clips and photos, and an Edited with row set to
+  Selects. A row with no value is dropped.
 - **Travel** has Directed by, Starring, Memories, Places, Music by, Special
   Thanks and Created with.
 
@@ -76,10 +79,11 @@ appear and suggests Long or fewer rows; with few rows it says the credits
 finish before the end.
 
 After the build, the credits are also editable in the Draft. Select the
-credits Motion Graphic and open **Adjust**: **title**, **title color**,
-**credit color**, **speed** (0.5 to 2, a multiplier that ignores the clamp),
-**show title**, and one text field per built row (`role1..roleK`,
-`name1..nameK`). Adjust edits are what the Draft renders.
+credits Motion Graphic and open **Adjust**: **Title**, **Title color**,
+**Credits color**, **Roll speed** (0.5 to 2, a multiplier that ignores the
+clamp), **Show title**, and one text field per built row (**Role 1** to
+**Role K**, **Name 1** to **Name K**). Adjust edits are what the Draft
+renders.
 
 ## Length
 
@@ -89,14 +93,16 @@ credits Motion Graphic and open **Adjust**: **title**, **title color**,
 | Standard (default) | 7 | 33 s |
 | Long | 10 | 44 s |
 
-The exact length depends on the music's tempo. If the music section is too
-short for the length, the panel offers the longest length that fits; if even
-Short does not fit, Build is disabled and the panel says how long the track
-must be.
+The exact length depends on the music's tempo. If the track is too short for
+the length, the panel says "This track is too short for Standard." (or the
+chosen length) and offers the longest length that fits; if even Short does
+not fit, Build is disabled and the panel says how long the track must be:
+"This track is too short (needs ≥ N s)."
 
-If your footage cannot fill every shot, the build uses fewer, down to four,
-and says so: "Your footage fits N shots". A resource is never used in two
-shots in a row.
+If your footage cannot fill every shot, the build uses fewer, down to four.
+The top line says "(your footage fits N)", and after the build: "Your footage
+fits N shots, so this video is about N s instead of N s." A resource is never
+used in two shots in a row.
 
 ## Music
 
@@ -116,11 +122,12 @@ the window on the swell of the track.
 The waveform shows a box as long as the video. Drag it (or press on the
 waveform) to choose where the video starts in the track. The box snaps to
 positions where a phrase downbeat lands exactly on the reveal. It starts on
-the swell. **Preview this section** plays the whole section; press it again
-(or Esc) to stop. The music fades out over the last 1.5 s.
+the swell. The play button (**Preview the music of the whole video**) plays
+the whole section; press it again (**Stop preview**) or Esc to stop. The music fades out over the last 1.5 s.
 
 **Your own music**: drop an audio file. The plugin listens for the beat and
-picks a phrase of 4 beats of 3.4 to 4.4 s. When no steady beat is found, the
+cuts every 2, 4 or 8 detected beats, whichever makes a shot 3.4 to 4.4 s
+long. When no steady beat is found, or no multiple fits, the
 panel says "No steady beat found: shots are 3.9 s" and uses fixed 3.9 s
 shots; the box then moves in 0.1 s steps. The reveal goes to the loudest part
 of your track. Your own music and the previews need ffmpeg; your own music
@@ -177,16 +184,18 @@ says "Could not check N clips; they were skipped. Build again to retry them."
 
 ## The Draft and editing it
 
-The Draft contains one clip or photo per shot, cut on the phrase grid; the
-opening (a black clip in Classic); the title and credits as one Motion
-Graphic over the whole video; a look effect and a window effect on each shot;
-and the music clip, trimmed to the video. Edit it in the Inspector:
+The Draft contains one clip or photo per shot, cut on the phrase grid (in
+Classic, after an empty 5.1 s gap: there is no black clip); the title and
+credits as one Motion Graphic over the whole video; a **Cinematic look** and a
+**Shot frame** effect on each shot; and the music clip, trimmed to the video.
+Edit it in the Inspector:
 
-- **Credits and title**: select the Motion Graphic and use **Adjust** (see
+- Credits and title: select the Motion Graphic and use **Adjust** (see
   [Credits](#credits)).
-- **Window**: each shot's window effect has X, Y and Size (%), the fade-in
-  and fade-out lengths, and the motion.
-- **Clips**: crop, sound level and look strength.
+- Window: each shot's **Shot frame** effect has **Window X (%)**, **Window Y
+  (%)** and **Window size (%)** (Classic only), **Fade in (s)** and **Fade out
+  (s)**, and for photos **Motion** and **Motion strength**.
+- Clips: crop, sound level and **Look strength**.
 - **Music**: select the music clip to change its volume.
 
 Finished videos are exported from the Draft with **Handoff -> Export**.
@@ -203,4 +212,6 @@ Finished videos are exported from the Draft with **Handoff -> Export**.
   effects and muted sound). A retry only commits what changed and never
   overwrites your Adjust edits.
 - Moving cuts in the Draft does not move the credits or the music.
+- Moving the window in Adjust moves one shot only: each shot has its own
+  Shot frame effect.
 - macOS arm64 only, on a development build of Selects.
