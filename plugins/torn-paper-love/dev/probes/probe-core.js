@@ -77,4 +77,4 @@ export default function ProbeMg() {
 const mgStart = 45;
 await d.addMotionGraphic({ within: await d.rangeAtFrames(mgStart, end), label: 'Probe letters clock', tsxCode: MG, parameters: {} });
 const commit = await d.commitAll('TPL probe');
-return { sequenceId: commit.createdDraftId, mgStart, clips: rows.map(c => ({ rid: c.resourceId, startFrame: c.startFrame, endFrame: c.endFrame, sourceStart: c.sourceStartSeconds ?? c.sourceRange ?? null })), notes };
+return { sequenceId: commit.createdDraftId, mgStart, clips: rows.map(c => ({ rid: c.resourceId, startFrame: c.startFrame, endFrame: c.endFrame })), notes };

@@ -78,17 +78,17 @@ const aim = (fps, s) => targets.slice(1).map(t => Math.round((t + delta(fps, s))
 const cfgA = (extra = {}) => ({ projectId: 'p', draftName: 'Torn Paper Love Night 1', slots, targets, music, clipSound: 'ambient', ambientDb: -18, vis, W, H, ...extra });
 
 (async () => {
-  // ---- Cover position (SDK: % of the frame height from the centre, +Y up). The visible window's centre sits at
-  // anchorY of the scaled image height, clamped so no bars show; 0.5 = centre crop = 0.
+  // ---- Cover position (SDK: % of the frame height from the centre, +Y up), CSS object-position semantics shared
+  // with planner.js tplVisRect: the window's top sits at anchorY of the overflow; 0.5 = centre crop = 0.
   assert.equal(posY(PORTRAIT, 0.5), 0);
   assert.equal(posY(1, 0.4), 0, 'no excess, no shift');
-  // Scaled height 1.7778 H; window centre at 0.4 * 1.7778 H = 0.7111 H, top at 0.2111 H; centred top 0.3889 H;
-  // the image moves down by 0.1778 H = 17.78 % of H, which is -17.78 with +Y up.
-  assert.ok(near(posY(PORTRAIT, 0.4), -(0.1 * PORTRAIT) * 100), 'portrait 40 % ' + posY(PORTRAIT, 0.4));
-  // Too little excess to centre the window at 40 %: clamped to the image's top edge (shift = half the excess).
-  assert.ok(near(posY(1.1, 0.4), -(0.1 / 2) * 100), 'clamped at the top edge ' + posY(1.1, 0.4));
-  assert.ok(near(posY(1.1, 0), -(0.1 / 2) * 100));
-  assert.ok(near(posY(1.1, 1), (0.1 / 2) * 100));
+  // Overflow 0.7778 H; top at 0.4 * 0.7778 = 0.3111 H vs centred 0.3889 H: the image moves down 0.0778 H = -7.78.
+  assert.ok(near(posY(PORTRAIT, 0.4), -(0.1 * (PORTRAIT - 1)) * 100), 'portrait 40 % ' + posY(PORTRAIT, 0.4));
+  assert.ok(near(posY(1.1, 0.4), -0.1 * 0.1 * 100), 'small overflow ' + posY(1.1, 0.4));
+  assert.ok(near(posY(1.1, 0), -(0.1 / 2) * 100), 'top edge');
+  assert.ok(near(posY(1.1, 1), (0.1 / 2) * 100), 'bottom edge');
+  // Same crop as the planner: 3000x4000 on 1440x1080 -> planner shift +84 px down = -84/1080 of H.
+  assert.ok(near(posY(PORTRAIT, 0.4), -84 / 1080 * 100), 'matches tplVisRect shift');
 
   // ---- Assemble at the Draft's own rate: 2N clips, 1440x1080 after the first insert, cover transforms, ambient on
   // videos, music overlay with a 0.12 s fade, one commit.

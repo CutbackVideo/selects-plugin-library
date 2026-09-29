@@ -21,14 +21,15 @@ const notes = [];
 const W = cfg.W || 1440, H = cfg.H || 1080;
 // tpl-cover:start
 // Vertical transform position (setClipTransform: % of the frame height from its centre, +Y up) that crops a cover-
-// scaled source taller than the canvas so the visible window's centre sits at `anchorY` of the scaled image height
-// (0 = top, 1 = bottom), clamped so no bars show. In frame-height units the scaled image is `cover` tall and the
-// window 1 tall; the centred crop's top is (cover - 1) / 2. Moving the image down shows its upper part: negative y.
+// scaled source taller than the canvas with CSS object-position semantics: the visible window's top sits at
+// `anchorY` of the overflow (0 = top, 0.5 = centre, 1 = bottom), the same crop planner.js tplVisRect describes to
+// the Torn photo effect (vis.y = anchorY * (100 - h)). In frame-height units the scaled image is `cover` tall and
+// the window 1 tall; the centred crop's top is (cover - 1) / 2. Moving the image down shows its upper part: negative y.
 // ASSUMPTION (to confirm live): the conformed image fills the frame height exactly, scale acts around its centre
 // (anchor 0) and position is applied in frame units after scaling.
 const tplCoverPositionY = (cover, anchorY) => {
   if (!(cover > 1)) return 0;
-  const top = Math.max(0, Math.min(cover - 1, anchorY * cover - 0.5));
+  const top = Math.max(0, Math.min(1, anchorY)) * (cover - 1);
   const y = (top - (cover - 1) / 2) * 100;
   return Math.abs(y) < 1e-9 ? 0 : y;
 };
