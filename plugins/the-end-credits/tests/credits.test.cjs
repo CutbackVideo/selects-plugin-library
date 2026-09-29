@@ -111,7 +111,8 @@ t('credit layout: Classic reference geometry', () => {
   // Full frame: the right-third column, same vertical model.
   const full = j(P.tecCreditLayout({ rows: crew(), layout: 'full', H: 1080, measure }));
   near(full.centerX, 0.78 * 1920, 1e-9); near(full.maxWidth, 576, 1e-9);
-  assert.deepEqual(full.rowTops, lay.rowTops);
+  // Full frame's title lands higher (graphic cap centre 0.28 H): the same rows, 207 px higher.
+  assert.deepEqual(full.rowTops, lay.rowTops.map((y) => y - 207));
   // Scaled by H / 1080.
   const small = j(P.tecCreditLayout({ rows: crew(), layout: 'classic', H: 720, measure }));
   near(small.firstRoleTop, 699 * 2 / 3, 1e-9); near(small.rows[1].top - small.rows[0].top, 82, 1e-9); near(small.rows[0].role.fontPx, 28 * 2 / 3, 1e-9);
@@ -201,7 +202,7 @@ t('credit metrics are the reference numbers', () => {
   assert.equal(M.roleSize, 28); assert.equal(M.nameSize, 24); assert.equal(M.roleToName, 43); assert.equal(M.pairPitch, 123);
   assert.equal(M.minFit, 0.7); assert.equal(M.endY, 0.07); assert.equal(M.basePxPerSec, 67);
   assert.deepEqual([M.minSpeed, M.maxSpeed], [0.6, 1.6]);
-  assert.deepEqual(M.classic, { centerX: 0.223, maxWidth: 0.4 }); assert.deepEqual(M.full, { centerX: 0.78, maxWidth: 0.3 });
+  assert.deepEqual(M.classic, { centerX: 0.223, maxWidth: 0.4 }); assert.deepEqual(M.full, { centerX: 0.78, maxWidth: 0.3, titleShift: -207 });
 });
 
 console.log('credits.test.cjs: ' + checks + ' checks passed');

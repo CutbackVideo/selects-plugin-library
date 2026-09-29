@@ -182,6 +182,15 @@ function tecCreditLayout(rows, layout, W, H, titleSize, measure) {
   }
   return { titleBaseline: titleBaseline, colX: col.colX * W, colW: box, rows: out, lastRoleTop: out.length ? out[out.length - 1].roleTop : null };
 }
+// Roll speed in px/s at 1080p that brings the last role's top to 7 % of H on the last frame, from this graphic's own
+// layout (the real fonts), clamped to 0.6-1.6x the reference 67 px/s. No rows or no end: the reference speed.
+function tecFitSpeed(lastRoleTop, endFrame, revealFrame, fps, H) {
+  var s = H / TEC_REF_H, secs = (endFrame - revealFrame) / fps;
+  if (lastRoleTop == null || !(secs > 0) || !(s > 0)) return TEC_DEFAULT_SPEED;
+  var raw = (lastRoleTop / s - 0.07 * TEC_REF_H) / secs;
+  return Math.max(0.6 * TEC_DEFAULT_SPEED, Math.min(1.6 * TEC_DEFAULT_SPEED, raw));
+}
+
 // tec-graphic:end
 
 // Shared 2D context for glyph measurement (a document canvas resolves the injected @font-face).
@@ -260,7 +269,13 @@ export default function TheEndCredits({ data }) {
     [ready, rowsKey, layout, W, H, sizes.size],
   );
 
-  const scroll = tecScrollY(frame, revealFrame, fps, num(data.speedPxPerSec, TEC_DEFAULT_SPEED), num(data.speed, 1), H);
+  // "fit" (default when endFrame is known): the graphic measures its own layout, so the last role reaches the top band
+  // on the last frame whatever the fonts do; speedPxPerSec (the panel's estimate) is used only with speedMode "fixed".
+  const endFrame = num(data.endFrame, 0);
+  const baseSpeed = data.speedMode !== "fixed" && endFrame > revealFrame
+    ? tecFitSpeed(credits.lastRoleTop, endFrame, revealFrame, fps, H)
+    : num(data.speedPxPerSec, TEC_DEFAULT_SPEED);
+  const scroll = tecScrollY(frame, revealFrame, fps, baseSpeed, num(data.speed, 1), H);
   const pose = tecTitlePose(t, L, layout, sizes, W, H);
   const glyphs = Array.from(title);
   const typed = tecTypedCount(t, glyphs.length);

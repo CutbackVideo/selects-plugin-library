@@ -480,7 +480,8 @@ const TEC_CREDIT_METRICS = {
   roleSize: 28, nameSize: 24, roleToName: 43, pairPitch: 123,
   roleLine: 39.2, nameLine: 33.6, minFit: 0.7, maxLines: 2,
   classic: { centerX: 0.223, maxWidth: 0.40 },
-  full: { centerX: 0.78, maxWidth: 0.30 },
+  // Full frame: the title lands higher (cap centre 0.28 H in the graphic), so the column starts 207 px higher.
+  full: { centerX: 0.78, maxWidth: 0.30, titleShift: -207 },
   endY: 0.07, basePxPerSec: 67, minSpeed: 0.6, maxSpeed: 1.6,
 };
 
@@ -516,7 +517,8 @@ function tecCreditLayout(opts) {
   const maxWidth = col.maxWidth * W;
   const measure = opts.measure;
   if (typeof measure !== 'function') throw Error('tecCreditLayout needs a measure function');
-  const title = { top: M.titleTop * k, bottom: (M.titleTop + M.titleCap) * k };
+  const shift = (col.titleShift || 0) * k;
+  const title = { top: (M.titleTop * k) + shift, bottom: (M.titleTop + M.titleCap) * k + shift };
   const rows = [];
   let y = title.bottom + M.titleToFirstRole * k;
   (opts.rows || []).forEach((r, index) => {

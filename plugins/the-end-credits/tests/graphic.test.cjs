@@ -5,7 +5,7 @@ const a = src.indexOf('// tec-graphic:start'), b = src.indexOf('// tec-graphic:e
 assert.ok(a >= 0 && b > a, 'pure block markers present');
 const block = src.slice(a, b);
 const box = {}; vm.createContext(box);
-vm.runInContext(block + ';globalThis.G={TEC_LAYOUTS,TEC_TITLE,TEC_CREDITS,TEC_FULL_BIG,tecTyping,tecSlotStart,tecTypedCount,tecScrollY,tecCreditsOpacity,tecMaskAlpha,tecMaskCss,tecEaseInOut,tecFullMove,tecFullOverlay,tecResolveRows,tecFitSize,tecFitLine,tecTitleSizes,tecTitlePose,tecCreditLayout};', box);
+vm.runInContext(block + ';globalThis.G={TEC_LAYOUTS,TEC_TITLE,TEC_CREDITS,TEC_FULL_BIG,tecTyping,tecSlotStart,tecTypedCount,tecScrollY,tecCreditsOpacity,tecMaskAlpha,tecMaskCss,tecEaseInOut,tecFullMove,tecFullOverlay,tecResolveRows,tecFitSize,tecFitLine,tecTitleSizes,tecTitlePose,tecCreditLayout,tecFitSpeed};', box);
 const G = box.G;
 const near = (x, y, eps, msg) => assert.ok(Math.abs(x - y) <= eps, `${msg}: ${x} vs ${y}`);
 const plain = (x) => JSON.parse(JSON.stringify(x));
@@ -171,4 +171,10 @@ assert.ok(!/\bimport\b|=>\s*<|<\/|:\s*(number|string|any)\b/.test(block), 'pure 
 const opening = fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'opening.tsx'), 'utf8');
 assert.ok(opening.includes('AbsoluteFill') && opening.includes('#000000'), 'black opening');
 for (const l of opening.split('\n').filter((x) => /^\s*import\b/.test(x))) assert.match(l, /from "(react|remotion)";$/);
+// Fit speed: the last role's top reaches 7 % of H on the last frame; clamped to 0.6-1.6x 67 px/s; no rows = 67.
+near(G.tecFitSpeed(1906, 980, 153, 29.97, 1080), (1906 - 75.6) / (827 / 29.97), 1e-9, 'fit speed, 10 rows');
+near(G.tecFitSpeed(1906 * 2, 980, 153, 29.97, 2160), (1906 - 75.6) / (827 / 29.97), 1e-9, 'fit speed is in 1080p units');
+assert.equal(G.tecFitSpeed(null, 980, 153, 29.97, 1080), 67);
+assert.equal(G.tecFitSpeed(400, 980, 153, 29.97, 1080), 0.6 * 67);
+assert.equal(G.tecFitSpeed(9000, 980, 153, 29.97, 1080), 1.6 * 67);
 console.log(JSON.stringify({ graphic: 'ok' }));
