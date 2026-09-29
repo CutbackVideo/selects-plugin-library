@@ -1,9 +1,9 @@
 const cfg = __CONFIG__;
 const d = selects.draft(cfg.sequenceId);
-const TITLE_LABEL = 'Mini vlog title', WARM_LABEL = 'Warm look', MOTION_LABEL = 'Photo motion';
+const TITLE_LABEL = 'Mini vlog title', SOFT_LABEL = 'Soft look', MOTION_LABEL = 'Photo motion';
 // Photo resource ids in this Draft. Photos have no sound, so their audio routing stays null after muting.
 const photoIds = new Set(cfg.photos || []);
-// Effects on photo clips (warm look and motion) when cfg.photoEffects is true. Export renders them; Draft.captureFrames
+// Effects on photo clips (Soft look and motion) only when cfg.photoEffects is exactly true. Export renders them; Draft.captureFrames
 // cannot render a frame with an effect on an image clip, so never preview such frames with it.
 const photoEffects = cfg.photoEffects === true;
 const hasEffect = async (clip, label) => (await d.videoEffects(clip)).some(e => e.name === label || e.effectName === label);
@@ -25,14 +25,16 @@ if (cfg.mute) {
   }
 }
 const hasTitle = (await d.motionGraphics()).some(g => g.name === TITLE_LABEL);
-if (!hasTitle) await d.addMotionGraphic({ within: await d.rangeAtFrames(0, cfg.titleEnd), label: TITLE_LABEL, tsxCode: cfg.title.tsx, parameters: cfg.title.parameters, editableParameters: cfg.title.editableParameters });
+// The title lockup spans the whole video, [0, cfg.videoEnd).
+if (!hasTitle) await d.addMotionGraphic({ within: await d.rangeAtFrames(0, cfg.videoEnd), label: TITLE_LABEL, tsxCode: cfg.title.tsx, parameters: cfg.title.parameters, editableParameters: cfg.title.editableParameters });
 // Photo motion: each montage photo in cfg.motion.byRid ({ motion, direction, axis, cover }, chosen by the planner)
-// gets one eased move; photos in the title stay still. A clip that already has a motion effect keeps it.
+// gets one eased move, wherever it sits (the title covers the whole video, so it restricts nothing). A clip that
+// already has a motion effect keeps it.
 let motions = 0, motionsKept = 0, photoEffectsSkipped = 0;
 if (cfg.motion && photoEffects) {
   const fps = (await d.meta()).fps;
   const byRid = cfg.motion.byRid || {};
-  const ids = (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null && photoIds.has(c.resourceId) && byRid[c.resourceId] && c.startFrame >= cfg.titleEnd).map(c => c.clipId);
+  const ids = (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null && photoIds.has(c.resourceId) && byRid[c.resourceId]).map(c => c.clipId);
   for (const id of ids) {
     const clip = (await d.clips({ trackScope: 'main' })).find(c => c.clipId === id);
     if (!clip) continue;
@@ -48,14 +50,15 @@ if (cfg.motion && photoEffects) {
   }
 }
 let effects = 0, effectsKept = 0;
-if (cfg.warm) {
+// Soft look: every Main and video-track clip (photos only with photoEffects), stacked after any photo motion.
+if (cfg.soft) {
   const ids = (await d.clips({ trackScope: 'all' })).filter(c => (c.trackKind === 'main' || c.trackKind === 'video') && c.resourceId !== null).map(c => c.clipId);
   for (const id of ids) {
     const clip = (await d.clips({ trackScope: 'all' })).find(c => c.clipId === id);
     if (!clip) continue;
     if (photoIds.has(clip.resourceId) && !photoEffects) { photoEffectsSkipped++; continue; }
-    if (await hasEffect(clip, WARM_LABEL)) { effectsKept++; continue; }
-    await d.addVideoEffect({ clip, label: WARM_LABEL, tsxCode: cfg.warm.tsx, parameters: { strength: cfg.warm.strength }, editableParameters: [{ key: 'strength', label: 'Warmth', type: 'number', defaultValue: cfg.warm.strength, min: 0, max: 1, step: 0.05 }] });
+    if (await hasEffect(clip, SOFT_LABEL)) { effectsKept++; continue; }
+    await d.addVideoEffect({ clip, label: SOFT_LABEL, tsxCode: cfg.soft.tsx, parameters: { strength: cfg.soft.strength }, editableParameters: [{ key: 'strength', label: 'Softness', type: 'number', defaultValue: cfg.soft.strength, min: 0, max: 1, step: 0.05 }] });
     effects++;
   }
 }
