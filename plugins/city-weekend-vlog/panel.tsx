@@ -35,6 +35,8 @@ const MOTION_OPTIONS = [
 ];
 // Ambient clip sound: the clips' own sound sits this far under the music, which stays at 0 dB.
 const AMBIENT_DB = -18;
+// Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
+const NO_ONSETS: any[] = [];
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 // cwv-planner:start
@@ -929,10 +931,13 @@ export default function Panel({ sdk, context, ui }: any) {
 
   const cue = assets?.manifest.cues.find((c: any) => c.id === cueId) || null;
   const ownDuration = ownGrid && ownGrid.durationSeconds > 0 ? ownGrid.durationSeconds : null;
-  const grid = ownMusic ? (ownGrid && ownGrid.accepted ? { bpm: ownGrid.bpm, firstBeat: ownGrid.firstBeat, usableEnd: ownGrid.durationSeconds - 0.5, beatEnergy: ownGrid.beatEnergy, peaks: ownGrid.peaks, accepted: true, sixteenthRatio: ownGrid.sixteenthRatio }
-    : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: [], peaks: ownGrid?.peaks || [], accepted: false, sixteenthRatio: null })
-    : cue ? { bpm: cue.bpm, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy, peaks: cue.peaks, accepted: true, sixteenthRatio: cue.sixteenthRatio }
-    : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: 600, beatEnergy: [], peaks: [], accepted: false, sixteenthRatio: null };
+  // onsets / onsetThresholds: the music's qualifying band onsets in music seconds (manifest or beat-detect.cjs); the
+  // planner snaps the cuts to them (cwvSnapCuts). Own music without a reliable beat keeps its onsets: its fixed-timing
+  // cuts snap to bass onsets only.
+  const grid = ownMusic ? (ownGrid && ownGrid.accepted ? { bpm: ownGrid.bpm, firstBeat: ownGrid.firstBeat, usableEnd: ownGrid.durationSeconds - 0.5, beatEnergy: ownGrid.beatEnergy, peaks: ownGrid.peaks, accepted: true, sixteenthRatio: ownGrid.sixteenthRatio, onsets: ownGrid.onsets || NO_ONSETS, onsetThresholds: ownGrid.onsetThresholds }
+    : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: [], peaks: ownGrid?.peaks || [], accepted: false, sixteenthRatio: null, onsets: ownGrid?.onsets || NO_ONSETS, onsetThresholds: ownGrid?.onsetThresholds })
+    : cue ? { bpm: cue.bpm, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy, peaks: cue.peaks, accepted: true, sixteenthRatio: cue.sixteenthRatio, onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds }
+    : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: 600, beatEnergy: [], peaks: [], accepted: false, sixteenthRatio: null, onsets: NO_ONSETS, onsetThresholds: undefined };
   // The title burst: 16th-note shots only when the music has a clear 16th pulse; fixed timing and No music use 8ths.
   const burst = grid.accepted ? cwvBurstFor(grid.sixteenthRatio) : "eighth";
   const minShots = cwvMinWindows(burst);
@@ -943,6 +948,8 @@ export default function Panel({ sdk, context, ui }: any) {
   // The readiness plan uses the same value, so "footage fits N" matches what Build produces.
   const start = grid.accepted ? snap(section || 0) : (section || 0);
   const musicStart = cueId === "none" ? null : (start ?? 0);
+  // Onset snapping for every plan; without a reliable beat only bass onsets count, in a wider window.
+  const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !grid.accepted };
 
   // A new track (or its grid) defaults the section to the most energetic window.
   // `assets` is a dependency so the default also applies once the manifest has loaded.
@@ -961,12 +968,14 @@ export default function Panel({ sdk, context, ui }: any) {
     setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("Listening for the beat");
     try {
       // The decoded PCM (up to ~32 MB) is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit status.
+      // The result goes to a file (a long track's onsets come close to the 48 KB shell output cap); stdout says ok.
       const pcm = roots.data + "/own-music.f32";
-      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && node " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050"
+      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && node " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json")
         + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
       const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
-      const g = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
-      if (r.isError || r.exitCode !== 0 || g.error) throw new Error(g.error || r.stderr || "beat detection failed");
+      const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
+      if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw new Error(done.error || r.stderr || "beat detection failed");
+      const g = JSON.parse(await readText(roots.data, "own-music.json"));
       setOwnGrid(g);
       setStatus(g.accepted ? null : { tone: "info", text: "Music added; cuts use the original rhythm because its beat could not be found reliably." });
     } catch (e: any) {
@@ -1082,8 +1091,9 @@ export default function Panel({ sdk, context, ui }: any) {
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
       const fitted = cwvFitMontage({ bpm: grid.bpm, sectionStart: start ?? 0, usableEnd: grid.usableEnd, requested });
       if (!fitted) throw new Error("This music section is too short for the video. Move the section earlier or pick a shorter length.");
-      // Plan at 30 fps for allocation; assembly re-snaps every boundary at the Draft's real rate.
-      const plan = cwvPlanBuild({ candidates: found.list.concat(photoCands), bpm: grid.bpm, fps: 30, montageShots: fitted, seed: String(nextSeed), burst, sectionStart: musicStart });
+      // Plan at 30 fps for allocation, with the cuts snapped to the music's onsets; assembly places the same cut seconds
+      // at the Draft's real rate.
+      const plan = cwvPlanBuild({ candidates: found.list.concat(photoCands), bpm: grid.bpm, fps: 30, montageShots: fitted, seed: String(nextSeed), burst, sectionStart: musicStart, ...snapCuts });
       if (!plan.ok) {
         const retry = found.failed.length ? " Could not check " + found.failed.length + " clips; press Build to retry them." : "";
         const fromPhotos = photoCands.length ? " (" + plan.photoShots + " of them photos)" : "";
@@ -1094,8 +1104,8 @@ export default function Panel({ sdk, context, ui }: any) {
       const music = cueId === "none" ? null
         : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file }), true);
       check();
-      const beat = 60 / grid.bpm;
-      const beatsAt = [0, ...plan.schedule.slots.map((s: any) => s.endBeat)];
+      // Cut seconds from the section start: the grid, or the onset-snapped cuts (planner cwvSchedule `cuts`).
+      const boundaries: number[] = plan.schedule.cuts;
       advance("music", 1);
       advance("draft", 0);
       // Photo sizes the inventory has not measured yet stay out; assemble.js measures those itself.
@@ -1103,11 +1113,12 @@ export default function Panel({ sdk, context, ui }: any) {
         .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
       const name = "City Weekend Vlog " + new Date().toISOString().slice(0, 16).replace("T", " ");
       const a = await run("Assemble City Weekend Vlog", fill(assets.scripts.assembleJs, {
-        projectId: pid, draftName: name, picks: plan.picks, boundaries: beatsAt.map((b) => b * beat), crops,
+        projectId: pid, draftName: name, picks: plan.picks, boundaries, crops,
         music: music ? { resourceId: music.resourceId, sectionStart: start ?? 0 } : null, clipSound, ambientDb: AMBIENT_DB }), true);
       check();
       if (!a.sequenceId) throw new Error("The Draft \"" + name + "\" was saved, but Selects did not report its id, so the title and look could not be added. Open it from the Drafts list, or build again.");
-      const sched = cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: plan.montageShots, burst, sectionStart: musicStart });
+      // The title events at the Draft's rate from the same cut seconds, so each font switch stays on its cut.
+      const sched = cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: plan.montageShots, burst, sectionStart: musicStart, cuts: boundaries });
       // The planner drops montage shots when the footage cannot fill them; tell the user the real length at the Draft fps.
       const shortened = plan.montageShots < fitted ? { shots: plan.montageShots, seconds: sched.totalFrames / a.fps,
         fullSeconds: cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: fitted, burst, sectionStart: musicStart }).totalFrames / a.fps } : null;
@@ -1235,12 +1246,12 @@ export default function Panel({ sdk, context, ui }: any) {
     if (!candidates || candidates.key !== candKey || !(grid.bpm > 0)) {
       // With no video selected there is nothing to search: the photos alone decide the fit.
       if (!inventory || selectedRids.length || !(grid.bpm > 0)) return null;
-      const p = cwvPlanBuild({ candidates: photoCandsOf(inventory, onlyPhotos, usePhotos), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed), burst, sectionStart: musicStart });
+      const p = cwvPlanBuild({ candidates: photoCandsOf(inventory, onlyPhotos, usePhotos), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed), burst, sectionStart: musicStart, ...snapCuts });
       return p.ok ? p.montageShots : null;
     }
-    const p = cwvPlanBuild({ candidates: candidates.list.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed), burst, sectionStart: musicStart });
+    const p = cwvPlanBuild({ candidates: candidates.list.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed), burst, sectionStart: musicStart, ...snapCuts });
     return p.ok ? p.montageShots : null;
-  }, [candidates, candKey, grid.bpm, requested, seed, inventory, onlyPhotos, usePhotos, burst, musicStart]);
+  }, [candidates, candKey, grid.bpm, requested, seed, inventory, onlyPhotos, usePhotos, burst, musicStart, grid.onsets, grid.accepted]);
   const pending = inventory?.skipped?.unanalysed || 0;
   const clipCount = [
     allRids.length ? (only ? selectedRids.length + " of " + allRids.length + " clips selected" : allRids.length + " clips") : "",

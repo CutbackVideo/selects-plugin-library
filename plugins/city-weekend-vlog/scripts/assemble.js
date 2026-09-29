@@ -19,7 +19,8 @@ const lay = async (rate, final) => {
   for (let i = 0; i < cfg.picks.length; i++) {
     const pick = cfg.picks[i];
     // Aim each clip's end at its planned boundary frame at the Draft's real rate so rounding never drifts.
-    // cfg.boundaries are seconds from the start of the music section (beat * 60 / bpm).
+    // cfg.boundaries are seconds from the start of the music section: the beat grid (beat * 60 / bpm), with the cuts the
+    // planner snapped to music onsets (planner.js cwvSnapCuts) moved onto them.
     const want = Math.round((cfg.boundaries[i + 1] + offset(fps)) * fps) - endFrame;
     // A photo holds for the slot from the start of its (5 s) image source.
     const start = pick.kind === 'photo' ? 0 : pick.startSeconds;

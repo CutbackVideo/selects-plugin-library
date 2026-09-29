@@ -75,10 +75,19 @@ assert.ok(panel.includes('const burst = grid.accepted ? cwvBurstFor(grid.sixteen
 assert.ok(panel.includes('sixteenthRatio: cue.sixteenthRatio') && panel.includes('sixteenthRatio: ownGrid.sixteenthRatio'), 'bundled and own music ratios');
 const ui = panel.slice(panel.indexOf('// cwv-planner:end'));
 assert.equal((ui.match(/cwvPlanBuild\(/g) || []).length, 3);
-assert.equal((ui.match(/cwvPlanBuild\([^;]*burst(, sectionStart: musicStart)? \}\)/g) || []).length, 3, 'every plan uses the burst');
+assert.equal((ui.match(/cwvPlanBuild\([^;]*burst, sectionStart: musicStart, \.\.\.snapCuts \}\)/g) || []).length, 3, 'every plan uses the burst, the music start and onset snapping');
 // Cuts shift with the music's frame-snapped start: the build plan and both Draft-rate schedules get the section start.
 assert.ok(panel.includes('const musicStart = cueId === "none" ? null : (start ?? 0);'));
 assert.equal((ui.match(/sectionStart: musicStart/g) || []).length, 5, 'build plan, readiness plans and schedules use the music start');
+// Onset-anchored cuts: every plan snaps with the music's onsets (bundled cue, own music, also without a reliable beat);
+// assemble.js gets the planned cut seconds and the Draft-rate schedule reuses them, so font switches stay on their cuts.
+assert.ok(panel.includes('const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !grid.accepted };'), 'snap options');
+assert.ok(panel.includes('onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds') && panel.includes('onsets: ownGrid.onsets || NO_ONSETS') && panel.includes('onsets: ownGrid?.onsets || NO_ONSETS'), 'bundled and own-music onsets');
+assert.ok(panel.includes('const boundaries: number[] = plan.schedule.cuts;') && panel.includes('picks: plan.picks, boundaries, crops,'), 'assemble gets the snapped cuts');
+assert.ok(/cwvSchedule\(\{ bpm: grid\.bpm, fps: a\.fps, montageShots: plan\.montageShots, burst, sectionStart: musicStart, cuts: boundaries \}\)/.test(panel), 'the Draft-rate schedule reuses the cut seconds');
+assert.ok(panel.includes('grid.onsets, grid.accepted]);'), 'the readiness plan follows the onsets');
+// Own music: beat-detect.cjs writes its result to a file (the shell output is capped at 48 KB) and prints {"ok":true}.
+assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))') && panel.includes('!done.ok'), 'own-music analysis via a file');
 // Finish title and look retries with the inputs of the build, and clips whose scene search failed are reported.
 assert.ok(panel.includes('result.mute !== false, result.look, check)') && panel.includes('const { line1, connector, place, preset, warm, clipSound } = look;'), 'retry uses the build-time look');
 assert.ok(panel.includes('unchecked: found.failed.length') && panel.includes('Build again to retry '), 'unchecked clips are reported');
@@ -87,7 +96,7 @@ assert.ok(panel.includes('"; s=$?; rm -f " + sq(pcm) + "; exit $s"') && panel.in
 assert.equal((ui.match(/cwvSchedule\(/g) || []).length, 2);
 assert.equal((ui.match(/cwvSchedule\(\{[^}]*burst/g) || []).length, 2, 'every schedule uses the burst');
 assert.ok(panel.includes('const minShots = cwvMinWindows(burst);') && !ui.includes('CWV_MIN_WINDOWS'), 'the shot minimum follows the burst');
-assert.ok(panel.includes('const beatsAt = [0, ...plan.schedule.slots.map((s: any) => s.endBeat)];'), 'boundaries come from the schedule');
+assert.ok(!panel.includes('beatsAt'), 'boundaries come from the schedule cuts, not beat positions');
 assert.ok(!/i < 13/.test(panel), 'no fixed title slot count');
 // Same-source neighbours only when nothing else fits, and then the result says so.
 assert.ok(panel.includes('result?.plan?.adjacentRepeats') && panel.includes('from the same clip because there'), 'adjacent repeat note');
