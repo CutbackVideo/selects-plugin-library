@@ -355,25 +355,41 @@ function mvPlanBuild(opts) {
   const gridded = mvGridUsable({ bpm: opts.bpm, accepted: opts.accepted });
   const guard = gridded ? mvBeatsPerShot(opts.pace, opts.bpm) : { beats: null, overridden: false };
   const shotSeconds = mvShotSeconds({ bpm: opts.bpm, beatsPerShot: guard.beats, pace: opts.pace, gridded });
-  const requested = Math.max(MV_MIN_SHOTS, Math.floor(opts.requested / MV_MIN_SHOTS) * MV_MIN_SHOTS);
+  const asked = typeof opts.requested === 'number' && isFinite(opts.requested) ? opts.requested : MV_LENGTHS.standard;
+  const requested = Math.max(MV_MIN_SHOTS, Math.floor(asked / MV_MIN_SHOTS) * MV_MIN_SHOTS);
   const top = mvFitShots({ requested, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd, shotSeconds });
   if (top === 0) return { ok: false, reason: 'music-too-short', usableShots: 0 };
+  // Distinct sources the allocator can use: valid videos (as mvAllocate filters them) and photos.
+  const finite = v => typeof v === 'number' && isFinite(v);
   const rids = {};
-  for (const c of opts.candidates) if (c && typeof c.rid === 'string') rids[c.rid] = true;
+  let hasPhotos = false;
+  for (const c of opts.candidates) {
+    if (!c || typeof c.rid !== 'string') continue;
+    if (c.kind === 'photo') { rids[c.rid] = true; hasPhotos = true; }
+    else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) rids[c.rid] = true;
+  }
   if (Object.keys(rids).length < 2) return { ok: false, reason: 'one-resource', usableShots: 0 };
   const candidates = opts.candidates.concat(mvFillers(opts.candidates));
+  // Share attempts per length. The greedy allocator spends a scarce video window after every photo outside the photo
+  // slots, which can strand photos behind the run limit although the length is fillable (P P a P P b P P). So before a
+  // length is given up it is retried with every slot a photo slot (photos first, a video only after two photos), which
+  // spends video windows only where the run limit needs them.
+  const shares = [opts.photoShare == null ? MV_PHOTO_SHARE : opts.photoShare];
+  if (hasPhotos && shares[0] !== 1) shares.push(1);
   let usableShots = 0;
   for (let n = top; n >= MV_MIN_SHOTS; n -= MV_MIN_SHOTS) {
     const schedule = mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, shots: n, beatsPerShot: guard.beats, shotSeconds,
       sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence });
     const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
-    const alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: opts.photoShare });
-    if (alloc.missing === 0) {
-      return { ok: true, schedule, picks: alloc.picks, shots: n, requested, fittedByMusic: top < requested,
-        beatsPerShot: guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
+    for (const photoShare of shares) {
+      const alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare });
+      if (alloc.missing === 0) {
+        return { ok: true, schedule, picks: alloc.picks, shots: n, requested, fittedByMusic: top < requested,
+          beatsPerShot: guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
+      }
+      // The shortest length misses slots with every share, so usableShots < MV_MIN_SHOTS.
+      if (n === MV_MIN_SHOTS) usableShots = Math.max(usableShots, alloc.filled);
     }
-    // The shortest attempt misses slots, so usableShots < MV_MIN_SHOTS.
-    if (n === MV_MIN_SHOTS) usableShots = alloc.filled;
   }
   return { ok: false, reason: 'too-few', usableShots };
 }

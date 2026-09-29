@@ -139,6 +139,47 @@ for (const [bpm, accepted] of [[65, true], [108, false], [null, false]]) {
 }
 assert.equal(j(P.mvPlanBuild({ candidates: rich, bpm: null, accepted: false, fps: F, pace: 'relaxed', requested: 12, seed: 's1' })).shotSeconds, 1.1);
 
+// No grid with the music cap: 108 bpm not accepted, Relaxed -> fixed 1.10 s shots; 0.3 + 16 x 1.1 = 17.9 <= 20 but
+// 0.3 + 20 x 1.1 = 22.3 > 20, so 16 shots.
+const ngCap = j(P.mvPlanBuild({ candidates: rich, bpm: 108, accepted: false, fps: F, pace: 'relaxed', requested: 24, sectionStart: 0.3, usableEnd: 20, seed: 's1' }));
+assert.equal(ngCap.ok, true); assert.equal(ngCap.shots, 16); assert.equal(ngCap.fittedByMusic, true);
+assert.equal(ngCap.shotSeconds, 1.1); assert.equal(ngCap.schedule.gridded, false); assert.equal(ngCap.beatsPerShot, null);
+// A non-finite requested length falls back to Standard (24) instead of failing as 'music-too-short'.
+for (const requested of [NaN, undefined, Infinity]) {
+  const r = j(P.mvPlanBuild({ candidates: rich, bpm: 108, accepted: true, fps: F, pace: 'quick', requested, seed: 's1' }));
+  assert.equal(r.ok, true); assert.equal(r.requested, 24); assert.equal(r.shots, 24);
+}
+// one-resource counts only sources the allocator can use: an invalid video (no duration) does not make a second one.
+assert.equal(plan(video('a').concat([{ rid: 'b', role: 'drink', t: 1, score: 0.5 }])).reason, 'one-resource');
+assert.equal(plan(video('a').concat([{ rid: 'b', role: 'drink', t: NaN, score: 0.5, sourceDuration: 30 }])).reason, 'one-resource');
+assert.equal(plan(video('a').concat(photos(1))).reason, 'too-few', 'a video and a photo are two sources (a p a: 3 shots)');
+assert.equal(plan(video('a').concat(photos(2)), { requested: 4 }).shots, 4, 'a p a p');
+
+// Scarce video + many photos: the greedy default share spends a video window after every photo outside photo slots and
+// strands photos behind the run limit; the plan retries the same length with every slot a photo slot before shrinking.
+// (a) Two 2.5 s videos with one centred hit each. The hit window [0.97, 1.53] leaves no room for a second window (0.5 s
+// gap each side of a 0.53-0.57 s window), so each video gives one shot and the longest valid order is P P a P P b P P:
+// 8 shots.
+const scarceA = [mk('a', 'drink', 1.25, 0.5, 2.5), mk('b', 'street', 1.25, 0.5, 2.5)].concat(photos(20));
+for (const seed of ['s1', 's2', 's3']) {
+  const r = plan(scarceA, { requested: 24, seed });
+  assert.equal(r.ok, true); assert.equal(r.shots, 8);
+  assert.equal(r.picks.map(p => (p.kind === 'photo' ? 'P' : p.rid)).join(''), 'PPaPPbPP');
+  assert.ok(!adjacent(r.picks) && maxRun(r.picks) <= 2);
+}
+// (b) One 10.5 s video: windows sit on the 0.5 s candidate grid and need >= 1.03 s between starts, so at most 7 fit
+// (0, 1.47, 2.97, 4.47, 5.97, 7.47, 8.97); 7 videos separate at most 8 photo pairs -> 23 shots, so 20 is the longest
+// multiple of 4 (24 cannot be filled).
+const scarceB = [mk('v', 'drink', 5.25, 0.5, 10.5)].concat(photos(20));
+for (const seed of ['s1', 's2', 's3']) {
+  const r = plan(scarceB, { requested: 24, seed });
+  assert.equal(r.ok, true); assert.equal(r.shots, 20);
+  assert.ok(!adjacent(r.picks) && maxRun(r.picks) <= 2);
+  assert.equal(r.photoShots, 14);
+  assert.deepEqual(plan(scarceB, { requested: 24, seed }), r, 'deterministic');
+}
+assert.equal(plan(scarceB, { requested: 24, photoShare: 1 }).shots, 20);
+
 // Windows stay in their source, have the slot's length and never overlap (with the gap) within one source.
 const spans = {};
 cap.picks.forEach((p, i) => {
