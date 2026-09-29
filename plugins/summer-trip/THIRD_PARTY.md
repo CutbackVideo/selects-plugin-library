@@ -1,5 +1,26 @@
 # Third-party components
 
+- React and Remotion are imported from the Selects host environment. This package does not redistribute those runtimes; the host's dependency versions and applicable terms govern their use.
+- FFmpeg (ffmpeg, ffprobe) and Node.js are not bundled. When they are installed (on the user's `PATH` or the Selects install's tool locations), the panel runs them through the Selects shell for music previews, your own music (beat and drop detection) and its muffled ending copy.
+- Users supply their own footage and, optionally, their own music. No sample recordings, reference footage or model weights are included.
+
+## Fonts
+
+The title and label fonts are bundled in `assets/fonts/` as base64-encoded WOFF2 text (`*.woff2.b64`). Each is a **Latin subset** of the Google Fonts release (github.com/google/fonts), with hinting removed and only the kerning and basic shaping features kept (`dev/build-fonts.sh`). Because a subset is a Modified Version under the SIL Open Font License, every font is **renamed** with an `ST ` prefix (for example `ST Poppins Bold`), and each renamed font is checked against the family's Reserved Font Names (`dev/rename-font.py`). The fonts of the chosen style are embedded in the graphics' parameters when a Draft is built.
+
+Each family's licence text is in `assets/fonts/licenses/`.
+
+| Family | Bundled files (renamed family) | Copyright | Licence |
+| --- | --- | --- | --- |
+| Poppins | `poppins-light` (ST Poppins Light), `poppins-light-italic` (ST Poppins Light Italic), `poppins-bold` (ST Poppins Bold), `poppins-black` (ST Poppins Black) | Copyright 2020 The Poppins Project Authors (https://github.com/itfoundry/Poppins) | SIL OFL 1.1 (`poppins-OFL.txt`) |
+| Anton | `anton` (ST Anton) | Copyright 2020 The Anton Project Authors (https://github.com/googlefonts/AntonFont.git) | SIL OFL 1.1 (`anton-OFL.txt`) |
+| Gloock | `gloock` (ST Gloock) | Copyright 2022 The Gloock Project Authors (https://github.com/duartp/gloock) | SIL OFL 1.1 (`gloock-OFL.txt`) |
+| Instrument Serif | `instrument-serif-italic` (ST Instrument Serif Italic) | Copyright 2022 The Instrument Serif Project Authors (https://github.com/Instrument/instrument-serif) | SIL OFL 1.1 (`instrumentserif-OFL.txt`) |
+
+## Music
+
+No music tracks are bundled in this version (`assets/cues/manifest.json` lists none). The planned tracks will be generated for this plugin with ElevenLabs Music through the Selects generated-media service: three or four instrumentals of 60 to 70 seconds at 118 to 124 BPM, each with a quiet two-bar intro before a drop, loudness-normalized to -14 LUFS, and each with a muffled (low-passed) copy for the ending made from the same audio (`dev/build-cues.cjs`, filter in `muffle.cjs`). This section will then list each track, its prompt and its measured tempo and drop, and the tracks will be bundled for use in the videos this plugin builds, not for redistribution as standalone tracks.
+
 ## Sounds
 
 The sound effects in `sfx/` are derived from CC0 1.0 (public domain) recordings on Freesound
