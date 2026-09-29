@@ -124,7 +124,7 @@ assert.equal(cap.beatsPerShot, 2); assert.equal(cap.overridden, false);
 assert.ok(Math.abs(cap.shotSeconds - 120 / 111.99) < 1e-12);
 assert.equal(cap.picks.length, 32); assert.equal(cap.schedule.slots.length, 32); assert.equal(cap.schedule.gridded, true);
 assert.ok(0.027 + cap.schedule.totalFrames / F <= 34.82 + 1 / F, 'the picture never outruns the music');
-assert.deepEqual(Object.keys(cap).sort(), ['beatsPerShot', 'fillerShots', 'fittedByMusic', 'ok', 'overridden', 'photoShots', 'picks', 'requested', 'schedule', 'shotSeconds', 'shots']);
+assert.deepEqual(Object.keys(cap).sort(), ['attempt', 'beatsPerShot', 'fillerShots', 'fittedByMusic', 'ok', 'overridden', 'photoShots', 'picks', 'requested', 'schedule', 'shotSeconds', 'shots']);
 // Quick at the same start fits all 36.
 const capQ = j(P.mvPlanBuild({ candidates: rich, bpm: 111.99, accepted: true, fps: F, pace: 'quick', requested: 36, sectionStart: 0.027, usableEnd: 34.82, seed: 's1' }));
 assert.equal(capQ.shots, 36); assert.equal(capQ.fittedByMusic, false);
@@ -229,6 +229,36 @@ for (const seed of ['1', '2', '3']) {
   assert.equal(d.ok, true); assert.equal(d.shots, 12);
   assert.equal(new Set(d.picks.map(p => p.rid)).size, 12, 'daily: 12 distinct resources (' + seed + ')');
   assert.equal(d.photoShots, 4);
+}
+
+// The attempt that built the plan is reported: variety first, then photos first everywhere, then role-first.
+assert.equal(cap.attempt, 'spread');
+assert.equal(plan(scarceA, { requested: 24 }).attempt, 'spread-share1');
+assert.equal(shrink.attempt, 'role-first', 'case 5 needs the role-first order for 12 shots');
+assert.equal(plan(scarceB, { requested: 24, photoShare: 1 }).attempt, 'spread', 'a requested share of 1 has no share-1 retry');
+
+// Long sources: fillers are capped at MV_FILLER_MAX (48) per source, an even subset of the 0.5 s grid with both edges;
+// sources up to 24 s keep the full grid.
+const fillT = d => j(P.mvFillers([mk('a', 'drink', 1, 1, d)])).map(x => x.t);
+assert.equal(fillT(24).length, 48); assert.equal(fillT(24)[47], 23.75);
+for (const d of [24.5, 90, 600, 3600]) {
+  const t = fillT(d);
+  assert.equal(t.length, 48); assert.equal(t[0], 0.25);
+  assert.equal(t[47], 0.25 + Math.floor((d - 0.5 + 1e-9) / 0.5) * 0.5, 'last window kept (' + d + ')');
+  t.forEach((x, i) => { assert.ok(Math.abs((x - 0.25) / 0.5 - Math.round((x - 0.25) / 0.5)) < 1e-9, 'on the grid'); if (i) assert.ok(x > t[i - 1]); });
+}
+// ... so the panel's readiness check (two plans) stays fast on an hour-long clip, a 1 s clip and photos, where every
+// length fails and all attempts run (live review: 5.0 s before the cap). Generous bound for CI.
+{
+  for (const [np, expect] of [[0, 'too-few'], [2, 4], [8, 16]]) {
+    const longPool = [mk('L', 'drink', 100, 0.5, 3600), mk('s', 'street', 0.5, 0.5, 1)].concat(photos(np));
+    const t0 = Date.now();
+    let r;
+    for (const requested of [24, 36]) r = plan(longPool, { requested });
+    const ms = Date.now() - t0;
+    assert.ok(ms < 1000, 'long source plans in ' + ms + ' ms (' + np + ' photos)');
+    assert.equal(r.ok ? r.shots : r.reason, expect);
+  }
 }
 
 // Windows stay in their source, have the slot's length and never overlap (with the gap) within one source.
