@@ -245,7 +245,12 @@ async function readText(root: string, rel: string) {
   // Some host builds return text directly; others return bytes.
   return typeof v === "string" ? v : new TextDecoder().decode(new Uint8Array(v));
 }
-function fill(script: string, cfg: unknown) { return script.replace("__CONFIG__", () => JSON.stringify(cfg)); }
+// The config goes in as JSON.parse of a string so its type is `any`: an inlined literal widens `type` to string
+// (rejected by EditableParameterDefinition[]) and narrows a null option to `never` inside its `if`.
+function fill(script: string, cfg: unknown) { return script.replace("__CONFIG__", () => "JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"); }
+// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew and the newest nvm Node.
+const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; '
+  + 'n=$( (ls -d "$HOME"/.nvm/versions/node/*/bin) 2>/dev/null | sort -V | tail -1); [ -n "$n" ] && export PATH="$PATH:$n"; ';
 function suggestPlace(projectName: string) {
   const name = String(projectName || "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
   if (!/^[A-Za-z][A-Za-z .']{1,30}$/.test(name)) return "";
@@ -575,7 +580,7 @@ export default function Panel({ sdk, context, ui }: any) {
         // ffmpeg and node are only needed for previews and own music; bundled cues work without them.
         let have = "";
         try {
-          const probe = await sdk.runShell({ summary: "Check music tools", command: "command -v ffmpeg >/dev/null && echo ffmpeg; command -v node >/dev/null && echo node", timeoutMs: 10000 });
+          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg; command -v node >/dev/null && echo node", timeoutMs: 10000 });
           have = String(probe?.stdout || "");
         } catch { have = ""; }
         if (!alive) return;
@@ -654,7 +659,7 @@ export default function Panel({ sdk, context, ui }: any) {
     setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("Listening for the beat");
     try {
       const pcm = roots.data + "/own-music.f32";
-      const cmd = "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && node " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050";
+      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && node " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050";
       const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
       const g = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
       if (r.isError || r.exitCode !== 0 || g.error) throw new Error(g.error || r.stderr || "beat detection failed");
@@ -664,7 +669,7 @@ export default function Panel({ sdk, context, ui }: any) {
       // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
       let duration: number | null = null;
       try {
-        const pr = await sdk.runShell({ summary: "Read the length of " + file.name, command: "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " + sq(file.path), timeoutMs: 20000 });
+        const pr = await sdk.runShell({ summary: "Read the length of " + file.name, command: TOOL_PATH + "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " + sq(file.path), timeoutMs: 20000 });
         const v = parseFloat(String(pr?.stdout || "").trim());
         if (!pr?.isError && v > 0) duration = Math.min(v, 360);
       } catch { duration = null; }
@@ -698,7 +703,7 @@ export default function Panel({ sdk, context, ui }: any) {
       // The whole section, written to a file (stdout is too small for ~23 s) and read back as base64 text.
       // Earlier previews are removed first so the data folder never collects them.
       const dur = videoSeconds, base = roots.data + "/preview-" + token;
-      const cmd = "rm -f " + sq(roots.data) + "/preview-*.mp3 " + sq(roots.data) + "/preview-*.b64; "
+      const cmd = TOOL_PATH + "rm -f " + sq(roots.data) + "/preview-*.mp3 " + sq(roots.data) + "/preview-*.b64; "
         + "ffmpeg -nostdin -v error -y -ss " + section.toFixed(2) + " -t " + dur.toFixed(2) + " -i " + sq(file)
         + " -ac 1 -ar 22050 -b:a 48k -af \"afade=t=out:st=" + Math.max(0, dur - 0.4).toFixed(2) + ":d=0.4\" -f mp3 " + sq(base + ".mp3")
         + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64");
@@ -786,14 +791,14 @@ export default function Panel({ sdk, context, ui }: any) {
       const crops = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, { width: r.width, height: r.height }]));
       const name = "City Weekend Vlog " + new Date().toISOString().slice(0, 16).replace("T", " ");
       const a = await run("Assemble City Weekend Vlog", fill(assets.scripts.assembleJs, {
-        projectId: pid, draftName: name, picks: plan.picks, boundaries: beatsAt.map((b) => b * beat), crops, mute: !keepSound,
+        projectId: pid, draftName: name, picks: plan.picks, boundaries: beatsAt.map((b) => b * beat), crops,
         music: music ? { resourceId: music.resourceId, sectionStart: start ?? 0 } : null }), true);
       check();
       if (!a.sequenceId) throw new Error("The Draft \"" + name + "\" was saved, but Selects did not report its id, so the title and look could not be added. Open it from the Drafts list, or build again.");
       const sched = cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: plan.montageShots });
       advance("draft", 1);
-      setResult({ sequenceId: a.sequenceId, decorated: false, sched, plan, seed: nextSeed, notes: a.notes || [], link: null });
-      await decorate(a.sequenceId, sched, plan, nextSeed, check);
+      setResult({ sequenceId: a.sequenceId, decorated: false, sched, plan, seed: nextSeed, mute: !keepSound, notes: a.notes || [], link: null });
+      await decorate(a.sequenceId, sched, plan, nextSeed, !keepSound, check);
     } catch (e: any) {
       if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) });
     } finally { endRun(pid); }
@@ -804,13 +809,14 @@ export default function Panel({ sdk, context, ui }: any) {
     const pid = projectId;
     const check = () => { if (projectRef.current !== pid) throw STALE; };
     busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
-    try { await decorate(result.sequenceId, result.sched, result.plan, result.seed, check); }
+    try { await decorate(result.sequenceId, result.sched, result.plan, result.seed, result.mute !== false, check); }
     catch (e: any) { if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) }); }
     finally { endRun(pid); }
   }
 
-  // Commit 2 (title and warm look), then open the Draft. decorate.js skips what an earlier attempt already added.
-  async function decorate(sequenceId: string, sched: any, plan: any, usedSeed: number, check: () => void) {
+  // Commit 2 (mute the clips' own sound unless kept, title and warm look), then open the Draft.
+  // decorate.js skips what an earlier attempt already added.
+  async function decorate(sequenceId: string, sched: any, plan: any, usedSeed: number, mute: boolean, check: () => void) {
     advance("look", 0);
     try {
       const p = assets.presets.presets.find((x: any) => x.id === preset);
@@ -832,10 +838,10 @@ export default function Panel({ sdk, context, ui }: any) {
         { key: "rotation", label: "Tilt", type: "number", defaultValue: -7, min: -20, max: 20, step: 1 },
         { key: "position", label: "Height (%)", type: "number", defaultValue: 46, min: 20, max: 80, step: 1 },
       ];
-      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId, titleEnd: sched.title.endFrame, title: { tsx: assets.titleTsx, parameters, editableParameters }, warm: warm ? { tsx: assets.warmTsx, strength: 0.35 } : null }), true);
+      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId, mute, titleEnd: sched.title.endFrame, title: { tsx: assets.titleTsx, parameters, editableParameters }, warm: warm ? { tsx: assets.warmTsx, strength: 0.35 } : null }), true);
     } catch (e: any) {
       if (e === STALE) throw e;
-      throw new Error("The Draft was created, but its title and look were not added: " + (e?.message || e) + ". Press Finish title and look to try again.");
+      throw new Error("The Draft was created, but it could not be finished (muting its clips, title and look): " + (e?.message || e) + ". Press Finish title and look to try again.");
     }
     check();
     // The title is saved from here on, so a failed open must not offer the retry.

@@ -127,9 +127,10 @@ Finished videos are exported from the Draft with **Handoff → Export**.
   another preset in the panel and build again. Rebuilding creates a new Draft
   and does not keep Inspector edits.
 - The Draft is built in two commits: first the clips and music, then the
-  title and warm look. If the second commit fails, the Draft is kept, the
-  panel says so, and **Finish title and look** adds the title and look to that
-  Draft.
+  clips' muted sound, the title and the warm look (Selects can change a clip's
+  audio tracks only once the Draft is saved). If the second commit fails, the
+  Draft is kept, the panel says so, and **Finish title and look** finishes
+  that Draft.
 - Moving cuts inside the title section does not move the title's events.
   Moving the music clip's start does not move the cuts either.
 - Songs under 70 BPM, or songs whose beat cannot be detected reliably, use

@@ -34,4 +34,11 @@ assert.ok(panel.indexOf('[cueId, ownMusic?.path, section, length]') < panel.inde
 const buildBody = panel.slice(panel.indexOf('async function build('), panel.indexOf('async function finishTitle('));
 assert.ok(buildBody.includes('stopPreview()'), 'Build stops the preview');
 assert.ok(panel.slice(panel.indexOf('async function finishTitle('), panel.indexOf('async function decorate(')).includes('stopPreview()'), 'Finish stops the preview');
+// Finder-launched apps lack Homebrew/nvm on PATH: every shell step that runs ffmpeg, ffprobe or node extends it.
+for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/]) assert.ok(re.test(panel), String(re));
+assert.equal((panel.match(/runShell\(/g) || []).length, 5, 'one folder lookup plus four tool steps');
+assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('.nvm/versions/node/*/bin'), 'Homebrew and nvm paths');
+// Script configs arrive as JSON.parse(...) so the SDK type check sees `any`, not widened literal types.
+assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
+assert.ok(/decorateJs, \{ sequenceId, mute,/.test(panel) && panel.includes('result.mute !== false'), 'decorate mutes, also on retry');
 console.log(JSON.stringify({ panel: 'ok' }));

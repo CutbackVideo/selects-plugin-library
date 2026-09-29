@@ -15,8 +15,11 @@
 ## Dependencies
 
 The bundled music tracks, the title, the warm look and the Draft build need
-nothing beyond Selects. Two optional features use command-line tools on the
-shell `PATH`:
+nothing beyond Selects. Two optional features use command-line tools. The
+panel finds them on the shell `PATH` and also in `/opt/homebrew/bin`,
+`/usr/local/bin` and the newest nvm Node (`~/.nvm/versions/node/*/bin`), so
+tools installed with Homebrew or nvm work even when Selects is opened from
+Finder:
 
 - **ffmpeg** (it includes `ffprobe`): music previews and your own music.
   Check with `ffmpeg -version` and `ffprobe -version`.

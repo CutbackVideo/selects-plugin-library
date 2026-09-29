@@ -25,10 +25,7 @@ for (let i = 0; i < rows.length; i++) {
   const clip = (await main())[i];
   await d.setClipTransform({ clip, scale: { x: scale, y: scale }, position: { x: 0, y: 0 } });
 }
-if (cfg.mute) {
-  try { await d.setAudioTracks({ target: await d.rangeAtFrames(0, endFrame), audioSourceIndexes: [] }); }
-  catch (e) { throw Error('Could not mute the clips\' own sound: ' + (e && e.message || e)); }
-}
+// Muting the clips' own sound needs the saved Draft's audio inventory, so decorate.js does it after this commit.
 if (cfg.music) {
   const audioBefore = new Set((await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'audio').map(c => c.clipId));
   await d.overlayResource({ resource: p.resource(cfg.music.resourceId), over: await d.rangeAtFrames(0, endFrame), sourceStartSeconds: cfg.music.sectionStart });
