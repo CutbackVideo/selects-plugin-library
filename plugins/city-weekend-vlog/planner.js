@@ -16,6 +16,11 @@ const CWV_REFERENCE_BPM = 99.2;
 // blocks footage when it beats the best other-role hit near it by this margin, or, with none near, reaches CWV_TALKING_MIN.
 const CWV_TALKING_MARGIN = 0.05;
 const CWV_TALKING_MIN = 0.3;
+// Scene-search hits collapse onto a few distinct times per clip, so every searched source also gets evenly spaced
+// 'filler' candidates. They score below any real hit and are only used by the last-resort any-role tier.
+const CWV_FILLER_STEP = 0.5;
+const CWV_FILLER_EDGE = 0.25;
+const CWV_FILLER_SCORE = -2;
 
 function cwvVideoBeats(montageShots) { return CWV_TITLE_TOTAL_BEATS + CWV_MONTAGE_BEATS * montageShots; }
 function cwvVideoSeconds(bpm, montageShots) { return cwvVideoBeats(montageShots) * 60 / bpm; }
@@ -95,6 +100,24 @@ function cwvHash(str) {
   return (h >>> 0) / 4294967296;
 }
 
+// Filler candidates every CWV_FILLER_STEP seconds on each source that appears in the candidates, sorted by rid then time.
+function cwvFillers(candidates) {
+  const dur = {};
+  for (const c of candidates) {
+    if (!c || typeof c.sourceDuration !== 'number' || !isFinite(c.sourceDuration) || !(c.sourceDuration > 0)) continue;
+    dur[c.rid] = Math.max(dur[c.rid] || 0, c.sourceDuration);
+  }
+  const out = [];
+  for (const rid of Object.keys(dur).sort()) {
+    for (let k = 0; ; k++) {
+      const t = CWV_FILLER_EDGE + k * CWV_FILLER_STEP;
+      if (t > dur[rid] - CWV_FILLER_EDGE + 1e-9) break;
+      out.push({ rid, role: 'filler', t, score: CWV_FILLER_SCORE, sourceDuration: dur[rid] });
+    }
+  }
+  return out;
+}
+
 // Which candidate roles may fill a slot role, best first.
 const CWV_ROLE_FALLBACK = {
   street: ['street', 'detail', 'architecture'],
@@ -114,14 +137,14 @@ function cwvAllocate(opts) {
   if (opts.avoidTalking !== false) {
     candidates.filter(c => c.role === 'talking').forEach(c => {
       let rival = -Infinity;
-      for (const o of candidates) if (o.role !== 'talking' && o.rid === c.rid && Math.abs(o.t - c.t) <= 1 && o.score > rival) rival = o.score;
+      for (const o of candidates) if (o.role !== 'talking' && o.role !== 'filler' && o.rid === c.rid && Math.abs(o.t - c.t) <= 1 && o.score > rival) rival = o.score;
       const dominant = rival === -Infinity ? c.score >= CWV_TALKING_MIN : c.score >= rival + CWV_TALKING_MARGIN - 1e-9;
       if (dominant) (avoid[c.rid] = avoid[c.rid] || []).push([c.t - 1, c.t + 1]);
     });
   }
   const pool = candidates.filter(c => c.role !== 'talking' && c.sourceDuration > 0);
-  let missing = 0;
-  // Best fitting candidate for a slot. With roles == null, any non-talking role is accepted (last resort).
+  let missing = 0, fillerShots = 0;
+  // Best fitting candidate for a slot. With roles == null, any non-talking role, fillers included, is accepted (last resort).
   function search(slot, roles) {
     let best = null;
     for (const c of pool) {
@@ -144,25 +167,27 @@ function cwvAllocate(opts) {
     const best = search(slot, CWV_ROLE_FALLBACK[slot.role] || [slot.role]) || search(slot, null);
     if (!best) { missing++; picks.push(null); continue; }
     (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
+    if (best.c.role === 'filler') fillerShots++;
     recent.push(best.c.rid);
     if (recent.length > 3) recent.shift();
     picks.push({ slot: slot.index, rid: best.c.rid, startSeconds: best.start, endSeconds: best.end });
   }
-  return { picks, filled: picks.filter(Boolean).length, missing };
+  return { picks, filled: picks.filter(Boolean).length, missing, fillerShots };
 }
 
 // Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
-// If no length fits while avoiding talking, the same range is tried once more without that avoidance (relaxedTalking).
+// Filler candidates are added to every attempt. If no length fits while avoiding talking, the same range is tried once more without that avoidance (relaxedTalking).
 function cwvPlanBuild(opts) {
   const top = Math.min(CWV_MAX_MONTAGE, Math.max(CWV_MIN_MONTAGE, opts.montageShots));
+  const candidates = opts.candidates.concat(cwvFillers(opts.candidates));
   let bestFilled = 0;
   for (const avoidTalking of [true, false]) {
     for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
       const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n });
       const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
-      const alloc = cwvAllocate({ candidates: opts.candidates, slots, seed: opts.seed, avoidTalking });
+      const alloc = cwvAllocate({ candidates, slots, seed: opts.seed, avoidTalking });
       if (alloc.missing === 0) {
-        const plan = { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS };
+        const plan = { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS, fillerShots: alloc.fillerShots };
         if (!avoidTalking) plan.relaxedTalking = true;
         return plan;
       }

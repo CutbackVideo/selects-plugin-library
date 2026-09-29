@@ -2,7 +2,7 @@ const fs = require('node:fs'), path = require('node:path'), vm = require('node:v
 const root = path.resolve(__dirname, '..');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
 vm.createContext(box);
-vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={cwvAllocate,cwvPlanBuild,cwvHash,cwvProgress,CWV_BUILD_STEPS};', box);
+vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={cwvAllocate,cwvPlanBuild,cwvFillers,cwvHash,cwvProgress,CWV_BUILD_STEPS};', box);
 const P = box.P, j = v => JSON.parse(JSON.stringify(v));
 const roles = ['street', 'architecture', 'landmark', 'park', 'detail', 'wide'];
 // 12 sources x 6 roles x 2 hits = plenty of candidates, each source 30 s long.
@@ -113,6 +113,65 @@ assert.equal(rx.relaxedTalking, true);
 assert.equal(rx.picks.length, 13 + rx.montageShots);
 assert.ok(rx.picks.every(Boolean));
 assert.equal(P.cwvAllocate({ candidates: talkAll, slots: rx.schedule.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / 30 })), seed: 's1' }).filled, 0);
+
+// Scene-search hits collapse onto ~6 distinct times per clip (live readback on 4 clips of 24.6/9.7/8.7/5.5 s).
+// Without fillers every length shrank to 4-5 montage shots; evenly spaced fillers let every requested length fit.
+const collapsed = [];
+[['c0', 24.6], ['c1', 9.7], ['c2', 8.7], ['c3', 5.5]].forEach(([rid, dur], r) => {
+  const times = Array.from({ length: 6 }, (_, k) => Math.round(k * dur / 6 * 1000) / 1000);
+  roles.forEach((role, ri) => [0, 1].forEach(k => {
+    const t = times[(ri + k * 3 + r) % times.length];
+    collapsed.push({ rid, role, t, score: 0.15 + ((r * 13 + ri * 7 + k * 5) % 25) / 100, sourceDuration: dur });
+  }));
+});
+for (const rid of ['c0', 'c1', 'c2', 'c3']) assert.ok(new Set(collapsed.filter(c => c.rid === rid).map(c => c.t)).size <= 6);
+for (const seed of ['s1', 's2', 's3']) for (const n of [4, 7, 12]) {
+  const r = j(P.cwvPlanBuild({ candidates: collapsed, bpm: 99.2, fps: 30, montageShots: n, seed }));
+  assert.equal(r.ok, true);
+  assert.equal(r.montageShots, n, 'requested ' + n + ' fits with fillers (seed ' + seed + ')');
+  assert.equal(r.relaxedTalking, undefined);
+  assert.ok(r.picks.every(Boolean));
+  if (n === 12) assert.ok(r.fillerShots > 0);
+  const spans = {};
+  r.picks.forEach((p, i) => {
+    const d = { c0: 24.6, c1: 9.7, c2: 8.7, c3: 5.5 }[p.rid];
+    assert.ok(p.startSeconds >= -1e-9 && p.endSeconds <= d + 1e-9, 'filler windows stay in the source');
+    (spans[p.rid] = spans[p.rid] || []).push([p.startSeconds, p.endSeconds]);
+  });
+  for (const list of Object.values(spans)) {
+    list.sort((x, y) => x[0] - y[0]);
+    for (let i = 1; i < list.length; i++) assert.ok(list[i][0] >= list[i - 1][1] + 0.5 - 1e-9, 'gap between windows');
+  }
+}
+// Fillers spread across sources: the repeat penalty applies to them too.
+const fl = j(P.cwvPlanBuild({ candidates: collapsed, bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' }));
+assert.deepEqual(j(P.cwvPlanBuild({ candidates: collapsed, bpm: 99.2, fps: 30, montageShots: 12, seed: 's1' })), fl);
+assert.ok(new Set(fl.picks.map(p => p.rid)).size === 4);
+// Plenty of real hits: fillers never leak in.
+assert.equal(a.fillerShots, 0);
+
+// Fillers exist only through cwvPlanBuild; a real hit wins over them whenever it fits, even outside the fallback roles.
+const oneSlot = [{ index: 13, role: 'street', seconds: 1.2 }];
+const plan1 = (cands) => {
+  const all = cands.concat(P.cwvFillers(cands));
+  return P.cwvAllocate({ candidates: all, slots: oneSlot, seed: 'x' });
+};
+const realOnly = { rid: 'a', role: 'wide', t: 7, score: 0.05, sourceDuration: 20 };
+const r1 = plan1([realOnly]);
+assert.equal(r1.fillerShots, 0);
+assert.ok(Math.abs(r1.picks[0].startSeconds - 6.4) < 1e-9, 'centred on the real hit');
+// The same hit inside a dominant talking window is blocked, so a filler takes the slot outside that window.
+const r2 = plan1([realOnly, { rid: 'a', role: 'talking', t: 7, score: 0.9, sourceDuration: 20 }]);
+assert.equal(r2.fillerShots, 1);
+assert.ok(r2.picks[0].endSeconds <= 6 + 1e-9 || r2.picks[0].startSeconds >= 8 - 1e-9);
+// Fillers never count as a rival hit: a lone talking hit at 0.35 still blocks its ±1 s window.
+const r3 = plan1([{ rid: 'a', role: 'talking', t: 5, score: 0.35, sourceDuration: 10 }, { rid: 'a', role: 'street', t: 3.8, score: 0.3, sourceDuration: 10 }]);
+assert.equal(r3.fillerShots, 1);
+assert.ok(r3.picks[0].endSeconds <= 4 + 1e-9 || r3.picks[0].startSeconds >= 6 - 1e-9);
+// Filler grid: every 0.5 s from 0.25 s to duration - 0.25 s, per source, deterministic order.
+const grid = P.cwvFillers([{ rid: 'b', role: 'street', t: 1, score: 1, sourceDuration: 2 }, { rid: 'a', role: 'park', t: 1, score: 1, sourceDuration: 1.1 }]);
+assert.deepEqual(j(grid).map(g => g.rid + '@' + g.t), ['a@0.25', 'a@0.75', 'b@0.25', 'b@0.75', 'b@1.25', 'b@1.75']);
+assert.ok(grid.every(g => g.role === 'filler' && g.score < 0));
 
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.CWV_BUILD_STEPS.length, 5);
