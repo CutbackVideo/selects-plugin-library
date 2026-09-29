@@ -55,8 +55,10 @@ folder, never in either install folder:
    and `sfx/manifest.json`.
 2. Open a Project with analysed video clips and open the panel. The top
    line reads "Ready: N clips · about N s" ("Ready: N clips · N photos ·
-   about N s" when the Project has photos), and the Style tiles render in
-   their own typefaces.
+   about N s" when the Project has photos). Under the title fields, the
+   **Style** control offers Summer, Poster and Postcard, and the title
+   preview below it shows line 1, the season word and the labels in the
+   chosen style's typefaces.
 3. With at least 6 different clips or photos, one of them a video clip of
    about 5 s or more, press **Build**. A new Draft opens at 1920x1080 with
    the title, the grid, the clips and the ending film frame.

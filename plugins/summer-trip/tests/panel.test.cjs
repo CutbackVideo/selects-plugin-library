@@ -45,7 +45,13 @@ assert.ok(panel.includes("const ST_GRID_SOUND = 'volume';") && panel.includes("c
 assert.ok(!/label="Pace"/.test(ui));
 for (const phrase of ['label="Length"', 'label="Clip sound"', 'label="Look strength"', 'label="Sound effects"', 'label="Ending muffle"', 'label="Use photos"', 'Choose clips',
   'label="Style"', '"Summer", value: "summer"', '"Poster", value: "poster"', '"Postcard", value: "postcard"', 'placeholder="Optional — leave blank to hide"', 'label="Credit name"',
-  'label="Season"', 'reset to ', 'label="Top label"', 'label="Top label (italic part)"', '{music.kind !== "none" ? <ui.Toggle label="Ending muffle"']) assert.ok(ui.includes(phrase), phrase);
+  'label="Season"', 'reset to ', 'label="Top label"', 'label="Top label (italic part)"', '{music.kind !== "none" ? <ui.Toggle label="Ending muffle"',
+  '<ui.Toggle label="Summer look" value={lookOn}', 'label="Look strength" value={lookStrength} onChange={setLookStrength} min={0} max={1} step={0.05} disabled={busy || !lookOn}',
+  'label="Place prefix" value={placePrefix}', 'label="Credit prefix" value={creditPrefix}', 'creditPrefix={creditPrefix}',
+  'setLine1(stLimitText(v, ST_LIMITS.line1.chars, ST_LIMITS.line1.words))', 'setSeasonEdit(stLimitText(v, ST_LIMITS.season.chars, 0))', 'setPlace(stLimitText(v, ST_LIMITS.place.chars, 0))',
+  'Line 1 takes up to 32 characters and 6 words.', 'The season takes up to 10 characters.', 'The place takes up to 18 characters.']) assert.ok(ui.includes(phrase), phrase);
+for (const re of [/\[lookOn, setLookOn\] = React\.useState\(true\)/, /\[creditPrefix, setCreditPrefix\] = React\.useState\(ST_CREDIT_PREFIX\)/, /\[placePrefix, setPlacePrefix\] = React\.useState\(ST_PLACE_PREFIX\)/])
+  assert.ok(re.test(ui), String(re));
 
 // ---- Pitfall guards (kit) ----
 for (const phrase of ['Create another version', 'Finish title and look', 'Stopped at step', 'Install ffmpeg and Node.js', 'linkToDraftFrame', 'selects.editor.openDraft', 'FontFace',
@@ -90,6 +96,14 @@ const anotherBody = panel.slice(panel.indexOf('function buildAnother()'), panel.
 assert.ok(anotherBody.indexOf('setResult(null)') < anotherBody.indexOf('build(s)') && /const s = seed \+ 1;/.test(anotherBody), 'another version: new seed, old result cleared');
 const finishBody = panel.slice(panel.indexOf('async function finishTitle('), panel.indexOf('async function decorate('));
 assert.ok(finishBody.includes('await decorate(result, check)') && !finishBody.includes('assembleJs'), 'Finish retries decorate only');
+// Title hits only for the drop section; every title/look input is captured at Build.
+assert.ok(buildBody.includes('titleHits: stTitleHitsFor(music, sectionInfo ? sectionInfo.kind : null)') && !/titleHits: music\.kind === "cue"/.test(buildBody), 'titleHits only in the drop section');
+assert.ok(/const inputs = \{[^}]*creditPrefix[^}]*placePrefix[^}]*lookOn/.test(buildBody), 'prefixes and the look toggle go into inputs');
+// A lost assemble reply: the new Draft is found by comparing Draft ids with the list taken before assemble (never by
+// name when that list is known), and a single new Draft is offered Finish title and look from a recovered result.
+assert.ok(buildBody.indexOf('run("List Drafts"') > 0 && buildBody.indexOf('run("List Drafts"') < buildBody.indexOf('assembleJs'), 'Draft ids listed before assemble');
+assert.ok(buildBody.includes('before.indexOf(d.sequenceId) < 0') && buildBody.includes('stRecoverAssembly(cfg, foundFps, newIds[0])') && buildBody.includes('press Finish title and look'));
+assert.ok(buildBody.includes('It has no title or look yet'), 'an unrecoverable saved Draft says it has no title or look');
 // Real-fps planning: plans use the Project's learnt Draft rate, assemble lays at the real rate, decorate uses assemble's frames.
 assert.ok(buildBody.includes('const planFps = fpsRef.current[pid!] || ST_GUESS_FPS;') && buildBody.includes('if (a.fps > 0) fpsRef.current[pid!] = a.fps;'));
 
@@ -97,7 +111,7 @@ assert.ok(buildBody.includes('const planFps = fpsRef.current[pid!] || ST_GUESS_F
 const block = [between(panel, '// st-planner:start', '// st-planner:end'), between(panel, '// st-graphics:start', '// st-graphics:end'),
   between(panel, '// st-muffle:start', '// st-muffle:end'), between(panel, '// st-panel:start', '// st-panel:end')].join('\n');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, NaN, Error, JSON, Date, isFinite, parseFloat }; vm.createContext(box);
-vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stSfxFiles, stSfxConfig, stDraftName, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, stMuffleCommand, ST_FILM_WINDOW };', box);
+vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, stMuffleCommand, ST_FILM_WINDOW };', box);
 const X = box.X;
 const j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
@@ -119,8 +133,23 @@ assert.equal(X.stOwnMuffledName('/x/y/summer.m4a', 'deadbeef'), 'summer-muffled-
 // The muffle command quotes user paths.
 assert.ok(X.stMuffleCommand("/tmp/it's.mp3", '/tmp/o.wav').includes("'/tmp/it'\\''s.mp3'") && X.stMuffleCommand('a', '/x/o.wav').includes('pcm_s16le'));
 // Draft name.
-assert.equal(X.stDraftName('Italy', 'SUMMER', new Date(2026, 6, 1, 9, 5)), 'Summer Trip Italy 09:05');
-assert.equal(X.stDraftName('  ', 'AUTUMN', new Date(2026, 9, 1, 18, 30)), 'Summer Trip AUTUMN 18:30');
+assert.equal(X.stDraftName('Italy', 'SUMMER', new Date(2026, 6, 1, 9, 5, 7)), 'Summer Trip Italy 09:05:07');
+assert.equal(X.stDraftName('  ', 'AUTUMN', new Date(2026, 9, 1, 18, 30, 0)), 'Summer Trip AUTUMN 18:30:00');
+// Title text limits: line 1 <= 32 characters and <= 6 words, season <= 10, place <= 18.
+assert.deepEqual(j(X.ST_LIMITS), { line1: { chars: 32, words: 6 }, season: { chars: 10, words: 0 }, place: { chars: 18, words: 0 } });
+assert.equal(X.stLimitText('one two three four five six seven', 32, 6), 'one two three four five six');
+assert.equal(X.stLimitText('one two three four five six ', 32, 6), 'one two three four five six ', 'a space after the 6th word is kept while typing');
+assert.equal(X.stLimitText('a'.repeat(40), 32, 6), 'a'.repeat(32));
+assert.equal(X.stLimitText('SUMMERTIMES!', 10, 0), 'SUMMERTIME');
+assert.equal(X.stLimitText('Santa Margherita Ligure', 18, 0), 'Santa Margherita L');
+assert.equal(X.stLimitText('that one trip in', 32, 6), 'that one trip in');
+assert.ok(X.stAtLimit('a b c d e f', 32, 6) && X.stAtLimit('x'.repeat(10), 10, 0) && !X.stAtLimit('that one trip in', 32, 6));
+// Title hits (a bundled cue's measured beats) only when the chosen section is the drop section.
+const hitsCue = { kind: 'cue', titleHits: [0, 1, 2, 3, 4, 5] };
+assert.deepEqual(j(X.stTitleHitsFor(hitsCue, 'drop')), [0, 1, 2, 3, 4, 5]);
+assert.equal(X.stTitleHitsFor(hitsCue, 'section'), null);
+assert.equal(X.stTitleHitsFor(hitsCue, null), null);
+assert.equal(X.stTitleHitsFor({ kind: 'own', titleHits: [0, 1, 2, 3, 4, 5] }, 'drop'), null);
 
 // Own music: the drop's grid (tempo octave, re-anchored first beat) wins; no grid -> fixed timing.
 const own = { accepted: true, bpm: 60, firstBeat: 0.3, durationSeconds: 90, beatEnergy: [1, 2], peaks: [0.1], onsets: [[1, 'l', 3]], onsetThresholds: { l: 2 },
@@ -290,6 +319,27 @@ const payloads = {};
     assert.deepEqual(dcfg.title.editableParameters.map(e => e.defaultValue), dcfg.title.editableParameters.map(e => tp[e.key]));
     // Photo motions carry the cover factor of the photo on the 16:9 canvas.
     for (const [k, m] of Object.entries(dcfg.motion.byClipIndex)) assert.ok(near(m.cover, X.stCoverFor(a.sizes[plan.picks.main[k].rid])), 'cover ' + k);
+    // Recovery: the result rebuilt from the assemble config at the Draft's rate matches what assemble.js returned.
+    const ra = j(X.stRecoverAssembly(acfg, a.fps, a.sequenceId));
+    for (const k of ['mainFrames', 'gridStateFrames', 'titleFrames', 'labelsFrames', 'placeFrames', 'endingFrame', 'endFrame', 'fadeStartFrame', 'leakFrames', 'pulseFrames', 'delta'])
+      assert.deepEqual(ra.frames[k], j(a.frames[k]), 'recovered frames.' + k);
+    assert.deepEqual(ra.placed.map(x => [x.rid, x.a, x.b, x.sourceStart]), a.placed.map(x => [x.rid, x.a, x.b, x.sourceStart]), 'recovered Main windows');
+    assert.deepEqual(ra.gridPlaced.map(x => [x.quad, x.rid, x.a, x.b, x.sourceStart]), a.gridPlaced.map(x => [x.quad, x.rid, x.a, x.b, x.sourceStart]), 'recovered grid panels');
+    assert.equal(ra.notes.length, 1, 'the unmeasured photo size is reported');
+    // decorate.js finishes a second, identical Draft from the recovered result (look off and custom prefixes here).
+    const mock2 = mockProject({ adoptFps: 24000 / 1001, sizes, durations, photos: photos.map(p => p.rid), audio: ['m1', 'm2', 'a1', 'a2', 'a3', 'a4', 'a5'] });
+    await loadScript('assemble.js', acfg)(mock2.selects);
+    const last2 = mock2.drafts.filter(dd => dd.name === acfg.draftName).pop();
+    last2.reopen();
+    const inputs2 = { ...inputs, lookOn: false, creditPrefix: 'Shot by', placePrefix: 'at' };
+    const dcfg2 = X.stDecorateConfig({ a: ra, plan, inputs: inputs2, presets, fontsB64, tsx });
+    assert.deepEqual(j(dcfg2.look), { tsx: tsx.look, strength: 0, leakStrength: 1, gradeOff: true }, 'look off: gradeOff, strength 0');
+    assert.equal(dcfg2.title.parameters.creditPrefix, 'Shot by'); assert.equal(dcfg2.labels.parameters.placePrefix, 'at');
+    const d2 = await loadScript('decorate.js', dcfg2)({ draft: () => last2 });
+    assert.ok(d2.committed && d2.titleAdded && d2.labelsAdded && !d2.notes.some(n => /not found/.test(n)), JSON.stringify(d2));
+    const main2 = last2.rows.filter(c => c.trackKind === 'main');
+    assert.equal(main2.filter(c => (last2.effects[c.clipId] || []).some(e => e.name === 'Summer look')).length, 1, 'look off: only the leak clip keeps a (strength 0) look');
+    assert.equal(main2.filter(c => (last2.effects[c.clipId] || []).some(e => e.name === 'Film frame')).length, 3);
     const d = await loadScript('decorate.js', dcfg)({ draft: () => last });
     assert.ok(d.committed && d.titleAdded && d.labelsAdded, JSON.stringify(d));
     assert.equal(d.muted, clipSound === 'off');

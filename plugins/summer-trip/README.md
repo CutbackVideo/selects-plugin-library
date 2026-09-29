@@ -63,8 +63,10 @@ makes another Draft with a different shot choice, reusing the shot search.
 | Place prefix | "in" | the small word before the place |
 | Top label | the season word + "VLOG" (italic) | follows the season word until you edit it |
 | Credit | empty | optional; "BY *name*" at the bottom when filled |
+| Credit prefix | "By" | the word before the credit name |
 
-Long texts shrink to keep a margin at the sides. The fonts cover Latin
+The panel stops the text at these limits and shows the limit under the
+field. Long texts shrink to keep a margin at the sides. The fonts cover Latin
 text; other scripts use a system fallback font.
 
 ## Styles
@@ -89,15 +91,18 @@ Choose a **Track**:
   with a quiet two-bar intro before a drop, so the title plays over the
   intro and the grid starts on the drop. They are not in this version yet.
 - **Your own music**: drop an audio file. The plugin detects the beat
-  (tempos are taken in the 100-143 BPM range, halving or doubling the
-  detection) and looks for a drop: a clear jump in loudness on a bar line.
+  (the tempo is folded to the octave closest to 120 BPM (about 85–170 BPM))
+  and looks for a drop: a clear jump in loudness on a bar line.
   When it finds one, the section starts two bars before it, so the grid
   lands on the drop; otherwise the panel says "No drop found: the grid
   starts after the 2-bar title". Songs whose beat cannot be detected
   reliably, or that stay under 70 BPM, use approximate timing (a fixed 0.5 s
   beat; the drop, the first montage cut and the ending may move onto a
   strong bass hit within 120 ms), and the panel says so. Your own music needs ffmpeg and Node.js 18 or later (see
-  [INSTALL.md](INSTALL.md)).
+  [INSTALL.md](INSTALL.md)). The ending muffle for your own music is a
+  muffled copy baked with ffmpeg; for a compressed file (mp3, aac) it is
+  baked from ffmpeg's decode, so at the joint it may sit a few milliseconds
+  off the original.
 - **No music**: fixed timing at 120 BPM (a 0.5 s beat).
 
 The waveform below the track shows a box as long as the video. Drag it (or
@@ -134,8 +139,9 @@ with a faster track and longer with a slower one.
   **Ambient** (the default) keeps it about 18 dB under the music, and
   **Full** keeps it at its original level. The music stays at its full
   level in every mode. Photos have no sound.
-- **Look**: the Summer look is on by default at strength 0.3 (0 to 1). Off
-  removes the grade; the film frame and its light leaks stay.
+- **Look**: the **Summer look** toggle is on by default, with **Look
+  strength** 0.3 (0 to 1). Off removes the grade (the strength slider is
+  then unavailable); the film frame and its light leaks stay.
 - **Sound effects**: off by default. On adds a camera-shutter click on each
   of the first four grid steps and a soft whoosh into the drop and into the
   ending. They play with or without music.
@@ -235,7 +241,11 @@ Finished videos are exported from the Draft with **Handoff → Export**.
   sound Off, the muted clip sound (Selects can change a clip's audio tracks
   only once the Draft is saved). If the second commit fails, the Draft is
   kept, the panel says so, and **Finish title and look** finishes that
-  Draft with the settings it was built with.
+  Draft with the settings it was built with. If Selects saves the first
+  commit without confirming it, the panel finds the new Draft and offers
+  **Finish title and look** as well.
+- Switching Projects during a build stops it; a half-built Draft stays in
+  the previous Project without its title and look.
 - Moving cuts or the music clip in the Draft does not move the title, the
   grid or the light leaks.
 - The light leaks are drawn by the effect, not taken from stock footage.
