@@ -61,4 +61,36 @@ assert.ok(typeof a.sixteenthRatio === 'number' && a.sixteenthRatio < 0.1, 'analy
 // The first beat sits on the attack: the onset lag is taken off (clicks at 0.5 s).
 assert.ok(Math.abs(a.firstBeat - 0.5) < 0.006, 'firstBeat on the attack ' + a.firstBeat);
 
+// Band onsets for cut snapping: a kick (60 Hz) lands in the low band and a hat (noise burst) in the high band, each
+// stamped on its attack; strengths are relative to the band median and every listed onset reaches its threshold.
+const { bandOnsets } = require(path.join(root, 'beat-detect.cjs'));
+let s2 = 3; const rnd2 = () => ((s2 = Math.imul(s2, 1103515245) + 12345) >>> 0) / 4294967296 - 0.5;
+const kit = new Float32Array(12 * sr).map(() => rnd2() * 0.002);
+const kicks = [], hats = [];
+for (let t = 0.5; t < 11.5; t += 0.613) kicks.push(t);
+for (let t = 0.8; t < 11.5; t += 0.613) hats.push(t);
+for (const t of kicks) { const i0 = Math.round(t * sr); for (let k = 0; k < 6000 && i0 + k < kit.length; k++) kit[i0 + k] += 0.5 * Math.sin(2 * Math.PI * (60 + 60 * Math.exp(-k / 400)) * k / sr) * Math.exp(-k / 3000); }
+for (const t of hats) { const i0 = Math.round(t * sr); for (let k = 0; k < 3000 && i0 + k < kit.length; k++) kit[i0 + k] += rnd2() * Math.exp(-k / 300) * (k % 2 ? 1 : -1); }
+const bo = bandOnsets(kit, sr);
+assert.deepEqual(Object.keys(bo.thresholds).sort(), ['h', 'l', 'm']);
+for (const v of Object.values(bo.thresholds)) assert.ok(v >= 2);
+for (const [t, band, str] of bo.onsets) { assert.ok(['l', 'm', 'h'].includes(band)); assert.ok(str >= bo.thresholds[band]); }
+const nearest = (band, t) => Math.min(...bo.onsets.filter(o => o[1] === band).map(o => Math.abs(o[0] - t)));
+const med = v => [...v].sort((x, y) => x - y)[v.length >> 1];
+assert.ok(med(kicks.map(t => nearest('l', t))) < 0.006, 'kicks in the low band, on the attack');
+assert.ok(med(hats.map(t => nearest('h', t))) < 0.006, 'hats in the high band, on the attack');
+assert.ok(bo.onsets.filter(o => o[1] === 'h').every(o => kicks.every(t => Math.abs(o[0] - t) > 0.02)), 'a kick is no high-band onset');
+for (let i = 1; i < bo.onsets.length; i++) assert.ok(bo.onsets[i][0] >= bo.onsets[i - 1][0], 'sorted by time');
+// analyze() returns them too, also for music whose grid is not accepted (the fixed-timing cuts snap to bass onsets).
+assert.ok(Array.isArray(a.onsets) && a.onsets.length > 10 && a.onsetThresholds && a.onsetThresholds.h >= 2, 'analyze reports onsets');
+const na = analyze(kit, sr);
+assert.deepEqual(na.onsets, bo.onsets);
+assert.deepEqual(na.onsetThresholds, bo.thresholds);
+// CLI with an output file: the result goes to the file, stdout carries only {"ok":true}.
+const outFile = path.join(require('node:os').tmpdir(), 'cwv-beat-test.json');
+const okLine = execFileSync('node', [path.join(root, 'beat-detect.cjs'), tmp, String(sr), outFile]).toString().trim();
+assert.equal(okLine, '{"ok":true}');
+const full = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+assert.ok(Math.abs(full.bpm - 100) < 0.2 && Array.isArray(full.onsets));
+
 console.log(JSON.stringify({ beatDetect: 'ok' }));

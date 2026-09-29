@@ -19,6 +19,24 @@ for (const c of m.cues) {
   assert.equal(c.peaks.length, 400);
   assert.ok(c.beatEnergy.length > 40);
   assert.ok(c.duration >= c.usableEnd);
+  // Qualifying band onsets for cut snapping: [t, band, strength] sorted by time, every strength at or above its
+  // band's threshold (max(2, the band's 80th percentile)), times to the millisecond inside the cue.
+  assert.deepEqual(Object.keys(c.onsetThresholds).sort(), ['h', 'l', 'm'], c.id + ' onset thresholds');
+  for (const v of Object.values(c.onsetThresholds)) assert.ok(v >= 2 && v < 50, c.id + ' threshold ' + v);
+  assert.ok(Array.isArray(c.onsets) && c.onsets.length >= 60 && c.onsets.length <= 400, c.id + ' onsets ' + c.onsets.length);
+  assert.ok(JSON.stringify(c.onsets).length < 6000, c.id + ' onsets stay compact');
+  const bands = new Set();
+  c.onsets.forEach(([t, band, s], i) => {
+    assert.ok(t >= 0 && t <= c.duration && Math.abs(Math.round(t * 1000) - t * 1000) < 1e-6, c.id + " onset time " + t);
+    assert.ok(i === 0 || t >= c.onsets[i - 1][0], c.id + ' onsets sorted');
+    assert.ok(['l', 'm', 'h'].includes(band), c.id + ' band ' + band);
+    assert.ok(s >= c.onsetThresholds[band], c.id + ' onset ' + t + ' below its band threshold');
+    bands.add(band);
+  });
+  assert.equal(bands.size, 3, c.id + ' has onsets in every band');
+  // The cues are on a tight grid: most qualifying onsets sit within 30 ms of a 16th note (the lo-fi cue swings).
+  const q16 = 60 / c.bpm / 4, near = c.onsets.filter(([t]) => { const k = Math.round((t - c.firstBeat) / q16); return Math.abs(t - c.firstBeat - k * q16) < 0.03; });
+  assert.ok(near.length >= 0.7 * c.onsets.length, c.id + ' onsets on the 16th grid ' + near.length + '/' + c.onsets.length);
 }
 // Measured on the bundled cues: only Sunny Soul Strut has a clear enough 16th pulse for the 16th burst.
 assert.deepEqual(m.cues.map(c => c.sixteenthRatio >= 0.35), [true, false, false, false]);
