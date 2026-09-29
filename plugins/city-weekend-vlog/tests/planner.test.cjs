@@ -156,6 +156,32 @@ for (const i of [4, 5, 6, 7]) assert.ok(Math.abs(anchored.cuts[i] - (grid16[i] +
 assert.deepEqual(anchored.frames.slice(3, 8).map((f, k, a) => (k ? f - a[k - 1] : 0)).slice(1), [5, 4, 5, 4]);
 assert.equal(anchored.cuts[8], grid16[8]);
 assert.equal(anchored.frames[8] - anchored.frames[7], Math.round(5.5 * B * 30) - Math.round((5 * B + 0.058) * 30), 'the first half-beat shot is shorter');
+// A sub-frame anchor move (the onset on the anchor's grid frame) keeps the burst on the grid: no later burst cut can
+// change frame because of it. Here the anchor moves -0.7 ms, and 0.25 beat at 30 fps is 4.54 frames, so re-laying the
+// burst from the moved anchor would round at least one burst cut differently from its grid frame.
+const gridFrames = anchored.frames.map((_, i) => (grid16[i] === 0 ? 0 : Math.round(grid16[i] * 30)));
+const subFrame = snap([[4 * B - 0.0007, 'm', 5]]);
+assert.equal(subFrame.cuts[3], 4 * B - 0.0007, 'the anchor still sits on its onset');
+assert.equal(subFrame.frames[3], gridFrames[3], 'on its grid frame');
+for (const i of [4, 5, 6, 7]) {
+  assert.equal(subFrame.cuts[i], grid16[i], 'burst cut ' + i + ' stays on the grid');
+  assert.equal(logAt(subFrame, i).reason, 'grid (anchor frame unchanged)');
+}
+assert.deepEqual(subFrame.frames, gridFrames, 'every frame is the grid frame');
+// Without the rule the -0.7 ms re-lay moves a burst cut by a frame whenever one sits within 0.7 ms above a frame's
+// rounding edge; find such a grid position to show the test covers the case (4.25 beats at 99.2 BPM is not one, so
+// scan the section start instead).
+let edge = null;
+for (let ss = 0; ss < 2 && !edge; ss += 0.0001) {
+  const off = P.cwvMusicOffset(ss, 30), fr = x => Math.round((x + off) * 30);
+  const k = [4, 5, 6, 7].find(i => fr(grid16[i] - 0.0007) !== fr(grid16[i]));
+  if (k && fr(grid16[3] - 0.0007) === fr(grid16[3])) edge = { ss, k };
+}
+assert.ok(edge, 'a section start where the old re-lay moved a burst cut by a frame');
+const edgeRun = snap([[edge.ss + 4 * B - 0.0007, 'm', 5]], { sectionStart: edge.ss });
+assert.equal(edgeRun.log.find(e => e.index === 3).reason, 'onset');
+assert.equal(edgeRun.cuts[edge.k], grid16[edge.k], 'the burst cut near the frame edge stays on the grid');
+assert.equal(edgeRun.frames[edge.k], Math.round((grid16[edge.k] + P.cwvMusicOffset(edge.ss, 30)) * 30));
 // Snapping never puts a cut more than half a frame before its onset, at any frame rate and music offset.
 for (const fps of [23.976, 24, 25, 29.97, 30, 60]) {
   for (const ss of [0, 0.013, 7.31, 14.58]) {

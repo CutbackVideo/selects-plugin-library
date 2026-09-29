@@ -122,9 +122,11 @@ function cwvSnapCuts(boundaries, template, onsets, opts) {
     const g = boundaries[i];
     const anchor = i === from, chained = i > from && i <= to;
     if (chained) {
-      // Template spacing from the (possibly moved) anchor.
-      cuts[i] = cuts[from] + (g - boundaries[from]);
-      log.push({ index: i, kind: 'burst', grid: g, seconds: cuts[i], shiftMs: Math.round((cuts[i] - g) * 1e4) / 10, reason: 'from anchor' });
+      // Template spacing from the anchor, but only when the anchor's snap changed its frame: a sub-frame move leaves the
+      // burst on the grid, so it cannot shift a later burst cut by a frame on its own.
+      const relaid = frameOf(cuts[from]) !== frameOf(boundaries[from]);
+      cuts[i] = relaid ? cuts[from] + (g - boundaries[from]) : g;
+      log.push({ index: i, kind: 'burst', grid: g, seconds: cuts[i], shiftMs: Math.round((cuts[i] - g) * 1e4) / 10, reason: relaid ? 'from anchor' : 'grid (anchor frame unchanged)' });
       continue;
     }
     if (!anchor && !(beats[i] >= 1)) { log.push({ index: i, kind: 'grid', grid: g, seconds: g, shiftMs: 0, reason: 'grid' }); continue; }
@@ -133,7 +135,7 @@ function cwvSnapCuts(boundaries, template, onsets, opts) {
     if (!o) { log.push({ index: i, kind, grid: g, seconds: g, shiftMs: 0, reason: 'no onset' }); continue; }
     const next = cuts.slice();
     next[i] = o.x;
-    if (anchor) for (let k = from + 1; k <= to; k++) next[k] = o.x + (boundaries[k] - g);
+    if (anchor && frameOf(o.x) !== frameOf(g)) for (let k = from + 1; k <= to; k++) next[k] = o.x + (boundaries[k] - g);
     const bad = tooShort(next, i - 1, anchor ? to : i);
     const entry = { index: i, kind, grid: g, onset: o.x, band: o.band, strength: o.strength, ratio: Math.round(o.ratio * 100) / 100 };
     if (bad) { log.push({ ...entry, seconds: g, shiftMs: 0, reason: 'reverted: slot ' + bad.slot + ' ' + bad.reason }); continue; }
