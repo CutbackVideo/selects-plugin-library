@@ -304,7 +304,7 @@ assert.equal((gated.match(/<Source\b/g) || []).length, 1, 'one more in the photo
 assert.match(outside, /d\.backdrop === 'photo' && d\.allowPhotoBackdrop === true/, 'second render gated');
 assert.ok(src.includes('export default function TornPhoto({ Source, children, data })'), 'contract signature');
 assert.ok(!/useVideoConfig/.test(src), 'no layout from useVideoConfig');
-assert.ok(!/[ㄱ-힝]/.test(src), 'no Hangul');
+assert.ok(!/[\u3131-\uD79D]/.test(src), 'no Hangul');
 assert.ok(!src.includes('/Users/'), 'no local paths');
 assert.ok(!/\d(\.\d+)?px/.test(src), 'no pixel units (the clip box size is unknown)');
 
