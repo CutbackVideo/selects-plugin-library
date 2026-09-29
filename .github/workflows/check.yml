@@ -36,6 +36,7 @@ jobs:
       - name: Test Torn Paper Love
         run: |
           node plugins/torn-paper-love/tests/beat-detect.test.cjs
+          node plugins/torn-paper-love/tests/build-config.test.cjs
           node plugins/torn-paper-love/tests/cues.test.cjs
           node plugins/torn-paper-love/tests/fonts.test.cjs
           node plugins/torn-paper-love/tests/letters.test.cjs
