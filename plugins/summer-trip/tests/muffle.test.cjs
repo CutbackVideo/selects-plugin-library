@@ -10,8 +10,8 @@ assert.equal(sq(''), "''");
 assert.equal(sq("a'b'c"), "'a'\\''b'\\''c'");
 assert.equal(sq('$HOME `x` "q" \\ ;&|'), "'$HOME `x` \"q\" \\ ;&|'");
 
-const cmd = stMuffleCommand("/Users/me/Music/Summer's Day (1).mp3", '/data/st/muffled-abc.mp3');
-assert.equal(cmd, "ffmpeg -nostdin -v error -y -i '/Users/me/Music/Summer'\\''s Day (1).mp3' -af 'lowpass=f=1200:p=2,volume=-1dB' "
+const cmd = stMuffleCommand("/Volumes/Media/Summer's Day (1).mp3", '/data/st/muffled-abc.mp3');
+assert.equal(cmd, "ffmpeg -nostdin -v error -y -i '/Volumes/Media/Summer'\\''s Day (1).mp3' -af 'lowpass=f=1200:p=2,volume=-1dB' "
   + "-ar 44100 -ac 2 -c:a libmp3lame -b:a 96k -map_metadata -1 '/data/st/muffled-abc.mp3'");
 assert.ok(stMuffleCommand('/a.m4a', '/b.WAV').includes('-c:a pcm_s16le'), 'wav output is PCM');
 
