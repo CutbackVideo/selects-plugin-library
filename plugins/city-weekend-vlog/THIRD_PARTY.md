@@ -36,6 +36,8 @@ The Yellowtail copyright line is taken from the font's own name table, since the
 
 The four bundled tracks in `assets/cues/` were generated for this plugin with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Each is a 40-second instrumental, loudness-normalized to -14 LUFS. Tempo, first beat, usable end and content hash are recorded in `assets/cues/manifest.json`.
 
+The tracks are bundled for use in the videos this plugin builds and are not for redistribution as standalone tracks.
+
 | Track | File | Tempo |
 | --- | --- | --- |
 | Sunny Soul Strut | `sunny-soul-strut.mp3` | 99 BPM |

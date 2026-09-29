@@ -70,12 +70,14 @@ Choose a **Track**:
 | Your own music | detected |
 | No music | 99.2 BPM reference timing |
 
-The waveform below the track shows a box as long as the video. Click the
-waveform to move the box and choose where in the track the video starts.
-The box snaps to bars (4 beats), so the cuts stay on the beat. It starts on
+The waveform below the track shows a box as long as the video. Drag the
+box (or press on the waveform) to choose where in the track the video
+starts; with the waveform focused, the arrow keys move it by a bar and Home
+and End jump to the start and end. The box snaps to bars (4 beats), so the
+cuts stay on the beat. It starts on
 the most energetic section. Selects starts the music on a video frame, which
 can move it by up to half a frame; the cuts move with it. **Preview this section** plays the whole
-section; press it again to stop.
+section; press it again (or Esc) to stop.
 
 **Your own music**: drop an audio file. The plugin listens for the beat and
 uses it when the detected beat grid is reliable. It also measures how
@@ -163,6 +165,10 @@ shots, so this video is about X s instead of Y s. Add more clips for the full
 length." After a build, the readiness line also shows how many montage shots
 the footage fits.
 
+If the scene search fails for some clips, the build goes on without them and
+says "Could not check N clips; they were skipped. Build again to retry them."
+The next **Build** searches only those clips again.
+
 With **No music** and Clip sound **Off**, the panel warns "Silent video".
 
 ## The Draft and editing it
@@ -191,12 +197,13 @@ Finished videos are exported from the Draft with **Handoff → Export**.
 - The font preset cannot be switched in the Inspector. To change it, pick
   another preset in the panel and build again. Rebuilding creates a new Draft
   and does not keep Inspector edits.
-- The Draft is built in two commits: first the clips, their Ambient sound
-  level and the music, then (with Clip sound Off) the clips' muted sound, the
-  title and the warm look (Selects can change a clip's audio tracks only once
-  the Draft is saved). If the second commit fails, the
-  Draft is kept, the panel says so, and **Finish title and look** finishes
-  that Draft.
+- The Draft is built in two commits: first the clips, their crop, their
+  Ambient sound level and the music; then the title, the warm look, the photo
+  motion and, with Clip sound Off, the clips' muted sound (Selects can change
+  a clip's audio tracks only once the Draft is saved). If the second commit
+  fails, the Draft is kept, the panel says so, and **Finish title and look**
+  finishes that Draft with the title, preset, Warm look and Clip sound it was
+  built with, even if they have been changed in the panel since.
 - Moving cuts inside the title section does not move the title's events.
   Moving the music clip's start does not move the cuts either.
 - Songs under 70 BPM, or songs whose beat cannot be detected reliably, use

@@ -32,11 +32,17 @@ everything else keeps working.
 
 ## Files the plugin writes
 
-The panel writes only by creating a new Draft in the open Project and
-importing the chosen music into that Project. Decoded audio and beat-detection
-results for your own music go beneath `.selects/plugin-data/city-weekend-vlog`
-in your home folder, never in either install folder, so an update does not
-replace them.
+The panel writes to your Projects only by creating a new Draft in the open
+Project and importing the chosen music into that Project. Its temporary audio
+files go in `.selects/plugin-data/city-weekend-vlog` in your home folder,
+never in either install folder:
+
+- `own-music.f32`: your own music decoded for beat detection (up to about
+  32 MB). It is deleted as soon as detection finishes; the detected beat is
+  kept only while the panel is open.
+- `preview-N.mp3` and `preview-N.b64`: the section preview. The mp3 is
+  deleted once it is converted to text, and the text copy is replaced by the next
+  preview.
 
 ## Verify
 
@@ -45,7 +51,8 @@ replace them.
    `scripts/assemble.js`, `assets/cues/manifest.json` and
    `assets/fonts/presets.json`.
 2. Open a Project with analysed video clips and open the panel. The top line
-   reads "Ready: N analysed clips · about N s", the Track list shows the four
+   reads "Ready: N clips · about N s" ("Ready: N clips · N photos · about N s"
+   when the Project has photos), the Track list shows the four
    bundled tracks, and the Font style tiles render in their own typefaces.
 3. With at least 16 usable shots (14 for a track with the half-beat burst),
    press **Build**. A new Draft opens at 1080x1920 with the title, the clips
@@ -56,6 +63,6 @@ replace them.
 ## Uninstall
 
 Delete the `city-weekend-vlog` folder from the panels root and from the
-skills root. To also remove cached data, delete
+skills root. To also remove the plugin's temporary files, delete
 `.selects/plugin-data/city-weekend-vlog` in your home folder. Drafts and
 imported music already in your Projects are not affected.

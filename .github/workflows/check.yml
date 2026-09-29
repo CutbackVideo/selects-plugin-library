@@ -26,6 +26,7 @@ jobs:
           node plugins/city-weekend-vlog/tests/beat-detect.test.cjs
           node plugins/city-weekend-vlog/tests/cues.test.cjs
           node plugins/city-weekend-vlog/tests/fonts.test.cjs
+          node plugins/city-weekend-vlog/tests/motion.test.cjs
           node plugins/city-weekend-vlog/tests/panel.test.cjs
           node plugins/city-weekend-vlog/tests/planner.test.cjs
           node plugins/city-weekend-vlog/tests/scripts-edit.test.cjs
