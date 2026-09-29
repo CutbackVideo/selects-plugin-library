@@ -836,6 +836,10 @@ export default function Panel({ sdk, context, ui }: any) {
   const requested = CWV_LENGTHS[length];
   const videoSeconds = cwvVideoSeconds(grid.bpm, requested);
   const snap = (value: number) => cwvSnapSection({ value, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: grid.accepted });
+  // The section start the build uses; with music, every cut shifts with its frame-snapped start (planner cwvMusicOffset).
+  // The readiness plan uses the same value, so "footage fits N" matches what Build produces.
+  const start = grid.accepted ? snap(section || 0) : (section || 0);
+  const musicStart = cueId === "none" ? null : (start ?? 0);
 
   // A new track (or its grid) defaults the section to the most energetic window.
   // `assets` is a dependency so the default also applies once the manifest has loaded.
@@ -853,8 +857,10 @@ export default function Panel({ sdk, context, ui }: any) {
     busyRef.current = true;
     setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("Listening for the beat");
     try {
+      // The decoded PCM (up to ~32 MB) is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit status.
       const pcm = roots.data + "/own-music.f32";
-      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && node " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050";
+      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && node " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050"
+        + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
       const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
       const g = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
       if (r.isError || r.exitCode !== 0 || g.error) throw new Error(g.error || r.stderr || "beat detection failed");
@@ -896,12 +902,12 @@ export default function Panel({ sdk, context, ui }: any) {
     try {
       const file = ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file;
       // The whole section, written to a file (stdout is too small for ~23 s) and read back as base64 text.
-      // Earlier previews are removed first so the data folder never collects them.
+      // Earlier previews are removed first and the mp3 once encoded, so the data folder never collects them.
       const dur = videoSeconds, base = roots.data + "/preview-" + token;
       const cmd = TOOL_PATH + "rm -f " + sq(roots.data) + "/preview-*.mp3 " + sq(roots.data) + "/preview-*.b64; "
         + "ffmpeg -nostdin -v error -y -ss " + section.toFixed(2) + " -t " + dur.toFixed(2) + " -i " + sq(file)
         + " -ac 1 -ar 22050 -b:a 48k -af \"afade=t=out:st=" + Math.max(0, dur - 0.4).toFixed(2) + ":d=0.4\" -f mp3 " + sq(base + ".mp3")
-        + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64");
+        + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64") + " && rm -f " + sq(base + ".mp3");
       const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 60000 });
       if (!live()) return;
       if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw new Error(r?.stderr || "the preview could not be cut");
@@ -947,6 +953,8 @@ export default function Panel({ sdk, context, ui }: any) {
     if (ownMusic && !ownDuration) { setStatus({ tone: "error", text: "The length of your music could not be read. Choose another file or one of the tracks." }); return; }
     const pid = projectId;
     const check = () => { if (projectRef.current !== pid) throw STALE; };
+    // The title and look inputs as they are at Build; a later "Finish title and look" retry reuses them.
+    const look = { line1, connector, place, preset, warm, clipSound, cue: ownMusic ? "own" : cueId };
     busyRef.current = true;
     stopPreview();
     setBusy(true); setStatus(null); setResult(null);
@@ -969,10 +977,7 @@ export default function Panel({ sdk, context, ui }: any) {
       advance("shots", 1);
       // Photos join as candidates without a search: each can fill one slot.
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
-      const start = grid.accepted ? snap(section || 0) : (section || 0);
       const fitted = cwvFitMontage({ bpm: grid.bpm, sectionStart: start ?? 0, usableEnd: grid.usableEnd, requested });
-      // With music, every cut shifts with the music's frame-snapped start (planner cwvMusicOffset).
-      const musicStart = cueId === "none" ? null : (start ?? 0);
       if (!fitted) throw new Error("This music section is too short for the video. Move the section earlier or pick a shorter length.");
       // Plan at 30 fps for allocation; assembly re-snaps every boundary at the Draft's real rate.
       const plan = cwvPlanBuild({ candidates: found.list.concat(photoCands), bpm: grid.bpm, fps: 30, montageShots: fitted, seed: String(nextSeed), burst, sectionStart: musicStart });
@@ -1004,8 +1009,8 @@ export default function Panel({ sdk, context, ui }: any) {
       const shortened = plan.montageShots < fitted ? { shots: plan.montageShots, seconds: sched.totalFrames / a.fps,
         fullSeconds: cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: fitted, burst, sectionStart: musicStart }).totalFrames / a.fps } : null;
       advance("draft", 1);
-      setResult({ sequenceId: a.sequenceId, decorated: false, sched, plan, seed: nextSeed, mute: clipSound === "off", notes: a.notes || [], link: null, shortened });
-      await decorate(a.sequenceId, sched, plan, nextSeed, clipSound === "off", check);
+      setResult({ sequenceId: a.sequenceId, decorated: false, sched, plan, seed: nextSeed, mute: clipSound === "off", look, notes: a.notes || [], link: null, shortened, unchecked: found.failed.length });
+      await decorate(a.sequenceId, sched, plan, nextSeed, clipSound === "off", look, check);
     } catch (e: any) {
       if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) });
     } finally { endRun(pid); }
@@ -1026,15 +1031,16 @@ export default function Panel({ sdk, context, ui }: any) {
     const pid = projectId;
     const check = () => { if (projectRef.current !== pid) throw STALE; };
     busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
-    try { await decorate(result.sequenceId, result.sched, result.plan, result.seed, result.mute !== false, check); }
+    try { await decorate(result.sequenceId, result.sched, result.plan, result.seed, result.mute !== false, result.look, check); }
     catch (e: any) { if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) }); }
     finally { endRun(pid); }
   }
 
   // Commit 2 (mute the clips' own sound when Clip sound is Off, title and warm look), then open the Draft.
   // decorate.js skips what an earlier attempt already added.
-  async function decorate(sequenceId: string, sched: any, plan: any, usedSeed: number, mute: boolean, check: () => void) {
+  async function decorate(sequenceId: string, sched: any, plan: any, usedSeed: number, mute: boolean, look: any, check: () => void) {
     advance("look", 0);
+    const { line1, connector, place, preset, warm, clipSound } = look;
     try {
       const p = assets.presets.presets.find((x: any) => x.id === preset);
       const files = [...new Set(STATE_KEYS.map((k) => p.states[k].file))];
@@ -1043,7 +1049,7 @@ export default function Panel({ sdk, context, ui }: any) {
         return { family: s.family, style: s.style, weight: s.weight, b64: await fontB64(roots!.plugin, f) };
       }));
       const parameters = { line1, connector, place, fontFamily: "", ink: "#F6ECB8", shadow: p.shadow, size: 150, rotation: -7, position: 46,
-        events: sched.title, states: p.states, fonts, provenance: { plugin: PLUGIN_ID, version: "0.1.0-alpha.1", preset, cue: ownMusic ? "own" : cueId, seed: usedSeed, clipSound, picks: plan.picks } };
+        events: sched.title, states: p.states, fonts, provenance: { plugin: PLUGIN_ID, version: "0.1.0-alpha.1", preset, cue: look.cue, seed: usedSeed, clipSound, picks: plan.picks } };
       const editableParameters = [
         { key: "line1", label: "First line", type: "text", defaultValue: line1 },
         { key: "connector", label: "Connector", type: "text", defaultValue: connector },
@@ -1126,12 +1132,12 @@ export default function Panel({ sdk, context, ui }: any) {
     if (!candidates || candidates.key !== candKey || !(grid.bpm > 0)) {
       // With no video selected there is nothing to search: the photos alone decide the fit.
       if (!inventory || selectedRids.length || !(grid.bpm > 0)) return null;
-      const p = cwvPlanBuild({ candidates: photoCandsOf(inventory, onlyPhotos, usePhotos), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed), burst });
+      const p = cwvPlanBuild({ candidates: photoCandsOf(inventory, onlyPhotos, usePhotos), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed), burst, sectionStart: musicStart });
       return p.ok ? p.montageShots : null;
     }
-    const p = cwvPlanBuild({ candidates: candidates.list.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed), burst });
+    const p = cwvPlanBuild({ candidates: candidates.list.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed), burst, sectionStart: musicStart });
     return p.ok ? p.montageShots : null;
-  }, [candidates, candKey, grid.bpm, requested, seed, inventory, onlyPhotos, usePhotos, burst]);
+  }, [candidates, candKey, grid.bpm, requested, seed, inventory, onlyPhotos, usePhotos, burst, musicStart]);
   const pending = inventory?.skipped?.unanalysed || 0;
   const clipCount = [
     allRids.length ? (only ? selectedRids.length + " of " + allRids.length + " clips selected" : allRids.length + " clips") : "",
@@ -1297,6 +1303,7 @@ export default function Panel({ sdk, context, ui }: any) {
         </ui.Message>
       ) : null}
       {result?.notes?.length ? <ui.Message tone="muted">{"Note: " + result.notes.join("; ") + "."}</ui.Message> : null}
+      {result?.unchecked ? <ui.Message tone="muted">{"Could not check " + result.unchecked + (result.unchecked === 1 ? " clip; it was" : " clips; they were") + " skipped. Build again to retry " + (result.unchecked === 1 ? "it." : "them.")}</ui.Message> : null}
       {result?.plan?.adjacentRepeats ? (
         <ui.Message tone="muted">
           {(result.plan.adjacentRepeats === 1 ? "One cut joins two shots" : result.plan.adjacentRepeats + " cuts join two shots")

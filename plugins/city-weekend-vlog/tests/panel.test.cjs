@@ -68,7 +68,7 @@ assert.ok(/React\.useState<"off" \| "ambient" \| "full">\("ambient"\)/.test(pane
 for (const v of ['"off"', '"ambient"', '"full"']) assert.ok(panel.includes('value: ' + v), 'clip sound option ' + v);
 assert.ok(panel.includes('const AMBIENT_DB = -18;') && panel.includes('clipSound, ambientDb: AMBIENT_DB'), 'assemble gets the mode and level');
 assert.ok(panel.includes('const silent = cueId === "none" && !ownMusic && clipSound === "off";'), 'Silent video only for No music + Off');
-assert.ok(panel.includes('mute: clipSound === "off"') && panel.includes('clipSound === "off", check)'), 'Off mutes');
+assert.ok(panel.includes('mute: clipSound === "off"') && panel.includes('clipSound === "off", look, check)'), 'Off mutes');
 assert.ok(panel.indexOf('const [clipSound') < panel.indexOf('if (!projectId) return <ui'), 'clip sound hook stays before the early return');
 // Title burst per cue: the grid's 16th-onset ratio picks 'sixteenth' or 'eighth'; plans, schedules and the shot minimum follow it.
 assert.ok(panel.includes('const burst = grid.accepted ? cwvBurstFor(grid.sixteenthRatio) : "eighth";'), 'burst from the cue');
@@ -78,7 +78,12 @@ assert.equal((ui.match(/cwvPlanBuild\(/g) || []).length, 3);
 assert.equal((ui.match(/cwvPlanBuild\([^;]*burst(, sectionStart: musicStart)? \}\)/g) || []).length, 3, 'every plan uses the burst');
 // Cuts shift with the music's frame-snapped start: the build plan and both Draft-rate schedules get the section start.
 assert.ok(panel.includes('const musicStart = cueId === "none" ? null : (start ?? 0);'));
-assert.equal((ui.match(/sectionStart: musicStart/g) || []).length, 3, 'plan and schedules use the music start');
+assert.equal((ui.match(/sectionStart: musicStart/g) || []).length, 5, 'build plan, readiness plans and schedules use the music start');
+// Finish title and look retries with the inputs of the build, and clips whose scene search failed are reported.
+assert.ok(panel.includes('result.mute !== false, result.look, check)') && panel.includes('const { line1, connector, place, preset, warm, clipSound } = look;'), 'retry uses the build-time look');
+assert.ok(panel.includes('unchecked: found.failed.length') && panel.includes('Build again to retry '), 'unchecked clips are reported');
+// The own-music PCM is removed after beat detection, keeping the exit status; the preview mp3 once encoded.
+assert.ok(panel.includes('"; s=$?; rm -f " + sq(pcm) + "; exit $s"') && panel.includes('" && rm -f " + sq(base + ".mp3")'), 'temporary audio files are removed');
 assert.equal((ui.match(/cwvSchedule\(/g) || []).length, 2);
 assert.equal((ui.match(/cwvSchedule\(\{[^}]*burst/g) || []).length, 2, 'every schedule uses the burst');
 assert.ok(panel.includes('const minShots = cwvMinWindows(burst);') && !ui.includes('CWV_MIN_WINDOWS'), 'the shot minimum follows the burst');
