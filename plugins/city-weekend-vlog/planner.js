@@ -183,11 +183,13 @@ function cwvAllocate(opts) {
     .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
   const used = {}, recent = [], picks = [], photoUsed = {};
   const pool = candidates.filter(c => c.sourceDuration > 0);
-  let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, photoRunRelaxed = false;
+  let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, photoRunRelaxed = false, adjacentRepeats = 0, prevRid = null;
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
-  function searchVideo(slot, rankOf) {
+  // `exclude` is a rid that may not be used (the previous shot's source).
+  function searchVideo(slot, rankOf, exclude) {
     let best = null;
     for (const c of pool) {
+      if (c.rid === exclude) continue;
       const rank = rankOf(c);
       if (rank < 0 || c.sourceDuration < slot.seconds + CWV_SOURCE_TAIL) continue;
       const start = Math.max(0, Math.min(c.sourceDuration - CWV_SOURCE_TAIL - slot.seconds, c.t - slot.seconds / 2));
@@ -214,21 +216,30 @@ function cwvAllocate(opts) {
   }
   for (const slot of opts.slots) {
     const roles = CWV_ROLE_FALLBACK[slot.role] || [slot.role];
-    const preferred = () => searchVideo(slot, c => roles.indexOf(c.role));
-    const anyReal = () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0));
     const photo = () => searchPhoto(slot);
-    const filler = () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1));
-    // Tiers, best first: preferred-role hits, any-role hits, photos, fillers. The title burst lifts photos above the
-    // any-role tier. After CWV_PHOTO_RUN_MAX photos in a row, a photo is only the last resort.
-    const tiers = slot.section === 'burst' ? [preferred, photo, anyReal, filler] : [preferred, anyReal, photo, filler];
     const runFull = photoRun >= CWV_PHOTO_RUN_MAX;
-    let best = null;
-    for (const tier of tiers) {
-      if (runFull && tier === photo) continue;
-      if ((best = tier())) break;
-    }
-    if (!best && runFull && (best = photo())) photoRunRelaxed = true;
-    if (!best) { missing++; picks.push(null); photoRun = 0; continue; }
+    const choose = exclude => {
+      const preferred = () => searchVideo(slot, c => roles.indexOf(c.role), exclude);
+      const anyReal = () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude);
+      const filler = () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1), exclude);
+      // Tiers, best first: preferred-role hits, any-role hits, photos, fillers. The title burst lifts photos above the
+      // any-role tier. After CWV_PHOTO_RUN_MAX photos in a row, a photo is only the last resort.
+      const tiers = slot.section === 'burst' ? [preferred, photo, anyReal, filler] : [preferred, anyReal, photo, filler];
+      for (const tier of tiers) {
+        if (runFull && tier === photo) continue;
+        const b = tier();
+        if (b) return b;
+      }
+      const b = runFull ? photo() : null;
+      return b ? { ...b, runRelaxed: true } : null;
+    };
+    // Two shots from the same source in a row often do not read as a cut, so the previous shot's source is only
+    // used again when nothing else fits (counted in adjacentRepeats).
+    let best = choose(prevRid);
+    if (!best && prevRid !== null && (best = choose(null))) adjacentRepeats++;
+    if (best && best.runRelaxed) photoRunRelaxed = true;
+    if (!best) { missing++; picks.push(null); photoRun = 0; prevRid = null; continue; }
+    prevRid = best.c.rid;
     recent.push(best.c.rid);
     if (recent.length > 3) recent.shift();
     if (best.photo) {
@@ -242,7 +253,7 @@ function cwvAllocate(opts) {
     if (best.c.role === 'filler') fillerShots++;
     picks.push({ slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end });
   }
-  return { picks, filled: picks.filter(Boolean).length, missing, fillerShots, photoShots, photoRunRelaxed };
+  return { picks, filled: picks.filter(Boolean).length, missing, fillerShots, photoShots, photoRunRelaxed, adjacentRepeats };
 }
 
 // Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
@@ -261,6 +272,7 @@ function cwvPlanBuild(opts) {
     if (alloc.missing === 0) {
       const plan = { ok: true, schedule, burst, titleSlots: schedule.titleSlots, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
       if (alloc.photoRunRelaxed) plan.photoRunRelaxed = true;
+      if (alloc.adjacentRepeats) plan.adjacentRepeats = alloc.adjacentRepeats;
       return plan;
     }
     // The shortest attempt fills fewer than `needed` slots, so usableShots < needed.

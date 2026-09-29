@@ -209,6 +209,33 @@ assert.deepEqual(st.picks.map(p => p.kind), ['photo', 'photo', 'video', 'photo',
 assert.equal(st.photoShots, 5);
 assert.equal(st.fillerShots, 2);
 
+// No two shots in a row from the same source while anything else fits.
+const adjacent = picks => picks.reduce((n, p, i) => n + (i > 0 && p && picks[i - 1] && p.rid === picks[i - 1].rid ? 1 : 0), 0);
+for (const seed of ['s1', 's2', 's3']) for (const n of [4, 7, 12]) for (const burst of ['sixteenth', 'eighth']) {
+  for (const cands of [rich, collapsed, collapsed.concat(photoSet(22)), rich.filter(x => x.role === 'street')]) {
+    const r = j(P.cwvPlanBuild({ candidates: cands, bpm: 99.2, fps: 30, montageShots: n, seed, burst }));
+    assert.equal(r.ok, true);
+    // Every repeat is one the allocator could not avoid, and it is counted for the panel note.
+    assert.equal(adjacent(r.picks), r.adjacentRepeats || 0, 'repeats are counted (' + seed + ', ' + n + ', ' + burst + ')');
+    // Only the collapsed four-clip footage runs out: its long montage ends with the one clip that has time left.
+    if (cands !== collapsed || n < 12) assert.equal(r.adjacentRepeats, undefined, 'no adjacent repeats (' + seed + ', ' + n + ', ' + burst + ')');
+  }
+}
+// The previous source is excluded from every tier, even when it is the only preferred-role hit: another source's
+// filler takes the slot.
+const twoSrc = [hit('a', 'street', { t: 5, score: 0.9 }), hit('a', 'street', { t: 20, score: 0.9 }), hit('b', 'park', { t: 5, sourceDuration: 30 })];
+const tw = j(P.cwvAllocate({ candidates: twoSrc.concat(P.cwvFillers(twoSrc)), slots: [streetSlot, { ...streetSlot, index: 14 }], seed: 'x' }));
+assert.deepEqual(tw.picks.map(p => p.rid), ['a', 'b']);
+assert.equal(tw.adjacentRepeats, 0);
+// A single source: the repeat is unavoidable, so it is allowed and counted.
+const oneSrc = [hit('a', 'street', { t: 5 }), hit('a', 'street', { t: 20 })];
+const os = j(P.cwvAllocate({ candidates: oneSrc, slots: [streetSlot, { ...streetSlot, index: 14 }], seed: 'x' }));
+assert.deepEqual(os.picks.map(p => p.rid), ['a', 'a']);
+assert.equal(os.adjacentRepeats, 1);
+const osPlan = j(P.cwvPlanBuild({ candidates: [{ rid: 'solo', role: 'street', t: 30, score: 0.5, sourceDuration: 120 }], bpm: 99.2, fps: 30, montageShots: 4, seed: 's1' }));
+assert.equal(osPlan.ok, true);
+assert.equal(osPlan.adjacentRepeats, osPlan.picks.length - 1, 'every cut of a one-clip plan is a repeat');
+
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.CWV_BUILD_STEPS.length, 5);
 assert.equal(P.CWV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);

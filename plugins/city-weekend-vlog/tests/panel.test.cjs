@@ -84,4 +84,6 @@ assert.equal((ui.match(/cwvSchedule\(\{[^}]*burst/g) || []).length, 2, 'every sc
 assert.ok(panel.includes('const minShots = cwvMinWindows(burst);') && !ui.includes('CWV_MIN_WINDOWS'), 'the shot minimum follows the burst');
 assert.ok(panel.includes('const beatsAt = [0, ...plan.schedule.slots.map((s: any) => s.endBeat)];'), 'boundaries come from the schedule');
 assert.ok(!/i < 13/.test(panel), 'no fixed title slot count');
+// Same-source neighbours only when nothing else fits, and then the result says so.
+assert.ok(panel.includes('result?.plan?.adjacentRepeats') && panel.includes('from the same clip because there'), 'adjacent repeat note');
 console.log(JSON.stringify({ panel: 'ok' }));
