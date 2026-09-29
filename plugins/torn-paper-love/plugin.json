@@ -8,6 +8,9 @@
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
   "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
     "assets/cues/easy-sunday-lofi.mp3",
     "assets/cues/manifest.json",
     "assets/cues/sunny-soul-strut.mp3",
