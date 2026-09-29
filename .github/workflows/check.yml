@@ -37,3 +37,11 @@ jobs:
         run: |
           node plugins/torn-paper-love/tests/beat-detect.test.cjs
           node plugins/torn-paper-love/tests/cues.test.cjs
+          node plugins/torn-paper-love/tests/fonts.test.cjs
+          node plugins/torn-paper-love/tests/letters.test.cjs
+          node plugins/torn-paper-love/tests/pick.test.cjs
+          node plugins/torn-paper-love/tests/planner.test.cjs
+          node plugins/torn-paper-love/tests/scripts-edit.test.cjs
+          node plugins/torn-paper-love/tests/scripts-read.test.cjs
+          node plugins/torn-paper-love/tests/torn.test.cjs
+          node plugins/torn-paper-love/tests/transitions.test.cjs
