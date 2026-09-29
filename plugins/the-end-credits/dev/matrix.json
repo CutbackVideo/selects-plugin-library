@@ -1,0 +1,25 @@
+{
+ "projects": {
+  "landscape": "Landscape set: 16:9 videos only (e.g. the gallery footage clips), at least 12 analysed clips of mixed fps (23.976/24/25/29.97/59.94).",
+  "mixed": "Mixed set: landscape and portrait (9:16) videos plus landscape and portrait photos (e.g. gallery photos + portrait clips from cwv-footage), at least 12 shots."
+ },
+ "ownMusic": "Rows with cue own:$TEC_OWN_MUSIC read the file from that env var (any 60-90 s track; a 110-150 bpm one exercises the fixed 3.9 s phrase).",
+ "rows": [
+  {"key":"c-std-post","project":"mixed","pid":"<fill>","layout":"classic","length":"standard","cue":"post-rock","preset":"filmCrew","clipSound":"ambient","look":true,"photos":true,"section":"default","seeds":[1,2],"export":true},
+  {"key":"f-std-post","project":"mixed","pid":"<fill>","layout":"full","length":"standard","cue":"post-rock","preset":"personal","projectName":"Lisbon","clipSound":"ambient","look":true,"photos":true,"section":"default","seeds":[1,2],"export":true},
+  {"key":"c-short-piano","project":"landscape","pid":"<fill>","layout":"classic","length":"short","cue":"piano-strings","preset":"travel","projectName":"Big Sur","clipSound":"off","look":false,"photos":true,"section":"early"},
+  {"key":"f-short-piano","project":"mixed","pid":"<fill>","layout":"full","length":"short","cue":"piano-strings","preset":"empty","clipSound":"full","look":true,"photos":true,"section":"late"},
+  {"key":"c-long-rhodes","project":"mixed","pid":"<fill>","layout":"classic","length":"long","cue":"rhodes-soul","preset":"personal","clipSound":"full","look":false,"photos":true,"section":"late"},
+  {"key":"f-long-rhodes","project":"landscape","pid":"<fill>","layout":"full","length":"long","cue":"rhodes-soul","preset":"filmCrew","clipSound":"off","look":true,"photos":true,"section":"early"},
+  {"key":"c-std-orch-title","project":"landscape","pid":"<fill>","layout":"classic","length":"standard","cue":"orchestral","preset":"filmCrew","title":"THE LONG WAY HOME, BY THE SEA.","clipSound":"ambient","look":true,"photos":true,"section":"default","export":true},
+  {"key":"f-std-orch-title","project":"mixed","pid":"<fill>","layout":"full","length":"standard","cue":"orchestral","preset":"travel","title":"Summer Roads & Quiet Harbours!","clipSound":"ambient","look":false,"photos":true,"section":"default"},
+  {"key":"c-short-dream-nophotos","project":"mixed","pid":"<fill>","layout":"classic","length":"short","cue":"dream-synth","preset":"empty","clipSound":"off","look":true,"photos":false,"section":20},
+  {"key":"f-long-dream","project":"landscape","pid":"<fill>","layout":"full","length":"long","cue":"dream-synth","preset":"personal","projectName":"Iceland","clipSound":"full","look":false,"photos":true,"section":"default"},
+  {"key":"c-std-none-nophotos","project":"mixed","pid":"<fill>","layout":"classic","length":"standard","cue":"none","preset":"filmCrew","clipSound":"ambient","look":true,"photos":false,"section":"default"},
+  {"key":"f-short-none","project":"landscape","pid":"<fill>","layout":"full","length":"short","cue":"none","preset":"travel","clipSound":"off","look":false,"photos":true,"section":"default"},
+  {"key":"c-std-own","project":"landscape","pid":"<fill>","layout":"classic","length":"standard","cue":"own:$TEC_OWN_MUSIC","preset":"personal","clipSound":"ambient","look":false,"photos":true,"section":"default"},
+  {"key":"f-long-own","project":"mixed","pid":"<fill>","layout":"full","length":"long","cue":"own:$TEC_OWN_MUSIC","preset":"filmCrew","clipSound":"full","look":true,"photos":true,"section":"late"},
+  {"key":"c-long-wrap","project":"landscape","pid":"<fill>","layout":"classic","length":"long","cue":"post-rock","rows":[{"role":"Director","name":"[Name Here]"},{"role":"Director of Photography, Second Unit Aerial Camera and Underwater Drone Operator","name":"Alexandra Montgomery-Villanueva"},{"role":"Editor","name":"[Name Here]"}],"clipSound":"ambient","look":true,"photos":true,"section":"default","capture":true},
+  {"key":"f-std-wrap","project":"mixed","pid":"<fill>","layout":"full","length":"standard","cue":"piano-strings","rows":[{"role":"Director of Photography, Second Unit Aerial Camera and Underwater Drone Operator","name":"[Name Here]"},{"role":"Music","name":"Last Light Ballad (Selects library)"}],"clipSound":"off","look":false,"photos":true,"section":"early"}
+ ]
+}
