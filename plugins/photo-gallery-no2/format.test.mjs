@@ -66,6 +66,21 @@ test('the planner accepts original Image Resources without MP4 conversion and re
   assert.equal(planGallery({ media: allVideos, manualBpm: oracle.nominalBpm }).tiles.length, 21);
 });
 
+test('the reference moving slots can be supplied as Videos while other slots stay original Images', () => {
+  const moving = new Set(oracle.observedMovingSlots);
+  const referenceMix = Array.from({ length: 21 }, (_, index) => ({
+    resourceId: `source-${index + 1}`,
+    kind: moving.has(index + 1) ? 'video' : 'image',
+    width: 1080,
+    height: 1920,
+    ...(moving.has(index + 1) ? { durationFrames: oracle.durationFrames } : {}),
+  }));
+  const plan = planGallery({ media: referenceMix, manualBpm: oracle.nominalBpm });
+  assert.deepEqual(plan.tiles.flatMap((tile, index) => tile.kind === 'video' ? [index + 1] : []),
+    oracle.observedMovingSlots);
+  assert.equal(plan.tiles.filter(tile => tile.kind === 'image').length, 15);
+});
+
 test('music is optional with manual BPM; automatic estimate needs a reliable value', () => {
   assert.throws(() => planGallery({ media }), /BPM/);
   assert.throws(() => planGallery({ media, music: { resourceId: 'audio', durationFrames: 853 } }), /BPM/);
