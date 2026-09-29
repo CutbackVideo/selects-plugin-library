@@ -40,4 +40,16 @@ for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
   const ok = size && size.width > 0 && size.height > 0;
   photos.push({ rid: r.resourceId, name: r.name, width: ok ? size.width : null, height: ok ? size.height : null, recordedAt: recordedAt(r), kind: 'photo' });
 }
-return { resources, photos, skipped: { unanalysed, missing } };
+// The most recent recording year over the wanted videos (analysed or not) and photos, for the title's year chip.
+// The year is read from the date text itself (a local timestamp near New Year would shift in UTC); dates that do not
+// parse are ignored, and null means no resource has one.
+let latestYear = null;
+for (const r of all) {
+  if ((r.type !== 'Video' && r.type !== 'Image') || !wanted(r)) continue;
+  const at = recordedAt(r);
+  if (typeof at !== 'string' || !isFinite(Date.parse(at))) continue;
+  const m = /^(\d{4})-/.exec(at);
+  const year = m ? Number(m[1]) : new Date(at).getUTCFullYear();
+  if (latestYear === null || year > latestYear) latestYear = year;
+}
+return { resources, photos, latestYear, skipped: { unanalysed, missing } };

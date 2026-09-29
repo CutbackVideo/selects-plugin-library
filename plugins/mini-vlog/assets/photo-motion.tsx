@@ -1,7 +1,7 @@
 // Mini Vlog photo motion: one subtle, eased move across a montage photo's whole hold.
 // data: motion (push-in, pull-out, drift-left/right/up/down, tilt, push-drift), strength (0-2, default 1),
 // direction (1 or -1, for tilt and push-drift), axis ("x" or "y", for push-drift), holdSeconds, and cover, the
-// clip's cover-crop scale. Every move keeps the picture's edges outside the 9:16 frame.
+// clip's cover-crop scale. Every move keeps the picture's edges outside the frame (16:9 unless the Draft says otherwise).
 import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
@@ -28,7 +28,8 @@ function mvMotionTransform(motion, p, strength, direction, axis, width, height, 
   } else if (motion === "tilt") {
     // Rotate up to 2.5 degrees; the scale is the smallest that keeps a rotated frame covered, plus a hair.
     const deg = 2.5 * s * e * dir, r = Math.abs(deg) * Math.PI / 180;
-    const w = width > 0 ? width : 1080, h = height > 0 ? height : 1920;
+    // The frame size comes from useVideoConfig(); 1920x1080 is only a fallback.
+    const w = width > 0 ? width : 1920, h = height > 0 ? height : 1080;
     out.rotate = deg;
     out.scale = (Math.cos(r) + Math.max(w / h, h / w) * Math.sin(r)) * 1.003;
   } else if (motion === "push-drift") {

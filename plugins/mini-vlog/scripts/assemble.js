@@ -1,7 +1,7 @@
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const notes = [];
-const W = 1080, H = 1920;
+const W = 1920, H = 1080;
 let d, fps, endFrame;
 const main = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null);
 // Selects snaps the music's source start to a frame, which shifts the whole track by up to half a frame; every cut
@@ -27,7 +27,7 @@ const lay = async (rate, final) => {
     await d.insertResource({ resourceId: pick.rid, sourceRange: { startSeconds: start, endSeconds: start + want / fps } });
     endFrame = (await main()).reduce((a, c) => Math.max(a, c.endFrame), 0);
     if (i === 0) {
-      // The first insert adopted the clip's frame size, so the 9:16 canvas is set again before the rate is read.
+      // The first insert adopted the clip's frame size, so the 16:9 canvas is set again before the rate is read.
       const size0 = (await d.meta()).frameSize;
       if (size0.width !== W || size0.height !== H) await d.setFrameSize({ width: W, height: H });
       const real = (await d.meta()).fps;
