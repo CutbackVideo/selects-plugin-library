@@ -5,10 +5,11 @@ import { planGallery } from './format.mjs';
 
 const oracle = JSON.parse(readFileSync(new URL('./reference-oracle.json', import.meta.url)));
 const media = Array.from({ length: 21 }, (_, i) => ({
-  resourceId: `photo-${i + 1}`,
-  kind: 'image',
+  resourceId: `prepared-video-${i + 1}`,
+  kind: 'video',
   width: i % 2 ? 1920 : 1080,
   height: i % 2 ? 1080 : 1920,
+  durationFrames: 853,
 }));
 
 test('reference speed reproduces every observed reveal and the color cut', () => {
@@ -51,14 +52,11 @@ test('an explicit resource can occupy two slots, but missing or excess assignmen
   assert.throws(() => planGallery({ media: [...media, media[0]], manualBpm: oracle.nominalBpm }), /21/);
 });
 
-test('photo and video may occupy any slot; a short video holds its last frame', () => {
+test('the planner accepts prepared videos in every slot and rejects an unprepared short video', () => {
   const mixed = media.map((item) => ({ ...item }));
   mixed[5] = { resourceId: 'video-6', kind: 'video', width: 1920, height: 1080, durationFrames: 120 };
-  const tile = planGallery({ media: mixed, manualBpm: oracle.nominalBpm }).tiles[5];
-  assert.deepEqual(tile.segments, [
-    { kind: 'video', startFrame: 52, endFrame: 172, sourceStartFrame: 0 },
-    { kind: 'hold-last-frame', startFrame: 172, endFrame: 853, sourceFrame: 119 },
-  ]);
+  assert.throws(() => planGallery({ media: mixed, manualBpm: oracle.nominalBpm }), /short/i);
+  assert.throws(() => planGallery({ media: mixed.map((item, i) => i === 5 ? { ...item, kind: 'image' } : item), manualBpm: oracle.nominalBpm }), /video/i);
   const allVideos = Array.from({ length: 21 }, (_, i) => ({ resourceId: `video-${i}`, kind: 'video', width: 1080, height: 1920, durationFrames: 853 }));
   assert.equal(planGallery({ media: allVideos, manualBpm: oracle.nominalBpm }).tiles.length, 21);
 });
@@ -76,6 +74,6 @@ test('music is optional with manual BPM; automatic estimate needs a reliable val
 test('music shortage and invalid inputs fail before creation', () => {
   assert.throws(() => planGallery({ media, manualBpm: oracle.nominalBpm, music: { resourceId: 'audio', durationFrames: 852 } }), /music.*short/i);
   assert.throws(() => planGallery({ media, manualBpm: oracle.nominalBpm, durationFrames: 270 }), /color.*end/i);
-  assert.throws(() => planGallery({ media: media.map((item, i) => i === 0 ? { ...item, kind: 'audio' } : item), manualBpm: oracle.nominalBpm }), /visual/i);
+  assert.throws(() => planGallery({ media: media.map((item, i) => i === 0 ? { ...item, kind: 'audio' } : item), manualBpm: oracle.nominalBpm }), /video/i);
   assert.throws(() => planGallery({ media: media.map((item, i) => i === 0 ? { ...item, focusX: 1.5 } : item), manualBpm: oracle.nominalBpm }), /focus/i);
 });

@@ -54,15 +54,107 @@ function kit() {
 
 const media = Array.from({ length: 22 }, (_, i) => ({ resourceId: `r${i + 1}`, name: `Photo ${i + 1}`,
   kind: 'image', width: 1000, height: 1000, path: `/fixture/photo-${i + 1}.jpg` }));
-const existing = { draftId: 'draft-existing', instanceId: 'instance-1', durationFrames: 853, bpm: 113, timingEditable: true,
-  media: media.slice(0, 21).map((item, i) => ({ ...item, slotKey: `tile-${String(i + 1).padStart(2, '0')}`, focusX: 0.5, focusY: 0.5 })) };
+
+test('auto-assign keeps the 21 original photos selectable after their converted videos are imported', async () => {
+  const photos = media.slice(0, 21);
+  const converted = photos.map((item, i) => ({ ...item, kind: 'video', resourceId: `v${i + 1}`,
+    name: `converted-${i + 1}.mp4`, path: `/cache/converted-${i + 1}.mp4`, durationFrames: 853 }));
+  const sdk = { runScript: async request => {
+    assert.equal(JSON.parse(request.script).operation, 'inspect');
+    return { result: { status: 'inspected', projectId: 'project-1', media: [...photos, ...converted], audio: [] } };
+  } };
+  const view = render(React.createElement(Panel, { sdk,
+    context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
+  fireEvent.click(view.getByRole('button', { name: 'Load project media' }));
+  const assign = await waitFor(() => view.getByRole('button', { name: 'Assign all 21 in listed order' }));
+  fireEvent.click(assign);
+  assert.ok(view.container.textContent.includes('Assigned tiles: 21/21'));
+  assert.equal(view.getByLabelText('Photo or video').value, photos[0].resourceId);
+  view.unmount(); cleanup();
+});
+
+test('saving a new Draft remains a success when Selects opens that Draft during readback', async () => {
+  let view;
+  const sdk = { runShell: async () => ({ exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60,
+      durationFrames: 853, images: media.slice(0, 21).map((item, i) => ({ inputIndex: i,
+        sourcePath: item.path, outputPath: `/cache/still-${i + 1}.mp4` })) }) }),
+    runScript: async request => { const input = JSON.parse(request.script);
+      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media: media.slice(0, 21), audio: [] } };
+      if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
+        ({ ...item, resourceId: `v${Number(item.path.match(/still-(\d+)/)[1])}` })) } };
+      if (input.operation === 'create') return { result: { status: 'saved', draftId: 'created-1' } };
+      if (input.operation === 'verifyCreated') {
+        view.rerender(React.createElement(Panel, { sdk,
+          context: { projectId: 'project-1', sequenceId: 'created-1', language: 'en' }, ui: kit() }));
+        return { result: { status: 'verified', tileCount: 21, draftId: 'created-1' } };
+      }
+      throw new Error(`Unexpected ${input.operation}`);
+    } };
+  view = render(React.createElement(Panel, { sdk,
+    context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
+  fireEvent.click(view.getByRole('button', { name: 'Load project media' }));
+  const assign = await waitFor(() => view.getByRole('button', { name: 'Assign all 21 in listed order' }));
+  fireEvent.click(assign);
+  fireEvent.click(view.getByLabelText('Enter BPM manually'));
+  fireEvent.click(view.getByRole('button', { name: 'Create Draft' }));
+  await waitFor(() => assert.ok(view.container.textContent.includes('Saved and read back all 21 tiles')));
+  view.unmount(); cleanup();
+});
+
+test('a short video is extended before placement while long videos remain untouched', async () => {
+  const inputs = [...media.slice(0, 19), { resourceId: 'short-1', name: 'Short clip', kind: 'video',
+    width: 128, height: 96, path: '/fixture/short.mp4', durationFrames: 6 },
+  { resourceId: 'long-1', name: 'Long clip', kind: 'video', width: 128, height: 96,
+    path: '/fixture/long.mp4', durationFrames: 900 }];
+  const shellCalls = [], calls = [];
+  const sdk = { runShell: async request => { shellCalls.push(request);
+      if (request.command.includes('still_video.py')) return { exitCode: 0, stdout: JSON.stringify({
+        status: 'converted', fps: 60, durationFrames: 853,
+        images: inputs.slice(0, 19).map((item, i) => ({ inputIndex: i, sourcePath: item.path,
+          outputPath: `/cache/still-${i + 1}.mp4` })) }) };
+      assert.match(request.command, /hold_video\.py/);
+      return { exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60, durationFrames: 853,
+        videos: [{ inputIndex: 0, sourcePath: '/fixture/short.mp4', outputPath: '/cache/held-short.mp4' }] }) };
+    }, runScript: async request => { const input = JSON.parse(request.script); calls.push(input);
+      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media: inputs, audio: [] } };
+      if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
+        ({ ...item, resourceId: item.sourceResourceId === 'short-1' ? 'held-1' : `converted-${item.sourceResourceId}` })) } };
+      if (input.operation === 'create') return { result: { status: 'saved', draftId: 'created-mixed' } };
+      if (input.operation === 'verifyCreated') return { result: { status: 'verified', tileCount: 21,
+        draftId: 'created-mixed' } };
+      throw new Error(`Unexpected ${input.operation}`);
+    } };
+  const view = render(React.createElement(Panel, { sdk,
+    context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
+  fireEvent.click(view.getByRole('button', { name: 'Load project media' }));
+  const assign = await waitFor(() => view.getByRole('button', { name: 'Assign all 21 in listed order' }));
+  fireEvent.click(assign);
+  fireEvent.click(view.getByLabelText('Enter BPM manually'));
+  fireEvent.click(view.getByRole('button', { name: 'Create Draft' }));
+  await waitFor(() => assert.ok(calls.some(item => item.operation === 'verifyCreated')));
+  assert.equal(shellCalls.length, 2);
+  const created = calls.find(item => item.operation === 'create');
+  assert.equal(created.media[19].resourceId, 'held-1');
+  assert.equal(created.media[20].resourceId, 'long-1');
+  view.unmount(); cleanup();
+});
 
 test('21-slot create uses one shared script and does not save on load', async () => {
   const calls = [];
-  const sdk = { runShell: () => { throw new Error('manual BPM must not invoke tempo estimator'); },
+  const shellCalls = [];
+  const sdk = { runShell: async request => {
+      shellCalls.push(request);
+      assert.match(request.command, /still_video\.py/);
+      return { exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60, durationFrames: 853,
+        images: media.slice(0, 21).map((item, i) => ({ inputIndex: i, sourcePath: item.path,
+          outputPath: `/cache/still-${i + 1}.mp4` })) }) };
+    },
     runScript: async request => { calls.push(request); const input = JSON.parse(request.script);
       if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media: media.slice(0, 21), audio: [] } };
-      if (input.operation === 'create') return { result: { status: 'saved', draftId: 'created-1', instanceId: 'instance-1' } };
+      if (input.operation === 'importConverted') return { result: { status: 'prepared',
+        converted: input.converted.map(item => ({ ...item, resourceId: `v${Number(item.path.match(/still-(\d+)/)[1])}` })) } };
+      if (input.operation === 'create') return { result: { status: 'saved', draftId: 'created-1' } };
+      if (input.operation === 'verifyCreated') return { result: { status: 'verified', tileCount: 21, draftId: 'created-1' } };
       throw new Error(`Unexpected ${input.operation}`);
     } };
   const view = render(React.createElement(Panel, { sdk, context: { projectId: 'project-1', sequenceId: null, language: 'ko' }, ui: kit() }));
@@ -73,38 +165,35 @@ test('21-slot create uses one shared script and does not save on load', async ()
   fireEvent.click(view.getByRole('button', { name: '21\uac1c\ub97c \ubaa9\ub85d \uc21c\uc11c\ub85c \uc9c0\uc815' }));
   fireEvent.click(view.getByLabelText('BPM \uc9c1\uc811 \uc9c0\uc815'));
   fireEvent.click(view.getByRole('button', { name: '\uc0c8 \ud3b8\uc9d1\ubcf8 \ub9cc\ub4e4\uae30' }));
-  await waitFor(() => assert.ok(calls.some(call => JSON.parse(call.script).operation === 'create')));
+  await waitFor(() => assert.ok(calls.some(call => JSON.parse(call.script).operation === 'verifyCreated')));
+  assert.equal(shellCalls.length, 1);
+  const imports = calls.filter(call => JSON.parse(call.script).operation === 'importConverted');
+  assert.equal(imports.length, 7);
+  assert.ok(imports.every(call => call.allowCommit && JSON.parse(call.script).converted.length === 3));
   const mutation = calls.find(call => JSON.parse(call.script).operation === 'create');
   const request = JSON.parse(mutation.script);
   assert.equal(mutation.allowCommit, true);
   assert.equal(request.media.length, 21);
-  assert.deepEqual(request.media.map(item => item.resourceId), media.slice(0, 21).map(item => item.resourceId));
+  assert.deepEqual(request.media.map(item => item.resourceId), media.slice(0, 21).map((_, i) => `v${i + 1}`));
+  assert.ok(request.media.every(item => item.kind === 'video'));
   assert.equal(request.manualBpm, 113);
   assert.equal(request.music, null);
   view.unmount(); cleanup();
 });
 
-test('update targets only the selected verified tile', async () => {
+test('panel does not offer unsupported existing-Draft mutation', async () => {
   const calls = [];
   const sdk = { runShell: () => { throw new Error('not used'); },
     runScript: async request => { calls.push(request); const input = JSON.parse(request.script);
-      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media, audio: [], existing } };
-      if (input.operation === 'update') return { result: { status: 'saved', draftId: 'draft-existing', instanceId: 'instance-1' } };
+      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media, audio: [] } };
       throw new Error(`Unexpected ${input.operation}`);
     } };
   const view = render(React.createElement(Panel, { sdk, context: { projectId: 'project-1', sequenceId: 'draft-existing', language: 'ko' }, ui: kit() }));
-  fireEvent.change(view.getByLabelText('\uc791\uc5c5'), { target: { value: 'update' } });
   fireEvent.click(view.getByRole('button', { name: '\ud504\ub85c\uc81d\ud2b8 \ubbf8\ub514\uc5b4 \ubd88\ub7ec\uc624\uae30' }));
-  await waitFor(() => assert.ok(view.getByRole('button', { name: '\uc774 \uce78 \ubcc0\uacbd \uc800\uc7a5' })));
-  fireEvent.change(view.getByLabelText('\uce78'), { target: { value: '6' } });
-  fireEvent.change(view.getByLabelText('\uc0ac\uc9c4 \ub610\ub294 \uc601\uc0c1'), { target: { value: 'r22' } });
-  fireEvent.click(view.getByRole('button', { name: '\uc774 \uce78 \ubcc0\uacbd \uc800\uc7a5' }));
-  await waitFor(() => assert.ok(calls.some(call => JSON.parse(call.script).operation === 'update')));
-  const mutation = calls.find(call => JSON.parse(call.script).operation === 'update');
-  assert.equal(mutation.allowCommit, true);
-  assert.deepEqual(JSON.parse(mutation.script), { operation: 'update', projectId: 'project-1', draftId: 'draft-existing',
-    instanceId: 'instance-1', slotKey: 'tile-07', resourceId: 'r22' });
-  await waitFor(() => assert.ok(view.container.textContent.includes('\uc694\uccad\ud55c \uce78')));
+  await waitFor(() => assert.ok(view.container.textContent.includes('21/21') === false));
+  assert.equal(view.queryByRole('button', { name: '\uc774 \uce78 \ubcc0\uacbd \uc800\uc7a5' }), null);
+  assert.equal(view.queryByLabelText('\uc791\uc5c5'), null);
+  assert.deepEqual(calls.map(call => JSON.parse(call.script).operation), ['inspect']);
   view.unmount(); cleanup();
 });
 
@@ -126,5 +215,27 @@ test('uncertain automatic BPM blocks creation without an unknown-save lock', asy
   await waitFor(() => assert.equal(shellCalls, 1));
   assert.deepEqual(calls.map(call => JSON.parse(call.script).operation), ['inspect']);
   assert.ok(view.getByRole('button', { name: '\uc0c8 \ud3b8\uc9d1\ubcf8 \ub9cc\ub4e4\uae30' }).disabled === false);
+  view.unmount(); cleanup();
+});
+
+test('a mismatched photo conversion never imports files or creates a Draft', async () => {
+  const calls = [];
+  const sdk = { runShell: async () => ({ exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60,
+      durationFrames: 853, images: media.slice(0, 21).map((item, i) => ({ inputIndex: i,
+        sourcePath: i === 4 ? '/fixture/other-photo.jpg' : item.path, outputPath: `/cache/still-${i}.mp4` })) }) }),
+    runScript: async request => { const input = JSON.parse(request.script); calls.push(input.operation);
+      assert.equal(input.operation, 'inspect');
+      return { result: { status: 'inspected', projectId: 'project-1', media: media.slice(0, 21), audio: [] } };
+    } };
+  const view = render(React.createElement(Panel, { sdk,
+    context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
+  fireEvent.click(view.getByRole('button', { name: 'Load project media' }));
+  await waitFor(() => assert.ok(view.getByRole('button', { name: 'Assign all 21 in listed order' })));
+  fireEvent.click(view.getByRole('button', { name: 'Assign all 21 in listed order' }));
+  fireEvent.click(view.getByLabelText('Enter BPM manually'));
+  fireEvent.click(view.getByRole('button', { name: 'Create Draft' }));
+  await waitFor(() => assert.match(view.container.textContent, /does not match the requested inputs/));
+  assert.deepEqual(calls, ['inspect']);
+  assert.equal(view.getByRole('button', { name: 'Create Draft' }).disabled, false);
   view.unmount(); cleanup();
 });

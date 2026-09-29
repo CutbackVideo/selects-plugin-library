@@ -16,7 +16,7 @@ function assertPositiveInteger(value, label) {
 function validateMedia(media) {
   if (!Array.isArray(media) || media.length !== 21) throw new Error('Exactly 21 visual media slots are required');
   return media.map((item, index) => {
-    if (!item || !['image', 'video'].includes(item.kind)) throw new Error(`Slot ${index + 1} needs visual image or video media`);
+    if (!item || item.kind !== 'video') throw new Error(`Slot ${index + 1} needs a prepared video Resource`);
     if (typeof item.resourceId !== 'string' || !item.resourceId.trim()) throw new Error(`Slot ${index + 1} needs a resource ID`);
     assertPositiveInteger(item.width, `Slot ${index + 1} width`);
     assertPositiveInteger(item.height, `Slot ${index + 1} height`);
@@ -25,17 +25,9 @@ function validateMedia(media) {
     if (![focusX, focusY].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) {
       throw new Error(`Slot ${index + 1} focus must be between 0 and 1`);
     }
-    if (item.kind === 'video') assertPositiveInteger(item.durationFrames, `Slot ${index + 1} durationFrames`);
+    assertPositiveInteger(item.durationFrames, `Slot ${index + 1} durationFrames`);
     return { ...item, focusX, focusY };
   });
-}
-
-function visualSegments(item, revealFrame, durationFrames) {
-  if (item.kind === 'image') return [{ kind: 'image', startFrame: revealFrame, endFrame: durationFrames }];
-  const videoEnd = Math.min(durationFrames, revealFrame + item.durationFrames);
-  const segments = [{ kind: 'video', startFrame: revealFrame, endFrame: videoEnd, sourceStartFrame: 0 }];
-  if (videoEnd < durationFrames) segments.push({ kind: 'hold-last-frame', startFrame: videoEnd, endFrame: durationFrames, sourceFrame: item.durationFrames - 1 });
-  return segments;
 }
 
 function tileRect(row, column) {
@@ -52,6 +44,9 @@ export function planGallery(input) {
   const media = validateMedia(input.media);
   const durationFrames = input.durationFrames ?? REFERENCE.durationFrames;
   assertPositiveInteger(durationFrames, 'durationFrames');
+  if (media.some((item) => item.durationFrames < durationFrames)) {
+    throw new Error('A selected video is too short; extend it with hold_video.py before planning');
+  }
   const hasManualBpm = input.manualBpm !== undefined && input.manualBpm !== null;
   const bpm = hasManualBpm ? Number(input.manualBpm) : Number(input.estimatedBpm);
   if (!Number.isFinite(bpm) || bpm <= 0 || (!input.music && !hasManualBpm)) {
@@ -82,7 +77,6 @@ export function planGallery(input) {
     endFrame: durationFrames,
     focusX: item.focusX,
     focusY: item.focusY,
-    segments: visualSegments(item, revealFrames[i], durationFrames),
   }));
   return {
     frameSize: { width: REFERENCE.width, height: REFERENCE.height },

@@ -1,56 +1,32 @@
 ---
 name: photo-gallery-no2
-description: Create and safely edit the 21-tile Photo Gallery format in a Selects Draft using the same operation as the panel.
+description: Create a 21-tile Photo Gallery Draft in Selects from ordered Project photos and videos.
 ---
 
 # Photo Gallery · 21 tiles
 
-Use this skill when a user asks for the 3-column × 7-row gallery format of [the reference TikTok](https://www.tiktok.com/@yana_zinooyoon/video/7487656824712350994), or asks to change a Draft created with it. The format is fixed; photo/video contents and each tile's crop are user inputs. Do not copy the reference creator's photographs. Do not claim that a saved Draft proves playback, preview or export.
+Use this skill for the 3-column × 7-row format of [the reference TikTok](https://www.tiktok.com/@yana_zinooyoon/video/7487656824712350994). It recreates the grid, reveal order, and simultaneous grayscale-to-color change; the tile contents may differ. Each tile is a separate Video Resource clip in the Selects timeline. Do not flatten the whole gallery into one movie, silently repeat missing inputs, or claim that a saved Draft proves visual playback or export.
 
-## Shared operation
+## Shared operations
 
-The panel and this skill use the same `build-script.mjs` and Selects `run_script` operation. Do not reimplement the grid in a chat prompt. The CLI reads **one JSON object from stdin** and emits a complete `run_script` body to stdout. Keep JSON out of shell argument interpolation; use a quoted heredoc or a temporary JSON file. If CLI output is truncated or fails, stop before mutation.
+The panel and chat must call the same operations from `build-script.mjs`; do not recreate their logic in a prompt. The builder reads one JSON object from stdin and writes a complete Selects `run_script` body. Feed JSON through stdin or a temporary file, not shell-interpolated user text. Use `allowCommit:false` for `inspect` and `verifyCreated`; use `allowCommit:true` for `importConverted` and `create`. Review [INSTALL.md](INSTALL.md) before use.
 
-Check [INSTALL.md](INSTALL.md) before use. In the currently checked Selects `develop` build, this format cannot be saved because Image dimensions are absent from the public file-tree inventory and the public overlay placement path rejects Image Resources. The package also currently gates creation on template binding so that later slot edits have stable identity; that gate can be redesigned without changing the client. A missing capability is a real `notSaved` result. Do not imply that an unrun or blocked operation produced a Draft.
-
-```sh
-node "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/build-script.mjs" <<'PHOTO_GALLERY_INPUT'
-{"operation":"inspect","projectId":"CURRENT_PROJECT_ID"}
-PHOTO_GALLERY_INPUT
-```
-
-Use `allowCommit:false` for `inspect`; use `allowCommit:true` for `create`, `update`, and `updateTiming`. The package must be installed as one skill folder under `SELECTS_USER_SKILLS_ROOT/photo-gallery-no2` and one panel file under `SELECTS_USER_PANELS_ROOT/photo-gallery-no2/panel.tsx`. The panel is a single bundled React file. A local runtime must have Node.js for this CLI, and Python 3 plus ffmpeg for automatic BPM estimation; do not silently install or change global runtimes.
-
-## Preflight and input
-
-1. Resolve the **current** project and, for an edit, the **explicit** target Draft. Never reuse IDs from the reference project or infer a target solely from a similar name. Run `inspect` and use its media/audio inventory. For an existing Draft, pass `draftId`; continue only when `existing` is a verified instance with 21 bound slots and an `instanceId`.
-2. For creation, collect exactly 21 ordered visual resources (`tile-01` through `tile-21`, left to right and top to bottom). Each may be a Project Image or Video; an explicit repeat of a resource is allowed. Preserve the user's order. Never silently duplicate, drop, shuffle, or fill a missing tile. Each entry carries the `resourceId`, `kind`, dimensions, video duration when relevant, and `focusX`/`focusY` from 0 to 1. The default focus is 0.5/0.5. Ask only for missing inputs that cannot be resolved from the project or the user's instruction.
-3. Music is optional. With music and no manual BPM, run the bundled `tempo.py` on that audio's local path. It emits `{"status":"estimated","bpm":...}` or `{"status":"uncertain",...}`. An uncertain estimate is **not** a usable BPM: request a manual BPM or another track. Without music, a manual BPM is required. Pass an explicit `durationFrames` (default 853 at 60fps); selected music must cover that length without implicit looping or silence padding.
-4. The default source format is 1080×1920 at 60fps. The 21 tile reveals follow the reference frame schedule, scaled only by the BPM ratio. All tiles switch from grayscale to color together. A BPM change moves reveals and the color transition but leaves the hold duration independent. If the transition would occur beyond the requested end, present the conflict before saving.
-
-Creation request shape (resource fields come from `inspect`, not guessed paths). The one shown media object is illustrative; extend the array to **exactly 21 objects** before sending it to the builder:
+1. Inspect the current Project with `{"operation":"inspect","projectId":"CURRENT_PROJECT_ID"}`. Resolve the current IDs from Selects, never from this example. Get exactly 21 ordered visual inputs, left-to-right and top-to-bottom. A resource may repeat only when the user chose it for both slots. Ask for missing slots rather than filling them. Pass each tile's focus in the 0–1 range (default 0.5).
+2. For every distinct Image Resource selected, call `still_video.py` with JSON stdin such as `{"images":[{"path":"/absolute/project/photo.jpg"}],"durationFrames":853}`. It writes durable, silent, 60 fps H.264 MP4s to the per-user plugin cache. Check `status:"converted"`, `fps:60`, frame count, and each input index/source path before proceeding. It never renders a full gallery. This is the same conversion used by the panel.
+3. For any selected Video Resource shorter than the requested output length, call `hold_video.py` with JSON stdin such as `{"videos":[{"path":"/absolute/project/short.mp4"}],"durationFrames":853}`. It extends only that source by cloning its final frame into a durable 60 fps Video Resource. Confirm its output fields as for the photos. Videos already long enough remain unchanged. In a **separate** mutating `run_script`, call `importConverted` with `{"operation":"importConverted","projectId":"CURRENT_PROJECT_ID","durationFrames":853,"converted":[{"sourceResourceId":"ORIGINAL_RESOURCE_ID","path":"/absolute/cache/output.mp4"}]}` in batches of at most three distinct converted photos or held videos. Each operation verifies and imports its batch, then returns `status:"prepared"` and a Video Resource ID for each original. Replace converted entries in the 21-slot input with those IDs, dimensions, durations and paths. Do not invoke Project import and Draft mutation in one script.
+4. Resolve BPM. With music and no manual BPM, run `tempo.py` against the selected audio path and accept only `status:"estimated"`; ask for manual BPM when the estimator is uncertain. Without music, manual BPM is required. Music must cover the requested output length, without implicit loop or silence padding.
+5. Create a new Draft by calling `create` with 21 Video Resource entries. Example input shape below; extend the media array to exactly 21 objects. Default duration is 853 frames at 60 fps. A 60 fps Project is required. Unprepared short videos are rejected before save; use the held Video Resource from step 3.
 
 ```json
-{
-  "operation": "create",
-  "projectId": "CURRENT_PROJECT_ID",
-  "name": "Photo Gallery",
-  "media": [{"resourceId":"R01","kind":"image","width":1080,"height":1920,"focusX":0.5,"focusY":0.5}],
-  "music": {"resourceId": "AUDIO_RESOURCE_ID", "durationFrames": 900, "startFrame": 0},
-  "estimatedBpm": 113,
-  "durationFrames": 853
-}
+{"operation":"create","projectId":"CURRENT_PROJECT_ID","name":"Photo Gallery","media":[{"resourceId":"VIDEO_RESOURCE_ID","kind":"video","width":1080,"height":1920,"durationFrames":853,"focusX":0.5,"focusY":0.5}],"music":null,"manualBpm":113,"durationFrames":853}
 ```
 
-Use `manualBpm` instead of `estimatedBpm` when the user supplies one. Use `music:null` with a valid `manualBpm` for a silent Draft. `create` always makes a new Draft. It does not alter an existing Draft merely because one is open.
+The default reveals are frames `0,12,23,36,45,52,62,73,81,90,100,113,122,133,143,151,161,172,182,192,205`; all tiles switch to color at frame 270. BPM changes only these event frames, while the requested final frame stays fixed. If the color cut would exceed the duration, ask for a compatible duration or BPM before saving.
 
-For a tile edit, first inspect that Draft and its bound `instanceId`; change only the tile named by `slotKey`. Example: `{"operation":"update","projectId":"P","draftId":"D","instanceId":"I","slotKey":"tile-07","resourceId":"R","focusX":0.7}`. Omit an unchanged focus axis so the existing value remains. A media swap must preserve the other 20 tiles, timing, unrelated clips, and the user's manual edits. The current operation only attempts focus edits and image-to-image replacement when source dimensions match; video swaps and differently sized image swaps stop before saving because native crop preservation cannot be verified. Report that limitation instead of rebuilding the Draft.
+6. After `saved`, call `verifyCreated` in a fresh read-only script with the same create input, `operation:"verifyCreated"`, and returned `draftId`. `verified` is a structural readback of 21 individual resource clips, timing, effect labels, transforms, and selected music. It does not prove visual rendering. Check actual Selects playback and native export separately, then compare grid boundaries, reveal frames, and color cut against `reference-oracle.json`.
 
-For music, BPM, or duration after creation, use `updateTiming` only on a verified instance with `existing.timingEditable:true`: `{"operation":"updateTiming","projectId":"P","draftId":"D","instanceId":"I","durationFrames":900,"manualBpm":113}`. Omitted `music` preserves it; `music:null` explicitly removes it; a music resource object explicitly replaces it. Omitted `durationFrames` preserves the saved duration. If the existing BPM/music cannot be read reliably, require an explicit BPM before changing timing. Do not change music or duration as a side effect of changing a tile.
+## Editing and uncertainty
 
-## Result and acceptance
+The clean public SDK currently cannot safely automate replacing a Video Resource inside an existing Draft while preserving crop, effect data, and unrelated manual edits. It also cannot read back enough effect parameters to prove that preservation. The user can edit the 21 independent clips directly in the Selects timeline. **Do not tell a chat user that this plugin can safely perform a one-slot replacement after creation.** Do not rebuild the Draft as an undisclosed substitute. Existing-Draft `update` and `updateTiming` requests are unsupported and rejected before mutation.
 
-- `notSaved` means correct the reported input/capability problem and then retry. `outcomeUnknown`, a transport error after commit, or a missing result means **inspect the project and target Draft before any retry**; a duplicate click may create another Draft or apply an edit twice.
-- `saved` confirms a commit ID or Draft ID only. In a fresh, read-only call, inspect the saved Draft and compare its 21 slot bindings, 1080×1920/60fps timing, reveal and color frames, music range, and all unaffected user edits. A mismatch is a failure even if the button said “saved.”
-- Exercise real Selects playback and native Handoff → Export. Inspect the exported file and compare its grid/timing/color behavior against the independently measured reference oracle. Source photos, videos, text, and decorative shapes are content inputs, not pixels to match.
-- Distinguish **first-pass success** from a repaired run. Do not describe a later correction as a one-shot plugin creation.
+`notSaved` means the input/capability check failed before the Draft commit. `outcomeUnknown`, a transport error after import or commit, or a missing result requires Project/Draft inspection before retry; blindly repeating may import duplicates or create another Draft. A successful repair is not a first-pass success. Report creation, structural readback, playback, and export as separate states.
