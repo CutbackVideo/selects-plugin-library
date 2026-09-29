@@ -23,7 +23,6 @@
     "assets/fonts/licenses/robotoserif-OFL.txt",
     "assets/fonts/tec-credits-sans.woff2.b64",
     "assets/fonts/tec-title-serif.woff2.b64",
-    "assets/opening.tsx",
     "assets/shot-frame.tsx",
     "beat-detect.cjs",
     "panel.tsx",

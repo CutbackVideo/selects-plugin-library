@@ -44,6 +44,10 @@ in either install folder:
 - `preview-N.mp3` and `preview-N.b64`: the section preview. The mp3 is
   deleted once it is converted to text, and the text copy is replaced by the
   next preview.
+- `peaks-<id>.u8` and `peaks-<id>.b64`: the waveform of a bundled track
+  (`<id>` is the track's id; under 100 KB). The `.u8` is deleted once it
+  is converted to text, and the `.b64` as soon as the panel has read it (or
+  failed to).
 
 ## Verify
 
@@ -52,14 +56,15 @@ in either install folder:
    `scripts/assemble.js`, `assets/cues/manifest.json` and
    `assets/fonts/tec-title-serif.woff2.b64`.
 2. Open a Project with analysed video clips and open the panel. The top line
-   reads "Ready: N clips · about N s" ("Ready: N clips · N photos · about N s"
-   when the Project has photos), and the Track list shows the five bundled
-   tracks.
+   reads "Ready: N clips · N shots · about N s" ("Ready: N clips · N photos ·
+   N shots · about N s" when the Project has photos), and the Track list shows
+   the five bundled tracks.
 3. With at least 4 usable clips or photos (5 in Full frame), press **Build**.
    A new 1920x1080 Draft opens with the typed title, the rolling credits, the
    clips and the music.
 4. Optional: if ffmpeg and Node.js are installed, **Your own music** appears
-   in the Track list and **Preview this section** plays the chosen section.
+   in the Track list and the play button (**Preview the music of the whole
+   video**) plays the chosen section.
 
 ## Uninstall
 

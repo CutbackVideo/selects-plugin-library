@@ -168,9 +168,6 @@ assert.ok(src.includes('measureText'), 'measures real glyph advances');
 const imports = src.split('\n').filter((l) => /^\s*import\b/.test(l));
 for (const l of imports) assert.match(l, /from "(react|remotion)";$/, 'only react/remotion imports: ' + l);
 assert.ok(!/\bimport\b|=>\s*<|<\/|:\s*(number|string|any)\b/.test(block), 'pure block is plain JS');
-const opening = fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'opening.tsx'), 'utf8');
-assert.ok(opening.includes('AbsoluteFill') && opening.includes('#000000'), 'black opening');
-for (const l of opening.split('\n').filter((x) => /^\s*import\b/.test(x))) assert.match(l, /from "(react|remotion)";$/);
 // Fit speed: the last role's top reaches 7 % of H on the last frame; clamped to 0.6-1.6x 67 px/s; no rows = 67.
 near(G.tecFitSpeed(1906, 980, 153, 29.97, 1080), (1906 - 75.6) / (827 / 29.97), 1e-9, 'fit speed, 10 rows');
 near(G.tecFitSpeed(1906 * 2, 980, 153, 29.97, 2160), (1906 - 75.6) / (827 / 29.97), 1e-9, 'fit speed is in 1080p units');

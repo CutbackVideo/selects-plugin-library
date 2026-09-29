@@ -4,7 +4,7 @@ const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date };
 vm.createContext(box);
-vm.runInContext(source + ';globalThis.P={tecPhrase,tecVideoSeconds,tecTimeline,tecSection,tecFitLength,tecTyping,tecTypedCount,tecProgress,TEC_BUILD_STEPS,TEC_LENGTHS,TEC_DEFAULT_LENGTH,TEC_LEAD_IN,TEC_TAIL,TEC_SEARCH_QUERIES,TEC_SEARCH_ROLES};', box);
+vm.runInContext(source + ';globalThis.P={tecPhrase,tecLoudest,tecVideoSeconds,tecTimeline,tecSection,tecFitLength,tecTyping,tecTypedCount,tecProgress,TEC_BUILD_STEPS,TEC_LENGTHS,TEC_DEFAULT_LENGTH,TEC_LEAD_IN,TEC_TAIL,TEC_SEARCH_QUERIES,TEC_SEARCH_ROLES};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, (msg || '') + ' expected ' + b + ' got ' + a);
@@ -129,6 +129,48 @@ t('section: s = firstBeat + j*P - L, bounds and default (R3)', () => {
   // Exactly fitting track: one feasible start.
   const tight = j(P.tecSection({ ...base, firstBeat: 0, usableEnd: 2 * p - L + need }));
   assert.equal(tight.jMin, tight.jMax); assert.equal(tight.j, 2);
+});
+
+t('section: the default reveal lands on every bundled cue\'s swell (R3)', () => {
+  // The manifest keeps the swell to the ms, so a swell on the grid may sit a fraction of a ms after its downbeat;
+  // the default j must still be that downbeat's (piano-strings: 9.798 vs 2.056 + 2P = 9.79794, j = 2, not 3).
+  const cues = JSON.parse(fs.readFileSync(path.join(root, 'assets', 'cues', 'manifest.json'), 'utf8')).cues;
+  let onSwell = 0;
+  for (const cue of cues) {
+    const p = (cue.phraseBeats > 0 ? cue.phraseBeats : 4) * 60 / cue.bpm, fb = cue.firstBeat;
+    const swell = cue.swell ?? cue.swellFallback;
+    for (const key of Object.keys(P.TEC_LENGTHS)) {
+      const s = j(P.tecSection({ firstBeat: fb, P: p, L: 5.1, videoSeconds: P.tecVideoSeconds(P.TEC_LENGTHS[key], p), usableEnd: cue.usableEnd, swell }));
+      if (!s) continue;
+      const k = Math.round((swell - fb) / p);
+      assert.ok(Math.abs(fb + k * p - swell) <= 0.002, cue.id + ' swell is on the grid');
+      assert.equal(s.j, s.defaultJ);
+      if (k >= s.jMin && k <= s.jMax) {
+        assert.equal(s.defaultJ, k, cue.id + ' ' + key + ' default j');
+        near(s.start + 5.1, swell, 1e-3, cue.id + ' ' + key + ' reveal on the swell');
+        onSwell++;
+      } else assert.equal(s.defaultJ, k > s.jMax ? s.jMax : s.jMin, cue.id + ' ' + key + ' clamped');
+    }
+  }
+  assert.ok(onSwell >= cues.length, 'every cue reveals on its swell at some Length');
+});
+
+t('own music: the loudest part', () => {
+  // Steady beat: the m-beat phrase with the highest mean beat energy, from firstBeat; ties keep the earliest.
+  const e = [1, 1, 1, 1, 2, 2, 2, 2, 5, 5, 5, 5, 1, 1];
+  near(P.tecLoudest({ firstBeat: 0.4, beatEnergy: e }, 3.6, 4, false), 0.4 + 2 * 3.6, 1e-12);
+  near(P.tecLoudest({ firstBeat: 0.4, beatEnergy: [3, 3, 3, 3, 3, 3, 3, 3] }, 3.6, 4, false), 0.4, 1e-12);
+  // Only whole phrases count: the last partial phrase (5, 9) is ignored.
+  near(P.tecLoudest({ firstBeat: 0, beatEnergy: [1, 1, 2, 2, 9] }, 2, 2, false), 2, 1e-12);
+  // Fixed timing (or too few beats): the P-long window of the waveform peaks with the highest mean.
+  const peaks = Array.from({ length: 100 }, (_, i) => (i >= 40 && i < 50 ? 1 : 0.1));
+  near(P.tecLoudest({ peaks, durationSeconds: 100, beatEnergy: e }, 10, null, true), 40, 1e-9);
+  near(P.tecLoudest({ peaks, durationSeconds: 100, beatEnergy: [1] }, 10, 4, false), 40, 1e-9);
+  near(P.tecLoudest({ peaks: [0.5, 0.5, 0.5, 0.5], durationSeconds: 8 }, 4, null, true), 0, 1e-9);
+  // Nothing to measure: null (the section then defaults to its start).
+  assert.equal(P.tecLoudest({ peaks: [], durationSeconds: 30 }, 3.9, null, true), null);
+  assert.equal(P.tecLoudest({ peaks: [1, 2], durationSeconds: null }, 3.9, null, true), null);
+  assert.equal(P.tecLoudest(null, 3.9, null, true), null);
 });
 
 t('section: fixed timing is continuous in 0.1 s steps', () => {

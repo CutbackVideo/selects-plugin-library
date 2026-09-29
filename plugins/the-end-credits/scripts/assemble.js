@@ -105,9 +105,12 @@ if (cfg.music) {
 }
 const placed = await shots();
 const clips = placed.map(c => ({ rid: c.resourceId, startFrame: c.startFrame, endFrame: c.endFrame }));
-const want = frames.slice(first + 1);
-if (clips.length !== want.length || clips.some((c, i) => c.endFrame !== want[i]) || clips[0].startFrame !== frames[first])
-  notes.push('the cuts are off the planned frames');
+// The returned frames are the laid Main clips' own (Classic: [0, first shot start, each shot end]; Full frame:
+// [0, each shot end]), so the credits reveal and end follow the Draft even when an insert rounded a frame off the
+// plan. plannedFrames is the phrase grid the shots were aimed at.
+const plannedFrames = frames;
+const actual = clips.length ? (classic ? [0, clips[0].startFrame] : [0]).concat(clips.map(c => c.endFrame)) : plannedFrames;
+if (actual.length !== plannedFrames.length || actual.some((f, i) => f !== plannedFrames[i])) notes.push('the cuts are off the planned frames');
 const commit = await d.commitAll('THE END Credits: assemble');
 if (!commit.createdDraftId) notes.push('the new Draft id was not reported');
-return { sequenceId: commit.createdDraftId || null, fps, frames, clips, covered, soundClips, notes };
+return { sequenceId: commit.createdDraftId || null, fps, frames: actual, plannedFrames, clips, covered, soundClips, notes };

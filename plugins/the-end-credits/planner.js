@@ -3,7 +3,7 @@
 // tests load it in node:vm. Spec v1.1 (R1-R7) is normative. Times are seconds on the music clock; assemble converts
 // them to frames once at the real Draft fps.
 //
-// Timeline: [0, L) lead-in (Classic: the black "Opening" generator; Full frame: shot 0 under the typed title), then
+// Timeline: [0, L) lead-in (Classic: an empty gap on Main, black under the typed title; Full frame: shot 0 under it), then
 // N shots of one phrase P each, the last one extended by the tail T. Total L + N*P + T.
 const TEC_LEAD_IN = 5.1;
 const TEC_TAIL = 0.5;
@@ -72,7 +72,7 @@ function tecShotRole(layout, k, N) {
 
 // { layout: 'classic' | 'full', N, P } -> { layout, L, T, P, N, total, boundaries, slots }.
 // boundaries are seconds from the video start: [0, L, L+P, ..., L+(N-1)P, L+N*P+T] (N + 2 entries).
-// slots[0] is [0, L): Classic 'opening' (the generator; no footage), Full frame shot 0 (role 'opening-wide').
+// slots[0] is [0, L): Classic 'opening' (the lead-in gap; no footage), Full frame shot 0 (role 'opening-wide').
 // slots[1..N] are the grid shots; the last one includes the tail.
 function tecTimeline(opts) {
   const layout = opts.layout === 'full' ? 'full' : 'classic', N = opts.N, P = opts.P;
@@ -93,7 +93,8 @@ function tecTimeline(opts) {
 // Music section (spec R3). The section start s puts a phrase downbeat exactly at L: s = firstBeat + j*P - L, with
 // s >= 0 and s + videoSeconds <= usableEnd. opts: { firstBeat, P, L?, videoSeconds, usableEnd, swell?, value?, fixed? }.
 // swell: the bundled cue's swell (or the own music's loudest part); the default j is the smallest j whose downbeat
-// is at or after it, clamped into the feasible range. value: a slider position (a section start in seconds) snapped
+// is at or after it (within 1e-3 phrase: the manifest keeps the swell to the ms, so a swell on the grid can sit a
+// fraction of a ms after its downbeat), clamped into the feasible range. value: a slider position (a section start in seconds) snapped
 // to the nearest feasible j. Fixed timing (no steady beat): s is continuous in 0.1 s steps, default swell - L.
 // Returns { start, j, jMin, jMax, min, max, defaultStart, defaultJ, fixed } or null when no start fits.
 function tecSection(opts) {
@@ -114,7 +115,7 @@ function tecSection(opts) {
   const jMax = Math.floor((end - need - fb + L) / P + 1e-9);
   if (jMax < jMin) return null;
   const clampJ = j => Math.max(jMin, Math.min(jMax, j));
-  const defaultJ = clampJ(finite(opts.swell) ? Math.ceil((opts.swell - fb) / P - 1e-9) : jMin);
+  const defaultJ = clampJ(finite(opts.swell) ? Math.ceil((opts.swell - fb) / P - 1e-3) : jMin);
   const j = finite(opts.value) ? clampJ(Math.round((opts.value - fb + L) / P)) : defaultJ;
   return { start: at(j), j, jMin, jMax, min: at(jMin), max: at(jMax), defaultStart: at(defaultJ), defaultJ, fixed: false };
 }
@@ -138,6 +139,33 @@ function tecFitLength(opts) {
     earliest = fb + Math.ceil((TEC_LEAD_IN - fb) / opts.P - 1e-9) * opts.P - TEC_LEAD_IN;
   }
   return { key: null, N: null, needSeconds: Math.ceil((earliest + shortSeconds + TEC_MUSIC_END_MARGIN) * 10 - 1e-6) / 10 };
+}
+
+// The loudest phrase of own music (the default reveal lands on it), in seconds, or null. grid: the beat-detect.cjs
+// result { firstBeat, beatEnergy, peaks, durationSeconds }. With a steady beat (m beats per phrase): the phrase of m
+// detector beats with the highest mean beat energy, from firstBeat. Without one (fixed): the P-long window of the
+// waveform peaks with the highest mean. Ties keep the earliest.
+function tecLoudest(grid, P, m, fixed) {
+  const g = grid || {};
+  if (!fixed && m && Array.isArray(g.beatEnergy) && g.beatEnergy.length >= m) {
+    let best = -1, bestJ = 0;
+    for (let j = 0; (j + 1) * m <= g.beatEnergy.length; j++) {
+      const slice = g.beatEnergy.slice(j * m, (j + 1) * m);
+      const mean = slice.reduce((a, b) => a + b, 0) / m;
+      if (mean > best + 1e-9) { best = mean; bestJ = j; }
+    }
+    return g.firstBeat + bestJ * P;
+  }
+  const peaks = g.peaks || [], dur = g.durationSeconds;
+  if (!peaks.length || !(dur > 0)) return null;
+  const bucket = dur / peaks.length, span = Math.max(1, Math.round(P / bucket));
+  let best = -1, at = 0;
+  for (let i = 0; i + span <= peaks.length; i++) {
+    let sum = 0;
+    for (let k = i; k < i + span; k++) sum += peaks[k] || 0;
+    if (sum > best + 1e-9) { best = sum; at = i; }
+  }
+  return at * bucket;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -261,7 +289,7 @@ function tecAllocate(opts) {
   return { picks, filled: picks.filter(Boolean).length, missing, fillerShots, photoShots, photoRunRelaxed };
 }
 
-// Footage slots of a timeline for tecAllocate: Classic skips the opening generator slot. The first and last
+// Footage slots of a timeline for tecAllocate: Classic skips the opening (lead-in gap) slot. The first and last
 // footage slots prefer video.
 function tecFootageSlots(timeline) {
   const shots = timeline.slots.filter(s => s.kind === 'shot');
