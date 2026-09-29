@@ -13,9 +13,13 @@ for (const c of m.cues) {
   assert.ok(c.firstBeat >= 0 && c.firstBeat < 0.05, c.id + ' firstBeat');
   assert.ok(Math.abs(c.lufs + 14) <= 1, c.id + ' lufs ' + c.lufs);
   // The longest video (12 montage shots) must fit from the start of the cue.
-  assert.ok(c.firstBeat + (9 + 24) * 60 / c.bpm <= c.usableEnd, c.id + ' fits long');
+  assert.ok(c.firstBeat + (8 + 24) * 60 / c.bpm <= c.usableEnd, c.id + ' fits long');
+  // The 16th-onset ratio measured by beat-detect.cjs decides the title burst.
+  assert.ok(typeof c.sixteenthRatio === 'number' && c.sixteenthRatio >= 0 && c.sixteenthRatio < 2, c.id + ' sixteenthRatio');
   assert.equal(c.peaks.length, 400);
   assert.ok(c.beatEnergy.length > 40);
   assert.ok(c.duration >= c.usableEnd);
 }
+// Measured on the bundled cues: only Sunny Soul Strut has a clear enough 16th pulse for the 16th burst.
+assert.deepEqual(m.cues.map(c => c.sixteenthRatio >= 0.35), [true, false, false, false]);
 console.log(JSON.stringify({ cues: 'ok' }));

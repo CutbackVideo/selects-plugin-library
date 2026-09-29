@@ -52,7 +52,7 @@ assert.ok(panel.includes('const candKey = projectId + "|" + JSON.stringify(only)
 assert.ok(panel.indexOf('React.useMemo(') < panel.indexOf('if (!projectId) return <ui'), 'the fitted-count hook stays before the early return');
 // Photos: a Use photos toggle, photos in the clip list and the readiness line, photo-only builds, photo effects gated.
 for (const phrase of ['label="Use photos"', 'photos selected', '" photos"', '"Photo"', 'photoCandsOf(inventory, onlyPhotos, usePhotos)', 'of them photos', 'known: photoSizesRef.current',
-  'cwvPhotoMotions(plan.picks, String(usedSeed), sizes)', 'photoEffects: PHOTO_EFFECTS', 'const PHOTO_EFFECTS = false;', 'usedPhotoCount >= CWV_MIN_WINDOWS', 'disabled={busy || !canBuild}', 'choosePhotos(allPhotoRids)']) assert.ok(panel.includes(phrase), phrase);
+  'cwvPhotoMotions(plan.picks, String(usedSeed), sizes, sched.titleSlots)', 'photoEffects: PHOTO_EFFECTS', 'const PHOTO_EFFECTS = false;', 'usedPhotoCount >= minShots', 'disabled={busy || !canBuild}', 'choosePhotos(allPhotoRids)']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(/const \[usePhotos, setUsePhotos\] = React\.useState\(true\)/.test(panel), 'Use photos is on by default');
 for (const m of ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift']) assert.ok(panel.includes('value: "' + m + '"'), 'motion option ' + m);
 const chooseP = panel.slice(panel.indexOf('const choosePhotos ='), panel.indexOf('const togglePhoto ='));
@@ -70,4 +70,15 @@ assert.ok(panel.includes('const AMBIENT_DB = -18;') && panel.includes('clipSound
 assert.ok(panel.includes('const silent = cueId === "none" && !ownMusic && clipSound === "off";'), 'Silent video only for No music + Off');
 assert.ok(panel.includes('mute: clipSound === "off"') && panel.includes('clipSound === "off", check)'), 'Off mutes');
 assert.ok(panel.indexOf('const [clipSound') < panel.indexOf('if (!projectId) return <ui'), 'clip sound hook stays before the early return');
+// Title burst per cue: the grid's 16th-onset ratio picks 'sixteenth' or 'eighth'; plans, schedules and the shot minimum follow it.
+assert.ok(panel.includes('const burst = grid.accepted ? cwvBurstFor(grid.sixteenthRatio) : "eighth";'), 'burst from the cue');
+assert.ok(panel.includes('sixteenthRatio: cue.sixteenthRatio') && panel.includes('sixteenthRatio: ownGrid.sixteenthRatio'), 'bundled and own music ratios');
+const ui = panel.slice(panel.indexOf('// cwv-planner:end'));
+assert.equal((ui.match(/cwvPlanBuild\(/g) || []).length, 3);
+assert.equal((ui.match(/cwvPlanBuild\([^;]*burst \}\)/g) || []).length, 3, 'every plan uses the burst');
+assert.equal((ui.match(/cwvSchedule\(/g) || []).length, 2);
+assert.equal((ui.match(/cwvSchedule\(\{[^}]*burst/g) || []).length, 2, 'every schedule uses the burst');
+assert.ok(panel.includes('const minShots = cwvMinWindows(burst);') && !ui.includes('CWV_MIN_WINDOWS'), 'the shot minimum follows the burst');
+assert.ok(panel.includes('const beatsAt = [0, ...plan.schedule.slots.map((s: any) => s.endBeat)];'), 'boundaries come from the schedule');
+assert.ok(!/i < 13/.test(panel), 'no fixed title slot count');
 console.log(JSON.stringify({ panel: 'ok' }));

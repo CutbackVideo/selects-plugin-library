@@ -39,16 +39,30 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 
 // cwv-planner:start
 // City Weekend Vlog planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
-const CWV_TITLE_BEATS = [1.75, 1.5, 1.0, 0.25, 0.25, 0.25, 0.25, 0.5, 0.5, 0.5, 0.5, 0.5, 1.25];
-const CWV_TITLE_ROLES = ['street', 'architecture', 'street', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'wide'];
-// Font state of the switching line from each title slot on; null before the place line exists.
-const CWV_FONT_STATES = [null, null, 'A', 'B', 'C', 'D', 'A', 'B', 'C', 'D', 'A', 'A', 'A'];
+// Title: 8 beats (two bars), cut on 8th notes. Opening 1.5 + 1.5 + 1 beats (line 1, connector, place), then a fast
+// run of landmark shots and a 1-beat wide hold. The run starts with a burst whose grain depends on the music:
+// 'sixteenth' (four 0.25-beat shots) when the cue has a clear 16th-note pulse, 'eighth' (two 0.5-beat shots) otherwise,
+// then four 0.5-beat shots. Both variants last 8 beats, so the montage always starts on a downbeat.
+const CWV_TITLE_BEATS = [1.5, 1.5, 1, 0.25, 0.25, 0.25, 0.25, 0.5, 0.5, 0.5, 0.5, 1];
+const CWV_TITLE_ROLES = ['street', 'architecture', 'street', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'wide'];
+// Font state of the switching line from each title slot on; null before the place line exists. One A->B->C->D cycle
+// over the burst, one over the 8th run, and the hold stays on A.
+const CWV_FONT_STATES = [null, null, 'A', 'B', 'C', 'D', 'A', 'B', 'C', 'D', 'A', 'A'];
+// The 'eighth' variant: the burst is two 0.5-beat shots (10 title slots). Its two shots switch to B and C; the 8th
+// run keeps its B->C->D->A cycle, so the hold is on A in both variants.
+const CWV_TITLE_BEATS_EIGHTH = [1.5, 1.5, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1];
+const CWV_TITLE_ROLES_EIGHTH = ['street', 'architecture', 'street', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'wide'];
+const CWV_FONT_STATES_EIGHTH = [null, null, 'A', 'B', 'C', 'B', 'C', 'D', 'A', 'A'];
+// A cue supports the 16th burst when the median onset strength on its 16th offbeats (.25 and .75 of a beat) reaches
+// this share of the median on-beat strength (manifest `sixteenthRatio`, measured by beat-detect.cjs).
+const CWV_SIXTEENTH_MIN_RATIO = 0.35;
 const CWV_MONTAGE_ROLES = ['architecture', 'park', 'street', 'detail'];
 const CWV_MONTAGE_BEATS = 2;
-const CWV_TITLE_TOTAL_BEATS = 9;
+const CWV_TITLE_TOTAL_BEATS = 8;
 const CWV_LENGTHS = { short: 4, standard: 7, long: 12 };
 const CWV_MIN_MONTAGE = 4;
 const CWV_MAX_MONTAGE = 12;
+// Fewest shots a build needs with the 16th burst (12 title + 4 montage); the 8th burst needs cwvMinWindows('eighth').
 const CWV_MIN_WINDOWS = CWV_TITLE_BEATS.length + CWV_MIN_MONTAGE;
 const CWV_LINE1_OFFSET_BEATS = 0.25;
 const CWV_REFERENCE_BPM = 99.2;
@@ -66,31 +80,47 @@ const CWV_PHOTO_RUN_MAX = 2;
 function cwvVideoBeats(montageShots) { return CWV_TITLE_TOTAL_BEATS + CWV_MONTAGE_BEATS * montageShots; }
 function cwvVideoSeconds(bpm, montageShots) { return cwvVideoBeats(montageShots) * 60 / bpm; }
 
+// The burst for a cue's 16th-onset ratio; an unknown ratio (no reliable grid) gets the calmer 'eighth'.
+function cwvBurstFor(ratio) { return typeof ratio === 'number' && ratio >= CWV_SIXTEENTH_MIN_RATIO ? 'sixteenth' : 'eighth'; }
+function cwvTitle(burst) {
+  return burst === 'eighth' ? { beats: CWV_TITLE_BEATS_EIGHTH, roles: CWV_TITLE_ROLES_EIGHTH, fonts: CWV_FONT_STATES_EIGHTH }
+    : { beats: CWV_TITLE_BEATS, roles: CWV_TITLE_ROLES, fonts: CWV_FONT_STATES };
+}
+function cwvMinWindows(burst) { return cwvTitle(burst).beats.length + CWV_MIN_MONTAGE; }
+
+// opts: { bpm, fps, montageShots, burst?: 'sixteenth' | 'eighth' (default 'sixteenth') }.
+// Slots carry their beat span (startBeat, endBeat) and frames; `titleSlots` is the number of title slots.
 function cwvSchedule(opts) {
   const bpm = opts.bpm, fps = opts.fps, n = opts.montageShots;
   if (!(bpm > 0) || !(fps > 0) || !(n >= 0)) throw Error('cwvSchedule needs bpm, fps and montageShots');
+  const burst = opts.burst === 'eighth' ? 'eighth' : 'sixteenth';
+  const title = cwvTitle(burst), T = title.beats.length;
   // Every boundary is an absolute beat position snapped once to a frame; durations never accumulate rounding.
   const frameAt = beats => Math.round(beats * 60 / bpm * fps);
-  const beats = CWV_TITLE_BEATS.concat(Array(n).fill(CWV_MONTAGE_BEATS));
+  const beats = title.beats.concat(Array(n).fill(CWV_MONTAGE_BEATS));
   const slots = [];
   let at = 0;
   beats.forEach((b, i) => {
-    const inTitle = i < CWV_TITLE_BEATS.length;
+    const inTitle = i < T;
     slots.push({
       index: i,
-      role: inTitle ? CWV_TITLE_ROLES[i] : CWV_MONTAGE_ROLES[(i - CWV_TITLE_BEATS.length) % CWV_MONTAGE_ROLES.length],
-      section: inTitle ? (i < 3 ? 'opening' : i < 12 ? 'burst' : 'hold') : 'montage',
+      role: inTitle ? title.roles[i] : CWV_MONTAGE_ROLES[(i - T) % CWV_MONTAGE_ROLES.length],
+      section: inTitle ? (i < 3 ? 'opening' : i < T - 1 ? 'burst' : 'hold') : 'montage',
+      startBeat: at,
+      endBeat: at + b,
       startFrame: frameAt(at),
       endFrame: frameAt(at + b),
     });
     at += b;
   });
   const fontSwitches = [];
-  CWV_FONT_STATES.forEach((state, i) => {
+  title.fonts.forEach((state, i) => {
     const last = fontSwitches.length ? fontSwitches[fontSwitches.length - 1].state : null;
     if (state && state !== last) fontSwitches.push({ frame: slots[i].startFrame, state });
   });
   return {
+    burst,
+    titleSlots: T,
     slots,
     totalFrames: slots[slots.length - 1].endFrame,
     title: {
@@ -98,7 +128,7 @@ function cwvSchedule(opts) {
       connectorFrame: slots[1].startFrame,
       placeFrame: slots[2].startFrame,
       fontSwitches,
-      endFrame: slots[CWV_TITLE_BEATS.length - 1].endFrame,
+      endFrame: slots[T - 1].endFrame,
     },
   };
 }
@@ -242,39 +272,43 @@ function cwvAllocate(opts) {
 }
 
 // Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
+// opts.burst picks the title variant (see cwvSchedule).
 // Filler candidates are added to every attempt.
 // Photo candidates ({ rid, kind: 'photo' }) join every attempt, so a Project with only photos builds too.
 function cwvPlanBuild(opts) {
   const top = Math.min(CWV_MAX_MONTAGE, Math.max(CWV_MIN_MONTAGE, opts.montageShots));
   const candidates = opts.candidates.concat(cwvFillers(opts.candidates));
+  const burst = opts.burst === 'eighth' ? 'eighth' : 'sixteenth', needed = cwvMinWindows(burst);
   let best = { filled: 0, photoShots: 0 };
   for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
-    const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n });
+    const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n, burst });
     const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, section: s.section, seconds: (s.endFrame - s.startFrame) / opts.fps }));
     const alloc = cwvAllocate({ candidates, slots, seed: opts.seed });
     if (alloc.missing === 0) {
-      const plan = { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
+      const plan = { ok: true, schedule, burst, titleSlots: schedule.titleSlots, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
       if (alloc.photoRunRelaxed) plan.photoRunRelaxed = true;
       return plan;
     }
-    // The shortest attempt fills fewer than CWV_MIN_WINDOWS slots, so usableShots < needed.
+    // The shortest attempt fills fewer than `needed` slots, so usableShots < needed.
     if (n === CWV_MIN_MONTAGE) best = alloc;
   }
-  return { ok: false, usableShots: best.filled, needed: CWV_MIN_WINDOWS, photoShots: best.photoShots };
+  return { ok: false, burst, usableShots: best.filled, needed, photoShots: best.photoShots };
 }
 
-// Photo motions for montage photos, in pick order. Title photos (slots before the montage) stay still (null).
+// Photo motions for montage photos, in pick order. Title photos (the first `titleSlots` slots, default the 16th-burst
+// title's 12) stay still (null).
 // Deterministic per seed; never the same motion twice in a row, never the same family (drift, tilt, ...) twice in a row;
 // drift, tilt and push-drift directions alternate. Drift follows the photo: vertical for portrait, horizontal otherwise.
 // Each entry is { motion, direction: 1 | -1, axis: 'x' | 'y' } for assets/photo-motion.tsx.
 // `sizes` maps rid -> { width, height }; an unknown size counts as landscape.
 const CWV_PHOTO_MOTIONS = ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift'];
 const CWV_MOTION_FAMILIES = ['push-in', 'pull-out', 'drift', 'tilt', 'push-drift'];
-function cwvPhotoMotions(picks, seed, sizes) {
+function cwvPhotoMotions(picks, seed, sizes, titleSlots) {
+  const T = titleSlots == null ? CWV_TITLE_BEATS.length : titleSlots;
   const out = [];
   let lastFamily = null, driftSign = { x: 1, y: 1 }, tiltSign = 1, pushDriftSign = 1, k = 0;
   for (const pick of picks) {
-    if (!pick || pick.kind !== 'photo' || !(pick.slot >= CWV_TITLE_BEATS.length)) { out.push(null); continue; }
+    if (!pick || pick.kind !== 'photo' || !(pick.slot >= T)) { out.push(null); continue; }
     const size = sizes && sizes[pick.rid];
     const portrait = !!(size && size.height > size.width);
     const families = CWV_MOTION_FAMILIES.filter(f => f !== lastFamily)
@@ -752,10 +786,13 @@ export default function Panel({ sdk, context, ui }: any) {
 
   const cue = assets?.manifest.cues.find((c: any) => c.id === cueId) || null;
   const ownDuration = ownGrid && ownGrid.durationSeconds > 0 ? ownGrid.durationSeconds : null;
-  const grid = ownMusic ? (ownGrid && ownGrid.accepted ? { bpm: ownGrid.bpm, firstBeat: ownGrid.firstBeat, usableEnd: ownGrid.durationSeconds - 0.5, beatEnergy: ownGrid.beatEnergy, peaks: ownGrid.peaks, accepted: true }
-    : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: [], peaks: ownGrid?.peaks || [], accepted: false })
-    : cue ? { bpm: cue.bpm, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy, peaks: cue.peaks, accepted: true }
-    : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: 600, beatEnergy: [], peaks: [], accepted: false };
+  const grid = ownMusic ? (ownGrid && ownGrid.accepted ? { bpm: ownGrid.bpm, firstBeat: ownGrid.firstBeat, usableEnd: ownGrid.durationSeconds - 0.5, beatEnergy: ownGrid.beatEnergy, peaks: ownGrid.peaks, accepted: true, sixteenthRatio: ownGrid.sixteenthRatio }
+    : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: [], peaks: ownGrid?.peaks || [], accepted: false, sixteenthRatio: null })
+    : cue ? { bpm: cue.bpm, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy, peaks: cue.peaks, accepted: true, sixteenthRatio: cue.sixteenthRatio }
+    : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: 600, beatEnergy: [], peaks: [], accepted: false, sixteenthRatio: null };
+  // The title burst: 16th-note shots only when the music has a clear 16th pulse; fixed timing and No music use 8ths.
+  const burst = grid.accepted ? cwvBurstFor(grid.sixteenthRatio) : "eighth";
+  const minShots = cwvMinWindows(burst);
   const requested = CWV_LENGTHS[length];
   const videoSeconds = cwvVideoSeconds(grid.bpm, requested);
   const snap = (value: number) => cwvSnapSection({ value, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: grid.accepted });
@@ -896,7 +933,7 @@ export default function Panel({ sdk, context, ui }: any) {
       const fitted = cwvFitMontage({ bpm: grid.bpm, sectionStart: start ?? 0, usableEnd: grid.usableEnd, requested });
       if (!fitted) throw new Error("This music section is too short for the video. Move the section earlier or pick a shorter length.");
       // Plan at 30 fps for allocation; assembly re-snaps every boundary at the Draft's real rate.
-      const plan = cwvPlanBuild({ candidates: found.list.concat(photoCands), bpm: grid.bpm, fps: 30, montageShots: fitted, seed: String(nextSeed) });
+      const plan = cwvPlanBuild({ candidates: found.list.concat(photoCands), bpm: grid.bpm, fps: 30, montageShots: fitted, seed: String(nextSeed), burst });
       if (!plan.ok) {
         const retry = found.failed.length ? " Could not check " + found.failed.length + " clips; press Build to retry them." : "";
         const fromPhotos = photoCands.length ? " (" + plan.photoShots + " of them photos)" : "";
@@ -908,7 +945,7 @@ export default function Panel({ sdk, context, ui }: any) {
         : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file }), true);
       check();
       const beat = 60 / grid.bpm;
-      const beatsAt = [0]; plan.schedule.slots.forEach((_s: any, i: number) => beatsAt.push(beatsAt[i] + (i < 13 ? CWV_TITLE_BEATS[i] : 2)));
+      const beatsAt = [0, ...plan.schedule.slots.map((s: any) => s.endBeat)];
       advance("music", 1);
       advance("draft", 0);
       // Photo sizes the inventory has not measured yet stay out; assemble.js measures those itself.
@@ -920,10 +957,10 @@ export default function Panel({ sdk, context, ui }: any) {
         music: music ? { resourceId: music.resourceId, sectionStart: start ?? 0 } : null, clipSound, ambientDb: AMBIENT_DB }), true);
       check();
       if (!a.sequenceId) throw new Error("The Draft \"" + name + "\" was saved, but Selects did not report its id, so the title and look could not be added. Open it from the Drafts list, or build again.");
-      const sched = cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: plan.montageShots });
+      const sched = cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: plan.montageShots, burst });
       // The planner drops montage shots when the footage cannot fill them; tell the user the real length at the Draft fps.
       const shortened = plan.montageShots < fitted ? { shots: plan.montageShots, seconds: sched.totalFrames / a.fps,
-        fullSeconds: cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: fitted }).totalFrames / a.fps } : null;
+        fullSeconds: cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: fitted, burst }).totalFrames / a.fps } : null;
       advance("draft", 1);
       setResult({ sequenceId: a.sequenceId, decorated: false, sched, plan, seed: nextSeed, mute: clipSound === "off", notes: a.notes || [], link: null, shortened });
       await decorate(a.sequenceId, sched, plan, nextSeed, clipSound === "off", check);
@@ -979,7 +1016,7 @@ export default function Panel({ sdk, context, ui }: any) {
       // Photos in this Draft and a planned motion for each montage photo (title photos stay still).
       const photoRids = [...new Set(plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
       const sizes: Record<string, { width: number; height: number }> = { ...photoSizesRef.current };
-      const moves = cwvPhotoMotions(plan.picks, String(usedSeed), sizes);
+      const moves = cwvPhotoMotions(plan.picks, String(usedSeed), sizes, sched.titleSlots);
       const byRid: Record<string, any> = {};
       plan.picks.forEach((k: any, i: number) => {
         if (!moves[i]) return;
@@ -1039,20 +1076,20 @@ export default function Panel({ sdk, context, ui }: any) {
   };
   const togglePhoto = (rid: string, on: boolean) => choosePhotos(on ? [...selectedPhotoRids, rid] : selectedPhotoRids.filter((x) => x !== rid));
   const usedPhotoCount = usePhotos ? selectedPhotoRids.length : 0;
-  // Photos only: 17 shots are needed before a build can succeed.
-  const canBuild = !!inventory && (selectedRids.length > 0 || usedPhotoCount >= CWV_MIN_WINDOWS);
+  // Photos only: every shot is a photo, so a build needs as many photos as the title and the shortest montage have slots.
+  const canBuild = !!inventory && (selectedRids.length > 0 || usedPhotoCount >= minShots);
   // Once a build has searched the current selection, the footage's montage capacity is known: plan it for the readiness line.
   const candKey = projectId + "|" + JSON.stringify(only);
   const fitsShots = React.useMemo(() => {
     if (!candidates || candidates.key !== candKey || !(grid.bpm > 0)) {
       // With no video selected there is nothing to search: the photos alone decide the fit.
       if (!inventory || selectedRids.length || !(grid.bpm > 0)) return null;
-      const p = cwvPlanBuild({ candidates: photoCandsOf(inventory, onlyPhotos, usePhotos), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed) });
+      const p = cwvPlanBuild({ candidates: photoCandsOf(inventory, onlyPhotos, usePhotos), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed), burst });
       return p.ok ? p.montageShots : null;
     }
-    const p = cwvPlanBuild({ candidates: candidates.list.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed) });
+    const p = cwvPlanBuild({ candidates: candidates.list.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, fps: 30, montageShots: requested, seed: String(seed), burst });
     return p.ok ? p.montageShots : null;
-  }, [candidates, candKey, grid.bpm, requested, seed, inventory, onlyPhotos, usePhotos]);
+  }, [candidates, candKey, grid.bpm, requested, seed, inventory, onlyPhotos, usePhotos, burst]);
   const pending = inventory?.skipped?.unanalysed || 0;
   const clipCount = [
     allRids.length ? (only ? selectedRids.length + " of " + allRids.length + " clips selected" : allRids.length + " clips") : "",
@@ -1064,7 +1101,7 @@ export default function Panel({ sdk, context, ui }: any) {
       : "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.")
     : inventory.resources.length === 0 && !usePhotos ? (pending > 0 ? pending + " clips are still being analysed. " : "") + "Turn on Use photos in Advanced to build from this Project's photos."
     : selectedRids.length === 0 && usedPhotoCount === 0 ? "No clips selected. Choose clips in Advanced."
-    : !canBuild ? "Only " + usedPhotoCount + " photos and no analysed video: this style needs at least " + CWV_MIN_WINDOWS + " shots. Add photos or video clips."
+    : !canBuild ? "Only " + usedPhotoCount + " photos and no analysed video: this style needs at least " + minShots + " shots. Add photos or video clips."
       + (pending > 0 ? " " + pending + " clips are still being analysed." : "")
     : "Ready: " + clipCount + (fitsShots != null && fitsShots < requested
       ? " · footage fits " + fitsShots + " montage shots · about " + Math.round(cwvVideoSeconds(grid.bpm, fitsShots)) + " s"

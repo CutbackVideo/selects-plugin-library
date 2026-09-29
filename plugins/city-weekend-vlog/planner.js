@@ -1,14 +1,28 @@
 // City Weekend Vlog planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
-const CWV_TITLE_BEATS = [1.75, 1.5, 1.0, 0.25, 0.25, 0.25, 0.25, 0.5, 0.5, 0.5, 0.5, 0.5, 1.25];
-const CWV_TITLE_ROLES = ['street', 'architecture', 'street', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'wide'];
-// Font state of the switching line from each title slot on; null before the place line exists.
-const CWV_FONT_STATES = [null, null, 'A', 'B', 'C', 'D', 'A', 'B', 'C', 'D', 'A', 'A', 'A'];
+// Title: 8 beats (two bars), cut on 8th notes. Opening 1.5 + 1.5 + 1 beats (line 1, connector, place), then a fast
+// run of landmark shots and a 1-beat wide hold. The run starts with a burst whose grain depends on the music:
+// 'sixteenth' (four 0.25-beat shots) when the cue has a clear 16th-note pulse, 'eighth' (two 0.5-beat shots) otherwise,
+// then four 0.5-beat shots. Both variants last 8 beats, so the montage always starts on a downbeat.
+const CWV_TITLE_BEATS = [1.5, 1.5, 1, 0.25, 0.25, 0.25, 0.25, 0.5, 0.5, 0.5, 0.5, 1];
+const CWV_TITLE_ROLES = ['street', 'architecture', 'street', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'wide'];
+// Font state of the switching line from each title slot on; null before the place line exists. One A->B->C->D cycle
+// over the burst, one over the 8th run, and the hold stays on A.
+const CWV_FONT_STATES = [null, null, 'A', 'B', 'C', 'D', 'A', 'B', 'C', 'D', 'A', 'A'];
+// The 'eighth' variant: the burst is two 0.5-beat shots (10 title slots). Its two shots switch to B and C; the 8th
+// run keeps its B->C->D->A cycle, so the hold is on A in both variants.
+const CWV_TITLE_BEATS_EIGHTH = [1.5, 1.5, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1];
+const CWV_TITLE_ROLES_EIGHTH = ['street', 'architecture', 'street', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'landmark', 'wide'];
+const CWV_FONT_STATES_EIGHTH = [null, null, 'A', 'B', 'C', 'B', 'C', 'D', 'A', 'A'];
+// A cue supports the 16th burst when the median onset strength on its 16th offbeats (.25 and .75 of a beat) reaches
+// this share of the median on-beat strength (manifest `sixteenthRatio`, measured by beat-detect.cjs).
+const CWV_SIXTEENTH_MIN_RATIO = 0.35;
 const CWV_MONTAGE_ROLES = ['architecture', 'park', 'street', 'detail'];
 const CWV_MONTAGE_BEATS = 2;
-const CWV_TITLE_TOTAL_BEATS = 9;
+const CWV_TITLE_TOTAL_BEATS = 8;
 const CWV_LENGTHS = { short: 4, standard: 7, long: 12 };
 const CWV_MIN_MONTAGE = 4;
 const CWV_MAX_MONTAGE = 12;
+// Fewest shots a build needs with the 16th burst (12 title + 4 montage); the 8th burst needs cwvMinWindows('eighth').
 const CWV_MIN_WINDOWS = CWV_TITLE_BEATS.length + CWV_MIN_MONTAGE;
 const CWV_LINE1_OFFSET_BEATS = 0.25;
 const CWV_REFERENCE_BPM = 99.2;
@@ -26,31 +40,47 @@ const CWV_PHOTO_RUN_MAX = 2;
 function cwvVideoBeats(montageShots) { return CWV_TITLE_TOTAL_BEATS + CWV_MONTAGE_BEATS * montageShots; }
 function cwvVideoSeconds(bpm, montageShots) { return cwvVideoBeats(montageShots) * 60 / bpm; }
 
+// The burst for a cue's 16th-onset ratio; an unknown ratio (no reliable grid) gets the calmer 'eighth'.
+function cwvBurstFor(ratio) { return typeof ratio === 'number' && ratio >= CWV_SIXTEENTH_MIN_RATIO ? 'sixteenth' : 'eighth'; }
+function cwvTitle(burst) {
+  return burst === 'eighth' ? { beats: CWV_TITLE_BEATS_EIGHTH, roles: CWV_TITLE_ROLES_EIGHTH, fonts: CWV_FONT_STATES_EIGHTH }
+    : { beats: CWV_TITLE_BEATS, roles: CWV_TITLE_ROLES, fonts: CWV_FONT_STATES };
+}
+function cwvMinWindows(burst) { return cwvTitle(burst).beats.length + CWV_MIN_MONTAGE; }
+
+// opts: { bpm, fps, montageShots, burst?: 'sixteenth' | 'eighth' (default 'sixteenth') }.
+// Slots carry their beat span (startBeat, endBeat) and frames; `titleSlots` is the number of title slots.
 function cwvSchedule(opts) {
   const bpm = opts.bpm, fps = opts.fps, n = opts.montageShots;
   if (!(bpm > 0) || !(fps > 0) || !(n >= 0)) throw Error('cwvSchedule needs bpm, fps and montageShots');
+  const burst = opts.burst === 'eighth' ? 'eighth' : 'sixteenth';
+  const title = cwvTitle(burst), T = title.beats.length;
   // Every boundary is an absolute beat position snapped once to a frame; durations never accumulate rounding.
   const frameAt = beats => Math.round(beats * 60 / bpm * fps);
-  const beats = CWV_TITLE_BEATS.concat(Array(n).fill(CWV_MONTAGE_BEATS));
+  const beats = title.beats.concat(Array(n).fill(CWV_MONTAGE_BEATS));
   const slots = [];
   let at = 0;
   beats.forEach((b, i) => {
-    const inTitle = i < CWV_TITLE_BEATS.length;
+    const inTitle = i < T;
     slots.push({
       index: i,
-      role: inTitle ? CWV_TITLE_ROLES[i] : CWV_MONTAGE_ROLES[(i - CWV_TITLE_BEATS.length) % CWV_MONTAGE_ROLES.length],
-      section: inTitle ? (i < 3 ? 'opening' : i < 12 ? 'burst' : 'hold') : 'montage',
+      role: inTitle ? title.roles[i] : CWV_MONTAGE_ROLES[(i - T) % CWV_MONTAGE_ROLES.length],
+      section: inTitle ? (i < 3 ? 'opening' : i < T - 1 ? 'burst' : 'hold') : 'montage',
+      startBeat: at,
+      endBeat: at + b,
       startFrame: frameAt(at),
       endFrame: frameAt(at + b),
     });
     at += b;
   });
   const fontSwitches = [];
-  CWV_FONT_STATES.forEach((state, i) => {
+  title.fonts.forEach((state, i) => {
     const last = fontSwitches.length ? fontSwitches[fontSwitches.length - 1].state : null;
     if (state && state !== last) fontSwitches.push({ frame: slots[i].startFrame, state });
   });
   return {
+    burst,
+    titleSlots: T,
     slots,
     totalFrames: slots[slots.length - 1].endFrame,
     title: {
@@ -58,7 +88,7 @@ function cwvSchedule(opts) {
       connectorFrame: slots[1].startFrame,
       placeFrame: slots[2].startFrame,
       fontSwitches,
-      endFrame: slots[CWV_TITLE_BEATS.length - 1].endFrame,
+      endFrame: slots[T - 1].endFrame,
     },
   };
 }
@@ -202,39 +232,43 @@ function cwvAllocate(opts) {
 }
 
 // Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
+// opts.burst picks the title variant (see cwvSchedule).
 // Filler candidates are added to every attempt.
 // Photo candidates ({ rid, kind: 'photo' }) join every attempt, so a Project with only photos builds too.
 function cwvPlanBuild(opts) {
   const top = Math.min(CWV_MAX_MONTAGE, Math.max(CWV_MIN_MONTAGE, opts.montageShots));
   const candidates = opts.candidates.concat(cwvFillers(opts.candidates));
+  const burst = opts.burst === 'eighth' ? 'eighth' : 'sixteenth', needed = cwvMinWindows(burst);
   let best = { filled: 0, photoShots: 0 };
   for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
-    const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n });
+    const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n, burst });
     const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, section: s.section, seconds: (s.endFrame - s.startFrame) / opts.fps }));
     const alloc = cwvAllocate({ candidates, slots, seed: opts.seed });
     if (alloc.missing === 0) {
-      const plan = { ok: true, schedule, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed: CWV_MIN_WINDOWS, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
+      const plan = { ok: true, schedule, burst, titleSlots: schedule.titleSlots, picks: alloc.picks, montageShots: n, usableShots: alloc.picks.length, needed, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
       if (alloc.photoRunRelaxed) plan.photoRunRelaxed = true;
       return plan;
     }
-    // The shortest attempt fills fewer than CWV_MIN_WINDOWS slots, so usableShots < needed.
+    // The shortest attempt fills fewer than `needed` slots, so usableShots < needed.
     if (n === CWV_MIN_MONTAGE) best = alloc;
   }
-  return { ok: false, usableShots: best.filled, needed: CWV_MIN_WINDOWS, photoShots: best.photoShots };
+  return { ok: false, burst, usableShots: best.filled, needed, photoShots: best.photoShots };
 }
 
-// Photo motions for montage photos, in pick order. Title photos (slots before the montage) stay still (null).
+// Photo motions for montage photos, in pick order. Title photos (the first `titleSlots` slots, default the 16th-burst
+// title's 12) stay still (null).
 // Deterministic per seed; never the same motion twice in a row, never the same family (drift, tilt, ...) twice in a row;
 // drift, tilt and push-drift directions alternate. Drift follows the photo: vertical for portrait, horizontal otherwise.
 // Each entry is { motion, direction: 1 | -1, axis: 'x' | 'y' } for assets/photo-motion.tsx.
 // `sizes` maps rid -> { width, height }; an unknown size counts as landscape.
 const CWV_PHOTO_MOTIONS = ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift'];
 const CWV_MOTION_FAMILIES = ['push-in', 'pull-out', 'drift', 'tilt', 'push-drift'];
-function cwvPhotoMotions(picks, seed, sizes) {
+function cwvPhotoMotions(picks, seed, sizes, titleSlots) {
+  const T = titleSlots == null ? CWV_TITLE_BEATS.length : titleSlots;
   const out = [];
   let lastFamily = null, driftSign = { x: 1, y: 1 }, tiltSign = 1, pushDriftSign = 1, k = 0;
   for (const pick of picks) {
-    if (!pick || pick.kind !== 'photo' || !(pick.slot >= CWV_TITLE_BEATS.length)) { out.push(null); continue; }
+    if (!pick || pick.kind !== 'photo' || !(pick.slot >= T)) { out.push(null); continue; }
     const size = sizes && sizes[pick.rid];
     const portrait = !!(size && size.height > size.width);
     const families = CWV_MOTION_FAMILIES.filter(f => f !== lastFamily)

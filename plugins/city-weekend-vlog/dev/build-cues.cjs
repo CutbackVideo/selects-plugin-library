@@ -3,7 +3,7 @@
 // Usage: node dev/build-cues.cjs <folder-with-generated-mp3s>
 'use strict';
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), { execFileSync, spawnSync } = require('node:child_process');
-const { analyze } = require('../beat-detect.cjs');
+const { analyze, sixteenthRatio } = require('../beat-detect.cjs');
 const CUES = [
   { id: 'sunny-soul-strut', label: 'Sunny Soul Strut', source: 'nyvlog-sunny-soul-strut-99bpm.mp3', downbeatConfidence: 'high' },
   { id: 'golden-hour-disco', label: 'Golden Hour Disco', source: 'nyvlog-golden-hour-disco-104bpm.mp3', downbeatConfidence: 'low' },
@@ -19,15 +19,18 @@ for (const c of CUES) {
   const file = c.id + '.mp3', dst = path.join(out, file);
   execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-i', path.join(src, c.source), '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11', '-ar', '44100', '-ac', '2', '-b:a', '192k', '-map_metadata', '-1', dst]);
   const pcm = execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-i', dst, '-ac', '1', '-ar', '22050', '-f', 'f32le', '-'], { maxBuffer: 1 << 28 });
-  const a = analyze(new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4)), 22050);
+  const samples = new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
+  const a = analyze(samples, 22050);
+  const usableEnd = Math.round(Math.min(a.durationSeconds, a.lastOnsetSeconds + 0.5) * 100) / 100;
   const stderr = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', dst, '-af', 'ebur128', '-f', 'null', '-']).stderr.toString();
   // The last "I: x LUFS" occurrence is the integrated summary.
   const lufs = Number((stderr.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop().match(/-?[\d.]+/)[0]);
   cues.push({
     id: c.id, label: c.label, file, duration: a.durationSeconds,
-    bpm: a.bpm, firstBeat: a.firstBeat, usableEnd: Math.round(Math.min(a.durationSeconds, a.lastOnsetSeconds + 0.5) * 100) / 100,
+    bpm: a.bpm, firstBeat: a.firstBeat, usableEnd,
     lufs, sha256: crypto.createHash('sha256').update(fs.readFileSync(dst)).digest('hex'),
-    downbeatConfidence: c.downbeatConfidence, peaks: a.peaks, beatEnergy: a.beatEnergy,
+    // The 16th-onset ratio over the usable part of the cue decides the title burst (see planner.js).
+    downbeatConfidence: c.downbeatConfidence, sixteenthRatio: sixteenthRatio(samples, 22050, a.bpm, a.firstBeat, usableEnd), peaks: a.peaks, beatEnergy: a.beatEnergy,
   });
   console.log(c.id, a.bpm, a.firstBeat, lufs, a.residualMedianMs, a.hitRate);
 }

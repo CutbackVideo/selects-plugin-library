@@ -4,34 +4,74 @@ const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
 vm.createContext(box);
-vm.runInContext(source + ';globalThis.P={cwvSchedule,cwvFitMontage,cwvSnapSection,cwvDefaultSection,cwvVideoSeconds,CWV_TITLE_BEATS,CWV_MIN_WINDOWS};', box);
+vm.runInContext(source + ';globalThis.P={cwvSchedule,cwvFitMontage,cwvSnapSection,cwvDefaultSection,cwvVideoSeconds,cwvBurstFor,cwvMinWindows,CWV_TITLE_BEATS,CWV_TITLE_ROLES,CWV_FONT_STATES,CWV_TITLE_BEATS_EIGHTH,CWV_TITLE_ROLES_EIGHTH,CWV_FONT_STATES_EIGHTH,CWV_MIN_WINDOWS};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
 
-// Title section is exactly 9 beats.
-assert.equal(P.CWV_TITLE_BEATS.reduce((a, b) => a + b, 0), 9);
-assert.equal(P.CWV_MIN_WINDOWS, 17);
+// Title section is exactly 8 beats (two bars) in both burst variants, cut on 8th notes except the 16th burst.
+assert.equal(P.CWV_TITLE_BEATS.reduce((a, b) => a + b, 0), 8);
+assert.equal(P.CWV_TITLE_BEATS_EIGHTH.reduce((a, b) => a + b, 0), 8);
+assert.equal(P.CWV_TITLE_BEATS.length, 12);
+assert.equal(P.CWV_TITLE_BEATS_EIGHTH.length, 10);
+assert.equal(P.CWV_MIN_WINDOWS, 16);
+assert.equal(P.cwvMinWindows('sixteenth'), 16);
+assert.equal(P.cwvMinWindows('eighth'), 14);
+for (const [beats, roles, fonts] of [[P.CWV_TITLE_BEATS, P.CWV_TITLE_ROLES, P.CWV_FONT_STATES], [P.CWV_TITLE_BEATS_EIGHTH, P.CWV_TITLE_ROLES_EIGHTH, P.CWV_FONT_STATES_EIGHTH]]) {
+  assert.equal(roles.length, beats.length); assert.equal(fonts.length, beats.length);
+  assert.deepEqual(j(roles.slice(0, 3)), ['street', 'architecture', 'street']);
+  assert.equal(roles[roles.length - 1], 'wide');
+  assert.ok(roles.slice(3, -1).every(r => r === 'landmark'));
+  assert.deepEqual(j(fonts.slice(0, 3)), [null, null, 'A']);
+  assert.deepEqual(j(fonts.slice(-5)), ['B', 'C', 'D', 'A', 'A'], 'the 8th run cycles B->C->D->A and the hold stays on A');
+  // Every title cut except the 16th burst sits on an 8th note.
+  let at = 0; for (const b of beats) { at += b; if (b >= 0.5) assert.equal(at * 2, Math.round(at * 2)); }
+}
+// Burst choice: the 16th burst needs a 16th-onset ratio of at least 0.35; unknown ratios get 8ths.
+assert.equal(P.cwvBurstFor(0.35), 'sixteenth');
+assert.equal(P.cwvBurstFor(0.349), 'eighth');
+assert.equal(P.cwvBurstFor(null), 'eighth');
+assert.equal(P.cwvBurstFor(undefined), 'eighth');
 
-// Reference tempo, 30 fps, 7 montage shots.
+// Reference tempo, 30 fps, 7 montage shots, 16th burst (the default).
 const s = j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 7 }));
-assert.equal(s.slots.length, 20);
-assert.deepEqual(s.slots.slice(0, 4).map(x => [x.startFrame, x.endFrame]), [[0, 32], [32, 59], [59, 77], [77, 82]]);
-assert.equal(s.slots[12].section, 'hold');
-assert.equal(s.slots[13].section, 'montage');
-assert.equal(s.title.endFrame, s.slots[12].endFrame);
-assert.equal(s.title.endFrame, Math.round(9 * 60 / 99.2 * 30));           // 163
-assert.equal(s.totalFrames, Math.round(23 * 60 / 99.2 * 30));             // 417
+const f = b => Math.round(b * 60 / 99.2 * 30);
+assert.equal(s.burst, 'sixteenth');
+assert.equal(s.titleSlots, 12);
+assert.equal(s.slots.length, 19);
+assert.deepEqual(s.slots.slice(0, 5).map(x => [x.startFrame, x.endFrame]), [[0, f(1.5)], [f(1.5), f(3)], [f(3), f(4)], [f(4), f(4.25)], [f(4.25), f(4.5)]]);
+assert.deepEqual(s.slots.slice(0, 12).map(x => x.section), ['opening', 'opening', 'opening', 'burst', 'burst', 'burst', 'burst', 'burst', 'burst', 'burst', 'burst', 'hold']);
+assert.equal(s.slots[12].section, 'montage');
+assert.deepEqual(s.slots.map(x => x.endBeat), [1.5, 3, 4, 4.25, 4.5, 4.75, 5, 5.5, 6, 6.5, 7, 8, 10, 12, 14, 16, 18, 20, 22]);
+assert.equal(s.slots[12].startBeat, 8, 'the montage starts on the downbeat of bar 3');
+assert.equal(s.title.endFrame, s.slots[11].endFrame);
+assert.equal(s.title.endFrame, f(8));
+assert.equal(s.totalFrames, f(22));
 for (let i = 1; i < s.slots.length; i++) assert.equal(s.slots[i].startFrame, s.slots[i - 1].endFrame, 'no gaps');
-assert.equal(s.title.line1Frame, Math.round(0.25 * 60 / 99.2 * 30));
+assert.equal(s.title.line1Frame, f(0.25));
 assert.equal(s.title.connectorFrame, s.slots[1].startFrame);
 assert.equal(s.title.placeFrame, s.slots[2].startFrame);
-assert.deepEqual(s.title.fontSwitches.map(f => f.state), ['A', 'B', 'C', 'D', 'A', 'B', 'C', 'D', 'A']);
-assert.equal(s.title.fontSwitches[1].frame, s.slots[3].startFrame);
-assert.deepEqual(s.slots.slice(13).map(x => x.role), ['architecture', 'park', 'street', 'detail', 'architecture', 'park', 'street']);
+assert.deepEqual(s.title.fontSwitches.map(x => x.state), ['A', 'B', 'C', 'D', 'A', 'B', 'C', 'D', 'A']);
+assert.deepEqual(s.title.fontSwitches.map(x => x.frame), [2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => s.slots[i].startFrame));
+assert.deepEqual(s.slots.slice(12).map(x => x.role), ['architecture', 'park', 'street', 'detail', 'architecture', 'park', 'street']);
+
+// The 8th burst: 10 title slots, same 8 beats, same montage.
+const e = j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 7, burst: 'eighth' }));
+assert.equal(e.burst, 'eighth');
+assert.equal(e.titleSlots, 10);
+assert.equal(e.slots.length, 17);
+assert.deepEqual(e.slots.slice(0, 10).map(x => x.endBeat), [1.5, 3, 4, 4.5, 5, 5.5, 6, 6.5, 7, 8]);
+assert.deepEqual(e.slots.slice(0, 10).map(x => x.section), ['opening', 'opening', 'opening', 'burst', 'burst', 'burst', 'burst', 'burst', 'burst', 'hold']);
+assert.equal(e.title.endFrame, s.title.endFrame);
+assert.equal(e.totalFrames, s.totalFrames);
+assert.deepEqual(e.title.fontSwitches.map(x => x.state), ['A', 'B', 'C', 'B', 'C', 'D', 'A']);
+assert.deepEqual(e.title.fontSwitches.map(x => x.frame), [2, 3, 4, 5, 6, 7, 8].map(i => e.slots[i].startFrame));
+assert.deepEqual(e.slots.slice(10).map(x => x.role), ['architecture', 'park', 'street', 'detail', 'architecture', 'park', 'street']);
+// Video length: 8 + 2N beats.
+assert.equal(P.cwvVideoSeconds(99.2, 7), 22 * 60 / 99.2);
 
 // Montage fit: 40 s cue at 99 BPM starting at 0 fits 12; starting at 30 s fits fewer; too late fits none.
 assert.equal(P.cwvFitMontage({ bpm: 99.02, sectionStart: 0, usableEnd: 39.3, requested: 12 }), 12);
-assert.equal(P.cwvFitMontage({ bpm: 99.02, sectionStart: 26.66, usableEnd: 39.3, requested: 12 }), 5);
+assert.equal(P.cwvFitMontage({ bpm: 99.02, sectionStart: 26.66, usableEnd: 39.3, requested: 12 }), 6);
 assert.equal(P.cwvFitMontage({ bpm: 99.02, sectionStart: 32, usableEnd: 39.3, requested: 7 }), 0);
 
 // Section snapping to bars; clamp so the video fits.

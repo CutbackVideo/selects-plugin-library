@@ -12,6 +12,10 @@ const FRAME_LAG = -HOP / 2;
 const MIN_PROMINENCE = 0.5;
 // A beat window below this fraction of the track's median per-beat RMS (-20 dB) is leading silence.
 const SILENT_BEAT = 0.1;
+// Onsets in the envelope peak about this long after the attack (7 ms on clicks through the flux window).
+const ONSET_LAG = 0.007;
+// 16th-onset ratio window: the envelope maximum within this many seconds of each grid position.
+const RATIO_WINDOW = 0.03;
 
 function fft(re, im) {
   const n = re.length;
@@ -37,14 +41,16 @@ function fft(re, im) {
   }
 }
 
-function onsetEnvelope(x) {
-  const frames = Math.floor(x.length / HOP) + 1;
+// Spectral flux per frame of `hop` samples; the local mean spans +/- 8 default hops (~93 ms) at any hop.
+function onsetEnvelope(x, hop = HOP) {
+  const frames = Math.floor(x.length / hop) + 1;
+  const radius = Math.round(8 * HOP / hop);
   const win = new Float64Array(WIN).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (WIN - 1)));
   const env = new Float64Array(frames);
   let prev = new Float64Array(WIN / 2);
   const re = new Float64Array(WIN), im = new Float64Array(WIN);
   for (let f = 0; f < frames; f++) {
-    for (let i = 0, j = f * HOP - WIN; i < WIN; i++, j++) { re[i] = (j >= 0 ? x[j] : 0) * win[i]; im[i] = 0; }
+    for (let i = 0, j = f * hop - WIN; i < WIN; i++, j++) { re[i] = (j >= 0 ? x[j] : 0) * win[i]; im[i] = 0; }
     fft(re, im);
     let flux = 0;
     const mag = new Float64Array(WIN / 2);
@@ -61,7 +67,7 @@ function onsetEnvelope(x) {
   let max = 0;
   for (let f = 0; f < frames; f++) {
     let s = 0, c = 0;
-    for (let k = Math.max(0, f - 8); k < Math.min(frames, f + 8); k++) { s += env[k]; c++; }
+    for (let k = Math.max(0, f - radius); k < Math.min(frames, f + radius); k++) { s += env[k]; c++; }
     const mean = s / c;
     out[f] = Math.max(0, env[f] - mean);
     strong[f] = out[f] > MIN_PROMINENCE * mean ? 1 : 0;
@@ -88,6 +94,30 @@ function bestPhase(env, fps, t0, period, t1, step) {
     if (score > best.score) best = { score, phase };
   }
   return best;
+}
+
+const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+// How clearly the music articulates 16th notes: the median onset strength on the 16th offbeats (.25 and .75 of a
+// beat) divided by the median on the beats, over [firstBeat, endSeconds). Uses a finer (128-sample) envelope so
+// 16ths at up to ~180 BPM stay apart. null when there is no grid or no on-beat onset.
+function sixteenthRatio(samples, sampleRate, bpm, firstBeat, endSeconds) {
+  if (!(bpm > 0) || !(firstBeat >= 0)) return null;
+  const hop = HOP / 2, { env } = onsetEnvelope(samples, hop);
+  const rate = sampleRate / hop, t0 = -hop / 2 / sampleRate, q16 = 60 / bpm / 4;
+  const end = Math.min(endSeconds == null ? Infinity : endSeconds, samples.length / sampleRate) - 0.05;
+  const on = [], off = [];
+  for (let q = 0; firstBeat + q * q16 < end; q++) {
+    if (q % 4 === 2) continue;
+    const t = firstBeat + q * q16;
+    if (t < 0.03) continue;
+    const c = (t + ONSET_LAG - t0) * rate;
+    let m = 0;
+    for (let i = Math.max(0, Math.floor(c - RATIO_WINDOW * rate)); i <= Math.min(env.length - 1, Math.ceil(c + RATIO_WINDOW * rate)); i++) m = Math.max(m, env[i]);
+    (q % 4 === 0 ? on : off).push(m);
+  }
+  const a = median(on), b = median(off);
+  return a > 0 && b != null ? Math.round(b / a * 1000) / 1000 : null;
 }
 
 function analyze(samples, sampleRate) {
@@ -182,12 +212,13 @@ function analyze(samples, sampleRate) {
     hitRate: Math.round(hitRate * 1000) / 1000,
     accepted: residualMedianMs <= 20 && hitRate >= 0.7,
     lastOnsetSeconds: onsets.length ? Math.round(onsets[onsets.length - 1] * 100) / 100 : 0,
+    sixteenthRatio: sixteenthRatio(samples, sampleRate, 60 / period, firstBeat, durationSeconds),
     peaks,
     beatEnergy,
   };
 }
 
-module.exports = { analyze };
+module.exports = { analyze, sixteenthRatio };
 
 if (require.main === module) {
   try {
