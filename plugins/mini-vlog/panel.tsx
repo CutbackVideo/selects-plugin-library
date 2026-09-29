@@ -87,6 +87,9 @@ const MV_ROLE_FALLBACK = {
 const MV_FILLER_STEP = 0.5;
 const MV_FILLER_EDGE = 0.25;
 const MV_FILLER_SCORE = -2;
+// At most this many filler windows per source (a 24 s source has 48). A longer source gets 48 windows spread evenly over
+// the same 0.5 s grid, first and last kept, so an hour-long clip does not flood the pool (and the panel's thread).
+const MV_FILLER_MAX = 48;
 // A video window ends at least this far before the end of its source. The plan's frames are at 30 fps; at the Draft's
 // real rate (and music offset) a shot can be up to 1/30 + 1/fps s longer (about 0.075 s at 23.976), and Selects caps a
 // source at its whole frames (up to one more frame shorter than its duration), so assemble.js may slide a window this
@@ -298,7 +301,8 @@ function mvHash(str) {
   return (h >>> 0) / 4294967296;
 }
 
-// Filler candidates every MV_FILLER_STEP seconds on each source that appears in the candidates, sorted by rid then time.
+// Filler candidates every MV_FILLER_STEP seconds on each source that appears in the candidates, sorted by rid then time;
+// at most MV_FILLER_MAX per source (an even subset of that grid, keeping both edge windows).
 function mvFillers(candidates) {
   const dur = {};
   for (const c of candidates) {
@@ -307,10 +311,15 @@ function mvFillers(candidates) {
   }
   const out = [];
   for (const rid of Object.keys(dur).sort()) {
-    for (let k = 0; ; k++) {
-      const t = MV_FILLER_EDGE + k * MV_FILLER_STEP;
-      if (t > dur[rid] - MV_FILLER_EDGE + 1e-9) break;
-      out.push({ rid, role: 'filler', t, score: MV_FILLER_SCORE, sourceDuration: dur[rid] });
+    // Grid points MV_FILLER_EDGE + k * MV_FILLER_STEP with k = 0 .. count - 1 that stay MV_FILLER_EDGE from the end.
+    const count = Math.max(0, Math.floor((dur[rid] - 2 * MV_FILLER_EDGE + 1e-9) / MV_FILLER_STEP) + 1);
+    const take = Math.min(count, MV_FILLER_MAX);
+    let last = -1;
+    for (let i = 0; i < take; i++) {
+      const k = take === count ? i : Math.round(i * (count - 1) / (take - 1));
+      if (k === last) continue;
+      last = k;
+      out.push({ rid, role: 'filler', t: MV_FILLER_EDGE + k * MV_FILLER_STEP, score: MV_FILLER_SCORE, sourceDuration: dur[rid] });
     }
   }
   return out;
@@ -334,6 +343,8 @@ function mvAllocate(opts) {
   // shrinks, since spending every fresh clip first can strand a length that a reuse-tolerant order fills).
   const spread = opts.spread !== false;
   const pool = candidates.filter(c => c.sourceDuration > 0);
+  // Each candidate's seeded tie-break jitter, hashed once per call rather than per slot, tier and use count.
+  const jitter = pool.map(c => mvHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05);
   // Photo-only pools (no usable video) may play any number of photos in a row.
   const runLimited = pool.length > 0;
   let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, prevRid = null;
@@ -350,7 +361,8 @@ function mvAllocate(opts) {
   // exactly that many times.
   function searchVideo(slot, rankOf, exclude, level) {
     let best = null;
-    for (const c of pool) {
+    for (let i = 0; i < pool.length; i++) {
+      const c = pool[i];
       if (c.rid === exclude) continue;
       if (level != null && (uses[c.rid] || 0) !== level) continue;
       const rank = rankOf(c);
@@ -359,7 +371,7 @@ function mvAllocate(opts) {
       const end = start + slot.seconds;
       if ((used[c.rid] || []).some(([a, b]) => start < b + gap && end > a - gap)) continue;
       const repeats = recent.filter(r => r === c.rid).length;
-      const value = c.score - rank * 0.15 - repeats * 0.2 + mvHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05;
+      const value = c.score - rank * 0.15 - repeats * 0.2 + jitter[i];
       const better = !best || value > best.value + 1e-12 ||
         (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)));
       if (better) best = { value, c, start, end };
@@ -429,7 +441,7 @@ function mvAllocate(opts) {
 // onsets?, onsetThresholds?, lowConfidence?, seed, photoShare? }.
 // Order: the music caps the length (mvFitShots), then the plan tries that length and shrinks by MV_MIN_SHOTS down to
 // MV_MIN_SHOTS until the strict allocation fills every slot. Every attempt allocates from scratch with filler
-// candidates added. Failure reasons: 'music-too-short' (not even MV_MIN_SHOTS fit the music), 'one-resource' (fewer
+// candidates added (see `attempts` below). Failure reasons: 'music-too-short' (not even MV_MIN_SHOTS fit the music), 'one-resource' (fewer
 // than 2 distinct sources: the adjacency rule cannot hold), 'too-few' (the footage fills fewer than MV_MIN_SHOTS).
 function mvPlanBuild(opts) {
   const gridded = mvGridUsable({ bpm: opts.bpm, accepted: opts.accepted });
@@ -458,7 +470,10 @@ function mvPlanBuild(opts) {
   if (hasPhotos && shares[0] !== 1) shares.push(1);
   // Variety first; spending every fresh clip early can also strand a fillable length (a s s s ... where a s a s ...
   // fits), so a length is only given up after the role-and-score order (spread: false) fails too.
-  const attempts = [true, false].flatMap(spread => shares.map(photoShare => ({ spread, photoShare })));
+  // Each attempt's name ('spread', 'spread-share1', 'role-first', 'role-first-share1') is returned as `attempt`, so the
+  // panel and logs can tell when a fallback built the plan.
+  const attempts = [true, false].flatMap(spread => shares.map((photoShare, i) =>
+    ({ spread, photoShare, name: (spread ? 'spread' : 'role-first') + (i ? '-share1' : '') })));
   let usableShots = 0;
   for (let n = top; n >= MV_MIN_SHOTS; n -= MV_MIN_SHOTS) {
     const schedule = mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, shots: n, beatsPerShot: guard.beats, shotSeconds,
@@ -468,7 +483,8 @@ function mvPlanBuild(opts) {
       const alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread });
       if (alloc.missing === 0) {
         return { ok: true, schedule, picks: alloc.picks, shots: n, requested, fittedByMusic: top < requested,
-          beatsPerShot: guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
+          beatsPerShot: guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
+          attempt: attempt.name };
       }
       // The shortest length misses slots with every share, so usableShots < MV_MIN_SHOTS.
       if (n === MV_MIN_SHOTS) usableShots = Math.max(usableShots, alloc.filled);
