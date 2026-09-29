@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "photo-gallery-no2",
+  "version": "0.1.0-alpha.1",
+  "name": "Photo Gallery 21",
+  "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "panel.tsx",
+    "build-script.mjs",
+    "operation-builder.mjs",
+    "operation-runtime.js",
+    "format.mjs",
+    "tempo.py"
+  ],
+  "compatibility": {
+    "platforms": ["macOS development builds"],
+    "selects": "Requires public run_script Draft overlays, effects, transforms, template binding, and commit. Released-build compatibility is unverified."
+  },
+  "localized": {
+    "en": {
+      "name": "Photo Gallery 21",
+      "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch."
+    },
+    "ko": {
+      "name": "\ud3ec\ud1a0 \uac24\ub7ec\ub9ac 21\uce78",
+      "summary": "\uc0ac\uc9c4\u00b7\uc601\uc0c1 21\uce78\uc73c\ub85c \ud3b8\uc9d1 \uac00\ub2a5\ud55c 3\uc5f4\u00d77\ud589 \uac24\ub7ec\ub9ac\ub97c \ub9cc\ub4ed\ub2c8\ub2e4."
+    }
+  }
+}

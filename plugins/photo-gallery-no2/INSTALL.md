@@ -1,0 +1,13 @@
+# Install Photo Gallery 21
+
+Experimental. The 21-tile Draft operation requires a compatible Selects development build with the public `run_script` Draft overlay, video effect, transform, template-binding, and commit APIs. Compatibility with released Selects builds is unverified. The plugin fails with a specific message when an edit cannot be represented safely; it does not flatten the result.
+
+The checked Selects `develop` revision `891805a62` is **not compatible**: its public `sourceFiles()` omits Image files, its Resource overlay rejects Images, and it has no template binding. This plugin does not modify the client to add those capabilities. Even on a build with Image overlays and template binding, video-resource replacement, short-video last-frame hold, post-creation timing changes, and safe image swaps across different source dimensions remain unavailable or unverified in the public SDK; the operation reports `notSaved` instead of rebuilding the Draft and losing edits. Do not present this alpha as a completed format reproduction until saved-Draft, playback, and export checks pass.
+
+Follow the library's standard installation layout: `panel.tsx` goes to `SELECTS_USER_PANELS_ROOT/photo-gallery-no2/panel.tsx`, and every other listed file goes to `SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/`. Open the panel from Selects' Plugin list, then load media from the current Project. Do not copy the reference video's source media into the package.
+
+The shared script builder needs Node.js. Automatic BPM estimation needs Python 3 and `ffmpeg` on `PATH`. Manual BPM allows silent output or bypassing estimation, but the plugin still needs Node.js for its chat CLI. Check dependencies with `node --version`, `python3 --version`, and `ffmpeg -version`; install missing tools through your normal managed environment. Do not run dependency installation automatically on panel open or on every click.
+
+For local development, run the package checks, open the installed panel in a test Project, create a 21-media Draft, then verify the saved Draft, actual playback, and native Handoff export separately. A compile check or a saved Draft alone is not a finished visual validation.
+
+From a source checkout, run `node --test builder.test.mjs format.test.mjs operation.test.mjs` and `python3 -m unittest tempo_test.py` in this folder for the package contract. These development tests are not installed with the plugin. Set `PHOTO_GALLERY_REFERENCE` to a local copy of the reference video to exercise the audio ambiguity test; the reference media is intentionally excluded from the public plugin. `panel.behavior.test.mjs` additionally needs `SELECTS_DEV_REPO` pointing at a Selects development checkout with React, jsdom, esbuild and Testing Library installed.
