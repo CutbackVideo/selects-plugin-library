@@ -87,9 +87,11 @@ const MV_ROLE_FALLBACK = {
 const MV_FILLER_STEP = 0.5;
 const MV_FILLER_EDGE = 0.25;
 const MV_FILLER_SCORE = -2;
-// A video window ends at least this far before the end of its source: the Draft's real frame rate and the music
-// offset can lengthen a shot by a frame after planning.
-const MV_SOURCE_TAIL = 0.05;
+// A video window ends at least this far before the end of its source. The plan's frames are at 30 fps; at the Draft's
+// real rate (and music offset) a shot can be up to 1/30 + 1/fps s longer (about 0.075 s at 23.976), and Selects caps a
+// source at its whole frames (up to one more frame shorter than its duration), so assemble.js may slide a window this
+// far back to keep it inside its source.
+const MV_SOURCE_TAIL = 0.15;
 // Photos (Image resources) have no scene search. Each one fills at most one slot of any length up to the 5 s an
 // image source lasts. About MV_PHOTO_SHARE of the slots, evenly spread from a seeded offset, are photo slots where an
 // unused photo comes first. Elsewhere photos rank after every real video hit and before fillers. Never more than
@@ -399,7 +401,8 @@ function mvAllocate(opts) {
     photoRun = 0;
     (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
     if (best.c.role === 'filler') fillerShots++;
-    picks.push({ slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end });
+    // sourceDuration lets assemble.js keep the window inside its source at the Draft's real rate.
+    picks.push({ slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end, sourceDuration: best.c.sourceDuration });
   }
   return { picks, missing, filled: picks.filter(Boolean).length, fillerShots, photoShots };
 }

@@ -22,9 +22,16 @@ const lay = async (rate, final) => {
     // cfg.boundaries are seconds from the start of the music section: the beat grid (beat * 60 / bpm), with the cuts the
     // planner snapped to music onsets (planner.js mvSnapCuts) moved onto them.
     const want = Math.round((cfg.boundaries[i + 1] + offset(fps)) * fps) - endFrame;
-    // A photo holds for the slot from the start of its (5 s) image source.
-    const start = pick.kind === 'photo' ? 0 : pick.startSeconds;
-    await d.insertResource({ resourceId: pick.rid, sourceRange: { startSeconds: start, endSeconds: start + want / fps } });
+    // Selects snaps each end of a source range to a Draft frame on its own (round(end * fps) - round(start * fps)
+    // frames), so a start on a half frame would lose or gain a frame. The window is aimed at whole Draft frames: it
+    // starts on the frame nearest the planned start and lasts exactly `want` frames. A photo holds for the slot from
+    // the start of its (5 s) image source.
+    // At the real rate a slot can be a frame or two longer than planned, and Selects caps a source at its whole frames
+    // (an end past floor(duration * fps) / fps is invalid_source_range), so a window planned near the end of its source
+    // slides back to end inside it (pick.sourceDuration, from the planner).
+    const cap = pick.sourceDuration > 0 ? Math.floor(pick.sourceDuration * fps + 1e-6) - want : Infinity;
+    const k = pick.kind === 'photo' ? 0 : Math.max(0, Math.min(Math.round(pick.startSeconds * fps), cap));
+    await d.insertResource({ resourceId: pick.rid, sourceRange: { startSeconds: k / fps, endSeconds: (k + want) / fps } });
     endFrame = (await main()).reduce((a, c) => Math.max(a, c.endFrame), 0);
     if (i === 0) {
       // The first insert adopted the clip's frame size, so the 16:9 canvas is set again before the rate is read.
