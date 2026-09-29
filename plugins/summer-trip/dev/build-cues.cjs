@@ -15,7 +15,7 @@
 'use strict';
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), crypto = require('node:crypto');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { analyze, sixteenthRatio, detectDrop, downbeatClarity, _internal: { octaveBpm, ST_MIN_BPM, DROP_MIN_BEATS } } = require('../beat-detect.cjs');
+const { analyze, sixteenthRatio, detectDrop, anchorOnDrop, downbeatClarity, _internal: { octaveBpm, ST_MIN_BPM } } = require('../beat-detect.cjs');
 const { ST_MUFFLE_FILTER, ST_MUFFLE_BITRATE } = require('../muffle.cjs');
 
 const TARGET_LUFS = -14;
@@ -54,7 +54,6 @@ const decodeMono = file => {
   return new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
 };
 const sha = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-const r3 = v => Math.round(v * 1000) / 1000;
 
 const cues = [];
 for (const c of list) {
@@ -82,17 +81,13 @@ for (const c of list) {
 
   // 4. Measure on the dry mp3, as the app hears it.
   const a = analyze(dry, ASR);
-  const bpm = octaveBpm(a.bpm), period = 60 / bpm, bar = 4 * period;
+  const bpm = octaveBpm(a.bpm), period = 60 / bpm;
   const half = dry.length >> 1;
   const b1 = octaveBpm(analyze(dry.subarray(0, half), ASR).bpm), b2 = octaveBpm(analyze(dry.subarray(half), ASR).bpm);
   const driftBpm = Math.round((b2 - b1) * 100) / 100;
   let firstBeat = a.firstBeat, drop = detectDrop(dry, ASR, { bpm, firstBeat });
-  // A quiet intro below analyze()'s leading-silence level pushes firstBeat onto (or towards) the drop. Re-anchor it on
-  // the drop's bar grid, at the file's first bar line, so dropBeat counts the intro.
-  if (drop && drop.dropBeat < DROP_MIN_BEATS) {
-    firstBeat = r3(drop.dropSeconds - Math.floor((drop.dropSeconds + 1e-6) / bar) * bar);
-    drop = { ...drop, dropBeat: Math.round((drop.dropSeconds - firstBeat) / period) };
-  }
+  // A quiet intro below analyze()'s leading-silence level pushes firstBeat towards the drop: re-anchor it.
+  if (drop) { const k = anchorOnDrop(drop, bpm, firstBeat); firstBeat = k.firstBeat; drop = { ...drop, dropBeat: k.dropBeat }; }
   const usableEnd = Math.round(Math.min(a.durationSeconds, a.lastOnsetSeconds + 0.5) * 100) / 100;
   const barOrigin = drop ? drop.dropSeconds : firstBeat;
   const downbeat = downbeatClarity(dry, ASR, bpm, barOrigin, barOrigin, usableEnd);

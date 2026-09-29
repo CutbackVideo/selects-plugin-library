@@ -168,7 +168,7 @@ assert.ok(Math.abs(drop.stepDb - 12) < 0.5, 'step ' + drop.stepDb);
 const ad = analyze(dropTrack, sr);
 assert.ok(Math.abs(ad.bpm - 120) < 0.2 && Math.abs(ad.firstBeat) < 0.02, 'drop track grid ' + ad.bpm + ' ' + ad.firstBeat);
 assert.equal(ad.drop.dropBeat, 8);
-assert.ok(Math.abs(ad.drop.dropSeconds - 4) < 0.02 && ad.drop.bpm === ad.bpm, JSON.stringify(ad.drop));
+assert.ok(Math.abs(ad.drop.dropSeconds - 4) < 0.02 && ad.drop.bpm === ad.bpm && ad.drop.firstBeat === ad.firstBeat, JSON.stringify(ad.drop));
 // Flat: no step, no drop.
 assert.equal(detectDrop(barsTrack(loud(14)), sr, grid120), null, 'flat');
 // A step before beat 8 (bar 2) leaves no bar line with 2 quiet bars before it and 8 beats from the start.
@@ -185,13 +185,18 @@ assert.equal(detectDrop(twoSteps, sr, grid120, { pick: 'largest' }).dropBeat, 24
 const delayed = new Float32Array(dropTrack.length + sr / 2); delayed.set(dropTrack, sr / 2);
 assert.deepEqual([detectDrop(delayed, sr, { bpm: 120, firstBeat: 0.5 }).dropBeat, detectDrop(delayed, sr, { bpm: 120, firstBeat: 0.5 }).dropSeconds], [8, 4.5]);
 // A very quiet intro (-26 dB) is below analyze()'s leading-silence level, so its first beat lands on the drop; the bar
-// grid is extended back to the file start and the drop is still found at 4 s, dropBeat 0 from that first beat (the cue
-// build re-anchors firstBeat to the file's first bar line then).
+// grid is extended back to the file start and the drop is still found at 4 s, dropBeat 0 from that first beat.
 const hushed = barsTrack([-26, -26, ...loud(12)]);
 const ah = analyze(hushed, sr);
 assert.ok(Math.abs(ah.firstBeat - 4) < 0.02, 'first beat on the drop ' + ah.firstBeat);
-assert.ok(ah.drop && ah.drop.dropBeat === 0 && Math.abs(ah.drop.dropSeconds - 4) < 0.02, 'hushed intro drop ' + JSON.stringify(ah.drop));
-assert.equal(detectDrop(hushed, sr, { bpm: 120, firstBeat: 4 }).dropSeconds, 4);
+const raw = detectDrop(hushed, sr, { bpm: 120, firstBeat: 4 });
+assert.deepEqual([raw.dropBeat, raw.dropSeconds], [0, 4], 'raw drop from the late first beat');
+// anchorOnDrop moves the first beat back to the file's first bar line; analyze() reports the drop on that grid.
+const { anchorOnDrop } = require(path.join(root, 'beat-detect.cjs'));
+assert.deepEqual(anchorOnDrop(raw, 120, 4), { firstBeat: 0, dropBeat: 8 });
+assert.deepEqual(anchorOnDrop({ dropBeat: 1, dropSeconds: 5.1 }, 120, 4.6), { firstBeat: 1.1, dropBeat: 8 });
+assert.deepEqual(anchorOnDrop(drop, 120, 0), { firstBeat: 0, dropBeat: 8 }, 'an intro already counted stays');
+assert.ok(ah.drop && ah.drop.dropBeat === 8 && Math.abs(ah.drop.firstBeat) < 0.02 && Math.abs(ah.drop.dropSeconds - 4) < 0.02, 'hushed intro drop ' + JSON.stringify(ah.drop));
 // No grid, no drop.
 assert.equal(detectDrop(dropTrack, sr, { bpm: 0, firstBeat: 0 }), null);
 

@@ -460,17 +460,29 @@ function downbeatClarity(samples, sampleRate, bpm, barOrigin, from, end) {
   return { ratio, confidence: ratio >= DOWNBEAT_HIGH ? 'high' : 'low', bestPhase: ratios.indexOf(Math.max(...ratios)) };
 }
 
-// The drop on the octave grid and the downbeat clarity from it (analyze() and the cue build share this).
+// A quiet intro below analyze()'s leading-silence level pushes firstBeat onto (or towards) the drop, so detectDrop's
+// dropBeat can be below 8. Re-anchor the first beat on the drop's bar grid at the file's first bar line, so dropBeat
+// counts the intro (>= 8, a multiple of 4). Returns { firstBeat, dropBeat } (unchanged when dropBeat >= 8).
+function anchorOnDrop(drop, bpm, firstBeat) {
+  if (!drop || drop.dropBeat >= DROP_MIN_BEATS) return { firstBeat, dropBeat: drop ? drop.dropBeat : null };
+  const period = 60 / bpm, bar = 4 * period;
+  const fb = Math.round((drop.dropSeconds - Math.floor((drop.dropSeconds + 1e-6) / bar) * bar) * 1000) / 1000;
+  return { firstBeat: fb, dropBeat: Math.round((drop.dropSeconds - fb) / period) };
+}
+
+// The drop on the octave grid and the downbeat clarity from it (analyze() and the cue build share this). The drop
+// carries its grid: bpm (the tempo-octave choice, which can differ from analyze()'s bpm for 70-85 BPM detections)
+// and firstBeat (analyze()'s, re-anchored by anchorOnDrop), dropBeat counting from that firstBeat in beats of bpm.
 function dropAndDownbeat(samples, sampleRate, bpm, firstBeat) {
   const obpm = octaveBpm(bpm), drop = obpm ? detectDrop(samples, sampleRate, { bpm: obpm, firstBeat }) : null;
   const barOrigin = drop ? drop.dropSeconds : firstBeat;
   return {
-    drop: drop ? { ...drop, bpm: Math.round(obpm * 100) / 100 } : null,
+    drop: drop ? { ...drop, ...anchorOnDrop(drop, obpm, Math.round(firstBeat * 1000) / 1000), bpm: Math.round(obpm * 100) / 100 } : null,
     downbeat: obpm ? downbeatClarity(samples, sampleRate, obpm, barOrigin, barOrigin, null) : null,
   };
 }
 
-module.exports = { analyze, sixteenthRatio, bandOnsets, bandFlux, detectDrop, downbeatClarity, dropAndDownbeat, _internal: { octaveBpm, ST_MIN_BPM, DROP_MIN_BEATS, DROP_STEP_DB, DROP_QUIET_DB, DOWNBEAT_HIGH } };
+module.exports = { analyze, sixteenthRatio, bandOnsets, bandFlux, detectDrop, anchorOnDrop, downbeatClarity, dropAndDownbeat, _internal: { octaveBpm, ST_MIN_BPM, DROP_MIN_BEATS, DROP_STEP_DB, DROP_QUIET_DB, DOWNBEAT_HIGH } };
 
 if (require.main === module) {
   try {
