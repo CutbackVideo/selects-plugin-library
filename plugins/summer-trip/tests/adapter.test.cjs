@@ -122,6 +122,8 @@ function readbackOf(m, fps) {
   assert.deepEqual(audioStep.config.files.map(f => f.key), ['dry', 'wet', 'shutter-1', 'shutter-2', 'shutter-3', 'shutter-4', 'whoosh-1']);
   assert.equal(path.basename(audioStep.config.files[0].path), 'dev-test.mp3');
   assert.equal(path.basename(audioStep.config.files[1].path), 'dev-test-muffled.mp3');
+  assert.ok(audioStep.config.files.every(f => !('matchByName' in f)), 'bundled cue and plugin files keep the name fallback');
+  assert.ok(fs.readFileSync(path.join(PLUGIN, 'dev/adapter.mjs'), 'utf8').includes("{ key: 'dry', path: m.files.dry, matchByName: false }"), 'own music matches by path only');
   const sfxMan = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'sfx', 'manifest.json'), 'utf8'));
   for (const f of audioStep.config.files.slice(2)) {
     assert.equal(crypto.createHash('sha256').update(fs.readFileSync(f.path)).digest('hex'), sfxMan[f.key].sha256, f.key + ' decoded');

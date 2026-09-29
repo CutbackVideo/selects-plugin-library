@@ -78,7 +78,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
   read = read || (rel => fs.readFileSync(path.join(pluginDir, rel), 'utf8'));
   installedDir = installedDir || process.env.SELECTS_PLUGIN_INSTALLED_DIR || path.join(os.homedir(), '.selects', 'skills', 'summer-trip');
   // Where ensureAudio writes decoded sound effects and the muffled own music (the Selects app imports them by path).
-  // The panel keeps these under .selects/plugin-data/summer-trip; ensure-audio.js also matches by file name.
+  // The panel keeps these under .selects/plugin-data/summer-trip; ensure-audio.js also matches these by file name.
   workDir = workDir || process.env.ST_DRIVE_WORK || path.join(os.homedir(), '.selects', 'plugin-data', 'summer-trip', 'drive');
   const manifestJson = JSON.parse(read('plugin.json'));
   const P = loadScript(read('planner.js'));
@@ -146,7 +146,9 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
       if (!bpm) throw Error('cue ' + cue.id + ' has no usable tempo');
       const c = { ...cue, bpm };
       const sec = pickSection(c, row.section, n);
-      return { kind, label: cue.title || cue.id, cue, grid: { bpm, firstBeat: cue.firstBeat, accepted: true, bundled: true, titleHits: cue.titleHits || null },
+      return { kind, label: cue.title || cue.id, cue, grid: { bpm, firstBeat: cue.firstBeat, accepted: true, bundled: true,
+        // As in the panel: the cue's title hits apply only in its drop section.
+        titleHits: sec.kind === 'drop' ? (cue.titleHits || null) : null },
         sectionStart: sec.start, sectionKind: sec.kind, notes: sec.note ? [sec.note] : [],
         files: { dry: cueFile(cue.file), wet: cue.muffledFile ? cueFile(cue.muffledFile) : null } };
     }
@@ -289,7 +291,8 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
       const m = s.music;
       s.audioKeys = { dry: null, wet: null, shutters: [], whoosh: null };
       if (m.kind !== 'none') {
-        files.push({ key: 'dry', path: m.files.dry });
+        // Own music matches an existing resource by path only (matchByName: false); bundled cues also by file name.
+        files.push(m.kind === 'cue' ? { key: 'dry', path: m.files.dry } : { key: 'dry', path: m.files.dry, matchByName: false });
         s.audioKeys.dry = 'dry';
         if (s.row.muffle && m.files.wet) {
           let wet = m.files.wet;

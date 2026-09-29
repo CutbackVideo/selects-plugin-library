@@ -120,6 +120,33 @@ const keepAlive = setInterval(() => {}, 50);
   assert.deepEqual(e2.imported, []);
   assert.equal(imports.length, 1, 'nothing imported twice');
   assert.deepEqual(e2.ids, e1.ids);
+
+  // Own music (matchByName: false) matches by path only: another song with the same file name is never reused. The
+  // plugin-owned files keep the name fallback. When the import copies files (new paths), own music still resolves by
+  // name among the resources this import added.
+  for (const copies of [false, true]) {
+    const aud = [{ resourceId: 'o1', name: 'song.mp3', type: 'Audio' }, { resourceId: 'o2', name: 'shutter-1.wav', type: 'Audio' }];
+    const fl = [{ type: 'audio', resourceId: 'o1', path: '/old/other/song.mp3' }, { type: 'audio', resourceId: 'o2', path: '/elsewhere/shutter-1.wav' }];
+    const imp = [];
+    const sel = { project: () => ({
+      resources: async () => aud.slice(), sourceFiles: async () => ({ fileTree: fl.slice() }),
+      importFiles: async ({ paths }) => {
+        imp.push(paths);
+        const nids = paths.map((q, i) => 'k' + (aud.length + i));
+        paths.forEach((q, i) => { aud.push({ resourceId: nids[i], name: q.split('/').pop(), type: 'Audio' }); fl.push({ type: 'audio', resourceId: nids[i], path: copies ? '/project/media/' + q.split('/').pop() : q }); });
+        return { addedResourceIds: nids.slice().reverse() };
+      } }) };
+    const ownWant = [{ key: 'dry', path: '/music/song.mp3', matchByName: false }, { key: 'wet', path: '/data/song-muffled-0a1b2c3d.wav' },
+      { key: 'shutter-1', path: '/data/sfx/shutter-1.wav' }];
+    const o1 = await load('ensure-audio.js', { projectId: 'p', files: ownWant })(sel);
+    assert.deepEqual(imp, [['/music/song.mp3', '/data/song-muffled-0a1b2c3d.wav']], 'own music imported although a same-named file exists' + (copies ? ' (copied)' : ''));
+    assert.deepEqual(o1.ids, { dry: 'k2', wet: 'k3', 'shutter-1': 'o2' }, 'own music resolves to its own import; the SFX reuses by name');
+    assert.deepEqual(o1.imported, ['dry', 'wet']);
+    if (!copies) {
+      const o2 = await load('ensure-audio.js', { projectId: 'p', files: ownWant })(sel);
+      assert.deepEqual([o2.ids, o2.imported, imp.length], [o1.ids, [], 1], 'the second run matches own music by path');
+    }
+  }
   clearInterval(keepAlive);
   console.log(JSON.stringify({ scriptsRead: 'ok' }));
 })().catch(e => { console.error(e); process.exit(1); });

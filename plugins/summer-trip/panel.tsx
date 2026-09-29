@@ -302,9 +302,14 @@ function stDropStart(cue) {
   return null;
 }
 
+// Usable length of a cue: its duration, but never past the last onset + 0.5 s (usableEnd) when that is known, so a
+// section never ends in the silent tail of a file.
 function stCueDuration(cue) {
-  if (typeof cue.duration === 'number' && isFinite(cue.duration)) return cue.duration;
-  if (typeof cue.usableEnd === 'number' && isFinite(cue.usableEnd)) return cue.usableEnd + ST_SECTION_END_MARGIN;
+  const hasDur = typeof cue.duration === 'number' && isFinite(cue.duration);
+  const hasEnd = typeof cue.usableEnd === 'number' && isFinite(cue.usableEnd);
+  if (hasDur && hasEnd) return Math.min(cue.duration, cue.usableEnd + ST_SECTION_END_MARGIN);
+  if (hasDur) return cue.duration;
+  if (hasEnd) return cue.usableEnd + ST_SECTION_END_MARGIN;
   return 0;
 }
 
@@ -346,7 +351,11 @@ function stDefaultSection(cue, n) {
   if (drop !== null) {
     const c = stClampSection({ cue, montageShots: n, value: drop });
     if (!c) return null;
-    return { start: c.start, kind: c.kind, clamped: true, note: 'The drop section does not fit this length; moved to the latest start that fits' };
+    // A drop within the first 8 beats of the file: its section would start before the file, so the earliest bar
+    // start is used and the title runs over the track's first two bars instead of the build-up.
+    const note = drop < -1e-6 ? 'The drop is too close to the start of the track; the title runs over the first two bars'
+      : 'The drop section does not fit this length; moved to the latest start that fits';
+    return { start: c.start, kind: c.kind, clamped: true, note };
   }
   const first = typeof cue.firstBeat === 'number' && isFinite(cue.firstBeat) ? cue.firstBeat : 0;
   let start = null;
@@ -1093,7 +1102,7 @@ function stPlanOptions(o) {
 }
 
 // Sound effect files: decoded from sfx/<file>.b64 into `dir` under their stable names (shutter-N.wav, whoosh-1.wav);
-// ensure-audio.js imports each once per Project (it matches Audio resources by path, then by file name).
+// ensure-audio.js imports each once per Project (plugin-owned files match Audio resources by path, then by file name).
 function stSfxFiles(manifest, dir) {
   return Object.keys(manifest || {}).sort().map(key => ({ key, b64: 'sfx/' + manifest[key].file + '.b64', path: dir + '/' + manifest[key].file, seconds: manifest[key].duration }));
 }
@@ -1114,11 +1123,70 @@ function stSfxConfig(manifest, ids) {
     whoosh: whoosh ? ids[whoosh] : null, whooshSeconds: whoosh ? manifest[whoosh].duration : 0 };
 }
 
+// Draft name: "Summer Trip <place or season> HH:MM:SS" (seconds keep two builds in the same minute apart).
 function stDraftName(place, season, date) {
   const d = date instanceof Date ? date : new Date();
-  const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
+  const two = n => String(n).padStart(2, '0');
   const what = String(place || '').trim() || String(season || '').trim() || ST_DEFAULT_SEASON;
-  return 'Summer Trip ' + what + ' ' + hh + ':' + mm;
+  return 'Summer Trip ' + what + ' ' + two(d.getHours()) + ':' + two(d.getMinutes()) + ':' + two(d.getSeconds());
+}
+
+// Title text limits (README): line 1 up to 32 characters and 6 words, season up to 10, place up to 18 characters.
+const ST_LIMITS = { line1: { chars: 32, words: 6 }, season: { chars: 10, words: 0 }, place: { chars: 18, words: 0 } };
+// Cuts `value` to at most `maxChars` characters (code points) and, when maxWords > 0, before its (maxWords + 1)th word.
+function stLimitText(value, maxChars, maxWords) {
+  let v = String(value == null ? '' : value);
+  if (maxWords > 0) {
+    const re = /\S+/g;
+    let m, n = 0;
+    while ((m = re.exec(v))) { n++; if (n > maxWords) { v = v.slice(0, m.index).replace(/\s+$/, ''); break; } }
+  }
+  const chars = Array.from(v);
+  return chars.length > maxChars ? chars.slice(0, maxChars).join('') : v;
+}
+// True when `value` sits at one of its limits (the panel then shows the limit under the field).
+function stAtLimit(value, maxChars, maxWords) {
+  const v = String(value == null ? '' : value);
+  return Array.from(v).length >= maxChars || (maxWords > 0 && v.trim().split(/\s+/).filter(Boolean).length >= maxWords);
+}
+
+// A bundled cue's title hits (measured beats in its drop section) apply only when the section is the drop section;
+// any other section types the title on the plain beat grid.
+function stTitleHitsFor(music, sectionKind) {
+  return music && music.kind === 'cue' && sectionKind === 'drop' && Array.isArray(music.titleHits) ? music.titleHits : null;
+}
+
+// What assemble.js would have returned for a Draft it saved without reporting back (a lost session after the commit),
+// rebuilt from its config at the Draft's real rate: the same frame schedule (planner stFrameSchedule, leak as
+// { a, b }), Main windows from the same slide-back rule, grid panels at their planned frames. decorate.js finds the
+// clips by start frame, so no clip ids are needed. Frame sizes assemble measured on its scratch Draft are not known
+// here; those clips are treated as 16:9 by decorate.js.
+function stRecoverAssembly(cfg, fps, sequenceId) {
+  const delta = cfg.music ? stMusicOffset(cfg.music.sectionStart, fps) : (cfg.beats.delta || 0);
+  const pf = stFrameSchedule({ schedule: cfg.schedule, bpm: cfg.beats.bpm, delta, fps, snaps: cfg.beats.snaps || {} });
+  const frames = Object.assign({}, pf, { leakFrames: { a: pf.leakFrames[0], b: pf.leakFrames[1] } });
+  const tail = 0.15;
+  const placed = cfg.picks.main.map((pick, i) => {
+    const a = frames.mainFrames[i], b = frames.mainFrames[i + 1], want = b - a;
+    let k = 0;
+    if (pick.kind !== 'photo') {
+      k = Math.round(Math.max(0, Number(pick.startSeconds) || 0) * fps);
+      if (pick.duration > 0) {
+        const last = Math.floor(pick.duration * fps) - Math.ceil(tail * fps) - want;
+        if (k > last) k = Math.max(0, last);
+      }
+    }
+    return { index: i, clipId: null, rid: pick.rid, kind: pick.kind, role: pick.role || null, a, b, sourceStart: k / fps };
+  });
+  const gridPlaced = (cfg.picks.grid || []).map((pick, j) => {
+    const g = frames.grid.find(x => x.quad === pick.quad) || frames.grid[j];
+    const ss = pick.kind === 'photo' ? 0 : Math.round(Math.max(0, Number(pick.startSeconds) || 0) * fps) / fps;
+    return { quad: g.quad, clipId: null, rid: pick.rid, kind: pick.kind, a: g.aFrame, b: g.bFrame, sourceStart: ss };
+  });
+  const sizes = Object.assign({}, cfg.sizes || {});
+  const unknown = cfg.picks.main.concat(cfg.picks.grid || []).filter(p => !(sizes[p.rid] && sizes[p.rid].width > 0 && sizes[p.rid].height > 0)).length;
+  return { sequenceId, fps, frames, placed, gridPlaced, sizes, music: null, recovered: true,
+    notes: unknown ? ['the size of ' + unknown + (unknown === 1 ? ' clip is' : ' clips are') + ' unknown, so ' + (unknown === 1 ? 'it' : 'they') + ' may show bars'] : [] };
 }
 
 // assemble.js config (contracts.md). `frames.snaps` from the plan, never the raw onset snaps; every video pick carries
@@ -1145,16 +1213,19 @@ function stAssembleConfig(o) {
 }
 
 // decorate.js config (contracts.md) from assemble's result `a`: every frame and title time at the Draft's real rate.
-// `inputs`: the title and look choices as they were at Build.
+// `inputs`: the title and look choices as they were at Build (creditPrefix / placePrefix default to "By" / "in"; lookOn
+// false turns the grade off).
 function stDecorateConfig(o) {
   const a = o.a, plan = o.plan, i = o.inputs, fps = a.fps, fr = a.frames;
   const bpm = plan.frames.bpm;
   const times = stTitleTimes(stTitleSchedule(i.line1, i.season, i.titleHits || null), bpm, fr.delta, fps);
-  const common = { presets: o.presets, presetId: i.presetId, fontsB64: o.fontsB64, topMain: i.topMain, topItalic: i.topItalic, creditPrefix: ST_CREDIT_PREFIX, creditName: i.creditName };
+  const creditPrefix = i.creditPrefix != null ? String(i.creditPrefix).trim() : ST_CREDIT_PREFIX;
+  const placePrefix = i.placePrefix != null ? String(i.placePrefix).trim() : ST_PLACE_PREFIX;
+  const common = { presets: o.presets, presetId: i.presetId, fontsB64: o.fontsB64, topMain: i.topMain, topItalic: i.topItalic, creditPrefix, creditName: i.creditName };
   const title = stTitleParameters(Object.assign({}, common, { line1: i.line1, season: i.season, wordTimes: times.wordTimes, seasonPartTime: times.seasonPartTime,
     seasonFullTime: times.seasonFullTime, seasonPartLength: times.seasonPartLength, labelsTime: times.labelsTime }));
   const span = fr.labelsFrames[fr.labelsFrames.length - 1];
-  const labels = stLabelsParameters(Object.assign({}, common, { placePrefix: ST_PLACE_PREFIX, place: String(i.place || '').trim(), placeSeconds: (fr.placeFrames[1] - span[0]) / fps }));
+  const labels = stLabelsParameters(Object.assign({}, common, { placePrefix, place: String(i.place || '').trim(), placeSeconds: (fr.placeFrames[1] - span[0]) / fps }));
   const sizes = a.sizes || {};
   const byClipIndex = {};
   for (const k of Object.keys(plan.motions || {})) {
@@ -1169,7 +1240,8 @@ function stDecorateConfig(o) {
     gridSound: ST_GRID_SOUND,
     title: { tsx: o.tsx.title, parameters: title, editableParameters: stEditable(ST_TITLE_EDITABLE, title) },
     labels: { tsx: o.tsx.labels, parameters: labels, editableParameters: stEditable(ST_LABELS_EDITABLE, labels) },
-    look: { tsx: o.tsx.look, strength: i.lookStrength, leakStrength: 1 },
+    // Summer look off: gradeOff, strength 0 (decorate.js keeps a strength-0 look on the last montage clip for its leak).
+    look: i.lookOn === false ? { tsx: o.tsx.look, strength: 0, leakStrength: 1, gradeOff: true } : { tsx: o.tsx.look, strength: i.lookStrength, leakStrength: 1 },
     gridPanel: { tsx: o.tsx.gridPanel },
     filmFrame: { tsx: o.tsx.filmFrame, window: ST_FILM_WINDOW, leakStrength: 1, timeOrigin: ST_TIME_ORIGIN },
     motion: { tsx: o.tsx.motion, strength: 1, options: ST_MOTION_OPTIONS, byClipIndex },
@@ -1420,8 +1492,8 @@ function previewCap(face: any) {
 }
 function previewFit(target: number, measured: number, box: number) { return measured > box ? (target * box) / measured : target; }
 
-function TitlePreview({ presets, presetId, line1, season, topMain, topItalic, creditName, fontsTick }: {
-  presets: any; presetId: string; line1: string; season: string; topMain: string; topItalic: string; creditName: string; fontsTick: number;
+function TitlePreview({ presets, presetId, line1, season, topMain, topItalic, creditPrefix, creditName, fontsTick }: {
+  presets: any; presetId: string; line1: string; season: string; topMain: string; topItalic: string; creditPrefix: string; creditName: string; fontsTick: number;
 }) {
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = React.useState(0);
@@ -1452,11 +1524,11 @@ function TitlePreview({ presets, presetId, line1, season, topMain, topItalic, cr
     if (fSeason.fillWidth > 0) seasonPx = Math.min(seasonPx, (0.55 * H) / cap);
     const seasonY = preset.title.seasonY;
     const line1Y = fSeason.fillWidth > 0 ? seasonY - ((seasonPx * cap) / 2 + L.stackGap + line1Px * 0.5) / H * 100 : preset.title.line1Y;
-    const credit = { prefix: ST_CREDIT_PREFIX.toUpperCase(), name: String(creditName || "").trim().toUpperCase() };
+    const credit = { prefix: String(creditPrefix || "").trim().toUpperCase(), name: String(creditName || "").trim().toUpperCase() };
     const topPx = previewFit(L.labelSize, previewMeasure(topMain + (topItalic ? " " : ""), fTop, L.labelSize) + previewMeasure(topItalic, fTopI, L.labelSize), box);
-    const creditPx = previewFit(L.creditSize, previewMeasure(credit.prefix + " ", fCredit, L.creditSize) + previewMeasure(credit.name, fCreditI, L.creditSize), box);
+    const creditPx = previewFit(L.creditSize, previewMeasure(credit.prefix ? credit.prefix + " " : "", fCredit, L.creditSize) + previewMeasure(credit.name, fCreditI, L.creditSize), box);
     return { fLine1, fSeason, fTop, fTopI, fCredit, fCreditI, l1, s, line1Px, seasonPx, seasonY, line1Y, credit, topPx, creditPx };
-  }, [presets, presetId, line1, season, topMain, topItalic, creditName, fontsTick]);
+  }, [presets, presetId, line1, season, topMain, topItalic, creditPrefix, creditName, fontsTick]);
   const shadowA = preset ? Math.max(0, Math.min(1, preset.shadow)) : 0;
   const shadow = shadowA > 0 ? "0 2px 22px rgba(0,0,0," + shadowA + ")" : "none";
   const lineBox = (y: number) => ({ position: "absolute", left: 0, right: 0, top: y + "%", height: 0, display: "flex", justifyContent: "center", alignItems: "center" }) as any;
@@ -1475,7 +1547,7 @@ function TitlePreview({ presets, presetId, line1, season, topMain, topItalic, cr
           ) : null}
           {layout.credit.name ? (
             <div style={lineBox(L.creditY)}><div style={text(layout.creditPx, layout.fCredit, preset.colors.labels, false)}>
-              {layout.credit.prefix} <span style={{ fontFamily: layout.fCreditI.css }}>{layout.credit.name}</span></div></div>
+              {layout.credit.prefix ? layout.credit.prefix + " " : ""}<span style={{ fontFamily: layout.fCreditI.css }}>{layout.credit.name}</span></div></div>
           ) : null}
         </div>
       ) : null}
@@ -1497,6 +1569,8 @@ export default function Panel({ sdk, context, ui }: any) {
   const [seasonEdit, setSeasonEdit] = React.useState<string | null>(null);
   const [place, setPlace] = React.useState("");
   const [creditName, setCreditName] = React.useState("");
+  const [creditPrefix, setCreditPrefix] = React.useState(ST_CREDIT_PREFIX);
+  const [placePrefix, setPlacePrefix] = React.useState(ST_PLACE_PREFIX);
   const [topMainEdit, setTopMainEdit] = React.useState<string | null>(null);
   const [topItalic, setTopItalic] = React.useState(ST_TOP_ITALIC_DEFAULT);
   const [preset, setPreset] = React.useState("summer");
@@ -1508,6 +1582,7 @@ export default function Panel({ sdk, context, ui }: any) {
   // Clip sound: the clips' own sound is off (muted), ambient (-18 dB under the music) or full (0 dB).
   const [clipSound, setClipSound] = React.useState<"off" | "ambient" | "full">("ambient");
   const [lookStrength, setLookStrength] = React.useState(ST_LOOK_DEFAULT);
+  const [lookOn, setLookOn] = React.useState(true);
   const [sfxOn, setSfxOn] = React.useState(false);
   const [muffleOn, setMuffleOn] = React.useState(true);
   const [only, setOnly] = React.useState<string[] | null>(null);
@@ -1842,7 +1917,8 @@ export default function Panel({ sdk, context, ui }: any) {
   }
 
   // The muffled copy of the user's own music: baked once as .wav into the data folder (the file name, from the music's
-  // hash, is the cache key), then imported once per Project by ensure-audio.js (matched by name). A partial bake is
+  // hash, is the cache key), then imported once per Project by ensure-audio.js (matched by path or file name; the
+  // user's own music itself matches by path only). A partial bake is
   // written under a temporary name and renamed, so a failed run never leaves a truncated copy behind.
   async function bakeOwnMuffle(path: string, name: string, check: () => void) {
     const hash = (await shell("Read your music", TOOL_PATH + "shasum -a 256 < " + sq(path) + " | cut -c1-8", 60000)).trim();
@@ -1874,7 +1950,8 @@ export default function Panel({ sdk, context, ui }: any) {
     const pid = projectId;
     const check = () => { if (projectRef.current !== pid) throw STALE; };
     // The title and look inputs as they are at Build; a later "Finish title and look" retry reuses them.
-    const inputs = { presetId: preset, line1, season, topMain, topItalic, creditName, place, lookStrength, clipSound, titleHits: music.kind === "cue" ? music.titleHits : null };
+    const inputs = { presetId: preset, line1, season, topMain, topItalic, creditPrefix, creditName, placePrefix, place, lookOn, lookStrength, clipSound,
+      titleHits: stTitleHitsFor(music, sectionInfo ? sectionInfo.kind : null) };
     const musicAt = { music, start: start ?? 0, muffle: muffleOn && music.kind !== "none", sfx: sfxOn, ownPath: ownMusic?.path || null, ownName: ownMusic?.name || null };
     busyRef.current = true;
     stopPreview();
@@ -1912,10 +1989,11 @@ export default function Panel({ sdk, context, ui }: any) {
       advance("music", 0);
       const notes: string[] = [];
       const m: any = musicAt.music;
-      const files: { key: string; path: string }[] = [];
+      const files: { key: string; path: string; matchByName?: boolean }[] = [];
       if (m.kind !== "none") {
         const dry = m.kind === "cue" ? roots.plugin + "/assets/cues/" + m.cue.file : musicAt.ownPath!;
-        files.push({ key: "dry", path: dry });
+        // The user's own file matches an existing resource by path only; bundled and baked files also by name.
+        files.push(m.kind === "cue" ? { key: "dry", path: dry } : { key: "dry", path: dry, matchByName: false });
         if (musicAt.muffle) {
           if (m.kind === "cue") { if (m.cue.muffledFile) files.push({ key: "wet", path: roots.plugin + "/assets/cues/" + m.cue.muffledFile }); else notes.push("ending muffle skipped (this track has no muffled copy)"); }
           else {
@@ -1944,19 +2022,42 @@ export default function Panel({ sdk, context, ui }: any) {
       const cfg = stAssembleConfig({ projectId: pid, draftName, fps: planFps, plan, sizes, durations: dur,
         music: m.kind === "none" ? null : { resourceId: audio.ids.dry, sectionStart: musicAt.start, wetResourceId: musicAt.muffle && audio.ids.wet ? audio.ids.wet : null },
         clipSound: inputs.clipSound, sfx });
+      // The Project's Drafts before assemble: if its reply is lost, the new Draft is the one id that was not there.
+      let draftsBefore: string[] | null = null;
+      try {
+        const lb = await run("List Drafts", "const r = await selects.project(" + JSON.stringify(pid) + ").readFootage();\n"
+          + "return { ids: (r.drafts || []).map(d => d.sequenceId) };");
+        draftsBefore = Array.isArray(lb?.ids) ? lb.ids : null;
+      } catch (e: any) { if (e === STALE) throw e; draftsBefore = null; }
+      check();
       let a: any;
       try { a = await run("Assemble Summer Trip", fill(assets.scripts.assembleJs, cfg), true); }
       catch (e: any) {
         check();
-        // Never resend a committing call: look for the Draft first.
-        let saved = false;
+        // Never resend a committing call: look for the Draft first, by comparing the Draft ids with the list above.
+        let newIds: string[] = [], foundFps = 0;
         try {
           const f = await run("Check for the new Draft", "const r = await selects.project(" + JSON.stringify(pid) + ").readFootage();\n"
-            + "return { found: (r.drafts || []).filter(d => d.name === " + JSON.stringify(draftName) + ").map(d => d.sequenceId) };");
-          saved = !!(f.found && f.found.length);
-        } catch { saved = false; }
+            + "const before = " + JSON.stringify(draftsBefore) + ";\n"
+            + "const name = " + JSON.stringify(draftName) + ";\n"
+            + "const found = (r.drafts || []).filter(d => (before ? before.indexOf(d.sequenceId) < 0 : d.name === name)).map(d => d.sequenceId);\n"
+            + "let fps = null;\n"
+            + "if (found.length === 1) { try { fps = (await selects.draft(found[0]).meta()).fps; } catch (x) { fps = null; } }\n"
+            + "return { found, fps };");
+          newIds = Array.isArray(f?.found) ? f.found : [];
+          foundFps = f?.fps > 0 ? f.fps : 0;
+        } catch { newIds = []; }
         check();
-        throw new Error(saved ? "The Draft \"" + draftName + "\" was saved, but Selects did not confirm it (" + (e?.message || e) + "). Open it from the Drafts list, or build again."
+        if (newIds.length === 1 && foundFps > 0) {
+          // Saved but unconfirmed: rebuild assemble's result from its config so Finish title and look can add the rest.
+          fpsRef.current[pid!] = foundFps;
+          const ra: any = stRecoverAssembly(cfg, foundFps, newIds[0]);
+          setResult({ sequenceId: newIds[0], decorated: false, a: ra, plan, inputs, seed: nextSeed, notes: [...notes, ...ra.notes], link: null, shortened: null,
+            unchecked: found.failed.length, approximate: m.approximate, recovered: true });
+          setStatus({ tone: "error", text: "The Draft \"" + draftName + "\" was saved, but Selects did not confirm it (" + (e?.message || e) + "). It has no title or look yet: press Finish title and look to add them, or build again." });
+          return;
+        }
+        throw new Error(newIds.length ? "The Draft \"" + draftName + "\" was saved, but Selects did not confirm it (" + (e?.message || e) + "). It has no title or look yet; open it from the Drafts list, or build again."
           : (e?.message || e) + " Nothing was saved; press Build to try again.");
       }
       check();
@@ -2113,21 +2214,26 @@ export default function Panel({ sdk, context, ui }: any) {
       {fitLine ? <ui.Message tone="muted">{fitLine}</ui.Message> : null}
       {inventory && invError ? <ui.Message tone="error">{"Could not refresh the clip list: " + invError}</ui.Message> : null}
       <ui.Section title="Title">
-        <ui.TextField label="Line 1" value={line1} onChange={setLine1} disabled={busy} />
-        <ui.TextField label="Season" value={season} onChange={(v: string) => setSeasonEdit(v)} disabled={busy} />
+        <ui.TextField label="Line 1" value={line1} onChange={(v: string) => setLine1(stLimitText(v, ST_LIMITS.line1.chars, ST_LIMITS.line1.words))} disabled={busy} />
+        {stAtLimit(line1, ST_LIMITS.line1.chars, ST_LIMITS.line1.words) ? <small style={{ color: "var(--panel-muted-fg)" }}>Line 1 takes up to 32 characters and 6 words.</small> : null}
+        <ui.TextField label="Season" value={season} onChange={(v: string) => setSeasonEdit(stLimitText(v, ST_LIMITS.season.chars, 0))} disabled={busy} />
+        {stAtLimit(season, ST_LIMITS.season.chars, 0) ? <small style={{ color: "var(--panel-muted-fg)" }}>The season takes up to 10 characters.</small> : null}
         {seasonEdit !== null && seasonEdit !== inferredSeason ? (
           <button type="button" onClick={() => setSeasonEdit(null)} disabled={busy}
             style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, color: "var(--panel-accent, #f6c343)", cursor: busy ? "default" : "pointer", fontSize: 12, textDecoration: "underline" }}>
             {"reset to " + inferredSeason}
           </button>
         ) : null}
-        <ui.TextField label="Place" value={place} onChange={setPlace} placeholder="Optional — leave blank to hide" disabled={busy} />
-        <ui.TextField label="Credit name" value={creditName} onChange={setCreditName} placeholder={"Optional — shown as \"" + ST_CREDIT_PREFIX + " <name>\""} disabled={busy} />
+        <ui.TextField label="Place" value={place} onChange={(v: string) => setPlace(stLimitText(v, ST_LIMITS.place.chars, 0))} placeholder="Optional — leave blank to hide" disabled={busy} />
+        {stAtLimit(place, ST_LIMITS.place.chars, 0) ? <small style={{ color: "var(--panel-muted-fg)" }}>The place takes up to 18 characters.</small> : null}
+        <ui.TextField label="Place prefix" value={placePrefix} onChange={setPlacePrefix} placeholder={"Shown before the place, for example \"" + ST_PLACE_PREFIX + "\""} disabled={busy} />
+        <ui.TextField label="Credit name" value={creditName} onChange={setCreditName} placeholder={"Optional — shown as \"" + (creditPrefix.trim() || ST_CREDIT_PREFIX) + " <name>\""} disabled={busy} />
+        <ui.TextField label="Credit prefix" value={creditPrefix} onChange={setCreditPrefix} placeholder={"Shown before the credit name, for example \"" + ST_CREDIT_PREFIX + "\""} disabled={busy} />
         <ui.TextField label="Top label" value={topMain} onChange={(v: string) => setTopMainEdit(v)} disabled={busy} />
         <ui.TextField label="Top label (italic part)" value={topItalic} onChange={setTopItalic} disabled={busy} />
         <ui.Segmented label="Style" value={preset} onChange={setPreset} disabled={busy}
           options={[{ label: "Summer", value: "summer" }, { label: "Poster", value: "poster" }, { label: "Postcard", value: "postcard" }]} />
-        {presetsData ? <TitlePreview presets={presetsData} presetId={preset} line1={line1} season={season} topMain={topMain} topItalic={topItalic} creditName={creditName} fontsTick={fontsTick} /> : null}
+        {presetsData ? <TitlePreview presets={presetsData} presetId={preset} line1={line1} season={season} topMain={topMain} topItalic={topItalic} creditPrefix={creditPrefix} creditName={creditName} fontsTick={fontsTick} /> : null}
       </ui.Section>
       <ui.Section title="Music">
         <ui.Select label="Track" value={ownMusic ? "own" : cueId || null} disabled={busy}
@@ -2157,7 +2263,8 @@ export default function Panel({ sdk, context, ui }: any) {
       <ui.Section title="Advanced">
         <ui.Segmented label="Clip sound" value={clipSound} onChange={setClipSound} disabled={busy}
           options={[{ label: "Off", value: "off" }, { label: "Ambient", value: "ambient" }, { label: "Full", value: "full" }]} />
-        <ui.Slider label="Look strength" value={lookStrength} onChange={setLookStrength} min={0} max={1} step={0.05} disabled={busy} />
+        <ui.Toggle label="Summer look" value={lookOn} onChange={setLookOn} disabled={busy} />
+        <ui.Slider label="Look strength" value={lookStrength} onChange={setLookStrength} min={0} max={1} step={0.05} disabled={busy || !lookOn} />
         <ui.Toggle label="Sound effects" value={sfxOn} onChange={setSfxOn} disabled={busy} />
         {music.kind !== "none" ? <ui.Toggle label="Ending muffle" value={muffleOn} onChange={setMuffleOn} disabled={busy} /> : null}
         <ui.Toggle label="Use photos" value={usePhotos} onChange={setUsePhotos} disabled={busy} />

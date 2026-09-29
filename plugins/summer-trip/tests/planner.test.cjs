@@ -4,7 +4,7 @@ const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
 vm.createContext(box);
-vm.runInContext(source + ';globalThis.P={stMontageBeats,stSchedule,stFrameSchedule,stMusicOffset,stTitleSchedule,stTitleTimes,stSeasonFor,stOctave,stDefaultSection,stClampSection,stDropStart,stSnapAnchors,stTotalBeats,stTotalSeconds,ST_LENGTHS,ST_W,ST_H,ST_QUERIES,ST_MONTAGE_ROLES};', box);
+vm.runInContext(source + ';globalThis.P={stMontageBeats,stSchedule,stFrameSchedule,stMusicOffset,stTitleSchedule,stTitleTimes,stSeasonFor,stOctave,stDefaultSection,stClampSection,stDropStart,stSnapAnchors,stTotalBeats,stCueDuration,stLatestStart,stTotalSeconds,ST_LENGTHS,ST_W,ST_H,ST_QUERIES,ST_MONTAGE_ROLES};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
 let checks = 0;
@@ -218,6 +218,22 @@ eq(P.stDefaultSection({ bpm: 120, firstBeat: 0.2, duration: 60 }, 8).kind, 'sect
 eq(P.stDefaultSection({ bpm: 120, firstBeat: 0.2, duration: 60 }, 8).start, 0.2);
 // usableEnd fallback: duration = usableEnd + 0.5.
 near(P.stDefaultSection({ bpm: 120, firstBeat: 0.1, dropBeat: 16, usableEnd: 24.6 }, 8).start, 4.1);
+// Both known: the usable length is min(duration, usableEnd + 0.5), so a long silent tail does not count.
+// N = 8 spans 20 s at 120 BPM: latest start = 25.1 - 0.5 - 20 = 4.6 with usableEnd 24.6, but duration 60 alone gives 39.5.
+eq(P.stCueDuration({ duration: 60, usableEnd: 24.6 }), 25.1);
+eq(P.stCueDuration({ duration: 20, usableEnd: 24.6 }), 20);
+eq(P.stCueDuration({ duration: 30 }), 30);
+near(P.stCueDuration({ usableEnd: 24.6 }), 25.1);
+eq(P.stCueDuration({}), 0);
+near(P.stLatestStart({ bpm: 120, duration: 60, usableEnd: 24.6 }, 8), 4.6);
+const tail = P.stDefaultSection({ bpm: 120, firstBeat: 0.1, dropBeat: 40, duration: 60, usableEnd: 24.6 }, 8); // drop section at 16.1
+ok(tail && tail.clamped && tail.start <= 4.6 + 1e-9 && /does not fit/.test(tail.note), 'the silent tail is not usable: ' + JSON.stringify(tail));
+// A drop within the first 8 beats of the file: the section would start before 0. The earliest bar start on the drop's
+// grid is used, with its own note (not the "does not fit" note).
+const early = P.stDefaultSection({ bpm: 120, firstBeat: 0.1, dropBeat: 4, duration: 60 }, 8); // drop section at 0.1 - 2 = -1.9
+near(early.start, 0.1); eq([early.kind, early.clamped], ['section', true]);
+eq(early.note, 'The drop is too close to the start of the track; the title runs over the first two bars');
+ok(!/does not fit/.test(early.note));
 // Clamp: slider values snap to bars through the drop section, within [0, latest]; the drop position says 'drop'.
 const c1 = P.stClampSection({ cue, montageShots: 8, value: 4.3 });
 near(c1.start, 4.1); eq([c1.kind, c1.moved], ['drop', false]);

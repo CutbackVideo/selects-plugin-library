@@ -62,7 +62,9 @@ Returns:
 ```js
 {
   sequenceId, fps,
-  frames,        // stFrameSchedule output at the real fps (+ fps, delta)
+  frames,        // stFrameSchedule output at the real fps (+ fps, delta), computed as the planner does, including a leak that
+                 // follows a snapped ending start (snapped E seconds ± 0.25 beat); frames.leakFrames is { a, b } here (the
+                 // planner returns [a, b], same frame numbers)
   placed:     [{ index, clipId, rid, kind, role, a, b, sourceStart }],             // Main clips, index = mainBeats slot
   gridPlaced: [{ quad, clipId, rid, kind, a, b, sourceStart, scale, position: { x, y } }],
   sizes: { [rid]: { width, height } | null },   // cfg.sizes + sizes measured on the scratch Draft
@@ -77,8 +79,10 @@ Returns:
   notes: [string]
 }
 ```
-Music spans (spec §15.6): with `wetResourceId`, dry over [0, Fe + ⌈X/2⌉), wet over [Fe − ⌊X/2⌋, F(end)) with sourceStartSeconds
-s0 + (Fe − ⌊X/2⌋)/fps; dry fade-out = wet fade-in = X/fps; the clip reaching F(end) fades out over F(end) − F(end − 0.5) frames. s0 is
+Music spans (spec §15.6, live-corrected): with `wetResourceId`, the wet (muffled) copy starts at the ending cut at full level, over
+[Fe, F(end)) with sourceStartSeconds s0 + Fe/fps (no fade-in); the dry runs under it over [0, min(F(end), Fe + X)) and fades out over
+its last X frames (fade-out = X/fps). Selects' fade curves do not sum to a constant, so a symmetric crossfade left an audible hole at
+the joint. The clip reaching F(end) fades out over F(end) − F(end − 0.5) frames. s0 is
 read from the placed row / overlay result when Selects reports it, else the frame-snapped section start. If the wet overlay fails, all
 music clips placed in this run are removed and the dry is placed again over [0, F(end)); if that removal fails the script throws before
 committing. SFX: shutter i over [gridStateFrames[i], + floor(len·fps)); whooshes over [anchor − floor(len·fps), anchor) for anchors F(8)
@@ -113,8 +117,11 @@ Returns `{ titleAdded, labelsAdded, muted, muteKept, gridSound: { mode, routed, 
 filmFrame, motion }, kept: { … } }, committed, alreadyDone, notes }`.
 
 ### ensure-audio.js
-`{ projectId, files: [{ key, path }] }` → `{ ids: { [key]: resourceId }, imported: [key], missing: [key] }` (imports only missing
-files in one importFiles call; matches Audio resources by path, then by file name).
+`{ projectId, files: [{ key, path, matchByName? }] }` → `{ ids: { [key]: resourceId }, imported: [key], missing: [key] }` (imports
+only missing files in one importFiles call; matches Audio resources by path, then by file name). `matchByName: false` (set by the
+panel and `dev/adapter.mjs` on the `dry` entry when it is the user's own music) matches by path only, so another song with the same
+file name is never reused; after the import it may match by name among the resources that import added. Plugin-owned files (bundled
+cues and their muffled copies, sound effects, the hash-named muffled copy of own music) omit it and keep the name fallback.
 
 ### inventory.js
 `{ projectId, only: null | [rid], known?: { [rid]: size }, measureMs?: 8000, probeMs?: 4000 }` →

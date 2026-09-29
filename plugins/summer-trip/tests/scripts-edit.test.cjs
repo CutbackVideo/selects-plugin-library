@@ -305,6 +305,28 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
   assert.equal(r9.frames.mainFrames[2], Math.round(7.06 * 30), 'anchor 14 snapped');
   assert.equal(r9.frames.placeFrames[1], Math.round(7.06 * 30), 'place title off moves with it');
   assert.equal(r9.frames.mainFrames[1], F0(9.5), 'non-anchor beats never snap');
+  // Planner/assemble parity with snaps: a snapped ending start carries the light leak (snapped E +/- 0.25 beat), in
+  // assemble's copy of stFrameSchedule exactly as in planner.js. N = 8, 120 BPM, 30 fps, E (beat 32) snapped +60 ms.
+  const vm = require('node:vm');
+  const pbox = { Math, Number, Object, Array, String, Set, Map, Infinity, NaN, Error, JSON, isFinite }; vm.createContext(pbox);
+  vm.runInContext(fs.readFileSync(path.resolve(__dirname, '..', 'planner.js'), 'utf8') + ';globalThis.P = { stFrameSchedule, stSchedule };', pbox);
+  const PS = JSON.parse(JSON.stringify(pbox.P.stSchedule({ montageShots: 8 })));
+  assert.equal(PS.endingStart, 32);
+  const eSnap = 32 * 0.5 + 0.06;
+  const snapsE = { 14: 7.06, 32: eSnap };
+  const mpar = mockDraft(30, { photos: PHOTOS, audioRids: AUDIO });
+  const rpar = await load('assemble.js', baseCfg({ music: null, schedule: PS, beats: { bpm: 120, delta: 0, snaps: snapsE } }))(project(() => mpar));
+  const pf = JSON.parse(JSON.stringify(pbox.P.stFrameSchedule({ schedule: PS, bpm: 120, delta: 0, fps: 30, snaps: snapsE })));
+  assert.equal(rpar.frames.endingFrame, Math.round(eSnap * 30), 'E snapped');
+  assert.deepEqual(rpar.frames.leakFrames, { a: rpar.frames.endingFrame - 4, b: rpar.frames.endingFrame + 4 }, 'leak around the snapped E, 4 frames each side');
+  assert.deepEqual([rpar.frames.leakFrames.a, rpar.frames.leakFrames.b], pf.leakFrames, 'leakFrames as the planner computes them');
+  for (const k of ['mainFrames', 'gridStateFrames', 'titleFrames', 'labelsFrames', 'placeFrames', 'endingFrame', 'endFrame', 'fadeStartFrame', 'pulseFrames'])
+    assert.deepEqual(JSON.parse(JSON.stringify(rpar.frames[k])), JSON.parse(JSON.stringify(pf[k])), 'parity ' + k);
+  assert.deepEqual(rpar.frames.grid.map(g => [g.quad, g.aFrame, g.bFrame]), pf.grid.map(g => [g.quad, g.aFrame, g.bFrame]), 'parity grid');
+  // Without an E snap the leak stays on F(E -/+ 0.25).
+  const mqar = mockDraft(30, { photos: PHOTOS, audioRids: AUDIO });
+  const rqar = await load('assemble.js', baseCfg({ music: null, schedule: PS, beats: { bpm: 120, delta: 0, snaps: { 14: 7.06 } } }))(project(() => mqar));
+  assert.deepEqual(rqar.frames.leakFrames, { a: F0(31.75), b: F0(32.25) });
 
   // 6. Clip sound modes and grid sound in assemble.
   const sound = async (extra) => { const m = mockDraft(30, { photos: PHOTOS, audioRids: AUDIO }); const r = await load('assemble.js', baseCfg(extra))(project(() => m)); return { m, r }; };
