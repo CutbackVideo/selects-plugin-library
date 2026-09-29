@@ -268,7 +268,11 @@ function mvAllocate(opts) {
   const photoSeen = {};
   const photos = opts.candidates.filter(c => c && c.kind === 'photo' && typeof c.rid === 'string' && !photoSeen[c.rid] && (photoSeen[c.rid] = true))
     .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
-  const used = {}, recent = [], picks = [], photoUsed = {};
+  const used = {}, uses = {}, recent = [], picks = [], photoUsed = {};
+  // Variety first (default): a slot takes an unused resource whenever one fits before reusing any, and reuse goes to
+  // the least-used resource. spread: false ranks by role and score only (the fallback mvPlanBuild tries before it
+  // shrinks, since spending every fresh clip first can strand a length that a reuse-tolerant order fills).
+  const spread = opts.spread !== false;
   const pool = candidates.filter(c => c.sourceDuration > 0);
   // Photo-only pools (no usable video) may play any number of photos in a row.
   const runLimited = pool.length > 0;
@@ -282,11 +286,13 @@ function mvAllocate(opts) {
   const phase = mvHash(opts.seed + ':photo-slots');
   for (let k = 0; k < target; k++) photoSlots[holdable[Math.floor((k + phase) * holdable.length / target)].index] = true;
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
-  // `exclude` is the previous shot's source, which may not be used.
-  function searchVideo(slot, rankOf, exclude) {
+  // `exclude` is the previous shot's source, which may not be used; `level`, when not null, keeps only sources used
+  // exactly that many times.
+  function searchVideo(slot, rankOf, exclude, level) {
     let best = null;
     for (const c of pool) {
       if (c.rid === exclude) continue;
+      if (level != null && (uses[c.rid] || 0) !== level) continue;
       const rank = rankOf(c);
       if (rank < 0 || c.sourceDuration < slot.seconds + MV_SOURCE_TAIL) continue;
       const start = Math.max(0, Math.min(c.sourceDuration - MV_SOURCE_TAIL - slot.seconds, c.t - slot.seconds / 2));
@@ -316,13 +322,23 @@ function mvAllocate(opts) {
     const roles = [slot.role].concat(MV_ROLE_FALLBACK[slot.role] || []);
     const exclude = prevRid;
     const photo = () => searchPhoto(slot);
-    const preferred = () => searchVideo(slot, c => roles.indexOf(c.role), exclude);
-    const anyReal = () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude);
-    const filler = () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1), exclude);
-    // Tiers, best first: preferred-role hits, any-role hits, photos, fillers; a photo slot puts photos first. After
-    // MV_PHOTO_RUN_MAX photos in a row the photo tier is skipped.
+    const preferred = level => () => searchVideo(slot, c => roles.indexOf(c.role), exclude, level);
+    const anyReal = level => () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude, level);
+    const filler = level => () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1), exclude, level);
+    // Tiers, best first. A photo slot puts an unused photo first. With spread (the default) the video tiers run once
+    // per use count, fewest first: preferred-role hits, any-role hits, then fillers of sources used that often, so
+    // role and score only rank sources used equally often and an unused clip (even by a filler) beats any reuse.
+    // Outside photo slots a photo is then the last resort, which keeps the photo share. Without spread the CWV order
+    // applies: preferred, any-role, photo, filler. After MV_PHOTO_RUN_MAX photos in a row the photo tier is skipped.
     const runFull = runLimited && photoRun >= MV_PHOTO_RUN_MAX;
-    const tiers = photoSlots[slot.index] ? [photo, preferred, anyReal, filler] : [preferred, anyReal, photo, filler];
+    const tiers = photoSlots[slot.index] ? [photo] : [];
+    if (spread) {
+      const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => x - y);
+      for (const level of levels) tiers.push(preferred(level), anyReal(level), filler(level));
+      tiers.push(photo);
+    } else {
+      tiers.push(preferred(null), anyReal(null), photo, filler(null));
+    }
     let best = null;
     for (const tier of tiers) {
       if (runFull && tier === photo) continue;
@@ -340,6 +356,7 @@ function mvAllocate(opts) {
     }
     photoRun = 0;
     (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
+    uses[best.c.rid] = (uses[best.c.rid] || 0) + 1;
     if (best.c.role === 'filler') fillerShots++;
     // sourceDuration lets assemble.js keep the window inside its source at the Draft's real rate.
     picks.push({ slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end, sourceDuration: best.c.sourceDuration });
@@ -379,13 +396,16 @@ function mvPlanBuild(opts) {
   // spends video windows only where the run limit needs them.
   const shares = [opts.photoShare == null ? MV_PHOTO_SHARE : opts.photoShare];
   if (hasPhotos && shares[0] !== 1) shares.push(1);
+  // Variety first; spending every fresh clip early can also strand a fillable length (a s s s ... where a s a s ...
+  // fits), so a length is only given up after the role-and-score order (spread: false) fails too.
+  const attempts = [true, false].flatMap(spread => shares.map(photoShare => ({ spread, photoShare })));
   let usableShots = 0;
   for (let n = top; n >= MV_MIN_SHOTS; n -= MV_MIN_SHOTS) {
     const schedule = mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, shots: n, beatsPerShot: guard.beats, shotSeconds,
       sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence });
     const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
-    for (const photoShare of shares) {
-      const alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare });
+    for (const attempt of attempts) {
+      const alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread });
       if (alloc.missing === 0) {
         return { ok: true, schedule, picks: alloc.picks, shots: n, requested, fittedByMusic: top < requested,
           beatsPerShot: guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };

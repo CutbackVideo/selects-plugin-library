@@ -67,14 +67,18 @@ assert.equal(j(P.mvAllocate({ candidates: three.concat(photos(10)), slots: slots
 assert.equal(j(P.mvAllocate({ candidates: three.concat(photos(3)), slots: slotsOf(24), seed: 's1' })).photoShots, 3);
 // No photo candidates: photo slots fall back to videos.
 assert.equal(j(P.mvAllocate({ candidates: three, slots: slotsOf(24), seed: 's1' })).missing, 0);
-// The run rule is strict: fillers of one video and photos on a strip of street slots go P P v P P v P (the third photo
-// never comes, even where a photo slot would want it).
+// The run rule is strict: in the role-and-score order (spread: false, where a photo ranks before fillers) fillers of
+// one video and photos on a strip of street slots go P P v P P v P (the third photo never comes, even where a photo
+// slot would want it).
 const strip = Array.from({ length: 7 }, (_, i) => street(i));
 const onlyFillers = P.mvFillers([mk('v', 'park', 5, 0.5, 60)]);
 for (const seed of ['x', 'y', 'z']) {
-  const st = j(P.mvAllocate({ candidates: onlyFillers.concat(photos(10)), slots: strip, seed }));
+  const st = j(P.mvAllocate({ candidates: onlyFillers.concat(photos(10)), slots: strip, seed, spread: false }));
   assert.deepEqual(st.picks.map(p => p.kind), ['photo', 'photo', 'video', 'photo', 'photo', 'video', 'photo']);
   assert.equal(st.photoShots, 5); assert.equal(st.fillerShots, 2);
+  // Variety first (default): outside photo slots a photo is the last resort, so the one video alternates with photos.
+  const sp = j(P.mvAllocate({ candidates: onlyFillers.concat(photos(10)), slots: strip, seed }));
+  assert.equal(sp.missing, 0); assert.ok(maxRun(sp.picks) <= 2 && !adjacent(sp.picks));
 }
 // With the video out of room the run limit still holds: the slot stays empty instead.
 const shortStrip = j(P.mvAllocate({ candidates: [mk('v', 'street', 0.6, 0.5, 1.9)].concat(photos(10)), slots: strip.map(s => ({ ...s, seconds: 1.2 })), seed: 'x', photoShare: 0 }));
@@ -180,6 +184,53 @@ for (const seed of ['s1', 's2', 's3']) {
 }
 assert.equal(plan(scarceB, { requested: 24, photoShare: 1 }).shots, 20);
 
+// Variety first (live Staging: Paris 24 shots from ~15 usable clips used 9 of them, one 6 times). A slot takes an unused
+// resource whenever one fits (any role, then photos, then fillers of unused clips) before reusing any; reuse goes to
+// the least-used resource first, so use counts differ by at most 1.
+// (a) 15 clips, each with hits in only 1-2 roles; one 'drink' clip has the top scores and many windows.
+const varied = [];
+for (const t of [2, 5, 8, 11, 14, 17]) varied.push(mk('d', 'drink', t, 0.95 + t / 1000, 20));
+for (let r = 1; r < 15; r++) {
+  const id = 'r' + String(r).padStart(2, '0');
+  const rs = r % 3 === 0 ? [ROLES[r % 8]] : [ROLES[r % 8], ROLES[(r + 3) % 8]];
+  for (const role of rs) for (const t of [3, 10]) varied.push(mk(id, role, t + rs.indexOf(role) * 0.5, 0.3 + (r % 5) / 20, 15));
+}
+const useOrder = picks => picks.filter(p => p && p.kind === 'video').map(p => p.rid);
+const counts = rids => rids.reduce((m, r) => ((m[r] = (m[r] || 0) + 1), m), {});
+for (const seed of ['s1', 's2', 's3', 's4']) {
+  const r = j(P.mvAllocate({ candidates: varied, slots: slotsOf(24), seed }));
+  assert.equal(r.missing, 0);
+  const order = useOrder(r.picks);
+  const firstRepeat = order.findIndex((rid, i) => order.indexOf(rid) < i);
+  assert.equal(new Set(order.slice(0, 15)).size, 15, 'every clip is used before any is used twice (' + seed + ')');
+  assert.equal(firstRepeat, 15);
+  const c = Object.values(counts(order));
+  assert.equal(c.length, 15);
+  assert.ok(Math.max(...c) - Math.min(...c) <= 1, 'reuse is spread: ' + JSON.stringify(counts(order)));
+  assert.ok(!adjacent(r.picks));
+}
+// Through the plan (fillers added): 24 shots from the 15 clips, each used once or twice.
+const variedPlan = plan(varied, { requested: 24 });
+assert.equal(variedPlan.ok, true); assert.equal(variedPlan.shots, 24);
+{ const c = Object.values(counts(useOrder(variedPlan.picks))); assert.equal(c.length, 15); assert.ok(Math.max(...c) - Math.min(...c) <= 1); }
+// (b) A daily-like Project: 30 clips of 3-20 s with hits in 1-2 roles (a few strong drink clips) + 8 photos, 12 shots
+// -> 12 distinct resources.
+const daily = [];
+for (let r = 0; r < 30; r++) {
+  const id = 'c' + String(r).padStart(2, '0'), dur = 3 + (r * 7) % 18;
+  const rs = r < 4 ? ['drink'] : [ROLES[(r * 5) % 8], ROLES[(r * 3 + 1) % 8]];
+  for (const role of rs) for (let k = 0; k < 1 + (r % 3); k++) {
+    const t = Math.min(dur - 0.5, 0.8 + k * 2.2 + rs.indexOf(role) * 0.3);
+    daily.push(mk(id, role, t, r < 4 ? 0.9 : 0.2 + ((r * 13) % 10) / 20, dur));
+  }
+}
+for (const seed of ['1', '2', '3']) {
+  const d = plan(daily.concat(photos(8)), { requested: 12, seed });
+  assert.equal(d.ok, true); assert.equal(d.shots, 12);
+  assert.equal(new Set(d.picks.map(p => p.rid)).size, 12, 'daily: 12 distinct resources (' + seed + ')');
+  assert.equal(d.photoShots, 4);
+}
+
 // Windows stay in their source, have the slot's length and never overlap (with the gap) within one source.
 const spans = {};
 cap.picks.forEach((p, i) => {
@@ -207,7 +258,10 @@ assert.equal(one([mk('a', 'street', 5, 1, 30), mk('b', 'drink', 5, 0, 30)], drin
 assert.equal(one([mk('a', 'street', 5, 1, 30), mk('b', 'cafe', 5, 0, 30)], drinkSlot).rid, 'b', 'a fallback role beats any other role');
 assert.equal(one([mk('a', 'food', 5, 0.9, 30), mk('b', 'cafe', 5, 0.9, 30)], drinkSlot).rid, 'b', 'cafe is the first fallback for drink');
 assert.equal(one([mk('v', 'street', 5, 0.01, 30), photo('p')], drinkSlot).rid, 'v', 'any real hit beats a photo');
-assert.equal(one(P.mvFillers([mk('v', 'street', 5, 0.5, 30)]).concat([photo('p')]), drinkSlot).rid, 'p', 'a photo beats fillers');
+// Outside photo slots a filler of an unused clip beats a photo (variety first keeps the photo share); in the
+// role-and-score order (spread: false) the photo beats fillers.
+assert.equal(one(P.mvFillers([mk('v', 'street', 5, 0.5, 30)]).concat([photo('p')]), drinkSlot).rid, 'v', 'an unused filler beats a photo');
+assert.equal(j(P.mvAllocate({ candidates: P.mvFillers([mk('v', 'street', 5, 0.5, 30)]).concat([photo('p')]), slots: [drinkSlot], seed: 'x', photoShare: 0, spread: false })).picks[0].rid, 'p', 'a photo beats fillers without spread');
 // A photo slot puts photos first.
 assert.equal(j(P.mvAllocate({ candidates: [mk('v', 'drink', 5, 1, 30), photo('p')], slots: [drinkSlot], seed: 'x', photoShare: 1 })).picks[0].rid, 'p');
 // Non-finite candidate fields are ignored.
