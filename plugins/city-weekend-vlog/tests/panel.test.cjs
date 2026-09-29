@@ -52,7 +52,7 @@ assert.ok(panel.includes('const candKey = projectId + "|" + JSON.stringify(only)
 assert.ok(panel.indexOf('React.useMemo(') < panel.indexOf('if (!projectId) return <ui'), 'the fitted-count hook stays before the early return');
 // Photos: a Use photos toggle, photos in the clip list and the readiness line, photo-only builds, photo effects gated.
 for (const phrase of ['label="Use photos"', 'photos selected', '" photos"', '"Photo"', 'photoCandsOf(inventory, onlyPhotos, usePhotos)', 'of them photos', 'known: photoSizesRef.current',
-  'cwvPhotoMotions(plan.picks, String(usedSeed), sizes, sched.titleSlots)', 'photoEffects: PHOTO_EFFECTS', 'const PHOTO_EFFECTS = false;', 'usedPhotoCount >= minShots', 'disabled={busy || !canBuild}', 'choosePhotos(allPhotoRids)']) assert.ok(panel.includes(phrase), phrase);
+  'cwvPhotoMotions(plan.picks, String(usedSeed), sizes, sched.titleSlots)', 'photoEffects: PHOTO_EFFECTS', 'const PHOTO_EFFECTS = true;', 'usedPhotoCount >= minShots', 'disabled={busy || !canBuild}', 'choosePhotos(allPhotoRids)']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(/const \[usePhotos, setUsePhotos\] = React\.useState\(true\)/.test(panel), 'Use photos is on by default');
 for (const m of ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift']) assert.ok(panel.includes('value: "' + m + '"'), 'motion option ' + m);
 const chooseP = panel.slice(panel.indexOf('const choosePhotos ='), panel.indexOf('const togglePhoto ='));
@@ -86,4 +86,6 @@ assert.ok(panel.includes('const beatsAt = [0, ...plan.schedule.slots.map((s: any
 assert.ok(!/i < 13/.test(panel), 'no fixed title slot count');
 // Same-source neighbours only when nothing else fits, and then the result says so.
 assert.ok(panel.includes('result?.plan?.adjacentRepeats') && panel.includes('from the same clip because there'), 'adjacent repeat note');
+// Photo effects are on; captureFrames breaks on image clips with effects, so the panel never uses it.
+assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel) && !/\.(captureFrames|captureVisualFrames)\(/.test(fs.readFileSync(path.join(root, "scripts", "decorate.js"), "utf8")), 'no frame capture in the panel');
 console.log(JSON.stringify({ panel: 'ok' }));

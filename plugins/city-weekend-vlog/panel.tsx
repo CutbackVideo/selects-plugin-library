@@ -24,9 +24,9 @@ const CWV_QUERIES = {
   detail: "close-up street detail, sign or storefront",
   wide: "wide open view of sky, lawn or skyline",
 };
-// Photo clips get no Video Effects (warm look, motion) yet: the Selects renderer cannot draw an effect on an image
-// clip (it probes the image for audio and the frame fails to render). Flip this once that works.
-const PHOTO_EFFECTS = false;
+// Photo clips get the photo motion and the warm look. MP4 export renders both (checked on exported frames); only
+// Draft.captureFrames fails on an image clip with an effect, and the panel never captures frames.
+const PHOTO_EFFECTS = true;
 const MOTION_OPTIONS = [
   { label: "Push in", value: "push-in" }, { label: "Pull out", value: "pull-out" },
   { label: "Drift left", value: "drift-left" }, { label: "Drift right", value: "drift-right" },

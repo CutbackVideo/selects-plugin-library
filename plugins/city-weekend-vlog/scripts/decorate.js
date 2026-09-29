@@ -3,8 +3,8 @@ const d = selects.draft(cfg.sequenceId);
 const TITLE_LABEL = 'City Weekend title', WARM_LABEL = 'Warm look', MOTION_LABEL = 'Photo motion';
 // Photo resource ids in this Draft. Photos have no sound, so their audio routing stays null after muting.
 const photoIds = new Set(cfg.photos || []);
-// Effects on photo clips: the Staging renderer fails to render any video effect on an image clip (it probes the
-// image for audio), so the panel keeps this off and photos get neither the warm look nor a motion yet.
+// Effects on photo clips (warm look and motion) when cfg.photoEffects is true. Export renders them; Draft.captureFrames
+// cannot render a frame with an effect on an image clip, so never preview such frames with it.
 const photoEffects = cfg.photoEffects === true;
 const hasEffect = async (clip, label) => (await d.videoEffects(clip)).some(e => e.name === label || e.effectName === label);
 // Idempotent: a retry after a half-finished or unreported earlier run adds only what is still missing.
