@@ -148,7 +148,7 @@ async function galleryPreflight(selects, project, input, inventory) {
   const chosen = input.media.map((item, i) => {
     const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);
     if (fresh.kind === 'image' && (!Number.isSafeInteger(fresh.width) || !Number.isSafeInteger(fresh.height))) {
-      galleryFail(`Slot ${i + 1} photo dimensions are unavailable; update Selects for native Image clips`);
+      galleryFail(`Slot ${i + 1} photo dimensions are unavailable through the plugin SDK; no Draft was saved`);
     }
     return { ...fresh, focusX: item.focusX, focusY: item.focusY };
   });
@@ -187,7 +187,7 @@ async function galleryCreate(selects, project, input, inventory, onCommitStarted
       await draft.overlayResource({ resource: project.resource(tile.resourceId), over: await draft.rangeAtFrames(tile.revealFrame, tile.endFrame) });
     } catch (error) {
       if (source.kind === 'image' && /not a Video\/Audio asset/i.test(String(error?.message || error))) {
-        galleryFail('This Selects build cannot place original photos as Image clips; update Selects before creating this gallery');
+        galleryFail('The plugin SDK cannot place original Image Resources on video tracks, although the editor can; no Draft was saved');
       }
       throw error;
     }

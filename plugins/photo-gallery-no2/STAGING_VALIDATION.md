@@ -12,7 +12,7 @@ Build: Selects Staging 2.0.506 (`com.cutback.app.staging`). Plugin: `photo-galle
 | Main Image placement | `insertResource({resourceId:'r0'})` worked in a simulation, but places an Image on Main. It cannot produce 21 simultaneous independent tiles and is not a substitute for Image overlays. |
 | Saved Draft, playback, native export, reference comparison | Not reached for this JPG-based version. Do not count the previous MP4 version's export as a pass. |
 
-The app's current public `ProjectSourceFileNode` declaration permits `video | audio | sequence`, and `sourceFiles()` returned each imported JPG as `type: 'video'` without `frameSize`, while `project.resources()` correctly returned `type: 'Image'`. The plugin therefore cannot infer a safe crop size from the SDK. Even supplying dimensions from a local file probe would not resolve the confirmed Image-overlay rejection. The minimum host capability needed is an Image Resource overlay plus Image dimensions in the project inventory, with playback and native export of those overlays verified. Until then, the plugin intentionally stops without creating a misleading Draft or transcoding photos to MP4.
+The public `ProjectSourceFileNode` declaration permits `video | audio | sequence`, and `sourceFiles()` returned each imported JPG as `type: 'video'` without `frameSize`, while `project.resources()` correctly returned `type: 'Image'`. The plugin therefore cannot infer a safe crop size from that inventory. Supplying dimensions from a local file probe would not resolve the independent `overlayResource(Image)` rejection. The plugin intentionally stops without creating a misleading Draft or transcoding photos to MP4.
 
 ## Real-photo export attempt — 2026-09-30
 
@@ -20,4 +20,8 @@ Twenty-one distinct generated real-photo PNGs (1122×1402 each) were imported in
 
 An independent simulation in that same Project confirmed the deeper host limitation: `overlayResource` rejected the real `tile-01.png` Image Resource with `Resource ... is not a Video/Audio asset`. The probe did not commit. A second simulation in the already-running isolated Selects Dev 2.0.504 app rejected its own JPG Image Resource with the same error. The new Staging Project also initializes empty Drafts at 23.976 fps; the plugin's 60 fps preflight would require an explicitly 60 fps Project after the image-overlay capability is available.
 
-**Native Image Draft creation, live playback, and native export remain blocked.** No substitute MP4 tiles or flattened gallery were exported and no client code was changed. The generated media and manifest remain in the local test workspace, outside the plugin package.
+**The current plugin SDK path cannot create the native Image gallery, so its playback and native export remain untested.** No substitute MP4 tiles or flattened gallery were exported and no client code was changed. The generated media and manifest remain in the local test workspace, outside the plugin package.
+
+## Correction after editor evidence
+
+The editor **can** place an original Image Resource on a separate Video track. In another existing Staging Draft, SDK readback showed `B.png` as `type: Image`, `trackKind: video`, frames 161–311. This was read-only inspection; the Draft belongs to the separate No.14 task. A simulation-only `overlayResource` call against that exact `B.png` in the same Project still returned `not a Video/Audio asset`. Thus the demonstrated limitation is specifically the plugin's public `overlayResource` API, **not** Selects' underlying editor or renderer. We are investigating a supported plugin route to the editor's placement operation. Export of this No.2 plugin is not yet established by the screenshot or the readback.

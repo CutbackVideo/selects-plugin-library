@@ -242,7 +242,7 @@ test('a Selects build without native Image overlays stops before commit without 
     path: `/test/photo-${i}.png`, kind: 'image' }));
   const result = await f.run({ operation: 'create', projectId: 'project-1', media, manualBpm: 113 });
   assert.equal(result.status, 'notSaved');
-  assert.match(result.message, /cannot place original photos as Image clips/i);
+  assert.match(result.message, /plugin SDK cannot place original Image Resources on video tracks/i);
   assert.equal(f.inserted.length, 0);
 });
 
