@@ -19,8 +19,6 @@ const TPL_FALLBACK_UNIT = 0.35;
 const TPL_SOURCE_TAIL = 0.15;
 // The Torn photo effect's clock: 'clip' (frame 0 = the clip's first timeline frame) or 'source'. Set by probe P-clock.
 const TPL_EFFECT_CLOCK = 'clip';
-// Share of letters that change look on each re-style tick.
-const TPL_LETTER_SHARE = 0.4;
 // Filler candidates for videos without a search hit.
 const TPL_FILLER_STEP = 0.5;
 const TPL_FILLER_EDGE = 0.25;

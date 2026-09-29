@@ -71,6 +71,13 @@ for (const phrase of ['title="Words"', 'label="Word 1"', 'label="Word 2"', 'titl
   'couldn', 'aria-pressed', 'steps={TPL_BUILD_STEPS', 'Stopped at step', 'selects.editor.openDraft', 'FontFace', 'tplLayout(', 'tplAssignLooks(', 'tplLooksAt(',
   'PREVIEW_H', 'Silent video']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(/setInterval\(\(\) => setTick\(\(n\) => n \+ 1\), 350\)/.test(panel), 'letters re-style every 350 ms in the preview');
+{
+  // The 350 ms clock lives in LettersPreview, so only the preview re-renders on each tick.
+  const lp = panel.slice(panel.indexOf('function LettersPreview('), panel.indexOf('export default function Panel('));
+  assert.ok(lp.includes('setInterval(() => setTick'), 'the preview tick is local to LettersPreview');
+  assert.ok(!panel.slice(panel.indexOf('export default function Panel(')).includes('setTick'), 'the panel has no tick state');
+}
+assert.ok(!panel.includes('(dev)') && !panel.includes('DEV_CUES'), 'the bundled cues are not marked as development cues');
 // Frozen defaults (spec 15.7).
 for (const re of [/React\.useState\("MY"\)/, /React\.useState\("LOVE"\)/, /React\.useState<string>\("night"\)/, /React\.useState<"short" \| "standard" \| "long">\("standard"\)/,
   /React\.useState<"quick" \| "relaxed">\("quick"\)/, /React\.useState<"off" \| "ambient" \| "full">\("ambient"\)/, /\[useVideos, setUseVideos\] = React\.useState\(true\)/,
@@ -170,7 +177,9 @@ const tick = () => new Promise(r => setImmediate(r));
     const frames = cfg.targets.map((t, k) => (k === 0 ? 0 : Math.round((t + off) * fps)));
     return { sequenceId: 'seq-1', fps, frames, totalFrames: frames[frames.length - 1], placed: cfg.slots.length, notes: [] };
   };
-  // host({ fail: { kind: error }, draftsAfter }) records every call; `kind` = the script's first word.
+  // host({ fail: { kind: error }, draftsBefore, landed, idless }) records every call; `kind` = the script's first word.
+  // landed: a failed assemble still saved its Draft (true = 'seq-landed', or an array of new ids); idless: assemble
+  // saves and replies without the Draft id (true = 'seq-landed', or an array of new ids).
   const host = (opts = {}) => {
     const calls = [], projectRef = { current: 'proj' }, progress = [];
     let drafts = opts.draftsBefore || [];
@@ -188,13 +197,19 @@ const tick = () => new Promise(r => setImmediate(r));
         if (opts.onCall) opts.onCall(kind, projectRef);
         if (opts.fail && opts.fail[kind]) {
           const e = opts.fail[kind];
-          if (kind === 'ASSEMBLE' && opts.landed) drafts = drafts.concat(['seq-landed']);
+          if (kind === 'ASSEMBLE' && opts.landed) drafts = drafts.concat(Array.isArray(opts.landed) ? opts.landed : ['seq-landed']);
           throw e;
         }
         if (kind === 'SEARCH') { const c = cfgOf(script); return { best: Object.fromEntries(c.rids.map(r => [r, 2.5])), failed: [], stats: {} }; }
         if (kind === 'ENSURE') return { resourceId: 'music-1', imported: true };
         if (kind === 'FINDAUDIO') return { resourceId: opts.audioFound ? 'music-1' : null };
         if (kind === 'DRAFTS') return { ids: drafts.slice() };
+        if (kind === 'ASSEMBLE' && opts.idless) {
+          drafts = drafts.concat(Array.isArray(opts.idless) ? opts.idless : ['seq-landed']);
+          const a = assembledFor(calls[calls.length - 1].cfg, opts.fps || 29.97);
+          delete a.sequenceId;
+          return a;
+        }
         if (kind === 'ASSEMBLE') { const a = assembledFor(calls[calls.length - 1].cfg, opts.fps || 29.97); drafts = drafts.concat([a.sequenceId]); return a; }
         if (kind === 'READBACK') { const a = assembledFor(calls.find(c => c.kind === 'ASSEMBLE').cfg, opts.fps || 29.97); return Object.assign(a, { sequenceId: 'seq-landed' }); }
         if (kind === 'DECORATE') return { effects: 14, committed: true };
@@ -222,7 +237,7 @@ const tick = () => new Promise(r => setImmediate(r));
     assert.deepEqual(h.calls[2].cfg, j(P.tplAssembleConfig(state, { resourceId: 'music-1' })), 'assemble config = tplAssembleConfig');
     const a = assembledFor(h.calls[2].cfg, 29.97);
     assert.deepEqual(h.calls[3].cfg, j(P.tplDecorateConfig(state, a, assets)), 'decorate config = tplDecorateConfig');
-    assert.equal(h.calls[2].cfg.draftName, 'Torn Paper Love Night Standard 2026-09-30 09:05', 'the Draft name is frozen at click');
+    assert.equal(h.calls[2].cfg.draftName, 'Torn Paper Love Night Standard 2026-09-30 09:05:00', 'the Draft name is frozen at click');
     assert.ok(h.calls[1].script.includes(JSON.stringify(h.calls[2].cfg.draftName)), 'the Drafts lookup uses the frozen name');
     assert.equal(out.state.N, 7);
     assert.equal(out.link, 'selects://draft');
@@ -300,6 +315,36 @@ const tick = () => new Promise(r => setImmediate(r));
     await assert.rejects(P.tplRunBuild(frozen(), h), /Streamable HTTP error/);
     assert.deepEqual(kinds(h), ['ENSURE', 'DRAFTS', 'ASSEMBLE', 'DRAFTS']);
   }
+  // ... the recovery itself fails more specifically (two new Drafts with the name): both messages surface.
+  {
+    const h = host({ fail: { ASSEMBLE: Error('Streamable HTTP error: timeout') }, landed: ['seq-a', 'seq-b'], draftsBefore: ['seq-old'] });
+    await assert.rejects(P.tplRunBuild(frozen(), h), e => /Streamable HTTP error/.test(e.message) && /several new Drafts are named/.test(e.message));
+    assert.deepEqual(kinds(h), ['ENSURE', 'DRAFTS', 'ASSEMBLE', 'DRAFTS']);
+  }
+  // Assemble replies without the new Draft's id: the same read-only recovery (fresh name match -> read back), then
+  // decorate continues. Assemble is never resent.
+  {
+    const h = host({ idless: true, draftsBefore: ['seq-old'] });
+    let onA = null;
+    h.onAssembled = (s, a) => { onA = a; };
+    const out = await P.tplRunBuild(frozen(), h);
+    assert.deepEqual(kinds(h), ['ENSURE', 'DRAFTS', 'ASSEMBLE', 'DRAFTS', 'READBACK', 'DECORATE', 'OPEN']);
+    assert.equal(kinds(h).filter(k => k === 'ASSEMBLE').length, 1, 'assemble is never resent');
+    assert.ok(!h.calls[3].allowCommit && !h.calls[4].allowCommit, 'the recovery only reads');
+    assert.ok(h.calls[4].script.includes('"seq-landed"'), 'reads back the Draft that appeared');
+    assert.equal(out.assembled.sequenceId, 'seq-landed');
+    assert.equal(onA && onA.sequenceId, 'seq-landed', '"Finish letters and look" gets the recovered Draft');
+    assert.equal(h.calls[5].cfg.sequenceId, 'seq-landed');
+    assert.equal(out.link, 'selects://draft');
+    // No new Draft found: the id error, still without a resend or a decorate.
+    const h2 = host({ idless: [], draftsBefore: ['seq-old'] });
+    await assert.rejects(P.tplRunBuild(frozen(), h2), /did not report its id/);
+    assert.deepEqual(kinds(h2), ['ENSURE', 'DRAFTS', 'ASSEMBLE', 'DRAFTS']);
+    // Two new Drafts with the name: the id error says why.
+    const h3 = host({ idless: ['seq-a', 'seq-b'], draftsBefore: [] });
+    await assert.rejects(P.tplRunBuild(frozen(), h3), e => /did not report its id/.test(e.message) && /several new Drafts are named/.test(e.message));
+    assert.deepEqual(kinds(h3), ['ENSURE', 'DRAFTS', 'ASSEMBLE', 'DRAFTS']);
+  }
   // Ambiguous ensure-audio error: a read-only lookup finds the import and the build continues; not found -> error.
   {
     const h = host({ fail: { ENSURE: Error('socket hang up') }, audioFound: true });
@@ -322,6 +367,11 @@ const tick = () => new Promise(r => setImmediate(r));
     assert.deepEqual(kinds(h2), ['DECORATE', 'OPEN']);
     assert.deepEqual(h2.calls[0].cfg, h.calls[3].cfg, 'the retry sends the same decorate config');
     assert.equal(out.link, 'selects://draft');
+  }
+  // Decorate refuses a Draft whose pictures no longer match the plan: permanent, so the advice is to build again.
+  {
+    const h = host({ fail: { DECORATE: Error("decorate: the Draft's 13 pictures don't match the 14 planned ones") } });
+    await assert.rejects(P.tplRunBuild(frozen(), h), e => /press Build to make a new Draft/.test(e.message) && !/Finish letters and look/.test(e.message));
   }
   // Another version: a new seed changes the tear seeds and the letter seed, same pictures when N covers them all.
   {

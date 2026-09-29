@@ -57,7 +57,9 @@ function tplData(data) {
   if (inset > 1) inset = inset / 100;
   inset = Math.max(0.7, Math.min(0.95, inset));
   var backdrop = ["night", "red", "kraft", "photo"].indexOf(d.backdrop) >= 0 ? d.backdrop : "night";
-  var color = typeof d.backdropColor === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(d.backdropColor.trim()) ? d.backdropColor.trim().toLowerCase() : null;
+  // #rgb / #rrggbb, or #rgba / #rrggbbaa from a colour picker with alpha: the backdrop is opaque, so alpha is dropped.
+  var cm = typeof d.backdropColor === "string" ? /^#(?:([0-9a-f]{3})[0-9a-f]?|([0-9a-f]{6})(?:[0-9a-f]{2})?)$/i.exec(d.backdropColor.trim()) : null;
+  var color = cm ? "#" + (cm[1] || cm[2]).toLowerCase() : null;
   var ph = d.phases && typeof d.phases === "object" ? d.phases : {};
   return {
     seed: tplHash(d.seed == null ? 0 : d.seed),

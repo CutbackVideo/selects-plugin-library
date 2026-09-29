@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date };
 vm.createContext(box);
-vm.runInContext(source + ';globalThis.P={TPL_W,TPL_H,TPL_LENGTHS,TPL_MIN_PICTURES,TPL_UNIT_TARGET,TPL_UNIT_RANGE,TPL_FALLBACK_UNIT,TPL_SOURCE_TAIL,TPL_EFFECT_CLOCK,TPL_LETTER_SHARE,tplUnit,tplTemplate,tplMusicOffset,tplSchedule,tplFitN,tplLetterTicks,tplVisRect,tplSeedFor,tplHash,tplDefaultSection,tplSnapSection,TPL_BUILD_STEPS,tplProgress};', box);
+vm.runInContext(source + ';globalThis.P={TPL_W,TPL_H,TPL_LENGTHS,TPL_MIN_PICTURES,TPL_UNIT_TARGET,TPL_UNIT_RANGE,TPL_FALLBACK_UNIT,TPL_SOURCE_TAIL,TPL_EFFECT_CLOCK,tplUnit,tplTemplate,tplMusicOffset,tplSchedule,tplFitN,tplLetterTicks,tplVisRect,tplSeedFor,tplHash,tplDefaultSection,tplSnapSection,TPL_BUILD_STEPS,tplProgress};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= (eps || 1e-9), (msg || '') + ' expected ' + b + ' got ' + a);
@@ -20,7 +20,6 @@ assert.deepEqual(j(P.TPL_UNIT_RANGE), [0.28, 0.45]);
 assert.equal(P.TPL_FALLBACK_UNIT, 0.35);
 assert.equal(P.TPL_SOURCE_TAIL, 0.15);
 assert.equal(P.TPL_EFFECT_CLOCK, 'clip');
-assert.equal(P.TPL_LETTER_SHARE, 0.4);
 
 // tplUnit: the 8th for about 67-107 BPM, the beat for about 134-214 BPM, else null. A musical bar is 8 units.
 assert.equal(P.tplUnit(60), null, '60 BPM: 8th 0.5 s and beat 1.0 s are both out of range');

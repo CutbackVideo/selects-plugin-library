@@ -71,7 +71,9 @@ assert.ok(Math.abs(((s.sectionStart - cue.firstBeat) / bar) - Math.round((s.sect
 assert.equal(s.transitions.length, 14);
 assert.equal(s.transitions[0].entry, 'slide');
 assert.equal(s.transitions[10].entry, 'tear');
-assert.equal(s.draftName, 'Torn Paper Love Night Standard 2026-09-30 09:05');
+assert.equal(s.draftName, 'Torn Paper Love Night Standard 2026-09-30 09:05:00');
+assert.equal(P.tplDraftName('night', 'standard', new Date(2026, 8, 30, 9, 5, 7).getTime()), 'Torn Paper Love Night Standard 2026-09-30 09:05:07', 'seconds in the name');
+assert.notEqual(P.tplDraftName('kraft', 'short', new Date(2026, 8, 30, 9, 5, 7).getTime()), P.tplDraftName('kraft', 'short', new Date(2026, 8, 30, 9, 5, 48).getTime()), 'two versions in one minute get distinct names');
 assert.equal(plan({ backdrop: 'red', length: 'long' }).draftName.slice(0, 33), 'Torn Paper Love Red curtain Long ');
 assert.ok(s.seconds > 6 && s.seconds < 6.6, 'about 6.3 s: ' + s.seconds);
 // Nothing in the state is lost by JSON (the panel and the driver both serialise it).

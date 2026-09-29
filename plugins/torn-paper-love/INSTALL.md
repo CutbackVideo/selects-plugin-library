@@ -52,9 +52,11 @@ in either install folder:
    and `SELECTS_USER_SKILLS_ROOT/torn-paper-love/` contains `planner.js`,
    `build-config.js`, `scripts/assemble.js`, `assets/cues/manifest.json` and
    `assets/fonts/looks.json`.
-2. Open a Project with at least 3 photos and open the panel. The top line
-   reads "Ready: N photos · N shots · about N s", the Track list shows the
-   two bundled tracks, and the Words preview strip shows the letters.
+2. Open a Project with at least 3 photos and open the panel. The readiness
+   line under **Length** reads "Ready: N photos · N clips · N shots · about
+   N.N s" ("· N clips" is left out when **Use videos** is off), the Track
+   list shows the two bundled tracks, and the Words preview strip shows the
+   letters.
 3. Press **Build**. A new Draft opens at 1440x1080 with the torn photos, the
    letters and the music.
 4. Optional: if ffmpeg and Node.js are installed, **Your own music** appears

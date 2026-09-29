@@ -16,8 +16,6 @@ import React from "react";
 const PLUGIN_ID = "torn-paper-love";
 const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
 const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
-// The bundled development cues (copied from City Weekend Vlog) until the romantic cues arrive; the list marks them.
-const DEV_CUES = ["easy-sunday-lofi", "sunny-soul-strut"];
 // Faded film strength when the Advanced toggle is on (the Inspector keeps 0-1).
 const FADED_FILM = 0.35;
 const WORD_MAX = 8;
@@ -44,8 +42,6 @@ const TPL_FALLBACK_UNIT = 0.35;
 const TPL_SOURCE_TAIL = 0.15;
 // The Torn photo effect's clock: 'clip' (frame 0 = the clip's first timeline frame) or 'source'. Set by probe P-clock.
 const TPL_EFFECT_CLOCK = 'clip';
-// Share of letters that change look on each re-style tick.
-const TPL_LETTER_SHARE = 0.4;
 // Filler candidates for videos without a search hit.
 const TPL_FILLER_STEP = 0.5;
 const TPL_FILLER_EDGE = 0.25;
@@ -505,10 +501,11 @@ const TPL_MUSIC_FADE = 0.12;
 
 function tplPad2(n) { return (n < 10 ? '0' : '') + n; }
 
-// "Torn Paper Love <Backdrop> <Length> <yyyy-mm-dd hh:mm>" in local time.
+// "Torn Paper Love <Backdrop> <Length> <yyyy-mm-dd hh:mm:ss>" in local time; the seconds tell apart two versions
+// built within the same minute.
 function tplDraftName(backdrop, length, now) {
   const t = new Date(now == null ? Date.now() : now);
-  const stamp = t.getFullYear() + '-' + tplPad2(t.getMonth() + 1) + '-' + tplPad2(t.getDate()) + ' ' + tplPad2(t.getHours()) + ':' + tplPad2(t.getMinutes());
+  const stamp = t.getFullYear() + '-' + tplPad2(t.getMonth() + 1) + '-' + tplPad2(t.getDate()) + ' ' + tplPad2(t.getHours()) + ':' + tplPad2(t.getMinutes()) + ':' + tplPad2(t.getSeconds());
   return 'Torn Paper Love ' + (TPL_BACKDROPS[backdrop] || TPL_BACKDROPS.night) + ' ' + (TPL_LENGTH_LABELS[length] || TPL_LENGTH_LABELS.standard) + ' ' + stamp;
 }
 
@@ -1109,17 +1106,21 @@ function tplOpenScript(sequenceId) {
     + 'return { link, openError };';
 }
 
+function tplMessage(e) { return String((e && e.message) || e); }
+
 // A committing call is sent once. When it fails (possibly after its commit landed), `recover` looks, read-only, for
-// what the commit would have made; found -> use it, else the original error. Never resent.
+// what the commit would have made; found -> use it, else the original error (with the recovery's own error appended
+// when it failed too, e.g. "several new Drafts ..."). Never resent.
 async function tplCommit(d, summary, script, recover) {
   try { return await d.run(summary, script, true); }
   catch (e) {
     if (e === TPL_STALE) throw e;
     d.check();
-    let got = null;
-    try { got = await recover(); } catch (r) { if (r === TPL_STALE) throw r; got = null; }
+    let got = null, why = null;
+    try { got = await recover(); } catch (r) { if (r === TPL_STALE) throw r; got = null; why = r; }
     d.check();
     if (got) return got;
+    if (why) throw Error(tplMessage(e) + ' (' + tplMessage(why) + ')');
     throw e;
   }
 }
@@ -1179,16 +1180,25 @@ async function tplRunBuild(f, d) {
   let before = null;
   try { before = await named(); } catch (e) { if (e === TPL_STALE) throw e; before = null; }
   d.check();
-  const assembled = await tplCommit(d, 'Placing pictures', tplFill(d.scripts.assembleJs, tplAssembleConfig(state, music)), async () => {
+  // The one Draft named like this build that was not there before, read back; null when there is none.
+  const findNew = async () => {
     const after = await named();
     d.check();
     const fresh = before ? after.filter(id => before.indexOf(id) < 0) : after;
     if (fresh.length > 1) throw Error('several new Drafts are named "' + state.draftName + '"');
     if (fresh.length !== 1) return null;
     return await d.run('Read the new Draft', tplReadbackScript(fresh[0]), false);
-  });
+  };
+  let assembled = await tplCommit(d, 'Placing pictures', tplFill(d.scripts.assembleJs, tplAssembleConfig(state, music)), findNew);
   d.check();
-  if (!assembled || !assembled.sequenceId) throw Error('The Draft "' + state.draftName + '" was saved, but Selects did not report its id. Open it from the Drafts list, or build again.');
+  if (!assembled || !assembled.sequenceId) {
+    // The commit returned but without the new Draft's id: the same read-only recovery as a lost reply; never resent.
+    let got = null, why = null;
+    try { got = await findNew(); } catch (r) { if (r === TPL_STALE) throw r; why = r; }
+    d.check();
+    if (!got || !got.sequenceId) throw Error('The Draft "' + state.draftName + '" was saved, but Selects did not report its id' + (why ? ' (' + tplMessage(why) + ')' : '') + '. Open it from the Drafts list, or build again.');
+    assembled = got;
+  }
   if (assembled.notes && assembled.notes.length) notes.push.apply(notes, assembled.notes);
   if (d.onAssembled) d.onAssembled(state, assembled);
   d.advance('place', 1);
@@ -1208,7 +1218,10 @@ async function tplFinish(state, assembled, d) {
     if (d.onDecorated) d.onDecorated(r);
   } catch (e) {
     if (e === TPL_STALE) throw e;
-    throw Error('The Draft was created, but its letters and paper could not be added: ' + ((e && e.message) || e) + '. Press Finish letters and look to try again.');
+    // decorate.js refuses a Draft whose Main clips differ from the plan (edited meanwhile): retrying can't fix that.
+    const why = tplMessage(e);
+    const advice = /pictures don't match the \d+ planned/.test(why) ? 'Its clips no longer match the plan, so press Build to make a new Draft.' : 'Press Finish letters and look to try again.';
+    throw Error('The Draft was created, but its letters and paper could not be added: ' + why + '. ' + advice);
   }
   d.advance('decorate', 0.8, 'opening the Draft');
   let link = null, openError = null;
@@ -1435,11 +1448,15 @@ function backdropFill(id: string) {
   return (TPL_BACKDROP_COLORS as any)[id] || TPL_BACKDROP_COLORS.night;
 }
 
-function LettersPreview({ word1, word2, seed, tick, looksFile, backdrop }: {
-  word1: string; word2: string; seed: number; tick: number; looksFile: any; backdrop: string;
+function LettersPreview({ word1, word2, seed, looksFile, backdrop }: {
+  word1: string; word2: string; seed: number; looksFile: any; backdrop: string;
 }) {
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = React.useState(0);
+  // The preview re-styles its letters about every unit (0.35 s), like the graphic on the music grid. The clock lives
+  // here so only the preview re-renders on each tick, not the whole panel.
+  const [tick, setTick] = React.useState(0);
+  React.useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 350); return () => clearInterval(t); }, []);
   React.useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
@@ -1557,7 +1574,6 @@ export default function Panel({ sdk, context, ui }: any) {
   const busyRef = React.useRef<any>(null);
   const [step, setStep] = React.useState("");
   const [tools, setTools] = React.useState({ ffmpeg: true, node: true });
-  const [tick, setTick] = React.useState(0);
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
   const registered = React.useRef<Set<string>>(new Set());
   const [progress, setProgress] = React.useState<any>(null);
@@ -1712,8 +1728,6 @@ export default function Panel({ sdk, context, ui }: any) {
     const faces = assets.looks.faces || {};
     Object.keys(faces).forEach((face) => { registerFace(roots.plugin, face, faces[face]).catch(() => null); });
   }, [assets, roots]);
-  // The preview re-styles its letters about every unit (0.35 s), like the graphic on the music grid.
-  React.useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 350); return () => clearInterval(t); }, []);
 
   // ---- The plan the Build button would make (the same tplPlanState the build runs).
   const manifest = assets?.manifest || null;
@@ -1742,9 +1756,10 @@ export default function Panel({ sdk, context, ui }: any) {
     catch (e: any) { return { ok: false, reason: String(e?.message || e) }; }
   }, [inventory, foundBest, planCue, options, ownPending, projectId]);
   const requested = TPL_LENGTHS[length];
-  const photosSel: any[] = inventory ? inventory.photos.filter((p: any) => !only || only.includes(p.rid)) : [];
+  const onlyRids = React.useMemo(() => (only ? new Set(only) : null), [only]);
+  const photosSel: any[] = inventory ? inventory.photos.filter((p: any) => !onlyRids || onlyRids.has(p.rid)) : [];
   const measured = photosSel.filter((p: any) => p.width > 0 && p.height > 0).length;
-  const videosSel: any[] = inventory && useVideos ? inventory.resources.filter((r: any) => !only || only.includes(r.rid)) : [];
+  const videosSel: any[] = inventory && useVideos ? inventory.resources.filter((r: any) => !onlyRids || onlyRids.has(r.rid)) : [];
   const shortVideos = plan?.ok ? plan.excluded.shortVideos : 0;
   const clipsOk = Math.max(0, videosSel.length - shortVideos);
   const shownN = plan?.ok ? plan.N : Math.max(TPL_MIN_PICTURES, Math.min(requested, measured + clipsOk));
@@ -1865,9 +1880,10 @@ export default function Panel({ sdk, context, ui }: any) {
   }
 
   // Build: every input frozen at the click (spec 15.5); Build is disabled while running.
+  // Returns false when a guard stops it (nothing changes then), true once the build has started.
   function build(nextSeed: number) {
-    if (busyRef.current || !assets || !inventory || !roots || !projectId || !plan?.ok) return;
-    if (ownPending) { setStatus({ tone: "error", text: "Drop a music file, or choose one of the tracks." }); return; }
+    if (busyRef.current || !assets || !inventory || !roots || !projectId || !plan?.ok) return false;
+    if (ownPending) { setStatus({ tone: "error", text: "Drop a music file, or choose one of the tracks." }); return false; }
     const inputs = {
       projectId,
       inventory: { photos: inventory.photos, resources: inventory.resources },
@@ -1891,15 +1907,15 @@ export default function Panel({ sdk, context, ui }: any) {
         if (projectRef.current === pid) { setBusy(false); setProgress(null); progressRef.current = null; }
       }
     });
+    return true;
   }
 
   // Another version: a new seed (new tears and letter looks, other photos when there are more than N).
+  // The previous result stays until build() passes its guards (build clears it when it starts).
   function buildAnother() {
     if (busyRef.current) return;
-    setResult(null); setStatus(null);
     const s = seed + 1;
-    setSeed(s);
-    build(s);
+    if (build(s)) setSeed(s);
   }
 
   // "Finish letters and look": decorate again with the frozen plan of the build (a no-op when already complete).
@@ -1927,7 +1943,9 @@ export default function Panel({ sdk, context, ui }: any) {
   const photoList: any[] = inventory?.photos || [];
   const clipList: any[] = inventory?.resources || [];
   const allRids: string[] = [...photoList, ...clipList].map((r: any) => r.rid);
-  const selected = only ? allRids.filter((rid) => only.includes(rid)) : allRids;
+  const onlySet = only ? new Set(only) : null;
+  const selected = onlySet ? allRids.filter((rid) => onlySet.has(rid)) : allRids;
+  const selectedSet = new Set(selected);
   const choose = (next: string[]) => {
     if (busyRef.current) return;
     const keep = new Set(next);
@@ -1964,7 +1982,7 @@ export default function Panel({ sdk, context, ui }: any) {
   const canOwnMusic = tools.ffmpeg && tools.node;
   const canBuild = !!assets && !!roots && !!plan?.ok && !ownPending && !busy;
   const cueOptions = [
-    ...(manifest?.cues || []).map((c: any) => ({ label: c.label + (DEV_CUES.includes(c.id) || c.dev ? " (dev)" : ""), value: c.id })),
+    ...(manifest?.cues || []).map((c: any) => ({ label: c.label, value: c.id })),
     ...(canOwnMusic ? [{ label: "Your own music", value: "own" }] : []),
     { label: "No music", value: "none" },
   ];
@@ -1978,7 +1996,7 @@ export default function Panel({ sdk, context, ui }: any) {
         <ui.TextField label="Word 1" value={word1} onChange={(v: string) => setWord1(clampWord(v))} />
         <ui.TextField label="Word 2" value={word2} onChange={(v: string) => setWord2(clampWord(v))} />
         <small style={{ display: "block", color: "var(--panel-muted-fg)" }}>{"Up to " + WORD_MAX + " letters each; the words sit left and right."}</small>
-        <LettersPreview word1={word1} word2={word2} seed={seed} tick={tick} looksFile={assets?.looks || null} backdrop={backdrop} />
+        <LettersPreview word1={word1} word2={word2} seed={seed} looksFile={assets?.looks || null} backdrop={backdrop} />
       </ui.Section>
       <ui.Section title="Style">
         <div role="group" aria-label="Backdrop" style={{ display: "flex", flexWrap: "wrap", gap: 8, minWidth: 0 }}>
@@ -2049,7 +2067,7 @@ export default function Panel({ sdk, context, ui }: any) {
               {[...photoList, ...clipList].map((r: any) => {
                 const isPhoto = r.kind === "photo";
                 const off = busy || (!isPhoto && !useVideos);
-                const on = selected.includes(r.rid) && (isPhoto || useVideos);
+                const on = selectedSet.has(r.rid) && (isPhoto || useVideos);
                 const hint = shapeHint(r.width, r.height);
                 const meta = (isPhoto ? (r.width > 0 ? "Photo" : "Photo · not read") : fmtTime(r.duration)) + (hint ? " · " + hint : "");
                 return (

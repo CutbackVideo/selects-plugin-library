@@ -48,9 +48,11 @@ length and the pace. The panel always shows the exact number.
 2. Check the **Words** ("MY" and "LOVE" by default) and pick a **Style**.
 3. Press **Build**.
 
-Progress is shown as five steps, for example "Step 3/5 · Creating Draft ·
-40%". When the build finishes, the new Draft opens and a link to it is shown.
-The Draft is named "Torn Paper Love <backdrop> <length> <date time>".
+Progress is shown as five steps: Reading your pictures, Finding moments,
+Planning, Placing pictures, and Adding letters and paper, for example "Step
+4/5 · Placing pictures · 50%". When the build finishes, the new Draft opens
+and a link to it is shown. The Draft is named "Torn Paper Love <backdrop>
+<length> <yyyy-mm-dd hh:mm:ss>".
 
 The build needs at least **3 pictures**. If you have fewer than the chosen
 length needs, it uses what exists and says so in the readiness line, for
@@ -102,8 +104,9 @@ or bass hit within a tenth of a beat (at most 70 ms), but only when no hit is
 already within a frame of the grid.
 
 **Your own music**: drop an audio file. The plugin listens for the beat and
-uses it when the detected beat grid is reliable. Otherwise, and with **No
-music**, it uses fixed 0.35 s steps and says so ("approximate timing"). If a
+uses it when the detected beat grid is reliable. Otherwise it uses fixed
+0.35 s steps and says so ("cuts use a steady 0.35 s rhythm"); with **No
+music** the panel says "the cuts keep a steady 0.35 s rhythm". If a
 track is too short to hold even 3 pictures from the section start, Build is
 disabled with "This track needs at least X s from the section start". Your own
 music and the previews need ffmpeg; your own music also needs Node.js 18 or
@@ -189,8 +192,8 @@ the same on any machine with Selects.
   look** finishes that Draft with the words, backdrop, look and Clip sound it
   was built with, even if they have been changed in the panel since.
 - Rebuilding creates a new Draft and does not keep Inspector edits.
-- Trimming a shot's start in the Inspector keeps its effect timing tied to the
-  shot's start, but the flashes and the tear do not move to a new cut.
+- Transitions are drawn from each shot's start; after trimming a shot's start
+  in the Inspector, check its transition.
 - Frame previews made with Selects' frame capture tool can fail or show bars
   on photos with effects; the exported video is correct.
 

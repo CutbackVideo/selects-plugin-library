@@ -29,10 +29,11 @@ const TPL_MUSIC_FADE = 0.12;
 
 function tplPad2(n) { return (n < 10 ? '0' : '') + n; }
 
-// "Torn Paper Love <Backdrop> <Length> <yyyy-mm-dd hh:mm>" in local time.
+// "Torn Paper Love <Backdrop> <Length> <yyyy-mm-dd hh:mm:ss>" in local time; the seconds tell apart two versions
+// built within the same minute.
 function tplDraftName(backdrop, length, now) {
   const t = new Date(now == null ? Date.now() : now);
-  const stamp = t.getFullYear() + '-' + tplPad2(t.getMonth() + 1) + '-' + tplPad2(t.getDate()) + ' ' + tplPad2(t.getHours()) + ':' + tplPad2(t.getMinutes());
+  const stamp = t.getFullYear() + '-' + tplPad2(t.getMonth() + 1) + '-' + tplPad2(t.getDate()) + ' ' + tplPad2(t.getHours()) + ':' + tplPad2(t.getMinutes()) + ':' + tplPad2(t.getSeconds());
   return 'Torn Paper Love ' + (TPL_BACKDROPS[backdrop] || TPL_BACKDROPS.night) + ' ' + (TPL_LENGTH_LABELS[length] || TPL_LENGTH_LABELS.standard) + ' ' + stamp;
 }
 
