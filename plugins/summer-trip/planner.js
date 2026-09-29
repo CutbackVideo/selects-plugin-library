@@ -651,7 +651,7 @@ function stPlanBuild(opts) {
     const f = fixedAlloc.failed;
     if (f.section === 'opener') return fail('Needs one video clip at least ' + stFmtSeconds(f.seconds + ST_SOURCE_TAIL) + ' s long for the opening', { distinct });
     if (f.section === 'place') return fail('Needs a second clip at least ' + stFmtSeconds(f.seconds + ST_SOURCE_TAIL) + ' s long (or a photo) for the place shot', { distinct });
-    return fail('Needs at least ' + ST_MIN_DISTINCT + ' different clips or photos long enough for the opening (found ' + distinct + ')', { distinct });
+    return fail('Needs at least ' + ST_MIN_DISTINCT + ' different clips or photos long enough for the grid panels (found ' + distinct + ')', { distinct });
   }
 
   let result = null;
