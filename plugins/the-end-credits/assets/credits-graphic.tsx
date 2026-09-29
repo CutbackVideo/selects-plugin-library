@@ -315,9 +315,10 @@ export default function TheEndCredits({ data }) {
               textShadow: layout === "full" ? `0 ${0.012 * H}px ${0.03 * H}px rgba(0,0,0,0.55)` : "none",
             }}
           >
-            {glyphs.map((g, i) => (
-              <span key={i} style={{ visibility: i < typed ? "visible" : "hidden" }}>{g}</span>
-            ))}
+            {/* The hidden full string fixes the box and its centre; the typed prefix is one text
+                node on top of it, so kerning inside the title is kept. */}
+            <span style={{ visibility: "hidden" }}>{title}</span>
+            <span style={{ position: "absolute", left: 0, top: 0 }}>{glyphs.slice(0, typed).join("")}</span>
           </div>
         ) : null}
         {creditsOpacity > 0 ? (
