@@ -14,12 +14,78 @@ import subprocess
 import sys
 import tempfile
 
-from still_video import (ConversionError, FPS, MAX_EDGE, MAX_FRAMES, MAX_IMAGES,
-                         digest_file, expected_dimensions, probe, run,
-                         validate_output)
-
-
+FPS = 60
+MAX_EDGE = 1920
+MAX_FRAMES = 36000
+MAX_IMAGES = 21
 ALGORITHM = "photo-gallery-hold-v1-max1920-h264-crf18"
+
+
+class ConversionError(Exception):
+    pass
+
+
+def run(command, timeout):
+    try:
+        return subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              text=True, check=False, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        raise ConversionError("Media conversion timed out") from error
+    except OSError as error:
+        raise ConversionError("ffmpeg or ffprobe could not start") from error
+
+
+def digest_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def probe(path, count_frames=False):
+    command = ["ffprobe", "-v", "error"]
+    if count_frames:
+        command.append("-count_frames")
+    command += ["-show_entries", "stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames",
+                "-of", "json", str(path)]
+    result = run(command, timeout=45)
+    if result.returncode:
+        raise ConversionError("Video cannot be decoded")
+    try:
+        streams = json.loads(result.stdout)["streams"]
+        video = next(item for item in streams if item.get("codec_type") == "video")
+    except (KeyError, ValueError, StopIteration, TypeError) as error:
+        raise ConversionError("Media has no readable picture stream") from error
+    width, height = video.get("width"), video.get("height")
+    if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
+        raise ConversionError("Media dimensions are unavailable")
+    return video, streams
+
+
+def expected_dimensions(width, height):
+    factor = min(1.0, MAX_EDGE / max(width, height))
+    scaled_w = max(1, round(width * factor))
+    scaled_h = max(1, round(height * factor))
+    return scaled_w + scaled_w % 2, scaled_h + scaled_h % 2
+
+
+def validate_output(path, frames, dimensions, decode=False):
+    video, streams = probe(path, count_frames=True)
+    if len(streams) != 1 or video.get("codec_name") != "h264":
+        raise ConversionError("Cached video has the wrong stream format")
+    if video.get("r_frame_rate") != "60/1" or video.get("avg_frame_rate") != "60/1":
+        raise ConversionError("Cached video has the wrong frame rate")
+    if video.get("nb_read_frames") != str(frames):
+        raise ConversionError("Cached video has the wrong frame count")
+    if (video["width"], video["height"]) != dimensions:
+        raise ConversionError("Cached video has the wrong dimensions")
+    if decode:
+        result = run(["ffmpeg", "-nostdin", "-v", "error", "-xerror", "-i", str(path),
+                      "-f", "null", "-"], timeout=max(60, frames // FPS * 5 + 30))
+        if result.returncode:
+            raise ConversionError("Generated video contains undecodable frames")
+    return video
 
 
 def cache_directory():

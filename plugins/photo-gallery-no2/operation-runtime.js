@@ -92,7 +92,7 @@ function galleryGeometry(tile, source, colorFrame) {
 function assertGalleryInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) galleryFail('Gallery input is required');
   if (typeof input.projectId !== 'string' || !input.projectId) galleryFail('Select a Project');
-  if (!['inspect', 'importConverted', 'importBase', 'create', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');
+  if (!['inspect', 'importConverted', 'create', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');
   if (input.operation === 'create' && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');
   return input;
 }
@@ -100,17 +100,17 @@ function assertGalleryInput(input) {
 async function galleryImportConverted(selects, project, input, inventory, onImportStarted) {
   const requiredFrames = input.durationFrames ?? 853;
   if (!Number.isSafeInteger(requiredFrames) || requiredFrames < 1 || requiredFrames > 36000) {
-    galleryFail('Converted still duration must be an integer from 1 to 36000 frames');
+    galleryFail('Held video duration must be an integer from 1 to 36000 frames');
   }
   if (!Array.isArray(input.converted) || input.converted.length < 1 || input.converted.length > 21) {
-    galleryFail('Provide one to 21 converted still-video files');
+    galleryFail('Provide one to 21 held video files');
   }
   const seenSources = new Set();
   for (const item of input.converted) {
     const source = galleryResolveResource(inventory.media, item?.sourceResourceId, item?.sourcePath, 'Selected source');
-    if (!source || seenSources.has(source.resourceId) ||
+    if (source.kind !== 'video' || seenSources.has(source.resourceId) ||
         typeof item.path !== 'string' || !/^\/(?:[^\0]+)\.mp4$/i.test(item.path)) {
-      galleryFail('A prepared clip does not match one distinct Project photo or video and absolute MP4 path');
+      galleryFail('A held clip must match one distinct Project video and absolute MP4 path');
     }
     seenSources.add(source.resourceId);
   }
@@ -118,13 +118,13 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
   const probe = await selects.media.probe({ filePaths: paths });
   const probed = new Set((probe.files || []).filter((file) => !file.type || /video/i.test(file.type)).map((file) => file.path));
   if (probe.error || probe.errors?.length || probe.summary?.failed || paths.some((path) => !probed.has(path))) {
-    galleryFail('A converted still-video file is missing or unreadable; no Project media was imported');
+    galleryFail('A held video file is missing or unreadable; no Project media was imported');
   }
   const currentByPath = new Map();
   for (const item of inventory.media) if (item.kind === 'video') currentByPath.set(item.path, item);
   const missing = paths.filter((path) => !currentByPath.has(path));
   if (missing.length) {
-    if (typeof project.importFiles !== 'function') galleryFail('This Selects version cannot import converted still videos');
+    if (typeof project.importFiles !== 'function') galleryFail('This Selects version cannot import held videos');
     onImportStarted();
     await project.importFiles({ paths: missing });
   }
@@ -134,7 +134,7 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
   const converted = input.converted.map((item) => {
     const video = importedByPath.get(item.path);
     if (!video || video.durationFrames == null || video.durationFrames < requiredFrames) {
-      galleryFail('Converted still-video import or length could not be verified; inspect Project files before retrying');
+      galleryFail('Held video import or length could not be verified; inspect Project files before retrying');
     }
     const source = galleryResolveResource(fresh.media, item.sourceResourceId, item.sourcePath, 'Selected source');
     return { sourceResourceId: item.sourceResourceId, resolvedSourceResourceId: source?.resourceId,
@@ -144,50 +144,20 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
   return { status: 'prepared', converted };
 }
 
-async function galleryImportBase(selects, project, input, inventory, onImportStarted) {
-  const frames = input.durationFrames ?? 853;
-  if (!Number.isSafeInteger(frames) || frames < 1 || frames > 36000 ||
-      typeof input.path !== 'string' || !/^\/(?:[^\0]+)\.mp4$/i.test(input.path)) {
-    galleryFail('Provide an absolute prepared black-video path and valid duration');
-  }
-  const probe = await selects.media.probe({ filePaths: [input.path] });
-  if (probe.error || probe.errors?.length || probe.summary?.failed ||
-      !probe.files?.some((file) => file.path === input.path && (!file.type || /video/i.test(file.type)))) {
-    galleryFail('The prepared black video is missing or unreadable');
-  }
-  let video = inventory.media.find((item) => item.kind === 'video' && item.path === input.path);
-  if (!video) {
-    if (typeof project.importFiles !== 'function') galleryFail('This Selects version cannot import the black Main video');
-    onImportStarted();
-    await project.importFiles({ paths: [input.path] });
-    video = (await galleryInventory(project)).media.find((item) => item.kind === 'video' && item.path === input.path);
-  }
-  if (!video || video.width !== 1080 || video.height !== 1920 || video.durationFrames !== frames) {
-    galleryFail('The black Main video import does not match the requested canvas or duration');
-  }
-  return { status: 'prepared', baseResourceId: video.resourceId, path: video.path, durationFrames: frames };
-}
-
 async function galleryPreflight(selects, project, input, inventory) {
-  const base = galleryResolveResource(inventory.media, input.baseResourceId, input.basePath, 'Black Main');
-  if (!base || base.kind !== 'video' || base.width !== 1080 || base.height !== 1920 ||
-      base.durationFrames !== (input.durationFrames ?? 853)) {
-    galleryFail('Prepare a full-length 1080×1920 black Main video before creating this Draft');
-  }
   const chosen = input.media.map((item, i) => {
     const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);
-    if (!fresh) galleryFail(`Slot ${i + 1} media is missing or moved`);
+    if (fresh.kind === 'image' && (!Number.isSafeInteger(fresh.width) || !Number.isSafeInteger(fresh.height))) {
+      galleryFail(`Slot ${i + 1} photo dimensions are unavailable; update Selects for native Image clips`);
+    }
     return { ...fresh, focusX: item.focusX, focusY: item.focusY };
   });
-  if (chosen.some((item) => item.kind === 'image')) {
-    galleryFail('Convert Project photos to individual video Resources before creating this Draft');
-  }
   const music = input.music == null ? null :
     galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');
   if (input.music != null && !music) galleryFail('Selected music is missing or moved');
   const selectedMusic = music && { ...music, startFrame: input.music.startFrame ?? 0 };
   const plan = planGallery({ media: chosen, music: selectedMusic, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames });
-  const paths = [...new Set([base.path, ...chosen.map((item) => item.path), ...(music ? [music.path] : [])])];
+  const paths = [...new Set([...chosen.map((item) => item.path), ...(music ? [music.path] : [])])];
   const probe = await selects.media.probe({ filePaths: paths });
   const confirmed = new Set((probe.files || []).map((file) => file.path));
   if (probe.error || (probe.errors || []).length || (probe.summary?.failed || 0) || paths.some((path) => !confirmed.has(path))) {
@@ -195,15 +165,15 @@ async function galleryPreflight(selects, project, input, inventory) {
   }
   const meta = await project.meta();
   if (!Array.isArray(meta.draftIds)) galleryFail('Project Draft list is unavailable');
-  return { plan, chosen, music: selectedMusic, base };
+  return { plan, chosen, music: selectedMusic };
 }
 
 async function galleryCreate(selects, project, input, inventory, onCommitStarted) {
-  const { plan, chosen, music, base } = await galleryPreflight(selects, project, input, inventory);
+  const { plan, chosen, music } = await galleryPreflight(selects, project, input, inventory);
   const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';
   const draft = await project.createDraft({ name });
   if ((await draft.meta()).fps !== 60) galleryFail('This Project is not 60 fps; no Draft was saved');
-  await draft.insertResource({ resourceId: base.resourceId });
+  await draft.insertGap({ seconds: plan.durationFrames / plan.fps });
   await draft.setFrameSize(plan.frameSize);
   const prepared = await draft.meta();
   if (prepared.fps !== plan.fps || prepared.durationFrames !== plan.durationFrames ||
@@ -213,7 +183,14 @@ async function galleryCreate(selects, project, input, inventory, onCommitStarted
   let knownClipIds = new Set((await draft.clips({ trackScope: 'all' })).map((row) => row.clipId));
   for (let i = 0; i < plan.tiles.length; i++) {
     const tile = plan.tiles[i], source = chosen[i];
-    await draft.overlayResource({ resource: project.resource(tile.resourceId), over: await draft.rangeAtFrames(tile.revealFrame, tile.endFrame) });
+    try {
+      await draft.overlayResource({ resource: project.resource(tile.resourceId), over: await draft.rangeAtFrames(tile.revealFrame, tile.endFrame) });
+    } catch (error) {
+      if (source.kind === 'image' && /not a Video\/Audio asset/i.test(String(error?.message || error))) {
+        galleryFail('This Selects build cannot place original photos as Image clips; update Selects before creating this gallery');
+      }
+      throw error;
+    }
     const after = await draft.clips({ trackScope: 'all' });
     const added = after.filter((row) => !knownClipIds.has(row.clipId) && row.resourceId === tile.resourceId && row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);
     if (added.length !== 1) galleryFail(`Could not identify tile ${i + 1} after placement; no Draft was saved`);
@@ -238,10 +215,7 @@ async function galleryCreate(selects, project, input, inventory, onCommitStarted
   }
   if (music) await draft.overlayResource({ resource: project.resource(music.resourceId), over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: music.startFrame / plan.fps });
   const rows = await draft.clips({ trackScope: 'all' });
-  if (rows.filter((row) => row.trackKind === 'main' && row.resourceId === base.resourceId &&
-      row.startFrame === 0 && row.endFrame === plan.durationFrames).length !== 1) {
-    galleryFail('The working Draft does not contain its full-length black Main video');
-  }
+  if (rows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('The working Draft has an unexpected Main Resource');
   if (rows.filter((row) => row.trackKind === 'video' && row.resourceId != null).length !== 21) galleryFail('The working Draft does not contain all 21 editable tiles');
   onCommitStarted();
   const saved = await draft.commitAll('Create editable 21-tile Photo Gallery');
@@ -251,7 +225,7 @@ async function galleryCreate(selects, project, input, inventory, onCommitStarted
 
 async function galleryVerifyCreated(selects, project, input, inventory) {
   if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('The saved Draft ID is required for readback');
-  const { plan, chosen, base } = await galleryPreflight(selects, project, input, inventory);
+  const { plan, chosen } = await galleryPreflight(selects, project, input, inventory);
   const projectMeta = await project.meta();
   if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('The saved Draft does not belong to this Project');
   const draft = selects.draft(input.draftId);
@@ -261,13 +235,9 @@ async function galleryVerifyCreated(selects, project, input, inventory) {
     galleryFail('Saved Draft canvas, frame rate, or duration does not match the request');
   }
   const allRows = await draft.clips({ trackScope: 'all' });
-  const mainRows = allRows.filter((row) => row.trackKind === 'main');
-  if (mainRows.length !== 1 || mainRows[0].resourceId !== base.resourceId ||
-      mainRows[0].startFrame !== 0 || mainRows[0].endFrame !== plan.durationFrames) {
-    galleryFail('Saved Draft does not contain its requested full-length black Main video');
-  }
+  if (allRows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('Saved Draft has an unexpected Main Resource');
   const rows = allRows.filter((row) => row.trackKind === 'video' && row.resourceId);
-  if (rows.length !== 21) galleryFail('Saved Draft does not contain exactly 21 independent video clips');
+  if (rows.length !== 21) galleryFail('Saved Draft does not contain exactly 21 independent visual clips');
   const audioRows = allRows.filter((row) => row.trackKind === 'audio' && row.resourceId);
   if (plan.music) {
     if (audioRows.length !== 1 || audioRows[0].resourceId !== plan.music.resourceId ||
@@ -308,7 +278,6 @@ async function galleryOperation(selects, raw) {
     const inventory = await galleryInventory(project);
     if (input.operation === 'inspect') return { status: 'inspected', projectId: input.projectId, ...inventory };
     if (input.operation === 'importConverted') return await galleryImportConverted(selects, project, input, inventory, () => { commitStarted = true; });
-    if (input.operation === 'importBase') return await galleryImportBase(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'create') return await galleryCreate(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'verifyCreated') return await galleryVerifyCreated(selects, project, input, inventory);
     galleryFail('Unknown gallery action');

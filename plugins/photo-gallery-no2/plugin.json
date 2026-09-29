@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "photo-gallery-no2",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "name": "Photo Gallery 21",
   "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch.",
   "status": "experimental",
@@ -17,13 +17,11 @@
     "format.mjs",
     "reference-oracle.json",
     "tempo.py",
-    "still_video.py",
-    "black_base.py",
     "hold_video.py"
   ],
   "compatibility": {
     "platforms": ["macOS development builds"],
-    "selects": "Requires public run_script Draft video overlays, effects, transforms, media import, and commit. Released-build compatibility is unverified."
+    "selects": "Requires public run_script native Image overlays, effects, transforms, gap-backed Drafts, media import, and commit. Released-build compatibility is unverified."
   },
   "localized": {
     "en": {

@@ -54,18 +54,12 @@ function kit() {
 
 const media = Array.from({ length: 22 }, (_, i) => ({ resourceId: `r${i + 1}`, name: `Photo ${i + 1}`,
   kind: 'image', width: 1000, height: 1000, path: `/fixture/photo-${i + 1}.jpg` }));
-const baseConversion = { exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60,
-  durationFrames: 853, outputPath: '/cache/black-base.mp4' }) };
-const baseImport = { result: { status: 'prepared', baseResourceId: 'black-main',
-  path: '/cache/black-base.mp4' } };
 
-test('auto-assign keeps the 21 original photos selectable after their converted videos are imported', async () => {
+test('auto-assign selects 21 original photos without preparing MP4 files', async () => {
   const photos = media.slice(0, 21);
-  const converted = photos.map((item, i) => ({ ...item, kind: 'video', resourceId: `v${i + 1}`,
-    name: `converted-${i + 1}.mp4`, path: `/cache/converted-${i + 1}.mp4`, durationFrames: 853 }));
   const sdk = { runScript: async request => {
     assert.equal(JSON.parse(request.script).operation, 'inspect');
-    return { result: { status: 'inspected', projectId: 'project-1', media: [...photos, ...converted], audio: [] } };
+    return { result: { status: 'inspected', projectId: 'project-1', media: photos, audio: [] } };
   } };
   const view = render(React.createElement(Panel, { sdk,
     context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
@@ -79,14 +73,9 @@ test('auto-assign keeps the 21 original photos selectable after their converted 
 
 test('saving a new Draft remains a success when Selects opens that Draft during readback', async () => {
   let view;
-  const sdk = { runShell: async request => request.command.includes('black_base.py') ? baseConversion : ({ exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60,
-      durationFrames: 853, images: media.slice(0, 21).map((item, i) => ({ inputIndex: i,
-        sourcePath: item.path, outputPath: `/cache/still-${i + 1}.mp4` })) }) }),
+  const sdk = { runShell: async () => { throw new Error('Photos must not be transcoded'); },
     runScript: async request => { const input = JSON.parse(request.script);
       if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media: media.slice(0, 21), audio: [] } };
-      if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
-        ({ ...item, resourceId: `v${Number(item.path.match(/still-(\d+)/)[1])}` })) } };
-      if (input.operation === 'importBase') return baseImport;
       if (input.operation === 'create') return { result: { status: 'saved', draftId: 'created-1' } };
       if (input.operation === 'verifyCreated') {
         view.rerender(React.createElement(Panel, { sdk,
@@ -113,11 +102,6 @@ test('a short video is extended before placement while long videos remain untouc
     path: '/fixture/long.mp4', durationFrames: 900 }];
   const shellCalls = [], calls = [];
   const sdk = { runShell: async request => { shellCalls.push(request);
-      if (request.command.includes('black_base.py')) return baseConversion;
-      if (request.command.includes('still_video.py')) return { exitCode: 0, stdout: JSON.stringify({
-        status: 'converted', fps: 60, durationFrames: 853,
-        images: inputs.slice(0, 19).map((item, i) => ({ inputIndex: i, sourcePath: item.path,
-          outputPath: `/cache/still-${i + 1}.mp4` })) }) };
       assert.match(request.command, /hold_video\.py/);
       return { exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60, durationFrames: 853,
         videos: [{ inputIndex: 0, sourcePath: '/fixture/short.mp4', outputPath: '/cache/held-short.mp4' }] }) };
@@ -125,7 +109,6 @@ test('a short video is extended before placement while long videos remain untouc
       if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media: inputs, audio: [] } };
       if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
         ({ ...item, resourceId: item.sourceResourceId === 'short-1' ? 'held-1' : `converted-${item.sourceResourceId}` })) } };
-      if (input.operation === 'importBase') return baseImport;
       if (input.operation === 'create') return { result: { status: 'saved', draftId: 'created-mixed' } };
       if (input.operation === 'verifyCreated') return { result: { status: 'verified', tileCount: 21,
         draftId: 'created-mixed' } };
@@ -139,10 +122,10 @@ test('a short video is extended before placement while long videos remain untouc
   fireEvent.click(view.getByLabelText('Enter BPM manually'));
   fireEvent.click(view.getByRole('button', { name: 'Create Draft' }));
   await waitFor(() => assert.ok(calls.some(item => item.operation === 'verifyCreated')));
-  assert.equal(shellCalls.length, 3);
+  assert.equal(shellCalls.length, 1);
   const created = calls.find(item => item.operation === 'create');
-  assert.equal(created.baseResourceId, 'black-main');
-  assert.equal(created.basePath, '/cache/black-base.mp4');
+  assert.ok(!('baseResourceId' in created));
+  assert.deepEqual(created.media.slice(0, 19).map(item => item.path), inputs.slice(0, 19).map(item => item.path));
   assert.equal(calls.filter(item => item.operation === 'importConverted').find(item =>
     item.converted.some(entry => entry.sourceResourceId === 'short-1')).converted.find(entry =>
     entry.sourceResourceId === 'short-1').sourcePath, '/fixture/short.mp4');
@@ -154,19 +137,9 @@ test('a short video is extended before placement while long videos remain untouc
 test('21-slot create uses one shared script and does not save on load', async () => {
   const calls = [];
   const shellCalls = [];
-  const sdk = { runShell: async request => {
-      shellCalls.push(request);
-      if (request.command.includes('black_base.py')) return baseConversion;
-      assert.match(request.command, /still_video\.py/);
-      return { exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60, durationFrames: 853,
-        images: media.slice(0, 21).map((item, i) => ({ inputIndex: i, sourcePath: item.path,
-          outputPath: `/cache/still-${i + 1}.mp4` })) }) };
-    },
+  const sdk = { runShell: async request => { shellCalls.push(request); throw new Error('Photos must stay native'); },
     runScript: async request => { calls.push(request); const input = JSON.parse(request.script);
       if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media: media.slice(0, 21), audio: [] } };
-      if (input.operation === 'importConverted') return { result: { status: 'prepared',
-        converted: input.converted.map(item => ({ ...item, resourceId: `v${Number(item.path.match(/still-(\d+)/)[1])}` })) } };
-      if (input.operation === 'importBase') return baseImport;
       if (input.operation === 'create') return { result: { status: 'saved', draftId: 'created-1' } };
       if (input.operation === 'verifyCreated') return { result: { status: 'verified', tileCount: 21, draftId: 'created-1' } };
       throw new Error(`Unexpected ${input.operation}`);
@@ -180,20 +153,17 @@ test('21-slot create uses one shared script and does not save on load', async ()
   fireEvent.click(view.getByLabelText('BPM \uc9c1\uc811 \uc9c0\uc815'));
   fireEvent.click(view.getByRole('button', { name: '\uc0c8 \ud3b8\uc9d1\ubcf8 \ub9cc\ub4e4\uae30' }));
   await waitFor(() => assert.ok(calls.some(call => JSON.parse(call.script).operation === 'verifyCreated')));
-  assert.equal(shellCalls.length, 2);
+  assert.equal(shellCalls.length, 0);
   const imports = calls.filter(call => JSON.parse(call.script).operation === 'importConverted');
-  assert.equal(imports.length, 7);
-  assert.ok(imports.every(call => call.allowCommit && JSON.parse(call.script).converted.length === 3));
+  assert.equal(imports.length, 0);
   const mutation = calls.find(call => JSON.parse(call.script).operation === 'create');
   const request = JSON.parse(mutation.script);
   assert.equal(mutation.allowCommit, true);
   assert.equal(request.media.length, 21);
-  assert.equal(request.baseResourceId, 'black-main');
-  assert.equal(request.basePath, '/cache/black-base.mp4');
-  assert.deepEqual(request.media.map(item => item.resourceId), media.slice(0, 21).map((_, i) => `v${i + 1}`));
-  assert.deepEqual(request.media.map(item => item.path), media.slice(0, 21).map((_, i) => `/cache/still-${i + 1}.mp4`));
-  assert.ok(imports.every(call => JSON.parse(call.script).converted.every(item => typeof item.sourcePath === 'string')));
-  assert.ok(request.media.every(item => item.kind === 'video'));
+  assert.ok(!('baseResourceId' in request));
+  assert.deepEqual(request.media.map(item => item.resourceId), media.slice(0, 21).map(item => item.resourceId));
+  assert.deepEqual(request.media.map(item => item.path), media.slice(0, 21).map(item => item.path));
+  assert.ok(request.media.every(item => item.kind === 'image'));
   assert.equal(request.manualBpm, 113);
   assert.equal(request.music, null);
   view.unmount(); cleanup();
@@ -236,14 +206,13 @@ test('uncertain automatic BPM blocks creation without an unknown-save lock', asy
   view.unmount(); cleanup();
 });
 
-test('a mismatched photo conversion never imports files or creates a Draft', async () => {
+test('photos without native dimensions never start conversion or Draft creation', async () => {
   const calls = [];
-  const sdk = { runShell: async () => ({ exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60,
-      durationFrames: 853, images: media.slice(0, 21).map((item, i) => ({ inputIndex: i,
-        sourcePath: i === 4 ? '/fixture/other-photo.jpg' : item.path, outputPath: `/cache/still-${i}.mp4` })) }) }),
+  const sdk = { runShell: async () => { throw new Error('No conversion should run'); },
     runScript: async request => { const input = JSON.parse(request.script); calls.push(input.operation);
       assert.equal(input.operation, 'inspect');
-      return { result: { status: 'inspected', projectId: 'project-1', media: media.slice(0, 21), audio: [] } };
+      return { result: { status: 'inspected', projectId: 'project-1',
+        media: media.slice(0, 21).map((item, i) => i === 4 ? { ...item, width: null } : item), audio: [] } };
     } };
   const view = render(React.createElement(Panel, { sdk,
     context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
@@ -252,7 +221,7 @@ test('a mismatched photo conversion never imports files or creates a Draft', asy
   fireEvent.click(view.getByRole('button', { name: 'Assign all 21 in listed order' }));
   fireEvent.click(view.getByLabelText('Enter BPM manually'));
   fireEvent.click(view.getByRole('button', { name: 'Create Draft' }));
-  await waitFor(() => assert.match(view.container.textContent, /does not match the requested inputs/));
+  await waitFor(() => assert.match(view.container.textContent, /does not expose photo dimensions/));
   assert.deepEqual(calls, ['inspect']);
   assert.equal(view.getByRole('button', { name: 'Create Draft' }).disabled, false);
   view.unmount(); cleanup();

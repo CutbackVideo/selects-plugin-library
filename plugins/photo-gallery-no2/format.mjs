@@ -16,7 +16,7 @@ function assertPositiveInteger(value, label) {
 function validateMedia(media) {
   if (!Array.isArray(media) || media.length !== 21) throw new Error('Exactly 21 visual media slots are required');
   return media.map((item, index) => {
-    if (!item || item.kind !== 'video') throw new Error(`Slot ${index + 1} needs a prepared video Resource`);
+    if (!item || !['image', 'video'].includes(item.kind)) throw new Error(`Slot ${index + 1} needs an Image or Video Resource`);
     if (typeof item.resourceId !== 'string' || !item.resourceId.trim()) throw new Error(`Slot ${index + 1} needs a resource ID`);
     assertPositiveInteger(item.width, `Slot ${index + 1} width`);
     assertPositiveInteger(item.height, `Slot ${index + 1} height`);
@@ -25,7 +25,7 @@ function validateMedia(media) {
     if (![focusX, focusY].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) {
       throw new Error(`Slot ${index + 1} focus must be between 0 and 1`);
     }
-    assertPositiveInteger(item.durationFrames, `Slot ${index + 1} durationFrames`);
+    if (item.kind === 'video') assertPositiveInteger(item.durationFrames, `Slot ${index + 1} durationFrames`);
     return { ...item, focusX, focusY };
   });
 }
@@ -44,7 +44,7 @@ export function planGallery(input) {
   const media = validateMedia(input.media);
   const durationFrames = input.durationFrames ?? REFERENCE.durationFrames;
   assertPositiveInteger(durationFrames, 'durationFrames');
-  if (media.some((item) => item.durationFrames < durationFrames)) {
+  if (media.some((item) => item.kind === 'video' && item.durationFrames < durationFrames)) {
     throw new Error('A selected video is too short; extend it with hold_video.py before planning');
   }
   const hasManualBpm = input.manualBpm !== undefined && input.manualBpm !== null;

@@ -132,15 +132,12 @@ export default function Panel({ sdk, context, ui }) {
   }
 
   async function prepareVisuals(media, frames, projectId, onImportStarted, isCurrent) {
-    const photos = [...new Map(media.filter(item => item.kind === 'image').map(item => [item.resourceId, item])).values()];
     const videos = [...new Map(media.filter(item => item.kind === 'video').map(item => [item.resourceId, item])).values()];
     if (videos.some(item => !Number.isSafeInteger(item.durationFrames) || item.durationFrames < 1)) {
       throw new Error('A selected video has no verified duration.');
     }
     const shortVideos = videos.filter(item => item.durationFrames < frames);
-    const groups = [{ sources: photos, key: 'images', script: 'still_video.py',
-      summary: 'Convert selected photos into independent silent video clips' },
-    { sources: shortVideos, key: 'videos', script: 'hold_video.py',
+    const groups = [{ sources: shortVideos, key: 'videos', script: 'hold_video.py',
       summary: 'Extend only short gallery videos with their last frame' }];
     const requestPaths = [];
     for (const group of groups) {
@@ -193,34 +190,6 @@ export default function Panel({ sdk, context, ui }) {
       : item);
   }
 
-  async function prepareBase(frames, projectId, onImportStarted, isCurrent) {
-    if (!isCurrent()) throw new Error(t.changed);
-    if (!Number.isSafeInteger(frames) || frames < 1 || frames > 36000) throw new Error('Invalid output length.');
-    const command = 'printf %s ' + shellQuote(JSON.stringify({ durationFrames: frames })) +
-      ' | python3 "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/black_base.py"';
-    const shell = await sdk.runShell({ command, summary: 'Prepare editable gallery black Main video',
-      timeoutMs: 300000, maxOutputBytes: 8192 });
-    let result;
-    try { result = JSON.parse(shell.stdout); } catch { throw new Error(shell.stderr || 'Black Main video conversion failed.'); }
-    if (shell.isError || shell.exitCode !== 0 || result.status !== 'converted' || result.fps !== 60 ||
-        result.durationFrames !== frames || typeof result.outputPath !== 'string') {
-      throw new Error(result.message || shell.stderr || 'Black Main video conversion failed.');
-    }
-    if (!isCurrent()) throw new Error(t.changed);
-    onImportStarted();
-    const imported = await sdk.runScript({ script: buildScript({ operation: 'importBase', projectId,
-      path: result.outputPath, durationFrames: frames }),
-      summary: 'Import full-length black Main video', allowCommit: true });
-    if (imported.isError || !imported.result || imported.result.status === 'outcomeUnknown') throw new Error(t.unknown);
-    if (imported.result.status === 'notSaved') {
-      throw Object.assign(new Error(imported.result.message || 'Black Main video could not be imported.'), { safeNotSaved: true });
-    }
-    if (imported.result.status !== 'prepared' || !imported.result.baseResourceId) {
-      throw new Error('Black Main video import could not be verified.');
-    }
-    return { resourceId: imported.result.baseResourceId, path: imported.result.path };
-  }
-
   async function createGallery() {
     if (running.current || unknown || !ready || !context.projectId) return;
     const projectId = context.projectId, sequenceId = context.sequenceId, requestedKey = key;
@@ -232,6 +201,9 @@ export default function Panel({ sdk, context, ui }) {
         music: selectedMusic ? { resourceId: selectedMusic.resourceId, path: selectedMusic.path,
           durationFrames: selectedMusic.durationFrames, startFrame: 0 } : null };
       if (!input.name || input.media.some(item => !item.resourceId)) throw new Error(t.missing);
+      if (input.media.some(item => item.kind === 'image' && (!Number.isSafeInteger(item.width) || !Number.isSafeInteger(item.height)))) {
+        throw new Error('This Selects build does not expose photo dimensions for native Image clips. Update Selects.');
+      }
     } catch (error) { setStatus({ tone: 'error', text: String(error?.message || error) }); return; }
     running.current = true; setBusy(true); setStatus(null);
     let dispatched = false;
@@ -240,11 +212,6 @@ export default function Panel({ sdk, context, ui }) {
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
       input.media = await prepareVisuals(input.media, input.durationFrames, projectId,
         () => { dispatched = true; }, () => sameContext(projectId, sequenceId) && requestedKey === key);
-      if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
-      const preparedBase = await prepareBase(input.durationFrames, projectId,
-        () => { dispatched = true; }, () => sameContext(projectId, sequenceId) && requestedKey === key);
-      input.baseResourceId = preparedBase.resourceId;
-      input.basePath = preparedBase.path;
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
       const script = buildScript(input);
       dispatched = true;

@@ -52,11 +52,16 @@ test('an explicit resource can occupy two slots, but missing or excess assignmen
   assert.throws(() => planGallery({ media: [...media, media[0]], manualBpm: oracle.nominalBpm }), /21/);
 });
 
-test('the planner accepts prepared videos in every slot and rejects an unprepared short video', () => {
+test('the planner accepts original Image Resources without MP4 conversion and rejects short videos', () => {
   const mixed = media.map((item) => ({ ...item }));
   mixed[5] = { resourceId: 'video-6', kind: 'video', width: 1920, height: 1080, durationFrames: 120 };
   assert.throws(() => planGallery({ media: mixed, manualBpm: oracle.nominalBpm }), /short/i);
-  assert.throws(() => planGallery({ media: mixed.map((item, i) => i === 5 ? { ...item, kind: 'image' } : item), manualBpm: oracle.nominalBpm }), /video/i);
+  const photos = mixed.map((item, i) => ({ resourceId: `photo-${i}`, kind: 'image', width: item.width,
+    height: item.height }));
+  assert.deepEqual(planGallery({ media: photos, manualBpm: oracle.nominalBpm }).tiles.map(item => item.kind),
+    Array(21).fill('image'));
+  assert.equal(planGallery({ media: mixed.map((item, i) => i === 5 ? photos[i] : item),
+    manualBpm: oracle.nominalBpm }).tiles[5].kind, 'image');
   const allVideos = Array.from({ length: 21 }, (_, i) => ({ resourceId: `video-${i}`, kind: 'video', width: 1080, height: 1920, durationFrames: 853 }));
   assert.equal(planGallery({ media: allVideos, manualBpm: oracle.nominalBpm }).tiles.length, 21);
 });
