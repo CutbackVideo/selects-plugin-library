@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "torn-paper-love",
+  "version": "0.1.0-alpha.1",
+  "name": "Torn Paper Love",
+  "summary": "Turn couple photos into a 4:3 torn-paper love edit cut on the beat, with ransom-note letters, as a new editable Draft.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "assets/cues/easy-sunday-lofi.mp3",
+    "assets/cues/manifest.json",
+    "assets/cues/sunny-soul-strut.mp3",
+    "assets/fonts/licenses/abrilfatface-OFL.txt",
+    "assets/fonts/licenses/alfaslabone-OFL.txt",
+    "assets/fonts/licenses/archivoblack-OFL.txt",
+    "assets/fonts/licenses/bebasneue-OFL.txt",
+    "assets/fonts/licenses/dmserifdisplay-OFL.txt",
+    "assets/fonts/licenses/specialelite-Apache-2.0.txt",
+    "assets/fonts/looks.json",
+    "assets/fonts/tpl-black.woff2.b64",
+    "assets/fonts/tpl-condensed.woff2.b64",
+    "assets/fonts/tpl-didone.woff2.b64",
+    "assets/fonts/tpl-serif.woff2.b64",
+    "assets/fonts/tpl-slab.woff2.b64",
+    "assets/fonts/tpl-typewriter.woff2.b64",
+    "assets/ransom-letters.tsx",
+    "assets/torn-photo.tsx",
+    "beat-detect.cjs",
+    "build-config.js",
+    "planner.js",
+    "scripts/assemble.js",
+    "scripts/decorate.js",
+    "scripts/ensure-audio.js",
+    "scripts/inventory.js",
+    "scripts/search.js"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg and Node.js 18+ on PATH only for music previews and your own music."
+  }
+}
