@@ -12,7 +12,7 @@ if (!Array.isArray(cfg.boundaries) || cfg.boundaries.length < 2 || cfg.picks.len
   throw Error('THE END Credits: ' + cfg.picks.length + ' picks do not fit ' + (cfg.boundaries || []).length + ' boundaries (' + (classic ? 'Classic' : 'Full frame') + ')');
 const photoRids = new Set(cfg.picks.filter(k => k.kind === 'photo').map(k => k.rid));
 let d, fps, frames;
-const shots = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null);
+const shots = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null).sort((a, b) => a.startFrame - b.startFrame);
 const endOf = rows => rows.reduce((a, c) => Math.max(a, c.endFrame), 0);
 // Selects snaps the music's source start to a frame, which shifts the whole track by delta; every cut moves with it so
 // it stays on the phrase grid. frame(0) is always 0 (the video start is not a musical anchor).

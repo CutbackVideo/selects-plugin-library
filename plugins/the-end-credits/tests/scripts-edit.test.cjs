@@ -324,6 +324,15 @@ const record = (r, extra = {}) => ({ layout: 'classic', sequenceId: r.sequenceId
   assert.deepEqual([1, 2, 3].map(id => mp.effects[id].map(e => e.name)), [['Shot frame'], ['Cinematic look', 'Shot frame'], ['Cinematic look', 'Shot frame']]);
   assert.deepEqual(dp.notes, ['1 shot keeps its frame without the look']);
 
+  // A label may come back in effectName only (name differs): still counted, nothing added, no commit.
+  const mn = mockDraft(30);
+  mn.clips.push({ clipId: 1, resourceId: 'v0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null });
+  mn.graphics.push({ name: 'THE END credits', clip: {} });
+  mn.effects[1] = [{ name: 'Effect 1', effectName: 'Cinematic look' }, { name: 'Effect 2', effectName: 'Shot frame' }];
+  const dn = await load('decorate.js', record({ sequenceId: 's', fps: 30, frames: [0, 30] }, { layout: 'full' }))({ draft: () => mn.d });
+  assert.deepEqual([dn.looksKept, dn.shotFramesKept, dn.looks, dn.shotFrames, dn.committed], [1, 1, 0, 0, false]);
+  assert.equal(mn.effects[1].length, 2);
+
   // 10. Inputs that do not fit the layout are refused before anything is created.
   let created = 0;
   await assert.rejects(load('assemble.js', { projectId: 'p', draftName: 'x', layout: 'full', picks: picksC, boundaries: bc, L, music: null, clipSound: 'off', sources })(

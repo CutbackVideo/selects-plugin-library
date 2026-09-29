@@ -21,7 +21,8 @@ const aspectOf = rid => {
   return s && s.aspect > 0 ? s.aspect : 16 / 9;
 };
 const shots = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null).sort((a, b) => a.startFrame - b.startFrame);
-const stack = async clip => (await d.videoEffects(clip)).map(e => e.name || e.effectName);
+// A label can come back as the effect's name or its effectName; both count.
+const stack = async clip => [].concat(...(await d.videoEffects(clip)).map(e => [e.name, e.effectName]));
 // Inspector definitions. Each default is this clip's own value (the fades differ per clip). The window is adjustable
 // in Classic only; photos also get their motion (the effect scales strength 1 to the window's restrained move).
 const MOTIONS = [['none', 'None'], ['push-in', 'Push in'], ['pull-out', 'Pull out'], ['drift-left', 'Drift left'], ['drift-right', 'Drift right'],
