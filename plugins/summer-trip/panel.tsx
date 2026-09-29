@@ -302,9 +302,14 @@ function stDropStart(cue) {
   return null;
 }
 
+// Usable length of a cue: its duration, but never past the last onset + 0.5 s (usableEnd) when that is known, so a
+// section never ends in the silent tail of a file.
 function stCueDuration(cue) {
-  if (typeof cue.duration === 'number' && isFinite(cue.duration)) return cue.duration;
-  if (typeof cue.usableEnd === 'number' && isFinite(cue.usableEnd)) return cue.usableEnd + ST_SECTION_END_MARGIN;
+  const hasDur = typeof cue.duration === 'number' && isFinite(cue.duration);
+  const hasEnd = typeof cue.usableEnd === 'number' && isFinite(cue.usableEnd);
+  if (hasDur && hasEnd) return Math.min(cue.duration, cue.usableEnd + ST_SECTION_END_MARGIN);
+  if (hasDur) return cue.duration;
+  if (hasEnd) return cue.usableEnd + ST_SECTION_END_MARGIN;
   return 0;
 }
 
@@ -346,7 +351,11 @@ function stDefaultSection(cue, n) {
   if (drop !== null) {
     const c = stClampSection({ cue, montageShots: n, value: drop });
     if (!c) return null;
-    return { start: c.start, kind: c.kind, clamped: true, note: 'The drop section does not fit this length; moved to the latest start that fits' };
+    // A drop within the first 8 beats of the file: its section would start before the file, so the earliest bar
+    // start is used and the title runs over the track's first two bars instead of the build-up.
+    const note = drop < -1e-6 ? 'The drop is too close to the start of the track; the title runs over the first two bars'
+      : 'The drop section does not fit this length; moved to the latest start that fits';
+    return { start: c.start, kind: c.kind, clamped: true, note };
   }
   const first = typeof cue.firstBeat === 'number' && isFinite(cue.firstBeat) ? cue.firstBeat : 0;
   let start = null;
