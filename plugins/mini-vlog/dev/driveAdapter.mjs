@@ -2,8 +2,8 @@
 // panel's Build headlessly. Not shipped (dev/ is not in plugin.json `files`). Run it with
 //   node <kit>/tools/drive/build-driver.mjs --plugin plugins/mini-vlog --adapter plugins/mini-vlog/dev/driveAdapter.mjs \
 //     --matrix plugins/mini-vlog/dev/matrix.json (--check | --key <k> [--plan-only] | --all)
-// then dev/check-photo-motion.mjs on the driver's --out folder (readback expectations cannot express "Photo motion
-// on photo clips only").
+// then dev/check-per-kind.mjs on the driver's --out folder (readback expectations cannot express per-kind checks:
+// "Photo motion" on photo clips only, the clip-sound level on video clips only).
 //
 // Contract: see the kit's pluginAdapter.mjs header. Mini-vlog specifics:
 // - Rows name their Project by alias (`project: "daily"`) and carry `pid: "@daily"` as a placeholder, because the
@@ -17,10 +17,11 @@
 import vm from 'node:vm';
 
 // A brace or bracket constant from panel.tsx, evaluated as a JS literal (`close` is its closing token, e.g. '};').
+// A TypeScript annotation between the name and `=` is skipped.
 function panelConst(panel, name, close) {
-  const at = panel.indexOf('const ' + name + ' = ');
-  if (at < 0) throw Error('panel.tsx has no const ' + name);
-  const from = at + ('const ' + name + ' = ').length;
+  const m = new RegExp('const ' + name + '(?::[^=]+)? = ').exec(panel);
+  if (!m) throw Error('panel.tsx has no const ' + name);
+  const from = m.index + m[0].length;
   return (0, eval)('(' + panel.slice(from, panel.indexOf(close, from) + 1) + ')');
 }
 // A scalar the panel declares (number, string or boolean), found by a regex whose first group is the literal.
@@ -40,6 +41,30 @@ function loadPlanner(source) {
   return box.P;
 }
 const j = v => JSON.parse(JSON.stringify(v)); // vm objects -> plain objects
+// panel.tsx stamp(): local date and time to the second, so reruns never reuse a Draft name.
+function stamp(d) {
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+// The panel's decorate() code the adapter copies (title parameters, Adjust items, photo motion, decorate cfg). If the
+// panel no longer contains any of these, the copy below is stale: createAdapter fails instead of driving old behaviour.
+const PANEL_DECORATE = [
+  'const parameters = { preset: f.preset, ...flat, fields: { ...flat }, primary: p.colors.primary, secondary: p.colors.secondary, ...TITLE_LOOK, fonts,',
+  'provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart, pace: f.pace, length: f.length,',
+  'seed: f.seed, clipSound: f.clipSound, picks: res.plan.picks } };',
+  '...p.fields.map((fl: any) => ({ key: fl.key, label: fl.label, type: "text", defaultValue: flat[fl.key] })),',
+  '{ key: "primary", label: "Main color", type: "color", defaultValue: p.colors.primary },',
+  '{ key: "secondary", label: "Second color", type: "color", defaultValue: p.colors.secondary },',
+  '{ key: "shadow", label: "Shadow", type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },',
+  '{ key: "size", label: "Size (%)", type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },',
+  '{ key: "x", label: "Horizontal position (%)", type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },',
+  '{ key: "y", label: "Vertical position (%)", type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },',
+  '{ key: "sparkles", label: f.preset === "mini-vlog" ? "Sparkles" : "Stars", type: "boolean", defaultValue: TITLE_LOOK.sparkles },',
+  'const moves: any[] = mvPhotoMotions(res.plan.picks, String(f.seed), sizes);',
+  'const cover = sz ? Math.max(MV_W / sz.width, MV_H / sz.height) / Math.min(MV_W / sz.width, MV_H / sz.height) : 1;',
+  'byRid[k.rid] = { ...moves[i], cover };',
+  '{ sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: MOTION_OPTIONS, byRid }, photoEffects: true }',
+];
 const WANT_LABEL = (src, name) => { const m = new RegExp(name + " = '([^']+)'").exec(src); if (!m) throw Error('decorate.js has no ' + name); return m[1]; };
 
 export async function createAdapter({ pluginDir, installedDir, read }) {
@@ -47,6 +72,11 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   const P = loadPlanner(read('planner.js'));
   const panel = read('panel.tsx');
   const decorateJs = read('scripts/decorate.js');
+  const stale = PANEL_DECORATE.filter(x => !panel.includes(x));
+  if (stale.length) throw Error('panel.tsx decorate() changed; update driveAdapter.mjs decorate(). Missing:\n  ' + stale.join('\n  '));
+  const PLUGIN_ID = panelScalar(panel, 'PLUGIN_ID', /const PLUGIN_ID = ("[^"]+");/);
+  const PLUGIN_VERSION = panelScalar(panel, 'PLUGIN_VERSION', /const PLUGIN_VERSION = ("[^"]+");/);
+  const MV_FAIL = panelConst(panel, 'MV_FAIL', '};');
   // panel.tsx constants (top of the file).
   const MV_QUERIES = panelConst(panel, 'MV_QUERIES', '};');
   const MOTION_OPTIONS = panelConst(panel, 'MOTION_OPTIONS', '];');
@@ -103,7 +133,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
 
   return {
     id: manifestJson.id,
-    version: manifestJson.version,
+    version: PLUGIN_VERSION,
     label: 'Mini Vlog',
     searchBatch: SEARCH_BATCH,
 
@@ -116,7 +146,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const counts = { project: count('project'), cue: count('cue'), preset: count('preset'), length: count('length'), pace: count('pace'),
         clipSound: count('clipSound'), soft: count('soft'), usePhotos: count('usePhotos'), section: count('section', withMusic), seed: seeds };
       const want = {
-        project: ['daily', 'ny', 'tokyo'], cue: [...cues.map(c => c.id), 'none'], preset: presets.map(p => p.id), length: Object.keys(P.MV_LENGTHS),
+        project: ['daily', 'ny', 'paris'], cue: [...cues.map(c => c.id), 'none'], preset: presets.map(p => p.id), length: Object.keys(P.MV_LENGTHS),
         pace: ['quick', 'relaxed'], clipSound: ['off', 'ambient', 'full'], soft: ['true', 'false'], usePhotos: ['true', 'false'],
         section: ['default', 'early', 'late'], seed: ['1', '2'],
       };
@@ -200,15 +230,15 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const musicStart = musicKind === 'none' ? null : start;
       const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };
       // blockReason, in the panel's order (own-music reasons do not apply).
-      if (musicKind !== 'none' && (!fitted || start == null)) throw Error('This track is too short for 4 shots from this section.');
+      if (musicKind !== 'none' && (!fitted || start == null)) throw Error(MV_FAIL['music-too-short'] + '.');
       const photoCands = row.usePhotos ? inv.photos.map(p => ({ rid: p.rid, kind: 'photo' })) : [];
-      if (inv.resources.length + photoCands.length < 2) throw Error('Add at least 2 clips or photos.');
+      if (inv.resources.length + photoCands.length < 2) throw Error(MV_FAIL['one-resource'] + '.');
       // build(): plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate.
       const plan = j(P.mvPlanBuild({ candidates: found.list.concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace: row.pace, requested,
         sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(seed) }));
       const planSummary = { ok: plan.ok, reason: plan.reason, shots: plan.shots, requested, fitted, beatsPerShot: plan.beatsPerShot, overridden: plan.overridden,
         shotSeconds: plan.shotSeconds, photoShots: plan.photoShots, fillerShots: plan.fillerShots, usableShots: plan.usableShots, sectionStart: musicStart };
-      if (!plan.ok) throw Error('plan not ok: ' + JSON.stringify(planSummary));
+      if (!plan.ok) throw Error((MV_FAIL[plan.reason] || 'No plan fits this footage') + '. plan: ' + JSON.stringify(planSummary));
       // Photo sizes the inventory measured (the panel's photoSizesRef).
       const photoSizes = {};
       for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizes[ph.rid] = { width: ph.width, height: ph.height };
@@ -228,7 +258,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       s.music = music;
       const crops = Object.fromEntries([...s.inv.resources, ...s.inv.photos.filter(r => r.width > 0 && r.height > 0)].map(r => [r.rid, { width: r.width, height: r.height }]));
       const cueLabel = s.cue ? (s.cue.label || s.cue.id) : 'No music';
-      s.draftName = s.row.draftName || ['Mini Vlog', s.chosen.label, s.row.key, cueLabel, s.row.length, s.row.pace].join(' ') + (s.seed !== 1 ? ' seed ' + s.seed : '');
+      s.draftName = s.row.draftName || ['Mini Vlog', s.chosen.label, s.row.key, cueLabel, s.row.length, s.row.pace].join(' ') + (s.seed !== 1 ? ' seed ' + s.seed : '') + ' ' + stamp(new Date());
       return { summary: 'Assemble Mini Vlog', script: 'scripts/assemble.js', allowCommit: true, config: {
         projectId: pid, draftName: s.draftName, picks: s.plan.picks, boundaries: s.boundaries, crops,
         music: music ? { resourceId: music.resourceId, sectionStart: s.musicStart ?? 0 } : null, clipSound: s.row.clipSound, ambientDb: AMBIENT_DB } };
@@ -250,7 +280,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       for (const fl of p.fields) flat[fl.key] = String(s.fields[fl.key] ?? '');
       const cueProv = s.musicKind === 'cue' ? row.cue : s.musicKind;
       const parameters = { preset: row.preset, ...flat, fields: { ...flat }, primary: p.colors.primary, secondary: p.colors.secondary, ...TITLE_LOOK, fonts,
-        provenance: { plugin: manifestJson.id, version: manifestJson.version, preset: row.preset, cue: cueProv, sectionStart: s.musicStart, pace: row.pace, length: row.length,
+        provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: row.preset, cue: cueProv, sectionStart: s.musicStart, pace: row.pace, length: row.length,
           seed: s.seed, clipSound: row.clipSound, picks: plan.picks } };
       const editableParameters = [
         ...p.fields.map(fl => ({ key: fl.key, label: fl.label, type: 'text', defaultValue: flat[fl.key] })),
@@ -280,7 +310,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         photos: photoRids, motion: { tsx: read('assets/photo-motion.tsx'), strength: MOTION_STRENGTH, options: MOTION_OPTIONS, byRid }, photoEffects: true } };
     },
 
-    // Photo motion (one per photo clip, none on video clips) is checked by dev/check-photo-motion.mjs from the record:
+    // Photo motion (one per photo clip, none on video clips) is checked by dev/check-per-kind.mjs from the record:
     // readback `effects` can only require the same count on every main clip.
     expected(s, a) {
       return {
@@ -290,7 +320,10 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         // Soft look goes on every Main clip, photos included (photoEffects: true), when on.
         effects: [{ name: SOFT_NAME, perMainClip: s.row.soft ? 1 : 0 }],
         music: s.music ? { resourceId: s.music.resourceId, db: 0, fadeOutSeconds: 0.12 } : { none: true },
-        clipSound: s.row.clipSound === 'off' ? { mode: 'off' } : { mode: 'level', db: s.row.clipSound === 'ambient' ? AMBIENT_DB : 0 },
+        // Clip sound: Off is checkable on every Main clip (silent photos may stay unrouted). A level is set on video clips
+        // only (assemble.js skips photos), which readback cannot express, so with photos dev/check-per-kind.mjs checks it.
+        ...(s.row.clipSound === 'off' ? { clipSound: { mode: 'off' } }
+          : s.plan.picks.some(k => k && k.kind === 'photo') ? {} : { clipSound: { mode: 'level', db: s.row.clipSound === 'ambient' ? AMBIENT_DB : 0 } }),
       };
     },
 
@@ -304,7 +337,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
           usePhotos: row.usePhotos, section: row.section, fields: s.fields },
           name: s.draftName, plan: s.planSummary, snapLog: plan.schedule.snapLog, sectionStart: s.musicStart, musicOffset: sched.offset,
           scheduleEnd: sched.totalFrames, assembledEnd: a.totalFrames, gridCuts: gridSched.slots.map(x => x.endFrame),
-          photoMotion: { name: MOTION_NAME, photoRids: s.photoRids || [] },
+          perKind: { photoRids: s.photoRids || [], motionName: MOTION_NAME, clipSound: row.clipSound, videoDb: row.clipSound === 'ambient' ? AMBIENT_DB : row.clipSound === 'full' ? 0 : null },
           picks: plan.picks.map(p => (p.kind === 'photo' ? 'P:' : '') + p.rid + '@' + (p.startSeconds ?? '').toString().slice(0, 6)) },
         // Evaluator cut file (eval-beat-sync.cjs --cuts): every cut except the end; beats only on a grid.
         cuts: { fps: a.fps, cuts: sched.slots.slice(0, -1).map(x => x.endFrame), beats: s.gridded ? sched.slots.slice(0, -1).map(x => x.endBeat) : null,
