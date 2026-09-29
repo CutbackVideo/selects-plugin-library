@@ -193,6 +193,34 @@ export default function Panel({ sdk, context, ui }) {
       : item);
   }
 
+  async function prepareBase(frames, projectId, onImportStarted, isCurrent) {
+    if (!isCurrent()) throw new Error(t.changed);
+    if (!Number.isSafeInteger(frames) || frames < 1 || frames > 36000) throw new Error('Invalid output length.');
+    const command = 'printf %s ' + shellQuote(JSON.stringify({ durationFrames: frames })) +
+      ' | python3 "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/black_base.py"';
+    const shell = await sdk.runShell({ command, summary: 'Prepare editable gallery black Main video',
+      timeoutMs: 300000, maxOutputBytes: 8192 });
+    let result;
+    try { result = JSON.parse(shell.stdout); } catch { throw new Error(shell.stderr || 'Black Main video conversion failed.'); }
+    if (shell.isError || shell.exitCode !== 0 || result.status !== 'converted' || result.fps !== 60 ||
+        result.durationFrames !== frames || typeof result.outputPath !== 'string') {
+      throw new Error(result.message || shell.stderr || 'Black Main video conversion failed.');
+    }
+    if (!isCurrent()) throw new Error(t.changed);
+    onImportStarted();
+    const imported = await sdk.runScript({ script: buildScript({ operation: 'importBase', projectId,
+      path: result.outputPath, durationFrames: frames }),
+      summary: 'Import full-length black Main video', allowCommit: true });
+    if (imported.isError || !imported.result || imported.result.status === 'outcomeUnknown') throw new Error(t.unknown);
+    if (imported.result.status === 'notSaved') {
+      throw Object.assign(new Error(imported.result.message || 'Black Main video could not be imported.'), { safeNotSaved: true });
+    }
+    if (imported.result.status !== 'prepared' || !imported.result.baseResourceId) {
+      throw new Error('Black Main video import could not be verified.');
+    }
+    return imported.result.baseResourceId;
+  }
+
   async function createGallery() {
     if (running.current || unknown || !ready || !context.projectId) return;
     const projectId = context.projectId, sequenceId = context.sequenceId, requestedKey = key;
@@ -210,6 +238,9 @@ export default function Panel({ sdk, context, ui }) {
       Object.assign(input, await resolveBpm(selectedMusic));
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
       input.media = await prepareVisuals(input.media, input.durationFrames, projectId,
+        () => { dispatched = true; }, () => sameContext(projectId, sequenceId) && requestedKey === key);
+      if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
+      input.baseResourceId = await prepareBase(input.durationFrames, projectId,
         () => { dispatched = true; }, () => sameContext(projectId, sequenceId) && requestedKey === key);
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
       const script = buildScript(input);
