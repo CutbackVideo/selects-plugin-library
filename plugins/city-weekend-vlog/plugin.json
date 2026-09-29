@@ -127,5 +127,11 @@
       "name": "\u57ce\u5e02\u5468\u672b Vlog",
       "summary": "\u5c06\u57ce\u5e02\u7d20\u6750\u526a\u6210\u5361\u70b9\u7684 9:16 \u5468\u672b Vlog\uff0c\u914d\u4ee5\u5b57\u4f53\u5207\u6362\u7684\u6807\u9898\uff0c\u5e76\u4fdd\u5b58\u4e3a\u53ef\u7f16\u8f91\u7684\u65b0 Draft\u3002"
     }
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
   }
 }

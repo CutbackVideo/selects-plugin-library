@@ -53,3 +53,18 @@ Brooklyn Boom Bap, Downtown Funk Break and Sunset Afro House were added on 2026-
 - Brooklyn Boom Bap: "Upbeat instrumental boom-bap neo-soul groove at exactly 90 BPM in 4/4, warm, sunny city-weekend mood, no vocals. Drums are front and center: a fat, punchy kick and a loud, snappy snare on beats 2 and 4 for a clear backbeat, with crisp 16th-note hi-hats kept tight and on the grid (not swung). The drums start within the first second with a strong kick downbeat on bar 1, with no fade-in and no ambient intro. Add a short drum fill at the end of every 4 bars. Keep the tempo steady with no rubato or tempo changes. Rhodes chords, a round bass line and light guitar licks sit underneath the drums. The track is 40 seconds long."
 - Downtown Funk Break: "Upbeat instrumental funk breakbeat at exactly 98 BPM in 4/4, sunny city-weekend mood, no vocals. Drums are the loudest element in the mix: a prominent, punchy kick and a hard, cracking snare on beats 2 and 4 for a clear backbeat, with crisp, bright 16th-note hi-hats running throughout. The drums start within the first second with a strong downbeat on bar 1, with no fade-in and no ambient intro. Add a short snare and tom drum fill at the end of every 4 bars. Keep the tempo steady and quantized, with no rubato, tempo changes or breakdowns. Tight slap bass, wah guitar stabs and short brass hits sit underneath the drums. The track is 40 seconds long."
 - Sunset Afro House: "Upbeat instrumental afro-house-lite at exactly 115 BPM in 4/4, sunny, energetic city-weekend mood, no vocals. Drums and percussion are the loudest elements: a prominent, punchy kick on every beat, a crisp snare and clap on beats 2 and 4 for a clear backbeat, crisp 16th-note shakers and hi-hats, and bright congas and bongos. The drums start within the first second with a strong downbeat on bar 1, with no fade-in and no ambient intro. Add a short percussion and tom fill at the end of every 4 bars. Keep the tempo steady with no rubato, tempo changes or long breakdowns. Marimba and plucked synth riffs and a warm bass sit underneath the drums. The track is 40 seconds long."
+
+## Gallery preview footage
+
+`preview.mp4` and `poster.webp` are not installed with the plugin. They show a City Weekend Vlog build (Sunset Afro House, Retro Diner, "saturday / in / TOKYO") made from these Pexels clips under the Pexels License (https://www.pexels.com/license/):
+
+- Tokyo skyscraper street scene, by Muhammed Fatih KARAKUŞ: https://www.pexels.com/video/urban-scene-with-tokyo-skyscraper-38788065/
+- Tokyo Station area high-rises, daylight, by DOAN HUY: https://www.pexels.com/video/tokyo-station-17850329/
+- Shopfront with vending machines, sunny, by Japanese girl in europe: https://www.pexels.com/video/quaint-japanese-shopfront-with-vending-machines-37122136/
+- Busy street by Senso-ji with Skytree, by Stephan Leuzinger: https://www.pexels.com/video/busy-tokyo-street-with-senso-ji-temple-37605915/
+- Tokyo Tower framed by sakura, by Vasilis Karkalas: https://www.pexels.com/video/tokyo-tower-with-sakura-blossoms-view-36667290/
+- Tokyo Tower against blue sky, by Franco Sangreo: https://www.pexels.com/video/iconic-tokyo-tower-against-clear-blue-sky-31381008/
+- Tokyo skyline on a clear day, by yuki kiki: https://www.pexels.com/video/tokyo-skyline-on-a-clear-day-35705846/
+- Tokyo skyline over green park, by Rin Gakusho: https://www.pexels.com/video/tokyo-skyline-overlooking-lush-green-park-29195778/
+- Shibuya Crossing from above, daytime, by MouathOA: https://www.pexels.com/video/bustling-shibuya-crossing-in-tokyo-japan-31053919/
+- Ameyoko market street, daytime, by Miltan Monjib: https://www.pexels.com/video/exploring-vibrant-ameyoko-market-in-tokyo-35302624/
