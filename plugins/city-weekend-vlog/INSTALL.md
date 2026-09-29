@@ -47,10 +47,11 @@ replace them.
 2. Open a Project with analysed video clips and open the panel. The top line
    reads "Ready: N analysed clips · about N s", the Track list shows the four
    bundled tracks, and the Font style tiles render in their own typefaces.
-3. With at least 17 usable shots, press **Build**. A new Draft opens at
-   1080x1920 with the title, the clips and the music.
+3. With at least 16 usable shots (14 for a track with the half-beat burst),
+   press **Build**. A new Draft opens at 1080x1920 with the title, the clips
+   and the music.
 4. Optional: if ffmpeg and Node.js are installed, **Your own music** appears
-   in the Track list and **Preview this section** plays a 6 s clip.
+   in the Track list and **Preview this section** plays the chosen section.
 
 ## Uninstall
 

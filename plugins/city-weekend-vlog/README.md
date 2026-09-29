@@ -7,23 +7,28 @@ or any source file.
 
 ## What it makes
 
-- **Title section (9 beats).** Thirteen quick shots with a three-line title,
-  for example "Saturday / in / New York". Line 1 appears first, then the
-  connector, then the place. The place line switches typefaces on every cut
-  of a decelerating burst: four quarter-beat shots, then five half-beat shots.
-  The full title holds on a wide shot before it disappears.
+- **Title section (8 beats, two bars).** Quick shots with a three-line
+  title, for example "Saturday / in / New York". Line 1 appears first, then
+  the connector, then the place (1.5 + 1.5 + 1 beats). The place line
+  switches typefaces on every cut of a fast run: a burst, then four
+  half-beat shots. The full title holds for one beat on a wide shot before
+  it disappears. The burst follows the music: four quarter-beat shots when
+  the track has a clear 16th-note pulse (Sunny Soul Strut), otherwise two
+  half-beat shots, so there are 12 or 10 title shots. Apart from that burst
+  every cut lands on a beat or half-beat.
 - **Montage (2 beats per shot).** Street, architecture, park and detail shots,
-  7 by default.
+  7 by default. It starts on the first beat of a bar.
 - A 1080x1920 canvas. Landscape clips and photos get a centre crop.
 - **Photos** fill shots too (see [Photos](#photos)).
-- Hard cuts only. There are no transitions and no end card. The picture stops
+- Hard cuts only, never between two shots of the same clip while other
+  footage fits. There are no transitions and no end card. The picture stops
   on the last beat, and the music ends there with a short 0.12 s fade.
-- A subtle warm colour look on every clip (strength 0.35). The title is not
-  tinted.
+- A subtle warm colour look on every clip and photo (strength 0.35). The
+  title is not tinted.
 - The clips' own sound plays quietly under the music by default (**Clip
   sound**: Ambient, see [Advanced](#advanced)).
 
-The video lasts 9 + 2 x (montage shots) beats, about 9 to 23 seconds
+The video lasts 8 + 2 x (montage shots) beats, about 9 to 22 seconds
 depending on the track's tempo and the chosen length.
 
 ## Default path
@@ -39,8 +44,9 @@ depending on the track's tempo and the chosen length.
    switches fonts instead. The preview cycles through the font states.
 3. Press **Build**.
 
-The build needs at least **17 usable shots** (13 for the title and 4 for the
-montage); each photo counts as one shot. If there are fewer, the panel says
+The build needs at least **16 usable shots** (12 for the title and 4 for the
+montage), or 14 with a track that gets the half-beat burst; each photo counts
+as one shot. If there are fewer, the panel says
 how many it found, and how many of them are photos, and asks for more varied
 footage or photos. It does not start analysis on its own, so analyse your
 clips first.
@@ -67,11 +73,13 @@ Choose a **Track**:
 The waveform below the track shows a box as long as the video. Click the
 waveform to move the box and choose where in the track the video starts.
 The box snaps to bars (4 beats), so the cuts stay on the beat. It starts on
-the most energetic section. **Preview this section** plays the whole
+the most energetic section. Selects starts the music on a video frame, which
+can move it by up to half a frame; the cuts move with it. **Preview this section** plays the whole
 section; press it again to stop.
 
 **Your own music**: drop an audio file. The plugin listens for the beat and
-uses it when the detected beat grid is reliable. Songs slower than 70 BPM, or
+uses it when the detected beat grid is reliable. It also measures how
+strongly the music marks 16th notes to choose the title burst. Songs slower than 70 BPM, or
 songs whose beat cannot be detected reliably, fall back to fixed timing at
 99.2 BPM, and the panel says "cuts use the original rhythm". Without a
 reliable grid, the box moves in 0.1 s steps instead of bars. Your own music
@@ -84,14 +92,16 @@ Photos (Image resources) in the Project are used as shots. They need no
 analysis and are never scene-searched.
 
 - Each photo fills at most one shot, of any length up to 5 s.
-- For each shot the plugin prefers, in order: a video moment that matches the
-  shot's role, then any other analysed video moment, then a photo, and only
-  then an evenly spaced filler moment from a video. In the quick title burst
-  (the quarter- and half-beat shots) a photo comes right after a matching
-  video moment, before other moments.
+- About a third of the shots are photos when there are enough of them. These
+  photo shots are spread evenly over the whole video, title included.
+- For the other shots the plugin prefers, in order: a video moment that
+  matches the shot's role, then any other analysed video moment, then a
+  photo, and only then an evenly spaced filler moment from a video. In the
+  title's fast run a photo comes right after a matching video moment, before
+  other moments.
 - At most two photos play in a row while anything else fits. A Project with
-  only photos still builds when it has at least 17 of them; then the photos
-  follow each other.
+  only photos still builds when it has at least 16 of them (14 with the
+  half-beat burst); then the photos follow each other.
 - The choice depends on the seed, so **Create another version** picks other
   photos.
 - Photos are placed from their start for the shot's frame-exact length and
@@ -104,10 +114,9 @@ analysis and are never scene-searched.
   photos and horizontal drift for landscape ones) and never show the photo's
   edges. Photos in the title stay still. In the Inspector, each move's
   **Motion** and **Motion strength** (0 to 2) can be changed.
-- **Current limit:** in this Selects build any Video Effect on a photo clip
-  stops that frame from rendering, so photos get neither the motion nor the
-  warm look for now. The motion is built into the plugin and is switched on
-  once Selects can render effects on photos.
+- Photos also get the warm look. Exports show the motion, the look and the
+  crop. Frame previews made with Selects' frame capture tool can fail or show
+  bars on photos with effects; the exported video is correct.
 
 The size of each photo is read once, by placing it on an unsaved scratch
 Draft (Selects reports no frame size for photos); nothing is saved.
@@ -145,7 +154,7 @@ system fallback font.
   and shape (Tall, Wide or Square), followed by the photos, marked "Photo". All clips are used by default; **All**
   and **None** select or clear the whole list. A new selection searches its
   clips again on the next build (choosing photos does not), and the readiness
-  line shows how many clips and photos are selected. If the selected clips cannot supply 17 usable shots, the
+  line shows how many clips and photos are selected. If the selected clips cannot supply 16 usable shots (14 with the half-beat burst), the
   build says how many it found.
 
 If your footage cannot fill every montage shot of the chosen length, the
@@ -162,7 +171,8 @@ The Draft contains:
 
 - one video clip or photo per shot, cut on the beat and centre-cropped to 9:16;
 - one title Motion Graphic over the title section;
-- a warm-look Video Effect on each video clip (when Warm look is on);
+- a warm-look Video Effect on each clip and photo (when Warm look is on), and
+  a photo-motion Video Effect on each montage photo;
 - the music clip, trimmed to the video (when music is chosen).
 
 Edit it in the Inspector:
