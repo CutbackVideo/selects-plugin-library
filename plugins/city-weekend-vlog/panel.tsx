@@ -33,6 +33,8 @@ const MOTION_OPTIONS = [
   { label: "Drift up", value: "drift-up" }, { label: "Drift down", value: "drift-down" },
   { label: "Tilt", value: "tilt" }, { label: "Push and drift", value: "push-drift" },
 ];
+// Ambient clip sound: the clips' own sound sits this far under the music, which stays at 0 dB.
+const AMBIENT_DB = -18;
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 // cwv-planner:start
@@ -562,7 +564,8 @@ export default function Panel({ sdk, context, ui }: any) {
   const [ownGrid, setOwnGrid] = React.useState<any>(null);
   const [preset, setPreset] = React.useState("classic");
   const [length, setLength] = React.useState<"short" | "standard" | "long">("standard");
-  const [keepSound, setKeepSound] = React.useState(false);
+  // Clip sound: the clips' own sound is off (muted), ambient (-18 dB under the music) or full (0 dB).
+  const [clipSound, setClipSound] = React.useState<"off" | "ambient" | "full">("ambient");
   const [warm, setWarm] = React.useState(true);
   const [only, setOnly] = React.useState<string[] | null>(null);
   // Photos: on by default. `onlyPhotos` is the photo selection (null = all); `only` stays the video selection, so
@@ -914,7 +917,7 @@ export default function Panel({ sdk, context, ui }: any) {
       const name = "City Weekend Vlog " + new Date().toISOString().slice(0, 16).replace("T", " ");
       const a = await run("Assemble City Weekend Vlog", fill(assets.scripts.assembleJs, {
         projectId: pid, draftName: name, picks: plan.picks, boundaries: beatsAt.map((b) => b * beat), crops,
-        music: music ? { resourceId: music.resourceId, sectionStart: start ?? 0 } : null }), true);
+        music: music ? { resourceId: music.resourceId, sectionStart: start ?? 0 } : null, clipSound, ambientDb: AMBIENT_DB }), true);
       check();
       if (!a.sequenceId) throw new Error("The Draft \"" + name + "\" was saved, but Selects did not report its id, so the title and look could not be added. Open it from the Drafts list, or build again.");
       const sched = cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: plan.montageShots });
@@ -922,8 +925,8 @@ export default function Panel({ sdk, context, ui }: any) {
       const shortened = plan.montageShots < fitted ? { shots: plan.montageShots, seconds: sched.totalFrames / a.fps,
         fullSeconds: cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: fitted }).totalFrames / a.fps } : null;
       advance("draft", 1);
-      setResult({ sequenceId: a.sequenceId, decorated: false, sched, plan, seed: nextSeed, mute: !keepSound, notes: a.notes || [], link: null, shortened });
-      await decorate(a.sequenceId, sched, plan, nextSeed, !keepSound, check);
+      setResult({ sequenceId: a.sequenceId, decorated: false, sched, plan, seed: nextSeed, mute: clipSound === "off", notes: a.notes || [], link: null, shortened });
+      await decorate(a.sequenceId, sched, plan, nextSeed, clipSound === "off", check);
     } catch (e: any) {
       if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) });
     } finally { endRun(pid); }
@@ -949,7 +952,7 @@ export default function Panel({ sdk, context, ui }: any) {
     finally { endRun(pid); }
   }
 
-  // Commit 2 (mute the clips' own sound unless kept, title and warm look), then open the Draft.
+  // Commit 2 (mute the clips' own sound when Clip sound is Off, title and warm look), then open the Draft.
   // decorate.js skips what an earlier attempt already added.
   async function decorate(sequenceId: string, sched: any, plan: any, usedSeed: number, mute: boolean, check: () => void) {
     advance("look", 0);
@@ -961,7 +964,7 @@ export default function Panel({ sdk, context, ui }: any) {
         return { family: s.family, style: s.style, weight: s.weight, b64: await fontB64(roots!.plugin, f) };
       }));
       const parameters = { line1, connector, place, fontFamily: "", ink: "#F6ECB8", shadow: p.shadow, size: 150, rotation: -7, position: 46,
-        events: sched.title, states: p.states, fonts, provenance: { plugin: PLUGIN_ID, version: "0.1.0-alpha.1", preset, cue: ownMusic ? "own" : cueId, seed: usedSeed, picks: plan.picks } };
+        events: sched.title, states: p.states, fonts, provenance: { plugin: PLUGIN_ID, version: "0.1.0-alpha.1", preset, cue: ownMusic ? "own" : cueId, seed: usedSeed, clipSound, picks: plan.picks } };
       const editableParameters = [
         { key: "line1", label: "First line", type: "text", defaultValue: line1 },
         { key: "connector", label: "Connector", type: "text", defaultValue: connector },
@@ -989,7 +992,7 @@ export default function Panel({ sdk, context, ui }: any) {
         photos: photoRids, motion: { tsx: assets.motionTsx, strength: 1, options: MOTION_OPTIONS, byRid }, photoEffects: PHOTO_EFFECTS }), true);
     } catch (e: any) {
       if (e === STALE) throw e;
-      throw new Error("The Draft was created, but it could not be finished (muting its clips, title and look): " + (e?.message || e) + ". Press Finish title and look to try again.");
+      throw new Error("The Draft was created, but it could not be finished (clip sound, title and look): " + (e?.message || e) + ". Press Finish title and look to try again.");
     }
     check();
     // The title is saved from here on, so a failed open must not offer the retry.
@@ -1068,7 +1071,7 @@ export default function Panel({ sdk, context, ui }: any) {
       : " · about " + Math.round(videoSeconds) + " s") + (inventory.skipped.unanalysed ? " · " + inventory.skipped.unanalysed + " clips not analysed yet" : "");
   const peaks: number[] = grid.peaks || [];
   const total = ownMusic ? (ownDuration || 1) : (cue ? cue.duration : 1);
-  const silent = cueId === "none" && !ownMusic && !keepSound;
+  const silent = cueId === "none" && !ownMusic && clipSound === "off";
   const canOwnMusic = tools.ffmpeg && tools.node;
   const presetList: any[] = assets?.presets.presets || [];
   const chosen = presetList.find((x) => x.id === preset) || null;
@@ -1146,10 +1149,11 @@ export default function Panel({ sdk, context, ui }: any) {
       </ui.Section>
       <ui.Section title="Advanced">
         <ui.Segmented label="Length" value={length} onChange={setLength} options={[{ label: "Short", value: "short" }, { label: "Standard", value: "standard" }, { label: "Long", value: "long" }]} />
-        <ui.Toggle label="Keep original clip sound" value={keepSound} onChange={setKeepSound} />
+        <ui.Segmented label="Clip sound" value={clipSound} onChange={setClipSound}
+          options={[{ label: "Off", value: "off" }, { label: "Ambient", value: "ambient" }, { label: "Full", value: "full" }]} />
         <ui.Toggle label="Warm look" value={warm} onChange={setWarm} />
         <ui.Toggle label="Use photos" value={usePhotos} onChange={setUsePhotos} />
-        {silent ? <ui.Message tone="muted">Silent video: no music and no original clip sound.</ui.Message> : null}
+        {silent ? <ui.Message tone="muted">Silent video: no music and Clip sound is Off.</ui.Message> : null}
         {inventory && (allRids.length || allPhotoRids.length) ? (
           <div role="group" aria-label="Choose clips" style={{ minWidth: 0 }}>
             <ui.Row gap={4} align="center">
@@ -1198,7 +1202,7 @@ export default function Panel({ sdk, context, ui }: any) {
       {status ? <ui.Message tone={status.tone === "error" ? "error" : "muted"}>{status.text}</ui.Message> : null}
       {result && result.decorated ? (
         <ui.Message tone="success">
-          {"Draft created. Select the title to edit its text or font, a clip to adjust crop or warmth, and the music to change its volume. Moving cuts inside the title will not move the title; rebuilding creates a new Draft and does not keep Inspector edits."}
+          {"Draft created. Select the title to edit its text or font, a clip to adjust its crop, warmth or sound level, and the music to change its volume. Moving cuts inside the title will not move the title; rebuilding creates a new Draft and does not keep Inspector edits."}
         </ui.Message>
       ) : result && busy ? <ui.Message tone="muted">Draft created; adding title and look…</ui.Message> : null}
       {result?.link ? (

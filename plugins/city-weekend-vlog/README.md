@@ -20,7 +20,8 @@ or any source file.
   on the last beat, and the music ends there with a short 0.12 s fade.
 - A subtle warm colour look on every clip (strength 0.35). The title is not
   tinted.
-- The clips' location sound is muted by default.
+- The clips' own sound plays quietly under the music by default (**Clip
+  sound**: Ambient, see [Advanced](#advanced)).
 
 The video lasts 9 + 2 x (montage shots) beats, about 9 to 23 seconds
 depending on the track's tempo and the chosen length.
@@ -95,7 +96,7 @@ analysis and are never scene-searched.
   photos.
 - Photos are placed from their start for the shot's frame-exact length and
   centre-cropped to fill 9:16, like landscape clips. They have no sound, so
-  muting skips them.
+  Clip sound skips them.
 - **Photo motion.** Each photo in the montage gets one subtle, eased move
   across its shot: push in, pull out, drift left, right, up or down, a small
   tilt, or push and drift. The moves vary through the video (never the same
@@ -133,8 +134,11 @@ system fallback font.
 - **Length**: Short, Standard or Long montage (4, 7 or 12 shots). If the
   music section is too short for the length, the panel asks you to move the
   section earlier or pick a shorter length.
-- **Keep original clip sound**: off by default, which mutes the clips'
-  location sound.
+- **Clip sound**: how much of the clips' own sound plays. **Off** mutes it,
+  **Ambient** (the default) keeps it about 18 dB under the music, and
+  **Full** keeps it at its original level. The music stays at its full level
+  in every mode. Photos have no sound. In the Draft, a clip's level can be
+  changed in the Inspector.
 - **Warm look**: on by default.
 - **Use photos**: on by default. Off builds from the analysed video only.
 - **Choose clips**: a checklist of the analysed clips, each with its length
@@ -150,7 +154,7 @@ shots, so this video is about X s instead of Y s. Add more clips for the full
 length." After a build, the readiness line also shows how many montage shots
 the footage fits.
 
-With no music and no original sound, the panel warns "Silent video".
+With **No music** and Clip sound **Off**, the panel warns "Silent video".
 
 ## The Draft and editing it
 
@@ -166,7 +170,8 @@ Edit it in the Inspector:
 - **Title**: select the title to change the first line, connector and place
   text, the **main font** (an installed font; empty uses the preset), the
   colour, shadow, size, tilt and vertical position.
-- **Clips**: select a clip to adjust its crop, or the warm-look strength.
+- **Clips**: select a clip to adjust its crop, its sound level, or the
+  warm-look strength.
 - **Music**: select the music clip to change its volume.
 
 Finished videos are exported from the Draft with **Handoff → Export**.
@@ -176,9 +181,10 @@ Finished videos are exported from the Draft with **Handoff → Export**.
 - The font preset cannot be switched in the Inspector. To change it, pick
   another preset in the panel and build again. Rebuilding creates a new Draft
   and does not keep Inspector edits.
-- The Draft is built in two commits: first the clips and music, then the
-  clips' muted sound, the title and the warm look (Selects can change a clip's
-  audio tracks only once the Draft is saved). If the second commit fails, the
+- The Draft is built in two commits: first the clips, their Ambient sound
+  level and the music, then (with Clip sound Off) the clips' muted sound, the
+  title and the warm look (Selects can change a clip's audio tracks only once
+  the Draft is saved). If the second commit fails, the
   Draft is kept, the panel says so, and **Finish title and look** finishes
   that Draft.
 - Moving cuts inside the title section does not move the title's events.

@@ -26,7 +26,10 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
       log.push(['mute', o.audioSourceIndexes]);
     },
     overlayResource: async (o) => { clips.push({ clipId: 99, resourceId: o.resource.id, trackKind: 'audio', startFrame: 0, endFrame: frame }); log.push(['music', o.sourceStartSeconds]); return { inserted: 1 }; },
-    setClipAudio: async (o) => log.push(['fade', o.clip.clipId, o.fadeInSeconds, o.fadeOutSeconds]),
+    setClipAudio: async (o) => {
+      if (o.volumeDb != null) { const c = clips.find(x => x.clipId === o.clip.clipId); c.volumeDb = o.volumeDb; log.push(['volume', o.clip.clipId, o.volumeDb]); }
+      if (o.fadeOutSeconds != null || o.fadeInSeconds != null) log.push(['fade', o.clip.clipId, o.fadeInSeconds, o.fadeOutSeconds]);
+    },
     addMotionGraphic: async (o) => { graphics.push({ name: o.label, clip: {} }); log.push(['title', o.within, o.label]); },
     addVideoEffect: async (o) => { (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label }); log.push(['warm', o.clip.clipId, o.parameters.strength]); },
     motionGraphics: async () => graphics.map(g => ({ ...g })),
@@ -59,7 +62,8 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.equal(m.log.find(x => x[0] === 'music')[1], 4.847);
   assert.deepEqual(m.log.find(x => x[0] === 'fade').slice(1), [99, 0, 0.12]);
   assert.equal(m.log.filter(x => x[0] === 'commit').length, 1);
-  assert.deepEqual(Object.keys(r).sort(), ['fps', 'notes', 'placed', 'sequenceId', 'totalFrames']);
+  assert.deepEqual(Object.keys(r).sort(), ['ambientClips', 'fps', 'notes', 'placed', 'sequenceId', 'totalFrames']);
+  assert.equal(m.log.filter(x => x[0] === 'volume').length, 0, 'no clipSound: the clips keep their level');
 
   // The next call reopens the saved Draft: decorate mutes the Main clips, then adds the title and look, in one commit.
   m.reopen();
@@ -180,5 +184,34 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.deepEqual(de2.photos, { motions: 0, motionsKept: 2, effectsSkipped: 0 });
   assert.equal(de2.committed, false);
   assert.equal(mp.log.filter(x => x[0] === 'motion').length, 2, 'no second motion effect');
+
+  // Clip sound. Ambient lowers every video clip on Main to cfg.ambientDb (the music stays at 0 dB), before the one
+  // commit; photos have no sound and are skipped. Full and Off leave the level alone (Off mutes in decorate).
+  const soundPicks = [{ slot: 0, rid: 'r0', kind: 'video', startSeconds: 2, endSeconds: 3 }, { slot: 1, rid: 'p1', kind: 'photo', holdSeconds: 1 }, { slot: 2, rid: 'r1', kind: 'video', startSeconds: 5, endSeconds: 6 }];
+  const sound = async (clipSound, extra = {}) => {
+    const ms = mockDraft(30, { photos: ['p1'] });
+    const sel = { project: () => ({ createDraft: async () => ms.d, resource: id => ({ id }) }) };
+    const out = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: soundPicks, boundaries: [0, 1, 2, 3], crops: {}, music: { resourceId: 'r9', sectionStart: 0 }, clipSound, ...extra })(sel);
+    return { ms, out };
+  };
+  const amb = await sound('ambient', { ambientDb: -18 });
+  assert.deepEqual(amb.ms.log.filter(x => x[0] === 'volume').map(x => [amb.ms.clips.find(c => c.clipId === x[1]).resourceId, x[2]]), [['r0', -18], ['r1', -18]]);
+  assert.equal(amb.out.ambientClips, 2);
+  assert.equal(amb.ms.clips.find(c => c.clipId === 99).volumeDb, undefined, 'the music keeps 0 dB');
+  assert.ok(amb.ms.log.findIndex(x => x[0] === 'volume') < amb.ms.log.findIndex(x => x[0] === 'commit'), 'lowered before the commit');
+  assert.equal(amb.ms.log.filter(x => x[0] === 'commit').length, 1);
+  assert.deepEqual((await sound('ambient')).ms.log.filter(x => x[0] === 'volume').map(x => x[2]), [-18, -18], 'default level');
+  for (const mode of ['full', 'off']) {
+    const o = await sound(mode);
+    assert.equal(o.ms.log.filter(x => x[0] === 'volume').length, 0, mode + ' keeps the level');
+    assert.equal(o.out.ambientClips, 0);
+  }
+  // A clip whose level cannot be set is reported, not fatal.
+  const failing = mockDraft(30);
+  const origAudio = failing.d.setClipAudio;
+  failing.d.setClipAudio = async (o) => { if (o.volumeDb != null && o.clip.resourceId === 'r1') throw Error('no audio'); return origAudio(o); };
+  const fo = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: soundPicks.filter(k => k.kind === 'video'), boundaries: [0, 1, 2], crops: {}, music: null, clipSound: 'ambient' })({ project: () => ({ createDraft: async () => failing.d, resource: id => ({ id }) }) });
+  assert.equal(fo.ambientClips, 1);
+  assert.deepEqual(fo.notes, ['the sound of 1 clip could not be lowered under the music']);
   console.log(JSON.stringify({ scriptsEdit: 'ok' }));
 })().catch(e => { console.error(e); process.exit(1); });

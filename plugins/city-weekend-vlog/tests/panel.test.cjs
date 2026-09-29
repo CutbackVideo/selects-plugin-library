@@ -8,7 +8,7 @@ assert.match(panel.split('\n').slice(0, 24).join('\n'), /\/\/ @name City Weekend
 assert.match(panel, /\/\/ @icon \w+/);
 assert.ok(!/^import .* from "(?!react")/m.test(panel), 'only react may be imported');
 for (const name of ['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js', 'title-graphic.tsx', 'warm-look.tsx', 'photo-motion.tsx', 'manifest.json', 'presets.json', 'beat-detect.cjs']) assert.ok(panel.includes(name), 'panel reads ' + name);
-for (const phrase of ['Create another version', 'Keep original clip sound', 'Silent video', 'cuts use the original rhythm', 'selects.editor.openDraft', 'Finish title and look', 'cwvProgress(', 'steps={CWV_BUILD_STEPS', 'Stopped at step', 'Install ffmpeg and Node.js', 'linkToDraftFrame', 'FontFace', 'Draft created; adding title and look', 'projectRef', 'ffprobe', 'aria-pressed', 'loadInventory(', 'still being analysed', 'this updates automatically', '>Refresh<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef']) assert.ok(panel.includes(phrase), phrase);
+for (const phrase of ['Create another version', 'label="Clip sound"', 'Silent video', 'cuts use the original rhythm', 'selects.editor.openDraft', 'Finish title and look', 'cwvProgress(', 'steps={CWV_BUILD_STEPS', 'Stopped at step', 'Install ffmpeg and Node.js', 'linkToDraftFrame', 'FontFace', 'Draft created; adding title and look', 'projectRef', 'ffprobe', 'aria-pressed', 'loadInventory(', 'still being analysed', 'this updates automatically', '>Refresh<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef']) assert.ok(panel.includes(phrase), phrase);
 // Hangul audit across the plugin, as place-count does.
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
 for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) assert.ok(!/[\uac00-\ud7a3]/.test(fs.readFileSync(f, 'utf8')), 'Korean text in ' + f);
@@ -62,4 +62,12 @@ assert.ok(/needsPoll = [^\n]*inventory\.photos/.test(panel), 'a photos-only Proj
 // Talking avoidance is gone: six scene-search queries per clip, no talking query and no relax note.
 assert.ok(!/talking/i.test(panel), 'no talking query or note');
 assert.equal((panel.slice(panel.indexOf('const CWV_QUERIES'), panel.indexOf('};', panel.indexOf('const CWV_QUERIES'))).match(/^  \w+: "/gm) || []).length, 6, 'six queries');
+// Clip sound: a three-way Off / Ambient / Full control, Ambient by default; Off mutes in decorate, Ambient lowers in assemble.
+assert.ok(!panel.includes('Keep original clip sound'), 'the old toggle is gone');
+assert.ok(/React\.useState<"off" \| "ambient" \| "full">\("ambient"\)/.test(panel), 'Ambient is the default');
+for (const v of ['"off"', '"ambient"', '"full"']) assert.ok(panel.includes('value: ' + v), 'clip sound option ' + v);
+assert.ok(panel.includes('const AMBIENT_DB = -18;') && panel.includes('clipSound, ambientDb: AMBIENT_DB'), 'assemble gets the mode and level');
+assert.ok(panel.includes('const silent = cueId === "none" && !ownMusic && clipSound === "off";'), 'Silent video only for No music + Off');
+assert.ok(panel.includes('mute: clipSound === "off"') && panel.includes('clipSound === "off", check)'), 'Off mutes');
+assert.ok(panel.indexOf('const [clipSound') < panel.indexOf('if (!projectId) return <ui'), 'clip sound hook stays before the early return');
 console.log(JSON.stringify({ panel: 'ok' }));

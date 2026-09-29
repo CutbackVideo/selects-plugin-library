@@ -43,7 +43,23 @@ for (let i = 0; i < rows.length; i++) {
   const clip = (await main())[i];
   await d.setClipTransform({ clip, scale: { x: scale, y: scale }, position: { x: 0, y: 0 } });
 }
-// Muting the clips' own sound needs the saved Draft's audio inventory, so decorate.js does it after this commit.
+// Clip sound: 'ambient' keeps the clips' own sound under the music at cfg.ambientDb (default -18 dB), 'full' leaves
+// it at 0 dB, and 'off' mutes it in decorate.js after this commit (muting needs the saved Draft's audio inventory).
+// Photos have no sound and are skipped. A clip whose level cannot be set keeps full sound and is reported in notes.
+let ambientClips = 0;
+if (cfg.clipSound === 'ambient') {
+  const db = typeof cfg.ambientDb === 'number' ? cfg.ambientDb : -18;
+  const photoRids = new Set(cfg.picks.filter(k => k.kind === 'photo').map(k => k.rid));
+  let failed = 0;
+  const count = (await main()).length;
+  for (let i = 0; i < count; i++) {
+    // Re-read each time: a sound edit makes earlier rows stale.
+    const clip = (await main())[i];
+    if (!clip || photoRids.has(clip.resourceId)) continue;
+    try { await d.setClipAudio({ clip, volumeDb: db }); ambientClips++; } catch (e) { failed++; }
+  }
+  if (failed) notes.push('the sound of ' + failed + (failed === 1 ? ' clip' : ' clips') + ' could not be lowered under the music');
+}
 if (cfg.music) {
   const audioBefore = new Set((await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'audio').map(c => c.clipId));
   await d.overlayResource({ resource: p.resource(cfg.music.resourceId), over: await d.rangeAtFrames(0, endFrame), sourceStartSeconds: cfg.music.sectionStart });
@@ -54,4 +70,4 @@ if (cfg.music) {
   else notes.push('music fade not applied');
 }
 const commit = await d.commitAll('City Weekend Vlog: assemble');
-return { sequenceId: commit.createdDraftId, fps, totalFrames: endFrame, placed: rows.length, notes };
+return { sequenceId: commit.createdDraftId, fps, totalFrames: endFrame, placed: rows.length, ambientClips, notes };
