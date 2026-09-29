@@ -31,6 +31,9 @@ const CWV_REFERENCE_BPM = 99.2;
 const CWV_FILLER_STEP = 0.5;
 const CWV_FILLER_EDGE = 0.25;
 const CWV_FILLER_SCORE = -2;
+// A video window ends at least this far before the end of its source: the Draft's real frame rate and the music
+// offset can lengthen a shot by a frame after planning.
+const CWV_SOURCE_TAIL = 0.05;
 // Photos (Image resources) have no scene search. Each one fills at most one slot of any length up to the 5 s an
 // image source lasts. They rank after every real video hit and before fillers, except in the title burst, where
 // they rank right after the preferred roles. At most CWV_PHOTO_RUN_MAX photos play in a row while anything else fits.
@@ -48,15 +51,25 @@ function cwvTitle(burst) {
 }
 function cwvMinWindows(burst) { return cwvTitle(burst).beats.length + CWV_MIN_MONTAGE; }
 
-// opts: { bpm, fps, montageShots, burst?: 'sixteenth' | 'eighth' (default 'sixteenth') }.
-// Slots carry their beat span (startBeat, endBeat) and frames; `titleSlots` is the number of title slots.
+// Where the music's beats land on the timeline. Selects snaps the music's source start (sectionStart) to a timeline
+// frame, so the music plays offset by delta = sectionStart - round(sectionStart * fps) / fps (at most half a frame);
+// beat b of the section plays at b * 60 / bpm + delta. Without music there is no offset.
+function cwvMusicOffset(sectionStart, fps) {
+  return typeof sectionStart === 'number' && isFinite(sectionStart) && fps > 0 ? sectionStart - Math.round(sectionStart * fps) / fps : 0;
+}
+
+// opts: { bpm, fps, montageShots, burst?: 'sixteenth' | 'eighth' (default 'sixteenth'), sectionStart?: seconds into
+// the music (omit without music) }. Slots carry their beat span (startBeat, endBeat) and frames; `titleSlots` is the
+// number of title slots; `offset` is the music offset every boundary is shifted by.
 function cwvSchedule(opts) {
   const bpm = opts.bpm, fps = opts.fps, n = opts.montageShots;
   if (!(bpm > 0) || !(fps > 0) || !(n >= 0)) throw Error('cwvSchedule needs bpm, fps and montageShots');
   const burst = opts.burst === 'eighth' ? 'eighth' : 'sixteenth';
   const title = cwvTitle(burst), T = title.beats.length;
-  // Every boundary is an absolute beat position snapped once to a frame; durations never accumulate rounding.
-  const frameAt = beats => Math.round(beats * 60 / bpm * fps);
+  // Every boundary is an absolute beat position, shifted by the music offset and snapped once to a frame; durations
+  // never accumulate rounding. The video always starts at frame 0. assemble.js places cuts with the same expression.
+  const offset = cwvMusicOffset(opts.sectionStart, fps);
+  const frameAt = beats => (beats === 0 ? 0 : Math.round((beats * (60 / bpm) + offset) * fps));
   const beats = title.beats.concat(Array(n).fill(CWV_MONTAGE_BEATS));
   const slots = [];
   let at = 0;
@@ -81,6 +94,7 @@ function cwvSchedule(opts) {
   return {
     burst,
     titleSlots: T,
+    offset,
     slots,
     totalFrames: slots[slots.length - 1].endFrame,
     title: {
@@ -175,8 +189,8 @@ function cwvAllocate(opts) {
     let best = null;
     for (const c of pool) {
       const rank = rankOf(c);
-      if (rank < 0 || c.sourceDuration < slot.seconds) continue;
-      const start = Math.max(0, Math.min(c.sourceDuration - slot.seconds, c.t - slot.seconds / 2));
+      if (rank < 0 || c.sourceDuration < slot.seconds + CWV_SOURCE_TAIL) continue;
+      const start = Math.max(0, Math.min(c.sourceDuration - CWV_SOURCE_TAIL - slot.seconds, c.t - slot.seconds / 2));
       const end = start + slot.seconds;
       if ((used[c.rid] || []).some(([a, b]) => start < b + gap && end > a - gap)) continue;
       const repeats = recent.filter(r => r === c.rid).length;
@@ -232,7 +246,7 @@ function cwvAllocate(opts) {
 }
 
 // Tries the requested montage length first, then shrinks toward CWV_MIN_MONTAGE. Every attempt allocates from scratch.
-// opts.burst picks the title variant (see cwvSchedule).
+// opts.burst picks the title variant and opts.sectionStart shifts the cuts with the music (see cwvSchedule).
 // Filler candidates are added to every attempt.
 // Photo candidates ({ rid, kind: 'photo' }) join every attempt, so a Project with only photos builds too.
 function cwvPlanBuild(opts) {
@@ -241,7 +255,7 @@ function cwvPlanBuild(opts) {
   const burst = opts.burst === 'eighth' ? 'eighth' : 'sixteenth', needed = cwvMinWindows(burst);
   let best = { filled: 0, photoShots: 0 };
   for (let n = top; n >= CWV_MIN_MONTAGE; n--) {
-    const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n, burst });
+    const schedule = cwvSchedule({ bpm: opts.bpm, fps: opts.fps, montageShots: n, burst, sectionStart: opts.sectionStart });
     const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, section: s.section, seconds: (s.endFrame - s.startFrame) / opts.fps }));
     const alloc = cwvAllocate({ candidates, slots, seed: opts.seed });
     if (alloc.missing === 0) {

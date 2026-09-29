@@ -12,7 +12,8 @@ const FRAME_LAG = -HOP / 2;
 const MIN_PROMINENCE = 0.5;
 // A beat window below this fraction of the track's median per-beat RMS (-20 dB) is leading silence.
 const SILENT_BEAT = 0.1;
-// Onsets in the envelope peak about this long after the attack (7 ms on clicks through the flux window).
+// Onsets in the envelope peak about this long after the attack (7 ms on clicks through the flux window). The first
+// beat is corrected by it, and the 16th-onset ratio reads the envelope this much after each grid position.
 const ONSET_LAG = 0.007;
 // 16th-onset ratio window: the envelope maximum within this many seconds of each grid position.
 const RATIO_WINDOW = 0.03;
@@ -178,6 +179,9 @@ function analyze(samples, sampleRate) {
   let firstBeat = phase;
   while (firstBeat + period < durationSeconds && beatRms(firstBeat) <= quiet) firstBeat += period;
   if (beatRms(firstBeat) <= quiet) firstBeat = phase;
+  // Onsets peak ONSET_LAG after the attack, so the grid fitted to them is that much late (measured 6-8 ms on the
+  // bundled cues against the rendered audio). Move the first beat back onto the attack.
+  firstBeat = Math.max(0, firstBeat - ONSET_LAG);
   const residuals = [];
   let beats = 0;
   for (let t = firstBeat; t < durationSeconds; t += period) {

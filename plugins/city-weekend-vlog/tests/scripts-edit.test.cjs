@@ -185,6 +185,16 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.equal(de2.committed, false);
   assert.equal(mp.log.filter(x => x[0] === 'motion').length, 2, 'no second motion effect');
 
+  // Music offset: a section start of 4.845 s is snapped to 4.8333 s (frame 145), so the music plays 0.35 frame early
+  // on the timeline and every cut moves by the same offset (planner cwvMusicOffset): 1.0056 s lands on frame 31, not 30.
+  const mo = mockDraft(30);
+  await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [{ rid: 'r0', startSeconds: 0, endSeconds: 1 }, { rid: 'r1', startSeconds: 0, endSeconds: 1 }],
+    boundaries: [0, 1.0056, 2.0056], crops: {}, music: { resourceId: 'r9', sectionStart: 4.845 } })({ project: () => ({ createDraft: async () => mo.d, resource: id => ({ id }) }) });
+  assert.deepEqual(mo.clips.filter(c => c.trackKind === 'main').map(c => [c.startFrame, c.endFrame]), [[0, 31], [31, 61]]);
+  const mn = mockDraft(30);
+  await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [{ rid: 'r0', startSeconds: 0, endSeconds: 1 }], boundaries: [0, 1.0056], crops: {}, music: null })({ project: () => ({ createDraft: async () => mn.d, resource: id => ({ id }) }) });
+  assert.deepEqual(mn.clips.map(c => c.endFrame), [30], 'no music, no offset');
+
   // Clip sound. Ambient lowers every video clip on Main to cfg.ambientDb (the music stays at 0 dB), before the one
   // commit; photos have no sound and are skipped. Full and Off leave the level alone (Off mutes in decorate).
   const soundPicks = [{ slot: 0, rid: 'r0', kind: 'video', startSeconds: 2, endSeconds: 3 }, { slot: 1, rid: 'p1', kind: 'photo', holdSeconds: 1 }, { slot: 2, rid: 'r1', kind: 'video', startSeconds: 5, endSeconds: 6 }];

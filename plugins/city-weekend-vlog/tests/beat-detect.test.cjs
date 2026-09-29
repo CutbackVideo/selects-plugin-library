@@ -50,4 +50,15 @@ const e = analyze(swell, sr);
 assert.ok(Math.abs(e.firstBeat) < 0.03, 'swell firstBeat ' + e.firstBeat);
 assert.equal(e.accepted, true);
 
+// 16th-onset ratio: clicks only on the beat give ~0; clicks on every 16th give ~1. analyze reports it too.
+const { sixteenthRatio } = require(path.join(root, 'beat-detect.cjs'));
+const beatsOnly = clickTrack(100, 0.3, 20);
+const sixteenths = clickTrack(400, 0.3, 20);
+assert.ok(sixteenthRatio(beatsOnly, sr, 100, 0.3, 20) < 0.1, 'beats only');
+assert.ok(sixteenthRatio(sixteenths, sr, 100, 0.3, 20) > 0.8, 'every 16th');
+assert.equal(sixteenthRatio(beatsOnly, sr, 0, 0.3, 20), null);
+assert.ok(typeof a.sixteenthRatio === 'number' && a.sixteenthRatio < 0.1, 'analyze reports the ratio');
+// The first beat sits on the attack: the onset lag is taken off (clicks at 0.5 s).
+assert.ok(Math.abs(a.firstBeat - 0.5) < 0.006, 'firstBeat on the attack ' + a.firstBeat);
+
 console.log(JSON.stringify({ beatDetect: 'ok' }));

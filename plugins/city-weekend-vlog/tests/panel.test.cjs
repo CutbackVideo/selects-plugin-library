@@ -75,7 +75,10 @@ assert.ok(panel.includes('const burst = grid.accepted ? cwvBurstFor(grid.sixteen
 assert.ok(panel.includes('sixteenthRatio: cue.sixteenthRatio') && panel.includes('sixteenthRatio: ownGrid.sixteenthRatio'), 'bundled and own music ratios');
 const ui = panel.slice(panel.indexOf('// cwv-planner:end'));
 assert.equal((ui.match(/cwvPlanBuild\(/g) || []).length, 3);
-assert.equal((ui.match(/cwvPlanBuild\([^;]*burst \}\)/g) || []).length, 3, 'every plan uses the burst');
+assert.equal((ui.match(/cwvPlanBuild\([^;]*burst(, sectionStart: musicStart)? \}\)/g) || []).length, 3, 'every plan uses the burst');
+// Cuts shift with the music's frame-snapped start: the build plan and both Draft-rate schedules get the section start.
+assert.ok(panel.includes('const musicStart = cueId === "none" ? null : (start ?? 0);'));
+assert.equal((ui.match(/sectionStart: musicStart/g) || []).length, 3, 'plan and schedules use the music start');
 assert.equal((ui.match(/cwvSchedule\(/g) || []).length, 2);
 assert.equal((ui.match(/cwvSchedule\(\{[^}]*burst/g) || []).length, 2, 'every schedule uses the burst');
 assert.ok(panel.includes('const minShots = cwvMinWindows(burst);') && !ui.includes('CWV_MIN_WINDOWS'), 'the shot minimum follows the burst');

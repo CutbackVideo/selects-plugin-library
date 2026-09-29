@@ -4,7 +4,7 @@ const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
 vm.createContext(box);
-vm.runInContext(source + ';globalThis.P={cwvSchedule,cwvFitMontage,cwvSnapSection,cwvDefaultSection,cwvVideoSeconds,cwvBurstFor,cwvMinWindows,CWV_TITLE_BEATS,CWV_TITLE_ROLES,CWV_FONT_STATES,CWV_TITLE_BEATS_EIGHTH,CWV_TITLE_ROLES_EIGHTH,CWV_FONT_STATES_EIGHTH,CWV_MIN_WINDOWS};', box);
+vm.runInContext(source + ';globalThis.P={cwvSchedule,cwvFitMontage,cwvSnapSection,cwvDefaultSection,cwvVideoSeconds,cwvBurstFor,cwvMinWindows,cwvMusicOffset,CWV_TITLE_BEATS,CWV_TITLE_ROLES,CWV_FONT_STATES,CWV_TITLE_BEATS_EIGHTH,CWV_TITLE_ROLES_EIGHTH,CWV_FONT_STATES_EIGHTH,CWV_MIN_WINDOWS};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
 
@@ -34,7 +34,7 @@ assert.equal(P.cwvBurstFor(undefined), 'eighth');
 
 // Reference tempo, 30 fps, 7 montage shots, 16th burst (the default).
 const s = j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 7 }));
-const f = b => Math.round(b * 60 / 99.2 * 30);
+const f = b => Math.round(b * (60 / 99.2) * 30);
 assert.equal(s.burst, 'sixteenth');
 assert.equal(s.titleSlots, 12);
 assert.equal(s.slots.length, 19);
@@ -66,6 +66,23 @@ assert.equal(e.totalFrames, s.totalFrames);
 assert.deepEqual(e.title.fontSwitches.map(x => x.state), ['A', 'B', 'C', 'B', 'C', 'D', 'A']);
 assert.deepEqual(e.title.fontSwitches.map(x => x.frame), [2, 3, 4, 5, 6, 7, 8].map(i => e.slots[i].startFrame));
 assert.deepEqual(e.slots.slice(10).map(x => x.role), ['architecture', 'park', 'street', 'detail', 'architecture', 'park', 'street']);
+// Music offset: Selects snaps the music's source start to a frame, so the cuts shift by
+// delta = sectionStart - round(sectionStart * fps) / fps, never by more than half a frame; frame 0 stays 0.
+assert.equal(P.cwvMusicOffset(null, 30), 0);
+assert.equal(P.cwvMusicOffset(14.5, 30), 0);
+assert.ok(Math.abs(P.cwvMusicOffset(14.58, 30) - (14.58 - 437 / 30)) < 1e-12, 'C1: bar at 14.58 s plays from 14.567 s');
+assert.ok(Math.abs(P.cwvMusicOffset(4.845, 30) - 0.35 / 30) < 1e-9);
+for (let x = 0; x < 40; x += 0.137) assert.ok(Math.abs(P.cwvMusicOffset(x, 30)) <= 0.5 / 30 + 1e-12);
+const d0 = j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 7 }));
+const d1 = j(P.cwvSchedule({ bpm: 99.2, fps: 30, montageShots: 7, sectionStart: 14.58 }));
+assert.equal(d0.offset, 0);
+assert.ok(Math.abs(d1.offset - P.cwvMusicOffset(14.58, 30)) < 1e-12);
+assert.equal(d1.slots[0].startFrame, 0, 'the video starts at frame 0');
+d1.slots.forEach((x, i) => assert.equal(x.endFrame, Math.round((x.endBeat * (60 / 99.2) + d1.offset) * 30), 'slot ' + i + ' end'));
+assert.ok(d1.slots.some((x, i) => x.endFrame !== d0.slots[i].endFrame), 'the offset moves some cuts');
+assert.equal(d1.title.line1Frame, Math.round((0.25 * (60 / 99.2) + d1.offset) * 30));
+// A start exactly between two frames never pushes the first frame off 0.
+assert.equal(P.cwvSchedule({ bpm: 120, fps: 30, montageShots: 4, sectionStart: 0.5 / 30 }).slots[0].startFrame, 0);
 // Video length: 8 + 2N beats.
 assert.equal(P.cwvVideoSeconds(99.2, 7), 22 * 60 / 99.2);
 

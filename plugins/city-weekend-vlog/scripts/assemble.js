@@ -7,10 +7,14 @@ await d.setFrameSize({ width: W, height: H });
 let fps = (await d.meta()).fps;
 const main = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null);
 let endFrame = 0;
+// Selects snaps the music's source start to a frame, which shifts the whole track by up to half a frame; every cut
+// moves with it so it stays on the beat (planner.js cwvMusicOffset, same expression).
+const offset = f => (cfg.music ? cfg.music.sectionStart - Math.round(cfg.music.sectionStart * f) / f : 0);
 for (let i = 0; i < cfg.picks.length; i++) {
   const pick = cfg.picks[i];
   // Aim each clip's end at its planned boundary frame at the Draft's real rate so rounding never drifts.
-  const want = Math.round(cfg.boundaries[i + 1] * fps) - endFrame;
+  // cfg.boundaries are seconds from the start of the music section (beat * 60 / bpm).
+  const want = Math.round((cfg.boundaries[i + 1] + offset(fps)) * fps) - endFrame;
   // A photo holds for the slot from the start of its (5 s) image source.
   const start = pick.kind === 'photo' ? 0 : pick.startSeconds;
   await d.insertResource({ resourceId: pick.rid, sourceRange: { startSeconds: start, endSeconds: start + want / fps } });
