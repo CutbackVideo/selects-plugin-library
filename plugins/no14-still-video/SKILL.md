@@ -1,0 +1,16 @@
+---
+name: no14-still-video
+description: Build the No.14 four-photo format as eight editable original Image clips, without converting selected JPG/PNG files to video.
+---
+
+# No.14 photo format
+
+Use this plugin when the user asks for the No.14 four-photo format. The four inputs are existing Project JPG/PNG/HEIC Image resources in explicit A/B/C/D order; the output is an editable Selects Draft and, if requested, an exported MP4. Do not turn the source photos into MP4 files. Keep the format's screen geometry, timing, reveal, fullscreen order, and transitions. Photo content, decoration, and optional independent grid/fullscreen framing are user choices. Do not add music or beat alignment; that decision is deferred.
+
+Open the installed **No.14 Photo Format** panel in the user's Project. Load Project photos, choose A/B/C/D in the requested order, set any decoration and framing choices, and create a new Draft. The default decoration is a white heart. Only ask a slot question if the user's choices really are ambiguous. The panel checks that each selected SDK Image Resource still points to the same original Project file, then uses the editor's existing Image placement path for eight separate clips. It rejects an unsupported host instead of silently falling back to still-video conversion. A saved result must include a Draft ID and eight clip records.
+
+The Image placement bridge uses a Selects editor-internal service because the current public plugin SDK's `overlayResource(Image)` rejects photos. This bridge changes **no client code**. It is experimental and must be tested against the actual installed app after any host update. If the panel reports a partial Draft ID or uncertain save, inspect that Draft before retrying; never generate duplicate Drafts blindly.
+
+For a later one-photo or decoration change, keep the other slot choices from the saved recipe or the visible panel state and create a revised Draft. The previous Draft remains available. If the user specifically asks to change only the decoration on an existing Draft, duplicate that Draft and change only its decoration graphic, then compare the saved non-target clips, effects, transforms, and transitions. Do not ask them to repeat choices already known. This does not promise to copy arbitrary manual edits when rebuilding a new version.
+
+After creation, independently read back the Draft's Image Resource types, eight clip IDs and ranges, eight effects, three ten-frame fullscreen overlaps on separate tracks, and separate decoration. The Image path implements the measured crossfades inside those clip effects because this Selects version fails to render native Transition objects attached to Image clips. If the user asks for the resulting video, export the Draft, wait for completion, inspect the MP4 through its final frame, and compare the reference format across the full timeline. A saved Draft or editor preview alone is not export verification. Report the first-pass chat result separately from any later manual repair. The source-format match remains provisional until the full mask and grid-exit acceptance checks pass; see `VALIDATION.md`.

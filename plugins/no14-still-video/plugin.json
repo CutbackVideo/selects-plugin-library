@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "no14-still-video",
+  "version": "0.2.0",
+  "name": "No.14 Photo Format",
+  "summary": "Create a provisional No.14 four-photo Draft using editable original Image clips and decoration.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": ["SKILL.md", "INSTALL.md", "VALIDATION.md", "operation.mjs", "build-script.mjs", "panel.tsx"],
+  "compatibility": {
+    "platforms": ["macOS arm64"],
+    "selects": "Needs the editor's existing original Image placement service plus public effects and motion graphics. Image Draft creation and export were verified in Selects Staging; exact reference-format fidelity remains provisional."
+  }
+}
