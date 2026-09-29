@@ -1,0 +1,2 @@
+# Project ids of the Staging test Projects ({ "daily": "<id>", "ny": "<id>", "paris": "<id>" }); per machine.
+projects.local.json
