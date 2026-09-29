@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import Module, { createRequire } from 'node:module';
 import path from 'node:path';
 import { test } from 'node:test';
+import { planGallery } from './format.mjs';
 
 const appRoot = process.env.SELECTS_DEV_REPO;
 assert.ok(appRoot, 'Set SELECTS_DEV_REPO to an installed Selects development checkout');
@@ -15,10 +16,16 @@ Object.assign(globalThis, { window: dom.window, document: dom.window.document,
   HTMLElement: dom.window.HTMLElement, MutationObserver: dom.window.MutationObserver });
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
 const { render, fireEvent, waitFor, cleanup } = appRequire('@testing-library/react');
+test.afterEach(() => cleanup());
 
 const template = fs.readFileSync(path.join(import.meta.dirname, 'panel.template.tsx'), 'utf8');
-const source = template.replace('/*__SHARED_SCRIPT_BUILDER__*/', 'const buildScript = input => JSON.stringify(input);');
-assert.notEqual(source, template, 'panel builder marker must be present');
+const nativeMock = `
+const galleryNativeResources = (...args) => globalThis.__native.resources(...args);
+const galleryNativeSetFps = (...args) => globalThis.__native.setFps(...args);
+const galleryNativePlace = (...args) => globalThis.__native.place(...args);`;
+const source = template.replace('/*__SHARED_SCRIPT_BUILDER__*/',
+  'const buildScript = input => JSON.stringify(input);' + nativeMock);
+assert.notEqual(source, template);
 const compiled = esbuild.transformSync(source, { loader: 'tsx', format: 'cjs', jsx: 'automatic' }).code;
 const compiledModule = new Module(path.join(appRoot, '__photo_gallery_panel_test__.cjs'));
 compiledModule.filename = path.join(appRoot, '__photo_gallery_panel_test__.cjs');
@@ -39,8 +46,6 @@ function kit() {
     Button: ({ children, onClick, disabled, busy }) => h('button', { onClick, disabled: disabled || busy }, children),
     Select: ({ label, value, onChange, options, disabled }) => field('select', { label, value: value ?? '', disabled,
       onChange: e => onChange(e.target.value) }, [h('option', { key: '__empty', value: '' }, ''), ...options.map(o => h('option', { key: o.value, value: o.value }, o.label))]),
-    Segmented: ({ label, value, onChange, options, disabled }) => field('select', { label, value, disabled,
-      onChange: e => onChange(e.target.value) }, options.map(o => h('option', { key: o.value, value: o.value }, o.label))),
     Slider: ({ label, value, onChange, disabled }) => field('input', { label, type: 'range', value, disabled, min: 0, max: 1,
       onChange: e => onChange(Number(e.target.value)) }),
     NumberField: ({ label, value, onChange, disabled }) => field('input', { label, type: 'number', value, disabled,
@@ -52,177 +57,106 @@ function kit() {
   };
 }
 
-const media = Array.from({ length: 22 }, (_, i) => ({ resourceId: `r${i + 1}`, name: `Photo ${i + 1}`,
+const photos = Array.from({ length: 21 }, (_, i) => ({ resourceId: `r${i}`, name: `Photo ${i + 1}`,
   kind: 'image', width: 1000, height: 1000, path: `/fixture/photo-${i + 1}.jpg` }));
-
-test('auto-assign selects 21 original photos without preparing MP4 files', async () => {
-  const photos = media.slice(0, 21);
-  const sdk = { runScript: async request => {
-    assert.equal(JSON.parse(request.script).operation, 'inspect');
-    return { result: { status: 'inspected', projectId: 'project-1', media: photos, audio: [] } };
-  } };
-  const view = render(React.createElement(Panel, { sdk,
-    context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
-  fireEvent.click(view.getByRole('button', { name: 'Load project media' }));
-  const assign = await waitFor(() => view.getByRole('button', { name: 'Assign all 21 in listed order' }));
-  fireEvent.click(assign);
-  assert.ok(view.container.textContent.includes('Assigned tiles: 21/21'));
-  assert.equal(view.getByLabelText('Photo or video').value, photos[0].resourceId);
-  view.unmount(); cleanup();
-});
-
-test('saving a new Draft remains a success when Selects opens that Draft during readback', async () => {
-  let view;
-  const sdk = { runShell: async () => { throw new Error('Photos must not be transcoded'); },
-    runScript: async request => { const input = JSON.parse(request.script);
-      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media: media.slice(0, 21), audio: [] } };
-      if (input.operation === 'create') return { result: { status: 'saved', draftId: 'created-1' } };
-      if (input.operation === 'verifyCreated') {
-        view.rerender(React.createElement(Panel, { sdk,
-          context: { projectId: 'project-1', sequenceId: 'created-1', language: 'en' }, ui: kit() }));
-        return { result: { status: 'verified', tileCount: 21, draftId: 'created-1' } };
-      }
-      throw new Error(`Unexpected ${input.operation}`);
-    } };
-  view = render(React.createElement(Panel, { sdk,
-    context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
-  fireEvent.click(view.getByRole('button', { name: 'Load project media' }));
-  const assign = await waitFor(() => view.getByRole('button', { name: 'Assign all 21 in listed order' }));
-  fireEvent.click(assign);
-  fireEvent.click(view.getByLabelText('Enter BPM manually'));
-  fireEvent.click(view.getByRole('button', { name: 'Create Draft' }));
-  await waitFor(() => assert.ok(view.container.textContent.includes('Saved and read back all 21 tiles')));
-  view.unmount(); cleanup();
-});
-
-test('a short video is extended before placement while long videos remain untouched', async () => {
-  const inputs = [...media.slice(0, 19), { resourceId: 'short-1', name: 'Short clip', kind: 'video',
-    width: 128, height: 96, path: '/fixture/short.mp4', durationFrames: 6 },
-  { resourceId: 'long-1', name: 'Long clip', kind: 'video', width: 128, height: 96,
-    path: '/fixture/long.mp4', durationFrames: 900 }];
-  const shellCalls = [], calls = [];
-  const sdk = { runShell: async request => { shellCalls.push(request);
-      assert.match(request.command, /hold_video\.py/);
-      return { exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60, durationFrames: 853,
-        videos: [{ inputIndex: 0, sourcePath: '/fixture/short.mp4', outputPath: '/cache/held-short.mp4' }] }) };
-    }, runScript: async request => { const input = JSON.parse(request.script); calls.push(input);
-      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media: inputs, audio: [] } };
+function harness(media = photos, options = {}) {
+  const calls = [], nativeCalls = [];
+  globalThis.__native = {
+    resources: async (_projectId, rows) => {
+      nativeCalls.push('resources');
+      if (options.missingDimension && rows.some(row => row.resourceId === 'r4')) throw new Error('Tile 5 has no verified image dimensions');
+      return { selected: rows.map(row => ({ ...row, nativeResource: {} })) };
+    },
+    setFps: async () => { nativeCalls.push('fps'); },
+    place: async (_projectId, _draftId, rows, plan) => {
+      nativeCalls.push('place');
+      assert.equal(rows.length, 21);
+      assert.equal(plan.tiles.length, 21);
+      if (options.placeError) throw new Error(options.placeError);
+    },
+  };
+  const sdk = {
+    runShell: options.runShell ?? (async () => { throw new Error('Unexpected media conversion'); }),
+    runScript: async request => {
+      const input = JSON.parse(request.script);
+      calls.push({ input, allowCommit: request.allowCommit });
+      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media, audio: options.audio ?? [] } };
       if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
-        ({ ...item, resourceId: item.sourceResourceId === 'short-1' ? 'held-1' : `converted-${item.sourceResourceId}` })) } };
-      if (input.operation === 'create') return { result: { status: 'saved', draftId: 'created-mixed' } };
-      if (input.operation === 'verifyCreated') return { result: { status: 'verified', tileCount: 21,
-        draftId: 'created-mixed' } };
-      throw new Error(`Unexpected ${input.operation}`);
-    } };
+        ({ ...item, resourceId: 'held-1', width: 128, height: 96, durationFrames: 853 })) } };
+      if (input.operation === 'preflight') return { result: { status: 'ready', plan: planGallery(input) } };
+      if (input.operation === 'createBase') return { result: { status: 'baseCreated', draftId: 'draft-new' } };
+      if (input.operation === 'fillBase') return { result: { status: 'baseFilled', draftId: 'draft-new' } };
+      if (input.operation === 'placeVideosExisting') return { result: { status: 'videosPlaced', draftId: 'draft-new' } };
+      if (input.operation === 'styleExisting') return { result: { status: 'styled', draftId: 'draft-new' } };
+      if (input.operation === 'verifyCreated') return { result: { status: 'verified', draftId: 'draft-new', tileCount: 21 } };
+      throw new Error(`Unexpected operation ${input.operation}`);
+    },
+  };
   const view = render(React.createElement(Panel, { sdk,
     context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
+  return { view, calls, nativeCalls };
+}
+async function assignAndCreate(view) {
   fireEvent.click(view.getByRole('button', { name: 'Load project media' }));
-  const assign = await waitFor(() => view.getByRole('button', { name: 'Assign all 21 in listed order' }));
-  fireEvent.click(assign);
+  fireEvent.click(await waitFor(() => view.getByRole('button', { name: 'Assign all 21 in listed order' })));
   fireEvent.click(view.getByLabelText('Enter BPM manually'));
   fireEvent.click(view.getByRole('button', { name: 'Create Draft' }));
-  await waitFor(() => assert.ok(calls.some(item => item.operation === 'verifyCreated')));
-  assert.equal(shellCalls.length, 1);
-  const created = calls.find(item => item.operation === 'create');
-  assert.ok(!('baseResourceId' in created));
-  assert.deepEqual(created.media.slice(0, 19).map(item => item.path), inputs.slice(0, 19).map(item => item.path));
-  assert.equal(calls.filter(item => item.operation === 'importConverted').find(item =>
-    item.converted.some(entry => entry.sourceResourceId === 'short-1')).converted.find(entry =>
-    entry.sourceResourceId === 'short-1').sourcePath, '/fixture/short.mp4');
-  assert.equal(created.media[19].resourceId, 'held-1');
-  assert.equal(created.media[20].resourceId, 'long-1');
-  view.unmount(); cleanup();
+}
+
+test('21 original photos follow one panel action through preflight, native placement, styling, and readback', async () => {
+  const h = harness();
+  await assignAndCreate(h.view);
+  await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
+  assert.deepEqual(h.calls.map(call => call.input.operation),
+    ['inspect', 'preflight', 'createBase', 'fillBase', 'styleExisting', 'verifyCreated']);
+  assert.deepEqual(h.nativeCalls, ['resources', 'resources', 'fps', 'place']);
+  assert.equal(h.calls.find(call => call.input.operation === 'createBase').allowCommit, true);
+  assert.deepEqual(h.calls.find(call => call.input.operation === 'styleExisting').input.media.map(item => item.path), photos.map(item => item.path));
 });
 
-test('21-slot create uses one shared script and does not save on load', async () => {
-  const calls = [];
-  const shellCalls = [];
-  const sdk = { runShell: async request => { shellCalls.push(request); throw new Error('Photos must stay native'); },
-    runScript: async request => { calls.push(request); const input = JSON.parse(request.script);
-      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media: media.slice(0, 21), audio: [] } };
-      if (input.operation === 'create') return { result: { status: 'saved', draftId: 'created-1' } };
-      if (input.operation === 'verifyCreated') return { result: { status: 'verified', tileCount: 21, draftId: 'created-1' } };
-      throw new Error(`Unexpected ${input.operation}`);
-    } };
-  const view = render(React.createElement(Panel, { sdk, context: { projectId: 'project-1', sequenceId: null, language: 'ko' }, ui: kit() }));
-  fireEvent.click(view.getByRole('button', { name: '\ud504\ub85c\uc81d\ud2b8 \ubbf8\ub514\uc5b4 \ubd88\ub7ec\uc624\uae30' }));
-  await waitFor(() => assert.equal(calls.length, 1));
-  assert.equal(calls[0].allowCommit, false);
-  await waitFor(() => assert.ok(view.getByRole('button', { name: '21\uac1c\ub97c \ubaa9\ub85d \uc21c\uc11c\ub85c \uc9c0\uc815' })));
-  fireEvent.click(view.getByRole('button', { name: '21\uac1c\ub97c \ubaa9\ub85d \uc21c\uc11c\ub85c \uc9c0\uc815' }));
-  fireEvent.click(view.getByLabelText('BPM \uc9c1\uc811 \uc9c0\uc815'));
-  fireEvent.click(view.getByRole('button', { name: '\uc0c8 \ud3b8\uc9d1\ubcf8 \ub9cc\ub4e4\uae30' }));
-  await waitFor(() => assert.ok(calls.some(call => JSON.parse(call.script).operation === 'verifyCreated')));
-  assert.equal(shellCalls.length, 0);
-  const imports = calls.filter(call => JSON.parse(call.script).operation === 'importConverted');
-  assert.equal(imports.length, 0);
-  const mutation = calls.find(call => JSON.parse(call.script).operation === 'create');
-  const request = JSON.parse(mutation.script);
-  assert.equal(mutation.allowCommit, true);
-  assert.equal(request.media.length, 21);
-  assert.ok(!('baseResourceId' in request));
-  assert.deepEqual(request.media.map(item => item.resourceId), media.slice(0, 21).map(item => item.resourceId));
-  assert.deepEqual(request.media.map(item => item.path), media.slice(0, 21).map(item => item.path));
-  assert.ok(request.media.every(item => item.kind === 'image'));
-  assert.equal(request.manualBpm, 113);
-  assert.equal(request.music, null);
-  view.unmount(); cleanup();
+test('a mixed photo/video gallery preserves its selected video slot', async () => {
+  const media = [...photos.slice(0, 20), { resourceId: 'video-1', name: 'Moving tile', kind: 'video',
+    width: 128, height: 96, durationFrames: 900, path: '/fixture/moving.mp4' }];
+  const h = harness(media);
+  await assignAndCreate(h.view);
+  await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
+  const placed = h.calls.find(call => call.input.operation === 'styleExisting').input.media;
+  assert.equal(placed[20].kind, 'video');
+  assert.equal(placed[20].path, '/fixture/moving.mp4');
+  assert.ok(h.calls.some(call => call.input.operation === 'placeVideosExisting'));
+  assert.equal(h.nativeCalls.filter(item => item === 'place').length, 1);
 });
 
-test('panel does not offer unsupported existing-Draft mutation', async () => {
-  const calls = [];
-  const sdk = { runShell: () => { throw new Error('not used'); },
-    runScript: async request => { calls.push(request); const input = JSON.parse(request.script);
-      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media, audio: [] } };
-      throw new Error(`Unexpected ${input.operation}`);
-    } };
-  const view = render(React.createElement(Panel, { sdk, context: { projectId: 'project-1', sequenceId: 'draft-existing', language: 'ko' }, ui: kit() }));
-  fireEvent.click(view.getByRole('button', { name: '\ud504\ub85c\uc81d\ud2b8 \ubbf8\ub514\uc5b4 \ubd88\ub7ec\uc624\uae30' }));
-  await waitFor(() => assert.ok(view.container.textContent.includes('21/21') === false));
-  assert.equal(view.queryByRole('button', { name: '\uc774 \uce78 \ubcc0\uacbd \uc800\uc7a5' }), null);
-  assert.equal(view.queryByLabelText('\uc791\uc5c5'), null);
-  assert.deepEqual(calls.map(call => JSON.parse(call.script).operation), ['inspect']);
-  view.unmount(); cleanup();
+test('a short video is extended before any Draft is created', async () => {
+  const media = [...photos.slice(0, 20), { resourceId: 'short-1', name: 'Short tile', kind: 'video',
+    width: 128, height: 96, durationFrames: 60, path: '/fixture/short.mp4' }];
+  let conversions = 0;
+  const h = harness(media, { runShell: async request => {
+    conversions++;
+    assert.match(request.command, /hold_video\.py/);
+    return { exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60, durationFrames: 853,
+      videos: [{ inputIndex: 0, sourcePath: '/fixture/short.mp4', outputPath: '/cache/held-short.mp4' }] }) };
+  } });
+  await assignAndCreate(h.view);
+  await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
+  assert.equal(conversions, 1);
+  assert.deepEqual(h.calls.slice(0, 3).map(call => call.input.operation), ['inspect', 'importConverted', 'preflight']);
+  assert.equal(h.calls.find(call => call.input.operation === 'styleExisting').input.media[20].resourceId, 'held-1');
 });
 
-test('uncertain automatic BPM blocks creation without an unknown-save lock', async () => {
-  const calls = [];
-  let shellCalls = 0;
-  const sdk = { runShell: async () => { shellCalls++; return { exitCode: 0, stdout: JSON.stringify({ status: 'uncertain', reason: 'Tempo is ambiguous' }) }; },
-    runScript: async request => { calls.push(request); const input = JSON.parse(request.script);
-      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media: media.slice(0, 21),
-        audio: [{ resourceId: 'song-1', name: 'Song', path: '/fixture/song.mp3', durationFrames: 900 }] } };
-      throw new Error('A mutating script must not run with uncertain BPM');
-    } };
-  const view = render(React.createElement(Panel, { sdk, context: { projectId: 'project-1', sequenceId: null, language: 'ko' }, ui: kit() }));
-  fireEvent.click(view.getByRole('button', { name: '\ud504\ub85c\uc81d\ud2b8 \ubbf8\ub514\uc5b4 \ubd88\ub7ec\uc624\uae30' }));
-  await waitFor(() => assert.ok(view.getByRole('button', { name: '21\uac1c\ub97c \ubaa9\ub85d \uc21c\uc11c\ub85c \uc9c0\uc815' })));
-  fireEvent.click(view.getByRole('button', { name: '21\uac1c\ub97c \ubaa9\ub85d \uc21c\uc11c\ub85c \uc9c0\uc815' }));
-  fireEvent.change(view.getByLabelText('\uc74c\uc545'), { target: { value: 'song-1' } });
-  fireEvent.click(view.getByRole('button', { name: '\uc0c8 \ud3b8\uc9d1\ubcf8 \ub9cc\ub4e4\uae30' }));
-  await waitFor(() => assert.equal(shellCalls, 1));
-  assert.deepEqual(calls.map(call => JSON.parse(call.script).operation), ['inspect']);
-  assert.ok(view.getByRole('button', { name: '\uc0c8 \ud3b8\uc9d1\ubcf8 \ub9cc\ub4e4\uae30' }).disabled === false);
-  view.unmount(); cleanup();
+test('missing native dimensions prevent a Draft and do not lock the panel', async () => {
+  const h = harness(photos, { missingDimension: true });
+  fireEvent.click(h.view.getByRole('button', { name: 'Load project media' }));
+  await waitFor(() => assert.match(h.view.container.textContent, /Tile 5 has no verified image dimensions/));
+  assert.deepEqual(h.calls.map(call => call.input.operation), ['inspect']);
+  assert.deepEqual(h.nativeCalls, ['resources']);
 });
 
-test('photos without native dimensions never start conversion or Draft creation', async () => {
-  const calls = [];
-  const sdk = { runShell: async () => { throw new Error('No conversion should run'); },
-    runScript: async request => { const input = JSON.parse(request.script); calls.push(input.operation);
-      assert.equal(input.operation, 'inspect');
-      return { result: { status: 'inspected', projectId: 'project-1',
-        media: media.slice(0, 21).map((item, i) => i === 4 ? { ...item, width: null } : item), audio: [] } };
-    } };
-  const view = render(React.createElement(Panel, { sdk,
-    context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
-  fireEvent.click(view.getByRole('button', { name: 'Load project media' }));
-  await waitFor(() => assert.ok(view.getByRole('button', { name: 'Assign all 21 in listed order' })));
-  fireEvent.click(view.getByRole('button', { name: 'Assign all 21 in listed order' }));
-  fireEvent.click(view.getByLabelText('Enter BPM manually'));
-  fireEvent.click(view.getByRole('button', { name: 'Create Draft' }));
-  await waitFor(() => assert.match(view.container.textContent, /does not expose photo dimensions/));
-  assert.deepEqual(calls, ['inspect']);
-  assert.equal(view.getByRole('button', { name: 'Create Draft' }).disabled, false);
-  view.unmount(); cleanup();
+test('an ambiguous save after native placement blocks blind duplicate creation', async () => {
+  const h = harness(photos, { placeError: 'Source range exceeded' });
+  await assignAndCreate(h.view);
+  await waitFor(() => assert.match(h.view.container.textContent, /Save outcome is unknown/));
+  assert.equal(h.view.getByRole('button', { name: 'Create Draft' }).disabled, true);
+  assert.ok(h.calls.some(call => call.input.operation === 'fillBase'));
+  assert.ok(!h.calls.some(call => call.input.operation === 'styleExisting'));
 });

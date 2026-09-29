@@ -92,8 +92,8 @@ function galleryGeometry(tile, source, colorFrame) {
 function assertGalleryInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) galleryFail('Gallery input is required');
   if (typeof input.projectId !== 'string' || !input.projectId) galleryFail('Select a Project');
-  if (!['inspect', 'importConverted', 'create', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');
-  if (input.operation === 'create' && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');
+  if (!['inspect', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');
+  if (['create', 'preflight', 'createBase', 'placeVideosExisting', 'styleExisting'].includes(input.operation) && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');
   return input;
 }
 
@@ -147,10 +147,15 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
 async function galleryPreflight(selects, project, input, inventory) {
   const chosen = input.media.map((item, i) => {
     const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);
-    if (fresh.kind === 'image' && (!Number.isSafeInteger(fresh.width) || !Number.isSafeInteger(fresh.height))) {
+    const width = fresh.width ?? item.width, height = fresh.height ?? item.height;
+    if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {
       galleryFail(`Slot ${i + 1} photo dimensions are unavailable through the plugin SDK; no Draft was saved`);
     }
-    return { ...fresh, focusX: item.focusX, focusY: item.focusY };
+    if ((item.width != null && fresh.width != null && fresh.width !== item.width) ||
+        (item.height != null && fresh.height != null && fresh.height !== item.height)) {
+      galleryFail(`Slot ${i + 1} dimensions changed`);
+    }
+    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY };
   });
   const music = input.music == null ? null :
     galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');
@@ -223,6 +228,154 @@ async function galleryCreate(selects, project, input, inventory, onCommitStarted
   return { status: 'saved', draftId: saved.createdDraftId, tileCount: 21, durationFrames: plan.durationFrames, colorFrame: plan.colorFrame };
 }
 
+async function galleryCreateBase(project, input, onCommitStarted) {
+  const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';
+  const draft = await project.createDraft({ name });
+  await draft.setFrameSize({ width: 1080, height: 1920 });
+  onCommitStarted();
+  const saved = await draft.commitAll('Create empty Photo Gallery Draft');
+  if (!saved?.createdDraftId) galleryFail('Empty Draft save outcome is unknown');
+  return { status: 'baseCreated', draftId: saved.createdDraftId };
+}
+
+async function galleryFillBase(selects, project, input, onCommitStarted) {
+  if (typeof input.draftId !== 'string' || !(await project.meta()).draftIds?.includes(input.draftId)) {
+    galleryFail('Target Draft does not belong to this Project');
+  }
+  if (!Number.isSafeInteger(input.durationFrames) || input.durationFrames < 1) galleryFail('Invalid Gallery duration');
+  const draft = selects.draft(input.draftId);
+  const meta = await draft.meta();
+  if (meta.fps !== 60 || meta.durationFrames !== 0 || meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {
+    galleryFail('Target Draft must be an empty 60 fps portrait Draft');
+  }
+  await draft.insertGap({ seconds: input.durationFrames / 60 });
+  if ((await draft.meta()).durationFrames !== input.durationFrames) galleryFail('Could not author exact Gallery duration');
+  onCommitStarted();
+  const saved = await draft.commitAll('Set Photo Gallery duration');
+  if (!saved?.commitId) galleryFail('Duration save outcome is unknown');
+  return { status: 'baseFilled', draftId: input.draftId, durationFrames: input.durationFrames };
+}
+
+async function galleryPlaceVideosExisting(selects, project, input, inventory, onCommitStarted) {
+  if (typeof input.draftId !== 'string' || !(await project.meta()).draftIds?.includes(input.draftId)) {
+    galleryFail('Target Draft does not belong to this Project');
+  }
+  const { plan } = await galleryPreflight(selects, project, input, inventory);
+  const videos = plan.tiles.filter(tile => tile.kind === 'video');
+  if (!videos.length) return { status: 'videosPlaced', draftId: input.draftId, tileCount: 0 };
+  const draft = selects.draft(input.draftId);
+  const meta = await draft.meta();
+  if (meta.fps !== 60 || meta.durationFrames !== plan.durationFrames ||
+      meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {
+    galleryFail('Target Draft clock, canvas, or duration changed');
+  }
+  const rows = await draft.clips({ trackScope: 'all' });
+  const existing = rows.filter(row => row.trackKind === 'video' && row.resourceId);
+  const imageTiles = plan.tiles.filter(tile => tile.kind === 'image');
+  if (existing.length !== imageTiles.length ||
+      rows.some(row => row.trackKind === 'audio' && row.resourceId) ||
+      rows.some(row => row.trackKind === 'main' && row.resourceId)) galleryFail('Target Draft has unexpected media');
+  const used = new Set();
+  for (const tile of imageTiles) {
+    const matches = existing.filter(row => row.resourceId === tile.resourceId &&
+      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !used.has(row.clipId));
+    if (matches.length !== 1) galleryFail(`Image ${tile.slotKey} changed before video placement`);
+    used.add(matches[0].clipId);
+  }
+  for (const tile of videos) {
+    const before = new Set((await draft.clips({ trackScope: 'all' })).map(row => row.clipId));
+    await draft.overlayResource({ resource: project.resource(tile.resourceId),
+      over: await draft.rangeAtFrames(tile.revealFrame, tile.endFrame) });
+    const placedRows = await draft.clips({ trackScope: 'all' });
+    const added = placedRows.filter(row => !before.has(row.clipId) &&
+      row.trackKind === 'video' && row.resourceId === tile.resourceId &&
+      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);
+    if (added.length !== 1) galleryFail(`Video ${tile.slotKey} did not create one independent clip`);
+    const sourceAudio = placedRows.filter(row => !before.has(row.clipId) && row.trackKind === 'audio' && row.resourceId);
+    if (sourceAudio.length) await draft.removeClips(sourceAudio);
+    if ((await draft.clips({ trackScope: 'all' })).some(row => row.trackKind === 'audio' && row.resourceId)) {
+      galleryFail(`Video ${tile.slotKey} retained source audio`);
+    }
+  }
+  onCommitStarted();
+  const saved = await draft.commitAll('Place Photo Gallery video tiles');
+  if (!saved?.commitId) galleryFail('Video placement save outcome is unknown');
+  return { status: 'videosPlaced', draftId: input.draftId, tileCount: videos.length };
+}
+
+async function galleryStyleExisting(selects, project, input, inventory, onCommitStarted) {
+  if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('An explicit target Draft is required');
+  const projectMeta = await project.meta();
+  if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('Target Draft does not belong to this Project');
+  const chosen = input.media.map((item, i) => {
+    const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);
+    if (fresh.kind !== item.kind) galleryFail(`Slot ${i + 1} Resource type changed`);
+    const width = fresh.width ?? item.width, height = fresh.height ?? item.height;
+    if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {
+      galleryFail(`Slot ${i + 1} photo dimensions are unavailable`);
+    }
+    if (fresh.width != null && fresh.width !== item.width || fresh.height != null && fresh.height !== item.height) {
+      galleryFail(`Slot ${i + 1} photo dimensions changed`);
+    }
+    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY };
+  });
+  const music = input.music == null ? null : galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');
+  const plan = planGallery({ media: chosen, music: music ? { ...music, startFrame: input.music.startFrame ?? 0 } : null, manualBpm: input.manualBpm,
+    estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames });
+  const draft = selects.draft(input.draftId);
+  const meta = await draft.meta();
+  if (meta.fps !== plan.fps || meta.durationFrames !== plan.durationFrames ||
+      meta.frameSize?.width !== plan.frameSize.width || meta.frameSize?.height !== plan.frameSize.height) {
+    galleryFail('Target Draft clock, canvas, or duration does not match the Gallery plan');
+  }
+  const allRows = await draft.clips({ trackScope: 'all' });
+  if (allRows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('Target Draft Main track is not blank');
+  if (allRows.some((row) => row.trackKind === 'audio' && row.resourceId)) galleryFail('Target Draft has unexpected source audio');
+  const rows = allRows.filter((row) => row.trackKind === 'video' && row.resourceId);
+  if (rows.length !== 21 || new Set(rows.map((row) => row.trackId)).size !== 21) {
+    galleryFail('Target Draft must contain exactly 21 independent visual tracks');
+  }
+  const used = new Set(), targets = [];
+  for (let i = 0; i < 21; i++) {
+    const tile = plan.tiles[i];
+    const matches = rows.filter((row) => row.resourceId === tile.resourceId &&
+      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !used.has(row.clipId));
+    if (matches.length !== 1) galleryFail(`Target tile ${tile.slotKey} does not match the selected Resource and frames`);
+    const clip = matches[0];
+    if ((await draft.videoEffects(clip)).length) galleryFail(`Target tile ${tile.slotKey} already has effects; inspect it before retrying`);
+    const transform = await draft.clipTransform(clip);
+    const identity = !transform || !transform.enabled ||
+      (transform.position?.x === 0 && transform.position?.y === 0 &&
+       transform.scale?.x === 1 && transform.scale?.y === 1 &&
+       transform.rotation === 0 && transform.anchor?.x === 0 && transform.anchor?.y === 0);
+    if (!identity) galleryFail(`Target tile ${tile.slotKey} already has a manual transform; inspect it before retrying`);
+    used.add(clip.clipId);
+    targets.push(clip);
+  }
+  for (let i = 0; i < 21; i++) {
+    const tile = plan.tiles[i];
+    const geometry = galleryGeometry(tile, chosen[i], plan.colorFrame);
+    const current = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === targets[i].clipId);
+    if (!current) galleryFail(`Target tile ${tile.slotKey} disappeared before styling`);
+    await draft.addVideoEffect({ clip: current, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,
+      tsxCode: TILE_EFFECT, parameters: geometry.effect,
+      editableParameters: [
+        { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },
+        { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },
+      ] });
+    const fresh = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === targets[i].clipId);
+    if (!fresh) galleryFail(`Target tile ${tile.slotKey} disappeared during styling`);
+    await draft.setClipTransform({ clip: fresh, position: geometry.transform.position, scale: geometry.transform.scale });
+  }
+  if (plan.music) await draft.overlayResource({ resource: project.resource(plan.music.resourceId),
+    over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: plan.music.startFrame / plan.fps });
+  onCommitStarted();
+  const saved = await draft.commitAll('Style 21 original Image tiles as the Photo Gallery');
+  if (!saved?.commitId) galleryFail('Style save outcome is unknown; inspect the Draft before retrying');
+  return { status: 'styled', draftId: input.draftId, tileCount: 21, durationFrames: plan.durationFrames,
+    colorFrame: plan.colorFrame };
+}
+
 async function galleryVerifyCreated(selects, project, input, inventory) {
   if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('The saved Draft ID is required for readback');
   const { plan, chosen } = await galleryPreflight(selects, project, input, inventory);
@@ -279,6 +432,14 @@ async function galleryOperation(selects, raw) {
     if (input.operation === 'inspect') return { status: 'inspected', projectId: input.projectId, ...inventory };
     if (input.operation === 'importConverted') return await galleryImportConverted(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'create') return await galleryCreate(selects, project, input, inventory, () => { commitStarted = true; });
+    if (input.operation === 'preflight') {
+      const { plan } = await galleryPreflight(selects, project, input, inventory);
+      return { status: 'ready', plan };
+    }
+    if (input.operation === 'createBase') return await galleryCreateBase(project, input, () => { commitStarted = true; });
+    if (input.operation === 'fillBase') return await galleryFillBase(selects, project, input, () => { commitStarted = true; });
+    if (input.operation === 'placeVideosExisting') return await galleryPlaceVideosExisting(selects, project, input, inventory, () => { commitStarted = true; });
+    if (input.operation === 'styleExisting') return await galleryStyleExisting(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'verifyCreated') return await galleryVerifyCreated(selects, project, input, inventory);
     galleryFail('Unknown gallery action');
   } catch (error) {

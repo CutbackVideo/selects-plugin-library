@@ -7,8 +7,9 @@ import { buildScript, SCRIPT_PREFIX } from './operation-builder.mjs';
 test('installed panel contains the exact shared operation prefix', () => {
   const template = readFileSync(new URL('./panel.template.tsx', import.meta.url), 'utf8');
   const installed = readFileSync(new URL('./panel.tsx', import.meta.url), 'utf8');
+  const native = readFileSync(new URL('./native-image-runtime.js', import.meta.url), 'utf8');
   const expected = template.replace('/*__SHARED_SCRIPT_BUILDER__*/',
-    `const SCRIPT_PREFIX = ${JSON.stringify(SCRIPT_PREFIX)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';`);
+    `const SCRIPT_PREFIX = ${JSON.stringify(SCRIPT_PREFIX)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\n${native}`);
   assert.notEqual(expected, template);
   assert.equal(installed, expected);
 });

@@ -160,7 +160,7 @@ test('existing-Draft mutation is rejected before an unsupported SDK call or comm
   assert.equal(calls.commit, 0);
 });
 
-function creationFixture({ failCommit = false, rejectNativeImages = false, videoIndices = [], audio = false } = {}) {
+function creationFixture({ failCommit = false, rejectNativeImages = false, videoIndices = [], audio = false, videoAudio = false } = {}) {
   const inserted = [], effects = [], bindings = [], transforms = [];
   let createCount = 0, gapCalls = 0;
   const fresh = () => inserted.map((item) => ({ ...item }));
@@ -177,18 +177,27 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
       }
       const trackKind = resource.resourceId === 'song' ? 'audio' : 'video';
       inserted.push({ clipId: inserted.length + 1, trackId: `v${inserted.length}`, trackKind, resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame, sourceStartSeconds });
+      if (videoAudio && trackKind === 'video' && videoIndices.includes(Number(resource.resourceId.slice(1)))) {
+        inserted.push({ clipId: inserted.length + 1, trackId: `a${inserted.length}`, trackKind: 'audio',
+          resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame });
+      }
     },
+    removeClips: async rows => { for (const row of rows) {
+      const index = inserted.findIndex(item => item.clipId === row.clipId);
+      if (index >= 0) inserted.splice(index, 1);
+    } },
     addVideoEffect: async (entry) => effects.push(entry),
     setClipTransform: async (entry) => transforms.push(entry),
     clipTransform: async (clip) => {
       const value = transforms.find((entry) => entry.clip.clipId === clip.clipId);
-      return value && { enabled: true, position: value.position, scale: value.scale };
+      return value ? { enabled: true, position: value.position, scale: value.scale } :
+        { enabled: true, position: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0, anchor: { x: 0, y: 0 } };
     },
     videoEffects: async (clip) => effects.filter((effect) => effect.clip.clipId === clip.clipId)
       .map((effect) => ({ name: effect.label, enabled: true })),
     commitAll: async () => {
       if (failCommit) throw new Error('transport lost after commit started');
-      return { createdDraftId: 'draft-new' };
+      return createCount ? { createdDraftId: 'draft-new' } : { commitId: 'commit-style' };
     },
   };
   const resources = Array.from({ length: 21 }, (_, i) => videoIndices.includes(i) ? { resourceId: `r${i}`, name: `video-${i}.mp4`, type: 'Video' } : image(i));
@@ -212,11 +221,61 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
   };
   return {
     run: (input) => new AsyncFunction('selects', buildScript(input))(selects),
-    inserted, effects, bindings, transforms, files,
+    inserted, effects, bindings, transforms, files, draft,
     get createCount() { return createCount; },
     get gapCalls() { return gapCalls; },
   };
 }
+
+test('a preplaced native Image gallery receives editable effects and geometry without replacing its clips', async () => {
+  const f = creationFixture();
+  const reveals = [0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205];
+  for (let i = 0; i < 21; i++) f.inserted.push({ clipId: i + 1, trackId: `v${i}`,
+    trackKind: 'video', resourceId: `r${i}`, startFrame: reveals[i], endFrame: 853 });
+  for (const item of f.files) { item.type = 'video'; delete item.frameSize; }
+  const media = Array.from({ length: 21 }, (_, i) => ({ resourceId: `r${i}`,
+    path: `/test/photo-${i}.png`, kind: 'image', width: 1080, height: 1920 }));
+  const result = await f.run({ operation: 'styleExisting', projectId: 'project-1', draftId: 'known', media, manualBpm: 113 });
+  assert.equal(result.status, 'styled', result.message);
+  assert.equal(f.inserted.length, 21);
+  assert.equal(f.effects.length, 21);
+  assert.equal(f.transforms.length, 21);
+  assert.deepEqual(f.effects.map(item => item.clip.resourceId), media.map(item => item.resourceId));
+});
+
+test('styling rejects a wrong reveal frame before editing the native gallery', async () => {
+  const f = creationFixture();
+  const reveals = [0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205];
+  for (let i = 0; i < 21; i++) f.inserted.push({ clipId: i + 1, trackId: `v${i}`,
+    trackKind: 'video', resourceId: `r${i}`, startFrame: reveals[i] + (i === 7 ? 1 : 0), endFrame: 853 });
+  const media = Array.from({ length: 21 }, (_, i) => ({ resourceId: `r${i}`,
+    path: `/test/photo-${i}.png`, kind: 'image', width: 1080, height: 1920 }));
+  const result = await f.run({ operation: 'styleExisting', projectId: 'project-1', draftId: 'known', media, manualBpm: 113 });
+  assert.equal(result.status, 'notSaved');
+  assert.match(result.message, /tile-08/);
+  assert.equal(f.effects.length, 0);
+  assert.equal(f.transforms.length, 0);
+});
+
+test('mixed gallery places Video through the public SDK while preserving preplaced original Images', async () => {
+  const f = creationFixture({ videoIndices: [20], videoAudio: true });
+  const reveals = [0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205];
+  for (let i = 0; i < 20; i++) f.inserted.push({ clipId: i + 1, trackId: `v${i}`,
+    trackKind: 'video', resourceId: `r${i}`, startFrame: reveals[i], endFrame: 853 });
+  const media = Array.from({ length: 21 }, (_, i) => ({ resourceId: `r${i}`,
+    path: i === 20 ? '/test/video-20.mp4' : `/test/photo-${i}.png`,
+    kind: i === 20 ? 'video' : 'image', width: i === 20 ? 1920 : 1080,
+    height: i === 20 ? 1080 : 1920, ...(i === 20 ? { durationFrames: 1800 } : {}) }));
+  const result = await f.run({ operation: 'placeVideosExisting', projectId: 'project-1',
+    draftId: 'known', media, manualBpm: 113 });
+  assert.equal(result.status, 'videosPlaced', result.message);
+  assert.equal(result.tileCount, 1);
+  assert.equal(f.inserted.length, 21);
+  assert.deepEqual(f.inserted[20], { clipId: 21, trackId: 'v20', trackKind: 'video',
+    resourceId: 'r20', startFrame: 205, endFrame: 853, sourceStartSeconds: undefined });
+  assert.equal((await f.run({ operation: 'styleExisting', projectId: 'project-1',
+    draftId: 'known', media, manualBpm: 113 })).status, 'styled');
+});
 
 test('21 original photos become 21 independent Image clips over a black gap', async () => {
   const f = creationFixture();

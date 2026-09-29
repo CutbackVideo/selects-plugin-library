@@ -15,7 +15,7 @@ const STRINGS = {
     slot: '\uce78', media: '\uc0ac\uc9c4 \ub610\ub294 \uc601\uc0c1', choose: '\ubbf8\ub514\uc5b4 \uc120\ud0dd', noMedia: '\ud504\ub85c\uc81d\ud2b8\uc5d0 \uc0ac\uc9c4 \ub610\ub294 \uc601\uc0c1\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.',
     assigned: '\uc9c0\uc815\ud55c \uce78', fill: '21\uac1c\ub97c \ubaa9\ub85d \uc21c\uc11c\ub85c \uc9c0\uc815', fillHint: '\uc0ac\uc9c4 21\uac1c\uac00 \uc788\uc73c\uba74 \uc0ac\uc9c4\uc744 \uc6b0\uc120\ud569\ub2c8\ub2e4. \uac19\uc740 \ubbf8\ub514\uc5b4\ub97c \uc5ec\ub7ec \uce78\uc5d0 \uc4f0\ub824\uba74 \uac01 \uce78\uc5d0\uc11c \uc9c1\uc811 \uace0\ub974\uc138\uc694.',
     focusX: '\uac00\ub85c \ucd08\uc810', focusY: '\uc138\ub85c \ucd08\uc810',
-    editLimits: "\ud604\uc7ac SDK\uc5d0\uc11c\ub294 \uc0dd\uc131\ub41c 21\uce78\uc744 \ud50c\ub7ec\uadf8\uc778\uc73c\ub85c \uc548\uc804\ud558\uac8c \uc218\uc815\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \uac01 \uc601\uc0c1 \ud074\ub9bd\uc740 Selects \ud0c0\uc784\ub77c\uc778\uc5d0\uc11c \uc9c1\uc811 \ud3b8\uc9d1\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+    editLimits: "\uc0dd\uc131\ub41c 21\uce78\uc740 Selects \ud0c0\uc784\ub77c\uc778\uc5d0\uc11c \uac01\uac01 \ud3b8\uc9d1\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc758 \uae30\uc874 \ud3b8\uc9d1\ubcf8 \ud55c \uce78\ub9cc \ubc14\uafb8\uae30\ub294 \uc544\uc9c1 \uc9c0\uc6d0\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     music: '\uc74c\uc545', noMusic: '\uc74c\uc545 \uc5c6\uc74c',
     bpmManual: 'BPM \uc9c1\uc811 \uc9c0\uc815', bpm: 'BPM', estimate: '\uc74c\uc545 BPM \ucd94\uc815', estimated: '\ucd94\uc815 BPM', uncertain: 'BPM\uc744 \ud655\uc2e4\ud788 \ucd94\uc815\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc9c1\uc811 \uc785\ub825\ud574 \uc8fc\uc138\uc694.',
     duration: '\uc601\uc0c1 \uae38\uc774', durationNote: '\uae30\ubcf8 14.217\ucd08 · 60fps. \uc74c\uc545\uc744 \uace0\ub974\uba74 \uc774 \uae38\uc774\ub97c \ucc44\uc6b8 \uc218 \uc788\uc5b4\uc57c \ud569\ub2c8\ub2e4.',
@@ -32,7 +32,7 @@ const STRINGS = {
     slot: 'Tile', media: 'Photo or video', choose: 'Choose media', noMedia: 'No photos or videos in this project.',
     assigned: 'Assigned tiles', fill: 'Assign all 21 in listed order', fillHint: 'When there are 21 photos, they take priority. To reuse an item, choose it for each tile explicitly.',
     focusX: 'Horizontal focus', focusY: 'Vertical focus',
-    editLimits: 'The current SDK cannot safely automate updates to the created 21 tiles. Each video clip can be edited directly in the Selects timeline',
+    editLimits: 'Each of the 21 tiles can be edited in the Selects timeline. Plugin-guided single-tile replacement is not yet available.',
     music: 'Music', noMusic: 'No music',
     bpmManual: 'Enter BPM manually', bpm: 'BPM', estimate: 'Estimate music BPM', estimated: 'Estimated BPM', uncertain: 'Could not estimate BPM reliably. Enter it manually.',
     duration: 'Video length', durationNote: 'Default 14.217 seconds at 60 fps. Music must cover this length.',
@@ -92,8 +92,9 @@ export default function Panel({ sdk, context, ui }) {
       if (response.isError || response.result?.status !== 'inspected' || !Array.isArray(response.result.media) || !Array.isArray(response.result.audio)) {
         throw new Error(response.result?.message || response.output || t.failed);
       }
+      const native = await galleryNativeResources(projectId, response.result.media);
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
-      setInventory(response.result); setLoadedKey(requestedKey);
+      setInventory({ ...response.result, media: native.selected.map(({ nativeResource, ...item }) => item) }); setLoadedKey(requestedKey);
       setSlots(emptySlots()); setName('Photo Gallery'); setDurationFrames(853);
       setMusicChoice('none'); setManualEnabled(false); setManualBpm(113); setEstimated(null);
       setStatus(null);
@@ -201,9 +202,7 @@ export default function Panel({ sdk, context, ui }) {
         music: selectedMusic ? { resourceId: selectedMusic.resourceId, path: selectedMusic.path,
           durationFrames: selectedMusic.durationFrames, startFrame: 0 } : null };
       if (!input.name || input.media.some(item => !item.resourceId)) throw new Error(t.missing);
-      if (input.media.some(item => item.kind === 'image' && (!Number.isSafeInteger(item.width) || !Number.isSafeInteger(item.height)))) {
-        throw new Error('This Selects build does not expose photo dimensions for native Image clips. Update Selects.');
-      }
+      if (input.media.some(item => !Number.isSafeInteger(item.width) || !Number.isSafeInteger(item.height))) throw new Error('A selected tile has no verified dimensions');
     } catch (error) { setStatus({ tone: 'error', text: String(error?.message || error) }); return; }
     running.current = true; setBusy(true); setStatus(null);
     let dispatched = false;
@@ -213,21 +212,36 @@ export default function Panel({ sdk, context, ui }) {
       input.media = await prepareVisuals(input.media, input.durationFrames, projectId,
         () => { dispatched = true; }, () => sameContext(projectId, sequenceId) && requestedKey === key);
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
-      const script = buildScript(input);
+      input.media = (await galleryNativeResources(projectId, input.media)).selected.map(({ nativeResource, ...item }) => item);
+      const preflight = await sdk.runScript({ script: buildScript({ ...input, operation: 'preflight' }),
+        summary: 'Check Photo Gallery media and timing', allowCommit: false });
+      if (preflight.isError || preflight.result?.status !== 'ready') throw Object.assign(
+        new Error(preflight.result?.message || preflight.output || t.failed), { safeNotSaved: true });
+      const plan = preflight.result.plan;
+      if (!sameContext(projectId, sequenceId) || requestedKey !== key) throw Object.assign(new Error(t.changed), { safeNotSaved: true });
       dispatched = true;
-      const response = await sdk.runScript({ script, summary: 'Create Photo Gallery Draft', allowCommit: true });
-      if (response.isError || !response.result || response.result.status === 'outcomeUnknown') {
-        setUnknown(true); setStatus({ tone: 'error', text: t.unknown }); return;
+      const base = await sdk.runScript({ script: buildScript({ ...input, operation: 'createBase' }),
+        summary: 'Create Photo Gallery Draft', allowCommit: true });
+      if (base.isError || base.result?.status !== 'baseCreated' || !base.result.draftId) throw new Error(base.result?.message || t.unknown);
+      const draftId = base.result.draftId;
+      setSavedTarget({ projectId, draftId });
+      await galleryNativeSetFps(projectId, draftId);
+      const fill = await sdk.runScript({ script: buildScript({ operation: 'fillBase', projectId,
+        draftId, durationFrames: plan.durationFrames }), summary: 'Set Photo Gallery duration', allowCommit: true });
+      if (fill.isError || fill.result?.status !== 'baseFilled') throw new Error(fill.result?.message || t.unknown);
+      await galleryNativePlace(projectId, draftId, input.media, plan);
+      if (input.media.some(item => item.kind === 'video')) {
+        const videos = await sdk.runScript({ script: buildScript({ ...input, operation: 'placeVideosExisting', draftId }),
+          summary: 'Place Gallery video tiles', allowCommit: true });
+        if (videos.isError || videos.result?.status !== 'videosPlaced') throw new Error(videos.result?.message || t.unknown);
       }
-      if (response.result.status === 'notSaved') { setStatus({ tone: 'error', text: response.result.message || t.failed }); return; }
-      if (response.result.status !== 'saved' || !response.result.draftId) {
-        setUnknown(true); setStatus({ tone: 'error', text: t.unknown }); return;
-      }
-      setSavedTarget({ projectId, draftId: response.result.draftId });
+      const styled = await sdk.runScript({ script: buildScript({ ...input, operation: 'styleExisting', draftId }),
+        summary: 'Style Photo Gallery tiles', allowCommit: true });
+      if (styled.isError || styled.result?.status !== 'styled') throw new Error(styled.result?.message || t.unknown);
       let verified = false;
       let readReturned = false;
       try {
-        const readInput = { ...input, operation: 'verifyCreated', draftId: response.result.draftId };
+        const readInput = { ...input, operation: 'verifyCreated', draftId };
         const read = await sdk.runScript({ script: buildScript(readInput), summary: 'Read saved Photo Gallery Draft', allowCommit: false });
         readReturned = true;
         verified = !read.isError && read.result?.status === 'verified' && read.result.tileCount === 21;
