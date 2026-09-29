@@ -8,9 +8,9 @@ const ST_LABELS_GRAPHIC_LABEL = 'Summer Trip labels';
 // Layout of the labels differs between the two graphics, as in the reference: during the title the labels sit lower
 // (top 12.6%, credit 89.9%, credit uppercase "BY NAME"); from the place title on they sit near the edges (8.6% / 93.0%)
 // and the credit keeps the typed case ("By Name"). Sizes are px of a 1080-high frame, positions % of the frame.
-const ST_TITLE_LAYOUT = { labelSize: 41, creditSize: 36, topY: 12.6, creditY: 89.9, creditUppercase: true, marginPct: 6, stackGap: 24 };
+const ST_TITLE_LAYOUT = { labelSize: 41, creditSize: 36, labelTracking: -0.04, creditTracking: -0.04, topY: 12.6, creditY: 89.9, creditUppercase: true, marginPct: 6, stackGap: 36 };
 const ST_LABELS_LAYOUT = {
-  labelSize: 40, creditSize: 40, topY: 8.6, creditY: 93.0, creditUppercase: false, marginPct: 6,
+  labelSize: 39, creditSize: 37, labelTracking: -0.06, creditTracking: -0.1, topY: 8.6, creditY: 93.0, creditUppercase: false, marginPct: 6,
   placeSize: 220, placeX: 72.5, placeY: 38.9, prefixScale: 0.43, prefixDrop: 0.38, placeCapRatio: 0.75,
 };
 const ST_ROLE_KEYS_TITLE = ['line1', 'season', 'label', 'labelItalic'];
@@ -57,6 +57,7 @@ function stTitleParameters(o) {
     creditUppercase: ST_TITLE_LAYOUT.creditUppercase,
     line1Color: preset.colors.line1, seasonColor: preset.colors.season, labelColor: preset.colors.labels, shadow: preset.shadow,
     line1Size: preset.title.line1Size, seasonSize: preset.title.seasonSize, labelSize: ST_TITLE_LAYOUT.labelSize, creditSize: ST_TITLE_LAYOUT.creditSize,
+    labelTracking: ST_TITLE_LAYOUT.labelTracking, creditTracking: ST_TITLE_LAYOUT.creditTracking,
     line1Y: preset.title.line1Y, seasonY: preset.title.seasonY, topY: ST_TITLE_LAYOUT.topY, creditY: ST_TITLE_LAYOUT.creditY,
     marginPct: ST_TITLE_LAYOUT.marginPct, stackGap: ST_TITLE_LAYOUT.stackGap,
     faces, fonts: stFontParams(presets, files, o.fontsB64),
@@ -73,7 +74,7 @@ function stLabelsParameters(o) {
     creditUppercase: L.creditUppercase,
     placePrefix: stClean(o.placePrefix), place: stClean(o.place), placeSeconds: o.placeSeconds,
     labelColor: preset.colors.labels, placeColor: preset.colors.place, shadow: preset.shadow,
-    labelSize: L.labelSize, creditSize: L.creditSize, placeSize: L.placeSize,
+    labelSize: L.labelSize, creditSize: L.creditSize, labelTracking: L.labelTracking, creditTracking: L.creditTracking, placeSize: L.placeSize,
     topY: L.topY, creditY: L.creditY, placeX: L.placeX, placeY: L.placeY,
     prefixScale: L.prefixScale, prefixDrop: L.prefixDrop, placeCapRatio: L.placeCapRatio, marginPct: L.marginPct,
     faces, fonts: stFontParams(presets, files, o.fontsB64),

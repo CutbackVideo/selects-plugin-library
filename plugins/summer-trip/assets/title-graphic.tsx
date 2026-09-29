@@ -145,6 +145,10 @@ export default function SummerTripTitle({ data }) {
   const { ready, css } = useStFonts(data.fonts);
   const faces = data.faces || {};
   const fLine1 = stFace(faces, "line1"), fSeason = stFace(faces, "season"), fLabel = stFace(faces, "label"), fItalic = stFace(faces, "labelItalic");
+  // Per-line tracking (em): the reference sets its labels tighter than the face default, most of all the late credit.
+  const withTracking = (face, t) => ({ ...face, tracking: t });
+  const topT = num(data.labelTracking, fLabel.tracking), creditT = num(data.creditTracking, fLabel.tracking);
+  const fTop = withTracking(fLabel, topT), fTopI = withTracking(fItalic, topT), fCredit = withTracking(fLabel, creditT), fCreditI = withTracking(fItalic, creditT);
 
   const line1 = str(data.line1, "");
   const season = cased(str(data.season, "").trim(), fSeason);
@@ -173,17 +177,17 @@ export default function SummerTripTitle({ data }) {
     out.seasonCap = stCapRatio(fSeason);
     if (fSeason.fillWidth > 0) out.season = Math.min(out.season, (0.55 * H) / out.seasonCap);
     const labelPx = num(data.labelSize, 41) * k, creditPx = num(data.creditSize, 36) * k;
-    const topW = stMeasure(topMain + (topItalic ? " " : ""), fLabel, labelPx) + stMeasure(topItalic, fItalic, labelPx);
-    const creditW = stMeasure(credit.prefix + " ", fLabel, creditPx) + stMeasure(credit.name, fItalic, creditPx);
+    const topW = stMeasure(topMain + (topItalic ? " " : ""), fTop, labelPx) + stMeasure(topItalic, fTopI, labelPx);
+    const creditW = stMeasure(credit.prefix + " ", fCredit, creditPx) + stMeasure(credit.name, fCreditI, creditPx);
     out.top = stFitSize(labelPx, topW, box);
     out.credit = stFitSize(creditPx, creditW, box);
     return out;
-  }, [ready, line1, season, topMain, topItalic, credit.prefix, credit.name, W, H, JSON.stringify(faces), data.line1Size, data.seasonSize, data.labelSize, data.creditSize, box]);
+  }, [ready, line1, season, topMain, topItalic, credit.prefix, credit.name, W, H, JSON.stringify(faces), topT, creditT, data.line1Size, data.seasonSize, data.labelSize, data.creditSize, box]);
 
   const seasonY = num(data.seasonY, 50);
   // A fill-width season word (Poster) varies in height with its length, so line 1 sits a fixed gap above its caps.
   const line1Y = fSeason.fillWidth > 0
-    ? seasonY - ((fit.season * fit.seasonCap) / 2 + num(data.stackGap, 24) * k + fit.line1 * 0.5) / H * 100
+    ? seasonY - ((fit.season * fit.seasonCap) / 2 + num(data.stackGap, 36) * k + fit.line1 * 0.5) / H * 100
     : num(data.line1Y, 35.5);
 
   const lineBox = (yPct) => ({
@@ -216,14 +220,14 @@ export default function SummerTripTitle({ data }) {
       ) : null}
       {st.labels && (topMain || topItalic) ? (
         <div style={lineBox(num(data.topY, 12.6))}>
-          <div style={{ ...textStyle(fit.top, fLabel, labelColor), transform: undefined }}>
+          <div style={{ ...textStyle(fit.top, fTop, labelColor), transform: undefined }}>
             {topMain}{topItalic ? " " : ""}<span style={{ fontFamily: fItalic.css }}>{topItalic}</span>
           </div>
         </div>
       ) : null}
       {st.labels && credit.name ? (
         <div style={lineBox(num(data.creditY, 89.9))}>
-          <div style={{ ...textStyle(fit.credit, fLabel, labelColor), transform: undefined }}>
+          <div style={{ ...textStyle(fit.credit, fCredit, labelColor), transform: undefined }}>
             {credit.prefix}{credit.prefix ? " " : ""}<span style={{ fontFamily: fItalic.css }}>{credit.name}</span>
           </div>
         </div>

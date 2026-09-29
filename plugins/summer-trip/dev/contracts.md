@@ -99,11 +99,11 @@ are **flat top-level keys** because the Inspector edits one top-level key per ed
 - `stTitleParameters({ presets, presetId, fontsB64, line1, season, wordTimes, seasonPartTime, seasonFullTime, seasonPartLength,
   labelsTime, topMain, topItalic, creditPrefix, creditName })` → Title: `{ preset, line1, season, wordTimes, seasonPartTime,
   seasonFullTime, seasonPartLength, labelsTime, topMain, topItalic, creditPrefix, creditName, creditUppercase (true), line1Color,
-  seasonColor, labelColor, shadow, line1Size, seasonSize, labelSize, creditSize, line1Y, seasonY, topY (12.6), creditY (89.9),
+  seasonColor, labelColor, shadow, line1Size, seasonSize, labelSize, creditSize, labelTracking, creditTracking (em), line1Y, seasonY, topY (12.6), creditY (89.9),
   marginPct (6), stackGap, faces, fonts }`.
 - `stLabelsParameters({ presets, presetId, fontsB64, topMain, topItalic, creditPrefix, creditName, placePrefix, place,
   placeSeconds })` → Labels: `{ preset, topMain, topItalic, creditPrefix, creditName, creditUppercase (false), placePrefix, place,
-  placeSeconds, labelColor, placeColor, shadow, labelSize, creditSize, placeSize, topY (8.6), creditY (93.0), placeX (72.5),
+  placeSeconds, labelColor, placeColor, shadow, labelSize, creditSize, labelTracking, creditTracking, placeSize, topY (8.6), creditY (93.0), placeX (72.5),
   placeY (38.9), prefixScale, prefixDrop, placeCapRatio, marginPct, faces, fonts }`.
 - `faces`: `{ [role]: { family, case, tracking, scaleX, fillWidth? } }` (title roles line1/season/label/labelItalic; labels roles
   label/labelItalic/place/placePrefix). `fonts`: `{ [family]: base64 }` — only the chosen preset's families.

@@ -104,6 +104,10 @@ export default function SummerTripLabels({ data }) {
   const { ready, css } = useStFonts(data.fonts);
   const faces = data.faces || {};
   const fLabel = stFace(faces, "label"), fItalic = stFace(faces, "labelItalic"), fPlace = stFace(faces, "place"), fPrefix = stFace(faces, "placePrefix");
+  // Per-line tracking (em): the reference sets its labels tighter than the face default, most of all the late credit.
+  const withTracking = (face, t) => ({ ...face, tracking: t });
+  const topT = num(data.labelTracking, fLabel.tracking), creditT = num(data.creditTracking, fLabel.tracking);
+  const fTop = withTracking(fLabel, topT), fTopI = withTracking(fItalic, topT), fCredit = withTracking(fLabel, creditT), fCreditI = withTracking(fItalic, creditT);
   const st = stLabelsState(frame, fps, data);
 
   const topMain = str(data.topMain, ""), topItalic = str(data.topItalic, "");
@@ -121,13 +125,13 @@ export default function SummerTripLabels({ data }) {
 
   const fit = useMemo(() => {
     const labelPx = num(data.labelSize, 40) * k, creditPx = num(data.creditSize, 40) * k, placePx = num(data.placeSize, 220) * k;
-    const topW = stAdvance(topMain + (topItalic ? " " : ""), fLabel, labelPx) + stAdvance(topItalic, fItalic, labelPx);
-    const creditW = stAdvance(credit.prefix + " ", fLabel, creditPx) + stAdvance(credit.name, fItalic, creditPx);
+    const topW = stAdvance(topMain + (topItalic ? " " : ""), fTop, labelPx) + stAdvance(topItalic, fTopI, labelPx);
+    const creditW = stAdvance(credit.prefix + " ", fCredit, creditPx) + stAdvance(credit.name, fCreditI, creditPx);
     // The prefix tucks under the caps' first serif (negative gap), as in the reference.
     const placeW = (stAdvance(place, fPlace, placePx) + (prefix ? stAdvance(prefix, fPrefix, placePx * prefixScale) - 0.02 * placePx : 0)) * fPlace.scaleX;
     const layout = stPlaceLayout((num(data.placeX, 72.5) / 100) * W, placeW, W, margin);
     return { top: stFitSize(labelPx, topW, box), credit: stFitSize(creditPx, creditW, box), place: placePx * layout.scale, placeCx: layout.cx };
-  }, [ready, topMain, topItalic, credit.prefix, credit.name, place, prefix, W, H, JSON.stringify(faces), data.labelSize, data.creditSize, data.placeSize, data.placeX, prefixScale, box]);
+  }, [ready, topMain, topItalic, credit.prefix, credit.name, place, prefix, W, H, JSON.stringify(faces), topT, creditT, data.labelSize, data.creditSize, data.placeSize, data.placeX, prefixScale, box]);
 
   const lineBox = (yPct) => ({ position: "absolute", left: 0, right: 0, top: `${yPct}%`, height: 0, display: "flex", justifyContent: "center", alignItems: "center" });
   const textStyle = (px, face, color) => ({ fontFamily: face.css, fontSize: px, lineHeight: 1, letterSpacing: `${face.tracking}em`, color, whiteSpace: "pre", textShadow: shadow });
@@ -141,15 +145,15 @@ export default function SummerTripLabels({ data }) {
       {css ? <style>{css}</style> : null}
       {st.top ? (
         <div style={lineBox(num(data.topY, 8.6))}>
-          <div style={textStyle(fit.top, fLabel, labelColor)}>
-            {topMain}{topItalic ? " " : ""}<span style={{ fontFamily: fItalic.css, letterSpacing: `${fItalic.tracking}em` }}>{topItalic}</span>
+          <div style={textStyle(fit.top, fTop, labelColor)}>
+            {topMain}{topItalic ? " " : ""}<span style={{ fontFamily: fItalic.css }}>{topItalic}</span>
           </div>
         </div>
       ) : null}
       {st.credit ? (
         <div style={lineBox(num(data.creditY, 93.0))}>
-          <div style={textStyle(fit.credit, fLabel, labelColor)}>
-            {credit.prefix}{credit.prefix ? " " : ""}<span style={{ fontFamily: fItalic.css, letterSpacing: `${fItalic.tracking}em` }}>{credit.name}</span>
+          <div style={textStyle(fit.credit, fCredit, labelColor)}>
+            {credit.prefix}{credit.prefix ? " " : ""}<span style={{ fontFamily: fItalic.css }}>{credit.name}</span>
           </div>
         </div>
       ) : null}

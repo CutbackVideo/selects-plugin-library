@@ -14,14 +14,14 @@
       "id": "summer", "label": "Summer",
       "fonts": ["poppins-bold.woff2.b64", "poppins-black.woff2.b64", "poppins-light.woff2.b64", "poppins-light-italic.woff2.b64", "gloock.woff2.b64"],
       "roles": {
-        "line1": { "file": "poppins-bold.woff2.b64", "case": "none", "tracking": -0.02 },
-        "season": { "file": "poppins-black.woff2.b64", "case": "upper", "tracking": -0.01 },
+        "line1": { "file": "poppins-bold.woff2.b64", "case": "none", "tracking": -0.01 },
+        "season": { "file": "poppins-black.woff2.b64", "case": "upper", "tracking": -0.01, "scaleX": 0.9 },
         "label": { "file": "poppins-light.woff2.b64", "case": "none", "tracking": -0.04 },
         "labelItalic": { "file": "poppins-light-italic.woff2.b64", "case": "none", "tracking": -0.04 },
-        "place": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.74 },
-        "placePrefix": { "file": "gloock.woff2.b64", "case": "lower", "tracking": 0, "scaleX": 0.74 }
+        "place": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.8 },
+        "placePrefix": { "file": "gloock.woff2.b64", "case": "lower", "tracking": 0, "scaleX": 0.8 }
       },
-      "title": { "line1Size": 104, "seasonSize": 272, "line1Y": 35.5, "seasonY": 50.0, "gap": 0 },
+      "title": { "line1Size": 100, "seasonSize": 263, "line1Y": 35.1, "seasonY": 50.1 },
       "colors": { "line1": "#FFFFFF", "season": "#FDE070", "labels": "#FFFFFF", "place": "#F8DC70" },
       "shadow": 0.25
     },
@@ -29,14 +29,14 @@
       "id": "poster", "label": "Poster",
       "fonts": ["poppins-bold.woff2.b64", "anton.woff2.b64", "poppins-light.woff2.b64", "poppins-light-italic.woff2.b64", "gloock.woff2.b64"],
       "roles": {
-        "line1": { "file": "poppins-bold.woff2.b64", "case": "none", "tracking": -0.02 },
+        "line1": { "file": "poppins-bold.woff2.b64", "case": "none", "tracking": -0.01 },
         "season": { "file": "anton.woff2.b64", "case": "upper", "tracking": 0, "fillWidth": 0.9 },
         "label": { "file": "poppins-light.woff2.b64", "case": "none", "tracking": -0.04 },
         "labelItalic": { "file": "poppins-light-italic.woff2.b64", "case": "none", "tracking": -0.04 },
-        "place": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.74 },
-        "placePrefix": { "file": "gloock.woff2.b64", "case": "lower", "tracking": 0, "scaleX": 0.74 }
+        "place": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.8 },
+        "placePrefix": { "file": "gloock.woff2.b64", "case": "lower", "tracking": 0, "scaleX": 0.8 }
       },
-      "title": { "line1Size": 64, "seasonSize": 560, "line1Y": 22.5, "seasonY": 56.0, "gap": 0 },
+      "title": { "line1Size": 64, "seasonSize": 560, "line1Y": 22.5, "seasonY": 56.0 },
       "colors": { "line1": "#FFFFFF", "season": "#FDE070", "labels": "#FFFFFF", "place": "#F8DC70" },
       "shadow": 0.25
     },
@@ -45,13 +45,13 @@
       "fonts": ["instrument-serif-italic.woff2.b64", "gloock.woff2.b64", "poppins-light.woff2.b64", "poppins-light-italic.woff2.b64"],
       "roles": {
         "line1": { "file": "instrument-serif-italic.woff2.b64", "case": "none", "tracking": 0 },
-        "season": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.74 },
+        "season": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.8 },
         "label": { "file": "poppins-light.woff2.b64", "case": "none", "tracking": -0.04 },
         "labelItalic": { "file": "poppins-light-italic.woff2.b64", "case": "none", "tracking": -0.04 },
-        "place": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.74 },
-        "placePrefix": { "file": "gloock.woff2.b64", "case": "lower", "tracking": 0, "scaleX": 0.74 }
+        "place": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.8 },
+        "placePrefix": { "file": "gloock.woff2.b64", "case": "lower", "tracking": 0, "scaleX": 0.8 }
       },
-      "title": { "line1Size": 120, "seasonSize": 280, "line1Y": 33.5, "seasonY": 51.0, "gap": 0 },
+      "title": { "line1Size": 120, "seasonSize": 280, "line1Y": 33.5, "seasonY": 51.0 },
       "colors": { "line1": "#FFFFFF", "season": "#FDE070", "labels": "#FFFFFF", "place": "#F8DC70" },
       "shadow": 0.3
     }
