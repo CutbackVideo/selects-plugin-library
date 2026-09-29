@@ -1186,7 +1186,7 @@ function stRecoverAssembly(cfg, fps, sequenceId) {
   const sizes = Object.assign({}, cfg.sizes || {});
   const unknown = cfg.picks.main.concat(cfg.picks.grid || []).filter(p => !(sizes[p.rid] && sizes[p.rid].width > 0 && sizes[p.rid].height > 0)).length;
   return { sequenceId, fps, frames, placed, gridPlaced, sizes, music: null, recovered: true,
-    notes: unknown ? ['the size of ' + unknown + (unknown === 1 ? ' clip is' : ' clips are') + ' unknown, so ' + (unknown === 1 ? 'it' : 'they') + ' may show bars'] : [] };
+    notes: unknown ? ['the size of ' + unknown + (unknown === 1 ? ' clip is' : ' clips are') + ' unknown, so ' + (unknown === 1 ? 'it' : 'they') + ' may be framed incorrectly (bars, or a misplaced film frame or grid mask)'] : [] };
 }
 
 // assemble.js config (contracts.md). `frames.snaps` from the plan, never the raw onset snaps; every video pick carries
@@ -2040,7 +2040,7 @@ export default function Panel({ sdk, context, ui }: any) {
           const f = await run("Check for the new Draft", "const r = await selects.project(" + JSON.stringify(pid) + ").readFootage();\n"
             + "const before = " + JSON.stringify(draftsBefore) + ";\n"
             + "const name = " + JSON.stringify(draftName) + ";\n"
-            + "const found = (r.drafts || []).filter(d => (before ? before.indexOf(d.sequenceId) < 0 : d.name === name)).map(d => d.sequenceId);\n"
+            + "const found = (r.drafts || []).filter(d => (!before || before.indexOf(d.sequenceId) < 0) && d.name === name).map(d => d.sequenceId);\n"
             + "let fps = null;\n"
             + "if (found.length === 1) { try { fps = (await selects.draft(found[0]).meta()).fps; } catch (x) { fps = null; } }\n"
             + "return { found, fps };");
@@ -2052,7 +2052,8 @@ export default function Panel({ sdk, context, ui }: any) {
           // Saved but unconfirmed: rebuild assemble's result from its config so Finish title and look can add the rest.
           fpsRef.current[pid!] = foundFps;
           const ra: any = stRecoverAssembly(cfg, foundFps, newIds[0]);
-          setResult({ sequenceId: newIds[0], decorated: false, a: ra, plan, inputs, seed: nextSeed, notes: [...notes, ...ra.notes], link: null, shortened: null,
+          setResult({ sequenceId: newIds[0], decorated: false, a: ra, plan, inputs, seed: nextSeed, notes: [...notes, ...ra.notes], link: null,
+            shortened: plan.shrunk ? { shots: plan.montageShots, seconds: ra.frames.endFrame / foundFps, fullSeconds: stTotalSeconds(m.bpm, requested) } : null,
             unchecked: found.failed.length, approximate: m.approximate, recovered: true });
           setStatus({ tone: "error", text: "The Draft \"" + draftName + "\" was saved, but Selects did not confirm it (" + (e?.message || e) + "). It has no title or look yet: press Finish title and look to add them, or build again." });
           return;

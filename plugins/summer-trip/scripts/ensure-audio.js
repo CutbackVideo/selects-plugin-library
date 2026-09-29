@@ -15,7 +15,7 @@ const lookup = async before => {
   else for (const f of files.folders || []) { const d = await p.sourceFiles({ folder: f.name }); if ('fileTree' in d) walk(d.fileTree); }
   const audio = (await p.resources()).filter(r => r.type === 'Audio');
   const find = file => {
-    const byPath = audio.find(r => paths[r.resourceId] === file.path);
+    const byPath = audio.find(r => String(paths[r.resourceId] || '').normalize('NFC') === String(file.path).normalize('NFC'));
     if (byPath) return byPath.resourceId;
     const pool = file.matchByName === false ? (before ? audio.filter(r => !before.has(r.resourceId)) : []) : audio;
     const byName = pool.find(r => base(paths[r.resourceId]) === base(file.path) || r.name === base(file.path));
