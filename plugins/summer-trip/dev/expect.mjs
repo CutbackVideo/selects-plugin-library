@@ -84,8 +84,8 @@ export function stExpectations(input) {
   if (input.music) {
     const X = Math.max(2, Math.round(0.06 * fps));
     if (input.music.wetId) {
-      music = { dry: { resourceId: input.music.dryId, startFrame: 0, endFrame: Math.min(Fend, Fe + Math.ceil(X / 2)), fadeOutSeconds: X / fps },
-        wet: { resourceId: input.music.wetId, startFrame: Fe - Math.floor(X / 2), endFrame: Fend, fadeInSeconds: X / fps, fadeOutSeconds: endFade }, crossfadeFrames: X, db: 0 };
+      music = { dry: { resourceId: input.music.dryId, startFrame: 0, endFrame: Math.min(Fend, Fe + X), fadeOutSeconds: X / fps },
+        wet: { resourceId: input.music.wetId, startFrame: Fe, endFrame: Fend, fadeInSeconds: 0, fadeOutSeconds: endFade }, crossfadeFrames: X, db: 0 };
     } else music = { dry: { resourceId: input.music.dryId, startFrame: 0, endFrame: Fend, fadeOutSeconds: endFade }, wet: null, db: 0 };
   }
   let sfx = { none: true };

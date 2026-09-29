@@ -194,7 +194,7 @@ function readbackOf(m, fps) {
   assert.deepEqual(exp.effectsMain.slice(-3), [[ST_NAMES.look, ST_NAMES.filmFrame], [ST_NAMES.look, ST_NAMES.filmFrame], [ST_NAMES.look, ST_NAMES.filmFrame]]);
   assert.equal(exp.effectCounts[ST_NAMES.filmFrame], 3);
   const X = Math.max(2, Math.round(0.06 * 29.97));
-  assert.deepEqual([exp.music.dry.startFrame, exp.music.dry.endFrame, exp.music.wet.startFrame, exp.music.wet.endFrame], [0, F(32) + Math.ceil(X / 2), F(32) - Math.floor(X / 2), F(40)]);
+  assert.deepEqual([exp.music.dry.startFrame, exp.music.dry.endFrame, exp.music.wet.startFrame, exp.music.wet.endFrame], [0, F(32) + X, F(32), F(40)]);
   assert.deepEqual(exp.sfx.clips.map(c => c.key), ['shutter1', 'shutter2', 'shutter3', 'shutter4', 'whooshDrop', 'whooshEnding']);
   assert.equal(exp.sfx.clips[4].endFrame, F(8));
   assert.equal(exp.sfx.clips[5].endFrame, F(32));

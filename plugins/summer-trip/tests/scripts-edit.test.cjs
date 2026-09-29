@@ -206,16 +206,16 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
     const vids = m.kind('video');
     assert.deepEqual(vids.map(c => [c.resourceId, c.startFrame, c.endFrame]), [['g0', F(8), F(10)], ['g1', F(8.5), F(10.5)], ['g2', F(9), F(11)], ['g3', F(9.5), F(11.5)]]);
     assert.deepEqual(r.gridPlaced.map(g => g.clipId), vids.map(c => c.clipId));
-    // Music: dry to Fe + ceil(X/2), wet from Fe - floor(X/2) at the same sample phase, X = max(2, round(0.06 fps)).
+    // Music: dry to Fe + X fading out under the wet, wet from Fe at full level at the same sample phase, X = max(2, round(0.06 fps)).
     const X = Math.max(2, Math.round(0.06 * fps)), Fe = F(32), Fend = F(40);
     const [dry, wet] = m.kind('audio').filter(c => c.resourceId === 'm9' || c.resourceId === 'w9');
-    assert.deepEqual([dry.resourceId, dry.startFrame, dry.endFrame], ['m9', 0, Fe + Math.ceil(X / 2)], 'dry span' + tag);
-    assert.deepEqual([wet.resourceId, wet.startFrame, wet.endFrame], ['w9', Fe - Math.floor(X / 2), Fend], 'wet span' + tag);
+    assert.deepEqual([dry.resourceId, dry.startFrame, dry.endFrame], ['m9', 0, Fe + X], 'dry span' + tag);
+    assert.deepEqual([wet.resourceId, wet.startFrame, wet.endFrame], ['w9', Fe, Fend], 'wet span' + tag);
     const s0 = Math.round(4.847 * fps) / fps;
-    assert.ok(near(m.log.find(x => x[0] === 'overlay' && x[1] === 'w9')[4], s0 + (Fe - Math.floor(X / 2)) / fps), 'wet phase' + tag);
+    assert.ok(near(m.log.find(x => x[0] === 'overlay' && x[1] === 'w9')[4], s0 + Fe / fps), 'wet phase' + tag);
     assert.ok(near(r.music.dry.sourceStart, s0)); assert.equal(r.music.dry.sourceStartFrom, 'snapped');
     assert.deepEqual(m.audio[dry.clipId], { fadeInSeconds: 0, fadeOutSeconds: X / fps });
-    assert.deepEqual(m.audio[wet.clipId], { fadeInSeconds: X / fps, fadeOutSeconds: (Fend - F(39.5)) / fps });
+    assert.deepEqual(m.audio[wet.clipId], { fadeInSeconds: 0, fadeOutSeconds: (Fend - F(39.5)) / fps });
     assert.equal(r.music.crossfadeFrames, X); assert.equal(r.music.muffle, 'on');
     // SFX: shutter i starts on grid state i; whooshes end on F(8) and Fe.
     const sfx = Object.fromEntries(r.sfxPlaced.map(s => [s.key, [s.rid, s.a, s.b]]));
@@ -257,13 +257,13 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
   assert.ok(near(tf(r2.gridPlaced[0].clipId).scale.x, 0.5), '16:9 panel: exactly half size');
   assert.deepEqual(r2.placed.map(x => x.index), mainPicks.map((_, i) => i));
 
-  // 3. Music: an odd crossfade X splits ceil/floor; s0 read back from the placed clip when Selects reports it.
+  // 3. Music: crossfade X = 3 frames after the ending cut; s0 read back from the placed clip when Selects reports it.
   const m3 = mockDraft(30, { photos: PHOTOS, audioRids: AUDIO, exposeSource: true });
   const r3 = await load('assemble.js', baseCfg({ crossfadeFrames: 3, music: { resourceId: 'm9', sectionStart: 4.847, wetResourceId: 'w9' } }))(project(() => m3));
   const F30 = Fof(30, 4.847);
-  assert.deepEqual([r3.music.dry.a, r3.music.dry.b, r3.music.wet.a, r3.music.wet.b], [0, F30(32) + 2, F30(32) - 1, F30(40)]);
+  assert.deepEqual([r3.music.dry.a, r3.music.dry.b, r3.music.wet.a, r3.music.wet.b], [0, F30(32) + 3, F30(32), F30(40)]);
   assert.equal(r3.music.dry.sourceStartFrom, 'clip');
-  assert.ok(near(r3.music.wet.sourceStart, Math.round(4.847 * 30) / 30 + (F30(32) - 1) / 30));
+  assert.ok(near(r3.music.wet.sourceStart, Math.round(4.847 * 30) / 30 + F30(32) / 30));
   assert.equal(m3.audio[r3.music.dry.clipId].fadeOutSeconds, 3 / 30);
 
   // 4. Fallback: no wet resource -> one dry overlay over [0, F(end)) with the end fade.

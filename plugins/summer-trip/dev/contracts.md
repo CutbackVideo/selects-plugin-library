@@ -51,7 +51,7 @@ plannedSeconds, frame, quantErrorSeconds }]`.
     resourceId, sectionStart,         // dry cue / own music
     wetResourceId: null | string      // muffled copy; null → single dry overlay to the end (spec §15.6 fallback)
   },
-  crossfadeFrames: null,              // null → max(2, round(0.06 * fps))
+  crossfadeFrames: null,              // null → max(2, round(0.06 * fps)); wet from Fe at full level, dry to Fe + X fading out
   clipSound: 'off' | 'ambient' | 'full', ambientDb: -18,
   gridSound: 'routing' | 'volume' | 'none', // chosen after live probe P1; all three branches implemented
   sfx: null | { shutter: [rid…] /* 1–4 takes, cycled */, shutterSeconds: number | number[] /* file length(s); required for

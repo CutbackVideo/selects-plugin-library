@@ -184,8 +184,9 @@ const placeAudio = async (rid, a, b, ss) => {
 };
 const errText = e => String(e && e.message || e);
 
-// Music (spec 15.6). With a muffled copy: dry over [0, Fe + ceil(X/2)), wet over [Fe - floor(X/2), F(end)) at the
-// same sample phase, crossfaded over X frames. Without one: one dry overlay over [0, F(end)). Both end with the fade
+// Music (spec 15.6, live-corrected). With a muffled copy: wet over [Fe, F(end)) at full level from the ending cut, at
+// the same sample phase as the dry; dry over [0, Fe + X) fading out over its last X frames under the wet. Selects' fade
+// curves do not sum to a constant, so a symmetric crossfade left a ~60 ms hole (-49 dB) in a Staging export. Without one: one dry overlay over [0, F(end)). Both end with the fade
 // over [F(end - 0.5), F(end)). If the wet overlay cannot be placed, every clip placed here is removed and the dry
 // music is placed again over the whole length, so a failure never leaves a truncated dry track.
 let music = null;
@@ -205,9 +206,9 @@ if (cfg.music) {
   };
   let dry, wet = null, s0 = null, muffle = 'off';
   if (cfg.music.wetResourceId) {
-    dry = await placeAudio(cfg.music.resourceId, 0, Math.min(Fend, Fe + Math.ceil(X / 2)), ss);
+    dry = await placeAudio(cfg.music.resourceId, 0, Math.min(Fend, Fe + X), ss);
     s0 = readS0(dry);
-    const wa = Fe - Math.floor(X / 2);
+    const wa = Fe;
     try {
       wet = await placeAudio(cfg.music.wetResourceId, wa, Fend, s0.s0 + wa / fps);
       muffle = 'on';
@@ -230,12 +231,12 @@ if (cfg.music) {
   };
   if (wet) {
     await fade(dry.row.clipId, 0, X / fps);
-    await fade(wet.row.clipId, X / fps, endFade);
+    await fade(wet.row.clipId, 0, endFade);
   } else await fade(dry.row.clipId, 0, endFade);
   const out = x => ({ clipId: x.row.clipId, a: x.row.startFrame, b: x.row.endFrame });
   music = {
     dry: { ...out(dry), sourceStart: s0.s0, sourceStartFrom: s0.from },
-    wet: wet ? { ...out(wet), sourceStart: s0.s0 + (Fe - Math.floor(X / 2)) / fps } : null,
+    wet: wet ? { ...out(wet), sourceStart: s0.s0 + Fe / fps } : null,
     crossfadeFrames: wet ? X : null, endFadeSeconds: endFade, muffle,
   };
 }

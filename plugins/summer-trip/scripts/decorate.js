@@ -157,7 +157,7 @@ for (let i = 0; i < nMain; i++) {
   if (cfg.look && (!cfg.look.gradeOff || i === lastMontage)) {
     await ensure(clip.clipId, 'look', LOOK, async c => (i === lastMontage
       ? lookFor(c, ss, leakOutSeconds, stCanvasInBox(sizes[c.resourceId], await d.clipTransform(c)))
-      : lookFor(c, ss, 0)));
+      : lookFor(c, ss, 0, null)));
   }
   // Ending clips: Film frame after the look. The window is fixed on the canvas (canvasInBox); ending photos move
   // inside it (motion), the first clip opens with the leak wash, the last fades to black.
@@ -185,7 +185,7 @@ for (let i = 0; i < nMain; i++) {
 for (const gp of cfg.gridPlaced || []) {
   const clip = gridClip(await all(), gp);
   if (!clip) { missing++; continue; }
-  if (cfg.look && !cfg.look.gradeOff) await ensure(clip.clipId, 'look', LOOK, c => lookFor(c, gp.sourceStart || 0, 0));
+  if (cfg.look && !cfg.look.gradeOff) await ensure(clip.clipId, 'look', LOOK, c => lookFor(c, gp.sourceStart || 0, 0, null));
   if (cfg.gridPanel && !is169(sizes[gp.rid])) {
     await ensure(clip.clipId, 'gridPanel', GRID, async c => {
       const q = QUAD_RECT[gp.quad];
