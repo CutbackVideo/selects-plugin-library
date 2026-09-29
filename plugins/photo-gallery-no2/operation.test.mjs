@@ -62,8 +62,9 @@ test('the effect identity readback matches the actual bundled source', () => {
   assert.equal(createHash('sha256').update(effectCode).digest('hex'), effectSha);
 });
 
-test('an SDK that omits Project images stops inspection with the actual capability gap', async () => {
-  const { run, calls } = fixture({ imageTree: false });
+test('an Image Resource without publicly exposed dimensions stops inspection before mutation', async () => {
+  const { run, calls, nodes } = fixture();
+  for (const node of nodes) { node.type = 'video'; delete node.frameSize; }
   const result = await run({ operation: 'inspect', projectId: 'project-1' });
   assert.equal(result.status, 'notSaved');
   assert.match(result.message, /no readable path or dimensions/);

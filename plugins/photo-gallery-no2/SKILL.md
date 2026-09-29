@@ -11,7 +11,7 @@ Use this skill when a user asks for the 3-column × 7-row gallery format of [the
 
 The panel and this skill use the same `build-script.mjs` and Selects `run_script` operation. Do not reimplement the grid in a chat prompt. The CLI reads **one JSON object from stdin** and emits a complete `run_script` body to stdout. Keep JSON out of shell argument interpolation; use a quoted heredoc or a temporary JSON file. If CLI output is truncated or fails, stop before mutation.
 
-Check [INSTALL.md](INSTALL.md) before use. In the currently checked Selects `develop` build, this format cannot be saved because the public SDK omits Image file inventory, Image placement, and template binding. A missing capability is a real `notSaved` result. Do not imply that an unrun or blocked operation produced a Draft.
+Check [INSTALL.md](INSTALL.md) before use. In the currently checked Selects `develop` build, this format cannot be saved because Image dimensions are absent from the public file-tree inventory and the public overlay placement path rejects Image Resources. The package also currently gates creation on template binding so that later slot edits have stable identity; that gate can be redesigned without changing the client. A missing capability is a real `notSaved` result. Do not imply that an unrun or blocked operation produced a Draft.
 
 ```sh
 node "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/build-script.mjs" <<'PHOTO_GALLERY_INPUT'
