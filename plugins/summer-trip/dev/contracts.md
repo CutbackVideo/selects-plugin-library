@@ -142,10 +142,35 @@ skipped: { unanalysed, missing }, captureDates: { known, probed } }`. Dates with
 
 ## Graphic parameters
 
-- Title: `{ preset, line1, season, wordTimes: [s…], seasonPartTime, seasonFullTime, seasonPartLength, labelsTime, topMain, topItalic,
-  creditPrefix, creditName, colors: { line1, season, labels }, sizes, positions, fonts: { [family]: base64 } }` — times in seconds from
-  the graphic's start.
-- Labels: `{ preset, topMain, topItalic, creditPrefix, creditName, placePrefix, place, placeSeconds, colors, sizes, positions, fonts }`.
+Built by `graphics-defs.js` (a plain script like `planner.js`: the panel embeds it verbatim between
+`// st-graphics:start` / `// st-graphics:end`, the tests load it in node:vm; it needs a `plugin.json` `files` entry). Parameters
+are **flat top-level keys** because the Inspector edits one top-level key per editable definition (so no `colors`/`sizes`/
+`positions` objects). Sizes are px of a 1080-high frame, positions % of the frame, times seconds from the graphic's start.
+
+- `stTitleParameters({ presets, presetId, fontsB64, line1, season, wordTimes, seasonPartTime, seasonFullTime, seasonPartLength,
+  labelsTime, topMain, topItalic, creditPrefix, creditName })` → Title: `{ preset, line1, season, wordTimes, seasonPartTime,
+  seasonFullTime, seasonPartLength, labelsTime, topMain, topItalic, creditPrefix, creditName, creditUppercase (true), line1Color,
+  seasonColor, labelColor, shadow, line1Size, seasonSize, labelSize, creditSize, labelTracking, creditTracking (em), line1Y, seasonY, topY (12.6), creditY (89.9),
+  marginPct (6), stackGap, faces, fonts }`.
+- `stLabelsParameters({ presets, presetId, fontsB64, topMain, topItalic, creditPrefix, creditName, placePrefix, place,
+  placeSeconds })` → Labels: `{ preset, topMain, topItalic, creditPrefix, creditName, creditUppercase (false), placePrefix, place,
+  placeSeconds, labelColor, placeColor, shadow, labelSize, creditSize, labelTracking, creditTracking, placeSize, topY (8.6), creditY (93.0), placeX (72.5),
+  placeY (38.9), prefixScale, prefixDrop, placeCapRatio, marginPct, faces, fonts }`.
+- `faces`: `{ [role]: { family, case, tracking, scaleX, fillWidth? } }` (title roles line1/season/label/labelItalic; labels roles
+  label/labelItalic/place/placePrefix). `fonts`: `{ [family]: base64 }` — only the chosen preset's families.
+- Faces: every `ST ...` family is a single face. The graphics declare each `@font-face` as normal/400 and never request
+  italic/bold in CSS (the family itself is the italic/bold face); the panel preview must register them the same way (ignore
+  `style`/`weight` in presets.json, which are informational), or the preview and the render will disagree.
+- `fontsB64`: `{ [file]: base64 text }` for `stPresetFontFiles(presets, presetId)` (read `assets/fonts/<file>`); a build embeds
+  only the chosen preset's fonts.
+- Adjust: `stEditable(ST_TITLE_EDITABLE, params)` / `stEditable(ST_LABELS_EDITABLE, params)` (defaultValue = the parameter).
+  Cast inlined objects `as any` in the panel (inline JSON literals widen types).
+- Label layout differs per graphic, as in the reference: during the title the labels sit at 12.6% / 89.9% with an uppercase credit
+  ("BY NAME"); from the place title on at 8.6% / 93.0% with the credit as typed ("By Name"). Default credit prefix: "By".
+- Poster: the season word fits `fillWidth` (90%) of the width and line 1 stacks `stackGap` px above its caps (`line1Y` unused).
+- Title typing: word i shows from `wordTimes[min(i, len-1)]` (more words than times share the last time); the season shows its
+  first `seasonPartLength` letters from `seasonPartTime` (0 or ≥ length → whole word) and all from `seasonFullTime`; labels from
+  `labelsTime`. Event frame = `round(seconds · fps)`, so pass times as `frame / fps` from the frame schedule.
 
 ## Visible events (verification)
 
