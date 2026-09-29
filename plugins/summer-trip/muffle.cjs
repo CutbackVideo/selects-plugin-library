@@ -5,6 +5,7 @@
 //
 // The cutoff was chosen as the spec's starting point (1.2 kHz, 2-pole, -1 dB); change it here only, then rebuild the
 // cues and update the panel's copy.
+// st-muffle:start
 const ST_MUFFLE_FILTER = 'lowpass=f=1200:p=2,volume=-1dB';
 const ST_MUFFLE_BITRATE = '96k';
 
@@ -23,5 +24,6 @@ function stMuffleCommand(inPath, outPath) {
   return ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', sq(inPath), '-af', sq(ST_MUFFLE_FILTER), '-ar', '44100', '-ac', '2',
     ...(wav ? ['-c:a', 'pcm_s16le'] : ['-c:a', 'libmp3lame', '-b:a', ST_MUFFLE_BITRATE]), '-map_metadata', '-1', sq(outPath)].join(' ');
 }
+// st-muffle:end
 
 module.exports = { ST_MUFFLE_FILTER, ST_MUFFLE_BITRATE, sq, stMuffleCommand };

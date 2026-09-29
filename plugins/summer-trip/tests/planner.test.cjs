@@ -142,7 +142,11 @@ eq(P.stTitleSchedule('', 'SUMMER').words, []);
 // titleHits: used only for <= 4 words, and only when valid (6 sorted finite values in [0, 8)).
 const hits = [0.25, 1.1, 2, 2.75, 4.5, 5.25];
 const th = P.stTitleSchedule('that one trip in', 'SUMMER', hits);
-eq([th.wordBeats, th.seasonPartBeat, th.seasonFullBeat, th.labelsBeat, th.source], [[0.25, 1.1, 2, 2.75], 4.5, 5.25, 5, 'hits']);
+eq([th.wordBeats, th.seasonPartBeat, th.seasonFullBeat, th.labelsBeat, th.source], [[0.25, 1.1, 2, 2.75], 4.5, 5.25, 5.25, 'hits']);
+// Labels never come before the full season word: max(5, second season hit) with hits, 5 without.
+eq(P.stTitleSchedule('that one trip in', 'SUMMER', [0, 1, 2, 3, 3.5, 4.5]).labelsBeat, 5, 'an early season hit keeps the labels on 5');
+eq(P.stTitleSchedule('that one trip in', 'SUMMER', [0, 1, 2, 3, 4.5, 6]).labelsBeat, 6);
+eq(P.stTitleSchedule('the one trip we took in', 'SUMMER', [0, 1, 2, 3, 4.5, 6]).labelsBeat, 5, '5+ words ignore the hits');
 eq(P.stTitleSchedule('our trip', 'SUMMER', hits).wordBeats, [0.25, 1.1]);
 eq(P.stTitleSchedule('the one trip we took in', 'SUMMER', hits).source, 'eighths', '5+ words ignore the hits');
 for (const bad of [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 8], [-0.1, 1, 2, 3, 4, 5], [0, 2, 1, 3, 4, 5], [0, 1, 1, 3, 4, 5], [0, 1, 2, 3, 4, NaN], [0, 1, 2, 3, 4, Infinity], null, 'x']) {

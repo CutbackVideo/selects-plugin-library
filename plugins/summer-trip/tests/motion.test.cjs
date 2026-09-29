@@ -1,5 +1,5 @@
-// plugins/summer-trip/tests/motion.test.cjs (adapted from city-weekend-vlog: transform + no-edge sweep; the planner's
-// motion choice is tested with the planner when it exposes stPhotoMotions)
+// plugins/summer-trip/tests/motion.test.cjs (adapted from city-weekend-vlog: transform + no-edge sweep, and the
+// planner's motion choice from stPhotoMotions)
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
 const src = fs.readFileSync(path.join(root, 'assets', 'photo-motion.tsx'), 'utf8');
@@ -56,11 +56,36 @@ for (const motion of MOTIONS) for (const strength of [0, 0.5, 1, 1.5, 2]) for (c
   }
 
 
-// Planner motion choice (lane 1), when the planner exposes it.
+// Planner motion choice (lane 1).
 const plannerPath = path.join(root, 'planner.js');
-if (fs.existsSync(plannerPath)) {
+{
   const pbox = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON }; vm.createContext(pbox);
   vm.runInContext(fs.readFileSync(plannerPath, 'utf8') + ';globalThis.P={stPhotoMotions:typeof stPhotoMotions==="function"?stPhotoMotions:null,ST_PHOTO_MOTIONS:typeof ST_PHOTO_MOTIONS!=="undefined"?ST_PHOTO_MOTIONS:null};', pbox);
-  if (pbox.P.ST_PHOTO_MOTIONS) assert.deepEqual(j(pbox.P.ST_PHOTO_MOTIONS), MOTIONS, 'planner motions match the effect');
+  assert.deepEqual(j(pbox.P.ST_PHOTO_MOTIONS), MOTIONS, 'planner motions match the effect');
+  // The planner's choices are motions this effect knows, never the same family twice in a row, with a direction and
+  // an axis the effect accepts, and every one renders without edges (checked above for all of them).
+  const fam = m => (m.startsWith('drift-') ? 'drift' : m);
+  const sizes = { p0: { width: 1080, height: 1920 }, p1: { width: 1440, height: 1080 }, p2: { width: 1920, height: 1080 }, p3: { width: 3000, height: 2000 } };
+  for (const seed of ['s1', 's2', 's3', 's4', 's5']) {
+    const main = [{ rid: 'o', kind: 'video', role: 'opener' }, { rid: 'q', kind: 'photo', role: 'place' }];
+    for (let i = 0; i < 12; i++) main.push({ rid: 'p' + (i % 4), kind: 'photo', role: 'montage' });
+    for (let i = 0; i < 3; i++) main.push({ rid: 'p' + i, kind: 'photo', role: 'ending' });
+    const r = j(pbox.P.stPhotoMotions(main, seed, sizes));
+    assert.deepEqual(Object.keys(r.motions).map(Number), Array.from({ length: 12 }, (_, i) => i + 2), 'every montage photo moves; the place photo stays still');
+    assert.deepEqual(Object.keys(r.endingMotion).map(Number), [0, 1, 2]);
+    const seq = Object.values(r.motions).concat(Object.values(r.endingMotion));
+    seq.forEach((m, i) => {
+      assert.ok(MOTIONS.includes(m.motion), 'known motion ' + m.motion);
+      assert.ok([1, -1].includes(m.direction) && ['x', 'y'].includes(m.axis), JSON.stringify(m));
+      if (i) assert.notEqual(fam(m.motion), fam(seq[i - 1].motion), 'no family twice in a row');
+      const t = T(m.motion, 1, 1, m.direction, m.axis, 1920, 1080, 1);
+      assert.ok(Number.isFinite(t.scale) && t.scale >= 1, 'renders ' + m.motion);
+    });
+    // Axis per photo shape on the 16:9 canvas: 9:16, 4:3 and 3:2 move along y, 16:9 along x.
+    main.forEach((p, i) => {
+      const m = i >= 14 ? r.endingMotion[i - 14] : r.motions[i];
+      if (m) assert.equal(m.axis, p.rid === 'p2' ? 'x' : 'y', p.rid + ' axis');
+    });
+  }
 }
 console.log(JSON.stringify({ motion: 'ok' }));

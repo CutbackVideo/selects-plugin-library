@@ -230,6 +230,7 @@ function offBeatLocked(bf, sampleRate, attack, period, t1) {
 
 // opts.phaseBeats (dev only, default 0): move the grid by this many beats before the first beat is chosen, after the
 // phase sanity check (offBeatLocked); no bundled cue needs it since v2.6.
+// opts.dropPick: detectDrop's pick for the reported drop ('first', the default, or 'largest': own music, spec 7.3).
 function analyze(samples, sampleRate, opts) {
   const durationSeconds = samples.length / sampleRate;
   const { env, strong } = onsetEnvelope(samples);
@@ -349,7 +350,7 @@ function analyze(samples, sampleRate, opts) {
     onsetThresholds: bands.thresholds,
     // Summer Trip: the drop (detectDrop on the tempo-octave grid, null when none qualifies) and the downbeat clarity
     // measured from the drop (or the first beat) on, with the drop's bar line as beat 1.
-    ...dropAndDownbeat(samples, sampleRate, 60 / period, firstBeat),
+    ...dropAndDownbeat(samples, sampleRate, 60 / period, firstBeat, opts && opts.dropPick),
   };
 }
 
@@ -473,8 +474,8 @@ function anchorOnDrop(drop, bpm, firstBeat) {
 // The drop on the octave grid and the downbeat clarity from it (analyze() and the cue build share this). The drop
 // carries its grid: bpm (the tempo-octave choice, which can differ from analyze()'s bpm for 70-85 BPM detections)
 // and firstBeat (analyze()'s, re-anchored by anchorOnDrop), dropBeat counting from that firstBeat in beats of bpm.
-function dropAndDownbeat(samples, sampleRate, bpm, firstBeat) {
-  const obpm = octaveBpm(bpm), drop = obpm ? detectDrop(samples, sampleRate, { bpm: obpm, firstBeat }) : null;
+function dropAndDownbeat(samples, sampleRate, bpm, firstBeat, pick) {
+  const obpm = octaveBpm(bpm), drop = obpm ? detectDrop(samples, sampleRate, { bpm: obpm, firstBeat }, pick ? { pick } : undefined) : null;
   const barOrigin = drop ? drop.dropSeconds : firstBeat;
   return {
     drop: drop ? { ...drop, ...anchorOnDrop(drop, obpm, Math.round(firstBeat * 1000) / 1000), bpm: Math.round(obpm * 100) / 100 } : null,
@@ -486,11 +487,13 @@ module.exports = { analyze, sixteenthRatio, bandOnsets, bandFlux, detectDrop, an
 
 if (require.main === module) {
   try {
-    const [file, rate, out] = process.argv.slice(2);
+    // node beat-detect.cjs <pcm.f32> <rate> [<out.json>] [largest]: 'largest' reports the largest loudness step as the
+    // drop (the panel's own-music analysis) instead of the first.
+    const [file, rate, out, pick] = process.argv.slice(2);
     const fs = require('node:fs');
     const buf = fs.readFileSync(file);
     const samples = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
-    const json = JSON.stringify(analyze(samples, Number(rate) || 22050)) + '\n';
+    const json = JSON.stringify(analyze(samples, Number(rate) || 22050, pick === 'largest' ? { dropPick: 'largest' } : undefined)) + '\n';
     if (out) { fs.writeFileSync(out, json); process.stdout.write('{"ok":true}\n'); } else process.stdout.write(json);
   } catch (e) {
     process.stdout.write(JSON.stringify({ error: String(e && e.message || e) }) + '\n');

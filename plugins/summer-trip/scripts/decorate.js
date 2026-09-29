@@ -116,9 +116,12 @@ const timeOrigin = (cfg.filmFrame && cfg.filmFrame.timeOrigin) || (cfg.look && c
 const leakStrength = x => (x && typeof x.leakStrength === 'number' ? x.leakStrength : 1);
 const leakOutSeconds = (fr.endingFrame - fr.leakFrames.a) / fps;
 const leakInSeconds = (fr.leakFrames.b - fr.endingFrame) / fps;
-const lookFor = (clip, sourceStartSeconds, leakOut) => ({
+// canvasInBox (the last montage clip only): the canvas in % of the clip's own box, so the transition leak is laid
+// out on the canvas, not on a cover-cropped portrait or photo box.
+const lookFor = (clip, sourceStartSeconds, leakOut, canvasInBox) => ({
   tsx: cfg.look.tsx,
-  parameters: { strength: cfg.look.strength, leakOutSeconds: leakOut, leakStrength: leakStrength(cfg.look), clipSeconds: (clip.endFrame - clip.startFrame) / fps, sourceStartSeconds, timeOrigin },
+  parameters: { strength: cfg.look.strength, leakOutSeconds: leakOut, leakStrength: leakStrength(cfg.look), clipSeconds: (clip.endFrame - clip.startFrame) / fps, sourceStartSeconds, timeOrigin,
+    ...(canvasInBox ? { canvasInBox } : {}) },
   editableParameters: [
     { key: 'strength', label: 'Summer look', type: 'number', defaultValue: cfg.look.strength, min: 0, max: 1, step: 0.05 },
     { key: 'leakStrength', label: 'Light leak', type: 'number', defaultValue: leakStrength(cfg.look), min: 0, max: 2, step: 0.05 }],
@@ -150,7 +153,11 @@ for (let i = 0; i < nMain; i++) {
       editableParameters: motionDefs(mm) }));
   }
   // Summer look on every clip; the last montage clip carries the outgoing leak (a quarter beat before the ending cut).
-  if (cfg.look) await ensure(clip.clipId, 'look', LOOK, c => lookFor(c, ss, i === lastMontage ? leakOutSeconds : 0));
+  if (cfg.look) {
+    await ensure(clip.clipId, 'look', LOOK, async c => (i === lastMontage
+      ? lookFor(c, ss, leakOutSeconds, stCanvasInBox(sizes[c.resourceId], await d.clipTransform(c)))
+      : lookFor(c, ss, 0)));
+  }
   // Ending clips: Film frame after the look. The window is fixed on the canvas (canvasInBox); ending photos move
   // inside it (motion), the first clip opens with the leak wash, the last fades to black.
   if (cfg.filmFrame && i >= endingFirst) {

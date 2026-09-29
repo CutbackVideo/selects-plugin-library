@@ -251,6 +251,23 @@ for (const seed of ['s1', 's2', 's3']) {
   if (m3) eq(m3.axis, 'y', 'portrait photo drifts vertically');
 }
 eq(j(P.stPhotoMotions([{ rid: 'v', kind: 'video', role: 'montage' }, { rid: 'p', kind: 'photo', role: 'opener' }], 's', {})), { motions: {}, endingMotion: {} });
+// Motion axis on the 16:9 canvas: a photo narrower than 16:9 is cropped top and bottom and moves along y; 16:9, wider
+// and unknown sizes move along x.
+{
+  const axisOf = size => P.stPhotoMotions([{ rid: 'a', kind: 'video', role: 'opener' }, { rid: 'b', kind: 'video', role: 'place' }, { rid: 'p', kind: 'photo', role: 'montage' }, { rid: 'e1', kind: 'video', role: 'ending' }, { rid: 'e2', kind: 'video', role: 'ending' }, { rid: 'e3', kind: 'video', role: 'ending' }], 's', size ? { p: size } : {}).motions[2].axis;
+  eq(axisOf({ width: 1080, height: 1920 }), 'y', '9:16');
+  eq(axisOf({ width: 1440, height: 1080 }), 'y', '4:3');
+  eq(axisOf({ width: 3000, height: 2000 }), 'y', '3:2');
+  eq(axisOf({ width: 1080, height: 1080 }), 'y', 'square');
+  eq(axisOf({ width: 1920, height: 1080 }), 'x', '16:9');
+  eq(axisOf({ width: 3840, height: 1646 }), 'x', '21:9');
+  eq(axisOf(null), 'x', 'unknown size');
+  // A drift on a 4:3 photo is vertical.
+  for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+    const m = P.stPhotoMotions([{ rid: 'p', kind: 'photo', role: 'montage' }, { rid: 'v', kind: 'video', role: 'ending' }, { rid: 'w', kind: 'video', role: 'ending' }, { rid: 'x', kind: 'video', role: 'ending' }], seed, { p: { width: 1440, height: 1080 } }).motions[0];
+    if (m.motion.startsWith('drift-')) ok(m.motion === 'drift-up' || m.motion === 'drift-down', '4:3 drift is vertical: ' + m.motion);
+  }
+}
 
 // Build progress (as City Weekend Vlog).
 eq(P.ST_BUILD_STEPS.length, 5);
