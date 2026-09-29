@@ -11,13 +11,17 @@ const SIZE_CHECK = 'Summer Trip size check';
 
 // Copy of the planner's stFrameSchedule (contracts.md "Frame schedule"): every event frame comes from one F().
 // F(0) = 0; F(b) = round((b * 60 / bpm + delta) * fps); an anchor beat listed in `snaps` uses its snapped seconds,
-// which moves every event defined at that beat with it.
+// which moves every event defined at that beat with it. The light leak is defined around the ending cut, so a
+// snapped ending start carries it along: leak = snapped E seconds +/- the leak half-width in beats, as in the planner.
+// leakFrames is returned as { a, b } (the planner returns [a, b]); the frame numbers are the same.
 const stFrameSchedule = ({ schedule, bpm, delta, fps, snaps }) => {
   const anchors = new Set(schedule.anchors || []);
   const sn = snaps || {};
   const planned = b => (anchors.has(b) && Number.isFinite(sn[String(b)]) ? sn[String(b)] : b * 60 / bpm);
   const F = b => (b === 0 ? 0 : Math.round((planned(b) + delta) * fps));
   const E = schedule.endingStart;
+  const eSnapped = anchors.has(E) && Number.isFinite(sn[String(E)]);
+  const leakF = b => (eSnapped ? Math.round((sn[String(E)] + (b - E) * 60 / bpm + delta) * fps) : F(b));
   const beats = new Set([...schedule.mainBeats, ...schedule.gridStates, ...schedule.title, ...schedule.place,
     ...schedule.labels.flat(), schedule.fadeStart, schedule.leak.a, schedule.leak.b, ...schedule.pulses]);
   return {
@@ -29,7 +33,7 @@ const stFrameSchedule = ({ schedule, bpm, delta, fps, snaps }) => {
     labelsFrames: schedule.labels.map(([a, b]) => [F(a), F(b)]),
     placeFrames: schedule.place.map(F),
     endingFrame: F(E), endFrame: F(schedule.end), fadeStartFrame: F(schedule.fadeStart),
-    leakFrames: { a: F(schedule.leak.a), b: F(schedule.leak.b) },
+    leakFrames: { a: leakF(schedule.leak.a), b: leakF(schedule.leak.b) },
     pulseFrames: schedule.pulses.map(F),
     report: [...beats].sort((x, y) => x - y).map(b => {
       const frame = F(b);
