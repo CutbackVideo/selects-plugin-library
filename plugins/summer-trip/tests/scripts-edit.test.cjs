@@ -366,6 +366,7 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
   const quarter = (fr.endingFrame - fr.leakFrames.a) / fps;
   assert.ok(near(quarter, 0.125, 1 / 30), 'a quarter beat at 120 BPM');
   mainIds.forEach((id, i) => assert.equal(par(id, 'Summer look').leakOutSeconds, i === 9 ? quarter : 0, 'leak only on the last montage clip'));
+  mainIds.forEach((id, i) => assert.equal('canvasInBox' in par(id, 'Summer look'), i === 9, 'canvasInBox only on the leak clip'));
   assert.deepEqual(par(mainIds[4], 'Photo motion'), { motion: 'push-in', strength: 1, direction: 1, axis: 'x', cover: 1, holdSeconds: Math.round((fr.mainFrames[5] - fr.mainFrames[4]) / 30 * 1000) / 1000 });
   assert.equal(par(mainIds[3], 'Summer look').sourceStartSeconds, Math.round(0.51 * 30) / 30);
   // Film frame per ending clip.
@@ -443,15 +444,19 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
   await assert.rejects(load('decorate.js', decoCfg({ mute: true, gridSound: 'none' }))({ draft: () => bad.m.d }), /mute the clips' own sound: nope/);
   assert.equal(commits(bad.m), 1);
 
-  // 8. canvasInBox for 16:9, 9:16, 4:3 and 3:2 ending sources: the same canvas rectangle.
+  // 8. canvasInBox for 16:9, 9:16, 4:3 and 3:2 ending sources (Film frame) and last montage sources (the Summer
+  // look's transition leak): the same canvas rectangle.
   for (const s of [L, P, { width: 1440, height: 1080 }, { width: 3000, height: 2000 }]) {
     const m = mockDraft(30, { photos: PHOTOS, audioRids: AUDIO });
-    const sz = { ...sizes, r10: s };
+    const sz = { ...sizes, r10: s, [mainPicks[9].rid]: s };
     const r = await load('assemble.js', baseCfg({ sizes: sz, music: null }))(project(() => m));
     m.reopen();
-    await load('decorate.js', decoCfg({ frames: r.frames, placed: r.placed, gridPlaced: r.gridPlaced, sizes: r.sizes, mute: false, gridSound: 'none', title: null, labels: null, look: null, gridPanel: null, motion: null }))({ draft: () => m.d });
-    const p = m.effects[r.placed[10].clipId][0].parameters.canvasInBox;
+    await load('decorate.js', decoCfg({ frames: r.frames, placed: r.placed, gridPlaced: r.gridPlaced, sizes: r.sizes, mute: false, gridSound: 'none', title: null, labels: null, gridPanel: null, motion: null }))({ draft: () => m.d });
+    const p = m.effects[r.placed[10].clipId].find(e => e.name === 'Film frame').parameters.canvasInBox;
     close(p, cib(s));
+    const lk = m.effects[r.placed[9].clipId].find(e => e.name === 'Summer look').parameters;
+    assert.ok(lk.leakOutSeconds > 0, 'the leak clip');
+    close(lk.canvasInBox, cib(s));
     // Back to canvas px: the rectangle is the whole canvas.
     const fit = Math.min(1920 / s.width, 1080 / s.height), k = cover(s), bw = s.width * fit * k, bh = s.height * fit * k;
     assert.ok(near(p.w / 100 * bw, 1920, 1e-6) && near(p.h / 100 * bh, 1080, 1e-6));

@@ -214,7 +214,8 @@ function stTitleSchedule(line1, season, titleHits) {
     seasonPartBeat: useHits ? titleHits[4] : 4,
     seasonPartLength: len >= 4 ? Math.ceil(len / 2) : len,
     seasonFullBeat: useHits ? titleHits[5] : 5,
-    labelsBeat: 5,
+    // Labels never come before the full season word (a cue's second season hit can fall after beat 5).
+    labelsBeat: useHits ? Math.max(5, titleHits[5]) : 5,
     source: useHits ? 'hits' : words.length <= 4 ? 'beats' : 'eighths',
   };
 }
@@ -707,8 +708,9 @@ function stPlanBuild(opts) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // Photo motions (copied from City Weekend Vlog): deterministic per seed; never the same family (push-in, pull-out,
-// drift, tilt, push-drift) twice in a row; drift, tilt and push-drift directions alternate. Drift follows the photo:
-// vertical for portrait, horizontal otherwise; an unknown size counts as landscape. One sequence runs over the Main
+// drift, tilt, push-drift) twice in a row; drift, tilt and push-drift directions alternate. Drift follows the room the
+// 16:9 canvas's cover crop leaves: a photo narrower than 16:9 (portrait, square, 4:3, 3:2) is cropped top and bottom
+// and drifts vertically; 16:9 and wider drift horizontally; an unknown size counts as 16:9. One sequence runs over the Main
 // photos from the montage on, split into `motions` (montage photos, keyed by Main index) and `endingMotion` (ending
 // photos, keyed by ending index 0-2; the film-frame effect performs them). Opener and place photos stay still.
 const ST_PHOTO_MOTIONS = ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift'];
@@ -720,19 +722,20 @@ function stPhotoMotions(main, seed, sizes) {
   main.forEach((pick, i) => {
     if (!pick || pick.kind !== 'photo' || (pick.role !== 'montage' && pick.role !== 'ending')) return;
     const size = sizes && sizes[pick.rid];
-    const portrait = !!(size && size.height > size.width);
+    // Narrower than the canvas: the cover crop leaves room above and below, so the drift runs along y.
+    const tall = !!(size && size.width > 0 && size.height > 0 && size.width / size.height < ST_W / ST_H - 1e-6);
     const families = ST_MOTION_FAMILIES.filter(f => f !== lastFamily)
       .map(f => ({ f, v: stHash(seed + ':motion:' + k + ':' + f) }))
       .sort((a, b) => b.v - a.v || (a.f < b.f ? -1 : 1));
     const family = families[0].f;
     let motion = family, direction = 1;
     if (family === 'drift') {
-      const axis = portrait ? 'y' : 'x';
+      const axis = tall ? 'y' : 'x';
       direction = driftSign[axis]; driftSign[axis] = -direction;
       motion = axis === 'x' ? (direction > 0 ? 'drift-right' : 'drift-left') : (direction > 0 ? 'drift-down' : 'drift-up');
     } else if (family === 'tilt') { direction = tiltSign; tiltSign = -tiltSign; }
     else if (family === 'push-drift') { direction = pushDriftSign; pushDriftSign = -pushDriftSign; }
-    const entry = { motion, direction, axis: portrait ? 'y' : 'x' };
+    const entry = { motion, direction, axis: tall ? 'y' : 'x' };
     if (i >= endingFrom) endingMotion[i - endingFrom] = entry; else motions[i] = entry;
     lastFamily = family; k++;
   });

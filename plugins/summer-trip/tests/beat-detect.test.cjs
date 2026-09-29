@@ -181,6 +181,19 @@ assert.equal(detectDrop(barsTrack([-3, -3, ...loud(12)]), sr, grid120), null, '3
 const twoSteps = barsTrack([-12, -12, -7, -7, -20, -20, ...loud(6)]);
 assert.equal(detectDrop(twoSteps, sr, grid120).dropBeat, 8, 'first step');
 assert.equal(detectDrop(twoSteps, sr, grid120, { pick: 'largest' }).dropBeat, 24, 'largest step');
+// analyze() reports the first by default and the largest with dropPick 'largest' (the panel's own-music analysis).
+assert.equal(analyze(twoSteps, sr).drop.dropBeat, 8, 'analyze: first step');
+assert.equal(analyze(twoSteps, sr, { dropPick: 'largest' }).drop.dropBeat, 24, 'analyze: largest step');
+{
+  // CLI: a 4th argument 'largest' does the same (the panel runs it for own music).
+  const pcm = path.join(require('node:os').tmpdir(), 'st-beat-two-steps.f32'), json = pcm + '.json';
+  fs.writeFileSync(pcm, Buffer.from(twoSteps.buffer, twoSteps.byteOffset, twoSteps.byteLength));
+  assert.equal(execFileSync('node', [path.join(root, 'beat-detect.cjs'), pcm, String(sr), json, 'largest']).toString().trim(), '{"ok":true}');
+  assert.equal(JSON.parse(fs.readFileSync(json, 'utf8')).drop.dropBeat, 24, 'CLI largest');
+  execFileSync('node', [path.join(root, 'beat-detect.cjs'), pcm, String(sr), json]);
+  assert.equal(JSON.parse(fs.readFileSync(json, 'utf8')).drop.dropBeat, 8, 'CLI default first');
+  fs.rmSync(pcm, { force: true }); fs.rmSync(json, { force: true });
+}
 // Bar lines follow firstBeat: the same track delayed by one beat has its drop one beat later in seconds, same beat.
 const delayed = new Float32Array(dropTrack.length + sr / 2); delayed.set(dropTrack, sr / 2);
 assert.deepEqual([detectDrop(delayed, sr, { bpm: 120, firstBeat: 0.5 }).dropBeat, detectDrop(delayed, sr, { bpm: 120, firstBeat: 0.5 }).dropSeconds], [8, 4.5]);
