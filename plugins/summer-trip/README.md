@@ -135,7 +135,7 @@ with a faster track and longer with a slower one.
   **Full** keeps it at its original level. The music stays at its full
   level in every mode. Photos have no sound.
 - **Look**: the Summer look is on by default at strength 0.3 (0 to 1). Off
-  removes the grade; the light leaks stay.
+  removes the grade; the film frame and its light leaks stay.
 - **Sound effects**: off by default. On adds a camera-shutter click on each
   of the first four grid steps and a soft whoosh into the drop and into the
   ending. They play with or without music.
