@@ -3,8 +3,8 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const dir = path.resolve(__dirname, '..', 'assets', 'cues');
 const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
 assert.equal(m.version, 1);
-assert.deepEqual(m.cues.map(c => c.id), ['sunny-soul-strut', 'golden-hour-disco', 'easy-sunday-lofi', 'weekend-indie-pop']);
-const expected = { 'sunny-soul-strut': 99, 'golden-hour-disco': 104, 'easy-sunday-lofi': 88, 'weekend-indie-pop': 112 };
+assert.deepEqual(m.cues.map(c => c.id), ['sunny-soul-strut', 'golden-hour-disco', 'easy-sunday-lofi', 'weekend-indie-pop', 'brooklyn-boom-bap', 'downtown-funk-break', 'sunset-afro-house']);
+const expected = { 'sunny-soul-strut': 99, 'golden-hour-disco': 104, 'easy-sunday-lofi': 88, 'weekend-indie-pop': 112, 'brooklyn-boom-bap': 90, 'downtown-funk-break': 98, 'sunset-afro-house': 115 };
 for (const c of m.cues) {
   const buf = fs.readFileSync(path.join(dir, c.file));
   assert.equal(crypto.createHash('sha256').update(buf).digest('hex'), c.sha256, c.id + ' hash');
@@ -12,6 +12,7 @@ for (const c of m.cues) {
   assert.ok(Math.abs(c.bpm - expected[c.id]) < 0.3, c.id + ' bpm ' + c.bpm);
   assert.ok(c.firstBeat >= 0 && c.firstBeat < 0.05, c.id + ' firstBeat');
   assert.ok(Math.abs(c.lufs + 14) <= 1, c.id + ' lufs ' + c.lufs);
+  assert.ok(['high', 'low'].includes(c.downbeatConfidence), c.id + ' downbeatConfidence');
   // The longest video (12 montage shots) must fit from the start of the cue.
   assert.ok(c.firstBeat + (8 + 24) * 60 / c.bpm <= c.usableEnd, c.id + ' fits long');
   // The 16th-onset ratio measured by beat-detect.cjs decides the title burst.
@@ -38,6 +39,12 @@ for (const c of m.cues) {
   const q16 = 60 / c.bpm / 4, near = c.onsets.filter(([t]) => { const k = Math.round((t - c.firstBeat) / q16); return Math.abs(t - c.firstBeat - k * q16) < 0.03; });
   assert.ok(near.length >= 0.7 * c.onsets.length, c.id + ' onsets on the 16th grid ' + near.length + '/' + c.onsets.length);
 }
-// Measured on the bundled cues: only Sunny Soul Strut has a clear enough 16th pulse for the 16th burst.
-assert.deepEqual(m.cues.map(c => c.sixteenthRatio >= 0.35), [true, false, false, false]);
+// Measured on the bundled cues: Sunny Soul Strut and the three drum-forward cues (v2.5) have a clear enough 16th pulse
+// for the 16th burst.
+assert.deepEqual(m.cues.map(c => c.sixteenthRatio >= 0.35), [true, false, false, false, true, true, true]);
+// Downtown Funk Break's grid is moved half a beat onto its backbeat (dev/build-cues.cjs phaseBeats); the others are
+// the detector's own grid. downbeatConfidence: beat-1 low-band clarity >= 1.5 (see dev/build-cues.cjs).
+assert.deepEqual(m.cues.map(c => c.downbeatConfidence), ['high', 'low', 'high', 'low', 'high', 'high', 'low']);
+// The existing four cues are unchanged by the v2.5 build.
+assert.deepEqual(m.cues.slice(0, 4).map(c => c.sha256.slice(0, 12)), ['cedd6c13db48', 'f35098387dc8', '7c251130324e', '892819e9d672']);
 console.log(JSON.stringify({ cues: 'ok' }));

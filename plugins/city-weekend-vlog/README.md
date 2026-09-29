@@ -13,7 +13,8 @@ or any source file.
   switches typefaces on every cut of a fast run: a burst, then four
   half-beat shots. The full title holds for one beat on a wide shot before
   it disappears. The burst follows the music: four quarter-beat shots when
-  the track has a clear 16th-note pulse (Sunny Soul Strut), otherwise two
+  the track has a clear 16th-note pulse (Sunny Soul Strut and the three
+  drum-forward tracks), otherwise two
   half-beat shots, so there are 12 or 10 title shots. Apart from that burst
   every cut lands on a beat or half-beat. A cut that starts a shot of a beat
   or more, and the first cut of the burst, moves onto a strong drum or bass
@@ -70,6 +71,9 @@ Choose a **Track**:
 | Golden Hour Disco | 104 BPM |
 | Easy Sunday Lo-fi | 88 BPM |
 | Weekend Indie Pop | 112 BPM |
+| Brooklyn Boom Bap | 90 BPM |
+| Downtown Funk Break | 98 BPM |
+| Sunset Afro House | 115 BPM |
 | Your own music | detected |
 | No music | 99.2 BPM reference timing |
 

@@ -34,7 +34,7 @@ The Yellowtail copyright line is taken from the font's own name table, since the
 
 ## Music
 
-The four bundled tracks in `assets/cues/` were generated for this plugin with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Each is a 40-second instrumental, loudness-normalized to -14 LUFS. Tempo, first beat, usable end and content hash are recorded in `assets/cues/manifest.json`.
+The seven bundled tracks in `assets/cues/` were generated for this plugin with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Each is a 40-second instrumental, loudness-normalized to -14 LUFS. Tempo, first beat, usable end and content hash are recorded in `assets/cues/manifest.json`.
 
 The tracks are bundled for use in the videos this plugin builds and are not for redistribution as standalone tracks.
 
@@ -44,3 +44,12 @@ The tracks are bundled for use in the videos this plugin builds and are not for 
 | Golden Hour Disco | `golden-hour-disco.mp3` | 104 BPM |
 | Easy Sunday Lo-fi | `easy-sunday-lofi.mp3` | 88 BPM |
 | Weekend Indie Pop | `weekend-indie-pop.mp3` | 112 BPM |
+| Brooklyn Boom Bap | `brooklyn-boom-bap.mp3` | 90 BPM |
+| Downtown Funk Break | `downtown-funk-break.mp3` | 98 BPM |
+| Sunset Afro House | `sunset-afro-house.mp3` | 115 BPM |
+
+Brooklyn Boom Bap, Downtown Funk Break and Sunset Afro House were added on 2026-09-29 as drum-forward tracks. They were generated in a Selects chat with the same model (`force_instrumental: true`, `music_length_ms: 40000`, `output_format: mp3_44100_128`) from these prompts, then normalized to -14 LUFS and re-encoded at 192 kbps like the others (Sunset Afro House with two-pass loudness normalization, which reaches -14.9 LUFS under the -1.5 dBTP ceiling):
+
+- Brooklyn Boom Bap: "Upbeat instrumental boom-bap neo-soul groove at exactly 90 BPM in 4/4, warm, sunny city-weekend mood, no vocals. Drums are front and center: a fat, punchy kick and a loud, snappy snare on beats 2 and 4 for a clear backbeat, with crisp 16th-note hi-hats kept tight and on the grid (not swung). The drums start within the first second with a strong kick downbeat on bar 1, with no fade-in and no ambient intro. Add a short drum fill at the end of every 4 bars. Keep the tempo steady with no rubato or tempo changes. Rhodes chords, a round bass line and light guitar licks sit underneath the drums. The track is 40 seconds long."
+- Downtown Funk Break: "Upbeat instrumental funk breakbeat at exactly 98 BPM in 4/4, sunny city-weekend mood, no vocals. Drums are the loudest element in the mix: a prominent, punchy kick and a hard, cracking snare on beats 2 and 4 for a clear backbeat, with crisp, bright 16th-note hi-hats running throughout. The drums start within the first second with a strong downbeat on bar 1, with no fade-in and no ambient intro. Add a short snare and tom drum fill at the end of every 4 bars. Keep the tempo steady and quantized, with no rubato, tempo changes or breakdowns. Tight slap bass, wah guitar stabs and short brass hits sit underneath the drums. The track is 40 seconds long."
+- Sunset Afro House: "Upbeat instrumental afro-house-lite at exactly 115 BPM in 4/4, sunny, energetic city-weekend mood, no vocals. Drums and percussion are the loudest elements: a prominent, punchy kick on every beat, a crisp snare and clap on beats 2 and 4 for a clear backbeat, crisp 16th-note shakers and hi-hats, and bright congas and bongos. The drums start within the first second with a strong downbeat on bar 1, with no fade-in and no ambient intro. Add a short percussion and tom fill at the end of every 4 bars. Keep the tempo steady with no rubato, tempo changes or long breakdowns. Marimba and plucked synth riffs and a warm bass sit underneath the drums. The track is 40 seconds long."
