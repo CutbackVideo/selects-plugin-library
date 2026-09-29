@@ -1,27 +1,29 @@
 // plugins/mini-vlog/dev/build-cues.cjs
 // Dev-only: normalize the generated cues to -14 LUFS, measure their grids and write assets/cues/manifest.json.
 // Usage: node dev/build-cues.cjs <folder-with-generated-mp3s>   (builds the cues whose source is in the folder; the
-//        others keep their shipped mp3 and manifest entry unchanged)
+//        others keep their shipped mp3 and manifest entry unchanged; an optional cue with neither is skipped)
 //        node dev/build-cues.cjs --onsets   (re-measure only the onsets of the shipped cues; every other value stays)
 'use strict';
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), { execFileSync, spawnSync } = require('node:child_process');
 const { analyze, sixteenthRatio, bandOnsets } = require('../beat-detect.cjs');
 const PROVENANCE = "Generated with ElevenLabs Music for this plugin; bundled for use in the plugin's output videos, not for redistribution as standalone tracks.";
+// Manifest order: reference-type cues first (the two new cues, then the reused City Weekend Vlog ones), the
+// alternatives last. group: 'reference' | 'alternative' (the panel labels the list by it).
+// downbeatConfidence: 'high' when the low-band onset median on beat 1 is at least 1.5x the median on beats 2-4
+// (measured on the shipped mp3 and its grid with selects-app-kit tools/eval/cue-metrics.cjs --manifest), else 'low'.
+// The reused cues measure 1.20 / 1.25 / 3.28 / 4.52 (indie, disco, soul, lofi). Indie and disco were re-measured at
+// every bar phase (firstBeat + k beats, k = 0..3): indie 1.20 / 0.95 / 0.86 / 0.94, disco 1.25 / 0.81 / 0.70 / 1.02,
+// so no phase reaches 1.5, their firstBeat stays and they keep beat alignment only.
+// optional: a new cue whose source arrives after GATE-MUSIC; the build skips it while its source is missing and it is
+// not shipped yet. GATE-MUSIC accepts a new cue only with a clear downbeat, so 'high' here must be confirmed with
+// cue-metrics.cjs --manifest after the build (tests/cues.test.cjs requires 'high' for the new cues).
 const CUES = [
-  { id: 'sunny-soul-strut', label: 'Sunny Soul Strut', source: 'nyvlog-sunny-soul-strut-99bpm.mp3', downbeatConfidence: 'high' },
-  { id: 'golden-hour-disco', label: 'Golden Hour Disco', source: 'nyvlog-golden-hour-disco-104bpm.mp3', downbeatConfidence: 'low' },
-  { id: 'easy-sunday-lofi', label: 'Easy Sunday Lo-fi', source: 'nyvlog-easy-sunday-lofi-88bpm.mp3', downbeatConfidence: 'high' },
-  { id: 'weekend-indie-pop', label: 'Weekend Indie Pop', source: 'nyvlog-weekend-indie-pop-112bpm.mp3', downbeatConfidence: 'low' },
-  // v2.5 drum-forward cues. downbeatConfidence: 'high' when the low-band onset median on beat 1 is at least 1.5x the
-  // median on beats 2-4 (measured on the shipped mp3 and its grid), else 'low'. The first four measure 3.28 / 1.25 /
-  // 4.52 / 1.20. Boom bap 1.86 -> high. Funk break 2.53 on the corrected grid -> high. Afro house 0.95 (1.08 at its
-  // best bar phase) -> low: the kick is four on the floor, so no beat of the bar stands out (low-band medians by bar
-  // position 0.96 / 1.05 / 1.02 / 0.97).
-  { id: 'brooklyn-boom-bap', label: 'Brooklyn Boom Bap', source: 'boom-bap-neosoul-90bpm.mp3', downbeatConfidence: 'high' },
-  // The broadband fit locks onto the 8th off-beats (0.341 s); beat-detect.cjs's phase check (v2.6) moves it half a beat
-  // to 0.034 s, where the kick opens bar 1 at 0.03 s and the snare lands on beats 2 and 4 (v2.5 set phaseBeats: -0.5).
-  { id: 'downtown-funk-break', label: 'Downtown Funk Break', source: 'funk-breakbeat-98bpm.mp3', downbeatConfidence: 'high' },
-  { id: 'sunset-afro-house', label: 'Sunset Afro House', source: 'afro-house-lite-115bpm.mp3', downbeatConfidence: 'low' },
+  { id: 'bedroom-pop-108', label: 'Bedroom Pop', source: 'minivlog-bedroom-pop-108bpm.mp3', group: 'reference', downbeatConfidence: 'high', optional: true },
+  { id: 'acoustic-pop-104', label: 'Acoustic Pop', source: 'minivlog-acoustic-pop-104bpm.mp3', group: 'reference', downbeatConfidence: 'high', optional: true },
+  { id: 'weekend-indie-pop', label: 'Weekend Indie Pop', source: 'nyvlog-weekend-indie-pop-112bpm.mp3', group: 'reference', downbeatConfidence: 'low' },
+  { id: 'golden-hour-disco', label: 'Golden Hour Disco', source: 'nyvlog-golden-hour-disco-104bpm.mp3', group: 'reference', downbeatConfidence: 'low' },
+  { id: 'sunny-soul-strut', label: 'Sunny Soul Strut', source: 'nyvlog-sunny-soul-strut-99bpm.mp3', group: 'alternative', downbeatConfidence: 'high' },
+  { id: 'easy-sunday-lofi', label: 'Easy Sunday Lo-fi', source: 'nyvlog-easy-sunday-lofi-88bpm.mp3', group: 'alternative', downbeatConfidence: 'high' },
 ];
 const src = process.argv[2];
 if (!src) throw Error('usage: node dev/build-cues.cjs <folder> | --onsets');
@@ -46,8 +48,10 @@ for (const c of CUES) {
   const file = c.id + '.mp3', dst = path.join(out, file);
   if (!fs.existsSync(path.join(src, c.source))) {
     const kept = shipped.find(k => k.id === c.id);
+    if (!kept && c.optional) { console.log(c.id, 'skipped (no source yet)'); continue; }
     if (!kept) throw Error(c.id + ': ' + c.source + ' is not in ' + src + ' and the cue is not shipped yet');
-    cues.push(kept);
+    // The kept entry takes its group from CUES (placed after the label, like a built entry).
+    cues.push(Object.assign({ id: kept.id, label: kept.label, group: c.group }, kept, { group: c.group }));
     console.log(c.id, 'kept');
     continue;
   }
@@ -61,7 +65,7 @@ for (const c of CUES) {
   encode(LOUDNORM);
   let lufs = measure();
   if (Math.abs(lufs + 14) > 0.5) {
-    // Single-pass loudnorm undershoots on a dense, limited master (Sunset Afro House: -15.2 LUFS). Run the documented
+    // Single-pass loudnorm undershoots on a dense, limited master (City Weekend Vlog's Sunset Afro House: -15.2 LUFS). Run the documented
     // two-pass form with the source's measured loudness instead.
     const stats = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', path.join(src, c.source), '-af', LOUDNORM + ':print_format=json', '-f', 'null', '-']).stderr.toString();
     const j = JSON.parse(stats.slice(stats.lastIndexOf('{'), stats.lastIndexOf('}') + 1));
@@ -73,7 +77,7 @@ for (const c of CUES) {
   const a = analyze(samples, 22050, { phaseBeats: c.phaseBeats || 0 });
   const usableEnd = Math.round(Math.min(a.durationSeconds, a.lastOnsetSeconds + 0.5) * 100) / 100;
   cues.push({
-    id: c.id, label: c.label, file, duration: a.durationSeconds,
+    id: c.id, label: c.label, group: c.group, file, duration: a.durationSeconds,
     bpm: a.bpm, firstBeat: a.firstBeat, usableEnd,
     lufs, sha256: crypto.createHash('sha256').update(fs.readFileSync(dst)).digest('hex'),
     // The 16th-onset ratio over the usable part of the cue decides the title burst (see planner.js).
