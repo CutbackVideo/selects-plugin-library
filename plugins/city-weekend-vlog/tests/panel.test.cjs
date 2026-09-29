@@ -36,7 +36,7 @@ assert.ok(buildBody.includes('stopPreview()'), 'Build stops the preview');
 assert.ok(panel.slice(panel.indexOf('async function finishTitle('), panel.indexOf('async function decorate(')).includes('stopPreview()'), 'Finish stops the preview');
 // Finder-launched apps lack Homebrew/nvm on PATH: every shell step that runs ffmpeg, ffprobe or node extends it.
 for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/]) assert.ok(re.test(panel), String(re));
-assert.equal((panel.match(/runShell\(/g) || []).length, 5, 'one folder lookup plus four tool steps');
+assert.equal((panel.match(/runShell\(/g) || []).length, 6, 'one folder lookup, four tool steps and the preview cleanup');
 assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('.nvm/versions/node/*/bin'), 'Homebrew and nvm paths');
 // Script configs arrive as JSON.parse(...) so the SDK type check sees `any`, not widened literal types.
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');

@@ -1042,6 +1042,8 @@ export default function Panel({ sdk, context, ui }: any) {
       if (!live()) return;
       if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw new Error(r?.stderr || "the preview could not be cut");
       const b64 = (await readText(roots.data, "preview-" + token + ".b64")).replace(/\s+/g, "");
+      // Best-effort cleanup of the encoded file; playback does not wait for it.
+      void Promise.resolve(sdk.runShell({ summary: "Remove preview file", command: TOOL_PATH + "rm -f " + sq(base + ".b64"), timeoutMs: 10000 })).catch(() => {});
       if (!live()) return;
       if (b64.length < 200) throw new Error("no audio came back");
       let url: string;

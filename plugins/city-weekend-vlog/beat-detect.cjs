@@ -270,42 +270,52 @@ function analyze(samples, sampleRate, opts) {
     const fit = sxx > 0 ? sxy / sxx : period;
     if (Math.abs(fit - period) < 0.01 * period) { period = fit; phase = mt - fit * mk; }
   }
-  // The fitted phase is on the onset-envelope peaks, ONSET_LAG after the attacks that the band flux is stamped at.
-  const bf = bandFlux(samples, sampleRate);
-  if (offBeatLocked(bf, sampleRate, phase - ONSET_LAG, period, t1)) phase += period / 2;
-  if (opts && opts.phaseBeats) phase += opts.phaseBeats * period;
-  phase = ((phase % period) + period) % period;
-  if (phase > period - 0.03) phase = Math.max(0, phase - period);
-  // The first beat is the first grid line that is not leading silence. Judge by level, not by
-  // onsets: a first beat with a soft attack (a pad swelling in) is audible music with no onset.
-  // Each beat window starts 30 ms early so it holds its own attack but not the next one.
-  const beatRms = t => {
-    const a = Math.max(0, Math.floor((t - 0.03) * sampleRate)), z = Math.min(samples.length, Math.floor((t + period - 0.03) * sampleRate));
-    let q = 0;
-    for (let i = a; i < z; i++) q += samples[i] * samples[i];
-    return Math.sqrt(q / Math.max(1, z - a));
+  // Level, first beat and acceptance of the grid at one phase (fitted phase, before opts.phaseBeats).
+  const evaluate = ph => {
+    ph = ((ph % period) + period) % period;
+    if (ph > period - 0.03) ph = Math.max(0, ph - period);
+    // The first beat is the first grid line that is not leading silence. Judge by level, not by
+    // onsets: a first beat with a soft attack (a pad swelling in) is audible music with no onset.
+    // Each beat window starts 30 ms early so it holds its own attack but not the next one.
+    const beatRms = t => {
+      const a = Math.max(0, Math.floor((t - 0.03) * sampleRate)), z = Math.min(samples.length, Math.floor((t + period - 0.03) * sampleRate));
+      let q = 0;
+      for (let i = a; i < z; i++) q += samples[i] * samples[i];
+      return Math.sqrt(q / Math.max(1, z - a));
+    };
+    const levels = [];
+    for (let t = ph; t + period <= durationSeconds; t += period) levels.push(beatRms(t));
+    levels.sort((a, b) => a - b);
+    const quiet = SILENT_BEAT * (levels.length ? levels[Math.floor(levels.length / 2)] : 0);
+    let fb = ph;
+    while (fb + period < durationSeconds && beatRms(fb) <= quiet) fb += period;
+    if (beatRms(fb) <= quiet) fb = ph;
+    // Onsets peak ONSET_LAG after the attack, so the grid fitted to them is that much late (measured 6-8 ms on the
+    // bundled cues against the rendered audio). Move the first beat back onto the attack.
+    fb = Math.max(0, fb - ONSET_LAG);
+    const residuals = [];
+    let beats = 0;
+    for (let t = fb; t < durationSeconds; t += period) {
+      beats++;
+      let near = Infinity;
+      for (const o of onsets) { const d = Math.abs(o - t); if (d < near) near = d; }
+      if (near < 0.07) residuals.push(near * 1000);
+    }
+    residuals.sort((a, b) => a - b);
+    const med = residuals.length ? residuals[Math.floor(residuals.length / 2)] : Infinity;
+    const rate = beats ? residuals.length / beats : 0;
+    return { firstBeat: fb, residualMedianMs: med, hitRate: rate, accepted: med <= 20 && rate >= 0.7 };
   };
-  const levels = [];
-  for (let t = phase; t + period <= durationSeconds; t += period) levels.push(beatRms(t));
-  levels.sort((a, b) => a - b);
-  const quiet = SILENT_BEAT * (levels.length ? levels[Math.floor(levels.length / 2)] : 0);
-  let firstBeat = phase;
-  while (firstBeat + period < durationSeconds && beatRms(firstBeat) <= quiet) firstBeat += period;
-  if (beatRms(firstBeat) <= quiet) firstBeat = phase;
-  // Onsets peak ONSET_LAG after the attack, so the grid fitted to them is that much late (measured 6-8 ms on the
-  // bundled cues against the rendered audio). Move the first beat back onto the attack.
-  firstBeat = Math.max(0, firstBeat - ONSET_LAG);
-  const residuals = [];
-  let beats = 0;
-  for (let t = firstBeat; t < durationSeconds; t += period) {
-    beats++;
-    let near = Infinity;
-    for (const o of onsets) { const d = Math.abs(o - t); if (d < near) near = d; }
-    if (near < 0.07) residuals.push(near * 1000);
+  // The fitted phase is on the onset-envelope peaks, ONSET_LAG after the attacks that the band flux is stamped at.
+  // The half-beat move is refused when it would lose the acceptance that the fitted phase had.
+  const bf = bandFlux(samples, sampleRate);
+  const shift = opts && opts.phaseBeats ? opts.phaseBeats * period : 0;
+  let g = evaluate(phase + shift);
+  if (offBeatLocked(bf, sampleRate, phase - ONSET_LAG, period, t1)) {
+    const flipped = evaluate(phase + period / 2 + shift);
+    if (!(g.accepted && !flipped.accepted)) g = flipped;
   }
-  residuals.sort((a, b) => a - b);
-  const residualMedianMs = residuals.length ? residuals[Math.floor(residuals.length / 2)] : Infinity;
-  const hitRate = beats ? residuals.length / beats : 0;
+  const { firstBeat, residualMedianMs, hitRate, accepted } = g;
 
   const peaks = [];
   const bucket = Math.max(1, Math.floor(samples.length / 400));
@@ -328,7 +338,7 @@ function analyze(samples, sampleRate, opts) {
     firstBeat: Math.round(firstBeat * 1000) / 1000,
     residualMedianMs: Number.isFinite(residualMedianMs) ? Math.round(residualMedianMs * 10) / 10 : null,
     hitRate: Math.round(hitRate * 1000) / 1000,
-    accepted: residualMedianMs <= 20 && hitRate >= 0.7,
+    accepted,
     lastOnsetSeconds: onsets.length ? Math.round(onsets[onsets.length - 1] * 100) / 100 : 0,
     sixteenthRatio: sixteenthRatio(samples, sampleRate, 60 / period, firstBeat, durationSeconds),
     peaks,

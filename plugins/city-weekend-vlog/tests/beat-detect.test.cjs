@@ -47,6 +47,24 @@ assert.equal(kitOn.accepted, true);
 // Without the backbeat the evidence is not clear, and the fitted grid (on the hats) stays.
 const kitNoSnare = analyze(offBeatKit({ snare: false }), sr);
 assert.ok(Math.abs(kitNoSnare.firstBeat - 0.05) < 0.01, 'fitted grid kept on the hats: ' + kitNoSnare.firstBeat);
+// The half-beat move is refused when it would lose acceptance: with the kick on every other beat (gain 0.6) the kick
+// grid is still the clear low/backbeat winner, but only half of its lines meet an onset (hitRate below 0.7), while the
+// fitted hat grid is accepted. The fitted phase stays.
+function sparseKickKit() {
+  let s = 7; const rnd = () => ((s = Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296 - 0.5;
+  const x = new Float32Array(20 * sr).map(() => rnd() * 0.002);
+  const add = (t, n, f) => { const i0 = Math.round(t * sr); for (let k = 0; k < n && i0 + k < x.length; k++) x[i0 + k] += f(k); };
+  for (let k = 0; 0.3 + k * 0.5 < 19.5; k++) {
+    const t = 0.3 + k * 0.5;
+    if (k % 2 === 0) add(t, 6000, i => 0.6 * (0.5 * Math.sin(2 * Math.PI * (55 + 60 * Math.exp(-i / 400)) * i / sr) * Math.exp(-i / 3000) + 0.1 * rnd() * Math.exp(-i / 40)));
+    if (k % 2) add(t, 4000, i => 0.1 * (Math.sin(2 * Math.PI * 330 * i / sr) + Math.sin(2 * Math.PI * 720 * i / sr) + Math.sin(2 * Math.PI * 1250 * i / sr)) * Math.exp(-i / 900));
+    add(t + 0.25, 2500, i => 0.3 * rnd() * Math.exp(-i / 250) * (i % 2 ? 1 : -1));
+  }
+  return x;
+}
+const sparse = analyze(sparseKickKit(), sr);
+assert.ok(Math.abs(sparse.firstBeat - 0.05) < 0.01, 'flip refused, fitted phase kept: ' + sparse.firstBeat);
+assert.equal(sparse.accepted, true);
 // phaseBeats still applies after the check.
 assert.ok(Math.abs(analyze(offBeatKit(), sr, { phaseBeats: -0.5 }).firstBeat - 0.05) < 0.01, 'phaseBeats after the check');
 
