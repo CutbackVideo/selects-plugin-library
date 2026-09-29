@@ -18,6 +18,19 @@ assert.deepEqual(s(163), { line1: false, connector: false, place: false, state: 
 // Empty place: connector hidden, line 1 carries the switches.
 assert.deepEqual(s(40, false), { line1: true, connector: false, place: false, state: 'A' });
 assert.equal(s(78, false).state, 'B');
+// Fit-to-box: the pure size math shrinks only when the measured width overflows the box.
+const fitBlock = src.slice(src.indexOf('// cwv-fit:start'), src.indexOf('// cwv-fit:end'));
+assert.ok(fitBlock.length > 50, 'fit block present');
+const fbox = {}; vm.createContext(fbox);
+vm.runInContext(fitBlock + ';globalThis.F=cwvFitSize;', fbox);
+// "SAN FRANCISCO" in classic state B at size 150: target 165 px measures ~1400 px against a ~717 px box.
+const shrunk = fbox.F(165, 1400, 717);
+assert.ok(shrunk < 165 && shrunk > 0, 'wide line shrinks');
+assert.ok(Math.abs(1400 * (shrunk / 165) - 717) < 1e-6, 'shrunk line exactly fits the box');
+assert.equal(fbox.F(150, 500, 717), 150, 'narrow line keeps the target size');
+assert.equal(fbox.F(150, 717, 717), 150, 'exact fit keeps the target size');
+assert.equal(fbox.F(150, 0, 717), 150, 'unmeasurable line keeps the target size');
+assert.ok(src.includes('measureText'), 'measures real glyph advances');
 // Component contract.
 for (const key of ['line1', 'connector', 'place', 'fontFamily', 'ink', 'shadow', 'size', 'rotation', 'position']) assert.ok(src.includes('data.' + key) || src.includes('"' + key + '"'), key);
 assert.ok(src.includes('delayRender') && src.includes('continueRender'), 'waits for fonts');
