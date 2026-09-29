@@ -22,7 +22,7 @@ UNI="U+0000-00FF,U+0131,U+0152-0153,U+0237,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+20
 # name|source path|variable axis instance or -
 FONTS=(
   "dm-serif-display|ofl/dmserifdisplay/DMSerifDisplay-Regular.ttf|-"
-  "dm-serif-display-italic|ofl/dmserifdisplay/DMSerifDisplay-Italic.ttf|-"
+  "instrument-serif-italic|ofl/instrumentserif/InstrumentSerif-Italic.ttf|-"
   "mv-rounded-bold|ofl/quicksand/Quicksand%5Bwght%5D.ttf|wght=700"
   "dm-mono|ofl/dmmono/DMMono-Regular.ttf|-"
 )

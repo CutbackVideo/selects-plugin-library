@@ -16,12 +16,12 @@ for (const preset of p.presets) {
 }
 const EXPECTED = {
   'dm-serif-display.woff2.b64': ['MV DM Serif Display', 'normal', 400],
-  'dm-serif-display-italic.woff2.b64': ['MV DM Serif Display Italic', 'italic', 400],
+  'instrument-serif-italic.woff2.b64': ['MV Instrument Serif Italic', 'italic', 400],
   'mv-rounded-bold.woff2.b64': ['MV Rounded Bold', 'normal', 700],
   'dm-mono.woff2.b64': ['MV DM Mono', 'normal', 400],
 };
 const roles = (id) => Object.fromEntries(byId[id].fonts.map(f => [f.role, f.family]));
-assert.deepEqual(roles('mini-vlog'), { big: 'MV DM Serif Display Italic', small: 'MV DM Serif Display' });
+assert.deepEqual(roles('mini-vlog'), { big: 'MV Instrument Serif Italic', small: 'MV DM Serif Display' });
 assert.deepEqual(roles('day-in-my-life'), { big: 'MV Rounded Bold', tag: 'MV Rounded Bold' });
 assert.deepEqual(roles('small-glimpse'), { big: 'MV Rounded Bold', mono: 'MV DM Mono' });
 const files = new Set();
@@ -53,13 +53,20 @@ for (const [family] of Object.values(EXPECTED)) {
   for (const ch of ['i', 'j']) assert.ok(Array.isArray(m.dots[ch]) && m.dots[ch].length === 3 && m.dots[ch][2] > 0, family + ' ' + ch + ' dot');
   assert.ok(m.dots.i[1] > m.xHeight, family + ' i dot sits above the x-height');
 }
-assert.ok(p.metrics['MV DM Serif Display Italic'].advances['\u0131'] > 0, 'dotless i for sparkles');
-assert.ok(Math.abs(p.metrics['MV DM Serif Display Italic'].xHeight / p.metrics['MV DM Serif Display Italic'].unitsPerEm - 0.47) < 0.05, 'italic x-height ratio near 0.47');
+// The sparkled face has dotless i/j and their stem tops ([x, y] of the topmost outline points).
+const inst = p.metrics['MV Instrument Serif Italic'];
+assert.ok(inst.advances['\u0131'] > 0 && inst.advances['\u0237'] > 0, 'dotless i and j for sparkles');
+for (const ch of ['i', 'j']) {
+  const st = inst.stems[ch];
+  assert.ok(Array.isArray(st) && st.length === 2 && st[1] >= inst.xHeight * 0.95 && st[1] < inst.dots[ch][1], ch + ' stem top at the x-height, below the dot');
+  assert.ok(st[0] > 0 && st[0] < inst.advances[ch === 'i' ? '\u0131' : '\u0237'] * 1.2, ch + ' stem top x inside the glyph');
+}
+assert.ok(Math.abs(inst.xHeight / inst.unitsPerEm - 0.51) < 0.03, 'Instrument Serif Italic x-height ratio ~0.51');
 // DM Mono is monospaced.
 const mono = p.metrics['MV DM Mono'].advances;
 assert.ok(new Set(['a', 'm', 'i', 'W', ' '].map(c => mono[c])).size === 1, 'DM Mono advances are equal');
 // Each OFL family ships its own OFL.txt (with that family's copyright line).
-const LIC = ['dmserifdisplay-OFL.txt', 'quicksand-OFL.txt', 'dmmono-OFL.txt'];
+const LIC = ['dmserifdisplay-OFL.txt', 'instrumentserif-OFL.txt', 'quicksand-OFL.txt', 'dmmono-OFL.txt'];
 assert.deepEqual(fs.readdirSync(path.join(dir, 'licenses')).sort(), [...LIC].sort());
 for (const f of LIC) {
   const text = fs.readFileSync(path.join(dir, 'licenses', f), 'utf8');
@@ -95,7 +102,7 @@ function woff2Tables(bin) {
 // Subset fonts are Modified Versions under OFL: they must be renamed away from any Reserved Font Name.
 const LICENCE = {
   'dm-serif-display.woff2.b64': 'dmserifdisplay-OFL.txt',
-  'dm-serif-display-italic.woff2.b64': 'dmserifdisplay-OFL.txt',
+  'instrument-serif-italic.woff2.b64': 'instrumentserif-OFL.txt',
   'mv-rounded-bold.woff2.b64': 'quicksand-OFL.txt',
   'dm-mono.woff2.b64': 'dmmono-OFL.txt',
 };
@@ -111,6 +118,7 @@ function reservedNames(lic) {
 assert.deepEqual(reservedNames('dmserifdisplay-OFL.txt'), ['Source']);
 assert.deepEqual(reservedNames('quicksand-OFL.txt'), ['Quicksand']);
 assert.deepEqual(reservedNames('dmmono-OFL.txt'), []);
+assert.deepEqual(reservedNames('instrumentserif-OFL.txt'), []);
 for (const file of files) {
   const family = EXPECTED[file][0];
   const { data, tables } = woff2Tables(Buffer.from(fs.readFileSync(path.join(dir, file), 'utf8').replace(/\s+/g, ''), 'base64'));

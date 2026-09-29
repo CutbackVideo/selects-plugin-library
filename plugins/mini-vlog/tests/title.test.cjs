@@ -29,13 +29,22 @@ const bounds = (items) => {
   return { x0, y0, x1, y1, w: x1 - x0, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
 };
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b} (tol ${tol})`);
-const mBig = presets.metrics['MV DM Serif Display Italic'];
+const mBig = presets.metrics['MV Instrument Serif Italic'];
+const XH = mBig.xHeight / mBig.unitsPerEm, UPM = mBig.unitsPerEm;
 
 // --- Mini vlog (No.17) ---------------------------------------------------------------
 {
   const it = lay('mini-vlog', { big: 'mini', small: 'vlog' });
   const big = one(it, 'big'), small = one(it, 'small');
-  assert.deepEqual(big.font, { family: 'MV DM Serif Display Italic', style: 'italic', weight: 400 });
+  assert.deepEqual(big.font, { family: 'MV Instrument Serif Italic', style: 'italic', weight: 400 });
+  // No.17 face (controller pick E'): tracking -0.05 em, same-colour round stroke 0.018 em, x-height ~90 px.
+  near(big.tracking, -0.05 * big.size, 1e-9, 'tracking px'); near(big.stroke, 0.018 * big.size, 1e-9, 'stroke px');
+  near(big.w, [...big.text].reduce((a, c) => a + mBig.advances[c], 0) / UPM * big.size + big.tracking * (big.text.length - 1), 1e-6, 'width = advances + tracking between letters');
+  assert.ok(big.size * XH >= 85 && big.size * XH <= 95, 'x-height px ' + big.size * XH);
+  // The stroke is counted in the ink box (half of it grows outward).
+  near(big.box[0], big.x - big.stroke / 2, 1e-6, 'box includes stroke');
+  near(big.box[2], big.x + big.w + big.stroke / 2, 1e-6, 'box includes stroke (right)');
+  assert.equal(small.tracking, 0); assert.equal(small.stroke, 0);
   assert.deepEqual(small.font, { family: 'MV DM Serif Display', style: 'normal', weight: 400 });
   assert.equal(big.color, '#F7C8E6'); assert.equal(small.color, '#FFFFFF');
   // Footprint wins (controller ruling): "mini" is about 0.155 W wide at size 100, like No.17 (~290-300 px).
@@ -54,11 +63,17 @@ const mBig = presets.metrics['MV DM Serif Display Italic'];
   const sp = kinds(it, 'sparkle');
   assert.equal(sp.length, 2);
   assert.equal(big.text, 'mını');
+  // Each sparkle is centred on its dotless i's stem top, its bottom 0.12 x-height above it, 0.36 x-height tall.
+  const stem = mBig.stems.i, adv = (t) => [...t].reduce((a, c) => a + mBig.advances[c] / UPM * big.size + big.tracking, 0);
+  [1, 3].forEach((at, k) => {
+    near(sp[k].x, big.x + adv(big.text.slice(0, at)) + stem[0] / UPM * big.size, 1e-6, 'sparkle over the stem top ' + k);
+    near(sp[k].y + sp[k].size / 2, big.y - (stem[1] / UPM + 0.12 * XH) * big.size, 1e-6, 'sparkle gap above the stem ' + k);
+    near(sp[k].size, 0.36 * XH * big.size, 1e-6, 'sparkle height ' + k);
+  });
   for (const s of sp) {
     assert.ok(s.x > big.x && s.x < big.x + big.w, 'sparkle over the word');
     assert.ok(s.y < big.y - big.size * mBig.xHeight / mBig.unitsPerEm, 'sparkle above the x-height');
     assert.equal(s.color, '#F7C8E6');
-    assert.ok(s.size > 0.1 * big.size && s.size < 0.25 * big.size, 'sparkle size');
   }
   assert.ok(sp[0].x < sp[1].x);
   // Whole lockup is well inside the 60 % box.
@@ -74,14 +89,22 @@ const mBig = presets.metrics['MV DM Serif Display Italic'];
   assert.equal(kinds(lay('mini-vlog', { big: 'vlog life', small: '' }), 'sparkle').length, 1);
   assert.equal(kinds(lay('mini-vlog', { big: 'iiiii', small: '' }), 'sparkle').length, 3);
   assert.equal(one(lay('mini-vlog', { big: 'iiiii', small: '' }), 'big').text, 'ıııii', 'only sparkled i lose their dots');
-  // DM Serif has no dotless j: the j keeps its dot and the sparkle floats clear above it.
+  // Instrument Serif has a dotless j too: the j is drawn dotless with its sparkle on the stem top.
   const j = lay('mini-vlog', { big: 'jam', small: '' });
-  assert.equal(kinds(j, 'sparkle').length, 1); assert.equal(one(j, 'big').text, 'jam');
+  assert.equal(kinds(j, 'sparkle').length, 1); assert.equal(one(j, 'big').text, '\u0237am');
   {
-    const jb = one(j, 'big'), js = kinds(j, 'sparkle')[0], dj = mBig.dots.j;
-    const dotTop = jb.y - ((dj[1] + dj[2]) / mBig.unitsPerEm) * jb.size;
-    assert.ok(js.y + js.size / 2 < dotTop - 0.01 * jb.size, 'sparkle clears the j dot');
-    near(js.x, jb.x + (dj[0] / mBig.unitsPerEm) * jb.size, 0.5, 'sparkle centred over the j dot');
+    const jb = one(j, 'big'), js = kinds(j, 'sparkle')[0], st = mBig.stems.j;
+    near(js.x, jb.x + (st[0] / UPM) * jb.size, 1e-6, 'sparkle over the j stem top');
+    near(js.y + js.size / 2, jb.y - (st[1] / UPM + 0.12 * XH) * jb.size, 1e-6, 'j sparkle gap');
+  }
+  // A face without a dotless glyph keeps the dot and floats the sparkle above it.
+  {
+    const noDotless = JSON.parse(JSON.stringify(mBig)); delete noDotless.advances['\u0237'];
+    const fonts = fontsFor('mini-vlog').map(f => f.role === 'big' ? { ...f, metrics: noDotless } : f);
+    const jj = JSON.parse(JSON.stringify(box.L({ ...DEFAULT, preset: 'mini-vlog', fields: { big: 'jam', small: '' }, fonts }, W, H)));
+    const jb = one(jj, 'big'), js = kinds(jj, 'sparkle')[0], dj = mBig.dots.j;
+    assert.equal(jb.text, 'jam');
+    assert.ok(js.y + js.size / 2 < jb.y - ((dj[1] + dj[2]) / UPM) * jb.size - 0.01 * jb.size, 'sparkle clears the j dot');
   }
   const off = lay('mini-vlog', { big: 'mini', small: 'vlog' }, { sparkles: false });
   assert.equal(kinds(off, 'sparkle').length, 0); assert.equal(one(off, 'big').text, 'mini');
@@ -200,7 +223,8 @@ assert.match(box.ST(100, 100, 40), /^M[\d.\- ,]+.*Z$/);
 }
 // MV_FACES (the block's role -> face table) mirrors presets.json fonts.
 for (const p of presets.presets) for (const f of p.fonts) {
-  assert.deepEqual(JSON.parse(JSON.stringify(box.F[p.id][f.role])), { family: f.family, style: f.style, weight: f.weight }, p.id + ' ' + f.role);
+  const face = JSON.parse(JSON.stringify(box.F[p.id][f.role]));
+  assert.deepEqual({ family: face.family, style: face.style, weight: face.weight }, { family: f.family, style: f.style, weight: f.weight }, p.id + ' ' + f.role);
 }
 for (const id of Object.keys(box.F)) assert.deepEqual(Object.keys(box.F[id]).sort(), preset(id).fonts.map(f => f.role).sort(), id + ' roles');
 assert.ok(src.includes('useMemo(') && src.slice(end).includes('(raw || {})'), 'component guards data and memoizes the layout');
@@ -211,4 +235,13 @@ assert.ok(src.includes('useVideoConfig'), 'reads the canvas size');
 assert.ok(!src.includes('useCurrentFrame'), 'static: no frame dependency');
 // Measured widths ignore kerning and ligatures, so the render turns both off.
 assert.ok(src.includes('fontKerning: "none"') && src.includes('fontVariantLigatures: "none"'), 'no kerning or ligatures');
+// Tracking and stroke reach the SVG exactly as the layout measured them.
+assert.ok(src.includes('letterSpacing: it.tracking') && src.includes('strokeWidth={it.stroke}') && src.includes('strokeLinejoin="round"'), 'tracking and stroke rendered');
+// The panel preview draws the items the same way.
+{
+  const panel = fs.readFileSync(path.resolve(__dirname, '..', 'panel.tsx'), 'utf8');
+  assert.ok(panel.includes('letterSpacing: it.tracking') && panel.includes('strokeWidth={it.stroke}') && panel.includes('strokeLinejoin="round"'), 'panel preview renders tracking and stroke');
+}
+// Only the Mini vlog big word is tracked and stroked; other presets are untouched.
+for (const id of ['day-in-my-life', 'small-glimpse']) for (const i of lay(id, { year: '2026', big: 'mini vlog', tag: 'a day in my life', top: 'a', bottom: 'b' }).filter(i => i.kind === 'text')) assert.ok(i.tracking === 0 && i.stroke === 0, id + ' ' + i.part);
 console.log(JSON.stringify({ title: 'ok' }));

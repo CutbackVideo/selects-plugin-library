@@ -6,7 +6,7 @@
 
 ## Fonts
 
-The title fonts are bundled in `assets/fonts/` as base64-encoded WOFF2 text (`*.woff2.b64`). Each is a **Latin subset** of the Google Fonts release, with hinting removed and, for the variable Quicksand family, a single static Bold (700) instance. A subset is a Modified Version under the SIL Open Font License, so every font is **renamed** with an `MV ` prefix in its name table and in the title: `MV DM Serif Display`, `MV DM Serif Display Italic`, `MV Quicksand Bold` and `MV DM Mono`. The fonts are embedded in the title graphic's parameters when a Draft is built.
+The title fonts are bundled in `assets/fonts/` as base64-encoded WOFF2 text (`*.woff2.b64`). Each is a **Latin subset** of the Google Fonts release, with hinting removed and, for the variable Quicksand family, a single static Bold (700) instance. A subset is a Modified Version under the SIL Open Font License, so every font is **renamed** with an `MV ` prefix in its name table and in the title: `MV DM Serif Display`, `MV Instrument Serif Italic`, `MV Rounded Bold` (from Quicksand, whose name is reserved) and `MV DM Mono`. The fonts are embedded in the title graphic's parameters when a Draft is built.
 
 The subsets cover Latin text only. Other scripts are drawn in a system font.
 
@@ -14,8 +14,9 @@ Each family's licence text is in `assets/fonts/licenses/`.
 
 | Family | Bundled files | Copyright and Reserved Font Names | Licence |
 | --- | --- | --- | --- |
-| DM Serif Display | `dm-serif-display`, `dm-serif-display-italic` | Copyright 2014-2018 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'. All Rights Reserved. Source is a trademark of Adobe in the United States and/or other countries. Copyright 2019 Google LLC. | SIL OFL 1.1 (`dmserifdisplay-OFL.txt`) |
-| Quicksand | `quicksand-bold` | Copyright 2011 The Quicksand Project Authors (https://github.com/andrew-paglinawan/QuicksandFamily), with Reserved Font Name "Quicksand". | SIL OFL 1.1 (`quicksand-OFL.txt`) |
+| DM Serif Display | `dm-serif-display` | Copyright 2014-2018 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'. All Rights Reserved. Source is a trademark of Adobe in the United States and/or other countries. Copyright 2019 Google LLC. | SIL OFL 1.1 (`dmserifdisplay-OFL.txt`) |
+| Instrument Serif | `instrument-serif-italic` | Copyright 2022 The Instrument Serif Project Authors (https://github.com/Instrument/instrument-serif). No Reserved Font Name. | SIL OFL 1.1 (`instrumentserif-OFL.txt`) |
+| Quicksand | `mv-rounded-bold` | Copyright 2011 The Quicksand Project Authors (https://github.com/andrew-paglinawan/QuicksandFamily), with Reserved Font Name "Quicksand". | SIL OFL 1.1 (`quicksand-OFL.txt`) |
 | DM Mono | `dm-mono` | Copyright 2020 The DM Mono Project Authors (https://www.github.com/googlefonts/dm-mono). No Reserved Font Name. | SIL OFL 1.1 (`dmmono-OFL.txt`) |
 
 ## Music

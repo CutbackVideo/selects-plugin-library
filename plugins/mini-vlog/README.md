@@ -157,7 +157,7 @@ Three lockup presets, chosen in the panel with a live preview:
 
 | Preset | Text fields (initial text) | Look |
 | --- | --- | --- |
-| **Mini vlog** (default) | Big word "mini", Small word "vlog" | Big italic serif word in pale pink with small sparkles over the dots of its i and j, and a small upright serif word in white |
+| **Mini vlog** (default) | Big word "mini", Small word "vlog" | Big italic serif word in pale pink with small sparkles in place of the dots of its i and j, and a small upright serif word in white |
 | **A day in my life** | Year (the most recent recording year), Big words "mini vlog", Tag line "a day in my life" | A star and the year before a pink rounded bold "mini", "vlog" below, and a small white two-line tag with a star |
 | **A small glimpse** | Top line "a small", Big word "glimpse", Bottom line "of today" | A small monospaced top and bottom line around a pink rounded bold word, split in two lines at the middle with a hyphen and a star before the second line |
 
@@ -168,10 +168,10 @@ Three lockup presets, chosen in the panel with a live preview:
 - The sparkles and stars are drawn as shapes, not typed characters. The
   sparkles sit over every i and j of the big word (at most three); a word
   without them gets one sparkle at its top right.
-- The fonts are DM Serif Display (upright and italic), Quicksand Bold and DM
-  Mono. They are bundled and embedded in the title, so the Draft renders the
-  same on any machine with Selects, and the panel preview uses the same fonts
-  and layout.
+- The fonts are Instrument Serif Italic, DM Serif Display, Quicksand Bold and
+  DM Mono, renamed with an "MV" prefix (Quicksand as "MV Rounded Bold"). They
+  are bundled and embedded in the title, so the Draft renders the same on any
+  machine with Selects, and the panel preview uses the same fonts and layout.
 
 ## Advanced
 

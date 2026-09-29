@@ -5,7 +5,7 @@ A subset is a Modified Version under the SIL OFL, so it must not keep a Reserved
 Font Name. Rewrites name IDs 1, 3, 4, 6 and 16 (and 2/17 where needed) in place.
 Then writes presets.json `metrics[family]`: unitsPerEm, xHeight, capHeight, ink
 ascent (tallest of b d h k l) and descent (lowest of g p q y), the centre and
-half height of the i/j dots and the advance width of every mapped character, all in font units.
+half height of the i/j dots, the stem tops of the dotless i/j and the advance width of every mapped character, all in font units.
 The title layout measures text from these tables, so Node tests and the panel
 lay the title out exactly like the rendered graphic (kerning is ignored).
 Any other name record that still contains a Reserved Font Name declared in the
@@ -18,6 +18,7 @@ import re
 import sys
 
 from fontTools.pens.boundsPen import BoundsPen
+from fontTools.pens.recordingPen import DecomposingRecordingPen
 from fontTools.ttLib import TTFont
 
 font_path, presets_path, file_name, licence_path = sys.argv[1:5]
@@ -103,6 +104,16 @@ def dot_centre(ch):
     return [round((best[0] + best[2]) / 2), round((best[1] + best[3]) / 2), round((best[3] - best[1]) / 2)]
 
 
+def stem_top(ch):
+    """[x, y] of a dotless glyph's stem top: the mean x of its topmost outline points."""
+    pen = DecomposingRecordingPen(glyphs)
+    glyphs[cmap[ord(ch)]].draw(pen)
+    pts = [p for _, args in pen.value for p in args]
+    top = max(p[1] for p in pts)
+    xs = [p[0] for p in pts if p[1] >= top - 0.03 * font['head'].unitsPerEm]
+    return [round(sum(xs) / len(xs)), round(top)]
+
+
 os2 = font['OS/2']
 x_height = getattr(os2, 'sxHeight', 0) or bounds('x')[3]
 cap_height = getattr(os2, 'sCapHeight', 0) or bounds('H')[3]
@@ -115,6 +126,8 @@ doc.setdefault('metrics', {})[family] = {
     'ascent': max(bounds(c)[3] for c in 'bdhkl'),
     'descent': min(bounds(c)[1] for c in 'gpqy'),
     'dots': dots,
+    # Stem tops of the dotless i/j (U+0131/U+0237), where the title's sparkles sit.
+    'stems': {ch: stem_top(dl) for ch, dl in (('i', '\u0131'), ('j', '\u0237')) if ord(dl) in cmap},
     'advances': advances,
 }
 # Drop metrics of families no preset uses any more (e.g. after a rename).

@@ -566,7 +566,8 @@ function mvProgress(stepId, fraction, detail) {
 // sparkle/star {part, x, y (centre), size (full height)}; each carries its ink box [x0, y0, x1, y1].
 var MV_FACES = {
   "mini-vlog": {
-    big: { family: "MV DM Serif Display Italic", style: "italic", weight: 400 },
+    // No.17's face: tight tracking and a thin same-colour stroke (em) soften the contrast.
+    big: { family: "MV Instrument Serif Italic", style: "italic", weight: 400, tracking: -0.05, stroke: 0.018 },
     small: { family: "MV DM Serif Display", style: "normal", weight: 400 },
   },
   "day-in-my-life": {
@@ -588,7 +589,7 @@ function mvFace(data, preset, role) {
   var fonts = data && Array.isArray(data.fonts) ? data.fonts : [];
   var m = null;
   for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === face.family && fonts[i].metrics) m = fonts[i].metrics;
-  return { family: face.family, style: face.style, weight: face.weight, m: m || MV_FALLBACK_METRICS };
+  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, m: m || MV_FALLBACK_METRICS };
 }
 
 function mvAdvance(m, ch) {
@@ -596,11 +597,12 @@ function mvAdvance(m, ch) {
   return typeof a === "number" ? a : 0.56 * m.unitsPerEm;
 }
 
-// Advance width of `text` at `px` (kerning ignored).
-function mvTextWidth(text, m, px) {
+// Advance width of `text` at `px` (kerning ignored), plus `tracking` em between letters
+// (CSS letter-spacing also follows the last letter, but that space is never visible).
+function mvTextWidth(text, m, px, tracking) {
   var units = 0;
   for (var i = 0; i < text.length; i++) units += mvAdvance(m, text.charAt(i));
-  return (units * px) / m.unitsPerEm;
+  return (units * px) / m.unitsPerEm + (tracking || 0) * px * Math.max(0, text.length - 1);
 }
 
 // Ink extents above / below the baseline in em, from the characters present.
@@ -612,10 +614,12 @@ function mvInk(text, m) {
   return { up: up / m.unitsPerEm, down: down / m.unitsPerEm };
 }
 
-// Boxes span the advance width, not the ink: an italic's overhang can reach past box[2].
+// Boxes span the advance width (plus half the stroke, which grows outward), not the ink:
+// an italic's overhang can reach past box[2]. `tracking` and `stroke` are px for the SVG.
 function mvText(part, text, f, x, y, size, color) {
-  var w = mvTextWidth(text, f.m, size), ink = mvInk(text, f.m);
-  return { kind: "text", part: part, text: text, font: { family: f.family, style: f.style, weight: f.weight }, x: x, y: y, size: size, color: color, w: w, box: [x, y - ink.up * size, x + w, y + ink.down * size] };
+  var w = mvTextWidth(text, f.m, size, f.tracking), ink = mvInk(text, f.m), s = f.stroke * size, h = s / 2;
+  return { kind: "text", part: part, text: text, font: { family: f.family, style: f.style, weight: f.weight }, x: x, y: y, size: size, color: color, w: w,
+    tracking: f.tracking * size, stroke: s, box: [x - h, y - ink.up * size - h, x + w + h, y + ink.down * size + h] };
 }
 
 function mvMark(kind, part, x, y, size, color) {
@@ -648,7 +652,7 @@ function mvLayoutMini(data, fields, H, S, col) {
   var items = [];
   // Footprint wins over x-height: at size 100 "mini" is 0.155 of a 16:9 canvas's width
   // (No.17 measures ~290-300 px at 1920x1080), expressed relative to the height.
-  var Fb = ((MV_MINI_WIDTH * H) / mvTextWidth("mini", mb, 1)) * S;
+  var Fb = ((MV_MINI_WIDTH * H) / mvTextWidth("mini", mb, 1, fb.tracking)) * S, xh = mb.xHeight / mb.unitsPerEm;
   // Sparkled i/j are drawn dotless when the font has the glyph, so the sparkle replaces the dot.
   var chars = fields.big.split(""), marks = [];
   for (var i = 0; i < chars.length && marks.length < (data.sparkles === false ? 0 : 3); i++) {
@@ -659,16 +663,26 @@ function mvLayoutMini(data, fields, H, S, col) {
     if (typeof mb.advances[dotless] === "number") chars[i] = dotless;
   }
   var bigText = chars.join("");
-  var wb = mvTextWidth(bigText, mb, Fb);
+  var wb = mvTextWidth(bigText, mb, Fb, fb.tracking);
   var big = mvText("big", bigText, fb, -wb / 2, 0, Fb, col.primary);
   items.push(big);
-  var spark = 0.19 * Fb;
+  var spark = 0.36 * xh * Fb;
   for (var k = 0; k < marks.length; k++) {
-    var dot = mb.dots[fields.big.charAt(marks[k])] || mb.dots.i;
-    var px = big.x + mvTextWidth(bigText.slice(0, marks[k]), mb, Fb) + (dot[0] / mb.unitsPerEm) * Fb;
-    var py = -(dot[1] / mb.unitsPerEm) * Fb;
-    // A letter that kept its dot (no dotless glyph, e.g. j in DM Serif) gets the sparkle above the dot.
-    if (bigText.charAt(marks[k]) === fields.big.charAt(marks[k])) py = -((dot[1] + (dot[2] || 0.06 * mb.unitsPerEm)) / mb.unitsPerEm) * Fb - 0.03 * Fb - spark / 2;
+    var letter = fields.big.charAt(marks[k]), stem = mb.stems && mb.stems[letter];
+    var dot = mb.dots[letter] || mb.dots.i;
+    // Pen position of the letter: advances plus the tracking after each earlier letter.
+    var pen = big.x + mvTextWidth(bigText.slice(0, marks[k]), mb, Fb) + fb.tracking * Fb * marks[k];
+    var px, py;
+    if (bigText.charAt(marks[k]) !== letter && stem) {
+      // Dotless letter: the sparkle sits on its stem top, its bottom 0.12 x-height above it.
+      px = pen + (stem[0] / mb.unitsPerEm) * Fb;
+      py = -(stem[1] / mb.unitsPerEm + 0.12 * xh) * Fb - spark / 2;
+    } else {
+      px = pen + (dot[0] / mb.unitsPerEm) * Fb;
+      py = -(dot[1] / mb.unitsPerEm) * Fb;
+      // A letter that kept its dot (no dotless glyph) gets the sparkle above the dot.
+      if (bigText.charAt(marks[k]) === letter) py = -((dot[1] + (dot[2] || 0.06 * mb.unitsPerEm)) / mb.unitsPerEm) * Fb - 0.03 * Fb - spark / 2;
+    }
     items.push(mvMark("sparkle", "sparkle", px, py, spark, col.primary));
   }
   if (data.sparkles !== false && marks.length === 0) {
@@ -677,7 +691,7 @@ function mvLayoutMini(data, fields, H, S, col) {
   if (fields.small) {
     // "vlog" is 43 % of "mini"'s width in No.17: kept as a font-size ratio for other words.
     var ms = fs.m;
-    var Fs = (Fb * 0.43 * mvTextWidth("mini", mb, 1)) / mvTextWidth("vlog", ms, 1);
+    var Fs = (Fb * 0.43 * mvTextWidth("mini", mb, 1, fb.tracking)) / mvTextWidth("vlog", ms, 1);
     var ws = mvTextWidth(fields.small, ms, Fs), inkS = mvInk(fields.small, ms);
     var y2 = big.box[3] + 0.03 * Fb + inkS.up * Fs;
     items.push(mvText("small", fields.small, fs, -ws / 2, y2, Fs, col.secondary));
@@ -792,7 +806,7 @@ function mvLockupLayout(data, width, height) {
   var tx = function (v) { return ax + (v - cx) * k; }, ty = function (v) { return ay + (v - cy) * k; };
   return items.map(function (it) {
     var o = Object.assign({}, it, { x: tx(it.x), y: ty(it.y), size: it.size * k, box: [tx(it.box[0]), ty(it.box[1]), tx(it.box[2]), ty(it.box[3])] });
-    if (typeof it.w === "number") o.w = it.w * k;
+    if (typeof it.w === "number") { o.w = it.w * k; o.tracking = it.tracking * k; o.stroke = it.stroke * k; }
     return o;
   });
 }
@@ -1739,7 +1753,8 @@ export default function Panel({ sdk, context, ui }: any) {
             <svg width="100%" height={PREVIEW_HEIGHT} viewBox={PREVIEW_VIEW} preserveAspectRatio="xMidYMid meet" style={{ display: "block", filter: "drop-shadow(0 1px 3px rgba(0, 0, 0, " + TITLE_LOOK.shadow + "))" }}>
               {previewItems.map((it, i) => (it.kind === "text"
                 ? <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={'"' + it.font.family + '", ' + PREVIEW_FALLBACK} fontStyle={it.font.style} fontWeight={it.font.weight}
-                  style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none" } as any}>{it.text}</text>
+                  stroke={it.stroke > 0 ? it.color : undefined} strokeWidth={it.stroke} strokeLinejoin="round"
+                  style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: it.tracking } as any}>{it.text}</text>
                 : <path key={i} d={it.kind === "sparkle" ? mvSparklePath(it.x, it.y, it.size) : mvStarPath(it.x, it.y, it.size)} fill={it.color} />))}
             </svg>
           ) : <small style={{ color: "#d8d2cc" }}>{assets ? "Preview unavailable; the title is still added to the Draft." : "Loading…"}</small>}
