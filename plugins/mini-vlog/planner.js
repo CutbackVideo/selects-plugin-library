@@ -397,6 +397,24 @@ function mvDefaultSection(opts) {
   return best ? best.start : null;
 }
 
+// Hook section (spec 15.3, "Start at the hook"): the bar start with the highest hookBars score (manifest; index b =
+// the start firstBeat + 4b beats, scored by onset contrast and low-band punch) among the starts whose video of
+// videoSeconds fits before usableEnd, earliest on ties; the manifest's hookStart is this pick for 24 beats. null when
+// there are no scores (own music, No music), no tempo or nothing fits, so the caller falls back to mvDefaultSection.
+// opts: { hookBars, firstBeat, bpm, usableEnd, videoSeconds, barPhaseBeats? }. barPhaseBeats is informational only:
+// the manifest's firstBeat already carries the bar phase, so it never shifts the start.
+function mvHookSection(opts) {
+  const bars = opts.hookBars, bar = 4 * 60 / opts.bpm;
+  if (!Array.isArray(bars) || !bars.length || !(opts.bpm > 0)) return null;
+  let best = null;
+  for (let b = 0; b < bars.length; b++) {
+    const start = opts.firstBeat + b * bar, score = bars[b];
+    if (typeof score !== 'number' || !isFinite(score) || start + opts.videoSeconds > opts.usableEnd + 1e-6) continue;
+    if (!best || score > best.score + 1e-9) best = { start, score };
+  }
+  return best ? best.start : null;
+}
+
 function mvHash(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }

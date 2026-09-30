@@ -331,6 +331,39 @@ assert.ok(bp.cv >= 0.3 && bp.cv <= 0.6, 'interval_cv ' + bp.cv);
 const bq = ctx.mvSchedule({ bpm: 108, fps: F, shots: 24, beatsPerShot: 1, sectionStart: 4.472 });
 assert.ok(cv(bq.slots.map(x => (x.endFrame - x.startFrame) / F)) < 0.05);
 
+// Hook section (spec 15.3): the best-scoring bar start (hookBars, index = bar from firstBeat) among the starts whose
+// video fits, earliest on ties. For a Standard Quick video (24 beats) it is the manifest's own hookStart on every cue.
+for (const cue of manifest.cues) {
+  const hs = ctx.mvHookSection({ hookBars: cue.hookBars, firstBeat: cue.firstBeat, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds: 24 * 60 / cue.bpm, barPhaseBeats: cue.barPhaseBeats });
+  assert.ok(Math.abs(hs - cue.hookStart) < 1e-3, cue.id + ' hook section ' + hs + ' vs hookStart ' + cue.hookStart);
+  // The pick is a start the section snap keeps as it is.
+  const snapped = ctx.mvSnapSection({ value: hs, firstBeat: cue.firstBeat, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds: 24 * 60 / cue.bpm, gridAccepted: true });
+  assert.ok(Math.abs(snapped - hs) < 1e-9, cue.id + ' hook section survives snapping');
+}
+{
+  const bar = 4 * 60 / 120, base = { firstBeat: 0.5, bpm: 120, usableEnd: 0.5 + 10 * bar, videoSeconds: 4 * bar };
+  // Earliest of equal scores; a start whose video would run past usableEnd is skipped even when it scores best.
+  assert.strictEqual(ctx.mvHookSection({ ...base, hookBars: [0.2, 0.9, 0.4, 0.9, 0.1, 0.3, 0.2] }), 0.5 + bar);
+  assert.strictEqual(ctx.mvHookSection({ ...base, hookBars: [0.2, 0.3, 0.4, 0.5, 0.1, 0.3, 0.2, 1] }), 0.5 + 3 * bar);
+  // Exactly fitting counts (bar 6 ends at usableEnd).
+  assert.strictEqual(ctx.mvHookSection({ ...base, hookBars: [0, 0, 0, 0, 0, 0, 0.7] }), 0.5 + 6 * bar);
+  // Starts past the scored bars (the last 3 bars of a cue have no score) are never picked.
+  assert.strictEqual(ctx.mvHookSection({ ...base, videoSeconds: bar, hookBars: [0.1, 0.2] }), 0.5 + bar);
+  // No hookBars (own music, No music), an empty list, no tempo, or nothing that fits: null (the caller falls back).
+  for (const hookBars of [undefined, null, [], 'x']) assert.strictEqual(ctx.mvHookSection({ ...base, hookBars }), null);
+  assert.strictEqual(ctx.mvHookSection({ ...base, bpm: null, hookBars: [1] }), null);
+  assert.strictEqual(ctx.mvHookSection({ ...base, videoSeconds: 11 * bar, hookBars: [1, 1] }), null);
+  // Non-numeric scores are skipped; barPhaseBeats never shifts the start (firstBeat already carries the bar phase).
+  assert.strictEqual(ctx.mvHookSection({ ...base, hookBars: [null, 0.3, 'a', 0.2] }), 0.5 + bar);
+  assert.strictEqual(ctx.mvHookSection({ ...base, barPhaseBeats: 2, hookBars: [0.1, 0.5] }), 0.5 + bar);
+}
+// Groove sizes the hook window by its beat span: Bedroom Pop Long Groove (36 beats) cannot start at bar 17.
+{
+  const c = manifest.cues.find(x => x.id === 'bedroom-pop-108');
+  const hs = ctx.mvHookSection({ hookBars: c.hookBars, firstBeat: c.firstBeat, bpm: c.bpm, usableEnd: c.usableEnd, videoSeconds: 36 * 60 / c.bpm });
+  assert.ok(hs + 36 * 60 / c.bpm <= c.usableEnd + 1e-6 && hs < c.hookStart, 'long hook section fits ' + hs);
+}
+
 // Progress (CWV labels).
 assert.strictEqual(ctx.mvProgress('shots', 0).label, 'Step 1/5 · Choosing shots · 0%');
 assert.strictEqual(ctx.mvProgress('open', 1).percent, 100);

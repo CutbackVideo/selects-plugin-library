@@ -18,10 +18,28 @@ source file.
   cut that has no drum or bass hit within a frame of its beat moves onto a
   clearly strong hit within a tenth of a beat (at most 70 ms); every other
   cut stays on the grid.
+- **Pace Groove** varies the rhythm with the music's phrases (four bars
+  each): every phrase opens with a two-beat shot, the other shots are one
+  beat, and the last beat of every two bars splits into two half-beat shots
+  when it carries a drum fill. When the video ends in the second half of a
+  phrase, its third bar also opens with a two-beat shot. The fills are found
+  in the track's drum hits; when a track shows none, every one of those beats
+  splits (the bundled tracks have a short fill at the end of every four
+  bars). Half-beat shots are always video, never photos, and their cuts stay
+  exactly on the half beat. Below 86 BPM every shot is one beat or less, so
+  no shot lasts longer than 1.40 s ("At 80 bpm Groove opens phrases with 1
+  beat."), and above 150 BPM Groove uses two beats per shot like Quick ("At
+  156 bpm Groove uses 2 beats per shot."). Quick stays the default.
 - **Everyday shots.** The shots cycle through drink, street, food, park,
   book, transit, flowers and cafe moments, alternating close and wide. Each
   role also accepts its neighbours (a cafe shot for a drink, a train for a
   street, flowers for a park), then any other analysed moment.
+- **Moving moments first.** Each clip is also searched for "hands moving,
+  pouring, walking or the camera moving". A moment within 0.75 s of such a
+  hit ranks higher than a similar still moment of the same kind (by up to
+  half a point, scaled by how strong the hit is), so between otherwise equal
+  choices the moving one wins. Without such hits the choice is unchanged.
+  This applies to every build, with or without Beat punch.
 - **Variety.** The shots are spread over all the selected clips: a shot takes
   a clip that has not been used yet whenever one fits, and a clip is only
   reused once every clip that fits has been used, the least-used first. The
@@ -32,6 +50,8 @@ source file.
 - A subtle **Soft look** on every clip and photo (strength 0.35): a slight
   lift in the shadows, a little less contrast and a touch of warm pink in
   the highlights only, so dark shots stay dark. The title is not affected.
+- With **Beat punch** on (Advanced, off by default), a quick zoom on every
+  bar's first beat in the video clips (see [Photos](#photos)).
 - The clips' own sound plays quietly under the music by default (**Clip
   sound**: Ambient, see [Advanced](#advanced)).
 - No transitions and no end card. The picture stops on the last beat, and
@@ -42,7 +62,12 @@ four shots. **Length** Short, Standard (the default) or Long asks for 12, 24
 or 36 shots. With Bedroom Pop (108 BPM, the default track) and Pace Quick
 that is about 6.7, 13.3 and 20.0 seconds, and Relaxed doubles them (13.3,
 26.7 and 40.0 s). On the shorter reused tracks Long with Relaxed is capped
-by the track (see [Music](#music)).
+by the track (see [Music](#music)). With Groove, a length is a number of
+whole bars: 12, 24 or 36 beats, as long as Quick (6.7, 13.3 and 20.0 s on
+Bedroom Pop), which holds 12, 25 and 38 shots when every fill beat splits
+(the panel reads, for example, "Standard: 25 shots (13.3 s)"); a track that
+shows fills on only some of those beats gives a few shots fewer in the same
+time.
 
 ## Default path
 
@@ -121,15 +146,18 @@ alternatives under an "Alternatives" heading, each with its tempo (for example
 | No music | fixed timing | |
 
 The reference tracks suit the style best; the alternatives are slower. The
-bundled tracks are instrumentals at -11 LUFS (true peak at most -1 dBTP).
+bundled tracks are instrumentals at -11 LUFS integrated, about as loud as
+short-form reference edits, with a fixed gain and a true-peak limiter at
+-1 dBTP (not a dynamic leveller, so the swells keep their shape).
 
-**Beat and bar.** On Acoustic Pop, Weekend Indie Pop and Golden Hour Disco
-the beat is reliable but the start of each bar is not: their first beat of a
-bar is barely stronger than the others (1.43, 1.20 and 1.25 times, where 1.5
-is needed). With these three tracks the cuts land on the beat, but the video
-may start and end mid-bar. Bedroom Pop, Sunny Soul Strut and Easy Sunday
-Lo-fi have clear bars, so their videos start on the first beat of a bar and
-last whole bars.
+**Beat and bar.** Bedroom Pop, Acoustic Pop, Sunny Soul Strut and Easy
+Sunday Lo-fi have clear bars: the first beat of a bar is 1.70, 1.71, 3.09
+and 3.14 times as strong as the others, where 1.5 is needed. Their videos
+start on the first beat of a bar and last whole bars. On Weekend Indie Pop
+and Golden Hour Disco the beat is reliable but the start of each bar is not
+(1.35 and 1.16 times): the cuts land on the beat, but the video may start
+and end mid-bar, and Groove's phrases and the Beat punch's zooms follow the
+beat count from the start of the section rather than the heard bars.
 
 The waveform under "Music section — drag to choose" shows a box as long as
 the video. Drag the box (or press on the waveform) to choose where in the
@@ -137,7 +165,17 @@ track the video starts; the box snaps to groups of four beats, so the cuts
 stay on the beat. The arrow keys move it by four beats (by one second without a beat grid), and Home and End move
 it to the first and last start. The line under the waveform reads, for
 example, "Starts at 4.3 s". The box starts on the most energetic section that
-fits; a new Length or Pace keeps the start where it can. **Preview this
+fits; a new Length or Pace keeps the start where it can.
+
+**Start at the hook** (under the preview button, bundled tracks only, off by
+default) starts the box on the track's hook instead: of the starts where the
+video fits, the one whose next four bars have the strongest contrast between
+loud and quiet hits and the fullest bass (a drum fill adds a little). For a
+Standard video that is 37.8 s into Bedroom Pop, 33.5 s into Acoustic Pop,
+4.3 s into Weekend Indie Pop, 14.6 s into Sunny Soul Strut and the start of
+Golden Hour Disco and Easy Sunday Lo-fi. Turning it on or off moves the box
+to that default again; you can still drag it anywhere. Your own music has
+no hook scores, so it keeps the most energetic section. **Preview this
 section** plays the whole section; press it again (**Stop preview**) or press
 Esc to stop. Selects starts the music on a video frame, which can move it by
 up to half a frame; the cuts move with it.
@@ -213,14 +251,16 @@ analysis and are never scene-searched.
 Selects reports no frame size for some photos. The size of such a photo is
 read once, by placing it on an unsaved scratch Draft; nothing is saved.
 
-**Beat punch.** When Beat punch is on, every video clip gets a "Beat punch"
-Video Effect: on the strong beats (the first beat of each bar) the picture
+**Beat punch.** Turn on **Beat punch** in Advanced (off by default). Every
+video clip then gets a "Beat punch" Video Effect: on the strong beats (the
+first beat of each bar, counted from the start of the music section) the picture
 zooms in quickly to 106 % over a quarter beat and settles back by half a
 beat; a clip with no strong beat in it gets a slow push-in to 103 % across
 the shot instead. The zoom is about the centre and never shows the frame's
 edges, and the Soft look is applied on top of it. Photos keep their Photo
 motion only. Change it with **Punch** (0 to 1) in the clip's Adjust tab; 0
-turns it off for that clip.
+turns it off for that clip. With No music, or music without a steady beat,
+every video clip gets the slow push-in only.
 
 ## Title
 
@@ -262,6 +302,8 @@ Three lockup presets, chosen in the panel with a live preview:
   panel says "Silent video: no music and Clip sound is Off." In the Draft, a
   clip's level can be changed in the Inspector.
 - **Soft look**: on by default.
+- **Beat punch**: off by default. On adds the Beat punch zoom to every video
+  clip (see [Photos](#photos)).
 - **Use photos**: on by default. Off builds from the analysed video only.
 - **Choose clips (n/m)**: a checklist of the analysed clips (with their
   length and Tall, Wide or Square) followed by the photos (marked "Photo"),
@@ -277,7 +319,8 @@ The Draft contains:
   16:9;
 - one title Motion Graphic ("Mini vlog title") over the whole video;
 - a "Soft look" Video Effect on each clip and photo (when Soft look is on),
-  and a "Photo motion" Video Effect on each photo;
+  a "Photo motion" Video Effect on each photo, and a "Beat punch" Video
+  Effect on each video clip (when Beat punch is on);
 - the music clip, trimmed to the video (when music is chosen).
 
 Edit it in the Inspector's **Adjust** tab:
@@ -295,8 +338,8 @@ Edit it in the Inspector's **Adjust** tab:
 - **Clips and photos**: **Softness** (0 to 1) in the Soft look, and for
   photos **Motion** (Push in, Pull out, Drift left, Drift right, Drift up,
   Drift down, Tilt or Push and drift) and **Motion strength** (0 to 2) in
-  Photo motion. A clip's crop and sound level are changed in the Inspector as
-  usual.
+  Photo motion, and for video clips **Punch** (0 to 1) in Beat punch. A
+  clip's crop and sound level are changed in the Inspector as usual.
 - **Music**: select the music clip to change its volume.
 
 Finished videos are exported from the Draft with **Handoff → Export**.
@@ -309,12 +352,11 @@ Finished videos are exported from the Draft with **Handoff → Export**.
 - The title preset cannot be switched in Adjust. To change it, pick another
   preset in the panel and build again. Rebuilding creates a new Draft and does
   not keep Adjust edits.
-- On Acoustic Pop, Weekend Indie Pop, Golden Hour Disco and your own music
-  the cuts follow the beat, but bar starts are best effort (see
-  [Music](#music)).
+- On Weekend Indie Pop, Golden Hour Disco and your own music the cuts
+  follow the beat, but bar starts are best effort (see [Music](#music)).
 - The Draft is built in two commits: first the clips, their crop, their
   Ambient sound level and the music; then the title, the Soft look, the photo
-  motion and, with Clip sound Off, the clips' muted sound (Selects can change
+  motion, the Beat punch and, with Clip sound Off, the clips' muted sound (Selects can change
   a clip's audio tracks only once the Draft is saved). If the second commit
   fails, the Draft is kept and the panel says "Draft created, but its title,
   look and clip sound are not applied yet."; **Finish title and look**
