@@ -58,6 +58,19 @@ test('unrelated missing Project media does not hide usable gallery inputs', asyn
   assert.deepEqual(result.unavailable, [{ resourceId: 'missing-unrelated', name: 'offline.mov' }]);
 });
 
+test('generated Video duration uses Resource metadata when the file tree omits it', async () => {
+  const { run, resources, nodes, calls } = fixture({ shortVideo: true });
+  delete nodes[0].durationSeconds;
+  resources[0].durationSeconds = 15.042;
+  const inspected = await run({ operation: 'inspect', projectId: 'project-1' });
+  assert.equal(inspected.media[0].durationFrames, 903);
+  nodes[1].durationSeconds = 1;
+  resources[1].durationSeconds = 30;
+  const reread = await run({ operation: 'inspect', projectId: 'project-1' });
+  assert.equal(reread.media[1].durationFrames, 60);
+  assert.equal(calls.create, 0);
+});
+
 test('original photos are not converted to MP4 through the held-video import operation', async () => {
   const { run, project } = fixture();
   let imports = 0;

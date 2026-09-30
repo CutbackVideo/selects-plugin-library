@@ -52,7 +52,8 @@ async function galleryInventory(project) {
     const type = String(resource.type).toLowerCase();
     const kind = type === 'image' ? 'image' : type === 'video' ? 'video' : type === 'audio' ? 'audio' : null;
     if (!kind) continue;
-    const durationFrames = Number.isFinite(node.durationSeconds) ? Math.round(node.durationSeconds * 60) : null;
+    const durationSeconds = Number.isFinite(node.durationSeconds) ? node.durationSeconds : resource.durationSeconds;
+    const durationFrames = Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 60) : null;
     const common = { resourceId: node.resourceId, name: node.name, path: node.path, durationFrames };
     if (kind === 'audio') audio.push(common);
     else if (kind === 'image' || (node.frameSize?.width > 0 && node.frameSize?.height > 0)) {
