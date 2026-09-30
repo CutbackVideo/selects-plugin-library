@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "id": "camera-shutter-dump",
+  "version": "0.1.0",
+  "name": "Camera Shutter Dump",
+  "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "VALIDATION.md",
+    "operation.mjs",
+    "build-script.mjs",
+    "panel.tsx",
+    "sfx/manifest.json",
+    "sfx/shutter-v2-1.wav.b64",
+    "sfx/shutter-v2-2.wav.b64",
+    "sfx/shutter-v2-3.wav.b64",
+    "sfx/shutter-v2-4.wav.b64",
+    "sfx/shutter-v2-5.wav.b64",
+    "sfx/shutter-v2-6.wav.b64"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal), public clip effects and Audio overlays, and Node.js in the panel shell. Verified on a local Selects dev build of develop 89996b58e (2026-09-30); not yet re-run on Selects Staging."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  },
+  "localized": {
+    "de": {
+      "name": "Camera Shutter Dump",
+      "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
+    },
+    "en": {
+      "name": "Camera Shutter Dump",
+      "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
+    },
+    "es": {
+      "name": "Camera Shutter Dump",
+      "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
+    },
+    "fr": {
+      "name": "Camera Shutter Dump",
+      "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
+    },
+    "it": {
+      "name": "Camera Shutter Dump",
+      "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
+    },
+    "ja": {
+      "name": "Camera Shutter Dump",
+      "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
+    },
+    "ko": {
+      "name": "Camera Shutter Dump",
+      "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
+    },
+    "pt": {
+      "name": "Camera Shutter Dump",
+      "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
+    },
+    "tr": {
+      "name": "Camera Shutter Dump",
+      "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
+    },
+    "zh": {
+      "name": "Camera Shutter Dump",
+      "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
+    }
+  }
+}
