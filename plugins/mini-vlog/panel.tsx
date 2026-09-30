@@ -2138,13 +2138,16 @@ export default function Panel({ sdk, context, ui }: any) {
   // Fixed timing without a grid: the shot length, or for Groove its 0.55 s beat and the 2-beat, 1-beat and 8th shots.
   const timing = grooved ? "Groove on a " + shotSeconds.toFixed(2) + " s beat: " + (2 * shotSeconds).toFixed(2) + ", " + shotSeconds.toFixed(2) + " and " + (shotSeconds / 2).toFixed(3) + " s shots"
     : shotSeconds.toFixed(2) + " s";
+  // A tempo that was found (an accepted grid, or own music's approximate one) but is outside 70-160 bpm, else null. Used
+  // only where no grid or approximate tempo applies, so it is always out of range there.
+  const outsideBpm: number | null = grid.accepted ? grid.bpm : ownApprox ? ownGrid.bpm : null;
   const paceNote = !assets ? null
     : guard.overridden ? "At " + Math.round(tempo) + " bpm " + (pace === "quick" ? "Quick uses 2 beats per shot" : pace === "relaxed" ? "Relaxed uses 1 beat per shot"
       : guard.groove ? "Groove opens phrases with 1 beat" : "Groove uses 2 beats per shot") + "."
     : !gridded ? (musicKind === "none" ? "No music: shots use approximate timing (" + timing + ")."
       : musicKind === "own" && !ownGrid ? null
       : approxTempo ? "Tempo found (" + Math.round(approxTempo) + " bpm) but the beat is faint: cuts follow a " + Math.round(approxTempo) + " bpm grid approximately (" + timing + ")."
-      : grid.accepted ? "Tempo outside 70\u2013160 bpm (" + Math.round(grid.bpm) + " bpm): shots use approximate timing (" + timing + ")."
+      : outsideBpm ? "Tempo outside 70\u2013160 bpm (" + Math.round(outsideBpm) + " bpm): shots use approximate timing (" + timing + ")."
       : "No steady beat found: shots use approximate timing (" + timing + ").")
     : null;
   // What the beat detection found in your own music, shown under the file (null while it runs, and after a failed
@@ -2152,7 +2155,7 @@ export default function Panel({ sdk, context, ui }: any) {
   const ownBeatLine: string | null = musicKind !== "own" || !ownGrid || ownGrid.failed ? null
     : gridded ? "Beat found: " + Math.round(grid.bpm) + " bpm. Cuts follow the beat."
     : approxTempo ? "Tempo found (" + Math.round(approxTempo) + " bpm) but the beat is faint, so cuts follow a " + Math.round(approxTempo) + " bpm grid approximately."
-    : (ownGrid.accepted || ownGrid.grid === "approximate") && ownGrid.bpm > 0 ? "Its tempo (" + Math.round(ownGrid.bpm) + " bpm) is outside 70\u2013160 bpm, so cuts use approximate timing."
+    : outsideBpm ? "Its tempo (" + Math.round(outsideBpm) + " bpm) is outside 70\u2013160 bpm, so cuts use approximate timing."
     : "No steady beat found, so cuts use approximate timing.";
   const peaks: number[] = grid.peaks || [];
   const total = musicKind === "own" ? (ownDuration || 1) : (cue ? cue.duration : 1);

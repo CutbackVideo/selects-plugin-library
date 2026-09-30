@@ -49,7 +49,7 @@ const kitNoSnare = analyze(offBeatKit({ snare: false }), sr);
 assert.ok(Math.abs(kitNoSnare.firstBeat - 0.05) < 0.01, 'fitted grid kept on the hats: ' + kitNoSnare.firstBeat);
 // The half-beat move is refused when it would lose acceptance: with the kick on every other beat (gain 0.6) the kick
 // grid is still the clear low/backbeat winner, but only about 0.65 of its lines meet an onset (hitRate below 0.7), while
-// the fitted hat grid is accepted. On an 8 s kit the kick grid has too few hits (11) for the sparse rule too, so the
+// the fitted hat grid is accepted. On a 12 s kit the kick grid has too few hits (15) for the sparse rule too, so the
 // fitted phase stays. On the 20 s kit (26 hits, 6.3 ms median) the sparse rule (v2.7) accepts the kick grid, and the
 // move goes through onto the kick.
 function sparseKickKit(seconds = 20) {
@@ -64,9 +64,14 @@ function sparseKickKit(seconds = 20) {
   }
   return x;
 }
-const sparse = analyze(sparseKickKit(8), sr);
+const sparse = analyze(sparseKickKit(12), sr);
 assert.ok(Math.abs(sparse.firstBeat - 0.05) < 0.01, 'flip refused, fitted phase kept: ' + sparse.firstBeat);
 assert.equal(sparse.accepted, true);
+// The move never lowers the grid state (accepted > approximate > none).
+const { takeFlip } = require(path.join(root, 'beat-detect.cjs'));
+for (const [fit, flip, take] of [['accepted', 'accepted', true], ['accepted', 'approximate', false], ['accepted', 'none', false],
+  ['approximate', 'accepted', true], ['approximate', 'approximate', true], ['approximate', 'none', false], ['none', 'none', true], ['none', 'approximate', true]])
+  assert.equal(takeFlip({ grid: fit }, { grid: flip }), take, fit + ' -> ' + flip);
 const sparseLong = analyze(sparseKickKit(), sr);
 assert.ok(Math.abs(sparseLong.firstBeat - 0.3) < 0.01, 'sparse kick grid accepted, flip onto the kick: ' + sparseLong.firstBeat);
 assert.ok(sparseLong.hitRate < 0.7, 'accepted by the sparse rule: ' + sparseLong.hitRate);
@@ -138,6 +143,53 @@ const rubato = new Float32Array(60 * sr);
 const rb = analyze(rubato, sr);
 assert.equal(rb.accepted, false, 'rubato accepted at ' + rb.bpm);
 assert.equal(rb.grid, 'none');
+
+// Sparse music that changes tempo, or whose hits are too rare to fix a tempo: never a grid, not even approximate. In
+// the wrong-tempo stretch sparse kicks give misses rather than loose hits, so the residual check never has enough hits
+// in a window; the on-grid share of the window's onsets (0.30 of the track's) refuses it. (Reviewer cases.)
+function kickTrack(seconds, times) {
+  let q = 3; const r = () => ((q = Math.imul(q, 1103515245) + 12345) >>> 0) / 4294967296 - 0.5;
+  const x = new Float32Array(seconds * sr).map(() => r() * 0.002);
+  for (const t of times) { const i0 = Math.round(t * sr); for (let k = 0; k < 6000 && i0 + k < x.length; k++) x[i0 + k] += 0.5 * Math.sin(2 * Math.PI * (55 + 60 * Math.exp(-k / 400)) * k / sr) * Math.exp(-k / 3000); }
+  return x;
+}
+{
+  // Kicks on 1 and 3 of every other bar, 60 s at 120 BPM, then 60 s at 100 BPM.
+  const t = [];
+  for (let bar = 0; 0.4 + bar * 2 < 60; bar += 2) t.push(0.4 + bar * 2, 1.4 + bar * 2);
+  for (let bar = 0; 60.3 + bar * 2.4 < 119; bar += 2) t.push(60.3 + bar * 2.4, 61.5 + bar * 2.4);
+  const r = analyze(kickTrack(120, t), sr);
+  assert.equal(r.grid, 'none', 'sparse 120 -> 100 BPM: ' + r.grid + ' at ' + r.bpm);
+}
+{
+  // A kick every 3.0 s for 100 s, then every 2.85 s.
+  const t = [];
+  for (let x = 0.4; x < 100; x += 3) t.push(x);
+  for (let x = 100.4; x < 199; x += 2.85) t.push(x);
+  const r = analyze(kickTrack(200, t), sr);
+  assert.equal(r.grid, 'none', 'sparse 3.0 -> 2.85 s kicks: ' + r.grid + ' at ' + r.bpm);
+}
+{
+  // One kick every 8 s for 200 s: tight and steady, but one hit in 16 lines fits many tempos.
+  const t = [];
+  for (let x = 0.4; x < 199; x += 8) t.push(x);
+  const r = analyze(kickTrack(200, t), sr);
+  assert.equal(r.grid, 'none', 'a kick every 8 s: ' + r.grid + ' at ' + r.bpm);
+}
+// A silent outro does not dilute hitRate: lines are counted up to the last onset.
+{
+  const body = sparseDrums();
+  const padded = new Float32Array(body.length + 40 * sr); padded.set(body, 0);
+  const r = analyze(padded, sr);
+  assert.equal(r.grid, 'accepted', 'sparse drums + 40 s silence: ' + r.grid);
+  assert.ok(Math.abs(r.hitRate - sp.hitRate) < 0.02, 'hitRate ' + r.hitRate + ' vs ' + sp.hitRate);
+}
+// A lone onset in noise is not a grid (strict needs at least 8 hits).
+{
+  const x = new Float32Array(20 * sr).map((_, i) => 0.001 * Math.sin(i));
+  for (let k = 0; k < 400; k++) x[5 * sr + k] += Math.sin(2 * Math.PI * 1000 * k / sr) * Math.exp(-k / 80);
+  assert.equal(analyze(x, sr).accepted, false, 'a single click');
+}
 
 // CLI round trip.
 const tmp = path.join(require('node:os').tmpdir(), 'mv-beat-test.f32');

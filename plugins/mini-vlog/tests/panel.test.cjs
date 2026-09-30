@@ -123,6 +123,9 @@ for (const s of ['const ownApprox = musicKind === "own" && ownGrid && !ownGrid.a
   '{ownBeatLine ? <ui.Message tone="muted">{ownBeatLine}</ui.Message> : null}', 'bpm: gridded ? grid.bpm : null, usePhotos']) assert.ok(ui.includes(s), s);
 assert.ok(ui.indexOf('{ownBeatLine ?') > ui.indexOf('<ui.FileDrop accept={["audio"]}') && ui.indexOf('{ownBeatLine ?') < ui.indexOf('<ui.Section title="Length">'), 'the beat line sits under the file drop');
 assert.ok(!ui.includes('its beat could not be found reliably'), 'no detection result in the bottom status line');
+// An approximate tempo outside 70-160 bpm: both the line under the file and the pace note say the tempo is out of range.
+assert.ok(ui.includes('const outsideBpm: number | null = grid.accepted ? grid.bpm : ownApprox ? ownGrid.bpm : null;')
+  && ui.includes(': outsideBpm ? "Tempo outside 70\\u2013160 bpm (" + Math.round(outsideBpm) + " bpm)') && ui.includes(': outsideBpm ? "Its tempo (" + Math.round(outsideBpm) + " bpm) is outside'), 'out-of-range messages agree');
 // Use photos off drops the photo candidates before planning.
 assert.ok(ui.includes('if (!usePhotos || !inventory) return [];'), 'photos off -> no photo candidates');
 assert.equal((ui.match(/photoCandsOf\(inventory, onlyPhotos, usePhotos\)/g) || []).length, 2);
