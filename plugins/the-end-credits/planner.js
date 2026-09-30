@@ -60,6 +60,24 @@ function tecPhrase(opts) {
   return { P: TEC_FIXED_PHRASE, m: null, fixed: true };
 }
 
+// beat-detect.cjs's tempo search range (bpm).
+const TEC_DETECT_MIN_BPM = 70;
+const TEC_DETECT_MAX_BPM = 180;
+
+// Own music: beat-detect.cjs's result -> { P, m, fixed, approximate, firstBeat }. An accepted grid gives tecPhrase on
+// its bpm. An 'approximate' grid (tight but sparse hits: the tempo and first beat are a usable guide, the beat may be
+// faint) with a bpm in the detector's range gets the same phrase on the detected tempo and first beat, so the shots
+// follow the detected beat (approximate: true). Anything else (grid 'none', a failed detection, or no multiple in
+// range) gets the fixed 3.9 s phrase with firstBeat 0. hitRate is never read: it can be 1 on noise or one onset.
+function tecOwnPhrase(det) {
+  const d = det || {};
+  const bpm = d.bpm, inRange = typeof bpm === 'number' && bpm >= TEC_DETECT_MIN_BPM && bpm <= TEC_DETECT_MAX_BPM;
+  const approximate = d.accepted !== true && d.grid === 'approximate' && inRange;
+  const ph = d.accepted === true || approximate ? tecPhrase({ bpm, accepted: true }) : tecPhrase({});
+  const fb = typeof d.firstBeat === 'number' && isFinite(d.firstBeat) ? d.firstBeat : 0;
+  return { P: ph.P, m: ph.m, fixed: ph.fixed, approximate: approximate && !ph.fixed, firstBeat: ph.fixed ? 0 : fb };
+}
+
 function tecVideoSeconds(N, P) { return TEC_LEAD_IN + N * P + TEC_TAIL; }
 
 // The role of grid shot k (1..N) of N.

@@ -116,11 +116,12 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     const buf = execFileSync(ffmpeg(), ['-nostdin', '-v', 'error', '-t', '360', '-i', file, '-ac', '1', '-ar', '22050', '-f', 'f32le', 'pipe:1'], { maxBuffer: 64 << 20 });
     const samples = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 4));
     const det = createRequire(path.join(pluginDir, 'beat-detect.cjs'))(path.join(pluginDir, 'beat-detect.cjs')).analyze(samples, 22050);
-    // Panel: an accepted detection gives tecPhrase(bpm), else the fixed 3.9 s phrase; firstBeat is 0 with fixed timing.
-    const phrase = det.accepted ? P.tecPhrase({ bpm: det.bpm, accepted: true }) : P.tecPhrase({});
-    const firstBeat = phrase.fixed ? 0 : det.firstBeat;
+    // Panel: tecOwnPhrase: an accepted grid, or an approximate one in the detector's range, gives tecPhrase(bpm) from
+    // the detected first beat; else the fixed 3.9 s phrase with firstBeat 0.
+    const own = j(P.tecOwnPhrase(det));
+    const phrase = { P: own.P, m: own.m, fixed: own.fixed }, firstBeat = own.firstBeat;
     const loudest = P.tecLoudest({ ...det, firstBeat, durationSeconds: det.durationSeconds }, phrase.P, phrase.m, phrase.fixed);
-    const out = { file, name: path.basename(file), detector: { bpm: det.bpm, firstBeat: det.firstBeat, accepted: det.accepted, durationSeconds: det.durationSeconds },
+    const out = { file, name: path.basename(file), detector: { bpm: det.bpm, firstBeat: det.firstBeat, accepted: det.accepted, grid: det.grid, approximate: own.approximate, durationSeconds: det.durationSeconds },
       bpm: det.bpm, firstBeat, usableEnd: det.durationSeconds - P.TEC_MUSIC_END_MARGIN, swell: loudest, phrase };
     ownCache.set(file, out);
     return out;
