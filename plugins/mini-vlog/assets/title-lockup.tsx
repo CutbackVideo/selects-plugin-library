@@ -8,13 +8,15 @@ import { AbsoluteFill, continueRender, delayRender, useVideoConfig } from "remot
 // Text is measured with the per-font advance tables from presets.json (`metrics`), passed
 // in `data.fonts[i].metrics`, so the layout is identical in Node, the panel and the render.
 // All lengths are canvas pixels; sizes are relative to the canvas height.
-// Items: text {part, text, font, x (left), y (baseline), size (font px), w (advance width)},
+// Items: text {part, text, font, x (left), y (baseline), size (font px), w (advance width), shade (shadow fraction)},
 // sparkle/star {part, x, y (centre), size (full height)}; each carries its ink box [x0, y0, x1, y1].
 var MV_FACES = {
   "mini-vlog": {
     // No.17's face: tight tracking and a thin same-colour stroke (em) soften the contrast.
-    big: { family: "MV Instrument Serif Italic", style: "italic", weight: 400, tracking: -0.05, stroke: 0.018 },
-    small: { family: "MV DM Serif Display", style: "normal", weight: 400 },
+    big: { family: "MV Instrument Serif Italic", style: "italic", weight: 400, tracking: -0.05, stroke: 0.01 },
+    // DM Serif Display has one weight, so "vlog" reads lighter through a softer drop shadow (`shade`: a fraction of the
+    // title's shadow opacity and blur) and a slightly smaller size (mvLayoutMini).
+    small: { family: "MV DM Serif Display", style: "normal", weight: 400, shade: 0.6 },
   },
   "day-in-my-life": {
     big: { family: "MV Rounded Bold", style: "normal", weight: 700 },
@@ -35,7 +37,7 @@ function mvFace(data, preset, role) {
   var fonts = data && Array.isArray(data.fonts) ? data.fonts : [];
   var m = null;
   for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === face.family && fonts[i].metrics) m = fonts[i].metrics;
-  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, m: m || MV_FALLBACK_METRICS };
+  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, shade: face.shade || 1, m: m || MV_FALLBACK_METRICS };
 }
 
 function mvAdvance(m, ch) {
@@ -65,7 +67,7 @@ function mvInk(text, m) {
 function mvText(part, text, f, x, y, size, color) {
   var w = mvTextWidth(text, f.m, size, f.tracking), ink = mvInk(text, f.m), s = f.stroke * size, h = s / 2;
   return { kind: "text", part: part, text: text, font: { family: f.family, style: f.style, weight: f.weight }, x: x, y: y, size: size, color: color, w: w,
-    tracking: f.tracking * size, stroke: s, box: [x - h, y - ink.up * size - h, x + w + h, y + ink.down * size + h] };
+    tracking: f.tracking * size, stroke: s, shade: f.shade, box: [x - h, y - ink.up * size - h, x + w + h, y + ink.down * size + h] };
 }
 
 function mvMark(kind, part, x, y, size, color) {
@@ -135,9 +137,10 @@ function mvLayoutMini(data, fields, H, S, col) {
     items.push(mvMark("sparkle", "sparkle", big.box[2] + 0.04 * Fb, big.box[1] - 0.06 * Fb, spark, col.primary));
   }
   if (fields.small) {
-    // "vlog" is 43 % of "mini"'s width in No.17: kept as a font-size ratio for other words.
+    // "vlog" is 43 % of "mini"'s width in No.17; 41 % (5 % smaller) keeps the one-weight face from reading heavy.
+    // Kept as a font-size ratio for other words.
     var ms = fs.m;
-    var Fs = (Fb * 0.43 * mvTextWidth("mini", mb, 1, fb.tracking)) / mvTextWidth("vlog", ms, 1);
+    var Fs = (Fb * 0.41 * mvTextWidth("mini", mb, 1, fb.tracking)) / mvTextWidth("vlog", ms, 1);
     var ws = mvTextWidth(fields.small, ms, Fs), inkS = mvInk(fields.small, ms);
     var y2 = big.box[3] + 0.03 * Fb + inkS.up * Fs;
     items.push(mvText("small", fields.small, fs, -ws / 2, y2, Fs, col.secondary));
@@ -257,6 +260,19 @@ function mvLockupLayout(data, width, height) {
   });
 }
 
+// Items grouped by shade in first-appearance order ([{ shade, items }]); marks carry the full shadow (1). Each group
+// is drawn as its own SVG with the title's drop shadow scaled by its shade.
+function mvShadeLayers(items) {
+  var layers = [];
+  for (var i = 0; i < items.length; i++) {
+    var sh = typeof items[i].shade === "number" ? items[i].shade : 1, at = -1;
+    for (var j = 0; j < layers.length; j++) if (layers[j].shade === sh) at = j;
+    if (at < 0) { layers.push({ shade: sh, items: [] }); at = layers.length - 1; }
+    layers[at].items.push(items[i]);
+  }
+  return layers;
+}
+
 function mvF(v) { return Math.round(v * 100) / 100; }
 
 // Four-point sparkle (concave sides) centred on (cx, cy), `size` tall and wide.
@@ -316,15 +332,20 @@ export default function MiniVlogTitle({ data: raw }: { data: any }) {
   return (
     <AbsoluteFill>
       {fontFaces ? <style>{fontFaces}</style> : null}
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ position: "absolute", left: 0, top: 0, overflow: "visible", filter: shadow > 0 ? `drop-shadow(0 ${drop}px ${blur}px rgba(0,0,0,${shadow}))` : undefined }}>
-        {items.map((it, i) =>
-          it.kind === "text" ? (
-            <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={`"${it.font.family}", ${FALLBACK}`} fontStyle={it.font.style} fontWeight={it.font.weight} stroke={it.stroke > 0 ? it.color : undefined} strokeWidth={it.stroke} strokeLinejoin="round" style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: it.tracking }}>{it.text}</text>
-          ) : (
-            <path key={i} d={it.kind === "sparkle" ? mvSparklePath(it.x, it.y, it.size) : mvStarPath(it.x, it.y, it.size)} fill={it.color} />
-          ),
-        )}
-      </svg>
+      {mvShadeLayers(items).map((layer, l) => {
+        const a = shadow * layer.shade;
+        return (
+          <svg key={l} width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ position: "absolute", left: 0, top: 0, overflow: "visible", filter: a > 0 ? `drop-shadow(0 ${drop}px ${blur * layer.shade}px rgba(0,0,0,${a}))` : undefined }}>
+            {layer.items.map((it: any, i: number) =>
+              it.kind === "text" ? (
+                <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={`"${it.font.family}", ${FALLBACK}`} fontStyle={it.font.style} fontWeight={it.font.weight} stroke={it.stroke > 0 ? it.color : undefined} strokeWidth={it.stroke} strokeLinejoin="round" style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: it.tracking }}>{it.text}</text>
+              ) : (
+                <path key={i} d={it.kind === "sparkle" ? mvSparklePath(it.x, it.y, it.size) : mvStarPath(it.x, it.y, it.size)} fill={it.color} />
+              ),
+            )}
+          </svg>
+        );
+      })}
     </AbsoluteFill>
   );
 }

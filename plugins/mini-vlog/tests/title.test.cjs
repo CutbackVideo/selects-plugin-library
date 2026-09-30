@@ -31,20 +31,26 @@ const bounds = (items) => {
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b} (tol ${tol})`);
 const mBig = presets.metrics['MV Instrument Serif Italic'];
 const XH = mBig.xHeight / mBig.unitsPerEm, UPM = mBig.unitsPerEm;
+const mSmall = presets.metrics['MV DM Serif Display'];
+// Width of `t` at size 1 in the big face with its -0.05 em tracking (the layout's mvTextWidth).
+const mvW = (t) => [...t].reduce((a, c) => a + mBig.advances[c] / UPM, 0) - 0.05 * (t.length - 1);
 
 // --- Mini vlog (No.17) ---------------------------------------------------------------
 {
   const it = lay('mini-vlog', { big: 'mini', small: 'vlog' });
   const big = one(it, 'big'), small = one(it, 'small');
   assert.deepEqual(big.font, { family: 'MV Instrument Serif Italic', style: 'italic', weight: 400 });
-  // No.17 face (controller pick E'): tracking -0.05 em, same-colour round stroke 0.018 em, x-height ~90 px.
-  near(big.tracking, -0.05 * big.size, 1e-9, 'tracking px'); near(big.stroke, 0.018 * big.size, 1e-9, 'stroke px');
+  // No.17 face (controller pick E', thinned after the similarity review): tracking -0.05 em, same-colour round
+  // stroke 0.010 em, x-height ~90 px.
+  near(big.tracking, -0.05 * big.size, 1e-9, 'tracking px'); near(big.stroke, 0.010 * big.size, 1e-9, 'stroke px');
   near(big.w, [...big.text].reduce((a, c) => a + mBig.advances[c], 0) / UPM * big.size + big.tracking * (big.text.length - 1), 1e-6, 'width = advances + tracking between letters');
   assert.ok(big.size * XH >= 85 && big.size * XH <= 95, 'x-height px ' + big.size * XH);
   // The stroke is counted in the ink box (half of it grows outward).
   near(big.box[0], big.x - big.stroke / 2, 1e-6, 'box includes stroke');
   near(big.box[2], big.x + big.w + big.stroke / 2, 1e-6, 'box includes stroke (right)');
   assert.equal(small.tracking, 0); assert.equal(small.stroke, 0);
+  // "vlog" reads lighter: its drop shadow is 0.6 of the title's (opacity and blur); the big word keeps the full one.
+  assert.equal(big.shade, 1); assert.equal(small.shade, 0.6);
   assert.deepEqual(small.font, { family: 'MV DM Serif Display', style: 'normal', weight: 400 });
   assert.equal(big.color, '#F7C8E6'); assert.equal(small.color, '#FFFFFF');
   // Footprint wins (controller ruling): "mini" is about 0.155 W wide at size 100, like No.17 (~290-300 px).
@@ -54,9 +60,11 @@ const XH = mBig.xHeight / mBig.unitsPerEm, UPM = mBig.unitsPerEm;
   const b = bounds(it);
   near(b.cx, 0.49 * W, 0.01 * W, 'lockup centre x'); near(b.cy, 0.52 * H, 0.01 * H, 'lockup centre y');
   near(big.x + big.w / 2, 0.49 * W, 0.01 * W, 'big centre x');
-  // Small word: about 43 % of the big word's width, centred under it, tight below it.
+  // Small word: about 41 % of the big word's width (No.17's 43 %, 5 % smaller so it reads lighter), centred under it,
+  // tight below it.
   const ratio = small.w / big.w;
   assert.ok(ratio >= 0.38 && ratio <= 0.48, 'small/big width ratio ' + ratio);
+  near(ratio, 0.41 * mvW('mini') / big.w * big.size, 1e-6, 'small word at 0.41 of the tracked mini width');
   near(small.x + small.w / 2, big.x + big.w / 2, 1, 'small centred under big');
   assert.ok(small.y > big.y && small.box[1] >= big.box[3] - 1 && small.box[1] - big.box[3] < 0.06 * big.size, 'small tight under big');
   // Two sparkles, one over each i, above the x-height; the i's are drawn dotless.
@@ -71,6 +79,7 @@ const XH = mBig.xHeight / mBig.unitsPerEm, UPM = mBig.unitsPerEm;
     near(sp[k].size, 0.36 * XH * big.size, 1e-6, 'sparkle height ' + k);
   });
   for (const s of sp) {
+    assert.equal(s.shade, undefined, 'sparkles carry the full shadow');
     assert.ok(s.x > big.x && s.x < big.x + big.w, 'sparkle over the word');
     assert.ok(s.y < big.y - big.size * mBig.xHeight / mBig.unitsPerEm, 'sparkle above the x-height');
     assert.equal(s.color, '#F7C8E6');
@@ -237,11 +246,14 @@ assert.ok(!src.includes('useCurrentFrame'), 'static: no frame dependency');
 assert.ok(src.includes('fontKerning: "none"') && src.includes('fontVariantLigatures: "none"'), 'no kerning or ligatures');
 // Tracking and stroke reach the SVG exactly as the layout measured them.
 assert.ok(src.includes('letterSpacing: it.tracking') && src.includes('strokeWidth={it.stroke}') && src.includes('strokeLinejoin="round"'), 'tracking and stroke rendered');
+// The shadow is drawn per shade layer (one SVG per shade value), in the component and in the panel preview.
+assert.ok(src.includes('mvShadeLayers(items)') && src.includes('shadow * layer.shade'), 'component shades each layer');
 // The panel preview draws the items the same way.
 {
   const panel = fs.readFileSync(path.resolve(__dirname, '..', 'panel.tsx'), 'utf8');
+  assert.ok(panel.includes('mvShadeLayers(previewItems)') && panel.includes('TITLE_LOOK.shadow * layer.shade'), 'panel preview shades each layer');
   assert.ok(panel.includes('letterSpacing: it.tracking') && panel.includes('strokeWidth={it.stroke}') && panel.includes('strokeLinejoin="round"'), 'panel preview renders tracking and stroke');
 }
 // Only the Mini vlog big word is tracked and stroked; other presets are untouched.
-for (const id of ['day-in-my-life', 'small-glimpse']) for (const i of lay(id, { year: '2026', big: 'mini vlog', tag: 'a day in my life', top: 'a', bottom: 'b' }).filter(i => i.kind === 'text')) assert.ok(i.tracking === 0 && i.stroke === 0, id + ' ' + i.part);
+for (const id of ['day-in-my-life', 'small-glimpse']) for (const i of lay(id, { year: '2026', big: 'mini vlog', tag: 'a day in my life', top: 'a', bottom: 'b' }).filter(i => i.kind === 'text')) assert.ok(i.tracking === 0 && i.stroke === 0 && i.shade === 1, id + ' ' + i.part);
 console.log(JSON.stringify({ title: 'ok' }));
