@@ -37,7 +37,7 @@ function mvFace(data, preset, role) {
   var fonts = data && Array.isArray(data.fonts) ? data.fonts : [];
   var m = null;
   for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === face.family && fonts[i].metrics) m = fonts[i].metrics;
-  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, shade: face.shade || 1, m: m || MV_FALLBACK_METRICS };
+  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, shade: typeof face.shade === "number" ? face.shade : 1, m: m || MV_FALLBACK_METRICS };
 }
 
 function mvAdvance(m, ch) {

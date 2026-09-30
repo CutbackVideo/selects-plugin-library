@@ -617,11 +617,14 @@ function mvPlanBuild(opts) {
   if (hasPhotos && shares[0] !== 1) shares.push(1);
   // Variety first; spending every fresh clip early can also strand a fillable length (a s s s ... where a s a s ...
   // fits), so a length is only given up after the role-and-score order (spread: false) fails too.
-  // Each attempt's name ('spread', 'spread-share1', 'role-first', 'role-first-share1') is returned as `attempt`, so the
-  // panel and logs can tell when a fallback built the plan.
+  // Each attempt's name ('spread', 'spread-share1', 'role-first', 'role-first-share1', each with '-no-opener' when the
+  // motion opener's retry built it) is returned as `attempt`, so the panel and logs can tell when a fallback built the
+  // plan.
   const attempts = [true, false].flatMap(spread => shares.map((photoShare, i) =>
     ({ spread, photoShare, name: (spread ? 'spread' : 'role-first') + (i ? '-share1' : '') })));
   let usableShots = 0;
+  // Whether mvAllocate's motion opener can apply (some video candidate carries motion).
+  const motionTagged = opts.motionOpener !== false && candidates.some(c => c && c.kind !== 'photo' && c.motion > 0);
   // Lengths to try, longest first: shots (Quick / Relaxed) or beat spans (Groove).
   const step = grooved ? 4 : MV_MIN_SHOTS, least = grooved ? MV_GROOVE_MIN_BEATS : MV_MIN_SHOTS;
   for (let n = top; n >= least; n -= step) {
@@ -638,11 +641,19 @@ function mvPlanBuild(opts) {
       ? { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: (s.beats || 1) < 1 }
       : { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
     for (const attempt of attempts) {
-      const alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: opts.motionOpener });
+      let alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: opts.motionOpener });
+      let name = attempt.name;
+      // The motion opener never costs length: an attempt it leaves short is retried without it (named
+      // '<attempt>-no-opener') before the next attempt or a shorter length. Untagged pools never retry.
+      if (alloc.missing > 0 && motionTagged) {
+        if (n === least) usableShots = Math.max(usableShots, alloc.filled);
+        alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: false });
+        name = attempt.name + '-no-opener';
+      }
       if (alloc.missing === 0) {
         return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
           beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
-          attempt: attempt.name,
+          attempt: name,
           ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, ratios: fills.ratios, beatSeconds, opener } } : {}) };
       }
       // The shortest length misses slots with every share, so usableShots < MV_MIN_SHOTS.

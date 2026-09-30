@@ -41,8 +41,10 @@ source file.
   the weakest to the strongest such hit of the build), so of two similar
   moments the moving one is taken first. The bonus never outranks a better
   role match, except for the first shot: when a moving moment fits it, the
-  video opens on the best one rather than on a photo or a still moment (the
-  photo share moves to the other shots). With all hits equally strong, or
+  video opens on one rather than on a photo or a still moment (among the
+  moving moments, the best role match and score wins; the photo share moves
+  to the other shots). If opening on it would leave shots unfilled, the plan
+  is made without it, so it never shortens the video. With all hits equally strong, or
   none, nothing changes. With Beat punch off the search
   and the shot choice are exactly as without this feature.
 - **Variety.** The shots are spread over all the selected clips: a shot takes

@@ -445,6 +445,41 @@ assert.equal(gFast.beatsPerShot, 2); assert.equal(gFast.overridden, true); asser
   assert.equal(j(P.mvAllocate({ candidates: photos(6), slots: slotsOf(4), seed: 's1' })).picks[0].kind, 'photo');
 }
 
+// The motion opener never costs length: an attempt that misses slots with the opener is retried without it before the
+// plan moves on or shrinks (review repro: a tagged window on a 2 s clip turned a 4-shot plan into too-few).
+{
+  const cands = [mk('v0', 'park', 0.33, 0.5, 2), mk('v0', 'transit', 0.2, 0.5, 2), mk('v0', 'flowers', 0.42, 0.5, 2), mk('v0', 'street', 0.75, 0.5, 2)].concat(photos(5));
+  const opts = { bpm: 108, accepted: true, fps: F, pace: 'quick', requested: 12, sectionStart: 0.5, seed: 's1' };
+  const untagged = j(P.mvPlanBuild({ candidates: cands, ...opts }));
+  assert.equal(untagged.ok, true); assert.equal(untagged.shots, 4);
+  const tagged = cands.map(c => (c.role === 'street' ? { ...c, motion: 1 } : c));
+  const withOpener = j(P.mvPlanBuild({ candidates: tagged, ...opts }));
+  assert.equal(withOpener.ok, true, 'tagged repro still builds'); assert.equal(withOpener.shots, 4);
+  assert.match(withOpener.attempt, /-no-opener$/, 'built by the retry without the opener');
+  assert.deepEqual(j(P.mvPlanBuild({ candidates: tagged, ...opts, motionOpener: false })).picks, withOpener.picks);
+  // Property (fuzz): over sparse random pools, tagging never loses a plan or shots.
+  let r = 12345;
+  const rnd = () => ((r = (Math.imul(r, 1103515245) + 12345) >>> 0) / 4294967296);
+  let built = 0, opened = 0;
+  for (let n = 0; n < 250; n++) {
+    const pool = [];
+    const clips = 1 + Math.floor(rnd() * 3);
+    for (let c = 0; c < clips; c++) {
+      const dur = 1 + rnd() * 6, hits = 1 + Math.floor(rnd() * 5);
+      for (let h = 0; h < hits; h++) pool.push(mk('v' + c, ROLES[Math.floor(rnd() * ROLES.length)], rnd() * dur, 0.2 + rnd() * 0.6, dur));
+    }
+    const pics = photos(Math.floor(rnd() * 7));
+    const tag = pool.map(c => (rnd() < 0.3 ? { ...c, motion: 0.1 + rnd() * 0.9 } : c));
+    const o = { bpm: 108, accepted: true, fps: F, pace: rnd() < 0.3 ? 'groove' : rnd() < 0.5 ? 'relaxed' : 'quick', requested: 12, sectionStart: 0.5, seed: 's' + n };
+    const off = j(P.mvPlanBuild({ candidates: tag.concat(pics), ...o, motionOpener: false }));
+    const on = j(P.mvPlanBuild({ candidates: tag.concat(pics), ...o }));
+    if (off.ok) { built++; assert.ok(on.ok, 'ok never lost ' + n); assert.ok(on.shots >= off.shots, 'shots never lost ' + n + ': ' + on.shots + ' < ' + off.shots); }
+    else if (on.ok) assert.fail('the opener cannot build what the plain order cannot ' + n);
+    if (on.ok && off.ok && on.picks[0] && on.picks[0].kind === 'video' && tag.some(c => c.motion > 0 && c.rid === on.picks[0].rid)) opened++;
+  }
+  assert.ok(built > 50 && opened > 10, 'fuzz exercised the opener: built ' + built + ', opened ' + opened);
+}
+
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.MV_BUILD_STEPS.length, 5);
 assert.equal(P.MV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);
