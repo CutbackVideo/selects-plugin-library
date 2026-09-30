@@ -87,9 +87,19 @@ the same on any machine with Selects.
 
 Choose a **Track**:
 
-- **Bundled tracks** (coming): three or four summery instrumental tracks
-  with a quiet two-bar intro before a drop, so the title plays over the
-  intro and the grid starts on the drop. They are not in this version yet.
+- **Bundled tracks**, generated for this plugin (instrumental, about 65 s):
+
+  | Track | Tempo | Drop |
+  | --- | --- | --- |
+  | Surf Indie (default) | 122 BPM | at 9.9 s, after a quiet two-bar intro |
+  | Tropical House | 120 BPM | at 16.0 s, after an eight-bar intro |
+  | Cinematic Pop | 118 BPM | none (builds up in steps) |
+  | Nu Disco | 124 BPM | none (full groove from the start) |
+
+  With a drop, the default section starts two bars before it: the title
+  plays over the quiet intro and the grid starts on the drop (the slider
+  shows "Drop"). Tracks without a drop use ordinary sections ("Section"):
+  the title plays over the first two bars and the grid starts on bar 3.
 - **Your own music**: drop an audio file. The plugin detects the beat
   (the tempo is folded to the octave closest to 120 BPM (about 85–170 BPM))
   and looks for a drop: a clear jump in loudness on a bar line.

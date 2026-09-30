@@ -88,6 +88,13 @@ for (const c of list) {
   let firstBeat = a.firstBeat, drop = detectDrop(dry, ASR, { bpm, firstBeat });
   // A quiet intro below analyze()'s leading-silence level pushes firstBeat towards the drop: re-anchor it.
   if (drop) { const k = anchorOnDrop(drop, bpm, firstBeat); firstBeat = k.firstBeat; drop = { ...drop, dropBeat: k.dropBeat }; }
+  // A silent lead-in (a generated cue opened with a silent bar) leaves firstBeat a bar or more in: move it back by whole
+  // bars to the earliest bar line at or after 0, so bar-aligned sections and the manifest grid start at the file start.
+  const leadBars = Math.floor((firstBeat + 1e-6) / (4 * period));
+  if (leadBars > 0) {
+    firstBeat = Math.round((firstBeat - leadBars * 4 * period) * 1000) / 1000;
+    if (drop) drop = { ...drop, dropBeat: drop.dropBeat + 4 * leadBars };
+  }
   const usableEnd = Math.round(Math.min(a.durationSeconds, a.lastOnsetSeconds + 0.5) * 100) / 100;
   const barOrigin = drop ? drop.dropSeconds : firstBeat;
   const downbeat = downbeatClarity(dry, ASR, bpm, barOrigin, barOrigin, usableEnd);

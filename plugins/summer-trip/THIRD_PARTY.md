@@ -19,7 +19,18 @@ Each family's licence text is in `assets/fonts/licenses/`.
 
 ## Music
 
-No music tracks are bundled in this version (`assets/cues/manifest.json` lists none). The planned tracks will be generated for this plugin with ElevenLabs Music through the Selects generated-media service: three or four instrumentals of 60 to 70 seconds at 118 to 124 BPM, each with a quiet two-bar intro before a drop, loudness-normalized to -14 LUFS, and each with a muffled (low-passed) copy for the ending made from the same audio (`dev/build-cues.cjs`, filter in `muffle.cjs`). This section will then list each track, its prompt and its measured tempo and drop, and the tracks will be bundled for use in the videos this plugin builds, not for redistribution as standalone tracks.
+The four bundled tracks in `assets/cues/` were generated for this plugin on 2026-09-30 with ElevenLabs Music v2.5
+through the Selects generated-media service (instrumental, 65 s requests). They are loudness-normalized to -14 LUFS
+with a static gain and a limiter, and each has a muffled (low-passed, `lowpass=f=1200:p=2`) copy for the ending made
+from the same decoded audio (`dev/build-cues.cjs`, filter in `muffle.cjs`). They are bundled for use in the videos
+this plugin builds, not for redistribution as standalone tracks. Measured values are in `assets/cues/manifest.json`.
+
+| File | Prompt (summary) | Tempo | Drop |
+| --- | --- | --- | --- |
+| `surf-indie.mp3` | Sunny indie pop with clean surf guitar; 2-bar quiet guitar intro, then the full band | 122.01 BPM | 9.86 s (+5.2 dB) |
+| `tropical-house.mp3` | Tropical house; quiet marimba/pluck intro, then a four-on-the-floor drop | 120.01 BPM | 16.03 s (+9.1 dB) |
+| `cinematic-pop.mp3` | Cinematic summer pop; piano intro, then the full band | 118.01 BPM | none detected |
+| `nu-disco.mp3` | Mediterranean nu-disco; filtered electric-piano intro, then the groove | 124.00 BPM | none detected |
 
 ## Sounds
 
