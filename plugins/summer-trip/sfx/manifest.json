@@ -1,0 +1,43 @@
+{
+ "shutter-1": {
+  "file": "shutter-1.wav",
+  "duration": 0.17,
+  "onsetSeconds": 0.01,
+  "soundSeconds": 0.15,
+  "note": "Pentax K1000 Camera Shutter.wav by yfjesse - https://freesound.org/people/yfjesse/sounds/579883/ (CC0 1.0); postcard-cutout-studio take panel-shutter-v4-1 (trimmed, EQ, pitch and stereo room there), re-trimmed, faded and levelled here",
+  "sha256": "273a3ecfea1c36fbbbf09463a95f57fe54de88635f17b8553f5da6b0a6052887"
+ },
+ "shutter-2": {
+  "file": "shutter-2.wav",
+  "duration": 0.171,
+  "onsetSeconds": 0.01,
+  "soundSeconds": 0.151,
+  "note": "Pentax K1000 Camera Shutter.wav by yfjesse - https://freesound.org/people/yfjesse/sounds/579883/ (CC0 1.0); postcard-cutout-studio take panel-shutter-v4-2 (trimmed, EQ, pitch and stereo room there), re-trimmed, faded and levelled here",
+  "sha256": "61f0a33ec6cbf85b9581365a4ad176f7f28047efaafe99539c1a6c81f9a1e0ac"
+ },
+ "shutter-3": {
+  "file": "shutter-3.wav",
+  "duration": 0.171,
+  "onsetSeconds": 0.01,
+  "soundSeconds": 0.151,
+  "note": "Pentax K1000 Camera Shutter.wav by yfjesse - https://freesound.org/people/yfjesse/sounds/579883/ (CC0 1.0); postcard-cutout-studio take panel-shutter-v4-3 (trimmed, EQ, pitch and stereo room there), re-trimmed, faded and levelled here",
+  "sha256": "b2eea03723d03e07168bc656220aee9b92b6d106416c608520ac75c91d3cf214"
+ },
+ "shutter-4": {
+  "file": "shutter-4.wav",
+  "duration": 0.17,
+  "onsetSeconds": 0.01,
+  "soundSeconds": 0.15,
+  "note": "Pentax K1000 Camera Shutter.wav by yfjesse - https://freesound.org/people/yfjesse/sounds/579883/ (CC0 1.0); postcard-cutout-studio take panel-shutter-v4-4 (trimmed, EQ, pitch and stereo room there), re-trimmed, faded and levelled here",
+  "sha256": "10a59a685d24af6e41e648bbc66225fcad75d05d1525657e2964551ea0ff5c8e"
+ },
+ "whoosh-1": {
+  "file": "whoosh-1.wav",
+  "duration": 0.864,
+  "onsetSeconds": 0.01,
+  "soundSeconds": 0.844,
+  "peakSeconds": 0.218,
+  "note": "Whoosh stereo light (transition) by xkeril - https://freesound.org/people/xkeril/sounds/701104/ (CC0 1.0); HQ preview of the CC0 original, trimmed, faded and levelled",
+  "sha256": "53b35c0947c913b762b96becbca3e1f88d9e0a96eee41f4ee9ea3b44a7482e59"
+ }
+}
