@@ -401,7 +401,19 @@ function detectDrop(samples, sampleRate, grid, opts) {
     const before = dB((bars[k - 2] + bars[k - 1]) / 2), after = dB((bars[k] + bars[k + 1]) / 2), step = after - before;
     if (step < DROP_STEP_DB || before > median - DROP_QUIET_DB) continue;
     const hit = { dropBeat: Math.round((t - firstBeat) / period), dropSeconds: Math.round(t * 1000) / 1000, stepDb: Math.round(step * 10) / 10 };
-    if (!(opts && opts.pick === 'largest')) return hit;
+    if (!(opts && opts.pick === 'largest')) {
+      // An abrupt drop already qualifies one bar early (one of the two "after" bars is loud): slide forward while the
+      // next bar line has a larger step (a generated tropical-house cue read 14.0 s instead of 16.0 s without this).
+      let j = k, s = step;
+      while (j + 3 <= bars.length) {
+        const next = dB((bars[j + 1] + bars[j + 2]) / 2) - dB((bars[j - 1] + bars[j]) / 2);
+        if (!(next > s)) break;
+        j++; s = next;
+      }
+      if (j === k) return hit;
+      const tj = origin + j * bar;
+      return { dropBeat: Math.round((tj - firstBeat) / period), dropSeconds: Math.round(tj * 1000) / 1000, stepDb: Math.round(s * 10) / 10 };
+    }
     if (!best || hit.stepDb > best.stepDb) best = hit;
   }
   return best;

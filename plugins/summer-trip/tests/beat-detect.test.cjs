@@ -175,6 +175,10 @@ assert.equal(detectDrop(barsTrack(loud(14)), sr, grid120), null, 'flat');
 assert.equal(detectDrop(barsTrack([-12, ...loud(13)]), sr, grid120), null, 'step too early');
 // A step whose previous bars are not quiet relative to the track (a +4.5 dB bump over an even level) is no drop.
 assert.equal(detectDrop(barsTrack([0, 0, 4.5, 4.5, ...loud(10)]), sr, grid120), null, 'bump over an even level');
+// A long quiet intro with an abrupt drop: the bar line one bar early already qualifies (one loud bar in its "after"
+// window), so the first-mode pick slides to the bar line with the larger step (live: a generated cue read 14 s, not 16 s).
+const longIntro = detectDrop(barsTrack([-12, -12, -12, -12, -12, -12, ...loud(10)]), sr, grid120);
+assert.deepEqual([longIntro.dropBeat, longIntro.dropSeconds], [24, 12], 'abrupt drop after 6 quiet bars: ' + JSON.stringify(longIntro));
 // A 3 dB step is not enough.
 assert.equal(detectDrop(barsTrack([-3, -3, ...loud(12)]), sr, grid120), null, '3 dB step');
 // The first qualifying bar line wins; pick 'largest' takes the biggest step instead (spec 7.3's own-music wording).
