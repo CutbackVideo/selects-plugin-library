@@ -24,7 +24,8 @@ through the Selects generated-media service (instrumental, 65 s requests). They 
 (true peak at or under -1 dBTP) with a static gain and a limiter, and each has a muffled (low-passed,
 `lowpass=f=2800:p=2`) copy for the ending made
 from the same decoded audio (`dev/build-cues.cjs`, filter in `muffle.cjs`). They are bundled for use in the videos
-this plugin builds, not for redistribution as standalone tracks. Measured values are in `assets/cues/manifest.json`.
+this plugin builds, not for redistribution as standalone tracks. Measured values are in `assets/cues/manifest.json`;
+tempo and drop (loudness step at the drop) are measured on the source before the loudness processing.
 
 | File | Prompt (summary) | Tempo | Drop |
 | --- | --- | --- | --- |
