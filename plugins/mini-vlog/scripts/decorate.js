@@ -97,6 +97,7 @@ if (cfg.soft) {
 // retry after a landed but unreported commit would otherwise hit. Nothing to do is success (alreadyDone).
 const committed = muted || !hasTitle || effects > 0 || motions > 0 || punchAdded > 0;
 if (committed) await d.commitAll('Mini Vlog: title and look');
-const out = { title: true, titleAdded: !hasTitle, effects, effectsKept, muted, muteKept, committed, alreadyDone: !committed };
-if (cfg.punch) out.punch = { added: punchAdded, kept: punchKept, skipped: punchSkipped };
+// Built in one literal (run_script type-checks the script, so no properties are added after the fact).
+const out = { title: true, titleAdded: !hasTitle, effects, effectsKept, muted, muteKept, committed, alreadyDone: !committed,
+  ...(cfg.punch ? { punch: { added: punchAdded, kept: punchKept, skipped: punchSkipped } } : {}) };
 return photoIds.size ? { ...out, photos: { motions, motionsKept, effectsSkipped: photoEffectsSkipped } } : out;

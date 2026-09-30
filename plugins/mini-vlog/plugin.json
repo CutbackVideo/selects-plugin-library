@@ -50,6 +50,7 @@
     "tests/punch.test.cjs",
     "tests/scripts-edit.test.cjs",
     "tests/scripts-read.test.cjs",
+    "tests/scripts-types.test.cjs",
     "tests/title.test.cjs"
   ],
   "compatibility": {

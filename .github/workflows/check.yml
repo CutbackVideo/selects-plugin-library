@@ -46,4 +46,5 @@ jobs:
           node plugins/mini-vlog/tests/punch.test.cjs
           node plugins/mini-vlog/tests/scripts-edit.test.cjs
           node plugins/mini-vlog/tests/scripts-read.test.cjs
+          node plugins/mini-vlog/tests/scripts-types.test.cjs
           node plugins/mini-vlog/tests/title.test.cjs
