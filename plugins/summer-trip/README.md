@@ -101,9 +101,12 @@ Choose a **Track**:
   plays over the quiet intro and the grid starts on the drop (the slider
   shows "Drop"). Tracks without a drop use ordinary sections ("Section"):
   the title plays over the first two bars and the grid starts on bar 3.
-  Either way the music sits 7 dB lower under the title and comes up to
-  full level on the grid's first beat (a volume line on the music clip in
-  the Draft, which you can edit).
+  In a drop section the music sits 7 dB lower under the title, dips
+  further over the last second before the drop, and comes back to full
+  level just after the drop, so the drop lands as the payoff (a volume
+  line on the music clip in the Draft, which you can edit). Ordinary
+  sections, your own music without a drop, and approximate timing play at
+  full level from the start.
 - **Your own music**: drop an audio file. The plugin detects the beat
   (the tempo is folded to the octave closest to 120 BPM (about 85–170 BPM))
   and looks for a drop: a clear jump in loudness on a bar line.
@@ -242,8 +245,9 @@ The Draft contains:
 - a "Summer look" Video Effect on every clip and panel, "Film frame" on the
   three ending clips, "Photo motion" on montage photos and "Video motion"
   on montage video clips;
-- the music (lower under the title, with a volume line up to full level on
-  the grid's first beat; its muffled copy over the ending) and, when on,
+- the music (in a drop section, lower under the title with a volume line
+  that dips before the drop and reaches full level just after it; its
+  muffled copy over the ending) and, when on,
   the sound effects, on audio tracks.
 
 Edit it in the Inspector:
@@ -253,7 +257,7 @@ Edit it in the Inspector:
   labels, so an edit in one does not change the other.
 - **Clips**: the crop, the sound level, the Summer look strength and film
   grain and, on the ending clips, the light-leak strength.
-- **Music**: select a music clip to change its volume. The main music clip carries a volume line (lower under the title, full from the grid); setting one constant volume there replaces that line.
+- **Music**: select a music clip to change its volume. In a drop section the main music clip carries a volume line (lower under the title, a dip before the drop, full just after it); setting one constant volume there replaces that line.
 
 Finished videos are exported from the Draft with **Handoff → Export**.
 

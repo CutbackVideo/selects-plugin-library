@@ -56,10 +56,17 @@ plannedSeconds, frame, quantErrorSeconds }]`.
   gridSound: 'routing' | 'volume' | 'none', // chosen after live probe P1; all three branches implemented
   sfx: null | { shutter: [rid…] /* 1–4 takes, cycled */, shutterSeconds: number | number[] /* file length(s); required for
     shutters, per take when an array */, whoosh: rid, whooshSeconds: number /* file length */, volumeDb?: number /* SFX level, default -8 */ },
-  introDuckDb: -7                     // dB of the dry music under the title (number, 0 = off; panel default −7): a keyed level line
-                                      // (setClipAudio volumeKeys, whole frames from the dry's first frame) at introDuckDb from 0 to
-                                      // F(8) − 1 and 0 dB from the drop frame F(8) (gridStateFrames[0]); set with the dry's fades in one
-                                      // call (volumeKeys replace the constant level; fades still apply); never on the wet; no music → none
+  introDuckDb: -7                     // dB of the dry music under the title (number, 0 = off). The panel sends −7 only for a drop
+                                      // section (slider kind 'drop': a bundled cue's drop section or own music with a detected
+                                      // drop) and 0 for an ordinary section, own music without a drop, fixed timing or No music.
+                                      // Non-zero → a keyed level line (setClipAudio volumeKeys, whole frames from the dry's first
+                                      // frame, F8 = F(8) = gridStateFrames[0]): introDuckDb at 0, held to B = max(1, F8 − round(1.0·fps)),
+                                      // a linear-in-dB fade to introDuckDb − 10 on F8 − 1, −3 dB on F8 (the drop), 0 dB on
+                                      // F8 + round(0.25·fps) (assemble.js INTRO_* constants, shaped on the reference's measured
+                                      // intro → dip → drop). Keys strictly increasing: an early drop shortens the breath (the hold key
+                                      // goes when B ≥ F8 − 1); no key inside the end-fade window (the release is shortened, or no keys
+                                      // when even F8 + 1 does not fit). Set with the dry's fades in one call (volumeKeys replace the
+                                      // constant level; fades still apply); never on the wet; no music → none
 }
 ```
 Returns:

@@ -19,7 +19,8 @@
 //   creditPrefix, creditName
 //   clipSound  'off' | 'ambient' | 'full'      gridSound 'volume' | 'routing' | 'none'
 //   look (bool), lookStrength, leakStrength, sfx (bool), muffle (bool), usePhotos (bool), only ([rid] = Choose clips)
-//   introDuckDb  dB of the dry music under the title, rising to 0 on the drop frame (default -7 as in the panel; 0 = off)
+//   introDuckDb  'auto' (default, as in the panel: -7 dB level line in a drop section, none otherwise) | <dB> override
+//                (the dry's level under the title, dipping before the drop and back to 0 after it; 0 = off)
 //   fps        planning fps guess (default: the last real fps seen, else 30)
 //   draftName  full override; default "SUMMER test <key> <music> <preset> <length>[ seed N]"
 // String values may use ${ENV} placeholders (for example "pid": "${ST_PID}", "music": { "own": "${ST_OWN_MUSIC}" }).
@@ -36,11 +37,12 @@ export const ROW_DEFAULTS = {
   music: 'default', section: 'default', length: 'standard', preset: 'summer',
   line1: 'that one trip in', season: '@suggest', place: '', placePrefix: 'in', topMain: '@season', topItalic: 'VLOG', creditPrefix: 'By', creditName: '',
   clipSound: 'ambient', gridSound: 'volume', look: true, lookStrength: 0.45, leakStrength: 1, sfx: false, muffle: true, usePhotos: true, only: null,
-  introDuckDb: -7,
+  introDuckDb: 'auto',
 };
 // Panel constants the driver must share with panel.tsx (report any difference to the panel lane).
 export const ST_PANEL = {
   AMBIENT_DB: -18,
+  INTRO_DUCK_DB: -7,
   DRAFT_PREFIX: 'SUMMER test',
   FILM_WINDOW: { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 },
   TIME_ORIGIN: 'clip',
@@ -76,6 +78,10 @@ export const expandEnv = v => (typeof v === 'string' ? v.replace(/\$\{(\w+)\}/g,
 
 export const musicKind = m => (m === 'none' ? 'none' : m && typeof m === 'object' && 'own' in m ? 'own' : 'cue');
 const sectionKind = s => (typeof s === 'number' ? 'seconds' : s || 'default');
+// The intro level line as the panel sends it: ST_INTRO_DUCK_DB for a drop section, 0 for an ordinary section, own
+// music without a drop, fixed timing or No music. A numeric row value overrides it.
+export const introDuckFor = (row, music) => (typeof row.introDuckDb === 'number' ? row.introDuckDb
+  : music && music.kind !== 'none' && music.sectionKind === 'drop' ? ST_PANEL.INTRO_DUCK_DB : 0);
 
 export async function createAdapter({ pluginDir, installedDir, read, workDir } = {}) {
   read = read || (rel => fs.readFileSync(path.join(pluginDir, rel), 'utf8'));
@@ -338,7 +344,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
         projectId: s.row.pid, draftName: s.draftName, fps: s.fpsGuess, W: ST_W, H: ST_H,
         beats: { bpm: m.grid.bpm, delta: plan.frames.delta, snaps: plan.frames.snaps },
         schedule: plan.schedule, picks: { main, grid }, sizes: s.sizes, music, crossfadeFrames: null,
-        clipSound: s.row.clipSound, ambientDb: ST_PANEL.AMBIENT_DB, gridSound: s.row.gridSound, sfx, introDuckDb: Number(s.row.introDuckDb) || 0,
+        clipSound: s.row.clipSound, ambientDb: ST_PANEL.AMBIENT_DB, gridSound: s.row.gridSound, sfx, introDuckDb: introDuckFor(s.row, m),
       };
     },
 
@@ -411,7 +417,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
         frames: a.frames, fps: a.fps, placed: a.placed, gridPlaced: a.gridPlaced, sizes: a.sizes || s.sizes,
         motionIndexes: Object.keys(s.plan.motions || {}), videoMotion: true, look: !!s.row.look, clipSound: s.row.clipSound, ambientDb: ST_PANEL.AMBIENT_DB, gridSound: s.row.gridSound,
         // The requested muffle, not what assemble managed: a skipped muffle must fail the check.
-        music: musicOn ? { dryId: ids[k.dry], wetId: s.row.muffle ? (ids[k.wet] || 'missing-muffled-copy') : null, introDuckDb: Number(s.row.introDuckDb) || 0 } : null,
+        music: musicOn ? { dryId: ids[k.dry], wetId: s.row.muffle ? (ids[k.wet] || 'missing-muffled-copy') : null, introDuckDb: introDuckFor(s.row, s.music) } : null,
         sfx: s.sfxConfig ? { shutterIds: s.sfxConfig.shutter, shutterSeconds: s.sfxConfig.shutterSeconds, whooshId: s.sfxConfig.whoosh, whooshSeconds: s.sfxConfig.whooshSeconds } : null,
       });
     },

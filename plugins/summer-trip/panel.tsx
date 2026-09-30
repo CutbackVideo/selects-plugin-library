@@ -1057,8 +1057,9 @@ function stMuffleCommand(inPath, outPath) {
 // Panel helpers without React: the panel test loads this block in node:vm next to the planner, graphics and muffle
 // blocks, builds the run_script configs from fixtures and measures their payload.
 const ST_AMBIENT_DB = -18;
-// Intro lift (assemble.js introDuckDb): the dry music under the title sits this far below the body and rises to 0 dB
-// on the drop frame, on top of the cue's own intro -> drop step (0 = off).
+// Intro level line (assemble.js introDuckDb): in a drop section the dry music under the title sits this far below the
+// body, dips before the drop and comes back to full level just after it. Ordinary sections, own music without a drop,
+// fixed timing and No music get none (stAssembleConfig sends 0).
 const ST_INTRO_DUCK_DB = -7;
 // Live probe P1: an overlaid video brings no separate audio clip and takes setClipAudio -60 dB, so grid panels are
 // lowered in assemble ('volume'), never routed.
@@ -1278,7 +1279,8 @@ function stRecoverAssembly(cfg, fps, sequenceId) {
 }
 
 // assemble.js config (contracts.md). `frames.snaps` from the plan, never the raw onset snaps; every video pick carries
-// its source duration so assemble.js can slide a window back at the Draft's real rate.
+// its source duration so assemble.js can slide a window back at the Draft's real rate. `sectionKind` is the section
+// slider's kind at Build ('drop' | 'section'): only a drop section gets the intro level line.
 function stAssembleConfig(o) {
   const plan = o.plan, f = plan.frames, durations = o.durations || {};
   const main = plan.picks.main.map(p => {
@@ -1297,7 +1299,7 @@ function stAssembleConfig(o) {
     clipSound: o.clipSound, ambientDb: ST_AMBIENT_DB,
     gridSound: ST_GRID_SOUND,
     sfx: o.sfx || null,
-    introDuckDb: ST_INTRO_DUCK_DB,
+    introDuckDb: o.music && o.sectionKind === 'drop' ? ST_INTRO_DUCK_DB : 0,
   };
 }
 
@@ -2043,7 +2045,7 @@ export default function Panel({ sdk, context, ui }: any) {
     // The title and look inputs as they are at Build; a later "Finish title and look" retry reuses them.
     const inputs = { presetId: preset, line1, season, topMain, topItalic, creditPrefix, creditName, placePrefix, place, lookOn, lookStrength, clipSound,
       titleHits: stTitleHitsFor(music, sectionInfo ? sectionInfo.kind : null) };
-    const musicAt = { music, start: start ?? 0, muffle: muffleOn && music.kind !== "none", sfx: sfxOn, ownPath: ownMusic?.path || null, ownName: ownMusic?.name || null };
+    const musicAt = { music, start: start ?? 0, sectionKind: sectionInfo ? sectionInfo.kind : null, muffle: muffleOn && music.kind !== "none", sfx: sfxOn, ownPath: ownMusic?.path || null, ownName: ownMusic?.name || null };
     busyRef.current = true;
     stopPreview();
     setBusy(true); setStatus(null); setResult(null);
@@ -2112,7 +2114,7 @@ export default function Panel({ sdk, context, ui }: any) {
       const draftName = stDraftName(inputs.place, inputs.season, new Date());
       const cfg = stAssembleConfig({ projectId: pid, draftName, fps: planFps, plan, sizes, durations: dur,
         music: m.kind === "none" ? null : { resourceId: audio.ids.dry, sectionStart: musicAt.start, wetResourceId: musicAt.muffle && audio.ids.wet ? audio.ids.wet : null },
-        clipSound: inputs.clipSound, sfx });
+        clipSound: inputs.clipSound, sfx, sectionKind: musicAt.sectionKind });
       // The Project's Drafts before assemble: if its reply is lost, the new Draft is the one id that was not there.
       let draftsBefore: string[] | null = null;
       try {
