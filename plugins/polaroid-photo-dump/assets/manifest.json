@@ -1,0 +1,14 @@
+{
+ "frame": {
+  "file": "frame-v1.png",
+  "sha256": "eb9c0c924d15519eeb08208386657bfda46c323c6ff12b41dfe4638b60490970",
+  "bytes": 2402127,
+  "note": "Satin fabric and blank instant-film frame generated for this plugin with an AI image model; the photo window is transparent."
+ },
+ "music": {
+  "file": "music-v2.m4a",
+  "sha256": "80ed8a7b1cb249fb5cae944477c75abcdd9d8d80a1297962ea0f5e1df1636d96",
+  "bytes": 300827,
+  "note": "\"Lofi again\" (opengameart.org/content/lofi-again, CC0), 13.9 s section time-stretched x1.179 to 141.2 BPM so every second beat falls on a photo cut."
+ }
+}
