@@ -1,10 +1,10 @@
-# Install Photo Gallery 21
+# Install Photo Grid Reveal
 
 This experimental Selects plugin builds an editable 1080×1920, 60 fps, 3×7 gallery. Each original JPG/PNG stays an Image Resource on its own Video track. Video tiles remain Video Resources; only a selected video shorter than the output is extended to a separate cached MP4 that holds its last frame. The gallery is never flattened.
 
 The reference's moving slots are 4, 6, 11, 17, 19, and 21. A matching motion pattern uses Videos in those slots and Images in the other 15. Other mixes are editable but do not reproduce that part of the reference format. If the Project has exactly 15 Images and 6 Videos, the panel can assign them to the observed slot types in one action.
 
-Install `panel.tsx` at `SELECTS_USER_PANELS_ROOT/photo-gallery-no2/panel.tsx` and the files listed in `plugin.json` at `SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/`. Rebuild `panel.tsx` with `node build-panel.mjs` after changing the template, shared operation, or native adapter. Python 3 and ffmpeg/ffprobe are needed only for short-video extension and optional BPM estimation.
+Install `panel.tsx` at `SELECTS_USER_PANELS_ROOT/photo-gallery-no2/panel.tsx` and the files listed in `plugin.json` at `SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/`. The generated panel is ready to install; contributors rebuild it from the repository template with `node build-panel.mjs`. Python 3 and ffmpeg/ffprobe are needed only for short-video extension and optional BPM estimation.
 
 The public Selects SDK currently rejects `overlayResource(Image)` and omits Image dimensions from its source-file inventory. The panel uses the app-owned `TimelineMutation` service through its documented panel `window.parent.__DI__` access to place original Images; it checks the open Project, exact media paths, dimensions, and Draft ownership before editing. It uses the public SDK for Video and Audio overlays, effects, transforms, persistence, and readback. This panel host route is provisional and must be retested after a Selects update. No Selects client source is changed.
 
@@ -12,4 +12,4 @@ The Selects chat skill and panel share the planner, preflight, styling, and veri
 
 The panel currently creates a new Draft and offers individual clip editing in the Selects timeline. Automated replacement of one tile in an existing Draft is not yet supported. Never rebuild a Draft without explicit instruction or claim unrelated manual edits are preserved by a replacement operation.
 
-Run `SELECTS_DEV_REPO=/path/to/selects node --test *.test.mjs` and `python3 -m unittest hold_video_test.py tempo_test.py` from this folder. See [STAGING_VALIDATION.md](STAGING_VALIDATION.md) for live results and outstanding cases.
+Run `SELECTS_DEV_REPO=/path/to/selects node --test *.test.mjs` and `python3 -m unittest hold_video_test.py tempo_test.py` from this folder. See [VALIDATION.md](VALIDATION.md) for live results and outstanding cases.
