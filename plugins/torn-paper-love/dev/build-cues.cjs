@@ -104,6 +104,6 @@ for (const c of CUES) {
     downbeatConfidence: c.downbeatConfidence, sixteenthRatio: sixteenthRatio(samples, 22050, a.bpm, a.firstBeat, usableEnd), peaks: a.peaks, beatEnergy: a.beatEnergy,
     ...onsetFields(samples),
   });
-  console.log(c.id, a.bpm, a.firstBeat, lufs, normalization, 'gain ' + gain.toFixed(2) + ' dB, TP ' + ebur(dst).tp + ' dBTP, limiter reduction ' + reduction + ' dB', a.residualMedianMs, a.hitRate);
+  console.log(c.id, a.bpm, a.firstBeat, lufs, normalization, 'gain ' + gain.toFixed(2) + ' dB, TP ' + ebur(dst).tp + ' dBTP, limiter reduction ' + reduction + ' dB', a.residualMedianMs, a.hitRate, a.grid);
 }
 fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify({ version: 1, provenance: PROVENANCE, defaultCue, cues }) + '\n');

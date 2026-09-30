@@ -10,10 +10,11 @@ const TPL_H = 1080;
 // Unique pictures per length (each is shown twice).
 const TPL_LENGTHS = { short: 5, standard: 7, long: 10 };
 const TPL_MIN_PICTURES = 3;
-// The unit is the note value closest to TPL_UNIT_TARGET seconds within TPL_UNIT_RANGE (inclusive).
+// The unit is the note value (8th or beat) closest to TPL_UNIT_TARGET seconds, allowed only within TPL_UNIT_RANGE
+// (inclusive): 120 BPM cuts on its 0.25 s 8th rather than falling back to the fixed unit.
 const TPL_UNIT_TARGET = 0.35;
-const TPL_UNIT_RANGE = [0.28, 0.45];
-// Fixed unit without a usable grid (No music, rejected own music, tempo out of range).
+const TPL_UNIT_RANGE = [0.22, 0.55];
+// Fixed unit without a tempo to cut on (No music, own music with no steady beat, tempo out of range).
 const TPL_FALLBACK_UNIT = 0.35;
 // A video window keeps at least this much source after its longest slot.
 const TPL_SOURCE_TAIL = 0.15;
@@ -25,8 +26,9 @@ const TPL_FILLER_EDGE = 0.25;
 const TPL_FILLER_SCORE = -2;
 const TPL_FILLER_MAX = 48;
 
-// The grid unit for a tempo: the 8th (0.5 beat) or, for double-time detections, the beat. A musical bar is 8 units in
-// both cases. Returns null when neither lies in TPL_UNIT_RANGE. Ties go to the 8th.
+// The grid unit for a tempo: of the 8th (0.5 beat) and the beat, the one closest to TPL_UNIT_TARGET (the 8th up to
+// about 128.6 BPM, the beat above). A musical bar is 8 units in both cases. Returns null when neither lies in
+// TPL_UNIT_RANGE (below about 54.5 BPM or above about 272.7 BPM). Ties go to the 8th.
 function tplUnit(bpm) {
   if (typeof bpm !== 'number' || !isFinite(bpm) || !(bpm > 0)) return null;
   let best = null;
@@ -37,6 +39,24 @@ function tplUnit(bpm) {
     if (!best || d < best.d - 1e-12) best = { unitBeats, unitSec, barUnits: 8, d };
   }
   return best ? { unitBeats: best.unitBeats, unitSec: best.unitSec, barUnits: best.barUnits } : null;
+}
+
+// The approximate tempo the cuts follow, or null. beat-detect.cjs reports an own track's grid as 'approximate' when it
+// is tight and holds across the track but too few beats carry an onset to accept it ("tempo known, beat faint"). Only
+// without an accepted grid, and only when the tempo has a unit (tplUnit): the cuts then run on that unit from the
+// detected first beat, but stay gridless (gridded false: low-band-only snapping within +/-120 ms, as the fixed timing).
+// opts: { accepted, approxBpm }.
+function tplApproxTempo(opts) {
+  const bpm = opts && opts.approxBpm;
+  return !(opts && opts.accepted) && typeof bpm === 'number' && tplUnit(bpm) ? bpm : null;
+}
+
+// The unit the cuts run on: the accepted grid's (tplUnit of bpm), else the approximate tempo's, else null (the fixed
+// TPL_FALLBACK_UNIT). opts: { bpm, accepted, approxBpm? }.
+function tplCutUnit(opts) {
+  if (opts.accepted) return tplUnit(opts.bpm);
+  const approx = tplApproxTempo(opts);
+  return approx ? tplUnit(approx) : null;
 }
 
 // Slot lengths in units for N pictures. Relaxed doubles every entry.
@@ -131,16 +151,17 @@ function tplSnapCuts(boundaries, anchors, onsets, opts) {
   return { cuts, log, reasons };
 }
 
-// The cut plan. opts: { bpm | null, accepted, fps, N, pace, sectionStart (music seconds, null without music),
-// onsets?, onsetThresholds?, lowConfidence? }. targets are continuous seconds from the section start (2N + 1
+// The cut plan. opts: { bpm | null, accepted, approxBpm? (tplApproxTempo), fps, N, pace, sectionStart (music seconds,
+// null without music), onsets?, onsetThresholds?, lowConfidence? }. targets are continuous seconds from the section start (2N + 1
 // boundaries incl. 0 and the end); frames[k] = k === 0 ? 0 : round((targets[k] + offset) * fps), from absolute
 // positions only (never accumulated). units = each boundary's absolute unit position.
 function tplSchedule(opts) {
   const fps = opts.fps, N = opts.N;
   if (!(fps > 0) || !(N >= 1)) throw Error('tplSchedule needs fps and N');
-  const unit = opts.accepted ? tplUnit(opts.bpm) : null;
-  const gridded = !!unit;
-  const unitSec = gridded ? unit.unitSec : TPL_FALLBACK_UNIT;
+  const unit = tplCutUnit(opts);
+  // gridded = an accepted beat grid; an approximate tempo only sets the unit.
+  const gridded = !!unit && !!opts.accepted;
+  const unitSec = unit ? unit.unitSec : TPL_FALLBACK_UNIT;
   const factor = opts.pace === 'relaxed' ? 2 : 1;
   const tpl = tplTemplate(N, opts.pace);
   const lengths = tpl.pass1.concat(tpl.pass2);
@@ -176,8 +197,9 @@ function tplSchedule(opts) {
 }
 
 // Largest N <= requested that the pictures and the music allow. usableEnd = Infinity (or omitted) without music.
+// opts.approxBpm as tplSchedule.
 function tplFitN(opts) {
-  const unit = opts.accepted ? tplUnit(opts.bpm) : null;
+  const unit = tplCutUnit(opts);
   const unitSec = unit ? unit.unitSec : TPL_FALLBACK_UNIT;
   const start = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
   const end = typeof opts.usableEnd === 'number' && !isNaN(opts.usableEnd) ? opts.usableEnd : Infinity;

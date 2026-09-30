@@ -31,10 +31,11 @@ const TPL_H = 1080;
 // Unique pictures per length (each is shown twice).
 const TPL_LENGTHS = { short: 5, standard: 7, long: 10 };
 const TPL_MIN_PICTURES = 3;
-// The unit is the note value closest to TPL_UNIT_TARGET seconds within TPL_UNIT_RANGE (inclusive).
+// The unit is the note value (8th or beat) closest to TPL_UNIT_TARGET seconds, allowed only within TPL_UNIT_RANGE
+// (inclusive): 120 BPM cuts on its 0.25 s 8th rather than falling back to the fixed unit.
 const TPL_UNIT_TARGET = 0.35;
-const TPL_UNIT_RANGE = [0.28, 0.45];
-// Fixed unit without a usable grid (No music, rejected own music, tempo out of range).
+const TPL_UNIT_RANGE = [0.22, 0.55];
+// Fixed unit without a tempo to cut on (No music, own music with no steady beat, tempo out of range).
 const TPL_FALLBACK_UNIT = 0.35;
 // A video window keeps at least this much source after its longest slot.
 const TPL_SOURCE_TAIL = 0.15;
@@ -46,8 +47,9 @@ const TPL_FILLER_EDGE = 0.25;
 const TPL_FILLER_SCORE = -2;
 const TPL_FILLER_MAX = 48;
 
-// The grid unit for a tempo: the 8th (0.5 beat) or, for double-time detections, the beat. A musical bar is 8 units in
-// both cases. Returns null when neither lies in TPL_UNIT_RANGE. Ties go to the 8th.
+// The grid unit for a tempo: of the 8th (0.5 beat) and the beat, the one closest to TPL_UNIT_TARGET (the 8th up to
+// about 128.6 BPM, the beat above). A musical bar is 8 units in both cases. Returns null when neither lies in
+// TPL_UNIT_RANGE (below about 54.5 BPM or above about 272.7 BPM). Ties go to the 8th.
 function tplUnit(bpm) {
   if (typeof bpm !== 'number' || !isFinite(bpm) || !(bpm > 0)) return null;
   let best = null;
@@ -58,6 +60,24 @@ function tplUnit(bpm) {
     if (!best || d < best.d - 1e-12) best = { unitBeats, unitSec, barUnits: 8, d };
   }
   return best ? { unitBeats: best.unitBeats, unitSec: best.unitSec, barUnits: best.barUnits } : null;
+}
+
+// The approximate tempo the cuts follow, or null. beat-detect.cjs reports an own track's grid as 'approximate' when it
+// is tight and holds across the track but too few beats carry an onset to accept it ("tempo known, beat faint"). Only
+// without an accepted grid, and only when the tempo has a unit (tplUnit): the cuts then run on that unit from the
+// detected first beat, but stay gridless (gridded false: low-band-only snapping within +/-120 ms, as the fixed timing).
+// opts: { accepted, approxBpm }.
+function tplApproxTempo(opts) {
+  const bpm = opts && opts.approxBpm;
+  return !(opts && opts.accepted) && typeof bpm === 'number' && tplUnit(bpm) ? bpm : null;
+}
+
+// The unit the cuts run on: the accepted grid's (tplUnit of bpm), else the approximate tempo's, else null (the fixed
+// TPL_FALLBACK_UNIT). opts: { bpm, accepted, approxBpm? }.
+function tplCutUnit(opts) {
+  if (opts.accepted) return tplUnit(opts.bpm);
+  const approx = tplApproxTempo(opts);
+  return approx ? tplUnit(approx) : null;
 }
 
 // Slot lengths in units for N pictures. Relaxed doubles every entry.
@@ -152,16 +172,17 @@ function tplSnapCuts(boundaries, anchors, onsets, opts) {
   return { cuts, log, reasons };
 }
 
-// The cut plan. opts: { bpm | null, accepted, fps, N, pace, sectionStart (music seconds, null without music),
-// onsets?, onsetThresholds?, lowConfidence? }. targets are continuous seconds from the section start (2N + 1
+// The cut plan. opts: { bpm | null, accepted, approxBpm? (tplApproxTempo), fps, N, pace, sectionStart (music seconds,
+// null without music), onsets?, onsetThresholds?, lowConfidence? }. targets are continuous seconds from the section start (2N + 1
 // boundaries incl. 0 and the end); frames[k] = k === 0 ? 0 : round((targets[k] + offset) * fps), from absolute
 // positions only (never accumulated). units = each boundary's absolute unit position.
 function tplSchedule(opts) {
   const fps = opts.fps, N = opts.N;
   if (!(fps > 0) || !(N >= 1)) throw Error('tplSchedule needs fps and N');
-  const unit = opts.accepted ? tplUnit(opts.bpm) : null;
-  const gridded = !!unit;
-  const unitSec = gridded ? unit.unitSec : TPL_FALLBACK_UNIT;
+  const unit = tplCutUnit(opts);
+  // gridded = an accepted beat grid; an approximate tempo only sets the unit.
+  const gridded = !!unit && !!opts.accepted;
+  const unitSec = unit ? unit.unitSec : TPL_FALLBACK_UNIT;
   const factor = opts.pace === 'relaxed' ? 2 : 1;
   const tpl = tplTemplate(N, opts.pace);
   const lengths = tpl.pass1.concat(tpl.pass2);
@@ -197,8 +218,9 @@ function tplSchedule(opts) {
 }
 
 // Largest N <= requested that the pictures and the music allow. usableEnd = Infinity (or omitted) without music.
+// opts.approxBpm as tplSchedule.
 function tplFitN(opts) {
-  const unit = opts.accepted ? tplUnit(opts.bpm) : null;
+  const unit = tplCutUnit(opts);
   const unitSec = unit ? unit.unitSec : TPL_FALLBACK_UNIT;
   const start = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
   const end = typeof opts.usableEnd === 'number' && !isNaN(opts.usableEnd) ? opts.usableEnd : Infinity;
@@ -532,15 +554,23 @@ function tplOptions(o) {
 }
 
 // The music grid of a manifest cue (bundled cues are accepted by construction), or the fixed grid without music.
+// approxBpm: own music whose beat is faint (beat-detect.cjs grid 'approximate'); the cuts follow its tempo
+// (planner tplApproxTempo), everything else treats the grid as not accepted.
 function tplGrid(cue) {
-  if (!cue) return { bpm: null, accepted: false, firstBeat: 0, usableEnd: null, beatEnergy: [], onsets: [], onsetThresholds: null };
-  return { bpm: cue.bpm, accepted: cue.accepted !== false, firstBeat: cue.firstBeat || 0, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [],
-    onsets: cue.onsets || [], onsetThresholds: cue.onsetThresholds || null };
+  if (!cue) return { bpm: null, accepted: false, approxBpm: null, firstBeat: 0, usableEnd: null, beatEnergy: [], onsets: [], onsetThresholds: null };
+  return { bpm: cue.bpm, accepted: cue.accepted !== false, approxBpm: typeof cue.approxBpm === 'number' ? cue.approxBpm : null, firstBeat: cue.firstBeat || 0,
+    usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], onsets: cue.onsets || [], onsetThresholds: cue.onsetThresholds || null };
 }
 
 function tplUnitSec(grid) {
-  const u = grid.accepted ? tplUnit(grid.bpm) : null;
+  const u = tplCutUnit(grid);
   return u ? u.unitSec : TPL_FALLBACK_UNIT;
+}
+
+// The tempo the section snaps to (whole bars from the first beat): the accepted grid's, else an approximate tempo
+// (tplApproxTempo), else null (0.1 s steps).
+function tplSectionTempo(grid) {
+  return grid.accepted ? grid.bpm : tplApproxTempo(grid);
 }
 
 // The section start (music seconds) for a video of `videoSeconds`: 'default' = the highest-energy bar window, a number
@@ -552,7 +582,8 @@ function tplSectionStart(grid, section, videoSeconds) {
     if (d != null) return d;
   }
   const v = typeof section === 'number' ? section : grid.firstBeat;
-  const snapped = tplSnapSection({ value: v, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: grid.accepted });
+  const tempo = tplSectionTempo(grid);
+  const snapped = tplSnapSection({ value: v, firstBeat: grid.firstBeat, bpm: tempo == null ? grid.bpm : tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: tempo != null });
   return snapped == null ? grid.firstBeat : snapped;
 }
 
@@ -582,13 +613,14 @@ function tplPlanState(input) {
     const tentative = Math.min(requested, available);
     if (tentative < TPL_MIN_PICTURES) return fail('Add at least 3 photos or clips');
     sectionStart = tplSectionStart(grid, options.section, tplTemplate(tentative, options.pace).total * unitSec);
-    const fit = tplFitN({ requested, available, sectionStart: sectionStart == null ? 0 : sectionStart, usableEnd, bpm: grid.bpm, accepted: grid.accepted, pace: options.pace });
+    const fit = tplFitN({ requested, available, sectionStart: sectionStart == null ? 0 : sectionStart, usableEnd, bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm,
+      pace: options.pace });
     if (!fit.N) {
       if (fit.reason === 'pictures') return fail('Add at least 3 photos or clips');
       return fail('This track needs at least ' + (tplTemplate(TPL_MIN_PICTURES, options.pace).total * unitSec).toFixed(1) + ' s from the section start');
     }
     N = fit.N; fitReason = fit.reason;
-    schedule = tplSchedule({ bpm: grid.bpm, accepted: grid.accepted, fps: TPL_PLAN_FPS, N, pace: options.pace, sectionStart,
+    schedule = tplSchedule({ bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: TPL_PLAN_FPS, N, pace: options.pace, sectionStart,
       onsets: grid.onsets, onsetThresholds: grid.onsetThresholds || undefined, lowConfidence: false });
     const longest = schedule.slots.reduce((m, x) => Math.max(m, x.endFrame - x.startFrame), 0);
     const next = videos.filter(v => tplVideoWindow({ duration: v.duration, hitStart: 0, maxSlotFrames: longest, fps: TPL_PLAN_FPS }) != null);
@@ -1062,7 +1094,7 @@ function tplLayout(words, size, y, advance, W, H, seed) {
 const TPL_STALE = new Error('The Project changed during the build.');
 // Four videos per scene-search call keeps a call inside run_script's 30 s deadline.
 const TPL_SEARCH_BATCH = 4;
-// Tempo stand-in for own music whose beat was not found: the cuts use the fixed 0.35 s unit, the section snaps to 0.1 s.
+// Tempo stand-in for own music without a detected tempo: the cuts use the fixed 0.35 s unit, the section snaps to 0.1 s.
 const TPL_OWN_NOMINAL_BPM = 85.6;
 
 function tplDeepFreeze(v) {
@@ -1777,13 +1809,16 @@ export default function Panel({ sdk, context, ui }: any) {
   const track = ownMusic ? "own" : cueId === "own" ? "own" : cueId || manifest?.defaultCue || "none";
   const manifestCue = manifest && track !== "own" && track !== "none" ? manifest.cues.find((c: any) => c.id === track) || null : null;
   const ownDuration = ownGrid && ownGrid.durationSeconds > 0 ? ownGrid.durationSeconds : null;
-  // Own music as a cue for tplPlanState: its detected grid, or (beat not found) the fixed 0.35 s unit with a stand-in
-  // tempo so the music still plays from a 0.1 s-snapped start.
+  // Own music as a cue for tplPlanState: its detected grid; or, when beat-detect.cjs reports the grid as 'approximate'
+  // (tempo known, beat faint), cuts on that tempo's unit from its first beat (approxBpm, planner tplApproxTempo) with
+  // low-confidence snapping; or (no steady beat) the fixed 0.35 s unit with a stand-in tempo so the music still plays
+  // from a 0.1 s-snapped start.
   const ownCue = React.useMemo(() => {
     if (!ownMusic || !ownGrid || !ownDuration) return null;
     const accepted = !!ownGrid.accepted && ownGrid.bpm > 0;
-    return { id: "own", label: ownMusic.name, file: null, bpm: ownGrid.bpm > 0 ? ownGrid.bpm : TPL_OWN_NOMINAL_BPM, accepted,
-      firstBeat: accepted ? ownGrid.firstBeat || 0 : 0, usableEnd: Math.max(0, ownDuration - 0.5), beatEnergy: accepted ? ownGrid.beatEnergy || [] : [],
+    const approxBpm = tplApproxTempo({ accepted, approxBpm: ownGrid.grid === "approximate" && ownGrid.bpm > 0 ? ownGrid.bpm : null });
+    return { id: "own", label: ownMusic.name, file: null, bpm: ownGrid.bpm > 0 ? ownGrid.bpm : TPL_OWN_NOMINAL_BPM, accepted, approxBpm,
+      firstBeat: accepted || approxBpm ? ownGrid.firstBeat || 0 : 0, usableEnd: Math.max(0, ownDuration - 0.5), beatEnergy: accepted ? ownGrid.beatEnergy || [] : [],
       onsets: ownGrid.onsets || [], onsetThresholds: ownGrid.onsetThresholds || null, peaks: ownGrid.peaks || [], duration: ownDuration };
   }, [ownMusic, ownGrid, ownDuration]);
   const planCue = track === "own" ? ownCue : manifestCue;
@@ -1807,7 +1842,9 @@ export default function Panel({ sdk, context, ui }: any) {
   const clipsOk = Math.max(0, videosSel.length - shortVideos);
   const shownN = plan?.ok ? plan.N : Math.max(TPL_MIN_PICTURES, Math.min(requested, measured + clipsOk));
   const videoSeconds = tplTemplate(shownN, pace).total * unitSec;
-  const snap = (value: number) => tplSnapSection({ value, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: grid.accepted });
+  // Bars of the accepted or approximate tempo (tplSectionStart does the same), else 0.1 s steps.
+  const sectionTempo = tplSectionTempo(grid);
+  const snap = (value: number) => tplSnapSection({ value, firstBeat: grid.firstBeat, bpm: sectionTempo == null ? grid.bpm : sectionTempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: sectionTempo != null });
   // The section the build uses (the plan re-clamps a numeric start to the nearest bar that fits).
   const sectionShown: number | null = !planCue ? null : plan?.ok ? plan.musicStart : grid.bpm == null ? null : snap(section === "default" ? (tplSectionStart(grid, "default", videoSeconds) ?? 0) : section);
   const musicPath = !roots ? null : track === "own" ? (ownMusic ? ownMusic.path : null) : manifestCue ? roots.plugin + "/assets/cues/" + manifestCue.file : null;
@@ -1834,7 +1871,10 @@ export default function Panel({ sdk, context, ui }: any) {
         const g = JSON.parse(await readText(roots.data, "own-music.json"));
         if (projectRef.current !== pid) return;
         setOwnGrid(g);
-        setStatus(g.accepted ? null : { tone: "info", text: "Music added; cuts use a steady 0.35 s rhythm because its beat could not be found reliably." });
+        const approx = tplApproxTempo({ accepted: !!g.accepted, approxBpm: g.grid === "approximate" && g.bpm > 0 ? g.bpm : null });
+        setStatus(g.accepted ? null
+          : approx ? { tone: "info", text: "Music added; its beat is faint, so cuts follow its tempo (" + Math.round(approx) + " BPM) without locking to every beat." }
+          : { tone: "info", text: "Music added; cuts use a steady 0.35 s rhythm because its beat could not be found reliably." });
       } catch (e: any) {
         // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
         let duration: number | null = null;
@@ -1844,7 +1884,7 @@ export default function Panel({ sdk, context, ui }: any) {
           if (!pr?.isError && v > 0) duration = Math.min(v, 360);
         } catch { duration = null; }
         if (projectRef.current !== pid) return;
-        setOwnGrid({ accepted: false, durationSeconds: duration, peaks: [] });
+        setOwnGrid({ accepted: false, grid: "none", durationSeconds: duration, peaks: [] });
         setStatus(duration
           ? { tone: "info", text: "Music added; cuts use a steady 0.35 s rhythm (" + (e?.message || e) + ")." }
           : { tone: "error", text: "Could not read this music file (" + (e?.message || e) + "). Choose another file or one of the tracks." });
@@ -2065,7 +2105,7 @@ export default function Panel({ sdk, context, ui }: any) {
         {planCue ? (
           // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
           <div onKeyDown={(e) => { if (e.key === "Escape" && playState !== "idle") { e.preventDefault(); stopPreview(); } }}>
-            <SectionSlider peaks={peaks} total={total} section={sectionShown} videoSeconds={videoSeconds} barSeconds={grid.accepted ? (tplBarBeats(grid.bpm) * 60) / grid.bpm : 1}
+            <SectionSlider peaks={peaks} total={total} section={sectionShown} videoSeconds={videoSeconds} barSeconds={sectionTempo != null ? (tplBarBeats(sectionTempo) * 60) / sectionTempo : 1}
               snap={snap} onChange={(v) => { if (v != null) setSection(v); }} disabled={busy} audio={playingAudio} />
             <ui.Row gap={8} align="center">
               {/* The kit has no stop icon; "pause" marks stop, and the label says what it does. */}
