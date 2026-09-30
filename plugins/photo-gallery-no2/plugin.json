@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "id": "photo-gallery-no2",
+  "version": "0.3.0",
+  "name": "Photo Grid Reveal",
+  "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "panel.tsx",
+    "build-script.mjs",
+    "operation-builder.mjs",
+    "operation-runtime.js",
+    "native-image-runtime.js",
+    "format.mjs",
+    "reference-oracle.json",
+    "tempo.py",
+    "hold_video.py",
+    "VALIDATION.md",
+    "assets/music.mp3",
+    "THIRD_PARTY.md"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS Selects Staging"
+    ],
+    "selects": "Requires a panel host exposing the app-owned TimelineMutation service for Image placement; public run_script for video/audio overlays, effects, transforms, gap-backed Drafts, media import, and commit. Retest after Selects updates."
+  },
+  "localized": {
+    "de": {
+      "name": "Photo Grid Reveal",
+      "summary": "Ein 3\u00d77-Raster f\u00fcllt sich nacheinander; danach wechseln alle Felder von Schwarzwei\u00df zu Farbe. W\u00e4hlen Sie f\u00fcr jedes Feld ein Foto oder Video."
+    },
+    "en": {
+      "name": "Photo Grid Reveal",
+      "summary": "A 3 \u00d7 7 gallery fills in order, then all tiles switch from monochrome to color. Assign a photo or video to each tile when creating a Draft."
+    },
+    "es": {
+      "name": "Photo Grid Reveal",
+      "summary": "Una cuadr\u00edcula de 3\u00d77 se llena en orden y luego cambia de blanco y negro a color. Asigna una foto o v\u00eddeo a cada celda."
+    },
+    "fr": {
+      "name": "Photo Grid Reveal",
+      "summary": "Une grille de 3\u00d77 se remplit dans l\u2019ordre, puis passe du noir et blanc \u00e0 la couleur. Choisissez une photo ou vid\u00e9o par case."
+    },
+    "it": {
+      "name": "Photo Grid Reveal",
+      "summary": "Una griglia 3\u00d77 si riempie in ordine, poi passa dal bianco e nero al colore. Assegna una foto o un video a ogni riquadro."
+    },
+    "ja": {
+      "name": "Photo Grid Reveal",
+      "summary": "3\u5217\u00d77\u884c\u3092\u9806\u756a\u306b\u8868\u793a\u3057\u3001\u3059\u3079\u3066\u306e\u67a0\u304c\u30e2\u30ce\u30af\u30ed\u304b\u3089\u30ab\u30e9\u30fc\u306b\u5207\u308a\u66ff\u308f\u308a\u307e\u3059\u3002\u5404\u67a0\u306b\u5199\u771f\u307e\u305f\u306f\u52d5\u753b\u3092\u6307\u5b9a\u3057\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "Photo Grid Reveal",
+      "summary": "3\uc5f4 \u00d7 7\ud589\uc774 \ucc28\ub840\ub85c \ucc44\uc6cc\uc9c0\uace0 \uc804\uccb4\uac00 \ud751\ubc31\uc5d0\uc11c \uceec\ub7ec\ub85c \ubc14\ub01d\ub2c8\ub2e4. \uc0c8 \ud3b8\uc9d1\ubcf8\uc758 21\uce78\uc5d0 \uc0ac\uc9c4\uacfc \uc601\uc0c1\uc744 \uac01\uac01 \uc9c0\uc815\ud569\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Photo Grid Reveal",
+      "summary": "Uma grelha 3\u00d77 preenche-se em ordem e muda de preto e branco para cor. Atribua uma foto ou v\u00eddeo a cada c\u00e9lula."
+    },
+    "tr": {
+      "name": "Photo Grid Reveal",
+      "summary": "3\u00d77 \u0131zgara s\u0131rayla dolar, sonra t\u00fcm kutular siyah beyazdan renge ge\u00e7er. Her kutuya foto\u011fraf veya video atay\u0131n."
+    },
+    "zh": {
+      "name": "Photo Grid Reveal",
+      "summary": "3\u5217\u00d77\u884c\u4f9d\u6b21\u663e\u793a\uff0c\u968f\u540e\u6240\u6709\u683c\u5b50\u4ece\u9ed1\u767d\u5207\u6362\u5230\u5f69\u8272\u3002\u4e3a\u6bcf\u4e2a\u683c\u5b50\u6307\u5b9a\u7167\u7247\u6216\u89c6\u9891\u3002"
+    }
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  }
+}

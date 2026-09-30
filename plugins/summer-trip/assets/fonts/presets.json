@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "fonts": {
+    "poppins-light.woff2.b64": { "family": "ST Poppins Light", "style": "normal", "weight": 300, "license": "poppins-OFL.txt" },
+    "poppins-light-italic.woff2.b64": { "family": "ST Poppins Light Italic", "style": "italic", "weight": 300, "license": "poppins-OFL.txt" },
+    "poppins-bold.woff2.b64": { "family": "ST Poppins Bold", "style": "normal", "weight": 700, "license": "poppins-OFL.txt" },
+    "poppins-black.woff2.b64": { "family": "ST Poppins Black", "style": "normal", "weight": 900, "license": "poppins-OFL.txt" },
+    "anton.woff2.b64": { "family": "ST Anton", "style": "normal", "weight": 400, "license": "anton-OFL.txt" },
+    "gloock.woff2.b64": { "family": "ST Gloock", "style": "normal", "weight": 400, "license": "gloock-OFL.txt" },
+    "instrument-serif-italic.woff2.b64": { "family": "ST Instrument Serif Italic", "style": "italic", "weight": 400, "license": "instrumentserif-OFL.txt" }
+  },
+  "presets": [
+    {
+      "id": "summer", "label": "Summer",
+      "fonts": ["poppins-bold.woff2.b64", "poppins-black.woff2.b64", "poppins-light.woff2.b64", "poppins-light-italic.woff2.b64", "gloock.woff2.b64"],
+      "roles": {
+        "line1": { "file": "poppins-bold.woff2.b64", "case": "none", "tracking": -0.01 },
+        "season": { "file": "poppins-black.woff2.b64", "case": "upper", "tracking": -0.01, "scaleX": 0.9 },
+        "label": { "file": "poppins-light.woff2.b64", "case": "none", "tracking": -0.04 },
+        "labelItalic": { "file": "poppins-light-italic.woff2.b64", "case": "none", "tracking": -0.04 },
+        "place": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.8 },
+        "placePrefix": { "file": "gloock.woff2.b64", "case": "lower", "tracking": 0, "scaleX": 0.8 }
+      },
+      "title": { "line1Size": 100, "seasonSize": 263, "line1Y": 35.1, "seasonY": 50.1 },
+      "colors": { "line1": "#FFFFFF", "season": "#FDE070", "labels": "#FFFFFF", "place": "#F8DC70" },
+      "shadow": 0.25
+    },
+    {
+      "id": "poster", "label": "Poster",
+      "fonts": ["poppins-bold.woff2.b64", "anton.woff2.b64", "poppins-light.woff2.b64", "poppins-light-italic.woff2.b64", "gloock.woff2.b64"],
+      "roles": {
+        "line1": { "file": "poppins-bold.woff2.b64", "case": "none", "tracking": -0.01 },
+        "season": { "file": "anton.woff2.b64", "case": "upper", "tracking": 0, "fillWidth": 0.9 },
+        "label": { "file": "poppins-light.woff2.b64", "case": "none", "tracking": -0.04 },
+        "labelItalic": { "file": "poppins-light-italic.woff2.b64", "case": "none", "tracking": -0.04 },
+        "place": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.8 },
+        "placePrefix": { "file": "gloock.woff2.b64", "case": "lower", "tracking": 0, "scaleX": 0.8 }
+      },
+      "title": { "line1Size": 64, "seasonSize": 560, "line1Y": 22.5, "seasonY": 56.0 },
+      "colors": { "line1": "#FFFFFF", "season": "#FDE070", "labels": "#FFFFFF", "place": "#F8DC70" },
+      "shadow": 0.25
+    },
+    {
+      "id": "postcard", "label": "Postcard",
+      "fonts": ["instrument-serif-italic.woff2.b64", "gloock.woff2.b64", "poppins-light.woff2.b64", "poppins-light-italic.woff2.b64"],
+      "roles": {
+        "line1": { "file": "instrument-serif-italic.woff2.b64", "case": "none", "tracking": 0 },
+        "season": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.8 },
+        "label": { "file": "poppins-light.woff2.b64", "case": "none", "tracking": -0.04 },
+        "labelItalic": { "file": "poppins-light-italic.woff2.b64", "case": "none", "tracking": -0.04 },
+        "place": { "file": "gloock.woff2.b64", "case": "upper", "tracking": 0, "scaleX": 0.8 },
+        "placePrefix": { "file": "gloock.woff2.b64", "case": "lower", "tracking": 0, "scaleX": 0.8 }
+      },
+      "title": { "line1Size": 120, "seasonSize": 280, "line1Y": 33.5, "seasonY": 51.0 },
+      "colors": { "line1": "#FFFFFF", "season": "#FDE070", "labels": "#FFFFFF", "place": "#F8DC70" },
+      "shadow": 0.3
+    }
+  ]
+}
