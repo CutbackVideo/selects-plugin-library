@@ -29,7 +29,8 @@ Both layouts share this timeline:
   a musical downbeat. Moving footage (waves, trees in the wind, a road going
   by) is preferred over still holds; see [Motion](#motion).
 - **Ending.** The last shot holds for half a second. The picture and the music
-  fade out together, and the credits keep rolling as they go.
+  fade out together, and the credits roll completely off the top just before
+  the end, while the window fades to black.
 - A 1920x1080 Draft. Cuts land on the phrase grid at the Draft's real frame
   rate.
 
@@ -74,10 +75,13 @@ a placeholder: it is allowed in the build, and the panel warns how many rows
 still have placeholders.
 
 The roll speed is computed from the number of rows and the length, so the last
-row reaches the top band as the video ends. It is clamped to 0.6x to 1.6x the
-reference speed. With too many rows the panel names the rows that will not
-appear and suggests Long or fewer rows; with few rows it says the credits
-finish before the end.
+line rolls off the top 0.3 s before the video ends and the last moment shows
+no credit text. It is clamped to 0.6x to 1.6x the reference speed (about 67
+px/s at 1080p). With too many rows to roll off in time, the panel says "Too
+many rows to roll off before the end: remove N rows or choose Long." (and
+names any rows that would not appear at all); with few rows it says the
+credits finish before the end. The preview's **End** button shows the moment
+the last line has left the top.
 
 After the build, the credits are also editable in the Draft. Select the
 credits Motion Graphic and open **Adjust**: **Title**, **Title color**,

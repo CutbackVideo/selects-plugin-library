@@ -628,7 +628,13 @@ function tecPresetRows(presetId, info) {
 // inside it); the first role's top is titleToFirstRole below the box. Each pair: role (roleSize), name (nameSize)
 // roleToName below the role's top; the next role pairPitch below. A line wider than the column is fitted down to
 // minFit of its size; beyond that it wraps to 2 lines (word boundary, most balanced split) and the pair's pitch
-// grows by that line's height (roleLine / nameLine). The roll speed targets the last role's top at endY * H.
+// grows by that line's height (roleLine / nameLine). Line boxes follow the graphic: a line's baseline is its top plus
+// ascent x its nominal size, and its box ends descent x its (fitted) size below the baseline.
+// The roll speed makes the credits roll completely off the top before the video ends: the bottom of the last line
+// (the last name line, or the last role line when the last pair has no name) crosses y = 0 exitLead s before the
+// end, and the last exitLead s show no credit text while the window finishes fading. Reference (measured on its clean
+// render): a constant roll of about 67 px/s at 1080p to the very end, the last name line's bottom at 2.4 % of H on
+// the final frame, so it clears the frame about 0.4 s after the end.
 const TEC_CREDIT_METRICS = {
   titleTop: 425, titleCap: 173, titleToFirstRole: 101,
   roleSize: 28, nameSize: 24, roleToName: 43, pairPitch: 123,
@@ -636,7 +642,8 @@ const TEC_CREDIT_METRICS = {
   classic: { centerX: 0.223, maxWidth: 0.40 },
   // Full frame: the title lands higher (cap centre 0.28 H in the graphic), so the column starts 207 px higher.
   full: { centerX: 0.78, maxWidth: 0.30, titleShift: -207 },
-  endY: 0.07, basePxPerSec: 67, minSpeed: 0.6, maxSpeed: 1.6,
+  ascent: 1.05, descent: 0.35,
+  exitLead: 0.3, basePxPerSec: 67, minSpeed: 0.6, maxSpeed: 1.6,
 };
 
 // Fits one credit line. measure(text, fontPx, kind) -> width in px at that size. Returns
@@ -662,8 +669,10 @@ function tecFitLine(text, basePx, maxWidth, measure, kind) {
 
 // opts: { rows, layout: 'classic' | 'full', H, W? (default H * 16 / 9), measure }. Returns every line's top y at the
 // moment the roll starts (revealFrame): { H, W, k, centerX, maxWidth, title: { top, bottom }, rows: [{ index, top,
-// bottom, pitch, role: { lines, fontPx, scale, overflow, top, lineHeight }, name: {...} }], firstRoleTop,
-// lastRoleTop (null without rows), rowTops }.
+// bottom, pitch, lastLineBottom, role: { lines, fontPx, scale, overflow, top, lineHeight, lineBottom }, name: {...} }],
+// firstRoleTop, lastRoleTop, lastLineBottom (null without rows), rowTops, rowBottoms }. A part's lineBottom is the
+// line-box bottom of its last line in the graphic's model (null when the part is empty); a row's lastLineBottom is
+// its name's, or its role's without a name.
 function tecCreditLayout(opts) {
   const M = TEC_CREDIT_METRICS;
   const H = opts.H > 0 ? opts.H : 1080, W = opts.W > 0 ? opts.W : H * 16 / 9, k = H / 1080;
@@ -682,44 +691,57 @@ function tecCreditLayout(opts) {
     const nameExtra = Math.max(0, name.lines.length - 1) * M.nameLine * k;
     role.top = y; role.lineHeight = M.roleLine * k;
     name.top = y + M.roleToName * k + roleExtra; name.lineHeight = M.nameLine * k;
+    // The graphic's baselines: role line 0 at y + ascent x roleSize, name line 0 roleToName (+ the role's wrap) below.
+    const roleBase = y + M.ascent * M.roleSize * k, nameBase = roleBase + M.roleToName * k + roleExtra;
+    role.lineBottom = role.lines.length ? roleBase + (role.lines.length - 1) * role.lineHeight + M.descent * role.fontPx : null;
+    name.lineBottom = name.lines.length ? nameBase + (name.lines.length - 1) * name.lineHeight + M.descent * name.fontPx : null;
     const pitch = M.pairPitch * k + roleExtra + nameExtra;
-    rows.push({ index, top: y, bottom: name.top + Math.max(1, name.lines.length) * M.nameLine * k, pitch, role, name });
+    rows.push({ index, top: y, bottom: name.top + Math.max(1, name.lines.length) * M.nameLine * k, pitch,
+      lastLineBottom: name.lineBottom != null ? name.lineBottom : role.lineBottom, role, name });
     y += pitch;
   });
   return {
     H, W, k, layout: opts.layout === 'full' ? 'full' : 'classic', centerX: col.centerX * W, maxWidth, title, rows,
     firstRoleTop: rows.length ? rows[0].top : null,
     lastRoleTop: rows.length ? rows[rows.length - 1].top : null,
+    lastLineBottom: rows.length ? rows[rows.length - 1].lastLineBottom : null,
     rowTops: rows.map(r => r.top),
+    rowBottoms: rows.map(r => r.lastLineBottom),
   };
 }
 
-// Roll speed (spec R5/R7). opts: { endSec, L?, H, lastRoleStartY (the last role's top at the roll start; null or
-// undefined without rows), rowTops? (every role's top, for hiddenRows / removeRows), layout? (ignored) }.
-// raw = (lastRoleStartY - endY * H) / (endSec - L), clamped to [0.6, 1.6] x 67 px/s (scaled by H / 1080).
-// Without rows the speed is the reference 67 px/s. Returns { pxPerSec, rawPxPerSec, basePxPerSec, minPxPerSec,
-// maxPxPerSec, clamped: 'high' | 'low' | null, endsEarly, hiddenRows (indices whose top never rises above H),
-// removeRows (rows to drop so the raw speed fits the clamp; 0 when it already does) }.
+// Roll speed (spec R5/R7). opts: { endSec, L?, H, lastLineBottom (the last line's box bottom at the roll start;
+// null or undefined without rows), rowTops? (every role's top, for hiddenRows), rowBottoms? (every row's last line
+// bottom, for removeRows), layout? (ignored) }.
+// raw = lastLineBottom / (endSec - exitLead - L): the last line's bottom crosses y = 0 exitLead (0.3 s) before the
+// end. Clamped to [0.6, 1.6] x 67 px/s (scaled by H / 1080). Without rows the speed is the reference 67 px/s.
+// Returns { pxPerSec, rawPxPerSec, basePxPerSec, minPxPerSec, maxPxPerSec, exitSec (when the last line clears the
+// top at pxPerSec; null without rows), clamped: 'high' | 'low' | null, endsEarly (0.6x clears the top earlier than
+// the target), exitsLate (even 1.6x can't clear the top before the end target: text is left on screen), hiddenRows
+// (indices whose top never rises above H before the end), removeRows (rows to drop so the last line can clear the
+// top by the target at <= 1.6x; 0 when it already does) }.
 function tecRollSpeed(opts) {
   const M = TEC_CREDIT_METRICS;
   const H = opts.H > 0 ? opts.H : 1080, k = H / 1080, L = opts.L == null ? TEC_LEAD_IN : opts.L;
   const base = M.basePxPerSec * k, lo = base * M.minSpeed, hi = base * M.maxSpeed;
-  const span = opts.endSec - L;
-  const target = M.endY * H;
-  const out = { pxPerSec: base, rawPxPerSec: null, basePxPerSec: base, minPxPerSec: lo, maxPxPerSec: hi, clamped: null, endsEarly: false, hiddenRows: [], removeRows: 0 };
-  const last = opts.lastRoleStartY;
-  if (last == null || !isFinite(last) || !(span > 0)) return out;
-  const raw = (last - target) / span;
+  const span = opts.endSec - L, exitSpan = span - M.exitLead;
+  const out = { pxPerSec: base, rawPxPerSec: null, basePxPerSec: base, minPxPerSec: lo, maxPxPerSec: hi, exitSec: null, clamped: null,
+    endsEarly: false, exitsLate: false, hiddenRows: [], removeRows: 0 };
+  const last = opts.lastLineBottom;
+  if (last == null || !isFinite(last) || !(exitSpan > 0)) return out;
+  const raw = last / exitSpan;
   out.rawPxPerSec = raw;
-  if (raw > hi + 1e-9) { out.pxPerSec = hi; out.clamped = 'high'; }
+  if (raw > hi + 1e-9) { out.pxPerSec = hi; out.clamped = 'high'; out.exitsLate = true; }
   else if (raw < lo - 1e-9) { out.pxPerSec = lo; out.clamped = 'low'; out.endsEarly = true; }
   else out.pxPerSec = raw;
+  out.exitSec = L + last / out.pxPerSec;
   const tops = Array.isArray(opts.rowTops) ? opts.rowTops : [];
   tops.forEach((top, i) => { if (top - out.pxPerSec * span >= H - 1e-9) out.hiddenRows.push(i); });
-  if (out.clamped === 'high' && tops.length) {
-    let keep = tops.length;
-    while (keep > 1 && (tops[keep - 1] - target) / span > hi + 1e-9) keep--;
-    out.removeRows = tops.length - keep;
+  const bottoms = Array.isArray(opts.rowBottoms) ? opts.rowBottoms : [];
+  if (out.exitsLate && bottoms.length) {
+    let keep = bottoms.length;
+    while (keep > 1 && bottoms[keep - 1] / exitSpan > hi + 1e-9) keep--;
+    out.removeRows = bottoms.length - keep;
   }
   return out;
 }

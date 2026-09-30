@@ -8,6 +8,11 @@ import { AbsoluteFill, continueRender, delayRender, useCurrentFrame, useVideoCon
 // All lengths are for a 1080 px tall reference frame unless named as a fraction of W or H.
 var TEC_REF_H = 1080;
 var TEC_DEFAULT_SPEED = 67; // px/s at 1080p (the reference roll speed)
+// The credits roll completely off the top before the video ends: the last line's bottom crosses y = 0 this many
+// seconds before endFrame, and the last 0.3 s show no credit text while the window finishes fading. Reference
+// (measured on its clean render): a constant ~67 px/s roll to the very end, the last name line's bottom at 2.4 % of H
+// on the final frame (it would clear the frame about 0.4 s later); the window fades over the last 1.13 s.
+var TEC_ROLL_EXIT_LEAD_SEC = 0.3;
 var TEC_LEAD_IN_SEC = 5.1;
 var TEC_LAYOUTS = {
   // colX: column centre (fraction of W); colW: credit line width limit (fraction of W);
@@ -157,7 +162,9 @@ function tecTitlePose(tSec, L, layout, sizes, W, H) {
 
 // Credit layout before the roll offset. measure(text, kind, px) with kind "role" | "name".
 // Baselines stay on the nominal grid when a line is fit-shrunk; a wrapped line adds one nominal
-// line height (1.4 em) to its pair. roleTop = the role line-box top (baseline − ascent·size).
+// line height (1.4 em) to its pair. roleTop = the role line-box top (baseline − ascent·size). lastLineBottom = the
+// line-box bottom (baseline + descent·size) of the last drawn line: the last pair's last name line, or its last role
+// line when it has no name.
 function tecCreditLayout(rows, layout, W, H, titleSize, measure) {
   var col = TEC_LAYOUTS[layout] || TEC_LAYOUTS.classic;
   var s = H / TEC_REF_H, C = TEC_CREDITS;
@@ -182,14 +189,20 @@ function tecCreditLayout(rows, layout, W, H, titleSize, measure) {
     });
     roleBase += C.pitch * s + roleExtra + nameExtra;
   }
-  return { titleBaseline: titleBaseline, colX: col.colX * W, colW: box, rows: out, lastRoleTop: out.length ? out[out.length - 1].roleTop : null };
+  var lastLineBottom = null;
+  if (out.length) {
+    var lr = out[out.length - 1], part = lr.name.lines.length ? lr.name : lr.role;
+    if (part.lines.length) lastLineBottom = part.baselines[part.baselines.length - 1] + C.descent * part.size;
+  }
+  return { titleBaseline: titleBaseline, colX: col.colX * W, colW: box, rows: out, lastRoleTop: out.length ? out[out.length - 1].roleTop : null, lastLineBottom: lastLineBottom };
 }
-// Roll speed in px/s at 1080p that brings the last role's top to 7 % of H on the last frame, from this graphic's own
-// layout (the real fonts), clamped to 0.6-1.6x the reference 67 px/s. No rows or no end: the reference speed.
-function tecFitSpeed(lastRoleTop, endFrame, revealFrame, fps, H) {
-  var s = H / TEC_REF_H, secs = (endFrame - revealFrame) / fps;
-  if (lastRoleTop == null || !(secs > 0) || !(s > 0)) return TEC_DEFAULT_SPEED;
-  var raw = (lastRoleTop / s - 0.07 * TEC_REF_H) / secs;
+// Roll speed in px/s at 1080p that takes the last line's bottom to y = 0 at endFrame − 0.3 s, from this graphic's own
+// layout (the real fonts), clamped to 0.6-1.6x the reference 67 px/s (at 1.6x with too many rows the text can't clear
+// the top by then; the panel says so). No rows or no end: the reference speed.
+function tecFitSpeed(lastLineBottom, endFrame, revealFrame, fps, H) {
+  var s = H / TEC_REF_H, secs = (endFrame - revealFrame) / fps - TEC_ROLL_EXIT_LEAD_SEC;
+  if (lastLineBottom == null || !(secs > 0) || !(s > 0)) return TEC_DEFAULT_SPEED;
+  var raw = lastLineBottom / s / secs;
   return Math.max(0.6 * TEC_DEFAULT_SPEED, Math.min(1.6 * TEC_DEFAULT_SPEED, raw));
 }
 
@@ -271,11 +284,11 @@ export default function TheEndCredits({ data }) {
     [ready, rowsKey, layout, W, H, sizes.size],
   );
 
-  // "fit" (default when endFrame is known): the graphic measures its own layout, so the last role reaches the top band
-  // on the last frame whatever the fonts do; speedPxPerSec (the panel's estimate) is used only with speedMode "fixed".
+  // "fit" (default when endFrame is known): the graphic measures its own layout, so the last line clears the top
+  // 0.3 s before the end whatever the fonts do; speedPxPerSec (the panel's estimate) is used only with speedMode "fixed".
   const endFrame = num(data.endFrame, 0);
   const baseSpeed = data.speedMode !== "fixed" && endFrame > revealFrame
-    ? tecFitSpeed(credits.lastRoleTop, endFrame, revealFrame, fps, H)
+    ? tecFitSpeed(credits.lastLineBottom, endFrame, revealFrame, fps, H)
     : num(data.speedPxPerSec, TEC_DEFAULT_SPEED);
   const scroll = tecScrollY(frame, revealFrame, fps, baseSpeed, num(data.speed, 1), H);
   const pose = tecTitlePose(t, L, layout, sizes, W, H);

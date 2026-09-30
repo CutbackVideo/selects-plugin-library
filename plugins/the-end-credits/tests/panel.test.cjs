@@ -107,7 +107,7 @@ assert.ok(panel.includes('const AMBIENT_DB = -18;'));
 for (const k of ['layout: inputs.layout, sequenceId: a.sequenceId, fps: a.fps, frames, titleText: inputs.title, rows: inputs.rows',
   'speedPxPerSec: speed.pxPerSec, window: WINDOWS[inputs.layout], look: { on: inputs.lookOn, strength: LOOK_STRENGTH }, clipSound: inputs.clipSound',
   'photos, sources, fades: FADES, musicFadeOut: MUSIC_FADE_OUT']) assert.ok(buildBody.includes(k), 'record ' + k);
-assert.ok(buildBody.includes('tecRollSpeed({ endSec, L: revealSec, H: 1080, lastRoleStartY: model.lastRoleTop, rowTops: model.rowTops })')
+assert.ok(buildBody.includes('tecRollSpeed({ endSec, L: revealSec, H: 1080, lastLineBottom: model.lastLineBottom, rowTops: model.rowTops, rowBottoms: model.rowBottoms })')
   && buildBody.includes('const endSec = frames[frames.length - 1] / a.fps, revealSec = frames[1] / a.fps;'), 'the roll speed comes from the assembled frames at the real fps');
 assert.ok(buildBody.includes('candidates: found.list.concat(photoCands), seed: String(nextSeed), motion })'), 'the plan scores in-shot motion');
 assert.ok(buildBody.includes('tecShotMotions(plan.picks, String(nextSeed), sizes, { pool: plan.motionPool })'), 'shot motions (photos and still videos) from the planner');
@@ -165,10 +165,13 @@ const chooseBody = panel.slice(panel.indexOf('const chooseClips ='), panel.index
 assert.ok(chooseBody.includes('setCandidates(null)') && chooseBody.includes('ordered.length === allRids.length ? null : ordered'), 'a new selection drops the cache');
 // Preview: fixed-height canvas, planner layout at the computed speed, 3 scrub points, bundled fonts.
 for (const phrase of ['const PREVIEW_HEIGHT = ', 'height: PREVIEW_HEIGHT', 'tecCreditLayout({ rows: cleanRows, layout, H: 1080', 'pxPerSec={roll.pxPerSec}', '>First row</ui.Button>', '>Last row</ui.Button>',
-  '>End</ui.Button>', 'label="Preview at"', 'tecTypedCount(typing, t)', 'destination-in', 'scale(0.78, 1)', '"TEC Title Serif"', '"TEC Credits Sans"', 'document as any).fonts.add(face)']) assert.ok(panel.includes(phrase), phrase);
-// Roll-fit notice before Build: hidden rows are named, few rows end early.
-for (const phrase of ['tecRollSpeed({ endSec: videoSeconds, L: TEC_LEAD_IN, H: 1080, lastRoleStartY: creditModel.lastRoleTop, rowTops: creditModel.rowTops })', 'roll.hiddenRows',
-  '" won\'t appear in " + LENGTH_LABELS[length]', 'hidden.map((i: number) => cleanRows[i].role || cleanRows[i].name)', 'Choose Long or remove ', 'Credits finish before the end', '{rollNotice ?']) assert.ok(panel.includes(phrase), phrase);
+  '>End</ui.Button>', 'onClick={() => setPreviewTime(endScrubSec)}>End', '(videoSeconds - TEC_CREDIT_METRICS.exitLead)', 'label="Preview at"', 'tecTypedCount(typing, t)', 'destination-in', 'scale(0.78, 1)', '"TEC Title Serif"', '"TEC Credits Sans"', 'document as any).fonts.add(face)']) assert.ok(panel.includes(phrase), phrase);
+// Roll-fit notice before Build: hidden rows are named, rows that can't roll off the top before the end say so
+// (never silently left on screen), few rows end early.
+for (const phrase of ['tecRollSpeed({ endSec: videoSeconds, L: TEC_LEAD_IN, H: 1080, lastLineBottom: creditModel.lastLineBottom, rowTops: creditModel.rowTops, rowBottoms: creditModel.rowBottoms })', 'roll.hiddenRows',
+  '" won\'t appear in " + LENGTH_LABELS[length]', 'hidden.map((i: number) => cleanRows[i].role || cleanRows[i].name)', 'roll.exitsLate ? "Too many rows to roll off before the end: " + dropText',
+  '(dropRows === 1 ? " row" : " rows") + " or choose Long."', 'To roll every row off before the end, ', 'Credits finish before the end', '{rollNotice ?']) assert.ok(panel.includes(phrase), phrase);
+assert.ok(!panel.includes('the last rows end lower on screen'), 'no notice that accepts text left on screen');
 assert.ok(panel.indexOf('{rollNotice ?') < panel.indexOf('<ui.Actions>'), 'the roll-fit notice shows before Build');
 // Readiness: "Ready: N clips · N photos · about N s"; Full frame counts N + 1 shots; footage shrink and the minimum.
 for (const phrase of ['"Ready: " + clipCount', '" shots"', '" · about " + Math.round(tecVideoSeconds(', 'const extra = layout === "full" ? 1 : 0;', '(shotsFit + extra)', 'Needs at least ', 'Your footage fits ']) assert.ok(panel.includes(phrase), phrase);
