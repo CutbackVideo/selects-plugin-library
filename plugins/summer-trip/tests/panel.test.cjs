@@ -40,7 +40,7 @@ for (const re of [/React\.useState<"off" \| "ambient" \| "full">\("ambient"\)/, 
   /\[sfxOn, setSfxOn\] = React\.useState\(false\)/, /\[muffleOn, setMuffleOn\] = React\.useState\(true\)/, /\[usePhotos, setUsePhotos\] = React\.useState\(true\)/,
   /\[lookStrength, setLookStrength\] = React\.useState\(ST_LOOK_DEFAULT\)/, /\[line1, setLine1\] = React\.useState\(ST_LINE1_DEFAULT\)/, /\[topItalic, setTopItalic\] = React\.useState\(ST_TOP_ITALIC_DEFAULT\)/]) assert.ok(re.test(ui), String(re));
 assert.ok(panel.includes("const ST_LOOK_DEFAULT = 0.3;") && panel.includes("const ST_LINE1_DEFAULT = 'that one trip in';") && panel.includes("const ST_TOP_ITALIC_DEFAULT = 'VLOG';") && panel.includes("const ST_CREDIT_PREFIX = 'By';"));
-assert.ok(panel.includes("const ST_GRID_SOUND = 'volume';") && panel.includes("const ST_TIME_ORIGIN = 'clip';") && panel.includes('const ST_AMBIENT_DB = -18;'), 'live rulings');
+assert.ok(panel.includes("const ST_GRID_SOUND = 'volume';") && panel.includes("const ST_TIME_ORIGIN = 'clip';") && panel.includes('const ST_AMBIENT_DB = -18;') && panel.includes('const ST_INTRO_DUCK_DB = -5;'), 'live rulings');
 // No Pace option; Length is Short / Standard / Long; three presets; muffle hidden with No music.
 assert.ok(!/label="Pace"/.test(ui));
 for (const phrase of ['label="Length"', 'label="Clip sound"', 'label="Look strength"', 'label="Sound effects"', 'label="Ending muffle"', 'label="Use photos"', 'Choose clips',
@@ -260,7 +260,7 @@ const tsx = { title: read('assets/title-graphic.tsx'), labels: read('assets/labe
 const assembleJs = read('scripts/assemble.js'), decorateJs = read('scripts/decorate.js');
 // contracts.md keys.
 const contracts = read('dev/contracts.md');
-const ASSEMBLE_KEYS = ['projectId', 'draftName', 'fps', 'W', 'H', 'beats', 'schedule', 'picks', 'sizes', 'music', 'crossfadeFrames', 'clipSound', 'ambientDb', 'gridSound', 'sfx'];
+const ASSEMBLE_KEYS = ['projectId', 'draftName', 'fps', 'W', 'H', 'beats', 'schedule', 'picks', 'sizes', 'music', 'crossfadeFrames', 'clipSound', 'ambientDb', 'gridSound', 'sfx', 'introDuckDb'];
 const DECORATE_KEYS = ['sequenceId', 'fps', 'frames', 'placed', 'gridPlaced', 'sizes', 'mute', 'gridSound', 'title', 'labels', 'look', 'gridPanel', 'filmFrame', 'motion', 'endingMotion', 'photos'];
 const assembleDoc = contracts.slice(contracts.indexOf('### assemble.js'), contracts.indexOf('Returns:', contracts.indexOf('### assemble.js')));
 const decorateDoc = contracts.slice(contracts.indexOf('### decorate.js'), contracts.indexOf('Effect labels'));
@@ -290,7 +290,7 @@ const payloads = {};
     const acfg = j(X.stAssembleConfig({ projectId: 'proj', draftName: X.stDraftName('', 'SUMMER', new Date(2026, 6, 1, 12, 0)), fps: 30, plan, sizes, durations, music: musicCfg, clipSound, sfx }));
     assert.deepEqual(Object.keys(acfg), ASSEMBLE_KEYS, 'assemble config keys (contracts.md order)');
     assert.deepEqual(acfg.beats, { bpm: plan.frames.bpm, delta: plan.frames.delta, snaps: j(plan.frames.snaps) }, 'frames.snaps from the plan');
-    assert.equal(acfg.gridSound, 'volume'); assert.equal(acfg.ambientDb, -18); assert.equal(acfg.crossfadeFrames, null);
+    assert.equal(acfg.gridSound, 'volume'); assert.equal(acfg.ambientDb, -18); assert.equal(acfg.crossfadeFrames, null); assert.equal(acfg.introDuckDb, -5);
     assert.ok(acfg.picks.main.every(p => (p.kind === 'video') === (p.duration > 0)), 'every video pick carries its source duration');
     assert.deepEqual(Object.keys(acfg.picks.grid[0]).sort(), ['kind', 'quad', 'rid', 'startSeconds']);
     assert.equal(acfg.picks.main.length, acfg.schedule.mainBeats.length - 1);

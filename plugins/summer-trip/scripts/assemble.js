@@ -228,20 +228,44 @@ if (cfg.music) {
     dry = await placeAudio(cfg.music.resourceId, 0, Fend, ss);
     s0 = readS0(dry);
   }
-  const fade = async (id, fadeInSeconds, fadeOutSeconds) => {
-    const clip = await rowById(id);
-    try { if (!clip) throw Error('missing'); await d.setClipAudio({ clip, fadeInSeconds, fadeOutSeconds }); }
-    catch (e) { notes.push('music fade not applied: ' + errText(e)); }
+  // Intro lift: the dry music holds introDuckDb (dB, 0 = off) under the title and rises to 0 dB on the drop frame F(8)
+  // (the grid entrance) over one frame, so the section's own intro -> drop step gets that much more lift. Keys are
+  // whole frames from the dry clip's first visible frame. volumeKeys replace the clip's constant level (never combined
+  // with volumeDb); the fades are set in the same call and still apply. Only the dry carries it: the wet starts at Fe,
+  // after the drop.
+  const duckDb = Number.isFinite(cfg.introDuckDb) ? cfg.introDuckDb : 0;
+  const dropFrame = frames.gridStateFrames[0];
+  const duckKeys = row => {
+    const a = row.startFrame, len = row.endFrame - row.startFrame, up = dropFrame - a;
+    if (duckDb === 0 || !(up > 0) || !(up < len)) return null;
+    const keys = [[0, duckDb], [up - 1, duckDb], [up, 0]].filter((k, i, all) => i === 0 || k[0] > all[i - 1][0]);
+    return keys.map(([f, db]) => ({ atSeconds: f / fps, volumeDb: db }));
   };
+  const setMusicAudio = async (id, fadeInSeconds, fadeOutSeconds, withDuck) => {
+    const clip = await rowById(id);
+    const keys = withDuck && clip ? duckKeys(clip) : null;
+    try {
+      if (!clip) throw Error('missing');
+      if (keys) {
+        try { await d.setClipAudio({ clip, fadeInSeconds, fadeOutSeconds, volumeKeys: keys }); return keys; }
+        catch (e) { notes.push('intro music lift not applied: ' + errText(e)); }
+      }
+      await d.setClipAudio({ clip: await rowById(id), fadeInSeconds, fadeOutSeconds });
+    } catch (e) { notes.push('music fade not applied: ' + errText(e)); }
+    return null;
+  };
+  let introKeys;
   if (wet) {
-    await fade(dry.row.clipId, 0, X / fps);
-    await fade(wet.row.clipId, 0, endFade);
-  } else await fade(dry.row.clipId, 0, endFade);
+    introKeys = await setMusicAudio(dry.row.clipId, 0, X / fps, true);
+    await setMusicAudio(wet.row.clipId, 0, endFade, false);
+  } else introKeys = await setMusicAudio(dry.row.clipId, 0, endFade, true);
   const out = x => ({ clipId: x.row.clipId, a: x.row.startFrame, b: x.row.endFrame });
   music = {
     dry: { ...out(dry), sourceStart: s0.s0, sourceStartFrom: s0.from },
     wet: wet ? { ...out(wet), sourceStart: s0.s0 + Fe / fps } : null,
     crossfadeFrames: wet ? X : null, endFadeSeconds: endFade, muffle,
+    // The dry's level line when the intro duck is on: [{ atSeconds, volumeDb }] (seconds from the dry's first frame).
+    introDuck: introKeys ? { db: duckDb, dropFrame, keys: introKeys } : null,
   };
 }
 

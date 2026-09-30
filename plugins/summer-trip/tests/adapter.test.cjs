@@ -37,8 +37,10 @@ function mockProject({ adoptFps = null, audioRids = [] } = {}) {
       setAudioTracks: async x => { let n = 0; for (const c of clips) if (c.trackKind === 'main' && c.endFrame > x.target.a && c.startFrame < x.target.b) { c.audioSourceIndexes = []; n++; } return { opCount: n }; },
       setClipAudio: async x => {
         const a = audio[x.clip.clipId] = audio[x.clip.clipId] || {};
+        if (x.volumeDb != null && x.volumeKeys) throw Error('provide volumeDb or volumeKeys, not both');
         for (const k of ['volumeDb', 'fadeInSeconds', 'fadeOutSeconds']) if (x[k] != null) a[k] = x[k];
-        return { volumeDb: a.volumeDb ?? 0, fadeInSeconds: a.fadeInSeconds || 0, fadeOutSeconds: a.fadeOutSeconds || 0, diff: { opCount: 1 } };
+        if (x.volumeKeys) { a.volumeKeys = x.volumeKeys.map(k => ({ ...k })); delete a.volumeDb; }
+        return { volumeDb: a.volumeKeys ? null : a.volumeDb ?? 0, volumeKeys: a.volumeKeys || [], fadeInSeconds: a.fadeInSeconds || 0, fadeOutSeconds: a.fadeOutSeconds || 0, diff: { opCount: 1 } };
       },
       addMotionGraphic: async x => { graphics.push({ name: x.label, clip: { startFrame: x.within.a, endFrame: x.within.b }, x }); return {}; },
       motionGraphics: async () => graphics.map(g => ({ name: g.name, clip: g.clip })),
@@ -59,7 +61,7 @@ function readbackOf(m, fps) {
     .map(c => ({ rid: c.resourceId, s: c.startFrame, e: c.endFrame, asi: c.audioSourceIndexes, fx: (m.effects[c.clipId] || []).map(e => e.name) }));
   const video = m.clips.filter(c => c.trackKind === 'video').map(c => ({ rid: c.resourceId, s: c.startFrame, e: c.endFrame, asi: c.audioSourceIndexes,
     fx: (m.effects[c.clipId] || []).map(e => e.name), t: m.transforms[c.clipId] || null }));
-  const levels = m.clips.map(c => { const a = m.audio[c.clipId] || {}; return { kind: c.trackKind, rid: c.resourceId, s: c.startFrame, e: c.endFrame, db: a.volumeDb ?? 0, fadeIn: a.fadeInSeconds || 0, fadeOut: a.fadeOutSeconds || 0 }; });
+  const levels = m.clips.map(c => { const a = m.audio[c.clipId] || {}; return { kind: c.trackKind, rid: c.resourceId, s: c.startFrame, e: c.endFrame, db: a.volumeKeys ? null : a.volumeDb ?? 0, keys: a.volumeKeys || [], fadeIn: a.fadeInSeconds || 0, fadeOut: a.fadeOutSeconds || 0 }; });
   return { frameSize: { width: 1920, height: 1080 }, fps, rows, graphics: m.graphics.map(g => ({ name: g.name, clip: g.clip })), hasAudio: {}, st: { video, levels } };
 }
 
@@ -132,7 +134,7 @@ function readbackOf(m, fps) {
   const aStep = A.assemble(s, { ids, imported: Object.keys(ids), missing: [] });
   const ac = aStep.config;
   assert.equal(aStep.script, 'scripts/assemble.js');
-  assert.deepEqual(Object.keys(ac).sort(), ['H', 'W', 'ambientDb', 'beats', 'clipSound', 'crossfadeFrames', 'draftName', 'fps', 'gridSound', 'music', 'picks', 'projectId', 'schedule', 'sfx', 'sizes'].sort());
+  assert.deepEqual(Object.keys(ac).sort(), ['H', 'W', 'ambientDb', 'beats', 'clipSound', 'crossfadeFrames', 'draftName', 'fps', 'gridSound', 'introDuckDb', 'music', 'picks', 'projectId', 'schedule', 'sfx', 'sizes'].sort());
   assert.equal(ac.W, 1920); assert.equal(ac.H, 1080); assert.equal(ac.fps, 30);
   assert.deepEqual(Object.keys(ac.beats).sort(), ['bpm', 'delta', 'snaps']);
   assert.deepEqual(ac.beats.snaps, {}, 'bundled cues never snap');
@@ -142,6 +144,7 @@ function readbackOf(m, fps) {
   assert.deepEqual(ac.music, { resourceId: 'm1', sectionStart: s.music.sectionStart, wetResourceId: 'w1' });
   assert.deepEqual(ac.sfx, { shutter: ['s1', 's2', 's3', 's4'], shutterSeconds: [0.17, 0.171, 0.171, 0.17], whoosh: 'wh', whooshSeconds: 0.864 });
   assert.equal(ac.clipSound, 'ambient'); assert.equal(ac.ambientDb, -18); assert.equal(ac.gridSound, 'volume');
+  assert.equal(ac.introDuckDb, -5, 'intro lift on by default, as in the panel'); assert.equal(ROW_DEFAULTS.introDuckDb, -5);
 
   // Run the real assemble.js: the Draft adopts 29.97 fps, so the script re-lays at the real rate.
   const mock = mockProject({ adoptFps: 29.97, audioRids: Object.values(ids) });
@@ -225,6 +228,15 @@ function readbackOf(m, fps) {
   const noSfx = JSON.parse(JSON.stringify(rb));
   noSfx.st.levels = noSfx.st.levels.filter(l => l.rid !== 'wh');
   assert.equal(stCheck(noSfx, exp).checks.sfx, false);
+  // The dry music carries the intro lift (keyed, no constant level); a flat dry or a lift on the wrong frame fails.
+  assert.deepEqual(exp.music.dry.keys.map(k => [Math.round(k.atSeconds * a.fps), k.volumeDb]), [[0, -5], [F(8) - 1, -5], [F(8), 0]]);
+  assert.equal(exp.music.wet.keys, undefined);
+  const flat = JSON.parse(JSON.stringify(rb));
+  Object.assign(flat.st.levels.find(l => l.rid === 'm1'), { db: 0, keys: [] });
+  assert.equal(stCheck(flat, exp).checks.music, false);
+  const late = JSON.parse(JSON.stringify(rb));
+  late.st.levels.find(l => l.rid === 'm1').keys[2].atSeconds += 2 / a.fps;
+  assert.equal(stCheck(late, exp).checks.music, false);
 
   const rec = A.record(s, a);
   assert.deepEqual(rec.rec.visibleEvents, ev);

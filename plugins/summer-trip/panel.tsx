@@ -993,6 +993,9 @@ function stMuffleCommand(inPath, outPath) {
 // Panel helpers without React: the panel test loads this block in node:vm next to the planner, graphics and muffle
 // blocks, builds the run_script configs from fixtures and measures their payload.
 const ST_AMBIENT_DB = -18;
+// Intro lift (assemble.js introDuckDb): the dry music under the title sits this far below the body and rises to 0 dB
+// on the drop frame, on top of the cue's own intro -> drop step (0 = off).
+const ST_INTRO_DUCK_DB = -5;
 // Live probe P1: an overlaid video brings no separate audio clip and takes setClipAudio -60 dB, so grid panels are
 // lowered in assemble ('volume'), never routed.
 const ST_GRID_SOUND = 'volume';
@@ -1226,6 +1229,7 @@ function stAssembleConfig(o) {
     clipSound: o.clipSound, ambientDb: ST_AMBIENT_DB,
     gridSound: ST_GRID_SOUND,
     sfx: o.sfx || null,
+    introDuckDb: ST_INTRO_DUCK_DB,
   };
 }
 
