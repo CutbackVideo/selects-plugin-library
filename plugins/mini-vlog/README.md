@@ -34,12 +34,14 @@ source file.
   book, transit, flowers and cafe moments, alternating close and wide. Each
   role also accepts its neighbours (a cafe shot for a drink, a train for a
   street, flowers for a park), then any other analysed moment.
-- **Moving moments first.** Each clip is also searched for "hands moving,
-  pouring, walking or the camera moving". A moment within 0.75 s of such a
-  hit ranks higher than a similar still moment of the same kind (by up to
-  half a point, scaled by how strong the hit is), so between otherwise equal
-  choices the moving one wins. Without such hits the choice is unchanged.
-  This applies to every build, with or without Beat punch.
+- **Moving moments first** (with Beat punch on). Each clip is also searched
+  for "hands moving, pouring, walking or the camera moving". A moment within
+  0.75 s of such a hit gets a small tie-break bonus (at most 0.1, scaled from
+  the weakest to the strongest such hit of the build), so of two similar
+  moments the moving one is taken first. The bonus never outranks a better
+  role match, and with all hits equally strong, or none, nothing changes.
+  With Beat punch off the search and the shot choice are exactly as without
+  this feature.
 - **Variety.** The shots are spread over all the selected clips: a shot takes
   a clip that has not been used yet whenever one fits, and a clip is only
   reused once every clip that fits has been used, the least-used first. The
@@ -174,7 +176,8 @@ loud and quiet hits and the fullest bass (a drum fill adds a little). For a
 Standard video that is 37.8 s into Bedroom Pop, 33.5 s into Acoustic Pop,
 4.3 s into Weekend Indie Pop, 14.6 s into Sunny Soul Strut and the start of
 Golden Hour Disco and Easy Sunday Lo-fi. Turning it on or off moves the box
-to that default again; you can still drag it anywhere. Your own music has
+to that default again, and while it is on a new Length or Pace moves the box
+to the hook window for that length; you can still drag it anywhere. Your own music has
 no hook scores, so it keeps the most energetic section. **Preview this
 section** plays the whole section; press it again (**Stop preview**) or press
 Esc to stop. Selects starts the music on a video frame, which can move it by
@@ -197,7 +200,8 @@ uses it when the tempo is between 70 and 160 BPM and the detected beat grid is
 reliable. When the detected beats land halfway between the kicks and snare
 hits, it moves the grid half a beat onto them. Bars are not detected, so the
 cuts follow the beat only. Other songs use fixed shot lengths (0.55 s for
-Quick, 1.10 s for Relaxed). The panel then says "Music added; its tempo (N
+Quick, 1.10 s for Relaxed; Groove keeps its pattern on a 0.55 s beat, "Groove
+on a 0.55 s beat: 1.10, 0.55 and 0.275 s shots"). The panel then says "Music added; its tempo (N
 bpm) is outside 70–160 bpm, so cuts use approximate timing." or "Music added;
 its beat could not be found reliably, so cuts use approximate timing.", and
 under Pace "Tempo outside 70–160 bpm (N bpm): shots use approximate timing
@@ -303,7 +307,8 @@ Three lockup presets, chosen in the panel with a live preview:
   clip's level can be changed in the Inspector.
 - **Soft look**: on by default.
 - **Beat punch**: off by default. On adds the Beat punch zoom to every video
-  clip (see [Photos](#photos)).
+  clip (see [Photos](#photos)) and prefers moving moments (see [What it
+  makes](#what-it-makes)); turning it on searches the clips again once.
 - **Use photos**: on by default. Off builds from the analysed video only.
 - **Choose clips (n/m)**: a checklist of the analysed clips (with their
   length and Tall, Wide or Square) followed by the photos (marked "Photo"),

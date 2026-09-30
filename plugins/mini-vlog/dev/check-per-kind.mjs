@@ -3,7 +3,7 @@
 // `effects` and `clipSound` require the same value on every Main clip, but photos differ from video clips):
 // - Photo motion: exactly one on every photo clip, none on video clips.
 // - Beat punch (records with perKind.punchName): with Beat punch on, exactly one on every video clip and none on photo
-//   clips; off, none anywhere.
+//   clips; off, none anywhere; and decorate.js reported no clip as skipped (rec.decorate.punch.skipped).
 // - Clip sound Ambient / Full: every video clip at -18 / 0 dB (assemble.js leaves photos alone) and not unrouted.
 // - Clip sound Off: every video clip whose source has an audio stream routes no sources ([]).
 // Usage: node plugins/mini-vlog/dev/check-per-kind.mjs <driver --out folder> [rec-<key>-s<seed>.json ...]
@@ -29,8 +29,11 @@ for (const f of files) {
   if (motionBad.length) notes.push('photo motion mismatches ' + JSON.stringify(motionBad));
   if (punchName) {
     const punchBad = rows.map((r, i) => ({ slot: i, rid: r.rid, found: r.fx.filter(x => x === punchName).length, expected: punch && !photos.has(r.rid) ? 1 : 0 })).filter(x => x.found !== x.expected);
-    checks.beatPunch = punchBad.length === 0;
+    // decorate.js reports clips it could not match to their pick (rid mismatch) as skipped; they get no punch.
+    const decPunch = rec.decorate && rec.decorate.punch;
+    checks.beatPunch = punchBad.length === 0 && !(decPunch && decPunch.skipped > 0);
     if (punchBad.length) notes.push('beat punch mismatches ' + JSON.stringify(punchBad));
+    if (decPunch && decPunch.skipped > 0) notes.push('decorate skipped Beat punch on ' + decPunch.skipped + ' clip(s) (added ' + decPunch.added + ', kept ' + decPunch.kept + ')');
   }
   if (clipSound === 'off') {
     const bad = videos.filter(r => has[r.rid] && !(Array.isArray(r.asi) && r.asi.length === 0)).map(r => [r.rid, r.s, r.asi]);

@@ -56,8 +56,10 @@ function stamp(d) {
 // panel no longer contains any of these, the copy below is stale: createAdapter fails instead of driving old behaviour.
 const PANEL_DECORATE = [
   // build(): the Build-time inputs decorate() reads, and the motion bonus before the plan.
-  'sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook, bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,',
-  'const plan: any = mvPlanBuild({ candidates: mvMotionBonus(found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });',
+  'sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,',
+  'const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");',
+  'const fresh = await findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch));',
+  'const plan: any = mvPlanBuild({ candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });',
   // The render body: Groove capacity and the default section (hook window, else the most energetic one).
   'const grooved = pace === "groove" && (gridded ? !!guard.groove : true);',
   'const opener = guard.groove ? guard.opener : 2;',
@@ -66,7 +68,8 @@ const PANEL_DECORATE = [
   'const fittedSeconds = grooved ? grooveFit.beats * shotSeconds : fitted * shotSeconds;',
   'const wantedSeconds = grooved ? grooveFit.requestedBeats * shotSeconds : requested * shotSeconds;',
   'const videoSeconds = fitted ? fittedSeconds : wantedSeconds;',
-  'const hookAt = hook ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null;',
+  'const hookSection = () => (hook && gridded && musicKind === "cue" ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null);',
+  'const hookAt = hookSection();',
   'setSection(hookAt ?? mvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? snap(grid.firstBeat));',
   'hookBars: cue.hookBars || null }',
   // decorate().
@@ -215,8 +218,11 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     },
 
     // panel.tsx findCandidates(): SEARCH_BATCH clips per call, pageSize 4.
+    // The motion query runs only with Beat punch (panel mvSearchQueries). The driver caches one search per Project and
+    // --out folder, so rows with and without Beat punch need separate --out folders (see dev/hook-ab.json).
     search(row, rids) {
-      return { summary: 'Search shots', script: 'scripts/search.js', config: { projectId: resolve(row, { required: true }), rids, queries: MV_QUERIES, pageSize: 4 } };
+      const punch = row.punch ?? DEFAULT_PUNCH;
+      return { summary: 'Search shots', script: 'scripts/search.js', config: { projectId: resolve(row, { required: true }), rids, queries: j(P.mvSearchQueries(MV_QUERIES, punch)), pageSize: 4 } };
     },
 
     // panel.tsx: title fields, grid, section, fit and blockReason (the render body), then build() up to mvPlanBuild.
@@ -267,7 +273,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       else if (musicKind === 'none') section = 0;
       else if (!gridded) section = snap(0);
       else {
-        const hookAt = row.hook ? P.mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null;
+        const hookAt = row.hook && gridded && musicKind === 'cue' ? P.mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null;
         section = hookAt ?? P.mvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? snap(grid.firstBeat);
       }
       const start = musicKind === 'none' ? 0 : snap(section ?? 0);
@@ -277,13 +283,13 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       if (musicKind !== 'none' && (!fitted || start == null)) throw Error(MV_FAIL['music-too-short'] + '.');
       const photoCands = row.usePhotos ? inv.photos.map(p => ({ rid: p.rid, kind: 'photo' })) : [];
       if (inv.resources.length + photoCands.length < 2) throw Error(MV_FAIL['one-resource'] + '.');
-      // build(): plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. Motion
-      // hits become a bonus on the role candidates first.
-      const plan = j(P.mvPlanBuild({ candidates: j(P.mvMotionBonus(found.list)).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace: row.pace, requested,
+      // build(): plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. With Beat
+      // punch, motion hits become a tie-break bonus on the role candidates first.
+      const plan = j(P.mvPlanBuild({ candidates: (row.punch ? j(P.mvMotionBonus(found.list)) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace: row.pace, requested,
         sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(seed) }));
       const planSummary = { ok: plan.ok, reason: plan.reason, shots: plan.shots, requested, fitted, beatsPerShot: plan.beatsPerShot, overridden: plan.overridden,
         shotSeconds: plan.shotSeconds, photoShots: plan.photoShots, fillerShots: plan.fillerShots, usableShots: plan.usableShots, sectionStart: musicStart,
-        pace: row.pace, punch: !!row.punch, hook: !!row.hook, groove: plan.groove || null, fittedBeats: grooveFit ? grooveFit.beats : null,
+        pace: row.pace, punch: !!row.punch, hook: !!row.hook && musicKind === 'cue', groove: plan.groove || null, fittedBeats: grooveFit ? grooveFit.beats : null,
         motionHits: found.list.filter(c => c && c.role === P.MV_MOTION_ROLE).length };
       if (!plan.ok) throw Error((MV_FAIL[plan.reason] || 'No plan fits this footage') + '. plan: ' + JSON.stringify(planSummary));
       // Photo sizes the inventory measured (the panel's photoSizesRef).
@@ -333,7 +339,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const cueProv = s.musicKind === 'cue' ? row.cue : s.musicKind;
       const parameters = { preset: row.preset, ...flat, fields: { ...flat }, primary: p.colors.primary, secondary: p.colors.secondary, ...TITLE_LOOK, fonts,
         provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: row.preset, cue: cueProv, sectionStart: s.musicStart, pace: row.pace, length: row.length,
-          seed: s.seed, clipSound: row.clipSound, punch: !!row.punch, hook: !!row.hook, groove: plan.groove || null, picks: plan.picks } };
+          seed: s.seed, clipSound: row.clipSound, punch: !!row.punch, hook: !!row.hook && s.musicKind === 'cue', groove: plan.groove || null, picks: plan.picks } };
       const editableParameters = [
         ...p.fields.map(fl => ({ key: fl.key, label: fl.label, type: 'text', defaultValue: flat[fl.key] })),
         { key: 'primary', label: 'Main color', type: 'color', defaultValue: p.colors.primary },

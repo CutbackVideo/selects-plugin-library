@@ -19,8 +19,8 @@ const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
 const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
-// One scene-search query per shot role (planner MV_ROLES), plus the motion query: its hits are not shots, they only
-// raise the score of nearby role candidates (mvMotionBonus, spec 15.2 a).
+// One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
+// (MV_MOTION_QUERY, mvSearchQueries in the mv-hook block).
 const MV_QUERIES = {
   drink: "a coffee, matcha or drink in a cup held in hand or on a table",
   street: "a sunny city street with buildings and blue sky",
@@ -30,10 +30,10 @@ const MV_QUERIES = {
   transit: "inside a subway or train, or a train passing by",
   flowers: "flowers, a bouquet or a flower shop close up",
   cafe: "a cozy cafe interior or a window seat with daylight",
-  motion: "hands moving, pouring, walking or the camera moving",
 };
-// Clips per scene-search call: nine queries each, so three clips (27 searches) stay inside run_script's 30 s deadline
-// (search.js stops starting new searches after 22 s and reports the rest as failed, retried by the next Build).
+// Clips per scene-search call: eight queries each (nine with Beat punch), so three clips (24 or 27 searches) stay inside
+// run_script's 30 s deadline (search.js stops starting new searches after 22 s and reports the rest as failed, retried
+// by the next Build).
 const SEARCH_BATCH = 3;
 // Ambient clip sound: the clips' own sound sits this far under the music, which stays at 0 dB.
 const AMBIENT_DB = -18;
@@ -788,33 +788,46 @@ function mvProgress(stepId, fraction, detail) {
 // mv-hook:start
 // Hook B helpers (spec 15.2), plain JS outside the planner block: the headless driver (dev/driveAdapter.mjs) loads
 // this block next to planner.js, so the panel and the driver compute the same motion bonus and punch frames.
-// Motion bonus (15.2 a): search.js also runs the MV_QUERIES motion query, whose hits are not shot candidates. Each hit's
-// score is normalised by the best motion hit of the run (0-1), and a role candidate gains MV_MOTION_BONUS times the best
-// normalised motion hit on the same clip within MV_MOTION_REACH seconds of its centre (the allocator centres a shot on
-// its candidate, so this stands in for the shot's window +/- 0.5 s). It applies to every build, Beat punch on or off:
-// it reorders similar moments within a tier (moving ones first), and without motion hits the candidates are unchanged.
-// The candidates are scored before the planner's seeded tie-break, so a build stays deterministic.
+// Motion bonus (15.2 a), only with Beat punch on (off, the search and the plan are exactly as without it): the search
+// adds the motion query (mvSearchQueries), whose hits are not shot candidates. Each hit's score is min-max normalised
+// over the run's motion hits (0 for the weakest, 1 for the strongest; 0 for all when they are equal), and a role
+// candidate gains MV_MOTION_BONUS times the best normalised motion hit on the same clip within MV_MOTION_REACH seconds of
+// its centre (the allocator centres a shot on its candidate, so this stands in for the shot's window +/- 0.5 s). The
+// bonus is a tie-break: at most 0.1, below the allocator's 0.15 step between roles minus its 0.05 seeded jitter, so it
+// never changes the role order, only which of two similar moments of a clip comes first. It is added before the
+// planner's seeded tie-break, so a build stays deterministic. A clip whose only hits are motion hits keeps a stub row
+// (rid and sourceDuration, no time or score): the planner skips it as a candidate but still makes the clip's filler
+// windows from it.
 const MV_MOTION_ROLE = 'motion';
-const MV_MOTION_BONUS = 0.5;
+const MV_MOTION_QUERY = 'hands moving, pouring, walking or the camera moving';
+const MV_MOTION_BONUS = 0.1;
 const MV_MOTION_REACH = 0.75;
+// The scene-search queries for a build: the role queries, plus the motion query with Beat punch on.
+function mvSearchQueries(queries, punch) {
+  return punch ? { ...queries, [MV_MOTION_ROLE]: MV_MOTION_QUERY } : queries;
+}
 function mvMotionBonus(list) {
   const finite = v => typeof v === 'number' && isFinite(v);
-  const hits = {}, rest = [];
-  let max = 0;
+  const hits = {}, rest = [], stubs = {};
+  let min = Infinity, max = -Infinity;
   for (const c of list) {
     if (!c || c.role !== MV_MOTION_ROLE) { rest.push(c); continue; }
+    if (!stubs[c.rid]) stubs[c.rid] = { rid: c.rid, role: MV_MOTION_ROLE, sourceDuration: c.sourceDuration };
     if (!finite(c.t) || !finite(c.score)) continue;
     (hits[c.rid] = hits[c.rid] || []).push(c);
-    if (c.score > max) max = c.score;
+    min = Math.min(min, c.score); max = Math.max(max, c.score);
   }
-  if (!(max > 0)) return rest;
+  const seen = {};
+  for (const c of rest) if (c) seen[c.rid] = true;
+  const kept = Object.keys(stubs).filter(rid => !seen[rid]).map(rid => stubs[rid]);
+  if (!(max > min)) return rest.concat(kept);
   return rest.map(c => {
     const near = c && hits[c.rid];
     if (!near || !finite(c.t) || !finite(c.score)) return c;
     let motion = 0;
-    for (const h of near) if (Math.abs(h.t - c.t) <= MV_MOTION_REACH + 1e-9) motion = Math.max(motion, Math.max(0, h.score) / max);
+    for (const h of near) if (Math.abs(h.t - c.t) <= MV_MOTION_REACH + 1e-9) motion = Math.max(motion, (h.score - min) / (max - min));
     return motion > 0 ? { ...c, score: c.score + MV_MOTION_BONUS * motion } : c;
-  });
+  }).concat(kept);
 }
 // Punch frames (15.2 b): the Draft frames where a Beat punch starts, the bar downbeats of the section (beats 0, 4, 8 ...
 // from the section start, which sits on a bar) at the Draft's real fps with the music offset (mvMusicOffset: the frame
@@ -1646,6 +1659,8 @@ export default function Panel({ sdk, context, ui }: any) {
   // Onset snapping for every plan; without a reliable beat only bass onsets count, in a wider window.
   const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };
 
+  // The hook window for the current length and pace (Start at the hook on a bundled track with a grid), else null.
+  const hookSection = () => (hook && gridded && musicKind === "cue" ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null);
   // A new track (or its grid) defaults the section to the most energetic window that fits; with Start at the hook,
   // to the track's best-scoring hook window that fits (spec 15.3), falling back to the energy default when the track
   // has no hook scores (your own music). Toggling Start at the hook picks the default again.
@@ -1653,11 +1668,12 @@ export default function Panel({ sdk, context, ui }: any) {
   React.useEffect(() => {
     if (musicKind === "none") return;
     if (!gridded) { setSection(snap(0)); return; }
-    const hookAt = hook ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null;
+    const hookAt = hookSection();
     setSection(hookAt ?? mvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? snap(grid.firstBeat));
   }, [assets, cueId, ownMusic?.path, ownGrid, hook]);
   // A new length or pace keeps the chosen start and only re-clamps it.
-  React.useEffect(() => { setSection((s) => snap(s ?? 0)); }, [length, pace]);
+  // With Start at the hook it moves to the hook window for the new length and pace instead.
+  React.useEffect(() => { const hookAt = hookSection(); setSection((s) => hookAt ?? snap(s ?? 0)); }, [length, pace]);
   // A new track, section, length or pace makes a running preview stale, so it stops.
   React.useEffect(() => { stopPreview(); }, [cueId, ownMusic?.path, section, length, pace]);
 
@@ -1750,13 +1766,13 @@ export default function Panel({ sdk, context, ui }: any) {
     }
   }
 
-  async function findCandidates(rids: string[], pid: string, check: () => void) {
+  async function findCandidates(rids: string[], pid: string, check: () => void, queries: Record<string, string>) {
     const list: any[] = []; const failed: string[] = [];
     // SEARCH_BATCH clips per call keeps each scene search under runScript's fixed 30 s deadline.
     // pageSize stays 4: hits are scene-level, so 8 adds almost no new times; the planner fills gaps with filler candidates.
     for (let i = 0; i < rids.length; i += SEARCH_BATCH) {
       advance("shots", i / rids.length, i + "/" + rids.length + " clips checked");
-      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: MV_QUERIES, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
+      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
       check();
       list.push(...r.candidates); failed.push(...r.failed);
     }
@@ -1795,7 +1811,7 @@ export default function Panel({ sdk, context, ui }: any) {
     const frozen = Object.freeze({
       pid, seed: nextSeed, preset, presetLabel: chosen.label, fields: { ...titleFields },
       music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? roots.plugin + "/assets/cues/" + cue.file : null,
-      sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook, bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,
+      sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,
       draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),
     });
     busyRef.current = true;
@@ -1803,7 +1819,8 @@ export default function Panel({ sdk, context, ui }: any) {
     setBusy(true); setStatus(null); setResult(null);
     advance("shots", 0);
     try {
-      const key = pid + "|" + JSON.stringify(only);
+      // The scene search is cached per Project, clip selection and query set (the motion query runs only with Beat punch).
+      const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");
       const rids: string[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid)).map((r: any) => r.rid);
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
       const cached = candidates && candidates.key === key ? candidates : null;
@@ -1811,7 +1828,7 @@ export default function Panel({ sdk, context, ui }: any) {
       if (!cached || cached.failed.length) {
         // Search everything the first time; afterwards retry only the clips whose search failed.
         const todo: string[] = cached ? cached.failed : rids;
-        const fresh = await findCandidates(todo, pid, check);
+        const fresh = await findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch));
         const retried = new Set(todo);
         found = { key, failed: fresh.failed,
           list: [...(cached ? cached.list.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))] };
@@ -1821,9 +1838,9 @@ export default function Panel({ sdk, context, ui }: any) {
       // Photos join as candidates without a search; with Use photos off there are none (the planner would otherwise
       // retry with photos first).
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
-      // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. Motion hits
-      // become a bonus on the role candidates first (mvMotionBonus).
-      const plan: any = mvPlanBuild({ candidates: mvMotionBonus(found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });
+      // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. With Beat punch,
+      // motion hits become a tie-break bonus on the role candidates first (mvMotionBonus).
+      const plan: any = mvPlanBuild({ candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });
       if (!plan.ok) {
         const retry = found.failed.length ? " Could not check " + found.failed.length + " clips; press Build to retry them." : "";
         throw new Error((MV_FAIL[plan.reason] || "No plan fits this footage") + "." + (plan.reason === "too-few" ? " Add more varied footage" + (usePhotos ? " or photos" : "") + " or select more clips." : "") + retry);
@@ -1987,20 +2004,20 @@ export default function Panel({ sdk, context, ui }: any) {
   // Once a build has searched the current selection (or nothing needs searching: no video selected), plan it for the
   // readiness line, so the fitted shot count and a failure reason show before Build. The allocation depends on the
   // seed, so each button is gated with the seed it builds with: Build uses `seed`, Create another version `seed + 1`.
-  const candKey = projectId + "|" + JSON.stringify(only);
+  const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");
   const readyPlans: any = React.useMemo(() => {
     if (!inventory || !fitted) return { build: null, another: null };
     const searched = candidates && candidates.key === candKey ? candidates : null;
     if (!searched && selectedRids.length) return { build: null, another: null };
     const list = searched ? searched.list : [];
-    const scored = mvMotionBonus(list);
+    const scored = beatPunch ? mvMotionBonus(list) : list;
     const planAt = (s: number) => {
       const p: any = mvPlanBuild({ candidates: scored.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(s) });
       // A search with failed clips is retried by Build, so its shortfall does not block Build yet.
       return { ...p, retryable: !!(searched && searched.failed.length) };
     };
     return { build: planAt(seed), another: planAt(seed + 1) };
-  }, [candidates, candKey, inventory, onlyPhotos, usePhotos, grid.bpm, grid.accepted, grid.usableEnd, grid.onsets, pace, requested, musicStart, seed, fitted, selectedRids.length]);
+  }, [candidates, candKey, inventory, onlyPhotos, usePhotos, grid.bpm, grid.accepted, grid.usableEnd, grid.onsets, pace, requested, musicStart, seed, fitted, selectedRids.length, beatPunch]);
   const readyPlan: any = readyPlans.build;
   // Why a build with this readiness plan cannot run (null when it can).
   const baseBlock: string | null = !inventory || !assets ? null
@@ -2042,13 +2059,16 @@ export default function Panel({ sdk, context, ui }: any) {
     ? "Your footage fits " + readyPlan.shots + " of " + fitted + " shots (" + planSeconds(readyPlan).toFixed(1) + " s)" : null;
   // The tempo guard's override, or fixed timing without a grid (spec 14.1). Groove's guards: below 86 bpm its phrase
   // opener holds 1 beat, above 150 bpm it plays 2 beats per shot.
+  // Fixed timing without a grid: the shot length, or for Groove its 0.55 s beat and the 2-beat, 1-beat and 8th shots.
+  const timing = grooved ? "Groove on a " + shotSeconds.toFixed(2) + " s beat: " + (2 * shotSeconds).toFixed(2) + ", " + shotSeconds.toFixed(2) + " and " + (shotSeconds / 2).toFixed(3) + " s shots"
+    : shotSeconds.toFixed(2) + " s";
   const paceNote = !assets ? null
     : guard.overridden ? "At " + Math.round(grid.bpm) + " bpm " + (pace === "quick" ? "Quick uses 2 beats per shot" : pace === "relaxed" ? "Relaxed uses 1 beat per shot"
       : guard.groove ? "Groove opens phrases with 1 beat" : "Groove uses 2 beats per shot") + "."
-    : !gridded ? (musicKind === "none" ? "No music: shots use approximate timing (" + shotSeconds.toFixed(2) + " s)."
+    : !gridded ? (musicKind === "none" ? "No music: shots use approximate timing (" + timing + ")."
       : musicKind === "own" && !ownGrid ? null
-      : grid.accepted ? "Tempo outside 70\u2013160 bpm (" + Math.round(grid.bpm) + " bpm): shots use approximate timing (" + shotSeconds.toFixed(2) + " s)."
-      : "No steady beat: shots use approximate timing (" + shotSeconds.toFixed(2) + " s).")
+      : grid.accepted ? "Tempo outside 70\u2013160 bpm (" + Math.round(grid.bpm) + " bpm): shots use approximate timing (" + timing + ")."
+      : "No steady beat: shots use approximate timing (" + timing + ").")
     : null;
   const peaks: number[] = grid.peaks || [];
   const total = musicKind === "own" ? (ownDuration || 1) : (cue ? cue.duration : 1);
