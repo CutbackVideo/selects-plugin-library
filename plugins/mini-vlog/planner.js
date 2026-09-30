@@ -446,10 +446,15 @@ function mvFillers(candidates) {
 }
 
 // Strict allocation. opts: { candidates, slots: [{ index, role, seconds, videoOnly? }], seed, gapSeconds = 0.5,
-// photoShare = MV_PHOTO_SHARE }. A videoOnly slot (a Groove 8th) never takes a photo, and the photo share counts only
-// the other slots. Two hard rules, never relaxed: the previous slot's source is never used again for the next slot,
+// photoShare = MV_PHOTO_SHARE, spread = true, motionOpener = true }. A videoOnly slot (a Groove 8th) never takes a
+// photo, and the photo share counts only the other slots. Two hard rules, never relaxed: the previous slot's source is never used again for the next slot,
 // and at most MV_PHOTO_RUN_MAX photos play in a row (unless the pool has no video candidate). A slot nothing fits under
 // them stays null (counted in `missing`); mvPlanBuild then tries a shorter length.
+// Motion opener: a video candidate with `motion` > 0 (tagged by the panel's motion bonus, only with Beat punch) marks a
+// moving moment. The first slot takes the best such window that fits it (the usual role rank, score and jitter; a role
+// outside the slot's roles ranks after them), ahead of a photo slot and the normal tiers, and is then left out of the
+// photo slots so the photo share moves to the others. Without tagged candidates (Beat punch off), with none that fits,
+// or with motionOpener: false the allocation is exactly as without this rule.
 function mvAllocate(opts) {
   const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
   const finite = v => typeof v === 'number' && isFinite(v);
@@ -469,13 +474,21 @@ function mvAllocate(opts) {
   // Photo-only pools (no usable video) may play any number of photos in a row.
   const runLimited = pool.length > 0;
   let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, prevRid = null;
-  // Photo slots: round(share x slots) of the slots a photo can hold, capped by the photos available, spaced evenly
-  // from a seeded phase. With no photos there are none, and every slot goes to video.
+  // The motion opener (see above). Nothing is used yet, so this is the pick the first slot's loop turn would make with
+  // the motion rank.
+  const first = opts.slots[0];
+  const opener = first && opts.motionOpener !== false && pool.some(c => c.motion > 0) ? searchVideo(first, c => {
+    if (!(c.motion > 0) || c.role === 'filler') return -1;
+    const roles = [first.role].concat(MV_ROLE_FALLBACK[first.role] || []), r = roles.indexOf(c.role);
+    return r >= 0 ? r : roles.length;
+  }, null, null) : null;
+  // Photo slots: round(share x slots) of the slots a photo can hold (not the motion opener's), capped by the photos
+  // available, spaced evenly from a seeded phase. With no photos there are none, and every slot goes to video.
   const photoSlots = {};
-  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds <= MV_PHOTO_HOLD_MAX + 1e-9);
+  const phase = mvHash(opts.seed + ':photo-slots');
+  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds <= MV_PHOTO_HOLD_MAX + 1e-9 && !(opener && sl === first));
   const share = opts.photoShare == null ? MV_PHOTO_SHARE : opts.photoShare;
   const target = Math.min(photos.length, holdable.length, Math.round(opts.slots.filter(sl => !sl.videoOnly).length * share));
-  const phase = mvHash(opts.seed + ':photo-slots');
   for (let k = 0; k < target; k++) photoSlots[holdable[Math.floor((k + phase) * holdable.length / target)].index] = true;
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
   // `exclude` is the previous shot's source, which may not be used; `level`, when not null, keeps only sources used
@@ -532,10 +545,12 @@ function mvAllocate(opts) {
     } else {
       tiers.push(preferred(null), anyReal(null), photo, filler(null));
     }
-    let best = null;
-    for (const tier of tiers) {
-      if (runFull && tier === photo) continue;
-      if ((best = tier())) break;
+    let best = slot === first ? opener : null;
+    if (!best) {
+      for (const tier of tiers) {
+        if (runFull && tier === photo) continue;
+        if ((best = tier())) break;
+      }
     }
     if (!best) { missing++; picks.push(null); photoRun = 0; prevRid = null; continue; }
     prevRid = best.c.rid;
@@ -559,7 +574,7 @@ function mvAllocate(opts) {
 
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
 // fps, pace: 'quick' | 'relaxed' | 'groove', requested (shots), sectionStart?, usableEnd? (Infinity / omitted without
-// music), onsets?, onsetThresholds?, lowConfidence?, seed, photoShare? }.
+// music), onsets?, onsetThresholds?, lowConfidence?, seed, photoShare?, motionOpener? (mvAllocate) }.
 // Order: the music caps the length (mvFitShots), then the plan tries that length and shrinks by MV_MIN_SHOTS down to
 // MV_MIN_SHOTS until the strict allocation fills every slot. Every attempt allocates from scratch with filler
 // candidates added (see `attempts` below). Failure reasons: 'music-too-short' (not even MV_MIN_SHOTS fit the music), 'one-resource' (fewer
@@ -623,7 +638,7 @@ function mvPlanBuild(opts) {
       ? { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: (s.beats || 1) < 1 }
       : { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
     for (const attempt of attempts) {
-      const alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread });
+      const alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: opts.motionOpener });
       if (alloc.missing === 0) {
         return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
           beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,

@@ -157,6 +157,10 @@ assert.deepEqual(H.mvSearchQueries(QUERIES, true), { ...QUERIES, motion: 'hands 
   // the 0.3 one (+0.05) for both b candidates; a hit on another clip gives nothing.
   assert.deepEqual(out.map(c => Math.round(c.score * 1000) / 1000), [0.4, 0.35, 0.35, 0.2]);
   assert.equal(role[0].score, 0.3, 'input not mutated');
+  // Candidates with a bonus carry their normalised motion (the planner's first-shot rule); the others stay untouched.
+  assert.deepEqual(out.map(c => (c.motion === undefined ? c.motion : Math.round(c.motion * 1000) / 1000)), [1, 0.5, 0.5, undefined]);
+  assert.ok(!('motion' in out[3]));
+  assert.deepEqual(out[3], role[3]);
   // A tie-break: the largest bonus stays below the allocator's role step (0.15) minus its jitter (0.05).
   // (jitter is in [0, 0.05), so 0.1 + jitter < 0.15 never overtakes a better role.)
   assert.ok(H.MV_MOTION_BONUS <= 0.15 - 0.05 + 1e-9);

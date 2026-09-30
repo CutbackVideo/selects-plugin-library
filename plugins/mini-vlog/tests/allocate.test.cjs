@@ -397,6 +397,54 @@ assert.equal(groove(rich, { bpm: 86 }).schedule.slots[0].beats, 2);
 const gFast = groove(rich, { bpm: 158, requested: 12 });
 assert.equal(gFast.beatsPerShot, 2); assert.equal(gFast.overridden, true); assert.equal(gFast.shots, 12); assert.ok(!('groove' in gFast));
 
+// First shot on a moving moment (Beat punch: mvMotionBonus tags candidates near a motion hit with `motion` > 0).
+// Slot 0 takes the best tagged video window (role rank, then score and jitter, as usual) ahead of its photo slot and the
+// normal tiers; the photo share moves to the other slots. Untagged input (Beat punch off, or no usable motion hits)
+// allocates exactly as before this rule: the picks below were recorded with the previous planner.
+{
+  const sig = picks => picks.map(p => (p ? p.rid + (p.kind === 'photo' ? '' : '@' + p.startSeconds.toFixed(2)) : '-')).join(' ');
+  const three = video('a').concat(video('b'), video('c'));
+  const GOLDEN = {
+    s1: 'p00 b@2.23 c@51.73 p01 a@30.73 b@44.23 p02 c@11.22 a@12.72 p03 b@27.73 c@5.22 p04 a@56.23 b@21.73 p05 c@36.73 a@50.23 p06 b@53.23 c@42.73 p07 a@57.73 b@23.23',
+    s2: 'b@24.73 p09 a@27.73 c@17.23 p08 b@32.23 a@45.73 p03 c@0.72 b@2.23 p02 a@17.23 c@54.73 p01 b@45.73 a@11.22 p00 c@38.23 b@27.73 p07 a@54.73 c@56.23 p06 b@35.23',
+    s3: 'c@36.73 b@38.23 p04 a@53.23 c@54.73 p05 b@45.73 a@47.23 p08 c@50.23 b@51.73 p09 a@30.73 c@56.23 p02 b@47.23 a@48.73 p03 c@51.73 b@53.23 p00 a@44.23 c@45.73 p01',
+    s4: 'p09 c@50.23 b@51.73 p08 a@18.73 c@20.23 p05 b@11.22 a@48.73 p04 c@3.73 b@41.23 p07 a@8.22 c@45.73 p06 b@48.73 a@26.23 p01 c@53.23 b@54.73 p00 a@45.73 c@47.23',
+  };
+  const base = {};
+  for (const seed of Object.keys(GOLDEN)) {
+    const opts = { candidates: three.concat(photos(10)), slots: slotsOf(24), seed };
+    base[seed] = j(P.mvAllocate(opts));
+    assert.equal(sig(base[seed].picks), GOLDEN[seed], 'untagged picks unchanged ' + seed);
+    assert.deepEqual(j(P.mvAllocate({ ...opts, motionOpener: false })), base[seed], 'motionOpener is a no-op without tags ' + seed);
+  }
+  // Seeds s1 and s4 open on a photo without motion. Tag one window of c (t 20.5, a transit hit, not a drink role).
+  const tagged = three.map(c => (c.rid === 'c' && c.t === 20.5 ? { ...c, score: c.score + 0.1, motion: 1 } : c));
+  for (const seed of Object.keys(GOLDEN)) {
+    const opts = { candidates: tagged.concat(photos(10)), slots: slotsOf(24), seed };
+    const r = j(P.mvAllocate(opts));
+    assert.equal(r.missing, 0);
+    assert.deepEqual([r.picks[0].rid, r.picks[0].kind, r.picks[0].startSeconds], ['c', 'video', 20.5 - 0.55 / 2], 'slot 0 on the moving window ' + seed);
+    assert.equal(r.photoShots, base[seed].photoShots, 'photo share kept ' + seed);
+    assert.ok(!adjacent(r.picks) && maxRun(r.picks) <= 2, 'hard rules ' + seed);
+    // Fresh first: the 24 slots still use all three clips before reusing one.
+    assert.deepEqual(r.picks.filter(p => p.kind === 'video').slice(0, 3).map(p => p.rid).sort(), ['a', 'b', 'c'], 'fresh first ' + seed);
+    assert.deepEqual(j(P.mvAllocate(opts)), r, 'deterministic ' + seed);
+    // Off: the tags are ignored (only the bonus in the scores remains).
+    const off = j(P.mvAllocate({ ...opts, motionOpener: false }));
+    if (seed === 's1' || seed === 's4') assert.equal(off.picks[0].kind, 'photo', 'without the opener slot 0 stays a photo ' + seed);
+  }
+  // Several tagged windows: role rank, then score, decides among them (a drink hit beats a stronger transit hit).
+  const two = three.map(c => (c.rid === 'b' && c.t === 13 ? { ...c, motion: 0.5 } : c.rid === 'c' && c.t === 20.5 ? { ...c, score: 0.9, motion: 1 } : c));
+  assert.equal(two.find(c => c.rid === 'b' && c.t === 13).role, 'drink');
+  assert.deepEqual(j(P.mvAllocate({ candidates: two, slots: slotsOf(24), seed: 's1' })).picks[0].startSeconds, 13 - 0.55 / 2);
+  // Tagged windows too short for slot 0 (source tail) or fillers: the normal order applies.
+  const short = three.concat([mk('d', 'drink', 1, 0.9, 1.2)].map(c => ({ ...c, motion: 1 })));
+  assert.equal(sig(j(P.mvAllocate({ candidates: short.concat(photos(10)), slots: slotsOf(24, 1.5), seed: 's1' })).picks),
+    sig(j(P.mvAllocate({ candidates: short.map(({ motion, ...c }) => c).concat(photos(10)), slots: slotsOf(24, 1.5), seed: 's1' })).picks), 'too short: unchanged');
+  // Photos only: nothing to open on.
+  assert.equal(j(P.mvAllocate({ candidates: photos(6), slots: slotsOf(4), seed: 's1' })).picks[0].kind, 'photo');
+}
+
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.MV_BUILD_STEPS.length, 5);
 assert.equal(P.MV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);

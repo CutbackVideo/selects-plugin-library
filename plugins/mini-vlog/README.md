@@ -40,9 +40,11 @@ source file.
   0.75 s of such a hit gets a small tie-break bonus (at most 0.1, scaled from
   the weakest to the strongest such hit of the build), so of two similar
   moments the moving one is taken first. The bonus never outranks a better
-  role match, and with all hits equally strong, or none, nothing changes.
-  With Beat punch off the search and the shot choice are exactly as without
-  this feature.
+  role match, except for the first shot: when a moving moment fits it, the
+  video opens on the best one rather than on a photo or a still moment (the
+  photo share moves to the other shots). With all hits equally strong, or
+  none, nothing changes. With Beat punch off the search
+  and the shot choice are exactly as without this feature.
 - **Variety.** The shots are spread over all the selected clips: a shot takes
   a clip that has not been used yet whenever one fits, and a clip is only
   reused once every clip that fits has been used, the least-used first. The
