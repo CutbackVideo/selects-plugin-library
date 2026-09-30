@@ -68,5 +68,20 @@
       "name": "Four Photo Reveal",
       "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "inputs": [
+    {
+      "id": "photos",
+      "label": "Photos",
+      "accepts": [
+        "image"
+      ],
+      "min": 4,
+      "max": 4
+    }
+  ],
+  "prepare": [
+    "4 photos, in the order they appear"
+  ]
 }

@@ -1,4 +1,5 @@
 // @name Postcard Cutout Studio
+// @collection visual-highlights
 // @icon video
 // Editable postcard pipeline with immutable HTTP masks and resumable job ledger.
 import React,{useEffect,useMemo,useRef,useState} from "react";
@@ -102,80 +103,6 @@ function planEnding(pool,slots){
 // picture's terms: the clip is centred on its strip, and the strip is its middle.
 function makeAssembly(run){const s=run.settings,shape=layout(s,run.source.frameSize);const titleDefs=[{key:'title',label:'Title',type:'text',defaultValue:s.title},{key:'upper',label:'All caps',type:'boolean',defaultValue:s.upperTitle!==false},{key:'fontFamily',label:'Font',type:'text',defaultValue:s.fontFamily},{key:'titleColor',label:'Color',type:'color',defaultValue:s.titleColor},{key:'titleSize',label:'Size',type:'number',defaultValue:244,min:120,max:360,step:1}],subtitleDefs=[{key:'subtitle',label:'Subtitle',type:'text',defaultValue:s.subtitle},{key:'subtitleColor',label:'Color',type:'color',defaultValue:s.subtitleColor},{key:'subtitleSize',label:'Size',type:'number',defaultValue:60,min:32,max:160,step:1}];
 return `const cfg=${json({projectId:run.projectId,name:run.draftName,s,shape,mask:run.mask,rvmResourceId:run.foregroundResourceId||run.rvmResourceId||null,backgroundSizes:run.backgrounds?.map(x=>x?.frameSize||null),subjectSize:run.source.frameSize||null,box:run.mask?.box||null,endingPlan:planEnding(run.ending||[],Math.round((TIMING.end-TIMING.revealAt)/(Number(run.sfxIds?.music?.sixteenth)||TIMING.slice))),endingSizeById:Object.fromEntries((run.ending||[]).map(x=>[x?.resourceId,x?.frameSize||null])),sfx:run.sfxIds||{},T:TIMING})};const T=cfg.T,SFX:Record<string,any>=cfg.sfx,FW=cfg.shape.width,FH=cfg.shape.height;const fill=(sz:any,w:number,h:number)=>{const fit=Math.min(FW/sz.width,FH/sz.height);return Math.max(1,w/(sz.width*fit),h/(sz.height*fit))};const subPos=(()=>{const sz:any=cfg.subjectSize,b:any=cfg.box,k=cfg.shape.scale;if(!sz?.width||!sz?.height||!b)return{x:0,y:0};const f=Math.min(FW/sz.width,FH/sz.height),dw=sz.width*f*k,dh=sz.height*f*k,mx=Math.max(0,(dw-FW)/2),my=Math.max(0,(dh-FH)/2),clamp=(v:number,m:number)=>Math.max(-m,Math.min(m,v)),right=-((b.x0+b.x1)/2-.5)*dw,down=(b.y1-b.y0)*dh<=.92*FH?-((b.y0+b.y1)/2-.5)*dh:-.46*FH-(b.y0-.5)*dh;return{x:clamp(right,mx)/FH*100,y:-clamp(down,my)/FH*100}})();const p=selects.project(cfg.projectId),d=await p.createDraft({name:cfg.name});const source=cfg.s.subjectId,start=cfg.s.subjectStartSec;await d.insertResource({resourceId:source,sourceRange:{startSeconds:start,endSeconds:start+T.subjectEnd}});await d.setFrameSize({width:cfg.shape.width,height:cfg.shape.height});const all=()=>d.clips({trackScope:'all'});let sub=(await d.clips({trackScope:'main'})).find(c=>c.resourceId===source);if(!sub)throw Error('Subject missing');await d.setClipColor({clips:sub,color:'blue'});sub=(await all()).find(c=>c.clipId===sub.clipId);if(!sub)throw Error('Subject refresh failed');await d.setClipTransform({clip:sub,scale:{x:cfg.shape.scale,y:cfg.shape.scale},position:subPos});await d.insertGap({seconds:T.revealAt-T.subjectEnd});const six=Number(SFX.music?.sixteenth)||T.slice,rate=(await d.meta()).fps,plan=cfg.endingPlan,endIds=new Set(plan.map(x=>x.id)),ES:Record<string,any>=cfg.endingSizeById;for(let i=0;i<plan.length;i++){const len=(Math.round((i+1)*six*rate)-Math.round(i*six*rate))/rate,at=plan[i].at;await d.insertResource({resourceId:plan[i].id,sourceRange:{startSeconds:at,endSeconds:at+len}});}let main=await d.clips({trackScope:'main'});const photos=main.filter(c=>endIds.has(c.resourceId));await d.setClipColor({clips:photos,color:'orange'});main=await d.clips({trackScope:'main'});for(const {id,rid} of main.filter(c=>endIds.has(c.resourceId)).map(c=>({id:c.clipId,rid:String(c.resourceId)}))){const sz:any=ES[rid];if(!sz?.width||!sz?.height)continue;const k=fill(sz,FW,FH);if(k<=1.0001)continue;const c=(await d.clips({trackScope:'main'})).find(x=>x.clipId===id);if(c)await d.setClipTransform({clip:c,scale:{x:k,y:k}})}const fps=(await d.meta()).fps,END=main.reduce((n,c)=>Math.max(n,c.endFrame),0),at=t=>Math.min(END,Math.round(t*fps)),REVEAL_AT=Math.min(...photos.map(c=>c.startFrame));async function over(id,a,b,ss,color){const before=new Set((await all()).map(c=>c.clipId));await d.overlayResource({resource:p.resource(id),over:await d.rangeAtFrames(a,b),sourceStartSeconds:ss});const c=(await all()).find(c=>!before.has(c.clipId)&&c.resourceId===id);if(!c)throw Error('Overlay missing');await d.setClipColor({clips:c,color});return(await all()).find(x=>x.clipId===c.clipId)||c}for(let i=0;i<cfg.s.bgIds.length;i++){let c=await over(cfg.s.bgIds[i],at(T.stripFirst+T.stripEvery*i),at(T.stripEnd),0,'green');const sz:any=cfg.backgroundSizes?.[i],n=cfg.s.bgIds.length,strip=FW/n;let lp=i*100/n,rp=(i+1)*100/n;if(sz?.width&&sz?.height){const k=fill(sz,strip,FH),dw=sz.width*Math.min(FW/sz.width,FH/sz.height)*k;await d.setClipTransform({clip:c,scale:{x:k,y:k},position:{x:((i+.5)*strip-FW/2)/FH*100,y:0}});lp=(dw-strip)/2/dw*100;rp=(dw+strip)/2/dw*100}c=(await all()).find(x=>x.clipId===c.clipId)||c;await d.addVideoEffect({clip:c,label:'Panel '+(i+1)+' Reveal',tsxCode:${json(PANEL)},parameters:{leftPct:lp,rightPct:rp,revealSeconds:0}})}if(!cfg.rvmResourceId||cfg.rvmResourceId===source)throw Error('A distinct cutout Resource is required');const maskParams={baseUrl:cfg.mask.baseUrl,maskFps:cfg.mask.fps,count:cfg.mask.count};async function cutout(a,b,label,white){let c=await over(cfg.rvmResourceId,a,b,a/fps,'violet');await d.setClipTransform({clip:c,scale:{x:cfg.shape.scale,y:cfg.shape.scale},position:subPos});c=(await all()).find(x=>x.clipId===c.clipId)||c;await d.addVideoEffect({clip:c,label,tsxCode:${json(MASK)},parameters:{...maskParams,sourceStartSeconds:a/fps,white}});return c}await cutout(0,at(T.flashAt),'Cutout',false);await cutout(at(T.flashAt),at(T.subjectEnd),'White flash',true);const graphics=[];for(let k=0;k<T.closeAt.length;k++){const a=at(T.closeAt[k]),b=k+1<T.closeAt.length?at(T.closeAt[k+1]):REVEAL_AT;graphics.push(await d.addMotionGraphic({label:'Close '+(k+1),tsxCode:${json(CLOSE)},parameters:{from:k/T.closeAt.length,to:(k+1)/T.closeAt.length,slideSeconds:T.closeSlide},within:await d.rangeAtFrames(a,b)}))}graphics.push(await d.addMotionGraphic({label:'Reveal',tsxCode:${json(REVEAL)},parameters:{openSeconds:T.revealEnd-T.revealAt},within:await d.rangeAtFrames(REVEAL_AT,END)}));const look={title:cfg.s.title,upper:cfg.s.upperTitle!==false,fontFamily:cfg.s.fontFamily,titleColor:cfg.s.titleColor,titleSize:244,titleX:50,titleY:49};graphics.push(await d.addMotionGraphic({label:'Subtitle',tsxCode:${json(SUBTITLE)},parameters:{...look,subtitle:cfg.s.subtitle,subtitleColor:cfg.s.subtitleColor,subtitleSize:60},editableParameters:${json(subtitleDefs)},within:await d.rangeAtFrames(at(T.subtitleAt),END)}));graphics.push(await d.addMotionGraphic({label:'Title',tsxCode:${json(TITLE)},parameters:{...look,tickSeconds:T.tickEvery,settleSeconds:((Number(SFX.scramble?.ticks)||T.titleTicks)-1)*T.tickEvery},editableParameters:${json(titleDefs)},within:await d.rangeAtFrames(at(T.titleAt),END)}));await d.setClipColor({clips:(await all()).filter(c=>graphics.some(g=>g.clipId===c.clipId)),color:'red'});const hits=[...cfg.s.bgIds.map((_,i)=>['panel',T.stripFirst+T.stripEvery*i,i]),...T.closeAt.map((t,i)=>['curtain',t,i]),['title',T.subtitleAt,0],['scramble',T.titleAt,0]],takes=key=>Object.keys(SFX).filter(k=>k===key||k.startsWith(key+'.')).sort().map(k=>SFX[k]);for(const [key,t,n] of [...hits,['tone',0,0],['riser',T.flashAt-.5,0]]){const v=takes(String(key)),s=v[Number(n)%Math.max(1,v.length)];if(!s?.id)continue;const a=at(t),len=Math.min(Math.floor(s.duration*fps),Math.ceil((s.soundSeconds||s.duration)*fps));await over(s.id,a,Math.min(END,a+len),0,'yellow')}if(SFX.music?.id)await over(SFX.music.id,REVEAL_AT,Math.min(END,REVEAL_AT+Math.floor(SFX.music.duration*fps)),0,'yellow');const commit=await d.commitAll('postcard-cutout-studio: immutable mask assets and one assembly commit');if(!commit.createdDraftId)throw Error('Created Draft id missing');const saved=selects.draft(commit.createdDraftId),[m,clips]=await Promise.all([saved.meta(),saved.clips({trackScope:'all'})]);return{draftId:commit.createdDraftId,commit,meta:m,clipCount:clips.length,mainCount:clips.filter(c=>c.trackKind==='main').length,graphics:clips.filter(c=>c.resourceId===null).map(c=>({clipId:c.clipId,startFrame:c.startFrame,endFrame:c.endFrame})),scale:cfg.shape.scale}`}
-export default function PostcardPanel(props){return <PostcardEditor key={props.context.projectId || 'none'} {...props}/>}
-function PostcardEditor({sdk,context,ui}){
-const [s,setS]=useState({...DEFAULTS,bgIds:[],photoIds:[],aspect:'original',title:'MY POSTCARD'}),[rows,setRows]=useState([]),[loading,setLoading]=useState(false),[hydrated,setHydrated]=useState(true),[busy,setBusy]=useState(false),[status,setStatus]=useState(''),[run,setRun]=useState(null),[duration,setDuration]=useState(0),[sourceError,setSourceError]=useState(false),[preview,setPreview]=useState([]);
-const busyRef=useRef(false),projectRef=useRef(context.projectId);projectRef.current=context.projectId;
-const byId=useMemo(()=>new Map(rows.map(x=>[x.resourceId,x])),[rows]),subject=byId.get(s.subjectId),videos=rows.filter(isSubject),images=rows.filter(isPhoto),change=(key,value)=>{dirty.current=true;setS(old=>({...old,[key]:value,forceNew:false,autoExport:false}));};
-
-const [error,setError]=useState(''),[tab,setTab]=useState('all'),[query,setQuery]=useState(''),[page,setPage]=useState(0),[customize,setCustomize]=useState(false);
-const [thumbs,setThumbs]=useState({}),[strips,setStrips]=useState({}),[scrub,setScrub]=useState(null);
-const [badgeHover,setBadgeHover]=useState(null);
-const stripAsked=useRef(new Set()),hoverTimer=useRef(0);
-const [folder,setFolder]=useState(null),[folderIds,setFolderIds]=useState([]),[selection,setSelection]=useState([]),[picking,setPicking]=useState(false);
-const folderBusy=useRef(false);
-async function readFolder(path,offset=0,search=''){
-  setLoading(true);setError('');
-  try{
-    const result=await helper(sdk,'folder-media',{path,offset,query:search});guard(context.projectId);
-    setRows(old=>{const byPath=new Map(old.map(row=>[row.path,row]));return [...byPath.values(),...result.rows.filter(row=>!byPath.has(row.path))]});
-    setFolderIds(result.rows.map(row=>rows.find(old=>old.path===row.path)?.resourceId||row.resourceId));
-    setFolder(result);setPage(offset/24);
-  }catch(e){setError('Could not open this folder.');setStatus(String(e.message||e));}
-  finally{setLoading(false);}
-}
-// A new folder is a fresh start. Picks used to carry over when the folder
-// changed, and the grid then showed only the new folder while the count still
-// held clips from the old one — selections nobody could see or undo. A
-// finished postcard is let go too (its Draft stays in the project); the title
-// stays.
-function clearPicks(){
-  setSelection([]);setCustomize(false);
-  setS(old=>({...old,subjectId:'',subjectStartSec:0,bgIds:[],photoIds:[]}));
-  if(run&&!active)setRun(null);
-}
-// Back to the start screen. Nothing can be let go while a postcard is being made.
-function startOver(){
-  if(folderBusy.current||busyRef.current||locked)return;
-  setError('');setStatus('');setQuery('');setPage(0);
-  setFolder(null);setFolderIds([]);clearPicks();
-}
-async function abandonRun(){
-  if(folderBusy.current||busyRef.current||!run||!canAbandon)return;
-  try{await helper(sdk,'update',{runId:run.runId,patch:{phase:'abandoned'},stage:'pipeline',status:'abandoned',details:{by:'user',from:run.phase}});}
-  catch(e){setError(e instanceof Error?e.message:String(e));return;}
-  setRun(null);setError('');setStatus('');setQuery('');setPage(0);
-  setFolder(null);setFolderIds([]);clearPicks();
-}
-async function chooseFolder(){
-  if(folderBusy.current||busyRef.current||locked)return;
-  folderBusy.current=true;setPicking(true);setError('');
-  try{
-    const picker=window.parent?.__DI__?.CutbackMediaPicker;
-    if(typeof picker?.pickDirectoryPath!=='function'||(typeof picker.isAvailablePickDirectoryPath==='function'&&!picker.isAvailablePickDirectoryPath()))throw Error('This app version does not support choosing folders. Drop a folder here, or update Selects.');
-    const path=await picker.pickDirectoryPath();guard(context.projectId);
-    if(path){setQuery('');await readFolder(path);}
-  }catch(e){setError('Could not choose a folder.');setStatus(String(e.message||e));}
-  finally{folderBusy.current=false;setPicking(false);}
-}
-async function dropFolder(event){
-  event.preventDefault();
-  if(folderBusy.current||busyRef.current||locked)return;
-  const files=event.dataTransfer.files;
-  if(files.length!==1){setError('Drop one folder at a time. Your selections will be kept.');return;}
-  folderBusy.current=true;setPicking(true);setError('');
-  try{const path=await droppedFolderPath(files[0]);guard(context.projectId);if(!path)throw Error('Drop a folder saved on this computer.');setQuery('');clearPicks();await readFolder(path);}
-  catch(e){setError('Could not open the dropped folder.');setStatus(String(e.message||e));}
-  finally{folderBusy.current=false;setPicking(false);}
-}
-
-const dirty=useRef(false);
-useEffect(()=>()=>{projectRef.current=null},[]);
-useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(!subject?.path)return;const path=subject.path;(async()=>{try{const r=await sdk.runShell({summary:'Probe subject duration',command:`ffprobe -v error -select_streams v:0 -show_entries format=duration:stream=width,height -of json ${quote(path)}`,timeoutMs:15000,maxOutputBytes:2000});if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
-useEffect(()=>{let alive=true;if(!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const r=await sdk.runShell({summary:'Preview selected range',command:`python3 "$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/scene_preview.py" ${quote(subject.path)} ${s.subjectStartSec} ${Math.min(duration,s.subjectStartSec+8.5)} 4`,timeoutMs:30000,maxOutputBytes:49152});if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
-async function persist(r,patch,stage,status='end',details={}){const next=await helper(sdk,'update',{runId:r.runId,patch,stage,status,details});setRun(next);return next}
-function guard(pid){if(projectRef.current!==pid)throw Error('The Project changed. Stopped without resubmitting the current operation.')}
-async function claim(r,expected,patch,stage,details){const x=await helper(sdk,'claim',{runId:r.runId,expected,patch,stage,details});if(!x.claimed)throw Error('Another run already started this step. Resume that run without starting a new generation.');setRun(x.run);return x.run}
 // Background removal goes through the app's own generation service - the path
 // the built-in Generate video/audio tools use - rather than asking the AI to
 // call generate_media. Those AI round trips (model lookup, upload, submit, then
@@ -205,6 +132,12 @@ async function appResourcePath(di,scope,id){
   if(!path)throw Error('The background-removed clip was imported, but its file could not be found.');
   return path;
 }
+// The steps of a run, shared by the Panel and a template run. `guard` stops the
+// work once whoever started it has moved on; `setRun` and `setStatus` report
+// progress to whoever is showing it.
+function createRunner({sdk,guard,setRun=_=>{},setStatus=_=>{}}){
+async function persist(r,patch,stage,status='end',details={}){const next=await helper(sdk,'update',{runId:r.runId,patch,stage,status,details});setRun(next);return next}
+async function claim(r,expected,patch,stage,details){const x=await helper(sdk,'claim',{runId:r.runId,expected,patch,stage,details});if(!x.claimed)throw Error('Another run already started this step. Resume that run without starting a new generation.');setRun(x.run);return x.run}
 async function generation(r,collect=false){guard(r.projectId);const di=appServices(),mg=di.MediaGeneration;
 if(!collect){
   if(r.phase!=='generationSubmitting')r=await claim(r,['ready'],{phase:'generationSubmitting',generationStartedMs:Date.now()},'generation');
@@ -255,13 +188,19 @@ if(r.phase==='draftReady'){r=await claim(r,['draftReady'],{phase:'exportSubmitti
 if(r.phase!=='exportPending')throw Error('The panel will not resubmit an Export with an uncertain submission state. Inspect the run log.');
 for(let i=0;i<90;i++){guard(r.projectId);const w=await runScript(sdk,`return(await selects.project(${json(r.projectId)}).workflows()).find(w=>w.workflowId===${json(r.export.workflowId)})||{status:'unknown'}`,'Check postcard Export');setStatus('Export: '+w.status+' '+Math.round((w.progress||0)*100)+'%');if(w.status==='succeeded'){r=await persist(r,{phase:'exportRendered'},'export','end',{durationMs:Date.now()-r.exportStartedMs,workflow:w,wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});const q=await sdk.runShell({summary:'Decode exported postcard',command:`ffprobe -v error -show_entries stream=codec_name,width,height,nb_frames,r_frame_rate -show_entries format=duration,size -of json ${quote(r.export.outPath)} && ffmpeg -v error -i ${quote(r.export.outPath)} -f null -`,timeoutMs:180000,maxOutputBytes:10000});await helper(sdk,'event',{runId:r.runId,stage:'decode-check',status:q.exitCode===0?'end':'failed',details:{exitCode:q.exitCode,stdout:q.stdout,stderr:q.stderr}});if(q.exitCode!==0)throw Error('The exported file failed decode verification.');r=await persist(r,{phase:'complete',finishedMs:Date.now()},'run','end',{wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});setStatus('Complete · '+r.export.outPath+' · total '+((Date.now()-r.startedMs)/1000).toFixed(1)+'s');return r}if(['failed','canceled','cancelled'].includes(w.status)){r=await persist(r,{phase:'exportFailed',export:{...r.export,terminalStatus:w.status}},'export','failed',{workflow:w,durationMs:Date.now()-r.exportStartedMs});throw Error(w.lastErrorMessage||'Export failed. It will not be resubmitted automatically.')}await sleep(2000)}setStatus('Export is still running. Resume this run to check the same Export.');return r;
 }
-async function execute(kind){if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;const selectedSettings=s;const clickedAtMs=Date.now(),prepMs={};window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
-try{const pid=context.projectId;guard(pid);let s=selectedSettings,byId=new Map(rows.map(row=>[row.resourceId,row]));
+// One pass of a run: prepares the picks, then carries the run as far as it
+// goes. Returns the run as it stands when the pass ends; a failure carries it
+// as `error.run`. `template` is a run nobody is watching: it always makes a
+// new timeline, never takes over an unfinished run, and waits for the cutout
+// for as long as it is mounted.
+async function build(kind,{pid,settings:selectedSettings,rows,run,duration,template=false,onMapped=(_mapped,_settings)=>{},setSettings=_=>{}}){let current=run;const clickedAtMs=Date.now(),prepMs={};
+try{guard(pid);let s=selectedSettings,byId=new Map(rows.map(row=>[row.resourceId,row]));
 let heldSubject=null,cutoutInput=null,madeForeground=false,shownPaths=new Map(),shownSizes=Promise.resolve({}),pool=[];
 if(kind!=='resume'&&kind!=='export'){
  const previous=await helper(sdk,'load',{projectId:pid});guard(pid);
  if(previous&&!['draftReady','complete','abandoned','exportFailed','generationFailed'].includes(previous.phase)){
-   setRun(previous);return;
+   if(template)throw Error(STILL_FINISHING);
+   setRun(previous);return previous;
  }
  let selected=[...new Set([s.subjectId,...s.bgIds,...s.photoIds].filter(Boolean))].map(id=>byId.get(id));
  if(selected.some(row=>!row?.path))throw Error('Choose the missing files again.');
@@ -339,9 +278,10 @@ if(kind!=='resume'&&kind!=='export'){
  pool=poolRows.map(row=>{const matches=inventory.filter(item=>item.path===row.path);if(matches.length!==1)throw Error('Could not uniquely identify '+row.name+'. No generation was submitted.');return {...matches[0],durationSeconds:matches[0].durationSeconds||row.durationSeconds,shownPath:row.shownPath,kind:row.kind};});
  s={...s,subjectId:mapped.get(s.subjectId)?.resourceId,bgIds:s.bgIds.map(id=>mapped.get(id).resourceId),photoIds:s.photoIds.map(id=>mapped.get(id).resourceId)};
  byId=new Map([...mapped.values()].map(row=>[row.resourceId,row]));
- setRows(old=>old.map(row=>{const m=mapped.get(row.resourceId);return m?{...row,resourceId:m.resourceId}:row;}));setSelection(old=>old.map(id=>mapped.get(id)?.resourceId||id));setFolderIds(old=>old.map(id=>mapped.get(id)?.resourceId||id));setS(s);setRun(previous);current=previous;
- if(previous?.draftId&&requestKey(s)===requestKey(previous.settings)&&previous.version===VERSION){setStatus('Your postcard is ready to play and edit.');return;}
- kind=primaryAction(previous,s).kind;
+ onMapped(mapped,s);setRun(previous);current=previous;
+ // A template run always makes a new timeline; the Panel offers the one it has.
+ if(!template&&previous?.draftId&&requestKey(s)===requestKey(previous.settings)&&previous.version===VERSION){setStatus('Your postcard is ready to play and edit.');return current;}
+ kind=template?templateKind(previous):primaryAction(previous,s).kind;
  if(kind==='resume')throw Error('The previous attempt needs review. Check its status; no new generation was submitted.');
  if(!s.subjectId||!s.bgIds.length||!s.photoIds.length)throw Error('Choose a subject video.');
  for(let i=0;i<s.bgIds.length;i++){
@@ -349,7 +289,7 @@ if(kind!=='resume'&&kind!=='export'){
  }
 }
 const ensured=helper(sdk,'ensure');ensured.catch(()=>{});let fresh=false;
-if(kind==='new'||!current||['complete','abandoned'].includes(current.phase)){if(kind==='resume')return;let verifiedExportTerminalStatus=null;if(kind==='new'&&current?.phase==='exportFailed'){const old=await runScript(sdk,`return(await selects.project(${json(pid)}).workflows()).find(w=>w.workflowId===${json(current.export?.workflowId)})||{status:'unknown'}`,'Check previous Export');if(old.status==='unknown'&&['failed','canceled','cancelled'].includes(current.export?.terminalStatus))old.status=current.export.terminalStatus;if(!['failed','canceled','cancelled'].includes(old.status))throw Error('The previous Export is not terminal. A new run was not started.');verifiedExportTerminalStatus=old.status;}const src=byId.get(s.subjectId);if(!src?.path)throw Error('Select a subject.');layout(s,src.frameSize);if(s.subjectStartSec<0)throw Error('The chosen start is before the beginning of this video.');if([...s.bgIds,...s.photoIds].some(id=>!byId.has(id)))throw Error('Select every background and photo again.');const frames=await shownSizes;current=await helper(sdk,'init',{projectId:pid,replaceSettled:kind==='new',previousRunId:kind==='new'?current?.runId:null,verifiedExportTerminalStatus,settings:{...s,forceNew:false,autoExport:false},source:{...src,durationSeconds:heldSubject?heldSubject.durationSeconds:(duration||src.durationSeconds)},backgrounds:s.bgIds.map(id=>sized(byId.get(id),frames[byId.get(id)?.path]||frames[shownPaths.get(id)])),ending:(pool.length?pool:s.photoIds.map(id=>byId.get(id))).map(row=>sized(row,frames[row?.shownPath]||frames[row?.path])),forceNew:false,autoExport:false,version:VERSION,logRoot:LOG_ROOT,clickedAtMs,prepMs:{...prepMs,beforeInit:Date.now()-clickedAtMs},cutoutInput:cutoutInput?.path?cutoutInput:null});fresh=true;setRun(current);setS(prev=>({...prev,forceNew:false}))}
+if(kind==='new'||!current||['complete','abandoned'].includes(current.phase)){if(kind==='resume')return current;let verifiedExportTerminalStatus=null;if(kind==='new'&&current?.phase==='exportFailed'){const old=await runScript(sdk,`return(await selects.project(${json(pid)}).workflows()).find(w=>w.workflowId===${json(current.export?.workflowId)})||{status:'unknown'}`,'Check previous Export');if(old.status==='unknown'&&['failed','canceled','cancelled'].includes(current.export?.terminalStatus))old.status=current.export.terminalStatus;if(!['failed','canceled','cancelled'].includes(old.status))throw Error('The previous Export is not terminal. A new run was not started.');verifiedExportTerminalStatus=old.status;}const src=byId.get(s.subjectId);if(!src?.path)throw Error('Select a subject.');layout(s,src.frameSize);if(s.subjectStartSec<0)throw Error('The chosen start is before the beginning of this video.');if([...s.bgIds,...s.photoIds].some(id=>!byId.has(id)))throw Error('Select every background and photo again.');const frames=await shownSizes;current=await helper(sdk,'init',{projectId:pid,replaceSettled:kind==='new',previousRunId:kind==='new'?current?.runId:null,verifiedExportTerminalStatus,settings:{...s,forceNew:false,autoExport:false},source:{...src,durationSeconds:heldSubject?heldSubject.durationSeconds:(duration||src.durationSeconds)},backgrounds:s.bgIds.map(id=>sized(byId.get(id),frames[byId.get(id)?.path]||frames[shownPaths.get(id)])),ending:(pool.length?pool:s.photoIds.map(id=>byId.get(id))).map(row=>sized(row,frames[row?.shownPath]||frames[row?.path])),forceNew:false,autoExport:false,version:VERSION,logRoot:LOG_ROOT,clickedAtMs,prepMs:{...prepMs,beforeInit:Date.now()-clickedAtMs},cutoutInput:cutoutInput?.path?cutoutInput:null});fresh=true;if(template&&current.clickedAtMs!==clickedAtMs)throw Error(STILL_FINISHING);setRun(current);setSettings(prev=>({...prev,forceNew:false}))}
 guard(current.projectId);if(!fresh)current=await helper(sdk,'load',{runId:current.runId});
 // A fresh run already looked for a reusable cutout when it was created.
 if(current.phase==='ready'&&!fresh)current=await helper(sdk,'reuse',{runId:current.runId});
@@ -363,16 +303,229 @@ if(current.phase==='generationFailed'&&!['failed','canceled','cancelled'].includ
 for(let checks=0;current.phase==='generationPending';checks++){
  setRun(current);
  current=await generation(current,true);
- if(current.phase!=='generationPending'||checks>=GENERATION_CHECKS)break;
+ if(current.phase!=='generationPending'||(!template&&checks>=GENERATION_CHECKS))break;
  guard(current.projectId);
  await sleep(GENERATION_POLL_MS);
 }
-if(current.phase==='generationPending'){setRun(current);setStatus('Background removal is taking longer than usual. It keeps checking while this panel is open.');return;}
+if(current.phase==='generationPending'){setRun(current);setStatus('Background removal is taking longer than usual. It keeps checking while this panel is open.');return current;}
 if(current.phase==='cutoutReady'){const id=current.generation?.resourceId||null,cutPath=current.generation?.cutoutPath;if(!cutPath)throw Error('The background-removed clip is missing. Stopped without paying for another one.');current=await helper(sdk,'prepare',{runId:current.runId,sourcePath:current.source.path,cutoutPath:cutPath,startSeconds:current.settings.subjectStartSec,seconds:TIMING.subjectEnd,patch:{generation:current.generation,phase:'cutoutReady',cutoutMode:current.generation?.jobId?'generated':'reused',cutoutResourceId:id||null},details:current.finished??null});setRun(current);madeForeground=true;}
 if(current.phase==='assemblySubmitting'){const match=await runScript(sdk,`const p=selects.project(${json(pid)}),out=[];for(const id of(await p.meta()).draftIds){if((await selects.draft(id).meta()).name===${json(current.draftName)})out.push(id)}return out`,'Recover postcard save');if(match.length===1)current=await persist(current,{phase:'draftReady',draftId:match[0]},'assembly','recovered');else throw Error('Could not confirm the save result. No duplicate Draft was created; inspect the log.')}
 if(current.phase==='maskReady'){guard(pid);const [fg,draftName,box]=await Promise.all([prepareForegroundResource(sdk,current,madeForeground),uniqueDraftName(sdk,pid,current.settings.title),helper(sdk,'subject-box',{runId:current.runId}).catch(()=>null)]);guard(pid);await ensured;current=await claim(current,['maskReady'],{phase:'assemblySubmitting',assemblyStartedMs:Date.now(),foregroundPath:fg.foregroundPath,foregroundVersion:fg.foregroundVersion,foregroundResourceId:fg.foregroundResourceId,sfxIds:fg.sfxIds,draftName},'assembly',{foregroundResourceId:fg.foregroundResourceId,draftName});if(box&&!current.mask?.box)current={...current,mask:{...current.mask,box}};const script=makeAssembly(current);let result;try{result=await runScript(sdk,script,'Create postcard with one commit',true);}catch(e){const said=String(e?.message||e);if((/TypeScript check failed|"committed":\s*false/.test(said))&&!/"committed":\s*true/.test(said))current=await persist(current,{phase:'maskReady'},'assembly','failed',{error:said.slice(0,600)});throw e;}current=await persist(current,{phase:'draftReady',draftId:result.draftId,assembly:result},'assembly','end',{durationMs:Date.now()-current.assemblyStartedMs,result,trace:window.__postcardTrace||[]});}
-if(current.phase==='draftReady'&&kind==='export')current=await exportRun(current);else if(current.phase==='exportPending')current=await exportRun(current);else if(current.phase==='draftReady')setStatus('Your postcard is ready to play and edit.');else if(/Failed$/.test(current.phase))throw Error('This run is in a failed state. Generation and Export will not be retried automatically.');setRun(current);
-}catch(e){setError('We could not finish your postcard. Your progress is saved. See details below.');setStatus(String(e.message||e));if(current?.runId)try{await helper(sdk,'event',{runId:current.runId,stage:'pipeline',status:'failed',details:{error:String(e.stack||e)}})}catch{}}finally{busyRef.current=false;setBusy(false)}}
+if(current.phase==='draftReady'&&kind==='export')current=await exportRun(current);else if(current.phase==='exportPending')current=await exportRun(current);else if(current.phase==='draftReady')setStatus('Your postcard is ready to play and edit.');else if(/Failed$/.test(current.phase))throw Error('This run is in a failed state. Generation and Export will not be retried automatically.');setRun(current);return current;
+}catch(e){throw Object.assign(e instanceof Error?e:Error(String(e)),{run:current,clickedAtMs})}}
+return {persist,claim,generation,exportRun,build};
+}
+// --- Template run ------------------------------------------------------------
+// A built-in app (Visual highlights) can run this Panel as a template: the
+// person picks the clips in the app, and the app mounts the Panel out of sight
+// with `context.template`. The Panel then builds a new timeline from those
+// clips with its own defaults, reports it with `sdk.finishTemplate`, and never
+// opens it; the app offers that. Inputs, by id: `subject` (one video), `panels`
+// (the background strips, left to right) and `ending` (the ending picks).
+// The Panel's own starting title; the Draft is named after it.
+const TEMPLATE_TITLE='MY POSTCARD';
+const STILL_FINISHING='Postcard Cutout Studio is still finishing an earlier postcard in this project. Open it from the Plugin list to finish or start over, then try again.';
+const TEMPLATE_FAILED='The postcard could not be made. Open Postcard Cutout Studio from the Plugin list to see what went wrong.';
+// A run nobody is watching starts over any settled run, and takes over none that
+// is still under way: that one may be waiting on a paid cutout.
+function templateKind(previous){
+  if(!previous||['complete','abandoned'].includes(previous.phase))return 'draft';
+  const settled=['draftReady','exportFailed'].includes(previous.phase)||(previous.phase==='generationFailed'&&['failed','canceled','cancelled'].includes(previous.generation?.status));
+  if(!settled)throw Error(STILL_FINISHING);
+  return 'new';
+}
+// The template's picks by role, each file once, the subject in no other role.
+function templatePicks(inputs){
+  const files=id=>(Array.isArray(inputs?.[id])?inputs[id]:[]).filter(x=>x&&x.kind!=='timeline'&&x.kind!=='audio'&&x.resourceId);
+  const subject=files('subject')[0];
+  if(!subject)throw Error('Pick a video of the person for the subject, then try again.');
+  const rest=id=>[...new Map(files(id).filter(x=>x.resourceId!==subject.resourceId).map(x=>[x.resourceId,x])).values()];
+  const panels=rest('panels').slice(0,MAX_PANELS),ending=rest('ending').slice(0,MAX_ENDING);
+  if(!panels.length)throw Error('Pick at least one clip for the background panels, then try again.');
+  if(!ending.length)throw Error('Pick at least one clip or photo for the ending, then try again.');
+  return {subject,panels,ending};
+}
+// The app hands over its own Resource ids; the rest of this Panel works from
+// files, so each pick is found by its file, as appResourceIdForPath does.
+async function templateSourcePath(di,scope,pick){
+  const res=await di.ResourceRepository.findById(scope.libraryId,pick.resourceId).catch(()=>null);
+  const path=res?.getMedia?.()?.path||res?.getVideoSources?.()?.find(v=>v?.path)?.path;
+  if(!path)throw Error('Could not find the file for '+(pick.name||'a picked clip')+'. Check that it is still in the project, then try again.');
+  return path;
+}
+// The timeline open when the run started sets the shape, as the nearest format
+// this Panel makes; with none open, or none readable, the postcard matches the subject.
+async function templateAspect(sdk,sequenceId){
+  if(!sequenceId)return 'original';
+  try{
+    const size=await runScript(sdk,`return (await selects.draft(${json(sequenceId)}).meta()).frameSize`,'Read the open timeline size');
+    const w=Number(size?.width),h=Number(size?.height);
+    if(!(w>0&&h>0))return 'original';
+    const r=Math.log(w/h),formats=[['landscape',16/9],['portrait',9/16],['square',1]];
+    return formats.sort((a,b)=>Math.abs(r-Math.log(a[1]))-Math.abs(r-Math.log(b[1])))[0][0];
+  }catch{return 'original'}
+}
+// What the app shows the person: one plain sentence, or the general one when
+// the failure was written for a log.
+function templateMessage(e){
+  const said=String(e?.message||e||'').trim();
+  return said&&said.length<=200&&!/[\n\r]|Traceback|\{|"\w+":/.test(said)?said:TEMPLATE_FAILED;
+}
+async function runTemplate({sdk,pid,template,sequenceId,guard,setStatus}){
+  window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
+  if(!pid)throw Error('Open a project, then try again.');
+  guard(pid);
+  const {subject,panels,ending}=templatePicks(template.inputs);
+  const di=window.parent?.__DI__;
+  if(typeof di?.ResourceRepository?.findById!=='function')throw Error('This version of Selects cannot hand clips to this template. Update Selects.');
+  const scope=generationScope(pid);
+  setStatus('Finding your clips…');
+  const picks=[subject,...panels,...ending];
+  const [paths,inventory,aspect]=await Promise.all([Promise.all(picks.map(pick=>templateSourcePath(di,scope,pick))),readInventory(sdk,pid),templateAspect(sdk,sequenceId)]);
+  guard(pid);
+  // The helper reads a file's kind from its extension, as the folder picker
+  // offers only these; anything else would be taken for a still.
+  const unusable=picks.find((pick,i)=>!isVideo({path:paths[i]})&&!isPhoto({path:paths[i]}));
+  if(unusable)throw Error((unusable.name||'A picked clip')+' is not a file this template can use. Pick MP4, MOV, MKV, WebM or M4V videos and PNG, JPEG or WebP photos.');
+  // The picks as the Panel's own rows: its Project ids, files, lengths and sizes.
+  const rowFor=new Map(picks.map((pick,i)=>{const row=inventory.find(x=>x.path===paths[i]);if(!row)throw Error('Could not find '+(pick.name||'a picked clip')+' among this project’s files. Refresh your media, then try again.');return [pick.resourceId,row];}));
+  const idOf=pick=>rowFor.get(pick.resourceId).resourceId,subjectRow=rowFor.get(subject.resourceId);
+  const settings={...DEFAULTS,title:TEMPLATE_TITLE,aspect,subjectId:subjectRow.resourceId,subjectStartSec:0,
+    bgIds:[...new Set(panels.map(idOf))].filter(id=>id!==subjectRow.resourceId),
+    photoIds:[...new Set(ending.map(idOf))].filter(id=>id!==subjectRow.resourceId)};
+  if(!settings.bgIds.length||!settings.photoIds.length)throw Error('Pick clips other than the subject for the panels and the ending, then try again.');
+  setStatus('Building your postcard…');
+  const runner=createRunner({sdk,guard,setStatus});
+  // A run left unfinished — the frame running it went away mid-way — is settled
+  // first through the Panel's own resume, which finds a save that landed and
+  // pays for no cutout twice; only then does this one start.
+  const earlier=await helper(sdk,'load',{projectId:pid});guard(pid);
+  if(earlier&&!['draftReady','complete','abandoned','exportFailed','generationFailed'].includes(earlier.phase)){
+    setStatus('Finishing an earlier postcard…');
+    try{await runner.build('resume',{pid,settings:earlier.settings,rows:[],run:earlier,duration:Number(earlier.source?.durationSeconds)||0,template:true});}
+    catch{throw Error(STILL_FINISHING);}
+    guard(pid);
+  }
+  const run=await runner.build('draft',{pid,settings,rows:[...new Map([...rowFor.values()].map(row=>[row.resourceId,row])).values()],run:null,duration:Number(subjectRow.durationSeconds)||0,template:true});
+  if(run?.phase!=='draftReady'||!run.draftId)throw Error(TEMPLATE_FAILED);
+  return run.draftId;
+}
+// A template run that failed part way leaves nothing for a person to resume, so
+// it is let go when no paid cutout can be on its way; its cutout stays
+// reusable. Anything else is left for the Panel to resume or review, and a run
+// this template did not start is never touched.
+async function releaseTemplateRun(sdk,error){
+  const run=error?.run;
+  if(!run?.runId||error?.clickedAtMs==null||run.clickedAtMs!==error.clickedAtMs)return;
+  try{await helper(sdk,'event',{runId:run.runId,stage:'pipeline',status:'failed',details:{by:'template',error:String(error?.stack||error)}})}catch{}
+  try{await helper(sdk,'claim',{runId:run.runId,expected:['ready','cutoutReady','maskReady'],patch:{phase:'abandoned'},stage:'pipeline',details:{by:'template',from:run.phase}})}catch{}
+}
+function PostcardTemplateRun({sdk,context}){
+  const [status,setStatus]=useState('Starting…');
+  const started=useRef(null),alive=useRef(true),projectRef=useRef(context.projectId);projectRef.current=context.projectId;
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[]);
+  const runId=context.template?.runId;
+  useEffect(()=>{
+    if(runId==null||started.current===runId)return;
+    started.current=runId;
+    const pid=context.projectId;
+    let finished=false;
+    const finish=result=>{if(finished)return;finished=true;try{sdk.finishTemplate(result)}catch{}};
+    const guard=id=>{if(!alive.current)throw Error('The template run was closed before the postcard was made.');if(projectRef.current!==id)throw Error('The project changed before the postcard was made. Try again in this project.');};
+    const say=text=>{if(alive.current)setStatus(text)};
+    (async()=>{
+      try{
+        const sequenceId=await runTemplate({sdk,pid,template:context.template,sequenceId:context.sequenceId,guard,setStatus:say});
+        say('Done.');
+        finish({sequenceId});
+      }catch(e){
+        say('Stopped.');
+        const message=templateMessage(e);
+        await releaseTemplateRun(sdk,e);
+        finish({error:message});
+      }finally{
+        finish({error:TEMPLATE_FAILED});
+      }
+    })();
+  },[runId]);
+  return <p aria-live="polite" style={{margin:0,fontSize:12,color:'var(--panel-muted-fg)'}}>{status}</p>;
+}
+export default function PostcardPanel(props){return props.context.template?<PostcardTemplateRun key={props.context.template.runId} {...props}/>:<PostcardEditor key={props.context.projectId || 'none'} {...props}/>}
+function PostcardEditor({sdk,context,ui}){
+const [s,setS]=useState({...DEFAULTS,bgIds:[],photoIds:[],aspect:'original',title:'MY POSTCARD'}),[rows,setRows]=useState([]),[loading,setLoading]=useState(false),[hydrated,setHydrated]=useState(true),[busy,setBusy]=useState(false),[status,setStatus]=useState(''),[run,setRun]=useState(null),[duration,setDuration]=useState(0),[sourceError,setSourceError]=useState(false),[preview,setPreview]=useState([]);
+const busyRef=useRef(false),projectRef=useRef(context.projectId);projectRef.current=context.projectId;
+const byId=useMemo(()=>new Map(rows.map(x=>[x.resourceId,x])),[rows]),subject=byId.get(s.subjectId),videos=rows.filter(isSubject),images=rows.filter(isPhoto),change=(key,value)=>{dirty.current=true;setS(old=>({...old,[key]:value,forceNew:false,autoExport:false}));};
+
+const [error,setError]=useState(''),[tab,setTab]=useState('all'),[query,setQuery]=useState(''),[page,setPage]=useState(0),[customize,setCustomize]=useState(false);
+const [thumbs,setThumbs]=useState({}),[strips,setStrips]=useState({}),[scrub,setScrub]=useState(null);
+const [badgeHover,setBadgeHover]=useState(null);
+const stripAsked=useRef(new Set()),hoverTimer=useRef(0);
+const [folder,setFolder]=useState(null),[folderIds,setFolderIds]=useState([]),[selection,setSelection]=useState([]),[picking,setPicking]=useState(false);
+const folderBusy=useRef(false);
+async function readFolder(path,offset=0,search=''){
+  setLoading(true);setError('');
+  try{
+    const result=await helper(sdk,'folder-media',{path,offset,query:search});guard(context.projectId);
+    setRows(old=>{const byPath=new Map(old.map(row=>[row.path,row]));return [...byPath.values(),...result.rows.filter(row=>!byPath.has(row.path))]});
+    setFolderIds(result.rows.map(row=>rows.find(old=>old.path===row.path)?.resourceId||row.resourceId));
+    setFolder(result);setPage(offset/24);
+  }catch(e){setError('Could not open this folder.');setStatus(String(e.message||e));}
+  finally{setLoading(false);}
+}
+// A new folder is a fresh start. Picks used to carry over when the folder
+// changed, and the grid then showed only the new folder while the count still
+// held clips from the old one — selections nobody could see or undo. A
+// finished postcard is let go too (its Draft stays in the project); the title
+// stays.
+function clearPicks(){
+  setSelection([]);setCustomize(false);
+  setS(old=>({...old,subjectId:'',subjectStartSec:0,bgIds:[],photoIds:[]}));
+  if(run&&!active)setRun(null);
+}
+// Back to the start screen. Nothing can be let go while a postcard is being made.
+function startOver(){
+  if(folderBusy.current||busyRef.current||locked)return;
+  setError('');setStatus('');setQuery('');setPage(0);
+  setFolder(null);setFolderIds([]);clearPicks();
+}
+async function abandonRun(){
+  if(folderBusy.current||busyRef.current||!run||!canAbandon)return;
+  try{await helper(sdk,'update',{runId:run.runId,patch:{phase:'abandoned'},stage:'pipeline',status:'abandoned',details:{by:'user',from:run.phase}});}
+  catch(e){setError(e instanceof Error?e.message:String(e));return;}
+  setRun(null);setError('');setStatus('');setQuery('');setPage(0);
+  setFolder(null);setFolderIds([]);clearPicks();
+}
+async function chooseFolder(){
+  if(folderBusy.current||busyRef.current||locked)return;
+  folderBusy.current=true;setPicking(true);setError('');
+  try{
+    const picker=window.parent?.__DI__?.CutbackMediaPicker;
+    if(typeof picker?.pickDirectoryPath!=='function'||(typeof picker.isAvailablePickDirectoryPath==='function'&&!picker.isAvailablePickDirectoryPath()))throw Error('This app version does not support choosing folders. Drop a folder here, or update Selects.');
+    const path=await picker.pickDirectoryPath();guard(context.projectId);
+    if(path){setQuery('');await readFolder(path);}
+  }catch(e){setError('Could not choose a folder.');setStatus(String(e.message||e));}
+  finally{folderBusy.current=false;setPicking(false);}
+}
+async function dropFolder(event){
+  event.preventDefault();
+  if(folderBusy.current||busyRef.current||locked)return;
+  const files=event.dataTransfer.files;
+  if(files.length!==1){setError('Drop one folder at a time. Your selections will be kept.');return;}
+  folderBusy.current=true;setPicking(true);setError('');
+  try{const path=await droppedFolderPath(files[0]);guard(context.projectId);if(!path)throw Error('Drop a folder saved on this computer.');setQuery('');clearPicks();await readFolder(path);}
+  catch(e){setError('Could not open the dropped folder.');setStatus(String(e.message||e));}
+  finally{folderBusy.current=false;setPicking(false);}
+}
+
+const dirty=useRef(false);
+useEffect(()=>()=>{projectRef.current=null},[]);
+useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(!subject?.path)return;const path=subject.path;(async()=>{try{const r=await sdk.runShell({summary:'Probe subject duration',command:`ffprobe -v error -select_streams v:0 -show_entries format=duration:stream=width,height -of json ${quote(path)}`,timeoutMs:15000,maxOutputBytes:2000});if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
+useEffect(()=>{let alive=true;if(!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const r=await sdk.runShell({summary:'Preview selected range',command:`python3 "$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/scene_preview.py" ${quote(subject.path)} ${s.subjectStartSec} ${Math.min(duration,s.subjectStartSec+8.5)} 4`,timeoutMs:30000,maxOutputBytes:49152});if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
+function guard(pid){if(projectRef.current!==pid)throw Error('The Project changed. Stopped without resubmitting the current operation.')}
+const runner=createRunner({sdk,guard,setRun,setStatus});
+async function execute(kind){if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
+try{await runner.build(kind,{pid:context.projectId,settings:s,rows,run,duration,setSettings:setS,onMapped:(mapped,next)=>{setRows(old=>old.map(row=>{const m=mapped.get(row.resourceId);return m?{...row,resourceId:m.resourceId}:row;}));setSelection(old=>old.map(id=>mapped.get(id)?.resourceId||id));setFolderIds(old=>old.map(id=>mapped.get(id)?.resourceId||id));setS(next);}});
+}catch(e){current=e?.run??current;setError('We could not finish your postcard. Your progress is saved. See details below.');setStatus(String(e.message||e));if(current?.runId)try{await helper(sdk,'event',{runId:current.runId,stage:'pipeline',status:'failed',details:{error:String(e.stack||e)}})}catch{}}finally{busyRef.current=false;setBusy(false)}}
 
 const active=run&&!['draftReady','complete','abandoned','exportFailed','generationFailed'].includes(run.phase);
 const locked=busy||loading||!!active;

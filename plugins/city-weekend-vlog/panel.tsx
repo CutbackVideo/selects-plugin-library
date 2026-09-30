@@ -1,4 +1,5 @@
 // @name City Weekend Vlog
+// @collection visual-highlights
 // @name:de Städte-Wochenend-Vlog
 // @name:en City Weekend Vlog
 // @name:es Vlog de fin de semana en la ciudad
@@ -745,7 +746,151 @@ function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, 
   );
 }
 
-export default function Panel({ sdk, context, ui }: any) {
+// ---------------------------------------------------------------------------
+// Build steps shared by the panel's Build and a template run (TemplateRun, below the panel).
+// ---------------------------------------------------------------------------
+type RunFn = (summary: string, script: string, allowCommit?: boolean) => Promise<any>;
+
+// Runs one panel script and returns its value; a failed step throws its report.
+async function runStep(sdk: any, summary: string, script: string, allowCommit = false) {
+  let r = await sdk.runScript({ summary, script, allowCommit });
+  // Only a lost session is resent, and never a committing call: its commit may already have landed.
+  if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
+  if (r.isError || r.result == null) throw new Error(r.output || "Selects could not complete this step.");
+  return r.result as any;
+}
+// The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing.
+async function locateRoots(sdk: any) {
+  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
+  const [plugin, data] = String(where?.stdout || "").split("\n").map((x) => x.trim());
+  if (!plugin || !data) throw new Error("the plugin folders could not be found");
+  return { plugin, data };
+}
+// The bundled music manifest, font presets, build scripts and title / effect sources.
+async function loadAssets(plugin: string) {
+  const read = (rel: string) => readText(plugin, rel);
+  const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, warmTsx, motionTsx] = await Promise.all([
+    read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("scripts/inventory.js"), read("scripts/search.js"),
+    read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-graphic.tsx"), read("assets/warm-look.tsx"),
+    read("assets/photo-motion.tsx")]);
+  return { manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, warmTsx, motionTsx };
+}
+// A bundled cue's beat grid, onsets and 16th-note ratio.
+function cueGrid(cue: any) {
+  return { bpm: cue.bpm, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy, peaks: cue.peaks, accepted: true, sixteenthRatio: cue.sixteenthRatio, onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds };
+}
+// Where a track starts by default: its most energetic window of the video's length, else its first beat.
+function defaultSectionOf(grid: any, videoSeconds: number) {
+  return cwvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? grid.firstBeat;
+}
+// A bundled font as base64 text, read once per cache; a failed read is dropped so the next call reads it again.
+function loadFontB64(cache: Record<string, Promise<string>>, plugin: string, file: string) {
+  if (!cache[file]) {
+    cache[file] = readText(plugin, "assets/fonts/" + file)
+      .then((t) => t.replace(/\s+/g, ""))
+      .catch((e) => { delete cache[file]; throw e; });
+  }
+  return cache[file];
+}
+// Scene search for the city shot roles. `onProgress(done, total)` runs before each call.
+async function searchShots(run: RunFn, searchJs: string, pid: string, rids: string[], check: () => void, onProgress: (done: number, total: number) => void) {
+  const list: any[] = []; const failed: string[] = [];
+  // Four clips per call keeps each scene search under runScript's fixed 30 s deadline (~10 s measured).
+  // pageSize stays 4: hits are scene-level, so 8 adds almost no new times; the planner fills gaps with filler candidates.
+  for (let i = 0; i < rids.length; i += 4) {
+    onProgress(i, rids.length);
+    const r = await run("Search city shots", fill(searchJs, { projectId: pid, rids: rids.slice(i, i + 4), queries: CWV_QUERIES, pageSize: 4 }));
+    check();
+    list.push(...r.candidates); failed.push(...r.failed);
+  }
+  return { list, failed };
+}
+// From the searched shots to a saved Draft (commit 1): fit the montage to the music section, plan the shots, import
+// the music, lay the clips on a new 1080x1920 Draft and schedule the title at the Draft's rate. `musicPath()` is the
+// music file, or null for No music; `shortage(plan)` is the error for too few usable shots.
+async function buildDraft(o: {
+  run: RunFn; assets: any; projectId: string; inventory: any; candidates: any[]; photoCands: any[];
+  grid: any; burst: string; requested: number; start: number | null; musicStart: number | null; snapCuts: any;
+  musicPath: () => string | null; clipSound: string; seed: number; check: () => void;
+  advance: (id: string, fraction: number) => void; shortage: (plan: any) => Error;
+}) {
+  const { run, assets, inventory, grid, burst, requested, start, musicStart, snapCuts, clipSound, check, advance } = o;
+  const pid = o.projectId;
+  const fitted = cwvFitMontage({ bpm: grid.bpm, sectionStart: start ?? 0, usableEnd: grid.usableEnd, requested });
+  if (!fitted) throw new Error("This music section is too short for the video. Move the section earlier or pick a shorter length.");
+  // Plan at 30 fps for allocation, with the cuts snapped to the music's onsets; assembly places the same cut seconds
+  // at the Draft's real rate.
+  const plan = cwvPlanBuild({ candidates: o.candidates.concat(o.photoCands), bpm: grid.bpm, fps: 30, montageShots: fitted, seed: String(o.seed), burst, sectionStart: musicStart, ...snapCuts });
+  if (!plan.ok) throw o.shortage(plan);
+  advance("music", 0);
+  const musicPath = o.musicPath();
+  const music = musicPath == null ? null
+    : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: musicPath }), true);
+  check();
+  // Cut seconds from the section start: the grid, or the onset-snapped cuts (planner cwvSchedule `cuts`).
+  const boundaries: number[] = plan.schedule.cuts;
+  advance("music", 1);
+  advance("draft", 0);
+  // Photo sizes the inventory has not measured yet stay out; assemble.js measures those itself.
+  const crops = Object.fromEntries([...inventory.resources, ...(inventory.photos || []).filter((r: any) => r.width > 0 && r.height > 0)]
+    .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
+  const name = "City Weekend Vlog " + new Date().toISOString().slice(0, 16).replace("T", " ");
+  const a = await run("Assemble City Weekend Vlog", fill(assets.scripts.assembleJs, {
+    projectId: pid, draftName: name, picks: plan.picks, boundaries, crops,
+    music: music ? { resourceId: music.resourceId, sectionStart: start ?? 0 } : null, clipSound, ambientDb: AMBIENT_DB }), true);
+  check();
+  if (!a.sequenceId) throw new Error("The Draft \"" + name + "\" was saved, but Selects did not report its id, so the title and look could not be added. Open it from the Drafts list, or build again.");
+  // The title events at the Draft's rate from the same cut seconds, so each font switch stays on its cut.
+  const sched = cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: plan.montageShots, burst, sectionStart: musicStart, cuts: boundaries });
+  // The planner drops montage shots when the footage cannot fill them; tell the user the real length at the Draft fps.
+  const shortened = plan.montageShots < fitted ? { shots: plan.montageShots, seconds: sched.totalFrames / a.fps,
+    fullSeconds: cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: fitted, burst, sectionStart: musicStart }).totalFrames / a.fps } : null;
+  advance("draft", 1);
+  return { plan, a, sched, shortened };
+}
+// Commit 2 on a saved Draft: mute the clips' own sound when Clip sound is Off, add the title, the warm look and the
+// photo motion. decorate.js skips what an earlier attempt already added. `sizes` maps photo rids to their frame size.
+async function addTitleAndLook(o: {
+  run: RunFn; assets: any; fontB64: (file: string) => Promise<string>; sequenceId: string; sched: any; plan: any;
+  usedSeed: number; mute: boolean; look: any; sizes: Record<string, { width: number; height: number }>;
+}) {
+  const { run, assets, sequenceId, sched, plan, usedSeed, mute, look, sizes } = o;
+  const { line1, connector, place, preset, warm, clipSound } = look;
+  const p = assets.presets.presets.find((x: any) => x.id === preset);
+  const files = [...new Set(STATE_KEYS.map((k) => p.states[k].file))];
+  const fonts = await Promise.all(files.map(async (f) => {
+    const s = Object.values(p.states).find((x: any) => x.file === f) as any;
+    return { family: s.family, style: s.style, weight: s.weight, b64: await o.fontB64(f as string) };
+  }));
+  const parameters = { line1, connector, place, fontFamily: "", ink: "#F6ECB8", shadow: p.shadow, size: 150, rotation: -7, position: 46,
+    events: sched.title, states: p.states, fonts, provenance: { plugin: PLUGIN_ID, version: "0.1.0-alpha.1", preset, cue: look.cue, seed: usedSeed, clipSound, picks: plan.picks } };
+  const editableParameters = [
+    { key: "line1", label: "First line", type: "text", defaultValue: line1 },
+    { key: "connector", label: "Connector", type: "text", defaultValue: connector },
+    { key: "place", label: "Place", type: "text", defaultValue: place },
+    { key: "fontFamily", label: "Main font (optional)", type: "text", defaultValue: "" },
+    { key: "ink", label: "Title color", type: "color", defaultValue: "#F6ECB8" },
+    { key: "shadow", label: "Shadow", type: "number", defaultValue: p.shadow, min: 0, max: 1, step: 0.05 },
+    { key: "size", label: "Size", type: "number", defaultValue: 150, min: 60, max: 240, step: 2 },
+    { key: "rotation", label: "Tilt", type: "number", defaultValue: -7, min: -20, max: 20, step: 1 },
+    { key: "position", label: "Height (%)", type: "number", defaultValue: 46, min: 20, max: 80, step: 1 },
+  ];
+  // Photos in this Draft and a planned motion for each montage photo (title photos stay still).
+  const photoRids = [...new Set(plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
+  const moves = cwvPhotoMotions(plan.picks, String(usedSeed), sizes, sched.titleSlots);
+  const byRid: Record<string, any> = {};
+  plan.picks.forEach((k: any, i: number) => {
+    if (!moves[i]) return;
+    const sz = sizes[k.rid];
+    // The clip's cover-crop scale, so the motion's drift stays inside the photo.
+    const cover = sz ? Math.max(1080 / sz.width, 1920 / sz.height) / Math.min(1080 / sz.width, 1920 / sz.height) : 1;
+    byRid[k.rid] = { ...moves[i], cover };
+  });
+  await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId, mute, titleEnd: sched.title.endFrame, title: { tsx: assets.titleTsx, parameters, editableParameters }, warm: warm ? { tsx: assets.warmTsx, strength: 0.35 } : null,
+    photos: photoRids, motion: { tsx: assets.motionTsx, strength: 1, options: MOTION_OPTIONS, byRid }, photoEffects: PHOTO_EFFECTS }), true);
+}
+
+function CityWeekendVlogPanel({ sdk, context, ui }: any) {
   const projectId = context?.projectId ?? null;
   const projectRef = React.useRef(projectId);
   projectRef.current = projectId;
@@ -791,21 +936,8 @@ export default function Panel({ sdk, context, ui }: any) {
   const [playState, setPlayState] = React.useState<"idle" | "loading" | "playing">("idle");
   const [playingAudio, setPlayingAudio] = React.useState<HTMLAudioElement | null>(null);
 
-  const run = async (summary: string, script: string, allowCommit = false) => {
-    let r = await sdk.runScript({ summary, script, allowCommit });
-    // Only a lost session is resent, and never a committing call: its commit may already have landed.
-    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
-    if (r.isError || r.result == null) throw new Error(r.output || "Selects could not complete this step.");
-    return r.result as any;
-  };
-  const fontB64 = (plugin: string, file: string) => {
-    if (!fontCache.current[file]) {
-      fontCache.current[file] = readText(plugin, "assets/fonts/" + file)
-        .then((t) => t.replace(/\s+/g, ""))
-        .catch((e) => { delete fontCache.current[file]; throw e; });
-    }
-    return fontCache.current[file];
-  };
+  const run = (summary: string, script: string, allowCommit = false) => runStep(sdk, summary, script, allowCommit);
+  const fontB64 = (plugin: string, file: string) => loadFontB64(fontCache.current, plugin, file);
   // Registers a preset state's bundled font in this panel's document for the preview and tiles.
   async function registerFace(plugin: string, s: any) {
     const key = s.family + "|" + s.style + "|" + s.weight;
@@ -885,9 +1017,7 @@ export default function Panel({ sdk, context, ui }: any) {
     let alive = true;
     (async () => {
       try {
-        const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-        const [plugin, data] = String(where?.stdout || "").split("\n").map((x) => x.trim());
-        if (!plugin || !data) throw new Error("the plugin folders could not be found");
+        const { plugin, data } = await locateRoots(sdk);
         if (!alive) return;
         setRoots({ plugin, data });
         // ffmpeg and node are only needed for previews and own music; bundled cues work without them.
@@ -898,14 +1028,10 @@ export default function Panel({ sdk, context, ui }: any) {
         } catch { have = ""; }
         if (!alive) return;
         setTools({ ffmpeg: have.includes("ffmpeg"), node: have.includes("node") });
-        const read = (rel: string) => readText(plugin, rel);
-        const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, warmTsx, motionTsx] = await Promise.all([
-          read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("scripts/inventory.js"), read("scripts/search.js"),
-          read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-graphic.tsx"), read("assets/warm-look.tsx"),
-          read("assets/photo-motion.tsx")]);
+        const loaded = await loadAssets(plugin);
         if (!alive) return;
-        setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, warmTsx, motionTsx });
-        inventoryJsRef.current = inventoryJs;
+        setAssets(loaded);
+        inventoryJsRef.current = loaded.scripts.inventoryJs;
         setStep("Checking clips");
         await loadInventory(projectId, () => alive);
       } catch (e: any) {
@@ -954,7 +1080,7 @@ export default function Panel({ sdk, context, ui }: any) {
   // cuts snap to bass onsets only.
   const grid = ownMusic ? (ownGrid && ownGrid.accepted ? { bpm: ownGrid.bpm, firstBeat: ownGrid.firstBeat, usableEnd: ownGrid.durationSeconds - 0.5, beatEnergy: ownGrid.beatEnergy, peaks: ownGrid.peaks, accepted: true, sixteenthRatio: ownGrid.sixteenthRatio, onsets: ownGrid.onsets || NO_ONSETS, onsetThresholds: ownGrid.onsetThresholds }
     : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: [], peaks: ownGrid?.peaks || [], accepted: false, sixteenthRatio: null, onsets: ownGrid?.onsets || NO_ONSETS, onsetThresholds: ownGrid?.onsetThresholds })
-    : cue ? { bpm: cue.bpm, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy, peaks: cue.peaks, accepted: true, sixteenthRatio: cue.sixteenthRatio, onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds }
+    : cue ? cueGrid(cue)
     : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: 600, beatEnergy: [], peaks: [], accepted: false, sixteenthRatio: null, onsets: NO_ONSETS, onsetThresholds: undefined };
   // The title burst: 16th-note shots only when the music has a clear 16th pulse; fixed timing and No music use 8ths.
   const burst = grid.accepted ? cwvBurstFor(grid.sixteenthRatio) : "eighth";
@@ -973,7 +1099,7 @@ export default function Panel({ sdk, context, ui }: any) {
   // `assets` is a dependency so the default also applies once the manifest has loaded.
   React.useEffect(() => {
     if (!grid.accepted) { setSection(snap(0)); return; }
-    setSection(cwvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? grid.firstBeat);
+    setSection(defaultSectionOf(grid, videoSeconds));
   }, [assets, cueId, ownMusic?.path, ownGrid]);
   // A new length keeps the chosen start and only re-clamps it (spec section 5).
   React.useEffect(() => { setSection((s) => snap(s ?? 0)); }, [length]);
@@ -1066,17 +1192,8 @@ export default function Panel({ sdk, context, ui }: any) {
     }
   }
 
-  async function findCandidates(rids: string[], pid: string, check: () => void) {
-    const list: any[] = []; const failed: string[] = [];
-    // Four clips per call keeps each scene search under runScript's fixed 30 s deadline (~10 s measured).
-    // pageSize stays 4: hits are scene-level, so 8 adds almost no new times; the planner fills gaps with filler candidates.
-    for (let i = 0; i < rids.length; i += 4) {
-      advance("shots", i / rids.length, i + "/" + rids.length + " clips checked");
-      const r = await run("Search city shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + 4), queries: CWV_QUERIES, pageSize: 4 }));
-      check();
-      list.push(...r.candidates); failed.push(...r.failed);
-    }
-    return { list, failed };
+  function findCandidates(rids: string[], pid: string, check: () => void) {
+    return searchShots(run, assets.scripts.searchJs, pid, rids, check, (i, n) => advance("shots", i / n, i + "/" + n + " clips checked"));
   }
 
   async function build(nextSeed: number) {
@@ -1109,40 +1226,15 @@ export default function Panel({ sdk, context, ui }: any) {
       advance("shots", 1);
       // Photos join as candidates without a search: each can fill one slot.
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
-      const fitted = cwvFitMontage({ bpm: grid.bpm, sectionStart: start ?? 0, usableEnd: grid.usableEnd, requested });
-      if (!fitted) throw new Error("This music section is too short for the video. Move the section earlier or pick a shorter length.");
-      // Plan at 30 fps for allocation, with the cuts snapped to the music's onsets; assembly places the same cut seconds
-      // at the Draft's real rate.
-      const plan = cwvPlanBuild({ candidates: found.list.concat(photoCands), bpm: grid.bpm, fps: 30, montageShots: fitted, seed: String(nextSeed), burst, sectionStart: musicStart, ...snapCuts });
-      if (!plan.ok) {
-        const retry = found.failed.length ? " Could not check " + found.failed.length + " clips; press Build to retry them." : "";
-        const fromPhotos = photoCands.length ? " (" + plan.photoShots + " of them photos)" : "";
-        throw new Error("Found " + plan.usableShots + " usable shots" + fromPhotos + "; this style needs at least " + plan.needed + ". Add more varied footage"
-          + (usePhotos ? " or photos" : "") + " or select more clips." + retry);
-      }
-      advance("music", 0);
-      const music = cueId === "none" ? null
-        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file }), true);
-      check();
-      // Cut seconds from the section start: the grid, or the onset-snapped cuts (planner cwvSchedule `cuts`).
-      const boundaries: number[] = plan.schedule.cuts;
-      advance("music", 1);
-      advance("draft", 0);
-      // Photo sizes the inventory has not measured yet stay out; assemble.js measures those itself.
-      const crops = Object.fromEntries([...inventory.resources, ...(inventory.photos || []).filter((r: any) => r.width > 0 && r.height > 0)]
-        .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
-      const name = "City Weekend Vlog " + new Date().toISOString().slice(0, 16).replace("T", " ");
-      const a = await run("Assemble City Weekend Vlog", fill(assets.scripts.assembleJs, {
-        projectId: pid, draftName: name, picks: plan.picks, boundaries, crops,
-        music: music ? { resourceId: music.resourceId, sectionStart: start ?? 0 } : null, clipSound, ambientDb: AMBIENT_DB }), true);
-      check();
-      if (!a.sequenceId) throw new Error("The Draft \"" + name + "\" was saved, but Selects did not report its id, so the title and look could not be added. Open it from the Drafts list, or build again.");
-      // The title events at the Draft's rate from the same cut seconds, so each font switch stays on its cut.
-      const sched = cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: plan.montageShots, burst, sectionStart: musicStart, cuts: boundaries });
-      // The planner drops montage shots when the footage cannot fill them; tell the user the real length at the Draft fps.
-      const shortened = plan.montageShots < fitted ? { shots: plan.montageShots, seconds: sched.totalFrames / a.fps,
-        fullSeconds: cwvSchedule({ bpm: grid.bpm, fps: a.fps, montageShots: fitted, burst, sectionStart: musicStart }).totalFrames / a.fps } : null;
-      advance("draft", 1);
+      const { plan, a, sched, shortened } = await buildDraft({ run, assets, projectId: pid, inventory, candidates: found.list, photoCands,
+        grid, burst, requested, start, musicStart, snapCuts, clipSound, seed: nextSeed, check, advance,
+        musicPath: () => (cueId === "none" ? null : ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file),
+        shortage: (plan) => {
+          const retry = found.failed.length ? " Could not check " + found.failed.length + " clips; press Build to retry them." : "";
+          const fromPhotos = photoCands.length ? " (" + plan.photoShots + " of them photos)" : "";
+          return new Error("Found " + plan.usableShots + " usable shots" + fromPhotos + "; this style needs at least " + plan.needed + ". Add more varied footage"
+            + (usePhotos ? " or photos" : "") + " or select more clips." + retry);
+        } });
       setResult({ sequenceId: a.sequenceId, decorated: false, sched, plan, seed: nextSeed, mute: clipSound === "off", look, notes: a.notes || [], link: null, shortened, unchecked: found.failed.length });
       await decorate(a.sequenceId, sched, plan, nextSeed, clipSound === "off", look, check);
     } catch (e: any) {
@@ -1174,41 +1266,8 @@ export default function Panel({ sdk, context, ui }: any) {
   // decorate.js skips what an earlier attempt already added.
   async function decorate(sequenceId: string, sched: any, plan: any, usedSeed: number, mute: boolean, look: any, check: () => void) {
     advance("look", 0);
-    const { line1, connector, place, preset, warm, clipSound } = look;
     try {
-      const p = assets.presets.presets.find((x: any) => x.id === preset);
-      const files = [...new Set(STATE_KEYS.map((k) => p.states[k].file))];
-      const fonts = await Promise.all(files.map(async (f) => {
-        const s = Object.values(p.states).find((x: any) => x.file === f) as any;
-        return { family: s.family, style: s.style, weight: s.weight, b64: await fontB64(roots!.plugin, f) };
-      }));
-      const parameters = { line1, connector, place, fontFamily: "", ink: "#F6ECB8", shadow: p.shadow, size: 150, rotation: -7, position: 46,
-        events: sched.title, states: p.states, fonts, provenance: { plugin: PLUGIN_ID, version: "0.1.0-alpha.1", preset, cue: look.cue, seed: usedSeed, clipSound, picks: plan.picks } };
-      const editableParameters = [
-        { key: "line1", label: "First line", type: "text", defaultValue: line1 },
-        { key: "connector", label: "Connector", type: "text", defaultValue: connector },
-        { key: "place", label: "Place", type: "text", defaultValue: place },
-        { key: "fontFamily", label: "Main font (optional)", type: "text", defaultValue: "" },
-        { key: "ink", label: "Title color", type: "color", defaultValue: "#F6ECB8" },
-        { key: "shadow", label: "Shadow", type: "number", defaultValue: p.shadow, min: 0, max: 1, step: 0.05 },
-        { key: "size", label: "Size", type: "number", defaultValue: 150, min: 60, max: 240, step: 2 },
-        { key: "rotation", label: "Tilt", type: "number", defaultValue: -7, min: -20, max: 20, step: 1 },
-        { key: "position", label: "Height (%)", type: "number", defaultValue: 46, min: 20, max: 80, step: 1 },
-      ];
-      // Photos in this Draft and a planned motion for each montage photo (title photos stay still).
-      const photoRids = [...new Set(plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
-      const sizes: Record<string, { width: number; height: number }> = { ...photoSizesRef.current };
-      const moves = cwvPhotoMotions(plan.picks, String(usedSeed), sizes, sched.titleSlots);
-      const byRid: Record<string, any> = {};
-      plan.picks.forEach((k: any, i: number) => {
-        if (!moves[i]) return;
-        const sz = sizes[k.rid];
-        // The clip's cover-crop scale, so the motion's drift stays inside the photo.
-        const cover = sz ? Math.max(1080 / sz.width, 1920 / sz.height) / Math.min(1080 / sz.width, 1920 / sz.height) : 1;
-        byRid[k.rid] = { ...moves[i], cover };
-      });
-      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId, mute, titleEnd: sched.title.endFrame, title: { tsx: assets.titleTsx, parameters, editableParameters }, warm: warm ? { tsx: assets.warmTsx, strength: 0.35 } : null,
-        photos: photoRids, motion: { tsx: assets.motionTsx, strength: 1, options: MOTION_OPTIONS, byRid }, photoEffects: PHOTO_EFFECTS }), true);
+      await addTitleAndLook({ run, assets, fontB64: (file) => fontB64(roots!.plugin, file), sequenceId, sched, plan, usedSeed, mute, look, sizes: { ...photoSizesRef.current } });
     } catch (e: any) {
       if (e === STALE) throw e;
       throw new Error("The Draft was created, but it could not be finished (clip sound, title and look): " + (e?.message || e) + ". Press Finish title and look to try again.");
@@ -1451,4 +1510,225 @@ export default function Panel({ sdk, context, ui }: any) {
       </ui.Actions>
     </ui.Stack>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Template runs. A built-in app asks the person for the footage and a track, mounts this panel out of sight and hands
+// both over in `context.template`. The run builds a new Draft at once from only those files, as Build does with every
+// other setting at the panel's default, never opens it, and ends by calling `sdk.finishTemplate` exactly once.
+// ---------------------------------------------------------------------------
+type TemplateOutcome = { sequenceId: string } | { error: string };
+const TEMPLATE_TRACK = "sunny-soul-strut";
+// The panel's first Build uses seed 1 ("Create another version" counts up from there).
+const TEMPLATE_SEED = 1;
+// Files per alias call: a photo gets its own scratch Draft, which keeps each call well inside runScript's 30 s.
+const TEMPLATE_ALIAS_BATCH = 6;
+// An error whose message is written for the person; anything else a run throws becomes a plain "stopped" sentence.
+function templateIssue(message: string) { const e: any = new Error(message); e.forPerson = true; return e; }
+// Error text for the hidden frame's log (an Error logged as an object shows as {}).
+function errorText(e: any) { return String(e?.message || e); }
+
+// A renderer read can come back empty. In the MCP process the ack for an alias checkpoint ({ type:
+// "agentIdCheckpointed", id }, sent after a script mints new short ids) arrives on the same port as executeJS answers
+// and shares their numeric id space (electron/mcp/server.ts executeJS, agent-id-ipc.ts), so it can resolve a pending
+// read with undefined; sourceFiles() then dies on '.reduce' (and resources() on '.map'). Early in the MCP process the
+// two counters are close, and a template run mints aliases for every handed file right before its inventory read, so
+// it meets this often. The same read a moment later is clean, so a template run resends a failed read, never a
+// committing call, up to twice. (postcard-cutout-studio retries its inventory the same way.)
+const EMPTY_READ = /Cannot read properties of (undefined|null)|is not iterable/;
+async function runTemplateStep(sdk: any, summary: string, script: string, allowCommit = false) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await runStep(sdk, summary, script, allowCommit); }
+    catch (e: any) {
+      if (allowCommit || attempt >= 2 || !EMPTY_READ.test(errorText(e))) throw e;
+      console.warn("[city-weekend-vlog] " + summary + " came back empty, reading again:", errorText(e));
+      await new Promise((d) => setTimeout(d, 1500));
+    }
+  }
+}
+
+// Handed files carry the app's own Resource ids. The SDK accepts those as input, but reads back the Project's short
+// aliases (r0, r1, ...) from resources() and from a Draft's clips, and assemble.js and decorate.js match the placed
+// clips to their picks by that id (crop, clip sound, photo motion). So each handed file is placed once on an unsaved
+// scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its own, whose frame size is the
+// photo's, as inventory.js measures it. Nothing is committed. A file that cannot be placed is left out. The first call
+// also reads the Project's title, the name the place is suggested from.
+const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
+const p = selects.project(cfg.projectId);
+const resolved = [];
+let shared = null;
+for (const h of cfg.files) {
+  try {
+    const photo = h.kind === 'image';
+    const d = photo || !shared ? await p.createDraft({ name: 'City Weekend Vlog id check' }) : shared;
+    if (!photo) shared = d;
+    const before = new Set((await d.clips({ trackScope: 'main' })).map(c => c.clipId));
+    try { await d.insertResource({ resourceId: h.rid, sourceRange: { startSeconds: 0, endSeconds: 0.5 } }); }
+    catch (e) { await d.insertResource({ resourceId: h.rid }); }
+    const clip = (await d.clips({ trackScope: 'main' })).find(c => c.resourceId !== null && !before.has(c.clipId));
+    if (!clip) continue;
+    let size = null;
+    if (photo) {
+      const fs = (await d.meta()).frameSize;
+      if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
+    }
+    resolved.push({ rid: h.rid, alias: clip.resourceId, size });
+  } catch (e) {}
+}
+let title = null;
+if (cfg.readTitle) { try { title = (await p.meta()).title || null; } catch (e) { title = null; } }
+return { resolved, title };`;
+
+// The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer
+// run (or the frame closing) replaced this one. `say` names the current step for the status line.
+async function runCityTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
+  const pid: string | null = context?.projectId ?? null;
+  if (!pid) throw templateIssue("Open a Project, then try again.");
+  // Each handed video or photo once, in the order it was picked.
+  const seen = new Set<string>();
+  const files: Array<{ rid: string; kind: string }> = [];
+  for (const input of context?.template?.inputs?.footage ?? []) {
+    if (!input || (input.kind !== "video" && input.kind !== "image") || !input.resourceId || seen.has(input.resourceId)) continue;
+    seen.add(input.resourceId);
+    files.push({ rid: String(input.resourceId), kind: input.kind });
+  }
+  if (!files.length) throw templateIssue("Choose videos or photos for the footage, then try again.");
+  const run: RunFn = (summary, script, allowCommit = false) => runTemplateStep(sdk, summary, script, allowCommit);
+
+  say("Reading the chosen files");
+  const roots = await locateRoots(sdk);
+  check();
+  const assets = await loadAssets(roots.plugin);
+  check();
+  // The track chosen on the app's page; an unknown or missing one gets the panel's default.
+  const cues: any[] = assets.manifest.cues || [];
+  const cue = cues.find((c) => c.id === context?.template?.options?.track) || cues.find((c) => c.id === TEMPLATE_TRACK);
+  if (!cue) throw templateIssue("City Weekend Vlog's music is missing; reinstall the plugin and try again.");
+
+  const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  let projectTitle: string | null = null;
+  const resolveFiles = async (list: Array<{ rid: string; kind: string }>, readTitle: boolean) => {
+    for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
+      const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH), readTitle: readTitle && i === 0 }));
+      check();
+      resolved.push(...(r.resolved || []));
+      if (readTitle && i === 0) projectTitle = r.title ?? null;
+    }
+  };
+  await resolveFiles(files, true);
+  // The alias script skips a file whose placement fails, which an empty read (see EMPTY_READ) can also cause, so the
+  // files it skipped get one more pass.
+  const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
+  if (unresolved.length) await resolveFiles(unresolved, false);
+  const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const known: Record<string, { width: number; height: number }> = {};
+  for (const r of resolved) if (r.size) known[r.alias] = r.size;
+  // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
+  const inventory = aliases.length
+    ? await run("Read footage", fill(assets.scripts.inventoryJs, { projectId: pid, only: aliases, known }))
+    : { resources: [], photos: [], skipped: { unanalysed: 0, missing: 0 } };
+  check();
+  inventory.photos = inventory.photos || [];
+  const sizes: Record<string, { width: number; height: number }> = {};
+  for (const ph of inventory.photos) if (ph.width > 0 && ph.height > 0) sizes[ph.rid] = { width: ph.width, height: ph.height };
+
+  // Scene search over the handed videos. Nobody can press Build again, so clips whose search failed get one more try.
+  say("Choosing shots");
+  const rids: string[] = inventory.resources.map((r: any) => r.rid);
+  const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
+  const progress = (i: number, n: number) => say("Choosing shots", i + "/" + n + " clips checked");
+  let found = await searchShots(run, assets.scripts.searchJs, pid, rids, check, progress);
+  if (found.failed.length) {
+    const retried = new Set(found.failed);
+    const again = await searchShots(run, assets.scripts.searchJs, pid, found.failed, check, progress);
+    found = { list: [...found.list.filter((c: any) => !retried.has(c.rid)), ...again.list], failed: again.failed };
+  }
+  if (found.failed.length) console.info("[city-weekend-vlog] template run: scene search failed for", found.failed.join(", "));
+  const candidates = found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }));
+
+  // Every setting at the panel's default: the title prefilled as the panel prefills it, the Classic font style, the
+  // Standard length, Ambient clip sound, Warm look and photos on, the track's most energetic section.
+  const look = {
+    line1: suggestDay([...inventory.resources, ...inventory.photos].map((r: any) => r.recordedAt)),
+    connector: "in",
+    place: suggestPlace(context?.projectName || projectTitle || ""),
+    preset: "classic", warm: true, clipSound: "ambient", cue: cue.id,
+  };
+  const grid = cueGrid(cue);
+  const burst = grid.accepted ? cwvBurstFor(grid.sixteenthRatio) : "eighth";
+  const requested = CWV_LENGTHS.standard;
+  const videoSeconds = cwvVideoSeconds(grid.bpm, requested);
+  const start = cwvSnapSection({ value: defaultSectionOf(grid, videoSeconds), firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: grid.accepted });
+  const musicStart = start ?? 0;
+  const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !grid.accepted };
+  const { plan, a, sched } = await buildDraft({ run, assets, projectId: pid, inventory, candidates, photoCands: photoCandsOf(inventory, null, true),
+    grid, burst, requested, start, musicStart, snapCuts, clipSound: look.clipSound, seed: TEMPLATE_SEED, check,
+    advance: (id) => say(CWV_BUILD_STEPS.find((s) => s.id === id)?.label || "Building"),
+    musicPath: () => roots.plugin + "/assets/cues/" + cue.file,
+    shortage: (p) => templateIssue("Found " + p.usableShots + " usable shots but this style needs at least " + p.needed + ", so add more varied footage or photos.") });
+  if (a.notes?.length) console.info("[city-weekend-vlog] template run notes:", a.notes.join("; "));
+
+  // Commit 2. decorate.js skips what an earlier attempt added, so a failed attempt is tried once more.
+  say("Adding title and look");
+  const fontCache: Record<string, Promise<string>> = {};
+  const finish = () => addTitleAndLook({ run, assets, fontB64: (file) => loadFontB64(fontCache, roots.plugin, file), sequenceId: a.sequenceId,
+    sched, plan, usedSeed: TEMPLATE_SEED, mute: look.clipSound === "off", look, sizes });
+  try {
+    await finish();
+  } catch (e) {
+    console.warn("[city-weekend-vlog] Add title and look failed, trying again:", errorText(e));
+    check();
+    try { await finish(); } catch (e2) {
+      console.warn("[city-weekend-vlog] Add title and look failed again:", errorText(e2));
+      throw templateIssue("The Draft was made, but its title and look could not be added; try again.");
+    }
+  }
+  check();
+  // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
+  return { sequenceId: a.sequenceId };
+}
+
+// What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
+// exactly once, unless a newer run (or the frame closing) replaced it; then it reports nothing.
+function TemplateRun({ sdk, context }: any) {
+  const [status, setStatus] = React.useState("Starting");
+  const started = React.useRef<string | null>(null);
+  const alive = React.useRef(true);
+  // The latest context, so a run reports only while it is still the current one.
+  const latest = React.useRef<any>(context);
+  latest.current = context;
+  const runId: string | null = context?.template?.runId ?? null;
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  React.useEffect(() => {
+    if (runId == null || started.current === runId) return;
+    started.current = runId;
+    const snapshot = context;
+    const live = () => alive.current && latest.current?.template?.runId === runId;
+    const check = () => { if (!live()) throw STALE; };
+    let ended = false, step = "starting";
+    const say = (text: string, detail?: string) => { step = text; if (live()) setStatus(text + (detail ? " (" + detail + ")" : "")); };
+    const end = (outcome: TemplateOutcome | null) => {
+      if (ended) return;
+      ended = true;
+      if (!outcome || !live()) return;
+      setStatus("sequenceId" in outcome ? "Done" : outcome.error);
+      try { sdk.finishTemplate(outcome); } catch (e) { console.warn("[city-weekend-vlog] finishTemplate failed:", errorText(e)); }
+    };
+    (async () => {
+      try {
+        end(await runCityTemplate(sdk, snapshot, check, say));
+      } catch (e: any) {
+        if (e === STALE) { end(null); return; }
+        console.warn("[city-weekend-vlog] template run failed while " + step + ":", errorText(e), e);
+        end({ error: e?.forPerson ? String(e.message) : "City Weekend Vlog stopped while " + step.charAt(0).toLowerCase() + step.slice(1) + "; try again." });
+      } finally {
+        end({ error: "City Weekend Vlog stopped before the Draft was ready; try again." });
+      }
+    })();
+  }, [runId]);
+  return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{status}</div>;
+}
+
+export default function Panel(props: any) {
+  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <CityWeekendVlogPanel {...props} />;
 }

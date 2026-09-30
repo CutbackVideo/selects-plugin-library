@@ -65,5 +65,26 @@
       "name": "Depth Type \u5b57\u5e55",
       "summary": "\u56f4\u7ed5\u8bf4\u8bdd\u8005\u3001\u5177\u6709\u524d\u540e\u666f\u6df1\u7684\u53ef\u7f16\u8f91\u6587\u5b57\u6392\u7248\u5b57\u5e55\u3002"
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "inputs": [
+    {
+      "id": "speaker",
+      "label": "Select video",
+      "accepts": [
+        "video"
+      ],
+      "min": 1,
+      "max": 1,
+      "requires": [
+        "transcript"
+      ],
+      "query": "one person talking to camera"
+    }
+  ],
+  "prepare": [
+    "A video of one person talking to camera",
+    "Analyzed, so it has a transcript",
+    "Xcode Command Line Tools on this Mac"
+  ]
 }

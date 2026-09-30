@@ -9,9 +9,43 @@ export function scenePlan(){
 
 // Original Image clips overlap for the measured crossfades. Selects' native
 // Transition renderer currently throws InvalidFrameError for Image endpoints.
-export function nativeScenePlan(){
+// The reference is measured at 30 fps and returned unchanged there. A Draft takes
+// its Project's rate, so another rate gets the same plan through seconds: each
+// reference boundary frame f becomes round(f*fps/30) (nearest frame, halves up),
+// computed once per boundary, so a cut is both one scene's end and the next one's
+// start and the scenes stay adjacent. The ten-frame fullscreen overlap becomes one
+// rounded length added after each cut, so every overlap is equal and ends where the
+// finishing check expects. Times already in seconds (grid reveals, reveal lengths)
+// stay; the fullscreen A reveal and the grid A exit fade follow their rounded frames.
+export function planFps(value){
+ if(value==null)return 30;
+ const fps=Number(value);
+ if(!Number.isFinite(fps)||fps<10||fps>240)throw Error('Unsupported project frame rate');
+ return fps;
+}
+export function nativeScenePlan(fpsInput){
+ const fps=planFps(fpsInput);
  const plan=scenePlan();
- return {...plan,occurrences:plan.occurrences.map(o=>o.appearance==='fullscreen'&&o.slot!=='C'?{...o,endFrame:o.endFrame+10}:o)};
+ if(fps===30)return {...plan,occurrences:plan.occurrences.map(o=>o.appearance==='fullscreen'&&o.slot!=='C'?{...o,endFrame:o.endFrame+10}:o)};
+ const at=frame=>Math.round(frame*fps/30),seconds=value=>Math.round(value*30);
+ const overlapFrames=at(10),durationFrames=at(plan.durationFrames);
+ const occurrences=plan.occurrences.map(o=>{
+  const startFrame=at(o.startFrame),endFrame=at(o.endFrame),out={...o,startFrame,endFrame:o.appearance==='fullscreen'&&o.slot!=='C'?endFrame+overlapFrames:endFrame};
+  if(o.appearance==='fullscreen'&&o.revealStart!=null)out.revealStart=startFrame/fps;
+  if(o.fadeStart!=null){const fadeFrom=at(seconds(o.fadeStart)),fadeTo=at(seconds(o.fadeStart+o.fadeDuration));out.fadeStart=fadeFrom/fps;out.fadeDuration=(fadeTo-fadeFrom)/fps;}
+  return out;
+ });
+ const converted={...plan,fps,durationFrames,transitions:plan.transitions.map(t=>({...t,cutFrame:at(t.cutFrame)})),occurrences,overlapFrames,referenceFps:30};
+ const full=occurrences.filter(o=>o.appearance==='fullscreen');
+ if(overlapFrames<2||occurrences.some(o=>!(o.endFrame>o.startFrame)||o.endFrame>durationFrames||(o.fadeDuration!=null&&!(o.fadeDuration>0)))||full.some((o,i)=>i>0&&(o.startFrame!==converted.transitions[i-1].cutFrame||full[i-1].endFrame!==o.startFrame+overlapFrames||o.endFrame-o.startFrame<=overlapFrames)))throw Error('This project frame rate cannot hold the No.14 timing');
+ return converted;
+}
+// The effect reads time as frame/fps; the 30 fps code is left exactly as measured.
+export function effectCodeFor(fps){
+ if(fps===30)return EFFECT_CODE;
+ const code=EFFECT_CODE.replace('t=globalFrame/30','t=globalFrame/'+JSON.stringify(fps));
+ if(code===EFFECT_CODE)throw Error('Effect timing could not be converted');
+ return code;
 }
 
 export function revealProgress(elapsed,duration,lateEase){
@@ -55,7 +89,7 @@ const DECORATION_CODE=`export default function No14Decoration({data}) {
 }`;
 
 export function normalizeNativeFinish(raw){
- if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).some(k=>!['mode','projectId','draftId','photos','placements','decoration','framing'].includes(k))||raw.mode!=='native-finish')throw Error('Unsupported original Image request');
+ if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).some(k=>!['mode','projectId','draftId','photos','placements','decoration','framing','fps'].includes(k))||raw.mode!=='native-finish')throw Error('Unsupported original Image request');
  const clean=(value,label,max=1000)=>{if(typeof value!=='string'||!value.trim()||value!==value.trim()||value.length>max||/[\u0000-\u001f]/u.test(value))throw Error(label+' is required');return value;};
  const projectId=clean(raw.projectId,'Project ID'),draftId=clean(raw.draftId,'Draft ID',120);
  if(!Array.isArray(raw.photos)||raw.photos.length!==4)throw Error('Choose exactly four original Images');
@@ -71,7 +105,7 @@ export function normalizeNativeFinish(raw){
  const keys=['grid','fullscreen'].flatMap(scene=>['A','B','C','D'].map(slot=>scene+'-'+slot));
  if(!framingInput||typeof framingInput!=='object'||Array.isArray(framingInput)||Object.keys(framingInput).some(key=>!keys.includes(key)))throw Error('Invalid photo framing');
  for(const key of keys){const point=framingInput[key]??{x:.5,y:.5};if(!point||typeof point!=='object'||Array.isArray(point)||Object.keys(point).some(k=>!['x','y'].includes(k)))throw Error('Invalid photo framing');const x=point.x??.5,y=point.y??.5;if(!Number.isFinite(x)||x<0||x>1||!Number.isFinite(y)||y<0||y>1)throw Error('Photo framing must be between 0 and 1');framing[key]={x,y};}
- const plan=nativeScenePlan();
+ const plan=nativeScenePlan(raw.fps);
  if(!Array.isArray(raw.placements)||raw.placements.length!==8)throw Error('Expected eight original Image clips');
  const placementByKey=new Map();
  for(const row of raw.placements){
@@ -118,13 +152,13 @@ export async function authorNativeFinish(selects,input,plan){
    stage='effect '+occurrence.appearance+' '+occurrence.slot;
    const incoming=plan.transitions.find(t=>t.cutFrame===occurrence.startFrame&&occurrence.appearance==='fullscreen');
    const outgoing=plan.transitions.find(t=>t.after===occurrence.slot&&occurrence.appearance==='fullscreen');
-   await d.addVideoEffect({clip:current,label:'No.14 '+occurrence.appearance+' '+occurrence.slot,tsxCode:EFFECT_CODE,parameters:{g,startFrame:occurrence.startFrame,revealStart:occurrence.revealStart,revealDuration:occurrence.revealDuration,lateEase:occurrence.lateEase===true,fadeStart:occurrence.fadeStart??null,fadeDuration:occurrence.fadeDuration??1,radius:occurrence.radius*q,focusX:focus.x,focusY:focus.y,transitionIn:incoming?{startFrame:incoming.cutFrame,durationFrames:10}:null,transitionOut:outgoing?{startFrame:outgoing.cutFrame,durationFrames:10}:null},editableParameters:[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:focus.x,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:focus.y,min:0,max:1,step:.01}]});
+   await d.addVideoEffect({clip:current,label:'No.14 '+occurrence.appearance+' '+occurrence.slot,tsxCode:EFFECT_CODE,parameters:{g,startFrame:occurrence.startFrame,revealStart:occurrence.revealStart,revealDuration:occurrence.revealDuration,lateEase:occurrence.lateEase===true,fadeStart:occurrence.fadeStart??null,fadeDuration:occurrence.fadeDuration??1,radius:occurrence.radius*q,focusX:focus.x,focusY:focus.y,transitionIn:incoming?{startFrame:incoming.cutFrame,durationFrames:plan.overlapFrames??10}:null,transitionOut:outgoing?{startFrame:outgoing.cutFrame,durationFrames:plan.overlapFrames??10}:null},editableParameters:[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:focus.x,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:focus.y,min:0,max:1,step:.01}]});
   }
   for(const transition of plan.transitions){
    stage='verify transition after '+transition.after;
    const from=created.find(c=>c.appearance==='fullscreen'&&c.slot===transition.after);
    const to=created.find(c=>c.appearance==='fullscreen'&&c.startFrame===transition.cutFrame);
-   if(!from||!to||from.trackId===to.trackId||from.endFrame!==to.startFrame+10)throw Error('Fullscreen Image clips must overlap for ten frames on separate tracks');
+   if(!from||!to||from.trackId===to.trackId||from.endFrame!==to.startFrame+(plan.overlapFrames??10))throw Error('Fullscreen Image clips must overlap for ten frames on separate tracks');
   }
   stage='decoration';
   await d.addMotionGraphic({label:'No.14 decoration',within:await d.rangeAtFrames(0,plan.durationFrames),tsxCode:DECORATION_CODE,parameters:{...input.decoration,size:29,x:1.5,y:3.5},editableParameters:[{key:'shape',label:'Decoration',type:'select',defaultValue:input.decoration.shape,options:['heart','star','circle','none'].map(s=>({label:s,value:s}))},{key:'color',label:'Color',type:'color',defaultValue:input.decoration.color},{key:'size',label:'Size',type:'number',defaultValue:29,min:1,max:160,step:1},{key:'x',label:'Horizontal position',type:'number',defaultValue:1.5,min:-300,max:300,step:.5},{key:'y',label:'Vertical position',type:'number',defaultValue:3.5,min:-500,max:500,step:.5}]});
@@ -135,6 +169,6 @@ export async function authorNativeFinish(selects,input,plan){
 }
 
 export function buildNativeFinishScript(raw){
- const input=normalizeNativeFinish(raw);
- return `const input=${JSON.stringify(input)};const plan=${JSON.stringify(nativeScenePlan())};const EFFECT_CODE=${JSON.stringify(EFFECT_CODE)};const DECORATION_CODE=${JSON.stringify(DECORATION_CODE)};return await (${authorNativeFinish.toString()})(selects,input,plan);`;
+ const input=normalizeNativeFinish(raw),plan=nativeScenePlan(raw.fps);
+ return `const input=${JSON.stringify(input)};const plan=${JSON.stringify(plan)};const EFFECT_CODE=${JSON.stringify(effectCodeFor(plan.fps))};const DECORATION_CODE=${JSON.stringify(DECORATION_CODE)};return await (${authorNativeFinish.toString()})(selects,input,plan);`;
 }

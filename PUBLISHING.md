@@ -77,4 +77,7 @@ For a still-image preview, omit `video` and declare only `poster`, `width` and
 at least one media file and positive integer dimensions are required. The app
 shows the video when available, otherwise the poster, otherwise a default icon.
 These are gallery assets, not installation files: keep them out of `files`.
+A variant (`variants[]`) may declare its own `preview` the same way, named
+`preview-<variant id>.mp4` and `poster-<variant id>.webp`; one that declares
+none shows the plugin's.
 Preview-only changes do not change the plugin runtime version.
