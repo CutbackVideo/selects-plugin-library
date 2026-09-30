@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "recap-2026",
+  "version": "1.0.0",
+  "name": "2026 Recap",
+  "summary": "Build a beat-timed 1080x1920 recap Draft from the open Project's footage: a 4.7-second title intro plus 159 fast cuts locked to a bundled 61.5-second soundtrack.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "SKILL.md",
+    "panel.tsx",
+    "timing.json",
+    "assets/recap-2026-fixed-soundtrack.wav"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 480,
+    "height": 854
+  },
+  "localized": {
+    "de": {
+      "name": "2026 Rückblick",
+      "summary": "Erstellt aus dem Material des offenen Projekts einen beatgenauen 1080x1920-Rückblick-Draft: 4,7 Sekunden Titel-Intro plus 159 schnelle Schnitte, fest auf einen mitgelieferten 61,5-Sekunden-Soundtrack getaktet."
+    },
+    "en": {
+      "name": "2026 Recap",
+      "summary": "Build a beat-timed 1080x1920 recap Draft from the open Project's footage: a 4.7-second title intro plus 159 fast cuts locked to a bundled 61.5-second soundtrack."
+    },
+    "es": {
+      "name": "Resumen de 2026",
+      "summary": "Crea un Draft de resumen de 1080x1920 sincronizado al ritmo con el material del proyecto abierto: una intro con título de 4,7 segundos y 159 cortes rápidos ajustados a una pista de 61,5 segundos incluida."
+    },
+    "fr": {
+      "name": "Rétrospective 2026",
+      "summary": "Crée un Draft récapitulatif 1080x1920 calé sur le rythme à partir des rushes du projet ouvert : une intro titrée de 4,7 secondes et 159 coupes rapides verrouillées sur une bande-son de 61,5 secondes fournie."
+    },
+    "it": {
+      "name": "Recap 2026",
+      "summary": "Crea un Draft di riepilogo 1080x1920 a tempo dal materiale del progetto aperto: un'introduzione con titolo di 4,7 secondi e 159 stacchi rapidi agganciati a una traccia di 61,5 secondi inclusa."
+    },
+    "ja": {
+      "name": "2026 まとめ",
+      "summary": "開いているプロジェクトの素材から、ビートに合わせた 1080x1920 のまとめ Draft を作成します。4.7 秒のタイトルイントロと、同梱の 61.5 秒のサウンドトラックに固定された 159 個の高速カットで构成されます。"
+    },
+    "ko": {
+      "name": "2026 \ub9ac\ucea1",
+      "summary": "\uc5f4\ub824 \uc788\ub294 \ud504\ub85c\uc81d\ud2b8\uc758 \ud478\ud2f0\uc9c0\ub85c \ube44\ud2b8\uc5d0 \ub9de\ucd98 1080x1920 \ub9ac\ucea1 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. 4.7\ucd08 \ud0c0\uc774\ud2c0 \uc778\ud2b8\ub85c\uc640, \ud568\uaed8 \uc81c\uacf5\ub418\ub294 61.5\ucd08 \uc0ac\uc6b4\ub4dc\ud2b8\ub799\uc5d0 \uace0\uc815\ub41c 159\uac1c\uc758 \ube60\ub978 \ucef7\uc73c\ub85c \uad6c\uc131\ub429\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Retrospectiva de 2026",
+      "summary": "Cria um Draft de retrospectiva 1080x1920 sincronizado com a batida a partir do material do projeto aberto: uma introdução com título de 4,7 segundos e 159 cortes rápidos travados numa trilha de 61,5 segundos incluída."
+    },
+    "tr": {
+      "name": "2026 Özeti",
+      "summary": "Açık projedeki görüntülerden ritme kilitli 1080x1920 bir özet Draft'ı oluşturur: 4,7 saniyelik başlık girişi ve pakete dahil 61,5 saniyelik müziğe sabitlenmiş 159 hızlı kesme."
+    },
+    "zh": {
+      "name": "2026 年度回顾",
+      "summary": "使用当前项目中的素材生成与节拍对齐的 1080x1920 年度回顾 Draft：4.7 秒标题片头，以及锁定在随附 61.5 秒配乐上的 159 个快切。"
+    }
+  }
+}
