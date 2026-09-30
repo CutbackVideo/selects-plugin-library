@@ -213,6 +213,15 @@ analysis and are never scene-searched.
 Selects reports no frame size for some photos. The size of such a photo is
 read once, by placing it on an unsaved scratch Draft; nothing is saved.
 
+**Beat punch.** When Beat punch is on, every video clip gets a "Beat punch"
+Video Effect: on the strong beats (the first beat of each bar) the picture
+zooms in quickly to 106 % over a quarter beat and settles back by half a
+beat; a clip with no strong beat in it gets a slow push-in to 103 % across
+the shot instead. The zoom is about the centre and never shows the frame's
+edges, and the Soft look is applied on top of it. Photos keep their Photo
+motion only. Change it with **Punch** (0 to 1) in the clip's Adjust tab; 0
+turns it off for that clip.
+
 ## Title
 
 Three lockup presets, chosen in the panel with a live preview:

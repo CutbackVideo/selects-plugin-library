@@ -1,7 +1,7 @@
 const cfg = __CONFIG__;
 if (!(cfg.videoEnd > 0)) throw Error('decorate: cfg.videoEnd missing');
 const d = selects.draft(cfg.sequenceId);
-const TITLE_LABEL = 'Mini vlog title', SOFT_LABEL = 'Soft look', MOTION_LABEL = 'Photo motion';
+const TITLE_LABEL = 'Mini vlog title', SOFT_LABEL = 'Soft look', MOTION_LABEL = 'Photo motion', PUNCH_LABEL = 'Beat punch';
 // Photo resource ids in this Draft. Photos have no sound, so their audio routing stays null after muting.
 const photoIds = new Set(cfg.photos || []);
 // Effects on photo clips (Soft look and motion) only when cfg.photoEffects is exactly true. Export renders them; Draft.captureFrames
@@ -50,6 +50,36 @@ if (cfg.motion && photoEffects) {
     motions++;
   }
 }
+// Beat punch (spec 15.2 b/c): every video clip on Main gets one "Beat punch" effect (photos keep Photo motion only),
+// added before the Soft look so the look wraps it. cfg.punch: { tsx, strength, push, beatFrames, punchFrames, picks }.
+// picks are the picks assemble.js placed, in order: Main clip i is picks[i]; a clip whose resource differs from its pick
+// is skipped, never guessed. punchFrames are Draft frames where a punch starts (strong beats, music offset included);
+// each clip keeps those less than half a beat before its start (the tail of a punch just before the cut) to its end, made
+// clip-local. The effect's frame counts from the clip's source in-point, recomputed here with assemble.js's expression
+// (the planned start, slid back so the window ends inside its source).
+let punchAdded = 0, punchKept = 0, punchSkipped = 0;
+if (cfg.punch) {
+  const fps = (await d.meta()).fps;
+  const picks = cfg.punch.picks || [], beat = Number(cfg.punch.beatFrames) || 0;
+  const frames = (cfg.punch.punchFrames || []).filter(f => typeof f === 'number' && isFinite(f));
+  const rows = (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null).sort((a, b) => a.startFrame - b.startFrame);
+  for (let i = 0; i < rows.length; i++) {
+    const pick = picks[i];
+    if (!pick || pick.rid !== rows[i].resourceId) { punchSkipped++; continue; }
+    if (pick.kind === 'photo' || photoIds.has(rows[i].resourceId)) continue;
+    const clip = (await d.clips({ trackScope: 'main' })).find(c => c.clipId === rows[i].clipId);
+    if (!clip) { punchSkipped++; continue; }
+    if (await hasEffect(clip, PUNCH_LABEL)) { punchKept++; continue; }
+    const want = clip.endFrame - clip.startFrame;
+    const cap = pick.sourceDuration > 0 ? Math.floor(pick.sourceDuration * fps + 1e-6) - want : Infinity;
+    const sourceStartFrame = Math.max(0, Math.min(Math.round((Number(pick.startSeconds) || 0) * fps), cap));
+    const punches = frames.map(f => f - clip.startFrame).filter(t => t > -0.5 * beat && t < want);
+    await d.addVideoEffect({ clip, label: PUNCH_LABEL, tsxCode: cfg.punch.tsx,
+      parameters: { strength: cfg.punch.strength, push: cfg.punch.push, punches, beatFrames: beat, sourceStartFrame, durationFrames: want },
+      editableParameters: [{ key: 'strength', label: 'Punch', type: 'number', defaultValue: cfg.punch.strength, min: 0, max: 1, step: 0.05 }] });
+    punchAdded++;
+  }
+}
 let effects = 0, effectsKept = 0;
 // Soft look: every Main and video-track clip (photos only with photoEffects), stacked after any photo motion.
 if (cfg.soft) {
@@ -65,7 +95,8 @@ if (cfg.soft) {
 }
 // Commit only when this run added or changed something: commitAll rejects an empty change ("Nothing to stage"), which a
 // retry after a landed but unreported commit would otherwise hit. Nothing to do is success (alreadyDone).
-const committed = muted || !hasTitle || effects > 0 || motions > 0;
+const committed = muted || !hasTitle || effects > 0 || motions > 0 || punchAdded > 0;
 if (committed) await d.commitAll('Mini Vlog: title and look');
 const out = { title: true, titleAdded: !hasTitle, effects, effectsKept, muted, muteKept, committed, alreadyDone: !committed };
+if (cfg.punch) out.punch = { added: punchAdded, kept: punchKept, skipped: punchSkipped };
 return photoIds.size ? { ...out, photos: { motions, motionsKept, effectsSkipped: photoEffectsSkipped } } : out;
