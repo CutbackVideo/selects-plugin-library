@@ -23,6 +23,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Camera Shutter Dump](plugins/camera-shutter-dump) — twelve photos stack into a collage, one per shutter sound | Experimental |
 | [Epidemic Sound Search](plugins/epidemic-sound-search) — search, audition and save Epidemic Sound tracks into your library and Draft | Experimental |
 | [Mini Vlog](plugins/mini-vlog) — 16:9 everyday mini vlog cut to the beat, with a pale pink title | Experimental |
+| [Torn Paper Love](plugins/torn-paper-love) — 4:3 torn-paper couple photo edit with ransom-note letters | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 
