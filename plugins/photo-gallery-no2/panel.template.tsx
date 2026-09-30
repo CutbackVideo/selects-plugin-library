@@ -57,7 +57,9 @@ const STRINGS = {
     "readbackMismatch": "\uc800\uc7a5 \ud6c4 \uc694\uccad\ud55c \uce78 \uac12\uc744 \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub3d9\uc77c\ud55c \uc791\uc5c5\uc744 \ubc18\ubcf5\ud558\uc9c0 \ub9d0\uace0 \ud3b8\uc9d1\ubcf8\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
     "failed": "\uc791\uc5c5\uc744 \ub9c8\uce58\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     "unknown": "\uc800\uc7a5 \uc5ec\ubd80\ub97c \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \uac19\uc740 \uc791\uc5c5\uc744 \ub2e4\uc2dc \uc2e4\ud589\ud558\uc9c0 \ub9d0\uace0 \ud3b8\uc9d1\ubcf8\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
-    "openSaved": "\uc800\uc7a5\ud55c \ud3b8\uc9d1\ubcf8 \uc5f4\uae30"
+    "openSaved": "\uc800\uc7a5\ud55c \ud3b8\uc9d1\ubcf8 \uc5f4\uae30",
+    "musicSource": "\ucd9c\ucc98",
+    "musicCredit": "\uc601\uc0c1\uc744 \uacf5\uc720\ud560 \ub54c \uc774 \ud06c\ub808\ub527\uc744 \ud568\uaed8 \ud45c\uae30\ud558\uc138\uc694. 39.650\u201353.867\ucd08 \ubc1c\ucdcc, \ubcfc\ub968 \u22123.090 dB, \uc18d\ub3c4 \ubcc0\uacbd \uc5c6\uc74c."
   },
   "en": {
     "title": "Photo Grid Reveal",
@@ -97,7 +99,9 @@ const STRINGS = {
     "readbackMismatch": "Saved, but the requested tile values were not verified. Inspect the Draft before repeating this action.",
     "failed": "Could not complete the action.",
     "unknown": "Save outcome is unknown. Inspect the Draft before repeating this action.",
-    "openSaved": "Open saved Draft"
+    "openSaved": "Open saved Draft",
+    "musicSource": "Source",
+    "musicCredit": "Keep this credit with shared videos. Excerpt 39.650\u201353.867 s; gain \u22123.090 dB; no tempo change."
   },
   "de": {
     "title": "Photo Grid Reveal",
@@ -137,7 +141,9 @@ const STRINGS = {
     "readbackMismatch": "Gespeichert, aber Feldwerte nicht best\u00e4tigt. Vor erneutem Ausf\u00fchren den Entwurf pr\u00fcfen.",
     "failed": "Aktion konnte nicht abgeschlossen werden.",
     "unknown": "Speicherergebnis unbekannt. Vor erneutem Ausf\u00fchren den Entwurf pr\u00fcfen.",
-    "openSaved": "Gespeicherten Entwurf \u00f6ffnen"
+    "openSaved": "Gespeicherten Entwurf \u00f6ffnen",
+    "musicSource": "Quelle",
+    "musicCredit": "Diesen Hinweis mit geteilten Videos beibehalten. Ausschnitt 39,650\u201353,867 s; Pegel \u22123,090 dB; Tempo unver\u00e4ndert."
   },
   "es": {
     "title": "Photo Grid Reveal",
@@ -177,7 +183,9 @@ const STRINGS = {
     "readbackMismatch": "Guardado, pero los valores no se verificaron. Revisa el borrador antes de repetir.",
     "failed": "No se pudo completar la acci\u00f3n.",
     "unknown": "No se conoce el resultado del guardado. Revisa el borrador antes de repetir.",
-    "openSaved": "Abrir borrador guardado"
+    "openSaved": "Abrir borrador guardado",
+    "musicSource": "Fuente",
+    "musicCredit": "Conserva este cr\u00e9dito al compartir v\u00eddeos. Fragmento 39,650\u201353,867 s; ganancia \u22123,090 dB; sin cambio de tempo."
   },
   "fr": {
     "title": "Photo Grid Reveal",
@@ -217,7 +225,9 @@ const STRINGS = {
     "readbackMismatch": "Enregistr\u00e9, mais les valeurs ne sont pas v\u00e9rifi\u00e9es. Inspectez le brouillon avant de recommencer.",
     "failed": "Impossible de terminer l\u2019action.",
     "unknown": "R\u00e9sultat d\u2019enregistrement inconnu. Inspectez le brouillon avant de recommencer.",
-    "openSaved": "Ouvrir le brouillon enregistr\u00e9"
+    "openSaved": "Ouvrir le brouillon enregistr\u00e9",
+    "musicSource": "Source",
+    "musicCredit": "Conservez ce cr\u00e9dit avec les vid\u00e9os partag\u00e9es. Extrait 39,650\u201353,867 s ; gain \u22123,090 dB ; tempo inchang\u00e9."
   },
   "it": {
     "title": "Photo Grid Reveal",
@@ -257,7 +267,9 @@ const STRINGS = {
     "readbackMismatch": "Salvato, ma i valori non sono verificati. Controlla la bozza prima di ripetere.",
     "failed": "Impossibile completare l\u2019azione.",
     "unknown": "Esito del salvataggio sconosciuto. Controlla la bozza prima di ripetere.",
-    "openSaved": "Apri bozza salvata"
+    "openSaved": "Apri bozza salvata",
+    "musicSource": "Fonte",
+    "musicCredit": "Mantieni questi crediti nei video condivisi. Estratto 39,650\u201353,867 s; guadagno \u22123,090 dB; tempo invariato."
   },
   "ja": {
     "title": "Photo Grid Reveal",
@@ -297,7 +309,9 @@ const STRINGS = {
     "readbackMismatch": "\u4fdd\u5b58\u3057\u307e\u3057\u305f\u304c\u67a0\u306e\u5024\u3092\u691c\u8a3c\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u518d\u5b9f\u884c\u524d\u306b\u4e0b\u66f8\u304d\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     "failed": "\u64cd\u4f5c\u3092\u5b8c\u4e86\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
     "unknown": "\u4fdd\u5b58\u7d50\u679c\u304c\u4e0d\u660e\u3067\u3059\u3002\u518d\u5b9f\u884c\u524d\u306b\u4e0b\u66f8\u304d\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
-    "openSaved": "\u4fdd\u5b58\u3057\u305f\u4e0b\u66f8\u304d\u3092\u958b\u304f"
+    "openSaved": "\u4fdd\u5b58\u3057\u305f\u4e0b\u66f8\u304d\u3092\u958b\u304f",
+    "musicSource": "\u51fa\u5178",
+    "musicCredit": "\u52d5\u753b\u306e\u5171\u6709\u6642\u306b\u3053\u306e\u30af\u30ec\u30b8\u30c3\u30c8\u3092\u8a18\u8f09\u3057\u3066\u304f\u3060\u3055\u3044\u300239.650\u201353.867\u79d2\u3092\u629c\u7c8b\u3001\u97f3\u91cf \u22123.090 dB\u3001\u901f\u5ea6\u5909\u66f4\u306a\u3057\u3002"
   },
   "pt": {
     "title": "Photo Grid Reveal",
@@ -337,7 +351,9 @@ const STRINGS = {
     "readbackMismatch": "Guardado, mas os valores n\u00e3o foram verificados. Inspecione o rascunho antes de repetir.",
     "failed": "N\u00e3o foi poss\u00edvel concluir a a\u00e7\u00e3o.",
     "unknown": "Resultado da grava\u00e7\u00e3o desconhecido. Inspecione o rascunho antes de repetir.",
-    "openSaved": "Abrir rascunho guardado"
+    "openSaved": "Abrir rascunho guardado",
+    "musicSource": "Fonte",
+    "musicCredit": "Mantenha este cr\u00e9dito nos v\u00eddeos partilhados. Excerto 39,650\u201353,867 s; ganho \u22123,090 dB; sem altera\u00e7\u00e3o de tempo."
   },
   "tr": {
     "title": "Photo Grid Reveal",
@@ -377,7 +393,9 @@ const STRINGS = {
     "readbackMismatch": "Kaydedildi, ancak kutu de\u011ferleri do\u011frulanmad\u0131. Tekrarlamadan \u00f6nce tasla\u011f\u0131 inceleyin.",
     "failed": "\u0130\u015flem tamamlanamad\u0131.",
     "unknown": "Kay\u0131t sonucu bilinmiyor. Tekrarlamadan \u00f6nce tasla\u011f\u0131 inceleyin.",
-    "openSaved": "Kaydedilen tasla\u011f\u0131 a\u00e7"
+    "openSaved": "Kaydedilen tasla\u011f\u0131 a\u00e7",
+    "musicSource": "Kaynak",
+    "musicCredit": "Payla\u015f\u0131lan videolarda bu bilgiyi koruyun. 39,650\u201353,867 s kesit; kazan\u00e7 \u22123,090 dB; tempo de\u011fi\u015fmedi."
   },
   "zh": {
     "title": "Photo Grid Reveal",
@@ -417,7 +435,9 @@ const STRINGS = {
     "readbackMismatch": "\u5df2\u4fdd\u5b58\uff0c\u4f46\u672a\u80fd\u9a8c\u8bc1\u683c\u5b50\u6570\u636e\u3002\u91cd\u8bd5\u524d\u8bf7\u68c0\u67e5\u8349\u7a3f\u3002",
     "failed": "\u65e0\u6cd5\u5b8c\u6210\u64cd\u4f5c\u3002",
     "unknown": "\u4fdd\u5b58\u7ed3\u679c\u672a\u77e5\u3002\u91cd\u8bd5\u524d\u8bf7\u68c0\u67e5\u8349\u7a3f\u3002",
-    "openSaved": "\u6253\u5f00\u5df2\u4fdd\u5b58\u8349\u7a3f"
+    "openSaved": "\u6253\u5f00\u5df2\u4fdd\u5b58\u8349\u7a3f",
+    "musicSource": "\u6765\u6e90",
+    "musicCredit": "\u5206\u4eab\u89c6\u9891\u65f6\u8bf7\u4fdd\u7559\u6b64\u7f72\u540d\u3002\u622a\u53d639.650\u201353.867\u79d2\uff0c\u589e\u76ca\u22123.090 dB\uff0c\u672a\u6539\u53d8\u901f\u5ea6\u3002"
   }
 };
 
@@ -427,8 +447,8 @@ export default function Panel({ sdk, context, ui }) {
   const [loadedKey, setLoadedKey] = React.useState('');
   const [slots, setSlots] = React.useState(emptySlots);
   const [selectedSlot, setSelectedSlot] = React.useState('0');
-  const [musicChoice, setMusicChoice] = React.useState('none');
-  const [manualEnabled, setManualEnabled] = React.useState(false);
+  const [musicChoice, setMusicChoice] = React.useState('bundled');
+  const [manualEnabled, setManualEnabled] = React.useState(true);
   const [manualBpm, setManualBpm] = React.useState(113);
   const [estimated, setEstimated] = React.useState(null);
   const [durationFrames, setDurationFrames] = React.useState(853);
@@ -455,7 +475,14 @@ export default function Panel({ sdk, context, ui }) {
   const sameContext = (projectId, sequenceId) => current.current.projectId === projectId && current.current.sequenceId === sequenceId;
 
   React.useEffect(() => {
-    setInventory(null); setLoadedKey(''); setSlots(emptySlots()); setMusicChoice('none');
+    // The host opens this new Draft during Create. Retain its frozen inputs
+    // and target so completion or a partial-save warning stays actionable.
+    if (running.current && inventory?.projectId === context.projectId) {
+      setLoadedKey(key);
+      return;
+    }
+    setInventory(null); setLoadedKey(''); setSlots(emptySlots()); setMusicChoice('bundled');
+    setManualEnabled(true); setManualBpm(113);
     setEstimated(null); setUnknown(false); setSavedTarget(null); setStatus(null);
   }, [context.projectId, context.sequenceId]);
 
@@ -477,7 +504,7 @@ export default function Panel({ sdk, context, ui }) {
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
       setInventory({ ...response.result, media: native.selected.map(({ nativeResource, ...item }) => item) }); setLoadedKey(requestedKey);
       setSlots(emptySlots()); setName('Photo Grid Reveal'); setDurationFrames(853);
-      setMusicChoice('none'); setManualEnabled(false); setManualBpm(113); setEstimated(null);
+      setMusicChoice('bundled'); setManualEnabled(true); setManualBpm(113); setEstimated(null);
       setStatus(null);
     } catch (error) { setStatus({ tone: 'error', text: t.failed + ' ' + String(error?.message || error) }); }
     finally { running.current = false; setBusy(false); }
@@ -511,6 +538,21 @@ export default function Panel({ sdk, context, ui }) {
     }
     if (audio) return { estimatedBpm: await estimateMusic(audio) };
     throw new Error(t.bpmMissing);
+  }
+
+  async function prepareBundledMusic(projectId, isCurrent, onImportStarted) {
+    const located = await sdk.runShell({ summary: 'Locate bundled Photo Grid Reveal music',
+      command: 'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}/photo-gallery-no2/assets/music.mp3"' });
+    if (located.isError || located.exitCode !== 0 || !located.stdout?.trim()) {
+      throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
+    }
+    if (!isCurrent()) throw new Error(t.changed);
+    onImportStarted();
+    const response = await sdk.runScript({ summary: 'Prepare bundled Photo Grid Reveal music', allowCommit: true,
+      script: buildScript({ operation: 'importBundledMusic', projectId, path: located.stdout.trim(), durationFrames }) });
+    if (response.result?.status === 'notSaved') throw Object.assign(new Error(response.result.message), { safeNotSaved: true });
+    if (response.isError || response.result?.status !== 'musicReady') throw new Error(response.result?.message || response.output || t.unknown);
+    return response.result.music;
   }
 
   async function prepareVisuals(media, frames, projectId, onImportStarted, isCurrent) {
@@ -588,7 +630,10 @@ export default function Panel({ sdk, context, ui }) {
     running.current = true; setBusy(true); setStatus(null);
     let dispatched = false;
     try {
-      Object.assign(input, await resolveBpm(selectedMusic));
+      const audio = musicChoice === 'bundled' ? await prepareBundledMusic(projectId,
+        () => sameContext(projectId, sequenceId) && requestedKey === key, () => { dispatched = true; }) : selectedMusic;
+      input.music = audio ? { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, startFrame: 0 } : null;
+      Object.assign(input, await resolveBpm(audio));
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
       input.media = await prepareVisuals(input.media, input.durationFrames, projectId,
         () => { dispatched = true; }, () => sameContext(projectId, sequenceId) && requestedKey === key);
@@ -603,22 +648,29 @@ export default function Panel({ sdk, context, ui }) {
       dispatched = true;
       const base = await sdk.runScript({ script: buildScript({ ...input, operation: 'createBase' }),
         summary: 'Create Photo Gallery Draft', allowCommit: true });
-      if (base.isError || base.result?.status !== 'baseCreated' || !base.result.draftId) throw new Error(base.result?.message || t.unknown);
+      if (base.isError || base.result?.status !== 'baseCreated' || !base.result.draftId) throw scriptFailure(base, 'Create Photo Gallery Draft');
       const draftId = base.result.draftId;
       setSavedTarget({ projectId, draftId });
       await galleryNativeSetFps(projectId, draftId);
       const fill = await sdk.runScript({ script: buildScript({ operation: 'fillBase', projectId,
         draftId, durationFrames: plan.durationFrames }), summary: 'Set Photo Gallery duration', allowCommit: true });
-      if (fill.isError || fill.result?.status !== 'baseFilled') throw new Error(fill.result?.message || t.unknown);
+      if (fill.isError || fill.result?.status !== 'baseFilled') throw scriptFailure(fill, 'Set Photo Gallery duration', draftId);
       await galleryNativePlace(projectId, draftId, input.media, plan);
-      if (input.media.some(item => item.kind === 'video')) {
-        const videos = await sdk.runScript({ script: buildScript({ ...input, operation: 'placeVideosExisting', draftId }),
+      // Each panel script has a fixed 30-second deadline. Cold video analysis
+      // and effect compilation must not accumulate across all 21 tiles.
+      for (const tile of plan.tiles.filter(item => item.kind === 'video')) {
+        const videos = await sdk.runScript({ script: buildScript({ ...input, operation: 'placeVideosExisting', draftId,
+          slotKeys: [tile.slotKey] }),
           summary: 'Place Gallery video tiles', allowCommit: true });
-        if (videos.isError || videos.result?.status !== 'videosPlaced') throw new Error(videos.result?.message || t.unknown);
+        if (videos.isError || videos.result?.status !== 'videosPlaced') throw scriptFailure(videos, 'Place Gallery video tiles', draftId);
       }
-      const styled = await sdk.runScript({ script: buildScript({ ...input, operation: 'styleExisting', draftId }),
-        summary: 'Style Photo Gallery tiles', allowCommit: true });
-      if (styled.isError || styled.result?.status !== 'styled') throw new Error(styled.result?.message || t.unknown);
+      for (let start = 0; start < plan.tiles.length; start += 3) {
+        const styled = await sdk.runScript({ script: buildScript({ ...input, operation: 'styleExisting', draftId,
+          slotKeys: plan.tiles.slice(start, start + 3).map(tile => tile.slotKey),
+          placeMusic: start + 3 >= plan.tiles.length }),
+          summary: 'Style Photo Gallery tiles', allowCommit: true });
+        if (styled.isError || styled.result?.status !== 'styled') throw scriptFailure(styled, 'Style Photo Gallery tiles', draftId);
+      }
       let verified = false;
       let readReturned = false;
       try {
@@ -640,6 +692,11 @@ export default function Panel({ sdk, context, ui }) {
         setUnknown(true); setStatus({ tone: 'error', text: t.unknown + ' ' + String(error?.message || error) });
       } else setStatus({ tone: 'error', text: String(error?.message || error) });
     } finally { running.current = false; setBusy(false); }
+  }
+
+  function scriptFailure(response, phase, draftId) {
+    const detail = response.result?.message || response.output || t.unknown;
+    return new Error(phase + (draftId ? ' [' + draftId + ']' : '') + ': ' + String(detail).slice(0, 1200));
   }
 
   async function openSaved() {
@@ -674,9 +731,11 @@ export default function Panel({ sdk, context, ui }) {
     </ui.Section>}
     {ready && <ui.Section title={t.music}>
       <ui.Select label={t.music} value={musicChoice} onChange={value => { setMusicChoice(value); setEstimated(null); }} options={[
+        { value: 'bundled', label: 'Unexplored \u00b7 TAD MILLER (CC BY 4.0)' },
         { value: 'none', label: t.noMusic },
         ...inventory.audio.map(item => ({ value: item.resourceId, label: item.name })),
       ]} disabled={busy}/>
+      {musicChoice === 'bundled' && <small>Unexplored (long ver.) — <a href="https://www.youtube.com/c/Tadon" target="_blank" rel="noreferrer">TAD MILLER</a> · <a href="https://opengameart.org/content/unexplored-long-ver-orchestral-music" target="_blank" rel="noreferrer">{t.musicSource}</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>. {t.musicCredit}</small>}
       <ui.Toggle label={t.bpmManual} value={manualEnabled} onChange={setManualEnabled} disabled={busy}/>
       {manualEnabled && <ui.NumberField label={t.bpm} value={manualBpm} onChange={setManualBpm} min={1} max={300} step={0.1} disabled={busy}/>}
       {!manualEnabled && selectedMusic && <ui.Button variant="secondary" onClick={estimateOnClick} disabled={busy}>{t.estimate}</ui.Button>}

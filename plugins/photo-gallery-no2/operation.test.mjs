@@ -253,6 +253,131 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
   };
 }
 
+function batchFixture(videoIndices = [], audio = false) {
+  const f = creationFixture({ videoIndices, audio, videoAudio: true });
+  const overlay = f.draft.overlayResource;
+  f.draft.overlayResource = async request => {
+    const before = new Set(f.inserted.map(row => row.clipId));
+    await overlay(request);
+    for (const row of f.inserted) if (!before.has(row.clipId)) row.trackId = `added-${row.clipId}`;
+  };
+  const reveals = [0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205];
+  for (let i = 0; i < 21; i++) if (!videoIndices.includes(i)) f.inserted.push({ clipId: i + 1,
+    trackId: `v${i}`, trackKind: 'video', resourceId: `r${i}`, startFrame: reveals[i], endFrame: 853 });
+  const media = Array.from({ length: 21 }, (_, i) => ({ resourceId: `r${i}`,
+    path: videoIndices.includes(i) ? `/test/video-${i}.mp4` : `/test/photo-${i}.png`,
+    kind: videoIndices.includes(i) ? 'video' : 'image',
+    width: videoIndices.includes(i) ? 1920 : 1080, height: videoIndices.includes(i) ? 1080 : 1920,
+    ...(videoIndices.includes(i) ? { durationFrames: 1800 } : {}) }));
+  const input = { projectId: 'project-1', draftId: 'known', media, manualBpm: 113,
+    ...(audio ? { music: { resourceId: 'song', path: '/test/song.wav', durationFrames: 1200, startFrame: 0 } } : {}) };
+  return { ...f, input };
+}
+
+test('bounded video calls place one target and preserve earlier batches without source audio', async () => {
+  const f = batchFixture([3, 5, 10, 16, 18, 20]);
+  for (const key of ['tile-04', 'tile-06', 'tile-11', 'tile-17', 'tile-19', 'tile-21']) {
+    const before = structuredClone(f.inserted);
+    const result = await f.run({ ...f.input, operation: 'placeVideosExisting', slotKeys: [key] });
+    assert.equal(result.status, 'videosPlaced', result.message);
+    assert.equal(result.tileCount, 1);
+    assert.equal(f.inserted.length, before.length + 1);
+    assert.deepEqual(f.inserted.slice(0, before.length), before);
+    assert.ok(f.inserted.every(row => row.trackKind === 'video'));
+  }
+  assert.equal(f.inserted.length, 21);
+  const before = structuredClone(f.inserted);
+  const retry = await f.run({ ...f.input, operation: 'placeVideosExisting', slotKeys: ['tile-04'] });
+  assert.equal(retry.status, 'notSaved');
+  assert.match(retry.message, /already|present/i);
+  assert.deepEqual(f.inserted, before);
+});
+
+test('video batches reject wrong earlier video, duplicate rows, and invalid target sets before mutation', async () => {
+  for (const problem of ['wrong', 'duplicate', 'oversized', 'image']) {
+    const f = batchFixture([3, 5]);
+    if (problem === 'wrong' || problem === 'duplicate') {
+      f.inserted.push({ clipId: 24, trackId: 'prior', trackKind: 'video', resourceId: 'r3', startFrame: problem === 'wrong' ? 52 : 36, endFrame: 853 });
+      if (problem === 'duplicate') f.inserted.push({ ...f.inserted.at(-1), clipId: 25, trackId: 'duplicate' });
+    }
+    const before = structuredClone(f.inserted);
+    const slotKeys = problem === 'oversized' ? ['tile-04', 'tile-06'] : problem === 'image' ? ['tile-01'] : ['tile-06'];
+    const result = await f.run({ ...f.input, operation: 'placeVideosExisting', slotKeys });
+    assert.equal(result.status, 'notSaved', problem);
+    assert.deepEqual(f.inserted, before, problem);
+  }
+});
+
+test('21 Video slots can be authored as independently bounded calls without native Images', async () => {
+  const f = batchFixture(Array.from({ length: 21 }, (_, i) => i));
+  for (let i = 0; i < 21; i++) {
+    const result = await f.run({ ...f.input, operation: 'placeVideosExisting',
+      slotKeys: [`tile-${String(i + 1).padStart(2, '0')}`] });
+    assert.equal(result.status, 'videosPlaced', result.message);
+    assert.equal(result.tileCount, 1);
+    assert.equal(f.inserted.length, i + 1);
+  }
+  assert.equal(new Set(f.inserted.map(row => row.trackId)).size, 21);
+});
+
+test('style batches bound effect work, preserve prior styles, and add music only in the final batch', async () => {
+  const f = batchFixture([], true);
+  for (let start = 0; start < 21; start += 3) {
+    const previousEffects = structuredClone(f.effects), previousTransforms = structuredClone(f.transforms);
+    const slotKeys = Array.from({ length: 3 }, (_, offset) => `tile-${String(start + offset + 1).padStart(2, '0')}`);
+    const result = await f.run({ ...f.input, operation: 'styleExisting', slotKeys, placeMusic: start === 18 });
+    assert.equal(result.status, 'styled', result.message);
+    assert.equal(result.tileCount, 3);
+    assert.equal(f.effects.length, start + 3);
+    assert.equal(f.transforms.length, start + 3);
+    assert.deepEqual(f.effects.slice(0, start), previousEffects);
+    assert.deepEqual(f.transforms.slice(0, start), previousTransforms);
+    assert.equal(f.inserted.filter(row => row.trackKind === 'audio').length, start === 18 ? 1 : 0);
+  }
+  assert.equal((await f.run({ ...f.input, operation: 'verifyCreated' })).status, 'verified');
+});
+
+test('styling leaves non-target manual edits untouched and rejects a styled selected target', async () => {
+  const f = batchFixture();
+  f.effects.push({ clip: f.inserted[0], label: 'Manual effect' });
+  f.transforms.push({ clip: f.inserted[0], position: { x: 9, y: 8 }, scale: { x: 2, y: 2 } });
+  const earlierEffects = structuredClone(f.effects), earlierTransforms = structuredClone(f.transforms);
+  const result = await f.run({ ...f.input, operation: 'styleExisting', slotKeys: ['tile-02'], placeMusic: false });
+  assert.equal(result.status, 'styled', result.message);
+  assert.deepEqual(f.effects.slice(0, 1), earlierEffects);
+  assert.deepEqual(f.transforms.slice(0, 1), earlierTransforms);
+  const effectsBefore = structuredClone(f.effects), transformsBefore = structuredClone(f.transforms);
+  const rejected = await f.run({ ...f.input, operation: 'styleExisting', slotKeys: ['tile-03', 'tile-02'], placeMusic: false });
+  assert.equal(rejected.status, 'notSaved');
+  assert.deepEqual(f.effects, effectsBefore);
+  assert.deepEqual(f.transforms, transformsBefore);
+});
+
+test('style batches reject oversized, duplicate, and unknown keys and wrong untouched visual rows', async () => {
+  for (const keys of [[], ['tile-01', 'tile-02', 'tile-03', 'tile-04'], ['tile-01', 'tile-01'], ['tile-99'], ['tile-02']]) {
+    const f = batchFixture();
+    if (keys.length === 1 && keys[0] === 'tile-02') f.inserted[20].resourceId = 'wrong';
+    const result = await f.run({ ...f.input, operation: 'styleExisting', slotKeys: keys, placeMusic: false });
+    assert.equal(result.status, 'notSaved', JSON.stringify(keys));
+    assert.equal(f.effects.length, 0);
+    assert.equal(f.transforms.length, 0);
+  }
+});
+
+test('style batch rejects a selected manual transform or existing Audio before writing effects', async () => {
+  for (const problem of ['manual', 'audio']) {
+    const f = batchFixture([], true);
+    if (problem === 'manual') f.transforms.push({ clip: f.inserted[1], position: { x: 1, y: 0 }, scale: { x: 1, y: 1 } });
+    else f.inserted.push({ clipId: 30, trackId: 'music', trackKind: 'audio', resourceId: 'song', startFrame: 0, endFrame: 853 });
+    const rowsBefore = structuredClone(f.inserted), transformsBefore = structuredClone(f.transforms);
+    const result = await f.run({ ...f.input, operation: 'styleExisting', slotKeys: ['tile-01', 'tile-02'], placeMusic: true });
+    assert.equal(result.status, 'notSaved', problem);
+    assert.equal(f.effects.length, 0);
+    assert.deepEqual(f.transforms, transformsBefore);
+    assert.deepEqual(f.inserted, rowsBefore);
+  }
+});
+
 test('a preplaced native Image gallery receives editable effects and geometry without replacing its clips', async () => {
   const f = creationFixture();
   const reveals = [0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205];
