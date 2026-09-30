@@ -364,6 +364,29 @@ for (const cue of manifest.cues) {
   assert.ok(hs + 36 * 60 / c.bpm <= c.usableEnd + 1e-6 && hs < c.hookStart, 'long hook section fits ' + hs);
 }
 
+// First shot on a moving moment: mvPlanBuild passes motion-tagged candidates to the allocator's slot-0 rule; untagged
+// (Beat punch off) plans are the ones the previous planner made.
+{
+  const ROLES = K.MV_ROLES, mk = (rid, role, t, score) => ({ rid, role, t, score, sourceDuration: 60 });
+  const vid = rid => Array.from({ length: 39 }, (_, k) => mk(rid, ROLES[k % ROLES.length], 1 + k * 1.5, 0.5));
+  const pics = Array.from({ length: 6 }, (_, i) => ({ rid: 'p0' + i, kind: 'photo' }));
+  const three = vid('a').concat(vid('b'), vid('c'));
+  const sig = picks => picks.map(p => (p ? p.rid + (p.kind === 'photo' ? '' : '@' + p.startSeconds.toFixed(2)) : '-')).join(' ');
+  const build = (cands, extra) => j(ctx.mvPlanBuild({ candidates: cands, bpm: 108, accepted: true, fps: F, pace: 'quick', requested: 12, seed: 's1', ...extra }));
+  assert.strictEqual(sig(build(three.concat(pics)).picks), 'p00 b@2.23 c@51.72 p01 a@30.73 b@44.22 p02 c@11.23 a@12.72 p03 b@27.73 c@5.22');
+  assert.strictEqual(sig(build(three.concat(pics), { seed: 's2' }).picks), 'b@24.72 p03 a@27.72 c@17.22 p02 b@32.22 a@45.72 p01 c@0.72 b@2.22 p00 a@17.22');
+  assert.strictEqual(sig(build(three.concat(pics), { pace: 'groove' }).picks), 'p00 b@2.22 p01 c@5.23 a@30.72 p02 b@21.87 c@11.37 a@12.43 b@50.23 c@51.87 a@17.35');
+  const tagged = three.map(c => (c.rid === 'a' && c.t === 40 ? { ...c, score: 0.6, motion: 1 } : c));
+  for (const pace of ['quick', 'groove']) {
+    const p = build(tagged.concat(pics), { pace });
+    assert.ok(p.ok); assert.strictEqual(p.picks[0].rid, 'a', pace);
+    const mid = (p.picks[0].startSeconds + p.picks[0].endSeconds) / 2;
+    assert.ok(Math.abs(mid - 40) < 1e-6, pace + ' opens on the moving moment ' + mid);
+    assert.strictEqual(p.photoShots, build(three.concat(pics), { pace }).photoShots, pace + ' photo share kept');
+    assert.strictEqual(sig(build(tagged.concat(pics), { pace, motionOpener: false }).picks)[0], 'p', pace + ' opener off');
+  }
+}
+
 // Progress (CWV labels).
 assert.strictEqual(ctx.mvProgress('shots', 0).label, 'Step 1/5 · Choosing shots · 0%');
 assert.strictEqual(ctx.mvProgress('open', 1).percent, 100);

@@ -40,9 +40,13 @@ source file.
   0.75 s of such a hit gets a small tie-break bonus (at most 0.1, scaled from
   the weakest to the strongest such hit of the build), so of two similar
   moments the moving one is taken first. The bonus never outranks a better
-  role match, and with all hits equally strong, or none, nothing changes.
-  With Beat punch off the search and the shot choice are exactly as without
-  this feature.
+  role match, except for the first shot: when a moving moment fits it, the
+  video opens on one rather than on a photo or a still moment (among the
+  moving moments, the best role match and score wins; the photo share moves
+  to the other shots). If opening on it would leave shots unfilled, the plan
+  is made without it, so it never shortens the video. With all hits equally strong, or
+  none, nothing changes. With Beat punch off the search
+  and the shot choice are exactly as without this feature.
 - **Variety.** The shots are spread over all the selected clips: a shot takes
   a clip that has not been used yet whenever one fits, and a clip is only
   reused once every clip that fits has been used, the least-used first. The
@@ -78,9 +82,10 @@ time.
 
 1. Open a Project whose video clips are analysed (or that has photos), then
    open **Mini Vlog** from the Plugin list.
-2. Check the **Title**. The **Mini vlog** preset is selected, with "mini" as
-   the big word and "vlog" as the small word. The preview shows the lockup in
-   its own fonts.
+2. Check the **Title**. The **A small glimpse** preset is selected, with "a
+   small" above the big word "glimpse" and "of today" below it. The preview
+   shows the lockup in its own fonts. **Mini vlog** and **A day in my life**
+   are one click away.
 3. Check the readiness line at the bottom of the **Length** section. It shows
    how many clips and photos were found and the approximate length, for
    example "Ready: 6 clips · 12 photos · about 13 s". When only some are
@@ -89,9 +94,10 @@ time.
 4. Press **Build**. The line above the buttons reads "Creates a new 16:9
    Draft".
 
-The defaults: Pace **Quick** (Groove is an option), **Beat punch** on,
-**Start at the hook** on (bundled tracks), **Soft look** on, **Use photos**
-on, Clip sound **Ambient**, Length **Standard** and the Bedroom Pop track.
+The defaults: Title **A small glimpse**, Pace **Quick** (Groove is an
+option), **Beat punch** on, **Start at the hook** on (bundled tracks), **Soft
+look** on, **Use photos** on, Clip sound **Ambient**, Length **Standard** and
+the Bedroom Pop track.
 Each of them can be changed before Build.
 
 **Refreshing.** The panel reads the Project's clips when it opens, when you
@@ -283,9 +289,9 @@ Three lockup presets, chosen in the panel with a live preview:
 
 | Preset | Text fields (initial text) | Look |
 | --- | --- | --- |
-| **Mini vlog** (default) | Big word "mini", Small word "vlog" | Big italic serif word in pale pink with small sparkles in place of the dots of its i and j, and a small upright serif word in white |
+| **Mini vlog** | Big word "mini", Small word "vlog" | Big italic serif word in pale pink with small sparkles in place of the dots of its i and j, and a small upright serif word in white |
 | **A day in my life** | Year (see below), Big words "mini vlog", Tag line "a day in my life" | A star and the year before a pink rounded bold "mini", "vlog" below, and a small white two-line tag with a star |
-| **A small glimpse** | Top line "a small", Big word "glimpse", Bottom line "of today" | A small monospaced top and bottom line around a pink rounded bold word, split in two lines at the middle with a hyphen and a star before the second line |
+| **A small glimpse** (default) | Top line "a small", Big word "glimpse", Bottom line "of today" | A small monospaced top and bottom line around a pink rounded bold word, split in two lines at the middle with a hyphen and a star before the second line |
 
 - The Year starts as the current year (editable).
 - Each field shows how many characters it holds and allows (for example

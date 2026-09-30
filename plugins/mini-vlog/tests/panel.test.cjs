@@ -60,10 +60,13 @@ const QUERIES = {
 };
 assert.equal((q.match(/^  \w+: "/gm) || []).length, 8, 'eight queries (the motion query is added only with Beat punch)');
 for (const [role, text] of Object.entries(QUERIES)) assert.ok(q.includes('  ' + role + ': "' + text + '",'), 'query ' + role);
-for (const c of ['const AMBIENT_DB = -18;', 'const DEFAULT_CUE = "weekend-indie-pop";', 'const PREFERRED_CUE = "bedroom-pop-108";', 'const DEFAULT_PRESET = "mini-vlog";',
+for (const c of ['const AMBIENT_DB = -18;', 'const DEFAULT_CUE = "weekend-indie-pop";', 'const PREFERRED_CUE = "bedroom-pop-108";', 'const DEFAULT_PRESET = "small-glimpse";',
   'const DEFAULT_LENGTH = "standard";', 'const DEFAULT_PACE = "quick";', 'const DEFAULT_PUNCH = true;', 'const DEFAULT_HOOK = true;', 'const SOFT_STRENGTH = 0.35;', 'const MOTION_STRENGTH = 0.5;']) assert.ok(panel.includes(c), c);
 for (const s of ['React.useState(DEFAULT_CUE)', 'React.useState(DEFAULT_PRESET)', 'React.useState<"short" | "standard" | "long">(DEFAULT_LENGTH)', 'React.useState<"quick" | "relaxed" | "groove">(DEFAULT_PACE)', 'const [beatPunch, setBeatPunch] = React.useState(DEFAULT_PUNCH)', 'const [hook, setHook] = React.useState(DEFAULT_HOOK)',
   'React.useState<"off" | "ambient" | "full">("ambient")', 'const [soft, setSoft] = React.useState(true)', 'const [usePhotos, setUsePhotos] = React.useState(true)']) assert.ok(panel.includes(s), s);
+// The default title preset is A small glimpse; the other presets stay selectable.
+assert.ok(presets.presets.some(p => p.id === 'small-glimpse' && p.label === 'A small glimpse'), 'default preset exists');
+assert.deepEqual(presets.presets.map(p => p.id).sort(), ['day-in-my-life', 'mini-vlog', 'small-glimpse'], 'all three presets selectable');
 // The preferred cue replaces the default once, when the manifest has it.
 assert.ok(/cues\.some\(\(c: any\) => c\.id === PREFERRED_CUE\)/.test(panel) && panel.includes('(cur === DEFAULT_CUE ? PREFERRED_CUE : cur)'), 'bedroom-pop-108 becomes the default when present');
 
@@ -154,6 +157,10 @@ assert.deepEqual(H.mvSearchQueries(QUERIES, true), { ...QUERIES, motion: 'hands 
   // the 0.3 one (+0.05) for both b candidates; a hit on another clip gives nothing.
   assert.deepEqual(out.map(c => Math.round(c.score * 1000) / 1000), [0.4, 0.35, 0.35, 0.2]);
   assert.equal(role[0].score, 0.3, 'input not mutated');
+  // Candidates with a bonus carry their normalised motion (the planner's first-shot rule); the others stay untouched.
+  assert.deepEqual(out.map(c => (c.motion === undefined ? c.motion : Math.round(c.motion * 1000) / 1000)), [1, 0.5, 0.5, undefined]);
+  assert.ok(!('motion' in out[3]));
+  assert.deepEqual(out[3], role[3]);
   // A tie-break: the largest bonus stays below the allocator's role step (0.15) minus its jitter (0.05).
   // (jitter is in [0, 0.05), so 0.1 + jitter < 0.15 never overtakes a better role.)
   assert.ok(H.MV_MOTION_BONUS <= 0.15 - 0.05 + 1e-9);

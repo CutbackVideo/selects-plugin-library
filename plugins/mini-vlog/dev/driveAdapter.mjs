@@ -142,6 +142,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   const cues = JSON.parse(read('assets/cues/manifest.json')).cues;
   const presetsJson = JSON.parse(read('assets/fonts/presets.json'));
   const presets = presetsJson.presets;
+  if (!presets.some(p => p.id === DEFAULT_PRESET)) throw Error('panel.tsx DEFAULT_PRESET ' + DEFAULT_PRESET + ' is not a preset in presets.json');
   // The panel switches its default to the preferred cue once the manifest has it.
   const defaultCue = cues.some(c => c.id === PREFERRED_CUE) ? PREFERRED_CUE : DEFAULT_CUE;
   const ROW_DEFAULTS = { cue: defaultCue, preset: DEFAULT_PRESET, length: DEFAULT_LENGTH, pace: DEFAULT_PACE, clipSound: DEFAULT_CLIP_SOUND,

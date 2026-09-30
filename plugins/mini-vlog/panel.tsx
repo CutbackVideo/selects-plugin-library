@@ -40,7 +40,8 @@ const AMBIENT_DB = -18;
 // Default track until the new bedroom-pop cue ships; the preferred cue replaces it once the manifest has it.
 const DEFAULT_CUE = "weekend-indie-pop";
 const PREFERRED_CUE = "bedroom-pop-108";
-const DEFAULT_PRESET = "mini-vlog";
+// The title preset selected when the panel opens (A small glimpse); Mini vlog and A day in my life stay selectable.
+const DEFAULT_PRESET = "small-glimpse";
 const DEFAULT_LENGTH = "standard";
 const DEFAULT_PACE = "quick";
 // Hook B defaults after the A/B (spec 15.4): Beat punch (with the motion query and bonus) and Start at the hook are on.
@@ -535,10 +536,15 @@ function mvFillers(candidates) {
 }
 
 // Strict allocation. opts: { candidates, slots: [{ index, role, seconds, videoOnly? }], seed, gapSeconds = 0.5,
-// photoShare = MV_PHOTO_SHARE }. A videoOnly slot (a Groove 8th) never takes a photo, and the photo share counts only
-// the other slots. Two hard rules, never relaxed: the previous slot's source is never used again for the next slot,
+// photoShare = MV_PHOTO_SHARE, spread = true, motionOpener = true }. A videoOnly slot (a Groove 8th) never takes a
+// photo, and the photo share counts only the other slots. Two hard rules, never relaxed: the previous slot's source is never used again for the next slot,
 // and at most MV_PHOTO_RUN_MAX photos play in a row (unless the pool has no video candidate). A slot nothing fits under
 // them stays null (counted in `missing`); mvPlanBuild then tries a shorter length.
+// Motion opener: a video candidate with `motion` > 0 (tagged by the panel's motion bonus, only with Beat punch) marks a
+// moving moment. The first slot takes the best such window that fits it (the usual role rank, score and jitter; a role
+// outside the slot's roles ranks after them), ahead of a photo slot and the normal tiers, and is then left out of the
+// photo slots so the photo share moves to the others. Without tagged candidates (Beat punch off), with none that fits,
+// or with motionOpener: false the allocation is exactly as without this rule.
 function mvAllocate(opts) {
   const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
   const finite = v => typeof v === 'number' && isFinite(v);
@@ -558,13 +564,21 @@ function mvAllocate(opts) {
   // Photo-only pools (no usable video) may play any number of photos in a row.
   const runLimited = pool.length > 0;
   let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, prevRid = null;
-  // Photo slots: round(share x slots) of the slots a photo can hold, capped by the photos available, spaced evenly
-  // from a seeded phase. With no photos there are none, and every slot goes to video.
+  // The motion opener (see above). Nothing is used yet, so this is the pick the first slot's loop turn would make with
+  // the motion rank.
+  const first = opts.slots[0];
+  const opener = first && opts.motionOpener !== false && pool.some(c => c.motion > 0) ? searchVideo(first, c => {
+    if (!(c.motion > 0) || c.role === 'filler') return -1;
+    const roles = [first.role].concat(MV_ROLE_FALLBACK[first.role] || []), r = roles.indexOf(c.role);
+    return r >= 0 ? r : roles.length;
+  }, null, null) : null;
+  // Photo slots: round(share x slots) of the slots a photo can hold (not the motion opener's), capped by the photos
+  // available, spaced evenly from a seeded phase. With no photos there are none, and every slot goes to video.
   const photoSlots = {};
-  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds <= MV_PHOTO_HOLD_MAX + 1e-9);
+  const phase = mvHash(opts.seed + ':photo-slots');
+  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds <= MV_PHOTO_HOLD_MAX + 1e-9 && !(opener && sl === first));
   const share = opts.photoShare == null ? MV_PHOTO_SHARE : opts.photoShare;
   const target = Math.min(photos.length, holdable.length, Math.round(opts.slots.filter(sl => !sl.videoOnly).length * share));
-  const phase = mvHash(opts.seed + ':photo-slots');
   for (let k = 0; k < target; k++) photoSlots[holdable[Math.floor((k + phase) * holdable.length / target)].index] = true;
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
   // `exclude` is the previous shot's source, which may not be used; `level`, when not null, keeps only sources used
@@ -621,10 +635,12 @@ function mvAllocate(opts) {
     } else {
       tiers.push(preferred(null), anyReal(null), photo, filler(null));
     }
-    let best = null;
-    for (const tier of tiers) {
-      if (runFull && tier === photo) continue;
-      if ((best = tier())) break;
+    let best = slot === first ? opener : null;
+    if (!best) {
+      for (const tier of tiers) {
+        if (runFull && tier === photo) continue;
+        if ((best = tier())) break;
+      }
     }
     if (!best) { missing++; picks.push(null); photoRun = 0; prevRid = null; continue; }
     prevRid = best.c.rid;
@@ -648,7 +664,7 @@ function mvAllocate(opts) {
 
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
 // fps, pace: 'quick' | 'relaxed' | 'groove', requested (shots), sectionStart?, usableEnd? (Infinity / omitted without
-// music), onsets?, onsetThresholds?, lowConfidence?, seed, photoShare? }.
+// music), onsets?, onsetThresholds?, lowConfidence?, seed, photoShare?, motionOpener? (mvAllocate) }.
 // Order: the music caps the length (mvFitShots), then the plan tries that length and shrinks by MV_MIN_SHOTS down to
 // MV_MIN_SHOTS until the strict allocation fills every slot. Every attempt allocates from scratch with filler
 // candidates added (see `attempts` below). Failure reasons: 'music-too-short' (not even MV_MIN_SHOTS fit the music), 'one-resource' (fewer
@@ -691,11 +707,14 @@ function mvPlanBuild(opts) {
   if (hasPhotos && shares[0] !== 1) shares.push(1);
   // Variety first; spending every fresh clip early can also strand a fillable length (a s s s ... where a s a s ...
   // fits), so a length is only given up after the role-and-score order (spread: false) fails too.
-  // Each attempt's name ('spread', 'spread-share1', 'role-first', 'role-first-share1') is returned as `attempt`, so the
-  // panel and logs can tell when a fallback built the plan.
+  // Each attempt's name ('spread', 'spread-share1', 'role-first', 'role-first-share1', each with '-no-opener' when the
+  // motion opener's retry built it) is returned as `attempt`, so the panel and logs can tell when a fallback built the
+  // plan.
   const attempts = [true, false].flatMap(spread => shares.map((photoShare, i) =>
     ({ spread, photoShare, name: (spread ? 'spread' : 'role-first') + (i ? '-share1' : '') })));
   let usableShots = 0;
+  // Whether mvAllocate's motion opener can apply (some video candidate carries motion).
+  const motionTagged = opts.motionOpener !== false && candidates.some(c => c && c.kind !== 'photo' && c.motion > 0);
   // Lengths to try, longest first: shots (Quick / Relaxed) or beat spans (Groove).
   const step = grooved ? 4 : MV_MIN_SHOTS, least = grooved ? MV_GROOVE_MIN_BEATS : MV_MIN_SHOTS;
   for (let n = top; n >= least; n -= step) {
@@ -712,11 +731,19 @@ function mvPlanBuild(opts) {
       ? { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: (s.beats || 1) < 1 }
       : { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
     for (const attempt of attempts) {
-      const alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread });
+      let alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: opts.motionOpener });
+      let name = attempt.name;
+      // The motion opener never costs length: an attempt it leaves short is retried without it (named
+      // '<attempt>-no-opener') before the next attempt or a shorter length. Untagged pools never retry.
+      if (alloc.missing > 0 && motionTagged) {
+        if (n === least) usableShots = Math.max(usableShots, alloc.filled);
+        alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: false });
+        name = attempt.name + '-no-opener';
+      }
       if (alloc.missing === 0) {
         return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
           beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
-          attempt: attempt.name,
+          attempt: name,
           ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, ratios: fills.ratios, beatSeconds, opener } } : {}) };
       }
       // The shortest length misses slots with every share, so usableShots < MV_MIN_SHOTS.
@@ -798,7 +825,9 @@ function mvProgress(stepId, fraction, detail) {
 // its centre (the allocator centres a shot on its candidate, so this stands in for the shot's window +/- 0.5 s). The
 // bonus is a tie-break: at most 0.1, below the allocator's 0.15 step between roles minus its 0.05 seeded jitter, so it
 // never changes the role order, only which of two similar moments of a clip comes first. It is added before the
-// planner's seeded tie-break, so a build stays deterministic. A clip whose only hits are motion hits keeps a stub row
+// planner's seeded tie-break, so a build stays deterministic. A candidate with a bonus also carries `motion` (its
+// normalised motion, > 0): the planner opens the video on the best such window (mvAllocate's motion opener), the one
+// place where motion outranks the role order. A clip whose only hits are motion hits keeps a stub row
 // (rid and sourceDuration, no time or score): the planner skips it as a candidate but still makes the clip's filler
 // windows from it.
 const MV_MOTION_ROLE = 'motion';
@@ -829,7 +858,7 @@ function mvMotionBonus(list) {
     if (!near || !finite(c.t) || !finite(c.score)) return c;
     let motion = 0;
     for (const h of near) if (Math.abs(h.t - c.t) <= MV_MOTION_REACH + 1e-9) motion = Math.max(motion, (h.score - min) / (max - min));
-    return motion > 0 ? { ...c, score: c.score + MV_MOTION_BONUS * motion } : c;
+    return motion > 0 ? { ...c, score: c.score + MV_MOTION_BONUS * motion, motion } : c;
   }).concat(kept);
 }
 // Punch frames (15.2 b): the Draft frames where a Beat punch starts, the bar downbeats of the section (beats 0, 4, 8 ...
@@ -857,13 +886,15 @@ function mvPunchFrames(opts) {
 // Text is measured with the per-font advance tables from presets.json (`metrics`), passed
 // in `data.fonts[i].metrics`, so the layout is identical in Node, the panel and the render.
 // All lengths are canvas pixels; sizes are relative to the canvas height.
-// Items: text {part, text, font, x (left), y (baseline), size (font px), w (advance width)},
+// Items: text {part, text, font, x (left), y (baseline), size (font px), w (advance width), shade (shadow fraction)},
 // sparkle/star {part, x, y (centre), size (full height)}; each carries its ink box [x0, y0, x1, y1].
 var MV_FACES = {
   "mini-vlog": {
     // No.17's face: tight tracking and a thin same-colour stroke (em) soften the contrast.
-    big: { family: "MV Instrument Serif Italic", style: "italic", weight: 400, tracking: -0.05, stroke: 0.018 },
-    small: { family: "MV DM Serif Display", style: "normal", weight: 400 },
+    big: { family: "MV Instrument Serif Italic", style: "italic", weight: 400, tracking: -0.05, stroke: 0.01 },
+    // DM Serif Display has one weight, so "vlog" reads lighter through a softer drop shadow (`shade`: a fraction of the
+    // title's shadow opacity and blur) and a slightly smaller size (mvLayoutMini).
+    small: { family: "MV DM Serif Display", style: "normal", weight: 400, shade: 0.6 },
   },
   "day-in-my-life": {
     big: { family: "MV Rounded Bold", style: "normal", weight: 700 },
@@ -884,7 +915,7 @@ function mvFace(data, preset, role) {
   var fonts = data && Array.isArray(data.fonts) ? data.fonts : [];
   var m = null;
   for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === face.family && fonts[i].metrics) m = fonts[i].metrics;
-  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, m: m || MV_FALLBACK_METRICS };
+  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, shade: typeof face.shade === "number" ? face.shade : 1, m: m || MV_FALLBACK_METRICS };
 }
 
 function mvAdvance(m, ch) {
@@ -914,7 +945,7 @@ function mvInk(text, m) {
 function mvText(part, text, f, x, y, size, color) {
   var w = mvTextWidth(text, f.m, size, f.tracking), ink = mvInk(text, f.m), s = f.stroke * size, h = s / 2;
   return { kind: "text", part: part, text: text, font: { family: f.family, style: f.style, weight: f.weight }, x: x, y: y, size: size, color: color, w: w,
-    tracking: f.tracking * size, stroke: s, box: [x - h, y - ink.up * size - h, x + w + h, y + ink.down * size + h] };
+    tracking: f.tracking * size, stroke: s, shade: f.shade, box: [x - h, y - ink.up * size - h, x + w + h, y + ink.down * size + h] };
 }
 
 function mvMark(kind, part, x, y, size, color) {
@@ -984,9 +1015,10 @@ function mvLayoutMini(data, fields, H, S, col) {
     items.push(mvMark("sparkle", "sparkle", big.box[2] + 0.04 * Fb, big.box[1] - 0.06 * Fb, spark, col.primary));
   }
   if (fields.small) {
-    // "vlog" is 43 % of "mini"'s width in No.17: kept as a font-size ratio for other words.
+    // "vlog" is 43 % of "mini"'s width in No.17; 41 % (5 % smaller) keeps the one-weight face from reading heavy.
+    // Kept as a font-size ratio for other words.
     var ms = fs.m;
-    var Fs = (Fb * 0.43 * mvTextWidth("mini", mb, 1, fb.tracking)) / mvTextWidth("vlog", ms, 1);
+    var Fs = (Fb * 0.41 * mvTextWidth("mini", mb, 1, fb.tracking)) / mvTextWidth("vlog", ms, 1);
     var ws = mvTextWidth(fields.small, ms, Fs), inkS = mvInk(fields.small, ms);
     var y2 = big.box[3] + 0.03 * Fb + inkS.up * Fs;
     items.push(mvText("small", fields.small, fs, -ws / 2, y2, Fs, col.secondary));
@@ -1104,6 +1136,19 @@ function mvLockupLayout(data, width, height) {
     if (typeof it.w === "number") { o.w = it.w * k; o.tracking = it.tracking * k; o.stroke = it.stroke * k; }
     return o;
   });
+}
+
+// Items grouped by shade in first-appearance order ([{ shade, items }]); marks carry the full shadow (1). Each group
+// is drawn as its own SVG with the title's drop shadow scaled by its shade.
+function mvShadeLayers(items) {
+  var layers = [];
+  for (var i = 0; i < items.length; i++) {
+    var sh = typeof items[i].shade === "number" ? items[i].shade : 1, at = -1;
+    for (var j = 0; j < layers.length; j++) if (layers[j].shade === sh) at = j;
+    if (at < 0) { layers.push({ shade: sh, items: [] }); at = layers.length - 1; }
+    layers[at].items.push(items[i]);
+  }
+  return layers;
 }
 
 function mvF(v) { return Math.round(v * 100) / 100; }
@@ -2120,13 +2165,19 @@ export default function Panel({ sdk, context, ui }: any) {
         {/* Live preview: the same layout code as the Draft's title, over the middle of a 16:9 frame, in a box of fixed height. */}
         <div aria-label="Title preview" style={{ height: PREVIEW_HEIGHT, borderRadius: 8, overflow: "hidden", background: "linear-gradient(135deg, #3b3531, #1f1c1a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           {assets && previewItems ? (
-            <svg width="100%" height={PREVIEW_HEIGHT} viewBox={PREVIEW_VIEW} preserveAspectRatio="xMidYMid meet" style={{ display: "block", filter: "drop-shadow(0 1px 3px rgba(0, 0, 0, " + TITLE_LOOK.shadow + "))" }}>
-              {previewItems.map((it, i) => (it.kind === "text"
-                ? <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={'"' + it.font.family + '", ' + PREVIEW_FALLBACK} fontStyle={it.font.style} fontWeight={it.font.weight}
-                  stroke={it.stroke > 0 ? it.color : undefined} strokeWidth={it.stroke} strokeLinejoin="round"
-                  style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: it.tracking } as any}>{it.text}</text>
-                : <path key={i} d={it.kind === "sparkle" ? mvSparklePath(it.x, it.y, it.size) : mvStarPath(it.x, it.y, it.size)} fill={it.color} />))}
-            </svg>
+            <div style={{ position: "relative", width: "100%", height: PREVIEW_HEIGHT }}>
+              {/* One SVG per shade layer, stacked, so "vlog" gets the lighter shadow like the Draft's title. */}
+              {mvShadeLayers(previewItems).map((layer: any, l: number) => (
+                <svg key={l} width="100%" height={PREVIEW_HEIGHT} viewBox={PREVIEW_VIEW} preserveAspectRatio="xMidYMid meet"
+                  style={{ display: "block", position: "absolute", left: 0, top: 0, filter: "drop-shadow(0 1px " + 3 * layer.shade + "px rgba(0, 0, 0, " + TITLE_LOOK.shadow * layer.shade + "))" }}>
+                  {layer.items.map((it: any, i: number) => (it.kind === "text"
+                    ? <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={'"' + it.font.family + '", ' + PREVIEW_FALLBACK} fontStyle={it.font.style} fontWeight={it.font.weight}
+                      stroke={it.stroke > 0 ? it.color : undefined} strokeWidth={it.stroke} strokeLinejoin="round"
+                      style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: it.tracking } as any}>{it.text}</text>
+                    : <path key={i} d={it.kind === "sparkle" ? mvSparklePath(it.x, it.y, it.size) : mvStarPath(it.x, it.y, it.size)} fill={it.color} />))}
+                </svg>
+              ))}
+            </div>
           ) : <small style={{ color: "#d8d2cc" }}>{assets ? "Preview unavailable; the title is still added to the Draft." : "Loading…"}</small>}
         </div>
         {chosen ? chosen.fields.map((fl: any) => (
