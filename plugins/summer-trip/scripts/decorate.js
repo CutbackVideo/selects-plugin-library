@@ -136,11 +136,14 @@ const motionDefs = m => [
 const nMain = fr.mainFrames.length - 1;
 const endingFirst = nMain - 3, lastMontage = nMain - 4;
 // Leak pulses (centres at pulseFrames, half a beat wide) in each ending clip's local seconds; a pulse that straddles
-// a cut appears in both clips.
+// a cut appears in both clips. With three or more pulses the last one (ending + 7 beats) is the warm end flare
+// (kind 'flare'), three times as wide (1.5 beats), so the final hold does not end on a clean dark picture.
 const halfLeak = (fr.leakFrames.b - fr.leakFrames.a) / 2;
+const flareAt = fr.pulseFrames.length >= 3 ? fr.pulseFrames.length - 1 : -1;
 const pulsesFor = clip => fr.pulseFrames
-  .filter(f => f + halfLeak > clip.startFrame && f - halfLeak < clip.endFrame)
-  .map(f => ({ at: (f - clip.startFrame) / fps, dur: 2 * halfLeak / fps }));
+  .map((f, k) => ({ f, half: k === flareAt ? 3 * halfLeak : halfLeak, flare: k === flareAt }))
+  .filter(q => q.f + q.half > clip.startFrame && q.f - q.half < clip.endFrame)
+  .map(q => (q.flare ? { at: (q.f - clip.startFrame) / fps, dur: 2 * q.half / fps, kind: 'flare' } : { at: (q.f - clip.startFrame) / fps, dur: 2 * q.half / fps }));
 let missing = 0;
 for (let i = 0; i < nMain; i++) {
   const clip = mainClip(await all(), i);

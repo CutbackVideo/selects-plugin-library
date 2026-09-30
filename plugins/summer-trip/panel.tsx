@@ -22,7 +22,8 @@ const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 // Summer Trip planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
 // Structure (beats from the section start, spec section 2.1 / 15): an 8-beat title over one opener shot, a 2x2 grid
 // build on 8th notes from the drop (beat 8), the place shot revealed under the grid and held to beat 14, a montage of
-// N shots (2 beats each, one pair of 3-beat holds), and an 8-beat film-frame ending of three shots.
+// N shots (2 beats each, one pair of 3-beat holds), and an 8-beat film-frame ending of three shots (leak pulses at
+// +2 and +5.5, a warm end flare at +7).
 // Every frame comes from one expression, F(b) = round((b * 60 / bpm + delta) * fps) with F(0) = 0 (stFrameSchedule).
 
 const ST_W = 1920;
@@ -45,7 +46,7 @@ const ST_MONTAGE_START = 14;
 const ST_ENDING_BEATS = 8;
 const ST_ENDING_SHOTS = [0, 2, 4]; // ending shot starts relative to the ending start
 const ST_LEAK_HALF = 0.25;       // light leak spans the ending cut +/- this many beats
-const ST_PULSES = [2, 5.5];      // leak pulses relative to the ending start
+const ST_PULSES = [2, 5.5, 7];   // leak pulses relative to the ending start; the last is the warm end flare
 const ST_FADE_BEATS = 0.5;       // picture and music fade over the last half beat
 const ST_LENGTHS = { short: 6, standard: 8, long: 12 };
 const ST_MIN_MONTAGE = 4;

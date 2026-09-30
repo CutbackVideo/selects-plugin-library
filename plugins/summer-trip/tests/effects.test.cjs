@@ -192,8 +192,11 @@ near(L.stLookTime(30, 30, L.stLookParams({ timeOrigin: 'source', sourceStartSeco
   const early = L.stLeakOutLayers(0.876, L.stLookParams(base)), late = L.stLeakOutLayers(0.995, L.stLookParams(base));
   const at = l => Number(/at ([\d.]+)%/.exec(l.find(x => x.key === 'bloom').background)[1]);
   assert.ok(at(late) < at(early) && at(late) < 50, 'bloom travels toward the left/centre');
-  const alpha = l => Number(/rgba\(255,250,232,([\d.]+)\)/.exec(l.find(x => x.key === 'bloom').background)[1]);
-  assert.ok(alpha(late) > alpha(early) && alpha(late) > 0.9, 'bloom builds up to a near blow-out');
+  const alpha = l => Number(/rgba\(255,228,170,([\d.]+)\)/.exec(l.find(x => x.key === 'bloom').background)[1]);
+  assert.ok(alpha(late) > alpha(early) && alpha(late) > 0.8, 'bloom builds up to a bright warm peak');
+  // Never a near-white frame: every leak colour stop is warm (blue well under red), the bloom core is amber.
+  for (const t of [0.876, 0.95, 0.999]) for (const l of L.stLeakOutLayers(t, L.stLookParams(base)))
+    for (const m of l.background.matchAll(/rgba\((\d+),(\d+),(\d+),/g)) assert.ok(Number(m[3]) <= 180 && Number(m[1]) - Number(m[3]) >= 75, 'warm stop ' + m[0]);
   const half = L.stLeakOutLayers(0.95, L.stLookParams({ ...base, leakStrength: 0.5 })), full = L.stLeakOutLayers(0.95, L.stLookParams(base));
   assert.ok(alpha(half) < alpha(full), 'leakStrength scales');
 }
@@ -257,6 +260,20 @@ near(F.stFrameTime(15, 30, F.stFrameParams({ timeOrigin: 'source', sourceStartSe
   const band = t => Number(/at ([\d.]+)% 55%/.exec(F.stFrameLeakLayers(p, t).find(l => l.key === 'leak-in-band').background)[1]);
   assert.ok(band(0.01) > 75 && band(0.1) < band(0.01) && band(0.1) > 40, 'red band starts on the right and sweeps toward the middle');
   assert.ok(F.stFrameLeakLayers(p, 0).every(l => l.mixBlendMode === 'screen' || l.mixBlendMode === 'overlay'));
+  // The opening wash is an orange/amber wash, not a near-white one (reference f520): warm stops, capped alpha.
+  const wash = F.stFrameLeakLayers(p, 0).find(l => l.key === 'leak-in-wash').background;
+  for (const m of wash.matchAll(/rgba\((\d+),(\d+),(\d+),([\d.]+)\)/g)) assert.ok(Number(m[3]) <= 130 && Number(m[4]) <= 0.7, 'orange wash stop ' + m[0]);
+}
+// The warm end flare (kind 'flare', ending + 7 beats): orange glow + amber tint inside the window, never white.
+{
+  assert.deepEqual(j(F.stFrameParams({ pulses: [{ at: 1.5, dur: 0.75, kind: 'flare' }, { at: 1, kind: 'x' }] }).pulses), [{ at: 1.5, dur: 0.75, kind: 'flare' }, { at: 1, dur: 0.4 }], 'kind flare kept, others dropped');
+  const p = F.stFrameParams({ clipSeconds: 2, pulses: [{ at: 1.5, dur: 0.75, kind: 'flare' }] });
+  assert.deepEqual(j(F.stFrameLeakLayers(p, 1.1).map(l => l.key)), [], 'before the flare');
+  assert.deepEqual(j(F.stFrameLeakLayers(p, 1.5).map(l => l.key)), ['flare-0', 'flare-tint-0']);
+  const a = t => Number(/rgba\(255,150,70,([\d.]+)\)/.exec(F.stFrameLeakLayers(p, t)[0].background)[1]);
+  assert.ok(a(1.5) > a(1.3) && a(1.5) > a(1.7) && a(1.5) >= 0.6, 'peaks at its centre');
+  for (const l of F.stFrameLeakLayers(p, 1.5)) for (const m of l.background.matchAll(/rgba\((\d+),(\d+),(\d+),/g)) assert.ok(Number(m[3]) <= 100, 'warm ' + m[0]);
+  assert.deepEqual(j(F.stFrameLeakLayers(F.stFrameParams({ clipSeconds: 2, leakStrength: 0, pulses: [{ at: 1.5, dur: 0.75, kind: 'flare' }] }), 1.5)), [], 'leakStrength 0');
 }
 // Leaks are drawn under the black surround (inside the window only): the leak div precedes the surround svg.
 assert.ok(frameSrc.indexOf('leaks.map') < frameSrc.indexOf('d={stFrameOverlayPath(p)}'), 'leaks under the surround');

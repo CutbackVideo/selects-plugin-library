@@ -30,7 +30,7 @@ chosen music section:
   the reference). The labels stay on.
 - **Ending (8 beats).** A warm light-leak wash leads into three shots inside
   a rounded, feathered film frame on black, with light-leak pulses inside
-  the frame. The music turns muffled (low-passed) for the ending, and the
+  the frame and a warm orange flare over the last shot. The music turns muffled (low-passed) for the ending, and the
   picture and the music fade out over the last half beat.
 - A **Summer look** on every clip, photo and grid panel: a warm film
   treatment with teal shadows, warm highlights, softened cyan skies and

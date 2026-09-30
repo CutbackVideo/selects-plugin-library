@@ -127,7 +127,7 @@ function schedule(N) {
     gridStates: [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5],
     title: [0, 8], labels: [[6, 8], [12, E]], place: [12, 14],
     endingStart: E, end: E + 8, fadeStart: E + 7.5,
-    leak: { a: E - 0.25, b: E + 0.25 }, pulses: [E + 2, E + 5.5], anchors: [8, 14, E],
+    leak: { a: E - 0.25, b: E + 0.25 }, pulses: [E + 2, E + 5.5, E + 7], anchors: [8, 14, E],
   };
 }
 const S8 = schedule(8);
@@ -192,7 +192,7 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
     assert.deepEqual(r.frames.mainFrames, bounds);
     assert.equal(r.frames.endingFrame, F(32)); assert.equal(r.frames.endFrame, F(40)); assert.equal(r.frames.fadeStartFrame, F(39.5));
     assert.deepEqual(r.frames.titleFrames, [0, F(8)]); assert.deepEqual(r.frames.labelsFrames, [[F(6), F(8)], [F(12), F(32)]]);
-    assert.deepEqual(r.frames.leakFrames, { a: F(31.75), b: F(32.25) }); assert.deepEqual(r.frames.pulseFrames, [F(34), F(37.5)]);
+    assert.deepEqual(r.frames.leakFrames, { a: F(31.75), b: F(32.25) }); assert.deepEqual(r.frames.pulseFrames, [F(34), F(37.5), F(39)]);
     assert.ok(r.frames.report.every(x => x.quantErrorSeconds <= 0.5 / fps + 1e-9), 'half-frame quantisation' + tag);
     // Source windows: frame-aligned starts, exactly the slot's frames; photos from 0.
     const ins = m.log.filter(x => x[0] === 'insert');
@@ -401,7 +401,9 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
   const e0 = fr.mainFrames[10], e1 = fr.mainFrames[11], e2 = fr.mainFrames[12];
   assert.deepEqual(ff[0].pulses, [{ at: (fr.pulseFrames[0] - e0) / fps, dur: 2 * half / fps }], 'pulse +2 straddles the first cut');
   assert.deepEqual(ff[1].pulses, [{ at: 0, dur: 2 * half / fps }]);
-  assert.deepEqual(ff[2].pulses, [{ at: (fr.pulseFrames[1] - e2) / fps, dur: 2 * half / fps }]);
+  // The last clip: the +5.5 pulse and the warm end flare at +7 (three times as wide).
+  assert.deepEqual(ff[2].pulses, [{ at: (fr.pulseFrames[1] - e2) / fps, dur: 2 * half / fps }, { at: (fr.pulseFrames[2] - e2) / fps, dur: 6 * half / fps, kind: 'flare' }]);
+  assert.ok(fr.pulseFrames[2] + 3 * half <= fr.endFrame && fr.pulseFrames[2] < fr.fadeStartFrame, 'the flare peaks before the fade and ends in the clip');
   assert.ok(e1 === fr.pulseFrames[0]);
   assert.deepEqual(ff.map(p => p.clipSeconds), [(e1 - e0) / fps, (e2 - e1) / fps, (fr.endFrame - e2) / fps]);
   // canvasInBox: the canvas in % of each clip's own box (16:9 video, 3:2 photo, 9:16 video, all cover-scaled).

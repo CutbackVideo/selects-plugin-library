@@ -121,7 +121,7 @@ function stLookFilterId(strength) {
 // the canvas rectangle. Four parts: a broad orange overlay wash plus a red-orange screen glow that builds up (reddens water and sky rather than
 // whitening them), and a hot bloom whose centre travels from the
 // upper left toward the left/centre while it grows, plus a hot orange edge on the right (reference f516 warms
-// broadly, f517 turns orange, f518 blows out left/centre).
+// broadly, f517 turns orange, f518 blows out left/centre). The bloom peaks at a warm amber, never a near-white frame.
 function stLeakOutLayers(t, p) {
   if (!(p.leakOutSeconds > 0) || !(p.clipSeconds > 0) || !(p.leakStrength > 0)) return [];
   const start = p.clipSeconds - p.leakOutSeconds;
@@ -148,7 +148,7 @@ function stLeakOutLayers(t, p) {
     },
     {
       key: "bloom",
-      background: `radial-gradient(ellipse ${rx.toFixed(1)}% ${ry.toFixed(1)}% at ${cx.toFixed(1)}% ${cy.toFixed(1)}%, rgba(255,250,232,${a(bloom)}) 0%, rgba(255,236,180,${a(0.9 * bloom)}) 35%, rgba(255,180,90,${a(0.5 * bloom)}) 65%, rgba(255,140,50,0) 100%)`,
+      background: `radial-gradient(ellipse ${rx.toFixed(1)}% ${ry.toFixed(1)}% at ${cx.toFixed(1)}% ${cy.toFixed(1)}%, rgba(255,228,170,${a(0.85 * bloom)}) 0%, rgba(255,205,135,${a(0.8 * bloom)}) 35%, rgba(255,165,80,${a(0.5 * bloom)}) 65%, rgba(255,140,50,0) 100%)`,
       mixBlendMode: "screen",
     },
     {

@@ -15,7 +15,7 @@ frames at the Draft's real fps; all "seconds from the section start" values are 
   gridStates: [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5],
   title: [0, 8], labels: [[6, 8], [12, E]], place: [12, 14],
   endingStart: E, end: E + 8, fadeStart: E + 7.5,
-  leak: { a: E - 0.25, b: E + 0.25 }, pulses: [E + 2, E + 5.5],
+  leak: { a: E - 0.25, b: E + 0.25 }, pulses: [E + 2, E + 5.5, E + 7], // E + 7 = the warm end flare
   anchors: [8, 14, E] // the only beats that may snap (own music only)
 }
 ```
@@ -141,11 +141,12 @@ skipped: { unanalysed, missing }, captureDates: { known, probed } }`. Dates with
   clipSeconds, sourceStartSeconds, timeOrigin }`.
 - Grid panel: `{ insetPct: { top, right, bottom, left } }` in % of the clip's own box (the quadrant rectangle, clamped 0–100).
 - Film frame: `{ canvasInBox: { x, y, w, h } /* % of the clip box */, windowW, windowH, radius, feather, fringe, leakInSeconds,
-  pulses: [{ at, dur }], leakStrength, fadeOutFrames, clipSeconds, motion: null | { motion, direction, axis, strength },
+  pulses: [{ at, dur, kind? }], leakStrength, fadeOutFrames, clipSeconds, motion: null | { motion, direction, axis, strength },
   sourceStartSeconds, timeOrigin }`. `canvasInBox` = the canvas rectangle in % of the clip's box, where the box is the source
   conformed to FIT the canvas, scaled by the clip transform's scale about its centre and moved by its position (% of canvas height,
   +y up). `pulses[].at` = pulse CENTRE in clip-local seconds (may be < 0 or > clipSeconds), `dur` = full width (half a beat, from
-  leakFrames); a pulse straddling a cut is listed on both clips. `leakInSeconds` = (leakFrames.b − endingFrame)/fps on the first ending
+  leakFrames); a pulse straddling a cut is listed on both clips. With three or more pulseFrames the last (E + 7) is the warm end
+  flare: `kind: 'flare'`, `dur` three times as wide (1.5 beats); the effect draws it as an orange/amber glow, not a red pulse. `leakInSeconds` = (leakFrames.b − endingFrame)/fps on the first ending
   clip; the last montage clip's look gets `leakOutSeconds` = (endingFrame − leakFrames.a)/fps; `fadeOutFrames` = endFrame −
   fadeStartFrame on the last ending clip.
 - Photo motion: as city-weekend-vlog.
