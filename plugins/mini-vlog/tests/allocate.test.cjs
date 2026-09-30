@@ -331,7 +331,7 @@ const beatsOf = r => r.schedule.slots.map(s => s.beats);
 const gStd = groove(rich.concat(photos(10)));
 assert.equal(gStd.ok, true); assert.equal(gStd.shots, 23); assert.equal(gStd.picks.length, 23);
 assert.deepEqual(beatsOf(gStd), [2].concat(Array(13).fill(1), [0.5, 0.5, 2], Array(6).fill(1)));
-assert.deepEqual(gStd.groove, { beats: 24, requestedBeats: 24, fills: [true], fillSource: 'pattern', beatSeconds: 60 / 108 });
+assert.deepEqual(gStd.groove, { beats: 24, requestedBeats: 24, fills: [true], fillSource: 'pattern', beatSeconds: 60 / 108, opener: 2 });
 assert.equal(gStd.beatsPerShot, null); assert.equal(gStd.overridden, false); assert.equal(gStd.fittedByMusic, false);
 assert.equal(gStd.schedule.totalFrames, 400);
 assert.ok(!adjacent(gStd.picks) && maxRun(gStd.picks) <= 2);
@@ -346,7 +346,7 @@ gStd.picks.forEach((p, i) => {
 assert.deepEqual(groove(rich.concat(photos(10))), gStd, 'deterministic');
 // Short and Long spans; a detected fill (onsets) splits that phrase instead of the pattern's.
 assert.equal(groove(rich, { requested: 12 }).shots, 11);
-assert.equal(groove(rich, { requested: 36 }).shots, 34);
+assert.equal(groove(rich, { requested: 36 }).shots, 35);
 {
   const B = 60 / 108, on = [];
   for (let k = 0; k < 32; k++) for (let i = 0; i < (k === 31 ? 3 : 2); i++) on.push([2 + k * B + i * B / 4, 'm', 5]);
@@ -376,6 +376,12 @@ assert.equal(gNg.ok, true); assert.equal(gNg.schedule.gridded, false); assert.eq
 assert.equal(gNg.groove.beatSeconds, 0.55); assert.equal(gNg.schedule.totalFrames, Math.round(24 * 0.55 * F));
 assert.equal(gNg.schedule.slots[14].endFrame - gNg.schedule.slots[14].startFrame, Math.round(15.5 * 0.55 * F) - Math.round(15 * 0.55 * F));
 // Above 150 bpm Groove uses 2 beats per shot, like Quick (no 8ths under 0.2 s).
+// Below 85.71 bpm the 2-beat opener would exceed 1.40 s: the opener is 1 beat (24 beats -> 25 shots).
+const gSlow = groove(rich, { bpm: 80 });
+assert.equal(gSlow.ok, true); assert.equal(gSlow.overridden, true); assert.equal(gSlow.groove.opener, 1); assert.equal(gSlow.shots, 25);
+assert.deepEqual(beatsOf(gSlow).slice(0, 2), [1, 1]); assert.deepEqual(beatsOf(gSlow).slice(15, 18), [0.5, 0.5, 1]);
+assert.ok(gSlow.schedule.slots.every(s => (s.endFrame - s.startFrame) / F <= 1.40 + 1 / F));
+assert.equal(groove(rich, { bpm: 86 }).schedule.slots[0].beats, 2);
 const gFast = groove(rich, { bpm: 158, requested: 12 });
 assert.equal(gFast.beatsPerShot, 2); assert.equal(gFast.overridden, true); assert.equal(gFast.shots, 12); assert.ok(!('groove' in gFast));
 
