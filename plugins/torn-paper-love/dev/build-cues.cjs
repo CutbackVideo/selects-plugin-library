@@ -1,5 +1,6 @@
 // plugins/torn-paper-love/dev/build-cues.cjs
-// Dev-only: normalize the generated cues to -14 LUFS, measure their grids and write assets/cues/manifest.json.
+// Dev-only: bring the generated cues to -14 LUFS with a static gain (see the loudness rule below), measure their
+// grids and write assets/cues/manifest.json.
 // Usage: node dev/build-cues.cjs <folder-with-generated-mp3s>   (builds the cues whose source is in the folder; the
 //        others keep their shipped mp3 and manifest entry unchanged)
 //        node dev/build-cues.cjs --onsets   (re-measure only the onsets of the shipped cues; every other value stays)
@@ -52,26 +53,44 @@ for (const c of CUES) {
     console.log(c.id, 'kept');
     continue;
   }
-  const LOUDNORM = 'loudnorm=I=-14:TP=-1.5:LRA=11';
   const input = path.join(src, c.source);
   const encode = filter => execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-i', input, '-af', filter, '-ar', '44100', '-ac', '2', '-b:a', '192k', '-map_metadata', '-1', dst]);
-  const measure = () => {
-    const stderr = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', dst, '-af', 'ebur128', '-f', 'null', '-']).stderr.toString();
-    // The last "I: x LUFS" occurrence is the integrated summary.
-    return Number((stderr.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop().match(/-?[\d.]+/)[0]);
+  // Integrated loudness (LUFS) and true peak (dBTP) of a file, from the ebur128 summary.
+  const ebur = file => {
+    const stderr = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', file, '-af', 'ebur128=peak=true', '-f', 'null', '-']).stderr.toString();
+    const summary = stderr.slice(stderr.lastIndexOf('Summary:'));
+    return { i: Number(summary.match(/I:\s+(-?[\d.]+) LUFS/)[1]), tp: Number(summary.match(/Peak:\s+(-?[\d.]+)/)[1]) };
   };
-  const loudnormJson = filter => {
-    const stderr = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', input, '-af', filter + ':print_format=json', '-f', 'null', '-']).stderr.toString();
-    return JSON.parse(stderr.slice(stderr.lastIndexOf('{'), stderr.lastIndexOf('}') + 1));
-  };
-  // Linear (static gain) normalization only: dynamic loudnorm flattens the swells of a cue. Two-pass loudnorm with
-  // linear=true is a static gain when the true-peak ceiling allows it; when it would fall back to dynamic mode, use a
-  // static gain into a -1.5 dBTP limiter instead.
-  const j = loudnormJson(LOUDNORM);
-  const linear = LOUDNORM + ':linear=true:measured_I=' + j.input_i + ':measured_TP=' + j.input_tp + ':measured_LRA=' + j.input_lra + ':measured_thresh=' + j.input_thresh + ':offset=' + j.target_offset;
-  let normalization = loudnormJson(linear).normalization_type;
-  if (normalization === 'linear') encode(linear);
-  else { normalization = 'gain+limiter'; encode('volume=' + (-14 - Number(j.input_i)).toFixed(2) + 'dB,alimiter=limit=0.84:level=false'); }
+  const measure = () => ebur(dst).i;
+  // Loudness rule: keep the cue's dynamics. Every cue gets one static gain to -14 LUFS integrated; no loudnorm (its
+  // dynamic mode flattens swells, and it resamples to 192 kHz), no compression, no auto-level.
+  // - The gain is -14 minus the source's integrated loudness, corrected once by what the MP3 re-encode loses (its
+  //   lowpass takes ~0.3 LU of the top end).
+  // - Pure linear gain when the encoded true peak stays at or below -1.0 dBTP.
+  // - Otherwise the same gain into a gentle, transparent peak limiter (alimiter: 20 ms lookahead attack, 300 ms release,
+  //   level=false, latency=1 so the lookahead does not delay the cue and shift its grid) whose ceiling sits just under
+  //   -1 dBTP, so it only touches the few peaks above it. alimiter limits sample peaks and the MP3 encode adds
+  //   inter-sample overshoot, so the ceiling starts at -1.1 dBFS and steps down 0.1 dB until the encoded file measures
+  //   <= -1.0 dBTP.
+  // The limiter's peak reduction (linear-gain true peak minus limited true peak) is logged per cue.
+  const TARGET_I = -14, CEILING_TP = -1.0;
+  const volume = gain => 'volume=' + gain.toFixed(2) + 'dB';
+  let gain = TARGET_I - ebur(input).i;
+  encode(volume(gain));
+  gain += TARGET_I - ebur(dst).i;
+  encode(volume(gain));
+  const linearTP = ebur(dst).tp;
+  let normalization = 'linear', reduction = 0;
+  if (linearTP > CEILING_TP) {
+    for (let ceiling = CEILING_TP - 0.1; ; ceiling -= 0.1) {
+      encode(volume(gain) + ',alimiter=limit=' + Math.pow(10, ceiling / 20).toFixed(4) + ':attack=20:release=300:level=false:latency=1');
+      const tp = ebur(dst).tp;
+      normalization = 'gain+limiter@' + ceiling.toFixed(1) + 'dBFS';
+      reduction = Math.round((linearTP - tp) * 10) / 10;
+      if (tp <= CEILING_TP) break;
+      if (ceiling < CEILING_TP - 1) throw Error(c.id + ': true peak ' + tp + ' dBTP above ' + CEILING_TP + ' after limiting');
+    }
+  }
   const lufs = measure();
   const samples = decode(dst);
   // phaseBeats: the per-cue half-beat correction above, for a grid the phase check does not fix.
@@ -85,6 +104,6 @@ for (const c of CUES) {
     downbeatConfidence: c.downbeatConfidence, sixteenthRatio: sixteenthRatio(samples, 22050, a.bpm, a.firstBeat, usableEnd), peaks: a.peaks, beatEnergy: a.beatEnergy,
     ...onsetFields(samples),
   });
-  console.log(c.id, a.bpm, a.firstBeat, lufs, normalization, a.residualMedianMs, a.hitRate);
+  console.log(c.id, a.bpm, a.firstBeat, lufs, normalization, 'gain ' + gain.toFixed(2) + ' dB, TP ' + ebur(dst).tp + ' dBTP, limiter reduction ' + reduction + ' dB', a.residualMedianMs, a.hitRate);
 }
 fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify({ version: 1, provenance: PROVENANCE, defaultCue, cues }) + '\n');
