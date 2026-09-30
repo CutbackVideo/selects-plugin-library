@@ -414,7 +414,7 @@ function mvAllocate(opts) {
     const runFull = runLimited && photoRun >= MV_PHOTO_RUN_MAX;
     const tiers = photoSlots[slot.index] ? [photo] : [];
     if (spread) {
-      const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => x - y);
+      const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => Number(x) - Number(y));
       for (const level of levels) tiers.push(preferred(level), anyReal(level), filler(level));
       tiers.push(photo);
     } else {
@@ -606,9 +606,9 @@ function mvAdvance(m, ch) {
   return typeof a === "number" ? a : 0.56 * m.unitsPerEm;
 }
 
-// Advance width of `text` at `px` (kerning ignored), plus `tracking` em between letters
+// Advance width of `text` at `px` (kerning ignored), plus `tracking` em (optional, default 0) between letters
 // (CSS letter-spacing also follows the last letter, but that space is never visible).
-function mvTextWidth(text, m, px, tracking) {
+function mvTextWidth(text, m, px, tracking = 0) {
   var units = 0;
   for (var i = 0; i < text.length; i++) units += mvAdvance(m, text.charAt(i));
   return (units * px) / m.unitsPerEm + (tracking || 0) * px * Math.max(0, text.length - 1);

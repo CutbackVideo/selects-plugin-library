@@ -43,9 +43,9 @@ function mvAdvance(m, ch) {
   return typeof a === "number" ? a : 0.56 * m.unitsPerEm;
 }
 
-// Advance width of `text` at `px` (kerning ignored), plus `tracking` em between letters
+// Advance width of `text` at `px` (kerning ignored), plus `tracking` em (optional, default 0) between letters
 // (CSS letter-spacing also follows the last letter, but that space is never visible).
-function mvTextWidth(text, m, px, tracking) {
+function mvTextWidth(text, m, px, tracking = 0) {
   var units = 0;
   for (var i = 0; i < text.length; i++) units += mvAdvance(m, text.charAt(i));
   return (units * px) / m.unitsPerEm + (tracking || 0) * px * Math.max(0, text.length - 1);

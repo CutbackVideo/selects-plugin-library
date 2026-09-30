@@ -345,7 +345,7 @@ function mvAllocate(opts) {
     const runFull = runLimited && photoRun >= MV_PHOTO_RUN_MAX;
     const tiers = photoSlots[slot.index] ? [photo] : [];
     if (spread) {
-      const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => x - y);
+      const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => Number(x) - Number(y));
       for (const level of levels) tiers.push(preferred(level), anyReal(level), filler(level));
       tiers.push(photo);
     } else {
