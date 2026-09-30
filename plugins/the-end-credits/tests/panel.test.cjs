@@ -152,9 +152,13 @@ assert.ok(panel.includes('TEC_LENGTH_ORDER.map(') && panel.includes('<ui.Segment
 // Music: the five cues (default from the manifest), own music, No music; section via tecSection; fit offer; fixed-timing notice.
 for (const phrase of ['{ label: "Your own music", value: "own" }', '{ label: "No music", value: "none" }', '(parsed.cues || []).find((c: any) => c.default)', 'React.useState("")', 'setCueId((cur) => (cur === "" ? def.id : cur))',
   'swell: cue.swell ?? cue.swellFallback', 'P: (beats * 60) / cue.bpm', 'tecSection({ ...sectionOpts, value', 'tecFitLength({', 'This track is too short (needs ≥ ', '"Use " + LENGTH_LABELS[fit.key]',
-  'No steady beat found: shots are 3.9 s.', 'tecPhrase({ bpm: ownGrid.bpm, accepted: true })', 'usableEnd: ownDuration - TEC_MUSIC_END_MARGIN', 'reveal on the loudest part', 'reveal on the swell',
+  'No steady beat found: shots are 3.9 s.', 'const ph = tecOwnPhrase(ownGrid);', 'approximate: ph.approximate', '"Beat found (approximate): shots follow it at " + music.P.toFixed(2) + " s."', 'usableEnd: ownDuration - TEC_MUSIC_END_MARGIN', 'reveal on the loudest part', 'reveal on the swell',
   '<ui.FileDrop accept={["audio"]}', '-t " + dur.toFixed(2)', 'const dur = videoSeconds']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(panel.includes('[cueId, ownMusic?.path, section, length]'), 'a stale preview stops');
+// Own music: the approximate notice only for an approximate grid on a phrase; hitRate is never read (it can be 1 on
+// noise or a single onset), only grid / accepted through tecOwnPhrase.
+assert.ok(panel.includes('ownGrid && !music.fixed && "approximate" in music && music.approximate ?'), 'approximate notice condition');
+assert.ok(!/hitRate/.test(panel.slice(panel.indexOf('// tec-planner:end'))), 'the panel does not read hitRate');
 // The default cue is only the manifest's `default: true` flag: no bundled cue id is hard-coded in the panel.
 for (const id of ['piano-strings', 'rhodes-soul', 'post-rock', 'orchestral', 'dream-synth']) assert.ok(!panel.includes('"' + id + '"'), 'panel hard-codes cue ' + id);
 // Advanced: clip sound Ambient (default) / Full / Off, Cinematic look, Use photos, Choose clips.

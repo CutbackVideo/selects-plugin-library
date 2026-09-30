@@ -4,7 +4,7 @@ const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date };
 vm.createContext(box);
-vm.runInContext(source + ';globalThis.P={tecPhrase,tecLoudest,tecVideoSeconds,tecTimeline,tecSection,tecFitLength,tecTyping,tecTypedCount,tecProgress,TEC_BUILD_STEPS,TEC_LENGTHS,TEC_DEFAULT_LENGTH,TEC_LEAD_IN,TEC_TAIL,TEC_SEARCH_QUERIES,TEC_SEARCH_ROLES};', box);
+vm.runInContext(source + ';globalThis.P={tecPhrase,tecOwnPhrase,tecLoudest,tecVideoSeconds,tecTimeline,tecSection,tecFitLength,tecTyping,tecTypedCount,tecProgress,TEC_BUILD_STEPS,TEC_LENGTHS,TEC_DEFAULT_LENGTH,TEC_LEAD_IN,TEC_TAIL,TEC_SEARCH_QUERIES,TEC_SEARCH_ROLES};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, (msg || '') + ' expected ' + b + ' got ' + a);
@@ -41,6 +41,34 @@ t('tempo multiple (R3)', () => {
   assert.deepEqual(j(P.tecPhrase({ bpm: 62, accepted: false })), { P: 3.9, m: null, fixed: true });
   assert.deepEqual(j(P.tecPhrase({ bpm: NaN, accepted: true })), { P: 3.9, m: null, fixed: true });
   assert.deepEqual(j(P.tecPhrase({})), { P: 3.9, m: null, fixed: true });
+});
+
+t('own music: detection -> phrase (accepted, approximate, none)', () => {
+  const own = d => j(P.tecOwnPhrase(d));
+  // Accepted: the grid's phrase from its first beat.
+  const acc = own({ bpm: 120, firstBeat: 0.04, accepted: true, grid: 'accepted' });
+  assert.equal(acc.m, 8); near(acc.P, 4, 1e-12); assert.equal(acc.fixed, false); assert.equal(acc.approximate, false); assert.equal(acc.firstBeat, 0.04);
+  // Approximate at 120 bpm (hitRate below the sparse rule, e.g. 0.25): the same phrase on the detected tempo and first
+  // beat, not the fixed 3.9 s, and flagged approximate for the panel notice.
+  const ap = own({ bpm: 120, firstBeat: 0.4, accepted: false, grid: 'approximate', hitRate: 0.25 });
+  assert.deepEqual(ap, { P: 4, m: 8, fixed: false, approximate: true, firstBeat: 0.4 });
+  // The real approximate case: the bundled orchestral cue dropped as own music reads 119.95 bpm (double-time), first beat 0.536.
+  const orch = own({ bpm: 119.95, firstBeat: 0.536, accepted: false, grid: 'approximate' });
+  assert.equal(orch.m, 8); near(orch.P, 480 / 119.95, 1e-12); assert.equal(orch.approximate, true); assert.equal(orch.firstBeat, 0.536);
+  // The section then snaps to phrases from that first beat (not the fixed 0.1 s steps).
+  const sec = j(P.tecSection({ firstBeat: ap.firstBeat, P: ap.P, videoSeconds: P.tecVideoSeconds(7, ap.P), usableEnd: 200, swell: 100, fixed: ap.fixed }));
+  assert.equal(sec.fixed, false); near((sec.start + 5.1 - 0.4) / 4, Math.round((sec.start + 5.1 - 0.4) / 4), 1e-9, 'reveal on a phrase downbeat');
+  // Approximate but no multiple in [3.4, 4.4] (100 bpm: 2.4 / 4.8 s), or outside the detector's 70-180 range: fixed.
+  const fixed = { P: 3.9, m: null, fixed: true, approximate: false, firstBeat: 0 };
+  assert.deepEqual(own({ bpm: 100, firstBeat: 0.3, accepted: false, grid: 'approximate' }), fixed);
+  assert.deepEqual(own({ bpm: 62, firstBeat: 0.3, accepted: false, grid: 'approximate' }), fixed);
+  assert.deepEqual(own({ bpm: 190, firstBeat: 0.3, accepted: false, grid: 'approximate' }), fixed);
+  // None, whatever hitRate says (it reads 1 on noise or a single onset): fixed.
+  assert.deepEqual(own({ bpm: 70.58, firstBeat: 0.005, accepted: false, grid: 'none', hitRate: 1 }), fixed);
+  assert.deepEqual(own({ bpm: 120, firstBeat: 0.4, accepted: false, hitRate: 1 }), fixed);
+  // The panel's failed-detection object (no bpm, no grid) and no result: fixed.
+  assert.deepEqual(own({ accepted: false, durationSeconds: 200, peaks: [] }), fixed);
+  assert.deepEqual(own(null), fixed);
 });
 
 t('lengths and total durations (R7)', () => {

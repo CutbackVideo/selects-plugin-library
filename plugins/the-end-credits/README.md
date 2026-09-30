@@ -140,9 +140,14 @@ the whole section; press it again (**Stop preview**) or Esc to stop. The music f
 
 **Your own music**: drop an audio file. The plugin listens for the beat and
 cuts every 2, 4 or 8 detected beats, whichever makes a shot 3.4 to 4.4 s
-long. When no steady beat is found, or no multiple fits, the
-panel says "No steady beat found: shots are 3.9 s" and uses fixed 3.9 s
-shots; the box then moves in 0.1 s steps. The reveal goes to the loudest part
+long. Sparse grooves (lo-fi, half-time: a kick or snare on only some beats)
+count as a beat when their hits sit tightly on one tempo across the track.
+When the beat is tight but too sparse to be sure of (about one hit a bar),
+the shots still follow the detected tempo and first beat, and the panel
+says "Beat found (approximate): shots follow it at 4.00 s" (for a 120 bpm
+track); the cuts may miss the beat you hear. When no steady beat is found,
+or no multiple fits, the panel says "No steady beat found: shots are 3.9 s"
+and uses fixed 3.9 s shots; the box then moves in 0.1 s steps. The reveal goes to the loudest part
 of your track. Your own music and the previews need ffmpeg; your own music
 also needs Node.js 18 or later (see [INSTALL.md](INSTALL.md)). The bundled
 tracks work without them.
