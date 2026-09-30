@@ -125,7 +125,7 @@ function schedule(N) {
     mainBeats: [0, 9.5, 14, ...cuts.slice(0, -1), E, E + 2, E + 4, E + 8],
     grid: [{ quad: 'TL', a: 8, b: 10 }, { quad: 'TR', a: 8.5, b: 10.5 }, { quad: 'BR', a: 9, b: 11 }, { quad: 'BL', a: 9.5, b: 11.5 }],
     gridStates: [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5],
-    title: [0, 8], labels: [[5, 8], [12, E]], place: [12, 14],
+    title: [0, 8], labels: [[6, 8], [12, E]], place: [12, 14],
     endingStart: E, end: E + 8, fadeStart: E + 7.5,
     leak: { a: E - 0.25, b: E + 0.25 }, pulses: [E + 2, E + 5.5], anchors: [8, 14, E],
   };
@@ -191,7 +191,7 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
     assert.deepEqual(m.mainSpans().map(x => [x[1], x[2]]), bounds.slice(0, -1).map((a, i) => [a, bounds[i + 1]]), 'Main cuts on F(b)' + tag);
     assert.deepEqual(r.frames.mainFrames, bounds);
     assert.equal(r.frames.endingFrame, F(32)); assert.equal(r.frames.endFrame, F(40)); assert.equal(r.frames.fadeStartFrame, F(39.5));
-    assert.deepEqual(r.frames.titleFrames, [0, F(8)]); assert.deepEqual(r.frames.labelsFrames, [[F(5), F(8)], [F(12), F(32)]]);
+    assert.deepEqual(r.frames.titleFrames, [0, F(8)]); assert.deepEqual(r.frames.labelsFrames, [[F(6), F(8)], [F(12), F(32)]]);
     assert.deepEqual(r.frames.leakFrames, { a: F(31.75), b: F(32.25) }); assert.deepEqual(r.frames.pulseFrames, [F(34), F(37.5)]);
     assert.ok(r.frames.report.every(x => x.quantErrorSeconds <= 0.5 / fps + 1e-9), 'half-frame quantisation' + tag);
     // Source windows: frame-aligned starts, exactly the slot's frames; photos from 0.

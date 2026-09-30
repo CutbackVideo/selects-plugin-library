@@ -13,7 +13,7 @@ frames at the Draft's real fps; all "seconds from the section start" values are 
   mainBeats: [0, 9.5, 14, /* montage cuts */, E, E + 2, E + 4, E + 8], // E = 14 + M, M = 2N + 2
   grid: [{ quad: 'TL', a: 8, b: 10 }, { quad: 'TR', a: 8.5, b: 10.5 }, { quad: 'BR', a: 9, b: 11 }, { quad: 'BL', a: 9.5, b: 11.5 }],
   gridStates: [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5],
-  title: [0, 8], labels: [[5, 8], [12, E]], place: [12, 14],
+  title: [0, 8], labels: [[6, 8], [12, E]], place: [12, 14],
   endingStart: E, end: E + 8, fadeStart: E + 7.5,
   leak: { a: E - 0.25, b: E + 0.25 }, pulses: [E + 2, E + 5.5],
   anchors: [8, 14, E] // the only beats that may snap (own music only)

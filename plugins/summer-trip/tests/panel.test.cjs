@@ -309,7 +309,8 @@ const payloads = {};
     // Title times sit on frames of the real rate, from the same F() as the cuts.
     const tp = dcfg.title.parameters, fpsR = a.fps;
     for (const t of [...tp.wordTimes, tp.seasonPartTime, tp.seasonFullTime, tp.labelsTime]) assert.ok(near(t * fpsR, Math.round(t * fpsR), 1e-6), 'title time on a frame: ' + t);
-    assert.ok(near(tp.seasonFullTime * fpsR, Math.round((5 * 60 / plan.frames.bpm + a.frames.delta) * fpsR), 1e-6), 'SUMMER complete on F(5)');
+    assert.ok(near(tp.seasonFullTime * fpsR, Math.round((6 * 60 / plan.frames.bpm + a.frames.delta) * fpsR), 1e-6), 'SUMMER complete on F(6)');
+    assert.ok(near(tp.wordTimes[0] * fpsR, Math.round((0.5 * 60 / plan.frames.bpm + a.frames.delta) * fpsR), 1e-6) && tp.wordTimes[0] > 0, 'a clean start: the first word on F(0.5)');
     assert.equal(tp.creditPrefix, 'By'); assert.equal(dcfg.labels.parameters.placePrefix, 'in'); assert.equal(dcfg.labels.parameters.place, 'Italy');
     const span = a.frames.labelsFrames[a.frames.labelsFrames.length - 1];
     assert.ok(near(dcfg.labels.parameters.placeSeconds, (a.frames.placeFrames[1] - span[0]) / fpsR), 'place title over [F(12), F(14))');

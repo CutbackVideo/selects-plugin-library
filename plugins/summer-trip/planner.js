@@ -8,6 +8,8 @@ const ST_W = 1920;
 const ST_H = 1080;
 const ST_TITLE_BEATS = 8;
 const ST_DROP_BEAT = 8;
+const ST_TITLE_FIRST_WORD = 0.5; // the first title word (the picture starts clean)
+const ST_TITLE_SEASON_BEAT = 5;  // the first part of the season word; complete one beat later, with the labels
 const ST_GRID_STATES = [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5];
 // Grid overlay clips A-D: one quadrant each, in contract order.
 const ST_GRID = [
@@ -120,7 +122,7 @@ function stSchedule(opts) {
     grid: ST_GRID.map(g => ({ quad: g.quad, a: g.a, b: g.b })),
     gridStates: ST_GRID_STATES.slice(),
     title: [0, ST_TITLE_BEATS],
-    labels: [[5, ST_TITLE_BEATS], [ST_PLACE_TITLE, E]],
+    labels: [[ST_TITLE_SEASON_BEAT + 1, ST_TITLE_BEATS], [ST_PLACE_TITLE, E]],
     place: [ST_PLACE_TITLE, ST_MONTAGE_START],
     endingStart: E,
     end: E + ST_ENDING_BEATS,
@@ -197,9 +199,11 @@ function stFrameSchedule(opts) {
 
 function stChars(text) { return Array.from(String(text == null ? '' : text)); }
 
-// Title typing schedule (spec 4.2 / 15.8), in beats from the section start. line 1 up to 4 words: one word per beat
-// (0, 1, 2, 3); 5 or more: one per 8th note from 0 (words past the 8th share the 8th slot at 3.5). Season: the first
-// ceil(len/2) letters at 4 when it has at least 4 letters (else the whole word at 4), complete at 5. Labels at 5.
+// Title typing schedule (spec 4.2 / 15.8), in beats from the section start. The title starts on a clean picture (the
+// reference's first word lands half a beat in): line 1 up to 4 words, one word per beat on the off-beats (0.5, 1.5,
+// 2.5, 3.5); 5 or more: one per 8th note from 0.5 (words past the 7th share the last slot at 3.5). Season: the first
+// ceil(len/2) letters at 5 when it has at least 4 letters (else the whole word at 5), complete at 6. Labels at 6
+// (reference at 120 BPM: that 0.46, one 1.6, trip 2.74, in 3.86, SUM 5.06, SUMMER 6.14 beats). The drop stays at 8.
 // titleHits (a bundled cue's measured beats: 4 word hits + 2 season hits, sorted, finite, in [0, 8)) replace the
 // word and season times when line 1 has at most 4 words.
 function stTitleSchedule(line1, season, titleHits) {
@@ -210,16 +214,16 @@ function stTitleSchedule(line1, season, titleHits) {
   const useHits = hitsOk && words.length <= 4;
   let wordBeats;
   if (useHits) wordBeats = words.map((_, i) => titleHits[i]);
-  else if (words.length <= 4) wordBeats = words.map((_, i) => i);
-  else wordBeats = words.map((_, i) => Math.min(i, 7) * 0.5);
+  else if (words.length <= 4) wordBeats = words.map((_, i) => ST_TITLE_FIRST_WORD + i);
+  else wordBeats = words.map((_, i) => ST_TITLE_FIRST_WORD + Math.min(i, 6) * 0.5);
   return {
     words,
     wordBeats,
-    seasonPartBeat: useHits ? titleHits[4] : 4,
+    seasonPartBeat: useHits ? titleHits[4] : ST_TITLE_SEASON_BEAT,
     seasonPartLength: len >= 4 ? Math.ceil(len / 2) : len,
-    seasonFullBeat: useHits ? titleHits[5] : 5,
+    seasonFullBeat: useHits ? titleHits[5] : ST_TITLE_SEASON_BEAT + 1,
     // Labels never come before the full season word (a cue's second season hit can fall after beat 5).
-    labelsBeat: useHits ? Math.max(5, titleHits[5]) : 5,
+    labelsBeat: useHits ? Math.max(5, titleHits[5]) : ST_TITLE_SEASON_BEAT + 1,
     source: useHits ? 'hits' : words.length <= 4 ? 'beats' : 'eighths',
   };
 }

@@ -159,8 +159,9 @@ function readbackOf(m, fps) {
   assert.deepEqual(dc.filmFrame.window, { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 });
   assert.equal(dc.look.strength, 0.3);
   const F = b => (b === 0 ? 0 : Math.round((b * 60 / 120 + a.frames.delta) * 29.97));
-  assert.deepEqual(dc.title.parameters.wordTimes, [0, 1, 2, 3].map(b => F(b) / 29.97), 'title words on beats 0-3 at the real fps');
-  assert.equal(dc.title.parameters.seasonPartTime, F(4) / 29.97);
+  assert.deepEqual(dc.title.parameters.wordTimes, [0.5, 1.5, 2.5, 3.5].map(b => F(b) / 29.97), 'title words on beats 0.5-3.5 at the real fps');
+  assert.equal(dc.title.parameters.seasonPartTime, F(5) / 29.97);
+  assert.equal(dc.title.parameters.seasonFullTime, F(6) / 29.97);
   assert.equal(dc.title.parameters.seasonPartLength, 3);
   assert.equal(dc.title.parameters.creditName, 'Quincy');
   assert.deepEqual(Object.keys(dc.title.parameters.fonts).sort(), ['ST Poppins Black', 'ST Poppins Bold', 'ST Poppins Light', 'ST Poppins Light Italic'], 'the title embeds its four Summer faces');

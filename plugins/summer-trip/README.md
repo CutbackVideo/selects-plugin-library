@@ -10,12 +10,12 @@ changes an existing Draft or any source file.
 The video follows one schedule, counted in beats from the start of the
 chosen music section:
 
-- **Title (8 beats, two bars).** One opening shot, with a title typed word
-  by word on the beat: line 1 ("that one trip in", one word per beat), then
-  a big season word in two steps ("SUM" on beat 4, "SUMMER" on beat 5),
-  then two small labels: "SUMMER *VLOG*" at the top and, when you fill in a
-  credit, "BY *NAME*" at the bottom. A line 1 of five or six words is typed
-  on half beats instead.
+- **Title (8 beats, two bars).** One opening shot that starts clean, with a
+  title typed word by word: line 1 ("that one trip in", one word per beat,
+  from half a beat in), then a big season word in two steps ("SUM" on beat
+  5, "SUMMER" on beat 6), then two small labels: "SUMMER *VLOG*" at the top
+  and, when you fill in a credit, "BY *NAME*" at the bottom. A line 1 of
+  five or six words is typed on half beats instead.
 - **Grid build (3.5 beats, from beat 8).** The title leaves and a 2x2 split
   screen fills one quadrant per half beat (top left, top right, bottom
   right, bottom left), each with a different shot. The place shot then takes
