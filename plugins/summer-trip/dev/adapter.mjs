@@ -254,7 +254,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
 
     search(r0, rids) {
       const row = expandEnv(r0);
-      return { summary: 'Search travel shots', script: 'scripts/search.js', config: { projectId: row.pid, rids, queries: j(P.ST_QUERIES), pageSize: ST_PANEL.SEARCH_PAGE } };
+      return { summary: 'Search travel shots', script: 'scripts/search.js', config: { projectId: row.pid, rids, queries: j({ ...P.ST_QUERIES, ...P.ST_SIGNAL_QUERIES }), pageSize: ST_PANEL.SEARCH_PAGE } };
     },
 
     // Pure apart from own-music analysis (cached). Throws when the plan is not buildable (the panel's disabled Build).

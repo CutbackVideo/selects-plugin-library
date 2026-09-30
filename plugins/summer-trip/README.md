@@ -216,6 +216,12 @@ X s)". Below 4 montage shots the panel says "Your footage is too short for 4
 montage shots" and Build stays disabled. The plugin does not start analysis
 on its own, so analyse your clips first.
 
+Two extra scene searches per clip steer the choice without filling shots:
+night scenes, city lights and intense sunsets are kept out of the opening,
+the grid, the place shot and the montage while daylight footage remains
+(they suit the ending, where they are still welcome), and moments with
+people walking or travel along a road or coast win close calls.
+
 If the scene search fails for some clips, the build goes on without them
 and the next **Build** searches only those clips again.
 

@@ -134,8 +134,12 @@ skipped: { unanalysed, missing }, captureDates: { known, probed } }`. Dates with
 `selects.media.probe` (recorded → creation → filenameTimestamp → encoded unless encodedBy); month is read from the date text.
 
 ### search.js
-`{ projectId, rids, queries?: { [role]: text } /* default spec §5 roles */, roles?: [role], pageSize?: 6 /* 1–10 */, parallel?: 4
-/* ≤ 4 */, budgetMs?: 22000 }` → `{ candidates: [{ rid, role, t, score }], failed: [rid], stats: { ms, waitedMs, rateLimited, jobs } }`.
+`{ projectId, rids, queries?: { [role]: text } /* default spec §5 roles + the signal queries avoid, motion */, roles?: [role], pageSize?: 6
+/* 1–10 */, parallel?: 4 /* ≤ 4 */, budgetMs?: 22000 }` → `{ candidates: [{ rid, role, t, score }], failed: [rid], stats: { ms, waitedMs,
+rateLimited, jobs } }`. The panel and `dev/adapter.mjs` pass `{ ...ST_QUERIES, ...ST_SIGNAL_QUERIES }` (14 searches per clip). Hits of
+the signal roles `avoid` and `motion` are never shots: the planner (`stSignals`) ranks an avoided candidate (near a strong avoid hit,
+or on an avoid-dominated clip) as one use more and after non-avoided ones in opener/place/grid/montage slots (not the ending), and
+gives candidates near a motion hit a tie-break bonus (≤ 0.03).
 
 ## Effect parameters (assets/*.tsx)
 

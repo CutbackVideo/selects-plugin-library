@@ -98,7 +98,7 @@ function readbackOf(m, fps) {
   assert.equal(invStep.script, 'scripts/inventory.js');
   assert.deepEqual(invStep.config, { projectId: 'P', only: null, known: {}, measureMs: 0, probeMs: 0 });
   const sStep = A.search({ pid: 'P' }, ['v0', 'v1']);
-  assert.deepEqual(Object.keys(sStep.config.queries), roles);
+  assert.deepEqual(Object.keys(sStep.config.queries), [...roles, 'avoid', 'motion'], 'the roles and the two signal queries');
   assert.equal(A.searchBatch, ST_PANEL.SEARCH_BATCH);
 
   // ---- 1. Bundled-style cue, sound effects on, Draft at 29.97 fps (planned at 30).

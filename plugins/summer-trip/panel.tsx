@@ -75,6 +75,28 @@ const ST_QUERIES = {
   detail: 'a summer detail close up',
   ending: 'golden sunset light over the sea or a town',
 };
+// Signal queries (search.js runs them next to the roles; their hits are never shots). 'avoid' finds extreme moments
+// (night, city lights, an intense sunset) that break a daylight montage; 'motion' finds human-scale movement.
+const ST_SIGNAL_QUERIES = {
+  avoid: 'a dark night scene, city lights at night, or an intense orange sunset',
+  motion: 'people walking, a street with movement, or travelling along a road or coast',
+};
+// A signal hit counts for candidates within this many seconds of it on the same clip (a shot is centred on its
+// candidate, so this stands for a two-beat window plus a little).
+const ST_SIGNAL_REACH = 1;
+// An avoid hit is strong when it scores at least ST_AVOID_MIN and more than every day-role hit (every role but
+// 'ending') within reach on that clip; a clip whose best avoid hit beats its best day-role hit is avoided throughout.
+// Live scores sit within about 0.1-0.56 and a sunset query also scores well on sunny beaches, so strength is judged
+// against the clip's own day hits, not by a fixed threshold alone.
+const ST_AVOID_MIN = 0.25;
+// Opener, place, grid and montage slots rank an avoided candidate as if its clip had been used once more, and after
+// every non-avoided candidate of the same use count whatever its role (fresh day moments first, so night and sunset
+// clips wait for the ending, where warm sunset light is wanted), and take this off its value. It stays usable when
+// nothing else fits, so every guarantee holds.
+const ST_AVOID_PENALTY = 0.1;
+// Motion: a tie-break bonus of up to ST_MOTION_BONUS (score scale ~0.1-0.56, seeded spread 0.05) for candidates near
+// a motion hit, scaled by that hit's score over the run's best motion hit.
+const ST_MOTION_BONUS = 0.03;
 // Which candidate roles may fill a slot role, best first (the role's neighbours).
 const ST_ROLE_FALLBACK = {
   opener: ['opener', 'place', 'beach', 'water', 'ending'],
@@ -517,7 +539,9 @@ function stWindow(t, frames, fps, sourceDuration) {
 function stAllocate(opts) {
   const fps = opts.fps, seed = String(opts.seed == null ? '' : opts.seed);
   const finite = v => typeof v === 'number' && isFinite(v);
-  const pool = opts.candidates.filter(c => c && c.kind !== 'photo' && typeof c.rid === 'string' && finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0);
+  const isSignal = c => Object.prototype.hasOwnProperty.call(ST_SIGNAL_QUERIES, c.role);
+  const pool = opts.candidates.filter(c => c && c.kind !== 'photo' && typeof c.rid === 'string' && !isSignal(c) && finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0);
+  const signals = stSignals(opts.candidates, pool);
   const photoSeen = {};
   const photos = opts.candidates.filter(c => c && c.kind === 'photo' && typeof c.rid === 'string' && !photoSeen[c.rid] && (photoSeen[c.rid] = true))
     .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
@@ -559,10 +583,14 @@ function stAllocate(opts) {
       const w = stWindow(c.t, slot.frames, fps, c.sourceDuration);
       if (!w) continue;
       if (!overlap && (windows[c.rid] || []).some(([a, b]) => w.start < b + ST_WINDOW_GAP - 1e-9 && w.end > a - ST_WINDOW_GAP + 1e-9)) continue;
-      const use = uses[c.rid] || 0, value = values.get(c) - (fixedSlot ? ST_FIXED_ROLE_PENALTY * rawTier : 0);
-      const better = !best || use < best.use || (use === best.use && (tier < best.tier || (tier === best.tier &&
-        (value > best.value + 1e-12 || (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)))))));
-      if (better) best = { c, use, tier, value, start: w.start, end: w.end };
+      // Signals: an avoided moment counts one use more (not in the ending); a moving one gets a small tie-break bonus.
+      const avoided = slot.section !== 'ending' && signals.avoided.has(c);
+      const use = (uses[c.rid] || 0) + (avoided ? 1 : 0);
+      const value = values.get(c) - (fixedSlot ? ST_FIXED_ROLE_PENALTY * rawTier : 0) - (avoided ? ST_AVOID_PENALTY : 0) + (signals.motion.get(c) || 0);
+      const av = avoided ? 1 : 0;
+      const better = !best || use < best.use || (use === best.use && (av < best.av || (av === best.av && (tier < best.tier || (tier === best.tier &&
+        (value > best.value + 1e-12 || (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)))))))));
+      if (better) best = { c, use, av, tier, value, start: w.start, end: w.end };
     }
     return best;
   }
@@ -637,6 +665,37 @@ function stAllocate(opts) {
     picks.push({ ...base, kind: 'video', startSeconds: best.start, endSeconds: best.end });
   }
   return { picks, filled: picks.filter(Boolean).length, missing, failed, fillerShots, photoShots, photoRunRelaxed, overlapShots, reusedPhotos, photoSlots: Object.keys(photoSlots).map(Number) };
+}
+
+// Signal lookups for the allocation pool: { avoided: Set of pool candidates near a strong avoid hit (or on an
+// avoid-dominated clip), motion: Map candidate -> bonus }. Without signal hits both are empty and nothing changes.
+function stSignals(candidates, pool) {
+  const finite = v => typeof v === 'number' && isFinite(v);
+  const avoid = {}, motion = {}, day = {};
+  let motionMax = 0;
+  for (const c of candidates) {
+    if (!c || c.kind === 'photo' || typeof c.rid !== 'string' || !finite(c.t) || !finite(c.score)) continue;
+    if (c.role === 'avoid') (avoid[c.rid] = avoid[c.rid] || []).push(c);
+    else if (c.role === 'motion') { (motion[c.rid] = motion[c.rid] || []).push(c); if (c.score > motionMax) motionMax = c.score; }
+    else if (c.role !== 'ending' && c.role !== 'filler' && Object.prototype.hasOwnProperty.call(ST_QUERIES, c.role)) (day[c.rid] = day[c.rid] || []).push(c);
+  }
+  const best = list => (list || []).reduce((m, c) => Math.max(m, c.score), 0);
+  const strong = {}, wholeClip = {};
+  for (const rid of Object.keys(avoid)) {
+    const dayHits = day[rid] || [];
+    if (best(avoid[rid]) >= ST_AVOID_MIN && best(avoid[rid]) > best(dayHits)) wholeClip[rid] = true;
+    strong[rid] = avoid[rid].filter(h => h.score >= ST_AVOID_MIN &&
+      h.score > best(dayHits.filter(d => Math.abs(d.t - h.t) <= ST_SIGNAL_REACH + 1e-9)));
+  }
+  const avoided = new Set(), bonus = new Map();
+  for (const c of pool) {
+    if (wholeClip[c.rid] || (strong[c.rid] || []).some(h => Math.abs(h.t - c.t) <= ST_SIGNAL_REACH + 1e-9)) avoided.add(c);
+    if (motionMax > 0 && motion[c.rid]) {
+      const near = motion[c.rid].filter(h => Math.abs(h.t - c.t) <= ST_SIGNAL_REACH + 1e-9);
+      if (near.length) bonus.set(c, ST_MOTION_BONUS * Math.max(0, best(near)) / motionMax);
+    }
+  }
+  return { avoided, motion: bonus };
 }
 
 // Slots for N montage shots at fps, from the frame schedule (seconds are F differences / fps).
@@ -994,10 +1053,12 @@ const ST_LINE1_DEFAULT = 'that one trip in';
 const ST_TOP_ITALIC_DEFAULT = 'VLOG';
 const ST_CREDIT_PREFIX = 'By';
 const ST_PLACE_PREFIX = 'in';
-// Clips per scene-search call (12 roles each, 4 in flight, pages of ST_SEARCH_PAGE hits); search.js stops starting
-// new searches after 22 s, and clips it could not search are retried by the next Build.
+// Clips per scene-search call (12 roles + 2 signal queries each, 4 in flight, pages of ST_SEARCH_PAGE hits); search.js
+// stops starting new searches after 22 s, and clips it could not search are retried by the next Build.
 const ST_SEARCH_BATCH = 3;
 const ST_SEARCH_PAGE = 6;
+// Every scene search: the shot roles and the signal queries (planner ST_SIGNAL_QUERIES).
+const ST_SEARCH_QUERIES = Object.assign({}, ST_QUERIES, ST_SIGNAL_QUERIES);
 // Planning rate before this Project has produced a Draft; assemble.js lays every frame at the Draft's real rate.
 const ST_GUESS_FPS = 30;
 const ST_MOTION_OPTIONS = [
@@ -1918,7 +1979,7 @@ export default function Panel({ sdk, context, ui }: any) {
     // ST_SEARCH_BATCH clips per call keeps each call inside run_script's fixed 30 s deadline.
     for (let i = 0; i < rids.length; i += ST_SEARCH_BATCH) {
       advance("shots", 0.9 * i / rids.length, i + "/" + rids.length + " clips checked");
-      const r = await run("Search travel shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + ST_SEARCH_BATCH), queries: ST_QUERIES, pageSize: ST_SEARCH_PAGE }));
+      const r = await run("Search travel shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + ST_SEARCH_BATCH), queries: ST_SEARCH_QUERIES, pageSize: ST_SEARCH_PAGE }));
       check();
       list.push(...r.candidates); failed.push(...r.failed);
     }
