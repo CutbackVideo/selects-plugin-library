@@ -21,6 +21,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [City Weekend Vlog](plugins/city-weekend-vlog) — beat-synced city weekend vlog with a font-switching title | Experimental |
 | [Four Photo Reveal](plugins/no14-still-video) — four original photos in an editable grid and fullscreen sequence | Experimental |
 | [Camera Shutter Dump](plugins/camera-shutter-dump) — twelve photos stack into a collage, one per shutter sound | Experimental |
+| [Polaroid Photo Dump](plugins/polaroid-photo-dump) — seventeen photos switch inside an instant-film frame on the beat, with a slow zoom | Experimental |
 | [Epidemic Sound Search](plugins/epidemic-sound-search) — search, audition and save Epidemic Sound tracks into your library and Draft | Experimental |
 | [Mini Vlog](plugins/mini-vlog) — 16:9 everyday mini vlog cut to the beat, with a pale pink title | Experimental |
 | [Torn Paper Love](plugins/torn-paper-love) — 4:3 torn-paper couple photo edit with ransom-note letters | Experimental |
