@@ -47,11 +47,14 @@ export default function StopMotionPhoto({Source,data}) {
  const shake=hit?data.hitShake[refFrame]*g.q:0;
  const x=Math.max(g.mw-g.w,Math.min(0,g.mw/2-data.focusX*g.w));
  const y=Math.max(g.mh-g.h,Math.min(0,g.mh/2-data.focusY*g.h));
- const box={position:'absolute',left:x,top:y+shake,width:g.w,height:g.h};
- return <div style={{position:'absolute',inset:0}}><div style={{position:'absolute',left:g.left,top:g.top,width:g.mw,height:g.mh,overflow:'hidden'}}><div style={box}><Source /></div>{blur>0&&<div style={{...box,filter:'blur('+blur+'px)'}}><Source /></div>}</div></div>;
+ const box={position:'absolute',left:x,top:y,width:g.w,height:g.h};
+ const moved={...box,top:y+shake};
+ return <div style={{position:'absolute',inset:0}}><div style={{position:'absolute',left:g.left,top:g.top,width:g.mw,height:g.mh,overflow:'hidden'}}><div style={box}><Source /></div>{blur>0&&<div style={{...box,filter:'blur('+blur+'px)'}}><Source /></div>}{shake!==0&&<div style={{...moved,filter:'blur('+blur+'px)'}}><Source /></div>}</div></div>;
 }`;
-// The blurred copy sits over a sharp copy so its soft edges never fade to black.
-// The blurred copy sits over a sharp copy so its soft edges never fade to black.
+// Layers: sharp copy, blurred copy, then the shaken blurred copy. The unshaken layers
+// fill the strip the shake uncovers, so there is never a black edge.
+// Layers: sharp copy, blurred copy, then the shaken blurred copy. The unshaken layers
+// fill the strip the shake uncovers, so there is never a black edge.
 
 // Measured outro: brightness falls as centre - (centre - edge) * t^2.2 from the centre
 // (t = 0) to the far corner (t = 1), and the whole gradient fades linearly to black.

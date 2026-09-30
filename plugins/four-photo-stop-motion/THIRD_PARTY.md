@@ -2,7 +2,7 @@
 
 ## Music
 
-`assets/music.mp3` is an original instrumental generated for this plugin with ElevenLabs Music v2.5 through the Selects generated-media service, then trimmed and arranged for the format: a 1.1 s linear fade into the break and the drop re-entering on a downbeat at 2.667 s. It contains no third-party recordings, samples or lyrics.
+`assets/music.mp3` is an original instrumental generated for this plugin with ElevenLabs Music v2.5 through the Selects generated-media service, then arranged for the format: the groove stops at the break into a darkening reverb tail with the bass removed, a bright pickup hit from the same track, and the drop re-entering on a downbeat at 2.667 s.
 
 ## Gallery preview
 
