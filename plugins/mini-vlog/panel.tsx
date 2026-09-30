@@ -19,7 +19,8 @@ const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
 const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
-// One scene-search query per shot role (planner MV_ROLES).
+// One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
+// (MV_MOTION_QUERY, mvSearchQueries in the mv-hook block).
 const MV_QUERIES = {
   drink: "a coffee, matcha or drink in a cup held in hand or on a table",
   street: "a sunny city street with buildings and blue sky",
@@ -30,7 +31,9 @@ const MV_QUERIES = {
   flowers: "flowers, a bouquet or a flower shop close up",
   cafe: "a cozy cafe interior or a window seat with daylight",
 };
-// Clips per scene-search call: eight queries each, so three clips (24 searches) stay inside run_script's 30 s deadline.
+// Clips per scene-search call: eight queries each (nine with Beat punch), so three clips (24 or 27 searches) stay inside
+// run_script's 30 s deadline (search.js stops starting new searches after 22 s and reports the rest as failed, retried
+// by the next Build).
 const SEARCH_BATCH = 3;
 // Ambient clip sound: the clips' own sound sits this far under the music, which stays at 0 dB.
 const AMBIENT_DB = -18;
@@ -40,9 +43,16 @@ const PREFERRED_CUE = "bedroom-pop-108";
 const DEFAULT_PRESET = "mini-vlog";
 const DEFAULT_LENGTH = "standard";
 const DEFAULT_PACE = "quick";
+// Hook B defaults after the A/B (spec 15.4): Beat punch (with the motion query and bonus) and Start at the hook are on.
+const DEFAULT_PUNCH = true;
+const DEFAULT_HOOK = true;
 // Soft look strength, and photo motion at half of CWV's strength (mild).
 const SOFT_STRENGTH = 0.35;
 const MOTION_STRENGTH = 0.5;
+// Beat punch (spec 15.2 b/c): the Adjust "Punch" default (1 = a 1.06 punch) and the push-in amount for a clip without
+// a punch (1 = 1.03).
+const PUNCH_STRENGTH = 1;
+const PUNCH_PUSH = 1;
 // The title's Adjust defaults; the panel preview draws with the same values.
 const TITLE_LOOK = { shadow: 0.35, size: 100, x: 49, y: 52, sparkles: true };
 const MOTION_OPTIONS = [
@@ -78,8 +88,9 @@ const LENGTH_LABELS: Record<string, string> = { short: "Short", standard: "Stand
 
 // mv-planner:start
 // Mini Vlog planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
-// One hard cut per shot on the music's beat grid: Quick = 1 beat per shot, Relaxed = 2 (with a tempo guard). Shot
-// roles cycle through MV_ROLES; there is no title burst and no montage section (the title spans the whole video).
+// One hard cut per shot on the music's beat grid: Quick = 1 beat per shot, Relaxed = 2 (with a tempo guard), Groove =
+// a 4-bar phrase rhythm (2, 1, 1, ..., and the phrase's last beat split into two 8ths on a drum fill). Shot roles cycle
+// through MV_ROLES; there is no title burst and no montage section (the title spans the whole video).
 // Without a usable grid (tempo outside 70-160 bpm, own music not accepted, or No music) shots have a fixed length.
 const MV_LENGTHS = { short: 12, standard: 24, long: 36 };
 // Fewest shots a build needs; every length is a multiple of it, so the video is whole bars from its first beat.
@@ -121,6 +132,30 @@ const MV_SOURCE_TAIL = 0.15;
 const MV_PHOTO_HOLD_MAX = 5;
 const MV_PHOTO_RUN_MAX = 2;
 const MV_PHOTO_SHARE = 1 / 3;
+// Groove (spec 15.1). A phrase is 4 bars (16 beats) from the section start; every cut sits on the beat or 8th grid.
+// - Holds: the first shot of every phrase holds 2 beats; so does the bar-3 downbeat of a final phrase the video ends
+//   in its second half (mvGrooveHolds). Every other shot is 1 beat.
+// - Bursts: a split candidate is the last beat of each half-phrase (beat 7 = end of bar 2, beat 15 = phrase end) and
+//   the video's final beat (a phrase end even mid-phrase) (mvGrooveCandidates); a split beat plays two 8th shots. At
+//   most one burst per half-phrase (2 bars).
+// - Which candidates split (mvFillBeats), detection first per class (phrase ends incl. the final beat / bar-2
+//   accents): those whose onset density (sum of onset strengths in the beat) reaches MV_GROOVE_FILL_RATIO x the median
+//   beat of the span; a class with none detected, or no onset data at all, splits all of its candidates (the bundled
+//   cues carry a short drum fill at the end of every 4 bars).
+// - 8th shots are video only. A span is whole bars and at least MV_GROOVE_MIN_BEATS (one bar: 2, 1, 1/2, 1/2 = 4
+//   shots, MV_MIN_SHOTS). Without a grid the pattern runs
+//   on MV_GROOVE_FALLBACK_BEAT-second beats (2 x 0.55, 0.55 ..., 2 x 0.275) with every candidate split.
+// - Opener guard: when a 2-beat hold would last longer than MV_GROOVE_OPENER_MAX seconds (below 85.71 bpm) every hold
+//   is 1 beat, so no shot outruns Relaxed's cap.
+const MV_GROOVE_PHRASE_BEATS = 16;
+const MV_GROOVE_FILL_RATIO = 1.5;
+const MV_GROOVE_FALLBACK_BEAT = 0.55;
+const MV_GROOVE_MIN_BEATS = 4;
+const MV_GROOVE_OPENER_MAX = 1.40;
+// An onset counts for the beat it sits in, from this many seconds (one frame at 30 fps) before the beat: manifest and
+// detector onsets land a hair early (about 1 ms on the bundled cues). A fixed time, not a share of the beat, so a slow
+// tempo does not pull an 8th-note pickup into the next beat.
+const MV_GROOVE_ONSET_LEAD = 1 / 30;
 
 // A beat grid is used only for a tempo in [MV_TEMPO_MIN, MV_TEMPO_MAX] whose detection was accepted (bundled cues
 // always are).
@@ -130,15 +165,24 @@ function mvGridUsable(opts) {
 }
 
 // Beats per shot for a pace. Quick is 1 beat, but 2 above 150 bpm so shots stay >= 0.40 s; Relaxed is 2 beats, but 1
-// below 86 bpm so shots stay <= 1.40 s. `overridden` tells the panel the guard changed the choice.
+// below 86 bpm so shots stay <= 1.40 s. `overridden` tells the panel the guard changed the choice. Groove returns
+// { beats: 1 (its beat unit), groove: true, opener: the phrase opener's beats (mvGrooveOpener) }, overridden when the
+// opener guard makes it 1 beat (below 85.71 bpm). Above 150 bpm its 8ths would be under 0.2 s, so it plays 2 beats per
+// shot like Quick (no `groove` key).
 function mvBeatsPerShot(pace, bpm) {
   if (pace === 'relaxed') return bpm < 86 ? { beats: 1, overridden: true } : { beats: 2, overridden: false };
+  if (pace === 'groove') {
+    if (bpm > 150) return { beats: 2, overridden: true };
+    const opener = mvGrooveOpener(bpm);
+    return { beats: 1, overridden: opener < 2, groove: true, opener };
+  }
   return bpm > 150 ? { beats: 2, overridden: true } : { beats: 1, overridden: false };
 }
 
-// Seconds per shot: the beats on a grid, else the fixed fallback for the pace.
+// Seconds per shot: the beats on a grid, else the fixed fallback for the pace (for Groove: seconds per beat unit).
 function mvShotSeconds(opts) {
   if (opts.gridded) return opts.beatsPerShot * 60 / opts.bpm;
+  if (opts.pace === 'groove') return MV_GROOVE_FALLBACK_BEAT;
   return opts.pace === 'relaxed' ? MV_FALLBACK_SHOT.relaxed : MV_FALLBACK_SHOT.quick;
 }
 
@@ -153,6 +197,122 @@ function mvFitShots(opts) {
   return 0;
 }
 
+// Beats of a Groove phrase's opening shot: 2, or 1 when 2 beats would last longer than MV_GROOVE_OPENER_MAX. Without a
+// grid (bpm not a number) the opener is 2 x MV_GROOVE_FALLBACK_BEAT = 1.10 s, so 2.
+function mvGrooveOpener(bpm) {
+  return bpm > 0 && 2 * 60 / bpm > MV_GROOVE_OPENER_MAX + 1e-9 ? 1 : 2;
+}
+
+// Beats of a span of `beats` (whole bars) that may split into two 8ths, ascending: the last beat of every half-phrase
+// (beats 7 and 15 of each phrase: the end of bar 2 and the phrase end) inside the span, and the span's final beat (the
+// video's end counts as a phrase end when it falls mid-phrase). Each half-phrase holds at most one of them, so there is
+// at most one burst per 2 bars.
+function mvGrooveCandidates(beats) {
+  const half = MV_GROOVE_PHRASE_BEATS / 2, out = [];
+  for (let b = half - 1; b < beats; b += half) out.push(b);
+  if (beats > 0 && out[out.length - 1] !== beats - 1) out.push(beats - 1);
+  return out;
+}
+
+// Beats where a Groove span has a 2-beat shot: every phrase start and, when the span ends inside a phrase's second
+// half, that half-phrase's start (bar 3 downbeat), so a partial phrase keeps a long hold after its first half.
+// None with a 1-beat opener (mvGrooveOpener).
+function mvGrooveHolds(beats, opener) {
+  if (opener === 1) return [];
+  const half = MV_GROOVE_PHRASE_BEATS / 2, out = [];
+  for (let p = 0; p < beats; p += MV_GROOVE_PHRASE_BEATS) {
+    out.push(p);
+    if (p + MV_GROOVE_PHRASE_BEATS > beats && beats - p > half) out.push(p + half);
+  }
+  return out;
+}
+
+// Groove slot lengths in beats for a span of `beats` (whole bars): 2-beat holds at mvGrooveHolds, each beat in
+// `splits` (beat indices, from mvGrooveCandidates) as two 8ths, every other beat 1. opener (default 2) as in
+// mvGrooveHolds. The lengths sum to `beats`.
+function mvGrooveBeats(opts) {
+  const beats = opts.beats, list = [];
+  const holds = mvGrooveHolds(beats, opts.opener === 1 ? 1 : 2), splits = opts.splits || [];
+  for (let b = 0; b < beats;) {
+    if (holds.indexOf(b) >= 0 && beats - b >= 2) { list.push(2); b += 2; }
+    else if (splits.indexOf(b) >= 0) { list.push(0.5, 0.5); b += 1; }
+    else { list.push(1); b += 1; }
+  }
+  return list;
+}
+
+// Shots in a span of `beats` with the pattern (every candidate split) and the given opener (default 2).
+function mvGrooveCount(beats, opener) {
+  return mvGrooveBeats({ beats, splits: mvGrooveCandidates(beats), opener }).length;
+}
+
+// The nominal Groove span for a requested number of shots: the whole-bar span (>= MV_GROOVE_MIN_BEATS) whose pattern
+// shot count is nearest the request, the longer one on a tie (2-beat opener: 12 -> 12 beats / 12 shots, 24 -> 24 /
+// 25, 36 -> 36 / 38). It depends on the length and the opener only, never on the music section, so the panel can size
+// the section before fills are known; detected fills then change the shot count inside the same span (the plan
+// reports the actual shots). opener: mvGrooveOpener(bpm), default 2.
+function mvGrooveSpan(requested, opener) {
+  const want = Math.max(MV_MIN_SHOTS, Math.floor(requested) || 0);
+  let beats = MV_GROOVE_MIN_BEATS;
+  while (mvGrooveCount(beats, opener) < want) beats += 4;
+  const lower = beats - 4;
+  if (lower >= MV_GROOVE_MIN_BEATS && want - mvGrooveCount(lower, opener) < mvGrooveCount(beats, opener) - want) beats = lower;
+  return { beats, shots: mvGrooveCount(beats, opener) };
+}
+
+// Music capacity for Groove (mvFitShots on beat spans): the nominal span, shortened by whole bars until
+// sectionStart + beats x beatSeconds <= usableEnd; { beats: 0, shots: 0 } when not even MV_GROOVE_MIN_BEATS fit.
+// `shots` is the pattern count for the fitted span; usableEnd is Infinity (or null) without music; opener? as in
+// mvGrooveSpan.
+function mvGrooveFit(opts) {
+  const start = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
+  const end = opts.usableEnd == null ? Infinity : opts.usableEnd;
+  const nominal = mvGrooveSpan(opts.requested, opts.opener);
+  for (let beats = nominal.beats; beats >= MV_GROOVE_MIN_BEATS; beats -= 4) {
+    if (start + beats * opts.beatSeconds <= end + 1e-6) return { beats, shots: mvGrooveCount(beats, opts.opener), requestedBeats: nominal.beats };
+  }
+  return { beats: 0, shots: 0, requestedBeats: nominal.beats };
+}
+
+// Drum fills of a Groove span. opts: { onsets: [[music seconds, band, strength], ...], sectionStart (music seconds),
+// bpm, firstBeat? (re-phases sectionStart onto the beat grid), beats (the span) }. A beat's density is the sum of its
+// onsets' strengths (count x strength); a candidate beat (mvGrooveCandidates) carries a fill when its density reaches
+// MV_GROOVE_FILL_RATIO x the median beat density of the span. Candidates come in two classes: phrase ends (beat 15 of
+// a phrase, and the span's final beat) and bar-2 accents (beat 7 of a phrase, unless it is the final beat). Detection
+// first, per class: when a class has a candidate with a fill, just those split; a class without one falls back to all
+// of its candidates. No onsets, no bpm or section start or a median of 0 -> every candidate splits. Returns { splits:
+// beat indices, candidates, source: 'onsets' (both classes detected) | 'mixed' | 'pattern' (neither), ratios: density
+// / median per candidate (empty without data) }. Assumes sectionStart is on the bar grid (mvSnapSection /
+// mvDefaultSection), since candidates are counted in beats from it; with firstBeat it is only re-phased to the nearest
+// beat, never to a bar. The median is taken over the whole span (not per phrase), which is steadier on short spans.
+function mvFillBeats(opts) {
+  const n = Math.max(0, Math.floor(opts.beats) || 0), candidates = mvGrooveCandidates(n);
+  const fallback = ratios => ({ splits: candidates.slice(), candidates, source: 'pattern', ratios });
+  const bpm = opts.bpm, finite = v => typeof v === 'number' && isFinite(v);
+  if (!n || !(bpm > 0) || !finite(opts.sectionStart) || !Array.isArray(opts.onsets) || !opts.onsets.length) return fallback([]);
+  const beat = 60 / bpm;
+  const start = finite(opts.firstBeat) ? opts.firstBeat + Math.round((opts.sectionStart - opts.firstBeat) / beat) * beat : opts.sectionStart;
+  const density = Array(n).fill(0);
+  for (const o of opts.onsets) {
+    if (!o || !finite(o[0]) || !finite(o[2]) || !(o[2] > 0)) continue;
+    const k = Math.floor((o[0] - start + MV_GROOVE_ONSET_LEAD) / beat);
+    if (k >= 0 && k < n) density[k] += o[2];
+  }
+  const sorted = density.slice().sort((a, b) => a - b);
+  const median = (sorted[(n - 1) >> 1] + sorted[n >> 1]) / 2;
+  if (!(median > 0)) return fallback([]);
+  const ratios = candidates.map(b => Math.round(density[b] / median * 100) / 100);
+  const isEnd = b => b === n - 1 || b % MV_GROOVE_PHRASE_BEATS === MV_GROOVE_PHRASE_BEATS - 1;
+  const fill = b => density[b] / median >= MV_GROOVE_FILL_RATIO - 1e-9;
+  let detected = 0;
+  const pick = list => { const hit = list.filter(fill); if (hit.length) detected++; return hit.length ? hit : list; };
+  const ends = pick(candidates.filter(isEnd)), accents = pick(candidates.filter(b => !isEnd(b)));
+  const splits = ends.concat(accents).sort((a, b) => a - b);
+  // Two classes when the span has accents; a class that is empty counts as detected for 'onsets'.
+  const classes = candidates.some(b => !isEnd(b)) ? 2 : 1;
+  return { splits, candidates, source: detected === 0 ? 'pattern' : detected === classes ? 'onsets' : 'mixed', ratios };
+}
+
 // Where the music's beats land on the timeline. Selects snaps the music's source start (sectionStart) to a timeline
 // frame, so the music plays offset by delta = sectionStart - round(sectionStart * fps) / fps (at most half a frame);
 // beat b of the section plays at b * 60 / bpm + delta. Without music there is no offset.
@@ -161,7 +321,8 @@ function mvMusicOffset(sectionStart, fps) {
 }
 
 // Onset-snapped cuts. The cuts stay on the grid; a cut moves onto a clearly strong music onset near it, and only when
-// nothing already marks the grid position. Every inner cut is snappable (each starts a slot of at least one beat).
+// nothing already marks the grid position. Only a cut that starts a slot of at least one beat is snappable: with
+// opts.beatsList (Groove) a cut starting an 8th slot stays on the grid; without it every inner cut qualifies.
 // Conservative rules (from CWV v2.6): a cut stays on the grid when a qualifying onset of any band lies within one frame
 // of it; otherwise the candidate must reach MV_SNAP_MIN_RATIO of its band threshold, candidates rank by
 // ratio - MV_SNAP_DISTANCE_COST * |offset| / window, and a low-band candidate must also beat the grid position's own
@@ -180,7 +341,8 @@ const MV_SNAP_LOW_CONFIDENCE_WINDOW = 0.120;
 // boundaries: the grid's cut times in seconds from the section start ([0, end of slot 0, ..., end of the last slot]).
 // onsets: [[seconds in the music source, band 'l' | 'm' | 'h', strength], ...].
 // opts: { bpm (null without a grid), fps, sectionStart (the music second at the section start; onsets are shifted by
-// it), thresholds?: { l, m, h }, lowConfidence?: true for fixed timing (forced when bpm is not a number) }. Returns
+// it), thresholds?: { l, m, h }, lowConfidence?: true for fixed timing (forced when bpm is not a number), beatsList?:
+// slot lengths in beats }. The min-frames / min-share rule below keeps an 8th slot next to a snapped cut. Returns
 // { cuts: seconds like boundaries, frames: the cuts at opts.fps with the music offset (same expression as mvSchedule
 // and assemble.js), log: one entry per inner cut, window }. A snapped cut sits exactly on its onset, so rounding it to
 // a frame at any rate never puts it more than half a frame before the onset.
@@ -228,6 +390,7 @@ function mvSnapCuts(boundaries, onsets, opts) {
   };
   for (let i = 1; i < n; i++) {
     const g = boundaries[i];
+    if (opts.beatsList && !(opts.beatsList[i] >= 1)) { log.push({ index: i, grid: g, seconds: g, shiftMs: 0, reason: 'eighth: stays on the grid' }); continue; }
     const o = pick(g);
     if (o.none) { log.push({ index: i, grid: g, seconds: g, shiftMs: 0, reason: o.none }); continue; }
     const next = cuts.slice();
@@ -244,29 +407,37 @@ function mvSnapCuts(boundaries, onsets, opts) {
 // opts: { bpm (null without a usable grid), fps, shots, beatsPerShot, shotSeconds? (the fixed shot length, needed
 // when bpm is null), sectionStart?: seconds into the music (omit without music), onsets?, onsetThresholds?,
 // lowConfidence? (mvSnapCuts; used only with a sectionStart), cuts?: cut seconds decided earlier (a schedule's `cuts`,
-// reused as they are, e.g. to rebuild at the Draft's real fps) }. Slots carry their grid beat span (startBeat,
-// endBeat; null without a grid) and frames; `offset` is the music offset every boundary is shifted by; `cuts` are the
-// boundaries in seconds from the section start (the grid, or the snapped cuts) and `snapLog` explains each inner cut.
+// reused as they are, e.g. to rebuild at the Draft's real fps), beatsList?: per-slot lengths in beats (Groove; replaces
+// shots and beatsPerShot; without a grid shotSeconds is the seconds per beat) }. Slots carry their grid beat span
+// (startBeat, endBeat; null without a grid) and frames, and with beatsList also `beats` (the slot's length in beats);
+// `offset` is the music offset every boundary is shifted by; `cuts` are the boundaries in seconds from the section
+// start (the grid, or the snapped cuts) and `snapLog` explains each inner cut. With beatsList the result also carries
+// `beatsList`.
 function mvSchedule(opts) {
-  const fps = opts.fps, n = opts.shots, gridded = opts.bpm > 0;
+  const list = Array.isArray(opts.beatsList) ? opts.beatsList : null;
+  const fps = opts.fps, n = list ? list.length : opts.shots, gridded = opts.bpm > 0;
   if (!(fps > 0) || !(n >= 1)) throw Error('mvSchedule needs fps and shots');
-  const bps = gridded ? opts.beatsPerShot : null;
+  if (list && !list.every(b => typeof b === 'number' && b > 0 && isFinite(b))) throw Error('mvSchedule: beatsList needs positive beat lengths');
+  const bps = gridded ? (list ? 1 : opts.beatsPerShot) : null;
   if (gridded && !(bps > 0)) throw Error('mvSchedule needs beatsPerShot');
   const shotSeconds = gridded ? bps * 60 / opts.bpm : opts.shotSeconds;
   if (!(shotSeconds > 0)) throw Error('mvSchedule needs bpm or shotSeconds');
+  // Slot k starts `at[k]` units (beats, or fixed shots / beat units without a grid) in; sums of 0.5, 1 and 2 are exact.
+  const at = [0];
+  for (let k = 0; k < n; k++) at.push(at[k] + (list ? list[k] : 1));
   // Every boundary is an absolute position (k shots in), shifted by the music offset and snapped once to a frame;
   // durations never accumulate rounding. The video always starts at frame 0. assemble.js uses the same expression.
   const offset = mvMusicOffset(opts.sectionStart, fps);
   const frameOf = x => (x === 0 ? 0 : Math.round((x + offset) * fps));
   const grid = [];
-  for (let k = 0; k <= n; k++) grid.push(gridded ? k * bps * (60 / opts.bpm) : k * shotSeconds);
+  for (let k = 0; k <= n; k++) grid.push(gridded ? at[k] * bps * (60 / opts.bpm) : at[k] * shotSeconds);
   let cuts = grid, snapLog = [];
   if (Array.isArray(opts.cuts)) {
     if (opts.cuts.length !== grid.length) throw Error('mvSchedule: cuts do not match the slots');
     cuts = opts.cuts.slice();
   } else if (opts.onsets && opts.onsets.length && typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart)) {
     const snapped = mvSnapCuts(grid, opts.onsets,
-      { bpm: gridded ? opts.bpm : null, fps, sectionStart: opts.sectionStart, thresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence || !gridded });
+      { bpm: gridded ? opts.bpm : null, fps, sectionStart: opts.sectionStart, thresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence || !gridded, beatsList: list || undefined });
     cuts = snapped.cuts; snapLog = snapped.log;
   }
   const slots = [];
@@ -274,13 +445,14 @@ function mvSchedule(opts) {
     slots.push({
       index: i,
       role: MV_ROLES[i % MV_ROLES.length],
-      startBeat: gridded ? i * bps : null,
-      endBeat: gridded ? (i + 1) * bps : null,
+      startBeat: gridded ? at[i] * bps : null,
+      endBeat: gridded ? at[i + 1] * bps : null,
       startFrame: frameOf(cuts[i]),
       endFrame: frameOf(cuts[i + 1]),
+      ...(list ? { beats: list[i] } : {}),
     });
   }
-  return { offset, cuts, snapLog, slots, totalFrames: slots[n - 1].endFrame, gridded };
+  return { offset, cuts, snapLog, slots, totalFrames: slots[n - 1].endFrame, gridded, ...(list ? { beatsList: list.slice() } : {}) };
 }
 
 // Music section start: snapped to whole bars from firstBeat on an accepted grid (to 0.1 s otherwise), clamped so a
@@ -310,6 +482,24 @@ function mvDefaultSection(opts) {
     if (slice.length < span) break;
     const mean = slice.reduce((a, b) => a + b, 0) / span;
     if (!best || mean > best.mean + 1e-9) best = { start, mean };
+  }
+  return best ? best.start : null;
+}
+
+// Hook section (spec 15.3, "Start at the hook"): the bar start with the highest hookBars score (manifest; index b =
+// the start firstBeat + 4b beats, scored by onset contrast and low-band punch) among the starts whose video of
+// videoSeconds fits before usableEnd, earliest on ties; the manifest's hookStart is this pick for 24 beats. null when
+// there are no scores (own music, No music), no tempo or nothing fits, so the caller falls back to mvDefaultSection.
+// opts: { hookBars, firstBeat, bpm, usableEnd, videoSeconds, barPhaseBeats? }. barPhaseBeats is informational only:
+// the manifest's firstBeat already carries the bar phase, so it never shifts the start.
+function mvHookSection(opts) {
+  const bars = opts.hookBars, bar = 4 * 60 / opts.bpm;
+  if (!Array.isArray(bars) || !bars.length || !(opts.bpm > 0)) return null;
+  let best = null;
+  for (let b = 0; b < bars.length; b++) {
+    const start = opts.firstBeat + b * bar, score = bars[b];
+    if (typeof score !== 'number' || !isFinite(score) || start + opts.videoSeconds > opts.usableEnd + 1e-6) continue;
+    if (!best || score > best.score + 1e-9) best = { start, score };
   }
   return best ? best.start : null;
 }
@@ -344,8 +534,9 @@ function mvFillers(candidates) {
   return out;
 }
 
-// Strict allocation. opts: { candidates, slots: [{ index, role, seconds }], seed, gapSeconds = 0.5, photoShare =
-// MV_PHOTO_SHARE }. Two hard rules, never relaxed: the previous slot's source is never used again for the next slot,
+// Strict allocation. opts: { candidates, slots: [{ index, role, seconds, videoOnly? }], seed, gapSeconds = 0.5,
+// photoShare = MV_PHOTO_SHARE }. A videoOnly slot (a Groove 8th) never takes a photo, and the photo share counts only
+// the other slots. Two hard rules, never relaxed: the previous slot's source is never used again for the next slot,
 // and at most MV_PHOTO_RUN_MAX photos play in a row (unless the pool has no video candidate). A slot nothing fits under
 // them stays null (counted in `missing`); mvPlanBuild then tries a shorter length.
 function mvAllocate(opts) {
@@ -370,9 +561,9 @@ function mvAllocate(opts) {
   // Photo slots: round(share x slots) of the slots a photo can hold, capped by the photos available, spaced evenly
   // from a seeded phase. With no photos there are none, and every slot goes to video.
   const photoSlots = {};
-  const holdable = opts.slots.filter(sl => sl.seconds <= MV_PHOTO_HOLD_MAX + 1e-9);
+  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds <= MV_PHOTO_HOLD_MAX + 1e-9);
   const share = opts.photoShare == null ? MV_PHOTO_SHARE : opts.photoShare;
-  const target = Math.min(photos.length, holdable.length, Math.round(opts.slots.length * share));
+  const target = Math.min(photos.length, holdable.length, Math.round(opts.slots.filter(sl => !sl.videoOnly).length * share));
   const phase = mvHash(opts.seed + ':photo-slots');
   for (let k = 0; k < target; k++) photoSlots[holdable[Math.floor((k + phase) * holdable.length / target)].index] = true;
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
@@ -400,7 +591,7 @@ function mvAllocate(opts) {
   // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos. A photo is never the
   // previous source, since each photo is used once.
   function searchPhoto(slot) {
-    if (slot.seconds > MV_PHOTO_HOLD_MAX + 1e-9) return null;
+    if (slot.videoOnly || slot.seconds > MV_PHOTO_HOLD_MAX + 1e-9) return null;
     let best = null;
     for (const c of photos) {
       if (photoUsed[c.rid]) continue;
@@ -456,28 +647,39 @@ function mvAllocate(opts) {
 }
 
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
-// fps, pace: 'quick' | 'relaxed', requested (shots), sectionStart?, usableEnd? (Infinity / omitted without music),
-// onsets?, onsetThresholds?, lowConfidence?, seed, photoShare? }.
+// fps, pace: 'quick' | 'relaxed' | 'groove', requested (shots), sectionStart?, usableEnd? (Infinity / omitted without
+// music), onsets?, onsetThresholds?, lowConfidence?, seed, photoShare? }.
 // Order: the music caps the length (mvFitShots), then the plan tries that length and shrinks by MV_MIN_SHOTS down to
 // MV_MIN_SHOTS until the strict allocation fills every slot. Every attempt allocates from scratch with filler
 // candidates added (see `attempts` below). Failure reasons: 'music-too-short' (not even MV_MIN_SHOTS fit the music), 'one-resource' (fewer
 // than 2 distinct sources: the adjacency rule cannot hold), 'too-few' (the footage fills fewer than MV_MIN_SHOTS).
+// Groove (unless its tempo guard falls back to 2 beats per shot): the length is a beat span (mvGrooveFit: the nominal
+// span for `requested`, capped by the music in whole bars) and shrinks by whole bars down to MV_GROOVE_MIN_BEATS; each
+// span's fills come from the section's onsets (mvFillBeats), and `shots` is that span's actual slot count. A pool with
+// no usable video gets no 8ths (photos cannot take them). The result then has beatsPerShot null, shotSeconds null and
+// groove: { beats, requestedBeats, splits (beats split into 8ths), fillSource, ratios (mvFillBeats), beatSeconds,
+// opener }; its slots carry
+// `beats`.
 function mvPlanBuild(opts) {
   const gridded = mvGridUsable({ bpm: opts.bpm, accepted: opts.accepted });
   const guard = gridded ? mvBeatsPerShot(opts.pace, opts.bpm) : { beats: null, overridden: false };
-  const shotSeconds = mvShotSeconds({ bpm: opts.bpm, beatsPerShot: guard.beats, pace: opts.pace, gridded });
+  const grooved = opts.pace === 'groove' && (gridded ? !!guard.groove : true);
+  const shotSeconds = grooved ? null : mvShotSeconds({ bpm: opts.bpm, beatsPerShot: guard.beats, pace: opts.pace, gridded });
+  const beatSeconds = grooved ? (gridded ? 60 / opts.bpm : MV_GROOVE_FALLBACK_BEAT) : null;
+  const opener = grooved && gridded ? mvGrooveOpener(opts.bpm) : 2;
   const asked = typeof opts.requested === 'number' && isFinite(opts.requested) ? opts.requested : MV_LENGTHS.standard;
   const requested = Math.max(MV_MIN_SHOTS, Math.floor(asked / MV_MIN_SHOTS) * MV_MIN_SHOTS);
-  const top = mvFitShots({ requested, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd, shotSeconds });
+  const fit = grooved ? mvGrooveFit({ requested, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd, beatSeconds, opener }) : null;
+  const top = grooved ? fit.beats : mvFitShots({ requested, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd, shotSeconds });
   if (top === 0) return { ok: false, reason: 'music-too-short', usableShots: 0 };
   // Distinct sources the allocator can use: valid videos (as mvAllocate filters them) and photos.
   const finite = v => typeof v === 'number' && isFinite(v);
   const rids = {};
-  let hasPhotos = false;
+  let hasPhotos = false, hasVideo = false;
   for (const c of opts.candidates) {
     if (!c || typeof c.rid !== 'string') continue;
     if (c.kind === 'photo') { rids[c.rid] = true; hasPhotos = true; }
-    else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) rids[c.rid] = true;
+    else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) { rids[c.rid] = true; hasVideo = true; }
   }
   if (Object.keys(rids).length < 2) return { ok: false, reason: 'one-resource', usableShots: 0 };
   const candidates = opts.candidates.concat(mvFillers(opts.candidates));
@@ -494,19 +696,31 @@ function mvPlanBuild(opts) {
   const attempts = [true, false].flatMap(spread => shares.map((photoShare, i) =>
     ({ spread, photoShare, name: (spread ? 'spread' : 'role-first') + (i ? '-share1' : '') })));
   let usableShots = 0;
-  for (let n = top; n >= MV_MIN_SHOTS; n -= MV_MIN_SHOTS) {
-    const schedule = mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, shots: n, beatsPerShot: guard.beats, shotSeconds,
-      sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence });
-    const slots = schedule.slots.map(s => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
+  // Lengths to try, longest first: shots (Quick / Relaxed) or beat spans (Groove).
+  const step = grooved ? 4 : MV_MIN_SHOTS, least = grooved ? MV_GROOVE_MIN_BEATS : MV_MIN_SHOTS;
+  for (let n = top; n >= least; n -= step) {
+    const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
+    // Groove fills for this span: none without video (photos cannot take an 8th), the pattern without a grid.
+    const fills = !grooved ? null
+      : !hasVideo ? { splits: [], source: 'no-video', ratios: [] }
+      : gridded ? mvFillBeats({ onsets: opts.onsets, sectionStart: opts.sectionStart, bpm: opts.bpm, beats: n })
+      : { splits: mvGrooveCandidates(n), source: 'pattern', ratios: [] };
+    const schedule = fills
+      ? mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: mvGrooveBeats({ beats: n, splits: fills.splits, opener }), shotSeconds: beatSeconds, ...snapOpts })
+      : mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, shots: n, beatsPerShot: guard.beats, shotSeconds, ...snapOpts });
+    const slots = schedule.slots.map(s => (fills
+      ? { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: (s.beats || 1) < 1 }
+      : { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
     for (const attempt of attempts) {
       const alloc = mvAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread });
       if (alloc.missing === 0) {
-        return { ok: true, schedule, picks: alloc.picks, shots: n, requested, fittedByMusic: top < requested,
-          beatsPerShot: guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
-          attempt: attempt.name };
+        return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
+          beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
+          attempt: attempt.name,
+          ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, ratios: fills.ratios, beatSeconds, opener } } : {}) };
       }
       // The shortest length misses slots with every share, so usableShots < MV_MIN_SHOTS.
-      if (n === MV_MIN_SHOTS) usableShots = Math.max(usableShots, alloc.filled);
+      if (n === least) usableShots = Math.max(usableShots, alloc.filled);
     }
   }
   return { ok: false, reason: 'too-few', usableShots };
@@ -573,6 +787,68 @@ function mvProgress(stepId, fraction, detail) {
   };
 }
 // mv-planner:end
+
+// mv-hook:start
+// Hook B helpers (spec 15.2), plain JS outside the planner block: the headless driver (dev/driveAdapter.mjs) loads
+// this block next to planner.js, so the panel and the driver compute the same motion bonus and punch frames.
+// Motion bonus (15.2 a), only with Beat punch on (off, the search and the plan are exactly as without it): the search
+// adds the motion query (mvSearchQueries), whose hits are not shot candidates. Each hit's score is min-max normalised
+// over the run's motion hits (0 for the weakest, 1 for the strongest; 0 for all when they are equal), and a role
+// candidate gains MV_MOTION_BONUS times the best normalised motion hit on the same clip within MV_MOTION_REACH seconds of
+// its centre (the allocator centres a shot on its candidate, so this stands in for the shot's window +/- 0.5 s). The
+// bonus is a tie-break: at most 0.1, below the allocator's 0.15 step between roles minus its 0.05 seeded jitter, so it
+// never changes the role order, only which of two similar moments of a clip comes first. It is added before the
+// planner's seeded tie-break, so a build stays deterministic. A clip whose only hits are motion hits keeps a stub row
+// (rid and sourceDuration, no time or score): the planner skips it as a candidate but still makes the clip's filler
+// windows from it.
+const MV_MOTION_ROLE = 'motion';
+const MV_MOTION_QUERY = 'hands moving, pouring, walking or the camera moving';
+const MV_MOTION_BONUS = 0.1;
+const MV_MOTION_REACH = 0.75;
+// The scene-search queries for a build: the role queries, plus the motion query with Beat punch on.
+function mvSearchQueries(queries, punch) {
+  return punch ? { ...queries, [MV_MOTION_ROLE]: MV_MOTION_QUERY } : queries;
+}
+function mvMotionBonus(list) {
+  const finite = v => typeof v === 'number' && isFinite(v);
+  const hits = {}, rest = [], stubs = {};
+  let min = Infinity, max = -Infinity;
+  for (const c of list) {
+    if (!c || c.role !== MV_MOTION_ROLE) { rest.push(c); continue; }
+    if (!stubs[c.rid]) stubs[c.rid] = { rid: c.rid, role: MV_MOTION_ROLE, sourceDuration: c.sourceDuration };
+    if (!finite(c.t) || !finite(c.score)) continue;
+    (hits[c.rid] = hits[c.rid] || []).push(c);
+    min = Math.min(min, c.score); max = Math.max(max, c.score);
+  }
+  const seen = {};
+  for (const c of rest) if (c) seen[c.rid] = true;
+  const kept = Object.keys(stubs).filter(rid => !seen[rid]).map(rid => stubs[rid]);
+  if (!(max > min)) return rest.concat(kept);
+  return rest.map(c => {
+    const near = c && hits[c.rid];
+    if (!near || !finite(c.t) || !finite(c.score)) return c;
+    let motion = 0;
+    for (const h of near) if (Math.abs(h.t - c.t) <= MV_MOTION_REACH + 1e-9) motion = Math.max(motion, (h.score - min) / (max - min));
+    return motion > 0 ? { ...c, score: c.score + MV_MOTION_BONUS * motion } : c;
+  }).concat(kept);
+}
+// Punch frames (15.2 b): the Draft frames where a Beat punch starts, the bar downbeats of the section (beats 0, 4, 8 ...
+// from the section start, which sits on a bar) at the Draft's real fps with the music offset (mvMusicOffset: the frame
+// expression of mvSchedule and assemble.js), before videoEnd. opts: { bpm (null without a grid), fps, sectionStart,
+// videoEnd }. [] without a grid: every video clip then gets the push-in only. Groove does not change them: punches
+// follow the beat grid, not the cuts.
+function mvPunchFrames(opts) {
+  const bpm = opts.bpm, fps = opts.fps, end = opts.videoEnd;
+  if (!(bpm > 0) || !(fps > 0) || !(end > 0)) return [];
+  const beat = 60 / bpm, offset = mvMusicOffset(opts.sectionStart, fps), out = [];
+  const total = Math.ceil(end / fps / beat);
+  for (let b = 0; b <= total; b += 4) {
+    const f = b === 0 ? 0 : Math.round((b * beat + offset) * fps);
+    if (f < end) out.push(f);
+  }
+  return out;
+}
+// mv-hook:end
 
 // The title layout, embedded verbatim from assets/title-lockup.tsx (tests/panel.test.cjs checks it), so the preview
 // places every word, sparkle and star with the same code as the Draft's title.
@@ -1106,7 +1382,11 @@ export default function Panel({ sdk, context, ui }: any) {
   const [ownMusic, setOwnMusic] = React.useState<{ path: string; name: string } | null>(null);
   const [ownGrid, setOwnGrid] = React.useState<any>(null);
   const [length, setLength] = React.useState<"short" | "standard" | "long">(DEFAULT_LENGTH);
-  const [pace, setPace] = React.useState<"quick" | "relaxed">(DEFAULT_PACE);
+  const [pace, setPace] = React.useState<"quick" | "relaxed" | "groove">(DEFAULT_PACE);
+  // Hook B (spec 15): Beat punch on every video clip, and the music section defaulting to the track's hook window
+  // (bundled tracks only). Both on by default, and both stay toggles.
+  const [beatPunch, setBeatPunch] = React.useState(DEFAULT_PUNCH);
+  const [hook, setHook] = React.useState(DEFAULT_HOOK);
   // Clip sound: the clips' own sound is off (muted), ambient (-18 dB under the music) or full (0 dB).
   const [clipSound, setClipSound] = React.useState<"off" | "ambient" | "full">("ambient");
   const [soft, setSoft] = React.useState(true);
@@ -1256,12 +1536,12 @@ export default function Panel({ sdk, context, ui }: any) {
         if (!alive) return;
         setTools({ ffmpeg: have.includes("ffmpeg"), node: have.includes("node") });
         const read = (rel: string) => readText(plugin, rel);
-        const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, softTsx, motionTsx] = await Promise.all([
+        const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, softTsx, motionTsx, punchTsx] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("scripts/inventory.js"), read("scripts/search.js"),
           read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-lockup.tsx"), read("assets/soft-look.tsx"),
-          read("assets/photo-motion.tsx")]);
+          read("assets/photo-motion.tsx"), read("assets/beat-punch.tsx")]);
         if (!alive) return;
-        setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, softTsx, motionTsx });
+        setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, softTsx, motionTsx, punchTsx });
         inventoryJsRef.current = inventoryJs;
         setStep("Checking clips");
         // The first read right after the app starts can fail while the Project is still loading: one retry.
@@ -1342,22 +1622,38 @@ export default function Panel({ sdk, context, ui }: any) {
   // The music's grid. bpm is null without a beat (No music, or own music whose beat was not found); usableEnd is null
   // without music (no cap). onsets / onsetThresholds are the music's band onsets in music seconds (manifest or
   // beat-detect.cjs); the planner snaps the cuts to them. Own music without a reliable beat keeps its onsets: its
-  // fixed-length cuts snap to bass onsets only.
-  const grid: any = musicKind === "none" ? { bpm: null, accepted: false, firstBeat: 0, usableEnd: null, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined }
+  // fixed-length cuts snap to bass onsets only. hookBars (bundled cues only) scores each bar start for Start at the hook.
+  const grid: any = musicKind === "none" ? { bpm: null, accepted: false, firstBeat: 0, usableEnd: null, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined, hookBars: null }
     : musicKind === "own" ? (ownGrid && ownGrid.accepted
-      ? { bpm: ownGrid.bpm, accepted: true, firstBeat: ownGrid.firstBeat, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: ownGrid.beatEnergy || [], peaks: ownGrid.peaks || [], onsets: ownGrid.onsets || NO_ONSETS, onsetThresholds: ownGrid.onsetThresholds }
-      : { bpm: null, accepted: false, firstBeat: 0, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: [], peaks: ownGrid?.peaks || [], onsets: ownGrid?.onsets || NO_ONSETS, onsetThresholds: ownGrid?.onsetThresholds })
-    : cue ? { bpm: cue.bpm, accepted: true, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds }
-    : { bpm: null, accepted: false, firstBeat: 0, usableEnd: 0, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined };
+      ? { bpm: ownGrid.bpm, accepted: true, firstBeat: ownGrid.firstBeat, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: ownGrid.beatEnergy || [], peaks: ownGrid.peaks || [], onsets: ownGrid.onsets || NO_ONSETS, onsetThresholds: ownGrid.onsetThresholds, hookBars: null }
+      : { bpm: null, accepted: false, firstBeat: 0, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: [], peaks: ownGrid?.peaks || [], onsets: ownGrid?.onsets || NO_ONSETS, onsetThresholds: ownGrid?.onsetThresholds, hookBars: null })
+    : cue ? { bpm: cue.bpm, accepted: true, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null }
+    : { bpm: null, accepted: false, firstBeat: 0, usableEnd: 0, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined, hookBars: null };
   // A grid only for 70-160 bpm with an accepted detection (spec 14.1); otherwise fixed shot lengths.
   const gridded = mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted });
-  const guard = gridded ? mvBeatsPerShot(pace, grid.bpm) : { beats: null, overridden: false };
+  const guard: any = gridded ? mvBeatsPerShot(pace, grid.bpm) : { beats: null, overridden: false };
   const shotSeconds = mvShotSeconds({ bpm: grid.bpm, beatsPerShot: guard.beats, pace, gridded });
   const requested = MV_LENGTHS[length];
-  // Music capacity (spec 14.2): the most shots (a multiple of 4) that fit from the earliest start; the section slider
-  // then only offers starts where that many fit, so the plan's own music fit equals this.
-  const fitted = mvFitShots({ requested, sectionStart: gridded ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });
-  const videoSeconds = (fitted || requested) * shotSeconds;
+  // Groove (spec 15.1) is decided as mvPlanBuild decides it: unless its tempo guard falls back to 2 beats per shot
+  // (above 150 bpm), the length is a beat span of whole bars and shotSeconds is the seconds per beat. Its phrase
+  // opener holds 2 beats, or 1 below 86 bpm (and 2 without a grid).
+  const grooved = pace === "groove" && (gridded ? !!guard.groove : true);
+  const opener = guard.groove ? guard.opener : 2;
+  // Music capacity (spec 14.2): the most shots (a multiple of 4) that fit from the earliest start, or for Groove the
+  // longest whole-bar span (mvGrooveFit, shots = its pattern count); the section slider then only offers starts where
+  // that fits, so the plan's own music fit equals this.
+  const grooveFit: any = grooved ? mvGrooveFit({ requested, sectionStart: gridded ? grid.firstBeat : 0, usableEnd: grid.usableEnd, beatSeconds: shotSeconds, opener }) : null;
+  const fitted = grooved ? grooveFit.shots : mvFitShots({ requested, sectionStart: gridded ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });
+  // What the length asks for (Groove: the nominal span's pattern count, e.g. 25 shots for Standard) and the seconds of
+  // the fitted and the asked-for video. Groove's shots vary in length, so its seconds are always beats x beat.
+  const wanted = grooved ? mvGrooveSpan(requested, opener).shots : requested;
+  const fittedSeconds = grooved ? grooveFit.beats * shotSeconds : fitted * shotSeconds;
+  const wantedSeconds = grooved ? grooveFit.requestedBeats * shotSeconds : requested * shotSeconds;
+  const videoSeconds = fitted ? fittedSeconds : wantedSeconds;
+  // A plan's length in seconds, and whether the footage made it shorter than the music allows (Groove compares beat
+  // spans: detected drum fills change its shot count inside the same span).
+  const planSeconds = (p: any) => (p.groove ? p.groove.beats * shotSeconds : p.shots * shotSeconds);
+  const planShort = (p: any) => (grooved ? !!p.groove && p.groove.beats < grooveFit.beats : p.shots < fitted);
   const snap = (value: number) => (musicKind === "none" ? 0
     : mvSnapSection({ value, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: gridded }));
   // The section start the build uses; with music, every cut shifts with its frame-snapped start (planner mvMusicOffset).
@@ -1366,15 +1662,21 @@ export default function Panel({ sdk, context, ui }: any) {
   // Onset snapping for every plan; without a reliable beat only bass onsets count, in a wider window.
   const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };
 
-  // A new track (or its grid) defaults the section to the most energetic window that fits.
+  // The hook window for the current length and pace (Start at the hook on a bundled track with a grid), else null.
+  const hookSection = () => (hook && gridded && musicKind === "cue" ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null);
+  // A new track (or its grid) defaults the section to the most energetic window that fits; with Start at the hook,
+  // to the track's best-scoring hook window that fits (spec 15.3), falling back to the energy default when the track
+  // has no hook scores (your own music). Toggling Start at the hook picks the default again.
   // `assets` is a dependency so the default also applies once the manifest has loaded.
   React.useEffect(() => {
     if (musicKind === "none") return;
     if (!gridded) { setSection(snap(0)); return; }
-    setSection(mvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? snap(grid.firstBeat));
-  }, [assets, cueId, ownMusic?.path, ownGrid]);
+    const hookAt = hookSection();
+    setSection(hookAt ?? mvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? snap(grid.firstBeat));
+  }, [assets, cueId, ownMusic?.path, ownGrid, hook]);
   // A new length or pace keeps the chosen start and only re-clamps it.
-  React.useEffect(() => { setSection((s) => snap(s ?? 0)); }, [length, pace]);
+  // With Start at the hook it moves to the hook window for the new length and pace instead.
+  React.useEffect(() => { const hookAt = hookSection(); setSection((s) => hookAt ?? snap(s ?? 0)); }, [length, pace]);
   // A new track, section, length or pace makes a running preview stale, so it stops.
   React.useEffect(() => { stopPreview(); }, [cueId, ownMusic?.path, section, length, pace]);
 
@@ -1467,13 +1769,13 @@ export default function Panel({ sdk, context, ui }: any) {
     }
   }
 
-  async function findCandidates(rids: string[], pid: string, check: () => void) {
+  async function findCandidates(rids: string[], pid: string, check: () => void, queries: Record<string, string>) {
     const list: any[] = []; const failed: string[] = [];
     // SEARCH_BATCH clips per call keeps each scene search under runScript's fixed 30 s deadline.
     // pageSize stays 4: hits are scene-level, so 8 adds almost no new times; the planner fills gaps with filler candidates.
     for (let i = 0; i < rids.length; i += SEARCH_BATCH) {
       advance("shots", i / rids.length, i + "/" + rids.length + " clips checked");
-      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: MV_QUERIES, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
+      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
       check();
       list.push(...r.candidates); failed.push(...r.failed);
     }
@@ -1512,7 +1814,7 @@ export default function Panel({ sdk, context, ui }: any) {
     const frozen = Object.freeze({
       pid, seed: nextSeed, preset, presetLabel: chosen.label, fields: { ...titleFields },
       music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? roots.plugin + "/assets/cues/" + cue.file : null,
-      sectionStart: musicStart, pace, length, requested, clipSound, soft, usePhotos, only, onlyPhotos,
+      sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,
       draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),
     });
     busyRef.current = true;
@@ -1520,7 +1822,8 @@ export default function Panel({ sdk, context, ui }: any) {
     setBusy(true); setStatus(null); setResult(null);
     advance("shots", 0);
     try {
-      const key = pid + "|" + JSON.stringify(only);
+      // The scene search is cached per Project, clip selection and query set (the motion query runs only with Beat punch).
+      const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");
       const rids: string[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid)).map((r: any) => r.rid);
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
       const cached = candidates && candidates.key === key ? candidates : null;
@@ -1528,7 +1831,7 @@ export default function Panel({ sdk, context, ui }: any) {
       if (!cached || cached.failed.length) {
         // Search everything the first time; afterwards retry only the clips whose search failed.
         const todo: string[] = cached ? cached.failed : rids;
-        const fresh = await findCandidates(todo, pid, check);
+        const fresh = await findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch));
         const retried = new Set(todo);
         found = { key, failed: fresh.failed,
           list: [...(cached ? cached.list.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))] };
@@ -1538,8 +1841,9 @@ export default function Panel({ sdk, context, ui }: any) {
       // Photos join as candidates without a search; with Use photos off there are none (the planner would otherwise
       // retry with photos first).
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
-      // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate.
-      const plan: any = mvPlanBuild({ candidates: found.list.concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });
+      // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. With Beat punch,
+      // motion hits become a tie-break bonus on the role candidates first (mvMotionBonus).
+      const plan: any = mvPlanBuild({ candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });
       if (!plan.ok) {
         const retry = found.failed.length ? " Could not check " + found.failed.length + " clips; press Build to retry them." : "";
         throw new Error((MV_FAIL[plan.reason] || "No plan fits this footage") + "." + (plan.reason === "too-few" ? " Add more varied footage" + (usePhotos ? " or photos" : "") + " or select more clips." : "") + retry);
@@ -1572,7 +1876,7 @@ export default function Panel({ sdk, context, ui }: any) {
       }
       if (!(a.totalFrames > 0)) throw new Error("The Draft \"" + frozen.draftName + "\" has no clips. Build again.");
       // The planner drops shots when the footage cannot fill them; tell the user the real length at the Draft fps.
-      const shortened = plan.shots < fitted ? { shots: plan.shots, of: fitted, seconds: a.totalFrames / a.fps } : null;
+      const shortened = planShort(plan) ? { shots: plan.shots, of: fitted, seconds: a.totalFrames / a.fps } : null;
       advance("draft", 1);
       const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, plan, notes: a.notes || [], link: null, shortened, unchecked: found.failed.length };
       setResult(res);
@@ -1622,7 +1926,7 @@ export default function Panel({ sdk, context, ui }: any) {
       for (const fl of p.fields) flat[fl.key] = String(f.fields[fl.key] ?? "");
       const parameters = { preset: f.preset, ...flat, fields: { ...flat }, primary: p.colors.primary, secondary: p.colors.secondary, ...TITLE_LOOK, fonts,
         provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart, pace: f.pace, length: f.length,
-          seed: f.seed, clipSound: f.clipSound, picks: res.plan.picks } };
+          seed: f.seed, clipSound: f.clipSound, punch: f.punch, hook: f.hook, groove: res.plan.groove || null, picks: res.plan.picks } };
       const editableParameters = [
         ...p.fields.map((fl: any) => ({ key: fl.key, label: fl.label, type: "text", defaultValue: flat[fl.key] })),
         { key: "primary", label: "Main color", type: "color", defaultValue: p.colors.primary },
@@ -1645,7 +1949,11 @@ export default function Panel({ sdk, context, ui }: any) {
         const cover = sz ? Math.max(MV_W / sz.width, MV_H / sz.height) / Math.min(MV_W / sz.width, MV_H / sz.height) : 1;
         byRid[k.rid] = { ...moves[i], cover };
       });
-      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: MOTION_OPTIONS, byRid }, photoEffects: true }), true);
+      // Beat punch (spec 15.2 b/c) on every video clip: punches on the bar downbeats at the Draft's real fps, or the
+      // push-in only without a beat grid. decorate.js matches Main clip i to picks[i] and works out each clip's frames.
+      const punch = f.punch ? { tsx: assets.punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: f.bpm ? 60 / f.bpm * res.fps : 0,
+        punchFrames: mvPunchFrames({ bpm: f.bpm, fps: res.fps, sectionStart: f.sectionStart, videoEnd: res.videoEnd }), picks: res.plan.picks } : null;
+      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: MOTION_OPTIONS, byRid }, photoEffects: true, punch }), true);
       check();
     } catch (e: any) {
       if (e === STALE) throw e;
@@ -1699,19 +2007,20 @@ export default function Panel({ sdk, context, ui }: any) {
   // Once a build has searched the current selection (or nothing needs searching: no video selected), plan it for the
   // readiness line, so the fitted shot count and a failure reason show before Build. The allocation depends on the
   // seed, so each button is gated with the seed it builds with: Build uses `seed`, Create another version `seed + 1`.
-  const candKey = projectId + "|" + JSON.stringify(only);
+  const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");
   const readyPlans: any = React.useMemo(() => {
     if (!inventory || !fitted) return { build: null, another: null };
     const searched = candidates && candidates.key === candKey ? candidates : null;
     if (!searched && selectedRids.length) return { build: null, another: null };
     const list = searched ? searched.list : [];
+    const scored = beatPunch ? mvMotionBonus(list) : list;
     const planAt = (s: number) => {
-      const p: any = mvPlanBuild({ candidates: list.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(s) });
+      const p: any = mvPlanBuild({ candidates: scored.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(s) });
       // A search with failed clips is retried by Build, so its shortfall does not block Build yet.
       return { ...p, retryable: !!(searched && searched.failed.length) };
     };
     return { build: planAt(seed), another: planAt(seed + 1) };
-  }, [candidates, candKey, inventory, onlyPhotos, usePhotos, grid.bpm, grid.accepted, grid.usableEnd, grid.onsets, pace, requested, musicStart, seed, fitted, selectedRids.length]);
+  }, [candidates, candKey, inventory, onlyPhotos, usePhotos, grid.bpm, grid.accepted, grid.usableEnd, grid.onsets, pace, requested, musicStart, seed, fitted, selectedRids.length, beatPunch]);
   const readyPlan: any = readyPlans.build;
   // Why a build with this readiness plan cannot run (null when it can).
   const baseBlock: string | null = !inventory || !assets ? null
@@ -1734,7 +2043,7 @@ export default function Panel({ sdk, context, ui }: any) {
     allRids.length ? (only ? selectedRids.length + " of " + allRids.length + " clips selected" : allRids.length + " clips") : "",
     usePhotos && allPhotoRids.length ? (onlyPhotos ? selectedPhotoRids.length + " of " + allPhotoRids.length + " photos selected" : allPhotoRids.length + " photos") : "",
   ].filter(Boolean).join(" · ");
-  const plannedShots = readyPlan && readyPlan.ok ? readyPlan.shots : fitted || requested;
+  const plannedSeconds = readyPlan && readyPlan.ok ? planSeconds(readyPlan) : videoSeconds;
   const readiness = !inventory ? (invError ? (invError === MV_BUSY ? MV_BUSY : MV_INV_FAILED) : "Checking clips…")
     : inventory.incomplete && incompleteStalled ? MV_INV_PARTIAL
     : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? "Still reading this Project's clips… This updates automatically."
@@ -1743,21 +2052,26 @@ export default function Panel({ sdk, context, ui }: any) {
       : "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.")
     : inventory.resources.length === 0 && !usePhotos ? (pending > 0 ? pending + " clips are still being analysed. " : "") + "Turn on Use photos in Advanced to build from this Project's photos."
     : selectedRids.length === 0 && usedPhotoCount === 0 ? "No clips selected. Choose clips in Advanced."
-    : "Ready: " + clipCount + " · about " + Math.round(plannedShots * shotSeconds) + " s" + (pending ? " · " + pending + " clips still being analysed" : "");
+    : "Ready: " + clipCount + " · about " + Math.round(plannedSeconds) + " s" + (pending ? " · " + pending + " clips still being analysed" : "");
   // Requested vs fitted shots (spec 14.2), then the footage's own fit once it is known.
   const fitLine = !assets ? null
     : musicKind !== "none" && !fitted ? MV_FAIL["music-too-short"] + "."
-    : fitted < requested ? LENGTH_LABELS[length] + ": " + fitted + " of " + requested + " shots fit this track (" + (fitted * shotSeconds).toFixed(1) + " s)"
-    : LENGTH_LABELS[length] + ": " + requested + " shots (" + (requested * shotSeconds).toFixed(1) + " s)";
-  const footageLine = readyPlan && readyPlan.ok && readyPlan.shots < fitted
-    ? "Your footage fits " + readyPlan.shots + " of " + fitted + " shots (" + (readyPlan.shots * shotSeconds).toFixed(1) + " s)" : null;
-  // The tempo guard's override, or fixed timing without a grid (spec 14.1).
+    : (grooved ? grooveFit.beats < grooveFit.requestedBeats : fitted < requested) ? LENGTH_LABELS[length] + ": " + fitted + " of " + wanted + " shots fit this track (" + fittedSeconds.toFixed(1) + " s)"
+    : LENGTH_LABELS[length] + ": " + wanted + " shots (" + wantedSeconds.toFixed(1) + " s)";
+  const footageLine = readyPlan && readyPlan.ok && planShort(readyPlan)
+    ? "Your footage fits " + readyPlan.shots + " of " + fitted + " shots (" + planSeconds(readyPlan).toFixed(1) + " s)" : null;
+  // The tempo guard's override, or fixed timing without a grid (spec 14.1). Groove's guards: below 86 bpm its phrase
+  // opener holds 1 beat, above 150 bpm it plays 2 beats per shot.
+  // Fixed timing without a grid: the shot length, or for Groove its 0.55 s beat and the 2-beat, 1-beat and 8th shots.
+  const timing = grooved ? "Groove on a " + shotSeconds.toFixed(2) + " s beat: " + (2 * shotSeconds).toFixed(2) + ", " + shotSeconds.toFixed(2) + " and " + (shotSeconds / 2).toFixed(3) + " s shots"
+    : shotSeconds.toFixed(2) + " s";
   const paceNote = !assets ? null
-    : guard.overridden ? "At " + Math.round(grid.bpm) + " bpm " + (pace === "quick" ? "Quick uses 2 beats" : "Relaxed uses 1 beat") + " per shot."
-    : !gridded ? (musicKind === "none" ? "No music: shots use approximate timing (" + shotSeconds.toFixed(2) + " s)."
+    : guard.overridden ? "At " + Math.round(grid.bpm) + " bpm " + (pace === "quick" ? "Quick uses 2 beats per shot" : pace === "relaxed" ? "Relaxed uses 1 beat per shot"
+      : guard.groove ? "Groove opens phrases with 1 beat" : "Groove uses 2 beats per shot") + "."
+    : !gridded ? (musicKind === "none" ? "No music: shots use approximate timing (" + timing + ")."
       : musicKind === "own" && !ownGrid ? null
-      : grid.accepted ? "Tempo outside 70\u2013160 bpm (" + Math.round(grid.bpm) + " bpm): shots use approximate timing (" + shotSeconds.toFixed(2) + " s)."
-      : "No steady beat: shots use approximate timing (" + shotSeconds.toFixed(2) + " s).")
+      : grid.accepted ? "Tempo outside 70\u2013160 bpm (" + Math.round(grid.bpm) + " bpm): shots use approximate timing (" + timing + ")."
+      : "No steady beat: shots use approximate timing (" + timing + ").")
     : null;
   const peaks: number[] = grid.peaks || [];
   const total = musicKind === "own" ? (ownDuration || 1) : (cue ? cue.duration : 1);
@@ -1843,6 +2157,7 @@ export default function Panel({ sdk, context, ui }: any) {
               <span>{musicKind === "own" && !ownDuration ? (busy ? "Reading the music…" : "The length of this music is unknown")
                 : start == null ? "This track is too short for this length" : "Starts at " + start.toFixed(1) + " s"}</span>
             </ui.Row>
+            {musicKind === "cue" ? <ui.Toggle label="Start at the hook" value={hook} onChange={setHook} disabled={busy} /> : null}
           </div>
         ) : null) : null}
       </ui.Section>
@@ -1850,7 +2165,7 @@ export default function Panel({ sdk, context, ui }: any) {
         <ui.Segmented label="Length" value={length} onChange={(v: any) => setLength(v)} disabled={busy}
           options={[{ label: "Short", value: "short" }, { label: "Standard", value: "standard" }, { label: "Long", value: "long" }]} />
         <ui.Segmented label="Pace" value={pace} onChange={(v: any) => setPace(v)} disabled={busy}
-          options={[{ label: "Quick", value: "quick" }, { label: "Relaxed", value: "relaxed" }]} />
+          options={[{ label: "Quick", value: "quick" }, { label: "Relaxed", value: "relaxed" }, { label: "Groove", value: "groove" }]} />
         {fitLine ? <ui.Message tone="muted">{fitLine}</ui.Message> : null}
         {footageLine ? <ui.Message tone="muted">{footageLine}</ui.Message> : null}
         {paceNote ? <ui.Message tone="muted">{paceNote}</ui.Message> : null}
@@ -1864,6 +2179,7 @@ export default function Panel({ sdk, context, ui }: any) {
         <ui.Segmented label="Clip sound" value={clipSound} onChange={(v: any) => setClipSound(v)} disabled={busy}
           options={[{ label: "Off", value: "off" }, { label: "Ambient", value: "ambient" }, { label: "Full", value: "full" }]} />
         <ui.Toggle label="Soft look" value={soft} onChange={setSoft} disabled={busy} />
+        <ui.Toggle label="Beat punch" value={beatPunch} onChange={setBeatPunch} disabled={busy} />
         <ui.Toggle label="Use photos" value={usePhotos} onChange={setUsePhotos} disabled={busy} />
         {silent ? <ui.Message tone="muted">Silent video: no music and Clip sound is Off.</ui.Message> : null}
         {inventory && (allRids.length || allPhotoRids.length) ? (

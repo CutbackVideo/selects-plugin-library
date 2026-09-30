@@ -335,5 +335,58 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   const fo = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: soundPicks.filter(k => k.kind === 'video'), boundaries: [0, 1, 2], crops: {}, music: null, clipSound: 'ambient' })({ project: () => ({ createDraft: async () => failing.d, resource: id => ({ id }) }) });
   assert.equal(fo.ambientClips, 1);
   assert.deepEqual(fo.notes, ['the sound of 1 clip could not be lowered under the music']);
+
+  // Beat punch (spec §15.2 b/c): one effect per video clip on Main, before the Soft look; photos keep Photo motion only.
+  // Main clip i is cfg.punch.picks[i] (the picks assemble.js placed). The source start is recomputed with assemble's
+  // expression (r1's window slides back to end inside its 5.5 s source); punches are localised from Draft frames.
+  const mk = mockDraft(30, { photos: ['p1'] });
+  mk.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null },
+    { clipId: 2, resourceId: 'p1', trackKind: 'main', startFrame: 30, endFrame: 50, audioSourceIndexes: null },
+    { clipId: 3, resourceId: 'r1', trackKind: 'main', startFrame: 50, endFrame: 80, audioSourceIndexes: null },
+    { clipId: 99, resourceId: 'm', trackKind: 'audio', startFrame: 0, endFrame: 80 });
+  mk.d.addVideoEffect = (orig => async (o) => { if (o.label === 'Beat punch') mk.log.push(['punch', o.clip.clipId, o.parameters, o.editableParameters, o.tsxCode]); return orig(o); })(mk.d.addVideoEffect);
+  const beatK = 30 * 60 / 108;
+  const cfgK = { sequenceId: 'seq-new', videoEnd: 80, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: { tsx: 'y', strength: 0.35 }, photos: ['p1'],
+    punch: { tsx: 'punch', strength: 1, push: 1, beatFrames: beatK, punchFrames: [0, 25, 67, 200],
+      picks: [{ slot: 0, rid: 'r0', kind: 'video', startSeconds: 2, endSeconds: 3, sourceDuration: 10 }, { slot: 1, rid: 'p1', kind: 'photo', holdSeconds: 0.667 },
+        { slot: 2, rid: 'r1', kind: 'video', startSeconds: 5, endSeconds: 6, sourceDuration: 5.5 }] } };
+  const dk = await load('decorate.js', cfgK)({ draft: () => mk.d });
+  assert.deepEqual(dk.punch, { added: 2, kept: 0, skipped: 0 });
+  const pk = mk.log.filter(x => x[0] === 'punch');
+  assert.deepEqual(pk.map(x => x[1]), [1, 3], 'video clips only');
+  assert.equal(pk[0][4], 'punch');
+  // r0: source frame 60; the downbeats at 0 and 25 are inside it. r1: round(5 * 30) = 150 slides back to 165 - 30 = 135;
+  // 67 is local 17, and 25 (local -25) is more than half a beat before it, so it is left out.
+  assert.deepEqual(pk[0][2], { strength: 1, push: 1, punches: [0, 25], beatFrames: beatK, sourceStartFrame: 60, durationFrames: 30 });
+  assert.deepEqual(pk[1][2], { strength: 1, push: 1, punches: [17], beatFrames: beatK, sourceStartFrame: 135, durationFrames: 30 });
+  assert.deepEqual(pk[0][3], [{ key: 'strength', label: 'Punch', type: 'number', defaultValue: 1, min: 0, max: 1, step: 0.05 }]);
+  assert.deepEqual(mk.effects[1].map(e => e.name), ['Beat punch', 'Soft look'], 'Soft look wraps the punch');
+  assert.equal((mk.effects[2] || []).some(e => e.name === 'Beat punch'), false, 'no punch on the photo');
+  assert.equal(dk.committed, true);
+  // Idempotent: a second run keeps both and commits nothing.
+  const dk2 = await load('decorate.js', cfgK)({ draft: () => mk.d });
+  assert.deepEqual(dk2.punch, { added: 0, kept: 2, skipped: 0 });
+  assert.equal(dk2.alreadyDone, true);
+  assert.equal(mk.log.filter(x => x[0] === 'punch').length, 2, 'no second punch');
+  // A punch at the cut before a clip (within half a beat) keeps its tail; a clip without punches gets the push-in only.
+  const mt = mockDraft(30);
+  mt.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 });
+  mt.d.addVideoEffect = (orig => async (o) => { mt.log.push(['punch', o.clip.clipId, o.parameters]); return orig(o); })(mt.d.addVideoEffect);
+  const dt = await load('decorate.js', { sequenceId: 's', videoEnd: 60, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null,
+    punch: { tsx: 'punch', strength: 0.5, push: 0.4, beatFrames: 20, punchFrames: [28],
+      picks: [{ rid: 'r0', kind: 'video', startSeconds: 0, endSeconds: 1 }, { rid: 'r1', kind: 'video', startSeconds: 1.01, endSeconds: 2 }] } })({ draft: () => mt.d });
+  assert.deepEqual(dt.punch, { added: 2, kept: 0, skipped: 0 });
+  assert.deepEqual(mt.log.filter(x => x[0] === 'punch').map(x => [x[2].punches, x[2].sourceStartFrame, x[2].strength, x[2].push]), [[[28], 0, 0.5, 0.4], [[-2], 30, 0.5, 0.4]]);
+  // A Main clip that does not match its pick (another resource, or no pick) is skipped, not guessed.
+  const mm = mockDraft(30);
+  mm.clips.push({ clipId: 1, resourceId: 'rX', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 });
+  const dmm = await load('decorate.js', { sequenceId: 's', videoEnd: 60, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null,
+    punch: { tsx: 'punch', strength: 1, push: 1, beatFrames: 20, punchFrames: [], picks: [{ rid: 'r0', kind: 'video', startSeconds: 0 }] } })({ draft: () => mm.d });
+  assert.deepEqual(dmm.punch, { added: 0, kept: 0, skipped: 2 });
+  // cfg.punch null: no punch, and no punch key in the result.
+  const mq = mockDraft(30); mq.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 });
+  const dn = await load('decorate.js', { sequenceId: 's', videoEnd: 30, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null, punch: null })({ draft: () => mq.d });
+  assert.equal(dn.punch, undefined);
+  assert.equal(mq.log.filter(x => x[0] === 'look').length, 0);
   console.log(JSON.stringify({ scriptsEdit: 'ok' }));
 })().catch(e => { console.error(e); process.exit(1); });

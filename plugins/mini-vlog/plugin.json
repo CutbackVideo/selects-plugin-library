@@ -30,6 +30,7 @@
     "assets/fonts/licenses/quicksand-OFL.txt",
     "assets/fonts/mv-rounded-bold.woff2.b64",
     "assets/fonts/presets.json",
+    "assets/beat-punch.tsx",
     "assets/photo-motion.tsx",
     "assets/title-lockup.tsx",
     "assets/soft-look.tsx",
@@ -46,8 +47,10 @@
     "tests/motion.test.cjs",
     "tests/panel.test.cjs",
     "tests/planner.test.cjs",
+    "tests/punch.test.cjs",
     "tests/scripts-edit.test.cjs",
     "tests/scripts-read.test.cjs",
+    "tests/scripts-types.test.cjs",
     "tests/title.test.cjs"
   ],
   "compatibility": {

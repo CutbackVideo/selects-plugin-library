@@ -17,6 +17,12 @@ assert.ok(lStart > pEnd && lEnd > lStart, 'lockup markers after the planner');
 assert.equal(panel.slice(lStart, lEnd), lockupTsx0.slice(lockupTsx0.indexOf('// mv-lockup:start'), lockupTsx0.indexOf('// mv-lockup:end')), 'panel.tsx must embed the mv-lockup block verbatim');
 assert.equal(panel.split('// mv-lockup:start').length, 2, 'one lockup block');
 const ui = panel.slice(pEnd, lStart) + panel.slice(lEnd);
+// The hook B helpers (motion bonus, punch frames) sit in their own plain-JS block outside the planner, which the
+// headless driver loads next to planner.js.
+const hStart = panel.indexOf('// mv-hook:start\n'), hEnd = panel.indexOf('// mv-hook:end');
+assert.ok(hStart > pEnd && hEnd > hStart && hEnd < lStart, 'hook block between the planner and the lockup');
+assert.equal(panel.split('// mv-hook:start').length, 2, 'one hook block');
+const hookBlock = panel.slice(hStart, hEnd);
 const outside = panel.slice(0, pStart) + ui;
 
 // Header: the name, ten localised names (ko in Latin letters), the icon and the plugin id.
@@ -29,7 +35,7 @@ assert.match(head, /^\/\/ @name:ko [A-Za-z ]+$/m, 'ko name in Latin letters');
 assert.match(head, /^\/\/ @icon sparkles$/m);
 assert.ok(panel.includes('const PLUGIN_ID = "mini-vlog";'));
 assert.ok(!/^import .* from "(?!react")/m.test(panel), 'only react may be imported');
-for (const name of ['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js', 'title-lockup.tsx', 'soft-look.tsx', 'photo-motion.tsx', 'manifest.json', 'presets.json', 'beat-detect.cjs']) assert.ok(panel.includes(name), 'panel reads ' + name);
+for (const name of ['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js', 'title-lockup.tsx', 'soft-look.tsx', 'photo-motion.tsx', 'beat-punch.tsx', 'manifest.json', 'presets.json', 'beat-detect.cjs']) assert.ok(panel.includes(name), 'panel reads ' + name);
 
 // Hangul audit across the plugin.
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
@@ -52,11 +58,11 @@ const QUERIES = {
   flowers: 'flowers, a bouquet or a flower shop close up',
   cafe: 'a cozy cafe interior or a window seat with daylight',
 };
-assert.equal((q.match(/^  \w+: "/gm) || []).length, 8, 'eight queries');
+assert.equal((q.match(/^  \w+: "/gm) || []).length, 8, 'eight queries (the motion query is added only with Beat punch)');
 for (const [role, text] of Object.entries(QUERIES)) assert.ok(q.includes('  ' + role + ': "' + text + '",'), 'query ' + role);
 for (const c of ['const AMBIENT_DB = -18;', 'const DEFAULT_CUE = "weekend-indie-pop";', 'const PREFERRED_CUE = "bedroom-pop-108";', 'const DEFAULT_PRESET = "mini-vlog";',
-  'const DEFAULT_LENGTH = "standard";', 'const DEFAULT_PACE = "quick";', 'const SOFT_STRENGTH = 0.35;', 'const MOTION_STRENGTH = 0.5;']) assert.ok(panel.includes(c), c);
-for (const s of ['React.useState(DEFAULT_CUE)', 'React.useState(DEFAULT_PRESET)', 'React.useState<"short" | "standard" | "long">(DEFAULT_LENGTH)', 'React.useState<"quick" | "relaxed">(DEFAULT_PACE)',
+  'const DEFAULT_LENGTH = "standard";', 'const DEFAULT_PACE = "quick";', 'const DEFAULT_PUNCH = true;', 'const DEFAULT_HOOK = true;', 'const SOFT_STRENGTH = 0.35;', 'const MOTION_STRENGTH = 0.5;']) assert.ok(panel.includes(c), c);
+for (const s of ['React.useState(DEFAULT_CUE)', 'React.useState(DEFAULT_PRESET)', 'React.useState<"short" | "standard" | "long">(DEFAULT_LENGTH)', 'React.useState<"quick" | "relaxed" | "groove">(DEFAULT_PACE)', 'const [beatPunch, setBeatPunch] = React.useState(DEFAULT_PUNCH)', 'const [hook, setHook] = React.useState(DEFAULT_HOOK)',
   'React.useState<"off" | "ambient" | "full">("ambient")', 'const [soft, setSoft] = React.useState(true)', 'const [usePhotos, setUsePhotos] = React.useState(true)']) assert.ok(panel.includes(s), s);
 // The preferred cue replaces the default once, when the manifest has it.
 assert.ok(/cues\.some\(\(c: any\) => c\.id === PREFERRED_CUE\)/.test(panel) && panel.includes('(cur === DEFAULT_CUE ? PREFERRED_CUE : cur)'), 'bedroom-pop-108 becomes the default when present');
@@ -65,7 +71,7 @@ assert.ok(/cues\.some\(\(c: any\) => c\.id === PREFERRED_CUE\)/.test(panel) && p
 const order = ['title="Title"', 'title="Music"', 'title="Length"', 'title="Advanced"', 'Creates a new 16:9 Draft'].map(s => ui.indexOf(s));
 assert.ok(order.every(i => i > 0), 'all sections present');
 assert.deepEqual(order.slice().sort((a, b) => a - b), order, 'Title, Music, Length, Advanced, Build');
-for (const s of ['label="Length"', 'label="Pace"', 'value: "quick"', 'value: "relaxed"', 'label="Clip sound"', 'label="Soft look"', 'label="Use photos"', 'Choose clips']) assert.ok(ui.includes(s), s);
+for (const s of ['label="Length"', 'label="Pace"', 'value: "quick"', 'value: "relaxed"', '{ label: "Groove", value: "groove" }', 'label="Beat punch"', 'label="Start at the hook"', 'label="Clip sound"', 'label="Soft look"', 'label="Use photos"', 'Choose clips']) assert.ok(ui.includes(s), s);
 
 // Title: three preset tiles, per-preset fields with max lengths, @year resolved, live preview from the shared layout code.
 for (const s of ['aria-pressed', 'fieldsBy', '.slice(0, fl.max)', '"@year"', 'inventory?.latestYear', 'new Date().getFullYear()', 
@@ -97,6 +103,69 @@ assert.ok(ui.includes('if (!usePhotos || !inventory) return [];'), 'photos off -
 assert.equal((ui.match(/photoCandsOf\(inventory, onlyPhotos, usePhotos\)/g) || []).length, 2);
 // Build is disabled with the reason.
 assert.ok(ui.includes('disabled={busy || !canBuild}') && ui.includes('MV_FAIL[plan.reason]') && ui.includes('const blockReason = blockFor(readyPlan);'), 'disabled Build with the planner reason');
+
+// Groove (spec 15.1): capacity, lines and the pace note follow the planner's beat spans, not shots x shotSeconds.
+for (const s of ['const grooved = pace === "groove" && (gridded ? !!guard.groove : true);', 'const opener = guard.groove ? guard.opener : 2;',
+  'mvGrooveFit({ requested, sectionStart: gridded ? grid.firstBeat : 0, usableEnd: grid.usableEnd, beatSeconds: shotSeconds, opener })',
+  'const fitted = grooved ? grooveFit.shots : mvFitShots(', 'const wanted = grooved ? mvGrooveSpan(requested, opener).shots : requested;',
+  'const fittedSeconds = grooved ? grooveFit.beats * shotSeconds : fitted * shotSeconds;', 'const wantedSeconds = grooved ? grooveFit.requestedBeats * shotSeconds : requested * shotSeconds;',
+  'const videoSeconds = fitted ? fittedSeconds : wantedSeconds;', 'const planSeconds = (p: any) => (p.groove ? p.groove.beats * shotSeconds : p.shots * shotSeconds);',
+  'const planShort = (p: any) => (grooved ? !!p.groove && p.groove.beats < grooveFit.beats : p.shots < fitted);',
+  '"Groove opens phrases with 1 beat"', '"Groove uses 2 beats per shot"']) assert.ok(ui.includes(s), s);
+assert.ok(!/fitted \* shotSeconds\)\.toFixed|requested \* shotSeconds\)\.toFixed|readyPlan\.shots \* shotSeconds|plannedShots \* shotSeconds/.test(ui), 'no shots x shotSeconds lines left');
+assert.ok(ui.includes('const shortened = planShort(plan) ?') && ui.includes('readyPlan && readyPlan.ok && planShort(readyPlan)'), 'footage shortfall compares Groove beat spans');
+// Start at the hook (spec 15.3): the default section is the hook window when the toggle is on and the cue has scores.
+assert.ok(ui.includes('hookBars: cue.hookBars || null') && ui.includes('const hookSection = () => (hook && gridded && musicKind === "cue" ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null);'), 'hook section from the manifest');
+assert.ok(/const hookAt = hookSection\(\);\s*setSection\(hookAt \?\? mvDefaultSection\(/.test(ui), 'falls back to the energy default');
+// With the hook on, a new length or pace moves the section to that length's hook window (else it only re-clamps).
+assert.ok(ui.includes('React.useEffect(() => { const hookAt = hookSection(); setSection((s) => hookAt ?? snap(s ?? 0)); }, [length, pace]);'), 'hook re-picked on length / pace');
+// No grid: the pace note states Groove's 0.55 s beat and its shot lengths.
+assert.ok(ui.includes('const timing = grooved ? "Groove on a " + shotSeconds.toFixed(2) + " s beat: " + (2 * shotSeconds).toFixed(2) + ", " + shotSeconds.toFixed(2) + " and " + (shotSeconds / 2).toFixed(3) + " s shots"') && (ui.match(/approximate timing \(" \+ timing \+ "\)\."/g) || []).length === 3, 'no-grid timing note');
+assert.ok(ui.includes('}, [assets, cueId, ownMusic?.path, ownGrid, hook]);'), 'toggling the hook re-picks the default section');
+// Motion query and bonus only with Beat punch (off: the v1.2 search and plan); the search cache is keyed on it.
+assert.ok(ui.includes('candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands)') && ui.includes('const scored = beatPunch ? mvMotionBonus(list) : list;'), 'motion bonus before planning, with Beat punch only');
+assert.ok(ui.includes('findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch))') && ui.includes('queries, pageSize: 4 }'), 'motion query with Beat punch only');
+assert.ok(ui.includes('const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");') && ui.includes('const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");'), 'search cache keyed on the query set');
+// The helpers are plain JS (the driver evaluates them).
+assert.ok(!/:\s*(any|number|string)\b|\bas any\b/.test(hookBlock), 'hook block is plain JS');
+const H = new Function(planner + '\n' + hookBlock + '\nreturn { mvMotionBonus, mvPunchFrames, mvSchedule, mvSearchQueries, mvFillers, MV_MOTION_ROLE, MV_MOTION_QUERY, MV_MOTION_BONUS, MV_MOTION_REACH };')();
+assert.equal(H.MV_MOTION_ROLE, 'motion'); assert.equal(H.MV_MOTION_BONUS, 0.1); assert.equal(H.MV_MOTION_REACH, 0.75);
+assert.equal(H.MV_MOTION_QUERY, 'hands moving, pouring, walking or the camera moving');
+assert.deepEqual(H.mvSearchQueries(QUERIES, false), QUERIES);
+assert.deepEqual(H.mvSearchQueries(QUERIES, true), { ...QUERIES, motion: 'hands moving, pouring, walking or the camera moving' });
+{
+  const role = [{ rid: 'a', role: 'drink', t: 2.5, score: 0.3, sourceDuration: 9 }, { rid: 'b', role: 'park', t: 5.7, score: 0.3, sourceDuration: 9 },
+    { rid: 'b', role: 'park', t: 6, score: 0.3, sourceDuration: 9 }, { rid: 'a', role: 'food', t: 5, score: 0.2, sourceDuration: 9 }];
+  const motion = [{ rid: 'a', role: 'motion', t: 2, score: 0.4 }, { rid: 'b', role: 'motion', t: 5, score: 0.2 }, { rid: 'b', role: 'motion', t: 5.5, score: 0.3 }];
+  // No motion hits, or all equally strong: the candidates are unchanged, and motion rows never reach the planner.
+  assert.deepEqual(H.mvMotionBonus(role), role);
+  assert.deepEqual(H.mvMotionBonus(role.concat([{ rid: 'a', role: 'motion', t: 2, score: 0.4 }, { rid: 'b', role: 'motion', t: 6, score: 0.4 }])), role);
+  const out = H.mvMotionBonus(motion.concat(role));
+  assert.equal(out.length, 4); assert.ok(out.every(c => c.role !== 'motion'));
+  // Min-max normalised (0.2 -> 0, 0.3 -> 0.5, 0.4 -> 1), x 0.1: a's hit 0.5 s away +0.1; b's best hit within 0.75 s is
+  // the 0.3 one (+0.05) for both b candidates; a hit on another clip gives nothing.
+  assert.deepEqual(out.map(c => Math.round(c.score * 1000) / 1000), [0.4, 0.35, 0.35, 0.2]);
+  assert.equal(role[0].score, 0.3, 'input not mutated');
+  // A tie-break: the largest bonus stays below the allocator's role step (0.15) minus its jitter (0.05).
+  // (jitter is in [0, 0.05), so 0.1 + jitter < 0.15 never overtakes a better role.)
+  assert.ok(H.MV_MOTION_BONUS <= 0.15 - 0.05 + 1e-9);
+  // A clip with motion hits only keeps a stub (no time or score), so the planner still makes its filler windows.
+  const only = H.mvMotionBonus(role.concat([{ rid: 'c', role: 'motion', t: 1, score: 0.9, sourceDuration: 6 }, { rid: 'c', role: 'motion', t: 3, score: 0.1, sourceDuration: 6 }]));
+  assert.deepEqual(only.filter(c => c.rid === 'c'), [{ rid: 'c', role: 'motion', sourceDuration: 6 }]);
+  assert.ok(H.mvFillers(only).some(f => f.rid === 'c'), 'fillers for a motion-only clip');
+}
+{
+  // Punch frames: bar downbeats from the section start at the real fps with the music offset, the same frames as the
+  // Quick grid's slot starts on beats 0, 4, 8 ...; none without a grid.
+  const F = 30000 / 1001, q = H.mvSchedule({ bpm: 108, fps: F, shots: 24, beatsPerShot: 1, sectionStart: 4.472 });
+  const pf = H.mvPunchFrames({ bpm: 108, fps: F, sectionStart: 4.472, videoEnd: q.totalFrames });
+  assert.deepEqual(pf, q.slots.filter(x => x.startBeat % 4 === 0).map(x => x.startFrame));
+  assert.equal(pf.length, 6); assert.equal(pf[0], 0);
+  assert.deepEqual(H.mvPunchFrames({ bpm: 108, fps: 25, sectionStart: 0, videoEnd: 100 }), [0, 56]);
+  for (const bpm of [null, 0, undefined]) assert.deepEqual(H.mvPunchFrames({ bpm, fps: 25, sectionStart: null, videoEnd: 100 }), []);
+}
+// Beat punch cfg (punch-report contract), from the frozen Build inputs at the Draft's real fps.
+for (const s of ['const PUNCH_STRENGTH = 1;', 'const PUNCH_PUSH = 1;']) assert.ok(panel.includes(s), s);
 
 // Orchestration: frozen inputs, project guard after every await, Draft id kept, recovery by name, one assemble call.
 const build = ui.slice(ui.indexOf('async function build('), ui.indexOf('function buildAnother('));
@@ -175,7 +244,11 @@ assert.ok(ui.includes('disabled={busy || !assets} onClick={refreshInventory}>Ref
 for (const s of ['run("Assemble Mini Vlog"', 'run("Add title and look"', 'run("Add music to the project"']) assert.ok(new RegExp(s.replace(/[()]/g, '\\$&') + '[^;]*, true\\);').test(ui), s + ' is a commit call');
 // decorate cfg (scripts lane contract).
 assert.ok(decorate.includes('fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, '
-  + 'soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: MOTION_OPTIONS, byRid }, photoEffects: true })'), 'decorate cfg');
+  + 'soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: MOTION_OPTIONS, byRid }, photoEffects: true, punch })'), 'decorate cfg');
+assert.ok(decorate.includes('const punch = f.punch ? { tsx: assets.punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: f.bpm ? 60 / f.bpm * res.fps : 0,')
+  && decorate.includes('punchFrames: mvPunchFrames({ bpm: f.bpm, fps: res.fps, sectionStart: f.sectionStart, videoEnd: res.videoEnd }), picks: res.plan.picks } : null;'), 'Beat punch cfg at the real fps, off -> null');
+assert.ok(build.includes('sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,'), 'punch, hook (bundled tracks only) and the grid tempo are frozen');
+assert.ok(decorate.includes('seed: f.seed, clipSound: f.clipSound, punch: f.punch, hook: f.hook, groove: res.plan.groove || null, picks: res.plan.picks } };'), 'A/B provenance');
 assert.ok(!/titleEnd|warm/i.test(ui), 'no titleEnd / warm');
 assert.ok(!/titleSlots|montageShots|burst|line1|connector/.test(ui), 'no CWV title burst or lines');
 assert.ok(decorate.includes('mvPhotoMotions(res.plan.picks, String(f.seed), sizes)'), 'photo motions without titleSlots');
@@ -190,7 +263,7 @@ assert.ok(build.includes('videoEnd: a.totalFrames'), 'the title ends at the last
 // Inventory refresh: poll while pending, focus / visibility, Refresh button; project switch drops the cache.
 for (const s of ['loadInventory(', 'still being analysed', 'this updates automatically', '>Refresh<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef', 'projectRef']) assert.ok(ui.includes(s), s);
 assert.ok(/needsPoll = [^\n]*inventory\.photos/.test(ui), 'a photos-only Project does not poll');
-assert.ok(ui.includes('const candKey = projectId + "|" + JSON.stringify(only);') && ui.includes('const key = pid + "|" + JSON.stringify(only);'), 'scene search cache keyed on the Project');
+assert.ok(ui.includes('const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");') && ui.includes('const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");'), 'scene search cache keyed on the Project');
 for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'const [usePhotos', 'const [clipSound', '[cueId, ownMusic?.path, section, length, pace]']) assert.ok(ui.indexOf(hook) < ui.indexOf('if (!projectId) return <ui'), hook + ' before the early return');
 
 // Shell: single-quoted user paths, Finder PATH, big outputs through files, fixed call count.
