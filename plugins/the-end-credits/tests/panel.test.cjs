@@ -49,12 +49,21 @@ assert.ok(!/Streamable HTTP error/.test(panel), 'only the session-id failure is 
 assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('.nvm/versions/node/*/bin'), 'Homebrew and nvm paths');
 for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -i "/]) assert.ok(re.test(panel), String(re));
 const shells = panel.match(/sdk\.runShell\(\{[^\n]*/g) || [];
-assert.equal(shells.length, 8, 'folder lookup, tool check, waveform + cleanup, beat detection, ffprobe, preview + cleanup');
+assert.equal(shells.length, 10, 'folder lookup, tool check, waveform + cleanup, beat detection, ffprobe, preview + cleanup, motion + cleanup');
 for (const s of shells) if (!/Locate plugin folders/.test(s)) assert.ok(/TOOL_PATH/.test(s) || /command: cmd/.test(s), 'shell step without TOOL_PATH: ' + s);
 // User paths go to the shell single-quoted; dq() is only for the $HOME / $SELECTS_USER_SKILLS_ROOT constants.
 assert.ok(!/dq\((file|ownMusic|roots|cue|base|pcm)/.test(panel), 'user paths must not be double-quoted into the shell');
 assert.equal((panel.match(/dq\(/g) || []).length, 4, 'dq only for the two folder constants (plus its definition)');
-for (const p of ['sq(file.path)', 'sq(pcm)', 'sq(file)', 'sq(base + ".mp3")', 'sq(roots.plugin + "/assets/cues/" + cue.file)']) assert.ok(panel.includes(p), p);
+for (const p of ['sq(file.path)', 'sq(pcm)', 'sq(file)', 'sq(base + ".mp3")', 'sq(roots.plugin + "/assets/cues/" + cue.file)', 'sq(r.path)', 'sq(roots.data)']) assert.ok(panel.includes(p), p);
+// In-shot motion: ffmpeg once per clip, in the data folder (the filtergraph gets a bare file name, no path to escape),
+// written to a file (not stdout), read back and removed; cached per Project + clip; any failure leaves the clip
+// unmeasured (the old scoring), and without ffmpeg nothing runs.
+const mm = panel.slice(panel.indexOf('async function measureMotion('), panel.indexOf('// The Motion Graphic\'s data'));
+for (const k of ['TOOL_PATH + "cd " + sq(roots.data) + " && rm -f " + sq(file) + " && ffmpeg -nostdin -v error -an -sn -dn -i " + sq(r.path)', '" -vf " + sq(TEC_MOTION_FILTER + file) + " -f null -"',
+  'tecParseMotion(await readText(roots.data, file))', 'rm -f " + sq(roots.data) + "/motion-*.txt', 'pid + "|" + r.rid', 'in motionRef.current', '!tools.ffmpeg || !r.path',
+  'String(r.rid).replace(/[^A-Za-z0-9-]/g, "_")', 'if (e === STALE) throw e;', 'check();']) assert.ok(mm.includes(k), 'motion: ' + k);
+assert.ok(!/cd " \+ dq\(/.test(mm), 'the data folder is single-quoted');
+assert.ok(panel.indexOf('const motionRef = React.useRef') > 0 && panel.indexOf('const motionRef = React.useRef') < early, 'the motion cache is a hook before the early return');
 // Temporary files go through the data folder and are removed.
 assert.ok(panel.includes('"; s=$?; rm -f " + sq(pcm) + "; exit $s"') && panel.includes('" && rm -f " + sq(base + ".mp3")') && panel.includes('rm -f " + sq(base + ".u8")'), 'temporary audio files are removed');
 assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))') && panel.includes('!done.ok'), 'own-music analysis via a file');
@@ -81,7 +90,7 @@ assert.ok(panel.slice(panel.indexOf('async function finishTitle('), panel.indexO
 assert.ok(panel.includes('const p = tecProgress(id, fraction, detail);') && panel.includes('if (progressRef.current && p.value < progressRef.current.value - 1e-9) return;'), 'progress never goes backwards');
 assert.ok(panel.includes('steps={TEC_BUILD_STEPS.map('), 'the progress lists the build steps');
 for (const id of ['"prepare"', '"plan"', '"music"', '"assemble"', '"decorate"']) assert.ok(panel.includes('advance(' + id), 'advance ' + id);
-const order = ['fill(assets.scripts.inventoryJs', 'findCandidates(todo', 'tecPlanBuild({ layout: inputs.layout', 'fill(assets.scripts.ensureJs', 'fill(assets.scripts.assembleJs', 'await decorate(record'];
+const order = ['fill(assets.scripts.inventoryJs', 'findCandidates(todo', 'await measureMotion(', 'tecPlanBuild({ layout: inputs.layout', 'fill(assets.scripts.ensureJs', 'fill(assets.scripts.assembleJs', 'await decorate(record'];
 order.reduce((at, s) => { const i = buildBody.indexOf(s); assert.ok(i > at, 'build order: ' + s); return i; }, -1);
 assert.ok(/fill\(assets\.scripts\.searchJs, \{ projectId: pid, rids: rids\.slice\(i, i \+ 4\), queries: TEC_SEARCH_QUERIES, pageSize: 4 \}\)/.test(panel), 'search in batches of 4, pageSize 4');
 assert.ok(/fill\(assets\.scripts\.ensureJs, \{ projectId: pid, path: inputs\.musicPath \}\), true\)/.test(buildBody), 'ensure-audio commits in its own call');
@@ -100,10 +109,13 @@ for (const k of ['layout: inputs.layout, sequenceId: a.sequenceId, fps: a.fps, f
   'photos, sources, fades: FADES, musicFadeOut: MUSIC_FADE_OUT']) assert.ok(buildBody.includes(k), 'record ' + k);
 assert.ok(buildBody.includes('tecRollSpeed({ endSec, L: revealSec, H: 1080, lastRoleStartY: model.lastRoleTop, rowTops: model.rowTops })')
   && buildBody.includes('const endSec = frames[frames.length - 1] / a.fps, revealSec = frames[1] / a.fps;'), 'the roll speed comes from the assembled frames at the real fps');
-assert.ok(buildBody.includes('tecPhotoMotions(plan.picks, String(nextSeed), sizes)'), 'photo motions from the planner');
+assert.ok(buildBody.includes('candidates: found.list.concat(photoCands), seed: String(nextSeed), motion })'), 'the plan scores in-shot motion');
+assert.ok(buildBody.includes('tecShotMotions(plan.picks, String(nextSeed), sizes, { pool: plan.motionPool })'), 'shot motions (photos and still videos) from the planner');
+assert.ok(buildBody.includes('for (const r of inv.resources) if (r.width > 0 && r.height > 0) sizes[r.rid]'), 'video sizes for the motion axis');
+assert.ok(buildBody.includes('photoMotion: { byRid, byShot }') && buildBody.includes('await decorate(record, { byRid, byShot }, check)'), 'per-shot motions reach decorate');
 assert.ok(panel.includes('await decorate(result.record, result.photoMotion, check)'), 'Finish title and look retries decorate with the frozen record');
 assert.ok(panel.includes('graphic: graphicFor(record), frame: { tsx: assets.frameTsx },') && panel.includes('look: { tsx: assets.lookTsx, strength: record.look.strength, on: record.look.on }, photoMotion }'), 'decorate cfg');
-assert.ok(panel.includes('const LOOK_STRENGTH = 0.3;'));
+assert.ok(panel.includes('const LOOK_STRENGTH = 0.5;'));
 const anotherBody = panel.slice(panel.indexOf('function buildAnother()'), panel.indexOf('async function finishTitle('));
 assert.ok(anotherBody.indexOf('setResult(null)') >= 0 && anotherBody.indexOf('setResult(null)') < anotherBody.indexOf('build(s)') && /const s = seed \+ 1;/.test(anotherBody), 'another version: a new seed');
 assert.ok(panel.includes('candidates.key === key') && panel.includes('const key = pid + "|" + JSON.stringify(inputs.only);'), 'another version reuses the scene search');
@@ -181,10 +193,11 @@ const frames = Array.from({ length: 12 }, (_, i) => i * 120);
 const photos = {}, sources = {};
 for (let i = 0; i < 11; i++) { sources['00000000-0000-4000-8000-0000000000' + String(i).padStart(2, '0')] = { aspect: 1.7777777777777777 }; }
 const record = { layout: 'classic', sequenceId: '00000000-0000-4000-8000-000000000000', fps: 29.97, frames, titleText: 'THE END', rows, speedPxPerSec: 66.6, window: { x: 50.73, y: 12.69, w: 42.6 },
-  look: { on: true, strength: 0.3 }, clipSound: 'ambient', photos, sources, fades: { inSec: 0.5, outSec: 1.13 }, musicFadeOut: 1.5 };
+  look: { on: true, strength: 0.5 }, clipSound: 'ambient', photos, sources, fades: { inSec: 0.5, outSec: 1.13 }, musicFadeOut: 1.5 };
 const graphic = { tsx: read('assets/credits-graphic.tsx'), parameters: { layout: 'classic', fps: 29.97, revealFrame: frames[1], endFrame: frames[11], title: 'THE END', titleColor: '#FBE4BB', creditColor: '#F0EBDD',
   rows, ...scalars, rowCount: rows.length, speedPxPerSec: 66.6, speed: 1, showTitle: true, fonts }, editableParameters: [{ key: 'title', label: 'Title', type: 'text', defaultValue: 'THE END' }, ...editable] };
-const payload = fill(read('scripts/decorate.js'), { ...record, graphic, frame: { tsx: read('assets/shot-frame.tsx') }, look: { tsx: read('assets/cinematic-look.tsx'), strength: 0.3, on: true }, photoMotion: { byRid: {} } });
+const payload = fill(read('scripts/decorate.js'), { ...record, graphic, frame: { tsx: read('assets/shot-frame.tsx') }, look: { tsx: read('assets/cinematic-look.tsx'), strength: 0.5, on: true },
+  photoMotion: { byRid: {}, byShot: Array.from({ length: 11 }, () => ({ motion: 'push-in', direction: 1, axis: 'y', frameStrength: 0.5 })) } });
 assert.ok(payload.length < 250000, 'decorate payload ' + payload.length + ' chars (limit ~260 KB)');
 
 // Every bundled cue gives a feasible section with the reveal on its swell at Standard, and the fit offer is consistent.

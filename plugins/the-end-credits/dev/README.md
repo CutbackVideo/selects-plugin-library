@@ -40,6 +40,26 @@ node $P/dev/make-fixtures.mjs <footage folder>          # regenerate fixtures (f
   unless it sets `fitLength: true`; then it builds the longest Length that fits, like the panel's suggestion.
 - `--plan-only` with `--inventory` and `--search` runs fully offline. Rows with `own:$TEC_OWN_MUSIC` also need that
   env var and ffmpeg, because own music is decoded and beat-detected locally, like the panel does.
+- In-shot motion is measured locally with ffmpeg, like the panel, from each clip's source `path` (inventory.js). The
+  fixtures hold file names only, so offline plans score scene only unless `TEC_FOOTAGE_DIR` names the footage folder
+  (`TEC_FOOTAGE_DIR=~/Downloads/the-end-credits-footage/gallery drive --key c-std-post --plan-only ...`). The plan
+  line's `motionMeasured` counts the measured clips and `shotMotion` lists each shot's window motion and its move
+  (`?` = unmeasured, which counts as still).
+
+## Bundled cues
+
+`build-cues.cjs` stretches, masters and measures the cues listed in `cues-input.json` (the header of the script
+has the details). The sources are the generated mp3s, kept outside the repo:
+
+```sh
+node $P/dev/build-cues.cjs --src ~/Downloads $P/dev/cues-input.json
+```
+
+- `targetBpm` (file level, or per cue) is the felt tempo every cue is time-stretched to (61.5, the reference's
+  3.90 s phrase); the manifest keeps the measured source tempo as `sourceBpm`.
+- A cue's manual `swell` is in source seconds (the anchors of spec v1.2: post-rock 14.577, orchestral 20.54, piano
+  9.798, rhodes 30.036); the build maps it through the stretch and snaps it to the stretched bar grid.
+- Loudness: -12.5 LUFS integrated, true peak <= -1.2 dBTP, by a static gain and an oversampled limiter.
 
 ## Full build (Staging)
 

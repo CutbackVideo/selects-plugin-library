@@ -2,7 +2,8 @@ const cfg = __CONFIG__;
 const d = selects.draft(cfg.sequenceId);
 const GRAPHIC_LABEL = 'THE END credits', LOOK_LABEL = 'Cinematic look', FRAME_LABEL = 'Shot frame';
 // cfg is the frozen build record plus the programs: graphic {tsx, parameters, editableParameters}, frame {tsx},
-// look {tsx, strength, on}, photoMotion {byRid: {rid: {motion, direction, axis}}}. Every clock comes from cfg.frames
+// look {tsx, strength, on}, photoMotion {byRid: {rid: {motion, direction, axis}} (photos), byShot: [{motion, direction,
+// axis, frameStrength} | null] (every shot, in Main order; the planner's tecShotMotions)}. Every clock comes from cfg.frames
 // (assemble.js), never from seconds. The Shot frame and look Inspector definitions are built here, per clip.
 // Optional keys are read through `opt`: a config inlined as a JSON literal has no type for keys it lacks.
 const opt: any = cfg;
@@ -15,6 +16,9 @@ const fadeOut = typeof fades.outSec === 'number' ? fades.outSec : 1.13;
 const endFrame = cfg.frames[cfg.frames.length - 1];
 const photos = opt.photos || {};
 const byRid = (opt.photoMotion && opt.photoMotion.byRid) || {};
+const byShot = opt.photoMotion && Array.isArray(opt.photoMotion.byShot) ? opt.photoMotion.byShot : null;
+// The Shot frame's motion strength: photos 1, videos 0.5 (the effect scales both by 0.6 inside the small window).
+const VIDEO_STRENGTH = 0.5;
 const isPhoto = rid => Object.prototype.hasOwnProperty.call(photos, rid);
 const aspectOf = rid => {
   const s = (opt.sources || {})[rid] || photos[rid];
@@ -24,15 +28,16 @@ const shots = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.
 // A label can come back as the effect's name or its effectName; both count.
 const stack = async clip => [].concat(...(await d.videoEffects(clip)).map(e => [e.name, e.effectName]));
 // Inspector definitions. Each default is this clip's own value (the fades differ per clip). The window is adjustable
-// in Classic only; photos also get their motion (the effect scales strength 1 to the window's restrained move).
+// in Classic only; every shot (video or photo) gets its motion and strength (the effect scales the strength to the
+// window's restrained move).
 const MOTIONS = [['none', 'None'], ['push-in', 'Push in'], ['pull-out', 'Pull out'], ['drift-left', 'Drift left'], ['drift-right', 'Drift right'],
   ['drift-up', 'Drift up'], ['drift-down', 'Drift down'], ['tilt', 'Tilt'], ['push-drift', 'Push and drift']].map(([value, label]) => ({ label, value }));
 const num = (key, label, value, min, max, step) => ({ key, label, type: 'number', defaultValue: value, min, max, step });
-const frameDefs = (params, photo) => {
+const frameDefs = params => {
   const defs: any[] = [];
   if (classic) defs.push(num('x', 'Window X (%)', params.x, 0, 100, 0.1), num('y', 'Window Y (%)', params.y, 0, 100, 0.1), num('w', 'Window size (%)', params.w, 5, 100, 0.1));
   defs.push(num('fadeInSeconds', 'Fade in (s)', params.fadeInSeconds, 0, 3, 0.05), num('fadeOutSeconds', 'Fade out (s)', params.fadeOutSeconds, 0, 3, 0.05));
-  if (photo) defs.push({ key: 'motion', label: 'Motion', type: 'select', defaultValue: params.motion, options: MOTIONS }, num('strength', 'Motion strength', params.strength, 0, 2, 0.1));
+  defs.push({ key: 'motion', label: 'Motion', type: 'select', defaultValue: params.motion, options: MOTIONS }, num('strength', 'Motion strength', params.strength, 0, 2, 0.1));
   return defs;
 };
 const notes = [];
@@ -59,7 +64,7 @@ if (!hasGraphic) await d.addMotionGraphic({ within: await d.rangeAtFrames(0, end
   parameters: cfg.graphic.parameters, editableParameters: cfg.graphic.editableParameters as any });
 // Per shot: the Cinematic look first, then the Shot frame last, so the look never tints the black surround.
 const lookOn = !!(cfg.look && cfg.look.on);
-const lookStrength = cfg.look && typeof cfg.look.strength === 'number' ? cfg.look.strength : 0.3;
+const lookStrength = cfg.look && typeof cfg.look.strength === 'number' ? cfg.look.strength : 0.5;
 const lookDefs = [num('strength', 'Look strength', lookStrength, 0, 1, 0.05)];
 let looks = 0, looksKept = 0, looksSkipped = 0, shotFrames = 0, shotFramesKept = 0;
 const count = (await shots()).length;
@@ -84,10 +89,16 @@ for (let i = 0; i < count; i++) {
   const params: any = { x: win.x, y: win.y, w: win.w, srcAspect: aspectOf(rid), fps: cfg.fps,
     durationFrames: clip.endFrame - clip.startFrame, originFrame: 0,
     fadeInSeconds: classic && i === 0 ? fadeIn : 0, fadeOutSeconds: i === count - 1 ? fadeOut : 0,
-    ...(photo ? { motion: 'none', strength: 1, direction: 1, axis: 'x' } : { motion: 'none' }) };
-  const pm = photo ? byRid[rid] : null;
-  if (pm) { params.motion = pm.motion || 'none'; if (pm.direction != null) params.direction = pm.direction; if (pm.axis != null) params.axis = pm.axis; }
-  const defs = frameDefs(params, photo);
+    motion: 'none', strength: photo ? 1 : VIDEO_STRENGTH, direction: 1, axis: 'x' };
+  // Per shot when the record has it for every shot (a source used twice can move differently), else photos by rid.
+  const pm = byShot && byShot.length === count ? byShot[i] : photo ? byRid[rid] : null;
+  if (pm) {
+    params.motion = pm.motion || 'none';
+    if (pm.direction != null) params.direction = pm.direction;
+    if (pm.axis != null) params.axis = pm.axis;
+    if (typeof pm.frameStrength === 'number') params.strength = pm.frameStrength;
+  }
+  const defs = frameDefs(params);
   await d.addVideoEffect({ clip, label: FRAME_LABEL, tsxCode: cfg.frame.tsx, parameters: params, editableParameters: defs as any });
   shotFrames++;
 }

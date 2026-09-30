@@ -1,36 +1,40 @@
-[
-  {
-    "id": "piano-strings",
-    "title": "Last Light Ballad",
-    "source": "the-end-credits-piano-strings-62bpm.mp3",
-    "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: piano+strings ballad 62 bpm",
-    "swell": 9.798
-  },
-  {
-    "id": "rhodes-soul",
-    "title": "Late Night Rhodes",
-    "source": "the-end-credits-rhodes-soul-64bpm.mp3",
-    "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: Rhodes soul ambient 64 bpm"
-  },
-  {
-    "id": "post-rock",
-    "title": "Open Road Swell",
-    "source": "the-end-credits-post-rock-66bpm.mp3",
-    "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: post-rock swell 66 bpm",
-    "swell": 14.577,
-    "default": true
-  },
-  {
-    "id": "orchestral",
-    "title": "Final Scene",
-    "source": "the-end-credits-orchestral-60bpm.mp3",
-    "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: orchestral film theme 60 bpm",
-    "swell": 20.54
-  },
-  {
-    "id": "dream-synth",
-    "title": "Golden Hour Synth",
-    "source": "the-end-credits-dream-synth-65bpm.mp3",
-    "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: dreamy analog synth 65 bpm"
-  }
-]
+{
+  "targetBpm": 61.5,
+  "cues": [
+    {
+      "id": "piano-strings",
+      "title": "Last Light Ballad",
+      "source": "the-end-credits-piano-strings-62bpm.mp3",
+      "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: piano+strings ballad 62 bpm",
+      "swell": 9.798
+    },
+    {
+      "id": "rhodes-soul",
+      "title": "Late Night Rhodes",
+      "source": "the-end-credits-rhodes-soul-64bpm.mp3",
+      "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: Rhodes soul ambient 64 bpm",
+      "swell": 30.036
+    },
+    {
+      "id": "post-rock",
+      "title": "Open Road Swell",
+      "source": "the-end-credits-post-rock-66bpm.mp3",
+      "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: post-rock swell 66 bpm",
+      "swell": 14.577,
+      "default": true
+    },
+    {
+      "id": "orchestral",
+      "title": "Final Scene",
+      "source": "the-end-credits-orchestral-60bpm.mp3",
+      "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: orchestral film theme 60 bpm",
+      "swell": 20.54
+    },
+    {
+      "id": "dream-synth",
+      "title": "Golden Hour Synth",
+      "source": "the-end-credits-dream-synth-65bpm.mp3",
+      "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: dreamy analog synth 65 bpm"
+    }
+  ]
+}

@@ -49,7 +49,7 @@
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg and Node.js 18+ on PATH only for music previews and your own music."
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg and Node.js 18+ on PATH only for music previews and your own music (ffmpeg also measures in-shot motion; without it shots are chosen by scene alone)."
   },
   "localized": {
     "de": {

@@ -232,6 +232,8 @@ function offBeatLocked(bf, sampleRate, attack, period, t1) {
 
 // opts.phaseBeats (dev only, default 0): move the grid by this many beats before the first beat is chosen, after the
 // phase sanity check (offBeatLocked); no bundled cue needs it since v2.6.
+// opts.minBpm / opts.maxBpm (dev only, default 70 / 180): the tempo search range. dev/build-cues.cjs narrows it
+// around the known double-time tempo of a time-stretched cue, whose soft attacks can otherwise read at 4/3 of it.
 function analyze(samples, sampleRate, opts) {
   const durationSeconds = samples.length / sampleRate;
   const { env, strong } = onsetEnvelope(samples);
@@ -239,11 +241,15 @@ function analyze(samples, sampleRate, opts) {
   const t0 = FRAME_LAG / sampleRate;                        // time of frame 0
   const t1 = Math.min(durationSeconds, 60);                 // tempo from the first minute
   let best = { score: -1, bpm: 120, phase: 0 };
-  for (let bpm = 70; bpm <= 180; bpm += 0.5) {
+  const minBpm = opts && opts.minBpm > 0 ? opts.minBpm : 70, maxBpm = opts && opts.maxBpm > 0 ? opts.maxBpm : 180;
+  for (let bpm = minBpm; bpm <= maxBpm; bpm += 0.5) {
     const r = bestPhase(env, fps, t0, 60 / bpm, t1, 0.01);
     if (r.score > best.score) best = { score: r.score, bpm, phase: r.phase };
   }
-  for (let bpm = best.bpm - 0.5; bpm <= best.bpm + 0.5; bpm += 0.02) {
+  // Without opts the fine search is exactly the historical one (best +/- 0.5), so detector results never change.
+  const fineLo = opts && opts.minBpm > 0 ? Math.max(minBpm, best.bpm - 0.5) : best.bpm - 0.5;
+  const fineHi = opts && opts.maxBpm > 0 ? Math.min(maxBpm, best.bpm + 0.5) : best.bpm + 0.5;
+  for (let bpm = fineLo; bpm <= fineHi; bpm += 0.02) {
     const r = bestPhase(env, fps, t0, 60 / bpm, t1, 0.004);
     if (r.score > best.score) best = { score: r.score, bpm, phase: r.phase };
   }

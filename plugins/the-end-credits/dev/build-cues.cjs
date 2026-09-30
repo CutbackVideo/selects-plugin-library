@@ -1,16 +1,27 @@
 // plugins/the-end-credits/dev/build-cues.cjs
-// Dev-only: normalise generated cues to -14 LUFS, measure their felt grid, swell and drift, and write
-// assets/cues/manifest.json. Adapted from the City Weekend Vlog build (two-pass loudnorm, the plugin's own
-// beat-detect.cjs); the 16th-note / burst / onset fields are not used by this app and are not written.
+// Dev-only: time-stretch generated cues to one felt tempo, master them to -12.5 LUFS (true peak <= -1.2 dBTP),
+// measure their felt grid, swell and drift, and write assets/cues/manifest.json. Adapted from the City Weekend Vlog
+// build (the plugin's own beat-detect.cjs); the 16th-note / burst / onset fields are not used by this app.
 //
-// Usage: node dev/build-cues.cjs [--out <dir>] <cues.json>
-//   cues.json: [{ "id": "kebab-id", "title": "Title", "source": "file.mp3", "prompt": "the generation prompt",
-//                 "default": true (optional, one cue: the panel's default),
-//                 "swell": 14.6 (optional, seconds: a manual swell, snapped to the nearest felt-bar downbeat) }, ...]
-//   `source` is resolved against the folder of cues.json. --out defaults to assets/cues next to this script.
-//   Cues already in <out>/manifest.json with other ids are kept; an entry with the same id is replaced.
-//   A rejected cue (tempo outside 60-66 felt bpm, |driftBpm| > 1.5, or loudness off -14 LUFS by > 0.5 LU) gets no
-//   mp3 and no entry; the other cues are still written and the exit status is 2.
+// Usage: node dev/build-cues.cjs [--out <dir>] [--src <dir>] [--target-bpm <bpm>] <cues.json>
+//   cues.json: [cue, ...] or { "targetBpm": 61.5, "cues": [cue, ...] }, where a cue is
+//     { "id": "kebab-id", "title": "Title", "source": "file.mp3", "prompt": "the generation prompt",
+//       "default": true (optional, one cue: the panel's default),
+//       "targetBpm": 61.5 (optional, overrides the file-level / --target-bpm value for this cue),
+//       "swell": 14.6 (optional, seconds IN THE SOURCE FILE: a manual swell) }
+//   `source` is resolved against --src (default: the folder of cues.json). --out defaults to assets/cues next to
+//   this script. Cues already in <out>/manifest.json with other ids are kept; an entry with the same id is replaced.
+//   A rejected cue (tempo outside 60-66 felt bpm, |driftBpm| > 1.5, loudness off -12.5 LUFS by > 0.5 LU, or a true
+//   peak above -1.2 dBTP) gets no mp3 and no entry; the other cues are still written and the exit status is 2.
+//
+// Tempo: the source's felt tempo (`sourceBpm`) is measured first. With a targetBpm the cue is time-stretched by
+// ffmpeg's rubberband filter (tempo = targetBpm / sourceBpm, pitch kept), so every bar lasts 4 * 60 / targetBpm s;
+// the manifest `bpm` is the felt tempo measured again after stretching (sourceBpm = bpm when not stretched).
+// A manual `swell` is in source time: the build maps it to stretched time (x sourceBpm / targetBpm) and snaps it to
+// the nearest felt-bar downbeat of the stretched grid.
+// Loudness: one static gain and a 4x-oversampled peak limiter (alimiter, auto level off), never a dynamic loudnorm,
+// so the phrase-level dynamics (the swell) are kept. The gain and the limiter ceiling are iterated until the mp3
+// measures -12.5 LUFS (to the 0.1 LU ebur128 reports) with a true peak <= -1.2 dBTP.
 //
 // `swellSource` is "manual" when cues.json set the swell, else "auto" (findSwell).
 // Section anchor for the planner (spec R3 default j): `swell` when it is not null (a >= 6 LU rise on a bar
@@ -21,10 +32,12 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const { analyze, onsetEnvelope, bandFlux } = require('../beat-detect.cjs');
 
 const GENERATOR = 'ElevenLabs Music v2.5 via Selects chat';
-const TARGET_LUFS = -14, LUFS_TOLERANCE = 0.5;
-// LRA=20 (CWV uses 11): the swell is the point of these cues, and a target LRA below the source's makes loudnorm
-// fall back to dynamic mode, which compresses the swell.
-const LOUDNORM = 'loudnorm=I=-14:TP=-1.5:LRA=20';
+const TARGET_LUFS = -12.5, LUFS_TOLERANCE = 0.5, LUFS_ITERATE = 0.05;   // ebur128 reports I to 0.1 LU
+const MAX_TRUE_PEAK = -1.2;                    // dBTP, measured on the encoded mp3
+// The limiter's first ceiling (dBFS, at 4x oversampling); lowered while the mp3's true peak is above MAX_TRUE_PEAK
+// (the mp3 encoder overshoots the limiter by a few tenths of a dB).
+const LIMIT_START = -1.5, LIMIT_STEP = 0.2, LIMIT_MIN = -4;
+const PHASE_AGREE = 0.03;                      // s: a stretched cue's measured first beat vs the mapped source grid
 // The felt tempo of the bundled cues is 60-66 bpm (spec section 9). The detector's 70-180 search reads them
 // double-time; its reading is halved in [119.5, 132.5], so a nominal 60 bpm cue measured at 119.95 still counts.
 const DOUBLE_MIN = 119.5, DOUBLE_MAX = 132.5;
@@ -73,9 +86,12 @@ function feltParity(samples, sampleRate, fb, period) {
 }
 
 // Felt grid and drift of a decoded cue (mono float samples). Pure: no ffmpeg.
+// expectBpm (optional): the felt tempo a time-stretched cue must have. The detector's search is then narrowed to
+// 2 * expectBpm +- 2 (whole cue and both halves): a stretched pad's soft attacks can read at 4/3 of the real tempo.
 // Returns { detectedBpm, bpm, firstBeat, driftBpm, parity, problems[] } (problems empty = usable).
-function analyzeCue(samples, sampleRate = SR) {
-  const a = analyze(samples, sampleRate), problems = [];
+function analyzeCue(samples, sampleRate = SR, expectBpm = null) {
+  const range = expectBpm > 0 ? { minBpm: Math.floor((2 * expectBpm - 2) * 2) / 2, maxBpm: Math.ceil((2 * expectBpm + 2) * 2) / 2 } : undefined;
+  const a = analyze(samples, sampleRate, range), problems = [];
   const detectedBpm = a.bpm;
   let bpm = null, firstBeat = a.firstBeat, parity = null;
   if (detectedBpm >= DOUBLE_MIN && detectedBpm <= DOUBLE_MAX) {
@@ -91,7 +107,7 @@ function analyzeCue(samples, sampleRate = SR) {
   // Tempo drift, as the kit's cue-metrics: each half analysed on its own. Halves that resolve to different tempo
   // octaves show a huge drift and are rejected too, which is right (no steady grid).
   const half = samples.length >> 1;
-  const driftBpm = round(analyze(samples.subarray(half), sampleRate).bpm - analyze(samples.subarray(0, half), sampleRate).bpm, 2);
+  const driftBpm = round(analyze(samples.subarray(half), sampleRate, range).bpm - analyze(samples.subarray(0, half), sampleRate, range).bpm, 2);
   if (!(Math.abs(driftBpm) <= MAX_DRIFT)) problems.push('tempo drift ' + driftBpm + ' bpm between the halves (max ' + MAX_DRIFT + ')');
   return { detectedBpm, bpm, firstBeat, driftBpm, parity, problems };
 }
@@ -141,7 +157,6 @@ const decode = file => {
   const pcm = execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-i', file, '-ac', '1', '-ar', String(SR), '-f', 'f32le', '-'], { maxBuffer: 1 << 28 });
   return new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
 };
-const loudnormJson = stderr => JSON.parse(stderr.slice(stderr.lastIndexOf('{'), stderr.lastIndexOf('}') + 1));
 // Integrated loudness, true peak (dBTP) and the short-term series ({ t, S } every 0.1 s) of a file, from one
 // ebur128 pass.
 function measureLoudness(file) {
@@ -157,54 +172,72 @@ const encode = (source, dst, filter) => {
   if (r.status !== 0) throw Error('ffmpeg failed on ' + source + ': ' + r.stderr.toString().slice(-400));
   return r.stderr.toString();
 };
-// Normalise `source` into `dst` (44.1 kHz stereo 192 kbps mp3, metadata stripped). Returns the method:
-// - 'linear': two-pass loudnorm in its linear mode (one static gain), as in CWV.
-// - 'gain+limiter': when -14 LUFS needs more gain than the -1.5 dBTP ceiling allows, loudnorm falls back to its
-//   dynamic mode, which rides the gain (it reshaped the Rhodes cue's short-term loudness by up to 4.6 LU and would
-//   flatten a swell). Instead: a static gain and a 4x-oversampled peak limiter at -1.9 dBFS (alimiter, auto level
-//   off), which leaves the phrase-level dynamics alone; the gain is iterated for the limiter's loss.
-function normalise(source, dst) {
-  const pass1 = loudnormJson(spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', source, '-af', LOUDNORM + ':print_format=json', '-f', 'null', '-']).stderr.toString());
-  const filter = LOUDNORM + ':linear=true:print_format=json:measured_I=' + pass1.input_i + ':measured_TP=' + pass1.input_tp +
-    ':measured_LRA=' + pass1.input_lra + ':measured_thresh=' + pass1.input_thresh + ':offset=' + pass1.target_offset;
-  if (loudnormJson(encode(source, dst, filter)).normalization_type === 'linear') return 'linear';
-  let gain = TARGET_LUFS - Number(pass1.input_i);
-  for (let i = 0; i < 4; i++) {
-    encode(source, dst, 'aresample=176400,volume=' + gain.toFixed(2) + 'dB,alimiter=limit=0.8:attack=5:release=50:level=disabled,aresample=44100');
-    const { lufs } = measureLoudness(dst);
-    if (Math.abs(lufs - TARGET_LUFS) <= 0.15) break;
-    gain += TARGET_LUFS - lufs;
+// Stretch and master `source` into `dst` (44.1 kHz stereo 192 kbps mp3, metadata stripped). tempo: the rubberband
+// tempo factor (1 = no stretch). A static gain and a 4x-oversampled limiter; the gain is iterated for the limiter's
+// loss and the ceiling lowered while the true peak is too high. Returns { gainDb, limitDb, passes }.
+function master(source, dst, tempo, sourceLufs) {
+  const stretch = Math.abs(tempo - 1) > 1e-6 ? 'rubberband=tempo=' + tempo.toFixed(6) + ':pitch=1,' : '';
+  let gain = TARGET_LUFS - sourceLufs, limit = LIMIT_START, passes = 0;
+  for (let i = 0; i < 12; i++) {
+    passes++;
+    encode(source, dst, stretch + 'aresample=176400,volume=' + gain.toFixed(2) + 'dB,alimiter=limit=' + (10 ** (limit / 20)).toFixed(4) +
+      ':attack=5:release=50:level=disabled,aresample=44100');
+    const { lufs, truePeak } = measureLoudness(dst);
+    const peakOk = truePeak <= MAX_TRUE_PEAK, loudOk = Math.abs(lufs - TARGET_LUFS) <= LUFS_ITERATE;
+    if (peakOk && loudOk) break;
+    if (!peakOk && limit - LIMIT_STEP >= LIMIT_MIN - 1e-9) limit -= LIMIT_STEP;
+    if (!loudOk) gain += TARGET_LUFS - lufs;
   }
-  return 'gain+limiter';
+  return { gainDb: round(gain, 2), limitDb: round(limit, 2), passes };
 }
 
-// Build one cue into `outDir`. Returns { entry } or { rejected: [reasons] } (a rejected cue leaves no mp3).
-function buildCue(cue, sourceFile, outDir) {
+// Build one cue into `outDir`. targetBpm: the felt tempo to stretch to (null: keep the source's). Returns { entry }
+// or { rejected: [reasons] } (a rejected cue leaves no mp3).
+function buildCue(cue, sourceFile, outDir, targetBpm = null) {
   const file = cue.id + '.mp3', dst = path.join(outDir, file);
-  const mode = normalise(sourceFile, dst);
+  // The source's own felt grid decides the stretch; a source without a steady 60-66 bpm felt grid is rejected as is.
+  const src = analyzeCue(decode(sourceFile), SR);
+  if (src.problems.length) return { rejected: src.problems.map(p => 'source: ' + p) };
+  const sourceBpm = src.bpm;
+  const tempo = targetBpm == null ? 1 : targetBpm / sourceBpm;
+  const mastered = master(sourceFile, dst, tempo, measureLoudness(sourceFile).lufs);
   const { lufs, truePeak, series } = measureLoudness(dst);
   const samples = decode(dst);
   const durationSeconds = round(samples.length / SR, 3);
-  const g = analyzeCue(samples, SR);
+  const g = analyzeCue(samples, SR, targetBpm);
   const problems = [...g.problems];
-  if (!(Math.abs(lufs - TARGET_LUFS) <= LUFS_TOLERANCE)) problems.push('loudness ' + lufs + ' LUFS after two-pass loudnorm');
+  if (!(Math.abs(lufs - TARGET_LUFS) <= LUFS_TOLERANCE)) problems.push('loudness ' + lufs + ' LUFS after mastering (target ' + TARGET_LUFS + ')');
+  if (!(truePeak <= MAX_TRUE_PEAK)) problems.push('true peak ' + truePeak + ' dBTP above ' + MAX_TRUE_PEAK);
+  if (targetBpm != null && g.bpm != null && Math.abs(g.bpm - targetBpm) > 0.3) problems.push('stretched to ' + g.bpm + ' bpm, not ' + targetBpm);
   if (problems.length) { fs.rmSync(dst, { force: true }); return { rejected: problems }; }
+  // The stretch is a fixed time scale, so the source's felt grid maps onto the stretched cue exactly (rubberband adds
+  // no measurable offset: < 5 ms on the bundled cues). A stretched pad can lose its attacks and lock the detector's
+  // phase half a detector beat off; when the measured first beat is more than PHASE_AGREE off the mapped source grid,
+  // the mapped grid wins (logged as phaseFrom: 'source').
+  let phaseFrom = 'measured';
+  if (tempo !== 1) {
+    const mapped = src.firstBeat / tempo, beat = 60 / g.bpm;
+    const off = ((g.firstBeat - mapped) % beat + 1.5 * beat) % beat - beat / 2;
+    if (Math.abs(off) > PHASE_AGREE) { g.firstBeat = round(mapped, 3); phaseFrom = 'source'; }
+  }
   const usableEnd = round(durationSeconds - 0.1, 3);
-  // A manual swell (cues.json "swell", seconds) is snapped to the nearest felt-bar downbeat after firstBeat.
-  // The manifest keeps it to the ms, so it can sit up to 0.5 ms off its downbeat; the planner's default j allows
-  // for that (tecSection rounds up only past 1e-3 of a phrase).
+  // A manual swell (cues.json "swell", seconds in the source) is mapped to stretched time and snapped to the nearest
+  // felt-bar downbeat after firstBeat. The manifest keeps it to the ms, so it can sit up to 0.5 ms off its downbeat;
+  // the planner's default j allows for that (tecSection rounds up only past 1e-3 of a phrase).
   const bar = PHRASE_BEATS * 60 / g.bpm;
   const swellSource = cue.swell == null ? 'auto' : 'manual';
+  const swellStretched = cue.swell == null ? null : cue.swell / tempo;
   const swell = swellSource === 'manual'
-    ? round(g.firstBeat + Math.max(1, Math.round((cue.swell - g.firstBeat) / bar)) * bar, 3)
+    ? round(g.firstBeat + Math.max(1, Math.round((swellStretched - g.firstBeat) / bar)) * bar, 3)
     : findSwell(series, g.firstBeat, g.bpm);
   const swellFallback = findSwellFallback(series, g.firstBeat, g.bpm, usableEnd);
-  console.log(cue.id, JSON.stringify({ detectedBpm: g.detectedBpm, bpm: g.bpm, firstBeat: g.firstBeat, parity: g.parity, swell, swellSource, swellFallback, driftBpm: g.driftBpm, lufs, truePeak, loudness: mode }));
+  console.log(cue.id, JSON.stringify({ sourceBpm, tempo: round(tempo, 5), detectedBpm: g.detectedBpm, bpm: g.bpm, firstBeat: g.firstBeat, phaseFrom, parity: g.parity, swell, swellSource,
+    swellFallback, driftBpm: g.driftBpm, lufs, truePeak, ...mastered }));
   return {
     entry: {
       id: cue.id, title: cue.title, file,
-      bpm: g.bpm, detectedBpm: g.detectedBpm, firstBeat: g.firstBeat, phraseBeats: PHRASE_BEATS, swell, swellSource, swellFallback,
-      usableEnd, driftBpm: g.driftBpm, lufs, durationSeconds,
+      bpm: g.bpm, sourceBpm, detectedBpm: g.detectedBpm, firstBeat: g.firstBeat, phraseBeats: PHRASE_BEATS, swell, swellSource, swellFallback,
+      usableEnd, driftBpm: g.driftBpm, lufs, truePeak, durationSeconds,
       sha256: crypto.createHash('sha256').update(fs.readFileSync(dst)).digest('hex'),
       provenance: { generator: GENERATOR, prompt: cue.prompt },
       ...(cue.default === true ? { default: true } : {}),
@@ -212,15 +245,20 @@ function buildCue(cue, sourceFile, outDir) {
   };
 }
 
-module.exports = { analyzeCue, findSwell, findSwellFallback, measureLoudness, buildCue, PHRASE_BEATS, MAX_DRIFT, GENERATOR };
+module.exports = { analyzeCue, findSwell, findSwellFallback, measureLoudness, buildCue, PHRASE_BEATS, MAX_DRIFT, GENERATOR, TARGET_LUFS, MAX_TRUE_PEAK };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
-  let outDir = path.resolve(__dirname, '..', 'assets', 'cues');
-  const o = args.indexOf('--out');
-  if (o >= 0) { outDir = path.resolve(args[o + 1]); args.splice(o, 2); }
-  if (args.length !== 1) { console.error('usage: node dev/build-cues.cjs [--out <dir>] <cues.json>'); process.exit(1); }
-  const list = JSON.parse(fs.readFileSync(args[0], 'utf8')), base = path.dirname(path.resolve(args[0]));
+  const flag = name => { const o = args.indexOf(name); if (o < 0) return null; const v = args[o + 1]; args.splice(o, 2); return v; };
+  const out = flag('--out'), srcDir = flag('--src'), cliBpm = flag('--target-bpm');
+  const outDir = out ? path.resolve(out) : path.resolve(__dirname, '..', 'assets', 'cues');
+  if (args.length !== 1) { console.error('usage: node dev/build-cues.cjs [--out <dir>] [--src <dir>] [--target-bpm <bpm>] <cues.json>'); process.exit(1); }
+  const input = JSON.parse(fs.readFileSync(args[0], 'utf8'));
+  const list = Array.isArray(input) ? input : input.cues;
+  if (!Array.isArray(list)) throw Error('cues.json: an array of cues, or { targetBpm?, cues: [...] }');
+  const bpmOf = v => { if (v == null) return null; const n = Number(v); if (!(n >= 60 && n <= 66)) throw Error('targetBpm must be a felt tempo in 60-66, got ' + v); return n; };
+  const fileBpm = bpmOf(cliBpm != null ? cliBpm : Array.isArray(input) ? null : input.targetBpm);
+  const base = srcDir ? path.resolve(srcDir) : path.dirname(path.resolve(args[0]));
   fs.mkdirSync(outDir, { recursive: true });
   const manifestFile = path.join(outDir, 'manifest.json');
   const manifest = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manifestFile, 'utf8')) : { version: 1, cues: [] };
@@ -229,7 +267,7 @@ if (require.main === module) {
     for (const k of ['id', 'title', 'source', 'prompt']) if (typeof cue[k] !== 'string' || !cue[k]) throw Error('cue ' + JSON.stringify(cue) + ': missing ' + k);
     if (cue.swell != null && !(typeof cue.swell === 'number' && cue.swell >= 0)) throw Error(cue.id + ': swell must be seconds');
     if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(cue.id)) throw Error(cue.id + ': ids are kebab-case');
-    const r = buildCue(cue, path.resolve(base, cue.source), outDir);
+    const r = buildCue(cue, path.resolve(base, cue.source), outDir, cue.targetBpm != null ? bpmOf(cue.targetBpm) : fileBpm);
     const i = manifest.cues.findIndex(c => c.id === cue.id);
     if (r.rejected) {
       // Its mp3 is gone, so a previous entry with this id goes too.

@@ -6,11 +6,12 @@ const assert = require('node:assert/strict'), { execFileSync, spawnSync } = requ
 const root = path.resolve(__dirname, '..');
 const dir = path.join(root, 'assets', 'cues');
 const build = path.join(root, 'dev', 'build-cues.cjs');
-const { analyzeCue, findSwell, findSwellFallback, GENERATOR } = require(build);
+const { analyzeCue, findSwell, findSwellFallback, GENERATOR, TARGET_LUFS, MAX_TRUE_PEAK } = require(build);
 const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
 const sr = 22050;
 
-const KEYS = ['id', 'title', 'file', 'bpm', 'detectedBpm', 'firstBeat', 'phraseBeats', 'swell', 'swellSource', 'swellFallback', 'usableEnd', 'driftBpm', 'lufs', 'durationSeconds', 'sha256', 'provenance'];
+const KEYS = ['id', 'title', 'file', 'bpm', 'sourceBpm', 'detectedBpm', 'firstBeat', 'phraseBeats', 'swell', 'swellSource', 'swellFallback', 'usableEnd', 'driftBpm', 'lufs',
+  'truePeak', 'durationSeconds', 'sha256', 'provenance'];
 function checkEntry(c) {
   // `default: true` marks the panel's default cue; it is absent on the others.
   assert.deepEqual(Object.keys(c).filter(k => k !== 'default').sort(), [...KEYS].sort(), 'manifest keys of ' + c.id);
@@ -20,6 +21,7 @@ function checkEntry(c) {
   assert.equal(c.file, c.id + '.mp3');
   // Felt 60-66 bpm; the build halves detector readings in [119.5, 132.5] (a nominal 60 bpm cue reads 119.95).
   assert.ok(c.bpm >= 59.75 && c.bpm <= 66.25, c.id + ' felt bpm ' + c.bpm);
+  assert.ok(c.sourceBpm >= 59.75 && c.sourceBpm <= 66.25, c.id + ' source felt bpm ' + c.sourceBpm);
   assert.ok(Math.abs(c.detectedBpm - 2 * c.bpm) < 1e-9, c.id + ' detectedBpm ' + c.detectedBpm);
   assert.equal(c.phraseBeats, 4);
   const bar = c.phraseBeats * 60 / c.bpm;
@@ -39,18 +41,23 @@ function checkEntry(c) {
   assert.ok(kf >= 1 && Math.abs(c.swellFallback - (c.firstBeat + kf * bar)) <= 0.002, c.id + ' swellFallback on a bar downbeat ' + c.swellFallback);
   assert.ok(c.swellFallback >= 5.1 - 1e-9 && c.swellFallback + bar <= c.usableEnd + 1e-6, c.id + ' swellFallback range ' + c.swellFallback);
   assert.ok(Math.abs(c.driftBpm) <= 1.5, c.id + ' drift ' + c.driftBpm);
-  assert.ok(Math.abs(c.lufs + 14) <= 0.5, c.id + ' lufs ' + c.lufs);
+  // Mastered to -12.5 LUFS with a true peak at or below -1.2 dBTP (the gate allows -1.0).
+  assert.equal(TARGET_LUFS, -12.5); assert.equal(MAX_TRUE_PEAK, -1.2);
+  assert.ok(Math.abs(c.lufs + 12.5) <= 0.5, c.id + ' lufs ' + c.lufs);
+  assert.ok(c.truePeak <= -1.0, c.id + ' true peak ' + c.truePeak);
   assert.match(c.sha256, /^[0-9a-f]{64}$/);
   assert.deepEqual(Object.keys(c.provenance).sort(), ['generator', 'prompt']);
   assert.equal(c.provenance.generator, GENERATOR);
   assert.ok(typeof c.provenance.prompt === 'string' && c.provenance.prompt.length > 0, c.id + ' prompt');
 }
 
-// Integrated loudness of a file (ebur128).
-const lufsOf = file => {
-  const e = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', file, '-af', 'ebur128', '-f', 'null', '-']).stderr.toString();
-  return Number((e.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop().match(/-?[\d.]+/)[0]);
+// Integrated loudness and true peak of a file (ebur128).
+const loudnessOf = file => {
+  const e = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', file, '-af', 'ebur128=peak=true', '-f', 'null', '-']).stderr.toString();
+  return { lufs: Number((e.match(/I:\s+(-?[\d.]+) LUFS/g) || []).pop().match(/-?[\d.]+/)[0]),
+    truePeak: Number((e.match(/Peak:\s+(-?[\d.]+|-inf) dBFS/g) || []).pop().match(/-?[\d.]+|-inf/)[0]) };
 };
+const lufsOf = file => loudnessOf(file).lufs;
 
 // 1. The shipped manifest (empty until GATE-MUSIC) and its files.
 const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
@@ -60,22 +67,35 @@ assert.ok(Array.isArray(m.cues));
 assert.equal(new Set(m.cues.map(c => c.id)).size, m.cues.length, 'unique ids');
 m.cues.forEach(checkEntry);
 if (m.cues.length) assert.equal(m.cues.filter(c => c.default).length, 1, 'exactly one default cue');
-// The bundled set (GATE-MUSIC, 2026-09-30): ids, nominal felt tempo, and the default.
+// The bundled set (GATE-MUSIC, 2026-09-30): ids, nominal source tempo, and the default. Since the similarity wave
+// (2026-09-30) every cue is time-stretched to the reference's felt 61.5 bpm (a 3.90 s phrase of 4 beats).
 const NOMINAL = { 'piano-strings': 62, 'rhodes-soul': 64, 'post-rock': 66, orchestral: 60, 'dream-synth': 65 };
+const TARGET_BPM = 61.5;
 assert.deepEqual(m.cues.map(c => c.id), Object.keys(NOMINAL));
-for (const c of m.cues) assert.ok(Math.abs(c.bpm - NOMINAL[c.id]) <= 0.5, c.id + ' bpm ' + c.bpm + ' vs nominal ' + NOMINAL[c.id]);
+for (const c of m.cues) {
+  assert.ok(Math.abs(c.sourceBpm - NOMINAL[c.id]) <= 0.5, c.id + ' source bpm ' + c.sourceBpm + ' vs nominal ' + NOMINAL[c.id]);
+  assert.ok(Math.abs(c.bpm - TARGET_BPM) <= 0.3, c.id + ' stretched felt bpm ' + c.bpm);
+  // Standard = L 5.1 + 7 phrases + T 0.5, like the reference's 32.97 s.
+  const standard = 5.1 + 7 * c.phraseBeats * 60 / c.bpm + 0.5;
+  assert.ok(Math.abs(standard - 32.9) <= 0.1, c.id + ' Standard lasts ' + standard.toFixed(3) + ' s');
+}
 assert.deepEqual(m.cues.filter(c => c.default).map(c => c.id), ['post-rock']);
-// Anchor rulings (2026-09-30): post-rock at the full-band entry (bar 4), orchestral at the start of the rise,
-// piano (flat) early at bar 3; rhodes and dream-synth keep the measured swell (dream-synth: null, so its fallback).
+// Anchor rulings (2026-09-30), set in source seconds in dev/cues-input.json and mapped through the stretch:
+// post-rock at the full-band entry (bar 4), orchestral at the start of the rise, piano (flat) early at bar 3, rhodes
+// at its measured v1.2 swell (bar 9; after mastering its rise reads under 6 LU, so it is pinned). dream-synth has no
+// swell (null), so its fallback anchors it.
 if (m.cues.length) {
   const src = Object.fromEntries(m.cues.map(c => [c.id, c.swellSource]));
-  assert.deepEqual(src, { 'piano-strings': 'manual', 'rhodes-soul': 'auto', 'post-rock': 'manual', orchestral: 'manual', 'dream-synth': 'auto' });
+  assert.deepEqual(src, { 'piano-strings': 'manual', 'rhodes-soul': 'manual', 'post-rock': 'manual', orchestral: 'manual', 'dream-synth': 'auto' });
   const byId = Object.fromEntries(m.cues.map(c => [c.id, c]));
   const barOf = c => 4 * 60 / c.bpm;
-  assert.ok(Math.abs(byId['post-rock'].swell - (byId['post-rock'].firstBeat + 3 * barOf(byId['post-rock']))) <= 0.002, 'post-rock swell at bar 4 of the grid');
-  assert.ok(Math.abs(byId['post-rock'].swell - 14.577) <= 0.01, 'post-rock swell ' + byId['post-rock'].swell);
+  const atBar = (id, bar) => Math.abs(byId[id].swell - (byId[id].firstBeat + (bar - 1) * barOf(byId[id]))) <= 0.002;
+  assert.ok(atBar('post-rock', 4), 'post-rock swell at bar 4 of the grid');
+  // The v1.2 anchor 14.577 s at 66 bpm, in stretched time.
+  assert.ok(Math.abs(byId['post-rock'].swell - 14.577 * byId['post-rock'].sourceBpm / byId['post-rock'].bpm) <= 0.02, 'post-rock swell ' + byId['post-rock'].swell);
   assert.equal(byId.orchestral.swell, byId.orchestral.swellFallback, 'orchestral swell on the start of the rise');
-  assert.ok(Math.abs(byId['piano-strings'].swell - (byId['piano-strings'].firstBeat + 2 * barOf(byId['piano-strings']))) <= 0.002, 'piano swell at bar 3');
+  assert.ok(atBar('piano-strings', 3), 'piano swell at bar 3');
+  assert.ok(atBar('rhodes-soul', 9), 'rhodes swell at bar 9');
   assert.equal(byId['dream-synth'].swell, null);
 }
 const mp3s = fs.readdirSync(dir).filter(f => f.endsWith('.mp3')).sort();
@@ -84,7 +104,11 @@ for (const c of m.cues) {
   const buf = fs.readFileSync(path.join(dir, c.file));
   assert.ok(buf.length < 20 * 1024 * 1024, c.id + ' size');
   assert.equal(crypto.createHash('sha256').update(buf).digest('hex'), c.sha256, c.id + ' hash');
-  if (hasFfmpeg) assert.ok(Math.abs(lufsOf(path.join(dir, c.file)) + 14) <= 0.5, c.id + ' measured loudness');
+  if (hasFfmpeg) {
+    const l = loudnessOf(path.join(dir, c.file));
+    assert.ok(Math.abs(l.lufs + 12.5) <= 0.5, c.id + ' measured loudness ' + l.lufs);
+    assert.ok(l.truePeak <= -1.0, c.id + ' measured true peak ' + l.truePeak);
+  }
 }
 
 // 2. Synthetic cues. A pad chord (so the track has a realistic crest factor and loudnorm stays linear) and a kick +
@@ -219,8 +243,28 @@ if (hasFfmpeg) {
     assert.ok(Math.abs(c.swell - swellT) <= 0.1, 'swell ' + c.swell + ' vs bar 3 downbeat ' + swellT.toFixed(3));
     assert.ok(Math.abs(c.swellFallback - swellT) <= 0.1, 'swellFallback ' + c.swellFallback);
     assert.ok(Math.abs(c.driftBpm) <= 0.1, 'drift ' + c.driftBpm);
-    assert.ok(Math.abs(lufsOf(path.join(out, c.file)) + 14) <= 0.5, 'measured loudness');
+    assert.ok(Math.abs(lufsOf(path.join(out, c.file)) + 12.5) <= 0.5, 'measured loudness');
+    assert.ok(Math.abs(c.sourceBpm - c.bpm) <= 0.05, 'no targetBpm: not stretched');
     assert.equal(c.provenance.prompt, 'test fixture: 62 bpm kick and pad, 2 quiet bars');
+
+    // The { targetBpm, cues } form: the 62 bpm fixture stretched to 61.5 (rubberband, pitch kept). A manual swell is
+    // in source seconds (12.3 s, near the bar-4 downbeat) and lands on bar 4 of the stretched grid.
+    fs.writeFileSync(path.join(tmp, 'stretch.json'), JSON.stringify({ targetBpm: 61.5, cues: [
+      { id: 'synthetic-stretch', title: 'Synthetic Stretch', source: 'fixture.mp3', prompt: 'test fixture: stretched', swell: 12.3 }] }));
+    const out2 = path.join(tmp, 'out2');
+    const r2 = spawnSync('node', [build, '--out', out2, path.join(tmp, 'stretch.json')]);
+    assert.equal(r2.status, 0, 'stretched build\n' + r2.stderr);
+    const st = JSON.parse(fs.readFileSync(path.join(out2, 'manifest.json'), 'utf8')).cues[0];
+    checkEntry(st);
+    assert.ok(Math.abs(st.sourceBpm - 62) <= 0.3, 'sourceBpm ' + st.sourceBpm);
+    assert.ok(Math.abs(st.bpm - 61.5) <= 0.3, 'stretched bpm ' + st.bpm);
+    const ratio = st.sourceBpm / st.bpm;
+    assert.ok(Math.abs(st.durationSeconds - c.durationSeconds * ratio) <= 0.1, 'duration scaled by the stretch: ' + st.durationSeconds);
+    assert.ok(Math.abs(st.firstBeat - first * ratio) < 0.03, 'firstBeat mapped: ' + st.firstBeat);
+    assert.equal(st.swellSource, 'manual');
+    assert.ok(Math.abs(st.swell - (st.firstBeat + 3 * 4 * 60 / st.bpm)) <= 0.002, 'source-time swell snapped to bar 4 of the stretched grid: ' + st.swell);
+    const l2 = loudnessOf(path.join(out2, st.file));
+    assert.ok(Math.abs(l2.lufs + 12.5) <= 0.5 && l2.truePeak <= -1.0, 'stretched loudness ' + JSON.stringify(l2));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

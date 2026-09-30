@@ -68,6 +68,8 @@ const keepAlive = setInterval(() => {}, 50);
   const inv = await load('inventory.js', { projectId: 'p', only: null })(selects);
   assert.deepEqual(inv.resources.map(r => [r.rid, r.width, r.height, r.duration]), [['r0', 1920, 1080, 20], ['r3', 1080, 1920, 12]]);
   assert.deepEqual(inv.resources.map(r => r.aspect), [1920 / 1080, 1080 / 1920], 'aspect = width / height');
+  // The source path, for the panel's motion measurement (ffmpeg on the file).
+  assert.deepEqual(inv.resources.map(r => r.path), ['/v/a.mov', '/v/c.mov'], 'source paths from sourceFiles');
   assert.equal(inv.resources[0].recordedAt, '2026-09-26T15:00:00Z');
   assert.equal(inv.skipped.unanalysed, 1);
   const only = await load('inventory.js', { projectId: 'p', only: ['r3'] })(selects);
