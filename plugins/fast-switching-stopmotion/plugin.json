@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "id": "fast-switching-stopmotion",
+  "version": "0.1.0-alpha.1",
+  "name": "Fast Switching Stop Motion",
+  "summary": "Turn selfie videos into a fast outfit-switch stop-motion edit as a new editable Draft.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx",
+    "assets/music.mp3"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS development builds"
+    ],
+    "selects": "Requires Panel SDK runScript/runShell/askAI and ffmpeg in the app shell. Released-version and Windows compatibility are unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  },
+  "localized": {
+    "de": {
+      "name": "Schneller Wechsel Stop-Motion",
+      "summary": "Erstellt aus Selfie-Videos einen schnellen Outfit-Wechsel im Stop-Motion-Stil als bearbeitbaren Entwurf."
+    },
+    "en": {
+      "name": "Fast Switching Stop Motion",
+      "summary": "Turn selfie videos into a fast outfit-switch stop-motion edit as a new editable Draft."
+    },
+    "es": {
+      "name": "Stop motion de cambio r\u00e1pido",
+      "summary": "Convierte v\u00eddeos selfie en una edici\u00f3n stop motion de cambio r\u00e1pido de outfits como un nuevo borrador editable."
+    },
+    "fr": {
+      "name": "Stop motion \u00e0 changement rapide",
+      "summary": "Transforme des vid\u00e9os selfie en montage stop motion \u00e0 changement rapide de tenues, dans un nouveau brouillon modifiable."
+    },
+    "it": {
+      "name": "Stop motion a cambio rapido",
+      "summary": "Trasforma i video selfie in un montaggio stop motion a cambio rapido di outfit in una nuova bozza modificabile."
+    },
+    "ja": {
+      "name": "\u9ad8\u901f\u5207\u308a\u66ff\u3048\u30b9\u30c8\u30c3\u30d7\u30e2\u30fc\u30b7\u30e7\u30f3",
+      "summary": "\u30bb\u30eb\u30d5\u30a3\u30fc\u52d5\u753b\u304b\u3089\u3001\u8863\u88c5\u304c\u9ad8\u901f\u3067\u5207\u308a\u66ff\u308f\u308b\u30b9\u30c8\u30c3\u30d7\u30e2\u30fc\u30b7\u30e7\u30f3\u98a8\u306e\u7de8\u96c6\u3092\u65b0\u3057\u3044\u7de8\u96c6\u53ef\u80fd\u306a\u30c9\u30e9\u30d5\u30c8\u3068\u3057\u3066\u4f5c\u6210\u3057\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "\ube60\ub978 \uc804\ud658 \uc2a4\ud1b1\ubaa8\uc158",
+      "summary": "\uc140\uce74 \uc601\uc0c1\uc73c\ub85c \ucc29\uc7a5\uc774 \ube60\ub974\uac8c \ubc14\ub00c\ub294 \uc2a4\ud1b1\ubaa8\uc158 \ud3b8\uc9d1\uc744 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc0c8 Draft\ub85c \ub9cc\ub4ed\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Stop motion de troca r\u00e1pida",
+      "summary": "Transforma v\u00eddeos selfie em uma edi\u00e7\u00e3o stop motion de troca r\u00e1pida de looks como um novo rascunho edit\u00e1vel."
+    },
+    "tr": {
+      "name": "H\u0131zl\u0131 Ge\u00e7i\u015fli Stop Motion",
+      "summary": "Selfie videolar\u0131n\u0131, yeni ve d\u00fczenlenebilir bir taslak olarak h\u0131zl\u0131 k\u0131yafet ge\u00e7i\u015fli bir stop motion kurgusuna d\u00f6n\u00fc\u015ft\u00fcr\u00fcr."
+    },
+    "zh": {
+      "name": "\u5feb\u901f\u5207\u6362\u5b9a\u683c\u52a8\u753b",
+      "summary": "\u5c06\u81ea\u62cd\u89c6\u9891\u5236\u4f5c\u6210\u5feb\u901f\u5207\u6362\u7a7f\u642d\u7684\u5b9a\u683c\u52a8\u753b\u526a\u8f91\uff0c\u5e76\u751f\u6210\u53ef\u7f16\u8f91\u7684\u65b0\u8349\u7a3f\u3002"
+    }
+  }
+}
