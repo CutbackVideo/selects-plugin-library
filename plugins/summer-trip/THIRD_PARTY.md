@@ -44,3 +44,24 @@ The sound effects in `sfx/` are derived from CC0 1.0 (public domain) recordings 
   (`panel-shutter-v4-1` to `-4`: trimmed, equalised, pitched and given a short stereo room there).
 - Whoosh (`whoosh-1`) — "Whoosh stereo light (transition)" by xkeril,
   https://freesound.org/people/xkeril/sounds/701104/ — built from the Freesound HQ preview of the CC0 original.
+
+## Gallery preview
+
+`preview.mp4` and `poster.webp` show a build of this plugin with its default settings on stock footage and photos used under the
+Pexels License (https://www.pexels.com/license/):
+
+- Scenic palm trees on sao miguel beach by Constantino Filmes (Pexels), https://www.pexels.com/video/scenic-palm-trees-on-sao-miguel-beach-34628886/
+- Serene beach waves on a sunny day by Nui MALAMA (Pexels), https://www.pexels.com/video/serene-beach-waves-on-a-sunny-day-36301470/
+- Aerial view of huacachina desert oasis peru by Florian Delée (Pexels), https://www.pexels.com/video/aerial-view-of-huacachina-desert-oasis-peru-33170755/
+- Drone adventure over peruvian sand dunes by Florian Delée (Pexels), https://www.pexels.com/video/drone-adventure-over-peruvian-sand-dunes-35296750/
+- Stunning aerial view of lush argentine forest by Alex Dos Santos (Pexels), https://www.pexels.com/video/stunning-aerial-view-of-lush-argentine-forest-36948306/
+- Stunning cityscape at twilight with vibrant colors by IslandHopper X (Pexels), https://www.pexels.com/video/stunning-cityscape-at-twilight-with-vibrant-colors-29648731/
+- Aerial view of city lights at twilight over mountains by K (Pexels), https://www.pexels.com/video/aerial-view-of-city-lights-at-twilight-over-mountains-31630756/
+- An aerial view of a wheat field by K (Pexels), https://www.pexels.com/video/an-aerial-view-of-a-wheat-field-27114575/
+- Stunning summer landscape with rolling hills by Beata L. (Pexels), https://www.pexels.com/video/stunning-summer-landscape-with-rolling-hills-38734928/
+- Serene ocean sunset with vibrant sky by Ali Soheil (Pexels), https://www.pexels.com/photo/serene-ocean-sunset-with-vibrant-sky-38364507/
+- Sun shining over golden wheat field by Nejc Parašuh (Pexels), https://www.pexels.com/photo/sun-shining-over-golden-wheat-field-17228685/
+- Gorgeous sunset over ocean waves by Nothing Ahead (Pexels), https://www.pexels.com/photo/gorgeous-sunset-over-ocean-waves-39837537/
+- Road in forest by Sean Kernerman (Pexels), https://www.pexels.com/photo/road-in-forest-9920936/
+
+The music is the bundled Surf Indie cue (see Music above); the fonts are the bundled subsets (see Fonts).
