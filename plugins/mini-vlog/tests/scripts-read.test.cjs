@@ -76,6 +76,41 @@ const keepAlive = setInterval(() => {}, 50);
   assert.equal(invP.latestYear, 2023, 'a photo date counts; `only` applies');
   const invN = await load('inventory.js', { projectId: 'p', only: ['y2', 'y5'] })(selY(dated));
   assert.equal(invN.latestYear, null, 'no valid date');
+  assert.equal(inv.incomplete, false, 'a fully loaded Project is complete');
+
+  // A Project still loading (right after an app restart): the SDK's sourceFiles() formatter throws on a missing file
+  // tree ("Cannot read properties of undefined (reading 'reduce')"), resources() may come back empty-handed, and
+  // resource fields may be missing. The inventory is partial and flagged `incomplete`, never a throw.
+  const sfThrows = async () => { throw new TypeError("Cannot read properties of undefined (reading 'reduce')"); };
+  const selL = (o) => ({ project: () => ({ resources: async () => resources, sourceFiles: async () => tree, ...o }) });
+  const invT = await load('inventory.js', { projectId: 'p', only: null })(selL({ sourceFiles: sfThrows }));
+  assert.equal(invT.incomplete, true, 'sourceFiles throwing -> incomplete');
+  assert.deepEqual(invT.resources.map(r => [r.rid, r.width, r.height]), [['r0', null, null], ['r3', null, null]], 'videos without sizes');
+  // Defensive: the real SDK throws on an undefined tree or a dir without children (covered by sfThrows above); these
+  // shapes guard inventory.js's own walk in case a future SDK passes them through.
+  const invU = await load('inventory.js', { projectId: 'p', only: null })(selL({ sourceFiles: async () => undefined }));
+  assert.equal(invU.incomplete, true, 'sourceFiles undefined -> incomplete');
+  assert.equal(invU.resources.length, 2);
+  const invD = await load('inventory.js', { projectId: 'p', only: null })(selL({ sourceFiles: async () => ({ fileTree: [{ type: 'dir', name: 'x' }, null, { resourceId: 'r0', frameSize: { width: 1920, height: 1080 } }] }) }));
+  assert.equal(invD.incomplete, false, 'a dir without children is just empty');
+  assert.deepEqual(invD.resources.map(r => r.width), [1920, null]);
+  const invF = await load('inventory.js', { projectId: 'p', only: null })(selL({ sourceFiles: async (o) => { if (!o) return { folders: [{ name: 'a' }, { name: 'b' }, null] }; if (o.folder === 'a') throw Error('Folder not found: a'); return { fileTree: tree.fileTree }; } }));
+  assert.equal(invF.incomplete, true, 'one folder failing -> incomplete, the others still read');
+  assert.deepEqual(invF.resources.map(r => r.width), [1920, 1080]);
+  const invR = await load('inventory.js', { projectId: 'p', only: null })(selL({ resources: async () => undefined }));
+  assert.equal(invR.incomplete, true, 'resources undefined -> incomplete');
+  assert.deepEqual([invR.resources, invR.photos, invR.latestYear], [[], [], null]);
+  const invO = await load('inventory.js', { projectId: 'p', only: null })(selL({ resources: async () => ({ items: resources }) }));
+  assert.equal(invO.incomplete, true, 'resources not an array -> incomplete');
+  const partial = [null, 'junk', { type: 'Video' }, { resourceId: 'q0', type: 'Video', hasAnalysis: true, durationSeconds: 8 },
+    { resourceId: 'q1', type: 'Video', hasAnalysis: true, durationSeconds: 'x', recording: null }, { resourceId: 'q2', type: 'Image', recording: {} }];
+  const invQ = await load('inventory.js', { projectId: 'p', only: null, measureMs: 0 })(selL({ resources: async () => partial, sourceFiles: async () => ({ fileTree: [] }) }));
+  assert.deepEqual(invQ.resources, [{ rid: 'q0', name: 'q0', duration: 8, width: null, height: null, recordedAt: null, kind: 'video' }], 'missing name and recording');
+  assert.equal(invQ.skipped.missing, 1, 'a non-numeric duration counts as missing');
+  assert.deepEqual(invQ.photos, [{ rid: 'q2', name: 'q2', width: null, height: null, recordedAt: null, kind: 'photo' }]);
+  assert.equal(invQ.incomplete, false, 'malformed entries are dropped, not a loading Project');
+  // resources() itself failing still throws: with nothing read, the panel retries instead of showing an empty Project.
+  await assert.rejects(load('inventory.js', { projectId: 'p', only: null })(selL({ resources: async () => { throw Error('bridge not ready'); } })), /bridge not ready/);
 
   // Scene search: rate_limited errors back off 1 s, then 2 s; at most 4 searches are in flight.
   let inFlight = 0, peak = 0, tries = 0;
