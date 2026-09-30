@@ -6,14 +6,15 @@ assert.equal(m.version, 1);
 // Every cue the plugin may ship, in manifest order: reference-type first (the two new cues, then the reused
 // weekend-indie-pop and golden-hour-disco), the alternatives last. Only the cues present in the manifest are checked;
 // the four reused ones must always be there. downbeat: the measured confidence (see dev/build-cues.cjs); barPhase: the
-// whole beats the build moved firstBeat by to reach the best bar phase.
+// whole beats the build moved firstBeat by to reach the best bar phase; hookStart: the measured best Standard Quick
+// start (Golden Hour Disco and Easy Sunday Lo-fi pick bar 0 on their strongest low band, which fades later).
 const ALL = [
-  { id: 'bedroom-pop-108', bpm: 108, group: 'reference', downbeat: 'high', barPhase: 0 },
-  { id: 'acoustic-pop-104', bpm: 104, group: 'reference', downbeat: 'high', barPhase: 2 },
-  { id: 'weekend-indie-pop', bpm: 112, group: 'reference', downbeat: 'low', barPhase: 0 },
-  { id: 'golden-hour-disco', bpm: 104, group: 'reference', downbeat: 'low', barPhase: 0 },
-  { id: 'sunny-soul-strut', bpm: 99, group: 'alternative', downbeat: 'high', barPhase: 0 },
-  { id: 'easy-sunday-lofi', bpm: 88, group: 'alternative', downbeat: 'high', barPhase: 0 },
+  { id: 'bedroom-pop-108', bpm: 108, group: 'reference', downbeat: 'high', barPhase: 0, hookStart: 37.806 },
+  { id: 'acoustic-pop-104', bpm: 104, group: 'reference', downbeat: 'high', barPhase: 2, hookStart: 33.492 },
+  { id: 'weekend-indie-pop', bpm: 112, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 4.313 },
+  { id: 'golden-hour-disco', bpm: 104, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 0.025 },
+  { id: 'sunny-soul-strut', bpm: 99, group: 'alternative', downbeat: 'high', barPhase: 0, hookStart: 14.573 },
+  { id: 'easy-sunday-lofi', bpm: 88, group: 'alternative', downbeat: 'high', barPhase: 0, hookStart: 0.026 },
 ];
 const REUSED = ['weekend-indie-pop', 'golden-hour-disco', 'sunny-soul-strut', 'easy-sunday-lofi'];
 const { hookBars, TARGET_LUFS, CEILING_DBTP, LUFS_TOLERANCE } = require(path.join(root, 'dev', 'build-cues.cjs'));
@@ -43,11 +44,16 @@ for (const c of m.cues) {
   assert.ok(Math.abs(c.lufs - TARGET_LUFS) <= LUFS_TOLERANCE, c.id + ' lufs ' + c.lufs);
   assert.ok(typeof c.truePeak === 'number' && c.truePeak <= CEILING_DBTP, c.id + ' truePeak ' + c.truePeak);
   // Hook windows: one score per bar start from firstBeat whose 16-beat window ends by usableEnd, in [0, 1] with a
-  // best of at least 0.5 (both terms are normalised by their maximum), reproduced from the manifest onsets.
+  // best of at least 0.45 (contrast and punch are normalised by their maximum; the fill bonus is 0.1), reproduced from
+  // the manifest onsets.
   const P = 60 / c.bpm;
   assert.equal(c.hookBars.length, Math.floor((c.usableEnd - c.firstBeat) / (4 * P)) - 3, c.id + ' hookBars length');
-  assert.ok(c.hookBars.every(v => v >= 0 && v <= 1) && Math.max(...c.hookBars) >= 0.5, c.id + ' hookBars range');
+  assert.ok(c.hookBars.every(v => v >= 0 && v <= 1) && Math.max(...c.hookBars) >= 0.45, c.id + ' hookBars range');
   assert.deepEqual(c.hookBars, hookBars(c), c.id + ' hookBars reproduced');
+  // The opening hit (beat 0) never counts: a huge onset there leaves every score unchanged.
+  const loudIntro = { ...c, onsets: [[c.firstBeat, 'l', 99], [c.firstBeat, 'm', 99], ...c.onsets] };
+  assert.deepEqual(hookBars(loudIntro), c.hookBars, c.id + ' hookBars ignore beat 0');
+  assert.equal(c.hookStart, e.hookStart, c.id + ' hookStart ' + c.hookStart);
   // hookStart: the earliest best bar start among those a Standard Quick section (24 beats) fits from.
   const fits = c.hookBars.map((v, b) => c.firstBeat + (4 * b + 24) * P <= c.usableEnd + 1e-9 ? v : -1), best = fits.indexOf(Math.max(...fits));
   assert.equal(c.hookStart, Math.round((c.firstBeat + 4 * best * P) * 1000) / 1000, c.id + ' hookStart');

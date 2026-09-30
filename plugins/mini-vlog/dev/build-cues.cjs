@@ -73,31 +73,48 @@ const encodeLoud = (input, dst) => {
   throw Error(dst + ': loudness did not converge');
 };
 
-// Hook windows (spec 15.3), from the manifest onsets alone ([t, band, strength], see bandOnsets). P = 60 / bpm; bar
-// start b (0, 1, ...) is s_b = firstBeat + 4b P; its window is the HOOK_BEATS = 16 beats [s_b - 0.03, s_b + 16P - 0.03)
-// (the 30 ms lead keeps an onset detected a hair before its beat in its window), and only starts whose window ends by
-// usableEnd are scored (s_b + 16P <= usableEnd), so hookBars has floor((usableEnd - firstBeat) / P / 4) - 3 values.
-//   contrast_b = p90 / p50 of the strengths of every onset in the window (percentiles with linear interpolation);
-//   punch_b    = mean strength of the window's low-band ('l') onsets within 0.03 s of a beat line s_b + jP, divided by
-//                the median strength of all the cue's low-band onsets (0 when the window has none);
-//   hookBars[b] = round3((contrast_b / max contrast + punch_b / max punch) / 2), each term normalised by its maximum
-//                over the cue's scored starts, so the best window scores up to 1.
+// Hook windows (spec 15.3), from the manifest onsets alone ([t, band, strength], see bandOnsets). P = 60 / bpm. Grid
+// beat g (0, 1, ...) spans [firstBeat + gP - 0.03, firstBeat + (g + 1)P - 0.03) (the 30 ms lead keeps an onset
+// detected a hair before its beat in that beat); beats run while they end by usableEnd.
+//   B[g] = the sum of the strengths of every onset in beat g (how much hits there);
+//   L[g] = the strongest low-band ('l') onset in beat g (0 when none; per beat, not only on the beat line, so a bass
+//          that pushes the off-beats (Weekend Indie Pop, Sunny Soul Strut) still counts).
+// Beat 0 is left out of everything: the track's opening hit comes out of silence and is always its strongest onset
+// (Bedroom Pop 'l' 22 against a cue p90 of 9.1), so with it bar 0 won on 5 of 6 cues.
+// Bar start b (0, 1, ...) is s_b = firstBeat + 4bP; its window is the HOOK_BEATS = 16 beats g = 4b ... 4b + 15 (beat 0
+// dropped), and only starts whose window ends by usableEnd are scored (s_b + 16P <= usableEnd), so hookBars has
+// floor((usableEnd - firstBeat) / P / 4) - 3 values.
+//   contrast_b = p90 / max(1, p50) of B over the window's beats (percentiles with linear interpolation);
+//   punch_b    = mean of L over the window's beats / the median strength of the cue's low-band onsets from beat 1 on;
+//   fill_b     = 1 when the last beat of one of the window's four bars (g with (g + 1) % 4 == 0) is a fill, B[g] >=
+//                1.5 x the median of B over beats 1 ... (the spec 15.1 density rule), else 0. On the phrase-end beat
+//                alone (every 16th) no bundled cue reaches 1.5 x: their fills are mostly softer than the qualifying
+//                onset thresholds, so the bar ends are the boundaries that can be seen;
+//   hookBars[b] = round3(0.45 contrast_b / max contrast + 0.45 punch_b / max punch + 0.1 fill_b), each term normalised
+//                by its maximum over the cue's scored starts, so values lie in [0, 1] and the best is at least 0.45.
 // A consumer picks the start with the highest hookBars[b] among those whose fitted length fits (s_b + length <=
 // usableEnd), earliest on ties. hookStart is that pick for a Standard Quick video (24 one-beat shots), in seconds.
-const HOOK_BEATS = 16, HOOK_TOLERANCE = 0.03, HOOK_STANDARD_QUICK_BEATS = 24;
+const HOOK_BEATS = 16, HOOK_TOLERANCE = 0.03, HOOK_STANDARD_QUICK_BEATS = 24, HOOK_FILL = 1.5, HOOK_FILL_BONUS = 0.1;
 const percentile = (a, q) => {
   const s = [...a].sort((x, y) => x - y), i = q * (s.length - 1), lo = Math.floor(i), hi = Math.ceil(i);
   return s[lo] + (s[hi] - s[lo]) * (i - lo);
 };
 const hookBars = c => {
-  const P = 60 / c.bpm, lows = c.onsets.filter(o => o[1] === 'l').map(o => o[2]), lowMedian = percentile(lows, 0.5), raw = [];
-  for (let s = c.firstBeat; s + HOOK_BEATS * P <= c.usableEnd + 1e-9; s += 4 * P) {
-    const w = c.onsets.filter(([t]) => t >= s - HOOK_TOLERANCE && t < s + HOOK_BEATS * P - HOOK_TOLERANCE), all = w.map(o => o[2]);
-    const onBeat = w.filter(([t, band]) => band === 'l' && Math.abs((t - s) / P - Math.round((t - s) / P)) * P <= HOOK_TOLERANCE).map(o => o[2]);
-    raw.push([all.length ? percentile(all, 0.9) / percentile(all, 0.5) : 0, onBeat.length ? onBeat.reduce((x, y) => x + y, 0) / onBeat.length / lowMedian : 0]);
+  const P = 60 / c.bpm, n = Math.floor((c.usableEnd - c.firstBeat) / P + 1e-9), B = [], L = [];
+  for (let g = 0; g < n; g++) {
+    const line = c.firstBeat + g * P, w = c.onsets.filter(([t]) => t >= line - HOOK_TOLERANCE && t < line + P - HOOK_TOLERANCE);
+    B.push(w.reduce((x, o) => x + o[2], 0));
+    L.push(Math.max(0, ...w.filter(o => o[1] === 'l').map(o => o[2])));
+  }
+  const lowMedian = percentile(c.onsets.filter(([t, band]) => band === 'l' && t >= c.firstBeat + P - HOOK_TOLERANCE).map(o => o[2]), 0.5);
+  const beatMedian = percentile(B.slice(1), 0.5), raw = [];
+  for (let b = 0; 4 * b + HOOK_BEATS <= n; b++) {
+    const gs = Array.from({ length: HOOK_BEATS }, (_, j) => 4 * b + j).filter(g => g > 0), bs = gs.map(g => B[g]);
+    const fill = gs.some(g => (g + 1) % 4 === 0 && B[g] >= HOOK_FILL * beatMedian);
+    raw.push([percentile(bs, 0.9) / Math.max(1, percentile(bs, 0.5)), gs.reduce((x, g) => x + L[g], 0) / gs.length / lowMedian, fill ? 1 : 0]);
   }
   const maxC = Math.max(...raw.map(r => r[0])) || 1, maxP = Math.max(...raw.map(r => r[1])) || 1;
-  return raw.map(([con, pun]) => round3((con / maxC + pun / maxP) / 2));
+  return raw.map(([con, pun, fill]) => round3(0.45 * con / maxC + 0.45 * pun / maxP + HOOK_FILL_BONUS * fill));
 };
 // The best bar start (seconds) for a section of `beats` beats: highest hookBars among the starts that fit.
 const hookStart = (c, bars, beats) => {
