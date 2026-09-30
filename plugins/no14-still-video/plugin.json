@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "no14-still-video",
+  "version": "0.2.0",
+  "name": "Four Photo Reveal",
+  "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "VALIDATION.md",
+    "operation.mjs",
+    "build-script.mjs",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Needs the editor's existing original Image placement service plus public effects and motion graphics. Image Draft creation and export were verified in Selects Staging; exact reference-format fidelity remains provisional."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  },
+  "localized": {
+    "de": {
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+    },
+    "en": {
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+    },
+    "es": {
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+    },
+    "fr": {
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+    },
+    "it": {
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+    },
+    "ja": {
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+    },
+    "ko": {
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+    },
+    "pt": {
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+    },
+    "tr": {
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+    },
+    "zh": {
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+    }
+  }
+}
