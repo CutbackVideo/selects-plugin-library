@@ -29,17 +29,17 @@ for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) as
 // ---- Files the panel reads at runtime ----
 for (const rel of ['assets/cues/manifest.json', 'assets/cues/dev-manifest.json', 'assets/fonts/presets.json', 'sfx/manifest.json', 'scripts/inventory.js', 'scripts/search.js',
   'scripts/ensure-audio.js', 'scripts/assemble.js', 'scripts/decorate.js', 'assets/title-graphic.tsx', 'assets/labels-graphic.tsx', 'assets/summer-look.tsx',
-  'assets/grid-panel.tsx', 'assets/film-frame.tsx', 'assets/photo-motion.tsx', '"assets/fonts/" + file', '"/beat-detect.cjs"']) assert.ok(panel.includes(rel), 'panel reads ' + rel);
+  'assets/grid-panel.tsx', 'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'assets/video-motion.tsx', '"assets/fonts/" + file', '"/beat-detect.cjs"']) assert.ok(panel.includes(rel), 'panel reads ' + rel);
 for (const rel of ['assets/cues/manifest.json', 'assets/fonts/presets.json', 'sfx/manifest.json', 'scripts/inventory.js', 'scripts/search.js', 'scripts/ensure-audio.js',
   'scripts/assemble.js', 'scripts/decorate.js', 'assets/title-graphic.tsx', 'assets/labels-graphic.tsx', 'assets/summer-look.tsx', 'assets/grid-panel.tsx',
-  'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'beat-detect.cjs']) assert.ok(fs.existsSync(path.join(root, rel)), rel + ' exists');
+  'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'assets/video-motion.tsx', 'beat-detect.cjs']) assert.ok(fs.existsSync(path.join(root, rel)), rel + ' exists');
 
 // ---- Defaults ----
 const ui = panel.slice(panel.indexOf('// st-panel:end'));
 for (const re of [/React\.useState<"off" \| "ambient" \| "full">\("ambient"\)/, /React\.useState<"short" \| "standard" \| "long">\("standard"\)/, /\[preset, setPreset\] = React\.useState\("summer"\)/,
   /\[sfxOn, setSfxOn\] = React\.useState\(false\)/, /\[muffleOn, setMuffleOn\] = React\.useState\(true\)/, /\[usePhotos, setUsePhotos\] = React\.useState\(true\)/,
   /\[lookStrength, setLookStrength\] = React\.useState\(ST_LOOK_DEFAULT\)/, /\[line1, setLine1\] = React\.useState\(ST_LINE1_DEFAULT\)/, /\[topItalic, setTopItalic\] = React\.useState\(ST_TOP_ITALIC_DEFAULT\)/]) assert.ok(re.test(ui), String(re));
-assert.ok(panel.includes("const ST_LOOK_DEFAULT = 0.3;") && panel.includes("const ST_LINE1_DEFAULT = 'that one trip in';") && panel.includes("const ST_TOP_ITALIC_DEFAULT = 'VLOG';") && panel.includes("const ST_CREDIT_PREFIX = 'By';"));
+assert.ok(panel.includes("const ST_LOOK_DEFAULT = 0.45;") && panel.includes("const ST_LINE1_DEFAULT = 'that one trip in';") && panel.includes("const ST_TOP_ITALIC_DEFAULT = 'VLOG';") && panel.includes("const ST_CREDIT_PREFIX = 'By';"));
 assert.ok(panel.includes("const ST_GRID_SOUND = 'volume';") && panel.includes("const ST_TIME_ORIGIN = 'clip';") && panel.includes('const ST_AMBIENT_DB = -18;') && panel.includes('const ST_INTRO_DUCK_DB = -7;'), 'live rulings');
 // No Pace option; Length is Short / Standard / Long; three presets; muffle hidden with No music.
 assert.ok(!/label="Pace"/.test(ui));
@@ -256,12 +256,12 @@ function mockProject(o) {
 const presets = JSON.parse(read('assets/fonts/presets.json'));
 const fontsAll = Object.fromEntries(Object.keys(presets.fonts).map(f => [f, read('assets/fonts/' + f).replace(/\s+/g, '')]));
 const tsx = { title: read('assets/title-graphic.tsx'), labels: read('assets/labels-graphic.tsx'), look: read('assets/summer-look.tsx'), gridPanel: read('assets/grid-panel.tsx'),
-  filmFrame: read('assets/film-frame.tsx'), motion: read('assets/photo-motion.tsx') };
+  filmFrame: read('assets/film-frame.tsx'), motion: read('assets/photo-motion.tsx'), videoMotion: read('assets/video-motion.tsx') };
 const assembleJs = read('scripts/assemble.js'), decorateJs = read('scripts/decorate.js');
 // contracts.md keys.
 const contracts = read('dev/contracts.md');
 const ASSEMBLE_KEYS = ['projectId', 'draftName', 'fps', 'W', 'H', 'beats', 'schedule', 'picks', 'sizes', 'music', 'crossfadeFrames', 'clipSound', 'ambientDb', 'gridSound', 'sfx', 'introDuckDb'];
-const DECORATE_KEYS = ['sequenceId', 'fps', 'frames', 'placed', 'gridPlaced', 'sizes', 'mute', 'gridSound', 'title', 'labels', 'look', 'gridPanel', 'filmFrame', 'motion', 'endingMotion', 'photos'];
+const DECORATE_KEYS = ['sequenceId', 'fps', 'frames', 'placed', 'gridPlaced', 'sizes', 'mute', 'gridSound', 'title', 'labels', 'look', 'gridPanel', 'filmFrame', 'motion', 'videoMotion', 'endingMotion', 'photos'];
 const assembleDoc = contracts.slice(contracts.indexOf('### assemble.js'), contracts.indexOf('Returns:', contracts.indexOf('### assemble.js')));
 const decorateDoc = contracts.slice(contracts.indexOf('### decorate.js'), contracts.indexOf('Effect labels'));
 for (const k of ASSEMBLE_KEYS) assert.ok(new RegExp('\\b' + k + '\\b').test(assembleDoc), 'assemble key ' + k + ' is in contracts.md');
@@ -308,10 +308,12 @@ const payloads = {};
     assert.equal(dcfg.mute, clipSound === 'off');
     assert.deepEqual(j(dcfg.filmFrame), { tsx: tsx.filmFrame, window: { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 }, leakStrength: 1, timeOrigin: 'clip' });
     assert.deepEqual(j(dcfg.look), { tsx: tsx.look, strength: 0.3, leakStrength: 1 });
+    assert.deepEqual(j(dcfg.videoMotion), { tsx: tsx.videoMotion, strength: 1 }, 'Video motion on by default');
     // Title times sit on frames of the real rate, from the same F() as the cuts.
     const tp = dcfg.title.parameters, fpsR = a.fps;
     for (const t of [...tp.wordTimes, tp.seasonPartTime, tp.seasonFullTime, tp.labelsTime]) assert.ok(near(t * fpsR, Math.round(t * fpsR), 1e-6), 'title time on a frame: ' + t);
-    assert.ok(near(tp.seasonFullTime * fpsR, Math.round((5 * 60 / plan.frames.bpm + a.frames.delta) * fpsR), 1e-6), 'SUMMER complete on F(5)');
+    assert.ok(near(tp.seasonFullTime * fpsR, Math.round((6 * 60 / plan.frames.bpm + a.frames.delta) * fpsR), 1e-6), 'SUMMER complete on F(6)');
+    assert.ok(near(tp.wordTimes[0] * fpsR, Math.round((0.5 * 60 / plan.frames.bpm + a.frames.delta) * fpsR), 1e-6) && tp.wordTimes[0] > 0, 'a clean start: the first word on F(0.5)');
     assert.equal(tp.creditPrefix, 'By'); assert.equal(dcfg.labels.parameters.placePrefix, 'in'); assert.equal(dcfg.labels.parameters.place, 'Italy');
     const span = a.frames.labelsFrames[a.frames.labelsFrames.length - 1];
     assert.ok(near(dcfg.labels.parameters.placeSeconds, (a.frames.placeFrames[1] - span[0]) / fpsR), 'place title over [F(12), F(14))');

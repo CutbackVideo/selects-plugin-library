@@ -100,7 +100,7 @@ function readbackOf(m, fps) {
   assert.equal(invStep.script, 'scripts/inventory.js');
   assert.deepEqual(invStep.config, { projectId: 'P', only: null, known: {}, measureMs: 0, probeMs: 0 });
   const sStep = A.search({ pid: 'P' }, ['v0', 'v1']);
-  assert.deepEqual(Object.keys(sStep.config.queries), roles);
+  assert.deepEqual(Object.keys(sStep.config.queries), [...roles, 'avoid', 'motion'], 'the roles and the two signal queries');
   assert.equal(A.searchBatch, ST_PANEL.SEARCH_BATCH);
 
   // ---- 1. Bundled-style cue, sound effects on, Draft at 29.97 fps (planned at 30).
@@ -158,12 +158,13 @@ function readbackOf(m, fps) {
   m1.reopen();
   const dStep = A.decorate(s, a);
   const dc = dStep.config;
-  assert.deepEqual(Object.keys(dc).sort(), ['endingMotion', 'filmFrame', 'fps', 'frames', 'gridPanel', 'gridPlaced', 'gridSound', 'labels', 'look', 'motion', 'mute', 'photos', 'placed', 'sequenceId', 'sizes', 'title'].sort());
+  assert.deepEqual(Object.keys(dc).sort(), ['endingMotion', 'filmFrame', 'fps', 'frames', 'gridPanel', 'gridPlaced', 'gridSound', 'labels', 'look', 'motion', 'mute', 'photos', 'placed', 'sequenceId', 'sizes', 'title', 'videoMotion'].sort());
   assert.deepEqual(dc.filmFrame.window, { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 });
-  assert.equal(dc.look.strength, 0.3);
+  assert.equal(dc.look.strength, 0.45);
   const F = b => (b === 0 ? 0 : Math.round((b * 60 / 120 + a.frames.delta) * 29.97));
-  assert.deepEqual(dc.title.parameters.wordTimes, [0, 1, 2, 3].map(b => F(b) / 29.97), 'title words on beats 0-3 at the real fps');
-  assert.equal(dc.title.parameters.seasonPartTime, F(4) / 29.97);
+  assert.deepEqual(dc.title.parameters.wordTimes, [0.5, 1.5, 2.5, 3.5].map(b => F(b) / 29.97), 'title words on beats 0.5-3.5 at the real fps');
+  assert.equal(dc.title.parameters.seasonPartTime, F(5) / 29.97);
+  assert.equal(dc.title.parameters.seasonFullTime, F(6) / 29.97);
   assert.equal(dc.title.parameters.seasonPartLength, 3);
   assert.equal(dc.title.parameters.creditName, 'Quincy');
   assert.deepEqual(Object.keys(dc.title.parameters.fonts).sort(), ['ST Poppins Black', 'ST Poppins Bold', 'ST Poppins Light', 'ST Poppins Light Italic'], 'the title embeds its four Summer faces');
@@ -271,7 +272,15 @@ function readbackOf(m, fps) {
   assert.deepEqual(exp2.sfx, { none: true });
   assert.deepEqual(exp2.clipSound, { mode: 'off' });
   const lastM2 = exp2.effectsMain.length - 4;
-  assert.ok(exp2.effectsMain.every((fx2, i) => fx2.length === (i >= exp2.effectsMain.length - 3 || i === lastM2 ? 1 : 0)), 'look off: film frame on the ending, a strength-0 look (leak) only on the last montage clip');
+  const noVm = fx2 => fx2.filter(n => n !== 'Video motion');
+  assert.ok(exp2.effectsMain.every((fx2, i) => noVm(fx2).length === (i >= exp2.effectsMain.length - 3 || i === lastM2 ? 1 : 0)), 'look off: film frame on the ending, a strength-0 look (leak) only on the last montage clip');
+  // Video motion: every montage video on Main (look on or off), never the opener, place, photos or ending clips.
+  const photoIdx2 = new Set(a2.placed.filter(p => p.kind === 'photo').map(p => p.index));
+  exp2.effectsMain.forEach((fx2, i) => assert.equal(fx2.includes('Video motion'), i >= 2 && i <= lastM2 && !photoIdx2.has(i), 'video motion @' + i));
+  assert.equal(exp2.effectCounts['Video motion'], exp2.effectsMain.filter(fx2 => fx2.includes('Video motion')).length);
+  assert.ok(exp2.effectCounts['Video motion'] > 0);
+  assert.deepEqual(dc2.videoMotion, { tsx: dc2.videoMotion.tsx, strength: 1 });
+  assert.ok(/export default function VideoMotion/.test(dc2.videoMotion.tsx));
   const ev2 = stVisibleEvents(s2.plan.schedule, s2.frames);
   assert.equal(ev2.filter(e => e.kind === 'cut').length, 12 + 3);
 

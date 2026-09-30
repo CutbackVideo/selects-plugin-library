@@ -13,9 +13,9 @@ frames at the Draft's real fps; all "seconds from the section start" values are 
   mainBeats: [0, 9.5, 14, /* montage cuts */, E, E + 2, E + 4, E + 8], // E = 14 + M, M = 2N + 2
   grid: [{ quad: 'TL', a: 8, b: 10 }, { quad: 'TR', a: 8.5, b: 10.5 }, { quad: 'BR', a: 9, b: 11 }, { quad: 'BL', a: 9.5, b: 11.5 }],
   gridStates: [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5],
-  title: [0, 8], labels: [[5, 8], [12, E]], place: [12, 14],
+  title: [0, 8], labels: [[6, 8], [12, E]], place: [12, 14],
   endingStart: E, end: E + 8, fadeStart: E + 7.5,
-  leak: { a: E - 0.25, b: E + 0.25 }, pulses: [E + 2, E + 5.5],
+  leak: { a: E - 0.25, b: E + 0.25 }, pulses: [E + 2, E + 5.5, E + 7], // E + 7 = the warm end flare
   anchors: [8, 14, E] // the only beats that may snap (own music only)
 }
 ```
@@ -102,24 +102,27 @@ and Fe (head trimmed via sourceStartSeconds when that would start before 0).
   gridSound: 'routing' | 'volume' | 'none',
   title:  { tsx, parameters, editableParameters },   // over [0, frames.titleFrames[1])
   labels: { tsx, parameters, editableParameters },   // over frames.labelsFrames[1] ([12, E))
-  look: null | { tsx, strength, leakStrength, gradeOff? }, // every Main + grid clip; last montage clip gets leakOutSeconds;
+  look: null | { tsx, strength, leakStrength, grain?, gradeOff? }, // every Main + grid clip; last montage clip gets leakOutSeconds;
+                                                    // grain (0-1, default 0.35) is the film grain, editable as "Film grain";
                                                     // gradeOff → only the last montage clip, strength 0 (keeps the leak)
   gridPanel: { tsx },                                // on grid clips whose source is not 16:9 (inset mask)
   filmFrame: { tsx, window: { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 }, leakStrength, timeOrigin: 'clip' | 'source',
                fringe? },            // fringe passed through only when set
   motion: { tsx, strength, options: [{ label, value }], byClipIndex: { [mainIndex]: { motion, direction, axis, cover? } } }, // montage photos only
+  videoMotion: null | { tsx, strength },               // montage VIDEO clips on Main (not photos, grid panels or ending clips):
+                                                    // "Video motion", a slow 1.00 -> 1.04 push-in, strength editable (0-2)
   endingMotion: { [endingIndex]: { motion, direction, axis } }, // ending photos: done inside the film-frame effect
   photos: [rid]                       // photo resource ids
 }
 ```
-Effect labels (idempotency keys): "Summer look", "Grid panel", "Film frame", "Photo motion"; graphics "Summer Trip title",
+Effect labels (idempotency keys): "Summer look", "Grid panel", "Film frame", "Photo motion", "Video motion"; graphics "Summer Trip title",
 "Summer Trip labels". Main clip i = the Main row starting at `frames.mainFrames[i]` (else `placed[i].clipId`); grid clips = video rows
-with the panel's resource starting at `gridPlaced[].a`. Effect order: montage photos Photo motion → Summer look; ending clips Summer
+with the panel's resource starting at `gridPlaced[].a`. Effect order: montage photos Photo motion → Summer look; montage videos Video motion → Summer look; ending clips Summer
 look → Film frame; grid clips Summer look → Grid panel. `gridSound: 'routing'` calls `setAudioTracks({ target: <panel row>, [] })`;
 if the SDK refuses a clip target the panel gets `setClipAudio −60 dB` (note); if the Main routing changed, it throws before committing.
 
 Returns `{ titleAdded, labelsAdded, muted, muteKept, gridSound: { mode, routed, kept, lowered }, effects: { added: { look, gridPanel,
-filmFrame, motion }, kept: { … } }, committed, alreadyDone, notes }`.
+filmFrame, motion, videoMotion }, kept: { … } }, committed, alreadyDone, notes }`.
 
 ### ensure-audio.js
 `{ projectId, files: [{ key, path, matchByName? }] }` → `{ ids: { [key]: resourceId }, imported: [key], missing: [key] }` (imports
@@ -136,22 +139,30 @@ skipped: { unanalysed, missing }, captureDates: { known, probed } }`. Dates with
 `selects.media.probe` (recorded → creation → filenameTimestamp → encoded unless encodedBy); month is read from the date text.
 
 ### search.js
-`{ projectId, rids, queries?: { [role]: text } /* default spec §5 roles */, roles?: [role], pageSize?: 6 /* 1–10 */, parallel?: 4
-/* ≤ 4 */, budgetMs?: 22000 }` → `{ candidates: [{ rid, role, t, score }], failed: [rid], stats: { ms, waitedMs, rateLimited, jobs } }`.
+`{ projectId, rids, queries?: { [role]: text } /* default spec §5 roles + the signal queries avoid, motion */, roles?: [role], pageSize?: 6
+/* 1–10 */, parallel?: 4 /* ≤ 4 */, budgetMs?: 22000 }` → `{ candidates: [{ rid, role, t, score }], failed: [rid], stats: { ms, waitedMs,
+rateLimited, jobs } }`. The panel and `dev/adapter.mjs` pass `{ ...ST_QUERIES, ...ST_SIGNAL_QUERIES }` (14 searches per clip). Hits of
+the signal roles `avoid` and `motion` are never shots: the planner (`stSignals`) ranks an avoided candidate (near a strong avoid hit,
+or on an avoid-dominated clip) as one use more and after non-avoided ones in opener/place/grid/montage slots (not the ending), and
+gives candidates near a motion hit a tie-break bonus (≤ 0.03).
 
 ## Effect parameters (assets/*.tsx)
 
-- Summer look: `{ strength, leakOutSeconds: 0, leakStrength: 1, clipSeconds, sourceStartSeconds, timeOrigin }`.
+- Summer look: `{ strength /* default 0.45 */, grain /* 0-1, default 0.35; opacity grain * strength * 0.5 */, leakOutSeconds: 0, leakStrength: 1,
+  clipSeconds, sourceStartSeconds, timeOrigin }`.
 - Grid panel: `{ insetPct: { top, right, bottom, left } }` in % of the clip's own box (the quadrant rectangle, clamped 0–100).
 - Film frame: `{ canvasInBox: { x, y, w, h } /* % of the clip box */, windowW, windowH, radius, feather, fringe, leakInSeconds,
-  pulses: [{ at, dur }], leakStrength, fadeOutFrames, clipSeconds, motion: null | { motion, direction, axis, strength },
+  pulses: [{ at, dur, kind? }], leakStrength, fadeOutFrames, clipSeconds, motion: null | { motion, direction, axis, strength },
   sourceStartSeconds, timeOrigin }`. `canvasInBox` = the canvas rectangle in % of the clip's box, where the box is the source
   conformed to FIT the canvas, scaled by the clip transform's scale about its centre and moved by its position (% of canvas height,
   +y up). `pulses[].at` = pulse CENTRE in clip-local seconds (may be < 0 or > clipSeconds), `dur` = full width (half a beat, from
-  leakFrames); a pulse straddling a cut is listed on both clips. `leakInSeconds` = (leakFrames.b − endingFrame)/fps on the first ending
+  leakFrames); a pulse straddling a cut is listed on both clips. With three or more pulseFrames the last (E + 7) is the warm end
+  flare: `kind: 'flare'`, `dur` three times as wide (1.5 beats); the effect draws it as an orange/amber glow, not a red pulse. `leakInSeconds` = (leakFrames.b − endingFrame)/fps on the first ending
   clip; the last montage clip's look gets `leakOutSeconds` = (endingFrame − leakFrames.a)/fps; `fadeOutFrames` = endFrame −
   fadeStartFrame on the last ending clip.
 - Photo motion: as city-weekend-vlog.
+- Video motion: `{ strength /* 0-2, default 1 */, clipSeconds, sourceStartSeconds, timeOrigin }`: scale 1 + 0.04 · strength · ease(u)
+  about the box centre, u = clip-local frame / (clip frames − 1), never below 1 (no edges for 16:9 or cover-scaled clips).
 
 ## Graphic parameters
 

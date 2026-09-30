@@ -32,11 +32,11 @@ eq(s8.mainBeats, [0, 9.5, 14, 16, 18, 20, 22, 25, 28, 30, 32, 34, 36, 40]);
 eq(s8.grid, [{ quad: 'TL', a: 8, b: 10 }, { quad: 'TR', a: 8.5, b: 10.5 }, { quad: 'BR', a: 9, b: 11 }, { quad: 'BL', a: 9.5, b: 11.5 }]);
 eq(s8.gridStates, [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5]);
 eq(s8.title, [0, 8]);
-eq(s8.labels, [[5, 8], [12, 32]]);
+eq(s8.labels, [[6, 8], [12, 32]]);
 eq(s8.place, [12, 14]);
 eq([s8.endingStart, s8.end, s8.fadeStart], [32, 40, 39.5]);
 eq(s8.leak, { a: 31.75, b: 32.25 });
-eq(s8.pulses, [34, 37.5]);
+eq(s8.pulses, [34, 37.5, 39], "leak pulses at +2 and +5.5, the warm end flare at +7");
 eq(s8.anchors, [8, 14, 32]);
 const s6 = P.stSchedule({ montageShots: 6 }), s12 = P.stSchedule({ montageShots: 12 }), s4 = P.stSchedule({ montageShots: 4 });
 eq(s6.mainBeats.slice(2, 8), [14, 16, 18, 20, 23, 26]);
@@ -61,11 +61,11 @@ eq(f25.endFrame, 500);
 eq(f25.mainFrames, [0, 119, 175, 200, 225, 250, 275, 313, 350, 375, 400, 425, 450, 500]);
 eq(f25.grid.map(g => [g.quad, g.aFrame, g.bFrame]), [['TL', 100, 125], ['TR', 106, 131], ['BR', 113, 138], ['BL', 119, 144]]);
 eq(f25.titleFrames, [0, 100]);
-eq(f25.labelsFrames, [[63, 100], [150, 400]]);
+eq(f25.labelsFrames, [[75, 100], [150, 400]]);
 eq(f25.placeFrames, [150, 175]);
 eq([f25.endingFrame, f25.fadeStartFrame], [400, 494]);
 eq(f25.leakFrames, [397, 403]);
-eq(f25.pulseFrames, [425, 469]);
+eq(f25.pulseFrames, [425, 469, 488]);
 const ntsc = 30000 / 1001;
 const f2997 = P.stFrameSchedule({ schedule: s8, bpm: 120, delta: 0, fps: ntsc });
 eq(f2997.gridStateFrames, [120, 127, 135, 142, 150, 157, 165, 172]);
@@ -94,14 +94,14 @@ const fs1 = P.stFrameSchedule({ schedule: s8, bpm: 120, delta: 0, fps: 25, snaps
 eq(fs1.gridStateFrames, [102, 106, 113, 119, 125, 131, 138, 144], 'drop moves grid state 1 only');
 eq(fs1.grid[0].aFrame, 102);
 eq(fs1.titleFrames, [0, 102], 'title off at the snapped drop');
-eq(fs1.labelsFrames[0], [63, 102]);
+eq(fs1.labelsFrames[0], [75, 102]);
 eq(fs1.placeFrames, [150, 174], 'place title off at the snapped 14');
 eq(fs1.mainFrames.slice(0, 4), [0, 119, 174, 200]);
 eq(fs1.endingFrame, 401);
 eq(fs1.labelsFrames[1], [150, 401]);
 eq(fs1.leakFrames, [398, 404], 'the leak is centred on the snapped ending cut');
 eq(fs1.mainFrames.slice(-3), [425, 450, 500], 'later ending shots and the end stay on the grid');
-eq(fs1.pulseFrames, [425, 469]);
+eq(fs1.pulseFrames, [425, 469, 488]);
 const r8 = fs1.report.find(r => r.beat === 8);
 eq([r8.snapped, r8.frame], [true, 102]);
 ok(Math.abs(r8.plannedSeconds - r8.gridSeconds - 0.07) < 1e-9, 'grid deviation reported');
@@ -120,14 +120,17 @@ for (let x = 0; x < 3; x += 0.0137) ok(Math.abs(P.stMusicOffset(x, ntsc)) <= 0.5
 // Title schedule (spec 4.2 / 15.8).
 const t4 = P.stTitleSchedule('that one trip in', 'SUMMER');
 eq(t4.words, ['that', 'one', 'trip', 'in']);
-eq(t4.wordBeats, [0, 1, 2, 3]);
-eq([t4.seasonPartBeat, t4.seasonPartLength, t4.seasonFullBeat, t4.labelsBeat, t4.source], [4, 3, 5, 5, 'beats']);
-eq(P.stTitleSchedule('our trip', 'SUMMER').wordBeats, [0, 1]);
+// A clean start: words on the off-beats from 0.5, SUM at 5, SUMMER and the labels at 6 (the drop stays at 8).
+eq(t4.wordBeats, [0.5, 1.5, 2.5, 3.5]);
+eq([t4.seasonPartBeat, t4.seasonPartLength, t4.seasonFullBeat, t4.labelsBeat, t4.source], [5, 3, 6, 6, 'beats']);
+eq(P.stTitleSchedule('our trip', 'SUMMER').wordBeats, [0.5, 1.5]);
 eq(P.stTitleSchedule('  the   best trip  ', 'AUTUMN').words, ['the', 'best', 'trip']);
 const t5 = P.stTitleSchedule('the one trip we took in', 'SUMMER');
-eq(t5.wordBeats, [0, 0.5, 1, 1.5, 2, 2.5]);
+eq(t5.wordBeats, [0.5, 1, 1.5, 2, 2.5, 3]);
 eq(t5.source, 'eighths');
-eq(P.stTitleSchedule('a b c d e', 'X').wordBeats, [0, 0.5, 1, 1.5, 2]);
+eq(P.stTitleSchedule('a b c d e', 'X').wordBeats, [0.5, 1, 1.5, 2, 2.5]);
+eq(P.stTitleSchedule('a b c d e f g h i j', 'X').wordBeats, [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 3.5, 3.5, 3.5], 'words past the 7th share 3.5');
+ok(P.stTitleSchedule('a b c d e f', 'X').wordBeats[0] > 0, 'the first frame has no title text');
 ok(P.stTitleSchedule('a b c d e f g h i j', 'X').wordBeats.every(b => b <= 3.5), 'words stay before the season word');
 // Season part: ceil(len/2) when len >= 4, else the whole word at 4.
 eq(P.stTitleSchedule('x', 'AUTUMN').seasonPartLength, 3);
@@ -135,18 +138,18 @@ eq(P.stTitleSchedule('x', 'SPRING').seasonPartLength, 3);
 eq(P.stTitleSchedule('x', 'WINTER').seasonPartLength, 3);
 eq(P.stTitleSchedule('x', 'JULY').seasonPartLength, 2);
 eq(P.stTitleSchedule('x', 'SEPTEMBER').seasonPartLength, 5);
-eq(P.stTitleSchedule('x', 'MAY').seasonPartLength, 3, 'short word: whole word on beat 4');
-eq(P.stTitleSchedule('x', 'MAY').seasonPartBeat, 4);
+eq(P.stTitleSchedule('x', 'MAY').seasonPartLength, 3, 'short word: whole word on beat 5');
+eq(P.stTitleSchedule('x', 'MAY').seasonPartBeat, 5);
 eq(P.stTitleSchedule('x', '').seasonPartLength, 0);
 eq(P.stTitleSchedule('', 'SUMMER').words, []);
 // titleHits: used only for <= 4 words, and only when valid (6 sorted finite values in [0, 8)).
 const hits = [0.25, 1.1, 2, 2.75, 4.5, 5.25];
 const th = P.stTitleSchedule('that one trip in', 'SUMMER', hits);
 eq([th.wordBeats, th.seasonPartBeat, th.seasonFullBeat, th.labelsBeat, th.source], [[0.25, 1.1, 2, 2.75], 4.5, 5.25, 5.25, 'hits']);
-// Labels never come before the full season word: max(5, second season hit) with hits, 5 without.
+// Labels never come before the full season word: max(5, second season hit) with hits, 6 without.
 eq(P.stTitleSchedule('that one trip in', 'SUMMER', [0, 1, 2, 3, 3.5, 4.5]).labelsBeat, 5, 'an early season hit keeps the labels on 5');
 eq(P.stTitleSchedule('that one trip in', 'SUMMER', [0, 1, 2, 3, 4.5, 6]).labelsBeat, 6);
-eq(P.stTitleSchedule('the one trip we took in', 'SUMMER', [0, 1, 2, 3, 4.5, 6]).labelsBeat, 5, '5+ words ignore the hits');
+eq(P.stTitleSchedule('the one trip we took in', 'SUMMER', [0, 1, 2, 3, 4.5, 6]).labelsBeat, 6, '5+ words ignore the hits');
 eq(P.stTitleSchedule('our trip', 'SUMMER', hits).wordBeats, [0.25, 1.1]);
 eq(P.stTitleSchedule('the one trip we took in', 'SUMMER', hits).source, 'eighths', '5+ words ignore the hits');
 for (const bad of [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 8], [-0.1, 1, 2, 3, 4, 5], [0, 2, 1, 3, 4, 5], [0, 1, 1, 3, 4, 5], [0, 1, 2, 3, 4, NaN], [0, 1, 2, 3, 4, Infinity], null, 'x']) {
@@ -154,11 +157,11 @@ for (const bad of [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 8], [-0.1, 1, 2, 3, 4, 5], [
 }
 // Title times: frame-aligned seconds from the graphic start, with the same F as the cuts.
 const tt = P.stTitleTimes(t4, 120, 0, ntsc);
-eq(tt.wordTimes.map(x => Math.round(x * ntsc)), [0, 15, 30, 45]);
-eq(Math.round(tt.seasonPartTime * ntsc), 60);
-eq(Math.round(tt.seasonFullTime * ntsc), 75);
-eq(Math.round(tt.labelsTime * ntsc), 75);
-eq(P.stTitleTimes(t4, 120, 0, 25).wordTimes, [0, 0.52, 1, 1.52]);
+eq(tt.wordTimes.map(x => Math.round(x * ntsc)), [7, 22, 37, 52]);
+eq(Math.round(tt.seasonPartTime * ntsc), 75);
+eq(Math.round(tt.seasonFullTime * ntsc), 90);
+eq(Math.round(tt.labelsTime * ntsc), 90);
+eq(P.stTitleTimes(t4, 120, 0, 25).wordTimes, [0.24, 0.76, 1.24, 1.76]);
 
 // Season from capture months.
 eq(P.stSeasonFor([7, 7, 8, 1]), 'SUMMER');

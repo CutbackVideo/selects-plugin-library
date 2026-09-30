@@ -9,8 +9,9 @@
 // stCanvasInBox), so portrait, photo and landscape clips all get the same window on the canvas. Everything inside the
 // canvas rectangle is drawn in 1920x1080 canvas units.
 // data: canvasInBox { x, y, w, h }, windowW (0.87), windowH (0.84), radius (0.02 of H), feather (0.012 of H), fringe (0-2,
-// default 1), leakInSeconds (0), pulses [{ at, dur }] (centre and full width, in local
-// seconds; a pulse straddling a cut is given to both clips), leakStrength (0-2, default 1),
+// default 1), leakInSeconds (0), pulses [{ at, dur, kind? }] (centre and full width, in local
+// seconds; a pulse straddling a cut is given to both clips; kind 'flare' = the warm end flare), leakStrength (0-2,
+// default 1),
 // fadeOutFrames (0), clipSeconds, motion (null | { motion, direction, axis, strength }), sourceStartSeconds, timeOrigin.
 import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
@@ -66,7 +67,8 @@ function stFrameParams(data) {
   const c = d.canvasInBox && typeof d.canvasInBox === "object" ? d.canvasInBox : {};
   const clip = stFrameNum(d.clipSeconds, 0, 0, 1e6);
   const pulses = Array.isArray(d.pulses)
-    ? d.pulses.filter(q => q && typeof q === "object" && isFinite(Number(q.at))).map(q => ({ at: Number(q.at), dur: stFrameNum(q.dur, 0.4, 0.05, 10) }))
+    ? d.pulses.filter(q => q && typeof q === "object" && isFinite(Number(q.at)))
+      .map(q => (q.kind === "flare" ? { at: Number(q.at), dur: stFrameNum(q.dur, 0.4, 0.05, 10), kind: "flare" } : { at: Number(q.at), dur: stFrameNum(q.dur, 0.4, 0.05, 10) }))
     : [];
   const m = d.motion && typeof d.motion === "object" && typeof d.motion.motion === "string" ? d.motion : null;
   return {
@@ -133,17 +135,18 @@ function stFrameLeakLayers(p, t) {
   if (!(k > 0)) return out;
   const a = v => Math.max(0, Math.min(1, v)).toFixed(3);
   if (p.leakInSeconds > 0 && t >= -1e-9 && t < p.leakInSeconds) {
-    // Opening wash (reference f519-523): the window starts almost blown out (pale yellow), turns orange while it
-    // clears from the left, and a red band sweeps from the right side toward the middle, narrowing, then fades.
+    // Opening wash (reference f519-523): the window starts as a bright warm orange/amber wash (the picture still shows
+    // through: never a near-white frame), turns orange while it clears from the left, and a red band sweeps from the
+    // right side toward the middle, narrowing, then fades.
     const u = Math.max(0, Math.min(1, t / p.leakInSeconds));
     const e = u * u * (3 - 2 * u);
     const wash = Math.min(1, Math.pow(1 - e, 2.2) * k);
     out.push({
       key: "leak-in-wash",
-      background: `linear-gradient(90deg, rgba(255,240,190,${a(0.8 * wash)}) 0%, rgba(255,235,175,${a(0.95 * wash)}) 55%, rgba(255,225,160,${a(0.95 * wash)}) 100%)`,
+      background: `linear-gradient(90deg, rgba(255,190,105,${a(0.6 * wash)}) 0%, rgba(255,200,120,${a(0.7 * wash)}) 55%, rgba(255,185,100,${a(0.7 * wash)}) 100%)`,
       mixBlendMode: "screen",
     });
-    const tint = Math.min(1, Math.sin(Math.PI * Math.min(1, 0.15 + 0.85 * u)) * k);
+    const tint = Math.min(1, Math.sin(Math.PI * Math.min(1, 0.35 + 0.65 * u)) * k);
     out.push({
       key: "leak-in-tint",
       background: `linear-gradient(90deg, rgba(255,140,50,${a(0.55 * tint)}) 0%, rgba(255,110,40,${a(0.8 * tint)}) 60%, rgba(255,90,40,${a(0.85 * tint)}) 100%)`,
@@ -161,6 +164,22 @@ function stFrameLeakLayers(p, t) {
     const u = (t - q.at) / q.dur + 0.5; // `at` is the pulse centre, `dur` its full width
     if (!(u >= 0 && u <= 1)) return;
     const env = Math.min(1, Math.pow(Math.sin(Math.PI * u), 1.5) * k);
+    if (q.kind === "flare") {
+      // Warm end flare (reference ~20 s): a soft orange/amber glow rising from the lower left over the last shot, so
+      // the final hold is not a clean dark picture. Screen-blended orange (never white) plus a light amber overlay.
+      const fx = 18 + 20 * u, fy = 78 - 16 * u;
+      out.push({
+        key: "flare-" + i,
+        background: `radial-gradient(ellipse 70% 80% at ${fx.toFixed(1)}% ${fy.toFixed(1)}%, rgba(255,150,70,${a(0.7 * env)}) 0%, rgba(255,120,55,${a(0.4 * env)}) 45%, rgba(255,100,50,0) 100%)`,
+        mixBlendMode: "screen",
+      });
+      out.push({
+        key: "flare-tint-" + i,
+        background: `linear-gradient(30deg, rgba(255,140,60,${a(0.55 * env)}) 0%, rgba(255,170,90,${a(0.3 * env)}) 60%, rgba(255,170,90,0) 100%)`,
+        mixBlendMode: "overlay",
+      });
+      return;
+    }
     // Shape by timing: a pulse that touches a cut (reference f548 sits on the 2nd ending cut) is the small edge flare;
     // one fully inside the clip (reference f600) is the broad wash. Decorate gives each clip one pulse, so the array
     // index cannot choose the shape.

@@ -76,7 +76,9 @@ const keepAlive = setInterval(() => {}, 50);
   assert.equal(s.stats.waitedMs, 1000, 'one retry pass after a 1 s pause');
   seen.length = 0;
   const sAll = await load('search.js', { projectId: 'p', rids: ['r0'] })(selS);
-  assert.deepEqual([...new Set(sAll.candidates.map(c => c.role))], ['opener', 'grid', 'place', 'beach', 'town', 'water', 'street', 'food', 'landmark', 'people', 'detail', 'ending']);
+  assert.deepEqual([...new Set(sAll.candidates.map(c => c.role))], ['opener', 'grid', 'place', 'beach', 'town', 'water', 'street', 'food', 'landmark', 'people', 'detail', 'ending', 'avoid', 'motion']);
+  assert.ok(seen.some(([q]) => q === 'a dark night scene, city lights at night, or an intense orange sunset') && seen.some(([q]) => q === 'people walking, a street with movement, or travelling along a road or coast'), 'the two signal queries run per clip');
+  assert.equal(sAll.stats.jobs, 14);
   assert.ok(seen.every(([, n]) => n === 6), 'default page size 6');
 
   // rate_limited: back-off 1 s then 2 s (Atomics.waitAsync); never more than 4 searches in flight, even when asked.
