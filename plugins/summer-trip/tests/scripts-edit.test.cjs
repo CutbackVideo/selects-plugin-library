@@ -360,6 +360,7 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
     look: { tsx: 'LOOK', strength: 0.3, leakStrength: 1 }, gridPanel: { tsx: 'GP' },
     filmFrame: { tsx: 'FF', window: { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 }, leakStrength: 0.8, timeOrigin: 'clip' },
     motion: { tsx: 'PM', strength: 1, options: opts, byClipIndex: { 4: { motion: 'push-in', direction: 1, axis: 'x' } } },
+    videoMotion: { tsx: 'VM', strength: 1 },
     endingMotion: { 1: { motion: 'drift', direction: -1, axis: 'x' } }, photos: PHOTOS, ...extra });
   const selD = { draft: () => md.d };
   // Routing refused by the SDK -> the panels fall back to -60 dB and the notes say so.
@@ -379,9 +380,11 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
   // film frame on the 3 ending clips after the look.
   const eff = id => (md.effects[id] || []).map(e => e.name);
   const mainIds = ra.placed.map(x => x.clipId);
+  // Video motion (under the look) on the montage videos only: not the opener/place, photos, grid panels or ending clips.
+  const VL = ['Video motion', 'Summer look'];
   assert.deepEqual(mainIds.map(eff), [
-    ['Summer look'], ['Summer look'], ['Summer look'], ['Summer look'], ['Photo motion', 'Summer look'], ['Summer look'], ['Summer look'],
-    ['Summer look'], ['Summer look'], ['Summer look'], ['Summer look', 'Film frame'], ['Summer look', 'Film frame'], ['Summer look', 'Film frame']]);
+    ['Summer look'], ['Summer look'], VL, VL, ['Photo motion', 'Summer look'], VL, VL,
+    VL, VL, VL, ['Summer look', 'Film frame'], ['Summer look', 'Film frame'], ['Summer look', 'Film frame']]);
   assert.deepEqual(ra.gridPlaced.map(g => eff(g.clipId)), [['Summer look'], ['Summer look', 'Grid panel'], ['Summer look', 'Grid panel'], ['Summer look', 'Grid panel']]);
   const par = (id, name) => md.effects[id].find(e => e.name === name).parameters;
   const fps = 30, fr = ra.frames;
@@ -391,6 +394,10 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
   mainIds.forEach((id, i) => assert.equal('canvasInBox' in par(id, 'Summer look'), i === 9, 'canvasInBox only on the leak clip'));
   assert.deepEqual(par(mainIds[4], 'Photo motion'), { motion: 'push-in', strength: 1, direction: 1, axis: 'x', cover: 1, holdSeconds: Math.round((fr.mainFrames[5] - fr.mainFrames[4]) / 30 * 1000) / 1000 });
   assert.equal(par(mainIds[3], 'Summer look').sourceStartSeconds, Math.round(0.51 * 30) / 30);
+  assert.deepEqual(par(mainIds[3], 'Video motion'), { strength: 1, clipSeconds: (fr.mainFrames[4] - fr.mainFrames[3]) / 30, sourceStartSeconds: Math.round(0.51 * 30) / 30, timeOrigin: 'clip' });
+  const vmDefs = md.effects[mainIds[3]].find(e => e.name === 'Video motion').editableParameters;
+  assert.deepEqual(JSON.parse(JSON.stringify(vmDefs)), [{ key: 'strength', label: 'Video motion', type: 'number', defaultValue: 1, min: 0, max: 2, step: 0.1 }], 'Video motion strength in Adjust');
+  assert.equal(par(mainIds[3], 'Summer look').grain, 0.35, 'the look carries the default film grain');
   // Film frame per ending clip.
   const ff = [10, 11, 12].map(i => par(mainIds[i], 'Film frame'));
   assert.deepEqual(ff.map(p => p.leakInSeconds), [(fr.leakFrames.b - fr.endingFrame) / fps, 0, 0]);
@@ -427,8 +434,8 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
   md.reopen();
   const d2 = await load('decorate.js', decoCfg())(selD);
   assert.deepEqual([d2.committed, d2.alreadyDone, d2.titleAdded, d2.labelsAdded, d2.muted, d2.muteKept], [false, true, false, false, false, true]);
-  assert.deepEqual(d2.effects.added, { look: 0, gridPanel: 0, filmFrame: 0, motion: 0 });
-  assert.deepEqual(d2.effects.kept, { look: 17, gridPanel: 3, filmFrame: 3, motion: 1 });
+  assert.deepEqual(d2.effects.added, { look: 0, gridPanel: 0, filmFrame: 0, motion: 0, videoMotion: 0 });
+  assert.deepEqual(d2.effects.kept, { look: 17, gridPanel: 3, filmFrame: 3, motion: 1, videoMotion: 7 });
   assert.deepEqual(d2.gridSound, { mode: 'routing', routed: 0, kept: 4, lowered: 0 });
   assert.equal(commits(md), 2, 'no empty commit');
 

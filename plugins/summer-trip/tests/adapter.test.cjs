@@ -155,7 +155,7 @@ function readbackOf(m, fps) {
   m1.reopen();
   const dStep = A.decorate(s, a);
   const dc = dStep.config;
-  assert.deepEqual(Object.keys(dc).sort(), ['endingMotion', 'filmFrame', 'fps', 'frames', 'gridPanel', 'gridPlaced', 'gridSound', 'labels', 'look', 'motion', 'mute', 'photos', 'placed', 'sequenceId', 'sizes', 'title'].sort());
+  assert.deepEqual(Object.keys(dc).sort(), ['endingMotion', 'filmFrame', 'fps', 'frames', 'gridPanel', 'gridPlaced', 'gridSound', 'labels', 'look', 'motion', 'mute', 'photos', 'placed', 'sequenceId', 'sizes', 'title', 'videoMotion'].sort());
   assert.deepEqual(dc.filmFrame.window, { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 });
   assert.equal(dc.look.strength, 0.45);
   const F = b => (b === 0 ? 0 : Math.round((b * 60 / 120 + a.frames.delta) * 29.97));
@@ -260,7 +260,15 @@ function readbackOf(m, fps) {
   assert.deepEqual(exp2.sfx, { none: true });
   assert.deepEqual(exp2.clipSound, { mode: 'off' });
   const lastM2 = exp2.effectsMain.length - 4;
-  assert.ok(exp2.effectsMain.every((fx2, i) => fx2.length === (i >= exp2.effectsMain.length - 3 || i === lastM2 ? 1 : 0)), 'look off: film frame on the ending, a strength-0 look (leak) only on the last montage clip');
+  const noVm = fx2 => fx2.filter(n => n !== 'Video motion');
+  assert.ok(exp2.effectsMain.every((fx2, i) => noVm(fx2).length === (i >= exp2.effectsMain.length - 3 || i === lastM2 ? 1 : 0)), 'look off: film frame on the ending, a strength-0 look (leak) only on the last montage clip');
+  // Video motion: every montage video on Main (look on or off), never the opener, place, photos or ending clips.
+  const photoIdx2 = new Set(a2.placed.filter(p => p.kind === 'photo').map(p => p.index));
+  exp2.effectsMain.forEach((fx2, i) => assert.equal(fx2.includes('Video motion'), i >= 2 && i <= lastM2 && !photoIdx2.has(i), 'video motion @' + i));
+  assert.equal(exp2.effectCounts['Video motion'], exp2.effectsMain.filter(fx2 => fx2.includes('Video motion')).length);
+  assert.ok(exp2.effectCounts['Video motion'] > 0);
+  assert.deepEqual(dc2.videoMotion, { tsx: dc2.videoMotion.tsx, strength: 1 });
+  assert.ok(/export default function VideoMotion/.test(dc2.videoMotion.tsx));
   const ev2 = stVisibleEvents(s2.plan.schedule, s2.frames);
   assert.equal(ev2.filter(e => e.kind === 'cut').length, 12 + 3);
 

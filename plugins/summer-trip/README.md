@@ -188,6 +188,10 @@ never scene-searched.
   tilt, or push and drift), never the same move twice in a row. Ending
   photos move inside the film frame, which itself stays still. In the
   Inspector, each move's **Motion** and **Motion strength** can be changed.
+- Each montage video clip gets a slow push-in across the clip (1.00 to 1.04),
+  so calm shots still move; its **Video motion** strength (0 to 2, 0 keeps
+  the shot still) can be changed in the Inspector. Grid panels and the ending
+  shots stay still.
 - The size of a photo Selects does not report is read once by placing it on
   an unsaved scratch Draft; nothing is saved.
 
@@ -227,7 +231,8 @@ The Draft contains:
   labels" from beat 12 to the ending (with the place title for its first
   two beats);
 - a "Summer look" Video Effect on every clip and panel, "Film frame" on the
-  three ending clips and "Photo motion" on montage photos;
+  three ending clips, "Photo motion" on montage photos and "Video motion"
+  on montage video clips;
 - the music (and its muffled copy over the ending) and, when on, the sound
   effects, on audio tracks.
 

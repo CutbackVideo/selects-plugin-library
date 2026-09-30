@@ -1,7 +1,7 @@
 const cfg = __CONFIG__;
 const d = selects.draft(cfg.sequenceId);
 const W = cfg.W || 1920, H = cfg.H || 1080;
-const LOOK = 'Summer look', GRID = 'Grid panel', FILM = 'Film frame', MOTION = 'Photo motion';
+const LOOK = 'Summer look', GRID = 'Grid panel', FILM = 'Film frame', MOTION = 'Photo motion', VMOTION = 'Video motion';
 const TITLE = 'Summer Trip title', LABELS = 'Summer Trip labels';
 const fr = cfg.frames;
 const fps = (await d.meta()).fps;
@@ -102,7 +102,7 @@ if (cfg.labels && !graphics.includes(LABELS)) {
   labelsAdded = true;
 }
 
-const added = { look: 0, gridPanel: 0, filmFrame: 0, motion: 0 }, kept = { look: 0, gridPanel: 0, filmFrame: 0, motion: 0 };
+const added = { look: 0, gridPanel: 0, filmFrame: 0, motion: 0, videoMotion: 0 }, kept = { look: 0, gridPanel: 0, filmFrame: 0, motion: 0, videoMotion: 0 };
 // Adds one effect unless the clip already has one with that label.
 const ensure = async (id, key, label, build) => {
   const clip = await rowById(id);
@@ -157,6 +157,13 @@ for (let i = 0; i < nMain; i++) {
     await ensure(clip.clipId, 'motion', MOTION, c => ({ tsx: cfg.motion.tsx,
       parameters: { motion: mm.motion, strength: cfg.motion.strength, direction: mm.direction, axis: mm.axis, cover: mm.cover || 1, holdSeconds: Math.round((c.endFrame - c.startFrame) / fps * 1000) / 1000 },
       editableParameters: motionDefs(mm) }));
+  }
+  // Montage videos: Video motion (a slow push-in) first, under the grade, like the photos' Photo motion. Grid panels
+  // and ending clips keep a still picture.
+  if (!isPhoto && cfg.videoMotion && i >= 2 && i <= lastMontage) {
+    await ensure(clip.clipId, 'videoMotion', VMOTION, c => ({ tsx: cfg.videoMotion.tsx,
+      parameters: { strength: cfg.videoMotion.strength, clipSeconds: (c.endFrame - c.startFrame) / fps, sourceStartSeconds: ss, timeOrigin },
+      editableParameters: [{ key: 'strength', label: 'Video motion', type: 'number', defaultValue: cfg.videoMotion.strength, min: 0, max: 2, step: 0.1 }] }));
   }
   // Summer look on every clip; the last montage clip carries the outgoing leak (a quarter beat before the ending cut).
   // Look off (gradeOff): no grade anywhere, but the last montage clip keeps a strength-0 look for its outgoing leak.

@@ -104,18 +104,20 @@ and Fe (head trimmed via sourceStartSeconds when that would start before 0).
   filmFrame: { tsx, window: { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 }, leakStrength, timeOrigin: 'clip' | 'source',
                fringe? },            // fringe passed through only when set
   motion: { tsx, strength, options: [{ label, value }], byClipIndex: { [mainIndex]: { motion, direction, axis, cover? } } }, // montage photos only
+  videoMotion: null | { tsx, strength },               // montage VIDEO clips on Main (not photos, grid panels or ending clips):
+                                                    // "Video motion", a slow 1.00 -> 1.04 push-in, strength editable (0-2)
   endingMotion: { [endingIndex]: { motion, direction, axis } }, // ending photos: done inside the film-frame effect
   photos: [rid]                       // photo resource ids
 }
 ```
-Effect labels (idempotency keys): "Summer look", "Grid panel", "Film frame", "Photo motion"; graphics "Summer Trip title",
+Effect labels (idempotency keys): "Summer look", "Grid panel", "Film frame", "Photo motion", "Video motion"; graphics "Summer Trip title",
 "Summer Trip labels". Main clip i = the Main row starting at `frames.mainFrames[i]` (else `placed[i].clipId`); grid clips = video rows
-with the panel's resource starting at `gridPlaced[].a`. Effect order: montage photos Photo motion → Summer look; ending clips Summer
+with the panel's resource starting at `gridPlaced[].a`. Effect order: montage photos Photo motion → Summer look; montage videos Video motion → Summer look; ending clips Summer
 look → Film frame; grid clips Summer look → Grid panel. `gridSound: 'routing'` calls `setAudioTracks({ target: <panel row>, [] })`;
 if the SDK refuses a clip target the panel gets `setClipAudio −60 dB` (note); if the Main routing changed, it throws before committing.
 
 Returns `{ titleAdded, labelsAdded, muted, muteKept, gridSound: { mode, routed, kept, lowered }, effects: { added: { look, gridPanel,
-filmFrame, motion }, kept: { … } }, committed, alreadyDone, notes }`.
+filmFrame, motion, videoMotion }, kept: { … } }, committed, alreadyDone, notes }`.
 
 ### ensure-audio.js
 `{ projectId, files: [{ key, path, matchByName? }] }` → `{ ids: { [key]: resourceId }, imported: [key], missing: [key] }` (imports
@@ -150,6 +152,8 @@ skipped: { unanalysed, missing }, captureDates: { known, probed } }`. Dates with
   clip; the last montage clip's look gets `leakOutSeconds` = (endingFrame − leakFrames.a)/fps; `fadeOutFrames` = endFrame −
   fadeStartFrame on the last ending clip.
 - Photo motion: as city-weekend-vlog.
+- Video motion: `{ strength /* 0-2, default 1 */, clipSeconds, sourceStartSeconds, timeOrigin }`: scale 1 + 0.04 · strength · ease(u)
+  about the box centre, u = clip-local frame / (clip frames − 1), never below 1 (no edges for 16:9 or cover-scaled clips).
 
 ## Graphic parameters
 

@@ -29,10 +29,10 @@ for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) as
 // ---- Files the panel reads at runtime ----
 for (const rel of ['assets/cues/manifest.json', 'assets/cues/dev-manifest.json', 'assets/fonts/presets.json', 'sfx/manifest.json', 'scripts/inventory.js', 'scripts/search.js',
   'scripts/ensure-audio.js', 'scripts/assemble.js', 'scripts/decorate.js', 'assets/title-graphic.tsx', 'assets/labels-graphic.tsx', 'assets/summer-look.tsx',
-  'assets/grid-panel.tsx', 'assets/film-frame.tsx', 'assets/photo-motion.tsx', '"assets/fonts/" + file', '"/beat-detect.cjs"']) assert.ok(panel.includes(rel), 'panel reads ' + rel);
+  'assets/grid-panel.tsx', 'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'assets/video-motion.tsx', '"assets/fonts/" + file', '"/beat-detect.cjs"']) assert.ok(panel.includes(rel), 'panel reads ' + rel);
 for (const rel of ['assets/cues/manifest.json', 'assets/fonts/presets.json', 'sfx/manifest.json', 'scripts/inventory.js', 'scripts/search.js', 'scripts/ensure-audio.js',
   'scripts/assemble.js', 'scripts/decorate.js', 'assets/title-graphic.tsx', 'assets/labels-graphic.tsx', 'assets/summer-look.tsx', 'assets/grid-panel.tsx',
-  'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'beat-detect.cjs']) assert.ok(fs.existsSync(path.join(root, rel)), rel + ' exists');
+  'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'assets/video-motion.tsx', 'beat-detect.cjs']) assert.ok(fs.existsSync(path.join(root, rel)), rel + ' exists');
 
 // ---- Defaults ----
 const ui = panel.slice(panel.indexOf('// st-panel:end'));
@@ -254,12 +254,12 @@ function mockProject(o) {
 const presets = JSON.parse(read('assets/fonts/presets.json'));
 const fontsAll = Object.fromEntries(Object.keys(presets.fonts).map(f => [f, read('assets/fonts/' + f).replace(/\s+/g, '')]));
 const tsx = { title: read('assets/title-graphic.tsx'), labels: read('assets/labels-graphic.tsx'), look: read('assets/summer-look.tsx'), gridPanel: read('assets/grid-panel.tsx'),
-  filmFrame: read('assets/film-frame.tsx'), motion: read('assets/photo-motion.tsx') };
+  filmFrame: read('assets/film-frame.tsx'), motion: read('assets/photo-motion.tsx'), videoMotion: read('assets/video-motion.tsx') };
 const assembleJs = read('scripts/assemble.js'), decorateJs = read('scripts/decorate.js');
 // contracts.md keys.
 const contracts = read('dev/contracts.md');
 const ASSEMBLE_KEYS = ['projectId', 'draftName', 'fps', 'W', 'H', 'beats', 'schedule', 'picks', 'sizes', 'music', 'crossfadeFrames', 'clipSound', 'ambientDb', 'gridSound', 'sfx'];
-const DECORATE_KEYS = ['sequenceId', 'fps', 'frames', 'placed', 'gridPlaced', 'sizes', 'mute', 'gridSound', 'title', 'labels', 'look', 'gridPanel', 'filmFrame', 'motion', 'endingMotion', 'photos'];
+const DECORATE_KEYS = ['sequenceId', 'fps', 'frames', 'placed', 'gridPlaced', 'sizes', 'mute', 'gridSound', 'title', 'labels', 'look', 'gridPanel', 'filmFrame', 'motion', 'videoMotion', 'endingMotion', 'photos'];
 const assembleDoc = contracts.slice(contracts.indexOf('### assemble.js'), contracts.indexOf('Returns:', contracts.indexOf('### assemble.js')));
 const decorateDoc = contracts.slice(contracts.indexOf('### decorate.js'), contracts.indexOf('Effect labels'));
 for (const k of ASSEMBLE_KEYS) assert.ok(new RegExp('\\b' + k + '\\b').test(assembleDoc), 'assemble key ' + k + ' is in contracts.md');
@@ -306,6 +306,7 @@ const payloads = {};
     assert.equal(dcfg.mute, clipSound === 'off');
     assert.deepEqual(j(dcfg.filmFrame), { tsx: tsx.filmFrame, window: { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 }, leakStrength: 1, timeOrigin: 'clip' });
     assert.deepEqual(j(dcfg.look), { tsx: tsx.look, strength: 0.3, leakStrength: 1 });
+    assert.deepEqual(j(dcfg.videoMotion), { tsx: tsx.videoMotion, strength: 1 }, 'Video motion on by default');
     // Title times sit on frames of the real rate, from the same F() as the cuts.
     const tp = dcfg.title.parameters, fpsR = a.fps;
     for (const t of [...tp.wordTimes, tp.seasonPartTime, tp.seasonFullTime, tp.labelsTime]) assert.ok(near(t * fpsR, Math.round(t * fpsR), 1e-6), 'title time on a frame: ' + t);

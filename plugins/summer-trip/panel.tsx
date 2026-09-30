@@ -988,6 +988,8 @@ const ST_GRID_SOUND = 'volume';
 const ST_TIME_ORIGIN = 'clip';
 const ST_FILM_WINDOW = { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 };
 const ST_LOOK_DEFAULT = 0.45;
+// Video motion on montage video clips: 1 = a 1.00 -> 1.04 push-in across the clip.
+const ST_VIDEO_MOTION_STRENGTH = 1;
 const ST_LINE1_DEFAULT = 'that one trip in';
 const ST_TOP_ITALIC_DEFAULT = 'VLOG';
 const ST_CREDIT_PREFIX = 'By';
@@ -1250,6 +1252,8 @@ function stDecorateConfig(o) {
     gridPanel: { tsx: o.tsx.gridPanel },
     filmFrame: { tsx: o.tsx.filmFrame, window: ST_FILM_WINDOW, leakStrength: 1, timeOrigin: ST_TIME_ORIGIN },
     motion: { tsx: o.tsx.motion, strength: 1, options: ST_MOTION_OPTIONS, byClipIndex },
+    // Montage video clips: a slow push-in (Video motion, editable in Adjust).
+    videoMotion: o.tsx.videoMotion ? { tsx: o.tsx.videoMotion, strength: ST_VIDEO_MOTION_STRENGTH } : null,
     endingMotion: plan.endingMotion || {},
     photos,
   };
@@ -1724,10 +1728,10 @@ export default function Panel({ sdk, context, ui }: any) {
         if (!alive) return;
         setTools({ ffmpeg: have.includes("ffmpeg"), node: have.includes("node") });
         const read = (rel: string) => readText(plugin, rel);
-        const [manifest, presets, sfxManifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, labelsTsx, lookTsx, gridTsx, filmTsx, motionTsx] = await Promise.all([
+        const [manifest, presets, sfxManifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, labelsTsx, lookTsx, gridTsx, filmTsx, motionTsx, videoMotionTsx] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("sfx/manifest.json"), read("scripts/inventory.js"), read("scripts/search.js"),
           read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-graphic.tsx"), read("assets/labels-graphic.tsx"),
-          read("assets/summer-look.tsx"), read("assets/grid-panel.tsx"), read("assets/film-frame.tsx"), read("assets/photo-motion.tsx")]);
+          read("assets/summer-look.tsx"), read("assets/grid-panel.tsx"), read("assets/film-frame.tsx"), read("assets/photo-motion.tsx"), read("assets/video-motion.tsx")]);
         // Development placeholder cues (dev-manifest.json, never shipped) only when the bundled manifest has none.
         let dev: any = null;
         try { dev = JSON.parse(await read("assets/cues/dev-manifest.json")); } catch { dev = null; }
@@ -1737,7 +1741,7 @@ export default function Panel({ sdk, context, ui }: any) {
         const cues = [...bundled, ...devCues];
         setAssets({ cues, presets: JSON.parse(presets), sfx: JSON.parse(sfxManifest),
           scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs },
-          tsx: { title: titleTsx, labels: labelsTsx, look: lookTsx, gridPanel: gridTsx, filmFrame: filmTsx, motion: motionTsx } });
+          tsx: { title: titleTsx, labels: labelsTsx, look: lookTsx, gridPanel: gridTsx, filmFrame: filmTsx, motion: motionTsx, videoMotion: videoMotionTsx } });
         setCueId((cur) => (cur && (cur === "own" || cur === "none" || cues.some((c: any) => c.id === cur)) ? cur : cues.length ? cues[0].id : "none"));
         inventoryJsRef.current = inventoryJs;
         setStep("Checking clips");

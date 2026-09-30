@@ -7,7 +7,7 @@
 // Frame numbers are timeline frames at the Draft's real fps, from assemble.js's frame schedule (`a.frames`).
 
 export const ST_W = 1920, ST_H = 1080;
-export const ST_NAMES = { title: 'Summer Trip title', labels: 'Summer Trip labels', look: 'Summer look', gridPanel: 'Grid panel', filmFrame: 'Film frame', motion: 'Photo motion' };
+export const ST_NAMES = { title: 'Summer Trip title', labels: 'Summer Trip labels', look: 'Summer look', gridPanel: 'Grid panel', filmFrame: 'Film frame', motion: 'Photo motion', videoMotion: 'Video motion' };
 const QUADS = ['TL', 'TR', 'BR', 'BL'];
 const PANELS = ['A', 'B', 'C', 'D'];
 
@@ -56,6 +56,7 @@ const is169 = size => !(size && size.width > 0 && size.height > 0) || Math.abs(s
 //   frames: assemble's frame schedule (a.frames), fps: a.fps,
 //   placed, gridPlaced, sizes: from assemble's return,
 //   motionIndexes: [Main index] montage photos with a Photo motion (plan.motions keys),
+//   videoMotion: bool (decorate config videoMotion set: every montage VIDEO clip on Main gets a Video motion),
 //   look, clipSound, ambientDb, gridSound,
 //   music: null | { dryId, wetId|null }   (wetId null or muffle off -> one dry clip to the end)
 //   sfx: null | { shutterIds: [rid], shutterSeconds: [s], whooshId, whooshSeconds }
@@ -70,6 +71,7 @@ export function stExpectations(input) {
   for (let i = 0; i < nMain; i++) {
     const fx = [];
     if (motion.has(i) && photoIdx.has(i) && i >= 2 && i <= lastMontage) fx.push(ST_NAMES.motion);
+    if (input.videoMotion && !photoIdx.has(i) && i >= 2 && i <= lastMontage) fx.push(ST_NAMES.videoMotion);
     if (input.look || i === lastMontage) fx.push(ST_NAMES.look); // look off keeps a strength-0 look on the last montage clip (leak)
     if (i >= endingFirst) fx.push(ST_NAMES.filmFrame);
     effectsMain.push(fx);
@@ -117,6 +119,7 @@ export function stExpectations(input) {
       [ST_NAMES.filmFrame]: 3,
       [ST_NAMES.gridPanel]: grid.filter(g => g.effects.includes(ST_NAMES.gridPanel)).length,
       [ST_NAMES.motion]: effectsMain.filter(fx => fx.includes(ST_NAMES.motion)).length,
+      [ST_NAMES.videoMotion]: effectsMain.filter(fx => fx.includes(ST_NAMES.videoMotion)).length,
     },
     music, sfx,
     clipSound: input.clipSound === 'off' ? { mode: 'off' } : { mode: 'level', db: input.clipSound === 'ambient' ? (input.ambientDb ?? -18) : 0 },

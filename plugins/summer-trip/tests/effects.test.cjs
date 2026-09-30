@@ -94,7 +94,7 @@ assert.equal(G.stGridPanelInset({ srcW: 1920, srcH: 1080, quad: 'XX' }).quad, 'T
 nearRect(G.stCanvasInBox({ srcW: null, srcH: undefined }), { x: 0, y: 0, w: 100, h: 100 }, 'unknown size');
 
 // ---------- effect sources: self-contained, only react + remotion ----------
-for (const f of ['summer-look.tsx', 'film-frame.tsx', 'grid-panel.tsx', 'photo-motion.tsx']) {
+for (const f of ['summer-look.tsx', 'film-frame.tsx', 'grid-panel.tsx', 'photo-motion.tsx', 'video-motion.tsx']) {
   const src = read('assets/' + f);
   const imports = [...src.matchAll(/^import .* from "([^"]+)";$/gm)].map(m => m[1]);
   assert.deepEqual([...new Set(imports)].sort(), ['react', 'remotion'], f + ' imports');
@@ -199,6 +199,32 @@ near(L.stLookTime(30, 30, L.stLookParams({ timeOrigin: 'source', sourceStartSeco
     for (const m of l.background.matchAll(/rgba\((\d+),(\d+),(\d+),/g)) assert.ok(Number(m[3]) <= 180 && Number(m[1]) - Number(m[3]) >= 75, 'warm stop ' + m[0]);
   const half = L.stLeakOutLayers(0.95, L.stLookParams({ ...base, leakStrength: 0.5 })), full = L.stLeakOutLayers(0.95, L.stLookParams(base));
   assert.ok(alpha(half) < alpha(full), 'leakStrength scales');
+}
+
+// ---------- Video motion ----------
+{
+  const vmSrc = read('assets/video-motion.tsx');
+  const V = load(block(vmSrc, 'st-vmotion'), ['stVMotionParams', 'stVMotionScale']);
+  assert.deepEqual(j(V.stVMotionParams(undefined)), { strength: 1, clipSeconds: null, sourceStartSeconds: 0, timeOrigin: 'clip' });
+  assert.equal(V.stVMotionParams({ strength: 9 }).strength, 2, 'strength clamps');
+  const p = V.stVMotionParams({ clipSeconds: 2 });
+  assert.equal(V.stVMotionScale(0, 30, p), 1, 'starts at 1');
+  near(V.stVMotionScale(59, 30, p), 1.04, 'ends at 1.04 on the last frame');
+  near(V.stVMotionScale(99, 30, p), 1.04, 'holds after the end');
+  near(V.stVMotionScale(29.5, 30, p), 1.02, 'eased: half way at the middle');
+  assert.ok(V.stVMotionScale(5, 30, p) - 1 < 0.1 * 0.04 * 1.5, 'eases in');
+  for (let f = -5; f < 70; f++) {
+    const s = V.stVMotionScale(f, 30, p);
+    assert.ok(s >= 1 && s <= 1.04 + 1e-12, 'never below 1 (no edges), never past the push: ' + s);
+    if (f > 0) assert.ok(s >= V.stVMotionScale(f - 1, 30, p), 'monotonic');
+  }
+  near(V.stVMotionScale(59, 30, V.stVMotionParams({ clipSeconds: 2, strength: 2 })), 1.08, 'strength 2');
+  assert.equal(V.stVMotionScale(30, 30, V.stVMotionParams({ clipSeconds: 2, strength: 0 })), 1, 'strength 0 = still');
+  assert.equal(V.stVMotionScale(30, 30, V.stVMotionParams({})), 1, 'no clip length = still');
+  // Source time origin: the clip starts at its source start.
+  const ps = V.stVMotionParams({ clipSeconds: 2, timeOrigin: 'source', sourceStartSeconds: 3 });
+  assert.equal(V.stVMotionScale(90, 30, ps), 1); near(V.stVMotionScale(149, 30, ps), 1.04, 'source origin end');
+  assert.ok(/transformOrigin: "50% 50%"/.test(vmSrc) && /overflow: "hidden"/.test(vmSrc), 'scales about the centre inside its box');
 }
 
 // ---------- Film frame ----------
