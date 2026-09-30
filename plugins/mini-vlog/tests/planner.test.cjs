@@ -156,71 +156,91 @@ assert.deepStrictEqual(j(ctx.mvBeatsPerShot('groove', 86)), { beats: 1, overridd
 assert.deepStrictEqual(j(ctx.mvBeatsPerShot('groove', 85)), { beats: 1, overridden: true, groove: true, opener: 1 });
 assert.deepStrictEqual(j(ctx.mvBeatsPerShot('groove', 72)), { beats: 1, overridden: true, groove: true, opener: 1 });
 assert.strictEqual(ctx.mvGrooveOpener(86), 2); assert.strictEqual(ctx.mvGrooveOpener(85.7), 1); assert.strictEqual(ctx.mvGrooveOpener(null), 2, 'no grid: 1.10 s opener');
-assert.deepStrictEqual(j(ctx.mvGrooveBeats({ beats: 16, fills: [true], opener: 1 })), Array(15).fill(1).concat([0.5, 0.5]));
-assert.deepStrictEqual(j(ctx.mvGrooveSpan(24, 1)), { beats: 24, shots: 25 });
-assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 24, sectionStart: 0, usableEnd: Infinity, beatSeconds: 60 / 80, opener: 1 })), { beats: 24, shots: 25, requestedBeats: 24 });
+assert.deepStrictEqual(j(ctx.mvGrooveBeats({ beats: 16, splits: [7, 15], opener: 1 })), [1, 1, 1, 1, 1, 1, 1, 0.5, 0.5, 1, 1, 1, 1, 1, 1, 1, 0.5, 0.5]);
+assert.deepStrictEqual(j(ctx.mvGrooveHolds(36, 1)), [], 'a 1-beat opener has no 2-beat holds');
+assert.deepStrictEqual(j(ctx.mvGrooveSpan(24, 1)), { beats: 20, shots: 23 });
+assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 24, sectionStart: 0, usableEnd: Infinity, beatSeconds: 60 / 80, opener: 1 })), { beats: 20, shots: 23, requestedBeats: 20 });
 assert.strictEqual(ctx.mvShotSeconds({ bpm: null, beatsPerShot: null, pace: 'groove', gridded: false }), 0.55);
-// Phrase pattern: first slot 2 beats, then 1-beat slots; a fill splits the phrase's last beat into two 8ths.
-const one16 = [2].concat(Array(13).fill(1));
-assert.deepStrictEqual(j(ctx.mvGrooveBeats({ beats: 16, fills: [true] })), one16.concat([0.5, 0.5]));
-assert.deepStrictEqual(j(ctx.mvGrooveBeats({ beats: 16, fills: [false] })), one16.concat([1]));
-assert.deepStrictEqual(j(ctx.mvGrooveBeats({ beats: 24, fills: [true, true] })), one16.concat([0.5, 0.5, 2, 1, 1, 1, 1, 1, 1]), 'a partial phrase has no last beat');
-assert.deepStrictEqual(j(ctx.mvGrooveBeats({ beats: 8, fills: [] })), [2, 1, 1, 1, 1, 1, 1]);
-for (const beats of [8, 12, 16, 24, 28, 36, 40, 48]) {
-  const l = ctx.mvGrooveBeats({ beats, fills: [true, false, true] });
+// Split candidates: the last beat of every half-phrase (beats 7 and 15 of a phrase) and the span's final beat (the video
+// end counts as a phrase end mid-phrase). At most one per half-phrase (bars 1-2, bars 3-4).
+assert.deepStrictEqual(j(ctx.mvGrooveCandidates(8)), [7]);
+assert.deepStrictEqual(j(ctx.mvGrooveCandidates(12)), [7, 11]);
+assert.deepStrictEqual(j(ctx.mvGrooveCandidates(16)), [7, 15]);
+assert.deepStrictEqual(j(ctx.mvGrooveCandidates(24)), [7, 15, 23]);
+assert.deepStrictEqual(j(ctx.mvGrooveCandidates(36)), [7, 15, 23, 31, 35]);
+for (let beats = 8; beats <= 64; beats += 4) {
+  const cands = ctx.mvGrooveCandidates(beats);
+  const perHalf = {};
+  cands.forEach(b => { const h = Math.floor(b / 8); perHalf[h] = (perHalf[h] || 0) + 1; });
+  assert.ok(Object.values(perHalf).every(v => v === 1), 'one burst per half-phrase at most (' + beats + ')');
+}
+// 2-beat holds: every phrase start, plus the bar-3 downbeat of a final phrase that ends in its second half.
+assert.deepStrictEqual(j(ctx.mvGrooveHolds(12, 2)), [0, 8]);
+assert.deepStrictEqual(j(ctx.mvGrooveHolds(16, 2)), [0]);
+assert.deepStrictEqual(j(ctx.mvGrooveHolds(24, 2)), [0, 16]);
+assert.deepStrictEqual(j(ctx.mvGrooveHolds(28, 2)), [0, 16, 24]);
+assert.deepStrictEqual(j(ctx.mvGrooveHolds(36, 2)), [0, 16, 32]);
+// Slot lengths.
+assert.deepStrictEqual(j(ctx.mvGrooveBeats({ beats: 16, splits: [7, 15] })), [2, 1, 1, 1, 1, 1, 0.5, 0.5, 1, 1, 1, 1, 1, 1, 1, 0.5, 0.5]);
+assert.deepStrictEqual(j(ctx.mvGrooveBeats({ beats: 16, splits: [] })), [2].concat(Array(14).fill(1)));
+assert.deepStrictEqual(j(ctx.mvGrooveBeats({ beats: 12, splits: [7, 11] })), [2, 1, 1, 1, 1, 1, 0.5, 0.5, 2, 1, 0.5, 0.5]);
+assert.deepStrictEqual(j(ctx.mvGrooveBeats({ beats: 8, splits: [] })), [2, 1, 1, 1, 1, 1, 1]);
+for (const beats of [8, 12, 16, 20, 24, 28, 36, 40, 48]) {
+  const l = ctx.mvGrooveBeats({ beats, splits: ctx.mvGrooveCandidates(beats) });
   assert.strictEqual(l.reduce((a, b) => a + b, 0), beats, 'the slots fill the span');
 }
-// Pattern fills (no onset data, or no fill detected): the last beat of every phrase (the bundled cues have a drum fill
-// at the end of every 4 bars).
-assert.deepStrictEqual(j(ctx.mvGroovePattern(5)), [true, true, true, true, true]);
-// Nominal span for a length: the whole-bar span whose pattern shot count is nearest the request (ties: shorter).
-// 12 -> 12 beats (11 shots; 16 beats would be 16), 24 -> 24 (23; 28 would be 27), 36 -> 36 (35; 32 would be 32, 40 would be 39).
-assert.deepStrictEqual(j(ctx.mvGrooveSpan(12)), { beats: 12, shots: 11 });
-assert.deepStrictEqual(j(ctx.mvGrooveSpan(24)), { beats: 24, shots: 23 });
-assert.deepStrictEqual(j(ctx.mvGrooveSpan(36)), { beats: 36, shots: 35 });
-assert.deepStrictEqual(j(ctx.mvGrooveSpan(4)), { beats: 8, shots: 7 }, 'at least two bars');
+// Nominal span for a length: the whole-bar span whose pattern (every candidate split) shot count is nearest the
+// request, the longer on a tie. 12 -> 12 beats / 12 shots, 24 -> 24 / 25 (20 would be 21), 36 -> 36 / 38 (32: 34).
+assert.deepStrictEqual(j(ctx.mvGrooveSpan(12)), { beats: 12, shots: 12 });
+assert.deepStrictEqual(j(ctx.mvGrooveSpan(24)), { beats: 24, shots: 25 });
+assert.deepStrictEqual(j(ctx.mvGrooveSpan(36)), { beats: 36, shots: 38 });
+assert.deepStrictEqual(j(ctx.mvGrooveSpan(4)), { beats: 8, shots: 8 }, 'at least two bars');
 // Music capacity on beat spans: shrink by whole bars (min 8 beats), 0 when even 8 beats do not fit.
 const b108 = 60 / 108;
-assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 36, sectionStart: 0.028, usableEnd: 53.6, beatSeconds: b108 })), { beats: 36, shots: 35, requestedBeats: 36 });
-assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 36, sectionStart: 0, usableEnd: 22 * b108, beatSeconds: b108 })), { beats: 20, shots: 19, requestedBeats: 36 });
+assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 36, sectionStart: 0.028, usableEnd: 53.6, beatSeconds: b108 })), { beats: 36, shots: 38, requestedBeats: 36 });
+assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 36, sectionStart: 0, usableEnd: 22 * b108, beatSeconds: b108 })), { beats: 20, shots: 21, requestedBeats: 36 });
 assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 24, sectionStart: 0, usableEnd: 7 * b108, beatSeconds: b108 })), { beats: 0, shots: 0, requestedBeats: 24 });
-assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 24, sectionStart: 0, usableEnd: Infinity, beatSeconds: 0.55 })), { beats: 24, shots: 23, requestedBeats: 24 });
-assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 24, sectionStart: 0, usableEnd: null, beatSeconds: 0.55 })), { beats: 24, shots: 23, requestedBeats: 24 });
+assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 24, sectionStart: 0, usableEnd: Infinity, beatSeconds: 0.55 })), { beats: 24, shots: 25, requestedBeats: 24 });
+assert.deepStrictEqual(j(ctx.mvGrooveFit({ requested: 24, sectionStart: 0, usableEnd: null, beatSeconds: 0.55 })), { beats: 24, shots: 25, requestedBeats: 24 });
 
-// Fill detection: onset density (sum of strengths) of each phrase's last beat vs the median beat of the section.
+// Fill detection: onset density (sum of strengths) of each candidate beat vs the median beat of the span, detection
+// first per class (phrase ends incl. the final beat / bar-2 accents), a class without a fill falls back to all of it.
 const fb = (bpm, ss, beatStrengths) => {
   const B = 60 / bpm, out = [];
   beatStrengths.forEach((list, k) => list.forEach((s, i) => out.push([ss + k * B + i * B / 4, 'l', s])));
   return out;
 };
 const plain = Array.from({ length: 32 }, () => [10]);
-assert.deepStrictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, plain), sectionStart: 3, bpm: 108, phrases: 2 })).source, 'pattern', 'no fill found -> pattern');
-assert.deepStrictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, plain), sectionStart: 3, bpm: 108, phrases: 2 })).fills, [true, true]);
-const fillIn2 = plain.map((x, k) => (k === 31 ? [10, 5] : x));   // 15 = 1.5 x median 10
-const f2 = j(ctx.mvFillBeats({ onsets: fb(108, 3, fillIn2), sectionStart: 3, bpm: 108, phrases: 2 }));
-assert.deepStrictEqual(f2.fills, [false, true]); assert.strictEqual(f2.source, 'onsets');
-assert.deepStrictEqual(f2.ratios, [1, 1.5]);
-const almost = plain.map((x, k) => (k === 31 ? [10, 4.9] : x));
-assert.strictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, almost), sectionStart: 3, bpm: 108, phrases: 2 })).source, 'pattern', '1.49x is no fill');
+const fd = (strengths, extra = {}) => j(ctx.mvFillBeats({ onsets: fb(108, 3, strengths), sectionStart: 3, bpm: 108, beats: 32, ...extra }));
+assert.deepStrictEqual(fd(plain), { splits: [7, 15, 23, 31], candidates: [7, 15, 23, 31], source: 'pattern', ratios: [1, 1, 1, 1] }, 'no fill found -> every candidate');
+const fillAt = (beats, add = 5) => plain.map((x, k) => (beats.indexOf(k) >= 0 ? [10, add] : x));   // 15 = 1.5 x median 10
+const f2 = fd(fillAt([31]));
+assert.deepStrictEqual(f2.splits, [7, 23, 31], 'phrase ends detected (31 only), accents fall back'); assert.strictEqual(f2.source, 'mixed');
+assert.deepStrictEqual(f2.ratios, [1, 1, 1, 1.5]);
+assert.deepStrictEqual(fd(fillAt([7])).splits, [7, 15, 31], 'accents detected (7 only), phrase ends fall back');
+const both = fd(fillAt([7, 31]));
+assert.deepStrictEqual(both.splits, [7, 31]); assert.strictEqual(both.source, 'onsets');
+assert.strictEqual(fd(fillAt([31], 4.9)).source, 'pattern', '1.49x is no fill');
+// The final beat of a span that ends mid-phrase is a phrase end: detected there, it replaces the other phrase ends.
+assert.deepStrictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, fillAt([23])), sectionStart: 3, bpm: 108, beats: 24 })).splits, [7, 23]);
 // An onset a hair before its beat (manifest onsets sit ~1 ms early) counts for that beat, not the one before.
-const early = fb(108, 3, fillIn2).map(o => [o[0] - 0.004, o[1], o[2]]);
-assert.deepStrictEqual(j(ctx.mvFillBeats({ onsets: early, sectionStart: 3, bpm: 108, phrases: 2 })).fills, [false, true]);
+const early = fb(108, 3, fillAt([7, 31])).map(o => [o[0] - 0.004, o[1], o[2]]);
+assert.deepStrictEqual(j(ctx.mvFillBeats({ onsets: early, sectionStart: 3, bpm: 108, beats: 32 })).splits, [7, 31]);
 // The section start is re-phased onto the beat grid from firstBeat when given.
-assert.deepStrictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, fillIn2), sectionStart: 3.01, firstBeat: 3 - 4 * b108, bpm: 108, phrases: 2 })).fills, [false, true]);
-// Onsets outside the section do not count; no onsets, no bpm, a median of 0 or no phrase -> pattern.
-assert.strictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, fillIn2), sectionStart: 30, bpm: 108, phrases: 2 })).source, 'pattern');
-assert.deepStrictEqual(j(ctx.mvFillBeats({ onsets: [], sectionStart: 3, bpm: 108, phrases: 3 })), { fills: [true, true, true], source: 'pattern', ratios: [] });
-assert.strictEqual(j(ctx.mvFillBeats({ onsets: null, sectionStart: 3, bpm: 108, phrases: 1 })).source, 'pattern');
-assert.strictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, fillIn2), sectionStart: null, bpm: 108, phrases: 2 })).source, 'pattern');
-assert.strictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, fillIn2), sectionStart: 3, bpm: null, phrases: 2 })).source, 'pattern');
-const sparse = Array.from({ length: 32 }, (_, k) => (k === 15 ? [9] : []));
-assert.strictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, sparse), sectionStart: 3, bpm: 108, phrases: 2 })).source, 'pattern', 'median 0');
-assert.deepStrictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, fillIn2), sectionStart: 3, bpm: 108, phrases: 0 })), { fills: [], source: 'pattern', ratios: [] });
-assert.deepStrictEqual(j(ctx.mvFillBeats({ onsets: fb(108, 3, fillIn2), sectionStart: 3, bpm: 108, phrases: 2 })), f2, 'deterministic');
+assert.deepStrictEqual(fd(fillAt([7, 31]), { sectionStart: 3.01, firstBeat: 3 - 4 * b108 }).splits, [7, 31]);
+// Onsets outside the span do not count; no onsets, no bpm, no section start, a median of 0 or no span -> pattern.
+assert.strictEqual(fd(fillAt([7, 31]), { sectionStart: 30 }).source, 'pattern');
+assert.deepStrictEqual(j(ctx.mvFillBeats({ onsets: [], sectionStart: 3, bpm: 108, beats: 12 })), { splits: [7, 11], candidates: [7, 11], source: 'pattern', ratios: [] });
+assert.strictEqual(fd(plain, { onsets: null }).source, 'pattern');
+assert.strictEqual(fd(fillAt([7, 31]), { sectionStart: null }).source, 'pattern');
+assert.strictEqual(fd(fillAt([7, 31]), { bpm: null }).source, 'pattern');
+assert.strictEqual(fd(Array.from({ length: 32 }, (_, k) => (k === 15 ? [9] : []))).source, 'pattern', 'median 0');
+assert.deepStrictEqual(fd(fillAt([7, 31]), { beats: 0 }), { splits: [], candidates: [], source: 'pattern', ratios: [] });
+assert.deepStrictEqual(fd(fillAt([31])), f2, 'deterministic');
 
 // Groove schedule (per-slot beat lengths). Frame fixtures: every boundary is round((beat * 60 / bpm + delta) * fps),
 // boundary 0 is frame 0, at 30000/1001 and at 25 fps, with and without a music offset.
-const gl = ctx.mvGrooveBeats({ beats: 24, fills: [true] });
+const gl = ctx.mvGrooveBeats({ beats: 24, splits: [15] });
 const at = l => l.reduce((acc, b) => (acc.push(acc[acc.length - 1] + b), acc), [0]);
 for (const fps of [F, 25]) for (const ss of [undefined, 0, 4.472, 7.31]) {
   const gs = j(ctx.mvSchedule({ bpm: 108, fps, beatsList: gl, sectionStart: ss }));
@@ -276,25 +296,33 @@ for (const d of [-0.07, -0.05, -0.03, 0.03, 0.05, 0.07]) {
   [14, 15].forEach(i => assert.strictEqual(r.cuts[i], gcut[i]));
 }
 
-// Bedroom Pop 108 (manifest), Standard, default section: interval_cv (std / mean of slot durations) in 0.3-0.6.
+// Bedroom Pop 108 (manifest), default sections: interval_cv by hook-metrics' definition (population std / mean of the
+// intervals between inner cuts, i.e. first and last slot dropped) in 0.30-0.45 at Short, Standard and Long, at 29.97
+// and 25 fps; std / mean over all slots in 0.3-0.6 for Standard. Every bundled cue's Standard reaches 0.28 (inner).
 const manifest = JSON.parse(fs.readFileSync(__dirname + '/../assets/cues/manifest.json', 'utf8'));
 const cv = xs => { const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length) / m; };
 const cvOf = (cueId, requested, fps = F) => {
   const cue = manifest.cues.find(c => c.id === cueId), B = 60 / cue.bpm;
-  const fit = ctx.mvGrooveFit({ requested, sectionStart: cue.firstBeat, usableEnd: cue.usableEnd, beatSeconds: B });
+  const opener = ctx.mvGrooveOpener(cue.bpm);
+  const fit = ctx.mvGrooveFit({ requested, sectionStart: cue.firstBeat, usableEnd: cue.usableEnd, beatSeconds: B, opener });
   const ss = ctx.mvDefaultSection({ firstBeat: cue.firstBeat, bpm: cue.bpm, beatEnergy: cue.beatEnergy, usableEnd: cue.usableEnd, videoSeconds: fit.beats * B });
-  const fills = ctx.mvFillBeats({ onsets: cue.onsets, sectionStart: ss, firstBeat: cue.firstBeat, bpm: cue.bpm, phrases: Math.floor(fit.beats / 16) });
-  const sch = ctx.mvSchedule({ bpm: cue.bpm, fps, beatsList: ctx.mvGrooveBeats({ beats: fit.beats, fills: fills.fills }), sectionStart: ss, onsets: cue.onsets, onsetThresholds: cue.onsetThresholds });
+  const fills = ctx.mvFillBeats({ onsets: cue.onsets, sectionStart: ss, firstBeat: cue.firstBeat, bpm: cue.bpm, beats: fit.beats });
+  const sch = ctx.mvSchedule({ bpm: cue.bpm, fps, beatsList: ctx.mvGrooveBeats({ beats: fit.beats, splits: fills.splits, opener }), sectionStart: ss, onsets: cue.onsets, onsetThresholds: cue.onsetThresholds });
   const d = sch.slots.map(x => (x.endFrame - x.startFrame) / fps);
   // inner: hook-metrics' definition (population std / mean of the intervals between inner cuts: first and last slot dropped).
   return { cv: cv(d), inner: cv(d.slice(1, -1)), shots: sch.slots.length, beats: fit.beats, fills: j(fills) };
 };
-for (const req of [12, 24, 36]) {
-  const r = cvOf('bedroom-pop-108', req);
-  console.log('groove interval_cv bedroom-pop-108 ' + req + ': all slots ' + r.cv.toFixed(3) + ', inner cuts ' + r.inner.toFixed(3), JSON.stringify({ shots: r.shots, beats: r.beats, fills: r.fills.fills, source: r.fills.source }));
+for (const fps of [F, 25]) for (const req of [12, 24, 36]) {
+  const r = cvOf('bedroom-pop-108', req, fps);
+  if (fps === F) console.log('groove interval_cv bedroom-pop-108 ' + req + ': all slots ' + r.cv.toFixed(3) + ', inner cuts ' + r.inner.toFixed(3), JSON.stringify({ shots: r.shots, beats: r.beats, splits: r.fills.splits, source: r.fills.source }));
+  assert.ok(r.inner >= 0.30 && r.inner <= 0.45, 'bedroom-pop-108 ' + req + ' at ' + fps + ': inner interval_cv ' + r.inner);
 }
 const bp = cvOf('bedroom-pop-108', 24);
 assert.ok(bp.cv >= 0.3 && bp.cv <= 0.6, 'interval_cv ' + bp.cv);
+for (const cue of manifest.cues) {
+  const r = cvOf(cue.id, 24);
+  assert.ok(r.inner >= 0.28, cue.id + ' Standard inner interval_cv ' + r.inner);
+}
 // Quick on the same cue is flat (the A baseline).
 const bq = ctx.mvSchedule({ bpm: 108, fps: F, shots: 24, beatsPerShot: 1, sectionStart: 4.472 });
 assert.ok(cv(bq.slots.map(x => (x.endFrame - x.startFrame) / F)) < 0.05);

@@ -122,13 +122,20 @@ const MV_SOURCE_TAIL = 0.15;
 const MV_PHOTO_HOLD_MAX = 5;
 const MV_PHOTO_RUN_MAX = 2;
 const MV_PHOTO_SHARE = 1 / 3;
-// Groove (spec 15.1). A phrase is 4 bars from the section start. Its first shot holds 2 beats, the others 1; the
-// phrase's last beat becomes two 8th-note shots when it carries a drum fill: onset density (the sum of onset strengths
-// in that beat) at least MV_GROOVE_FILL_RATIO x the median beat of the section. Without onset data, or when no phrase
-// qualifies, the last beat of every phrase splits (the bundled cues carry a short drum fill at the end of every 4
-// bars). A span is whole bars and at least MV_GROOVE_MIN_BEATS (7 shots). Without a grid the same pattern runs on
-// MV_GROOVE_FALLBACK_BEAT-second beats (2 x 0.55, 0.55 ..., last 2 x 0.275). Opener guard: when the 2-beat opener
-// would last longer than MV_GROOVE_OPENER_MAX seconds (below 85.71 bpm) it is 1 beat, so no shot outruns Relaxed's cap.
+// Groove (spec 15.1). A phrase is 4 bars (16 beats) from the section start; every cut sits on the beat or 8th grid.
+// - Holds: the first shot of every phrase holds 2 beats; so does the bar-3 downbeat of a final phrase the video ends
+//   in its second half (mvGrooveHolds). Every other shot is 1 beat.
+// - Bursts: a split candidate is the last beat of each half-phrase (beat 7 = end of bar 2, beat 15 = phrase end) and
+//   the video's final beat (a phrase end even mid-phrase) (mvGrooveCandidates); a split beat plays two 8th shots. At
+//   most one burst per half-phrase (2 bars).
+// - Which candidates split (mvFillBeats), detection first per class (phrase ends incl. the final beat / bar-2
+//   accents): those whose onset density (sum of onset strengths in the beat) reaches MV_GROOVE_FILL_RATIO x the median
+//   beat of the span; a class with none detected, or no onset data at all, splits all of its candidates (the bundled
+//   cues carry a short drum fill at the end of every 4 bars).
+// - 8th shots are video only. A span is whole bars and at least MV_GROOVE_MIN_BEATS. Without a grid the pattern runs
+//   on MV_GROOVE_FALLBACK_BEAT-second beats (2 x 0.55, 0.55 ..., 2 x 0.275) with every candidate split.
+// - Opener guard: when a 2-beat hold would last longer than MV_GROOVE_OPENER_MAX seconds (below 85.71 bpm) every hold
+//   is 1 beat, so no shot outruns Relaxed's cap.
 const MV_GROOVE_PHRASE_BEATS = 16;
 const MV_GROOVE_FILL_RATIO = 1.5;
 const MV_GROOVE_FALLBACK_BEAT = 0.55;
@@ -183,33 +190,52 @@ function mvGrooveOpener(bpm) {
   return bpm > 0 && 2 * 60 / bpm > MV_GROOVE_OPENER_MAX + 1e-9 ? 1 : 2;
 }
 
-// Groove pattern fills for `phrases` phrases: the last beat of every phrase.
-function mvGroovePattern(phrases) {
-  return Array.from({ length: Math.max(0, Math.floor(phrases) || 0) }, () => true);
+// Beats of a span of `beats` (whole bars) that may split into two 8ths, ascending: the last beat of every half-phrase
+// (beats 7 and 15 of each phrase: the end of bar 2 and the phrase end) inside the span, and the span's final beat (the
+// video's end counts as a phrase end when it falls mid-phrase). Each half-phrase holds at most one of them, so there is
+// at most one burst per 2 bars.
+function mvGrooveCandidates(beats) {
+  const half = MV_GROOVE_PHRASE_BEATS / 2, out = [];
+  for (let b = half - 1; b < beats; b += half) out.push(b);
+  if (beats > 0 && out[out.length - 1] !== beats - 1) out.push(beats - 1);
+  return out;
 }
 
-// Groove slot lengths in beats for a span of `beats` (whole bars). fills[p] splits phrase p's last beat into two 8ths;
-// a phrase cut short by the span has no last beat. opener (default 2) is the phrase's first shot in beats. The lengths
-// sum to `beats`.
+// Beats where a Groove span has a 2-beat shot: every phrase start and, when the span ends inside a phrase's second
+// half, that half-phrase's start (bar 3 downbeat), so a partial phrase keeps a long hold after its first half.
+// None with a 1-beat opener (mvGrooveOpener).
+function mvGrooveHolds(beats, opener) {
+  if (opener === 1) return [];
+  const half = MV_GROOVE_PHRASE_BEATS / 2, out = [];
+  for (let p = 0; p < beats; p += MV_GROOVE_PHRASE_BEATS) {
+    out.push(p);
+    if (p + MV_GROOVE_PHRASE_BEATS > beats && beats - p > half) out.push(p + half);
+  }
+  return out;
+}
+
+// Groove slot lengths in beats for a span of `beats` (whole bars): 2-beat holds at mvGrooveHolds, each beat in
+// `splits` (beat indices, from mvGrooveCandidates) as two 8ths, every other beat 1. opener (default 2) as in
+// mvGrooveHolds. The lengths sum to `beats`.
 function mvGrooveBeats(opts) {
-  const beats = opts.beats, fills = opts.fills || [], list = [], opener = opts.opener === 1 ? 1 : 2;
+  const beats = opts.beats, list = [];
+  const holds = mvGrooveHolds(beats, opts.opener === 1 ? 1 : 2), splits = opts.splits || [];
   for (let b = 0; b < beats;) {
-    const p = Math.floor(b / MV_GROOVE_PHRASE_BEATS), inPhrase = b - p * MV_GROOVE_PHRASE_BEATS;
-    if (inPhrase === 0 && opener === 2 && beats - b >= 2) { list.push(2); b += 2; }
-    else if (inPhrase === MV_GROOVE_PHRASE_BEATS - 1 && fills[p]) { list.push(0.5, 0.5); b += 1; }
+    if (holds.indexOf(b) >= 0 && beats - b >= 2) { list.push(2); b += 2; }
+    else if (splits.indexOf(b) >= 0) { list.push(0.5, 0.5); b += 1; }
     else { list.push(1); b += 1; }
   }
   return list;
 }
 
-// Shots in a span of `beats` with the pattern fills and the given opener (default 2).
+// Shots in a span of `beats` with the pattern (every candidate split) and the given opener (default 2).
 function mvGrooveCount(beats, opener) {
-  return mvGrooveBeats({ beats, fills: mvGroovePattern(Math.ceil(beats / MV_GROOVE_PHRASE_BEATS)), opener }).length;
+  return mvGrooveBeats({ beats, splits: mvGrooveCandidates(beats), opener }).length;
 }
 
 // The nominal Groove span for a requested number of shots: the whole-bar span (>= MV_GROOVE_MIN_BEATS) whose pattern
-// shot count is nearest the request, the shorter one on a tie (2-beat opener: 12 -> 12 beats / 11 shots, 24 -> 24 /
-// 23, 36 -> 36 / 35). It depends on the length and the opener only, never on the music section, so the panel can size
+// shot count is nearest the request, the longer one on a tie (2-beat opener: 12 -> 12 beats / 12 shots, 24 -> 24 /
+// 25, 36 -> 36 / 38). It depends on the length and the opener only, never on the music section, so the panel can size
 // the section before fills are known; detected fills then change the shot count inside the same span (the plan
 // reports the actual shots). opener: mvGrooveOpener(bpm), default 2.
 function mvGrooveSpan(requested, opener) {
@@ -217,7 +243,7 @@ function mvGrooveSpan(requested, opener) {
   let beats = MV_GROOVE_MIN_BEATS;
   while (mvGrooveCount(beats, opener) < want) beats += 4;
   const lower = beats - 4;
-  if (lower >= MV_GROOVE_MIN_BEATS && want - mvGrooveCount(lower, opener) <= mvGrooveCount(beats, opener) - want) beats = lower;
+  if (lower >= MV_GROOVE_MIN_BEATS && want - mvGrooveCount(lower, opener) < mvGrooveCount(beats, opener) - want) beats = lower;
   return { beats, shots: mvGrooveCount(beats, opener) };
 }
 
@@ -235,20 +261,23 @@ function mvGrooveFit(opts) {
   return { beats: 0, shots: 0, requestedBeats: nominal.beats };
 }
 
-// Drum fills of a Groove section. opts: { onsets: [[music seconds, band, strength], ...], sectionStart (music seconds),
-// bpm, firstBeat? (re-phases sectionStart onto the beat grid), phrases }. A beat's density is the sum of its onsets'
-// strengths (count x strength); phrase p has a fill when its last beat reaches MV_GROOVE_FILL_RATIO x the median beat
-// density of the section (phrases x 16 beats). No onsets, no bpm or section start, a median of 0, or no fill found ->
-// the pattern (source 'pattern'). Returns { fills: [bool per phrase], source: 'onsets' | 'pattern', ratios: last-beat
-// density / median per phrase (empty for a pattern without data) }.
+// Drum fills of a Groove span. opts: { onsets: [[music seconds, band, strength], ...], sectionStart (music seconds),
+// bpm, firstBeat? (re-phases sectionStart onto the beat grid), beats (the span) }. A beat's density is the sum of its
+// onsets' strengths (count x strength); a candidate beat (mvGrooveCandidates) carries a fill when its density reaches
+// MV_GROOVE_FILL_RATIO x the median beat density of the span. Candidates come in two classes: phrase ends (beat 15 of
+// a phrase, and the span's final beat) and bar-2 accents (beat 7 of a phrase, unless it is the final beat). Detection
+// first, per class: when a class has a candidate with a fill, just those split; a class without one falls back to all
+// of its candidates. No onsets, no bpm or section start or a median of 0 -> every candidate splits. Returns { splits:
+// beat indices, candidates, source: 'onsets' (both classes detected) | 'mixed' | 'pattern' (neither), ratios: density
+// / median per candidate (empty without data) }.
 function mvFillBeats(opts) {
-  const phrases = Math.max(0, Math.floor(opts.phrases) || 0);
-  const fallback = ratios => ({ fills: mvGroovePattern(phrases), source: 'pattern', ratios });
+  const n = Math.max(0, Math.floor(opts.beats) || 0), candidates = mvGrooveCandidates(n);
+  const fallback = ratios => ({ splits: candidates.slice(), candidates, source: 'pattern', ratios });
   const bpm = opts.bpm, finite = v => typeof v === 'number' && isFinite(v);
-  if (!phrases || !(bpm > 0) || !finite(opts.sectionStart) || !Array.isArray(opts.onsets) || !opts.onsets.length) return fallback([]);
+  if (!n || !(bpm > 0) || !finite(opts.sectionStart) || !Array.isArray(opts.onsets) || !opts.onsets.length) return fallback([]);
   const beat = 60 / bpm;
   const start = finite(opts.firstBeat) ? opts.firstBeat + Math.round((opts.sectionStart - opts.firstBeat) / beat) * beat : opts.sectionStart;
-  const n = phrases * MV_GROOVE_PHRASE_BEATS, density = Array(n).fill(0);
+  const density = Array(n).fill(0);
   for (const o of opts.onsets) {
     if (!o || !finite(o[0]) || !finite(o[2]) || !(o[2] > 0)) continue;
     const k = Math.floor((o[0] - start) / beat + MV_GROOVE_ONSET_LEAD);
@@ -257,13 +286,16 @@ function mvFillBeats(opts) {
   const sorted = density.slice().sort((a, b) => a - b);
   const median = (sorted[(n - 1) >> 1] + sorted[n >> 1]) / 2;
   if (!(median > 0)) return fallback([]);
-  const ratios = [], fills = [];
-  for (let p = 0; p < phrases; p++) {
-    const r = density[p * MV_GROOVE_PHRASE_BEATS + MV_GROOVE_PHRASE_BEATS - 1] / median;
-    ratios.push(Math.round(r * 100) / 100);
-    fills.push(r >= MV_GROOVE_FILL_RATIO - 1e-9);
-  }
-  return fills.some(Boolean) ? { fills, source: 'onsets', ratios } : fallback(ratios);
+  const ratios = candidates.map(b => Math.round(density[b] / median * 100) / 100);
+  const isEnd = b => b === n - 1 || b % MV_GROOVE_PHRASE_BEATS === MV_GROOVE_PHRASE_BEATS - 1;
+  const fill = b => density[b] / median >= MV_GROOVE_FILL_RATIO - 1e-9;
+  let detected = 0;
+  const pick = list => { const hit = list.filter(fill); if (hit.length) detected++; return hit.length ? hit : list; };
+  const ends = pick(candidates.filter(isEnd)), accents = pick(candidates.filter(b => !isEnd(b)));
+  const splits = ends.concat(accents).sort((a, b) => a - b);
+  // Two classes when the span has accents; a class that is empty counts as detected for 'onsets'.
+  const classes = candidates.some(b => !isEnd(b)) ? 2 : 1;
+  return { splits, candidates, source: detected === 0 ? 'pattern' : detected === classes ? 'onsets' : 'mixed', ratios };
 }
 
 // Where the music's beats land on the timeline. Selects snaps the music's source start (sectionStart) to a timeline
@@ -592,7 +624,8 @@ function mvAllocate(opts) {
 // span for `requested`, capped by the music in whole bars) and shrinks by whole bars down to MV_GROOVE_MIN_BEATS; each
 // span's fills come from the section's onsets (mvFillBeats), and `shots` is that span's actual slot count. A pool with
 // no usable video gets no 8ths (photos cannot take them). The result then has beatsPerShot null, shotSeconds null and
-// groove: { beats, requestedBeats, fills, fillSource, beatSeconds, opener }; its slots carry `beats`.
+// groove: { beats, requestedBeats, splits (beats split into 8ths), fillSource, beatSeconds, opener }; its slots carry
+// `beats`.
 function mvPlanBuild(opts) {
   const gridded = mvGridUsable({ bpm: opts.bpm, accepted: opts.accepted });
   const guard = gridded ? mvBeatsPerShot(opts.pace, opts.bpm) : { beats: null, overridden: false };
@@ -634,13 +667,12 @@ function mvPlanBuild(opts) {
   for (let n = top; n >= least; n -= step) {
     const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
     // Groove fills for this span: none without video (photos cannot take an 8th), the pattern without a grid.
-    const phrases = Math.floor(n / MV_GROOVE_PHRASE_BEATS);
     const fills = !grooved ? null
-      : !hasVideo ? { fills: Array(phrases).fill(false), source: 'no-video' }
-      : gridded ? mvFillBeats({ onsets: opts.onsets, sectionStart: opts.sectionStart, bpm: opts.bpm, phrases })
-      : { fills: mvGroovePattern(phrases), source: 'pattern' };
+      : !hasVideo ? { splits: [], source: 'no-video' }
+      : gridded ? mvFillBeats({ onsets: opts.onsets, sectionStart: opts.sectionStart, bpm: opts.bpm, beats: n })
+      : { splits: mvGrooveCandidates(n), source: 'pattern' };
     const schedule = fills
-      ? mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: mvGrooveBeats({ beats: n, fills: fills.fills, opener }), shotSeconds: beatSeconds, ...snapOpts })
+      ? mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: mvGrooveBeats({ beats: n, splits: fills.splits, opener }), shotSeconds: beatSeconds, ...snapOpts })
       : mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, shots: n, beatsPerShot: guard.beats, shotSeconds, ...snapOpts });
     const slots = schedule.slots.map(s => (fills
       ? { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: (s.beats || 1) < 1 }
@@ -651,7 +683,7 @@ function mvPlanBuild(opts) {
         return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
           beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
           attempt: attempt.name,
-          ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, fills: fills.fills, fillSource: fills.source, beatSeconds, opener } } : {}) };
+          ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, beatSeconds, opener } } : {}) };
       }
       // The shortest length misses slots with every share, so usableShots < MV_MIN_SHOTS.
       if (n === least) usableShots = Math.max(usableShots, alloc.filled);
