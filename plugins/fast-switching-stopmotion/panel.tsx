@@ -16,7 +16,7 @@
 // Moments are chosen per video: ffmpeg motion only rules out frozen or blurred
 // windows, candidates are spread evenly across the take, and the Selects AI
 // picks the two best-posed ones.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const STRINGS = {
   en: {
@@ -308,16 +308,23 @@ export default function Panel({ sdk, context, ui }) {
   const [step, setStep] = useState(-1);
   const [status, setStatus] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
+  // Keep polling quiet while a Draft is being built.
+  const busyRef = useRef(false);
+  busyRef.current = busy;
+
   useEffect(() => {
     setMedia(null);
     setStatus(null);
     if (!projectId) return;
     let live = true;
-    (async () => {
-      try {
-        const r = await sdk.runScript({
-          summary: "Read project media",
-          script: `const project = selects.project(${JSON.stringify(projectId)});
+    let signature = "";
+    let first = true;
+
+    // Full read: names, durations, file paths and frame rates.
+    async function load() {
+      const r = await sdk.runScript({
+        summary: "Read project media",
+        script: `const project = selects.project(${JSON.stringify(projectId)});
 const files = {};
 const walk = (nodes) => { for (const n of nodes ?? []) { if (n.resourceId) files[n.resourceId] = n; walk(n.children); } };
 // Past 200 files sourceFiles() returns per-folder counts; read each folder then.
@@ -328,23 +335,49 @@ return (await project.resources())
   .filter(r => r.type === "Video" || r.type === "Audio")
   .map(r => ({ id: r.resourceId, name: r.name, type: r.type, seconds: r.durationSeconds ?? 0,
     path: files[r.resourceId]?.path ?? null, fps: files[r.resourceId]?.frameRate ?? null }));`,
-        });
-        if (!live) return;
-        if (r.isError || !Array.isArray(r.result)) {
-          setStatus({ tone: "error", text: r.output });
-          setMedia([]);
-          return;
-        }
-        const list = r.result as Media[];
-        setMedia(list);
-        const videos = list.filter((m) => m.type === "Video");
-        setPicked(Object.fromEntries(videos.map((v, i) => [v.id, i < 5])));
-      } catch (e) {
-        if (live) setStatus({ tone: "error", text: String(e) });
+      });
+      if (!live) return;
+      if (r.isError || !Array.isArray(r.result)) {
+        setStatus({ tone: "error", text: r.output });
+        setMedia((m) => m ?? []);
+        return false;
       }
-    })();
+      setStatus(null);
+      const list = r.result as Media[];
+      const videos = list.filter((m) => m.type === "Video");
+      setMedia(list);
+      // First load checks the first five; later loads keep the user's choices
+      // and check videos that were just added.
+      setPicked((prev) =>
+        Object.fromEntries(videos.map((v, i) => [v.id, first ? i < 5 : v.id in prev ? prev[v.id] : true]))
+      );
+      first = false;
+      return true;
+    }
+
+    // Cheap check: re-read everything only when the resource list changed,
+    // so videos added or removed after the panel opened show up by themselves.
+    async function check() {
+      if (!live || busyRef.current || document.visibilityState !== "visible") return;
+      try {
+        const rows = await sdk.call("listProjectResources", projectId);
+        const next = (rows ?? []).map((r) => `${r.resourceId}:${r.type}:${r.status}`).sort().join("|");
+        // Remember the list only once it loaded, so a failed read retries.
+        if (next !== signature && (await load())) signature = next;
+      } catch (e) {
+        if (live && first) setStatus({ tone: "error", text: String(e) });
+      }
+    }
+
+    check();
+    const timer = setInterval(check, 3000);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
     return () => {
       live = false;
+      clearInterval(timer);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
     };
   }, [projectId]);
 
