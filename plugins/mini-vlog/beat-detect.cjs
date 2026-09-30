@@ -28,11 +28,13 @@ const RATIO_WINDOW = 0.03;
 //   chance hits (noise has 1, at 0.4-3.6 ms) from passing.
 // - Consistency, for both: every CONSISTENCY_WINDOW-second window (CONSISTENCY_HOP apart) holding at least
 //   CONSISTENCY_MIN_HITS hits keeps its own median residual <= RESIDUAL_MAX_MS, so a grid that fits only part of the
-//   track (a tempo change) is refused. Measured: bundled cues, reference audio and the lo-fi track at most 13.8 ms in any
-//   window; two cues joined at different tempos 32 and 37 ms, a rubato piano 44 ms.
-// grid: 'accepted' (either rule and consistent), 'approximate' (consistent, median residual <= RESIDUAL_MAX_MS and at
-// least SPARSE_MIN_HITS hits, but too few hits to accept: the tempo and first beat are a usable guide, cuts on them
-// may miss the heard beat), else 'none'.
+//   track (a tempo change) is refused. Measured (windows with 12+ hits): bundled cues, reference audio and the lo-fi
+//   track at most 13.1 ms; two cues joined at different tempos 32 and 40 ms, speech 22 ms, a rubato piano 23.5 ms.
+//   A change that leaves under about 30 s on the wrong tempo can still pass.
+// grid: 'accepted' (either rule and consistent), 'approximate' (consistent and as tight as the sparse rule, median
+// residual <= SPARSE_RESIDUAL_MS over at least SPARSE_MIN_HITS hits, but hitRate under SPARSE_HIT_RATE: the tempo and
+// first beat are a usable guide, cuts on them may miss the heard beat), else 'none'. A looser median is not called a
+// tempo: a rubato piano measures 19.7 ms and looped speech 11.9 ms.
 const HIT_WINDOW = 0.07;
 const RESIDUAL_MAX_MS = 20;
 const HIT_RATE_MIN = 0.7;
@@ -45,6 +47,7 @@ const CONSISTENCY_MIN_HITS = 12;
 // The grid state of evaluate()'s measures: hits ([grid time, residual ms]) and the grid line count. Medians are the
 // upper median, as residualMedianMs reports it.
 const upperMedian = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
+const sparseTight = (med, hits) => med != null && med <= SPARSE_RESIDUAL_MS && hits >= SPARSE_MIN_HITS;
 function gridState(hits, beats, durationSeconds) {
   const med = upperMedian(hits.map(h => h[1]));
   const rate = beats ? hits.length / beats : 0;
@@ -54,9 +57,9 @@ function gridState(hits, beats, durationSeconds) {
     if (r.length >= CONSISTENCY_MIN_HITS && upperMedian(r) > RESIDUAL_MAX_MS) consistent = false;
   }
   const strict = med != null && med <= RESIDUAL_MAX_MS && rate >= HIT_RATE_MIN;
-  const sparse = med != null && med <= SPARSE_RESIDUAL_MS && rate >= SPARSE_HIT_RATE && hits.length >= SPARSE_MIN_HITS;
+  const sparse = sparseTight(med, hits.length) && rate >= SPARSE_HIT_RATE;
   if (consistent && (strict || sparse)) return 'accepted';
-  return consistent && med != null && med <= RESIDUAL_MAX_MS && hits.length >= SPARSE_MIN_HITS ? 'approximate' : 'none';
+  return consistent && sparseTight(med, hits.length) ? 'approximate' : 'none';
 }
 
 function fft(re, im) {
