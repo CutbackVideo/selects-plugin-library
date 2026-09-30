@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date };
 vm.createContext(box);
-vm.runInContext(source + ';globalThis.P={TPL_W,TPL_H,TPL_LENGTHS,TPL_MIN_PICTURES,TPL_UNIT_TARGET,TPL_UNIT_RANGE,TPL_FALLBACK_UNIT,TPL_SOURCE_TAIL,TPL_EFFECT_CLOCK,tplUnit,tplTemplate,tplMusicOffset,tplSchedule,tplFitN,tplLetterTicks,tplVisRect,tplSeedFor,tplHash,tplDefaultSection,tplSnapSection,TPL_BUILD_STEPS,tplProgress};', box);
+vm.runInContext(source + ';globalThis.P={TPL_W,TPL_H,TPL_LENGTHS,TPL_MIN_PICTURES,TPL_UNIT_TARGET,TPL_UNIT_RANGE,TPL_FALLBACK_UNIT,TPL_SOURCE_TAIL,TPL_EFFECT_CLOCK,tplUnit,tplApproxTempo,tplCutUnit,tplTemplate,tplMusicOffset,tplSchedule,tplFitN,tplLetterTicks,tplVisRect,tplSeedFor,tplHash,tplDefaultSection,tplSnapSection,TPL_BUILD_STEPS,tplProgress};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= (eps || 1e-9), (msg || '') + ' expected ' + b + ' got ' + a);
@@ -16,30 +16,53 @@ assert.equal(P.TPL_H, 1080);
 assert.deepEqual(j(P.TPL_LENGTHS), { short: 5, standard: 7, long: 10 });
 assert.equal(P.TPL_MIN_PICTURES, 3);
 assert.equal(P.TPL_UNIT_TARGET, 0.35);
-assert.deepEqual(j(P.TPL_UNIT_RANGE), [0.28, 0.45]);
+assert.deepEqual(j(P.TPL_UNIT_RANGE), [0.22, 0.55]);
 assert.equal(P.TPL_FALLBACK_UNIT, 0.35);
 assert.equal(P.TPL_SOURCE_TAIL, 0.15);
 assert.equal(P.TPL_EFFECT_CLOCK, 'clip');
 
-// tplUnit: the 8th for about 67-107 BPM, the beat for about 134-214 BPM, else null. A musical bar is 8 units.
-assert.equal(P.tplUnit(60), null, '60 BPM: 8th 0.5 s and beat 1.0 s are both out of range');
+// tplUnit: of the 8th and the beat, the one closest to 0.35 s within [0.22, 0.55] s: the 8th for about 54.5-128.6
+// BPM, the beat for about 128.6-272.7 BPM, else null. A musical bar is 8 units.
+assert.equal(P.tplUnit(50), null, '50 BPM: 8th 0.6 s and beat 1.2 s are both out of range');
+assert.equal(P.tplUnit(280), null, '280 BPM: 8th 0.107 s and beat 0.214 s are both out of range');
+assert.equal(P.tplUnit(60).unitBeats, 0.5, '60 BPM: 8th 0.5 s');
 {
   const u = j(P.tplUnit(85.6));
   assert.equal(u.unitBeats, 0.5); assert.equal(u.barUnits, 8); near(u.unitSec, 30 / 85.6);
 }
-assert.equal(P.tplUnit(110), null, '110 BPM: 8th 0.273 s < 0.28, beat 0.545 s > 0.45');
+{
+  // 120 BPM (the old range's dead zone, about 108-133 BPM): the 8th, 0.25 s.
+  const u = j(P.tplUnit(120));
+  assert.equal(u.unitBeats, 0.5); assert.equal(u.barUnits, 8); near(u.unitSec, 0.25);
+  near(P.tplUnit(110).unitSec, 30 / 110);
+}
 {
   const u = j(P.tplUnit(170));
   assert.equal(u.unitBeats, 1); assert.equal(u.barUnits, 8); near(u.unitSec, 60 / 170);
 }
-assert.equal(P.tplUnit(230), null, '230 BPM: beat 0.261 s < 0.28');
+assert.equal(P.tplUnit(130).unitBeats, 1, '130 BPM: the beat 0.462 s is closer than the 8th 0.231 s');
+near(P.tplUnit(230).unitSec, 60 / 230);
 assert.equal(P.tplUnit(null), null);
 assert.equal(P.tplUnit(0), null);
 assert.equal(P.tplUnit(NaN), null);
-// Range edges are inclusive; 8th wins when it is in range (closest to 0.35 s).
-assert.equal(P.tplUnit(30 / 0.45).unitBeats, 0.5);
-assert.equal(P.tplUnit(30 / 0.28).unitBeats, 0.5);
-assert.equal(P.tplUnit(60 / 0.45).unitBeats, 1);
+// Range edges are inclusive; ties (90 / 0.7 BPM: 8th and beat both 0.1 s from 0.35 s) go to the 8th.
+assert.equal(P.tplUnit(30 / 0.55).unitBeats, 0.5);
+assert.equal(P.tplUnit(60 / 0.22).unitBeats, 1);
+assert.equal(P.tplUnit(30 / 0.55 - 0.01), null);
+assert.equal(P.tplUnit(60 / 0.22 + 0.01), null);
+assert.equal(P.tplUnit(90 / 0.7).unitBeats, 0.5, 'tie -> 8th');
+// The bundled cues' tempos (84-99 BPM) keep the 8th, as under the old [0.28, 0.45] range.
+for (const bpm of [84, 86, 87.99, 88, 99]) { assert.equal(P.tplUnit(bpm).unitBeats, 0.5, bpm + ' BPM'); near(P.tplUnit(bpm).unitSec, 30 / bpm); }
+
+// tplApproxTempo: an approximate tempo counts only without an accepted grid and when it has a unit.
+assert.equal(P.tplApproxTempo({ accepted: false, approxBpm: 120 }), 120);
+assert.equal(P.tplApproxTempo({ accepted: true, approxBpm: 120 }), null);
+assert.equal(P.tplApproxTempo({ accepted: false, approxBpm: 40 }), null, 'no unit at 40 BPM');
+assert.equal(P.tplApproxTempo({ accepted: false, approxBpm: null }), null);
+assert.equal(P.tplApproxTempo({ accepted: false }), null);
+assert.equal(P.tplCutUnit({ bpm: 85.6, accepted: true, approxBpm: 120 }).unitSec, 30 / 85.6);
+near(P.tplCutUnit({ bpm: 120, accepted: false, approxBpm: 120 }).unitSec, 0.25);
+assert.equal(P.tplCutUnit({ bpm: 120, accepted: false, approxBpm: null }), null);
 
 // tplTemplate: pass 1 all 2s for N <= 4, [2,2] + cycle [1,2,1,1] from N = 5; pass 2 ones + a last 2 (3 for an even total).
 const TEMPLATES = {
@@ -122,8 +145,9 @@ for (const fps of [23.976, 25, 29.97, 30, 60]) {
   const s = P.tplSchedule({ bpm: 170, accepted: true, fps: 30, N: 7, pace: 'quick', sectionStart: 0 });
   assert.equal(s.gridded, true); near(s.unitSec, 60 / 170);
 }
-// No grid: bpm null, not accepted, or out of range -> fixed 0.35 s unit, gridded false.
-for (const opts of [{ bpm: null, accepted: false }, { bpm: 85.6, accepted: false }, { bpm: 110, accepted: true }]) {
+// No grid: bpm null, not accepted (no approximate tempo, or one without a unit), or out of range -> fixed 0.35 s unit,
+// gridded false.
+for (const opts of [{ bpm: null, accepted: false }, { bpm: 85.6, accepted: false }, { bpm: 300, accepted: true }, { bpm: 40, accepted: false, approxBpm: 40 }]) {
   const s = P.tplSchedule(Object.assign({ fps: 30, N: 7, pace: 'quick', sectionStart: null }, opts));
   assert.equal(s.gridded, false); assert.equal(s.unitSec, 0.35); assert.equal(s.offset, 0);
   assert.equal(s.totalFrames, Math.round(18 * 0.35 * 30));
@@ -173,6 +197,26 @@ for (const opts of [{ bpm: null, accepted: false }, { bpm: 85.6, accepted: false
   near(s.targets[3], 1.75, 1e-9, 'a mid-band onset does not snap without a grid');
   near(s.targets[0], 0); near(s.targets[14], 18 * 0.35, 1e-9);
   assert.deepEqual(s.snapLog.map(x => [x.index, x.band]), [[1, 'l']]);
+}
+// Approximate tempo (own music, beat faint): the cuts run on its unit (120 BPM -> 0.25 s 8th) but stay gridless, so
+// only low-band onsets within +/-120 ms snap, as with the fixed timing.
+{
+  const base = { bpm: 120, accepted: false, approxBpm: 120, fps: 30, N: 7, pace: 'quick', sectionStart: 0.04 };
+  const s = j(P.tplSchedule(base));
+  assert.equal(s.gridded, false); near(s.unitSec, 0.25);
+  s.targets.forEach((t, k) => near(t, s.units[k] * 0.25));
+  assert.equal(s.units[s.units.length - 1], 18);
+  const r = j(P.tplSchedule(Object.assign({}, base, { pace: 'relaxed' })));
+  near(r.unitSec, 0.25); near(r.targets[r.targets.length - 1], 36 * 0.25);
+  // Boundary 1 (0.5 s): a low onset 0.10 s late snaps (reach 0.12 s); a mid onset near boundary 3 (1.25 s) does not.
+  const o = j(P.tplSchedule(Object.assign({}, base, { onsets: [[0.04 + 0.5 + 0.10, 'l', 10], [0.04 + 1.25 + 0.05, 'm', 10]] })));
+  near(o.targets[1], 0.6, 1e-9); near(o.targets[3], 1.25, 1e-9);
+  assert.deepEqual(o.snapLog.map(x => [x.index, x.band]), [[1, 'l']]);
+  // An accepted grid ignores approxBpm.
+  near(P.tplSchedule({ bpm: 85.6, accepted: true, approxBpm: 120, fps: 30, N: 7, pace: 'quick', sectionStart: 0 }).unitSec, 30 / 85.6);
+  // tplFitN measures with the same unit: 18 units x 0.25 s = 4.5 s fit N = 7 from 0.04 s in 4.6 s of music.
+  assert.deepEqual(j(P.tplFitN({ requested: 7, available: 20, sectionStart: 0.04, usableEnd: 4.6, bpm: 120, accepted: false, approxBpm: 120, pace: 'quick' })), { N: 7, reason: null });
+  assert.deepEqual(j(P.tplFitN({ requested: 7, available: 20, sectionStart: 0.04, usableEnd: 4.6, bpm: 120, accepted: false, pace: 'quick' })), { N: 3, reason: 'music' }, 'fixed 0.35 s: 10 units');
 }
 // Onsets are in music-source seconds: they shift with the section start.
 {

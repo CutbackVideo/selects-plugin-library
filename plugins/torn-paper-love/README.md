@@ -107,15 +107,25 @@ energetic section. **Preview this section** plays the whole section; press it
 again (or Esc) to stop. Changing the length or the pace moves the box to the
 nearest bar that fits.
 
-The cuts use the music's 8th-note grid (the beat itself for double-time
-tracks). A cut that starts a longer shot may move onto a clearly strong drum
+The cuts use the music's 8th-note grid, or its beat when that is closer to
+0.35 s (above about 129 BPM); a note between 0.22 and 0.55 s long is used, so
+a 120 BPM track cuts on its 0.25 s 8ths. A cut that starts a longer shot may move onto a clearly strong drum
 or bass hit within a tenth of a beat (at most 70 ms), but only when no hit is
 already within a frame of the grid.
 
-**Your own music**: drop an audio file. The plugin listens for the beat and
-uses it when the detected beat grid is reliable. Otherwise it uses fixed
-0.35 s steps and says so ("cuts use a steady 0.35 s rhythm"); with **No
-music** the panel says "the cuts keep a steady 0.35 s rhythm". If a
+**Your own music**: drop an audio file. The plugin listens for the beat:
+- **Beat found**: the cuts use its grid, as with the bundled tracks. Sparse
+  drums count too (for example lo-fi with a kick on only some beats), as long
+  as the hits sit tightly on the grid and it holds across the whole track.
+- **Tempo found, beat faint** (the hits that are there sit on a steady grid,
+  but too few beats carry one): the cuts follow that tempo's 8th (or beat)
+  from its first beat, the box snaps to its bars, and a cut only moves onto a
+  strong bass hit within 120 ms. The panel says "Music added; its beat is
+  faint, so cuts follow its tempo (N BPM) without locking to every beat."
+- **No steady beat**: fixed 0.35 s steps, and the panel says so ("cuts use a
+  steady 0.35 s rhythm"); the box moves in 0.1 s steps.
+
+With **No music** the panel says "the cuts keep a steady 0.35 s rhythm". If a
 track is too short to hold even 3 pictures from the section start, Build is
 disabled with "This track needs at least X s from the section start". Your own
 music and the previews need ffmpeg; your own music also needs Node.js 18 or

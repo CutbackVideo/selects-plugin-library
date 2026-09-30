@@ -52,6 +52,14 @@ assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('
 for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/]) assert.ok(re.test(panel), String(re));
 assert.ok(!/dq\((file|ownMusic|roots|musicPath)/.test(panel), 'user paths are single-quoted');
 assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))'), 'own-music analysis via a file (48 KB stdout)');
+// Own music with a faint beat (beat-detect grid 'approximate'): the cue carries approxBpm (through tplApproxTempo, so a
+// tempo without a unit falls back to the fixed 0.35 s) and the detected first beat; the section slider snaps to the
+// bars of that tempo like the plan (tplSectionTempo); the status says the cuts follow its tempo.
+assert.ok(panel.includes('tplApproxTempo({ accepted, approxBpm: ownGrid.grid === "approximate" && ownGrid.bpm > 0 ? ownGrid.bpm : null })'), 'ownCue approxBpm');
+assert.ok(panel.includes('firstBeat: accepted || approxBpm ? ownGrid.firstBeat || 0 : 0'), 'ownCue first beat for an approximate tempo');
+assert.ok(panel.includes('const sectionTempo = tplSectionTempo(grid);') && panel.includes('gridAccepted: sectionTempo != null })') && panel.includes('barSeconds={sectionTempo != null ? (tplBarBeats(sectionTempo) * 60) / sectionTempo : 1}'), 'section snaps to the cut tempo');
+assert.ok(panel.includes('"Music added; its beat is faint, so cuts follow its tempo (" + Math.round(approx) + " BPM) without locking to every beat."'), 'faint-beat status');
+assert.ok(!/grid\.accepted \? \(tplBarBeats/.test(panel) && !/gridAccepted: grid\.accepted \}\);\n/.test(panel.slice(panel.indexOf('// tpl-config:end'))), 'no accepted-only section snap left in the panel');
 assert.ok(panel.includes('preview-*.mp3') && panel.includes('readText(roots.data, "preview-"'), 'preview audio via a file');
 assert.match(panel, /No valid session ID/);
 assert.ok(/!allowCommit && \/No valid session ID\//.test(panel), 'only non-committing calls are resent');

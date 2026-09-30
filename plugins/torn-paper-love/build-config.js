@@ -61,15 +61,23 @@ function tplOptions(o) {
 }
 
 // The music grid of a manifest cue (bundled cues are accepted by construction), or the fixed grid without music.
+// approxBpm: own music whose beat is faint (beat-detect.cjs grid 'approximate'); the cuts follow its tempo
+// (planner tplApproxTempo), everything else treats the grid as not accepted.
 function tplGrid(cue) {
-  if (!cue) return { bpm: null, accepted: false, firstBeat: 0, usableEnd: null, beatEnergy: [], onsets: [], onsetThresholds: null };
-  return { bpm: cue.bpm, accepted: cue.accepted !== false, firstBeat: cue.firstBeat || 0, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [],
-    onsets: cue.onsets || [], onsetThresholds: cue.onsetThresholds || null };
+  if (!cue) return { bpm: null, accepted: false, approxBpm: null, firstBeat: 0, usableEnd: null, beatEnergy: [], onsets: [], onsetThresholds: null };
+  return { bpm: cue.bpm, accepted: cue.accepted !== false, approxBpm: typeof cue.approxBpm === 'number' ? cue.approxBpm : null, firstBeat: cue.firstBeat || 0,
+    usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], onsets: cue.onsets || [], onsetThresholds: cue.onsetThresholds || null };
 }
 
 function tplUnitSec(grid) {
-  const u = grid.accepted ? tplUnit(grid.bpm) : null;
+  const u = tplCutUnit(grid);
   return u ? u.unitSec : TPL_FALLBACK_UNIT;
+}
+
+// The tempo the section snaps to (whole bars from the first beat): the accepted grid's, else an approximate tempo
+// (tplApproxTempo), else null (0.1 s steps).
+function tplSectionTempo(grid) {
+  return grid.accepted ? grid.bpm : tplApproxTempo(grid);
 }
 
 // The section start (music seconds) for a video of `videoSeconds`: 'default' = the highest-energy bar window, a number
@@ -81,7 +89,8 @@ function tplSectionStart(grid, section, videoSeconds) {
     if (d != null) return d;
   }
   const v = typeof section === 'number' ? section : grid.firstBeat;
-  const snapped = tplSnapSection({ value: v, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: grid.accepted });
+  const tempo = tplSectionTempo(grid);
+  const snapped = tplSnapSection({ value: v, firstBeat: grid.firstBeat, bpm: tempo == null ? grid.bpm : tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: tempo != null });
   return snapped == null ? grid.firstBeat : snapped;
 }
 
@@ -111,13 +120,14 @@ function tplPlanState(input) {
     const tentative = Math.min(requested, available);
     if (tentative < TPL_MIN_PICTURES) return fail('Add at least 3 photos or clips');
     sectionStart = tplSectionStart(grid, options.section, tplTemplate(tentative, options.pace).total * unitSec);
-    const fit = tplFitN({ requested, available, sectionStart: sectionStart == null ? 0 : sectionStart, usableEnd, bpm: grid.bpm, accepted: grid.accepted, pace: options.pace });
+    const fit = tplFitN({ requested, available, sectionStart: sectionStart == null ? 0 : sectionStart, usableEnd, bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm,
+      pace: options.pace });
     if (!fit.N) {
       if (fit.reason === 'pictures') return fail('Add at least 3 photos or clips');
       return fail('This track needs at least ' + (tplTemplate(TPL_MIN_PICTURES, options.pace).total * unitSec).toFixed(1) + ' s from the section start');
     }
     N = fit.N; fitReason = fit.reason;
-    schedule = tplSchedule({ bpm: grid.bpm, accepted: grid.accepted, fps: TPL_PLAN_FPS, N, pace: options.pace, sectionStart,
+    schedule = tplSchedule({ bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: TPL_PLAN_FPS, N, pace: options.pace, sectionStart,
       onsets: grid.onsets, onsetThresholds: grid.onsetThresholds || undefined, lowConfidence: false });
     const longest = schedule.slots.reduce((m, x) => Math.max(m, x.endFrame - x.startFrame), 0);
     const next = videos.filter(v => tplVideoWindow({ duration: v.duration, hitStart: 0, maxSlotFrames: longest, fps: TPL_PLAN_FPS }) != null);

@@ -10,6 +10,7 @@ const names = [...(read('planner.js') + '\n' + configSource).matchAll(/^(?:funct
 vm.runInContext(read('planner.js') + '\n' + configSource + ';globalThis.P={' + names.join(',') + '};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
+const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= (eps || 1e-9), (msg || '') + ' expected ' + b + ' got ' + a);
 
 // The module sits between its embed markers and uses no module syntax.
 assert.match(configSource, /\/\/ tpl-config:start\n[\s\S]*\/\/ tpl-config:end/);
@@ -396,6 +397,41 @@ const assembleChecks = (async () => {
   assert.ok(D.letters.parameters.ticks.every(t => t > 0 && t < D.letters.endFrame - D.letters.startFrame));
   // A numeric section is ignored without music.
   assert.equal(j(P.tplPlanState({ projectId: 'proj', inv: j(inv), found, cue: null, options: { ...defaults, section: 12 }, now })).sectionStart, 0);
+}
+
+// ---- Own music, as the panel passes it (ownCue).
+{
+  const own = (g, extra) => ({ id: 'own', label: 'own.mp3', file: null, usableEnd: 60, beatEnergy: [], onsets: [], onsetThresholds: null, ...g, ...extra });
+  // Beat faint ('approximate' at 120 BPM, first beat 0.43 s): the cuts run on the 0.25 s 8th from a bar of that tempo
+  // (2 s at 8 units), not on the fixed 0.35 s; the grid is still not accepted (gridded false).
+  const ap = own({ bpm: 120, accepted: false, approxBpm: 120, firstBeat: 0.43 });
+  const g = P.tplGrid(ap);
+  assert.equal(g.approxBpm, 120);
+  near(P.tplUnitSec(g), 0.25);
+  assert.equal(P.tplSectionTempo(g), 120);
+  for (const [section, start] of [['default', 0.43], [0, 0.43], [9.1, 8.43], [1e6, 0.43 + 27 * 2]]) {
+    const st = j(P.tplPlanState({ projectId: 'proj', inv: j(inv), found, cue: ap, options: { ...defaults, section }, now }));
+    assert.equal(st.ok, true, st.reason);
+    assert.equal(st.gridded, false);
+    near(st.unitSec, 0.25);
+    near(st.musicStart, start, 1e-9, 'section ' + section);
+    assert.deepEqual(st.targets.map((t, k) => Math.round((t - st.schedule.units[k] * 0.25) * 1e9)), st.targets.map(() => 0), 'cuts on the 8th');
+  }
+  // Tempo out of the unit range: the fixed 0.35 s and 0.1 s section steps, as without a tempo.
+  const slow = own({ bpm: 40, accepted: false, approxBpm: 40, firstBeat: 0.43 });
+  assert.equal(P.tplSectionTempo(P.tplGrid(slow)), null);
+  const ss = j(P.tplPlanState({ projectId: 'proj', inv: j(inv), found, cue: slow, options: { ...defaults, section: 9.14 }, now }));
+  assert.equal(ss.unitSec, 0.35); near(ss.musicStart, 9.1, 1e-9);
+  // No steady beat (the panel's stand-in tempo, first beat 0): fixed 0.35 s, 0.1 s section steps.
+  const none = own({ bpm: 85.6, accepted: false, firstBeat: 0 });
+  assert.equal(P.tplGrid(none).approxBpm, null);
+  const sn = j(P.tplPlanState({ projectId: 'proj', inv: j(inv), found, cue: none, options: { ...defaults, section: 9.14 }, now }));
+  assert.equal(sn.gridded, false); assert.equal(sn.unitSec, 0.35); near(sn.musicStart, 9.1, 1e-9);
+  // Accepted at 120 BPM: the grid on the 8th (the old unit range had no unit at 120 BPM and fell back to 0.35 s).
+  const acc = j(P.tplPlanState({ projectId: 'proj', inv: j(inv), found, cue: own({ bpm: 120, accepted: true, firstBeat: 0.43 }), options: defaults, now }));
+  assert.equal(acc.gridded, true); near(acc.unitSec, 0.25); near(acc.musicStart, 0.43, 1e-9);
+  // Bundled cues carry no approxBpm.
+  for (const c of manifest.cues) assert.equal(P.tplGrid(c).approxBpm, null, c.id);
 }
 
 // ---- Sections: early (0) snaps to the first bar; late clamps to the last bar that fits.
