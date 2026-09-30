@@ -72,7 +72,7 @@ assert.ok(panel.includes('mute: clipSound === "off"') && panel.includes('clipSou
 assert.ok(panel.indexOf('const [clipSound') < panel.indexOf('if (!projectId) return <ui'), 'clip sound hook stays before the early return');
 // Title burst per cue: the grid's 16th-onset ratio picks 'sixteenth' or 'eighth'; plans, schedules and the shot minimum follow it.
 assert.ok(panel.includes('const burst = grid.accepted ? cwvBurstFor(grid.sixteenthRatio) : "eighth";'), 'burst from the cue');
-assert.ok(panel.includes('sixteenthRatio: cue.sixteenthRatio') && panel.includes('sixteenthRatio: ownGrid.sixteenthRatio'), 'bundled and own music ratios');
+assert.ok(panel.includes('sixteenthRatio: cue.sixteenthRatio') && panel.includes('sixteenthRatio: own.sixteenthRatio'), 'bundled and own music ratios');
 const ui = panel.slice(panel.indexOf('// cwv-planner:end'));
 assert.equal((ui.match(/cwvPlanBuild\(/g) || []).length, 3);
 assert.equal((ui.match(/cwvPlanBuild\([^;]*burst, sectionStart: musicStart, \.\.\.snapCuts \}\)/g) || []).length, 3, 'every plan uses the burst, the music start and onset snapping');
@@ -82,7 +82,7 @@ assert.equal((ui.match(/sectionStart: musicStart/g) || []).length, 5, 'build pla
 // Onset-anchored cuts: every plan snaps with the music's onsets (bundled cue, own music, also without a reliable beat);
 // assemble.js gets the planned cut seconds and the Draft-rate schedule reuses them, so font switches stay on their cuts.
 assert.ok(panel.includes('const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !grid.accepted };'), 'snap options');
-assert.ok(panel.includes('onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds') && panel.includes('onsets: ownGrid.onsets || NO_ONSETS') && panel.includes('onsets: ownGrid?.onsets || NO_ONSETS'), 'bundled and own-music onsets');
+assert.ok(panel.includes('onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds') && panel.includes('const grid = ownMusic ? cwvOwnGrid(ownGrid, ownDuration, NO_ONSETS)'), 'bundled and own-music onsets');
 assert.ok(panel.includes('const boundaries: number[] = plan.schedule.cuts;') && panel.includes('picks: plan.picks, boundaries, crops,'), 'assemble gets the snapped cuts');
 assert.ok(/cwvSchedule\(\{ bpm: grid\.bpm, fps: a\.fps, montageShots: plan\.montageShots, burst, sectionStart: musicStart, cuts: boundaries \}\)/.test(panel), 'the Draft-rate schedule reuses the cut seconds');
 assert.ok(panel.includes('grid.onsets, grid.accepted]);'), 'the readiness plan follows the onsets');
@@ -102,4 +102,49 @@ assert.ok(!/i < 13/.test(panel), 'no fixed title slot count');
 assert.ok(panel.includes('result?.plan?.adjacentRepeats') && panel.includes('from the same clip because there'), 'adjacent repeat note');
 // Photo effects are on; captureFrames breaks on image clips with effects, so the panel never uses it.
 assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel) && !/\.(captureFrames|captureVisualFrames)\(/.test(fs.readFileSync(path.join(root, "scripts", "decorate.js"), "utf8")), 'no frame capture in the panel');
+// Own music's grid (cwvOwnGrid) from beat-detect.cjs's grid state. accepted: its tempo, first beat and bars. 'approximate'
+// (tempo and first beat tight, beat faint): the detected tempo and first beat with bar-snapped sections, but the 8th
+// burst, low-confidence snapping and the "Approximate timing on the detected tempo" line. 'none', an approximate tempo
+// out of the 70-180 BPM range, or only the length: fixed 99.2 BPM timing from 0 in 0.1 s steps, as before.
+{
+  const vm = require('node:vm');
+  const between = (s, a, b) => s.slice(s.indexOf(a), s.indexOf(b) + b.length);
+  const box = { Math, Number, Object, Array, String, Set, Map, Infinity, NaN, Error, JSON, isFinite }; vm.createContext(box);
+  vm.runInContext(planner + '\n' + between(panel, '// cwv-own-grid:start', '// cwv-own-grid:end') + '\n;globalThis.X = { cwvOwnGrid, cwvFaintText, cwvSnapSection, cwvDefaultSection, CWV_REFERENCE_BPM };', box);
+  const X = box.X, NO = [];
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  const base = { bpm: 100, firstBeat: 0.37, durationSeconds: 90, beatEnergy: [1, 5, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], peaks: [0.1], sixteenthRatio: 0.6, onsets: [[1, 'l', 3]], onsetThresholds: { l: 2 } };
+  const acc = X.cwvOwnGrid({ ...base, accepted: true, grid: 'accepted' }, 90, NO);
+  assert.deepEqual([acc.bpm, acc.firstBeat, acc.usableEnd, acc.accepted, acc.faint, acc.sixteenthRatio], [100, 0.37, 89.5, true, false, 0.6]);
+  // An analysis from before the grid field (accepted only) is still accepted.
+  assert.equal(X.cwvOwnGrid({ ...base, accepted: true }, 90, NO).accepted, true);
+  const faint = X.cwvOwnGrid({ ...base, accepted: false, grid: 'approximate' }, 90, NO);
+  assert.deepEqual([faint.bpm, faint.firstBeat, faint.usableEnd, faint.accepted, faint.faint], [100, 0.37, 89.5, false, true]);
+  assert.ok(faint.onsets.length === 1 && faint.onsetThresholds.l === 2 && faint.peaks.length === 1, 'approximate keeps onsets and peaks');
+  // Bars of 2.4 s from 0.37 s: 10 s snaps to 0.37 + 4 bars = 9.97 s, as for an accepted grid.
+  const videoSeconds = 20;
+  assert.ok(near(X.cwvSnapSection({ value: 10, firstBeat: faint.firstBeat, bpm: faint.bpm, usableEnd: faint.usableEnd, videoSeconds, gridAccepted: faint.accepted || faint.faint }), 9.97));
+  const d = X.cwvDefaultSection({ firstBeat: faint.firstBeat, bpm: faint.bpm, beatEnergy: faint.beatEnergy, usableEnd: faint.usableEnd, videoSeconds });
+  assert.ok(d != null && near((d - 0.37) / 2.4, Math.round((d - 0.37) / 2.4)), 'default section on a bar of the detected grid: ' + d);
+  assert.equal(X.cwvFaintText(faint.bpm), 'Approximate timing on the detected tempo (100 BPM): the tempo was found but the beat is faint, so the cuts may miss it.');
+  assert.equal(X.cwvFaintText(119.6), 'Approximate timing on the detected tempo (120 BPM): the tempo was found but the beat is faint, so the cuts may miss it.');
+  const fixed = g => [g.bpm, g.firstBeat, g.accepted, g.faint, g.sixteenthRatio];
+  const FIXED = [X.CWV_REFERENCE_BPM, 0, false, false, null];
+  for (const own of [{ ...base, accepted: false, grid: 'none' }, { ...base, accepted: false }, { ...base, accepted: false, grid: 'approximate', bpm: 60 },
+    { ...base, accepted: false, grid: 'approximate', bpm: 190 }, { accepted: false, durationSeconds: 60, peaks: [] }]) {
+    const g = X.cwvOwnGrid(own, 60, NO);
+    assert.deepEqual(fixed(g), FIXED, JSON.stringify(own).slice(0, 80));
+    assert.equal(g.usableEnd, 59.5);
+  }
+  assert.ok(near(X.cwvSnapSection({ value: 12.34, firstBeat: 0, bpm: X.CWV_REFERENCE_BPM, usableEnd: 59.5, videoSeconds, gridAccepted: false }), 12.3), '0.1 s steps without a grid');
+  const none = X.cwvOwnGrid({ ...base, accepted: false, grid: 'none' }, 90, NO);
+  assert.ok(none.onsets.length === 1 && none.peaks.length === 1, "'none' keeps onsets and peaks for bass snapping");
+  const nothing = X.cwvOwnGrid(null, null, NO);
+  assert.deepEqual([...fixed(nothing), nothing.usableEnd, nothing.onsets, nothing.peaks.length], [...FIXED, 0, NO, 0]);
+  // Wiring: the section snaps to an approximate grid's bars; burst and low-confidence snapping follow `accepted`; the
+  // detection status and a note under the file say "Approximate timing on the detected tempo"; 'none' keeps its text.
+  for (const phrase of ['const onBars = grid.accepted || !!grid.faint;', 'gridAccepted: onBars });', 'const start = onBars ? snap(section || 0) : (section || 0);', 'if (!onBars) { setSection(snap(0)); return; }',
+    'og.faint ? { tone: "info", text: cwvFaintText(og.bpm) }', '{ownMusic && grid.faint ? <ui.Message tone="muted">{cwvFaintText(grid.bpm)}</ui.Message> : null}']) assert.ok(panel.includes(phrase), phrase);
+  assert.ok(!/ownGrid\.accepted \?/.test(panel), 'own music is read through cwvOwnGrid');
+}
 console.log(JSON.stringify({ panel: 'ok' }));

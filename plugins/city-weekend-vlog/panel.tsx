@@ -520,6 +520,32 @@ function cwvProgress(stepId, fraction, detail) {
 }
 // cwv-planner:end
 
+// cwv-own-grid:start
+// Own music's timing grid from beat-detect.cjs's analysis (own-music.json; { accepted: false, durationSeconds, peaks: [] }
+// when only the length is known). The detector searches 70-180 BPM, so that is the tempo range a detected grid may have.
+//   accepted grid       - its tempo and first beat, the section snapped to its bars, the 16th burst when the music has
+//                         a 16th pulse;
+//   'approximate' grid  - beat-detect.cjs found the tempo and first beat (tight residuals, consistent over the track)
+//                         but the beat is faint: the same tempo, first beat and bar-snapped section, but the calmer 8th
+//                         burst and low-confidence (bass only) cut snapping, and the panel says so (faint: true);
+//   'none' / no analysis - fixed timing at the 99.2 BPM reference from 0, the section in 0.1 s steps.
+// noOnsets: the shared empty onset list for music without onsets.
+const CWV_OWN_MIN_BPM = 70, CWV_OWN_MAX_BPM = 180;
+function cwvOwnGrid(own, duration, noOnsets) {
+  const faint = !!own && !own.accepted && own.grid === 'approximate' && own.bpm >= CWV_OWN_MIN_BPM && own.bpm <= CWV_OWN_MAX_BPM && own.durationSeconds > 0;
+  if (own && (own.accepted || faint)) {
+    return { bpm: own.bpm, firstBeat: own.firstBeat, usableEnd: own.durationSeconds - 0.5, beatEnergy: own.beatEnergy, peaks: own.peaks, accepted: !faint, faint,
+      sixteenthRatio: own.sixteenthRatio, onsets: own.onsets || noOnsets, onsetThresholds: own.onsetThresholds };
+  }
+  return { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: duration ? duration - 0.5 : 0, beatEnergy: [], peaks: (own && own.peaks) || [], accepted: false, faint: false,
+    sixteenthRatio: null, onsets: (own && own.onsets) || noOnsets, onsetThresholds: own ? own.onsetThresholds : undefined };
+}
+// The panel line for own music with an approximate grid.
+function cwvFaintText(bpm) {
+  return 'Approximate timing on the detected tempo (' + Math.round(bpm) + ' BPM): the tempo was found but the beat is faint, so the cuts may miss it.';
+}
+// cwv-own-grid:end
+
 // Double quotes let $HOME and $SELECTS_USER_SKILLS_ROOT expand: use only for those constants.
 function dq(value: string) { return '"' + String(value).replace(/(["\\`])/g, "\\$1") + '"'; }
 // Single quotes pass user paths to the shell literally (no $, backtick or glob expansion).
@@ -951,20 +977,23 @@ export default function Panel({ sdk, context, ui }: any) {
   const ownDuration = ownGrid && ownGrid.durationSeconds > 0 ? ownGrid.durationSeconds : null;
   // onsets / onsetThresholds: the music's qualifying band onsets in music seconds (manifest or beat-detect.cjs); the
   // planner snaps the cuts to them (cwvSnapCuts). Own music without a reliable beat keeps its onsets: its fixed-timing
-  // cuts snap to bass onsets only.
-  const grid = ownMusic ? (ownGrid && ownGrid.accepted ? { bpm: ownGrid.bpm, firstBeat: ownGrid.firstBeat, usableEnd: ownGrid.durationSeconds - 0.5, beatEnergy: ownGrid.beatEnergy, peaks: ownGrid.peaks, accepted: true, sixteenthRatio: ownGrid.sixteenthRatio, onsets: ownGrid.onsets || NO_ONSETS, onsetThresholds: ownGrid.onsetThresholds }
-    : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: [], peaks: ownGrid?.peaks || [], accepted: false, sixteenthRatio: null, onsets: ownGrid?.onsets || NO_ONSETS, onsetThresholds: ownGrid?.onsetThresholds })
+  // (or approximate-grid) cuts snap to bass onsets only. Own music's grid: cwvOwnGrid.
+  const grid = ownMusic ? cwvOwnGrid(ownGrid, ownDuration, NO_ONSETS)
     : cue ? { bpm: cue.bpm, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy, peaks: cue.peaks, accepted: true, sixteenthRatio: cue.sixteenthRatio, onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds }
     : { bpm: CWV_REFERENCE_BPM, firstBeat: 0, usableEnd: 600, beatEnergy: [], peaks: [], accepted: false, sixteenthRatio: null, onsets: NO_ONSETS, onsetThresholds: undefined };
-  // The title burst: 16th-note shots only when the music has a clear 16th pulse; fixed timing and No music use 8ths.
+  // The title burst: 16th-note shots only when the music has a clear 16th pulse; fixed timing, an approximate grid
+  // (faint beat) and No music use 8ths.
   const burst = grid.accepted ? cwvBurstFor(grid.sixteenthRatio) : "eighth";
   const minShots = cwvMinWindows(burst);
   const requested = CWV_LENGTHS[length];
   const videoSeconds = cwvVideoSeconds(grid.bpm, requested);
-  const snap = (value: number) => cwvSnapSection({ value, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: grid.accepted });
+  // The section snaps to the bars of an accepted grid and of an approximate one (own music's detected tempo and first
+  // beat); fixed timing moves it in 0.1 s steps.
+  const onBars = grid.accepted || !!grid.faint;
+  const snap = (value: number) => cwvSnapSection({ value, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: onBars });
   // The section start the build uses; with music, every cut shifts with its frame-snapped start (planner cwvMusicOffset).
   // The readiness plan uses the same value, so "footage fits N" matches what Build produces.
-  const start = grid.accepted ? snap(section || 0) : (section || 0);
+  const start = onBars ? snap(section || 0) : (section || 0);
   const musicStart = cueId === "none" ? null : (start ?? 0);
   // Onset snapping for every plan; without a reliable beat only bass onsets count, in a wider window.
   const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !grid.accepted };
@@ -972,7 +1001,7 @@ export default function Panel({ sdk, context, ui }: any) {
   // A new track (or its grid) defaults the section to the most energetic window.
   // `assets` is a dependency so the default also applies once the manifest has loaded.
   React.useEffect(() => {
-    if (!grid.accepted) { setSection(snap(0)); return; }
+    if (!onBars) { setSection(snap(0)); return; }
     setSection(cwvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? grid.firstBeat);
   }, [assets, cueId, ownMusic?.path, ownGrid]);
   // A new length keeps the chosen start and only re-clamps it (spec section 5).
@@ -995,7 +1024,9 @@ export default function Panel({ sdk, context, ui }: any) {
       if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw new Error(done.error || r.stderr || "beat detection failed");
       const g = JSON.parse(await readText(roots.data, "own-music.json"));
       setOwnGrid(g);
-      setStatus(g.accepted ? null : { tone: "info", text: "Music added; cuts use the original rhythm because its beat could not be found reliably." });
+      const og = cwvOwnGrid(g, null, NO_ONSETS);
+      setStatus(g.accepted ? null : og.faint ? { tone: "info", text: cwvFaintText(og.bpm) }
+        : { tone: "info", text: "Music added; cuts use the original rhythm because its beat could not be found reliably." });
     } catch (e: any) {
       // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
       let duration: number | null = null;
@@ -1349,6 +1380,7 @@ export default function Panel({ sdk, context, ui }: any) {
           options={[...(assets?.manifest.cues || []).map((c: any) => ({ label: c.label, value: c.id })), ...(canOwnMusic ? [{ label: "Your own music", value: "own" }] : []), { label: "No music", value: "none" }]} />
         {(ownMusic || cueId === "own") && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
           onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
+        {ownMusic && grid.faint ? <ui.Message tone="muted">{cwvFaintText(grid.bpm)}</ui.Message> : null}
         {!canOwnMusic ? <ui.Message tone="muted">Install ffmpeg and Node.js 18+ to preview music or use your own track.</ui.Message> : null}
         {ownMusic || cue ? (
           // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
