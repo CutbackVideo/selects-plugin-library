@@ -33,6 +33,20 @@ jobs:
           node plugins/city-weekend-vlog/tests/scripts-read.test.cjs
           node plugins/city-weekend-vlog/tests/title.test.cjs
           node plugins/city-weekend-vlog/tests/warm.test.cjs
+      - name: Test Torn Paper Love
+        run: |
+          node plugins/torn-paper-love/tests/beat-detect.test.cjs
+          node plugins/torn-paper-love/tests/build-config.test.cjs
+          node plugins/torn-paper-love/tests/cues.test.cjs
+          node plugins/torn-paper-love/tests/fonts.test.cjs
+          node plugins/torn-paper-love/tests/letters.test.cjs
+          node plugins/torn-paper-love/tests/panel.test.cjs
+          node plugins/torn-paper-love/tests/pick.test.cjs
+          node plugins/torn-paper-love/tests/planner.test.cjs
+          node plugins/torn-paper-love/tests/scripts-edit.test.cjs
+          node plugins/torn-paper-love/tests/scripts-read.test.cjs
+          node plugins/torn-paper-love/tests/torn.test.cjs
+          node plugins/torn-paper-love/tests/transitions.test.cjs
       - name: Test Mini Vlog
         run: |
           node plugins/mini-vlog/tests/allocate.test.cjs
@@ -48,3 +62,34 @@ jobs:
           node plugins/mini-vlog/tests/scripts-read.test.cjs
           node plugins/mini-vlog/tests/scripts-types.test.cjs
           node plugins/mini-vlog/tests/title.test.cjs
+      - name: Test THE END Credits
+        run: |
+          node plugins/the-end-credits/tests/allocate.test.cjs
+          node plugins/the-end-credits/tests/beat-detect.test.cjs
+          node plugins/the-end-credits/tests/credits.test.cjs
+          node plugins/the-end-credits/tests/cues.test.cjs
+          node plugins/the-end-credits/tests/fonts.test.cjs
+          node plugins/the-end-credits/tests/frame.test.cjs
+          node plugins/the-end-credits/tests/graphic.test.cjs
+          node plugins/the-end-credits/tests/look.test.cjs
+          node plugins/the-end-credits/tests/panel.test.cjs
+          node plugins/the-end-credits/tests/planner.test.cjs
+          node plugins/the-end-credits/tests/scripts-edit.test.cjs
+          node plugins/the-end-credits/tests/scripts-read.test.cjs
+      - name: Test Summer Trip
+        run: |
+          node plugins/summer-trip/tests/beat-detect.test.cjs
+          node plugins/summer-trip/tests/cues.test.cjs
+          node plugins/summer-trip/tests/muffle.test.cjs
+          node plugins/summer-trip/tests/sfx.test.cjs
+          node plugins/summer-trip/tests/effects.test.cjs
+          node plugins/summer-trip/tests/motion.test.cjs
+          node plugins/summer-trip/tests/planner.test.cjs
+          node plugins/summer-trip/tests/allocate.test.cjs
+          node plugins/summer-trip/tests/scripts-edit.test.cjs
+          node plugins/summer-trip/tests/scripts-read.test.cjs
+          node plugins/summer-trip/tests/title.test.cjs
+          node plugins/summer-trip/tests/fonts.test.cjs
+          node plugins/summer-trip/tests/panel.test.cjs
+          node plugins/summer-trip/tests/package.test.cjs
+          node plugins/summer-trip/tests/adapter.test.cjs

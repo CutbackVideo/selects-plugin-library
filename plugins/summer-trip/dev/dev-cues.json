@@ -1,0 +1,7 @@
+{
+  "provenance": "Development placeholders built from City Weekend Vlog cues; never shipped (gitignored dev-* files).",
+  "cues": [
+    { "id": "dev-sunset-afro-house", "title": "Dev: Sunset Afro House", "source": "../../city-weekend-vlog/assets/cues/sunset-afro-house.mp3" },
+    { "id": "dev-weekend-indie-pop", "title": "Dev: Weekend Indie Pop", "source": "../../city-weekend-vlog/assets/cues/weekend-indie-pop.mp3" }
+  ]
+}
