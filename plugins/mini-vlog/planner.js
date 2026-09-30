@@ -2,7 +2,8 @@
 // One hard cut per shot on the music's beat grid: Quick = 1 beat per shot, Relaxed = 2 (with a tempo guard), Groove =
 // a 4-bar phrase rhythm (2, 1, 1, ..., and the phrase's last beat split into two 8ths on a drum fill). Shot roles cycle
 // through MV_ROLES; there is no title burst and no montage section (the title spans the whole video).
-// Without a usable grid (tempo outside 70-160 bpm, own music not accepted, or No music) shots have a fixed length.
+// Without a usable grid (tempo outside 70-160 bpm, own music not accepted, or No music) shots have a fixed length: the
+// beat of an approximate tempo (mvApproxTempo) when own music has one, else MV_FALLBACK_SHOT.
 const MV_LENGTHS = { short: 12, standard: 24, long: 36 };
 // Fewest shots a build needs; every length is a multiple of it, so the video is whole bars from its first beat.
 const MV_MIN_SHOTS = 4;
@@ -75,6 +76,16 @@ function mvGridUsable(opts) {
   return !!(opts && opts.accepted) && typeof bpm === 'number' && isFinite(bpm) && bpm >= MV_TEMPO_MIN && bpm <= MV_TEMPO_MAX;
 }
 
+// The approximate tempo fixed timing runs on, or null. beat-detect.cjs reports an own track's grid as 'approximate' when
+// it is tight (median residual <= 20 ms) and holds across the track but too few beats carry an onset to accept it. Its
+// tempo (opts.approxBpm), in [MV_TEMPO_MIN, MV_TEMPO_MAX] and only without a usable grid (opts.gridded), sets the fixed
+// shot length (mvShotSeconds) and Groove's beat, so the cuts do not drift against the music. Everything else stays
+// gridless: cuts snap only to bass onsets (mvSnapCuts lowConfidence), Groove splits every candidate, no beat punch.
+function mvApproxTempo(opts) {
+  const bpm = opts && opts.approxBpm;
+  return !(opts && opts.gridded) && typeof bpm === 'number' && isFinite(bpm) && bpm >= MV_TEMPO_MIN && bpm <= MV_TEMPO_MAX ? bpm : null;
+}
+
 // Beats per shot for a pace. Quick is 1 beat, but 2 above 150 bpm so shots stay >= 0.40 s; Relaxed is 2 beats, but 1
 // below 86 bpm so shots stay <= 1.40 s. `overridden` tells the panel the guard changed the choice. Groove returns
 // { beats: 1 (its beat unit), groove: true, opener: the phrase opener's beats (mvGrooveOpener) }, overridden when the
@@ -90,9 +101,12 @@ function mvBeatsPerShot(pace, bpm) {
   return bpm > 150 ? { beats: 2, overridden: true } : { beats: 1, overridden: false };
 }
 
-// Seconds per shot: the beats on a grid, else the fixed fallback for the pace (for Groove: seconds per beat unit).
+// Seconds per shot: the beats on a grid, else on an approximate tempo (opts.approxBpm from mvApproxTempo, with
+// beatsPerShot from mvBeatsPerShot at that tempo), else the fixed fallback for the pace (for Groove: seconds per beat
+// unit).
 function mvShotSeconds(opts) {
   if (opts.gridded) return opts.beatsPerShot * 60 / opts.bpm;
+  if (opts.approxBpm > 0 && opts.beatsPerShot > 0) return opts.beatsPerShot * 60 / opts.approxBpm;
   if (opts.pace === 'groove') return MV_GROOVE_FALLBACK_BEAT;
   return opts.pace === 'relaxed' ? MV_FALLBACK_SHOT.relaxed : MV_FALLBACK_SHOT.quick;
 }
@@ -573,8 +587,9 @@ function mvAllocate(opts) {
 }
 
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
-// fps, pace: 'quick' | 'relaxed' | 'groove', requested (shots), sectionStart?, usableEnd? (Infinity / omitted without
+// approxBpm? (mvApproxTempo), fps, pace: 'quick' | 'relaxed' | 'groove', requested (shots), sectionStart?, usableEnd? (Infinity / omitted without
 // music), onsets?, onsetThresholds?, lowConfidence?, seed, photoShare?, motionOpener? (mvAllocate) }.
+// A plan carries approxBpm: the approximate tempo its fixed timing used, else null.
 // Order: the music caps the length (mvFitShots), then the plan tries that length and shrinks by MV_MIN_SHOTS down to
 // MV_MIN_SHOTS until the strict allocation fills every slot. Every attempt allocates from scratch with filler
 // candidates added (see `attempts` below). Failure reasons: 'music-too-short' (not even MV_MIN_SHOTS fit the music), 'one-resource' (fewer
@@ -588,11 +603,14 @@ function mvAllocate(opts) {
 // `beats`.
 function mvPlanBuild(opts) {
   const gridded = mvGridUsable({ bpm: opts.bpm, accepted: opts.accepted });
-  const guard = gridded ? mvBeatsPerShot(opts.pace, opts.bpm) : { beats: null, overridden: false };
-  const grooved = opts.pace === 'groove' && (gridded ? !!guard.groove : true);
-  const shotSeconds = grooved ? null : mvShotSeconds({ bpm: opts.bpm, beatsPerShot: guard.beats, pace: opts.pace, gridded });
-  const beatSeconds = grooved ? (gridded ? 60 / opts.bpm : MV_GROOVE_FALLBACK_BEAT) : null;
-  const opener = grooved && gridded ? mvGrooveOpener(opts.bpm) : 2;
+  // The tempo the shots follow: the grid's, else an approximate one (fixed timing on its beat), else null (0.55 s).
+  const approxBpm = mvApproxTempo({ gridded, approxBpm: opts.approxBpm });
+  const tempo = gridded ? opts.bpm : approxBpm;
+  const guard = tempo ? mvBeatsPerShot(opts.pace, tempo) : { beats: null, overridden: false };
+  const grooved = opts.pace === 'groove' && (tempo ? !!guard.groove : true);
+  const shotSeconds = grooved ? null : mvShotSeconds({ bpm: opts.bpm, beatsPerShot: guard.beats, pace: opts.pace, gridded, approxBpm });
+  const beatSeconds = grooved ? (tempo ? 60 / tempo : MV_GROOVE_FALLBACK_BEAT) : null;
+  const opener = grooved && tempo ? mvGrooveOpener(tempo) : 2;
   const asked = typeof opts.requested === 'number' && isFinite(opts.requested) ? opts.requested : MV_LENGTHS.standard;
   const requested = Math.max(MV_MIN_SHOTS, Math.floor(asked / MV_MIN_SHOTS) * MV_MIN_SHOTS);
   const fit = grooved ? mvGrooveFit({ requested, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd, beatSeconds, opener }) : null;
@@ -652,7 +670,7 @@ function mvPlanBuild(opts) {
       }
       if (alloc.missing === 0) {
         return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
-          beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
+          beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, approxBpm, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
           attempt: name,
           ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, ratios: fills.ratios, beatSeconds, opener } } : {}) };
       }

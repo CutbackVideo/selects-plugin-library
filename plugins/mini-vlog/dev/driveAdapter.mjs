@@ -59,12 +59,12 @@ const PANEL_DECORATE = [
   'sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,',
   'const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");',
   'const fresh = await findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch));',
-  'const plan: any = mvPlanBuild({ candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });',
+  'const plan: any = mvPlanBuild({ candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });',
   // The render body: Groove capacity and the default section (hook window, else the most energetic one).
-  'const grooved = pace === "groove" && (gridded ? !!guard.groove : true);',
+  'const grooved = pace === "groove" && (tempo ? !!guard.groove : true);',
   'const opener = guard.groove ? guard.opener : 2;',
-  'const grooveFit: any = grooved ? mvGrooveFit({ requested, sectionStart: gridded ? grid.firstBeat : 0, usableEnd: grid.usableEnd, beatSeconds: shotSeconds, opener }) : null;',
-  'const fitted = grooved ? grooveFit.shots : mvFitShots({ requested, sectionStart: gridded ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });',
+  'const grooveFit: any = grooved ? mvGrooveFit({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, beatSeconds: shotSeconds, opener }) : null;',
+  'const fitted = grooved ? grooveFit.shots : mvFitShots({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });',
   'const fittedSeconds = grooved ? grooveFit.beats * shotSeconds : fitted * shotSeconds;',
   'const wantedSeconds = grooved ? grooveFit.requestedBeats * shotSeconds : requested * shotSeconds;',
   'const videoSeconds = fitted ? fittedSeconds : wantedSeconds;',
@@ -251,29 +251,33 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       }));
       if (!String(fields.big || '').trim()) throw Error("Type the title's big word to build.");
 
+      // Own music (and so the panel's approximate-tempo fixed timing, grid.approxBpm) is not modelled: the bundled cues
+      // and No music never have an approximate tempo, so approxBpm is always null here.
       if (row.cue === 'own') throw Error('own music is not supported by the driver (it needs beat-detect.cjs on a real file)');
       const musicKind = row.cue === 'none' ? 'none' : 'cue';
       const cue = musicKind === 'cue' ? cues.find(c => c.id === row.cue) || null : null;
       if (musicKind === 'cue' && !cue) throw Error('unknown cue ' + row.cue + '; one of none, ' + cues.map(c => c.id).join(', '));
       const grid = musicKind === 'none'
-        ? { bpm: null, accepted: false, firstBeat: 0, usableEnd: null, beatEnergy: [], onsets: [], onsetThresholds: undefined, hookBars: null }
-        : { bpm: cue.bpm, accepted: true, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], onsets: cue.onsets || [], onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null };
+        ? { bpm: null, accepted: false, approxBpm: null, firstBeat: 0, usableEnd: null, beatEnergy: [], onsets: [], onsetThresholds: undefined, hookBars: null }
+        : { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], onsets: cue.onsets || [], onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null };
       const gridded = P.mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted });
-      const guard = gridded ? j(P.mvBeatsPerShot(row.pace, grid.bpm)) : { beats: null, overridden: false };
-      const shotSeconds = P.mvShotSeconds({ bpm: grid.bpm, beatsPerShot: guard.beats, pace: row.pace, gridded });
+      const approxTempo = P.mvApproxTempo({ gridded, approxBpm: grid.approxBpm });
+      const tempo = gridded ? grid.bpm : approxTempo;
+      const guard = tempo ? j(P.mvBeatsPerShot(row.pace, tempo)) : { beats: null, overridden: false };
+      const shotSeconds = P.mvShotSeconds({ bpm: grid.bpm, beatsPerShot: guard.beats, pace: row.pace, gridded, approxBpm: approxTempo });
       const requested = P.MV_LENGTHS[row.length];
       if (!requested) throw Error('unknown length ' + row.length);
       // Groove as the planner decides it (a beat span unless its > 150 bpm guard plays 2 beats per shot).
-      const grooved = row.pace === 'groove' && (gridded ? !!guard.groove : true);
+      const grooved = row.pace === 'groove' && (tempo ? !!guard.groove : true);
       const opener = guard.groove ? guard.opener : 2;
       // Music capacity from the earliest start; the section slider only offers starts where that many fit.
-      const grooveFit = grooved ? j(P.mvGrooveFit({ requested, sectionStart: gridded ? grid.firstBeat : 0, usableEnd: grid.usableEnd, beatSeconds: shotSeconds, opener })) : null;
-      const fitted = grooved ? grooveFit.shots : P.mvFitShots({ requested, sectionStart: gridded ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });
+      const grooveFit = grooved ? j(P.mvGrooveFit({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, beatSeconds: shotSeconds, opener })) : null;
+      const fitted = grooved ? grooveFit.shots : P.mvFitShots({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });
       const fittedSeconds = grooved ? grooveFit.beats * shotSeconds : fitted * shotSeconds;
       const wantedSeconds = grooved ? grooveFit.requestedBeats * shotSeconds : requested * shotSeconds;
       const videoSeconds = fitted ? fittedSeconds : wantedSeconds;
       const snap = value => (musicKind === 'none' ? 0
-        : P.mvSnapSection({ value, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: gridded }));
+        : P.mvSnapSection({ value, firstBeat: grid.firstBeat, bpm: tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: !!tempo }));
       // The section state: the track's default (with hook on the best hook window, else the most energetic window),
       // the slider at its left end (early) or right end (late), or a number; the build then uses snap(section), as the
       // panel does.
@@ -298,7 +302,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       // punch, motion hits become a tie-break bonus on the role candidates first; without it the motion rows (always
       // searched, see search()) are dropped, as the panel never has them then.
       const roleOnly = found.list.filter(c => !c || c.role !== P.MV_MOTION_ROLE);
-      const plan = j(P.mvPlanBuild({ candidates: (row.punch ? j(P.mvMotionBonus(found.list)) : roleOnly).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace: row.pace, requested,
+      const plan = j(P.mvPlanBuild({ candidates: (row.punch ? j(P.mvMotionBonus(found.list)) : roleOnly).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace: row.pace, requested,
         sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(seed) }));
       const planSummary = { ok: plan.ok, reason: plan.reason, shots: plan.shots, requested, fitted, beatsPerShot: plan.beatsPerShot, overridden: plan.overridden,
         shotSeconds: plan.shotSeconds, photoShots: plan.photoShots, fillerShots: plan.fillerShots, usableShots: plan.usableShots, sectionStart: musicStart,

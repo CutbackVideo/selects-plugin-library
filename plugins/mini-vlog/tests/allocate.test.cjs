@@ -124,7 +124,7 @@ assert.equal(cap.beatsPerShot, 2); assert.equal(cap.overridden, false);
 assert.ok(Math.abs(cap.shotSeconds - 120 / 111.99) < 1e-12);
 assert.equal(cap.picks.length, 32); assert.equal(cap.schedule.slots.length, 32); assert.equal(cap.schedule.gridded, true);
 assert.ok(0.027 + cap.schedule.totalFrames / F <= 34.82 + 1 / F, 'the picture never outruns the music');
-assert.deepEqual(Object.keys(cap).sort(), ['attempt', 'beatsPerShot', 'fillerShots', 'fittedByMusic', 'ok', 'overridden', 'photoShots', 'picks', 'requested', 'schedule', 'shotSeconds', 'shots']);
+assert.deepEqual(Object.keys(cap).sort(), ['approxBpm', 'attempt', 'beatsPerShot', 'fillerShots', 'fittedByMusic', 'ok', 'overridden', 'photoShots', 'picks', 'requested', 'schedule', 'shotSeconds', 'shots']);
 // Quick at the same start fits all 36.
 const capQ = j(P.mvPlanBuild({ candidates: rich, bpm: 111.99, accepted: true, fps: F, pace: 'quick', requested: 36, sectionStart: 0.027, usableEnd: 34.82, seed: 's1' }));
 assert.equal(capQ.shots, 36); assert.equal(capQ.fittedByMusic, false);
@@ -336,7 +336,7 @@ assert.equal(gStd.beatsPerShot, null); assert.equal(gStd.overridden, false); ass
 assert.equal(gStd.schedule.totalFrames, 400);
 assert.ok(!adjacent(gStd.picks) && maxRun(gStd.picks) <= 2);
 gStd.schedule.slots.forEach((s, i) => { if (s.beats < 1) assert.equal(gStd.picks[i].kind, 'video'); });
-assert.deepEqual(Object.keys(gStd).sort(), ['attempt', 'beatsPerShot', 'fillerShots', 'fittedByMusic', 'groove', 'ok', 'overridden', 'photoShots', 'picks', 'requested', 'schedule', 'shotSeconds', 'shots']);
+assert.deepEqual(Object.keys(gStd).sort(), ['approxBpm', 'attempt', 'beatsPerShot', 'fillerShots', 'fittedByMusic', 'groove', 'ok', 'overridden', 'photoShots', 'picks', 'requested', 'schedule', 'shotSeconds', 'shots']);
 assert.equal(gStd.shotSeconds, null);
 // Windows have the slot's length at the plan's rate and stay 0.15 s inside their source.
 gStd.picks.forEach((p, i) => {
