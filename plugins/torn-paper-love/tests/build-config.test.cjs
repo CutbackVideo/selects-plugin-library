@@ -32,7 +32,7 @@ const inv = {
 };
 const found = { best: { v1: 4.4, v2: null, v3: 5.9 } };
 const now = new Date(2026, 8, 30, 9, 5);
-const defaults = { words: ['MY', 'LOVE'], backdrop: 'night', length: 'standard', pace: 'quick', clipSound: 'ambient', look: 0.35, tilt: false, useVideos: true, only: null, seed: 1, section: 'default' };
+const defaults = { words: ['MY', 'LOVE'], backdrop: 'night', length: 'standard', pace: 'quick', clipSound: 'ambient', look: 0.6, tilt: false, useVideos: true, only: null, seed: 1, section: 'default' };
 const plan = (o = {}, extra = {}) => j(P.tplPlanState({ projectId: 'proj', inv: j(inv), found, cue, options: { ...defaults, ...o }, now, ...extra }));
 
 // Faithful assemble: every boundary at round((target + offset) * fps) from the planned targets (assemble.js).
@@ -70,7 +70,8 @@ assert.equal(s.musicStart, s.sectionStart);
 assert.ok(Math.abs(((s.sectionStart - cue.firstBeat) / bar) - Math.round((s.sectionStart - cue.firstBeat) / bar)) < 1e-9, 'section on a bar');
 assert.equal(s.transitions.length, 14);
 assert.equal(s.transitions[0].entry, 'slide');
-assert.equal(s.transitions[10].entry, 'tear');
+assert.equal(s.transitions[10].entry, 'none', 'pass-2 shot 4 is a hard cut (no tear)');
+assert.ok(!s.transitions.some(t => t.entry === 'tear' || t.exit === 'tear'), 'no tear transition');
 assert.equal(s.draftName, 'Torn Paper Love Night Standard 2026-09-30 09:05:00');
 assert.equal(P.tplDraftName('night', 'standard', new Date(2026, 8, 30, 9, 5, 7).getTime()), 'Torn Paper Love Night Standard 2026-09-30 09:05:07', 'seconds in the name');
 assert.notEqual(P.tplDraftName('kraft', 'short', new Date(2026, 8, 30, 9, 5, 7).getTime()), P.tplDraftName('kraft', 'short', new Date(2026, 8, 30, 9, 5, 48).getTime()), 'two versions in one minute get distinct names');
@@ -184,7 +185,7 @@ for (const [st, fps] of [[s, 25], [s, 29.97], [L, 25], [L, 29.97], [plan({ pace:
     assert.equal(d.backdrop, st.options.backdrop);
     assert.equal(d.allowPhotoBackdrop, true);
     assert.equal(d.look, st.options.look);
-    assert.equal(d.inset, 88);
+    assert.equal(d.inset, 92);
     assert.equal(d.edge, 1.4);
     const sz = st.sizes[slot.rid];
     assert.deepEqual(d.vis, j(P.tplVisRect(sz ? sz.width : null, sz ? sz.height : null).vis));
@@ -211,7 +212,7 @@ for (const [st, fps] of [[s, 25], [s, 29.97], [L, 25], [L, 29.97], [plan({ pace:
   for (let k = 2; k < a.frames.length - 1; k++) if ((st.schedule.units[k] - st.schedule.units[1]) % step === 0) assert.ok(ticks.includes(a.frames[k] - a.frames[1]), 'tick on cut ' + k);
   assert.equal(Lt.parameters.word1, 'MY');
   assert.equal(Lt.parameters.word2, 'LOVE');
-  assert.equal(Lt.parameters.size, 6.7);
+  assert.equal(Lt.parameters.size, 6.0);
   assert.equal(Lt.parameters.y, 50);
   assert.equal(Lt.parameters.accent, '#d0201a');
   assert.equal(Lt.parameters.seed, st.options.seed);
@@ -241,10 +242,10 @@ for (const [st, fps] of [[s, 25], [s, 29.97], [L, 25], [L, 29.97], [plan({ pace:
   };
   const T = check(D.torn.editable);
   assert.deepEqual(Object.keys(T), ['Faded film', 'Backdrop colour', 'Edge width', 'Photo size', 'Tilt', 'Tear seed', 'Photo motion', 'Motion strength']);
-  assert.deepEqual([T['Faded film'].key, T['Faded film'].min, T['Faded film'].max, T['Faded film'].defaultValue], ['look', 0, 1, 0.35]);
+  assert.deepEqual([T['Faded film'].key, T['Faded film'].min, T['Faded film'].max, T['Faded film'].defaultValue], ['look', 0, 1, 0.6]);
   assert.deepEqual([T['Backdrop colour'].key, T['Backdrop colour'].defaultValue], ['backdropColor', '#151113']);
   assert.deepEqual([T['Edge width'].key, T['Edge width'].min, T['Edge width'].max], ['edge', 0.5, 3]);
-  assert.deepEqual([T['Photo size'].key, T['Photo size'].min, T['Photo size'].max, T['Photo size'].defaultValue], ['inset', 70, 95, 88]);
+  assert.deepEqual([T['Photo size'].key, T['Photo size'].min, T['Photo size'].max, T['Photo size'].defaultValue], ['inset', 70, 95, 92]);
   assert.deepEqual([T['Tilt'].key, T['Tilt'].min, T['Tilt'].max], ['tilt', -5, 5]);
   assert.equal(T['Tear seed'].key, 'seed');
   assert.deepEqual(T['Photo motion'].options.map(o => o.value), ['off', 'push-in', 'pull-out', 'drift']);
@@ -279,7 +280,7 @@ for (const [st, fps] of [[s, 25], [s, 29.97], [L, 25], [L, 29.97], [plan({ pace:
     const hold = a.frames[i + 1] - a.frames[i];
     const n = j(tb.T.tplData({ ...c.data, holdFrames: hold, originFrame: 0 }));
     assert.equal(n.seed, c.data.seed);
-    assert.equal(n.inset, 0.88);
+    assert.equal(n.inset, 0.92);
     assert.equal(n.edge, 1.4);
     assert.equal(n.backdrop, 'photo');
     assert.equal(n.allowPhotoBackdrop, true);

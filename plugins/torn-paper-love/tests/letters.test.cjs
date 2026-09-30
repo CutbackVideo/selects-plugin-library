@@ -7,7 +7,7 @@ assert.ok(a >= 0 && b > a, 'tpl-letters markers present');
 const block = src.slice(a, b);
 const load = (extra) => {
   const box = Object.assign({}, extra || {}); vm.createContext(box);
-  vm.runInContext(block + ';globalThis.L={tplGraphemes,tplAssignLooks,tplLooksAt,tplLookAt,tplLayout,tplLetterEm,tplSupported,tplTickIndex,tplApplyAccent,TPL_FALLBACK_EM,TPL_HEART};', box);
+  vm.runInContext(block + ';globalThis.L={tplIsAccent,tplWeight,TPL_PAD_MIN,TPL_PAD_MAX,tplGraphemes,tplAssignLooks,tplLooksAt,tplLookAt,tplLayout,tplLetterEm,tplSupported,tplTickIndex,tplApplyAccent,TPL_FALLBACK_EM,TPL_HEART};', box);
   return box.L;
 };
 const L = load();
@@ -83,6 +83,51 @@ const holey = JSON.parse(JSON.stringify(advance)); delete holey.serif.Q;
 for (let s = 0; s < 20; s++) for (const id of L.tplAssignLooks(['Q'], s, looks, holey)[0]) assert.notEqual(byId[id].face, 'serif');
 // Without an advance table every look is a candidate.
 assert.ok(L.tplAssignLooks(['A'], 1, looks)[0].length >= 2);
+
+// ---- Weights and the accent (real looks.json) ----
+const real = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'fonts', 'looks.json'), 'utf8'));
+const realById = Object.fromEntries(real.looks.map((l) => [l.id, l]));
+assert.equal(L.tplWeight({}), 1, 'missing weight = 1');
+assert.equal(L.tplWeight({ weight: -2 }), 0);
+assert.ok(L.tplIsAccent({ fg: '#D0201A', bg: '#ffffff' }) && L.tplIsAccent({ fg: '#111111', bg: '#d0201a' }) && !L.tplIsAccent({ fg: '#3a78c9', bg: '#fff' }));
+{
+  // Weight 0 is never used.
+  const zero = looks.map((l) => (l.id === 'grey-serif' ? Object.assign({}, l, { weight: 0 }) : l));
+  for (let s = 0; s < 60; s++) for (const set of L.tplAssignLooks(letters, s, zero, advance)) assert.ok(!set.includes('grey-serif'), 'weight 0 never drawn');
+}
+{
+  const lum = (h) => { const n = parseInt(h.slice(1), 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; };
+  const heavy = (l) => l.face === 'black' || l.face === 'slab';
+  let looksSeen = 0, dark = 0, heavyN = 0, blue = 0, maxRed = 0, redTicks = 0, ticksN = 0, seedsWithRed = 0;
+  const words = [['M', 'Y', 'L', 'O', 'V', 'E'], ['E', 'L', 'E', 'A', 'N', 'O', 'R', ' ', 'J', 'O'], ['I', '\u2665', 'U']];
+  for (const w of words) for (let s = 0; s < 150; s++) {
+    const as = L.tplAssignLooks(w, s, real.looks, real.advance);
+    // Exactly one letter carries exactly one accent look.
+    const withRed = as.filter((set) => set.some((id) => L.tplIsAccent(realById[id])));
+    assert.equal(withRed.length, 1, 'one accent letter');
+    assert.equal(withRed[0].filter((id) => L.tplIsAccent(realById[id])).length, 1, 'one accent look in its set');
+    for (const set of as) {
+      assert.ok(set.filter((id) => realById[id].case === 'lower').length <= 1, 'one lower-case look');
+      for (const id of set) { looksSeen++; if (lum(realById[id].bg) < 0.3) dark++; if (heavy(realById[id])) heavyN++; if (realById[id].fg === '#3a78c9') blue++; }
+    }
+    let any = false;
+    for (let t = 0; t < 24; t++) {
+      const cur = L.tplLooksAt(t, s, as).filter(Boolean);
+      const reds = cur.filter((id) => L.tplIsAccent(realById[id])).length;
+      maxRed = Math.max(maxRed, reds); ticksN++; if (reds) { redTicks++; any = true; }
+    }
+    if (any) seedsWithRed++;
+  }
+  assert.equal(maxRed, 1, 'at most one red letter visible at a time');
+  assert.ok(redTicks / ticksN > 0.2 && redTicks / ticksN < 0.8, 'red comes and goes: ' + (redTicks / ticksN).toFixed(2));
+  assert.ok(dark / looksSeen <= 1 / 8, 'black-backed chips rare: ' + (dark / looksSeen).toFixed(3));
+  assert.ok(heavyN / looksSeen <= 0.08, 'heavy faces rare: ' + (heavyN / looksSeen).toFixed(3));
+  assert.ok(blue / looksSeen <= 0.03, 'blue rare: ' + (blue / looksSeen).toFixed(3));
+  assert.ok(seedsWithRed >= 0.9 * 450, 'a red letter shows up in nearly every build');
+  // Heavy faces are thinned, most chips are light paper.
+  for (const l of real.looks) if (heavy(l)) assert.ok(l.thin > 0, l.id + ' thinned');
+  assert.ok(real.looks.filter((l) => lum(l.bg) >= 0.75).length >= real.looks.length - 2, 'light paper backing');
+}
 
 // ---- Re-style clock ----
 const assigned = L.tplAssignLooks(letters, 11, looks, advance);
@@ -162,14 +207,18 @@ assert.ok(Math.abs(right - 0.94 * W) <= 0.01 * W, 'LOVE ends at 94% W (got ' + r
 assert.ok(Math.max(...w1.map((c) => c.x + c.w)) < 0.37 * W, 'MY stays in the left band');
 assert.ok(Math.min(...w2.map((c) => c.x)) > 0.62 * W - 1, 'LOVE stays in the right band');
 for (const c of ref.chips) {
-  assert.ok(Math.abs(c.glyph - 0.067 * H) < 1e-6, 'cap height 6.7% H at default size');
-  assert.ok(c.pad >= 0.08 * c.glyph - 1e-9 && c.pad <= 0.14 * c.glyph + 1e-9, 'padding 8-14%');
-  assert.ok(Math.abs(c.rot) <= 4, 'rotation within 4 deg');
-  assert.ok(Math.abs(c.jitter) <= 0.04 * c.glyph + 1e-9, 'baseline jitter within 4%');
+  assert.ok(Math.abs(c.glyph - 0.067 * H) < 1e-6, 'cap height 6.7% H at size 6.7');
+  assert.ok(c.pad >= 0.03 * c.glyph - 1e-9 && c.pad <= 0.07 * c.glyph + 1e-9, 'vertical padding 3-7%');
+  assert.ok(c.padX >= 0.03 * c.glyph - 1e-9 && c.padX <= 0.07 * c.glyph + 1e-9, 'horizontal padding 3-7%');
+  assert.ok(Math.abs(c.rot) <= 3, 'rotation within 3 deg');
+  assert.ok(Math.abs(c.jitter) <= 0.06 * c.glyph + 1e-9, 'baseline jitter within 6%');
   assert.ok(Math.abs(c.y + c.h / 2 - 0.5 * H) < 1e-6, 'vertically centred on y');
   assert.equal(c.kind, 'glyph');
 }
 for (let i = 1; i < w2.length; i++) assert.ok(w2[i].x >= w2[i - 1].x + w2[i - 1].w - 1e-6, 'left to right, no overlap of slots');
+// Chips differ in width and height (independent seeded paddings).
+assert.ok(new Set(ref.chips.map((c) => c.pad.toFixed(3))).size > 1 && new Set(ref.chips.map((c) => c.padX.toFixed(3))).size > 1, 'irregular chips');
+assert.ok(ref.chips.some((c) => Math.abs(c.pad - c.padX) > 0.005 * c.glyph), 'width and height padding drawn separately');
 assert.ok(w2[1].x - (w2[0].x + w2[0].w) < 0.1 * w2[0].glyph, 'chips close together');
 eq(plain(ref), plain(L.tplLayout([['M', 'Y'], ['L', 'O', 'V', 'E']], 6.7, 50, advance, W, H, 7)), 'layout deterministic');
 const reseeded = L.tplLayout([['M', 'Y'], ['L', 'O', 'V', 'E']], 6.7, 50, advance, W, H, 8);
@@ -195,7 +244,8 @@ assert.ok(Math.abs(Math.max(...lw.map((c) => c.x + c.w)) - 0.94 * W) < 1e-6, 'st
 assert.ok(lw[0].glyph < 0.067 * H && lw[0].glyph >= 0.045 * H, 'shrunk but >= 4.5% H');
 assert.ok(Math.abs(long.chips[0].glyph - 0.067 * H) < 1e-6, 'the other word keeps its size');
 // Too long even at the minimum -> fits:false (chips still inside the band for drawing).
-const wide = L.tplLayout([['M', 'Y'], L.tplGraphemes('MWMWMWMW')], 6.7, 50, advance, W, H, 7);
+// (Tight chips fit 8 fixture-wide letters, so this uses a wider face: 0.9 em per letter.)
+const wide = L.tplLayout([['M', 'Y'], L.tplGraphemes('MWMWMWMW')], 6.7, 50, () => 0.9, W, H, 7);
 assert.equal(wide.fits, false);
 const ww = wide.chips.filter((c) => c.word === 1);
 assert.ok(Math.max(...ww.map((c) => c.x + c.w)) - Math.min(...ww.map((c) => c.x)) <= 0.32 * W + 1e-6, 'overflowing word still kept in its band');
@@ -205,7 +255,7 @@ assert.equal(allWide.fits, false, 'eight wide fallback chars do not fit');
 const fb = L.tplLayout([['A', '\u00C9'], ['\u2665', ' ', 'B']], 6.7, 50, advance, W, H, 7);
 eq(fb.chips.map((c) => c.kind), ['glyph', 'fallback', 'heart', 'space', 'glyph']);
 const fbc = fb.chips[1];
-assert.ok(Math.abs(fbc.w - (L.TPL_FALLBACK_EM * fbc.fontPx + 2 * 0.14 * fbc.glyph)) < 1e-6, 'fallback slot width');
+assert.ok(Math.abs(fbc.w - (L.TPL_FALLBACK_EM * fbc.fontPx + 2 * L.TPL_PAD_MAX * fbc.glyph)) < 1e-6, 'fallback slot width');
 // Empty words are skipped; the other word keeps its band.
 const only2 = L.tplLayout([[], ['L', 'O', 'V', 'E']], 6.7, 50, advance, W, H, 7);
 assert.equal(only2.chips.length, 4);

@@ -191,7 +191,7 @@ const cfgA = (extra = {}) => ({ projectId: 'p', draftName: 'Torn Paper Love Nigh
   // ---- Decorate: next call reopens the saved Draft. Mute first (Off), then one Torn photo per Main clip in Main order
   // with holdFrames and originFrame filled in, then the Ransom letters over [startFrame, endFrame), one commit.
   m.reopen();
-  const tornEditable = [{ key: 'look', label: 'Faded film', type: 'number', defaultValue: 0.35, min: 0, max: 1, step: 0.05 }];
+  const tornEditable = [{ key: 'look', label: 'Faded film', type: 'number', defaultValue: 0.6, min: 0, max: 1, step: 0.05 }];
   const lettersEditable = [{ key: 'word1', label: 'Word 1', type: 'text', defaultValue: 'MY' }];
   const cfgD = (extra = {}) => ({ sequenceId: 'seq-new', mute: true, photos: ['p1', 'p2'],
     torn: { tsx: 'TORN', editable: tornEditable, clips: slots.map((s, i) => ({ rid: s.rid, sourceStartSeconds: s.kind === 'video' ? 2 : 0, data: { seed: 100 + (i % 3), entry: i === 0 ? 'slide' : 'none', vis: { x: 0, y: 0, w: 100, h: 100 } } })) },

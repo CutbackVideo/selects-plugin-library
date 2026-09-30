@@ -299,7 +299,8 @@ function tplSlots(schedule, picks) {
   return out;
 }
 
-// Transitions per slot (entry / exit), over 2N slots.
+// Transitions per slot (entry / exit), over 2N slots. Every other cut is a hard cut ('none'); the reference has no
+// paper-strip tear, so pass 2 cuts straight through.
 function tplTransitions(N) {
   const out = [];
   for (let i = 0; i < 2 * N; i++) out.push({ index: i, entry: 'none', exit: 'none' });
@@ -308,18 +309,18 @@ function tplTransitions(N) {
   set(1, 'entry', 'paper-flash');
   set(1, 'exit', 'glow-out');
   if (N - 1 > 1) set(N - 1, 'entry', 'glow-in');
-  set(N >= 5 ? N + 3 : N + Math.floor(N / 2), 'entry', 'tear');
   set(2 * N - 1, 'entry', 'paper-flash-short');
   return out;
 }
 
-// Transition phases in 30 fps frames.
+// Transition phases in 30 fps frames. 'paper-flash' follows the reference frame for frame (white card, overexposed,
+// normal, two full-white frames). 'paper-flash-short' (the last shot) only flares the torn paper edge over an
+// overexposed photo: it never whites out the card or the frame.
 const TPL_PHASES = {
   'paper-flash': [['white', 1], ['over', 2], ['normal', 1], ['full', 2]],
-  'paper-flash-short': [['white', 1], ['over', 1], ['full', 1]],
+  'paper-flash-short': [['flare', 3]],
   'glow-in': [['glow', 2]],
   'glow-out': [['glow', 2]],
-  tear: [['tear', 2]],
 };
 // The slide intro in fractions of its slot: black until `black`, ease-in slide until `land`, then hold.
 const TPL_SLIDE = { black: 0.28, land: 0.76 };

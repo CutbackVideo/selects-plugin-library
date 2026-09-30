@@ -167,7 +167,7 @@ const tick = () => new Promise(r => setImmediate(r));
   const photos7 = [photo('p1', 3000, 4000, 1, 0), photo('p2', 4000, 3000, 2, 1), photo('p3', 3024, 4032, 3, 2), photo('p4', 1440, 1080, 4, 3),
     photo('p5', 4032, 3024, 5, 4), photo('p6', 1080, 1920, 6, 5), photo('p7', 1920, 1080, null, 6)];
   const videos = [video('v1', 20, 1920, 1080, 9, 8), video('v2', 12, 1080, 1920, 10, 9), video('v3', 6, 1920, 1080, 11, 10)];
-  const options = { words: ['MY', 'LOVE'], backdrop: 'night', length: 'standard', pace: 'quick', clipSound: 'ambient', look: 0.35, tilt: false, useVideos: true, only: null, seed: 1, section: 'default' };
+  const options = { words: ['MY', 'LOVE'], backdrop: 'night', length: 'standard', pace: 'quick', clipSound: 'ambient', look: 0.6, tilt: false, useVideos: true, only: null, seed: 1, section: 'default' };
   const assets = { tornTsx: '/* torn */', lettersTsx: '/* letters */', looks, fonts: { 'TPL Serif': 'data:font/woff2;base64,AAAA' } };
   const scripts = { inventoryJs: 'INVENTORY __CONFIG__', searchJs: 'SEARCH __CONFIG__', ensureJs: 'ENSURE __CONFIG__', assembleJs: 'ASSEMBLE __CONFIG__', decorateJs: 'DECORATE __CONFIG__' };
   const frozen = over => P.tplFreezeBuild(Object.assign({ projectId: 'proj', inventory: { photos: photos7, resources: videos }, found: null, cue, musicPath: '/installed/assets/cues/' + cue.file,

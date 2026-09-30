@@ -10,7 +10,7 @@ const between = (s, a, b) => {
 };
 const block = between(src, '// tpl-torn:start', '// tpl-torn:end');
 const box = { Math, Number, Array, String, JSON, Object, isFinite }; vm.createContext(box);
-vm.runInContext(block + ';globalThis.T={tplHash,tplData,tplInsetRect,tplTornPolygon,tplGrow,tplRim,tplCentre,tplGeometry,tplClipPath,tplLookFilter,tplLocalFrame,tplPhaseAt,tplSlideY,tplMotion,tplPhotoFilter,tplTearStrips,tplBackdrop,TPL_W,TPL_H};', box);
+vm.runInContext(block + ';globalThis.T={tplHash,tplData,tplInsetRect,tplTornPolygon,tplGrow,tplRim,tplCentre,tplGeometry,tplClipPath,tplLookFilter,tplLocalFrame,tplPhaseAt,tplSlideY,tplMotion,tplPhotoFilter,tplBackdropOpacity,tplFlare,tplBackdrop,TPL_W,TPL_H,TPL_PAPER,TPL_RIM};', box);
 const T = box.T, j = v => JSON.parse(JSON.stringify(v));
 const W = 1440, H = 1080;
 assert.equal(T.TPL_W, W); assert.equal(T.TPL_H, H);
@@ -58,8 +58,8 @@ assert.ok(T.tplHash('x') >= 0 && T.tplHash('x') <= 0xffffffff);
 
 const D = j(T.tplData(undefined));
 assert.deepEqual(D, {
-  seed: 0, vis: { x: 0, y: 0, w: 100, h: 100 }, inset: 0.88, edge: 1.4, backdrop: 'night', backdropColor: null,
-  look: 0.35, tilt: 0, entry: 'none', exit: 'none', holdFrames: 0, phases: { entry: [], exit: [] },
+  seed: 0, vis: { x: 0, y: 0, w: 100, h: 100 }, inset: 0.92, edge: 1.4, backdrop: 'night', backdropColor: null,
+  look: 0.6, tilt: 0, entry: 'none', exit: 'none', holdFrames: 0, phases: { entry: [], exit: [] },
   clock: 'clip', originFrame: 0, motion: 'off', motionStrength: 0.5, allowPhotoBackdrop: true,
 });
 const N = d => j(T.tplData(d));
@@ -88,8 +88,9 @@ assert.deepEqual(N({ vis: { x: 1, y: 2, w: 0, h: 50 } }).vis, { x: 0, y: 0, w: 1
 assert.equal(N({ seed: 'abc' }).seed, T.tplHash('abc'));
 
 // ---------- torn polygon ----------
-const rect = j(T.tplInsetRect(0.88, W, H));
-assert.deepEqual(rect, { x: 86.4, y: 64.8, w: 1267.2, h: 950.4 });
+assert.deepEqual(j(T.tplInsetRect(0.88, W, H)), { x: 86.4, y: 64.8, w: 1267.2, h: 950.4 });
+const rect = j(T.tplInsetRect(0.92, W, H));
+assert.deepEqual(rect, { x: 57.6, y: 43.2, w: 1324.8, h: 993.6 }, 'default Photo size 92 %');
 const seeds = [1, 2, 3, 77, 4242, 'rid-a:1', 0xdeadbeef];
 const counts = new Set();
 for (const s of seeds) {
@@ -165,8 +166,13 @@ const gb = bbox(g.poly);
 for (const [x, y] of [[gb.x0, gb.y0], [gb.x1, gb.y1], [gb.x0, gb.y1], [gb.x1, gb.y0]]) {
   assert.ok(Math.abs(x - W / 2) <= g.photoScale * W / 2 && Math.abs(y - H / 2) <= g.photoScale * H / 2, 'photo covers the torn shape');
 }
-assert.ok(g.photoScale > 0.88 && g.photoScale < 0.95, 'photo scale near the inset: ' + g.photoScale);
-assert.equal(g.strips.length, 2);
+assert.ok(g.photoScale > 0.92 && g.photoScale < 0.97, 'photo scale near the inset: ' + g.photoScale);
+assert.equal(g.strips, undefined, 'no tear strips');
+// Paper: a warm, dim off-white (not the bright #f7f5f0 of v1) and a rim darker than the paper.
+const lum = h => { const n = parseInt(h.slice(1), 16); return 0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255); };
+assert.equal(T.TPL_PAPER, '#e6e0d4');
+assert.ok(lum(T.TPL_PAPER) < 230 && parseInt(T.TPL_PAPER.slice(1, 3), 16) > parseInt(T.TPL_PAPER.slice(5, 7), 16), 'paper dimmer and warm');
+for (const r of T.TPL_RIM) assert.ok(lum(r) < lum(T.TPL_PAPER) - 40, 'rim darker than the paper: ' + r);
 // Clip path maps canvas px into the vis rectangle of the box (percent).
 const cp = T.tplClipPath([[0, 0], [W, 0], [W, H], [0, H]], { x: 12.5, y: 0, w: 75, h: 100 });
 assert.equal(cp, 'polygon(12.500% 0.000%, 87.500% 0.000%, 87.500% 100.000%, 12.500% 100.000%)');
@@ -189,10 +195,16 @@ for (let i = 1; i <= 20; i++) {
   prev = { lift, slope, sat: f.saturate, sepia: f.sepia };
 }
 {
+  // Strength 1: black 0.07, white 2/3, saturation 0.5, sepia 1/3.
   const f = parse(T.tplLookFilter(1));
-  assert.ok(Math.abs(f.brightness * (1 - f.contrast) / 2 - 24 / 255) < 0.002, 'blacks lifted 24/255');
-  assert.ok(Math.abs(f.brightness * f.contrast - 0.86) < 0.002, 'contrast -14 %');
-  assert.equal(f.saturate, 0.82); assert.equal(f.sepia, 0.12);
+  assert.ok(Math.abs(f.brightness * (1 - f.contrast) / 2 - 0.07) < 0.002, 'blacks lifted to 0.07');
+  assert.ok(Math.abs(f.brightness * (1 + f.contrast) / 2 - 2 / 3) < 0.002, 'white 2/3');
+  assert.equal(f.saturate, 0.5); assert.equal(f.sepia, 0.333);
+  // The default 0.6: darker overall (white 0.8, highlights compressed), lifted blacks, clearly desaturated, warm.
+  const d = parse(T.tplLookFilter(T.tplData({}).look));
+  assert.ok(Math.abs(d.brightness * (1 - d.contrast) / 2 - 0.042) < 0.002, 'default black 0.042');
+  assert.ok(Math.abs(d.brightness * (1 + d.contrast) / 2 - 0.8) < 0.002, 'default white 0.8');
+  assert.equal(d.saturate, 0.7); assert.equal(d.sepia, 0.2);
 }
 
 // ---------- clocks ----------
@@ -237,6 +249,24 @@ assert.equal(T.tplPhotoFilter('none', { name: 'over', i: 1, n: 2 }), 'brightness
 assert.equal(T.tplPhotoFilter('none', { name: 'over', i: 0, n: 1 }), 'brightness(2.200)');
 assert.equal(T.tplPhotoFilter('none', { name: 'over', i: 1, n: 3 }), 'brightness(1.850)');
 assert.equal(T.tplPhotoFilter('sepia(0.1)', { name: 'glow', i: 0, n: 2 }), 'sepia(0.1) brightness(1.800)');
+// 'flare' (the last shot's short flash): the photo overexposes, 2.0 falling to 1.35, never a white sheet.
+assert.equal(T.tplPhotoFilter('sepia(0.1)', { name: 'flare', i: 0, n: 3 }), 'sepia(0.1) brightness(2.000)');
+assert.equal(T.tplPhotoFilter('none', { name: 'flare', i: 2, n: 3 }), 'brightness(1.350)');
+assert.equal(T.tplPhotoFilter('none', { name: 'flare', i: 0, n: 1 }), 'brightness(2.000)');
+assert.equal(T.tplFlare({ name: 'flare', i: 0, n: 3 }), 1);
+assert.ok(Math.abs(T.tplFlare({ name: 'flare', i: 2, n: 3 }) - 0.35) < 1e-9);
+assert.equal(T.tplFlare({ name: 'glow', i: 0, n: 2 }), 0); assert.equal(T.tplFlare(null), 0);
+// Every phase name the planner emits is drawn by the effect (a missing one would render as a normal frame).
+{
+  const planner = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
+  const pb = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date }; vm.createContext(pb);
+  vm.runInContext(planner + ';globalThis.P={TPL_PHASES};', pb);
+  const names = new Set(); for (const k of Object.keys(pb.P.TPL_PHASES)) for (const [n] of pb.P.TPL_PHASES[k]) names.add(n);
+  for (const n of names) if (n !== 'normal') assert.ok(src.includes('name === "' + n + '"'), 'phase ' + n + ' is handled');
+  assert.ok(!names.has('tear'), 'no tear phase');
+}
+// The full-white overlay only belongs to the first paper flash.
+assert.ok(/phase\.name === "full" \? <div/.test(src), 'full overlay drawn only for the full phase');
 
 // ---------- slide ----------
 const hold = 21;
@@ -251,6 +281,23 @@ assert.ok(ys[500] < -50, 'ease-in: less than half way at the time midpoint');
 assert.equal(T.tplSlideY(5, 0), 0, 'no hold: no slide');
 assert.equal(T.tplSlideY(100, hold), 0);
 
+// ---------- backdrop behind the slide intro ----------
+// Black while the card drops (the backdrop does not slide with it), then a fade over 0.18 of the hold after landing.
+for (const l of [0, 3, 10, 15, Math.floor(0.76 * hold)]) assert.equal(T.tplBackdropOpacity(l, hold, 'slide'), 0, 'black at ' + l);
+assert.ok(Math.abs(T.tplBackdropOpacity(0.85 * hold, hold, 'slide') - 0.5) < 1e-9, 'half way through the fade');
+assert.ok(T.tplBackdropOpacity(0.94 * hold, hold, 'slide') > 1 - 1e-9, 'fully shown at 0.94');
+assert.equal(T.tplBackdropOpacity(hold - 1, hold, 'slide'), 1);
+for (const e of ['none', 'paper-flash', 'glow-in']) assert.equal(T.tplBackdropOpacity(0, hold, e), 1, 'no fade for ' + e);
+assert.equal(T.tplBackdropOpacity(0, 0, 'slide'), 1, 'no hold: shown');
+{
+  // The backdrop layers sit outside the sliding layer (a portrait box reaches below the canvas).
+  const i = src.indexOf('export default function TornPhoto(');
+  const body = src.slice(i);
+  const bd = body.indexOf('<TplBackdropLayer'), pb = body.indexOf('<TplPhotoBackdrop'), tr = body.indexOf('translateY(');
+  assert.ok(bd > 0 && pb > 0 && tr > 0 && bd < tr && pb < tr, 'backdrops are drawn before (outside) the sliding layer');
+  assert.ok(body.includes('opacity: backdropOpacity'), 'backdrop fades in');
+}
+
 // ---------- motion ----------
 assert.deepEqual(j(T.tplMotion(0.5, 'off', 1)), { scale: 1, x: 0, y: 0 });
 assert.deepEqual(j(T.tplMotion(0.5, 'push-in', 0)), { scale: 1, x: 0, y: 0 });
@@ -264,30 +311,6 @@ for (let i = 0; i <= 20; i++) for (const s of [0.25, 0.5, 1]) {
   assert.ok(Math.abs(m.x) <= (m.scale - 1) / 2 * 100 + 1e-9, 'drift overhang');
 }
 assert.ok(T.tplMotion(0, 'drift', 1).x < 0 && T.tplMotion(1, 'drift', 1).x > 0, 'drift travels');
-
-// ---------- tear strips (§15.3) ----------
-const vr = { x: 0, y: 0, w: W, h: H };
-for (const s of [1, 2, 3, 99, 'rid-q:0']) {
-  const st = j(T.tplTearStrips(s, vr));
-  assert.equal(st.length, 2);
-  assert.deepEqual(j(T.tplTearStrips(s, vr)), st, 'deterministic');
-  const bands = [[0.30, 0.40], [0.60, 0.72]];
-  st.forEach((k, i) => {
-    assert.ok(k.cy >= bands[i][0] * H && k.cy <= bands[i][1] * H, 'strip ' + i + ' band');
-    assert.ok(k.height >= 0.06 * H && k.height <= 0.09 * H, 'strip height');
-    assert.ok(Math.abs(k.angle) <= 3, 'strip angle');
-    for (const poly of [k.points, k.core]) {
-      assert.ok(poly.length >= 40, 'jagged');
-      for (const [x, y] of poly) assert.ok(x >= 0 && x <= W && y >= 0 && y <= H, 'inside vis');
-    }
-    // The white core sits inside the grey-rimmed outline.
-    const bo = bbox(k.points), bc = bbox(k.core);
-    assert.ok(bc.y0 >= bo.y0 && bc.y1 <= bo.y1, 'core inside outline');
-    // It crosses the torn photo.
-    assert.ok(bo.x0 <= rect.x && bo.x1 >= rect.x + rect.w, 'crosses the photo');
-  });
-}
-assert.notDeepEqual(j(T.tplTearStrips(1, vr)), j(T.tplTearStrips(2, vr)));
 
 // ---------- backdrops ----------
 assert.equal(T.tplBackdrop('night', null).base, '#151113');

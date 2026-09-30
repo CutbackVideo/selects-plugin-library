@@ -39,7 +39,7 @@ const j = v => JSON.parse(JSON.stringify(v)); // vm objects -> plain objects
 
 // Matrix section values -> the panel's: early = the first bar (0 snaps to it), late = the last bar that fits.
 const sectionOf = v => (v === 'early' ? 0 : v === 'late' ? 1e6 : typeof v === 'number' ? v : 'default');
-const lookOf = v => (v === true ? 0.35 : typeof v === 'number' ? v : 0);
+const lookOf = v => (v === true ? 0.6 : typeof v === 'number' ? v : 0);
 
 export async function createAdapter({ pluginDir, installedDir, read }) {
   let manifest = { id: 'torn-paper-love', version: null };
@@ -144,12 +144,12 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       return j(P.tplExpected(s, a, s.music));
     },
 
-    // The letters over the first paper flash, a pass-1 shot, the tear and the last shot.
+    // The letters over the first paper flash, a pass-1 shot, a pass-2 shot and the last shot's edge flare.
     captureFrames(s) {
       const f = s.timing ? s.timing.frames : s.schedule.frames;
       const mid = i => Math.floor((f[i] + f[i + 1]) / 2);
-      const tear = s.transitions.findIndex(t => t.entry === 'tear');
-      return [f[1] + 1, mid(3), f[tear] + 1, mid(s.slots.length - 1)];
+      const last = s.slots.length - 1;
+      return [f[1] + 1, mid(3), mid(s.N + 1), f[last] + 1, mid(last)];
     },
 
     record(s, a) {
