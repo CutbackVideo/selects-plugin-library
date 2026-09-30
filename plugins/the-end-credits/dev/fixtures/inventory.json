@@ -1,0 +1,40 @@
+{
+ "resources": [
+  {"rid":"r0","name":"beach-01-landscape.mp4","duration":17.559,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-12T10:00:00Z","kind":"video"},
+  {"rid":"r1","name":"beach-02-landscape.mp4","duration":15.015,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-13T11:00:00Z","kind":"video"},
+  {"rid":"r2","name":"desert-01-landscape.mp4","duration":21.672,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-14T12:00:00Z","kind":"video"},
+  {"rid":"r3","name":"desert-02-landscape.mp4","duration":14.248,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-12T13:00:00Z","kind":"video"},
+  {"rid":"r4","name":"dusk-01-landscape.mp4","duration":15.367,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-13T14:00:00Z","kind":"video"},
+  {"rid":"r5","name":"dusk-02-landscape.mp4","duration":26.042,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-14T15:00:00Z","kind":"video"},
+  {"rid":"r6","name":"dusk-03-landscape.mp4","duration":13,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-12T16:00:00Z","kind":"video"},
+  {"rid":"r7","name":"field-01-landscape.mp4","duration":13.972,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-13T17:00:00Z","kind":"video"},
+  {"rid":"r8","name":"field-02-landscape.mp4","duration":12.513,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-14T18:00:00Z","kind":"video"},
+  {"rid":"r9","name":"forest-01-landscape.mp4","duration":9.443,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-12T19:00:00Z","kind":"video"},
+  {"rid":"r10","name":"forest-02-landscape.mp4","duration":13.647,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-13T10:00:00Z","kind":"video"},
+  {"rid":"r11","name":"mountain-01-landscape.mp4","duration":17.034,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-14T11:00:00Z","kind":"video"},
+  {"rid":"r12","name":"mountain-02-landscape.mp4","duration":30,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-12T12:00:00Z","kind":"video"},
+  {"rid":"r13","name":"mountain-03-landscape.mp4","duration":20.417,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-13T13:00:00Z","kind":"video"},
+  {"rid":"r14","name":"ocean-01-landscape.mp4","duration":10.01,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-14T14:00:00Z","kind":"video"},
+  {"rid":"r15","name":"ocean-02-landscape.mp4","duration":15.015,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-12T15:00:00Z","kind":"video"},
+  {"rid":"r16","name":"ocean-03-landscape.mp4","duration":28.695,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-13T16:00:00Z","kind":"video"},
+  {"rid":"r23","name":"rain-01-landscape.mp4","duration":12.012,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-14T13:00:00Z","kind":"video"},
+  {"rid":"r24","name":"rain-02-landscape.mp4","duration":15.015,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-12T14:00:00Z","kind":"video"},
+  {"rid":"r25","name":"road-01-landscape.mp4","duration":24.292,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-13T15:00:00Z","kind":"video"},
+  {"rid":"r26","name":"road-02-landscape.mp4","duration":18.602,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-14T16:00:00Z","kind":"video"},
+  {"rid":"r27","name":"sunset-01-landscape.mp4","duration":14.748,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-12T17:00:00Z","kind":"video"},
+  {"rid":"r28","name":"sunset-02-landscape.mp4","duration":13.56,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-13T18:00:00Z","kind":"video"},
+  {"rid":"r29","name":"sunset-03-landscape.mp4","duration":24.525,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-14T19:00:00Z","kind":"video"},
+  {"rid":"r30","name":"window-01-landscape.mp4","duration":28.233,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-12T10:00:00Z","kind":"video"},
+  {"rid":"r31","name":"window-02-landscape.mp4","duration":12.112,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-13T11:00:00Z","kind":"video"},
+  {"rid":"r32","name":"window-03-landscape.mp4","duration":15.015,"width":1920,"height":1080,"aspect":1.777778,"recordedAt":"2026-09-14T12:00:00Z","kind":"video"}
+ ],
+ "photos": [
+  {"rid":"r17","name":"photo-01-landscape.jpg","width":2400,"height":1350,"aspect":1.777778,"recordedAt":"2026-09-14T17:00:00Z","kind":"photo"},
+  {"rid":"r18","name":"photo-01-portrait.jpg","width":1600,"height":2400,"aspect":0.666667,"recordedAt":"2026-09-12T18:00:00Z","kind":"photo"},
+  {"rid":"r19","name":"photo-02-landscape.jpg","width":2400,"height":1600,"aspect":1.5,"recordedAt":"2026-09-13T19:00:00Z","kind":"photo"},
+  {"rid":"r20","name":"photo-02-portrait.jpg","width":1600,"height":2400,"aspect":0.666667,"recordedAt":"2026-09-14T10:00:00Z","kind":"photo"},
+  {"rid":"r21","name":"photo-03-landscape.jpg","width":2400,"height":1600,"aspect":1.5,"recordedAt":"2026-09-12T11:00:00Z","kind":"photo"},
+  {"rid":"r22","name":"photo-04-landscape.jpg","width":2400,"height":1600,"aspect":1.5,"recordedAt":"2026-09-13T12:00:00Z","kind":"photo"}
+ ],
+ "skipped": {"unanalysed":0,"missing":0}
+}
