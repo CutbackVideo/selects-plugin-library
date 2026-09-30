@@ -39,8 +39,10 @@ const RATIO_WINDOW = 0.03;
 //   Measured: every positive (bundled cues, reference audio, the lo-fi track, with or without a silent outro) has
 //   window residuals <= 13.1 ms and on-grid ratios >= 0.93; cues joined at different tempos 32-40 ms or ratios
 //   0.44-0.58; sparse kicks changing tempo ratios 0.30-0.32; a rubato piano 23.5 ms. What it guarantees: a grid that
-//   is wrong for at least one whole window (about 30 s of music with onsets) is refused. A shorter wrong stretch can
-//   pass, and a track under about 30 s is a single window, so a tempo change inside it is not seen.
+//   is wrong for at least one whole window (about 30 s of music with onsets) is refused when that window has 12+
+//   loose hits (a) or 8+ onsets mostly off the beat and half-beat lines (b). Not caught: a shorter wrong stretch; a
+//   track under about 30 s (a single window, so a tempo change inside it); a window with under 8 onsets and under 12
+//   hits; and a wrong stretch whose onsets still fall on beat or half-beat lines, such as a half-beat phase slip.
 // grid: 'accepted' (either rule and consistent); 'approximate' (consistent, as tight as the sparse rule, median
 // residual <= SPARSE_RESIDUAL_MS over >= SPARSE_MIN_HITS hits, but hitRate under SPARSE_HIT_RATE; it still needs
 // hitRate >= APPROX_HIT_RATE, about one hit a bar, and hits in at least two CONSISTENCY_HOP-second blocks, so a kick

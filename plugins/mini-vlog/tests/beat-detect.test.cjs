@@ -176,6 +176,18 @@ function kickTrack(seconds, times) {
   const r = analyze(kickTrack(200, t), sr);
   assert.equal(r.grid, 'none', 'a kick every 8 s: ' + r.grid + ' at ' + r.bpm);
 }
+// The on-grid share gate on its own: 120 s of sparse drums with a quarter-beat (0.125 s) silent gap at 90 s, so the
+// last 30 s sit a quarter beat off the grid. hitRate is about 0.32 (between the approximate and sparse floors) and the
+// residual check has no window with 12 loose hits; only the on-grid share of the late windows refuses it (without the
+// gate it is 'approximate'). (Reviewer case.)
+{
+  const a = sparseDrums({ seconds: 120 }), i = Math.round(90 * sr);
+  const x = new Float32Array(a.length + Math.round(0.125 * sr));
+  x.set(a.subarray(0, i), 0); x.set(a.subarray(i), i + Math.round(0.125 * sr));
+  const r = analyze(x, sr);
+  assert.ok(r.hitRate > 0.2 && r.hitRate < 0.35, 'quarter-beat slip hitRate ' + r.hitRate);
+  assert.equal(r.grid, 'none', 'quarter-beat slip at 90 s: ' + r.grid + ' at ' + r.bpm);
+}
 // A silent outro does not dilute hitRate: lines are counted up to the last onset.
 {
   const body = sparseDrums();
