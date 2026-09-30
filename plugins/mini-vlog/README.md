@@ -121,7 +121,7 @@ alternatives under an "Alternatives" heading, each with its tempo (for example
 | No music | fixed timing | |
 
 The reference tracks suit the style best; the alternatives are slower. The
-bundled tracks are instrumentals at about -14 LUFS.
+bundled tracks are instrumentals at -11 LUFS (true peak at most -1 dBTP).
 
 **Beat and bar.** On Acoustic Pop, Weekend Indie Pop and Golden Hour Disco
 the beat is reliable but the start of each bar is not: their first beat of a
