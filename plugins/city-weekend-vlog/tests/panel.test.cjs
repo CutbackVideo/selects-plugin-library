@@ -82,11 +82,13 @@ for (const [key, text] of [['usePhotos', 'Use photos'], ['photosSelected', '{sel
 for (const phrase of ['label={t(L, "usePhotos")}', 'photoCandsOf(inventory, onlyPhotos, usePhotos)', 'known: photoSizesRef.current',
   'cwvPhotoMotions(plan.picks, String(usedSeed), sizes, sched.titleSlots)', 'photoEffects: PHOTO_EFFECTS', 'const PHOTO_EFFECTS = true;', 'usedPhotoCount >= minShots', 'disabled={busy || !canBuild}', 'choosePhotos(allPhotoRids)']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(/const \[usePhotos, setUsePhotos\] = React\.useState\(true\)/.test(panel), 'Use photos is on by default');
-// Motion choices: values in MOTION_VALUES, labels from STRINGS in the build-time UI language.
-assert.ok(code.includes('const MOTION_VALUES = ["push-in", "pull-out", "drift-left", "drift-right", "drift-up", "drift-down", "tilt", "push-drift"];'), 'motion values');
-assert.ok(code.includes('MOTION_VALUES.map((value) => ({ label: t(bl, "motion." + value), value }))') && code.includes('options: motionOptions, byRid }'), 'motion options are labelled at build time');
-assert.deepEqual(['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift'].map(m => en['motion.' + m]),
-  ['Push in', 'Pull out', 'Drift left', 'Drift right', 'Drift up', 'Drift down', 'Tilt', 'Push and drift']);
+// Motion choices: MOTION_OPTIONS keeps the values and the English default labels; a build labels them from STRINGS
+// `motion.<value>` in the UI language, and the two English sets agree.
+for (const m of ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift']) {
+  assert.ok(code.includes('value: "' + m + '"'), 'motion option ' + m);
+  assert.ok(code.includes('{ label: "' + en['motion.' + m] + '", value: "' + m + '" }'), 'English label of ' + m + ' matches STRINGS.en');
+}
+assert.ok(code.includes('MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }))') && code.includes('options: motionOptions, byRid }'), 'motion options are labelled at build time');
 // Inspector labels use the UI language at build time (langRef), for the title and for decorate.js's effect parameters.
 assert.ok(code.includes('const bl = langRef.current;') && code.includes('langRef.current = L;'), 'build-time language');
 for (const [key, text] of [['firstLine', 'First line'], ['connector', 'Connector'], ['place', 'Place'], ['param.font', 'Main font (optional)'], ['param.color', 'Title color'], ['param.shadow', 'Shadow'], ['param.size', 'Size'],

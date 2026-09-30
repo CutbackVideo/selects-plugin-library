@@ -1402,8 +1402,14 @@ const CWV_QUERIES = {
 // Photo clips get the photo motion and the warm look. MP4 export renders both (checked on exported frames); only
 // Draft.captureFrames fails on an image clip with an effect, and the panel never captures frames.
 const PHOTO_EFFECTS = true;
-// The Motion choices of a photo clip in the Inspector; their labels are STRINGS `motion.<value>`.
-const MOTION_VALUES = ["push-in", "pull-out", "drift-left", "drift-right", "drift-up", "drift-down", "tilt", "push-drift"];
+// The Motion choices of a photo clip in the Inspector. These labels are the English defaults (headless build tools
+// read this constant); a build writes STRINGS `motion.<value>` in the UI language.
+const MOTION_OPTIONS = [
+  { label: "Push in", value: "push-in" }, { label: "Pull out", value: "pull-out" },
+  { label: "Drift left", value: "drift-left" }, { label: "Drift right", value: "drift-right" },
+  { label: "Drift up", value: "drift-up" }, { label: "Drift down", value: "drift-down" },
+  { label: "Tilt", value: "tilt" }, { label: "Push and drift", value: "push-drift" },
+];
 // Ambient clip sound: the clips' own sound sits this far under the music, which stays at 0 dB.
 const AMBIENT_DB = -18;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -2610,7 +2616,7 @@ export default function Panel({ sdk, context, ui }: any) {
         { key: "rotation", label: t(bl, "param.tilt"), type: "number", defaultValue: -7, min: -20, max: 20, step: 1 },
         { key: "position", label: t(bl, "param.height"), type: "number", defaultValue: 46, min: 20, max: 80, step: 1 },
       ];
-      const motionOptions = MOTION_VALUES.map((value) => ({ label: t(bl, "motion." + value), value }));
+      const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));
       const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), warmth: t(bl, "param.warmth") };
       // Photos in this Draft and a planned motion for each montage photo (title photos stay still).
       const photoRids = [...new Set(plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
