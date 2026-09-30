@@ -483,7 +483,7 @@ assert.equal(gFast.beatsPerShot, 2); assert.equal(gFast.overridden, true); asser
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.MV_BUILD_STEPS.length, 5);
 assert.equal(P.MV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);
-assert.equal(P.mvProgress('shots', 0.5, '12/24 clips checked').label, 'Step 1/5 · Choosing shots (12/24 clips checked) · 20%');
+assert.equal(P.mvProgress('shots', 0.5, '12/24 videos checked').label, 'Step 1/5 · Choosing shots (12/24 videos checked) · 20%');
 assert.equal(P.mvProgress('draft', 0).percent, 50);
 assert.equal(P.mvProgress('open', 0.99).percent, 99);
 assert.equal(P.mvProgress('music', 7).percent, 50, 'fraction is clamped');

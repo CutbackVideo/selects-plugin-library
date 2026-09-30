@@ -126,8 +126,10 @@ disabled and the panel shows the reason:
 
 Progress is shown as "Step n/5 · label · P%" over five steps: Choosing
 shots, Preparing music, Creating Draft, Adding title and look, and Opening
-Draft. While the clips are searched the step shows how far it is, for example
-"Step 1/5 · Choosing shots (3/9 clips checked) · 13%".
+Draft. While the videos are searched the step shows how far it is, for example
+"Step 1/5 · Choosing shots (3/9 videos checked) · 13%". Photos are not
+searched, so they are not in the count; a build from photos alone shows
+"Step 1/5 · Choosing shots (photos only) · 0%".
 
 The Draft is named "Mini Vlog <preset> YYYY-MM-DD HH:MM:SS", with the preset's
 name and the local date and time the build started, for example "Mini Vlog

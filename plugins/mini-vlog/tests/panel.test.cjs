@@ -302,6 +302,11 @@ assert.ok(build.includes('stopPreview()') && finish.includes('stopPreview()'), '
 for (const s of ['Create another version', 'function buildAnother()', 'const s = seed + 1;', 'selects.editor.openDraft', 'linkToDraftFrame', 'Finish title and look', 'mvProgress(', 'steps={MV_BUILD_STEPS', 'Stopped at step',
   'Draft created; adding title and look', 'Silent video', 'unchecked: found.failed.length', 'Build again to retry ', 'type="checkbox"', 'chooseClips(allRids)', 'choosePhotos(allPhotoRids)', 'No clips selected']) assert.ok(ui.includes(s), s);
 assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capture in the panel');
+// The search progress counts videos (photos are never searched), singular for one; a photos-only build says so.
+assert.ok(panel.includes('advance("shots", i / rids.length, i + "/" + rids.length + (rids.length === 1 ? " video" : " videos") + " checked");'), 'progress counts videos');
+assert.ok(!panel.includes('clips checked'), 'no "clips checked" wording');
+assert.ok(panel.includes('const shotsDetail = rids.length ? undefined : "photos only";') && panel.includes('advance("shots", 1, shotsDetail);'), 'photos-only detail');
+assert.ok(panel.includes('" video; press Build to retry it." : " videos; press Build to retry them."') && panel.includes('" video; it was" : " videos; they were"'), 'unchecked messages count videos');
 
 // decorate.js refuses a config without videoEnd.
 assert.ok(fs.readFileSync(path.join(root, 'scripts', 'decorate.js'), 'utf8').includes("if (!(cfg.videoEnd > 0)) throw Error('decorate: cfg.videoEnd missing');"));
