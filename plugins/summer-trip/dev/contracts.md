@@ -55,7 +55,7 @@ plannedSeconds, frame, quantErrorSeconds }]`.
   clipSound: 'off' | 'ambient' | 'full', ambientDb: -18,
   gridSound: 'routing' | 'volume' | 'none', // chosen after live probe P1; all three branches implemented
   sfx: null | { shutter: [rid…] /* 1–4 takes, cycled */, shutterSeconds: number | number[] /* file length(s); required for
-    shutters, per take when an array */, whoosh: rid, whooshSeconds: number /* file length */ },
+    shutters, per take when an array */, whoosh: rid, whooshSeconds: number /* file length */, volumeDb?: number /* SFX level, default -8 */ },
   introDuckDb: -7                     // dB of the dry music under the title (number, 0 = off; panel default −7): a keyed level line
                                       // (setClipAudio volumeKeys, whole frames from the dry's first frame) at introDuckDb from 0 to
                                       // F(8) − 1 and 0 dB from the drop frame F(8) (gridStateFrames[0]); set with the dry's fades in one

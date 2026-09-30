@@ -279,9 +279,17 @@ const sfxPlaced = [];
 if (cfg.sfx) {
   const sfx = cfg.sfx;
   const Fend = frames.endFrame;
+  const sfxDb = typeof sfx.volumeDb === 'number' ? sfx.volumeDb : -8;
   const place = async (key, rid, a, b, ss) => {
     if (!rid || !(b > a)) return;
-    try { const x = await placeAudio(rid, a, b, ss); sfxPlaced.push({ key, clipId: x.row.clipId, rid, a: x.row.startFrame, b: x.row.endFrame }); }
+    try {
+      const x = await placeAudio(rid, a, b, ss);
+      sfxPlaced.push({ key, clipId: x.row.clipId, rid, a: x.row.startFrame, b: x.row.endFrame, db: sfxDb });
+      // The cues sit at -11 LUFS, so full-level effects on top clipped a Staging export (+1.6 dBFS on a shutter).
+      const row = await rowById(x.row.clipId);
+      try { if (row && sfxDb !== 0) await d.setClipAudio({ clip: row, volumeDb: sfxDb }); }
+      catch (e) { notes.push('sound effect ' + key + ' level not set: ' + errText(e)); }
+    }
     catch (e) { notes.push('sound effect ' + key + ' skipped: ' + errText(e)); }
   };
   const shutters = sfx.shutter || [];

@@ -244,8 +244,11 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
     assert.deepEqual(sfx.shutter4, ['sh2', F(9.5), F(9.5) + Math.floor(0.35 * fps)]);
     const wl = Math.floor(1.2 * fps);
     assert.deepEqual(sfx.whooshDrop, ['wh', F(8) - wl, F(8)]); assert.deepEqual(sfx.whooshEnding, ['wh', Fe - wl, Fe]);
-    // Ambient -18 dB only on Main videos; never photos, grid panels, music or SFX.
-    const vol = m.log.filter(x => x[0] === 'volume');
+    // SFX sit 8 dB under full level (the -11 LUFS cues clipped with full-level effects on top).
+    r.sfxPlaced.forEach(s => assert.equal(m.audio[s.clipId].volumeDb, -8, 'sfx level ' + s.key + tag));
+    // Ambient -18 dB only on Main videos; never photos, grid panels or music (SFX get their own -8 dB above).
+    const sfxIds = new Set(r.sfxPlaced.map(s => s.clipId));
+    const vol = m.log.filter(x => x[0] === 'volume' && !sfxIds.has(x[1]));
     assert.deepEqual(vol.map(x => m.clips.find(c => c.clipId === x[1])).map(c => [c.trackKind, c.resourceId]),
       mainPicks.filter(k => k.kind === 'video').map(k => ['main', k.rid]));
     assert.ok(vol.every(x => x[2] === -18));

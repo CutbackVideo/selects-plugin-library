@@ -159,7 +159,7 @@ with a faster track and longer with a slower one.
   stay.
 - **Sound effects**: off by default. On adds a camera-shutter click on each
   of the first four grid steps and a soft whoosh into the drop and into the
-  ending. They play with or without music.
+  ending, 8 dB under full level. They play with or without music.
 - **Ending muffle**: on by default. Off keeps the music unfiltered to the
   end.
 - **Use photos**: on by default. Off builds from the analysed video only.
