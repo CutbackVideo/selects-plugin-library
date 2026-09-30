@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "card-news-maker",
+  "version": "0.1.0-alpha.1",
+  "name": "Card News Maker",
+  "summary": "Turn a news article, pasted text or a project video into an editable 4:5 card news Draft, then export each card as an image.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS"
+    ],
+    "selects": "Requires Panel SDK runScript/runShell/askAI, Draft setFrameSize, setClipTransform and addMotionGraphic, Project createFolder and moveToFolder, and the panel runtime services FileSystem, MediaGeneration and RemotionOverlay."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 576,
+    "height": 720
+  },
+  "localized": {
+    "de": {
+      "name": "Nachrichtenkarten-Maker",
+      "summary": "Macht aus einem Nachrichtenartikel, eingef\u00fcgtem Text oder einem Projektvideo einen bearbeitbaren 4:5-Kartennews-Entwurf und exportiert jede Karte als Bild."
+    },
+    "en": {
+      "name": "Card News Maker",
+      "summary": "Turn a news article, pasted text or a project video into an editable 4:5 card news Draft, then export each card as an image."
+    },
+    "es": {
+      "name": "Creador de tarjetas de noticias",
+      "summary": "Convierte un art\u00edculo, un texto pegado o un v\u00eddeo del proyecto en un borrador editable de tarjetas de noticias 4:5 y exporta cada tarjeta como imagen."
+    },
+    "fr": {
+      "name": "Cr\u00e9ateur de cartes d'actu",
+      "summary": "Transforme un article, un texte coll\u00e9 ou une vid\u00e9o du projet en brouillon modifiable de cartes d'actualit\u00e9 4:5, puis exporte chaque carte en image."
+    },
+    "it": {
+      "name": "Crea schede notizie",
+      "summary": "Trasforma un articolo, un testo incollato o un video del progetto in una bozza modificabile di schede notizie 4:5, poi esporta ogni scheda come immagine."
+    },
+    "ja": {
+      "name": "\u30ab\u30fc\u30c9\u30cb\u30e5\u30fc\u30b9\u30e1\u30fc\u30ab\u30fc",
+      "summary": "\u30cb\u30e5\u30fc\u30b9\u8a18\u4e8b\u3001\u8cbc\u308a\u4ed8\u3051\u305f\u30c6\u30ad\u30b9\u30c8\u3001\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u52d5\u753b\u304b\u3089\u7de8\u96c6\u53ef\u80fd\u306a4:5\u30ab\u30fc\u30c9\u30cb\u30e5\u30fc\u30b9\u306e\u30c9\u30e9\u30d5\u30c8\u3092\u4f5c\u308a\u3001\u5404\u30ab\u30fc\u30c9\u3092\u753b\u50cf\u3068\u3057\u3066\u66f8\u304d\u51fa\u3057\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "\uce74\ub4dc\ub274\uc2a4 \uba54\uc774\ucee4",
+      "summary": "\ub274\uc2a4 \uae30\uc0ac, \ubd99\uc5ec \ub123\uc740 \uae00, \ud504\ub85c\uc81d\ud2b8 \uc601\uc0c1\uc73c\ub85c \ud3b8\uc9d1\ud560 \uc218 \uc788\ub294 4:5 \uce74\ub4dc\ub274\uc2a4 Draft\ub97c \ub9cc\ub4e4\uace0 \uce74\ub4dc\ub9c8\ub2e4 \uc774\ubbf8\uc9c0\ub85c \ub0b4\ubcf4\ub0c5\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Criador de cards de not\u00edcias",
+      "summary": "Transforma um artigo, um texto colado ou um v\u00eddeo do projeto num rascunho edit\u00e1vel de cards de not\u00edcias 4:5 e exporta cada card como imagem."
+    },
+    "tr": {
+      "name": "Haber Kart\u0131 Olu\u015fturucu",
+      "summary": "Bir haber makalesini, yap\u0131\u015ft\u0131r\u0131lan metni veya proje videosunu d\u00fczenlenebilir 4:5 haber kart\u0131 tasla\u011f\u0131na d\u00f6n\u00fc\u015ft\u00fcr\u00fcr ve her kart\u0131 g\u00f6rsel olarak d\u0131\u015fa aktar\u0131r."
+    },
+    "zh": {
+      "name": "\u5361\u7247\u65b0\u95fb\u5236\u4f5c\u5668",
+      "summary": "\u5c06\u65b0\u95fb\u6587\u7ae0\u3001\u7c98\u8d34\u7684\u6587\u672c\u6216\u9879\u76ee\u89c6\u9891\u5236\u4f5c\u6210\u53ef\u7f16\u8f91\u7684 4:5 \u5361\u7247\u65b0\u95fb\u8349\u7a3f\uff0c\u5e76\u5c06\u6bcf\u5f20\u5361\u7247\u5bfc\u51fa\u4e3a\u56fe\u7247\u3002"
+    }
+  }
+}
