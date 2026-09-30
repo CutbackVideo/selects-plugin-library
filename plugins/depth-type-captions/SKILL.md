@@ -1,43 +1,45 @@
 ---
 name: depth-type-captions
-description: Add editable phrase typography that wraps around the speaker with subject-aware depth (words in front of or behind the person), plus optional vintage archival B-roll cards, on the active Selects Draft.
+description: Add editable phrase typography that wraps around the speaker with subject-aware depth (key words tucked behind the person) on the active Selects Draft.
 ---
 # Depth Type Captions
 
-Experimental. Open an edited Draft whose source has a Selects transcript and
-open the **Depth Type Captions** panel.
+Experimental. Needs Selects 2.0.508 or later. Open an edited Draft of up to 90
+seconds whose source has a Selects transcript, then open the **Depth Type
+Captions** panel.
 
-## One-click edit
+## Make captions
 
-Choose **Edit this draft**. The panel loads the Draft's dialogue, prepares a
-local preview and a subject mask of the speaker (Apple Vision, on this Mac),
-composes each phrase around the silhouette, and saves the captions to the
-timeline as an editable caption clip.
+Choose **Make depth captions**. The panel reads the Draft's dialogue, renders
+the Draft at full size, makes a speaker mask for every frame (Apple Vision, on
+this Mac), places each phrase around the speaker, and saves the captions to the
+timeline as one caption clip. The headline word of every phrase sits behind the
+speaker; when a phrase finds no open space around the speaker, its smaller lines
+stay in front of the speaker so they remain readable.
 
-## Manual editing
+- **Redo** follows the current edit of the Draft, for example after a cut, and
+  replaces changes made in Fine-tune. Speaker masks are reused while the
+  footage is unchanged.
+- **Remove** takes the captions off the timeline. **Undo** reverts the last
+  Make, Redo, Save changes or Remove.
 
-- **Load draft dialogue** / **Create captions from dialogue** build phrases.
-- **Prepare video & subject mask** (or **Refresh video & mask** after the edit
-  changes) creates the mask used for depth.
-- **Compose with speaker** places lines around the person. Drag words on the
-  preview; per word or layer, choose **In front of speaker** or
-  **Behind speaker**, depth, offsets, and block, serif, script and connector
-  fonts, palette and background.
-- **Save captions to timeline** applies the change. **Undo last apply** and
-  **Remove saved captions** revert it.
+## Fine-tune
 
-## Vintage B-roll (optional)
+Open **Fine-tune** to change a phrase's text (clear a line to leave it out),
+drag words on the preview, put a word in front of the speaker, delete a phrase,
+or change fonts and colors, then choose **Save changes**.
 
-**Add vintage archival b-roll** finds public-domain clips from Wikimedia
-Commons and the Internet Archive (Prelinger Archives), downloads only the
-needed seconds, and places them as separate editable cards.
+**In front of the text** chooses what hides the words: everything the subject
+detector finds in front (people, hands, microphones, desks) or people only. It
+takes effect on Redo. Turn off **Behind speaker** for plain captions.
 
 Use **Handoff → Export** for final video.
 
 ## Limits
 
-- macOS only: subject masks are compiled locally with `swiftc` (Xcode Command
-  Line Tools). Mask preparation can take several minutes on long Drafts.
-- Downloads and caches go to `~/.selects/plugin-data/depth-type-captions`.
-  Check each archival clip's rights before publishing.
+- macOS only: speaker masks are compiled locally with `swiftc` (Xcode Command
+  Line Tools).
+- Masks are kept at `~/.selects/plugin-data/depth-type-captions`, about 3 MB
+  per second of 1080p video (masks plus the full-size render). The saved captions
+  and the previous save (for Undo) keep their folders; older ones are removed.
 - Panel interface text is English.
