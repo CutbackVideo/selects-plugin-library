@@ -52,7 +52,11 @@ function checkManifest(m, { dev }) {
     assert.ok(['high', 'low'].includes(c.downbeatConfidence), at + 'downbeatConfidence');
     assert.ok(c.downbeatRatio === null || isNum(c.downbeatRatio), at + 'downbeatRatio');
     if (isNum(c.downbeatRatio)) assert.equal(c.downbeatConfidence, c.downbeatRatio >= 1.5 ? 'high' : 'low', at + 'downbeatConfidence is measured');
-    assert.ok(Math.abs(c.lufs + 14) <= 0.5, at + 'lufs ' + c.lufs);
+    // -11 LUFS integrated, true peak at or under -1 dBTP (dev/build-cues.cjs, measured on the encoded dry mp3).
+    assert.ok(Math.abs(c.lufs + 11) <= 0.2, at + 'lufs ' + c.lufs);
+    assert.ok(isNum(c.truePeak) && c.truePeak <= -1, at + 'truePeak ' + c.truePeak);
+    assert.ok(isNum(c.lra) && c.lra >= 0, at + 'lra ' + c.lra);
+    assert.ok(isNum(c.gainDb), at + 'gainDb');
     assert.ok(Array.isArray(c.peaks) && c.peaks.length === 400, at + 'peaks');
     assert.ok(Array.isArray(c.beatEnergy) && c.beatEnergy.length > 16, at + 'beatEnergy');
   }

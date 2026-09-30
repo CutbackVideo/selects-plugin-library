@@ -40,7 +40,7 @@ for (const re of [/React\.useState<"off" \| "ambient" \| "full">\("ambient"\)/, 
   /\[sfxOn, setSfxOn\] = React\.useState\(false\)/, /\[muffleOn, setMuffleOn\] = React\.useState\(true\)/, /\[usePhotos, setUsePhotos\] = React\.useState\(true\)/,
   /\[lookStrength, setLookStrength\] = React\.useState\(ST_LOOK_DEFAULT\)/, /\[line1, setLine1\] = React\.useState\(ST_LINE1_DEFAULT\)/, /\[topItalic, setTopItalic\] = React\.useState\(ST_TOP_ITALIC_DEFAULT\)/]) assert.ok(re.test(ui), String(re));
 assert.ok(panel.includes("const ST_LOOK_DEFAULT = 0.3;") && panel.includes("const ST_LINE1_DEFAULT = 'that one trip in';") && panel.includes("const ST_TOP_ITALIC_DEFAULT = 'VLOG';") && panel.includes("const ST_CREDIT_PREFIX = 'By';"));
-assert.ok(panel.includes("const ST_GRID_SOUND = 'volume';") && panel.includes("const ST_TIME_ORIGIN = 'clip';") && panel.includes('const ST_AMBIENT_DB = -18;'), 'live rulings');
+assert.ok(panel.includes("const ST_GRID_SOUND = 'volume';") && panel.includes("const ST_TIME_ORIGIN = 'clip';") && panel.includes('const ST_AMBIENT_DB = -18;') && panel.includes('const ST_INTRO_DUCK_DB = -7;'), 'live rulings');
 // No Pace option; Length is Short / Standard / Long; three presets; muffle hidden with No music.
 assert.ok(!/label="Pace"/.test(ui));
 for (const phrase of ['label="Length"', 'label="Clip sound"', 'label="Look strength"', 'label="Sound effects"', 'label="Ending muffle"', 'label="Use photos"', 'Choose clips',
@@ -111,7 +111,7 @@ assert.ok(buildBody.includes('const planFps = fpsRef.current[pid!] || ST_GUESS_F
 const block = [between(panel, '// st-planner:start', '// st-planner:end'), between(panel, '// st-graphics:start', '// st-graphics:end'),
   between(panel, '// st-muffle:start', '// st-muffle:end'), between(panel, '// st-panel:start', '// st-panel:end')].join('\n');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, NaN, Error, JSON, Date, isFinite, parseFloat }; vm.createContext(box);
-vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, stMuffleCommand, ST_FILM_WINDOW };', box);
+vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, ST_MUFFLE_TAG, stMuffleCommand, ST_FILM_WINDOW };', box);
 const X = box.X;
 const j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
@@ -127,9 +127,11 @@ assert.equal(X.stCoverFor({ width: 1920, height: 1080 }), 1);
 assert.ok(near(X.stCoverFor({ width: 1080, height: 1920 }), (1920 / 1080) ** 2));
 assert.ok(near(X.stCoverFor({ width: 1440, height: 1080 }), (16 / 9) / (4 / 3)));
 assert.equal(X.stCoverFor(null), 1);
-// Own-music muffled copy: <base>-muffled-<hash8>.wav (stable, the cache key; ensure-audio.js may reuse it by file name).
-assert.equal(X.stOwnMuffledName('My Song (final).mp3', '0a1b2c3d'), 'My-Song-final-.wav'.replace('.wav', '') + '-muffled-0a1b2c3d.wav');
-assert.equal(X.stOwnMuffledName('/x/y/summer.m4a', 'deadbeef'), 'summer-muffled-deadbeef.wav');
+// Own-music muffled copy: <base>-muffled-<filter tag>-<hash8>.wav (stable, the cache key; ensure-audio.js may reuse it by
+// file name). The filter tag changes with the filter, so a new filter never reuses a copy baked with the old one.
+assert.equal(X.ST_MUFFLE_TAG, require(path.resolve(__dirname, '..', 'muffle.cjs')).ST_MUFFLE_TAG);
+assert.equal(X.stOwnMuffledName('My Song (final).mp3', '0a1b2c3d'), 'My-Song-final--muffled-' + X.ST_MUFFLE_TAG + '-0a1b2c3d.wav');
+assert.equal(X.stOwnMuffledName('/x/y/summer.m4a', 'deadbeef'), 'summer-muffled-a263eda4-deadbeef.wav');
 // The muffle command quotes user paths.
 assert.ok(X.stMuffleCommand("/tmp/it's.mp3", '/tmp/o.wav').includes("'/tmp/it'\\''s.mp3'") && X.stMuffleCommand('a', '/x/o.wav').includes('pcm_s16le'));
 // Draft name.
@@ -258,7 +260,7 @@ const tsx = { title: read('assets/title-graphic.tsx'), labels: read('assets/labe
 const assembleJs = read('scripts/assemble.js'), decorateJs = read('scripts/decorate.js');
 // contracts.md keys.
 const contracts = read('dev/contracts.md');
-const ASSEMBLE_KEYS = ['projectId', 'draftName', 'fps', 'W', 'H', 'beats', 'schedule', 'picks', 'sizes', 'music', 'crossfadeFrames', 'clipSound', 'ambientDb', 'gridSound', 'sfx'];
+const ASSEMBLE_KEYS = ['projectId', 'draftName', 'fps', 'W', 'H', 'beats', 'schedule', 'picks', 'sizes', 'music', 'crossfadeFrames', 'clipSound', 'ambientDb', 'gridSound', 'sfx', 'introDuckDb'];
 const DECORATE_KEYS = ['sequenceId', 'fps', 'frames', 'placed', 'gridPlaced', 'sizes', 'mute', 'gridSound', 'title', 'labels', 'look', 'gridPanel', 'filmFrame', 'motion', 'endingMotion', 'photos'];
 const assembleDoc = contracts.slice(contracts.indexOf('### assemble.js'), contracts.indexOf('Returns:', contracts.indexOf('### assemble.js')));
 const decorateDoc = contracts.slice(contracts.indexOf('### decorate.js'), contracts.indexOf('Effect labels'));
@@ -288,7 +290,7 @@ const payloads = {};
     const acfg = j(X.stAssembleConfig({ projectId: 'proj', draftName: X.stDraftName('', 'SUMMER', new Date(2026, 6, 1, 12, 0)), fps: 30, plan, sizes, durations, music: musicCfg, clipSound, sfx }));
     assert.deepEqual(Object.keys(acfg), ASSEMBLE_KEYS, 'assemble config keys (contracts.md order)');
     assert.deepEqual(acfg.beats, { bpm: plan.frames.bpm, delta: plan.frames.delta, snaps: j(plan.frames.snaps) }, 'frames.snaps from the plan');
-    assert.equal(acfg.gridSound, 'volume'); assert.equal(acfg.ambientDb, -18); assert.equal(acfg.crossfadeFrames, null);
+    assert.equal(acfg.gridSound, 'volume'); assert.equal(acfg.ambientDb, -18); assert.equal(acfg.crossfadeFrames, null); assert.equal(acfg.introDuckDb, -7);
     assert.ok(acfg.picks.main.every(p => (p.kind === 'video') === (p.duration > 0)), 'every video pick carries its source duration');
     assert.deepEqual(Object.keys(acfg.picks.grid[0]).sort(), ['kind', 'quad', 'rid', 'startSeconds']);
     assert.equal(acfg.picks.main.length, acfg.schedule.mainBeats.length - 1);

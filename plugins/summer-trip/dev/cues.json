@@ -1,5 +1,5 @@
 {
-  "provenance": "Generated for Summer Trip with ElevenLabs Music v2.5 (model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41) through the Selects generated-media service, 2026-09-30; instrumental, 65 s requests. Normalised to -14 LUFS with static gain and a limiter by dev/build-cues.cjs.",
+  "provenance": "Generated for Summer Trip with ElevenLabs Music v2.5 (model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41) through the Selects generated-media service, 2026-09-30; instrumental, 65 s requests. Brought to -11 LUFS integrated (true peak at or under -1 dBTP) with static gain and a limiter by dev/build-cues.cjs.",
   "about": "Source files (the generated mp3s) go in dev/sources/ (gitignored). Rebuild: node plugins/summer-trip/dev/build-cues.cjs plugins/summer-trip/dev/cues.json plugins/summer-trip/assets/cues. The first cue is the panel's default Track.",
   "cues": [
     { "id": "surf-indie", "title": "Surf Indie", "source": "sources/summer-trip-surf-indie-122bpm.mp3" },
