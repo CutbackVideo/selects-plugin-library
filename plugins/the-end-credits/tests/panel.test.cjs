@@ -36,7 +36,7 @@ assert.ok(!panel.includes('opening.tsx') && !fs.existsSync(path.join(root, 'asse
 for (const phrase of ['projectRef', 'No valid session ID', 'visibilitychange', 'addEventListener("focus"', '10000', '>Refresh<', 'Stop preview', 'Cancel preview',
   'role="slider"', 'aria-valuenow', 'aria-valuetext', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"ArrowLeft"', '"Home"', '"End"', '"Escape"',
   'requestAnimationFrame', 'cancelAnimationFrame', 'previewTokenRef', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', 'preview-*.mp3', 'readText(roots.data',
-  'loadInventory(', 'still being analysed', 'this updates automatically', 'setCandidates(null)', 'invSigRef', 'known: photoSizesRef.current',
+  'loadInventory(', 'this updates automatically', 'setCandidates(null)', 'invSigRef', 'known: photoSizesRef.current',
   'selects.editor.openDraft', 'linkToDraftFrame', 'Finish title and look', 'Create another version', 'Stopped at step', 'Install ffmpeg and Node.js',
   'FontFace', 'Draft created; adding credits and look', '--panel-accent', '--panel-muted-fg', 'drag to choose', 'fmtTime(total)', 'Starts at ', 'ffprobe']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(!/--text-tertiary/.test(panel), '--text-tertiary is not a panel token');
@@ -180,6 +180,66 @@ assert.ok(panel.indexOf('{rollNotice ?') < panel.indexOf('<ui.Actions>'), 'the r
 // Readiness: "Ready: N clips · N photos · about N s"; Full frame counts N + 1 shots; footage shrink and the minimum.
 for (const phrase of ['"Ready: " + clipCount', '" shots"', '" · about " + Math.round(tecVideoSeconds(', 'const extra = layout === "full" ? 1 : 0;', '(shotsFit + extra)', 'Needs at least ', 'Your footage fits ']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(/needsPoll = [^\n]*inventory\.photos/.test(panel), 'a photos-only Project does not poll');
+
+// Unanalysed videos are worded by why (inventory.js's skipped split); the panel never claims clips are being analysed
+// when their analysis was never started, and never starts analysis itself.
+assert.ok(!panel.includes('still being analysed'), 'the old "still being analysed" wording is gone');
+assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel does not start analysis');
+{
+  const start = panel.indexOf('function tecAnalysisCounts('), end = panel.indexOf('// Layout thumbnails:');
+  assert.ok(start > 0 && end > start, 'the analysis wording helpers exist');
+  const js = panel.slice(start, end).replace(/(\w)\??: (?:any|number|string)\b/g, '$1');
+  const box = {};
+  vm.runInNewContext(js + '\nthis.api = { tecAnalysisCounts, tecAnalysisText, tecAnalysisNote };', box);
+  const { tecAnalysisCounts: counts, tecAnalysisText: text, tecAnalysisNote: note } = box.api;
+  const sk = (analysing, notAnalysed, failed, statusKnown = true) => ({ unanalysed: analysing + notAnalysed + failed, missing: 0, analysing, notAnalysed, failed, statusKnown });
+  assert.equal(text(counts(sk(160, 0, 0))), '160 clips are being analysed. This updates automatically when they finish.');
+  assert.equal(text(counts(sk(1, 0, 0))), '1 clip is being analysed. This updates automatically when it finishes.');
+  assert.equal(text(counts(sk(0, 160, 0))), '160 clips are not analysed yet. Analyse them in Selects to use them here.');
+  assert.equal(text(counts(sk(0, 1, 0))), '1 clip is not analysed yet. Analyse it in Selects to use it here.');
+  assert.equal(text(counts(sk(0, 0, 2))), '2 clips could not be analysed.');
+  assert.equal(text(counts(sk(0, 0, 1))), '1 clip could not be analysed.');
+  assert.equal(text(counts(sk(0, 160, 0, false))), '160 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
+  assert.equal(text(counts(sk(0, 1, 0, false))), '1 clip is not analysed yet. If Selects is analysing it, this updates automatically.');
+  assert.equal(text(counts(sk(3, 1, 2))), '3 clips are being analysed. This updates automatically when they finish. 1 clip is not analysed yet. Analyse it in Selects to use it here. 2 clips could not be analysed.');
+  assert.equal(text(counts(sk(0, 0, 0))), '', 'nothing to say when every video is analysed');
+  // An inventory without the split (older script) counts every unanalysed clip as unknown: the neutral wording.
+  assert.equal(text(counts({ unanalysed: 4, missing: 0 })), '4 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
+  assert.equal(note(counts(sk(2, 1, 0))), ' · 2 clips being analysed · 1 clip not analysed yet');
+  assert.equal(note(counts(sk(0, 0, 1))), ' · 1 clip could not be analysed');
+  assert.equal(note(counts(sk(0, 0, 0))), '');
+  // Every readiness branch uses the same sentences, and a status change refreshes the inventory signature.
+  for (const phrase of ['const analysisText = tecAnalysisText(invAnalysis);', '(analysisText\n      || "No analysed video or photos', '(analysisText ? analysisText + " " : "") + "Turn on Use photos in Advanced',
+    '(analysisText ? " " + analysisText : "")', '" s" + tecAnalysisNote(invAnalysis)', '[sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown]']) assert.ok(panel.includes(phrase), phrase);
+  // Polling: only while clips are being analysed, while the status is unknown, or while the Project has no footage at all.
+  const poll = (panel.match(/const needsPoll = ([^\n]*);/) || [])[1];
+  assert.ok(poll, 'needsPoll');
+  const needsPoll = (inventory) => { const invAnalysis = counts(inventory && inventory.skipped); return vm.runInNewContext(poll, { inventory, invAnalysis }); };
+  const inv = (skipped, resources = 0, photos = 0) => ({ skipped, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
+  assert.equal(needsPoll(inv(sk(2, 0, 0), 5)), true, 'clips being analysed poll');
+  assert.equal(needsPoll(inv(sk(0, 160, 0))), false, 'never-started clips alone do not poll');
+  assert.equal(needsPoll(inv(sk(0, 3, 2), 5)), false, 'not analysed and failed clips do not poll');
+  assert.equal(needsPoll(inv(sk(0, 3, 0, false), 5)), true, 'an unknown status polls');
+  assert.equal(needsPoll(inv(sk(0, 0, 0))), true, 'an empty Project polls');
+  assert.equal(needsPoll(inv(sk(0, 0, 0), 0, 3)), false, 'photos only: no poll');
+  assert.equal(needsPoll(inv(sk(0, 0, 0), 5)), false, 'all analysed: no poll');
+  assert.equal(needsPoll(null), false);
+}
+
+// Layout buttons: the button holds the thumbnail and the label (a column that grows with the label, no fixed height),
+// the label wraps inside it, and the two buttons share the row equally.
+{
+  const at = panel.indexOf('<ui.Section title="Layout">');
+  const block = panel.slice(at, panel.indexOf('</ui.Section>', at));
+  const button = block.slice(block.indexOf('<button '), block.indexOf('</button>') + '</button>'.length);
+  const style = button.slice(button.indexOf('style={{'), button.indexOf('}}>') + 2);
+  assert.ok(button.includes('<LayoutIcon kind={value} />') && button.includes('>{label}</span>'), 'the thumbnail and the label are inside the button');
+  for (const phrase of ['flex: "1 1 0"', 'minWidth: 0', 'height: "auto"', 'display: "flex"', 'flexDirection: "column"', 'gap: 4', 'whiteSpace: "normal"']) assert.ok(style.includes(phrase), 'layout button ' + phrase);
+  assert.ok(!/(?:^|[^a-zA-Z])(?:min|max)?[hH]eight: (?:[1-9]|"\d)/.test(style), 'no fixed pixel height on the layout button');
+  assert.ok(button.includes('overflowWrap: "anywhere"') && !button.includes('nowrap') && !button.includes('textOverflow'), 'the label wraps inside the button');
+  assert.ok(block.includes('alignItems: "stretch"') && !block.includes('flexWrap: "wrap"'), 'one row; the buttons grow to the tallest');
+  assert.ok(!/#[0-9a-f]{3,8}\b/i.test(button.replace(/var\(--panel-[a-z-]+, [^)]*\)+/g, '')), 'only --panel-* colours');
+}
 
 // Hangul audit across the plugin.
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);

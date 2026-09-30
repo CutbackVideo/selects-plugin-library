@@ -48,6 +48,23 @@ The build needs at least **4 usable clips or photos** (5 in Full frame,
 which adds an opening shot). If there are fewer, the panel says how many it
 found. It does not start analysis on its own, so analyse your clips first.
 
+Video clips without analysis are counted on the top line by why:
+
+- "N clips are being analysed. This updates automatically when they finish."
+  Selects is analysing them now; the panel re-reads the Project every 10 s
+  until they are ready.
+- "N clips are not analysed yet. Analyse them in Selects to use them here."
+  Their analysis was never started. The panel does not poll for them; it
+  re-reads the Project when you come back to it, or press **Refresh**.
+- "N clips could not be analysed." Their analysis failed.
+- "N clips are not analysed yet. If Selects is analysing them, this updates
+  automatically." The analysis status could not be read, so the panel keeps
+  checking.
+
+On the Ready line the same counts appear in short, for example "Ready: 5
+clips · 7 shots · about 31 s · 2 clips being analysed · 3 clips not analysed
+yet".
+
 Progress is shown as five steps: Finding shots, Planning the edit, Preparing
 music, Creating Draft, and Adding credits and look (which ends by opening the
 Draft). During Finding shots the detail reads "N/M videos checked" (the scene
