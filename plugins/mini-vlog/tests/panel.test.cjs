@@ -124,6 +124,24 @@ assert.ok(finish.includes('decorate(result, check)') && decorate.includes('const
 assert.ok(ui.includes('title, look and clip sound are not applied yet'), 'unfinished build message');
 assert.match(panel, /No valid session ID/);
 assert.ok(ui.includes('!allowCommit && /No valid session ID/'), 'only non-committing calls are resent');
+// A busy app: read-only calls ask for a longer deadline and retry host-busy / deadline failures after 5 s and 15 s,
+// one attempt at a time and only while the caller still wants the answer; commit calls never do either.
+assert.ok(panel.includes('const READ_TIMEOUT_SECONDS = 90;') && panel.includes('const BUSY_BACKOFF_MS = [5000, 15000];'), 'busy constants');
+assert.ok(/const isBusyError = \(text: string\) => \/deadline\|did not finish\|hostWaitMs\|before the script started\/i\.test/.test(panel), 'busy detection');
+const runBody = ui.slice(ui.indexOf('const run = async ('), ui.indexOf('const fontB64 ='));
+assert.ok(runBody.includes('allowCommit ? { summary, script: scriptAt(0), allowCommit } : { summary, script: scriptAt(attempt), allowCommit, timeoutSeconds: READ_TIMEOUT_SECONDS }'), 'longer deadline for reads only');
+assert.ok(runBody.includes('!allowCommit && isBusyError(') && runBody.includes('attempt < BUSY_BACKOFF_MS.length') && runBody.includes('opts.wanted && !opts.wanted()'), 'reads retry with backoff while wanted');
+assert.ok(runBody.includes('await new Promise((d) => setTimeout(d, BUSY_BACKOFF_MS[attempt - 1]))'), 'sequential backoff, no parallel retries');
+assert.ok(runBody.includes('throw new BusyError('), 'a final busy failure is a BusyError');
+assert.ok(panel.includes('const MV_BUSY = "Selects is busy and didn\'t answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.";'), 'actionable busy message');
+// Inventory under load: the photo-size budget is small, and a retry skips measuring (assemble measures unsized photos).
+assert.ok(ui.includes('measureMs: attempt === 0 ? INVENTORY_MEASURE_MS : 0') && panel.includes('const INVENTORY_MEASURE_MS = 4000;'), 'inventory measures less under load');
+assert.ok(ui.includes('setInvError(e instanceof BusyError ? MV_BUSY : String(e?.message || e))'), 'busy inventory error message');
+assert.ok(ui.includes('wanted: live'), 'inventory retries stop for a stale Project');
+assert.ok(/run\("Search shots"[^\n]*\{ wanted: \(\) => projectRef\.current === pid \}\)/.test(ui), 'search retries stop for a stale Project');
+// Refresh stays available after a failure; a later successful read clears the error (Build is gated only by the inventory).
+assert.ok(ui.includes('disabled={busy || !assets} onClick={() => loadInventory()}>Refresh<') && ui.includes('setInventory(inv); setInvError(null);'), 'Refresh stays enabled; success clears the error');
+for (const s of ['run("Assemble Mini Vlog"', 'run("Add title and look"', 'run("Add music to the project"']) assert.ok(new RegExp(s.replace(/[()]/g, '\\$&') + '[^;]*, true\\);').test(ui), s + ' is a commit call');
 // decorate cfg (scripts lane contract).
 assert.ok(decorate.includes('fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, '
   + 'soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: MOTION_OPTIONS, byRid }, photoEffects: true })'), 'decorate cfg');

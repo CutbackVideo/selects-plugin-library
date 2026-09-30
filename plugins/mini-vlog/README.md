@@ -66,7 +66,7 @@ or nothing usable was found yet, it also reads them again every 10 seconds,
 so the line updates by itself ("N clips are still being analysed. This
 updates automatically when they finish."). It never reads them during a
 build. The panel does not start analysis on its own, so analyse your clips
-first.
+first. If Selects is too busy to answer, the panel tries again after 5 and 15 seconds and then says "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects."
 
 **What blocks Build.** The build needs at least **4 shots from 2 different
 clips or photos**; each photo counts as one shot. When it cannot run, Build is
