@@ -112,7 +112,9 @@ for (const c of list) {
   const barOrigin = drop ? drop.dropSeconds : firstBeat;
   const downbeat = downbeatClarity(src, ASR, bpm, barOrigin, barOrigin, usableEnd);
   let rejectReason = null;
-  if (!a.accepted) rejectReason = 'beat grid not accepted (residual ' + a.residualMedianMs + ' ms, hit rate ' + a.hitRate + ')';
+  // hitRate is counted up to the last onset (beat-detect.cjs), so it can read 1 on a lone onset: the reason names the grid
+  // state first, which already weighs the hit count.
+  if (!a.accepted) rejectReason = 'beat grid ' + a.grid + ', not accepted (residual ' + a.residualMedianMs + ' ms, hit rate ' + a.hitRate + ')';
   else if (bpm < ST_MIN_BPM) rejectReason = 'tempo ' + bpm + ' BPM below ' + ST_MIN_BPM;
   else if (!(Math.abs(driftBpm) <= DRIFT_MAX_BPM)) rejectReason = 'tempo drift ' + driftBpm + ' BPM between the halves';
   const accepted = rejectReason === null;
@@ -139,6 +141,8 @@ for (const c of list) {
     downbeatRatio: downbeat ? downbeat.ratio : null, downbeatBestPhase: downbeat ? downbeat.bestPhase : null,
     duration: a.durationSeconds, usableEnd,
     accepted, rejectReason,
+    // Diagnostics. hitRate: beat-detect.cjs's active-span rate (lines up to the last onset), written as measured; the
+    // committed manifest predates that and holds the whole-file rate (bpm, firstBeat, the drop and acceptance agree).
     driftBpm, residualMedianMs: a.residualMedianMs, hitRate: a.hitRate,
     // Measured on the encoded dry mp3 (ebur128): integrated loudness, loudness range, true peak; the static gain and
     // the limiter's sample-peak ceiling that produced it; the source's loudness.

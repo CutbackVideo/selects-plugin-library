@@ -311,6 +311,30 @@ function readbackOf(m, fps) {
     /Needs at least 6 different clips or photos \(found 3\)/);
   assert.throws(() => A.plan({ row: { key: 'k5', pid: 'P', music: 'dev-nope' }, seed: 1, inv, found }), /unknown cue dev-nope/);
 
+  // Own music, from a cached analysis (the work dir's own-v2-<sha256 prefix>.json; no ffmpeg here). An approximate grid
+  // (beat-detect.cjs grid 'approximate') cuts on the detected tempo from the detected first beat, sections on its bars,
+  // low-confidence snapping, with a note; 'none' keeps the fixed 0.5 s beat and 0.1 s section steps.
+  {
+    const ownAnalysis = (name, analysis) => {
+      const file = path.join(tmp, name + '.mp3');
+      fs.writeFileSync(file, name);
+      const hash = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+      fs.mkdirSync(A.workDir, { recursive: true });
+      fs.writeFileSync(path.join(A.workDir, 'own-v2-' + hash.slice(0, 12) + '.json'), JSON.stringify(analysis));
+      return file;
+    };
+    const base = { durationSeconds: 90, beatEnergy: null, onsets: [[1.01, 'l', 3]], onsetThresholds: { l: 2, m: 2, h: 2 }, drop: null, sixteenthRatio: 0.1 };
+    const faintFile = ownAnalysis('faint', { ...base, bpm: 100, firstBeat: 0.37, accepted: false, grid: 'approximate' });
+    const sf = A.plan({ row: { key: 'own-faint', pid: 'P', music: { own: faintFile }, section: 10, length: 'short', usePhotos: false }, seed: 1, inv, found });
+    assert.deepEqual([sf.music.grid.bpm, sf.music.grid.firstBeat, sf.music.grid.accepted, sf.music.grid.faint, sf.music.grid.lowConfidence], [100, 0.37, false, true, true]);
+    assert.ok(Math.abs(sf.music.sectionStart - (0.37 + 4 * 2.4)) < 1e-9 && sf.music.sectionKind === 'section', 'bar-snapped: ' + sf.music.sectionStart);
+    assert.ok(sf.music.notes.includes('approximate timing on the detected tempo (100 BPM): the beat is faint'), JSON.stringify(sf.music.notes));
+    const noneFile = ownAnalysis('nogrid', { ...base, bpm: 100, firstBeat: 0.37, accepted: false, grid: 'none' });
+    const sn = A.plan({ row: { key: 'own-none', pid: 'P', music: { own: noneFile }, section: 10.04, length: 'short', usePhotos: false }, seed: 1, inv, found });
+    assert.deepEqual([sn.music.grid.bpm, sn.music.grid.accepted, sn.music.grid.lowConfidence, sn.music.sectionStart, sn.music.sectionKind], [120, false, true, 10, 'seconds']);
+    assert.deepEqual(sn.music.notes, ['approximate timing (no reliable beat)']);
+  }
+
   // ---- 4. The example matrix covers every option at least twice.
   const matrix = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'dev', 'matrix.example.json'), 'utf8')).rows;
   const cov = A.checkMatrix(matrix);

@@ -111,7 +111,7 @@ assert.ok(buildBody.includes('const planFps = fpsRef.current[pid!] || ST_GUESS_F
 const block = [between(panel, '// st-planner:start', '// st-planner:end'), between(panel, '// st-graphics:start', '// st-graphics:end'),
   between(panel, '// st-muffle:start', '// st-muffle:end'), between(panel, '// st-panel:start', '// st-panel:end')].join('\n');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, NaN, Error, JSON, Date, isFinite, parseFloat }; vm.createContext(box);
-vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, ST_MUFFLE_TAG, stMuffleCommand, ST_FILM_WINDOW };', box);
+vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stFaintText, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, ST_MUFFLE_TAG, stMuffleCommand, ST_FILM_WINDOW };', box);
 const X = box.X;
 const j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
@@ -194,6 +194,43 @@ const oo = X.stPlanOptions({ music: mOwn, section: 2, candidates: [], fps: 30, m
 assert.ok(oo.onsets.length === 1 && oo.lowConfidence === false && oo.sectionStart === 2 && !oo.bundled);
 assert.equal(X.stPlanOptions({ music: mFixed, section: 2, candidates: [], fps: 30, montageShots: 8, seed: 1 }).lowConfidence, true);
 assert.equal('sectionStart' in X.stPlanOptions({ music: X.stMusicFor({ choice: 'none' }), section: 2, candidates: [], fps: 30, montageShots: 8, seed: 1 }), false);
+// Own music with an approximate grid (beat-detect.cjs grid 'approximate': tempo and first beat tight, beat faint): the
+// detected tempo (octave-folded) and first beat, sections snapped to that grid's bars, the drop found on it as the
+// default section (so the intro level line follows it, as for any drop section), low-band snapping as for fixed timing,
+// and the panel says so. 'none' and a missing grid state keep the fixed 0.5 s fallback.
+{
+  const faintOwn = { accepted: false, grid: 'approximate', bpm: 100, firstBeat: 0.37, durationSeconds: 90, beatEnergy: [1, 2], peaks: [0.1], onsets: [[1, 'l', 3]], onsetThresholds: { l: 2 }, drop: null };
+  const mFaint = X.stMusicFor({ choice: 'own', cue: null, own: faintOwn });
+  assert.deepEqual([mFaint.kind, mFaint.bpm, mFaint.faint, mFaint.approximate, mFaint.noDrop], ['own', 100, true, true, true]);
+  assert.deepEqual(j(X.stOwnCue(faintOwn)), { bpm: 100, firstBeat: 0.37, dropSeconds: null, duration: 90, beatEnergy: [1, 2] });
+  // Bars of 2.4 s from 0.37 s: 10 s snaps to 0.37 + 4 bars = 9.97 s.
+  const sf = X.stSnapSection(mFaint, 8, 10);
+  assert.ok(near(sf.start, 0.37 + 4 * 2.4) && sf.kind === 'section', JSON.stringify(sf));
+  const df = X.stDefaultStart(mFaint, 8);
+  const bars = (df.start - 0.37) / 2.4;
+  assert.ok(df.kind === 'section' && near(bars, Math.round(bars)), 'default on a bar: ' + JSON.stringify(df));
+  const of = X.stPlanOptions({ music: mFaint, section: sf.start, candidates: [], fps: 30, montageShots: 8, seed: 1 });
+  assert.ok(of.bpm === 100 && of.lowConfidence === true && near(of.sectionStart, 9.97) && of.onsets.length === 1 && !of.bundled, JSON.stringify(of));
+  // A slow detection is octave-folded (60 -> 120) like an accepted one.
+  assert.equal(X.stMusicFor({ choice: 'own', cue: null, own: { ...faintOwn, bpm: 60 } }).bpm, 120);
+  // A drop found on the approximate grid places the default section (kind 'drop': the intro level line applies).
+  const withDrop = { ...faintOwn, bpm: 120, firstBeat: 0.3, drop: { dropBeat: 16, dropSeconds: 8.3, stepDb: 6, bpm: 120, firstBeat: 0.3 } };
+  const mFaintDrop = X.stMusicFor({ choice: 'own', cue: null, own: withDrop });
+  const dd = X.stDefaultStart(mFaintDrop, 8);
+  assert.ok(near(dd.start, 4.3) && dd.kind === 'drop' && mFaintDrop.noDrop === false, JSON.stringify(dd));
+  // The texts: tempo found, beat faint, approximate timing on the detected tempo.
+  assert.equal(X.stFaintText(mFaint), 'Approximate timing on the detected tempo (100 BPM): the tempo was found but the beat is faint, so the cuts may miss it. No drop found: the grid starts after the 2-bar title.');
+  assert.equal(X.stFaintText(mFaintDrop), 'Approximate timing on the detected tempo (120 BPM): the tempo was found but the beat is faint, so the cuts may miss it.');
+  assert.ok(panel.includes(': m.faint ? { tone: "info", text: stFaintText(m) }') && panel.includes(': music.kind === "own" && music.faint ? stFaintText(music)'), 'status and timing note use the faint text');
+  // An accepted grid is not faint.
+  assert.equal(mOwn.faint, false); assert.equal(mOwn.approximate, false);
+  // 'none' (and an analysis without a grid state, e.g. the length-only fallback) keep the fixed 0.5 s fallback.
+  const mNone = X.stMusicFor({ choice: 'own', cue: null, own: { ...faintOwn, grid: 'none' } });
+  assert.deepEqual([mNone.kind, mNone.bpm, mNone.approximate], ['fixed', 120, true]);
+  assert.deepEqual(j(X.stSnapSection(mNone, 8, 12.34)), { start: 12.3, kind: 'section', moved: false });
+  assert.equal(X.stPlanOptions({ music: mNone, section: 2, candidates: [], fps: 30, montageShots: 8, seed: 1 }).bpm, 120);
+  assert.equal(X.stMusicFor({ choice: 'own', cue: null, own: { accepted: false, durationSeconds: 60, peaks: [] } }).kind, 'fixed');
+}
 // SFX: decoded under their stable names (ensure-audio reuses them by path or file name), shutter lengths per take.
 const sfxManifest = JSON.parse(read('sfx/manifest.json'));
 const sfxFiles = X.stSfxFiles(sfxManifest, '/data/sfx');
