@@ -53,6 +53,15 @@ const MOTION_OPTIONS = [
 ];
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
 const NO_ONSETS: any[] = [];
+// A busy app (renderer near 100 % CPU) can take most of run_script's 30 s deadline before a script even starts.
+// Read-only calls ask for READ_TIMEOUT_SECONDS (hosts that do not take the option keep their own deadline) and retry a
+// host-busy or deadline failure after each BUSY_BACKOFF_MS pause, one attempt at a time. Commit calls do neither: a
+// commit is never resent (spec 14.6).
+const READ_TIMEOUT_SECONDS = 90;
+const BUSY_BACKOFF_MS = [5000, 15000];
+// Photo measuring inside the inventory call; a retry after a busy failure skips it (assemble measures unsized photos).
+const INVENTORY_MEASURE_MS = 4000;
+const MV_BUSY = "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.";
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
 const DRAFT_LOOKUP_MAX = 50;
 const LENGTH_LABELS: Record<string, string> = { short: "Short", standard: "Standard", long: "Long" };
@@ -405,7 +414,7 @@ function mvAllocate(opts) {
     const runFull = runLimited && photoRun >= MV_PHOTO_RUN_MAX;
     const tiers = photoSlots[slot.index] ? [photo] : [];
     if (spread) {
-      const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => x - y);
+      const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => Number(x) - Number(y));
       for (const level of levels) tiers.push(preferred(level), anyReal(level), filler(level));
       tiers.push(photo);
     } else {
@@ -597,9 +606,9 @@ function mvAdvance(m, ch) {
   return typeof a === "number" ? a : 0.56 * m.unitsPerEm;
 }
 
-// Advance width of `text` at `px` (kerning ignored), plus `tracking` em between letters
+// Advance width of `text` at `px` (kerning ignored), plus `tracking` em (optional, default 0) between letters
 // (CSS letter-spacing also follows the last letter, but that space is never visible).
-function mvTextWidth(text, m, px, tracking) {
+function mvTextWidth(text, m, px, tracking = 0) {
   var units = 0;
   for (var i = 0; i < text.length; i++) units += mvAdvance(m, text.charAt(i));
   return (units * px) / m.unitsPerEm + (tracking || 0) * px * Math.max(0, text.length - 1);
@@ -864,6 +873,9 @@ const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; '
   + 'n=$( (ls -d "$HOME"/.nvm/versions/node/*/bin) 2>/dev/null | sort -V | tail -1); [ -n "$n" ] && export PATH="$PATH:$n"; ';
 // Thrown when the Project changed while a build was running; its results are dropped silently.
 const STALE = new Error("The Project changed during the build.");
+// A read-only call that still failed with a host-busy / deadline error after its retries.
+const isBusyError = (text: string) => /deadline|did not finish|hostWaitMs|before the script started/i.test(text);
+class BusyError extends Error {}
 
 // A preset's fonts, one per family (a family may serve two roles), with the advance metrics the layout measures with.
 function presetFonts(p: any, all: any) {
@@ -1114,10 +1126,23 @@ export default function Panel({ sdk, context, ui }: any) {
   const [playState, setPlayState] = React.useState<"idle" | "loading" | "playing">("idle");
   const [playingAudio, setPlayingAudio] = React.useState<HTMLAudioElement | null>(null);
 
-  const run = async (summary: string, script: string, allowCommit = false) => {
-    let r = await sdk.runScript({ summary, script, allowCommit });
+  // `script` may depend on the attempt (0 first, then each retry), so a retry can ask for less work.
+  // opts.wanted: a read retries only while this is true (the Project did not change, the panel is still open).
+  const run = async (summary: string, script: string | ((attempt: number) => string), allowCommit = false, opts: { wanted?: () => boolean } = {}) => {
+    const scriptAt = (n: number) => (typeof script === "string" ? script : script(n));
+    const send = (attempt: number) => sdk.runScript(allowCommit ? { summary, script: scriptAt(0), allowCommit } : { summary, script: scriptAt(attempt), allowCommit, timeoutSeconds: READ_TIMEOUT_SECONDS });
+    let r = await send(0);
     // Only a lost session is resent, and never a committing call: its commit may already have landed.
-    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
+    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await send(0); }
+    // A busy app: a read is tried again after 5 s, then 15 s, one attempt at a time.
+    let attempt = 0;
+    while (r.isError && !allowCommit && isBusyError(String(r.output || "")) && attempt < BUSY_BACKOFF_MS.length) {
+      attempt++;
+      await new Promise((d) => setTimeout(d, BUSY_BACKOFF_MS[attempt - 1]));
+      if (opts.wanted && !opts.wanted()) break;
+      r = await send(attempt);
+    }
+    if (r.isError && !allowCommit && isBusyError(String(r.output || ""))) throw new BusyError(MV_BUSY);
     if (r.isError || r.result == null) throw new Error(r.output || "Selects could not complete this step.");
     return r.result as any;
   };
@@ -1166,7 +1191,7 @@ export default function Panel({ sdk, context, ui }: any) {
     const live = () => mountedRef.current && alive() && projectRef.current === pid;
     invLoadingRef.current = pid; setInvLoading(true);
     try {
-      const inv = await run("Read footage", fill(script, { projectId: pid, only: null, known: photoSizesRef.current }));
+      const inv = await run("Read footage", (attempt) => fill(script, { projectId: pid, only: null, known: photoSizesRef.current, measureMs: attempt === 0 ? INVENTORY_MEASURE_MS : 0 }), false, { wanted: live });
       // A build that started meanwhile keeps the clip set it began with; the next refresh picks this up.
       if (!live() || busyRef.current) return;
       inv.photos = inv.photos || [];
@@ -1176,7 +1201,7 @@ export default function Panel({ sdk, context, ui }: any) {
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
       setInventory(inv); setInvError(null);
     } catch (e: any) {
-      if (live()) setInvError(String(e?.message || e));
+      if (live()) setInvError(e instanceof BusyError ? MV_BUSY : String(e?.message || e));
     } finally {
       if (invLoadingRef.current === pid) invLoadingRef.current = null;
       if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
@@ -1421,7 +1446,7 @@ export default function Panel({ sdk, context, ui }: any) {
     // pageSize stays 4: hits are scene-level, so 8 adds almost no new times; the planner fills gaps with filler candidates.
     for (let i = 0; i < rids.length; i += SEARCH_BATCH) {
       advance("shots", i / rids.length, i + "/" + rids.length + " clips checked");
-      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: MV_QUERIES, pageSize: 4 }));
+      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: MV_QUERIES, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
       check();
       list.push(...r.candidates); failed.push(...r.failed);
     }
@@ -1445,7 +1470,7 @@ export default function Panel({ sdk, context, ui }: any) {
       + "  const end = (await d.clips({ trackScope: 'main' })).reduce((a, c) => Math.max(a, c.endFrame), 0);\n"
       + "  return { sequenceId: id, fps: m.fps, totalFrames: end };\n"
       + "}\n"
-      + "return { sequenceId: null };");
+      + "return { sequenceId: null };", false, { wanted: () => projectRef.current === pid });
     return r && r.sequenceId ? r : null;
   }
 
@@ -1682,7 +1707,7 @@ export default function Panel({ sdk, context, ui }: any) {
     usePhotos && allPhotoRids.length ? (onlyPhotos ? selectedPhotoRids.length + " of " + allPhotoRids.length + " photos selected" : allPhotoRids.length + " photos") : "",
   ].filter(Boolean).join(" · ");
   const plannedShots = readyPlan && readyPlan.ok ? readyPlan.shots : fitted || requested;
-  const readiness = !inventory ? (invError ? "Could not read the clips in this Project: " + invError : "Checking clips…")
+  const readiness = !inventory ? (invError ? (invError === MV_BUSY ? MV_BUSY : "Could not read the clips in this Project: " + invError) : "Checking clips…")
     : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0
       ? pending + " clips are still being analysed. This updates automatically when they finish."
       : "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.")
@@ -1732,7 +1757,7 @@ export default function Panel({ sdk, context, ui }: any) {
 
   return (
     <ui.Stack gap={16}>
-      {inventory && invError ? <ui.Message tone="error">{"Could not refresh the clip list: " + invError}</ui.Message> : null}
+      {inventory && invError ? <ui.Message tone="error">{invError === MV_BUSY ? MV_BUSY : "Could not refresh the clip list: " + invError}</ui.Message> : null}
       <ui.Section title="Title">
         <div role="group" aria-label="Title style" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {presetList.map((p) => {
