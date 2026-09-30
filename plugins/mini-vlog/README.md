@@ -29,12 +29,13 @@ source file.
   exactly on the half beat. Below 86 BPM every shot is one beat or less, so
   no shot lasts longer than 1.40 s ("At 80 bpm Groove opens phrases with 1
   beat."), and above 150 BPM Groove uses two beats per shot like Quick ("At
-  156 bpm Groove uses 2 beats per shot."). Quick stays the default.
+  156 bpm Groove uses 2 beats per shot."). Quick stays the default; Groove
+  is an option.
 - **Everyday shots.** The shots cycle through drink, street, food, park,
   book, transit, flowers and cafe moments, alternating close and wide. Each
   role also accepts its neighbours (a cafe shot for a drink, a train for a
   street, flowers for a park), then any other analysed moment.
-- **Moving moments first** (with Beat punch on). Each clip is also searched
+- **Moving moments first** (with Beat punch, on by default). Each clip is also searched
   for "hands moving, pouring, walking or the camera moving". A moment within
   0.75 s of such a hit gets a small tie-break bonus (at most 0.1, scaled from
   the weakest to the strongest such hit of the build), so of two similar
@@ -52,8 +53,10 @@ source file.
 - A subtle **Soft look** on every clip and photo (strength 0.35): a slight
   lift in the shadows, a little less contrast and a touch of warm pink in
   the highlights only, so dark shots stay dark. The title is not affected.
-- With **Beat punch** on (Advanced, off by default), a quick zoom on every
-  bar's first beat in the video clips (see [Photos](#photos)).
+- **Beat punch** (Advanced, on by default): a quick zoom on every bar's
+  first beat in the video clips (see [Photos](#photos)).
+- The music starts at the track's **hook** (Start at the hook, on by
+  default for the bundled tracks, see [Music](#music)).
 - The clips' own sound plays quietly under the music by default (**Clip
   sound**: Ambient, see [Advanced](#advanced)).
 - No transitions and no end card. The picture stops on the last beat, and
@@ -85,6 +88,11 @@ time.
    still being analysed it ends with " · 2 clips still being analysed".
 4. Press **Build**. The line above the buttons reads "Creates a new 16:9
    Draft".
+
+The defaults: Pace **Quick** (Groove is an option), **Beat punch** on,
+**Start at the hook** on (bundled tracks), **Soft look** on, **Use photos**
+on, Clip sound **Ambient**, Length **Standard** and the Bedroom Pop track.
+Each of them can be changed before Build.
 
 **Refreshing.** The panel reads the Project's clips when it opens, when you
 come back to it (its tab is shown or the window gets focus) and when you press
@@ -166,19 +174,22 @@ the video. Drag the box (or press on the waveform) to choose where in the
 track the video starts; the box snaps to groups of four beats, so the cuts
 stay on the beat. The arrow keys move it by four beats (by one second without a beat grid), and Home and End move
 it to the first and last start. The line under the waveform reads, for
-example, "Starts at 4.3 s". The box starts on the most energetic section that
-fits; a new Length or Pace keeps the start where it can.
+example, "Starts at 4.3 s".
 
-**Start at the hook** (under the preview button, bundled tracks only, off by
-default) starts the box on the track's hook instead: of the starts where the
+**Start at the hook** (under the preview button, bundled tracks only, on by
+default) starts the box on the track's hook: of the starts where the
 video fits, the one whose next four bars have the strongest contrast between
 loud and quiet hits and the fullest bass (a drum fill adds a little). For a
 Standard video that is 37.8 s into Bedroom Pop, 33.5 s into Acoustic Pop,
 4.3 s into Weekend Indie Pop, 14.6 s into Sunny Soul Strut and the start of
-Golden Hour Disco and Easy Sunday Lo-fi. Turning it on or off moves the box
-to that default again, and while it is on a new Length or Pace moves the box
-to the hook window for that length; you can still drag it anywhere. Your own music has
-no hook scores, so it keeps the most energetic section. **Preview this
+Golden Hour Disco and Easy Sunday Lo-fi. While it is on, a new Length or
+Pace moves the box to the hook window for that length. With it off (and
+for your own music, which has no hook scores) the box starts on the most
+energetic section that fits, and a new Length or Pace keeps the start where
+it can. Turning it on or off moves the box to that default again; you can
+always drag it anywhere.
+
+**Preview this
 section** plays the whole section; press it again (**Stop preview**) or press
 Esc to stop. Selects starts the music on a video frame, which can move it by
 up to half a frame; the cuts move with it.
@@ -255,8 +266,8 @@ analysis and are never scene-searched.
 Selects reports no frame size for some photos. The size of such a photo is
 read once, by placing it on an unsaved scratch Draft; nothing is saved.
 
-**Beat punch.** Turn on **Beat punch** in Advanced (off by default). Every
-video clip then gets a "Beat punch" Video Effect: on the strong beats (the
+**Beat punch.** With **Beat punch** on (in Advanced, on by default), every
+video clip gets a "Beat punch" Video Effect: on the strong beats (the
 first beat of each bar, counted from the start of the music section) the picture
 zooms in quickly to 106 % over a quarter beat and settles back by half a
 beat; a clip with no strong beat in it gets a slow push-in to 103 % across
@@ -306,9 +317,10 @@ Three lockup presets, chosen in the panel with a live preview:
   panel says "Silent video: no music and Clip sound is Off." In the Draft, a
   clip's level can be changed in the Inspector.
 - **Soft look**: on by default.
-- **Beat punch**: off by default. On adds the Beat punch zoom to every video
+- **Beat punch**: on by default. It adds the Beat punch zoom to every video
   clip (see [Photos](#photos)) and prefers moving moments (see [What it
-  makes](#what-it-makes)); turning it on searches the clips again once.
+  makes](#what-it-makes)). Off builds without both; switching it searches
+  the clips again once.
 - **Use photos**: on by default. Off builds from the analysed video only.
 - **Choose clips (n/m)**: a checklist of the analysed clips (with their
   length and Tall, Wide or Square) followed by the photos (marked "Photo"),
@@ -325,7 +337,7 @@ The Draft contains:
 - one title Motion Graphic ("Mini vlog title") over the whole video;
 - a "Soft look" Video Effect on each clip and photo (when Soft look is on),
   a "Photo motion" Video Effect on each photo, and a "Beat punch" Video
-  Effect on each video clip (when Beat punch is on);
+  Effect on each video clip (by default; not when Beat punch is off);
 - the music clip, trimmed to the video (when music is chosen).
 
 Edit it in the Inspector's **Adjust** tab:

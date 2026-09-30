@@ -43,6 +43,9 @@ const PREFERRED_CUE = "bedroom-pop-108";
 const DEFAULT_PRESET = "mini-vlog";
 const DEFAULT_LENGTH = "standard";
 const DEFAULT_PACE = "quick";
+// Hook B defaults after the A/B (spec 15.4): Beat punch (with the motion query and bonus) and Start at the hook are on.
+const DEFAULT_PUNCH = true;
+const DEFAULT_HOOK = true;
 // Soft look strength, and photo motion at half of CWV's strength (mild).
 const SOFT_STRENGTH = 0.35;
 const MOTION_STRENGTH = 0.5;
@@ -1380,10 +1383,10 @@ export default function Panel({ sdk, context, ui }: any) {
   const [ownGrid, setOwnGrid] = React.useState<any>(null);
   const [length, setLength] = React.useState<"short" | "standard" | "long">(DEFAULT_LENGTH);
   const [pace, setPace] = React.useState<"quick" | "relaxed" | "groove">(DEFAULT_PACE);
-  // Hook B (spec 15): Beat punch on every video clip, and the music section defaulting to the track's hook window.
-  // Both off by default until the A/B decides.
-  const [beatPunch, setBeatPunch] = React.useState(false);
-  const [hook, setHook] = React.useState(false);
+  // Hook B (spec 15): Beat punch on every video clip, and the music section defaulting to the track's hook window
+  // (bundled tracks only). Both on by default, and both stay toggles.
+  const [beatPunch, setBeatPunch] = React.useState(DEFAULT_PUNCH);
+  const [hook, setHook] = React.useState(DEFAULT_HOOK);
   // Clip sound: the clips' own sound is off (muted), ambient (-18 dB under the music) or full (0 dB).
   const [clipSound, setClipSound] = React.useState<"off" | "ambient" | "full">("ambient");
   const [soft, setSoft] = React.useState(true);

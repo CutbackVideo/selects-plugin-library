@@ -126,8 +126,10 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   const DEFAULT_CLIP_SOUND = panelScalar(panel, 'clipSound default', /\[clipSound, setClipSound\] = React\.useState<[^>]+>\(("[^"]+")\)/);
   const DEFAULT_SOFT = panelScalar(panel, 'soft default', /\[soft, setSoft\] = React\.useState\((true|false)\)/);
   const DEFAULT_USE_PHOTOS = panelScalar(panel, 'usePhotos default', /\[usePhotos, setUsePhotos\] = React\.useState\((true|false)\)/);
-  const DEFAULT_PUNCH = panelScalar(panel, 'beatPunch default', /\[beatPunch, setBeatPunch\] = React\.useState\((true|false)\)/);
-  const DEFAULT_HOOK = panelScalar(panel, 'hook default', /\[hook, setHook\] = React\.useState\((true|false)\)/);
+  const DEFAULT_PUNCH = panelScalar(panel, 'DEFAULT_PUNCH', /const DEFAULT_PUNCH = (true|false);/);
+  const DEFAULT_HOOK = panelScalar(panel, 'DEFAULT_HOOK', /const DEFAULT_HOOK = (true|false);/);
+  if (!panel.includes('const [beatPunch, setBeatPunch] = React.useState(DEFAULT_PUNCH);') || !panel.includes('const [hook, setHook] = React.useState(DEFAULT_HOOK);'))
+    throw Error('panel.tsx no longer starts Beat punch / Start at the hook from DEFAULT_PUNCH / DEFAULT_HOOK; update driveAdapter.mjs');
   // Labels decorate.js gives the title and the effects (what readback finds by name).
   const TITLE_NAME = WANT_LABEL(decorateJs, 'TITLE_LABEL'), SOFT_NAME = WANT_LABEL(decorateJs, 'SOFT_LABEL'), MOTION_NAME = WANT_LABEL(decorateJs, 'MOTION_LABEL');
   const PUNCH_NAME = WANT_LABEL(decorateJs, 'PUNCH_LABEL');
@@ -218,11 +220,13 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     },
 
     // panel.tsx findCandidates(): SEARCH_BATCH clips per call, pageSize 4.
-    // The motion query runs only with Beat punch (panel mvSearchQueries). The driver caches one search per Project and
-    // --out folder, so rows with and without Beat punch need separate --out folders (see dev/hook-ab.json).
+    // The panel runs the motion query only with Beat punch (mvSearchQueries). The driver caches one search per Project
+    // and --out folder and reuses it for every row, so the adapter always searches with the motion query (the role
+    // queries' hits do not depend on it) and plan() drops the motion rows for a row with Beat punch off, which gives that
+    // row exactly the panel's candidates. One --out folder then serves a full matrix with mixed Beat punch rows. (A
+    // search cache written before this change has no motion hits: delete it, or Beat punch rows get no bonus.)
     search(row, rids) {
-      const punch = row.punch ?? DEFAULT_PUNCH;
-      return { summary: 'Search shots', script: 'scripts/search.js', config: { projectId: resolve(row, { required: true }), rids, queries: j(P.mvSearchQueries(MV_QUERIES, punch)), pageSize: 4 } };
+      return { summary: 'Search shots', script: 'scripts/search.js', config: { projectId: resolve(row, { required: true }), rids, queries: j(P.mvSearchQueries(MV_QUERIES, true)), pageSize: 4 } };
     },
 
     // panel.tsx: title fields, grid, section, fit and blockReason (the render body), then build() up to mvPlanBuild.
@@ -284,8 +288,10 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const photoCands = row.usePhotos ? inv.photos.map(p => ({ rid: p.rid, kind: 'photo' })) : [];
       if (inv.resources.length + photoCands.length < 2) throw Error(MV_FAIL['one-resource'] + '.');
       // build(): plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. With Beat
-      // punch, motion hits become a tie-break bonus on the role candidates first.
-      const plan = j(P.mvPlanBuild({ candidates: (row.punch ? j(P.mvMotionBonus(found.list)) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace: row.pace, requested,
+      // punch, motion hits become a tie-break bonus on the role candidates first; without it the motion rows (always
+      // searched, see search()) are dropped, as the panel never has them then.
+      const roleOnly = found.list.filter(c => !c || c.role !== P.MV_MOTION_ROLE);
+      const plan = j(P.mvPlanBuild({ candidates: (row.punch ? j(P.mvMotionBonus(found.list)) : roleOnly).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace: row.pace, requested,
         sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(seed) }));
       const planSummary = { ok: plan.ok, reason: plan.reason, shots: plan.shots, requested, fitted, beatsPerShot: plan.beatsPerShot, overridden: plan.overridden,
         shotSeconds: plan.shotSeconds, photoShots: plan.photoShots, fillerShots: plan.fillerShots, usableShots: plan.usableShots, sectionStart: musicStart,
