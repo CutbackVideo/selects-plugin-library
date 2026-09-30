@@ -387,6 +387,46 @@ for (const cue of manifest.cues) {
   }
 }
 
+// Approximate tempo (own music whose beat-detect grid is 'approximate'): used only without a usable grid and inside
+// 70-160 bpm. Fixed timing then runs on its beat (Quick 1, Relaxed 2, Groove's pattern on that beat, with the tempo
+// guards) instead of 0.55 s; the schedule stays gridless (bpm null: bass-only snapping, no fills from onsets).
+assert.strictEqual(ctx.mvApproxTempo({ gridded: false, approxBpm: 120 }), 120);
+assert.strictEqual(ctx.mvApproxTempo({ gridded: true, approxBpm: 120 }), null, 'a usable grid wins');
+assert.strictEqual(ctx.mvApproxTempo({ gridded: false, approxBpm: 65 }), null);
+assert.strictEqual(ctx.mvApproxTempo({ gridded: false, approxBpm: 161 }), null);
+assert.strictEqual(ctx.mvApproxTempo({ gridded: false, approxBpm: null }), null);
+assert.strictEqual(ctx.mvApproxTempo({ gridded: false }), null);
+assert.strictEqual(ctx.mvShotSeconds({ bpm: null, beatsPerShot: 1, pace: 'quick', gridded: false, approxBpm: 120 }), 0.5);
+assert.strictEqual(ctx.mvShotSeconds({ bpm: null, beatsPerShot: 2, pace: 'relaxed', gridded: false, approxBpm: 120 }), 1);
+assert.strictEqual(ctx.mvShotSeconds({ bpm: null, beatsPerShot: 1, pace: 'groove', gridded: false, approxBpm: 120 }), 0.5);
+assert.strictEqual(ctx.mvShotSeconds({ bpm: null, beatsPerShot: null, pace: 'quick', gridded: false, approxBpm: null }), 0.55);
+{
+  const ROLES = K.MV_ROLES, mk = (rid, role, t) => ({ rid, role, t, score: 0.5, sourceDuration: 60 });
+  const pool = ['a', 'b', 'c'].flatMap(rid => Array.from({ length: 39 }, (_, k) => mk(rid, ROLES[k % ROLES.length], 1 + k * 1.5)));
+  const build = extra => j(ctx.mvPlanBuild({ candidates: pool, bpm: null, accepted: false, fps: 30, pace: 'quick', requested: 12, sectionStart: 0.04, usableEnd: 200, seed: 's1', ...extra }));
+  const q = build({ approxBpm: 120 });
+  assert.ok(q.ok);
+  assert.strictEqual(q.shotSeconds, 0.5); assert.strictEqual(q.beatsPerShot, 1); assert.strictEqual(q.approxBpm, 120);
+  assert.strictEqual(q.schedule.gridded, false, 'no beat grid: bass-only snapping');
+  assert.deepStrictEqual(q.schedule.cuts.map(c => Math.round(c * 1000) / 1000), Array.from({ length: 13 }, (_, k) => k * 0.5), 'no onsets: every cut on the beat');
+  const r = build({ approxBpm: 120, pace: 'relaxed' });
+  assert.strictEqual(r.shotSeconds, 1); assert.strictEqual(r.beatsPerShot, 2);
+  const fast = build({ approxBpm: 156 });
+  assert.strictEqual(fast.beatsPerShot, 2); assert.strictEqual(fast.overridden, true, 'tempo guard applies');
+  assert.ok(Math.abs(fast.shotSeconds - 120 / 156) < 1e-12);
+  const g = build({ approxBpm: 120, pace: 'groove' });
+  assert.ok(g.ok); assert.strictEqual(g.groove.beatSeconds, 0.5); assert.strictEqual(g.groove.fillSource, 'pattern'); assert.strictEqual(g.groove.opener, 2);
+  const slow = build({ approxBpm: 80, pace: 'groove' });
+  assert.strictEqual(slow.groove.opener, 1, 'opener guard below 86 bpm');
+  // Out of range or absent: the 0.55 s fallback, as before.
+  assert.strictEqual(build({ approxBpm: 200 }).shotSeconds, 0.55);
+  assert.strictEqual(build({}).shotSeconds, 0.55);
+  assert.strictEqual(build({}).approxBpm, null);
+  // An accepted grid ignores approxBpm.
+  const acc = build({ bpm: 108, accepted: true, approxBpm: 120 });
+  assert.ok(Math.abs(acc.shotSeconds - 60 / 108) < 1e-12); assert.strictEqual(acc.approxBpm, null);
+}
+
 // Progress (CWV labels).
 assert.strictEqual(ctx.mvProgress('shots', 0).label, 'Step 1/5 · Choosing shots · 0%');
 assert.strictEqual(ctx.mvProgress('open', 1).percent, 100);

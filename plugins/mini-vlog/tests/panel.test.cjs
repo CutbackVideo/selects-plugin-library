@@ -103,12 +103,29 @@ for (const p of presets.presets) for (const f of p.fields) assert.ok(f.max > 0, 
 for (const s of ['group !== "alternative"', 'group === "alternative"', '>Alternatives<', '"Your own music"', '"No music"', 'role="radiogroup"', 'musicKind !== "none" ?']) assert.ok(ui.includes(s), s);
 
 // Length, pace and capacity (spec 14.1 / 14.2).
-for (const s of ['mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted })', 'mvBeatsPerShot(pace, grid.bpm)', 'mvShotSeconds(', 'mvFitShots(', ' shots fit this track (', 'Quick uses 2 beats', 'Relaxed uses 1 beat', 'approximate timing', '"Tempo outside 70\\u2013160 bpm ("', 'No steady beat']) assert.ok(ui.includes(s), s);
+for (const s of ['mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted })', 'mvBeatsPerShot(pace, tempo)', 'mvShotSeconds(', 'mvFitShots(', ' shots fit this track (', 'Quick uses 2 beats', 'Relaxed uses 1 beat', 'approximate timing', '"Tempo outside 70\\u2013160 bpm ("', 'No steady beat']) assert.ok(ui.includes(s), s);
 assert.ok(ui.includes('"one-resource": "Add at least 2 clips or photos"') && ui.includes('"too-few": "Your footage fits fewer than 4 shots"')
   && ui.includes('"music-too-short": "This track is too short for 4 shots from this section"'), 'fail reason messages');
 assert.equal((ui.match(/mvPlanBuild\(/g) || []).length, 2, 'the build plan and the readiness plan');
-assert.equal((ui.match(/mvPlanBuild\(\{ candidates: [^;]*, bpm: grid\.bpm, accepted: grid\.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid\.usableEnd, \.\.\.snapCuts, seed: String\(/g) || []).length, 2, 'both plans get the same inputs');
+assert.equal((ui.match(/mvPlanBuild\(\{ candidates: [^;]*, bpm: grid\.bpm, accepted: grid\.accepted, approxBpm: grid\.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid\.usableEnd, \.\.\.snapCuts, seed: String\(/g) || []).length, 2, 'both plans get the same inputs');
 assert.ok(ui.includes('const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };'));
+// Own music with an approximate grid (beat-detect grid 'approximate'): fixed timing on its tempo and first beat, bpm stays
+// null (no grid features); the pace note and the line under the file say so. The detection result is shown under the
+// file, not in the status line at the bottom.
+for (const s of ['const ownApprox = musicKind === "own" && ownGrid && !ownGrid.accepted && ownGrid.grid === "approximate" && ownGrid.bpm > 0;',
+  'approxBpm: ownApprox ? ownGrid.bpm : null, firstBeat: ownApprox ? ownGrid.firstBeat : 0',
+  'const approxTempo = mvApproxTempo({ gridded, approxBpm: grid.approxBpm });', 'const tempo = gridded ? grid.bpm : approxTempo;',
+  'mvShotSeconds({ bpm: grid.bpm, beatsPerShot: guard.beats, pace, gridded, approxBpm: approxTempo })',
+  'mvSnapSection({ value, firstBeat: grid.firstBeat, bpm: tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: !!tempo })',
+  '"Tempo found (" + Math.round(approxTempo) + " bpm) but the beat is faint: cuts follow a " + Math.round(approxTempo) + " bpm grid approximately (" + timing + ")."',
+  '"Tempo found (" + Math.round(approxTempo) + " bpm) but the beat is faint, so cuts follow a " + Math.round(approxTempo) + " bpm grid approximately."',
+  '"Beat found: " + Math.round(grid.bpm) + " bpm. Cuts follow the beat."', '"No steady beat found, so cuts use approximate timing."',
+  '{ownBeatLine ? <ui.Message tone="muted">{ownBeatLine}</ui.Message> : null}', 'bpm: gridded ? grid.bpm : null, usePhotos']) assert.ok(ui.includes(s), s);
+assert.ok(ui.indexOf('{ownBeatLine ?') > ui.indexOf('<ui.FileDrop accept={["audio"]}') && ui.indexOf('{ownBeatLine ?') < ui.indexOf('<ui.Section title="Length">'), 'the beat line sits under the file drop');
+assert.ok(!ui.includes('its beat could not be found reliably'), 'no detection result in the bottom status line');
+// An approximate tempo outside 70-160 bpm: both the line under the file and the pace note say the tempo is out of range.
+assert.ok(ui.includes('const outsideBpm: number | null = grid.accepted ? grid.bpm : ownApprox ? ownGrid.bpm : null;')
+  && ui.includes(': outsideBpm ? "Tempo outside 70\\u2013160 bpm (" + Math.round(outsideBpm) + " bpm)') && ui.includes(': outsideBpm ? "Its tempo (" + Math.round(outsideBpm) + " bpm) is outside'), 'out-of-range messages agree');
 // Use photos off drops the photo candidates before planning.
 assert.ok(ui.includes('if (!usePhotos || !inventory) return [];'), 'photos off -> no photo candidates');
 assert.equal((ui.match(/photoCandsOf\(inventory, onlyPhotos, usePhotos\)/g) || []).length, 2);
@@ -116,8 +133,8 @@ assert.equal((ui.match(/photoCandsOf\(inventory, onlyPhotos, usePhotos\)/g) || [
 assert.ok(ui.includes('disabled={busy || !canBuild}') && ui.includes('MV_FAIL[plan.reason]') && ui.includes('const blockReason = blockFor(readyPlan);'), 'disabled Build with the planner reason');
 
 // Groove (spec 15.1): capacity, lines and the pace note follow the planner's beat spans, not shots x shotSeconds.
-for (const s of ['const grooved = pace === "groove" && (gridded ? !!guard.groove : true);', 'const opener = guard.groove ? guard.opener : 2;',
-  'mvGrooveFit({ requested, sectionStart: gridded ? grid.firstBeat : 0, usableEnd: grid.usableEnd, beatSeconds: shotSeconds, opener })',
+for (const s of ['const grooved = pace === "groove" && (tempo ? !!guard.groove : true);', 'const opener = guard.groove ? guard.opener : 2;',
+  'mvGrooveFit({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, beatSeconds: shotSeconds, opener })',
   'const fitted = grooved ? grooveFit.shots : mvFitShots(', 'const wanted = grooved ? mvGrooveSpan(requested, opener).shots : requested;',
   'const fittedSeconds = grooved ? grooveFit.beats * shotSeconds : fitted * shotSeconds;', 'const wantedSeconds = grooved ? grooveFit.requestedBeats * shotSeconds : requested * shotSeconds;',
   'const videoSeconds = fitted ? fittedSeconds : wantedSeconds;', 'const planSeconds = (p: any) => (p.groove ? p.groove.beats * shotSeconds : p.shots * shotSeconds);',

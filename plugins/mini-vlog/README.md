@@ -216,16 +216,33 @@ the music, and the music is never cut mid-shot.
 
 **Your own music**: drop an audio file. The plugin listens for the beat and
 uses it when the tempo is between 70 and 160 BPM and the detected beat grid is
-reliable. When the detected beats land halfway between the kicks and snare
-hits, it moves the grid half a beat onto them. Bars are not detected, so the
-cuts follow the beat only. Other songs use fixed shot lengths (0.55 s for
-Quick, 1.10 s for Relaxed; Groove keeps its pattern on a 0.55 s beat, "Groove
-on a 0.55 s beat: 1.10, 0.55 and 0.275 s shots"). The panel then says "Music added; its tempo (N
-bpm) is outside 70–160 bpm, so cuts use approximate timing." or "Music added;
-its beat could not be found reliably, so cuts use approximate timing.", and
-under Pace "Tempo outside 70–160 bpm (N bpm): shots use approximate timing
-(0.55 s)." or "No steady beat: shots use approximate timing (0.55 s).". Those
-cuts still move onto a clearly strong bass hit nearby (within 120 ms).
+reliable: most beats carry a drum or bass hit close to the grid, or, in sparse
+grooves such as lo-fi where only some beats have a kick or snare, the hits that
+are there sit within about 10 ms of it. The grid must also hold across the
+whole track, so a song that changes tempo is not treated as one steady beat.
+When the detected beats land halfway between the kicks and snare hits, it
+moves the grid half a beat onto them. Bars are not detected, so the cuts
+follow the beat only. What was found is shown under the file: "Beat found: N
+bpm. Cuts follow the beat."
+
+When the tempo is clear but too few beats carry a hit to trust every beat,
+the panel says "Tempo found (N bpm) but the beat is faint, so cuts follow a N
+bpm grid approximately." and, under Pace, "Tempo found (N bpm) but the beat is
+faint: cuts follow a N bpm grid approximately (0.50 s)." The shots then last
+whole beats of that tempo (Quick 1 beat, Relaxed 2, Groove its pattern on
+that beat, with the same 86 and 150 BPM guards) and start on a detected beat,
+so they do not drift against the music; there are no drum-fill 8ths or Beat
+punch, as without a grid.
+
+Other songs use fixed shot lengths (0.55 s for Quick, 1.10 s for Relaxed;
+Groove keeps its pattern on a 0.55 s beat, "Groove on a 0.55 s beat: 1.10,
+0.55 and 0.275 s shots"). The panel then says "Its tempo (N bpm) is outside
+70–160 bpm, so cuts use approximate timing." or "No steady beat found, so cuts
+use approximate timing.", and under Pace "Tempo outside 70–160 bpm (N bpm):
+shots use approximate timing (0.55 s)." or "No steady beat found: shots use
+approximate timing (0.55 s).". Without an accepted grid (the approximate
+tempo or fixed lengths), cuts still move onto a clearly strong bass hit nearby
+(within 120 ms).
 
 Your own music needs ffmpeg and Node.js 18 or later, and the previews need
 ffmpeg (see [INSTALL.md](INSTALL.md)). Without both tools the panel does not
