@@ -179,7 +179,7 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
       const endOffset = trackKind === 'video' ? videoEndOffsets[resource.resourceId]?.(over.startFrame) ?? 0 : 0;
       inserted.push({ clipId: Math.max(0, ...inserted.map(item => item.clipId)) + 1, trackId: `v${inserted.length}`, trackKind, resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame + endOffset, sourceStartSeconds });
       if (videoAudio && trackKind === 'video' && videoIndices.includes(Number(resource.resourceId.slice(1)))) {
-        inserted.push({ clipId: inserted.length + 1, trackId: `a${inserted.length}`, trackKind: 'audio',
+        inserted.push({ clipId: Math.max(0, ...inserted.map(item => item.clipId)) + 1, trackId: `a${inserted.length}`, trackKind: 'audio',
           resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame });
       }
     },
@@ -291,7 +291,7 @@ test('mixed gallery places Video through the public SDK while preserving preplac
 });
 
 test('Video placement normalizes a one-frame short or long SDK clip before saving', async () => {
-  const f = creationFixture({ videoIndices: [3, 16], videoEndOffsets: {
+  const f = creationFixture({ videoIndices: [3, 16], videoAudio: true, videoEndOffsets: {
     r3: start => start === 36 ? -1 : 0,
     r16: () => 1,
   } });
@@ -309,6 +309,7 @@ test('Video placement normalizes a one-frame short or long SDK clip before savin
   assert.deepEqual(f.inserted.filter(row => row.resourceId === 'r3').map(row => [row.startFrame, row.endFrame]), [[36, 853]]);
   assert.deepEqual(f.inserted.filter(row => row.resourceId === 'r16').map(row => [row.startFrame, row.endFrame]), [[161, 853]]);
   assert.equal(f.inserted.filter(row => row.trackKind === 'video').length, 21);
+  assert.equal(f.inserted.filter(row => row.trackKind === 'audio').length, 0);
 });
 
 test('21 original photos become 21 independent Image clips over a black gap', async () => {
