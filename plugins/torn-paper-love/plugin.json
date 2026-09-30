@@ -89,5 +89,11 @@
       "name": "\u6495\u7eb8\u604b\u7231\u526a\u8f91",
       "summary": "\u628a\u60c5\u4fa3\u7167\u7247\u5236\u4f5c\u6210\u5361\u70b9\u7684 4:3 \u6495\u7eb8\u98ce\u604b\u7231\u526a\u8f91\uff0c\u914d\u6709\u526a\u8d34\u5b57\u6bcd\uff0c\u4f5c\u4e3a\u53ef\u7f16\u8f91\u7684\u65b0 Draft\u3002"
     }
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 960,
+    "height": 720
   }
 }

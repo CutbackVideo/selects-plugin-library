@@ -210,5 +210,5 @@ the same on any machine with Selects.
 ## Gallery
 
 `preview.mp4` (960x720, with sound) and `poster.webp` are for the plugin
-gallery. They are not installed with the plugin and will be added later.
+gallery (a Photo backdrop build with Slow R&B Glow). They are not installed with the plugin.
 Their photo credits are in [THIRD_PARTY.md](THIRD_PARTY.md).

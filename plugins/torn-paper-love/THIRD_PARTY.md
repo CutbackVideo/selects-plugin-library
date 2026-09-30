@@ -35,25 +35,12 @@ The tracks are bundled for use in the videos this plugin builds and are not for 
 
 ## Gallery preview photos (Pexels License)
 
-`preview.mp4` and `poster.webp` are not installed with the plugin. They show a Torn Paper Love build made from these Pexels photos under the Pexels License (https://www.pexels.com/license/):
+`preview.mp4` and `poster.webp` are not installed with the plugin. They show a Torn Paper Love build (Photo backdrop, Slow R&B Glow) made from these Pexels photos under the Pexels License (https://www.pexels.com/license/):
 
 - Photo by Amine İspir: https://www.pexels.com/photo/couple-hugging-on-the-street-13639163/
-- Photo by Satumbo 9: https://www.pexels.com/photo/young-couple-taking-a-selfie-photo-18262856/
 - Photo by Jamaal Hutchinson: https://www.pexels.com/photo/couple-laughing-and-hugging-18657552/
-- Photo by David Salazar Caviedes: https://www.pexels.com/photo/side-view-of-a-couple-standing-face-to-face-and-smiling-21898584/
-- Photo by Jorge Zaldívar Marroquín: https://www.pexels.com/photo/romantic-couple-embracing-at-sunset-beach-30716714/
-- Photo by Jonathan Borba: https://www.pexels.com/photo/photo-of-couple-about-to-kiss-3156992/
 - Photo by DANFER AZA yamit: https://www.pexels.com/photo/romantic-couple-embracing-at-night-outdoors-32206384/
-- Photo by Polina Zimmerman: https://www.pexels.com/photo/couple-laughing-together-3958854/
 - Photo by Polina Tankilevitch: https://www.pexels.com/photo/a-couple-pointing-and-laughing-7741598/
-- Photo by Matheus Bertelli: https://www.pexels.com/photo/couple-smiling-at-each-other-1881091/
-- Photo by Fernanda De Freitas: https://www.pexels.com/photo/laughing-couple-lying-on-blanket-26777363/
-- Photo by Vitaly Gariev: https://www.pexels.com/photo/couple-taking-selfie-in-cozy-bedroom-setting-36697524/
-- Photo by Gustavo Fring: https://www.pexels.com/photo/photo-of-couple-taking-selfie-4148953/
 - Photo by Helena Lopes: https://www.pexels.com/photo/photo-of-couple-smiling-4279120/
 - Photo by Leeloo The First: https://www.pexels.com/photo/close-up-shot-of-people-laughing-4629922/
-- Photo by Anna Tarazevich: https://www.pexels.com/photo/man-kissing-a-woman-on-the-cheek-5080651/
-- Photo by Samson Katt: https://www.pexels.com/photo/smiling-asian-couple-taking-selfie-on-smartphone-on-bench-5225487/
 - Photo by Uriel Mont: https://www.pexels.com/photo/black-gay-couple-hugging-in-city-street-at-night-6315280/
-- Photo by Liliana Drew: https://www.pexels.com/photo/a-couple-laughing-together-8554867/
-- Photo by Maksim Goncharenok: https://www.pexels.com/photo/couple-face-to-face-9930077/
