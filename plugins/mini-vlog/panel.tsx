@@ -132,17 +132,20 @@ const MV_PHOTO_SHARE = 1 / 3;
 //   accents): those whose onset density (sum of onset strengths in the beat) reaches MV_GROOVE_FILL_RATIO x the median
 //   beat of the span; a class with none detected, or no onset data at all, splits all of its candidates (the bundled
 //   cues carry a short drum fill at the end of every 4 bars).
-// - 8th shots are video only. A span is whole bars and at least MV_GROOVE_MIN_BEATS. Without a grid the pattern runs
+// - 8th shots are video only. A span is whole bars and at least MV_GROOVE_MIN_BEATS (one bar: 2, 1, 1/2, 1/2 = 4
+//   shots, MV_MIN_SHOTS). Without a grid the pattern runs
 //   on MV_GROOVE_FALLBACK_BEAT-second beats (2 x 0.55, 0.55 ..., 2 x 0.275) with every candidate split.
 // - Opener guard: when a 2-beat hold would last longer than MV_GROOVE_OPENER_MAX seconds (below 85.71 bpm) every hold
 //   is 1 beat, so no shot outruns Relaxed's cap.
 const MV_GROOVE_PHRASE_BEATS = 16;
 const MV_GROOVE_FILL_RATIO = 1.5;
 const MV_GROOVE_FALLBACK_BEAT = 0.55;
-const MV_GROOVE_MIN_BEATS = 8;
+const MV_GROOVE_MIN_BEATS = 4;
 const MV_GROOVE_OPENER_MAX = 1.40;
-// An onset counts for the beat it sits in, from this share of a beat before the beat (onsets land a hair early).
-const MV_GROOVE_ONSET_LEAD = 0.125;
+// An onset counts for the beat it sits in, from this many seconds (one frame at 30 fps) before the beat: manifest and
+// detector onsets land a hair early (about 1 ms on the bundled cues). A fixed time, not a share of the beat, so a slow
+// tempo does not pull an 8th-note pickup into the next beat.
+const MV_GROOVE_ONSET_LEAD = 1 / 30;
 
 // A beat grid is used only for a tempo in [MV_TEMPO_MIN, MV_TEMPO_MAX] whose detection was accepted (bundled cues
 // always are).
@@ -269,7 +272,9 @@ function mvGrooveFit(opts) {
 // first, per class: when a class has a candidate with a fill, just those split; a class without one falls back to all
 // of its candidates. No onsets, no bpm or section start or a median of 0 -> every candidate splits. Returns { splits:
 // beat indices, candidates, source: 'onsets' (both classes detected) | 'mixed' | 'pattern' (neither), ratios: density
-// / median per candidate (empty without data) }.
+// / median per candidate (empty without data) }. Assumes sectionStart is on the bar grid (mvSnapSection /
+// mvDefaultSection), since candidates are counted in beats from it; with firstBeat it is only re-phased to the nearest
+// beat, never to a bar. The median is taken over the whole span (not per phrase), which is steadier on short spans.
 function mvFillBeats(opts) {
   const n = Math.max(0, Math.floor(opts.beats) || 0), candidates = mvGrooveCandidates(n);
   const fallback = ratios => ({ splits: candidates.slice(), candidates, source: 'pattern', ratios });
@@ -280,7 +285,7 @@ function mvFillBeats(opts) {
   const density = Array(n).fill(0);
   for (const o of opts.onsets) {
     if (!o || !finite(o[0]) || !finite(o[2]) || !(o[2] > 0)) continue;
-    const k = Math.floor((o[0] - start) / beat + MV_GROOVE_ONSET_LEAD);
+    const k = Math.floor((o[0] - start + MV_GROOVE_ONSET_LEAD) / beat);
     if (k >= 0 && k < n) density[k] += o[2];
   }
   const sorted = density.slice().sort((a, b) => a - b);
@@ -624,7 +629,8 @@ function mvAllocate(opts) {
 // span for `requested`, capped by the music in whole bars) and shrinks by whole bars down to MV_GROOVE_MIN_BEATS; each
 // span's fills come from the section's onsets (mvFillBeats), and `shots` is that span's actual slot count. A pool with
 // no usable video gets no 8ths (photos cannot take them). The result then has beatsPerShot null, shotSeconds null and
-// groove: { beats, requestedBeats, splits (beats split into 8ths), fillSource, beatSeconds, opener }; its slots carry
+// groove: { beats, requestedBeats, splits (beats split into 8ths), fillSource, ratios (mvFillBeats), beatSeconds,
+// opener }; its slots carry
 // `beats`.
 function mvPlanBuild(opts) {
   const gridded = mvGridUsable({ bpm: opts.bpm, accepted: opts.accepted });
@@ -668,9 +674,9 @@ function mvPlanBuild(opts) {
     const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
     // Groove fills for this span: none without video (photos cannot take an 8th), the pattern without a grid.
     const fills = !grooved ? null
-      : !hasVideo ? { splits: [], source: 'no-video' }
+      : !hasVideo ? { splits: [], source: 'no-video', ratios: [] }
       : gridded ? mvFillBeats({ onsets: opts.onsets, sectionStart: opts.sectionStart, bpm: opts.bpm, beats: n })
-      : { splits: mvGrooveCandidates(n), source: 'pattern' };
+      : { splits: mvGrooveCandidates(n), source: 'pattern', ratios: [] };
     const schedule = fills
       ? mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: mvGrooveBeats({ beats: n, splits: fills.splits, opener }), shotSeconds: beatSeconds, ...snapOpts })
       : mvSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, shots: n, beatsPerShot: guard.beats, shotSeconds, ...snapOpts });
@@ -683,7 +689,7 @@ function mvPlanBuild(opts) {
         return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
           beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
           attempt: attempt.name,
-          ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, beatSeconds, opener } } : {}) };
+          ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, ratios: fills.ratios, beatSeconds, opener } } : {}) };
       }
       // The shortest length misses slots with every share, so usableShots < MV_MIN_SHOTS.
       if (n === least) usableShots = Math.max(usableShots, alloc.filled);
