@@ -160,7 +160,7 @@ test('existing-Draft mutation is rejected before an unsupported SDK call or comm
   assert.equal(calls.commit, 0);
 });
 
-function creationFixture({ failCommit = false, rejectNativeImages = false, videoIndices = [], audio = false, videoAudio = false } = {}) {
+function creationFixture({ failCommit = false, rejectNativeImages = false, videoIndices = [], audio = false, videoAudio = false, videoEndOffsets = {} } = {}) {
   const inserted = [], effects = [], bindings = [], transforms = [];
   let createCount = 0, gapCalls = 0;
   const fresh = () => inserted.map((item) => ({ ...item }));
@@ -176,7 +176,8 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
         throw new Error('Resource is not a Video/Audio asset');
       }
       const trackKind = resource.resourceId === 'song' ? 'audio' : 'video';
-      inserted.push({ clipId: inserted.length + 1, trackId: `v${inserted.length}`, trackKind, resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame, sourceStartSeconds });
+      const endOffset = trackKind === 'video' ? videoEndOffsets[resource.resourceId]?.(over.startFrame) ?? 0 : 0;
+      inserted.push({ clipId: Math.max(0, ...inserted.map(item => item.clipId)) + 1, trackId: `v${inserted.length}`, trackKind, resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame + endOffset, sourceStartSeconds });
       if (videoAudio && trackKind === 'video' && videoIndices.includes(Number(resource.resourceId.slice(1)))) {
         inserted.push({ clipId: inserted.length + 1, trackId: `a${inserted.length}`, trackKind: 'audio',
           resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame });
@@ -186,6 +187,18 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
       const index = inserted.findIndex(item => item.clipId === row.clipId);
       if (index >= 0) inserted.splice(index, 1);
     } },
+    moveOverlayClip: async ({ clip, startFrame }) => {
+      const row = inserted.find(item => item.clipId === clip.clipId);
+      row.endFrame += startFrame - row.startFrame;
+      row.startFrame = startFrame;
+      return { clipId: row.clipId, trackId: row.trackId, startFrame };
+    },
+    remove: async (span, { tracks }) => {
+      for (const row of inserted.filter(item => tracks.includes(item.trackId) && item.endFrame > span.startFrame)) {
+        row.endFrame -= Math.min(row.endFrame, span.endFrame) - Math.max(row.startFrame, span.startFrame);
+      }
+      return { opCount: 1 };
+    },
     addVideoEffect: async (entry) => effects.push(entry),
     setClipTransform: async (entry) => transforms.push(entry),
     clipTransform: async (clip) => {
@@ -275,6 +288,27 @@ test('mixed gallery places Video through the public SDK while preserving preplac
     resourceId: 'r20', startFrame: 205, endFrame: 853, sourceStartSeconds: undefined });
   assert.equal((await f.run({ operation: 'styleExisting', projectId: 'project-1',
     draftId: 'known', media, manualBpm: 113 })).status, 'styled');
+});
+
+test('Video placement normalizes a one-frame short or long SDK clip before saving', async () => {
+  const f = creationFixture({ videoIndices: [3, 16], videoEndOffsets: {
+    r3: start => start === 36 ? -1 : 0,
+    r16: () => 1,
+  } });
+  const reveals = [0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205];
+  for (let i = 0; i < 21; i++) if (i !== 3 && i !== 16) f.inserted.push({ clipId: i + 1, trackId: `v${i}`,
+    trackKind: 'video', resourceId: `r${i}`, startFrame: reveals[i], endFrame: 853 });
+  const media = Array.from({ length: 21 }, (_, i) => ({ resourceId: `r${i}`,
+    path: i === 3 || i === 16 ? `/test/video-${i}.mp4` : `/test/photo-${i}.png`,
+    kind: i === 3 || i === 16 ? 'video' : 'image', width: i === 3 || i === 16 ? 1920 : 1080,
+    height: i === 3 || i === 16 ? 1080 : 1920,
+    ...((i === 3 || i === 16) ? { durationFrames: 1800 } : {}) }));
+  const result = await f.run({ operation: 'placeVideosExisting', projectId: 'project-1',
+    draftId: 'known', media, manualBpm: 113 });
+  assert.equal(result.status, 'videosPlaced', result.message);
+  assert.deepEqual(f.inserted.filter(row => row.resourceId === 'r3').map(row => [row.startFrame, row.endFrame]), [[36, 853]]);
+  assert.deepEqual(f.inserted.filter(row => row.resourceId === 'r16').map(row => [row.startFrame, row.endFrame]), [[161, 853]]);
+  assert.equal(f.inserted.filter(row => row.trackKind === 'video').length, 21);
 });
 
 test('21 original photos become 21 independent Image clips over a black gap', async () => {

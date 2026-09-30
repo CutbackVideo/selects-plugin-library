@@ -283,16 +283,37 @@ async function galleryPlaceVideosExisting(selects, project, input, inventory, on
     used.add(matches[0].clipId);
   }
   for (const tile of videos) {
-    const before = new Set((await draft.clips({ trackScope: 'all' })).map(row => row.clipId));
-    await draft.overlayResource({ resource: project.resource(tile.resourceId),
-      over: await draft.rangeAtFrames(tile.revealFrame, tile.endFrame) });
-    const placedRows = await draft.clips({ trackScope: 'all' });
-    const added = placedRows.filter(row => !before.has(row.clipId) &&
+    const resource = project.resource(tile.resourceId);
+    const overlay = async (startFrame) => {
+      const before = new Set((await draft.clips({ trackScope: 'all' })).map(row => row.clipId));
+      await draft.overlayResource({ resource, over: await draft.rangeAtFrames(startFrame, tile.endFrame) });
+      const rows = (await draft.clips({ trackScope: 'all' })).filter(row => !before.has(row.clipId));
+      const visual = rows.filter(row => row.trackKind === 'video' && row.resourceId === tile.resourceId);
+      if (visual.length !== 1 || visual[0].startFrame !== startFrame) galleryFail(`Video ${tile.slotKey} did not create one independent clip`);
+      const sourceAudio = rows.filter(row => row.trackKind === 'audio' && row.resourceId);
+      if (sourceAudio.length) await draft.removeClips(sourceAudio);
+      return visual[0];
+    };
+    let clip = await overlay(tile.revealFrame);
+    if (clip.endFrame < tile.endFrame) {
+      // The SDK may quantize a seconds-based overlay one frame short at some
+      // 60 fps start positions. Re-place with enough source time, then use the
+      // public clip move and trim operations to get exact frame boundaries.
+      await draft.removeClips([clip]);
+      if (tile.revealFrame < 1) galleryFail(`Video ${tile.slotKey} cannot cover the output end`);
+      clip = await overlay(tile.revealFrame - 1);
+      const moved = await draft.moveOverlayClip({ clip, startFrame: tile.revealFrame });
+      const matches = (await draft.clips({ trackScope: 'all' })).filter(row => row.clipId === moved.clipId);
+      if (matches.length !== 1) galleryFail(`Video ${tile.slotKey} moved clip could not be read back`);
+      clip = matches[0];
+    }
+    if (clip.endFrame > tile.endFrame) {
+      await draft.remove(await draft.rangeAtFrames(tile.endFrame, clip.endFrame), { tracks: [clip.trackId] });
+    }
+    const exact = (await draft.clips({ trackScope: 'all' })).filter(row => row.clipId === clip.clipId &&
       row.trackKind === 'video' && row.resourceId === tile.resourceId &&
       row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);
-    if (added.length !== 1) galleryFail(`Video ${tile.slotKey} did not create one independent clip`);
-    const sourceAudio = placedRows.filter(row => !before.has(row.clipId) && row.trackKind === 'audio' && row.resourceId);
-    if (sourceAudio.length) await draft.removeClips(sourceAudio);
+    if (exact.length !== 1) galleryFail(`Video ${tile.slotKey} could not reach its exact reveal and end frames`);
     if ((await draft.clips({ trackScope: 'all' })).some(row => row.trackKind === 'audio' && row.resourceId)) {
       galleryFail(`Video ${tile.slotKey} retained source audio`);
     }
