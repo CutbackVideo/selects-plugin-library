@@ -32,6 +32,7 @@ const STRINGS = {
     turnOnPhotos: "Turn on Use photos in Advanced to build from this Project's photos.",
     noClipsSelected: "No clips selected. Choose clips in Advanced.",
     onlyPhotos: { one: "Only {count} photo and no analysed video: this style needs at least {needed} shots. Add photos or video clips.", other: "Only {count} photos and no analysed video: this style needs at least {needed} shots. Add photos or video clips." },
+    gap: " ",
     ready: "Ready: {summary}",
     clips: { one: "{count} clip", other: "{count} clips" },
     clipsSelected: { one: "{selected} of {count} clip selected", other: "{selected} of {count} clips selected" },
@@ -164,6 +165,7 @@ const STRINGS = {
     turnOnPhotos: "Aktiviere „Fotos verwenden“ unter „Erweitert“, um aus den Fotos dieses Projekts zu erstellen.",
     noClipsSelected: "Keine Clips ausgewählt. Wähle Clips unter „Erweitert“.",
     onlyPhotos: { one: "Nur {count} Foto und kein analysiertes Video: Dieser Stil braucht mindestens {needed} Einstellungen. Füge Fotos oder Videoclips hinzu.", other: "Nur {count} Fotos und kein analysiertes Video: Dieser Stil braucht mindestens {needed} Einstellungen. Füge Fotos oder Videoclips hinzu." },
+    gap: " ",
     ready: "Bereit: {summary}",
     clips: { one: "{count} Clip", other: "{count} Clips" },
     clipsSelected: { one: "{selected} von {count} Clip ausgewählt", other: "{selected} von {count} Clips ausgewählt" },
@@ -296,6 +298,7 @@ const STRINGS = {
     turnOnPhotos: "Activa «Usar fotos» en «Avanzado» para crear con las fotos de este proyecto.",
     noClipsSelected: "No hay clips seleccionados. Elige clips en «Avanzado».",
     onlyPhotos: { one: "Solo {count} foto y ningún vídeo analizado: este estilo necesita al menos {needed} planos. Añade fotos o clips de vídeo.", many: "Solo {count} de fotos y ningún vídeo analizado: este estilo necesita al menos {needed} planos. Añade fotos o clips de vídeo.", other: "Solo {count} fotos y ningún vídeo analizado: este estilo necesita al menos {needed} planos. Añade fotos o clips de vídeo." },
+    gap: " ",
     ready: "Listo: {summary}",
     clips: { one: "{count} clip", many: "{count} de clips", other: "{count} clips" },
     clipsSelected: { one: "{selected} de {count} clip seleccionado", many: "{selected} de {count} de clips seleccionados", other: "{selected} de {count} clips seleccionados" },
@@ -428,6 +431,7 @@ const STRINGS = {
     turnOnPhotos: "Activez « Utiliser les photos » dans « Avancé » pour créer à partir des photos de ce projet.",
     noClipsSelected: "Aucun clip sélectionné. Choisissez des clips dans « Avancé ».",
     onlyPhotos: { one: "Seulement {count} photo et aucune vidéo analysée : ce style demande au moins {needed} plans. Ajoutez des photos ou des clips vidéo.", many: "Seulement {count} de photos et aucune vidéo analysée : ce style demande au moins {needed} plans. Ajoutez des photos ou des clips vidéo.", other: "Seulement {count} photos et aucune vidéo analysée : ce style demande au moins {needed} plans. Ajoutez des photos ou des clips vidéo." },
+    gap: " ",
     ready: "Prêt : {summary}",
     clips: { one: "{count} clip", many: "{count} de clips", other: "{count} clips" },
     clipsSelected: { one: "{selected} clip sélectionné sur {count}", many: "{selected} clips sélectionnés sur {count}", other: "{selected} clips sélectionnés sur {count}" },
@@ -560,6 +564,7 @@ const STRINGS = {
     turnOnPhotos: "Attiva «Usa foto» in «Avanzate» per creare dalle foto di questo progetto.",
     noClipsSelected: "Nessuna clip selezionata. Scegli le clip in «Avanzate».",
     onlyPhotos: { one: "Solo {count} foto e nessun video analizzato: questo stile richiede almeno {needed} inquadrature. Aggiungi foto o clip video.", many: "Solo {count} di foto e nessun video analizzato: questo stile richiede almeno {needed} inquadrature. Aggiungi foto o clip video.", other: "Solo {count} foto e nessun video analizzato: questo stile richiede almeno {needed} inquadrature. Aggiungi foto o clip video." },
+    gap: " ",
     ready: "Pronto: {summary}",
     clips: { one: "{count} clip", many: "{count} di clip", other: "{count} clip" },
     clipsSelected: { one: "{selected} di {count} clip selezionata", many: "{selected} di {count} clip selezionate", other: "{selected} di {count} clip selezionate" },
@@ -692,6 +697,7 @@ const STRINGS = {
     turnOnPhotos: "このプロジェクトの写真から作成するには、「詳細設定」で「写真を使う」をオンにしてください。",
     noClipsSelected: "クリップが選択されていません。「詳細設定」でクリップを選んでください。",
     onlyPhotos: { other: "写真が {count} 枚だけで、解析済みの動画がありません。このスタイルには少なくとも {needed} ショットが必要です。写真か動画クリップを追加してください。" },
+    gap: "",
     ready: "準備完了: {summary}",
     clips: { other: "クリップ {count} 本" },
     clipsSelected: { other: "クリップ {count} 本中 {selected} 本を選択" },
@@ -824,6 +830,7 @@ const STRINGS = {
     turnOnPhotos: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc0ac\uc9c4\uc73c\ub85c \ub9cc\ub4e4\ub824\uba74 ‘\uace0\uae09’\uc5d0\uc11c ‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc744 \ucf1c\uc138\uc694.",
     noClipsSelected: "\uc120\ud0dd\ud55c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. ‘\uace0\uae09’\uc5d0\uc11c \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     onlyPhotos: { other: "\uc0ac\uc9c4 {count}\uc7a5\ub9cc \uc788\uace0 \ubd84\uc11d\ub41c \uc601\uc0c1\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc774 \uc2a4\ud0c0\uc77c\uc5d0\ub294 \uc0f7\uc774 \ucd5c\uc18c {needed}\uac1c \ud544\uc694\ud569\ub2c8\ub2e4. \uc0ac\uc9c4\uc774\ub098 \uc601\uc0c1 \ud074\ub9bd\uc744 \ucd94\uac00\ud558\uc138\uc694." },
+    gap: " ",
     ready: "\uc900\ube44 \uc644\ub8cc: {summary}",
     clips: { other: "\ud074\ub9bd {count}\uac1c" },
     clipsSelected: { other: "\ud074\ub9bd {count}\uac1c \uc911 {selected}\uac1c \uc120\ud0dd" },
@@ -956,6 +963,7 @@ const STRINGS = {
     turnOnPhotos: "Ative “Usar fotos” em “Avançado” para criar com as fotos deste projeto.",
     noClipsSelected: "Nenhum clipe selecionado. Escolha clipes em “Avançado”.",
     onlyPhotos: { one: "Apenas {count} foto e nenhum vídeo analisado: este estilo precisa de pelo menos {needed} planos. Adicione fotos ou clipes de vídeo.", many: "Apenas {count} de fotos e nenhum vídeo analisado: este estilo precisa de pelo menos {needed} planos. Adicione fotos ou clipes de vídeo.", other: "Apenas {count} fotos e nenhum vídeo analisado: este estilo precisa de pelo menos {needed} planos. Adicione fotos ou clipes de vídeo." },
+    gap: " ",
     ready: "Pronto: {summary}",
     clips: { one: "{count} clipe", many: "{count} de clipes", other: "{count} clipes" },
     clipsSelected: { one: "{selected} de {count} clipe selecionado", many: "{selected} de {count} de clipes selecionados", other: "{selected} de {count} clipes selecionados" },
@@ -1088,6 +1096,7 @@ const STRINGS = {
     turnOnPhotos: "Bu projenin fotoğraflarından oluşturmak için “Gelişmiş” bölümünde “Fotoğrafları kullan” seçeneğini açın.",
     noClipsSelected: "Klip seçilmedi. “Gelişmiş” bölümünden klip seçin.",
     onlyPhotos: { one: "Yalnızca {count} fotoğraf var ve analiz edilmiş video yok: bu stil için en az {needed} çekim gerekir. Fotoğraf veya video klibi ekleyin.", other: "Yalnızca {count} fotoğraf var ve analiz edilmiş video yok: bu stil için en az {needed} çekim gerekir. Fotoğraf veya video klibi ekleyin." },
+    gap: " ",
     ready: "Hazır: {summary}",
     clips: { one: "{count} klip", other: "{count} klip" },
     clipsSelected: { one: "{count} klipten {selected} tanesi seçili", other: "{count} klipten {selected} tanesi seçili" },
@@ -1220,6 +1229,7 @@ const STRINGS = {
     turnOnPhotos: "请在“高级”中开启“使用照片”，即可用此项目的照片制作。",
     noClipsSelected: "未选择片段。请在“高级”中选择片段。",
     onlyPhotos: { other: "只有 {count} 张照片，没有已分析的视频：此风格至少需要 {needed} 个镜头。请添加照片或视频片段。" },
+    gap: "",
     ready: "已就绪：{summary}",
     clips: { other: "{count} 个片段" },
     clipsSelected: { other: "已选 {selected}/{count} 个片段" },
@@ -2537,7 +2547,7 @@ export default function Panel({ sdk, context, ui }: any) {
           withPhotos ? t(l, "foundShotsPhotos", { count: plan.usableShots, photos: plan.photoShots, needed: plan.needed }) : t(l, "foundShots", { count: plan.usableShots, needed: plan.needed }),
           orPhotos ? t(l, "addFootagePhotos") : t(l, "addFootage"),
           unchecked ? t(l, "retryUnchecked", { count: unchecked }) : "",
-        ].filter(Boolean).join(" "));
+        ].filter(Boolean).join(t(l, "gap")));
       }
       advance("music", 0);
       const music = cueId === "none" ? null
@@ -2696,7 +2706,8 @@ export default function Panel({ sdk, context, ui }: any) {
     return p.ok ? p.montageShots : null;
   }, [candidates, candKey, grid.bpm, requested, seed, inventory, onlyPhotos, usePhotos, burst, musicStart, grid.onsets, grid.accepted]);
   const pending = inventory?.skipped?.unanalysed || 0;
-  // The readiness line. Whole sentences are joined with a space and the facts of the Ready line with " · ".
+  // The readiness line. Whole sentences are joined with STRINGS `gap` (a space; nothing in Japanese and Chinese) and
+  // the facts of the Ready line with " · ".
   const analysing = pending > 0 ? t(L, "stillAnalysing", { count: pending }) : "";
   const readyFacts = !inventory ? "" : [
     allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
@@ -2706,10 +2717,10 @@ export default function Panel({ sdk, context, ui }: any) {
     pending > 0 ? t(L, "notAnalysed", { count: pending }) : "",
   ].filter(Boolean).join(" · ");
   const readiness = !inventory ? (invError ? t(L, "readFailed", { detail: invError.say(L) }) : t(L, "checkingClipsNow"))
-    : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0 ? analysing + " " + t(L, "autoUpdate") : t(L, "noFootage"))
-    : inventory.resources.length === 0 && !usePhotos ? [analysing, t(L, "turnOnPhotos")].filter(Boolean).join(" ")
+    : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0 ? analysing + t(L, "gap") + t(L, "autoUpdate") : t(L, "noFootage"))
+    : inventory.resources.length === 0 && !usePhotos ? [analysing, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))
     : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
-    : !canBuild ? [t(L, "onlyPhotos", { count: usedPhotoCount, needed: minShots }), analysing].filter(Boolean).join(" ")
+    : !canBuild ? [t(L, "onlyPhotos", { count: usedPhotoCount, needed: minShots }), analysing].filter(Boolean).join(t(L, "gap"))
     : t(L, "ready", { summary: readyFacts });
   const stepText = step === "checking" ? t(L, "checkingClips") : step === "listening" ? t(L, "listening") : "";
   const progressLabel = !progress ? "" : progress.detail
