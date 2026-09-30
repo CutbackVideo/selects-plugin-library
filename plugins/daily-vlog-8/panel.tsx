@@ -655,7 +655,23 @@ return videos;`;
       if (rootResult.isError || rootResult.exitCode !== 0 || !rootResult.stdout.trim()) throw new Error("Template assets directory is unavailable.");
       const assetPaths = ASSETS.map(name => rootResult.stdout.trim() + "/daily-vlog-8/assets/" + name);
       const inputs = [titleId].concat(picks).map(id => ({ id, path: null }));
-      const extraInputs = [{ id: null, path: null }, { id: null, path: null }];
+      // Fill the two short insert positions from clips not already used, so no
+      // source repeats back to back. Falls back to the plan's neighbour only when
+      // the folder cannot supply a distinct clip that is long enough.
+      const selectedIds = [titleId].concat(picks);
+      const usedIds = new Set(selectedIds.filter(Boolean));
+      const spare = pool.filter(x => !usedIds.has(x.id));
+      for (let i = spare.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = spare[i]; spare[i] = spare[j]; spare[j] = tmp; }
+      const extraInputs = SHOT_PLAN.filter(s => s.extra !== undefined)
+        .sort((a, b) => a.extra - b.extra)
+        .map(s => {
+          const need = s.frames * 1001 / 30000;
+          const k = spare.findIndex(x => x.duration + 0.01 >= need);
+          if (k >= 0) { const got = spare[k].id; spare.splice(k, 1); usedIds.add(got); return { id: got, path: null }; }
+          const neighbour = selectedIds[s.fallback];
+          const alt = pool.find(x => x.id !== neighbour && x.duration + 0.01 >= need);
+          return { id: alt ? alt.id : null, path: null };
+        });
       const draftName = "8-Clip Daily Vlog \u2014 " + new Date().toLocaleString();
       const script = `
 const project=selects.project(${JSON.stringify(context.projectId)});

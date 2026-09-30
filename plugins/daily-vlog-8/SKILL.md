@@ -20,9 +20,17 @@ effects and the bundled music bed. Clips, title text, effects and audio all stay
 
 ## Shot plan
 
-Eight slots with target lengths of 4.3, 2.6, 1.63, 1.53, 1.5, 1.8, 1.8 and 2.6 seconds. Two
-extra inserts are cut from the pool where the plan calls for them. The music bed is a
-19.72-second excerpt, so the Draft runs to roughly that length.
+The Draft holds **ten** video positions: the eight you choose plus two short inserts of 31 and
+45 frames that sit after the fourth and sixth positions. The eight chosen slots have target
+lengths of 4.3, 2.6, 1.63, 1.53, 1.5, 1.8, 1.8 and 2.6 seconds.
+
+The two inserts are filled automatically with clips from the same folder that none of the eight
+slots already uses, so no source repeats back to back. A folder therefore contributes **ten
+distinct clips**, not all of its footage: pick a folder with at least ten clips long enough for
+the plan. When a folder cannot supply ten, an insert reuses a clip from elsewhere in the plan
+rather than the one immediately before it.
+
+The music bed is a 19.72-second excerpt, so the Draft runs to roughly that length.
 
 The slot labels are a suggestion, not a constraint: opening/travel, everyday place,
 activity/detail, moving scenery, walking/movement, small discovery, rest/portrait, and a
