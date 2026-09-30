@@ -14,6 +14,12 @@
     "crop.py",
     "assets/gallery-bgm-gallery-montage-12s-v2.wav"
   ],
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 720,
+    "height": 960
+  },
   "compatibility": {
     "platforms": [
       "macOS arm64"
