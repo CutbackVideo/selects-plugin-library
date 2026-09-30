@@ -55,7 +55,7 @@ const DECORATION_CODE=`export default function No14Decoration({data}) {
 }`;
 
 export function normalizeNativeFinish(raw){
- if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).some(k=>!['mode','projectId','draftId','photos','placements','decoration','framing'].includes(k))||raw.mode!=='native-finish')throw Error('Unsupported original Image request');
+ if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).some(k=>!['mode','projectId','draftId','photos','placements','decoration','framing','music'].includes(k))||raw.mode!=='native-finish')throw Error('Unsupported original Image request');
  const clean=(value,label,max=1000)=>{if(typeof value!=='string'||!value.trim()||value!==value.trim()||value.length>max||/[\u0000-\u001f]/u.test(value))throw Error(label+' is required');return value;};
  const projectId=clean(raw.projectId,'Project ID'),draftId=clean(raw.draftId,'Draft ID',120);
  if(!Array.isArray(raw.photos)||raw.photos.length!==4)throw Error('Choose exactly four original Images');
@@ -71,6 +71,9 @@ export function normalizeNativeFinish(raw){
  const keys=['grid','fullscreen'].flatMap(scene=>['A','B','C','D'].map(slot=>scene+'-'+slot));
  if(!framingInput||typeof framingInput!=='object'||Array.isArray(framingInput)||Object.keys(framingInput).some(key=>!keys.includes(key)))throw Error('Invalid photo framing');
  for(const key of keys){const point=framingInput[key]??{x:.5,y:.5};if(!point||typeof point!=='object'||Array.isArray(point)||Object.keys(point).some(k=>!['x','y'].includes(k)))throw Error('Invalid photo framing');const x=point.x??.5,y=point.y??.5;if(!Number.isFinite(x)||x<0||x>1||!Number.isFinite(y)||y<0||y>1)throw Error('Photo framing must be between 0 and 1');framing[key]={x,y};}
+ const music=raw.music??null;
+ if(music!==null&&(!music||typeof music!=='object'||Array.isArray(music)||Object.keys(music).some(k=>k!=='resourceId')))throw Error('Invalid music Resource');
+ if(music)clean(music.resourceId,'Music Resource ID');
  const plan=nativeScenePlan();
  if(!Array.isArray(raw.placements)||raw.placements.length!==8)throw Error('Expected eight original Image clips');
  const placementByKey=new Map();
@@ -82,7 +85,7 @@ export function normalizeNativeFinish(raw){
  }
  for(const occurrence of plan.occurrences){const row=placementByKey.get(occurrence.appearance+'-'+occurrence.slot);if(!row||row.startFrame!==occurrence.startFrame||row.endFrame!==occurrence.endFrame)throw Error('Image placement differs from the reference plan');}
  if(new Set(raw.placements.map(p=>p.clipId)).size!==8)throw Error('Image clips must be independent');
- return {projectId,draftId,photos,placements:raw.placements,decoration,framing};
+ return {projectId,draftId,photos,placements:raw.placements,decoration,framing,music};
 }
 
 export async function authorNativeFinish(selects,input,plan){
@@ -95,6 +98,12 @@ export async function authorNativeFinish(selects,input,plan){
   const rows=await d.clips({trackScope:'all'}),images=rows.filter(c=>c.trackKind==='video'&&c.resourceId);
   if(images.length!==8)throw Error('Expected exactly eight original Image clips');
   const resources=await project.resources(),types=new Map(resources.map(r=>[r.resourceId,r.type]));
+  if(input.music){
+   stage='music preflight';
+   const music=resources.find(r=>r.resourceId===input.music.resourceId);
+   if(!music||music.type!=='Audio'||!Number.isFinite(music.durationSeconds)||music.durationSeconds<plan.durationFrames/plan.fps)throw Error('Music must be a ready Audio Resource covering the whole Draft');
+   if(rows.some(c=>c.trackKind==='audio'&&c.resourceId))throw Error('This new Draft already contains audio; inspect it before continuing');
+  }
   const created=[];
   for(const occurrence of plan.occurrences){
    const placed=input.placements.find(p=>p.slot===occurrence.slot&&p.appearance===occurrence.appearance);
@@ -128,9 +137,15 @@ export async function authorNativeFinish(selects,input,plan){
   }
   stage='decoration';
   await d.addMotionGraphic({label:'No.14 decoration',within:await d.rangeAtFrames(0,plan.durationFrames),tsxCode:DECORATION_CODE,parameters:{...input.decoration,size:29,x:1.5,y:3.5},editableParameters:[{key:'shape',label:'Decoration',type:'select',defaultValue:input.decoration.shape,options:['heart','star','circle','none'].map(s=>({label:s,value:s}))},{key:'color',label:'Color',type:'color',defaultValue:input.decoration.color},{key:'size',label:'Size',type:'number',defaultValue:29,min:1,max:160,step:1},{key:'x',label:'Horizontal position',type:'number',defaultValue:1.5,min:-300,max:300,step:.5},{key:'y',label:'Vertical position',type:'number',defaultValue:3.5,min:-500,max:500,step:.5}]});
+  if(input.music){
+   stage='music';
+   await d.overlayResource({resource:project.resource(input.music.resourceId),over:await d.rangeAtFrames(0,plan.durationFrames)});
+   const audio=(await d.clips({trackScope:'all'})).filter(c=>c.trackKind==='audio'&&c.resourceId);
+   if(audio.length!==1||audio[0].resourceId!==input.music.resourceId||audio[0].startFrame!==0||audio[0].endFrame!==plan.durationFrames)throw Error('Music clip readback differs from the full Draft interval');
+  }
   commitStarted=true;const saved=await d.commitAll('Finish No.14 original Image Draft');
   if(!saved?.commitId)throw Error('Draft save response did not include its commit ID');
-  return {status:'saved',projectId:input.projectId,draftId:input.draftId,clips:created,recipe:{photos:input.photos,decoration:input.decoration,framing:input.framing},fidelity:plan.fidelity};
+  return {status:'saved',projectId:input.projectId,draftId:input.draftId,clips:created,recipe:{photos:input.photos,decoration:input.decoration,framing:input.framing,music:input.music??null},fidelity:plan.fidelity};
  }catch(error){return{status:commitStarted?'outcomeUnknown':'notSaved',stage,message:String(error?.message||error),draftId:input?.draftId};}
 }
 

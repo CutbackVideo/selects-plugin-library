@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "no14-still-video",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "name": "Four Photo Reveal",
-  "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration.",
+  "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -13,7 +13,9 @@
     "VALIDATION.md",
     "operation.mjs",
     "build-script.mjs",
-    "panel.tsx"
+    "panel.tsx",
+    "assets/music.mp3",
+    "THIRD_PARTY.md"
   ],
   "compatibility": {
     "platforms": [
@@ -30,43 +32,43 @@
   "localized": {
     "de": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     },
     "en": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     },
     "es": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     },
     "fr": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     },
     "it": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     },
     "ja": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     },
     "ko": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     },
     "pt": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     },
     "tr": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     },
     "zh": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     }
   }
 }

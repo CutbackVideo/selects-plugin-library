@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "depth-type-captions",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "name": "Depth Type Captions",
   "summary": "Editable phrase typography that wraps around the speaker with subject-aware depth.",
   "status": "experimental",
@@ -14,9 +14,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Selects 2.0.508 or later (development build). Behind speaker reads full-resolution speaker masks from the plug-in data folder; older builds keep captions but cannot place words behind the speaker."
+    "selects": "Selects 2.0.508 or later on macOS, 2.0.512 or later on Windows (development builds). On Windows the speaker masks come from Selects generation and use credits. Older builds keep captions but cannot place words behind the speaker."
   },
   "preview": {
     "video": "preview.mp4",

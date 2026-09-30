@@ -80,6 +80,7 @@ export async function placeNativeImages(prepared,draftId,plan){
 export default function Panel({sdk,context,ui}){
  const [photos,setPhotos]=React.useState([]),[slots,setSlots]=React.useState(['','','','']),[loadedProject,setLoadedProject]=React.useState(null);
  const [framing,setFraming]=React.useState({});
+ const [music,setMusic]=React.useState('on');
  const [shape,setShape]=React.useState('heart'),[color,setColor]=React.useState('#ffffff'),[name,setName]=React.useState('No.14 photo format');
  const [busy,setBusy]=React.useState(false),[status,setStatus]=React.useState(''),[saved,setSaved]=React.useState(null),[partialDraftId,setPartialDraftId]=React.useState(null);
  const running=React.useRef(false),currentProject=React.useRef(context.projectId);currentProject.current=context.projectId;
@@ -109,6 +110,19 @@ export default function Panel({sdk,context,ui}){
    if(planBuild.isError||planBuild.exitCode!==0)throw Error(planBuild.stderr||planBuild.output||'Could not read the reference plan.');
    const plan=JSON.parse(planBuild.stdout||'{}');
    if(plan.fps!==30||plan.durationFrames!==266||plan.occurrences?.length!==8)throw Error('The reference plan is incomplete.');
+   let musicResource=null;
+   if(music==='on'){
+    setStatus('Checking bundled music…');
+    const root=await sdk.runShell({summary:'Locate bundled music',command:'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}"'});
+    if(root.isError||!root.stdout?.trim())throw Error('The installed music asset could not be located. Reinstall the plugin.');
+    const musicPath=root.stdout.trim()+'/no14-still-video/assets/music.mp3';
+    const imported=await sdk.runScript({summary:'Import bundled music',allowCommit:true,script:`const p=selects.project(${JSON.stringify(projectId)}),path=${JSON.stringify(musicPath)};const nodes=[];const walk=tree=>{for(const n of tree??[]){if(n.path)nodes.push(n);if(n.children)walk(n.children);}};const tree=await p.sourceFiles();if('fileTree' in tree)walk(tree.fileTree);else if('folders' in tree)for(const f of tree.folders){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)walk(part.fileTree);}const found=nodes.filter(n=>n.path===path);if(found.length>1)throw Error('Bundled music source is ambiguous.');const id=found[0]?.resourceId??(await p.importFiles({paths:[path]})).addedResourceIds[0];if(!id)throw Error('Bundled music is missing. Reinstall the plugin.');return {resourceId:id};`});
+    if(imported.isError||!imported.result?.resourceId)throw Error(imported.output||'Could not import bundled music.');
+    musicResource=imported.result;
+    const ready=await sdk.runScript({summary:'Check music readiness',allowCommit:false,script:`const r=(await selects.project(${JSON.stringify(projectId)}).resources()).find(r=>r.resourceId===${JSON.stringify(musicResource.resourceId)});if(!r||r.type!=='Audio'||!Number.isFinite(r.durationSeconds)||r.durationSeconds<${plan.durationFrames/plan.fps})throw Error('Bundled music is not ready. Wait for the import to finish, then create the Draft again.');return true;`});
+    if(ready.isError||ready.result!==true)throw Error(ready.output||'Bundled music is not ready.');
+   }
+   if(currentProject.current!==projectId)throw Error('The Project changed. Start again in the selected Project.');
    setStatus('Creating an editable Image Draft…');
    let draftId;
    if(partialDraftId){
@@ -124,7 +138,7 @@ export default function Panel({sdk,context,ui}){
    }
    createdDraftId=draftId;
    const native=await placeNativeImages(prepared,draftId,plan);
-   const request={mode:'native-finish',projectId,draftId,photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements,decoration:{shape,color},framing};
+   const request={mode:'native-finish',projectId,draftId,photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements,decoration:{shape,color},framing,music:musicResource};
    const builder=await sdk.runShell({summary:'Build No.14 Image finishing operation',command:'node "$SELECTS_USER_SKILLS_ROOT/no14-still-video/build-script.mjs" '+encode(request),timeoutMs:30000,maxOutputBytes:49152});
    if(builder.isError||builder.exitCode!==0||!builder.stdout)throw Error(builder.stderr||builder.output||'Could not build the editing operation.');
    const result=await sdk.runScript({script:builder.stdout,summary:'Finish No.14 Image Draft',allowCommit:true,timeoutSeconds:120});
@@ -144,6 +158,7 @@ export default function Panel({sdk,context,ui}){
   </details>
   <ui.Select label="Decoration" value={shape} onChange={setShape} options={[{value:'heart',label:'Heart'},{value:'star',label:'Star'},{value:'circle',label:'Circle'},{value:'none',label:'None'}]} disabled={busy}/>
   <ui.TextField label="Decoration color (#RRGGBB)" value={color} onChange={setColor} disabled={busy}/>
+  <ui.Select label="Music" value={music} onChange={setMusic} options={[{value:'on',label:'Lofi again (CC0)'},{value:'off',label:'Off'}]} disabled={busy}/>
   <ui.TextField label="Draft name" value={name} onChange={setName} disabled={busy}/>
   <ui.Actions><ui.Button variant="primary" onClick={create} disabled={busy||loadedProject!==context.projectId||slots.some(x=>!x)||!/^#[0-9a-fA-F]{6}$/.test(color)||!name.trim()} busy={busy}>{partialDraftId?'Inspect and continue partial Draft':saved?'Create revised Draft':'Create new Draft'}</ui.Button></ui.Actions>
   {status&&<ui.Message>{status}</ui.Message>}
