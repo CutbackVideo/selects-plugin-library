@@ -92,5 +92,11 @@
       "name": "THE END \u7247\u5c3e\u5b57\u5e55",
       "summary": "\u5c06\u65c5\u884c\u7d20\u6750\u5236\u4f5c\u6210 16:9 \u7247\u5c3e\u5b57\u5e55\uff1aTHE END \u9010\u5b57\u6253\u51fa\uff0c\u5b57\u5e55\u5411\u4e0a\u6eda\u52a8\uff0c\u540c\u65f6\u4f60\u7684\u7247\u6bb5\u5728\u5c0f\u7a97\u53e3\u4e2d\u64ad\u653e\uff0c\u5e76\u4fdd\u5b58\u4e3a\u53ef\u7f16\u8f91\u7684\u65b0 Draft\u3002"
     }
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 960,
+    "height": 540
   }
 }

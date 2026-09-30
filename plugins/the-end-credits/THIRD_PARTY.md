@@ -31,4 +31,12 @@ The tracks are bundled for use in the videos this plugin builds and are not for 
 
 ## Gallery preview footage
 
-To be filled with the gallery clips' credits from LICENSES.csv.
+`preview.mp4` and `poster.webp` show a Draft made by this plugin with its default settings (Classic, Last Light Ballad, Film crew credits) on free stock footage. None of these licences requires attribution; the clips and photos are listed for transparency:
+
+- "Stunning summer landscape with rolling hills" by Beata L. (Pexels, Pexels License): https://www.pexels.com/video/stunning-summer-landscape-with-rolling-hills-38734928/
+- "Blurred car lights" by Coverr (in-house) (Coverr, Coverr License): https://coverr.co/videos/blurred-car-lights-f9c1kbdrwo
+- "Gorgeous sunset over ocean waves" by Nothing Ahead (Pexels, Pexels License): https://www.pexels.com/photo/gorgeous-sunset-over-ocean-waves-39837537/
+- "Scenic palm trees on sao miguel beach" by Constantino Filmes (Pexels, Pexels License): https://www.pexels.com/video/scenic-palm-trees-on-sao-miguel-beach-34628886/
+- "Photo of sand dunes in a desert" by MART PRODUCTION (Pexels, Pexels License): https://www.pexels.com/photo/photo-of-sand-dunes-in-a-desert-8869381/
+- "Drone adventure over peruvian sand dunes" by Florian Delée (Pexels, Pexels License): https://www.pexels.com/video/drone-adventure-over-peruvian-sand-dunes-35296750/
+- "Aerial view of sunset over dense woodland" by Alex Dos Santos (Pexels, Pexels License): https://www.pexels.com/video/aerial-view-of-sunset-over-dense-woodland-36948285/
