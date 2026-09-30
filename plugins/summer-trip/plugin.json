@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "id": "summer-trip",
+  "version": "0.1.0-alpha.1",
+  "name": "Summer Trip",
+  "summary": "Turn travel footage into a beat-synced 16:9 summer trip video with a typed title, a split-screen grid and a film-frame ending, as a new editable Draft.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "assets/cues/cinematic-pop-muffled.mp3",
+    "assets/cues/cinematic-pop.mp3",
+    "assets/cues/manifest.json",
+    "assets/cues/nu-disco-muffled.mp3",
+    "assets/cues/nu-disco.mp3",
+    "assets/cues/surf-indie-muffled.mp3",
+    "assets/cues/surf-indie.mp3",
+    "assets/cues/tropical-house-muffled.mp3",
+    "assets/cues/tropical-house.mp3",
+    "assets/film-frame.tsx",
+    "assets/fonts/anton.woff2.b64",
+    "assets/fonts/gloock.woff2.b64",
+    "assets/fonts/instrument-serif-italic.woff2.b64",
+    "assets/fonts/licenses/anton-OFL.txt",
+    "assets/fonts/licenses/gloock-OFL.txt",
+    "assets/fonts/licenses/instrumentserif-OFL.txt",
+    "assets/fonts/licenses/poppins-OFL.txt",
+    "assets/fonts/poppins-black.woff2.b64",
+    "assets/fonts/poppins-bold.woff2.b64",
+    "assets/fonts/poppins-light-italic.woff2.b64",
+    "assets/fonts/poppins-light.woff2.b64",
+    "assets/fonts/presets.json",
+    "assets/grid-panel.tsx",
+    "assets/labels-graphic.tsx",
+    "assets/photo-motion.tsx",
+    "assets/summer-look.tsx",
+    "assets/title-graphic.tsx",
+    "assets/video-motion.tsx",
+    "beat-detect.cjs",
+    "effects-geometry.cjs",
+    "graphics-defs.js",
+    "muffle.cjs",
+    "panel.tsx",
+    "planner.js",
+    "scripts/assemble.js",
+    "scripts/decorate.js",
+    "scripts/ensure-audio.js",
+    "scripts/inventory.js",
+    "scripts/search.js",
+    "sfx/manifest.json",
+    "sfx/shutter-1.wav.b64",
+    "sfx/shutter-2.wav.b64",
+    "sfx/shutter-3.wav.b64",
+    "sfx/shutter-4.wav.b64",
+    "sfx/whoosh-1.wav.b64"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg and Node.js 18+ on PATH only for music previews and your own music."
+  },
+  "localized": {
+    "de": {
+      "name": "Sommerreise",
+      "summary": "Macht aus Reiseaufnahmen ein beatsynchrones 16:9-Sommerreise-Video mit getipptem Titel, geteiltem Bildraster und Filmrahmen-Ende als neuen, bearbeitbaren Draft."
+    },
+    "en": {
+      "name": "Summer Trip",
+      "summary": "Turn travel footage into a beat-synced 16:9 summer trip video with a typed title, a split-screen grid and a film-frame ending, as a new editable Draft."
+    },
+    "es": {
+      "name": "Viaje de verano",
+      "summary": "Convierte tus tomas de viaje en un v\u00eddeo 16:9 de viaje de verano sincronizado con el ritmo, con un t\u00edtulo que se escribe palabra a palabra, una cuadr\u00edcula de pantalla dividida y un final con marco de pel\u00edcula, como un nuevo Draft editable."
+    },
+    "fr": {
+      "name": "Voyage d'\u00e9t\u00e9",
+      "summary": "Transforme vos images de voyage en vid\u00e9o de voyage d'\u00e9t\u00e9 16:9 cal\u00e9e sur le rythme, avec un titre tap\u00e9 mot \u00e0 mot, une grille en \u00e9cran partag\u00e9 et une fin en cadre de pellicule, dans un nouveau Draft modifiable."
+    },
+    "it": {
+      "name": "Viaggio d'estate",
+      "summary": "Trasforma le riprese di viaggio in un video 16:9 di un viaggio d'estate a tempo di musica, con un titolo scritto parola per parola, una griglia a schermo diviso e un finale in cornice di pellicola, come nuovo Draft modificabile."
+    },
+    "ja": {
+      "name": "\u30b5\u30de\u30fc\u30c8\u30ea\u30c3\u30d7",
+      "summary": "\u65c5\u306e\u6620\u50cf\u304b\u3089\u3001\u30d3\u30fc\u30c8\u306b\u5408\u308f\u305b\u305f 16:9 \u306e\u590f\u65c5\u30e0\u30fc\u30d3\u30fc\u3092\u3001\u30bf\u30a4\u30d4\u30f3\u30b0\u98a8\u306e\u30bf\u30a4\u30c8\u30eb\u3001\u5206\u5272\u753b\u9762\u306e\u30b0\u30ea\u30c3\u30c9\u3001\u30d5\u30a3\u30eb\u30e0\u30d5\u30ec\u30fc\u30e0\u306e\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0\u4ed8\u304d\u3067\u3001\u7de8\u96c6\u53ef\u80fd\u306a\u65b0\u3057\u3044 Draft \u3068\u3057\u3066\u4f5c\u6210\u3057\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "\uc11c\uba38 \ud2b8\ub9bd",
+      "summary": "\uc5ec\ud589 \uc601\uc0c1\uc744 \ube44\ud2b8\uc5d0 \ub9de\ucd98 16:9 \uc5ec\ub984 \uc5ec\ud589 \uc601\uc0c1\uc73c\ub85c \ub9cc\ub4e4\uc5b4, \ud0c0\uc774\ud551\ub418\ub294 \ud0c0\uc774\ud2c0\uacfc \ubd84\ud560 \ud654\uba74 \uadf8\ub9ac\ub4dc, \ud544\ub984 \ud504\ub808\uc784 \uc5d4\ub529\uacfc \ud568\uaed8 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc0c8 Draft\ub85c \uc800\uc7a5\ud569\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Viagem de ver\u00e3o",
+      "summary": "Transforma imagens de viagem em um v\u00eddeo 16:9 de viagem de ver\u00e3o no ritmo da m\u00fasica, com t\u00edtulo digitado palavra por palavra, grade em tela dividida e final em moldura de filme, como um novo Draft edit\u00e1vel."
+    },
+    "tr": {
+      "name": "Yaz Gezisi",
+      "summary": "Seyahat g\u00f6r\u00fcnt\u00fclerinden, kelime kelime yaz\u0131lan ba\u015fl\u0131k, b\u00f6l\u00fcnm\u00fc\u015f ekran \u0131zgaras\u0131 ve film karesi finaliyle ritme oturan 16:9 bir yaz gezisi videosu olu\u015fturur ve d\u00fczenlenebilir yeni bir Draft olarak kaydeder."
+    },
+    "zh": {
+      "name": "\u590f\u65e5\u65c5\u884c",
+      "summary": "\u5c06\u65c5\u884c\u7d20\u6750\u526a\u6210\u5361\u70b9\u7684 16:9 \u590f\u65e5\u65c5\u884c\u89c6\u9891\uff0c\u914d\u4ee5\u9010\u8bcd\u6253\u51fa\u7684\u6807\u9898\u3001\u5206\u5c4f\u7f51\u683c\u548c\u80f6\u7247\u8fb9\u6846\u7ed3\u5c3e\uff0c\u5e76\u4fdd\u5b58\u4e3a\u53ef\u7f16\u8f91\u7684\u65b0 Draft\u3002"
+    }
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 960,
+    "height": 540
+  }
+}

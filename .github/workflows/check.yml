@@ -76,3 +76,20 @@ jobs:
           node plugins/the-end-credits/tests/planner.test.cjs
           node plugins/the-end-credits/tests/scripts-edit.test.cjs
           node plugins/the-end-credits/tests/scripts-read.test.cjs
+      - name: Test Summer Trip
+        run: |
+          node plugins/summer-trip/tests/beat-detect.test.cjs
+          node plugins/summer-trip/tests/cues.test.cjs
+          node plugins/summer-trip/tests/muffle.test.cjs
+          node plugins/summer-trip/tests/sfx.test.cjs
+          node plugins/summer-trip/tests/effects.test.cjs
+          node plugins/summer-trip/tests/motion.test.cjs
+          node plugins/summer-trip/tests/planner.test.cjs
+          node plugins/summer-trip/tests/allocate.test.cjs
+          node plugins/summer-trip/tests/scripts-edit.test.cjs
+          node plugins/summer-trip/tests/scripts-read.test.cjs
+          node plugins/summer-trip/tests/title.test.cjs
+          node plugins/summer-trip/tests/fonts.test.cjs
+          node plugins/summer-trip/tests/panel.test.cjs
+          node plugins/summer-trip/tests/package.test.cjs
+          node plugins/summer-trip/tests/adapter.test.cjs
