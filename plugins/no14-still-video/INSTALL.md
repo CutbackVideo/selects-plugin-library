@@ -1,4 +1,4 @@
-# Install No.14 Photo Format
+# Install Four Photo Reveal
 
 Install this folder through the Selects plugin library. The installer puts `panel.tsx` at `SELECTS_USER_PANELS_ROOT/no14-still-video/panel.tsx` and the listed support files under `SELECTS_USER_SKILLS_ROOT/no14-still-video`. Node.js must be available to the Selects panel shell.
 

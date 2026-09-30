@@ -3,11 +3,11 @@ name: no14-still-video
 description: Build the No.14 four-photo format as eight editable original Image clips, without converting selected JPG/PNG files to video.
 ---
 
-# No.14 photo format
+# Four Photo Reveal
 
 Use this plugin when the user asks for the No.14 four-photo format. The four inputs are existing Project JPG/PNG/HEIC Image resources in explicit A/B/C/D order; the output is an editable Selects Draft and, if requested, an exported MP4. Do not turn the source photos into MP4 files. Keep the format's screen geometry, timing, reveal, fullscreen order, and transitions. Photo content, decoration, and optional independent grid/fullscreen framing are user choices. Do not add music or beat alignment; that decision is deferred.
 
-Open the installed **No.14 Photo Format** panel in the user's Project. Load Project photos, choose A/B/C/D in the requested order, set any decoration and framing choices, and create a new Draft. The default decoration is a white heart. Only ask a slot question if the user's choices really are ambiguous. The panel checks that each selected SDK Image Resource still points to the same original Project file, then uses the editor's existing Image placement path for eight separate clips. It rejects an unsupported host instead of silently falling back to still-video conversion. A saved result must include a Draft ID and eight clip records.
+Open the installed **Four Photo Reveal** panel in the user's Project. Load Project photos, choose A/B/C/D in the requested order, set any decoration and framing choices, and create a new Draft. The default decoration is a white heart. Only ask a slot question if the user's choices really are ambiguous. The panel checks that each selected SDK Image Resource still points to the same original Project file, then uses the editor's existing Image placement path for eight separate clips. It rejects an unsupported host instead of silently falling back to still-video conversion. A saved result must include a Draft ID and eight clip records.
 
 The Image placement bridge uses a Selects editor-internal service because the current public plugin SDK's `overlayResource(Image)` rejects photos. This bridge changes **no client code**. It is experimental and must be tested against the actual installed app after any host update. If the panel reports a partial Draft ID or uncertain save, inspect that Draft before retrying; never generate duplicate Drafts blindly.
 

@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "no14-still-video",
   "version": "0.2.0",
-  "name": "No.14 Photo Format",
-  "summary": "Create a provisional No.14 four-photo Draft using editable original Image clips and decoration.",
+  "name": "Four Photo Reveal",
+  "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -29,44 +29,44 @@
   },
   "localized": {
     "de": {
-      "name": "No.14 Fotoformat",
-      "summary": "Erstellt einen bearbeitbaren No.14-Entwurf mit vier Fotos aus originalen Bildressourcen, separaten Raster- und Vollbildausschnitten sowie einer Dekoration."
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     },
     "en": {
-      "name": "No.14 Photo Format",
-      "summary": "Build an editable four-photo No.14 Draft from original Image resources with separate grid and fullscreen framing plus decoration."
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     },
     "es": {
-      "name": "Formato de Fotos No.14",
-      "summary": "Crea un Draft No.14 editable de cuatro fotos a partir de recursos de imagen originales, con encuadres separados para cuadr\u00edcula y pantalla completa, adem\u00e1s de decoraci\u00f3n."
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     },
     "fr": {
-      "name": "Format Photo No.14",
-      "summary": "Cr\u00e9e un Draft No.14 modifiable \u00e0 quatre photos depuis les images originales, avec cadrages distincts pour la grille et le plein \u00e9cran, ainsi qu\u2019une d\u00e9coration."
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     },
     "it": {
-      "name": "Formato Foto No.14",
-      "summary": "Crea un Draft No.14 modificabile con quattro foto dalle risorse immagine originali, con inquadrature separate per griglia e schermo intero e una decorazione."
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     },
     "ja": {
-      "name": "No.14 \u30d5\u30a9\u30c8\u30d5\u30a9\u30fc\u30de\u30c3\u30c8",
-      "summary": "\u5143\u306e\u753b\u50cf\u30ea\u30bd\u30fc\u30b9\u304b\u3089\u3001\u30b0\u30ea\u30c3\u30c9\u8868\u793a\u3068\u5168\u753b\u9762\u8868\u793a\u3092\u5225\u3005\u306b\u8abf\u6574\u3067\u304d\u3001\u88c5\u98fe\u3082\u7de8\u96c6\u53ef\u80fd\u306a4\u679a\u5199\u771f\u306eNo.14 Draft\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002"
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     },
     "ko": {
-      "name": "No.14 \uc0ac\uc9c4 \ud3ec\ub9f7",
-      "summary": "\uc6d0\ubcf8 \uc774\ubbf8\uc9c0 \ub9ac\uc18c\uc2a4\ub85c \uadf8\ub9ac\ub4dc\uc640 \uc804\uccb4\ud654\uba74 \uad6c\ub3c4\ub97c \uac01\uac01 \uc870\uc815\ud558\uace0 \uc7a5\uc2dd\ub3c4 \ud3b8\uc9d1\ud560 \uc218 \uc788\ub294 4\uc7a5 \uc0ac\uc9c4 No.14 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4."
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     },
     "pt": {
-      "name": "Formato de Foto No.14",
-      "summary": "Cria um Draft No.14 edit\u00e1vel com quatro fotos a partir dos recursos de imagem originais, com enquadramentos separados para grelha e ecr\u00e3 inteiro e uma decora\u00e7\u00e3o."
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     },
     "tr": {
-      "name": "No.14 Foto\u011fraf Format\u0131",
-      "summary": "Orijinal g\u00f6r\u00fcnt\u00fc kaynaklar\u0131ndan, \u0131zgara ve tam ekran kadrajlar\u0131 ayr\u0131 ayr\u0131 ayarlanabilen ve s\u00fcslemesi d\u00fczenlenebilen d\u00f6rt foto\u011frafl\u0131 bir No.14 Draft olu\u015fturur."
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     },
     "zh": {
-      "name": "No.14 \u7167\u7247\u683c\u5f0f",
-      "summary": "\u4f7f\u7528\u539f\u59cb\u56fe\u50cf\u8d44\u6e90\u521b\u5efa\u53ef\u7f16\u8f91\u7684\u56db\u7167\u7247 No.14 Draft\uff0c\u53ef\u5206\u522b\u8c03\u6574\u7f51\u683c\u4e0e\u5168\u5c4f\u6784\u56fe\u5e76\u7f16\u8f91\u88c5\u9970\u3002"
+      "name": "Four Photo Reveal",
+      "summary": "Build an editable four-photo reveal from original Image resources with separate grid and fullscreen framing plus decoration."
     }
   }
 }
