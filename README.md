@@ -8,6 +8,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Multicam Generator](plugins/multicam-generator) | Experimental |
 | [Place Count](plugins/place-count) | Experimental |
 | [Postcard Cutout Studio](plugins/postcard-cutout-studio) | Experimental |
+| [Fast Switching Stop Motion](plugins/fast-switching-stopmotion) | Experimental |
 | [Timeline Shorts Builder](plugins/timeline-shorts-builder) | Experimental |
 | [iMessage Generator](plugins/imessage-generator) | Experimental |
 | [Ali Abdaal Style](plugins/ali-abdaal-style) | Experimental |
@@ -18,6 +19,8 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Vlog Edit](plugins/vlog-edit) | Experimental |
 | [Podcast Hook Captions](plugins/podcast-hook-captions) — yellow word-pop captions and kinetic hook titles for podcast shorts | Experimental |
 | [City Weekend Vlog](plugins/city-weekend-vlog) — beat-synced city weekend vlog with a font-switching title | Experimental |
+| [Four Photo Reveal](plugins/no14-still-video) — four original photos in an editable grid and fullscreen sequence | Experimental |
+| [Epidemic Sound Search](plugins/epidemic-sound-search) — search, audition and save Epidemic Sound tracks into your library and Draft | Experimental |
 | [Mini Vlog](plugins/mini-vlog) — 16:9 everyday mini vlog cut to the beat, with a pale pink title | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
