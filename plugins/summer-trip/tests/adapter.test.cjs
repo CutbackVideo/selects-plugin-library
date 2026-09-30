@@ -144,7 +144,7 @@ function readbackOf(m, fps) {
   assert.deepEqual(ac.music, { resourceId: 'm1', sectionStart: s.music.sectionStart, wetResourceId: 'w1' });
   assert.deepEqual(ac.sfx, { shutter: ['s1', 's2', 's3', 's4'], shutterSeconds: [0.17, 0.171, 0.171, 0.17], whoosh: 'wh', whooshSeconds: 0.864 });
   assert.equal(ac.clipSound, 'ambient'); assert.equal(ac.ambientDb, -18); assert.equal(ac.gridSound, 'volume');
-  assert.equal(ac.introDuckDb, -5, 'intro lift on by default, as in the panel'); assert.equal(ROW_DEFAULTS.introDuckDb, -5);
+  assert.equal(ac.introDuckDb, -7, 'intro lift on by default, as in the panel'); assert.equal(ROW_DEFAULTS.introDuckDb, -7);
 
   // Run the real assemble.js: the Draft adopts 29.97 fps, so the script re-lays at the real rate.
   const mock = mockProject({ adoptFps: 29.97, audioRids: Object.values(ids) });
@@ -229,7 +229,7 @@ function readbackOf(m, fps) {
   noSfx.st.levels = noSfx.st.levels.filter(l => l.rid !== 'wh');
   assert.equal(stCheck(noSfx, exp).checks.sfx, false);
   // The dry music carries the intro lift (keyed, no constant level); a flat dry or a lift on the wrong frame fails.
-  assert.deepEqual(exp.music.dry.keys.map(k => [Math.round(k.atSeconds * a.fps), k.volumeDb]), [[0, -5], [F(8) - 1, -5], [F(8), 0]]);
+  assert.deepEqual(exp.music.dry.keys.map(k => [Math.round(k.atSeconds * a.fps), k.volumeDb]), [[0, -7], [F(8) - 1, -7], [F(8), 0]]);
   assert.equal(exp.music.wet.keys, undefined);
   const flat = JSON.parse(JSON.stringify(rb));
   Object.assign(flat.st.levels.find(l => l.rid === 'm1'), { db: 0, keys: [] });

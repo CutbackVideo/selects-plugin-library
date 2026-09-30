@@ -233,6 +233,9 @@ if (cfg.music) {
   // whole frames from the dry clip's first visible frame. volumeKeys replace the clip's constant level (never combined
   // with volumeDb); the fades are set in the same call and still apply. Only the dry carries it: the wet starts at Fe,
   // after the drop.
+  // No key at the joint: Selects folds a fade-out into the level line from the clip's last frame minus the fade length
+  // (here Fe - 1) and drops every key inside it, so a key at Fe would never play. That fade (an ease-in in dB) already
+  // has the dry at about -18 dB on Fe; modelled that way the joint peaks at -1.9 to -2.1 dBTP on the -11 LUFS cues.
   const duckDb = Number.isFinite(cfg.introDuckDb) ? cfg.introDuckDb : 0;
   const dropFrame = frames.gridStateFrames[0];
   const duckKeys = row => {

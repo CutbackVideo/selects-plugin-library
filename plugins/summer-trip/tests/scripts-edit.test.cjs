@@ -162,7 +162,7 @@ const AUDIO = ['m9', 'w9', 'sh1', 'sh2', 'wh'];
 const baseCfg = (extra = {}) => ({ projectId: 'p', draftName: 'Summer Trip 1', fps: null, W: 1920, H: 1080,
   beats: { bpm: 120, delta: 0, snaps: {} }, schedule: S8, picks: { main: mainPicks, grid: gridPicks }, sizes,
   music: { resourceId: 'm9', sectionStart: 4.847, wetResourceId: 'w9' }, crossfadeFrames: null,
-  clipSound: 'ambient', ambientDb: -18, gridSound: 'none', sfx: null, introDuckDb: -5, ...extra });
+  clipSound: 'ambient', ambientDb: -18, gridSound: 'none', sfx: null, introDuckDb: -7, ...extra });
 // The dry music's intro level line (assemble.js, introDuckDb): the duck from the clip's first frame to the frame before
 // the drop F(8), 0 dB on F(8); seconds are whole frames from the dry clip's start (0 here).
 const duckKeys = (db, f8, fps) => [{ atSeconds: 0, volumeDb: db }, { atSeconds: (f8 - 1) / fps, volumeDb: db }, { atSeconds: f8 / fps, volumeDb: 0 }];
@@ -227,13 +227,13 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
     const s0 = Math.round(4.847 * fps) / fps;
     assert.ok(near(m.log.find(x => x[0] === 'overlay' && x[1] === 'w9')[4], s0 + Fe / fps), 'wet phase' + tag);
     assert.ok(near(r.music.dry.sourceStart, s0)); assert.equal(r.music.dry.sourceStartFrom, 'snapped');
-    // Intro lift: -5 dB under the title, 0 dB from the drop frame F(8) (a one-frame ramp), keys on whole frames; the
+    // Intro lift: -7 dB under the title, 0 dB from the drop frame F(8) (a one-frame ramp), keys on whole frames; the
     // fade-out under the wet is untouched and the wet has no level line.
-    const keys = duckKeys(-5, F(8), fps);
+    const keys = duckKeys(-7, F(8), fps);
     assert.deepEqual(m.audio[dry.clipId], { fadeInSeconds: 0, fadeOutSeconds: X / fps, volumeKeys: keys });
     keys.forEach(k => assert.ok(near(k.atSeconds * fps, Math.round(k.atSeconds * fps)), 'key on a whole frame' + tag));
     assert.equal(Math.round(keys[2].atSeconds * fps), r.frames.gridStateFrames[0], 'lift on the drop frame' + tag);
-    assert.deepEqual(r.music.introDuck, { db: -5, dropFrame: F(8), keys });
+    assert.deepEqual(r.music.introDuck, { db: -7, dropFrame: F(8), keys });
     assert.deepEqual(m.audio[wet.clipId], { fadeInSeconds: 0, fadeOutSeconds: (Fend - F(39.5)) / fps });
     assert.equal(r.music.crossfadeFrames, X); assert.equal(r.music.muffle, 'on');
     // SFX: shutter i starts on grid state i; whooshes end on F(8) and Fe.
@@ -289,14 +289,14 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
   const m4 = mockDraft(30, { photos: PHOTOS, audioRids: AUDIO });
   const r4 = await load('assemble.js', baseCfg({ music: { resourceId: 'm9', sectionStart: 4.847, wetResourceId: null } }))(project(() => m4));
   assert.deepEqual(m4.kind('audio').map(c => [c.resourceId, c.startFrame, c.endFrame]), [['m9', 0, F30(40)]]);
-  assert.deepEqual(m4.audio[r4.music.dry.clipId], { fadeInSeconds: 0, fadeOutSeconds: (F30(40) - F30(39.5)) / 30, volumeKeys: duckKeys(-5, F30(8), 30) });
+  assert.deepEqual(m4.audio[r4.music.dry.clipId], { fadeInSeconds: 0, fadeOutSeconds: (F30(40) - F30(39.5)) / 30, volumeKeys: duckKeys(-7, F30(8), 30) });
   assert.equal(r4.music.wet, null); assert.equal(r4.music.muffle, 'off');
   // Wet placement fails -> the truncated dry clip is removed and the dry music runs the whole length.
   const m5 = mockDraft(30, { photos: PHOTOS, audioRids: AUDIO, failOverlay: ['w9'] });
   const r5 = await load('assemble.js', baseCfg())(project(() => m5));
   assert.deepEqual(m5.kind('audio').map(c => [c.resourceId, c.startFrame, c.endFrame]), [['m9', 0, F30(40)]], 'full-length dry after a wet failure');
   assert.equal(r5.music.wet, null); assert.equal(r5.music.muffle, 'skipped');
-  assert.deepEqual(m5.audio[r5.music.dry.clipId], { fadeInSeconds: 0, fadeOutSeconds: (F30(40) - F30(39.5)) / 30, volumeKeys: duckKeys(-5, F30(8), 30) },
+  assert.deepEqual(m5.audio[r5.music.dry.clipId], { fadeInSeconds: 0, fadeOutSeconds: (F30(40) - F30(39.5)) / 30, volumeKeys: duckKeys(-7, F30(8), 30) },
     'the intro lift on the re-placed full-length dry');
   assert.equal(m5.log.filter(x => x[0] === 'keys').length, 1, 'keys set once, on the final dry');
   assert.equal(m5.log.filter(x => x[0] === 'remove').length, 1);

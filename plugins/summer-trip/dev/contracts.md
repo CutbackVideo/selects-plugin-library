@@ -56,7 +56,7 @@ plannedSeconds, frame, quantErrorSeconds }]`.
   gridSound: 'routing' | 'volume' | 'none', // chosen after live probe P1; all three branches implemented
   sfx: null | { shutter: [rid…] /* 1–4 takes, cycled */, shutterSeconds: number | number[] /* file length(s); required for
     shutters, per take when an array */, whoosh: rid, whooshSeconds: number /* file length */ },
-  introDuckDb: -5                     // dB of the dry music under the title (number, 0 = off; panel default −5): a keyed level line
+  introDuckDb: -7                     // dB of the dry music under the title (number, 0 = off; panel default −7): a keyed level line
                                       // (setClipAudio volumeKeys, whole frames from the dry's first frame) at introDuckDb from 0 to
                                       // F(8) − 1 and 0 dB from the drop frame F(8) (gridStateFrames[0]); set with the dry's fades in one
                                       // call (volumeKeys replace the constant level; fades still apply); never on the wet; no music → none

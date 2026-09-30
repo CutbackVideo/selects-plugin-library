@@ -100,7 +100,7 @@ Choose a **Track**:
   plays over the quiet intro and the grid starts on the drop (the slider
   shows "Drop"). Tracks without a drop use ordinary sections ("Section"):
   the title plays over the first two bars and the grid starts on bar 3.
-  Either way the music sits 5 dB lower under the title and comes up to
+  Either way the music sits 7 dB lower under the title and comes up to
   full level on the grid's first beat (a volume line on the music clip in
   the Draft, which you can edit).
 - **Your own music**: drop an audio file. The plugin detects the beat

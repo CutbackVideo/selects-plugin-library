@@ -995,7 +995,7 @@ function stMuffleCommand(inPath, outPath) {
 const ST_AMBIENT_DB = -18;
 // Intro lift (assemble.js introDuckDb): the dry music under the title sits this far below the body and rises to 0 dB
 // on the drop frame, on top of the cue's own intro -> drop step (0 = off).
-const ST_INTRO_DUCK_DB = -5;
+const ST_INTRO_DUCK_DB = -7;
 // Live probe P1: an overlaid video brings no separate audio clip and takes setClipAudio -60 dB, so grid panels are
 // lowered in assemble ('volume'), never routed.
 const ST_GRID_SOUND = 'volume';

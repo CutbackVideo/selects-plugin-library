@@ -19,7 +19,7 @@
 //   creditPrefix, creditName
 //   clipSound  'off' | 'ambient' | 'full'      gridSound 'volume' | 'routing' | 'none'
 //   look (bool), lookStrength, leakStrength, sfx (bool), muffle (bool), usePhotos (bool), only ([rid] = Choose clips)
-//   introDuckDb  dB of the dry music under the title, rising to 0 on the drop frame (default -5 as in the panel; 0 = off)
+//   introDuckDb  dB of the dry music under the title, rising to 0 on the drop frame (default -7 as in the panel; 0 = off)
 //   fps        planning fps guess (default: the last real fps seen, else 30)
 //   draftName  full override; default "SUMMER test <key> <music> <preset> <length>[ seed N]"
 // String values may use ${ENV} placeholders (for example "pid": "${ST_PID}", "music": { "own": "${ST_OWN_MUSIC}" }).
@@ -36,7 +36,7 @@ export const ROW_DEFAULTS = {
   music: 'default', section: 'default', length: 'standard', preset: 'summer',
   line1: 'that one trip in', season: '@suggest', place: '', placePrefix: 'in', topMain: '@season', topItalic: 'VLOG', creditPrefix: 'By', creditName: '',
   clipSound: 'ambient', gridSound: 'volume', look: true, lookStrength: 0.3, leakStrength: 1, sfx: false, muffle: true, usePhotos: true, only: null,
-  introDuckDb: -5,
+  introDuckDb: -7,
 };
 // Panel constants the driver must share with panel.tsx (report any difference to the panel lane).
 export const ST_PANEL = {
