@@ -1820,7 +1820,8 @@ export default function Panel({ sdk, context, ui }: any) {
     // SEARCH_BATCH clips per call keeps each scene search under runScript's fixed 30 s deadline.
     // pageSize stays 4: hits are scene-level, so 8 adds almost no new times; the planner fills gaps with filler candidates.
     for (let i = 0; i < rids.length; i += SEARCH_BATCH) {
-      advance("shots", i / rids.length, i + "/" + rids.length + " clips checked");
+      // Only videos are searched (photos join without a search), so the count is in videos.
+      advance("shots", i / rids.length, i + "/" + rids.length + (rids.length === 1 ? " video" : " videos") + " checked");
       const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
       check();
       list.push(...r.candidates); failed.push(...r.failed);
@@ -1873,6 +1874,9 @@ export default function Panel({ sdk, context, ui }: any) {
       const rids: string[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid)).map((r: any) => r.rid);
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
       const cached = candidates && candidates.key === key ? candidates : null;
+      // A build from photos alone has no videos to search; the step says so instead of a bare 0%.
+      const shotsDetail = rids.length ? undefined : "photos only";
+      if (shotsDetail) advance("shots", 0, shotsDetail);
       let found = cached;
       if (!cached || cached.failed.length) {
         // Search everything the first time; afterwards retry only the clips whose search failed.
@@ -1883,7 +1887,7 @@ export default function Panel({ sdk, context, ui }: any) {
           list: [...(cached ? cached.list.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))] };
         setCandidates(found);
       }
-      advance("shots", 1);
+      advance("shots", 1, shotsDetail);
       // Photos join as candidates without a search; with Use photos off there are none (the planner would otherwise
       // retry with photos first).
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
@@ -1891,7 +1895,7 @@ export default function Panel({ sdk, context, ui }: any) {
       // motion hits become a tie-break bonus on the role candidates first (mvMotionBonus).
       const plan: any = mvPlanBuild({ candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });
       if (!plan.ok) {
-        const retry = found.failed.length ? " Could not check " + found.failed.length + " clips; press Build to retry them." : "";
+        const retry = found.failed.length ? " Could not check " + found.failed.length + (found.failed.length === 1 ? " video; press Build to retry it." : " videos; press Build to retry them.") : "";
         throw new Error((MV_FAIL[plan.reason] || "No plan fits this footage") + "." + (plan.reason === "too-few" ? " Add more varied footage" + (usePhotos ? " or photos" : "") + " or select more clips." : "") + retry);
       }
       advance("music", 0);
@@ -2298,7 +2302,7 @@ export default function Panel({ sdk, context, ui }: any) {
         </ui.Message>
       ) : null}
       {result?.notes?.length ? <ui.Message tone="muted">{"Note: " + result.notes.join("; ") + "."}</ui.Message> : null}
-      {result?.unchecked ? <ui.Message tone="muted">{"Could not check " + result.unchecked + (result.unchecked === 1 ? " clip; it was" : " clips; they were") + " skipped. Build again to retry " + (result.unchecked === 1 ? "it." : "them.")}</ui.Message> : null}
+      {result?.unchecked ? <ui.Message tone="muted">{"Could not check " + result.unchecked + (result.unchecked === 1 ? " video; it was" : " videos; they were") + " skipped. Build again to retry " + (result.unchecked === 1 ? "it." : "them.")}</ui.Message> : null}
       {blockReason && !busy ? <ui.Message tone="muted">{blockReason}</ui.Message> : null}
       <ui.Message tone="muted">Creates a new 16:9 Draft</ui.Message>
       <ui.Actions>
