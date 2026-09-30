@@ -1,0 +1,4 @@
+[
+ {"key":"A","ab":"hook","project":"daily","pid":"@daily","cue":"bedroom-pop-108","preset":"mini-vlog","length":"standard","seeds":[1],"soft":true,"usePhotos":true,"clipSound":"ambient","section":"default","pace":"quick","punch":false,"hook":false,"export":true,"exportResolution":"FHD"},
+ {"key":"B","ab":"hook","project":"daily","pid":"@daily","cue":"bedroom-pop-108","preset":"mini-vlog","length":"standard","seeds":[1],"soft":true,"usePhotos":true,"clipSound":"ambient","section":"default","pace":"groove","punch":true,"hook":true,"export":true,"exportResolution":"FHD"}
+]
