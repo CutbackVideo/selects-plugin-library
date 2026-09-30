@@ -18,6 +18,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Vlog Edit](plugins/vlog-edit) | Experimental |
 | [Podcast Hook Captions](plugins/podcast-hook-captions) — yellow word-pop captions and kinetic hook titles for podcast shorts | Experimental |
 | [City Weekend Vlog](plugins/city-weekend-vlog) — beat-synced city weekend vlog with a font-switching title | Experimental |
+| [Epidemic Sound Search](plugins/epidemic-sound-search) — search, audition and save Epidemic Sound tracks into your library and Draft | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 
