@@ -40,7 +40,8 @@ const AMBIENT_DB = -18;
 // Default track until the new bedroom-pop cue ships; the preferred cue replaces it once the manifest has it.
 const DEFAULT_CUE = "weekend-indie-pop";
 const PREFERRED_CUE = "bedroom-pop-108";
-const DEFAULT_PRESET = "mini-vlog";
+// The title preset selected when the panel opens (A small glimpse); Mini vlog and A day in my life stay selectable.
+const DEFAULT_PRESET = "small-glimpse";
 const DEFAULT_LENGTH = "standard";
 const DEFAULT_PACE = "quick";
 // Hook B defaults after the A/B (spec 15.4): Beat punch (with the motion query and bonus) and Start at the hook are on.
