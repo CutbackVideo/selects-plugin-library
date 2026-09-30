@@ -22,8 +22,6 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Four Photo Reveal](plugins/no14-still-video) — four original photos in an editable grid and fullscreen sequence | Experimental |
 | [Epidemic Sound Search](plugins/epidemic-sound-search) — search, audition and save Epidemic Sound tracks into your library and Draft | Experimental |
 
-| [Photo Grid Reveal](plugins/photo-gallery-no2) — editable 21-tile photo/video grid with sequential reveals and a shared monochrome-to-color switch | Experimental |
-
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 
 For maintainers: [Publishing](PUBLISHING.md). For installation: [Installing](INSTALLING.md).
