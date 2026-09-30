@@ -150,11 +150,13 @@ assert.ok(panel.includes('music: ["Music", "Music by"]'), 'Personal and Travel m
 // Length.
 assert.ok(panel.includes('TEC_LENGTH_ORDER.map(') && panel.includes('<ui.Segmented label="Length"') && panel.includes('TEC_LENGTHS[length]'), 'length from TEC_LENGTHS');
 // Music: the five cues (default from the manifest), own music, No music; section via tecSection; fit offer; fixed-timing notice.
-for (const phrase of ['{ label: "Your own music", value: "own" }', '{ label: "No music", value: "none" }', '(parsed.cues || []).find((c: any) => c.default)', 'React.useState("post-rock")',
+for (const phrase of ['{ label: "Your own music", value: "own" }', '{ label: "No music", value: "none" }', '(parsed.cues || []).find((c: any) => c.default)', 'React.useState("")', 'setCueId((cur) => (cur === "" ? def.id : cur))',
   'swell: cue.swell ?? cue.swellFallback', 'P: (beats * 60) / cue.bpm', 'tecSection({ ...sectionOpts, value', 'tecFitLength({', 'This track is too short (needs ≥ ', '"Use " + LENGTH_LABELS[fit.key]',
   'No steady beat found: shots are 3.9 s.', 'tecPhrase({ bpm: ownGrid.bpm, accepted: true })', 'usableEnd: ownDuration - TEC_MUSIC_END_MARGIN', 'reveal on the loudest part', 'reveal on the swell',
   '<ui.FileDrop accept={["audio"]}', '-t " + dur.toFixed(2)', 'const dur = videoSeconds']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(panel.includes('[cueId, ownMusic?.path, section, length]'), 'a stale preview stops');
+// The default cue is only the manifest's `default: true` flag: no bundled cue id is hard-coded in the panel.
+for (const id of ['piano-strings', 'rhodes-soul', 'post-rock', 'orchestral', 'dream-synth']) assert.ok(!panel.includes('"' + id + '"'), 'panel hard-codes cue ' + id);
 // Advanced: clip sound Ambient (default) / Full / Off, Cinematic look, Use photos, Choose clips.
 assert.ok(/React\.useState<"off" \| "ambient" \| "full">\("ambient"\)/.test(panel), 'Ambient is the default');
 for (const phrase of ['label="Clip sound"', '{ label: "Ambient", value: "ambient" }', '{ label: "Full", value: "full" }', '{ label: "Off", value: "off" }', 'label="Cinematic look"', 'label="Use photos"',

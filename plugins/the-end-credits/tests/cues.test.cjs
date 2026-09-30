@@ -67,20 +67,23 @@ assert.ok(Array.isArray(m.cues));
 assert.equal(new Set(m.cues.map(c => c.id)).size, m.cues.length, 'unique ids');
 m.cues.forEach(checkEntry);
 if (m.cues.length) assert.equal(m.cues.filter(c => c.default).length, 1, 'exactly one default cue');
-// The bundled set (GATE-MUSIC, 2026-09-30): ids, nominal source tempo, and the default. Since the similarity wave
-// (2026-09-30) every cue is time-stretched to the reference's felt 61.5 bpm (a 3.90 s phrase of 4 beats).
+// The bundled set (GATE-MUSIC, 2026-09-30): ids, nominal source tempo, and the default. The cues play at their
+// original tempo (not time-stretched): the felt bpm is the source's.
 const NOMINAL = { 'piano-strings': 62, 'rhodes-soul': 64, 'post-rock': 66, orchestral: 60, 'dream-synth': 65 };
-const TARGET_BPM = 61.5;
+// Standard = L 5.1 + 7 phrases of 4 beats + T 0.5 = 5.1 + 7 * 240 / bpm + 0.5, per cue at its nominal tempo.
+const STANDARD = { 'piano-strings': 32.70, 'rhodes-soul': 31.85, 'post-rock': 31.05, orchestral: 33.60, 'dream-synth': 31.45 };
+const standardAt = bpm => 5.1 + 7 * 240 / bpm + 0.5;
+for (const id of Object.keys(NOMINAL)) assert.ok(Math.abs(standardAt(NOMINAL[id]) - STANDARD[id]) <= 0.005, id + ' Standard at ' + NOMINAL[id] + ' bpm is ' + standardAt(NOMINAL[id]));
 assert.deepEqual(m.cues.map(c => c.id), Object.keys(NOMINAL));
 for (const c of m.cues) {
-  assert.ok(Math.abs(c.sourceBpm - NOMINAL[c.id]) <= 0.5, c.id + ' source bpm ' + c.sourceBpm + ' vs nominal ' + NOMINAL[c.id]);
-  assert.ok(Math.abs(c.bpm - TARGET_BPM) <= 0.3, c.id + ' stretched felt bpm ' + c.bpm);
-  // Standard = L 5.1 + 7 phrases + T 0.5, like the reference's 32.97 s.
+  assert.ok(Math.abs(c.sourceBpm - NOMINAL[c.id]) <= 0.05, c.id + ' source bpm ' + c.sourceBpm + ' vs nominal ' + NOMINAL[c.id]);
+  assert.ok(Math.abs(c.bpm - NOMINAL[c.id]) <= 0.05, c.id + ' felt bpm ' + c.bpm + ' vs nominal ' + NOMINAL[c.id]);
+  assert.ok(Math.abs(c.bpm - c.sourceBpm) <= 0.05, c.id + ' not stretched: ' + c.bpm + ' vs source ' + c.sourceBpm);
   const standard = 5.1 + 7 * c.phraseBeats * 60 / c.bpm + 0.5;
-  assert.ok(Math.abs(standard - 32.9) <= 0.1, c.id + ' Standard lasts ' + standard.toFixed(3) + ' s');
+  assert.ok(Math.abs(standard - STANDARD[c.id]) <= 0.02, c.id + ' Standard lasts ' + standard.toFixed(3) + ' s, not ' + STANDARD[c.id]);
 }
 assert.deepEqual(m.cues.filter(c => c.default).map(c => c.id), ['post-rock']);
-// Anchor rulings (2026-09-30), set in source seconds in dev/cues-input.json and mapped through the stretch:
+// Anchor rulings (2026-09-30), set in source seconds in dev/cues-input.json (the cues are not stretched):
 // post-rock at the full-band entry (bar 4), orchestral at the start of the rise, piano (flat) early at bar 3, rhodes
 // at its measured v1.2 swell (bar 9; after mastering its rise reads under 6 LU, so it is pinned). dream-synth has no
 // swell (null), so its fallback anchors it.
@@ -91,8 +94,11 @@ if (m.cues.length) {
   const barOf = c => 4 * 60 / c.bpm;
   const atBar = (id, bar) => Math.abs(byId[id].swell - (byId[id].firstBeat + (bar - 1) * barOf(byId[id]))) <= 0.002;
   assert.ok(atBar('post-rock', 4), 'post-rock swell at bar 4 of the grid');
-  // The v1.2 anchor 14.577 s at 66 bpm, in stretched time.
-  assert.ok(Math.abs(byId['post-rock'].swell - 14.577 * byId['post-rock'].sourceBpm / byId['post-rock'].bpm) <= 0.02, 'post-rock swell ' + byId['post-rock'].swell);
+  // The v1.2 anchors at the original tempo (the -12.5 LUFS master moves the measured first beat by a few ms).
+  assert.ok(Math.abs(byId['post-rock'].swell - 14.577) <= 0.01, 'post-rock swell ' + byId['post-rock'].swell);
+  assert.ok(Math.abs(byId.orchestral.swell - 20.54) <= 0.01, 'orchestral swell ' + byId.orchestral.swell);
+  assert.ok(Math.abs(byId['piano-strings'].swell - 9.798) <= 0.01, 'piano swell ' + byId['piano-strings'].swell);
+  assert.ok(Math.abs(byId['rhodes-soul'].swell - 30.036) <= 0.01, 'rhodes swell ' + byId['rhodes-soul'].swell);
   assert.equal(byId.orchestral.swell, byId.orchestral.swellFallback, 'orchestral swell on the start of the rise');
   assert.ok(atBar('piano-strings', 3), 'piano swell at bar 3');
   assert.ok(atBar('rhodes-soul', 9), 'rhodes swell at bar 9');
@@ -247,8 +253,9 @@ if (hasFfmpeg) {
     assert.ok(Math.abs(c.sourceBpm - c.bpm) <= 0.05, 'no targetBpm: not stretched');
     assert.equal(c.provenance.prompt, 'test fixture: 62 bpm kick and pad, 2 quiet bars');
 
-    // The { targetBpm, cues } form: the 62 bpm fixture stretched to 61.5 (rubberband, pitch kept). A manual swell is
-    // in source seconds (12.3 s, near the bar-4 downbeat) and lands on bar 4 of the stretched grid.
+    // The optional { targetBpm, cues } form (unused by the bundled set): the 62 bpm fixture stretched to 61.5
+    // (rubberband, pitch kept). A manual swell is in the built cue's seconds, not rescaled: 12.3 s snaps to the
+    // stretched bar-4 downbeat (0.252 + 12 * 60 / 61.5 = 11.96 s; bar 5 is at 15.86 s).
     fs.writeFileSync(path.join(tmp, 'stretch.json'), JSON.stringify({ targetBpm: 61.5, cues: [
       { id: 'synthetic-stretch', title: 'Synthetic Stretch', source: 'fixture.mp3', prompt: 'test fixture: stretched', swell: 12.3 }] }));
     const out2 = path.join(tmp, 'out2');
@@ -262,7 +269,7 @@ if (hasFfmpeg) {
     assert.ok(Math.abs(st.durationSeconds - c.durationSeconds * ratio) <= 0.1, 'duration scaled by the stretch: ' + st.durationSeconds);
     assert.ok(Math.abs(st.firstBeat - first * ratio) < 0.03, 'firstBeat mapped: ' + st.firstBeat);
     assert.equal(st.swellSource, 'manual');
-    assert.ok(Math.abs(st.swell - (st.firstBeat + 3 * 4 * 60 / st.bpm)) <= 0.002, 'source-time swell snapped to bar 4 of the stretched grid: ' + st.swell);
+    assert.ok(Math.abs(st.swell - (st.firstBeat + 3 * 4 * 60 / st.bpm)) <= 0.002, 'swell snapped to bar 4 of the stretched grid: ' + st.swell);
     const l2 = loudnessOf(path.join(out2, st.file));
     assert.ok(Math.abs(l2.lufs + 12.5) <= 0.5 && l2.truePeak <= -1.0, 'stretched loudness ' + JSON.stringify(l2));
   } finally {

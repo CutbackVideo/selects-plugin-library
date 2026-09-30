@@ -39,7 +39,7 @@ Both layouts share this timeline:
    open **THE END Credits** from the Plugin list. The top line shows how many
    analysed clips and photos were found, the number of shots and the
    approximate length, for example "Ready: 5 clips · 8 photos · 7 shots ·
-   about 33 s".
+   about 31 s".
 2. Check the **Title** (default "THE END") and the **Credits** list.
 3. Press **Build**.
 
@@ -88,15 +88,16 @@ renders.
 
 ## Length
 
-| Length | Shots | With a bundled track (61.5 BPM) |
+| Length | Shots | With a bundled track (60 to 66 BPM) |
 | --- | --- | --- |
-| Short | 5 | 25.1 s |
-| Standard (default) | 7 | 32.9 s |
-| Long | 10 | 44.6 s |
+| Short | 5 | 23.8 to 25.6 s |
+| Standard (default) | 7 | 31.1 to 33.6 s |
+| Long | 10 | 42.0 to 45.6 s |
 
-Each length is the 5.1 s lead-in, one 3.9 s phrase per shot and a 0.5 s
-tail; the last 1.13 s fade out. With your own music the exact length depends
-on its tempo. If the track is too short for
+Each length is the 5.1 s lead-in, one phrase (4 beats) per shot and a 0.5 s
+tail; the last 1.13 s fade out. The exact length depends on the music's
+tempo: Standard is 31.1 s with Open Road Swell (66 BPM) and 32.7 s with Last
+Light Ballad (62 BPM); with No music each shot is 3.9 s. If the track is too short for
 the length, the panel says "This track is too short for Standard." (or the
 chosen length) and offers the longest length that fits; if even Short does
 not fit, Build is disabled and the panel says how long the track must be:
@@ -110,17 +111,17 @@ used in two shots in a row.
 ## Music
 
 Choose a **Track**. All five are slow instrumentals, and the default reveals
-the window on the swell of the track. Every bundled track plays at a felt
-61.5 BPM, so each shot lasts 3.9 s (4 beats), and is mastered to about
--12.5 LUFS.
+the window on the swell of the track. Each bundled track plays at its own
+tempo (each shot is one phrase of 4 beats, 3.6 to 4 s), and all five are
+mastered to about -12.5 LUFS.
 
 | Track | Felt tempo |
 | --- | --- |
-| Open Road Swell (default) | 61.5 BPM |
-| Last Light Ballad | 61.5 BPM |
-| Late Night Rhodes | 61.5 BPM |
-| Final Scene | 61.5 BPM |
-| Golden Hour Synth | 61.5 BPM |
+| Open Road Swell (default) | 66 BPM |
+| Last Light Ballad | 62 BPM |
+| Late Night Rhodes | 64 BPM |
+| Final Scene | 60 BPM |
+| Golden Hour Synth | 65 BPM |
 | Your own music | detected |
 | No music | fixed 3.9 s shots |
 

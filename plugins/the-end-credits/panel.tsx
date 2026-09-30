@@ -1196,7 +1196,8 @@ export default function Panel({ sdk, context, ui }: any) {
   const [customRows, setCustomRows] = React.useState<EditRow[] | null>(null);
   const rowIdRef = React.useRef(0);
   const [length, setLength] = React.useState<"short" | "standard" | "long">(TEC_DEFAULT_LENGTH as any);
-  const [cueId, setCueId] = React.useState("post-rock");
+  // "" until the manifest loads; then the manifest's default cue (its `default: true` flag is the only switch).
+  const [cueId, setCueId] = React.useState("");
   const [ownMusic, setOwnMusic] = React.useState<{ path: string; name: string } | null>(null);
   const [ownGrid, setOwnGrid] = React.useState<any>(null);
   // The chosen section start (seconds into the music); null = the default (reveal on the swell / loudest part).
@@ -1321,8 +1322,8 @@ export default function Panel({ sdk, context, ui }: any) {
         const parsed = JSON.parse(manifest);
         const fontsB64: Record<string, string> = { "tec-title-serif.woff2.b64": titleB64.replace(/\s+/g, ""), "tec-credits-sans.woff2.b64": creditsB64.replace(/\s+/g, "") };
         setAssets({ manifest: parsed, scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, graphicTsx, frameTsx, lookTsx, fontsB64 });
-        const def = (parsed.cues || []).find((c: any) => c.default);
-        if (def) setCueId((cur) => (cur === "post-rock" ? def.id : cur));
+        const def = (parsed.cues || []).find((c: any) => c.default) || (parsed.cues || [])[0];
+        if (def) setCueId((cur) => (cur === "" ? def.id : cur));
         inventoryJsRef.current = inventoryJs;
         setStep("Checking clips");
         await loadInventory(projectId, () => alive);
