@@ -28,6 +28,8 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [THE END Credits](plugins/the-end-credits) — end-credits roll with a typed THE END title and a window of your clips | Experimental |
 | [Summer Trip](plugins/summer-trip) — beat-synced 16:9 summer trip video with a typed title, a split-screen grid and a film-frame ending | Experimental |
 
+| [Photo Grid Reveal](plugins/photo-gallery-no2) — editable 21-tile photo/video grid with sequential reveals and a shared monochrome-to-color switch | Experimental |
+
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 
 For maintainers: [Publishing](PUBLISHING.md). For installation: [Installing](INSTALLING.md).
