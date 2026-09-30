@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "depth-type-captions",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "name": "Depth Type Captions",
-  "summary": "Editable phrase typography that wraps around the speaker with subject-aware depth, plus optional vintage B-roll cards.",
+  "summary": "Editable phrase typography that wraps around the speaker with subject-aware depth.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -14,50 +14,57 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified."
+    "selects": "Selects 2.0.508 or later on macOS, 2.0.512 or later on Windows (development builds). On Windows the speaker masks come from Selects generation and use credits. Older builds keep captions but cannot place words behind the speaker."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 960,
+    "height": 540
   },
   "localized": {
     "de": {
       "name": "Depth-Type-Untertitel",
-      "summary": "Bearbeitbare Typografie, die den Sprecher mit Tiefenwirkung umflie\u00dft, mit optionalen Vintage-B-Roll-Karten."
+      "summary": "Bearbeitbare Typografie, die den Sprecher mit Tiefenwirkung umflie\u00dft."
     },
     "en": {
       "name": "Depth Type Captions",
-      "summary": "Editable phrase typography that wraps around the speaker with subject-aware depth, plus optional vintage B-roll cards."
+      "summary": "Editable phrase typography that wraps around the speaker with subject-aware depth."
     },
     "es": {
       "name": "Subt\u00edtulos Depth Type",
-      "summary": "Tipograf\u00eda editable que rodea al hablante con profundidad seg\u00fan el sujeto, con tarjetas opcionales de B-roll vintage."
+      "summary": "Tipograf\u00eda editable que rodea al hablante con profundidad seg\u00fan el sujeto."
     },
     "fr": {
       "name": "Sous-titres Depth Type",
-      "summary": "Typographie modifiable qui entoure l\u2019orateur avec une profondeur adapt\u00e9e au sujet, et cartes B-roll vintage en option."
+      "summary": "Typographie modifiable qui entoure l\u2019orateur avec une profondeur adapt\u00e9e au sujet."
     },
     "it": {
       "name": "Sottotitoli Depth Type",
-      "summary": "Tipografia modificabile che avvolge chi parla con profondit\u00e0 sul soggetto, con schede B-roll vintage opzionali."
+      "summary": "Tipografia modificabile che avvolge chi parla con profondit\u00e0 sul soggetto."
     },
     "ja": {
       "name": "Depth Type \u5b57\u5e55",
-      "summary": "\u8a71\u8005\u306e\u8f2a\u90ed\u306b\u5408\u308f\u305b\u3001\u524d\u5f8c\u306e\u5965\u884c\u304d\u3092\u6301\u305f\u305b\u305f\u7de8\u96c6\u53ef\u80fd\u306a\u30bf\u30a4\u30dd\u30b0\u30e9\u30d5\u30a3\u5b57\u5e55\u3002\u30f4\u30a3\u30f3\u30c6\u30fc\u30b8B\u30ed\u30fc\u30eb\u30ab\u30fc\u30c9\u3082\u4efb\u610f\u3067\u8ffd\u52a0\u3067\u304d\u307e\u3059\u3002"
+      "summary": "\u8a71\u8005\u306e\u8f2a\u90ed\u306b\u5408\u308f\u305b\u3001\u524d\u5f8c\u306e\u5965\u884c\u304d\u3092\u6301\u305f\u305b\u305f\u7de8\u96c6\u53ef\u80fd\u306a\u30bf\u30a4\u30dd\u30b0\u30e9\u30d5\u30a3\u5b57\u5e55\u3002"
     },
     "ko": {
       "name": "Depth Type \uc790\ub9c9",
-      "summary": "\ud654\uc790\ub97c \uac10\uc2f8\uba70 \uc55e\ub4a4 \uae4a\uc774\uac10\uc744 \uc8fc\ub294 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \ud0c0\uc774\ud3ec\uadf8\ub798\ud53c \uc790\ub9c9\uacfc, \uc120\ud0dd\ud615 \ube48\ud2f0\uc9c0 B\ub864 \uce74\ub4dc\ub97c \ucd94\uac00\ud569\ub2c8\ub2e4."
+      "summary": "\ud654\uc790\ub97c \uac10\uc2f8\uba70 \uc55e\ub4a4 \uae4a\uc774\uac10\uc744 \uc8fc\ub294 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \ud0c0\uc774\ud3ec\uadf8\ub798\ud53c \uc790\ub9c9\uc785\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Legendas Depth Type",
-      "summary": "Tipografia edit\u00e1vel que envolve quem fala com profundidade ciente do assunto, com cart\u00f5es opcionais de B-roll vintage."
+      "summary": "Tipografia edit\u00e1vel que envolve quem fala com profundidade ciente do assunto."
     },
     "tr": {
       "name": "Depth Type Altyaz\u0131lar",
-      "summary": "Konu\u015fmac\u0131n\u0131n etraf\u0131n\u0131 derinlik hissiyle saran d\u00fczenlenebilir tipografi; iste\u011fe ba\u011fl\u0131 vintage B-roll kartlar\u0131."
+      "summary": "Konu\u015fmac\u0131n\u0131n etraf\u0131n\u0131 derinlik hissiyle saran d\u00fczenlenebilir tipografi."
     },
     "zh": {
       "name": "Depth Type \u5b57\u5e55",
-      "summary": "\u56f4\u7ed5\u8bf4\u8bdd\u8005\u3001\u5177\u6709\u524d\u540e\u666f\u6df1\u7684\u53ef\u7f16\u8f91\u6587\u5b57\u6392\u7248\u5b57\u5e55\uff0c\u5e76\u53ef\u9009\u6dfb\u52a0\u590d\u53e4 B-roll \u5361\u7247\u3002"
+      "summary": "\u56f4\u7ed5\u8bf4\u8bdd\u8005\u3001\u5177\u6709\u524d\u540e\u666f\u6df1\u7684\u53ef\u7f16\u8f91\u6587\u5b57\u6392\u7248\u5b57\u5e55\u3002"
     }
   }
 }

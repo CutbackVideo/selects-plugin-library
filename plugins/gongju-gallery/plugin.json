@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "id": "gongju-gallery",
+  "version": "0.1.0",
+  "name": "pov: you open my gallery",
+  "summary": "Builds an editable 11.4-second portrait gallery montage as a new Draft from a folder of project clips, cut to the plugin's own soundtrack.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "panel.tsx",
+    "crop.py",
+    "assets/gallery-bgm-gallery-montage-12s-v2.wav"
+  ],
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 720,
+    "height": 960
+  },
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified."
+  },
+  "localized": {
+    "de": {
+      "name": "pov: you open my gallery",
+      "summary": "Erstellt aus einem Ordner mit Projektclips einen bearbeitbaren, 11,4 Sekunden langen Hochformat-Galerie-Zusammenschnitt als neuen Draft, geschnitten auf den mitgelieferten Soundtrack."
+    },
+    "en": {
+      "name": "pov: you open my gallery",
+      "summary": "Builds an editable 11.4-second portrait gallery montage as a new Draft from a folder of project clips, cut to the plugin's own soundtrack."
+    },
+    "es": {
+      "name": "pov: you open my gallery",
+      "summary": "Crea un montaje de galer\u00eda vertical editable de 11,4 segundos como nuevo Draft a partir de una carpeta de clips del proyecto, cortado al ritmo de la banda sonora incluida."
+    },
+    "fr": {
+      "name": "pov: you open my gallery",
+      "summary": "Cr\u00e9e un montage galerie vertical modifiable de 11,4 secondes sous forme de nouveau Draft \u00e0 partir d'un dossier de clips du projet, mont\u00e9 sur la bande-son fournie."
+    },
+    "it": {
+      "name": "pov: you open my gallery",
+      "summary": "Crea un montaggio galleria verticale modificabile di 11,4 secondi come nuovo Draft da una cartella di clip del progetto, tagliato sulla colonna sonora inclusa."
+    },
+    "ja": {
+      "name": "pov: you open my gallery",
+      "summary": "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u30af\u30ea\u30c3\u30d7\u30d5\u30a9\u30eb\u30c0\u30fc\u304b\u3089\u3001\u4ed8\u5c5e\u306e\u30b5\u30a6\u30f3\u30c9\u30c8\u30e9\u30c3\u30af\u306b\u5408\u308f\u305b\u3066\u7de8\u96c6\u53ef\u80fd\u306a11.4\u79d2\u306e\u7e26\u578b\u30ae\u30e3\u30e9\u30ea\u30fc\u30e2\u30f3\u30bf\u30fc\u30b8\u30e5\u3092\u65b0\u3057\u3044Draft\u3068\u3057\u3066\u4f5c\u6210\u3057\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "pov: you open my gallery",
+      "summary": "\ud504\ub85c\uc81d\ud2b8\uc758 \uc601\uc0c1 \ud3f4\ub354\uc5d0\uc11c \ub0b4\uc7a5 \uc74c\uc6d0\uc5d0 \ub9de\ucd98 11.4\ucd08\uc9dc\ub9ac \uc138\ub85c \uac24\ub7ec\ub9ac \ubaa9\ud0c0\uc8fc\ub97c \uc218\uc815 \uac00\ub2a5\ud55c \uc0c8 Draft\ub85c \ub9cc\ub4ed\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "pov: you open my gallery",
+      "summary": "Cria uma montagem de galeria vertical edit\u00e1vel de 11,4 segundos como novo Draft a partir de uma pasta de clipes do projeto, cortada na trilha sonora inclu\u00edda."
+    },
+    "tr": {
+      "name": "pov: you open my gallery",
+      "summary": "Proje kliplerinden olu\u015fan bir klas\u00f6rden, birlikte gelen m\u00fczi\u011fe g\u00f6re kesilmi\u015f, d\u00fczenlenebilir 11,4 saniyelik dikey galeri montaj\u0131n\u0131 yeni bir Draft olarak olu\u015fturur."
+    },
+    "zh": {
+      "name": "pov: you open my gallery",
+      "summary": "\u4ece\u9879\u76ee\u7247\u6bb5\u6587\u4ef6\u5939\u751f\u6210\u53ef\u7f16\u8f91\u7684 11.4 \u79d2\u7ad6\u7248\u753b\u5eca\u6df7\u526a\uff0c\u4f5c\u4e3a\u65b0\u7684 Draft\uff0c\u5e76\u6309\u63d2\u4ef6\u81ea\u5e26\u7684\u914d\u4e50\u526a\u8f91\u3002"
+    }
+  }
+}

@@ -47,3 +47,18 @@ jobs:
           node plugins/torn-paper-love/tests/scripts-read.test.cjs
           node plugins/torn-paper-love/tests/torn.test.cjs
           node plugins/torn-paper-love/tests/transitions.test.cjs
+      - name: Test Mini Vlog
+        run: |
+          node plugins/mini-vlog/tests/allocate.test.cjs
+          node plugins/mini-vlog/tests/beat-detect.test.cjs
+          node plugins/mini-vlog/tests/cues.test.cjs
+          node plugins/mini-vlog/tests/fonts.test.cjs
+          node plugins/mini-vlog/tests/look.test.cjs
+          node plugins/mini-vlog/tests/motion.test.cjs
+          node plugins/mini-vlog/tests/panel.test.cjs
+          node plugins/mini-vlog/tests/planner.test.cjs
+          node plugins/mini-vlog/tests/punch.test.cjs
+          node plugins/mini-vlog/tests/scripts-edit.test.cjs
+          node plugins/mini-vlog/tests/scripts-read.test.cjs
+          node plugins/mini-vlog/tests/scripts-types.test.cjs
+          node plugins/mini-vlog/tests/title.test.cjs

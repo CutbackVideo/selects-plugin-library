@@ -1,0 +1,26 @@
+# Install Fast Switching Stop Motion
+
+1. Copy this package's `panel.tsx` unchanged to
+   `SELECTS_USER_PANELS_ROOT/fast-switching-stopmotion/panel.tsx`, using the
+   environment-provided panels root. Create that directory if needed. There is
+   no separate registration step.
+2. Place the rest of the package, including `assets/`, in
+   `fast-switching-stopmotion` beneath `SELECTS_USER_SKILLS_ROOT`, keeping
+   relative paths. The panel loads its music from
+   `SELECTS_USER_SKILLS_ROOT/fast-switching-stopmotion/assets/music.mp3`. The
+   package has no `SKILL.md`, so it is not listed as a Skill.
+3. Make sure `ffmpeg` is available to the app's shell; the panel uses it to
+   measure motion and to build the candidate contact sheet.
+4. Open **Fast Switching Stop Motion** in the Plugin list with a Project open,
+   check the videos to use and press **Create Draft**.
+
+The panel reads the open Project's resources and source file paths. It writes
+only by importing the bundled music into the Project once and creating a new
+Draft; it never modifies an existing Draft or any source file. The candidate
+contact sheet is written to `~/.selects/plugin-data/fast-switching-stopmotion/`.
+Picking moments sends one image to the Selects AI per build.
+
+## Uninstall
+
+Delete the `fast-switching-stopmotion` folder from the panels root and from the
+skills root, and optionally `~/.selects/plugin-data/fast-switching-stopmotion/`.
