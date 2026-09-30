@@ -19,6 +19,45 @@ const SILENT_BEAT = 0.1;
 const ONSET_LAG = 0.007;
 // 16th-onset ratio window: the envelope maximum within this many seconds of each grid position.
 const RATIO_WINDOW = 0.03;
+// Grid acceptance (v2.7). A grid line "hits" when an onset lies within HIT_WINDOW of it; its residual is that distance.
+// - Strict: median residual <= RESIDUAL_MAX_MS and hitRate >= HIT_RATE_MIN (every bundled cue).
+// - Sparse: lo-fi and half-time grooves put a kick or snare on only some beats (a CC0 lo-fi track at 120 BPM: hitRate
+//   0.43, but a 4.3 ms median residual over 188 hits, and 97% of its onsets on the beat or the 8th between). A median
+//   residual <= SPARSE_RESIDUAL_MS with hitRate >= SPARSE_HIT_RATE and at least SPARSE_MIN_HITS hits is accepted too.
+//   Random onsets near a grid have residuals spread over 0-70 ms (median about 35); the hit floor keeps a handful of
+//   chance hits (noise has 1, at 0.4-3.6 ms) from passing.
+// - Consistency, for both: every CONSISTENCY_WINDOW-second window (CONSISTENCY_HOP apart) holding at least
+//   CONSISTENCY_MIN_HITS hits keeps its own median residual <= RESIDUAL_MAX_MS, so a grid that fits only part of the
+//   track (a tempo change) is refused. Measured: bundled cues, reference audio and the lo-fi track at most 13.8 ms in any
+//   window; two cues joined at different tempos 32 and 37 ms, a rubato piano 44 ms.
+// grid: 'accepted' (either rule and consistent), 'approximate' (consistent, median residual <= RESIDUAL_MAX_MS and at
+// least SPARSE_MIN_HITS hits, but too few hits to accept: the tempo and first beat are a usable guide, cuts on them
+// may miss the heard beat), else 'none'.
+const HIT_WINDOW = 0.07;
+const RESIDUAL_MAX_MS = 20;
+const HIT_RATE_MIN = 0.7;
+const SPARSE_RESIDUAL_MS = 10;
+const SPARSE_HIT_RATE = 0.35;
+const SPARSE_MIN_HITS = 16;
+const CONSISTENCY_WINDOW = 30;
+const CONSISTENCY_HOP = 15;
+const CONSISTENCY_MIN_HITS = 12;
+// The grid state of evaluate()'s measures: hits ([grid time, residual ms]) and the grid line count. Medians are the
+// upper median, as residualMedianMs reports it.
+const upperMedian = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
+function gridState(hits, beats, durationSeconds) {
+  const med = upperMedian(hits.map(h => h[1]));
+  const rate = beats ? hits.length / beats : 0;
+  let consistent = true;
+  for (let w = 0; consistent && (w === 0 || w + CONSISTENCY_HOP < durationSeconds); w += CONSISTENCY_HOP) {
+    const r = hits.filter(h => h[0] >= w && h[0] < w + CONSISTENCY_WINDOW).map(h => h[1]);
+    if (r.length >= CONSISTENCY_MIN_HITS && upperMedian(r) > RESIDUAL_MAX_MS) consistent = false;
+  }
+  const strict = med != null && med <= RESIDUAL_MAX_MS && rate >= HIT_RATE_MIN;
+  const sparse = med != null && med <= SPARSE_RESIDUAL_MS && rate >= SPARSE_HIT_RATE && hits.length >= SPARSE_MIN_HITS;
+  if (consistent && (strict || sparse)) return 'accepted';
+  return consistent && med != null && med <= RESIDUAL_MAX_MS && hits.length >= SPARSE_MIN_HITS ? 'approximate' : 'none';
+}
 
 function fft(re, im) {
   const n = re.length;
@@ -293,18 +332,19 @@ function analyze(samples, sampleRate, opts) {
     // Onsets peak ONSET_LAG after the attack, so the grid fitted to them is that much late (measured 6-8 ms on the
     // bundled cues against the rendered audio). Move the first beat back onto the attack.
     fb = Math.max(0, fb - ONSET_LAG);
-    const residuals = [];
+    const hits = [];
     let beats = 0;
     for (let t = fb; t < durationSeconds; t += period) {
       beats++;
       let near = Infinity;
       for (const o of onsets) { const d = Math.abs(o - t); if (d < near) near = d; }
-      if (near < 0.07) residuals.push(near * 1000);
+      if (near < HIT_WINDOW) hits.push([t, near * 1000]);
     }
-    residuals.sort((a, b) => a - b);
+    const residuals = hits.map(h => h[1]).sort((a, b) => a - b);
     const med = residuals.length ? residuals[Math.floor(residuals.length / 2)] : Infinity;
     const rate = beats ? residuals.length / beats : 0;
-    return { firstBeat: fb, residualMedianMs: med, hitRate: rate, accepted: med <= 20 && rate >= 0.7 };
+    const grid = gridState(hits, beats, durationSeconds);
+    return { firstBeat: fb, residualMedianMs: med, hitRate: rate, accepted: grid === 'accepted', grid };
   };
   // The fitted phase is on the onset-envelope peaks, ONSET_LAG after the attacks that the band flux is stamped at.
   // The half-beat move is refused when it would lose the acceptance that the fitted phase had.
@@ -315,7 +355,7 @@ function analyze(samples, sampleRate, opts) {
     const flipped = evaluate(phase + period / 2 + shift);
     if (!(g.accepted && !flipped.accepted)) g = flipped;
   }
-  const { firstBeat, residualMedianMs, hitRate, accepted } = g;
+  const { firstBeat, residualMedianMs, hitRate, accepted, grid } = g;
 
   const peaks = [];
   const bucket = Math.max(1, Math.floor(samples.length / 400));
@@ -339,6 +379,8 @@ function analyze(samples, sampleRate, opts) {
     residualMedianMs: Number.isFinite(residualMedianMs) ? Math.round(residualMedianMs * 10) / 10 : null,
     hitRate: Math.round(hitRate * 1000) / 1000,
     accepted,
+    // 'accepted' | 'approximate' | 'none' (gridState); accepted is grid === 'accepted'.
+    grid,
     lastOnsetSeconds: onsets.length ? Math.round(onsets[onsets.length - 1] * 100) / 100 : 0,
     sixteenthRatio: sixteenthRatio(samples, sampleRate, 60 / period, firstBeat, durationSeconds),
     peaks,
