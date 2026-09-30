@@ -39,8 +39,8 @@ files it anyway, so a partial run does not lose tracks.
 
 Your saved library, independent of any project.
 
-- Play a track locally, read and edit a short note on it, or reveal where it
-  lives on disk.
+- Play a track locally, read and edit a short note on it, or reveal it in
+  Finder (macOS) or File Explorer (Windows).
 - **Add to draft** imports the file into the current project if it is not there
   yet and places it on the open Draft, either at the start or at the playhead.
   It commits the Draft, so the clip is editable straight away.
@@ -49,20 +49,22 @@ Your saved library, independent of any project.
 
 ## Settings
 
-Library folder (chosen with a native folder picker), download format, whether
-new saves default to music or sound effects, and the Epidemic Sound sign-in
-state.
+Library folder (type a path, `~` works, or press **Choose…** for the system
+folder picker), download format, whether new saves default to music or sound
+effects, and the Epidemic Sound sign-in state.
 
 ## What it stores
 
 Settings, notes and the library index live in
-`~/.selects/plugin-data/epidemic-sound-search/`. Audio files live wherever you
-point the library folder; the panel never copies them into the plugin folder.
+`.selects/plugin-data/epidemic-sound-search/` in your home folder (on Windows,
+beside the Selects skills folder). Audio files live wherever you point the
+library folder; the panel never copies them into the plugin folder.
 
 ## Limitations
 
-- macOS only. The library-folder picker uses a macOS dialog, and the download
-  watcher assumes a Unix Downloads path.
+- macOS and Windows 10 (1803 or later) / 11. Linux is not supported. On
+  Windows the panel uses the built-in Windows PowerShell 5.1 and `curl.exe`;
+  a PC where policy blocks PowerShell cannot run it.
 - You need your own Epidemic Sound subscription. The plugin does not bypass
   sign-in, licensing or download limits; it drives the same pages you would
   click yourself, and it never stores your password.

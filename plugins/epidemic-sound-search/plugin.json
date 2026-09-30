@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "epidemic-sound-search",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": "Epidemic Sound search",
   "summary": "Search Epidemic Sound inside a panel with genre, mood, tempo and vocal filters, audition hits, then save a whole download list to your own library folder in one assistant run and place saved tracks on the open Draft.",
   "status": "experimental",
@@ -14,9 +14,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS"
+      "macOS",
+      "Windows"
     ],
-    "selects": "Needs Panel runShell, runScript, askAI and Selects browser control, plus python3 and curl on PATH. Requires your own Epidemic Sound account. Without browser control the panel searches and auditions but cannot sign in or save. Windows and Linux are unsupported (macOS folder picker and Unix Downloads path)."
+    "selects": "Needs Panel runShell, runScript, askAI and Selects browser control, and your own Epidemic Sound account. macOS uses the system python3 and curl. Windows 10 1803+/11 uses the built-in Windows PowerShell 5.1 and curl.exe by full path, so the Selects shell's System32-only PATH and temporary HOME are fine. Every host step (settings, library, search, waveform, cover art, Downloads scan, moving files) was exercised on Windows Server 2022 and 2025 under the same cmd.exe setup Selects uses, with output identical to macOS; the Windows folder picker, File Explorer reveal and in-app browser download are not yet verified on a Windows desktop. Linux is unsupported."
   },
   "preview": {
     "poster": "poster.webp",

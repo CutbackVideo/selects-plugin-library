@@ -59,12 +59,11 @@ type Settings = {
   autoKind: "music" | "sfx";
 };
 
-const SETTINGS_FILE = '"$HOME/.selects/plugin-data/epidemic-sound-search/settings.json"';
 const STATE_KEY = "epidemic-sound-search.v4";
 const OLD_STATE_KEY = "epidemic-sound-search.v3";
 // Older builds kept memos on their own; they are merged into the library.
-const NOTES_FILE = '"$HOME/.selects/plugin-data/epidemic-sound-search/notes.json"';
-const LIBRARY_FILE = '"$HOME/.selects/plugin-data/epidemic-sound-search/library.json"';
+const NOTES_FILE = "notes.json";
+const LIBRARY_FILE = "library.json";
 const PAGE_SIZE = 24;
 // One assistant run per batch. Bigger batches risk the run timing out.
 const MAX_BATCH = 8;
@@ -73,6 +72,249 @@ const AUDIO_EXT = /\.(mp3|wav|aif|aiff|m4a|flac|aac|ogg|opus)$/i;
 const PARTIAL_EXT = /\.(crdownload|part|download)$/i;
 
 const q = (s: string) => "'" + String(s).replace(/'/g, "'\\''") + "'";
+
+// ---- host commands -------------------------------------------------------
+// Every host step exists twice: a POSIX command for macOS (run by the user's
+// login shell) and a PowerShell script for Windows. On Windows Selects writes
+// each command into a cmd.exe batch file whose PATH holds only System32 and
+// whose HOME/USERPROFILE are a throwaway per-call folder. So the Windows side
+// never uses HOME, python or bash: it starts Windows PowerShell 5.1 by its
+// full path, and PowerShell reads its script from the tail of that same batch
+// file. cmd stops at `exit /b` and never parses the tail, so no quoting or %
+// escaping applies there. Values are passed base64-encoded (psv) for the same
+// reason. Data lives next to SELECTS_USER_SKILLS_ROOT, which does persist.
+
+const IS_WIN = (() => {
+  try {
+    const n: any = navigator;
+    return (
+      /^win/i.test(String(n.platform || "")) ||
+      /Windows NT/i.test(String(n.userAgent || ""))
+    );
+  } catch {
+    return false;
+  }
+})();
+
+const SEP = IS_WIN ? "\\" : "/";
+const baseName = (p: string) => String(p || "").split(/[\\/]/).pop() || "";
+const joinPath = (dir: string, name: string) =>
+  String(dir || "").replace(/[\\/]+$/, "") + SEP + name;
+// Drop trailing separators, but keep a bare drive root ("C:\") a root.
+const trimFolder = (p: string) => {
+  const s = String(p || "").trim();
+  const t = s.replace(/[\\/]+$/, "");
+  if (!t) return s;
+  return /^[A-Za-z]:$/.test(t) ? t + "\\" : t;
+};
+
+const b64utf8 = (s: string) => btoa(unescape(encodeURIComponent(String(s))));
+const psv = (s: string) => "(D '" + b64utf8(s) + "')";
+
+const PS_PRELUDE = [
+  "$ErrorActionPreference='Stop'",
+  "$ProgressPreference='SilentlyContinue'",
+  "$U8=[Text.UTF8Encoding]::new($false)",
+  "try{[Console]::OutputEncoding=$U8}catch{}",
+  "[void][Reflection.Assembly]::Load('System.Web.Extensions, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35')",
+  "$J=[Web.Script.Serialization.JavaScriptSerializer]::new()",
+  "$J.MaxJsonLength=[int]::MaxValue",
+  "function D($s){$U8.GetString([Convert]::FromBase64String($s))}",
+  "function W($s){[Console]::Out.Write([string]$s);[Console]::Out.Flush()}",
+  "function G($o,$k){if($o -is [Collections.IDictionary] -and $o.ContainsKey($k)){,$o[$k]}}",
+  "function HOMEDIR{$h=[Microsoft.Win32.Registry]::GetValue('HKEY_CURRENT_USER\\Volatile Environment','USERPROFILE',$null);if(-not $h){$h=[Environment]::GetFolderPath('UserProfile')};$h}",
+  "$R=$env:SELECTS_USER_SKILLS_ROOT",
+  "$DATA=if($R){[IO.Path]::Combine([IO.Path]::GetDirectoryName($R.TrimEnd('\\','/')),'plugin-data','epidemic-sound-search')}else{[IO.Path]::Combine((HOMEDIR),'.selects','plugin-data','epidemic-sound-search')}",
+  "$TMPD=$env:TEMP;if(-not $TMPD){$TMPD=[IO.Path]::GetTempPath()};[void][IO.Directory]::CreateDirectory($TMPD)",
+  "$CURL=[IO.Path]::Combine($env:SystemRoot,'System32','curl.exe')",
+  "function FETCH($u,$s){$f=[IO.Path]::Combine($TMPD,[guid]::NewGuid().ToString('N'));& $CURL -s -L -m $s -o $f $u;if($LASTEXITCODE -ne 0 -or -not [IO.File]::Exists($f)){throw ('download failed (curl '+$LASTEXITCODE+')')};$b=[IO.File]::ReadAllBytes($f);[IO.File]::Delete($f);,$b}",
+].join("\n");
+
+const PS_EXE = "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+const winCmd = (body: string) =>
+  [
+    'set "ES_SELF=%~f0"',
+    '"' + PS_EXE + '" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ' +
+      "\"$t=[IO.File]::ReadAllText($env:ES_SELF);$m='#ES'+'-PS#';" +
+      "& ([ScriptBlock]::Create($t.Substring($t.IndexOf($m,[StringComparison]::Ordinal)+$m.Length)))\"",
+    "exit /b %ERRORLEVEL%",
+    "#ES-PS#",
+    PS_PRELUDE,
+    body,
+  ].join("\r\n");
+
+const MAC_DATA = '"$HOME/.selects/plugin-data/epidemic-sound-search"';
+const macData = (name: string) =>
+  '"$HOME/.selects/plugin-data/epidemic-sound-search/' + name + '"';
+const winData = (name: string) => "[IO.Path]::Combine($DATA,'" + name + "')";
+
+// Audio files AND in-progress partials in Downloads, as mtime|size|path.
+const SCAN =
+  'find "$HOME/Downloads" -maxdepth 1 -type f ' +
+  '\\( -iname "*.mp3" -o -iname "*.wav" -o -iname "*.aif" -o -iname "*.aiff" ' +
+  '-o -iname "*.m4a" -o -iname "*.flac" -o -iname "*.aac" -o -iname "*.ogg" ' +
+  '-o -iname "*.opus" -o -iname "*.crdownload" -o -iname "*.part" ' +
+  '-o -iname "*.download" \\) -exec stat -f "%m|%z|%N" {} \\; 2>/dev/null; true';
+const WIN_SCAN = [
+  "$p=[Microsoft.Win32.Registry]::GetValue('HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders','{374DE290-123F-4565-9164-39C4925E467B}',$null)",
+  "if(-not $p){$p=[IO.Path]::Combine((HOMEDIR),'Downloads')}",
+  "$rx='\\.(mp3|wav|aif|aiff|m4a|flac|aac|ogg|opus|crdownload|part|download)$'",
+  "$ep=[datetime]::new(1970,1,1,0,0,0,[DateTimeKind]::Utc);$sb=[Text.StringBuilder]::new()",
+  "if([IO.Directory]::Exists($p)){foreach($f in [IO.Directory]::GetFiles($p)){if($f -match $rx){$i=[IO.FileInfo]::new($f);[void]$sb.Append([string][int64][Math]::Floor(($i.LastWriteTimeUtc-$ep).TotalSeconds)).Append('|').Append([string]$i.Length).Append('|').Append($f).Append(\"`n\")}}}",
+  "W $sb.ToString()",
+].join("\n");
+
+// The search payload reduced to what the panel shows (same output as REDUCE).
+const WIN_REDUCE = [
+  "$m=G $d 'meta';$tr=G (G $d 'entities') 'tracks'",
+  "$out=[Collections.ArrayList]::new()",
+  "foreach($h in (G $m 'hits')){",
+  " $t=G $tr ([string](G $h 'trackId'));if(-not $t){continue}",
+  " $c=G $t 'creatives';$ma=G $c 'mainArtists';if(-not $ma){$ma=G $c 'composers'}",
+  " $nm=@();foreach($a in $ma){if($nm.Count -ge 2){break};$nm+=[string](G $a 'name')}",
+  " $st=G (G $t 'stems') 'full';$ca=G $t 'coverArt';$sz=G $ca 'sizes';$base=[string](G $ca 'baseUrl');$xs=[string](G $sz 'XS')",
+  " if($base -and $xs){$img=$base+$xs}else{$img=G $t 'cover';if(-not $img){$img=G $t 'imageUrl'};if(-not $img){$img=''}}",
+  " $md=@();foreach($x in (G $t 'moods')){if($md.Count -ge 3){break};$md+=[string](G $x 'displayTag')}",
+  " $ti=G $t 'title';if($null -eq $ti){$ti=''}",
+  " [void]$out.Add(@{id=(G $t 'id');title=$ti;artist=($nm -join ', ');bpm=(G $t 'bpm');len=(G $t 'length');slug=[string](G $t 'publicSlug');img=[string]$img;mp3=[string](G $st 'lqMp3Url');wf=[string](G $st 'waveformUrl');moods=[object[]]$md})",
+  " if($out.Count -ge 24){break}",
+  "}",
+  "function FAC($n,$k){$r=[Collections.ArrayList]::new();$v=G (G $m 'aggregations') $n;if($v -is [array]){$i=0;foreach($x in $v){if($i -ge $k){break};$i++;if($x -isnot [Collections.IDictionary]){continue};$key=[string](G $x 'key');$lab=G $x 'displayKey';if(-not $lab){$lab=$key};$cnt=G $x 'count';if(-not $cnt){$cnt=0};[void]$r.Add(@{key=$key;label=[string]$lab;count=$cnt})}};,$r}",
+  "$th=G $m 'totalHits';if(-not $th){$th=0};$tp=G $m 'totalPages';if(-not $tp){$tp=0}",
+  "W ($J.Serialize(@{items=$out;totalHits=$th;totalPages=$tp;genres=(FAC 'genres' 30);moods=(FAC 'moods' 30)}))",
+].join("\n");
+
+// Waveform peaks reduced to 160 bars (same output as WAVE). PowerShell
+// variable names are case-insensitive: $n and $N are the same variable.
+const WIN_WAVE = [
+  "$d=G $w 'data';if(-not $d){$d=@()};$bits=G $w 'bits';if(-not $bits){$bits=8}",
+  "$pk=[double]((1 -shl ([int]$bits-1))-1);if(-not $pk){$pk=127.0}",
+  "$BARS=160;$cnt=$d.Count;$pairs=[Math]::Floor($cnt/2);$o=[Collections.ArrayList]::new()",
+  "if($pairs -gt 0){$step=[int][Math]::Max(1,[Math]::Floor($pairs/$BARS));for($i=0;$i -lt $pairs;$i+=$step){$a=$i*2;$e=[Math]::Min(($i+$step)*2,$cnt);if($e -le $a){continue};$hi=[double]$d[$a];$lo=$hi;for($k=$a+1;$k -lt $e;$k++){$v=[double]$d[$k];if($v -gt $hi){$hi=$v};if($v -lt $lo){$lo=$v}};[void]$o.Add([Math]::Round([Math]::Max([Math]::Abs($hi),[Math]::Abs($lo))/$pk,3));if($o.Count -ge $BARS){break}}}",
+  "W ($J.Serialize($o))",
+].join("\n");
+
+// One builder per host step. Each returns the command for this platform.
+const HOST = {
+  readData: (name: string) =>
+    IS_WIN
+      ? winCmd("$f=" + winData(name) + ";if([IO.File]::Exists($f)){W ([IO.File]::ReadAllText($f,$U8))}")
+      : "cat " + macData(name) + " 2>/dev/null || true",
+  readDataChunk: (name: string, off: number, piece: number) =>
+    IS_WIN
+      ? winCmd(
+          "$f=" + winData(name) + ";if([IO.File]::Exists($f)){$b=[IO.File]::ReadAllBytes($f);$o=" +
+            Math.floor(off) +
+            ";if($o -lt $b.Length){W ([Convert]::ToBase64String($b,$o,[Math]::Min(" +
+            Math.floor(piece) +
+            ",$b.Length-$o)))}}",
+        )
+      : "[ -f " + macData(name) + " ] && tail -c +" + (off + 1) + " " + macData(name) +
+        " | head -c " + piece + " | base64 | tr -d '\\n' || true",
+  listLibraryFolder: (folder: string) =>
+    IS_WIN
+      ? winCmd(
+          "$l=" + psv(folder) +
+            ";if([IO.Directory]::Exists($l)){$o=@();foreach($f in [IO.Directory]::GetFiles($l)){$n=[IO.Path]::GetFileName($f);if($n -cmatch '^ES_.*\\.(mp3|wav)$'){$o+=$n}};W ($o -join \"`n\")}",
+        )
+      : "cd " + q(folder) + " 2>/dev/null && ls -1 | grep -E '^ES_.*\\.(mp3|wav)$' || true",
+  writeSettings: (json: string, folder: string) =>
+    IS_WIN
+      ? winCmd(
+          "[void][IO.Directory]::CreateDirectory($DATA);$l=" + psv(folder) +
+            ";if($l){[void][IO.Directory]::CreateDirectory($l)};[IO.File]::WriteAllText(" +
+            winData("settings.json") + "," + psv(json) + ",$U8)",
+        )
+      : "mkdir -p " + MAC_DATA + " && " +
+        (folder ? "mkdir -p " + q(folder) + " && " : "") +
+        "cat > " + macData("settings.json") + " <<'JSONEOF'\n" + json + "\nJSONEOF",
+  chooseFolder: () =>
+    IS_WIN
+      ? winCmd(
+          [
+            "[void][Reflection.Assembly]::Load('System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089')",
+            "$w=[Windows.Forms.Form]::new();$w.TopMost=$true;$w.ShowInTaskbar=$false",
+            "$d=[Windows.Forms.FolderBrowserDialog]::new();$d.Description='Choose your Epidemic Sound library folder';$d.ShowNewFolderButton=$true",
+            "if($d.ShowDialog($w) -eq [Windows.Forms.DialogResult]::OK){W $d.SelectedPath}",
+            "$w.Dispose()",
+          ].join("\n"),
+        )
+      : "osascript -e 'POSIX path of (choose folder with prompt \"Choose your Epidemic Sound library folder\")'",
+  homeDir: () => (IS_WIN ? winCmd("W (HOMEDIR)") : 'printf %s "$HOME"'),
+  writeLibraryChunk: (part: string, first: boolean) =>
+    IS_WIN
+      ? winCmd(
+          "[void][IO.Directory]::CreateDirectory($DATA);$t=" + winData("library.json.tmp") + ";" +
+            (first ? "[IO.File]::WriteAllBytes($t,[byte[]]@());" : "") +
+            "$b=[Convert]::FromBase64String('" + part + "');" +
+            "$s=[IO.File]::Open($t,[IO.FileMode]::Append,[IO.FileAccess]::Write);try{$s.Write($b,0,$b.Length)}finally{$s.Close()}",
+        )
+      : (first
+          ? "mkdir -p " + MAC_DATA + " && : > " + macData("library.json.tmp") + " && "
+          : "") +
+        "printf %s '" + part + "' | base64 -D >> " + macData("library.json.tmp"),
+  // Only replace the real file once the copy is complete and valid JSON.
+  commitLibrary: () =>
+    IS_WIN
+      ? winCmd(
+          "$t=" + winData("library.json.tmp") + ";$f=" + winData("library.json") +
+            ";[void]$J.DeserializeObject([IO.File]::ReadAllText($t,$U8));[IO.File]::Copy($t,$f,$true);[IO.File]::Delete($t)",
+        )
+      : "python3 -c 'import json,sys; json.load(open(sys.argv[1]))' " +
+        macData("library.json.tmp") + " && mv " + macData("library.json.tmp") + " " +
+        macData("library.json"),
+  reveal: (path: string) =>
+    IS_WIN
+      ? winCmd(
+          "$p=" + psv(path) +
+            ";if(-not([IO.File]::Exists($p) -or [IO.Directory]::Exists($p))){throw 'file not found'}" +
+            ";$si=[Diagnostics.ProcessStartInfo]::new([IO.Path]::Combine($env:SystemRoot,'explorer.exe'),'/select,\"'+$p+'\"');$si.WorkingDirectory=$env:SystemRoot;$si.UseShellExecute=$false;[void][Diagnostics.Process]::Start($si)",
+        )
+      : "open -R " + q(path),
+  // Keys whose file is gone, one per line.
+  missingFiles: (pairs: [string, string][]) =>
+    IS_WIN
+      ? winCmd(
+          "$L=$J.DeserializeObject(" + psv(JSON.stringify(pairs)) +
+            ");$o=@();foreach($x in $L){$p=[string]$x[1];if(-not([IO.File]::Exists($p) -or [IO.Directory]::Exists($p))){$o+=[string]$x[0]}};W ($o -join \"`n\")",
+        )
+      : "while IFS=$'\\t' read -r k p; do [ -e \"$p\" ] || printf '%s\\n' \"$k\"; done <<'LISTEOF'\n" +
+        pairs.map(([k, p]) => k + "\t" + p).join("\n") +
+        "\nLISTEOF",
+  search: (url: string) =>
+    IS_WIN
+      ? winCmd("$d=$J.DeserializeObject($U8.GetString((FETCH " + psv(url) + " 25)))\n" + WIN_REDUCE)
+      : "curl -s -m 25 " + q(url) + " | python3 -c " + q(REDUCE),
+  waveform: (url: string) =>
+    IS_WIN
+      ? winCmd("$w=$J.DeserializeObject($U8.GetString((FETCH " + psv(url) + " 15)))\n" + WIN_WAVE)
+      : "curl -s -m 15 " + q(url) + " | python3 -c " + q(WAVE),
+  coverArt: (url: string) =>
+    IS_WIN
+      ? winCmd("W ([Convert]::ToBase64String((FETCH " + psv(url) + " 15)))")
+      : "curl -s -m 15 " + q(url) + " | base64 | tr -d '\\n'",
+  scanDownloads: () => (IS_WIN ? winCmd(WIN_SCAN) : SCAN),
+  // Moves src into the library folder without overwriting; prints the new path.
+  moveIntoLibrary: (src: string, lib: string) =>
+    IS_WIN
+      ? winCmd(
+          [
+            "$src=" + psv(src) + ";$lib=" + psv(lib),
+            "if(-not [IO.File]::Exists($src)){throw 'file not found'}",
+            "[void][IO.Directory]::CreateDirectory($lib)",
+            "$base=[IO.Path]::GetFileName($src);$stem=[IO.Path]::GetFileNameWithoutExtension($base);$ext=[IO.Path]::GetExtension($base)",
+            "$dest=[IO.Path]::Combine($lib,$base);$i=1",
+            "while([IO.File]::Exists($dest) -or [IO.Directory]::Exists($dest)){$dest=[IO.Path]::Combine($lib,$stem+'-'+$i+$ext);$i++}",
+            "[IO.File]::Move($src,$dest)",
+            "W $dest",
+          ].join("\n"),
+        )
+      : "set -e\nsrc=" + q(src) + "\nlib=" + q(lib) +
+        '\n[ -f "$src" ] || { echo "file not found" >&2; exit 3; }' +
+        '\nmkdir -p "$lib"\nbase=$(basename "$src")\nstem="${base%.*}"\next="${base##*.}"' +
+        '\ndest="$lib/$base"\ni=1\nwhile [ -e "$dest" ]; do dest="$lib/$stem-$i.$ext"; i=$((i+1)); done' +
+        '\nmv "$src" "$dest"\nprintf %s "$dest"',
+};
 
 // Trims the search payload to what the panel shows, plus the facet lists the
 // filter dropdowns are built from, so it stays inside the shell output limit.
@@ -132,13 +374,6 @@ const WAVE = [
   "print(json.dumps(out))",
 ].join("\n");
 
-// Audio files AND in-progress partials in Downloads, as mtime|size|path.
-const SCAN =
-  'find "$HOME/Downloads" -maxdepth 1 -type f ' +
-  '\\( -iname "*.mp3" -o -iname "*.wav" -o -iname "*.aif" -o -iname "*.aiff" ' +
-  '-o -iname "*.m4a" -o -iname "*.flac" -o -iname "*.aac" -o -iname "*.ogg" ' +
-  '-o -iname "*.opus" -o -iname "*.crdownload" -o -iname "*.part" ' +
-  '-o -iname "*.download" \\) -exec stat -f "%m|%z|%N" {} \\; 2>/dev/null; true';
 
 // Only the progress percentage depends on these; completion does not.
 // MP3 measured across five real Epidemic downloads (19.5k-35.3k B/s);
@@ -311,7 +546,13 @@ const parseResults = (text: string) => {
   const m = String(text || "").match(/\{[\s\S]*\}/);
   if (!m) return out;
   try {
-    const j = JSON.parse(m[0]);
+    let j: any;
+    try {
+      j = JSON.parse(m[0]);
+    } catch {
+      // A Windows path written with single backslashes is not valid JSON.
+      j = JSON.parse(m[0].replace(/\\(?!["\\/])/g, "\\\\"));
+    }
     (Array.isArray(j?.results) ? j.results : []).forEach((r: any) => {
       const n = Number(r?.n);
       if (!n) return;
@@ -609,7 +850,7 @@ export default function Panel({ sdk, context, ui }) {
     (async () => {
       const r = await sdk.runShell({
         summary: "read epidemic sound settings",
-        command: "cat " + SETTINGS_FILE + " 2>/dev/null || true",
+        command: HOST.readData("settings.json"),
         timeoutMs: 15000,
       });
       if (gone) return;
@@ -635,9 +876,7 @@ export default function Panel({ sdk, context, ui }) {
         for (let off = 0; off < 5000000; off += PIECE) {
           const r = await sdk.runShell({
             summary: "read track library",
-            command:
-              "[ -f " + file + " ] && tail -c +" + (off + 1) + " " + file +
-              " | head -c " + PIECE + " | base64 | tr -d '\\n' || true",
+            command: HOST.readDataChunk(file, off, PIECE),
             timeoutMs: 15000,
             maxOutputBytes: 49152,
           });
@@ -685,8 +924,7 @@ export default function Panel({ sdk, context, ui }) {
         try {
           const ls = await sdk.runShell({
             summary: "check library folder",
-            command:
-              "cd " + q(folderAtLoad) + " 2>/dev/null && ls -1 | grep -E '^ES_.*\\.(mp3|wav)$' || true",
+            command: HOST.listLibraryFolder(folderAtLoad),
             timeoutMs: 15000,
             maxOutputBytes: 49152,
           });
@@ -694,7 +932,7 @@ export default function Panel({ sdk, context, ui }) {
             Object.values(libRef.current).map((e) => (e.file || "").toLowerCase()),
           );
           const found = (ls.stdout || "")
-            .split("\n")
+            .split(/\r?\n/)
             .map((x: string) => x.trim())
             .filter((x: string) => x && !known.has(x.toLowerCase()));
           if (found.length && !gone) {
@@ -710,7 +948,7 @@ export default function Panel({ sdk, context, ui }) {
                   len: null,
                   bpm: null,
                   file: name,
-                  path: folderAtLoad.replace(/\/+$/, "") + "/" + name,
+                  path: joinPath(folderAtLoad, name),
                   folder: "Music",
                   kind: "music",
                   mp3: "",
@@ -738,19 +976,12 @@ export default function Panel({ sdk, context, ui }) {
   }, []);
 
   const writeSettings = async (next: Settings) => {
-    const clean = (next.libraryFolder || "").replace(/\/+$/, "") || next.libraryFolder;
+    const clean = trimFolder(next.libraryFolder || "");
     const body = { ...next, libraryFolder: clean };
     const r = await sdk.runShell({
       summary: "save epidemic sound settings",
-      command:
-        'mkdir -p "$HOME/.selects/plugin-data/epidemic-sound-search" && ' +
-        (clean ? "mkdir -p " + q(clean) + " && " : "") +
-        "cat > " +
-        SETTINGS_FILE +
-        " <<'JSONEOF'\n" +
-        JSON.stringify(body) +
-        "\nJSONEOF",
-      timeoutMs: 20000,
+      command: HOST.writeSettings(JSON.stringify(body), clean),
+      timeoutMs: 30000,
     });
     if (!(r.isError || r.exitCode !== 0)) setSettings(body);
     return r;
@@ -768,8 +999,20 @@ export default function Panel({ sdk, context, ui }) {
 
   const markSignedIn = (v: boolean) => updateSettings({ signedIn: v });
 
+  // "~" is not expanded inside quotes, so resolve it here once.
+  const expandHome = async (path: string) => {
+    if (!/^~(?=$|[\\/])/.test(path)) return path;
+    const r = await sdk.runShell({
+      summary: "find home folder",
+      command: HOST.homeDir(),
+      timeoutMs: 20000,
+    });
+    const home = (r.stdout || "").trim();
+    return home && !r.isError && r.exitCode === 0 ? home + path.slice(1) : path;
+  };
+
   const persistFolder = async (folder: string) => {
-    const clean = folder.replace(/\/+$/, "") || folder;
+    const clean = trimFolder(await expandHome(String(folder || "").trim()));
     const r = await writeSettings({ ...settingsRef.current, libraryFolder: clean });
     if (r.isError || r.exitCode !== 0) {
       setErr(r.stderr || r.output || "Could not save the library folder.");
@@ -786,9 +1029,8 @@ export default function Panel({ sdk, context, ui }) {
     try {
       const r = await sdk.runShell({
         summary: "choose library folder",
-        command:
-          "osascript -e 'POSIX path of (choose folder with prompt \"Choose your Epidemic Sound library folder\")'",
-        timeoutMs: 120000,
+        command: HOST.chooseFolder(),
+        timeoutMs: 300000,
       });
       const picked = (r.stdout || "").trim();
       if (r.exitCode !== 0 || !picked) return;
@@ -817,17 +1059,13 @@ export default function Panel({ sdk, context, ui }) {
     } catch {
       return false;
     }
-    const DIR = '"$HOME/.selects/plugin-data/epidemic-sound-search"';
-    const TMP = '"$HOME/.selects/plugin-data/epidemic-sound-search/library.json.tmp"';
     const CHUNK = 8000;
     for (let i = 0; i < b64.length || i === 0; i += CHUNK) {
       const part = b64.slice(i, i + CHUNK);
       const r = await sdk.runShell({
         summary: "save track library",
-        command:
-          (i === 0 ? "mkdir -p " + DIR + " && : > " + TMP + " && " : "") +
-          "printf %s '" + part + "' | base64 -D >> " + TMP,
-        timeoutMs: 20000,
+        command: HOST.writeLibraryChunk(part, i === 0),
+        timeoutMs: 30000,
       });
       if (r.isError || r.exitCode !== 0) return false;
       if (b64.length === 0) break;
@@ -835,11 +1073,8 @@ export default function Panel({ sdk, context, ui }) {
     // Only replace the real file once the copy is complete and valid JSON.
     const done = await sdk.runShell({
       summary: "save track library",
-      command:
-        "python3 -c 'import json,sys; json.load(open(sys.argv[1]))' " +
-        TMP.replace(/^"|"$/g, '"') +
-        " && mv " + TMP + " " + LIBRARY_FILE,
-      timeoutMs: 20000,
+      command: HOST.commitLibrary(),
+      timeoutMs: 30000,
     });
     return !(done.isError || done.exitCode !== 0);
   };
@@ -902,10 +1137,22 @@ export default function Panel({ sdk, context, ui }) {
   };
 
   const revealInFinder = async (path: string) => {
+    // The app's own file-manager reveal (Electron shell), when this build has
+    // it; the shell command is the fallback. Missing files never get here:
+    // the button is disabled for them.
+    try {
+      const rt = (window.parent as any)?.__DI__?.Runtime;
+      if (path && typeof rt?.showItemInFolder === "function") {
+        rt.showItemInFolder(path);
+        return;
+      }
+    } catch {
+      /* fall through to the shell */
+    }
     const r = await sdk.runShell({
-      summary: "show track in Finder",
-      command: "open -R " + q(path),
-      timeoutMs: 15000,
+      summary: IS_WIN ? "show track in File Explorer" : "show track in Finder",
+      command: HOST.reveal(path),
+      timeoutMs: 20000,
     });
     if (r.isError || r.exitCode !== 0) setErr("Could not find that file on disk.");
   };
@@ -930,19 +1177,15 @@ export default function Panel({ sdk, context, ui }) {
     }
     let cancelled = false;
     (async () => {
-      const list = entries.map(([k, e]) => k + "\t" + e.path).join("\n");
       const r = await sdk.runShell({
         summary: "check saved track files",
-        command:
-          "while IFS=$'\\t' read -r k p; do [ -e \"$p\" ] || printf '%s\\n' \"$k\"; done <<'LISTEOF'\n" +
-          list +
-          "\nLISTEOF",
-        timeoutMs: 20000,
+        command: HOST.missingFiles(entries.map(([k, e]) => [k, e.path] as [string, string])),
+        timeoutMs: 30000,
       });
       if (cancelled || r.isError) return;
       const gone: Record<string, boolean> = {};
       (r.stdout || "")
-        .split("\n")
+        .split(/\r?\n/)
         .map((s: string) => s.trim())
         .filter(Boolean)
         .forEach((k: string) => (gone[k] = true));
@@ -1040,9 +1283,8 @@ export default function Panel({ sdk, context, ui }) {
   ) => {
     const r = await sdk.runShell({
       summary: "browse epidemic sound",
-      command:
-        "curl -s -m 25 " + q(buildUrl(pageNum, o)) + " | python3 -c " + q(REDUCE),
-      timeoutMs: 40000,
+      command: HOST.search(buildUrl(pageNum, o)),
+      timeoutMs: 45000,
     });
     if (r.isError || r.exitCode !== 0)
       throw new Error(r.stderr || r.output || "Search failed.");
@@ -1256,8 +1498,8 @@ export default function Panel({ sdk, context, ui }) {
     try {
       const r = await sdk.runShell({
         summary: "fetch waveform",
-        command: "curl -s -m 15 " + q(wf) + " | python3 -c " + q(WAVE),
-        timeoutMs: 25000,
+        command: HOST.waveform(wf),
+        timeoutMs: 30000,
       });
       const arr = JSON.parse((r.stdout || "[]").trim() || "[]");
       if (Array.isArray(arr) && arr.length) {
@@ -1339,8 +1581,8 @@ export default function Panel({ sdk, context, ui }) {
     try {
       const r = await sdk.runShell({
         summary: "fetch cover art",
-        command: "curl -s -m 15 " + q(img) + " | base64 | tr -d '\\n'",
-        timeoutMs: 25000,
+        command: HOST.coverArt(img),
+        timeoutMs: 30000,
       });
       const b64 = (r.stdout || "").trim();
       if (!r.isError && b64.length > 64 && b64.length < 400000) {
@@ -1479,11 +1721,11 @@ export default function Panel({ sdk, context, ui }) {
   const listDownloads = async () => {
     const r = await sdk.runShell({
       summary: "scan downloads folder",
-      command: SCAN,
-      timeoutMs: 20000,
+      command: HOST.scanDownloads(),
+      timeoutMs: 30000,
     });
     const out = new Map<string, { mtime: number; size: number }>();
-    for (const line of (r.stdout || "").split("\n")) {
+    for (const line of (r.stdout || "").split(/\r?\n/)) {
       const f = line.split("|");
       if (f.length < 3) continue;
       out.set(f.slice(2).join("|"), {
@@ -1501,21 +1743,13 @@ export default function Panel({ sdk, context, ui }) {
     kindHint: string,
     hit?: Hit,
   ): Promise<{ ok: boolean; key: string; why?: string }> => {
-    const base = src.split("/").pop() || src;
+    const base = baseName(src) || src;
     if (!AUDIO_EXT.test(base)) {
       return { ok: false, key: "", why: "not an audio file" };
     }
     const move = await sdk.runShell({
       summary: "move download into library",
-      command:
-        "set -e\nsrc=" +
-        q(src) +
-        "\nlib=" +
-        q(settingsRef.current.libraryFolder) +
-        '\n[ -f "$src" ] || { echo "file not found" >&2; exit 3; }' +
-        '\nmkdir -p "$lib"\nbase=$(basename "$src")\nstem="${base%.*}"\next="${base##*.}"' +
-        '\ndest="$lib/$base"\ni=1\nwhile [ -e "$dest" ]; do dest="$lib/$stem-$i.$ext"; i=$((i+1)); done' +
-        '\nmv "$src" "$dest"\nprintf %s "$dest"',
+      command: HOST.moveIntoLibrary(src, settingsRef.current.libraryFolder),
       timeoutMs: 120000,
     });
     if (move.isError || move.exitCode !== 0) {
@@ -1523,7 +1757,7 @@ export default function Panel({ sdk, context, ui }) {
     }
     seen.current.add(src);
     const dest = (move.stdout || "").trim();
-    const name = dest.split("/").pop() || base;
+    const name = baseName(dest) || base;
     const parsed = parseFileName(name);
     const k = kindHint === "sfx" ? "sfx" : "music";
     const key = hit?.slug || name;
@@ -1604,7 +1838,7 @@ export default function Panel({ sdk, context, ui }) {
           const prev = lastSize.get(path);
           lastSize.set(path, info.size);
           if (!info.size || prev !== info.size) continue; // not settled yet
-          const base = norm(path.split("/").pop() || "");
+          const base = norm(baseName(path));
           const h = todo.find((x) => !early.has(x.slug) && norm(x.title) && base.includes(norm(x.title)));
           if (!h) continue;
           early.set(h.slug, false);
@@ -1726,7 +1960,7 @@ export default function Panel({ sdk, context, ui }) {
         if (!src) {
           const t = norm(h.title);
           src =
-            fresh.find((p) => !claimed.has(p) && t && norm(p.split("/").pop() || "").includes(t)) ||
+            fresh.find((p) => !claimed.has(p) && t && norm(baseName(p)).includes(t)) ||
             (todo.length === 1 && fresh.length === 1 ? fresh[0] : "");
         }
         if (!src) {
@@ -1977,7 +2211,7 @@ export default function Panel({ sdk, context, ui }) {
           seen.current.add(path);
           sizes.current.delete(path);
           const out = await fileOne(path, settingsRef.current.autoKind);
-          const name = path.split("/").pop() || path;
+          const name = baseName(path) || path;
           addLog({
             name,
             ok: out.ok,
@@ -2579,7 +2813,7 @@ export default function Panel({ sdk, context, ui }) {
                   <ui.Actions>
                     <ui.IconButton
                       icon="folder"
-                      label="Show in Finder"
+                      label={IS_WIN ? "Show in File Explorer" : "Show in Finder"}
                       disabled={!e.path || !!missing[key]}
                       onClick={() => revealInFinder(e.path)}
                     />
@@ -2629,7 +2863,7 @@ export default function Panel({ sdk, context, ui }) {
           label="Every track is saved here"
           value={libDraft}
           onChange={setLibDraft}
-          placeholder="~/Music/Epidemic Sound"
+          placeholder={IS_WIN ? "~\\Music\\Epidemic Sound" : "~/Music/Epidemic Sound"}
         />
         <ui.Actions>
           <ui.Button variant="ghost" busy={busy === "folder"} onClick={chooseFolder}>
