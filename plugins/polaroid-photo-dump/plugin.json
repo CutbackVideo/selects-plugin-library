@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "id": "polaroid-photo-dump",
+  "version": "0.1.0",
+  "name": "Polaroid Photo Dump",
+  "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "VALIDATION.md",
+    "operation.mjs",
+    "build-script.mjs",
+    "panel.tsx",
+    "assets/manifest.json",
+    "assets/frame-v1.png.b64",
+    "assets/music-v2.m4a.b64"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal and Camera Shutter Dump), transparent PNG Image clips, public clip effects, motion graphics and Audio overlays, and Node.js in the panel shell. Verified in Selects Staging and a local develop build on 2026-09-30: saved Draft readback and FHD export."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  },
+  "localized": {
+    "de": {
+      "name": "Polaroid Photo Dump",
+      "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
+    },
+    "en": {
+      "name": "Polaroid Photo Dump",
+      "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
+    },
+    "es": {
+      "name": "Polaroid Photo Dump",
+      "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
+    },
+    "fr": {
+      "name": "Polaroid Photo Dump",
+      "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
+    },
+    "it": {
+      "name": "Polaroid Photo Dump",
+      "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
+    },
+    "ja": {
+      "name": "Polaroid Photo Dump",
+      "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
+    },
+    "ko": {
+      "name": "Polaroid Photo Dump",
+      "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
+    },
+    "pt": {
+      "name": "Polaroid Photo Dump",
+      "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
+    },
+    "tr": {
+      "name": "Polaroid Photo Dump",
+      "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
+    },
+    "zh": {
+      "name": "Polaroid Photo Dump",
+      "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
+    }
+  }
+}
