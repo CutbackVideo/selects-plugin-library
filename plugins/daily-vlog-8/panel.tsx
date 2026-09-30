@@ -516,19 +516,33 @@ export default function Panel({ sdk, context, ui }) {
   const [status, setStatus] = React.useState("");
   const [error, setError] = React.useState("");
 
-  // Fill only the empty slots, drawing at random from clips long enough for each one.
+  // Take the shortest clip in the bag that is still long enough for one slot.
+  // Ties keep the shuffled order, so equal-length clips are still chosen at random.
+  function takeShortestFitting(bag, need) {
+    let best = -1;
+    for (let i = 0; i < bag.length; i++) {
+      if (bag[i].duration + 0.01 < need) continue;
+      if (best < 0 || bag[i].duration < bag[best].duration) best = i;
+    }
+    if (best < 0) return null;
+    return bag.splice(best, 1)[0];
+  }
+
+  // Fill only the empty slots. The longest slot is served first and each slot takes
+  // the shortest clip that still fits, so a long clip is never spent on a short slot
+  // while a longer slot is left with nothing that reaches its length.
   function fillEmpty(current, headId, list) {
     const used = new Set(current.filter(Boolean));
     const bag = list.filter(x => x.id !== headId && !used.has(x.id));
     for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = bag[i]; bag[i] = bag[j]; bag[j] = tmp; }
-    return current.map((value, slot) => {
-      if (value) return value;
-      const k = bag.findIndex(x => x.duration + 0.01 >= DURATIONS[slot + 1]);
-      if (k < 0) return null;
-      const got = bag[k].id;
-      bag.splice(k, 1);
-      return got;
-    });
+    const order = current.map((value, slot) => slot).filter(slot => !current[slot])
+      .sort((a, b) => DURATIONS[b + 1] - DURATIONS[a + 1]);
+    const out = current.slice();
+    for (const slot of order) {
+      const got = takeShortestFitting(bag, DURATIONS[slot + 1]);
+      out[slot] = got ? got.id : null;
+    }
+    return out;
   }
 
   function autofill(list, headId) {
@@ -662,16 +676,18 @@ return videos;`;
       const usedIds = new Set(selectedIds.filter(Boolean));
       const spare = pool.filter(x => !usedIds.has(x.id));
       for (let i = spare.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = spare[i]; spare[i] = spare[j]; spare[j] = tmp; }
-      const extraInputs = SHOT_PLAN.filter(s => s.extra !== undefined)
-        .sort((a, b) => a.extra - b.extra)
-        .map(s => {
-          const need = s.frames * 1001 / 30000;
-          const k = spare.findIndex(x => x.duration + 0.01 >= need);
-          if (k >= 0) { const got = spare[k].id; spare.splice(k, 1); usedIds.add(got); return { id: got, path: null }; }
-          const neighbour = selectedIds[s.fallback];
-          const alt = pool.find(x => x.id !== neighbour && x.duration + 0.01 >= need);
-          return { id: alt ? alt.id : null, path: null };
-        });
+      const insertPlan = SHOT_PLAN.filter(s => s.extra !== undefined);
+      const extraIds = [];
+      for (const s of insertPlan.slice().sort((a, b) => b.frames - a.frames)) {
+        const need = s.frames * 1001 / 30000;
+        const got = takeShortestFitting(spare, need);
+        if (got) { usedIds.add(got.id); extraIds[s.extra] = got.id; continue; }
+        const neighbour = selectedIds[s.fallback];
+        const alt = pool.find(x => x.id !== neighbour && x.duration + 0.01 >= need);
+        extraIds[s.extra] = alt ? alt.id : null;
+      }
+      const extraInputs = insertPlan.sort((a, b) => a.extra - b.extra)
+        .map(s => ({ id: extraIds[s.extra] || null, path: null }));
       const draftName = "8-Clip Daily Vlog \u2014 " + new Date().toLocaleString();
       const script = `
 const project=selects.project(${JSON.stringify(context.projectId)});

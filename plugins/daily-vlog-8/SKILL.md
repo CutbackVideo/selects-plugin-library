@@ -12,7 +12,13 @@ Open a project, then use the **8-Clip Daily Vlog** panel.
 2. **Yellow title clip** — pick the one opening clip that carries the animated yellow title.
    Only clips of 4.3 seconds or longer qualify.
 3. **The other seven** — filled at random from the same folder. Press **Shuffle again** for a
-   new draw, or expand **Choose them myself** to set slots by hand; a clip may repeat.
+   new draw, or expand **Choose them myself** to set slots by hand.
+
+Each position has its own required length, so the panel matches clips to lengths rather than
+drawing blindly: the longest position is served first and takes the shortest clip that still
+reaches it. That keeps a long clip from being spent on a short position while a longer one is
+left with nothing that fits, which is why a draw succeeds whenever the folder can satisfy the
+plan at all.
 
 Press **Create vlog Draft**. The panel writes a new editable Draft: the animated title over the
 opening clip, then the remaining shots on a fixed cut plan, with transition, shutter and typing
