@@ -3,7 +3,7 @@ const fs = require('node:fs'), path = require('node:path'), vm = require('node:v
 const root = path.resolve(__dirname, '..');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
 vm.createContext(box);
-vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={stAllocate,stPlanBuild,stFillers,stHash,stMixHash,stWindow,stProgress,stPhotoMotions,stSchedule,stFrameSchedule,ST_BUILD_STEPS,ST_MONTAGE_ROLES,ST_FILLER_MAX};', box);
+vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={stAllocate,stPlanBuild,stFillers,stHash,stMixHash,stWindow,stProgress,stPhotoMotions,stSchedule,stFrameSchedule,stSignals,ST_BUILD_STEPS,ST_MONTAGE_ROLES,ST_FILLER_MAX,ST_SIGNAL_QUERIES,ST_QUERIES};', box);
 const P = box.P, j = v => JSON.parse(JSON.stringify(v));
 let checks = 0;
 const eq = (a, b, m) => { assert.deepEqual(j(a), j(b), m); checks++; };
@@ -297,4 +297,74 @@ console.log(JSON.stringify({ allocate: 'ok', checks }));
   }
   ok(opens.size >= 3, 'six seeds give at least three different openings (' + opens.size + ')');
   ok(P.stMixHash('1:fixed:r0') !== P.stMixHash('1:fixed:r1') && Math.abs(P.stMixHash('1:fixed:r0') - P.stMixHash('1:fixed:r1')) > 0.01, 'mixed hash spreads neighbouring rids');
+}
+
+// Signal queries (avoid / motion): their hits are never shots; avoid keeps night and sunset moments out of the opener,
+// place, grid and montage (they wait for the ending); motion is a small tie-break bonus. Guarantees are unchanged.
+{
+  eq(Object.keys(P.ST_SIGNAL_QUERIES), ['avoid', 'motion']);
+  ok(Object.keys(P.ST_SIGNAL_QUERIES).every(k => !(k in P.ST_QUERIES)), 'signals are not shot roles');
+  // No signal hits, or only weak avoid hits (under the floor): exactly today's plan for every seed.
+  const weak = [];
+  for (let r = 0; r < 12; r++) weak.push({ rid: 'r' + String(r).padStart(2, '0'), role: 'avoid', t: 5 + r * 0.1, score: 0.2, sourceDuration: 30 });
+  for (const seed of ['s1', 's2', 's3']) eq(build(rich.concat(weak), { seed }).picks, build(rich, { seed }).picks, 'weak avoid hits change nothing @' + seed);
+  // An avoid hit that does not beat the clip's own day hits nearby is not strong.
+  const sg = P.stSignals([{ rid: 'a', role: 'beach', t: 5, score: 0.55 }, { rid: 'a', role: 'avoid', t: 5.5, score: 0.4 }, { rid: 'a', role: 'avoid', t: 12, score: 0.4 }],
+    [{ rid: 'a', role: 'beach', t: 5, score: 0.55 }, { rid: 'a', role: 'filler', t: 12.25, score: -2 }, { rid: 'a', role: 'filler', t: 14, score: -2 }]);
+  eq([...sg.avoided].map(c => c.t), [12.25], 'local: only the moment near the unmatched avoid hit');
+  // A clip whose best avoid hit beats its best day hit is avoided throughout (every moment, fillers included).
+  const whole = P.stSignals([{ rid: 'n', role: 'town', t: 5, score: 0.3 }, { rid: 'n', role: 'avoid', t: 9, score: 0.45 }, { rid: 'n', role: 'ending', t: 9, score: 0.6 }],
+    [{ rid: 'n', role: 'town', t: 5, score: 0.3 }, { rid: 'n', role: 'filler', t: 20, score: -2 }]);
+  eq(whole.avoided.size, 2, 'avoid-dominated clip (the ending role does not count as a day hit)');
+
+  // 8 day clips + 2 night clips whose day-role scores are the HIGHEST (the night clips would lead the opening).
+  const day = [], night = [];
+  for (let r = 0; r < 8; r++) for (const role of roles) for (const t of [5, 20]) day.push({ rid: 'd' + r, role, t: t + r * 0.1, score: 0.35 + (r % 4) / 100, sourceDuration: 30 });
+  for (const rid of ['n0', 'n1']) {
+    for (const role of roles) for (const t of [5, 20]) night.push({ rid, role, t, score: role === 'ending' ? 0.5 : 0.42, sourceDuration: 30 });
+    for (const t of [3, 8, 13, 18, 23, 27]) night.push({ rid, role: 'avoid', t, score: 0.48, sourceDuration: 30 });
+  }
+  const nightIn = (plan, pred) => plan.picks.main.filter((p, i) => pred(i)).concat(pred(-1) ? plan.picks.grid : []).filter(p => p.rid[0] === 'n').length;
+  for (const seed of ['s1', 's2', 's3', 's4']) {
+    const before = build(day.concat(night.filter(c => c.role !== 'avoid')), { seed });
+    const after = build(day.concat(night), { seed });
+    checkPlan(after, day.concat(night), 30, 'avoid ' + seed);
+    const n = after.montageShots;
+    ok(nightIn(before, i => i === -1 || i < 2) > 0, 'without signals a night clip leads the opening @' + seed);
+    eq(nightIn(after, i => i === -1 || i < 2), 0, 'avoided: no night clip in the opener, place or grid @' + seed);
+    eq(nightIn(after, i => i >= 2 && i < 2 + n), 0, 'avoided: no night clip in the montage while day clips remain @' + seed);
+    ok(nightIn(after, i => i >= 2 + n) > 0, 'night / sunset clips go to the ending @' + seed);
+    eq(after.montageShots, before.montageShots, 'same length');
+  }
+  // Only avoided footage left: it is still used (the rule is a ranking, never a hole).
+  const onlyNight = [];
+  for (let r = 0; r < 7; r++) {
+    for (const role of roles) for (const t of [5, 20]) onlyNight.push({ rid: 'n' + r, role, t, score: 0.3, sourceDuration: 30 });
+    onlyNight.push({ rid: 'n' + r, role: 'avoid', t: 10, score: 0.5, sourceDuration: 30 });
+  }
+  checkPlan(build(onlyNight), onlyNight, 30, 'only night footage');
+
+  // Motion: a tie-break toward moving moments (scaled by the run's best motion hit), never over a role tier or use.
+  const mv = P.stSignals([{ rid: 'a', role: 'motion', t: 5, score: 0.4 }, { rid: 'b', role: 'motion', t: 5, score: 0.2 }],
+    [{ rid: 'a', role: 'street', t: 5.5, score: 0.3 }, { rid: 'b', role: 'street', t: 5.2, score: 0.3 }, { rid: 'a', role: 'street', t: 9, score: 0.3 }]);
+  eq([...mv.motion.values()].map(v => Math.round(v * 1e4) / 1e4), [0.03, 0.015], 'bonus = 0.03 x score / best motion hit, only within reach');
+  const two = [];
+  for (let r = 0; r < 8; r++) for (const role of roles) for (const t of [5, 20]) two.push({ rid: 'c' + r, role, t, score: 0.4, sourceDuration: 30 });
+  const plain = build(two, { seed: 'm' });
+  const moving = [];
+  for (let r = 0; r < 8; r++) moving.push({ rid: 'c' + r, role: 'motion', t: 20, score: 0.45, sourceDuration: 30 });
+  const withMotion = build(two.concat(moving), { seed: 'm' });
+  checkPlan(withMotion, two.concat(moving), 30, 'motion');
+  // Each clip's first pick (allocation order: opener, place, grid, montage, ending) takes its moving moment.
+  const firstAt20 = plan => {
+    const seen = new Set();
+    return plan.picks.main.slice(0, 2).concat(plan.picks.grid, plan.picks.main.slice(2)).filter(p => !seen.has(p.rid) && seen.add(p.rid))
+      .filter(p => p.kind === 'video' && Math.abs((p.startSeconds + p.endSeconds) / 2 - 20) < 1.1).length;
+  };
+  ok(firstAt20(withMotion) === 8 && firstAt20(plain) < 8, 'moving moments win ties (' + firstAt20(plain) + ' -> ' + firstAt20(withMotion) + ' of 8)');
+  // The bonus never outranks a role tier: a better-matching role still wins over a moving moment of a weaker role.
+  const tierCase = [{ rid: 'x', role: 'street', t: 5, score: 0.3, sourceDuration: 30 }, { rid: 'x', role: 'food', t: 20, score: 0.3, sourceDuration: 30 }, { rid: 'x', role: 'motion', t: 20, score: 0.5, sourceDuration: 30 }];
+  const al = P.stAllocate({ candidates: tierCase, slots: [{ index: 0, track: 'main', section: 'montage', role: 'street', frames: 30, seconds: 1 }], fps: 30, seed: 'q' });
+  ok(Math.abs(al.picks[0].startSeconds - 4.5) < 1e-9, 'role tier before the motion bonus');
+  console.log(JSON.stringify({ signals: 'ok' }));
 }

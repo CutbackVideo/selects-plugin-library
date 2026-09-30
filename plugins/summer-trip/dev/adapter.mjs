@@ -19,6 +19,7 @@
 //   creditPrefix, creditName
 //   clipSound  'off' | 'ambient' | 'full'      gridSound 'volume' | 'routing' | 'none'
 //   look (bool), lookStrength, leakStrength, sfx (bool), muffle (bool), usePhotos (bool), only ([rid] = Choose clips)
+//   introDuckDb  dB of the dry music under the title, rising to 0 on the drop frame (default -7 as in the panel; 0 = off)
 //   fps        planning fps guess (default: the last real fps seen, else 30)
 //   draftName  full override; default "SUMMER test <key> <music> <preset> <length>[ seed N]"
 // String values may use ${ENV} placeholders (for example "pid": "${ST_PID}", "music": { "own": "${ST_OWN_MUSIC}" }).
@@ -34,7 +35,8 @@ import { stVisibleEvents, stEvalCuts, stExpectations, stKitExpectations, ST_W, S
 export const ROW_DEFAULTS = {
   music: 'default', section: 'default', length: 'standard', preset: 'summer',
   line1: 'that one trip in', season: '@suggest', place: '', placePrefix: 'in', topMain: '@season', topItalic: 'VLOG', creditPrefix: 'By', creditName: '',
-  clipSound: 'ambient', gridSound: 'volume', look: true, lookStrength: 0.3, leakStrength: 1, sfx: false, muffle: true, usePhotos: true, only: null,
+  clipSound: 'ambient', gridSound: 'volume', look: true, lookStrength: 0.45, leakStrength: 1, sfx: false, muffle: true, usePhotos: true, only: null,
+  introDuckDb: -7,
 };
 // Panel constants the driver must share with panel.tsx (report any difference to the panel lane).
 export const ST_PANEL = {
@@ -43,6 +45,7 @@ export const ST_PANEL = {
   FILM_WINDOW: { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 },
   TIME_ORIGIN: 'clip',
   MOTION_STRENGTH: 1,
+  VIDEO_MOTION_STRENGTH: 1,
   MOTION_OPTIONS: [
     { label: 'Push in', value: 'push-in' }, { label: 'Pull out', value: 'pull-out' },
     { label: 'Drift left', value: 'drift-left' }, { label: 'Drift right', value: 'drift-right' },
@@ -253,7 +256,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
 
     search(r0, rids) {
       const row = expandEnv(r0);
-      return { summary: 'Search travel shots', script: 'scripts/search.js', config: { projectId: row.pid, rids, queries: j(P.ST_QUERIES), pageSize: ST_PANEL.SEARCH_PAGE } };
+      return { summary: 'Search travel shots', script: 'scripts/search.js', config: { projectId: row.pid, rids, queries: j({ ...P.ST_QUERIES, ...P.ST_SIGNAL_QUERIES }), pageSize: ST_PANEL.SEARCH_PAGE } };
     },
 
     // Pure apart from own-music analysis (cached). Throws when the plan is not buildable (the panel's disabled Build).
@@ -335,7 +338,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
         projectId: s.row.pid, draftName: s.draftName, fps: s.fpsGuess, W: ST_W, H: ST_H,
         beats: { bpm: m.grid.bpm, delta: plan.frames.delta, snaps: plan.frames.snaps },
         schedule: plan.schedule, picks: { main, grid }, sizes: s.sizes, music, crossfadeFrames: null,
-        clipSound: s.row.clipSound, ambientDb: ST_PANEL.AMBIENT_DB, gridSound: s.row.gridSound, sfx,
+        clipSound: s.row.clipSound, ambientDb: ST_PANEL.AMBIENT_DB, gridSound: s.row.gridSound, sfx, introDuckDb: Number(s.row.introDuckDb) || 0,
       };
     },
 
@@ -389,6 +392,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
         gridPanel: { tsx: tsx('grid-panel') },
         filmFrame: { tsx: tsx('film-frame'), window: { ...ST_PANEL.FILM_WINDOW }, leakStrength: row.leakStrength, timeOrigin: ST_PANEL.TIME_ORIGIN },
         motion: { tsx: tsx('photo-motion'), strength: ST_PANEL.MOTION_STRENGTH, options: ST_PANEL.MOTION_OPTIONS, byClipIndex },
+        videoMotion: { tsx: tsx('video-motion'), strength: ST_PANEL.VIDEO_MOTION_STRENGTH },
         endingMotion: s.plan.endingMotion || {},
         photos,
       };
@@ -405,9 +409,9 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
       const musicOn = s.music.kind !== 'none';
       return stExpectations({
         frames: a.frames, fps: a.fps, placed: a.placed, gridPlaced: a.gridPlaced, sizes: a.sizes || s.sizes,
-        motionIndexes: Object.keys(s.plan.motions || {}), look: !!s.row.look, clipSound: s.row.clipSound, ambientDb: ST_PANEL.AMBIENT_DB, gridSound: s.row.gridSound,
+        motionIndexes: Object.keys(s.plan.motions || {}), videoMotion: true, look: !!s.row.look, clipSound: s.row.clipSound, ambientDb: ST_PANEL.AMBIENT_DB, gridSound: s.row.gridSound,
         // The requested muffle, not what assemble managed: a skipped muffle must fail the check.
-        music: musicOn ? { dryId: ids[k.dry], wetId: s.row.muffle ? (ids[k.wet] || 'missing-muffled-copy') : null } : null,
+        music: musicOn ? { dryId: ids[k.dry], wetId: s.row.muffle ? (ids[k.wet] || 'missing-muffled-copy') : null, introDuckDb: Number(s.row.introDuckDb) || 0 } : null,
         sfx: s.sfxConfig ? { shutterIds: s.sfxConfig.shutter, shutterSeconds: s.sfxConfig.shutterSeconds, whooshId: s.sfxConfig.whoosh, whooshSeconds: s.sfxConfig.whooshSeconds } : null,
       });
     },

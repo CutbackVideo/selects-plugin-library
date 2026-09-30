@@ -37,8 +37,10 @@ function mockProject({ adoptFps = null, audioRids = [] } = {}) {
       setAudioTracks: async x => { let n = 0; for (const c of clips) if (c.trackKind === 'main' && c.endFrame > x.target.a && c.startFrame < x.target.b) { c.audioSourceIndexes = []; n++; } return { opCount: n }; },
       setClipAudio: async x => {
         const a = audio[x.clip.clipId] = audio[x.clip.clipId] || {};
+        if (x.volumeDb != null && x.volumeKeys) throw Error('provide volumeDb or volumeKeys, not both');
         for (const k of ['volumeDb', 'fadeInSeconds', 'fadeOutSeconds']) if (x[k] != null) a[k] = x[k];
-        return { volumeDb: a.volumeDb ?? 0, fadeInSeconds: a.fadeInSeconds || 0, fadeOutSeconds: a.fadeOutSeconds || 0, diff: { opCount: 1 } };
+        if (x.volumeKeys) { a.volumeKeys = x.volumeKeys.map(k => ({ ...k })); delete a.volumeDb; }
+        return { volumeDb: a.volumeKeys ? null : a.volumeDb ?? 0, volumeKeys: a.volumeKeys || [], fadeInSeconds: a.fadeInSeconds || 0, fadeOutSeconds: a.fadeOutSeconds || 0, diff: { opCount: 1 } };
       },
       addMotionGraphic: async x => { graphics.push({ name: x.label, clip: { startFrame: x.within.a, endFrame: x.within.b }, x }); return {}; },
       motionGraphics: async () => graphics.map(g => ({ name: g.name, clip: g.clip })),
@@ -59,7 +61,7 @@ function readbackOf(m, fps) {
     .map(c => ({ rid: c.resourceId, s: c.startFrame, e: c.endFrame, asi: c.audioSourceIndexes, fx: (m.effects[c.clipId] || []).map(e => e.name) }));
   const video = m.clips.filter(c => c.trackKind === 'video').map(c => ({ rid: c.resourceId, s: c.startFrame, e: c.endFrame, asi: c.audioSourceIndexes,
     fx: (m.effects[c.clipId] || []).map(e => e.name), t: m.transforms[c.clipId] || null }));
-  const levels = m.clips.map(c => { const a = m.audio[c.clipId] || {}; return { kind: c.trackKind, rid: c.resourceId, s: c.startFrame, e: c.endFrame, db: a.volumeDb ?? 0, fadeIn: a.fadeInSeconds || 0, fadeOut: a.fadeOutSeconds || 0 }; });
+  const levels = m.clips.map(c => { const a = m.audio[c.clipId] || {}; return { kind: c.trackKind, rid: c.resourceId, s: c.startFrame, e: c.endFrame, db: a.volumeKeys ? null : a.volumeDb ?? 0, keys: a.volumeKeys || [], fadeIn: a.fadeInSeconds || 0, fadeOut: a.fadeOutSeconds || 0 }; });
   return { frameSize: { width: 1920, height: 1080 }, fps, rows, graphics: m.graphics.map(g => ({ name: g.name, clip: g.clip })), hasAudio: {}, st: { video, levels } };
 }
 
@@ -98,7 +100,7 @@ function readbackOf(m, fps) {
   assert.equal(invStep.script, 'scripts/inventory.js');
   assert.deepEqual(invStep.config, { projectId: 'P', only: null, known: {}, measureMs: 0, probeMs: 0 });
   const sStep = A.search({ pid: 'P' }, ['v0', 'v1']);
-  assert.deepEqual(Object.keys(sStep.config.queries), roles);
+  assert.deepEqual(Object.keys(sStep.config.queries), [...roles, 'avoid', 'motion'], 'the roles and the two signal queries');
   assert.equal(A.searchBatch, ST_PANEL.SEARCH_BATCH);
 
   // ---- 1. Bundled-style cue, sound effects on, Draft at 29.97 fps (planned at 30).
@@ -132,7 +134,7 @@ function readbackOf(m, fps) {
   const aStep = A.assemble(s, { ids, imported: Object.keys(ids), missing: [] });
   const ac = aStep.config;
   assert.equal(aStep.script, 'scripts/assemble.js');
-  assert.deepEqual(Object.keys(ac).sort(), ['H', 'W', 'ambientDb', 'beats', 'clipSound', 'crossfadeFrames', 'draftName', 'fps', 'gridSound', 'music', 'picks', 'projectId', 'schedule', 'sfx', 'sizes'].sort());
+  assert.deepEqual(Object.keys(ac).sort(), ['H', 'W', 'ambientDb', 'beats', 'clipSound', 'crossfadeFrames', 'draftName', 'fps', 'gridSound', 'introDuckDb', 'music', 'picks', 'projectId', 'schedule', 'sfx', 'sizes'].sort());
   assert.equal(ac.W, 1920); assert.equal(ac.H, 1080); assert.equal(ac.fps, 30);
   assert.deepEqual(Object.keys(ac.beats).sort(), ['bpm', 'delta', 'snaps']);
   assert.deepEqual(ac.beats.snaps, {}, 'bundled cues never snap');
@@ -142,6 +144,7 @@ function readbackOf(m, fps) {
   assert.deepEqual(ac.music, { resourceId: 'm1', sectionStart: s.music.sectionStart, wetResourceId: 'w1' });
   assert.deepEqual(ac.sfx, { shutter: ['s1', 's2', 's3', 's4'], shutterSeconds: [0.17, 0.171, 0.171, 0.17], whoosh: 'wh', whooshSeconds: 0.864 });
   assert.equal(ac.clipSound, 'ambient'); assert.equal(ac.ambientDb, -18); assert.equal(ac.gridSound, 'volume');
+  assert.equal(ac.introDuckDb, -7, 'intro lift on by default, as in the panel'); assert.equal(ROW_DEFAULTS.introDuckDb, -7);
 
   // Run the real assemble.js: the Draft adopts 29.97 fps, so the script re-lays at the real rate.
   const mock = mockProject({ adoptFps: 29.97, audioRids: Object.values(ids) });
@@ -155,12 +158,13 @@ function readbackOf(m, fps) {
   m1.reopen();
   const dStep = A.decorate(s, a);
   const dc = dStep.config;
-  assert.deepEqual(Object.keys(dc).sort(), ['endingMotion', 'filmFrame', 'fps', 'frames', 'gridPanel', 'gridPlaced', 'gridSound', 'labels', 'look', 'motion', 'mute', 'photos', 'placed', 'sequenceId', 'sizes', 'title'].sort());
+  assert.deepEqual(Object.keys(dc).sort(), ['endingMotion', 'filmFrame', 'fps', 'frames', 'gridPanel', 'gridPlaced', 'gridSound', 'labels', 'look', 'motion', 'mute', 'photos', 'placed', 'sequenceId', 'sizes', 'title', 'videoMotion'].sort());
   assert.deepEqual(dc.filmFrame.window, { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 });
-  assert.equal(dc.look.strength, 0.3);
+  assert.equal(dc.look.strength, 0.45);
   const F = b => (b === 0 ? 0 : Math.round((b * 60 / 120 + a.frames.delta) * 29.97));
-  assert.deepEqual(dc.title.parameters.wordTimes, [0, 1, 2, 3].map(b => F(b) / 29.97), 'title words on beats 0-3 at the real fps');
-  assert.equal(dc.title.parameters.seasonPartTime, F(4) / 29.97);
+  assert.deepEqual(dc.title.parameters.wordTimes, [0.5, 1.5, 2.5, 3.5].map(b => F(b) / 29.97), 'title words on beats 0.5-3.5 at the real fps');
+  assert.equal(dc.title.parameters.seasonPartTime, F(5) / 29.97);
+  assert.equal(dc.title.parameters.seasonFullTime, F(6) / 29.97);
   assert.equal(dc.title.parameters.seasonPartLength, 3);
   assert.equal(dc.title.parameters.creditName, 'Quincy');
   assert.deepEqual(Object.keys(dc.title.parameters.fonts).sort(), ['ST Poppins Black', 'ST Poppins Bold', 'ST Poppins Light', 'ST Poppins Light Italic'], 'the title embeds its four Summer faces');
@@ -225,6 +229,15 @@ function readbackOf(m, fps) {
   const noSfx = JSON.parse(JSON.stringify(rb));
   noSfx.st.levels = noSfx.st.levels.filter(l => l.rid !== 'wh');
   assert.equal(stCheck(noSfx, exp).checks.sfx, false);
+  // The dry music carries the intro lift (keyed, no constant level); a flat dry or a lift on the wrong frame fails.
+  assert.deepEqual(exp.music.dry.keys.map(k => [Math.round(k.atSeconds * a.fps), k.volumeDb]), [[0, -7], [F(8) - 1, -7], [F(8), 0]]);
+  assert.equal(exp.music.wet.keys, undefined);
+  const flat = JSON.parse(JSON.stringify(rb));
+  Object.assign(flat.st.levels.find(l => l.rid === 'm1'), { db: 0, keys: [] });
+  assert.equal(stCheck(flat, exp).checks.music, false);
+  const late = JSON.parse(JSON.stringify(rb));
+  late.st.levels.find(l => l.rid === 'm1').keys[2].atSeconds += 2 / a.fps;
+  assert.equal(stCheck(late, exp).checks.music, false);
 
   const rec = A.record(s, a);
   assert.deepEqual(rec.rec.visibleEvents, ev);
@@ -259,7 +272,15 @@ function readbackOf(m, fps) {
   assert.deepEqual(exp2.sfx, { none: true });
   assert.deepEqual(exp2.clipSound, { mode: 'off' });
   const lastM2 = exp2.effectsMain.length - 4;
-  assert.ok(exp2.effectsMain.every((fx2, i) => fx2.length === (i >= exp2.effectsMain.length - 3 || i === lastM2 ? 1 : 0)), 'look off: film frame on the ending, a strength-0 look (leak) only on the last montage clip');
+  const noVm = fx2 => fx2.filter(n => n !== 'Video motion');
+  assert.ok(exp2.effectsMain.every((fx2, i) => noVm(fx2).length === (i >= exp2.effectsMain.length - 3 || i === lastM2 ? 1 : 0)), 'look off: film frame on the ending, a strength-0 look (leak) only on the last montage clip');
+  // Video motion: every montage video on Main (look on or off), never the opener, place, photos or ending clips.
+  const photoIdx2 = new Set(a2.placed.filter(p => p.kind === 'photo').map(p => p.index));
+  exp2.effectsMain.forEach((fx2, i) => assert.equal(fx2.includes('Video motion'), i >= 2 && i <= lastM2 && !photoIdx2.has(i), 'video motion @' + i));
+  assert.equal(exp2.effectCounts['Video motion'], exp2.effectsMain.filter(fx2 => fx2.includes('Video motion')).length);
+  assert.ok(exp2.effectCounts['Video motion'] > 0);
+  assert.deepEqual(dc2.videoMotion, { tsx: dc2.videoMotion.tsx, strength: 1 });
+  assert.ok(/export default function VideoMotion/.test(dc2.videoMotion.tsx));
   const ev2 = stVisibleEvents(s2.plan.schedule, s2.frames);
   assert.equal(ev2.filter(e => e.kind === 'cut').length, 12 + 3);
 

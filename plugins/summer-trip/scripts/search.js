@@ -1,6 +1,8 @@
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
-// Roles and scene-search queries (spec 5). cfg.queries replaces them; cfg.roles narrows them.
+// Roles and scene-search queries (spec 5), plus two signal queries whose hits are not shots: 'avoid' (night, city
+// lights, an intense sunset) and 'motion' (human-scale movement); the planner uses them to rank nearby candidates.
+// cfg.queries replaces them all; cfg.roles narrows them.
 const ST_QUERIES = {
   opener: 'a wide view of the sea, coast or beach on a sunny day',
   grid: 'a colourful summer travel scene: beach, boats, streets or cafes',
@@ -14,6 +16,8 @@ const ST_QUERIES = {
   people: 'people walking or relaxing on holiday',
   detail: 'a summer detail close up',
   ending: 'golden sunset light over the sea or a town',
+  avoid: 'a dark night scene, city lights at night, or an intense orange sunset',
+  motion: 'people walking, a street with movement, or travelling along a road or coast',
 };
 const queries = cfg.queries || ST_QUERIES;
 const roles = Object.keys(queries).filter(r => !cfg.roles || cfg.roles.includes(r));

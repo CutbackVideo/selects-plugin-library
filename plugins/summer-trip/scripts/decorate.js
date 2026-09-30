@@ -1,7 +1,7 @@
 const cfg = __CONFIG__;
 const d = selects.draft(cfg.sequenceId);
 const W = cfg.W || 1920, H = cfg.H || 1080;
-const LOOK = 'Summer look', GRID = 'Grid panel', FILM = 'Film frame', MOTION = 'Photo motion';
+const LOOK = 'Summer look', GRID = 'Grid panel', FILM = 'Film frame', MOTION = 'Photo motion', VMOTION = 'Video motion';
 const TITLE = 'Summer Trip title', LABELS = 'Summer Trip labels';
 const fr = cfg.frames;
 const fps = (await d.meta()).fps;
@@ -102,7 +102,7 @@ if (cfg.labels && !graphics.includes(LABELS)) {
   labelsAdded = true;
 }
 
-const added = { look: 0, gridPanel: 0, filmFrame: 0, motion: 0 }, kept = { look: 0, gridPanel: 0, filmFrame: 0, motion: 0 };
+const added = { look: 0, gridPanel: 0, filmFrame: 0, motion: 0, videoMotion: 0 }, kept = { look: 0, gridPanel: 0, filmFrame: 0, motion: 0, videoMotion: 0 };
 // Adds one effect unless the clip already has one with that label.
 const ensure = async (id, key, label, build) => {
   const clip = await rowById(id);
@@ -118,12 +118,15 @@ const leakOutSeconds = (fr.endingFrame - fr.leakFrames.a) / fps;
 const leakInSeconds = (fr.leakFrames.b - fr.endingFrame) / fps;
 // canvasInBox (the last montage clip only): the canvas in % of the clip's own box, so the transition leak is laid
 // out on the canvas, not on a cover-cropped portrait or photo box.
+// Film grain (0-1) of the Summer look; its opacity also scales with the look strength, so a look at 0 has none.
+const lookGrain = cfg.look && typeof cfg.look.grain === 'number' ? cfg.look.grain : 0.35;
 const lookFor = (clip, sourceStartSeconds, leakOut, canvasInBox) => ({
   tsx: cfg.look.tsx,
-  parameters: { strength: cfg.look.gradeOff ? 0 : cfg.look.strength, leakOutSeconds: leakOut, leakStrength: leakStrength(cfg.look), clipSeconds: (clip.endFrame - clip.startFrame) / fps, sourceStartSeconds, timeOrigin,
+  parameters: { strength: cfg.look.gradeOff ? 0 : cfg.look.strength, grain: lookGrain, leakOutSeconds: leakOut, leakStrength: leakStrength(cfg.look), clipSeconds: (clip.endFrame - clip.startFrame) / fps, sourceStartSeconds, timeOrigin,
     ...(canvasInBox ? { canvasInBox } : {}) },
   editableParameters: [
     { key: 'strength', label: 'Summer look', type: 'number', defaultValue: cfg.look.strength, min: 0, max: 1, step: 0.05 },
+    { key: 'grain', label: 'Film grain', type: 'number', defaultValue: lookGrain, min: 0, max: 1, step: 0.05 },
     { key: 'leakStrength', label: 'Light leak', type: 'number', defaultValue: leakStrength(cfg.look), min: 0, max: 2, step: 0.05 }],
 });
 const motionDefs = m => [
@@ -133,11 +136,14 @@ const motionDefs = m => [
 const nMain = fr.mainFrames.length - 1;
 const endingFirst = nMain - 3, lastMontage = nMain - 4;
 // Leak pulses (centres at pulseFrames, half a beat wide) in each ending clip's local seconds; a pulse that straddles
-// a cut appears in both clips.
+// a cut appears in both clips. With three or more pulses the last one (ending + 7 beats) is the warm end flare
+// (kind 'flare'), three times as wide (1.5 beats), so the final hold does not end on a clean dark picture.
 const halfLeak = (fr.leakFrames.b - fr.leakFrames.a) / 2;
+const flareAt = fr.pulseFrames.length >= 3 ? fr.pulseFrames.length - 1 : -1;
 const pulsesFor = clip => fr.pulseFrames
-  .filter(f => f + halfLeak > clip.startFrame && f - halfLeak < clip.endFrame)
-  .map(f => ({ at: (f - clip.startFrame) / fps, dur: 2 * halfLeak / fps }));
+  .map((f, k) => ({ f, half: k === flareAt ? 3 * halfLeak : halfLeak, flare: k === flareAt }))
+  .filter(q => q.f + q.half > clip.startFrame && q.f - q.half < clip.endFrame)
+  .map(q => (q.flare ? { at: (q.f - clip.startFrame) / fps, dur: 2 * q.half / fps, kind: 'flare' } : { at: (q.f - clip.startFrame) / fps, dur: 2 * q.half / fps }));
 let missing = 0;
 for (let i = 0; i < nMain; i++) {
   const clip = mainClip(await all(), i);
@@ -151,6 +157,13 @@ for (let i = 0; i < nMain; i++) {
     await ensure(clip.clipId, 'motion', MOTION, c => ({ tsx: cfg.motion.tsx,
       parameters: { motion: mm.motion, strength: cfg.motion.strength, direction: mm.direction, axis: mm.axis, cover: mm.cover || 1, holdSeconds: Math.round((c.endFrame - c.startFrame) / fps * 1000) / 1000 },
       editableParameters: motionDefs(mm) }));
+  }
+  // Montage videos: Video motion (a slow push-in) first, under the grade, like the photos' Photo motion. Grid panels
+  // and ending clips keep a still picture.
+  if (!isPhoto && cfg.videoMotion && i >= 2 && i <= lastMontage) {
+    await ensure(clip.clipId, 'videoMotion', VMOTION, c => ({ tsx: cfg.videoMotion.tsx,
+      parameters: { strength: cfg.videoMotion.strength, clipSeconds: (c.endFrame - c.startFrame) / fps, sourceStartSeconds: ss, timeOrigin },
+      editableParameters: [{ key: 'strength', label: 'Video motion', type: 'number', defaultValue: cfg.videoMotion.strength, min: 0, max: 2, step: 0.1 }] }));
   }
   // Summer look on every clip; the last montage clip carries the outgoing leak (a quarter beat before the ending cut).
   // Look off (gradeOff): no grade anywhere, but the last montage clip keeps a strength-0 look for its outgoing leak.

@@ -7,7 +7,7 @@
 // Frame numbers are timeline frames at the Draft's real fps, from assemble.js's frame schedule (`a.frames`).
 
 export const ST_W = 1920, ST_H = 1080;
-export const ST_NAMES = { title: 'Summer Trip title', labels: 'Summer Trip labels', look: 'Summer look', gridPanel: 'Grid panel', filmFrame: 'Film frame', motion: 'Photo motion' };
+export const ST_NAMES = { title: 'Summer Trip title', labels: 'Summer Trip labels', look: 'Summer look', gridPanel: 'Grid panel', filmFrame: 'Film frame', motion: 'Photo motion', videoMotion: 'Video motion' };
 const QUADS = ['TL', 'TR', 'BR', 'BL'];
 const PANELS = ['A', 'B', 'C', 'D'];
 
@@ -56,8 +56,10 @@ const is169 = size => !(size && size.width > 0 && size.height > 0) || Math.abs(s
 //   frames: assemble's frame schedule (a.frames), fps: a.fps,
 //   placed, gridPlaced, sizes: from assemble's return,
 //   motionIndexes: [Main index] montage photos with a Photo motion (plan.motions keys),
+//   videoMotion: bool (decorate config videoMotion set: every montage VIDEO clip on Main gets a Video motion),
 //   look, clipSound, ambientDb, gridSound,
-//   music: null | { dryId, wetId|null }   (wetId null or muffle off -> one dry clip to the end)
+//   music: null | { dryId, wetId|null, introDuckDb? }   (wetId null or muffle off -> one dry clip to the end; introDuckDb
+//          non-zero -> the dry carries the keyed intro lift: introDuckDb from 0 to F(8) - 1, 0 dB from F(8))
 //   sfx: null | { shutterIds: [rid], shutterSeconds: [s], whooshId, whooshSeconds }
 // }
 export function stExpectations(input) {
@@ -70,6 +72,7 @@ export function stExpectations(input) {
   for (let i = 0; i < nMain; i++) {
     const fx = [];
     if (motion.has(i) && photoIdx.has(i) && i >= 2 && i <= lastMontage) fx.push(ST_NAMES.motion);
+    if (input.videoMotion && !photoIdx.has(i) && i >= 2 && i <= lastMontage) fx.push(ST_NAMES.videoMotion);
     if (input.look || i === lastMontage) fx.push(ST_NAMES.look); // look off keeps a strength-0 look on the last montage clip (leak)
     if (i >= endingFirst) fx.push(ST_NAMES.filmFrame);
     effectsMain.push(fx);
@@ -83,10 +86,13 @@ export function stExpectations(input) {
   let music = { none: true };
   if (input.music) {
     const X = Math.max(2, Math.round(0.06 * fps));
+    const duck = Number(input.music.introDuckDb) || 0, f8 = fr.gridStateFrames[0];
+    // The dry's level line (assemble.js): keyed, so its constant level reads null.
+    const keys = duck ? [{ atSeconds: 0, volumeDb: duck }, { atSeconds: (f8 - 1) / fps, volumeDb: duck }, { atSeconds: f8 / fps, volumeDb: 0 }] : null;
     if (input.music.wetId) {
-      music = { dry: { resourceId: input.music.dryId, startFrame: 0, endFrame: Math.min(Fend, Fe + X), fadeOutSeconds: X / fps },
+      music = { dry: { resourceId: input.music.dryId, startFrame: 0, endFrame: Math.min(Fend, Fe + X), fadeOutSeconds: X / fps, keys },
         wet: { resourceId: input.music.wetId, startFrame: Fe, endFrame: Fend, fadeInSeconds: 0, fadeOutSeconds: endFade }, crossfadeFrames: X, db: 0 };
-    } else music = { dry: { resourceId: input.music.dryId, startFrame: 0, endFrame: Fend, fadeOutSeconds: endFade }, wet: null, db: 0 };
+    } else music = { dry: { resourceId: input.music.dryId, startFrame: 0, endFrame: Fend, fadeOutSeconds: endFade, keys }, wet: null, db: 0 };
   }
   let sfx = { none: true };
   if (input.sfx) {
@@ -117,6 +123,7 @@ export function stExpectations(input) {
       [ST_NAMES.filmFrame]: 3,
       [ST_NAMES.gridPanel]: grid.filter(g => g.effects.includes(ST_NAMES.gridPanel)).length,
       [ST_NAMES.motion]: effectsMain.filter(fx => fx.includes(ST_NAMES.motion)).length,
+      [ST_NAMES.videoMotion]: effectsMain.filter(fx => fx.includes(ST_NAMES.videoMotion)).length,
     },
     music, sfx,
     clipSound: input.clipSound === 'off' ? { mode: 'off' } : { mode: 'level', db: input.clipSound === 'ambient' ? (input.ambientDb ?? -18) : 0 },
@@ -133,7 +140,7 @@ export function stKitExpectations(exp) {
 const sameList = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 
 // rb: { frameSize, fps, rows: [{ rid, s, e, asi, fx }] (Main), graphics: [{ name, clip: { startFrame, endFrame } }],
-//       hasAudio: { rid: bool|null }, st: { video: [{ rid, s, e, asi, fx, t }], levels: [{ kind, rid, s, e, db, fadeIn?, fadeOut }] } }
+//       hasAudio: { rid: bool|null }, st: { video: [{ rid, s, e, asi, fx, t }], levels: [{ kind, rid, s, e, db, keys?, fadeIn?, fadeOut }] } }
 // Returns { checks, notes, pass, facts }.
 export function stCheck(rb, exp) {
   const C = {}, notes = [];
@@ -199,7 +206,11 @@ export function stCheck(rb, exp) {
       const r = musicRows.find(l => l.rid === w.resourceId && l.s === w.startFrame);
       if (!r) { bad.push('missing ' + JSON.stringify([w.resourceId, w.startFrame, w.endFrame])); continue; }
       if (r.e !== w.endFrame) bad.push('span ' + JSON.stringify([r.s, r.e]) + ' vs ' + JSON.stringify([w.startFrame, w.endFrame]));
-      if (exp.music.db != null && r.db != null && r.db !== exp.music.db) bad.push('level ' + r.db);
+      if (w.keys) {
+        // Keyed intro lift: no constant level; the keys (when the readback reports them) on the expected frames and levels.
+        if (r.db != null) bad.push('constant level ' + r.db + ' instead of the intro lift');
+        if (Array.isArray(r.keys) && (r.keys.length !== w.keys.length || r.keys.some((k, i) => Math.round(k.atSeconds * (rb.fps || exp.fps)) !== Math.round(w.keys[i].atSeconds * (rb.fps || exp.fps)) || Math.abs(k.volumeDb - w.keys[i].volumeDb) > 0.05))) bad.push('intro lift ' + JSON.stringify(r.keys));
+      } else if (exp.music.db != null && r.db != null && r.db !== exp.music.db) bad.push('level ' + r.db);
       if (w.fadeOutSeconds != null && r.fadeOut != null && Math.abs(r.fadeOut - w.fadeOutSeconds) > tolS) bad.push('fade-out ' + r.fadeOut + ' vs ' + w.fadeOutSeconds);
       if (w.fadeInSeconds != null && r.fadeIn != null && Math.abs(r.fadeIn - w.fadeInSeconds) > tolS) bad.push('fade-in ' + r.fadeIn + ' vs ' + w.fadeInSeconds);
     }

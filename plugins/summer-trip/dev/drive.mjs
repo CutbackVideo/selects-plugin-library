@@ -123,7 +123,7 @@ for (const id of ids) {
   const c: any = (await d.clips({ trackScope: "all" })).find((x: any) => x.clipId === id);
   let r: any = null;
   try { r = ${pass === 1 ? 'await d.setClipAudio({ clip: c, fadeInSeconds: 0 })' : 'await d.setClipAudio({ clip: c, fadeOutSeconds: Number(fadeOuts[id]) || 0 })'}; } catch (e) { r = { error: String(e) }; }
-  levels.push({ id, kind: c.trackKind, rid: c.resourceId, s: c.startFrame, e: c.endFrame, db: r && r.volumeDb, fadeIn: r && r.fadeInSeconds, fadeOut: r && r.fadeOutSeconds, error: r && r.error });
+  levels.push({ id, kind: c.trackKind, rid: c.resourceId, s: c.startFrame, e: c.endFrame, db: r && r.volumeDb, keys: r && r.volumeKeys, fadeIn: r && r.fadeInSeconds, fadeOut: r && r.fadeOutSeconds, error: r && r.error });
 }
 return { video, levels };`;
 

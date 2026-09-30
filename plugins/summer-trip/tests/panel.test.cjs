@@ -29,18 +29,18 @@ for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) as
 // ---- Files the panel reads at runtime ----
 for (const rel of ['assets/cues/manifest.json', 'assets/cues/dev-manifest.json', 'assets/fonts/presets.json', 'sfx/manifest.json', 'scripts/inventory.js', 'scripts/search.js',
   'scripts/ensure-audio.js', 'scripts/assemble.js', 'scripts/decorate.js', 'assets/title-graphic.tsx', 'assets/labels-graphic.tsx', 'assets/summer-look.tsx',
-  'assets/grid-panel.tsx', 'assets/film-frame.tsx', 'assets/photo-motion.tsx', '"assets/fonts/" + file', '"/beat-detect.cjs"']) assert.ok(panel.includes(rel), 'panel reads ' + rel);
+  'assets/grid-panel.tsx', 'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'assets/video-motion.tsx', '"assets/fonts/" + file', '"/beat-detect.cjs"']) assert.ok(panel.includes(rel), 'panel reads ' + rel);
 for (const rel of ['assets/cues/manifest.json', 'assets/fonts/presets.json', 'sfx/manifest.json', 'scripts/inventory.js', 'scripts/search.js', 'scripts/ensure-audio.js',
   'scripts/assemble.js', 'scripts/decorate.js', 'assets/title-graphic.tsx', 'assets/labels-graphic.tsx', 'assets/summer-look.tsx', 'assets/grid-panel.tsx',
-  'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'beat-detect.cjs']) assert.ok(fs.existsSync(path.join(root, rel)), rel + ' exists');
+  'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'assets/video-motion.tsx', 'beat-detect.cjs']) assert.ok(fs.existsSync(path.join(root, rel)), rel + ' exists');
 
 // ---- Defaults ----
 const ui = panel.slice(panel.indexOf('// st-panel:end'));
 for (const re of [/React\.useState<"off" \| "ambient" \| "full">\("ambient"\)/, /React\.useState<"short" \| "standard" \| "long">\("standard"\)/, /\[preset, setPreset\] = React\.useState\("summer"\)/,
   /\[sfxOn, setSfxOn\] = React\.useState\(false\)/, /\[muffleOn, setMuffleOn\] = React\.useState\(true\)/, /\[usePhotos, setUsePhotos\] = React\.useState\(true\)/,
   /\[lookStrength, setLookStrength\] = React\.useState\(ST_LOOK_DEFAULT\)/, /\[line1, setLine1\] = React\.useState\(ST_LINE1_DEFAULT\)/, /\[topItalic, setTopItalic\] = React\.useState\(ST_TOP_ITALIC_DEFAULT\)/]) assert.ok(re.test(ui), String(re));
-assert.ok(panel.includes("const ST_LOOK_DEFAULT = 0.3;") && panel.includes("const ST_LINE1_DEFAULT = 'that one trip in';") && panel.includes("const ST_TOP_ITALIC_DEFAULT = 'VLOG';") && panel.includes("const ST_CREDIT_PREFIX = 'By';"));
-assert.ok(panel.includes("const ST_GRID_SOUND = 'volume';") && panel.includes("const ST_TIME_ORIGIN = 'clip';") && panel.includes('const ST_AMBIENT_DB = -18;'), 'live rulings');
+assert.ok(panel.includes("const ST_LOOK_DEFAULT = 0.45;") && panel.includes("const ST_LINE1_DEFAULT = 'that one trip in';") && panel.includes("const ST_TOP_ITALIC_DEFAULT = 'VLOG';") && panel.includes("const ST_CREDIT_PREFIX = 'By';"));
+assert.ok(panel.includes("const ST_GRID_SOUND = 'volume';") && panel.includes("const ST_TIME_ORIGIN = 'clip';") && panel.includes('const ST_AMBIENT_DB = -18;') && panel.includes('const ST_INTRO_DUCK_DB = -7;'), 'live rulings');
 // No Pace option; Length is Short / Standard / Long; three presets; muffle hidden with No music.
 assert.ok(!/label="Pace"/.test(ui));
 for (const phrase of ['label="Length"', 'label="Clip sound"', 'label="Look strength"', 'label="Sound effects"', 'label="Ending muffle"', 'label="Use photos"', 'Choose clips',
@@ -111,7 +111,7 @@ assert.ok(buildBody.includes('const planFps = fpsRef.current[pid!] || ST_GUESS_F
 const block = [between(panel, '// st-planner:start', '// st-planner:end'), between(panel, '// st-graphics:start', '// st-graphics:end'),
   between(panel, '// st-muffle:start', '// st-muffle:end'), between(panel, '// st-panel:start', '// st-panel:end')].join('\n');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, NaN, Error, JSON, Date, isFinite, parseFloat }; vm.createContext(box);
-vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, stMuffleCommand, ST_FILM_WINDOW };', box);
+vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, ST_MUFFLE_TAG, stMuffleCommand, ST_FILM_WINDOW };', box);
 const X = box.X;
 const j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
@@ -127,9 +127,11 @@ assert.equal(X.stCoverFor({ width: 1920, height: 1080 }), 1);
 assert.ok(near(X.stCoverFor({ width: 1080, height: 1920 }), (1920 / 1080) ** 2));
 assert.ok(near(X.stCoverFor({ width: 1440, height: 1080 }), (16 / 9) / (4 / 3)));
 assert.equal(X.stCoverFor(null), 1);
-// Own-music muffled copy: <base>-muffled-<hash8>.wav (stable, the cache key; ensure-audio.js may reuse it by file name).
-assert.equal(X.stOwnMuffledName('My Song (final).mp3', '0a1b2c3d'), 'My-Song-final-.wav'.replace('.wav', '') + '-muffled-0a1b2c3d.wav');
-assert.equal(X.stOwnMuffledName('/x/y/summer.m4a', 'deadbeef'), 'summer-muffled-deadbeef.wav');
+// Own-music muffled copy: <base>-muffled-<filter tag>-<hash8>.wav (stable, the cache key; ensure-audio.js may reuse it by
+// file name). The filter tag changes with the filter, so a new filter never reuses a copy baked with the old one.
+assert.equal(X.ST_MUFFLE_TAG, require(path.resolve(__dirname, '..', 'muffle.cjs')).ST_MUFFLE_TAG);
+assert.equal(X.stOwnMuffledName('My Song (final).mp3', '0a1b2c3d'), 'My-Song-final--muffled-' + X.ST_MUFFLE_TAG + '-0a1b2c3d.wav');
+assert.equal(X.stOwnMuffledName('/x/y/summer.m4a', 'deadbeef'), 'summer-muffled-a263eda4-deadbeef.wav');
 // The muffle command quotes user paths.
 assert.ok(X.stMuffleCommand("/tmp/it's.mp3", '/tmp/o.wav').includes("'/tmp/it'\\''s.mp3'") && X.stMuffleCommand('a', '/x/o.wav').includes('pcm_s16le'));
 // Draft name.
@@ -254,12 +256,12 @@ function mockProject(o) {
 const presets = JSON.parse(read('assets/fonts/presets.json'));
 const fontsAll = Object.fromEntries(Object.keys(presets.fonts).map(f => [f, read('assets/fonts/' + f).replace(/\s+/g, '')]));
 const tsx = { title: read('assets/title-graphic.tsx'), labels: read('assets/labels-graphic.tsx'), look: read('assets/summer-look.tsx'), gridPanel: read('assets/grid-panel.tsx'),
-  filmFrame: read('assets/film-frame.tsx'), motion: read('assets/photo-motion.tsx') };
+  filmFrame: read('assets/film-frame.tsx'), motion: read('assets/photo-motion.tsx'), videoMotion: read('assets/video-motion.tsx') };
 const assembleJs = read('scripts/assemble.js'), decorateJs = read('scripts/decorate.js');
 // contracts.md keys.
 const contracts = read('dev/contracts.md');
-const ASSEMBLE_KEYS = ['projectId', 'draftName', 'fps', 'W', 'H', 'beats', 'schedule', 'picks', 'sizes', 'music', 'crossfadeFrames', 'clipSound', 'ambientDb', 'gridSound', 'sfx'];
-const DECORATE_KEYS = ['sequenceId', 'fps', 'frames', 'placed', 'gridPlaced', 'sizes', 'mute', 'gridSound', 'title', 'labels', 'look', 'gridPanel', 'filmFrame', 'motion', 'endingMotion', 'photos'];
+const ASSEMBLE_KEYS = ['projectId', 'draftName', 'fps', 'W', 'H', 'beats', 'schedule', 'picks', 'sizes', 'music', 'crossfadeFrames', 'clipSound', 'ambientDb', 'gridSound', 'sfx', 'introDuckDb'];
+const DECORATE_KEYS = ['sequenceId', 'fps', 'frames', 'placed', 'gridPlaced', 'sizes', 'mute', 'gridSound', 'title', 'labels', 'look', 'gridPanel', 'filmFrame', 'motion', 'videoMotion', 'endingMotion', 'photos'];
 const assembleDoc = contracts.slice(contracts.indexOf('### assemble.js'), contracts.indexOf('Returns:', contracts.indexOf('### assemble.js')));
 const decorateDoc = contracts.slice(contracts.indexOf('### decorate.js'), contracts.indexOf('Effect labels'));
 for (const k of ASSEMBLE_KEYS) assert.ok(new RegExp('\\b' + k + '\\b').test(assembleDoc), 'assemble key ' + k + ' is in contracts.md');
@@ -288,7 +290,7 @@ const payloads = {};
     const acfg = j(X.stAssembleConfig({ projectId: 'proj', draftName: X.stDraftName('', 'SUMMER', new Date(2026, 6, 1, 12, 0)), fps: 30, plan, sizes, durations, music: musicCfg, clipSound, sfx }));
     assert.deepEqual(Object.keys(acfg), ASSEMBLE_KEYS, 'assemble config keys (contracts.md order)');
     assert.deepEqual(acfg.beats, { bpm: plan.frames.bpm, delta: plan.frames.delta, snaps: j(plan.frames.snaps) }, 'frames.snaps from the plan');
-    assert.equal(acfg.gridSound, 'volume'); assert.equal(acfg.ambientDb, -18); assert.equal(acfg.crossfadeFrames, null);
+    assert.equal(acfg.gridSound, 'volume'); assert.equal(acfg.ambientDb, -18); assert.equal(acfg.crossfadeFrames, null); assert.equal(acfg.introDuckDb, -7);
     assert.ok(acfg.picks.main.every(p => (p.kind === 'video') === (p.duration > 0)), 'every video pick carries its source duration');
     assert.deepEqual(Object.keys(acfg.picks.grid[0]).sort(), ['kind', 'quad', 'rid', 'startSeconds']);
     assert.equal(acfg.picks.main.length, acfg.schedule.mainBeats.length - 1);
@@ -306,10 +308,12 @@ const payloads = {};
     assert.equal(dcfg.mute, clipSound === 'off');
     assert.deepEqual(j(dcfg.filmFrame), { tsx: tsx.filmFrame, window: { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 }, leakStrength: 1, timeOrigin: 'clip' });
     assert.deepEqual(j(dcfg.look), { tsx: tsx.look, strength: 0.3, leakStrength: 1 });
+    assert.deepEqual(j(dcfg.videoMotion), { tsx: tsx.videoMotion, strength: 1 }, 'Video motion on by default');
     // Title times sit on frames of the real rate, from the same F() as the cuts.
     const tp = dcfg.title.parameters, fpsR = a.fps;
     for (const t of [...tp.wordTimes, tp.seasonPartTime, tp.seasonFullTime, tp.labelsTime]) assert.ok(near(t * fpsR, Math.round(t * fpsR), 1e-6), 'title time on a frame: ' + t);
-    assert.ok(near(tp.seasonFullTime * fpsR, Math.round((5 * 60 / plan.frames.bpm + a.frames.delta) * fpsR), 1e-6), 'SUMMER complete on F(5)');
+    assert.ok(near(tp.seasonFullTime * fpsR, Math.round((6 * 60 / plan.frames.bpm + a.frames.delta) * fpsR), 1e-6), 'SUMMER complete on F(6)');
+    assert.ok(near(tp.wordTimes[0] * fpsR, Math.round((0.5 * 60 / plan.frames.bpm + a.frames.delta) * fpsR), 1e-6) && tp.wordTimes[0] > 0, 'a clean start: the first word on F(0.5)');
     assert.equal(tp.creditPrefix, 'By'); assert.equal(dcfg.labels.parameters.placePrefix, 'in'); assert.equal(dcfg.labels.parameters.place, 'Italy');
     const span = a.frames.labelsFrames[a.frames.labelsFrames.length - 1];
     assert.ok(near(dcfg.labels.parameters.placeSeconds, (a.frames.placeFrames[1] - span[0]) / fpsR), 'place title over [F(12), F(14))');

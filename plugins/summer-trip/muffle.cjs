@@ -3,11 +3,27 @@
 // One filter for both paths: dev/build-cues.cjs bakes the bundled cues' "-muffled" files with it, and the panel (which
 // embeds a copy of stMuffleCommand) bakes the user's own music with it through runShell.
 //
-// The cutoff was chosen as the spec's starting point (1.2 kHz, 2-pole, -1 dB); change it here only, then rebuild the
-// cues and update the panel's copy.
+// Change the filter here only, then rebuild the cues and update the panel's copy (tests/panel.test.cjs checks it).
 // st-muffle:start
-const ST_MUFFLE_FILTER = 'lowpass=f=1200:p=2,volume=-1dB';
+// Cutoff: the similarity reference keeps 0.30 % of its energy above 3 kHz over the ending, from 2.56 % before it (x 0.117,
+// -9.3 dB). The spec's starting point (1.2 kHz, 2-pole) kept 0.5 % of the dry share (-23 dB), far darker.
+// Share of the energy above 3 kHz, the filter run on each bundled -11 LUFS dry cue, over the dry's own share
+// (dev/measure-muffle.cjs; mean of the four cues; dry shares surf 3.43 %, tropical 2.50 %, cinematic 1.63 %, disco 4.44 %):
+//   lowpass=f=1200:p=2  -23.3 dB      lowpass=f=1200:p=1  -12.2 dB      lowpass=f=1600:p=1  -10.0 dB
+//   lowpass=f=2500:p=2  -11.3 dB      lowpass=f=2700:p=2  -10.2 dB      lowpass=f=3000:p=2   -8.8 dB
+//   lowpass=f=2800:p=2   -9.7 dB (surf / tropical / cinematic / disco -9.2 / -10.5 / -9.7 / -9.5)  <- chosen: in the
+//   1/8-1/10 band, 2-pole like the starting point. The shipped 96k -muffled.mp3 files keep 0.44 / 0.24 / 0.19 / 0.53 %
+//   (-8.9 / -10.2 / -9.4 / -9.2 dB against the dry).
+// The -1 dB keeps the wet a touch under the dry it replaces at the ending cut.
+const ST_MUFFLE_FILTER = 'lowpass=f=2800:p=2,volume=-1dB';
 const ST_MUFFLE_BITRATE = '96k';
+// 8 hex digits of the filter's FNV-1a hash: part of the own-music muffled copy's cached file name, so a filter change
+// bakes a new copy instead of reusing one made with the old filter.
+const ST_MUFFLE_TAG = (() => {
+  let h = 0x811c9dc5;
+  for (const ch of ST_MUFFLE_FILTER) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+  return h.toString(16).padStart(8, '0');
+})();
 
 // POSIX shell single-quoting: the whole value in '...', each ' closed, escaped and reopened ('\'').
 function sq(value) {
@@ -26,4 +42,4 @@ function stMuffleCommand(inPath, outPath) {
 }
 // st-muffle:end
 
-module.exports = { ST_MUFFLE_FILTER, ST_MUFFLE_BITRATE, sq, stMuffleCommand };
+module.exports = { ST_MUFFLE_FILTER, ST_MUFFLE_BITRATE, ST_MUFFLE_TAG, sq, stMuffleCommand };

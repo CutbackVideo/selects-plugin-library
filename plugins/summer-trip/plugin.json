@@ -38,6 +38,7 @@
     "assets/photo-motion.tsx",
     "assets/summer-look.tsx",
     "assets/title-graphic.tsx",
+    "assets/video-motion.tsx",
     "beat-detect.cjs",
     "effects-geometry.cjs",
     "graphics-defs.js",

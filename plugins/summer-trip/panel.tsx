@@ -22,13 +22,16 @@ const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 // Summer Trip planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
 // Structure (beats from the section start, spec section 2.1 / 15): an 8-beat title over one opener shot, a 2x2 grid
 // build on 8th notes from the drop (beat 8), the place shot revealed under the grid and held to beat 14, a montage of
-// N shots (2 beats each, one pair of 3-beat holds), and an 8-beat film-frame ending of three shots.
+// N shots (2 beats each, one pair of 3-beat holds), and an 8-beat film-frame ending of three shots (leak pulses at
+// +2 and +5.5, a warm end flare at +7).
 // Every frame comes from one expression, F(b) = round((b * 60 / bpm + delta) * fps) with F(0) = 0 (stFrameSchedule).
 
 const ST_W = 1920;
 const ST_H = 1080;
 const ST_TITLE_BEATS = 8;
 const ST_DROP_BEAT = 8;
+const ST_TITLE_FIRST_WORD = 0.5; // the first title word (the picture starts clean)
+const ST_TITLE_SEASON_BEAT = 5;  // the first part of the season word; complete one beat later, with the labels
 const ST_GRID_STATES = [8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5];
 // Grid overlay clips A-D: one quadrant each, in contract order.
 const ST_GRID = [
@@ -43,7 +46,7 @@ const ST_MONTAGE_START = 14;
 const ST_ENDING_BEATS = 8;
 const ST_ENDING_SHOTS = [0, 2, 4]; // ending shot starts relative to the ending start
 const ST_LEAK_HALF = 0.25;       // light leak spans the ending cut +/- this many beats
-const ST_PULSES = [2, 5.5];      // leak pulses relative to the ending start
+const ST_PULSES = [2, 5.5, 7];   // leak pulses relative to the ending start; the last is the warm end flare
 const ST_FADE_BEATS = 0.5;       // picture and music fade over the last half beat
 const ST_LENGTHS = { short: 6, standard: 8, long: 12 };
 const ST_MIN_MONTAGE = 4;
@@ -72,6 +75,28 @@ const ST_QUERIES = {
   detail: 'a summer detail close up',
   ending: 'golden sunset light over the sea or a town',
 };
+// Signal queries (search.js runs them next to the roles; their hits are never shots). 'avoid' finds extreme moments
+// (night, city lights, an intense sunset) that break a daylight montage; 'motion' finds human-scale movement.
+const ST_SIGNAL_QUERIES = {
+  avoid: 'a dark night scene, city lights at night, or an intense orange sunset',
+  motion: 'people walking, a street with movement, or travelling along a road or coast',
+};
+// A signal hit counts for candidates within this many seconds of it on the same clip (a shot is centred on its
+// candidate, so this stands for a two-beat window plus a little).
+const ST_SIGNAL_REACH = 1;
+// An avoid hit is strong when it scores at least ST_AVOID_MIN and more than every day-role hit (every role but
+// 'ending') within reach on that clip; a clip whose best avoid hit beats its best day-role hit is avoided throughout.
+// Live scores sit within about 0.1-0.56 and a sunset query also scores well on sunny beaches, so strength is judged
+// against the clip's own day hits, not by a fixed threshold alone.
+const ST_AVOID_MIN = 0.25;
+// Opener, place, grid and montage slots rank an avoided candidate as if its clip had been used once more, and after
+// every non-avoided candidate of the same use count whatever its role (fresh day moments first, so night and sunset
+// clips wait for the ending, where warm sunset light is wanted), and take this off its value. It stays usable when
+// nothing else fits, so every guarantee holds.
+const ST_AVOID_PENALTY = 0.1;
+// Motion: a tie-break bonus of up to ST_MOTION_BONUS (score scale ~0.1-0.56, seeded spread 0.05) for candidates near
+// a motion hit, scaled by that hit's score over the run's best motion hit.
+const ST_MOTION_BONUS = 0.03;
 // Which candidate roles may fill a slot role, best first (the role's neighbours).
 const ST_ROLE_FALLBACK = {
   opener: ['opener', 'place', 'beach', 'water', 'ending'],
@@ -141,7 +166,7 @@ function stSchedule(opts) {
     grid: ST_GRID.map(g => ({ quad: g.quad, a: g.a, b: g.b })),
     gridStates: ST_GRID_STATES.slice(),
     title: [0, ST_TITLE_BEATS],
-    labels: [[5, ST_TITLE_BEATS], [ST_PLACE_TITLE, E]],
+    labels: [[ST_TITLE_SEASON_BEAT + 1, ST_TITLE_BEATS], [ST_PLACE_TITLE, E]],
     place: [ST_PLACE_TITLE, ST_MONTAGE_START],
     endingStart: E,
     end: E + ST_ENDING_BEATS,
@@ -218,9 +243,11 @@ function stFrameSchedule(opts) {
 
 function stChars(text) { return Array.from(String(text == null ? '' : text)); }
 
-// Title typing schedule (spec 4.2 / 15.8), in beats from the section start. line 1 up to 4 words: one word per beat
-// (0, 1, 2, 3); 5 or more: one per 8th note from 0 (words past the 8th share the 8th slot at 3.5). Season: the first
-// ceil(len/2) letters at 4 when it has at least 4 letters (else the whole word at 4), complete at 5. Labels at 5.
+// Title typing schedule (spec 4.2 / 15.8), in beats from the section start. The title starts on a clean picture (the
+// reference's first word lands half a beat in): line 1 up to 4 words, one word per beat on the off-beats (0.5, 1.5,
+// 2.5, 3.5); 5 or more: one per 8th note from 0.5 (words past the 7th share the last slot at 3.5). Season: the first
+// ceil(len/2) letters at 5 when it has at least 4 letters (else the whole word at 5), complete at 6. Labels at 6
+// (reference at 120 BPM: that 0.46, one 1.6, trip 2.74, in 3.86, SUM 5.06, SUMMER 6.14 beats). The drop stays at 8.
 // titleHits (a bundled cue's measured beats: 4 word hits + 2 season hits, sorted, finite, in [0, 8)) replace the
 // word and season times when line 1 has at most 4 words.
 function stTitleSchedule(line1, season, titleHits) {
@@ -231,16 +258,16 @@ function stTitleSchedule(line1, season, titleHits) {
   const useHits = hitsOk && words.length <= 4;
   let wordBeats;
   if (useHits) wordBeats = words.map((_, i) => titleHits[i]);
-  else if (words.length <= 4) wordBeats = words.map((_, i) => i);
-  else wordBeats = words.map((_, i) => Math.min(i, 7) * 0.5);
+  else if (words.length <= 4) wordBeats = words.map((_, i) => ST_TITLE_FIRST_WORD + i);
+  else wordBeats = words.map((_, i) => ST_TITLE_FIRST_WORD + Math.min(i, 6) * 0.5);
   return {
     words,
     wordBeats,
-    seasonPartBeat: useHits ? titleHits[4] : 4,
+    seasonPartBeat: useHits ? titleHits[4] : ST_TITLE_SEASON_BEAT,
     seasonPartLength: len >= 4 ? Math.ceil(len / 2) : len,
-    seasonFullBeat: useHits ? titleHits[5] : 5,
+    seasonFullBeat: useHits ? titleHits[5] : ST_TITLE_SEASON_BEAT + 1,
     // Labels never come before the full season word (a cue's second season hit can fall after beat 5).
-    labelsBeat: useHits ? Math.max(5, titleHits[5]) : 5,
+    labelsBeat: useHits ? Math.max(5, titleHits[5]) : ST_TITLE_SEASON_BEAT + 1,
     source: useHits ? 'hits' : words.length <= 4 ? 'beats' : 'eighths',
   };
 }
@@ -512,7 +539,9 @@ function stWindow(t, frames, fps, sourceDuration) {
 function stAllocate(opts) {
   const fps = opts.fps, seed = String(opts.seed == null ? '' : opts.seed);
   const finite = v => typeof v === 'number' && isFinite(v);
-  const pool = opts.candidates.filter(c => c && c.kind !== 'photo' && typeof c.rid === 'string' && finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0);
+  const isSignal = c => Object.prototype.hasOwnProperty.call(ST_SIGNAL_QUERIES, c.role);
+  const pool = opts.candidates.filter(c => c && c.kind !== 'photo' && typeof c.rid === 'string' && !isSignal(c) && finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0);
+  const signals = stSignals(opts.candidates, pool);
   const photoSeen = {};
   const photos = opts.candidates.filter(c => c && c.kind === 'photo' && typeof c.rid === 'string' && !photoSeen[c.rid] && (photoSeen[c.rid] = true))
     .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
@@ -554,10 +583,14 @@ function stAllocate(opts) {
       const w = stWindow(c.t, slot.frames, fps, c.sourceDuration);
       if (!w) continue;
       if (!overlap && (windows[c.rid] || []).some(([a, b]) => w.start < b + ST_WINDOW_GAP - 1e-9 && w.end > a - ST_WINDOW_GAP + 1e-9)) continue;
-      const use = uses[c.rid] || 0, value = values.get(c) - (fixedSlot ? ST_FIXED_ROLE_PENALTY * rawTier : 0);
-      const better = !best || use < best.use || (use === best.use && (tier < best.tier || (tier === best.tier &&
-        (value > best.value + 1e-12 || (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)))))));
-      if (better) best = { c, use, tier, value, start: w.start, end: w.end };
+      // Signals: an avoided moment counts one use more (not in the ending); a moving one gets a small tie-break bonus.
+      const avoided = slot.section !== 'ending' && signals.avoided.has(c);
+      const use = (uses[c.rid] || 0) + (avoided ? 1 : 0);
+      const value = values.get(c) - (fixedSlot ? ST_FIXED_ROLE_PENALTY * rawTier : 0) - (avoided ? ST_AVOID_PENALTY : 0) + (signals.motion.get(c) || 0);
+      const av = avoided ? 1 : 0;
+      const better = !best || use < best.use || (use === best.use && (av < best.av || (av === best.av && (tier < best.tier || (tier === best.tier &&
+        (value > best.value + 1e-12 || (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)))))))));
+      if (better) best = { c, use, av, tier, value, start: w.start, end: w.end };
     }
     return best;
   }
@@ -632,6 +665,37 @@ function stAllocate(opts) {
     picks.push({ ...base, kind: 'video', startSeconds: best.start, endSeconds: best.end });
   }
   return { picks, filled: picks.filter(Boolean).length, missing, failed, fillerShots, photoShots, photoRunRelaxed, overlapShots, reusedPhotos, photoSlots: Object.keys(photoSlots).map(Number) };
+}
+
+// Signal lookups for the allocation pool: { avoided: Set of pool candidates near a strong avoid hit (or on an
+// avoid-dominated clip), motion: Map candidate -> bonus }. Without signal hits both are empty and nothing changes.
+function stSignals(candidates, pool) {
+  const finite = v => typeof v === 'number' && isFinite(v);
+  const avoid = {}, motion = {}, day = {};
+  let motionMax = 0;
+  for (const c of candidates) {
+    if (!c || c.kind === 'photo' || typeof c.rid !== 'string' || !finite(c.t) || !finite(c.score)) continue;
+    if (c.role === 'avoid') (avoid[c.rid] = avoid[c.rid] || []).push(c);
+    else if (c.role === 'motion') { (motion[c.rid] = motion[c.rid] || []).push(c); if (c.score > motionMax) motionMax = c.score; }
+    else if (c.role !== 'ending' && c.role !== 'filler' && Object.prototype.hasOwnProperty.call(ST_QUERIES, c.role)) (day[c.rid] = day[c.rid] || []).push(c);
+  }
+  const best = list => (list || []).reduce((m, c) => Math.max(m, c.score), 0);
+  const strong = {}, wholeClip = {};
+  for (const rid of Object.keys(avoid)) {
+    const dayHits = day[rid] || [];
+    if (best(avoid[rid]) >= ST_AVOID_MIN && best(avoid[rid]) > best(dayHits)) wholeClip[rid] = true;
+    strong[rid] = avoid[rid].filter(h => h.score >= ST_AVOID_MIN &&
+      h.score > best(dayHits.filter(d => Math.abs(d.t - h.t) <= ST_SIGNAL_REACH + 1e-9)));
+  }
+  const avoided = new Set(), bonus = new Map();
+  for (const c of pool) {
+    if (wholeClip[c.rid] || (strong[c.rid] || []).some(h => Math.abs(h.t - c.t) <= ST_SIGNAL_REACH + 1e-9)) avoided.add(c);
+    if (motionMax > 0 && motion[c.rid]) {
+      const near = motion[c.rid].filter(h => Math.abs(h.t - c.t) <= ST_SIGNAL_REACH + 1e-9);
+      if (near.length) bonus.set(c, ST_MOTION_BONUS * Math.max(0, best(near)) / motionMax);
+    }
+  }
+  return { avoided, motion: bonus };
 }
 
 // Slots for N montage shots at fps, from the frame schedule (seconds are F differences / fps).
@@ -952,8 +1016,25 @@ function stEditable(defs, params) {
 // st-graphics:end
 
 // st-muffle:start
-const ST_MUFFLE_FILTER = 'lowpass=f=1200:p=2,volume=-1dB';
+// Cutoff: the similarity reference keeps 0.30 % of its energy above 3 kHz over the ending, from 2.56 % before it (x 0.117,
+// -9.3 dB). The spec's starting point (1.2 kHz, 2-pole) kept 0.5 % of the dry share (-23 dB), far darker.
+// Share of the energy above 3 kHz, the filter run on each bundled -11 LUFS dry cue, over the dry's own share
+// (dev/measure-muffle.cjs; mean of the four cues; dry shares surf 3.43 %, tropical 2.50 %, cinematic 1.63 %, disco 4.44 %):
+//   lowpass=f=1200:p=2  -23.3 dB      lowpass=f=1200:p=1  -12.2 dB      lowpass=f=1600:p=1  -10.0 dB
+//   lowpass=f=2500:p=2  -11.3 dB      lowpass=f=2700:p=2  -10.2 dB      lowpass=f=3000:p=2   -8.8 dB
+//   lowpass=f=2800:p=2   -9.7 dB (surf / tropical / cinematic / disco -9.2 / -10.5 / -9.7 / -9.5)  <- chosen: in the
+//   1/8-1/10 band, 2-pole like the starting point. The shipped 96k -muffled.mp3 files keep 0.44 / 0.24 / 0.19 / 0.53 %
+//   (-8.9 / -10.2 / -9.4 / -9.2 dB against the dry).
+// The -1 dB keeps the wet a touch under the dry it replaces at the ending cut.
+const ST_MUFFLE_FILTER = 'lowpass=f=2800:p=2,volume=-1dB';
 const ST_MUFFLE_BITRATE = '96k';
+// 8 hex digits of the filter's FNV-1a hash: part of the own-music muffled copy's cached file name, so a filter change
+// bakes a new copy instead of reusing one made with the old filter.
+const ST_MUFFLE_TAG = (() => {
+  let h = 0x811c9dc5;
+  for (const ch of ST_MUFFLE_FILTER) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+  return h.toString(16).padStart(8, '0');
+})();
 
 // POSIX shell single-quoting: the whole value in '...', each ' closed, escaped and reopened ('\'').
 function sq(value) {
@@ -976,21 +1057,28 @@ function stMuffleCommand(inPath, outPath) {
 // Panel helpers without React: the panel test loads this block in node:vm next to the planner, graphics and muffle
 // blocks, builds the run_script configs from fixtures and measures their payload.
 const ST_AMBIENT_DB = -18;
+// Intro lift (assemble.js introDuckDb): the dry music under the title sits this far below the body and rises to 0 dB
+// on the drop frame, on top of the cue's own intro -> drop step (0 = off).
+const ST_INTRO_DUCK_DB = -7;
 // Live probe P1: an overlaid video brings no separate audio clip and takes setClipAudio -60 dB, so grid panels are
 // lowered in assemble ('volume'), never routed.
 const ST_GRID_SOUND = 'volume';
 // Live probe P2: an effect's useCurrentFrame() is 0 at the clip's first timeline frame whatever its source start.
 const ST_TIME_ORIGIN = 'clip';
 const ST_FILM_WINDOW = { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 };
-const ST_LOOK_DEFAULT = 0.3;
+const ST_LOOK_DEFAULT = 0.45;
+// Video motion on montage video clips: 1 = a 1.00 -> 1.04 push-in across the clip.
+const ST_VIDEO_MOTION_STRENGTH = 1;
 const ST_LINE1_DEFAULT = 'that one trip in';
 const ST_TOP_ITALIC_DEFAULT = 'VLOG';
 const ST_CREDIT_PREFIX = 'By';
 const ST_PLACE_PREFIX = 'in';
-// Clips per scene-search call (12 roles each, 4 in flight, pages of ST_SEARCH_PAGE hits); search.js stops starting
-// new searches after 22 s, and clips it could not search are retried by the next Build.
+// Clips per scene-search call (12 roles + 2 signal queries each, 4 in flight, pages of ST_SEARCH_PAGE hits); search.js
+// stops starting new searches after 22 s, and clips it could not search are retried by the next Build.
 const ST_SEARCH_BATCH = 3;
 const ST_SEARCH_PAGE = 6;
+// Every scene search: the shot roles and the signal queries (planner ST_SIGNAL_QUERIES).
+const ST_SEARCH_QUERIES = Object.assign({}, ST_QUERIES, ST_SIGNAL_QUERIES);
 // Planning rate before this Project has produced a Draft; assemble.js lays every frame at the Draft's real rate.
 const ST_GUESS_FPS = 30;
 const ST_MOTION_OPTIONS = [
@@ -1106,12 +1194,12 @@ function stPlanOptions(o) {
 function stSfxFiles(manifest, dir) {
   return Object.keys(manifest || {}).sort().map(key => ({ key, b64: 'sfx/' + manifest[key].file + '.b64', path: dir + '/' + manifest[key].file, seconds: manifest[key].duration }));
 }
-// File name of the muffled copy of the user's own music: <base>-muffled-<first 8 hex of the file's sha256>.wav. The
-// name is the cache key (the data folder keeps one bake per file content) and what ensure-audio.js dedupes on; the
-// filter is fixed per plugin version (muffle.cjs), so a filter change must change this name too.
+// File name of the muffled copy of the user's own music: <base>-muffled-<ST_MUFFLE_TAG>-<first 8 hex of the file's
+// sha256>.wav. The name is the cache key (the data folder keeps one bake per file content and filter) and what
+// ensure-audio.js dedupes on; ST_MUFFLE_TAG hashes the filter, so a filter change bakes and imports a new copy.
 function stOwnMuffledName(fileName, hash8) {
   const base = String(fileName || 'music').split(/[\\/]/).pop().replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9._-]+/g, '-') || 'music';
-  return base + '-muffled-' + hash8 + '.wav';
+  return base + '-muffled-' + ST_MUFFLE_TAG + '-' + hash8 + '.wav';
 }
 // assemble.js `sfx` from the imported ids: 1-4 shutter takes (with each take's file length) and the whoosh.
 function stSfxConfig(manifest, ids) {
@@ -1209,6 +1297,7 @@ function stAssembleConfig(o) {
     clipSound: o.clipSound, ambientDb: ST_AMBIENT_DB,
     gridSound: ST_GRID_SOUND,
     sfx: o.sfx || null,
+    introDuckDb: ST_INTRO_DUCK_DB,
   };
 }
 
@@ -1245,6 +1334,8 @@ function stDecorateConfig(o) {
     gridPanel: { tsx: o.tsx.gridPanel },
     filmFrame: { tsx: o.tsx.filmFrame, window: ST_FILM_WINDOW, leakStrength: 1, timeOrigin: ST_TIME_ORIGIN },
     motion: { tsx: o.tsx.motion, strength: 1, options: ST_MOTION_OPTIONS, byClipIndex },
+    // Montage video clips: a slow push-in (Video motion, editable in Adjust).
+    videoMotion: o.tsx.videoMotion ? { tsx: o.tsx.videoMotion, strength: ST_VIDEO_MOTION_STRENGTH } : null,
     endingMotion: plan.endingMotion || {},
     photos,
   };
@@ -1719,10 +1810,10 @@ export default function Panel({ sdk, context, ui }: any) {
         if (!alive) return;
         setTools({ ffmpeg: have.includes("ffmpeg"), node: have.includes("node") });
         const read = (rel: string) => readText(plugin, rel);
-        const [manifest, presets, sfxManifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, labelsTsx, lookTsx, gridTsx, filmTsx, motionTsx] = await Promise.all([
+        const [manifest, presets, sfxManifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, labelsTsx, lookTsx, gridTsx, filmTsx, motionTsx, videoMotionTsx] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("sfx/manifest.json"), read("scripts/inventory.js"), read("scripts/search.js"),
           read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-graphic.tsx"), read("assets/labels-graphic.tsx"),
-          read("assets/summer-look.tsx"), read("assets/grid-panel.tsx"), read("assets/film-frame.tsx"), read("assets/photo-motion.tsx")]);
+          read("assets/summer-look.tsx"), read("assets/grid-panel.tsx"), read("assets/film-frame.tsx"), read("assets/photo-motion.tsx"), read("assets/video-motion.tsx")]);
         // Development placeholder cues (dev-manifest.json, never shipped) only when the bundled manifest has none.
         let dev: any = null;
         try { dev = JSON.parse(await read("assets/cues/dev-manifest.json")); } catch { dev = null; }
@@ -1732,7 +1823,7 @@ export default function Panel({ sdk, context, ui }: any) {
         const cues = [...bundled, ...devCues];
         setAssets({ cues, presets: JSON.parse(presets), sfx: JSON.parse(sfxManifest),
           scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs },
-          tsx: { title: titleTsx, labels: labelsTsx, look: lookTsx, gridPanel: gridTsx, filmFrame: filmTsx, motion: motionTsx } });
+          tsx: { title: titleTsx, labels: labelsTsx, look: lookTsx, gridPanel: gridTsx, filmFrame: filmTsx, motion: motionTsx, videoMotion: videoMotionTsx } });
         setCueId((cur) => (cur && (cur === "own" || cur === "none" || cues.some((c: any) => c.id === cur)) ? cur : cues.length ? cues[0].id : "none"));
         inventoryJsRef.current = inventoryJs;
         setStep("Checking clips");
@@ -1909,7 +2000,7 @@ export default function Panel({ sdk, context, ui }: any) {
     // ST_SEARCH_BATCH clips per call keeps each call inside run_script's fixed 30 s deadline.
     for (let i = 0; i < rids.length; i += ST_SEARCH_BATCH) {
       advance("shots", 0.9 * i / rids.length, i + "/" + rids.length + " clips checked");
-      const r = await run("Search travel shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + ST_SEARCH_BATCH), queries: ST_QUERIES, pageSize: ST_SEARCH_PAGE }));
+      const r = await run("Search travel shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + ST_SEARCH_BATCH), queries: ST_SEARCH_QUERIES, pageSize: ST_SEARCH_PAGE }));
       check();
       list.push(...r.candidates); failed.push(...r.failed);
     }

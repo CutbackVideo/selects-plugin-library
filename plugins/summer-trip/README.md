@@ -10,12 +10,12 @@ changes an existing Draft or any source file.
 The video follows one schedule, counted in beats from the start of the
 chosen music section:
 
-- **Title (8 beats, two bars).** One opening shot, with a title typed word
-  by word on the beat: line 1 ("that one trip in", one word per beat), then
-  a big season word in two steps ("SUM" on beat 4, "SUMMER" on beat 5),
-  then two small labels: "SUMMER *VLOG*" at the top and, when you fill in a
-  credit, "BY *NAME*" at the bottom. A line 1 of five or six words is typed
-  on half beats instead.
+- **Title (8 beats, two bars).** One opening shot that starts clean, with a
+  title typed word by word: line 1 ("that one trip in", one word per beat,
+  from half a beat in), then a big season word in two steps ("SUM" on beat
+  5, "SUMMER" on beat 6), then two small labels: "SUMMER *VLOG*" at the top
+  and, when you fill in a credit, "BY *NAME*" at the bottom. A line 1 of
+  five or six words is typed on half beats instead.
 - **Grid build (3.5 beats, from beat 8).** The title leaves and a 2x2 split
   screen fills one quadrant per half beat (top left, top right, bottom
   right, bottom left), each with a different shot. The place shot then takes
@@ -30,10 +30,11 @@ chosen music section:
   the reference). The labels stay on.
 - **Ending (8 beats).** A warm light-leak wash leads into three shots inside
   a rounded, feathered film frame on black, with light-leak pulses inside
-  the frame. The music turns muffled (low-passed) for the ending, and the
+  the frame and a warm orange flare over the last shot. The music turns muffled (low-passed) for the ending, and the
   picture and the music fade out over the last half beat.
-- A subtle **Summer look** (teal shadows, warm highlights) on every clip,
-  photo and grid panel.
+- A **Summer look** on every clip, photo and grid panel: a warm film
+  treatment with teal shadows, warm highlights, softened cyan skies and
+  neon greens, a gentle highlight roll-off and a light film grain.
 - A 1920x1080 canvas. Clips and photos of other shapes get a centre crop;
   grid panels of other shapes are cropped to their quadrant.
 - Hard cuts only; the only transition is the light leak into the ending.
@@ -100,6 +101,9 @@ Choose a **Track**:
   plays over the quiet intro and the grid starts on the drop (the slider
   shows "Drop"). Tracks without a drop use ordinary sections ("Section"):
   the title plays over the first two bars and the grid starts on bar 3.
+  Either way the music sits 7 dB lower under the title and comes up to
+  full level on the grid's first beat (a volume line on the music clip in
+  the Draft, which you can edit).
 - **Your own music**: drop an audio file. The plugin detects the beat
   (the tempo is folded to the octave closest to 120 BPM (about 85–170 BPM))
   and looks for a drop: a clear jump in loudness on a bar line.
@@ -150,8 +154,9 @@ with a faster track and longer with a slower one.
   **Full** keeps it at its original level. The music stays at its full
   level in every mode. Photos have no sound.
 - **Look**: the **Summer look** toggle is on by default, with **Look
-  strength** 0.3 (0 to 1). Off removes the grade (the strength slider is
-  then unavailable); the film frame and its light leaks stay.
+  strength** 0.45 (0 to 1). Off removes the grade and the grain (the
+  strength slider is then unavailable); the film frame and its light leaks
+  stay.
 - **Sound effects**: off by default. On adds a camera-shutter click on each
   of the first four grid steps and a soft whoosh into the drop and into the
   ending. They play with or without music.
@@ -186,6 +191,10 @@ never scene-searched.
   tilt, or push and drift), never the same move twice in a row. Ending
   photos move inside the film frame, which itself stays still. In the
   Inspector, each move's **Motion** and **Motion strength** can be changed.
+- Each montage video clip gets a slow push-in across the clip (1.00 to 1.04),
+  so calm shots still move; its **Video motion** strength (0 to 2, 0 keeps
+  the shot still) can be changed in the Inspector. Grid panels and the ending
+  shots stay still.
 - The size of a photo Selects does not report is read once by placing it on
   an unsaved scratch Draft; nothing is saved.
 
@@ -210,6 +219,12 @@ X s)". Below 4 montage shots the panel says "Your footage is too short for 4
 montage shots" and Build stays disabled. The plugin does not start analysis
 on its own, so analyse your clips first.
 
+Two extra scene searches per clip steer the choice without filling shots:
+night scenes, city lights and intense sunsets are kept out of the opening,
+the grid, the place shot and the montage while daylight footage remains
+(they suit the ending, where they are still welcome), and moments with
+people walking or travel along a road or coast win close calls.
+
 If the scene search fails for some clips, the build goes on without them
 and the next **Build** searches only those clips again.
 
@@ -225,18 +240,20 @@ The Draft contains:
   labels" from beat 12 to the ending (with the place title for its first
   two beats);
 - a "Summer look" Video Effect on every clip and panel, "Film frame" on the
-  three ending clips and "Photo motion" on montage photos;
-- the music (and its muffled copy over the ending) and, when on, the sound
-  effects, on audio tracks.
+  three ending clips, "Photo motion" on montage photos and "Video motion"
+  on montage video clips;
+- the music (lower under the title, with a volume line up to full level on
+  the grid's first beat; its muffled copy over the ending) and, when on,
+  the sound effects, on audio tracks.
 
 Edit it in the Inspector:
 
 - **Title** and **labels**: select a graphic to change its texts, colours,
   shadow, sizes and positions. The two graphics hold separate copies of the
   labels, so an edit in one does not change the other.
-- **Clips**: the crop, the sound level, the Summer look strength and, on
-  the ending clips, the light-leak strength.
-- **Music**: select a music clip to change its volume.
+- **Clips**: the crop, the sound level, the Summer look strength and film
+  grain and, on the ending clips, the light-leak strength.
+- **Music**: select a music clip to change its volume. The main music clip carries a volume line (lower under the title, full from the grid); setting one constant volume there replaces that line.
 
 Finished videos are exported from the Draft with **Handoff → Export**.
 
