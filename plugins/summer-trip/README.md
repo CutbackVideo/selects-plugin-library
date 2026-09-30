@@ -106,17 +106,23 @@ Choose a **Track**:
   15 dB further down over the last 1.5 s before the drop, and comes back to full
   level just after the drop, so the drop lands as the payoff (a volume
   line on the music clip in the Draft, which you can edit). Ordinary
-  sections, your own music without a drop, and approximate timing play at
-  full level from the start.
+  sections, your own music without a drop, and the fixed 0.5 s timing play
+  at full level from the start.
 - **Your own music**: drop an audio file. The plugin detects the beat
   (the tempo is folded to the octave closest to 120 BPM (about 85–170 BPM))
   and looks for a drop: a clear jump in loudness on a bar line.
   When it finds one, the section starts two bars before it, so the grid
   lands on the drop; otherwise the panel says "No drop found: the grid
-  starts after the 2-bar title". Songs whose beat cannot be detected
-  reliably, or that stay under 70 BPM, use approximate timing (a fixed 0.5 s
-  beat; the drop, the first montage cut and the ending may move onto a
-  strong bass hit within 120 ms), and the panel says so. Your own music needs ffmpeg and Node.js 18 or later (see
+  starts after the 2-bar title". Sparse drums (a lo-fi kick and snare on
+  only some beats) count as a beat when the hits they do make sit tight on
+  the grid all through the track. When the tempo is found but the beat is
+  faint, the cuts use approximate timing on the detected tempo: shots of
+  that tempo's beat from its first beat, the box snapping to its bars, and
+  the drop section when a drop is found on that grid; the drop, the first
+  montage cut and the ending may move onto a strong bass hit within 120 ms,
+  and the panel says "Approximate timing on the detected tempo". Songs
+  where no steady beat is found use approximate timing (a fixed 0.5 s beat,
+  the same bass-hit moves), and the panel says so. Your own music needs ffmpeg and Node.js 18 or later (see
   [INSTALL.md](INSTALL.md)). The ending muffle for your own music is a
   muffled copy baked with ffmpeg; for a compressed file (mp3, aac) it is
   baked from ffmpeg's decode, so at the joint it may sit a few milliseconds

@@ -112,7 +112,8 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
     if (!fs.existsSync(file)) throw Error('own music file not found: ' + file);
     const hash = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
     fs.mkdirSync(workDir, { recursive: true });
-    const cachePath = path.join(workDir, 'own-' + hash.slice(0, 12) + '.json');
+    // v2: the analysis carries beat-detect.cjs's grid state ('accepted' | 'approximate' | 'none'); older caches lack it.
+    const cachePath = path.join(workDir, 'own-v2-' + hash.slice(0, 12) + '.json');
     let analysis = readJson(cachePath);
     if (!analysis) {
       const req = createRequire(path.join(pluginDir, 'beat-detect.cjs'));
@@ -121,7 +122,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
         ['-nostdin', '-v', 'error', '-i', file, '-ac', '1', '-ar', '22050', '-f', 'f32le', '-'], { maxBuffer: 1 << 30 });
       const samples = new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
       const a = analyze(samples, 22050, { dropPick: 'largest' });
-      analysis = { bpm: a.bpm, firstBeat: a.firstBeat, accepted: a.accepted, durationSeconds: a.durationSeconds, beatEnergy: a.beatEnergy,
+      analysis = { bpm: a.bpm, firstBeat: a.firstBeat, accepted: a.accepted, grid: a.grid, durationSeconds: a.durationSeconds, beatEnergy: a.beatEnergy,
         onsets: a.onsets, onsetThresholds: a.onsetThresholds, drop: a.drop, sixteenthRatio: a.sixteenthRatio };
       fs.writeFileSync(cachePath, JSON.stringify(analysis));
     }
@@ -164,7 +165,10 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
     if (!row.music.own) throw Error('own music: no file (set music.own, for example to "${ST_OWN_MUSIC}")');
     const own = ownMusic(row.music.own);
     const a = own.analysis;
-    const bpm = a.accepted ? P.stOctave(a.bpm) : null;
+    // As in the panel (stOwnCue): an accepted grid, or an approximate one (tempo found, beat faint: its tempo and first
+    // beat with low-confidence snapping); 'none' uses fixed timing.
+    const faint = !a.accepted && a.grid === 'approximate';
+    const bpm = a.accepted || faint ? P.stOctave(a.bpm) : null;
     const notes = [];
     const files = { dry: own.file, wet: own.wetPath, own };
     if (!bpm) {
@@ -180,10 +184,11 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
     const drop = a.drop && Math.abs(a.drop.bpm - bpm) < 0.01 ? a.drop : null;
     const cueLike = { bpm, firstBeat: drop ? drop.firstBeat : a.firstBeat, dropBeat: drop ? drop.dropBeat : null,
       beatEnergy: Math.abs(bpm - a.bpm) < 0.01 ? a.beatEnergy : null, duration: a.durationSeconds };
+    if (faint) notes.push('approximate timing on the detected tempo (' + Math.round(bpm) + ' BPM): the beat is faint');
     if (!drop) notes.push('No drop found: the grid starts after the 2-bar title');
     const sec = pickSection(cueLike, row.section, n);
     if (sec.note) notes.push(sec.note);
-    return { kind: 'own', label: path.basename(own.file), grid: { bpm, firstBeat: cueLike.firstBeat, accepted: true, bundled: false, onsets: a.onsets, onsetThresholds: a.onsetThresholds, lowConfidence: false },
+    return { kind: 'own', label: path.basename(own.file), grid: { bpm, firstBeat: cueLike.firstBeat, accepted: !faint, faint, bundled: false, onsets: a.onsets, onsetThresholds: a.onsetThresholds, lowConfidence: faint },
       sectionStart: sec.start, sectionKind: sec.kind, notes, files };
   }
   function pickSection(cue, section, n) {

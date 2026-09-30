@@ -58,7 +58,8 @@ plannedSeconds, frame, quantErrorSeconds }]`.
     shutters, per take when an array */, whoosh: rid, whooshSeconds: number /* file length */, volumeDb?: number /* SFX level, default -8 */ },
   introDuckDb: -7                     // dB of the dry music under the title (number, 0 = off). The panel sends −7 only for a drop
                                       // section (slider kind 'drop': a bundled cue's drop section or own music with a detected
-                                      // drop) and 0 for an ordinary section, own music without a drop, fixed timing or No music.
+                                      // drop, also on an approximate grid) and 0 for an ordinary section, own music without a
+                                      // drop, the fixed 0.5 s timing or No music.
                                       // Non-zero → a keyed level line (setClipAudio volumeKeys, whole frames from the dry's first
                                       // frame, F8 = F(8) = gridStateFrames[0]): introDuckDb at 0, held to B = max(1, F8 − round(1.5·fps)),
                                       // a linear-in-dB fade to introDuckDb − 15 on F8 − 1, −3 dB on F8 (the drop), 0 dB on

@@ -1105,9 +1105,12 @@ function stCoverFor(size) {
 }
 
 // Own music as a cue for the section maths, from beat-detect.cjs's analysis (drop picked 'largest'). The drop carries
-// its own grid (the tempo octave and a re-anchored first beat). Null when the grid is not usable (fixed timing).
+// its own grid (the tempo octave and a re-anchored first beat). A grid is usable when it is accepted, or when
+// beat-detect.cjs calls it 'approximate' (tempo and first beat tight but the beat faint: the cuts follow that grid with
+// low-confidence snapping; the drop, found on the same grid, still places the drop section). Null when the grid is not
+// usable ('none', no analysis, or a tempo out of range: fixed timing).
 function stOwnCue(g) {
-  if (!g || !g.accepted || !(g.bpm > 0) || !(g.durationSeconds > 0)) return null;
+  if (!g || !(g.accepted || g.grid === 'approximate') || !(g.bpm > 0) || !(g.durationSeconds > 0)) return null;
   const d = g.drop && g.drop.bpm > 0 && isFinite(g.drop.dropSeconds) ? g.drop : null;
   const bpm = d ? d.bpm : stOctave(g.bpm);
   if (!bpm) return null;
@@ -1125,7 +1128,8 @@ function stOwnCue(g) {
 // The timing source of a build. choice: a cue id, 'own' or 'none'; cue: its manifest entry; own: the own-music
 // analysis ({ accepted: false, durationSeconds, peaks: [] } when only the length is known).
 //   cue   — a bundled cue: its grid, never snapped;
-//   own   — own music with an accepted grid (onset-snapped anchors);
+//   own   — own music with an accepted grid (onset-snapped anchors), or with an approximate one (faint: true,
+//           approximate: true): the detected tempo and first beat, bar-snapped sections, low-band snapping as for fixed;
 //   fixed — own music without a usable grid: a fixed 0.5 s beat, low-band snapping, "approximate timing";
 //   none  — No music: a fixed 0.5 s beat; missing: own music chosen but not read yet.
 function stMusicFor(o) {
@@ -1141,8 +1145,9 @@ function stMusicFor(o) {
     if (!own || !(own.durationSeconds > 0)) return { kind: 'none', bpm: ST_FIXED_BPM, cue: null, duration: 0, peaks: [], missing: true, approximate: true };
     const oc = stOwnCue(own);
     const onsets = Array.isArray(own.onsets) ? own.onsets : [];
+    const faint = !own.accepted;
     if (oc) return { kind: 'own', bpm: oc.bpm, cue: oc, duration: oc.duration, peaks: own.peaks || [], onsets, onsetThresholds: own.onsetThresholds,
-      noDrop: oc.dropSeconds === null, approximate: false };
+      noDrop: oc.dropSeconds === null, faint, approximate: faint };
     return { kind: 'fixed', bpm: ST_FIXED_BPM, cue: { bpm: ST_FIXED_BPM, firstBeat: 0, duration: own.durationSeconds }, duration: own.durationSeconds,
       peaks: own.peaks || [], onsets, onsetThresholds: own.onsetThresholds, approximate: true };
   }
@@ -1185,9 +1190,15 @@ function stPlanOptions(o) {
   if (m.kind !== 'none') more['sectionStart'] = o.section || 0;
   if (m.kind === 'cue') more['bundled'] = true;
   else if ((m.kind === 'own' || m.kind === 'fixed') && m.onsets && m.onsets.length) {
-    more['onsets'] = m.onsets; more['onsetThresholds'] = m.onsetThresholds; more['lowConfidence'] = m.kind === 'fixed';
+    more['onsets'] = m.onsets; more['onsetThresholds'] = m.onsetThresholds; more['lowConfidence'] = m.kind === 'fixed' || !!m.faint;
   }
   return Object.assign(opts, more);
+}
+
+// Own music whose tempo was found but whose beat is faint (beat-detect.cjs grid 'approximate'): the panel line.
+function stFaintText(music) {
+  return 'Approximate timing on the detected tempo (' + Math.round(music.bpm) + ' BPM): the tempo was found but the beat is faint, so the cuts may miss it.'
+    + (music.noDrop ? ' No drop found: the grid starts after the 2-bar title.' : '');
 }
 
 // Sound effect files: decoded from sfx/<file>.b64 into `dir` under their stable names (shutter-N.wav, whoosh-1.wav);
@@ -1926,6 +1937,7 @@ export default function Panel({ sdk, context, ui }: any) {
       setOwnGrid(g);
       const m: any = stMusicFor({ choice: "own", cue: null, own: g });
       setStatus(m.kind === "fixed" ? { tone: "info", text: "Music added; its beat could not be found reliably, so the cuts use approximate timing." }
+        : m.faint ? { tone: "info", text: stFaintText(m) }
         : m.noDrop ? { tone: "info", text: "No drop found: the grid starts after the 2-bar title." } : null);
     } catch (e: any) {
       // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
@@ -2286,6 +2298,7 @@ export default function Panel({ sdk, context, ui }: any) {
   const canBuild = !!inventory && !!assets && !!readyPlan && !!readyPlan.ok && !blocked;
   const timingNote = music.kind === "none" ? "No music: the cuts use approximate timing (a fixed 0.5 s beat)."
     : music.kind === "fixed" ? "Approximate timing: the beat of this music could not be found reliably."
+    : music.kind === "own" && music.faint ? stFaintText(music)
     : music.kind === "own" && music.noDrop ? "No drop found: the grid starts after the 2-bar title." : null;
   const presetsData = assets?.presets || null;
   const cueOptions = [
