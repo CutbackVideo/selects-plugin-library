@@ -144,7 +144,12 @@ function readbackOf(m, fps) {
   assert.deepEqual(ac.music, { resourceId: 'm1', sectionStart: s.music.sectionStart, wetResourceId: 'w1' });
   assert.deepEqual(ac.sfx, { shutter: ['s1', 's2', 's3', 's4'], shutterSeconds: [0.17, 0.171, 0.171, 0.17], whoosh: 'wh', whooshSeconds: 0.864 });
   assert.equal(ac.clipSound, 'ambient'); assert.equal(ac.ambientDb, -18); assert.equal(ac.gridSound, 'volume');
-  assert.equal(ac.introDuckDb, -7, 'intro lift on by default, as in the panel'); assert.equal(ROW_DEFAULTS.introDuckDb, -7);
+  assert.equal(ac.introDuckDb, -7, 'intro line on in a drop section, as in the panel'); assert.equal(ROW_DEFAULTS.introDuckDb, 'auto');
+  assert.equal(ST_PANEL.INTRO_DUCK_DB, -7);
+  assert.ok(fs.readFileSync(path.join(PLUGIN, 'panel.tsx'), 'utf8').includes('const ST_INTRO_DUCK_DB = ' + ST_PANEL.INTRO_DUCK_DB + ';'), 'same duck level as the panel');
+  // A numeric row value overrides the rule (0 = off, even in a drop section).
+  assert.equal(A.assembleConfig({ ...s, row: { ...s.row, introDuckDb: 0 } }, { ids, imported: Object.keys(ids), missing: [] }).introDuckDb, 0);
+  assert.equal(A.assembleConfig({ ...s, row: { ...s.row, introDuckDb: -5 } }, { ids, imported: Object.keys(ids), missing: [] }).introDuckDb, -5);
 
   // Run the real assemble.js: the Draft adopts 29.97 fps, so the script re-lays at the real rate.
   const mock = mockProject({ adoptFps: 29.97, audioRids: Object.values(ids) });
@@ -229,14 +234,16 @@ function readbackOf(m, fps) {
   const noSfx = JSON.parse(JSON.stringify(rb));
   noSfx.st.levels = noSfx.st.levels.filter(l => l.rid !== 'wh');
   assert.equal(stCheck(noSfx, exp).checks.sfx, false);
-  // The dry music carries the intro lift (keyed, no constant level); a flat dry or a lift on the wrong frame fails.
-  assert.deepEqual(exp.music.dry.keys.map(k => [Math.round(k.atSeconds * a.fps), k.volumeDb]), [[0, -7], [F(8) - 1, -7], [F(8), 0]]);
+  // The dry music carries the intro line (keyed, no constant level): -7 dB, a 1.5 s dip to -22 dB, -3 dB on the drop,
+  // 0 dB a quarter second later; a flat dry or a drop key on the wrong frame fails.
+  assert.deepEqual(exp.music.dry.keys.map(k => [Math.round(k.atSeconds * a.fps), k.volumeDb]),
+    [[0, -7], [F(8) - Math.round(1.5 * a.fps), -7], [F(8) - 1, -22], [F(8), -3], [F(8) + Math.round(0.25 * a.fps), 0]]);
   assert.equal(exp.music.wet.keys, undefined);
   const flat = JSON.parse(JSON.stringify(rb));
   Object.assign(flat.st.levels.find(l => l.rid === 'm1'), { db: 0, keys: [] });
   assert.equal(stCheck(flat, exp).checks.music, false);
   const late = JSON.parse(JSON.stringify(rb));
-  late.st.levels.find(l => l.rid === 'm1').keys[2].atSeconds += 2 / a.fps;
+  late.st.levels.find(l => l.rid === 'm1').keys[3].atSeconds += 2 / a.fps;
   assert.equal(stCheck(late, exp).checks.music, false);
 
   const rec = A.record(s, a);
@@ -257,6 +264,7 @@ function readbackOf(m, fps) {
   assert.equal(ac2.music, null);
   assert.equal(ac2.sfx, null);
   assert.equal(ac2.gridSound, 'routing');
+  assert.equal(ac2.introDuckDb, 0, 'No music: no intro line');
   const mock2 = mockProject({ adoptFps: 29.97 });
   const a2 = await load('assemble.js', ac2)(mock2.selects);
   A.afterAssemble(s2, a2);
@@ -289,6 +297,15 @@ function readbackOf(m, fps) {
   assert.deepEqual(A.ensureAudio(s3).config.files.map(f => f.key), ['dry']);
   assert.equal(A.assembleConfig(s3, { ids: { dry: 'm1' } }).music.wetResourceId, null);
   assert.ok(s3.music.sectionStart > 0.05, 'late section');
+  // An ordinary section (not the drop section) gets no intro line, in the config and in the expectations.
+  assert.equal(s3.music.sectionKind, 'section');
+  const ac3 = A.assembleConfig(s3, { ids: { dry: 'm1' } });
+  assert.equal(ac3.introDuckDb, 0, 'no intro line outside a drop section');
+  const mock3 = mockProject({ adoptFps: 30, audioRids: ['m1'] });
+  const a3 = await load('assemble.js', ac3)(mock3.selects);
+  assert.equal(a3.music.introDuck, null);
+  const exp3 = A.stExpected({ ...s3, audio: { ids: { dry: 'm1' } }, audioKeys: { dry: 'dry' } }, a3);
+  assert.equal(exp3.music.dry.keys, null);
   const few = { resources: resources.slice(0, 3), photos: [], months };
   assert.throws(() => A.plan({ row: { key: 'k4', pid: 'P', music: 'none', usePhotos: false }, seed: 1, inv: few, found: { list: list.filter(c => ['v0', 'v1', 'v2'].includes(c.rid)), failed: [] } }),
     /Needs at least 6 different clips or photos \(found 3\)/);

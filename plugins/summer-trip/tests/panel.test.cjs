@@ -173,6 +173,12 @@ const mCue = X.stMusicFor({ choice: 'c1', cue, own: null });
 assert.equal(mCue.kind, 'cue');
 const d8 = X.stDefaultStart(mCue, 8);
 assert.ok(near(d8.start, 4.2) && d8.kind === 'drop', JSON.stringify(d8));
+// Section kinds that decide the intro line (stAssembleConfig): only a drop section is 'drop'.
+assert.equal(X.stDefaultStart(X.stMusicFor({ choice: 'c1', cue: { ...cue, dropBeat: null, dropSeconds: null }, own: null }), 8).kind, 'section', 'cue without a drop');
+assert.equal(X.stDefaultStart(X.stMusicFor({ choice: 'own', cue: null, own: { ...own, drop: null } }), 8).kind, 'section', 'own music without a drop');
+assert.equal(X.stDefaultStart(mFixed, 8).kind, 'section', 'fixed timing');
+assert.equal(X.stSnapSection(mCue, 8, 0).kind, 'section', 'a cue section moved off the drop');
+assert.ok(panel.includes('sectionKind: sectionInfo ? sectionInfo.kind : null') && panel.includes('sfx, sectionKind: musicAt.sectionKind }'), 'Build passes the slider section kind to stAssembleConfig');
 assert.equal(X.stSnapSection(mCue, 8, 4.2 + 2).kind, 'section');
 assert.ok(near(X.stSnapSection(mCue, 8, 5.1).start, 4.2), 'bar snap');
 // Long (48 beats = 24 s) no longer fits from the drop section in a 40 s cue: 4.2 + 24 + 0.5 > 40? no, fits; 12 s later does not.
@@ -281,16 +287,23 @@ const cands = hits.concat(photos.map(p => ({ rid: p.rid, kind: 'photo' })));
 const payloads = {};
 (async () => {
   for (const [presetId, clipSound, music, sfxOn] of [['summer', 'ambient', mCue, false], ['poster', 'off', mOwn, true], ['postcard', 'full', X.stMusicFor({ choice: 'none' }), true]]) {
-    const section = music.kind === 'none' ? 0 : X.stDefaultStart(music, 8).start;
+    const sec = music.kind === 'none' ? null : X.stDefaultStart(music, 8);
+    const section = sec ? sec.start : 0;
+    assert.equal(sec && sec.kind, music.kind === 'none' ? null : 'drop', 'default sections of the drop cue and the own music with a drop');
     const plan = X.stPlanBuild(X.stPlanOptions({ music, section, candidates: cands, fps: 30, montageShots: 8, seed: 3, sizes }));
     assert.ok(plan.ok, plan.disabledReason);
     assert.equal(plan.frames.fps, 30, 'planned at the guess');
     const sfx = sfxOn ? X.stSfxConfig(sfxManifest, sfxIds) : null;
     const musicCfg = music.kind === 'none' ? null : { resourceId: 'm1', sectionStart: section, wetResourceId: 'm2' };
-    const acfg = j(X.stAssembleConfig({ projectId: 'proj', draftName: X.stDraftName('', 'SUMMER', new Date(2026, 6, 1, 12, 0)), fps: 30, plan, sizes, durations, music: musicCfg, clipSound, sfx }));
+    const acfg = j(X.stAssembleConfig({ projectId: 'proj', draftName: X.stDraftName('', 'SUMMER', new Date(2026, 6, 1, 12, 0)), fps: 30, plan, sizes, durations, music: musicCfg, clipSound, sfx, sectionKind: sec ? sec.kind : null }));
     assert.deepEqual(Object.keys(acfg), ASSEMBLE_KEYS, 'assemble config keys (contracts.md order)');
     assert.deepEqual(acfg.beats, { bpm: plan.frames.bpm, delta: plan.frames.delta, snaps: j(plan.frames.snaps) }, 'frames.snaps from the plan');
-    assert.equal(acfg.gridSound, 'volume'); assert.equal(acfg.ambientDb, -18); assert.equal(acfg.crossfadeFrames, null); assert.equal(acfg.introDuckDb, -7);
+    assert.equal(acfg.gridSound, 'volume'); assert.equal(acfg.ambientDb, -18); assert.equal(acfg.crossfadeFrames, null);
+    assert.equal(acfg.introDuckDb, music.kind === 'none' ? 0 : -7, 'intro line only in a drop section (never without music)');
+    // The same plan in an ordinary section, or without a known section kind: no intro line.
+    for (const sectionKind of ['section', null, undefined]) {
+      assert.equal(X.stAssembleConfig({ projectId: 'proj', draftName: 'x', fps: 30, plan, sizes, durations, music: musicCfg, clipSound, sfx, sectionKind }).introDuckDb, 0, String(sectionKind));
+    }
     assert.ok(acfg.picks.main.every(p => (p.kind === 'video') === (p.duration > 0)), 'every video pick carries its source duration');
     assert.deepEqual(Object.keys(acfg.picks.grid[0]).sort(), ['kind', 'quad', 'rid', 'startSeconds']);
     assert.equal(acfg.picks.main.length, acfg.schedule.mainBeats.length - 1);

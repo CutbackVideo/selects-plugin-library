@@ -8,6 +8,14 @@ const notes = [];
 const ST_QUADS = { TL: { x: -44.444, y: 25 }, TR: { x: 44.444, y: 25 }, BR: { x: 44.444, y: -25 }, BL: { x: -44.444, y: -25 } };
 const ST_TAIL_SECONDS = 0.15;
 const SIZE_CHECK = 'Summer Trip size check';
+// Intro level line around the drop (music section below), shaped on the reference (0.1 s RMS): the intro sits around
+// -18..-21 dB, from about 1.9 s before the drop it decays steadily to about -37 dB (15-19 dB under the intro) right
+// before the drop, and the drop hits at about -7..-12 dB. Here: a 1.5 s fade 15 dB down from the duck level, the drop
+// frame 3 dB under full level, 0 dB a quarter second later (the cue's own intro -> drop step does the rest).
+const INTRO_BREATH_DB = -15;
+const INTRO_BREATH_SECONDS = 1.5;
+const INTRO_DROP_DB = -3;
+const INTRO_RELEASE_SECONDS = 0.25;
 
 // Copy of the planner's stFrameSchedule (contracts.md "Frame schedule"): every event frame comes from one F().
 // F(0) = 0; F(b) = round((b * 60 / bpm + delta) * fps); an anchor beat listed in `snaps` uses its snapped seconds,
@@ -228,25 +236,38 @@ if (cfg.music) {
     dry = await placeAudio(cfg.music.resourceId, 0, Fend, ss);
     s0 = readS0(dry);
   }
-  // Intro lift: the dry music holds introDuckDb (dB, 0 = off) under the title and rises to 0 dB on the drop frame F(8)
-  // (the grid entrance) over one frame, so the section's own intro -> drop step gets that much more lift. Keys are
-  // whole frames from the dry clip's first visible frame. volumeKeys replace the clip's constant level (never combined
-  // with volumeDb); the fades are set in the same call and still apply. Only the dry carries it: the wet starts at Fe,
-  // after the drop.
-  // No key at the joint: Selects folds a fade-out into the level line from the clip's last frame minus the fade length
-  // (here Fe - 1) and drops every key inside it, so a key at Fe would never play. That fade (an ease-in in dB) already
-  // has the dry at about -18 dB on Fe; modelled that way the joint peaks at -1.9 to -2.1 dBTP on the -11 LUFS cues.
+  // Intro level line (only when the config asks for it: the panel sends introDuckDb for a drop section, 0 otherwise).
+  // The dry music holds introDuckDb (dB) under the title, then "breathes": from B = F(8) - 1.5 s it fades down, linear in
+  // dB, to introDuckDb + INTRO_BREATH_DB on F(8) - 1; the drop frame F(8) (the grid entrance) jumps to INTRO_DROP_DB and
+  // a short release reaches 0 dB INTRO_RELEASE_SECONDS later. So the drop reads as the section's payoff after a dip,
+  // not as a volume step on the title. Keys are whole frames from the dry clip's first visible frame. volumeKeys
+  // replace the clip's constant level (never combined with volumeDb); the fades are set in the same call and still
+  // apply. Only the dry carries it: the wet starts at Fe, after the drop.
+  // No key inside the end fade: Selects folds a fade-out into the level line from the clip's last frame minus the fade
+  // length (Fe - 1 for the dry under the wet) and drops every key inside it, so a key there would never play. That fade
+  // (an ease-in in dB) already has the dry at about -18 dB on Fe; modelled that way the joint peaks at -1.9 to
+  // -2.1 dBTP on the -11 LUFS cues.
   const duckDb = Number.isFinite(cfg.introDuckDb) ? cfg.introDuckDb : 0;
   const dropFrame = frames.gridStateFrames[0];
-  const duckKeys = row => {
+  const duckKeys = (row, fadeOutSeconds) => {
     const a = row.startFrame, len = row.endFrame - row.startFrame, up = dropFrame - a;
-    if (duckDb === 0 || !(up > 0) || !(up < len)) return null;
-    const keys = [[0, duckDb], [up - 1, duckDb], [up, 0]].filter((k, i, all) => i === 0 || k[0] > all[i - 1][0]);
+    // First frame inside the end-fade window: every key must sit before it.
+    const limit = len - 1 - Math.round((fadeOutSeconds || 0) * fps);
+    if (duckDb === 0 || !(up > 0) || !(up + 1 < limit)) return null;
+    const release = Math.min(Math.max(1, Math.round(INTRO_RELEASE_SECONDS * fps)), limit - 1 - up);
+    const hold = Math.max(1, up - Math.round(INTRO_BREATH_SECONDS * fps));
+    const keys = [[0, duckDb]];
+    if (up - 1 > 0) {
+      // A drop too early for the full breath shortens it; the hold key goes when it would not come before the dip.
+      if (hold < up - 1) keys.push([hold, duckDb]);
+      keys.push([up - 1, duckDb + INTRO_BREATH_DB]);
+    }
+    keys.push([up, INTRO_DROP_DB], [up + release, 0]);
     return keys.map(([f, db]) => ({ atSeconds: f / fps, volumeDb: db }));
   };
   const setMusicAudio = async (id, fadeInSeconds, fadeOutSeconds, withDuck) => {
     const clip = await rowById(id);
-    const keys = withDuck && clip ? duckKeys(clip) : null;
+    const keys = withDuck && clip ? duckKeys(clip, fadeOutSeconds) : null;
     try {
       if (!clip) throw Error('missing');
       if (keys) {

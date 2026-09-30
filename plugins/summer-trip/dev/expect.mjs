@@ -59,9 +59,26 @@ const is169 = size => !(size && size.width > 0 && size.height > 0) || Math.abs(s
 //   videoMotion: bool (decorate config videoMotion set: every montage VIDEO clip on Main gets a Video motion),
 //   look, clipSound, ambientDb, gridSound,
 //   music: null | { dryId, wetId|null, introDuckDb? }   (wetId null or muffle off -> one dry clip to the end; introDuckDb
-//          non-zero -> the dry carries the keyed intro lift: introDuckDb from 0 to F(8) - 1, 0 dB from F(8))
+//          non-zero (a drop section) -> the dry carries the keyed intro line of stIntroKeys)
 //   sfx: null | { shutterIds: [rid], shutterSeconds: [s], whooshId, whooshSeconds }
 // }
+// The dry's intro level line (copy of assemble.js duckKeys for a dry starting on frame 0; clip length `len` frames,
+// fade-out `fadeOut` s): duck from 0, held to F(8) - 1.5 s, a dip to duck - 15 dB on F(8) - 1, -3 dB on F(8), 0 dB
+// round(0.25 fps) frames later; no key inside the end-fade window. null when duck is 0 or nothing fits.
+export function stIntroKeys(duck, f8, fps, len, fadeOut) {
+  const limit = len - 1 - Math.round((fadeOut || 0) * fps);
+  if (!duck || !(f8 > 0) || !(f8 + 1 < limit)) return null;
+  const release = Math.min(Math.max(1, Math.round(0.25 * fps)), limit - 1 - f8);
+  const hold = Math.max(1, f8 - Math.round(1.5 * fps));
+  const keys = [[0, duck]];
+  if (f8 - 1 > 0) {
+    if (hold < f8 - 1) keys.push([hold, duck]);
+    keys.push([f8 - 1, duck - 15]);
+  }
+  keys.push([f8, -3], [f8 + release, 0]);
+  return keys.map(([f, db]) => ({ atSeconds: f / fps, volumeDb: db }));
+}
+
 export function stExpectations(input) {
   const fr = input.frames, fps = input.fps || fr.fps;
   const nMain = fr.mainFrames.length - 1;
@@ -88,7 +105,8 @@ export function stExpectations(input) {
     const X = Math.max(2, Math.round(0.06 * fps));
     const duck = Number(input.music.introDuckDb) || 0, f8 = fr.gridStateFrames[0];
     // The dry's level line (assemble.js): keyed, so its constant level reads null.
-    const keys = duck ? [{ atSeconds: 0, volumeDb: duck }, { atSeconds: (f8 - 1) / fps, volumeDb: duck }, { atSeconds: f8 / fps, volumeDb: 0 }] : null;
+    const dryLen = input.music.wetId ? Math.min(Fend, Fe + X) : Fend;
+    const keys = stIntroKeys(duck, f8, fps, dryLen, input.music.wetId ? X / fps : endFade);
     if (input.music.wetId) {
       music = { dry: { resourceId: input.music.dryId, startFrame: 0, endFrame: Math.min(Fend, Fe + X), fadeOutSeconds: X / fps, keys },
         wet: { resourceId: input.music.wetId, startFrame: Fe, endFrame: Fend, fadeInSeconds: 0, fadeOutSeconds: endFade }, crossfadeFrames: X, db: 0 };
@@ -207,10 +225,11 @@ export function stCheck(rb, exp) {
       if (!r) { bad.push('missing ' + JSON.stringify([w.resourceId, w.startFrame, w.endFrame])); continue; }
       if (r.e !== w.endFrame) bad.push('span ' + JSON.stringify([r.s, r.e]) + ' vs ' + JSON.stringify([w.startFrame, w.endFrame]));
       if (w.keys) {
-        // Keyed intro lift: no constant level; the keys (when the readback reports them) on the expected frames and levels.
-        if (r.db != null) bad.push('constant level ' + r.db + ' instead of the intro lift');
-        if (Array.isArray(r.keys) && (r.keys.length !== w.keys.length || r.keys.some((k, i) => Math.round(k.atSeconds * (rb.fps || exp.fps)) !== Math.round(w.keys[i].atSeconds * (rb.fps || exp.fps)) || Math.abs(k.volumeDb - w.keys[i].volumeDb) > 0.05))) bad.push('intro lift ' + JSON.stringify(r.keys));
-      } else if (exp.music.db != null && r.db != null && r.db !== exp.music.db) bad.push('level ' + r.db);
+        // Keyed intro line: no constant level; the keys (when the readback reports them) on the expected frames and levels.
+        if (r.db != null) bad.push('constant level ' + r.db + ' instead of the intro line');
+        if (Array.isArray(r.keys) && (r.keys.length !== w.keys.length || r.keys.some((k, i) => Math.round(k.atSeconds * (rb.fps || exp.fps)) !== Math.round(w.keys[i].atSeconds * (rb.fps || exp.fps)) || Math.abs(k.volumeDb - w.keys[i].volumeDb) > 0.05))) bad.push('intro line ' + JSON.stringify(r.keys));
+      } else if (Array.isArray(r.keys) && r.keys.length) bad.push('unexpected level line ' + JSON.stringify(r.keys));
+      else if (exp.music.db != null && r.db != null && r.db !== exp.music.db) bad.push('level ' + r.db);
       if (w.fadeOutSeconds != null && r.fadeOut != null && Math.abs(r.fadeOut - w.fadeOutSeconds) > tolS) bad.push('fade-out ' + r.fadeOut + ' vs ' + w.fadeOutSeconds);
       if (w.fadeInSeconds != null && r.fadeIn != null && Math.abs(r.fadeIn - w.fadeInSeconds) > tolS) bad.push('fade-in ' + r.fadeIn + ' vs ' + w.fadeInSeconds);
     }
