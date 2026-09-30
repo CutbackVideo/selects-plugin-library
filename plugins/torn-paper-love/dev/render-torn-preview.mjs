@@ -1,4 +1,4 @@
-// Dev only: draws the Torn photo geometry (torn outline, grown paper, rim bands, shadow, tear strips) for three
+// Dev only: draws the Torn photo geometry (torn outline, grown paper, rim bands, shadow) for three
 // seeds on the Night backdrop, as one SVG to eyeball the shape. The photo is a flat placeholder gradient.
 // Usage: node plugins/torn-paper-love/dev/render-torn-preview.mjs [seed1 seed2 seed3]  ->  $TMPDIR/torn-preview.svg
 import fs from 'node:fs';
@@ -22,7 +22,6 @@ const panels = seeds.map((seed, i) => {
   const g = T.tplGeometry(d);
   const bd = T.tplBackdrop('night', null);
   const e = g.edgePx;
-  const tear = i === 2; // the third panel also shows the tear strips
   return `<g transform="translate(0 ${i * (H + 40)})">
   <rect width="${W}" height="${H}" fill="${bd.base}"/>
   <rect width="${W}" height="${H}" filter="url(#grain)" opacity="${bd.grain}"/>
@@ -30,8 +29,7 @@ const panels = seeds.map((seed, i) => {
   <polygon points="${pts(g.paper)}" fill="${T.TPL_PAPER}" filter="url(#pe${i})"/>
   <g filter="url(#fb${i})">${g.rims.map((r, k) => `<polygon points="${pts(r)}" fill="${T.TPL_RIM[k]}"/>`).join('')}</g>
   <polygon points="${pts(g.poly)}" fill="url(#photo)"/>
-  ${tear ? g.strips.map(s => `<polygon points="${pts(s.points)}" fill="rgba(0,0,0,0.45)" filter="url(#shadow)"/><polygon points="${pts(s.points)}" fill="${T.TPL_RIM[0]}"/><polygon points="${pts(s.core)}" fill="${T.TPL_PAPER}"/>`).join('') : ''}
-  <text x="24" y="48" font-family="sans-serif" font-size="32" fill="#fff">seed ${seed}${tear ? ' + tear strips' : ''} · ${g.poly.length} vertices · edge ${(e / W * 100).toFixed(2)} % W</text>
+  <text x="24" y="48" font-family="sans-serif" font-size="32" fill="#fff">seed ${seed} · ${g.poly.length} vertices · edge ${(e / W * 100).toFixed(2)} % W</text>
   <filter id="pe${i}" x="0" y="0" width="${W}" height="${H}" filterUnits="userSpaceOnUse"><feTurbulence type="fractalNoise" baseFrequency="0.3" numOctaves="1" seed="${g.poly.length + 3}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="${e * 0.1}" xChannelSelector="R" yChannelSelector="G"/></filter>
   <filter id="fb${i}" x="0" y="0" width="${W}" height="${H}" filterUnits="userSpaceOnUse"><feTurbulence type="fractalNoise" baseFrequency="0.16" numOctaves="2" seed="${g.poly.length}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="${e * 0.18}" xChannelSelector="R" yChannelSelector="G"/></filter>
 </g>`;

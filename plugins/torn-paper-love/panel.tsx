@@ -16,8 +16,6 @@ import React from "react";
 const PLUGIN_ID = "torn-paper-love";
 const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
 const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
-// Faded film strength when the Advanced toggle is on (the Inspector keeps 0-1).
-const FADED_FILM = 0.35;
 const WORD_MAX = 8;
 
 // tpl-planner:start
@@ -322,7 +320,8 @@ function tplSlots(schedule, picks) {
   return out;
 }
 
-// Transitions per slot (entry / exit), over 2N slots.
+// Transitions per slot (entry / exit), over 2N slots. Every other cut is a hard cut ('none'); the reference has no
+// paper-strip tear, so pass 2 cuts straight through.
 function tplTransitions(N) {
   const out = [];
   for (let i = 0; i < 2 * N; i++) out.push({ index: i, entry: 'none', exit: 'none' });
@@ -331,18 +330,18 @@ function tplTransitions(N) {
   set(1, 'entry', 'paper-flash');
   set(1, 'exit', 'glow-out');
   if (N - 1 > 1) set(N - 1, 'entry', 'glow-in');
-  set(N >= 5 ? N + 3 : N + Math.floor(N / 2), 'entry', 'tear');
   set(2 * N - 1, 'entry', 'paper-flash-short');
   return out;
 }
 
-// Transition phases in 30 fps frames.
+// Transition phases in 30 fps frames. 'paper-flash' follows the reference frame for frame (white card, overexposed,
+// normal, two full-white frames). 'paper-flash-short' (the last shot) only flares the torn paper edge over an
+// overexposed photo: it never whites out the card or the frame.
 const TPL_PHASES = {
   'paper-flash': [['white', 1], ['over', 2], ['normal', 1], ['full', 2]],
-  'paper-flash-short': [['white', 1], ['over', 1], ['full', 1]],
+  'paper-flash-short': [['flare', 3]],
   'glow-in': [['glow', 2]],
   'glow-out': [['glow', 2]],
-  tear: [['tear', 2]],
 };
 // The slide intro in fractions of its slot: black until `black`, ease-in slide until `land`, then hold.
 const TPL_SLIDE = { black: 0.28, land: 0.76 };
@@ -490,13 +489,15 @@ const TPL_BACKDROP_COLORS = { night: '#151113', red: '#4a0f12', kraft: '#6b5a45'
 const TPL_LENGTH_LABELS = { short: 'Short', standard: 'Standard', long: 'Long' };
 const TPL_TORN_NAME = 'Torn photo';
 const TPL_LETTERS_NAME = 'Ransom letters';
-const TPL_INSET = 88; // Photo size in % (the effect also reads 0.88); stored in the editable's units
+const TPL_INSET = 92; // Photo size in % (the effect also reads 0.92); stored in the editable's units
 const TPL_EDGE = 1.4;
 const TPL_TILT_MAX = 1.5;
 const TPL_MOTION_STRENGTH = 0.5;
-const TPL_LETTER_SIZE = 6.7;
+const TPL_LETTER_SIZE = 6.0;
 const TPL_LETTER_Y = 50;
 const TPL_ACCENT = '#d0201a';
+// Faded film strength by default (the muted flash-photo tone of the reference).
+const TPL_LOOK = 0.6;
 const TPL_MUSIC_FADE = 0.12;
 
 function tplPad2(n) { return (n < 10 ? '0' : '') + n; }
@@ -514,7 +515,7 @@ function tplOptions(o) {
   o = o || {};
   const pick = (v, list, d) => (list.indexOf(v) >= 0 ? v : d);
   const words = Array.isArray(o.words) ? o.words : ['MY', 'LOVE'];
-  const look = typeof o.look === 'number' && isFinite(o.look) ? Math.max(0, Math.min(1, o.look)) : o.look === false ? 0 : 0.35;
+  const look = typeof o.look === 'number' && isFinite(o.look) ? Math.max(0, Math.min(1, o.look)) : o.look === false ? 0 : TPL_LOOK;
   return {
     words: [String(words[0] == null ? '' : words[0]), String(words[1] == null ? '' : words[1])],
     backdrop: pick(o.backdrop, Object.keys(TPL_BACKDROPS), 'night'),
@@ -793,10 +794,12 @@ function tplExpected(state, assembled, music) {
 // Pure helpers (no DOM, no React); the tests and the panel preview run this block as is.
 var TPL_MAX_LETTERS = 8;
 var TPL_CAP_RATIO = 0.7; // cap height / font size used to turn the glyph height into a font size
-var TPL_PAD_MIN = 0.08, TPL_PAD_MAX = 0.14; // chip padding, fraction of the glyph height
-var TPL_ROT_MAX = 4; // degrees
-var TPL_JITTER_MAX = 0.04; // baseline jitter, fraction of the glyph height
-var TPL_GAP = 0.03; // space between chips, fraction of the glyph height
+// Chip padding, fraction of the glyph height: the chips are cut close around the glyph, and each chip draws its own
+// horizontal and vertical padding, so chips differ slightly in width and height.
+var TPL_PAD_MIN = 0.03, TPL_PAD_MAX = 0.07;
+var TPL_ROT_MAX = 3; // degrees
+var TPL_JITTER_MAX = 0.06; // baseline jitter, fraction of the glyph height
+var TPL_GAP = 0.02; // space between chips, fraction of the glyph height
 var TPL_LEFT = 0.05, TPL_RIGHT = 0.94, TPL_BAND = 0.32, TPL_MIN_GLYPH = 0.045;
 var TPL_FALLBACK_EM = 0.75, TPL_WIDE_EM = 1.0, TPL_SPACE_EM = 0.3, TPL_DEFAULT_EM = 0.6;
 var TPL_HEART = { ch: "\u2665", em: 0.9 };
@@ -878,28 +881,54 @@ function tplLetterEm(ch, faces, advance) {
   return best > 0 ? best : TPL_DEFAULT_EM;
 }
 
-// Per letter a seeded set of 2-4 distinct look ids. The first id is the letter's look at
-// tick 0 and differs from its neighbour's when possible; at most one lower-case look per
-// letter; a look whose face lacks the (cased) glyph is not offered. Gaps and unsupported
+// A look in the accent colour (fg or bg is the base red).
+function tplIsAccent(look) {
+  var f = look && typeof look.fg === "string" ? look.fg.toLowerCase() : "", b = look && typeof look.bg === "string" ? look.bg.toLowerCase() : "";
+  return f === TPL_ACCENT_BASE || b === TPL_ACCENT_BASE;
+}
+// A look's sampling weight: look.weight (>= 0), 1 when missing.
+function tplWeight(look) {
+  var w = look && look.weight;
+  return typeof w === "number" && isFinite(w) ? Math.max(0, w) : 1;
+}
+
+// Per letter a seeded set of 2-4 distinct look ids, drawn by look weight (weighted sampling
+// without replacement; weight 0 = never). The first id is the letter's look at tick 0 and
+// differs from its neighbour's when possible; at most one lower-case look per letter; a look
+// whose face lacks the (cased) glyph is not offered. Accent (red) looks are offered to one
+// seeded letter only, which always gets exactly one of them, so at most one red letter is
+// ever visible and it comes and goes as that letter re-styles. Gaps and unsupported
 // characters get [] (no chip / fallback chip).
 function tplAssignLooks(letters, seed, looks, advance) {
   var out = [];
   var prevFirst = null;
+  var styled = [];
+  for (var q = 0; q < letters.length; q++) { var kq = tplKind(letters[q]); if (kq === "glyph" || kq === "heart") styled.push(q); }
+  var accentAt = styled.length ? styled[Math.floor(tplRng(seed, "accent")() * styled.length)] : -1;
   for (var i = 0; i < letters.length; i++) {
     var ch = letters[i];
     var kind = tplKind(ch);
     if (kind === "space" || kind === "fallback") { out.push([]); continue; }
-    var cands = [];
+    var cands = [], accents = [];
     for (var k = 0; k < (looks || []).length; k++) {
       var lk = looks[k];
-      if (!lk || typeof lk.id !== "string") continue;
+      if (!lk || typeof lk.id !== "string" || !(tplWeight(lk) > 0)) continue;
       if (kind === "glyph" && advance && advance[lk.face] && tplFaceEm(advance, lk.face, tplCased(ch, lk)) == null) continue;
-      cands.push(lk);
+      if (tplIsAccent(lk)) accents.push(lk); else cands.push(lk);
     }
     var rnd = tplRng(seed, "looks", i);
-    for (var s = cands.length - 1; s > 0; s--) { var r = Math.floor(rnd() * (s + 1)); var tmp = cands[s]; cands[s] = cands[r]; cands[r] = tmp; }
+    // Weighted order: key = u^(1/w), highest first (Efraimidis-Spirakis).
+    var keyed = cands.map(function (l) { return { l: l, key: Math.pow(rnd(), 1 / tplWeight(l)) }; });
+    keyed.sort(function (x, y) { return y.key - x.key; });
+    cands = keyed.map(function (x) { return x.l; });
     var want = 2 + Math.floor(rnd() * 3);
     var set = [], lower = false;
+    if (i === accentAt && accents.length) {
+      var pick = accents[Math.floor(rnd() * accents.length)];
+      // The accent look is always kept: a lower-case accent takes the letter's one lower-case slot.
+      if (pick.case === "lower") cands = cands.filter(function (l) { return l.case !== "lower"; });
+      cands.splice(Math.floor(rnd() * Math.min(cands.length + 1, want)), 0, pick);
+    }
     for (var c = 0; c < cands.length && set.length < want; c++) {
       if (cands[c].case === "lower") { if (lower) continue; lower = true; }
       set.push(cands[c].id);
@@ -976,8 +1005,9 @@ function tplApplyAccent(look, accent) {
 // Word 1 starts at 5 % W, word 2 ends at 94 % W; each word grows inward up to 32 % W, then
 // the whole word shrinks down to 4.5 % H. A word that still does not fit is shrunk further
 // to stay in its band and the result says fits:false. Slots (x, w) use the widest look and
-// the maximum padding, so they do not depend on the seed; pad, rot and jitter are seeded.
-// Returns { fits, chips: [{ x, y, w, h, rot, jitter, pad, glyph, fontPx, em, ch, kind, word, index }] }.
+// the maximum padding, so they do not depend on the seed; pad (vertical), padX, rot and
+// jitter are seeded per chip.
+// Returns { fits, chips: [{ x, y, w, h, rot, jitter, pad, padX, glyph, fontPx, em, ch, kind, word, index }] }.
 function tplLayout(words, size, y, advance, W, H, seed) {
   W = W || 1440; H = H || 1080;
   var g0 = (size / 100) * H;
@@ -1009,9 +1039,10 @@ function tplLayout(words, size, y, advance, W, H, seed) {
       var pad = (TPL_PAD_MIN + rnd() * (TPL_PAD_MAX - TPL_PAD_MIN)) * g;
       var rot = (rnd() * 2 - 1) * TPL_ROT_MAX;
       var jitter = (rnd() * 2 - 1) * TPL_JITTER_MAX * g;
+      var padX = (TPL_PAD_MIN + rnd() * (TPL_PAD_MAX - TPL_PAD_MIN)) * g;
       var w = ems[j] * fontPx + 2 * TPL_PAD_MAX * g;
       var h = g + 2 * pad;
-      chips.push({ x: x, y: cy - h / 2, w: w, h: h, rot: rot, jitter: jitter, pad: pad, glyph: g, fontPx: fontPx, em: ems[j], ch: gs[j], kind: tplKind(gs[j]), word: wi, index: flat + j });
+      chips.push({ x: x, y: cy - h / 2, w: w, h: h, rot: rot, jitter: jitter, pad: pad, padX: padX, glyph: g, fontPx: fontPx, em: ems[j], ch: gs[j], kind: tplKind(gs[j]), word: wi, index: flat + j });
       x += w + TPL_GAP * g;
     }
     flat += gs.length;
@@ -1448,6 +1479,13 @@ function backdropFill(id: string) {
   return (TPL_BACKDROP_COLORS as any)[id] || TPL_BACKDROP_COLORS.night;
 }
 
+// The graphic's paper halo for contour-cut looks: 16 text shadows on a ring of radius r.
+function previewHalo(color: string, r: number) {
+  const out: string[] = [];
+  for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; out.push((Math.cos(a) * r).toFixed(2) + "px " + (Math.sin(a) * r).toFixed(2) + "px 0 " + color); }
+  return out.join(", ");
+}
+
 function LettersPreview({ word1, word2, seed, looksFile, backdrop }: {
   word1: string; word2: string; seed: number; looksFile: any; backdrop: string;
 }) {
@@ -1489,7 +1527,7 @@ function LettersPreview({ word1, word2, seed, looksFile, backdrop }: {
   const current: (string | null)[] = tplLooksAt(tick % PREVIEW_TICKS, seed, assigned);
   const y0 = (TPL_H * TPL_LETTER_Y) / 100 - PREVIEW_BAND / 2;
   const s = width > 0 ? Math.min(width / TPL_W, PREVIEW_H / PREVIEW_BAND) : 0;
-  // The torn photo (inset 88 %, white torn edge) as a placeholder behind the letters.
+  // The torn photo (inset 92 %, off-white torn edge) as a placeholder behind the letters.
   const inset = (100 - TPL_INSET) / 2, edge = (TPL_EDGE / 100) * TPL_W;
   return (
     <div>
@@ -1497,7 +1535,7 @@ function LettersPreview({ word1, word2, seed, looksFile, backdrop }: {
         style={{ position: "relative", width: "100%", minWidth: 0, height: PREVIEW_H, overflow: "hidden", borderRadius: "var(--panel-radius, 6px)", background: backdropFill(backdrop) }}>
         {s > 0 ? (
           <div style={{ position: "absolute", left: (width - TPL_W * s) / 2, top: (PREVIEW_H - PREVIEW_BAND * s) / 2, width: TPL_W, height: PREVIEW_BAND, transform: "scale(" + s + ")", transformOrigin: "0 0" }}>
-            <div style={{ position: "absolute", left: (inset / 100) * TPL_W - edge, width: (TPL_INSET / 100) * TPL_W + 2 * edge, top: -40, bottom: -40, background: "#f4f1ea", boxShadow: "0 0 24px rgba(0,0,0,0.5)" }} />
+            <div style={{ position: "absolute", left: (inset / 100) * TPL_W - edge, width: (TPL_INSET / 100) * TPL_W + 2 * edge, top: -40, bottom: -40, background: "#e6e0d4", boxShadow: "0 0 24px rgba(0,0,0,0.5)" }} />
             <div style={{ position: "absolute", left: (inset / 100) * TPL_W, width: (TPL_INSET / 100) * TPL_W, top: -40, bottom: -40,
               background: "linear-gradient(115deg, #7d6a5c, #b89a82 40%, #d9c2a8 55%, #6f5e52)", opacity: 0.9 }} />
             {layout.chips.map((c: any) => {
@@ -1509,9 +1547,11 @@ function LettersPreview({ word1, word2, seed, looksFile, backdrop }: {
               const lookEm = fallback || c.kind === "heart" || !look ? c.em : tplLetterEm(c.ch, [look.face], advance);
               const lower = !!look && !fallback && look.case === "lower" && /[a-z]/i.test(c.ch);
               const h = lower ? c.h + 0.25 * c.glyph : c.h;
-              const w = Math.min(c.w, lookEm * c.fontPx + 2 * c.pad);
-              const box: any = { position: "absolute", left: c.x + (c.w - w) / 2, top: c.y - y0 + c.jitter - (h - c.h) / 2, width: w, height: h, background: bg,
-                boxShadow: "0 " + (0.04 * c.glyph).toFixed(2) + "px " + (0.12 * c.glyph).toFixed(2) + "px rgba(0,0,0,0.3)", transform: "rotate(" + c.rot.toFixed(2) + "deg)",
+              const w = Math.min(c.w, lookEm * c.fontPx + 2 * c.padX);
+              const contour = !fallback && !!look && look.cut === "contour";
+              const shadow = "0 " + (0.03 * c.glyph).toFixed(2) + "px " + (0.08 * c.glyph).toFixed(2) + "px rgba(0,0,0,0.22)";
+              const box: any = { position: "absolute", left: c.x + (c.w - w) / 2, top: c.y - y0 + c.jitter - (h - c.h) / 2, width: w, height: h, background: contour ? "transparent" : bg,
+                boxShadow: contour ? undefined : shadow, transform: "rotate(" + c.rot.toFixed(2) + "deg)",
                 display: "flex", alignItems: "center", justifyContent: "center", overflow: "visible" };
               if (c.kind === "heart" && !fallback) {
                 return (
@@ -1524,10 +1564,13 @@ function LettersPreview({ word1, word2, seed, looksFile, backdrop }: {
               }
               const family = fallback ? PREVIEW_FALLBACK_STACK : '"' + (faces[look.face] || "TPL " + look.face) + '", ' + (PREVIEW_FACE_STACK[look.face] || "serif");
               const outline = !fallback && look.outline;
+              const thin = !fallback && !outline && typeof look.thin === "number" && look.thin > 0 ? look.thin * c.fontPx : 0;
               return (
                 <div key={c.index} style={box}>
                   <span style={{ display: "inline-block", fontFamily: family, fontSize: c.fontPx, lineHeight: 1, whiteSpace: "pre", color: outline ? "transparent" : fg,
-                    WebkitTextStroke: outline ? Math.max(1, c.fontPx * 0.035).toFixed(2) + "px " + fg : undefined, transform: "translateY(0.04em)" } as any}>
+                    WebkitTextStroke: outline ? Math.max(1, c.fontPx * 0.035).toFixed(2) + "px " + fg : thin ? thin.toFixed(2) + "px " + bg : undefined,
+                    textShadow: contour ? previewHalo(bg, c.pad + 0.02 * c.glyph) : undefined, filter: contour ? "drop-shadow(" + shadow + ")" : undefined,
+                    transform: "translateY(0.04em)" } as any}>
                     {fallback ? c.ch : tplCased(c.ch, look)}
                   </span>
                 </div>
@@ -1747,7 +1790,7 @@ export default function Panel({ sdk, context, ui }: any) {
   const ownPending = track === "own" && !ownCue;
   const grid = tplGrid(planCue);
   const unitSec = tplUnitSec(grid);
-  const options = React.useMemo(() => ({ words: [word1, word2], backdrop, length, pace, clipSound, look: faded ? FADED_FILM : 0, tilt, useVideos, only, seed, section }),
+  const options = React.useMemo(() => ({ words: [word1, word2], backdrop, length, pace, clipSound, look: faded ? TPL_LOOK : 0, tilt, useVideos, only, seed, section }),
     [word1, word2, backdrop, length, pace, clipSound, faded, tilt, useVideos, only, seed, section]);
   const foundBest = found && found.pid === projectId ? found.best : null;
   const plan = React.useMemo(() => {

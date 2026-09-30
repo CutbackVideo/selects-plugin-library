@@ -18,13 +18,15 @@ const TPL_BACKDROP_COLORS = { night: '#151113', red: '#4a0f12', kraft: '#6b5a45'
 const TPL_LENGTH_LABELS = { short: 'Short', standard: 'Standard', long: 'Long' };
 const TPL_TORN_NAME = 'Torn photo';
 const TPL_LETTERS_NAME = 'Ransom letters';
-const TPL_INSET = 88; // Photo size in % (the effect also reads 0.88); stored in the editable's units
+const TPL_INSET = 92; // Photo size in % (the effect also reads 0.92); stored in the editable's units
 const TPL_EDGE = 1.4;
 const TPL_TILT_MAX = 1.5;
 const TPL_MOTION_STRENGTH = 0.5;
-const TPL_LETTER_SIZE = 6.7;
+const TPL_LETTER_SIZE = 6.0;
 const TPL_LETTER_Y = 50;
 const TPL_ACCENT = '#d0201a';
+// Faded film strength by default (the muted flash-photo tone of the reference).
+const TPL_LOOK = 0.6;
 const TPL_MUSIC_FADE = 0.12;
 
 function tplPad2(n) { return (n < 10 ? '0' : '') + n; }
@@ -42,7 +44,7 @@ function tplOptions(o) {
   o = o || {};
   const pick = (v, list, d) => (list.indexOf(v) >= 0 ? v : d);
   const words = Array.isArray(o.words) ? o.words : ['MY', 'LOVE'];
-  const look = typeof o.look === 'number' && isFinite(o.look) ? Math.max(0, Math.min(1, o.look)) : o.look === false ? 0 : 0.35;
+  const look = typeof o.look === 'number' && isFinite(o.look) ? Math.max(0, Math.min(1, o.look)) : o.look === false ? 0 : TPL_LOOK;
   return {
     words: [String(words[0] == null ? '' : words[0]), String(words[1] == null ? '' : words[1])],
     backdrop: pick(o.backdrop, Object.keys(TPL_BACKDROPS), 'night'),

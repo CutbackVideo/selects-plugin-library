@@ -1,7 +1,7 @@
 // Torn Paper Love "Torn photo": the clip as a torn paper photo (white torn strip, grey fibrous rim, soft shadow)
 // on a backdrop, with the "Faded film" look and the style's transitions, all inside one clip effect.
 //
-// data: seed, vis {x,y,w,h} (the visible canvas rectangle in % of the clip's own box), inset (0.88 or 88),
+// data: seed, vis {x,y,w,h} (the visible canvas rectangle in % of the clip's own box), inset (0.92 or 92),
 // edge (strip width, % of canvas W), backdrop ('night'|'red'|'kraft'|'photo'), backdropColor, look (0-1),
 // tilt (deg), entry/exit (transition kinds), holdFrames, phases {entry, exit} ([{name,start,end}] in frames from
 // the planner; exit phases are aligned so the last one ends at holdFrames), clock ('clip'|'source'), originFrame,
@@ -15,8 +15,9 @@ import { AbsoluteFill, useCurrentFrame } from "remotion";
 
 // tpl-torn:start
 var TPL_W = 1440, TPL_H = 1080;
-var TPL_PAPER = "#f7f5f0";
-var TPL_RIM = ["#cfcac2", "#b4afa7", "#9a958d"];
+// A warm, dim off-white (the reference paper reads as part of the photo, not a bright white frame) with a darker rim.
+var TPL_PAPER = "#e6e0d4";
+var TPL_RIM = ["#b2aca1", "#938d83", "#76716a"];
 
 // Seeds: numbers (or numeric strings) are used as-is, other strings are hashed (FNV-1a).
 function tplHash(seed) {
@@ -53,7 +54,7 @@ function tplData(data) {
   var v = d.vis && typeof d.vis === "object" ? d.vis : null;
   var vis = { x: 0, y: 0, w: 100, h: 100 };
   if (v && [v.x, v.y, v.w, v.h].every(function (n) { return typeof n === "number" && isFinite(n); }) && v.w > 0 && v.h > 0) vis = { x: v.x, y: v.y, w: v.w, h: v.h };
-  var inset = tplNum(d.inset, 0.88, 0, 100);
+  var inset = tplNum(d.inset, 0.92, 0, 100);
   if (inset > 1) inset = inset / 100;
   inset = Math.max(0.7, Math.min(0.95, inset));
   var backdrop = ["night", "red", "kraft", "photo"].indexOf(d.backdrop) >= 0 ? d.backdrop : "night";
@@ -68,7 +69,7 @@ function tplData(data) {
     edge: tplNum(d.edge, 1.4, 0.5, 3),
     backdrop: backdrop,
     backdropColor: color,
-    look: tplNum(d.look, 0.35, 0, 1),
+    look: tplNum(d.look, 0.6, 0, 1),
     tilt: tplNum(d.tilt, 0, -5, 5),
     entry: typeof d.entry === "string" && d.entry ? d.entry : "none",
     exit: typeof d.exit === "string" && d.exit ? d.exit : "none",
@@ -186,7 +187,7 @@ function tplGrow(poly, d, opts) {
 // Rims of the same seed nest for growing d, so light/mid/dark bands can be stacked.
 function tplRim(poly, d, opts) {
   var o = opts || {};
-  return tplGrow(poly, d * 0.36, { seed: o.seed, centre: o.centre, salt: 0x2c1b3c6d, lo: 0.3, hi: 1.25, jag: 0.12, fmin: 5, fmax: 17, skew: 1 });
+  return tplGrow(poly, d * 0.26, { seed: o.seed, centre: o.centre, salt: 0x2c1b3c6d, lo: 0.3, hi: 1.25, jag: 0.12, fmin: 5, fmax: 17, skew: 1 });
 }
 // Canvas px -> CSS polygon in % of the clip's box (the canvas maps onto `vis`).
 function tplClipPath(poly, vis) {
@@ -194,47 +195,6 @@ function tplClipPath(poly, vis) {
   return "polygon(" + poly.map(function (p) {
     return f(vis.x + p[0] / TPL_W * vis.w) + " " + f(vis.y + p[1] / TPL_H * vis.h);
   }).join(", ") + ")";
-}
-// Two torn white paper strips crossing the photo (the "tear" transition, spec §15.3), in canvas px inside rect.
-// Each: points = the grey-rimmed outline, core = the white body; cy/height/angle describe the strip.
-function tplTearStrips(seed, rect) {
-  var R = tplRand(tplHash(seed) ^ 0x7ea57219);
-  var bands = [[0.33, 0.37], [0.63, 0.69]];
-  var cxr = rect.x + rect.w / 2;
-  return bands.map(function (band, bi) {
-    var cy = rect.y + rect.h * (band[0] + (band[1] - band[0]) * R());
-    var height = rect.h * (0.06 + 0.03 * R());
-    var angle = (bi === 0 ? -1 : 1) * (0.8 + 2.2 * R()) * (R() < 0.5 ? -1 : 1);
-    var x0 = rect.x + rect.w * 0.025, x1 = rect.x + rect.w * 0.975;
-    var n = 48 + Math.floor(R() * 17);
-    var topW = tplWave(R, n + 1, 3, 1, 5), botW = tplWave(R, n + 1, 3, 1, 5);
-    var topJ = tplJag(R, n + 1), botJ = tplJag(R, n + 1), rimT = tplWave(R, n + 1, 2, 2, 7), rimB = tplWave(R, n + 1, 2, 2, 7);
-    var top = [], bot = [], ctop = [], cbot = [];
-    for (var k = 0; k <= n; k++) {
-      var x = x0 + (x1 - x0) * k / n;
-      var yt = cy - height / 2 + height * (0.12 * topW[k] + 0.06 * topJ[k]);
-      var yb = cy + height / 2 + height * (0.12 * botW[k] + 0.06 * botJ[k]);
-      top.push([x, yt]); bot.push([x, yb]);
-      if (k > 0 && k < n) {
-        ctop.push([x, yt + height * (0.1 + 0.07 * (rimT[k] + 1))]);
-        cbot.push([x, yb - height * (0.1 + 0.07 * (rimB[k] + 1))]);
-      }
-    }
-    var endJag = function (xa, ya, yb2, dir) {
-      var pts = [];
-      for (var i = 1; i < 4; i++) pts.push([xa + dir * rect.w * 0.004 * (R() * 2 - 1), ya + (yb2 - ya) * i / 4]);
-      return pts;
-    };
-    var outline = top.concat(endJag(x1, top[n][1], bot[n][1], 1), bot.slice().reverse(), endJag(x0, bot[0][1], top[0][1], 1));
-    var core = ctop.concat(cbot.slice().reverse());
-    var a = angle * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
-    var rot = function (p) {
-      var dx = p[0] - cxr, dy = p[1] - cy;
-      var x = cxr + dx * ca - dy * sa, y = cy + dx * sa + dy * ca;
-      return [tplR2(Math.max(rect.x, Math.min(rect.x + rect.w, x))), tplR2(Math.max(rect.y, Math.min(rect.y + rect.h, y)))];
-    };
-    return { points: outline.map(rot), core: core.map(rot), cy: cy, height: height, angle: angle };
-  });
 }
 // Everything the render needs from the torn shape, in canvas px.
 function tplGeometry(d) {
@@ -247,16 +207,18 @@ function tplGeometry(d) {
   // Scale of the whole picture (about the canvas centre) that covers the torn outline, with a hair of margin.
   var s = 0;
   for (var i = 0; i < poly.length; i++) s = Math.max(s, Math.abs(poly[i][0] - TPL_W / 2) / (TPL_W / 2), Math.abs(poly[i][1] - TPL_H / 2) / (TPL_H / 2));
-  return { rect: rect, poly: poly, paper: paper, rims: rims, photoScale: Math.round(s * 1.006 * 10000) / 10000, strips: tplTearStrips(d.seed, { x: 0, y: 0, w: TPL_W, h: TPL_H }), edgePx: edgePx };
+  return { rect: rect, poly: poly, paper: paper, rims: rims, photoScale: Math.round(s * 1.006 * 10000) / 10000, edgePx: edgePx };
 }
-// "Faded film": at strength 1 blacks lift to 24/255, contrast -14 % (slope 0.86), saturation -18 %, sepia 0.12.
-// contrast(c) then brightness(k) maps x -> k·(c·x + (1-c)/2): slope k·c, black k·(1-c)/2.
+// "Faded film", the dim, muted flash-photo tone of the reference: at strength s black lifts to 0.07·s, white drops to
+// 1 - s/3 (darker overall, highlights compressed), saturation 1 - s/2, then sepia s/3 warms the lifted shadows to
+// brown. At the default 0.6: black 0.042, white 0.8, saturation 0.7, sepia 0.2. Strength 0 is the identity.
+// contrast(c) then brightness(k) maps x -> k·(c·x + (1-c)/2): black k·(1-c)/2, white k·(1+c)/2.
 function tplLookFilter(strength) {
   var s = typeof strength === "number" && isFinite(strength) ? Math.max(0, Math.min(1, strength)) : 0;
   if (s === 0) return "none";
-  var lift = 24 / 255 * s, slope = 1 - 0.14 * s;
-  var k = 2 * lift + slope, c = slope / k;
-  return "contrast(" + c.toFixed(4) + ") brightness(" + k.toFixed(4) + ") saturate(" + (1 - 0.18 * s).toFixed(3) + ") sepia(" + (0.12 * s).toFixed(3) + ")";
+  var black = 0.07 * s, white = 1 - s / 3;
+  var k = black + white, c = (white - black) / k;
+  return "contrast(" + c.toFixed(4) + ") brightness(" + k.toFixed(4) + ") saturate(" + (1 - 0.5 * s).toFixed(3) + ") sepia(" + (s / 3).toFixed(3) + ")";
 }
 // Spec §15.2: frame 0 = the clip's first timeline frame, whichever clock the host uses.
 function tplLocalFrame(frame, data) {
@@ -282,14 +244,17 @@ function tplPhaseAt(local, phases, holdFrames) {
   }
   return null;
 }
-// The photo layer's filter: the look, plus the phase's exposure. 'white' turns the photo into a white sheet.
+// The photo layer's filter: the look, plus the phase's exposure. 'white' turns the photo into a white sheet; 'flare'
+// (the last shot's short flash) overexposes the photo, 2.0 falling to 1.35, while the paper rim flares.
 function tplPhotoFilter(look, phase) {
   var base = look && look !== "none" ? look : "";
   var extra = "";
+  var t = phase && phase.n > 1 ? phase.i / (phase.n - 1) : 0;
   if (phase && phase.name === "white") return "brightness(0) invert(1)";
   if (phase && phase.name === "over") {
-    var t = phase.n > 1 ? phase.i / (phase.n - 1) : 0;
     extra = "brightness(" + (2.2 + (1.5 - 2.2) * t).toFixed(3) + ")";
+  } else if (phase && phase.name === "flare") {
+    extra = "brightness(" + (2.0 + (1.35 - 2.0) * t).toFixed(3) + ")";
   } else if (phase && phase.name === "glow") extra = "brightness(1.800)";
   var f = (base + " " + extra).trim();
   return f || "none";
@@ -304,6 +269,22 @@ function tplSlideY(local, holdFrames) {
   if (p >= 0.76) return 0;
   var q = (p - 0.28) / 0.48;
   return -100 * (1 - q * q * q);
+}
+// Backdrop opacity. Behind a slide intro the frame stays black while the card drops; the backdrop fades in once it
+// has landed (0.76 of the hold), over 0.18 of the hold (about 0.13 s on the two-unit opening shot, done before its
+// last frame). Otherwise 1.
+function tplBackdropOpacity(local, holdFrames, entry) {
+  var h = Number(holdFrames) || 0;
+  if (entry !== "slide" || h <= 0) return 1;
+  var p = local / h;
+  if (p <= 0.76) return 0;
+  return Math.min(1, (p - 0.76) / 0.18);
+}
+// Flare strength (0-1) of the paper rim during the 'flare' phase: full on its first frame, fading to 0.35.
+function tplFlare(phase) {
+  if (!phase || phase.name !== "flare") return 0;
+  var t = phase.n > 1 ? phase.i / (phase.n - 1) : 0;
+  return 1 + (0.35 - 1) * t;
 }
 // Optional photo motion inside the torn window: { scale, x, y } with x/y in % of the photo; p = 0..1 over the hold.
 function tplMotion(p, motion, strength) {
@@ -336,11 +317,12 @@ function tplBackdrop(preset, color) {
 // tpl-torn:end
 
 // tpl-photo-backdrop:start
-// The same picture, darkened and lightly blurred, behind the torn photo (probe P-two: two Source renders export).
-// The blur is an SVG filter in objectBoundingBox units, ~0.8 % of the canvas width, because the box size in
+// The same picture, darkened, flattened and blurred, behind the torn photo (probe P-two: two Source renders export);
+// highlights are compressed first so bokeh and lamps stay dim instead of glowing around the card.
+// The blur is an SVG filter in objectBoundingBox units, ~1.2 % of the canvas width, because the box size in
 // pixels is unknown; the canvas is 4:3 inside the box, so the box aspect follows from vis.
 function TplPhotoBackdrop({ Source, children, vis, id }) {
-  const sx = 0.008 * vis.w / 100, sy = sx * (4 / 3) * (vis.h / vis.w);
+  const sx = 0.012 * vis.w / 100, sy = sx * (4 / 3) * (vis.h / vis.w);
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <svg width="0" height="0" style={{ position: "absolute" }}>
@@ -348,7 +330,7 @@ function TplPhotoBackdrop({ Source, children, vis, id }) {
           <feGaussianBlur stdDeviation={sx.toFixed(5) + " " + sy.toFixed(5)} edgeMode="duplicate" />
         </filter>
       </svg>
-      <div style={{ position: "absolute", inset: 0, filter: "url(#" + id + "pb) brightness(0.45) saturate(0.85)" }}>{Source ? <Source /> : children}</div>
+      <div style={{ position: "absolute", inset: 0, filter: "url(#" + id + "pb) contrast(0.7) brightness(0.32) saturate(0.55)" }}>{Source ? <Source /> : children}</div>
     </div>
   );
 }
@@ -403,6 +385,8 @@ function TplPaperLayer({ g, id, phase }) {
   const region = { x: 0, y: 0, width: W, height: H, filterUnits: "userSpaceOnUse" };
   const glow = phase && phase.name === "glow";
   const white = phase && phase.name === "white";
+  // 'flare': the torn paper edge flashes (a bright white rim and halo), the photo stays visible.
+  const flare = tplFlare(phase);
   return (
     <svg viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "hidden" }}>
       <defs>
@@ -423,6 +407,11 @@ function TplPaperLayer({ g, id, phase }) {
             <feGaussianBlur stdDeviation={0.0075 * W} />
           </filter>
         ) : null}
+        {flare > 0 ? (
+          <filter id={id + "fl"} {...region}>
+            <feGaussianBlur stdDeviation={0.006 * W} />
+          </filter>
+        ) : null}
         {glow ? (
           <filter id={id + "bm"} {...region}>
             <feGaussianBlur stdDeviation={0.02 * W} />
@@ -432,38 +421,13 @@ function TplPaperLayer({ g, id, phase }) {
       {glow ? <polygon points={pts(g.paper)} fill="#dcebff" opacity="0.85" filter={"url(#" + id + "bm)"} /> : null}
       <polygon points={pts(g.paper)} fill="rgba(0,0,0,0.45)" filter={"url(#" + id + "sh)"} />
       {glow ? <polygon points={pts(g.paper)} fill="#ffffff" stroke="#ffffff" strokeWidth={0.015 * W} strokeLinejoin="round" filter={"url(#" + id + "gw)"} /> : null}
-      <polygon points={pts(g.paper)} fill={TPL_PAPER} filter={"url(#" + id + "pe)"} />
+      {flare > 0 ? <polygon points={pts(g.paper)} fill="none" stroke="#ffffff" strokeWidth={0.03 * W} strokeLinejoin="round" opacity={flare} filter={"url(#" + id + "fl)"} /> : null}
+      <polygon points={pts(g.paper)} fill={flare > 0 ? "#ffffff" : TPL_PAPER} filter={"url(#" + id + "pe)"} />
       {white ? null : (
-        <g filter={"url(#" + id + "fb)"}>
+        <g filter={"url(#" + id + "fb)"} opacity={flare > 0 ? 1 - 0.8 * flare : 1}>
           {g.rims.map((r, i) => <polygon key={i} points={pts(r)} fill={TPL_RIM[i]} />)}
         </g>
       )}
-    </svg>
-  );
-}
-
-function TplTearLayer({ g, id }) {
-  const W = TPL_W, H = TPL_H;
-  const region = { x: 0, y: 0, width: W, height: H, filterUnits: "userSpaceOnUse" };
-  return (
-    <svg viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
-      <defs>
-        <filter id={id + "ts"} {...region}>
-          <feGaussianBlur stdDeviation={0.006 * W} />
-          <feOffset dx={0.002 * W} dy={0.003 * W} />
-        </filter>
-        <filter id={id + "tf"} {...region}>
-          <feTurbulence type="fractalNoise" baseFrequency="0.18" numOctaves="2" seed="9" result="n" />
-          <feDisplacementMap in="SourceGraphic" in2="n" scale={0.003 * W} xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-      </defs>
-      {g.strips.map((s, i) => (
-        <g key={i}>
-          <polygon points={pts(s.points)} fill="rgba(0,0,0,0.45)" filter={"url(#" + id + "ts)"} />
-          <polygon points={pts(s.points)} fill={TPL_RIM[0]} filter={"url(#" + id + "tf)"} />
-          <polygon points={pts(s.core)} fill={TPL_PAPER} filter={"url(#" + id + "tf)"} />
-        </g>
-      ))}
     </svg>
   );
 }
@@ -487,14 +451,21 @@ export default function TornPhoto({ Source, children, data }) {
   const tx = (m.x / 100) * g.photoScale * vis.w, ty = (m.y / 100) * g.photoScale * vis.h;
   const photoFilter = tplPhotoFilter(tplLookFilter(d.look), phase);
   const showPhotoBackdrop = d.backdrop === 'photo' && d.allowPhotoBackdrop === true;
+  // The backdrop never slides with the card (a portrait source's box reaches below the canvas, and that part would
+  // come into view); behind the slide intro it stays black and fades in after the card lands.
+  const backdropOpacity = tplBackdropOpacity(local, d.holdFrames, d.entry);
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
       {/* Everything is clipped to the visible canvas; inside, a full-box layer keeps box-percent coordinates. */}
       <div style={{ ...atVis, overflow: "hidden", background: d.entry === "slide" ? "#000" : bd.base }}>
         <div style={{ position: "absolute", left: pct(-vis.x / vis.w * 100), top: pct(-vis.y / vis.h * 100), width: pct(10000 / vis.w), height: pct(10000 / vis.h) }}>
+          {backdropOpacity > 0 ? (
+            <div style={{ position: "absolute", inset: 0, opacity: backdropOpacity < 1 ? backdropOpacity : undefined }}>
+              <div style={atVis}><TplBackdropLayer bd={bd} id={id} /></div>
+              {showPhotoBackdrop ? <TplPhotoBackdrop Source={Source} children={children} vis={vis} id={id} /> : null}
+            </div>
+          ) : null}
           <div style={{ position: "absolute", inset: 0, transform: slide ? "translateY(" + pct(slide * vis.h / 100) + ")" : undefined }}>
-            <div style={atVis}><TplBackdropLayer bd={bd} id={id} /></div>
-            {showPhotoBackdrop ? <TplPhotoBackdrop Source={Source} children={children} vis={vis} id={id} /> : null}
             <div style={{ position: "absolute", inset: 0, transform: d.tilt ? "rotate(" + d.tilt.toFixed(3) + "deg)" : undefined, transformOrigin: origin }}>
               <div style={atVis}><TplPaperLayer g={g} id={id} phase={phase} /></div>
               <div style={{ position: "absolute", inset: 0, clipPath: tplClipPath(g.poly, vis), filter: photoFilter }}>
@@ -502,7 +473,6 @@ export default function TornPhoto({ Source, children, data }) {
                   {Source ? <Source /> : children}
                 </div>
               </div>
-              {phase && phase.name === "tear" ? <div style={atVis}><TplTearLayer g={g} id={id} /></div> : null}
             </div>
           </div>
           {phase && phase.name === "full" ? <div style={{ ...atVis, background: "#ffffff" }} /> : null}

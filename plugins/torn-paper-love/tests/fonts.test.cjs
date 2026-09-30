@@ -83,12 +83,18 @@ assert.deepEqual(rfnSeen.didone.sort(), ['Abril', 'Abril Fatface']); // the pars
 assert.deepEqual(rfnSeen.slab, ['Alfa Slab']);
 assert.ok(total <= 120 * 1024, 'total b64 ' + total);
 
-assert.equal(looks.looks.length, 8);
-assert.deepEqual(looks.looks.map(l => l.id), ['grey-serif', 'red-condensed', 'white-black', 'outline-serif', 'blue-black', 'slab-cream', 'didone-lower', 'type-grey']);
+assert.equal(looks.looks.length, 14);
+assert.deepEqual(looks.looks.map(l => l.id), ['grey-serif', 'paper-serif', 'outline-serif', 'didone-lower', 'didone-grey', 'type-grey', 'type-cream', 'condensed-cream',
+  'red-serif', 'red-condensed', 'black-grey', 'white-black', 'blue-serif', 'slab-cream']);
+// Every bundled face is used by some look.
+assert.deepEqual([...new Set(looks.looks.map(l => l.face))].sort(), [...IDS].sort());
 for (const l of looks.looks) {
   assert.ok(looks.faces[l.face], l.id + ' face');
   assert.match(l.fg, /^#[0-9a-f]{6}$/); assert.match(l.bg, /^#[0-9a-f]{6}$/);
   assert.ok(['upper', 'lower', 'any'].includes(l.case), l.id + ' case');
+  assert.ok(typeof l.weight === 'number' && l.weight > 0, l.id + ' weight');
+  assert.ok(l.cut === undefined || l.cut === 'contour', l.id + ' cut');
+  assert.ok(l.thin === undefined || (l.thin > 0 && l.thin <= 0.08), l.id + ' thin');
   for (const c of CHARS) { const a = looks.advance[l.face][c]; assert.ok(Number.isFinite(a) && a > 0, `${l.face} advance for "${c}"`); }
 }
 for (const id of IDS) assert.equal(Object.keys(looks.advance[id]).length, CHARS.length, id + ' advance size');

@@ -17,19 +17,25 @@ is an independent recreation of that look, not a copy of any one video.
   10, 14 or 20 shots. The second pass is faster than the first. The cuts land
   on the 8th-note grid of the music. Pictures are put in recording-date order
   (oldest first), so the edit reads as a story.
-- **A torn paper photo on every shot.** Each picture sits on a backdrop with a
-  white torn edge, a grey fibrous rim and a soft shadow. Backdrop presets:
-  **Night** (default), **Red curtain**, **Kraft** and **Photo** (the same
-  photo, darkened and lightly blurred, behind the torn one). A repeated
-  picture keeps the same tear in both passes.
-- **A Faded film look** on the photo (strength 0.35 by default).
+- **A torn paper photo on every shot.** Each picture fills 92 % of the frame
+  on a backdrop, with an off-white torn edge, a darker fibrous rim and a soft
+  shadow. Backdrop presets: **Night** (default), **Red curtain**, **Kraft**
+  and **Photo** (the same photo, darkened, flattened and blurred, behind the
+  torn one). A repeated picture keeps the same tear in both passes.
+- **A Faded film look** on the photo (strength 0.6 by default): a dim,
+  muted flash-photo tone with lifted, warm-brown blacks, compressed
+  highlights and less saturation, so daylight and night shots match.
 - **Ransom-note letters.** Two words, "MY" at the left and "LOVE" at the
-  right by default. Each letter is its own paper chip, and the letters keep
-  changing typeface and colour on the beat. They appear on the first beat
+  right by default. Each letter is its own small paper chip, cut close to the
+  glyph (some chips follow the letter's outline), mostly on light paper in
+  serif, Didone, typewriter and condensed faces, with an occasional heavy or
+  dark-backed chip. The letters keep changing typeface and colour on the
+  beat; at most one letter is red at a time. They appear on the first beat
   after the intro and stay over the flashes until the end.
-- **Effects that punctuate the edit:** a slide-in on the first picture, two
-  white paper flashes, two glows and a paper tear (two white torn strips
-  across the photo) in the second pass. Every other boundary is a hard cut,
+- **Effects that punctuate the edit:** the first picture slides down from
+  the top over black, then the backdrop fades in; a white paper flash after
+  it; two glows; and on the last picture a short flash where the torn paper
+  edge flares over an overexposed photo. Every other boundary is a hard cut,
   and the picture stops on the last beat, where the music ends with a short
   0.12 s fade.
 - The videos' own sound (video moments only) plays quietly under the music by
@@ -135,7 +141,7 @@ later (see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.
   **Ambient** (the default) keeps it about 18 dB under the music, **Full**
   keeps it at its original level. The music stays at its full level in every
   mode.
-- **Faded film**: on by default (0.35).
+- **Faded film**: on by default (0.6).
 - **Tilt**: off by default. On gives each picture a small seeded tilt of up
   to 1.5 degrees.
 - **Choose clips**: a checklist of the photos and analysed clips. All are used
@@ -157,11 +163,12 @@ The Draft contains:
 Edit it in the Inspector:
 
 - **Torn photo** (select a shot): **Faded film**, **Backdrop colour**, **Edge
-  width**, **Photo size**, **Tilt**, **Tear seed**, **Photo motion** (Off,
-  Push in, Pull out, Drift) and **Motion strength**. Photo motion is off by
-  default. The tear seed is 0 to 9999 and changes that shot's tear.
-- **Ransom letters** (select the graphic): **Word 1**, **Word 2**, **Size**,
-  **Vertical position**, **Accent colour** (the red), **Letter seed** and
+  width**, **Photo size** (92 by default, 70 to 95), **Tilt**, **Tear seed**,
+  **Photo motion** (Off, Push in, Pull out, Drift) and **Motion strength**.
+  Faded film is 0.6 by default and photo motion is off. The tear seed is 0
+  to 9999 and changes that shot's tear.
+- **Ransom letters** (select the graphic): **Word 1**, **Word 2**, **Size**
+  (cap height in % of the frame height, 6.0 by default), **Vertical position**, **Accent colour** (the red), **Letter seed** and
   **Re-style** (turns the changing letters on or off).
 - **Music**: select the music clip to change its volume.
 
@@ -185,8 +192,6 @@ the same on any machine with Selects.
   look is a "torn photo" rather than a silhouette sticker.
 - Video windows are short (about 0.35 to 2 s) and read as near-stills. There
   are no freeze frames, because Selects has no API for them.
-- The tear effect shows two white torn strips across the photo. It does not
-  overlap the outgoing photo.
 - Photos have no scene search and no sound.
 - The Draft is built in two commits: first the clips, their crop, their
   Ambient sound level and the music; then the Torn photo effects, the letters
