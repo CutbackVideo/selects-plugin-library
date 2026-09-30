@@ -20,6 +20,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Podcast Hook Captions](plugins/podcast-hook-captions) — yellow word-pop captions and kinetic hook titles for podcast shorts | Experimental |
 | [City Weekend Vlog](plugins/city-weekend-vlog) — beat-synced city weekend vlog with a font-switching title | Experimental |
 | [Four Photo Reveal](plugins/no14-still-video) — four original photos in an editable grid and fullscreen sequence | Experimental |
+| [Camera Shutter Dump](plugins/camera-shutter-dump) — twelve photos stack into a collage, one per shutter sound | Experimental |
 | [Epidemic Sound Search](plugins/epidemic-sound-search) — search, audition and save Epidemic Sound tracks into your library and Draft | Experimental |
 | [Mini Vlog](plugins/mini-vlog) — 16:9 everyday mini vlog cut to the beat, with a pale pink title | Experimental |
 
