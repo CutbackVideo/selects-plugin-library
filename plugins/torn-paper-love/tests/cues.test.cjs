@@ -3,9 +3,11 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const dir = path.resolve(__dirname, '..', 'assets', 'cues');
 const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
 assert.equal(m.version, 1);
-assert.deepEqual(m.cues.map(c => c.id), ['easy-sunday-lofi', 'sunny-soul-strut']);
-assert.ok(m.cues.some(c => c.id === m.defaultCue), 'defaultCue is one of the cue ids');
-const expected = { 'easy-sunday-lofi': 88, 'sunny-soul-strut': 99 };
+assert.deepEqual(m.cues.map(c => c.id), ['bedroom-pop-love', 'slow-rnb-glow', 'first-love-guitar', 'easy-sunday-lofi', 'sunny-soul-strut']);
+assert.equal(m.defaultCue, 'bedroom-pop-love');
+const expected = { 'bedroom-pop-love': 86, 'slow-rnb-glow': 84, 'first-love-guitar': 88, 'easy-sunday-lofi': 88, 'sunny-soul-strut': 99 };
+// Grids moved by hand in dev/build-cues.cjs (phaseBeats): the detector locks First Love Guitar half a beat late, onto the snare.
+const phaseBeats = { 'first-love-guitar': -0.5 };
 for (const c of m.cues) {
   const buf = fs.readFileSync(path.join(dir, c.file));
   assert.equal(crypto.createHash('sha256').update(buf).digest('hex'), c.sha256, c.id + ' hash');
@@ -40,17 +42,19 @@ for (const c of m.cues) {
   const q16 = 60 / c.bpm / 4, near = c.onsets.filter(([t]) => { const k = Math.round((t - c.firstBeat) / q16); return Math.abs(t - c.firstBeat - k * q16) < 0.03; });
   assert.ok(near.length >= 0.7 * c.onsets.length, c.id + ' onsets on the 16th grid ' + near.length + '/' + c.onsets.length);
 }
-// Measured on the bundled cues: Sunny Soul Strut has a clear enough 16th pulse for the 16th burst, the lo-fi cue swings.
-assert.deepEqual(m.cues.map(c => c.sixteenthRatio >= 0.35), [false, true]);
-// Every grid is the detector's own (no cue needs a phaseBeats override). downbeatConfidence: beat-1 low-band clarity >= 1.5 (see dev/build-cues.cjs).
-assert.deepEqual(m.cues.map(c => c.downbeatConfidence), ['high', 'high']);
-// beat-detect.cjs reproduces every shipped first beat and tempo from the mp3 (when ffmpeg is available).
+// Measured on the bundled cues: First Love Guitar and Sunny Soul Strut have a clear enough 16th pulse for the 16th burst;
+// Bedroom Pop Love and Slow R&B Glow do not, and the lo-fi cue swings.
+assert.deepEqual(m.cues.map(c => c.sixteenthRatio >= 0.35), [false, false, true, false, true]);
+// downbeatConfidence: beat-1 low-band clarity >= 1.5 (see dev/build-cues.cjs); First Love Guitar's is lower.
+assert.deepEqual(m.cues.map(c => c.downbeatConfidence), ['high', 'high', 'low', 'high', 'high']);
+// beat-detect.cjs reproduces every shipped first beat and tempo from the mp3 (when ffmpeg is available), with the cue's
+// phaseBeats.
 const { execFileSync, spawnSync } = require('node:child_process');
 if (spawnSync('ffmpeg', ['-version']).status === 0) {
   const { analyze } = require(path.resolve(__dirname, '..', 'beat-detect.cjs'));
   for (const c of m.cues) {
     const pcm = execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-i', path.join(dir, c.file), '-ac', '1', '-ar', '22050', '-f', 'f32le', '-'], { maxBuffer: 1 << 28 });
-    const a = analyze(new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4)), 22050);
+    const a = analyze(new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4)), 22050, { phaseBeats: phaseBeats[c.id] || 0 });
     assert.equal(a.bpm, c.bpm, c.id + ' bpm reproduced');
     assert.ok(Math.abs(a.firstBeat - c.firstBeat) <= 0.001, c.id + ' firstBeat reproduced: ' + a.firstBeat + ' vs ' + c.firstBeat);
     assert.equal(a.accepted, true, c.id + ' accepted');

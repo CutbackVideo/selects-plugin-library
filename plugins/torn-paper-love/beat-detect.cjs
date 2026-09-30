@@ -229,7 +229,7 @@ function offBeatLocked(bf, sampleRate, attack, period, t1) {
 }
 
 // opts.phaseBeats (dev only, default 0): move the grid by this many beats before the first beat is chosen, after the
-// phase sanity check (offBeatLocked); no bundled cue needs it since v2.6.
+// phase sanity check (offBeatLocked); dev/build-cues.cjs uses it for First Love Guitar.
 function analyze(samples, sampleRate, opts) {
   const durationSeconds = samples.length / sampleRate;
   const { env, strong } = onsetEnvelope(samples);
