@@ -21,12 +21,15 @@ Each family's licence text is in `assets/fonts/licenses/`.
 
 ## Music
 
-The bundled tracks in `assets/cues/` were generated for City Weekend Vlog with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service, and are reused here unchanged. Each is a 40-second instrumental, loudness-normalized to -14 LUFS. Tempo, first beat, usable end and content hash are recorded in `assets/cues/manifest.json`.
+The bundled tracks in `assets/cues/` were generated with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Bedroom Pop Love, Slow R&B Glow and First Love Guitar were generated for Torn Paper Love; each is a 65-second instrumental. Easy Sunday Lo-fi and Sunny Soul Strut were generated for City Weekend Vlog and are reused here unchanged; each is a 40-second instrumental. Every track is loudness-normalized to -14 LUFS. Tempo, first beat, usable end and content hash are recorded in `assets/cues/manifest.json`.
 
 The tracks are bundled for use in the videos this plugin builds and are not for redistribution as standalone tracks.
 
 | Track | File | Tempo |
 | --- | --- | --- |
+| Bedroom Pop Love | `bedroom-pop-love.mp3` | 86 BPM |
+| Slow R&B Glow | `slow-rnb-glow.mp3` | 84 BPM |
+| First Love Guitar | `first-love-guitar.mp3` | 88 BPM |
 | Easy Sunday Lo-fi | `easy-sunday-lofi.mp3` | 88 BPM |
 | Sunny Soul Strut | `sunny-soul-strut.mp3` | 99 BPM |
 

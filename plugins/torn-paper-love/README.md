@@ -85,7 +85,10 @@ The panel's sections, from top to bottom:
 
 | Track | Tempo |
 | --- | --- |
-| Easy Sunday Lo-fi (default) | 88 BPM |
+| Bedroom Pop Love (default) | 86 BPM |
+| Slow R&B Glow | 84 BPM |
+| First Love Guitar | 88 BPM |
+| Easy Sunday Lo-fi | 88 BPM |
 | Sunny Soul Strut | 99 BPM |
 | Your own music | detected |
 | No music | fixed 0.35 s timing |
