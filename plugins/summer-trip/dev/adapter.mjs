@@ -34,7 +34,7 @@ import { stVisibleEvents, stEvalCuts, stExpectations, stKitExpectations, ST_W, S
 export const ROW_DEFAULTS = {
   music: 'default', section: 'default', length: 'standard', preset: 'summer',
   line1: 'that one trip in', season: '@suggest', place: '', placePrefix: 'in', topMain: '@season', topItalic: 'VLOG', creditPrefix: 'By', creditName: '',
-  clipSound: 'ambient', gridSound: 'volume', look: true, lookStrength: 0.3, leakStrength: 1, sfx: false, muffle: true, usePhotos: true, only: null,
+  clipSound: 'ambient', gridSound: 'volume', look: true, lookStrength: 0.45, leakStrength: 1, sfx: false, muffle: true, usePhotos: true, only: null,
 };
 // Panel constants the driver must share with panel.tsx (report any difference to the panel lane).
 export const ST_PANEL = {

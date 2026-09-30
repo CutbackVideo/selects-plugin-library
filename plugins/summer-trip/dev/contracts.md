@@ -97,7 +97,8 @@ and Fe (head trimmed via sourceStartSeconds when that would start before 0).
   gridSound: 'routing' | 'volume' | 'none',
   title:  { tsx, parameters, editableParameters },   // over [0, frames.titleFrames[1])
   labels: { tsx, parameters, editableParameters },   // over frames.labelsFrames[1] ([12, E))
-  look: null | { tsx, strength, leakStrength, gradeOff? }, // every Main + grid clip; last montage clip gets leakOutSeconds;
+  look: null | { tsx, strength, leakStrength, grain?, gradeOff? }, // every Main + grid clip; last montage clip gets leakOutSeconds;
+                                                    // grain (0-1, default 0.35) is the film grain, editable as "Film grain";
                                                     // gradeOff → only the last montage clip, strength 0 (keeps the leak)
   gridPanel: { tsx },                                // on grid clips whose source is not 16:9 (inset mask)
   filmFrame: { tsx, window: { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 }, leakStrength, timeOrigin: 'clip' | 'source',
@@ -136,7 +137,8 @@ skipped: { unanalysed, missing }, captureDates: { known, probed } }`. Dates with
 
 ## Effect parameters (assets/*.tsx)
 
-- Summer look: `{ strength, leakOutSeconds: 0, leakStrength: 1, clipSeconds, sourceStartSeconds, timeOrigin }`.
+- Summer look: `{ strength /* default 0.45 */, grain /* 0-1, default 0.35; opacity grain * strength * 0.5 */, leakOutSeconds: 0, leakStrength: 1,
+  clipSeconds, sourceStartSeconds, timeOrigin }`.
 - Grid panel: `{ insetPct: { top, right, bottom, left } }` in % of the clip's own box (the quadrant rectangle, clamped 0–100).
 - Film frame: `{ canvasInBox: { x, y, w, h } /* % of the clip box */, windowW, windowH, radius, feather, fringe, leakInSeconds,
   pulses: [{ at, dur }], leakStrength, fadeOutFrames, clipSeconds, motion: null | { motion, direction, axis, strength },

@@ -157,7 +157,7 @@ function readbackOf(m, fps) {
   const dc = dStep.config;
   assert.deepEqual(Object.keys(dc).sort(), ['endingMotion', 'filmFrame', 'fps', 'frames', 'gridPanel', 'gridPlaced', 'gridSound', 'labels', 'look', 'motion', 'mute', 'photos', 'placed', 'sequenceId', 'sizes', 'title'].sort());
   assert.deepEqual(dc.filmFrame.window, { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 });
-  assert.equal(dc.look.strength, 0.3);
+  assert.equal(dc.look.strength, 0.45);
   const F = b => (b === 0 ? 0 : Math.round((b * 60 / 120 + a.frames.delta) * 29.97));
   assert.deepEqual(dc.title.parameters.wordTimes, [0.5, 1.5, 2.5, 3.5].map(b => F(b) / 29.97), 'title words on beats 0.5-3.5 at the real fps');
   assert.equal(dc.title.parameters.seasonPartTime, F(5) / 29.97);

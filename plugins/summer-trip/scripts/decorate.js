@@ -118,12 +118,15 @@ const leakOutSeconds = (fr.endingFrame - fr.leakFrames.a) / fps;
 const leakInSeconds = (fr.leakFrames.b - fr.endingFrame) / fps;
 // canvasInBox (the last montage clip only): the canvas in % of the clip's own box, so the transition leak is laid
 // out on the canvas, not on a cover-cropped portrait or photo box.
+// Film grain (0-1) of the Summer look; its opacity also scales with the look strength, so a look at 0 has none.
+const lookGrain = cfg.look && typeof cfg.look.grain === 'number' ? cfg.look.grain : 0.35;
 const lookFor = (clip, sourceStartSeconds, leakOut, canvasInBox) => ({
   tsx: cfg.look.tsx,
-  parameters: { strength: cfg.look.gradeOff ? 0 : cfg.look.strength, leakOutSeconds: leakOut, leakStrength: leakStrength(cfg.look), clipSeconds: (clip.endFrame - clip.startFrame) / fps, sourceStartSeconds, timeOrigin,
+  parameters: { strength: cfg.look.gradeOff ? 0 : cfg.look.strength, grain: lookGrain, leakOutSeconds: leakOut, leakStrength: leakStrength(cfg.look), clipSeconds: (clip.endFrame - clip.startFrame) / fps, sourceStartSeconds, timeOrigin,
     ...(canvasInBox ? { canvasInBox } : {}) },
   editableParameters: [
     { key: 'strength', label: 'Summer look', type: 'number', defaultValue: cfg.look.strength, min: 0, max: 1, step: 0.05 },
+    { key: 'grain', label: 'Film grain', type: 'number', defaultValue: lookGrain, min: 0, max: 1, step: 0.05 },
     { key: 'leakStrength', label: 'Light leak', type: 'number', defaultValue: leakStrength(cfg.look), min: 0, max: 2, step: 0.05 }],
 });
 const motionDefs = m => [

@@ -986,7 +986,7 @@ const ST_GRID_SOUND = 'volume';
 // Live probe P2: an effect's useCurrentFrame() is 0 at the clip's first timeline frame whatever its source start.
 const ST_TIME_ORIGIN = 'clip';
 const ST_FILM_WINDOW = { w: 0.87, h: 0.84, radius: 0.02, feather: 0.012 };
-const ST_LOOK_DEFAULT = 0.3;
+const ST_LOOK_DEFAULT = 0.45;
 const ST_LINE1_DEFAULT = 'that one trip in';
 const ST_TOP_ITALIC_DEFAULT = 'VLOG';
 const ST_CREDIT_PREFIX = 'By';

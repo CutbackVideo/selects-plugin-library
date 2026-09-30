@@ -32,8 +32,9 @@ chosen music section:
   a rounded, feathered film frame on black, with light-leak pulses inside
   the frame. The music turns muffled (low-passed) for the ending, and the
   picture and the music fade out over the last half beat.
-- A subtle **Summer look** (teal shadows, warm highlights) on every clip,
-  photo and grid panel.
+- A **Summer look** on every clip, photo and grid panel: a warm film
+  treatment with teal shadows, warm highlights, softened cyan skies and
+  neon greens, a gentle highlight roll-off and a light film grain.
 - A 1920x1080 canvas. Clips and photos of other shapes get a centre crop;
   grid panels of other shapes are cropped to their quadrant.
 - Hard cuts only; the only transition is the light leak into the ending.
@@ -150,8 +151,9 @@ with a faster track and longer with a slower one.
   **Full** keeps it at its original level. The music stays at its full
   level in every mode. Photos have no sound.
 - **Look**: the **Summer look** toggle is on by default, with **Look
-  strength** 0.3 (0 to 1). Off removes the grade (the strength slider is
-  then unavailable); the film frame and its light leaks stay.
+  strength** 0.45 (0 to 1). Off removes the grade and the grain (the
+  strength slider is then unavailable); the film frame and its light leaks
+  stay.
 - **Sound effects**: off by default. On adds a camera-shutter click on each
   of the first four grid steps and a soft whoosh into the drop and into the
   ending. They play with or without music.
@@ -234,8 +236,8 @@ Edit it in the Inspector:
 - **Title** and **labels**: select a graphic to change its texts, colours,
   shadow, sizes and positions. The two graphics hold separate copies of the
   labels, so an edit in one does not change the other.
-- **Clips**: the crop, the sound level, the Summer look strength and, on
-  the ending clips, the light-leak strength.
+- **Clips**: the crop, the sound level, the Summer look strength and film
+  grain and, on the ending clips, the light-leak strength.
 - **Music**: select a music clip to change its volume.
 
 Finished videos are exported from the Draft with **Handoff → Export**.

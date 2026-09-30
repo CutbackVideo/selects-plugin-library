@@ -106,15 +106,17 @@ for (const f of ['summer-look.tsx', 'film-frame.tsx', 'grid-panel.tsx', 'photo-m
 
 // ---------- Summer look ----------
 const lookSrc = read('assets/summer-look.tsx');
-const L = load(block(lookSrc, 'st-look'), ['stLookParams', 'stLookTables', 'stLookTime', 'stLeakOutLayers', 'stLookFilterId']);
+const L = load(block(lookSrc, 'st-look'), ['stLookParams', 'stLookTables', 'stLookCoolMatrix', 'stLookGrain', 'stLookTime', 'stLeakOutLayers', 'stLookFilterId', 'ST_LOOK_COOL_MASK']);
 assert.deepEqual(j(L.stLookParams(undefined)), {
-  strength: 0.3, leakOutSeconds: 0, leakStrength: 1, clipSeconds: null, sourceStartSeconds: 0, timeOrigin: 'clip',
+  strength: 0.45, grain: 0.35, leakOutSeconds: 0, leakStrength: 1, clipSeconds: null, sourceStartSeconds: 0, timeOrigin: 'clip',
   canvasInBox: { x: 0, y: 0, w: 100, h: 100 },
 });
 assert.equal(L.stLookParams({ strength: 5 }).strength, 1, 'strength clamps');
 assert.equal(L.stLookParams({ strength: -1 }).strength, 0);
 assert.equal(L.stLookParams({ strength: '0.5' }).strength, 0.5, 'numeric strings');
-assert.equal(L.stLookParams({ strength: NaN }).strength, 0.3, 'NaN -> default');
+assert.equal(L.stLookParams({ strength: NaN }).strength, 0.45, 'NaN -> default');
+assert.equal(L.stLookParams({ grain: 3 }).grain, 1, 'grain clamps');
+assert.equal(L.stLookParams({ grain: 0 }).grain, 0, 'grain 0 is kept');
 assert.equal(L.stLookParams({ strength: 0 }).strength, 0, 'zero is kept');
 assert.equal(L.stLookParams({ timeOrigin: 'source' }).timeOrigin, 'source');
 assert.equal(L.stLookParams({ timeOrigin: 'bogus' }).timeOrigin, 'clip');
@@ -123,10 +125,42 @@ for (const s of [0, 0.1, 0.3, 0.5, 1]) {
   for (const ch of ['r', 'g', 'b']) {
     assert.equal(t[ch].length, 17);
     assert.equal(t[ch][0], 0, 'no black lift ' + ch + ' @' + s);
-    assert.equal(t[ch][16], 1, 'whites stay ' + ch + ' @' + s);
+    assert.ok(t[ch][16] <= 1 && t[ch][16] >= 1 - 0.1 * s - 1e-9, 'whites roll off gently ' + ch + ' @' + s);
     for (let i = 1; i < 17; i++) assert.ok(t[ch][i] >= t[ch][i - 1], 'monotonic ' + ch + ' @' + s);
   }
-  near(t.saturate, 1 + 0.1 * s, 'saturation @' + s);
+  assert.ok(t.r[16] >= t.g[16] && t.g[16] >= t.b[16], 'a warm white @' + s);
+  near(t.warm, 1 + 0.08 * s, 'warm saturation @' + s, 1e-3);
+  const cm = t.cool.split(' ').map(Number);
+  assert.equal(cm.length, 20, 'cool matrix is 4x5');
+}
+{ // Hue-split saturation: cyan desaturates (and turns toward teal) far more than orange; strength 0 is the identity.
+  const apply = (m, c) => [0, 1, 2].map(r => m[r * 5] * c[0] + m[r * 5 + 1] * c[1] + m[r * 5 + 2] * c[2]);
+  const sat = c => Math.max(...c) - Math.min(...c);
+  const id = L.stLookCoolMatrix(0);
+  assert.deepEqual(j(id.map(v => Math.round(v * 1e6) / 1e6 + 0)), [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0], 'identity at 0');
+  const cyan = [0.1, 0.6, 0.8], cool = apply(L.stLookCoolMatrix(1), cyan);
+  assert.ok(sat(cool) < 0.5 * sat(cyan), 'cyan loses saturation');
+  assert.ok(cool[2] - cool[1] < cyan[2] - cyan[1], 'cyan moves toward teal');
+  // The mask (alpha row) is 0 for warm colours and greys, high for cyan, partial for green.
+  const row = L.ST_LOOK_COOL_MASK.split(/\s+/).map(Number).slice(15, 18);
+  const mask = c => Math.max(0, Math.min(1, row[0] * c[0] + row[1] * c[1] + row[2] * c[2]));
+  assert.equal(mask([0.9, 0.6, 0.3]), 0, 'orange keeps its saturation');
+  assert.equal(mask([0.5, 0.5, 0.5]), 0, 'grey');
+  assert.ok(mask([0.8, 0.65, 0.5]) === 0, 'skin / stone');
+  assert.ok(mask([0.2, 0.7, 0.9]) > 0.9, 'cyan sky');
+  const green = mask([0.4, 0.75, 0.2]);
+  assert.ok(green > 0.3 && green < 0.9, 'neon green partly: ' + green);
+}
+{ // Grain: opacity grain * strength * 0.5, none at strength 0 or grain 0; the tile moves every frame.
+  assert.equal(L.stLookGrain(5, L.stLookParams({ strength: 0 })), null);
+  assert.equal(L.stLookGrain(5, L.stLookParams({ grain: 0 })), null);
+  const g = L.stLookGrain(5, L.stLookParams({}));
+  near(g.opacity, 0.35 * 0.45 * 0.5, 'default grain opacity', 1e-3);
+  assert.ok(g.opacity < 0.12, 'restrained');
+  assert.ok(/feTurbulence/.test(g.backgroundImage) && /%23g/.test(g.backgroundImage) && !/#/.test(g.backgroundImage), 'data URI noise tile (# escaped)');
+  const pos = new Set([0, 1, 2, 3, 4, 5, 6, 7].map(f => L.stLookGrain(f, L.stLookParams({})).backgroundPosition));
+  assert.ok(pos.size >= 7, 'animated: a new offset per frame');
+  assert.deepEqual(j(L.stLookGrain(12, L.stLookParams({}))), j(L.stLookGrain(12, L.stLookParams({}))), 'deterministic per frame');
 }
 { // strength 0 is the identity; strength 1 is a split tone (teal shadows, orange highlights) with an S-curve.
   const z = L.stLookTables(0), o = L.stLookTables(1);
