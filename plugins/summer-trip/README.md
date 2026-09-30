@@ -253,7 +253,7 @@ Edit it in the Inspector:
   labels, so an edit in one does not change the other.
 - **Clips**: the crop, the sound level, the Summer look strength and film
   grain and, on the ending clips, the light-leak strength.
-- **Music**: select a music clip to change its volume.
+- **Music**: select a music clip to change its volume. The main music clip carries a volume line (lower under the title, full from the grid); setting one constant volume there replaces that line.
 
 Finished videos are exported from the Draft with **Handoff → Export**.
 
