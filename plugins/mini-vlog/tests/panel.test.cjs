@@ -138,6 +138,23 @@ assert.ok(panel.includes('const MV_BUSY = "Selects is busy and didn\'t answer in
 assert.ok(ui.includes('measureMs: attempt === 0 ? INVENTORY_MEASURE_MS : 0') && panel.includes('const INVENTORY_MEASURE_MS = 4000;'), 'inventory measures less under load');
 assert.ok(ui.includes('setInvError(e instanceof BusyError ? MV_BUSY : String(e?.message || e))'), 'busy inventory error message');
 assert.ok(ui.includes('wanted: live'), 'inventory retries stop for a stale Project');
+// A Project still loading after an app restart: the first inventory read that fails (not busy) is tried once more
+// after 2 s, only from the mount effect (Refresh, focus and polling never auto-retry), and only while still wanted.
+assert.ok(panel.includes('const INVENTORY_RETRY_MS = 2000;'), 'retry delay');
+const mountFx = ui.slice(ui.indexOf('setStep("Checking clips");'), ui.indexOf('Mini Vlog could not start'));
+assert.ok(/if \(await loadInventory\(projectId, \(\) => alive\) === "failed" && alive\) \{\s*await new Promise\(\(d\) => setTimeout\(d, INVENTORY_RETRY_MS\)\);\s*if \(alive && projectRef\.current === projectId\) \{ setInvError\(null\); await loadInventory\(projectId, \(\) => alive\); \}\s*\}/.test(mountFx), 'one retry after a failed first read');
+assert.equal((mountFx.match(/loadInventory\(/g) || []).length, 2, 'exactly one retry');
+assert.equal((ui.match(/INVENTORY_RETRY_MS/g) || []).length, 1, 'the retry is used only by the mount effect');
+const loadInv = ui.slice(ui.indexOf('async function loadInventory('), ui.indexOf('React.useEffect(() => { mountedRef.current = true;'));
+assert.ok(loadInv.includes('return e instanceof BusyError ? "busy" : "failed";') && loadInv.includes('return "ok";'), 'a busy failure is not retried again');
+assert.ok(!/setTimeout/.test(loadInv), 'loadInventory itself never waits (Refresh / focus / poll do not auto-retry)');
+// A non-busy failure reads as transient; the raw error stays in a details line and the console.
+assert.ok(panel.includes('const MV_INV_FAILED = "Couldn\'t read this Project\'s clips yet. Press Refresh.";') && ui.includes('(invError === MV_BUSY ? MV_BUSY : MV_INV_FAILED)'), 'transient failure message');
+assert.ok(ui.includes('{!inventory && invError && invError !== MV_BUSY ? <ui.Message tone="muted">{"Details: " + invError}</ui.Message> : null}') && loadInv.includes('console.warn('), 'raw error kept');
+assert.ok(!ui.includes('Could not read the clips in this Project'), 'old message gone');
+// A partial inventory (the Project was still loading) keeps polling and never reads as an empty Project.
+assert.ok(/needsPoll = !!inventory && \(!!inventory\.incomplete \|\|/.test(ui), 'incomplete inventory polls');
+assert.ok(ui.indexOf('inventory.incomplete ? "Still reading this Project\'s clips') < ui.indexOf('No analysed video or photos in this Project yet'), 'incomplete before "no footage"');
 assert.ok(/run\("Search shots"[^\n]*\{ wanted: \(\) => projectRef\.current === pid \}\)/.test(ui), 'search retries stop for a stale Project');
 // Refresh stays available after a failure; a later successful read clears the error (Build is gated only by the inventory).
 assert.ok(ui.includes('disabled={busy || !assets} onClick={() => loadInventory()}>Refresh<') && ui.includes('setInventory(inv); setInvError(null);'), 'Refresh stays enabled; success clears the error');

@@ -62,6 +62,10 @@ const BUSY_BACKOFF_MS = [5000, 15000];
 // Photo measuring inside the inventory call; a retry after a busy failure skips it (assemble measures unsized photos).
 const INVENTORY_MEASURE_MS = 4000;
 const MV_BUSY = "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.";
+// A Project still loading (right after an app restart) can fail the first inventory read outright. That first read
+// is tried once more after INVENTORY_RETRY_MS (read-only; a busy failure already waited through its backoff).
+const INVENTORY_RETRY_MS = 2000;
+const MV_INV_FAILED = "Couldn't read this Project's clips yet. Press Refresh.";
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
 const DRAFT_LOOKUP_MAX = 50;
 const LENGTH_LABELS: Record<string, string> = { short: "Short", standard: "Standard", long: "Long" };
@@ -1184,24 +1188,29 @@ export default function Panel({ sdk, context, ui }: any) {
   const [invLoading, setInvLoading] = React.useState(false);
 
   // Reads the Project's footage inventory. Never writes state for a stale Project, and never runs during a build.
-  async function loadInventory(pid: string | null = projectRef.current, alive: () => boolean = () => true) {
+  // Resolves to "failed" only when a read ran and failed with a non-busy error (the case worth one quick retry).
+  async function loadInventory(pid: string | null = projectRef.current, alive: () => boolean = () => true): Promise<"ok" | "busy" | "failed" | "skipped"> {
     const script = inventoryJsRef.current;
     // One read per Project at a time; a read for another Project never blocks this one.
-    if (!pid || !script || busyRef.current || invLoadingRef.current === pid) return;
+    if (!pid || !script || busyRef.current || invLoadingRef.current === pid) return "skipped";
     const live = () => mountedRef.current && alive() && projectRef.current === pid;
     invLoadingRef.current = pid; setInvLoading(true);
     try {
       const inv = await run("Read footage", (attempt) => fill(script, { projectId: pid, only: null, known: photoSizesRef.current, measureMs: attempt === 0 ? INVENTORY_MEASURE_MS : 0 }), false, { wanted: live });
       // A build that started meanwhile keeps the clip set it began with; the next refresh picks this up.
-      if (!live() || busyRef.current) return;
+      if (!live() || busyRef.current) return "skipped";
+      inv.resources = inv.resources || [];
       inv.photos = inv.photos || [];
       for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizesRef.current[ph.rid] = { width: ph.width, height: ph.height };
       const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + (inv.skipped?.unanalysed || 0);
       // A changed clip set drops the cached scene search so a build never uses stale candidates.
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
       setInventory(inv); setInvError(null);
+      return "ok";
     } catch (e: any) {
+      if (!(e instanceof BusyError)) console.warn("Mini Vlog: reading the Project's clips failed", e);
       if (live()) setInvError(e instanceof BusyError ? MV_BUSY : String(e?.message || e));
+      return e instanceof BusyError ? "busy" : "failed";
     } finally {
       if (invLoadingRef.current === pid) invLoadingRef.current = null;
       if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
@@ -1242,7 +1251,11 @@ export default function Panel({ sdk, context, ui }: any) {
         setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, softTsx, motionTsx });
         inventoryJsRef.current = inventoryJs;
         setStep("Checking clips");
-        await loadInventory(projectId, () => alive);
+        // The first read right after the app starts can fail while the Project is still loading: one retry.
+        if (await loadInventory(projectId, () => alive) === "failed" && alive) {
+          await new Promise((d) => setTimeout(d, INVENTORY_RETRY_MS));
+          if (alive && projectRef.current === projectId) { setInvError(null); await loadInventory(projectId, () => alive); }
+        }
       } catch (e: any) {
         if (alive) setStatus({ tone: "error", text: "Mini Vlog could not start: " + (e?.message || e) + ". Reinstall the plugin if this persists." });
       } finally { if (alive) setStep(""); }
@@ -1254,7 +1267,8 @@ export default function Panel({ sdk, context, ui }: any) {
   // Clips still being analysed (or none yet): re-read the inventory every 10 s until they are ready.
   // The effect re-arms on each new inventory, and stops on unmount, Project switch and while busy.
   // A Project with only photos has nothing to wait for, so it does not poll (each read measures new photos).
-  const needsPoll = !!inventory && (inventory.skipped?.unanalysed > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
+  // A partial read (`incomplete`: the Project was still loading) polls too, until the clip sizes are all known.
+  const needsPoll = !!inventory && (!!inventory.incomplete || inventory.skipped?.unanalysed > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
@@ -1707,7 +1721,8 @@ export default function Panel({ sdk, context, ui }: any) {
     usePhotos && allPhotoRids.length ? (onlyPhotos ? selectedPhotoRids.length + " of " + allPhotoRids.length + " photos selected" : allPhotoRids.length + " photos") : "",
   ].filter(Boolean).join(" · ");
   const plannedShots = readyPlan && readyPlan.ok ? readyPlan.shots : fitted || requested;
-  const readiness = !inventory ? (invError ? (invError === MV_BUSY ? MV_BUSY : "Could not read the clips in this Project: " + invError) : "Checking clips…")
+  const readiness = !inventory ? (invError ? (invError === MV_BUSY ? MV_BUSY : MV_INV_FAILED) : "Checking clips…")
+    : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? "Still reading this Project's clips… This updates automatically."
     : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0
       ? pending + " clips are still being analysed. This updates automatically when they finish."
       : "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.")
@@ -1828,6 +1843,7 @@ export default function Panel({ sdk, context, ui }: any) {
           <ui.Message tone={!inventory && invError ? "error" : "muted"}>{readiness}</ui.Message>
           <ui.Button variant="ghost" busy={invLoading} busyLabel="Refreshing" disabled={busy || !assets} onClick={() => loadInventory()}>Refresh</ui.Button>
         </ui.Row>
+        {!inventory && invError && invError !== MV_BUSY ? <ui.Message tone="muted">{"Details: " + invError}</ui.Message> : null}
       </ui.Section>
       <ui.Section title="Advanced">
         <ui.Segmented label="Clip sound" value={clipSound} onChange={(v: any) => setClipSound(v)} disabled={busy}
