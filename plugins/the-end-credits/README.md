@@ -50,7 +50,10 @@ found. It does not start analysis on its own, so analyse your clips first.
 
 Progress is shown as five steps: Finding shots, Planning the edit, Preparing
 music, Creating Draft, and Adding credits and look (which ends by opening the
-Draft). When the build finishes, the new Draft opens and a link to it is
+Draft). During Finding shots the detail reads "N/M videos checked" (the scene
+search) and then "N/M videos measured" (how much each video moves); photos are
+not counted there, so M can be smaller than the Choose clips total. When the
+build finishes, the new Draft opens and a link to it is
 shown. **Create another version** makes
 another Draft with a different shot choice. If the last step fails, the Draft
 is kept and **Finish title and look** completes it with the settings it was
@@ -209,7 +212,8 @@ analysis.
   clips are used by default; **All** and **None** select or clear the list.
 
 If the scene search fails for some clips, the build goes on without them and
-says "Could not check N clips; they were skipped. Build again to retry them."
+says "Could not check N videos; they were skipped. Build again to retry them."
+(Only videos are searched and measured, so these counts leave out photos.)
 
 ## The Draft and editing it
 

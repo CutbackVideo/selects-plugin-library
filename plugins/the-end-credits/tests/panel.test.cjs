@@ -220,4 +220,7 @@ for (const cue of manifest.cues) {
     if (key === 'standard') assert.ok(Math.abs(sec.start + 5.1 - swell) <= 1e-3 || sec.j === sec.jMax || sec.j === sec.jMin, cue.id + ': the reveal is on the swell');
   }
 }
+// Progress counts only videos (photos are not searched or measured), so the wording says videos, not clips.
+for (const phrase of ['" video checked" : " videos checked"', '" video measured" : " videos measured"', '" video; it was" : " videos; they were"']) assert.ok(panel.includes(phrase), phrase);
+assert.ok(!/clips checked|clips measured/.test(panel), 'progress wording says videos');
 console.log(JSON.stringify({ panel: 'ok', decoratePayload: payload.length }));

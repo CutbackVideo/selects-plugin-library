@@ -1617,7 +1617,7 @@ export default function Panel({ sdk, context, ui }: any) {
   async function findCandidates(rids: string[], pid: string, check: () => void) {
     const list: any[] = []; const failed: string[] = [];
     for (let i = 0; i < rids.length; i += 4) {
-      advance("prepare", 0.1 + (0.6 * i) / Math.max(1, rids.length), i + "/" + rids.length + " clips checked");
+      advance("prepare", 0.1 + (0.6 * i) / Math.max(1, rids.length), i + "/" + rids.length + (rids.length === 1 ? " video checked" : " videos checked"));
       const r = await run("Search scenic shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + 4), queries: TEC_SEARCH_QUERIES, pageSize: 4 }));
       check();
       list.push(...r.candidates); failed.push(...r.failed);
@@ -1635,7 +1635,7 @@ export default function Panel({ sdk, context, ui }: any) {
     try {
       for (let i = 0; i < todo.length; i++) {
         const r = todo[i], key = pid + "|" + r.rid;
-        advance("prepare", from + ((1 - from) * i) / Math.max(1, todo.length), i + "/" + todo.length + " clips measured");
+        advance("prepare", from + ((1 - from) * i) / Math.max(1, todo.length), i + "/" + todo.length + (todo.length === 1 ? " video measured" : " videos measured"));
         if (!tools.ffmpeg || !r.path || !roots) { motionRef.current[key] = null; continue; }
         const file = "motion-" + String(r.rid).replace(/[^A-Za-z0-9-]/g, "_") + ".txt";
         let curve: any = null;
@@ -2065,7 +2065,7 @@ export default function Panel({ sdk, context, ui }: any) {
         </ui.Message>
       ) : null}
       {result?.notes?.length ? <ui.Message tone="muted">{"Note: " + result.notes.join("; ") + "."}</ui.Message> : null}
-      {result?.unchecked ? <ui.Message tone="muted">{"Could not check " + result.unchecked + (result.unchecked === 1 ? " clip; it was" : " clips; they were") + " skipped. Build again to retry " + (result.unchecked === 1 ? "it." : "them.")}</ui.Message> : null}
+      {result?.unchecked ? <ui.Message tone="muted">{"Could not check " + result.unchecked + (result.unchecked === 1 ? " video; it was" : " videos; they were") + " skipped. Build again to retry " + (result.unchecked === 1 ? "it." : "them.")}</ui.Message> : null}
       <ui.Actions>
         {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>Finish title and look</ui.Button> : null}
         {result ? <ui.Button onClick={buildAnother} disabled={busy}>Create another version</ui.Button> : null}
