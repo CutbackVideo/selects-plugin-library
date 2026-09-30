@@ -86,6 +86,8 @@ const keepAlive = setInterval(() => {}, 50);
   const invT = await load('inventory.js', { projectId: 'p', only: null })(selL({ sourceFiles: sfThrows }));
   assert.equal(invT.incomplete, true, 'sourceFiles throwing -> incomplete');
   assert.deepEqual(invT.resources.map(r => [r.rid, r.width, r.height]), [['r0', null, null], ['r3', null, null]], 'videos without sizes');
+  // Defensive: the real SDK throws on an undefined tree or a dir without children (covered by sfThrows above); these
+  // shapes guard inventory.js's own walk in case a future SDK passes them through.
   const invU = await load('inventory.js', { projectId: 'p', only: null })(selL({ sourceFiles: async () => undefined }));
   assert.equal(invU.incomplete, true, 'sourceFiles undefined -> incomplete');
   assert.equal(invU.resources.length, 2);

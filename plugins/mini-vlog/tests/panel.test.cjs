@@ -153,11 +153,25 @@ assert.ok(panel.includes('const MV_INV_FAILED = "Couldn\'t read this Project\'s 
 assert.ok(ui.includes('{!inventory && invError && invError !== MV_BUSY ? <ui.Message tone="muted">{"Details: " + invError}</ui.Message> : null}') && loadInv.includes('console.warn('), 'raw error kept');
 assert.ok(!ui.includes('Could not read the clips in this Project'), 'old message gone');
 // A partial inventory (the Project was still loading) keeps polling and never reads as an empty Project.
-assert.ok(/needsPoll = !!inventory && \(!!inventory\.incomplete \|\|/.test(ui), 'incomplete inventory polls');
+assert.ok(/needsPoll = !!inventory && \(\(!!inventory\.incomplete && !incompleteStalled\) \|\|/.test(ui), 'incomplete inventory polls until stalled');
+// Build and Create another version wait for the clip sizes: an incomplete inventory blocks both with a muted hint
+// next to Build (blockReason), and build() refuses it; a later complete read clears the block.
+assert.ok(panel.includes('const MV_SIZES_LOADING = "Clip sizes are still loading\u2026";') || panel.includes('const MV_SIZES_LOADING = "Clip sizes are still loading…";'), 'sizes hint text');
+assert.ok(/const baseBlock: string \| null = !inventory \|\| !assets \? null\s*: inventory\.incomplete \? MV_SIZES_LOADING\s*:/.test(ui), 'incomplete blocks both buttons first');
+assert.ok(ui.includes('const canBuild = ready && !blockReason;') && ui.includes('const canBuildAnother = ready && !anotherBlock;') && ui.includes('{blockReason && !busy ? <ui.Message tone="muted">{blockReason}</ui.Message> : null}'), 'the block disables Build / another version and shows the hint');
+assert.ok(build.includes('!inventory || inventory.incomplete ||'), 'build() refuses an incomplete inventory');
+// Incomplete polling is capped: INCOMPLETE_POLL_MAX (6) consecutive incomplete reads stop it with a Refresh hint;
+// a complete read, a Project switch or Refresh restart the count.
+assert.ok(panel.includes('const INCOMPLETE_POLL_MAX = 6;') && panel.includes('const MV_INV_PARTIAL = "Couldn\'t read all clips yet. Press Refresh.";'), 'cap constants');
+assert.ok(loadInv.includes('if (inv.incomplete) { incompleteReadsRef.current++; if (incompleteReadsRef.current >= INCOMPLETE_POLL_MAX) setIncompleteStalled(true); }')
+  && loadInv.includes('else { incompleteReadsRef.current = 0; setIncompleteStalled(false); }'), 'consecutive count, reset by a complete read');
+assert.ok(ui.includes('const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); loadInventory(); };'), 'Refresh restarts the cycle');
+assert.ok(ui.includes('photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false);'), 'Project switch resets the cycle');
+assert.ok(ui.includes(': inventory.incomplete && incompleteStalled ? MV_INV_PARTIAL'), 'stalled readiness message');
 assert.ok(ui.indexOf('inventory.incomplete ? "Still reading this Project\'s clips') < ui.indexOf('No analysed video or photos in this Project yet'), 'incomplete before "no footage"');
 assert.ok(/run\("Search shots"[^\n]*\{ wanted: \(\) => projectRef\.current === pid \}\)/.test(ui), 'search retries stop for a stale Project');
 // Refresh stays available after a failure; a later successful read clears the error (Build is gated only by the inventory).
-assert.ok(ui.includes('disabled={busy || !assets} onClick={() => loadInventory()}>Refresh<') && ui.includes('setInventory(inv); setInvError(null);'), 'Refresh stays enabled; success clears the error');
+assert.ok(ui.includes('disabled={busy || !assets} onClick={refreshInventory}>Refresh<') && ui.includes('setInventory(inv); setInvError(null);'), 'Refresh stays enabled; success clears the error');
 for (const s of ['run("Assemble Mini Vlog"', 'run("Add title and look"', 'run("Add music to the project"']) assert.ok(new RegExp(s.replace(/[()]/g, '\\$&') + '[^;]*, true\\);').test(ui), s + ' is a commit call');
 // decorate cfg (scripts lane contract).
 assert.ok(decorate.includes('fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, '

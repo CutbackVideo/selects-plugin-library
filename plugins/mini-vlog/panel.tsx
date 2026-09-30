@@ -66,6 +66,12 @@ const MV_BUSY = "Selects is busy and didn't answer in time. Wait a moment and pr
 // is tried once more after INVENTORY_RETRY_MS (read-only; a busy failure already waited through its backoff).
 const INVENTORY_RETRY_MS = 2000;
 const MV_INV_FAILED = "Couldn't read this Project's clips yet. Press Refresh.";
+// A partial inventory (`incomplete`: some clip sizes unknown) holds Build, since a clip without a size is placed
+// uncropped. It is re-read with the 10 s poll, at most INCOMPLETE_POLL_MAX times in a row (about a minute); then
+// polling stops until Refresh starts the cycle again.
+const INCOMPLETE_POLL_MAX = 6;
+const MV_SIZES_LOADING = "Clip sizes are still loading…";
+const MV_INV_PARTIAL = "Couldn't read all clips yet. Press Refresh.";
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
 const DRAFT_LOOKUP_MAX = 50;
 const LENGTH_LABELS: Record<string, string> = { short: "Short", standard: "Standard", long: "Long" };
@@ -1186,6 +1192,9 @@ export default function Panel({ sdk, context, ui }: any) {
   const mountedRef = React.useRef(true);
   const [invError, setInvError] = React.useState<string | null>(null);
   const [invLoading, setInvLoading] = React.useState(false);
+  // Consecutive incomplete reads, and whether that count reached INCOMPLETE_POLL_MAX (polling stopped).
+  const incompleteReadsRef = React.useRef(0);
+  const [incompleteStalled, setIncompleteStalled] = React.useState(false);
 
   // Reads the Project's footage inventory. Never writes state for a stale Project, and never runs during a build.
   // Resolves to "failed" only when a read ran and failed with a non-busy error (the case worth one quick retry).
@@ -1205,6 +1214,8 @@ export default function Panel({ sdk, context, ui }: any) {
       const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + (inv.skipped?.unanalysed || 0);
       // A changed clip set drops the cached scene search so a build never uses stale candidates.
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
+      if (inv.incomplete) { incompleteReadsRef.current++; if (incompleteReadsRef.current >= INCOMPLETE_POLL_MAX) setIncompleteStalled(true); }
+      else { incompleteReadsRef.current = 0; setIncompleteStalled(false); }
       setInventory(inv); setInvError(null);
       return "ok";
     } catch (e: any) {
@@ -1217,13 +1228,15 @@ export default function Panel({ sdk, context, ui }: any) {
     }
   }
   React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  // Refresh: a manual read that also restarts the incomplete-read cycle.
+  const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); loadInventory(); };
 
   // Mount and Project switch: reset per-Project state, resolve folders, read bundled assets, inventory the Project.
   React.useEffect(() => {
     // Drop everything tied to the previous Project so a build never mixes Projects.
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
     setOnly(null); setOnlyPhotos(null);
-    invSigRef.current = null; photoSizesRef.current = {};
+    invSigRef.current = null; photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false);
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
     if (!projectId) return;
     let alive = true;
@@ -1268,7 +1281,7 @@ export default function Panel({ sdk, context, ui }: any) {
   // The effect re-arms on each new inventory, and stops on unmount, Project switch and while busy.
   // A Project with only photos has nothing to wait for, so it does not poll (each read measures new photos).
   // A partial read (`incomplete`: the Project was still loading) polls too, until the clip sizes are all known.
-  const needsPoll = !!inventory && (!!inventory.incomplete || inventory.skipped?.unanalysed > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
+  const needsPoll = !!inventory && ((!!inventory.incomplete && !incompleteStalled) || inventory.skipped?.unanalysed > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
@@ -1489,7 +1502,7 @@ export default function Panel({ sdk, context, ui }: any) {
   }
 
   async function build(nextSeed: number) {
-    if (busyRef.current || !assets || !inventory || !roots || !chosen) return;
+    if (busyRef.current || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
     // The gate for the seed this build uses (Build: seed; Create another version: seed + 1).
     const gate = nextSeed === seed ? blockReason : anotherBlock;
     if (gate) { setStatus({ tone: "error", text: gate }); return; }
@@ -1702,6 +1715,7 @@ export default function Panel({ sdk, context, ui }: any) {
   const readyPlan: any = readyPlans.build;
   // Why a build with this readiness plan cannot run (null when it can).
   const baseBlock: string | null = !inventory || !assets ? null
+    : inventory.incomplete ? MV_SIZES_LOADING
     : !bigText ? "Type the title's big word to build."
     : musicKind === "own" && !ownMusic ? "Drop a music file, or choose one of the tracks."
     : musicKind === "own" && !ownDuration ? "The length of your music could not be read. Choose another file or one of the tracks."
@@ -1722,6 +1736,7 @@ export default function Panel({ sdk, context, ui }: any) {
   ].filter(Boolean).join(" · ");
   const plannedShots = readyPlan && readyPlan.ok ? readyPlan.shots : fitted || requested;
   const readiness = !inventory ? (invError ? (invError === MV_BUSY ? MV_BUSY : MV_INV_FAILED) : "Checking clips…")
+    : inventory.incomplete && incompleteStalled ? MV_INV_PARTIAL
     : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? "Still reading this Project's clips… This updates automatically."
     : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0
       ? pending + " clips are still being analysed. This updates automatically when they finish."
@@ -1841,7 +1856,7 @@ export default function Panel({ sdk, context, ui }: any) {
         {paceNote ? <ui.Message tone="muted">{paceNote}</ui.Message> : null}
         <ui.Row gap={8} align="center">
           <ui.Message tone={!inventory && invError ? "error" : "muted"}>{readiness}</ui.Message>
-          <ui.Button variant="ghost" busy={invLoading} busyLabel="Refreshing" disabled={busy || !assets} onClick={() => loadInventory()}>Refresh</ui.Button>
+          <ui.Button variant="ghost" busy={invLoading} busyLabel="Refreshing" disabled={busy || !assets} onClick={refreshInventory}>Refresh</ui.Button>
         </ui.Row>
         {!inventory && invError && invError !== MV_BUSY ? <ui.Message tone="muted">{"Details: " + invError}</ui.Message> : null}
       </ui.Section>
