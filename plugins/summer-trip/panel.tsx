@@ -2001,7 +2001,7 @@ export default function Panel({ sdk, context, ui }: any) {
     const list: any[] = []; const failed: string[] = [];
     // ST_SEARCH_BATCH clips per call keeps each call inside run_script's fixed 30 s deadline.
     for (let i = 0; i < rids.length; i += ST_SEARCH_BATCH) {
-      advance("shots", 0.9 * i / rids.length, i + "/" + rids.length + " clips checked");
+      advance("shots", 0.9 * i / rids.length, i + "/" + rids.length + (rids.length === 1 ? " video checked" : " videos checked"));
       const r = await run("Search travel shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + ST_SEARCH_BATCH), queries: ST_SEARCH_QUERIES, pageSize: ST_SEARCH_PAGE }));
       check();
       list.push(...r.candidates); failed.push(...r.failed);
@@ -2432,7 +2432,7 @@ export default function Panel({ sdk, context, ui }: any) {
       {result?.plan?.notes?.filter((n: string) => !/^Your footage fits/.test(n)).length ? (
         <ui.Message tone="muted">{result.plan.notes.filter((n: string) => !/^Your footage fits/.test(n)).join(". ") + "."}</ui.Message>
       ) : null}
-      {result?.unchecked ? <ui.Message tone="muted">{"Could not search " + result.unchecked + (result.unchecked === 1 ? " clip; it was" : " clips; they were") + " used without scene search. Build again to retry " + (result.unchecked === 1 ? "it." : "them.")}</ui.Message> : null}
+      {result?.unchecked ? <ui.Message tone="muted">{"Could not search " + result.unchecked + (result.unchecked === 1 ? " video; it was" : " videos; they were") + " used without scene search. Build again to retry " + (result.unchecked === 1 ? "it." : "them.")}</ui.Message> : null}
       <ui.Actions>
         {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>Finish title and look</ui.Button> : null}
         {result ? <ui.Button onClick={buildAnother} disabled={busy}>Create another version</ui.Button> : null}

@@ -49,8 +49,9 @@ chosen music section:
    shows the title as it will look.
 3. Press **Build**.
 
-Progress is shown as five steps: Choosing shots, Preparing music, Creating
-Draft, Adding title and look, and Opening Draft. When the build finishes,
+Progress is shown as five steps: Choosing shots ("N/M videos checked": the
+scene search counts video clips only; photos have no search), Preparing music,
+Creating Draft, Adding title and look, and Opening Draft. When the build finishes,
 the new Draft opens and a link to it is shown. **Create another version**
 makes another Draft with a different shot choice, reusing the shot search.
 
