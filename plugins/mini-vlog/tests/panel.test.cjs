@@ -74,8 +74,16 @@ assert.deepEqual(order.slice().sort((a, b) => a - b), order, 'Title, Music, Leng
 for (const s of ['label="Length"', 'label="Pace"', 'value: "quick"', 'value: "relaxed"', '{ label: "Groove", value: "groove" }', 'label="Beat punch"', 'label="Start at the hook"', 'label="Clip sound"', 'label="Soft look"', 'label="Use photos"', 'Choose clips']) assert.ok(ui.includes(s), s);
 
 // Title: three preset tiles, per-preset fields with max lengths, @year resolved, live preview from the shared layout code.
-for (const s of ['aria-pressed', 'fieldsBy', '.slice(0, fl.max)', '"@year"', 'inventory?.latestYear', 'new Date().getFullYear()', 
+for (const s of ['aria-pressed', 'fieldsBy', '.slice(0, fl.max)', '"@year"', 
   'mvLockupLayout(', 'mvSparklePath(', 'mvStarPath(', 'height: PREVIEW_HEIGHT', 'fontKerning: "none"', 'fontVariantLigatures: "none"', 'FontFace', 'Preview unavailable']) assert.ok(ui.includes(s), s);
+// @year is the current year when the field shows (an edit in fieldsBy wins); recording dates never drive it.
+assert.ok(ui.includes('function mvCurrentYear() { return String(new Date().getFullYear()); }'), 'mvCurrentYear');
+assert.ok(ui.includes('const v = fieldsBy[presetId]?.[fl.key] ?? fl.initial ?? "";\n    return v === "@year" ? mvCurrentYear() : v;'), '@year -> mvCurrentYear() after the user edit');
+assert.ok(!/latestYear|recordedAt|yearOf\(/.test(ui), 'no recording-date year in the panel');
+{
+  const fn = /^function mvCurrentYear\(\) \{[^\n]*\}$/m.exec(ui);
+  assert.equal(new Function(fn[0] + '\nreturn mvCurrentYear();')(), String(new Date().getFullYear()), 'current year');
+}
 assert.ok(!/states\b/.test(ui), 'no CWV font states');
 assert.ok(!/new Function|\beval\(/.test(ui), 'no runtime evaluation in the panel');
 assert.ok(ui.includes('} catch { return null; }') && ui.includes('{assets && previewItems ? ('), 'a layout error falls back to "Preview unavailable"');

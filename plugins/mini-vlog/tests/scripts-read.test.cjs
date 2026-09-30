@@ -23,7 +23,8 @@ const keepAlive = setInterval(() => {}, 50);
   assert.deepEqual(inv.resources.map(r => [r.rid, r.width, r.height, r.duration]), [['r0', 1920, 1080, 20], ['r3', 1080, 1920, 12]]);
   assert.equal(inv.resources[0].recordedAt, '2026-09-26T15:00:00Z');
   assert.equal(inv.skipped.unanalysed, 1);
-  assert.equal(inv.latestYear, 2026, 'the only dated resource');
+  // No recording-year summary: the title's @year is the current year (panel.tsx mvCurrentYear()), never footage dates.
+  assert.ok(!('latestYear' in inv), 'inventory has no latestYear');
   const only = await load('inventory.js', { projectId: 'p', only: ['r3'] })(selects);
   assert.deepEqual(only.resources.map(r => r.rid), ['r3']);
   const s = await load('search.js', { projectId: 'p', rids: ['r0', 'r3'], queries: { street: 'q1', park: 'q2' }, pageSize: 4 })(selects);
@@ -50,7 +51,7 @@ const keepAlive = setInterval(() => {}, 50);
     { rid: 'r4', name: 'IMG_1.jpeg', width: 898, height: 898, recordedAt: '2026-09-27T10:00:00Z', kind: 'photo' },
     { rid: 'r5', name: 'IMG_2.jpeg', width: 2268, height: 4032, recordedAt: null, kind: 'photo' }]);
   assert.equal(inv2.skipped.unanalysed, 1, 'photos never count as unanalysed');
-  assert.equal(inv2.latestYear, 2026);
+  assert.ok(!('latestYear' in inv2), 'no latestYear with photos either');
   assert.equal(drafts.length, 2);
   assert.ok(drafts.every(d => !d.committed), 'scratch Drafts are not committed');
   const inv3 = await load('inventory.js', { projectId: 'p', only: ['r5'], known: { r5: { width: 10, height: 20 } } })(sel2);
@@ -60,22 +61,6 @@ const keepAlive = setInterval(() => {}, 50);
   const inv4 = await load('inventory.js', { projectId: 'p', only: null, measureMs: 0 })(sel2);
   assert.deepEqual(inv4.photos.map(r => r.width), [null, null], 'no measuring past the budget');
 
-  // latestYear: the most recent recording year over videos (analysed or not) and photos, from recordedAt, else the
-  // filename timestamp, else the creation date; unparseable dates are ignored, and no valid date gives null.
-  const dated = [
-    { resourceId: 'y0', name: 'a.mov', type: 'Video', hasAnalysis: true, durationSeconds: 10, recording: { recordedAt: '2024-05-01T10:00:00Z' } },
-    { resourceId: 'y1', name: 'b.mov', type: 'Video', hasAnalysis: false, durationSeconds: 10, recording: { filenameTimestamp: '2025-12-31T23:30:00' } },
-    { resourceId: 'y2', name: 'c.mov', type: 'Video', hasAnalysis: true, durationSeconds: 10, recording: { recordedAt: 'not a date' } },
-    { resourceId: 'y3', name: 'IMG.jpeg', type: 'Image', hasAnalysis: false, durationSeconds: 0, recording: { creationAt: '2023-02-02T00:00:00Z' } },
-    { resourceId: 'y4', name: 'song.mp3', type: 'Audio', hasAnalysis: false, recording: { recordedAt: '2030-01-01T00:00:00Z' } },
-    { resourceId: 'y5', name: 'd.mov', type: 'Video', hasAnalysis: true, durationSeconds: 10 }];
-  const selY = rs => ({ project: () => ({ resources: async () => rs, sourceFiles: async () => ({ fileTree: [], fileCount: 0 }) }) });
-  const invY = await load('inventory.js', { projectId: 'p', only: null, known: { y3: { width: 10, height: 10 } } })(selY(dated));
-  assert.equal(invY.latestYear, 2025, 'mixed dates: the newest valid year, audio ignored');
-  const invP = await load('inventory.js', { projectId: 'p', only: ['y3'], known: { y3: { width: 10, height: 10 } } })(selY(dated));
-  assert.equal(invP.latestYear, 2023, 'a photo date counts; `only` applies');
-  const invN = await load('inventory.js', { projectId: 'p', only: ['y2', 'y5'] })(selY(dated));
-  assert.equal(invN.latestYear, null, 'no valid date');
   assert.equal(inv.incomplete, false, 'a fully loaded Project is complete');
 
   // A Project still loading (right after an app restart): the SDK's sourceFiles() formatter throws on a missing file
@@ -99,7 +84,7 @@ const keepAlive = setInterval(() => {}, 50);
   assert.deepEqual(invF.resources.map(r => r.width), [1920, 1080]);
   const invR = await load('inventory.js', { projectId: 'p', only: null })(selL({ resources: async () => undefined }));
   assert.equal(invR.incomplete, true, 'resources undefined -> incomplete');
-  assert.deepEqual([invR.resources, invR.photos, invR.latestYear], [[], [], null]);
+  assert.deepEqual([invR.resources, invR.photos], [[], []]);
   const invO = await load('inventory.js', { projectId: 'p', only: null })(selL({ resources: async () => ({ items: resources }) }));
   assert.equal(invO.incomplete, true, 'resources not an array -> incomplete');
   const partial = [null, 'junk', { type: 'Video' }, { resourceId: 'q0', type: 'Video', hasAnalysis: true, durationSeconds: 8 },
