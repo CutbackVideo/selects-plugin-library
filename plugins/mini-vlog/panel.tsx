@@ -167,7 +167,7 @@ function mvGridUsable(opts) {
 }
 
 // The approximate tempo fixed timing runs on, or null. beat-detect.cjs reports an own track's grid as 'approximate' when
-// it is tight (median residual <= 20 ms) and holds across the track but too few beats carry an onset to accept it. Its
+// it is tight (median residual <= 10 ms) and holds across the track but too few beats carry an onset to accept it. Its
 // tempo (opts.approxBpm), in [MV_TEMPO_MIN, MV_TEMPO_MAX] and only without a usable grid (opts.gridded), sets the fixed
 // shot length (mvShotSeconds) and Groove's beat, so the cuts do not drift against the music. Everything else stays
 // gridless: cuts snap only to bass onsets (mvSnapCuts lowConfidence), Groove splits every candidate, no beat punch.
