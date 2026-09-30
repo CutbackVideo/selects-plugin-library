@@ -126,6 +126,11 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   const DEFAULT_CLIP_SOUND = panelScalar(panel, 'clipSound default', /\[clipSound, setClipSound\] = React\.useState<[^>]+>\(("[^"]+")\)/);
   const DEFAULT_SOFT = panelScalar(panel, 'soft default', /\[soft, setSoft\] = React\.useState\((true|false)\)/);
   const DEFAULT_USE_PHOTOS = panelScalar(panel, 'usePhotos default', /\[usePhotos, setUsePhotos\] = React\.useState\((true|false)\)/);
+  // panel.tsx mvCurrentYear() (the `@year` token), evaluated from the panel source; fieldText() must still use it.
+  const yearFn = /^function mvCurrentYear\(\) \{[^\n]*\}$/m.exec(panel);
+  if (!yearFn || !panel.includes('return v === "@year" ? mvCurrentYear() : v;'))
+    throw Error('panel.tsx no longer resolves @year with mvCurrentYear(); update driveAdapter.mjs plan()');
+  const currentYear = (0, eval)('(' + yearFn[0] + ')');
   const DEFAULT_PUNCH = panelScalar(panel, 'DEFAULT_PUNCH', /const DEFAULT_PUNCH = (true|false);/);
   const DEFAULT_HOOK = panelScalar(panel, 'DEFAULT_HOOK', /const DEFAULT_HOOK = (true|false);/);
   if (!panel.includes('const [beatPunch, setBeatPunch] = React.useState(DEFAULT_PUNCH);') || !panel.includes('const [hook, setHook] = React.useState(DEFAULT_HOOK);'))
@@ -236,8 +241,9 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       inv.photos = inv.photos || [];
       const chosen = presets.find(p => p.id === row.preset);
       if (!chosen) throw Error('unknown preset ' + row.preset + '; one of ' + presets.map(p => p.id).join(', '));
-      // fieldText(): the user's edit (setField cuts it to the field's max), else the initial text; @year -> latestYear.
-      const year = String(inv.latestYear || new Date().getFullYear());
+      // fieldText(): the user's edit (setField cuts it to the field's max), else the initial text; @year -> the
+      // current year, from the panel's own mvCurrentYear().
+      const year = currentYear();
       const fields = Object.fromEntries(chosen.fields.map(fl => {
         const v = row.fields[fl.key] != null ? String(row.fields[fl.key]).slice(0, fl.max) : (fl.initial ?? '');
         return [fl.key, v === '@year' ? year : v];

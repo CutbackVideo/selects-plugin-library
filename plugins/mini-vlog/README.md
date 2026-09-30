@@ -287,8 +287,7 @@ Three lockup presets, chosen in the panel with a live preview:
 | **A day in my life** | Year (see below), Big words "mini vlog", Tag line "a day in my life" | A star and the year before a pink rounded bold "mini", "vlog" below, and a small white two-line tag with a star |
 | **A small glimpse** | Top line "a small", Big word "glimpse", Bottom line "of today" | A small monospaced top and bottom line around a pink rounded bold word, split in two lines at the middle with a hyphen and a star before the second line |
 
-- The Year starts as the year of the most recent recording in the Project,
-  or the current year when no recording year is known.
+- The Year starts as the current year (editable).
 - Each field shows how many characters it holds and allows (for example
   "Big word (4/10)").
 - Each preset keeps its own text, so switching presets does not overwrite

@@ -1169,8 +1169,9 @@ function presetFonts(p: any, all: any) {
   return (p?.fonts || []).filter((x: any) => !seen.has(x.family) && !!seen.add(x.family))
     .map((x: any) => ({ role: x.role, family: x.family, style: x.style, weight: x.weight, file: x.file, metrics: all?.metrics?.[x.family] || null }));
 }
-// The recording year for the `@year` token: the newest recording in the Project, else this year.
-function yearOf(inventory: any) { return String(inventory?.latestYear || new Date().getFullYear()); }
+// The `@year` token's text: the current year when the panel shows the field (recording dates never set it, since
+// imported or stock footage can be years old). dev/driveAdapter.mjs evaluates this same function.
+function mvCurrentYear() { return String(new Date().getFullYear()); }
 // Preview geometry: a fixed-height box showing the middle of the frame, where the lockup sits (at most 60 % of the
 // width, centred at 49 / 52 %), so the box never changes height while typing or switching presets.
 const PREVIEW_HEIGHT = 112;
@@ -1595,10 +1596,10 @@ export default function Panel({ sdk, context, ui }: any) {
   // ---- Title fields ----
   const presetList: any[] = assets?.presets.presets || [];
   const chosen = presetList.find((x) => x.id === preset) || null;
-  // A field's text: the user's edit, else the preset's initial text; the `@year` token becomes the recording year.
+  // A field's text: the user's edit, else the preset's initial text; the `@year` token becomes the current year.
   const fieldText = (presetId: string, fl: any) => {
     const v = fieldsBy[presetId]?.[fl.key] ?? fl.initial ?? "";
-    return v === "@year" ? yearOf(inventory) : v;
+    return v === "@year" ? mvCurrentYear() : v;
   };
   const setField = (fl: any, value: string) => {
     const v = String(value).slice(0, fl.max);
