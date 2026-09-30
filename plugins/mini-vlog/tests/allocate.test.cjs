@@ -311,6 +311,74 @@ const grid = j(P.mvFillers([mk('b', 'street', 1, 1, 2), mk('a', 'park', 1, 1, 1.
 assert.deepEqual(grid.map(g => g.rid + '@' + g.t), ['a@0.25', 'a@0.75', 'b@0.25', 'b@0.75', 'b@1.25', 'b@1.75']);
 assert.ok(grid.every(g => g.role === 'filler' && g.score < 0));
 
+// ---- Groove (spec 15.1) ----
+// 8th slots (videoOnly) never take a photo; the photo share counts only >= 1-beat slots.
+const halfSlots = slotsOf(16).map((s, i) => (i === 7 || i === 8 ? { ...s, seconds: 0.28, videoOnly: true } : s));
+for (const seed of ['s1', 's2', 's3', 's4']) {
+  const r = j(P.mvAllocate({ candidates: three.concat(photos(10)), slots: halfSlots, seed, photoShare: 1 }));
+  assert.equal(r.missing, 0);
+  assert.equal(r.picks[7].kind, 'video'); assert.equal(r.picks[8].kind, 'video');
+  assert.ok(!adjacent(r.picks) && maxRun(r.picks) <= 2);
+  const d = j(P.mvAllocate({ candidates: three.concat(photos(10)), slots: halfSlots, seed }));
+  assert.equal(d.photoShots, Math.round(14 / 3), 'share over the 14 >= 1-beat slots');
+}
+// A photo-only pool cannot fill an 8th slot.
+assert.equal(j(P.mvAllocate({ candidates: photos(4), slots: [{ index: 0, role: 'drink', seconds: 0.28, videoOnly: true }], seed: 'x' })).missing, 1);
+
+const groove = (candidates, extra = {}) => j(P.mvPlanBuild({ candidates, bpm: 108, accepted: true, fps: F, pace: 'groove', requested: 24, seed: 's1', ...extra }));
+const beatsOf = r => r.schedule.slots.map(s => s.beats);
+// Standard, no music section: 24 beats, pattern fills (phrase 0 splits) -> 23 shots.
+const gStd = groove(rich.concat(photos(10)));
+assert.equal(gStd.ok, true); assert.equal(gStd.shots, 23); assert.equal(gStd.picks.length, 23);
+assert.deepEqual(beatsOf(gStd), [2].concat(Array(13).fill(1), [0.5, 0.5, 2], Array(6).fill(1)));
+assert.deepEqual(gStd.groove, { beats: 24, requestedBeats: 24, fills: [true], fillSource: 'pattern', beatSeconds: 60 / 108 });
+assert.equal(gStd.beatsPerShot, null); assert.equal(gStd.overridden, false); assert.equal(gStd.fittedByMusic, false);
+assert.equal(gStd.schedule.totalFrames, 400);
+assert.ok(!adjacent(gStd.picks) && maxRun(gStd.picks) <= 2);
+gStd.schedule.slots.forEach((s, i) => { if (s.beats < 1) assert.equal(gStd.picks[i].kind, 'video'); });
+assert.deepEqual(Object.keys(gStd).sort(), ['attempt', 'beatsPerShot', 'fillerShots', 'fittedByMusic', 'groove', 'ok', 'overridden', 'photoShots', 'picks', 'requested', 'schedule', 'shotSeconds', 'shots']);
+assert.equal(gStd.shotSeconds, null);
+// Windows have the slot's length at the plan's rate and stay 0.15 s inside their source.
+gStd.picks.forEach((p, i) => {
+  const sl = gStd.schedule.slots[i];
+  if (p.kind === 'video') { assert.ok(Math.abs((p.endSeconds - p.startSeconds) - (sl.endFrame - sl.startFrame) / F) < 1e-9); assert.ok(p.endSeconds <= p.sourceDuration - 0.15 + 1e-9); }
+});
+assert.deepEqual(groove(rich.concat(photos(10))), gStd, 'deterministic');
+// Short and Long spans; a detected fill (onsets) splits that phrase instead of the pattern's.
+assert.equal(groove(rich, { requested: 12 }).shots, 11);
+assert.equal(groove(rich, { requested: 36 }).shots, 34);
+{
+  const B = 60 / 108, on = [];
+  for (let k = 0; k < 32; k++) for (let i = 0; i < (k === 31 ? 3 : 2); i++) on.push([2 + k * B + i * B / 4, 'm', 5]);
+  const gf = groove(rich, { requested: 36, sectionStart: 2, usableEnd: 60, onsets: on, onsetThresholds: { l: 3, m: 3, h: 3 } });
+  assert.deepEqual(gf.groove.fills, [false, true]); assert.equal(gf.groove.fillSource, 'onsets');
+  assert.equal(gf.shots, 34);
+  assert.deepEqual(beatsOf(gf).slice(14, 17), [1, 2, 1]);
+}
+// Music capacity on beats: 22 beats of music from the start -> 20 beats (19 shots), fitted by the music.
+const gCap = groove(rich, { requested: 36, sectionStart: 0, usableEnd: 22 * 60 / 108 });
+assert.equal(gCap.ok, true); assert.equal(gCap.groove.beats, 20); assert.equal(gCap.shots, 19); assert.equal(gCap.fittedByMusic, true);
+assert.equal(groove(rich, { sectionStart: 0, usableEnd: 7 * 60 / 108 }).reason, 'music-too-short');
+// Footage shrink goes by whole bars: two 1.2 s one-window clips + photos fill 7 shots (8 beats) at most (P P a P P b P).
+const gSmall = groove([mk('a', 'drink', 0.6, 0.5, 1.2), mk('b', 'street', 0.6, 0.5, 1.2)].concat(photos(10)));
+assert.equal(gSmall.ok, true); assert.equal(gSmall.groove.beats, 8); assert.equal(gSmall.shots, 7);
+assert.equal(groove(video('a')).reason, 'one-resource');
+// Fillers cover 8th slots: two videos with a single hit each still fill a phrase with its split.
+const gFill = groove([mk('a', 'drink', 10, 0.5, 30), mk('b', 'street', 10, 0.5, 30)], { requested: 16 });
+assert.equal(gFill.ok, true); assert.ok(gFill.fillerShots > 0); assert.ok(!adjacent(gFill.picks));
+assert.ok(gFill.schedule.slots.some(s => s.beats === 0.5));
+// A photo-only pool never gets an 8th split (photos cannot take one).
+const gPo = groove(photos(24));
+assert.equal(gPo.ok, true); assert.ok(gPo.schedule.slots.every(s => s.beats >= 1)); assert.deepEqual(gPo.groove.fills, [false]);
+// No grid: the same pattern on 0.55 s beats.
+const gNg = groove(rich, { bpm: null, accepted: false });
+assert.equal(gNg.ok, true); assert.equal(gNg.schedule.gridded, false); assert.equal(gNg.shots, 23);
+assert.equal(gNg.groove.beatSeconds, 0.55); assert.equal(gNg.schedule.totalFrames, Math.round(24 * 0.55 * F));
+assert.equal(gNg.schedule.slots[14].endFrame - gNg.schedule.slots[14].startFrame, Math.round(15.5 * 0.55 * F) - Math.round(15 * 0.55 * F));
+// Above 150 bpm Groove uses 2 beats per shot, like Quick (no 8ths under 0.2 s).
+const gFast = groove(rich, { bpm: 158, requested: 12 });
+assert.equal(gFast.beatsPerShot, 2); assert.equal(gFast.overridden, true); assert.equal(gFast.shots, 12); assert.ok(!('groove' in gFast));
+
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.MV_BUILD_STEPS.length, 5);
 assert.equal(P.MV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);
