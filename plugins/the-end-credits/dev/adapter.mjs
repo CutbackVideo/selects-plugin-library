@@ -156,7 +156,8 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
 
   const rollFor = (rows, layout, endSec, L) => {
     const lay = P.tecCreditLayout({ rows, layout, H, W, measure });
-    return { layout: lay, roll: j(P.tecRollSpeed({ endSec, L, H, lastRoleStartY: lay.lastRoleTop, rowTops: lay.rowTops })) };
+    // Like the panel: the last line's bottom clears the top 0.3 s before the end (exitsLate when even 1.6x can't).
+    return { layout: lay, roll: j(P.tecRollSpeed({ endSec, L, H, lastLineBottom: lay.lastLineBottom, rowTops: lay.rowTops, rowBottoms: lay.rowBottoms })) };
   };
   // The panel's frozen build record (panel.tsx build()), minus the title and rows the graphic parameters carry.
   const buildRecord = (s, a) => ({ layout: s.layout, sequenceId: a.sequenceId, fps: a.fps, frames: a.frames, speedPxPerSec: s.roll.pxPerSec,
@@ -271,7 +272,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         N: plan.N, requestedN: plan.requestedN, shrunk: plan.shrunk, visibleShots: plan.visibleShots, fillerShots: plan.fillerShots, photoShots: plan.photoShots,
         videoSeconds: +plan.timeline.total.toFixed(3), sectionStart: sectionStart == null ? null : +sectionStart.toFixed(3), sectionJ: section ? section.j : null,
         rows: rows.length, titleGlyphs: Array.from(title).length, motionMeasured: Object.keys(motion).length,
-        shotMotion: plan.picks.map((k, i) => (k.kind === 'photo' ? 'photo' : (k.motion == null ? '?' : k.motion) + ':' + (byShot[i] ? byShot[i].motion : 'none'))), speedEstimate: { pxPerSec: +est.roll.pxPerSec.toFixed(2), clamped: est.roll.clamped, hiddenRows: est.roll.hiddenRows, removeRows: est.roll.removeRows } };
+        shotMotion: plan.picks.map((k, i) => (k.kind === 'photo' ? 'photo' : (k.motion == null ? '?' : k.motion) + ':' + (byShot[i] ? byShot[i].motion : 'none'))), speedEstimate: { pxPerSec: +est.roll.pxPerSec.toFixed(2), clamped: est.roll.clamped, exitSec: est.roll.exitSec == null ? null : +est.roll.exitSec.toFixed(2), exitsLate: est.roll.exitsLate, hiddenRows: est.roll.hiddenRows, removeRows: est.roll.removeRows } };
       return { row, seed, inv, found, layout, music, plan, planSummary, section, start: sectionStart, fitted: { length: lengthKey, N }, boundaries: plan.timeline.boundaries,
         sources, photos, byRid, byShot, rows, title };
     },
@@ -296,7 +297,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     afterAssemble(s, a) {
       s.frames = a.frames; s.fps = a.fps;
       const r = rollFor(s.rows, s.layout, a.frames[a.frames.length - 1] / a.fps, a.frames[1] / a.fps);
-      s.roll = r.roll; s.creditLayout = { lastRoleTop: r.layout.lastRoleTop, rowTops: r.layout.rowTops };
+      s.roll = r.roll; s.creditLayout = { lastRoleTop: r.layout.lastRoleTop, lastLineBottom: r.layout.lastLineBottom, rowTops: r.layout.rowTops };
     },
 
     decorate(s, a) {

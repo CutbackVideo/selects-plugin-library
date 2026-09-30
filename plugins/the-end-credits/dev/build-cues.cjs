@@ -1,6 +1,6 @@
 // plugins/the-end-credits/dev/build-cues.cjs
-// Dev-only: time-stretch generated cues to one felt tempo, master them to -12.5 LUFS (true peak <= -1.2 dBTP),
-// measure their felt grid, swell and drift, and write assets/cues/manifest.json. Adapted from the City Weekend Vlog
+// Dev-only: master generated cues to -12.5 LUFS (true peak <= -1.2 dBTP) at their own tempo, measure their felt
+// grid, swell and drift, and write assets/cues/manifest.json. Adapted from the City Weekend Vlog
 // build (the plugin's own beat-detect.cjs); the 16th-note / burst / onset fields are not used by this app.
 //
 // Usage: node dev/build-cues.cjs [--out <dir>] [--src <dir>] [--target-bpm <bpm>] <cues.json>
@@ -8,17 +8,21 @@
 //     { "id": "kebab-id", "title": "Title", "source": "file.mp3", "prompt": "the generation prompt",
 //       "default": true (optional, one cue: the panel's default),
 //       "targetBpm": 61.5 (optional, overrides the file-level / --target-bpm value for this cue),
-//       "swell": 14.6 (optional, seconds IN THE SOURCE FILE: a manual swell) }
+//       "swell": 14.6 (optional, seconds in the built cue: a manual swell) }
 //   `source` is resolved against --src (default: the folder of cues.json). --out defaults to assets/cues next to
 //   this script. Cues already in <out>/manifest.json with other ids are kept; an entry with the same id is replaced.
 //   A rejected cue (tempo outside 60-66 felt bpm, |driftBpm| > 1.5, loudness off -12.5 LUFS by > 0.5 LU, or a true
 //   peak above -1.2 dBTP) gets no mp3 and no entry; the other cues are still written and the exit status is 2.
 //
-// Tempo: the source's felt tempo (`sourceBpm`) is measured first. With a targetBpm the cue is time-stretched by
-// ffmpeg's rubberband filter (tempo = targetBpm / sourceBpm, pitch kept), so every bar lasts 4 * 60 / targetBpm s;
-// the manifest `bpm` is the felt tempo measured again after stretching (sourceBpm = bpm when not stretched).
-// A manual `swell` is in source time: the build maps it to stretched time (x sourceBpm / targetBpm) and snaps it to
-// the nearest felt-bar downbeat of the stretched grid.
+// Tempo: the bundled cues play at their original tempo (2026-09-30: stretching them all to 61.5 bpm made post-rock
+// feel ~7 % slow), so dev/cues-input.json sets no targetBpm. The source's felt tempo (`sourceBpm`) is measured first;
+// the manifest `bpm` is the felt tempo measured on the mastered mp3 (= sourceBpm within the detector's resolution).
+// Optional, unused by the bundled set: with a targetBpm the cue is time-stretched by ffmpeg's rubberband filter
+// (tempo = targetBpm / sourceBpm, pitch kept), so every bar lasts 4 * 60 / targetBpm s.
+// The first beat is always the one measured on the built mp3. (A stretched pad can lose its attacks and lock the
+// detector's phase half a beat off: dream-synth did at 61.5 bpm, so check a stretched cue's firstBeat by ear.)
+// A manual `swell` is in the built cue's seconds (= source seconds unless a targetBpm is set; it is not rescaled) and
+// is snapped to the nearest felt-bar downbeat of the measured grid.
 // Loudness: one static gain and a 4x-oversampled peak limiter (alimiter, auto level off), never a dynamic loudnorm,
 // so the phrase-level dynamics (the swell) are kept. The gain and the limiter ceiling are iterated until the mp3
 // measures -12.5 LUFS (to the 0.1 LU ebur128 reports) with a true peak <= -1.2 dBTP.
@@ -37,7 +41,6 @@ const MAX_TRUE_PEAK = -1.2;                    // dBTP, measured on the encoded 
 // The limiter's first ceiling (dBFS, at 4x oversampling); lowered while the mp3's true peak is above MAX_TRUE_PEAK
 // (the mp3 encoder overshoots the limiter by a few tenths of a dB).
 const LIMIT_START = -1.5, LIMIT_STEP = 0.2, LIMIT_MIN = -4;
-const PHASE_AGREE = 0.03;                      // s: a stretched cue's measured first beat vs the mapped source grid
 // The felt tempo of the bundled cues is 60-66 bpm (spec section 9). The detector's 70-180 search reads them
 // double-time; its reading is halved in [119.5, 132.5], so a nominal 60 bpm cue measured at 119.95 still counts.
 const DOUBLE_MIN = 119.5, DOUBLE_MAX = 132.5;
@@ -210,28 +213,17 @@ function buildCue(cue, sourceFile, outDir, targetBpm = null) {
   if (!(truePeak <= MAX_TRUE_PEAK)) problems.push('true peak ' + truePeak + ' dBTP above ' + MAX_TRUE_PEAK);
   if (targetBpm != null && g.bpm != null && Math.abs(g.bpm - targetBpm) > 0.3) problems.push('stretched to ' + g.bpm + ' bpm, not ' + targetBpm);
   if (problems.length) { fs.rmSync(dst, { force: true }); return { rejected: problems }; }
-  // The stretch is a fixed time scale, so the source's felt grid maps onto the stretched cue exactly (rubberband adds
-  // no measurable offset: < 5 ms on the bundled cues). A stretched pad can lose its attacks and lock the detector's
-  // phase half a detector beat off; when the measured first beat is more than PHASE_AGREE off the mapped source grid,
-  // the mapped grid wins (logged as phaseFrom: 'source').
-  let phaseFrom = 'measured';
-  if (tempo !== 1) {
-    const mapped = src.firstBeat / tempo, beat = 60 / g.bpm;
-    const off = ((g.firstBeat - mapped) % beat + 1.5 * beat) % beat - beat / 2;
-    if (Math.abs(off) > PHASE_AGREE) { g.firstBeat = round(mapped, 3); phaseFrom = 'source'; }
-  }
   const usableEnd = round(durationSeconds - 0.1, 3);
-  // A manual swell (cues.json "swell", seconds in the source) is mapped to stretched time and snapped to the nearest
+  // A manual swell (cues.json "swell", seconds in the built cue; not rescaled by a stretch) is snapped to the nearest
   // felt-bar downbeat after firstBeat. The manifest keeps it to the ms, so it can sit up to 0.5 ms off its downbeat;
   // the planner's default j allows for that (tecSection rounds up only past 1e-3 of a phrase).
   const bar = PHRASE_BEATS * 60 / g.bpm;
   const swellSource = cue.swell == null ? 'auto' : 'manual';
-  const swellStretched = cue.swell == null ? null : cue.swell / tempo;
   const swell = swellSource === 'manual'
-    ? round(g.firstBeat + Math.max(1, Math.round((swellStretched - g.firstBeat) / bar)) * bar, 3)
+    ? round(g.firstBeat + Math.max(1, Math.round((cue.swell - g.firstBeat) / bar)) * bar, 3)
     : findSwell(series, g.firstBeat, g.bpm);
   const swellFallback = findSwellFallback(series, g.firstBeat, g.bpm, usableEnd);
-  console.log(cue.id, JSON.stringify({ sourceBpm, tempo: round(tempo, 5), detectedBpm: g.detectedBpm, bpm: g.bpm, firstBeat: g.firstBeat, phaseFrom, parity: g.parity, swell, swellSource,
+  console.log(cue.id, JSON.stringify({ sourceBpm, tempo: round(tempo, 5), detectedBpm: g.detectedBpm, bpm: g.bpm, firstBeat: g.firstBeat, parity: g.parity, swell, swellSource,
     swellFallback, driftBpm: g.driftBpm, lufs, truePeak, ...mastered }));
   return {
     entry: {

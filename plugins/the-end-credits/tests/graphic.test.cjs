@@ -5,7 +5,7 @@ const a = src.indexOf('// tec-graphic:start'), b = src.indexOf('// tec-graphic:e
 assert.ok(a >= 0 && b > a, 'pure block markers present');
 const block = src.slice(a, b);
 const box = {}; vm.createContext(box);
-vm.runInContext(block + ';globalThis.G={TEC_LAYOUTS,TEC_TITLE,TEC_CREDITS,TEC_FULL_BIG,tecTyping,tecSlotStart,tecTypedCount,tecScrollY,tecCreditsOpacity,tecMaskAlpha,tecMaskCss,tecEaseInOut,tecFullMove,tecFullOverlay,tecResolveRows,tecFitSize,tecFitLine,tecTitleSizes,tecTitlePose,tecCreditLayout,tecFitSpeed};', box);
+vm.runInContext(block + ';globalThis.G={TEC_ROLL_EXIT_LEAD_SEC,TEC_LAYOUTS,TEC_TITLE,TEC_CREDITS,TEC_FULL_BIG,tecTyping,tecSlotStart,tecTypedCount,tecScrollY,tecCreditsOpacity,tecMaskAlpha,tecMaskCss,tecEaseInOut,tecFullMove,tecFullOverlay,tecResolveRows,tecFitSize,tecFitLine,tecTitleSizes,tecTitlePose,tecCreditLayout,tecFitSpeed};', box);
 const G = box.G;
 const near = (x, y, eps, msg) => assert.ok(Math.abs(x - y) <= eps, `${msg}: ${x} vs ${y}`);
 const plain = (x) => JSON.parse(JSON.stringify(x));
@@ -136,6 +136,8 @@ near(lay.rows[0].role.baselines[0], 699 + 29.4, 1e-9, 'first role baseline');
 near(lay.rows[0].name.baselines[0], 728.4 + 43, 1e-9, 'role → name');
 near(lay.rows[1].roleTop - lay.rows[0].roleTop, 123, 1e-9, 'pitch');
 near(lay.lastRoleTop, 699 + 246, 1e-9, 'last role top');
+// The last line's box bottom: the last name baseline + 0.35 · 24 = role top + 29.4 + 43 + 8.4.
+near(lay.lastLineBottom, 945 + 80.8, 1e-9, 'last line bottom');
 near(lay.colX, 0.223 * 1920, 1e-9, 'classic column'); near(lay.colW, 768, 1e-9, 'classic column width');
 // Scale by the frame height.
 const lay720 = G.tecCreditLayout(rows, 'classic', 1280, 720, s1.size * 720 / 1080, cm);
@@ -150,13 +152,24 @@ near(lw.rows[1].roleTop - lw.rows[0].roleTop, 123 + 39.2, 1e-9, 'pair grows by o
 // A wrapped name adds one name line height (1.4 · 24).
 const lwn = G.tecCreditLayout([{ role: 'R', name: 'v'.repeat(50) + ' ' + 'v'.repeat(50) }, { role: 'R', name: 'N' }], 'classic', 1920, 1080, s1.size, cm);
 near(lwn.rows[1].roleTop - lwn.rows[0].roleTop, 123 + 33.6, 1e-9, 'name wrap');
+// A wrapped last name: its second line is the last line; a last pair without a name ends on its role line.
+const lwl = G.tecCreditLayout([{ role: 'R', name: 'v'.repeat(50) + ' ' + 'v'.repeat(50) }], 'classic', 1920, 1080, s1.size, cm);
+near(lwl.lastLineBottom, lwl.rows[0].name.baselines[1] + 0.35 * lwl.rows[0].name.size, 1e-9, 'wrapped last name');
+near(lwl.lastLineBottom, 699 + 29.4 + 43 + 33.6 + 0.35 * lwl.rows[0].name.size, 1e-9, 'wrapped last name, grid');
+const lnn = G.tecCreditLayout([{ role: 'Director', name: 'Ana' }, { role: 'Thanks', name: '' }], 'classic', 1920, 1080, s1.size, cm);
+near(lnn.lastLineBottom, 699 + 123 + 29.4 + 0.35 * 28, 1e-9, 'last pair without a name');
+// The planner's estimate uses the same line-box model (ascent / descent in em).
+const plannerSrc = fs.readFileSync(path.join(__dirname, '..', 'planner.js'), 'utf8');
+assert.ok(plannerSrc.includes('ascent: ' + G.TEC_CREDITS.ascent + ', descent: ' + G.TEC_CREDITS.descent + ','), 'planner line-box model matches the graphic');
+assert.equal(G.TEC_ROLL_EXIT_LEAD_SEC, 0.3);
+assert.ok(plannerSrc.includes('exitLead: ' + G.TEC_ROLL_EXIT_LEAD_SEC + ','), 'planner exit lead matches the graphic');
 // Full frame column: 78 % W, 30 % W wide, title landing cap centre 28 % H.
 const lf = G.tecCreditLayout(rows, 'full', 1920, 1080, s1.size, cm);
 near(lf.colX, 0.78 * 1920, 1e-9, 'full column'); near(lf.colW, 576, 1e-9, 'full column width');
 near(lf.rows[0].roleTop, 0.28 * 1080 + 86.4 + 105, 1e-9, 'full first role');
 // Empty credits: only the title.
 const l0 = G.tecCreditLayout([], 'classic', 1920, 1080, s1.size, cm);
-assert.equal(l0.rows.length, 0); assert.equal(l0.lastRoleTop, null);
+assert.equal(l0.rows.length, 0); assert.equal(l0.lastRoleTop, null); assert.equal(l0.lastLineBottom, null);
 
 // Component contract.
 for (const key of ['layout', 'fps', 'revealFrame', 'title', 'titleColor', 'creditColor', 'rows', 'rowCount', 'speedPxPerSec', 'speed', 'showTitle', 'fonts'])
@@ -168,10 +181,22 @@ assert.ok(src.includes('measureText'), 'measures real glyph advances');
 const imports = src.split('\n').filter((l) => /^\s*import\b/.test(l));
 for (const l of imports) assert.match(l, /from "(react|remotion)";$/, 'only react/remotion imports: ' + l);
 assert.ok(!/\bimport\b|=>\s*<|<\/|:\s*(number|string|any)\b/.test(block), 'pure block is plain JS');
-// Fit speed: the last role's top reaches 7 % of H on the last frame; clamped to 0.6-1.6x 67 px/s; no rows = 67.
-near(G.tecFitSpeed(1906, 980, 153, 29.97, 1080), (1906 - 75.6) / (827 / 29.97), 1e-9, 'fit speed, 10 rows');
-near(G.tecFitSpeed(1906 * 2, 980, 153, 29.97, 2160), (1906 - 75.6) / (827 / 29.97), 1e-9, 'fit speed is in 1080p units');
+// Fit speed: the last line's bottom crosses y = 0 at endFrame − 0.3 s (the credits roll completely off the top before
+// the end); clamped to 0.6-1.6x 67 px/s; no rows = 67. 10 rows: bottom 699 + 9 · 123 + 80.8 = 1886.8.
+const fitSecs = 827 / 29.97 - 0.3;
+near(G.tecFitSpeed(1886.8, 980, 153, 29.97, 1080), 1886.8 / fitSecs, 1e-9, 'fit speed, 10 rows');
+near(G.tecFitSpeed(1886.8, 980, 153, 29.97, 1080), 69.13, 0.005, 'fit speed, 10 rows (rounded)');
+near(G.tecFitSpeed(1886.8 * 2, 980, 153, 29.97, 2160), 1886.8 / fitSecs, 1e-9, 'fit speed is in 1080p units');
+// At the exit frame the scroll equals the bottom (no hold); one frame before, the line still shows.
+const v10 = G.tecFitSpeed(1886.8, 980, 153, 29.97, 1080), exitFrame = 980 - 0.3 * 29.97;
+near(G.tecScrollY(exitFrame, 153, 29.97, v10, 1, 1080), 1886.8, 1e-9, 'bottom at y = 0 at endFrame − 0.3 s');
+assert.ok(G.tecScrollY(exitFrame - 1, 153, 29.97, v10, 1, 1080) < 1886.8);
 assert.equal(G.tecFitSpeed(null, 980, 153, 29.97, 1080), 67);
+assert.equal(G.tecFitSpeed(1886.8, 153, 153, 29.97, 1080), 67, 'no end: the reference speed');
+// Clamp: few rows would roll slower than 0.6x (they clear early); too many need more than 1.6x (they can't clear).
 assert.equal(G.tecFitSpeed(400, 980, 153, 29.97, 1080), 0.6 * 67);
 assert.equal(G.tecFitSpeed(9000, 980, 153, 29.97, 1080), 1.6 * 67);
+near(G.tecFitSpeed(0.6 * 67 * fitSecs, 980, 153, 29.97, 1080), 0.6 * 67, 1e-9, 'exactly 0.6x');
+near(G.tecFitSpeed(1.6 * 67 * fitSecs, 980, 153, 29.97, 1080), 1.6 * 67, 1e-9, 'exactly 1.6x');
+assert.equal(G.tecFitSpeed(1.6 * 67 * fitSecs + 1, 980, 153, 29.97, 1080), 1.6 * 67, 'just over 1.6x clamps');
 console.log(JSON.stringify({ graphic: 'ok' }));

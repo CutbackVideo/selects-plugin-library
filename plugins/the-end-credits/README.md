@@ -29,7 +29,8 @@ Both layouts share this timeline:
   a musical downbeat. Moving footage (waves, trees in the wind, a road going
   by) is preferred over still holds; see [Motion](#motion).
 - **Ending.** The last shot holds for half a second. The picture and the music
-  fade out together, and the credits keep rolling as they go.
+  fade out together, and the credits roll completely off the top just before
+  the end, while the window fades to black.
 - A 1920x1080 Draft. Cuts land on the phrase grid at the Draft's real frame
   rate.
 
@@ -39,7 +40,7 @@ Both layouts share this timeline:
    open **THE END Credits** from the Plugin list. The top line shows how many
    analysed clips and photos were found, the number of shots and the
    approximate length, for example "Ready: 5 clips · 8 photos · 7 shots ·
-   about 33 s".
+   about 31 s".
 2. Check the **Title** (default "THE END") and the **Credits** list.
 3. Press **Build**.
 
@@ -74,10 +75,13 @@ a placeholder: it is allowed in the build, and the panel warns how many rows
 still have placeholders.
 
 The roll speed is computed from the number of rows and the length, so the last
-row reaches the top band as the video ends. It is clamped to 0.6x to 1.6x the
-reference speed. With too many rows the panel names the rows that will not
-appear and suggests Long or fewer rows; with few rows it says the credits
-finish before the end.
+line rolls off the top 0.3 s before the video ends and the last moment shows
+no credit text. It is clamped to 0.6x to 1.6x the reference speed (about 67
+px/s at 1080p). With too many rows to roll off in time, the panel says "Too
+many rows to roll off before the end: remove N rows or choose Long." (and
+names any rows that would not appear at all); with few rows it says the
+credits finish before the end. The preview's **End** button shows the moment
+the last line has left the top.
 
 After the build, the credits are also editable in the Draft. Select the
 credits Motion Graphic and open **Adjust**: **Title**, **Title color**,
@@ -88,15 +92,16 @@ renders.
 
 ## Length
 
-| Length | Shots | With a bundled track (61.5 BPM) |
+| Length | Shots | With a bundled track (60 to 66 BPM) |
 | --- | --- | --- |
-| Short | 5 | 25.1 s |
-| Standard (default) | 7 | 32.9 s |
-| Long | 10 | 44.6 s |
+| Short | 5 | 23.8 to 25.6 s |
+| Standard (default) | 7 | 31.1 to 33.6 s |
+| Long | 10 | 42.0 to 45.6 s |
 
-Each length is the 5.1 s lead-in, one 3.9 s phrase per shot and a 0.5 s
-tail; the last 1.13 s fade out. With your own music the exact length depends
-on its tempo. If the track is too short for
+Each length is the 5.1 s lead-in, one phrase (4 beats) per shot and a 0.5 s
+tail; the last 1.13 s fade out. The exact length depends on the music's
+tempo: Standard is 31.1 s with Open Road Swell (66 BPM) and 32.7 s with Last
+Light Ballad (62 BPM); with No music each shot is 3.9 s. If the track is too short for
 the length, the panel says "This track is too short for Standard." (or the
 chosen length) and offers the longest length that fits; if even Short does
 not fit, Build is disabled and the panel says how long the track must be:
@@ -110,17 +115,17 @@ used in two shots in a row.
 ## Music
 
 Choose a **Track**. All five are slow instrumentals, and the default reveals
-the window on the swell of the track. Every bundled track plays at a felt
-61.5 BPM, so each shot lasts 3.9 s (4 beats), and is mastered to about
--12.5 LUFS.
+the window on the swell of the track. Each bundled track plays at its own
+tempo (each shot is one phrase of 4 beats, 3.6 to 4 s), and all five are
+mastered to about -12.5 LUFS.
 
 | Track | Felt tempo |
 | --- | --- |
-| Open Road Swell (default) | 61.5 BPM |
-| Last Light Ballad | 61.5 BPM |
-| Late Night Rhodes | 61.5 BPM |
-| Final Scene | 61.5 BPM |
-| Golden Hour Synth | 61.5 BPM |
+| Open Road Swell (default) | 66 BPM |
+| Last Light Ballad | 62 BPM |
+| Late Night Rhodes | 64 BPM |
+| Final Scene | 60 BPM |
+| Golden Hour Synth | 65 BPM |
 | Your own music | detected |
 | No music | fixed 3.9 s shots |
 

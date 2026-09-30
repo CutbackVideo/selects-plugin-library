@@ -48,17 +48,20 @@ node $P/dev/make-fixtures.mjs <footage folder>          # regenerate fixtures (f
 
 ## Bundled cues
 
-`build-cues.cjs` stretches, masters and measures the cues listed in `cues-input.json` (the header of the script
+`build-cues.cjs` masters and measures the cues listed in `cues-input.json` (the header of the script
 has the details). The sources are the generated mp3s, kept outside the repo:
 
 ```sh
 node $P/dev/build-cues.cjs --src ~/Downloads $P/dev/cues-input.json
 ```
 
-- `targetBpm` (file level, or per cue) is the felt tempo every cue is time-stretched to (61.5, the reference's
-  3.90 s phrase); the manifest keeps the measured source tempo as `sourceBpm`.
-- A cue's manual `swell` is in source seconds (the anchors of spec v1.2: post-rock 14.577, orchestral 20.54, piano
-  9.798, rhodes 30.036); the build maps it through the stretch and snaps it to the stretched bar grid.
+- The cues play at their original tempo; `cues-input.json` sets no `targetBpm`. (`targetBpm`, file level or per cue,
+  or `--target-bpm`, still time-stretches with rubberband, but is unused: at 61.5 bpm post-rock felt ~7 % slow.)
+  The manifest keeps the measured source tempo as `sourceBpm` (= `bpm` without a stretch).
+- A cue's manual `swell` is in the built cue's seconds, i.e. source seconds (the anchors of spec v1.2: post-rock
+  14.577, orchestral 20.54, piano 9.798, rhodes 30.036); the build snaps it to the measured bar grid, unscaled.
+- The default cue is the one entry with `default: true` in the manifest (set by `"default": true` in
+  `cues-input.json`); the panel and the adapter read only that flag.
 - Loudness: -12.5 LUFS integrated, true peak <= -1.2 dBTP, by a static gain and an oversampled limiter.
 
 ## Full build (Staging)
