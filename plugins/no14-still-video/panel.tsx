@@ -1,4 +1,14 @@
 // @name No.14 Photo Format
+// @name:de No.14 Fotoformat
+// @name:en No.14 Photo Format
+// @name:es Formato de Fotos No.14
+// @name:fr Format Photo No.14
+// @name:it Formato Foto No.14
+// @name:ja No.14 フォトフォーマット
+// @name:ko No.14 Photo Format
+// @name:pt Formato de Foto No.14
+// @name:tr No.14 Fotoğraf Formatı
+// @name:zh No.14 照片格式
 // @icon image
 import React from 'react';
 
