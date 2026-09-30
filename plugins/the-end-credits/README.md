@@ -121,8 +121,8 @@ mastered to about -12.5 LUFS.
 
 | Track | Felt tempo |
 | --- | --- |
-| Open Road Swell (default) | 66 BPM |
-| Last Light Ballad | 62 BPM |
+| Last Light Ballad (default) | 62 BPM |
+| Open Road Swell | 66 BPM |
 | Late Night Rhodes | 64 BPM |
 | Final Scene | 60 BPM |
 | Golden Hour Synth | 65 BPM |

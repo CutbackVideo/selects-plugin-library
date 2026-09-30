@@ -22,7 +22,8 @@
       "provenance": {
         "generator": "ElevenLabs Music v2.5 via Selects chat",
         "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: piano+strings ballad 62 bpm"
-      }
+      },
+      "default": true
     },
     {
       "id": "rhodes-soul",
@@ -68,8 +69,7 @@
       "provenance": {
         "generator": "ElevenLabs Music v2.5 via Selects chat",
         "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: post-rock swell 66 bpm"
-      },
-      "default": true
+      }
     },
     {
       "id": "orchestral",

@@ -82,7 +82,7 @@ for (const c of m.cues) {
   const standard = 5.1 + 7 * c.phraseBeats * 60 / c.bpm + 0.5;
   assert.ok(Math.abs(standard - STANDARD[c.id]) <= 0.02, c.id + ' Standard lasts ' + standard.toFixed(3) + ' s, not ' + STANDARD[c.id]);
 }
-assert.deepEqual(m.cues.filter(c => c.default).map(c => c.id), ['post-rock']);
+assert.deepEqual(m.cues.filter(c => c.default).map(c => c.id), ['piano-strings']);
 // Anchor rulings (2026-09-30), set in source seconds in dev/cues-input.json (the cues are not stretched):
 // post-rock at the full-band entry (bar 4), orchestral at the start of the rise, piano (flat) early at bar 3, rhodes
 // at its measured v1.2 swell (bar 9; after mastering its rise reads under 6 LU, so it is pinned). dream-synth has no

@@ -5,7 +5,8 @@
       "title": "Last Light Ballad",
       "source": "the-end-credits-piano-strings-62bpm.mp3",
       "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: piano+strings ballad 62 bpm",
-      "swell": 9.798
+      "swell": 9.798,
+      "default": true
     },
     {
       "id": "rhodes-soul",
@@ -19,8 +20,7 @@
       "title": "Open Road Swell",
       "source": "the-end-credits-post-rock-66bpm.mp3",
       "prompt": "ElevenLabs Music v2.5 (force_instrumental), generated in the Selects chat on 2026-09-30, prompt: post-rock swell 66 bpm",
-      "swell": 14.577,
-      "default": true
+      "swell": 14.577
     },
     {
       "id": "orchestral",
