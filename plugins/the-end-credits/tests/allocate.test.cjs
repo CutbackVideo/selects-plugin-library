@@ -3,8 +3,10 @@ const fs = require('node:fs'), path = require('node:path'), vm = require('node:v
 const root = path.resolve(__dirname, '..');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date };
 vm.createContext(box);
-vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={tecAllocate,tecPlanBuild,tecFillers,tecHash,tecTimeline,tecFootageSlots,tecPhotoMotions,TEC_PHOTO_MOTIONS,TEC_SEARCH_ROLES};', box);
+vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={tecAllocate,tecPlanBuild,tecFillers,tecHash,tecTimeline,tecFootageSlots,tecPhotoMotions,tecShotMotions,tecParseMotion,tecMotionStats,tecMotionAt,tecMotionPool,tecMotionScore,tecMotionStill,' +
+  'TEC_PHOTO_MOTIONS,TEC_SEARCH_ROLES,TEC_MOTION_WEIGHT,TEC_MOTION_FILTER};', box);
 const P = box.P, j = v => JSON.parse(JSON.stringify(v));
+const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, (msg || 'near') + ': ' + a + ' vs ' + b);
 let checks = 0;
 const t = (name, fn) => { fn(); checks++; };
 const p62 = 240 / 62;
@@ -147,6 +149,105 @@ t('photo motions: 16:9 window axis, strength 0.6, no family twice in a row', () 
   const drifts = many.filter(x => x.motion.startsWith('drift-'));
   for (let i = 1; i < drifts.length; i++) assert.equal(drifts[i].direction, -drifts[i - 1].direction);
   assert.deepEqual(j(P.tecPhotoMotions(picks, 's1', sizes)), m);
+});
+
+// Motion curves at 4 samples/s: a constant level, optionally with spikes at given seconds.
+const curve = (dur, level, spikes = {}) => {
+  const times = [], values = [];
+  for (let k = 1; k / 4 <= dur + 1e-9; k++) { const t = k / 4; times.push(t); values.push(spikes[t] != null ? spikes[t] : typeof level === 'function' ? level(t) : level); }
+  return { times, values };
+};
+
+t('motion: ffmpeg metadata parse, spike-capped window stats', () => {
+  assert.ok(P.TEC_MOTION_FILTER.startsWith('fps=4,scale=64:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file='));
+  const text = 'frame:0    pts:2       pts_time:0.5\nlavfi.signalstats.YAVG=2.5\nframe:1 pts:1 pts_time:0.25\nlavfi.signalstats.YAVG=1.5\nframe:2 pts:3 pts_time:0.75\n';
+  assert.deepEqual(j(P.tecParseMotion(text)), { times: [0.25, 0.5], values: [1.5, 2.5] }, 'sorted, a frame without a value is dropped');
+  assert.equal(P.tecParseMotion(''), null);
+  assert.equal(P.tecParseMotion('garbage'), null);
+  // A flash in a still window is capped (3 x the median) and flagged; the mean stays low.
+  const still = curve(10, 0.3, { 5: 40 });
+  const st = j(P.tecMotionStats(still, 3, 4));
+  assert.equal(st.n, 16); assert.equal(st.median, 0.3); assert.equal(st.peak, 40); assert.equal(st.flash, true);
+  assert.ok(Math.abs(st.mean - (15 * 0.3 + 0.9) / 16) < 1e-12, 'capped mean ' + st.mean);
+  assert.equal(P.tecMotionStats(still, 6, 3).flash, false, 'the flash is outside this window');
+  assert.equal(P.tecMotionAt(still, 20, 3), null, 'no samples: unknown');
+  assert.equal(P.tecMotionAt(null, 0, 3), null);
+  near(P.tecMotionAt(curve(10, 4), 1, 3.9), 4, 1e-12);
+});
+
+t('motion: pool quartiles, log score, flash / shake penalty, still threshold', () => {
+  const pool = j(P.tecMotionPool({ a: curve(10, 0.2), b: curve(10, 1), c: curve(10, 5), d: curve(10, 12) }));
+  assert.ok(pool.q25 >= 0.2 && pool.q25 <= 1 && pool.q75 >= 5 && pool.q75 <= 12, JSON.stringify(pool));
+  assert.equal(P.tecMotionPool({}), null);
+  const score = m => P.tecMotionScore({ mean: m, flash: false }, pool);
+  assert.equal(score(0.1), 0); assert.equal(score(50 / 2), 1, 'capped at 1 above the upper quartile');
+  assert.ok(score(2) > 0.2 && score(2) < 0.8, 'the middle scores in between: ' + score(2));
+  for (let m = 0.1; m < 20; m *= 1.3) assert.ok(score(m * 1.3) >= score(m), 'monotonic');
+  assert.equal(P.tecMotionScore({ mean: 2, flash: true }, pool), -1, 'a flash or cut is penalised');
+  assert.equal(P.tecMotionScore({ mean: 45, flash: false }, pool), -1, 'shake is penalised');
+  assert.equal(P.tecMotionScore(null, pool), 0); assert.equal(P.tecMotionScore({ mean: 3 }, null), 0, 'no data: neutral');
+  assert.equal(P.tecMotionStill(null, pool), true, 'unknown counts as still');
+  assert.equal(P.tecMotionStill(0.4, pool), true); assert.equal(P.tecMotionStill(8, pool), false);
+  assert.equal(P.tecMotionStill(0.9, { q33: 1.2 }), true, 'lower third of the pool'); assert.equal(P.tecMotionStill(1.5, { q33: 1.2 }), false);
+});
+
+t('motion scoring: a moving window beats a static one at an equal scene score; scene relevance still wins', () => {
+  // Two sources with the same role and score; one still, one moving.
+  const cands = [{ rid: 'a-still', role: 'wide', t: 10, score: 0.5, sourceDuration: 20 }, { rid: 'b-moving', role: 'wide', t: 10, score: 0.5, sourceDuration: 20 }];
+  const motion = { 'a-still': curve(20, 0.2), 'b-moving': curve(20, 6) };
+  const slots = [{ index: 1, role: 'wide', seconds: 3.9 }];
+  const slot1 = seed => j(P.tecAllocate({ candidates: cands, slots, seed })).picks[0].rid;
+  const pool = j(P.tecMotionPool(motion));
+  const withMotion = seed => j(P.tecAllocate({ candidates: cands, slots, seed, motion: { curves: motion, pool } })).picks[0];
+  for (const seed of ['s1', 's2', 's3', 's4', 's5', 's6']) {
+    const pk = withMotion(seed);
+    assert.equal(pk.rid, 'b-moving', 'moving wins with seed ' + seed + ' (without motion: ' + slot1(seed) + ')');
+    assert.equal(pk.motion, 6, 'the pick records its window motion');
+  }
+  // A clearly better scene match (+0.15, one role-rank step) still beats motion.
+  const better = [{ ...cands[0], score: 0.65 }, cands[1]];
+  for (const seed of ['s1', 's2', 's3']) assert.equal(j(P.tecAllocate({ candidates: better, slots, seed, motion: { curves: motion, pool } })).picks[0].rid, 'a-still', 'scene relevance wins');
+  // Inside one clip, the moving part is preferred over the still part; a window with a flash is avoided.
+  const one = [{ rid: 'c', role: 'wide', t: 4, score: 0.5, sourceDuration: 30 }, { rid: 'c', role: 'wide', t: 24, score: 0.5, sourceDuration: 30 }];
+  const cm = { c: curve(30, tt => (tt > 20 ? 5 : 0.3)), other: curve(30, 2) };
+  const cp = j(P.tecMotionPool(cm));
+  assert.equal(j(P.tecAllocate({ candidates: one, slots, seed: 's1', motion: { curves: cm, pool: cp } })).picks[0].startSeconds, 24 - 3.9 / 2);
+  const flashy = { c: curve(30, 4, { 23: 60 }), other: curve(30, 2) };
+  assert.equal(j(P.tecAllocate({ candidates: one, slots, seed: 's1', motion: { curves: flashy, pool: j(P.tecMotionPool(flashy)) } })).picks[0].startSeconds, 4 - 3.9 / 2, 'the flash window is avoided');
+  // tecPlanBuild wires it through (and without motion the picks carry no motion key, as before).
+  const plan = j(P.tecPlanBuild({ layout: 'classic', N: 4, P: 3.9, candidates: rich, seed: 's1', motion: { r0: curve(40, 0.2), r1: curve(40, 8) } }));
+  assert.ok(plan.ok && plan.motionPool && plan.motionPool.samples > 0);
+  assert.ok(plan.picks.every(p => 'motion' in p) && plan.picks.some(p => p.motion === null), 'unmeasured clips: motion null');
+  const plain = j(P.tecPlanBuild({ layout: 'classic', N: 4, P: 3.9, candidates: rich, seed: 's1' }));
+  assert.equal(plain.motionPool, null); assert.ok(plain.picks.every(p => !('motion' in p)));
+});
+
+t('video motion: still or unknown video shots get a gentle push-in or drift, moving ones none, no move twice in a row', () => {
+  const pool = { q25: 0.5, q33: 1, q75: 6 };
+  const picks = [{ rid: 'v1', kind: 'video', motion: 0.2 }, { rid: 'v2', kind: 'video', motion: 0.3 }, { rid: 'v3', kind: 'video', motion: 8 },
+    { rid: 'p1', kind: 'photo' }, { rid: 'v4', kind: 'video', motion: null }, { rid: 'v5', kind: 'video' }, null, { rid: 'v6', kind: 'video', motion: 2 }];
+  const m = j(P.tecShotMotions(picks, 's1', { v1: { width: 1920, height: 1080 }, v4: { width: 1080, height: 1920 } }, { pool }));
+  assert.equal(m.length, picks.length); assert.equal(m[6], null);
+  const fam = x => (x.motion.startsWith('drift-') ? 'drift' : x.motion);
+  for (const i of [0, 1, 4, 5]) {
+    assert.ok(['push-in', 'drift-left', 'drift-right', 'drift-up', 'drift-down'].includes(m[i].motion), 'still video ' + i + ': ' + m[i].motion);
+    assert.equal(m[i].frameStrength, 0.5); assert.ok(Math.abs(m[i].strength - 0.3) < 1e-12);
+  }
+  assert.equal(m[3].frameStrength, 1, 'photos keep the full frame strength'); assert.equal(m[3].strength, 0.6);
+  assert.equal(m[2].motion, 'none', 'a moving shot stays none'); assert.equal(m[2].frameStrength, 0.5);
+  assert.equal(m[7].motion, 'none', 'upper two thirds of the pool: moving');
+  assert.equal(m[4].axis, 'y', 'portrait video: room on y');
+  const moved = m.filter(x => x && x.motion !== 'none');
+  for (let i = 1; i < moved.length; i++) assert.notEqual(fam(moved[i]), fam(moved[i - 1]), 'no family twice in a row');
+  // Many still videos: alternate push-in / drift; drift directions alternate; deterministic.
+  const many = j(P.tecShotMotions(Array.from({ length: 12 }, (_, i) => ({ rid: 'v' + i, kind: 'video', motion: 0.1 })), 'x', {}, { pool }));
+  for (let i = 1; i < many.length; i++) { assert.notEqual(fam(many[i]), fam(many[i - 1])); assert.notEqual(many[i].motion, many[i - 1].motion); }
+  const drifts = many.filter(x => x.motion.startsWith('drift-'));
+  for (let i = 1; i < drifts.length; i++) assert.equal(drifts[i].direction, -drifts[i - 1].direction);
+  assert.deepEqual(j(P.tecShotMotions(picks, 's1', {}, { pool })), j(P.tecShotMotions(picks, 's1', {}, { pool })));
+  // No motion data at all: every video counts as still (a gentle move); the photo-only form leaves videos null.
+  assert.ok(j(P.tecShotMotions([{ rid: 'a', kind: 'video' }], 's', {}, null))[0].motion !== 'none');
+  assert.equal(j(P.tecPhotoMotions([{ rid: 'a', kind: 'video' }], 's', {}))[0], null);
 });
 
 console.log('allocate.test.cjs: ' + checks + ' checks passed');

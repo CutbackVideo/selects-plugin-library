@@ -26,7 +26,8 @@ Both layouts share this timeline:
   letter at a time.
 - **Shots.** Hard cuts, one every music phrase (4 beats, about 3.9 s), with no
   transitions. The window reveal, or the credits roll in Full frame, starts on
-  a musical downbeat.
+  a musical downbeat. Moving footage (waves, trees in the wind, a road going
+  by) is preferred over still holds; see [Motion](#motion).
 - **Ending.** The last shot holds for half a second. The picture and the music
   fade out together, and the credits keep rolling as they go.
 - A 1920x1080 Draft. Cuts land on the phrase grid at the Draft's real frame
@@ -38,7 +39,7 @@ Both layouts share this timeline:
    open **THE END Credits** from the Plugin list. The top line shows how many
    analysed clips and photos were found, the number of shots and the
    approximate length, for example "Ready: 5 clips · 8 photos · 7 shots ·
-   about 31 s".
+   about 33 s".
 2. Check the **Title** (default "THE END") and the **Credits** list.
 3. Press **Build**.
 
@@ -87,13 +88,15 @@ renders.
 
 ## Length
 
-| Length | Shots | About, at 62 BPM |
+| Length | Shots | With a bundled track (61.5 BPM) |
 | --- | --- | --- |
-| Short | 5 | 25 s |
-| Standard (default) | 7 | 33 s |
-| Long | 10 | 44 s |
+| Short | 5 | 25.1 s |
+| Standard (default) | 7 | 32.9 s |
+| Long | 10 | 44.6 s |
 
-The exact length depends on the music's tempo. If the track is too short for
+Each length is the 5.1 s lead-in, one 3.9 s phrase per shot and a 0.5 s
+tail; the last 1.13 s fade out. With your own music the exact length depends
+on its tempo. If the track is too short for
 the length, the panel says "This track is too short for Standard." (or the
 chosen length) and offers the longest length that fits; if even Short does
 not fit, Build is disabled and the panel says how long the track must be:
@@ -107,15 +110,17 @@ used in two shots in a row.
 ## Music
 
 Choose a **Track**. All five are slow instrumentals, and the default reveals
-the window on the swell of the track.
+the window on the swell of the track. Every bundled track plays at a felt
+61.5 BPM, so each shot lasts 3.9 s (4 beats), and is mastered to about
+-12.5 LUFS.
 
 | Track | Felt tempo |
 | --- | --- |
-| Open Road Swell (default) | 66 BPM |
-| Last Light Ballad | 62 BPM |
-| Late Night Rhodes | 64 BPM |
-| Final Scene | 60 BPM |
-| Golden Hour Synth | 65 BPM |
+| Open Road Swell (default) | 61.5 BPM |
+| Last Light Ballad | 61.5 BPM |
+| Late Night Rhodes | 61.5 BPM |
+| Final Scene | 61.5 BPM |
+| Golden Hour Synth | 61.5 BPM |
 | Your own music | detected |
 | No music | fixed 3.9 s shots |
 
@@ -151,11 +156,30 @@ Draft, a clip's level can be changed in the Inspector.
 
 ## The look
 
-A subtle **Cinematic look** (teal shadows, warm highlights and a small drop in
-saturation) is applied to every clip and photo. It is on by default at
-strength 0.3; the strength is set per clip in the Inspector, and the switch is
-in **Advanced**. The look and the window are separate effects, so the look
-never tints the black surround.
+A calm, cool **Cinematic look** is applied to every clip and photo: teal
+shadows and mids, soft and slightly cool highlights, and less saturation
+overall. Warm colours (reds, oranges, a bright sunset) are muted the most;
+skin, which is only mildly warm, keeps most of its colour. Black stays black
+and white stays white. It is on by default at strength 0.5; the strength is
+set per clip in the Inspector (**Look strength**, 0 to 1), and the switch is in
+**Advanced**. The look and the window are separate effects, so the look never
+tints the black surround.
+
+## Motion
+
+- **Moving footage first.** When ffmpeg is installed, the panel measures how
+  much each analysed clip moves (once per clip; it takes a few seconds per
+  clip on the first build and is remembered after that). Among shots that fit
+  the scene equally well, a part of a clip with movement is preferred over a
+  still one. Parts with a flash, a cut or heavy shake are avoided. The scene
+  match still matters more than movement. Without ffmpeg, shots are chosen by
+  the scene match alone.
+- **Still clips get a gentle move.** A video shot that barely moves (or whose
+  movement could not be measured) gets a slow push in or drift inside the
+  window, never the same move twice in a row. Clips that already move play as
+  they are. There is no zoom punch or beat hit.
+- Every shot's **Motion** and **Motion strength** can be changed in the
+  Inspector (video shots start at strength 0.5, photos at 1).
 
 ## Photos
 
@@ -193,8 +217,8 @@ Edit it in the Inspector:
 - Credits and title: select the Motion Graphic and use **Adjust** (see
   [Credits](#credits)).
 - Window: each shot's **Shot frame** effect has **Window X (%)**, **Window Y
-  (%)** and **Window size (%)** (Classic only), **Fade in (s)** and **Fade out
-  (s)**, and for photos **Motion** and **Motion strength**.
+  (%)** and **Window size (%)** (Classic only), **Fade in (s)**, **Fade out
+  (s)**, **Motion** and **Motion strength**.
 - Clips: crop, sound level and **Look strength**.
 - **Music**: select the music clip to change its volume.
 

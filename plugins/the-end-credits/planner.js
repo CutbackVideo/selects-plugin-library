@@ -169,6 +169,105 @@ function tecLoudest(grid, P, m, fixed) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// In-shot motion. The reference's footage moves (surf, swaying palms, a car on a road); calm holds read static in the
+// small window. The panel (and the headless adapter) measures every analysed clip once with ffmpeg: 4 frames per
+// second, 64 px wide, grey, and the mean absolute difference of consecutive frames (signalstats YAVG of a tblend
+// difference, 0-255). TEC_MOTION_FILTER ends in `file=`: the caller appends a file name (no path: it runs ffmpeg in
+// the folder that receives the file, so the filtergraph never has to escape a path).
+const TEC_MOTION_FILTER = 'fps=4,scale=64:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=';
+// Allocation bonus for a moving window: TEC_MOTION_WEIGHT x its normalised motion (0-1). Below one role-rank step
+// (0.15), so scene relevance still decides between a good and a poor match.
+const TEC_MOTION_WEIGHT = 0.1;
+// A sample above TEC_MOTION_SPIKE x the window's median is capped there (a flash, an in-clip cut, a bump), so one
+// frame never makes a still window look moving.
+const TEC_MOTION_SPIKE = 3;
+// A window whose raw peak is at least TEC_MOTION_FLASH_MIN and TEC_MOTION_FLASH x its median holds a flash or a cut;
+// one whose (capped) mean is above TEC_MOTION_SHAKE is shaky or strobing. Both score -1 (a penalty).
+const TEC_MOTION_FLASH = 6;
+const TEC_MOTION_FLASH_MIN = 8;
+const TEC_MOTION_SHAKE = 30;
+// Normalisation is on a log scale between the pool's quartiles (+ this floor): the lower quartile scores 0, the upper
+// quartile and above 1 (capped), the median about 0.5.
+const TEC_MOTION_LOG_FLOOR = 0.05;
+// Still shots (for the gentle move on video): below TEC_MOTION_STILL always; above TEC_MOTION_MOVING never; in between
+// when the window sits in the pool's lower third.
+const TEC_MOTION_STILL = 0.6;
+const TEC_MOTION_MOVING = 3;
+
+// ffmpeg's metadata=print output ("frame:N pts:P pts_time:T" then "lavfi.signalstats.YAVG=V") -> { times, values }
+// in time order, or null without a sample.
+function tecParseMotion(text) {
+  const times = [], values = [];
+  let t = null;
+  for (const line of String(text == null ? '' : text).split(/\r?\n/)) {
+    const pt = /pts_time:\s*(-?[\d.]+(?:e-?\d+)?)/.exec(line);
+    if (pt) { t = Number(pt[1]); continue; }
+    const yv = /lavfi\.signalstats\.YAVG=\s*(-?[\d.]+(?:e-?\d+)?)/.exec(line);
+    if (yv && t != null && isFinite(t) && isFinite(Number(yv[1]))) { times.push(t); values.push(Math.max(0, Number(yv[1]))); t = null; }
+  }
+  if (!times.length) return null;
+  const order = times.map((_, i) => i).sort((a, b) => times[a] - times[b]);
+  return { times: order.map(i => times[i]), values: order.map(i => values[i]) };
+}
+
+function tecMedian(list) {
+  if (!list.length) return null;
+  const s = list.slice().sort((a, b) => a - b), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+function tecQuantile(sorted, q) {
+  if (!sorted.length) return null;
+  const x = q * (sorted.length - 1), i = Math.floor(x), f = x - i;
+  return i + 1 < sorted.length ? sorted[i] * (1 - f) + sorted[i + 1] * f : sorted[i];
+}
+
+// Motion of a curve inside (start, start + dur] (a sample at t is the difference of the frames at t - 1/4 s and t, so
+// the samples in that range compare frames inside the window).
+// Returns { mean (spike-capped), median, peak (raw), flash, n } or null when the window holds no sample.
+function tecMotionStats(curve, start, dur) {
+  if (!curve || !Array.isArray(curve.times) || !Array.isArray(curve.values)) return null;
+  const v = [];
+  for (let i = 0; i < curve.times.length; i++) if (curve.times[i] > start + 1e-9 && curve.times[i] <= start + dur + 1e-9) v.push(curve.values[i]);
+  if (!v.length) return null;
+  const median = tecMedian(v), cap = TEC_MOTION_SPIKE * Math.max(median, 0.1);
+  const mean = v.reduce((a, x) => a + Math.min(x, cap), 0) / v.length;
+  const peak = Math.max(...v);
+  return { mean, median, peak, flash: peak >= TEC_MOTION_FLASH_MIN && peak > TEC_MOTION_FLASH * Math.max(median, 0.1), n: v.length };
+}
+// The spike-capped mean motion of a window, or null when it is unknown.
+function tecMotionAt(curve, start, dur) {
+  const m = tecMotionStats(curve, start, dur);
+  return m ? m.mean : null;
+}
+
+// The pool's motion quartiles and lower third over every sample of every curve (rid -> curve), or null.
+function tecMotionPool(curves) {
+  const all = [];
+  for (const c of Object.values(curves || {})) if (c && Array.isArray(c.values)) for (const v of c.values) if (isFinite(v)) all.push(v);
+  if (!all.length) return null;
+  all.sort((a, b) => a - b);
+  return { q25: tecQuantile(all, 0.25), q33: tecQuantile(all, 1 / 3), q75: tecQuantile(all, 0.75), samples: all.length };
+}
+
+// A window's motion score for the allocation: -1 for a flash, a cut or shake; else 0 at or below the pool's lower
+// quartile rising (log scale) to 1 at its upper quartile, capped there. 0 without data (the current scoring).
+function tecMotionScore(stats, pool) {
+  if (!stats || !pool) return 0;
+  if (stats.flash || stats.mean > TEC_MOTION_SHAKE) return -1;
+  const f = TEC_MOTION_LOG_FLOOR, lo = Math.log(pool.q25 + f), hi = Math.log(pool.q75 + f);
+  if (!(hi - lo > 1e-9)) return 0;
+  return Math.max(0, Math.min(1, (Math.log(stats.mean + f) - lo) / (hi - lo)));
+}
+
+// Whether a video window reads still (it gets a gentle move): unknown motion counts as still.
+function tecMotionStill(mean, pool) {
+  if (typeof mean !== 'number' || !isFinite(mean)) return true;
+  if (mean < TEC_MOTION_STILL) return true;
+  if (mean > TEC_MOTION_MOVING) return false;
+  return !!pool && mean < pool.q33;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // Shot allocation (adapted from the City Weekend Vlog allocator)
 
 // Scene-search hits collapse onto a few distinct times per clip, so every searched source also gets evenly spaced
@@ -211,11 +310,14 @@ function tecFillers(candidates) {
 }
 
 // opts: { candidates: [{ rid, role, t, score, sourceDuration } | { rid, kind: 'photo' }], slots: [{ index, role,
-// seconds, prefersVideo? }], seed, photoShare?, gapSeconds? }. Slots are the footage slots in timeline order.
+// seconds, prefersVideo? }], seed, photoShare?, gapSeconds?, motion?: { curves: { rid: curve }, pool } }. Slots are
+// the footage slots in timeline order. With motion, a video window's value gains TEC_MOTION_WEIGHT x tecMotionScore
+// and its pick records the window's `motion` (tecMotionAt; null when that clip was not measured).
 // The same source never plays in two adjacent slots: a slot with no other fitting source stays empty (missing), so
 // tecPlanBuild shrinks the Length instead. Windows of one source never overlap (with a gap of gapSeconds).
 function tecAllocate(opts) {
   const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
+  const curves = opts.motion && opts.motion.curves ? opts.motion.curves : null, motionPool = opts.motion ? opts.motion.pool || null : null;
   const finite = v => typeof v === 'number' && isFinite(v);
   const pool = opts.candidates.filter(c => c && c.kind !== 'photo' && finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0);
   const photoSeen = {};
@@ -239,10 +341,11 @@ function tecAllocate(opts) {
       const end = start + slot.seconds;
       if ((used[c.rid] || []).some(([a, b]) => start < b + gap && end > a - gap)) continue;
       const repeats = recent.filter(r => r === c.rid).length;
-      const value = c.score - rank * 0.15 - repeats * 0.2 + tecHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05;
+      const ms = curves && curves[c.rid] ? tecMotionStats(curves[c.rid], start, slot.seconds) : null;
+      const value = c.score - rank * 0.15 - repeats * 0.2 + tecHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05 + TEC_MOTION_WEIGHT * tecMotionScore(ms, motionPool);
       const better = !best || value > best.value + 1e-12 ||
         (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)));
-      if (better) best = { value, c, start, end };
+      if (better) best = { value, c, start, end, motion: ms ? ms.mean : null };
     }
     return best;
   }
@@ -284,7 +387,9 @@ function tecAllocate(opts) {
     photoRun = 0;
     (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
     if (best.c.role === 'filler') fillerShots++;
-    picks.push({ slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end });
+    const pick = { slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end };
+    if (curves) pick.motion = best.motion == null ? null : Math.round(best.motion * 1000) / 1000;
+    picks.push(pick);
   }
   return { picks, filled: picks.filter(Boolean).length, missing, fillerShots, photoShots, photoRunRelaxed };
 }
@@ -296,22 +401,27 @@ function tecFootageSlots(timeline) {
   return shots.map((s, i) => ({ index: s.index, role: s.role, seconds: s.seconds, prefersVideo: i === 0 || i === shots.length - 1 }));
 }
 
-// opts: { layout, N (requested grid shots), P, candidates, seed, photoShare? }. Tries N first, then shrinks toward
-// TEC_MIN_SHOTS; every attempt allocates from scratch with filler candidates added. Returns
-// { ok: true, layout, N, timeline, picks (one per footage slot, in order), visibleShots, fillerShots, photoShots, ... }
+// opts: { layout, N (requested grid shots), P, candidates, seed, photoShare?, motion? (rid -> tecParseMotion curve;
+// clips without one score as before) }. Tries N first, then shrinks toward TEC_MIN_SHOTS; every attempt allocates
+// from scratch with filler candidates added. Returns { ok: true, layout, N, timeline, picks (one per footage slot, in
+// order), visibleShots, fillerShots, photoShots, motionPool (null without motion data), ... }
 // or { ok: false, usableShots, needed } (needed = 4 visible shots in Classic, 4 + 1 in Full frame).
 function tecPlanBuild(opts) {
   const layout = opts.layout === 'full' ? 'full' : 'classic';
   const top = Math.max(TEC_MIN_SHOTS, opts.N);
   const needed = TEC_MIN_SHOTS + (layout === 'full' ? 1 : 0);
   const candidates = opts.candidates.concat(tecFillers(opts.candidates));
+  const curves = {};
+  for (const rid of Object.keys(opts.motion || {})) if (opts.motion[rid] && Array.isArray(opts.motion[rid].values)) curves[rid] = opts.motion[rid];
+  const pool = tecMotionPool(curves);
+  const motion = pool ? { curves, pool } : null;
   let last = null;
   for (let n = top; n >= TEC_MIN_SHOTS; n--) {
     const timeline = tecTimeline({ layout, N: n, P: opts.P });
-    const alloc = tecAllocate({ candidates, slots: tecFootageSlots(timeline), seed: opts.seed, photoShare: opts.photoShare });
+    const alloc = tecAllocate({ candidates, slots: tecFootageSlots(timeline), seed: opts.seed, photoShare: opts.photoShare, motion });
     if (alloc.missing === 0) {
       const plan = { ok: true, layout, N: n, requestedN: opts.N, shrunk: n < opts.N, timeline, picks: alloc.picks, visibleShots: alloc.picks.length,
-        needed, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots };
+        needed, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots, motionPool: pool };
       if (alloc.photoRunRelaxed) plan.photoRunRelaxed = true;
       return plan;
     }
@@ -320,22 +430,35 @@ function tecPlanBuild(opts) {
   return { ok: false, layout, usableShots: last ? last.filled : 0, needed, photoShots: last ? last.photoShots : 0 };
 }
 
-// Photo motions for photo picks, in pick order (null for video picks). Deterministic per seed; never the same
-// motion family twice in a row; drift, tilt and push-drift directions alternate. The shot sits in a 16:9 window and
-// is cover-cropped, so a photo narrower than 16:9 (portrait, 4:3, 3:2) has room on y and only a wider one on x; an
-// unknown size counts as a 3:2 photo. Each entry is { motion, direction, axis, strength } (strength 0.6 of CWV's).
+// Shot motions, in pick order. Deterministic per seed; never the same motion family twice in a row (one chain over
+// photos and videos); drift, tilt and push-drift directions alternate. The shot sits in a 16:9 window and is
+// cover-cropped, so a source narrower than 16:9 (portrait, 4:3, 3:2) has room on y and only a wider one on x; an
+// unknown size counts as a 3:2 photo / a 16:9 video.
+// - Photos: any family (push-in, pull-out, drift, tilt, push-drift); strength 0.6 of CWV's.
+// - Videos (opts.videos, default on): a still window (tecMotionStill on the pick's measured `motion`; unknown counts
+//   as still) gets a gentle push-in or drift at 0.3 of CWV's; a moving one stays 'none'. No punch or zoom hit.
+// Each entry is { motion, direction, axis, strength (x CWV's move), frameStrength (the Shot frame's `strength`
+// parameter: the effect scales it by 0.6) }; null for an empty slot, and for every video with opts.videos false.
 const TEC_PHOTO_MOTIONS = ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift'];
 const TEC_MOTION_FAMILIES = ['push-in', 'pull-out', 'drift', 'tilt', 'push-drift'];
+const TEC_VIDEO_MOTION_FAMILIES = ['push-in', 'drift'];
 const TEC_PHOTO_MOTION_STRENGTH = 0.6;
-function tecPhotoMotions(picks, seed, sizes) {
+const TEC_VIDEO_FRAME_STRENGTH = 0.5;
+function tecShotMotions(picks, seed, sizes, opts) {
+  const videos = !opts || opts.videos !== false, pool = opts && opts.pool ? opts.pool : null;
   const out = [];
   let lastFamily = null, driftSign = { x: 1, y: 1 }, tiltSign = 1, pushDriftSign = 1, k = 0;
   for (const pick of picks) {
-    if (!pick || pick.kind !== 'photo') { out.push(null); continue; }
+    if (!pick || (pick.kind !== 'photo' && !videos)) { out.push(null); continue; }
+    const photo = pick.kind === 'photo';
     const size = sizes && sizes[pick.rid];
-    const aspect = size && size.width > 0 && size.height > 0 ? size.width / size.height : 1.5;
+    const aspect = size && size.width > 0 && size.height > 0 ? size.width / size.height : photo ? 1.5 : 16 / 9;
     const axis = aspect > 16 / 9 + 1e-6 ? 'x' : 'y';
-    const families = TEC_MOTION_FAMILIES.filter(f => f !== lastFamily)
+    if (!photo && !tecMotionStill(pick.motion, pool)) {
+      out.push({ motion: 'none', direction: 1, axis, strength: TEC_PHOTO_MOTION_STRENGTH * TEC_VIDEO_FRAME_STRENGTH, frameStrength: TEC_VIDEO_FRAME_STRENGTH });
+      continue;
+    }
+    const families = (photo ? TEC_MOTION_FAMILIES : TEC_VIDEO_MOTION_FAMILIES).filter(f => f !== lastFamily)
       .map(f => ({ f, v: tecHash(seed + ':motion:' + k + ':' + f) }))
       .sort((a, b) => b.v - a.v || (a.f < b.f ? -1 : 1));
     const family = families[0].f;
@@ -345,11 +468,14 @@ function tecPhotoMotions(picks, seed, sizes) {
       motion = axis === 'x' ? (direction > 0 ? 'drift-right' : 'drift-left') : (direction > 0 ? 'drift-down' : 'drift-up');
     } else if (family === 'tilt') { direction = tiltSign; tiltSign = -tiltSign; }
     else if (family === 'push-drift') { direction = pushDriftSign; pushDriftSign = -pushDriftSign; }
-    out.push({ motion, direction, axis, strength: TEC_PHOTO_MOTION_STRENGTH });
+    out.push(photo ? { motion, direction, axis, strength: TEC_PHOTO_MOTION_STRENGTH, frameStrength: 1 }
+      : { motion, direction, axis, strength: TEC_PHOTO_MOTION_STRENGTH * TEC_VIDEO_FRAME_STRENGTH, frameStrength: TEC_VIDEO_FRAME_STRENGTH });
     lastFamily = family; k++;
   }
   return out;
 }
+// Photo motions only (videos null): the photo-only form of tecShotMotions.
+function tecPhotoMotions(picks, seed, sizes) { return tecShotMotions(picks, seed, sizes, { videos: false }); }
 
 // ---------------------------------------------------------------------------------------------------------------
 // Title typing (spec R5): one slot per grapheme (Array.from), spaces included, no cursor. Glyph i (zero-based)

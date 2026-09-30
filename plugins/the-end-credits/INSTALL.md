@@ -21,8 +21,10 @@ panel finds them on the shell `PATH` and also in `/opt/homebrew/bin`,
 tools installed with Homebrew or nvm work even when Selects is opened from
 Finder:
 
-- **ffmpeg** (it includes `ffprobe`): music previews and your own music.
-  Check with `ffmpeg -version` and `ffprobe -version`.
+- **ffmpeg** (it includes `ffprobe`): music previews, your own music, and
+  measuring how much each clip moves (so moving footage is preferred; without
+  ffmpeg the shots are chosen by the scene match alone). Check with
+  `ffmpeg -version` and `ffprobe -version`.
 - **Node.js 18 or later**: your own music only (beat detection). Check with
   `node --version`.
 
@@ -44,6 +46,8 @@ in either install folder:
 - `preview-N.mp3` and `preview-N.b64`: the section preview. The mp3 is
   deleted once it is converted to text, and the text copy is replaced by the
   next preview.
+- `motion-<clip id>.txt`: the measured movement of one clip (a few KB), read
+  once by the panel. All of them are deleted when the measuring step ends.
 - `peaks-<id>.u8` and `peaks-<id>.b64`: the waveform of a bundled track
   (`<id>` is the track's id; under 100 KB). The `.u8` is deleted once it
   is converted to text, and the `.b64` as soon as the panel has read it (or

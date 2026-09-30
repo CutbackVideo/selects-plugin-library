@@ -18,6 +18,12 @@
 //   Personal/Travel place guess; inventory.js does not return the Project name), project (which Staging Project type
 //   the row needs; documentation for --check only), fitLength true|false (default false: a Length the track is too
 //   short for fails the row with the panel's message; true builds the longest Length that fits instead).
+//
+// In-shot motion, like the panel: every inventoried clip is measured once with the local ffmpeg (planner.js
+// TEC_MOTION_FILTER, run in a temp folder that receives the file), from the source `path` inventory.js returns (the
+// driver runs on the machine that holds the Project's files). Offline fixtures carry no path: set TEC_FOOTAGE_DIR to
+// the footage folder to resolve them by file name. A clip that cannot be measured (no path, no ffmpeg, a failure)
+// scores as before, silently, as in the panel.
 import vm from 'node:vm';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -40,7 +46,7 @@ const j = v => JSON.parse(JSON.stringify(v)); // vm objects -> plain objects
 const W = 1920, H = 1080, A = W / H;
 const AMBIENT_DB = -18;            // spec §10 / GATE-A 4
 const MUSIC_FADE_OUT = 1.5;        // spec R3
-const LOOK_STRENGTH = 0.3;         // spec §8
+const LOOK_STRENGTH = 0.5;         // spec §8, raised to 0.5 with the cool teal grade (similarity wave)
 // The panel's build record (panel.tsx WINDOWS / FADES): the shot window in % of the canvas and the Shot frame fades.
 const WINDOWS = { classic: { x: 50.73, y: 12.69, w: 42.6 }, full: { x: 0, y: 0, w: 100 } };
 const FADES = { inSec: 0.5, outSec: 1.13 };
@@ -73,6 +79,32 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   const withDefaults = r0 => ({ ...ROW_DEFAULTS, ...r0 });
   const cueKind = cue => (cue === 'none' ? 'none' : String(cue).startsWith('own:') ? 'own' : 'bundled');
   const ownCache = new Map();
+  const motionCache = new Map();
+
+  // The panel's measureMotion: one ffmpeg run per clip, the metadata written to a file and parsed by the planner's
+  // tecParseMotion. rid -> curve for the clips that could be measured.
+  function motionCurves(resources) {
+    const out = {};
+    let tmp = null;
+    try {
+      for (const r of resources) {
+        const file = r.path || (process.env.TEC_FOOTAGE_DIR && r.name ? path.join(expandPath(process.env.TEC_FOOTAGE_DIR), r.name) : null);
+        if (!file || !fs.existsSync(file)) continue;
+        if (!motionCache.has(file)) {
+          let curve = null;
+          try {
+            tmp = tmp || fs.mkdtempSync(path.join(os.tmpdir(), 'tec-motion-'));
+            const name = 'motion-' + String(r.rid).replace(/[^A-Za-z0-9-]/g, '_') + '.txt';
+            execFileSync(ffmpeg(), ['-nostdin', '-v', 'error', '-an', '-sn', '-dn', '-i', file, '-vf', P.TEC_MOTION_FILTER + name, '-f', 'null', '-'], { cwd: tmp, stdio: 'ignore', timeout: 120000 });
+            curve = j(P.tecParseMotion(fs.readFileSync(path.join(tmp, name), 'utf8')));
+          } catch (e) { curve = null; }
+          motionCache.set(file, curve);
+        }
+        if (motionCache.get(file)) out[r.rid] = motionCache.get(file);
+      }
+    } finally { if (tmp) fs.rmSync(tmp, { recursive: true, force: true }); }
+    return out;
+  }
 
   // Own music, like the panel: decode to mono 22.05 kHz f32 (first 6 min) and run the plugin's beat-detect.cjs.
   // The "loudest part" is the panel's: planner.js tecLoudest on the detector result (beat energy, or the waveform
@@ -220,9 +252,11 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         if (aspect) sources[r.rid] = { aspect };
       }
       const photoCands = row.photos ? inv.photos.map(p => ({ rid: p.rid, kind: 'photo' })) : [];
-      const plan = j(P.tecPlanBuild({ layout, N, P: Pp, candidates: found.list.concat(photoCands), seed: String(seed) }));
+      const motion = motionCurves(inv.resources);
+      const plan = j(P.tecPlanBuild({ layout, N, P: Pp, candidates: found.list.concat(photoCands), seed: String(seed), motion }));
       if (!plan.ok) throw Error('Needs at least ' + plan.needed + ' usable clips or photos (found ' + plan.usableShots + ')');
-      const motions = j(P.tecPhotoMotions(plan.picks, String(seed), sizes));
+      const motions = j(P.tecShotMotions(plan.picks, String(seed), sizes, { pool: plan.motionPool }));
+      const byShot = motions.map(m => (m ? { motion: m.motion, direction: m.direction, axis: m.axis, frameStrength: m.frameStrength } : null));
       const photos = {}, byRid = {};
       plan.picks.forEach((k, i) => {
         if (k.kind !== 'photo') return;
@@ -236,9 +270,10 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const planSummary = { layout, cue: row.cue, P: +Pp.toFixed(4), m: music.phrase.m, fixed: music.phrase.fixed, length: lengthKey, requestedLength: row.length,
         N: plan.N, requestedN: plan.requestedN, shrunk: plan.shrunk, visibleShots: plan.visibleShots, fillerShots: plan.fillerShots, photoShots: plan.photoShots,
         videoSeconds: +plan.timeline.total.toFixed(3), sectionStart: sectionStart == null ? null : +sectionStart.toFixed(3), sectionJ: section ? section.j : null,
-        rows: rows.length, titleGlyphs: Array.from(title).length, speedEstimate: { pxPerSec: +est.roll.pxPerSec.toFixed(2), clamped: est.roll.clamped, hiddenRows: est.roll.hiddenRows, removeRows: est.roll.removeRows } };
+        rows: rows.length, titleGlyphs: Array.from(title).length, motionMeasured: Object.keys(motion).length,
+        shotMotion: plan.picks.map((k, i) => (k.kind === 'photo' ? 'photo' : (k.motion == null ? '?' : k.motion) + ':' + (byShot[i] ? byShot[i].motion : 'none'))), speedEstimate: { pxPerSec: +est.roll.pxPerSec.toFixed(2), clamped: est.roll.clamped, hiddenRows: est.roll.hiddenRows, removeRows: est.roll.removeRows } };
       return { row, seed, inv, found, layout, music, plan, planSummary, section, start: sectionStart, fitted: { length: lengthKey, N }, boundaries: plan.timeline.boundaries,
-        sources, photos, byRid, rows, title };
+        sources, photos, byRid, byShot, rows, title };
     },
 
     ensureAudio(s) {
@@ -290,7 +325,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         graphic: { tsx: read('assets/credits-graphic.tsx'), parameters, editableParameters },
         frame: { tsx: read('assets/shot-frame.tsx') },
         look: { tsx: read('assets/cinematic-look.tsx'), strength: LOOK_STRENGTH, on: !!s.row.look },
-        photoMotion: { byRid: s.byRid } } };
+        photoMotion: { byRid: s.byRid, byShot: s.byShot } } };
     },
 
     // Read by the kit readback for the generic keys and by dev/readback-tec.mjs for mainStartFrame, stack, photoRids

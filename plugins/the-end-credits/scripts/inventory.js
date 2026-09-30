@@ -1,8 +1,9 @@
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const all = await p.resources();
-const sizes = {};
-const walk = nodes => { for (const n of nodes || []) { if (n.type === 'dir') walk(n.children); else if (n.resourceId) sizes[n.resourceId] = n.frameSize || null; } };
+const sizes = {}, paths = {};
+// The source file's frame size and path (the panel measures in-shot motion from the file with ffmpeg).
+const walk = nodes => { for (const n of nodes || []) { if (n.type === 'dir') walk(n.children); else if (n.resourceId) { sizes[n.resourceId] = n.frameSize || null; if (n.path) paths[n.resourceId] = n.path; } } };
 const files = await p.sourceFiles();
 if ('fileTree' in files) walk(files.fileTree);
 else for (const f of files.folders || []) { const d = await p.sourceFiles({ folder: f.name }); if ('fileTree' in d) walk(d.fileTree); }
@@ -20,7 +21,8 @@ for (const r of video) {
   const size = sizes[r.resourceId];
   if (!(r.durationSeconds > 0)) { missing++; continue; }
   const width = size ? size.width : null, height = size ? size.height : null;
-  resources.push({ rid: r.resourceId, name: r.name, duration: r.durationSeconds, width, height, aspect: aspectOf(width, height), recordedAt: recordedAt(r), kind: 'video' });
+  resources.push({ rid: r.resourceId, name: r.name, duration: r.durationSeconds, width, height, aspect: aspectOf(width, height), recordedAt: recordedAt(r), kind: 'video',
+    path: paths[r.resourceId] || null });
 }
 // Photos (Image resources) have no analysis and no scene search; they are placed whole. sourceFiles() reports no
 // frameSize for them, so an unsaved scratch Draft measures each one: a new Draft adopts its first clip's frame size.

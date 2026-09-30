@@ -95,7 +95,7 @@ const pho = rid => ({ rid, kind: 'photo', startSeconds: 0, holdSeconds: P });
 const tsxCfg = {
   graphic: { tsx: 'G', parameters: { title: 'THE END' }, editableParameters: [{ key: 'title', label: 'Title', type: 'text', defaultValue: 'THE END' }] },
   frame: { tsx: 'F' },
-  look: { tsx: 'LK', strength: 0.3, on: true },
+  look: { tsx: 'LK', strength: 0.5, on: true },
   // The planner's strength (0.6) is ignored: the Shot frame gets strength 1 and scales it itself.
   photoMotion: { byRid: { p1: { motion: 'push-in', direction: 1, axis: 'x', strength: 0.6 } } },
 };
@@ -221,13 +221,16 @@ const record = (r, extra = {}) => ({ layout: 'classic', sequenceId: r.sequenceId
   for (const c of rows) assert.deepEqual(mc.effects[c.clipId].map(e => e.name), ['Cinematic look', 'Shot frame'], 'look then frame');
   assert.equal(mc.effects[gapRow.clipId], undefined, 'the gap gets nothing');
   const fp = rows.map(c => mc.effects[c.clipId][1].parameters);
-  assert.deepEqual(fp[0], { x: 50.73, y: 12.69, w: 42.6, srcAspect: 16 / 9, fps: 29.97, durationFrames: fc[2] - fc[1], originFrame: 0, fadeInSeconds: 0.5, fadeOutSeconds: 0, motion: 'none' });
+  // Without a per-shot record a video stays still, with the video motion strength (0.5) ready in Adjust.
+  assert.deepEqual(fp[0], { x: 50.73, y: 12.69, w: 42.6, srcAspect: 16 / 9, fps: 29.97, durationFrames: fc[2] - fc[1], originFrame: 0, fadeInSeconds: 0.5, fadeOutSeconds: 0, motion: 'none',
+    strength: 0.5, direction: 1, axis: 'x' });
   assert.deepEqual(fp.map(x => [x.fadeInSeconds, x.fadeOutSeconds]), [[0.5, 0], [0, 0], [0, 0], [0, 1.13]], 'first fades in, last fades out');
   assert.deepEqual(fp.map(x => x.durationFrames), [fc[2] - fc[1], fc[3] - fc[2], fc[4] - fc[3], fc[5] - fc[4]]);
   assert.ok(close(fp[1].srcAspect, 0.5625, 1e-9));
   assert.deepEqual(fp[2], { x: 50.73, y: 12.69, w: 42.6, srcAspect: 0.75, fps: 29.97, durationFrames: fc[4] - fc[3], originFrame: 0, fadeInSeconds: 0, fadeOutSeconds: 0, motion: 'push-in', strength: 1, direction: 1, axis: 'x' });
-  assert.deepEqual(mc.effects[rows[0].clipId][0].parameters, { strength: 0.3 });
-  // Editable definitions carry this clip's values as defaults; Classic exposes the window, photos also get their motion.
+  assert.deepEqual(mc.effects[rows[0].clipId][0].parameters, { strength: 0.5 });
+  // Editable definitions carry this clip's values as defaults; Classic exposes the window; every shot (video and
+  // photo) gets its motion and motion strength.
   const ed = rows.map(c => mc.effects[c.clipId][1].editableParameters);
   const dv = e => [e.key, e.defaultValue];
   assert.deepEqual(ed[0], [
@@ -235,13 +238,15 @@ const record = (r, extra = {}) => ({ layout: 'classic', sequenceId: r.sequenceId
     { key: 'y', label: 'Window Y (%)', type: 'number', defaultValue: 12.69, min: 0, max: 100, step: 0.1 },
     { key: 'w', label: 'Window size (%)', type: 'number', defaultValue: 42.6, min: 5, max: 100, step: 0.1 },
     { key: 'fadeInSeconds', label: 'Fade in (s)', type: 'number', defaultValue: 0.5, min: 0, max: 3, step: 0.05 },
-    { key: 'fadeOutSeconds', label: 'Fade out (s)', type: 'number', defaultValue: 0, min: 0, max: 3, step: 0.05 }]);
-  assert.deepEqual(ed[3].map(dv), [['x', 50.73], ['y', 12.69], ['w', 42.6], ['fadeInSeconds', 0], ['fadeOutSeconds', 1.13]]);
+    { key: 'fadeOutSeconds', label: 'Fade out (s)', type: 'number', defaultValue: 0, min: 0, max: 3, step: 0.05 },
+    { key: 'motion', label: 'Motion', type: 'select', defaultValue: 'none', options: ed[0][5].options },
+    { key: 'strength', label: 'Motion strength', type: 'number', defaultValue: 0.5, min: 0, max: 2, step: 0.1 }]);
+  assert.deepEqual(ed[3].map(dv), [['x', 50.73], ['y', 12.69], ['w', 42.6], ['fadeInSeconds', 0], ['fadeOutSeconds', 1.13], ['motion', 'none'], ['strength', 0.5]]);
   assert.deepEqual(ed[2].map(dv), [['x', 50.73], ['y', 12.69], ['w', 42.6], ['fadeInSeconds', 0], ['fadeOutSeconds', 0], ['motion', 'push-in'], ['strength', 1]]);
   assert.deepEqual(ed[2][5].options.map(o => o.value), ['none', 'push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift']);
   assert.deepEqual(ed[2][5].options.map(o => o.label), ['None', 'Push in', 'Pull out', 'Drift left', 'Drift right', 'Drift up', 'Drift down', 'Tilt', 'Push and drift']);
   assert.deepEqual(ed[2][6], { key: 'strength', label: 'Motion strength', type: 'number', defaultValue: 1, min: 0, max: 2, step: 0.1 });
-  assert.deepEqual(mc.effects[rows[0].clipId][0].editableParameters, [{ key: 'strength', label: 'Look strength', type: 'number', defaultValue: 0.3, min: 0, max: 1, step: 0.05 }]);
+  assert.deepEqual(mc.effects[rows[0].clipId][0].editableParameters, [{ key: 'strength', label: 'Look strength', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.05 }]);
   assert.equal(kinds(mc.log, 'commit').length, 2);
   // 5. Idempotent: a retry adds nothing and does not commit; an Adjust edit on an existing effect survives.
   mc.effects[rows[1].clipId][1].parameters = { ...fp[1], w: 30 };
@@ -266,17 +271,24 @@ const record = (r, extra = {}) => ({ layout: 'classic', sequenceId: r.sequenceId
   assert.deepEqual(kinds(mf.log, 'fade').map(x => x.slice(1)), [['v2', undefined, 1.5]], 'no music: only the last shot fades');
   assert.equal(kinds(mf.log, 'music').length, 0);
   mf.reopen();
-  const df = await load('decorate.js', record(rf, { layout: 'full', clipSound: 'full', look: { tsx: 'LK', strength: 0.3, on: false } }))(project(mf));
+  // Per-shot motions (tecShotMotions): still videos move gently at frame strength 0.5, a moving one stays none, the
+  // photo keeps its move at 1. byShot wins over byRid.
+  const byShot = [{ motion: 'push-in', direction: 1, axis: 'y', frameStrength: 0.5 }, { motion: 'none', direction: 1, axis: 'y', frameStrength: 0.5 },
+    { motion: 'drift-up', direction: -1, axis: 'y', frameStrength: 0.5 }, { motion: 'tilt', direction: -1, axis: 'y', frameStrength: 1 }, { motion: 'drift-left', direction: -1, axis: 'x', frameStrength: 0.5 }];
+  const df = await load('decorate.js', record(rf, { layout: 'full', clipSound: 'full', look: { tsx: 'LK', strength: 0.5, on: false },
+    photoMotion: { byRid: { p1: { motion: 'push-in', direction: 1, axis: 'x' } }, byShot } }))(project(mf));
   assert.equal(df.shotFrames, 5);
   assert.equal(df.looks, 0);
   const pf = shotRows(mf).map(c => mf.effects[c.clipId].map(e => e.name).join('|') && mf.effects[c.clipId][0].parameters);
   assert.ok(shotRows(mf).every(c => mf.effects[c.clipId].length === 1 && mf.effects[c.clipId][0].name === 'Shot frame'), 'look off: frame only');
   assert.deepEqual(pf.map(x => [x.x, x.y, x.w]), Array(5).fill([0, 0, 100]));
   assert.deepEqual(pf.map(x => [x.fadeInSeconds, x.fadeOutSeconds]), [[0, 0], [0, 0], [0, 0], [0, 0], [0, 1.13]]);
-  // Full frame: no window fields in the Inspector; the photo keeps its motion fields.
+  assert.deepEqual(pf.map(x => [x.motion, x.direction, x.axis, x.strength]), byShot.map(m => [m.motion, m.direction, m.axis, m.frameStrength]), 'motions per shot');
+  // Full frame: no window fields in the Inspector; every shot has its motion fields.
   const edf = shotRows(mf).map(c => mf.effects[c.clipId][0].editableParameters.map(e => e.key));
-  assert.deepEqual(edf[0], ['fadeInSeconds', 'fadeOutSeconds']);
+  assert.deepEqual(edf[0], ['fadeInSeconds', 'fadeOutSeconds', 'motion', 'strength']);
   assert.deepEqual(edf[3], ['fadeInSeconds', 'fadeOutSeconds', 'motion', 'strength']);
+  assert.deepEqual(shotRows(mf).map(c => mf.effects[c.clipId][0].editableParameters.find(e => e.key === 'strength').defaultValue), [0.5, 0.5, 0.5, 1, 0.5]);
   assert.deepEqual(kinds(mf.log, 'graphic')[0][1], { startFrame: 0, endFrame: ff[5] });
 
   // 7. The rate changes on the first insert (a new Draft at 29.97 adopts 23.976 footage): a fresh Draft is laid at the
