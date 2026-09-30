@@ -10,10 +10,10 @@ const ST_TAIL_SECONDS = 0.15;
 const SIZE_CHECK = 'Summer Trip size check';
 // Intro level line around the drop (music section below), shaped on the reference (0.1 s RMS): the intro sits around
 // -18..-21 dB, from about 1.9 s before the drop it decays steadily to about -37 dB (15-19 dB under the intro) right
-// before the drop, and the drop hits at about -7..-12 dB. Here: a 1 s fade 10 dB down from the duck level, the drop
+// before the drop, and the drop hits at about -7..-12 dB. Here: a 1.5 s fade 15 dB down from the duck level, the drop
 // frame 3 dB under full level, 0 dB a quarter second later (the cue's own intro -> drop step does the rest).
-const INTRO_BREATH_DB = -10;
-const INTRO_BREATH_SECONDS = 1.0;
+const INTRO_BREATH_DB = -15;
+const INTRO_BREATH_SECONDS = 1.5;
 const INTRO_DROP_DB = -3;
 const INTRO_RELEASE_SECONDS = 0.25;
 
@@ -237,7 +237,7 @@ if (cfg.music) {
     s0 = readS0(dry);
   }
   // Intro level line (only when the config asks for it: the panel sends introDuckDb for a drop section, 0 otherwise).
-  // The dry music holds introDuckDb (dB) under the title, then "breathes": from B = F(8) - 1 s it fades down, linear in
+  // The dry music holds introDuckDb (dB) under the title, then "breathes": from B = F(8) - 1.5 s it fades down, linear in
   // dB, to introDuckDb + INTRO_BREATH_DB on F(8) - 1; the drop frame F(8) (the grid entrance) jumps to INTRO_DROP_DB and
   // a short release reaches 0 dB INTRO_RELEASE_SECONDS later. So the drop reads as the section's payoff after a dip,
   // not as a volume step on the title. Keys are whole frames from the dry clip's first visible frame. volumeKeys

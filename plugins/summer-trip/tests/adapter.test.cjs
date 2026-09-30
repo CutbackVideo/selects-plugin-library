@@ -234,10 +234,10 @@ function readbackOf(m, fps) {
   const noSfx = JSON.parse(JSON.stringify(rb));
   noSfx.st.levels = noSfx.st.levels.filter(l => l.rid !== 'wh');
   assert.equal(stCheck(noSfx, exp).checks.sfx, false);
-  // The dry music carries the intro line (keyed, no constant level): -7 dB, a 1 s dip to -17 dB, -3 dB on the drop,
+  // The dry music carries the intro line (keyed, no constant level): -7 dB, a 1.5 s dip to -22 dB, -3 dB on the drop,
   // 0 dB a quarter second later; a flat dry or a drop key on the wrong frame fails.
   assert.deepEqual(exp.music.dry.keys.map(k => [Math.round(k.atSeconds * a.fps), k.volumeDb]),
-    [[0, -7], [F(8) - Math.round(a.fps), -7], [F(8) - 1, -17], [F(8), -3], [F(8) + Math.round(0.25 * a.fps), 0]]);
+    [[0, -7], [F(8) - Math.round(1.5 * a.fps), -7], [F(8) - 1, -22], [F(8), -3], [F(8) + Math.round(0.25 * a.fps), 0]]);
   assert.equal(exp.music.wet.keys, undefined);
   const flat = JSON.parse(JSON.stringify(rb));
   Object.assign(flat.st.levels.find(l => l.rid === 'm1'), { db: 0, keys: [] });

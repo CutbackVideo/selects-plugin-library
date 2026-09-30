@@ -164,9 +164,9 @@ const baseCfg = (extra = {}) => ({ projectId: 'p', draftName: 'Summer Trip 1', f
   music: { resourceId: 'm9', sectionStart: 4.847, wetResourceId: 'w9' }, crossfadeFrames: null,
   clipSound: 'ambient', ambientDb: -18, gridSound: 'none', sfx: null, introDuckDb: -7, ...extra });
 // The dry music's intro level line (assemble.js, introDuckDb): the duck from the clip's first frame, held to
-// B = F(8) - round(1 s), a fade 10 dB further down to F(8) - 1, -3 dB on the drop frame F(8), 0 dB round(0.25 s) later;
+// B = F(8) - round(1.5 s), a fade 15 dB further down to F(8) - 1, -3 dB on the drop frame F(8), 0 dB round(0.25 s) later;
 // seconds are whole frames from the dry clip's start (0 here).
-const duckKeys = (db, f8, fps) => [[0, db], [f8 - Math.round(fps), db], [f8 - 1, db - 10], [f8, -3], [f8 + Math.round(0.25 * fps), 0]]
+const duckKeys = (db, f8, fps) => [[0, db], [f8 - Math.round(1.5 * fps), db], [f8 - 1, db - 15], [f8, -3], [f8 + Math.round(0.25 * fps), 0]]
   .map(([f, v]) => ({ atSeconds: f / fps, volumeDb: v }));
 // A project whose createDraft hands out mock Drafts; the scratch size-check Draft adopts the photo's size.
 const project = (make, scratchLog = []) => ({
@@ -229,7 +229,7 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
     const s0 = Math.round(4.847 * fps) / fps;
     assert.ok(near(m.log.find(x => x[0] === 'overlay' && x[1] === 'w9')[4], s0 + Fe / fps), 'wet phase' + tag);
     assert.ok(near(r.music.dry.sourceStart, s0)); assert.equal(r.music.dry.sourceStartFrom, 'snapped');
-    // Intro line: -7 dB under the title, a 1 s dip to -17 dB before the drop, -3 dB on the drop frame F(8), 0 dB a
+    // Intro line: -7 dB under the title, a 1.5 s dip to -22 dB before the drop, -3 dB on the drop frame F(8), 0 dB a
     // quarter second later; keys on whole frames, strictly increasing, all before the dry's end fade; the fade-out
     // under the wet is untouched and the wet has no level line.
     const keys = duckKeys(-7, F(8), fps);
@@ -239,7 +239,7 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
     kf.forEach((f, i) => assert.ok(i === 0 || f > kf[i - 1], 'keys strictly increasing' + tag));
     assert.ok(kf[kf.length - 1] < (Fe + X) - 1 - X, 'no key inside the end fade' + tag);
     assert.equal(kf[3], r.frames.gridStateFrames[0], 'drop key on the drop frame' + tag);
-    assert.deepEqual(kf.slice(1).map((f, i) => f - kf[i]).slice(1), [Math.round(fps) - 1, 1, Math.round(0.25 * fps)], 'breath and release lengths' + tag);
+    assert.deepEqual(kf.slice(1).map((f, i) => f - kf[i]).slice(1), [Math.round(1.5 * fps) - 1, 1, Math.round(0.25 * fps)], 'breath and release lengths' + tag);
     assert.deepEqual(r.music.introDuck, { db: -7, dropFrame: F(8), keys });
     assert.deepEqual(m.audio[wet.clipId], { fadeInSeconds: 0, fadeOutSeconds: (Fend - F(39.5)) / fps });
     assert.equal(r.music.crossfadeFrames, X); assert.equal(r.music.muffle, 'on');
@@ -323,14 +323,15 @@ const QUAD = { TL: [-44.444, 25], TR: [44.444, 25], BR: [44.444, -25], BL: [-44.
     assert.deepEqual(mz.audio[rz.music.dry.clipId], { fadeInSeconds: 0, fadeOutSeconds: Math.max(2, Math.round(0.06 * 30)) / 30 });
     assert.equal(mz.log.filter(x => x[0] === 'keys').length, 0); assert.equal(rz.music.introDuck, null);
   }
-  // A drop too early for the full 1 s breath (beat 8 snapped near the start, delta 0 at 30 fps): the breath shortens,
+  // A drop too early for the full 1.5 s breath (beat 8 snapped near the start, delta 0 at 30 fps): the breath shortens,
   // the hold key goes when it would not come before the dip, keys stay strictly increasing.
   for (const [f8, want] of [
     [1, [[0, -7], [1, -3], [9, 0]]],
-    [2, [[0, -7], [1, -17], [2, -3], [10, 0]]],
-    [3, [[0, -7], [1, -7], [2, -17], [3, -3], [11, 0]]],
-    [20, [[0, -7], [1, -7], [19, -17], [20, -3], [28, 0]]],
-    [31, [[0, -7], [1, -7], [30, -17], [31, -3], [39, 0]]],
+    [2, [[0, -7], [1, -22], [2, -3], [10, 0]]],
+    [3, [[0, -7], [1, -7], [2, -22], [3, -3], [11, 0]]],
+    [20, [[0, -7], [1, -7], [19, -22], [20, -3], [28, 0]]],
+    [31, [[0, -7], [1, -7], [30, -22], [31, -3], [39, 0]]],
+    [60, [[0, -7], [15, -7], [59, -22], [60, -3], [68, 0]]],
   ]) {
     const me = mockDraft(30, { photos: PHOTOS, audioRids: AUDIO });
     const re = await load('assemble.js', baseCfg({ music: { resourceId: 'm9', sectionStart: 5, wetResourceId: 'w9' }, beats: { bpm: 120, delta: 0, snaps: { 8: f8 / 30 } } }))(project(() => me));

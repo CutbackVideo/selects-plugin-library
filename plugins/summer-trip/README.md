@@ -101,8 +101,8 @@ Choose a **Track**:
   plays over the quiet intro and the grid starts on the drop (the slider
   shows "Drop"). Tracks without a drop use ordinary sections ("Section"):
   the title plays over the first two bars and the grid starts on bar 3.
-  In a drop section the music sits 7 dB lower under the title, dips
-  further over the last second before the drop, and comes back to full
+  In a drop section the music sits 7 dB lower under the title, fades
+  15 dB further down over the last 1.5 s before the drop, and comes back to full
   level just after the drop, so the drop lands as the payoff (a volume
   line on the music clip in the Draft, which you can edit). Ordinary
   sections, your own music without a drop, and approximate timing play at

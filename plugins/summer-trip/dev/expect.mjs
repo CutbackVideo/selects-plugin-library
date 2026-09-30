@@ -63,17 +63,17 @@ const is169 = size => !(size && size.width > 0 && size.height > 0) || Math.abs(s
 //   sfx: null | { shutterIds: [rid], shutterSeconds: [s], whooshId, whooshSeconds }
 // }
 // The dry's intro level line (copy of assemble.js duckKeys for a dry starting on frame 0; clip length `len` frames,
-// fade-out `fadeOut` s): duck from 0, held to F(8) - 1 s, a dip to duck - 10 dB on F(8) - 1, -3 dB on F(8), 0 dB
+// fade-out `fadeOut` s): duck from 0, held to F(8) - 1.5 s, a dip to duck - 15 dB on F(8) - 1, -3 dB on F(8), 0 dB
 // round(0.25 fps) frames later; no key inside the end-fade window. null when duck is 0 or nothing fits.
 export function stIntroKeys(duck, f8, fps, len, fadeOut) {
   const limit = len - 1 - Math.round((fadeOut || 0) * fps);
   if (!duck || !(f8 > 0) || !(f8 + 1 < limit)) return null;
   const release = Math.min(Math.max(1, Math.round(0.25 * fps)), limit - 1 - f8);
-  const hold = Math.max(1, f8 - Math.round(1.0 * fps));
+  const hold = Math.max(1, f8 - Math.round(1.5 * fps));
   const keys = [[0, duck]];
   if (f8 - 1 > 0) {
     if (hold < f8 - 1) keys.push([hold, duck]);
-    keys.push([f8 - 1, duck - 10]);
+    keys.push([f8 - 1, duck - 15]);
   }
   keys.push([f8, -3], [f8 + release, 0]);
   return keys.map(([f, db]) => ({ atSeconds: f / fps, volumeDb: db }));
