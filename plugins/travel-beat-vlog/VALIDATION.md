@@ -61,6 +61,10 @@ The test inputs cap the score: a segment cut from a 432x768 screen recording, up
 
 The panel also skips media it created itself (the cutout) when it picks the default hero photo.
 
+## Preview run (local develop build, 2026-10-01)
+
+On a new Project with the 26 generated preview clips and the generated hero photo, the panel saved on the first click (30 fps, 468 frames, default colour strength 0.7). Readback: 35 video clips in slot order v01-v26 at the planned frames, the hero at 55-102, the people cutout at 62-102 above the title graphic at 62-102, the ending graphic at 464-468 and the music at 0-468. In the export, the people stand in front of the title. `preview.mp4` and `poster.webp` are made from this export.
+
 ## Not yet verified
 
 - The in-app chat path.
