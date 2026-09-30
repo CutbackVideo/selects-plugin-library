@@ -607,6 +607,13 @@ async function depthCurrentKey(sid, excluded) {
 // Selects 2.0.508 lets procedural renders read plug-in mask files; older hosts
 // would silently drop every behind-speaker word.
 const DEPTH_MIN_HOST = "2.0.508";
+// Windows has no speaker detector this panel can run on the machine, so its masks
+// come from Selects generation (depthPrepareCloudMasks). Selects 2.0.512 sends the
+// render from, and saves the result into, this plug-in's data folder.
+const DEPTH_CLOUD_MASKS = /Windows/i.test(navigator.userAgent);
+const DEPTH_CLOUD_MIN_HOST = "2.0.512";
+// The cloud model finds people only; desks and props never hide text there.
+const depthSubject = (settings) => (DEPTH_CLOUD_MASKS || settings.subject === "person" ? "person" : "foreground");
 function depthHostVersion() {
   try {
     return String(window.parent.__DI__?.Runtime?.getHostingVersion?.() || "") || null;
@@ -621,9 +628,9 @@ function depthVersionBelow(version, minimum) {
   return false;
 }
 function depthHostProblem() {
-  const version = depthHostVersion();
-  return !version || depthVersionBelow(version, DEPTH_MIN_HOST)
-    ? "Behind speaker needs Selects " + DEPTH_MIN_HOST + " or later (this app is " + (version || "unknown") + "). Update Selects, or turn off Behind speaker under Fine-tune."
+  const version = depthHostVersion(), minimum = DEPTH_CLOUD_MASKS ? DEPTH_CLOUD_MIN_HOST : DEPTH_MIN_HOST;
+  return !version || depthVersionBelow(version, minimum)
+    ? "Behind speaker needs Selects " + minimum + " or later (this app is " + (version || "unknown") + "). Update Selects, or turn off Behind speaker under Fine-tune."
     : "";
 }
 function depthRequireHost() {
@@ -784,7 +791,7 @@ async function depthPrepareMasks(sdk, preview, settings, job, progress, control)
     tool = fs.join(binDir, "depth-type-mattes-v4"),
     at = (name) => fs.join(job.dir, name);
   const grow = DEPTH_MATTE_GROW;
-  const subject = settings.subject === "person" ? "person" : "foreground";
+  const subject = depthSubject(settings);
   if ((await depthReadText(fs, source)) !== DEPTH_MASK_SOURCE) await fs.writeFile(source, DEPTH_MASK_SOURCE);
   await fs.writeFile(
     at("run.sh"),
@@ -840,7 +847,12 @@ async function depthPrepareMasks(sdk, preview, settings, job, progress, control)
   } finally {
     control.stop = null;
   }
-  const layout = JSON.parse(await depthReadText(fs, at("layout.json")));
+  return depthMaskResult(fs, preview, job);
+}
+// What either mask maker leaves in the job folder: one matte per frame beside
+// layout.json, which carries the small frames the layout reads.
+async function depthMaskResult(fs, preview, job) {
+  const layout = JSON.parse(await depthReadText(fs, fs.join(job.dir, "layout.json")));
   const frames = Math.round(preview.duration * preview.fps);
   if (!layout.frames?.length || !layout.count) throw new Error("No speaker masks were produced.");
   if (Math.abs(layout.count - frames) > 1)
@@ -866,6 +878,136 @@ async function depthPrepareMasks(sdk, preview, settings, job, progress, control)
   };
   return { mask, files };
 }
+// veed/video-background-removal/fast through Selects generation: people only, edge
+// refinement off (it recolours the subject, which a mask never uses), and H.264,
+// which returns the alpha alone. It takes the whole draft in one request.
+const DEPTH_CLOUD_MODEL = "model_v1_dmVlZC92aWRlby1iYWNrZ3JvdW5kLXJlbW92YWwvZmFzdA";
+const DEPTH_CLOUD_FAILED = new Set(["failed", "cancelled", "input_failed", "submission_rejected", "upload_failed", "handoff_failed"]);
+function depthCloudMessage(code) {
+  if (code === "insufficient_credits") return "Not enough Selects credits to make speaker masks.";
+  if (code === "generation_disabled") return "Speaker masks on Windows use Selects generation, which this account cannot use yet. Turn off Behind speaker for plain captions.";
+  if (code === "generation_update_required") return "Behind speaker needs Selects " + DEPTH_CLOUD_MIN_HOST + " or later. Update Selects, or turn off Behind speaker under Fine-tune.";
+  return "Speaker masks failed" + (code ? " (" + code + ")" : "") + ". Try again.";
+}
+// A frame whose speaker covers under about 0.2% of the picture has none, as the
+// Mac tool decides: its matte is black, so no word meant to sit behind a person
+// covers one it missed.
+async function depthLayoutHasSpeaker(bytes, width, height) {
+  const bitmap = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: "image/png" }));
+  const canvas = new OffscreenCanvas(width, height), ctx = canvas.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close?.();
+  const data = ctx.getImageData(0, 0, width, height).data;
+  let cover = 0;
+  for (let i = 0; i < data.length; i += 4) cover += 255 - data[i];
+  return cover * 2 >= width * height;
+}
+// The panel frame has no Buffer; bytes may come from the host's file reads.
+function depthBase64(bytes) {
+  const view = new Uint8Array(bytes);
+  let text = "";
+  for (let i = 0; i < view.length; i += 0x8000) text += String.fromCharCode.apply(null, view.subarray(i, i + 0x8000));
+  return btoa(text);
+}
+async function depthBlackPng(width, height) {
+  const canvas = new OffscreenCanvas(width, height), ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, width, height);
+  return new Uint8Array(await (await canvas.convertToBlob({ type: "image/png" })).arrayBuffer());
+}
+async function depthPrepareCloudMasks(sdk, preview, pid, job, progress, control) {
+  const { di, libraryId } = depthDI(), fs = di.FileSystem, mg = di.MediaGeneration;
+  if (!mg?.supportsPluginFiles?.()) throw new Error(depthCloudMessage("generation_update_required"));
+  const scope = { libraryId, projectId: pid };
+  progress("Sending the draft for speaker masks…");
+  let jobId;
+  try {
+    jobId = (
+      await mg.submit({
+        scope,
+        // One request per mask folder: resending after a reload admits nothing new.
+        key: "dtc-" + fs.basename(job.dir),
+        modelId: DEPTH_CLOUD_MODEL,
+        input: { video_url: "selects-input:source", output_codec: "h264", refine_foreground_edges: false, subject_is_person: true },
+        inputMediaSeconds: { video: preview.duration },
+        uploads: { source: { pluginFile: preview.path } },
+        delivery: { pluginFolder: fs.join(job.dir, "cloud") },
+        outputName: "speaker-masks",
+        batch: 1,
+        origin: { tool: "video", tab: "depth-type-captions", recipeId: "speaker-masks" },
+      })
+    ).jobIds[0];
+  } catch (e) {
+    throw new Error(depthCloudMessage(e?.code || e?.message));
+  }
+  control.stop = () => mg.cancel(scope, jobId).catch(() => {});
+  const started = Date.now();
+  let alpha = null;
+  try {
+    for (;;) {
+      if (control.canceled) {
+        await control.stop();
+        throw new Error("Canceled.");
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+      const j = (await mg.list(scope)).find((x) => x.jobId === jobId);
+      if (!j) continue;
+      if (j.deliveryStatus === "delivered") {
+        alpha = j.outputs.find((o) => o.path)?.path;
+        break;
+      }
+      if (DEPTH_CLOUD_FAILED.has(j.status) || ["download_failed", "result_collection_failed"].includes(j.deliveryStatus)) throw new Error(depthCloudMessage(j.errorCode));
+      const seconds = Math.round((Date.now() - started) / 1000);
+      progress((["preparing", "uploading", "submitting"].includes(j.status) ? "Uploading the draft for speaker masks" : "Making speaker masks with Selects generation") + " · " + seconds + " s");
+      if (Date.now() - started > 20 * 60000) {
+        await control.stop();
+        throw new Error("Speaker masks took too long. Try again.");
+      }
+    }
+  } finally {
+    control.stop = null;
+  }
+  if (!alpha) throw new Error("No speaker masks came back. Try again.");
+  // Full-size mattes, white where words show, and the 384-wide frames the layout
+  // reads, in one pass. Double quotes read the same in cmd.exe and zsh.
+  progress("Writing speaker mask files…");
+  const lw = 384, lh = Math.max(1, Math.round((lw * preview.height) / preview.width)), small = fs.join(job.dir, "layout");
+  fs.mkdirSync(small, { recursive: true });
+  const q = (p) => '"' + p + '"';
+  const made = await sdk.runShell({
+    summary: "Make speaker mask files",
+    cwd: job.dir,
+    timeoutMs: 600000,
+    maxOutputBytes: 4000,
+    command:
+      "ffmpeg -v error -y -i " + q(alpha) + ' -filter_complex "[0:v]format=gray,negate,split=2[a][b];[b]scale=' + lw + ":" + lh + ':flags=area[c]" -map "[a]" ' +
+      q(fs.join(job.dir, "matte_%06d.png")) + ' -map "[c]" ' + q(fs.join(small, "l_%06d.png")),
+  });
+  if (made.isError || made.exitCode !== 0) throw new Error((made.stderr || made.output || "").trim() || "The speaker mask files could not be written.");
+  const names = fs.readdirSync(small).map(String).filter((n) => /^l_\d{6}\.png$/.test(n)).sort();
+  if (!names.length) throw new Error("No speaker masks came back. Try again.");
+  const black = depthBase64(await depthBlackPng(lw, lh));
+  let blackMatte = null, misses = 0;
+  const frames = new Array(names.length);
+  for (let i = 0; i < names.length; i += 16)
+    await Promise.all(
+      names.slice(i, i + 16).map(async (name, k) => {
+        const index = i + k, bytes = await fs.readFile(fs.join(small, name));
+        if (await depthLayoutHasSpeaker(bytes, lw, lh)) {
+          frames[index] = { t: index / preview.fps, png: depthBase64(bytes) };
+          return;
+        }
+        misses++;
+        blackMatte ??= await depthBlackPng(preview.width, preview.height);
+        await fs.writeFile(fs.join(job.dir, "matte_" + String(index + 1).padStart(6, "0") + ".png"), blackMatte);
+        frames[index] = { t: index / preview.fps, png: black };
+      }),
+    );
+  fs.rmSync(small, { recursive: true, force: true });
+  const layout = { version: DEPTH_MATTE_VERSION, width: lw, height: lh, fps: preview.fps, frames, misses, filled: 0, matteWidth: preview.width, matteHeight: preview.height, count: frames.length, mode: "person", grow: 0, source: "cloud" };
+  await fs.writeFile(fs.join(job.dir, "layout.json"), JSON.stringify(layout));
+  return depthMaskResult(fs, preview, job);
+}
 async function depthLoadLayoutMask(files) {
   const fs = depthDI().di.FileSystem;
   const layout = JSON.parse(await depthReadText(fs, fs.join(files.dir, "layout.json")));
@@ -883,8 +1025,7 @@ async function depthPruneMasks(sdk, pid, sid, keep) {
     return;
   }
   const kept = new Set(keep.filter(Boolean).map((d) => fs.basename(d)));
-  const doomed = names.filter((n) => !kept.has(n)).map((n) => fs.join(dir, n));
-  if (doomed.length) await sdk.runShell({ summary: "Remove old speaker masks", timeoutMs: 60000, command: "rm -rf " + doomed.map(depthQuote).join(" ") });
+  for (const n of names.filter((n) => !kept.has(n))) fs.rmSync(fs.join(dir, n), { recursive: true, force: true });
 }
 // Clip refs of b-roll and cards placed by earlier versions of this panel; captions
 // keep stepping aside for them.
@@ -1493,8 +1634,12 @@ function DepthEditor({ sdk, context }) {
     const fs = depthDI().di.FileSystem,
       root = depthPluginRoot(),
       dir = fs.join(depthMaskDraftDir(pid, sid), Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
-    const made = await sdk.runShell({ summary: "Create speaker mask folder", timeoutMs: 10000, command: "mkdir -p " + depthQuote(dir) + " " + depthQuote(fs.join(root, "bin")) });
-    if (made.isError || made.exitCode !== 0) throw new Error(made.stderr || made.output || "Could not create the mask folder.");
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.mkdirSync(fs.join(root, "bin"), { recursive: true });
+    } catch (e) {
+      throw new Error("Could not create the mask folder: " + (e?.message || e));
+    }
     return { root, dir };
   };
   // Full-size render of the draft, then speaker masks from it.
@@ -1507,7 +1652,9 @@ function DepthEditor({ sdk, context }) {
       setPreview(p);
       setMask(null);
     }
-    const made = await depthPrepareMasks(sdk, p, settings, maskJob, progress, control);
+    const made = DEPTH_CLOUD_MASKS
+      ? await depthPrepareCloudMasks(sdk, p, pid, maskJob, progress, control)
+      : await depthPrepareMasks(sdk, p, settings, maskJob, progress, control);
     if (alive.current && !control.canceled) {
       setMask(made.mask);
       setMaskFiles(made.files);
@@ -1517,7 +1664,7 @@ function DepthEditor({ sdk, context }) {
   // Masks are reused while the footage, canvas and speaker setting are what they were made from.
   const maskIsCurrent = async (meta) => {
     if (!maskFiles || maskFiles.canvasWidth !== meta.width || maskFiles.canvasHeight !== meta.height) return false;
-    if ((maskFiles.subject || "foreground") !== (settings.subject || "foreground") || (maskFiles.grow || 0) !== DEPTH_MATTE_GROW || (maskFiles.version || 0) !== DEPTH_MATTE_VERSION) return false;
+    if ((maskFiles.subject || "foreground") !== depthSubject(settings) || (maskFiles.grow || 0) !== DEPTH_MATTE_GROW || (maskFiles.version || 0) !== DEPTH_MATTE_VERSION) return false;
     try {
       const fs = depthDI().di.FileSystem;
       if (!fs.existsSync(fs.join(maskFiles.dir, "matte_" + String(maskFiles.count).padStart(6, "0") + ".png"))) return false;
@@ -1911,11 +2058,13 @@ function DepthEditor({ sdk, context }) {
     "section",
     { style: { display: "grid", gap: 8 } },
     toggle("Behind speaker", settings.depth, (v) => updateSettings({ depth: v })),
-    select("In front of the text", settings.subject || "foreground", (v) => updateSettings({ subject: v }), [
-      ["foreground", "Everything in front (people, hands, mics, desks)"],
-      ["person", "People only (desks and props never hide text)"],
-    ]),
-    h("small", null, "A new speaker setting takes effect on Redo."),
+    DEPTH_CLOUD_MASKS
+      ? h("small", null, "On Windows, speaker masks come from Selects generation and use credits. They find people only: desks and props never hide text.")
+      : select("In front of the text", settings.subject || "foreground", (v) => updateSettings({ subject: v }), [
+          ["foreground", "Everything in front (people, hands, mics, desks)"],
+          ["person", "People only (desks and props never hide text)"],
+        ]),
+    DEPTH_CLOUD_MASKS ? null : h("small", null, "A new speaker setting takes effect on Redo."),
   );
   const styleSection = h(
     "details",
