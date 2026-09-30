@@ -41,9 +41,13 @@ HD export (720x1280, 23.976 fps, 9.30 s) compared with the reference:
 
 Twelve new photos generated to the reference's mood (35 mm film street snapshots in warm afternoon light; 10 portrait 3:4 and 2 landscape 4:3; not copies of the reference photos) in a new Project. The panel saved on the first click. Readback matched run 6 (Image resources r0-r11 in slot order). HD export: 12 cuts within ±17 ms, all 12 tile edges within 1 px of the plan, first-beep onsets within 36 ms. The export's small periodic frame differences fall exactly on its H.264 keyframes (every 12 frames), so they are compression changes, not motion.
 
+## Selects Staging
+
+Installed panel run from the Apps tab in Selects Staging (2026-09-30) on a new Project with the generated photo set. Saved on the first click; new Drafts there also default to 23.976 fps. Readback: 12 Image clips on 12 separate tracks at the planned frames and 12 shutter sound clips. HD export measured the same as the local run: cuts within ±17 ms, tile edges within 1 px, first-beep onsets within 36 ms.
+
 ## Not yet verified
 
-- Selects Staging and 30 fps Drafts (unit-tested only).
+- 30 and 60 fps Drafts (unit-tested only; both apps create 23.976 fps Drafts).
 - The panel's "continue partial Draft" path after a failure.
 - Replacing one photo inside a saved clip is not supported (scale and crop are sized for the original photo); SKILL.md says to create a revised Draft.
 - Driving the panel from the Selects in-app chat as SKILL.md describes.

@@ -27,7 +27,7 @@
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal), public clip effects and Audio overlays, and Node.js in the panel shell. Verified on a local Selects dev build of develop 89996b58e (2026-09-30); not yet re-run on Selects Staging."
+    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal), public clip effects and Audio overlays, and Node.js in the panel shell. Verified in Selects Staging and a local develop build on 2026-09-30: saved Draft readback and HD export."
   },
   "preview": {
     "video": "preview.mp4",
