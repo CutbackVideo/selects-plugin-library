@@ -1,9 +1,11 @@
 #!/usr/bin/env node
-// Per-kind checks over the build-driver records (rec-*.json) that readback expectations cannot express (their
-// `effects` and `clipSound` require the same value on every Main clip, but photos differ from video clips):
+// Per-kind and per-position checks over the build-driver records (rec-*.json) that readback expectations cannot
+// express (their `effects` require the same count on every Main clip):
+// - Letterbox reveal: exactly one on the opening (slot 0), none elsewhere.
+// - Fade out: exactly one on the last slot, none elsewhere.
 // - Photo motion: exactly one on every photo clip, none on video clips.
-// - Beat punch (records with perKind.punchName): with Beat punch on, exactly one on every video clip and none on photo
-//   clips; off, none anywhere; and decorate.js reported no clip as skipped (rec.decorate.punch.skipped).
+// - Shot motion: exactly one on every video clip but the opening, none on the opening or on photos.
+// - Cinematic look: one on every clip with Look on, none with it off.
 // - Clip sound Ambient / Full: every video clip at -18 / 0 dB (assemble.js leaves photos alone) and not unrouted.
 // - Clip sound Off: every video clip whose source has an audio stream routes no sources ([]).
 // Usage: node plugins/archive-vlog/dev/check-per-kind.mjs <driver --out folder> [rec-<key>-s<seed>.json ...]
@@ -17,23 +19,30 @@ const files = only.length ? only : fs.readdirSync(dir).filter(f => /^rec-.*\.jso
 let failed = 0, checked = 0;
 for (const f of files) {
   const rec = JSON.parse(fs.readFileSync(path.join(dir, path.basename(f)), 'utf8'));
-  if (!rec.readback || !rec.perKind) { console.log(JSON.stringify({ file: f, skipped: 'no readback or perKind' })); continue; }
+  if (!rec.readback || !rec.perKind || !rec.perKind.names) { console.log(JSON.stringify({ file: f, skipped: 'no readback or perKind' })); continue; }
   checked++;
-  const { photoRids, motionName, clipSound, videoDb, punchName, punch } = rec.perKind;
+  const { photoRids, names, look, clipSound, videoDb } = rec.perKind;
   const rb = rec.readback, photos = new Set(photoRids), has = rb.hasAudio || {};
   const rows = [...rb.rows].sort((a, b) => a.s - b.s);
+  const last = rows.length - 1;
   const videos = rows.filter(r => !photos.has(r.rid));
   const checks = {}, notes = [];
-  const motionBad = rows.map((r, i) => ({ slot: i, rid: r.rid, found: r.fx.filter(x => x === motionName).length, expected: photos.has(r.rid) ? 1 : 0 })).filter(x => x.found !== x.expected);
-  checks.photoMotion = motionBad.length === 0;
-  if (motionBad.length) notes.push('photo motion mismatches ' + JSON.stringify(motionBad));
-  if (punchName) {
-    const punchBad = rows.map((r, i) => ({ slot: i, rid: r.rid, found: r.fx.filter(x => x === punchName).length, expected: punch && !photos.has(r.rid) ? 1 : 0 })).filter(x => x.found !== x.expected);
-    // decorate.js reports clips it could not match to their pick (rid mismatch) as skipped; they get no punch.
-    const decPunch = rec.decorate && rec.decorate.punch;
-    checks.beatPunch = punchBad.length === 0 && !(decPunch && decPunch.skipped > 0);
-    if (punchBad.length) notes.push('beat punch mismatches ' + JSON.stringify(punchBad));
-    if (decPunch && decPunch.skipped > 0) notes.push('decorate skipped Beat punch on ' + decPunch.skipped + ' clip(s) (added ' + decPunch.added + ', kept ' + decPunch.kept + ')');
+  // Each rule: the expected count of an effect name on slot i.
+  const rule = (key, name, want) => {
+    const bad = rows.map((r, i) => ({ slot: i, rid: r.rid, found: r.fx.filter(x => x === name).length, expected: want(r, i) })).filter(x => x.found !== x.expected);
+    checks[key] = bad.length === 0;
+    if (bad.length) notes.push(name + ' mismatches ' + JSON.stringify(bad));
+  };
+  rule('letterbox', names.letterbox, (r, i) => (i === 0 ? 1 : 0));
+  rule('fadeOut', names.fade, (r, i) => (i === last ? 1 : 0));
+  rule('photoMotion', names.motion, r => (photos.has(r.rid) ? 1 : 0));
+  rule('shotMotion', names.shot, (r, i) => (i > 0 && !photos.has(r.rid) ? 1 : 0));
+  rule('look', names.look, () => (look ? 1 : 0));
+  // Stacking order on the final shot: its motion first, the fade before the look.
+  const fin = rows[last] ? rows[last].fx : [];
+  if (look && fin.includes(names.fade)) {
+    checks.fadeOrder = fin.indexOf(names.fade) < fin.indexOf(names.look);
+    if (!checks.fadeOrder) notes.push('final shot effects in order ' + JSON.stringify(fin));
   }
   if (clipSound === 'off') {
     const bad = videos.filter(r => has[r.rid] && !(Array.isArray(r.asi) && r.asi.length === 0)).map(r => [r.rid, r.s, r.asi]);
