@@ -104,16 +104,25 @@ async function saeProbeDuration(file, opts) {
 
 // Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (Buffer from another realm, Uint8Array,
 // ArrayBuffer, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array).
+// FileSystem results come from window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them,
+// so only realm-free checks are used here (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray
+// works across realms), with an array-like fallback for objects a bridge serialised by index.
 function saeBytes(raw) {
   if (raw == null) return new Uint8Array(0);
+  const tag = Object.prototype.toString.call(raw);
   if (ArrayBuffer.isView(raw)) {
     const out = new Uint8Array(raw.byteLength);
     out.set(new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength));
     return out;
   }
-  if (Object.prototype.toString.call(raw) === '[object ArrayBuffer]') return new Uint8Array(raw.slice(0));
-  if (raw && Array.isArray(raw.data)) return Uint8Array.from(raw.data);
+  if (tag === '[object ArrayBuffer]' || tag === '[object SharedArrayBuffer]') {
+    const out = new Uint8Array(raw.byteLength);
+    out.set(new Uint8Array(raw));
+    return out;
+  }
+  if (Array.isArray(raw.data)) return Uint8Array.from(raw.data);
   if (Array.isArray(raw)) return Uint8Array.from(raw);
+  if (typeof raw === 'object' && typeof raw.length === 'number' && raw.length >= 0) return Uint8Array.from({ length: raw.length }, (_, i) => Number(raw[i]) & 255);
   return new Uint8Array(0);
 }
 

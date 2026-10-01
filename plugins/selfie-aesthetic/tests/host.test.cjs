@@ -127,6 +127,42 @@ test('block is plain JS with no host shell and no hand-built paths', () => {
 });
 
 // ---- missing host ----
+test('bytes from another realm (window.parent FileSystem results) decode', () => {
+  // The panel runs in an iframe; FileSystem.readFile results are created in window.parent's realm, so
+  // `instanceof Uint8Array/ArrayBuffer` is false for them (this broke Archive Vlog's asset reads). Build the inputs in
+  // a separate vm realm and decode them with the block loaded in yet another realm.
+  const host = {};
+  vm.createContext(host);
+  vm.runInContext(block + ';globalThis.B=saeBytes;', host);
+  const other = {};
+  vm.createContext(other);
+  const make = (expr) => vm.runInContext(expr, other);
+  const want = [104, 105, 0, 255];
+  const cases = {
+    'Uint8Array': make('new Uint8Array([104, 105, 0, 255])'),
+    'offset Uint8Array view': make('new Uint8Array(new Uint8Array([9, 104, 105, 0, 255, 9]).buffer, 1, 4)'),
+    'ArrayBuffer': make('new Uint8Array([104, 105, 0, 255]).buffer'),
+    'DataView': make('new DataView(new Uint8Array([104, 105, 0, 255]).buffer)'),
+    'Node Buffer (main realm)': Buffer.from(want),
+    'IPC Buffer shape': make('({ type: "Buffer", data: [104, 105, 0, 255] })'),
+    'plain array': make('[104, 105, 0, 255]'),
+    'index-keyed array-like': make('({ length: 4, 0: 104, 1: 105, 2: 0, 3: 255 })'),
+  };
+  for (const [name, raw] of Object.entries(cases)) {
+    assert.ok(!(raw instanceof Uint8Array) || name.startsWith('Node'), name + ' is foreign to this realm');
+    assert.deepEqual(Array.from(host.B(raw)), want, name + ' decodes to the same bytes');
+  }
+  // The result is the block realm's own fresh, 0-offset copy (safe for a Float32Array view and a transfer).
+  const out = host.B(cases['offset Uint8Array view']);
+  assert.equal(out.byteOffset, 0);
+  assert.equal(out.buffer.byteLength, 4);
+  assert.equal(Object.prototype.toString.call(out), '[object Uint8Array]');
+  // Text assets: UTF-8 decoding of foreign bytes works end to end (the panel's decodeText path).
+  const text = new TextDecoder().decode(host.B(make('new Uint8Array([123, 34, 97, 34, 58, 49, 125])')));
+  assert.equal(JSON.parse(text).a, 1);
+  assert.equal(host.B(null).byteLength, 0);
+});
+
 test('missing __DI__ or members -> host_tools', async () => {
   const { H } = sandbox(undefined);
   assert.deepEqual(JSON.parse(JSON.stringify(H.saeDI())), { fs: null, rt: null });
