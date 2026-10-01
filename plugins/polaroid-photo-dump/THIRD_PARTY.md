@@ -11,7 +11,7 @@ https://opengameart.org/content/lofi-again - time-stretched x1.179 (pitch kept) 
 
 ## Tools
 
-- Node.js runs `build-script.mjs` from the Selects panel shell. No binary is included.
+- The panel decodes the bundled files with the system `base64` and `shasum`. No binary is included.
 
 ## Gallery preview
 

@@ -10,7 +10,7 @@ A trending "camera shutter dump" short-form template (30 fps, 279 frames, 718x12
 
 ## Automated checks
 
-`node --test tests/camera_shutter_dump.test.mjs` (9 tests): the plan's frames equal the reference table above (typed independently, not read from the plan); 24 and 60 fps convert to the same times; slot shapes; sound unpack with hash check and reuse; request validation (exactly 12 photos, all sounds, reference placements, independent clips); the builder modes the panel calls; the finish script against a mock Draft (12 transforms, 12 crop effects, 12 sound overlays at the beep frames, one save); refusal without saving when clips moved; and the panel's Image placement bridge on a fake timeline (holds longer and shorter than the 120-frame still source; reverting the `sourceDuration` fix makes it fail).
+`node --test tests/camera_shutter_dump.test.mjs` (9 tests): the plan's frames equal the reference table above (typed independently, not read from the plan); 24 and 60 fps convert to the same times; slot shapes; sound unpack in `/bin/sh` and zsh with only system tools on PATH (no Node.js), with hash check, reuse and repair; request validation (exactly 12 photos, all sounds, reference placements, independent clips); the panel builds the finishing step itself and contains no Node.js call; the finish script against a mock Draft (12 transforms, 12 crop effects, 12 sound overlays at the beep frames, one save); refusal without saving when clips moved; and the panel's Image placement bridge on a fake timeline (holds longer and shorter than the 120-frame still source; reverting the `sourceDuration` fix makes it fail).
 
 ## Live run (local Selects dev build, develop 89996b58e, 2026-09-30)
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "travel-beat-vlog",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "name": "Travel Beat Vlog",
   "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music.",
   "status": "experimental",

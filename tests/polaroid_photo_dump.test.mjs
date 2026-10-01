@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import {spawnSync} from 'node:child_process';
-import {scenePlan,unpackAssets,normalizeFinish,buildFinishScript,authorFinish,ZOOM} from '../plugins/polaroid-photo-dump/operation.mjs';
+import {loadPanelOperation,runPanelShell} from './panel_operation.mjs';
+
+const {scenePlan,unpackCommand,normalizeFinish,buildFinishScript,authorFinish,ZOOM}=loadPanelOperation('polaroid-photo-dump');
 
 const dir=path.resolve(import.meta.dirname,'../plugins/polaroid-photo-dump');
 // Independent reference measurements (ffmpeg on the 60 fps source).
@@ -40,15 +41,19 @@ test('zoom rate reproduces the reference frame growth',()=>{
  assert.ok(Math.abs(ZOOM.center.x-540)<10&&Math.abs(ZOOM.center.y-960)<15,'zoom centre near canvas centre');
 });
 
-test('bundled frame and music unpack with matching hashes',()=>{
- const store=fs.mkdtempSync(path.join(os.tmpdir(),'pol-'));
- const files=unpackAssets(dir,store);
+test('bundled frame and music unpack without Node.js, with matching hashes',()=>{
+ const manifest=JSON.parse(fs.readFileSync(path.join(dir,'assets','manifest.json'),'utf8'));
+ const home=fs.mkdtempSync(path.join(os.tmpdir(),'pol-'));
+ const unpack=()=>{const r=runPanelShell(unpackCommand(manifest,{id:'polaroid-photo-dump',folder:'assets',store:'polaroid-photo-dump',label:'Bundled asset'}),{home});assert.equal(r.status,0,r.stderr);return r.stdout;};
+ const store=unpack();
+ assert.equal(store,path.join(home,'.selects','plugin-data','polaroid-photo-dump'));
+ const files=Object.fromEntries(Object.entries(manifest).map(([k,v])=>[k,{path:path.join(store,v.file)}]));
  const png=fs.readFileSync(files.frame.path);
  assert.equal(png.toString('latin1',1,4),'PNG');
  assert.equal(png.readUInt32BE(16),1080);assert.equal(png.readUInt32BE(20),1920);
  assert.equal(png[25],6,'RGBA PNG (transparent window)');
  assert.equal(fs.readFileSync(files.music.path).toString('latin1',4,8),'ftyp');
- const first=fs.statSync(files.music.path).mtimeMs;unpackAssets(dir,store);assert.equal(fs.statSync(files.music.path).mtimeMs,first);
+ const first=fs.statSync(files.music.path).mtimeMs;unpack();assert.equal(fs.statSync(files.music.path).mtimeMs,first);
 });
 
 const plan=scenePlan(60);
@@ -67,11 +72,11 @@ test('finish input is validated',()=>{
  assert.throws(()=>normalizeFinish({...request(),assets:{}}),/Music/);
 });
 
-test('build-script modes run as the panel calls them',()=>{
- const run=value=>spawnSync(process.execPath,[path.join(dir,'build-script.mjs'),Buffer.from(JSON.stringify(value)).toString('base64url')],{encoding:'utf8'});
- assert.deepEqual(JSON.parse(run({mode:'plan',fps:60}).stdout),plan);
- const finish=run(request());assert.equal(finish.status,0,finish.stderr);assert.match(finish.stdout,/Finish Polaroid Photo Dump Draft/);
- assert.notEqual(run({mode:'other'}).status,0);
+test('the Panel builds the plan and finishing step itself, with no Node.js',()=>{
+ const panel=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
+ assert.doesNotMatch(panel,/\bnode ["$]|build-script/);
+ assert.match(buildFinishScript(request()),/Finish Polaroid Photo Dump Draft/);
+ assert.throws(()=>buildFinishScript({...request(),mode:'other'}),/Unsupported/);
 });
 
 function fakeSelects(){

@@ -388,6 +388,21 @@ const allVideosScript = (projectId) => core({projectId}) +
 
 const TEMPLATE_FAILED = "2026 Recap couldn't make the timeline. Try again.";
 
+// The app hands a template its own Resource ids, but every run_script read
+// (resources(), clips()) speaks the short ids the script SDK gives out (r0, r1…).
+// The app's list (sdk.call) and the script's list are the Project's Resources in
+// the same order, so they pair up row by row; names and types are compared so a
+// list that changed in between is refused rather than mismatched.
+async function scriptResourceIds(sdk, projectId) {
+  const [app, run] = await Promise.all([
+    sdk.call("listProjectResources", projectId),
+    sdk.runScript({ summary: "Match picked clips", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
+  ]);
+  const rows = run?.result;
+  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked clips to this project.");
+  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+}
+
 // A Clip highlights run (`context.template`): the intro and clips picked in
 // the app, cut in full to the soundtrack, built out of sight, reported once.
 function TemplateRun({ sdk, context }) {
@@ -408,11 +423,13 @@ function TemplateRun({ sdk, context }) {
       const introPick = (template.inputs?.intro || []).find((x) => x?.resourceId);
       const clipPicks = (template.inputs?.clips || []).filter((x) => x?.resourceId);
       if (!introPick || !clipPicks.length) throw new Error("Pick an intro and at least one clip, then try again.");
+      const ids = await scriptResourceIds(sdk, projectId);
+      const own = (id) => ids.get(id) ?? id;
       const found = scriptResult(await sdk.runScript({ script: allVideosScript(projectId), summary: "Read footage" }));
       const byId = Object.fromEntries(found.map((v) => [v.resourceId, v]));
-      const introVideo = byId[introPick.resourceId];
+      const introVideo = byId[own(introPick.resourceId)];
       if (!introVideo || !(introVideo.durationSeconds >= 5)) throw new Error("Pick an intro clip at least 5 seconds long.");
-      const videos = clipPicks.map((x) => byId[x.resourceId]);
+      const videos = clipPicks.map((x) => byId[own(x.resourceId)]);
       const short = clipPicks.find((x, i) => !(videos[i]?.durationSeconds >= 1.7));
       if (short) throw new Error((short.name || "A picked clip") + " is shorter than 1.7 seconds. Pick longer clips.");
       const intro = { resourceId: introVideo.resourceId, startSeconds: 0 };

@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import {spawnSync} from 'node:child_process';
-import {scenePlan,unpackSounds,normalizeFinish,buildFinishScript,authorFinish} from '../plugins/camera-shutter-dump/operation.mjs';
+import {loadPanelOperation,runPanelShell} from './panel_operation.mjs';
+
+const {scenePlan,unpackCommand,normalizeFinish,buildFinishScript,authorFinish}=loadPanelOperation('camera-shutter-dump');
 
 const dir=path.resolve(import.meta.dirname,'../plugins/camera-shutter-dump');
 // Independent reference measurements (ffmpeg on the 30 fps source): photo cut frames
@@ -45,20 +46,27 @@ test('slot shapes: ten portrait 3:4 tiles, two landscape 4:3 tiles, all overlapp
  }
 });
 
-test('bundled sounds unpack with matching hashes and are reused',()=>{
- const store=fs.mkdtempSync(path.join(os.tmpdir(),'csd-'));
- const files=unpackSounds(dir,store);
- assert.deepEqual(Object.keys(files).sort(),[1,2,3,4,5,6].map(i=>'shutter.'+i));
- const first=files['shutter.1'].path,mtime=fs.statSync(first).mtimeMs;
- const wav=fs.readFileSync(first);
- assert.equal(wav.toString('ascii',0,4),'RIFF');
- assert.equal(wav.readUInt32LE(24),44100);
- // Padded past the longest Draft range (14/30 s) so an overlay always fits inside the file.
- assert.ok(files['shutter.1'].duration>14/30+0.02);
- unpackSounds(dir,store);
- assert.equal(fs.statSync(first).mtimeMs,mtime);
- fs.writeFileSync(first,'corrupt');unpackSounds(dir,store);
- assert.equal(fs.readFileSync(first).toString('ascii',0,4),'RIFF');
+test('bundled sounds unpack without Node.js, with matching hashes, and are reused',()=>{
+ const manifest=JSON.parse(fs.readFileSync(path.join(dir,'sfx','manifest.json'),'utf8'));
+ const command=unpackCommand(manifest,{id:'camera-shutter-dump',folder:'sfx',store:'camera-shutter-dump/sfx',label:'Bundled sound'});
+ for(const shell of ['/bin/sh','/bin/zsh']){
+  const home=fs.mkdtempSync(path.join(os.tmpdir(),'csd-'));
+  const run=()=>{const r=runPanelShell(command,{home,shell});assert.equal(r.status,0,r.stderr);return r.stdout;};
+  const store=run();
+  assert.equal(store,path.join(home,'.selects','plugin-data','camera-shutter-dump','sfx'));
+  assert.deepEqual(Object.keys(manifest).sort(),[1,2,3,4,5,6].map(i=>'shutter.'+i));
+  const first=path.join(store,manifest['shutter.1'].file),mtime=fs.statSync(first).mtimeMs;
+  const wav=fs.readFileSync(first);
+  assert.equal(wav.toString('ascii',0,4),'RIFF');
+  assert.equal(wav.readUInt32LE(24),44100);
+  // Padded past the longest Draft range (14/30 s) so an overlay always fits inside the file.
+  assert.ok(manifest['shutter.1'].duration>14/30+0.02);
+  run();
+  assert.equal(fs.statSync(first).mtimeMs,mtime);
+  fs.writeFileSync(first,'corrupt');run();
+  assert.equal(fs.readFileSync(first).toString('ascii',0,4),'RIFF');
+ }
+ assert.throws(()=>unpackCommand({x:{file:'../x',sha256:'0'.repeat(64)}},{id:'camera-shutter-dump',folder:'sfx',store:'s',label:'L'}),/manifest/);
 });
 
 const plan=scenePlan();
@@ -77,11 +85,11 @@ test('finish input requires exactly twelve photos and all sounds',()=>{
  assert.throws(()=>normalizeFinish({...request(),extra:1}),/Unsupported/);
 });
 
-test('build-script modes run as the installed panel calls them',()=>{
- const run=value=>spawnSync(process.execPath,[path.join(dir,'build-script.mjs'),Buffer.from(JSON.stringify(value)).toString('base64url')],{encoding:'utf8'});
- assert.deepEqual(JSON.parse(run({mode:'plan'}).stdout),plan);
- const finish=run(request());assert.equal(finish.status,0);assert.match(finish.stdout,/Finish Camera Shutter Dump Draft/);
- assert.notEqual(run({mode:'other'}).status,0);
+test('the Panel builds the plan and finishing step itself, with no Node.js',()=>{
+ const panel=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
+ assert.doesNotMatch(panel,/\bnode ["$]|build-script/);
+ assert.match(buildFinishScript(request()),/Finish Camera Shutter Dump Draft/);
+ assert.throws(()=>buildFinishScript({...request(),mode:'other'}),/Unsupported/);
 });
 
 function fakeSelects(){

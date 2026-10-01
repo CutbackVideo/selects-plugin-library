@@ -11,7 +11,7 @@ Each `sfx/shutter-v2-*.wav.b64` is one camera shutter sequence built for this pl
 
 ## Tools
 
-- Node.js runs `build-script.mjs` from the Selects panel shell. No binary is included.
+- The panel decodes the bundled files with the system `base64` and `shasum`. No binary is included.
 
 ## Gallery preview
 

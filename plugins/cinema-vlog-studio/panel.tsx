@@ -160,6 +160,21 @@ const TEMPLATE_FAILED = 'Cinema Vlog Studio could not make the timeline; try aga
 const templateIssue = message => Object.assign(Error(message), { publicMessage: message });
 const videoLengths = pid => `const rows=await selects.project(${clean(pid)}).resources();return rows.filter(x=>x.type==='Video').map(x=>({resourceId:x.resourceId,name:x.name,duration:x.durationSeconds||0}));`;
 
+// The app hands a template its own Resource ids, but every run_script read
+// (resources(), clips()) speaks the short ids the script SDK gives out (r0, r1…).
+// The app's list (sdk.call) and the script's list are the Project's Resources in
+// the same order, so they pair up row by row; names and types are compared so a
+// list that changed in between is refused rather than mismatched.
+async function scriptResourceIds(sdk, projectId) {
+  const [app, run] = await Promise.all([
+    sdk.call("listProjectResources", projectId),
+    sdk.runScript({ summary: "Match picked clips", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
+  ]);
+  const rows = run?.result;
+  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked clips to this project.");
+  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+}
+
 export function templateSlotIds(title, cardIds, clips) {
   const ids = Array(SLOT_COUNT).fill('');
   ids[3 - 1] = title;
@@ -187,11 +202,14 @@ function CinemaTemplateRun({ sdk, context }) {
       try {
         if (!projectId) throw templateIssue('Open a project, then try again.');
         const picked = id => (inputs[id] || []).filter(x => x?.kind === 'video' && x.resourceId);
-        const [title] = picked('title'), cardPicks = picked('cards'), clipPicks = picked('clips');
+        let [title] = picked('title'), cardPicks = picked('cards'), clipPicks = picked('clips');
         if (!title) throw templateIssue('Pick the clip the title sits on, then try again.');
         if (cardPicks.length !== 3) throw templateIssue('Pick three card clips, then try again.');
         if (!clipPicks.length) throw templateIssue('Pick the street clips, then try again.');
         say('Finding your clips…');
+        const scriptIds = await scriptResourceIds(sdk, projectId);
+        const own = pick => pick && { ...pick, resourceId: scriptIds.get(pick.resourceId) ?? pick.resourceId };
+        title = own(title); cardPicks = cardPicks.map(own); clipPicks = clipPicks.map(own);
         const videos = await call(sdk, videoLengths(projectId), 'List Cinema Vlog videos');
         const byId = new Map(videos.map(v => [v.resourceId, v]));
         for (const pick of [title, ...cardPicks, ...clipPicks]) if (!byId.has(pick.resourceId)) throw templateIssue((pick.name || 'A picked clip') + ' is no longer in this project.');
