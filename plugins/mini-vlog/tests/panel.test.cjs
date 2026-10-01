@@ -346,7 +346,7 @@ assert.ok(build.includes('findDraftByName(pid, frozen.draftName)'), 'lost assemb
 assert.ok(ui.includes('(await p.meta()).draftIds') && ui.includes('m.name !== name'), 'lookup reads the Drafts by name');
 assert.ok(ui.includes('.slice(-" + DRAFT_LOOKUP_MAX + ").reverse()') && panel.includes('const DRAFT_LOOKUP_MAX = 50;'), 'lookup reads at most the 50 most recent Drafts, newest first');
 assert.ok(/if \(m\.name !== name\) continue;[^]*?return \{ sequenceId: id/.test(ui), 'first match returns');
-// The readiness gate uses the seed each button builds with: Build = seed, Create another version = seed + 1.
+// The readiness gate uses the seed each button builds with: Build = seed, Try other shots = seed + 1.
 assert.ok(ui.includes('planAt(seed)') && ui.includes('planAt(seed + 1)'), 'gates for both seeds');
 assert.ok(ui.includes('onClick={buildAnother} disabled={busy || !canBuildAnother}'), 'another version gated with seed + 1');
 assert.ok(build.includes('draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),'), 'Draft name (English: the lost-reply lookup finds it by name)');
@@ -385,7 +385,7 @@ assert.ok(ui.includes('{!inventory && invError && !invError.busy ? <ui.Message t
 assert.ok(!ui.includes('Could not read the clips in this Project'), 'old message gone');
 // A partial inventory (the Project was still loading) keeps polling and never reads as an empty Project.
 assert.ok(/needsPoll = !!inventory && \(\(!!inventory\.incomplete && !incompleteStalled\) \|\|/.test(ui), 'incomplete inventory polls until stalled');
-// Build and Create another version wait for the clip sizes: an incomplete inventory blocks both with a muted hint
+// Build and Try other shots wait for the clip sizes: an incomplete inventory blocks both with a muted hint
 // next to Build (blockReason), and build() refuses it; a later complete read clears the block.
 says('sizesLoading', 'Clip sizes are still loading\u2026');
 assert.ok(/const baseBlock: Say \| null = !inventory \|\| !assets \? null\s*: inventory\.incomplete \? \(l\) => t\(l, "sizesLoading"\)\s*:/.test(ui), 'incomplete blocks both buttons first');
@@ -462,7 +462,7 @@ assert.ok(build.includes('stopPreview()') && finish.includes('stopPreview()'), '
 // Results and flows.
 for (const s of ['function buildAnother()', 'const s = seed + 1;', 'selects.editor.openDraft', 'linkToDraftFrame', 'mvProgress(', 'steps={MV_BUILD_STEPS.map((s) => t(L, "step." + s.id))}',
   'unchecked: found.failed.length', 'type="checkbox"', 'chooseClips(allRids)', 'choosePhotos(allPhotoRids)']) assert.ok(ui.includes(s), s);
-says('anotherVersion', 'Create another version'); says('finishTitle', 'Finish title and look'); says('stoppedAt', 'Stopped at step'); says('draftCreatedAdding', 'Draft created; adding title and look');
+says('anotherVersion', 'Try other shots'); says('finishTitle', 'Finish title and look'); says('stoppedAt', 'Stopped at step'); says('draftCreatedAdding', 'Draft created; adding title and look');
 says('silentVideo', 'Silent video'); says('unchecked', 'Build again to retry '); says('noClipsSelected', 'No clips selected'); says('build', 'Build'); says('building', 'Building');
 family('step', { shots: 'Choosing shots', music: 'Preparing music', draft: 'Creating Draft', look: 'Adding title and look', open: 'Opening Draft' });
 says('progress', 'Step {step}/{total} · {name} · {percent}%'); says('progressDetail', 'Step {step}/{total} · {name} ({detail}) · {percent}%');

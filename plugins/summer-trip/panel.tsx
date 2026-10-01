@@ -124,7 +124,7 @@ const STRINGS = {
     stoppedAt: "Stopped at step {step}/{total}, {name}: {detail}",
     build: "Build",
     building: "Building",
-    anotherVersion: "Create another version",
+    anotherVersion: "Try other shots",
     finishTitle: "Finish title and look",
     draftCreated: "Draft created. Select the title or the labels to edit their text, colours and positions (each graphic keeps its own copy of the labels), a clip to adjust its look, light leak, crop or sound, and the music to change its volume. Rebuilding creates a new Draft and does not keep Adjust edits.",
     draftCreatedAdding: "Draft created; adding title and look…",
@@ -312,7 +312,7 @@ const STRINGS = {
     stoppedAt: "Abgebrochen bei Schritt {step}/{total}, {name}: {detail}",
     build: "Erstellen",
     building: "Wird erstellt",
-    anotherVersion: "Weitere Version erstellen",
+    anotherVersion: "Andere Aufnahmen probieren",
     finishTitle: "Titel und Look fertigstellen",
     draftCreated: "Draft erstellt. Wähle den Titel oder die Labels aus, um Text, Farben und Positionen zu ändern (jede Grafik hat ihre eigene Kopie der Labels), einen Clip, um Look, Light Leak, Ausschnitt oder Ton anzupassen, und die Musik, um ihre Lautstärke zu ändern. Ein erneutes Erstellen legt einen neuen Draft an und übernimmt keine Änderungen aus „Anpassen“.",
     draftCreatedAdding: "Draft erstellt; Titel und Look werden hinzugefügt …",
@@ -500,7 +500,7 @@ const STRINGS = {
     stoppedAt: "Se detuvo en el paso {step}/{total}, {name}: {detail}",
     build: "Crear",
     building: "Creando",
-    anotherVersion: "Crear otra versión",
+    anotherVersion: "Probar otros planos",
     finishTitle: "Terminar título y look",
     draftCreated: "Draft creado. Selecciona el título o las etiquetas para editar su texto, colores y posiciones (cada gráfico guarda su propia copia de las etiquetas), un clip para ajustar su look, fuga de luz, encuadre o sonido, y la música para cambiar su volumen. Volver a crear genera un Draft nuevo y no conserva los cambios hechos en «Ajustar».",
     draftCreatedAdding: "Draft creado; añadiendo título y look…",
@@ -688,7 +688,7 @@ const STRINGS = {
     stoppedAt: "Arrêt à l'étape {step}/{total}, {name} : {detail}",
     build: "Créer",
     building: "Création",
-    anotherVersion: "Créer une autre version",
+    anotherVersion: "Essayer d'autres plans",
     finishTitle: "Terminer le titre et le look",
     draftCreated: "Draft créé. Sélectionnez le titre ou les libellés pour modifier leur texte, leurs couleurs et leurs positions (chaque graphique garde sa propre copie des libellés), un clip pour ajuster son look, sa fuite de lumière, son cadrage ou son son, et la musique pour changer son volume. Une nouvelle création produit un nouveau Draft et ne conserve pas les modifications faites dans « Ajuster ».",
     draftCreatedAdding: "Draft créé ; ajout du titre et du look…",
@@ -876,7 +876,7 @@ const STRINGS = {
     stoppedAt: "Interrotto al passaggio {step}/{total}, {name}: {detail}",
     build: "Crea",
     building: "Creazione",
-    anotherVersion: "Crea un'altra versione",
+    anotherVersion: "Prova altre inquadrature",
     finishTitle: "Completa titolo e look",
     draftCreated: "Draft creato. Seleziona il titolo o le etichette per modificarne testo, colori e posizioni (ogni grafica ha una propria copia delle etichette), una clip per regolarne look, light leak, ritaglio o audio, e la musica per cambiarne il volume. Creando di nuovo si ottiene un nuovo Draft e le modifiche fatte in «Regola» non vengono mantenute.",
     draftCreatedAdding: "Draft creato; aggiunta di titolo e look…",
@@ -1064,7 +1064,7 @@ const STRINGS = {
     stoppedAt: "ステップ {step}/{total}（{name}）で停止しました: {detail}",
     build: "作成",
     building: "作成中",
-    anotherVersion: "別のバージョンを作成",
+    anotherVersion: "別のショットで作成",
     finishTitle: "タイトルとルックを仕上げる",
     draftCreated: "Draft を作成しました。タイトルやラベルを選択するとテキスト・色・位置を（ラベルはグラフィックごとに別々に保持されます）、クリップを選択するとルック・光漏れ・クロップ・音を、音楽を選択すると音量を変更できます。もう一度作成すると新しい Draft になり、「調整」での編集は引き継がれません。",
     draftCreatedAdding: "Draft を作成しました。タイトルとルックを追加中…",
@@ -1252,7 +1252,7 @@ const STRINGS = {
     stoppedAt: "{step}/{total}\ub2e8\uacc4({name})\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {detail}",
     build: "\ub9cc\ub4e4\uae30",
     building: "\ub9cc\ub4dc\ub294 \uc911",
-    anotherVersion: "\ub2e4\ub978 \ubc84\uc804 \ub9cc\ub4e4\uae30",
+    anotherVersion: "\ub2e4\ub978 \uc0f7\uc73c\ub85c \ub9cc\ub4e4\uae30",
     finishTitle: "\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac",
     draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uc774\ub098 \ub77c\ubca8\uc744 \uc120\ud0dd\ud558\uba74 \uae00\uc790, \uc0c9, \uc704\uce58\ub97c(\uadf8\ub798\ud53d\ub9c8\ub2e4 \ub77c\ubca8\uc744 \ub530\ub85c \uac00\uc9d1\ub2c8\ub2e4), \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uba74 \uc0c9\uac10, \ube5b \ubc88\uc9d0, \ud06c\ub86d, \uc18c\ub9ac\ub97c, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \uc74c\ub7c9\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc0c8 Draft\uac00 \uc0dd\uae30\uba70 ‘\uc870\uc815’\uc5d0\uc11c \uc218\uc815\ud55c \ub0b4\uc6a9\uc740 \uc720\uc9c0\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     draftCreatedAdding: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\ub294 \uc911…",
@@ -1440,7 +1440,7 @@ const STRINGS = {
     stoppedAt: "Parou na etapa {step}/{total}, {name}: {detail}",
     build: "Criar",
     building: "Criando",
-    anotherVersion: "Criar outra versão",
+    anotherVersion: "Testar outros planos",
     finishTitle: "Concluir título e look",
     draftCreated: "Draft criado. Selecione o título ou os rótulos para editar o texto, as cores e as posições (cada gráfico guarda sua própria cópia dos rótulos), um clipe para ajustar o look, o vazamento de luz, o enquadramento ou o som, e a música para mudar o volume. Criar de novo gera um novo Draft e não mantém as edições feitas em “Ajustar”.",
     draftCreatedAdding: "Draft criado; adicionando título e look…",
@@ -1628,7 +1628,7 @@ const STRINGS = {
     stoppedAt: "{step}/{total}. adımda durdu, {name}: {detail}",
     build: "Oluştur",
     building: "Oluşturuluyor",
-    anotherVersion: "Başka bir sürüm oluştur",
+    anotherVersion: "Başka çekimler dene",
     finishTitle: "Başlığı ve görünümü tamamla",
     draftCreated: "Draft oluşturuldu. Metinlerini, renklerini ve konumlarını düzenlemek için başlığı veya etiketleri (her grafik etiketlerin kendi kopyasını tutar), görünümünü, ışık sızıntısını, kırpmasını veya sesini ayarlamak için bir klibi, ses düzeyini değiştirmek için müziği seçin. Yeniden oluşturmak yeni bir Draft üretir ve “Ayarla” sekmesinde yapılan düzenlemeleri korumaz.",
     draftCreatedAdding: "Draft oluşturuldu; başlık ve görünüm ekleniyor…",
@@ -1816,7 +1816,7 @@ const STRINGS = {
     stoppedAt: "在第 {step}/{total} 步（{name}）停止：{detail}",
     build: "生成",
     building: "正在生成",
-    anotherVersion: "再生成一个版本",
+    anotherVersion: "换一组镜头",
     finishTitle: "完成标题和色调",
     draftCreated: "Draft 已创建。选中标题或标签可编辑文字、颜色和位置（每个图形各自保存一份标签），选中片段可调整色调、漏光、裁剪或声音，选中音乐可更改音量。重新生成会创建新的 Draft，且不会保留在“调整”中所做的修改。",
     draftCreatedAdding: "Draft 已创建；正在添加标题和色调…",
@@ -4530,7 +4530,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
 // with every other setting at the panel's default, never opens it, and ends by calling `sdk.finishTemplate` exactly once.
 // ---------------------------------------------------------------------------
 type TemplateOutcome = { sequenceId: string } | { error: string };
-// The panel's first Build uses seed 1 ("Create another version" counts up from there).
+// The panel's first Build uses seed 1 ("Try other shots" counts up from there).
 const TEMPLATE_SEED = 1;
 // Files per alias call: a photo gets its own scratch Draft, which keeps each call well inside runScript's 30 s.
 const TEMPLATE_ALIAS_BATCH = 6;

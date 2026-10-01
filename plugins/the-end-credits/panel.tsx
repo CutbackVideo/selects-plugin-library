@@ -146,7 +146,7 @@ const STRINGS = {
     stoppedAt: "Stopped at step {step}/{total} ({name}): {detail}",
     build: "Build",
     building: "Building",
-    anotherVersion: "Create another version",
+    anotherVersion: "Try other shots",
     finishTitle: "Finish title and look",
     draftCreated: "Draft created. Select the credits to edit the title, rows, colours or roll speed in Adjust, a shot to move or resize its window, change its fades, motion or the look strength, and the music to change its volume.",
     draftCreatedAdding: "Draft created; adding credits and look…",
@@ -321,7 +321,7 @@ const STRINGS = {
     stoppedAt: "Abgebrochen bei Schritt {step}/{total} ({name}): {detail}",
     build: "Erstellen",
     building: "Wird erstellt",
-    anotherVersion: "Weitere Version erstellen",
+    anotherVersion: "Andere Aufnahmen probieren",
     finishTitle: "Titel und Look fertigstellen",
     draftCreated: "Draft erstellt. Wähle den Abspann aus, um unter „Anpassen“ Titel, Zeilen, Farben oder Laufgeschwindigkeit zu ändern, eine Einstellung, um ihr Fenster zu verschieben oder zu skalieren, ihre Blenden, Bewegung oder die Look-Stärke zu ändern, und die Musik, um ihre Lautstärke zu ändern.",
     draftCreatedAdding: "Draft erstellt; Abspann und Look werden hinzugefügt …",
@@ -496,7 +496,7 @@ const STRINGS = {
     stoppedAt: "Se detuvo en el paso {step}/{total} ({name}): {detail}",
     build: "Crear",
     building: "Creando",
-    anotherVersion: "Crear otra versión",
+    anotherVersion: "Probar otros planos",
     finishTitle: "Terminar título y look",
     draftCreated: "Draft creado. Selecciona los créditos para editar en Ajustar el título, las filas, los colores o la velocidad de desplazamiento; un plano para mover o redimensionar su ventana o cambiar sus fundidos, su movimiento o la intensidad del look; y la música para cambiar su volumen.",
     draftCreatedAdding: "Draft creado; añadiendo créditos y look…",
@@ -671,7 +671,7 @@ const STRINGS = {
     stoppedAt: "Arrêt à l'étape {step}/{total} ({name}) : {detail}",
     build: "Créer",
     building: "Création",
-    anotherVersion: "Créer une autre version",
+    anotherVersion: "Essayer d'autres plans",
     finishTitle: "Terminer le titre et le look",
     draftCreated: "Draft créé. Sélectionnez le générique pour modifier dans Ajuster le titre, les lignes, les couleurs ou la vitesse de défilement ; un plan pour déplacer ou redimensionner sa fenêtre, modifier ses fondus, son mouvement ou l'intensité du look ; et la musique pour régler son volume.",
     draftCreatedAdding: "Draft créé ; ajout du générique et du look…",
@@ -846,7 +846,7 @@ const STRINGS = {
     stoppedAt: "Interrotto al passaggio {step}/{total} ({name}): {detail}",
     build: "Crea",
     building: "Creazione",
-    anotherVersion: "Crea un'altra versione",
+    anotherVersion: "Prova altre inquadrature",
     finishTitle: "Completa titolo e look",
     draftCreated: "Draft creato. Seleziona i titoli di coda per modificare in Regola il titolo, le righe, i colori o la velocità di scorrimento; un'inquadratura per spostare o ridimensionare la sua finestra o cambiarne dissolvenze, movimento o intensità del look; e la musica per cambiarne il volume.",
     draftCreatedAdding: "Draft creato; aggiunta di titoli di coda e look…",
@@ -1021,7 +1021,7 @@ const STRINGS = {
     stoppedAt: "ステップ {step}/{total}（{name}）で停止しました: {detail}",
     build: "作成",
     building: "作成中",
-    anotherVersion: "別のバージョンを作成",
+    anotherVersion: "別のショットで作成",
     finishTitle: "タイトルとルックを仕上げる",
     draftCreated: "Draft を作成しました。クレジットを選択すると「調整」でタイトル・行・色・スクロール速度を、ショットを選択するとウィンドウの移動やサイズ、フェード、モーション、ルックの強さを、音楽を選択すると音量を変更できます。",
     draftCreatedAdding: "Draft を作成しました。クレジットとルックを追加中…",
@@ -1196,7 +1196,7 @@ const STRINGS = {
     stoppedAt: "{step}/{total}\ub2e8\uacc4({name})\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {detail}",
     build: "\ub9cc\ub4e4\uae30",
     building: "\ub9cc\ub4dc\ub294 \uc911",
-    anotherVersion: "\ub2e4\ub978 \ubc84\uc804 \ub9cc\ub4e4\uae30",
+    anotherVersion: "\ub2e4\ub978 \uc0f7\uc73c\ub85c \ub9cc\ub4e4\uae30",
     finishTitle: "\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac",
     draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud06c\ub808\ub527\uc744 \uc120\ud0dd\ud558\uba74 \uc870\uc815 \ud0ed\uc5d0\uc11c \ud0c0\uc774\ud2c0·\uc904·\uc0c9·\uc2a4\ud06c\ub864 \uc18d\ub3c4\ub97c, \uc0f7\uc744 \uc120\ud0dd\ud558\uba74 \ucc3d \uc704\uce58\uc640 \ud06c\uae30·\ud398\uc774\ub4dc·\ubaa8\uc158·\uc0c9\uac10 \uac15\ub3c4\ub97c, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \uc74c\ub7c9\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     draftCreatedAdding: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud06c\ub808\ub527\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\ub294 \uc911…",
@@ -1371,7 +1371,7 @@ const STRINGS = {
     stoppedAt: "Parou na etapa {step}/{total} ({name}): {detail}",
     build: "Criar",
     building: "Criando",
-    anotherVersion: "Criar outra versão",
+    anotherVersion: "Testar outros planos",
     finishTitle: "Concluir título e look",
     draftCreated: "Draft criado. Selecione os créditos para editar em Ajustar o título, as linhas, as cores ou a velocidade de rolagem; um plano para mover ou redimensionar a janela dele ou mudar as transições, o movimento ou a intensidade do look; e a música para mudar o volume.",
     draftCreatedAdding: "Draft criado; adicionando créditos e look…",
@@ -1546,7 +1546,7 @@ const STRINGS = {
     stoppedAt: "{step}/{total}. adımda durdu ({name}): {detail}",
     build: "Oluştur",
     building: "Oluşturuluyor",
-    anotherVersion: "Başka bir sürüm oluştur",
+    anotherVersion: "Başka çekimler dene",
     finishTitle: "Başlığı ve görünümü tamamla",
     draftCreated: "Draft oluşturuldu. Ayarla bölümünde başlığı, satırları, renkleri veya kayma hızını düzenlemek için jeneriği; penceresini taşımak ya da boyutlandırmak, geçişlerini, hareketini veya görünüm yoğunluğunu değiştirmek için bir çekimi; ses düzeyini değiştirmek için müziği seçin.",
     draftCreatedAdding: "Draft oluşturuldu; jenerik ve görünüm ekleniyor…",
@@ -1721,7 +1721,7 @@ const STRINGS = {
     stoppedAt: "在第 {step}/{total} 步（{name}）停止：{detail}",
     build: "生成",
     building: "正在生成",
-    anotherVersion: "再生成一个版本",
+    anotherVersion: "换一组镜头",
     finishTitle: "完成标题和色调",
     draftCreated: "Draft 已创建。选中字幕可在“调整”中编辑标题、行、颜色或滚动速度；选中镜头可移动或缩放其小窗，或更改淡入淡出、运动或色调强度；选中音乐可更改音量。",
     draftCreatedAdding: "Draft 已创建；正在添加字幕和色调…",
@@ -3333,7 +3333,7 @@ function guardKeys(e: React.KeyboardEvent) {
 // every other setting at the panel's default, never opens it, and ends by calling `sdk.finishTemplate` exactly once.
 // ---------------------------------------------------------------------------
 type TemplateOutcome = { sequenceId: string } | { error: string };
-// The panel's first Build uses seed 1 ("Create another version" counts up from there).
+// The panel's first Build uses seed 1 ("Try other shots" counts up from there).
 const TEMPLATE_SEED = 1;
 // Files per alias call: a photo gets its own scratch Draft, which keeps each call well inside runScript's 30 s.
 const TEMPLATE_ALIAS_BATCH = 6;

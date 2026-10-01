@@ -104,7 +104,7 @@ const STRINGS = {
     stoppedAt: "Stopped at step {step}/{total}, {name}: {detail}",
     build: "Build",
     building: "Building",
-    anotherVersion: "Create another version",
+    anotherVersion: "Try other shots",
     finishTitle: "Finish title and look",
     draftCreated: "Draft created. Select the title to edit its text or font, a clip to adjust its crop, warmth or sound level, and the music to change its volume. Moving cuts inside the title will not move the title; rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft created; adding title and look…",
@@ -241,7 +241,7 @@ const STRINGS = {
     stoppedAt: "Abgebrochen bei Schritt {step}/{total}, {name}: {detail}",
     build: "Erstellen",
     building: "Wird erstellt",
-    anotherVersion: "Weitere Version erstellen",
+    anotherVersion: "Andere Aufnahmen probieren",
     finishTitle: "Titel und Look fertigstellen",
     draftCreated: "Draft erstellt. Wähle den Titel aus, um Text oder Schrift zu ändern, einen Clip, um Ausschnitt, Wärme oder Lautstärke anzupassen, und die Musik, um ihre Lautstärke zu ändern. Wenn du Schnitte im Titelbereich verschiebst, wandert der Titel nicht mit; ein erneutes Erstellen legt einen neuen Draft an und übernimmt keine Änderungen aus dem Inspektor.",
     draftCreatedAdding: "Draft erstellt; Titel und Look werden hinzugefügt …",
@@ -378,7 +378,7 @@ const STRINGS = {
     stoppedAt: "Se detuvo en el paso {step}/{total}, {name}: {detail}",
     build: "Crear",
     building: "Creando",
-    anotherVersion: "Crear otra versión",
+    anotherVersion: "Probar otros planos",
     finishTitle: "Terminar título y look",
     draftCreated: "Draft creado. Selecciona el título para editar su texto o fuente, un clip para ajustar su encuadre, calidez o nivel de sonido, y la música para cambiar su volumen. Si mueves cortes dentro del título, el título no se moverá; volver a crear genera un Draft nuevo y no conserva los cambios del Inspector.",
     draftCreatedAdding: "Draft creado; añadiendo título y look…",
@@ -515,7 +515,7 @@ const STRINGS = {
     stoppedAt: "Arrêt à l'étape {step}/{total}, {name} : {detail}",
     build: "Créer",
     building: "Création",
-    anotherVersion: "Créer une autre version",
+    anotherVersion: "Essayer d'autres plans",
     finishTitle: "Terminer le titre et le look",
     draftCreated: "Draft créé. Sélectionnez le titre pour modifier son texte ou sa police, un clip pour ajuster son cadrage, sa chaleur ou son niveau sonore, et la musique pour changer son volume. Déplacer des coupes dans le titre ne déplace pas le titre ; une nouvelle création produit un nouveau Draft et ne conserve pas les modifications de l'Inspecteur.",
     draftCreatedAdding: "Draft créé ; ajout du titre et du look…",
@@ -652,7 +652,7 @@ const STRINGS = {
     stoppedAt: "Interrotto al passaggio {step}/{total}, {name}: {detail}",
     build: "Crea",
     building: "Creazione",
-    anotherVersion: "Crea un'altra versione",
+    anotherVersion: "Prova altre inquadrature",
     finishTitle: "Completa titolo e look",
     draftCreated: "Draft creato. Seleziona il titolo per modificarne testo o carattere, una clip per regolarne ritaglio, calore o livello audio, e la musica per cambiarne il volume. Spostare i tagli all'interno del titolo non sposta il titolo; creando di nuovo si ottiene un nuovo Draft e le modifiche fatte nell'Inspector non vengono mantenute.",
     draftCreatedAdding: "Draft creato; aggiunta di titolo e look…",
@@ -789,7 +789,7 @@ const STRINGS = {
     stoppedAt: "ステップ {step}/{total}（{name}）で停止しました: {detail}",
     build: "作成",
     building: "作成中",
-    anotherVersion: "別のバージョンを作成",
+    anotherVersion: "別のショットで作成",
     finishTitle: "タイトルとルックを仕上げる",
     draftCreated: "Draft を作成しました。タイトルを選択するとテキストやフォントを、クリップを選択するとクロップ・暖かさ・音量を、音楽を選択すると音量を変更できます。タイトル内のカットを動かしてもタイトルは動きません。もう一度作成すると新しい Draft になり、インスペクタでの編集は引き継がれません。",
     draftCreatedAdding: "Draft を作成しました。タイトルとルックを追加中…",
@@ -926,7 +926,7 @@ const STRINGS = {
     stoppedAt: "{step}/{total}\ub2e8\uacc4({name})\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {detail}",
     build: "\ub9cc\ub4e4\uae30",
     building: "\ub9cc\ub4dc\ub294 \uc911",
-    anotherVersion: "\ub2e4\ub978 \ubc84\uc804 \ub9cc\ub4e4\uae30",
+    anotherVersion: "\ub2e4\ub978 \uc0f7\uc73c\ub85c \ub9cc\ub4e4\uae30",
     finishTitle: "\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac",
     draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uc744 \uc120\ud0dd\ud558\uba74 \uae00\uc790\uc640 \ud3f0\ud2b8\ub97c, \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uba74 \ud06c\ub86d·\ub530\ub73b\ud568·\uc18c\ub9ac \ud06c\uae30\ub97c, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \uc74c\ub7c9\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0 \uad6c\uac04 \uc548\uc5d0\uc11c \ucef7\uc744 \uc62e\uaca8\ub3c4 \ud0c0\uc774\ud2c0\uc740 \ub530\ub77c \uc6c0\uc9c1\uc774\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc0c8 Draft\uac00 \uc0dd\uae30\uba70 \uc778\uc2a4\ud399\ud130\uc5d0\uc11c \uc218\uc815\ud55c \ub0b4\uc6a9\uc740 \uc720\uc9c0\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     draftCreatedAdding: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\ub294 \uc911…",
@@ -1063,7 +1063,7 @@ const STRINGS = {
     stoppedAt: "Parou na etapa {step}/{total}, {name}: {detail}",
     build: "Criar",
     building: "Criando",
-    anotherVersion: "Criar outra versão",
+    anotherVersion: "Testar outros planos",
     finishTitle: "Concluir título e look",
     draftCreated: "Draft criado. Selecione o título para editar o texto ou a fonte, um clipe para ajustar o enquadramento, o calor ou o nível de som, e a música para mudar o volume. Mover cortes dentro do título não move o título; criar de novo gera um novo Draft e não mantém as edições feitas no Inspetor.",
     draftCreatedAdding: "Draft criado; adicionando título e look…",
@@ -1200,7 +1200,7 @@ const STRINGS = {
     stoppedAt: "{step}/{total}. adımda durdu, {name}: {detail}",
     build: "Oluştur",
     building: "Oluşturuluyor",
-    anotherVersion: "Başka bir sürüm oluştur",
+    anotherVersion: "Başka çekimler dene",
     finishTitle: "Başlığı ve görünümü tamamla",
     draftCreated: "Draft oluşturuldu. Metnini veya yazı tipini düzenlemek için başlığı, kırpmasını, sıcaklığını veya ses düzeyini ayarlamak için bir klibi, ses düzeyini değiştirmek için müziği seçin. Başlığın içindeki kesmeleri taşımak başlığı taşımaz; yeniden oluşturmak yeni bir Draft üretir ve Denetçi'de yapılan düzenlemeleri korumaz.",
     draftCreatedAdding: "Draft oluşturuldu; başlık ve görünüm ekleniyor…",
@@ -1337,7 +1337,7 @@ const STRINGS = {
     stoppedAt: "在第 {step}/{total} 步（{name}）停止：{detail}",
     build: "生成",
     building: "正在生成",
-    anotherVersion: "再生成一个版本",
+    anotherVersion: "换一组镜头",
     finishTitle: "完成标题和色调",
     draftCreated: "Draft 已创建。选中标题可编辑文字或字体，选中片段可调整裁剪、暖度或音量，选中音乐可更改音量。在标题范围内移动剪切点不会移动标题；重新生成会创建新的 Draft，且不会保留在检查器中所做的修改。",
     draftCreatedAdding: "Draft 已创建；正在添加标题和色调…",
@@ -3019,7 +3019,7 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
 // ---------------------------------------------------------------------------
 type TemplateOutcome = { sequenceId: string } | { error: string };
 const TEMPLATE_TRACK = "sunny-soul-strut";
-// The panel's first Build uses seed 1 ("Create another version" counts up from there).
+// The panel's first Build uses seed 1 ("Try other shots" counts up from there).
 const TEMPLATE_SEED = 1;
 // Files per alias call: a photo gets its own scratch Draft, which keeps each call well inside runScript's 30 s.
 const TEMPLATE_ALIAS_BATCH = 6;

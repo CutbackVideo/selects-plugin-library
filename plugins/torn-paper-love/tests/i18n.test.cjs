@@ -16,6 +16,6 @@ assert.ok(/uiLang\(context\)/.test(panel), 'the component calls uiLang(context)'
 
 // App-specific UI assertions go against STRINGS.en and key usage, not literal JSX text (it moved into STRINGS):
 // const en = r.strings.en;
-// assert.equal(en.anotherVersion, 'Create another version');
+// assert.equal(en.anotherVersion, 'Try other shots');
 // assert.ok(panel.includes('t(L, "anotherVersion")'));
 console.log('i18n ok: ' + r.summary + (r.warnings.length ? '\n' + r.warnings.map((w) => '  warn: ' + w).join('\n') : ''));

@@ -51,7 +51,7 @@ for (const phrase of ['projectRef', 'No valid session ID', 'visibilitychange', '
   'loadInventory(', 'setCandidates(null)', 'invSigRef', 'known: photoSizesRef.current', 'selects.editor.openDraft', 'linkToDraftFrame',
   'FontFace', '--panel-accent', '--panel-muted-fg', 'fmtTime(total)', 'ffprobe']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['refresh', 'Refresh'], ['stopPreview', 'Stop preview'], ['cancelPreview', 'Cancel preview'], ['analysing', 'being analysed. This updates automatically'],
-  ['noFootage', 'this updates automatically'], ['finishTitle', 'Finish title and look'], ['anotherVersion', 'Create another version'],
+  ['noFootage', 'this updates automatically'], ['finishTitle', 'Finish title and look'], ['anotherVersion', 'Try other shots'],
   ['stoppedAt', 'Stopped at step {step}/{total} ({name}): {detail}'], ['installTools', 'Install ffmpeg and Node.js'], ['draftCreatedAdding', 'Draft created; adding credits and look'],
   ['sectionHint', 'drag to choose'], ['sectionLabel', 'Music section'], ['startsAt', 'Starts at {seconds} s'], ['musicTooShort', 'too short for this length'],
   ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})']]) says(key, text);

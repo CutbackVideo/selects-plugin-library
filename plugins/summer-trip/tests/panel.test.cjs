@@ -136,7 +136,7 @@ for (const phrase of ['linkToDraftFrame', 'selects.editor.openDraft', 'FontFace'
   '"ArrowLeft"', '"Home"', '"End"', 'fmtTime(total)', '"pause"', 'requestAnimationFrame', 'cancelAnimationFrame', '"Escape"',
   'previewTokenRef', 'URL.revokeObjectURL', 'preview-*.mp3', 'readText(roots.data', 'height: PREVIEW_HEIGHT', 'Your footage fits', 'disabledReason',
   'style: "normal", weight: "400"']) assert.ok(code.includes(phrase), phrase);
-for (const [key, text] of [['anotherVersion', 'Create another version'], ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'],
+for (const [key, text] of [['anotherVersion', 'Try other shots'], ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'],
   ['installTools', 'Install ffmpeg and Node.js 18+ to preview music or use your own track.'], ['draftCreatedAdding', 'Draft created; adding title and look\u2026'],
   ['analysing', '{"one":"{count} clip is being analysed. This updates automatically when it finishes.","other":"{count} clips are being analysed. This updates automatically when they finish."}'],
   ['notAnalysedAnalyse', '{"one":"{count} clip is not analysed yet. Analyse it in Selects to use it here.","other":"{count} clips are not analysed yet. Analyse them in Selects to use them here."}'],

@@ -76,9 +76,9 @@ clips · about 14 s · 2 clips being analysed · 3 clips not analysed yet".
 
 Progress is shown as five steps: Choosing shots, Preparing music, Creating
 Draft, Adding title and look, and Opening Draft. When the build finishes, the
-new Draft opens and a link to it is shown. **Create another version** makes
-another Draft with a different shot choice, reusing the shot search and
-showing the same steps.
+new Draft opens and a link to it is shown. **Try other shots** makes another
+Draft with the same settings and a different shot choice, reusing the shot
+search and showing the same steps.
 
 ## Music
 
@@ -141,8 +141,7 @@ analysis and are never scene-searched.
 - At most two photos play in a row while anything else fits. A Project with
   only photos still builds when it has at least 16 of them (14 with the
   half-beat burst); then the photos follow each other.
-- The choice depends on the seed, so **Create another version** picks other
-  photos.
+- The choice depends on the seed, so **Try other shots** picks other photos.
 - Photos are placed from their start for the shot's frame-exact length and
   centre-cropped to fill 9:16, like landscape clips. They have no sound, so
   Clip sound skips them.
