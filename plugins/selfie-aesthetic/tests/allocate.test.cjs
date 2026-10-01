@@ -147,6 +147,42 @@ function checkPlan(plan, p, label) {
   assert.deepEqual(plan.notes, []);
 }
 
+// ---- Key bars (opening and finale) prefer clean face poses over gesture-dominated clips / moments ----
+{
+  // g: the best face score, but its hand hits beat its selfie / expression hits (a hand reaching at the lens).
+  // c0, c1: clean face poses (selfie + expression well over hand).
+  const candidates = [], durations = { g: 12, c0: 12, c1: 12 };
+  const add = (rid, role, t, score) => candidates.push({ rid, role, t, score });
+  add('g', 'control', 0.5, 0.18); add('c0', 'control', 0.5, 0.18); add('c1', 'control', 0.5, 0.18);
+  for (const t of [1, 4, 7, 10]) { add('g', 'hand', t, 0.36); add('g', 'selfie', t + 0.2, 0.33); }
+  for (const rid of ['c0', 'c1']) for (const t of [1, 4, 7, 10]) { add(rid, t % 2 ? 'selfie' : 'expression', t, 0.30); add(rid, 'hand', t + 1, 0.2); }
+  const p = { candidates, durations };
+  const m = j(P.saeMoments({ candidates, durations, fps: 30, beatSeconds: 0.9 }));
+  const g = m.clips.find(c => c.rid === 'g'), c0 = m.clips.find(c => c.rid === 'c0');
+  assert.ok(g.faceScore > c0.faceScore, 'g has the better face score');
+  assert.ok(g.gesture > 0 && c0.gesture < 0, 'clip gesture: g ' + g.gesture + ', c0 ' + c0.gesture);
+  assert.ok(g.pairs.filter(q => q.score > 0).length >= 2 && g.pairs.filter(q => q.score > 0).every(q => q.gesture === 2), 'every g hit moment is gesture-dominated');
+  assert.ok(c0.pairs.slice(0, 2).every(q => q.gesture === 0) && c0.pairs.some(q => q.gesture === 2), 'the best c0 pairs are clean; its hand-only moments are flagged');
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    const plan = build(p, { bars: 4, seed, usePhotos: false });
+    checkPlan(plan, p, 'key bars seed ' + seed);
+    const rids = barsOf(plan).map(h => h.rid);
+    assert.ok(rids[0][0] === 'c' && rids[3][0] === 'c', 'opening and finale are clean face clips: ' + rids);
+    assert.ok(rids.includes('g'), 'the gesture clip still plays in an inner bar: ' + rids);
+  }
+  // Moment level: one clip whose 4 s moment is gesture-dominated; bar 0 takes a pair without it.
+  const one = [], d1 = { s: 12 };
+  one.push({ rid: 's', role: 'control', t: 0.5, score: 0.18 });
+  for (const t of [1, 7, 10]) one.push({ rid: 's', role: t === 7 ? 'expression' : 'selfie', t, score: 0.30 });
+  one.push({ rid: 's', role: 'selfie', t: 4, score: 0.31 }, { rid: 's', role: 'hand', t: 4, score: 0.40 });
+  const ms = j(P.saeMoments({ candidates: one, durations: d1, fps: 30, beatSeconds: 0.9 })).clips[0];
+  const at4 = q => Math.abs(q.a - 4) < 0.05 || Math.abs(q.b - 4) < 0.05;
+  assert.ok(ms.pairs.some(q => at4(q) && q.gesture === 1), 'the 4 s moment is gesture-dominated');
+  const plan = build({ candidates: one, durations: d1 }, { bars: 4, usePhotos: false });
+  const bar0 = plan.holds.filter(h => h.bar === 0);
+  assert.ok(bar0.every(h => Math.abs(h.srcStart - 4) > 0.05), 'bar 0 avoids the gesture moment: ' + bar0.map(h => h.srcStart));
+}
+
 // ---- Photos: about a third of the bars, max 2 in a row, inner bars first ----
 for (const N of [3, 4, 5, 6, 7, 8]) for (const seed of [1, 2, 3, 4, 5]) {
   const p = pool({ face: 8, photos: 8 });
