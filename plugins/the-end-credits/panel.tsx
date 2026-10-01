@@ -1061,10 +1061,35 @@ function SectionSlider({ peaks, total, section, videoSeconds, stepSeconds, snap,
   );
 }
 
+// Videos without analysis, from inventory.js's skipped counts: being analysed now, not analysed yet (never started; the
+// panel does not start analysis), or failed. known is false when the workflow read failed: pending clips then may or
+// may not be queued, so their wording is neutral and the panel keeps polling.
+function tecAnalysisCounts(skipped: any) {
+  const s = skipped || {}, total = s.unanalysed || 0;
+  if (s.analysing == null) return { total, analysing: 0, notAnalysed: total, failed: 0, known: false };
+  return { total, analysing: s.analysing || 0, notAnalysed: s.notAnalysed || 0, failed: s.failed || 0, known: s.statusKnown !== false };
+}
+const tecClips = (n: number, verb?: string) => n + (n === 1 ? " clip" : " clips") + (verb === "is" ? (n === 1 ? " is" : " are") : "");
+// The sentences for the readiness line ("" when every video is analysed).
+function tecAnalysisText(c: any) {
+  const it = (n: number) => (n === 1 ? "it" : "them");
+  return [
+    c.analysing ? tecClips(c.analysing, "is") + " being analysed. This updates automatically when " + (c.analysing === 1 ? "it finishes." : "they finish.") : "",
+    c.notAnalysed ? tecClips(c.notAnalysed, "is") + " not analysed yet. " + (c.known ? "Analyse " + it(c.notAnalysed) + " in Selects to use " + it(c.notAnalysed) + " here."
+      : "If Selects is analysing " + it(c.notAnalysed) + ", this updates automatically.") : "",
+    c.failed ? tecClips(c.failed) + " could not be analysed." : "",
+  ].filter(Boolean).join(" ");
+}
+// The short form for the end of the Ready line.
+function tecAnalysisNote(c: any) {
+  return (c.analysing ? " · " + tecClips(c.analysing) + " being analysed" : "") + (c.notAnalysed ? " · " + tecClips(c.notAnalysed) + " not analysed yet" : "")
+    + (c.failed ? " · " + tecClips(c.failed) + " could not be analysed" : "");
+}
+
 // Layout thumbnails: a tiny schematic of each layout (window + left column, or full frame + right column).
 function LayoutIcon({ kind }: { kind: "classic" | "full" }) {
   return (
-    <svg viewBox="0 0 32 18" width={48} height={27} aria-hidden="true" style={{ display: "block", margin: "0 auto" }}>
+    <svg viewBox="0 0 32 18" width={48} height={27} aria-hidden="true" style={{ display: "block", flex: "none", width: "100%", maxWidth: 48, height: "auto" }}>
       <rect x={0.5} y={0.5} width={31} height={17} rx={1.5} fill={kind === "full" ? "currentColor" : "none"} fillOpacity={kind === "full" ? 0.25 : 1} stroke="currentColor" strokeOpacity={0.6} />
       {kind === "classic" ? <rect x={16.2} y={2.3} width={13.6} height={7.7} fill="currentColor" fillOpacity={0.55} /> : <rect x={20} y={0.5} width={11.5} height={17} fill="currentColor" fillOpacity={0.35} />}
       {(kind === "classic" ? [4.5, 8, 11, 14] : [4.5, 8, 11, 14]).map((y, i) => (
@@ -1305,7 +1330,8 @@ export default function Panel({ sdk, context, ui }: any) {
   function applyInventory(inv: any) {
     inv.photos = inv.photos || [];
     for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizesRef.current[ph.rid] = { width: ph.width, height: ph.height };
-    const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + (inv.skipped?.unanalysed || 0);
+    const sk = inv.skipped || {};
+    const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + [sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown].map((x) => String(x ?? "")).join(",");
     if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
     setInventory(inv); setInvError(null);
     return inv;
@@ -1375,9 +1401,12 @@ export default function Panel({ sdk, context, ui }: any) {
     return () => { alive = false; stopPreview(); };
   }, [projectId]);
 
-  // Clips still being analysed (or none yet): re-read the inventory every 10 s until they are ready.
+  // Clips being analysed (or no clips at all yet): re-read the inventory every 10 s until they are ready. Clips whose
+  // analysis was never started (or failed) do not poll on their own: nothing changes until the user analyses them in
+  // Selects, and coming back to the panel or Refresh picks that up. With an unknown status, unanalysed clips poll.
   // A Project with only photos has nothing to wait for, so it does not poll (each read measures new photos).
-  const needsPoll = !!inventory && (inventory.skipped?.unanalysed > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
+  const invAnalysis = tecAnalysisCounts(inventory?.skipped);
+  const needsPoll = !!inventory && (invAnalysis.analysing > 0 || (!invAnalysis.known && invAnalysis.total > 0) || (inventory.resources.length === 0 && !inventory.photos?.length && invAnalysis.total === 0));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
@@ -1880,22 +1909,21 @@ export default function Panel({ sdk, context, ui }: any) {
   }, [candidates, candKey, inventory, onlyPhotos, usePhotos, layout, requested, music.P, seed, selectedRids.length]);
   const canBuild = !!inventory && (selectedRids.length > 0 || usedPhotoCount >= neededShots) && (!fitsPlan || fitsPlan.ok)
     && (!musicOn ? cueId !== "own" : music.ready && start != null);
-  const pending = inventory?.skipped?.unanalysed || 0;
+  const analysisText = tecAnalysisText(invAnalysis);
   const clipCount = [
     allRids.length ? (only ? selectedRids.length + " of " + allRids.length + " clips selected" : allRids.length + " clips") : "",
     usePhotos && allPhotoRids.length ? (onlyPhotos ? selectedPhotoRids.length + " of " + allPhotoRids.length + " photos selected" : allPhotoRids.length + " photos") : "",
   ].filter(Boolean).join(" · ");
   const shotsFit = fitsPlan && fitsPlan.ok ? fitsPlan.N : requested;
   const readiness = !inventory ? (invError ? "Could not read the clips in this Project: " + invError : "Checking clips…")
-    : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0
-      ? pending + " clips are still being analysed. This updates automatically when they finish."
-      : "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.")
-    : inventory.resources.length === 0 && !usePhotos ? (pending > 0 ? pending + " clips are still being analysed. " : "") + "Turn on Use photos in Advanced to build from this Project's photos."
+    : inventory.resources.length === 0 && !allPhotoRids.length ? (analysisText
+      || "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.")
+    : inventory.resources.length === 0 && !usePhotos ? (analysisText ? analysisText + " " : "") + "Turn on Use photos in Advanced to build from this Project's photos."
     : selectedRids.length === 0 && usedPhotoCount === 0 ? "No clips selected. Choose clips in Advanced."
     : fitsPlan && !fitsPlan.ok ? "Needs at least " + fitsPlan.needed + " usable clips or photos (found " + fitsPlan.usableShots + "). Add more varied footage or photos."
-      + (pending > 0 ? " " + pending + " clips are still being analysed." : "")
+      + (analysisText ? " " + analysisText : "")
     : "Ready: " + clipCount + " · " + (shotsFit + extra) + " shots" + (shotsFit < requested ? " (your footage fits " + (shotsFit + extra) + ")" : "")
-      + " · about " + Math.round(tecVideoSeconds(shotsFit, music.P)) + " s" + (pending ? " · " + pending + " clips not analysed yet" : "");
+      + " · about " + Math.round(tecVideoSeconds(shotsFit, music.P)) + " s" + tecAnalysisNote(invAnalysis);
   const canOwnMusic = tools.ffmpeg && tools.node;
   const silent = cueId === "none" && clipSound === "off";
   const hidden = roll.hiddenRows;
@@ -1927,16 +1955,17 @@ export default function Panel({ sdk, context, ui }: any) {
       </ui.Row>
       {inventory && invError ? <ui.Message tone="error">{"Could not refresh the clip list: " + invError}</ui.Message> : null}
       <ui.Section title="Layout">
-        <div role="group" aria-label="Layout" onKeyDown={guardKeys} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <div role="group" aria-label="Layout" onKeyDown={guardKeys} style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
           {([["classic", "Classic (window)"], ["full", "Full frame"]] as const).map(([value, label]) => {
             const on = layout === value;
             return (
               <button key={value} type="button" aria-pressed={on} disabled={busy} onClick={() => setLayout(value)}
-                style={{ flex: "1 1 80px", minWidth: 0, padding: "6px 4px", borderRadius: "var(--panel-radius, 6px)", cursor: busy ? "default" : "pointer", color: "inherit",
+                style={{ flex: "1 1 0", minWidth: 0, height: "auto", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 4,
+                  padding: "6px 4px", whiteSpace: "normal", lineHeight: 1.25, textAlign: "center", borderRadius: "var(--panel-radius, 6px)", cursor: busy ? "default" : "pointer", color: "inherit",
                   background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 16%, transparent)" : "transparent",
                   border: on ? "2px solid var(--panel-accent, #f6c343)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))" }}>
                 <LayoutIcon kind={value} />
-                <span style={{ display: "block", marginTop: 4, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                <span style={{ display: "block", maxWidth: "100%", fontSize: 12, whiteSpace: "normal", overflowWrap: "anywhere" }}>{label}</span>
               </button>
             );
           })}

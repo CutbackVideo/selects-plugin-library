@@ -12,7 +12,13 @@ Open a project, then use the **8-Clip Daily Vlog** panel.
 2. **Yellow title clip** — pick the one opening clip that carries the animated yellow title.
    Only clips of 4.3 seconds or longer qualify.
 3. **The other seven** — filled at random from the same folder. Press **Shuffle again** for a
-   new draw, or expand **Choose them myself** to set slots by hand; a clip may repeat.
+   new draw, or expand **Choose them myself** to set slots by hand.
+
+Each position has its own required length, so the panel matches clips to lengths rather than
+drawing blindly: the longest position is served first and takes the shortest clip that still
+reaches it. That keeps a long clip from being spent on a short position while a longer one is
+left with nothing that fits, which is why a draw succeeds whenever the folder can satisfy the
+plan at all.
 
 Press **Create vlog Draft**. The panel writes a new editable Draft: the animated title over the
 opening clip, then the remaining shots on a fixed cut plan, with transition, shutter and typing
@@ -20,9 +26,17 @@ effects and the bundled music bed. Clips, title text, effects and audio all stay
 
 ## Shot plan
 
-Eight slots with target lengths of 4.3, 2.6, 1.63, 1.53, 1.5, 1.8, 1.8 and 2.6 seconds. Two
-extra inserts are cut from the pool where the plan calls for them. The music bed is a
-19.72-second excerpt, so the Draft runs to roughly that length.
+The Draft holds **ten** video positions: the eight you choose plus two short inserts of 31 and
+45 frames that sit after the fourth and sixth positions. The eight chosen slots have target
+lengths of 4.3, 2.6, 1.63, 1.53, 1.5, 1.8, 1.8 and 2.6 seconds.
+
+The two inserts are filled automatically with clips from the same folder that none of the eight
+slots already uses, so no source repeats back to back. A folder therefore contributes **ten
+distinct clips**, not all of its footage: pick a folder with at least ten clips long enough for
+the plan. When a folder cannot supply ten, an insert reuses a clip from elsewhere in the plan
+rather than the one immediately before it.
+
+The music bed is a 19.72-second excerpt, so the Draft runs to roughly that length.
 
 The slot labels are a suggestion, not a constraint: opening/travel, everyday place,
 activity/detail, moving scenery, walking/movement, small discovery, rest/portrait, and a

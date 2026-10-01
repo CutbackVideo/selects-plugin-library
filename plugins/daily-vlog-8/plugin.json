@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "daily-vlog-8",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "name": "8-Clip Daily Vlog",
   "summary": "Builds an editable eight-clip daily vlog Draft from one project footage folder, with an animated yellow title, transitions and bundled CC0 audio.",
   "status": "experimental",
@@ -20,6 +20,12 @@
     "assets/shutter-s6-1.wav",
     "assets/typing-k3.wav"
   ],
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 720,
+    "height": 406
+  },
   "compatibility": {
     "platforms": [
       "macOS arm64"

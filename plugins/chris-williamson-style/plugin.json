@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "chris-williamson-style",
+  "version": "0.2.7",
+  "name": "Chris Williamson Style",
+  "summary": "Editable captions and verified B-roll with preserved manual edits, an openly licensed music bed (Kevin MacLeod, CC BY 4.0), no full-screen flashes or shutter sounds.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "style-spec.md",
+    "engine.mjs",
+    "media.mjs",
+    "vision-helper.swift",
+    "build.py",
+    "src/panel.template.tsx",
+    "src/planning.ts",
+    "src/assets.ts",
+    "src/verification.ts",
+    "src/pipeline.ts",
+    "src/look.tsx",
+    "src/broll.tsx",
+    "src/captions.tsx",
+    "fonts/font.css",
+    "fonts/OFL.txt",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Requires current Selects panel runScript/runShell/askAI and getDraftCore/captureVisualFrames. Development build only; released-version compatibility is unverified."
+  },
+  "collection": "visual-highlights",
+  "usesCredits": true,
+  "inputs": [
+    {
+      "id": "speaker",
+      "label": "Select video",
+      "accepts": [
+        "video"
+      ],
+      "min": 1,
+      "max": 1,
+      "requires": [
+        "transcript"
+      ],
+      "query": "one person talking to camera"
+    }
+  ],
+  "prepare": [
+    "A video of one person talking to camera",
+    "Analyzed, so it has a transcript",
+    "English speech"
+  ]
+}

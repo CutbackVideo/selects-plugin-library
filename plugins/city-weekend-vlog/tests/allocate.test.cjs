@@ -259,8 +259,11 @@ assert.equal(osPlan.adjacentRepeats, osPlan.picks.length - 1, 'every cut of a on
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.CWV_BUILD_STEPS.length, 5);
 assert.equal(P.CWV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);
-assert.equal(P.cwvProgress('shots', 0).label, 'Step 1/5 · Choosing shots · 0%');
-assert.equal(P.cwvProgress('shots', 0.5, '12/24 clips checked').label, 'Step 1/5 · Choosing shots (12/24 clips checked) · 20%');
+// Steps carry no text: the panel names them in the UI language (STRINGS `step.<id>`, tests/panel.test.cjs).
+assert.equal(P.CWV_BUILD_STEPS.map(s => s.id).join(' '), 'shots music draft look open');
+assert.ok(P.CWV_BUILD_STEPS.every(s => !('label' in s)), 'no English step labels in the planner');
+assert.deepEqual(JSON.parse(JSON.stringify(P.cwvProgress('shots', 0))), { id: 'shots', value: 0, percent: 0, current: 0 });
+assert.deepEqual(JSON.parse(JSON.stringify(P.cwvProgress('shots', 0.5))), { id: 'shots', value: 0.2, percent: 20, current: 0 });
 assert.equal(P.cwvProgress('draft', 0).percent, 50);
 assert.equal(P.cwvProgress('draft', 0).current, 2);
 assert.equal(P.cwvProgress('open', 0.99).percent, 99);
