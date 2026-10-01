@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "20vc-style",
+  "version": "0.1.0",
+  "name": "20VC Style",
+  "summary": "Edit conversation, interview, or podcast footage into a separate editable portrait short with reaction-led camera cuts, real split tracks, meaning-linked B-roll, readable outlined captions, and restrained transitions and sound effects.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Requires a Selects build whose agent reads user Skills, edits Drafts with run_script, and can use the in-app browser for stock B-roll. Development build only; released-version compatibility is unverified."
+  },
+  "localized": {
+    "de": {
+      "name": "20VC-Stil",
+      "summary": "Schneidet Gesprächs-, Interview- oder Podcast-Material zu einem separaten, editierbaren Hochformat-Short mit reaktionsgeführten Kameraschnitten, echten Split-Spuren, passendem B-Roll, gut lesbaren Untertiteln sowie dezenten Übergängen und Soundeffekten."
+    },
+    "en": {
+      "name": "20VC Style",
+      "summary": "Edit conversation, interview, or podcast footage into a separate editable portrait short with reaction-led camera cuts, real split tracks, meaning-linked B-roll, readable outlined captions, and restrained transitions and sound effects."
+    },
+    "es": {
+      "name": "Estilo 20VC",
+      "summary": "Edita material de conversación, entrevista o pódcast en un short vertical editable e independiente, con cortes de cámara guiados por reacciones, pistas divididas reales, recursos visuales pertinentes, subtítulos legibles y transiciones y efectos de sonido sobrios."
+    },
+    "fr": {
+      "name": "Style 20VC",
+      "summary": "Monte des rushes de conversation, d'interview ou de podcast en un short vertical modifiable et distinct, avec des plans guidés par les réactions, de vraies pistes en écran partagé, des plans de coupe pertinents, des sous-titres lisibles ainsi que des transitions et effets sonores sobres."
+    },
+    "it": {
+      "name": "Stile 20VC",
+      "summary": "Monta riprese di conversazioni, interviste o podcast in uno short verticale separato e modificabile, con stacchi guidati dalle reazioni, vere tracce in split screen, B-roll pertinente, sottotitoli leggibili e transizioni ed effetti sonori sobri."
+    },
+    "ja": {
+      "name": "20VC スタイル",
+      "summary": "対談・インタビュー・ポッドキャスト素材から、編集可能な別の縦型ショートを作成します。リアクション重視のカメラ切り替え、実際の分割トラック、意味に合った B ロール、読みやすい字幕、控えめなトランジションと効果音を扱います。"
+    },
+    "ko": {
+      "name": "20VC \uc2a4\ud0c0\uc77c",
+      "summary": "\ub300\ud654, \uc778\ud130\ubdf0, \ud31f\uce90\uc2a4\ud2b8 \uc601\uc0c1\uc744 \ubcc4\ub3c4\uc758 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc138\ub85c \uc20f\ud3fc Draft\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. \ub9ac\uc561\uc158 \uc911\uc2ec \uce74\uba54\ub77c \uc804\ud658, \uc2e4\uc81c \ubd84\ud560 \ud2b8\ub799, \uc758\ubbf8\uc5d0 \ub9de\ub294 B\ub864, \uc77d\uae30 \uc26c\uc6b4 \uc678\uacfd\uc120 \uc790\ub9c9, \uc808\uc81c\ub41c \uc804\ud658\uacfc \ud6a8\uacfc\uc74c\uc744 \uc0ac\uc6a9\ud569\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Estilo 20VC",
+      "summary": "Edita gravações de conversa, entrevista ou podcast em um short vertical editável e separado, com cortes de câmera guiados por reações, faixas divididas reais, B-roll pertinente, legendas legíveis e transições e efeitos sonoros discretos."
+    },
+    "tr": {
+      "name": "20VC Stili",
+      "summary": "Sohbet, röportaj veya podcast görüntülerini tepki odaklı kamera geçişleri, gerçek bölünmüş izler, anlamlı ara görüntüler, okunaklı altyazılar ve ölçülü geçiş ve ses efektleriyle ayrı, düzenlenebilir dikey bir kısa videoya dönüştürür."
+    },
+    "zh": {
+      "name": "20VC 风格",
+      "summary": "将对谈、访谈或播客素材剪辑成独立、可编辑的竖版短视频：以反应为主导的机位切换、真实的分屏轨道、贴合语义的 B-roll、清晰易读的字幕，以及克制的转场和音效。"
+    }
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  }
+}

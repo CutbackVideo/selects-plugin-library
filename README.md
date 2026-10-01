@@ -13,6 +13,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [iMessage Generator](plugins/imessage-generator) | Experimental |
 | [Ali Abdaal Style](plugins/ali-abdaal-style) | Experimental |
 | [DOAC Style](plugins/doac-style) | Experimental |
+| [20VC Style](plugins/20vc-style) — interview and podcast shorts with reaction-led camera cuts, real split tracks, sourced B-roll and outlined captions | Experimental |
 | [Chris Williamson Style](plugins/chris-williamson-style) — word-by-word captions, big keywords cut through B-roll, a warm push-in on the speaker and an open-licensed music bed | Experimental |
 | [a16z Style Captions](plugins/a16z-style-captions) — blur-to-sharp editorial captions | Experimental |
 | [Depth Type Captions](plugins/depth-type-captions) — typography that wraps around the speaker | Experimental |
