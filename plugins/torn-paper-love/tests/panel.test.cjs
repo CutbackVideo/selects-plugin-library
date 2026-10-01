@@ -104,9 +104,9 @@ for (const phrase of ['title={t(L, "words")}', 'label={t(L, "word1")}', 'label={
   'tplAssignLooks(', 'tplLooksAt(', 'PREVIEW_H']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['words', 'Words'], ['word1', 'Word 1'], ['word2', 'Word 2'], ['style', 'Style'], ['music', 'Music'], ['length', 'Length'], ['advanced', 'Advanced'],
   ['pace', 'Pace'], ['useVideos', 'Use videos'], ['clipSound', 'Clip sound'], ['fadedFilm', 'Faded film'], ['tilt', 'Tilt'], ['chooseClips', 'Choose clips'],
-  ['ownMusic', 'Your own music'], ['noMusic', 'No music'], ['createsDraft', 'Creates a new 4:3 Draft.'], ['anotherVersion', 'Create another version'],
+  ['ownMusic', 'Your own music'], ['noMusic', 'No music'], ['createsDraft', 'Creates a new 4:3 Draft.'], ['anotherVersion', 'Try other shots'],
   ['finishLetters', 'Finish letters and look'], ['ready', 'Ready: {summary}'], ['silentVideo', 'Silent video: no music and Clip sound is Off.'],
-  ['anotherVersionHint', 'Create another version: new tears and letters; different photos when you have more than {n}.'],
+  ['anotherVersionHint', 'Try other shots: new tears and letters; different photos when you have more than {n}.'],
   ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'], ['progress', 'Step {step}/{total} \u00b7 {name} \u00b7 {percent}%']]) says(key, text);
 says('shots', { one: '{count} shot', other: '{count} shots' });
 says('notRead', { one: "{count} photo couldn't be read", other: "{count} photos couldn't be read" });

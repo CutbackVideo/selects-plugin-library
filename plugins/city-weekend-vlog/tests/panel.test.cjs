@@ -19,7 +19,7 @@ assert.match(panel, /\/\/ @icon \w+/);
 assert.ok(!/^import .* from "(?!react")/m.test(panel), 'only react may be imported');
 for (const name of ['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js', 'title-graphic.tsx', 'warm-look.tsx', 'photo-motion.tsx', 'manifest.json', 'presets.json', 'beat-detect.cjs']) assert.ok(panel.includes(name), 'panel reads ' + name);
 for (const phrase of ['selects.editor.openDraft', 'cwvProgress(', 'steps={CWV_BUILD_STEPS.map((s) => t(L, "step." + s.id))}', 'label={t(L, "clipSound")}', 'linkToDraftFrame', 'FontFace', 'projectRef', 'ffprobe', 'aria-pressed', 'loadInventory(', '>{t(L, "refresh")}<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef']) assert.ok(code.includes(phrase), phrase);
-for (const [key, text] of [['anotherVersion', 'Create another version'], ['clipSound', 'Clip sound'], ['silentVideo', 'Silent video'], ['musicFixedRhythm', 'cuts use the original rhythm'], ['musicFixedRhythmDetail', 'cuts use the original rhythm'],
+for (const [key, text] of [['anotherVersion', 'Try other shots'], ['clipSound', 'Clip sound'], ['silentVideo', 'Silent video'], ['musicFixedRhythm', 'cuts use the original rhythm'], ['musicFixedRhythmDetail', 'cuts use the original rhythm'],
   ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'], ['installTools', 'Install ffmpeg and Node.js'], ['draftCreatedAdding', 'Draft created; adding title and look'],
   ['analysing', 'This updates automatically when they finish.'], ['notAnalysedAnalyse', 'Analyse them in Selects to use them here.'], ['noFootage', 'this updates automatically'], ['refresh', 'Refresh'], ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})'], ['clipsChecked', '{done}/{count} clips checked']]) says(key, text);
 assert.deepEqual(['shots', 'music', 'draft', 'look', 'open'].map(id => en['step.' + id]), ['Choosing shots', 'Preparing music', 'Creating Draft', 'Adding title and look', 'Opening Draft']);
@@ -124,7 +124,7 @@ assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('
 // Script configs arrive as JSON.parse(...) so the SDK type check sees `any`, not widened literal types.
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 assert.ok(/decorateJs, \{ sequenceId, mute,/.test(panel) && panel.includes('result.mute !== false'), 'decorate mutes, also on retry');
-// Shortened montage note, "Create another version" flow and the clip checklist.
+// Shortened montage note, "Try other shots" flow and the clip checklist.
 for (const phrase of ['plan.montageShots < fitted', 'function buildAnother()', 'onClick={buildAnother}', 'type="checkbox"', 'textOverflow: "ellipsis"', 'setOnly(null)', 'chooseClips(allRids)', 'chooseClips([])']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['shortened', 'montage shots, so this video is about'], ['shortened', 'Add more clips for the full length'], ['fitsShots', 'footage fits {count} montage shots'], ['chooseClips', 'Choose clips'],
   ['chooseClipsCount', 'Choose clips ({selected}/{total})'], ['clipsSelected', '{selected} of {count} clips selected'], ['noClipsSelected', 'No clips selected'], ['ready', 'Ready: {summary}'], ['aboutSeconds', 'about {seconds} s']]) says(key, text);

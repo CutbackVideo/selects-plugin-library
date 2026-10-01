@@ -84,9 +84,9 @@ The panel's sections, from top to bottom:
 - **Build**: creates a new 4:3 Draft.
 - **Finish letters and look**: appears if the second build commit fails, and
   finishes that Draft (see [Limitations](#limitations)).
-- **Create another version**: builds another Draft. New tear shapes and
-  letters; different photos when you have more pictures than the length
-  needs.
+- **Try other shots**: builds another Draft with the same settings and a
+  different shot choice. New tear shapes and letters; different photos when
+  you have more pictures than the length needs.
 
 ## Music
 

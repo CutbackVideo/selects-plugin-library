@@ -156,8 +156,9 @@ and the music to change its volume. Rebuilding creates a new Draft and does
 not keep Inspector edits.", and shows an **Open the new Draft** link with a
 button that copies it.
 
-After a build, **Create another version** makes another new Draft from the
-same clips with a different shot choice. The Draft already built is kept.
+After a build, **Try other shots** makes another new Draft from the same
+clips and the same settings, with a different shot choice. The Draft already
+built is kept.
 
 The build keeps the settings it started with. If you switch to another
 Project while it runs, it stops without writing anything more.

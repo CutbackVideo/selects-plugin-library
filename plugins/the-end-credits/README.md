@@ -71,8 +71,8 @@ Draft). During Finding shots the detail reads "N/M videos checked" (the scene
 search) and then "N/M videos measured" (how much each video moves); photos are
 not counted there, so M can be smaller than the Choose clips total. When the
 build finishes, the new Draft opens and a link to it is
-shown. **Create another version** makes
-another Draft with a different shot choice. If the last step fails, the Draft
+shown. **Try other shots** makes another Draft with the same settings and
+a different shot choice. If the last step fails, the Draft
 is kept and **Finish title and look** completes it with the settings it was
 built with.
 
@@ -224,7 +224,7 @@ analysis.
   drift, a small tilt), always within the window and never showing the photo's
   edges. Its **Motion** and **Motion strength** can be changed in the
   Inspector.
-- **Create another version** picks other photos.
+- **Try other shots** picks other photos.
 
 ## Advanced
 

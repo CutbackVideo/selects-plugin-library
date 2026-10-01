@@ -169,7 +169,7 @@ const STRINGS = {
     unchecked: { one: "Could not check {count} video; it was skipped. Build again to retry it.", other: "Could not check {count} videos; they were skipped. Build again to retry them." },
     createsDraft: "Creates a new 16:9 Draft",
     finishTitle: "Finish title and look",
-    anotherVersion: "Create another version",
+    anotherVersion: "Try other shots",
     build: "Build",
     building: "Building",
     "param.mainColor": "Main color",
@@ -346,7 +346,7 @@ const STRINGS = {
     unchecked: { one: "{count} Video konnte nicht geprüft werden und wurde übersprungen. Erstelle erneut, um es nochmals zu versuchen.", other: "{count} Videos konnten nicht geprüft werden und wurden übersprungen. Erstelle erneut, um sie nochmals zu versuchen." },
     createsDraft: "Erstellt einen neuen 16:9-Draft",
     finishTitle: "Titel und Look fertigstellen",
-    anotherVersion: "Weitere Version erstellen",
+    anotherVersion: "Andere Aufnahmen probieren",
     build: "Erstellen",
     building: "Wird erstellt",
     "param.mainColor": "Hauptfarbe",
@@ -523,7 +523,7 @@ const STRINGS = {
     unchecked: { one: "No se pudo comprobar {count} vídeo; se omitió. Vuelve a crear para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos; se omitieron. Vuelve a crear para reintentarlos.", other: "No se pudieron comprobar {count} vídeos; se omitieron. Vuelve a crear para reintentarlos." },
     createsDraft: "Crea un nuevo Draft 16:9",
     finishTitle: "Terminar título y look",
-    anotherVersion: "Crear otra versión",
+    anotherVersion: "Probar otros planos",
     build: "Crear",
     building: "Creando",
     "param.mainColor": "Color principal",
@@ -700,7 +700,7 @@ const STRINGS = {
     unchecked: { one: "{count} vidéo n'a pas pu être vérifiée et a été ignorée. Relancez la création pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer." },
     createsDraft: "Crée un nouveau Draft 16:9",
     finishTitle: "Terminer le titre et le look",
-    anotherVersion: "Créer une autre version",
+    anotherVersion: "Essayer d'autres plans",
     build: "Créer",
     building: "Création",
     "param.mainColor": "Couleur principale",
@@ -877,7 +877,7 @@ const STRINGS = {
     unchecked: { one: "Non è stato possibile controllare {count} video, che è stato saltato. Crea di nuovo per riprovare.", many: "Non è stato possibile controllare {count} di video, che sono stati saltati. Crea di nuovo per riprovare.", other: "Non è stato possibile controllare {count} video, che sono stati saltati. Crea di nuovo per riprovare." },
     createsDraft: "Crea un nuovo Draft 16:9",
     finishTitle: "Completa titolo e look",
-    anotherVersion: "Crea un'altra versione",
+    anotherVersion: "Prova altre inquadrature",
     build: "Crea",
     building: "Creazione",
     "param.mainColor": "Colore principale",
@@ -1054,7 +1054,7 @@ const STRINGS = {
     unchecked: { other: "{count} 本の動画を確認できなかったため、スキップしました。もう一度作成すると再試行します。" },
     createsDraft: "16:9 の新しい Draft を作成します",
     finishTitle: "タイトルとルックを仕上げる",
-    anotherVersion: "別のバージョンを作成",
+    anotherVersion: "別のショットで作成",
     build: "作成",
     building: "作成中",
     "param.mainColor": "メインの色",
@@ -1231,7 +1231,7 @@ const STRINGS = {
     unchecked: { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud574 \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
     createsDraft: "\uc0c8 16:9 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4",
     finishTitle: "\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac",
-    anotherVersion: "\ub2e4\ub978 \ubc84\uc804 \ub9cc\ub4e4\uae30",
+    anotherVersion: "\ub2e4\ub978 \uc0f7\uc73c\ub85c \ub9cc\ub4e4\uae30",
     build: "\ub9cc\ub4e4\uae30",
     building: "\ub9cc\ub4dc\ub294 \uc911",
     "param.mainColor": "\uc8fc \uc0c9\uc0c1",
@@ -1408,7 +1408,7 @@ const STRINGS = {
     unchecked: { one: "Não foi possível verificar {count} vídeo; ele foi ignorado. Crie de novo para tentar outra vez.", many: "Não foi possível verificar {count} de vídeos; eles foram ignorados. Crie de novo para tentar outra vez.", other: "Não foi possível verificar {count} vídeos; eles foram ignorados. Crie de novo para tentar outra vez." },
     createsDraft: "Cria um novo Draft 16:9",
     finishTitle: "Concluir título e look",
-    anotherVersion: "Criar outra versão",
+    anotherVersion: "Testar outros planos",
     build: "Criar",
     building: "Criando",
     "param.mainColor": "Cor principal",
@@ -1585,7 +1585,7 @@ const STRINGS = {
     unchecked: { one: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun.", other: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun." },
     createsDraft: "Yeni bir 16:9 Draft oluşturur",
     finishTitle: "Başlığı ve görünümü tamamla",
-    anotherVersion: "Başka bir sürüm oluştur",
+    anotherVersion: "Başka çekimler dene",
     build: "Oluştur",
     building: "Oluşturuluyor",
     "param.mainColor": "Ana renk",
@@ -1762,7 +1762,7 @@ const STRINGS = {
     unchecked: { other: "有 {count} 个视频无法检查，已跳过。重新生成即可重试。" },
     createsDraft: "创建一个新的 16:9 Draft",
     finishTitle: "完成标题和色调",
-    anotherVersion: "再生成一个版本",
+    anotherVersion: "换一组镜头",
     build: "生成",
     building: "正在生成",
     "param.mainColor": "主色",
@@ -3775,7 +3775,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
 
   async function build(nextSeed: number) {
     if (busyRef.current || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
-    // The gate for the seed this build uses (Build: seed; Create another version: seed + 1).
+    // The gate for the seed this build uses (Build: seed; Try other shots: seed + 1).
     const gate = nextSeed === seed ? blockReason : anotherBlock;
     if (gate) { setStatus({ tone: "error", say: gate }); return; }
     const pid = projectId;
@@ -3986,7 +3986,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const usedPhotoCount = usePhotos ? selectedPhotoRids.length : 0;
   // Once a build has searched the current selection (or nothing needs searching: no video selected), plan it for the
   // readiness line, so the fitted shot count and a failure reason show before Build. The allocation depends on the
-  // seed, so each button is gated with the seed it builds with: Build uses `seed`, Create another version `seed + 1`.
+  // seed, so each button is gated with the seed it builds with: Build uses `seed`, Try other shots `seed + 1`.
   const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");
   const readyPlans: any = React.useMemo(() => {
     if (!inventory || !fitted) return { build: null, another: null };
@@ -4271,7 +4271,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
 // every other setting at the panel's default, never opens it, and ends by calling `sdk.finishTemplate` exactly once.
 // ---------------------------------------------------------------------------
 type TemplateOutcome = { sequenceId: string } | { error: string };
-// The panel's first Build uses seed 1 ("Create another version" counts up from there).
+// The panel's first Build uses seed 1 ("Try other shots" counts up from there).
 const TEMPLATE_SEED = 1;
 // Files per alias call: a photo gets its own scratch Draft, which keeps each call well inside runScript's 30 s.
 const TEMPLATE_ALIAS_BATCH = 6;
