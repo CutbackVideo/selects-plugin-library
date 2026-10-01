@@ -2051,6 +2051,10 @@ const AV_FILLER_MAX = 48;
 // source at its whole frames (up to one more frame shorter than its duration), so assemble.js may slide a window this
 // far back to keep it inside its source.
 const AV_SOURCE_TAIL = 0.15;
+// A video window also starts at least this far into its source when the source is long enough: stock clips often
+// fade in from black over their first frames (the Istanbul gallery's skyline clip is black for 0.4 s), and scene
+// search hits at t = 0 would otherwise open a shot on black. Shorter sources may still start at 0.
+const AV_SOURCE_HEAD = 0.5;
 // Photos (Image resources) have no scene search. Each one fills at most one slot of any length up to the 5 s an
 // image source lasts, less AV_SOURCE_TAIL (a slot grows by up to 1/30 + 1/fps s at the Draft's real rate, as for
 // videos), so 4.85 s. About AV_PHOTO_SHARE of the slots that may hold a photo (the montage), evenly spread from a seeded
@@ -2456,7 +2460,8 @@ function avAllocate(opts) {
       if (level != null && (uses[c.rid] || 0) !== level) continue;
       const rank = rankOf(c);
       if (rank < 0 || c.sourceDuration < slot.seconds + AV_SOURCE_TAIL) continue;
-      const start = Math.max(0, Math.min(c.sourceDuration - AV_SOURCE_TAIL - slot.seconds, c.t - slot.seconds / 2));
+      const head = c.sourceDuration >= slot.seconds + AV_SOURCE_TAIL + AV_SOURCE_HEAD ? AV_SOURCE_HEAD : 0;
+      const start = Math.max(head, Math.min(c.sourceDuration - AV_SOURCE_TAIL - slot.seconds, c.t - slot.seconds / 2));
       const end = start + slot.seconds;
       if ((used[c.rid] || []).some(([a, b]) => start < b + gap && end > a - gap)) continue;
       const repeats = recent.filter(r => r === c.rid).length;

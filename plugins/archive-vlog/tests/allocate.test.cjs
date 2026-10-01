@@ -160,9 +160,18 @@ assert.equal(j(P.avAllocate({ candidates: photos(4), slots: [{ index: 0, role: '
   // empty, so no 4-shot montage).
   const few = plan(singles.slice(0, 4));
   assert.deepEqual([few.ok, few.reason, few.usableShots, few.usableSlots], [false, 'too-few', 2, 4]);
-  // Quick shrinks by 4 shots (one bar of 1-beat shots).
+  // Quick shrinks by 4 shots (one bar of 1-beat shots). With the 0.5 s source head (AV_SOURCE_HEAD) a 5.3 s clip
+  // holds one fewer 0.83 s window, so these short clips give 16 (20 before the head margin).
   const q = plan(singles, { pace: 'quick', requested: 32 });
-  assert.equal(q.ok, true); assert.equal(q.shots, 20);
+  assert.equal(q.ok, true); assert.equal(q.shots, 16);
+  // Source head: a video window never starts in the first 0.5 s of a source long enough to skip it, even when the
+  // scene hit sits at t = 0 (stock clips that fade in from black).
+  {
+    const atZero = Array.from({ length: 9 }, (_, i) => mk('z' + i, MONTAGE[i % MONTAGE.length], 0, 0.5, 12));
+    const z = plan(atZero);
+    assert.equal(z.ok, true);
+    for (const k of z.picks) if (k && k.kind === 'video') assert.ok(k.startSeconds >= 0.5 - 1e-9, 'window starts after the head: ' + k.startSeconds);
+  }
   // The final shot is filled early: in timeline order the montage spends the long windows and Quick gets only 4.
   const tl = j(P.avAllocate({ candidates: singles.concat(P.avFillers(singles)), slots: tplSlots(8, 72, 'quick'), seed: 's1', finalEarly: false }));
   assert.equal(tl.missing, 1); assert.equal(tl.picks[tl.picks.length - 1], null, 'no window left for the final shot');
