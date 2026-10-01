@@ -172,6 +172,19 @@ function localVideoMotions(picks, seed, photoMoves, avHash) {
   return out;
 }
 
+// The panel's av-build avSizesOf / avVisibleFraction (scratchpad parity checks the configs match): frame sizes by rid
+// (videos, and photos the inventory measured), and the fraction of a source's height the 16:9 canvas shows once
+// assemble.js cover-crops it (1 for 16:9 or wider, or an unknown size), to 4 decimals.
+function sizesOf(inv) {
+  const out = {};
+  for (const r of [...(inv.resources || []), ...(inv.photos || []).filter(p => p.width > 0 && p.height > 0)]) out[r.rid] = { width: r.width, height: r.height };
+  return out;
+}
+function visibleFraction(size) {
+  if (!size || !(size.width > 0) || !(size.height > 0)) return 1;
+  return Math.round(Math.min(1, (size.width / size.height) / (1920 / 1080)) * 1e4) / 1e4;
+}
+
 export async function createAdapter({ pluginDir, installedDir, read }) {
   const manifestJson = JSON.parse(read('plugin.json'));
   const panel = read('panel.tsx');
@@ -357,9 +370,12 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       if (inv.resources.length < 2) throw Error(AV_FAIL[inv.resources.length ? 'one-video' : 'no-video'] + '.');
       // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. The motion hits
       // become a tie-break bonus (and the opener's `motion` tag) on the role candidates.
+      // Frame sizes (the panel's avSizesOf): the planner prefers a landscape opening, and the letterbox reveal is remapped
+      // for the opening's cover crop (visible fraction).
+      const frameSizes = sizesOf(inv);
       const plan = j(P.avPlanBuild({ candidates: motionBonus(found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: null, fps: 30, pace, requested,
         sectionStart: musicStart ?? undefined, usableEnd: musicKind === 'none' ? undefined : grid.usableEnd, onsets: grid.onsets, onsetThresholds: grid.onsetThresholds,
-        lowConfidence: !gridded, seed: String(seed) }));
+        lowConfidence: !gridded, seed: String(seed), sizes: frameSizes }));
       const planSummary = { ok: plan.ok, reason: plan.reason, shots: plan.shots, requested, fitted, montageBeats: plan.montageBeats, finalBeats: plan.finalBeats,
         tempo, gridded, photoShots: plan.photoShots, fillerShots: plan.fillerShots, usableShots: plan.usableShots, attempt: plan.attempt, notes: plan.notes,
         sectionStart: musicStart, pace, motionHits: found.list.filter(c => c && c.role === MOTION_ROLE).length };
@@ -367,8 +383,9 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       // Photo sizes the inventory measured (the panel's photo size cache).
       const photoSizes = {};
       for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizes[ph.rid] = { width: ph.width, height: ph.height };
+      const openingSize = frameSizes[plan.picks[0]?.rid] || null;
       return { row, seed, inv, found, cue, musicKind, grid, gridded, tempo, pace, requested, fitted, section, start, musicStart, plan, planSummary,
-        photoSizes, fields, creditName, chosen, boundaries: plan.schedule.cuts, burst: null };
+        photoSizes, openingSize, fields, creditName, chosen, boundaries: plan.schedule.cuts, burst: null };
     },
 
     ensureAudio(s) {
@@ -447,7 +464,8 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         sequenceId: a.sequenceId, videoEnd: a.totalFrames, mute: row.clipSound === 'off', photos: photoRids, photoEffects: true,
         title: { tsx: read('assets/decode-title.tsx'), parameters, editableParameters },
         credit,
-        letterbox: { tsx: read('assets/letterbox-reveal.tsx'), parameters: { revealStart: timing.revealStart, revealEnd: timing.revealEnd, revealSeconds: timing.revealEnd - timing.revealStart, enabled: true } },
+        letterbox: { tsx: read('assets/letterbox-reveal.tsx'), parameters: { revealStart: timing.revealStart, revealEnd: timing.revealEnd, revealSeconds: timing.revealEnd - timing.revealStart, enabled: true,
+          visible: visibleFraction(s.openingSize) } },
         look,
         fade: { tsx: read('assets/fade-out.tsx'), fadeSeconds: C.FADE_SECONDS },
         motion: { tsx: read('assets/photo-motion.tsx'), strength: C.MOTION_STRENGTH, options: C.MOTION_OPTIONS, byRid, video: { strength: C.VIDEO_MOTION_STRENGTH, byIndex } },

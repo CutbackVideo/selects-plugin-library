@@ -2740,19 +2740,33 @@ function avOpeningSeconds(plan, fps, sectionStart) {
     sectionStart: typeof sectionStart === 'number' ? sectionStart : undefined, cuts: plan.schedule.cuts });
   return (s.slots[0].endFrame - s.slots[0].startFrame) / fps;
 }
+// Frame sizes by rid ({ width, height }) from an inventory: its videos and the photos it has measured. Photo sizes not
+// measured yet stay out (assemble.js measures those itself). The planner's sizes (the landscape opening) and assemble's crops.
+function avSizesOf(inventory) {
+  const sized = ((inventory && inventory.resources) || []).concat(((inventory && inventory.photos) || []).filter(r => r.width > 0 && r.height > 0));
+  // Object({}): an untyped map (the panel type-checks this block).
+  const out = Object({});
+  for (const r of sized) out[r.rid] = { width: r.width, height: r.height };
+  return out;
+}
+// The fraction of a source's height the 16:9 canvas shows once assemble.js cover-crops it, to 4 decimals: 1 for a
+// source as wide as 16:9 or wider (cropped at the sides only) and for an unknown size; 4:3 0.75, 9:16 0.3164. The
+// letterbox reveal remaps its band with it (letterbox-reveal.tsx `visible`).
+function avVisibleFraction(size) {
+  if (!size || !(size.width > 0) || !(size.height > 0)) return 1;
+  return Math.round(Math.min(1, (size.width / size.height) / (AV_W / AV_H)) * 1e4) / 1e4;
+}
 // assemble.js cfg. o: { projectId, draftName, plan, inventory (resources and photos with their sizes), music
 // ({ resourceId } from ensure-audio.js, or null), sectionStart, clipSound }.
 function avAssembleConfig(o) {
-  // Photo sizes the inventory has not measured yet stay out; assemble.js measures those itself.
-  const sized = (o.inventory.resources || []).concat((o.inventory.photos || []).filter(r => r.width > 0 && r.height > 0));
-  const crops = {};
-  for (const r of sized) crops[r.rid] = { width: r.width, height: r.height };
+  const crops = avSizesOf(o.inventory);
   return { projectId: o.projectId, draftName: o.draftName, picks: o.plan.picks, boundaries: o.plan.schedule.cuts, crops, clipSound: o.clipSound,
     ambientDb: AMBIENT_DB, music: o.music ? { resourceId: o.music.resourceId, sectionStart: o.sectionStart == null ? 0 : o.sectionStart } : null,
     musicFadeOut: MUSIC_FADE_OUT };
 }
 // decorate.js cfg. o: { sequenceId, videoEnd, fps (assemble's), plan, presets (presets.json), tsx: { title, credit,
-// letterbox, look, fade, motion }, fonts: { file: WOFF2 data }, sizes: { rid: { width, height } }, provenance, frozen }.
+// letterbox, look, fade, motion }, fonts: { file: WOFF2 data }, sizes: { rid: { width, height } }, openingSize (the opening
+// pick's { width, height }, or null), provenance, frozen }.
 // frozen (the inputs at the Build click): { seed, preset, fields: { kicker, title, tagline }, credit: { on, prefix?, name },
 // clipSound, look: { on, strength }, sectionStart (null without music), labels (adjustLabels, English without), motionOptions }.
 function avDecorateConfig(o) {
@@ -2791,7 +2805,7 @@ function avDecorateConfig(o) {
     ],
   } : null;
   const letterbox = { tsx: o.tsx.letterbox, parameters: { revealStart: timing.revealStart, revealEnd: timing.revealEnd,
-    revealSeconds: timing.revealEnd - timing.revealStart, enabled: true } };
+    revealSeconds: timing.revealEnd - timing.revealStart, enabled: true, visible: avVisibleFraction(o.openingSize) } };
   // The look's strength is the one frozen at Build (the panel's slider, else the preset's); its warmth the preset's.
   const look = f.look && f.look.on ? { tsx: o.tsx.look, strength: typeof f.look.strength === 'number' ? f.look.strength : avLookStrength(p),
     warmth: (p.look && typeof p.look.warmth === 'number') ? p.look.warmth : 1 } : null;
@@ -4358,8 +4372,9 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
       // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. Motion hits
       // become a tie-break bonus on the role candidates first (avMotionBonus).
+      const sizes = avSizesOf(inventory);
       const plan: any = avPlanBuild({ candidates: avMotionBonus(found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30,
-        pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });
+        pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed), sizes });
       if (!plan.ok) {
         const failed = found.failed.length;
         // Whole sentences joined with `gap` (no space after a full stop in ja and zh).
@@ -4392,8 +4407,9 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       // the real length at the Draft fps.
       const shortened = plan.shots < plan.musicShots ? { shots: plan.shots, of: plan.musicShots, seconds: a.totalFrames / a.fps } : null;
       advance("draft", 1);
+      // The opening's frame size, as it was at Build (a later "Finish title and look" may meet another inventory).
       const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, plan, notes: a.notes || [], link: null, shortened,
-        unchecked: found.failed.length };
+        unchecked: found.failed.length, openingSize: sizes[plan.picks[0]?.rid] || null };
       setResult(res);
       await decorate(res, check);
     } catch (e: any) {
@@ -4432,7 +4448,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       const fonts = await allFonts(roots!.plugin, assets.presets);
       check();
       const cfg = avDecorateConfig({ sequenceId: res.sequenceId, videoEnd: res.videoEnd, fps: res.fps, plan: res.plan, presets: assets.presets, tsx: assets.tsx, fonts,
-        sizes: { ...photoSizesRef.current }, frozen: f,
+        sizes: { ...photoSizesRef.current }, openingSize: res.openingSize || null, frozen: f,
         provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart,
           pace: f.pace, length: f.length, seed: f.seed, clipSound: f.clipSound, look: f.look.on, credit: f.credit.on } });
       await run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
@@ -4497,7 +4513,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     const scored = avMotionBonus(searched ? searched.list : []);
     const planAt = (s: number) => {
       const p: any = avPlanBuild({ candidates: scored.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30,
-        pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(s) });
+        pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(s), sizes: avSizesOf(inventory) });
       // A search with failed clips is retried by Build, so its shortfall does not block Build yet.
       return { ...p, retryable: !!(searched && searched.failed.length) };
     };
@@ -4956,9 +4972,10 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   }
   if (found.failed.length) console.info("[archive-vlog] template run: scene search failed for", found.failed.join(", "));
   const candidates = found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }));
+  const frames = { ...sizes, ...avSizesOf(inventory) };
   const plan: any = avPlanBuild({ candidates: avMotionBonus(candidates).concat(photoCandsOf(inventory, null, true)), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm,
     fps: 30, pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !fit.gridded,
-    seed: String(TEMPLATE_SEED) });
+    seed: String(TEMPLATE_SEED), sizes: frames });
   if (!plan.ok) {
     const waiting = unanalysed ? " " + unanalysed + (unanalysed === 1 ? " video is" : " videos are") + " not analyzed yet, so it could not be used." : "";
     throw templateIssue(failText(bl, plan.reason, plan) + waiting);
@@ -4984,7 +5001,8 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   check();
   const frozen = { seed: TEMPLATE_SEED, preset: chosen.id, fields, credit: { on: true, name: chosen.credit?.name || "" }, clipSound,
     look: { on: true, strength: avLookStrength(chosen) }, sectionStart: musicStart, labels: adjustLabelsFor(bl), motionOptions: motionOptionsFor(bl) };
-  const cfg = avDecorateConfig({ sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, plan, presets: assets.presets, tsx: assets.tsx, fonts, sizes, frozen,
+  const cfg = avDecorateConfig({ sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, plan, presets: assets.presets, tsx: assets.tsx, fonts, sizes,
+    openingSize: frames[plan.picks[0]?.rid] || null, frozen,
     provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: chosen.id, cue: cue.id, sectionStart: musicStart, pace, length, seed: TEMPLATE_SEED, clipSound,
       look: true, credit: true } });
   const finish = () => run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);

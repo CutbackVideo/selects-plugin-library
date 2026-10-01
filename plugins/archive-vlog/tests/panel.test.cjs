@@ -146,7 +146,7 @@ const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JS
 vm.createContext(box);
 vm.runInContext(planner + '\n' + hookBlock + '\n' + buildBlock + `
 this.P = { AV_MIN_MONTAGE, avPlanBuild, avMontageShots, avOpeningTiming, avSchedule, avMusicOffset, avPhotoMotions, avMotionBonus, avVideoMotions, avAssembleConfig, avDecorateConfig,
-  avOpeningSeconds, avPreset, avPresetFonts, avLookStrength, AV_ROLES, AV_PHOTO_MOTIONS, AV_BUILD_STEPS,
+  avOpeningSeconds, avPreset, avPresetFonts, avLookStrength, avSizesOf, avVisibleFraction, AV_ROLES, AV_PHOTO_MOTIONS, AV_BUILD_STEPS,
   K: { AV_QUERIES, SEARCH_BATCH, AMBIENT_DB, DEFAULT_CUE, DEFAULT_PRESET, DEFAULT_LENGTH, DEFAULT_PACE, DEFAULT_CLIP_SOUND, LOOK_STRENGTH, MOTION_STRENGTH,
     VIDEO_MOTION_STRENGTH, FADE_SECONDS, MUSIC_FADE_OUT, TITLE_LOOK, CREDIT_LOOK, TITLE_FONT_OPTIONS, MOTION_OPTIONS, AV_ADJUST_LABELS, AV_FAIL, AV_W, AV_H, CREDIT_FAMILY } };`, box);
 const P = box.P, K = j(P.K);
@@ -253,7 +253,10 @@ for (const [seed, pace, music, preset, creditOn, lookOn, clipSound] of [[1, 'cin
   assert.equal(P.avOpeningSeconds(plan, fps, sectionStart), openFrames / fps, 'opening seconds at the real fps');
   const timing = j(P.avOpeningTiming(openFrames / fps));
   assert.deepEqual(cfg.title.parameters.timing, timing);
-  assert.deepEqual(cfg.letterbox, { tsx: 'BOX', parameters: { revealStart: timing.revealStart, revealEnd: timing.revealEnd, revealSeconds: timing.revealEnd - timing.revealStart, enabled: true } });
+  assert.deepEqual(cfg.letterbox, { tsx: 'BOX', parameters: { revealStart: timing.revealStart, revealEnd: timing.revealEnd, revealSeconds: timing.revealEnd - timing.revealStart, enabled: true, visible: 1 } });
+  // A non-16:9 opening: the letterbox gets the fraction of its height the canvas shows (avVisibleFraction).
+  for (const [size, v] of [[{ width: 1440, height: 1080 }, 0.75], [{ width: 1080, height: 1920 }, 0.3164], [{ width: 2048, height: 1080 }, 1], [null, 1]])
+    assert.equal(j(P.avDecorateConfig({ sequenceId: 'seq', videoEnd: 900, fps, plan, presets, tsx, fonts, sizes, frozen, openingSize: size, provenance: {} })).letterbox.parameters.visible, v);
   // Title
   const tp = cfg.title.parameters;
   for (const [k, v] of Object.entries({ preset, kicker: 'K', title: 'TITLE', tagline: 'T', titleColor: p.colors.title, textColor: p.colors.text, taglineTracking: p.taglineTracking,
@@ -331,6 +334,17 @@ for (const [seed, pace, music, preset, creditOn, lookOn, clipSound] of [[1, 'cin
   const out = j(P.avMotionBonus(list));
   assert.equal(out[0].motion, 1); assert.ok(Math.abs(out[0].score - 0.5) < 1e-9, 'bonus 0.2 at full motion');
   assert.deepEqual(out[1], { rid: 'b', role: 'motion', sourceDuration: 8 }, 'a clip with only motion hits keeps a stub row');
+}
+// Frame sizes for the planner and the crops; the visible fraction of a cover-cropped source.
+{
+  const z = j(P.avSizesOf({ resources: [{ rid: 'v', width: 1080, height: 1920 }], photos: [{ rid: 'p', width: 800, height: 600 }, { rid: 'q', width: 0, height: 0 }] }));
+  assert.deepEqual(z, { v: { width: 1080, height: 1920 }, p: { width: 800, height: 600 } }, 'unmeasured photos stay out');
+  assert.deepEqual(j(P.avSizesOf(null)), {});
+  for (const [w, h, v] of [[1920, 1080, 1], [3840, 1600, 1], [1440, 1080, 0.75], [1080, 1920, 0.3164], [1080, 1080, 0.5625]]) assert.equal(P.avVisibleFraction({ width: w, height: h }), v, w + 'x' + h);
+  assert.equal(P.avVisibleFraction(undefined), 1); assert.equal(P.avVisibleFraction({ width: 0, height: 5 }), 1);
+  // Every plan call passes the sizes (the landscape opening), and the Build freezes the opening's size for Finish.
+  assert.equal((ui.match(/avPlanBuild\(\{[^;]*?sizes/g) || []).length, 3, 'avPlanBuild gets sizes at every call');
+  assert.ok(ui.includes('openingSize: sizes[plan.picks[0]?.rid] || null') && ui.includes('openingSize: res.openingSize || null'));
 }
 // The panel and its template run use the builders (one config path for both).
 assert.equal((ui.match(/avAssembleConfig\(\{/g) || []).length, 2, 'assemble config: the panel and the template run');
