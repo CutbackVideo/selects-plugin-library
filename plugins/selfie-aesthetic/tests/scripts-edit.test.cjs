@@ -335,6 +335,12 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   // Basename fallback: the same cue imported from another folder is reused.
   const w4 = audioProject(['/old/place/x.mp3', '/old/place/make-funk.mp3']);
   assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCfg })(w4.selects), { resourceId: 'a1', imported: false });
+  // Own music (matchByName false): another file with the same name is not reused.
+  const w4b = audioProject(['/Users/x/Downloads/track.mp3']);
+  assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/Users/x/Music/track.mp3', matchByName: false })(w4b.selects), { resourceId: 'new1', imported: true });
+  assert.deepEqual(w4b.calls.imports, [['/Users/x/Music/track.mp3']]);
+  const w4c = audioProject(['/Users/x/Music/track.mp3']);
+  assert.equal((await load('ensure-audio.js', { projectId: 'p', path: '/Users/x/Music/track.mp3', matchByName: false })(w4c.selects)).resourceId, 'a0');
   // No match: imported once; a non-Audio resource with the same path is ignored.
   const w5 = audioProject(['/x/other.mp3'], [{ resourceId: 'vid', type: 'Video' }]);
   assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/cues/make-funk.mp3' })(w5.selects), { resourceId: 'new1', imported: true });
