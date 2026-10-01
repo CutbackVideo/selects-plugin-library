@@ -32,8 +32,11 @@ var AV_TITLE_FLOOR = 0.5, AV_SMALL_FLOOR = 0.6, AV_TRACK_FLOOR = 0.15;
 var AV_GHOST_OPACITY = 0.5;
 // Used only when a family's metrics are missing: a generic 0.56 em advance.
 var AV_FALLBACK_METRICS = { unitsPerEm: 1000, xHeight: 500, capHeight: 700, ascent: 720, descent: -220, advances: {} };
-// Korean text: no uppercase, no tracking, no condense; a wide character (Hangul, kana, CJK, fullwidth) without an
-// advance in the metrics counts as 1 em. Hangul ink reaches about 0.86 em above the baseline and 0.12 em below it.
+// Korean text: no uppercase, no tracking, no condense. A wide character (Hangul, kana, CJK, fullwidth) has no advance
+// in the bundled metrics: it is drawn in the system Korean face ("Apple SD Gothic Neo" on macOS, "Malgun Gothic" on
+// Windows), whose metrics differ, so the render and the panel measure it with a canvas (avKoMeasure) and pass
+// `data.koInk` ({ up, down } em) and `data.koAdvances` ({ char: em }). Without them (Node) a wide character counts as
+// 1 em and its ink as 0.86 em above the baseline and 0.12 em below (tuned on Apple SD Gothic Neo).
 var AV_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
 var AV_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
 var AV_WIDE_UP = 0.86, AV_WIDE_DOWN = 0.12;
@@ -83,28 +86,63 @@ function avGhostChar(ch, index, frame) {
   return pool[at];
 }
 
+// Wide-glyph metrics from `data`: measured values when valid, else the constants above.
+function avKoWide(data) {
+  var ink = data && data.koInk, adv = data && data.koAdvances;
+  var ok = ink && typeof ink.up === "number" && typeof ink.down === "number" && ink.up > 0.3 && ink.up < 1.5 && ink.down >= 0 && ink.down < 0.6;
+  return { up: ok ? ink.up : AV_WIDE_UP, down: ok ? ink.down : AV_WIDE_DOWN, adv: adv && typeof adv === "object" ? adv : null };
+}
+function avKoAdvance(kw, ch) {
+  var a = kw && kw.adv ? kw.adv[ch] : undefined;
+  return typeof a === "number" && isFinite(a) && a > 0.2 && a < 2 ? a : 1;
+}
+// Measures the wide glyphs on a 2D canvas with the exact stack and weight the title draws them with (call it once the
+// fonts are loaded): { koInk, koAdvances } to merge into `data`, or null in Node or when the text has no wide glyph.
+// Ink comes from a Hangul sample; advances from each wide character of the kicker, title, tagline and (for a title
+// with Hangul) the decode pool. Hangul syllables share one advance across the weights of the Korean system faces, so
+// the kicker and tagline use the same table.
+function avKoMeasure(data) {
+  data = data || {};
+  var f = avTitleFields(data), text = f.kicker + f.title + f.tagline;
+  if (!AV_WIDE_RE.test(text) || typeof document === "undefined" || !document.createElement) return null;
+  var ctx = null;
+  try { ctx = document.createElement("canvas").getContext("2d"); } catch (e) { ctx = null; }
+  if (!ctx || typeof ctx.measureText !== "function") return null;
+  var face = AV_TITLE_FACES[data.font] || AV_TITLE_FACES.anton, px = 100;
+  ctx.font = "700 " + px + "px " + avFontStack(face.family);
+  var out = { koAdvances: {} };
+  var s = ctx.measureText("\ud55c\uae00");
+  if (s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0) out.koInk = { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px };
+  var chars = Array.from(text).concat(avHasHangul(f.title) ? AV_POOL_HANGUL : []);
+  for (var i = 0; i < chars.length; i++) {
+    if (AV_WIDE_RE.test(chars[i]) && !(chars[i] in out.koAdvances)) out.koAdvances[chars[i]] = ctx.measureText(chars[i]).width / px;
+  }
+  return out;
+}
+
 function avMetrics(data, family) {
   var fonts = data && Array.isArray(data.fonts) ? data.fonts : [];
   for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === family && fonts[i].metrics) return fonts[i].metrics;
   return AV_FALLBACK_METRICS;
 }
-function avAdvance(m, ch) {
+// `kw` (avKoWide) supplies measured wide advances; Latin always comes from the metrics (or the 0.56 em fallback).
+function avAdvance(m, ch, kw) {
   var a = m.advances[ch];
-  return typeof a === "number" ? a : (AV_WIDE_RE.test(ch) ? 1 : 0.56) * m.unitsPerEm;
+  return typeof a === "number" ? a : (AV_WIDE_RE.test(ch) ? avKoAdvance(kw, ch) : 0.56) * m.unitsPerEm;
 }
 // Advance width of `text` at `px` (kerning ignored), plus `tracking` em between letters (CSS letter-spacing also
 // follows the last letter, but that space is never visible).
-function avTextWidth(text, m, px, tracking) {
+function avTextWidth(text, m, px, tracking, kw) {
   var units = 0, chars = Array.from(text);
-  for (var i = 0; i < chars.length; i++) units += avAdvance(m, chars[i]);
+  for (var i = 0; i < chars.length; i++) units += avAdvance(m, chars[i], kw);
   return (units * px) / m.unitsPerEm + (tracking || 0) * px * Math.max(0, chars.length - 1);
 }
 // Ink extents above / below the baseline in em.
-function avInk(text, m) {
+function avInk(text, m, kw) {
   var up = m.xHeight, down = 0;
   if (/[A-Z0-9bdfhklt\u00c0-\u00de\u00df!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.capHeight);
   if (/[gjpqy,;()[\]{}|]/.test(text)) down = -m.descent;
-  if (AV_WIDE_RE.test(text)) { up = Math.max(up, AV_WIDE_UP * m.unitsPerEm); down = Math.max(down, AV_WIDE_DOWN * m.unitsPerEm); }
+  if (AV_WIDE_RE.test(text)) { up = Math.max(up, kw.up * m.unitsPerEm); down = Math.max(down, kw.down * m.unitsPerEm); }
   return { up: up / m.unitsPerEm, down: down / m.unitsPerEm };
 }
 // Latin is set in capitals; text with Hangul keeps its case.
@@ -119,10 +157,10 @@ function avTitleFields(data) {
 function avNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
 
 // A one-line text item (kicker, tagline): x = left edge, y = baseline; `tracking` em (0 with Hangul).
-function avLine(part, text, face, m, size, tracking, color) {
+function avLine(part, text, face, m, size, tracking, color, kw) {
   var tr = avHasHangul(text) ? 0 : tracking;
   return { part: part, text: text, family: face.family, weight: face.weight, stack: avFontStack(face.family), size: size, tracking: tr, color: color,
-    w: avTextWidth(text, m, size, tr), ink: avInk(text, m), x: 0, y: 0 };
+    w: avTextWidth(text, m, size, tr, kw), ink: avInk(text, m, kw), x: 0, y: 0 };
 }
 
 // The lockup at canvas size: { title: { letters, size, y, ... } | null, kicker, tagline, box, steps }.
@@ -136,40 +174,40 @@ function avTitleLayout(data, width, height) {
   var textColor = typeof data.textColor === "string" && data.textColor ? data.textColor : preset.textColor;
   var face = AV_TITLE_FACES[data.font] || AV_TITLE_FACES.anton;
   var mt = avMetrics(data, face.family), mk = avMetrics(data, AV_KICKER_FACE.family), mg = avMetrics(data, AV_TAGLINE_FACE.family);
-  var fitW = AV_FIT * W;
+  var fitW = AV_FIT * W, kw = avKoWide(data);
   // Title: sized by the face's cap height, condensed (Latin only), shrunk to the fit width down to a floor.
   var title = null;
   if (fields.title) {
     var ko = avHasHangul(fields.title), cx = ko ? 1 : face.condense;
     var F0 = (AV_TITLE_CAP * H * S) / (mt.capHeight / mt.unitsPerEm);
-    var w0 = avTextWidth(fields.title, mt, F0) * cx;
+    var w0 = avTextWidth(fields.title, mt, F0, 0, kw) * cx;
     var F = F0 * Math.max(AV_TITLE_FLOOR, Math.min(1, fitW / w0));
     var chars = Array.from(fields.title), pen = 0, step = 0, letters = [];
     for (var i = 0; i < chars.length; i++) {
-      var ch = chars[i], cls = avCharClass(ch), w = (avAdvance(mt, ch) * F * cx) / mt.unitsPerEm;
+      var ch = chars[i], cls = avCharClass(ch), w = (avAdvance(mt, ch, kw) * F * cx) / mt.unitsPerEm;
       letters.push({ ch: ch, cls: cls, x: pen, w: w, step: cls === "space" ? -1 : step++ });
       pen += w;
     }
     title = { part: "title", text: fields.title, family: face.family, weight: face.weight, stack: avFontStack(face.family), size: F, condense: cx,
-      color: titleColor, w: pen, ink: avInk(fields.title, mt), x: 0, y: 0, letters: letters, steps: step,
+      color: titleColor, w: pen, ink: avInk(fields.title, mt, kw), x: 0, y: 0, letters: letters, steps: step,
       // Hangul is drawn in the system Korean face, whose regular weight looks light next to Anton.
       koWeight: 700 };
   }
   var capPx = title ? (title.size * mt.capHeight) / mt.unitsPerEm : AV_TITLE_CAP * H * S;
-  var kicker = fields.kicker ? avLine("kicker", fields.kicker, AV_KICKER_FACE, mk, (AV_KICKER_CAP * H * S) / (mk.capHeight / mk.unitsPerEm), 0, textColor) : null;
+  var kicker = fields.kicker ? avLine("kicker", fields.kicker, AV_KICKER_FACE, mk, (AV_KICKER_CAP * H * S) / (mk.capHeight / mk.unitsPerEm), 0, textColor, kw) : null;
   var tagline = null;
   if (fields.tagline) {
     var Fg = ((AV_TAGLINE_CAP * H * S) / (mg.capHeight / mg.unitsPerEm)) * (preset.taglineSize / 100);
-    tagline = avLine("tagline", fields.tagline, AV_TAGLINE_FACE, mg, Fg, avNum(data.taglineTracking, preset.taglineTracking, 0, 1), textColor);
+    tagline = avLine("tagline", fields.tagline, AV_TAGLINE_FACE, mg, Fg, avNum(data.taglineTracking, preset.taglineTracking, 0, 1), textColor, kw);
     // Too wide: less tracking first (down to a floor), then a smaller size.
     if (tagline.w > fitW && tagline.tracking > AV_TRACK_FLOOR) {
-      var n = Array.from(tagline.text).length - 1, plain = avTextWidth(tagline.text, mg, Fg);
+      var n = Array.from(tagline.text).length - 1, plain = avTextWidth(tagline.text, mg, Fg, 0, kw);
       var tr = n > 0 ? Math.max(AV_TRACK_FLOOR, (fitW - plain) / (n * Fg)) : 0;
-      tagline = avLine("tagline", fields.tagline, AV_TAGLINE_FACE, mg, Fg, Math.min(tagline.tracking, tr), textColor);
+      tagline = avLine("tagline", fields.tagline, AV_TAGLINE_FACE, mg, Fg, Math.min(tagline.tracking, tr), textColor, kw);
     }
-    if (tagline.w > fitW) tagline = avLine("tagline", fields.tagline, AV_TAGLINE_FACE, mg, Fg * Math.max(AV_SMALL_FLOOR, fitW / tagline.w), tagline.tracking, textColor);
+    if (tagline.w > fitW) tagline = avLine("tagline", fields.tagline, AV_TAGLINE_FACE, mg, Fg * Math.max(AV_SMALL_FLOOR, fitW / tagline.w), tagline.tracking, textColor, kw);
   }
-  if (kicker && kicker.w > fitW) kicker = avLine("kicker", fields.kicker, AV_KICKER_FACE, mk, kicker.size * Math.max(AV_SMALL_FLOOR, fitW / kicker.w), 0, textColor);
+  if (kicker && kicker.w > fitW) kicker = avLine("kicker", fields.kicker, AV_KICKER_FACE, mk, kicker.size * Math.max(AV_SMALL_FLOOR, fitW / kicker.w), 0, textColor, kw);
   // Stack top to bottom (ink to ink), each line centred on x = 0; the title baseline is y = 0.
   var top = title ? -title.ink.up * title.size : 0, bottom = title ? title.ink.down * title.size : 0;
   if (title) title.x = -title.w / 2;
@@ -228,13 +266,13 @@ function avDecodeFrame(layout, data, frame, fps) {
   var t = layout.title;
   if (!t || frame < decF) return out;
   var now = Math.floor((frame - decF) / lsF + 1e-9); // the step showing a ghost (== steps: all locked)
-  var m = layout.metrics || AV_FALLBACK_METRICS;
+  var m = layout.metrics || AV_FALLBACK_METRICS, kw = avKoWide(data);
   for (var i = 0; i < t.letters.length; i++) {
     var l = t.letters[i];
     if (l.step < 0 || l.step > now) continue;
     var ghost = l.step === now, ch = ghost ? avGhostChar(l.ch, i, frame) : l.ch;
     // A ghost glyph is centred in the final letter's box (its own advance may differ).
-    var gw = ghost ? (avAdvance(m, ch) * t.size * t.condense) / m.unitsPerEm : l.w;
+    var gw = ghost ? (avAdvance(m, ch, kw) * t.size * t.condense) / m.unitsPerEm : l.w;
     var ko = AV_HANGUL_RE.test(ch);
     out.glyphs.push({ ch: ch, x: l.x + (l.w - gw) / 2, y: t.y, size: t.size, condense: t.condense, opacity: ghost ? AV_GHOST_OPACITY : 1, ghost: ghost,
       family: t.family, weight: ko ? t.koWeight : t.weight, stack: t.stack, color: t.color });
@@ -254,8 +292,11 @@ export default function ArchiveDecodeTitle({ data: raw }: { data: any }) {
   const height = num(config && config.height, 1080);
   const fps = num(config && config.fps, 30);
   const fonts: any[] = Array.isArray(data.fonts) ? data.fonts.filter((f: any) => f && f.b64) : [];
-  const [ready, setReady] = useState(fonts.length === 0);
-  const [handle] = useState(() => (fonts.length && typeof document !== "undefined" && document.fonts ? delayRender("archive vlog title fonts") : null));
+  // Wide (Hangul) text is measured on a canvas once the fonts are loaded, so the render waits for that too.
+  const fields = avTitleFields(data);
+  const wideText = AV_WIDE_RE.test(fields.kicker + fields.title + fields.tagline) ? fields.kicker + fields.title + fields.tagline : "";
+  const [ready, setReady] = useState(fonts.length === 0 && !wideText);
+  const [handle] = useState(() => ((fonts.length || wideText) && typeof document !== "undefined" && document.fonts ? delayRender("archive vlog title fonts") : null));
   const released = useRef(false);
   const release = () => {
     if (handle != null && !released.current) { released.current = true; continueRender(handle); }
@@ -265,16 +306,22 @@ export default function ArchiveDecodeTitle({ data: raw }: { data: any }) {
     let live = true;
     const done = () => { if (live) setReady(true); };
     if (typeof document === "undefined" || !document.fonts) { done(); return; }
-    Promise.all(fonts.map((f) => document.fonts.load(`${f.style || "normal"} ${f.weight} 100px "${f.family}"`).catch(() => null))).finally(done);
+    const loads = fonts.map((f) => document.fonts.load(`${f.style || "normal"} ${f.weight} 100px "${f.family}"`).catch(() => null));
+    // The Korean system face the wide glyphs fall back to (Apple SD Gothic Neo / Malgun Gothic).
+    if (wideText) loads.push(document.fonts.load(`700 100px ${avFontStack(((AV_TITLE_FACES as any)[data.font] || AV_TITLE_FACES.anton).family)}`, wideText).catch(() => null));
+    Promise.all(loads).finally(done);
     return () => { live = false; };
   }, [ready]);
   useEffect(() => { if (ready) release(); }, [ready, handle]);
   // Never leave the render blocked if the graphic unmounts before the fonts settle.
   useEffect(() => release, []);
 
+  // Measured wide-glyph metrics (koInk / koAdvances) once the fonts are in; null for Latin-only text.
+  const ko: any = useMemo(() => (ready ? avKoMeasure(data) : null), [ready, raw]);
+  const mdata = useMemo(() => (ko ? Object.assign({}, data, ko) : data), [ko, raw]);
   // The layout depends only on the parameters and the canvas size; the frame only picks what is drawn.
-  const layout: any = useMemo(() => avTitleLayout(data, width, height), [raw, width, height]);
-  const state: any = avDecodeFrame(layout, data, frame, fps);
+  const layout: any = useMemo(() => avTitleLayout(mdata, width, height), [mdata, width, height]);
+  const state: any = avDecodeFrame(layout, mdata, frame, fps);
   const shadow = Math.max(0, Math.min(1, num(data.shadow, 0.3)));
   const fontFaces = fonts.map((f) => `@font-face{font-family:"${f.family}";src:url("data:font/woff2;base64,${f.b64}") format("woff2");font-style:${f.style || "normal"};font-weight:${f.weight};}`).join("");
   const blur = height * 0.01, drop = height * 0.003;
