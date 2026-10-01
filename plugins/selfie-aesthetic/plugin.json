@@ -120,5 +120,11 @@
   "prepare": [
     "Close-up selfie clips, about 4 or more different ones work best",
     "Videos analyzed, so the scene search can find the close-ups"
-  ]
+  ],
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  }
 }

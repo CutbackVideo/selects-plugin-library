@@ -51,3 +51,23 @@ Processing (all four): a 65 s excerpt at the original tempo and pitch (no tempo 
 - Accessed: 2026-10-01
 - Excerpt: starts at 109.334 s in the source track, 65 s long. Excerpt at native tempo and pitch; static gain 1.05 dB and a -2 dBFS limiter (4x oversampled) to -10.5 LUFS; 44.1 kHz stereo MP3 160 kbps.
 
+
+## Gallery preview footage (`preview.mp4`, `poster.webp`)
+
+The gallery preview was built with the app on Pexels footage of one model from one shoot by cottonbro studio
+(https://www.pexels.com/@cottonbro/), used under the Pexels License (https://www.pexels.com/license/). Clips and photos
+available to the build (accessed 2026-10-01):
+
+- setA/a01-6964711.mp4: https://www.pexels.com/video/6964711/ — cottonbro studio
+- setA/a02-6964712.mp4: https://www.pexels.com/video/video-of-a-woman-taking-selfie-6964712/ — cottonbro studio
+- setA/a03-6965035.mp4: https://www.pexels.com/video/a-woman-using-her-phone-camera-as-mirror-6965035/ — cottonbro studio
+- setA/a04-6965039.mp4: https://www.pexels.com/video/6965039/ — cottonbro studio
+- setA/a05-6965115.mp4: https://www.pexels.com/video/a-woman-waving-her-hand-while-talking-6965115/ — cottonbro studio
+- setA/a06-6965116.mp4: https://www.pexels.com/video/female-vlogger-taking-a-video-wearing-her-leather-jacket-6965116/ — cottonbro studio
+- setA/a07-6965117.mp4: https://www.pexels.com/video/woman-in-black-jacket-taking-selfie-6965117/ — cottonbro studio
+- setA/a08-6965118.mp4: https://www.pexels.com/video/a-woman-doing-a-video-selfie-6965118/ — cottonbro studio
+- setA/a09-6965119.mp4: https://www.pexels.com/video/a-woman-doing-a-video-selfie-6965119/ — cottonbro studio
+- photos/p01-6965104.jpg: https://www.pexels.com/photo/woman-lying-down-with-phone-6965104/ — cottonbro studio
+- photos/p02-6965103.jpg: https://www.pexels.com/photo/woman-lying-in-bed-taking-selfie-on-phone-6965103/ — cottonbro studio
+- photos/p03-6965102.jpg: https://www.pexels.com/photo/woman-looking-at-cellphone-6965102/ — cottonbro studio
+- photos/p04-6965100.jpg: https://www.pexels.com/photo/woman-in-black-leather-jacket-6965100/ — cottonbro studio
