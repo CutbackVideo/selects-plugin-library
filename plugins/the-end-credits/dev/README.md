@@ -34,7 +34,8 @@ node $P/dev/make-fixtures.mjs <footage folder>          # regenerate fixtures (f
 - `--check` needs no app, ffmpeg or env vars.
 - The coverage rule checks each value at least twice: layout, length and cue (the 5 cues, `none`, `own`);
   clipSound, look, section (`default`/`early`/`late`), photos and preset (`filmCrew`/`personal`/`travel`/`empty`).
-  It also needs seed 2, a title of at least 30 glyphs, and a role that wraps under the 0.55 em measure stub.
+  It also needs seed 2, a title of at least 30 glyphs, and a role that wraps under the 0.55 em measure stub
+  (1 em for Hangul, kana and CJK).
 - `unfilledPids` counts the `<fill>` placeholders.
 - A row whose Length the track is too short for fails with the panel's "This track is too short for this Length.",
   unless it sets `fitLength: true`; then it builds the longest Length that fits, like the panel's suggestion.

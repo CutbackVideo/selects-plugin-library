@@ -24,8 +24,10 @@ def is_audio(name, data):
 
 
 def inspect(name, data):
-    # Only canonical, bounded gallery assets are permitted as public binaries.
-    if re.fullmatch(r'plugins/[a-z0-9]+(?:-[a-z0-9]+)*/(?:preview\.mp4|poster\.webp)', name):
+    # Only canonical, bounded gallery assets are permitted as public binaries:
+    # the plugin's own, or one variant's (`preview-<id>.mp4`, `poster-<id>.webp`).
+    slug = r'[a-z0-9]+(?:-[a-z0-9]+)*'
+    if re.fullmatch(rf'plugins/{slug}/(?:preview(?:-{slug})?\.mp4|poster(?:-{slug})?\.webp)', name):
         if name.endswith('.mp4'):
             valid = 12 <= len(data) <= 8 * 1024 * 1024 and data[4:8] == b'ftyp'
         else:

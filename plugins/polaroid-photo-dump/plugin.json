@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "polaroid-photo-dump",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Polaroid Photo Dump",
   "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption.",
   "status": "experimental",
@@ -72,5 +72,21 @@
       "name": "Polaroid Photo Dump",
       "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption."
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "photos",
+      "label": "Photos",
+      "accepts": [
+        "image"
+      ],
+      "min": 17,
+      "max": 17
+    }
+  ],
+  "prepare": [
+    "17 photos, in the order they appear"
+  ]
 }

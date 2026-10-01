@@ -165,6 +165,13 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.deepEqual([look0[2], look0[3]], [0.35, 'Soft look']);
   assert.deepEqual(look0[4], [{ key: 'strength', label: 'Softness', type: 'number', defaultValue: 0.35, min: 0, max: 1, step: 0.05 }]);
   assert.equal(m2.log.filter(x => x[0] === 'commit').length, 1);
+  // cfg.labels: the Inspector labels in the panel's UI language at Build; the effect name stays English (identity).
+  {
+    const ml = mockDraft(30); ml.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 });
+    await load('decorate.js', { sequenceId: 's', videoEnd: 60, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: { tsx: 'y', strength: 0.35 }, labels: { softness: 'Weichheit' } })({ draft: () => ml.d });
+    const lk = ml.log.find(x => x[0] === 'look');
+    assert.equal(lk[3], 'Soft look'); assert.equal(lk[4][0].label, 'Weichheit');
+  }
 
   // Retrying on an already decorated Draft adds nothing and does not commit again.
   const cfgD = { sequenceId: 'seq-new', videoEnd: 60, title: { tsx: 'x', parameters: { line1: 'Saturday' }, editableParameters: [] }, soft: { tsx: 'y', strength: 0.35 } };

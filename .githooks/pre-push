@@ -1,0 +1,4 @@
+#!/bin/sh
+# The Clip highlights template checks CI runs, before a push leaves this
+# machine. Enable once per clone: git config core.hooksPath .githooks
+exec python3 "$(git rev-parse --show-toplevel)/tools/check_templates.py"

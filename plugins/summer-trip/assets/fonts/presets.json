@@ -1,13 +1,13 @@
 {
   "version": 1,
   "fonts": {
-    "poppins-light.woff2.b64": { "family": "ST Poppins Light", "style": "normal", "weight": 300, "license": "poppins-OFL.txt" },
-    "poppins-light-italic.woff2.b64": { "family": "ST Poppins Light Italic", "style": "italic", "weight": 300, "license": "poppins-OFL.txt" },
-    "poppins-bold.woff2.b64": { "family": "ST Poppins Bold", "style": "normal", "weight": 700, "license": "poppins-OFL.txt" },
-    "poppins-black.woff2.b64": { "family": "ST Poppins Black", "style": "normal", "weight": 900, "license": "poppins-OFL.txt" },
-    "anton.woff2.b64": { "family": "ST Anton", "style": "normal", "weight": 400, "license": "anton-OFL.txt" },
-    "gloock.woff2.b64": { "family": "ST Gloock", "style": "normal", "weight": 400, "license": "gloock-OFL.txt" },
-    "instrument-serif-italic.woff2.b64": { "family": "ST Instrument Serif Italic", "style": "italic", "weight": 400, "license": "instrumentserif-OFL.txt" }
+    "poppins-light.woff2.b64": { "family": "ST Poppins Light", "style": "normal", "weight": 300, "koFamily": "Apple SD Gothic Neo", "license": "poppins-OFL.txt" },
+    "poppins-light-italic.woff2.b64": { "family": "ST Poppins Light Italic", "style": "italic", "weight": 300, "koFamily": "Apple SD Gothic Neo", "license": "poppins-OFL.txt" },
+    "poppins-bold.woff2.b64": { "family": "ST Poppins Bold", "style": "normal", "weight": 700, "koFamily": "Apple SD Gothic Neo", "license": "poppins-OFL.txt" },
+    "poppins-black.woff2.b64": { "family": "ST Poppins Black", "style": "normal", "weight": 900, "koFamily": "Apple SD Gothic Neo", "license": "poppins-OFL.txt" },
+    "anton.woff2.b64": { "family": "ST Anton", "style": "normal", "weight": 400, "koFamily": "Apple SD Gothic Neo", "license": "anton-OFL.txt" },
+    "gloock.woff2.b64": { "family": "ST Gloock", "style": "normal", "weight": 400, "koFamily": "AppleMyungjo", "license": "gloock-OFL.txt" },
+    "instrument-serif-italic.woff2.b64": { "family": "ST Instrument Serif Italic", "style": "italic", "weight": 400, "koFamily": "AppleMyungjo", "license": "instrumentserif-OFL.txt" }
   },
   "presets": [
     {

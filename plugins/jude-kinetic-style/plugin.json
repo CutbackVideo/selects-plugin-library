@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "id": "jude-kinetic-style",
+  "version": "0.4.4",
+  "name": "Jude Kinetic Style",
+  "summary": "Editable red/cream kinetic podcast typography: bold white captions, red italic emphasis, a cream card, lines behind the speaker and a background music bed (Kevin MacLeod, CC BY 4.0).",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "style.json",
+    "panel.tsx",
+    "engine.mjs",
+    "vision-helper.swift",
+    "fonts/Poppins-OFL.txt",
+    "fonts/PlayfairDisplay-OFL.txt"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Requires Panel runScript/runShell/askAI and editable motion graphics. Development build only; released-version compatibility is unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  },
+  "collection": "visual-highlights",
+  "usesCredits": true,
+  "inputs": [
+    {
+      "id": "speaker",
+      "label": "This draft",
+      "kind": "timeline",
+      "requires": [
+        "transcript"
+      ]
+    }
+  ],
+  "prepare": [
+    "A draft of one person talking to camera",
+    "Only video and audio on it, no captions or effects yet",
+    "Analyzed, so it has a transcript",
+    "English speech"
+  ]
+}

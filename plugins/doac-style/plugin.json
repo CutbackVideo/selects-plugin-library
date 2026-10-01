@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "doac-style",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "name": "DOAC Style",
-  "summary": "Create expressive, speech-timed captions on a separate editable vertical Draft.",
+  "summary": "Create expressive, speech-timed captions on a separate editable vertical timeline.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -46,5 +46,23 @@
     "poster": "poster.webp",
     "width": 540,
     "height": 960
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": true,
+  "inputs": [
+    {
+      "id": "speaker",
+      "label": "This draft",
+      "kind": "timeline",
+      "requires": [
+        "transcript"
+      ]
+    }
+  ],
+  "prepare": [
+    "A draft of one person talking to camera",
+    "Only video and audio on it, no captions or effects yet",
+    "Analyzed, so it has a transcript",
+    "English speech"
+  ]
 }

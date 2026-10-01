@@ -20,13 +20,16 @@ function stPreset(presets, presetId) {
   const list = (presets && presets.presets) || [];
   return list.find(p => p.id === presetId) || list[0] || null;
 }
-// Faces for the given roles ({ family, case, tracking, scaleX, fillWidth }) and the files they need.
+// Faces for the given roles ({ family, koFamily, case, tracking, scaleX, fillWidth }) and the files they need. koFamily is
+// the macOS Korean system face of the role (presets.json: AppleMyungjo for serif faces, Apple SD Gothic Neo otherwise),
+// last in the font stack before the generic family.
 function stFacesFor(presets, preset, roleKeys) {
   const faces = {}, files = [];
   for (const key of roleKeys) {
     const role = preset.roles[key];
     const font = presets.fonts[role.file];
     const face = { family: font.family, case: role.case || 'none', tracking: role.tracking || 0, scaleX: role.scaleX || 1 };
+    if (font.koFamily) face.koFamily = font.koFamily;
     if (role.fillWidth) face.fillWidth = role.fillWidth;
     faces[key] = face;
     if (!files.includes(role.file)) files.push(role.file);
@@ -123,8 +126,9 @@ const ST_LABELS_EDITABLE = [
   { key: 'topY', label: 'Top label height (%)', type: 'number', min: 2, max: 50, step: 0.5 },
   { key: 'creditY', label: 'Credit height (%)', type: 'number', min: 50, max: 98, step: 0.5 },
 ];
-// Definitions with defaultValue = the parameter's current value.
-function stEditable(defs, params) {
-  return defs.map(d => Object.assign({}, d, { defaultValue: params[d.key] }));
+// Definitions with defaultValue = the parameter's current value. `labels` ({ [key]: label }, optional): the Adjust labels in
+// the UI language at Build; a key without one keeps the English label.
+function stEditable(defs, params, labels) {
+  return defs.map(d => Object.assign({}, d, labels && typeof labels[d.key] === 'string' && labels[d.key] ? { label: labels[d.key] } : {}, { defaultValue: params[d.key] }));
 }
 // st-graphics:end

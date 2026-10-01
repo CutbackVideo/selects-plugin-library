@@ -9,6 +9,7 @@
 // @name:pt Stop motion de troca rápida
 // @name:tr Hızlı Geçişli Stop Motion
 // @name:zh 快速切换定格动画
+// @collection visual-highlights
 // @icon video
 // Builds a fast-switching stop-motion Draft: short ~0.14s moments from each
 // chosen video, interleaved round-robin and looped to a fixed ~5.6s, with the
@@ -298,7 +299,176 @@ async function aiPick(sdk, image: string, rows: { name: string; starts: number[]
   );
 }
 
-export default function Panel({ sdk, context, ui }) {
+// The project's videos and audio: names, durations, file paths and frame rates.
+function mediaScript(projectId: string) {
+  return `const project = selects.project(${JSON.stringify(projectId)});
+const files = {};
+const walk = (nodes) => { for (const n of nodes ?? []) { if (n.resourceId) files[n.resourceId] = n; walk(n.children); } };
+// Past 200 files sourceFiles() returns per-folder counts; read each folder then.
+const tree = await project.sourceFiles();
+if ("fileTree" in tree) walk(tree.fileTree);
+else for (const f of tree.folders) { const sub = await project.sourceFiles({ folder: f.name }); if ("fileTree" in sub) walk(sub.fileTree); }
+return (await project.resources())
+  .filter(r => r.type === "Video" || r.type === "Audio")
+  .map(r => ({ id: r.resourceId, name: r.name, type: r.type, seconds: r.durationSeconds ?? 0,
+    path: files[r.resourceId]?.path ?? null, fps: files[r.resourceId]?.frameRate ?? null }));`;
+}
+
+// Finds the moments, cuts them into a new Draft and sets its sound. Resolves
+// the new Draft, or throws with what went wrong. `onStep` follows `steps`.
+async function buildStopMotion(
+  sdk,
+  { projectId, chosen, keepSound, name, onStep = (_: number) => {} }:
+    { projectId: string; chosen: Media[]; keepSound: boolean; name: string; onStep?: (step: number) => void }
+) {
+  // 1. Find moments: motion shortlist per video, then an AI pick of two.
+  onStep(0);
+  const cut = CUT_SECONDS;
+  const rows = [];
+  for (const v of chosen) {
+    if (!v.path) throw new Error(`No file path for ${v.name}`);
+    const starts = shortlist(await motionSeries(sdk, v.path), v.fps ?? 30, cut, v.seconds);
+    rows.push({ name: v.name, path: v.path, starts: starts.length ? starts : [Math.min(1, v.seconds / 4)] });
+  }
+  let moments: number[][] | null = null;
+  let aiError = "";
+  try {
+    moments = await aiPick(sdk, await contactSheet(sdk, rows, cut), rows);
+    if (!moments) aiError = "unreadable AI answer";
+  } catch (e) {
+    aiError = String(e?.message ?? e).slice(0, 200);
+  }
+  const usedFallback = !moments || moments.some((m) => m.length === 0);
+  if (usedFallback) moments = rows.map((r) => r.starts.slice(0, 2));
+
+  // 2. Cut moments. Cut boundaries follow the Draft's own fps so the
+  //    rhythm holds at 24, 30 or 60 fps (e.g. 3-3-4-3… frames at 24).
+  onStep(1);
+  const plan = {
+    projectId,
+    clips: chosen.map((v, i) => ({ id: v.id, seconds: v.seconds, moments: moments[i] })),
+    cut,
+    total: TOTAL_SECONDS,
+    name,
+  };
+  const built = await sdk.runScript({
+    summary: "Cut stop-motion moments",
+    allowCommit: true,
+    script: `
+const plan = ${JSON.stringify(plan)};
+const project = selects.project(plan.projectId);
+const draft = await project.createDraft({ name: plan.name });
+const fps = (await draft.meta()).fps;
+const edge = (k) => Math.round(k * plan.cut * fps);
+// Fixed total length: the cut count follows from it, whatever the video count.
+const cuts = Math.max(plan.clips.length, Math.round(plan.total / plan.cut));
+for (let k = 0; k < cuts; k++) {
+  const clip = plan.clips[k % plan.clips.length];
+  const loop = Math.floor(k / plan.clips.length);
+  const frames = Math.max(1, edge(k + 1) - edge(k));
+  const len = frames / fps;
+  const latest = Math.max(0, clip.seconds - len - 0.05);
+  const start = Math.min(clip.moments[loop % clip.moments.length], latest);
+  await draft.insertResource({ resourceId: clip.id, sourceRange: { startSeconds: start, endSeconds: start + len } });
+}
+const saved = await draft.commitAll("Cut stop-motion moments");
+const main = await draft.clips({ trackScope: "main" });
+return { draftId: saved.createdDraftId, cuts: main.length, endFrame: main.reduce((a, c) => Math.max(a, c.endFrame), 0), fps };`,
+  });
+  const made = built.result as { draftId?: string; cuts: number; endFrame: number; fps: number } | undefined;
+  if (built.isError || !made?.draftId) throw new Error(built.output);
+
+  // 3. Sound: mute the moments and lay the template's fixed music under the
+  //    whole Draft. The track ships in this panel's asset folder and is
+  //    imported into the Project once.
+  onStep(2);
+  const root = await sdk.runShell({ summary: "Locate template music", command: 'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}"' });
+  if (root.isError || !root.stdout) throw new Error(root.stderr || root.output);
+  const musicPath = `${root.stdout.trim()}/${PLUGIN_ID}/${MUSIC_FILE}`;
+  // Importing is a Project edit, so it runs in its own call before the
+  // Draft edit (one run_script cannot commit both).
+  const imported = await sdk.runScript({
+    summary: "Add template music",
+    allowCommit: true,
+    script: `
+const project = selects.project(${JSON.stringify(projectId)});
+const musicPath = ${JSON.stringify(musicPath)};
+const files = {};
+const walk = (nodes) => { for (const n of nodes ?? []) { if (n.path) files[n.path] = n.resourceId; walk(n.children); } };
+const tree = await project.sourceFiles();
+if ("fileTree" in tree) walk(tree.fileTree);
+const existing = files[musicPath];
+if (existing) return existing;
+const added = (await project.importFiles({ paths: [musicPath] })).addedResourceIds[0];
+if (!added) throw new Error("Template music could not be imported: " + musicPath);
+return added;`,
+  });
+  const musicId = imported.result as string | undefined;
+  if (imported.isError || !musicId) throw new Error(imported.output);
+  const sound = await sdk.runScript({
+    summary: "Set stop-motion sound",
+    allowCommit: true,
+    script: `
+const draft = selects.draft(${JSON.stringify(made.draftId)});
+const whole = await draft.rangeAtFrames(0, ${made.endFrame});
+if (!${JSON.stringify(keepSound)}) await draft.setAudioTracks({ target: whole, audioSourceIndexes: [] });
+await draft.overlayResource({ resource: selects.project(${JSON.stringify(projectId)}).resource(${JSON.stringify(musicId)}), over: whole });
+await draft.commitAll("Set stop-motion sound");
+return true;`,
+  });
+  if (sound.isError) throw new Error(sound.output);
+  return { ...made, draftId: made.draftId, usedFallback, aiError };
+}
+
+const TEMPLATE_FAILED = "Fast Switching Stop Motion couldn't make the timeline. Try again.";
+
+// A Clip highlights run (`context.template`): the videos picked in the app,
+// in their order, with the panel's defaults (original sound off unless the
+// run's option says keep), built out of sight and reported once.
+function TemplateRun({ sdk, context }) {
+  const t = STRINGS[context.language] ?? STRINGS.en;
+  const runId = context.template?.runId;
+  const [status, setStatus] = useState("Making your stop motion…");
+  const started = useRef<string | null>(null), alive = useRef(true), latest = useRef(context);
+  latest.current = context;
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => {
+    if (!runId || started.current === runId) return;
+    started.current = runId;
+    const live = () => alive.current && latest.current.template?.runId === runId;
+    let ended = false;
+    const finish = (result) => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch {} };
+    (async () => {
+      const template = context.template, projectId = context.projectId;
+      if (!projectId) throw new Error("Open a project, then try again.");
+      const picks = (template.inputs?.looks ?? []).filter((pick) => pick?.resourceId);
+      if (picks.length < 2) throw new Error(t.needTwo);
+      const r = await sdk.runScript({ summary: "Read project media", script: mediaScript(projectId) });
+      if (r.isError || !Array.isArray(r.result)) throw new Error("Couldn't read this project's videos. Try again.");
+      const byId = new Map((r.result as Media[]).filter((m) => m.type === "Video").map((m) => [m.id, m]));
+      const chosen = picks.map((pick) => byId.get(pick.resourceId));
+      const missing = picks.find((pick, i) => !chosen[i]?.path);
+      if (missing) throw new Error(`Couldn't find ${missing.name || "a picked video"} in this project. Try again.`);
+      if (!live()) return;
+      setStatus("Finding the best moments…");
+      const made = await buildStopMotion(sdk, {
+        projectId, chosen: chosen as Media[], keepSound: template.options?.sound === "keep", name: t.title,
+      });
+      finish({ sequenceId: made.draftId });
+    })().catch((e) => {
+      console.warn("[fast-switching-stopmotion] template run failed:", e);
+      const said = String(e?.message ?? "");
+      finish({ error: said && said.length <= 160 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED });
+    });
+  }, [runId]);
+  return <small>{status}</small>;
+}
+
+export default function Panel(props) {
+  return props.context?.template ? <TemplateRun {...props} /> : <StopMotionPanel {...props} />;
+}
+
+function StopMotionPanel({ sdk, context, ui }) {
   const t = STRINGS[context.language] ?? STRINGS.en;
   const projectId: string | null = context.projectId;
   const [media, setMedia] = useState<Media[] | null>(null);
@@ -324,17 +494,7 @@ export default function Panel({ sdk, context, ui }) {
     async function load() {
       const r = await sdk.runScript({
         summary: "Read project media",
-        script: `const project = selects.project(${JSON.stringify(projectId)});
-const files = {};
-const walk = (nodes) => { for (const n of nodes ?? []) { if (n.resourceId) files[n.resourceId] = n; walk(n.children); } };
-// Past 200 files sourceFiles() returns per-folder counts; read each folder then.
-const tree = await project.sourceFiles();
-if ("fileTree" in tree) walk(tree.fileTree);
-else for (const f of tree.folders) { const sub = await project.sourceFiles({ folder: f.name }); if ("fileTree" in sub) walk(sub.fileTree); }
-return (await project.resources())
-  .filter(r => r.type === "Video" || r.type === "Audio")
-  .map(r => ({ id: r.resourceId, name: r.name, type: r.type, seconds: r.durationSeconds ?? 0,
-    path: files[r.resourceId]?.path ?? null, fps: files[r.resourceId]?.frameRate ?? null }));`,
+        script: mediaScript(projectId),
       });
       if (!live) return;
       if (r.isError || !Array.isArray(r.result)) {
@@ -395,111 +555,8 @@ return (await project.resources())
     setBusy(true);
     setStatus(null);
     try {
-      // 1. Find moments: motion shortlist per video, then an AI pick of two.
-      setStep(0);
-      const cut = CUT_SECONDS;
-      const rows = [];
-      for (const v of chosen) {
-        if (!v.path) throw new Error(`No file path for ${v.name}`);
-        const starts = shortlist(await motionSeries(sdk, v.path), v.fps ?? 30, cut, v.seconds);
-        rows.push({ name: v.name, path: v.path, starts: starts.length ? starts : [Math.min(1, v.seconds / 4)] });
-      }
-      let moments: number[][] | null = null;
-      let aiError = "";
-      try {
-        moments = await aiPick(sdk, await contactSheet(sdk, rows, cut), rows);
-        if (!moments) aiError = "unreadable AI answer";
-      } catch (e) {
-        aiError = String(e?.message ?? e).slice(0, 200);
-      }
-      const usedFallback = !moments || moments.some((m) => m.length === 0);
-      if (usedFallback) moments = rows.map((r) => r.starts.slice(0, 2));
-
-      // 2. Cut moments. Cut boundaries follow the Draft's own fps so the
-      //    rhythm holds at 24, 30 or 60 fps (e.g. 3-3-4-3… frames at 24).
-      setStep(1);
-      const plan = {
-        projectId,
-        clips: chosen.map((v, i) => ({ id: v.id, seconds: v.seconds, moments: moments[i] })),
-        cut,
-        total: TOTAL_SECONDS,
-        name: t.title,
-      };
-      const built = await sdk.runScript({
-        summary: "Cut stop-motion moments",
-        allowCommit: true,
-        script: `
-const plan = ${JSON.stringify(plan)};
-const project = selects.project(plan.projectId);
-const draft = await project.createDraft({ name: plan.name });
-const fps = (await draft.meta()).fps;
-const edge = (k) => Math.round(k * plan.cut * fps);
-// Fixed total length: the cut count follows from it, whatever the video count.
-const cuts = Math.max(plan.clips.length, Math.round(plan.total / plan.cut));
-for (let k = 0; k < cuts; k++) {
-  const clip = plan.clips[k % plan.clips.length];
-  const loop = Math.floor(k / plan.clips.length);
-  const frames = Math.max(1, edge(k + 1) - edge(k));
-  const len = frames / fps;
-  const latest = Math.max(0, clip.seconds - len - 0.05);
-  const start = Math.min(clip.moments[loop % clip.moments.length], latest);
-  await draft.insertResource({ resourceId: clip.id, sourceRange: { startSeconds: start, endSeconds: start + len } });
-}
-const saved = await draft.commitAll("Cut stop-motion moments");
-const main = await draft.clips({ trackScope: "main" });
-return { draftId: saved.createdDraftId, cuts: main.length, endFrame: main.reduce((a, c) => Math.max(a, c.endFrame), 0), fps };`,
-      });
-      const made = built.result as { draftId?: string; cuts: number; endFrame: number; fps: number } | undefined;
-      if (built.isError || !made?.draftId) {
-        setStatus({ tone: "error", text: built.output });
-        return;
-      }
-
-      // 3. Sound: mute the moments and lay the template's fixed music under the
-      //    whole Draft. The track ships in this panel's asset folder and is
-      //    imported into the Project once.
-      setStep(2);
-      const root = await sdk.runShell({ summary: "Locate template music", command: 'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}"' });
-      if (root.isError || !root.stdout) throw new Error(root.stderr || root.output);
-      const musicPath = `${root.stdout.trim()}/${PLUGIN_ID}/${MUSIC_FILE}`;
-      // Importing is a Project edit, so it runs in its own call before the
-      // Draft edit (one run_script cannot commit both).
-      const imported = await sdk.runScript({
-        summary: "Add template music",
-        allowCommit: true,
-        script: `
-const project = selects.project(${JSON.stringify(projectId)});
-const musicPath = ${JSON.stringify(musicPath)};
-const files = {};
-const walk = (nodes) => { for (const n of nodes ?? []) { if (n.path) files[n.path] = n.resourceId; walk(n.children); } };
-const tree = await project.sourceFiles();
-if ("fileTree" in tree) walk(tree.fileTree);
-const existing = files[musicPath];
-if (existing) return existing;
-const added = (await project.importFiles({ paths: [musicPath] })).addedResourceIds[0];
-if (!added) throw new Error("Template music could not be imported: " + musicPath);
-return added;`,
-      });
-      const musicId = imported.result as string | undefined;
-      if (imported.isError || !musicId) {
-        setStatus({ tone: "error", text: imported.output });
-        return;
-      }
-      const sound = await sdk.runScript({
-        summary: "Set stop-motion sound",
-        allowCommit: true,
-        script: `
-const draft = selects.draft(${JSON.stringify(made.draftId)});
-const whole = await draft.rangeAtFrames(0, ${made.endFrame});
-if (!${JSON.stringify(keepSound)}) await draft.setAudioTracks({ target: whole, audioSourceIndexes: [] });
-await draft.overlayResource({ resource: selects.project(${JSON.stringify(projectId)}).resource(${JSON.stringify(musicId)}), over: whole });
-await draft.commitAll("Set stop-motion sound");
-return true;`,
-      });
-      if (sound.isError) {
-        setStatus({ tone: "error", text: sound.output });
-        return;
-      }
+      const made = await buildStopMotion(sdk, { projectId, chosen, keepSound, name: t.title, onStep: setStep });
+      const { usedFallback, aiError } = made;
 
       // 4. Bring the new Draft forward.
       setStep(3);

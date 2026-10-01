@@ -263,11 +263,10 @@ t('typing (R5)', () => {
 t('progress: 5 UI steps', () => {
   assert.deepEqual(j(P.TEC_BUILD_STEPS).map(s => s.id), ['prepare', 'plan', 'music', 'assemble', 'decorate']);
   assert.equal(P.TEC_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);
-  const a = j(P.tecProgress('prepare', 0));
-  assert.equal(a.percent, 0); assert.equal(a.current, 0);
-  assert.ok(a.label.startsWith('Step 1/5 \u00b7 '));
-  const b = j(P.tecProgress('assemble', 0.5, 'shot 3 of 7'));
-  assert.equal(b.percent, 65); assert.ok(b.label.includes('Step 4/5') && b.label.includes('(shot 3 of 7)'));
+  // Steps carry no text: the panel names them in the UI language (STRINGS `step.<id>`, tests/panel.test.cjs).
+  assert.ok(P.TEC_BUILD_STEPS.every(s => !('label' in s)), 'no English step labels in the planner');
+  assert.deepEqual(j(P.tecProgress('prepare', 0)), { id: 'prepare', value: 0, percent: 0, current: 0 });
+  assert.deepEqual(j(P.tecProgress('assemble', 0.5)), { id: 'assemble', value: 0.65, percent: 65, current: 3 });
   assert.equal(j(P.tecProgress('decorate', 1)).percent, 100);
   assert.equal(j(P.tecProgress('decorate', 0.999)).percent, 99);
   assert.equal(j(P.tecProgress('music', 7)).percent, 50);

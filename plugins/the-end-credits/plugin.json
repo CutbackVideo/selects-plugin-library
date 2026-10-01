@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "the-end-credits",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "THE END Credits",
   "summary": "Turn travel footage into a 16:9 end-credits roll: THE END types in, the credits scroll up while your clips play in a small window, as a new editable Draft.",
   "status": "experimental",
@@ -25,6 +25,7 @@
     "assets/fonts/tec-title-serif.woff2.b64",
     "assets/shot-frame.tsx",
     "beat-detect.cjs",
+    "dev/i18n-check.cjs",
     "panel.tsx",
     "planner.js",
     "scripts/assemble.js",
@@ -39,6 +40,7 @@
     "tests/fonts.test.cjs",
     "tests/frame.test.cjs",
     "tests/graphic.test.cjs",
+    "tests/i18n.test.cjs",
     "tests/look.test.cjs",
     "tests/panel.test.cjs",
     "tests/planner.test.cjs",
@@ -98,5 +100,88 @@
     "poster": "poster.webp",
     "width": 960,
     "height": 540
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "footage",
+      "label": "Trip clips and photos",
+      "hint": "Scenic moments from the trip, played under the credits.",
+      "accepts": [
+        "video",
+        "image"
+      ],
+      "min": 2,
+      "max": 30,
+      "query": "a scenic travel moment: a landscape, the sea, a road or a sunset"
+    }
+  ],
+  "options": [
+    {
+      "id": "layout",
+      "label": "Layout",
+      "default": "classic",
+      "choices": [
+        {
+          "id": "classic",
+          "label": "Classic"
+        },
+        {
+          "id": "full",
+          "label": "Full frame"
+        }
+      ]
+    },
+    {
+      "id": "track",
+      "label": "Music",
+      "default": "piano-strings",
+      "choices": [
+        {
+          "id": "piano-strings",
+          "label": "Last Light Ballad"
+        },
+        {
+          "id": "rhodes-soul",
+          "label": "Late Night Rhodes"
+        },
+        {
+          "id": "post-rock",
+          "label": "Open Road Swell"
+        },
+        {
+          "id": "orchestral",
+          "label": "Final Scene"
+        },
+        {
+          "id": "dream-synth",
+          "label": "Golden Hour Synth"
+        }
+      ]
+    },
+    {
+      "id": "length",
+      "label": "Length",
+      "default": "standard",
+      "choices": [
+        {
+          "id": "short",
+          "label": "Short"
+        },
+        {
+          "id": "standard",
+          "label": "Standard"
+        },
+        {
+          "id": "long",
+          "label": "Long"
+        }
+      ]
+    }
+  ],
+  "prepare": [
+    "Trip clips and photos, 4 or more different ones work best",
+    "Videos analyzed, so the scene search can find their shots"
+  ]
 }

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "vlog-opening",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "name": "Vlog Opening",
-  "summary": "Build a 12-22s vlog opening as a new Draft in one of three styles, chosen from the analysed footage of the open Project.",
+  "summary": "Build a 12-22s vlog opening as a new timeline in one of three styles, chosen from the analysed footage of the open Project.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -30,35 +30,106 @@
   "localized": {
     "de": {
       "name": "Vlog-Opener",
-      "summary": "Baut aus dem analysierten Material des offenen Projekts einen 12-22 Sekunden langen Vlog-Vorspann als neuen Draft, in einem von drei Stilen."
+      "summary": "Baut aus dem analysierten Material des offenen Projekts einen 12-22 Sekunden langen Vlog-Vorspann als neue Timeline, in einem von drei Stilen."
     },
     "es": {
       "name": "Intro de vlog",
-      "summary": "Crea una intro de vlog de 12 a 22 segundos como nuevo Draft, en uno de tres estilos, a partir del material analizado del proyecto abierto."
+      "summary": "Crea una intro de vlog de 12 a 22 segundos como nueva l\u00ednea de tiempo, en uno de tres estilos, a partir del material analizado del proyecto abierto."
     },
     "fr": {
       "name": "Intro de vlog",
-      "summary": "Construit une intro de vlog de 12 a 22 secondes comme nouveau Draft, dans l'un des trois styles, a partir des rushes analyses du projet ouvert."
+      "summary": "Construit une intro de vlog de 12 a 22 secondes comme nouvelle timeline, dans l'un des trois styles, a partir des rushes analyses du projet ouvert."
     },
     "it": {
       "name": "Apertura vlog",
-      "summary": "Crea un'apertura per vlog di 12-22 secondi come nuovo Draft, in uno di tre stili, dal materiale analizzato del progetto aperto."
+      "summary": "Crea un'apertura per vlog di 12-22 secondi come nuova timeline, in uno di tre stili, dal materiale analizzato del progetto aperto."
     },
     "ja": {
-      "name": "Vlog オープニング",
-      "summary": "開いているプロジェクトの解析済み素材から、3 つのスタイルのいずれかで 12〜22 秒の Vlog オープニングを新しい Draft として作成します。"
+      "name": "Vlog \u30aa\u30fc\u30d7\u30cb\u30f3\u30b0",
+      "summary": "\u958b\u3044\u3066\u3044\u308b\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u89e3\u6790\u6e08\u307f\u7d20\u6750\u304b\u3089\u30013 \u3064\u306e\u30b9\u30bf\u30a4\u30eb\u306e\u3044\u305a\u308c\u304b\u3067 12\u301c22 \u79d2\u306e Vlog \u30aa\u30fc\u30d7\u30cb\u30f3\u30b0\u3092\u65b0\u3057\u3044\u30bf\u30a4\u30e0\u30e9\u30a4\u30f3\u3068\u3057\u3066\u4f5c\u6210\u3057\u307e\u3059\u3002"
     },
     "pt": {
       "name": "Abertura de vlog",
-      "summary": "Cria uma abertura de vlog de 12 a 22 segundos como novo Draft, em um de tres estilos, a partir do material analisado do projeto aberto."
+      "summary": "Cria uma abertura de vlog de 12 a 22 segundos como nova linha do tempo, em um de tres estilos, a partir do material analisado do projeto aberto."
     },
     "tr": {
       "name": "Vlog acilisi",
-      "summary": "Acik projenin analiz edilmis goruntulerinden, uc stilden biriyle 12-22 saniyelik bir vlog acilisi olusturur ve yeni bir Draft olarak kaydeder."
+      "summary": "Acik projenin analiz edilmis goruntulerinden, uc stilden biriyle 12-22 saniyelik bir vlog acilisi olusturur ve yeni bir zaman \u00e7izelgesi olarak kaydeder."
     },
     "zh": {
-      "name": "Vlog 片头",
-      "summary": "根据当前项目中已分析的素材，以三种风格之一生成 12-22 秒的 Vlog 片头，并保存为新的 Draft。"
+      "name": "Vlog \u7247\u5934",
+      "summary": "\u6839\u636e\u5f53\u524d\u9879\u76ee\u4e2d\u5df2\u5206\u6790\u7684\u7d20\u6750\uff0c\u4ee5\u4e09\u79cd\u98ce\u683c\u4e4b\u4e00\u751f\u6210 12-22 \u79d2\u7684 Vlog \u7247\u5934\uff0c\u5e76\u4fdd\u5b58\u4e3a\u65b0\u7684\u65f6\u95f4\u7ebf\u3002"
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": true,
+  "inputs": [
+    {
+      "id": "footage",
+      "label": "Footage",
+      "hint": "Clips from the trip, picked by what's in them.",
+      "accepts": [
+        "video"
+      ],
+      "min": 3,
+      "max": 30,
+      "query": "travel scenery and places"
+    }
+  ],
+  "variants": [
+    {
+      "id": "whip-cut",
+      "name": "Vlog Opening \u00b7 Whip cut",
+      "summary": "Fast whip pans between places, cut on the beat.",
+      "preview": {
+        "video": "preview.mp4",
+        "poster": "poster.webp",
+        "width": 960,
+        "height": 540
+      }
+    },
+    {
+      "id": "motion-graphics",
+      "name": "Vlog Opening \u00b7 Motion graphics",
+      "summary": "Place labels, title cards and an iris close.",
+      "preview": {
+        "poster": "poster-motion-graphics.webp",
+        "width": 386,
+        "height": 216
+      }
+    },
+    {
+      "id": "funny-quotes",
+      "name": "Vlog Opening \u00b7 Funny quotes",
+      "summary": "Your funniest lines over the footage.",
+      "inputs": [
+        {
+          "id": "footage",
+          "label": "Talking clips",
+          "hint": "Clips where someone talks. The funniest lines become the captions.",
+          "accepts": [
+            "video"
+          ],
+          "min": 3,
+          "max": 30,
+          "query": "people talking, laughing or joking",
+          "requires": [
+            "transcript"
+          ]
+        }
+      ],
+      "prepare": [
+        "3 or more clips of people talking",
+        "Analyzed, so there's speech to quote"
+      ],
+      "preview": {
+        "poster": "poster-funny-quotes.webp",
+        "width": 386,
+        "height": 216
+      }
+    }
+  ],
+  "prepare": [
+    "3 or more trip clips, ideally from different places"
+  ]
 }

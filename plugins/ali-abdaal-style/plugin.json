@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "ali-abdaal-style",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "name": "Ali Abdaal Style",
-  "summary": "Turn a talking-head draft into an editable 9:16 editorial short with scene-aware camera motion, captions, and graphics.",
+  "summary": "Turn a talking-head video into an editable 9:16 editorial short with scene-aware camera motion, captions, and graphics.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -23,5 +23,23 @@
     "poster": "poster.webp",
     "width": 540,
     "height": 960
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": true,
+  "inputs": [
+    {
+      "id": "speaker",
+      "label": "This draft",
+      "kind": "timeline",
+      "requires": [
+        "transcript"
+      ]
+    }
+  ],
+  "prepare": [
+    "A draft of one person talking to camera",
+    "Only video and audio on it, no captions or effects yet",
+    "Analyzed, so it has a transcript",
+    "English speech"
+  ]
 }

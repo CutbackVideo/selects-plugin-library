@@ -48,14 +48,31 @@ The build needs at least **4 usable clips or photos** (5 in Full frame,
 which adds an opening shot). If there are fewer, the panel says how many it
 found. It does not start analysis on its own, so analyse your clips first.
 
+Video clips without analysis are counted on the top line by why:
+
+- "N clips are being analysed. This updates automatically when they finish."
+  Selects is analysing them now; the panel re-reads the Project every 10 s
+  until they are ready.
+- "N clips are not analysed yet. Analyse them in Selects to use them here."
+  Their analysis was never started. The panel does not poll for them; it
+  re-reads the Project when you come back to it, or press **Refresh**.
+- "N clips could not be analysed." Their analysis failed.
+- "N clips are not analysed yet. If Selects is analysing them, this updates
+  automatically." The analysis status could not be read, so the panel keeps
+  checking.
+
+On the Ready line the same counts appear in short, for example "Ready: 5
+clips · 7 shots · about 31 s · 2 clips being analysed · 3 clips not analysed
+yet".
+
 Progress is shown as five steps: Finding shots, Planning the edit, Preparing
 music, Creating Draft, and Adding credits and look (which ends by opening the
 Draft). During Finding shots the detail reads "N/M videos checked" (the scene
 search) and then "N/M videos measured" (how much each video moves); photos are
 not counted there, so M can be smaller than the Choose clips total. When the
 build finishes, the new Draft opens and a link to it is
-shown. **Create another version** makes
-another Draft with a different shot choice. If the last step fails, the Draft
+shown. **Try other shots** makes another Draft with the same settings and
+a different shot choice. If the last step fails, the Draft
 is kept and **Finish title and look** completes it with the settings it was
 built with.
 
@@ -72,8 +89,9 @@ a role and a name.
 - **Travel** has Directed by, Starring, Memories, Places, Music by, Special
   Thanks and Created with.
 
-In the panel list you can edit a row in place, add or remove rows, move rows
-up or down, and **Reset to preset**. Blank rows are dropped. Text in `[ ]` is
+In the panel list you can edit a row in place, add or remove rows, reorder
+rows by dragging their handle (or Alt+Up/Down on the handle), and **Reset to
+preset**. Blank rows are dropped. Text in `[ ]` is
 a placeholder: it is allowed in the build, and the panel warns how many rows
 still have placeholders.
 
@@ -206,7 +224,7 @@ analysis.
   drift, a small tilt), always within the window and never showing the photo's
   edges. Its **Motion** and **Motion strength** can be changed in the
   Inspector.
-- **Create another version** picks other photos.
+- **Try other shots** picks other photos.
 
 ## Advanced
 
@@ -219,6 +237,36 @@ analysis.
 If the scene search fails for some clips, the build goes on without them and
 says "Could not check N videos; they were skipped. Build again to retry them."
 (Only videos are searched and measured, so these counts leave out photos.)
+
+## Languages
+
+**The panel** follows the language of the Selects app and changes with it
+while the panel is open. It is translated into German, English, Spanish,
+French, Italian, Japanese, Korean, Portuguese, Turkish and Chinese; any other
+app language shows English. Track names, the Draft's name and the technical
+detail after an error message stay in English.
+
+**The title and credits in the video** can be typed in English or Korean
+(Hangul):
+
+- The pre-filled text stays English in every language: the title "THE END",
+  the preset roles ("Director", "A film by", "Music by" …), the dates
+  ("Sep 12-14, 2026"), the clip and photo counts and "Selects". Type over
+  them to change them.
+- **Filmed in** and **Places** are pre-filled from the Project name when it
+  looks like a place, also when the name is Korean.
+- The bundled typefaces have no Korean letters, so Korean text is drawn with
+  the macOS system font of each typeface's kind: **AppleMyungjo** for the
+  serif title and **Apple SD Gothic Neo** for the sans-serif credits.
+- A title with Korean in it is not drawn condensed (Latin titles are narrowed
+  to 78%), and Korean is never set in capitals or letter-spaced. A long role
+  or name still shrinks to fit its column and then wraps between words.
+- Korean titles need macOS, where Selects and its export run. Style-matched
+  Korean typefaces are planned for a later version.
+
+**Inspector labels** of the credits, the Shot frame, its Motion choices and
+the Cinematic look are written into the Draft in the panel's language at the
+time of the build. They do not change if the app language is switched later.
 
 ## The Draft and editing it
 
@@ -243,7 +291,9 @@ Finished videos are exported from the Draft with **Handoff -> Export**.
 - Layout, length, title, credits preset and music section are chosen in the
   panel. Rebuilding creates a new Draft and does not keep Inspector edits.
 - The fonts are Latin subsets. Characters outside them use a system serif or
-  sans-serif font, and the panel says "Some characters use a system font".
+  sans-serif font (AppleMyungjo and Apple SD Gothic Neo for Korean, see
+  [Languages](#languages)), and the panel says "Some characters use a system
+  font".
 - Long titles are fitted to the column once; each role and name is fitted to
   its width down to 70% of its size, then wraps to two lines.
 - The Draft is built in two commits (clips and music, then the title, the

@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "id": "thank-you-recap",
+  "version": "0.1.0-alpha.2",
+  "name": "Thank You Recap",
+  "summary": "Turn your year's videos into a 16:9 \"Thank you\" recap Draft: a beat-cut intro, a held hero shot under a flickering year, and a salsa finale on bundled music.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx",
+    "assets/music.mp3",
+    "assets/year-fonts.json",
+    "licenses/OFL-caveat.txt",
+    "licenses/OFL-fraunces.txt",
+    "licenses/OFL-fredoka.txt",
+    "licenses/OFL-greatvibes.txt",
+    "licenses/OFL-rubikdirt.txt",
+    "licenses/OFL-titanone.txt"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS development builds"
+    ],
+    "selects": "Requires Panel SDK runScript/runShell/askAI, Draft setFrameSize and addMotionGraphic, and ffmpeg in the app shell. Released-version and Windows compatibility are unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 960,
+    "height": 540
+  },
+  "localized": {
+    "de": {
+      "name": "Thank You R\u00fcckblick",
+      "summary": "Macht aus den Videos deines Jahres einen 16:9-R\u00fcckblick-Entwurf \u201eThank you\u201c: ein beatgenauer Einstieg, eine Hauptaufnahme unter einer flackernden Jahreszahl und ein Salsa-Finale zur mitgelieferten Musik."
+    },
+    "en": {
+      "name": "Thank You Recap",
+      "summary": "Turn your year's videos into a 16:9 \"Thank you\" recap Draft: a beat-cut intro, a held hero shot under a flickering year, and a salsa finale on bundled music."
+    },
+    "es": {
+      "name": "Resumen Thank You",
+      "summary": "Convierte los v\u00eddeos de tu a\u00f1o en un borrador de resumen \"Thank you\" en 16:9: una intro cortada al ritmo, un plano principal bajo un a\u00f1o parpadeante y un final de salsa con la m\u00fasica incluida."
+    },
+    "fr": {
+      "name": "R\u00e9trospective Thank You",
+      "summary": "Transformez les vid\u00e9os de votre ann\u00e9e en brouillon r\u00e9trospectif \u00ab Thank you \u00bb en 16:9 : une intro mont\u00e9e sur le rythme, un plan principal sous une ann\u00e9e clignotante et un final salsa sur la musique fournie."
+    },
+    "it": {
+      "name": "Recap Thank You",
+      "summary": "Trasforma i video del tuo anno in una bozza recap \"Thank you\" in 16:9: un'intro a tempo, un'inquadratura principale sotto un anno lampeggiante e un finale salsa sulla musica inclusa."
+    },
+    "ja": {
+      "name": "Thank You \u30ea\u30ad\u30e3\u30c3\u30d7",
+      "summary": "1\u5e74\u5206\u306e\u52d5\u753b\u304b\u308916:9\u306e\u300cThank you\u300d\u30ea\u30ad\u30e3\u30c3\u30d7\u306e\u30c9\u30e9\u30d5\u30c8\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002\u30d3\u30fc\u30c8\u306b\u5408\u308f\u305b\u305f\u30a4\u30f3\u30c8\u30ed\u3001\u70b9\u6ec5\u3059\u308b\u5e74\u306e\u4e0b\u306e\u30e1\u30a4\u30f3\u30b7\u30e7\u30c3\u30c8\u3001\u540c\u68b1\u306e\u97f3\u697d\u306b\u4e57\u305b\u305f\u30b5\u30eb\u30b5\u306e\u30d5\u30a3\u30ca\u30fc\u30ec\u3067\u69cb\u6210\u3055\u308c\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "Thank You Recap",
+      "summary": "\ud55c \ud574\uc758 \uc601\uc0c1\uc73c\ub85c 16:9 \"Thank you\" \ub9ac\ucea1 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \ube44\ud2b8\uc5d0 \ub9de\ucd98 \uc778\ud2b8\ub85c, \uae5c\ube61\uc774\ub294 \uc5f0\ub3c4 \uc544\ub798 \uba54\uc778 \uc0f7, \ud568\uaed8 \uc81c\uacf5\ub418\ub294 \uc74c\uc545 \uc704\uc758 \uc0b4\uc0ac \ud53c\ub0a0\ub808\ub85c \uad6c\uc131\ub429\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Retrospectiva Thank You",
+      "summary": "Transforme os v\u00eddeos do seu ano em um rascunho de retrospectiva \"Thank you\" em 16:9: uma abertura no ritmo, um plano principal sob um ano piscante e um final de salsa com a m\u00fasica inclu\u00edda."
+    },
+    "tr": {
+      "name": "Thank You \u00d6zeti",
+      "summary": "Y\u0131l\u0131n\u0131z\u0131n videolar\u0131n\u0131 16:9 bir \"Thank you\" \u00f6zet tasla\u011f\u0131na d\u00f6n\u00fc\u015ft\u00fcr\u00fcn: ritme g\u00f6re kesilmi\u015f bir giri\u015f, yan\u0131p s\u00f6nen y\u0131l\u0131n alt\u0131nda ana \u00e7ekim ve dahil edilen m\u00fczikle bir salsa finali."
+    },
+    "zh": {
+      "name": "Thank You \u5e74\u5ea6\u56de\u987e",
+      "summary": "\u7528\u4e00\u5e74\u7684\u89c6\u9891\u5236\u4f5c 16:9 \u7684\u201cThank you\u201d\u5e74\u5ea6\u56de\u987e\u8349\u7a3f\uff1a\u5361\u70b9\u5f00\u573a\u3001\u95ea\u70c1\u5e74\u4efd\u4e0b\u7684\u4e3b\u955c\u5934\uff0c\u4ee5\u53ca\u914d\u4e0a\u5185\u7f6e\u97f3\u4e50\u7684\u8428\u5c14\u8428\u7ed3\u5c3e\u3002"
+    }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "hero",
+      "label": "Select hero video",
+      "hint": "Held for about 6 seconds under THANK YOU and the year.",
+      "accepts": [
+        "video"
+      ],
+      "min": 1,
+      "max": 1,
+      "minSeconds": 6.1,
+      "query": "a calm wide scenic shot"
+    },
+    {
+      "id": "clips",
+      "label": "Select clips",
+      "hint": "Cut fast to the music; fewer clips repeat at later moments.",
+      "accepts": [
+        "video"
+      ],
+      "min": 2,
+      "max": 40,
+      "minSeconds": 0.9,
+      "query": "happy moments with friends"
+    }
+  ],
+  "prepare": [
+    "Videos from your year",
+    "One calm, wide video at least 6.1 seconds long for the hero shot"
+  ]
+}

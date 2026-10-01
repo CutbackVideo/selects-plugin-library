@@ -120,7 +120,10 @@ and Fe (head trimmed via sourceStartSeconds when that would start before 0).
   videoMotion: null | { tsx, strength },               // montage VIDEO clips on Main (not photos, grid panels or ending clips):
                                                     // "Video motion", a slow 1.00 -> 1.04 push-in, strength editable (0-2)
   endingMotion: { [endingIndex]: { motion, direction, axis } }, // ending photos: done inside the film-frame effect
-  photos: [rid]                       // photo resource ids
+  photos: [rid],                      // photo resource ids
+  adjustLabels?: { look, grain, leak, motion, motionStrength, videoMotion } // Adjust labels of the effects in the panel's UI
+                                                    // language at Build (the panel always sends them; English when absent).
+                                                    // title/labels editableParameters and motion.options labels arrive translated
 }
 ```
 Effect labels (idempotency keys): "Summer look", "Grid panel", "Film frame", "Photo motion", "Video motion"; graphics "Summer Trip title",
@@ -143,7 +146,10 @@ cues and their muffled copies, sound effects, the hash-named muffled copy of own
 `{ projectId, only: null | [rid], known?: { [rid]: size }, measureMs?: 8000, probeMs?: 4000 }` →
 `{ resources: [{ rid, name, duration, width, height, recordedAt, capturedAt, month, kind: 'video' }], photos: [{ rid, name, width,
 height, recordedAt, capturedAt, month, kind: 'photo' }], months: [12 counts, Jan first — whole Project, ignoring only],
-skipped: { unanalysed, missing }, captureDates: { known, probed } }`. Dates without a Resource recording date come from
+skipped: { unanalysed, missing, analysing, notAnalysed, failed, statusKnown }, captureDates: { known, probed } }`.
+Videos without analysis are split by ProjectResource.status (sampling/analyzing = analysing, sampling/analyzingFailed =
+failed, the rest not analysed) plus queued/running analyze-resource workflows (or a running project:create) for pending
+clips; statusKnown is false when `workflows()` fails. Dates without a Resource recording date come from
 `selects.media.probe` (recorded → creation → filenameTimestamp → encoded unless encodedBy); month is read from the date text.
 
 ### search.js
@@ -188,7 +194,8 @@ are **flat top-level keys** because the Inspector edits one top-level key per ed
   placeSeconds })` → Labels: `{ preset, topMain, topItalic, creditPrefix, creditName, creditUppercase (false), placePrefix, place,
   placeSeconds, labelColor, placeColor, shadow, labelSize, creditSize, labelTracking, creditTracking, placeSize, topY (8.6), creditY (93.0), placeX (72.5),
   placeY (38.9), prefixScale, prefixDrop, placeCapRatio, marginPct, faces, fonts }`.
-- `faces`: `{ [role]: { family, case, tracking, scaleX, fillWidth? } }` (title roles line1/season/label/labelItalic; labels roles
+- `faces`: `{ [role]: { family, koFamily?, case, tracking, scaleX, fillWidth? } }` (koFamily: the macOS Korean system face of the
+  role, last in the font stack; title roles line1/season/label/labelItalic; labels roles
   label/labelItalic/place/placePrefix). `fonts`: `{ [family]: base64 }` — only the chosen preset's families.
 - Faces: every `ST ...` family is a single face. The graphics declare each `@font-face` as normal/400 and never request
   italic/bold in CSS (the family itself is the italic/bold face); the panel preview must register them the same way (ignore

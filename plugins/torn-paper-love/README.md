@@ -72,7 +72,8 @@ it could not read.
 The panel's sections, from top to bottom:
 
 - **Words**: **Word 1** and **Word 2**, up to 8 characters each (at least one
-  must be filled). A preview strip shows the letters on the chosen backdrop.
+  must be filled; a Korean, Japanese or Chinese character counts as 2). A
+  preview strip shows the letters on the chosen backdrop.
 - **Style**: the backdrop tiles Night, Red curtain, Kraft and Photo.
 - **Music**: choose a **Track**, drag the section box on the waveform, and
   press **Preview this section** to listen.
@@ -83,9 +84,9 @@ The panel's sections, from top to bottom:
 - **Build**: creates a new 4:3 Draft.
 - **Finish letters and look**: appears if the second build commit fails, and
   finishes that Draft (see [Limitations](#limitations)).
-- **Create another version**: builds another Draft. New tear shapes and
-  letters; different photos when you have more pictures than the length
-  needs.
+- **Try other shots**: builds another Draft with the same settings and a
+  different shot choice. New tear shapes and letters; different photos when
+  you have more pictures than the length needs.
 
 ## Music
 
@@ -186,15 +187,44 @@ Finished videos are exported from the Draft with **Handoff → Export**.
 
 ## Letters
 
-Each word is up to 8 characters. Supported letters are A-Z, a-z, 0-9 and the
-characters . , ! ? & ' - and ♥. Anything else (accents, Korean, other
-scripts) is drawn in a system fallback font on a plain white chip. Upper or
+Each word is up to 8 characters (in the panel, a Korean, Japanese or Chinese
+character counts as 2; the Inspector's Word fields take 8 characters of any
+kind). Supported letters are A-Z, a-z, 0-9 and the characters
+. , ! ? & ' - and ♥. Anything else (accents, Korean, other scripts) is drawn in
+a system fallback font on a plain white chip (see [Languages](#languages)). Upper or
 lower case is part of each letter's look, so "love" and "LOVE" can look the
 same. If a word is too long for its side, the whole word shrinks, and the
 panel warns "shorten" when it still does not fit.
 
 The typefaces are bundled and embedded in the graphic, so the Draft renders
 the same on any machine with Selects.
+
+## Languages
+
+**The panel** follows the language of the Selects app and changes with it
+while the panel is open. It is translated into German, English, Spanish,
+French, Italian, Japanese, Korean, Portuguese, Turkish and Chinese; any other
+app language shows English. Track names, the Draft's name and the technical
+detail after an error message stay in English.
+
+**The letters in the video** can be typed in English or Korean (Hangul):
+
+- The pre-filled words "MY" and "LOVE" stay English in every language. Type
+  over them to change them.
+- The bundled typefaces have no Korean letters, so each Korean letter sits on
+  a plain white chip in the macOS system font **AppleMyungjo**. The Latin
+  letters around it keep their changing looks; the Korean chips keep theirs
+  (Re-style does not change them).
+- Korean letters are never set in capitals, letter-spaced or squeezed. They
+  are measured as wide letters, so a word shrinks to fit its side as Latin
+  words do; in the panel a Korean character counts as 2 of a word's 8.
+- Korean letters need macOS, where Selects and its export run. Style-matched
+  Korean typefaces are planned for a later version.
+
+**Inspector labels** of the Torn photo effect and the Ransom letters graphic
+are written into the Draft in the panel's language at the time of the build.
+They do not change if the app language is switched later. The effect and
+graphic names (Torn photo, Ransom letters) stay English.
 
 ## Limitations
 

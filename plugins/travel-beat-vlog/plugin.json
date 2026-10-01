@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "id": "travel-beat-vlog",
+  "version": "0.1.1",
+  "name": "Travel Beat Vlog",
+  "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "VALIDATION.md",
+    "operation.mjs",
+    "build-script.mjs",
+    "panel.tsx",
+    "color-targets.json",
+    "tools/cutout.swift",
+    "assets/music.mp3"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Needs public Video/Audio overlays, clip effects and motion graphics, the editor's existing original Image placement service for the hero photo, Node.js in the panel shell, and the Swift compiler (Xcode Command Line Tools) for the Apple Vision cutout. Verified in Selects Staging 2.0.519 and a local develop build on 2026-10-01: saved Draft readback and export (pixel-identical between the two)."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "hero",
+      "label": "Hero photo",
+      "hint": "A photo with people; the title goes behind them.",
+      "accepts": [
+        "image"
+      ],
+      "min": 1,
+      "max": 1
+    },
+    {
+      "id": "long",
+      "label": "Long shots",
+      "hint": "Three shots of at least 2.7 s: under each grid and before the ending.",
+      "accepts": [
+        "video"
+      ],
+      "min": 3,
+      "max": 3,
+      "minSeconds": 2.7,
+      "query": "wide travel scenery"
+    },
+    {
+      "id": "clips",
+      "label": "Clips",
+      "hint": "For the two beat montages and the grids, in the order picked.",
+      "accepts": [
+        "video"
+      ],
+      "min": 23,
+      "max": 23,
+      "minSeconds": 1.4,
+      "query": "travel scenery and places"
+    }
+  ],
+  "prepare": [
+    "26 travel videos and 1 photo with people in it",
+    "Xcode Command Line Tools on this Mac, for the title cutout"
+  ],
+  "options": [
+    {
+      "id": "subject",
+      "label": "In front of the title",
+      "choices": [
+        {
+          "id": "person",
+          "label": "People"
+        },
+        {
+          "id": "foreground",
+          "label": "Main subject"
+        }
+      ],
+      "default": "person"
+    }
+  ],
+  "localized": {
+    "de": {
+      "name": "Travel Beat Vlog",
+      "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music."
+    },
+    "en": {
+      "name": "Travel Beat Vlog",
+      "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music."
+    },
+    "es": {
+      "name": "Travel Beat Vlog",
+      "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music."
+    },
+    "fr": {
+      "name": "Travel Beat Vlog",
+      "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music."
+    },
+    "it": {
+      "name": "Travel Beat Vlog",
+      "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music."
+    },
+    "ja": {
+      "name": "Travel Beat Vlog",
+      "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music."
+    },
+    "ko": {
+      "name": "Travel Beat Vlog",
+      "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music."
+    },
+    "pt": {
+      "name": "Travel Beat Vlog",
+      "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music."
+    },
+    "tr": {
+      "name": "Travel Beat Vlog",
+      "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music."
+    },
+    "zh": {
+      "name": "Travel Beat Vlog",
+      "summary": "Build the fast travel beat vlog: 26 video slots with two quick montages, a hero photo with a big title behind the people, two 2x2 grids, per-slot reference colour, a fade and bundled music."
+    }
+  }
+}

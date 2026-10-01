@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "id": "four-photo-stop-motion",
+  "version": "0.1.1",
+  "name": "Four Photo Stop Motion",
+  "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "VALIDATION.md",
+    "operation.mjs",
+    "build-script.mjs",
+    "panel.tsx",
+    "assets/music.mp3"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal and Camera Shutter Dump), public clip effects, motion graphics and Audio overlays, and Node.js in the panel shell. Verified in Selects Staging and a local develop build on 2026-10-01: saved Draft readback and export."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 720
+  },
+  "localized": {
+    "de": {
+      "name": "Four Photo Stop Motion",
+      "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips."
+    },
+    "en": {
+      "name": "Four Photo Stop Motion",
+      "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips."
+    },
+    "es": {
+      "name": "Four Photo Stop Motion",
+      "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips."
+    },
+    "fr": {
+      "name": "Four Photo Stop Motion",
+      "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips."
+    },
+    "it": {
+      "name": "Four Photo Stop Motion",
+      "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips."
+    },
+    "ja": {
+      "name": "Four Photo Stop Motion",
+      "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips."
+    },
+    "ko": {
+      "name": "Four Photo Stop Motion",
+      "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips."
+    },
+    "pt": {
+      "name": "Four Photo Stop Motion",
+      "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips."
+    },
+    "tr": {
+      "name": "Four Photo Stop Motion",
+      "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips."
+    },
+    "zh": {
+      "name": "Four Photo Stop Motion",
+      "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips."
+    }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "photos",
+      "label": "Photos",
+      "accepts": [
+        "image"
+      ],
+      "min": 4,
+      "max": 4
+    }
+  ],
+  "prepare": [
+    "4 photos, in the order they appear"
+  ]
+}

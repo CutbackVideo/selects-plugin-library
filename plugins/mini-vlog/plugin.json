@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "mini-vlog",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "Mini Vlog",
   "summary": "Turn everyday clips and photos into a 16:9 mini vlog cut to the beat, with a pale pink title, as a new editable Draft.",
   "status": "experimental",
@@ -14,6 +14,7 @@
     "beat-detect.cjs",
     "panel.tsx",
     "planner.js",
+    "dev/i18n-check.cjs",
     "assets/cues/acoustic-pop-104.mp3",
     "assets/cues/bedroom-pop-108.mp3",
     "assets/cues/easy-sunday-lofi.mp3",
@@ -43,6 +44,7 @@
     "tests/beat-detect.test.cjs",
     "tests/cues.test.cjs",
     "tests/fonts.test.cjs",
+    "tests/i18n.test.cjs",
     "tests/look.test.cjs",
     "tests/motion.test.cjs",
     "tests/panel.test.cjs",
@@ -106,5 +108,96 @@
     "poster": "poster.webp",
     "width": 960,
     "height": 540
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "footage",
+      "label": "Clips and photos",
+      "hint": "Everyday moments: drinks, food, streets, parks, books.",
+      "accepts": [
+        "video",
+        "image"
+      ],
+      "min": 2,
+      "max": 50,
+      "query": "everyday moments: a drink, food, a street, a park or a book"
+    }
+  ],
+  "options": [
+    {
+      "id": "track",
+      "label": "Music",
+      "default": "bedroom-pop-108",
+      "choices": [
+        {
+          "id": "bedroom-pop-108",
+          "label": "Bedroom Pop"
+        },
+        {
+          "id": "acoustic-pop-104",
+          "label": "Acoustic Pop"
+        },
+        {
+          "id": "weekend-indie-pop",
+          "label": "Weekend Indie Pop"
+        },
+        {
+          "id": "golden-hour-disco",
+          "label": "Golden Hour Disco"
+        },
+        {
+          "id": "sunny-soul-strut",
+          "label": "Sunny Soul Strut"
+        },
+        {
+          "id": "easy-sunday-lofi",
+          "label": "Easy Sunday Lo-fi"
+        }
+      ]
+    },
+    {
+      "id": "length",
+      "label": "Length",
+      "default": "standard",
+      "choices": [
+        {
+          "id": "short",
+          "label": "Short"
+        },
+        {
+          "id": "standard",
+          "label": "Standard"
+        },
+        {
+          "id": "long",
+          "label": "Long"
+        }
+      ]
+    },
+    {
+      "id": "title",
+      "label": "Title",
+      "default": "small-glimpse",
+      "choices": [
+        {
+          "id": "small-glimpse",
+          "label": "A small glimpse"
+        },
+        {
+          "id": "mini-vlog",
+          "label": "Mini vlog"
+        },
+        {
+          "id": "day-in-my-life",
+          "label": "A day in my life"
+        }
+      ]
+    }
+  ],
+  "prepare": [
+    "Everyday clips and photos, at least 2 different ones",
+    "Videos analyzed, so the scene search can find their shots"
+  ]
 }

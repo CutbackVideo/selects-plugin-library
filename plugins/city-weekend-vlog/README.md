@@ -58,11 +58,27 @@ how many it found, and how many of them are photos, and asks for more varied
 footage or photos. It does not start analysis on its own, so analyse your
 clips first.
 
+Video clips without analysis are counted on the top line by why:
+
+- "N clips are being analysed. This updates automatically when they finish."
+  Selects is analysing them now; the panel re-reads the Project every 10 s
+  until they are ready.
+- "N clips are not analysed yet. Analyse them in Selects to use them here."
+  Their analysis was never started. The panel does not poll for them; it
+  re-reads the Project when you come back to it, or press **Refresh**.
+- "N clips could not be analysed." Their analysis failed.
+- "N clips are not analysed yet. If Selects is analysing them, this updates
+  automatically." The analysis status could not be read, so the panel keeps
+  checking.
+
+On the Ready line the same counts appear in short, for example "Ready: 5
+clips · about 14 s · 2 clips being analysed · 3 clips not analysed yet".
+
 Progress is shown as five steps: Choosing shots, Preparing music, Creating
 Draft, Adding title and look, and Opening Draft. When the build finishes, the
-new Draft opens and a link to it is shown. **Create another version** makes
-another Draft with a different shot choice, reusing the shot search and
-showing the same steps.
+new Draft opens and a link to it is shown. **Try other shots** makes another
+Draft with the same settings and a different shot choice, reusing the shot
+search and showing the same steps.
 
 ## Music
 
@@ -92,12 +108,20 @@ section; press it again (or Esc) to stop.
 **Your own music**: drop an audio file. The plugin listens for the beat and
 uses it when the detected beat grid is reliable. When the detected beats
 land halfway between the kicks and snare hits, it moves the grid half a beat
-onto them. It also measures how
-strongly the music marks 16th notes to choose the title burst. Songs slower than 70 BPM, or
-songs whose beat cannot be detected reliably, fall back to fixed timing at
+onto them. Sparse drums (a lo-fi kick and snare on only some beats) count
+as a beat when the hits they do make sit tight on the grid all through the
+track; a grid that holds for part of the track but not the rest (a tempo
+change) does not. It also measures how
+strongly the music marks 16th notes to choose the title burst. When the
+tempo is found but the beat is faint, the cuts use approximate timing on
+the detected tempo: shots of that tempo's beat from its first beat, the box
+snapping to its bars, the calmer 8th-note title burst, and cuts that move
+only onto a clearly strong bass hit nearby (within 120 ms); the panel says
+"Approximate timing on the detected tempo (N BPM)". Songs slower than 70 BPM, or
+songs where no steady beat is found, fall back to fixed timing at
 99.2 BPM, and the panel says "cuts use the original rhythm". Those cuts
 still move onto a clearly strong bass hit nearby (within 120 ms). Without a
-reliable grid, the box moves in 0.1 s steps instead of bars. Your own music
+detected tempo, the box moves in 0.1 s steps instead of bars. Your own music
 and the previews need ffmpeg; your own music also needs Node.js 18 or later
 (see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.
 
@@ -117,8 +141,7 @@ analysis and are never scene-searched.
 - At most two photos play in a row while anything else fits. A Project with
   only photos still builds when it has at least 16 of them (14 with the
   half-beat burst); then the photos follow each other.
-- The choice depends on the seed, so **Create another version** picks other
-  photos.
+- The choice depends on the seed, so **Try other shots** picks other photos.
 - Photos are placed from their start for the shot's frame-exact length and
   centre-cropped to fill 9:16, like landscape clips. They have no sound, so
   Clip sound skips them.
@@ -150,8 +173,39 @@ Five presets. Each has four typefaces: A (a script for the title), B
 | Editorial | Allura | Cormorant Garamond Italic | Mrs Saint Delafield | Cormorant Garamond |
 
 The fonts are bundled and embedded in the title, so the Draft renders the
-same on any machine with Selects. They cover Latin text; other scripts use a
-system fallback font.
+same on any machine with Selects. They cover Latin text. Korean text uses a
+macOS system font (see [Languages](#languages)); other scripts use a system
+fallback font.
+
+## Languages
+
+**The panel** follows the language of the Selects app and changes with it
+while the panel is open. It is translated into German, English, Spanish,
+French, Italian, Japanese, Korean, Portuguese, Turkish and Chinese; any other
+app language shows English. Track names, the Draft's name and the technical
+detail after an error message stay in English.
+
+**The title in the video** can be typed in English or Korean (Hangul):
+
+- The pre-filled words stay English in every language: the weekday in **First
+  line** ("A day" when unknown) and the **Connector** "in". Type over them to
+  change them.
+- **Place** is pre-filled from the Project name when it looks like a place,
+  also when the name is Korean.
+- The bundled typefaces have no Korean letters, so Korean text is drawn with
+  the macOS system font of each typeface's kind: **AppleMyungjo** for the
+  serif typefaces (B in every preset, D in Classic, Romantic and Editorial)
+  and **Apple SD Gothic Neo** for the script and condensed ones. The line
+  still switches between the four states, and the italic states slant the
+  Korean text.
+- Korean text is never set in capitals or letter-spaced, and a long line
+  shrinks to fit the title box in one piece, as Latin text does.
+- Korean titles need macOS, where Selects and its export run. Style-matched
+  Korean typefaces are planned for a later version.
+
+**Inspector labels** of the title, the warm look and the photo motion are
+written into the Draft in the panel's language at the time of the build. They
+do not change if the app language is switched later.
 
 ## Advanced
 
@@ -219,5 +273,10 @@ Finished videos are exported from the Draft with **Handoff → Export**.
   built with, even if they have been changed in the panel since.
 - Moving cuts inside the title section does not move the title's events.
   Moving the music clip's start does not move the cuts either.
-- Songs under 70 BPM, or songs whose beat cannot be detected reliably, use
-  fixed 99.2 BPM timing instead of their own beat.
+- Korean titles use macOS system fonts, not typefaces matched to each preset,
+  and the panel's translations cover 10 languages (see
+  [Languages](#languages)).
+- Songs under 70 BPM, or songs where no steady beat is found, use fixed
+  99.2 BPM timing instead of their own beat. Songs whose tempo is found but
+  whose beat is faint cut on the detected tempo, and those cuts may miss the
+  heard beat.

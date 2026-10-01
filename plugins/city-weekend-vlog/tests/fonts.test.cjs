@@ -7,6 +7,9 @@ const files = new Set();
 for (const preset of p.presets) for (const k of ['A', 'B', 'C', 'D']) {
   const s = preset.states[k];
   assert.ok(s && s.file && s.family.startsWith('CWV '), preset.id + ' ' + k);
+  // Korean text falls back to the macOS system face of the state's role: AppleMyungjo for serif faces, Apple SD
+  // Gothic Neo for script, display and sans faces.
+  assert.equal(s.koFamily, /Serif|Playfair|Abril|Cormorant/.test(s.family) ? 'AppleMyungjo' : 'Apple SD Gothic Neo', preset.id + ' ' + k + ' koFamily');
   const b64 = fs.readFileSync(path.join(dir, s.file), 'utf8').replace(/\s+/g, '');
   const bin = Buffer.from(b64, 'base64');
   assert.equal(bin.subarray(0, 4).toString('latin1'), 'wOF2', s.file + ' is WOFF2');

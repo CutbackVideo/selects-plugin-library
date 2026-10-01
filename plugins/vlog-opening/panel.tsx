@@ -1,4 +1,5 @@
 // @name Vlog Opening
+// @collection visual-highlights
 // @icon sparkles
 // Builds a 12-22s vlog opening as a new Draft, in one of three styles, from the
 // analysed footage of whatever Project is open. Selection is deterministic:
@@ -969,11 +970,13 @@ function assignBeats(template: any[], hitsByRole: Record<string, any[]>, pool: a
   return { beats: slots.filter(Boolean), dropped };
 }
 
-function selectQuotesScript(projectId: string, budgetSeconds: number, poolSize: number) {
-  return `
-const p = selects.project(${JSON.stringify(projectId)});
-const BUDGET: number = ${budgetSeconds};
-const all = await p.resources();
+// `handed`, when given, is the only footage to quote from (a template run's
+// picked clips, already read by templatePoolScript); otherwise the pool is
+// spread across the whole Project.
+function selectQuotesScript(projectId: string, budgetSeconds: number, poolSize: number, handed?: Array<{ rid: string; name: string; total: number }>) {
+  const poolSource = handed
+    ? `const pool = ${JSON.stringify(handed.map(h => ({ resourceId: h.rid, name: h.name, durationSeconds: h.total })))};`
+    : `const all = await p.resources();
 const num = (id) => { const m = /(\\d+)/.exec(String(id)); return m ? parseInt(m[1], 10) : 0; };
 const eligible = all
   .filter(r => r.type === "Video" && r.hasAnalysis && (r.durationSeconds || 0) >= 2)
@@ -981,7 +984,11 @@ const eligible = all
 const CAP: number = ${poolSize};
 const pool = eligible.length <= CAP
   ? eligible
-  : Array.from({ length: CAP }, (_, i) => eligible[Math.round((i * (eligible.length - 1)) / (CAP - 1))]);
+  : Array.from({ length: CAP }, (_, i) => eligible[Math.round((i * (eligible.length - 1)) / (CAP - 1))]);`;
+  return `
+const p = selects.project(${JSON.stringify(projectId)});
+const BUDGET: number = ${budgetSeconds};
+${poolSource}
 if (pool.length === 0) return { error: "no_analyzed_video", beats: [] };
 
 const rows = [];
@@ -1046,10 +1053,13 @@ return { beats, pool: pool.length, seconds: Math.round(used * 10) / 10 };
 `;
 }
 
-function assembleScript(projectId: string, draftName: string, beats: any[]) {
+// `frameSize`, when given, is the output canvas to author (a template run
+// follows the timeline that was open); otherwise the Draft keeps its default.
+function assembleScript(projectId: string, draftName: string, beats: any[], frameSize?: { width: number; height: number } | null) {
   return `
 const p = selects.project(${JSON.stringify(projectId)});
 const BEATS: any[] = ${JSON.stringify(beats)};
+const FRAME: { width: number; height: number } | null = ${JSON.stringify(frameSize ?? null)};
 const d = await p.createDraft({ name: ${JSON.stringify(draftName)} });
 const placedMain = async () => (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
 let rate = 0;
@@ -1075,12 +1085,18 @@ for (const b of BEATS) {
 const clips = await placedMain();
 if (!clips.length) return { error: "nothing_placed" };
 const fps = rate;
+// An output canvas that cannot be applied keeps the Draft's default.
+let frameSize = null;
+if (FRAME) {
+  try { await d.setFrameSize(FRAME); frameSize = FRAME; } catch (e) {}
+}
 const commit = await d.commitAll("Vlog Opening: assemble beats");
 return {
   sequenceId: commit.createdDraftId,
   fps,
   mainEnd: clips.reduce((a, c) => Math.max(a, c.endFrame), 0),
   placed: clips.length,
+  frameSize,
 };
 `;
 }
@@ -1366,7 +1382,332 @@ function paletteFromSamples(samples: number[][]): Record<string, string> {
   };
 }
 
-export default function Panel({ sdk, context, ui }: any) {
+// Samples colours from the clips a build chose, for the motion style's palette.
+async function samplePalette(sdk: any, beats: any[]): Promise<Record<string, string>> {
+  const withPath = beats.filter(b => b.path).slice(0, 6);
+  if (!withPath.length) return { ...FALLBACK_PALETTE };
+  const parts = withPath.map(b => {
+    const mid = (Number(b.a) + Number(b.b)) / 2;
+    return `ffmpeg -nostdin -v quiet -ss ${mid.toFixed(2)} -i ${JSON.stringify(b.path)} -frames:v 1 -vf "scale=4:3:flags=area,format=rgb24" -f rawvideo - 2>/dev/null | xxd -p -c 3`;
+  });
+  try {
+    const r = await sdk.runShell({ summary: "Sample clip colours", command: parts.join("; "), timeoutMs: 120000 });
+    const text = String(r?.stdout ?? r?.output ?? "");
+    const samples: number[][] = [];
+    for (const line of text.split(/\s+/)) {
+      if (!/^[0-9a-f]{6}$/i.test(line)) continue;
+      samples.push([parseInt(line.slice(0, 2), 16), parseInt(line.slice(2, 4), 16), parseInt(line.slice(4, 6), 16)]);
+    }
+    return samples.length ? paletteFromSamples(samples) : { ...FALLBACK_PALETTE };
+  } catch (e) {
+    return { ...FALLBACK_PALETTE };
+  }
+}
+
+// Imports the chosen music (a bundled cue, or a file from disk) into the
+// Project once and returns its Resource id; `music` is the Music picker value.
+async function resolveMusic(
+  sdk: any, projectId: string, music: string, ownFile: { path: string; name: string } | null,
+): Promise<{ id: string | null; note: string }> {
+  if (music === "none") return { id: null, note: "no music" };
+  if (music === "file") {
+    if (!ownFile) return { id: null, note: "no music file chosen" };
+    try {
+      const r = await sdk.runScript({ summary: "Import " + ownFile.name, script: ensureMusicScript(projectId, ownFile.path), allowCommit: true });
+      if (r.isError || r.result == null || !r.result.resourceId) return { id: null, note: ownFile.name + " could not be imported" };
+      return { id: r.result.resourceId, note: r.result.imported ? "your file imported" : "your file reused" };
+    } catch (e) {
+      return { id: null, note: ownFile.name + " could not be imported" };
+    }
+  }
+  const cue = CUES.find(c => c.id === music.slice(4)) || CUES[0];
+  try {
+    // An install puts package files beneath the Skills root and panel.tsx
+    // beneath the Panels root; a panel copied by hand keeps them together.
+    const where = await sdk.runShell({
+      summary: "Locate bundled cue",
+      command: `for d in "$SELECTS_USER_SKILLS_ROOT" "$SELECTS_USER_PANELS_ROOT"; do f="$d/${PLUGIN_DIR}/assets/${cue.file}"; if [ -f "$f" ]; then printf '%s' "$f"; break; fi; done`,
+      timeoutMs: 15000,
+    });
+    const path = String(where?.stdout ?? where?.output ?? "").trim();
+    if (!path) return { id: null, note: "bundled cue not found; reinstall the plugin" };
+    const r = await sdk.runScript({ summary: "Import bundled cue", script: ensureMusicScript(projectId, path), allowCommit: true });
+    if (r.isError || r.result == null || !r.result.resourceId) return { id: null, note: "bundled cue could not be imported" };
+    return { id: r.result.resourceId, note: r.result.imported ? "bundled cue imported" : "bundled cue reused" };
+  } catch (e) {
+    return { id: null, note: "bundled cue unavailable" };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Template runs. A built-in app has already asked the person for the footage
+// and a style, mounts this panel out of sight, and hands both over in
+// `context.template`. The run builds at once from only those clips, with the
+// panel's own defaults for everything else, and reports back through
+// `sdk.finishTemplate` - never by opening the timeline itself.
+// ---------------------------------------------------------------------------
+
+// The app's style ids for this package, and the panel's own.
+const TEMPLATE_VARIANTS: Record<string, string> = {
+  "whip-cut": "whip",
+  "motion-graphics": "motion",
+  "funny-quotes": "quotes",
+};
+
+// Reads the handed clips (app Resource ids), and the frame size of the
+// timeline that was open, if any. Handed ids are the app's own, which the
+// SDK accepts as they are, so each clip is read by its id rather than matched
+// against resources(). A clip whose analysis cannot be read is skipped.
+// Paths are only needed to sample colours, so they are looked up on request.
+function templatePoolScript(projectId: string, handed: Array<{ rid: string; name: string }>, openSequenceId: string | null, wantPaths: boolean) {
+  return `
+const p = selects.project(${JSON.stringify(projectId)});
+const HANDED: Array<{ rid: string; name: string }> = ${JSON.stringify(handed)};
+const OPEN: string | null = ${JSON.stringify(openSequenceId)};
+const WANT_PATHS: boolean = ${wantPaths ? "true" : "false"};
+let frame = null;
+if (OPEN) {
+  try {
+    const m = await selects.draft(OPEN).meta();
+    const fs = m && m.frameSize;
+    if (fs && Number.isInteger(fs.width) && Number.isInteger(fs.height) && fs.width > 0 && fs.height > 0) frame = { width: fs.width, height: fs.height };
+  } catch (e) {}
+}
+const pool = [];
+const skipped = [];
+for (let i = 0; i < HANDED.length; i += 8) {
+  const batch = HANDED.slice(i, i + 8);
+  const metas = await Promise.all(batch.map(async h => {
+    try { return await p.resource(h.rid).meta(); } catch (e) { return null; }
+  }));
+  metas.forEach((m, k) => {
+    const h = batch[k];
+    if (!m) { skipped.push({ name: h.name, reason: "not analysed" }); return; }
+    const total = m.durationSeconds || 0;
+    if (total < 2) { skipped.push({ name: h.name, reason: "shorter than 2s" }); return; }
+    const fs = m.frameSize || null;
+    pool.push({ rid: h.rid, name: h.name, total, portrait: Boolean(fs && fs.height > fs.width), path: null });
+  });
+}
+if (WANT_PATHS && pool.length) {
+  const byName = {};
+  const walk = (n) => {
+    if (n.type === "dir") (n.children || []).forEach(walk);
+    else if (n.path && n.name) (byName[n.name] = byName[n.name] || []).push({ path: n.path, total: n.durationSeconds || 0 });
+  };
+  try {
+    const sf = await p.sourceFiles();
+    if ("fileTree" in sf && sf.fileTree) sf.fileTree.forEach(walk);
+    else {
+      const org = await p.organizeClips();
+      const folders = (org.folders || []).map(f => f.path || f.name).concat(["(root)"]);
+      for (const folder of folders) {
+        try { const detail = await p.sourceFiles({ folder }); ("fileTree" in detail ? detail.fileTree || [] : []).forEach(walk); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+  for (const row of pool) {
+    const files = byName[row.name] || [];
+    const best = files.slice().sort((a, b) => Math.abs(a.total - row.total) - Math.abs(b.total - row.total))[0];
+    if (best && Math.abs(best.total - row.total) < 1) row.path = best.path;
+  }
+}
+return { frame, pool, skipped };
+`;
+}
+
+type TemplateOutcome = { sequenceId: string } | { error: string };
+
+// Runs one script and returns its value, or null when it failed or returned
+// nothing; the reason is logged for whoever debugs the hidden frame.
+async function runQuiet(sdk: any, summary: string, script: string, allowCommit: boolean): Promise<any> {
+  const r = await sdk.runScript({ summary, script, allowCommit });
+  if (r.isError || r.result == null) {
+    console.warn("[vlog-opening] " + summary + " failed:", r.output);
+    return null;
+  }
+  return r.result;
+}
+
+// The whole template build. Every return is the run's outcome; a throw is
+// turned into one by the caller.
+async function runTemplate(sdk: any, context: any, onStep: (text: string) => void): Promise<TemplateOutcome> {
+  const run = context?.template;
+  const projectId: string | null = context?.projectId ?? null;
+  if (!projectId) return { error: "Open a project, then try again." };
+
+  const variant: string | undefined = run?.variant;
+  const style = variant == null
+    ? "whip"
+    : TEMPLATE_VARIANTS[variant] ?? (STYLES.some(s => s.value === variant) ? variant : null);
+  if (!style) return { error: "This version of Vlog Opening does not have that style; update the plugin and try again." };
+
+  // Each picked video once, in the order it was picked.
+  const seen = new Set<string>();
+  const handed: Array<{ rid: string; name: string }> = [];
+  for (const input of run?.inputs?.footage ?? []) {
+    if (!input || input.kind !== "video" || !input.resourceId || seen.has(input.resourceId)) continue;
+    seen.add(input.resourceId);
+    handed.push({ rid: input.resourceId, name: String(input.name ?? "") });
+  }
+  if (!handed.length) return { error: "Pick some video clips for the footage, then try again." };
+
+  onStep("Reading the picked clips…");
+  const read = await runQuiet(sdk, "Read picked clips",
+    templatePoolScript(projectId, handed, context?.sequenceId ?? null, style === "motion"), false);
+  if (!read) return { error: "Could not read the picked clips; try again." };
+  const frame: { width: number; height: number } | null = read.frame ?? null;
+  const picked: any[] = read.pool ?? [];
+  if (!picked.length) return { error: "None of the picked clips is analysed and at least 2 seconds long; analyse them or pick others." };
+  // Without an open timeline to follow, the output keeps the plugin's
+  // default, which is landscape.
+  const landscape = frame ? frame.width >= frame.height : true;
+
+  // The style's own cue, and its beat grid.
+  const cue = CUES.find(c => c.forStyle === style) ?? null;
+  const grid = cue ? cue.grid : null;
+  const music = cue ? "cue:" + cue.id : "none";
+
+  let beats: any[] = [];
+  let dropped: any[] = [];
+  if (style === "quotes") {
+    onStep("Finding lines…");
+    const budget = grid ? Math.min(22, atBeat(grid, grid.end) - atBeat(grid, grid.hit) + 2.5) : 22;
+    const found = await runQuiet(sdk, "Find quotable lines", selectQuotesScript(projectId, budget, picked.length, picked), false);
+    if (!found) return { error: "Could not read what is said in the picked clips; try again." };
+    if (found.error === "no_speech") return { error: "None of the picked clips has speech, so Funny quotes has no lines to use; pick clips where people talk." };
+    if (found.error) return { error: "None of the picked clips is analysed; analyse them or pick others." };
+    beats = found.beats ?? [];
+  } else {
+    // Shots that match the output's orientation, unless too few of the
+    // picked clips do.
+    const matching = picked.filter(r => r.portrait !== landscape);
+    const pool = matching.length >= 3 ? matching : picked;
+    const rids = pool.map(r => r.rid);
+    const template = TEMPLATES[style].map(b => ({ ...b }));
+    const roles = Array.from(new Set(template.map((b: any) => b.role)));
+    const hitsByRole: Record<string, any[]> = {};
+    for (let i = 0; i < roles.length; i++) {
+      const role = roles[i];
+      onStep("Scanning footage " + (i + 1) + "/" + roles.length + "…");
+      const hits = await runQuiet(sdk, "Scan for " + role, searchRoleScript(projectId, ROLE_QUERIES[role] || role, rids), false);
+      if (!hits) return { error: "Could not search the picked clips; try again." };
+      hitsByRole[role] = hits.hits ?? [];
+    }
+    const assigned = assignBeats(template, hitsByRole, pool);
+    beats = assigned.beats;
+    dropped = assigned.dropped;
+  }
+  if (beats.length < 3) {
+    return { error: "Only " + beats.length + " usable shot(s) came out of the picked clips; pick more clips, or longer ones." };
+  }
+  if (dropped.length) console.info("[vlog-opening] beats dropped:", dropped);
+
+  // The same planning as a build from the panel.
+  let gapSeconds = 2.0;
+  let titleEnd: number | null = null;
+  let musicStart = 0;
+  if (grid && style === "quotes") {
+    const plan = quotePlan(beats, grid);
+    beats = retime(beats, plan.ends);
+    musicStart = Math.round(plan.musicStart * 1000) / 1000;
+  } else if (grid) {
+    const plan = beatPlan(style, beats, grid);
+    beats = retime(beats, plan.ends);
+    gapSeconds = plan.gapSeconds;
+    titleEnd = plan.titleEnd;
+  }
+  const burstSeconds = grid ? grid.period / 2 + 0.05 : 0.34;
+
+  onStep("Sampling colours…");
+  const palette = style === "motion" ? await samplePalette(sdk, beats) : { ...FALLBACK_PALETTE };
+
+  onStep("Preparing music…");
+  const chosen = await resolveMusic(sdk, projectId, music, null);
+
+  const title = String(context?.projectName || "Opening").slice(0, 48);
+  const subtitle = "";
+  const styleLabel = STYLES.find(s => s.value === style)?.label ?? style;
+  const draftName = String(context?.projectName || "Opening") + " — Opening (" + styleLabel + ")";
+
+  onStep("Assembling…");
+  const asm = await runQuiet(sdk, "Assemble opening", assembleScript(projectId, draftName, beats, frame), true);
+  if (!asm || asm.error || !asm.sequenceId) return { error: "Could not assemble the new timeline; try again." };
+  const sequenceId = asm.sequenceId as string;
+  const fps = asm.fps as number;
+
+  onStep("Adding the look…");
+  // Scope bars are drawn over a 16:9 frame, so a square or portrait output
+  // goes without them.
+  const letterbox = style === "whip" && (!frame || frame.width / frame.height >= 1.5);
+  const dec = await sdk.runScript({
+    summary: "Style the opening", allowCommit: true,
+    script: decorateScript({
+      sequenceId, style, fps, title, subtitle, letterbox, palette, gapSeconds, titleEnd, burstSeconds,
+      beatSeconds: grid ? grid.period : 0,
+    }),
+  });
+  if (dec.isError) {
+    console.warn("[vlog-opening] Style the opening failed:", dec.output);
+    return { error: "The new timeline was made but its style could not be added; try again." };
+  }
+
+  onStep("Music and fade…");
+  const fin = await sdk.runScript({
+    summary: "Add music and fade", allowCommit: true,
+    script: finishScript({ sequenceId, fps, musicResourceId: chosen.id, muteSource: style !== "quotes", fadeSeconds: FADE_SECONDS, projectId, beats, musicStart }),
+  });
+  if (fin.isError) {
+    console.warn("[vlog-opening] Add music and fade failed:", fin.output);
+    return { error: "The new timeline was made but its music and fade could not be added; try again." };
+  }
+  if (!chosen.id) console.info("[vlog-opening] built without music:", chosen.note);
+  return { sequenceId };
+}
+
+// What the app mounts out of sight for a template run: it starts the build
+// once per run and ends the run exactly once. Nobody sees the status line.
+function TemplateRun({ sdk, context }: any) {
+  const [step, setStep] = React.useState<string>("Starting…");
+  const started = React.useRef<string | null>(null);
+  // The latest context, so a run ends only while it is still the current one.
+  const latest = React.useRef<any>(context);
+  latest.current = context;
+  const runId: string | null = context?.template?.runId ?? null;
+
+  React.useEffect(() => {
+    if (runId == null || started.current === runId) return;
+    started.current = runId;
+    const snapshot = context;
+    let ended = false;
+    const end = (outcome: TemplateOutcome) => {
+      if (ended) return;
+      ended = true;
+      setStep("sequenceId" in outcome ? "Done" : outcome.error);
+      // A newer run replaces this one, and ends itself.
+      if (latest.current?.template?.runId !== runId) return;
+      try { sdk.finishTemplate(outcome); } catch (e) { console.warn("[vlog-opening] finishTemplate failed:", e); }
+    };
+    (async () => {
+      try {
+        end(await runTemplate(sdk, snapshot, setStep));
+      } catch (e: any) {
+        console.warn("[vlog-opening] template run failed:", e);
+        end({ error: "Vlog Opening stopped unexpectedly; try again." });
+      } finally {
+        end({ error: "Vlog Opening stopped before it finished; try again." });
+      }
+    })();
+  }, [runId]);
+
+  return <div style={{ fontSize: 11, opacity: 0.6 }}>{step}</div>;
+}
+
+export default function Panel(props: any) {
+  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <OpeningPanel {...props} />;
+}
+
+function OpeningPanel({ sdk, context, ui }: any) {
   const [style, setStyle] = React.useState<string>("whip");
   const [music, setMusic] = React.useState<string>("cue:cinematic");
   const [playing, setPlaying] = React.useState<string | null>(null);
@@ -1492,58 +1833,6 @@ export default function Panel({ sdk, context, ui }: any) {
 
   const quotesBlocked = ready != null && (ready.withSpeech ?? 0) === 0;
 
-  async function samplePalette(beats: any[]): Promise<Record<string, string>> {
-    const withPath = beats.filter(b => b.path).slice(0, 6);
-    if (!withPath.length) return { ...FALLBACK_PALETTE };
-    const parts = withPath.map(b => {
-      const mid = (Number(b.a) + Number(b.b)) / 2;
-      return `ffmpeg -nostdin -v quiet -ss ${mid.toFixed(2)} -i ${JSON.stringify(b.path)} -frames:v 1 -vf "scale=4:3:flags=area,format=rgb24" -f rawvideo - 2>/dev/null | xxd -p -c 3`;
-    });
-    try {
-      const r = await sdk.runShell({ summary: "Sample clip colours", command: parts.join("; "), timeoutMs: 120000 });
-      const text = String(r?.stdout ?? r?.output ?? "");
-      const samples: number[][] = [];
-      for (const line of text.split(/\s+/)) {
-        if (!/^[0-9a-f]{6}$/i.test(line)) continue;
-        samples.push([parseInt(line.slice(0, 2), 16), parseInt(line.slice(2, 4), 16), parseInt(line.slice(4, 6), 16)]);
-      }
-      return samples.length ? paletteFromSamples(samples) : { ...FALLBACK_PALETTE };
-    } catch (e) {
-      return { ...FALLBACK_PALETTE };
-    }
-  }
-
-  async function resolveMusic(): Promise<{ id: string | null; note: string }> {
-    if (music === "none") return { id: null, note: "no music" };
-    if (music === "file") {
-      if (!ownFile) return { id: null, note: "no music file chosen" };
-      try {
-        const r = await sdk.runScript({ summary: "Import " + ownFile.name, script: ensureMusicScript(projectId, ownFile.path), allowCommit: true });
-        if (r.isError || r.result == null || !r.result.resourceId) return { id: null, note: ownFile.name + " could not be imported" };
-        return { id: r.result.resourceId, note: r.result.imported ? "your file imported" : "your file reused" };
-      } catch (e) {
-        return { id: null, note: ownFile.name + " could not be imported" };
-      }
-    }
-    const cue = CUES.find(c => c.id === music.slice(4)) || CUES[0];
-    try {
-      // An install puts package files beneath the Skills root and panel.tsx
-      // beneath the Panels root; a panel copied by hand keeps them together.
-      const where = await sdk.runShell({
-        summary: "Locate bundled cue",
-        command: `for d in "$SELECTS_USER_SKILLS_ROOT" "$SELECTS_USER_PANELS_ROOT"; do f="$d/${PLUGIN_DIR}/assets/${cue.file}"; if [ -f "$f" ]; then printf '%s' "$f"; break; fi; done`,
-        timeoutMs: 15000,
-      });
-      const path = String(where?.stdout ?? where?.output ?? "").trim();
-      if (!path) return { id: null, note: "bundled cue not found; reinstall the plugin" };
-      const r = await sdk.runScript({ summary: "Import bundled cue", script: ensureMusicScript(projectId, path), allowCommit: true });
-      if (r.isError || r.result == null || !r.result.resourceId) return { id: null, note: "bundled cue could not be imported" };
-      return { id: r.result.resourceId, note: r.result.imported ? "bundled cue imported" : "bundled cue reused" };
-    } catch (e) {
-      return { id: null, note: "bundled cue unavailable" };
-    }
-  }
-
   async function build() {
     if (!projectId) { setStatus({ tone: "error", text: "Open a Project first." }); return; }
     setBusy(true); setStatus(null); setResult(null);
@@ -1617,10 +1906,10 @@ export default function Panel({ sdk, context, ui }: any) {
       const burstSeconds = grid ? grid.period / 2 + 0.05 : 0.34;
 
       setStep("Sampling colours…");
-      const palette = style === "motion" ? await samplePalette(beats) : { ...FALLBACK_PALETTE };
+      const palette = style === "motion" ? await samplePalette(sdk, beats) : { ...FALLBACK_PALETTE };
 
       setStep("Preparing music…");
-      const chosen = await resolveMusic();
+      const chosen = await resolveMusic(sdk, projectId, music, ownFile);
 
       const styleLabel = STYLES.find(s => s.value === style)?.label ?? style;
       const draftName = String(context?.projectName || "Opening") + " — Opening (" + styleLabel + ")";

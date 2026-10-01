@@ -9,6 +9,7 @@
 // @name:pt pov: you open my gallery
 // @name:tr pov: you open my gallery
 // @name:zh pov: you open my gallery
+// @collection visual-highlights
 // @icon video
 // Creates an editable portrait gallery montage from a project folder and a fixed soundtrack.
 import React from "react";
@@ -71,7 +72,106 @@ function chooseShots(files, mode) {
   return pool.slice(0, SHOT_COUNT);
 }
 
-export default function Panel({ sdk, context, ui }) {
+// Every video and audio file in the project, with its folder, path, length and size.
+function mediaScript(projectId) {
+  return `const p=selects.project(${JSON.stringify(projectId)}); const [meta,overview]=await Promise.all([p.meta(),p.sourceFiles()]); const items=[]; function walk(nodes,parts){ for(const node of nodes){ if(node.type==="dir") walk(node.children,parts.concat(node.name)); else items.push({name:node.name,type:node.type,resourceId:node.resourceId,path:node.path,durationSeconds:node.durationSeconds,frameSize:node.frameSize,folder:parts.join("/")||"(root)"}); }} if("fileTree" in overview) walk(overview.fileTree,[]); else { for(const folder of overview.folders){ const page=await p.sourceFiles({folder:folder.name}); if("fileTree" in page) walk(page.fileTree,folder.name==="(root)"?[]:[folder.name]); }} return {projectTitle:meta.title,videos:items.filter(x=>x.type==="video"),audios:items.filter(x=>x.type==="audio")};`;
+}
+
+function fixedAudioOf(audios) {
+  return (audios || []).find((item) => item.path?.replace(/\\/g, "/").endsWith(`/gongju-gallery/assets/${MUSIC_NAME}`))?.resourceId || null;
+}
+
+// Crops the chosen clips to 3:4, imports them (and the soundtrack, once) and
+// builds the new draft. Resolves the new draft's id and the soundtrack's id.
+async function buildGallery(sdk, { projectId, language, chosen, audios, fixedAudioId }) {
+  const fps = 30000 / 1001;
+  const manifest = { audioCandidates: audios.filter((item) => item.name === MUSIC_NAME && item.path).map((item) => ({resourceId:item.resourceId,path:item.path})), clips: chosen.map((item, index) => {
+    const frames = CUTS[index + 1] - CUTS[index];
+    const seconds = frames / fps;
+    const middle = (item.durationSeconds - seconds) / 2;
+    return { path: item.path, startSeconds: Math.max(0, Math.min(item.durationSeconds - seconds - 0.1, middle)), frames };
+  }) };
+
+  const shell = await sdk.runShell({
+    summary: "Make portrait gallery shots",
+    command: `python3 "$SELECTS_USER_SKILLS_ROOT/gongju-gallery/crop.py" ${encodeManifest(manifest)}`,
+    timeoutMs: 300000,
+  });
+  if (shell.isError || shell.exitCode !== 0) throw new Error(shell.stderr || shell.output || "Portrait clips failed");
+  const created = JSON.parse(shell.stdout.trim().split("\n").pop());
+  if (!Array.isArray(created.paths) || created.paths.length !== SHOT_COUNT) throw new Error("Portrait clip output is incomplete");
+  if (!created.audioPath) throw new Error("The fixed soundtrack is missing from the plugin");
+  const existingAudioId = fixedAudioId || created.existingAudioId;
+
+  const importReply = await sdk.runScript({
+    summary: "Import portrait shots",
+    script: `const p=selects.project(${JSON.stringify(projectId)}); return await p.importFiles({paths:${JSON.stringify(existingAudioId ? created.paths : [...created.paths, created.audioPath])}});`,
+    allowCommit: true,
+  });
+  if (importReply.isError || !importReply.result) throw new Error(importReply.output || "Could not import portrait clips");
+  const ids = importReply.result.addedResourceIds;
+  if (!Array.isArray(ids) || ids.length !== SHOT_COUNT + (existingAudioId ? 0 : 1)) throw new Error("Portrait clips or fixed music were not imported");
+  const audioId = existingAudioId || ids[SHOT_COUNT];
+  const shotIds = ids.slice(0, SHOT_COUNT);
+
+  const draftName = `${T.title} — ${new Date().toLocaleString(language || undefined)}`;
+  const title = OPENING_TEXT;
+  const script = `const p=selects.project(${JSON.stringify(projectId)}); const d=await p.createDraft({name:${JSON.stringify(draftName)}}); await d.setFrameSize({width:1080,height:1440}); const fps=(await d.meta()).fps; if(Math.abs(fps-30000/1001)>0.05)throw new Error("Unsupported draft frame rate: "+fps); const cuts=${JSON.stringify(CUTS)}; await d.insertGap({seconds:cuts[0]/fps}); const ids=${JSON.stringify(shotIds)}; for(let i=0;i<ids.length;i++)await d.insertResource({resourceId:ids[i],sourceRange:{startSeconds:0,endSeconds:(cuts[i+1]-cuts[i])/fps}}); const main=await d.clips({trackScope:"main"}); const first=Math.min(...main.map(c=>c.startFrame)); const end=Math.max(...main.map(c=>c.endFrame)); if(first!==cuts[0]||end!==cuts[cuts.length-1]||main.length!==ids.length)throw new Error("Gallery timing did not match the template"); await d.addMotionGraphic({label:"Gallery opening",tsxCode:${JSON.stringify(TITLE_GRAPHIC)},within:await d.rangeAtFrames(0,cuts[0]),parameters:{text:${JSON.stringify(title)}},editableParameters:[{key:"text",label:"Text",type:"text",defaultValue:${JSON.stringify(title)}}]}); await d.overlayResource({resource:p.resource(${JSON.stringify(audioId)}),over:await d.rangeAtFrames(0,${AUDIO_END_FRAME})}); const check=await d.validate({maxDurationSeconds:11.7}); if(!check.ok)throw new Error(JSON.stringify(check)); const saved=await d.commitAll("Create gallery montage"); return {draftId:saved.createdDraftId,frames:end,clips:main.length};`;
+  const built = await sdk.runScript({ summary: "Build gallery draft", script, allowCommit: true });
+  if (built.isError || !built.result?.draftId) throw new Error(built.output || "Draft creation failed");
+  return { draftId: built.result.draftId, audioId };
+}
+
+const TEMPLATE_FAILED = "pov: you open my gallery couldn't make the timeline. Try again.";
+
+// A Clip highlights run (`context.template`): the 15 clips picked in the app,
+// the panel's defaults for the rest, built out of sight and reported once.
+function TemplateRun({ sdk, context }) {
+  const runId = context.template?.runId;
+  const [status, setStatus] = React.useState("Making your gallery\u2026");
+  const started = React.useRef(null), alive = React.useRef(true), latest = React.useRef(context);
+  latest.current = context;
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  React.useEffect(() => {
+    if (!runId || started.current === runId) return;
+    started.current = runId;
+    const live = () => alive.current && latest.current.template?.runId === runId;
+    let ended = false;
+    const finish = (result) => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch {} };
+    (async () => {
+      const template = context.template, projectId = context.projectId;
+      if (!projectId) throw new Error("Open a project, then try again.");
+      const picks = (template.inputs?.clips || []).filter((pick) => pick?.resourceId);
+      if (picks.length !== SHOT_COUNT) throw new Error(`Pick ${SHOT_COUNT} videos, then try again.`);
+      const reply = await sdk.runScript({ summary: "Find gallery media", script: mediaScript(projectId) });
+      if (reply.isError || !reply.result) throw new Error("Couldn't read this project's files. Try again.");
+      const byId = new Map((reply.result.videos || []).map((item) => [item.resourceId, item]));
+      const files = picks.map((pick) => byId.get(pick.resourceId));
+      const missing = picks.find((pick, index) => !files[index]?.path);
+      if (missing) throw new Error(`Couldn't find ${missing.name || "a picked video"} in this project. Try again.`);
+      const short = picks.find((pick, index) => !(files[index].durationSeconds >= 1.3));
+      if (short) throw new Error(`${short.name || "A picked video"} is shorter than 1.3 seconds. Pick longer videos.`);
+      const mode = template.options?.order === "random" ? "random" : "ordered";
+      const chosen = chooseShots(files, mode);
+      if (!live()) return;
+      setStatus("Cropping and placing your clips\u2026");
+      const audios = reply.result.audios || [];
+      const { draftId } = await buildGallery(sdk, { projectId, language: context.language, chosen, audios, fixedAudioId: fixedAudioOf(audios) });
+      finish({ sequenceId: draftId });
+    })().catch((error) => {
+      console.warn("[gongju-gallery] template run failed:", error);
+      const said = String(error?.message || "");
+      finish({ error: said && said.length <= 160 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED });
+    });
+  }, [runId]);
+  return <small>{status}</small>;
+}
+
+export default function Panel(props) {
+  return props.context?.template ? <TemplateRun {...props} /> : <GalleryPanel {...props} />;
+}
+
+function GalleryPanel({ sdk, context, ui }) {
   const t = T;
   const [videos, setVideos] = React.useState([]);
   const [audios, setAudios] = React.useState([]);
@@ -89,7 +189,7 @@ export default function Panel({ sdk, context, ui }) {
     let cancelled = false;
     setLoading(true);
     setStatus(null);
-    const script = `const p=selects.project(${JSON.stringify(context.projectId)}); const [meta,overview]=await Promise.all([p.meta(),p.sourceFiles()]); const items=[]; function walk(nodes,parts){ for(const node of nodes){ if(node.type==="dir") walk(node.children,parts.concat(node.name)); else items.push({name:node.name,type:node.type,resourceId:node.resourceId,path:node.path,durationSeconds:node.durationSeconds,frameSize:node.frameSize,folder:parts.join("/")||"(root)"}); }} if("fileTree" in overview) walk(overview.fileTree,[]); else { for(const folder of overview.folders){ const page=await p.sourceFiles({folder:folder.name}); if("fileTree" in page) walk(page.fileTree,folder.name==="(root)"?[]:[folder.name]); }} return {projectTitle:meta.title,videos:items.filter(x=>x.type==="video"),audios:items.filter(x=>x.type==="audio")};`;
+    const script = mediaScript(context.projectId);
     sdk.runScript({ summary: "Find gallery media", script }).then((reply) => {
       if (cancelled) return;
       if (reply.isError || !reply.result) throw new Error(reply.output || "Could not read project files");
@@ -102,7 +202,7 @@ export default function Panel({ sdk, context, ui }) {
       const sameProject = loadedProjectId.current === context.projectId;
       loadedProjectId.current = context.projectId;
       setFolder((current) => sameProject && names.includes(current) ? current : suitable || null);
-      setFixedAudioId((found.audios || []).find((item) => item.path?.replace(/\\/g, "/").endsWith(`/gongju-gallery/assets/${MUSIC_NAME}`))?.resourceId || null);
+      setFixedAudioId(fixedAudioOf(found.audios));
       setLoading(false);
     }).catch((error) => {
       if (cancelled) return;
@@ -123,42 +223,8 @@ export default function Panel({ sdk, context, ui }) {
     setStatus(null);
     try {
       const chosen = chooseShots(selectedVideos, selectionMode);
-      const fps = 30000 / 1001;
-      const manifest = { audioCandidates: audios.filter((item) => item.name === MUSIC_NAME && item.path).map((item) => ({resourceId:item.resourceId,path:item.path})), clips: chosen.map((item, index) => {
-        const frames = CUTS[index + 1] - CUTS[index];
-        const seconds = frames / fps;
-        const middle = (item.durationSeconds - seconds) / 2;
-        return { path: item.path, startSeconds: Math.max(0, Math.min(item.durationSeconds - seconds - 0.1, middle)), frames };
-      }) };
-
-      const shell = await sdk.runShell({
-        summary: "Make portrait gallery shots",
-        command: `python3 "$SELECTS_USER_SKILLS_ROOT/gongju-gallery/crop.py" ${encodeManifest(manifest)}`,
-        timeoutMs: 300000,
-      });
-      if (shell.isError || shell.exitCode !== 0) throw new Error(shell.stderr || shell.output || "Portrait clips failed");
-      const created = JSON.parse(shell.stdout.trim().split("\n").pop());
-      if (!Array.isArray(created.paths) || created.paths.length !== SHOT_COUNT) throw new Error("Portrait clip output is incomplete");
-      if (!created.audioPath) throw new Error("The fixed soundtrack is missing from the plugin");
-      const existingAudioId = fixedAudioId || created.existingAudioId;
-
-      const importReply = await sdk.runScript({
-        summary: "Import portrait shots",
-        script: `const p=selects.project(${JSON.stringify(context.projectId)}); return await p.importFiles({paths:${JSON.stringify(existingAudioId ? created.paths : [...created.paths, created.audioPath])}});`,
-        allowCommit: true,
-      });
-      if (importReply.isError || !importReply.result) throw new Error(importReply.output || "Could not import portrait clips");
-      const ids = importReply.result.addedResourceIds;
-      if (!Array.isArray(ids) || ids.length !== SHOT_COUNT + (existingAudioId ? 0 : 1)) throw new Error("Portrait clips or fixed music were not imported");
-      const audioId = existingAudioId || ids[SHOT_COUNT];
+      const { audioId } = await buildGallery(sdk, { projectId: context.projectId, language: context.language, chosen, audios, fixedAudioId });
       if (!fixedAudioId) setFixedAudioId(audioId);
-      const shotIds = ids.slice(0, SHOT_COUNT);
-
-      const draftName = `${t.title} — ${new Date().toLocaleString(context.language || undefined)}`;
-      const title = OPENING_TEXT;
-      const script = `const p=selects.project(${JSON.stringify(context.projectId)}); const d=await p.createDraft({name:${JSON.stringify(draftName)}}); await d.setFrameSize({width:1080,height:1440}); const fps=(await d.meta()).fps; if(Math.abs(fps-30000/1001)>0.05)throw new Error("Unsupported draft frame rate: "+fps); const cuts=${JSON.stringify(CUTS)}; await d.insertGap({seconds:cuts[0]/fps}); const ids=${JSON.stringify(shotIds)}; for(let i=0;i<ids.length;i++)await d.insertResource({resourceId:ids[i],sourceRange:{startSeconds:0,endSeconds:(cuts[i+1]-cuts[i])/fps}}); const main=await d.clips({trackScope:"main"}); const first=Math.min(...main.map(c=>c.startFrame)); const end=Math.max(...main.map(c=>c.endFrame)); if(first!==cuts[0]||end!==cuts[cuts.length-1]||main.length!==ids.length)throw new Error("Gallery timing did not match the template"); await d.addMotionGraphic({label:"Gallery opening",tsxCode:${JSON.stringify(TITLE_GRAPHIC)},within:await d.rangeAtFrames(0,cuts[0]),parameters:{text:${JSON.stringify(title)}},editableParameters:[{key:"text",label:"Text",type:"text",defaultValue:${JSON.stringify(title)}}]}); await d.overlayResource({resource:p.resource(${JSON.stringify(audioId)}),over:await d.rangeAtFrames(0,${AUDIO_END_FRAME})}); const check=await d.validate({maxDurationSeconds:11.7}); if(!check.ok)throw new Error(JSON.stringify(check)); const saved=await d.commitAll("Create gallery montage"); return {draftId:saved.createdDraftId,frames:end,clips:main.length};`;
-      const built = await sdk.runScript({ summary: "Build gallery draft", script, allowCommit: true });
-      if (built.isError || !built.result?.draftId) throw new Error(built.output || "Draft creation failed");
       setStatus({ type: "success", message: t.done });
     } catch (error) {
       setStatus({ type: "error", message: String(error.message || error) });

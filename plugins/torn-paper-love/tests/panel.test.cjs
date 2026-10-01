@@ -5,6 +5,17 @@ const fs = require('node:fs'), path = require('node:path'), vm = require('node:v
 const root = path.resolve(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 const panel = read('panel.tsx');
+// UI wording lives in the STRINGS block (en here); code asserts run on the panel without it, so an English phrase
+// can't pass just by sitting in STRINGS.
+const { extractStrings } = require(path.join(root, 'dev', 'i18n-check.cjs'));
+const en = JSON.parse(JSON.stringify(extractStrings(panel).strings.en)); // plain objects (vm realm)
+const code = panel.slice(0, panel.indexOf('// STRINGS:BEGIN')) + panel.slice(panel.indexOf('// STRINGS:END'));
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// says(key, text): the English wording of a key, and the panel reads the key with t().
+const says = (key, text) => {
+  assert.deepEqual(en[key], text, 'STRINGS.en.' + key);
+  assert.ok(new RegExp('\\bt\\([\\w]+, "' + esc(key) + '"').test(code), key + ' is read with t()');
+};
 
 // ---- Embedded blocks equal their source files byte for byte.
 const between = (src, name, inclusive) => {
@@ -58,26 +69,80 @@ assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && pa
 assert.ok(panel.includes('tplApproxTempo({ accepted, approxBpm: ownGrid.grid === "approximate" && ownGrid.bpm > 0 ? ownGrid.bpm : null })'), 'ownCue approxBpm');
 assert.ok(panel.includes('firstBeat: accepted || approxBpm ? ownGrid.firstBeat || 0 : 0'), 'ownCue first beat for an approximate tempo');
 assert.ok(panel.includes('const sectionTempo = tplSectionTempo(grid);') && panel.includes('gridAccepted: sectionTempo != null })') && panel.includes('barSeconds={sectionTempo != null ? (tplBarBeats(sectionTempo) * 60) / sectionTempo : 1}'), 'section snaps to the cut tempo');
-assert.ok(panel.includes('"Music added; its beat is faint, so cuts follow its tempo (" + Math.round(approx) + " BPM) without locking to every beat."'), 'faint-beat status');
+says('musicFaint', 'Music added; its beat is faint, so cuts follow its tempo ({bpm} BPM) without locking to every beat.');
+assert.ok(code.includes('t(l, "musicFaint", { bpm: Math.round(approx) })'), 'faint-beat status');
 assert.ok(!/grid\.accepted \? \(tplBarBeats/.test(panel) && !/gridAccepted: grid\.accepted \}\);\n/.test(panel.slice(panel.indexOf('// tpl-config:end'))), 'no accepted-only section snap left in the panel');
 assert.ok(panel.includes('preview-*.mp3') && panel.includes('readText(roots.data, "preview-"'), 'preview audio via a file');
 assert.match(panel, /No valid session ID/);
 assert.ok(/!allowCommit && \/No valid session ID\//.test(panel), 'only non-committing calls are resent');
 // Inventory refresh: poll while analysing, focus/visibility, Refresh button; hooks before the early return.
-for (const phrase of ['10000', 'visibilitychange', 'addEventListener("focus"', '>Refresh<', 'still analysing']) assert.ok(panel.includes(phrase), phrase);
+for (const phrase of ['10000', 'visibilitychange', 'addEventListener("focus"', '>{t(L, "refresh")}<']) assert.ok(code.includes(phrase), phrase);
+says('refresh', 'Refresh');
+says('stillAnalysing', { one: '{count} clip still analysing', other: '{count} clips still analysing' });
 const early = panel.indexOf('if (!projectId) return <ui');
 assert.ok(early > 0);
 for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', '[track, ownMusic?.path, sectionShown, length, pace]', 'setInterval(() => setTick']) assert.ok(panel.indexOf(hook) > 0 && panel.indexOf(hook) < early, hook + ' before the early return');
+// The UI language is read on every render, first thing in the component (before any hook and the early return).
+{
+  // The panel UI is TornPaperPanel; Panel only hands a Clip highlights run to TemplateRun.
+  const body = panel.slice(panel.indexOf('function TornPaperPanel('));
+  assert.ok(/^function TornPaperPanel\(\{ sdk, context, ui \}: any\) \{\n(?:\s*\/\/.*\n)*\s*const L = uiLang\(context\);/.test(body), 'const L = uiLang(context) first');
+  assert.ok(code.includes('if (!projectId) return <ui.Message tone="error">{t(L, "openProject")}</ui.Message>;'));
+  says('openProject', 'Open a Project to build a Torn Paper Love edit.');
+}
 // Waveform slider and preview.
-for (const phrase of ['role="slider"', 'aria-valuenow', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"ArrowLeft"', '"Home"', '"End"', 'drag to choose',
-  '--panel-accent', '--panel-muted-fg', 'icon={playState === "playing" ? "pause"', '"Stop preview"', 'requestAnimationFrame', 'URL.revokeObjectURL', 'previewTokenRef']) assert.ok(panel.includes(phrase), phrase);
+for (const phrase of ['role="slider"', 'aria-valuenow', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"ArrowLeft"', '"Home"', '"End"',
+  '--panel-accent', '--panel-muted-fg', 'icon={playState === "playing" ? "pause"', 'requestAnimationFrame', 'URL.revokeObjectURL', 'previewTokenRef']) assert.ok(code.includes(phrase), phrase);
+says('sectionHint', 'Music section \u2014 drag to choose');
+says('stopPreview', 'Stop preview');
+assert.ok(code.includes('<SectionSlider lang={L} ') && code.includes('<LettersPreview lang={L} '), 'children get the UI language');
 assert.ok(panel.includes('tplSnapSection('), 'the slider snaps to bars');
 // UI sections and copy (spec 8, 15.7).
-for (const phrase of ['title="Words"', 'label="Word 1"', 'label="Word 2"', 'title="Style"', 'title="Music"', 'title="Length"', 'title="Advanced"', 'label="Pace"',
-  'label="Use videos"', 'label="Clip sound"', 'label="Faded film"', 'label="Tilt"', 'Choose clips', 'Your own music', 'No music', 'Creates a new 4:3 Draft',
-  'Create another version', 'Finish letters and look', 'New tears and letters', 'different photos when you have more than ', 'Ready: ', ' shots · about ',
-  'couldn', 'aria-pressed', 'steps={TPL_BUILD_STEPS', 'Stopped at step', 'selects.editor.openDraft', 'FontFace', 'tplLayout(', 'tplAssignLooks(', 'tplLooksAt(',
-  'PREVIEW_H', 'Silent video']) assert.ok(panel.includes(phrase), phrase);
+for (const phrase of ['title={t(L, "words")}', 'label={t(L, "word1")}', 'label={t(L, "word2")}', 'title={t(L, "style")}', 'title={t(L, "music")}', 'title={t(L, "length")}',
+  'title={t(L, "advanced")}', 'label={t(L, "pace")}', 'label={t(L, "useVideos")}', 'label={t(L, "clipSound")}', 'label={t(L, "fadedFilm")}', 'label={t(L, "tilt")}',
+  'aria-pressed', 'steps={TPL_BUILD_STEPS.map((s) => t(L, "step." + s.id))}', 'label={progressLabel(L, progress)}', 'selects.editor.openDraft', 'FontFace', 'tplLayout(',
+  'tplAssignLooks(', 'tplLooksAt(', 'PREVIEW_H']) assert.ok(code.includes(phrase), phrase);
+for (const [key, text] of [['words', 'Words'], ['word1', 'Word 1'], ['word2', 'Word 2'], ['style', 'Style'], ['music', 'Music'], ['length', 'Length'], ['advanced', 'Advanced'],
+  ['pace', 'Pace'], ['useVideos', 'Use videos'], ['clipSound', 'Clip sound'], ['fadedFilm', 'Faded film'], ['tilt', 'Tilt'], ['chooseClips', 'Choose clips'],
+  ['ownMusic', 'Your own music'], ['noMusic', 'No music'], ['createsDraft', 'Creates a new 4:3 Draft.'], ['anotherVersion', 'Try other shots'],
+  ['finishLetters', 'Finish letters and look'], ['ready', 'Ready: {summary}'], ['silentVideo', 'Silent video: no music and Clip sound is Off.'],
+  ['anotherVersionHint', 'Try other shots: new tears and letters; different photos when you have more than {n}.'],
+  ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'], ['progress', 'Step {step}/{total} \u00b7 {name} \u00b7 {percent}%']]) says(key, text);
+says('shots', { one: '{count} shot', other: '{count} shots' });
+says('notRead', { one: "{count} photo couldn't be read", other: "{count} photos couldn't be read" });
+says('createsDraftFrom', { one: 'Creates a new 4:3 Draft from {n} of your {count} picture.', other: 'Creates a new 4:3 Draft from {n} of your {count} pictures.' });
+// A sentence with two numbers takes its plural form from {count}, so the noun agrees with {count}: it sits right after
+// {count}, never after the other number ({n}, {done}). Checked in every language with plural nouns.
+{
+  const all = JSON.parse(JSON.stringify(extractStrings(panel).strings)), forms = v => (typeof v === 'string' ? [v] : Object.values(v));
+  const plural2 = Object.keys(en).filter(k => typeof en[k] !== 'string' && new Set(forms(en[k]).join(' ').match(/\{\w+\}/g)).size > 1);
+  assert.deepEqual(plural2.filter(k => !/\{(shots|seconds|length)\}/.test(forms(en[k]).join(' '))).sort(), ['createsDraftFrom', 'detail.clipsChecked']);
+  for (const lang of ['de', 'en', 'es', 'fr', 'it', 'pt']) {
+    for (const f of forms(all[lang].createsDraftFrom)) assert.ok(/\{n\} (\S+ ){1,2}\{count\}/.test(f) && !/\{n\} (image|immagin|Bild|imag|picture)/.test(f), lang + '.createsDraftFrom: the noun follows {count}: ' + f);
+    for (const f of forms(all[lang]['detail.clipsChecked'])) assert.ok(f.includes('{done}/{count}'), lang + '.detail.clipsChecked: ' + f);
+    for (const f of forms(all[lang].fitPictures)) assert.ok(!/\{n\} (image|immagin|Bild|imag|picture)/.test(f), lang + '.fitPictures: no noun after {n}: ' + f);
+  }
+}
+// Families read by id: build steps, backdrops, lengths and the planner's not-buildable reasons.
+assert.deepEqual(['pictures', 'moments', 'plan', 'place', 'decorate'].map(id => en['step.' + id]),
+  ['Reading your pictures', 'Finding moments', 'Planning', 'Placing pictures', 'Adding letters and paper']);
+for (const id of ['night', 'red', 'kraft', 'photo']) assert.equal(typeof en['backdrop.' + id], 'string', 'backdrop.' + id);
+assert.ok(code.includes('tOr(L, "backdrop." + id, (TPL_BACKDROPS as any)[id])'), 'backdrop tiles in the UI language');
+for (const id of ['noWords', 'fewPictures', 'musicTooShort']) assert.equal(typeof en['reason.' + id], 'string', 'reason.' + id);
+assert.ok(code.includes('t(lang, "reason." + plan.code, plan.vars)'), 'not-buildable reasons in the UI language');
+// Inspector labels: frozen at the Build click into the host's assets (tplLabel keys); Finish reuses the build's.
+assert.ok(code.includes('const labels = inspectorLabels(L);') && code.includes('hostFor(pid, labels)') && code.includes('hostFor(pid, r0.labels || inspectorLabels(L))'));
+assert.ok(code.includes('fonts: await fontUrls(roots!.plugin, assets.looks), labels })'), 'labels ride in the decorate assets');
+// Korean wraps between words; the other languages keep their own line breaking.
+assert.ok(code.includes('<div lang={L} style={L === "ko" ? { wordBreak: "keep-all" } : undefined}>'), 'keep-all for Korean');
+// Every preview font stack ends with the Korean system face of its role, before the generic family.
+{
+  const stacks = code.slice(code.indexOf('const PREVIEW_FACE_STACK'), code.indexOf('// Backdrop swatches'));
+  for (const face of ['didone', 'serif', 'slab']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"AppleMyungjo\", serif'"), face);
+  for (const face of ['condensed', 'black']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"Apple SD Gothic Neo\", sans-serif'"), face);
+  assert.match(stacks, /typewriter: '[^']*"Apple SD Gothic Neo", monospace'/);
+  assert.match(stacks, /PREVIEW_FALLBACK_STACK = '[^']*"AppleMyungjo", serif'/);
+}
 assert.ok(/setInterval\(\(\) => setTick\(\(n\) => n \+ 1\), 350\)/.test(panel), 'letters re-style every 350 ms in the preview');
 {
   // The 350 ms clock lives in LettersPreview, so only the preview re-renders on each tick.
@@ -108,13 +173,26 @@ vm.createContext(box);
 vm.runInContext(source + '\n;globalThis.P={' + names.join(',') + '};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
-for (const n of ['tplFreezeBuild', 'tplExclusive', 'tplStaleCheck', 'tplFill', 'tplClampWord', 'tplForward', 'tplRunBuild', 'tplFinish', 'TPL_STALE']) assert.ok(P[n], n + ' in the logic block');
+for (const n of ['tplFreezeBuild', 'tplExclusive', 'tplStaleCheck', 'tplFill', 'tplClampWord', 'tplForward', 'tplRunBuild', 'tplFinish', 'TPL_STALE', 'tplSay', 'tplSayOf']) assert.ok(P[n], n + ' in the logic block');
+
+// tplSay: English message for logs and tests, say(lang) for the panel; tplSayOf falls back to the message.
+{
+  const e = P.tplSay('boom', l => l + ':boom');
+  assert.equal(e.message, 'boom');
+  assert.equal(P.tplSayOf('ko', e), 'ko:boom');
+  assert.equal(P.tplSayOf('ko', Error('sdk detail')), 'sdk detail', 'SDK details stay English');
+}
 
 // tplClampWord: at most 8 graphemes, leading space dropped.
 assert.equal(P.tplClampWord('ABCDEFGHIJ'), 'ABCDEFGH');
 assert.equal(P.tplClampWord('  LOVE'), 'LOVE');
 assert.equal(P.tplClampWord('MY '), 'MY ', 'a trailing space survives while typing');
 assert.equal([...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(P.tplClampWord('\u{1F469}‍❤️‍\u{1F468}ABCDEFGHI'))].length, 8, 'an emoji counts once');
+// Wide characters (Hangul, kana, CJK) count as 2: four syllables fill a word; a fifth is dropped.
+assert.equal(P.tplClampWord('\uc0ac\ub791\ud574\uc694\uc601\uc6d0'), '\uc0ac\ub791\ud574\uc694');
+assert.equal(P.tplClampWord('MY\uc0ac\ub791\uc544ABC'), 'MY\uc0ac\ub791\uc544', 'mixed: 2 + 3 x 2 = 8');
+assert.equal(P.tplClampWord('ABCDEFG\uc0ac'), 'ABCDEFG', 'a wide letter that would make 9 is dropped');
+assert.equal(P.tplClampWord('\u611b\u3057\u3066'), '\u611b\u3057\u3066', 'kana and kanji count 2 each (6)');
 
 // tplFill: the config arrives as JSON.parse of a string.
 assert.equal(P.tplFill('const cfg = __CONFIG__;', { a: 'x"y' }), 'const cfg = JSON.parse("{\\"a\\":\\"x\\\\\\"y\\"}");');
@@ -132,6 +210,10 @@ const cfgOf = script => JSON.parse(JSON.parse(script.match(/JSON\.parse\(("(?:[^
 // tplForward: progress never goes backwards.
 {
   const a = P.tplProgress('place', 0.5), b = P.tplProgress('plan', 1);
+  // The planner gives ids only; the panel names the step and renders the detail in its UI language.
+  const say = l => l + ':detail';
+  assert.deepEqual(j(P.tplProgress('moments', 0.5, '')), { id: 'moments', value: 0.275, percent: 27, current: 1, detail: null });
+  assert.equal(P.tplProgress('moments', 0.5, say).detail, say, 'a detail function is passed through');
   assert.equal(P.tplForward(a, b), a);
   const c = P.tplProgress('decorate', 0);
   assert.equal(P.tplForward(a, c), c);
@@ -250,11 +332,13 @@ const tick = () => new Promise(r => setImmediate(r));
     assert.equal(out.state.N, 7);
     assert.equal(out.link, 'selects://draft');
     assert.ok(onA && onA.a.sequenceId === 'seq-1' && onD === 1, 'callbacks');
-    // Progress: the five steps in order, never backwards.
+    // Progress: the five steps in order, never backwards; details are functions of the UI language.
     const values = h.progress.map(p => p.value);
     for (let i = 1; i < values.length; i++) assert.ok(values[i] >= values[i - 1] - 1e-12, 'progress never goes backwards');
-    assert.match(h.progress[h.progress.length - 1].label, /^Step 5\/5 · Adding letters and paper · 100%$/);
-    assert.ok(h.progress.some(p => /^Step 2\/5 · Finding moments/.test(p.label)), 'the search step is shown as done');
+    const last = h.progress[h.progress.length - 1];
+    assert.deepEqual([last.id, last.current, last.percent, last.detail], ['decorate', 4, 100, null]);
+    assert.ok(h.progress.some(p => p.id === 'moments' && p.percent === 40), 'the search step is shown as done');
+    assert.ok(h.progress.filter(p => p.detail != null).every(p => typeof p.detail === 'function'), 'no English detail text in the progress');
   }
 
   // Fewer photos than N: only the picked videos are searched (batches of 4), then the plan uses the hits.
@@ -288,7 +372,8 @@ const tick = () => new Promise(r => setImmediate(r));
   // Not buildable: nothing runs.
   {
     const h = host();
-    await assert.rejects(P.tplRunBuild(frozen({ inventory: { photos: photos7.slice(0, 2), resources: [] } }), h), /Add at least 3 photos or clips/);
+    await assert.rejects(P.tplRunBuild(frozen({ inventory: { photos: photos7.slice(0, 2), resources: [] } }), h),
+      e => /Add at least 3 photos or clips/.test(e.message) && typeof e.say === 'function', 'the reason, translatable');
     assert.equal(h.calls.length, 0);
   }
 
@@ -346,7 +431,7 @@ const tick = () => new Promise(r => setImmediate(r));
     assert.equal(out.link, 'selects://draft');
     // No new Draft found: the id error, still without a resend or a decorate.
     const h2 = host({ idless: [], draftsBefore: ['seq-old'] });
-    await assert.rejects(P.tplRunBuild(frozen(), h2), /did not report its id/);
+    await assert.rejects(P.tplRunBuild(frozen(), h2), e => /did not report its id/.test(e.message) && typeof e.say === 'function');
     assert.deepEqual(kinds(h2), ['ENSURE', 'DRAFTS', 'ASSEMBLE', 'DRAFTS']);
     // Two new Drafts with the name: the id error says why.
     const h3 = host({ idless: ['seq-a', 'seq-b'], draftsBefore: [] });
@@ -368,7 +453,7 @@ const tick = () => new Promise(r => setImmediate(r));
     let assembled = null, state = null;
     const h = host({ fail: { DECORATE: Error('deadline') } });
     h.onAssembled = (s, a) => { state = s; assembled = a; };
-    await assert.rejects(P.tplRunBuild(frozen(), h), /Finish letters and look/);
+    await assert.rejects(P.tplRunBuild(frozen(), h), e => /Finish letters and look/.test(e.message) && typeof e.say === 'function');
     assert.deepEqual(kinds(h), ['ENSURE', 'DRAFTS', 'ASSEMBLE', 'DECORATE']);
     const h2 = host();
     const out = await P.tplFinish(P.tplFreezeBuild(state), assembled, h2);

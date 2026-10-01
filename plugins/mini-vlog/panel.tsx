@@ -1,4 +1,5 @@
 // @name Mini Vlog
+// @collection visual-highlights
 // @name:de Mini-Vlog
 // @name:en Mini Vlog
 // @name:es Mini vlog
@@ -13,8 +14,1837 @@
 // Builds a beat-cut 16:9 mini vlog with one static title lockup and a soft look as a new, editable Draft.
 import React from "react";
 
+// STRINGS:BEGIN
+const STRINGS = {
+  en: {
+    openProject: "Open a Project to build a Mini Vlog.",
+    startFailed: "Mini Vlog could not start: {detail}. Reinstall the plugin if this persists.",
+    foldersNotFound: "the plugin folders could not be found",
+    adapterNeeded: "This Selects build needs an updated {name} adapter.",
+    stepFailed: "Selects could not complete this step.",
+    busy: "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.",
+    invFailed: "Couldn't read this Project's clips yet. Press Refresh.",
+    invPartial: "Couldn't read all clips yet. Press Refresh.",
+    sizesLoading: "Clip sizes are still loading…",
+    refreshFailed: "Could not refresh the clip list: {detail}",
+    details: "Details: {detail}",
+    refresh: "Refresh",
+    refreshing: "Refreshing",
+    checkingClipsNow: "Checking clips…",
+    checkingClips: "Checking clips",
+    listening: "Listening for the beat",
+    working: "Working",
+    stillReading: "Still reading this Project's clips… This updates automatically.",
+    noFootage: "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.",
+    turnOnPhotos: "Turn on Use photos in Advanced to build from this Project's photos.",
+    noClipsSelected: "No clips selected. Choose clips in Advanced.",
+    gap: " ",
+    ready: "Ready: {summary}",
+    clips: { one: "{count} clip", other: "{count} clips" },
+    clipsSelected: { one: "{selected} of {count} clip selected", other: "{selected} of {count} clips selected" },
+    photos: { one: "{count} photo", other: "{count} photos" },
+    photosSelected: { one: "{selected} of {count} photo selected", other: "{selected} of {count} photos selected" },
+    aboutSeconds: "about {seconds} s",
+    notAnalysed: { one: "{count} clip not analysed yet", other: "{count} clips not analysed yet" },
+    analysing: { one: "{count} clip is being analysed. This updates automatically when it finishes.", other: "{count} clips are being analysed. This updates automatically when they finish." },
+    notAnalysedAnalyse: { one: "{count} clip is not analysed yet. Analyse it in Selects to use it here.", other: "{count} clips are not analysed yet. Analyse them in Selects to use them here." },
+    notAnalysedMaybe: { one: "{count} clip is not analysed yet. If Selects is analysing it, this updates automatically.", other: "{count} clips are not analysed yet. If Selects is analysing them, this updates automatically." },
+    analysisFailed: { one: "{count} clip could not be analysed.", other: "{count} clips could not be analysed." },
+    noteAnalysing: { one: "{count} clip being analysed", other: "{count} clips being analysed" },
+    noteFailed: { one: "{count} clip could not be analysed", other: "{count} clips could not be analysed" },
+    title: "Title",
+    titleStyle: "Title style",
+    titlePreview: "Title preview",
+    previewUnavailable: "Preview unavailable; the title is still added to the Draft.",
+    loading: "Loading…",
+    "preset.mini-vlog": "Mini vlog",
+    "preset.day-in-my-life": "A day in my life",
+    "preset.small-glimpse": "A small glimpse",
+    "field.mini-vlog.big": "Big word",
+    "field.mini-vlog.small": "Small word",
+    "field.day-in-my-life.year": "Year",
+    "field.day-in-my-life.big": "Big words",
+    "field.day-in-my-life.tag": "Tag line",
+    "field.small-glimpse.top": "Top line",
+    "field.small-glimpse.big": "Big word",
+    "field.small-glimpse.bottom": "Bottom line",
+    fieldCount: "{label} ({used}/{max})",
+    music: "Music",
+    track: "Track",
+    alternatives: "Alternatives",
+    ownMusic: "Your own music",
+    noMusic: "No music",
+    bpm: "{bpm} bpm",
+    installTools: "Install ffmpeg and Node.js 18+ to preview music or use your own track.",
+    sectionHint: "Music section — drag to choose",
+    sectionLabel: "Music section",
+    musicTooShort: "This track is too short for this length",
+    startsAt: "Starts at {seconds} s",
+    stopPreview: "Stop preview",
+    cancelPreview: "Cancel preview",
+    previewSection: "Preview this section",
+    readingMusic: "Reading the music…",
+    musicLengthUnknown: "The length of this music is unknown",
+    startAtHook: "Start at the hook",
+    beatFound: "Beat found: {bpm} bpm. Cuts follow the beat.",
+    faintTempo: "Tempo found ({bpm} bpm) but the beat is faint, so cuts follow a {bpm} bpm grid approximately.",
+    outsideTempo: "Its tempo ({bpm} bpm) is outside 70–160 bpm, so cuts use approximate timing.",
+    noBeat: "No steady beat found, so cuts use approximate timing.",
+    length: "Length",
+    "length.short": "Short",
+    "length.standard": "Standard",
+    "length.long": "Long",
+    pace: "Pace",
+    "pace.quick": "Quick",
+    "pace.relaxed": "Relaxed",
+    "pace.groove": "Groove",
+    fitPartial: { one: "{length}: {fitted} of {count} shot fit this track ({seconds} s)", other: "{length}: {fitted} of {count} shots fit this track ({seconds} s)" },
+    fitFull: { one: "{length}: {count} shot ({seconds} s)", other: "{length}: {count} shots ({seconds} s)" },
+    footageFits: { one: "Your footage fits {fitted} of {count} shot ({seconds} s)", other: "Your footage fits {fitted} of {count} shots ({seconds} s)" },
+    seconds: "{seconds} s",
+    grooveTiming: "Groove on a {beat} s beat: {hold}, {beat} and {eighth} s shots",
+    quickTwoBeats: "At {bpm} bpm Quick uses 2 beats per shot.",
+    relaxedOneBeat: "At {bpm} bpm Relaxed uses 1 beat per shot.",
+    grooveOneBeat: "At {bpm} bpm Groove opens phrases with 1 beat.",
+    grooveTwoBeats: "At {bpm} bpm Groove uses 2 beats per shot.",
+    noMusicTiming: "No music: shots use approximate timing ({timing}).",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately ({timing}).",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): shots use approximate timing ({timing}).",
+    noBeatTiming: "No steady beat found: shots use approximate timing ({timing}).",
+    advanced: "Advanced",
+    clipSound: "Clip sound",
+    "sound.off": "Off",
+    "sound.ambient": "Ambient",
+    "sound.full": "Full",
+    softLook: "Soft look",
+    beatPunch: "Beat punch",
+    usePhotos: "Use photos",
+    usePhotosOff: "Use photos is off",
+    silentVideo: "Silent video: no music and Clip sound is Off.",
+    chooseClips: "Choose clips",
+    chooseClipsCount: "Choose clips ({selected}/{total})",
+    all: "All",
+    none: "None",
+    photo: "Photo",
+    "shape.tall": "Tall",
+    "shape.wide": "Wide",
+    "shape.square": "Square",
+    "step.shots": "Choosing shots",
+    "step.music": "Preparing music",
+    "step.draft": "Creating Draft",
+    "step.look": "Adding title and look",
+    "step.open": "Opening Draft",
+    progress: "Step {step}/{total} · {name} · {percent}%",
+    progressDetail: "Step {step}/{total} · {name} ({detail}) · {percent}%",
+    videosChecked: { one: "{done}/{count} video checked", other: "{done}/{count} videos checked" },
+    photosOnly: "photos only",
+    stoppedAt: "Stopped at step {step}/{total}, {name}: {detail}",
+    "fail.one-resource": "Add at least 2 clips or photos.",
+    "fail.too-few": "Your footage fits fewer than 4 shots.",
+    "fail.music-too-short": "This track is too short for 4 shots from this section.",
+    noPlan: "No plan fits this footage.",
+    addFootage: "Add more varied footage or select more clips.",
+    addFootagePhotos: "Add more varied footage or photos, or select more clips.",
+    retryUnchecked: { one: "Could not check {count} video; press Build to retry it.", other: "Could not check {count} videos; press Build to retry them." },
+    typeBigWord: "Type the title's big word to build.",
+    dropMusic: "Drop a music file, or choose one of the tracks.",
+    musicLengthUnread: "The length of your music could not be read. Choose another file or one of the tracks.",
+    musicApprox: "Music added; cuts use approximate timing ({detail}).",
+    musicUnreadable: "Could not read this music file ({detail}). Choose another file or one of the tracks.",
+    beatFailed: "beat detection failed",
+    previewFailed: "Could not play a preview: {detail}.",
+    previewNotCut: "the preview could not be cut",
+    noAudio: "no audio came back",
+    draftNoId: "The Draft \"{name}\" may have been saved, but Selects did not report its id. Open it from the Drafts list, or build again.",
+    draftEmpty: "The Draft \"{name}\" has no clips. Build again.",
+    finishFailed: "The Draft was created, but its title, look and clip sound are not applied yet: {detail}. Press Finish title and look to try again.",
+    openFailed: "The Draft is ready, but it could not be opened: {detail}. Use the link below or open it from the Drafts list.",
+    draftCreated: "Draft created. Select the title to edit its words, colors, size or position, a clip to adjust its crop, softness, motion or sound level, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
+    draftCreatedAdding: "Draft created; adding title and look…",
+    draftNotFinished: "Draft created, but its title, look and clip sound are not applied yet.",
+    openDraft: "Open the new Draft",
+    copyLink: "Copy the link to the new Draft",
+    shortened: { one: "Your footage fits {fitted} of {count} shot, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
+    note: "Note: {detail}.",
+    unchecked: { one: "Could not check {count} video; it was skipped. Build again to retry it.", other: "Could not check {count} videos; they were skipped. Build again to retry them." },
+    createsDraft: "Creates a new 16:9 Draft",
+    finishTitle: "Finish title and look",
+    anotherVersion: "Try other shots",
+    build: "Build",
+    building: "Building",
+    "param.mainColor": "Main color",
+    "param.secondColor": "Second color",
+    "param.shadow": "Shadow",
+    "param.size": "Size (%)",
+    "param.x": "Horizontal position (%)",
+    "param.y": "Vertical position (%)",
+    "param.sparkles": "Sparkles",
+    "param.stars": "Stars",
+    "param.motion": "Motion",
+    "param.motionStrength": "Motion strength",
+    "param.punch": "Punch",
+    "param.softness": "Softness",
+    "motion.push-in": "Push in",
+    "motion.pull-out": "Pull out",
+    "motion.drift-left": "Drift left",
+    "motion.drift-right": "Drift right",
+    "motion.drift-up": "Drift up",
+    "motion.drift-down": "Drift down",
+    "motion.tilt": "Tilt",
+    "motion.push-drift": "Push and drift",
+  },
+  de: {
+    openProject: "Öffne ein Projekt, um ein Mini Vlog zu erstellen.",
+    startFailed: "Mini Vlog konnte nicht starten: {detail}. Installiere das Plugin neu, falls das weiterhin passiert.",
+    foldersNotFound: "die Plugin-Ordner wurden nicht gefunden",
+    adapterNeeded: "Diese Selects-Version braucht einen aktualisierten {name}-Adapter.",
+    stepFailed: "Selects konnte diesen Schritt nicht abschließen.",
+    busy: "Selects ist ausgelastet und hat nicht rechtzeitig geantwortet. Warte kurz und drücke „Aktualisieren“. Wenn das öfter passiert, starte Selects neu.",
+    invFailed: "Die Clips dieses Projekts konnten noch nicht gelesen werden. Klicke auf „Aktualisieren“.",
+    invPartial: "Noch nicht alle Clips konnten gelesen werden. Klicke auf „Aktualisieren“.",
+    sizesLoading: "Clip-Größen werden noch geladen…",
+    refreshFailed: "Die Clip-Liste konnte nicht aktualisiert werden: {detail}",
+    details: "Details: {detail}",
+    refresh: "Aktualisieren",
+    refreshing: "Wird aktualisiert",
+    checkingClipsNow: "Clips werden geprüft …",
+    checkingClips: "Clips werden geprüft",
+    listening: "Beat wird gesucht",
+    working: "In Arbeit",
+    stillReading: "Die Clips dieses Projekts werden noch gelesen… Das aktualisiert sich automatisch.",
+    noFootage: "In diesem Projekt gibt es noch keine analysierten Videos oder Fotos. Füge Videoclips hinzu und analysiere sie, oder füge Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
+    turnOnPhotos: "Aktiviere „Fotos verwenden“ unter „Erweitert“, um aus den Fotos dieses Projekts zu erstellen.",
+    noClipsSelected: "Keine Clips ausgewählt. Wähle Clips unter „Erweitert“.",
+    gap: " ",
+    ready: "Bereit: {summary}",
+    clips: { one: "{count} Clip", other: "{count} Clips" },
+    clipsSelected: { one: "{selected} von {count} Clip ausgewählt", other: "{selected} von {count} Clips ausgewählt" },
+    photos: { one: "{count} Foto", other: "{count} Fotos" },
+    photosSelected: { one: "{selected} von {count} Foto ausgewählt", other: "{selected} von {count} Fotos ausgewählt" },
+    aboutSeconds: "ca. {seconds} s",
+    notAnalysed: { one: "{count} Clip noch nicht analysiert", other: "{count} Clips noch nicht analysiert" },
+    analysing: { one: "{count} Clip wird analysiert. Das aktualisiert sich automatisch, sobald er fertig ist.", other: "{count} Clips werden analysiert. Das aktualisiert sich automatisch, sobald sie fertig sind." },
+    notAnalysedAnalyse: { one: "{count} Clip ist noch nicht analysiert. Analysiere ihn in Selects, um ihn hier zu verwenden.", other: "{count} Clips sind noch nicht analysiert. Analysiere sie in Selects, um sie hier zu verwenden." },
+    notAnalysedMaybe: { one: "{count} Clip ist noch nicht analysiert. Falls Selects ihn gerade analysiert, aktualisiert sich das automatisch.", other: "{count} Clips sind noch nicht analysiert. Falls Selects sie gerade analysiert, aktualisiert sich das automatisch." },
+    analysisFailed: { one: "{count} Clip konnte nicht analysiert werden.", other: "{count} Clips konnten nicht analysiert werden." },
+    noteAnalysing: { one: "{count} Clip wird analysiert", other: "{count} Clips werden analysiert" },
+    noteFailed: { one: "{count} Clip nicht analysierbar", other: "{count} Clips nicht analysierbar" },
+    title: "Titel",
+    titleStyle: "Titelstil",
+    titlePreview: "Titelvorschau",
+    previewUnavailable: "Vorschau nicht verfügbar; der Titel wird trotzdem zum Draft hinzugefügt.",
+    loading: "Wird geladen…",
+    "preset.mini-vlog": "Mini Vlog",
+    "preset.day-in-my-life": "Ein Tag in meinem Leben",
+    "preset.small-glimpse": "Ein kleiner Einblick",
+    "field.mini-vlog.big": "Großes Wort",
+    "field.mini-vlog.small": "Kleines Wort",
+    "field.day-in-my-life.year": "Jahr",
+    "field.day-in-my-life.big": "Große Wörter",
+    "field.day-in-my-life.tag": "Kurzzeile",
+    "field.small-glimpse.top": "Obere Zeile",
+    "field.small-glimpse.big": "Großes Wort",
+    "field.small-glimpse.bottom": "Untere Zeile",
+    fieldCount: "{label} ({used}/{max})",
+    music: "Musik",
+    track: "Musikstück",
+    alternatives: "Alternativen",
+    ownMusic: "Eigene Musik",
+    noMusic: "Keine Musik",
+    bpm: "{bpm} BPM",
+    installTools: "Installiere ffmpeg und Node.js 18+, um Musik vorzuhören oder eigene Musik zu verwenden.",
+    sectionHint: "Musikabschnitt – zum Auswählen ziehen",
+    sectionLabel: "Musikabschnitt",
+    musicTooShort: "Dieses Musikstück ist für diese Länge zu kurz",
+    startsAt: "Beginnt bei {seconds} s",
+    stopPreview: "Vorschau stoppen",
+    cancelPreview: "Vorschau abbrechen",
+    previewSection: "Diesen Abschnitt vorhören",
+    readingMusic: "Musik wird gelesen …",
+    musicLengthUnknown: "Die Länge dieser Musik ist unbekannt",
+    startAtHook: "Beim Hook beginnen",
+    beatFound: "Beat gefunden: {bpm} BPM. Die Schnitte folgen dem Beat.",
+    faintTempo: "Tempo gefunden ({bpm} BPM), aber der Beat ist schwach, daher folgen die Schnitte ungefähr einem {bpm}-BPM-Raster.",
+    outsideTempo: "Das Tempo ({bpm} BPM) liegt außerhalb von 70–160 BPM, daher haben die Schnitte ein ungefähres Timing.",
+    noBeat: "Kein gleichmäßiger Beat gefunden, daher haben die Schnitte ein ungefähres Timing.",
+    length: "Länge",
+    "length.short": "Kurz",
+    "length.standard": "Standard",
+    "length.long": "Lang",
+    pace: "Rhythmus",
+    "pace.quick": "Schnell",
+    "pace.relaxed": "Ruhig",
+    "pace.groove": "Groove",
+    fitPartial: { one: "{length}: {fitted} von {count} Einstellung passt zu diesem Musikstück ({seconds} s)", other: "{length}: {fitted} von {count} Einstellungen passen zu diesem Musikstück ({seconds} s)" },
+    fitFull: { one: "{length}: {count} Einstellung ({seconds} s)", other: "{length}: {count} Einstellungen ({seconds} s)" },
+    footageFits: { one: "Dein Material reicht für {fitted} von {count} Einstellung ({seconds} s)", other: "Dein Material reicht für {fitted} von {count} Einstellungen ({seconds} s)" },
+    seconds: "{seconds} s",
+    grooveTiming: "Groove auf einem {beat}-s-Beat: Einstellungen mit {hold}, {beat} und {eighth} s",
+    quickTwoBeats: "Bei {bpm} BPM nutzt „Schnell“ 2 Beats pro Einstellung.",
+    relaxedOneBeat: "Bei {bpm} BPM nutzt „Ruhig“ 1 Beat pro Einstellung.",
+    grooveOneBeat: "Bei {bpm} BPM beginnt „Groove“ Phrasen mit 1 Beat.",
+    grooveTwoBeats: "Bei {bpm} BPM nutzt „Groove“ 2 Beats pro Einstellung.",
+    noMusicTiming: "Keine Musik: Die Einstellungen haben ein ungefähres Timing ({timing}).",
+    faintTempoTiming: "Tempo gefunden ({bpm} BPM), aber der Beat ist schwach: Die Schnitte folgen ungefähr einem {bpm}-BPM-Raster ({timing}).",
+    outsideTempoTiming: "Tempo außerhalb von 70–160 BPM ({bpm} BPM): Die Einstellungen haben ein ungefähres Timing ({timing}).",
+    noBeatTiming: "Kein gleichmäßiger Beat gefunden: Die Einstellungen haben ein ungefähres Timing ({timing}).",
+    advanced: "Erweitert",
+    clipSound: "Clip-Ton",
+    "sound.off": "Aus",
+    "sound.ambient": "Leise",
+    "sound.full": "Voll",
+    softLook: "Weicher Look",
+    beatPunch: "Beat-Punch",
+    usePhotos: "Fotos verwenden",
+    usePhotosOff: "„Fotos verwenden“ ist aus",
+    silentVideo: "Stummes Video: keine Musik und Clip-Ton ist „Aus“.",
+    chooseClips: "Clips auswählen",
+    chooseClipsCount: "Clips auswählen ({selected}/{total})",
+    all: "Alle",
+    none: "Keine",
+    photo: "Foto",
+    "shape.tall": "Hochformat",
+    "shape.wide": "Querformat",
+    "shape.square": "Quadrat",
+    "step.shots": "Einstellungen auswählen",
+    "step.music": "Musik vorbereiten",
+    "step.draft": "Draft erstellen",
+    "step.look": "Titel und Look hinzufügen",
+    "step.open": "Draft öffnen",
+    progress: "Schritt {step}/{total} · {name} · {percent} %",
+    progressDetail: "Schritt {step}/{total} · {name} ({detail}) · {percent} %",
+    videosChecked: { one: "{done}/{count} Video geprüft", other: "{done}/{count} Videos geprüft" },
+    photosOnly: "nur Fotos",
+    stoppedAt: "Abgebrochen bei Schritt {step}/{total}, {name}: {detail}",
+    "fail.one-resource": "Füge mindestens 2 Clips oder Fotos hinzu.",
+    "fail.too-few": "Dein Material reicht für weniger als 4 Einstellungen.",
+    "fail.music-too-short": "Dieses Musikstück ist ab diesem Abschnitt zu kurz für 4 Einstellungen.",
+    noPlan: "Für dieses Material passt kein Plan.",
+    addFootage: "Füge abwechslungsreicheres Material hinzu oder wähle mehr Clips aus.",
+    addFootagePhotos: "Füge abwechslungsreicheres Material oder Fotos hinzu oder wähle mehr Clips aus.",
+    retryUnchecked: { one: "{count} Video konnte nicht geprüft werden; drücke „Erstellen“, um es erneut zu versuchen.", other: "{count} Videos konnten nicht geprüft werden; drücke „Erstellen“, um sie erneut zu versuchen." },
+    typeBigWord: "Gib das große Wort des Titels ein, um zu erstellen.",
+    dropMusic: "Lege eine Musikdatei ab oder wähle eines der Musikstücke.",
+    musicLengthUnread: "Die Länge deiner Musik konnte nicht gelesen werden. Wähle eine andere Datei oder eines der Musikstücke.",
+    musicApprox: "Musik hinzugefügt; die Schnitte haben ein ungefähres Timing ({detail}).",
+    musicUnreadable: "Diese Musikdatei konnte nicht gelesen werden ({detail}). Wähle eine andere Datei oder eines der Musikstücke.",
+    beatFailed: "Beat-Erkennung fehlgeschlagen",
+    previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
+    previewNotCut: "die Vorschau konnte nicht geschnitten werden",
+    noAudio: "es kam kein Audio zurück",
+    draftNoId: "Der Draft „{name}“ wurde möglicherweise gespeichert, aber Selects hat seine ID nicht gemeldet. Öffne ihn aus der Draft-Liste oder erstelle ihn erneut.",
+    draftEmpty: "Der Draft „{name}“ enthält keine Clips. Erstelle ihn erneut.",
+    finishFailed: "Der Draft wurde erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet: {detail}. Klicke auf „Titel und Look fertigstellen“, um es erneut zu versuchen.",
+    openFailed: "Der Draft ist fertig, konnte aber nicht geöffnet werden: {detail}. Nutze den Link unten oder öffne ihn in der Draft-Liste.",
+    draftCreated: "Draft erstellt. Wähle den Titel, um Wörter, Farben, Größe oder Position zu bearbeiten, einen Clip, um Zuschnitt, Weichheit, Bewegung oder Lautstärke anzupassen, und die Musik, um ihre Lautstärke zu ändern. Ein neuer Build erstellt einen neuen Draft und übernimmt keine Änderungen aus dem Inspektor.",
+    draftCreatedAdding: "Draft erstellt; Titel und Look werden hinzugefügt …",
+    draftNotFinished: "Draft erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet.",
+    openDraft: "Neuen Draft öffnen",
+    copyLink: "Link zum neuen Draft kopieren",
+    shortened: { one: "Dein Material reicht für {fitted} von {count} Einstellung, daher ist dieses Video etwa {seconds} s lang. Füge mehr Clips oder Fotos für die volle Länge hinzu.", other: "Dein Material reicht für {fitted} von {count} Einstellungen, daher ist dieses Video etwa {seconds} s lang. Füge mehr Clips oder Fotos für die volle Länge hinzu." },
+    note: "Hinweis: {detail}.",
+    unchecked: { one: "{count} Video konnte nicht geprüft werden und wurde übersprungen. Erstelle erneut, um es nochmals zu versuchen.", other: "{count} Videos konnten nicht geprüft werden und wurden übersprungen. Erstelle erneut, um sie nochmals zu versuchen." },
+    createsDraft: "Erstellt einen neuen 16:9-Draft",
+    finishTitle: "Titel und Look fertigstellen",
+    anotherVersion: "Andere Aufnahmen probieren",
+    build: "Erstellen",
+    building: "Wird erstellt",
+    "param.mainColor": "Hauptfarbe",
+    "param.secondColor": "Zweitfarbe",
+    "param.shadow": "Schatten",
+    "param.size": "Größe (%)",
+    "param.x": "Horizontale Position (%)",
+    "param.y": "Vertikale Position (%)",
+    "param.sparkles": "Funkeln",
+    "param.stars": "Sterne",
+    "param.motion": "Bewegung",
+    "param.motionStrength": "Bewegungsstärke",
+    "param.punch": "Punch",
+    "param.softness": "Weichheit",
+    "motion.push-in": "Heranzoomen",
+    "motion.pull-out": "Herauszoomen",
+    "motion.drift-left": "Nach links gleiten",
+    "motion.drift-right": "Nach rechts gleiten",
+    "motion.drift-up": "Nach oben gleiten",
+    "motion.drift-down": "Nach unten gleiten",
+    "motion.tilt": "Neigen",
+    "motion.push-drift": "Zoomen und gleiten",
+  },
+  es: {
+    openProject: "Abre un proyecto para crear un Mini Vlog.",
+    startFailed: "Mini Vlog no pudo iniciarse: {detail}. Reinstala el plugin si el problema continúa.",
+    foldersNotFound: "no se encontraron las carpetas del plugin",
+    adapterNeeded: "Esta versión de Selects necesita un adaptador {name} actualizado.",
+    stepFailed: "Selects no pudo completar este paso.",
+    busy: "Selects está ocupado y no respondió a tiempo. Espera un momento y pulsa «Actualizar». Si sigue pasando, reinicia Selects.",
+    invFailed: "Aún no se pudieron leer los clips de este proyecto. Pulsa «Actualizar».",
+    invPartial: "Aún no se pudieron leer todos los clips. Pulsa «Actualizar».",
+    sizesLoading: "Todavía se están cargando los tamaños de los clips…",
+    refreshFailed: "No se pudo actualizar la lista de clips: {detail}",
+    details: "Detalles: {detail}",
+    refresh: "Actualizar",
+    refreshing: "Actualizando",
+    checkingClipsNow: "Comprobando clips…",
+    checkingClips: "Comprobando clips",
+    listening: "Buscando el ritmo",
+    working: "Trabajando",
+    stillReading: "Todavía se están leyendo los clips de este proyecto… Esto se actualiza automáticamente.",
+    noFootage: "Este proyecto aún no tiene vídeos analizados ni fotos. Añade clips de vídeo y analízalos, o añade fotos; se actualizará automáticamente.",
+    turnOnPhotos: "Activa «Usar fotos» en «Avanzado» para crear con las fotos de este proyecto.",
+    noClipsSelected: "No hay clips seleccionados. Elige clips en «Avanzado».",
+    gap: " ",
+    ready: "Listo: {summary}",
+    clips: { one: "{count} clip", many: "{count} de clips", other: "{count} clips" },
+    clipsSelected: { one: "{selected} de {count} clip seleccionado", many: "{selected} de {count} de clips seleccionados", other: "{selected} de {count} clips seleccionados" },
+    photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
+    photosSelected: { one: "{selected} de {count} foto seleccionada", many: "{selected} de {count} de fotos seleccionadas", other: "{selected} de {count} fotos seleccionadas" },
+    aboutSeconds: "unos {seconds} s",
+    notAnalysed: { one: "{count} clip sin analizar", many: "{count} de clips sin analizar", other: "{count} clips sin analizar" },
+    analysing: { one: "Se está analizando {count} clip. Esto se actualiza solo cuando termine.", many: "Se están analizando {count} de clips. Esto se actualiza solo cuando terminen.", other: "Se están analizando {count} clips. Esto se actualiza solo cuando terminen." },
+    notAnalysedAnalyse: { one: "{count} clip aún no está analizado. Analízalo en Selects para usarlo aquí.", many: "{count} de clips aún no están analizados. Analízalos en Selects para usarlos aquí.", other: "{count} clips aún no están analizados. Analízalos en Selects para usarlos aquí." },
+    notAnalysedMaybe: { one: "{count} clip aún no está analizado. Si Selects lo está analizando, esto se actualiza solo.", many: "{count} de clips aún no están analizados. Si Selects los está analizando, esto se actualiza solo.", other: "{count} clips aún no están analizados. Si Selects los está analizando, esto se actualiza solo." },
+    analysisFailed: { one: "No se pudo analizar {count} clip.", many: "No se pudieron analizar {count} de clips.", other: "No se pudieron analizar {count} clips." },
+    noteAnalysing: { one: "{count} clip en análisis", many: "{count} de clips en análisis", other: "{count} clips en análisis" },
+    noteFailed: { one: "{count} clip sin poder analizarse", many: "{count} de clips sin poder analizarse", other: "{count} clips sin poder analizarse" },
+    title: "Título",
+    titleStyle: "Estilo del título",
+    titlePreview: "Vista previa del título",
+    previewUnavailable: "Vista previa no disponible; el título se añadirá igualmente al Draft.",
+    loading: "Cargando…",
+    "preset.mini-vlog": "Mini vlog",
+    "preset.day-in-my-life": "Un día en mi vida",
+    "preset.small-glimpse": "Un pequeño vistazo",
+    "field.mini-vlog.big": "Palabra grande",
+    "field.mini-vlog.small": "Palabra pequeña",
+    "field.day-in-my-life.year": "Año",
+    "field.day-in-my-life.big": "Palabras grandes",
+    "field.day-in-my-life.tag": "Frase corta",
+    "field.small-glimpse.top": "Línea superior",
+    "field.small-glimpse.big": "Palabra grande",
+    "field.small-glimpse.bottom": "Línea inferior",
+    fieldCount: "{label} ({used}/{max})",
+    music: "Música",
+    track: "Pista",
+    alternatives: "Alternativas",
+    ownMusic: "Tu propia música",
+    noMusic: "Sin música",
+    bpm: "{bpm} BPM",
+    installTools: "Instala ffmpeg y Node.js 18+ para escuchar la música o usar tu propia pista.",
+    sectionHint: "Sección de música: arrastra para elegir",
+    sectionLabel: "Sección de música",
+    musicTooShort: "Esta pista es demasiado corta para esta duración",
+    startsAt: "Empieza en {seconds} s",
+    stopPreview: "Detener la vista previa",
+    cancelPreview: "Cancelar la vista previa",
+    previewSection: "Escuchar esta sección",
+    readingMusic: "Leyendo la música…",
+    musicLengthUnknown: "Se desconoce la duración de esta música",
+    startAtHook: "Empezar en el gancho",
+    beatFound: "Ritmo encontrado: {bpm} BPM. Los cortes siguen el ritmo.",
+    faintTempo: "Se encontró el tempo ({bpm} BPM), pero el ritmo es débil, así que los cortes siguen aproximadamente una cuadrícula de {bpm} BPM.",
+    outsideTempo: "Su tempo ({bpm} BPM) está fuera del rango 70–160 BPM, así que los cortes usan una sincronía aproximada.",
+    noBeat: "No se encontró un ritmo estable, así que los cortes usan una sincronía aproximada.",
+    length: "Duración",
+    "length.short": "Corta",
+    "length.standard": "Estándar",
+    "length.long": "Larga",
+    pace: "Cadencia",
+    "pace.quick": "Rápida",
+    "pace.relaxed": "Pausada",
+    "pace.groove": "Groove",
+    fitPartial: { one: "{length}: {fitted} de {count} plano caben en esta pista ({seconds} s)", many: "{length}: {fitted} de {count} de planos caben en esta pista ({seconds} s)", other: "{length}: {fitted} de {count} planos caben en esta pista ({seconds} s)" },
+    fitFull: { one: "{length}: {count} plano ({seconds} s)", many: "{length}: {count} de planos ({seconds} s)", other: "{length}: {count} planos ({seconds} s)" },
+    footageFits: { one: "Tu material alcanza para {fitted} de {count} plano ({seconds} s)", many: "Tu material alcanza para {fitted} de {count} de planos ({seconds} s)", other: "Tu material alcanza para {fitted} de {count} planos ({seconds} s)" },
+    seconds: "{seconds} s",
+    grooveTiming: "Groove con un ritmo de {beat} s: planos de {hold}, {beat} y {eighth} s",
+    quickTwoBeats: "A {bpm} BPM, «Rápida» usa 2 tiempos por plano.",
+    relaxedOneBeat: "A {bpm} BPM, «Pausada» usa 1 tiempo por plano.",
+    grooveOneBeat: "A {bpm} BPM, «Groove» abre las frases con 1 tiempo.",
+    grooveTwoBeats: "A {bpm} BPM, «Groove» usa 2 tiempos por plano.",
+    noMusicTiming: "Sin música: los planos usan una sincronía aproximada ({timing}).",
+    faintTempoTiming: "Se encontró el tempo ({bpm} BPM), pero el ritmo es débil: los cortes siguen aproximadamente una cuadrícula de {bpm} BPM ({timing}).",
+    outsideTempoTiming: "Tempo fuera del rango 70–160 BPM ({bpm} BPM): los planos usan una sincronía aproximada ({timing}).",
+    noBeatTiming: "No se encontró un ritmo estable: los planos usan una sincronía aproximada ({timing}).",
+    advanced: "Avanzado",
+    clipSound: "Sonido de los clips",
+    "sound.off": "Apagado",
+    "sound.ambient": "Ambiente",
+    "sound.full": "Completo",
+    softLook: "Look suave",
+    beatPunch: "Golpe al ritmo",
+    usePhotos: "Usar fotos",
+    usePhotosOff: "«Usar fotos» está desactivado",
+    silentVideo: "Vídeo sin sonido: sin música y con el sonido de los clips en «Apagado».",
+    chooseClips: "Elegir clips",
+    chooseClipsCount: "Elegir clips ({selected}/{total})",
+    all: "Todos",
+    none: "Ninguno",
+    photo: "Foto",
+    "shape.tall": "Vertical",
+    "shape.wide": "Horizontal",
+    "shape.square": "Cuadrado",
+    "step.shots": "Eligiendo planos",
+    "step.music": "Preparando la música",
+    "step.draft": "Creando el Draft",
+    "step.look": "Añadiendo título y look",
+    "step.open": "Abriendo el Draft",
+    progress: "Paso {step}/{total} · {name} · {percent} %",
+    progressDetail: "Paso {step}/{total} · {name} ({detail}) · {percent} %",
+    videosChecked: { one: "{done}/{count} vídeo revisado", many: "{done}/{count} de vídeos revisados", other: "{done}/{count} vídeos revisados" },
+    photosOnly: "solo fotos",
+    stoppedAt: "Se detuvo en el paso {step}/{total}, {name}: {detail}",
+    "fail.one-resource": "Añade al menos 2 clips o fotos.",
+    "fail.too-few": "Tu material alcanza para menos de 4 planos.",
+    "fail.music-too-short": "Esta pista es demasiado corta para 4 planos desde esta sección.",
+    noPlan: "Ningún plan encaja con este material.",
+    addFootage: "Añade material más variado o selecciona más clips.",
+    addFootagePhotos: "Añade material más variado o fotos, o selecciona más clips.",
+    retryUnchecked: { one: "No se pudo comprobar {count} vídeo; pulsa «Crear» para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos; pulsa «Crear» para reintentarlos.", other: "No se pudieron comprobar {count} vídeos; pulsa «Crear» para reintentarlos." },
+    typeBigWord: "Escribe la palabra grande del título para crear.",
+    dropMusic: "Suelta un archivo de música o elige una de las pistas.",
+    musicLengthUnread: "No se pudo leer la duración de tu música. Elige otro archivo o una de las pistas.",
+    musicApprox: "Música añadida; los cortes usan una sincronía aproximada ({detail}).",
+    musicUnreadable: "No se pudo leer este archivo de música ({detail}). Elige otro archivo o una de las pistas.",
+    beatFailed: "falló la detección del ritmo",
+    previewFailed: "No se pudo reproducir la vista previa: {detail}.",
+    previewNotCut: "no se pudo recortar la vista previa",
+    noAudio: "no se recibió audio",
+    draftNoId: "Es posible que el Draft «{name}» se haya guardado, pero Selects no informó de su ID. Ábrelo desde la lista de Drafts o vuelve a crearlo.",
+    draftEmpty: "El Draft «{name}» no tiene clips. Vuelve a crearlo.",
+    finishFailed: "El Draft se creó, pero aún no se aplicaron el título, el look ni el sonido de los clips: {detail}. Pulsa «Terminar título y look» para intentarlo de nuevo.",
+    openFailed: "El Draft está listo, pero no se pudo abrir: {detail}. Usa el enlace de abajo o ábrelo desde la lista de Drafts.",
+    draftCreated: "Draft creado. Selecciona el título para editar sus palabras, colores, tamaño o posición; un clip para ajustar su encuadre, suavidad, movimiento o volumen; y la música para cambiar su volumen. Volver a crear genera un nuevo Draft y no conserva los cambios del Inspector.",
+    draftCreatedAdding: "Draft creado; añadiendo título y look…",
+    draftNotFinished: "Draft creado, pero aún no se aplicaron el título, el look ni el sonido de los clips.",
+    openDraft: "Abrir el nuevo Draft",
+    copyLink: "Copiar el enlace al nuevo Draft",
+    shortened: { one: "Tu material alcanza para {fitted} de {count} plano, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa.", many: "Tu material alcanza para {fitted} de {count} de planos, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa.", other: "Tu material alcanza para {fitted} de {count} planos, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa." },
+    note: "Nota: {detail}.",
+    unchecked: { one: "No se pudo comprobar {count} vídeo; se omitió. Vuelve a crear para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos; se omitieron. Vuelve a crear para reintentarlos.", other: "No se pudieron comprobar {count} vídeos; se omitieron. Vuelve a crear para reintentarlos." },
+    createsDraft: "Crea un nuevo Draft 16:9",
+    finishTitle: "Terminar título y look",
+    anotherVersion: "Probar otros planos",
+    build: "Crear",
+    building: "Creando",
+    "param.mainColor": "Color principal",
+    "param.secondColor": "Color secundario",
+    "param.shadow": "Sombra",
+    "param.size": "Tamaño (%)",
+    "param.x": "Posición horizontal (%)",
+    "param.y": "Posición vertical (%)",
+    "param.sparkles": "Destellos",
+    "param.stars": "Estrellas",
+    "param.motion": "Movimiento",
+    "param.motionStrength": "Intensidad del movimiento",
+    "param.punch": "Golpe",
+    "param.softness": "Suavidad",
+    "motion.push-in": "Acercar",
+    "motion.pull-out": "Alejar",
+    "motion.drift-left": "Deslizar a la izquierda",
+    "motion.drift-right": "Deslizar a la derecha",
+    "motion.drift-up": "Deslizar hacia arriba",
+    "motion.drift-down": "Deslizar hacia abajo",
+    "motion.tilt": "Inclinar",
+    "motion.push-drift": "Acercar y deslizar",
+  },
+  fr: {
+    openProject: "Ouvrez un projet pour créer un Mini Vlog.",
+    startFailed: "Mini Vlog n'a pas pu démarrer : {detail}. Réinstallez le plugin si le problème persiste.",
+    foldersNotFound: "les dossiers du plugin sont introuvables",
+    adapterNeeded: "Cette version de Selects nécessite un adaptateur {name} à jour.",
+    stepFailed: "Selects n'a pas pu terminer cette étape.",
+    busy: "Selects est occupé et n'a pas répondu à temps. Patientez un instant puis appuyez sur « Actualiser ». Si cela se reproduit, redémarrez Selects.",
+    invFailed: "Impossible de lire les clips de ce projet pour l'instant. Appuyez sur « Actualiser ».",
+    invPartial: "Impossible de lire tous les clips pour l'instant. Appuyez sur « Actualiser ».",
+    sizesLoading: "Les tailles des clips sont en cours de chargement…",
+    refreshFailed: "Impossible d'actualiser la liste des clips : {detail}",
+    details: "Détails : {detail}",
+    refresh: "Actualiser",
+    refreshing: "Actualisation",
+    checkingClipsNow: "Vérification des clips…",
+    checkingClips: "Vérification des clips",
+    listening: "Recherche du rythme",
+    working: "En cours",
+    stillReading: "Lecture des clips de ce projet en cours… La liste se met à jour automatiquement.",
+    noFootage: "Ce projet ne contient pas encore de vidéo analysée ni de photo. Ajoutez des clips vidéo et analysez-les, ou ajoutez des photos ; l'affichage se met à jour automatiquement.",
+    turnOnPhotos: "Activez « Utiliser les photos » dans « Avancé » pour créer à partir des photos de ce projet.",
+    noClipsSelected: "Aucun clip sélectionné. Choisissez des clips dans « Avancé ».",
+    gap: " ",
+    ready: "Prêt : {summary}",
+    clips: { one: "{count} clip", many: "{count} de clips", other: "{count} clips" },
+    clipsSelected: { one: "{selected} sur {count} clip sélectionné", many: "{selected} sur {count} de clips sélectionnés", other: "{selected} sur {count} clips sélectionnés" },
+    photos: { one: "{count} photo", many: "{count} de photos", other: "{count} photos" },
+    photosSelected: { one: "{selected} sur {count} photo sélectionnée", many: "{selected} sur {count} de photos sélectionnées", other: "{selected} sur {count} photos sélectionnées" },
+    aboutSeconds: "environ {seconds} s",
+    notAnalysed: { one: "{count} clip pas encore analysé", many: "{count} de clips pas encore analysés", other: "{count} clips pas encore analysés" },
+    analysing: { one: "{count} clip est en cours d'analyse. Ceci se met à jour automatiquement à la fin.", many: "{count} de clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin.", other: "{count} clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin." },
+    notAnalysedAnalyse: { one: "{count} clip n'est pas encore analysé. Analysez-le dans Selects pour l'utiliser ici.", many: "{count} de clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici.", other: "{count} clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici." },
+    notAnalysedMaybe: { one: "{count} clip n'est pas encore analysé. Si Selects l'analyse, ceci se met à jour automatiquement.", many: "{count} de clips ne sont pas encore analysés. Si Selects les analyse, ceci se met à jour automatiquement.", other: "{count} clips ne sont pas encore analysés. Si Selects les analyse, ceci se met à jour automatiquement." },
+    analysisFailed: { one: "{count} clip n'a pas pu être analysé.", many: "{count} de clips n'ont pas pu être analysés.", other: "{count} clips n'ont pas pu être analysés." },
+    noteAnalysing: { one: "{count} clip en cours d'analyse", many: "{count} de clips en cours d'analyse", other: "{count} clips en cours d'analyse" },
+    noteFailed: { one: "{count} clip non analysable", many: "{count} de clips non analysables", other: "{count} clips non analysables" },
+    title: "Titre",
+    titleStyle: "Style du titre",
+    titlePreview: "Aperçu du titre",
+    previewUnavailable: "Aperçu indisponible ; le titre sera tout de même ajouté au Draft.",
+    loading: "Chargement…",
+    "preset.mini-vlog": "Mini vlog",
+    "preset.day-in-my-life": "Une journée dans ma vie",
+    "preset.small-glimpse": "Un petit aperçu",
+    "field.mini-vlog.big": "Grand mot",
+    "field.mini-vlog.small": "Petit mot",
+    "field.day-in-my-life.year": "Année",
+    "field.day-in-my-life.big": "Grands mots",
+    "field.day-in-my-life.tag": "Petite phrase",
+    "field.small-glimpse.top": "Ligne du haut",
+    "field.small-glimpse.big": "Grand mot",
+    "field.small-glimpse.bottom": "Ligne du bas",
+    fieldCount: "{label} ({used}/{max})",
+    music: "Musique",
+    track: "Morceau",
+    alternatives: "Autres choix",
+    ownMusic: "Votre propre musique",
+    noMusic: "Sans musique",
+    bpm: "{bpm} BPM",
+    installTools: "Installez ffmpeg et Node.js 18+ pour écouter la musique ou utiliser votre propre morceau.",
+    sectionHint: "Section musicale : faites glisser pour choisir",
+    sectionLabel: "Section musicale",
+    musicTooShort: "Ce morceau est trop court pour cette durée",
+    startsAt: "Commence à {seconds} s",
+    stopPreview: "Arrêter l'aperçu",
+    cancelPreview: "Annuler l'aperçu",
+    previewSection: "Écouter cette section",
+    readingMusic: "Lecture de la musique…",
+    musicLengthUnknown: "La durée de cette musique est inconnue",
+    startAtHook: "Commencer sur l'accroche",
+    beatFound: "Rythme trouvé : {bpm} BPM. Les coupes suivent le rythme.",
+    faintTempo: "Tempo trouvé ({bpm} BPM), mais le rythme est peu marqué : les coupes suivent donc approximativement une grille à {bpm} BPM.",
+    outsideTempo: "Son tempo ({bpm} BPM) est hors de la plage 70–160 BPM : les coupes utilisent donc un calage approximatif.",
+    noBeat: "Aucun rythme régulier trouvé : les coupes utilisent donc un calage approximatif.",
+    length: "Durée",
+    "length.short": "Courte",
+    "length.standard": "Standard",
+    "length.long": "Longue",
+    pace: "Cadence",
+    "pace.quick": "Rapide",
+    "pace.relaxed": "Posée",
+    "pace.groove": "Groove",
+    fitPartial: { one: "{length} : {fitted} sur {count} plan tiennent dans ce morceau ({seconds} s)", many: "{length} : {fitted} sur {count} de plans tiennent dans ce morceau ({seconds} s)", other: "{length} : {fitted} sur {count} plans tiennent dans ce morceau ({seconds} s)" },
+    fitFull: { one: "{length} : {count} plan ({seconds} s)", many: "{length} : {count} de plans ({seconds} s)", other: "{length} : {count} plans ({seconds} s)" },
+    footageFits: { one: "Vos images suffisent pour {fitted} sur {count} plan ({seconds} s)", many: "Vos images suffisent pour {fitted} sur {count} de plans ({seconds} s)", other: "Vos images suffisent pour {fitted} sur {count} plans ({seconds} s)" },
+    seconds: "{seconds} s",
+    grooveTiming: "Groove sur un temps de {beat} s : plans de {hold}, {beat} et {eighth} s",
+    quickTwoBeats: "À {bpm} BPM, « Rapide » utilise 2 temps par plan.",
+    relaxedOneBeat: "À {bpm} BPM, « Posée » utilise 1 temps par plan.",
+    grooveOneBeat: "À {bpm} BPM, « Groove » ouvre les phrases avec 1 temps.",
+    grooveTwoBeats: "À {bpm} BPM, « Groove » utilise 2 temps par plan.",
+    noMusicTiming: "Sans musique : les plans utilisent un calage approximatif ({timing}).",
+    faintTempoTiming: "Tempo trouvé ({bpm} BPM), mais le rythme est peu marqué : les coupes suivent approximativement une grille à {bpm} BPM ({timing}).",
+    outsideTempoTiming: "Tempo hors de la plage 70–160 BPM ({bpm} BPM) : les plans utilisent un calage approximatif ({timing}).",
+    noBeatTiming: "Aucun rythme régulier trouvé : les plans utilisent un calage approximatif ({timing}).",
+    advanced: "Avancé",
+    clipSound: "Son des clips",
+    "sound.off": "Coupé",
+    "sound.ambient": "Ambiance",
+    "sound.full": "Plein",
+    softLook: "Look doux",
+    beatPunch: "Punch sur le rythme",
+    usePhotos: "Utiliser les photos",
+    usePhotosOff: "« Utiliser les photos » est désactivé",
+    silentVideo: "Vidéo muette : pas de musique et son des clips sur « Coupé ».",
+    chooseClips: "Choisir les clips",
+    chooseClipsCount: "Choisir les clips ({selected}/{total})",
+    all: "Tous",
+    none: "Aucun",
+    photo: "Photo",
+    "shape.tall": "Vertical",
+    "shape.wide": "Horizontal",
+    "shape.square": "Carré",
+    "step.shots": "Choix des plans",
+    "step.music": "Préparation de la musique",
+    "step.draft": "Création du Draft",
+    "step.look": "Ajout du titre et du look",
+    "step.open": "Ouverture du Draft",
+    progress: "Étape {step}/{total} · {name} · {percent} %",
+    progressDetail: "Étape {step}/{total} · {name} ({detail}) · {percent} %",
+    videosChecked: { one: "{done}/{count} vidéo vérifiée", many: "{done}/{count} de vidéos vérifiées", other: "{done}/{count} vidéos vérifiées" },
+    photosOnly: "photos uniquement",
+    stoppedAt: "Arrêt à l'étape {step}/{total}, {name} : {detail}",
+    "fail.one-resource": "Ajoutez au moins 2 clips ou photos.",
+    "fail.too-few": "Vos images suffisent pour moins de 4 plans.",
+    "fail.music-too-short": "Ce morceau est trop court pour 4 plans à partir de cette section.",
+    noPlan: "Aucun plan ne convient à ces images.",
+    addFootage: "Ajoutez des images plus variées ou sélectionnez plus de clips.",
+    addFootagePhotos: "Ajoutez des images plus variées ou des photos, ou sélectionnez plus de clips.",
+    retryUnchecked: { one: "{count} vidéo n'a pas pu être vérifiée ; appuyez sur « Créer » pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées ; appuyez sur « Créer » pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées ; appuyez sur « Créer » pour réessayer." },
+    typeBigWord: "Saisissez le grand mot du titre pour créer.",
+    dropMusic: "Déposez un fichier audio ou choisissez l'un des morceaux.",
+    musicLengthUnread: "La durée de votre musique n'a pas pu être lue. Choisissez un autre fichier ou l'un des morceaux.",
+    musicApprox: "Musique ajoutée ; les coupes utilisent un calage approximatif ({detail}).",
+    musicUnreadable: "Impossible de lire ce fichier audio ({detail}). Choisissez un autre fichier ou l'un des morceaux.",
+    beatFailed: "la détection du rythme a échoué",
+    previewFailed: "Impossible de lire l'aperçu : {detail}.",
+    previewNotCut: "l'aperçu n'a pas pu être découpé",
+    noAudio: "aucun son n'a été renvoyé",
+    draftNoId: "Le Draft « {name} » a peut-être été enregistré, mais Selects n'a pas indiqué son identifiant. Ouvrez-le depuis la liste des Drafts ou relancez la création.",
+    draftEmpty: "Le Draft « {name} » ne contient aucun clip. Relancez la création.",
+    finishFailed: "Le Draft a été créé, mais le titre, le look et le son des clips ne sont pas encore appliqués : {detail}. Appuyez sur « Terminer le titre et le look » pour réessayer.",
+    openFailed: "Le Draft est prêt, mais n'a pas pu être ouvert : {detail}. Utilisez le lien ci-dessous ou ouvrez-le depuis la liste des Drafts.",
+    draftCreated: "Draft créé. Sélectionnez le titre pour modifier ses mots, ses couleurs, sa taille ou sa position, un clip pour ajuster son cadrage, sa douceur, son mouvement ou son volume, et la musique pour changer son volume. Recréer génère un nouveau Draft et ne conserve pas les modifications de l'Inspecteur.",
+    draftCreatedAdding: "Draft créé ; ajout du titre et du look…",
+    draftNotFinished: "Draft créé, mais le titre, le look et le son des clips ne sont pas encore appliqués.",
+    openDraft: "Ouvrir le nouveau Draft",
+    copyLink: "Copier le lien vers le nouveau Draft",
+    shortened: { one: "Vos images suffisent pour {fitted} sur {count} plan : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète.", many: "Vos images suffisent pour {fitted} sur {count} de plans : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète.", other: "Vos images suffisent pour {fitted} sur {count} plans : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète." },
+    note: "Remarque : {detail}.",
+    unchecked: { one: "{count} vidéo n'a pas pu être vérifiée et a été ignorée. Relancez la création pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer." },
+    createsDraft: "Crée un nouveau Draft 16:9",
+    finishTitle: "Terminer le titre et le look",
+    anotherVersion: "Essayer d'autres plans",
+    build: "Créer",
+    building: "Création",
+    "param.mainColor": "Couleur principale",
+    "param.secondColor": "Couleur secondaire",
+    "param.shadow": "Ombre",
+    "param.size": "Taille (%)",
+    "param.x": "Position horizontale (%)",
+    "param.y": "Position verticale (%)",
+    "param.sparkles": "Étincelles",
+    "param.stars": "Étoiles",
+    "param.motion": "Mouvement",
+    "param.motionStrength": "Intensité du mouvement",
+    "param.punch": "Punch",
+    "param.softness": "Douceur",
+    "motion.push-in": "Zoom avant",
+    "motion.pull-out": "Zoom arrière",
+    "motion.drift-left": "Glisser vers la gauche",
+    "motion.drift-right": "Glisser vers la droite",
+    "motion.drift-up": "Glisser vers le haut",
+    "motion.drift-down": "Glisser vers le bas",
+    "motion.tilt": "Incliner",
+    "motion.push-drift": "Zoom et glissement",
+  },
+  it: {
+    openProject: "Apri un progetto per creare un Mini Vlog.",
+    startFailed: "Mini Vlog non è riuscito ad avviarsi: {detail}. Reinstalla il plugin se il problema persiste.",
+    foldersNotFound: "le cartelle del plugin non sono state trovate",
+    adapterNeeded: "Questa versione di Selects richiede un adattatore {name} aggiornato.",
+    stepFailed: "Selects non è riuscito a completare questo passaggio.",
+    busy: "Selects è occupato e non ha risposto in tempo. Attendi un momento e premi «Aggiorna». Se continua a succedere, riavvia Selects.",
+    invFailed: "Non è ancora stato possibile leggere le clip di questo progetto. Premi «Aggiorna».",
+    invPartial: "Non è ancora stato possibile leggere tutte le clip. Premi «Aggiorna».",
+    sizesLoading: "Caricamento delle dimensioni delle clip in corso…",
+    refreshFailed: "Impossibile aggiornare l'elenco delle clip: {detail}",
+    details: "Dettagli: {detail}",
+    refresh: "Aggiorna",
+    refreshing: "Aggiornamento",
+    checkingClipsNow: "Controllo delle clip…",
+    checkingClips: "Controllo delle clip",
+    listening: "Ricerca del ritmo",
+    working: "In corso",
+    stillReading: "Lettura delle clip di questo progetto in corso… Si aggiorna automaticamente.",
+    noFootage: "In questo progetto non ci sono ancora video analizzati né foto. Aggiungi clip video e analizzale, oppure aggiungi foto; si aggiorna automaticamente.",
+    turnOnPhotos: "Attiva «Usa foto» in «Avanzate» per creare dalle foto di questo progetto.",
+    noClipsSelected: "Nessuna clip selezionata. Scegli le clip in «Avanzate».",
+    gap: " ",
+    ready: "Pronto: {summary}",
+    clips: { one: "{count} clip", many: "{count} di clip", other: "{count} clip" },
+    clipsSelected: { one: "{selected} di {count} clip selezionata", many: "{selected} di {count} clip selezionate", other: "{selected} di {count} clip selezionate" },
+    photos: { one: "{count} foto", many: "{count} di foto", other: "{count} foto" },
+    photosSelected: { one: "{selected} di {count} foto selezionata", many: "{selected} di {count} foto selezionate", other: "{selected} di {count} foto selezionate" },
+    aboutSeconds: "circa {seconds} s",
+    notAnalysed: { one: "{count} clip non ancora analizzata", many: "{count} di clip non ancora analizzate", other: "{count} clip non ancora analizzate" },
+    analysing: { one: "{count} clip è in fase di analisi. Si aggiorna automaticamente al termine.", many: "{count} di clip sono in fase di analisi. Si aggiorna automaticamente al termine.", other: "{count} clip sono in fase di analisi. Si aggiorna automaticamente al termine." },
+    notAnalysedAnalyse: { one: "{count} clip non è ancora analizzata. Analizzala in Selects per usarla qui.", many: "{count} di clip non sono ancora analizzate. Analizzale in Selects per usarle qui.", other: "{count} clip non sono ancora analizzate. Analizzale in Selects per usarle qui." },
+    notAnalysedMaybe: { one: "{count} clip non è ancora analizzata. Se Selects la sta analizzando, si aggiorna automaticamente.", many: "{count} di clip non sono ancora analizzate. Se Selects le sta analizzando, si aggiorna automaticamente.", other: "{count} clip non sono ancora analizzate. Se Selects le sta analizzando, si aggiorna automaticamente." },
+    analysisFailed: { one: "Non è stato possibile analizzare {count} clip.", many: "Non è stato possibile analizzare {count} di clip.", other: "Non è stato possibile analizzare {count} clip." },
+    noteAnalysing: { one: "{count} clip in analisi", many: "{count} di clip in analisi", other: "{count} clip in analisi" },
+    noteFailed: { one: "{count} clip non analizzabile", many: "{count} di clip non analizzabili", other: "{count} clip non analizzabili" },
+    title: "Titolo",
+    titleStyle: "Stile del titolo",
+    titlePreview: "Anteprima del titolo",
+    previewUnavailable: "Anteprima non disponibile; il titolo verrà comunque aggiunto al Draft.",
+    loading: "Caricamento…",
+    "preset.mini-vlog": "Mini vlog",
+    "preset.day-in-my-life": "Un giorno della mia vita",
+    "preset.small-glimpse": "Un piccolo scorcio",
+    "field.mini-vlog.big": "Parola grande",
+    "field.mini-vlog.small": "Parola piccola",
+    "field.day-in-my-life.year": "Anno",
+    "field.day-in-my-life.big": "Parole grandi",
+    "field.day-in-my-life.tag": "Frase breve",
+    "field.small-glimpse.top": "Riga in alto",
+    "field.small-glimpse.big": "Parola grande",
+    "field.small-glimpse.bottom": "Riga in basso",
+    fieldCount: "{label} ({used}/{max})",
+    music: "Musica",
+    track: "Brano",
+    alternatives: "Alternative",
+    ownMusic: "La tua musica",
+    noMusic: "Nessuna musica",
+    bpm: "{bpm} BPM",
+    installTools: "Installa ffmpeg e Node.js 18+ per ascoltare la musica o usare un tuo brano.",
+    sectionHint: "Sezione musicale: trascina per scegliere",
+    sectionLabel: "Sezione musicale",
+    musicTooShort: "Questo brano è troppo corto per questa durata",
+    startsAt: "Inizia a {seconds} s",
+    stopPreview: "Ferma l'anteprima",
+    cancelPreview: "Annulla l'anteprima",
+    previewSection: "Ascolta questa sezione",
+    readingMusic: "Lettura della musica…",
+    musicLengthUnknown: "La durata di questa musica è sconosciuta",
+    startAtHook: "Inizia dall'hook",
+    beatFound: "Ritmo trovato: {bpm} BPM. I tagli seguono il ritmo.",
+    faintTempo: "Tempo trovato ({bpm} BPM) ma il ritmo è debole, quindi i tagli seguono approssimativamente una griglia a {bpm} BPM.",
+    outsideTempo: "Il suo tempo ({bpm} BPM) è fuori dall'intervallo 70–160 BPM, quindi i tagli usano una sincronia approssimativa.",
+    noBeat: "Nessun ritmo regolare trovato, quindi i tagli usano una sincronia approssimativa.",
+    length: "Durata",
+    "length.short": "Breve",
+    "length.standard": "Standard",
+    "length.long": "Lunga",
+    pace: "Cadenza",
+    "pace.quick": "Veloce",
+    "pace.relaxed": "Rilassata",
+    "pace.groove": "Groove",
+    fitPartial: { one: "{length}: {fitted} di {count} inquadratura entrano in questo brano ({seconds} s)", many: "{length}: {fitted} di {count} di inquadrature entrano in questo brano ({seconds} s)", other: "{length}: {fitted} di {count} inquadrature entrano in questo brano ({seconds} s)" },
+    fitFull: { one: "{length}: {count} inquadratura ({seconds} s)", many: "{length}: {count} di inquadrature ({seconds} s)", other: "{length}: {count} inquadrature ({seconds} s)" },
+    footageFits: { one: "Il tuo materiale basta per {fitted} di {count} inquadratura ({seconds} s)", many: "Il tuo materiale basta per {fitted} di {count} di inquadrature ({seconds} s)", other: "Il tuo materiale basta per {fitted} di {count} inquadrature ({seconds} s)" },
+    seconds: "{seconds} s",
+    grooveTiming: "Groove su un battito di {beat} s: inquadrature da {hold}, {beat} e {eighth} s",
+    quickTwoBeats: "A {bpm} BPM «Veloce» usa 2 battiti per inquadratura.",
+    relaxedOneBeat: "A {bpm} BPM «Rilassata» usa 1 battito per inquadratura.",
+    grooveOneBeat: "A {bpm} BPM «Groove» apre le frasi con 1 battito.",
+    grooveTwoBeats: "A {bpm} BPM «Groove» usa 2 battiti per inquadratura.",
+    noMusicTiming: "Nessuna musica: le inquadrature usano una sincronia approssimativa ({timing}).",
+    faintTempoTiming: "Tempo trovato ({bpm} BPM) ma il ritmo è debole: i tagli seguono approssimativamente una griglia a {bpm} BPM ({timing}).",
+    outsideTempoTiming: "Tempo fuori dall'intervallo 70–160 BPM ({bpm} BPM): le inquadrature usano una sincronia approssimativa ({timing}).",
+    noBeatTiming: "Nessun ritmo regolare trovato: le inquadrature usano una sincronia approssimativa ({timing}).",
+    advanced: "Avanzate",
+    clipSound: "Audio delle clip",
+    "sound.off": "Spento",
+    "sound.ambient": "Ambiente",
+    "sound.full": "Pieno",
+    softLook: "Look morbido",
+    beatPunch: "Punch a ritmo",
+    usePhotos: "Usa foto",
+    usePhotosOff: "«Usa foto» è disattivato",
+    silentVideo: "Video senza audio: nessuna musica e audio delle clip su «Spento».",
+    chooseClips: "Scegli le clip",
+    chooseClipsCount: "Scegli le clip ({selected}/{total})",
+    all: "Tutte",
+    none: "Nessuna",
+    photo: "Foto",
+    "shape.tall": "Verticale",
+    "shape.wide": "Orizzontale",
+    "shape.square": "Quadrato",
+    "step.shots": "Scelta delle inquadrature",
+    "step.music": "Preparazione della musica",
+    "step.draft": "Creazione del Draft",
+    "step.look": "Aggiunta di titolo e look",
+    "step.open": "Apertura del Draft",
+    progress: "Passaggio {step}/{total} · {name} · {percent}%",
+    progressDetail: "Passaggio {step}/{total} · {name} ({detail}) · {percent}%",
+    videosChecked: { one: "{done}/{count} video controllato", many: "{done}/{count} di video controllati", other: "{done}/{count} video controllati" },
+    photosOnly: "solo foto",
+    stoppedAt: "Interrotto al passaggio {step}/{total}, {name}: {detail}",
+    "fail.one-resource": "Aggiungi almeno 2 clip o foto.",
+    "fail.too-few": "Il tuo materiale basta per meno di 4 inquadrature.",
+    "fail.music-too-short": "Questo brano è troppo corto per 4 inquadrature a partire da questa sezione.",
+    noPlan: "Nessun piano si adatta a questo materiale.",
+    addFootage: "Aggiungi materiale più vario o seleziona più clip.",
+    addFootagePhotos: "Aggiungi materiale più vario o foto, oppure seleziona più clip.",
+    retryUnchecked: { one: "Non è stato possibile controllare {count} video; premi «Crea» per riprovare.", many: "Non è stato possibile controllare {count} di video; premi «Crea» per riprovare.", other: "Non è stato possibile controllare {count} video; premi «Crea» per riprovare." },
+    typeBigWord: "Scrivi la parola grande del titolo per creare.",
+    dropMusic: "Trascina qui un file musicale o scegli uno dei brani.",
+    musicLengthUnread: "Non è stato possibile leggere la durata della tua musica. Scegli un altro file o uno dei brani.",
+    musicApprox: "Musica aggiunta; i tagli usano una sincronia approssimativa ({detail}).",
+    musicUnreadable: "Impossibile leggere questo file musicale ({detail}). Scegli un altro file o uno dei brani.",
+    beatFailed: "rilevamento del ritmo non riuscito",
+    previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
+    previewNotCut: "non è stato possibile ritagliare l'anteprima",
+    noAudio: "non è stato restituito alcun audio",
+    draftNoId: "Il Draft «{name}» potrebbe essere stato salvato, ma Selects non ne ha comunicato l'ID. Aprilo dall'elenco dei Draft o crealo di nuovo.",
+    draftEmpty: "Il Draft «{name}» non contiene clip. Crealo di nuovo.",
+    finishFailed: "Il Draft è stato creato, ma titolo, look e audio delle clip non sono ancora applicati: {detail}. Premi «Completa titolo e look» per riprovare.",
+    openFailed: "Il Draft è pronto, ma non è stato possibile aprirlo: {detail}. Usa il link qui sotto o aprilo dall'elenco dei Draft.",
+    draftCreated: "Draft creato. Seleziona il titolo per modificarne parole, colori, dimensione o posizione, una clip per regolarne inquadratura, morbidezza, movimento o volume, e la musica per cambiarne il volume. Ricreare genera un nuovo Draft e non mantiene le modifiche dell'Inspector.",
+    draftCreatedAdding: "Draft creato; aggiunta di titolo e look…",
+    draftNotFinished: "Draft creato, ma titolo, look e audio delle clip non sono ancora applicati.",
+    openDraft: "Apri il nuovo Draft",
+    copyLink: "Copia il link al nuovo Draft",
+    shortened: { one: "Il tuo materiale basta per {fitted} di {count} inquadratura, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa.", many: "Il tuo materiale basta per {fitted} di {count} di inquadrature, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa.", other: "Il tuo materiale basta per {fitted} di {count} inquadrature, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa." },
+    note: "Nota: {detail}.",
+    unchecked: { one: "Non è stato possibile controllare {count} video, che è stato saltato. Crea di nuovo per riprovare.", many: "Non è stato possibile controllare {count} di video, che sono stati saltati. Crea di nuovo per riprovare.", other: "Non è stato possibile controllare {count} video, che sono stati saltati. Crea di nuovo per riprovare." },
+    createsDraft: "Crea un nuovo Draft 16:9",
+    finishTitle: "Completa titolo e look",
+    anotherVersion: "Prova altre inquadrature",
+    build: "Crea",
+    building: "Creazione",
+    "param.mainColor": "Colore principale",
+    "param.secondColor": "Colore secondario",
+    "param.shadow": "Ombra",
+    "param.size": "Dimensione (%)",
+    "param.x": "Posizione orizzontale (%)",
+    "param.y": "Posizione verticale (%)",
+    "param.sparkles": "Scintille",
+    "param.stars": "Stelle",
+    "param.motion": "Movimento",
+    "param.motionStrength": "Intensità del movimento",
+    "param.punch": "Punch",
+    "param.softness": "Morbidezza",
+    "motion.push-in": "Zoom avanti",
+    "motion.pull-out": "Zoom indietro",
+    "motion.drift-left": "Scorri a sinistra",
+    "motion.drift-right": "Scorri a destra",
+    "motion.drift-up": "Scorri in alto",
+    "motion.drift-down": "Scorri in basso",
+    "motion.tilt": "Inclina",
+    "motion.push-drift": "Zoom e scorrimento",
+  },
+  ja: {
+    openProject: "Mini Vlog を作成するには、プロジェクトを開いてください。",
+    startFailed: "Mini Vlog を起動できませんでした: {detail}。問題が続く場合はプラグインを再インストールしてください。",
+    foldersNotFound: "プラグインのフォルダが見つかりませんでした",
+    adapterNeeded: "この Selects のビルドには、更新された {name} アダプターが必要です。",
+    stepFailed: "Selects はこのステップを完了できませんでした。",
+    busy: "Selects が混み合っていて時間内に応答しませんでした。少し待ってから「更新」を押してください。何度も起きる場合は Selects を再起動してください。",
+    invFailed: "このプロジェクトのクリップをまだ読み込めません。「更新」を押してください。",
+    invPartial: "まだすべてのクリップを読み込めていません。「更新」を押してください。",
+    sizesLoading: "クリップのサイズを読み込み中…",
+    refreshFailed: "クリップ一覧を更新できませんでした: {detail}",
+    details: "詳細: {detail}",
+    refresh: "更新",
+    refreshing: "更新中",
+    checkingClipsNow: "クリップを確認中…",
+    checkingClips: "クリップを確認中",
+    listening: "ビートを検出中",
+    working: "処理中",
+    stillReading: "このプロジェクトのクリップを読み込み中… 自動で更新されます。",
+    noFootage: "このプロジェクトには、解析済みの動画も写真もまだありません。動画クリップを追加して解析するか、写真を追加してください。自動で更新されます。",
+    turnOnPhotos: "このプロジェクトの写真から作成するには、「詳細設定」で「写真を使う」をオンにしてください。",
+    noClipsSelected: "クリップが選択されていません。「詳細設定」でクリップを選んでください。",
+    gap: "",
+    ready: "準備完了: {summary}",
+    clips: { other: "クリップ {count} 本" },
+    clipsSelected: { other: "クリップ {count} 本中 {selected} 本を選択" },
+    photos: { other: "写真 {count} 枚" },
+    photosSelected: { other: "写真 {count} 枚中 {selected} 枚を選択" },
+    aboutSeconds: "約 {seconds} 秒",
+    notAnalysed: { other: "未解析のクリップ {count} 本" },
+    analysing: { other: "{count} 本のクリップを解析中です。終わると自動で更新されます。" },
+    notAnalysedAnalyse: { other: "{count} 本のクリップがまだ解析されていません。ここで使うには Selects で解析してください。" },
+    notAnalysedMaybe: { other: "{count} 本のクリップがまだ解析されていません。Selects が解析中なら、自動で更新されます。" },
+    analysisFailed: { other: "{count} 本のクリップを解析できませんでした。" },
+    noteAnalysing: { other: "解析中のクリップ {count} 本" },
+    noteFailed: { other: "解析できなかったクリップ {count} 本" },
+    title: "タイトル",
+    titleStyle: "タイトルのスタイル",
+    titlePreview: "タイトルのプレビュー",
+    previewUnavailable: "プレビューを表示できません。タイトルは Draft に追加されます。",
+    loading: "読み込み中…",
+    "preset.mini-vlog": "ミニ Vlog",
+    "preset.day-in-my-life": "わたしの一日",
+    "preset.small-glimpse": "小さなひとコマ",
+    "field.mini-vlog.big": "大きな文字",
+    "field.mini-vlog.small": "小さな文字",
+    "field.day-in-my-life.year": "年",
+    "field.day-in-my-life.big": "大きな文字",
+    "field.day-in-my-life.tag": "タグライン",
+    "field.small-glimpse.top": "上の行",
+    "field.small-glimpse.big": "大きな文字",
+    "field.small-glimpse.bottom": "下の行",
+    fieldCount: "{label}（{used}/{max}）",
+    music: "音楽",
+    track: "トラック",
+    alternatives: "その他の曲",
+    ownMusic: "自分の音楽",
+    noMusic: "音楽なし",
+    bpm: "{bpm} BPM",
+    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg と Node.js 18 以降をインストールしてください。",
+    sectionHint: "音楽の区間 — ドラッグして選択",
+    sectionLabel: "音楽の区間",
+    musicTooShort: "このトラックはこの長さには短すぎます",
+    startsAt: "{seconds} 秒から開始",
+    stopPreview: "プレビューを停止",
+    cancelPreview: "プレビューをキャンセル",
+    previewSection: "この区間をプレビュー",
+    readingMusic: "音楽を読み込み中…",
+    musicLengthUnknown: "この音楽の長さがわかりません",
+    startAtHook: "サビから始める",
+    beatFound: "ビートを検出: {bpm} BPM。カットはビートに合わせます。",
+    faintTempo: "テンポ（{bpm} BPM）は見つかりましたがビートが弱いため、カットは {bpm} BPM のグリッドにおおよそ合わせます。",
+    outsideTempo: "テンポ（{bpm} BPM）が 70〜160 BPM の範囲外のため、カットはおおよそのタイミングになります。",
+    noBeat: "安定したビートが見つからないため、カットはおおよそのタイミングになります。",
+    length: "長さ",
+    "length.short": "短め",
+    "length.standard": "標準",
+    "length.long": "長め",
+    pace: "ペース",
+    "pace.quick": "クイック",
+    "pace.relaxed": "ゆったり",
+    "pace.groove": "グルーヴ",
+    fitPartial: { other: "{length}: このトラックに収まるのは {count} ショット中 {fitted} ショット（{seconds} 秒）" },
+    fitFull: { other: "{length}: {count} ショット（{seconds} 秒）" },
+    footageFits: { other: "素材で作れるのは {count} ショット中 {fitted} ショット（{seconds} 秒）" },
+    seconds: "{seconds} 秒",
+    grooveTiming: "{beat} 秒のビートでグルーヴ: {hold}・{beat}・{eighth} 秒のショット",
+    quickTwoBeats: "{bpm} BPM では「クイック」は 1 ショット 2 ビートになります。",
+    relaxedOneBeat: "{bpm} BPM では「ゆったり」は 1 ショット 1 ビートになります。",
+    grooveOneBeat: "{bpm} BPM では「グルーヴ」はフレーズを 1 ビートで始めます。",
+    grooveTwoBeats: "{bpm} BPM では「グルーヴ」は 1 ショット 2 ビートになります。",
+    noMusicTiming: "音楽なし: ショットはおおよそのタイミングになります（{timing}）。",
+    faintTempoTiming: "テンポ（{bpm} BPM）は見つかりましたがビートが弱いため、カットは {bpm} BPM のグリッドにおおよそ合わせます（{timing}）。",
+    outsideTempoTiming: "テンポが 70〜160 BPM の範囲外です（{bpm} BPM）: ショットはおおよそのタイミングになります（{timing}）。",
+    noBeatTiming: "安定したビートが見つかりません: ショットはおおよそのタイミングになります（{timing}）。",
+    advanced: "詳細設定",
+    clipSound: "クリップの音",
+    "sound.off": "オフ",
+    "sound.ambient": "環境音",
+    "sound.full": "フル",
+    softLook: "ソフトルック",
+    beatPunch: "ビートパンチ",
+    usePhotos: "写真を使う",
+    usePhotosOff: "「写真を使う」がオフです",
+    silentVideo: "無音の動画: 音楽なしで、クリップの音が「オフ」です。",
+    chooseClips: "クリップを選択",
+    chooseClipsCount: "クリップを選択（{selected}/{total}）",
+    all: "すべて",
+    none: "なし",
+    photo: "写真",
+    "shape.tall": "縦長",
+    "shape.wide": "横長",
+    "shape.square": "正方形",
+    "step.shots": "ショットを選択",
+    "step.music": "音楽を準備",
+    "step.draft": "Draft を作成",
+    "step.look": "タイトルとルックを追加",
+    "step.open": "Draft を開く",
+    progress: "ステップ {step}/{total} · {name} · {percent}%",
+    progressDetail: "ステップ {step}/{total} · {name}（{detail}）· {percent}%",
+    videosChecked: { other: "{done}/{count} 本の動画を確認済み" },
+    photosOnly: "写真のみ",
+    stoppedAt: "ステップ {step}/{total}（{name}）で停止しました: {detail}",
+    "fail.one-resource": "クリップか写真を 2 つ以上追加してください。",
+    "fail.too-few": "素材で作れるのは 4 ショット未満です。",
+    "fail.music-too-short": "このトラックはこの区間から 4 ショットを作るには短すぎます。",
+    noPlan: "この素材に合うプランがありません。",
+    addFootage: "変化のある素材を追加するか、クリップをもっと選択してください。",
+    addFootagePhotos: "変化のある素材や写真を追加するか、クリップをもっと選択してください。",
+    retryUnchecked: { other: "{count} 本の動画を確認できませんでした。「作成」を押すと再試行します。" },
+    typeBigWord: "作成するには、タイトルの大きな文字を入力してください。",
+    dropMusic: "音楽ファイルをドロップするか、用意されたトラックを選んでください。",
+    musicLengthUnread: "音楽の長さを読み取れませんでした。別のファイルか、用意されたトラックを選んでください。",
+    musicApprox: "音楽を追加しました。カットはおおよそのタイミングになります（{detail}）。",
+    musicUnreadable: "この音楽ファイルを読み込めませんでした（{detail}）。別のファイルか、用意されたトラックを選んでください。",
+    beatFailed: "ビートの検出に失敗しました",
+    previewFailed: "プレビューを再生できませんでした: {detail}。",
+    previewNotCut: "プレビューを切り出せませんでした",
+    noAudio: "音声が返されませんでした",
+    draftNoId: "Draft「{name}」は保存された可能性がありますが、Selects から ID が返されませんでした。Draft の一覧から開くか、もう一度作成してください。",
+    draftEmpty: "Draft「{name}」にクリップがありません。もう一度作成してください。",
+    finishFailed: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません: {detail}。「タイトルとルックを仕上げる」を押して再試行してください。",
+    openFailed: "Draft の準備はできましたが、開けませんでした: {detail}。下のリンクを使うか、Draft 一覧から開いてください。",
+    draftCreated: "Draft を作成しました。タイトルを選ぶと文字・色・サイズ・位置を、クリップを選ぶと切り抜き・ソフトさ・モーション・音量を、音楽を選ぶと音量を変更できます。作り直すと新しい Draft が作成され、インスペクタでの編集は引き継がれません。",
+    draftCreatedAdding: "Draft を作成しました。タイトルとルックを追加中…",
+    draftNotFinished: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません。",
+    openDraft: "新しい Draft を開く",
+    copyLink: "新しい Draft へのリンクをコピー",
+    shortened: { other: "素材で作れるのは {count} ショット中 {fitted} ショットのため、この動画は約 {seconds} 秒です。フルの長さにするにはクリップか写真を追加してください。" },
+    note: "メモ: {detail}。",
+    unchecked: { other: "{count} 本の動画を確認できなかったため、スキップしました。もう一度作成すると再試行します。" },
+    createsDraft: "16:9 の新しい Draft を作成します",
+    finishTitle: "タイトルとルックを仕上げる",
+    anotherVersion: "別のショットで作成",
+    build: "作成",
+    building: "作成中",
+    "param.mainColor": "メインの色",
+    "param.secondColor": "サブの色",
+    "param.shadow": "影",
+    "param.size": "サイズ (%)",
+    "param.x": "横位置 (%)",
+    "param.y": "縦位置 (%)",
+    "param.sparkles": "キラキラ",
+    "param.stars": "星",
+    "param.motion": "モーション",
+    "param.motionStrength": "モーションの強さ",
+    "param.punch": "パンチ",
+    "param.softness": "ソフトさ",
+    "motion.push-in": "ズームイン",
+    "motion.pull-out": "ズームアウト",
+    "motion.drift-left": "左へスライド",
+    "motion.drift-right": "右へスライド",
+    "motion.drift-up": "上へスライド",
+    "motion.drift-down": "下へスライド",
+    "motion.tilt": "傾ける",
+    "motion.push-drift": "ズームしてスライド",
+  },
+  ko: {
+    openProject: "Mini Vlog\ub97c \ub9cc\ub4e4\ub824\uba74 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.",
+    startFailed: "Mini Vlog\ub97c \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uacc4\uc18d\ub418\uba74 \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud558\uc138\uc694.",
+    foldersNotFound: "\ud50c\ub7ec\uadf8\uc778 \ud3f4\ub354\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+    adapterNeeded: "\uc774 Selects \ube4c\ub4dc\uc5d0\ub294 \uc5c5\ub370\uc774\ud2b8\ub41c {name} \uc5b4\ub311\ud130\uac00 \ud544\uc694\ud569\ub2c8\ub2e4.",
+    stepFailed: "Selects\uac00 \uc774 \ub2e8\uacc4\ub97c \uc644\ub8cc\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
+    busy: "Selects\uac00 \ubc14\ube60\uc11c \uc81c\ub54c \uc751\ub2f5\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \uae30\ub2e4\ub9b0 \ub4a4 ‘\uc0c8\ub85c\uace0\uce68’\uc744 \ub204\ub974\uc138\uc694. \uacc4\uc18d\ub418\uba74 Selects\ub97c \ub2e4\uc2dc \uc2dc\uc791\ud558\uc138\uc694.",
+    invFailed: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \ud074\ub9bd\uc744 \uc544\uc9c1 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. ‘\uc0c8\ub85c\uace0\uce68’\uc744 \ub204\ub974\uc138\uc694.",
+    invPartial: "\uc544\uc9c1 \ubaa8\ub4e0 \ud074\ub9bd\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. ‘\uc0c8\ub85c\uace0\uce68’\uc744 \ub204\ub974\uc138\uc694.",
+    sizesLoading: "\ud074\ub9bd \ud06c\uae30\ub97c \ubd88\ub7ec\uc624\ub294 \uc911…",
+    refreshFailed: "\ud074\ub9bd \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}",
+    details: "\uc790\uc138\ud788: {detail}",
+    refresh: "\uc0c8\ub85c\uace0\uce68",
+    refreshing: "\uc0c8\ub85c\uace0\uce68 \uc911",
+    checkingClipsNow: "\ud074\ub9bd \ud655\uc778 \uc911…",
+    checkingClips: "\ud074\ub9bd \ud655\uc778 \uc911",
+    listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
+    working: "\uc791\uc5c5 \uc911",
+    stillReading: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \ud074\ub9bd\uc744 \uc77d\ub294 \uc911… \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
+    noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \ubd84\uc11d\ub41c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc744 \ucd94\uac00\ud574 \ubd84\uc11d\ud558\uac70\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
+    turnOnPhotos: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc0ac\uc9c4\uc73c\ub85c \ub9cc\ub4e4\ub824\uba74 ‘\uace0\uae09’\uc5d0\uc11c ‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc744 \ucf1c\uc138\uc694.",
+    noClipsSelected: "\uc120\ud0dd\ud55c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. ‘\uace0\uae09’\uc5d0\uc11c \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
+    gap: " ",
+    ready: "\uc900\ube44 \uc644\ub8cc: {summary}",
+    clips: { other: "\ud074\ub9bd {count}\uac1c" },
+    clipsSelected: { other: "\ud074\ub9bd {count}\uac1c \uc911 {selected}\uac1c \uc120\ud0dd" },
+    photos: { other: "\uc0ac\uc9c4 {count}\uc7a5" },
+    photosSelected: { other: "\uc0ac\uc9c4 {count}\uc7a5 \uc911 {selected}\uc7a5 \uc120\ud0dd" },
+    aboutSeconds: "\uc57d {seconds}\ucd08",
+    notAnalysed: { other: "\uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd {count}\uac1c" },
+    analysing: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4. \ubd84\uc11d\uc774 \ub05d\ub098\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
+    notAnalysedAnalyse: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uc5ec\uae30\uc11c \uc4f0\ub824\uba74 Selects\uc5d0\uc11c \ubd84\uc11d\ud558\uc138\uc694." },
+    notAnalysedMaybe: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Selects\uc5d0\uc11c \ubd84\uc11d \uc911\uc774\ub77c\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
+    analysisFailed: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4." },
+    noteAnalysing: { other: "\ubd84\uc11d \uc911\uc778 \ud074\ub9bd {count}\uac1c" },
+    noteFailed: { other: "\ubd84\uc11d\ud558\uc9c0 \ubabb\ud55c \ud074\ub9bd {count}\uac1c" },
+    title: "\ud0c0\uc774\ud2c0",
+    titleStyle: "\ud0c0\uc774\ud2c0 \uc2a4\ud0c0\uc77c",
+    titlePreview: "\ud0c0\uc774\ud2c0 \ubbf8\ub9ac\ubcf4\uae30",
+    previewUnavailable: "\ubbf8\ub9ac\ubcf4\uae30\ub97c \ud45c\uc2dc\ud560 \uc218 \uc5c6\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uc740 Draft\uc5d0 \ucd94\uac00\ub429\ub2c8\ub2e4.",
+    loading: "\ubd88\ub7ec\uc624\ub294 \uc911…",
+    "preset.mini-vlog": "\ubbf8\ub2c8 \ube0c\uc774\ub85c\uadf8",
+    "preset.day-in-my-life": "\ub098\uc758 \ud558\ub8e8",
+    "preset.small-glimpse": "\uc791\uc740 \uc21c\uac04",
+    "field.mini-vlog.big": "\ud070 \uae00\uc790",
+    "field.mini-vlog.small": "\uc791\uc740 \uae00\uc790",
+    "field.day-in-my-life.year": "\uc5f0\ub3c4",
+    "field.day-in-my-life.big": "\ud070 \uae00\uc790",
+    "field.day-in-my-life.tag": "\ud0dc\uadf8 \ubb38\uad6c",
+    "field.small-glimpse.top": "\uc704 \uc904",
+    "field.small-glimpse.big": "\ud070 \uae00\uc790",
+    "field.small-glimpse.bottom": "\uc544\ub798 \uc904",
+    fieldCount: "{label} ({used}/{max})",
+    music: "\uc74c\uc545",
+    track: "\ud2b8\ub799",
+    alternatives: "\ub2e4\ub978 \ud2b8\ub799",
+    ownMusic: "\ub0b4 \uc74c\uc545",
+    noMusic: "\uc74c\uc545 \uc5c6\uc74c",
+    bpm: "{bpm} BPM",
+    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\uc640 Node.js 18 \uc774\uc0c1\uc744 \uc124\uce58\ud558\uc138\uc694.",
+    sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
+    sectionLabel: "\uc74c\uc545 \uad6c\uac04",
+    musicTooShort: "\uc774 \ud2b8\ub799\uc740 \uc774 \uae38\uc774\uc5d0 \ube44\ud574 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4",
+    startsAt: "{seconds}\ucd08\ubd80\ud130 \uc2dc\uc791",
+    stopPreview: "\ubbf8\ub9ac\ub4e3\uae30 \uc911\uc9c0",
+    cancelPreview: "\ubbf8\ub9ac\ub4e3\uae30 \ucde8\uc18c",
+    previewSection: "\uc774 \uad6c\uac04 \ubbf8\ub9ac\ub4e3\uae30",
+    readingMusic: "\uc74c\uc545 \uc77d\ub294 \uc911…",
+    musicLengthUnknown: "\uc774 \uc74c\uc545\uc758 \uae38\uc774\ub97c \uc54c \uc218 \uc5c6\uc2b5\ub2c8\ub2e4",
+    startAtHook: "\ud558\uc774\ub77c\uc774\ud2b8\ubd80\ud130 \uc2dc\uc791",
+    beatFound: "\ube44\ud2b8 \ucc3e\uc74c: {bpm} BPM. \ucef7\uc774 \ube44\ud2b8\uc5d0 \ub9de\ucdb0\uc9d1\ub2c8\ub2e4.",
+    faintTempo: "\ud15c\ud3ec({bpm} BPM)\ub294 \ucc3e\uc558\uc9c0\ub9cc \ube44\ud2b8\uac00 \uc57d\ud574\uc11c \ucef7\uc774 {bpm} BPM \uadf8\ub9ac\ub4dc\uc5d0 \ub300\ub7b5 \ub9de\ucdb0\uc9d1\ub2c8\ub2e4.",
+    outsideTempo: "\ud15c\ud3ec({bpm} BPM)\uac00 70~160 BPM \ubc94\uc704\ub97c \ubc97\uc5b4\ub098\uc11c \ucef7\uc774 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4.",
+    noBeat: "\uc77c\uc815\ud55c \ube44\ud2b8\ub97c \ucc3e\uc9c0 \ubabb\ud574\uc11c \ucef7\uc774 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4.",
+    length: "\uae38\uc774",
+    "length.short": "\uc9e7\uac8c",
+    "length.standard": "\ubcf4\ud1b5",
+    "length.long": "\uae38\uac8c",
+    pace: "\ucef7 \uc18d\ub3c4",
+    "pace.quick": "\ube60\ub974\uac8c",
+    "pace.relaxed": "\uc5ec\uc720\ub86d\uac8c",
+    "pace.groove": "\uadf8\ub8e8\ube0c",
+    fitPartial: { other: "{length}: \uc774 \ud2b8\ub799\uc5d0 {count}\uc0f7 \uc911 {fitted}\uc0f7\uc774 \ub4e4\uc5b4\uac11\ub2c8\ub2e4 ({seconds}\ucd08)" },
+    fitFull: { other: "{length}: {count}\uc0f7 ({seconds}\ucd08)" },
+    footageFits: { other: "\uc601\uc0c1\uc73c\ub85c {count}\uc0f7 \uc911 {fitted}\uc0f7\uc744 \ub9cc\ub4e4 \uc218 \uc788\uc2b5\ub2c8\ub2e4 ({seconds}\ucd08)" },
+    seconds: "{seconds}\ucd08",
+    grooveTiming: "{beat}\ucd08 \ube44\ud2b8\uc758 \uadf8\ub8e8\ube0c: {hold}\ucd08, {beat}\ucd08, {eighth}\ucd08 \uc0f7",
+    quickTwoBeats: "{bpm} BPM\uc5d0\uc11c\ub294 ‘\ube60\ub974\uac8c’\uac00 \uc0f7\ub2f9 2\ube44\ud2b8\ub97c \uc501\ub2c8\ub2e4.",
+    relaxedOneBeat: "{bpm} BPM\uc5d0\uc11c\ub294 ‘\uc5ec\uc720\ub86d\uac8c’\uac00 \uc0f7\ub2f9 1\ube44\ud2b8\ub97c \uc501\ub2c8\ub2e4.",
+    grooveOneBeat: "{bpm} BPM\uc5d0\uc11c\ub294 ‘\uadf8\ub8e8\ube0c’\uac00 \ud504\ub808\uc774\uc988\ub97c 1\ube44\ud2b8\ub85c \uc2dc\uc791\ud569\ub2c8\ub2e4.",
+    grooveTwoBeats: "{bpm} BPM\uc5d0\uc11c\ub294 ‘\uadf8\ub8e8\ube0c’\uac00 \uc0f7\ub2f9 2\ube44\ud2b8\ub97c \uc501\ub2c8\ub2e4.",
+    noMusicTiming: "\uc74c\uc545 \uc5c6\uc74c: \uc0f7\uc774 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4 ({timing}).",
+    faintTempoTiming: "\ud15c\ud3ec({bpm} BPM)\ub294 \ucc3e\uc558\uc9c0\ub9cc \ube44\ud2b8\uac00 \uc57d\ud569\ub2c8\ub2e4: \ucef7\uc774 {bpm} BPM \uadf8\ub9ac\ub4dc\uc5d0 \ub300\ub7b5 \ub9de\ucdb0\uc9d1\ub2c8\ub2e4 ({timing}).",
+    outsideTempoTiming: "\ud15c\ud3ec\uac00 70~160 BPM \ubc94\uc704\ub97c \ubc97\uc5b4\ub0ac\uc2b5\ub2c8\ub2e4({bpm} BPM): \uc0f7\uc774 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4 ({timing}).",
+    noBeatTiming: "\uc77c\uc815\ud55c \ube44\ud2b8\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: \uc0f7\uc774 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4 ({timing}).",
+    advanced: "\uace0\uae09",
+    clipSound: "\ud074\ub9bd \uc18c\ub9ac",
+    "sound.off": "\ub054",
+    "sound.ambient": "\ubc30\uacbd\uc74c",
+    "sound.full": "\uc6d0\uc74c",
+    softLook: "\ubd80\ub4dc\ub7ec\uc6b4 \uc0c9\uac10",
+    beatPunch: "\ube44\ud2b8 \ud380\uce58",
+    usePhotos: "\uc0ac\uc9c4 \uc0ac\uc6a9",
+    usePhotosOff: "‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc774 \uaebc\uc838 \uc788\uc74c",
+    silentVideo: "\ubb34\uc74c \uc601\uc0c1: \uc74c\uc545\uc774 \uc5c6\uace0 \ud074\ub9bd \uc18c\ub9ac\uac00 ‘\ub054’\uc785\ub2c8\ub2e4.",
+    chooseClips: "\ud074\ub9bd \uc120\ud0dd",
+    chooseClipsCount: "\ud074\ub9bd \uc120\ud0dd ({selected}/{total})",
+    all: "\uc804\uccb4",
+    none: "\uc5c6\uc74c",
+    photo: "\uc0ac\uc9c4",
+    "shape.tall": "\uc138\ub85c",
+    "shape.wide": "\uac00\ub85c",
+    "shape.square": "\uc815\uc0ac\uac01\ud615",
+    "step.shots": "\uc0f7 \uace0\ub974\uae30",
+    "step.music": "\uc74c\uc545 \uc900\ube44",
+    "step.draft": "Draft \ub9cc\ub4e4\uae30",
+    "step.look": "\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ucd94\uac00",
+    "step.open": "Draft \uc5f4\uae30",
+    progress: "{step}/{total}\ub2e8\uacc4 · {name} · {percent}%",
+    progressDetail: "{step}/{total}\ub2e8\uacc4 · {name} ({detail}) · {percent}%",
+    videosChecked: { other: "\ub3d9\uc601\uc0c1 {done}/{count}\uac1c \ud655\uc778" },
+    photosOnly: "\uc0ac\uc9c4\ub9cc",
+    stoppedAt: "{step}/{total}\ub2e8\uacc4({name})\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {detail}",
+    "fail.one-resource": "\ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 2\uac1c \uc774\uc0c1 \ucd94\uac00\ud558\uc138\uc694.",
+    "fail.too-few": "\uc601\uc0c1\uc73c\ub85c \ub9cc\ub4e4 \uc218 \uc788\ub294 \uc0f7\uc774 4\uac1c\ubcf4\ub2e4 \uc801\uc2b5\ub2c8\ub2e4.",
+    "fail.music-too-short": "\uc774 \ud2b8\ub799\uc740 \uc774 \uad6c\uac04\ubd80\ud130 4\uc0f7\uc744 \ub9cc\ub4e4\uae30\uc5d0 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4.",
+    noPlan: "\uc774 \uc601\uc0c1\uc5d0 \ub9de\ub294 \uad6c\uc131\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
+    addFootage: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
+    addFootagePhotos: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
+    retryUnchecked: { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. ‘\ub9cc\ub4e4\uae30’\ub97c \ub204\ub974\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
+    typeBigWord: "\ub9cc\ub4e4\ub824\uba74 \ud0c0\uc774\ud2c0\uc758 \ud070 \uae00\uc790\ub97c \uc785\ub825\ud558\uc138\uc694.",
+    dropMusic: "\uc74c\uc545 \ud30c\uc77c\uc744 \ub04c\uc5b4\ub2e4 \ub193\uac70\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
+    musicLengthUnread: "\uc74c\uc545\uc758 \uae38\uc774\ub97c \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \ud30c\uc77c\uc774\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
+    musicApprox: "\uc74c\uc545\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4. \ucef7\uc740 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4 ({detail}).",
+    musicUnreadable: "\uc774 \uc74c\uc545 \ud30c\uc77c\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4({detail}). \ub2e4\ub978 \ud30c\uc77c\uc774\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
+    beatFailed: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
+    previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
+    previewNotCut: "\ubbf8\ub9ac\ub4e3\uae30 \uad6c\uac04\uc744 \uc798\ub77c\ub0b4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+    noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
+    draftNoId: "Draft ‘{name}’\uc774(\uac00) \uc800\uc7a5\ub418\uc5c8\uc744 \uc218 \uc788\uc9c0\ub9cc Selects\uac00 ID\ub97c \uc54c\ub824 \uc8fc\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Draft \ubaa9\ub85d\uc5d0\uc11c \uc5f4\uac70\ub098 \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.",
+    draftEmpty: "Draft ‘{name}’\uc5d0 \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.",
+    finishFailed: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4: {detail}. ‘\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac’\ub97c \ub20c\ub7ec \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    openFailed: "Draft\ub294 \uc900\ube44\ub418\uc5c8\uc9c0\ub9cc \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uc544\ub798 \ub9c1\ud06c\ub97c \uc4f0\uac70\ub098 Draft \ubaa9\ub85d\uc5d0\uc11c \uc5ec\uc138\uc694.",
+    draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uc744 \uc120\ud0dd\ud558\uba74 \uae00\uc790, \uc0c9, \ud06c\uae30, \uc704\uce58\ub97c, \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uba74 \ud06c\ub86d, \ubd80\ub4dc\ub7ec\uc6c0, \ubaa8\uc158, \uc18c\ub9ac \ud06c\uae30\ub97c, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \ubcfc\ub968\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc0c8 Draft\uac00 \uc0dd\uae30\uace0 \uc778\uc2a4\ud399\ud130\uc5d0\uc11c \ud55c \ud3b8\uc9d1\uc740 \uc720\uc9c0\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    draftCreatedAdding: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\ub294 \uc911…",
+    draftNotFinished: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
+    openDraft: "\uc0c8 Draft \uc5f4\uae30",
+    copyLink: "\uc0c8 Draft \ub9c1\ud06c \ubcf5\uc0ac",
+    shortened: { other: "\uc601\uc0c1\uc73c\ub85c {count}\uc0f7 \uc911 {fitted}\uc0f7\ub9cc \ub9cc\ub4e4 \uc218 \uc788\uc5b4 \uc774 \ub3d9\uc601\uc0c1\uc740 \uc57d {seconds}\ucd08\uc785\ub2c8\ub2e4. \uc804\uccb4 \uae38\uc774\ub85c \ub9cc\ub4e4\ub824\uba74 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ub354 \ucd94\uac00\ud558\uc138\uc694." },
+    note: "\ucc38\uace0: {detail}.",
+    unchecked: { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud574 \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
+    createsDraft: "\uc0c8 16:9 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4",
+    finishTitle: "\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac",
+    anotherVersion: "\ub2e4\ub978 \uc0f7\uc73c\ub85c \ub9cc\ub4e4\uae30",
+    build: "\ub9cc\ub4e4\uae30",
+    building: "\ub9cc\ub4dc\ub294 \uc911",
+    "param.mainColor": "\uc8fc \uc0c9\uc0c1",
+    "param.secondColor": "\ubcf4\uc870 \uc0c9\uc0c1",
+    "param.shadow": "\uadf8\ub9bc\uc790",
+    "param.size": "\ud06c\uae30 (%)",
+    "param.x": "\uac00\ub85c \uc704\uce58 (%)",
+    "param.y": "\uc138\ub85c \uc704\uce58 (%)",
+    "param.sparkles": "\ubc18\uc9dd\uc774",
+    "param.stars": "\ubcc4",
+    "param.motion": "\ubaa8\uc158",
+    "param.motionStrength": "\ubaa8\uc158 \uac15\ub3c4",
+    "param.punch": "\ud380\uce58",
+    "param.softness": "\ubd80\ub4dc\ub7ec\uc6c0",
+    "motion.push-in": "\uc90c \uc778",
+    "motion.pull-out": "\uc90c \uc544\uc6c3",
+    "motion.drift-left": "\uc67c\ucabd\uc73c\ub85c \uc774\ub3d9",
+    "motion.drift-right": "\uc624\ub978\ucabd\uc73c\ub85c \uc774\ub3d9",
+    "motion.drift-up": "\uc704\ub85c \uc774\ub3d9",
+    "motion.drift-down": "\uc544\ub798\ub85c \uc774\ub3d9",
+    "motion.tilt": "\uae30\uc6b8\uc774\uae30",
+    "motion.push-drift": "\uc90c \uc778\ud558\uba70 \uc774\ub3d9",
+  },
+  pt: {
+    openProject: "Abra um projeto para criar um Mini Vlog.",
+    startFailed: "O Mini Vlog não conseguiu iniciar: {detail}. Reinstale o plugin se o problema continuar.",
+    foldersNotFound: "as pastas do plugin não foram encontradas",
+    adapterNeeded: "Esta versão do Selects precisa de um adaptador {name} atualizado.",
+    stepFailed: "O Selects não conseguiu concluir esta etapa.",
+    busy: "O Selects está ocupado e não respondeu a tempo. Aguarde um momento e pressione “Atualizar”. Se continuar acontecendo, reinicie o Selects.",
+    invFailed: "Ainda não foi possível ler os clipes deste projeto. Pressione “Atualizar”.",
+    invPartial: "Ainda não foi possível ler todos os clipes. Pressione “Atualizar”.",
+    sizesLoading: "Os tamanhos dos clipes ainda estão carregando…",
+    refreshFailed: "Não foi possível atualizar a lista de clipes: {detail}",
+    details: "Detalhes: {detail}",
+    refresh: "Atualizar",
+    refreshing: "Atualizando",
+    checkingClipsNow: "Verificando clipes…",
+    checkingClips: "Verificando clipes",
+    listening: "Procurando a batida",
+    working: "Trabalhando",
+    stillReading: "Ainda lendo os clipes deste projeto… Isto se atualiza automaticamente.",
+    noFootage: "Este projeto ainda não tem vídeos analisados nem fotos. Adicione clipes de vídeo e analise-os, ou adicione fotos; a lista é atualizada automaticamente.",
+    turnOnPhotos: "Ative “Usar fotos” em “Avançado” para criar com as fotos deste projeto.",
+    noClipsSelected: "Nenhum clipe selecionado. Escolha clipes em “Avançado”.",
+    gap: " ",
+    ready: "Pronto: {summary}",
+    clips: { one: "{count} clipe", many: "{count} de clipes", other: "{count} clipes" },
+    clipsSelected: { one: "{selected} de {count} clipe selecionado", many: "{selected} de {count} de clipes selecionados", other: "{selected} de {count} clipes selecionados" },
+    photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
+    photosSelected: { one: "{selected} de {count} foto selecionada", many: "{selected} de {count} de fotos selecionadas", other: "{selected} de {count} fotos selecionadas" },
+    aboutSeconds: "cerca de {seconds} s",
+    notAnalysed: { one: "{count} clipe ainda não analisado", many: "{count} de clipes ainda não analisados", other: "{count} clipes ainda não analisados" },
+    analysing: { one: "{count} clipe está sendo analisado. Isto se atualiza sozinho quando terminar.", many: "{count} de clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem.", other: "{count} clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem." },
+    notAnalysedAnalyse: { one: "{count} clipe ainda não foi analisado. Analise-o no Selects para usá-lo aqui.", many: "{count} de clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui.", other: "{count} clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui." },
+    notAnalysedMaybe: { one: "{count} clipe ainda não foi analisado. Se o Selects estiver analisando, isto se atualiza sozinho.", many: "{count} de clipes ainda não foram analisados. Se o Selects estiver analisando, isto se atualiza sozinho.", other: "{count} clipes ainda não foram analisados. Se o Selects estiver analisando, isto se atualiza sozinho." },
+    analysisFailed: { one: "Não foi possível analisar {count} clipe.", many: "Não foi possível analisar {count} de clipes.", other: "Não foi possível analisar {count} clipes." },
+    noteAnalysing: { one: "{count} clipe em análise", many: "{count} de clipes em análise", other: "{count} clipes em análise" },
+    noteFailed: { one: "{count} clipe não pôde ser analisado", many: "{count} de clipes não puderam ser analisados", other: "{count} clipes não puderam ser analisados" },
+    title: "Título",
+    titleStyle: "Estilo do título",
+    titlePreview: "Prévia do título",
+    previewUnavailable: "Prévia indisponível; o título ainda será adicionado ao Draft.",
+    loading: "Carregando…",
+    "preset.mini-vlog": "Mini vlog",
+    "preset.day-in-my-life": "Um dia na minha vida",
+    "preset.small-glimpse": "Um pequeno vislumbre",
+    "field.mini-vlog.big": "Palavra grande",
+    "field.mini-vlog.small": "Palavra pequena",
+    "field.day-in-my-life.year": "Ano",
+    "field.day-in-my-life.big": "Palavras grandes",
+    "field.day-in-my-life.tag": "Frase curta",
+    "field.small-glimpse.top": "Linha de cima",
+    "field.small-glimpse.big": "Palavra grande",
+    "field.small-glimpse.bottom": "Linha de baixo",
+    fieldCount: "{label} ({used}/{max})",
+    music: "Música",
+    track: "Faixa",
+    alternatives: "Alternativas",
+    ownMusic: "Sua própria música",
+    noMusic: "Sem música",
+    bpm: "{bpm} BPM",
+    installTools: "Instale o ffmpeg e o Node.js 18+ para ouvir a música ou usar sua própria faixa.",
+    sectionHint: "Trecho da música: arraste para escolher",
+    sectionLabel: "Trecho da música",
+    musicTooShort: "Esta faixa é curta demais para esta duração",
+    startsAt: "Começa em {seconds} s",
+    stopPreview: "Parar a prévia",
+    cancelPreview: "Cancelar a prévia",
+    previewSection: "Ouvir este trecho",
+    readingMusic: "Lendo a música…",
+    musicLengthUnknown: "A duração desta música é desconhecida",
+    startAtHook: "Começar no gancho",
+    beatFound: "Batida encontrada: {bpm} BPM. Os cortes seguem a batida.",
+    faintTempo: "Andamento encontrado ({bpm} BPM), mas a batida é fraca, então os cortes seguem aproximadamente uma grade de {bpm} BPM.",
+    outsideTempo: "O andamento ({bpm} BPM) está fora da faixa de 70–160 BPM, então os cortes usam uma sincronia aproximada.",
+    noBeat: "Nenhuma batida regular encontrada, então os cortes usam uma sincronia aproximada.",
+    length: "Duração",
+    "length.short": "Curta",
+    "length.standard": "Padrão",
+    "length.long": "Longa",
+    pace: "Cadência",
+    "pace.quick": "Rápida",
+    "pace.relaxed": "Tranquila",
+    "pace.groove": "Groove",
+    fitPartial: { one: "{length}: {fitted} de {count} plano cabem nesta faixa ({seconds} s)", many: "{length}: {fitted} de {count} de planos cabem nesta faixa ({seconds} s)", other: "{length}: {fitted} de {count} planos cabem nesta faixa ({seconds} s)" },
+    fitFull: { one: "{length}: {count} plano ({seconds} s)", many: "{length}: {count} de planos ({seconds} s)", other: "{length}: {count} planos ({seconds} s)" },
+    footageFits: { one: "Seu material dá para {fitted} de {count} plano ({seconds} s)", many: "Seu material dá para {fitted} de {count} de planos ({seconds} s)", other: "Seu material dá para {fitted} de {count} planos ({seconds} s)" },
+    seconds: "{seconds} s",
+    grooveTiming: "Groove em uma batida de {beat} s: planos de {hold}, {beat} e {eighth} s",
+    quickTwoBeats: "A {bpm} BPM, “Rápida” usa 2 batidas por plano.",
+    relaxedOneBeat: "A {bpm} BPM, “Tranquila” usa 1 batida por plano.",
+    grooveOneBeat: "A {bpm} BPM, “Groove” abre as frases com 1 batida.",
+    grooveTwoBeats: "A {bpm} BPM, “Groove” usa 2 batidas por plano.",
+    noMusicTiming: "Sem música: os planos usam uma sincronia aproximada ({timing}).",
+    faintTempoTiming: "Andamento encontrado ({bpm} BPM), mas a batida é fraca: os cortes seguem aproximadamente uma grade de {bpm} BPM ({timing}).",
+    outsideTempoTiming: "Andamento fora da faixa de 70–160 BPM ({bpm} BPM): os planos usam uma sincronia aproximada ({timing}).",
+    noBeatTiming: "Nenhuma batida regular encontrada: os planos usam uma sincronia aproximada ({timing}).",
+    advanced: "Avançado",
+    clipSound: "Som dos clipes",
+    "sound.off": "Desligado",
+    "sound.ambient": "Ambiente",
+    "sound.full": "Total",
+    softLook: "Look suave",
+    beatPunch: "Punch na batida",
+    usePhotos: "Usar fotos",
+    usePhotosOff: "“Usar fotos” está desativado",
+    silentVideo: "Vídeo sem som: sem música e com o som dos clipes em “Desligado”.",
+    chooseClips: "Escolher clipes",
+    chooseClipsCount: "Escolher clipes ({selected}/{total})",
+    all: "Todos",
+    none: "Nenhum",
+    photo: "Foto",
+    "shape.tall": "Vertical",
+    "shape.wide": "Horizontal",
+    "shape.square": "Quadrado",
+    "step.shots": "Escolhendo planos",
+    "step.music": "Preparando a música",
+    "step.draft": "Criando o Draft",
+    "step.look": "Adicionando título e look",
+    "step.open": "Abrindo o Draft",
+    progress: "Etapa {step}/{total} · {name} · {percent}%",
+    progressDetail: "Etapa {step}/{total} · {name} ({detail}) · {percent}%",
+    videosChecked: { one: "{done}/{count} vídeo verificado", many: "{done}/{count} de vídeos verificados", other: "{done}/{count} vídeos verificados" },
+    photosOnly: "só fotos",
+    stoppedAt: "Parou na etapa {step}/{total}, {name}: {detail}",
+    "fail.one-resource": "Adicione pelo menos 2 clipes ou fotos.",
+    "fail.too-few": "Seu material dá para menos de 4 planos.",
+    "fail.music-too-short": "Esta faixa é curta demais para 4 planos a partir deste trecho.",
+    noPlan: "Nenhum plano se encaixa neste material.",
+    addFootage: "Adicione material mais variado ou selecione mais clipes.",
+    addFootagePhotos: "Adicione material mais variado ou fotos, ou selecione mais clipes.",
+    retryUnchecked: { one: "Não foi possível verificar {count} vídeo; pressione “Criar” para tentar de novo.", many: "Não foi possível verificar {count} de vídeos; pressione “Criar” para tentar de novo.", other: "Não foi possível verificar {count} vídeos; pressione “Criar” para tentar de novo." },
+    typeBigWord: "Digite a palavra grande do título para criar.",
+    dropMusic: "Solte um arquivo de música ou escolha uma das faixas.",
+    musicLengthUnread: "Não foi possível ler a duração da sua música. Escolha outro arquivo ou uma das faixas.",
+    musicApprox: "Música adicionada; os cortes usam uma sincronia aproximada ({detail}).",
+    musicUnreadable: "Não foi possível ler este arquivo de música ({detail}). Escolha outro arquivo ou uma das faixas.",
+    beatFailed: "a detecção da batida falhou",
+    previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
+    previewNotCut: "não foi possível recortar a prévia",
+    noAudio: "nenhum áudio foi retornado",
+    draftNoId: "O Draft “{name}” pode ter sido salvo, mas o Selects não informou o ID dele. Abra-o na lista de Drafts ou crie de novo.",
+    draftEmpty: "O Draft “{name}” não tem clipes. Crie de novo.",
+    finishFailed: "O Draft foi criado, mas o título, o look e o som dos clipes ainda não foram aplicados: {detail}. Pressione “Concluir título e look” para tentar de novo.",
+    openFailed: "O Draft está pronto, mas não pôde ser aberto: {detail}. Use o link abaixo ou abra-o pela lista de Drafts.",
+    draftCreated: "Draft criado. Selecione o título para editar as palavras, as cores, o tamanho ou a posição; um clipe para ajustar o enquadramento, a suavidade, o movimento ou o volume; e a música para mudar o volume. Criar de novo gera um novo Draft e não mantém as edições do Inspetor.",
+    draftCreatedAdding: "Draft criado; adicionando título e look…",
+    draftNotFinished: "Draft criado, mas o título, o look e o som dos clipes ainda não foram aplicados.",
+    openDraft: "Abrir o novo Draft",
+    copyLink: "Copiar o link do novo Draft",
+    shortened: { one: "Seu material dá para {fitted} de {count} plano, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa.", many: "Seu material dá para {fitted} de {count} de planos, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa.", other: "Seu material dá para {fitted} de {count} planos, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa." },
+    note: "Observação: {detail}.",
+    unchecked: { one: "Não foi possível verificar {count} vídeo; ele foi ignorado. Crie de novo para tentar outra vez.", many: "Não foi possível verificar {count} de vídeos; eles foram ignorados. Crie de novo para tentar outra vez.", other: "Não foi possível verificar {count} vídeos; eles foram ignorados. Crie de novo para tentar outra vez." },
+    createsDraft: "Cria um novo Draft 16:9",
+    finishTitle: "Concluir título e look",
+    anotherVersion: "Testar outros planos",
+    build: "Criar",
+    building: "Criando",
+    "param.mainColor": "Cor principal",
+    "param.secondColor": "Cor secundária",
+    "param.shadow": "Sombra",
+    "param.size": "Tamanho (%)",
+    "param.x": "Posição horizontal (%)",
+    "param.y": "Posição vertical (%)",
+    "param.sparkles": "Brilhos",
+    "param.stars": "Estrelas",
+    "param.motion": "Movimento",
+    "param.motionStrength": "Intensidade do movimento",
+    "param.punch": "Punch",
+    "param.softness": "Suavidade",
+    "motion.push-in": "Aproximar",
+    "motion.pull-out": "Afastar",
+    "motion.drift-left": "Deslizar para a esquerda",
+    "motion.drift-right": "Deslizar para a direita",
+    "motion.drift-up": "Deslizar para cima",
+    "motion.drift-down": "Deslizar para baixo",
+    "motion.tilt": "Inclinar",
+    "motion.push-drift": "Aproximar e deslizar",
+  },
+  tr: {
+    openProject: "Mini Vlog oluşturmak için bir proje açın.",
+    startFailed: "Mini Vlog başlatılamadı: {detail}. Sorun sürerse eklentiyi yeniden yükleyin.",
+    foldersNotFound: "eklenti klasörleri bulunamadı",
+    adapterNeeded: "Bu Selects sürümü güncel bir {name} bağdaştırıcısı gerektiriyor.",
+    stepFailed: "Selects bu adımı tamamlayamadı.",
+    busy: "Selects meşgul ve zamanında yanıt vermedi. Biraz bekleyip “Yenile”ye basın. Bu tekrarlanırsa Selects'i yeniden başlatın.",
+    invFailed: "Bu projenin klipleri henüz okunamadı. “Yenile”ye basın.",
+    invPartial: "Kliplerin hepsi henüz okunamadı. “Yenile”ye basın.",
+    sizesLoading: "Klip boyutları hâlâ yükleniyor…",
+    refreshFailed: "Klip listesi yenilenemedi: {detail}",
+    details: "Ayrıntılar: {detail}",
+    refresh: "Yenile",
+    refreshing: "Yenileniyor",
+    checkingClipsNow: "Klipler kontrol ediliyor…",
+    checkingClips: "Klipler kontrol ediliyor",
+    listening: "Ritim aranıyor",
+    working: "Çalışıyor",
+    stillReading: "Bu projenin klipleri hâlâ okunuyor… Bu otomatik olarak güncellenir.",
+    noFootage: "Bu projede henüz analiz edilmiş video veya fotoğraf yok. Video klipleri ekleyip analiz edin ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
+    turnOnPhotos: "Bu projenin fotoğraflarından oluşturmak için “Gelişmiş” bölümünde “Fotoğrafları kullan” seçeneğini açın.",
+    noClipsSelected: "Klip seçilmedi. “Gelişmiş” bölümünden klip seçin.",
+    gap: " ",
+    ready: "Hazır: {summary}",
+    clips: { one: "{count} klip", other: "{count} klip" },
+    clipsSelected: { one: "{count} klipten {selected} tanesi seçili", other: "{count} klipten {selected} tanesi seçili" },
+    photos: { one: "{count} fotoğraf", other: "{count} fotoğraf" },
+    photosSelected: { one: "{count} fotoğraftan {selected} tanesi seçili", other: "{count} fotoğraftan {selected} tanesi seçili" },
+    aboutSeconds: "yaklaşık {seconds} sn",
+    notAnalysed: { one: "{count} klip henüz analiz edilmedi", other: "{count} klip henüz analiz edilmedi" },
+    analysing: { one: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir.", other: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir." },
+    notAnalysedAnalyse: { one: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin.", other: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin." },
+    notAnalysedMaybe: { one: "{count} klip henüz analiz edilmedi. Selects analiz ediyorsa bu otomatik olarak güncellenir.", other: "{count} klip henüz analiz edilmedi. Selects analiz ediyorsa bu otomatik olarak güncellenir." },
+    analysisFailed: { one: "{count} klip analiz edilemedi.", other: "{count} klip analiz edilemedi." },
+    noteAnalysing: { one: "{count} klip analiz ediliyor", other: "{count} klip analiz ediliyor" },
+    noteFailed: { one: "{count} klip analiz edilemedi", other: "{count} klip analiz edilemedi" },
+    title: "Başlık",
+    titleStyle: "Başlık stili",
+    titlePreview: "Başlık önizlemesi",
+    previewUnavailable: "Önizleme kullanılamıyor; başlık yine de Draft'a eklenir.",
+    loading: "Yükleniyor…",
+    "preset.mini-vlog": "Mini vlog",
+    "preset.day-in-my-life": "Hayatımdan bir gün",
+    "preset.small-glimpse": "Küçük bir an",
+    "field.mini-vlog.big": "Büyük kelime",
+    "field.mini-vlog.small": "Küçük kelime",
+    "field.day-in-my-life.year": "Yıl",
+    "field.day-in-my-life.big": "Büyük kelimeler",
+    "field.day-in-my-life.tag": "Kısa satır",
+    "field.small-glimpse.top": "Üst satır",
+    "field.small-glimpse.big": "Büyük kelime",
+    "field.small-glimpse.bottom": "Alt satır",
+    fieldCount: "{label} ({used}/{max})",
+    music: "Müzik",
+    track: "Parça",
+    alternatives: "Alternatifler",
+    ownMusic: "Kendi müziğiniz",
+    noMusic: "Müzik yok",
+    bpm: "{bpm} BPM",
+    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg ve Node.js 18+ yükleyin.",
+    sectionHint: "Müzik bölümü — seçmek için sürükleyin",
+    sectionLabel: "Müzik bölümü",
+    musicTooShort: "Bu parça bu uzunluk için çok kısa",
+    startsAt: "{seconds} sn'de başlar",
+    stopPreview: "Önizlemeyi durdur",
+    cancelPreview: "Önizlemeyi iptal et",
+    previewSection: "Bu bölümü önizle",
+    readingMusic: "Müzik okunuyor…",
+    musicLengthUnknown: "Bu müziğin uzunluğu bilinmiyor",
+    startAtHook: "Nakarattan başla",
+    beatFound: "Ritim bulundu: {bpm} BPM. Kesmeler ritmi izler.",
+    faintTempo: "Tempo bulundu ({bpm} BPM) ama ritim zayıf, bu yüzden kesmeler yaklaşık olarak {bpm} BPM'lik bir ızgarayı izler.",
+    outsideTempo: "Temposu ({bpm} BPM) 70–160 BPM aralığının dışında, bu yüzden kesmeler yaklaşık zamanlama kullanır.",
+    noBeat: "Düzenli bir ritim bulunamadı, bu yüzden kesmeler yaklaşık zamanlama kullanır.",
+    length: "Uzunluk",
+    "length.short": "Kısa",
+    "length.standard": "Standart",
+    "length.long": "Uzun",
+    pace: "Kurgu hızı",
+    "pace.quick": "Hızlı",
+    "pace.relaxed": "Sakin",
+    "pace.groove": "Groove",
+    fitPartial: { one: "{length}: {count} çekimden {fitted} tanesi bu parçaya sığıyor ({seconds} sn)", other: "{length}: {count} çekimden {fitted} tanesi bu parçaya sığıyor ({seconds} sn)" },
+    fitFull: { one: "{length}: {count} çekim ({seconds} sn)", other: "{length}: {count} çekim ({seconds} sn)" },
+    footageFits: { one: "Görüntüleriniz {count} çekimden {fitted} tanesine yetiyor ({seconds} sn)", other: "Görüntüleriniz {count} çekimden {fitted} tanesine yetiyor ({seconds} sn)" },
+    seconds: "{seconds} sn",
+    grooveTiming: "{beat} sn'lik vuruşta Groove: {hold}, {beat} ve {eighth} sn'lik çekimler",
+    quickTwoBeats: "{bpm} BPM'de “Hızlı” çekim başına 2 vuruş kullanır.",
+    relaxedOneBeat: "{bpm} BPM'de “Sakin” çekim başına 1 vuruş kullanır.",
+    grooveOneBeat: "{bpm} BPM'de “Groove” cümleleri 1 vuruşla açar.",
+    grooveTwoBeats: "{bpm} BPM'de “Groove” çekim başına 2 vuruş kullanır.",
+    noMusicTiming: "Müzik yok: çekimler yaklaşık zamanlama kullanır ({timing}).",
+    faintTempoTiming: "Tempo bulundu ({bpm} BPM) ama ritim zayıf: kesmeler yaklaşık olarak {bpm} BPM'lik bir ızgarayı izler ({timing}).",
+    outsideTempoTiming: "Tempo 70–160 BPM aralığının dışında ({bpm} BPM): çekimler yaklaşık zamanlama kullanır ({timing}).",
+    noBeatTiming: "Düzenli bir ritim bulunamadı: çekimler yaklaşık zamanlama kullanır ({timing}).",
+    advanced: "Gelişmiş",
+    clipSound: "Klip sesi",
+    "sound.off": "Kapalı",
+    "sound.ambient": "Ortam",
+    "sound.full": "Tam",
+    softLook: "Yumuşak görünüm",
+    beatPunch: "Ritim vuruşu",
+    usePhotos: "Fotoğrafları kullan",
+    usePhotosOff: "“Fotoğrafları kullan” kapalı",
+    silentVideo: "Sessiz video: müzik yok ve klip sesi “Kapalı”.",
+    chooseClips: "Klip seç",
+    chooseClipsCount: "Klip seç ({selected}/{total})",
+    all: "Tümü",
+    none: "Hiçbiri",
+    photo: "Fotoğraf",
+    "shape.tall": "Dikey",
+    "shape.wide": "Yatay",
+    "shape.square": "Kare",
+    "step.shots": "Çekimler seçiliyor",
+    "step.music": "Müzik hazırlanıyor",
+    "step.draft": "Draft oluşturuluyor",
+    "step.look": "Başlık ve görünüm ekleniyor",
+    "step.open": "Draft açılıyor",
+    progress: "Adım {step}/{total} · {name} · %{percent}",
+    progressDetail: "Adım {step}/{total} · {name} ({detail}) · %{percent}",
+    videosChecked: { one: "{done}/{count} video kontrol edildi", other: "{done}/{count} video kontrol edildi" },
+    photosOnly: "yalnızca fotoğraflar",
+    stoppedAt: "{step}/{total}. adımda durdu, {name}: {detail}",
+    "fail.one-resource": "En az 2 klip veya fotoğraf ekleyin.",
+    "fail.too-few": "Görüntüleriniz 4 çekimden azına yetiyor.",
+    "fail.music-too-short": "Bu parça, bu bölümden itibaren 4 çekim için çok kısa.",
+    noPlan: "Bu görüntülere uyan bir plan yok.",
+    addFootage: "Daha çeşitli görüntüler ekleyin veya daha fazla klip seçin.",
+    addFootagePhotos: "Daha çeşitli görüntüler veya fotoğraflar ekleyin ya da daha fazla klip seçin.",
+    retryUnchecked: { one: "{count} video kontrol edilemedi; yeniden denemek için “Oluştur”a basın.", other: "{count} video kontrol edilemedi; yeniden denemek için “Oluştur”a basın." },
+    typeBigWord: "Oluşturmak için başlığın büyük kelimesini yazın.",
+    dropMusic: "Bir müzik dosyası bırakın veya hazır parçalardan birini seçin.",
+    musicLengthUnread: "Müziğinizin uzunluğu okunamadı. Başka bir dosya veya hazır parçalardan birini seçin.",
+    musicApprox: "Müzik eklendi; kesmeler yaklaşık zamanlama kullanır ({detail}).",
+    musicUnreadable: "Bu müzik dosyası okunamadı ({detail}). Başka bir dosya veya hazır parçalardan birini seçin.",
+    beatFailed: "ritim algılama başarısız oldu",
+    previewFailed: "Önizleme oynatılamadı: {detail}.",
+    previewNotCut: "önizleme kesilemedi",
+    noAudio: "ses geri gelmedi",
+    draftNoId: "“{name}” Draft'ı kaydedilmiş olabilir ama Selects kimliğini bildirmedi. Draft listesinden açın veya yeniden oluşturun.",
+    draftEmpty: "“{name}” Draft'ında hiç klip yok. Yeniden oluşturun.",
+    finishFailed: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı: {detail}. Yeniden denemek için “Başlığı ve görünümü tamamla”ya basın.",
+    openFailed: "Draft hazır ama açılamadı: {detail}. Aşağıdaki bağlantıyı kullanın veya Draft listesinden açın.",
+    draftCreated: "Draft oluşturuldu. Kelimelerini, renklerini, boyutunu veya konumunu düzenlemek için başlığı; kırpmasını, yumuşaklığını, hareketini veya ses düzeyini ayarlamak için bir klibi; ses seviyesini değiştirmek için müziği seçin. Yeniden oluşturmak yeni bir Draft oluşturur ve Denetçi düzenlemelerini korumaz.",
+    draftCreatedAdding: "Draft oluşturuldu; başlık ve görünüm ekleniyor…",
+    draftNotFinished: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı.",
+    openDraft: "Yeni Draft'ı aç",
+    copyLink: "Yeni Draft'ın bağlantısını kopyala",
+    shortened: { one: "Görüntüleriniz {count} çekimden {fitted} tanesine yetiyor, bu yüzden bu video yaklaşık {seconds} sn. Tam uzunluk için daha fazla klip veya fotoğraf ekleyin.", other: "Görüntüleriniz {count} çekimden {fitted} tanesine yetiyor, bu yüzden bu video yaklaşık {seconds} sn. Tam uzunluk için daha fazla klip veya fotoğraf ekleyin." },
+    note: "Not: {detail}.",
+    unchecked: { one: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun.", other: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun." },
+    createsDraft: "Yeni bir 16:9 Draft oluşturur",
+    finishTitle: "Başlığı ve görünümü tamamla",
+    anotherVersion: "Başka çekimler dene",
+    build: "Oluştur",
+    building: "Oluşturuluyor",
+    "param.mainColor": "Ana renk",
+    "param.secondColor": "İkinci renk",
+    "param.shadow": "Gölge",
+    "param.size": "Boyut (%)",
+    "param.x": "Yatay konum (%)",
+    "param.y": "Dikey konum (%)",
+    "param.sparkles": "Parıltılar",
+    "param.stars": "Yıldızlar",
+    "param.motion": "Hareket",
+    "param.motionStrength": "Hareket gücü",
+    "param.punch": "Vuruş",
+    "param.softness": "Yumuşaklık",
+    "motion.push-in": "Yakınlaş",
+    "motion.pull-out": "Uzaklaş",
+    "motion.drift-left": "Sola kay",
+    "motion.drift-right": "Sağa kay",
+    "motion.drift-up": "Yukarı kay",
+    "motion.drift-down": "Aşağı kay",
+    "motion.tilt": "Eğ",
+    "motion.push-drift": "Yakınlaş ve kay",
+  },
+  zh: {
+    openProject: "请先打开一个项目，再制作 Mini Vlog。",
+    startFailed: "Mini Vlog 无法启动：{detail}。如果问题持续，请重新安装插件。",
+    foldersNotFound: "找不到插件文件夹",
+    adapterNeeded: "此版本的 Selects 需要更新的 {name} 适配器。",
+    stepFailed: "Selects 无法完成这一步。",
+    busy: "Selects 正忙，未能及时响应。请稍等片刻再点击“刷新”。如果反复出现，请重启 Selects。",
+    invFailed: "暂时无法读取此项目的片段。请点击“刷新”。",
+    invPartial: "暂时无法读取全部片段。请点击“刷新”。",
+    sizesLoading: "仍在加载片段尺寸…",
+    refreshFailed: "无法刷新片段列表：{detail}",
+    details: "详情：{detail}",
+    refresh: "刷新",
+    refreshing: "正在刷新",
+    checkingClipsNow: "正在检查片段…",
+    checkingClips: "正在检查片段",
+    listening: "正在识别节拍",
+    working: "处理中",
+    stillReading: "仍在读取此项目的片段… 完成后会自动更新。",
+    noFootage: "此项目中还没有已分析的视频或照片。请添加视频片段并进行分析，或添加照片；这里会自动更新。",
+    turnOnPhotos: "请在“高级”中开启“使用照片”，即可用此项目的照片制作。",
+    noClipsSelected: "未选择片段。请在“高级”中选择片段。",
+    gap: "",
+    ready: "已就绪：{summary}",
+    clips: { other: "{count} 个片段" },
+    clipsSelected: { other: "已选 {selected}/{count} 个片段" },
+    photos: { other: "{count} 张照片" },
+    photosSelected: { other: "已选 {selected}/{count} 张照片" },
+    aboutSeconds: "约 {seconds} 秒",
+    notAnalysed: { other: "{count} 个片段尚未分析" },
+    analysing: { other: "正在分析 {count} 个片段。分析完成后会自动更新。" },
+    notAnalysedAnalyse: { other: "有 {count} 个片段尚未分析。请在 Selects 中分析后再在这里使用。" },
+    notAnalysedMaybe: { other: "有 {count} 个片段尚未分析。如果 Selects 正在分析，这里会自动更新。" },
+    analysisFailed: { other: "有 {count} 个片段无法分析。" },
+    noteAnalysing: { other: "{count} 个片段分析中" },
+    noteFailed: { other: "{count} 个片段无法分析" },
+    title: "标题",
+    titleStyle: "标题样式",
+    titlePreview: "标题预览",
+    previewUnavailable: "无法显示预览；标题仍会添加到 Draft。",
+    loading: "加载中…",
+    "preset.mini-vlog": "迷你 Vlog",
+    "preset.day-in-my-life": "我的一天",
+    "preset.small-glimpse": "小小一瞥",
+    "field.mini-vlog.big": "大字",
+    "field.mini-vlog.small": "小字",
+    "field.day-in-my-life.year": "年份",
+    "field.day-in-my-life.big": "大字",
+    "field.day-in-my-life.tag": "标语",
+    "field.small-glimpse.top": "上行文字",
+    "field.small-glimpse.big": "大字",
+    "field.small-glimpse.bottom": "下行文字",
+    fieldCount: "{label}（{used}/{max}）",
+    music: "音乐",
+    track: "曲目",
+    alternatives: "其他曲目",
+    ownMusic: "自己的音乐",
+    noMusic: "无音乐",
+    bpm: "{bpm} BPM",
+    installTools: "请安装 ffmpeg 和 Node.js 18+，才能试听音乐或使用自己的曲目。",
+    sectionHint: "音乐片段 — 拖动选择",
+    sectionLabel: "音乐片段",
+    musicTooShort: "此曲目对这个时长来说太短",
+    startsAt: "从 {seconds} 秒开始",
+    stopPreview: "停止试听",
+    cancelPreview: "取消试听",
+    previewSection: "试听这一段",
+    readingMusic: "正在读取音乐…",
+    musicLengthUnknown: "无法得知这段音乐的时长",
+    startAtHook: "从高潮开始",
+    beatFound: "已找到节拍：{bpm} BPM。剪切点跟随节拍。",
+    faintTempo: "已找到速度（{bpm} BPM），但节拍较弱，因此剪切点大致跟随 {bpm} BPM 的网格。",
+    outsideTempo: "其速度（{bpm} BPM）超出 70–160 BPM 范围，因此剪切点使用大致的时间。",
+    noBeat: "未找到稳定的节拍，因此剪切点使用大致的时间。",
+    length: "时长",
+    "length.short": "短",
+    "length.standard": "标准",
+    "length.long": "长",
+    pace: "剪辑节奏",
+    "pace.quick": "快速",
+    "pace.relaxed": "舒缓",
+    "pace.groove": "律动",
+    fitPartial: { other: "{length}：此曲目可容纳 {count} 个镜头中的 {fitted} 个（{seconds} 秒）" },
+    fitFull: { other: "{length}：{count} 个镜头（{seconds} 秒）" },
+    footageFits: { other: "你的素材够用 {count} 个镜头中的 {fitted} 个（{seconds} 秒）" },
+    seconds: "{seconds} 秒",
+    grooveTiming: "以 {beat} 秒的节拍律动：{hold}、{beat} 和 {eighth} 秒的镜头",
+    quickTwoBeats: "在 {bpm} BPM 下，“快速”每个镜头用 2 拍。",
+    relaxedOneBeat: "在 {bpm} BPM 下，“舒缓”每个镜头用 1 拍。",
+    grooveOneBeat: "在 {bpm} BPM 下，“律动”以 1 拍开始每个乐句。",
+    grooveTwoBeats: "在 {bpm} BPM 下，“律动”每个镜头用 2 拍。",
+    noMusicTiming: "无音乐：镜头使用大致的时间（{timing}）。",
+    faintTempoTiming: "已找到速度（{bpm} BPM），但节拍较弱：剪切点大致跟随 {bpm} BPM 的网格（{timing}）。",
+    outsideTempoTiming: "速度超出 70–160 BPM 范围（{bpm} BPM）：镜头使用大致的时间（{timing}）。",
+    noBeatTiming: "未找到稳定的节拍：镜头使用大致的时间（{timing}）。",
+    advanced: "高级",
+    clipSound: "片段原声",
+    "sound.off": "关闭",
+    "sound.ambient": "环境音",
+    "sound.full": "原音量",
+    softLook: "柔和色调",
+    beatPunch: "节拍冲击",
+    usePhotos: "使用照片",
+    usePhotosOff: "“使用照片”已关闭",
+    silentVideo: "无声视频：没有音乐，且片段原声为“关闭”。",
+    chooseClips: "选择片段",
+    chooseClipsCount: "选择片段（{selected}/{total}）",
+    all: "全选",
+    none: "全不选",
+    photo: "照片",
+    "shape.tall": "竖版",
+    "shape.wide": "横版",
+    "shape.square": "方形",
+    "step.shots": "挑选镜头",
+    "step.music": "准备音乐",
+    "step.draft": "创建 Draft",
+    "step.look": "添加标题和色调",
+    "step.open": "打开 Draft",
+    progress: "第 {step}/{total} 步 · {name} · {percent}%",
+    progressDetail: "第 {step}/{total} 步 · {name}（{detail}）· {percent}%",
+    videosChecked: { other: "已检查 {done}/{count} 个视频" },
+    photosOnly: "仅照片",
+    stoppedAt: "在第 {step}/{total} 步（{name}）停止：{detail}",
+    "fail.one-resource": "请至少添加 2 个片段或照片。",
+    "fail.too-few": "你的素材不够 4 个镜头。",
+    "fail.music-too-short": "从这一段开始，此曲目不够 4 个镜头。",
+    noPlan: "没有适合这些素材的方案。",
+    addFootage: "请添加更多样的素材，或选择更多片段。",
+    addFootagePhotos: "请添加更多样的素材或照片，或选择更多片段。",
+    retryUnchecked: { other: "有 {count} 个视频无法检查；点击“生成”重试。" },
+    typeBigWord: "请输入标题的大字后再生成。",
+    dropMusic: "请拖入一个音乐文件，或选择内置曲目。",
+    musicLengthUnread: "无法读取你的音乐时长。请选择其他文件或内置曲目。",
+    musicApprox: "已添加音乐；剪切点使用大致的时间（{detail}）。",
+    musicUnreadable: "无法读取这个音乐文件（{detail}）。请选择其他文件或内置曲目。",
+    beatFailed: "节拍识别失败",
+    previewFailed: "无法播放试听：{detail}。",
+    previewNotCut: "无法截取试听片段",
+    noAudio: "没有返回音频",
+    draftNoId: "Draft“{name}”可能已保存，但 Selects 没有返回它的 ID。请从 Draft 列表中打开，或重新生成。",
+    draftEmpty: "Draft“{name}”中没有片段。请重新生成。",
+    finishFailed: "Draft 已创建，但标题、色调和片段原声尚未应用：{detail}。点击“完成标题和色调”重试。",
+    openFailed: "Draft 已就绪，但无法打开：{detail}。请使用下方链接，或从 Draft 列表中打开。",
+    draftCreated: "Draft 已创建。选中标题可编辑文字、颜色、大小或位置；选中片段可调整裁切、柔和度、运动或音量；选中音乐可调整其音量。重新生成会创建新的 Draft，不会保留在检查器中的编辑。",
+    draftCreatedAdding: "Draft 已创建；正在添加标题和色调…",
+    draftNotFinished: "Draft 已创建，但标题、色调和片段原声尚未应用。",
+    openDraft: "打开新的 Draft",
+    copyLink: "复制新 Draft 的链接",
+    shortened: { other: "你的素材只够 {count} 个镜头中的 {fitted} 个，所以这个视频约 {seconds} 秒。添加更多片段或照片即可达到完整时长。" },
+    note: "提示：{detail}。",
+    unchecked: { other: "有 {count} 个视频无法检查，已跳过。重新生成即可重试。" },
+    createsDraft: "创建一个新的 16:9 Draft",
+    finishTitle: "完成标题和色调",
+    anotherVersion: "换一组镜头",
+    build: "生成",
+    building: "正在生成",
+    "param.mainColor": "主色",
+    "param.secondColor": "辅色",
+    "param.shadow": "阴影",
+    "param.size": "大小 (%)",
+    "param.x": "水平位置 (%)",
+    "param.y": "垂直位置 (%)",
+    "param.sparkles": "闪光",
+    "param.stars": "星星",
+    "param.motion": "运动",
+    "param.motionStrength": "运动强度",
+    "param.punch": "冲击",
+    "param.softness": "柔和度",
+    "motion.push-in": "推近",
+    "motion.pull-out": "拉远",
+    "motion.drift-left": "向左平移",
+    "motion.drift-right": "向右平移",
+    "motion.drift-up": "向上平移",
+    "motion.drift-down": "向下平移",
+    "motion.tilt": "倾斜",
+    "motion.push-drift": "推近并平移",
+  },
+};
+// STRINGS:END
+
+// i18n runtime for style-app panels (selects-app-kit tools/i18n/i18n-runtime.ts). Paste it below the STRINGS block.
+const LANGS = ["de", "en", "es", "fr", "it", "ja", "ko", "pt", "tr", "zh"] as const;
+type Lang = (typeof LANGS)[number];
+type Msg = string | { [category: string]: string };
+type Vars = Record<string, string | number>;
+const I18N_TABLE = STRINGS as unknown as Record<string, Record<string, Msg>>;
+
+function normLang(raw: unknown): Lang | null {
+  const code = String(raw ?? "").toLowerCase().split(/[-_]/)[0];
+  return (LANGS as readonly string[]).includes(code) ? (code as Lang) : null;
+}
+// Call in the component body on every render: the app can switch languages while the panel is open.
+function uiLang(context?: { language?: string | null } | null): Lang {
+  const nav = typeof navigator === "undefined" ? "" : navigator.language;
+  return normLang(context?.language) ?? normLang(nav) ?? "en";
+}
+// Plural messages pick their form from vars.count; numbers are formatted for the language.
+function t(lang: Lang, key: string, vars: Vars = {}): string {
+  let msg: Msg | undefined = I18N_TABLE[lang]?.[key] ?? I18N_TABLE.en[key];
+  if (msg === undefined) return key;
+  if (typeof msg !== "string") {
+    const n = Number(vars.count);
+    msg = msg[new Intl.PluralRules(lang).select(Number.isFinite(n) ? n : 0)] ?? msg.other ?? "";
+  }
+  const nf = new Intl.NumberFormat(lang);
+  return msg.replace(/\{(\w+)\}/g, (whole: string, name: string) => {
+    const v = vars[name];
+    return v === undefined ? whole : typeof v === "number" ? nf.format(v) : v;
+  });
+}
+// Optional keys (preset/look labels by id): the English label from the JSON is the fallback.
+function tOr(lang: Lang, key: string, fallback: string, vars: Vars = {}): string {
+  return I18N_TABLE.en[key] === undefined ? fallback : t(lang, key, vars);
+}
+// Field limits count Hangul, kana, CJK and fullwidth characters as 2.
+const WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+function fieldLen(text: string): number {
+  let n = 0;
+  for (const ch of text) n += WIDE_RE.test(ch) ? 2 : 1;
+  return n;
+}
+
+// A message that follows the UI language: state keeps the function and every render calls it with the current language.
+type Say = (lang: Lang) => string;
+// An error whose text follows the UI language; `message` keeps the English text. SDK and script details stay English.
+function uiError(say: Say) { const e: any = new Error(say("en")); e.say = say; return e; }
+function sayError(lang: Lang, e: any): string { return typeof e?.say === "function" ? e.say(lang) : String(e?.message || e); }
+// A title field's text cut to its limit, counted like the counter next to it (fieldLen: Hangul counts 2).
+function fieldClip(text: string, max: number) {
+  let out = "", n = 0;
+  for (const ch of text) { const w = fieldLen(ch); if (n + w > max) break; out += ch; n += w; }
+  return out;
+}
+
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.1";
+const PLUGIN_VERSION = "0.1.0-alpha.2";
 const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
 const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
@@ -56,6 +1886,8 @@ const PUNCH_STRENGTH = 1;
 const PUNCH_PUSH = 1;
 // The title's Adjust defaults; the panel preview draws with the same values.
 const TITLE_LOOK = { shadow: 0.35, size: 100, x: 49, y: 52, sparkles: true };
+// The Motion choices of a photo clip in the Inspector. The labels are English for dev/driveAdapter.mjs; a Build writes
+// STRINGS `motion.<value>` in the UI language.
 const MOTION_OPTIONS = [
   { label: "Push in", value: "push-in" }, { label: "Pull out", value: "pull-out" },
   { label: "Drift left", value: "drift-left" }, { label: "Drift right", value: "drift-right" },
@@ -72,20 +1904,18 @@ const READ_TIMEOUT_SECONDS = 90;
 const BUSY_BACKOFF_MS = [5000, 15000];
 // Photo measuring inside the inventory call; a retry after a busy failure skips it (assemble measures unsized photos).
 const INVENTORY_MEASURE_MS = 4000;
-const MV_BUSY = "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.";
+// Its message is STRINGS `busy`.
 // A Project still loading (right after an app restart) can fail the first inventory read outright. That first read
 // is tried once more after INVENTORY_RETRY_MS (read-only; a busy failure already waited through its backoff).
 const INVENTORY_RETRY_MS = 2000;
-const MV_INV_FAILED = "Couldn't read this Project's clips yet. Press Refresh.";
+// The readiness line then says STRINGS `invFailed`.
 // A partial inventory (`incomplete`: some clip sizes unknown) holds Build, since a clip without a size is placed
 // uncropped. It is re-read with the 10 s poll, at most INCOMPLETE_POLL_MAX times in a row (about a minute); then
 // polling stops until Refresh starts the cycle again.
 const INCOMPLETE_POLL_MAX = 6;
-const MV_SIZES_LOADING = "Clip sizes are still loading…";
-const MV_INV_PARTIAL = "Couldn't read all clips yet. Press Refresh.";
+// Their messages are STRINGS `sizesLoading` (next to Build) and `invPartial` (the readiness line).
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
 const DRAFT_LOOKUP_MAX = 50;
-const LENGTH_LABELS: Record<string, string> = { short: "Short", standard: "Standard", long: "Long" };
 
 // mv-planner:start
 // Mini Vlog planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
@@ -805,17 +2635,18 @@ function mvPhotoMotions(picks, seed, sizes) {
   return out;
 }
 
-// Build steps shown in the panel's progress bar, with each step's share of the bar in percent.
+// Build steps shown in the panel's progress bar, with each step's share of the bar in percent. The panel names each
+// step in the UI language (STRINGS `step.<id>`).
 const MV_BUILD_STEPS = [
-  { id: 'shots', label: 'Choosing shots', weight: 40 },
-  { id: 'music', label: 'Preparing music', weight: 10 },
-  { id: 'draft', label: 'Creating Draft', weight: 25 },
-  { id: 'look', label: 'Adding title and look', weight: 20 },
-  { id: 'open', label: 'Opening Draft', weight: 5 },
+  { id: 'shots', weight: 40 },
+  { id: 'music', weight: 10 },
+  { id: 'draft', weight: 25 },
+  { id: 'look', weight: 20 },
+  { id: 'open', weight: 5 },
 ];
 
 // Progress for a step that is `fraction` done. Floors the percent so 100% only shows at the very end.
-function mvProgress(stepId, fraction, detail) {
+function mvProgress(stepId, fraction) {
   const i = MV_BUILD_STEPS.findIndex(s => s.id === stepId);
   if (i < 0) throw new Error('unknown build step ' + stepId);
   const total = MV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0);
@@ -823,13 +2654,7 @@ function mvProgress(stepId, fraction, detail) {
   const f = Math.min(1, Math.max(0, Number(fraction) || 0));
   const value = (before + MV_BUILD_STEPS[i].weight * f) / total;
   const percent = Math.floor(value * 100 + 1e-9);
-  const step = MV_BUILD_STEPS[i];
-  return {
-    value,
-    percent,
-    current: i,
-    label: 'Step ' + (i + 1) + '/' + MV_BUILD_STEPS.length + ' · ' + step.label + (detail ? ' (' + detail + ')' : '') + ' · ' + percent + '%',
-  };
+  return { id: stepId, value, percent, current: i };
 }
 // mv-planner:end
 
@@ -926,6 +2751,24 @@ var MV_FACES = {
 // Used only when a family's metrics are missing: a generic 0.56 em advance.
 var MV_FALLBACK_METRICS = { unitsPerEm: 1000, xHeight: 500, capHeight: 700, ascent: 720, descent: -220, dots: { i: [150, 650], j: [150, 650] }, advances: {} };
 var MV_FIT = 0.6; // max lockup width, fraction of canvas width
+// Korean titles. Text with Hangul is never tracked, a spaceless Hangul word is never hyphenated, and a wide character
+// (Hangul, kana, CJK, fullwidth) without an advance in the metrics counts as 1 em (Latin keeps the 0.56 em fallback).
+var MV_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
+var MV_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+// The macOS Korean system face per bundled family (by role: serif faces AppleMyungjo, the rest Apple SD Gothic Neo).
+var MV_KO_FACES = { "MV Instrument Serif Italic": "AppleMyungjo", "MV DM Serif Display": "AppleMyungjo", "MV Rounded Bold": "Apple SD Gothic Neo", "MV DM Mono": "Apple SD Gothic Neo" };
+function mvHasHangul(text) { return MV_HANGUL_RE.test(String(text || "")); }
+// The system Korean faces' ink in em: Hangul reaches about 0.86 em above the baseline and 0.12 em below it.
+var MV_WIDE_UP = 0.86, MV_WIDE_DOWN = 0.12;
+// Where a star or year centres on a line: the x-height band of Latin text, the middle of the ink of wide text.
+function mvBand(text, m) {
+  return MV_WIDE_RE.test(text) ? (MV_WIDE_UP - MV_WIDE_DOWN) / 2 : m.xHeight / m.unitsPerEm / 2;
+}
+// A text item's font stack: the bundled face, the Latin fallbacks, then the family's Korean face before the generic one.
+function mvFontStack(family) {
+  var ko = MV_KO_FACES[family] || "Apple SD Gothic Neo";
+  return '"' + family + '", "Helvetica Neue", Arial, "' + ko + '", ' + (ko === "AppleMyungjo" ? "serif" : "sans-serif");
+}
 var MV_MINI_WIDTH = (0.155 * 1920) / 1080; // "mini" advance width at size 100, fraction of height
 
 function mvFace(data, preset, role) {
@@ -938,7 +2781,7 @@ function mvFace(data, preset, role) {
 
 function mvAdvance(m, ch) {
   var a = m.advances[ch];
-  return typeof a === "number" ? a : 0.56 * m.unitsPerEm;
+  return typeof a === "number" ? a : (MV_WIDE_RE.test(ch) ? 1 : 0.56) * m.unitsPerEm;
 }
 
 // Advance width of `text` at `px` (kerning ignored), plus `tracking` em (optional, default 0) between letters
@@ -949,18 +2792,21 @@ function mvTextWidth(text, m, px, tracking = 0) {
   return (units * px) / m.unitsPerEm + (tracking || 0) * px * Math.max(0, text.length - 1);
 }
 
-// Ink extents above / below the baseline in em, from the characters present.
+// Ink extents above / below the baseline in em, from the characters present. Wide characters (Hangul) reach the ascent
+// and sit a little below the baseline, so they count like capitals and descenders.
 function mvInk(text, m) {
-  var up = m.xHeight, down = 0;
+  var up = m.xHeight, down = 0, wide = MV_WIDE_RE.test(text);
   if (/[A-Z0-9bdfhklt\u00c0-\u00de\u00df!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.ascent, m.capHeight);
   else if (/[ij]/.test(text)) up = Math.max(up, m.dots.i[1] + 0.07 * m.unitsPerEm);
   if (/[gjpqy,;()[\]{}|]/.test(text)) down = -m.descent;
+  if (wide) { up = Math.max(up, MV_WIDE_UP * m.unitsPerEm); down = Math.max(down, MV_WIDE_DOWN * m.unitsPerEm); }
   return { up: up / m.unitsPerEm, down: down / m.unitsPerEm };
 }
 
 // Boxes span the advance width (plus half the stroke, which grows outward), not the ink:
 // an italic's overhang can reach past box[2]. `tracking` and `stroke` are px for the SVG.
 function mvText(part, text, f, x, y, size, color) {
+  if (f.tracking && mvHasHangul(text)) f = Object.assign({}, f, { tracking: 0 });
   var w = mvTextWidth(text, f.m, size, f.tracking), ink = mvInk(text, f.m), s = f.stroke * size, h = s / 2;
   return { kind: "text", part: part, text: text, font: { family: f.family, style: f.style, weight: f.weight }, x: x, y: y, size: size, color: color, w: w,
     tracking: f.tracking * size, stroke: s, shade: f.shade, box: [x - h, y - ink.up * size - h, x + w + h, y + ink.down * size + h] };
@@ -980,12 +2826,13 @@ function mvLockupBounds(items) {
   return b;
 }
 
-// Split at the space nearest the middle; without a space, at the middle with a hyphen.
+// Split at the space nearest the middle; without a space, at the middle with a hyphen (never in a wide-character word,
+// which stays on one line).
 function mvSplit(text, hyphen) {
   var mid = text.length / 2, at = -1;
   for (var i = 0; i < text.length; i++) if (text.charAt(i) === " " && (at < 0 || Math.abs(i - mid) < Math.abs(at - mid))) at = i;
   if (at > 0) return [text.slice(0, at).trim(), text.slice(at + 1).trim()];
-  if (!hyphen) return [text];
+  if (!hyphen || MV_WIDE_RE.test(text)) return [text];
   var cut = Math.ceil(text.length / 2);
   return [text.slice(0, cut) + "-", text.slice(cut)];
 }
@@ -997,6 +2844,8 @@ function mvLayoutMini(data, fields, H, S, col) {
   // Footprint wins over x-height: at size 100 "mini" is 0.155 of a 16:9 canvas's width
   // (No.17 measures ~290-300 px at 1920x1080), expressed relative to the height.
   var Fb = ((MV_MINI_WIDTH * H) / mvTextWidth("mini", mb, 1, fb.tracking)) * S, xh = mb.xHeight / mb.unitsPerEm;
+  // The big word's tracking: none on Hangul (the size above still comes from the tracked "mini").
+  var tb = mvHasHangul(fields.big) ? 0 : fb.tracking;
   // Sparkled i/j are drawn dotless when the font has the glyph, so the sparkle replaces the dot.
   var chars = fields.big.split(""), marks = [];
   for (var i = 0; i < chars.length && marks.length < (data.sparkles === false ? 0 : 3); i++) {
@@ -1007,7 +2856,7 @@ function mvLayoutMini(data, fields, H, S, col) {
     if (typeof mb.advances[dotless] === "number") chars[i] = dotless;
   }
   var bigText = chars.join("");
-  var wb = mvTextWidth(bigText, mb, Fb, fb.tracking);
+  var wb = mvTextWidth(bigText, mb, Fb, tb);
   var big = mvText("big", bigText, fb, -wb / 2, 0, Fb, col.primary);
   items.push(big);
   var spark = 0.36 * xh * Fb;
@@ -1015,7 +2864,7 @@ function mvLayoutMini(data, fields, H, S, col) {
     var letter = fields.big.charAt(marks[k]), stem = mb.stems && mb.stems[letter];
     var dot = mb.dots[letter] || mb.dots.i;
     // Pen position of the letter: advances plus the tracking after each earlier letter.
-    var pen = big.x + mvTextWidth(bigText.slice(0, marks[k]), mb, Fb) + fb.tracking * Fb * marks[k];
+    var pen = big.x + mvTextWidth(bigText.slice(0, marks[k]), mb, Fb) + tb * Fb * marks[k];
     var px, py;
     if (bigText.charAt(marks[k]) !== letter && stem) {
       // Dotless letter: the sparkle sits on its stem top, its bottom 0.12 x-height above it.
@@ -1030,7 +2879,8 @@ function mvLayoutMini(data, fields, H, S, col) {
     items.push(mvMark("sparkle", "sparkle", px, py, spark, col.primary));
   }
   if (data.sparkles !== false && marks.length === 0) {
-    items.push(mvMark("sparkle", "sparkle", big.box[2] + 0.04 * Fb, big.box[1] - 0.06 * Fb, spark, col.primary));
+    // Hangul in the italic preset is slanted by the renderer past its advance box, so its sparkle moves further right.
+    items.push(mvMark("sparkle", "sparkle", big.box[2] + (mvHasHangul(bigText) ? 0.2 : 0.04) * Fb, big.box[1] - 0.06 * Fb, spark, col.primary));
   }
   if (fields.small) {
     // "vlog" is 43 % of "mini"'s width in No.17; 41 % (5 % smaller) keeps the one-weight face from reading heavy.
@@ -1054,7 +2904,7 @@ function mvLayoutDay(data, fields, H, S, col) {
   var l1 = lines.length > 1 ? lines[0] : "", l2 = lines.length > 1 ? lines[1] : lines[0];
   var row1 = [], row2 = [];
   // Row 1: star + year centred on the big line's x-height band, then the first big line.
-  var y1 = 0, band1 = y1 - (xh * Fb) / 2, x = 0;
+  var y1 = 0, band1 = y1 - mvBand(l1 || l2, m) * Fb, x = 0;
   if (fields.year) {
     // The star only takes room when it is drawn.
     if (accents) {
@@ -1078,7 +2928,7 @@ function mvLayoutDay(data, fields, H, S, col) {
   var b2 = mvText("big2", l2, fb, 0, y2, Fb, col.primary);
   row2.push(b2);
   if (fields.tag) {
-    var tag = mvSplit(fields.tag, false), band2 = y2 - (xh * Fb) / 2, tx = b2.box[2] + 0.08 * Fb;
+    var tag = mvSplit(fields.tag, false), band2 = y2 - mvBand(l2, m) * Fb, tx = b2.box[2] + 0.08 * Fb;
     var lead = 1.2 * Ft;
     // Two lines: the block (line 1 x-height top to line 2 baseline) is centred on the band.
     var t1y = tag.length > 1 ? band2 - (lead - xhT * Ft) / 2 : band2 + (xhT * Ft) / 2;
@@ -1110,7 +2960,7 @@ function mvLayoutGlimpse(data, fields, H, S, col) {
   var up2 = mvInk(lines[lines.length - 1], m).up;
   var y2 = first ? 0.66 * Fb + Math.max(0, (up2 - xh) * Fb) : 0;
   var starD = 0.4 * Fb;
-  if (data.sparkles !== false) items.push(mvMark("star", "star", 0.2 * Fb, y2 - (xh * Fb) / 2, starD, col.secondary));
+  if (data.sparkles !== false) items.push(mvMark("star", "star", 0.2 * Fb, y2 - mvBand(lines[lines.length - 1], m) * Fb, starD, col.secondary));
   last = mvText("big2", lines[lines.length - 1], fb, 0.5 * Fb, y2, Fb, col.primary);
   items.push(last);
   var topLine = first || last;
@@ -1193,7 +3043,8 @@ function mvStarPath(cx, cy, size) {
 }
 // mv-lockup:end
 
-// Why a plan cannot be built (planner mvPlanBuild reasons), as the panel says it.
+// Why a plan cannot be built (planner mvPlanBuild reasons). English for dev/driveAdapter.mjs; the panel says STRINGS
+// `fail.<reason>` in the UI language (`noPlan` for a reason not listed here).
 const MV_FAIL: Record<string, string> = {
   "one-resource": "Add at least 2 clips or photos",
   "too-few": "Your footage fits fewer than 4 shots",
@@ -1206,7 +3057,7 @@ function dq(value: string) { return '"' + String(value).replace(/(["\\`])/g, "\\
 function sq(value: string) { return "'" + String(value).replace(/'/g, "'\\''") + "'"; }
 function service(name: string, method: string) {
   const s = (window.parent as any)?.__DI__?.[name];
-  if (!s || typeof s[method] !== "function") throw new Error("This Selects build needs an updated " + name + " adapter.");
+  if (!s || typeof s[method] !== "function") throw uiError((l) => t(l, "adapterNeeded", { name }));
   return s;
 }
 async function readText(root: string, rel: string) {
@@ -1224,7 +3075,10 @@ const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; '
 const STALE = new Error("The Project changed during the build.");
 // A read-only call that still failed with a host-busy / deadline error after its retries.
 const isBusyError = (text: string) => /deadline|did not finish|hostWaitMs|before the script started/i.test(text);
-class BusyError extends Error {}
+class BusyError extends Error {
+  say: Say;
+  constructor() { super("Selects is busy and didn't answer in time."); this.say = (l) => t(l, "busy"); }
+}
 
 // A preset's fonts, one per family (a family may serve two roles), with the advance metrics the layout measures with.
 function presetFonts(p: any, all: any) {
@@ -1239,7 +3093,6 @@ function mvCurrentYear() { return String(new Date().getFullYear()); }
 // width, centred at 49 / 52 %), so the box never changes height while typing or switching presets.
 const PREVIEW_HEIGHT = 112;
 const PREVIEW_VIEW = [0.15 * MV_W, 0.2 * MV_H, 0.7 * MV_W, 0.64 * MV_H].join(" ");
-const PREVIEW_FALLBACK = '"Helvetica Neue", Arial, sans-serif';
 
 // The photo rids a build uses: the selected photos (all when `onlyPhotos` is null), none while Use photos is off.
 function selectedPhotoRidsOf(inventory: any, onlyPhotos: string[] | null, usePhotos: boolean): string[] {
@@ -1250,11 +3103,11 @@ function selectedPhotoRidsOf(inventory: any, onlyPhotos: string[] | null, usePho
 function photoCandsOf(inventory: any, onlyPhotos: string[] | null, usePhotos: boolean) {
   return selectedPhotoRidsOf(inventory, onlyPhotos, usePhotos).map((rid) => ({ rid, kind: "photo" }));
 }
-// A short orientation hint for the clip list; nothing when the frame size is unknown.
+// A short orientation hint for the clip list (STRINGS `shape.<hint>`); "" when the frame size is unknown.
 function shapeHint(width: number | null, height: number | null) {
   if (!(width! > 0) || !(height! > 0)) return "";
   const r = width! / height!;
-  return r < 0.9 ? "Tall" : r > 1.1 ? "Wide" : "Square";
+  return r < 0.9 ? "tall" : r > 1.1 ? "wide" : "square";
 }
 function fmtTime(seconds: number) {
   const s = Math.max(0, Math.round(seconds));
@@ -1277,8 +3130,30 @@ const WAVE_HEIGHT = 56;
 
 // Music section slider: waveform on a canvas with a draggable, snapped window over the chosen section.
 // While `audio` plays, a playhead follows its currentTime inside the window, redrawn on every animation frame.
-function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, onChange, disabled, audio }: {
-  peaks: number[]; total: number; section: number | null; videoSeconds: number; barSeconds: number;
+// Videos without analysis, from inventory.js's skipped counts: being analysed now, not analysed yet (never started; the
+// panel does not start analysis), or failed. known is false when the workflow read failed: pending clips then may or
+// may not be queued, so their wording is neutral and the panel keeps polling.
+function mvAnalysisCounts(skipped: any) {
+  const s = skipped || {}, total = s.unanalysed || 0;
+  if (s.analysing == null) return { total, analysing: 0, notAnalysed: total, failed: 0, known: false };
+  return { total, analysing: s.analysing || 0, notAnalysed: s.notAnalysed || 0, failed: s.failed || 0, known: s.statusKnown !== false };
+}
+// The sentences for the readiness line in the UI language ("" when every video is analysed).
+function mvAnalysisText(lang: Lang, c: any) {
+  return [
+    c.analysing ? t(lang, "analysing", { count: c.analysing }) : "",
+    c.notAnalysed ? (c.known ? t(lang, "notAnalysedAnalyse", { count: c.notAnalysed }) : t(lang, "notAnalysedMaybe", { count: c.notAnalysed })) : "",
+    c.failed ? t(lang, "analysisFailed", { count: c.failed }) : "",
+  ].filter(Boolean).join(t(lang, "gap"));
+}
+// The short facts for the end of the Ready line ("" for a count of 0).
+function mvAnalysisNotes(lang: Lang, c: any) {
+  return [c.analysing ? t(lang, "noteAnalysing", { count: c.analysing }) : "", c.notAnalysed ? t(lang, "notAnalysed", { count: c.notAnalysed }) : "",
+    c.failed ? t(lang, "noteFailed", { count: c.failed }) : ""];
+}
+
+function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, snap, onChange, disabled, audio }: {
+  lang: Lang; peaks: number[]; total: number; section: number | null; videoSeconds: number; barSeconds: number;
   snap: (v: number) => number | null; onChange: (v: number | null) => void; disabled: boolean; audio: HTMLAudioElement | null;
 }) {
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
@@ -1410,10 +3285,10 @@ function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, 
 
   return (
     <div>
-      <small style={{ display: "block", marginBottom: 4 }}>{"Music section — drag to choose"}</small>
-      <div ref={wrapRef} role="slider" tabIndex={disabled ? -1 : 0} aria-label="Music section"
+      <small style={{ display: "block", marginBottom: 4 }}>{t(lang, "sectionHint")}</small>
+      <div ref={wrapRef} role="slider" tabIndex={disabled ? -1 : 0} aria-label={t(lang, "sectionLabel")}
         aria-valuemin={Number((first ?? 0).toFixed(1))} aria-valuemax={Number((last ?? 0).toFixed(1))} aria-valuenow={Number((section ?? 0).toFixed(1))}
-        aria-valuetext={section == null ? "This track is too short for this length" : "Starts at " + section.toFixed(1) + " s"} aria-disabled={disabled || undefined}
+        aria-valuetext={section == null ? t(lang, "musicTooShort") : t(lang, "startsAt", { seconds: Math.round(section * 10) / 10 })} aria-disabled={disabled || undefined}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} onKeyDown={onKeyDown}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         style={{ position: "relative", width: "100%", minWidth: 0, height: WAVE_HEIGHT, touchAction: "none", userSelect: "none", outline: "none",
@@ -1428,7 +3303,27 @@ function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, 
   );
 }
 
-export default function Panel({ sdk, context, ui }: any) {
+// The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing. Shared by
+// the panel and a template run.
+async function locateRoots(sdk: any) {
+  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
+  const [plugin, data] = String(where?.stdout || "").split("\n").map((x: string) => x.trim());
+  if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
+  return { plugin, data };
+}
+
+// A template run (Clip highlights hands the footage over in `context.template`) builds out of sight; anything else is
+// the panel.
+export default function Panel(props: any) {
+  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <MiniVlogPanel {...props} />;
+}
+
+function MiniVlogPanel({ sdk, context, ui }: any) {
+  // The UI language, read on every render: Selects can switch languages while the panel is open.
+  const L = uiLang(context);
+  // The language at Build: Inspector labels written into the Draft use it and do not follow a later switch.
+  const langRef = React.useRef(L);
+  langRef.current = L;
   const projectId = context?.projectId ?? null;
   const projectRef = React.useRef(projectId);
   projectRef.current = projectId;
@@ -1464,6 +3359,7 @@ export default function Panel({ sdk, context, ui }: any) {
   const [busy, setBusy] = React.useState(false);
   // Single-flight guard: state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef(false);
+  // The one-call spinner's text: "checkingClips", "listening" (STRINGS keys) or "".
   const [step, setStep] = React.useState("");
   const [tools, setTools] = React.useState({ ffmpeg: true, node: true });
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
@@ -1471,8 +3367,9 @@ export default function Panel({ sdk, context, ui }: any) {
   // Build progress (bar + step list). `step` stays for the one-call spinner (own-music beat detection).
   const [progress, setProgress] = React.useState<any>(null);
   const progressRef = React.useRef<any>(null);
-  const advance = (id: string, fraction: number, detail?: string) => { const p = mvProgress(id, fraction, detail); progressRef.current = p; setProgress(p); };
-  const [status, setStatus] = React.useState<{ tone: string; text: string } | null>(null);
+  // `detail` is a message in the UI language (e.g. how many videos were checked).
+  const advance = (id: string, fraction: number, detail?: Say) => { const p = { ...mvProgress(id, fraction), detail }; progressRef.current = p; setProgress(p); };
+  const [status, setStatus] = React.useState<{ tone: string; say: Say } | null>(null);
   const [result, setResult] = React.useState<any>(null);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const previewTokenRef = React.useRef(0);
@@ -1496,8 +3393,8 @@ export default function Panel({ sdk, context, ui }: any) {
       if (opts.wanted && !opts.wanted()) break;
       r = await send(attempt);
     }
-    if (r.isError && !allowCommit && isBusyError(String(r.output || ""))) throw new BusyError(MV_BUSY);
-    if (r.isError || r.result == null) throw new Error(r.output || "Selects could not complete this step.");
+    if (r.isError && !allowCommit && isBusyError(String(r.output || ""))) throw new BusyError();
+    if (r.isError || r.result == null) throw r.output ? new Error(r.output) : uiError((l) => t(l, "stepFailed"));
     return r.result as any;
   };
   const fontB64 = (plugin: string, file: string) => {
@@ -1517,10 +3414,9 @@ export default function Panel({ sdk, context, ui }: any) {
     (document as any).fonts.add(face);
     registered.current.add(key);
   }
-  const stopAt = (e: any) => {
+  const stopAt = (e: any): Say => {
     const at = progressRef.current;
-    const where = at ? "Stopped at step " + (at.current + 1) + "/" + MV_BUILD_STEPS.length + ", " + MV_BUILD_STEPS[at.current].label + ": " : "";
-    return where + String(e?.message || e);
+    return (l) => (at ? t(l, "stoppedAt", { step: at.current + 1, total: MV_BUILD_STEPS.length, name: t(l, "step." + at.id), detail: sayError(l, e) }) : sayError(l, e));
   };
   const endRun = (pid: string) => {
     if (projectRef.current !== pid) return;
@@ -1534,7 +3430,8 @@ export default function Panel({ sdk, context, ui }: any) {
   const photoSizesRef = React.useRef<Record<string, { width: number; height: number }>>({});
   const invLoadingRef = React.useRef<string | null>(null);
   const mountedRef = React.useRef(true);
-  const [invError, setInvError] = React.useState<string | null>(null);
+  // The last inventory read's failure (busy: Selects did not answer in time).
+  const [invError, setInvError] = React.useState<{ busy?: boolean; say: Say } | null>(null);
   const [invLoading, setInvLoading] = React.useState(false);
   // Consecutive incomplete reads, and whether that count reached INCOMPLETE_POLL_MAX (polling stopped).
   const incompleteReadsRef = React.useRef(0);
@@ -1555,7 +3452,8 @@ export default function Panel({ sdk, context, ui }: any) {
       inv.resources = inv.resources || [];
       inv.photos = inv.photos || [];
       for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizesRef.current[ph.rid] = { width: ph.width, height: ph.height };
-      const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + (inv.skipped?.unanalysed || 0);
+      const sk = inv.skipped || {};
+      const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + [sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown].map((x) => String(x ?? "")).join(",");
       // A changed clip set drops the cached scene search so a build never uses stale candidates.
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
       if (inv.incomplete) { incompleteReadsRef.current++; if (incompleteReadsRef.current >= INCOMPLETE_POLL_MAX) setIncompleteStalled(true); }
@@ -1564,7 +3462,7 @@ export default function Panel({ sdk, context, ui }: any) {
       return "ok";
     } catch (e: any) {
       if (!(e instanceof BusyError)) console.warn("Mini Vlog: reading the Project's clips failed", e);
-      if (live()) setInvError(e instanceof BusyError ? MV_BUSY : String(e?.message || e));
+      if (live()) setInvError(e instanceof BusyError ? { busy: true, say: e.say } : { say: (l: Lang) => sayError(l, e) });
       return e instanceof BusyError ? "busy" : "failed";
     } finally {
       if (invLoadingRef.current === pid) invLoadingRef.current = null;
@@ -1586,9 +3484,7 @@ export default function Panel({ sdk, context, ui }: any) {
     let alive = true;
     (async () => {
       try {
-        const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-        const [plugin, data] = String(where?.stdout || "").split("\n").map((x) => x.trim());
-        if (!plugin || !data) throw new Error("the plugin folders could not be found");
+        const { plugin, data } = await locateRoots(sdk);
         if (!alive) return;
         setRoots({ plugin, data });
         // ffmpeg and node are only needed for previews and own music; bundled cues work without them.
@@ -1607,25 +3503,28 @@ export default function Panel({ sdk, context, ui }: any) {
         if (!alive) return;
         setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, softTsx, motionTsx, punchTsx });
         inventoryJsRef.current = inventoryJs;
-        setStep("Checking clips");
+        setStep("checkingClips");
         // The first read right after the app starts can fail while the Project is still loading: one retry.
         if (await loadInventory(projectId, () => alive) === "failed" && alive) {
           await new Promise((d) => setTimeout(d, INVENTORY_RETRY_MS));
           if (alive && projectRef.current === projectId) { setInvError(null); await loadInventory(projectId, () => alive); }
         }
       } catch (e: any) {
-        if (alive) setStatus({ tone: "error", text: "Mini Vlog could not start: " + (e?.message || e) + ". Reinstall the plugin if this persists." });
+        if (alive) setStatus({ tone: "error", say: (l: Lang) => t(l, "startFailed", { detail: sayError(l, e) }) });
       } finally { if (alive) setStep(""); }
     })();
     // Project switch or unmount stops a preview, including one still being prepared.
     return () => { alive = false; stopPreview(); };
   }, [projectId]);
 
-  // Clips still being analysed (or none yet): re-read the inventory every 10 s until they are ready.
+  // Clips being analysed (or no clips at all yet): re-read the inventory every 10 s until they are ready. Clips whose
+  // analysis was never started (or failed) do not poll on their own: nothing changes until the user analyses them in
+  // Selects, and coming back to the panel or Refresh picks that up. With an unknown status, unanalysed clips poll.
   // The effect re-arms on each new inventory, and stops on unmount, Project switch and while busy.
   // A Project with only photos has nothing to wait for, so it does not poll (each read measures new photos).
   // A partial read (`incomplete`: the Project was still loading) polls too, until the clip sizes are all known.
-  const needsPoll = !!inventory && ((!!inventory.incomplete && !incompleteStalled) || inventory.skipped?.unanalysed > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
+  const invAnalysis = mvAnalysisCounts(inventory?.skipped);
+  const needsPoll = !!inventory && ((!!inventory.incomplete && !incompleteStalled) || invAnalysis.analysing > 0 || (!invAnalysis.known && invAnalysis.total > 0) || (inventory.resources.length === 0 && !inventory.photos?.length && invAnalysis.total === 0));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
@@ -1665,7 +3564,7 @@ export default function Panel({ sdk, context, ui }: any) {
     return v === "@year" ? mvCurrentYear() : v;
   };
   const setField = (fl: any, value: string) => {
-    const v = String(value).slice(0, fl.max);
+    const v = fieldClip(String(value), fl.max);
     setFieldsBy((all) => ({ ...all, [preset]: { ...(all[preset] || {}), [fl.key]: v } }));
   };
   const titleFields: Record<string, string> = chosen ? Object.fromEntries(chosen.fields.map((fl: any) => [fl.key, fieldText(preset, fl)])) : {};
@@ -1754,7 +3653,7 @@ export default function Panel({ sdk, context, ui }: any) {
   async function detectOwnMusic(file: { path: string; name: string }) {
     if (busyRef.current || !roots) return;
     busyRef.current = true;
-    setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("Listening for the beat");
+    setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("listening");
     try {
       // The decoded PCM (up to ~32 MB) is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit status.
       // The result goes to a file (a long track's onsets come close to the 48 KB shell output cap); stdout says ok.
@@ -1763,7 +3662,7 @@ export default function Panel({ sdk, context, ui }: any) {
         + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
       const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
       const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
-      if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw new Error(done.error || r.stderr || "beat detection failed");
+      if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw done.error || r.stderr ? new Error(done.error || r.stderr) : uiError((l) => t(l, "beatFailed"));
       const g = JSON.parse(await readText(roots.data, "own-music.json"));
       setOwnGrid(g);
       // What was found is shown under the file (ownBeatLine), next to where the music was chosen.
@@ -1778,8 +3677,8 @@ export default function Panel({ sdk, context, ui }: any) {
       } catch { duration = null; }
       setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });
       setStatus(duration
-        ? { tone: "info", text: "Music added; cuts use approximate timing (" + (e?.message || e) + ")." }
-        : { tone: "error", text: "Could not read this music file (" + (e?.message || e) + "). Choose another file or one of the tracks." });
+        ? { tone: "info", say: (l: Lang) => t(l, "musicApprox", { detail: sayError(l, e) }) }
+        : { tone: "error", say: (l: Lang) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
     } finally { busyRef.current = false; setBusy(false); setStep(""); }
   }
 
@@ -1812,12 +3711,12 @@ export default function Panel({ sdk, context, ui }: any) {
         + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64") + " && rm -f " + sq(base + ".mp3");
       const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 60000 });
       if (!live()) return;
-      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw new Error(r?.stderr || "the preview could not be cut");
+      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw r?.stderr ? new Error(r.stderr) : uiError((l) => t(l, "previewNotCut"));
       const b64 = (await readText(roots.data, "preview-" + token + ".b64")).replace(/\s+/g, "");
       // Best-effort cleanup of the encoded file; playback does not wait for it.
       void Promise.resolve(sdk.runShell({ summary: "Remove preview file", command: TOOL_PATH + "rm -f " + sq(base + ".b64"), timeoutMs: 10000 })).catch(() => {});
       if (!live()) return;
-      if (b64.length < 200) throw new Error("no audio came back");
+      if (b64.length < 200) throw uiError((l) => t(l, "noAudio"));
       let url: string;
       if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
         const bin = atob(b64), bytes = new Uint8Array(bin.length);
@@ -1834,7 +3733,7 @@ export default function Panel({ sdk, context, ui }: any) {
     } catch (e: any) {
       if (!live()) return;
       stopPreview();
-      setStatus({ tone: "error", text: "Could not play a preview: " + (e?.message || e) + "." });
+      setStatus({ tone: "error", say: (l: Lang) => t(l, "previewFailed", { detail: sayError(l, e) }) });
     }
   }
 
@@ -1844,7 +3743,8 @@ export default function Panel({ sdk, context, ui }: any) {
     // pageSize stays 4: hits are scene-level, so 8 adds almost no new times; the planner fills gaps with filler candidates.
     for (let i = 0; i < rids.length; i += SEARCH_BATCH) {
       // Only videos are searched (photos join without a search), so the count is in videos.
-      advance("shots", i / rids.length, i + "/" + rids.length + (rids.length === 1 ? " video" : " videos") + " checked");
+      const done = i;
+      advance("shots", i / rids.length, (l) => t(l, "videosChecked", { done, count: rids.length }));
       const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
       check();
       list.push(...r.candidates); failed.push(...r.failed);
@@ -1875,9 +3775,9 @@ export default function Panel({ sdk, context, ui }: any) {
 
   async function build(nextSeed: number) {
     if (busyRef.current || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
-    // The gate for the seed this build uses (Build: seed; Create another version: seed + 1).
+    // The gate for the seed this build uses (Build: seed; Try other shots: seed + 1).
     const gate = nextSeed === seed ? blockReason : anotherBlock;
-    if (gate) { setStatus({ tone: "error", text: gate }); return; }
+    if (gate) { setStatus({ tone: "error", say: gate }); return; }
     const pid = projectId;
     const check = () => { if (projectRef.current !== pid) throw STALE; };
     // Every input as it is at Build. The build and a later "Finish title and look" read only this.
@@ -1898,7 +3798,7 @@ export default function Panel({ sdk, context, ui }: any) {
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
       const cached = candidates && candidates.key === key ? candidates : null;
       // A build from photos alone has no videos to search; the step says so instead of a bare 0%.
-      const shotsDetail = rids.length ? undefined : "photos only";
+      const shotsDetail: Say | undefined = rids.length ? undefined : (l) => t(l, "photosOnly");
       if (shotsDetail) advance("shots", 0, shotsDetail);
       let found = cached;
       if (!cached || cached.failed.length) {
@@ -1918,8 +3818,11 @@ export default function Panel({ sdk, context, ui }: any) {
       // motion hits become a tie-break bonus on the role candidates first (mvMotionBonus).
       const plan: any = mvPlanBuild({ candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });
       if (!plan.ok) {
-        const retry = found.failed.length ? " Could not check " + found.failed.length + (found.failed.length === 1 ? " video; press Build to retry it." : " videos; press Build to retry them.") : "";
-        throw new Error((MV_FAIL[plan.reason] || "No plan fits this footage") + "." + (plan.reason === "too-few" ? " Add more varied footage" + (usePhotos ? " or photos" : "") + " or select more clips." : "") + retry);
+        const failed = found.failed.length;
+        // Whole sentences joined with `gap` (no space after a full stop in ja and zh).
+        throw uiError((l) => [MV_FAIL[plan.reason] ? t(l, "fail." + plan.reason) : t(l, "noPlan"),
+          plan.reason === "too-few" ? (usePhotos ? t(l, "addFootagePhotos") : t(l, "addFootage")) : "",
+          failed ? t(l, "retryUnchecked", { count: failed }) : ""].filter(Boolean).join(t(l, "gap")));
       }
       advance("music", 0);
       const music = frozen.musicPath == null ? null
@@ -1944,10 +3847,10 @@ export default function Panel({ sdk, context, ui }: any) {
         let saved: any = null;
         try { saved = await findDraftByName(pid, frozen.draftName); } catch { saved = null; }
         check();
-        if (!saved) throw lost || new Error("The Draft \"" + frozen.draftName + "\" may have been saved, but Selects did not report its id. Open it from the Drafts list, or build again.");
+        if (!saved) throw lost || uiError((l) => t(l, "draftNoId", { name: frozen.draftName }));
         a = { ...saved, notes: [...(a?.notes || []), "the Draft was found after its reply was lost"] };
       }
-      if (!(a.totalFrames > 0)) throw new Error("The Draft \"" + frozen.draftName + "\" has no clips. Build again.");
+      if (!(a.totalFrames > 0)) throw uiError((l) => t(l, "draftEmpty", { name: frozen.draftName }));
       // The planner drops shots when the footage cannot fill them; tell the user the real length at the Draft fps.
       const shortened = planShort(plan) ? { shots: plan.shots, of: fitted, seconds: a.totalFrames / a.fps } : null;
       advance("draft", 1);
@@ -1955,7 +3858,7 @@ export default function Panel({ sdk, context, ui }: any) {
       setResult(res);
       await decorate(res, check);
     } catch (e: any) {
-      if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) });
+      if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) });
     } finally { endRun(pid); }
   }
 
@@ -1976,7 +3879,7 @@ export default function Panel({ sdk, context, ui }: any) {
     const check = () => { if (projectRef.current !== pid) throw STALE; };
     busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
     try { await decorate(result, check); }
-    catch (e: any) { if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) }); }
+    catch (e: any) { if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) }); }
     finally { endRun(pid); }
   }
 
@@ -1985,6 +3888,8 @@ export default function Panel({ sdk, context, ui }: any) {
   async function decorate(res: any, check: () => void) {
     advance("look", 0);
     const f = res.frozen;
+    // Inspector labels are written into the Draft in the UI language at build time; they do not follow a later switch.
+    const bl = langRef.current;
     try {
       const p = assets.presets.presets.find((x: any) => x.id === f.preset);
       if (!p) throw new Error("the title preset " + f.preset + " is missing");
@@ -2001,15 +3906,17 @@ export default function Panel({ sdk, context, ui }: any) {
         provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart, pace: f.pace, length: f.length,
           seed: f.seed, clipSound: f.clipSound, punch: f.punch, hook: f.hook, groove: res.plan.groove || null, picks: res.plan.picks } };
       const editableParameters = [
-        ...p.fields.map((fl: any) => ({ key: fl.key, label: fl.label, type: "text", defaultValue: flat[fl.key] })),
-        { key: "primary", label: "Main color", type: "color", defaultValue: p.colors.primary },
-        { key: "secondary", label: "Second color", type: "color", defaultValue: p.colors.secondary },
-        { key: "shadow", label: "Shadow", type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
-        { key: "size", label: "Size (%)", type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },
-        { key: "x", label: "Horizontal position (%)", type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },
-        { key: "y", label: "Vertical position (%)", type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },
-        { key: "sparkles", label: f.preset === "mini-vlog" ? "Sparkles" : "Stars", type: "boolean", defaultValue: TITLE_LOOK.sparkles },
+        ...p.fields.map((fl: any) => ({ key: fl.key, label: tOr(bl, "field." + p.id + "." + fl.key, fl.label), type: "text", defaultValue: flat[fl.key] })),
+        { key: "primary", label: t(bl, "param.mainColor"), type: "color", defaultValue: p.colors.primary },
+        { key: "secondary", label: t(bl, "param.secondColor"), type: "color", defaultValue: p.colors.secondary },
+        { key: "shadow", label: t(bl, "param.shadow"), type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
+        { key: "size", label: t(bl, "param.size"), type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },
+        { key: "x", label: t(bl, "param.x"), type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },
+        { key: "y", label: t(bl, "param.y"), type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },
+        { key: "sparkles", label: f.preset === "mini-vlog" ? t(bl, "param.sparkles") : t(bl, "param.stars"), type: "boolean", defaultValue: TITLE_LOOK.sparkles },
       ];
+      const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));
+      const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };
       // Photos in this Draft and a planned motion for each of them (the title restricts none).
       const photoRids = [...new Set(res.plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
       const sizes: Record<string, { width: number; height: number }> = { ...photoSizesRef.current };
@@ -2026,11 +3933,11 @@ export default function Panel({ sdk, context, ui }: any) {
       // push-in only without a beat grid. decorate.js matches Main clip i to picks[i] and works out each clip's frames.
       const punch = f.punch ? { tsx: assets.punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: f.bpm ? 60 / f.bpm * res.fps : 0,
         punchFrames: mvPunchFrames({ bpm: f.bpm, fps: res.fps, sectionStart: f.sectionStart, videoEnd: res.videoEnd }), picks: res.plan.picks } : null;
-      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: MOTION_OPTIONS, byRid }, photoEffects: true, punch }), true);
+      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch, labels }), true);
       check();
     } catch (e: any) {
       if (e === STALE) throw e;
-      throw new Error("The Draft was created, but its title, look and clip sound are not applied yet: " + (e?.message || e) + ". Press Finish title and look to try again.");
+      throw uiError((l) => t(l, "finishFailed", { detail: sayError(l, e) }));
     }
     // The title is saved from here on, so a failed open must not offer the retry.
     setResult((r: any) => ({ ...r, decorated: true }));
@@ -2048,7 +3955,7 @@ export default function Panel({ sdk, context, ui }: any) {
       advance("open", 1);
     } catch (e: any) {
       if (e === STALE) throw e;
-      setStatus({ tone: "error", text: "The Draft is ready, but it could not be opened: " + (e?.message || e) + ". Use the link below or open it from the Drafts list." });
+      setStatus({ tone: "error", say: (l: Lang) => t(l, "openFailed", { detail: sayError(l, e) }) });
     }
   }
 
@@ -2079,7 +3986,7 @@ export default function Panel({ sdk, context, ui }: any) {
   const usedPhotoCount = usePhotos ? selectedPhotoRids.length : 0;
   // Once a build has searched the current selection (or nothing needs searching: no video selected), plan it for the
   // readiness line, so the fitted shot count and a failure reason show before Build. The allocation depends on the
-  // seed, so each button is gated with the seed it builds with: Build uses `seed`, Create another version `seed + 1`.
+  // seed, so each button is gated with the seed it builds with: Build uses `seed`, Try other shots `seed + 1`.
   const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");
   const readyPlans: any = React.useMemo(() => {
     if (!inventory || !fitted) return { build: null, another: null };
@@ -2095,68 +4002,70 @@ export default function Panel({ sdk, context, ui }: any) {
     return { build: planAt(seed), another: planAt(seed + 1) };
   }, [candidates, candKey, inventory, onlyPhotos, usePhotos, grid.bpm, grid.accepted, grid.approxBpm, grid.usableEnd, grid.onsets, pace, requested, musicStart, seed, fitted, selectedRids.length, beatPunch]);
   const readyPlan: any = readyPlans.build;
-  // Why a build with this readiness plan cannot run (null when it can).
-  const baseBlock: string | null = !inventory || !assets ? null
-    : inventory.incomplete ? MV_SIZES_LOADING
-    : !bigText ? "Type the title's big word to build."
-    : musicKind === "own" && !ownMusic ? "Drop a music file, or choose one of the tracks."
-    : musicKind === "own" && !ownDuration ? "The length of your music could not be read. Choose another file or one of the tracks."
-    : musicKind !== "none" && (!fitted || start == null) ? MV_FAIL["music-too-short"] + "."
-    : selectedRids.length + usedPhotoCount < 2 ? MV_FAIL["one-resource"] + "."
+  // Why a build with this readiness plan cannot run (null when it can), as a message in the UI language.
+  const baseBlock: Say | null = !inventory || !assets ? null
+    : inventory.incomplete ? (l) => t(l, "sizesLoading")
+    : !bigText ? (l) => t(l, "typeBigWord")
+    : musicKind === "own" && !ownMusic ? (l) => t(l, "dropMusic")
+    : musicKind === "own" && !ownDuration ? (l) => t(l, "musicLengthUnread")
+    : musicKind !== "none" && (!fitted || start == null) ? (l) => t(l, "fail.music-too-short")
+    : selectedRids.length + usedPhotoCount < 2 ? (l) => t(l, "fail.one-resource")
     : null;
-  const blockFor = (plan: any) => baseBlock || (plan && !plan.ok && !plan.retryable ? MV_FAIL[plan.reason] + "." : null);
+  const blockFor = (plan: any): Say | null => baseBlock || (plan && !plan.ok && !plan.retryable
+    ? (l) => (MV_FAIL[plan.reason] ? t(l, "fail." + plan.reason) : t(l, "noPlan")) : null);
   const blockReason = blockFor(readyPlan);
   const anotherBlock = blockFor(readyPlans.another);
   const ready = !!inventory && !!assets && !!roots;
   const canBuild = ready && !blockReason;
   const canBuildAnother = ready && !anotherBlock;
 
-  const pending = inventory?.skipped?.unanalysed || 0;
+  const analysisText = mvAnalysisText(L, invAnalysis);
   const clipCount = [
-    allRids.length ? (only ? selectedRids.length + " of " + allRids.length + " clips selected" : allRids.length + " clips") : "",
-    usePhotos && allPhotoRids.length ? (onlyPhotos ? selectedPhotoRids.length + " of " + allPhotoRids.length + " photos selected" : allPhotoRids.length + " photos") : "",
+    allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
+    usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
   ].filter(Boolean).join(" · ");
   const plannedSeconds = readyPlan && readyPlan.ok ? planSeconds(readyPlan) : videoSeconds;
-  const readiness = !inventory ? (invError ? (invError === MV_BUSY ? MV_BUSY : MV_INV_FAILED) : "Checking clips…")
-    : inventory.incomplete && incompleteStalled ? MV_INV_PARTIAL
-    : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? "Still reading this Project's clips… This updates automatically."
-    : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0
-      ? pending + " clips are still being analysed. This updates automatically when they finish."
-      : "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.")
-    : inventory.resources.length === 0 && !usePhotos ? (pending > 0 ? pending + " clips are still being analysed. " : "") + "Turn on Use photos in Advanced to build from this Project's photos."
-    : selectedRids.length === 0 && usedPhotoCount === 0 ? "No clips selected. Choose clips in Advanced."
-    : "Ready: " + clipCount + " · about " + Math.round(plannedSeconds) + " s" + (pending ? " · " + pending + " clips still being analysed" : "");
+  const readiness = !inventory ? (invError ? (invError.busy ? invError.say(L) : t(L, "invFailed")) : t(L, "checkingClipsNow"))
+    : inventory.incomplete && incompleteStalled ? t(L, "invPartial")
+    : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? t(L, "stillReading")
+    : inventory.resources.length === 0 && !allPhotoRids.length ? (analysisText || t(L, "noFootage"))
+    : inventory.resources.length === 0 && !usePhotos ? [analysisText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))
+    : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
+    : t(L, "ready", { summary: [clipCount, t(L, "aboutSeconds", { seconds: Math.round(plannedSeconds) }), ...mvAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
   // Requested vs fitted shots (spec 14.2), then the footage's own fit once it is known.
+  // Seconds shown with one decimal (formatted for the language by t()).
+  const tenths = (s: number) => Math.round(s * 10) / 10;
   const fitLine = !assets ? null
-    : musicKind !== "none" && !fitted ? MV_FAIL["music-too-short"] + "."
-    : (grooved ? grooveFit.beats < grooveFit.requestedBeats : fitted < requested) ? LENGTH_LABELS[length] + ": " + fitted + " of " + wanted + " shots fit this track (" + fittedSeconds.toFixed(1) + " s)"
-    : LENGTH_LABELS[length] + ": " + wanted + " shots (" + wantedSeconds.toFixed(1) + " s)";
+    : musicKind !== "none" && !fitted ? t(L, "fail.music-too-short")
+    : (grooved ? grooveFit.beats < grooveFit.requestedBeats : fitted < requested) ? t(L, "fitPartial", { length: t(L, "length." + length), fitted, count: wanted, seconds: tenths(fittedSeconds) })
+    : t(L, "fitFull", { length: t(L, "length." + length), count: wanted, seconds: tenths(wantedSeconds) });
   const footageLine = readyPlan && readyPlan.ok && planShort(readyPlan)
-    ? "Your footage fits " + readyPlan.shots + " of " + fitted + " shots (" + planSeconds(readyPlan).toFixed(1) + " s)" : null;
+    ? t(L, "footageFits", { fitted: readyPlan.shots, count: fitted, seconds: tenths(planSeconds(readyPlan)) }) : null;
   // The tempo guard's override, or fixed timing without a grid (spec 14.1). Groove's guards: below 86 bpm its phrase
   // opener holds 1 beat, above 150 bpm it plays 2 beats per shot.
   // Fixed timing without a grid: the shot length, or for Groove its 0.55 s beat and the 2-beat, 1-beat and 8th shots.
-  const timing = grooved ? "Groove on a " + shotSeconds.toFixed(2) + " s beat: " + (2 * shotSeconds).toFixed(2) + ", " + shotSeconds.toFixed(2) + " and " + (shotSeconds / 2).toFixed(3) + " s shots"
-    : shotSeconds.toFixed(2) + " s";
+  const hundredths = (s: number) => Math.round(s * 100) / 100;
+  const timing = grooved ? t(L, "grooveTiming", { beat: hundredths(shotSeconds), hold: hundredths(2 * shotSeconds), eighth: Math.round(shotSeconds / 2 * 1000) / 1000 })
+    : t(L, "seconds", { seconds: hundredths(shotSeconds) });
   // A tempo that was found (an accepted grid, or own music's approximate one) but is outside 70-160 bpm, else null. Used
   // only where no grid or approximate tempo applies, so it is always out of range there.
   const outsideBpm: number | null = grid.accepted ? grid.bpm : ownApprox ? ownGrid.bpm : null;
   const paceNote = !assets ? null
-    : guard.overridden ? "At " + Math.round(tempo) + " bpm " + (pace === "quick" ? "Quick uses 2 beats per shot" : pace === "relaxed" ? "Relaxed uses 1 beat per shot"
-      : guard.groove ? "Groove opens phrases with 1 beat" : "Groove uses 2 beats per shot") + "."
-    : !gridded ? (musicKind === "none" ? "No music: shots use approximate timing (" + timing + ")."
+    : guard.overridden ? (pace === "quick" ? t(L, "quickTwoBeats", { bpm: Math.round(tempo) }) : pace === "relaxed" ? t(L, "relaxedOneBeat", { bpm: Math.round(tempo) })
+      : guard.groove ? t(L, "grooveOneBeat", { bpm: Math.round(tempo) }) : t(L, "grooveTwoBeats", { bpm: Math.round(tempo) }))
+    : !gridded ? (musicKind === "none" ? t(L, "noMusicTiming", { timing })
       : musicKind === "own" && !ownGrid ? null
-      : approxTempo ? "Tempo found (" + Math.round(approxTempo) + " bpm) but the beat is faint: cuts follow a " + Math.round(approxTempo) + " bpm grid approximately (" + timing + ")."
-      : outsideBpm ? "Tempo outside 70\u2013160 bpm (" + Math.round(outsideBpm) + " bpm): shots use approximate timing (" + timing + ")."
-      : "No steady beat found: shots use approximate timing (" + timing + ").")
+      : approxTempo ? t(L, "faintTempoTiming", { bpm: Math.round(approxTempo), timing })
+      : outsideBpm ? t(L, "outsideTempoTiming", { bpm: Math.round(outsideBpm), timing })
+      : t(L, "noBeatTiming", { timing }))
     : null;
   // What the beat detection found in your own music, shown under the file (null while it runs, and after a failed
   // detection, whose reason goes to the status line).
   const ownBeatLine: string | null = musicKind !== "own" || !ownGrid || ownGrid.failed ? null
-    : gridded ? "Beat found: " + Math.round(grid.bpm) + " bpm. Cuts follow the beat."
-    : approxTempo ? "Tempo found (" + Math.round(approxTempo) + " bpm) but the beat is faint, so cuts follow a " + Math.round(approxTempo) + " bpm grid approximately."
-    : outsideBpm ? "Its tempo (" + Math.round(outsideBpm) + " bpm) is outside 70\u2013160 bpm, so cuts use approximate timing."
-    : "No steady beat found, so cuts use approximate timing.";
+    : gridded ? t(L, "beatFound", { bpm: Math.round(grid.bpm) })
+    : approxTempo ? t(L, "faintTempo", { bpm: Math.round(approxTempo) })
+    : outsideBpm ? t(L, "outsideTempo", { bpm: Math.round(outsideBpm) })
+    : t(L, "noBeat");
   const peaks: number[] = grid.peaks || [];
   const total = musicKind === "own" ? (ownDuration || 1) : (cue ? cue.duration : 1);
   const silent = musicKind === "none" && clipSound === "off";
@@ -2178,30 +4087,36 @@ export default function Panel({ sdk, context, ui }: any) {
       </button>
     );
   };
-  const bpmOf = (c: any) => Math.round(c.bpm) + " bpm";
+  const bpmOf = (c: any) => t(L, "bpm", { bpm: Math.round(c.bpm) });
   const tileFont = (p: any) => (p.fonts.find((x: any) => x.role === "big") || p.fonts[0]) as any;
+  const progressLabel = progress ? (progress.detail
+    ? t(L, "progressDetail", { step: progress.current + 1, total: MV_BUILD_STEPS.length, name: t(L, "step." + progress.id), detail: progress.detail(L), percent: progress.percent })
+    : t(L, "progress", { step: progress.current + 1, total: MV_BUILD_STEPS.length, name: t(L, "step." + progress.id), percent: progress.percent })) : "";
+  const stepText = step === "listening" ? t(L, "listening") : step === "checkingClips" ? t(L, "checkingClips") : "";
 
-  if (!projectId) return <ui.Message tone="error">Open a Project to build a Mini Vlog.</ui.Message>;
+  if (!projectId) return <ui.Message tone="error">{t(L, "openProject")}</ui.Message>;
 
   return (
+    // Korean wraps between words (keep-all); other languages keep their own line breaking.
+    <div style={{ wordBreak: L === "ko" ? "keep-all" : undefined }}>
     <ui.Stack gap={16}>
-      {inventory && invError ? <ui.Message tone="error">{invError === MV_BUSY ? MV_BUSY : "Could not refresh the clip list: " + invError}</ui.Message> : null}
-      <ui.Section title="Title">
-        <div role="group" aria-label="Title style" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {inventory && invError ? <ui.Message tone="error">{invError.busy ? invError.say(L) : t(L, "refreshFailed", { detail: invError.say(L) })}</ui.Message> : null}
+      <ui.Section title={t(L, "title")}>
+        <div role="group" aria-label={t(L, "titleStyle")} style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {presetList.map((p) => {
             const on = p.id === preset, face = tileFont(p);
             return (
               <button key={p.id} type="button" aria-pressed={on} disabled={busy} onClick={() => setPreset(p.id)}
                 style={{ flex: "1 1 80px", minWidth: 0, minHeight: 44, padding: "6px 6px", borderRadius: 8, cursor: busy ? "default" : "pointer", color: "inherit",
                   background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 16%, transparent)" : "transparent", border: on ? "2px solid var(--panel-accent, #f6c343)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))",
-                  fontFamily: '"' + face.family + '", ' + PREVIEW_FALLBACK, fontStyle: face.style, fontWeight: face.weight, fontSize: 15, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {p.label}
+                  fontFamily: mvFontStack(face.family), fontStyle: face.style, fontWeight: face.weight, fontSize: 15, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {tOr(L, "preset." + p.id, p.label)}
               </button>
             );
           })}
         </div>
         {/* Live preview: the same layout code as the Draft's title, over the middle of a 16:9 frame, in a box of fixed height. */}
-        <div aria-label="Title preview" style={{ height: PREVIEW_HEIGHT, borderRadius: 8, overflow: "hidden", background: "linear-gradient(135deg, #3b3531, #1f1c1a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div aria-label={t(L, "titlePreview")} style={{ height: PREVIEW_HEIGHT, borderRadius: 8, overflow: "hidden", background: "linear-gradient(135deg, #3b3531, #1f1c1a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           {assets && previewItems ? (
             <div style={{ position: "relative", width: "100%", height: PREVIEW_HEIGHT }}>
               {/* One SVG per shade layer, stacked, so "vlog" gets the lighter shadow like the Draft's title. */}
@@ -2209,85 +4124,85 @@ export default function Panel({ sdk, context, ui }: any) {
                 <svg key={l} width="100%" height={PREVIEW_HEIGHT} viewBox={PREVIEW_VIEW} preserveAspectRatio="xMidYMid meet"
                   style={{ display: "block", position: "absolute", left: 0, top: 0, filter: "drop-shadow(0 1px " + 3 * layer.shade + "px rgba(0, 0, 0, " + TITLE_LOOK.shadow * layer.shade + "))" }}>
                   {layer.items.map((it: any, i: number) => (it.kind === "text"
-                    ? <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={'"' + it.font.family + '", ' + PREVIEW_FALLBACK} fontStyle={it.font.style} fontWeight={it.font.weight}
+                    ? <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={mvFontStack(it.font.family)} fontStyle={it.font.style} fontWeight={it.font.weight}
                       stroke={it.stroke > 0 ? it.color : undefined} strokeWidth={it.stroke} strokeLinejoin="round"
                       style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: it.tracking } as any}>{it.text}</text>
                     : <path key={i} d={it.kind === "sparkle" ? mvSparklePath(it.x, it.y, it.size) : mvStarPath(it.x, it.y, it.size)} fill={it.color} />))}
                 </svg>
               ))}
             </div>
-          ) : <small style={{ color: "#d8d2cc" }}>{assets ? "Preview unavailable; the title is still added to the Draft." : "Loading…"}</small>}
+          ) : <small style={{ color: "#d8d2cc" }}>{assets ? t(L, "previewUnavailable") : t(L, "loading")}</small>}
         </div>
         {chosen ? chosen.fields.map((fl: any) => (
-          <ui.TextField key={preset + ":" + fl.key} label={fl.label + " (" + fieldText(preset, fl).length + "/" + fl.max + ")"} value={fieldText(preset, fl)}
+          <ui.TextField key={preset + ":" + fl.key} label={t(L, "fieldCount", { label: tOr(L, "field." + preset + "." + fl.key, fl.label), used: fieldLen(fieldText(preset, fl)), max: fl.max })} value={fieldText(preset, fl)}
             disabled={busy} onChange={(v: string) => setField(fl, v)} />
         )) : null}
       </ui.Section>
-      <ui.Section title="Music">
-        <div role="radiogroup" aria-label="Track" style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+      <ui.Section title={t(L, "music")}>
+        <div role="radiogroup" aria-label={t(L, "track")} style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
           {referenceCues.map((c) => trackRow(c.id, c.label, bpmOf(c)))}
-          {alternativeCues.length ? <small style={{ display: "block", margin: "4px 8px 0", fontSize: 11, color: "var(--panel-muted-fg)" }}>Alternatives</small> : null}
+          {alternativeCues.length ? <small style={{ display: "block", margin: "4px 8px 0", fontSize: 11, color: "var(--panel-muted-fg)" }}>{t(L, "alternatives")}</small> : null}
           {alternativeCues.map((c) => trackRow(c.id, c.label, bpmOf(c)))}
-          {canOwnMusic ? trackRow("own", "Your own music", "") : null}
-          {trackRow("none", "No music", "")}
+          {canOwnMusic ? trackRow("own", t(L, "ownMusic"), "") : null}
+          {trackRow("none", t(L, "noMusic"), "")}
         </div>
         {musicKind === "own" && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
           onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
         {ownBeatLine ? <ui.Message tone="muted">{ownBeatLine}</ui.Message> : null}
-        {!canOwnMusic ? <ui.Message tone="muted">Install ffmpeg and Node.js 18+ to preview music or use your own track.</ui.Message> : null}
+        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "installTools")}</ui.Message> : null}
         {musicKind !== "none" ? (ownMusic || cue ? (
           // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
           <div onKeyDown={(e) => { if (e.key === "Escape" && playState !== "idle") { e.preventDefault(); stopPreview(); } }}>
-            <SectionSlider peaks={peaks} total={total} section={start} videoSeconds={videoSeconds} barSeconds={tempo ? (4 * 60) / tempo : 1}
+            <SectionSlider lang={L} peaks={peaks} total={total} section={start} videoSeconds={videoSeconds} barSeconds={tempo ? (4 * 60) / tempo : 1}
               snap={snap} onChange={setSection} disabled={busy} audio={playingAudio} />
             <ui.Row gap={8} align="center">
               {/* The kit has no stop icon; "pause" marks stop, and the label says what it does. */}
               <ui.IconButton icon={playState === "playing" ? "pause" : playState === "loading" ? "loading" : "play"}
-                label={playState === "playing" ? "Stop preview" : playState === "loading" ? "Cancel preview" : "Preview this section"}
+                label={playState === "playing" ? t(L, "stopPreview") : playState === "loading" ? t(L, "cancelPreview") : t(L, "previewSection")}
                 onClick={preview} disabled={busy || !tools.ffmpeg || (playState === "idle" && start == null)} />
-              <span>{musicKind === "own" && !ownDuration ? (busy ? "Reading the music…" : "The length of this music is unknown")
-                : start == null ? "This track is too short for this length" : "Starts at " + start.toFixed(1) + " s"}</span>
+              <span>{musicKind === "own" && !ownDuration ? (busy ? t(L, "readingMusic") : t(L, "musicLengthUnknown"))
+                : start == null ? t(L, "musicTooShort") : t(L, "startsAt", { seconds: tenths(start) })}</span>
             </ui.Row>
-            {musicKind === "cue" ? <ui.Toggle label="Start at the hook" value={hook} onChange={setHook} disabled={busy} /> : null}
+            {musicKind === "cue" ? <ui.Toggle label={t(L, "startAtHook")} value={hook} onChange={setHook} disabled={busy} /> : null}
           </div>
         ) : null) : null}
       </ui.Section>
-      <ui.Section title="Length">
-        <ui.Segmented label="Length" value={length} onChange={(v: any) => setLength(v)} disabled={busy}
-          options={[{ label: "Short", value: "short" }, { label: "Standard", value: "standard" }, { label: "Long", value: "long" }]} />
-        <ui.Segmented label="Pace" value={pace} onChange={(v: any) => setPace(v)} disabled={busy}
-          options={[{ label: "Quick", value: "quick" }, { label: "Relaxed", value: "relaxed" }, { label: "Groove", value: "groove" }]} />
+      <ui.Section title={t(L, "length")}>
+        <ui.Segmented label={t(L, "length")} value={length} onChange={(v: any) => setLength(v)} disabled={busy}
+          options={[{ label: t(L, "length.short"), value: "short" }, { label: t(L, "length.standard"), value: "standard" }, { label: t(L, "length.long"), value: "long" }]} />
+        <ui.Segmented label={t(L, "pace")} value={pace} onChange={(v: any) => setPace(v)} disabled={busy}
+          options={[{ label: t(L, "pace.quick"), value: "quick" }, { label: t(L, "pace.relaxed"), value: "relaxed" }, { label: t(L, "pace.groove"), value: "groove" }]} />
         {fitLine ? <ui.Message tone="muted">{fitLine}</ui.Message> : null}
         {footageLine ? <ui.Message tone="muted">{footageLine}</ui.Message> : null}
         {paceNote ? <ui.Message tone="muted">{paceNote}</ui.Message> : null}
         <ui.Row gap={8} align="center">
           <ui.Message tone={!inventory && invError ? "error" : "muted"}>{readiness}</ui.Message>
-          <ui.Button variant="ghost" busy={invLoading} busyLabel="Refreshing" disabled={busy || !assets} onClick={refreshInventory}>Refresh</ui.Button>
+          <ui.Button variant="ghost" busy={invLoading} busyLabel={t(L, "refreshing")} disabled={busy || !assets} onClick={refreshInventory}>{t(L, "refresh")}</ui.Button>
         </ui.Row>
-        {!inventory && invError && invError !== MV_BUSY ? <ui.Message tone="muted">{"Details: " + invError}</ui.Message> : null}
+        {!inventory && invError && !invError.busy ? <ui.Message tone="muted">{t(L, "details", { detail: invError.say(L) })}</ui.Message> : null}
       </ui.Section>
-      <ui.Section title="Advanced">
-        <ui.Segmented label="Clip sound" value={clipSound} onChange={(v: any) => setClipSound(v)} disabled={busy}
-          options={[{ label: "Off", value: "off" }, { label: "Ambient", value: "ambient" }, { label: "Full", value: "full" }]} />
-        <ui.Toggle label="Soft look" value={soft} onChange={setSoft} disabled={busy} />
-        <ui.Toggle label="Beat punch" value={beatPunch} onChange={setBeatPunch} disabled={busy} />
-        <ui.Toggle label="Use photos" value={usePhotos} onChange={setUsePhotos} disabled={busy} />
-        {silent ? <ui.Message tone="muted">Silent video: no music and Clip sound is Off.</ui.Message> : null}
+      <ui.Section title={t(L, "advanced")}>
+        <ui.Segmented label={t(L, "clipSound")} value={clipSound} onChange={(v: any) => setClipSound(v)} disabled={busy}
+          options={[{ label: t(L, "sound.off"), value: "off" }, { label: t(L, "sound.ambient"), value: "ambient" }, { label: t(L, "sound.full"), value: "full" }]} />
+        <ui.Toggle label={t(L, "softLook")} value={soft} onChange={setSoft} disabled={busy} />
+        <ui.Toggle label={t(L, "beatPunch")} value={beatPunch} onChange={setBeatPunch} disabled={busy} />
+        <ui.Toggle label={t(L, "usePhotos")} value={usePhotos} onChange={setUsePhotos} disabled={busy} />
+        {silent ? <ui.Message tone="muted">{t(L, "silentVideo")}</ui.Message> : null}
         {inventory && (allRids.length || allPhotoRids.length) ? (
-          <div role="group" aria-label="Choose clips" style={{ minWidth: 0 }}>
+          <div role="group" aria-label={t(L, "chooseClips")} style={{ minWidth: 0 }}>
             <ui.Row gap={4} align="center">
               <small style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {"Choose clips (" + (selectedRids.length + selectedPhotoRids.length) + "/" + (allRids.length + allPhotoRids.length) + ")"}
+                {t(L, "chooseClipsCount", { selected: selectedRids.length + selectedPhotoRids.length, total: allRids.length + allPhotoRids.length })}
               </small>
-              <ui.Button variant="ghost" disabled={busy || (!only && !onlyPhotos)} onClick={() => { chooseClips(allRids); choosePhotos(allPhotoRids); }}>All</ui.Button>
-              <ui.Button variant="ghost" disabled={busy || selectedRids.length + selectedPhotoRids.length === 0} onClick={() => { chooseClips([]); choosePhotos([]); }}>None</ui.Button>
+              <ui.Button variant="ghost" disabled={busy || (!only && !onlyPhotos)} onClick={() => { chooseClips(allRids); choosePhotos(allPhotoRids); }}>{t(L, "all")}</ui.Button>
+              <ui.Button variant="ghost" disabled={busy || selectedRids.length + selectedPhotoRids.length === 0} onClick={() => { chooseClips([]); choosePhotos([]); }}>{t(L, "none")}</ui.Button>
             </ui.Row>
             {/* One row per clip: the name truncates, duration and shape stay visible; long lists scroll inside. */}
             <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
               {inventory.resources.map((r: any) => {
                 const on = selectedRids.includes(r.rid);
                 const hint = shapeHint(r.width, r.height);
-                const meta = fmtTime(r.duration) + (hint ? " · " + hint : "");
+                const meta = fmtTime(r.duration) + (hint ? " · " + t(L, "shape." + hint) : "");
                 return (
                   <label key={r.rid} title={r.name + " · " + meta}
                     style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, padding: "4px 6px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
@@ -2302,9 +4217,9 @@ export default function Panel({ sdk, context, ui }: any) {
                 const on = usePhotos && selectedPhotoRids.includes(r.rid);
                 const off = busy || !usePhotos;
                 const hint = shapeHint(r.width, r.height);
-                const meta = "Photo" + (hint ? " · " + hint : "");
+                const meta = t(L, "photo") + (hint ? " · " + t(L, "shape." + hint) : "");
                 return (
-                  <label key={r.rid} title={r.name + " · " + meta + (usePhotos ? "" : " · Use photos is off")}
+                  <label key={r.rid} title={r.name + " · " + meta + (usePhotos ? "" : " · " + t(L, "usePhotosOff"))}
                     style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, padding: "4px 6px", cursor: off ? "default" : "pointer", opacity: off ? 0.6 : 1 }}>
                     <input type="checkbox" checked={on} disabled={off} onChange={(e) => togglePhoto(r.rid, e.currentTarget.checked)} style={{ flexShrink: 0, margin: 0 }} />
                     <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
@@ -2316,35 +4231,322 @@ export default function Panel({ sdk, context, ui }: any) {
           </div>
         ) : null}
       </ui.Section>
-      {progress ? <ui.Progress value={progress.value} label={progress.label} steps={MV_BUILD_STEPS.map((s) => s.label)} current={progress.current} />
-        : busy ? <ui.Progress label={step || "Working"} /> : null}
-      {status ? <ui.Message tone={status.tone === "error" ? "error" : "muted"}>{status.text}</ui.Message> : null}
+      {progress ? <ui.Progress value={progress.value} label={progressLabel} steps={MV_BUILD_STEPS.map((s) => t(L, "step." + s.id))} current={progress.current} />
+        : busy ? <ui.Progress label={stepText || t(L, "working")} /> : null}
+      {status ? <ui.Message tone={status.tone === "error" ? "error" : "muted"}>{status.say(L)}</ui.Message> : null}
       {result && result.decorated ? (
         <ui.Message tone="success">
-          {"Draft created. Select the title to edit its words, colors, size or position, a clip to adjust its crop, softness, motion or sound level, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits."}
+          {t(L, "draftCreated")}
         </ui.Message>
-      ) : result && busy ? <ui.Message tone="muted">Draft created; adding title and look…</ui.Message>
-        : result ? <ui.Message tone="muted">Draft created, but its title, look and clip sound are not applied yet.</ui.Message> : null}
+      ) : result && busy ? <ui.Message tone="muted">{t(L, "draftCreatedAdding")}</ui.Message>
+        : result ? <ui.Message tone="muted">{t(L, "draftNotFinished")}</ui.Message> : null}
       {result?.link ? (
         <ui.Row gap={8} align="center">
-          <a href={result.link} target="_blank" rel="noreferrer">Open the new Draft</a>
-          <ui.IconButton icon="copy" label="Copy the link to the new Draft" onClick={() => { navigator.clipboard?.writeText(result.link).catch(() => null); }} />
+          <a href={result.link} target="_blank" rel="noreferrer">{t(L, "openDraft")}</a>
+          <ui.IconButton icon="copy" label={t(L, "copyLink")} onClick={() => { navigator.clipboard?.writeText(result.link).catch(() => null); }} />
         </ui.Row>
       ) : null}
       {result?.shortened ? (
         <ui.Message tone="muted">
-          {"Your footage fits " + result.shortened.shots + " of " + result.shortened.of + " shots, so this video is about " + result.shortened.seconds.toFixed(1) + " s. Add more clips or photos for the full length."}
+          {t(L, "shortened", { fitted: result.shortened.shots, count: result.shortened.of, seconds: tenths(result.shortened.seconds) })}
         </ui.Message>
       ) : null}
-      {result?.notes?.length ? <ui.Message tone="muted">{"Note: " + result.notes.join("; ") + "."}</ui.Message> : null}
-      {result?.unchecked ? <ui.Message tone="muted">{"Could not check " + result.unchecked + (result.unchecked === 1 ? " video; it was" : " videos; they were") + " skipped. Build again to retry " + (result.unchecked === 1 ? "it." : "them.")}</ui.Message> : null}
-      {blockReason && !busy ? <ui.Message tone="muted">{blockReason}</ui.Message> : null}
-      <ui.Message tone="muted">Creates a new 16:9 Draft</ui.Message>
+      {result?.notes?.length ? <ui.Message tone="muted">{t(L, "note", { detail: result.notes.join("; ") })}</ui.Message> : null}
+      {result?.unchecked ? <ui.Message tone="muted">{t(L, "unchecked", { count: result.unchecked })}</ui.Message> : null}
+      {blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}
+      <ui.Message tone="muted">{t(L, "createsDraft")}</ui.Message>
       <ui.Actions>
-        {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>Finish title and look</ui.Button> : null}
-        {result ? <ui.Button onClick={buildAnother} disabled={busy || !canBuildAnother}>Create another version</ui.Button> : null}
-        <ui.Button variant="primary" busy={busy} busyLabel={step || "Building"} onClick={() => build(seed)} disabled={busy || !canBuild}>Build</ui.Button>
+        {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>{t(L, "finishTitle")}</ui.Button> : null}
+        {result ? <ui.Button onClick={buildAnother} disabled={busy || !canBuildAnother}>{t(L, "anotherVersion")}</ui.Button> : null}
+        <ui.Button variant="primary" busy={busy} busyLabel={stepText || t(L, "building")} onClick={() => build(seed)} disabled={busy || !canBuild}>{t(L, "build")}</ui.Button>
       </ui.Actions>
     </ui.Stack>
+    </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Template runs. Clip highlights asks the person for the footage and a few choices, mounts this panel out of sight and
+// hands them over in `context.template`. The run builds a new Draft at once from only those files, as Build does with
+// every other setting at the panel's default, never opens it, and ends by calling `sdk.finishTemplate` exactly once.
+// ---------------------------------------------------------------------------
+type TemplateOutcome = { sequenceId: string } | { error: string };
+// The panel's first Build uses seed 1 ("Try other shots" counts up from there).
+const TEMPLATE_SEED = 1;
+// Files per alias call: a photo gets its own scratch Draft, which keeps each call well inside runScript's 30 s.
+const TEMPLATE_ALIAS_BATCH = 6;
+// An error whose message is written for the person; anything else a run throws becomes a plain "stopped" sentence.
+function templateIssue(message: string) { const e: any = new Error(message); e.forPerson = true; return e; }
+// Error text for the hidden frame's log (an Error logged as an object shows as {}).
+function errorText(e: any) { return String(e?.message || e); }
+
+// One panel script; a lost session is resent (never a committing call), and a read that comes back empty is read
+// again up to twice: an alias checkpoint ack can answer a pending read with undefined right after a script mints new
+// short ids, which a template run does for every handed file just before its inventory read.
+const EMPTY_READ = /Cannot read properties of (undefined|null)|is not iterable/;
+async function runTemplateStep(sdk: any, summary: string, script: string, allowCommit = false) {
+  for (let attempt = 0; ; attempt++) {
+    let r = await sdk.runScript({ summary, script, allowCommit });
+    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
+    if (!r.isError && r.result != null) return r.result as any;
+    const text = String(r.output || "Selects could not complete this step.");
+    if (allowCommit || attempt >= 2 || !(EMPTY_READ.test(text) || (r.result == null && !r.isError))) throw new Error(text);
+    console.warn("[mini-vlog] " + summary + " came back empty, reading again:", text);
+    await new Promise((d) => setTimeout(d, 1500));
+  }
+}
+
+// Handed files carry the app's own Resource ids, but resources() and a Draft's clips report the Project's short
+// aliases (r0, r1, ...), which inventory.js filters on and assemble.js / decorate.js match clips by. So each handed
+// file is placed once on an unsaved scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its
+// own, whose frame size is the photo's. Nothing is committed. A file that cannot be placed is left out.
+const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
+const p = selects.project(cfg.projectId);
+const resolved = [];
+let shared = null;
+for (const h of cfg.files) {
+  try {
+    const photo = h.kind === 'image';
+    const d = photo || !shared ? await p.createDraft({ name: 'Mini Vlog id check' }) : shared;
+    if (!photo) shared = d;
+    const before = new Set((await d.clips({ trackScope: 'main' })).map(c => c.clipId));
+    try { await d.insertResource({ resourceId: h.rid, sourceRange: { startSeconds: 0, endSeconds: 0.5 } }); }
+    catch (e) { await d.insertResource({ resourceId: h.rid }); }
+    const clip = (await d.clips({ trackScope: 'main' })).find(c => c.resourceId !== null && !before.has(c.clipId));
+    if (!clip) continue;
+    let size = null;
+    if (photo) {
+      const fs = (await d.meta()).frameSize;
+      if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
+    }
+    resolved.push({ rid: h.rid, alias: clip.resourceId, size });
+  } catch (e) {}
+}
+return { resolved };`;
+
+// The handed videos and photos, each once, in the order they were picked.
+function templateFootage(context: any) {
+  const seen = new Set<string>();
+  const files: Array<{ rid: string; kind: string }> = [];
+  for (const input of context?.template?.inputs?.footage ?? []) {
+    if (!input || (input.kind !== "video" && input.kind !== "image") || !input.resourceId || seen.has(input.resourceId)) continue;
+    seen.add(input.resourceId);
+    files.push({ rid: String(input.resourceId), kind: input.kind });
+  }
+  return files;
+}
+
+// The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer run
+// (or the frame closing) replaced this one. `say` names the current step for the status line.
+async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
+  // The UI language when the run starts: its messages and the Inspector labels written into the Draft use it.
+  const bl = uiLang(context);
+  const pid: string | null = context?.projectId ?? null;
+  if (!pid) throw templateIssue(t(bl, "openProject"));
+  const files = templateFootage(context);
+  if (!files.length) throw templateIssue("Choose videos or photos for the footage, then try again.");
+  const run = (summary: string, script: string, allowCommit = false) => runTemplateStep(sdk, summary, script, allowCommit);
+  const options = context?.template?.options || {};
+
+  say("Reading the chosen files");
+  const roots = await locateRoots(sdk);
+  check();
+  const read = (rel: string) => readText(roots.plugin, rel);
+  const [manifestText, presetsText, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, softTsx, motionTsx, punchTsx] = await Promise.all([
+    read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("scripts/inventory.js"), read("scripts/search.js"),
+    read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-lockup.tsx"), read("assets/soft-look.tsx"),
+    read("assets/photo-motion.tsx"), read("assets/beat-punch.tsx")]);
+  check();
+  const manifest = JSON.parse(manifestText), presets = JSON.parse(presetsText);
+  // The track, length and title style chosen on the app's page; an unknown or missing one gets the panel's default.
+  const cues: any[] = manifest.cues || [];
+  const cue = cues.find((c) => c.id === options.track) || cues.find((c) => c.id === PREFERRED_CUE) || cues.find((c) => c.id === DEFAULT_CUE);
+  if (!cue) throw templateIssue("Mini Vlog's music is missing; reinstall the plugin and try again.");
+  const length: "short" | "standard" | "long" = options.length === "short" || options.length === "long" ? options.length : DEFAULT_LENGTH;
+  const chosen = presets.presets.find((x: any) => x.id === options.title) || presets.presets.find((x: any) => x.id === DEFAULT_PRESET);
+  if (!chosen) throw templateIssue("Mini Vlog's title styles are missing; reinstall the plugin and try again.");
+
+  // Handed ids to the Project's aliases; the files the first pass skipped get one more.
+  const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const resolveFiles = async (list: Array<{ rid: string; kind: string }>) => {
+    for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
+      const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH) }));
+      check();
+      resolved.push(...(r.resolved || []));
+    }
+  };
+  await resolveFiles(files);
+  const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
+  if (unresolved.length) await resolveFiles(unresolved);
+  const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const known: Record<string, { width: number; height: number }> = {};
+  for (const r of resolved) if (r.size) known[r.alias] = r.size;
+  if (!aliases.length) throw templateIssue("None of the chosen files could be found in this Project. Choose them again, then try again.");
+  // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
+  const inventory = await run("Read footage", fill(inventoryJs, { projectId: pid, only: aliases, known, measureMs: INVENTORY_MEASURE_MS }));
+  check();
+  inventory.resources = inventory.resources || [];
+  inventory.photos = inventory.photos || [];
+  const sizes: Record<string, { width: number; height: number }> = { ...known };
+  for (const ph of inventory.photos) if (ph.width > 0 && ph.height > 0) sizes[ph.rid] = { width: ph.width, height: ph.height };
+  const unanalysed = inventory.skipped?.unanalysed || 0;
+
+  // Music, length and pace as the panel works them out for a bundled track at its defaults (Quick pace, Beat punch
+  // and Start at the hook on).
+  const pace = DEFAULT_PACE, punch = DEFAULT_PUNCH;
+  const grid: any = { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null };
+  const gridded = mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted });
+  const approxTempo = mvApproxTempo({ gridded, approxBpm: grid.approxBpm });
+  const tempo = gridded ? grid.bpm : approxTempo;
+  const guard: any = tempo ? mvBeatsPerShot(pace, tempo) : { beats: null, overridden: false };
+  const shotSeconds = mvShotSeconds({ bpm: grid.bpm, beatsPerShot: guard.beats, pace, gridded, approxBpm: approxTempo });
+  const requested = MV_LENGTHS[length];
+  const fitted = mvFitShots({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });
+  const videoSeconds = fitted ? fitted * shotSeconds : requested * shotSeconds;
+  const snap = (value: number) => mvSnapSection({ value, firstBeat: grid.firstBeat, bpm: tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: !!tempo });
+  const hookAt = DEFAULT_HOOK && gridded ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue.barPhaseBeats }) : null;
+  const section = !gridded ? snap(0) : hookAt ?? mvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? snap(grid.firstBeat);
+  const musicStart = snap(section ?? 0);
+  if (musicStart == null || !fitted) throw templateIssue(t(bl, "fail.music-too-short"));
+  const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };
+
+  // Scene search over the handed videos (with the motion query, as Beat punch is on). Nobody can press Build again, so
+  // videos whose search failed get one more try.
+  say("Choosing shots");
+  const rids: string[] = inventory.resources.map((r: any) => r.rid);
+  const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
+  const search = async (todo: string[]) => {
+    const list: any[] = []; const failed: string[] = [];
+    for (let i = 0; i < todo.length; i += SEARCH_BATCH) {
+      say("Choosing shots", i + "/" + todo.length + (todo.length === 1 ? " video" : " videos"));
+      const r = await run("Search shots", fill(searchJs, { projectId: pid, rids: todo.slice(i, i + SEARCH_BATCH), queries: mvSearchQueries(MV_QUERIES, punch), pageSize: 4 }));
+      check();
+      list.push(...r.candidates); failed.push(...r.failed);
+    }
+    return { list, failed };
+  };
+  let found = await search(rids);
+  if (found.failed.length) {
+    const retried = new Set(found.failed);
+    const again = await search(found.failed);
+    found = { list: [...found.list.filter((c: any) => !retried.has(c.rid)), ...again.list], failed: again.failed };
+  }
+  if (found.failed.length) console.info("[mini-vlog] template run: scene search failed for", found.failed.join(", "));
+  const candidates = found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }));
+  const photoCands = photoCandsOf(inventory, null, true);
+  const plan: any = mvPlanBuild({ candidates: mvMotionBonus(candidates).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(TEMPLATE_SEED) });
+  if (!plan.ok) {
+    const waiting = unanalysed ? " " + unanalysed + (unanalysed === 1 ? " video is" : " videos are") + " not analyzed yet, so it could not be used." : "";
+    throw templateIssue((MV_FAIL[plan.reason] ? t(bl, "fail." + plan.reason) : t(bl, "noPlan")) + waiting);
+  }
+
+  // Commit 1: the music, then the clips on a new Draft.
+  say("Adding music");
+  const music = await run("Add music to the project", fill(ensureJs, { projectId: pid, path: roots.plugin + "/assets/cues/" + cue.file }), true);
+  check();
+  say("Making the Draft");
+  const crops = Object.fromEntries([...inventory.resources, ...inventory.photos.filter((r: any) => r.width > 0 && r.height > 0)]
+    .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
+  const draftName = "Mini Vlog " + chosen.label + " " + stamp(new Date());
+  const clipSound = "ambient";
+  // Never resent: the reply may be lost after the Draft was saved.
+  const a = await run("Assemble the Mini Vlog", fill(assembleJs, {
+    projectId: pid, draftName, picks: plan.picks, boundaries: plan.schedule.cuts, crops,
+    music: music ? { resourceId: music.resourceId, sectionStart: musicStart } : null, clipSound, ambientDb: AMBIENT_DB }), true);
+  check();
+  if (!a.sequenceId || !(a.totalFrames > 0)) throw templateIssue("The Draft \"" + draftName + "\" may have been saved without its title. Open it from the Drafts list, or try again.");
+
+  // Commit 2: the title lockup, Soft look, photo motion and Beat punch, as the panel's Finish step adds them.
+  say("Adding title and look");
+  const fonts = await Promise.all(presetFonts(chosen, presets).map(async (x: any) => {
+    const { file, ...face } = x;
+    return { ...face, metrics: presets.metrics[x.family] || null, b64: (await readText(roots.plugin, "assets/fonts/" + file)).replace(/\s+/g, "") };
+  }));
+  check();
+  const flat: Record<string, string> = {};
+  for (const fl of chosen.fields) { const v = fl.initial ?? ""; flat[fl.key] = String(v === "@year" ? mvCurrentYear() : v).slice(0, fl.max); }
+  const bpm = gridded ? grid.bpm : null;
+  const parameters = { preset: chosen.id, ...flat, fields: { ...flat }, primary: chosen.colors.primary, secondary: chosen.colors.secondary, ...TITLE_LOOK, fonts,
+    provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: chosen.id, cue: cue.id, sectionStart: musicStart, pace, length,
+      seed: TEMPLATE_SEED, clipSound, punch, hook: DEFAULT_HOOK, groove: plan.groove || null, picks: plan.picks } };
+  const editableParameters = [
+    ...chosen.fields.map((fl: any) => ({ key: fl.key, label: tOr(bl, "field." + chosen.id + "." + fl.key, fl.label), type: "text", defaultValue: flat[fl.key] })),
+    { key: "primary", label: t(bl, "param.mainColor"), type: "color", defaultValue: chosen.colors.primary },
+    { key: "secondary", label: t(bl, "param.secondColor"), type: "color", defaultValue: chosen.colors.secondary },
+    { key: "shadow", label: t(bl, "param.shadow"), type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
+    { key: "size", label: t(bl, "param.size"), type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },
+    { key: "x", label: t(bl, "param.x"), type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },
+    { key: "y", label: t(bl, "param.y"), type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },
+    { key: "sparkles", label: chosen.id === "mini-vlog" ? t(bl, "param.sparkles") : t(bl, "param.stars"), type: "boolean", defaultValue: TITLE_LOOK.sparkles },
+  ];
+  const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));
+  const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };
+  const photoRids = [...new Set(plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
+  const moves: any[] = mvPhotoMotions(plan.picks, String(TEMPLATE_SEED), sizes);
+  const byRid: Record<string, any> = {};
+  plan.picks.forEach((k: any, i: number) => {
+    if (!moves[i]) return;
+    const sz = sizes[k.rid];
+    const cover = sz ? Math.max(MV_W / sz.width, MV_H / sz.height) / Math.min(MV_W / sz.width, MV_H / sz.height) : 1;
+    byRid[k.rid] = { ...moves[i], cover };
+  });
+  const punchCfg = punch ? { tsx: punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: bpm ? 60 / bpm * a.fps : 0,
+    punchFrames: mvPunchFrames({ bpm, fps: a.fps, sectionStart: musicStart, videoEnd: a.totalFrames }), picks: plan.picks } : null;
+  const finish = () => run("Add title and look", fill(decorateJs, { sequenceId: a.sequenceId, mute: false, videoEnd: a.totalFrames, title: { tsx: titleTsx, parameters, editableParameters },
+    soft: { tsx: softTsx, strength: SOFT_STRENGTH }, photos: photoRids, motion: { tsx: motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch: punchCfg, labels }), true);
+  // decorate.js skips what an earlier attempt added, so a failed attempt is tried once more.
+  try {
+    await finish();
+  } catch (e) {
+    console.warn("[mini-vlog] Add title and look failed, trying again:", errorText(e));
+    check();
+    try { await finish(); } catch (e2) {
+      console.warn("[mini-vlog] Add title and look failed again:", errorText(e2));
+      throw templateIssue("The Draft was made, but its title and look could not be added; try again.");
+    }
+  }
+  check();
+  // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
+  return { sequenceId: a.sequenceId };
+}
+
+// What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
+// exactly once, unless a newer run (or the frame closing) replaced it; then it reports nothing.
+function TemplateRun({ sdk, context }: any) {
+  const [status, setStatus] = React.useState("Starting");
+  const begun = React.useRef<string | null>(null);
+  const alive = React.useRef(true);
+  // The latest context, so a run reports only while it is still the current one.
+  const latest = React.useRef<any>(context);
+  latest.current = context;
+  const runId: string | null = context?.template?.runId ?? null;
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  React.useEffect(() => {
+    if (runId == null || begun.current === runId) return;
+    begun.current = runId;
+    const snapshot = context;
+    const live = () => alive.current && latest.current?.template?.runId === runId;
+    const check = () => { if (!live()) throw STALE; };
+    let ended = false, step = "starting";
+    const say = (text: string, detail?: string) => { step = text; if (live()) setStatus(text + (detail ? " (" + detail + ")" : "")); };
+    const end = (outcome: TemplateOutcome | null) => {
+      if (ended) return;
+      ended = true;
+      if (!outcome || !live()) return;
+      setStatus("sequenceId" in outcome ? "Done" : outcome.error);
+      try { sdk.finishTemplate(outcome); } catch (e) { console.warn("[mini-vlog] finishTemplate failed:", errorText(e)); }
+    };
+    (async () => {
+      try {
+        end(await runMiniVlogTemplate(sdk, snapshot, check, say));
+      } catch (e: any) {
+        if (e === STALE) { end(null); return; }
+        console.warn("[mini-vlog] template run failed while " + step + ":", errorText(e), e);
+        end({ error: e?.forPerson ? String(e.message) : "Mini Vlog stopped while " + step.charAt(0).toLowerCase() + step.slice(1) + "; try again." });
+      } finally {
+        end({ error: "Mini Vlog stopped before the Draft was ready; try again." });
+      }
+    })();
+  }, [runId]);
+  return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{status}</div>;
 }

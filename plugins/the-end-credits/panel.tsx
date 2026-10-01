@@ -1,4 +1,5 @@
 // @name THE END Credits
+// @collection visual-highlights
 // @name:de THE END Abspann
 // @name:en THE END Credits
 // @name:es Créditos THE END
@@ -13,6 +14,1808 @@
 // Builds a cinematic "THE END" ending as a new, editable Draft: a typed serif title, a slow credit roll, and your
 // shots cut on the music's phrases inside a window (Classic) or full frame.
 import React from "react";
+
+// STRINGS:BEGIN
+const STRINGS = {
+  en: {
+    openProject: "Open a Project to build THE END Credits.",
+    refresh: "Refresh",
+    refreshing: "Refreshing",
+    refreshFailed: "Could not refresh the clip list: {detail}",
+    readFailed: "Could not read the clips in this Project: {detail}",
+    checkingClipsNow: "Checking clips…",
+    checkingClips: "Checking clips",
+    listening: "Listening for the beat",
+    working: "Working",
+    noFootage: "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.",
+    turnOnPhotos: "Turn on Use photos in Advanced to build from this Project's photos.",
+    noClipsSelected: "No clips selected. Choose clips in Advanced.",
+    needsShots: { one: "Needs at least {count} usable clip or photo (found {found}).", other: "Needs at least {count} usable clips or photos (found {found})." },
+    addFootage: "Add more varied footage or select more clips.",
+    addFootagePhotos: "Add more varied footage or photos.",
+    addFootagePhotosSelect: "Add more varied footage or photos, or select more clips.",
+    retryUnchecked: { one: "Could not check {count} clip; press Build to retry it.", other: "Could not check {count} clips; press Build to retry them." },
+    gap: " ",
+    listSep: ", ",
+    ready: "Ready: {summary}",
+    clips: { one: "{count} clip", other: "{count} clips" },
+    clipsSelected: { one: "{selected} of {count} clip selected", other: "{selected} of {count} clips selected" },
+    photos: { one: "{count} photo", other: "{count} photos" },
+    photosSelected: { one: "{selected} of {count} photo selected", other: "{selected} of {count} photos selected" },
+    shots: { one: "{count} shot", other: "{count} shots" },
+    shotsFitted: { one: "{count} shot (your footage fits {count})", other: "{count} shots (your footage fits {count})" },
+    aboutSeconds: "about {seconds} s",
+    notAnalysed: { one: "{count} clip not analysed yet", other: "{count} clips not analysed yet" },
+    analysing: { one: "{count} clip is being analysed. This updates automatically when it finishes.", other: "{count} clips are being analysed. This updates automatically when they finish." },
+    notAnalysedAnalyse: { one: "{count} clip is not analysed yet. Analyse it in Selects to use it here.", other: "{count} clips are not analysed yet. Analyse them in Selects to use them here." },
+    notAnalysedMaybe: { one: "{count} clip is not analysed yet. If Selects is analysing it, this updates automatically.", other: "{count} clips are not analysed yet. If Selects is analysing them, this updates automatically." },
+    analysisFailed: { one: "{count} clip could not be analysed.", other: "{count} clips could not be analysed." },
+    noteAnalysing: { one: "{count} clip being analysed", other: "{count} clips being analysed" },
+    noteFailed: { one: "{count} clip could not be analysed", other: "{count} clips could not be analysed" },
+    layout: "Layout",
+    "layout.classic": "Classic (window)",
+    "layout.full": "Full frame",
+    title: "Title",
+    credits: "Credits",
+    preset: "Preset",
+    "preset.filmCrew": "Film crew",
+    "preset.personal": "Personal",
+    "preset.travel": "Travel",
+    creditRows: "Credit rows",
+    creditN: "Credit {n}",
+    roleN: "Role {n}",
+    nameN: "Name {n}",
+    rolePlaceholder: "Role (e.g. Director)",
+    namePlaceholder: "Name",
+    resetPreset: "Reset to preset",
+    "list.reorderHandle": "Reorder row {n}: {label}",
+    "list.removeRow": "Remove row {n}",
+    "list.moved": "{label} moved to position {pos} of {total}",
+    "list.addRow": "Add row",
+    noRows: "No rows: the roll shows only the title.",
+    rowsHint: "Rows with both fields empty are left out. Replace text in [brackets] with your own.",
+    placeholdersLeft: { one: "{count} row still has a placeholder.", other: "{count} rows still have placeholders." },
+    systemFont: "Some characters use a system font.",
+    length: "Length",
+    "length.short": "Short",
+    "length.standard": "Standard",
+    "length.long": "Long",
+    music: "Music",
+    track: "Track",
+    ownMusic: "Your own music",
+    noMusic: "No music",
+    dropAudio: "Drop an audio file (mp3, wav, m4a…) that is on this computer.",
+    installTools: "Install ffmpeg and Node.js 18+ to preview music or use your own track.",
+    noSteadyBeat: "No steady beat found: shots are {seconds} s.",
+    beatApprox: "Beat found (approximate): shots follow it at {seconds} s.",
+    sectionHint: "Music section — drag to choose",
+    sectionLabel: "Music section",
+    musicTooShort: "This music is too short for this length",
+    startsAt: "Starts at {seconds} s",
+    startsAtSwell: "Starts at {seconds} s · reveal on the swell",
+    startsAtLoudest: "Starts at {seconds} s · reveal on the loudest part",
+    stopPreview: "Stop preview",
+    cancelPreview: "Cancel preview",
+    previewWhole: "Preview the music of the whole video",
+    readingMusic: "Reading the music…",
+    tooShortFor: "This track is too short for {length}.",
+    useLength: "Use {length}",
+    tooShortNeeds: "This track is too short (needs ≥ {seconds} s).",
+    silentVideo: "Silent video: no music and Clip sound is Off.",
+    advanced: "Advanced",
+    clipSound: "Clip sound",
+    "sound.ambient": "Ambient",
+    "sound.full": "Full",
+    "sound.off": "Off",
+    cinematicLook: "Cinematic look",
+    usePhotos: "Use photos",
+    usePhotosOff: "Use photos is off",
+    chooseClips: "Choose clips",
+    chooseClipsCount: "Choose clips ({selected}/{total})",
+    all: "All",
+    none: "None",
+    photo: "Photo",
+    "shape.tall": "Tall",
+    "shape.wide": "Wide",
+    "shape.square": "Square",
+    preview: "Preview",
+    creditsPreview: "Credits preview",
+    previewAt: "Preview at",
+    secondsUnit: "s",
+    firstRow: "First row",
+    lastRow: "Last row",
+    end: "End",
+    noCreditRows: "No credit rows: the roll shows only the title.",
+    rowHidden: "Row {from} won't appear in {length}: {names}.",
+    rowsHidden: "Rows {from}–{to} won't appear in {length}: {names}.",
+    dropRows: { one: "To roll every row off before the end, remove {count} row.", other: "To roll every row off before the end, remove {count} rows." },
+    dropRowsOrLong: { one: "To roll every row off before the end, remove {count} row or choose {long}.", other: "To roll every row off before the end, remove {count} rows or choose {long}." },
+    tooManyRows: { one: "Too many rows to roll off before the end: remove {count} row.", other: "Too many rows to roll off before the end: remove {count} rows." },
+    tooManyRowsOrLong: { one: "Too many rows to roll off before the end: remove {count} row or choose {long}.", other: "Too many rows to roll off before the end: remove {count} rows or choose {long}." },
+    creditsEndEarly: "Credits finish before the end: the roll moves on into black.",
+    "step.prepare": "Finding shots",
+    "step.plan": "Planning the edit",
+    "step.music": "Preparing music",
+    "step.assemble": "Creating Draft",
+    "step.decorate": "Adding credits and look",
+    progress: "Step {step}/{total} · {name} · {percent}%",
+    progressDetail: "Step {step}/{total} · {name} ({detail}) · {percent}%",
+    videosChecked: { one: "{done}/{count} video checked", other: "{done}/{count} videos checked" },
+    videosMeasured: { one: "{done}/{count} video measured", other: "{done}/{count} videos measured" },
+    openingDraft: "opening the Draft",
+    stoppedAt: "Stopped at step {step}/{total} ({name}): {detail}",
+    build: "Build",
+    building: "Building",
+    anotherVersion: "Try other shots",
+    finishTitle: "Finish title and look",
+    draftCreated: "Draft created. Select the credits to edit the title, rows, colours or roll speed in Adjust, a shot to move or resize its window, change its fades, motion or the look strength, and the music to change its volume.",
+    draftCreatedAdding: "Draft created; adding credits and look…",
+    openDraft: "Open the new Draft",
+    copyLink: "Copy the link to the new Draft",
+    shortened: { one: "Your footage fits {count} shot, so this video is about {seconds} s instead of {fullSeconds} s. Add more clips or photos for the full length.", other: "Your footage fits {count} shots, so this video is about {seconds} s instead of {fullSeconds} s. Add more clips or photos for the full length." },
+    note: "Note: {detail}.",
+    unchecked: { one: "Could not check {count} video; it was skipped. Build again to retry it.", other: "Could not check {count} videos; they were skipped. Build again to retry them." },
+    startFailed: "THE END Credits could not start: {detail}. Reinstall the plugin if this persists.",
+    foldersNotFound: "the plugin folders could not be found",
+    adapterNeeded: "This Selects build needs an updated {name} adapter.",
+    stepFailed: "Selects could not complete this step.",
+    musicUnreadable: "Could not read this music file ({detail}). Choose another file or one of the tracks.",
+    beatFailed: "beat detection failed",
+    previewFailed: "Could not play a preview: {detail}.",
+    previewNotCut: "the preview could not be cut",
+    noAudio: "no audio came back",
+    dropMusic: "Drop a music file, or choose one of the tracks.",
+    trackTooShort: "This track is too short for this Length.",
+    musicNotReady: "The music is not ready yet.",
+    draftNoId: "The Draft \"{name}\" was saved, but Selects did not report its id, so the credits and look could not be added. Open it from the Drafts list, or build again.",
+    finishFailed: "The Draft was created, but it could not be finished (credits, look and shot frames): {detail}. Press Finish title and look to try again.",
+    openFailed: "The Draft is ready, but it could not be opened: {detail}. Use the link below or open it from the Drafts list.",
+    "param.titleColor": "Title color",
+    "param.creditColor": "Credits color",
+    "param.rollSpeed": "Roll speed",
+    "param.showTitle": "Show title",
+    "param.windowX": "Window X (%)",
+    "param.windowY": "Window Y (%)",
+    "param.windowSize": "Window size (%)",
+    "param.fadeIn": "Fade in (s)",
+    "param.fadeOut": "Fade out (s)",
+    "param.motion": "Motion",
+    "param.motionStrength": "Motion strength",
+    "param.lookStrength": "Look strength",
+    "motion.none": "None",
+    "motion.push-in": "Push in",
+    "motion.pull-out": "Pull out",
+    "motion.drift-left": "Drift left",
+    "motion.drift-right": "Drift right",
+    "motion.drift-up": "Drift up",
+    "motion.drift-down": "Drift down",
+    "motion.tilt": "Tilt",
+    "motion.push-drift": "Push and drift",
+  },
+  de: {
+    openProject: "Öffne ein Projekt, um THE END Credits zu erstellen.",
+    refresh: "Aktualisieren",
+    refreshing: "Wird aktualisiert",
+    refreshFailed: "Die Clip-Liste konnte nicht aktualisiert werden: {detail}",
+    readFailed: "Die Clips in diesem Projekt konnten nicht gelesen werden: {detail}",
+    checkingClipsNow: "Clips werden geprüft …",
+    checkingClips: "Clips werden geprüft",
+    listening: "Beat wird gesucht",
+    working: "In Arbeit",
+    noFootage: "In diesem Projekt gibt es noch keine analysierten Videos oder Fotos. Füge Videoclips hinzu und analysiere sie, oder füge Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
+    turnOnPhotos: "Aktiviere „Fotos verwenden“ unter „Erweitert“, um aus den Fotos dieses Projekts zu erstellen.",
+    noClipsSelected: "Keine Clips ausgewählt. Wähle Clips unter „Erweitert“.",
+    needsShots: { one: "Braucht mindestens {count} brauchbaren Clip oder Foto ({found} gefunden).", other: "Braucht mindestens {count} brauchbare Clips oder Fotos ({found} gefunden)." },
+    addFootage: "Füge abwechslungsreicheres Material hinzu oder wähle mehr Clips aus.",
+    addFootagePhotos: "Füge abwechslungsreicheres Material oder Fotos hinzu.",
+    addFootagePhotosSelect: "Füge abwechslungsreicheres Material oder Fotos hinzu oder wähle mehr Clips aus.",
+    retryUnchecked: { one: "{count} Clip konnte nicht geprüft werden; drücke „Erstellen“, um es erneut zu versuchen.", other: "{count} Clips konnten nicht geprüft werden; drücke „Erstellen“, um es erneut zu versuchen." },
+    gap: " ",
+    listSep: ", ",
+    ready: "Bereit: {summary}",
+    clips: { one: "{count} Clip", other: "{count} Clips" },
+    clipsSelected: { one: "{selected} von {count} Clip ausgewählt", other: "{selected} von {count} Clips ausgewählt" },
+    photos: { one: "{count} Foto", other: "{count} Fotos" },
+    photosSelected: { one: "{selected} von {count} Foto ausgewählt", other: "{selected} von {count} Fotos ausgewählt" },
+    shots: { one: "{count} Einstellung", other: "{count} Einstellungen" },
+    shotsFitted: { one: "{count} Einstellung (dein Material reicht für {count})", other: "{count} Einstellungen (dein Material reicht für {count})" },
+    aboutSeconds: "ca. {seconds} s",
+    notAnalysed: { one: "{count} Clip noch nicht analysiert", other: "{count} Clips noch nicht analysiert" },
+    analysing: { one: "{count} Clip wird analysiert. Das aktualisiert sich automatisch, sobald er fertig ist.", other: "{count} Clips werden analysiert. Das aktualisiert sich automatisch, sobald sie fertig sind." },
+    notAnalysedAnalyse: { one: "{count} Clip ist noch nicht analysiert. Analysiere ihn in Selects, um ihn hier zu verwenden.", other: "{count} Clips sind noch nicht analysiert. Analysiere sie in Selects, um sie hier zu verwenden." },
+    notAnalysedMaybe: { one: "{count} Clip ist noch nicht analysiert. Falls Selects ihn gerade analysiert, aktualisiert sich das automatisch.", other: "{count} Clips sind noch nicht analysiert. Falls Selects sie gerade analysiert, aktualisiert sich das automatisch." },
+    analysisFailed: { one: "{count} Clip konnte nicht analysiert werden.", other: "{count} Clips konnten nicht analysiert werden." },
+    noteAnalysing: { one: "{count} Clip wird analysiert", other: "{count} Clips werden analysiert" },
+    noteFailed: { one: "{count} Clip nicht analysierbar", other: "{count} Clips nicht analysierbar" },
+    layout: "Layout",
+    "layout.classic": "Klassisch (Fenster)",
+    "layout.full": "Vollbild",
+    title: "Titel",
+    credits: "Abspann",
+    preset: "Vorlage",
+    "preset.filmCrew": "Filmteam",
+    "preset.personal": "Persönlich",
+    "preset.travel": "Reise",
+    creditRows: "Abspannzeilen",
+    creditN: "Eintrag {n}",
+    roleN: "Rolle {n}",
+    nameN: "Name {n}",
+    rolePlaceholder: "Rolle (z. B. Regie)",
+    namePlaceholder: "Name",
+    resetPreset: "Vorlage wiederherstellen",
+    "list.reorderHandle": "Zeile {n} verschieben: {label}",
+    "list.removeRow": "Zeile {n} entfernen",
+    "list.moved": "{label} ist jetzt an Position {pos} von {total}",
+    "list.addRow": "Zeile hinzufügen",
+    noRows: "Keine Zeilen: Der Abspann zeigt nur den Titel.",
+    rowsHint: "Zeilen mit zwei leeren Feldern werden weggelassen. Ersetze Text in [Klammern] durch deinen eigenen.",
+    placeholdersLeft: { one: "{count} Zeile enthält noch einen Platzhalter.", other: "{count} Zeilen enthalten noch Platzhalter." },
+    systemFont: "Einige Zeichen verwenden eine Systemschrift.",
+    length: "Länge",
+    "length.short": "Kurz",
+    "length.standard": "Standard",
+    "length.long": "Lang",
+    music: "Musik",
+    track: "Musikstück",
+    ownMusic: "Eigene Musik",
+    noMusic: "Keine Musik",
+    dropAudio: "Lege eine Audiodatei (mp3, wav, m4a …) ab, die auf diesem Computer liegt.",
+    installTools: "Installiere ffmpeg und Node.js 18+, um Musik vorzuhören oder eigene Musik zu verwenden.",
+    noSteadyBeat: "Kein gleichmäßiger Beat gefunden: Einstellungen dauern {seconds} s.",
+    beatApprox: "Beat gefunden (ungefähr): Die Einstellungen folgen ihm alle {seconds} s.",
+    sectionHint: "Musikabschnitt – zum Auswählen ziehen",
+    sectionLabel: "Musikabschnitt",
+    musicTooShort: "Diese Musik ist für diese Länge zu kurz",
+    startsAt: "Beginnt bei {seconds} s",
+    startsAtSwell: "Beginnt bei {seconds} s · Auftakt auf dem Höhepunkt",
+    startsAtLoudest: "Beginnt bei {seconds} s · Auftakt auf dem lautesten Teil",
+    stopPreview: "Vorschau stoppen",
+    cancelPreview: "Vorschau abbrechen",
+    previewWhole: "Musik für das ganze Video vorhören",
+    readingMusic: "Musik wird gelesen …",
+    tooShortFor: "Dieses Musikstück ist für „{length}“ zu kurz.",
+    useLength: "„{length}“ verwenden",
+    tooShortNeeds: "Dieses Musikstück ist zu kurz (braucht ≥ {seconds} s).",
+    silentVideo: "Stummes Video: keine Musik und Clip-Ton ist „Aus“.",
+    advanced: "Erweitert",
+    clipSound: "Clip-Ton",
+    "sound.ambient": "Leise",
+    "sound.full": "Voll",
+    "sound.off": "Aus",
+    cinematicLook: "Kino-Look",
+    usePhotos: "Fotos verwenden",
+    usePhotosOff: "„Fotos verwenden“ ist aus",
+    chooseClips: "Clips auswählen",
+    chooseClipsCount: "Clips auswählen ({selected}/{total})",
+    all: "Alle",
+    none: "Keine",
+    photo: "Foto",
+    "shape.tall": "Hochformat",
+    "shape.wide": "Querformat",
+    "shape.square": "Quadrat",
+    preview: "Vorschau",
+    creditsPreview: "Abspann-Vorschau",
+    previewAt: "Vorschau bei",
+    secondsUnit: "s",
+    firstRow: "Erste Zeile",
+    lastRow: "Letzte Zeile",
+    end: "Ende",
+    noCreditRows: "Keine Abspannzeilen: Der Abspann zeigt nur den Titel.",
+    rowHidden: "Zeile {from} erscheint bei „{length}“ nicht: {names}.",
+    rowsHidden: "Zeilen {from}–{to} erscheinen bei „{length}“ nicht: {names}.",
+    dropRows: { one: "Damit alle Zeilen vor dem Ende durchlaufen, entferne {count} Zeile.", other: "Damit alle Zeilen vor dem Ende durchlaufen, entferne {count} Zeilen." },
+    dropRowsOrLong: { one: "Damit alle Zeilen vor dem Ende durchlaufen, entferne {count} Zeile oder wähle „{long}“.", other: "Damit alle Zeilen vor dem Ende durchlaufen, entferne {count} Zeilen oder wähle „{long}“." },
+    tooManyRows: { one: "Zu viele Zeilen, um vor dem Ende durchzulaufen: Entferne {count} Zeile.", other: "Zu viele Zeilen, um vor dem Ende durchzulaufen: Entferne {count} Zeilen." },
+    tooManyRowsOrLong: { one: "Zu viele Zeilen, um vor dem Ende durchzulaufen: Entferne {count} Zeile oder wähle „{long}“.", other: "Zu viele Zeilen, um vor dem Ende durchzulaufen: Entferne {count} Zeilen oder wähle „{long}“." },
+    creditsEndEarly: "Der Abspann endet vor dem Videoende: Danach läuft er ins Schwarz weiter.",
+    "step.prepare": "Einstellungen suchen",
+    "step.plan": "Schnitt planen",
+    "step.music": "Musik vorbereiten",
+    "step.assemble": "Draft erstellen",
+    "step.decorate": "Abspann und Look hinzufügen",
+    progress: "Schritt {step}/{total} · {name} · {percent} %",
+    progressDetail: "Schritt {step}/{total} · {name} ({detail}) · {percent} %",
+    videosChecked: { one: "{done}/{count} Video geprüft", other: "{done}/{count} Videos geprüft" },
+    videosMeasured: { one: "{done}/{count} Video gemessen", other: "{done}/{count} Videos gemessen" },
+    openingDraft: "Draft wird geöffnet",
+    stoppedAt: "Abgebrochen bei Schritt {step}/{total} ({name}): {detail}",
+    build: "Erstellen",
+    building: "Wird erstellt",
+    anotherVersion: "Andere Aufnahmen probieren",
+    finishTitle: "Titel und Look fertigstellen",
+    draftCreated: "Draft erstellt. Wähle den Abspann aus, um unter „Anpassen“ Titel, Zeilen, Farben oder Laufgeschwindigkeit zu ändern, eine Einstellung, um ihr Fenster zu verschieben oder zu skalieren, ihre Blenden, Bewegung oder die Look-Stärke zu ändern, und die Musik, um ihre Lautstärke zu ändern.",
+    draftCreatedAdding: "Draft erstellt; Abspann und Look werden hinzugefügt …",
+    openDraft: "Neuen Draft öffnen",
+    copyLink: "Link zum neuen Draft kopieren",
+    shortened: { one: "Dein Material reicht für {count} Einstellung, daher ist dieses Video etwa {seconds} s statt {fullSeconds} s lang. Füge für die volle Länge weitere Clips oder Fotos hinzu.", other: "Dein Material reicht für {count} Einstellungen, daher ist dieses Video etwa {seconds} s statt {fullSeconds} s lang. Füge für die volle Länge weitere Clips oder Fotos hinzu." },
+    note: "Hinweis: {detail}.",
+    unchecked: { one: "{count} Video konnte nicht geprüft werden und wurde übersprungen. Erstelle erneut, um es noch einmal zu versuchen.", other: "{count} Videos konnten nicht geprüft werden und wurden übersprungen. Erstelle erneut, um es noch einmal zu versuchen." },
+    startFailed: "THE END Credits konnte nicht gestartet werden: {detail}. Installiere das Plugin neu, falls das Problem bestehen bleibt.",
+    foldersNotFound: "die Plugin-Ordner wurden nicht gefunden",
+    adapterNeeded: "Diese Selects-Version braucht einen aktualisierten {name}-Adapter.",
+    stepFailed: "Selects konnte diesen Schritt nicht abschließen.",
+    musicUnreadable: "Diese Musikdatei konnte nicht gelesen werden ({detail}). Wähle eine andere Datei oder eines der Musikstücke.",
+    beatFailed: "Beat-Erkennung fehlgeschlagen",
+    previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
+    previewNotCut: "die Vorschau konnte nicht geschnitten werden",
+    noAudio: "es kam kein Audio zurück",
+    dropMusic: "Lege eine Musikdatei ab oder wähle eines der Musikstücke.",
+    trackTooShort: "Dieses Musikstück ist für diese Länge zu kurz.",
+    musicNotReady: "Die Musik ist noch nicht bereit.",
+    draftNoId: "Der Draft „{name}“ wurde gespeichert, aber Selects hat seine ID nicht gemeldet, daher konnten Abspann und Look nicht hinzugefügt werden. Öffne ihn in der Draft-Liste oder erstelle erneut.",
+    finishFailed: "Der Draft wurde erstellt, konnte aber nicht fertiggestellt werden (Abspann, Look und Einstellungsfenster): {detail}. Drücke „Titel und Look fertigstellen“, um es erneut zu versuchen.",
+    openFailed: "Der Draft ist fertig, konnte aber nicht geöffnet werden: {detail}. Nutze den Link unten oder öffne ihn in der Draft-Liste.",
+    "param.titleColor": "Titelfarbe",
+    "param.creditColor": "Abspannfarbe",
+    "param.rollSpeed": "Laufgeschwindigkeit",
+    "param.showTitle": "Titel anzeigen",
+    "param.windowX": "Fenster X (%)",
+    "param.windowY": "Fenster Y (%)",
+    "param.windowSize": "Fenstergröße (%)",
+    "param.fadeIn": "Einblenden (s)",
+    "param.fadeOut": "Ausblenden (s)",
+    "param.motion": "Bewegung",
+    "param.motionStrength": "Bewegungsstärke",
+    "param.lookStrength": "Look-Stärke",
+    "motion.none": "Keine",
+    "motion.push-in": "Heranzoomen",
+    "motion.pull-out": "Herauszoomen",
+    "motion.drift-left": "Nach links gleiten",
+    "motion.drift-right": "Nach rechts gleiten",
+    "motion.drift-up": "Nach oben gleiten",
+    "motion.drift-down": "Nach unten gleiten",
+    "motion.tilt": "Neigen",
+    "motion.push-drift": "Zoomen und gleiten",
+  },
+  es: {
+    openProject: "Abre un proyecto para crear THE END Credits.",
+    refresh: "Actualizar",
+    refreshing: "Actualizando",
+    refreshFailed: "No se pudo actualizar la lista de clips: {detail}",
+    readFailed: "No se pudieron leer los clips de este proyecto: {detail}",
+    checkingClipsNow: "Comprobando clips…",
+    checkingClips: "Comprobando clips",
+    listening: "Buscando el ritmo",
+    working: "Trabajando",
+    noFootage: "Este proyecto aún no tiene vídeos analizados ni fotos. Añade clips de vídeo y analízalos, o añade fotos; se actualizará automáticamente.",
+    turnOnPhotos: "Activa «Usar fotos» en «Avanzado» para crear con las fotos de este proyecto.",
+    noClipsSelected: "No hay clips seleccionados. Elige clips en «Avanzado».",
+    needsShots: { one: "Necesita al menos {count} clip o foto utilizable (encontrados: {found}).", many: "Necesita al menos {count} de clips o fotos utilizables (encontrados: {found}).", other: "Necesita al menos {count} clips o fotos utilizables (encontrados: {found})." },
+    addFootage: "Añade material más variado o selecciona más clips.",
+    addFootagePhotos: "Añade material más variado o fotos.",
+    addFootagePhotosSelect: "Añade material más variado o fotos, o selecciona más clips.",
+    retryUnchecked: { one: "No se pudo comprobar {count} clip; pulsa «Crear» para reintentarlo.", many: "No se pudieron comprobar {count} de clips; pulsa «Crear» para reintentarlo.", other: "No se pudieron comprobar {count} clips; pulsa «Crear» para reintentarlo." },
+    gap: " ",
+    listSep: ", ",
+    ready: "Listo: {summary}",
+    clips: { one: "{count} clip", many: "{count} de clips", other: "{count} clips" },
+    clipsSelected: { one: "{selected} de {count} clip seleccionado", many: "{selected} de {count} de clips seleccionados", other: "{selected} de {count} clips seleccionados" },
+    photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
+    photosSelected: { one: "{selected} de {count} foto seleccionada", many: "{selected} de {count} de fotos seleccionadas", other: "{selected} de {count} fotos seleccionadas" },
+    shots: { one: "{count} plano", many: "{count} de planos", other: "{count} planos" },
+    shotsFitted: { one: "{count} plano (tu material da para {count})", many: "{count} de planos (tu material da para {count})", other: "{count} planos (tu material da para {count})" },
+    aboutSeconds: "unos {seconds} s",
+    notAnalysed: { one: "{count} clip sin analizar", many: "{count} de clips sin analizar", other: "{count} clips sin analizar" },
+    analysing: { one: "Se está analizando {count} clip. Esto se actualiza solo cuando termine.", many: "Se están analizando {count} de clips. Esto se actualiza solo cuando terminen.", other: "Se están analizando {count} clips. Esto se actualiza solo cuando terminen." },
+    notAnalysedAnalyse: { one: "{count} clip aún no está analizado. Analízalo en Selects para usarlo aquí.", many: "{count} de clips aún no están analizados. Analízalos en Selects para usarlos aquí.", other: "{count} clips aún no están analizados. Analízalos en Selects para usarlos aquí." },
+    notAnalysedMaybe: { one: "{count} clip aún no está analizado. Si Selects lo está analizando, esto se actualiza solo.", many: "{count} de clips aún no están analizados. Si Selects los está analizando, esto se actualiza solo.", other: "{count} clips aún no están analizados. Si Selects los está analizando, esto se actualiza solo." },
+    analysisFailed: { one: "No se pudo analizar {count} clip.", many: "No se pudieron analizar {count} de clips.", other: "No se pudieron analizar {count} clips." },
+    noteAnalysing: { one: "{count} clip en análisis", many: "{count} de clips en análisis", other: "{count} clips en análisis" },
+    noteFailed: { one: "{count} clip sin poder analizarse", many: "{count} de clips sin poder analizarse", other: "{count} clips sin poder analizarse" },
+    layout: "Diseño",
+    "layout.classic": "Clásico (ventana)",
+    "layout.full": "Pantalla completa",
+    title: "Título",
+    credits: "Créditos",
+    preset: "Plantilla",
+    "preset.filmCrew": "Equipo de rodaje",
+    "preset.personal": "Personal",
+    "preset.travel": "Viaje",
+    creditRows: "Filas de créditos",
+    creditN: "Crédito {n}",
+    roleN: "Función {n}",
+    nameN: "Nombre {n}",
+    rolePlaceholder: "Función (p. ej., Dirección)",
+    namePlaceholder: "Nombre",
+    resetPreset: "Restablecer plantilla",
+    "list.reorderHandle": "Reordenar la fila {n}: {label}",
+    "list.removeRow": "Quitar la fila {n}",
+    "list.moved": "{label} se movió a la posición {pos} de {total}",
+    "list.addRow": "Añadir fila",
+    noRows: "Sin filas: los créditos solo muestran el título.",
+    rowsHint: "Las filas con ambos campos vacíos se omiten. Sustituye el texto entre [corchetes] por el tuyo.",
+    placeholdersLeft: { one: "{count} fila aún tiene un texto de ejemplo.", many: "{count} de filas aún tienen textos de ejemplo.", other: "{count} filas aún tienen textos de ejemplo." },
+    systemFont: "Algunos caracteres usan una fuente del sistema.",
+    length: "Duración",
+    "length.short": "Corta",
+    "length.standard": "Estándar",
+    "length.long": "Larga",
+    music: "Música",
+    track: "Pista",
+    ownMusic: "Tu propia música",
+    noMusic: "Sin música",
+    dropAudio: "Suelta un archivo de audio (mp3, wav, m4a…) que esté en este ordenador.",
+    installTools: "Instala ffmpeg y Node.js 18+ para escuchar la música o usar tu propia pista.",
+    noSteadyBeat: "No se encontró un ritmo estable: los planos duran {seconds} s.",
+    beatApprox: "Ritmo encontrado (aproximado): los planos lo siguen cada {seconds} s.",
+    sectionHint: "Sección de música: arrastra para elegir",
+    sectionLabel: "Sección de música",
+    musicTooShort: "Esta música es demasiado corta para esta duración",
+    startsAt: "Empieza en {seconds} s",
+    startsAtSwell: "Empieza en {seconds} s · el título aparece en el clímax",
+    startsAtLoudest: "Empieza en {seconds} s · el título aparece en la parte más fuerte",
+    stopPreview: "Detener la vista previa",
+    cancelPreview: "Cancelar la vista previa",
+    previewWhole: "Escuchar la música de todo el vídeo",
+    readingMusic: "Leyendo la música…",
+    tooShortFor: "Esta pista es demasiado corta para «{length}».",
+    useLength: "Usar «{length}»",
+    tooShortNeeds: "Esta pista es demasiado corta (necesita ≥ {seconds} s).",
+    silentVideo: "Vídeo sin sonido: sin música y con el sonido de los clips en «Apagado».",
+    advanced: "Avanzado",
+    clipSound: "Sonido de los clips",
+    "sound.ambient": "Ambiente",
+    "sound.full": "Completo",
+    "sound.off": "Apagado",
+    cinematicLook: "Look cinematográfico",
+    usePhotos: "Usar fotos",
+    usePhotosOff: "«Usar fotos» está desactivado",
+    chooseClips: "Elegir clips",
+    chooseClipsCount: "Elegir clips ({selected}/{total})",
+    all: "Todos",
+    none: "Ninguno",
+    photo: "Foto",
+    "shape.tall": "Vertical",
+    "shape.wide": "Horizontal",
+    "shape.square": "Cuadrado",
+    preview: "Vista previa",
+    creditsPreview: "Vista previa de los créditos",
+    previewAt: "Vista previa en",
+    secondsUnit: "s",
+    firstRow: "Primera fila",
+    lastRow: "Última fila",
+    end: "Final",
+    noCreditRows: "Sin filas de créditos: solo se muestra el título.",
+    rowHidden: "La fila {from} no aparecerá en «{length}»: {names}.",
+    rowsHidden: "Las filas {from}–{to} no aparecerán en «{length}»: {names}.",
+    dropRows: { one: "Para que todas las filas salgan antes del final, quita {count} fila.", many: "Para que todas las filas salgan antes del final, quita {count} de filas.", other: "Para que todas las filas salgan antes del final, quita {count} filas." },
+    dropRowsOrLong: { one: "Para que todas las filas salgan antes del final, quita {count} fila o elige «{long}».", many: "Para que todas las filas salgan antes del final, quita {count} de filas o elige «{long}».", other: "Para que todas las filas salgan antes del final, quita {count} filas o elige «{long}»." },
+    tooManyRows: { one: "Demasiadas filas para salir antes del final: quita {count} fila.", many: "Demasiadas filas para salir antes del final: quita {count} de filas.", other: "Demasiadas filas para salir antes del final: quita {count} filas." },
+    tooManyRowsOrLong: { one: "Demasiadas filas para salir antes del final: quita {count} fila o elige «{long}».", many: "Demasiadas filas para salir antes del final: quita {count} de filas o elige «{long}».", other: "Demasiadas filas para salir antes del final: quita {count} filas o elige «{long}»." },
+    creditsEndEarly: "Los créditos terminan antes del final: el desplazamiento continúa sobre negro.",
+    "step.prepare": "Buscando planos",
+    "step.plan": "Planificando el montaje",
+    "step.music": "Preparando la música",
+    "step.assemble": "Creando el Draft",
+    "step.decorate": "Añadiendo créditos y look",
+    progress: "Paso {step}/{total} · {name} · {percent} %",
+    progressDetail: "Paso {step}/{total} · {name} ({detail}) · {percent} %",
+    videosChecked: { one: "{done}/{count} vídeo comprobado", many: "{done}/{count} de vídeos comprobados", other: "{done}/{count} vídeos comprobados" },
+    videosMeasured: { one: "{done}/{count} vídeo medido", many: "{done}/{count} de vídeos medidos", other: "{done}/{count} vídeos medidos" },
+    openingDraft: "abriendo el Draft",
+    stoppedAt: "Se detuvo en el paso {step}/{total} ({name}): {detail}",
+    build: "Crear",
+    building: "Creando",
+    anotherVersion: "Probar otros planos",
+    finishTitle: "Terminar título y look",
+    draftCreated: "Draft creado. Selecciona los créditos para editar en Ajustar el título, las filas, los colores o la velocidad de desplazamiento; un plano para mover o redimensionar su ventana o cambiar sus fundidos, su movimiento o la intensidad del look; y la música para cambiar su volumen.",
+    draftCreatedAdding: "Draft creado; añadiendo créditos y look…",
+    openDraft: "Abrir el nuevo Draft",
+    copyLink: "Copiar el enlace al nuevo Draft",
+    shortened: { one: "Tu material da para {count} plano, así que este vídeo dura unos {seconds} s en lugar de {fullSeconds} s. Añade más clips o fotos para la duración completa.", many: "Tu material da para {count} de planos, así que este vídeo dura unos {seconds} s en lugar de {fullSeconds} s. Añade más clips o fotos para la duración completa.", other: "Tu material da para {count} planos, así que este vídeo dura unos {seconds} s en lugar de {fullSeconds} s. Añade más clips o fotos para la duración completa." },
+    note: "Nota: {detail}.",
+    unchecked: { one: "No se pudo comprobar {count} vídeo y se omitió. Vuelve a crear para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos y se omitieron. Vuelve a crear para reintentarlo.", other: "No se pudieron comprobar {count} vídeos y se omitieron. Vuelve a crear para reintentarlo." },
+    startFailed: "THE END Credits no pudo iniciarse: {detail}. Reinstala el plugin si el problema continúa.",
+    foldersNotFound: "no se encontraron las carpetas del plugin",
+    adapterNeeded: "Esta versión de Selects necesita un adaptador {name} actualizado.",
+    stepFailed: "Selects no pudo completar este paso.",
+    musicUnreadable: "No se pudo leer este archivo de música ({detail}). Elige otro archivo o una de las pistas.",
+    beatFailed: "falló la detección del ritmo",
+    previewFailed: "No se pudo reproducir la vista previa: {detail}.",
+    previewNotCut: "no se pudo recortar la vista previa",
+    noAudio: "no se recibió audio",
+    dropMusic: "Suelta un archivo de música o elige una de las pistas.",
+    trackTooShort: "Esta pista es demasiado corta para esta duración.",
+    musicNotReady: "La música aún no está lista.",
+    draftNoId: "El Draft «{name}» se guardó, pero Selects no informó de su id, así que no se pudieron añadir los créditos y el look. Ábrelo desde la lista de Drafts o vuelve a crear.",
+    finishFailed: "El Draft se creó, pero no se pudo terminar (créditos, look y ventanas de los planos): {detail}. Pulsa «Terminar título y look» para reintentarlo.",
+    openFailed: "El Draft está listo, pero no se pudo abrir: {detail}. Usa el enlace de abajo o ábrelo desde la lista de Drafts.",
+    "param.titleColor": "Color del título",
+    "param.creditColor": "Color de los créditos",
+    "param.rollSpeed": "Velocidad de desplazamiento",
+    "param.showTitle": "Mostrar título",
+    "param.windowX": "Ventana X (%)",
+    "param.windowY": "Ventana Y (%)",
+    "param.windowSize": "Tamaño de la ventana (%)",
+    "param.fadeIn": "Fundido de entrada (s)",
+    "param.fadeOut": "Fundido de salida (s)",
+    "param.motion": "Movimiento",
+    "param.motionStrength": "Intensidad del movimiento",
+    "param.lookStrength": "Intensidad del look",
+    "motion.none": "Ninguno",
+    "motion.push-in": "Acercar",
+    "motion.pull-out": "Alejar",
+    "motion.drift-left": "Deslizar a la izquierda",
+    "motion.drift-right": "Deslizar a la derecha",
+    "motion.drift-up": "Deslizar hacia arriba",
+    "motion.drift-down": "Deslizar hacia abajo",
+    "motion.tilt": "Inclinar",
+    "motion.push-drift": "Acercar y deslizar",
+  },
+  fr: {
+    openProject: "Ouvrez un projet pour créer THE END Credits.",
+    refresh: "Actualiser",
+    refreshing: "Actualisation",
+    refreshFailed: "Impossible d'actualiser la liste des clips : {detail}",
+    readFailed: "Impossible de lire les clips de ce projet : {detail}",
+    checkingClipsNow: "Vérification des clips…",
+    checkingClips: "Vérification des clips",
+    listening: "Recherche du rythme",
+    working: "En cours",
+    noFootage: "Ce projet ne contient pas encore de vidéo analysée ni de photo. Ajoutez des clips vidéo et analysez-les, ou ajoutez des photos ; l'affichage se met à jour automatiquement.",
+    turnOnPhotos: "Activez « Utiliser les photos » dans « Avancé » pour créer à partir des photos de ce projet.",
+    noClipsSelected: "Aucun clip sélectionné. Choisissez des clips dans « Avancé ».",
+    needsShots: { one: "Il faut au moins {count} clip ou photo utilisable (trouvés : {found}).", many: "Il faut au moins {count} de clips ou photos utilisables (trouvés : {found}).", other: "Il faut au moins {count} clips ou photos utilisables (trouvés : {found})." },
+    addFootage: "Ajoutez des images plus variées ou sélectionnez plus de clips.",
+    addFootagePhotos: "Ajoutez des images plus variées ou des photos.",
+    addFootagePhotosSelect: "Ajoutez des images plus variées ou des photos, ou sélectionnez plus de clips.",
+    retryUnchecked: { one: "{count} clip n'a pas pu être vérifié ; appuyez sur « Créer » pour réessayer.", many: "{count} de clips n'ont pas pu être vérifiés ; appuyez sur « Créer » pour réessayer.", other: "{count} clips n'ont pas pu être vérifiés ; appuyez sur « Créer » pour réessayer." },
+    gap: " ",
+    listSep: ", ",
+    ready: "Prêt : {summary}",
+    clips: { one: "{count} clip", many: "{count} de clips", other: "{count} clips" },
+    clipsSelected: { one: "{selected} sur {count} clip sélectionné", many: "{selected} sur {count} de clips sélectionnés", other: "{selected} sur {count} clips sélectionnés" },
+    photos: { one: "{count} photo", many: "{count} de photos", other: "{count} photos" },
+    photosSelected: { one: "{selected} sur {count} photo sélectionnée", many: "{selected} sur {count} de photos sélectionnées", other: "{selected} sur {count} photos sélectionnées" },
+    shots: { one: "{count} plan", many: "{count} de plans", other: "{count} plans" },
+    shotsFitted: { one: "{count} plan (vos images suffisent pour {count})", many: "{count} de plans (vos images suffisent pour {count})", other: "{count} plans (vos images suffisent pour {count})" },
+    aboutSeconds: "environ {seconds} s",
+    notAnalysed: { one: "{count} clip pas encore analysé", many: "{count} de clips pas encore analysés", other: "{count} clips pas encore analysés" },
+    analysing: { one: "{count} clip est en cours d'analyse. Ceci se met à jour automatiquement à la fin.", many: "{count} de clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin.", other: "{count} clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin." },
+    notAnalysedAnalyse: { one: "{count} clip n'est pas encore analysé. Analysez-le dans Selects pour l'utiliser ici.", many: "{count} de clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici.", other: "{count} clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici." },
+    notAnalysedMaybe: { one: "{count} clip n'est pas encore analysé. Si Selects l'analyse, ceci se met à jour automatiquement.", many: "{count} de clips ne sont pas encore analysés. Si Selects les analyse, ceci se met à jour automatiquement.", other: "{count} clips ne sont pas encore analysés. Si Selects les analyse, ceci se met à jour automatiquement." },
+    analysisFailed: { one: "{count} clip n'a pas pu être analysé.", many: "{count} de clips n'ont pas pu être analysés.", other: "{count} clips n'ont pas pu être analysés." },
+    noteAnalysing: { one: "{count} clip en cours d'analyse", many: "{count} de clips en cours d'analyse", other: "{count} clips en cours d'analyse" },
+    noteFailed: { one: "{count} clip non analysable", many: "{count} de clips non analysables", other: "{count} clips non analysables" },
+    layout: "Disposition",
+    "layout.classic": "Classique (fenêtre)",
+    "layout.full": "Plein cadre",
+    title: "Titre",
+    credits: "Générique",
+    preset: "Préréglage",
+    "preset.filmCrew": "Équipe de tournage",
+    "preset.personal": "Personnel",
+    "preset.travel": "Voyage",
+    creditRows: "Lignes du générique",
+    creditN: "Crédit {n}",
+    roleN: "Rôle {n}",
+    nameN: "Nom {n}",
+    rolePlaceholder: "Rôle (p. ex. Réalisation)",
+    namePlaceholder: "Nom",
+    resetPreset: "Rétablir le préréglage",
+    "list.reorderHandle": "Déplacer la ligne {n} : {label}",
+    "list.removeRow": "Supprimer la ligne {n}",
+    "list.moved": "{label} déplacé en position {pos} sur {total}",
+    "list.addRow": "Ajouter une ligne",
+    noRows: "Aucune ligne : le générique n'affiche que le titre.",
+    rowsHint: "Les lignes dont les deux champs sont vides sont ignorées. Remplacez le texte entre [crochets] par le vôtre.",
+    placeholdersLeft: { one: "{count} ligne contient encore un texte d'exemple.", many: "{count} de lignes contiennent encore des textes d'exemple.", other: "{count} lignes contiennent encore des textes d'exemple." },
+    systemFont: "Certains caractères utilisent une police système.",
+    length: "Durée",
+    "length.short": "Courte",
+    "length.standard": "Standard",
+    "length.long": "Longue",
+    music: "Musique",
+    track: "Morceau",
+    ownMusic: "Votre propre musique",
+    noMusic: "Sans musique",
+    dropAudio: "Déposez un fichier audio (mp3, wav, m4a…) présent sur cet ordinateur.",
+    installTools: "Installez ffmpeg et Node.js 18+ pour écouter la musique ou utiliser votre propre morceau.",
+    noSteadyBeat: "Aucun rythme régulier trouvé : les plans durent {seconds} s.",
+    beatApprox: "Rythme trouvé (approximatif) : les plans le suivent toutes les {seconds} s.",
+    sectionHint: "Section musicale : faites glisser pour choisir",
+    sectionLabel: "Section musicale",
+    musicTooShort: "Cette musique est trop courte pour cette durée",
+    startsAt: "Commence à {seconds} s",
+    startsAtSwell: "Commence à {seconds} s · apparition sur le temps fort",
+    startsAtLoudest: "Commence à {seconds} s · apparition sur le passage le plus fort",
+    stopPreview: "Arrêter l'aperçu",
+    cancelPreview: "Annuler l'aperçu",
+    previewWhole: "Écouter la musique de toute la vidéo",
+    readingMusic: "Lecture de la musique…",
+    tooShortFor: "Ce morceau est trop court pour « {length} ».",
+    useLength: "Utiliser « {length} »",
+    tooShortNeeds: "Ce morceau est trop court (il faut ≥ {seconds} s).",
+    silentVideo: "Vidéo muette : pas de musique et son des clips sur « Coupé ».",
+    advanced: "Avancé",
+    clipSound: "Son des clips",
+    "sound.ambient": "Ambiance",
+    "sound.full": "Plein",
+    "sound.off": "Coupé",
+    cinematicLook: "Look cinéma",
+    usePhotos: "Utiliser les photos",
+    usePhotosOff: "« Utiliser les photos » est désactivé",
+    chooseClips: "Choisir les clips",
+    chooseClipsCount: "Choisir les clips ({selected}/{total})",
+    all: "Tous",
+    none: "Aucun",
+    photo: "Photo",
+    "shape.tall": "Vertical",
+    "shape.wide": "Horizontal",
+    "shape.square": "Carré",
+    preview: "Aperçu",
+    creditsPreview: "Aperçu du générique",
+    previewAt: "Aperçu à",
+    secondsUnit: "s",
+    firstRow: "Première ligne",
+    lastRow: "Dernière ligne",
+    end: "Fin",
+    noCreditRows: "Aucune ligne de générique : seul le titre s'affiche.",
+    rowHidden: "La ligne {from} n'apparaîtra pas en « {length} » : {names}.",
+    rowsHidden: "Les lignes {from}–{to} n'apparaîtront pas en « {length} » : {names}.",
+    dropRows: { one: "Pour que toutes les lignes défilent avant la fin, supprimez {count} ligne.", many: "Pour que toutes les lignes défilent avant la fin, supprimez {count} de lignes.", other: "Pour que toutes les lignes défilent avant la fin, supprimez {count} lignes." },
+    dropRowsOrLong: { one: "Pour que toutes les lignes défilent avant la fin, supprimez {count} ligne ou choisissez « {long} ».", many: "Pour que toutes les lignes défilent avant la fin, supprimez {count} de lignes ou choisissez « {long} ».", other: "Pour que toutes les lignes défilent avant la fin, supprimez {count} lignes ou choisissez « {long} »." },
+    tooManyRows: { one: "Trop de lignes pour défiler avant la fin : supprimez {count} ligne.", many: "Trop de lignes pour défiler avant la fin : supprimez {count} de lignes.", other: "Trop de lignes pour défiler avant la fin : supprimez {count} lignes." },
+    tooManyRowsOrLong: { one: "Trop de lignes pour défiler avant la fin : supprimez {count} ligne ou choisissez « {long} ».", many: "Trop de lignes pour défiler avant la fin : supprimez {count} de lignes ou choisissez « {long} ».", other: "Trop de lignes pour défiler avant la fin : supprimez {count} lignes ou choisissez « {long} »." },
+    creditsEndEarly: "Le générique se termine avant la fin : le défilement continue sur du noir.",
+    "step.prepare": "Recherche des plans",
+    "step.plan": "Préparation du montage",
+    "step.music": "Préparation de la musique",
+    "step.assemble": "Création du Draft",
+    "step.decorate": "Ajout du générique et du look",
+    progress: "Étape {step}/{total} · {name} · {percent} %",
+    progressDetail: "Étape {step}/{total} · {name} ({detail}) · {percent} %",
+    videosChecked: { one: "{done}/{count} vidéo vérifiée", many: "{done}/{count} vidéos vérifiées", other: "{done}/{count} vidéos vérifiées" },
+    videosMeasured: { one: "{done}/{count} vidéo mesurée", many: "{done}/{count} vidéos mesurées", other: "{done}/{count} vidéos mesurées" },
+    openingDraft: "ouverture du Draft",
+    stoppedAt: "Arrêt à l'étape {step}/{total} ({name}) : {detail}",
+    build: "Créer",
+    building: "Création",
+    anotherVersion: "Essayer d'autres plans",
+    finishTitle: "Terminer le titre et le look",
+    draftCreated: "Draft créé. Sélectionnez le générique pour modifier dans Ajuster le titre, les lignes, les couleurs ou la vitesse de défilement ; un plan pour déplacer ou redimensionner sa fenêtre, modifier ses fondus, son mouvement ou l'intensité du look ; et la musique pour régler son volume.",
+    draftCreatedAdding: "Draft créé ; ajout du générique et du look…",
+    openDraft: "Ouvrir le nouveau Draft",
+    copyLink: "Copier le lien vers le nouveau Draft",
+    shortened: { one: "Vos images suffisent pour {count} plan ; cette vidéo dure donc environ {seconds} s au lieu de {fullSeconds} s. Ajoutez des clips ou des photos pour obtenir la durée complète.", many: "Vos images suffisent pour {count} de plans ; cette vidéo dure donc environ {seconds} s au lieu de {fullSeconds} s. Ajoutez des clips ou des photos pour obtenir la durée complète.", other: "Vos images suffisent pour {count} plans ; cette vidéo dure donc environ {seconds} s au lieu de {fullSeconds} s. Ajoutez des clips ou des photos pour obtenir la durée complète." },
+    note: "Remarque : {detail}.",
+    unchecked: { one: "{count} vidéo n'a pas pu être vérifiée et a été ignorée. Relancez la création pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer." },
+    startFailed: "THE END Credits n'a pas pu démarrer : {detail}. Réinstallez le plugin si le problème persiste.",
+    foldersNotFound: "les dossiers du plugin sont introuvables",
+    adapterNeeded: "Cette version de Selects nécessite un adaptateur {name} à jour.",
+    stepFailed: "Selects n'a pas pu terminer cette étape.",
+    musicUnreadable: "Impossible de lire ce fichier audio ({detail}). Choisissez un autre fichier ou l'un des morceaux.",
+    beatFailed: "la détection du rythme a échoué",
+    previewFailed: "Impossible de lire l'aperçu : {detail}.",
+    previewNotCut: "l'aperçu n'a pas pu être découpé",
+    noAudio: "aucun son n'a été renvoyé",
+    dropMusic: "Déposez un fichier audio ou choisissez l'un des morceaux.",
+    trackTooShort: "Ce morceau est trop court pour cette durée.",
+    musicNotReady: "La musique n'est pas encore prête.",
+    draftNoId: "Le Draft « {name} » a été enregistré, mais Selects n'a pas communiqué son identifiant ; le générique et le look n'ont donc pas pu être ajoutés. Ouvrez-le depuis la liste des Drafts ou relancez la création.",
+    finishFailed: "Le Draft a été créé, mais n'a pas pu être finalisé (générique, look et fenêtres des plans) : {detail}. Appuyez sur « Terminer le titre et le look » pour réessayer.",
+    openFailed: "Le Draft est prêt, mais n'a pas pu être ouvert : {detail}. Utilisez le lien ci-dessous ou ouvrez-le depuis la liste des Drafts.",
+    "param.titleColor": "Couleur du titre",
+    "param.creditColor": "Couleur du générique",
+    "param.rollSpeed": "Vitesse de défilement",
+    "param.showTitle": "Afficher le titre",
+    "param.windowX": "Fenêtre X (%)",
+    "param.windowY": "Fenêtre Y (%)",
+    "param.windowSize": "Taille de la fenêtre (%)",
+    "param.fadeIn": "Fondu d'entrée (s)",
+    "param.fadeOut": "Fondu de sortie (s)",
+    "param.motion": "Mouvement",
+    "param.motionStrength": "Intensité du mouvement",
+    "param.lookStrength": "Intensité du look",
+    "motion.none": "Aucun",
+    "motion.push-in": "Zoom avant",
+    "motion.pull-out": "Zoom arrière",
+    "motion.drift-left": "Glisser vers la gauche",
+    "motion.drift-right": "Glisser vers la droite",
+    "motion.drift-up": "Glisser vers le haut",
+    "motion.drift-down": "Glisser vers le bas",
+    "motion.tilt": "Incliner",
+    "motion.push-drift": "Zoom et glissement",
+  },
+  it: {
+    openProject: "Apri un progetto per creare THE END Credits.",
+    refresh: "Aggiorna",
+    refreshing: "Aggiornamento",
+    refreshFailed: "Impossibile aggiornare l'elenco delle clip: {detail}",
+    readFailed: "Impossibile leggere le clip di questo progetto: {detail}",
+    checkingClipsNow: "Controllo delle clip…",
+    checkingClips: "Controllo delle clip",
+    listening: "Ricerca del ritmo",
+    working: "In corso",
+    noFootage: "In questo progetto non ci sono ancora video analizzati né foto. Aggiungi clip video e analizzale, oppure aggiungi foto; si aggiorna automaticamente.",
+    turnOnPhotos: "Attiva «Usa foto» in «Avanzate» per creare dalle foto di questo progetto.",
+    noClipsSelected: "Nessuna clip selezionata. Scegli le clip in «Avanzate».",
+    needsShots: { one: "Serve almeno {count} clip o foto utilizzabile (trovate: {found}).", many: "Servono almeno {count} di clip o foto utilizzabili (trovate: {found}).", other: "Servono almeno {count} clip o foto utilizzabili (trovate: {found})." },
+    addFootage: "Aggiungi materiale più vario o seleziona più clip.",
+    addFootagePhotos: "Aggiungi materiale più vario o foto.",
+    addFootagePhotosSelect: "Aggiungi materiale più vario o foto, oppure seleziona più clip.",
+    retryUnchecked: { one: "Non è stato possibile controllare {count} clip; premi «Crea» per riprovare.", many: "Non è stato possibile controllare {count} di clip; premi «Crea» per riprovare.", other: "Non è stato possibile controllare {count} clip; premi «Crea» per riprovare." },
+    gap: " ",
+    listSep: ", ",
+    ready: "Pronto: {summary}",
+    clips: { one: "{count} clip", many: "{count} di clip", other: "{count} clip" },
+    clipsSelected: { one: "{selected} di {count} clip selezionata", many: "{selected} di {count} clip selezionate", other: "{selected} di {count} clip selezionate" },
+    photos: { one: "{count} foto", many: "{count} di foto", other: "{count} foto" },
+    photosSelected: { one: "{selected} di {count} foto selezionata", many: "{selected} di {count} foto selezionate", other: "{selected} di {count} foto selezionate" },
+    shots: { one: "{count} inquadratura", many: "{count} di inquadrature", other: "{count} inquadrature" },
+    shotsFitted: { one: "{count} inquadratura (il tuo materiale basta per {count})", many: "{count} di inquadrature (il tuo materiale basta per {count})", other: "{count} inquadrature (il tuo materiale basta per {count})" },
+    aboutSeconds: "circa {seconds} s",
+    notAnalysed: { one: "{count} clip non ancora analizzata", many: "{count} di clip non ancora analizzate", other: "{count} clip non ancora analizzate" },
+    analysing: { one: "{count} clip è in fase di analisi. Si aggiorna automaticamente al termine.", many: "{count} di clip sono in fase di analisi. Si aggiorna automaticamente al termine.", other: "{count} clip sono in fase di analisi. Si aggiorna automaticamente al termine." },
+    notAnalysedAnalyse: { one: "{count} clip non è ancora analizzata. Analizzala in Selects per usarla qui.", many: "{count} di clip non sono ancora analizzate. Analizzale in Selects per usarle qui.", other: "{count} clip non sono ancora analizzate. Analizzale in Selects per usarle qui." },
+    notAnalysedMaybe: { one: "{count} clip non è ancora analizzata. Se Selects la sta analizzando, si aggiorna automaticamente.", many: "{count} di clip non sono ancora analizzate. Se Selects le sta analizzando, si aggiorna automaticamente.", other: "{count} clip non sono ancora analizzate. Se Selects le sta analizzando, si aggiorna automaticamente." },
+    analysisFailed: { one: "Non è stato possibile analizzare {count} clip.", many: "Non è stato possibile analizzare {count} di clip.", other: "Non è stato possibile analizzare {count} clip." },
+    noteAnalysing: { one: "{count} clip in analisi", many: "{count} di clip in analisi", other: "{count} clip in analisi" },
+    noteFailed: { one: "{count} clip non analizzabile", many: "{count} di clip non analizzabili", other: "{count} clip non analizzabili" },
+    layout: "Layout",
+    "layout.classic": "Classico (finestra)",
+    "layout.full": "Schermo intero",
+    title: "Titolo",
+    credits: "Titoli di coda",
+    preset: "Preimpostazione",
+    "preset.filmCrew": "Troupe",
+    "preset.personal": "Personale",
+    "preset.travel": "Viaggio",
+    creditRows: "Righe dei titoli di coda",
+    creditN: "Voce {n}",
+    roleN: "Ruolo {n}",
+    nameN: "Nome {n}",
+    rolePlaceholder: "Ruolo (es. Regia)",
+    namePlaceholder: "Nome",
+    resetPreset: "Ripristina preimpostazione",
+    "list.reorderHandle": "Riordina la riga {n}: {label}",
+    "list.removeRow": "Rimuovi la riga {n}",
+    "list.moved": "{label} spostato in posizione {pos} di {total}",
+    "list.addRow": "Aggiungi riga",
+    noRows: "Nessuna riga: i titoli di coda mostrano solo il titolo.",
+    rowsHint: "Le righe con entrambi i campi vuoti vengono omesse. Sostituisci il testo tra [parentesi] con il tuo.",
+    placeholdersLeft: { one: "{count} riga contiene ancora un testo segnaposto.", many: "{count} di righe contengono ancora testi segnaposto.", other: "{count} righe contengono ancora testi segnaposto." },
+    systemFont: "Alcuni caratteri usano un font di sistema.",
+    length: "Durata",
+    "length.short": "Breve",
+    "length.standard": "Standard",
+    "length.long": "Lunga",
+    music: "Musica",
+    track: "Brano",
+    ownMusic: "La tua musica",
+    noMusic: "Nessuna musica",
+    dropAudio: "Trascina qui un file audio (mp3, wav, m4a…) presente su questo computer.",
+    installTools: "Installa ffmpeg e Node.js 18+ per ascoltare la musica o usare un tuo brano.",
+    noSteadyBeat: "Nessun ritmo regolare trovato: le inquadrature durano {seconds} s.",
+    beatApprox: "Ritmo trovato (approssimativo): le inquadrature lo seguono ogni {seconds} s.",
+    sectionHint: "Sezione musicale: trascina per scegliere",
+    sectionLabel: "Sezione musicale",
+    musicTooShort: "Questa musica è troppo corta per questa durata",
+    startsAt: "Inizia a {seconds} s",
+    startsAtSwell: "Inizia a {seconds} s · il titolo arriva sul crescendo",
+    startsAtLoudest: "Inizia a {seconds} s · il titolo arriva sulla parte più forte",
+    stopPreview: "Ferma l'anteprima",
+    cancelPreview: "Annulla l'anteprima",
+    previewWhole: "Ascolta la musica di tutto il video",
+    readingMusic: "Lettura della musica…",
+    tooShortFor: "Questo brano è troppo corto per «{length}».",
+    useLength: "Usa «{length}»",
+    tooShortNeeds: "Questo brano è troppo corto (servono ≥ {seconds} s).",
+    silentVideo: "Video senza audio: nessuna musica e audio delle clip su «Spento».",
+    advanced: "Avanzate",
+    clipSound: "Audio delle clip",
+    "sound.ambient": "Ambiente",
+    "sound.full": "Pieno",
+    "sound.off": "Spento",
+    cinematicLook: "Look cinematografico",
+    usePhotos: "Usa foto",
+    usePhotosOff: "«Usa foto» è disattivato",
+    chooseClips: "Scegli le clip",
+    chooseClipsCount: "Scegli le clip ({selected}/{total})",
+    all: "Tutte",
+    none: "Nessuna",
+    photo: "Foto",
+    "shape.tall": "Verticale",
+    "shape.wide": "Orizzontale",
+    "shape.square": "Quadrato",
+    preview: "Anteprima",
+    creditsPreview: "Anteprima dei titoli di coda",
+    previewAt: "Anteprima a",
+    secondsUnit: "s",
+    firstRow: "Prima riga",
+    lastRow: "Ultima riga",
+    end: "Fine",
+    noCreditRows: "Nessuna riga nei titoli di coda: compare solo il titolo.",
+    rowHidden: "La riga {from} non comparirà in «{length}»: {names}.",
+    rowsHidden: "Le righe {from}–{to} non compariranno in «{length}»: {names}.",
+    dropRows: { one: "Per far scorrere via tutte le righe prima della fine, rimuovi {count} riga.", many: "Per far scorrere via tutte le righe prima della fine, rimuovi {count} di righe.", other: "Per far scorrere via tutte le righe prima della fine, rimuovi {count} righe." },
+    dropRowsOrLong: { one: "Per far scorrere via tutte le righe prima della fine, rimuovi {count} riga o scegli «{long}».", many: "Per far scorrere via tutte le righe prima della fine, rimuovi {count} di righe o scegli «{long}».", other: "Per far scorrere via tutte le righe prima della fine, rimuovi {count} righe o scegli «{long}»." },
+    tooManyRows: { one: "Troppe righe per scorrere via prima della fine: rimuovi {count} riga.", many: "Troppe righe per scorrere via prima della fine: rimuovi {count} di righe.", other: "Troppe righe per scorrere via prima della fine: rimuovi {count} righe." },
+    tooManyRowsOrLong: { one: "Troppe righe per scorrere via prima della fine: rimuovi {count} riga o scegli «{long}».", many: "Troppe righe per scorrere via prima della fine: rimuovi {count} di righe o scegli «{long}».", other: "Troppe righe per scorrere via prima della fine: rimuovi {count} righe o scegli «{long}»." },
+    creditsEndEarly: "I titoli di coda finiscono prima della fine: lo scorrimento prosegue sul nero.",
+    "step.prepare": "Ricerca delle inquadrature",
+    "step.plan": "Pianificazione del montaggio",
+    "step.music": "Preparazione della musica",
+    "step.assemble": "Creazione del Draft",
+    "step.decorate": "Aggiunta di titoli di coda e look",
+    progress: "Passaggio {step}/{total} · {name} · {percent}%",
+    progressDetail: "Passaggio {step}/{total} · {name} ({detail}) · {percent}%",
+    videosChecked: { one: "{done}/{count} video controllato", many: "{done}/{count} di video controllati", other: "{done}/{count} video controllati" },
+    videosMeasured: { one: "{done}/{count} video misurato", many: "{done}/{count} di video misurati", other: "{done}/{count} video misurati" },
+    openingDraft: "apertura del Draft",
+    stoppedAt: "Interrotto al passaggio {step}/{total} ({name}): {detail}",
+    build: "Crea",
+    building: "Creazione",
+    anotherVersion: "Prova altre inquadrature",
+    finishTitle: "Completa titolo e look",
+    draftCreated: "Draft creato. Seleziona i titoli di coda per modificare in Regola il titolo, le righe, i colori o la velocità di scorrimento; un'inquadratura per spostare o ridimensionare la sua finestra o cambiarne dissolvenze, movimento o intensità del look; e la musica per cambiarne il volume.",
+    draftCreatedAdding: "Draft creato; aggiunta di titoli di coda e look…",
+    openDraft: "Apri il nuovo Draft",
+    copyLink: "Copia il link al nuovo Draft",
+    shortened: { one: "Il tuo materiale basta per {count} inquadratura, quindi questo video dura circa {seconds} s invece di {fullSeconds} s. Aggiungi altre clip o foto per la durata completa.", many: "Il tuo materiale basta per {count} di inquadrature, quindi questo video dura circa {seconds} s invece di {fullSeconds} s. Aggiungi altre clip o foto per la durata completa.", other: "Il tuo materiale basta per {count} inquadrature, quindi questo video dura circa {seconds} s invece di {fullSeconds} s. Aggiungi altre clip o foto per la durata completa." },
+    note: "Nota: {detail}.",
+    unchecked: { one: "Non è stato possibile controllare {count} video, che è stato saltato. Crea di nuovo per riprovare.", many: "Non è stato possibile controllare {count} di video, che sono stati saltati. Crea di nuovo per riprovare.", other: "Non è stato possibile controllare {count} video, che sono stati saltati. Crea di nuovo per riprovare." },
+    startFailed: "Impossibile avviare THE END Credits: {detail}. Reinstalla il plugin se il problema persiste.",
+    foldersNotFound: "le cartelle del plugin non sono state trovate",
+    adapterNeeded: "Questa versione di Selects richiede un adattatore {name} aggiornato.",
+    stepFailed: "Selects non è riuscito a completare questo passaggio.",
+    musicUnreadable: "Impossibile leggere questo file musicale ({detail}). Scegli un altro file o uno dei brani.",
+    beatFailed: "rilevamento del ritmo non riuscito",
+    previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
+    previewNotCut: "non è stato possibile ritagliare l'anteprima",
+    noAudio: "non è stato restituito alcun audio",
+    dropMusic: "Trascina qui un file musicale o scegli uno dei brani.",
+    trackTooShort: "Questo brano è troppo corto per questa durata.",
+    musicNotReady: "La musica non è ancora pronta.",
+    draftNoId: "Il Draft «{name}» è stato salvato, ma Selects non ne ha comunicato l'id, quindi non è stato possibile aggiungere titoli di coda e look. Aprilo dall'elenco dei Draft o crea di nuovo.",
+    finishFailed: "Il Draft è stato creato, ma non è stato possibile completarlo (titoli di coda, look e finestre delle inquadrature): {detail}. Premi «Completa titolo e look» per riprovare.",
+    openFailed: "Il Draft è pronto, ma non è stato possibile aprirlo: {detail}. Usa il link qui sotto o aprilo dall'elenco dei Draft.",
+    "param.titleColor": "Colore del titolo",
+    "param.creditColor": "Colore dei titoli di coda",
+    "param.rollSpeed": "Velocità di scorrimento",
+    "param.showTitle": "Mostra titolo",
+    "param.windowX": "Finestra X (%)",
+    "param.windowY": "Finestra Y (%)",
+    "param.windowSize": "Dimensione finestra (%)",
+    "param.fadeIn": "Dissolvenza in entrata (s)",
+    "param.fadeOut": "Dissolvenza in uscita (s)",
+    "param.motion": "Movimento",
+    "param.motionStrength": "Intensità del movimento",
+    "param.lookStrength": "Intensità del look",
+    "motion.none": "Nessuno",
+    "motion.push-in": "Zoom avanti",
+    "motion.pull-out": "Zoom indietro",
+    "motion.drift-left": "Scorri a sinistra",
+    "motion.drift-right": "Scorri a destra",
+    "motion.drift-up": "Scorri in alto",
+    "motion.drift-down": "Scorri in basso",
+    "motion.tilt": "Inclina",
+    "motion.push-drift": "Zoom e scorrimento",
+  },
+  ja: {
+    openProject: "THE END Credits を作成するには、プロジェクトを開いてください。",
+    refresh: "更新",
+    refreshing: "更新中",
+    refreshFailed: "クリップ一覧を更新できませんでした: {detail}",
+    readFailed: "このプロジェクトのクリップを読み込めませんでした: {detail}",
+    checkingClipsNow: "クリップを確認中…",
+    checkingClips: "クリップを確認中",
+    listening: "ビートを検出中",
+    working: "処理中",
+    noFootage: "このプロジェクトには、解析済みの動画も写真もまだありません。動画クリップを追加して解析するか、写真を追加してください。自動で更新されます。",
+    turnOnPhotos: "このプロジェクトの写真から作成するには、「詳細設定」で「写真を使う」をオンにしてください。",
+    noClipsSelected: "クリップが選択されていません。「詳細設定」でクリップを選んでください。",
+    needsShots: { other: "使えるクリップか写真が少なくとも {count} 個必要です（見つかったのは {found} 個）。" },
+    addFootage: "変化のある素材を追加するか、クリップをもっと選択してください。",
+    addFootagePhotos: "変化のある素材や写真を追加してください。",
+    addFootagePhotosSelect: "変化のある素材や写真を追加するか、クリップをもっと選択してください。",
+    retryUnchecked: { other: "{count} 本のクリップを確認できませんでした。「作成」を押すと再試行します。" },
+    gap: "",
+    listSep: "、",
+    ready: "準備完了: {summary}",
+    clips: { other: "クリップ {count} 本" },
+    clipsSelected: { other: "クリップ {count} 本中 {selected} 本を選択" },
+    photos: { other: "写真 {count} 枚" },
+    photosSelected: { other: "写真 {count} 枚中 {selected} 枚を選択" },
+    shots: { other: "{count} ショット" },
+    shotsFitted: { other: "{count} ショット（素材で作れるのは {count} ショット）" },
+    aboutSeconds: "約 {seconds} 秒",
+    notAnalysed: { other: "未解析のクリップ {count} 本" },
+    analysing: { other: "{count} 本のクリップを解析中です。終わると自動で更新されます。" },
+    notAnalysedAnalyse: { other: "{count} 本のクリップがまだ解析されていません。ここで使うには Selects で解析してください。" },
+    notAnalysedMaybe: { other: "{count} 本のクリップがまだ解析されていません。Selects が解析中なら、自動で更新されます。" },
+    analysisFailed: { other: "{count} 本のクリップを解析できませんでした。" },
+    noteAnalysing: { other: "解析中のクリップ {count} 本" },
+    noteFailed: { other: "解析できなかったクリップ {count} 本" },
+    layout: "レイアウト",
+    "layout.classic": "クラシック（ウィンドウ）",
+    "layout.full": "フルフレーム",
+    title: "タイトル",
+    credits: "クレジット",
+    preset: "プリセット",
+    "preset.filmCrew": "映画スタッフ",
+    "preset.personal": "パーソナル",
+    "preset.travel": "旅行",
+    creditRows: "クレジットの行",
+    creditN: "クレジット {n}",
+    roleN: "役職 {n}",
+    nameN: "名前 {n}",
+    rolePlaceholder: "役職（例: 監督）",
+    namePlaceholder: "名前",
+    resetPreset: "プリセットに戻す",
+    "list.reorderHandle": "行 {n} を並べ替え：{label}",
+    "list.removeRow": "行 {n} を削除",
+    "list.moved": "{label} を {total} 件中 {pos} 番目に移動しました",
+    "list.addRow": "行を追加",
+    noRows: "行がありません。クレジットにはタイトルだけが表示されます。",
+    rowsHint: "両方の欄が空の行は省かれます。[角かっこ] 内のテキストは自分の内容に置き換えてください。",
+    placeholdersLeft: { other: "{count} 行にまだ仮のテキストが残っています。" },
+    systemFont: "一部の文字はシステムフォントで表示されます。",
+    length: "長さ",
+    "length.short": "短め",
+    "length.standard": "標準",
+    "length.long": "長め",
+    music: "音楽",
+    track: "トラック",
+    ownMusic: "自分の音楽",
+    noMusic: "音楽なし",
+    dropAudio: "このコンピュータ上のオーディオファイル（mp3、wav、m4a など）をドロップしてください。",
+    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg と Node.js 18 以降をインストールしてください。",
+    noSteadyBeat: "一定のビートが見つかりません。ショットは {seconds} 秒ずつです。",
+    beatApprox: "ビートを検出しました（おおよそ）。ショットは {seconds} 秒ごとに切り替わります。",
+    sectionHint: "音楽の区間 — ドラッグして選択",
+    sectionLabel: "音楽の区間",
+    musicTooShort: "この音楽は、この長さには短すぎます",
+    startsAt: "{seconds} 秒から開始",
+    startsAtSwell: "{seconds} 秒から開始 · 盛り上がりでタイトルが登場",
+    startsAtLoudest: "{seconds} 秒から開始 · いちばん大きい部分でタイトルが登場",
+    stopPreview: "プレビューを停止",
+    cancelPreview: "プレビューをキャンセル",
+    previewWhole: "動画全体の音楽をプレビュー",
+    readingMusic: "音楽を読み込み中…",
+    tooShortFor: "このトラックは「{length}」には短すぎます。",
+    useLength: "「{length}」にする",
+    tooShortNeeds: "このトラックは短すぎます（{seconds} 秒以上必要）。",
+    silentVideo: "無音の動画: 音楽なしで、クリップの音が「オフ」です。",
+    advanced: "詳細設定",
+    clipSound: "クリップの音",
+    "sound.ambient": "環境音",
+    "sound.full": "フル",
+    "sound.off": "オフ",
+    cinematicLook: "シネマティックルック",
+    usePhotos: "写真を使う",
+    usePhotosOff: "「写真を使う」がオフです",
+    chooseClips: "クリップを選択",
+    chooseClipsCount: "クリップを選択（{selected}/{total}）",
+    all: "すべて",
+    none: "なし",
+    photo: "写真",
+    "shape.tall": "縦長",
+    "shape.wide": "横長",
+    "shape.square": "正方形",
+    preview: "プレビュー",
+    creditsPreview: "クレジットのプレビュー",
+    previewAt: "プレビュー位置",
+    secondsUnit: "秒",
+    firstRow: "最初の行",
+    lastRow: "最後の行",
+    end: "終わり",
+    noCreditRows: "クレジットの行がありません。タイトルだけが表示されます。",
+    rowHidden: "「{length}」では {from} 行目が表示されません: {names}。",
+    rowsHidden: "「{length}」では {from}–{to} 行目が表示されません: {names}。",
+    dropRows: { other: "すべての行を最後までに流し切るには、{count} 行削除してください。" },
+    dropRowsOrLong: { other: "すべての行を最後までに流し切るには、{count} 行削除するか「{long}」を選んでください。" },
+    tooManyRows: { other: "行が多すぎて最後までに流し切れません。{count} 行削除してください。" },
+    tooManyRowsOrLong: { other: "行が多すぎて最後までに流し切れません。{count} 行削除するか「{long}」を選んでください。" },
+    creditsEndEarly: "クレジットは動画の終わりより先に流れ終わり、その後は黒い画面が続きます。",
+    "step.prepare": "ショットを探す",
+    "step.plan": "編集を計画",
+    "step.music": "音楽を準備",
+    "step.assemble": "Draft を作成",
+    "step.decorate": "クレジットとルックを追加",
+    progress: "ステップ {step}/{total} · {name} · {percent}%",
+    progressDetail: "ステップ {step}/{total} · {name}（{detail}）· {percent}%",
+    videosChecked: { other: "{done}/{count} 本の動画を確認済み" },
+    videosMeasured: { other: "{done}/{count} 本の動画を計測済み" },
+    openingDraft: "Draft を開いています",
+    stoppedAt: "ステップ {step}/{total}（{name}）で停止しました: {detail}",
+    build: "作成",
+    building: "作成中",
+    anotherVersion: "別のショットで作成",
+    finishTitle: "タイトルとルックを仕上げる",
+    draftCreated: "Draft を作成しました。クレジットを選択すると「調整」でタイトル・行・色・スクロール速度を、ショットを選択するとウィンドウの移動やサイズ、フェード、モーション、ルックの強さを、音楽を選択すると音量を変更できます。",
+    draftCreatedAdding: "Draft を作成しました。クレジットとルックを追加中…",
+    openDraft: "新しい Draft を開く",
+    copyLink: "新しい Draft へのリンクをコピー",
+    shortened: { other: "素材で作れるのは {count} ショットのため、この動画は {fullSeconds} 秒ではなく約 {seconds} 秒になります。フルの長さにするにはクリップか写真を追加してください。" },
+    note: "メモ: {detail}。",
+    unchecked: { other: "{count} 本の動画を確認できなかったため、スキップしました。もう一度作成すると再試行します。" },
+    startFailed: "THE END Credits を開始できませんでした: {detail}。解決しない場合はプラグインを再インストールしてください。",
+    foldersNotFound: "プラグインのフォルダが見つかりませんでした",
+    adapterNeeded: "この Selects のビルドには、更新された {name} アダプターが必要です。",
+    stepFailed: "Selects はこのステップを完了できませんでした。",
+    musicUnreadable: "この音楽ファイルを読み込めませんでした（{detail}）。別のファイルか、用意されたトラックを選んでください。",
+    beatFailed: "ビートの検出に失敗しました",
+    previewFailed: "プレビューを再生できませんでした: {detail}。",
+    previewNotCut: "プレビューを切り出せませんでした",
+    noAudio: "音声が返されませんでした",
+    dropMusic: "音楽ファイルをドロップするか、用意されたトラックを選んでください。",
+    trackTooShort: "このトラックはこの長さには短すぎます。",
+    musicNotReady: "音楽の準備がまだできていません。",
+    draftNoId: "Draft「{name}」は保存されましたが、Selects から ID が返されなかったため、クレジットとルックを追加できませんでした。Draft 一覧から開くか、もう一度作成してください。",
+    finishFailed: "Draft は作成されましたが、仕上げ（クレジット、ルック、ショットのウィンドウ）ができませんでした: {detail}。「タイトルとルックを仕上げる」を押して再試行してください。",
+    openFailed: "Draft の準備はできましたが、開けませんでした: {detail}。下のリンクを使うか、Draft 一覧から開いてください。",
+    "param.titleColor": "タイトルの色",
+    "param.creditColor": "クレジットの色",
+    "param.rollSpeed": "スクロール速度",
+    "param.showTitle": "タイトルを表示",
+    "param.windowX": "ウィンドウ X（%）",
+    "param.windowY": "ウィンドウ Y（%）",
+    "param.windowSize": "ウィンドウのサイズ（%）",
+    "param.fadeIn": "フェードイン（秒）",
+    "param.fadeOut": "フェードアウト（秒）",
+    "param.motion": "モーション",
+    "param.motionStrength": "モーションの強さ",
+    "param.lookStrength": "ルックの強さ",
+    "motion.none": "なし",
+    "motion.push-in": "ズームイン",
+    "motion.pull-out": "ズームアウト",
+    "motion.drift-left": "左へスライド",
+    "motion.drift-right": "右へスライド",
+    "motion.drift-up": "上へスライド",
+    "motion.drift-down": "下へスライド",
+    "motion.tilt": "傾ける",
+    "motion.push-drift": "ズームしてスライド",
+  },
+  ko: {
+    openProject: "THE END Credits\ub97c \ub9cc\ub4e4\ub824\uba74 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.",
+    refresh: "\uc0c8\ub85c\uace0\uce68",
+    refreshing: "\uc0c8\ub85c\uace0\uce68 \uc911",
+    refreshFailed: "\ud074\ub9bd \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}",
+    readFailed: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \ud074\ub9bd\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}",
+    checkingClipsNow: "\ud074\ub9bd \ud655\uc778 \uc911…",
+    checkingClips: "\ud074\ub9bd \ud655\uc778 \uc911",
+    listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
+    working: "\uc791\uc5c5 \uc911",
+    noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \ubd84\uc11d\ub41c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc744 \ucd94\uac00\ud574 \ubd84\uc11d\ud558\uac70\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
+    turnOnPhotos: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc0ac\uc9c4\uc73c\ub85c \ub9cc\ub4e4\ub824\uba74 ‘\uace0\uae09’\uc5d0\uc11c ‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc744 \ucf1c\uc138\uc694.",
+    noClipsSelected: "\uc120\ud0dd\ud55c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. ‘\uace0\uae09’\uc5d0\uc11c \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
+    needsShots: { other: "\uc4f8 \uc218 \uc788\ub294 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc774 \ucd5c\uc18c {count}\uac1c \ud544\uc694\ud569\ub2c8\ub2e4({found}\uac1c \ucc3e\uc74c)." },
+    addFootage: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
+    addFootagePhotos: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694.",
+    addFootagePhotosSelect: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
+    retryUnchecked: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. ‘\ub9cc\ub4e4\uae30’\ub97c \ub204\ub974\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
+    gap: " ",
+    listSep: ", ",
+    ready: "\uc900\ube44 \uc644\ub8cc: {summary}",
+    clips: { other: "\ud074\ub9bd {count}\uac1c" },
+    clipsSelected: { other: "\ud074\ub9bd {count}\uac1c \uc911 {selected}\uac1c \uc120\ud0dd" },
+    photos: { other: "\uc0ac\uc9c4 {count}\uc7a5" },
+    photosSelected: { other: "\uc0ac\uc9c4 {count}\uc7a5 \uc911 {selected}\uc7a5 \uc120\ud0dd" },
+    shots: { other: "\uc0f7 {count}\uac1c" },
+    shotsFitted: { other: "\uc0f7 {count}\uac1c(\uc601\uc0c1\uc73c\ub85c \ucc44\uc6b8 \uc218 \uc788\ub294 \ub9cc\ud07c)" },
+    aboutSeconds: "\uc57d {seconds}\ucd08",
+    notAnalysed: { other: "\uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd {count}\uac1c" },
+    analysing: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4. \ubd84\uc11d\uc774 \ub05d\ub098\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
+    notAnalysedAnalyse: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uc5ec\uae30\uc11c \uc4f0\ub824\uba74 Selects\uc5d0\uc11c \ubd84\uc11d\ud558\uc138\uc694." },
+    notAnalysedMaybe: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Selects\uc5d0\uc11c \ubd84\uc11d \uc911\uc774\ub77c\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
+    analysisFailed: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4." },
+    noteAnalysing: { other: "\ubd84\uc11d \uc911\uc778 \ud074\ub9bd {count}\uac1c" },
+    noteFailed: { other: "\ubd84\uc11d\ud558\uc9c0 \ubabb\ud55c \ud074\ub9bd {count}\uac1c" },
+    layout: "\ub808\uc774\uc544\uc6c3",
+    "layout.classic": "\ud074\ub798\uc2dd(\ucc3d)",
+    "layout.full": "\ud480 \ud504\ub808\uc784",
+    title: "\ud0c0\uc774\ud2c0",
+    credits: "\ud06c\ub808\ub527",
+    preset: "\ud504\ub9ac\uc14b",
+    "preset.filmCrew": "\uc601\ud654 \uc81c\uc791\uc9c4",
+    "preset.personal": "\uac1c\uc778",
+    "preset.travel": "\uc5ec\ud589",
+    creditRows: "\ud06c\ub808\ub527 \uc904",
+    creditN: "\ud06c\ub808\ub527 {n}",
+    roleN: "\uc5ed\ud560 {n}",
+    nameN: "\uc774\ub984 {n}",
+    rolePlaceholder: "\uc5ed\ud560(\uc608: \uac10\ub3c5)",
+    namePlaceholder: "\uc774\ub984",
+    resetPreset: "\ud504\ub9ac\uc14b\uc73c\ub85c \ub418\ub3cc\ub9ac\uae30",
+    "list.reorderHandle": "{n}\ubc88\uc9f8 \uc904 \uc21c\uc11c \ubc14\uafb8\uae30: {label}",
+    "list.removeRow": "{n}\ubc88\uc9f8 \uc904 \uc0ad\uc81c",
+    "list.moved": "{label}: {total}\uac1c \uc911 {pos}\ubc88\uc9f8\ub85c \uc62e\uacbc\uc2b5\ub2c8\ub2e4",
+    "list.addRow": "\uc904 \ucd94\uac00",
+    noRows: "\uc904\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud06c\ub808\ub527\uc5d0\ub294 \ud0c0\uc774\ud2c0\ub9cc \ub098\uc635\ub2c8\ub2e4.",
+    rowsHint: "\ub450 \uce78\uc774 \ubaa8\ub450 \ube44\uc5b4 \uc788\ub294 \uc904\uc740 \ube60\uc9d1\ub2c8\ub2e4. [\ub300\uad04\ud638] \uc548\uc758 \uae00\uc790\ub294 \uc9c1\uc811 \ubc14\uafd4 \uc8fc\uc138\uc694.",
+    placeholdersLeft: { other: "{count}\uac1c \uc904\uc5d0 \uc544\uc9c1 \uc608\uc2dc \uae00\uc790\uac00 \ub0a8\uc544 \uc788\uc2b5\ub2c8\ub2e4." },
+    systemFont: "\uc77c\ubd80 \uae00\uc790\ub294 \uc2dc\uc2a4\ud15c \ud3f0\ud2b8\ub85c \ud45c\uc2dc\ub429\ub2c8\ub2e4.",
+    length: "\uae38\uc774",
+    "length.short": "\uc9e7\uac8c",
+    "length.standard": "\ubcf4\ud1b5",
+    "length.long": "\uae38\uac8c",
+    music: "\uc74c\uc545",
+    track: "\ud2b8\ub799",
+    ownMusic: "\ub0b4 \uc74c\uc545",
+    noMusic: "\uc74c\uc545 \uc5c6\uc74c",
+    dropAudio: "\uc774 \ucef4\ud4e8\ud130\uc5d0 \uc788\ub294 \uc624\ub514\uc624 \ud30c\uc77c(mp3, wav, m4a \ub4f1)\uc744 \ub04c\uc5b4\ub2e4 \ub193\uc73c\uc138\uc694.",
+    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\uc640 Node.js 18 \uc774\uc0c1\uc744 \uc124\uce58\ud558\uc138\uc694.",
+    noSteadyBeat: "\uc77c\uc815\ud55c \ube44\ud2b8\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc0f7\uc740 {seconds}\ucd08\uc529\uc785\ub2c8\ub2e4.",
+    beatApprox: "\ube44\ud2b8\ub97c \ucc3e\uc558\uc2b5\ub2c8\ub2e4(\ub300\ub7b5). \uc0f7\uc774 {seconds}\ucd08\ub9c8\ub2e4 \ube44\ud2b8\ub97c \ub530\ub77c\uac11\ub2c8\ub2e4.",
+    sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
+    sectionLabel: "\uc74c\uc545 \uad6c\uac04",
+    musicTooShort: "\uc774 \uae38\uc774\ub85c \ub9cc\ub4e4\uae30\uc5d0\ub294 \uc74c\uc545\uc774 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4",
+    startsAt: "{seconds}\ucd08\ubd80\ud130 \uc2dc\uc791",
+    startsAtSwell: "{seconds}\ucd08\ubd80\ud130 \uc2dc\uc791 · \uace0\uc870\ub418\ub294 \ubd80\ubd84\uc5d0\uc11c \ub4f1\uc7a5",
+    startsAtLoudest: "{seconds}\ucd08\ubd80\ud130 \uc2dc\uc791 · \uac00\uc7a5 \ud070 \ubd80\ubd84\uc5d0\uc11c \ub4f1\uc7a5",
+    stopPreview: "\ubbf8\ub9ac\ub4e3\uae30 \uc911\uc9c0",
+    cancelPreview: "\ubbf8\ub9ac\ub4e3\uae30 \ucde8\uc18c",
+    previewWhole: "\uc601\uc0c1 \uc804\uccb4 \uae38\uc774\uc758 \uc74c\uc545 \ubbf8\ub9ac\ub4e3\uae30",
+    readingMusic: "\uc74c\uc545 \uc77d\ub294 \uc911…",
+    tooShortFor: "\uc774 \ud2b8\ub799\uc740 \uae38\uc774 ‘{length}’\uc5d0\ub294 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4.",
+    useLength: "\uae38\uc774 ‘{length}’ \uc120\ud0dd",
+    tooShortNeeds: "\uc774 \ud2b8\ub799\uc740 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4({seconds}\ucd08 \uc774\uc0c1 \ud544\uc694).",
+    silentVideo: "\ubb34\uc74c \uc601\uc0c1: \uc74c\uc545\uc774 \uc5c6\uace0 \ud074\ub9bd \uc18c\ub9ac\uac00 ‘\ub054’\uc785\ub2c8\ub2e4.",
+    advanced: "\uace0\uae09",
+    clipSound: "\ud074\ub9bd \uc18c\ub9ac",
+    "sound.ambient": "\ubc30\uacbd\uc74c",
+    "sound.full": "\uc6d0\uc74c",
+    "sound.off": "\ub054",
+    cinematicLook: "\uc2dc\ub124\ub9c8\ud2f1 \uc0c9\uac10",
+    usePhotos: "\uc0ac\uc9c4 \uc0ac\uc6a9",
+    usePhotosOff: "‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc774 \uaebc\uc838 \uc788\uc74c",
+    chooseClips: "\ud074\ub9bd \uc120\ud0dd",
+    chooseClipsCount: "\ud074\ub9bd \uc120\ud0dd ({selected}/{total})",
+    all: "\uc804\uccb4",
+    none: "\uc5c6\uc74c",
+    photo: "\uc0ac\uc9c4",
+    "shape.tall": "\uc138\ub85c",
+    "shape.wide": "\uac00\ub85c",
+    "shape.square": "\uc815\uc0ac\uac01\ud615",
+    preview: "\ubbf8\ub9ac\ubcf4\uae30",
+    creditsPreview: "\ud06c\ub808\ub527 \ubbf8\ub9ac\ubcf4\uae30",
+    previewAt: "\ubbf8\ub9ac\ubcf4\uae30 \uc704\uce58",
+    secondsUnit: "\ucd08",
+    firstRow: "\uccab \uc904",
+    lastRow: "\ub9c8\uc9c0\ub9c9 \uc904",
+    end: "\ub05d",
+    noCreditRows: "\ud06c\ub808\ub527 \uc904\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\ub9cc \ub098\uc635\ub2c8\ub2e4.",
+    rowHidden: "\uae38\uc774 ‘{length}’\uc5d0\uc11c\ub294 {from}\ubc88\uc9f8 \uc904\uc774 \ub098\uc624\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4: {names}.",
+    rowsHidden: "\uae38\uc774 ‘{length}’\uc5d0\uc11c\ub294 {from}–{to}\ubc88\uc9f8 \uc904\uc774 \ub098\uc624\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4: {names}.",
+    dropRows: { other: "\ub05d\ub098\uae30 \uc804\uc5d0 \ubaa8\ub4e0 \uc904\uc774 \uc62c\ub77c\uac00\uac8c \ud558\ub824\uba74 {count}\uc904\uc744 \uc9c0\uc6b0\uc138\uc694." },
+    dropRowsOrLong: { other: "\ub05d\ub098\uae30 \uc804\uc5d0 \ubaa8\ub4e0 \uc904\uc774 \uc62c\ub77c\uac00\uac8c \ud558\ub824\uba74 {count}\uc904\uc744 \uc9c0\uc6b0\uac70\ub098 ‘{long}’\ub97c \uc120\ud0dd\ud558\uc138\uc694." },
+    tooManyRows: { other: "\uc904\uc774 \ub108\ubb34 \ub9ce\uc544 \ub05d\ub098\uae30 \uc804\uc5d0 \ub2e4 \uc62c\ub77c\uac00\uc9c0 \ubabb\ud569\ub2c8\ub2e4. {count}\uc904\uc744 \uc9c0\uc6b0\uc138\uc694." },
+    tooManyRowsOrLong: { other: "\uc904\uc774 \ub108\ubb34 \ub9ce\uc544 \ub05d\ub098\uae30 \uc804\uc5d0 \ub2e4 \uc62c\ub77c\uac00\uc9c0 \ubabb\ud569\ub2c8\ub2e4. {count}\uc904\uc744 \uc9c0\uc6b0\uac70\ub098 ‘{long}’\ub97c \uc120\ud0dd\ud558\uc138\uc694." },
+    creditsEndEarly: "\ud06c\ub808\ub527\uc774 \uc601\uc0c1\ubcf4\ub2e4 \uba3c\uc800 \ub05d\ub098\uace0, \uc774\ud6c4\uc5d0\ub294 \uac80\uc740 \ud654\uba74\ub9cc \uc774\uc5b4\uc9d1\ub2c8\ub2e4.",
+    "step.prepare": "\uc0f7 \ucc3e\uae30",
+    "step.plan": "\ud3b8\uc9d1 \uacc4\ud68d",
+    "step.music": "\uc74c\uc545 \uc900\ube44",
+    "step.assemble": "Draft \ub9cc\ub4e4\uae30",
+    "step.decorate": "\ud06c\ub808\ub527\uacfc \uc0c9\uac10 \ucd94\uac00",
+    progress: "{step}/{total}\ub2e8\uacc4 · {name} · {percent}%",
+    progressDetail: "{step}/{total}\ub2e8\uacc4 · {name} ({detail}) · {percent}%",
+    videosChecked: { other: "\uc601\uc0c1 {done}/{count}\uac1c \ud655\uc778" },
+    videosMeasured: { other: "\uc601\uc0c1 {done}/{count}\uac1c \uce21\uc815" },
+    openingDraft: "Draft \uc5ec\ub294 \uc911",
+    stoppedAt: "{step}/{total}\ub2e8\uacc4({name})\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {detail}",
+    build: "\ub9cc\ub4e4\uae30",
+    building: "\ub9cc\ub4dc\ub294 \uc911",
+    anotherVersion: "\ub2e4\ub978 \uc0f7\uc73c\ub85c \ub9cc\ub4e4\uae30",
+    finishTitle: "\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac",
+    draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud06c\ub808\ub527\uc744 \uc120\ud0dd\ud558\uba74 \uc870\uc815 \ud0ed\uc5d0\uc11c \ud0c0\uc774\ud2c0·\uc904·\uc0c9·\uc2a4\ud06c\ub864 \uc18d\ub3c4\ub97c, \uc0f7\uc744 \uc120\ud0dd\ud558\uba74 \ucc3d \uc704\uce58\uc640 \ud06c\uae30·\ud398\uc774\ub4dc·\ubaa8\uc158·\uc0c9\uac10 \uac15\ub3c4\ub97c, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \uc74c\ub7c9\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+    draftCreatedAdding: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud06c\ub808\ub527\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\ub294 \uc911…",
+    openDraft: "\uc0c8 Draft \uc5f4\uae30",
+    copyLink: "\uc0c8 Draft \ub9c1\ud06c \ubcf5\uc0ac",
+    shortened: { other: "\uc601\uc0c1\uc73c\ub85c \ucc44\uc6b8 \uc218 \uc788\ub294 \uc0f7\uc774 {count}\uac1c\ub77c\uc11c, \uc774 \uc601\uc0c1\uc740 {fullSeconds}\ucd08\uac00 \uc544\ub2c8\ub77c \uc57d {seconds}\ucd08\uc785\ub2c8\ub2e4. \uc804\uccb4 \uae38\uc774\ub85c \ub9cc\ub4e4\ub824\uba74 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ub354 \ucd94\uac00\ud558\uc138\uc694." },
+    note: "\ucc38\uace0: {detail}.",
+    unchecked: { other: "\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud574 \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
+    startFailed: "THE END Credits\ub97c \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \ubb38\uc81c\uac00 \uacc4\uc18d\ub418\uba74 \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud558\uc138\uc694.",
+    foldersNotFound: "\ud50c\ub7ec\uadf8\uc778 \ud3f4\ub354\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+    adapterNeeded: "\uc774 Selects \ube4c\ub4dc\uc5d0\ub294 \uc5c5\ub370\uc774\ud2b8\ub41c {name} \uc5b4\ub311\ud130\uac00 \ud544\uc694\ud569\ub2c8\ub2e4.",
+    stepFailed: "Selects\uac00 \uc774 \ub2e8\uacc4\ub97c \uc644\ub8cc\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
+    musicUnreadable: "\uc774 \uc74c\uc545 \ud30c\uc77c\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4({detail}). \ub2e4\ub978 \ud30c\uc77c\uc774\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
+    beatFailed: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
+    previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
+    previewNotCut: "\ubbf8\ub9ac\ub4e3\uae30 \uad6c\uac04\uc744 \uc798\ub77c\ub0b4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+    noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
+    dropMusic: "\uc74c\uc545 \ud30c\uc77c\uc744 \ub04c\uc5b4\ub2e4 \ub193\uac70\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
+    trackTooShort: "\uc774 \uae38\uc774\ub85c \ub9cc\ub4e4\uae30\uc5d0\ub294 \ud2b8\ub799\uc774 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4.",
+    musicNotReady: "\uc74c\uc545\uc774 \uc544\uc9c1 \uc900\ube44\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
+    draftNoId: "Draft “{name}”\uc740(\ub294) \uc800\uc7a5\ub418\uc5c8\uc9c0\ub9cc Selects\uac00 ID\ub97c \uc54c\ub824\uc8fc\uc9c0 \uc54a\uc544 \ud06c\ub808\ub527\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. Draft \ubaa9\ub85d\uc5d0\uc11c \uc5f4\uac70\ub098 \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.",
+    finishFailed: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ub9c8\ubb34\ub9ac(\ud06c\ub808\ub527, \uc0c9\uac10, \uc0f7 \ucc3d)\ub97c \ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. ‘\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac’\ub97c \ub20c\ub7ec \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    openFailed: "Draft\ub294 \uc900\ube44\ub418\uc5c8\uc9c0\ub9cc \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uc544\ub798 \ub9c1\ud06c\ub97c \uc4f0\uac70\ub098 Draft \ubaa9\ub85d\uc5d0\uc11c \uc5ec\uc138\uc694.",
+    "param.titleColor": "\ud0c0\uc774\ud2c0 \uc0c9",
+    "param.creditColor": "\ud06c\ub808\ub527 \uc0c9",
+    "param.rollSpeed": "\uc2a4\ud06c\ub864 \uc18d\ub3c4",
+    "param.showTitle": "\ud0c0\uc774\ud2c0 \ud45c\uc2dc",
+    "param.windowX": "\ucc3d X(%)",
+    "param.windowY": "\ucc3d Y(%)",
+    "param.windowSize": "\ucc3d \ud06c\uae30(%)",
+    "param.fadeIn": "\ud398\uc774\ub4dc \uc778(\ucd08)",
+    "param.fadeOut": "\ud398\uc774\ub4dc \uc544\uc6c3(\ucd08)",
+    "param.motion": "\ubaa8\uc158",
+    "param.motionStrength": "\ubaa8\uc158 \uac15\ub3c4",
+    "param.lookStrength": "\uc0c9\uac10 \uac15\ub3c4",
+    "motion.none": "\uc5c6\uc74c",
+    "motion.push-in": "\uc90c \uc778",
+    "motion.pull-out": "\uc90c \uc544\uc6c3",
+    "motion.drift-left": "\uc67c\ucabd\uc73c\ub85c \uc774\ub3d9",
+    "motion.drift-right": "\uc624\ub978\ucabd\uc73c\ub85c \uc774\ub3d9",
+    "motion.drift-up": "\uc704\ub85c \uc774\ub3d9",
+    "motion.drift-down": "\uc544\ub798\ub85c \uc774\ub3d9",
+    "motion.tilt": "\uae30\uc6b8\uc774\uae30",
+    "motion.push-drift": "\uc90c \uc778\ud558\uba70 \uc774\ub3d9",
+  },
+  pt: {
+    openProject: "Abra um projeto para criar THE END Credits.",
+    refresh: "Atualizar",
+    refreshing: "Atualizando",
+    refreshFailed: "Não foi possível atualizar a lista de clipes: {detail}",
+    readFailed: "Não foi possível ler os clipes deste projeto: {detail}",
+    checkingClipsNow: "Verificando clipes…",
+    checkingClips: "Verificando clipes",
+    listening: "Procurando a batida",
+    working: "Trabalhando",
+    noFootage: "Este projeto ainda não tem vídeos analisados nem fotos. Adicione clipes de vídeo e analise-os, ou adicione fotos; a lista é atualizada automaticamente.",
+    turnOnPhotos: "Ative “Usar fotos” em “Avançado” para criar com as fotos deste projeto.",
+    noClipsSelected: "Nenhum clipe selecionado. Escolha clipes em “Avançado”.",
+    needsShots: { one: "Precisa de pelo menos {count} clipe ou foto utilizável (encontrados: {found}).", many: "Precisa de pelo menos {count} de clipes ou fotos utilizáveis (encontrados: {found}).", other: "Precisa de pelo menos {count} clipes ou fotos utilizáveis (encontrados: {found})." },
+    addFootage: "Adicione material mais variado ou selecione mais clipes.",
+    addFootagePhotos: "Adicione material mais variado ou fotos.",
+    addFootagePhotosSelect: "Adicione material mais variado ou fotos, ou selecione mais clipes.",
+    retryUnchecked: { one: "Não foi possível verificar {count} clipe; pressione “Criar” para tentar de novo.", many: "Não foi possível verificar {count} de clipes; pressione “Criar” para tentar de novo.", other: "Não foi possível verificar {count} clipes; pressione “Criar” para tentar de novo." },
+    gap: " ",
+    listSep: ", ",
+    ready: "Pronto: {summary}",
+    clips: { one: "{count} clipe", many: "{count} de clipes", other: "{count} clipes" },
+    clipsSelected: { one: "{selected} de {count} clipe selecionado", many: "{selected} de {count} de clipes selecionados", other: "{selected} de {count} clipes selecionados" },
+    photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
+    photosSelected: { one: "{selected} de {count} foto selecionada", many: "{selected} de {count} de fotos selecionadas", other: "{selected} de {count} fotos selecionadas" },
+    shots: { one: "{count} plano", many: "{count} de planos", other: "{count} planos" },
+    shotsFitted: { one: "{count} plano (seu material rende {count})", many: "{count} de planos (seu material rende {count})", other: "{count} planos (seu material rende {count})" },
+    aboutSeconds: "cerca de {seconds} s",
+    notAnalysed: { one: "{count} clipe ainda não analisado", many: "{count} de clipes ainda não analisados", other: "{count} clipes ainda não analisados" },
+    analysing: { one: "{count} clipe está sendo analisado. Isto se atualiza sozinho quando terminar.", many: "{count} de clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem.", other: "{count} clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem." },
+    notAnalysedAnalyse: { one: "{count} clipe ainda não foi analisado. Analise-o no Selects para usá-lo aqui.", many: "{count} de clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui.", other: "{count} clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui." },
+    notAnalysedMaybe: { one: "{count} clipe ainda não foi analisado. Se o Selects estiver analisando, isto se atualiza sozinho.", many: "{count} de clipes ainda não foram analisados. Se o Selects estiver analisando, isto se atualiza sozinho.", other: "{count} clipes ainda não foram analisados. Se o Selects estiver analisando, isto se atualiza sozinho." },
+    analysisFailed: { one: "Não foi possível analisar {count} clipe.", many: "Não foi possível analisar {count} de clipes.", other: "Não foi possível analisar {count} clipes." },
+    noteAnalysing: { one: "{count} clipe em análise", many: "{count} de clipes em análise", other: "{count} clipes em análise" },
+    noteFailed: { one: "{count} clipe não pôde ser analisado", many: "{count} de clipes não puderam ser analisados", other: "{count} clipes não puderam ser analisados" },
+    layout: "Layout",
+    "layout.classic": "Clássico (janela)",
+    "layout.full": "Tela cheia",
+    title: "Título",
+    credits: "Créditos",
+    preset: "Predefinição",
+    "preset.filmCrew": "Equipe de filmagem",
+    "preset.personal": "Pessoal",
+    "preset.travel": "Viagem",
+    creditRows: "Linhas dos créditos",
+    creditN: "Crédito {n}",
+    roleN: "Função {n}",
+    nameN: "Nome {n}",
+    rolePlaceholder: "Função (ex.: Direção)",
+    namePlaceholder: "Nome",
+    resetPreset: "Restaurar predefinição",
+    "list.reorderHandle": "Reordenar a linha {n}: {label}",
+    "list.removeRow": "Remover a linha {n}",
+    "list.moved": "{label} movido para a posição {pos} de {total}",
+    "list.addRow": "Adicionar linha",
+    noRows: "Sem linhas: os créditos mostram só o título.",
+    rowsHint: "Linhas com os dois campos vazios são ignoradas. Substitua o texto entre [colchetes] pelo seu.",
+    placeholdersLeft: { one: "{count} linha ainda tem um texto de exemplo.", many: "{count} de linhas ainda têm textos de exemplo.", other: "{count} linhas ainda têm textos de exemplo." },
+    systemFont: "Alguns caracteres usam uma fonte do sistema.",
+    length: "Duração",
+    "length.short": "Curta",
+    "length.standard": "Padrão",
+    "length.long": "Longa",
+    music: "Música",
+    track: "Faixa",
+    ownMusic: "Sua própria música",
+    noMusic: "Sem música",
+    dropAudio: "Solte um arquivo de áudio (mp3, wav, m4a…) que esteja neste computador.",
+    installTools: "Instale o ffmpeg e o Node.js 18+ para ouvir a música ou usar sua própria faixa.",
+    noSteadyBeat: "Nenhuma batida constante encontrada: os planos duram {seconds} s.",
+    beatApprox: "Batida encontrada (aproximada): os planos a seguem a cada {seconds} s.",
+    sectionHint: "Trecho da música: arraste para escolher",
+    sectionLabel: "Trecho da música",
+    musicTooShort: "Esta música é curta demais para esta duração",
+    startsAt: "Começa em {seconds} s",
+    startsAtSwell: "Começa em {seconds} s · o título entra no ápice",
+    startsAtLoudest: "Começa em {seconds} s · o título entra na parte mais forte",
+    stopPreview: "Parar a prévia",
+    cancelPreview: "Cancelar a prévia",
+    previewWhole: "Ouvir a música do vídeo inteiro",
+    readingMusic: "Lendo a música…",
+    tooShortFor: "Esta faixa é curta demais para “{length}”.",
+    useLength: "Usar “{length}”",
+    tooShortNeeds: "Esta faixa é curta demais (precisa de ≥ {seconds} s).",
+    silentVideo: "Vídeo sem som: sem música e com o som dos clipes em “Desligado”.",
+    advanced: "Avançado",
+    clipSound: "Som dos clipes",
+    "sound.ambient": "Ambiente",
+    "sound.full": "Total",
+    "sound.off": "Desligado",
+    cinematicLook: "Look cinematográfico",
+    usePhotos: "Usar fotos",
+    usePhotosOff: "“Usar fotos” está desativado",
+    chooseClips: "Escolher clipes",
+    chooseClipsCount: "Escolher clipes ({selected}/{total})",
+    all: "Todos",
+    none: "Nenhum",
+    photo: "Foto",
+    "shape.tall": "Vertical",
+    "shape.wide": "Horizontal",
+    "shape.square": "Quadrado",
+    preview: "Prévia",
+    creditsPreview: "Prévia dos créditos",
+    previewAt: "Prévia em",
+    secondsUnit: "s",
+    firstRow: "Primeira linha",
+    lastRow: "Última linha",
+    end: "Fim",
+    noCreditRows: "Sem linhas de créditos: só o título aparece.",
+    rowHidden: "A linha {from} não vai aparecer em “{length}”: {names}.",
+    rowsHidden: "As linhas {from}–{to} não vão aparecer em “{length}”: {names}.",
+    dropRows: { one: "Para que todas as linhas saiam antes do fim, remova {count} linha.", many: "Para que todas as linhas saiam antes do fim, remova {count} de linhas.", other: "Para que todas as linhas saiam antes do fim, remova {count} linhas." },
+    dropRowsOrLong: { one: "Para que todas as linhas saiam antes do fim, remova {count} linha ou escolha “{long}”.", many: "Para que todas as linhas saiam antes do fim, remova {count} de linhas ou escolha “{long}”.", other: "Para que todas as linhas saiam antes do fim, remova {count} linhas ou escolha “{long}”." },
+    tooManyRows: { one: "Linhas demais para saírem antes do fim: remova {count} linha.", many: "Linhas demais para saírem antes do fim: remova {count} de linhas.", other: "Linhas demais para saírem antes do fim: remova {count} linhas." },
+    tooManyRowsOrLong: { one: "Linhas demais para saírem antes do fim: remova {count} linha ou escolha “{long}”.", many: "Linhas demais para saírem antes do fim: remova {count} de linhas ou escolha “{long}”.", other: "Linhas demais para saírem antes do fim: remova {count} linhas ou escolha “{long}”." },
+    creditsEndEarly: "Os créditos terminam antes do fim: a rolagem continua sobre o preto.",
+    "step.prepare": "Procurando planos",
+    "step.plan": "Planejando a edição",
+    "step.music": "Preparando a música",
+    "step.assemble": "Criando o Draft",
+    "step.decorate": "Adicionando créditos e look",
+    progress: "Etapa {step}/{total} · {name} · {percent}%",
+    progressDetail: "Etapa {step}/{total} · {name} ({detail}) · {percent}%",
+    videosChecked: { one: "{done}/{count} vídeo verificado", many: "{done}/{count} de vídeos verificados", other: "{done}/{count} vídeos verificados" },
+    videosMeasured: { one: "{done}/{count} vídeo medido", many: "{done}/{count} de vídeos medidos", other: "{done}/{count} vídeos medidos" },
+    openingDraft: "abrindo o Draft",
+    stoppedAt: "Parou na etapa {step}/{total} ({name}): {detail}",
+    build: "Criar",
+    building: "Criando",
+    anotherVersion: "Testar outros planos",
+    finishTitle: "Concluir título e look",
+    draftCreated: "Draft criado. Selecione os créditos para editar em Ajustar o título, as linhas, as cores ou a velocidade de rolagem; um plano para mover ou redimensionar a janela dele ou mudar as transições, o movimento ou a intensidade do look; e a música para mudar o volume.",
+    draftCreatedAdding: "Draft criado; adicionando créditos e look…",
+    openDraft: "Abrir o novo Draft",
+    copyLink: "Copiar o link do novo Draft",
+    shortened: { one: "Seu material rende {count} plano, então este vídeo tem cerca de {seconds} s em vez de {fullSeconds} s. Adicione mais clipes ou fotos para a duração completa.", many: "Seu material rende {count} de planos, então este vídeo tem cerca de {seconds} s em vez de {fullSeconds} s. Adicione mais clipes ou fotos para a duração completa.", other: "Seu material rende {count} planos, então este vídeo tem cerca de {seconds} s em vez de {fullSeconds} s. Adicione mais clipes ou fotos para a duração completa." },
+    note: "Observação: {detail}.",
+    unchecked: { one: "Não foi possível verificar {count} vídeo, que foi ignorado. Crie de novo para tentar outra vez.", many: "Não foi possível verificar {count} de vídeos, que foram ignorados. Crie de novo para tentar outra vez.", other: "Não foi possível verificar {count} vídeos, que foram ignorados. Crie de novo para tentar outra vez." },
+    startFailed: "Não foi possível iniciar o THE END Credits: {detail}. Reinstale o plugin se o problema continuar.",
+    foldersNotFound: "as pastas do plugin não foram encontradas",
+    adapterNeeded: "Esta versão do Selects precisa de um adaptador {name} atualizado.",
+    stepFailed: "O Selects não conseguiu concluir esta etapa.",
+    musicUnreadable: "Não foi possível ler este arquivo de música ({detail}). Escolha outro arquivo ou uma das faixas.",
+    beatFailed: "a detecção da batida falhou",
+    previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
+    previewNotCut: "não foi possível recortar a prévia",
+    noAudio: "nenhum áudio foi retornado",
+    dropMusic: "Solte um arquivo de música ou escolha uma das faixas.",
+    trackTooShort: "Esta faixa é curta demais para esta duração.",
+    musicNotReady: "A música ainda não está pronta.",
+    draftNoId: "O Draft “{name}” foi salvo, mas o Selects não informou o id dele, então os créditos e o look não puderam ser adicionados. Abra-o pela lista de Drafts ou crie de novo.",
+    finishFailed: "O Draft foi criado, mas não pôde ser concluído (créditos, look e janelas dos planos): {detail}. Pressione “Concluir título e look” para tentar de novo.",
+    openFailed: "O Draft está pronto, mas não pôde ser aberto: {detail}. Use o link abaixo ou abra-o pela lista de Drafts.",
+    "param.titleColor": "Cor do título",
+    "param.creditColor": "Cor dos créditos",
+    "param.rollSpeed": "Velocidade de rolagem",
+    "param.showTitle": "Mostrar título",
+    "param.windowX": "Janela X (%)",
+    "param.windowY": "Janela Y (%)",
+    "param.windowSize": "Tamanho da janela (%)",
+    "param.fadeIn": "Fade de entrada (s)",
+    "param.fadeOut": "Fade de saída (s)",
+    "param.motion": "Movimento",
+    "param.motionStrength": "Intensidade do movimento",
+    "param.lookStrength": "Intensidade do look",
+    "motion.none": "Nenhum",
+    "motion.push-in": "Aproximar",
+    "motion.pull-out": "Afastar",
+    "motion.drift-left": "Deslizar para a esquerda",
+    "motion.drift-right": "Deslizar para a direita",
+    "motion.drift-up": "Deslizar para cima",
+    "motion.drift-down": "Deslizar para baixo",
+    "motion.tilt": "Inclinar",
+    "motion.push-drift": "Aproximar e deslizar",
+  },
+  tr: {
+    openProject: "THE END Credits oluşturmak için bir proje açın.",
+    refresh: "Yenile",
+    refreshing: "Yenileniyor",
+    refreshFailed: "Klip listesi yenilenemedi: {detail}",
+    readFailed: "Bu projedeki klipler okunamadı: {detail}",
+    checkingClipsNow: "Klipler kontrol ediliyor…",
+    checkingClips: "Klipler kontrol ediliyor",
+    listening: "Ritim aranıyor",
+    working: "Çalışıyor",
+    noFootage: "Bu projede henüz analiz edilmiş video veya fotoğraf yok. Video klipleri ekleyip analiz edin ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
+    turnOnPhotos: "Bu projenin fotoğraflarından oluşturmak için “Gelişmiş” bölümünde “Fotoğrafları kullan” seçeneğini açın.",
+    noClipsSelected: "Klip seçilmedi. “Gelişmiş” bölümünden klip seçin.",
+    needsShots: { one: "En az {count} kullanılabilir klip veya fotoğraf gerekir ({found} bulundu).", other: "En az {count} kullanılabilir klip veya fotoğraf gerekir ({found} bulundu)." },
+    addFootage: "Daha çeşitli görüntüler ekleyin veya daha fazla klip seçin.",
+    addFootagePhotos: "Daha çeşitli görüntüler veya fotoğraflar ekleyin.",
+    addFootagePhotosSelect: "Daha çeşitli görüntüler veya fotoğraflar ekleyin ya da daha fazla klip seçin.",
+    retryUnchecked: { one: "{count} klip kontrol edilemedi; yeniden denemek için “Oluştur”a basın.", other: "{count} klip kontrol edilemedi; yeniden denemek için “Oluştur”a basın." },
+    gap: " ",
+    listSep: ", ",
+    ready: "Hazır: {summary}",
+    clips: { one: "{count} klip", other: "{count} klip" },
+    clipsSelected: { one: "{count} klipten {selected} tanesi seçili", other: "{count} klipten {selected} tanesi seçili" },
+    photos: { one: "{count} fotoğraf", other: "{count} fotoğraf" },
+    photosSelected: { one: "{count} fotoğraftan {selected} tanesi seçili", other: "{count} fotoğraftan {selected} tanesi seçili" },
+    shots: { one: "{count} çekim", other: "{count} çekim" },
+    shotsFitted: { one: "{count} çekim (görüntüleriniz {count} çekime yetiyor)", other: "{count} çekim (görüntüleriniz {count} çekime yetiyor)" },
+    aboutSeconds: "yaklaşık {seconds} sn",
+    notAnalysed: { one: "{count} klip henüz analiz edilmedi", other: "{count} klip henüz analiz edilmedi" },
+    analysing: { one: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir.", other: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir." },
+    notAnalysedAnalyse: { one: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin.", other: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin." },
+    notAnalysedMaybe: { one: "{count} klip henüz analiz edilmedi. Selects analiz ediyorsa bu otomatik olarak güncellenir.", other: "{count} klip henüz analiz edilmedi. Selects analiz ediyorsa bu otomatik olarak güncellenir." },
+    analysisFailed: { one: "{count} klip analiz edilemedi.", other: "{count} klip analiz edilemedi." },
+    noteAnalysing: { one: "{count} klip analiz ediliyor", other: "{count} klip analiz ediliyor" },
+    noteFailed: { one: "{count} klip analiz edilemedi", other: "{count} klip analiz edilemedi" },
+    layout: "Düzen",
+    "layout.classic": "Klasik (pencere)",
+    "layout.full": "Tam kare",
+    title: "Başlık",
+    credits: "Jenerik",
+    preset: "Hazır ayar",
+    "preset.filmCrew": "Film ekibi",
+    "preset.personal": "Kişisel",
+    "preset.travel": "Seyahat",
+    creditRows: "Jenerik satırları",
+    creditN: "Jenerik {n}",
+    roleN: "Görev {n}",
+    nameN: "İsim {n}",
+    rolePlaceholder: "Görev (ör. Yönetmen)",
+    namePlaceholder: "İsim",
+    resetPreset: "Hazır ayara sıfırla",
+    "list.reorderHandle": "{n}. satırı taşı: {label}",
+    "list.removeRow": "{n}. satırı kaldır",
+    "list.moved": "{label}, {total} öğe içinde {pos}. sıraya taşındı",
+    "list.addRow": "Satır ekle",
+    noRows: "Satır yok: jenerikte yalnızca başlık görünür.",
+    rowsHint: "İki alanı da boş olan satırlar atlanır. [Köşeli parantez] içindeki metni kendinizinkiyle değiştirin.",
+    placeholdersLeft: { one: "{count} satırda hâlâ örnek metin var.", other: "{count} satırda hâlâ örnek metin var." },
+    systemFont: "Bazı karakterler bir sistem yazı tipi kullanıyor.",
+    length: "Uzunluk",
+    "length.short": "Kısa",
+    "length.standard": "Standart",
+    "length.long": "Uzun",
+    music: "Müzik",
+    track: "Parça",
+    ownMusic: "Kendi müziğiniz",
+    noMusic: "Müzik yok",
+    dropAudio: "Bu bilgisayardaki bir ses dosyasını (mp3, wav, m4a…) bırakın.",
+    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg ve Node.js 18+ yükleyin.",
+    noSteadyBeat: "Düzenli bir ritim bulunamadı: çekimler {seconds} sn sürüyor.",
+    beatApprox: "Ritim bulundu (yaklaşık): çekimler her {seconds} sn'de onu takip ediyor.",
+    sectionHint: "Müzik bölümü — seçmek için sürükleyin",
+    sectionLabel: "Müzik bölümü",
+    musicTooShort: "Bu müzik bu uzunluk için çok kısa",
+    startsAt: "{seconds} sn'de başlar",
+    startsAtSwell: "{seconds} sn'de başlar · başlık doruk noktasında belirir",
+    startsAtLoudest: "{seconds} sn'de başlar · başlık en yüksek bölümde belirir",
+    stopPreview: "Önizlemeyi durdur",
+    cancelPreview: "Önizlemeyi iptal et",
+    previewWhole: "Tüm videonun müziğini önizle",
+    readingMusic: "Müzik okunuyor…",
+    tooShortFor: "Bu parça “{length}” için çok kısa.",
+    useLength: "“{length}” kullan",
+    tooShortNeeds: "Bu parça çok kısa (≥ {seconds} sn gerekir).",
+    silentVideo: "Sessiz video: müzik yok ve klip sesi “Kapalı”.",
+    advanced: "Gelişmiş",
+    clipSound: "Klip sesi",
+    "sound.ambient": "Ortam",
+    "sound.full": "Tam",
+    "sound.off": "Kapalı",
+    cinematicLook: "Sinematik görünüm",
+    usePhotos: "Fotoğrafları kullan",
+    usePhotosOff: "“Fotoğrafları kullan” kapalı",
+    chooseClips: "Klip seç",
+    chooseClipsCount: "Klip seç ({selected}/{total})",
+    all: "Tümü",
+    none: "Hiçbiri",
+    photo: "Fotoğraf",
+    "shape.tall": "Dikey",
+    "shape.wide": "Yatay",
+    "shape.square": "Kare",
+    preview: "Önizleme",
+    creditsPreview: "Jenerik önizlemesi",
+    previewAt: "Önizleme anı",
+    secondsUnit: "sn",
+    firstRow: "İlk satır",
+    lastRow: "Son satır",
+    end: "Son",
+    noCreditRows: "Jenerik satırı yok: yalnızca başlık görünür.",
+    rowHidden: "{from}. satır “{length}” uzunluğunda görünmeyecek: {names}.",
+    rowsHidden: "{from}–{to}. satırlar “{length}” uzunluğunda görünmeyecek: {names}.",
+    dropRows: { one: "Tüm satırların bitişten önce kayıp çıkması için {count} satır kaldırın.", other: "Tüm satırların bitişten önce kayıp çıkması için {count} satır kaldırın." },
+    dropRowsOrLong: { one: "Tüm satırların bitişten önce kayıp çıkması için {count} satır kaldırın veya “{long}” seçin.", other: "Tüm satırların bitişten önce kayıp çıkması için {count} satır kaldırın veya “{long}” seçin." },
+    tooManyRows: { one: "Bitişten önce kayıp çıkmak için çok fazla satır var: {count} satır kaldırın.", other: "Bitişten önce kayıp çıkmak için çok fazla satır var: {count} satır kaldırın." },
+    tooManyRowsOrLong: { one: "Bitişten önce kayıp çıkmak için çok fazla satır var: {count} satır kaldırın veya “{long}” seçin.", other: "Bitişten önce kayıp çıkmak için çok fazla satır var: {count} satır kaldırın veya “{long}” seçin." },
+    creditsEndEarly: "Jenerik videodan önce bitiyor: kayma siyah ekran üzerinde sürüyor.",
+    "step.prepare": "Çekimler aranıyor",
+    "step.plan": "Kurgu planlanıyor",
+    "step.music": "Müzik hazırlanıyor",
+    "step.assemble": "Draft oluşturuluyor",
+    "step.decorate": "Jenerik ve görünüm ekleniyor",
+    progress: "Adım {step}/{total} · {name} · %{percent}",
+    progressDetail: "Adım {step}/{total} · {name} ({detail}) · %{percent}",
+    videosChecked: { one: "{done}/{count} video kontrol edildi", other: "{done}/{count} video kontrol edildi" },
+    videosMeasured: { one: "{done}/{count} video ölçüldü", other: "{done}/{count} video ölçüldü" },
+    openingDraft: "Draft açılıyor",
+    stoppedAt: "{step}/{total}. adımda durdu ({name}): {detail}",
+    build: "Oluştur",
+    building: "Oluşturuluyor",
+    anotherVersion: "Başka çekimler dene",
+    finishTitle: "Başlığı ve görünümü tamamla",
+    draftCreated: "Draft oluşturuldu. Ayarla bölümünde başlığı, satırları, renkleri veya kayma hızını düzenlemek için jeneriği; penceresini taşımak ya da boyutlandırmak, geçişlerini, hareketini veya görünüm yoğunluğunu değiştirmek için bir çekimi; ses düzeyini değiştirmek için müziği seçin.",
+    draftCreatedAdding: "Draft oluşturuldu; jenerik ve görünüm ekleniyor…",
+    openDraft: "Yeni Draft'ı aç",
+    copyLink: "Yeni Draft'ın bağlantısını kopyala",
+    shortened: { one: "Görüntüleriniz {count} çekime yetiyor, bu yüzden bu video {fullSeconds} sn yerine yaklaşık {seconds} sn sürüyor. Tam uzunluk için daha fazla klip veya fotoğraf ekleyin.", other: "Görüntüleriniz {count} çekime yetiyor, bu yüzden bu video {fullSeconds} sn yerine yaklaşık {seconds} sn sürüyor. Tam uzunluk için daha fazla klip veya fotoğraf ekleyin." },
+    note: "Not: {detail}.",
+    unchecked: { one: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun.", other: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun." },
+    startFailed: "THE END Credits başlatılamadı: {detail}. Sorun sürerse eklentiyi yeniden yükleyin.",
+    foldersNotFound: "eklenti klasörleri bulunamadı",
+    adapterNeeded: "Bu Selects sürümü güncel bir {name} bağdaştırıcısı gerektiriyor.",
+    stepFailed: "Selects bu adımı tamamlayamadı.",
+    musicUnreadable: "Bu müzik dosyası okunamadı ({detail}). Başka bir dosya veya hazır parçalardan birini seçin.",
+    beatFailed: "ritim algılama başarısız oldu",
+    previewFailed: "Önizleme oynatılamadı: {detail}.",
+    previewNotCut: "önizleme kesilemedi",
+    noAudio: "ses geri gelmedi",
+    dropMusic: "Bir müzik dosyası bırakın veya hazır parçalardan birini seçin.",
+    trackTooShort: "Bu parça bu uzunluk için çok kısa.",
+    musicNotReady: "Müzik henüz hazır değil.",
+    draftNoId: "“{name}” adlı Draft kaydedildi ama Selects kimliğini bildirmedi, bu yüzden jenerik ve görünüm eklenemedi. Draft listesinden açın veya yeniden oluşturun.",
+    finishFailed: "Draft oluşturuldu ama tamamlanamadı (jenerik, görünüm ve çekim pencereleri): {detail}. Yeniden denemek için “Başlığı ve görünümü tamamla”ya basın.",
+    openFailed: "Draft hazır ama açılamadı: {detail}. Aşağıdaki bağlantıyı kullanın veya Draft listesinden açın.",
+    "param.titleColor": "Başlık rengi",
+    "param.creditColor": "Jenerik rengi",
+    "param.rollSpeed": "Kayma hızı",
+    "param.showTitle": "Başlığı göster",
+    "param.windowX": "Pencere X (%)",
+    "param.windowY": "Pencere Y (%)",
+    "param.windowSize": "Pencere boyutu (%)",
+    "param.fadeIn": "Açılma (sn)",
+    "param.fadeOut": "Kararma (sn)",
+    "param.motion": "Hareket",
+    "param.motionStrength": "Hareket gücü",
+    "param.lookStrength": "Görünüm yoğunluğu",
+    "motion.none": "Yok",
+    "motion.push-in": "Yakınlaş",
+    "motion.pull-out": "Uzaklaş",
+    "motion.drift-left": "Sola kay",
+    "motion.drift-right": "Sağa kay",
+    "motion.drift-up": "Yukarı kay",
+    "motion.drift-down": "Aşağı kay",
+    "motion.tilt": "Eğ",
+    "motion.push-drift": "Yakınlaş ve kay",
+  },
+  zh: {
+    openProject: "请先打开一个项目，再制作 THE END Credits。",
+    refresh: "刷新",
+    refreshing: "正在刷新",
+    refreshFailed: "无法刷新片段列表：{detail}",
+    readFailed: "无法读取此项目中的片段：{detail}",
+    checkingClipsNow: "正在检查片段…",
+    checkingClips: "正在检查片段",
+    listening: "正在识别节拍",
+    working: "处理中",
+    noFootage: "此项目中还没有已分析的视频或照片。请添加视频片段并进行分析，或添加照片；这里会自动更新。",
+    turnOnPhotos: "请在“高级”中开启“使用照片”，即可用此项目的照片制作。",
+    noClipsSelected: "未选择片段。请在“高级”中选择片段。",
+    needsShots: { other: "至少需要 {count} 个可用的片段或照片（找到 {found} 个）。" },
+    addFootage: "请添加更多样的素材，或选择更多片段。",
+    addFootagePhotos: "请添加更多样的素材或照片。",
+    addFootagePhotosSelect: "请添加更多样的素材或照片，或选择更多片段。",
+    retryUnchecked: { other: "有 {count} 个片段无法检查；点击“生成”重试。" },
+    gap: "",
+    listSep: "、",
+    ready: "已就绪：{summary}",
+    clips: { other: "{count} 个片段" },
+    clipsSelected: { other: "已选 {selected}/{count} 个片段" },
+    photos: { other: "{count} 张照片" },
+    photosSelected: { other: "已选 {selected}/{count} 张照片" },
+    shots: { other: "{count} 个镜头" },
+    shotsFitted: { other: "{count} 个镜头（素材可支持 {count} 个）" },
+    aboutSeconds: "约 {seconds} 秒",
+    notAnalysed: { other: "{count} 个片段尚未分析" },
+    analysing: { other: "正在分析 {count} 个片段。分析完成后会自动更新。" },
+    notAnalysedAnalyse: { other: "有 {count} 个片段尚未分析。请在 Selects 中分析后再在这里使用。" },
+    notAnalysedMaybe: { other: "有 {count} 个片段尚未分析。如果 Selects 正在分析，这里会自动更新。" },
+    analysisFailed: { other: "有 {count} 个片段无法分析。" },
+    noteAnalysing: { other: "{count} 个片段分析中" },
+    noteFailed: { other: "{count} 个片段无法分析" },
+    layout: "版式",
+    "layout.classic": "经典（小窗）",
+    "layout.full": "全画面",
+    title: "标题",
+    credits: "字幕",
+    preset: "预设",
+    "preset.filmCrew": "电影剧组",
+    "preset.personal": "个人",
+    "preset.travel": "旅行",
+    creditRows: "字幕行",
+    creditN: "字幕 {n}",
+    roleN: "职务 {n}",
+    nameN: "姓名 {n}",
+    rolePlaceholder: "职务（例如：导演）",
+    namePlaceholder: "姓名",
+    resetPreset: "恢复预设",
+    "list.reorderHandle": "调整第 {n} 行的顺序：{label}",
+    "list.removeRow": "删除第 {n} 行",
+    "list.moved": "{label} 已移至第 {pos} 位（共 {total} 项）",
+    "list.addRow": "添加一行",
+    noRows: "没有字幕行：只显示标题。",
+    rowsHint: "两栏都为空的行会被忽略。请把 [方括号] 中的文字换成你自己的内容。",
+    placeholdersLeft: { other: "还有 {count} 行包含示例文字。" },
+    systemFont: "部分字符使用系统字体显示。",
+    length: "时长",
+    "length.short": "短",
+    "length.standard": "标准",
+    "length.long": "长",
+    music: "音乐",
+    track: "曲目",
+    ownMusic: "自己的音乐",
+    noMusic: "无音乐",
+    dropAudio: "请拖入这台电脑上的音频文件（mp3、wav、m4a 等）。",
+    installTools: "请安装 ffmpeg 和 Node.js 18+，才能试听音乐或使用自己的曲目。",
+    noSteadyBeat: "未找到稳定的节拍：每个镜头 {seconds} 秒。",
+    beatApprox: "已识别节拍（近似）：镜头每 {seconds} 秒跟随节拍切换。",
+    sectionHint: "音乐片段 — 拖动选择",
+    sectionLabel: "音乐片段",
+    musicTooShort: "这段音乐太短，不够这个时长",
+    startsAt: "从 {seconds} 秒开始",
+    startsAtSwell: "从 {seconds} 秒开始 · 标题在高潮处出现",
+    startsAtLoudest: "从 {seconds} 秒开始 · 标题在最响的部分出现",
+    stopPreview: "停止试听",
+    cancelPreview: "取消试听",
+    previewWhole: "试听整个视频的音乐",
+    readingMusic: "正在读取音乐…",
+    tooShortFor: "这首曲目太短，不够“{length}”。",
+    useLength: "改用“{length}”",
+    tooShortNeeds: "这首曲目太短（至少需要 {seconds} 秒）。",
+    silentVideo: "无声视频：没有音乐，且片段原声为“关闭”。",
+    advanced: "高级",
+    clipSound: "片段原声",
+    "sound.ambient": "环境音",
+    "sound.full": "原音量",
+    "sound.off": "关闭",
+    cinematicLook: "电影色调",
+    usePhotos: "使用照片",
+    usePhotosOff: "“使用照片”已关闭",
+    chooseClips: "选择片段",
+    chooseClipsCount: "选择片段（{selected}/{total}）",
+    all: "全选",
+    none: "全不选",
+    photo: "照片",
+    "shape.tall": "竖版",
+    "shape.wide": "横版",
+    "shape.square": "方形",
+    preview: "预览",
+    creditsPreview: "字幕预览",
+    previewAt: "预览位置",
+    secondsUnit: "秒",
+    firstRow: "第一行",
+    lastRow: "最后一行",
+    end: "结尾",
+    noCreditRows: "没有字幕行：只显示标题。",
+    rowHidden: "在“{length}”中第 {from} 行不会出现：{names}。",
+    rowsHidden: "在“{length}”中第 {from}–{to} 行不会出现：{names}。",
+    dropRows: { other: "要让所有行在结尾前滚出画面，请删除 {count} 行。" },
+    dropRowsOrLong: { other: "要让所有行在结尾前滚出画面，请删除 {count} 行或选择“{long}”。" },
+    tooManyRows: { other: "行数太多，无法在结尾前滚出画面：请删除 {count} 行。" },
+    tooManyRowsOrLong: { other: "行数太多，无法在结尾前滚出画面：请删除 {count} 行或选择“{long}”。" },
+    creditsEndEarly: "字幕会在视频结束前滚完，之后是黑屏。",
+    "step.prepare": "查找镜头",
+    "step.plan": "规划剪辑",
+    "step.music": "准备音乐",
+    "step.assemble": "创建 Draft",
+    "step.decorate": "添加字幕和色调",
+    progress: "第 {step}/{total} 步 · {name} · {percent}%",
+    progressDetail: "第 {step}/{total} 步 · {name}（{detail}）· {percent}%",
+    videosChecked: { other: "已检查 {done}/{count} 个视频" },
+    videosMeasured: { other: "已测量 {done}/{count} 个视频" },
+    openingDraft: "正在打开 Draft",
+    stoppedAt: "在第 {step}/{total} 步（{name}）停止：{detail}",
+    build: "生成",
+    building: "正在生成",
+    anotherVersion: "换一组镜头",
+    finishTitle: "完成标题和色调",
+    draftCreated: "Draft 已创建。选中字幕可在“调整”中编辑标题、行、颜色或滚动速度；选中镜头可移动或缩放其小窗，或更改淡入淡出、运动或色调强度；选中音乐可更改音量。",
+    draftCreatedAdding: "Draft 已创建；正在添加字幕和色调…",
+    openDraft: "打开新的 Draft",
+    copyLink: "复制新 Draft 的链接",
+    shortened: { other: "你的素材可支持 {count} 个镜头，因此这个视频约 {seconds} 秒，而不是 {fullSeconds} 秒。添加更多片段或照片即可达到完整时长。" },
+    note: "提示：{detail}。",
+    unchecked: { other: "有 {count} 个视频无法检查，已跳过。再次生成可重试。" },
+    startFailed: "THE END Credits 无法启动：{detail}。如果问题持续，请重新安装插件。",
+    foldersNotFound: "找不到插件文件夹",
+    adapterNeeded: "此版本的 Selects 需要更新的 {name} 适配器。",
+    stepFailed: "Selects 无法完成这一步。",
+    musicUnreadable: "无法读取这个音乐文件（{detail}）。请选择其他文件或内置曲目。",
+    beatFailed: "节拍识别失败",
+    previewFailed: "无法播放试听：{detail}。",
+    previewNotCut: "无法截取试听片段",
+    noAudio: "没有返回音频",
+    dropMusic: "请拖入一个音乐文件，或选择内置曲目。",
+    trackTooShort: "这首曲目太短，不够这个时长。",
+    musicNotReady: "音乐尚未准备好。",
+    draftNoId: "Draft“{name}”已保存，但 Selects 没有返回它的 ID，因此无法添加字幕和色调。请从 Draft 列表中打开它，或重新生成。",
+    finishFailed: "Draft 已创建，但未能完成（字幕、色调和镜头小窗）：{detail}。点击“完成标题和色调”重试。",
+    openFailed: "Draft 已就绪，但无法打开：{detail}。请使用下方链接，或从 Draft 列表中打开。",
+    "param.titleColor": "标题颜色",
+    "param.creditColor": "字幕颜色",
+    "param.rollSpeed": "滚动速度",
+    "param.showTitle": "显示标题",
+    "param.windowX": "小窗 X（%）",
+    "param.windowY": "小窗 Y（%）",
+    "param.windowSize": "小窗大小（%）",
+    "param.fadeIn": "淡入（秒）",
+    "param.fadeOut": "淡出（秒）",
+    "param.motion": "运动",
+    "param.motionStrength": "运动强度",
+    "param.lookStrength": "色调强度",
+    "motion.none": "无",
+    "motion.push-in": "推近",
+    "motion.pull-out": "拉远",
+    "motion.drift-left": "向左平移",
+    "motion.drift-right": "向右平移",
+    "motion.drift-up": "向上平移",
+    "motion.drift-down": "向下平移",
+    "motion.tilt": "倾斜",
+    "motion.push-drift": "推近并平移",
+  },
+};
+// STRINGS:END
+// i18n runtime for style-app panels (selects-app-kit tools/i18n/i18n-runtime.ts). Paste it below the STRINGS block.
+const LANGS = ["de", "en", "es", "fr", "it", "ja", "ko", "pt", "tr", "zh"] as const;
+type Lang = (typeof LANGS)[number];
+type Msg = string | { [category: string]: string };
+type Vars = Record<string, string | number>;
+const I18N_TABLE = STRINGS as unknown as Record<string, Record<string, Msg>>;
+
+function normLang(raw: unknown): Lang | null {
+  const code = String(raw ?? "").toLowerCase().split(/[-_]/)[0];
+  return (LANGS as readonly string[]).includes(code) ? (code as Lang) : null;
+}
+// Call in the component body on every render: the app can switch languages while the panel is open.
+function uiLang(context?: { language?: string | null } | null): Lang {
+  const nav = typeof navigator === "undefined" ? "" : navigator.language;
+  return normLang(context?.language) ?? normLang(nav) ?? "en";
+}
+// Plural messages pick their form from vars.count; numbers are formatted for the language.
+function t(lang: Lang, key: string, vars: Vars = {}): string {
+  let msg: Msg | undefined = I18N_TABLE[lang]?.[key] ?? I18N_TABLE.en[key];
+  if (msg === undefined) return key;
+  if (typeof msg !== "string") {
+    const n = Number(vars.count);
+    msg = msg[new Intl.PluralRules(lang).select(Number.isFinite(n) ? n : 0)] ?? msg.other ?? "";
+  }
+  const nf = new Intl.NumberFormat(lang);
+  return msg.replace(/\{(\w+)\}/g, (whole: string, name: string) => {
+    const v = vars[name];
+    return v === undefined ? whole : typeof v === "number" ? nf.format(v) : v;
+  });
+}
+// Optional keys (preset/look labels by id): the English label from the JSON is the fallback.
+function tOr(lang: Lang, key: string, fallback: string, vars: Vars = {}): string {
+  return I18N_TABLE.en[key] === undefined ? fallback : t(lang, key, vars);
+}
+// Field limits count Hangul, kana, CJK and fullwidth characters as 2.
+const WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+function fieldLen(text: string): number {
+  let n = 0;
+  for (const ch of text) n += WIDE_RE.test(ch) ? 2 : 1;
+  return n;
+}
+
+// A message that follows the UI language: state keeps the function and every render calls it with the current language.
+type Say = (lang: Lang) => string;
+// An error whose text follows the UI language; `message` keeps the English text.
+function uiError(say: Say) { const e: any = new Error(say("en")); e.say = say; return e; }
+function sayError(lang: Lang, e: any): string { return typeof e?.say === "function" ? e.say(lang) : String(e?.message || e); }
 
 const PLUGIN_ID = "the-end-credits";
 const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
@@ -32,9 +1835,14 @@ const TEC_FONTS = [
   { file: "tec-title-serif.woff2.b64", family: "TEC Title Serif", weight: 800, style: "normal" },
   { file: "tec-credits-sans.woff2.b64", family: "TEC Credits Sans", weight: 600, style: "normal" },
 ];
-const TITLE_STACK = '"TEC Title Serif", Georgia, "Times New Roman", serif';
-const CREDITS_STACK = '"TEC Credits Sans", "Helvetica Neue", Arial, sans-serif';
-const LENGTH_LABELS: Record<string, string> = { short: "Short", standard: "Standard", long: "Long" };
+// Hangul falls back to the macOS system face of each role (serif title: AppleMyungjo; sans credits: Apple SD Gothic Neo).
+const TITLE_STACK = '"TEC Title Serif", Georgia, "Times New Roman", "AppleMyungjo", serif';
+const CREDITS_STACK = '"TEC Credits Sans", "Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif';
+// The title is drawn condensed (scaleX 0.78), except a title holding Hangul: Hangul is never squeezed (the graphic's
+// tecTitleScaleX).
+const TITLE_SCALE_X = 0.78;
+const HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
+function titleScaleX(text: string) { return HANGUL_RE.test(text) ? 1 : TITLE_SCALE_X; }
 
 // tec-planner:start
 // THE END Credits planner. A plain script: panel.tsx embeds it verbatim (between the tec-planner markers) and the
@@ -571,11 +2379,15 @@ const TEC_DAY_RANGE_MAX = 10;
 const TEC_EN_DASH = '\u2013';
 const TEC_MID_DOT = '\u00b7';
 
-// The CWV place heuristic: a short Latin Project name that does not look like a working title.
+// The CWV place heuristic: a short Latin or Hangul Project name (2 to 31 columns, Hangul counts as 2) that does not
+// look like a working title.
 function tecSuggestPlace(projectName) {
   const name = String(projectName || '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!/^[A-Za-z][A-Za-z .']{1,30}$/.test(name)) return '';
+  const cols = Array.from(name).reduce((a, ch) => a + (/[\uac00-\ud7a3]/.test(ch) ? 2 : 1), 0);
+  if (!/^[A-Za-z\uac00-\ud7a3][A-Za-z\uac00-\ud7a3 .']*$/.test(name) || cols < 2 || cols > 31) return '';
   if (/\b(project|untitled|test|draft|copy|export|final|edit|vlog)\b/i.test(name)) return '';
+  // The same generic words in Korean (project, untitled, test, draft, copy, export, final, edit, vlog).
+  if (/\ud504\ub85c\uc81d\ud2b8|\ubb34\uc81c|\uc81c\ubaa9\u0020\uc5c6\uc74c|\ud14c\uc2a4\ud2b8|\ucd08\uc548|\ubcf5\uc0ac\ubcf8|\ub0b4\ubcf4\ub0b4\uae30|\ucd5c\uc885|\ud3b8\uc9d1|\ube0c\uc774\ub85c\uadf8/.test(name)) return '';
   return name;
 }
 
@@ -809,17 +2621,17 @@ function tecTitleExitSec(layout, pxPerSec, L) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // Build progress: 5 UI steps over 6 operations (Prepare = inventory + search; Plan; Music = ensure-audio;
-// Assemble; Decorate). Each step's share of the bar is in percent.
+// Assemble; Decorate). Each step's share of the bar is in percent. The panel names the steps in the UI language.
 const TEC_BUILD_STEPS = [
-  { id: 'prepare', label: 'Finding shots', weight: 35 },
-  { id: 'plan', label: 'Planning the edit', weight: 5 },
-  { id: 'music', label: 'Preparing music', weight: 10 },
-  { id: 'assemble', label: 'Creating Draft', weight: 30 },
-  { id: 'decorate', label: 'Adding credits and look', weight: 20 },
+  { id: 'prepare', weight: 35 },
+  { id: 'plan', weight: 5 },
+  { id: 'music', weight: 10 },
+  { id: 'assemble', weight: 30 },
+  { id: 'decorate', weight: 20 },
 ];
 
 // Progress for a step that is `fraction` done. Floors the percent so 100% only shows at the very end.
-function tecProgress(stepId, fraction, detail) {
+function tecProgress(stepId, fraction) {
   const i = TEC_BUILD_STEPS.findIndex(s => s.id === stepId);
   if (i < 0) throw new Error('unknown build step ' + stepId);
   const total = TEC_BUILD_STEPS.reduce((a, s) => a + s.weight, 0);
@@ -827,13 +2639,7 @@ function tecProgress(stepId, fraction, detail) {
   const f = Math.min(1, Math.max(0, Number(fraction) || 0));
   const value = (before + TEC_BUILD_STEPS[i].weight * f) / total;
   const percent = Math.floor(value * 100 + 1e-9);
-  const step = TEC_BUILD_STEPS[i];
-  return {
-    value,
-    percent,
-    current: i,
-    label: 'Step ' + (i + 1) + '/' + TEC_BUILD_STEPS.length + ' \u00b7 ' + step.label + (detail ? ' (' + detail + ')' : '') + ' \u00b7 ' + percent + '%',
-  };
+  return { id: TEC_BUILD_STEPS[i].id, value, percent, current: i };
 }
 // tec-planner:end
 
@@ -843,7 +2649,7 @@ function dq(value: string) { return '"' + String(value).replace(/(["\\`])/g, "\\
 function sq(value: string) { return "'" + String(value).replace(/'/g, "'\\''") + "'"; }
 function service(name: string, method: string) {
   const s = (window.parent as any)?.__DI__?.[name];
-  if (!s || typeof s[method] !== "function") throw new Error("This Selects build needs an updated " + name + " adapter.");
+  if (!s || typeof s[method] !== "function") throw uiError((l) => t(l, "adapterNeeded", { name }));
   return s;
 }
 async function readText(root: string, rel: string) {
@@ -864,11 +2670,11 @@ function photoCandsOf(inventory: any, onlyPhotos: string[] | null, usePhotos: bo
   if (!usePhotos || !inventory) return [];
   return (inventory.photos || []).map((r: any) => r.rid as string).filter((rid: string) => !onlyPhotos || onlyPhotos.includes(rid)).map((rid: string) => ({ rid, kind: "photo" }));
 }
-// A short orientation hint for the clip list; nothing when the frame size is unknown.
+// A short orientation hint for the clip list (a `shape.*` key); nothing when the frame size is unknown.
 function shapeHint(width: number | null, height: number | null) {
   if (!(width! > 0) || !(height! > 0)) return "";
   const r = width! / height!;
-  return r < 0.9 ? "Tall" : r > 1.1 ? "Wide" : "Square";
+  return r < 0.9 ? "tall" : r > 1.1 ? "wide" : "square";
 }
 function fmtTime(seconds: number) {
   const s = Math.max(0, Math.round(seconds));
@@ -895,7 +2701,8 @@ function measureWith(font: string, text: string) {
   if (measureCtx === null) {
     try { measureCtx = document.createElement("canvas").getContext("2d") || false; } catch { measureCtx = false; }
   }
-  if (!measureCtx) return Array.from(text).length * 0.6 * (parseFloat(font.split(" ")[1]) || 24);
+  // Without a canvas: wide characters (Hangul, kana, CJK) 1.0 em, anything else 0.6 em.
+  if (!measureCtx) return Array.from(text).reduce((a, ch) => a + (WIDE_RE.test(ch) ? 1 : 0.6), 0) * (parseFloat(font.split(" ")[1]) || 24);
   measureCtx.font = font;
   return measureCtx.measureText(text).width;
 }
@@ -917,8 +2724,8 @@ const WAVE_HEIGHT = 56;
 
 // Music section slider: waveform on a canvas with a draggable window over the chosen section, snapped to the
 // feasible phrase starts (tecSection). While `audio` plays, a playhead follows its currentTime inside the window.
-function SectionSlider({ peaks, total, section, videoSeconds, stepSeconds, snap, onChange, disabled, audio }: {
-  peaks: number[]; total: number; section: number | null; videoSeconds: number; stepSeconds: number;
+function SectionSlider({ lang, peaks, total, section, videoSeconds, stepSeconds, snap, onChange, disabled, audio }: {
+  lang: Lang; peaks: number[]; total: number; section: number | null; videoSeconds: number; stepSeconds: number;
   snap: (v: number) => number | null; onChange: (v: number | null) => void; disabled: boolean; audio: HTMLAudioElement | null;
 }) {
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
@@ -1043,10 +2850,10 @@ function SectionSlider({ peaks, total, section, videoSeconds, stepSeconds, snap,
 
   return (
     <div>
-      <small style={{ display: "block", marginBottom: 4 }}>{"Music section — drag to choose"}</small>
-      <div ref={wrapRef} role="slider" tabIndex={disabled ? -1 : 0} aria-label="Music section"
+      <small style={{ display: "block", marginBottom: 4, wordBreak: "keep-all" }}>{t(lang, "sectionHint")}</small>
+      <div ref={wrapRef} role="slider" tabIndex={disabled ? -1 : 0} aria-label={t(lang, "sectionLabel")}
         aria-valuemin={Number((first ?? 0).toFixed(1))} aria-valuemax={Number((last ?? 0).toFixed(1))} aria-valuenow={Number((section ?? 0).toFixed(1))}
-        aria-valuetext={section == null ? "This track is too short for this length" : "Starts at " + section.toFixed(1) + " s"} aria-disabled={disabled || undefined}
+        aria-valuetext={section == null ? t(lang, "musicTooShort") : t(lang, "startsAt", { seconds: Math.round(section * 10) / 10 })} aria-disabled={disabled || undefined}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} onKeyDown={onKeyDown}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         style={{ position: "relative", width: "100%", minWidth: 0, height: WAVE_HEIGHT, touchAction: "none", userSelect: "none", outline: "none",
@@ -1061,10 +2868,32 @@ function SectionSlider({ peaks, total, section, videoSeconds, stepSeconds, snap,
   );
 }
 
+// Videos without analysis, from inventory.js's skipped counts: being analysed now, not analysed yet (never started; the
+// panel does not start analysis), or failed. known is false when the workflow read failed: pending clips then may or
+// may not be queued, so their wording is neutral and the panel keeps polling.
+function tecAnalysisCounts(skipped: any) {
+  const s = skipped || {}, total = s.unanalysed || 0;
+  if (s.analysing == null) return { total, analysing: 0, notAnalysed: total, failed: 0, known: false };
+  return { total, analysing: s.analysing || 0, notAnalysed: s.notAnalysed || 0, failed: s.failed || 0, known: s.statusKnown !== false };
+}
+// The sentences for the readiness line in the UI language ("" when every video is analysed).
+function tecAnalysisText(lang: Lang, c: any) {
+  return [
+    c.analysing ? t(lang, "analysing", { count: c.analysing }) : "",
+    c.notAnalysed ? (c.known ? t(lang, "notAnalysedAnalyse", { count: c.notAnalysed }) : t(lang, "notAnalysedMaybe", { count: c.notAnalysed })) : "",
+    c.failed ? t(lang, "analysisFailed", { count: c.failed }) : "",
+  ].filter(Boolean).join(t(lang, "gap"));
+}
+// The short facts for the end of the Ready line ("" for a count of 0).
+function tecAnalysisNotes(lang: Lang, c: any) {
+  return [c.analysing ? t(lang, "noteAnalysing", { count: c.analysing }) : "", c.notAnalysed ? t(lang, "notAnalysed", { count: c.notAnalysed }) : "",
+    c.failed ? t(lang, "noteFailed", { count: c.failed }) : ""];
+}
+
 // Layout thumbnails: a tiny schematic of each layout (window + left column, or full frame + right column).
 function LayoutIcon({ kind }: { kind: "classic" | "full" }) {
   return (
-    <svg viewBox="0 0 32 18" width={48} height={27} aria-hidden="true" style={{ display: "block", margin: "0 auto" }}>
+    <svg viewBox="0 0 32 18" width={48} height={27} aria-hidden="true" style={{ display: "block", flex: "none", width: "100%", maxWidth: 48, height: "auto" }}>
       <rect x={0.5} y={0.5} width={31} height={17} rx={1.5} fill={kind === "full" ? "currentColor" : "none"} fillOpacity={kind === "full" ? 0.25 : 1} stroke="currentColor" strokeOpacity={0.6} />
       {kind === "classic" ? <rect x={16.2} y={2.3} width={13.6} height={7.7} fill="currentColor" fillOpacity={0.55} /> : <rect x={20} y={0.5} width={11.5} height={17} fill="currentColor" fillOpacity={0.35} />}
       {(kind === "classic" ? [4.5, 8, 11, 14] : [4.5, 8, 11, 14]).map((y, i) => (
@@ -1074,13 +2903,289 @@ function LayoutIcon({ kind }: { kind: "classic" | "full" }) {
   );
 }
 
+// The two Layout tiles: one bordered box each, holding the icon and its label. The host's base stylesheet gives every
+// plain <button> a fixed row height, a field max-width and side padding (it is meant for the panel's one action), so
+// each of those is overridden inline: the box grows with its label, which wraps to two centred lines in long
+// languages, and the row stretches both tiles to the taller one.
+function LayoutTiles({ lang, layout, busy, onPick, onKeyDown }: {
+  lang: Lang; layout: "classic" | "full"; busy: boolean; onPick: (v: "classic" | "full") => void; onKeyDown?: (e: any) => void;
+}) {
+  return (
+    <div role="group" aria-label={t(lang, "layout")} onKeyDown={onKeyDown} style={{ display: "flex", alignItems: "stretch", gap: 8, minWidth: 0 }}>
+      {(["classic", "full"] as const).map((value) => {
+        const on = layout === value, label = t(lang, "layout." + value);
+        return (
+          <button key={value} type="button" aria-pressed={on} disabled={busy} onClick={() => onPick(value)}
+            style={{ flex: "1 1 0", minWidth: 0, width: "auto", maxWidth: "none", height: "auto", minHeight: 0, maxHeight: "none", boxSizing: "border-box",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 6,
+              padding: "8px 6px", font: "inherit", fontWeight: 600, whiteSpace: "normal", lineHeight: 1.25, textAlign: "center",
+              borderRadius: "var(--panel-radius, 6px)", cursor: busy ? "default" : "pointer", color: "inherit",
+              background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 16%, transparent)" : "transparent",
+              border: on ? "2px solid var(--panel-accent, #f6c343)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))" }}>
+            <LayoutIcon kind={value} />
+            <span style={{ display: "block", width: "100%", fontSize: 12, whiteSpace: "normal", wordBreak: "keep-all", overflowWrap: "anywhere" }}>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// tec-reorder:start
+// Reorderable list maths (kit panel-ui.md §1). Plain functions, so the tests load them in node.
+// The list with the item at `from` moved to `to` (a copy; out-of-range or equal indices return an unchanged copy).
+function arrayMove(list: any, from: number, to: number) {
+  const c = list.slice();
+  if (from === to || from < 0 || to < 0 || from >= c.length || to >= c.length) return c;
+  const [x] = c.splice(from, 1);
+  c.splice(to, 0, x);
+  return c;
+}
+// Where a dragged row lands: how many other rows' mid-points its centre has passed (arrayMove semantics). `mids` are
+// the rows' mid-points when the drag began and `centre` the dragged row's centre now, in the same coordinates.
+function reorderTarget(mids: any, from: number, centre: number) {
+  let to = 0;
+  for (let k = 0; k < mids.length; k++) if (k !== from && centre > mids[k]) to++;
+  return Math.max(0, Math.min(to, mids.length - 1));
+}
+// One keyboard step (dir -1 up, +1 down), kept inside the list.
+function reorderStep(at: number, dir: number, count: number) {
+  return Math.max(0, Math.min(count - 1, at + dir));
+}
+// How far row k slides while row `from` (height h) is held over `to`: the rows in between make room for it.
+function reorderShift(k: number, from: number, to: number, h: number) {
+  if (from < to && k > from && k <= to) return -h;
+  if (to < from && k >= to && k < from) return h;
+  return 0;
+}
+// The top of the slot the held row would fill, from the rows' untransformed tops and heights.
+function reorderSlotTop(tops: any, heights: any, from: number, to: number) {
+  return to <= from ? tops[to] : tops[to] + heights[to] - heights[from];
+}
+// The drop line (2 px): above the target row when moving up, below it when moving down; null when nothing moves.
+function reorderLineY(tops: any, heights: any, from: number, to: number) {
+  if (to === from) return null;
+  return to < from ? tops[to] : tops[to] + heights[to];
+}
+// tec-reorder:end
+
+// The element that scrolls the panel: the nearest scrolling ancestor, else the document (the host scrolls the root).
+function scrollParent(el: HTMLElement | null): HTMLElement {
+  for (let p = el ? el.parentElement : null; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY;
+    if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return (document.scrollingElement || document.documentElement) as HTMLElement;
+}
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+const ROW_DIVIDER = "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))";
+const VISUALLY_HIDDEN = { position: "absolute", width: 1, height: 1, margin: -1, padding: 0, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 } as any;
+
+// The ≡ grip: three short lines in the current (muted) colour.
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width={16} height={16} aria-hidden="true" style={{ display: "block", flex: "none" }}>
+      <path d="M3 4.5h10M3 8h10M3 11.5h10" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
+
+// The credit rows (kit panel-ui.md §1): compact rows, each a drag handle, the role and name fields and a × remove,
+// reordered by dragging the handle (Pointer Events) or from the keyboard (Alt+arrows, or Space/Enter to grab, arrows
+// to move, Space/Enter to drop and Escape to cancel). `onEdit` takes an updater over the list, like the panel's
+// editRows; a reorder commits once, with arrayMove, on drop.
+function CreditRows({ lang, rows, busy, ui, onEdit, onAdd, onReset, canReset, onKeyDown }: {
+  lang: Lang; rows: EditRow[]; busy: boolean; ui: any; onEdit: (fn: (list: EditRow[]) => EditRow[]) => void;
+  onAdd: () => void; onReset: () => void; canReset: boolean; onKeyDown?: (e: any) => void;
+}) {
+  type Drag = { from: number; to: number; dy: number; started: boolean; kbd: boolean };
+  const listRef = React.useRef<HTMLDivElement | null>(null);
+  const rowEls = React.useRef<Record<string, HTMLDivElement | null>>({});
+  const handleEls = React.useRef<Record<string, HTMLButtonElement | null>>({});
+  const [drag, setDragState] = React.useState<Drag | null>(null);
+  const dragRef = React.useRef<Drag | null>(null);
+  const setDrag = (d: Drag | null) => { dragRef.current = d; setDragState(d); };
+  // Measured when a drag begins, in list coordinates (offsetTop/offsetHeight ignore the rows' transforms).
+  const geo = React.useRef({ tops: [] as number[], heights: [] as number[], mids: [] as number[], y0: 0, y: 0, s0: 0,
+    scroller: null as HTMLElement | null, el: null as HTMLElement | null, pointerId: -1, raf: 0, reduced: false, onKey: null as any });
+  const focusId = React.useRef<string | null>(null);
+  const [said, setSaid] = React.useState("");
+  const n = rows.length;
+  const labelOf = (r: EditRow, i: number) => r.role.trim() || r.name.trim() || t(lang, "creditN", { n: i + 1 });
+
+  const measure = () => {
+    const g = geo.current;
+    const els = rows.map((r) => rowEls.current[r.id]);
+    g.tops = els.map((el) => (el ? el.offsetTop : 0));
+    g.heights = els.map((el) => (el ? el.offsetHeight : 0));
+    g.mids = g.tops.map((top, k) => top + g.heights[k] / 2);
+    g.reduced = prefersReducedMotion();
+  };
+  const announce = (r: EditRow, idx: number, pos: number) => setSaid(t(lang, "list.moved", { label: labelOf(r, idx), pos: pos + 1, total: n }));
+  const move = (from: number, to: number) => {
+    if (to === from) return;
+    focusId.current = rows[from].id;
+    onEdit((l) => arrayMove(l, from, to));
+    announce(rows[from], from, to);
+  };
+  // Pointer position (and the container's scroll since the drag began) to the held row's offset and target.
+  const follow = () => {
+    const d = dragRef.current, g = geo.current;
+    if (!d || d.kbd) return;
+    if (!d.started && Math.abs(g.y - g.y0) < 4) return;
+    const last = g.tops.length - 1;
+    const scrolled = g.scroller ? g.scroller.scrollTop - g.s0 : 0;
+    // The target follows the pointer itself; only the drawn row stays inside the list.
+    const moved = g.y - g.y0 + scrolled;
+    const dy = Math.max(-g.tops[d.from], Math.min(g.tops[last] + g.heights[last] - g.tops[d.from] - g.heights[d.from], moved));
+    const wasStarted = d.started;
+    setDrag({ ...d, dy, to: reorderTarget(g.mids, d.from, g.mids[d.from] + moved), started: true });
+    if (!wasStarted && !g.raf) g.raf = requestAnimationFrame(autoScroll);
+  };
+  // Near the top or bottom 32 px of the scroll container, scroll a few px per frame, then follow again.
+  const autoScroll = () => {
+    const d = dragRef.current, g = geo.current, s = g.scroller;
+    if (!d || !d.started || d.kbd || !s) { g.raf = 0; return; }
+    const root = s === document.scrollingElement || s === document.documentElement;
+    const box = root ? { top: 0, bottom: window.innerHeight } : s.getBoundingClientRect();
+    const EDGE = 32;
+    const v = g.y < box.top + EDGE ? -Math.min(12, Math.ceil((box.top + EDGE - g.y) / 3)) : g.y > box.bottom - EDGE ? Math.min(12, Math.ceil((g.y - box.bottom + EDGE) / 3)) : 0;
+    if (v) { const before = s.scrollTop; s.scrollTop = before + v; if (s.scrollTop !== before) follow(); }
+    g.raf = requestAnimationFrame(autoScroll);
+  };
+  const finish = (commit: boolean) => {
+    const d = dragRef.current, g = geo.current;
+    if (g.raf) cancelAnimationFrame(g.raf);
+    g.raf = 0;
+    if (g.el && g.pointerId >= 0) { try { if (g.el.hasPointerCapture(g.pointerId)) g.el.releasePointerCapture(g.pointerId); } catch {} }
+    g.el = null; g.pointerId = -1;
+    if (g.onKey) { window.removeEventListener("keydown", g.onKey, true); g.onKey = null; }
+    setDrag(null);
+    if (!d) return;
+    if (commit && d.started && d.to !== d.from) move(d.from, d.to);
+    else if (d.kbd && d.started) announce(rows[d.from], d.from, d.from);
+  };
+
+  // A build starting, or the rows changing underneath (an auto value, Reset), ends a drag without a move.
+  React.useEffect(() => { if (dragRef.current) finish(false); }, [busy, n]);
+  React.useEffect(() => () => finish(false), []);
+  // A committed move re-orders the rows: keep the focus on the moved row's handle.
+  React.useLayoutEffect(() => {
+    const id = focusId.current;
+    if (!id) return;
+    focusId.current = null;
+    const h = handleEls.current[id];
+    if (h && document.activeElement !== h) h.focus();
+  }, [rows]);
+
+  const handleProps = (i: number) => ({
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (busy || e.button !== 0 || dragRef.current) return;
+      const g = geo.current;
+      measure();
+      g.y0 = g.y = e.clientY; g.scroller = scrollParent(listRef.current); g.s0 = g.scroller.scrollTop;
+      g.el = e.currentTarget; g.pointerId = e.pointerId;
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+      // Escape cancels a drag wherever the focus is, and never reaches the app's shortcuts.
+      g.onKey = (k: KeyboardEvent) => { if (k.key === "Escape") { k.preventDefault(); k.stopPropagation(); finish(false); } };
+      window.addEventListener("keydown", g.onKey, true);
+      setDrag({ from: i, to: i, dy: 0, started: false, kbd: false });
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLButtonElement>) => {
+      const d = dragRef.current;
+      if (!d || d.kbd || e.pointerId !== geo.current.pointerId) return;
+      geo.current.y = e.clientY;
+      follow();
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLButtonElement>) => { const d = dragRef.current; if (d && !d.kbd && e.pointerId === geo.current.pointerId) finish(true); },
+    onPointerCancel: () => { const d = dragRef.current; if (d && !d.kbd) finish(false); },
+    onLostPointerCapture: () => { const d = dragRef.current; if (d && !d.kbd) finish(false); },
+    onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (busy) return;
+      const k = e.key, d = dragRef.current;
+      const dir = k === "ArrowUp" ? -1 : k === "ArrowDown" ? 1 : 0;
+      const grab = k === " " || k === "Spacebar" || k === "Enter";
+      const consume = () => { e.preventDefault(); e.stopPropagation(); };
+      if (d && d.kbd) {
+        if (dir) {
+          consume();
+          const g = geo.current, to = reorderStep(d.to, dir, n);
+          setDrag({ ...d, to, dy: reorderSlotTop(g.tops, g.heights, d.from, to) - g.tops[d.from] });
+          announce(rows[d.from], d.from, to);
+        } else if (grab) { consume(); finish(true); }
+        else if (k === "Escape") { consume(); finish(false); }
+        return;
+      }
+      if (d) { if (k === "Escape") consume(); return; }
+      if (dir && e.altKey) { consume(); move(i, reorderStep(i, dir, n)); return; }
+      if (grab) { consume(); measure(); setDrag({ from: i, to: i, dy: 0, started: true, kbd: true }); }
+    },
+    onBlur: () => { const d = dragRef.current; if (d && d.kbd) finish(false); },
+  });
+
+  const g = geo.current;
+  const held = drag && drag.started ? drag : null;
+  const lineY = held ? reorderLineY(g.tops, g.heights, held.from, held.to) : null;
+  const field = { flex: "1 1 140px", minWidth: 0, width: "auto", maxWidth: "none", boxSizing: "border-box" } as any;
+  const marked = { ...field, boxShadow: "inset 0 0 0 1px var(--panel-accent, #f6c343)" };
+  const isPlaceholder = (v: string) => /\[[^\]]*\]/.test(v);
+  return (
+    <div role="group" aria-label={t(lang, "creditRows")} onKeyDown={onKeyDown} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+      <div ref={listRef} role="list" style={{ position: "relative", display: "flex", flexDirection: "column", minWidth: 0, borderTop: n ? ROW_DIVIDER : "none" }}>
+        {rows.map((r, i) => {
+          const lifted = !!held && held.from === i;
+          const shift = held && !lifted && !g.reduced ? reorderShift(i, held.from, held.to, g.heights[held.from]) : 0;
+          // Held from the keyboard with reduced motion, the row stays put and the drop line shows where it goes.
+          const dy = lifted && !(held!.kbd && g.reduced) ? held!.dy : shift;
+          return (
+            <div key={r.id} ref={(el) => { rowEls.current[r.id] = el; }} role="listitem" aria-label={t(lang, "creditN", { n: i + 1 })}
+              style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, padding: "5px 0", minWidth: 0, boxSizing: "border-box", borderBottom: ROW_DIVIDER,
+                transform: dy ? "translateY(" + dy + "px)" : "none", transition: !held || lifted || g.reduced ? "none" : "transform 140ms ease",
+                zIndex: lifted ? 2 : "auto", opacity: lifted ? 0.9 : 1, boxShadow: lifted ? "0 4px 14px rgba(0, 0, 0, 0.35)" : "none",
+                background: lifted ? "var(--panel-surface, var(--background, rgb(23, 23, 23)))" : "transparent" }}>
+              <button type="button" ref={(el) => { handleEls.current[r.id] = el; }} aria-label={t(lang, "list.reorderHandle", { n: i + 1, label: labelOf(r, i) })}
+                disabled={busy} {...handleProps(i)}
+                style={{ flex: "none", width: 24, minWidth: 24, maxWidth: "none", height: 24, minHeight: 24, padding: 0, margin: 0, border: 0, borderRadius: 4,
+                  display: "flex", alignItems: "center", justifyContent: "center", background: lifted ? "var(--panel-accent, rgba(128, 128, 128, 0.25))" : "transparent",
+                  color: "var(--panel-muted-fg, rgba(160, 160, 160, 1))", font: "inherit", touchAction: "none", userSelect: "none",
+                  cursor: busy ? "default" : lifted ? "grabbing" : "grab" }}>
+                <GripIcon />
+              </button>
+              <div style={{ flex: "1 1 0", minWidth: 0, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <input type="text" aria-label={t(lang, "roleN", { n: i + 1 })} placeholder={t(lang, "rolePlaceholder")} value={r.role} disabled={busy}
+                  style={isPlaceholder(r.role) ? marked : field}
+                  onChange={(e) => { const v = e.currentTarget.value; onEdit((l) => l.map((x) => (x.id === r.id ? { ...x, role: v } : x))); }} onKeyDown={(e) => e.stopPropagation()} />
+                <input type="text" aria-label={t(lang, "nameN", { n: i + 1 })} placeholder={t(lang, "namePlaceholder")} value={r.name} disabled={busy}
+                  style={isPlaceholder(r.name) ? marked : field}
+                  onChange={(e) => { const v = e.currentTarget.value; onEdit((l) => l.map((x) => (x.id === r.id ? { ...x, name: v } : x))); }} onKeyDown={(e) => e.stopPropagation()} />
+              </div>
+              <ui.IconButton icon="close" label={t(lang, "list.removeRow", { n: i + 1 })} disabled={busy || !!drag} onClick={() => onEdit((l) => l.filter((x) => x.id !== r.id))} />
+            </div>
+          );
+        })}
+        {lineY != null ? <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: lineY - 1, height: 2, borderRadius: 1, background: "var(--panel-fg, rgba(242, 242, 242, 0.9))", pointerEvents: "none", zIndex: 3 }} /> : null}
+      </div>
+      <div aria-live="polite" style={VISUALLY_HIDDEN}>{said}</div>
+      {!n ? <small style={{ wordBreak: "keep-all" }}>{t(lang, "noRows")}</small> : null}
+      <small style={{ wordBreak: "keep-all" }}>{t(lang, "rowsHint")}</small>
+      <ui.Row gap={4}>
+        <ui.Button variant="ghost" icon="plus" disabled={busy} onClick={onAdd}>{t(lang, "list.addRow")}</ui.Button>
+        <ui.Button variant="ghost" disabled={busy || !canReset} onClick={onReset}>{t(lang, "resetPreset")}</ui.Button>
+      </ui.Row>
+    </div>
+  );
+}
+
 const PREVIEW_HEIGHT = 124;
 
 // The Preview: a canvas mock of the chosen layout at one moment. Classic: black frame, typed title, credit rows and
 // the shot window; Full frame: a footage stand-in, the scrim, the right-side gradient and the right-third column.
 // Rows come from the planner's credit layout and scroll at the computed roll speed, as the graphic will.
-function CreditsPreview({ layout, title, model, pxPerSec, endSec, time, fontsReady }: {
-  layout: "classic" | "full"; title: string; model: any; pxPerSec: number; endSec: number; time: number; fontsReady: boolean;
+function CreditsPreview({ lang, layout, title, model, pxPerSec, endSec, time, fontsReady }: {
+  lang: Lang; layout: "classic" | "full"; title: string; model: any; pxPerSec: number; endSec: number; time: number; fontsReady: boolean;
 }) {
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -1153,12 +3258,13 @@ function CreditsPreview({ layout, title, model, pxPerSec, endSec, time, fontsRea
     lc.clearRect(0, 0, lw, lh);
     lc.setTransform(dpr * s, 0, 0, dpr * s, 0, 0);
     const scroll = Math.max(0, t - L) * pxPerSec;
-    // Title: typed one glyph per slot, fitted to its final string, drawn at scaleX 0.78.
+    // Title: typed one glyph per slot, fitted to its final string, drawn at scaleX 0.78 (1 with Hangul).
+    const sx = titleScaleX(title);
     const typing = tecTyping(title);
     const typed = typing.glyphs.slice(0, tecTypedCount(typing, t)).join("");
     if (title) {
       const colTarget = (0.16 * 1080) / 0.71, bigTarget = (0.2 * 1080) / 0.71;
-      const perPx = (measureWith(titleFont(colTarget), title) * 0.78) / colTarget;
+      const perPx = (measureWith(titleFont(colTarget), title) * sx) / colTarget;
       const fit = (target: number, box: number) => (perPx * target > box ? box / perPx : target);
       const colSize = fit(colTarget, 0.34 * W);
       const endPose = { cx: model.centerX, cy: (model.title.top + model.title.bottom) / 2, size: colSize };
@@ -1172,7 +3278,7 @@ function CreditsPreview({ layout, title, model, pxPerSec, endSec, time, fontsRea
       const baseline = pose.cy + (0.71 * pose.size) / 2 - scroll;
       if (typed && baseline > -pose.size && baseline - pose.size < 1080 + pose.size) {
         lc.save();
-        lc.translate(pose.cx, baseline); lc.scale(0.78, 1);
+        lc.translate(pose.cx, baseline); lc.scale(sx, 1);
         lc.font = titleFont(pose.size);
         lc.textAlign = "left"; lc.textBaseline = "alphabetic";
         if (full) { lc.shadowColor = "rgba(0,0,0,0.55)"; lc.shadowBlur = 0.03 * 1080; lc.shadowOffsetY = 0.012 * 1080; }
@@ -1206,7 +3312,7 @@ function CreditsPreview({ layout, title, model, pxPerSec, endSec, time, fontsRea
     ctx.drawImage(layer, ox, oy, fw, fh);
   }, [width, layout, title, model, pxPerSec, endSec, time, fontsReady]);
   return (
-    <div ref={wrapRef} aria-label="Credits preview" style={{ width: "100%", minWidth: 0, height: PREVIEW_HEIGHT }}>
+    <div ref={wrapRef} aria-label={t(lang, "creditsPreview")} style={{ width: "100%", minWidth: 0, height: PREVIEW_HEIGHT }}>
       <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: PREVIEW_HEIGHT }} />
     </div>
   );
@@ -1221,7 +3327,332 @@ function guardKeys(e: React.KeyboardEvent) {
   if (e.key === " " || e.key === "Spacebar") { e.preventDefault(); e.stopPropagation(); if (t && t.tagName === "BUTTON") t.click(); }
 }
 
-export default function Panel({ sdk, context, ui }: any) {
+// ---------------------------------------------------------------------------
+// Template runs. Clip highlights asks the person for the footage and a few choices, mounts this panel out of sight and
+// hands them over in `context.template`. The run builds a new Draft at once from only those files, as Build does with
+// every other setting at the panel's default, never opens it, and ends by calling `sdk.finishTemplate` exactly once.
+// ---------------------------------------------------------------------------
+type TemplateOutcome = { sequenceId: string } | { error: string };
+// The panel's first Build uses seed 1 ("Try other shots" counts up from there).
+const TEMPLATE_SEED = 1;
+// Files per alias call: a photo gets its own scratch Draft, which keeps each call well inside runScript's 30 s.
+const TEMPLATE_ALIAS_BATCH = 6;
+// An error whose message is written for the person; anything else a run throws becomes a plain "stopped" sentence.
+function templateIssue(message: string) { const e: any = new Error(message); e.forPerson = true; return e; }
+// Error text for the hidden frame's log (an Error logged as an object shows as {}).
+function errorText(e: any) { return String(e?.message || e); }
+
+// One panel script; a lost session is resent (never a committing call), and a read that comes back empty is read
+// again up to twice: an alias checkpoint ack can answer a pending read with undefined right after a script mints new
+// short ids, which a template run does for every handed file just before its inventory read.
+const EMPTY_READ = /Cannot read properties of (undefined|null)|is not iterable/;
+async function runTemplateStep(sdk: any, summary: string, script: string, allowCommit = false) {
+  for (let attempt = 0; ; attempt++) {
+    let r = await sdk.runScript({ summary, script, allowCommit });
+    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
+    if (!r.isError && r.result != null) return r.result as any;
+    const text = String(r.output || "Selects could not complete this step.");
+    if (allowCommit || attempt >= 2 || !(EMPTY_READ.test(text) || (r.result == null && !r.isError))) throw new Error(text);
+    console.warn("[the-end-credits] " + summary + " came back empty, reading again:", text);
+    await new Promise((d) => setTimeout(d, 1500));
+  }
+}
+
+// Handed files carry the app's own Resource ids, but resources() and a Draft's clips report the Project's short
+// aliases (r0, r1, ...), which inventory.js filters on and assemble.js / decorate.js match clips by. So each handed
+// file is placed once on an unsaved scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its
+// own, whose frame size is the photo's. Nothing is committed. A file that cannot be placed is left out.
+const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
+const p = selects.project(cfg.projectId);
+const resolved = [];
+let shared = null;
+for (const h of cfg.files) {
+  try {
+    const photo = h.kind === 'image';
+    const d = photo || !shared ? await p.createDraft({ name: 'THE END Credits id check' }) : shared;
+    if (!photo) shared = d;
+    const before = new Set((await d.clips({ trackScope: 'main' })).map(c => c.clipId));
+    try { await d.insertResource({ resourceId: h.rid, sourceRange: { startSeconds: 0, endSeconds: 0.5 } }); }
+    catch (e) { await d.insertResource({ resourceId: h.rid }); }
+    const clip = (await d.clips({ trackScope: 'main' })).find(c => c.resourceId !== null && !before.has(c.clipId));
+    if (!clip) continue;
+    let size = null;
+    if (photo) {
+      const fs = (await d.meta()).frameSize;
+      if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
+    }
+    resolved.push({ rid: h.rid, alias: clip.resourceId, size });
+  } catch (e) {}
+}
+return { resolved };`;
+
+// The handed videos and photos, each once, in the order they were picked.
+function templateFootage(context: any) {
+  const seen = new Set<string>();
+  const files: Array<{ rid: string; kind: string }> = [];
+  for (const input of context?.template?.inputs?.footage ?? []) {
+    if (!input || (input.kind !== "video" && input.kind !== "image") || !input.resourceId || seen.has(input.resourceId)) continue;
+    seen.add(input.resourceId);
+    files.push({ rid: String(input.resourceId), kind: input.kind });
+  }
+  return files;
+}
+
+// The bundled faces in this frame's document, so the roll speed is measured as the graphic renders it. A face that
+// fails only makes the measurement fall back, as in the panel.
+async function loadCreditFaces(fontsB64: Record<string, string>) {
+  if (typeof FontFace === "undefined") return true;
+  try {
+    for (const f of TEC_FONTS) {
+      const face = new FontFace(f.family, "url(data:font/woff2;base64," + fontsB64[f.file] + ")", { style: f.style, weight: String(f.weight) });
+      await face.load();
+      (document as any).fonts.add(face);
+    }
+    await (document as any).fonts?.ready;
+    return true;
+  } catch { return false; }
+}
+
+// The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer run
+// (or the frame closing) replaced this one. `say` names the current step for the status line.
+async function runEndCreditsTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
+  // The UI language when the run starts: its messages and the Inspector labels written into the Draft use it.
+  const bl = uiLang(context);
+  const pid: string | null = context?.projectId ?? null;
+  if (!pid) throw templateIssue(t(bl, "openProject"));
+  const files = templateFootage(context);
+  if (!files.length) throw templateIssue("Choose videos or photos for the footage, then try again.");
+  const run = (summary: string, script: string, allowCommit = false) => runTemplateStep(sdk, summary, script, allowCommit);
+  const options = context?.template?.options || {};
+
+  say("Reading the chosen files");
+  const roots = await locateRoots(sdk);
+  check();
+  const read = (rel: string) => readText(roots.plugin, rel);
+  const [manifestText, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, graphicTsx, frameTsx, lookTsx, titleB64, creditsB64] = await Promise.all([
+    read("assets/cues/manifest.json"), read("scripts/inventory.js"), read("scripts/search.js"), read("scripts/ensure-audio.js"),
+    read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/credits-graphic.tsx"), read("assets/shot-frame.tsx"),
+    read("assets/cinematic-look.tsx"), read("assets/fonts/tec-title-serif.woff2.b64"), read("assets/fonts/tec-credits-sans.woff2.b64")]);
+  check();
+  const fontsB64: Record<string, string> = { "tec-title-serif.woff2.b64": titleB64.replace(/\s+/g, ""), "tec-credits-sans.woff2.b64": creditsB64.replace(/\s+/g, "") };
+  const facesLoaded = await loadCreditFaces(fontsB64);
+  check();
+  // The track, length and layout chosen on the app's page; an unknown or missing one gets the panel's default.
+  const cues: any[] = JSON.parse(manifestText).cues || [];
+  const cue = cues.find((c) => c.id === options.track) || cues.find((c) => c.default) || cues[0];
+  if (!cue) throw templateIssue("THE END Credits' music is missing; reinstall the plugin and try again.");
+  const length = options.length === "short" || options.length === "long" || options.length === "standard" ? options.length : TEC_DEFAULT_LENGTH;
+  const layout: "classic" | "full" = options.layout === "full" ? "full" : "classic";
+  const requested = TEC_LENGTHS[length];
+  // The music's phrase and the default section (the reveal on the swell), as the panel works them out for a bundled track.
+  const beats = cue.phraseBeats > 0 ? cue.phraseBeats : 4;
+  const P = (beats * 60) / cue.bpm;
+  const videoSeconds = tecVideoSeconds(requested, P);
+  const sectionInfo = tecSection({ firstBeat: cue.firstBeat, P, L: TEC_LEAD_IN, videoSeconds, usableEnd: cue.usableEnd, swell: cue.swell ?? cue.swellFallback, fixed: false, value: undefined });
+  if (!sectionInfo) throw templateIssue(t(bl, "trackTooShort"));
+
+  // Handed ids to the Project's aliases; the files the first pass skipped get one more.
+  const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const resolveFiles = async (list: Array<{ rid: string; kind: string }>) => {
+    for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
+      const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH) }));
+      check();
+      resolved.push(...(r.resolved || []));
+    }
+  };
+  await resolveFiles(files);
+  const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
+  if (unresolved.length) await resolveFiles(unresolved);
+  const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const known: Record<string, { width: number; height: number }> = {};
+  for (const r of resolved) if (r.size) known[r.alias] = r.size;
+  if (!aliases.length) throw templateIssue("None of the chosen files could be found in this Project. Choose them again, then try again.");
+  // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
+  const inv = await run("Read footage", fill(inventoryJs, { projectId: pid, only: aliases, known }));
+  check();
+  inv.resources = inv.resources || [];
+  inv.photos = inv.photos || [];
+  const unanalysed = inv.skipped?.unanalysed || 0;
+
+  // Scene search over the handed videos. Nobody can press Build again, so videos whose search failed get one more
+  // try. In-shot motion is not measured here (it needs ffmpeg per clip); the allocation scores those clips as the
+  // panel does without ffmpeg.
+  say("Choosing shots");
+  const rids: string[] = inv.resources.map((r: any) => r.rid);
+  const dur: Record<string, number> = Object.fromEntries(inv.resources.map((r: any) => [r.rid, r.duration]));
+  const search = async (todo: string[]) => {
+    const list: any[] = []; const failed: string[] = [];
+    for (let i = 0; i < todo.length; i += 4) {
+      say("Choosing shots", i + "/" + todo.length + (todo.length === 1 ? " video" : " videos"));
+      const r = await run("Search scenic shots", fill(searchJs, { projectId: pid, rids: todo.slice(i, i + 4), queries: TEC_SEARCH_QUERIES, pageSize: 4 }));
+      check();
+      list.push(...r.candidates); failed.push(...r.failed);
+    }
+    return { list, failed };
+  };
+  let found = await search(rids);
+  if (found.failed.length) {
+    const retried = new Set(found.failed);
+    const again = await search(found.failed);
+    found = { list: [...found.list.filter((c: any) => !retried.has(c.rid)), ...again.list], failed: again.failed };
+  }
+  if (found.failed.length) console.info("[the-end-credits] template run: scene search failed for", found.failed.join(", "));
+  const candidates = found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }));
+  const plan: any = tecPlanBuild({ layout, N: requested, P, candidates: candidates.concat(photoCandsOf(inv, null, true)), seed: String(TEMPLATE_SEED), motion: {} });
+  if (!plan.ok) {
+    const waiting = unanalysed ? " " + unanalysed + (unanalysed === 1 ? " video is" : " videos are") + " not analyzed yet, so it could not be used." : "";
+    throw templateIssue(t(bl, "needsShots", { count: plan.needed, found: plan.usableShots }) + t(bl, "gap") + t(bl, "addFootage") + waiting);
+  }
+
+  // The credit rows of the default preset, filled from the Project, the track and the footage as the panel fills them.
+  const rows = tecCleanRows(tecPresetRows(TEC_DEFAULT_PRESET, {
+    projectName: context?.projectName || "",
+    dates: [...inv.resources, ...inv.photos].map((r: any) => r.recordedAt).filter(Boolean),
+    cueTitle: cue.title || "", ownMusicName: "", clips: rids.length, photos: inv.photos.length,
+  }));
+
+  // Commit 1: the music, then the shots on a new Draft.
+  say("Adding music");
+  const musicRes = await run("Add music to the project", fill(ensureJs, { projectId: pid, path: roots.plugin + "/assets/cues/" + cue.file }), true);
+  check();
+  say("Making the Draft");
+  const sizeOf = (rid: string) => [...inv.resources, ...inv.photos].find((r: any) => r.rid === rid) || null;
+  const pickedRids = [...new Set(plan.picks.map((k: any) => k.rid as string))] as string[];
+  const sources: Record<string, { aspect: number | null }> = {};
+  for (const rid of pickedRids) { const r: any = sizeOf(rid); sources[rid] = { aspect: r && r.aspect > 0 ? r.aspect : null }; }
+  const clipSound = "ambient";
+  const name = "THE END Credits " + new Date().toISOString().slice(0, 16).replace("T", " ");
+  // Never resent: the reply may be lost after the Draft was saved.
+  const a = await run("Assemble the THE END Credits", fill(assembleJs, {
+    projectId: pid, draftName: name, layout, picks: plan.picks, boundaries: plan.timeline.boundaries, L: plan.timeline.L,
+    music: musicRes ? { resourceId: musicRes.resourceId, sectionStart: sectionInfo.start } : null,
+    clipSound, ambientDb: AMBIENT_DB, musicFadeOut: MUSIC_FADE_OUT, sources }), true);
+  check();
+  if (!a.sequenceId) throw templateIssue("The Draft \"" + name + "\" may have been saved without its credits. Open it from the Drafts list, or try again.");
+
+  // Commit 2: the credits graphic, the Cinematic look and the Shot frame, as the panel's Finish step adds them.
+  say("Adding credits and look");
+  const frames: number[] = a.frames;
+  const endSec = frames[frames.length - 1] / a.fps, revealSec = frames[1] / a.fps;
+  if (!facesLoaded) console.info("[the-end-credits] template run: the bundled fonts did not load, so the roll speed was measured with a fallback face");
+  const model = tecCreditLayout({ rows, layout, H: 1080, measure: (text: string, px: number) => measureCredit(text, px) });
+  const speed = tecRollSpeed({ endSec, L: revealSec, H: 1080, lastLineBottom: model.lastLineBottom, rowTops: model.rowTops, rowBottoms: model.rowBottoms });
+  const sizes: Record<string, { width: number; height: number }> = { ...known };
+  for (const r of [...inv.resources, ...inv.photos]) if (r.width > 0 && r.height > 0) sizes[r.rid] = { width: r.width, height: r.height };
+  const moves = tecShotMotions(plan.picks, String(TEMPLATE_SEED), sizes, { pool: plan.motionPool });
+  const photos: Record<string, any> = {}, byRid: Record<string, any> = {};
+  const byShot = moves.map((mv: any) => (mv ? { motion: mv.motion, direction: mv.direction, axis: mv.axis, frameStrength: mv.frameStrength } : null));
+  plan.picks.forEach((k: any, i: number) => {
+    if (!k || k.kind !== "photo" || !moves[i]) return;
+    const mv = moves[i];
+    photos[k.rid] = { aspect: sources[k.rid]?.aspect ?? null, motion: mv.motion, direction: mv.direction, axis: mv.axis };
+    byRid[k.rid] = { motion: mv.motion, direction: mv.direction, axis: mv.axis };
+  });
+  const record = { layout, sequenceId: a.sequenceId, fps: a.fps, frames, titleText: DEFAULT_TITLE, rows,
+    speedPxPerSec: speed.pxPerSec, window: WINDOWS[layout], look: { on: true, strength: LOOK_STRENGTH }, clipSound,
+    photos, sources, fades: FADES, musicFadeOut: MUSIC_FADE_OUT };
+  // The credits graphic's data and Adjust fields, as the panel's graphicFor builds them.
+  const scalars: Record<string, string> = {};
+  const editableRows: any[] = [];
+  rows.forEach((r: any, i: number) => {
+    scalars["role" + (i + 1)] = r.role; scalars["name" + (i + 1)] = r.name;
+    editableRows.push({ key: "role" + (i + 1), label: t(bl, "roleN", { n: i + 1 }), type: "text", defaultValue: r.role }, { key: "name" + (i + 1), label: t(bl, "nameN", { n: i + 1 }), type: "text", defaultValue: r.name });
+  });
+  const graphic = { tsx: graphicTsx,
+    parameters: { layout, fps: a.fps, revealFrame: frames[1], endFrame: frames[frames.length - 1], title: DEFAULT_TITLE, titleColor: TITLE_COLOR, creditColor: CREDIT_COLOR,
+      rows, ...scalars, rowCount: rows.length, speedPxPerSec: speed.pxPerSec, speed: 1, showTitle: true,
+      fonts: TEC_FONTS.map((f) => ({ family: f.family, b64: fontsB64[f.file], weight: f.weight, style: f.style })) },
+    editableParameters: [
+      { key: "title", label: t(bl, "title"), type: "text", defaultValue: DEFAULT_TITLE },
+      { key: "titleColor", label: t(bl, "param.titleColor"), type: "color", defaultValue: TITLE_COLOR },
+      { key: "creditColor", label: t(bl, "param.creditColor"), type: "color", defaultValue: CREDIT_COLOR },
+      { key: "speed", label: t(bl, "param.rollSpeed"), type: "number", defaultValue: 1, min: 0.5, max: 2, step: 0.05 },
+      { key: "showTitle", label: t(bl, "param.showTitle"), type: "boolean", defaultValue: true },
+      ...editableRows,
+    ] };
+  const finish = () => run("Add credits and look", fill(decorateJs, { ...record, graphic, frame: { tsx: frameTsx },
+    look: { tsx: lookTsx, strength: record.look.strength, on: record.look.on }, photoMotion: { byRid, byShot }, labels: {
+      windowX: t(bl, "param.windowX"), windowY: t(bl, "param.windowY"), windowSize: t(bl, "param.windowSize"), fadeIn: t(bl, "param.fadeIn"),
+      fadeOut: t(bl, "param.fadeOut"), motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), lookStrength: t(bl, "param.lookStrength"),
+      motions: Object.fromEntries(["none", ...TEC_PHOTO_MOTIONS].map((v) => [v, t(bl, "motion." + v)])) } }), true);
+  // decorate.js never replaces effects already on the Draft, so a failed attempt is tried once more.
+  try {
+    await finish();
+  } catch (e) {
+    console.warn("[the-end-credits] Add credits and look failed, trying again:", errorText(e));
+    check();
+    try { await finish(); } catch (e2) {
+      console.warn("[the-end-credits] Add credits and look failed again:", errorText(e2));
+      throw templateIssue("The Draft was made, but its credits and look could not be added; try again.");
+    }
+  }
+  check();
+  // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
+  return { sequenceId: a.sequenceId };
+}
+
+// What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
+// exactly once, unless a newer run (or the frame closing) replaced it; then it reports nothing.
+function TemplateRun({ sdk, context }: any) {
+  const [status, setStatus] = React.useState("Starting");
+  const begun = React.useRef<string | null>(null);
+  const alive = React.useRef(true);
+  // The latest context, so a run reports only while it is still the current one.
+  const latest = React.useRef<any>(context);
+  latest.current = context;
+  const runId: string | null = context?.template?.runId ?? null;
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  React.useEffect(() => {
+    if (runId == null || begun.current === runId) return;
+    begun.current = runId;
+    const snapshot = context;
+    const live = () => alive.current && latest.current?.template?.runId === runId;
+    const check = () => { if (!live()) throw STALE; };
+    let ended = false, step = "starting";
+    const say = (text: string, detail?: string) => { step = text; if (live()) setStatus(text + (detail ? " (" + detail + ")" : "")); };
+    const end = (outcome: TemplateOutcome | null) => {
+      if (ended) return;
+      ended = true;
+      if (!outcome || !live()) return;
+      setStatus("sequenceId" in outcome ? "Done" : outcome.error);
+      try { sdk.finishTemplate(outcome); } catch (e) { console.warn("[the-end-credits] finishTemplate failed:", errorText(e)); }
+    };
+    (async () => {
+      try {
+        end(await runEndCreditsTemplate(sdk, snapshot, check, say));
+      } catch (e: any) {
+        if (e === STALE) { end(null); return; }
+        console.warn("[the-end-credits] template run failed while " + step + ":", errorText(e), e);
+        end({ error: e?.forPerson ? String(e.message) : "THE END Credits stopped while " + step.charAt(0).toLowerCase() + step.slice(1) + "; try again." });
+      } finally {
+        end({ error: "THE END Credits stopped before the Draft was ready; try again." });
+      }
+    })();
+  }, [runId]);
+  return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{status}</div>;
+}
+
+// A template run (Clip highlights hands the footage over in `context.template`) builds out of sight; anything else is
+// the panel.
+export default function Panel(props: any) {
+  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <EndCreditsPanel {...props} />;
+}
+
+// The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing. Shared by
+// the panel and a template run.
+async function locateRoots(sdk: any) {
+  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
+  const [plugin, data] = String(where?.stdout || "").split("\n").map((x: string) => x.trim());
+  if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
+  return { plugin, data };
+}
+
+function EndCreditsPanel({ sdk, context, ui }: any) {
+  // The UI language, read on every render: the app can switch languages while the panel is open.
+  const L = uiLang(context);
+  // Inspector labels are written into the Draft in the UI language at build time; they do not follow a later switch.
+  const langRef = React.useRef<Lang>(L);
+  langRef.current = L;
   const projectId = context?.projectId ?? null;
   const projectRef = React.useRef(projectId);
   projectRef.current = projectId;
@@ -1255,17 +3686,18 @@ export default function Panel({ sdk, context, ui }: any) {
   const [busy, setBusy] = React.useState(false);
   // Single-flight guard: state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef(false);
-  const [step, setStep] = React.useState("");
+  // The one-call spinner text (a key: inventory check or own-music beat detection).
+  const [step, setStep] = React.useState<"" | "checking" | "listening">("");
   const [tools, setTools] = React.useState({ ffmpeg: true, node: true });
   const [progress, setProgress] = React.useState<any>(null);
   const progressRef = React.useRef<any>(null);
   // Progress never goes backwards within a run.
-  const advance = (id: string, fraction: number, detail?: string) => {
-    const p = tecProgress(id, fraction, detail);
+  const advance = (id: string, fraction: number, detail?: Say) => {
+    const p = { ...tecProgress(id, fraction), detail: detail || null };
     if (progressRef.current && p.value < progressRef.current.value - 1e-9) return;
     progressRef.current = p; setProgress(p);
   };
-  const [status, setStatus] = React.useState<{ tone: string; text: string } | null>(null);
+  const [status, setStatus] = React.useState<{ tone: string; say: Say } | null>(null);
   const [result, setResult] = React.useState<any>(null);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const previewTokenRef = React.useRef(0);
@@ -1277,13 +3709,12 @@ export default function Panel({ sdk, context, ui }: any) {
     let r = await sdk.runScript({ summary, script, allowCommit });
     // Only a lost session is resent, and never a committing call: its commit may already have landed.
     if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
-    if (r.isError || r.result == null) throw new Error(r.output || "Selects could not complete this step.");
+    if (r.isError || r.result == null) throw r.output ? new Error(r.output) : uiError((l) => t(l, "stepFailed"));
     return r.result as any;
   };
-  const stopAt = (e: any) => {
+  const stopAt = (e: any): Say => {
     const at = progressRef.current;
-    const where = at ? "Stopped at step " + (at.current + 1) + "/" + TEC_BUILD_STEPS.length + " (" + TEC_BUILD_STEPS[at.current].label + "): " : "";
-    return where + String(e?.message || e);
+    return (l) => (at ? t(l, "stoppedAt", { step: at.current + 1, total: TEC_BUILD_STEPS.length, name: t(l, "step." + at.id), detail: sayError(l, e) }) : sayError(l, e));
   };
   const endRun = (pid: string) => {
     if (projectRef.current !== pid) return;
@@ -1298,14 +3729,15 @@ export default function Panel({ sdk, context, ui }: any) {
   const motionRef = React.useRef<Record<string, any>>({});
   const invLoadingRef = React.useRef<string | null>(null);
   const mountedRef = React.useRef(true);
-  const [invError, setInvError] = React.useState<string | null>(null);
+  const [invError, setInvError] = React.useState<{ say: Say } | null>(null);
   const [invLoading, setInvLoading] = React.useState(false);
 
   // Keeps a fresh inventory: remembers photo sizes and drops the scene-search cache when the clip set changed.
   function applyInventory(inv: any) {
     inv.photos = inv.photos || [];
     for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizesRef.current[ph.rid] = { width: ph.width, height: ph.height };
-    const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + (inv.skipped?.unanalysed || 0);
+    const sk = inv.skipped || {};
+    const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + [sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown].map((x) => String(x ?? "")).join(",");
     if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
     setInventory(inv); setInvError(null);
     return inv;
@@ -1322,7 +3754,7 @@ export default function Panel({ sdk, context, ui }: any) {
       if (!live() || busyRef.current) return;
       applyInventory(inv);
     } catch (e: any) {
-      if (live()) setInvError(String(e?.message || e));
+      if (live()) setInvError({ say: (l) => sayError(l, e) });
     } finally {
       if (invLoadingRef.current === pid) invLoadingRef.current = null;
       if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
@@ -1340,9 +3772,7 @@ export default function Panel({ sdk, context, ui }: any) {
     let alive = true;
     (async () => {
       try {
-        const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-        const [plugin, data] = String(where?.stdout || "").split("\n").map((x) => x.trim());
-        if (!plugin || !data) throw new Error("the plugin folders could not be found");
+        const { plugin, data } = await locateRoots(sdk);
         if (!alive || projectRef.current !== projectId) return;
         setRoots({ plugin, data });
         // ffmpeg and node are only needed for music previews and own music; bundled cues build without them.
@@ -1365,19 +3795,22 @@ export default function Panel({ sdk, context, ui }: any) {
         const def = (parsed.cues || []).find((c: any) => c.default) || (parsed.cues || [])[0];
         if (def) setCueId((cur) => (cur === "" ? def.id : cur));
         inventoryJsRef.current = inventoryJs;
-        setStep("Checking clips");
+        setStep("checking");
         await loadInventory(projectId, () => alive);
       } catch (e: any) {
-        if (alive) setStatus({ tone: "error", text: "THE END Credits could not start: " + (e?.message || e) + ". Reinstall the plugin if this persists." });
+        if (alive) setStatus({ tone: "error", say: (l) => t(l, "startFailed", { detail: sayError(l, e) }) });
       } finally { if (alive) setStep(""); }
     })();
     // Project switch or unmount stops a preview, including one still being prepared.
     return () => { alive = false; stopPreview(); };
   }, [projectId]);
 
-  // Clips still being analysed (or none yet): re-read the inventory every 10 s until they are ready.
+  // Clips being analysed (or no clips at all yet): re-read the inventory every 10 s until they are ready. Clips whose
+  // analysis was never started (or failed) do not poll on their own: nothing changes until the user analyses them in
+  // Selects, and coming back to the panel or Refresh picks that up. With an unknown status, unanalysed clips poll.
   // A Project with only photos has nothing to wait for, so it does not poll (each read measures new photos).
-  const needsPoll = !!inventory && (inventory.skipped?.unanalysed > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
+  const invAnalysis = tecAnalysisCounts(inventory?.skipped);
+  const needsPoll = !!inventory && (invAnalysis.analysing > 0 || (!invAnalysis.known && invAnalysis.total > 0) || (inventory.resources.length === 0 && !inventory.photos?.length && invAnalysis.total === 0));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
@@ -1551,7 +3984,7 @@ export default function Panel({ sdk, context, ui }: any) {
     if (busyRef.current || !roots) return;
     const pid = projectRef.current;
     busyRef.current = true;
-    setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("Listening for the beat");
+    setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("listening");
     try {
       // The decoded PCM is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit status.
       // The result goes to a file (a long track's onsets come close to the 48 KB shell output cap); stdout says ok.
@@ -1560,7 +3993,7 @@ export default function Panel({ sdk, context, ui }: any) {
         + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
       const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
       const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
-      if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw new Error(done.error || r.stderr || "beat detection failed");
+      if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw done.error || r.stderr ? new Error(done.error || r.stderr) : uiError((l) => t(l, "beatFailed"));
       const g = JSON.parse(await readText(roots.data, "own-music.json"));
       if (projectRef.current !== pid) return;
       setOwnGrid(g);
@@ -1575,7 +4008,7 @@ export default function Panel({ sdk, context, ui }: any) {
       } catch { duration = null; }
       if (projectRef.current !== pid) return;
       setOwnGrid({ accepted: false, durationSeconds: duration, peaks: [] });
-      setStatus(duration ? null : { tone: "error", text: "Could not read this music file (" + (e?.message || e) + "). Choose another file or one of the tracks." });
+      setStatus(duration ? null : { tone: "error", say: (l) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
     } finally { busyRef.current = false; setBusy(false); setStep(""); }
   }
 
@@ -1608,11 +4041,11 @@ export default function Panel({ sdk, context, ui }: any) {
         + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64") + " && rm -f " + sq(base + ".mp3");
       const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 60000 });
       if (!live()) return;
-      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw new Error(r?.stderr || "the preview could not be cut");
+      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw r?.stderr ? new Error(r.stderr) : uiError((l) => t(l, "previewNotCut"));
       const b64 = (await readText(roots.data, "preview-" + token + ".b64")).replace(/\s+/g, "");
       void Promise.resolve(sdk.runShell({ summary: "Remove preview file", command: TOOL_PATH + "rm -f " + sq(base + ".b64"), timeoutMs: 10000 })).catch(() => {});
       if (!live()) return;
-      if (b64.length < 200) throw new Error("no audio came back");
+      if (b64.length < 200) throw uiError((l) => t(l, "noAudio"));
       let url: string;
       if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
         const bin = atob(b64), bytes = new Uint8Array(bin.length);
@@ -1629,7 +4062,7 @@ export default function Panel({ sdk, context, ui }: any) {
     } catch (e: any) {
       if (!live()) return;
       stopPreview();
-      setStatus({ tone: "error", text: "Could not play a preview: " + (e?.message || e) + "." });
+      setStatus({ tone: "error", say: (l) => t(l, "previewFailed", { detail: sayError(l, e) }) });
     }
   }
 
@@ -1637,7 +4070,8 @@ export default function Panel({ sdk, context, ui }: any) {
   async function findCandidates(rids: string[], pid: string, check: () => void) {
     const list: any[] = []; const failed: string[] = [];
     for (let i = 0; i < rids.length; i += 4) {
-      advance("prepare", 0.1 + (0.6 * i) / Math.max(1, rids.length), i + "/" + rids.length + (rids.length === 1 ? " video checked" : " videos checked"));
+      const done = i;
+      advance("prepare", 0.1 + (0.6 * i) / Math.max(1, rids.length), (l) => t(l, "videosChecked", { done, count: rids.length }));
       const r = await run("Search scenic shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + 4), queries: TEC_SEARCH_QUERIES, pageSize: 4 }));
       check();
       list.push(...r.candidates); failed.push(...r.failed);
@@ -1655,7 +4089,8 @@ export default function Panel({ sdk, context, ui }: any) {
     try {
       for (let i = 0; i < todo.length; i++) {
         const r = todo[i], key = pid + "|" + r.rid;
-        advance("prepare", from + ((1 - from) * i) / Math.max(1, todo.length), i + "/" + todo.length + (todo.length === 1 ? " video measured" : " videos measured"));
+        const done = i;
+        advance("prepare", from + ((1 - from) * i) / Math.max(1, todo.length), (l) => t(l, "videosMeasured", { done, count: todo.length }));
         if (!tools.ffmpeg || !r.path || !roots) { motionRef.current[key] = null; continue; }
         const file = "motion-" + String(r.rid).replace(/[^A-Za-z0-9-]/g, "_") + ".txt";
         let curve: any = null;
@@ -1679,34 +4114,40 @@ export default function Panel({ sdk, context, ui }: any) {
     return out;
   }
 
-  // The Motion Graphic's data and its Adjust fields, from the frozen build record.
-  function graphicFor(record: any) {
+  // The Motion Graphic's data and its Adjust fields, from the frozen build record; labels in the build-time language.
+  function graphicFor(record: any, bl: Lang) {
     const K = record.rows.length;
     const scalars: Record<string, string> = {};
     const editableRows: any[] = [];
     record.rows.forEach((r: any, i: number) => {
       scalars["role" + (i + 1)] = r.role; scalars["name" + (i + 1)] = r.name;
-      editableRows.push({ key: "role" + (i + 1), label: "Role " + (i + 1), type: "text", defaultValue: r.role }, { key: "name" + (i + 1), label: "Name " + (i + 1), type: "text", defaultValue: r.name });
+      editableRows.push({ key: "role" + (i + 1), label: t(bl, "roleN", { n: i + 1 }), type: "text", defaultValue: r.role }, { key: "name" + (i + 1), label: t(bl, "nameN", { n: i + 1 }), type: "text", defaultValue: r.name });
     });
     const fonts = TEC_FONTS.map((f) => ({ family: f.family, b64: assets.fontsB64[f.file], weight: f.weight, style: f.style }));
     const parameters = { layout: record.layout, fps: record.fps, revealFrame: record.frames[1], endFrame: record.frames[record.frames.length - 1],
       title: record.titleText, titleColor: TITLE_COLOR, creditColor: CREDIT_COLOR, rows: record.rows, ...scalars, rowCount: K,
       speedPxPerSec: record.speedPxPerSec, speed: 1, showTitle: true, fonts };
     const editableParameters: any = [
-      { key: "title", label: "Title", type: "text", defaultValue: record.titleText },
-      { key: "titleColor", label: "Title color", type: "color", defaultValue: TITLE_COLOR },
-      { key: "creditColor", label: "Credits color", type: "color", defaultValue: CREDIT_COLOR },
-      { key: "speed", label: "Roll speed", type: "number", defaultValue: 1, min: 0.5, max: 2, step: 0.05 },
-      { key: "showTitle", label: "Show title", type: "boolean", defaultValue: true },
+      { key: "title", label: t(bl, "title"), type: "text", defaultValue: record.titleText },
+      { key: "titleColor", label: t(bl, "param.titleColor"), type: "color", defaultValue: TITLE_COLOR },
+      { key: "creditColor", label: t(bl, "param.creditColor"), type: "color", defaultValue: CREDIT_COLOR },
+      { key: "speed", label: t(bl, "param.rollSpeed"), type: "number", defaultValue: 1, min: 0.5, max: 2, step: 0.05 },
+      { key: "showTitle", label: t(bl, "param.showTitle"), type: "boolean", defaultValue: true },
       ...editableRows,
     ];
     return { tsx: assets.graphicTsx, parameters, editableParameters };
   }
+  // decorate.js's Inspector labels (Shot frame, its Motion choices, Cinematic look); the script falls back to English.
+  function inspectorLabels(bl: Lang) {
+    return { windowX: t(bl, "param.windowX"), windowY: t(bl, "param.windowY"), windowSize: t(bl, "param.windowSize"), fadeIn: t(bl, "param.fadeIn"),
+      fadeOut: t(bl, "param.fadeOut"), motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), lookStrength: t(bl, "param.lookStrength"),
+      motions: Object.fromEntries(["none", ...TEC_PHOTO_MOTIONS].map((v) => [v, t(bl, "motion." + v)])) };
+  }
 
   async function build(nextSeed: number) {
     if (busyRef.current || !assets || !inventory || !roots) return;
-    if (cueId === "own" && !ownMusic) { setStatus({ tone: "error", text: "Drop a music file, or choose one of the tracks." }); return; }
-    if (musicOn && (!music.ready || start == null)) { setStatus({ tone: "error", text: tooShort ? "This track is too short for this Length." : "The music is not ready yet." }); return; }
+    if (cueId === "own" && !ownMusic) { setStatus({ tone: "error", say: (l) => t(l, "dropMusic") }); return; }
+    if (musicOn && (!music.ready || start == null)) { setStatus({ tone: "error", say: tooShort ? (l) => t(l, "trackTooShort") : (l) => t(l, "musicNotReady") }); return; }
     const pid = projectId;
     const check = () => { if (projectRef.current !== pid) throw STALE; };
     // Every input as it is at Build; "Finish title and look" retries with exactly these.
@@ -1744,9 +4185,9 @@ export default function Panel({ sdk, context, ui }: any) {
       const photoCands = photoCandsOf(inv, inputs.onlyPhotos, inputs.usePhotos);
       const plan: any = tecPlanBuild({ layout: inputs.layout, N: inputs.requested, P: inputs.P, candidates: found.list.concat(photoCands), seed: String(nextSeed), motion });
       if (!plan.ok) {
-        const retry = found.failed.length ? " Could not check " + found.failed.length + " clips; press Build to retry them." : "";
-        throw new Error("Needs at least " + plan.needed + " usable clips or photos (found " + plan.usableShots + "). Add more varied footage"
-          + (inputs.usePhotos ? " or photos" : "") + " or select more clips." + retry);
+        const failedCount = found.failed.length, needed = plan.needed, usable = plan.usableShots, withPhotos = inputs.usePhotos;
+        throw uiError((l) => [t(l, "needsShots", { count: needed, found: usable }), withPhotos ? t(l, "addFootagePhotosSelect") : t(l, "addFootage"),
+          ...(failedCount ? [t(l, "retryUnchecked", { count: failedCount })] : [])].join(t(l, "gap")));
       }
       advance("plan", 1);
       // 4. Music: import the track in its own call (an import and a commit never share a run_script).
@@ -1766,7 +4207,7 @@ export default function Panel({ sdk, context, ui }: any) {
         music: musicRes ? { resourceId: musicRes.resourceId, sectionStart: inputs.sectionStart } : null,
         clipSound: inputs.clipSound, ambientDb: AMBIENT_DB, musicFadeOut: MUSIC_FADE_OUT, sources }), true);
       check();
-      if (!a.sequenceId) throw new Error("The Draft \"" + name + "\" was saved, but Selects did not report its id, so the credits and look could not be added. Open it from the Drafts list, or build again.");
+      if (!a.sequenceId) throw uiError((l) => t(l, "draftNoId", { name }));
       advance("assemble", 1);
       // The build record, frozen: the roll speed at the Draft's real rate from the assembled frames.
       const frames: number[] = a.frames;
@@ -1794,7 +4235,7 @@ export default function Panel({ sdk, context, ui }: any) {
       setResult({ sequenceId: a.sequenceId, decorated: false, record, photoMotion: { byRid, byShot }, seed: nextSeed, notes, link: null, shortened, unchecked: found.failed.length, roll: speed });
       await decorate(record, { byRid, byShot }, check);
     } catch (e: any) {
-      if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) });
+      if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) });
     } finally { endRun(pid); }
   }
 
@@ -1814,23 +4255,24 @@ export default function Panel({ sdk, context, ui }: any) {
     const check = () => { if (projectRef.current !== pid) throw STALE; };
     busyRef.current = true; stopPreview(); setBusy(true); setStatus(null); progressRef.current = null;
     try { await decorate(result.record, result.photoMotion, check); }
-    catch (e: any) { if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", text: stopAt(e) }); }
+    catch (e: any) { if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) }); }
     finally { endRun(pid); }
   }
 
   // Commit 2: mute (Clip sound Off), the credits graphic, the Cinematic look and the Shot frame; then open the Draft.
   async function decorate(record: any, photoMotion: any, check: () => void) {
     advance("decorate", 0);
+    const bl = langRef.current;
     try {
-      await run("Add credits and look", fill(assets.scripts.decorateJs, { ...record, graphic: graphicFor(record), frame: { tsx: assets.frameTsx },
-        look: { tsx: assets.lookTsx, strength: record.look.strength, on: record.look.on }, photoMotion }), true);
+      await run("Add credits and look", fill(assets.scripts.decorateJs, { ...record, graphic: graphicFor(record, bl), frame: { tsx: assets.frameTsx },
+        look: { tsx: assets.lookTsx, strength: record.look.strength, on: record.look.on }, photoMotion, labels: inspectorLabels(bl) }), true);
     } catch (e: any) {
       if (e === STALE) throw e;
-      throw new Error("The Draft was created, but it could not be finished (credits, look and shot frames): " + (e?.message || e) + ". Press Finish title and look to try again.");
+      throw uiError((l) => t(l, "finishFailed", { detail: sayError(l, e) }));
     }
     check();
     setResult((r: any) => ({ ...r, decorated: true }));
-    advance("decorate", 0.9, "opening the Draft");
+    advance("decorate", 0.9, (l) => t(l, "openingDraft"));
     try {
       const o = await run("Open the new Draft", "const id = " + JSON.stringify(record.sequenceId) + ";\n"
         + "let link = null, openError = null;\n"
@@ -1843,7 +4285,7 @@ export default function Panel({ sdk, context, ui }: any) {
       advance("decorate", 1);
     } catch (e: any) {
       if (e === STALE) throw e;
-      setStatus({ tone: "error", text: "The Draft is ready, but it could not be opened: " + (e?.message || e) + ". Use the link below or open it from the Drafts list." });
+      setStatus({ tone: "error", say: (l) => t(l, "openFailed", { detail: sayError(l, e) }) });
     }
   }
 
@@ -1880,154 +4322,131 @@ export default function Panel({ sdk, context, ui }: any) {
   }, [candidates, candKey, inventory, onlyPhotos, usePhotos, layout, requested, music.P, seed, selectedRids.length]);
   const canBuild = !!inventory && (selectedRids.length > 0 || usedPhotoCount >= neededShots) && (!fitsPlan || fitsPlan.ok)
     && (!musicOn ? cueId !== "own" : music.ready && start != null);
-  const pending = inventory?.skipped?.unanalysed || 0;
+  const analysisText = tecAnalysisText(L, invAnalysis);
   const clipCount = [
-    allRids.length ? (only ? selectedRids.length + " of " + allRids.length + " clips selected" : allRids.length + " clips") : "",
-    usePhotos && allPhotoRids.length ? (onlyPhotos ? selectedPhotoRids.length + " of " + allPhotoRids.length + " photos selected" : allPhotoRids.length + " photos") : "",
+    allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
+    usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
   ].filter(Boolean).join(" · ");
   const shotsFit = fitsPlan && fitsPlan.ok ? fitsPlan.N : requested;
-  const readiness = !inventory ? (invError ? "Could not read the clips in this Project: " + invError : "Checking clips…")
-    : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0
-      ? pending + " clips are still being analysed. This updates automatically when they finish."
-      : "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.")
-    : inventory.resources.length === 0 && !usePhotos ? (pending > 0 ? pending + " clips are still being analysed. " : "") + "Turn on Use photos in Advanced to build from this Project's photos."
-    : selectedRids.length === 0 && usedPhotoCount === 0 ? "No clips selected. Choose clips in Advanced."
-    : fitsPlan && !fitsPlan.ok ? "Needs at least " + fitsPlan.needed + " usable clips or photos (found " + fitsPlan.usableShots + "). Add more varied footage or photos."
-      + (pending > 0 ? " " + pending + " clips are still being analysed." : "")
-    : "Ready: " + clipCount + " · " + (shotsFit + extra) + " shots" + (shotsFit < requested ? " (your footage fits " + (shotsFit + extra) + ")" : "")
-      + " · about " + Math.round(tecVideoSeconds(shotsFit, music.P)) + " s" + (pending ? " · " + pending + " clips not analysed yet" : "");
+  const sentences = (list: string[]) => list.filter(Boolean).join(t(L, "gap"));
+  const readiness = !inventory ? (invError ? t(L, "readFailed", { detail: invError.say(L) }) : t(L, "checkingClipsNow"))
+    : inventory.resources.length === 0 && !allPhotoRids.length ? (analysisText || t(L, "noFootage"))
+    : inventory.resources.length === 0 && !usePhotos ? sentences([analysisText, t(L, "turnOnPhotos")])
+    : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
+    : fitsPlan && !fitsPlan.ok ? sentences([t(L, "needsShots", { count: fitsPlan.needed, found: fitsPlan.usableShots }), t(L, "addFootagePhotos"), analysisText])
+    : t(L, "ready", { summary: [clipCount, shotsFit < requested ? t(L, "shotsFitted", { count: shotsFit + extra }) : t(L, "shots", { count: shotsFit + extra }),
+      t(L, "aboutSeconds", { seconds: Math.round(tecVideoSeconds(shotsFit, music.P)) }), ...tecAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
   const canOwnMusic = tools.ffmpeg && tools.node;
   const silent = cueId === "none" && clipSound === "off";
   const hidden = roll.hiddenRows;
   // Too many rows: even at its fastest the roll can't take the last line off the top before the end.
   const dropRows = Math.max(1, roll.removeRows, hidden.length);
-  const dropText = (length !== "long" ? "remove " + dropRows + (dropRows === 1 ? " row" : " rows") + " or choose Long."
-    : "remove " + dropRows + (dropRows === 1 ? " row." : " rows."));
-  const rollNotice = !cleanRows.length ? "No credit rows: the roll shows only the title."
-    : hidden.length ? "Rows " + (hidden[0] + 1) + (hidden.length > 1 ? "–" + (hidden[hidden.length - 1] + 1) : "") + " won't appear in " + LENGTH_LABELS[length] + ": "
-      + hidden.map((i: number) => cleanRows[i].role || cleanRows[i].name).join(", ") + ". To roll every row off before the end, " + dropText
-    : roll.exitsLate ? "Too many rows to roll off before the end: " + dropText
-    : roll.endsEarly ? "Credits finish before the end: the roll moves on into black."
+  // "choose Long" names the Length option exactly as the Length control shows it.
+  const longLabel = t(L, "length.long"), lengthLabel = t(L, "length." + length);
+  const dropText = length !== "long" ? t(L, "dropRowsOrLong", { count: dropRows, long: longLabel }) : t(L, "dropRows", { count: dropRows });
+  const hiddenNames = hidden.map((i: number) => cleanRows[i].role || cleanRows[i].name).join(t(L, "listSep"));
+  const rollNotice = !cleanRows.length ? t(L, "noCreditRows")
+    : hidden.length ? sentences([hidden.length > 1 ? t(L, "rowsHidden", { from: hidden[0] + 1, to: hidden[hidden.length - 1] + 1, length: lengthLabel, names: hiddenNames })
+      : t(L, "rowHidden", { from: hidden[0] + 1, length: lengthLabel, names: hiddenNames }), dropText])
+    : roll.exitsLate ? (length !== "long" ? t(L, "tooManyRowsOrLong", { count: dropRows, long: longLabel }) : t(L, "tooManyRows", { count: dropRows }))
+    : roll.endsEarly ? t(L, "creditsEndEarly")
     : null;
+  const stepLabel = step === "checking" ? t(L, "checkingClips") : step === "listening" ? t(L, "listening") : "";
+  const progressLabel = !progress ? "" : progress.detail
+    ? t(L, "progressDetail", { step: progress.current + 1, total: TEC_BUILD_STEPS.length, name: t(L, "step." + progress.id), detail: progress.detail(L), percent: progress.percent })
+    : t(L, "progress", { step: progress.current + 1, total: TEC_BUILD_STEPS.length, name: t(L, "step." + progress.id), percent: progress.percent });
 
-  if (!projectId) return <ui.Message tone="error">Open a Project to build THE END Credits.</ui.Message>;
+  if (!projectId) return <ui.Message tone="error">{t(L, "openProject")}</ui.Message>;
 
-  const lengthOptions = TEC_LENGTH_ORDER.map((k: string) => ({ label: LENGTH_LABELS[k], value: k }));
+  const lengthOptions = TEC_LENGTH_ORDER.map((k: string) => ({ label: t(L, "length." + k), value: k }));
   const trackOptions = [...(assets?.manifest.cues || []).map((c: any) => ({ label: c.title, value: c.id })),
-    ...(canOwnMusic || cueId === "own" ? [{ label: "Your own music", value: "own" }] : []), { label: "No music", value: "none" }];
-  const inputStyle = { width: "100%", minWidth: 0, boxSizing: "border-box" } as any;
-  const placeholderStyle = { ...inputStyle, boxShadow: "inset 0 0 0 1px var(--panel-accent, #f6c343)" };
-  const isPlaceholder = (v: string) => /\[[^\]]*\]/.test(v);
+    ...(canOwnMusic || cueId === "own" ? [{ label: t(L, "ownMusic"), value: "own" }] : []), { label: t(L, "noMusic"), value: "none" }];
 
   return (
     <ui.Stack gap={16}>
       <ui.Row gap={8} align="center">
         <ui.Message tone={!inventory && invError ? "error" : "muted"}>{readiness}</ui.Message>
-        <ui.Button variant="ghost" busy={invLoading} busyLabel="Refreshing" disabled={busy || !assets} onClick={() => loadInventory()}>Refresh</ui.Button>
+        <ui.Button variant="ghost" busy={invLoading} busyLabel={t(L, "refreshing")} disabled={busy || !assets} onClick={() => loadInventory()}>{t(L, "refresh")}</ui.Button>
       </ui.Row>
-      {inventory && invError ? <ui.Message tone="error">{"Could not refresh the clip list: " + invError}</ui.Message> : null}
-      <ui.Section title="Layout">
-        <div role="group" aria-label="Layout" onKeyDown={guardKeys} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {([["classic", "Classic (window)"], ["full", "Full frame"]] as const).map(([value, label]) => {
-            const on = layout === value;
-            return (
-              <button key={value} type="button" aria-pressed={on} disabled={busy} onClick={() => setLayout(value)}
-                style={{ flex: "1 1 80px", minWidth: 0, padding: "6px 4px", borderRadius: "var(--panel-radius, 6px)", cursor: busy ? "default" : "pointer", color: "inherit",
-                  background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 16%, transparent)" : "transparent",
-                  border: on ? "2px solid var(--panel-accent, #f6c343)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))" }}>
-                <LayoutIcon kind={value} />
-                <span style={{ display: "block", marginTop: 4, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-              </button>
-            );
-          })}
-        </div>
+      {inventory && invError ? <ui.Message tone="error">{t(L, "refreshFailed", { detail: invError.say(L) })}</ui.Message> : null}
+      <ui.Section title={t(L, "layout")}>
+        <LayoutTiles lang={L} layout={layout} busy={busy} onPick={setLayout} onKeyDown={guardKeys} />
       </ui.Section>
-      <ui.Section title="Title">
-        <ui.TextField label="Title" value={title} placeholder={DEFAULT_TITLE} onChange={setTitle} disabled={busy} />
+      <ui.Section title={t(L, "preview")}>
+        <CreditsPreview lang={L} layout={layout} title={title} model={creditModel} pxPerSec={roll.pxPerSec} endSec={videoSeconds} time={previewTime} fontsReady={fontsReady} />
+        <ui.Slider label={t(L, "previewAt")} unit={t(L, "secondsUnit")} min={0} max={Math.round(videoSeconds * 10) / 10} step={0.1} value={previewTime} onChange={setPreviewTime} />
+        <ui.Row gap={4}>
+          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(firstRowSec * 10) / 10)}>{t(L, "firstRow")}</ui.Button>
+          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(lastRowSec * 10) / 10)}>{t(L, "lastRow")}</ui.Button>
+          <ui.Button variant="ghost" onClick={() => setPreviewTime(endScrubSec)}>{t(L, "end")}</ui.Button>
+        </ui.Row>
+        {rollNotice ? <ui.Message tone="muted">{rollNotice}</ui.Message> : null}
       </ui.Section>
-      <ui.Section title="Credits">
-        <ui.Select label="Preset" value={preset} disabled={busy} onChange={(v: string) => { setPreset(v); setCustomRows(null); }}
-          options={TEC_PRESET_ORDER.map((id: string) => ({ label: (TEC_PRESETS as any)[id].label, value: id }))} />
-        <div role="group" aria-label="Credit rows" onKeyDown={guardKeys} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-          {rows.map((r, i) => (
-            <div key={r.id} role="group" aria-label={"Credit " + (i + 1)}
-              style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, padding: 6, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
-              <input type="text" aria-label={"Role " + (i + 1)} placeholder="Role (e.g. Director)" value={r.role} disabled={busy}
-                style={isPlaceholder(r.role) ? placeholderStyle : inputStyle}
-                onChange={(e) => { const v = e.currentTarget.value; editRows((l) => l.map((x) => (x.id === r.id ? { ...x, role: v } : x))); }} onKeyDown={(e) => e.stopPropagation()} />
-              <input type="text" aria-label={"Name " + (i + 1)} placeholder="Name" value={r.name} disabled={busy}
-                style={isPlaceholder(r.name) ? placeholderStyle : inputStyle}
-                onChange={(e) => { const v = e.currentTarget.value; editRows((l) => l.map((x) => (x.id === r.id ? { ...x, name: v } : x))); }} onKeyDown={(e) => e.stopPropagation()} />
-              <ui.Row gap={4}>
-                <ui.Button variant="ghost" disabled={busy || i === 0} onClick={() => editRows((l) => { const k = l.findIndex((x) => x.id === r.id); if (k > 0) [l[k - 1], l[k]] = [l[k], l[k - 1]]; return l; })}>Up</ui.Button>
-                <ui.Button variant="ghost" disabled={busy || i === rows.length - 1} onClick={() => editRows((l) => { const k = l.findIndex((x) => x.id === r.id); if (k >= 0 && k < l.length - 1) [l[k], l[k + 1]] = [l[k + 1], l[k]]; return l; })}>Down</ui.Button>
-                <ui.Button variant="ghost" disabled={busy} onClick={() => editRows((l) => l.filter((x) => x.id !== r.id))}>Remove</ui.Button>
-              </ui.Row>
-            </div>
-          ))}
-          {!rows.length ? <small>No rows: the roll shows only the title.</small> : null}
-          <small>{"Rows with both fields empty are left out. Replace text in [brackets] with your own."}</small>
-          <ui.Row gap={4}>
-            <ui.Button variant="ghost" disabled={busy} onClick={() => editRows((l) => [...l, { id: newRowId(), role: "", name: "" }])}>Add row</ui.Button>
-            <ui.Button variant="ghost" disabled={busy || !customRows} onClick={() => { if (!busyRef.current) setCustomRows(null); }}>Reset to preset</ui.Button>
-          </ui.Row>
-        </div>
-        {placeholders ? <ui.Message tone="muted">{placeholders + (placeholders === 1 ? " row still has a placeholder." : " rows still have placeholders.")}</ui.Message> : null}
-        {nonLatin ? <ui.Message tone="muted">Some characters use a system font.</ui.Message> : null}
+      <ui.Section title={t(L, "title")}>
+        <ui.TextField label={t(L, "title")} value={title} placeholder={DEFAULT_TITLE} onChange={setTitle} disabled={busy} />
       </ui.Section>
-      <ui.Section title="Length">
-        <ui.Segmented label="Length" value={length} onChange={setLength} options={lengthOptions} disabled={busy} />
+      <ui.Section title={t(L, "credits")}>
+        <ui.Select label={t(L, "preset")} value={preset} disabled={busy} onChange={(v: string) => { setPreset(v); setCustomRows(null); }}
+          options={TEC_PRESET_ORDER.map((id: string) => ({ label: tOr(L, "preset." + id, (TEC_PRESETS as any)[id].label), value: id }))} />
+        <CreditRows lang={L} rows={rows} busy={busy} ui={ui} onEdit={editRows} onKeyDown={guardKeys}
+          onAdd={() => editRows((l) => [...l, { id: newRowId(), role: "", name: "" }])} onReset={() => { if (!busyRef.current) setCustomRows(null); }} canReset={!!customRows} />
+        {placeholders ? <ui.Message tone="muted">{t(L, "placeholdersLeft", { count: placeholders })}</ui.Message> : null}
+        {nonLatin ? <ui.Message tone="muted">{t(L, "systemFont")}</ui.Message> : null}
       </ui.Section>
-      <ui.Section title="Music">
-        <ui.Select label="Track" value={cueId} disabled={busy} onChange={(v: string) => { setCueId(v); if (v !== "own") { setOwnMusic(null); setOwnGrid(null); } }} options={trackOptions} />
+      <ui.Section title={t(L, "length")}>
+        <ui.Segmented label={t(L, "length")} value={length} onChange={setLength} options={lengthOptions} disabled={busy} />
+      </ui.Section>
+      <ui.Section title={t(L, "music")}>
+        <ui.Select label={t(L, "track")} value={cueId} disabled={busy} onChange={(v: string) => { setCueId(v); if (v !== "own") { setOwnMusic(null); setOwnGrid(null); } }} options={trackOptions} />
         {cueId === "own" && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
-          onReject={() => setStatus({ tone: "error", text: "Drop an audio file (mp3, wav, m4a…) that is on this computer." })}
+          onReject={() => setStatus({ tone: "error", say: (l) => t(l, "dropAudio") })}
           onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
-        {!canOwnMusic ? <ui.Message tone="muted">Install ffmpeg and Node.js 18+ to preview music or use your own track.</ui.Message> : null}
-        {cueId === "own" && ownMusic && ownGrid && music.fixed ? <ui.Message tone="muted">No steady beat found: shots are 3.9 s.</ui.Message> : null}
-        {cueId === "own" && ownMusic && ownGrid && !music.fixed && "approximate" in music && music.approximate ? <ui.Message tone="muted">{"Beat found (approximate): shots follow it at " + music.P.toFixed(2) + " s."}</ui.Message> : null}
+        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "installTools")}</ui.Message> : null}
+        {cueId === "own" && ownMusic && ownGrid && music.fixed ? <ui.Message tone="muted">{t(L, "noSteadyBeat", { seconds: TEC_FIXED_PHRASE })}</ui.Message> : null}
+        {cueId === "own" && ownMusic && ownGrid && !music.fixed && "approximate" in music && music.approximate ? <ui.Message tone="muted">{t(L, "beatApprox", { seconds: Math.round(music.P * 100) / 100 })}</ui.Message> : null}
         {musicOn && music.ready ? (
           // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
           <div onKeyDown={(e) => { if (e.key === "Escape" && playState !== "idle") { e.preventDefault(); stopPreview(); } }}>
-            <SectionSlider peaks={music.peaks} total={music.total} section={start} videoSeconds={videoSeconds} stepSeconds={music.fixed ? 0.1 : music.P}
+            <SectionSlider lang={L} peaks={music.peaks} total={music.total} section={start} videoSeconds={videoSeconds} stepSeconds={music.fixed ? 0.1 : music.P}
               snap={snap} onChange={(v) => { if (v != null) setSection(v); }} disabled={busy || start == null} audio={playingAudio} />
             <ui.Row gap={8} align="center">
               {/* The kit has no stop icon; "pause" marks stop, and the label says what it does. */}
               <ui.IconButton icon={playState === "playing" ? "pause" : playState === "loading" ? "loading" : "play"}
-                label={playState === "playing" ? "Stop preview" : playState === "loading" ? "Cancel preview" : "Preview the music of the whole video"}
+                label={playState === "playing" ? t(L, "stopPreview") : playState === "loading" ? t(L, "cancelPreview") : t(L, "previewWhole")}
                 onClick={preview} disabled={busy || !tools.ffmpeg || (playState === "idle" && start == null)} />
-              <span style={{ minWidth: 0 }}>{start == null ? "This track is too short for this length"
-                : "Starts at " + start.toFixed(1) + " s" + (sectionInfo && Math.abs(sectionInfo.start - sectionInfo.defaultStart) < 1e-6 ? (music.kind === "own" ? " · reveal on the loudest part" : " · reveal on the swell") : "")}</span>
+              <span style={{ minWidth: 0 }}>{start == null ? t(L, "musicTooShort")
+                : !(sectionInfo && Math.abs(sectionInfo.start - sectionInfo.defaultStart) < 1e-6) ? t(L, "startsAt", { seconds: Math.round(start * 10) / 10 })
+                : music.kind === "own" ? t(L, "startsAtLoudest", { seconds: Math.round(start * 10) / 10 }) : t(L, "startsAtSwell", { seconds: Math.round(start * 10) / 10 })}</span>
             </ui.Row>
           </div>
-        ) : cueId === "own" && ownMusic && busy ? <ui.Message tone="muted">Reading the music…</ui.Message> : null}
+        ) : cueId === "own" && ownMusic && busy ? <ui.Message tone="muted">{t(L, "readingMusic")}</ui.Message> : null}
         {fit && fit.key ? (
           <ui.Row gap={8} align="center">
-            <ui.Message tone="muted">{"This track is too short for " + LENGTH_LABELS[length] + "."}</ui.Message>
-            <ui.Button variant="secondary" disabled={busy} onClick={() => setLength(fit.key as any)}>{"Use " + LENGTH_LABELS[fit.key]}</ui.Button>
+            <ui.Message tone="muted">{t(L, "tooShortFor", { length: lengthLabel })}</ui.Message>
+            <ui.Button variant="secondary" disabled={busy} onClick={() => setLength(fit.key as any)}>{t(L, "useLength", { length: t(L, "length." + fit.key) })}</ui.Button>
           </ui.Row>
-        ) : fit ? <ui.Message tone="error">{"This track is too short (needs ≥ " + fit.needSeconds + " s)."}</ui.Message> : null}
-        {silent ? <ui.Message tone="muted">Silent video: no music and Clip sound is Off.</ui.Message> : null}
+        ) : fit ? <ui.Message tone="error">{t(L, "tooShortNeeds", { seconds: fit.needSeconds })}</ui.Message> : null}
+        {silent ? <ui.Message tone="muted">{t(L, "silentVideo")}</ui.Message> : null}
       </ui.Section>
-      <ui.Section title="Advanced">
-        <ui.Segmented label="Clip sound" value={clipSound} onChange={setClipSound} disabled={busy}
-          options={[{ label: "Ambient", value: "ambient" }, { label: "Full", value: "full" }, { label: "Off", value: "off" }]} />
-        <ui.Toggle label="Cinematic look" value={lookOn} onChange={setLookOn} disabled={busy} />
-        <ui.Toggle label="Use photos" value={usePhotos} onChange={setUsePhotos} disabled={busy} />
+      <ui.Section title={t(L, "advanced")}>
+        <ui.Segmented label={t(L, "clipSound")} value={clipSound} onChange={setClipSound} disabled={busy}
+          options={(["ambient", "full", "off"] as const).map((v) => ({ label: t(L, "sound." + v), value: v }))} />
+        <ui.Toggle label={t(L, "cinematicLook")} value={lookOn} onChange={setLookOn} disabled={busy} />
+        <ui.Toggle label={t(L, "usePhotos")} value={usePhotos} onChange={setUsePhotos} disabled={busy} />
         {inventory && (allRids.length || allPhotoRids.length) ? (
-          <div role="group" aria-label="Choose clips" style={{ minWidth: 0 }}>
+          <div role="group" aria-label={t(L, "chooseClips")} style={{ minWidth: 0 }}>
             <ui.Row gap={4} align="center">
               <small style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {"Choose clips (" + (selectedRids.length + selectedPhotoRids.length) + "/" + (allRids.length + allPhotoRids.length) + ")"}
+                {t(L, "chooseClipsCount", { selected: selectedRids.length + selectedPhotoRids.length, total: allRids.length + allPhotoRids.length })}
               </small>
-              <ui.Button variant="ghost" disabled={busy || (!only && !onlyPhotos)} onClick={() => { chooseClips(allRids); choosePhotos(allPhotoRids); }}>All</ui.Button>
-              <ui.Button variant="ghost" disabled={busy || selectedRids.length + selectedPhotoRids.length === 0} onClick={() => { chooseClips([]); choosePhotos([]); }}>None</ui.Button>
+              <ui.Button variant="ghost" disabled={busy || (!only && !onlyPhotos)} onClick={() => { chooseClips(allRids); choosePhotos(allPhotoRids); }}>{t(L, "all")}</ui.Button>
+              <ui.Button variant="ghost" disabled={busy || selectedRids.length + selectedPhotoRids.length === 0} onClick={() => { chooseClips([]); choosePhotos([]); }}>{t(L, "none")}</ui.Button>
             </ui.Row>
             <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
               {inventory.resources.map((r: any) => {
                 const on = selectedRids.includes(r.rid);
                 const hint = shapeHint(r.width, r.height);
-                const meta = fmtTime(r.duration) + (hint ? " · " + hint : "");
+                const meta = fmtTime(r.duration) + (hint ? " · " + t(L, "shape." + hint) : "");
                 return (
                   <label key={r.rid} title={r.name + " · " + meta}
                     style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, padding: "4px 6px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
@@ -2041,9 +4460,9 @@ export default function Panel({ sdk, context, ui }: any) {
                 const on = usePhotos && selectedPhotoRids.includes(r.rid);
                 const off = busy || !usePhotos;
                 const hint = shapeHint(r.width, r.height);
-                const meta = "Photo" + (hint ? " · " + hint : "");
+                const meta = t(L, "photo") + (hint ? " · " + t(L, "shape." + hint) : "");
                 return (
-                  <label key={r.rid} title={r.name + " · " + meta + (usePhotos ? "" : " · Use photos is off")}
+                  <label key={r.rid} title={r.name + " · " + meta + (usePhotos ? "" : " · " + t(L, "usePhotosOff"))}
                     style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, padding: "4px 6px", cursor: off ? "default" : "pointer", opacity: off ? 0.6 : 1 }}>
                     <input type="checkbox" checked={on} disabled={off} onChange={(e) => togglePhoto(r.rid, e.currentTarget.checked)} style={{ flexShrink: 0, margin: 0 }} />
                     <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
@@ -2055,42 +4474,29 @@ export default function Panel({ sdk, context, ui }: any) {
           </div>
         ) : null}
       </ui.Section>
-      <ui.Section title="Preview">
-        <CreditsPreview layout={layout} title={title} model={creditModel} pxPerSec={roll.pxPerSec} endSec={videoSeconds} time={previewTime} fontsReady={fontsReady} />
-        <ui.Slider label="Preview at" unit="s" min={0} max={Math.round(videoSeconds * 10) / 10} step={0.1} value={previewTime} onChange={setPreviewTime} />
-        <ui.Row gap={4}>
-          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(firstRowSec * 10) / 10)}>First row</ui.Button>
-          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(lastRowSec * 10) / 10)}>Last row</ui.Button>
-          <ui.Button variant="ghost" onClick={() => setPreviewTime(endScrubSec)}>End</ui.Button>
-        </ui.Row>
-        {rollNotice ? <ui.Message tone="muted">{rollNotice}</ui.Message> : null}
-      </ui.Section>
-      {progress ? <ui.Progress value={progress.value} label={progress.label} steps={TEC_BUILD_STEPS.map((s: any) => s.label)} current={progress.current} />
-        : busy ? <ui.Progress label={step || "Working"} /> : null}
-      {status ? <ui.Message tone={status.tone === "error" ? "error" : "muted"}>{status.text}</ui.Message> : null}
+      {progress ? <ui.Progress value={progress.value} label={progressLabel} steps={TEC_BUILD_STEPS.map((s: any) => t(L, "step." + s.id))} current={progress.current} />
+        : busy ? <ui.Progress label={stepLabel || t(L, "working")} /> : null}
+      {status ? <ui.Message tone={status.tone === "error" ? "error" : "muted"}>{status.say(L)}</ui.Message> : null}
       {result && result.decorated ? (
-        <ui.Message tone="success">
-          {"Draft created. Select the credits to edit the title, rows, colours or roll speed in Adjust, a shot to move or resize its window, change its fades, motion or the look strength, and the music to change its volume."}
-        </ui.Message>
-      ) : result && busy ? <ui.Message tone="muted">Draft created; adding credits and look…</ui.Message> : null}
+        <ui.Message tone="success">{t(L, "draftCreated")}</ui.Message>
+      ) : result && busy ? <ui.Message tone="muted">{t(L, "draftCreatedAdding")}</ui.Message> : null}
       {result?.link ? (
         <ui.Row gap={8} align="center">
-          <a href={result.link} target="_blank" rel="noreferrer">Open the new Draft</a>
-          <ui.IconButton icon="copy" label="Copy the link to the new Draft" onClick={() => { navigator.clipboard?.writeText(result.link).catch(() => null); }} />
+          <a href={result.link} target="_blank" rel="noreferrer">{t(L, "openDraft")}</a>
+          <ui.IconButton icon="copy" label={t(L, "copyLink")} onClick={() => { navigator.clipboard?.writeText(result.link).catch(() => null); }} />
         </ui.Row>
       ) : null}
       {result?.shortened ? (
         <ui.Message tone="muted">
-          {"Your footage fits " + result.shortened.shots + " shots, so this video is about " + Math.round(result.shortened.seconds) + " s instead of "
-            + Math.round(result.shortened.fullSeconds) + " s. Add more clips or photos for the full length."}
+          {t(L, "shortened", { count: result.shortened.shots, seconds: Math.round(result.shortened.seconds), fullSeconds: Math.round(result.shortened.fullSeconds) })}
         </ui.Message>
       ) : null}
-      {result?.notes?.length ? <ui.Message tone="muted">{"Note: " + result.notes.join("; ") + "."}</ui.Message> : null}
-      {result?.unchecked ? <ui.Message tone="muted">{"Could not check " + result.unchecked + (result.unchecked === 1 ? " video; it was" : " videos; they were") + " skipped. Build again to retry " + (result.unchecked === 1 ? "it." : "them.")}</ui.Message> : null}
+      {result?.notes?.length ? <ui.Message tone="muted">{t(L, "note", { detail: result.notes.join("; ") })}</ui.Message> : null}
+      {result?.unchecked ? <ui.Message tone="muted">{t(L, "unchecked", { count: result.unchecked })}</ui.Message> : null}
       <ui.Actions>
-        {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>Finish title and look</ui.Button> : null}
-        {result ? <ui.Button onClick={buildAnother} disabled={busy}>Create another version</ui.Button> : null}
-        <ui.Button variant="primary" busy={busy} busyLabel={step || "Building"} onClick={() => build(seed)} disabled={busy || !canBuild}>Build</ui.Button>
+        {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>{t(L, "finishTitle")}</ui.Button> : null}
+        {result ? <ui.Button onClick={buildAnother} disabled={busy}>{t(L, "anotherVersion")}</ui.Button> : null}
+        <ui.Button variant="primary" busy={busy} busyLabel={stepLabel || t(L, "building")} onClick={() => build(seed)} disabled={busy || !canBuild}>{t(L, "build")}</ui.Button>
       </ui.Actions>
     </ui.Stack>
   );

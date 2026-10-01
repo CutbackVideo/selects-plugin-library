@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "depth-type-captions",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "name": "Depth Type Captions",
   "summary": "Editable phrase typography that wraps around the speaker with subject-aware depth.",
   "status": "experimental",
@@ -66,5 +66,23 @@
       "name": "Depth Type \u5b57\u5e55",
       "summary": "\u56f4\u7ed5\u8bf4\u8bdd\u8005\u3001\u5177\u6709\u524d\u540e\u666f\u6df1\u7684\u53ef\u7f16\u8f91\u6587\u5b57\u6392\u7248\u5b57\u5e55\u3002"
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": true,
+  "inputs": [
+    {
+      "id": "speaker",
+      "label": "This draft",
+      "kind": "timeline",
+      "requires": [
+        "transcript"
+      ]
+    }
+  ],
+  "prepare": [
+    "A draft of one person talking to camera, up to 90 seconds",
+    "Only video and audio on it, no captions or effects yet",
+    "Analyzed, so it has a transcript",
+    "On a Mac, the Xcode Command Line Tools (Windows uses Selects credits instead)"
+  ]
 }

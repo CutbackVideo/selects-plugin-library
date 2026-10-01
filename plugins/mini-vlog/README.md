@@ -90,7 +90,8 @@ time.
    how many clips and photos were found and the approximate length, for
    example "Ready: 6 clips · 12 photos · about 13 s". When only some are
    chosen it reads, for example, "3 of 6 clips selected", and while clips are
-   still being analysed it ends with " · 2 clips still being analysed".
+   being analysed it ends with " · 2 clips being analysed" (see Refreshing
+   for clips that are not analysed yet).
 4. Press **Build**. The line above the buttons reads "Creates a new 16:9
    Draft".
 
@@ -102,12 +103,27 @@ Each of them can be changed before Build.
 
 **Refreshing.** The panel reads the Project's clips when it opens, when you
 come back to it (its tab is shown or the window gets focus) and when you press
-**Refresh** next to the readiness line. While clips are still being analysed,
-or nothing usable was found yet, it also reads them again every 10 seconds,
-so the line updates by itself ("N clips are still being analysed. This
-updates automatically when they finish."). It never reads them during a
-build. The panel does not start analysis on its own, so analyse your clips
-first. If Selects is too busy to answer, the panel tries again after 5 and 15 seconds and then says "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects."
+**Refresh** next to the readiness line. While clips are being analysed, or
+the Project has no clips or photos yet, it also reads them again every 10
+seconds, so the line updates by itself. It never reads them during a build.
+The panel does not start analysis on its own, so analyse your clips first.
+If Selects is too busy to answer, the panel tries again after 5 and 15 seconds and then says "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects."
+
+Video clips without analysis are counted on the top line by why:
+
+- "N clips are being analysed. This updates automatically when they finish."
+  Selects is analysing them now; the panel re-reads the Project every 10 s
+  until they are ready.
+- "N clips are not analysed yet. Analyse them in Selects to use them here."
+  Their analysis was never started. The panel does not poll for them; it
+  re-reads the Project when you come back to it, or press **Refresh**.
+- "N clips could not be analysed." Their analysis failed.
+- "N clips are not analysed yet. If Selects is analysing them, this updates
+  automatically." The analysis status could not be read, so the panel keeps
+  checking.
+
+On the Ready line the same counts appear in short, for example "Ready: 5
+clips · about 13 s · 2 clips being analysed · 3 clips not analysed yet".
 
 **What blocks Build.** The build needs at least **4 shots from 2 different
 clips or photos**; each photo counts as one shot. When it cannot run, Build is
@@ -120,7 +136,7 @@ disabled and the panel shows the reason:
 - "Your footage fits fewer than 4 shots." when the footage cannot fill four
   shots. This is known only once the clips have been searched: the first
   Build then stops with "Your footage fits fewer than 4 shots. Add more
-  varied footage or photos or select more clips.", and Build stays disabled
+  varied footage or photos, or select more clips.", and Build stays disabled
   afterwards;
 - "Type the title's big word to build." when the big word is empty.
 
@@ -140,8 +156,9 @@ and the music to change its volume. Rebuilding creates a new Draft and does
 not keep Inspector edits.", and shows an **Open the new Draft** link with a
 button that copies it.
 
-After a build, **Create another version** makes another new Draft from the
-same clips with a different shot choice. The Draft already built is kept.
+After a build, **Try other shots** makes another new Draft from the same
+clips and the same settings, with a different shot choice. The Draft already
+built is kept.
 
 The build keeps the settings it started with. If you switch to another
 Project while it runs, it stops without writing anything more.
@@ -314,7 +331,8 @@ Three lockup presets, chosen in the panel with a live preview:
 
 - The Year starts as the current year (editable).
 - Each field shows how many characters it holds and allows (for example
-  "Big word (4/10)").
+  "Big word (4/10)"). Korean letters count as two (see [Languages](#languages)).
+- Titles can be Korean (Hangul); see [Languages](#languages).
 - Each preset keeps its own text, so switching presets does not overwrite
   another preset's edits. An empty big word disables Build; an empty small
   field is left out.
@@ -331,6 +349,37 @@ Three lockup presets, chosen in the panel with a live preview:
     big word of A small glimpse. It is a subset of Quicksand Bold, renamed
     because "Quicksand" is a Reserved Font Name;
   - **MV DM Mono**: the top and bottom lines of A small glimpse.
+
+## Languages
+
+**The panel** follows the language of the Selects app and changes with it
+while the panel is open. It is translated into German, English, Spanish,
+French, Italian, Japanese, Korean, Portuguese, Turkish and Chinese; any other
+app language shows English. Track names, the Draft's name and the technical
+detail after an error message stay in English.
+
+**The title in the video** can be typed in English or Korean (Hangul):
+
+- The pre-filled words stay English in every language ("mini", "vlog", "a day
+  in my life", "a small", "glimpse", "of today"). Type over them to change
+  them.
+- The bundled typefaces have no Korean letters, so Korean text is drawn with
+  the macOS system font of each typeface's kind: **AppleMyungjo** for the
+  serif typefaces (the Mini vlog big and small words; the big word keeps its
+  slant) and **Apple SD Gothic Neo** for the rounded and monospaced ones (A day
+  in my life, A small glimpse).
+- Korean text is never letter-spaced. A Korean word without a space stays on
+  one line in A small glimpse (it is not split with a hyphen); with a space
+  it splits there. A long title shrinks to fit 60 % of the video's width, as
+  Latin text does.
+- The field limits count a Korean letter as two characters, so the Big word
+  of Mini vlog takes up to five Korean letters.
+- Korean titles need macOS, where Selects and its export run. Style-matched
+  Korean typefaces are planned for a later version.
+
+**Inspector labels** of the title, the Soft look, the Beat punch and the photo
+motion are written into the Draft in the panel's language at the time of the
+build. They do not change if the app language is switched later.
 
 ## Advanced
 
