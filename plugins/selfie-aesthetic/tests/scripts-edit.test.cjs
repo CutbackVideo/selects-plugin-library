@@ -86,14 +86,14 @@ const beats = [0, 1, 1.5, 2, 2.5, 3, 4, 4.5, 5];
 const cutSeconds = beats.map((b, i) => i === 0 ? 0 : lead + b * 60 / bpm + delta);
 // `vshort` is a 1.2 s source whose window would run past duration − 0.15 s, so it slides back.
 const holds = [
-  { i: 0, bar: 0, kind: 'video', rid: 'v1', moment: 'A', srcStart: 2.002, cutIn: 'none', cutOut: 'dir', angle: 30, framing: null },
-  { i: 1, bar: 0, kind: 'video', rid: 'v1', moment: 'B', srcStart: 4.1, cutIn: 'dir', cutOut: 'dir', angle: -28, framing: null },
-  { i: 2, bar: 0, kind: 'video', rid: 'v1', moment: 'A', srcStart: 2.002, cutIn: 'dir', cutOut: 'dir', angle: 31, framing: null },
-  { i: 3, bar: 0, kind: 'video', rid: 'vshort', moment: 'B', srcStart: 0.9, cutIn: 'dir', cutOut: 'dir', angle: -26, framing: null },
-  { i: 4, bar: 0, kind: 'video', rid: 'v1', moment: 'A', srcStart: 2.002, cutIn: 'dir', cutOut: 'dir', angle: 33, framing: null },
-  { i: 5, bar: 0, kind: 'video', rid: 'v1', moment: 'B', srcStart: 4.1, cutIn: 'dir', cutOut: 'spin', angle: -30, framing: null },
-  { i: 6, bar: 1, kind: 'photo', rid: 'p1', moment: 'A', srcStart: 0, cutIn: 'spin', cutOut: 'dir', angle: 27, framing: 'full' },
-  { i: 7, bar: 1, kind: 'photo', rid: 'p1', moment: 'B', srcStart: 0, cutIn: 'dir', cutOut: 'none', angle: -32, framing: 'punch' },
+  { i: 0, bar: 0, kind: 'video', rid: 'v1', moment: 'A', srcStart: 2.002, cutIn: 'none', cutOut: 'dir', angle: 30, angleIn: 0, angleOut: 30, framing: null },
+  { i: 1, bar: 0, kind: 'video', rid: 'v1', moment: 'B', srcStart: 4.1, cutIn: 'dir', cutOut: 'dir', angle: -28, angleIn: 30, angleOut: -28, framing: null },
+  { i: 2, bar: 0, kind: 'video', rid: 'v1', moment: 'A', srcStart: 2.002, cutIn: 'dir', cutOut: 'dir', angle: 31, angleIn: -28, angleOut: 31, framing: null },
+  { i: 3, bar: 0, kind: 'video', rid: 'vshort', moment: 'B', srcStart: 0.9, cutIn: 'dir', cutOut: 'dir', angle: -26, angleIn: 31, angleOut: -26, framing: null },
+  { i: 4, bar: 0, kind: 'video', rid: 'v1', moment: 'A', srcStart: 2.002, cutIn: 'dir', cutOut: 'dir', angle: 33, angleIn: -26, angleOut: 33, framing: null },
+  { i: 5, bar: 0, kind: 'video', rid: 'v1', moment: 'B', srcStart: 4.1, cutIn: 'dir', cutOut: 'spin', angle: -30, angleIn: 33, angleOut: -30, framing: null },
+  { i: 6, bar: 1, kind: 'photo', rid: 'p1', moment: 'A', srcStart: 0, cutIn: 'spin', cutOut: 'dir', angle: 27, angleIn: -30, angleOut: 27, framing: 'full' },
+  { i: 7, bar: 1, kind: 'photo', rid: 'p1', moment: 'B', srcStart: 0, cutIn: 'dir', cutOut: 'none', angle: 27, angleIn: 27, angleOut: 0, framing: 'punch' },
 ];
 const durations = { v1: 10, vshort: 1.2 };
 const crops = { v1: { width: 1920, height: 1080 }, vshort: { width: 1080, height: 1920 }, p1: { width: 3000, height: 4000 } };
@@ -254,7 +254,10 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   assert.deepEqual(fx.map(x => x[1]), mains.map(c => c.clipId), 'one effect per clip in order');
   assert.ok(fx.every(x => x[2] === 'Selfie whip + look' && x[3] === 'EFFECT_TSX'));
   assert.deepEqual(fx.map(x => [x[4].whipIn, x[4].whipOut]), [[0, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 0]]);
-  assert.deepEqual(fx[5][4], { whipIn: 1, whipOut: 1, kindIn: 'dir', kindOut: 'spin', angle: -30, whip: 1, look: 'soft-glow', lookStrength: 0.35, framing: null, cover: r.covers[5] });
+  assert.deepEqual(fx[5][4], { whipIn: 1, whipOut: 1, kindIn: 'dir', kindOut: 'spin', angle: -30, angleIn: 33, angleOut: -30, whip: 1, look: 'soft-glow', lookStrength: 0.35, framing: null, cover: r.covers[5] });
+  // Effect mode: the head whips on angleIn, the tail on angleOut; both clips of a cut carry the same angle.
+  assert.deepEqual(fx.map(x => [x[4].angleIn, x[4].angleOut]), holds.map(h => [h.angleIn, h.angleOut]));
+  for (let i = 0; i + 1 < fx.length; i++) assert.equal(fx[i][4].angleOut, fx[i + 1][4].angleIn, 'cut ' + i + ' shares its angle');
   assert.deepEqual([fx[6][4].framing, fx[7][4].framing, fx[7][4].cover], ['full', 'punch', r.covers[7]]);
   const defs = fx[0][5];
   assert.deepEqual(defs.map(e => [e.key, e.label, e.type]), [['look', 'Look', 'select'], ['lookStrength', 'Look strength', 'number'], ['whip', 'Whip strength', 'number']]);
@@ -316,6 +319,7 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   assert.deepEqual(tr.map(x => x[6].kind), ['dir', 'dir', 'dir', 'dir', 'dir', 'spin', 'dir']);
   // selfie-whip-transition.tsx data: { kind, angle, strength, whip, cover }; cover = the smaller of the two clips' covers.
   assert.deepEqual(tr[0][6], { kind: 'dir', angle: 30, strength: 1, whip: 1, cover: r.covers[0] });
+  assert.deepEqual(tr.map(x => x[6].angle), holds.slice(0, -1).map(h => h.angleOut), 'each transition takes its cut angle (angleOut of hold i)');
   assert.deepEqual(tr.map(x => x[6].cover), r.covers.slice(0, -1).map((c, i) => Math.min(c, r.covers[i + 1])));
   assert.equal(tr[2][6].cover, 1, 'v1 -> portrait vshort');
   assert.ok(close(tr[5][6].cover, r.covers[6]), 'v1 -> photo: the photo cover');
@@ -326,6 +330,15 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   assert.equal(dt2.transitions, 0); assert.equal(dt2.transitionsKept, 7); assert.equal(dt2.committed, false);
   assert.equal(mt.log.filter(x => x[0] === 'transition').length, 7);
   assert.equal(mt.log.filter(x => x[0] === 'commit').length, 2, 'assemble + the first decorate only');
+
+  // Older holds without angleIn / angleOut: angleOut = angle, angleIn = the previous hold's angle.
+  const mo = mockDraft(FPS, { photos: ['p1'], durations });
+  await load('assemble.js', assembleCfg())(project(() => mo.d));
+  mo.reopen();
+  const legacy = holds.map(({ angleIn, angleOut, ...h }, i) => ({ ...h, angle: [30, -28, 31, -26, 33, -30, 27, -32][i] }));
+  await load('decorate.js', decoCfg({ holds: legacy }))({ draft: () => mo.d });
+  const ofx = mo.log.filter(x => x[0] === 'effect').map(x => x[4]);
+  assert.deepEqual(ofx.map(x => [x.angleIn, x.angleOut]), legacy.map((h, i) => [i ? legacy[i - 1].angle : h.angle, h.angle]));
 
   // --- inspector labels from cfg.adjustLabels; effect names stay English; JSON-inlined literals survive ---
   const ml = mockDraft(FPS, { photos: ['p1'], durations });

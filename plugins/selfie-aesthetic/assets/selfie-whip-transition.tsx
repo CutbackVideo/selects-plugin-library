@@ -31,6 +31,13 @@ function saeWhipIdentity() {
 function saeWhipRamp(dist, w) {
   return w <= 1 ? 1 : 1 - 0.4 * dist / (w - 1);
 }
+// The angle of one side's cut: angleIn for the head ('in'), angleOut for the tail ('out'), each falling back to
+// angle. Both clips of a cut carry the same value (clip j angleOut = clip j + 1 angleIn), so the motion keeps its
+// direction across the cut even though the sign alternates from cut to cut.
+function saeSideAngle(side, d) {
+  var v = side === "out" ? d.angleOut : d.angleIn;
+  return typeof v === "number" && isFinite(v) ? v : d.angle;
+}
 // Pose for one side. amount is the ramp, str the side strength times the global multiplier.
 function saeWhipPose(side, amount, str, kind, d) {
   var e = amount * str;
@@ -38,7 +45,7 @@ function saeWhipPose(side, amount, str, kind, d) {
   var W = typeof d.width === "number" && d.width > 0 ? d.width : 1080;
   var H = typeof d.height === "number" && d.height > 0 ? d.height : 1920;
   var k = typeof d.cover === "number" && d.cover > 1 ? d.cover : 1;
-  var angleDeg = saeNum(d.angle, -180, 180, 30);
+  var angleDeg = saeNum(saeSideAngle(side, d), -180, 180, 30);
   var th = angleDeg * Math.PI / 180, c = Math.cos(th), s = Math.sin(th);
   var dir = side === "out" ? 1 : -1;
   var spin = kind === "spin";
