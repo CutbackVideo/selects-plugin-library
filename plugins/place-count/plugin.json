@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "place-count",
-  "version": "0.1.0-alpha.6",
+  "version": "0.1.0-alpha.7",
   "name": "Place Count",
-  "summary": "Group trip footage into places by capture time and GPS, then build an editable travel-story Draft with separate source clips, titles, descriptions, and optional music.",
+  "summary": "Group trip footage into places by capture time and GPS, then build an editable travel-story timeline with separate source clips, titles, descriptions, and optional music.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -36,5 +36,24 @@
     "poster": "poster.webp",
     "width": 540,
     "height": 960
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": true,
+  "inputs": [
+    {
+      "id": "footage",
+      "label": "Trip footage",
+      "hint": "Clips from the trip, picked by what's in them.",
+      "accepts": [
+        "video"
+      ],
+      "min": 3,
+      "max": 40,
+      "query": "places, landmarks and scenery"
+    }
+  ],
+  "prepare": [
+    "Trip clips from 3 or more places",
+    "Tip: Original camera or phone files work best. Their time and location data helps tell places apart."
+  ]
 }
