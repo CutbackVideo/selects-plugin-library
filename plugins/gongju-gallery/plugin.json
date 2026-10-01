@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "gongju-gallery",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "pov: you open my gallery",
   "summary": "Builds an editable 11.4-second portrait gallery montage as a new Draft from a folder of project clips, cut to the plugin's own soundtrack.",
   "status": "experimental",
@@ -67,5 +67,42 @@
       "name": "pov: you open my gallery",
       "summary": "\u4ece\u9879\u76ee\u7247\u6bb5\u6587\u4ef6\u5939\u751f\u6210\u53ef\u7f16\u8f91\u7684 11.4 \u79d2\u7ad6\u7248\u753b\u5eca\u6df7\u526a\uff0c\u4f5c\u4e3a\u65b0\u7684 Draft\uff0c\u5e76\u6309\u63d2\u4ef6\u81ea\u5e26\u7684\u914d\u4e50\u526a\u8f91\u3002"
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "clips",
+      "label": "Select 15 videos",
+      "hint": "Each plays for about half a second, from its middle.",
+      "accepts": [
+        "video"
+      ],
+      "min": 15,
+      "max": 15,
+      "minSeconds": 1.3,
+      "query": "everyday moments"
+    }
+  ],
+  "prepare": [
+    "15 videos, at least 1.3 seconds each",
+    "Vertical or square clips look best"
+  ],
+  "options": [
+    {
+      "id": "order",
+      "label": "Order",
+      "choices": [
+        {
+          "id": "ordered",
+          "label": "Filename order"
+        },
+        {
+          "id": "random",
+          "label": "Random"
+        }
+      ],
+      "default": "ordered"
+    }
+  ]
 }
