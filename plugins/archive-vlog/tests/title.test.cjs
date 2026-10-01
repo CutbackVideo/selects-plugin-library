@@ -139,6 +139,10 @@ const SEOUL_TRIP = ko(0xC11C, 0xC6B8, 0x20, 0xC5EC, 0xD589), SEOUL = ko(0xC11C, 
   const c = plain(Y.avCreditLayout({ prefix: 'ARCHIVED BY', name: SEOUL, fonts }, W, H));
   assert.equal(c.text, 'ARCHIVED BY ' + SEOUL); assert.equal(c.hangul, true);
   assert.equal(plain(Y.avCreditLayout({ prefix: 'archived by', name: 'kim', fonts }, W, H)).text, 'ARCHIVED BY KIM');
+  // Latin parts are capitalised even when the name has Hangul (the prefix too); the Hangul stays as typed.
+  const mixed = plain(Y.avCreditLayout({ prefix: 'archived by', name: 'kim ' + SEOUL, fonts }, W, H));
+  assert.equal(mixed.text, 'ARCHIVED BY KIM ' + SEOUL); assert.equal(mixed.hangul, true);
+  assert.equal(plain(Y.avCreditLayout({ prefix: 'Seoul by', name: SEOUL + ' cafe', fonts }, W, H)).text, 'SEOUL BY ' + SEOUL + ' CAFE');
 }
 // Every stack (title faces, kicker, tagline, credit): the bundled face first, then Latin fallbacks for macOS and
 // Windows, then "Apple SD Gothic Neo" and "Malgun Gothic" before the generic family.

@@ -30,10 +30,11 @@ function avcKoAdvance(kw, ch) {
   var a = kw.adv ? kw.adv[ch] : undefined;
   return typeof a === "number" && isFinite(a) && a > 0.2 && a < 2 ? a : 1;
 }
-// The credit's text as drawn (Latin in capitals, Korean as typed), or "" when empty.
+// The credit's text as drawn, or "" when empty: Latin in capitals even next to Hangul (Hangul has no case, so it stays
+// as typed), e.g. "ARCHIVED BY KIM <Korean name>".
 function avcFullText(data) {
   var text = [avcText(data, "prefix"), avcText(data, "name")].filter(Boolean).join(" ");
-  return AVC_HANGUL_RE.test(text) ? text : text.toUpperCase();
+  return text.toUpperCase();
 }
 // Measures the wide glyphs on a 2D canvas with the exact stack and weight the credit draws them with (call it once
 // the fonts are loaded): { koInk, koAdvances } to merge into `data`, or null in Node or without a wide glyph.
