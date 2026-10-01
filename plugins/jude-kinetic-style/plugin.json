@@ -23,6 +23,12 @@
     ],
     "selects": "Requires Panel runScript/runShell/askAI and editable motion graphics. Development build only; released-version compatibility is unverified."
   },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  },
   "collection": "visual-highlights",
   "usesCredits": true,
   "inputs": [

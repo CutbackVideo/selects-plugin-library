@@ -81,3 +81,18 @@ A variant (`variants[]`) may declare its own `preview` the same way, named
 `preview-<variant id>.mp4` and `poster-<variant id>.webp`; one that declares
 none shows the plugin's.
 Preview-only changes do not change the plugin runtime version.
+
+## Clip highlights templates
+
+A template (`"collection": "visual-highlights"`) must also say so in its
+panel's header (`// @collection visual-highlights` within the first 24 lines),
+and ship a thumbnail (`preview.poster`, `poster.webp`), a demo video of about
+three seconds (`preview.video`, `preview.mp4`) with `preview.width` and
+`preview.height`, a `prepare` list of 1-4 short lines, and `usesCredits`.
+`tools/check_templates.py` checks these in CI and in the pre-push hook; a
+demo far from three seconds is reported as a warning. Enable the hook once per
+clone:
+
+```sh
+git config core.hooksPath .githooks
+```
