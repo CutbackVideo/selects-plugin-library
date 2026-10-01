@@ -83,7 +83,6 @@ test('UI text lives in STRINGS: no literal JSX text or labels, state text is a s
   // keep-all only under Korean.
   const keepAll = own.split('\n').filter((l) => l.includes('keep-all'));
   assert.ok(keepAll.length >= 1 && keepAll.every((l) => /=== "ko" \? "keep-all"/.test(l)), 'keep-all only when the UI is Korean');
-  assert.ok(!/HANGUL|[\uac00-\ud7a3]/.test(panel.replace(/\/\/ STRINGS:BEGIN[\s\S]*\/\/ STRINGS:END/, '')) || true);
 });
 test('Adjust labels and Look options: English defaults match decorate.js and STRINGS.en', () => {
   const deco = read('scripts', 'decorate.js');

@@ -3092,13 +3092,12 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   // with an Error when the analysis itself failed or timed out.
   function beatInWorker(pcm: Float32Array, id: number): Promise<any> {
     return new Promise((resolve, reject) => {
-      let url: string | null = null, worker: Worker | null = null;
+      let url: string | null = null, worker: Worker | null = null, timer: any = null;
       const done = () => {
-        const job = beatJobRef.current;
-        if (job.timer) clearTimeout(job.timer);
+        if (timer) clearTimeout(timer);
         if (worker) { try { worker.terminate(); } catch { /* gone */ } }
         if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
-        if (job.id === id) beatJobRef.current = { id, worker: null, url: null, timer: null };
+        if (beatJobRef.current.id === id) beatJobRef.current = { id, worker: null, url: null, timer: null };
       };
       try {
         url = URL.createObjectURL(new Blob([saeBeatWorkerSource(assets.beatText)], { type: "text/javascript" }));
@@ -3108,7 +3107,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
         reject({ fallback: true, cause: e });
         return;
       }
-      const timer = setTimeout(() => { done(); reject(new Error("timeout")); }, SAE_BEAT_TIMEOUT_MS);
+      timer = setTimeout(() => { done(); reject(new Error("timeout")); }, SAE_BEAT_TIMEOUT_MS);
       beatJobRef.current = { id, worker, url, timer };
       worker.onmessage = (e: MessageEvent) => {
         if (!e.data || e.data.id !== id) return;
@@ -3260,6 +3259,9 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   // What the footage supports right now: a dry run of the planner with the cached search hits and spans (clips not
   // searched yet still count, through the planner's filler moments). Close-ups are only counted once every chosen
   // video has been searched (by a Build).
+  // The dry run follows the section with a short delay, so dragging the waveform does not re-plan on every move.
+  const [drySection, setDrySection] = React.useState<number | null>(null);
+  React.useEffect(() => { const id = setTimeout(() => setDrySection(section), 250); return () => clearTimeout(id); }, [section]);
   const searchedAll = !!projectId && selectedRids.every((rid) => searchCache.current.has(projectId + "|" + rid));
   const dry = React.useMemo(() => {
     if (!inventory || !projectId || (!selectedRids.length && !usedPhotoRids.length)) return null;
@@ -3274,9 +3276,9 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
       if (spans) badSpans[r.rid] = spans;
     }
     try {
-      return saePlanBuild({ fps: 30, bars: wantedBars, seed, cue, sectionStart: section ?? undefined, candidates, durations, badSpans, photos: usedPhotoRids, usePhotos });
+      return saePlanBuild({ fps: 30, bars: wantedBars, seed, cue, sectionStart: drySection ?? undefined, candidates, durations, badSpans, photos: usedPhotoRids, usePhotos });
     } catch { return null; }
-  }, [inventory, projectId, selectedRids.join(","), usedPhotoRids.join(","), usePhotos, cue, section, wantedBars, seed, cacheTick]);
+  }, [inventory, projectId, selectedRids.join(","), usedPhotoRids.join(","), usePhotos, cue, drySection, wantedBars, seed, cacheTick]);
   const fitBars = dry && dry.ok ? dry.fit.bars : wantedBars;
   const listening = musicId === "own" && ownState === "listening";
   const canBuild = !!assets && !!inventory && !!dry && dry.ok && !listening && !(musicId === "own" && !ownFile);
