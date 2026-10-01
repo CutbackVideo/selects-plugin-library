@@ -337,8 +337,9 @@ def box_blur(img, rx, ry):
     return out
 
 
-def synthetic_clip(path, fps=25):
-    """Holds of testsrc2 crops with whips of w frames each side of every cut. Clips 0-4 alternate sharp crops (one
+def synthetic_clip(path, fps=25, shoulder=False):
+    """Holds of testsrc2 crops with whips of w frames each side of every cut (shoulder=True: the app's current
+    envelope, only the frame next to the cut strongly smeared and the outer whip frame a faint ~1 px smear). Clips 0-4 alternate sharp crops (one
     low-texture), clips 5-7 form a bar whose source is itself mildly blurred (a soft clip), clips 8-9 sharp again.
     Clip 10 is the same image as clip 9 and their cut has only a faint smear (a weak whip, as at reference beats
     5-7). Returns (cuts, index of the weak cut)."""
@@ -366,11 +367,16 @@ def synthetic_clip(path, fps=25):
         a, b = bounds[k], bounds[k + 1]
         whip = box_blur(box_blur(imgs[k], 28, 0), 10, 10)  # directional smear + blur, like the app's whip
         faint = 0.8 * imgs[k] + 0.2 * box_blur(imgs[k], 3, 3)  # sharpness dips to ~0.65 only
+        # The shoulder (whip amount 0.07, sigma ~0.25 % of the width): on real selfie footage it keeps ~0.6-0.8 of
+        # the hold's sharpness; testsrc2's hard synthetic edges lose far more to the same blur, so the shoulder is
+        # modelled by that relative sharpness instead (a partial smear, rel ~0.6).
+        soft = 0.75 * imgs[k] + 0.25 * box_blur(imgs[k], 2, 0)
         for f in range(a, b):
             if (k > 0 and f < a + w and k - 1 == weak_cut) or (k < len(bounds) - 2 and f >= b - w and k == weak_cut):
                 frames.append(faint)
             elif (k > 0 and f < a + w) or (k < len(bounds) - 2 and f >= b - w):
-                frames.append(whip)
+                dist = f - a if k > 0 and f < a + w else b - 1 - f
+                frames.append(soft if shoulder and dist > 0 else whip)
             else:
                 frames.append(imgs[k])
     data = np.clip(np.stack(frames), 0, 255).astype(np.uint8).tobytes()
@@ -414,6 +420,16 @@ def selftest(ref=None):
         check(r5['pass'], 'synthetic: cuts at 50 fps not converted')
         print(f"negative checks: missing {r2['missing']}, extra {[d['centre'] for d in r3['extra']]}, "
               f"1-frame error {r4['cuts'][3]['offsetMs']} ms, 50 fps cuts pass={r5['pass']}")
+        # The current envelope: 1 strong + 1 faint shoulder frame per side. Every cut is still found, centred
+        # exactly, with a 2-frame strong run (the shoulder never reads as strong blur).
+        p2 = os.path.join(td, 'synthetic-shoulder.mp4')
+        cuts2, weak2 = synthetic_clip(p2, shoulder=True)
+        rs = eval_file(p2, cuts2)
+        print(table(rs, 'synthetic 25 fps, 1 strong + 1 shoulder frame per side'))
+        print('shoulder: ' + json.dumps(summary(rs)))
+        check(rs['pass'] and rs['found'] == len(cuts2) and not rs['extra'], 'shoulder: not all cuts found / extras')
+        check(all(r.get('offsetMs') == 0 for r in rs['cuts']), 'shoulder: nonzero offset')
+        check(all(r['len'] == 2 for i, r in enumerate(rs['cuts']) if i != weak2), 'shoulder: strong runs are not 2 frames')
     if ref:
         bpm, first = 97.67, 0.156
         beats = [1, 1.5, 2, 2.5, 3, 4, 5, 5.5, 6, 6.5, 7, 8, 9, 9.5, 10, 10.5, 11, 12, 12.5, 13, 13.5, 14, 14.5, 15]

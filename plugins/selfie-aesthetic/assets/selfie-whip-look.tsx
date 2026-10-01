@@ -30,9 +30,17 @@ function saeWhipFrames(fps) {
 function saeWhipIdentity() {
   return { amount: 0, side: null, blurX: 0, blurY: 0, angleDeg: 0, txPct: 0, tyPct: 0, rotDeg: 0, scale: 1 };
 }
-// Linear ramp: 1.0 on the frame next to the cut, 0.6 on the farthest whip frame (w = 2: 1.0, 0.6).
-function saeWhipRamp(dist, w) {
-  return w <= 1 ? 1 : 1 - 0.4 * dist / (w - 1);
+// Envelope in seconds, symmetric about the cut: a whip frame is strong (amount 1) while its centre lies within
+// SAE_WHIP_CORE_SECONDS of the cut (always the frame next to the cut), else a faint shoulder of SAE_WHIP_SHOULDER.
+// 25 / 30 fps (w = 2): 1.0 next to the cut, then the shoulder, so 2 strongly blurred frames per cut instead of 4.
+// The shoulder stays below what eval-whips counts as strong blur (relative sharpness 0.3; ~0.15 already reads
+// strong at 240 px), so the strong run is exactly the 2 frames around the cut and its centre stays on the cut.
+var SAE_WHIP_CORE_SECONDS = 0.04;
+var SAE_WHIP_SHOULDER = 0.07;
+function saeWhipRamp(dist, w, fps) {
+  if (!(dist > 0)) return 1;
+  var f = typeof fps === "number" && fps > 0 ? fps : 30;
+  return (dist + 0.5) / f <= SAE_WHIP_CORE_SECONDS + 1e-9 ? 1 : SAE_WHIP_SHOULDER;
 }
 // The angle of one side's cut: angleIn for the head ('in'), angleOut for the tail ('out'), each falling back to
 // angle. Both clips of a cut carry the same value (clip j angleOut = clip j + 1 angleIn), so the motion keeps its
@@ -96,8 +104,8 @@ function saeWhipAt(frame, durFrames, fps, d) {
       else { wIn = 1; wOut = 0; }
     } else { wIn = Math.min(wIn, dur); wOut = Math.min(wOut, dur); }
   }
-  if (f < wIn) return saeWhipPose("in", saeWhipRamp(f, wIn), sIn, d.kindIn, d);
-  if (f >= dur - wOut) return saeWhipPose("out", saeWhipRamp(dur - 1 - f, wOut), sOut, d.kindOut, d);
+  if (f < wIn) return saeWhipPose("in", saeWhipRamp(f, wIn, fps), sIn, d.kindIn, d);
+  if (f >= dur - wOut) return saeWhipPose("out", saeWhipRamp(dur - 1 - f, wOut, fps), sOut, d.kindOut, d);
   return saeWhipIdentity();
 }
 // Look presets as CSS filter functions (sepia, saturate, hue-rotate, contrast, brightness, in that order) plus an

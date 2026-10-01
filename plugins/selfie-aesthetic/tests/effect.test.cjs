@@ -25,16 +25,52 @@ const both = (kind, extra) => Object.assign({ whipIn: 1, whipOut: 1, kindIn: kin
 for (const [fps, w] of [[15, 1], [23.976, 2], [24, 2], [25, 2], [29.97, 2], [30, 2], [45, 3], [50, 3], [59.94, 4], [60, 4]]) assert.equal(F.saeWhipFrames(fps), w, 'w at ' + fps);
 assert.equal(F.saeWhipFrames(0), 2, 'unknown fps falls back to 30');
 
-// Ramps: amount rises toward the cut on the tail, falls away from it on the head; identity elsewhere.
-const ramps = { 1: [1], 2: [1, 0.6], 3: [1, 0.8, 0.6], 4: [1, 1 - 0.4 / 3, 1 - 0.8 / 3, 0.6] };
+// Envelope (seconds, symmetric about the cut): strong (1) while the frame centre is within 40 ms of the cut (always
+// the frame next to it), else the faint 0.07 shoulder; identity elsewhere. 25 / 30 fps: 1 strong + 1 shoulder frame.
+const SH = 0.07;
+const ramps = { 15: [1], 23.976: [1, SH], 25: [1, SH], 30: [1, SH], 45: [1, 1, SH], 60: [1, 1, SH, SH] };
 for (const fps of [15, 23.976, 25, 30, 45, 60]) for (const kind of ['dir', 'spin']) {
-  const w = F.saeWhipFrames(fps), dur = 24, r = ramps[w];
+  const w = F.saeWhipFrames(fps), dur = 24, r = ramps[fps];
+  assert.equal(r.length, w, 'envelope length = w at ' + fps);
   for (let f = 0; f < dur; f++) {
     const m = j(F.saeWhipAt(f, dur, fps, both(kind)));
     if (f < w) { assert.equal(m.side, 'in'); near(m.amount, r[f], `head ${fps} ${f}`); }
     else if (f >= dur - w) { assert.equal(m.side, 'out'); near(m.amount, r[dur - 1 - f], `tail ${fps} ${f}`); }
     else assert.deepEqual(m, ID, `identity at ${fps} f${f}`);
   }
+}
+// Strong-blur occupancy on the real 25 fps Short schedule (a-funk s1 cut frames): frames whose blur amount exceeds
+// 0.15 read as strong blur to eval-whips (relative sharpness < 0.3 on setA frames: amount 0.15 -> ~0.17-0.30,
+// 0.07 -> ~0.75; measured with dev/eval-whips.py on h264 renders of setA stills). Each cut must give exactly 2
+// strong frames (1 + 1, centred on the cut), so a 1/2-beat hold (7-8 frames) is strongly smeared on 2 of them
+// instead of 4 (the old 1.0 / 0.6 ramp, kept here for comparison).
+{
+  const STRONG = 0.15, fps = 25;
+  const bounds = [0, 19, 26, 34, 41, 49, 64, 79, 87, 94, 102, 110, 125, 140, 147, 155, 163, 170, 185, 193, 201, 208, 216, 223, 231, 239];
+  const amountsAt = (rampOf) => {
+    const out = [];
+    for (let k = 0; k + 1 < bounds.length; k++) {
+      const dur = bounds[k + 1] - bounds[k], last = k + 2 === bounds.length;
+      for (let f = 0; f < dur; f++) out.push(rampOf(f, dur, k === 0, last));
+    }
+    return out;
+  };
+  const now = amountsAt((f, dur, first, last) => F.saeWhipAt(f, dur, fps, both('dir', { whipIn: first ? 0 : 1, whipOut: last ? 0 : 1 })).amount);
+  const old = amountsAt((f, dur, first, last) => { const w = 2; if (!first && f < w) return 1 - 0.4 * f; if (!last && f >= dur - w) return 1 - 0.4 * (dur - 1 - f); return 0; });
+  const runs = (a) => { const r = []; let s = -1; a.forEach((v, i) => { if (v > STRONG && s < 0) s = i; if (!(v > STRONG) && s >= 0) { r.push([s, i]); s = -1; } }); return r; };
+  const rn = runs(now), ro = runs(old);
+  assert.equal(rn.length, bounds.length - 2, 'one strong run per cut');
+  assert.ok(rn.every(([s, e], i) => e - s === 2 && (s + e) / 2 === bounds[i + 1]), 'each strong run is 2 frames centred on its cut');
+  assert.ok(ro.every(([s, e]) => e - s === 4), 'old ramp: 4 strong frames per cut');
+  // Per 1/2-beat hold of the finale (7-8 frames): strong frames inside the hold = 1 head + 1 tail now, 2 + 2 before.
+  for (let k = 18; k < 23; k++) {
+    const strongIn = (a) => a.slice(bounds[k], bounds[k + 1]).filter(v => v > STRONG).length;
+    assert.equal(strongIn(now), 2, 'finale hold ' + k); assert.equal(strongIn(old), 4, 'old finale hold ' + k);
+  }
+  const share = (a) => a.filter(v => v > STRONG).length / a.length;
+  assert.ok(share(now) < 0.21 && share(old) > 0.39, 'strong-blur share ' + share(now).toFixed(3) + ' (old ' + share(old).toFixed(3) + ')');
+  // The shoulder is visible but faint, and present on every whip frame that is not strong.
+  assert.equal(now.filter(v => v > 0 && v <= STRONG).length, rn.length * 2, 'one shoulder frame each side of every cut');
 }
 // Out-of-range frames and empty clips are untouched.
 for (const f of [-1, 24, 99, NaN]) assert.deepEqual(j(F.saeWhipAt(f, 24, 25, both('dir'))), ID);
@@ -43,7 +79,7 @@ assert.deepEqual(j(F.saeWhipAt(0, 0, 25, both('dir'))), ID);
 // Exact maths at w = 2 (dir, angle 30, strength 1, 1080x1920, cover 1).
 {
   const c = Math.cos(Math.PI / 6), s = Math.sin(Math.PI / 6);
-  for (const [f, side, a] of [[0, 'in', 1], [1, 'in', 0.6], [22, 'out', 0.6], [23, 'out', 1]]) {
+  for (const [f, side, a] of [[0, 'in', 1], [1, 'in', SH], [22, 'out', SH], [23, 'out', 1]]) {
     const m = F.saeWhipAt(f, 24, 25, both('dir')), dir = side === 'out' ? 1 : -1;
     near(m.blurX, 3.5 * a, 'blurX'); near(m.blurY, 0.08 * 3.5 * a, 'blurY ~8% of blurX');
     near(m.txPct, dir * 6 * a * c, 'tx along the angle (% of width)');

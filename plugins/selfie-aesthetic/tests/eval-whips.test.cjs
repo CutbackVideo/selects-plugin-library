@@ -1,6 +1,7 @@
 // plugins/selfie-aesthetic/tests/eval-whips.test.cjs (run: node plugins/selfie-aesthetic/tests/eval-whips.test.cjs)
 // Runs dev/eval-whips.py --selftest: a synthetic 25 fps clip with known 2+2 frame whips (sharp, low-texture and
-// soft-source holds plus one faint whip) must be found with offset 0, and the negative checks must fail as expected.
+// soft-source holds plus one faint whip) must be found with offset 0, and the negative checks must fail as expected;
+// the same clip with 1 strong + 1 shoulder frame per side (the current envelope) gives 2-frame runs on every cut.
 // Skips with a note when python3, numpy or ffmpeg is not available.
 const path = require('node:path'), assert = require('node:assert/strict'), { spawnSync } = require('node:child_process');
 const script = path.resolve(__dirname, '..', 'dev', 'eval-whips.py');
@@ -27,4 +28,10 @@ assert.equal(s.weak, 1);
 assert.equal(s.extra, 0);
 assert.equal(s.maxAbsOffsetMs, 0);
 assert.equal(s.toleranceMs, 20);
+// The current envelope (1 strong + 1 faint shoulder frame per side): every cut found, centred, 2-frame runs.
+const sh = JSON.parse(r.stdout.split('\n').find(l => l.startsWith('shoulder: ')).slice('shoulder: '.length));
+assert.equal(sh.pass, true);
+assert.equal(sh.found, 10);
+assert.equal(sh.extra, 0);
+assert.equal(sh.maxAbsOffsetMs, 0);
 console.log('eval-whips.test: ok');
