@@ -33,6 +33,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Travel Beat Vlog](plugins/travel-beat-vlog) — fast 9:16 travel edit with two quick montages, a hero title, two grids, reference colour and bundled music | Experimental |
 | [Six Clip Velocity](plugins/six-clip-velocity) — six videos become a speed-ramped velocity edit with blur cuts, a white flash and kinetic subtitles | Experimental |
 | [Vox Style Explainer](plugins/vox-explainer) — a Vox-style explainer video from a link or text | Experimental |
+| [Card News Maker](plugins/card-news-maker) — editable 4:5 card news from a news article | Experimental |
 
 | [Photo Grid Reveal](plugins/photo-gallery-no2) — editable 21-tile photo/video grid with sequential reveals and a shared monochrome-to-color switch | Experimental |
 | [Cinema Vlog Studio](plugins/cinema-vlog-studio) — 21-second cinematic street vlog with marker-driven cuts, a scramble title and inset cards | Experimental |
