@@ -46,14 +46,15 @@ function avcKoMeasure(data) {
   if (!ctx || typeof ctx.measureText !== "function") return null;
   var px = 100;
   ctx.font = (AVC_HANGUL_RE.test(text) ? 700 : AVC_FACE.weight) + " " + px + "px " + avcFontStack(AVC_FACE.family);
-  var out = { koAdvances: {} };
+  // Built in one literal at the end (the panel type-checks this block: no keys added later). Object({}) is an
+  // untyped map for the per-character advances.
   var s = ctx.measureText("\ud55c\uae00");
-  if (s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0) out.koInk = { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px };
-  var chars = Array.from(text);
+  var ink = s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0 ? { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px } : null;
+  var adv = Object({}), chars = Array.from(text);
   for (var i = 0; i < chars.length; i++) {
-    if (AVC_WIDE_RE.test(chars[i]) && !(chars[i] in out.koAdvances)) out.koAdvances[chars[i]] = ctx.measureText(chars[i]).width / px;
+    if (AVC_WIDE_RE.test(chars[i]) && !(chars[i] in adv)) adv[chars[i]] = ctx.measureText(chars[i]).width / px;
   }
-  return out;
+  return ink ? { koAdvances: adv, koInk: ink } : { koAdvances: adv };
 }
 function avcNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
 function avcText(data, key) {

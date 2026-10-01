@@ -79,7 +79,8 @@ function avIsLetter(ch) {
 // digits split the same either way; a combining sequence or an emoji sequence may count differently on an engine
 // without Intl.Segmenter.
 var AV_SEGMENTER = (function () {
-  try { return typeof Intl !== "undefined" && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null; } catch (e) { return null; }
+  // Object(Intl): untyped, so the block type-checks against libs without Intl.Segmenter.
+  try { var I = typeof Intl !== "undefined" ? Object(Intl) : null; return I && I.Segmenter ? new I.Segmenter(undefined, { granularity: "grapheme" }) : null; } catch (e) { return null; }
 })();
 function avGraphemes(text) {
   text = String(text || "");
@@ -143,14 +144,15 @@ function avKoMeasure(data) {
   if (!ctx || typeof ctx.measureText !== "function") return null;
   var face = AV_TITLE_FACES[data.font] || AV_TITLE_FACES.anton, px = 100;
   ctx.font = "700 " + px + "px " + avFontStack(face.family);
-  var out = { koAdvances: {} };
+  // Built in one literal at the end (the panel type-checks this block: no keys added later). Object({}) is an
+  // untyped map for the per-character advances.
   var s = ctx.measureText("\ud55c\uae00");
-  if (s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0) out.koInk = { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px };
-  var chars = Array.from(text).concat(avHasHangul(f.title) ? AV_POOL_HANGUL : []);
+  var ink = s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0 ? { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px } : null;
+  var adv = Object({}), chars = Array.from(text).concat(avHasHangul(f.title) ? AV_POOL_HANGUL : []);
   for (var i = 0; i < chars.length; i++) {
-    if (AV_WIDE_RE.test(chars[i]) && !(chars[i] in out.koAdvances)) out.koAdvances[chars[i]] = ctx.measureText(chars[i]).width / px;
+    if (AV_WIDE_RE.test(chars[i]) && !(chars[i] in adv)) adv[chars[i]] = ctx.measureText(chars[i]).width / px;
   }
-  return out;
+  return ink ? { koAdvances: adv, koInk: ink } : { koAdvances: adv };
 }
 
 function avMetrics(data, family) {
@@ -282,9 +284,7 @@ function avTitleLayout(data, width, height) {
     if (p.letters) o.letters = p.letters.map(function (l) { return Object.assign({}, l, { x: o.x + l.x * k, w: l.w * k }); });
     return o;
   };
-  var out = { title: place(title), kicker: place(kicker), tagline: place(tagline), box: [tx(box[0]), ty(box[1]), tx(box[2]), ty(box[3])], steps: title ? title.steps : 0 };
-  out.metrics = mt;
-  return out;
+  return { title: place(title), kicker: place(kicker), tagline: place(tagline), box: [tx(box[0]), ty(box[1]), tx(box[2]), ty(box[3])], steps: title ? title.steps : 0, metrics: mt };
 }
 
 // Timing in seconds for a title of `steps` decode steps (its lockable graphemes; spaces and punctuation take none) at
