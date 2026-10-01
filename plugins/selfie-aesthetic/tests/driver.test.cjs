@@ -142,7 +142,7 @@ test('step configs carry exactly the keys panel.tsx build() sends', () => {
   assert.deepEqual(steps.assemble.config.crops.p1, { width: 3024, height: 4032 });
   assert.ok(!('p2' in steps.assemble.config.crops), 'unmeasured photos stay out of crops');
   assert.equal(steps.assemble.config.draftName, 'Selfie test A make-funk soft-glow short s1');
-  assert.deepEqual(steps.decorate.config.effect, { tsx: read('assets/selfie-whip-look.tsx'), look: 'soft-glow', lookStrength: 0.35, whip: 1 });
+  assert.deepEqual(steps.decorate.config.effect, { tsx: read('assets/selfie-whip-look.tsx'), look: 'soft-glow', lookStrength: 0.5, whip: 1 });
   assert.equal(steps.decorate.config.transitionTsx, read('assets/selfie-whip-transition.tsx'));
   assert.deepEqual(steps.decorate.config.lookOptions, A.panelConstants.LOOK_OPTIONS);
   for (const st of ['ensure', 'assemble', 'decorate']) assert.equal(steps[st].allowCommit, true, st + ' commits');

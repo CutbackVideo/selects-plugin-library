@@ -1273,13 +1273,14 @@ const SAE_SEARCH_PAGE_SIZE = 8;
 const SAE_SEARCH_BATCH = 4;
 // Ambient clip sound sits this far under the music, which stays at 0 dB.
 const AMBIENT_DB = -18;
-// The look's default strength in the effect (editable per clip in Adjust).
+// The look's default strength in the effect (editable per clip in Adjust) for a preset without its own `strength`.
 const LOOK_STRENGTH = 0.35;
-// Look presets: the effect's look id, the global whip strength it ships with (Clean whips softer) and the tile swatch.
+// Look presets: the effect's look id, its default look strength (the effect's SAE_LOOKS strength), the global whip
+// strength it ships with (Clean whips softer) and the tile swatch.
 const LOOK_PRESETS = [
-  { id: "soft-glow", whip: 1, swatch: "radial-gradient(circle at 35% 30%, #fff1e6 0%, #f2b8a8 45%, #a8646e 80%, #4a2a33 100%)" },
-  { id: "night-glam", whip: 1, swatch: "radial-gradient(circle at 35% 30%, #ffc2e6 0%, #d0479a 45%, #6a1650 80%, #1c0818 100%)" },
-  { id: "clean", whip: 0.7, swatch: "radial-gradient(circle at 35% 30%, #ffffff 0%, #e8e2dc 45%, #a9a29b 80%, #5d5853 100%)" },
+  { id: "soft-glow", strength: 0.5, whip: 1, swatch: "radial-gradient(circle at 35% 30%, #fff1e6 0%, #f2b8a8 45%, #a8646e 80%, #4a2a33 100%)" },
+  { id: "night-glam", strength: 0.35, whip: 1, swatch: "radial-gradient(circle at 35% 30%, #ffc2e6 0%, #d0479a 45%, #6a1650 80%, #1c0818 100%)" },
+  { id: "clean", strength: 0.35, whip: 0.7, swatch: "radial-gradient(circle at 35% 30%, #ffffff 0%, #e8e2dc 45%, #a9a29b 80%, #5d5853 100%)" },
 ];
 // The Look choices of a clip in Adjust. These labels are the English defaults (headless build tools read this
 // constant); a build writes STRINGS `look.<value>` in the UI language.
@@ -3583,7 +3584,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
       const preset = LOOK_PRESETS.find((p) => p.id === settings.lookId) || LOOK_PRESETS[0];
       const deco = {
         sequenceId: a.sequenceId, holds, whipMode: SAE_WHIP_MODE,
-        effect: { tsx: assets.effectTsx, look: settings.lookOn ? preset.id : "none", lookStrength: LOOK_STRENGTH, whip: preset.whip },
+        effect: { tsx: assets.effectTsx, look: settings.lookOn ? preset.id : "none", lookStrength: preset.strength ?? LOOK_STRENGTH, whip: preset.whip },
         transitionTsx: assets.transitionTsx, covers: a.covers || [], clipSound: settings.clipSound,
         adjustLabels: { look: t(bl, "param.look"), lookStrength: t(bl, "param.lookStrength"), whip: t(bl, "param.whip") },
         lookOptions: LOOK_OPTIONS.map((o) => ({ label: lookLabel(bl, o.value), value: o.value })),

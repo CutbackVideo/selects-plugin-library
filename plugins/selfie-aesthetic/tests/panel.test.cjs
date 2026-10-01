@@ -167,12 +167,12 @@ test('configs sent to each script carry what the scripts read', () => {
   const asm = read('scripts', 'assemble.js');
   for (const k of ['cfg.draftName', 'cfg.holds', 'cfg.cutSecondsRaw', 'cfg.music.sourceStart', 'cfg.music.resourceId', 'cfg.durations', 'cfg.crops', 'cfg.clipSound', 'cfg.ambientDb']) assert.ok(asm.includes(k), 'assemble.js reads ' + k);
   // decorate.
-  for (const s of ['sequenceId: a.sequenceId, holds, whipMode: SAE_WHIP_MODE,', 'effect: { tsx: assets.effectTsx, look: settings.lookOn ? preset.id : "none", lookStrength: LOOK_STRENGTH, whip: preset.whip },',
+  for (const s of ['sequenceId: a.sequenceId, holds, whipMode: SAE_WHIP_MODE,', 'effect: { tsx: assets.effectTsx, look: settings.lookOn ? preset.id : "none", lookStrength: preset.strength ?? LOOK_STRENGTH, whip: preset.whip },',
     'transitionTsx: assets.transitionTsx, covers: a.covers || [], clipSound: settings.clipSound,']) assert.ok(own.includes(s), s);
   const deco = read('scripts', 'decorate.js');
   for (const k of ['cfg.sequenceId', 'cfg.holds', 'cfg.whipMode', 'cfg.effect', 'cfg.covers', 'cfg.clipSound', 'cfg.adjustLabels', 'cfg.lookOptions', 'cfg.transitionTsx']) assert.ok(deco.includes(k), 'decorate.js reads ' + k);
   assert.ok(own.includes('const LOOK_STRENGTH = 0.35;'));
-  assert.ok(/\{ id: "clean", whip: 0\.7,/.test(own) && /\{ id: "soft-glow", whip: 1,/.test(own), 'Clean whips at 0.7');
+  assert.ok(/\{ id: "clean", strength: 0\.35, whip: 0\.7,/.test(own) && /\{ id: "soft-glow", strength: 0\.5, whip: 1,/.test(own), 'Clean whips at 0.7; Soft glow ships at strength 0.5');
   // Commit calls are never resent; project-switch guard after the awaits of the build.
   assert.match(own, /No valid session ID/);
   assert.ok(own.includes('if (r.isError && !allowCommit &&'), 'only non-committing calls are resent');

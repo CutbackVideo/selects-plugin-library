@@ -340,7 +340,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const lang = row.uiLang;
       return { summary: 'Add whip and look', script: 'scripts/decorate.js', allowCommit: true, config: {
         sequenceId: a.sequenceId, holds: s.holds, whipMode: row.whipMode,
-        effect: { tsx: effectTsx, look: row.look ? preset.id : 'none', lookStrength: LOOK_STRENGTH, whip: preset.whip },
+        effect: { tsx: effectTsx, look: row.look ? preset.id : 'none', lookStrength: typeof preset.strength === 'number' ? preset.strength : LOOK_STRENGTH, whip: preset.whip },
         transitionTsx, covers: a.covers || [], clipSound: row.clipSound,
         adjustLabels: { look: t(lang, 'param.look'), lookStrength: t(lang, 'param.lookStrength'), whip: t(lang, 'param.whip') },
         lookOptions: LOOK_OPTIONS.map(o => ({ label: lookLabel(lang, o.value), value: o.value })) } };

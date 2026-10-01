@@ -241,14 +241,17 @@ const L = (look, s) => j(F.saeLookFilter(look, s));
 for (const look of ['none', 'nope', undefined]) assert.deepEqual(L(look, 1), { filter: '', overlay: null });
 for (const look of ['soft-glow', 'night-glam', 'clean']) {
   assert.deepEqual(L(look, 0), { filter: '', overlay: null }, 'strength 0 is a no-op');
-  assert.deepEqual(L(look, 0.35), L(look, 0.35), 'deterministic');
+  assert.deepEqual(L(look, 0.5), L(look, 0.5), 'deterministic');
   assert.deepEqual(L(look, 5), L(look, 1), 'strength clamps to 1');
-  assert.deepEqual(L(look, undefined), L(look, 0.35), 'default strength 0.35');
-  assert.match(L(look, 0.35).filter, /^sepia\(\d\.\d{3}\) saturate\(\d\.\d{3}\) hue-rotate\(-?\d+\.\d{2}deg\) contrast\(\d\.\d{3}\) brightness\(\d\.\d{3}\)$/);
+  assert.deepEqual(L(look, undefined), L(look, look === 'soft-glow' ? 0.5 : 0.35), 'default strength: the preset\'s');
+  assert.match(L(look, 0.5).filter, /^sepia\(\d\.\d{3}\) saturate\(\d\.\d{3}\) hue-rotate\(-?\d+\.\d{2}deg\) contrast\(\d\.\d{3}\) brightness\(\d\.\d{3}\)$/);
 }
-assert.equal(L('soft-glow', 1).filter, 'sepia(0.850) saturate(1.100) hue-rotate(-3.00deg) contrast(0.950) brightness(0.860)');
-assert.deepEqual(L('soft-glow', 1).overlay, { color: '#ff7a9a', blend: 'lighten', opacity: 0.045 });
-assert.equal(L('soft-glow', 0.35).filter, 'sepia(0.297) saturate(1.035) hue-rotate(-1.05deg) contrast(0.982) brightness(0.951)');
+assert.equal(L('soft-glow', 1).filter, 'sepia(1.000) saturate(2.200) hue-rotate(-20.00deg) contrast(0.950) brightness(0.820)');
+assert.deepEqual(L('soft-glow', 1).overlay, { color: '#ff7a9a', blend: 'lighten', opacity: 0.03 });
+assert.equal(L('soft-glow', 0.5).filter, 'sepia(0.500) saturate(1.600) hue-rotate(-10.00deg) contrast(0.975) brightness(0.910)');
+// Night glam and Clean are unchanged (default 0.35).
+assert.equal(L('night-glam', undefined).filter, 'sepia(0.122) saturate(1.052) hue-rotate(-16.80deg) contrast(1.042) brightness(0.972)');
+assert.equal(L('clean', undefined).filter, 'sepia(0.052) saturate(1.014) hue-rotate(0.00deg) contrast(0.993) brightness(1.000)');
 
 // Simulate CSS filter functions (Filter Effects spec matrices, clamped after each function) and the overlay's
 // blend on a neutral grey ramp.
@@ -280,13 +283,21 @@ for (const look of ['soft-glow', 'night-glam', 'clean']) {
 }
 {
   const g = looks['soft-glow'];
-  assert.ok(g.midRB >= 1.25 && g.midRB <= 1.55, 'soft glow warm: mid-grey R/B ' + g.midRB);
+  assert.ok(g.midRB >= 1.55 && g.midRB <= 2.4, 'soft glow at strength 1: a strong rose-gold, mid-grey R/B ' + g.midRB);
   assert.ok(g.whiteLuma <= 220, 'soft glow rolls highlights off: ' + g.whiteLuma);
   assert.ok(Math.max(...grade('soft-glow', 1, 1)) <= 225, 'no channel near pure white');
   assert.ok(g.blackLuma >= 4, 'soft glow lifts blacks: ' + g.blackLuma);
   assert.ok(g.black[0] > g.black[1] && g.black[2] > g.black[1], 'rose-tinted blacks');
   for (let i = 1; i <= 10; i++) assert.ok(luma(grade('soft-glow', 1, i / 10)) > luma(grade('soft-glow', 1, (i - 1) / 10)), 'monotone ramp');
-  const mild = grade('soft-glow', 0.35, 0.5); assert.ok(mild[0] / mild[2] > 1.08 && mild[0] / mild[2] < 1.25, 'default strength is gentle');
+  // The default strength (0.5): mid-grey rose-gold R/B 1.35-1.45 with R > G > B and R/G ~1.2 (rose, not yellow),
+  // highlights <= 230, blacks deep (<= 10 on every channel) so dark hair stays rich; warmth grows with strength.
+  const d = grade('soft-glow', 0.5, 0.5), dw = grade('soft-glow', 0.5, 1), db = grade('soft-glow', 0.5, 0);
+  assert.ok(d[0] / d[2] >= 1.35 && d[0] / d[2] <= 1.45, 'default: mid-grey R/B ' + d[0] / d[2]);
+  assert.ok(d[0] > d[1] && d[1] > d[2] && d[0] / d[1] >= 1.15 && d[0] / d[1] <= 1.25, 'default: rose-gold ' + d.map(Math.round));
+  assert.ok(Math.max(...dw) <= 230.5, 'default: highlights <= 230 ' + dw.map(Math.round));
+  assert.ok(Math.max(...db) <= 10, 'default: deep blacks ' + db.map(Math.round));
+  const rb = s => { const c = grade('soft-glow', s, 0.5); return c[0] / c[2]; };
+  assert.ok(rb(0.25) < rb(0.5) && rb(0.5) < rb(0.75) && rb(0.75) < rb(1), 'warmth grows with strength');
   const n = looks['night-glam'];
   assert.ok(n.mid[0] > n.mid[1] && n.mid[2] > n.mid[1], 'night glam magenta cast');
   assert.ok(n.blackLuma < g.blackLuma, 'night glam deeper blacks');
@@ -346,7 +357,7 @@ if (esbuild) {
   };
   // The rotated container the blur filter is applied to.
   const blurBox = root => find(root, 'div').find(x => x.props.style && 'filter' in x.props.style);
-  const data = { whipIn: 1, whipOut: 1, kindIn: 'dir', kindOut: 'spin', angle: 30, look: 'soft-glow', lookStrength: 0.35, framing: null, cover: 1 };
+  const data = { whipIn: 1, whipOut: 1, kindIn: 'dir', kindOut: 'spin', angle: 30, look: 'soft-glow', lookStrength: 0.5, framing: null, cover: 1 };
   frame = 10;
   let t = call(Look, { Source, data, rangeDurationInFrames: 24, sequenceFps: 25 });
   // Plain frame: the same tree as a whip frame (no remount of <Source /> at the whip edges), the filter idle.

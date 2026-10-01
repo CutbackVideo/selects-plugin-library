@@ -4,7 +4,7 @@
 // data: whipIn, whipOut (0-1.5, 0 = no whip on that side), kindIn, kindOut ('none' | 'dir' | 'spin'), angleIn /
 // angleOut (deg: the angle of the head's and of the tail's cut, shared by both clips of a cut; each falls back to
 // angle), whip (global multiplier, default 1), look ('soft-glow' | 'night-glam' | 'clean' | 'none'), lookStrength
-// (0-1, default 0.35), framing ('full' | 'punch' | null), cover (the clip's native cover-crop scale; translations
+// (0-1, default: the preset's strength, Soft glow 0.5, others 0.35), framing ('full' | 'punch' | null), cover (the clip's native cover-crop scale; translations
 // are divided by it). Frame 0 is the clip's first timeline frame; its length is
 // rangeDurationInFrames.
 import React from "react";
@@ -109,20 +109,25 @@ function saeWhipAt(frame, durFrames, fps, d) {
   return saeWhipIdentity();
 }
 // Look presets as CSS filter functions (sepia, saturate, hue-rotate, contrast, brightness, in that order) plus an
-// optional colour overlay; every parameter is interpolated from identity by strength (0-1).
-// Soft glow (the reference): warm (mid-grey R/B ~1.42 at strength 1), highlights rolled off (white ~214/255),
-// rose-lifted blacks. Night glam: deeper blacks, magenta/pink cast. Clean: near-neutral with mild warmth.
+// optional colour overlay; every parameter is interpolated from identity by strength (0-1). Each preset carries its
+// default strength (`strength`: what the panel sends and the fallback when lookStrength is missing).
+// Soft glow (the reference's clear portraits), default 0.5: a neutral mid-grey turns rose-gold (R/B ~1.38, R/G
+// ~1.17), white rolls off to ~230, black stays deep (<= 7, faintly rose) so dark hair stays rich; less sepia and
+// more saturation than before so lips and skin keep their colour instead of fading to vintage brown; strength 1 is
+// a strong version of the same. Night glam (default 0.35): deeper blacks, magenta/pink cast. Clean (default 0.35):
+// near-neutral with mild warmth.
 var SAE_LOOKS = {
-  "soft-glow": { sepia: 0.85, saturate: 1.1, hue: -3, contrast: 0.95, brightness: 0.86, overlay: { color: "#ff7a9a", blend: "lighten", opacity: 0.045 } },
-  "night-glam": { sepia: 0.35, saturate: 1.15, hue: -48, contrast: 1.12, brightness: 0.92, overlay: { color: "#ff4fa3", blend: "screen", opacity: 0.05 } },
-  "clean": { sepia: 0.15, saturate: 1.04, hue: 0, contrast: 0.98, brightness: 1, overlay: null },
+  "soft-glow": { strength: 0.5, sepia: 1, saturate: 2.2, hue: -20, contrast: 0.95, brightness: 0.82, overlay: { color: "#ff7a9a", blend: "lighten", opacity: 0.03 } },
+  "night-glam": { strength: 0.35, sepia: 0.35, saturate: 1.15, hue: -48, contrast: 1.12, brightness: 0.92, overlay: { color: "#ff4fa3", blend: "screen", opacity: 0.05 } },
+  "clean": { strength: 0.35, sepia: 0.15, saturate: 1.04, hue: 0, contrast: 0.98, brightness: 1, overlay: null },
 };
 function saeLookFilter(look, strength) {
   var p = SAE_LOOKS[look];
-  var t = saeNum(strength, 0, 1, 0.35);
+  var t = saeNum(strength, 0, 1, p ? p.strength : 0.35);
   if (!p || t === 0) return { filter: "", overlay: null };
   var lerp = function (to) { return 1 + (to - 1) * t; };
-  var filter = "sepia(" + (p.sepia * t).toFixed(3) + ") saturate(" + lerp(p.saturate).toFixed(3) + ") hue-rotate(" +
+  // CSS clamps sepia at 1; write the clamped value.
+  var filter = "sepia(" + Math.min(1, p.sepia * t).toFixed(3) + ") saturate(" + lerp(p.saturate).toFixed(3) + ") hue-rotate(" +
     (p.hue * t).toFixed(2) + "deg) contrast(" + lerp(p.contrast).toFixed(3) + ") brightness(" + lerp(p.brightness).toFixed(3) + ")";
   var overlay = p.overlay ? { color: p.overlay.color, blend: p.overlay.blend, opacity: Number((p.overlay.opacity * t).toFixed(4)) } : null;
   return { filter: filter, overlay: overlay };
