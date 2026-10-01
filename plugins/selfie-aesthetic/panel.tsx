@@ -1784,7 +1784,8 @@ function saePhotoBars(bars, count, seed, innerOnly) {
 
 // Bar allocation (spec "Bar allocation", with the user's GATE-A ruling on few face clips). opts: { clips (saeMoments
 // clips), photos: [{ rid }] | [rid], bars, seed, usePhotos (default true), allowAdjacent?, allowPairReuse?
-// (relaxations for tiny pools) }.
+// (relaxations for tiny pools), photoRelax? (0 strict; 1: photos from bar 1 on and no Short cap; 2: also the finale;
+// saePlanBuild tries them before shrinking or relaxing adjacency) }.
 // Photo bars: round(bars / 3) (capped by the photos; Short edits see SAE_PHOTO_SHORT_BARS), bars
 // SAE_PHOTO_FIRST_BAR..bars-2 only while any video exists, at most SAE_PHOTO_RUN_MAX in a row: photos are a default
 // style element. Every other bar takes, in this order:
@@ -1812,7 +1813,8 @@ function saeAllocate(opts) {
   if (!sources || !(N >= 1)) return { ok: false, bars: [], uses: {}, photoBars: 0, failedAt: 0 };
   const short = N <= SAE_PHOTO_SHORT_BARS;
   const faceVids = vids.filter(c => c.face).length;
-  const photoMax = short ? (faceVids < SAE_PHOTO_SHORT_FACES ? SAE_PHOTO_SHORT_MAX : 0) : Infinity;
+  const photoRelax = opts.photoRelax > 0 ? opts.photoRelax : 0;
+  const photoMax = short && !photoRelax ? (faceVids < SAE_PHOTO_SHORT_FACES ? SAE_PHOTO_SHORT_MAX : 0) : Infinity;
   const photoCount = Math.min(pics.length, photoMax, Math.round(N * SAE_PHOTO_SHARE));
   const photoBar = saePhotoBars(N, photoCount, seed, vids.length > 0);
   const uses = {}, pairUsed = {}, picks = [];
@@ -1820,7 +1822,9 @@ function saeAllocate(opts) {
   const notPrev = rid => rid !== prev || sources < 2 || !!opts.allowAdjacent;
   // While any video exists, photos never hold the first SAE_PHOTO_FIRST_BAR bars nor the finale, and a Short edit
   // stays within its photo cap (allowRun, the tiny-pool fallback, skips these rules).
-  const photoBarOk = () => !vids.length || (bar >= SAE_PHOTO_FIRST_BAR && bar !== N - 1 && photoBars < photoMax);
+  // photoRelax 1: from bar 1 on; 2: the finale too. Bar 0 is always a video while any video exists.
+  const photoBarOk = () => !vids.length ||
+    (bar >= (photoRelax ? 1 : SAE_PHOTO_FIRST_BAR) && (bar !== N - 1 || photoRelax >= 2) && photoBars < photoMax);
   const pickPhoto = allowRun => {
     if (!allowRun && photoRun >= SAE_PHOTO_RUN_MAX) return null;
     if (!allowRun && !photoBarOk()) return null;
@@ -1952,7 +1956,8 @@ function saeSnapSection(sec, cue, opts) {
 // until the sources fill every bar under the rules; a pool too small even for that builds SAE_MIN_BARS bars with
 // adjacency / pair reuse relaxed.
 // Returns the plan (contract in plan.md) with ok: true, or { ok: false, notes: ['no-sources' | 'music-too-short'] }.
-// Notes: 'few-face' (fewer face clips than bars), 'reused' (a source fills more than one bar), 'shrunk', 'fixed-tempo'
+// Notes: 'few-face' (fewer face clips than bars), 'reused' (a source fills more than one bar), 'shrunk', 'photos-early'
+// (photos relaxed into bar 1 / the finale to avoid shrinking), 'fixed-tempo'
 // (music without a usable beat), 'no-music', 'adjacent' / 'pair-reuse' (relaxations used).
 function saePlanBuild(opts) {
   const fps = opts.fps;
@@ -1988,13 +1993,18 @@ function saePlanBuild(opts) {
   const base = { clips: moments.clips, photos: opts.photos, seed, usePhotos: opts.usePhotos };
   let alloc = null, bars = 0;
   const relax = [];
+  // Per bar count: the strict photo rules first, then photos from bar 1 on (no Short cap), then the finale too, before
+  // shrinking; so a pool with one face clip and photos builds f0 P f0 P instead of shrinking or repeating f0
+  // (notes 'photos-early').
   for (let n = maxBars; n >= SAE_MIN_BARS && !alloc; n--) {
-    const a = saeAllocate({ ...base, bars: n });
-    if (a.ok) { alloc = a; bars = n; }
+    for (let pr = 0; pr <= 2 && !alloc; pr++) {
+      const a = saeAllocate({ ...base, bars: n, photoRelax: pr });
+      if (a.ok) { alloc = a; bars = n; if (pr) relax.push('photos-early'); }
+    }
   }
   if (!alloc) {
     for (const r of [{ allowAdjacent: true }, { allowAdjacent: true, allowPairReuse: true }]) {
-      const a = saeAllocate({ ...base, bars: SAE_MIN_BARS, ...r });
+      const a = saeAllocate({ ...base, bars: SAE_MIN_BARS, photoRelax: 2, ...r });
       if (a.ok) { alloc = a; bars = SAE_MIN_BARS; relax.push('adjacent'); if (r.allowPairReuse) relax.push('pair-reuse'); break; }
     }
   }

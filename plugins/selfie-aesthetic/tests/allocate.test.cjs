@@ -189,6 +189,28 @@ function checkPlan(plan, p, label) {
   assert.ok(bar0.every(h => Math.abs(h.srcStart - 4) > 0.05), 'bar 0 avoids the gesture moment: ' + bar0.map(h => h.srcStart));
 }
 
+// ---- One face clip + photos: photos relax into bar 1 (and the finale if needed) instead of shrinking ----
+for (const seed of [1, 2, 3]) for (const N of [4, 6, 8]) {
+  const p = pool({ face: 1, photos: 6 });
+  const plan = build(p, { bars: N, seed });
+  checkPlan(plan, p, 'one face + photos N=' + N + ' seed ' + seed);
+  const b = barsOf(plan);
+  assert.equal(plan.bars, N, 'no shrink: ' + plan.notes);
+  assert.ok(!plan.notes.includes('adjacent') && !plan.notes.includes('shrunk'), 'no adjacency / shrink: ' + plan.notes);
+  assert.ok(plan.notes.includes('photos-early'), 'noted');
+  assert.equal(b[0].rid, 'f0', 'bar 0 is still the face clip');
+  assert.equal(b[1].kind, 'photo', 'f0 P ... : ' + b.map(h => h.rid));
+  if (N === 4) assert.deepEqual(b.map(h => h.kind), ['video', 'photo', 'photo', 'video'], 'Short: f0 P P f0');
+}
+{
+  // Strict rules still win when they can fill: 2+ face clips keep photos from bar 2 on, no 'photos-early'.
+  for (const face of [2, 3]) {
+    const plan = build(pool({ face, photos: 6 }), { bars: 4 });
+    assert.ok(!plan.notes.includes('photos-early'), face + ' face clips: strict photo rules');
+    assert.equal(barsOf(plan)[1].kind, 'video');
+  }
+}
+
 // ---- Expressive A/B pairs: different roles and >= 1.5 s apart beat two hits of one role close together ----
 {
   const c = (t, role, score) => ({ rid: 'e', role, t, score });
