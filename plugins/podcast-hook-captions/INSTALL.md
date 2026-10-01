@@ -1,14 +1,19 @@
 # Install Podcast Hook Captions
 
-Experimental. Requires macOS on Apple silicon, a Selects build with Panel
-`runScript`/`runShell`, Draft authoring and frame capture, and:
+Experimental. Runs on macOS and Windows with Selects 2.0.512 or later (Panel
+`runScript`/`askAI`, Draft authoring, Selects generation with plug-in files).
+Nothing else needs installing:
 
-- **Node.js 18 or later** on the shell `PATH` (`node --version`). The panel runs
-  its sound mixer and head-measuring scripts with `node`.
-- **FFmpeg / FFprobe.** The panel uses the copy bundled inside Selects, or one on
-  `PATH`.
-- **Xcode Command Line Tools** (`xcode-select --install`) to build the optional
-  segmentation helper. Tested with Swift 6.1 on macOS 26.
+- FFmpeg and FFprobe are the copies bundled with Selects; the panel runs them
+  directly, without a shell.
+- Face tracking runs in the panel: on first use it downloads ONNX Runtime Web
+  1.30.0 (`ort.wasm.bundle.min.mjs`, `ort-wasm-simd-threaded.wasm`) and the YuNet
+  face model (`face_detection_yunet_2023mar.onnx`), checks each against a pinned
+  SHA-256, and keeps them in the plugin's data folder. This needs network access
+  once (about 15 MB).
+
+Tested on macOS. The Windows path uses the same code (no shell commands, no
+platform-specific tools) but has not been run on a Windows PC yet.
 
 ## Setup
 
@@ -16,22 +21,29 @@ Experimental. Requires macOS on Apple silicon, a Selects build with Panel
    [installation layout](../../PUBLISHING.md#installation-layout): `panel.tsx`
    in `podcast-hook-captions` beneath `SELECTS_USER_PANELS_ROOT`, everything else
    in `podcast-hook-captions` beneath `SELECTS_USER_SKILLS_ROOT`.
-2. Build the segmentation helper (optional, recommended):
+2. Open a Draft, then open **Podcast Hook Captions** from the Plugin list.
 
-   ```sh
-   cd "$SELECTS_USER_SKILLS_ROOT/podcast-hook-captions"
-   mkdir -p .local
-   swiftc -O person-cutout.swift -o .local/person-cutout
-   ```
+## Building the panel from source
 
-   Check it: `[ -x .local/person-cutout ] && uname -m` prints `arm64`. Without the
-   helper the panel still works and says so when you apply.
-3. Open a Draft, then open **Podcast Hook Captions** from the Plugin list.
+`panel.tsx` is generated from `src/` (the panel, the planner and the two
+Remotion components):
 
-Generated files go beneath `.selects/plugin-data/podcast-hook-captions` in the
-user's home folder; the panel creates it on first open.
+```sh
+cd "$SELECTS_USER_SKILLS_ROOT/podcast-hook-captions"
+npm install --no-save esbuild   # once, or pass the path of an existing esbuild
+node build.cjs esbuild
+```
+
+Outside the app the folder is `~/.selects/skills/podcast-hook-captions` on macOS
+and `%USERPROFILE%\.selects\skills\podcast-hook-captions` on Windows.
+
+`build.cjs` writes `src/renderers.ts` and `panel.tsx` beside the panels root
+(`../../panels/podcast-hook-captions/panel.tsx`); set `PANEL_OUT` to write it
+elsewhere.
 
 ## Updating
 
-Replace the package files and `panel.tsx`, then rebuild the helper if
-`person-cutout.swift` changed. `.local/` and the plugin-data folder are kept.
+Replace the package files and `panel.tsx`. The face-tracking runtime, the
+sound-effect library and every reel's folder are kept. Earlier versions created
+a Python environment in `.selects/python-envs/podcast-hook-captions`; it is no
+longer used and can be deleted.
