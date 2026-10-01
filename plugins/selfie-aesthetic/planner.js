@@ -312,7 +312,11 @@ function saePhotoBars(bars, count, seed, innerOnly) {
 // Returns { ok, bars: [{ bar, kind, rid, pair }], uses: { [rid]: n }, photoBars, failedAt? }.
 function saeAllocate(opts) {
   const N = opts.bars, seed = String(opts.seed == null ? 1 : opts.seed);
-  const vids = (opts.clips || []).filter(c => c && c.pairs && c.pairs.length);
+  const usable = (opts.clips || []).filter(c => c && c.pairs && c.pairs.length);
+  // Clips with only a relaxed pair (too short for A/B >= SAE_PAIR_GAP) are a last resort: used only when no clip has
+  // a real pair, or with allowPairReuse (the tiny-pool fallback).
+  const strict = usable.filter(c => c.pairs.some(q => !q.relaxed));
+  const vids = strict.length && !opts.allowPairReuse ? strict : usable;
   const seenPhoto = {};
   const pics = opts.usePhotos === false ? [] : (opts.photos || [])
     .map(p => (typeof p === 'string' ? p : p && p.rid))

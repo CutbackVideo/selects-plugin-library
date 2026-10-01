@@ -200,6 +200,18 @@ for (const N of [3, 4, 5, 6, 7, 8]) for (const seed of [1, 2, 3, 4, 5]) {
   assert.equal(none.ok, false); assert.deepEqual(none.notes, ['no-sources']);
 }
 
+// ---- Clips too short for a real A/B pair are a last resort ----
+{
+  const p = pool({ face: 3, other: 1 });
+  p.durations.s0 = 1.3;
+  p.candidates.push({ rid: 's0', role: 'control', t: 0.2, score: 0.1 }, { rid: 's0', role: 'selfie', t: 0.3, score: 0.5 });
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    const plan = build(p, { bars: 6, seed, usePhotos: false });
+    checkPlan(plan, p, 'short clip seed ' + seed);
+    assert.ok(plan.holds.every(h => h.rid !== 's0'), 'the 1.3 s clip is not used while real pairs exist');
+  }
+}
+
 // ---- Bad spans ----
 {
   const p = pool({ face: 3 });
