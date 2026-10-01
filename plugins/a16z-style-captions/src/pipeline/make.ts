@@ -5,7 +5,7 @@ import { dataRoot, fs, hostVersion, versionBelow, script, shell, J, type Sdk } f
 import { readDraft, type DraftInfo } from "./source";
 import { semanticPass, type Semantic, type TWord } from "./semantic";
 import { ensureFaceRuntime, trackFaces, type SourceFaces } from "./faces";
-import { planPauses, layoutRanges } from "./edit";
+import { planPauses, layoutRanges, type NewClip } from "./edit";
 import { planFraming, addFramingChanges, type FramingPlan } from "./framing";
 import { makeMusic, loudness, gains } from "./sound";
 import { mediaGeneration } from "./media";
@@ -36,6 +36,9 @@ export type Job = {
   fps: number;
   semantic: Semantic | null;
   framing: FramingPlan;
+  // the Short's clips and the source faces, so a rebuild can plan the framing again
+  layout?: NewClip[];
+  faces?: Record<string, SourceFaces>;
   srcWords: TWord[];
   musicPath?: string | null;
   musicId?: string | null;
@@ -121,7 +124,7 @@ export async function makeShort(sdk: Sdk, ctx: { projectId: string; sequenceId: 
   const base = src.name.replace(/\s+·\s+9:16.*$/, "") + " · a16z Short";
   const made = await createShort(sdk, pid, ctx.sequenceId, base, cut.ranges, framing.clips, fps);
   onStep("cut", "done", cut.removed.toFixed(1) + " s of pauses removed, " + cut.cuts + " cuts");
-  const job: Job = { version: 1, projectId: pid, sourceId: ctx.sequenceId, shortId: made.id, name: made.name, fps, semantic, framing, srcWords: tw, opts };
+  const job: Job = { version: 1, projectId: pid, sourceId: ctx.sequenceId, shortId: made.id, name: made.name, fps, semantic, framing, layout, faces, srcWords: tw, opts };
   await saveJob(job);
   const more = await build(sdk, job, onStep);
   await script(sdk, "Open the Short", `return await selects.editor.openDraft(${J(made.id)});`).catch(() => null);
@@ -149,6 +152,8 @@ export async function rebuildShort(sdk: Sdk, shortId: string, opts: Options, onS
 
 async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
   const notes: string[] = [];
+  // framing follows the current rules on every build (the Look effects are written again at the end)
+  if (job.layout && job.faces) job.framing = planFraming(job.layout, job.faces, job.fps);
   const pid = job.projectId;
   const dir = jobDir(job.shortId);
   const short = await readDraft(sdk, pid, job.shortId, "Read the Short");

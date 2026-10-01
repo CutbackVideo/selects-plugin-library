@@ -566,10 +566,45 @@ var hash = (i) => {
   const x = Math.sin(i * 91.17 + 3.7) * 43758.5453;
   return x - Math.floor(x);
 };
+function anglesOf(clips, faces) {
+  const byKey = /* @__PURE__ */ new Map();
+  for (const c of clips) {
+    const f = faces[String(c.src.clipId)];
+    if (!f) continue;
+    const key = c.src.path || String(c.src.clipId);
+    const list = byKey.get(key) || [];
+    for (const s of f.shots) if (s.face && s.end - s.start >= 0.5) list.push(s.face);
+    byKey.set(key, list);
+  }
+  const med = (xs) => {
+    const v = xs.slice().sort((a, b) => a - b);
+    return v.length ? v[Math.floor(v.length / 2)] : 0;
+  };
+  const out = [];
+  for (const [key, list] of byKey) {
+    const groups = [];
+    for (const f of list.slice().sort((a, b) => a.h - b.h)) {
+      const g = groups.find((x) => f.h <= med(x.map((y) => y.h)) * 1.18 && Math.abs(f.cx - med(x.map((y) => y.cx))) < 0.08);
+      if (g) g.push(f);
+      else groups.push([f]);
+    }
+    for (const g of groups) {
+      const face = { cx: med(g.map((x) => x.cx)), eyes: med(g.map((x) => x.eyes)), h: med(g.map((x) => x.h)), w: med(g.map((x) => x.w)), top: med(g.map((x) => x.top)) };
+      out.push({ key, h: face.h, cx: face.cx, face });
+    }
+  }
+  return out;
+}
+function angleFor(angles, key, f) {
+  const own = angles.filter((a) => a.key === key);
+  if (!own.length) return f;
+  return own.slice().sort((a, b) => Math.abs(Math.log(a.h / f.h)) + Math.abs(a.cx - f.cx) - (Math.abs(Math.log(b.h / f.h)) + Math.abs(b.cx - f.cx)))[0].face;
+}
 function planFraming(clips, faces, fps) {
   const out = [];
   const shots = [];
   const cuts = [];
+  const angles = anglesOf(clips, faces);
   let framed = 0;
   let total = 0;
   let m = 1;
@@ -578,16 +613,17 @@ function planFraming(clips, faces, fps) {
   let jumps = 0;
   clips.forEach((c, ci) => {
     const found = faces[String(c.src.clipId)];
+    const key = c.src.path || String(c.src.clipId);
     const sw = found?.W || c.src.sw || 1920;
     const sh = found?.H || c.src.sh || 1080;
     const srcIn = c.srcIn;
     const srcOut = srcIn + (c.end - c.start) / fps;
-    const list = (found?.shots || []).filter((s) => s.end > srcIn && s.start < srcOut);
+    const list = (found?.shots || []).filter((s) => s.end > srcIn && s.start < srcOut).map((s) => ({ ...s }));
     const withFace = (found?.shots || []).filter((s) => s.face);
     if (c.jump) {
       jumps += 1;
       const r = hash(jumps + ci);
-      let next = r < 0.45 ? m : m === 1 ? r < 0.75 ? 1.1 : 1.18 : 1;
+      let next = r < 0.5 ? m : m === 1 ? r < 0.8 ? 1.1 : 1.15 : 1;
       const t = c.start / fps;
       if (next === lastM && t - lastCutAt < 0.8) next = m === 1 ? 1.1 : 1;
       m = next;
@@ -597,7 +633,14 @@ function planFraming(clips, faces, fps) {
       lastCutAt = c.start / fps;
       lastM = m;
     }
-    const pieces = list.length ? list : [{ start: srcIn, end: srcOut, face: null }];
+    const pieces = [];
+    for (const s of list.length ? list : [{ start: srcIn, end: srcOut, face: null }]) {
+      const prev = pieces[pieces.length - 1];
+      if (prev && (Math.min(s.end, srcOut) - Math.max(s.start, srcIn) < 0.5 || Math.min(prev.end, srcOut) - Math.max(prev.start, srcIn) < 0.5)) {
+        if (!prev.face || s.face && s.end - s.start > prev.end - prev.start) prev.face = s.face || prev.face;
+        prev.end = s.end;
+      } else pieces.push({ ...s });
+    }
     const clipShots = [];
     pieces.forEach((s, i) => {
       let face = s.face;
@@ -605,6 +648,7 @@ function planFraming(clips, faces, fps) {
         const mid = (s.start + s.end) / 2;
         face = withFace.slice().sort((a, b) => Math.abs((a.start + a.end) / 2 - mid) - Math.abs((b.start + b.end) / 2 - mid))[0].face;
       }
+      if (face) face = angleFor(angles, key, face);
       const from = i === 0 ? c.start : Math.max(c.start, Math.min(c.end, c.start + Math.round((s.start - srcIn) * fps)));
       const to = i === pieces.length - 1 ? c.end : Math.max(c.start, Math.min(c.end, c.start + Math.round((s.end - srcIn) * fps)));
       if (to <= from) return;
@@ -612,11 +656,17 @@ function planFraming(clips, faces, fps) {
       const ax = fr.face ? fr.face.cx * W : W / 2;
       const ay = fr.face ? fr.face.eyes * H : H * 0.4;
       const rect = punch(fr.rect, m, ax, ay);
+      const f = fr.face ? { cx: (ax + (fr.face.cx * W - ax) * m) / W, cy: (ay + (fr.face.eyes + fr.face.chin) / 2 * H - ay) / H, w: 0, h: fr.face.h * m, chin: (ay + (fr.face.chin * H - ay) * m) / H } : null;
+      const prev = clipShots[clipShots.length - 1];
+      if (prev && prev.x === rect.x && prev.y === rect.y && prev.w === rect.w) {
+        prev.to = to;
+        shots[shots.length - 1].to = to / fps;
+        return;
+      }
       clipShots.push({ from, to, ...rect });
       total += 1;
       if (fr.face) framed += 1;
-      if (i > 0) cuts.push(from / fps);
-      const f = fr.face ? { cx: (ax + (fr.face.cx * W - ax) * m) / W, cy: (ay + (fr.face.eyes + fr.face.chin) / 2 * H - ay) / H, w: 0, h: fr.face.h * m, chin: (ay + (fr.face.chin * H - ay) * m) / H } : null;
+      if (clipShots.length > 1) cuts.push(from / fps);
       shots.push({ from: from / fps, to: to / fps, kind: "speaker", face: f, segment: c.src.clipId * 1e5 + Math.round(s.start * 10) });
     });
     const cf = { start: c.start, end: c.end, sw, sh, shots: clipShots };
@@ -638,7 +688,7 @@ function addFramingChanges(plan, covered, starts, fps, duration) {
   const added = [];
   for (const t of starts.slice().sort((a, b) => a - b)) {
     while (events.length && events[0] <= t) last = Math.max(last, events.shift());
-    if (t - last < 3 || inside(t) || t > duration - 0.8) continue;
+    if (t - last < 4 || inside(t) || t > duration - 0.8) continue;
     const nextEvent = events.length ? events[0] : duration;
     if (nextEvent - t < 1.2) continue;
     added.push(t);
@@ -656,9 +706,9 @@ function addFramingChanges(plan, covered, starts, fps, duration) {
     const ax = f ? f.cx * W : W / 2;
     const ay = f ? (f.chin - f.h / 2) * H : 0.4 * H;
     const z = cur.z || 1;
-    const factor = z > 1 ? 1 / z : 1.22;
+    const factor = z > 1 ? 1 / z : 1.15;
     const rect = punch(cur, factor, ax, ay);
-    clip.shots.splice(k, 1, { ...cur, to: F2 }, { ...rect, from: F2, to: cur.to, z: z > 1 ? 1 : 1.22 });
+    clip.shots.splice(k, 1, { ...cur, to: F2 }, { ...rect, from: F2, to: cur.to, z: z > 1 ? 1 : 1.15 });
     if (cap) {
       const j = shots.indexOf(cap);
       const nf = f ? { ...f, h: f.h * factor, chin: (ay + (f.chin * H - ay) * factor) / H } : null;
@@ -2758,7 +2808,7 @@ async function makeShort(sdk, ctx, opts, onStep) {
   const base = src.name.replace(/\s+·\s+9:16.*$/, "") + " \xB7 a16z Short";
   const made = await createShort(sdk, pid, ctx.sequenceId, base, cut.ranges, framing.clips, fps);
   onStep("cut", "done", cut.removed.toFixed(1) + " s of pauses removed, " + cut.cuts + " cuts");
-  const job = { version: 1, projectId: pid, sourceId: ctx.sequenceId, shortId: made.id, name: made.name, fps, semantic, framing, srcWords: tw, opts };
+  const job = { version: 1, projectId: pid, sourceId: ctx.sequenceId, shortId: made.id, name: made.name, fps, semantic, framing, layout, faces, srcWords: tw, opts };
   await saveJob(job);
   const more = await build(sdk, job, onStep);
   await script(sdk, "Open the Short", `return await selects.editor.openDraft(${J(made.id)});`).catch(() => null);
@@ -2782,6 +2832,7 @@ async function rebuildShort(sdk, shortId, opts, onStep) {
 }
 async function build(sdk, job, onStep) {
   const notes = [];
+  if (job.layout && job.faces) job.framing = planFraming(job.layout, job.faces, job.fps);
   const pid = job.projectId;
   const dir = jobDir(job.shortId);
   const short = await readDraft(sdk, pid, job.shortId, "Read the Short");
