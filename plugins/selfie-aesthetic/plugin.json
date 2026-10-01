@@ -3,7 +3,7 @@
   "id": "selfie-aesthetic",
   "version": "0.1.0-alpha.1",
   "name": "Selfie Aesthetic Edit",
-  "summary": "Turn close-up selfie clips into a beat-locked aesthetic edit with freeze-frame stutters and blur whips, as a new editable Draft.",
+  "summary": "Turn close-up selfie clips into a beat-locked aesthetic edit with stutter holds and blur whips, as a new editable Draft.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -37,43 +37,43 @@
   "localized": {
     "de": {
       "name": "Selfie Aesthetic Edit",
-      "summary": "Macht aus Selfie-Nahaufnahmen einen beatsynchronen Aesthetic-Edit mit Stotter-Stopps und Blur-Whips als neuen, bearbeitbaren Draft."
+      "summary": "Macht aus Selfie-Nahaufnahmen einen beatsynchronen Aesthetic-Edit mit Stotter-Wiederholungen und Blur-Whips als neuen, bearbeitbaren Draft."
     },
     "en": {
       "name": "Selfie Aesthetic Edit",
-      "summary": "Turn close-up selfie clips into a beat-locked aesthetic edit with freeze-frame stutters and blur whips, as a new editable Draft."
+      "summary": "Turn close-up selfie clips into a beat-locked aesthetic edit with stutter holds and blur whips, as a new editable Draft."
     },
     "es": {
       "name": "Selfie Aesthetic Edit",
-      "summary": "Convierte clips de selfis en primer plano en un edit est\u00e9tico sincronizado con el ritmo, con paradas intermitentes y whips con desenfoque, como un nuevo Draft editable."
+      "summary": "Convierte clips de selfis en primer plano en un edit est\u00e9tico sincronizado con el ritmo, con repeticiones entrecortadas y whips con desenfoque, como un nuevo Draft editable."
     },
     "fr": {
       "name": "Selfie Aesthetic Edit",
-      "summary": "Transforme des clips de selfies en gros plan en un montage esth\u00e9tique cal\u00e9 sur le rythme, avec des arr\u00eats saccad\u00e9s et des whips flous, dans un nouveau Draft modifiable."
+      "summary": "Transforme des clips de selfies en gros plan en un montage esth\u00e9tique cal\u00e9 sur le rythme, avec des r\u00e9p\u00e9titions saccad\u00e9es et des whips flous, dans un nouveau Draft modifiable."
     },
     "it": {
       "name": "Selfie Aesthetic Edit",
-      "summary": "Trasforma le clip di selfie in primo piano in un montaggio estetico a tempo di musica, con fermi immagine a scatti e whip sfocati, come nuovo Draft modificabile."
+      "summary": "Trasforma le clip di selfie in primo piano in un montaggio estetico a tempo di musica, con ripetizioni a scatti e whip sfocati, come nuovo Draft modificabile."
     },
     "ja": {
       "name": "Selfie Aesthetic Edit",
-      "summary": "\u9854\u306e\u30a2\u30c3\u30d7\u306e\u30bb\u30eb\u30d5\u30a3\u30fc\u52d5\u753b\u3092\u3001\u30d3\u30fc\u30c8\u306b\u5408\u308f\u305b\u305f\u30d5\u30ea\u30fc\u30ba\u98a8\u306e\u30b9\u30bf\u30c3\u30bf\u30fc\u3068\u30d6\u30e9\u30fc\u30db\u30a4\u30c3\u30d7\u4ed8\u304d\u306e\u30a8\u30b9\u30c6\u30c6\u30a3\u30c3\u30af\u7de8\u96c6\u306b\u3057\u3066\u3001\u7de8\u96c6\u53ef\u80fd\u306a\u65b0\u3057\u3044 Draft \u3068\u3057\u3066\u4f5c\u6210\u3057\u307e\u3059\u3002"
+      "summary": "\u9854\u306e\u30a2\u30c3\u30d7\u306e\u30bb\u30eb\u30d5\u30a3\u30fc\u52d5\u753b\u3092\u3001\u30d3\u30fc\u30c8\u306b\u5408\u308f\u305b\u305f\u30b9\u30bf\u30c3\u30bf\u30fc\u53cd\u5fa9\u3068\u30d6\u30e9\u30fc\u30db\u30a4\u30c3\u30d7\u4ed8\u304d\u306e\u30a8\u30b9\u30c6\u30c6\u30a3\u30c3\u30af\u7de8\u96c6\u306b\u3057\u3066\u3001\u7de8\u96c6\u53ef\u80fd\u306a\u65b0\u3057\u3044 Draft \u3068\u3057\u3066\u4f5c\u6210\u3057\u307e\u3059\u3002"
     },
     "ko": {
       "name": "Selfie Aesthetic Edit",
-      "summary": "\uc5bc\uad74 \ud074\ub85c\uc988\uc5c5 \uc140\ud53c \uc601\uc0c1\uc744 \ube44\ud2b8\uc5d0 \ub9de\ucd98 \ud504\ub9ac\uc988 \ud504\ub808\uc784 \uc2a4\ud130\ud130\uc640 \ube14\ub7ec \ud729\uc774 \ub4e4\uc5b4\uac04 \uac10\uc131 \ud3b8\uc9d1\uc73c\ub85c \ub9cc\ub4e4\uc5b4, \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc0c8 Draft\ub85c \uc800\uc7a5\ud569\ub2c8\ub2e4."
+      "summary": "\uc5bc\uad74 \ud074\ub85c\uc988\uc5c5 \uc140\ud53c \uc601\uc0c1\uc744 \ube44\ud2b8\uc5d0 \ub9de\ucd98 \uc2a4\ud130\ud130 \ubc18\ubcf5\uacfc \ube14\ub7ec \ud729\uc774 \ub4e4\uc5b4\uac04 \uac10\uc131 \ud3b8\uc9d1\uc73c\ub85c \ub9cc\ub4e4\uc5b4, \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc0c8 Draft\ub85c \uc800\uc7a5\ud569\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Selfie Aesthetic Edit",
-      "summary": "Transforma clipes de selfies em close no ritmo da m\u00fasica, com paradas em stutter e whips com desfoque, como um novo Draft edit\u00e1vel."
+      "summary": "Transforma clipes de selfies em close em uma edi\u00e7\u00e3o est\u00e9tica no ritmo da m\u00fasica, com repeti\u00e7\u00f5es em stutter e whips com desfoque, como um novo Draft edit\u00e1vel."
     },
     "tr": {
       "name": "Selfie Aesthetic Edit",
-      "summary": "Yak\u0131n \u00e7ekim selfie klipleri, ritme kilitli, donuk kare tak\u0131lmalar\u0131 ve bulan\u0131k whip ge\u00e7i\u015fleri i\u00e7eren estetik bir kurguya d\u00f6n\u00fc\u015ft\u00fcr\u00fcr ve d\u00fczenlenebilir yeni bir Draft olarak kaydeder."
+      "summary": "Yak\u0131n \u00e7ekim selfie klipleri, ritme kilitli, tak\u0131lan tekrarlar ve bulan\u0131k whip ge\u00e7i\u015fleri i\u00e7eren estetik bir kurguya d\u00f6n\u00fc\u015ft\u00fcr\u00fcr ve d\u00fczenlenebilir yeni bir Draft olarak kaydeder."
     },
     "zh": {
       "name": "Selfie Aesthetic Edit",
-      "summary": "\u5c06\u81ea\u62cd\u7279\u5199\u7247\u6bb5\u526a\u6210\u5361\u70b9\u7684\u6c1b\u56f4\u611f\u6df7\u526a\uff0c\u5e26\u5b9a\u683c\u5f0f\u987f\u632b\u548c\u6a21\u7cca\u7529\u955c\uff0c\u5e76\u4fdd\u5b58\u4e3a\u53ef\u7f16\u8f91\u7684\u65b0 Draft\u3002"
+      "summary": "\u5c06\u81ea\u62cd\u7279\u5199\u7247\u6bb5\u526a\u6210\u5361\u70b9\u7684\u6c1b\u56f4\u611f\u6df7\u526a\uff0c\u5e26\u987f\u632b\u91cd\u590d\u548c\u6a21\u7cca\u7529\u955c\uff0c\u5e76\u4fdd\u5b58\u4e3a\u53ef\u7f16\u8f91\u7684\u65b0 Draft\u3002"
     }
   },
   "collection": "visual-highlights",

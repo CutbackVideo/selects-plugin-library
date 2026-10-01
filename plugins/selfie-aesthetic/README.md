@@ -69,7 +69,7 @@ behaves differently there.
 ## Limitations
 
 - **Micro-holds, not true freeze frames.** This version of Selects cannot freeze a frame from an
-  effect, so each "freeze" is a very short real-time hold of the clip (a few frames long).
+  effect, so each hold is a very short real-time stretch of the clip (a few frames long).
   Moving subjects keep moving slightly during a hold.
 - **Close-ups are found by semantic scene search.** The panel searches each video for
   close-up faces, so a clip that is a good close-up but does not read that way to the search
