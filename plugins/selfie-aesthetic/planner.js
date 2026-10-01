@@ -485,8 +485,10 @@ function saePlanBuild(opts) {
     if (!maxBars) return { ok: false, notes: ['music-too-short'], fit: { bars: 0, wanted } };
   }
   const snap = !!cue && tempo.fixed && !!(cue.onsets && cue.onsets.length);
-  // The longest hold a moment window must cover: 1 beat rounded up a frame, plus an onset snap's shift.
-  const beatSeconds = spb + 1 / fps + (snap ? SAE_SNAP_WINDOW : 0);
+  // The longest hold a moment window must cover: hold 0 (the lead + 1 beat + the music offset, at most half a frame)
+  // with 2 frames for rounding, plus an onset snap's shift. Then every hold fits in [srcStart, duration - TAIL] and
+  // assemble.js never slides a window back.
+  const beatSeconds = spb + SAE_LEAD + 2 / fps + (snap ? SAE_SNAP_WINDOW : 0);
   const moments = saeMoments({ candidates: opts.candidates, durations: opts.durations, badSpans: opts.badSpans, fps, beatSeconds, margin: opts.margin });
   const base = { clips: moments.clips, photos: opts.photos, seed, usePhotos: opts.usePhotos };
   let alloc = null, bars = 0;

@@ -339,4 +339,24 @@ for (const cue of manifest.cues) {
   assert.equal(roomy.bars, 8); assert.ok(!roomy.notes.includes('shrunk'));
 }
 
+// ---- Source windows fit every hold, including hold 0 (lead + 1 beat + offset), the way assemble.js lays them ----
+// assemble: f0 = round(srcStart * rate), n = the hold's frames; it slides the window back when f0 + n passes
+// floor((duration - 0.15) * rate). Planner output must never need that slide.
+for (const cue of [null, { bpm: 100, firstBeat: 0.013, grid: 'accepted', durationSeconds: 60 }]) {
+  const fps = 24000 / 1001, rids = ['c1', 'c2', 'c3'], durations = {}, candidates = [];
+  // Moment A (the best hit) near the end of a 3 s clip: inside the old 1-beat window, past the hold-0 window.
+  for (const rid of rids) {
+    durations[rid] = 3;
+    candidates.push({ rid, role: 'selfie', t: 2.15, score: 0.5 }, { rid, role: 'control', t: 0.5, score: 0.1 });
+  }
+  const plan = P.saePlanBuild({ fps, bars: 4, cue, candidates, durations });
+  assert.equal(plan.ok, true);
+  assert.equal(plan.holds[0].kind, 'video'); assert.equal(plan.holds[0].moment, 'A');
+  for (const h of plan.holds) {
+    if (h.kind !== 'video') continue;
+    const f0 = Math.round(h.srcStart * fps), last = Math.floor((durations[h.rid] - P.SAE_SOURCE_TAIL) * fps);
+    assert.ok(f0 + h.frames <= last, 'hold ' + h.i + ' window ends before the source tail: ' + (f0 + h.frames) + ' > ' + last);
+  }
+}
+
 console.log('planner.test: ok');
