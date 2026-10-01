@@ -90,7 +90,8 @@ time.
    how many clips and photos were found and the approximate length, for
    example "Ready: 6 clips · 12 photos · about 13 s". When only some are
    chosen it reads, for example, "3 of 6 clips selected", and while clips are
-   still being analysed it ends with " · 2 clips still being analysed".
+   being analysed it ends with " · 2 clips being analysed" (see Refreshing
+   for clips that are not analysed yet).
 4. Press **Build**. The line above the buttons reads "Creates a new 16:9
    Draft".
 
@@ -102,12 +103,27 @@ Each of them can be changed before Build.
 
 **Refreshing.** The panel reads the Project's clips when it opens, when you
 come back to it (its tab is shown or the window gets focus) and when you press
-**Refresh** next to the readiness line. While clips are still being analysed,
-or nothing usable was found yet, it also reads them again every 10 seconds,
-so the line updates by itself ("N clips are still being analysed. This
-updates automatically when they finish."). It never reads them during a
-build. The panel does not start analysis on its own, so analyse your clips
-first. If Selects is too busy to answer, the panel tries again after 5 and 15 seconds and then says "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects."
+**Refresh** next to the readiness line. While clips are being analysed, or
+the Project has no clips or photos yet, it also reads them again every 10
+seconds, so the line updates by itself. It never reads them during a build.
+The panel does not start analysis on its own, so analyse your clips first.
+If Selects is too busy to answer, the panel tries again after 5 and 15 seconds and then says "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects."
+
+Video clips without analysis are counted on the top line by why:
+
+- "N clips are being analysed. This updates automatically when they finish."
+  Selects is analysing them now; the panel re-reads the Project every 10 s
+  until they are ready.
+- "N clips are not analysed yet. Analyse them in Selects to use them here."
+  Their analysis was never started. The panel does not poll for them; it
+  re-reads the Project when you come back to it, or press **Refresh**.
+- "N clips could not be analysed." Their analysis failed.
+- "N clips are not analysed yet. If Selects is analysing them, this updates
+  automatically." The analysis status could not be read, so the panel keeps
+  checking.
+
+On the Ready line the same counts appear in short, for example "Ready: 5
+clips · about 13 s · 2 clips being analysed · 3 clips not analysed yet".
 
 **What blocks Build.** The build needs at least **4 shots from 2 different
 clips or photos**; each photo counts as one shot. When it cannot run, Build is

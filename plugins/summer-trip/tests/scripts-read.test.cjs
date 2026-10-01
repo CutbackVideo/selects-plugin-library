@@ -149,6 +149,39 @@ const keepAlive = setInterval(() => {}, 50);
       assert.deepEqual([o2.ids, o2.imported, imp.length], [o1.ids, [], 1], 'the second run matches own music by path');
     }
   }
+  // Unanalysed videos by status: being analysed, never started, failed. The panel never starts analysis itself.
+  const v = (id, status) => ({ resourceId: id, name: id + '.mov', type: 'Video', hasAnalysis: false, status, durationSeconds: 10 });
+  const mixed = [resources[0], v('s1', 'sampling'), v('s2', 'samplingSucceeded'), v('s3', 'analyzing'), v('s4', 'samplingFailed'), v('s5', 'analyzingFailed'),
+    v('q1', 'pending'), v('q2', 'pending'), v('q3', 'pending'), v('u1', undefined)];
+  let wfCalls = 0;
+  const withWf = wf => ({ project: () => ({ resources: async () => mixed, sourceFiles: async () => tree,
+    workflows: async (f) => { wfCalls++; assert.equal(f, undefined, 'one unfiltered read'); if (wf instanceof Error) throw wf; return wf; } }) });
+  const split = inv => { const { unanalysed, analysing, notAnalysed, failed, statusKnown } = inv.skipped;
+    assert.equal(analysing + notAnalysed + failed, unanalysed, 'the split adds up'); return { unanalysed, analysing, notAnalysed, failed, statusKnown }; };
+  // No workflows: pending clips were never started.
+  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([]))),
+    { unanalysed: 9, analysing: 3, notAnalysed: 4, failed: 2, statusKnown: true });
+  assert.equal(wfCalls, 1, 'workflows() is read once');
+  // A queued or running analyze-resource workflow makes its pending clip "being analysed"; finished ones do not.
+  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([
+    { workflowId: 'w1', type: 'project:analyze-resource', status: 'queued', resourceId: 'q1' },
+    { workflowId: 'w2', type: 'project:analyze-resource', status: 'running', resourceId: 'q2' },
+    { workflowId: 'w3', type: 'project:analyze-resource', status: 'failed', resourceId: 'q3' },
+    { workflowId: 'w4', type: 'project:create', status: 'succeeded', extra: { done: 3, failed: 0, total: 3, failures: [] } }]))),
+    { unanalysed: 9, analysing: 5, notAnalysed: 2, failed: 2, statusKnown: true });
+  // A running project:create fan-out: every pending clip is being analysed.
+  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([
+    { workflowId: 'w5', type: 'project:create', status: 'running', extra: { done: 1, failed: 0, total: 4, failures: [] } }]))),
+    { unanalysed: 9, analysing: 6, notAnalysed: 1, failed: 2, statusKnown: true });
+  // workflows() fails: pending clips count as not analysed, and the status is marked unknown.
+  const failedRead = await load('inventory.js', { projectId: 'p', only: null })(withWf(new Error('boom')));
+  assert.deepEqual(split(failedRead), { unanalysed: 9, analysing: 3, notAnalysed: 4, failed: 2, statusKnown: false });
+  // Nothing pending: workflows() is not read at all.
+  wfCalls = 0;
+  const done = { project: () => ({ resources: async () => [resources[0], v('s1', 'analyzing')], sourceFiles: async () => tree, workflows: async () => { wfCalls++; return []; } }) };
+  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(done)), { unanalysed: 1, analysing: 1, notAnalysed: 0, failed: 0, statusKnown: true });
+  assert.equal(wfCalls, 0, 'no workflows() read without a pending clip');
+
   clearInterval(keepAlive);
   console.log(JSON.stringify({ scriptsRead: 'ok' }));
 })().catch(e => { console.error(e); process.exit(1); });

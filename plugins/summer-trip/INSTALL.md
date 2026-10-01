@@ -58,7 +58,9 @@ folder, never in either install folder:
    about N s" when the Project has photos). Under the title fields, the
    **Style** control offers Summer, Poster and Postcard, and the title
    preview below it shows line 1, the season word and the labels in the
-   chosen style's typefaces.
+   chosen style's typefaces. In a Project whose clips were never analysed, it
+   reads "N clips are not analysed yet. Analyse them in Selects to use them
+   here." (never "being analysed"); the panel does not start analysis itself.
 3. With at least 6 different clips or photos, one of them a video clip of
    about 5 s or more, press **Build**. A new Draft opens at 1920x1080 with
    the title, the grid, the clips and the ending film frame.

@@ -146,7 +146,10 @@ cues and their muffled copies, sound effects, the hash-named muffled copy of own
 `{ projectId, only: null | [rid], known?: { [rid]: size }, measureMs?: 8000, probeMs?: 4000 }` →
 `{ resources: [{ rid, name, duration, width, height, recordedAt, capturedAt, month, kind: 'video' }], photos: [{ rid, name, width,
 height, recordedAt, capturedAt, month, kind: 'photo' }], months: [12 counts, Jan first — whole Project, ignoring only],
-skipped: { unanalysed, missing }, captureDates: { known, probed } }`. Dates without a Resource recording date come from
+skipped: { unanalysed, missing, analysing, notAnalysed, failed, statusKnown }, captureDates: { known, probed } }`.
+Videos without analysis are split by ProjectResource.status (sampling/analyzing = analysing, sampling/analyzingFailed =
+failed, the rest not analysed) plus queued/running analyze-resource workflows (or a running project:create) for pending
+clips; statusKnown is false when `workflows()` fails. Dates without a Resource recording date come from
 `selects.media.probe` (recorded → creation → filenameTimestamp → encoded unless encodedBy); month is read from the date text.
 
 ### search.js

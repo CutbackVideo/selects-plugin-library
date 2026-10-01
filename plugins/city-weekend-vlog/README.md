@@ -58,6 +58,22 @@ how many it found, and how many of them are photos, and asks for more varied
 footage or photos. It does not start analysis on its own, so analyse your
 clips first.
 
+Video clips without analysis are counted on the top line by why:
+
+- "N clips are being analysed. This updates automatically when they finish."
+  Selects is analysing them now; the panel re-reads the Project every 10 s
+  until they are ready.
+- "N clips are not analysed yet. Analyse them in Selects to use them here."
+  Their analysis was never started. The panel does not poll for them; it
+  re-reads the Project when you come back to it, or press **Refresh**.
+- "N clips could not be analysed." Their analysis failed.
+- "N clips are not analysed yet. If Selects is analysing them, this updates
+  automatically." The analysis status could not be read, so the panel keeps
+  checking.
+
+On the Ready line the same counts appear in short, for example "Ready: 5
+clips · about 14 s · 2 clips being analysed · 3 clips not analysed yet".
+
 Progress is shown as five steps: Choosing shots, Preparing music, Creating
 Draft, Adding title and look, and Opening Draft. When the build finishes, the
 new Draft opens and a link to it is shown. **Create another version** makes

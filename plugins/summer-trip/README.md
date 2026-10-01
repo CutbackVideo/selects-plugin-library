@@ -259,6 +259,22 @@ X s)". Below 4 montage shots the panel says "Your footage is too short for 4
 montage shots" and Build stays disabled. The plugin does not start analysis
 on its own, so analyse your clips first.
 
+Video clips without analysis are counted on the top line by why:
+
+- "N clips are being analysed. This updates automatically when they finish."
+  Selects is analysing them now; the panel re-reads the Project every 10 s
+  until they are ready.
+- "N clips are not analysed yet. Analyse them in Selects to use them here."
+  Their analysis was never started. The panel does not poll for them; it
+  re-reads the Project when you come back to it, or press **Refresh**.
+- "N clips could not be analysed." Their analysis failed.
+- "N clips are not analysed yet. If Selects is analysing them, this updates
+  automatically." The analysis status could not be read, so the panel keeps
+  checking.
+
+On the Ready line the same counts appear in short, for example "Ready: 5
+clips · about 20 s · 2 clips being analysed · 3 clips not analysed yet".
+
 Two extra scene searches per clip steer the choice without filling shots:
 night scenes, city lights and intense sunsets are kept out of the opening,
 the grid, the place shot and the montage while daylight footage remains
