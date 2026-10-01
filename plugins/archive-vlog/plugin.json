@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "id": "archive-vlog",
+  "version": "0.1.0-alpha.1",
+  "name": "Archive Vlog",
+  "summary": "Turn city and travel clips and photos into a 16:9 cinematic vlog: a letterbox opening with a decoding title, an archived-by credit, a montage cut on the beat and a fade to black, as a new editable Draft.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "beat-detect.cjs",
+    "panel.tsx",
+    "planner.js",
+    "dev/i18n-check.cjs",
+    "assets/cues/LICENSES.csv",
+    "assets/cues/before-everything.mp3",
+    "assets/cues/fractured.mp3",
+    "assets/cues/manifest.json",
+    "assets/cues/peaceful-drift.mp3",
+    "assets/cues/theta-frequency.mp3",
+    "assets/fonts/anton.woff2.b64",
+    "assets/fonts/inter-medium.woff2.b64",
+    "assets/fonts/inter-regular.woff2.b64",
+    "assets/fonts/licenses/anton-OFL.txt",
+    "assets/fonts/licenses/inter-OFL.txt",
+    "assets/fonts/licenses/oswald-OFL.txt",
+    "assets/fonts/oswald-bold.woff2.b64",
+    "assets/fonts/presets.json",
+    "assets/photo-motion.tsx",
+    "assets/decode-title.tsx",
+    "assets/archived-credit.tsx",
+    "assets/letterbox-reveal.tsx",
+    "assets/cinematic-look.tsx",
+    "assets/fade-out.tsx",
+    "scripts/assemble.js",
+    "scripts/decorate.js",
+    "scripts/ensure-audio.js",
+    "scripts/inventory.js",
+    "scripts/search.js",
+    "tests/allocate.test.cjs",
+    "tests/beat-detect.test.cjs",
+    "tests/cues.test.cjs",
+    "tests/effects.test.cjs",
+    "tests/fonts.test.cjs",
+    "tests/i18n.test.cjs",
+    "tests/look.test.cjs",
+    "tests/motion.test.cjs",
+    "tests/panel.test.cjs",
+    "tests/planner.test.cjs",
+    "tests/scripts-edit.test.cjs",
+    "tests/scripts-read.test.cjs",
+    "tests/scripts-types.test.cjs",
+    "tests/title.test.cjs"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64",
+      "Windows x64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring; no extra tools to install. Windows is built to the kit rules but not yet verified on a real Windows machine."
+  },
+  "localized": {
+    "de": {
+      "name": "Archive Vlog",
+      "summary": "Macht aus Stadt- und Reiseclips und Fotos ein filmisches 16:9-Vlog: ein Letterbox-Auftakt mit sich entschl\u00fcsselndem Titel, ein \u201eArchived by\u201c-Credit, eine Montage im Takt und eine Abblende ins Schwarz, als neuen, bearbeitbaren Draft."
+    },
+    "en": {
+      "name": "Archive Vlog",
+      "summary": "Turn city and travel clips and photos into a 16:9 cinematic vlog: a letterbox opening with a decoding title, an archived-by credit, a montage cut on the beat and a fade to black, as a new editable Draft."
+    },
+    "es": {
+      "name": "Archive Vlog",
+      "summary": "Convierte clips y fotos de ciudad y de viaje en un vlog cinematogr\u00e1fico 16:9: una apertura en letterbox con un t\u00edtulo que se descifra, un cr\u00e9dito \u00abarchived by\u00bb, un montaje al ritmo y un fundido a negro, como un nuevo Draft editable."
+    },
+    "fr": {
+      "name": "Archive Vlog",
+      "summary": "Transforme vos clips et photos de ville et de voyage en vlog cin\u00e9matographique 16:9 : une ouverture en letterbox avec un titre qui se d\u00e9chiffre, un cr\u00e9dit \u00ab archived by \u00bb, un montage sur le rythme et un fondu au noir, dans un nouveau Draft modifiable."
+    },
+    "it": {
+      "name": "Archive Vlog",
+      "summary": "Trasforma clip e foto di citt\u00e0 e di viaggio in un vlog cinematografico 16:9: un'apertura letterbox con un titolo che si decifra, un credito \u00abarchived by\u00bb, un montaggio a tempo di musica e una dissolvenza al nero, come nuovo Draft modificabile."
+    },
+    "ja": {
+      "name": "Archive Vlog",
+      "summary": "\u8857\u3084\u65c5\u306e\u30af\u30ea\u30c3\u30d7\u3068\u5199\u771f\u304b\u3089\u300116:9 \u306e\u30b7\u30cd\u30de\u30c6\u30a3\u30c3\u30af\u306a Vlog \u3092\u4f5c\u6210\u3057\u307e\u3059\u3002\u30ec\u30bf\u30fc\u30dc\u30c3\u30af\u30b9\u3067\u958b\u304f\u30aa\u30fc\u30d7\u30cb\u30f3\u30b0\u3068\u30c7\u30b3\u30fc\u30c9\u3059\u308b\u30bf\u30a4\u30c8\u30eb\u3001\u300carchived by\u300d\u30af\u30ec\u30b8\u30c3\u30c8\u3001\u30d3\u30fc\u30c8\u306b\u5408\u308f\u305b\u305f\u30e2\u30f3\u30bf\u30fc\u30b8\u30e5\u3001\u9ed2\u3078\u306e\u30d5\u30a7\u30fc\u30c9\u30a2\u30a6\u30c8\u3092\u3001\u7de8\u96c6\u53ef\u80fd\u306a\u65b0\u3057\u3044 Draft \u3068\u3057\u3066\u4fdd\u5b58\u3057\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "Archive Vlog",
+      "summary": "\ub3c4\uc2dc\uc640 \uc5ec\ud589 \uc601\uc0c1, \uc0ac\uc9c4\uc73c\ub85c 16:9 \uc2dc\ub124\ub9c8\ud2f1 \ube0c\uc774\ub85c\uadf8\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \ub808\ud130\ubc15\uc2a4\ub85c \uc5f4\ub9ac\ub294 \uc624\ud504\ub2dd\uacfc \ub514\ucf54\ub529 \ud0c0\uc774\ud2c0, 'archived by' \ud06c\ub808\ub527, \ube44\ud2b8\uc5d0 \ub9de\ucd98 \ubabd\ud0c0\uc8fc, \uac80\uc740 \ud654\uba74\uc73c\ub85c\uc758 \ud398\uc774\ub4dc\uc544\uc6c3\uae4c\uc9c0 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc0c8 Draft\ub85c \uc800\uc7a5\ud569\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Archive Vlog",
+      "summary": "Transforma clipes e fotos de cidade e de viagem em um vlog cinematogr\u00e1fico 16:9: uma abertura em letterbox com um t\u00edtulo que se decifra, um cr\u00e9dito \u201carchived by\u201d, uma montagem no ritmo da m\u00fasica e um fade para o preto, como um novo Draft edit\u00e1vel."
+    },
+    "tr": {
+      "name": "Archive Vlog",
+      "summary": "\u015eehir ve seyahat kliplerinden ve foto\u011fraflardan 16:9 sinematik bir vlog olu\u015fturur: \u00e7\u00f6z\u00fclerek beliren ba\u015fl\u0131kl\u0131 letterbox a\u00e7\u0131l\u0131\u015f, \u201carchived by\u201d jeneri\u011fi, ritme g\u00f6re kesilmi\u015f montaj ve siyaha ge\u00e7i\u015f; d\u00fczenlenebilir yeni bir Draft olarak kaydeder."
+    },
+    "zh": {
+      "name": "Archive Vlog",
+      "summary": "\u5c06\u57ce\u5e02\u548c\u65c5\u884c\u7247\u6bb5\u4e0e\u7167\u7247\u5236\u4f5c\u6210 16:9 \u7535\u5f71\u611f Vlog\uff1a\u906e\u5e45\u5c55\u5f00\u7684\u5f00\u573a\u4e0e\u89e3\u7801\u5f0f\u6807\u9898\u3001\u201carchived by\u201d\u7f72\u540d\u3001\u5361\u70b9\u8499\u592a\u5947\u548c\u6de1\u51fa\u5230\u9ed1\u573a\uff0c\u5e76\u4fdd\u5b58\u4e3a\u53ef\u7f16\u8f91\u7684\u65b0 Draft\u3002"
+    }
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 960,
+    "height": 540
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "footage",
+      "label": "Clips and photos",
+      "hint": "City and travel moments: streets, crowds, trams, boats, landmarks, food.",
+      "accepts": [
+        "video",
+        "image"
+      ],
+      "min": 2,
+      "max": 50,
+      "query": "city and travel moments: a street, a crowd, a tram, a boat or a landmark"
+    }
+  ],
+  "options": [
+    {
+      "id": "track",
+      "label": "Music",
+      "default": "peaceful-drift",
+      "choices": [
+        {
+          "id": "peaceful-drift",
+          "label": "Peaceful Drift"
+        },
+        {
+          "id": "theta-frequency",
+          "label": "Theta Frequency"
+        },
+        {
+          "id": "before-everything",
+          "label": "Before Everything"
+        },
+        {
+          "id": "fractured",
+          "label": "Fractured"
+        }
+      ]
+    },
+    {
+      "id": "length",
+      "label": "Length",
+      "default": "standard",
+      "choices": [
+        {
+          "id": "short",
+          "label": "Short"
+        },
+        {
+          "id": "standard",
+          "label": "Standard"
+        },
+        {
+          "id": "long",
+          "label": "Long"
+        }
+      ]
+    },
+    {
+      "id": "title",
+      "label": "Style",
+      "default": "cinematic",
+      "choices": [
+        {
+          "id": "cinematic",
+          "label": "Cinematic"
+        },
+        {
+          "id": "a-day-out",
+          "label": "A Day Out"
+        },
+        {
+          "id": "golden-hour",
+          "label": "Golden Hour"
+        }
+      ]
+    }
+  ],
+  "prepare": [
+    "City or travel clips and photos, at least 2 different ones, including at least one video",
+    "Videos analyzed, so the scene search can find their shots"
+  ]
+}

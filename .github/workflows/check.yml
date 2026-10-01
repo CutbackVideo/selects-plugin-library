@@ -50,6 +50,22 @@ jobs:
           node plugins/torn-paper-love/tests/scripts-read.test.cjs
           node plugins/torn-paper-love/tests/torn.test.cjs
           node plugins/torn-paper-love/tests/transitions.test.cjs
+      - name: Test Archive Vlog
+        run: |
+          node plugins/archive-vlog/tests/allocate.test.cjs
+          node plugins/archive-vlog/tests/beat-detect.test.cjs
+          node plugins/archive-vlog/tests/cues.test.cjs
+          node plugins/archive-vlog/tests/effects.test.cjs
+          node plugins/archive-vlog/tests/fonts.test.cjs
+          node plugins/archive-vlog/tests/i18n.test.cjs
+          node plugins/archive-vlog/tests/look.test.cjs
+          node plugins/archive-vlog/tests/motion.test.cjs
+          node plugins/archive-vlog/tests/panel.test.cjs
+          node plugins/archive-vlog/tests/planner.test.cjs
+          node plugins/archive-vlog/tests/scripts-edit.test.cjs
+          node plugins/archive-vlog/tests/scripts-read.test.cjs
+          node plugins/archive-vlog/tests/scripts-types.test.cjs
+          node plugins/archive-vlog/tests/title.test.cjs
       - name: Test Mini Vlog
         run: |
           node plugins/mini-vlog/tests/allocate.test.cjs

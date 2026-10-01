@@ -1,0 +1,3 @@
+# Project ids of the Staging test Projects ({ "seoul": "<id>", "travel": "<id>" }); per machine.
+# TODO: create it at Staging time with the full ids of Projects 4544da23... (seoul) and 40672b50... (travel).
+projects.local.json
