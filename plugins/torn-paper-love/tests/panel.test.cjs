@@ -110,6 +110,18 @@ for (const [key, text] of [['words', 'Words'], ['word1', 'Word 1'], ['word2', 'W
 says('shots', { one: '{count} shot', other: '{count} shots' });
 says('notRead', { one: "{count} photo couldn't be read", other: "{count} photos couldn't be read" });
 says('createsDraftFrom', { one: 'Creates a new 4:3 Draft from {n} of your {count} picture.', other: 'Creates a new 4:3 Draft from {n} of your {count} pictures.' });
+// A sentence with two numbers takes its plural form from {count}, so the noun agrees with {count}: it sits right after
+// {count}, never after the other number ({n}, {done}). Checked in every language with plural nouns.
+{
+  const all = JSON.parse(JSON.stringify(extractStrings(panel).strings)), forms = v => (typeof v === 'string' ? [v] : Object.values(v));
+  const plural2 = Object.keys(en).filter(k => typeof en[k] !== 'string' && new Set(forms(en[k]).join(' ').match(/\{\w+\}/g)).size > 1);
+  assert.deepEqual(plural2.filter(k => !/\{(shots|seconds|length)\}/.test(forms(en[k]).join(' '))).sort(), ['createsDraftFrom', 'detail.clipsChecked']);
+  for (const lang of ['de', 'en', 'es', 'fr', 'it', 'pt']) {
+    for (const f of forms(all[lang].createsDraftFrom)) assert.ok(/\{n\} (\S+ ){1,2}\{count\}/.test(f) && !/\{n\} (image|immagin|Bild|imag|picture)/.test(f), lang + '.createsDraftFrom: the noun follows {count}: ' + f);
+    for (const f of forms(all[lang]['detail.clipsChecked'])) assert.ok(f.includes('{done}/{count}'), lang + '.detail.clipsChecked: ' + f);
+    for (const f of forms(all[lang].fitPictures)) assert.ok(!/\{n\} (image|immagin|Bild|imag|picture)/.test(f), lang + '.fitPictures: no noun after {n}: ' + f);
+  }
+}
 // Families read by id: build steps, backdrops, lengths and the planner's not-buildable reasons.
 assert.deepEqual(['pictures', 'moments', 'plan', 'place', 'decorate'].map(id => en['step.' + id]),
   ['Reading your pictures', 'Finding moments', 'Planning', 'Placing pictures', 'Adding letters and paper']);
