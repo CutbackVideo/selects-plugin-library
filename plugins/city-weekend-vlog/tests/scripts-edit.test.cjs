@@ -232,6 +232,18 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.deepEqual(de2.photos, { motions: 0, motionsKept: 2, effectsSkipped: 0 });
   assert.equal(de2.committed, false);
   assert.equal(mp.log.filter(x => x[0] === 'motion').length, 2, 'no second motion effect');
+  // Inspector labels: English without cfg.labels; the panel passes them in the UI language at build time. Effect names
+  // stay English (they identify what an earlier run added).
+  assert.deepEqual(moves[0][3].map(e => e.label), ['Motion', 'Motion strength']);
+  mp.reopen();
+  for (const k of Object.keys(mp.effects)) delete mp.effects[k];
+  const warmLabels = [];
+  mp.d.addVideoEffect = (orig => async (o) => { if (o.label === 'Warm look') warmLabels.push(o.editableParameters[0].label); return orig(o); })(mp.d.addVideoEffect);
+  await load('decorate.js', { ...cfgE, labels: { motion: 'Bewegung', motionStrength: 'Bewegungsst\u00e4rke', warmth: 'W\u00e4rme' } })(selP);
+  const movesL = mp.log.filter(x => x[0] === 'motion').slice(2);
+  assert.deepEqual(movesL.map(x => x[3].map(e => e.label)), [['Bewegung', 'Bewegungsst\u00e4rke'], ['Bewegung', 'Bewegungsst\u00e4rke']]);
+  assert.ok(warmLabels.length > 0 && warmLabels.every(l => l === 'W\u00e4rme'), 'warm look label: ' + warmLabels);
+  assert.deepEqual(mp.effects[3].map(e => e.name), ['Photo motion', 'Warm look'], 'effect names stay English');
 
   // Music offset: a section start of 4.845 s is snapped to 4.8333 s (frame 145), so the music plays 0.35 frame early
   // on the timeline and every cut moves by the same offset (planner cwvMusicOffset): 1.0056 s lands on frame 31, not 30.

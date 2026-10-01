@@ -62,7 +62,9 @@ in either install folder:
 2. Open a Project with analysed video clips and open the panel. The top line
    reads "Ready: N clips · N shots · about N s" ("Ready: N clips · N photos ·
    N shots · about N s" when the Project has photos), and the Track list shows
-   the five bundled tracks.
+   the five bundled tracks. In a Project whose clips were never analysed, it
+   reads "N clips are not analysed yet. Analyse them in Selects to use them
+   here." (never "being analysed"); the panel does not start analysis itself.
 3. With at least 4 usable clips or photos (5 in Full frame), press **Build**.
    A new 1920x1080 Draft opens with the typed title, the rolling credits, the
    clips and the music.

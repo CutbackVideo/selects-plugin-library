@@ -13,6 +13,8 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [iMessage Generator](plugins/imessage-generator) | Experimental |
 | [Ali Abdaal Style](plugins/ali-abdaal-style) | Experimental |
 | [DOAC Style](plugins/doac-style) | Experimental |
+| [Chris Williamson Style](plugins/chris-williamson-style) — word-by-word captions, big keywords cut through B-roll, a warm push-in on the speaker and an open-licensed music bed | Experimental |
+| [Jude Kinetic Style](plugins/jude-kinetic-style) — bold white captions, red italic emphasis, a cream card with an expanding red circle, lines behind the speaker and a music bed | Experimental |
 | [a16z Style Captions](plugins/a16z-style-captions) — blur-to-sharp editorial captions | Experimental |
 | [Depth Type Captions](plugins/depth-type-captions) — typography that wraps around the speaker | Experimental |
 | [Tetris](plugins/tetris) | Experimental |
@@ -28,9 +30,11 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Torn Paper Love](plugins/torn-paper-love) — 4:3 torn-paper couple photo edit with ransom-note letters | Experimental |
 | [THE END Credits](plugins/the-end-credits) — end-credits roll with a typed THE END title and a window of your clips | Experimental |
 | [Summer Trip](plugins/summer-trip) — beat-synced 16:9 summer trip video with a typed title, a split-screen grid and a film-frame ending | Experimental |
+| [Travel Beat Vlog](plugins/travel-beat-vlog) — fast 9:16 travel edit with two quick montages, a hero title, two grids, reference colour and bundled music | Experimental |
 | [Six Clip Velocity](plugins/six-clip-velocity) — six videos become a speed-ramped velocity edit with blur cuts, a white flash and kinetic subtitles | Experimental |
 
 | [Photo Grid Reveal](plugins/photo-gallery-no2) — editable 21-tile photo/video grid with sequential reveals and a shared monochrome-to-color switch | Experimental |
+| [Cinema Vlog Studio](plugins/cinema-vlog-studio) — 21-second cinematic street vlog with marker-driven cuts, a scramble title and inset cards | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 
