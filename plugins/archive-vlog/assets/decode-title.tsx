@@ -350,6 +350,45 @@ function avDecodeFrame(layout, data, frame, fps) {
   out.decoded = Math.min(t.steps, now);
   return out;
 }
+
+// Backdrop ("scrim"): a soft black ellipse behind the lockup, so the white kicker and tagline stay readable over a
+// bright opening shot (the reference's dark opening isolates the whole lockup). data.scrim 0-1 is its peak opacity
+// (default AV_SCRIM_DEFAULT; 0 draws nothing). It is centred on the lockup's ink box with generous margins, fully dark
+// out to AV_SCRIM_CORE of its radii and feathered to 0 at the edge (smoothstep), and fades in from textIn over
+// AV_SCRIM_FADE s, then stays while the title is up. It never changes the text layout.
+var AV_SCRIM_DEFAULT = 0.4, AV_SCRIM_FADE = 0.3, AV_SCRIM_CORE = 0.5, AV_SCRIM_STOPS = 8;
+// Radii: the box's half sizes x AV_SCRIM_GROW (the box corners land at radius sqrt(2) / GROW = 0.75, still about half
+// the peak), plus a margin in canvas heights.
+var AV_SCRIM_GROW = Math.SQRT2 / 0.75, AV_SCRIM_PAD_X = 0.04, AV_SCRIM_PAD_Y = 0.08;
+// The backdrop at `frame`: { cx, cy, rx, ry, opacity, stops: [{ offset, alpha }] } in canvas pixels (alpha 0-1 of the
+// peak, drawn as a radial gradient on the ellipse), or null when there is nothing to draw (scrim 0, no lockup, before
+// textIn). `height` is the canvas height.
+function avScrim(layout, data, frame, fps, height) {
+  var peak = avNum(data && data.scrim, AV_SCRIM_DEFAULT, 0, 1), f = fps > 0 ? fps : 30, H = height > 0 ? height : 1080;
+  if (!layout || !layout.box || peak <= 0) return null;
+  var tm = avTiming(data || {}, layout.title ? layout.title.steps : 0, f), inF = Math.round(tm.textIn * f);
+  if (frame < inF) return null;
+  // The same frame rounding as the text (avDecodeFrame), ramped over the fade with a smoothstep.
+  var u = Math.min(1, (frame - inF + 1) / Math.max(1, AV_SCRIM_FADE * f)), ramp = u * u * (3 - 2 * u);
+  var b = layout.box, stops = [];
+  for (var i = 0; i <= AV_SCRIM_STOPS; i++) {
+    var r = AV_SCRIM_CORE + ((1 - AV_SCRIM_CORE) * i) / AV_SCRIM_STOPS, v = (r - AV_SCRIM_CORE) / (1 - AV_SCRIM_CORE);
+    stops.push({ offset: r, alpha: 1 - v * v * (3 - 2 * v) });
+  }
+  return { cx: (b[0] + b[2]) / 2, cy: (b[1] + b[3]) / 2, rx: ((b[2] - b[0]) / 2) * AV_SCRIM_GROW + AV_SCRIM_PAD_X * H,
+    ry: ((b[3] - b[1]) / 2) * AV_SCRIM_GROW + AV_SCRIM_PAD_Y * H, opacity: peak * ramp, stops: [{ offset: 0, alpha: 1 }].concat(stops) };
+}
+// The backdrop's darkening at canvas point (x, y): the fraction of the light it takes away (0-1), exactly as the
+// gradient draws it (piecewise linear between the stops). For tests and measurements.
+function avScrimAt(scrim, x, y) {
+  if (!scrim) return 0;
+  var dx = (x - scrim.cx) / scrim.rx, dy = (y - scrim.cy) / scrim.ry, r = Math.sqrt(dx * dx + dy * dy), s = scrim.stops;
+  if (r >= 1) return 0;
+  for (var i = 1; i < s.length; i++) {
+    if (r <= s[i].offset) return scrim.opacity * (s[i - 1].alpha + ((r - s[i - 1].offset) / (s[i].offset - s[i - 1].offset)) * (s[i].alpha - s[i - 1].alpha));
+  }
+  return 0;
+}
 // av-decode:end
 
 const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
@@ -399,9 +438,22 @@ export default function ArchiveDecodeTitle({ data: raw }: { data: any }) {
     <text x={p.x} y={p.y} fill={p.color} fontSize={p.size} fontFamily={p.stack} fontWeight={p.weight} opacity={state.textOpacity}
       style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: p.tracking * p.size }}>{p.text}</text>
   ) : null);
+  // The backdrop sits in its own SVG under the text, outside the text's drop-shadow filter.
+  const scrim: any = avScrim(layout, mdata, frame, fps, height);
+  const scrimId = "av-title-scrim";
   return (
     <AbsoluteFill>
       {fontFaces ? <style>{fontFaces}</style> : null}
+      {scrim && scrim.opacity > 0 ? (
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true" style={{ position: "absolute", left: 0, top: 0 }}>
+          <defs>
+            <radialGradient id={scrimId} cx="0.5" cy="0.5" r="0.5">
+              {scrim.stops.map((s: any, i: number) => <stop key={i} offset={s.offset} stopColor="#000000" stopOpacity={s.alpha} />)}
+            </radialGradient>
+          </defs>
+          <ellipse cx={scrim.cx} cy={scrim.cy} rx={scrim.rx} ry={scrim.ry} fill={`url(#${scrimId})`} opacity={scrim.opacity} />
+        </svg>
+      ) : null}
       {state.textOpacity > 0 ? (
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ position: "absolute", left: 0, top: 0, overflow: "visible", filter: shadow > 0 ? `drop-shadow(0 ${drop}px ${blur}px rgba(0,0,0,${shadow}))` : undefined }}>
           {line(layout.kicker)}
