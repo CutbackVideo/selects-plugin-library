@@ -50,7 +50,7 @@ export type ClipFrame = {
   end: number;
   sw: number;
   sh: number;
-  shots: (Rect & { from: number; to: number })[];
+  shots: (Rect & { from: number; to: number; z?: number })[];
   open?: { s0: number; ax: number; ay: number };
 };
 
@@ -128,4 +128,48 @@ export function planFraming(clips: NewClip[], faces: Record<string, SourceFaces>
     out.push(cf);
   });
   return { clips: out, shots, cuts: [...new Set(cuts.map((c) => Math.round(c * 1000) / 1000))].sort((a, b) => a - b), framed, total };
+}
+
+// The picture never holds unchanged for more than about 4 s (spec 13.3): on a speaker stretch with no
+// cut, insert or card for 3 s, the crop changes at the next caption start - in to 1.22x around the
+// face, or back out. Returns a new plan; the stored one is not touched.
+export function addFramingChanges(plan: FramingPlan, covered: [number, number][], starts: number[], fps: number, duration: number): FramingPlan {
+  const clips: ClipFrame[] = plan.clips.map((c) => ({ ...c, shots: c.shots.map((x) => ({ ...x })) }));
+  const shots: Shot[] = plan.shots.map((x) => ({ ...x, face: x.face ? { ...x.face } : x.face }));
+  const cuts = plan.cuts.slice();
+  const inside = (t: number) => covered.some(([a, b]) => t >= a - 0.05 && t < b + 0.05);
+  const events = [...cuts, ...covered.flatMap(([a, b]) => [a, b])].sort((a, b) => a - b);
+  let last = 0;
+  const added: number[] = [];
+  for (const t of starts.slice().sort((a, b) => a - b)) {
+    while (events.length && events[0] <= t) last = Math.max(last, events.shift()!);
+    if (t - last < 3 || inside(t) || t > duration - 0.8) continue;
+    const nextEvent = events.length ? events[0] : duration;
+    if (nextEvent - t < 1.2) continue;
+    added.push(t);
+    last = t;
+  }
+  for (const t of added) {
+    const F = Math.round(t * fps);
+    const clip = clips.find((c) => F > c.start && F < c.end);
+    if (!clip) continue;
+    const k = clip.shots.findIndex((x) => F > x.from && F < x.to);
+    if (k < 0) continue;
+    const cur = clip.shots[k];
+    const cap = shots.find((x) => x.kind === "speaker" && t >= x.from && t < x.to);
+    const f = cap?.face;
+    const ax = f ? f.cx * W : W / 2;
+    const ay = f ? (f.chin - f.h / 2) * H : 0.4 * H;
+    const z = cur.z || 1;
+    const factor = z > 1 ? 1 / z : 1.22;
+    const rect = punch(cur, factor, ax, ay);
+    clip.shots.splice(k, 1, { ...cur, to: F }, { ...rect, from: F, to: cur.to, z: z > 1 ? 1 : 1.22 });
+    if (cap) {
+      const j = shots.indexOf(cap);
+      const nf = f ? { ...f, h: f.h * factor, chin: (ay + (f.chin * H - ay) * factor) / H } : null;
+      shots.splice(j, 1, { ...cap, to: t }, { ...cap, from: t, face: nf });
+    }
+    cuts.push(t);
+  }
+  return { ...plan, clips, shots, cuts: cuts.sort((a, b) => a - b) };
 }

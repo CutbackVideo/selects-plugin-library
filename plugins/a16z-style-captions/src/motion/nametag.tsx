@@ -16,7 +16,14 @@ export function drawNameTag(tag: NameTag, frame: number, d: GraphicData, faces: 
   const H = d.H;
   const s = d.fps / 24; // the wipe is measured in 24 fps frames
   const f = (frame - tag.a) / s;
-  const capPx = tag.cap * H;
+  // line 1 at the given cap height, narrowed so the name stays within about 0.62 W
+  let capPx = tag.cap * H;
+  const lineW = (cap: number) => {
+    const s1 = cap / metrics(faces.roman).cap;
+    const ss = (s1 * metrics(faces.roman).xh) / metrics(faces.serif).xh;
+    return (width100(tag.first + " ", faces.roman) / 100) * s1 + (width100(tag.last, faces.serif) / 100) * ss;
+  };
+  if (lineW(capPx) > 0.62 * W) capPx *= (0.62 * W) / lineW(capPx);
   const size1 = capPx / metrics(faces.roman).cap;
   const size2 = size1 * 0.68;
   const serifSize = (size1 * metrics(faces.roman).xh) / metrics(faces.serif).xh;
@@ -32,7 +39,7 @@ export function drawNameTag(tag: NameTag, frame: number, d: GraphicData, faces: 
   const textW = Math.max(w1a + w1b, w2);
   const blockTop = top - 0.08 * capPx;
   const blockBottom = base2 + size2 * 0.28;
-  const R = textX + textW + 0.012 * W;
+  const R = Math.min(0.95 * W, textX + textW + 0.012 * W);
   // block edges over the wipe
   let left = barX;
   let right = R;

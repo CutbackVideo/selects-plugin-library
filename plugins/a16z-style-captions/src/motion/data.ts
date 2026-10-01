@@ -46,6 +46,6 @@ export type GraphicData = {
   cards?: Card[];
   mark?: Mark | null;
   quoteBlocks?: [number, number, number][]; // [first frame, end frame, y]
-  title?: { a: number; b: number; lines: string[] } | null; // hook title plate
-  fonts?: { sans?: string; serif?: string; roman?: string };
+  title?: { a: number; b: number; words: { text: string; at: number; line: number }[] } | null; // hook title plate
+  fonts?: { sans?: string; serif?: string; roman?: string; light?: string };
 };

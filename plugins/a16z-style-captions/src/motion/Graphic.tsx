@@ -15,12 +15,14 @@ const SANS = "Editorial Sans";
 const tagCache: Record<string, NameTag> = {};
 const SERIF = "Editorial Serif";
 const ROMAN = "Editorial Roman";
+const LIGHT = "Editorial Light";
 
 function useFonts(fonts: GraphicData["fonts"]): boolean {
   const list: [string, string, string, string][] = [
     [SANS, fonts?.sans || "", "500", "normal"],
     [SERIF, fonts?.serif || "", "400", "italic"],
     [ROMAN, fonts?.roman || "", "400", "normal"],
+    [LIGHT, fonts?.light || "", "400", "italic"],
   ];
   const any = list.some((f) => f[1]);
   const [ready, setReady] = useState(!any);
@@ -63,6 +65,7 @@ export default function Graphic({ data }: Props) {
     sans: { family: (d.fonts?.sans ? '"' + SANS + '", ' : "") + '"Inter Display", "Helvetica Neue", Helvetica, Arial, sans-serif', weight: 500, style: "normal", estimate: 0.52 },
     serif: { family: (d.fonts?.serif ? '"' + SERIF + '", ' : "") + '"Playfair Display", Didot, "Times New Roman", serif', weight: 400, style: "italic", estimate: 0.45 },
     roman: { family: (d.fonts?.roman ? '"' + ROMAN + '", ' : "") + '"Playfair Display", Didot, "Times New Roman", serif', weight: 400, style: "normal", estimate: 0.5 },
+    light: { family: (d.fonts?.light ? '"' + LIGHT + '", ' : d.fonts?.serif ? '"' + SERIF + '", ' : "") + '"Playfair Display", Didot, "Times New Roman", serif', weight: 400, style: "italic", estimate: 0.45 },
   };
   if (!ready) return null;
   const units = d.units || [];
@@ -150,37 +153,42 @@ function placeTag(d: GraphicData, faces: Faces): NameTag {
   return (tagCache[key] = { ...tag, y, b });
 }
 
-// The hook title: white plates with a black serif-italic title, typed in at about 45 characters a second
-// with each plate growing just ahead of its letters.
-function titlePlate(t: { a: number; b: number; lines: string[] }, frame: number, d: GraphicData, faces: Faces): React.ReactNode {
+// The hook title: the spoken opening line in a light serif italic on a white plate, each word typed
+// in on its spoken onset, the plate running a little ahead of the letters.
+function titlePlate(t: { a: number; b: number; words: { text: string; at: number; line: number }[] }, frame: number, d: GraphicData, faces: Faces): React.ReactNode {
   const H = d.H;
   const W = d.W;
-  const face = faces.serif;
+  const face = faces.light;
   const m = metrics(face);
   const size = (0.034 * H) / m.cap;
-  const cps = 45;
-  const shown = Math.floor(((frame - t.a) / d.fps) * cps);
   const padX = 0.018 * W;
   const lineH = size * 1.32;
   const x0 = 0.08 * W;
-  let y = 0.6 * H;
-  let used = 0;
+  const space = (width100(" ", face) / 100) * size;
+  const lines = Math.max(...t.words.map((w) => w.line)) + 1;
   const out: React.ReactNode[] = [];
-  t.lines.forEach((line, k) => {
-    const n = Math.max(0, Math.min(line.length, shown - used));
-    used += line.length + 1;
-    if (n <= 0) return;
-    const text = line.slice(0, n);
+  for (let li = 0; li < lines; li += 1) {
+    const ws = t.words.filter((w) => w.line === li);
+    // letters of a word arrive over two frames per character, starting at its onset
+    let text = "";
+    let typing = false;
+    for (const w of ws) {
+      if (frame < w.at) break;
+      const n = Math.min(w.text.length, 1 + Math.floor(((frame - w.at) * 2) / Math.max(1, d.fps / 24)));
+      text += (text ? " " : "") + w.text.slice(0, n);
+      if (n < w.text.length) typing = true;
+    }
+    if (!text) continue;
+    const full = ws.every((w) => frame >= w.at) && !typing;
     const w = (width100(text, face) / 100) * size;
-    const ahead = n < line.length ? 0.4 * size : 0;
+    const ahead = full ? 0 : space * 2;
     out.push(
-      <div key={"tp" + k} style={{ position: "absolute", left: x0, top: y, width: w + 2 * padX + ahead, height: lineH, background: "#FFFFFF" }}>
+      <div key={"tp" + li} style={{ position: "absolute", left: x0, top: 0.6 * H + li * lineH, width: w + 2 * padX + ahead, height: lineH, background: "#FFFFFF" }}>
         <div style={{ position: "absolute", left: padX, top: lineH / 2 + (m.cap * size) / 2 - (size * (1 + m.ascent - m.descent)) / 2, fontFamily: face.family, fontStyle: face.style, fontWeight: face.weight, fontSize: size, lineHeight: 1, whiteSpace: "pre", color: "#111111" }}>
           {text}
         </div>
       </div>
     );
-    y += lineH;
-  });
+  }
   return <React.Fragment key="title">{out}</React.Fragment>;
 }

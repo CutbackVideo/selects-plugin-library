@@ -6,7 +6,7 @@ import { readDraft, type DraftInfo } from "./source";
 import { semanticPass, type Semantic, type TWord } from "./semantic";
 import { ensureFaceRuntime, trackFaces, type SourceFaces } from "./faces";
 import { planPauses, layoutRanges } from "./edit";
-import { planFraming, type FramingPlan } from "./framing";
+import { planFraming, addFramingChanges, type FramingPlan } from "./framing";
 import { makeMusic, loudness, gains } from "./sound";
 import { mediaGeneration } from "./media";
 import { createShort, importFiles, finishShort, stripShort, type PlacedInsert } from "./apply";
@@ -216,8 +216,17 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
   } else onStep("broll", "skip", job.opts.broll === false ? "off" : "no footage moments");
 
   onStep("captions", "run", "Designing captions…");
+  // the picture changes at least every few seconds: crop changes where no cut, insert or card does it
+  const covered: [number, number][] = [
+    ...insertTimes.map((x) => [x.a, x.b] as [number, number]),
+    ...prep.cards.map((c) => [c.a / fps, c.b / fps] as [number, number]),
+    ...(prep.title ? [[0, prep.title.b / fps] as [number, number]] : []),
+  ];
+  const framing = addFramingChanges(job.framing, covered, unitStarts(job, prep), fps, prep.duration);
+  const view: Job = { ...job, framing };
+  prep.cuts = [...new Set([...prep.cuts, ...framing.cuts])].sort((a, b) => a - b);
   const fonts = await readFonts(sdk);
-  const look: Look = await buildGraphic({ job, prep, fonts, logo: job.opts.logo, inserts: insertTimes });
+  const look: Look = await buildGraphic({ job: view, prep, fonts, logo: job.opts.logo, inserts: insertTimes });
   notes.push(...look.notes);
 
   const musicPath = await musicJob;
@@ -247,12 +256,12 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
     notes.push("Levels: " + String(e?.message || e).slice(0, 160));
   }
   await saveJob(job);
-  await finishShort(sdk, job.shortId, pid, end, look.data, music, voiceDb, placed, fps, { clips: job.framing.clips, windows: prep.windows });
+  await finishShort(sdk, job.shortId, pid, end, look.data, music, voiceDb, placed, fps, { clips: framing.clips, windows: prep.windows });
   onStep("captions", "done", look.summary);
   return notes;
 }
 
-async function readFonts(sdk: Sdk): Promise<{ sans: string; serif: string; roman: string }> {
+async function readFonts(sdk: Sdk): Promise<{ sans: string; serif: string; roman: string; light: string }> {
   let root = "";
   try {
     root = (await shell(sdk, "Locate plugin files", 'printf %s "$SELECTS_USER_SKILLS_ROOT"', 10000)).trim();
@@ -265,6 +274,6 @@ async function readFonts(sdk: Sdk): Promise<{ sans: string; serif: string; roman
       return "";
     }
   };
-  const [sans, serif, roman] = await Promise.all([read("InterDisplay-Medium.woff2.b64"), read("EditorialSerif-Italic.woff2.b64"), read("EditorialSerif-Regular.woff2.b64")]);
-  return { sans, serif, roman };
+  const [sans, serif, roman, light] = await Promise.all([read("InterDisplay-Medium.woff2.b64"), read("EditorialSerif-Italic.woff2.b64"), read("EditorialSerif-Regular.woff2.b64"), read("EditorialSerif-Light.woff2.b64")]);
+  return { sans, serif, roman, light };
 }

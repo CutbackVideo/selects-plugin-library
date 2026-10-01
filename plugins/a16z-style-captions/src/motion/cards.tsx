@@ -164,11 +164,22 @@ export function drawCard(c: Card, i: number, frame: number, d: GraphicData, face
   let wrapper: React.CSSProperties = {};
   let fadeWhite = 0;
 
-  if (c.kind === "keyword") {
-    const cream = c.palette === "cream";
-    field = cream ? creamField(d, uid, frame, (f / dur) * W * 0.05) : burgundyField(d, uid, frame);
+  if (c.kind === "keyword" && c.palette === "cream") {
+    // the cream thesis card: a small sans lead-in, then the concept in a large serif italic
+    field = creamField(d, uid, frame, (f / dur) * W * 0.05);
     push = 0.05;
-    const it = itemsOf(c)[0];
+    const lead = itemsOf(c, "label")[0];
+    const key = itemsOf(c, "key")[0];
+    const k = key ? fit({ text: key.text, face: faces.serif, size: sizeFor(faces.serif, 0.06 * H), color: INK }, 0.84 * W) : null;
+    const l = lead ? fit({ text: lead.text, face: faces.sans, size: sizeFor(faces.sans, 0.022 * H), color: INK, track: -0.03 }, 0.8 * W) : null;
+    const kBase = 0.5 * H + (k ? (metrics(faces.serif).cap * k.size) / 2 : 0);
+    if (l && lead && frame >= lead.at) nodes.push(textAt("kl", l, k ? (W - tw(k)) / 2 + 0.01 * W : (W - tw(l)) / 2, kBase - (k ? metrics(faces.serif).cap * k.size : 0) - 0.03 * H));
+    if (k && key && frame >= key.at) nodes.push(...decode("kk", k, (W - tw(k)) / 2, kBase, frame, key.at, fps));
+  } else if (c.kind === "keyword") {
+    const cream = false;
+    field = burgundyField(d, uid, frame);
+    push = 0.05;
+    const it = itemsOf(c, "key")[0];
     if (it) {
       const t = fit({ text: it.text, face: faces.sans, size: sizeFor(faces.sans, 0.057 * H), color: cream ? INK : "#FFFFFF", track: -0.03 }, 0.8 * W);
       const base = 0.49 * H + (metrics(faces.sans).cap * t.size) / 2;

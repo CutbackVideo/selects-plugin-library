@@ -42,7 +42,7 @@ export type Prepared = {
   cards: Card[];
   suppress: [number, number][];
   windows: { from: number; to: number }[];
-  title: { a: number; b: number; lines: string[] } | null;
+  title: { a: number; b: number; words: { text: string; at: number; line: number }[] } | null;
 };
 
 // The Short's words (with source indices), the semantic tags, picture cuts and keyword cards.
@@ -89,7 +89,12 @@ export function prepareShort(job: Job, short: DraftInfo): Prepared {
       const a = Math.round((textWord.s - 4 / 24) * fps);
       const b = Math.min(Math.round((textWord.s + 2.2) * fps), Math.max(Math.round((textWord.s + 1.4) * fps), Math.round((last.e + 0.2) * fps)));
       if (a / fps > 0.7 * duration || !free(a, b)) continue;
-      place({ a, b, kind: "keyword", items: [{ text: c.text.split(/\s+/).map(caseWord).join(" "), at: a, role: "key" }] });
+      // the spoken words just before the concept ride above it as a small lead-in ("it's called the")
+      const lead = words.filter((w) => w.s >= first.s - 0.01 && w.s < textWord.s - 0.01 && w.i >= 0).slice(-4).map((w) => caseWord(w.t.replace(/[.,!?;:"]+$/g, "")));
+      const items: Card["items"] = [];
+      if (lead.length) items.push({ text: lead.join(" "), at: Math.max(0, Math.round((first.s - 1 / fps) * fps)), role: "label" });
+      items.push({ text: c.text.split(/\s+/).map(caseWord).join(" "), at: a, role: "key" });
+      place({ a: Math.min(a, items[0].at), b, kind: "keyword", items });
     }
     for (const dz of semantic?.designs || []) {
       const spoken = dz.parts.filter((p) => p.span);
@@ -115,32 +120,40 @@ export function prepareShort(job: Job, short: DraftInfo): Prepared {
     }
   }
   cards.sort((x, y) => x.a - y.a);
+  // a card never shows an empty field for more than four frames
+  for (const c of cards) if (c.items.length) c.items[0].at = Math.min(c.items[0].at, c.a + Math.round((4 * fps) / 24));
   // one card palette per video: cream as soon as any designed card is light
   const light = cards.some((c) => c.kind !== "keyword" && c.kind !== "window");
   for (const c of cards) if (c.kind === "keyword") c.palette = light ? "cream" : "burgundy";
   // window cards are drawn by the frame effect on the Main clips
   const windows = cards.filter((c) => c.kind === "window").map((c) => ({ from: c.a, to: c.b }));
 
-  // the hook title: an editor's title over the opening when the first sentence only sets up
+  // the hook title: when the Short opens on a set-up line, that spoken line itself is typed onto a
+  // white plate in time with the voice (two balanced lines), and its captions are left out
   let title: Prepared["title"] = null;
-  const firstEnd = words.find((w) => /[.!?]["”’)]*$/.test(w.t));
   const hookType = semantic?.tags.hook?.type;
-  if (semantic?.title && (hookType === "H4" || hookType === "H2" || (firstEnd && firstEnd.e > 3.5))) {
-    const firstCut = cuts.find((c) => c > 1.3) ?? 2.3;
-    const b = Math.round(Math.min(2.3, Math.max(1.3, firstCut)) * fps);
-    const ws = semantic.title.split(/\s+/);
-    const lines: string[] = [];
-    let cur = "";
-    for (const w of ws) {
-      if (cur && (cur + " " + w).length > 18) {
-        lines.push(cur);
-        cur = w;
-      } else cur = cur ? cur + " " + w : w;
+  const firstIdx = words.findIndex((w) => /[.!?]["”’)]*$/.test(w.t));
+  const opener = firstIdx >= 0 ? words.slice(0, firstIdx + 1).filter((w) => w.i >= 0) : [];
+  if (opener.length >= 4 && opener.length <= 10 && (hookType === "H4" || hookType === "H2" || semantic?.tags.format === "story") && !cards.some((c) => c.a < (opener[opener.length - 1].e + 0.5) * fps)) {
+    const texts = opener.map((w, k) => {
+      const t = w.t.replace(/[.,!;:"“”]+$/g, "").replace(/^["“]/, "");
+      return k === 0 ? t.charAt(0).toUpperCase() + t.slice(1) : caseWord(t);
+    });
+    let cut = 1;
+    let best = 1e9;
+    for (let k = 1; k < texts.length; k += 1) {
+      const a = texts.slice(0, k).join(" ").length;
+      const b = texts.slice(k).join(" ").length;
+      if (Math.max(a, b) < best && texts.length - k >= 2) {
+        best = Math.max(a, b);
+        cut = k;
+      }
     }
-    if (cur) lines.push(cur);
-    title = { a: 0, b, lines };
-    const inside = words.filter((w) => w.s * fps < b && w.i >= 0).map((w) => w.i);
-    if (inside.length) suppress.push([Math.min(...inside), Math.max(...inside)] as Span);
+    const one = texts.join(" ").length <= 18;
+    const last = opener[opener.length - 1];
+    const b = Math.round(Math.max(1.5, last.e + 0.35) * fps);
+    title = { a: 0, b, words: opener.map((w, k) => ({ text: texts[k], at: Math.max(0, Math.round((w.s - 1 / fps) * fps)), line: one || k < cut ? 0 : 1 })) };
+    suppress.push([opener[0].i, last.i] as Span);
   }
   // the picture changes at a card's edges
   for (const c of cards) cuts.push(c.a / fps, c.b / fps);
@@ -159,7 +172,7 @@ export function unitStarts(job: Job, prep: Prepared): number[] {
 export async function buildGraphic(o: {
   job: Job;
   prep: Prepared;
-  fonts: { sans: string; serif: string; roman: string };
+  fonts: { sans: string; serif: string; roman: string; light: string };
   logo: string;
   inserts: { a: number; b: number; bright?: boolean }[]; // seconds
 }): Promise<Look> {
@@ -219,11 +232,14 @@ export async function buildGraphic(o: {
     }
   }
 
-  // a quote glyph over a block of three or more captions of reported or imagined speech
+  // a quote glyph over a block of three or more captions of reported or imagined speech that a
+  // quotative ("she was like", "I asked") introduces
+  const q0 = (x: { span: Span }) => x.span[0];
   const quoteBlocks: [number, number, number][] = [];
   // consecutive quoted sentences (a few words apart at most) are one block
   const spans: Span[] = [];
-  for (const q of (tags.quotes || []).filter((x) => x.kind === "reported" || x.kind === "imagined").sort((x, y) => x.span[0] - y.span[0])) {
+  const quotativeEnds = (tags.quotatives || []).map((q) => q[1]);
+  for (const q of (tags.quotes || []).filter((x) => (x.kind === "reported" || x.kind === "imagined") && quotativeEnds.some((e) => q0(x) - e >= 0 && q0(x) - e <= 3)).sort((x, y) => x.span[0] - y.span[0])) {
     const last = spans[spans.length - 1];
     if (last && q.span[0] - last[1] <= 4) last[1] = Math.max(last[1], q.span[1]);
     else spans.push([q.span[0], q.span[1]]);

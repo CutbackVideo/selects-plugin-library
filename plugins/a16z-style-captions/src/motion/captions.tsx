@@ -5,7 +5,7 @@ import React from "react";
 import { width100, metrics, type FontSpec } from "./text";
 import type { PUnit, GraphicData } from "./data";
 
-export type Faces = { sans: FontSpec; serif: FontSpec; roman: FontSpec };
+export type Faces = { sans: FontSpec; serif: FontSpec; roman: FontSpec; light: FontSpec };
 
 type LaidToken = { text: string; x: number; base: number; size: number; face: FontSpec; track: number; reveal: number; accent?: string; kept: boolean };
 type Laid = { tokens: LaidToken[]; top: number; bottom: number };
