@@ -166,10 +166,10 @@ const keepAlive = setInterval(() => {}, 50);
       importFiles: async ({ paths }) => { imports.push(...paths); return { addedResourceIds: ['a9'] }; },
     }) } };
   };
-  const winCue = 'C:\\Users\\Me\\AppData\\Selects\\skills\\archive-vlog\\assets\\cues\\peaceful-drift.mp3';
+  const winCue = 'D:\\Data\\AppData\\Selects\\skills\\archive-vlog\\assets\\cues\\peaceful-drift.mp3';
   {
     // Windows: the panel joins with backslashes, the host stored forward slashes and another drive-letter case.
-    const a = audioProject('c:/Users/Me/AppData/Selects/skills/archive-vlog/assets/cues/peaceful-drift.mp3', 'peaceful-drift.mp3');
+    const a = audioProject('d:/data/AppData/Selects/skills/archive-vlog/assets/cues/peaceful-drift.mp3', 'peaceful-drift.mp3');
     assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue })(a.sel), { resourceId: 'a1', imported: false });
     assert.deepEqual(a.imports, []);
   }
