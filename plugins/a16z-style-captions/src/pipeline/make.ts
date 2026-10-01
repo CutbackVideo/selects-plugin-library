@@ -187,7 +187,7 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
       const blocked = prep.cards.map((c) => [c.a / fps, c.b / fps] as [number, number]);
       const runs = planInserts(prep.words, job.semantic.broll, prep.duration, blocked, { earliest: prep.title ? prep.title.b / fps + 0.3 : 2.4, starts: unitStarts(job, prep) });
       job.brollCache = job.brollCache || {};
-      const got = await fetchInserts(sdk, runs, dir, (s) => onStep("broll", "run", s), job.brollCache, prep.words);
+      const got = await fetchInserts(sdk, runs, dir, (s) => onStep("broll", "run", s), job.brollCache);
       notes.push(...got.notes);
       if (got.shots.length) {
         const paths = [...new Set(got.shots.map((x) => x.clip.path))];

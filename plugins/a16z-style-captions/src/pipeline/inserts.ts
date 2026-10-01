@@ -3,8 +3,7 @@
 // the opening line, the last 1.5 s stay on the speaker, and coverage stays under 60%.
 import { fs, q, shell, sleep, type Sdk } from "./host";
 import { FF } from "./sound";
-import { searchCandidates, cutCandidate, stockSearchAvailable, probeDuration, hash, type StockClip, type Candidate } from "./stock";
-import { ask, parseLoose } from "./semantic";
+import { searchCandidates, cutCandidate, stockSearchAvailable, probeDuration, type StockClip, type Candidate } from "./stock";
 import type { Word, Span } from "../captions/types";
 
 export type Beat = { span: Span; query: string; alt?: string };
@@ -83,39 +82,21 @@ export function planInserts(words: Word[], beats: Beat[], duration: number, bloc
   return runs;
 }
 
-// A preview comes through the app's own downloader (no shell, so no command-length limit and no curl).
-// The downloader keeps whatever the server answered, so a file that is not a picture is removed.
-async function fetchPreview(url: string, path: string) {
-  try {
-    await fs().downloadFile(url, path);
-    const head = new Uint8Array(await fs().readRange(path, 0, 4));
-    const picture = (head[0] === 0xff && head[1] === 0xd8) || (head[0] === 0x89 && head[1] === 0x50) || (head[0] === 0x52 && head[1] === 0x49);
-    if (!picture) fs().unlinkSync(path);
-  } catch {
-    try {
-      if (fs().existsSync(path)) fs().unlinkSync(path);
-    } catch {}
-  }
-}
-
 export type FetchedShot = InsertShot & { clip: StockClip; luma?: number | null };
-void hash;
 
 // Per shot: the clip it shows (`b` when the shot was lengthened over the next ones), or null when it
 // shows the clip of an earlier shot of its run or stays on the speaker.
 export type InsertCache = Record<string, { clip: StockClip | null; luma?: number | null; b?: number }>;
 const cacheKey = (s: InsertShot) => s.query + "|" + s.alt + "|" + s.k + "|" + Math.round((s.b - s.a) * 10);
 
-// Stock for every run: up to six candidates per moment, shown to the assistant as contact sheets (four
-// moments per sheet, one row each), which picks only candidates that show the very thing the words name.
-// A run keeps what an earlier build found for it.
+// Stock for every run: up to six candidates per moment from the stock search, each shot taking the next
+// one that is long enough and not near black. A run keeps what an earlier build found for it.
 export async function fetchInserts(
   sdk: Sdk,
   runs: InsertRun[],
   dir: string,
   onTick: (s: string) => void,
-  cache: InsertCache = {},
-  words: Word[] = []
+  cache: InsertCache = {}
 ): Promise<{ shots: FetchedShot[]; notes: string[] }> {
   const notes: string[] = [];
   if (!runs.length) return { shots: [], notes };
@@ -157,86 +138,8 @@ export async function fetchInserts(
   todo.push(...found.map((f) => f.run));
   const cands = found.map((f) => f.cands);
   if (!todo.length) return { shots: out.sort((a, b) => a.a - b.a), notes };
-  // previews and contact sheets
-  const pdir = fs().join(dir, "previews");
-  fs().mkdirSync(pdir, { recursive: true });
-  const file = (c: Candidate) => fs().join(pdir, "p" + Math.abs(hash(c.id)) + ".jpg");
-  const all = cands.flat().filter((c) => !fs().existsSync(file(c)));
-  if (all.length) {
-    onTick("Fetching previews");
-    for (let k = 0; k < all.length; k += 6) await Promise.all(all.slice(k, k + 6).map((c) => fetchPreview(c.preview, file(c))));
-  }
-  const sheets: { path: string; rows: number[] }[] = [];
-  for (let s = 0; s * 4 < todo.length && s < 4; s += 1) {
-    const rows = [];
-    for (let r = s * 4; r < Math.min(todo.length, s * 4 + 4); r += 1) rows.push(r);
-    const sd = fs().join(dir, "sheet-" + s);
-    const tiles: string[] = [];
-    rows.forEach((r, ri) => {
-      for (let c = 0; c < 6; c += 1) {
-        const cand = cands[r][c];
-        tiles.push(cand && fs().existsSync(file(cand)) ? file(cand) : "");
-        void ri;
-      }
-    });
-    const cmd =
-      FF +
-      "set -e; rm -rf " + q(sd) + "; mkdir -p " + q(sd) + "; " +
-      tiles
-        .map((t, i) => {
-          const name = q(fs().join(sd, String(i + 1).padStart(3, "0") + ".jpg"));
-          return t
-            ? '"$FF" -v error -y -i ' + q(t) + " -vf " + q("scale=180:320:force_original_aspect_ratio=decrease,pad=180:320:(ow-iw)/2:(oh-ih)/2:color=0x202020,format=yuvj420p") + " -frames:v 1 " + name
-            : '"$FF" -v error -y -f lavfi -i color=c=0x202020:s=180x320 -vf format=yuvj420p -frames:v 1 ' + name;
-        })
-        .join("; ") +
-      '; "$FF" -v error -y -framerate 1 -i ' + q(fs().join(sd, "%03d.jpg")) + " -vf " + q("tile=6x" + rows.length + ":padding=6:margin=6:color=white") + " -frames:v 1 -q:v 5 " + q(fs().join(dir, "sheet-" + s + ".jpg"));
-    try {
-      await shell(sdk, "Lay out footage candidates", cmd, 120000, 4000);
-      sheets.push({ path: fs().join(dir, "sheet-" + s + ".jpg"), rows });
-    } catch {}
-  }
-
-  // the assistant's choice
-  let choice: Record<string, number[]> = {};
-  let checked = false;
-  if (sheets.length) {
-    onTick("Checking the footage against the words");
-    const said = (r: InsertRun) => words.filter((w) => w.s >= r.a - 0.05 && w.s < r.b).map((w) => w.t).join(" ");
-    const lines: string[] = [];
-    sheets.forEach((sh, si) =>
-      sh.rows.forEach((r, ri) => {
-        const run = todo[r];
-        lines.push("Sheet " + (si + 1) + ", row " + (ri + 1) + " = moment M" + (r + 1) + ": the speaker says \"" + said(run) + "\" (footage wanted: " + run.shots[0].query + "). Needs " + run.shots.length + " shot" + (run.shots.length > 1 ? "s" : "") + ".");
-      })
-    );
-    const prompt =
-      "Pure image task: do NOT use any tools. You pick stock B-roll for an a16z-style Short. Each attached sheet has one row per moment; each row shows up to six candidate clips (columns 1-6, left to right; dark grey tiles are empty).\n\n" +
-      lines.join("\n") +
-      "\n\nFor each moment choose, in order of preference, the columns whose clip a documentary editor would cut to: it must show the exact object, place, action or era the whole phrase names (coffee is not tea, a treadmill is not a running track). Never choose: a person or people as the main subject (faces, actors, posing, business people, models), 3D renders, CG animations, particles, glowing orbs, illustrations or motion graphics, anything that looks AI-generated (glossy, uncanny food or objects), neon or club lighting, strong colour casts, visible text, logos or watermarks, charts, graphs, dashboards or any screen showing data, fog or near-empty frames, or a visual pun. Hands doing the named action are fine. Return an empty list when nothing fits; staying on the speaker is better than a wrong or generic clip. "+ "Reply with ONLY a JSON object like {\"M1\": [3, 1], \"M2\": []}.";
-    const images: { dataUrl: string; name: string }[] = [];
-    for (let si = 0; si < sheets.length; si += 1) {
-      try {
-        const buf: any = await fs().readFile(sheets[si].path);
-        const bytes: Uint8Array = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-        let bin = "";
-        for (let k = 0; k < bytes.length; k += 1) bin += String.fromCharCode(bytes[k]);
-        images.push({ dataUrl: "data:image/jpeg;base64," + btoa(bin), name: "Sheet " + (si + 1) });
-      } catch {}
-    }
-    try {
-      const o = parseLoose(await ask(sdk, prompt, images));
-      for (const [k, v] of Object.entries(o || {})) if (Array.isArray(v)) choice[k] = (v as any[]).map(Number).filter((n) => n >= 1 && n <= 6);
-      checked = true;
-    } catch (e: any) {
-      notes.push("B-roll check failed (" + String(e?.message || e).slice(0, 100) + "); B-roll was left out.");
-      choice = {};
-    }
-  }
-
-  // a moment counts as checked only when the assistant saw a sheet row with at least one of its previews
-  const shown = (r: number) => sheets.some((sh) => sh.rows.includes(r)) && cands[r].some((c) => fs().existsSync(file(c)));
-  // cut the chosen clips; a clip whose middle is near black is dropped
+  // cut the clips in search order (portrait first); a clip that is too short or whose middle is near
+  // black gives way to the next one
   const cut = async (cand: Candidate, s: InsertShot) => {
     onTick("Cutting footage " + (out.length + 1));
     const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4).catch(() => null);
@@ -247,25 +150,22 @@ export async function fetchInserts(
   };
   for (let r = 0; r < todo.length; r += 1) {
     const run = todo[r];
-    // a candidate must be long enough for the shot it fills
-    const need = Math.max(...run.shots.map((s) => s.b - s.a)) + 0.7;
-    const picks = (choice["M" + (r + 1)] || []).map((c) => cands[r][c - 1]).filter((c) => c && !used.has(c.id) && c.duration >= need);
-    // fewer clips than shots: each clip holds one longer shot rather than cutting to itself
-    const per = Math.ceil(run.shots.length / Math.max(1, Math.min(run.shots.length, picks.length)));
-    for (let g = 0, k = 0; g < run.shots.length; g += per, k += 1) {
-      const part = run.shots.slice(g, g + per);
-      const cand = picks[k];
-      // a clip too short for the longer shot fills its first part only
-      const long = cand && cand.duration >= part[part.length - 1].b - part[0].a + 0.7;
-      const s = { ...part[0], b: long ? part[part.length - 1].b : part[0].b };
-      const clip = cand ? await cut(cand, s) : null;
-      if (clip) {
-        used.add(cand!.id);
-        cache[cacheKey(part[0])] = { clip: clip.clip, luma: clip.luma, b: s.b };
-        out.push({ ...s, clip: clip.clip, luma: clip.luma });
+    const pool = cands[r].filter((c) => !used.has(c.id));
+    let next = 0;
+    for (const s0 of run.shots) {
+      let placed = false;
+      while (!placed && next < pool.length) {
+        const cand = pool[next++];
+        if (used.has(cand.id) || cand.duration < s0.b - s0.a + 0.7) continue;
+        const clip = await cut(cand, s0);
+        if (!clip) continue;
+        used.add(cand.id);
+        cache[cacheKey(s0)] = { clip: clip.clip, luma: clip.luma };
+        out.push({ ...s0, clip: clip.clip, luma: clip.luma });
+        placed = true;
       }
-      // a settled answer is kept, so a rebuild does not search again
-      if (clip || (checked && shown(r))) part.slice(clip ? 1 : 0).forEach((x) => (cache[cacheKey(x)] = { clip: null }));
+      // the search had footage for this moment, so the answer is kept and a rebuild does not search again
+      if (!placed) cache[cacheKey(s0)] = { clip: null };
     }
   }
   const wanted = runs.filter((r) => !empty.includes(r)).reduce((n, r) => n + (r.shots[r.shots.length - 1].b - r.a), 0);

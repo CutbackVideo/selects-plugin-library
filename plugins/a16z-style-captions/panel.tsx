@@ -2619,21 +2619,8 @@ function planInserts(words2, beats, duration, blocked, opts) {
   }
   return runs;
 }
-async function fetchPreview(url, path) {
-  try {
-    await fs().downloadFile(url, path);
-    const head = new Uint8Array(await fs().readRange(path, 0, 4));
-    const picture = head[0] === 255 && head[1] === 216 || head[0] === 137 && head[1] === 80 || head[0] === 82 && head[1] === 73;
-    if (!picture) fs().unlinkSync(path);
-  } catch {
-    try {
-      if (fs().existsSync(path)) fs().unlinkSync(path);
-    } catch {
-    }
-  }
-}
 var cacheKey = (s) => s.query + "|" + s.alt + "|" + s.k + "|" + Math.round((s.b - s.a) * 10);
-async function fetchInserts(sdk, runs, dir, onTick, cache = {}, words2 = []) {
+async function fetchInserts(sdk, runs, dir, onTick, cache = {}) {
   const notes = [];
   if (!runs.length) return { shots: [], notes };
   if (!stockSearchAvailable()) return { shots: [], notes: ["No B-roll: this Selects version has no stock footage search. Update Selects."] };
@@ -2671,71 +2658,6 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}, words2 = []) {
   todo.push(...found.map((f) => f.run));
   const cands = found.map((f) => f.cands);
   if (!todo.length) return { shots: out.sort((a, b) => a.a - b.a), notes };
-  const pdir = fs().join(dir, "previews");
-  fs().mkdirSync(pdir, { recursive: true });
-  const file = (c) => fs().join(pdir, "p" + Math.abs(hash2(c.id)) + ".jpg");
-  const all = cands.flat().filter((c) => !fs().existsSync(file(c)));
-  if (all.length) {
-    onTick("Fetching previews");
-    for (let k = 0; k < all.length; k += 6) await Promise.all(all.slice(k, k + 6).map((c) => fetchPreview(c.preview, file(c))));
-  }
-  const sheets = [];
-  for (let s = 0; s * 4 < todo.length && s < 4; s += 1) {
-    const rows = [];
-    for (let r = s * 4; r < Math.min(todo.length, s * 4 + 4); r += 1) rows.push(r);
-    const sd = fs().join(dir, "sheet-" + s);
-    const tiles = [];
-    rows.forEach((r, ri) => {
-      for (let c = 0; c < 6; c += 1) {
-        const cand = cands[r][c];
-        tiles.push(cand && fs().existsSync(file(cand)) ? file(cand) : "");
-        void ri;
-      }
-    });
-    const cmd = FF + "set -e; rm -rf " + q(sd) + "; mkdir -p " + q(sd) + "; " + tiles.map((t, i) => {
-      const name = q(fs().join(sd, String(i + 1).padStart(3, "0") + ".jpg"));
-      return t ? '"$FF" -v error -y -i ' + q(t) + " -vf " + q("scale=180:320:force_original_aspect_ratio=decrease,pad=180:320:(ow-iw)/2:(oh-ih)/2:color=0x202020,format=yuvj420p") + " -frames:v 1 " + name : '"$FF" -v error -y -f lavfi -i color=c=0x202020:s=180x320 -vf format=yuvj420p -frames:v 1 ' + name;
-    }).join("; ") + '; "$FF" -v error -y -framerate 1 -i ' + q(fs().join(sd, "%03d.jpg")) + " -vf " + q("tile=6x" + rows.length + ":padding=6:margin=6:color=white") + " -frames:v 1 -q:v 5 " + q(fs().join(dir, "sheet-" + s + ".jpg"));
-    try {
-      await shell(sdk, "Lay out footage candidates", cmd, 12e4, 4e3);
-      sheets.push({ path: fs().join(dir, "sheet-" + s + ".jpg"), rows });
-    } catch {
-    }
-  }
-  let choice = {};
-  let checked = false;
-  if (sheets.length) {
-    onTick("Checking the footage against the words");
-    const said = (r) => words2.filter((w) => w.s >= r.a - 0.05 && w.s < r.b).map((w) => w.t).join(" ");
-    const lines = [];
-    sheets.forEach(
-      (sh, si) => sh.rows.forEach((r, ri) => {
-        const run2 = todo[r];
-        lines.push("Sheet " + (si + 1) + ", row " + (ri + 1) + " = moment M" + (r + 1) + ': the speaker says "' + said(run2) + '" (footage wanted: ' + run2.shots[0].query + "). Needs " + run2.shots.length + " shot" + (run2.shots.length > 1 ? "s" : "") + ".");
-      })
-    );
-    const prompt = "Pure image task: do NOT use any tools. You pick stock B-roll for an a16z-style Short. Each attached sheet has one row per moment; each row shows up to six candidate clips (columns 1-6, left to right; dark grey tiles are empty).\n\n" + lines.join("\n") + '\n\nFor each moment choose, in order of preference, the columns whose clip a documentary editor would cut to: it must show the exact object, place, action or era the whole phrase names (coffee is not tea, a treadmill is not a running track). Never choose: a person or people as the main subject (faces, actors, posing, business people, models), 3D renders, CG animations, particles, glowing orbs, illustrations or motion graphics, anything that looks AI-generated (glossy, uncanny food or objects), neon or club lighting, strong colour casts, visible text, logos or watermarks, charts, graphs, dashboards or any screen showing data, fog or near-empty frames, or a visual pun. Hands doing the named action are fine. Return an empty list when nothing fits; staying on the speaker is better than a wrong or generic clip. Reply with ONLY a JSON object like {"M1": [3, 1], "M2": []}.';
-    const images = [];
-    for (let si = 0; si < sheets.length; si += 1) {
-      try {
-        const buf = await fs().readFile(sheets[si].path);
-        const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-        let bin = "";
-        for (let k = 0; k < bytes.length; k += 1) bin += String.fromCharCode(bytes[k]);
-        images.push({ dataUrl: "data:image/jpeg;base64," + btoa(bin), name: "Sheet " + (si + 1) });
-      } catch {
-      }
-    }
-    try {
-      const o = parseLoose(await ask(sdk, prompt, images));
-      for (const [k, v] of Object.entries(o || {})) if (Array.isArray(v)) choice[k] = v.map(Number).filter((n) => n >= 1 && n <= 6);
-      checked = true;
-    } catch (e) {
-      notes.push("B-roll check failed (" + String(e?.message || e).slice(0, 100) + "); B-roll was left out.");
-      choice = {};
-    }
-  }
-  const shown = (r) => sheets.some((sh) => sh.rows.includes(r)) && cands[r].some((c) => fs().existsSync(file(c)));
   const cut = async (cand, s) => {
     onTick("Cutting footage " + (out.length + 1));
     const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4).catch(() => null);
@@ -2746,21 +2668,21 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}, words2 = []) {
   };
   for (let r = 0; r < todo.length; r += 1) {
     const run2 = todo[r];
-    const need = Math.max(...run2.shots.map((s) => s.b - s.a)) + 0.7;
-    const picks = (choice["M" + (r + 1)] || []).map((c) => cands[r][c - 1]).filter((c) => c && !used.has(c.id) && c.duration >= need);
-    const per = Math.ceil(run2.shots.length / Math.max(1, Math.min(run2.shots.length, picks.length)));
-    for (let g = 0, k = 0; g < run2.shots.length; g += per, k += 1) {
-      const part = run2.shots.slice(g, g + per);
-      const cand = picks[k];
-      const long = cand && cand.duration >= part[part.length - 1].b - part[0].a + 0.7;
-      const s = { ...part[0], b: long ? part[part.length - 1].b : part[0].b };
-      const clip = cand ? await cut(cand, s) : null;
-      if (clip) {
+    const pool = cands[r].filter((c) => !used.has(c.id));
+    let next = 0;
+    for (const s0 of run2.shots) {
+      let placed = false;
+      while (!placed && next < pool.length) {
+        const cand = pool[next++];
+        if (used.has(cand.id) || cand.duration < s0.b - s0.a + 0.7) continue;
+        const clip = await cut(cand, s0);
+        if (!clip) continue;
         used.add(cand.id);
-        cache[cacheKey(part[0])] = { clip: clip.clip, luma: clip.luma, b: s.b };
-        out.push({ ...s, clip: clip.clip, luma: clip.luma });
+        cache[cacheKey(s0)] = { clip: clip.clip, luma: clip.luma };
+        out.push({ ...s0, clip: clip.clip, luma: clip.luma });
+        placed = true;
       }
-      if (clip || checked && shown(r)) part.slice(clip ? 1 : 0).forEach((x) => cache[cacheKey(x)] = { clip: null });
+      if (!placed) cache[cacheKey(s0)] = { clip: null };
     }
   }
   const wanted = runs.filter((r) => !empty.includes(r)).reduce((n, r) => n + (r.shots[r.shots.length - 1].b - r.a), 0);
@@ -2910,7 +2832,7 @@ async function build(sdk, job, onStep) {
       const blocked = prep.cards.map((c) => [c.a / fps, c.b / fps]);
       const runs = planInserts(prep.words, job.semantic.broll, prep.duration, blocked, { earliest: prep.title ? prep.title.b / fps + 0.3 : 2.4, starts: unitStarts(job, prep) });
       job.brollCache = job.brollCache || {};
-      const got = await fetchInserts(sdk, runs, dir, (s) => onStep("broll", "run", s), job.brollCache, prep.words);
+      const got = await fetchInserts(sdk, runs, dir, (s) => onStep("broll", "run", s), job.brollCache);
       notes.push(...got.notes);
       if (got.shots.length) {
         const paths = [...new Set(got.shots.map((x) => x.clip.path))];
@@ -3093,7 +3015,7 @@ function A16zShort({ sdk, context }) {
   const icon = (s) => s === "done" ? "\u2713" : s === "run" ? "\u2026" : s === "fail" ? "!" : s === "skip" ? "\u2013" : "\xB7";
   const field = { display: "flex", flexDirection: "column", gap: 4 };
   const muted = { color: "var(--panel-muted-fg)" };
-  return /* @__PURE__ */ React.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "a16z-style Short, one click"), /* @__PURE__ */ React.createElement("div", { style: muted }, "Turns this talking-head Draft into a new 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, B-roll, a name tag and a music bed.")), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Speaker name (optional, for the name tag)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: name, disabled: busy, placeholder: "e.g. Jane Doe", onChange: (e) => setName(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Role line"), /* @__PURE__ */ React.createElement("input", { type: "text", value: role, disabled: busy, placeholder: "e.g. Founder, Example Labs", onChange: (e) => setRole(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Your logo (optional): path to a small PNG or SVG, shown top right"), /* @__PURE__ */ React.createElement("input", { type: "text", value: logo, disabled: busy, placeholder: "~/Pictures/logo.png", onChange: (e) => setLogo(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. the key idea is 'taste'", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: music, disabled: busy, onChange: (e) => setMusic(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Music bed (AI-generated, uses generation credits)")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: cards, disabled: busy, onChange: (e) => setCards(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Keyword cards")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: broll, disabled: busy, onChange: (e) => setBroll(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "B-roll from stock footage (Pexels and Pixabay; the assistant checks it, which uses credits)")), isShort && /* @__PURE__ */ React.createElement("button", { onClick: () => go(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild captions and graphics"), /* @__PURE__ */ React.createElement("button", { onClick: () => go(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the Short\u2026 " + clock + " s" : isShort ? "Make a new Short from this Draft" : "Make the Short"), (busy || run.steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, run.steps.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React.createElement("span", { style: muted }, " \u2014 ", s.note) : null)))), run.error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, run.error), run.result && !busy && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", null, "Made \u201C", run.result.name, "\u201D in ", Math.round(run.result.seconds), " s."), run.result.notes.length ? /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: 18, ...muted } }, run.result.notes.map((n, i) => /* @__PURE__ */ React.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the Short")), /* @__PURE__ */ React.createElement("div", { style: { ...muted, fontSize: 11 } }, "A style study, not affiliated with a16z. Use your own name, role and logo."));
+  return /* @__PURE__ */ React.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "a16z-style Short, one click"), /* @__PURE__ */ React.createElement("div", { style: muted }, "Turns this talking-head Draft into a new 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, B-roll, a name tag and a music bed.")), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Speaker name (optional, for the name tag)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: name, disabled: busy, placeholder: "e.g. Jane Doe", onChange: (e) => setName(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Role line"), /* @__PURE__ */ React.createElement("input", { type: "text", value: role, disabled: busy, placeholder: "e.g. Founder, Example Labs", onChange: (e) => setRole(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Your logo (optional): path to a small PNG or SVG, shown top right"), /* @__PURE__ */ React.createElement("input", { type: "text", value: logo, disabled: busy, placeholder: "~/Pictures/logo.png", onChange: (e) => setLogo(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. the key idea is 'taste'", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: music, disabled: busy, onChange: (e) => setMusic(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Music bed (AI-generated, uses generation credits)")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: cards, disabled: busy, onChange: (e) => setCards(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Keyword cards")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: broll, disabled: busy, onChange: (e) => setBroll(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "B-roll from stock footage (Pexels and Pixabay)")), isShort && /* @__PURE__ */ React.createElement("button", { onClick: () => go(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild captions and graphics"), /* @__PURE__ */ React.createElement("button", { onClick: () => go(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the Short\u2026 " + clock + " s" : isShort ? "Make a new Short from this Draft" : "Make the Short"), (busy || run.steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, run.steps.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React.createElement("span", { style: muted }, " \u2014 ", s.note) : null)))), run.error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, run.error), run.result && !busy && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", null, "Made \u201C", run.result.name, "\u201D in ", Math.round(run.result.seconds), " s."), run.result.notes.length ? /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: 18, ...muted } }, run.result.notes.map((n, i) => /* @__PURE__ */ React.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the Short")), /* @__PURE__ */ React.createElement("div", { style: { ...muted, fontSize: 11 } }, "A style study, not affiliated with a16z. Use your own name, role and logo."));
 }
 export {
   A16zShort as default
