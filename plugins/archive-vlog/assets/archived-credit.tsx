@@ -61,7 +61,7 @@ function avcNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Ma
 // them: Adjust edits never pass the panel's limit.
 var AVC_MAX = 24;
 function avcClip(text) {
-  var out = "", n = 0, chars = Array.from(text);
+  var out = "", n = 0, chars = Array.from(String(text));
   for (var i = 0; i < chars.length; i++) {
     var w = AVC_WIDE_RE.test(chars[i]) ? 2 : 1;
     if (n + w > AVC_MAX) break;
