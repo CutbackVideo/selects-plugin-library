@@ -2784,6 +2784,14 @@ function saeBeatWorkerSource(fileText) {
 
 // sae-panel:start
 // Plain-JS panel helpers (tests/panel.test.cjs evaluates this block in node:vm next to the planner).
+// A new run (build or "Finish look") on Project `pid`. genRef counts runs: each new run and every Project switch bump
+// it, so a run started in Project A stays stale after A -> B -> A even though the Project id matches again. live()
+// says whether the run may still write state; check() throws `stale` once it may not.
+function saeRunGuard(genRef, projectRef, pid, stale) {
+  const gen = ++genRef.current;
+  const live = () => genRef.current === gen && projectRef.current === pid;
+  return { gen, live, check: () => { if (!live()) throw stale; } };
+}
 // Build steps shown in the progress bar, with each step's share of the bar in percent. The panel names them in the UI
 // language (STRINGS `step.<id>`).
 const SAE_BUILD_STEPS = [
@@ -2952,7 +2960,7 @@ async function runStep(sdk: any, summary: string, script: string, allowCommit = 
   if (r.isError || r.result == null) throw r.output ? new Error(r.output) : uiError((l) => t(l, "stepFailed"));
   return r.result as any;
 }
-// Thrown when the Project changed while a build was running; its results are dropped silently.
+// Thrown when the Project changed (or a newer run started) while a run was going; its results are dropped silently.
 const STALE = new Error("The Project changed during the build.");
 // A short orientation hint for the clip list; nothing when the frame size is unknown.
 function shapeHint(lang: Lang, width: number | null, height: number | null) {
@@ -3211,6 +3219,8 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   const [busy, setBusy] = React.useState(false);
   // Single-flight guard: state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef(false);
+  // Run generation (saeRunGuard): bumped by every new run and every Project switch.
+  const runGenRef = React.useRef(0);
   const [progress, setProgress] = React.useState<any>(null);
   const progressRef = React.useRef<any>(null);
   const [status, setStatus] = React.useState<{ tone: string; say: Say } | null>(null);
@@ -3248,8 +3258,9 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
     if (!at || typeof e?.say === "function") return (l) => sayError(l, e);
     return (l) => t(l, "stoppedAt", { step: at.current + 1, total: SAE_BUILD_STEPS.length, name: t(l, "step." + at.id), detail: sayError(l, e) });
   };
-  const endRun = (pid: string) => {
-    if (projectRef.current !== pid) return;
+  // Ends a run's busy state, unless a newer run or a Project switch has taken over since it started.
+  const endRun = (guard: { live: () => boolean }) => {
+    if (!guard.live()) return;
     busyRef.current = false; setBusy(false); setProgress(null); progressRef.current = null;
   };
 
@@ -3306,6 +3317,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
 
   // Project switch: drop everything tied to the previous Project so a build never mixes Projects.
   React.useEffect(() => {
+    runGenRef.current++;
     setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
     setOnly(null); setOnlyPhotos(null); setClipMode("auto");
     photoSizesRef.current = {};
@@ -3664,7 +3676,8 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
     if (musicId === "own" && !ownFile) { setStatus({ tone: "error", say: (l) => t(l, "chooseMusicFile") }); return; }
     if (listening) return;
     const pid = projectId;
-    const check = () => { if (projectRef.current !== pid) throw STALE; };
+    const guard = saeRunGuard(runGenRef, projectRef, pid, STALE);
+    const check = guard.check;
     // Everything as it is at the click; a later "Finish look" reuses what this build sent.
     const bl = langRef.current;
     const settings = { cue, musicId, ownFile, section, lookId, lookOn, bars: wantedBars, clipSound, usePhotos, only: clipMode === "choose" ? only : null, onlyPhotos: clipMode === "choose" ? onlyPhotos : null };
@@ -3745,8 +3758,8 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
         plan: { notes: plan.notes, faceClips: plan.faceClips, fit: plan.fit }, unsearched: unsearched.length, notes: a.notes || [] });
       await decorate(deco, check);
     } catch (e: any) {
-      if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) });
-    } finally { endRun(pid); }
+      if (e !== STALE && guard.live()) setStatus({ tone: "error", say: stopAt(e) });
+    } finally { endRun(guard); }
   }
 
   // Commit 2 (mute when Clip sound is Off, one whip + look effect per clip), then open the Draft. decorate.js adds
@@ -3773,6 +3786,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
       if (o.openError) throw new Error(o.openError);
     } catch (e: any) {
       if (e === STALE) throw e;
+      check();
       setStatus({ tone: "error", say: (l) => t(l, "openFailed", { detail: sayError(l, e) }) });
     }
     advance("look", 1);
@@ -3789,13 +3803,13 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
 
   async function finishLook() {
     if (busyRef.current || !result || !assets) return;
-    const pid = projectId;
-    const check = () => { if (projectRef.current !== pid) throw STALE; };
+    const guard = saeRunGuard(runGenRef, projectRef, projectId, STALE);
+    const check = guard.check;
     busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
     progressRef.current = null;
     try { await decorate(result.deco, check); }
-    catch (e: any) { if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) }); }
-    finally { endRun(pid); }
+    catch (e: any) { if (e !== STALE && guard.live()) setStatus({ tone: "error", say: stopAt(e) }); }
+    finally { endRun(guard); }
   }
 
   // ---- render ----

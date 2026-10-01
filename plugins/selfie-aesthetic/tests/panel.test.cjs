@@ -202,7 +202,7 @@ const tt = (lang, key, vars = {}) => {
 const box = { t: tt, console };
 vm.createContext(box);
 vm.runInContext(planner + '\n' + between(own, '// sae-panel:start', '// sae-panel:end')
-  + '\nthis.api = { SAE_BUILD_STEPS, saeProgress, saeSpansOf, saeRealIds, saeDraftName, saeTrimHolds, saeOwnCue, saeLoudestSection, saeAnalysisCounts, saeAnalysisText, saeAnalysisNotes, saePlanNotes, saePlanBuild, saeVideoSeconds, saeSectionRange, saeBarGrid, SAE_LEAD };', box);
+  + '\nthis.api = { SAE_BUILD_STEPS, saeProgress, saeSpansOf, saeRealIds, saeDraftName, saeTrimHolds, saeOwnCue, saeLoudestSection, saeAnalysisCounts, saeAnalysisText, saeAnalysisNotes, saePlanNotes, saePlanBuild, saeVideoSeconds, saeSectionRange, saeBarGrid, saeRunGuard, SAE_LEAD };', box);
 const api = box.api;
 
 test('progress: five steps, monotonic, 100% only at the very end', () => {
@@ -220,6 +220,64 @@ test('progress: five steps, monotonic, 100% only at the very end', () => {
   assert.throws(() => api.saeProgress('open', 0));
   // The panel keeps the bar where it is when a report comes in lower.
   assert.ok(own.includes('const p = prev && prev.value > next.value ? { ...prev, detail } : { ...next, detail };'));
+});
+test('run generation: a build from Project A that resumes after A -> B -> A writes nothing', async () => {
+  // A miniature of the panel's build(): each awaited script is a deferred promise the test settles by hand; state
+  // writes happen only after check(), and the finally clears busy only through endRun's live() test.
+  const STALE = new Error('stale');
+  const genRef = { current: 0 }, projectRef = { current: 'A' };
+  const state = { busy: false, progress: [], result: null, status: null };
+  const switchTo = (pid) => { projectRef.current = pid; genRef.current++; state.busy = false; };
+  const startBuild = (label) => {
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    const guard = api.saeRunGuard(genRef, projectRef, projectRef.current, STALE);
+    state.busy = true;
+    const done = (async () => {
+      try {
+        await gate;
+        guard.check();
+        state.progress.push(label);
+        state.result = label;
+      } catch (e) {
+        if (e !== STALE && guard.live()) state.status = String(e);
+      } finally { if (guard.live()) state.busy = false; }
+    })();
+    return { guard, release, done };
+  };
+  const first = startBuild('first');
+  switchTo('B');
+  switchTo('A');
+  assert.equal(first.guard.live(), false, 'same Project id, older generation');
+  const second = startBuild('second');
+  assert.equal(second.guard.gen, first.guard.gen + 3);
+  // The old build's script returns while the new one is still running: nothing changes, busy stays on.
+  first.release();
+  await first.done;
+  assert.deepEqual(state.progress, []);
+  assert.equal(state.result, null);
+  assert.equal(state.busy, true, 'the stale build must not end the new build');
+  assert.throws(() => first.guard.check(), (e) => e === STALE);
+  second.release();
+  await second.done;
+  assert.deepEqual(state.progress, ['second']);
+  assert.equal(state.result, 'second');
+  assert.equal(state.busy, false);
+  // A plain Project switch (no return) also stops a run, and a newer run in the same Project supersedes the older one.
+  const g1 = api.saeRunGuard(genRef, projectRef, 'A', STALE);
+  projectRef.current = 'B';
+  assert.equal(g1.live(), false);
+  projectRef.current = 'A';
+  const g2 = api.saeRunGuard(genRef, projectRef, 'A', STALE);
+  assert.equal(g1.live(), false);
+  assert.equal(g2.live(), true);
+  // The panel wires it: the Project-switch effect bumps the generation, build and Finish look take a guard, and
+  // endRun / the error paths test live() instead of the Project id.
+  assert.ok(/React\.useEffect\(\(\) => \{\n    runGenRef\.current\+\+;\n    setResult\(null\);[\s\S]*?\}, \[projectId\]\);/.test(own), 'switch effect bumps runGenRef');
+  assert.equal((own.match(/saeRunGuard\(runGenRef, projectRef, /g) || []).length, 2, 'build and finishLook take a guard');
+  assert.ok(own.includes('const endRun = (guard: { live: () => boolean }) => {\n    if (!guard.live()) return;'), 'endRun tests the generation');
+  assert.equal((own.match(/finally \{ endRun\(guard\); \}/g) || []).length, 2);
+  assert.ok(!/projectRef\.current !== pid\) throw STALE|endRun\(pid\)|e !== STALE && projectRef\.current === pid/.test(own), 'no pid-only guards left');
 });
 test('bad-shot spans: every track merged, malformed entries skipped; alias ids mapped once', () => {
   assert.deepEqual(plain(api.saeSpansOf({ spans: { 1: { badShotSpans: [[4, 5], [1, 2]] }, 0: { badShotSpans: [[0.5, 0.8], [3, 3], ['x', 2], [7]] } } })), [[0.5, 0.8], [1, 2], [4, 5]]);
