@@ -3536,10 +3536,16 @@ function hostJoin(...parts) {
   const sep = hostIsWindows() ? "\\" : "/";
   return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
 }
-// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool).
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
 function hostBytes(v) {
-  if (v instanceof ArrayBuffer) return new Uint8Array(v);
-  if (v && v.buffer instanceof ArrayBuffer) return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
   throw hostError("read-failed", "the file could not be read");
 }
 // A file's bytes (FileSystem.readFile without an encoding).

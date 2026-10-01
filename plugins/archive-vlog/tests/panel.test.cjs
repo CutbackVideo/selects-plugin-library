@@ -646,3 +646,23 @@ assert.ok(!/new Function|\beval\(/.test(ui), 'no runtime evaluation in the panel
 }
 
 hostTests.then(() => console.log('panel ok'), e => { console.error(e); process.exit(1); });
+
+// Host bytes from another realm: FileSystem.readFile answers from window.parent, so its Buffer / Uint8Array /
+// ArrayBuffer are not `instanceof` the panel realm's classes. hostReadText and hostReadBytes must still read them
+// (Staging 2026-10-01: every asset read failed with "the file could not be read").
+{
+  const parentRealm = vm.createContext({});
+  const foreign = {
+    u8: vm.runInContext('new Uint8Array([104, 105])', parentRealm),
+    ab: vm.runInContext('new Uint8Array([104, 105]).buffer', parentRealm),
+    view: vm.runInContext('new Uint8Array([0, 104, 105, 0]).subarray(1, 3)', parentRealm),
+    arr: vm.runInContext('[104, 105]', parentRealm),
+  };
+  for (const [kind, value] of Object.entries(foreign)) {
+    const ctx = { window: { parent: { __DI__: { FileSystem: { readFile: async () => value } } } }, TextDecoder, Uint8Array, Object };
+    vm.createContext(ctx);
+    vm.runInContext(hostBlock + '\nthis.H = { hostReadText, hostReadBytes };', ctx);
+    ctx.H.hostReadText('x').then((txt) => assert.equal(txt, 'hi', 'cross-realm ' + kind + ' as text'));
+    ctx.H.hostReadBytes('x').then((b) => assert.deepEqual(Array.from(b), [104, 105], 'cross-realm ' + kind + ' as bytes'));
+  }
+}
