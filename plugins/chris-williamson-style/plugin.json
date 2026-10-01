@@ -33,6 +33,12 @@
     ],
     "selects": "Requires current Selects panel runScript/runShell/askAI and getDraftCore/captureVisualFrames. Development build only; released-version compatibility is unverified."
   },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  },
   "collection": "visual-highlights",
   "usesCredits": true,
   "inputs": [
