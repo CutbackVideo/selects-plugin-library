@@ -1860,7 +1860,8 @@ const PREVIEW_FADE = 0.4;
 // shot (2 beats, so the montage starts on beat 8, a downbeat), a montage of N shots of M beats each, and a held final
 // shot (F beats). Pace Cinematic: M = 2 up to 110 bpm, 4 above; Quick: M = 1 up to 110 bpm, 2 above, with twice the
 // shots, so a Length keeps its duration. F = 4 up to 110 bpm, 8 above. The montage is always whole bars (N x M a
-// multiple of 4) and shrinks by whole bars when the footage or the music is short; the intro and the final shot stay.
+// multiple of 4) and shrinks by whole bars when the footage or the music is short, down to AV_MIN_MONTAGE shots; the
+// intro and the final shot stay.
 // Without a usable grid (tempo outside 70-160 bpm, own music not accepted, or No music) the same template runs on a
 // fixed beat: an approximate tempo's (avApproxTempo) when own music has one, else 60 / AV_FALLBACK_BPM s.
 // Montage shots per Length at Pace Cinematic (Quick doubles them, avMontageShots).
@@ -1873,6 +1874,8 @@ const AV_TEMPO_MAX = 160;
 const AV_FALLBACK_BPM = 72;
 // Up to this tempo montage shots are 2 beats (Quick 1) and the final shot 4 beats; above it 4 (Quick 2) and 8.
 const AV_SLOW_MAX_BPM = 110;
+// The shortest montage, in shots, at both paces (kit default): 4 x M beats is whole bars for every M (1, 2 or 4).
+const AV_MIN_MONTAGE = 4;
 // Slot roles: the intro's two, the montage cycle, the final shot (spec 8). The panel holds the search queries.
 const AV_MONTAGE_ROLES = ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline'];
 const AV_ROLES = ['opening', 'portrait'].concat(AV_MONTAGE_ROLES, ['ending']);
@@ -1909,7 +1912,7 @@ const AV_SOURCE_TAIL = 0.15;
 // videos), so 4.85 s. About AV_PHOTO_SHARE of the slots that may hold a photo (the montage), evenly spread from a seeded
 // offset, are photo slots where an unused photo comes first. Elsewhere photos rank after every real video hit and
 // before fillers. Never more than AV_PHOTO_RUN_MAX photos play in a row (a hard rule) unless the pool has no video at
-// all.
+// all (avAllocate alone: avPlanBuild never plans without videos).
 const AV_PHOTO_HOLD_MAX = 5;
 const AV_PHOTO_RUN_MAX = 2;
 const AV_PHOTO_SHARE = 1 / 3;
@@ -1959,11 +1962,11 @@ function avMontageShots(length, pace) {
 }
 
 // The montage lengths (shots) a plan may try, longest first. opts: { requested, pace, bpm (avTempo's tempo) }. The
-// steps keep the montage whole bars and the shot count stable across tempos: Cinematic shrinks by 2 shots, Quick by 4;
-// the shortest montage is one bar (4 / M shots), added at the end when the steps miss it (Cinematic above 110 bpm:
-// 8, 6, 4, 2, 1; Quick above 110 bpm: 16, 12, 8, 4, 2). A non-finite request counts as Standard.
+// steps keep the montage whole bars and the shot count stable across tempos: Cinematic shrinks by 2 shots, Quick by 4,
+// both down to AV_MIN_MONTAGE (4) shots (Cinematic 16: 16, 14, ..., 4; Quick 32: 32, 28, ..., 4). A non-finite request
+// counts as Standard; a request under 4 shots gives [4].
 function avMontageLadder(opts) {
-  const m = avMontageBeats(opts.pace, opts.bpm), step = opts.pace === 'quick' ? 4 : 2, least = 4 / m;
+  const step = opts.pace === 'quick' ? 4 : 2, least = AV_MIN_MONTAGE;
   const asked = typeof opts.requested === 'number' && isFinite(opts.requested) ? opts.requested : avMontageShots('standard', opts.pace);
   const out = [];
   for (let n = Math.floor(asked / step) * step; n >= least; n -= step) out.push(n);
@@ -1992,7 +1995,7 @@ function avVideoSeconds(opts) {
 }
 
 // Music capacity: the longest montage (avMontageLadder) whose whole video fits between sectionStart and usableEnd, in
-// shots, else 0. opts: { requested, pace, bpm (avTempo's tempo), sectionStart?, usableEnd? (Infinity / omitted without
+// montage shots (the 3 bookend shots are not counted), else 0 (not even AV_MIN_MONTAGE shots fit). opts: { requested, pace, bpm (avTempo's tempo), sectionStart?, usableEnd? (Infinity / omitted without
 // music) }.
 function avFitShots(opts) {
   const start = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
@@ -2005,11 +2008,14 @@ function avFitShots(opts) {
 
 // The opening animation's timings (spec 4) in seconds from the clip start: the reference's, scaled by
 // k = min(1, openingSeconds / AV_OPENING_REF_SECONDS), so a faster cue compresses the animation instead of lengthening
-// the intro. Letterbox reveal from revealStart to revealEnd, kicker and tagline at textIn, decode from decodeStart,
-// letterSeconds per title letter.
+// the intro. Letterbox reveal from revealStart to revealEnd (fully open at 2.35 s in the reference), kicker and tagline
+// at textIn, decode from decodeStart, letterSeconds per title letter (9 letters end at 2.90 + 9 x 0.115 = 3.935 s, the
+// reference's ~3.94 s). cutSeconds is the opening shot's length (the cut the title holds until, unscaled): the title
+// fits its decode before it with a readable hold (decode-title.tsx avTiming).
 function avOpeningTiming(openingSeconds) {
-  const k = Math.min(1, Math.max(0, Number(openingSeconds) || 0) / AV_OPENING_REF_SECONDS);
-  return { k, revealStart: 0.22 * k, revealEnd: 2.30 * k, textIn: 2.40 * k, decodeStart: 2.90 * k, letterSeconds: 0.11 * k };
+  const cutSeconds = Math.max(0, Number(openingSeconds) || 0);
+  const k = Math.min(1, cutSeconds / AV_OPENING_REF_SECONDS);
+  return { k, revealStart: 0.22 * k, revealEnd: 2.35 * k, textIn: 2.40 * k, decodeStart: 2.90 * k, letterSeconds: 0.115 * k, cutSeconds };
 }
 
 // Where the music's beats land on the timeline. Selects snaps the music's source start (sectionStart) to a timeline
@@ -2372,41 +2378,71 @@ function avAllocate(opts) {
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
 // approxBpm? (avApproxTempo), fps, pace: 'cinematic' (default) | 'quick', requested (montage shots, avMontageShots),
 // sectionStart?, usableEnd? (Infinity / omitted without music), onsets?, onsetThresholds?, lowConfidence?, seed,
-// photoShare?, motionOpener? (avAllocate) }.
-// Order: the music caps the montage (avFitShots), then the plan tries that montage and shrinks it down the ladder
-// (avMontageLadder: whole bars, one bar at least) until the strict allocation fills every slot; the opening, credit and
-// final shots are never dropped. Every attempt allocates from scratch with filler candidates added (see `attempts`
-// below). Failure reasons: 'music-too-short' (not even a one-bar montage fits the music), 'one-resource' (fewer than 2
-// distinct sources: the adjacency rule cannot hold), 'no-video' (photos only, and they cannot fill even the shortest
-// plan: a photo holds at most AV_PHOTO_HOLD_MAX - AV_SOURCE_TAIL = 4.85 s, which the 6-beat opening outlasts below
-// 74.2 bpm), 'too-few' (the
-// footage cannot fill even the shortest plan). A failure carries usableShots (montage slots the shortest plan filled)
+// photoShare?, motionOpener? (avAllocate) }. There is no credit option: Credit off only drops the credit graphic, the
+// 2-beat credit shot stays, so the plan never depends on it.
+// Eligibility (spec 3): the opening, credit and final shots (the 3 bookends) are video only; photos only fill montage
+// shots. Every shot count here is montage shots: `shots`, `requested`, `musicShots` and `usableShots` exclude the 3
+// bookends (`slots` = shots + 3 counts them).
+// Preflight, before any allocation, in this order. Each failure is { ok: false, reason, usableShots: 0, usableSlots: 0,
+// notes: [], ...vars } with the vars the panel's message needs:
+// - 'no-video': no usable video at all (photos alone cannot fill the bookends).
+// - 'one-video': a single video source. The opening and credit shots are adjacent video-only shots and the previous
+//   shot's source is never used again, so they need 2 distinct videos (photos cannot help).
+// - 'opening-too-short': no video source is long enough for the opening shot (6 beats) at this tempo. vars:
+//   neededSeconds (the source length the shot needs: its length at opts.fps + AV_SOURCE_TAIL, as avAllocate checks
+//   it), shotSeconds (the shot's length), longestSeconds (the longest video source).
+// - 'ending-too-short': the same for the final shot (4 beats, 8 above 110 bpm).
+// - 'music-too-short': the music section cannot hold the intro, AV_MIN_MONTAGE montage shots and the final shot.
+//   vars: neededSeconds (that video's length), availableSeconds (usableEnd - sectionStart).
+// The bookend lengths come from the longest montage the music fits (the shortest one when nothing fits), on the plan
+// rate opts.fps.
+// Then the music caps the montage (avFitShots), and the plan tries that montage and shrinks it down the ladder
+// (avMontageLadder: whole bars, AV_MIN_MONTAGE shots at least) until the strict allocation fills every slot; the
+// bookends are never dropped. Every attempt allocates from scratch with filler candidates added (see `attempts` below).
+// When even the shortest plan cannot be filled: 'too-few', with usableShots (montage slots the shortest plan filled)
 // and usableSlots (all slots it filled).
-// A pool with no usable video lets photos take the opening, credit and final shots and plays photos in any run (as
-// Mini Vlog's photo-only pool); notes then holds 'no-video' so the panel can say so.
 // A plan returns { ok: true, schedule (its slots carry role, part and beats), picks, shots: montage shots, requested:
-// the montage asked for (the ladder's top), slots: all slots, fittedByMusic, pace, montageBeats, finalBeats, tempo,
-// beatSeconds, gridded, approxBpm (the approximate tempo the fixed timing used, else null), fillerShots, photoShots,
-// attempt, notes }.
+// the montage asked for (the ladder's top), musicShots: the montage the music fits (avFitShots), slots: all slots,
+// fittedByMusic, pace, montageBeats, finalBeats, tempo, beatSeconds, gridded, approxBpm (the approximate tempo the
+// fixed timing used, else null), fillerShots, photoShots, attempt, notes ([], kept for the panel) }.
 function avPlanBuild(opts) {
   const pace = opts.pace === 'quick' ? 'quick' : 'cinematic';
   // The tempo the template follows: the grid's, else an approximate one, else AV_FALLBACK_BPM (fixed timing).
   const { gridded, approxBpm, tempo, beatSeconds } = avTempo(opts);
   const ladder = avMontageLadder({ requested: opts.requested, pace, bpm: tempo });
-  const requested = ladder[0];
+  const requested = ladder[0], least = ladder[ladder.length - 1];
   const top = avFitShots({ requested, pace, bpm: tempo, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd });
-  if (top === 0) return { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0 };
+  const fail = (reason, vars) => ({ ok: false, reason, usableShots: 0, usableSlots: 0, notes: [], ...(vars || {}) });
   // Distinct sources the allocator can use: valid videos (as avAllocate filters them) and photos.
   const finite = v => typeof v === 'number' && isFinite(v);
-  const rids = {};
-  let hasPhotos = false, hasVideo = false;
+  const videos = {};
+  let hasPhotos = false;
   for (const c of opts.candidates) {
     if (!c || typeof c.rid !== 'string') continue;
-    if (c.kind === 'photo') { rids[c.rid] = true; hasPhotos = true; }
-    else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) { rids[c.rid] = true; hasVideo = true; }
+    if (c.kind === 'photo') hasPhotos = true;
+    else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) videos[c.rid] = Math.max(videos[c.rid] || 0, c.sourceDuration);
   }
-  if (Object.keys(rids).length < 2) return { ok: false, reason: 'one-resource', usableShots: 0, usableSlots: 0 };
-  const notes = hasVideo ? [] : ['no-video'];
+  const videoRids = Object.keys(videos);
+  if (!videoRids.length) return fail('no-video');
+  if (videoRids.length < 2) return fail('one-video');
+  const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
+  const scheduleOf = tpl => avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
+  // Bookend preflight: a video source must hold the opening and the final shot whole (avAllocate's own test).
+  {
+    const sch = scheduleOf(avTemplate({ bpm: tempo, pace, montageShots: top || least }));
+    const longest = Math.max(...videoRids.map(r => videos[r]));
+    const check = (reason, slot) => {
+      const shotSeconds = (slot.endFrame - slot.startFrame) / opts.fps;
+      return longest < shotSeconds + AV_SOURCE_TAIL ? fail(reason, { neededSeconds: shotSeconds + AV_SOURCE_TAIL, shotSeconds, longestSeconds: longest }) : null;
+    };
+    const bad = check('opening-too-short', sch.slots[0]) || check('ending-too-short', sch.slots[sch.slots.length - 1]);
+    if (bad) return bad;
+  }
+  if (top === 0) {
+    const start = finite(opts.sectionStart) ? opts.sectionStart : 0;
+    return fail('music-too-short', { neededSeconds: avVideoSeconds({ bpm: tempo, pace, montageShots: least }), availableSeconds: Math.max(0, opts.usableEnd - start) });
+  }
+  const notes = [];
   const candidates = opts.candidates.concat(avFillers(opts.candidates));
   // Share attempts per length. The greedy allocator spends a scarce video window after every photo outside the photo
   // slots, which can strand photos behind the run limit although the length is fillable (P P a P P b P P). So before a
@@ -2427,8 +2463,6 @@ function avPlanBuild(opts) {
   let usableShots = 0, usableSlots = 0;
   // Whether avAllocate's motion opener can apply (some video candidate carries motion).
   const motionTagged = opts.motionOpener !== false && candidates.some(c => c && c.kind !== 'photo' && c.motion > 0);
-  const least = ladder[ladder.length - 1];
-  const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
   // The shortest plan's fill, for the failure report.
   const tally = (alloc, tpl) => {
     usableSlots = Math.max(usableSlots, alloc.filled);
@@ -2437,8 +2471,8 @@ function avPlanBuild(opts) {
   for (const n of ladder) {
     if (n > top) continue;
     const tpl = avTemplate({ bpm: tempo, pace, montageShots: n });
-    const schedule = avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
-    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: hasVideo && tpl.videoOnly[i] }));
+    const schedule = scheduleOf(tpl);
+    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: tpl.videoOnly[i] }));
     for (const attempt of attempts) {
       let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: opts.motionOpener });
       let name = attempt.name;
@@ -2450,14 +2484,14 @@ function avPlanBuild(opts) {
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
-        return { ok: true, schedule, picks: alloc.picks, shots: n, requested, slots: slots.length, fittedByMusic: top < requested, pace,
+        return { ok: true, schedule, picks: alloc.picks, shots: n, requested, musicShots: top, slots: slots.length, fittedByMusic: top < requested, pace,
           montageBeats: tpl.montageBeats, finalBeats: tpl.finalBeats, tempo, beatSeconds, gridded, approxBpm,
           fillerShots: alloc.fillerShots, photoShots: alloc.photoShots, attempt: name, notes };
       }
       if (n === least) tally(alloc, tpl);
     }
   }
-  return { ok: false, reason: hasVideo ? 'too-few' : 'no-video', usableShots, usableSlots, notes };
+  return { ok: false, reason: 'too-few', usableShots, usableSlots, notes };
 }
 
 // Photo motions, in pick order: every photo pick gets one; videos and empty picks get null.
@@ -2772,8 +2806,15 @@ var AV_TITLE_PRESETS = {
   "a-day-out": { titleColor: "#FFFFFF", textColor: "#FFFFFF", taglineTracking: 0.12, taglineSize: 80 },
   "golden-hour": { titleColor: "#F6E3C2", textColor: "#FFFFFF", taglineTracking: 0.5, taglineSize: 100 },
 };
-// Default timing in seconds from the clip start (the reference at k = 1; decorate passes the planner's scaled values).
-var AV_TIMING = { textIn: 2.4, decodeStart: 2.9, letterSeconds: 0.11 };
+// Default timing in seconds from the clip start (the reference at k = 1; decorate passes the planner's scaled values,
+// planner avOpeningTiming, with cutSeconds: the opening shot's length).
+var AV_TIMING = { textIn: 2.4, decodeStart: 2.9, letterSeconds: 0.115 };
+// Decode fit (avTiming): the title holds fully decoded for at least max(AV_HOLD_MIN, AV_HOLD_SHARE x cutSeconds) before
+// the cut; a letter takes at least AV_LETTER_MIN s unless even starting at textIn cannot fit that.
+var AV_HOLD_MIN = 0.8, AV_HOLD_SHARE = 0.25, AV_LETTER_MIN = 0.03;
+// Graphemes per field, the presets' `max` (presets.json, the same for every preset). Adjust edits bypass the panel's
+// counter, so the graphic cuts longer text itself.
+var AV_FIELD_MAX = { kicker: 24, title: 16, tagline: 48 };
 var AV_TITLE_CAP = 150 / 1080, AV_KICKER_CAP = 22 / 1080, AV_TAGLINE_CAP = 19 / 1080;
 var AV_GAP_KICKER = 21 / 150, AV_GAP_TAGLINE = 22 / 150; // ink gaps, fractions of the title's cap height
 var AV_FIT = 0.8; // max lockup width, fraction of canvas width
@@ -2809,15 +2850,41 @@ var AV_POOL_HANGUL = [0xAC00, 0xB098, 0xB2E4, 0xB77C, 0xB9C8, 0xBC14, 0xC0AC, 0x
   0xB78C, 0xAF43, 0xAE38, 0xBC24, 0xBCC4, 0xB178, 0xC744, 0xC601, 0xD654, 0xC21C, 0xAC10, 0xC815, 0xC5B5, 0xCD94, 0xD55C, 0xAD6D, 0xBD80,
   0xC0B0, 0xC81C, 0xC8FC, 0xAC70, 0xD48D, 0xACBD].map(function (c) { return String.fromCharCode(c); });
 
-// A character's class: which pool its ghost glyphs come from ("space" takes no decode time).
-function avCharClass(ch) {
-  if (/\s/.test(ch)) return "space";
-  if (AV_HANGUL_RE.test(ch)) return "hangul";
-  if (/[0-9]/.test(ch)) return "digit";
-  if (/[A-Z\u00c0-\u00de]/.test(ch)) return "upper";
-  if (/[a-z\u00df-\u00ff]/.test(ch)) return "lower";
-  return "other";
+// Letters and numbers of any script (Unicode property escapes where the engine has them; else cased letters and wide
+// glyphs).
+var AV_LETTER_RE = (function () { try { return new RegExp("[\\p{L}\\p{N}]", "u"); } catch (e) { return null; } })();
+function avIsLetter(ch) {
+  return AV_LETTER_RE ? AV_LETTER_RE.test(ch) : ch.toUpperCase() !== ch.toLowerCase() || AV_WIDE_RE.test(ch) || /[0-9]/.test(ch);
 }
+// Grapheme clusters (Intl.Segmenter when the engine has it, else code points), so a letter with a combining mark or a
+// surrogate pair is one decode position and counts once against AV_FIELD_MAX. Precomposed Latin, Hangul syllables and
+// digits split the same either way; a combining sequence or an emoji sequence may count differently on an engine
+// without Intl.Segmenter.
+var AV_SEGMENTER = (function () {
+  // Object(Intl): untyped, so the block type-checks against libs without Intl.Segmenter.
+  try { var I = typeof Intl !== "undefined" ? Object(Intl) : null; return I && I.Segmenter ? new I.Segmenter(undefined, { granularity: "grapheme" }) : null; } catch (e) { return null; }
+})();
+function avGraphemes(text) {
+  text = String(text || "");
+  if (!AV_SEGMENTER) return Array.from(text);
+  var out = [], it = AV_SEGMENTER.segment(text)[Symbol.iterator](), step = it.next();
+  while (!step.done) { out.push(step.value.segment); step = it.next(); }
+  return out;
+}
+// A grapheme's class, from its first code point: which pool its ghost glyphs come from. Each position flips through its
+// own script's pool, so a mixed Latin / Hangul title keeps Latin ghosts on Latin letters. "space" and "fixed"
+// (punctuation, symbols) take no decode time; "other" (a letter of another script) takes a step and ghosts as itself.
+function avCharClass(ch) {
+  var c = Array.from(String(ch || " "))[0];
+  if (/\s/.test(c)) return "space";
+  if (AV_HANGUL_RE.test(c)) return "hangul";
+  if (/[0-9]/.test(c)) return "digit";
+  if (/[A-Z\u00c0-\u00d6\u00d8-\u00de\u0100-\u024f]/.test(c) && c !== c.toLowerCase()) return "upper";
+  if (/[a-z\u00df-\u00f6\u00f8-\u00ff\u0100-\u024f]/.test(c)) return "lower";
+  return avIsLetter(c) ? "other" : "fixed";
+}
+// Classes that take a decode step.
+function avLockable(cls) { return cls !== "space" && cls !== "fixed"; }
 function avPool(cls, ch) {
   return cls === "hangul" ? AV_POOL_HANGUL : cls === "digit" ? AV_POOL_DIGIT : cls === "upper" ? AV_POOL_UPPER : cls === "lower" ? AV_POOL_LOWER : [ch];
 }
@@ -2859,14 +2926,15 @@ function avKoMeasure(data) {
   if (!ctx || typeof ctx.measureText !== "function") return null;
   var face = AV_TITLE_FACES[data.font] || AV_TITLE_FACES.anton, px = 100;
   ctx.font = "700 " + px + "px " + avFontStack(face.family);
-  var out = { koAdvances: {} };
+  // Built in one literal at the end (the panel type-checks this block: no keys added later). Object({}) is an
+  // untyped map for the per-character advances.
   var s = ctx.measureText("\ud55c\uae00");
-  if (s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0) out.koInk = { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px };
-  var chars = Array.from(text).concat(avHasHangul(f.title) ? AV_POOL_HANGUL : []);
+  var ink = s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0 ? { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px } : null;
+  var adv = Object({}), chars = Array.from(text).concat(avHasHangul(f.title) ? AV_POOL_HANGUL : []);
   for (var i = 0; i < chars.length; i++) {
-    if (AV_WIDE_RE.test(chars[i]) && !(chars[i] in out.koAdvances)) out.koAdvances[chars[i]] = ctx.measureText(chars[i]).width / px;
+    if (AV_WIDE_RE.test(chars[i]) && !(chars[i] in adv)) adv[chars[i]] = ctx.measureText(chars[i]).width / px;
   }
-  return out;
+  return ink ? { koAdvances: adv, koInk: ink } : { koAdvances: adv };
 }
 
 function avMetrics(data, family) {
@@ -2897,11 +2965,16 @@ function avInk(text, m, kw) {
 // Latin is set in capitals; text with Hangul keeps its case.
 function avCase(text) { return avHasHangul(text) ? text : text.toUpperCase(); }
 
+// The three text fields, each cut to AV_FIELD_MAX graphemes (after the case change, which can lengthen a word).
 function avTitleFields(data) {
   var raw = data.fields || {};
   // Adjust edits land on flat keys (data.title, ...), so a flat string wins over data.fields.
-  var pick = function (k) { var v = typeof data[k] === "string" ? data[k] : raw[k]; return typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""; };
-  return { kicker: avCase(pick("kicker")), title: avCase(pick("title")), tagline: avCase(pick("tagline")) };
+  var pick = function (k) {
+    var v = typeof data[k] === "string" ? data[k] : raw[k];
+    var g = avGraphemes(avCase(typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""));
+    return g.slice(0, AV_FIELD_MAX[k]).join("").trim();
+  };
+  return { kicker: pick("kicker"), title: pick("title"), tagline: pick("tagline") };
 }
 function avNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
 
@@ -2929,12 +3002,19 @@ function avTitleLayout(data, width, height) {
   if (fields.title) {
     var ko = avHasHangul(fields.title), cx = ko ? 1 : face.condense;
     var F0 = (AV_TITLE_CAP * H * S) / (mt.capHeight / mt.unitsPerEm);
-    var w0 = avTextWidth(fields.title, mt, F0, 0, kw) * cx;
+    // One letter box per grapheme, advanced by its first code point (a combining mark adds no width).
+    var chars = avGraphemes(fields.title), units = 0;
+    for (var u = 0; u < chars.length; u++) units += avAdvance(mt, Array.from(chars[u])[0], kw);
+    var w0 = ((units * F0) / mt.unitsPerEm) * cx;
     var F = F0 * Math.max(AV_TITLE_FLOOR, Math.min(1, fitW / w0));
-    var chars = Array.from(fields.title), pen = 0, step = 0, letters = [];
+    var pen = 0, step = 0, letters = [];
     for (var i = 0; i < chars.length; i++) {
-      var ch = chars[i], cls = avCharClass(ch), w = (avAdvance(mt, ch, kw) * F * cx) / mt.unitsPerEm;
-      letters.push({ ch: ch, cls: cls, x: pen, w: w, step: cls === "space" ? -1 : step++ });
+      var ch = chars[i], cls = avCharClass(ch), w = (avAdvance(mt, Array.from(ch)[0], kw) * F * cx) / mt.unitsPerEm;
+      // step: the letter's decode step (-1 for a space or punctuation); at: the step from which it is drawn (a
+      // punctuation mark is drawn solid once every letter before it has locked).
+      var lock = avLockable(cls);
+      letters.push({ ch: ch, cls: cls, x: pen, w: w, step: lock ? step : -1, at: step });
+      if (lock) step++;
       pen += w;
     }
     title = { part: "title", text: fields.title, family: face.family, weight: face.weight, stack: avFontStack(face.family), size: F, condense: cx,
@@ -2986,42 +3066,65 @@ function avTitleLayout(data, width, height) {
     if (p.letters) o.letters = p.letters.map(function (l) { return Object.assign({}, l, { x: o.x + l.x * k, w: l.w * k }); });
     return o;
   };
-  var out = { title: place(title), kicker: place(kicker), tagline: place(tagline), box: [tx(box[0]), ty(box[1]), tx(box[2]), ty(box[3])], steps: title ? title.steps : 0 };
-  out.metrics = mt;
-  return out;
+  return { title: place(title), kicker: place(kicker), tagline: place(tagline), box: [tx(box[0]), ty(box[1]), tx(box[2]), ty(box[3])], steps: title ? title.steps : 0, metrics: mt };
 }
 
-// Timing in seconds ({ revealStart?, textIn, decodeStart, letterSeconds }); `speed` (%) scales the letter rate.
-// revealStart is accepted so the planner's timing object can be passed whole; the title does not use it.
-function avTiming(data) {
+// Timing in seconds for a title of `steps` decode steps (its lockable graphemes; spaces and punctuation take none) at
+// `fps` (default 30): { textIn, decodeStart, letterSeconds, cutSeconds, minHold, fit }. data.timing is the planner's
+// avOpeningTiming ({ revealStart?, revealEnd?, k?, textIn, decodeStart, letterSeconds, cutSeconds? }; the reveal keys
+// are accepted so the object can be passed whole). `speed` (%, clamped to 25-400) scales the letter rate:
+// base = letterSeconds x 100 / speed.
+// Fit, when cutSeconds (the opening shot's length) is given and the title has steps: the last letter must lock by
+// end = cutSeconds - minHold - 2 / fps, minHold = max(AV_HOLD_MIN, AV_HOLD_SHARE x cutSeconds) (the 2 frames cover the
+// frame rounding of decodeStart and of the last lock, so the hold is >= minHold in whole frames).
+//   1. letterSeconds = min(base, max(AV_LETTER_MIN, (end - decodeStart) / steps)): never slower than asked, faster
+//      when the decode would run into the hold ('letters').
+//   2. Still past end at AV_LETTER_MIN per letter: the decode starts earlier, decodeStart = max(textIn, end - steps x
+//      AV_LETTER_MIN) ('early').
+//   3. Still past end (decodeStart = textIn): letterSeconds = max(0, (end - textIn) / steps), several letters per frame;
+//      0 (textIn already past end) draws the title whole at textIn ('squeezed').
+// fit is 'none' when nothing changed. Without cutSeconds (older Drafts) the timing is as before: decodeStart and base.
+function avTiming(data, steps, fps) {
   var t = (data && data.timing) || {};
+  var f = fps > 0 ? fps : 30, n = steps > 0 ? steps : 0;
   var textIn = avNum(t.textIn, AV_TIMING.textIn, 0, 600);
   var decodeStart = Math.max(textIn, avNum(t.decodeStart, AV_TIMING.decodeStart, 0, 600));
   var ls = avNum(t.letterSeconds, AV_TIMING.letterSeconds, 0.005, 5) * (100 / avNum(data && data.speed, 100, 25, 400));
-  return { textIn: textIn, decodeStart: decodeStart, letterSeconds: ls };
+  var cut = avNum(t.cutSeconds, 0, 0, 600), minHold = cut > 0 ? Math.max(AV_HOLD_MIN, AV_HOLD_SHARE * cut) : 0, fit = "none";
+  if (cut > 0 && n > 0) {
+    var end = cut - minHold - 2 / f;
+    var fitLs = Math.min(ls, Math.max(AV_LETTER_MIN, (end - decodeStart) / n));
+    if (fitLs < ls) { ls = fitLs; fit = "letters"; }
+    if (decodeStart + n * ls > end + 1e-9) { decodeStart = Math.max(textIn, end - n * ls); fit = "early"; }
+    if (decodeStart + n * ls > end + 1e-9) { ls = Math.max(0, (end - decodeStart) / n); fit = "squeezed"; }
+  }
+  return { textIn: textIn, decodeStart: decodeStart, letterSeconds: ls, cutSeconds: cut, minHold: minHold, fit: fit };
 }
 
 // What to draw at `frame` (timeline frame = clip frame): { textOpacity, glyphs: [{ ch, x (left), y (baseline), size,
 // condense, opacity, ghost, family, weight, stack, color }], decoded }. Before textIn: nothing. From textIn: kicker and
-// tagline (fading in over 3 frames). From decodeStart: letter k (k-th non-space letter) shows a ghost glyph during
-// [decodeStart + k * letterSeconds, decodeStart + (k + 1) * letterSeconds), then is drawn solid; letters after it are
-// empty. Spaces take no time.
+// tagline (fading in over 3 frames). From decodeStart (avTiming, fitted before the cut): letter k (k-th lockable
+// grapheme) shows a ghost glyph during [decodeStart + k * letterSeconds, decodeStart + (k + 1) * letterSeconds), then
+// is drawn solid; letters after it are empty. Spaces are never drawn; punctuation takes no time and is drawn solid
+// once every letter before it has locked.
 function avDecodeFrame(layout, data, frame, fps) {
-  var tm = avTiming(data || {}), f = fps > 0 ? fps : 30;
+  var t = layout && layout.title, f = fps > 0 ? fps : 30;
+  var tm = avTiming(data || {}, t ? t.steps : 0, f);
   var inF = Math.round(tm.textIn * f), decF = Math.round(tm.decodeStart * f), lsF = tm.letterSeconds * f;
   var out = { textOpacity: 0, glyphs: [], decoded: 0 };
   if (!layout || !layout.box || frame < inF) return out;
   out.textOpacity = Math.min(1, (frame - inF + 1) / 3);
-  var t = layout.title;
   if (!t || frame < decF) return out;
-  var now = Math.floor((frame - decF) / lsF + 1e-9); // the step showing a ghost (== steps: all locked)
+  // The step showing a ghost (>= steps: all locked); a zero letter time locks everything at decodeStart.
+  var now = lsF > 0 ? Math.floor((frame - decF) / lsF + 1e-9) : t.steps;
   var m = layout.metrics || AV_FALLBACK_METRICS, kw = avKoWide(data);
   for (var i = 0; i < t.letters.length; i++) {
     var l = t.letters[i];
-    if (l.step < 0 || l.step > now) continue;
-    var ghost = l.step === now, ch = ghost ? avGhostChar(l.ch, i, frame) : l.ch;
+    if (l.cls === "space") continue;
+    if (l.step < 0 ? l.at > now : l.step > now) continue;
+    var ghost = l.step >= 0 && l.step === now, ch = ghost ? avGhostChar(l.ch, i, frame) : l.ch;
     // A ghost glyph is centred in the final letter's box (its own advance may differ).
-    var gw = ghost ? (avAdvance(m, ch, kw) * t.size * t.condense) / m.unitsPerEm : l.w;
+    var gw = ghost ? (avAdvance(m, Array.from(ch)[0], kw) * t.size * t.condense) / m.unitsPerEm : l.w;
     var ko = AV_HANGUL_RE.test(ch);
     out.glyphs.push({ ch: ch, x: l.x + (l.w - gw) / 2, y: t.y, size: t.size, condense: t.condense, opacity: ghost ? AV_GHOST_OPACITY : 1, ghost: ghost,
       family: t.family, weight: ko ? t.koWeight : t.weight, stack: t.stack, color: t.color });
@@ -3078,19 +3181,32 @@ function avcKoMeasure(data) {
   if (!ctx || typeof ctx.measureText !== "function") return null;
   var px = 100;
   ctx.font = (AVC_HANGUL_RE.test(text) ? 700 : AVC_FACE.weight) + " " + px + "px " + avcFontStack(AVC_FACE.family);
-  var out = { koAdvances: {} };
+  // Built in one literal at the end (the panel type-checks this block: no keys added later). Object({}) is an
+  // untyped map for the per-character advances.
   var s = ctx.measureText("\ud55c\uae00");
-  if (s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0) out.koInk = { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px };
-  var chars = Array.from(text);
+  var ink = s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0 ? { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px } : null;
+  var adv = Object({}), chars = Array.from(text);
   for (var i = 0; i < chars.length; i++) {
-    if (AVC_WIDE_RE.test(chars[i]) && !(chars[i] in out.koAdvances)) out.koAdvances[chars[i]] = ctx.measureText(chars[i]).width / px;
+    if (AVC_WIDE_RE.test(chars[i]) && !(chars[i] in adv)) adv[chars[i]] = ctx.measureText(chars[i]).width / px;
+  }
+  return ink ? { koAdvances: adv, koInk: ink } : { koAdvances: adv };
+}
+function avcNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
+// Each of prefix and name is cut to AVC_MAX width units (a wide character counts 2), as the panel's fields count
+// them: Adjust edits never pass the panel's limit.
+var AVC_MAX = 24;
+function avcClip(text) {
+  var out = "", n = 0, chars = Array.from(text);
+  for (var i = 0; i < chars.length; i++) {
+    var w = AVC_WIDE_RE.test(chars[i]) ? 2 : 1;
+    if (n + w > AVC_MAX) break;
+    out += chars[i]; n += w;
   }
   return out;
 }
-function avcNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
 function avcText(data, key) {
   var v = typeof data[key] === "string" ? data[key] : AVC_DEFAULTS[key];
-  return String(v).replace(/\s+/g, " ").trim();
+  return avcClip(String(v).replace(/\s+/g, " ").trim()).trim();
 }
 
 // { text, x (left), y (baseline), size, w, color, family, weight, stack, box } or null when there is no text.
