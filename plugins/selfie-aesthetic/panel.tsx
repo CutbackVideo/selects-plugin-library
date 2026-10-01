@@ -1329,6 +1329,10 @@ const SAE_MIN_HOLD_FRAMES = 3;
 const SAE_FADE_OUT = 2;
 // Source windows: a hold window ends at least this far before the end of its source.
 const SAE_SOURCE_TAIL = 0.15;
+// Head handle: a moment starts at least this many frames into its source (and at least the whip length + 1 frame;
+// SAE_WHIP_SECONDS matches the effect's), so the whip transition has source before the incoming clip's srcStart.
+const SAE_HEAD_FRAMES = 3;
+const SAE_WHIP_SECONDS = 0.067;
 // Moments A and B of one bar are at least this far apart in the source.
 const SAE_PAIR_GAP = 0.8;
 // Filler candidate times every SAE_FILLER_STEP seconds per clip (at most SAE_MAX_FILLERS, evenly spaced, so a long
@@ -1477,7 +1481,8 @@ function saeSchedule(opts) {
 // margin? (default SAE_FACE_MARGIN) }.
 // Per clip (every rid in durations, sorted): faceScore = max over face-role hits of (score - best control score), null
 // without face or control hits; face = faceScore > margin. Candidate times: every hit time (any score) plus fillers;
-// a time t is kept when its window [s, s + beatSeconds] (s = t snapped down to a whole frame) misses every bad span
+// a time t is kept when its window [s, s + beatSeconds] (s = t snapped down to a whole frame, and no earlier than the
+// head handle: max(SAE_HEAD_FRAMES, whip frames + 1) frames; earlier times move there) misses every bad span
 // and ends at least SAE_SOURCE_TAIL before the end of the source. Pairs: A and B >= SAE_PAIR_GAP apart, best summed
 // score first (ties: farther apart, then earlier), A = the better-scoring moment; up to SAE_MAX_PAIRS distinct pairs,
 // pairs whose moments no earlier pair uses first. A clip with no such pair gets one relaxed pair (its two
@@ -1488,6 +1493,7 @@ function saeMoments(opts) {
   if (!(fps > 0) || !(win > 0)) throw Error('saeMoments needs fps and beatSeconds');
   const margin = saeFinite(opts.margin) ? opts.margin : SAE_FACE_MARGIN;
   const durations = opts.durations || {}, spansOf = opts.badSpans || {};
+  const head = Math.max(SAE_HEAD_FRAMES, Math.round(SAE_WHIP_SECONDS * fps) + 1);
   const byRid = {};
   for (const c of opts.candidates || []) {
     if (!c || typeof c.rid !== 'string' || !saeFinite(c.t) || !saeFinite(c.score)) continue;
@@ -1506,8 +1512,8 @@ function saeMoments(opts) {
     const spans = (spansOf[rid] || []).filter(s => s && saeFinite(s[0]) && saeFinite(s[1]));
     // Window start for a time, or null when the window is not usable.
     const startOf = t => {
-      const f = Math.floor(t * fps + 1e-6);
-      if (f < 0) return null;
+      if (!(t >= 0)) return null;
+      const f = Math.max(head, Math.floor(t * fps + 1e-6));
       const s = f / fps, e = s + win;
       if (e > dur - SAE_SOURCE_TAIL + 1e-9) return null;
       if (spans.some(sp => s < sp[1] && e > sp[0])) return null;
@@ -1744,8 +1750,9 @@ function saeSnapSection(sec, cue, opts) {
 // analysis { bpm, firstBeat, grid, downbeat?, durationSeconds, defaultSection?, onsets?, onsetThresholds? }; null = no
 // music), sectionStart? (default saeDefaultSection), candidates, durations, badSpans?, photos?, usePhotos? (default
 // true), margin? }.
-// Tries the wanted bar count, then fewer (down to SAE_MIN_BARS) until the sources fill every bar under the rules; a
-// pool too small even for that builds SAE_MIN_BARS bars with adjacency / pair reuse relaxed.
+// Tries the wanted bar count (capped so the video ends before the music's fade-out), then fewer (down to SAE_MIN_BARS)
+// until the sources fill every bar under the rules; a pool too small even for that builds SAE_MIN_BARS bars with
+// adjacency / pair reuse relaxed.
 // Returns the plan (contract in plan.md) with ok: true, or { ok: false, notes: ['no-sources' | 'music-too-short'] }.
 // Notes: 'few-face' (fewer face clips than bars), 'reused' (a source fills more than one bar), 'shrunk', 'fixed-tempo'
 // (music without a usable beat), 'no-music', 'adjacent' / 'pair-reuse' (relaxations used).
@@ -1757,20 +1764,32 @@ function saePlanBuild(opts) {
   const cue = opts.cue || null;
   const tempo = saeTempo(cue);
   const editBpm = tempo.editBpm, spb = 60 / editBpm;
-  let sectionStart = null;
+  // The music caps the bar count: the most bars (<= wanted) whose video ends before the cue's fade-out. Without a
+  // user section, the default section of the largest bar count that has one; with one, the largest bar count that
+  // still fits after it.
+  let sectionStart = null, maxBars = wanted;
   if (cue) {
-    sectionStart = saeFinite(opts.sectionStart) ? opts.sectionStart : saeDefaultSection(cue, wanted, editBpm);
-    if (sectionStart === null) sectionStart = saeDefaultSection(cue, SAE_MIN_BARS, editBpm);
-    if (sectionStart === null) return { ok: false, notes: ['music-too-short'], fit: { bars: 0, wanted } };
+    maxBars = 0;
+    for (let n = wanted; n >= SAE_MIN_BARS && !maxBars; n--) {
+      if (saeFinite(opts.sectionStart)) {
+        if (saeSectionRange(cue, n, editBpm).max >= opts.sectionStart - 1e-9) { maxBars = n; sectionStart = opts.sectionStart; }
+      } else {
+        const s = saeDefaultSection(cue, n, editBpm);
+        if (s !== null) { maxBars = n; sectionStart = s; }
+      }
+    }
+    if (!maxBars) return { ok: false, notes: ['music-too-short'], fit: { bars: 0, wanted } };
   }
   const snap = !!cue && tempo.fixed && !!(cue.onsets && cue.onsets.length);
-  // The longest hold a moment window must cover: 1 beat rounded up a frame, plus an onset snap's shift.
-  const beatSeconds = spb + 1 / fps + (snap ? SAE_SNAP_WINDOW : 0);
+  // The longest hold a moment window must cover: hold 0 (the lead + 1 beat + the music offset, at most half a frame)
+  // with 2 frames for rounding, plus an onset snap's shift. Then every hold fits in [srcStart, duration - TAIL] and
+  // assemble.js never slides a window back.
+  const beatSeconds = spb + SAE_LEAD + 2 / fps + (snap ? SAE_SNAP_WINDOW : 0);
   const moments = saeMoments({ candidates: opts.candidates, durations: opts.durations, badSpans: opts.badSpans, fps, beatSeconds, margin: opts.margin });
   const base = { clips: moments.clips, photos: opts.photos, seed, usePhotos: opts.usePhotos };
   let alloc = null, bars = 0;
   const relax = [];
-  for (let n = wanted; n >= SAE_MIN_BARS && !alloc; n--) {
+  for (let n = maxBars; n >= SAE_MIN_BARS && !alloc; n--) {
     const a = saeAllocate({ ...base, bars: n });
     if (a.ok) { alloc = a; bars = n; }
   }
@@ -1813,7 +1832,7 @@ function saePlanBuild(opts) {
 if (typeof module !== 'undefined' && module && module.exports) {
   Object.assign(module.exports, {
     SAE_LEAD, SAE_END_TAIL, SAE_STANDARD_BAR, SAE_FINALE_BAR, SAE_LENGTHS, SAE_MIN_BARS, SAE_FIXED_BPM, SAE_FACE_MARGIN,
-    SAE_FACE_ROLES, SAE_FACE_MAX_USES, SAE_SOURCE_TAIL, SAE_PAIR_GAP, SAE_FADE_OUT, SAE_PHOTO_SHARE, SAE_PHOTO_RUN_MAX, SAE_SNAP_WINDOW,
+    SAE_FACE_ROLES, SAE_FACE_MAX_USES, SAE_SOURCE_TAIL, SAE_HEAD_FRAMES, SAE_PAIR_GAP, SAE_FADE_OUT, SAE_PHOTO_SHARE, SAE_PHOTO_RUN_MAX, SAE_SNAP_WINDOW,
     SAE_MIN_HOLD_FRAMES, SAE_ANGLE_MIN, SAE_ANGLE_MAX,
     saeHash, saeEditBpm, saeTempo, saeVideoSeconds, saeMusicOffset, saeTemplate, saeSchedule, saeMoments, saePhotoBars,
     saeAllocate, saeWhipKinds, saeBarGrid, saeSectionRange, saeDefaultSection, saeSnapSection, saePlanBuild,
@@ -1942,6 +1961,18 @@ async function saeReadBytes(fs, file) {
   return saeBytes(await fs.readFile(file));
 }
 
+// An ffmpeg output file: missing or empty (ffmpeg resolved without writing it) is media_failed, not a raw read error.
+async function saeReadOutput(fs, file, what) {
+  let bytes;
+  try {
+    bytes = await saeReadBytes(fs, file);
+  } catch (e) {
+    throw saeFail('media_failed', what + ' missing: ' + String((e && e.message) || e));
+  }
+  if (!bytes.byteLength) throw saeFail('media_failed', 'empty ' + what);
+  return bytes;
+}
+
 // Best effort; a leftover file in the data folder is harmless.
 async function saeRemove(fs, file) {
   try {
@@ -1972,7 +2003,7 @@ async function saeDecodePcm(file, dataDir, maxSeconds) {
   try {
     await saeFFmpeg(['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', file, '-t', String(maxSeconds || 360),
       '-vn', '-ac', '1', '-ar', '22050', '-f', 'f32le', out], { timeoutMs: 120000 });
-    const bytes = await saeReadBytes(fs, out);
+    const bytes = await saeReadOutput(fs, out, 'samples');
     if (bytes.byteLength < 4) throw saeFail('media_failed', 'no samples');
     return new Float32Array(bytes.buffer, 0, Math.floor(bytes.byteLength / 4));
   } finally {
@@ -1996,8 +2027,7 @@ async function saePreviewUrl(file, start, duration, dataDir) {
   for (const t of tries) {
     try {
       await saeFFmpeg(cut.concat(t.args, [t.out]), { timeoutMs: 60000 });
-      const bytes = await saeReadBytes(fs, t.out);
-      if (!bytes.byteLength) throw saeFail('media_failed', 'empty preview');
+      const bytes = await saeReadOutput(fs, t.out, 'preview');
       return URL.createObjectURL(new Blob([bytes], { type: t.type }));
     } catch (e) {
       lastErr = e;
