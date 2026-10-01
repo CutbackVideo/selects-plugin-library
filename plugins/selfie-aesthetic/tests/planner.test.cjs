@@ -359,4 +359,18 @@ for (const cue of [null, { bpm: 100, firstBeat: 0.013, grid: 'accepted', duratio
   }
 }
 
+// ---- Head handles: no moment starts in the first frames of its source (the whip transition needs source before
+// the incoming clip's srcStart: w + 1 frames, at least 3) ----
+for (const fps of [24000 / 1001, 25, 30, 60]) {
+  const head = Math.max(3, Math.round(0.067 * fps) + 1), beat = 60 / 97 + 0.15 + 2 / fps;
+  const m = j(P.saeMoments({ fps, beatSeconds: beat, durations: { h: 6, z: 1.6 },
+    candidates: [{ rid: 'h', role: 'selfie', t: 0, score: 0.9 }, { rid: 'h', role: 'control', t: 3, score: 0.1 }, { rid: 'z', role: 'hand', t: 0.01, score: 0.4 }] }));
+  for (const c of m.clips) {
+    assert.ok(c.pairs.length, 'pairs ' + c.rid);
+    for (const p of c.pairs) for (const t of [p.a, p.b]) assert.ok(t >= head / fps - 1e-9, `moment ${t} of ${c.rid} at ${fps} keeps ${head} head frames`);
+  }
+  // The hit at t = 0 is kept (moved to the first frame with a head handle), not dropped.
+  assert.ok(Math.abs(m.clips[0].pairs[0].a - head / fps) < 1e-9, 'clamped hit is moment A');
+}
+
 console.log('planner.test: ok');
