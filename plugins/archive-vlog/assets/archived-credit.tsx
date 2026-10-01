@@ -57,9 +57,21 @@ function avcKoMeasure(data) {
   return ink ? { koAdvances: adv, koInk: ink } : { koAdvances: adv };
 }
 function avcNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
+// Each of prefix and name is cut to AVC_MAX width units (a wide character counts 2), as the panel's fields count
+// them: Adjust edits never pass the panel's limit.
+var AVC_MAX = 24;
+function avcClip(text) {
+  var out = "", n = 0, chars = Array.from(text);
+  for (var i = 0; i < chars.length; i++) {
+    var w = AVC_WIDE_RE.test(chars[i]) ? 2 : 1;
+    if (n + w > AVC_MAX) break;
+    out += chars[i]; n += w;
+  }
+  return out;
+}
 function avcText(data, key) {
   var v = typeof data[key] === "string" ? data[key] : AVC_DEFAULTS[key];
-  return String(v).replace(/\s+/g, " ").trim();
+  return avcClip(String(v).replace(/\s+/g, " ").trim()).trim();
 }
 
 // { text, x (left), y (baseline), size, w, color, family, weight, stack, box } or null when there is no text.
