@@ -1,38 +1,38 @@
 {
  "shutter.1": {
-  "file": "shutter-v2-1.wav",
-  "duration": 0.5,
-  "sha256": "5c15eb2f3e8d0aab5e8ddc97fa721e04f137bd65d97c7bab8acf62a78651423c",
-  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s."
+  "file": "shutter-v3-1.wav",
+  "duration": 1.2,
+  "sha256": "f4a19dbfb3d967e4f5f90145b0eb2c5b4a9abb1ade2c421048a203bfc6d9fe02",
+  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s. Silence after 0.5 s: Selects skips media shorter than one second."
  },
  "shutter.2": {
-  "file": "shutter-v2-2.wav",
-  "duration": 0.5,
-  "sha256": "43019ab5f3ecf1dccdd1d8ca0c887564e4a8913aaffddde8739d8859eee15fb5",
-  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s."
+  "file": "shutter-v3-2.wav",
+  "duration": 1.2,
+  "sha256": "278af6c386abdc7948c50675191719e648243e88c1b758eaec014696dc52242f",
+  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s. Silence after 0.5 s: Selects skips media shorter than one second."
  },
  "shutter.3": {
-  "file": "shutter-v2-3.wav",
-  "duration": 0.5,
-  "sha256": "95eb8ebf89375936530e9963f12cfe4edf9872425ccc242e77d02d2d05380535",
-  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s."
+  "file": "shutter-v3-3.wav",
+  "duration": 1.2,
+  "sha256": "c598c40d9cbf50cb264f882de5383caa9bb399bae6b76a31eb842aed1bf1843b",
+  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s. Silence after 0.5 s: Selects skips media shorter than one second."
  },
  "shutter.4": {
-  "file": "shutter-v2-4.wav",
-  "duration": 0.5,
-  "sha256": "3afeb43b12be6a52a2d2976870fae73017f7f66e1b26cdab801c750a86966fe1",
-  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s."
+  "file": "shutter-v3-4.wav",
+  "duration": 1.2,
+  "sha256": "1d6ebc982ba6538dc236714286ab5a2b77977dbc1dcd48bd781119eb95028641",
+  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s. Silence after 0.5 s: Selects skips media shorter than one second."
  },
  "shutter.5": {
-  "file": "shutter-v2-5.wav",
-  "duration": 0.5,
-  "sha256": "221ccb150ff0b0dba750c4d0f7b6e93b86b878ef603463405fbd27f4da467eaa",
-  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s."
+  "file": "shutter-v3-5.wav",
+  "duration": 1.2,
+  "sha256": "ab33403b8949fd58c0f3bfc24daef3fff2cb6c5e74b029dea6491aabc5f6350d",
+  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s. Silence after 0.5 s: Selects skips media shorter than one second."
  },
  "shutter.6": {
-  "file": "shutter-v2-6.wav",
-  "duration": 0.5,
-  "sha256": "3ef3f724c8ee1b61604256ea078fccefdf02a1743c1b4d67c9c3d0c462238047",
-  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s."
+  "file": "shutter-v3-6.wav",
+  "duration": 1.2,
+  "sha256": "ca10175f62a077503dbbcf1c99664116459526b9bcec931ba9d74026804160d6",
+  "note": "Synthesized autofocus beeps + Pentax K1000 Camera Shutter, freesound.org/s/579883 (CC0). t=0 is the first beep; shutter peak at 0.345 s. Silence after 0.5 s: Selects skips media shorter than one second."
  }
 }

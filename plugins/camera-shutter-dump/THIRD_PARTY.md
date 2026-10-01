@@ -2,7 +2,7 @@
 
 ## Sounds
 
-Each `sfx/shutter-v2-*.wav.b64` is one camera shutter sequence built for this plugin:
+Each `sfx/shutter-v3-*.wav.b64` is one camera shutter sequence built for this plugin:
 
 - Autofocus beeps: synthesised for this plugin.
 - Mirror clack and shutter click: "Pentax K1000 Camera Shutter.wav" by yfjesse, CC0 1.0,

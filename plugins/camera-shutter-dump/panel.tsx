@@ -242,6 +242,8 @@ async function ensureSounds(sdk,projectId){
  if(missing.length){
   const r=await sdk.runScript({script:`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:${JSON.stringify(missing)}});`,summary:'Import shutter sounds',allowCommit:true});
   if(r.isError)throw Error(r.output||'Could not import the shutter sounds.');
+  // importFiles skips files it cannot use (e.g. media under one second) without an error.
+  if((r.result?.addedResourceIds?.length??0)<missing.length)throw Error('Selects skipped the shutter sounds when importing them.');
   rows=await inventory(sdk,projectId,'Confirm shutter sounds');
  }
  const ids={};
@@ -406,6 +408,7 @@ function templateMessage(error){
  if(match)return match[1]+' is missing from this Project or matches more than one photo.';
  if(/^This Selects version does not support/.test(said))return TEMPLATE_UNSUPPORTED;
  if(/^The selected photos changed/.test(said))return 'The picked photos changed while the Draft was being made; try again.';
+ if(/^Selects skipped the shutter sounds/.test(said))return 'This version of Selects could not add the Camera Shutter Dump sounds to this Project; update the plugin, then try again.';
  if(/not ready in the Project yet/.test(said))return 'Camera Shutter Dump is still adding its sounds to this Project; try again in a moment.';
  return TEMPLATE_FAILED;
 }
