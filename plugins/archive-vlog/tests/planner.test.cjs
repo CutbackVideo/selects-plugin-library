@@ -183,6 +183,41 @@ for (const downbeatHigh of [true, false, undefined]) {
   assert.strictEqual(ctx.avIntroSection({ ...base, bpm: null, introStart: 2 }), 2, 'introStart needs no grid');
 }
 
+// The bundled cues (manifest): introStart is a bar start on the grid, every Length and pace fits from it, so it is the
+// default section; the schedule from there (with onset snapping) keeps every boundary on an integer frame within the
+// snap window of its grid time, and the montage starts 8 beats in.
+{
+  const manifest = JSON.parse(fs.readFileSync(__dirname + '/../assets/cues/manifest.json', 'utf8'));
+  assert.deepStrictEqual(manifest.cues.map(c => c.id).sort(), ['before-everything', 'fractured', 'peaceful-drift', 'theta-frequency']);
+  for (const cue of manifest.cues) {
+    const tempo = j(ctx.avTempo({ bpm: cue.bpm, accepted: true }));
+    assert.strictEqual(tempo.gridded, true, cue.id + ' has a usable grid');
+    const bar = 4 * 60 / cue.bpm;
+    // The manifest rounds seconds to 1 ms.
+    near(cue.introStart, cue.firstBeat + Math.round((cue.introStart - cue.firstBeat) / bar) * bar, 0.001, cue.id + ' introStart on a bar');
+    for (const pace of ['cinematic', 'quick']) for (const length of ['short', 'standard', 'long']) {
+      const requested = ctx.avMontageShots(length, pace), tag = cue.id + ' ' + pace + ' ' + length;
+      const videoSeconds = ctx.avVideoSeconds({ bpm: cue.bpm, pace, montageShots: requested });
+      const ss = ctx.avIntroSection({ introStart: cue.introStart, firstBeat: cue.firstBeat, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds, beatEnergy: cue.beatEnergy });
+      assert.strictEqual(ss, cue.introStart, tag + ' starts at introStart');
+      near(ctx.avSnapSection({ value: ss, firstBeat: cue.firstBeat, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds, gridAccepted: true }), ss, 0.001, tag + ' snap keeps it');
+      assert.strictEqual(ctx.avFitShots({ requested, pace, bpm: cue.bpm, sectionStart: ss, usableEnd: cue.usableEnd }), requested, tag + ' fits whole');
+      const tpl = ctx.avTemplate({ bpm: cue.bpm, pace, montageShots: requested });
+      for (const fps of [F, 25]) {
+        const sch = j(ctx.avSchedule({ bpm: cue.bpm, fps, beatsList: tpl.beatsList, roles: tpl.roles, sectionStart: ss, onsets: cue.onsets, onsetThresholds: cue.onsetThresholds }));
+        assert.strictEqual(sch.slots[2].startBeat, 8, tag);
+        const win = Math.min(0.1 * 60 / cue.bpm, 0.07);
+        sch.slots.forEach((x, i) => {
+          assert.ok(Number.isInteger(x.endFrame), tag);
+          if (i < sch.slots.length - 1) assert.ok(Math.abs(sch.cuts[i + 1] - x.endBeat * 60 / cue.bpm) <= win + 1e-9, tag + ' cut within the snap window');
+        });
+        assert.strictEqual(sch.totalFrames, Math.round((tpl.totalBeats * 60 / cue.bpm + sch.offset) * fps), tag + ' the end is on the grid');
+        assert.ok(ss + sch.totalFrames / fps <= cue.usableEnd + 1 / fps, tag + ' inside the music');
+      }
+    }
+  }
+}
+
 // Opening animation timings: scaled by k = min(1, opening seconds / 5.60).
 const ot = s => j(ctx.avOpeningTiming(s));
 assert.deepStrictEqual(ot(5.6), { k: 1, revealStart: 0.22, revealEnd: 2.30, textIn: 2.40, decodeStart: 2.90, letterSeconds: 0.11 });
