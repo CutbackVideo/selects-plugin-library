@@ -51,6 +51,18 @@ export const q = (v: string) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 export const J = (v: any) => JSON.stringify(v);
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// A run_script helper that lists every file of a Project. Over 200 files the plain listing is only a
+// per-folder summary, so each folder is read in turn.
+export const LIST_FILES = `const listFiles = async (p: any): Promise<any[]> => {
+  const files: any[] = [];
+  const walk = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === "dir") walk(n.children); else files.push(n); } };
+  const top: any = await p.sourceFiles();
+  if (Array.isArray(top)) walk(top);
+  else if ("fileTree" in top) walk(top.fileTree);
+  else for (const f of top.folders || []) { const one: any = await p.sourceFiles({ folder: String(f.name) }); walk(one.fileTree); }
+  return files;
+};`;
+
 export async function script(sdk: Sdk, summary: string, body: string, allowCommit = false): Promise<any> {
   const r = await sdk.runScript({ summary, script: body, allowCommit });
   if (r.isError) {

@@ -57,6 +57,15 @@ function versionBelow(version, minimum) {
 var q = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 var J = (v) => JSON.stringify(v);
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+var LIST_FILES = `const listFiles = async (p: any): Promise<any[]> => {
+  const files: any[] = [];
+  const walk = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === "dir") walk(n.children); else files.push(n); } };
+  const top: any = await p.sourceFiles();
+  if (Array.isArray(top)) walk(top);
+  else if ("fileTree" in top) walk(top.fileTree);
+  else for (const f of top.folders || []) { const one: any = await p.sourceFiles({ folder: String(f.name) }); walk(one.fileTree); }
+  return files;
+};`;
 async function script(sdk, summary, body, allowCommit = false) {
   const r = await sdk.runScript({ summary, script: body, allowCommit });
   if (r.isError) {
@@ -100,10 +109,8 @@ const d = selects.draft(${J(id)});
 const m = await d.meta();
 const ws = (await d.words()).filter((w: any) => !w.nonSpeech && !w.cut && w.endFrame > w.startFrame);
 const main = (await d.clips({ trackScope: "main" })).filter((c: any) => c.trackKind === "main" && c.resourceId != null);
-const tree: any = await p.sourceFiles();
-const files: any[] = [];
-const walk = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === "dir") walk(n.children); else files.push(n); } };
-walk(Array.isArray(tree) ? tree : ("fileTree" in tree ? tree.fileTree : []));
+${LIST_FILES}
+const files = await listFiles(p);
 const clips = main.map((c: any) => {
   const f = files.find((x: any) => x.resourceId === c.resourceId);
   const offs = ws.filter((w: any) => w.startFrame >= c.startFrame && w.endFrame <= c.endFrame && w.sourceStartFrame != null).map((w: any) => w.sourceStartFrame - w.startFrame).sort((a: number, b: number) => a - b);
@@ -902,22 +909,21 @@ return { id: saved.createdDraftId, name, missing };`,
 async function importFiles(sdk, pid, paths) {
   return script(
     sdk,
-    "Add the music to the Project",
+    "Add the Short's media to the Project",
     `const p = selects.project(${J(pid)});
 const paths: string[] = ${J(paths)};
-const list = async () => {
-  const tree: any = await p.sourceFiles();
-  const files: any[] = [];
-  const walk = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === "dir") walk(n.children); else files.push(n); } };
-  walk(Array.isArray(tree) ? tree : ("fileTree" in tree ? tree.fileTree : []));
-  return files;
-};
+${LIST_FILES}
 // a rebuild reuses files the Project already has
-const have = await list();
+const have = await listFiles(p);
 const missing = paths.filter((path) => !have.some((x: any) => x.path === path));
-if (missing.length) await p.importFiles({ paths: missing });
-const files = missing.length ? await list() : have;
-return paths.map((path) => { const f = files.find((x: any) => x.path === path); return { id: f ? f.resourceId : null, path }; });`,
+const added = missing.length ? (await p.importFiles({ paths: missing })).addedResourceIds : [];
+const files = missing.length ? await listFiles(p) : have;
+return paths.map((path) => {
+  const f = files.find((x: any) => x.path === path);
+  // a single new file is the one resource the import added, even before the listing shows it
+  const id = f ? f.resourceId : missing.length === 1 && added.length === 1 && missing[0] === path ? added[0] : null;
+  return { id, path };
+});`,
     true
   );
 }
@@ -2502,14 +2508,15 @@ async function searchCandidates(queries, max, avoid) {
 async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
   fs().mkdirSync(dir, { recursive: true });
   const start = Math.min(Math.max(0, c.duration - seconds - 0.2), offset);
-  const out = fs().join(dir, "stock-" + Math.abs(hash2(c.id + "@" + start.toFixed(2))) + ".mp4");
+  const length = Math.max(1.5, Math.min(12, seconds));
+  const out = fs().join(dir, "stock-" + Math.abs(hash2(c.id + "@" + start.toFixed(2) + "+" + length.toFixed(2))) + ".mp4");
   if (!fs().existsSync(out)) {
     const portrait = c.height > c.width;
     const box = portrait ? "1080:1920" : "1920:1080";
     await shell(
       sdk,
       "Download stock B-roll",
-      FF + 'set -e; "$FF" -v error -y -ss ' + start.toFixed(2) + " -t " + Math.max(1.5, Math.min(12, seconds)).toFixed(2) + " -i " + q(c.url) + " -an -c:v libx264 -preset veryfast -crf 19 -pix_fmt yuv420p -vf " + q("scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2") + " " + q(out + ".part.mp4") + " && mv " + q(out + ".part.mp4") + " " + q(out),
+      FF + 'set -e; "$FF" -v error -y -ss ' + start.toFixed(2) + " -t " + length.toFixed(2) + " -i " + q(c.url) + " -an -c:v libx264 -preset veryfast -crf 19 -pix_fmt yuv420p -vf " + q("scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2") + " " + q(out + ".part.mp4") + " && mv " + q(out + ".part.mp4") + " " + q(out),
       15e4,
       4e3
     );
@@ -2580,18 +2587,24 @@ function planInserts(words2, beats, duration, blocked, opts) {
       if (e - (card[1] + 0.6) < 1.5) continue;
       a = snap(card[1] + 0.6) - 0.04;
     }
+    const fits = (seconds) => (covered + seconds) / duration <= 0.32;
     const prev = runs[runs.length - 1];
     if (prev && a < prev.b + 1.5) {
-      const end = Math.min(e, prev.a + 6.4);
-      if (end - prev.b >= 0.9) {
-        const s0 = prev.b;
-        prev.b = end;
-        prev.shots.push({ a: s0, b: end, query: b.query, alt: b.alt || b.query, run: runs.length - 1, k: prev.shots.length });
-        covered += end - s0;
+      if (b.query !== prev.shots[0].query) {
+        a = prev.b;
+        if (e - a < 1.2) continue;
+      } else {
+        const end = Math.min(e, prev.a + 6.4);
+        if (end - prev.b >= 0.9 && fits(end - prev.b)) {
+          const s0 = prev.b;
+          prev.b = end;
+          prev.shots.push({ a: s0, b: end, query: b.query, alt: b.alt || b.query, run: runs.length - 1, k: prev.shots.length });
+          covered += end - s0;
+        }
+        continue;
       }
-      continue;
     }
-    if ((covered + (e - a)) / duration > 0.32) break;
+    if (!fits(e - a)) continue;
     const n = Math.max(1, Math.min(4, Math.ceil((e - a) / 1.8)));
     const cuts = [a];
     for (let k = 1; k < n; k += 1) cuts.push(Math.max(cuts[k - 1] + 0.9, snap(a + (e - a) * k / n) - 0.04));
@@ -2614,12 +2627,14 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}, words2 = []) {
   const todo = [];
   for (const r of runs) {
     const hits = r.shots.map((s) => cache[cacheKey(s)]);
-    if (hits.every((h) => h && fs().existsSync(h.clip.path))) {
-      for (const h of hits) if (h && !h.clip.dur) h.clip.dur = await probeDuration(sdk, h.clip.path);
-      r.shots.forEach((s, k) => {
-        used.add(hits[k].clip.id);
-        out.push({ ...s, clip: hits[k].clip, luma: hits[k].luma });
-      });
+    if (hits.every((h) => h && (!h.clip || fs().existsSync(h.clip.path)))) {
+      for (let k = 0; k < hits.length; k += 1) {
+        const h = hits[k];
+        if (!h.clip) continue;
+        if (!h.clip.dur) h.clip.dur = await probeDuration(sdk, h.clip.path);
+        used.add(h.clip.id);
+        out.push({ ...r.shots[k], b: h.b ?? r.shots[k].b, clip: h.clip, luma: h.luma });
+      }
     } else todo.push(r);
   }
   if (!todo.length) return { shots: out, notes };
@@ -2652,7 +2667,7 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}, words2 = []) {
     });
     const cmd = FF + "set -e; rm -rf " + q(sd) + "; mkdir -p " + q(sd) + "; " + tiles.map((t, i) => {
       const name = q(fs().join(sd, String(i + 1).padStart(3, "0") + ".jpg"));
-      return t ? '"$FF" -v error -y -i ' + q(t) + " -vf " + q("scale=180:320:force_original_aspect_ratio=decrease,pad=180:320:(ow-iw)/2:(oh-ih)/2:color=0x202020") + " -frames:v 1 " + name : '"$FF" -v error -y -f lavfi -i color=c=0x202020:s=180x320 -frames:v 1 ' + name;
+      return t ? '"$FF" -v error -y -i ' + q(t) + " -vf " + q("scale=180:320:force_original_aspect_ratio=decrease,pad=180:320:(ow-iw)/2:(oh-ih)/2:color=0x202020,format=yuvj420p") + " -frames:v 1 " + name : '"$FF" -v error -y -f lavfi -i color=c=0x202020:s=180x320 -vf format=yuvj420p -frames:v 1 ' + name;
     }).join("; ") + '; "$FF" -v error -y -framerate 1 -i ' + q(fs().join(sd, "%03d.jpg")) + " -vf " + q("tile=6x" + rows.length + ":padding=6:margin=6:color=white") + " -frames:v 1 -q:v 5 " + q(fs().join(dir, "sheet-" + s + ".jpg"));
     try {
       await shell(sdk, "Lay out footage candidates", cmd, 12e4, 4e3);
@@ -2661,6 +2676,7 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}, words2 = []) {
     }
   }
   let choice = {};
+  let checked = false;
   if (sheets.length) {
     onTick("Checking the footage against the words");
     const said = (r) => words2.filter((w) => w.s >= r.a - 0.05 && w.s < r.b).map((w) => w.t).join(" ");
@@ -2686,33 +2702,42 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}, words2 = []) {
     try {
       const o = parseLoose(await ask(sdk, prompt, images));
       for (const [k, v] of Object.entries(o || {})) if (Array.isArray(v)) choice[k] = v.map(Number).filter((n) => n >= 1 && n <= 6);
+      checked = true;
     } catch (e) {
       notes.push("B-roll check failed (" + String(e?.message || e).slice(0, 100) + "); B-roll was left out.");
       choice = {};
     }
   }
+  const cut = async (cand, s) => {
+    onTick("Cutting footage " + (out.length + 1));
+    const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4).catch(() => null);
+    if (!clip) return null;
+    const whole = await frameLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null);
+    if (whole != null && whole < 28) return null;
+    return { clip, luma: await captionLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null) };
+  };
   for (let r = 0; r < todo.length; r += 1) {
     const run2 = todo[r];
     const need = Math.max(...run2.shots.map((s) => s.b - s.a)) + 0.7;
     const picks = (choice["M" + (r + 1)] || []).map((c) => cands[r][c - 1]).filter((c) => c && !used.has(c.id) && c.duration >= need);
-    for (let k = 0; k < run2.shots.length; k += 1) {
-      const s = run2.shots[k];
-      const cand = picks[k] || (picks.length && run2.shots.length > picks.length ? picks[k % picks.length] : null);
-      if (!cand) continue;
-      onTick("Cutting footage " + (out.length + 1));
-      const offset = 0.4 + (picks.indexOf(cand) !== k ? 2.5 : 0);
-      const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4, offset).catch(() => null);
-      if (!clip) continue;
-      used.add(cand.id);
-      const whole = await frameLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null);
-      if (whole != null && whole < 28) continue;
-      const luma = await captionLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null);
-      cache[cacheKey(s)] = { clip, luma };
-      out.push({ ...s, clip, luma });
+    const per = Math.ceil(run2.shots.length / Math.max(1, Math.min(run2.shots.length, picks.length)));
+    for (let g = 0, k = 0; g < run2.shots.length; g += per, k += 1) {
+      const part = run2.shots.slice(g, g + per);
+      const cand = picks[k];
+      const long = cand && cand.duration >= part[part.length - 1].b - part[0].a + 0.7;
+      const s = { ...part[0], b: long ? part[part.length - 1].b : part[0].b };
+      const clip = cand ? await cut(cand, s) : null;
+      if (clip) {
+        used.add(cand.id);
+        cache[cacheKey(part[0])] = { clip: clip.clip, luma: clip.luma, b: s.b };
+        out.push({ ...s, clip: clip.clip, luma: clip.luma });
+      }
+      if (clip || checked) part.slice(clip ? 1 : 0).forEach((x) => cache[cacheKey(x)] = { clip: null });
     }
   }
-  const wanted = runs.reduce((n, r) => n + r.shots.length, 0);
-  if (out.length < wanted) notes.push("B-roll: " + (wanted - out.length) + " of " + wanted + " shots had no fitting footage and stay on the speaker.");
+  const wanted = runs.reduce((n, r) => n + (r.shots[r.shots.length - 1].b - r.a), 0);
+  const got = out.reduce((n, x) => n + x.b - x.a, 0);
+  if (got < wanted - 0.05) notes.push("B-roll: " + (wanted - got).toFixed(1) + " of " + wanted.toFixed(1) + " s had no fitting footage and stay on the speaker.");
   out.sort((a, b) => a.a - b.a);
   return { shots: out, notes };
 }
@@ -2864,6 +2889,8 @@ async function build(sdk, job, onStep) {
         const imp = await importFiles(sdk, pid, paths);
         const idOf = (p) => imp.find((x) => x.path === p)?.id || "";
         job.brollIds = [.../* @__PURE__ */ new Set([...job.brollIds || [], ...imp.map((x) => x.id).filter(Boolean)])];
+        const lost = imp.filter((x) => !x.id).length;
+        if (lost) notes.push("B-roll: " + lost + " of " + imp.length + " clips could not be added to the Project and were left out.");
         placed = got.shots.filter((x) => idOf(x.clip.path)).map((x, k) => ({
           id: idOf(x.clip.path),
           a: Math.round(x.a * fps),
@@ -2917,6 +2944,10 @@ async function build(sdk, job, onStep) {
         const imp = await importFiles(sdk, pid, [musicPath]);
         job.musicId = imp[0]?.id || null;
         job.musicPath = musicPath;
+        if (!job.musicId) {
+          notes.push("Music: the bed could not be added to the Project; the Short has no music.");
+          onStep("music", "fail", "could not add it to the Project");
+        }
       }
     }
     const g = gains(job.voiceLufs ?? null, musicLufs);
@@ -3034,7 +3065,7 @@ function A16zShort({ sdk, context }) {
   const icon = (s) => s === "done" ? "\u2713" : s === "run" ? "\u2026" : s === "fail" ? "!" : s === "skip" ? "\u2013" : "\xB7";
   const field = { display: "flex", flexDirection: "column", gap: 4 };
   const muted = { color: "var(--panel-muted-fg)" };
-  return /* @__PURE__ */ React.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "a16z-style Short, one click"), /* @__PURE__ */ React.createElement("div", { style: muted }, "Turns this talking-head Draft into a new 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, B-roll, a name tag and a music bed.")), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Speaker name (optional, for the name tag)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: name, disabled: busy, placeholder: "e.g. Jane Doe", onChange: (e) => setName(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Role line"), /* @__PURE__ */ React.createElement("input", { type: "text", value: role, disabled: busy, placeholder: "e.g. Founder, Example Labs", onChange: (e) => setRole(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Your logo (optional): path to a small PNG or SVG, shown top right"), /* @__PURE__ */ React.createElement("input", { type: "text", value: logo, disabled: busy, placeholder: "~/Pictures/logo.png", onChange: (e) => setLogo(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. the key idea is 'taste'", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: music, disabled: busy, onChange: (e) => setMusic(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Music bed (AI-generated, uses generation credits)")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: cards, disabled: busy, onChange: (e) => setCards(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Keyword cards")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: broll, disabled: busy, onChange: (e) => setBroll(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "B-roll from stock footage (Pexels and Pixabay, no credits)")), isShort && /* @__PURE__ */ React.createElement("button", { onClick: () => go(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild captions and graphics"), /* @__PURE__ */ React.createElement("button", { onClick: () => go(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the Short\u2026 " + clock + " s" : isShort ? "Make a new Short from this Draft" : "Make the Short"), (busy || run.steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, run.steps.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React.createElement("span", { style: muted }, " \u2014 ", s.note) : null)))), run.error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, run.error), run.result && !busy && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", null, "Made \u201C", run.result.name, "\u201D in ", Math.round(run.result.seconds), " s."), run.result.notes.length ? /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: 18, ...muted } }, run.result.notes.map((n, i) => /* @__PURE__ */ React.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the Short")), /* @__PURE__ */ React.createElement("div", { style: { ...muted, fontSize: 11 } }, "A style study, not affiliated with a16z. Use your own name, role and logo."));
+  return /* @__PURE__ */ React.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "a16z-style Short, one click"), /* @__PURE__ */ React.createElement("div", { style: muted }, "Turns this talking-head Draft into a new 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, B-roll, a name tag and a music bed.")), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Speaker name (optional, for the name tag)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: name, disabled: busy, placeholder: "e.g. Jane Doe", onChange: (e) => setName(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Role line"), /* @__PURE__ */ React.createElement("input", { type: "text", value: role, disabled: busy, placeholder: "e.g. Founder, Example Labs", onChange: (e) => setRole(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Your logo (optional): path to a small PNG or SVG, shown top right"), /* @__PURE__ */ React.createElement("input", { type: "text", value: logo, disabled: busy, placeholder: "~/Pictures/logo.png", onChange: (e) => setLogo(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. the key idea is 'taste'", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: music, disabled: busy, onChange: (e) => setMusic(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Music bed (AI-generated, uses generation credits)")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: cards, disabled: busy, onChange: (e) => setCards(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Keyword cards")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: broll, disabled: busy, onChange: (e) => setBroll(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "B-roll from stock footage (Pexels and Pixabay; the assistant checks it, which uses credits)")), isShort && /* @__PURE__ */ React.createElement("button", { onClick: () => go(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild captions and graphics"), /* @__PURE__ */ React.createElement("button", { onClick: () => go(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the Short\u2026 " + clock + " s" : isShort ? "Make a new Short from this Draft" : "Make the Short"), (busy || run.steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, run.steps.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React.createElement("span", { style: muted }, " \u2014 ", s.note) : null)))), run.error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, run.error), run.result && !busy && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", null, "Made \u201C", run.result.name, "\u201D in ", Math.round(run.result.seconds), " s."), run.result.notes.length ? /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: 18, ...muted } }, run.result.notes.map((n, i) => /* @__PURE__ */ React.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the Short")), /* @__PURE__ */ React.createElement("div", { style: { ...muted, fontSize: 11 } }, "A style study, not affiliated with a16z. Use your own name, role and logo."));
 }
 export {
   A16zShort as default

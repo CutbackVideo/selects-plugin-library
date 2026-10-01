@@ -125,7 +125,7 @@ export default function A16zShort({ sdk, context }: any) {
       </label>
       <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input type="checkbox" checked={broll} disabled={busy} onChange={(e) => setBroll(e.target.checked)} />
-        <span>B-roll from stock footage (Pexels and Pixabay, no credits)</span>
+        <span>B-roll from stock footage (Pexels and Pixabay; the assistant checks it, which uses credits)</span>
       </label>
       {isShort && (
         <button onClick={() => go(true)} disabled={busy} style={{ padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" }}>

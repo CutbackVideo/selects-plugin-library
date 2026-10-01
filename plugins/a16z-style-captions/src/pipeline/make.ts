@@ -194,6 +194,8 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
         const imp = await importFiles(sdk, pid, paths);
         const idOf = (p: string) => imp.find((x) => x.path === p)?.id || "";
         job.brollIds = [...new Set([...(job.brollIds || []), ...imp.map((x) => x.id).filter(Boolean)])];
+        const lost = imp.filter((x) => !x.id).length;
+        if (lost) notes.push("B-roll: " + lost + " of " + imp.length + " clips could not be added to the Project and were left out.");
         placed = got.shots
           .filter((x) => idOf(x.clip.path))
           .map((x, k) => ({
@@ -253,6 +255,10 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
         const imp = await importFiles(sdk, pid, [musicPath]);
         job.musicId = imp[0]?.id || null;
         job.musicPath = musicPath;
+        if (!job.musicId) {
+          notes.push("Music: the bed could not be added to the Project; the Short has no music.");
+          onStep("music", "fail", "could not add it to the Project");
+        }
       }
     }
     const g = gains(job.voiceLufs ?? null, musicLufs);

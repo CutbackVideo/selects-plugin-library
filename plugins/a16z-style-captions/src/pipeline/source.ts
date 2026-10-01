@@ -1,6 +1,6 @@
 // Reading Drafts: the source talking-head Draft (words, Main clips with their files and in-points) and,
 // after the Short is made, the Short itself.
-import { J, script, type Sdk } from "./host";
+import { J, LIST_FILES, script, type Sdk } from "./host";
 
 export type SrcWord = { i: number; t: string; s: number; e: number; ss: number | null; rid: string | null };
 export type SrcClip = { clipId: number; rid: string; s: number; e: number; path: string | null; sw: number; sh: number; srcStart: number };
@@ -11,10 +11,8 @@ const d = selects.draft(${J(id)});
 const m = await d.meta();
 const ws = (await d.words()).filter((w: any) => !w.nonSpeech && !w.cut && w.endFrame > w.startFrame);
 const main = (await d.clips({ trackScope: "main" })).filter((c: any) => c.trackKind === "main" && c.resourceId != null);
-const tree: any = await p.sourceFiles();
-const files: any[] = [];
-const walk = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === "dir") walk(n.children); else files.push(n); } };
-walk(Array.isArray(tree) ? tree : ("fileTree" in tree ? tree.fileTree : []));
+${LIST_FILES}
+const files = await listFiles(p);
 const clips = main.map((c: any) => {
   const f = files.find((x: any) => x.resourceId === c.resourceId);
   const offs = ws.filter((w: any) => w.startFrame >= c.startFrame && w.endFrame <= c.endFrame && w.sourceStartFrame != null).map((w: any) => w.sourceStartFrame - w.startFrame).sort((a: number, b: number) => a - b);

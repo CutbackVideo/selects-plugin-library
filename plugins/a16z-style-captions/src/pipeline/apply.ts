@@ -1,5 +1,5 @@
 // Run-script builders that write the Short into Drafts. Each saves with commitAll inside the same run.
-import { J, script, type Sdk } from "./host";
+import { J, LIST_FILES, script, type Sdk } from "./host";
 import { lookCode, graphicCode } from "../renderers";
 import type { ClipFrame } from "./framing";
 import { W, H } from "./framing";
@@ -56,22 +56,21 @@ return { id: saved.createdDraftId, name, missing };`,
 export async function importFiles(sdk: Sdk, pid: string, paths: string[]): Promise<{ id: string; path: string }[]> {
   return script(
     sdk,
-    "Add the music to the Project",
+    "Add the Short's media to the Project",
     `const p = selects.project(${J(pid)});
 const paths: string[] = ${J(paths)};
-const list = async () => {
-  const tree: any = await p.sourceFiles();
-  const files: any[] = [];
-  const walk = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === "dir") walk(n.children); else files.push(n); } };
-  walk(Array.isArray(tree) ? tree : ("fileTree" in tree ? tree.fileTree : []));
-  return files;
-};
+${LIST_FILES}
 // a rebuild reuses files the Project already has
-const have = await list();
+const have = await listFiles(p);
 const missing = paths.filter((path) => !have.some((x: any) => x.path === path));
-if (missing.length) await p.importFiles({ paths: missing });
-const files = missing.length ? await list() : have;
-return paths.map((path) => { const f = files.find((x: any) => x.path === path); return { id: f ? f.resourceId : null, path }; });`,
+const added = missing.length ? (await p.importFiles({ paths: missing })).addedResourceIds : [];
+const files = missing.length ? await listFiles(p) : have;
+return paths.map((path) => {
+  const f = files.find((x: any) => x.path === path);
+  // a single new file is the one resource the import added, even before the listing shows it
+  const id = f ? f.resourceId : missing.length === 1 && added.length === 1 && missing[0] === path ? added[0] : null;
+  return { id, path };
+});`,
     true
   );
 }

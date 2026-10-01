@@ -49,20 +49,27 @@ export function planInserts(words: Word[], beats: Beat[], duration: number, bloc
       if (e - (card[1] + 0.6) < 1.5) continue;
       a = snap(card[1] + 0.6) - 0.04;
     }
-    // a moment right after a run extends that run (up to 6.4 s) instead of being lost
+    // stock stays a minority of the Short: designed inserts and the speaker carry the rest
+    const fits = (seconds: number) => (covered + seconds) / duration <= 0.32;
+    // a moment right after a run continues it instead of being lost: the same footage extends that
+    // run (up to 6.4 s), other footage starts its own run where that one ends
     const prev = runs[runs.length - 1];
     if (prev && a < prev.b + 1.5) {
-      const end = Math.min(e, prev.a + 6.4);
-      if (end - prev.b >= 0.9) {
-        const s0 = prev.b;
-        prev.b = end;
-        prev.shots.push({ a: s0, b: end, query: b.query, alt: b.alt || b.query, run: runs.length - 1, k: prev.shots.length });
-        covered += end - s0;
+      if (b.query !== prev.shots[0].query) {
+        a = prev.b;
+        if (e - a < 1.2) continue;
+      } else {
+        const end = Math.min(e, prev.a + 6.4);
+        if (end - prev.b >= 0.9 && fits(end - prev.b)) {
+          const s0 = prev.b;
+          prev.b = end;
+          prev.shots.push({ a: s0, b: end, query: b.query, alt: b.alt || b.query, run: runs.length - 1, k: prev.shots.length });
+          covered += end - s0;
+        }
+        continue;
       }
-      continue;
     }
-    // stock stays a minority of the Short: designed inserts and the speaker carry the rest
-    if ((covered + (e - a)) / duration > 0.32) break;
+    if (!fits(e - a)) continue;
     const n = Math.max(1, Math.min(4, Math.ceil((e - a) / 1.8)));
     const cuts = [a];
     for (let k = 1; k < n; k += 1) cuts.push(Math.max(cuts[k - 1] + 0.9, snap(a + ((e - a) * k) / n) - 0.04));
@@ -79,7 +86,9 @@ export function planInserts(words: Word[], beats: Beat[], duration: number, bloc
 export type FetchedShot = InsertShot & { clip: StockClip; luma?: number | null };
 void hash;
 
-export type InsertCache = Record<string, { clip: StockClip; luma?: number | null }>;
+// Per shot: the clip it shows (`b` when the shot was lengthened over the next ones), or null when it
+// shows the clip of an earlier shot of its run or stays on the speaker.
+export type InsertCache = Record<string, { clip: StockClip | null; luma?: number | null; b?: number }>;
 const cacheKey = (s: InsertShot) => s.query + "|" + s.alt + "|" + s.k + "|" + Math.round((s.b - s.a) * 10);
 
 // Stock for every run: up to six candidates per moment, shown to the assistant as contact sheets (four
@@ -101,12 +110,14 @@ export async function fetchInserts(
   const todo: InsertRun[] = [];
   for (const r of runs) {
     const hits = r.shots.map((s) => cache[cacheKey(s)]);
-    if (hits.every((h) => h && fs().existsSync(h.clip.path))) {
-      for (const h of hits) if (h && !h.clip.dur) h.clip.dur = await probeDuration(sdk, h.clip.path);
-      r.shots.forEach((s, k) => {
-        used.add(hits[k]!.clip.id);
-        out.push({ ...s, clip: hits[k]!.clip, luma: hits[k]!.luma });
-      });
+    if (hits.every((h) => h && (!h.clip || fs().existsSync(h.clip.path)))) {
+      for (let k = 0; k < hits.length; k += 1) {
+        const h = hits[k]!;
+        if (!h.clip) continue;
+        if (!h.clip.dur) h.clip.dur = await probeDuration(sdk, h.clip.path);
+        used.add(h.clip.id);
+        out.push({ ...r.shots[k], b: h.b ?? r.shots[k].b, clip: h.clip, luma: h.luma });
+      }
     } else todo.push(r);
   }
   if (!todo.length) return { shots: out, notes };
@@ -147,8 +158,8 @@ export async function fetchInserts(
         .map((t, i) => {
           const name = q(fs().join(sd, String(i + 1).padStart(3, "0") + ".jpg"));
           return t
-            ? '"$FF" -v error -y -i ' + q(t) + " -vf " + q("scale=180:320:force_original_aspect_ratio=decrease,pad=180:320:(ow-iw)/2:(oh-ih)/2:color=0x202020") + " -frames:v 1 " + name
-            : '"$FF" -v error -y -f lavfi -i color=c=0x202020:s=180x320 -frames:v 1 ' + name;
+            ? '"$FF" -v error -y -i ' + q(t) + " -vf " + q("scale=180:320:force_original_aspect_ratio=decrease,pad=180:320:(ow-iw)/2:(oh-ih)/2:color=0x202020,format=yuvj420p") + " -frames:v 1 " + name
+            : '"$FF" -v error -y -f lavfi -i color=c=0x202020:s=180x320 -vf format=yuvj420p -frames:v 1 ' + name;
         })
         .join("; ") +
       '; "$FF" -v error -y -framerate 1 -i ' + q(fs().join(sd, "%03d.jpg")) + " -vf " + q("tile=6x" + rows.length + ":padding=6:margin=6:color=white") + " -frames:v 1 -q:v 5 " + q(fs().join(dir, "sheet-" + s + ".jpg"));
@@ -160,6 +171,7 @@ export async function fetchInserts(
 
   // the assistant's choice
   let choice: Record<string, number[]> = {};
+  let checked = false;
   if (sheets.length) {
     onTick("Checking the footage against the words");
     const said = (r: InsertRun) => words.filter((w) => w.s >= r.a - 0.05 && w.s < r.b).map((w) => w.t).join(" ");
@@ -187,37 +199,48 @@ export async function fetchInserts(
     try {
       const o = parseLoose(await ask(sdk, prompt, images));
       for (const [k, v] of Object.entries(o || {})) if (Array.isArray(v)) choice[k] = (v as any[]).map(Number).filter((n) => n >= 1 && n <= 6);
+      checked = true;
     } catch (e: any) {
       notes.push("B-roll check failed (" + String(e?.message || e).slice(0, 100) + "); B-roll was left out.");
       choice = {};
     }
   }
 
-  // cut the chosen clips
+  // cut the chosen clips; a clip whose middle is near black is dropped
+  const cut = async (cand: Candidate, s: InsertShot) => {
+    onTick("Cutting footage " + (out.length + 1));
+    const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4).catch(() => null);
+    if (!clip) return null;
+    const whole = await frameLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null);
+    if (whole != null && whole < 28) return null;
+    return { clip, luma: await captionLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null) };
+  };
   for (let r = 0; r < todo.length; r += 1) {
     const run = todo[r];
     // a candidate must be long enough for the shot it fills
     const need = Math.max(...run.shots.map((s) => s.b - s.a)) + 0.7;
     const picks = (choice["M" + (r + 1)] || []).map((c) => cands[r][c - 1]).filter((c) => c && !used.has(c.id) && c.duration >= need);
-    for (let k = 0; k < run.shots.length; k += 1) {
-      const s = run.shots[k];
-      const cand = picks[k] || (picks.length && run.shots.length > picks.length ? picks[k % picks.length] : null);
-      if (!cand) continue;
-      onTick("Cutting footage " + (out.length + 1));
-      // the same clip twice in a run shows two different moments of it
-      const offset = 0.4 + (picks.indexOf(cand) !== k ? 2.5 : 0);
-      const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4, offset).catch(() => null);
-      if (!clip) continue;
-      used.add(cand.id);
-      const whole = await frameLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null);
-      if (whole != null && whole < 28) continue;
-      const luma = await captionLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null);
-      cache[cacheKey(s)] = { clip, luma };
-      out.push({ ...s, clip, luma });
+    // fewer clips than shots: each clip holds one longer shot rather than cutting to itself
+    const per = Math.ceil(run.shots.length / Math.max(1, Math.min(run.shots.length, picks.length)));
+    for (let g = 0, k = 0; g < run.shots.length; g += per, k += 1) {
+      const part = run.shots.slice(g, g + per);
+      const cand = picks[k];
+      // a clip too short for the longer shot fills its first part only
+      const long = cand && cand.duration >= part[part.length - 1].b - part[0].a + 0.7;
+      const s = { ...part[0], b: long ? part[part.length - 1].b : part[0].b };
+      const clip = cand ? await cut(cand, s) : null;
+      if (clip) {
+        used.add(cand!.id);
+        cache[cacheKey(part[0])] = { clip: clip.clip, luma: clip.luma, b: s.b };
+        out.push({ ...s, clip: clip.clip, luma: clip.luma });
+      }
+      // a settled answer is kept, so a rebuild does not search again
+      if (clip || checked) part.slice(clip ? 1 : 0).forEach((x) => (cache[cacheKey(x)] = { clip: null }));
     }
   }
-  const wanted = runs.reduce((n, r) => n + r.shots.length, 0);
-  if (out.length < wanted) notes.push("B-roll: " + (wanted - out.length) + " of " + wanted + " shots had no fitting footage and stay on the speaker.");
+  const wanted = runs.reduce((n, r) => n + (r.shots[r.shots.length - 1].b - r.a), 0);
+  const got = out.reduce((n, x) => n + x.b - x.a, 0);
+  if (got < wanted - 0.05) notes.push("B-roll: " + (wanted - got).toFixed(1) + " of " + wanted.toFixed(1) + " s had no fitting footage and stay on the speaker.");
   out.sort((a, b) => a.a - b.a);
   return { shots: out, notes };
 }

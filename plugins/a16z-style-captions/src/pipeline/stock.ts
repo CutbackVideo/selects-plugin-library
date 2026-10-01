@@ -81,14 +81,15 @@ export async function searchCandidates(queries: string[], max: number, avoid: Se
 export async function cutCandidate(sdk: Sdk, c: Candidate, dir: string, seconds: number, offset = 0.4): Promise<StockClip> {
   fs().mkdirSync(dir, { recursive: true });
   const start = Math.min(Math.max(0, c.duration - seconds - 0.2), offset);
-  const out = fs().join(dir, "stock-" + Math.abs(hash(c.id + "@" + start.toFixed(2))) + ".mp4");
+  const length = Math.max(1.5, Math.min(12, seconds));
+  const out = fs().join(dir, "stock-" + Math.abs(hash(c.id + "@" + start.toFixed(2) + "+" + length.toFixed(2))) + ".mp4");
   if (!fs().existsSync(out)) {
     const portrait = c.height > c.width;
     const box = portrait ? "1080:1920" : "1920:1080";
     await shell(
       sdk,
       "Download stock B-roll",
-      FF + 'set -e; "$FF" -v error -y -ss ' + start.toFixed(2) + " -t " + Math.max(1.5, Math.min(12, seconds)).toFixed(2) + " -i " + q(c.url) +
+      FF + 'set -e; "$FF" -v error -y -ss ' + start.toFixed(2) + " -t " + length.toFixed(2) + " -i " + q(c.url) +
         " -an -c:v libx264 -preset veryfast -crf 19 -pix_fmt yuv420p -vf " + q("scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2") +
         " " + q(out + ".part.mp4") + " && mv " + q(out + ".part.mp4") + " " + q(out),
       150000,
