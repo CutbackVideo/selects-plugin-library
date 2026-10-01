@@ -47,6 +47,14 @@ function loadPlanner(source) {
   return box.P;
 }
 const j = v => JSON.parse(JSON.stringify(v)); // vm objects -> plain objects
+// panel.tsx fieldLen() / fieldClip(): title field limits count Hangul, kana, CJK and fullwidth characters as 2.
+const WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+const fieldLen = text => { let n = 0; for (const ch of text) n += WIDE_RE.test(ch) ? 2 : 1; return n; };
+function fieldClip(text, max) {
+  let out = '', n = 0;
+  for (const ch of text) { const w = fieldLen(ch); if (n + w > max) break; out += ch; n += w; }
+  return out;
+}
 // panel.tsx stamp(): local date and time to the second, so reruns never reuse a Draft name.
 function stamp(d) {
   const p = n => String(n).padStart(2, '0');
@@ -211,7 +219,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         for (const [fk, fv] of Object.entries(r.fields || {})) {
           const fl = p && p.fields.find(x => x.key === fk);
           if (!fl) unknown.push(r.key + ': field ' + fk);
-          else if (String(fv).length > fl.max) unknown.push(r.key + ': field ' + fk + ' longer than ' + fl.max);
+          else if (fieldLen(String(fv)) > fl.max) unknown.push(r.key + ': field ' + fk + ' longer than ' + fl.max);
         }
       }
       return { ok: missing.length === 0 && unknown.length === 0, ab, counts, missing, unknown };
@@ -247,7 +255,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       // current year, from the panel's own mvCurrentYear().
       const year = currentYear();
       const fields = Object.fromEntries(chosen.fields.map(fl => {
-        const v = row.fields[fl.key] != null ? String(row.fields[fl.key]).slice(0, fl.max) : (fl.initial ?? '');
+        const v = row.fields[fl.key] != null ? fieldClip(String(row.fields[fl.key]), fl.max) : (fl.initial ?? '');
         return [fl.key, v === '@year' ? year : v];
       }));
       if (!String(fields.big || '').trim()) throw Error("Type the title's big word to build.");
