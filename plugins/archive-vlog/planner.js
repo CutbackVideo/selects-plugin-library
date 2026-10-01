@@ -375,7 +375,7 @@ function avFillers(candidates) {
 }
 
 // Strict allocation. opts: { candidates, slots: [{ index, role, seconds, videoOnly? }], seed, gapSeconds = 0.5,
-// photoShare = AV_PHOTO_SHARE, spread = true, motionOpener = true }. A videoOnly slot (the opening, credit and final
+// photoShare = AV_PHOTO_SHARE, spread = true, motionOpener = true, finalEarly = true }. A videoOnly slot (the opening, credit and final
 // shots) never takes a photo, and the photo share counts only the other slots (the montage). Two hard rules, never
 // relaxed: the previous slot's source is never used again for the next slot, and at most AV_PHOTO_RUN_MAX photos play
 // in a row (unless the pool has no video candidate). A slot nothing fits under them stays null (counted in `missing`);
@@ -394,7 +394,7 @@ function avAllocate(opts) {
   const photoSeen = {};
   const photos = opts.candidates.filter(c => c && c.kind === 'photo' && typeof c.rid === 'string' && !photoSeen[c.rid] && (photoSeen[c.rid] = true))
     .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
-  const used = {}, uses = {}, recent = [], picks = [], photoUsed = {};
+  const used = {}, uses = {}, recent = [], photoUsed = {};
   // Variety first (default): a slot takes an unused resource whenever one fits before reusing any, and reuse goes to
   // the least-used resource. spread: false ranks by role and score only (the fallback avPlanBuild tries before it
   // shrinks, since spending every fresh clip first can strand a length that a reuse-tolerant order fills).
@@ -404,7 +404,7 @@ function avAllocate(opts) {
   const jitter = pool.map(c => avHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05);
   // Photo-only pools (no usable video) may play any number of photos in a row.
   const runLimited = pool.length > 0;
-  let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, prevRid = null;
+  let missing = 0, fillerShots = 0, photoShots = 0;
   // The motion opener (see above). Nothing is used yet, so this is the pick the first slot's loop turn would make with
   // the motion rank.
   const first = opts.slots[0];
@@ -422,13 +422,13 @@ function avAllocate(opts) {
   const target = Math.min(photos.length, holdable.length, Math.round(opts.slots.filter(sl => !sl.videoOnly).length * share));
   for (let k = 0; k < target; k++) photoSlots[holdable[Math.floor((k + phase) * holdable.length / target)].index] = true;
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
-  // `exclude` is the previous shot's source, which may not be used; `level`, when not null, keeps only sources used
-  // exactly that many times.
+  // `exclude` lists the neighbouring shots' sources, which may not be used; `level`, when not null, keeps only sources
+  // used exactly that many times.
   function searchVideo(slot, rankOf, exclude, level) {
     let best = null;
     for (let i = 0; i < pool.length; i++) {
       const c = pool[i];
-      if (c.rid === exclude) continue;
+      if (exclude && exclude.indexOf(c.rid) >= 0) continue;
       if (level != null && (uses[c.rid] || 0) !== level) continue;
       const rank = rankOf(c);
       if (rank < 0 || c.sourceDuration < slot.seconds + AV_SOURCE_TAIL) continue;
@@ -443,8 +443,8 @@ function avAllocate(opts) {
     }
     return best;
   }
-  // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos. A photo is never the
-  // previous source, since each photo is used once.
+  // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos. A photo is never a
+  // neighbour's source, since each photo is used once.
   function searchPhoto(slot) {
     if (slot.videoOnly || slot.seconds > AV_PHOTO_HOLD_MAX + 1e-9) return null;
     let best = null;
@@ -455,9 +455,19 @@ function avAllocate(opts) {
     }
     return best;
   }
-  for (const slot of opts.slots) {
+  // Fill order: the timeline, except that a video-only last slot (the held final shot) is filled right after the
+  // first (unless finalEarly: false), so the montage cannot spend every window long enough for it. Each slot excludes
+  // the sources of its already filled neighbours on both sides.
+  const n = opts.slots.length, order = opts.slots.map((sl, i) => i);
+  const early = opts.finalEarly !== false && n > 2 && !!opts.slots[n - 1].videoOnly;
+  if (early) { order.pop(); order.splice(1, 0, n - 1); }
+  const picks = Array(n).fill(null);
+  // Photos in a row right before position i (picks after it are not filled yet, except a video-only last slot).
+  const runBefore = i => { let k = 0; while (i - 1 - k >= 0 && picks[i - 1 - k] && picks[i - 1 - k].kind === 'photo') k++; return k; };
+  for (const pos of order) {
+    const slot = opts.slots[pos];
     const roles = [slot.role].concat(AV_ROLE_FALLBACK[slot.role] || []);
-    const exclude = prevRid;
+    const exclude = [pos - 1, pos + 1].filter(i => picks[i]).map(i => picks[i].rid);
     const photo = () => searchPhoto(slot);
     const preferred = level => () => searchVideo(slot, c => roles.indexOf(c.role), exclude, level);
     const anyReal = level => () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude, level);
@@ -467,7 +477,7 @@ function avAllocate(opts) {
     // role and score only rank sources used equally often and an unused clip (even by a filler) beats any reuse.
     // Outside photo slots a photo is then the last resort, which keeps the photo share. Without spread the CWV order
     // applies: preferred, any-role, photo, filler. After AV_PHOTO_RUN_MAX photos in a row the photo tier is skipped.
-    const runFull = runLimited && photoRun >= AV_PHOTO_RUN_MAX;
+    const runFull = runLimited && runBefore(pos) >= AV_PHOTO_RUN_MAX;
     const tiers = photoSlots[slot.index] ? [photo] : [];
     if (spread) {
       const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => Number(x) - Number(y));
@@ -483,22 +493,20 @@ function avAllocate(opts) {
         if ((best = tier())) break;
       }
     }
-    if (!best) { missing++; picks.push(null); photoRun = 0; prevRid = null; continue; }
-    prevRid = best.c.rid;
-    recent.push(best.c.rid);
-    if (recent.length > 3) recent.shift();
+    if (!best) { missing++; continue; }
+    // Recent sources (a repeat penalty) follow the timeline, so the out-of-order final shot does not count.
+    if (!(early && pos === n - 1)) { recent.push(best.c.rid); if (recent.length > 3) recent.shift(); }
     if (best.photo) {
       photoUsed[best.c.rid] = true;
-      photoShots++; photoRun++;
-      picks.push({ slot: slot.index, rid: best.c.rid, kind: 'photo', holdSeconds: slot.seconds });
+      photoShots++;
+      picks[pos] = { slot: slot.index, rid: best.c.rid, kind: 'photo', holdSeconds: slot.seconds };
       continue;
     }
-    photoRun = 0;
     (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
     uses[best.c.rid] = (uses[best.c.rid] || 0) + 1;
     if (best.c.role === 'filler') fillerShots++;
     // sourceDuration lets assemble.js keep the window inside its source at the Draft's real rate.
-    picks.push({ slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end, sourceDuration: best.c.sourceDuration });
+    picks[pos] = { slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end, sourceDuration: best.c.sourceDuration };
   }
   return { picks, missing, filled: picks.filter(Boolean).length, fillerShots, photoShots };
 }
@@ -549,11 +557,14 @@ function avPlanBuild(opts) {
   if (hasPhotos && shares[0] !== 1) shares.push(1);
   // Variety first; spending every fresh clip early can also strand a fillable length (a s s s ... where a s a s ...
   // fits), so a length is only given up after the role-and-score order (spread: false) fails too.
-  // Each attempt's name ('spread', 'spread-share1', 'role-first', 'role-first-share1', each with '-no-opener' when the
-  // motion opener's retry built it) is returned as `attempt`, so the panel and logs can tell when a fallback built the
-  // plan.
-  const attempts = [true, false].flatMap(spread => shares.map((photoShare, i) =>
-    ({ spread, photoShare, name: (spread ? 'spread' : 'role-first') + (i ? '-share1' : '') })));
+  // Filling the final shot early keeps a long window for it, but it can break the strict alternation a pool of few
+  // sources needs (with two sources, a b a b ... decides the last slot's source), so each order is also tried with the
+  // slots filled in timeline order ('-in-order').
+  // Each attempt's name ('spread', 'spread-in-order', 'spread-share1', ..., 'role-first', 'role-first-share1', ..., each
+  // with '-no-opener' when the motion opener's retry built it) is returned as `attempt`, so the panel and logs can tell
+  // when a fallback built the plan.
+  const attempts = [true, false].flatMap(spread => shares.flatMap((photoShare, i) => [true, false].map(finalEarly =>
+    ({ spread, photoShare, finalEarly, name: (spread ? 'spread' : 'role-first') + (i ? '-share1' : '') + (finalEarly ? '' : '-in-order') }))));
   let usableShots = 0, usableSlots = 0;
   // Whether avAllocate's motion opener can apply (some video candidate carries motion).
   const motionTagged = opts.motionOpener !== false && candidates.some(c => c && c.kind !== 'photo' && c.motion > 0);
@@ -570,13 +581,13 @@ function avPlanBuild(opts) {
     const schedule = avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
     const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: hasVideo && tpl.videoOnly[i] }));
     for (const attempt of attempts) {
-      let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: opts.motionOpener });
+      let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: opts.motionOpener });
       let name = attempt.name;
       // The motion opener never costs length: an attempt it leaves short is retried without it (named
       // '<attempt>-no-opener') before the next attempt or a shorter montage. Untagged pools never retry.
       if (alloc.missing > 0 && motionTagged) {
         if (n === least) tally(alloc, tpl);
-        alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: false });
+        alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: false });
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
