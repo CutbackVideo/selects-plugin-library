@@ -11,12 +11,49 @@ var AVC_CAP = 25 / 1080;
 var AVC_FIT = 0.8; // max width, fraction of canvas width
 var AVC_DEFAULTS = { prefix: "ARCHIVED BY", name: "YOURNAME", color: "#FFFFFF" };
 var AVC_FALLBACK_METRICS = { unitsPerEm: 1000, xHeight: 500, capHeight: 700, ascent: 720, descent: -220, advances: {} };
-// Korean names: no uppercase or tracking, wide characters measured at 1 em, both Korean system faces in the stack.
+// Korean names: no uppercase or tracking, both Korean system faces in the stack. Wide characters are drawn in the
+// system Korean face ("Apple SD Gothic Neo" / "Malgun Gothic"), so the render and the panel measure them with a canvas
+// (avcKoMeasure) and pass `data.koInk` ({ up, down } em) and `data.koAdvances` ({ char: em }). Without them (Node) a
+// wide character counts as 1 em, its ink 0.86 em up and 0.12 em down (tuned on Apple SD Gothic Neo).
 var AVC_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
 var AVC_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
 var AVC_WIDE_UP = 0.86, AVC_WIDE_DOWN = 0.12;
 function avcFontStack(family) {
   return '"' + family + '", "Arial Narrow", Impact, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+}
+function avcKoWide(data) {
+  var ink = data.koInk, adv = data.koAdvances;
+  var ok = ink && typeof ink.up === "number" && typeof ink.down === "number" && ink.up > 0.3 && ink.up < 1.5 && ink.down >= 0 && ink.down < 0.6;
+  return { up: ok ? ink.up : AVC_WIDE_UP, down: ok ? ink.down : AVC_WIDE_DOWN, adv: adv && typeof adv === "object" ? adv : null };
+}
+function avcKoAdvance(kw, ch) {
+  var a = kw.adv ? kw.adv[ch] : undefined;
+  return typeof a === "number" && isFinite(a) && a > 0.2 && a < 2 ? a : 1;
+}
+// The credit's text as drawn (Latin in capitals, Korean as typed), or "" when empty.
+function avcFullText(data) {
+  var text = [avcText(data, "prefix"), avcText(data, "name")].filter(Boolean).join(" ");
+  return AVC_HANGUL_RE.test(text) ? text : text.toUpperCase();
+}
+// Measures the wide glyphs on a 2D canvas with the exact stack and weight the credit draws them with (call it once
+// the fonts are loaded): { koInk, koAdvances } to merge into `data`, or null in Node or without a wide glyph.
+function avcKoMeasure(data) {
+  data = data || {};
+  var text = avcFullText(data);
+  if (!AVC_WIDE_RE.test(text) || typeof document === "undefined" || !document.createElement) return null;
+  var ctx = null;
+  try { ctx = document.createElement("canvas").getContext("2d"); } catch (e) { ctx = null; }
+  if (!ctx || typeof ctx.measureText !== "function") return null;
+  var px = 100;
+  ctx.font = (AVC_HANGUL_RE.test(text) ? 700 : AVC_FACE.weight) + " " + px + "px " + avcFontStack(AVC_FACE.family);
+  var out = { koAdvances: {} };
+  var s = ctx.measureText("\ud55c\uae00");
+  if (s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0) out.koInk = { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px };
+  var chars = Array.from(text);
+  for (var i = 0; i < chars.length; i++) {
+    if (AVC_WIDE_RE.test(chars[i]) && !(chars[i] in out.koAdvances)) out.koAdvances[chars[i]] = ctx.measureText(chars[i]).width / px;
+  }
+  return out;
 }
 function avcNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
 function avcText(data, key) {
@@ -28,10 +65,9 @@ function avcText(data, key) {
 function avCreditLayout(data, width, height) {
   data = data || {};
   var W = width > 0 ? width : 1920, H = height > 0 ? height : 1080;
-  var text = [avcText(data, "prefix"), avcText(data, "name")].filter(Boolean).join(" ");
+  var text = avcFullText(data);
   if (!text) return null;
-  var ko = AVC_HANGUL_RE.test(text);
-  if (!ko) text = text.toUpperCase();
+  var ko = AVC_HANGUL_RE.test(text), kw = avcKoWide(data);
   var m = null, fonts = Array.isArray(data.fonts) ? data.fonts : [];
   for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === AVC_FACE.family && fonts[i].metrics) m = fonts[i].metrics;
   m = m || AVC_FALLBACK_METRICS;
@@ -39,13 +75,13 @@ function avCreditLayout(data, width, height) {
   var units = 0, chars = Array.from(text);
   for (var j = 0; j < chars.length; j++) {
     var a = m.advances[chars[j]];
-    units += typeof a === "number" ? a : (AVC_WIDE_RE.test(chars[j]) ? 1 : 0.56) * m.unitsPerEm;
+    units += typeof a === "number" ? a : (AVC_WIDE_RE.test(chars[j]) ? avcKoAdvance(kw, chars[j]) : 0.56) * m.unitsPerEm;
   }
   var w = (units * size) / m.unitsPerEm;
   // Shrink a long name to the fit width.
   if (w > AVC_FIT * W) { size *= (AVC_FIT * W) / w; w = AVC_FIT * W; }
-  var up = Math.max(m.capHeight / m.unitsPerEm, AVC_WIDE_RE.test(text) ? AVC_WIDE_UP : 0);
-  var down = Math.max(/[gjpqy,;()[\]{}|]/.test(text) ? -m.descent / m.unitsPerEm : 0, AVC_WIDE_RE.test(text) ? AVC_WIDE_DOWN : 0);
+  var up = Math.max(m.capHeight / m.unitsPerEm, AVC_WIDE_RE.test(text) ? kw.up : 0);
+  var down = Math.max(/[gjpqy,;()[\]{}|]/.test(text) ? -m.descent / m.unitsPerEm : 0, AVC_WIDE_RE.test(text) ? kw.down : 0);
   // The ink box is centred on (x %, y %) of the canvas.
   var cx = (avcNum(data.x, 50, 10, 90) / 100) * W, cy = (avcNum(data.y, 50, 10, 90) / 100) * H;
   var x = cx - w / 2, y = cy + ((up - down) / 2) * size;
@@ -62,8 +98,11 @@ export default function ArchivedCredit({ data: raw }: { data: any }) {
   const width = num(config && config.width, 1920);
   const height = num(config && config.height, 1080);
   const fonts: any[] = Array.isArray(data.fonts) ? data.fonts.filter((f: any) => f && f.b64) : [];
-  const [ready, setReady] = useState(fonts.length === 0);
-  const [handle] = useState(() => (fonts.length && typeof document !== "undefined" && document.fonts ? delayRender("archive vlog credit fonts") : null));
+  // Wide (Hangul) text is measured on a canvas once the fonts are loaded, so the render waits for that too.
+  const fullText = avcFullText(data);
+  const wideText = AVC_WIDE_RE.test(fullText) ? fullText : "";
+  const [ready, setReady] = useState(fonts.length === 0 && !wideText);
+  const [handle] = useState(() => ((fonts.length || wideText) && typeof document !== "undefined" && document.fonts ? delayRender("archive vlog credit fonts") : null));
   const released = useRef(false);
   const release = () => {
     if (handle != null && !released.current) { released.current = true; continueRender(handle); }
@@ -73,15 +112,20 @@ export default function ArchivedCredit({ data: raw }: { data: any }) {
     let live = true;
     const done = () => { if (live) setReady(true); };
     if (typeof document === "undefined" || !document.fonts) { done(); return; }
-    Promise.all(fonts.map((f) => document.fonts.load(`${f.style || "normal"} ${f.weight} 100px "${f.family}"`).catch(() => null))).finally(done);
+    const loads = fonts.map((f) => document.fonts.load(`${f.style || "normal"} ${f.weight} 100px "${f.family}"`).catch(() => null));
+    // The Korean system face the wide glyphs fall back to (Apple SD Gothic Neo / Malgun Gothic).
+    if (wideText) loads.push(document.fonts.load(`700 100px ${avcFontStack(AVC_FACE.family)}`, wideText).catch(() => null));
+    Promise.all(loads).finally(done);
     return () => { live = false; };
   }, [ready]);
   useEffect(() => { if (ready) release(); }, [ready, handle]);
   // Never leave the render blocked if the graphic unmounts before the fonts settle.
   useEffect(() => release, []);
 
-  // Static: the layout depends only on the parameters and the canvas size.
-  const c: any = useMemo(() => avCreditLayout(data, width, height), [raw, width, height]);
+  // Measured wide-glyph metrics (koInk / koAdvances) once the fonts are in; null for Latin-only text.
+  const ko: any = useMemo(() => (ready ? avcKoMeasure(data) : null), [ready, raw]);
+  // Static: the layout depends only on the parameters, the measured metrics and the canvas size.
+  const c: any = useMemo(() => avCreditLayout(ko ? Object.assign({}, data, ko) : data, width, height), [ko, raw, width, height]);
   const shadow = Math.max(0, Math.min(1, num(data.shadow, 0.3)));
   const fontFaces = fonts.map((f) => `@font-face{font-family:"${f.family}";src:url("data:font/woff2;base64,${f.b64}") format("woff2");font-style:${f.style || "normal"};font-weight:${f.weight};}`).join("");
   return (

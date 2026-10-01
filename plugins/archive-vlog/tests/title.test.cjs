@@ -18,9 +18,9 @@ function block(file, name) {
 }
 const title = block('decode-title.tsx', 'av-decode'), credit = block('archived-credit.tsx', 'av-credit');
 const T = {}; vm.createContext(T);
-vm.runInContext(title + ';globalThis.X={avTitleLayout,avDecodeFrame,avTiming,avFontStack,avGhostChar,avHash,AV_TITLE_FACES,AV_KICKER_FACE,AV_TAGLINE_FACE,AV_TITLE_PRESETS,AV_POOL_HANGUL};', T);
+vm.runInContext(title + ';globalThis.X={avKoMeasure,avTitleLayout,avDecodeFrame,avTiming,avFontStack,avGhostChar,avHash,AV_TITLE_FACES,AV_KICKER_FACE,AV_TAGLINE_FACE,AV_TITLE_PRESETS,AV_POOL_HANGUL};', T);
 const C = {}; vm.createContext(C);
-vm.runInContext(credit + ';globalThis.X={avCreditLayout,avcFontStack,AVC_FACE};', C);
+vm.runInContext(credit + ';globalThis.X={avcKoMeasure,avCreditLayout,avcFontStack,AVC_FACE};', C);
 // Also loadable the way the panel does it, and both blocks together in one scope (no name clashes).
 assert.equal(typeof new Function(title + ';return avTitleLayout;')(), 'function');
 assert.equal(typeof new Function(title + credit + ';return [avTitleLayout, avCreditLayout];')()[1], 'function');
@@ -272,5 +272,77 @@ const SEOUL_TRIP = ko(0xC11C, 0xC6B8, 0x20, 0xC5EC, 0xD589), SEOUL = ko(0xC11C, 
   assert.ok(long.w <= 0.8 * W + 1e-6, 'credit fits');
   const big = plain(Y.avCreditLayout({ size: 150, color: '#FCE070', fonts }, W, H));
   near(big.size, c.size * 1.5, 1e-6, 'credit size'); assert.equal(big.color, '#FCE070');
+}
+
+// --- Measured Hangul metrics (Windows: Malgun Gothic differs from Apple SD Gothic Neo). `data.koInk` ({ up, down } em)
+// and `data.koAdvances` ({ char: em }) replace the 0.86 / 0.12 em ink and the 1 em advance; without them (or with
+// invalid values) the layout is the old one, and Latin-only text never changes.
+{
+  const KO = { title: SEOUL_TRIP, kicker: 'mini vlog', tagline: SEOUL + ' capture' };
+  const base = lay(KO);
+  // Absent, invalid or equal-to-the-constants values give the old layout.
+  assert.deepEqual(lay({ ...KO, koInk: { up: 'x', down: 0.1 }, koAdvances: { [SEOUL[0]]: 'wide' } }), base);
+  assert.deepEqual(lay({ ...KO, koInk: { up: 0.86, down: 0.12 }, koAdvances: { [SEOUL[0]]: 1 } }), base);
+  near(base.title.box[1], base.title.y - 0.86 * base.title.size, 1e-9, 'fallback Hangul ink up');
+  near(base.title.box[3], base.title.y + 0.12 * base.title.size, 1e-9, 'fallback Hangul ink down');
+  // Measured ink moves the title's ink box and everything stacked on it; the lockup stays centred.
+  const inked = lay({ ...KO, koInk: { up: 0.8, down: 0.22 } });
+  near(inked.title.box[1], inked.title.y - 0.8 * inked.title.size, 1e-9, 'measured ink up');
+  near(inked.title.box[3], inked.title.y + 0.22 * inked.title.size, 1e-9, 'measured ink down');
+  assert.notEqual(inked.tagline.y, base.tagline.y); assert.notEqual(inked.title.y, base.title.y);
+  near((inked.box[1] + inked.box[3]) / 2, 0.48 * H, 1e-6, 'still centred');
+  assert.deepEqual(inked.title.letters, base.title.letters, 'ink does not change the advances');
+  // Measured advances replace the 1 em per wide character; Latin letters keep the font metrics.
+  const adv = Object.fromEntries(Array.from(SEOUL_TRIP.replace(' ', '')).map(c => [c, 0.92]));
+  const narrow = lay({ ...KO, title: 'Seoul ' + SEOUL, koAdvances: adv }), wide1 = lay({ ...KO, title: 'Seoul ' + SEOUL });
+  narrow.title.letters.forEach((l, i) => {
+    if (l.cls === 'hangul') near(l.w, 0.92 * narrow.title.size, 1e-9, 'measured Hangul advance');
+    else near(l.w / narrow.title.size, wide1.title.letters[i].w / wide1.title.size, 1e-12, 'Latin advance unchanged');
+  });
+  assert.ok(narrow.title.w < wide1.title.w);
+  near(narrow.tagline.w, wide1.tagline.w - 2 * 0.08 * narrow.tagline.size, 1e-6, 'tagline Hangul at the measured advance');
+  // A Hangul ghost is centred with its measured advance.
+  const Dk = { koAdvances: Object.fromEntries(plain(X.AV_POOL_HANGUL).map(c => [c, 0.9])), timing: { textIn: 0, decodeStart: 0, letterSeconds: 1 } };
+  const KL = lay({ title: SEOUL, kicker: '', tagline: '', ...Dk });
+  const gh = frameAt(KL, Dk, 5).glyphs[0];
+  near(gh.x + 0.9 * KL.title.size / 2, KL.title.letters[0].x + KL.title.letters[0].w / 2, 1e-9, 'ghost centred with the measured advance');
+  // Latin-only text ignores the measured values.
+  for (const extra of [{}, { preset: 'a-day-out', title: 'A DAY OUT' }, { title: 'WWWWWWWWWWWWWWWWWWWWWWW' }]) {
+    const d = { ...extra, koInk: { up: 0.7, down: 0.3 }, koAdvances: { A: 2, W: 0.3 } };
+    assert.deepEqual(lay(d), lay(extra)); assert.deepEqual(frameAt(lay(d), d, 95), frameAt(lay(extra), extra, 95));
+  }
+  // Credit: the same two fields.
+  const cBase = plain(Y.avCreditLayout({ name: SEOUL, fonts }, W, H));
+  assert.deepEqual(plain(Y.avCreditLayout({ name: SEOUL, fonts, koInk: { up: 2, down: 0.1 } }, W, H)), cBase, 'invalid credit ink ignored');
+  near(cBase.box[1], cBase.y - 0.86 * cBase.size, 1e-9, 'credit fallback ink');
+  const cM = plain(Y.avCreditLayout({ name: SEOUL, fonts, koInk: { up: 0.95, down: 0.2 }, koAdvances: { [SEOUL[0]]: 0.9, [SEOUL[1]]: 0.9 } }, W, H));
+  near(cM.box[1], cM.y - 0.95 * cM.size, 1e-9, 'credit measured ink up'); near(cM.box[3], cM.y + 0.2 * cM.size, 1e-9, 'credit measured ink down');
+  near(cM.w, cBase.w - 0.2 * cM.size, 1e-6, 'credit measured advances');
+  near((cM.box[1] + cM.box[3]) / 2, H / 2, 1e-6, 'credit still centred');
+  const cL = { prefix: 'archived by', name: 'kim', fonts };
+  assert.deepEqual(plain(Y.avCreditLayout({ ...cL, koInk: { up: 0.7, down: 0.3 }, koAdvances: { K: 3 } }, W, H)), plain(Y.avCreditLayout(cL, W, H)));
+  // The canvas measurer: null in Node or for Latin text; with a canvas it measures on the drawn stack and weight.
+  assert.equal(X.avKoMeasure({ title: SEOUL }), null); assert.equal(Y.avcKoMeasure({ name: SEOUL }), null);
+  const fonts2d = [];
+  const doc = { createElement: () => ({ getContext: () => ({ font: '', measureText(t) {
+    fonts2d.push(this.font);
+    return { width: Array.from(t).length * 93, actualBoundingBoxAscent: 81, actualBoundingBoxDescent: 15 };
+  } }) }) };
+  const mT = {}, mC = {}; vm.createContext(mT); vm.createContext(mC); mT.document = doc; mC.document = doc;
+  vm.runInContext(title + ';globalThis.f=avKoMeasure;', mT); vm.runInContext(credit + ';globalThis.f=avcKoMeasure;', mC);
+  assert.equal(mT.f({ title: 'CINEMATIC', kicker: 'MINI VLOG' }), null, 'nothing to measure for Latin');
+  const mt = plain(mT.f({ title: SEOUL, kicker: 'mini', tagline: SEOUL_TRIP }));
+  assert.deepEqual(mt.koInk, { up: 0.81, down: 0.15 });
+  for (const c of Array.from(SEOUL_TRIP.replace(' ', '')).concat(plain(X.AV_POOL_HANGUL))) near(mt.koAdvances[c], 0.93, 1e-12, 'advance ' + c);
+  assert.equal(mt.koAdvances.m, undefined, 'only wide characters');
+  assert.equal(fonts2d[fonts2d.length - 1], '700 100px ' + X.avFontStack('AV Anton'));
+  assert.match(fonts2d[fonts2d.length - 1], /"Apple SD Gothic Neo", "Malgun Gothic"/);
+  // Measured output plugs straight into the layout.
+  near(lay({ title: SEOUL, ...mt }).title.letters[0].w, 0.93 * lay({ title: SEOUL, ...mt }).title.size, 1e-9, 'measured advance used');
+  mT.f({ title: SEOUL, font: 'oswald' }); assert.equal(fonts2d[fonts2d.length - 1], '700 100px ' + X.avFontStack('AV Oswald Bold'));
+  const mc = plain(mC.f({ prefix: 'ARCHIVED BY', name: SEOUL }));
+  assert.deepEqual(mc.koInk, { up: 0.81, down: 0.15 }); assert.deepEqual(Object.keys(mc.koAdvances).sort(), Array.from(SEOUL).sort());
+  assert.equal(fonts2d[fonts2d.length - 1], '700 100px ' + Y.avcFontStack('AV Oswald Bold'));
+  assert.equal(mC.f({ name: 'KIM' }), null);
 }
 console.log(JSON.stringify({ title: 'ok' }));
