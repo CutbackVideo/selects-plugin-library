@@ -454,8 +454,9 @@ function saeSnapSection(sec, cue, opts) {
 // analysis { bpm, firstBeat, grid, downbeat?, durationSeconds, defaultSection?, onsets?, onsetThresholds? }; null = no
 // music), sectionStart? (default saeDefaultSection), candidates, durations, badSpans?, photos?, usePhotos? (default
 // true), margin? }.
-// Tries the wanted bar count, then fewer (down to SAE_MIN_BARS) until the sources fill every bar under the rules; a
-// pool too small even for that builds SAE_MIN_BARS bars with adjacency / pair reuse relaxed.
+// Tries the wanted bar count (capped so the video ends before the music's fade-out), then fewer (down to SAE_MIN_BARS)
+// until the sources fill every bar under the rules; a pool too small even for that builds SAE_MIN_BARS bars with
+// adjacency / pair reuse relaxed.
 // Returns the plan (contract in plan.md) with ok: true, or { ok: false, notes: ['no-sources' | 'music-too-short'] }.
 // Notes: 'few-face' (fewer face clips than bars), 'reused' (a source fills more than one bar), 'shrunk', 'fixed-tempo'
 // (music without a usable beat), 'no-music', 'adjacent' / 'pair-reuse' (relaxations used).
@@ -467,11 +468,21 @@ function saePlanBuild(opts) {
   const cue = opts.cue || null;
   const tempo = saeTempo(cue);
   const editBpm = tempo.editBpm, spb = 60 / editBpm;
-  let sectionStart = null;
+  // The music caps the bar count: the most bars (<= wanted) whose video ends before the cue's fade-out. Without a
+  // user section, the default section of the largest bar count that has one; with one, the largest bar count that
+  // still fits after it.
+  let sectionStart = null, maxBars = wanted;
   if (cue) {
-    sectionStart = saeFinite(opts.sectionStart) ? opts.sectionStart : saeDefaultSection(cue, wanted, editBpm);
-    if (sectionStart === null) sectionStart = saeDefaultSection(cue, SAE_MIN_BARS, editBpm);
-    if (sectionStart === null) return { ok: false, notes: ['music-too-short'], fit: { bars: 0, wanted } };
+    maxBars = 0;
+    for (let n = wanted; n >= SAE_MIN_BARS && !maxBars; n--) {
+      if (saeFinite(opts.sectionStart)) {
+        if (saeSectionRange(cue, n, editBpm).max >= opts.sectionStart - 1e-9) { maxBars = n; sectionStart = opts.sectionStart; }
+      } else {
+        const s = saeDefaultSection(cue, n, editBpm);
+        if (s !== null) { maxBars = n; sectionStart = s; }
+      }
+    }
+    if (!maxBars) return { ok: false, notes: ['music-too-short'], fit: { bars: 0, wanted } };
   }
   const snap = !!cue && tempo.fixed && !!(cue.onsets && cue.onsets.length);
   // The longest hold a moment window must cover: 1 beat rounded up a frame, plus an onset snap's shift.
@@ -480,7 +491,7 @@ function saePlanBuild(opts) {
   const base = { clips: moments.clips, photos: opts.photos, seed, usePhotos: opts.usePhotos };
   let alloc = null, bars = 0;
   const relax = [];
-  for (let n = wanted; n >= SAE_MIN_BARS && !alloc; n--) {
+  for (let n = maxBars; n >= SAE_MIN_BARS && !alloc; n--) {
     const a = saeAllocate({ ...base, bars: n });
     if (a.ok) { alloc = a; bars = n; }
   }

@@ -311,4 +311,32 @@ for (const cue of manifest.cues) {
   assert.equal(short.clips[0].pairs.length, 1); assert.equal(short.clips[0].pairs[0].relaxed, true);
 }
 
+// ---- Bar count capped by the music: the edit always ends before the cue's fade-out ----
+{
+  const fps = 30, durs = { v1: 20, v2: 20, v3: 20, v4: 20, v5: 20, v6: 20, v7: 20, v8: 20 };
+  const own = { bpm: 100, firstBeat: 0, grid: 'accepted', durationSeconds: 14 };
+  const fits = (plan, cue) => plan.musicSourceStart + plan.totalFrames / fps <= cue.durationSeconds - P.SAE_FADE_OUT + 1 / fps;
+  // Long (8 bars) does not fit 14 s at 100 BPM: shrunk to the most bars that fit on a bar line.
+  const long = P.saePlanBuild({ fps, bars: 8, cue: own, candidates: [], durations: durs });
+  assert.equal(long.ok, true);
+  assert.ok(long.bars < 8 && long.bars >= 3, 'shrunk: ' + long.bars);
+  assert.ok(long.notes.includes('shrunk'), 'shrunk note');
+  assert.deepEqual(j(long.fit), { bars: long.bars, wanted: 8 });
+  assert.ok(fits(long, own), 'music outlasts the video: ' + (long.musicSourceStart + long.totalFrames / fps));
+  // The most bars that fit: one more bar would not fit on any bar line.
+  assert.equal(P.saeDefaultSection(own, long.bars + 1, 100), null);
+  assert.ok(P.saeDefaultSection(own, long.bars, 100) !== null);
+  // A late user section: shrunk until the edit ends before the fade-out.
+  const late = P.saePlanBuild({ fps, bars: 8, cue: own, sectionStart: 4.8, candidates: [], durations: durs });
+  assert.equal(late.ok, true); assert.equal(late.sectionStart, 4.8);
+  assert.ok(late.bars < long.bars, 'late section shrinks further: ' + late.bars);
+  assert.ok(late.notes.includes('shrunk')); assert.ok(fits(late, own), 'late section fits');
+  assert.equal(late.bars, Math.max(...[3, 4, 5, 6, 7, 8].filter(n => 12 - P.saeVideoSeconds(n, 100) >= 4.8)), 'the largest n that fits');
+  // Too late even for 3 bars.
+  assert.deepEqual(j(P.saePlanBuild({ fps, bars: 4, cue: own, sectionStart: 9, candidates: [], durations: durs }).notes), ['music-too-short']);
+  // A Long edit that fits keeps its 8 bars.
+  const roomy = P.saePlanBuild({ fps, bars: 8, cue: { ...own, durationSeconds: 60 }, candidates: [], durations: durs });
+  assert.equal(roomy.bars, 8); assert.ok(!roomy.notes.includes('shrunk'));
+}
+
 console.log('planner.test: ok');
