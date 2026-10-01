@@ -343,6 +343,8 @@ test('readiness wording: analysis counts, short clips, plan notes', () => {
   assert.deepEqual(notes(['few-face'], 2), ['Only 2 close-up clips found — the edit reuses them']);
   assert.deepEqual(notes(['few-face'], 1), ['Only 1 close-up clip found — the edit reuses it']);
   assert.deepEqual(notes(['few-face'], 0), ['No close-up clips found, so the edit uses your other clips and photos']);
+  assert.deepEqual(notes(['few-face', 'photos-early'], 1), ['Only 1 close-up clip found — the edit reuses it', 'Too few close-up clips: photos may also fill the second or last bar']);
+  assert.equal(plain(api.saePlanNotes('ko', { notes: ['photos-early'] }))[0], block.strings.ko['note.photosEarly']);
   assert.deepEqual(notes(['shrunk', 'fixed-tempo', 'no-music', 'pair-reuse', 'adjacent', 'reused', 'photo-run'], 3, { bars: 3, wanted: 6 }),
     ['Your footage fits 3 of 6 bars, so the edit is shorter. Add more clips or photos for the full length.', 'No steady beat found; cuts use a fixed length', 'No music: cuts follow a steady 97 BPM rhythm', 'Very few clips: some moments repeat', 'Very few clips: the same clip plays in neighbouring bars']);
   const poll = (own.match(/const needsPoll = ([^\n]*);/) || [])[1];
