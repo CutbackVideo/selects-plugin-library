@@ -194,6 +194,40 @@ const WIN_WAVE = [
   "W ($J.Serialize($o))",
 ].join("\n");
 
+// Waveform bars from a saved audio file on disk, for My tracks entries with
+// no Epidemic waveform URL. Uses ffmpeg from the user's PATH when present;
+// otherwise reads 8/16/24/32-bit PCM or float WAV directly. $f is the file.
+const WIN_LOCAL_WAVE = [
+  "$BARS=160;$amp=[Collections.ArrayList]::new()",
+  "$dirs=@([Environment]::GetEnvironmentVariable('Path','User'),[Environment]::GetEnvironmentVariable('Path','Machine'),$env:Path) -join ';'",
+  "$ff=$null;foreach($p in $dirs.Split(';')){if(-not $p){continue};try{$c=[IO.Path]::Combine($p.Trim().Trim([char]34),'ffmpeg.exe');if([IO.File]::Exists($c)){$ff=$c;break}}catch{}}",
+  "$done=$false",
+  "if($ff){try{$tmp=[IO.Path]::Combine($TMPD,[guid]::NewGuid().ToString('N')+'.pcm');& $ff -v error -y -i $f -ac 1 -ar 2000 -f s16le $tmp 2>$null;if([IO.File]::Exists($tmp)){$pcm=[IO.File]::ReadAllBytes($tmp);[IO.File]::Delete($tmp);$cnt=[Math]::Floor($pcm.Length/2);if($cnt -gt 0){$step=[int][Math]::Max(1,[Math]::Floor($cnt/$BARS));$hop=[int][Math]::Max(1,[Math]::Floor($step/400));for($i=0;$i -lt $cnt;$i+=$step){$mx=0;$e=[Math]::Min($i+$step,$cnt);for($k=$i;$k -lt $e;$k+=$hop){$v=[Math]::Abs([int][BitConverter]::ToInt16($pcm,$k*2));if($v -gt $mx){$mx=$v}};[void]$amp.Add([double]$mx);if($amp.Count -ge $BARS){break}};$done=$true}}}catch{}}",
+  "if(-not $done -and $f -match '\\.wav$'){",
+  " $fs=[IO.File]::OpenRead($f);$br=[IO.BinaryReader]::new($fs)",
+  " try{",
+  "  $asc=[Text.Encoding]::ASCII",
+  "  if($asc.GetString($br.ReadBytes(4)) -ne 'RIFF'){throw 'not wav'};[void]$br.ReadUInt32();if($asc.GetString($br.ReadBytes(4)) -ne 'WAVE'){throw 'not wav'}",
+  "  $fmt=0;$ch=0;$bits=0;$doff=-1;$dlen=0",
+  "  while($fs.Position+8 -le $fs.Length){$id=$asc.GetString($br.ReadBytes(4));$sz=[int64]$br.ReadUInt32();$st=$fs.Position",
+  "   if($id -eq 'fmt '){$fmt=[int]$br.ReadUInt16();$ch=[int]$br.ReadUInt16();[void]$br.ReadUInt32();[void]$br.ReadUInt32();[void]$br.ReadUInt16();$bits=[int]$br.ReadUInt16();if($fmt -eq 65534 -and $sz -ge 26){[void]$br.ReadUInt16();[void]$br.ReadUInt16();[void]$br.ReadUInt32();$fmt=[int]$br.ReadUInt16()}}",
+  "   elseif($id -eq 'data'){$doff=$st;$dlen=[Math]::Min($sz,$fs.Length-$st);break}",
+  "   $fs.Position=$st+$sz+($sz%2)}",
+  "  $by=[int]($bits/8);$bpf=$by*$ch",
+  "  if($doff -lt 0 -or $bpf -le 0 -or ($fmt -ne 1 -and $fmt -ne 3)){throw 'unsupported wav'}",
+  "  $frames=[int64][Math]::Floor($dlen/$bpf)",
+  "  if($frames -gt 0){for($i=0;$i -lt $BARS;$i++){$a=[int64][Math]::Floor($i*$frames/$BARS);$e=[int64][Math]::Floor(($i+1)*$frames/$BARS);if($e -le $a){$e=$a+1};$hop=[int64][Math]::Max(1,[Math]::Floor(($e-$a)/200));$mx=0.0",
+  "   for($k=$a;$k -lt $e;$k+=$hop){$fs.Position=$doff+$k*$bpf;$x=$br.ReadBytes($by);if($x.Length -lt $by){break}",
+  "    if($fmt -eq 3 -and $by -eq 4){$v=[double][BitConverter]::ToSingle($x,0)}elseif($by -eq 2){$v=[BitConverter]::ToInt16($x,0)/32768.0}elseif($by -eq 3){$t=[int]$x[0] -bor ([int]$x[1] -shl 8) -bor ([int]$x[2] -shl 16);if($t -ge 8388608){$t-=16777216};$v=$t/8388608.0}elseif($by -eq 4){$v=[BitConverter]::ToInt32($x,0)/2147483648.0}elseif($by -eq 1){$v=([int]$x[0]-128)/128.0}else{throw 'unsupported wav'}",
+  "    $v=[Math]::Abs($v);if($v -gt $mx){$mx=$v}}",
+  "   [void]$amp.Add($mx)}}",
+  " }catch{}finally{$br.Close();$fs.Close()}",
+  "}",
+  "$top=0.0;foreach($v in $amp){if($v -gt $top){$top=$v}}",
+  "$o=[Collections.ArrayList]::new();foreach($v in $amp){if($top -gt 0){[void]$o.Add([Math]::Round($v/$top,3))}else{[void]$o.Add(0)}}",
+  "W ($J.Serialize($o))",
+].join("\n");
+
 // One builder per host step. Each returns the command for this platform.
 const HOST = {
   readData: (name: string) =>
@@ -289,6 +323,12 @@ const HOST = {
     IS_WIN
       ? winCmd("$w=$J.DeserializeObject($U8.GetString((FETCH " + psv(url) + " 15)))\n" + WIN_WAVE)
       : "curl -s -m 15 " + q(url) + " | python3 -c " + q(WAVE),
+  // Peaks from a local file (same output as WAVE). macOS decodes with ffmpeg
+  // (Selects ships one as a PATH fallback) and reduces with PCM_WAVE.
+  localWaveform: (path: string) =>
+    IS_WIN
+      ? winCmd("$f=" + psv(path) + "\n" + WIN_LOCAL_WAVE)
+      : "ffmpeg -v error -i " + q(path) + " -ac 1 -ar 2000 -f s16le - | python3 -c " + q(PCM_WAVE),
   coverArt: (url: string) =>
     IS_WIN
       ? winCmd("W ([Convert]::ToBase64String((FETCH " + psv(url) + " 15)))")
@@ -355,6 +395,26 @@ const REDUCE = [
 ].join("\n");
 
 // Epidemic ships 8-bit min/max peak pairs; reduce them to normalised bars.
+// Peaks from 2 kHz mono 16-bit PCM on stdin, normalised to the loudest bar.
+const PCM_WAVE = [
+  "import sys,array",
+  'a=array.array("h")',
+  "b=sys.stdin.buffer.read()",
+  "a.frombytes(b[:len(b)//2*2])",
+  "n=len(a)",
+  "N=160",
+  "out=[]",
+  "if n:",
+  "    step=max(1,n//N)",
+  "    for i in range(0,n,step):",
+  "        seg=a[i:i+step]",
+  "        if not seg: continue",
+  "        out.append(max(abs(max(seg)),abs(min(seg))))",
+  "        if len(out)>=N: break",
+  "m=max(out) if out else 0",
+  'print("["+",".join(str(round(v/m,3) if m else 0) for v in out)+"]")',
+].join("\n");
+
 const WAVE = [
   "import sys,json",
   "w=json.load(sys.stdin)",
@@ -1493,21 +1553,38 @@ export default function Panel({ sdk, context, ui }) {
     }
   };
 
-  const loadWave = async (key: string, wf: string) => {
-    if (!wf || peaks[key]) return;
-    try {
-      const r = await sdk.runShell({
-        summary: "fetch waveform",
-        command: HOST.waveform(wf),
-        timeoutMs: 30000,
-      });
-      const arr = JSON.parse((r.stdout || "[]").trim() || "[]");
-      if (Array.isArray(arr) && arr.length) {
-        setPeaks((x) => ({ ...x, [key]: arr }));
+  // Keys whose waveform could not be produced, so the card stops saying
+  // "Loading…".
+  const [waveFailed, setWaveFailed] = React.useState<Record<string, boolean>>({});
+
+  // Epidemic's waveform URL first; for a saved track without one (or if that
+  // fails), build it from the file on disk so My tracks can scrub too.
+  const loadWave = async (key: string, wf: string, localPath = "") => {
+    if (peaks[key] || (!wf && !localPath)) return;
+    setWaveFailed((x) => {
+      if (!x[key]) return x;
+      const n = { ...x };
+      delete n[key];
+      return n;
+    });
+    const tryCmd = async (summary: string, command: string) => {
+      try {
+        const r = await sdk.runShell({ summary, command, timeoutMs: 30000 });
+        const arr = JSON.parse((r.stdout || "[]").trim() || "[]");
+        if (Array.isArray(arr) && arr.length) {
+          setPeaks((x) => ({ ...x, [key]: arr }));
+          return true;
+        }
+      } catch {
+        /* try the next source */
       }
-    } catch {
-      /* the card just shows no waveform */
+      return false;
+    };
+    if (wf && (await tryCmd("fetch waveform", HOST.waveform(wf)))) return;
+    if (localPath && (await tryCmd("read waveform from file", HOST.localWaveform(localPath)))) {
+      return;
     }
+    setWaveFailed((x) => ({ ...x, [key]: true }));
   };
 
   const seekTo = (fraction: number) => {
@@ -1522,7 +1599,13 @@ export default function Panel({ sdk, context, ui }) {
 
   // Play `src`; if it fails and `fallback` is given, play that instead. My
   // tracks plays the file on disk first and the web preview only as backup.
-  const togglePlay = (key: string, src: string, wf: string, fallback = "") => {
+  const togglePlay = (
+    key: string,
+    src: string,
+    wf: string,
+    fallback = "",
+    localPath = "",
+  ) => {
     try {
       if (playing === key) {
         stopAllPreviews();
@@ -1532,7 +1615,7 @@ export default function Panel({ sdk, context, ui }) {
       }
       stopAllPreviews();
       setProgress(0);
-      void loadWave(key, wf);
+      void loadWave(key, wf, localPath);
       // The panel frame's CSP does not admit remote or local media; the
       // parent document does, so the element is built there.
       const doc = (window.parent as any)?.document ?? document;
@@ -2762,14 +2845,23 @@ export default function Panel({ sdk, context, ui }) {
                             missing[key] ? "" : localUrl(e.path),
                             e.wf || "",
                             e.mp3,
+                            missing[key] ? "" : e.path || "",
                           )
                         }
                       />
                     ) : null}
                   </ui.Row>
 
-                  {playing === key && peaks[key] ? (
-                    <Wave bars={peaks[key]} at={progress} onSeek={seekTo} />
+                  {playing === key ? (
+                    peaks[key] ? (
+                      <Wave bars={peaks[key]} at={progress} onSeek={seekTo} />
+                    ) : (
+                      <small style={muted}>
+                        {waveFailed[key] || (!e.wf && (!e.path || missing[key]))
+                          ? "No waveform for this track"
+                          : "Loading waveform…"}
+                      </small>
+                    )
                   ) : null}
 
                   {missing[key] ? (
