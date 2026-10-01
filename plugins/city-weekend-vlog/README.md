@@ -92,12 +92,20 @@ section; press it again (or Esc) to stop.
 **Your own music**: drop an audio file. The plugin listens for the beat and
 uses it when the detected beat grid is reliable. When the detected beats
 land halfway between the kicks and snare hits, it moves the grid half a beat
-onto them. It also measures how
-strongly the music marks 16th notes to choose the title burst. Songs slower than 70 BPM, or
-songs whose beat cannot be detected reliably, fall back to fixed timing at
+onto them. Sparse drums (a lo-fi kick and snare on only some beats) count
+as a beat when the hits they do make sit tight on the grid all through the
+track; a grid that holds for part of the track but not the rest (a tempo
+change) does not. It also measures how
+strongly the music marks 16th notes to choose the title burst. When the
+tempo is found but the beat is faint, the cuts use approximate timing on
+the detected tempo: shots of that tempo's beat from its first beat, the box
+snapping to its bars, the calmer 8th-note title burst, and cuts that move
+only onto a clearly strong bass hit nearby (within 120 ms); the panel says
+"Approximate timing on the detected tempo (N BPM)". Songs slower than 70 BPM, or
+songs where no steady beat is found, fall back to fixed timing at
 99.2 BPM, and the panel says "cuts use the original rhythm". Those cuts
 still move onto a clearly strong bass hit nearby (within 120 ms). Without a
-reliable grid, the box moves in 0.1 s steps instead of bars. Your own music
+detected tempo, the box moves in 0.1 s steps instead of bars. Your own music
 and the previews need ffmpeg; your own music also needs Node.js 18 or later
 (see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.
 
@@ -219,5 +227,7 @@ Finished videos are exported from the Draft with **Handoff → Export**.
   built with, even if they have been changed in the panel since.
 - Moving cuts inside the title section does not move the title's events.
   Moving the music clip's start does not move the cuts either.
-- Songs under 70 BPM, or songs whose beat cannot be detected reliably, use
-  fixed 99.2 BPM timing instead of their own beat.
+- Songs under 70 BPM, or songs where no steady beat is found, use fixed
+  99.2 BPM timing instead of their own beat. Songs whose tempo is found but
+  whose beat is faint cut on the detected tempo, and those cuts may miss the
+  heard beat.
