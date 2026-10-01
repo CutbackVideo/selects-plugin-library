@@ -1,6 +1,9 @@
 const cfg = __CONFIG__;
 const d = selects.draft(cfg.sequenceId);
+// Effect and graphic names identify what an earlier run added (and the kit's readback), so they stay English.
 const TITLE_LABEL = 'City Weekend title', WARM_LABEL = 'Warm look', MOTION_LABEL = 'Photo motion';
+// Inspector parameter labels in the panel's UI language at build time (cfg.labels); English without them.
+const LABELS = { motion: 'Motion', motionStrength: 'Motion strength', warmth: 'Warmth', ...(cfg.labels || {}) };
 // Photo resource ids in this Draft. Photos have no sound, so their audio routing stays null after muting.
 const photoIds = new Set(cfg.photos || []);
 // Effects on photo clips (warm look and motion) when cfg.photoEffects is true. Export renders them; Draft.captureFrames
@@ -42,8 +45,8 @@ if (cfg.motion && photoEffects) {
     await d.addVideoEffect({ clip, label: MOTION_LABEL, tsxCode: cfg.motion.tsx,
       parameters: { motion: m.motion, strength: cfg.motion.strength, direction: m.direction, axis: m.axis, cover: m.cover || 1, holdSeconds },
       editableParameters: [
-        { key: 'motion', label: 'Motion', type: 'select', defaultValue: m.motion, options: cfg.motion.options },
-        { key: 'strength', label: 'Motion strength', type: 'number', defaultValue: cfg.motion.strength, min: 0, max: 2, step: 0.1 }] });
+        { key: 'motion', label: LABELS.motion, type: 'select', defaultValue: m.motion, options: cfg.motion.options },
+        { key: 'strength', label: LABELS.motionStrength, type: 'number', defaultValue: cfg.motion.strength, min: 0, max: 2, step: 0.1 }] });
     motions++;
   }
 }
@@ -55,7 +58,7 @@ if (cfg.warm) {
     if (!clip) continue;
     if (photoIds.has(clip.resourceId) && !photoEffects) { photoEffectsSkipped++; continue; }
     if (await hasEffect(clip, WARM_LABEL)) { effectsKept++; continue; }
-    await d.addVideoEffect({ clip, label: WARM_LABEL, tsxCode: cfg.warm.tsx, parameters: { strength: cfg.warm.strength }, editableParameters: [{ key: 'strength', label: 'Warmth', type: 'number', defaultValue: cfg.warm.strength, min: 0, max: 1, step: 0.05 }] });
+    await d.addVideoEffect({ clip, label: WARM_LABEL, tsxCode: cfg.warm.tsx, parameters: { strength: cfg.warm.strength }, editableParameters: [{ key: 'strength', label: LABELS.warmth, type: 'number', defaultValue: cfg.warm.strength, min: 0, max: 1, step: 0.05 }] });
     effects++;
   }
 }

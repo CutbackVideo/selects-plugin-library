@@ -158,8 +158,39 @@ Five presets. Each has four typefaces: A (a script for the title), B
 | Editorial | Allura | Cormorant Garamond Italic | Mrs Saint Delafield | Cormorant Garamond |
 
 The fonts are bundled and embedded in the title, so the Draft renders the
-same on any machine with Selects. They cover Latin text; other scripts use a
-system fallback font.
+same on any machine with Selects. They cover Latin text. Korean text uses a
+macOS system font (see [Languages](#languages)); other scripts use a system
+fallback font.
+
+## Languages
+
+**The panel** follows the language of the Selects app and changes with it
+while the panel is open. It is translated into German, English, Spanish,
+French, Italian, Japanese, Korean, Portuguese, Turkish and Chinese; any other
+app language shows English. Track names, the Draft's name and the technical
+detail after an error message stay in English.
+
+**The title in the video** can be typed in English or Korean (Hangul):
+
+- The pre-filled words stay English in every language: the weekday in **First
+  line** ("A day" when unknown) and the **Connector** "in". Type over them to
+  change them.
+- **Place** is pre-filled from the Project name when it looks like a place,
+  also when the name is Korean.
+- The bundled typefaces have no Korean letters, so Korean text is drawn with
+  the macOS system font of each typeface's kind: **AppleMyungjo** for the
+  serif typefaces (B in every preset, D in Classic, Romantic and Editorial)
+  and **Apple SD Gothic Neo** for the script and condensed ones. The line
+  still switches between the four states, and the italic states slant the
+  Korean text.
+- Korean text is never set in capitals or letter-spaced, and a long line
+  shrinks to fit the title box in one piece, as Latin text does.
+- Korean titles need macOS, where Selects and its export run. Style-matched
+  Korean typefaces are planned for a later version.
+
+**Inspector labels** of the title, the warm look and the photo motion are
+written into the Draft in the panel's language at the time of the build. They
+do not change if the app language is switched later.
 
 ## Advanced
 
@@ -227,6 +258,9 @@ Finished videos are exported from the Draft with **Handoff → Export**.
   built with, even if they have been changed in the panel since.
 - Moving cuts inside the title section does not move the title's events.
   Moving the music clip's start does not move the cuts either.
+- Korean titles use macOS system fonts, not typefaces matched to each preset,
+  and the panel's translations cover 10 languages (see
+  [Languages](#languages)).
 - Songs under 70 BPM, or songs where no steady beat is found, use fixed
   99.2 BPM timing instead of their own beat. Songs whose tempo is found but
   whose beat is faint cut on the detected tempo, and those cuts may miss the

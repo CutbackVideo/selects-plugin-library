@@ -1,0 +1,135 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import {spawnSync} from 'node:child_process';
+import {scenePlan,normalizeFinish,buildFinishScript,authorFinish,LOOK} from '../plugins/four-photo-stop-motion/operation.mjs';
+
+const dir=path.resolve(import.meta.dirname,'../plugins/four-photo-stop-motion');
+// Independent reference measurements (ffmpeg, 30 fps, 347 frames): photo cut frames.
+const INTRO_CUTS=[0,5,12,17,24,28,36,40];
+const BLACK=[48,80];
+const BEATS=[80,98,117,136,155,174,193,212,231,250,269,288,307];
+const OUTRO=[325,347];
+
+test('plan matches the measured reference timeline',()=>{
+ const plan=scenePlan();
+ assert.equal(plan.durationFrames,347);
+ assert.deepEqual(plan.canvas,{width:1080,height:1440});
+ const o=plan.occurrences;
+ assert.equal(o.length,21);
+ assert.deepEqual(o.slice(0,8).map(x=>x.startFrame),INTRO_CUTS);
+ assert.equal(o[7].endFrame,BLACK[0]);
+ assert.deepEqual(o.slice(8).map(x=>x.startFrame),BEATS);
+ assert.equal(o[20].endFrame,OUTRO[0]);
+ assert.deepEqual([plan.outro.startFrame,plan.outro.endFrame],OUTRO);
+ assert.deepEqual(o.map(x=>x.slot).join(''),'ABCDABCDABCDABCDABCDA');
+ assert.ok(o.slice(0,8).every(x=>x.kind==='intro')&&o.slice(8).every(x=>x.kind==='hit'));
+ for(let i=1;i<o.length;i++)if(i!==8)assert.equal(o[i].startFrame,o[i-1].endFrame,'no gaps except the black pause');
+ // Beats are ~0.631 s apart (about 95 BPM).
+ const gaps=BEATS.slice(1).map((b,i)=>b-BEATS[i]);assert.ok(gaps.every(g=>g>=18&&g<=19));
+});
+
+test('other frame rates keep the same times',()=>{
+ for(const fps of [24000/1001,60]){
+  const plan=scenePlan(fps),k=fps/30;
+  assert.equal(plan.durationFrames,Math.round(347*k));
+  assert.deepEqual(plan.occurrences.slice(8).map(x=>x.startFrame),BEATS.map(f=>Math.round(f*k)));
+  assert.ok(plan.occurrences.every(x=>x.endFrame>x.startFrame));
+ }
+ assert.throws(()=>scenePlan(0),/frame rate/);
+});
+
+test('beat hit shows the reference states by time at 23.976, 30 and 60 fps',async()=>{
+ // Evaluate the effect's frame logic with a stub renderer.
+ const src=fs.readFileSync(path.join(dir,'operation.mjs'),'utf8');
+ const body=src.slice(src.indexOf('const refFrame='),src.indexOf('const x=Math.max'));
+ const state=(frame,fps,refStart=80)=>{const startFrame=Math.round(refStart*fps/30);return new Function('frame','data','g',body+'return {hit,blur,shake};')(frame,{fps,startFrame,refStart,kind:'hit',introBlur:5,hitBlur:10,hitShake:[0,0,12]},{q:1});};
+ const at=(fps,refStart)=>Array.from({length:Math.ceil(fps*0.2)},(_,f)=>state(f,fps,refStart)).filter(s=>s.hit).map(s=>s.shake);
+ assert.deepEqual(at(30,80),[0,0,12]);
+ assert.deepEqual(at(24000/1001,80),[0,0,12]);
+ assert.deepEqual(at(60,80),[0,0,0,0,12,12]);
+ assert.equal(state(3,30).hit,false);
+ // Beat 117 starts 21 ms late at 23.976 fps (frame 94 = 3.921 s vs 3.900 s): by 4.004 s
+ // (clip frame 2) the reference is already sharp, so the Draft must be too.
+ assert.equal(Math.round(117*(24000/1001)/30),94);
+ assert.equal(state(2,24000/1001,117).hit,false);
+});
+
+test('look constants match the measured blur and shake',()=>{
+ assert.equal(LOOK.introBlur,5);assert.equal(LOOK.hitBlur,10);assert.deepEqual(LOOK.hitShake,[0,0,12]);
+});
+
+test('bundled music exists and outlasts the Draft',()=>{
+ const run=spawnSync(process.execPath,[path.join(dir,'build-script.mjs'),Buffer.from(JSON.stringify({mode:'music'})).toString('base64url')],{encoding:'utf8'});
+ assert.equal(run.status,0,run.stderr);
+ const file=JSON.parse(run.stdout).path;assert.ok(fs.statSync(file).size>50000);
+ const probe=spawnSync('ffprobe',['-v','error','-show_entries','format=duration','-of','csv=p=0',file],{encoding:'utf8'});
+ if(probe.status===0)assert.ok(Number(probe.stdout)>347/30+0.1,'music must be longer than the Draft');
+});
+
+const plan=scenePlan();
+const request=()=>({mode:'finish',projectId:'p',draftId:'d',fps:30,musicResourceId:'m',
+ photos:['A','B','C','D'].map((_,i)=>({resourceId:'img'+i,width:i%2?1200:1600,height:i%2?1600:1200})),
+ placements:plan.occurrences.map((o,i)=>({slot:o.slot,clipId:100+i,trackId:'t',startFrame:o.startFrame,endFrame:o.endFrame}))});
+
+test('finish input needs exactly four photos and the reference placements',()=>{
+ assert.equal(normalizeFinish(request()).placements.length,21);
+ const short=request();short.photos.pop();assert.throws(()=>normalizeFinish(short),/exactly 4/);
+ const moved=request();moved.placements[9].startFrame+=1;assert.throws(()=>normalizeFinish(moved),/reference plan/);
+ const noMusic=request();delete noMusic.musicResourceId;assert.throws(()=>normalizeFinish(noMusic),/Music/);
+});
+
+function fakeSelects(){
+ const log={transforms:[],effects:[],graphics:[],overlays:[],commits:0};
+ let clips=plan.occurrences.map((o,i)=>({clipId:100+i,trackId:'t',trackKind:'video',resourceId:'img'+'ABCD'.indexOf(o.slot),startFrame:o.startFrame,endFrame:o.endFrame}));
+ const types=new Map([['img0','Image'],['img1','Image'],['img2','Image'],['img3','Image'],['m','Audio']]);
+ const d={meta:async()=>({fps:30,durationFrames:347,frameSize:{width:1080,height:1440}}),clips:async()=>clips.map(c=>({...c})),
+  setClipTransform:async o=>{log.transforms.push(o);},addVideoEffect:async o=>{log.effects.push(o);},
+  addMotionGraphic:async o=>{log.graphics.push(o);},rangeAtFrames:async(a,b)=>({a,b}),
+  overlayResource:async({resource,over})=>{log.overlays.push({id:resource.id,...over});clips.push({clipId:900,trackId:'a',trackKind:'audio',resourceId:resource.id,startFrame:over.a,endFrame:over.b});return {atFrame:over.a};},
+  commitAll:async()=>{log.commits++;return {commitId:'c1'};}};
+ const project={meta:async()=>({draftIds:['d']}),resources:async()=>[...types].map(([resourceId,type])=>({resourceId,type})),resource:id=>({id})};
+ return {selects:{project:()=>project,draft:()=>d},log};
+}
+
+test('finish adds 21 crop/blur effects, the outro and full-length music, then saves once',async()=>{
+ const {selects,log}=fakeSelects();
+ const result=await vm.runInNewContext('(async()=>{'+buildFinishScript(request())+'})()',{selects});
+ assert.equal(result.status,'saved',result.message);
+ assert.equal(log.transforms.length,21);assert.equal(log.effects.length,21);assert.equal(log.commits,1);
+ assert.deepEqual(log.effects.map(e=>e.parameters.kind),[...Array(8).fill('intro'),...Array(13).fill('hit')]);
+ assert.deepEqual([log.graphics[0].within.a,log.graphics[0].within.b],OUTRO);
+ assert.deepEqual([log.overlays[0].a,log.overlays[0].b],[0,347]);
+ // Cover crop: a 1600x1200 landscape photo shown in 1080x1440 keeps the 3:4 window.
+ const g=log.effects[0].parameters.g;assert.ok(Math.abs(g.mw/g.mh-1080/1440)<1e-9&&g.mh===1200);
+});
+
+test('finish refuses a Draft whose clips moved and does not save',async()=>{
+ const {selects,log}=fakeSelects();
+ const input=normalizeFinish(request());input.placements[3].clipId=999;
+ const result=await authorFinish(selects,input,plan,LOOK,'','');
+ assert.equal(result.status,'notSaved');assert.equal(log.commits,0);
+});
+
+// The panel's Image placement bridge on a fake timeline: 21 sequential clips from 4 photos.
+const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
+const bridge=panelSource.slice(panelSource.indexOf('export async function placeNativeImages'),panelSource.indexOf('// Registers the bundled music'));
+const {placeNativeImages}=vm.runInThisContext('(function(){const LETTERS=["A","B","C","D"];'+bridge.replaceAll('export async function','async function')+';return {placeNativeImages};})()');
+
+test('bridge places 21 clips from 4 photos, shortening each 120-frame still',async()=>{
+ const trims=[];let next=1;const clips=new Map(),placedFrom=[];
+ const candidate={
+  place:(src,start)=>{const id=next++;placedFrom.push(src.working.slot);clips.set(id,{start,dur:120});return [id];},
+  getClipPositionById:id=>{const c=clips.get(id);return c&&{trackId:'t'+id,resolvedOffset:c.start,clip:{getDuration:()=>c.dur}};},
+  trimClipBoundary:({clipId,delta,sourceDuration})=>{const c=clips.get(clipId);trims.push({before:c.dur,delta,sourceDuration});if(sourceDuration<c.dur)throw Error('Source range exceeded');c.dur+=delta;return {trimmedClipPosition:candidate.getClipPositionById(clipId)};},
+  getDuration:()=>plan.durationFrames,slice:()=>{}};
+ const di={ProjectRepository:{findById:async()=>({getEditedSequences:()=>['d']})},SequenceRepository:{findById:async()=>({getFrameRate:()=>30,getDuration:()=>347,getFrameSize:()=>plan.canvas})},
+  TimelineMutation:{run:async(_s,_l,fn)=>({status:'committed',sequence:fn({clone:()=>candidate})})}};
+ const sources=['A','B','C','D'].map(slot=>({analyzed:{slot},main:{},primary:{getId:()=>1},width:1086,height:1448}));
+ const out=await placeNativeImages({di,libraryId:'l',projectId:'p',sources},'d',plan);
+ assert.equal(out.placements.length,21);
+ assert.equal(placedFrom.join(''),'ABCDABCDABCDABCDABCDA');
+ assert.ok(trims.every(t=>t.delta<0&&t.sourceDuration===t.before));
+});

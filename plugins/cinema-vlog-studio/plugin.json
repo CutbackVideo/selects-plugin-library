@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "id": "cinema-vlog-studio",
+  "version": "0.1.0",
+  "name": "Cinema Vlog Studio",
+  "summary": "Rebuild a fixed 21-second cinematic street-vlog edit as an editable 1920x1080 Draft: 22 marker-driven cuts, a scramble title behind a closing black curtain, three inset cards that snap to full frame, and a bundled score.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx",
+    "assets/cinema-vlog-intro-effects.m4a",
+    "assets/06-clear-waters-music-preview.mp3",
+    "assets/cinema-vlog-camera-click.wav"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Built and used in a Selects development build on macOS arm64 (2026-09-30). Requires Panel runScript/runShell and Draft authoring. Windows is unsupported (the panel locates its sounds with a Unix shell command); other builds are unverified."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 960,
+    "height": 540
+  },
+  "localized": {
+    "de": {
+      "name": "Cinema Vlog Studio",
+      "summary": "Baut einen festen 21-sek\u00fcndigen Kino-Stra\u00dfenvlog als bearbeitbaren 1920x1080-Draft: 22 markergesteuerte Schnitte, ein Titel, der sich hinter einem schlie\u00dfenden schwarzen Vorhang zusammensetzt, drei Einschubkarten, die auf Vollbild springen, und mitgelieferte Musik."
+    },
+    "en": {
+      "name": "Cinema Vlog Studio",
+      "summary": "Rebuild a fixed 21-second cinematic street-vlog edit as an editable 1920x1080 Draft: 22 marker-driven cuts, a scramble title behind a closing black curtain, three inset cards that snap to full frame, and a bundled score."
+    },
+    "es": {
+      "name": "Estudio de vlog de cine",
+      "summary": "Recrea un montaje de vlog urbano de 21 segundos como un Draft editable de 1920x1080: 22 cortes guiados por marcadores, un t\u00edtulo que se ordena tras un tel\u00f3n negro que se cierra, tres tarjetas que saltan a pantalla completa y m\u00fasica incluida."
+    },
+    "fr": {
+      "name": "Studio de vlog cin\u00e9ma",
+      "summary": "Reconstruit un montage de vlog de rue de 21 secondes en Draft 1920x1080 modifiable : 22 coupes pilot\u00e9es par marqueurs, un titre qui se d\u00e9code derri\u00e8re un rideau noir qui se ferme, trois cartes qui passent en plein cadre et une musique fournie."
+    },
+    "it": {
+      "name": "Studio vlog cinema",
+      "summary": "Ricostruisce un montaggio da vlog urbano di 21 secondi come Draft 1920x1080 modificabile: 22 stacchi guidati dai marker, un titolo che si compone dietro un sipario nero che si chiude, tre card che passano a pieno schermo e musica inclusa."
+    },
+    "ja": {
+      "name": "\u30b7\u30cd\u30de\u30fb\u30d6\u30ed\u30b0\u30fb\u30b9\u30bf\u30b8\u30aa",
+      "summary": "21 \u79d2\u306e\u6620\u753b\u7684\u306a\u30b9\u30c8\u30ea\u30fc\u30c8 vlog \u3092\u3001\u7de8\u96c6\u3067\u304d\u308b 1920x1080 \u306e Draft \u3068\u3057\u3066\u7d44\u307f\u7acb\u3066\u307e\u3059\u3002\u30de\u30fc\u30ab\u30fc\u3067\u6c7a\u307e\u308b 22 \u306e\u30ab\u30c3\u30c8\u3001\u9589\u3058\u3066\u3044\u304f\u9ed2\u3044\u30ab\u30fc\u30c6\u30f3\u306e\u5965\u3067\u6587\u5b57\u304c\u63c3\u3046\u30bf\u30a4\u30c8\u30eb\u3001\u5168\u753b\u9762\u3078\u5207\u308a\u66ff\u308f\u308b 3 \u679a\u306e\u30a4\u30f3\u30bb\u30c3\u30c8\u30ab\u30fc\u30c9\u3001\u540c\u68b1\u306e\u97f3\u697d\u304c\u5165\u308a\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "\uc2dc\ub124\ub9c8 \ube0c\uc774\ub85c\uadf8 \uc2a4\ud29c\ub514\uc624",
+      "summary": "21\ucd08\uc9dc\ub9ac \uc2dc\ub124\ub9c8\ud2f1 \uac70\ub9ac \ube0c\uc774\ub85c\uadf8 \ud3b8\uc9d1\uc744 \ud3b8\uc9d1 \uac00\ub2a5\ud55c 1920x1080 Draft\ub85c \ub2e4\uc2dc \ub9cc\ub4ed\ub2c8\ub2e4. \ub9c8\ucee4\ub85c \uc815\ud574\uc9c0\ub294 22\uac1c \ucef7, \ub2eb\ud788\ub294 \uac80\uc740 \ucee4\ud2bc \ub4a4\uc5d0\uc11c \uae00\uc790\uac00 \ub9de\ucdb0\uc9c0\ub294 \uc81c\ubaa9, \uc804\uccb4 \ud654\uba74\uc73c\ub85c \uc804\ud658\ub418\ub294 \uce74\ub4dc 3\uac1c, \ud568\uaed8 \uc81c\uacf5\ub418\ub294 \uc74c\uc545\uc774 \ub4e4\uc5b4\uac11\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Est\u00fadio de vlog de cinema",
+      "summary": "Recria uma montagem de vlog de rua de 21 segundos como um Draft edit\u00e1vel de 1920x1080: 22 cortes guiados por marcadores, um t\u00edtulo que se ordena atr\u00e1s de uma cortina negra que fecha, tr\u00eas cart\u00f5es que passam a ecr\u00e3 inteiro e m\u00fasica inclu\u00edda."
+    },
+    "tr": {
+      "name": "Sinema Vlog St\u00fcdyosu",
+      "summary": "21 saniyelik sinematik sokak vlog kurgusunu d\u00fczenlenebilir 1920x1080 bir Draft olarak yeniden kurar: i\u015faretlerle belirlenen 22 kesme, kapanan siyah perdenin arkas\u0131nda yerine oturan bir ba\u015fl\u0131k, tam ekrana ge\u00e7en \u00fc\u00e7 kart ve pakete dahil m\u00fczik."
+    },
+    "zh": {
+      "name": "\u7535\u5f71\u611f Vlog \u5de5\u4f5c\u5ba4",
+      "summary": "\u628a 21 \u79d2\u7684\u7535\u5f71\u611f\u8857\u5934 vlog \u91cd\u5efa\u4e3a\u53ef\u7f16\u8f91\u7684 1920x1080 Draft\uff1a\u7531\u6807\u8bb0\u51b3\u5b9a\u7684 22 \u4e2a\u955c\u5934\u3001\u5728\u95ed\u5408\u9ed1\u5e55\u540e\u9010\u5b57\u5f52\u4f4d\u7684\u6807\u9898\u3001\u4f9d\u6b21\u5207\u5230\u5168\u5c4f\u7684\u4e09\u5f20\u63d2\u5361\uff0c\u4ee5\u53ca\u968f\u9644\u7684\u914d\u4e50\u3002"
+    }
+  }
+}
