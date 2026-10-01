@@ -171,6 +171,10 @@ for (const [name, src] of [['title', titleSrc], ['labels', labelsSrc]]) {
   assert.ok(!/[\uac00-\ud7a3]/.test(src), name + ': no literal Hangul');
 }
 assert.ok(titleSrc.includes('stFaceFor(stFace(faces, "line1"), line1)') && titleSrc.includes('stFaceFor(stFace(faces, "season"), seasonText)'), 'title: line 1 and season faces follow their text');
+// A Hangul season word is held to the Latin cap height (Staging: at the Latin size it climbed into line 1).
+assert.ok(titleSrc.includes('if (stHasHangul(season)) out.season *= stHangulScale(fSeason, out.seasonCap);'), 'Hangul season scaled to the cap height');
+assert.equal(load(hangulTitle, ['stHangulScale']).stHangulScale({ css: 'x' }, 0.7), 0.8, 'no canvas: a fixed 0.8');
+assert.ok(/if \(HANGUL_RE\.test\(s\) && previewCtx\)/.test(fs.readFileSync(path.join(root, 'panel.tsx'), 'utf8')), 'the panel preview scales it too');
 assert.ok(titleSrc.includes('const creditUpper = data.creditUppercase !== false && !stHasHangul(creditText);'), 'title: a Hangul credit is not uppercased');
 assert.ok(labelsSrc.includes('const upper = data.creditUppercase === true && !stHasHangul(creditText);'), 'labels: a Hangul credit is not uppercased');
 assert.ok(labelsSrc.includes('stFaceFor(stFace(faces, "place"), placeText + prefixText)'), 'labels: a Hangul place drops caps and the 0.8 squeeze');

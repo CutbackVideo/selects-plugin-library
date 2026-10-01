@@ -3590,6 +3590,12 @@ function TitlePreview({ presets, presetId, line1, season, topMain, topItalic, cr
     const line1Px = previewFit(preset.title.line1Size, previewMeasure(l1, fLine1, preset.title.line1Size), box);
     let seasonPx = previewFit(preset.title.seasonSize, previewMeasure(s, fSeason, preset.title.seasonSize), seasonBox);
     const cap = previewCap(fSeason);
+    // A Hangul season word is held to the Latin cap height (as assets/title-graphic.tsx does).
+    if (HANGUL_RE.test(s) && previewCtx) {
+      previewCtx.font = "100px " + fSeason.css;
+      const m = previewCtx.measureText("\ud55c"), ink = (m.actualBoundingBoxAscent || 0) + (m.actualBoundingBoxDescent || 0);
+      seasonPx *= ink > 0 ? Math.min(1, (cap * 100) / ink) : 0.8;
+    } else if (HANGUL_RE.test(s)) seasonPx *= 0.8;
     if (fSeason.fillWidth > 0) seasonPx = Math.min(seasonPx, (0.55 * H) / cap);
     const seasonY = preset.title.seasonY;
     const line1Y = fSeason.fillWidth > 0 ? seasonY - ((seasonPx * cap) / 2 + L.stackGap + line1Px * 0.5) / H * 100 : preset.title.line1Y;

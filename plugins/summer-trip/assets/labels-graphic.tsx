@@ -54,6 +54,16 @@ function stFontStack(family, koFamily) {
 function stFaceFor(face, text) {
   return stHasHangul(text) ? { ...face, upper: false, lower: false, tracking: 0, scaleX: 1 } : face;
 }
+// Size factor that brings Hangul to the face's Latin cap height: set at the Latin size, Hangul stands about 0.9 em tall
+// against caps of about 0.7 em, so a big Korean season word would climb into line 1. `capRatio`: cap height / font size.
+function stHangulScale(face, capRatio) {
+  const ctx = typeof stCtx === "function" ? stCtx() : null;
+  if (!ctx) return 0.8;
+  ctx.font = `100px ${face.css}`;
+  const m = ctx.measureText("\ud55c");
+  const ink = (m.actualBoundingBoxAscent || 0) + (m.actualBoundingBoxDescent || 0);
+  return ink > 0 ? Math.min(1, (capRatio * 100) / ink) : 0.8;
+}
 // st-hangul:end
 
 let measureCtx = null;
