@@ -14,24 +14,150 @@
 import React from 'react';
 
 const SLOTS=12;
-const BUILDER='node "$SELECTS_USER_SKILLS_ROOT/camera-shutter-dump/build-script.mjs" ';
+
+// --- Reference plan and finishing step -----------------------------------------
+// Runs in the Panel itself, so the machine needs no Node.js. A `...Source` constant
+// is a function kept as source text: run_script (or an effect) receives exactly the
+// code written here. tests/camera_shutter_dump.test.mjs loads everything between the two marker lines.
+// @operation-start
+// Measured frame-by-frame from the reference (30 fps, 279 frames, 718x1280).
+// Each photo appears at its cut frame and stays until the end, stacked above the
+// previous ones on black. Tiles that bleed off-canvas keep a 3:4 (or 4:3) size
+// inferred from their visible edges. `sfxFrame` is the first autofocus beep of
+// that photo's shutter sound, measured from the reference audio.
+const REFERENCE_SLOTS=[
+ {cut:17,sfx:7,rect:{x:157,y:371,width:404,height:539}},
+ {cut:41,sfx:30,rect:{x:291,y:744,width:427,height:569}},
+ {cut:61,sfx:50,rect:{x:0,y:-17,width:407,height:543}},
+ {cut:83,sfx:73,rect:{x:-8,y:651,width:472,height:629}},
+ {cut:103,sfx:92,rect:{x:202,y:-53,width:516,height:688}},
+ {cut:124,sfx:113,rect:{x:-37,y:369,width:436,height:582}},
+ {cut:148,sfx:137,rect:{x:320,y:459,width:413,height:551}},
+ {cut:170,sfx:159,rect:{x:44,y:82,width:397,height:529}},
+ {cut:193,sfx:183,rect:{x:260,y:378,width:392,height:524}},
+ {cut:213,sfx:202,rect:{x:45,y:701,width:390,height:521}},
+ {cut:234,sfx:224,rect:{x:158,y:232,width:402,height:302}},
+ {cut:255,sfx:245,rect:{x:158,y:796,width:401,height:300}}
+];
+export const SLOT_COUNT=REFERENCE_SLOTS.length;
+const SFX_FRAMES=14;
+
+// Reference frames are 30 fps; a Draft at another rate gets the same times in its own frames.
+export function scenePlan(fps=30){
+ if(!Number.isFinite(fps)||fps<10||fps>120)throw Error('Unsupported Draft frame rate');
+ const at=f=>Math.round(f*fps/30),durationFrames=at(279),sfxFrames=Math.floor(SFX_FRAMES*fps/30+1e-6);
+ return {fps,canvas:{width:720,height:1280},durationFrames,
+  occurrences:REFERENCE_SLOTS.map((s,i)=>({slot:i+1,startFrame:at(s.cut),endFrame:durationFrames,rect:s.rect})),
+  sounds:REFERENCE_SLOTS.map((s,i)=>({slot:i+1,key:'shutter.'+(i%6+1),startFrame:at(s.sfx),endFrame:at(s.sfx)+sfxFrames}))};
+}
+
+// Crops the photo to its slot rectangle (cover) around an editable focus point.
+const EFFECT_CODE=`export default function ShutterDumpCrop({Source,data}) {
+ const g=data.g;
+ const x=Math.max(g.mw-g.w,Math.min(0,g.mw/2-data.focusX*g.w));
+ const y=Math.max(g.mh-g.h,Math.min(0,g.mh/2-data.focusY*g.h));
+ return <div style={{position:'absolute',inset:0}}><div style={{position:'absolute',left:g.left,top:g.top,width:g.mw,height:g.mh,overflow:'hidden'}}><div style={{position:'absolute',left:x,top:y,width:g.w,height:g.h}}><Source /></div></div></div>;
+}`;
+
+export function normalizeFinish(raw){
+ const keys=['mode','projectId','draftId','fps','photos','placements','framing','sounds'];
+ if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).some(k=>!keys.includes(k))||raw.mode!=='finish')throw Error('Unsupported request');
+ const clean=(value,label,max=1000)=>{if(typeof value!=='string'||!value.trim()||value!==value.trim()||value.length>max||/[\u0000-\u001f]/u.test(value))throw Error(label+' is required');return value;};
+ const projectId=clean(raw.projectId,'Project ID'),draftId=clean(raw.draftId,'Draft ID',120);
+ if(!Array.isArray(raw.photos)||raw.photos.length!==SLOT_COUNT)throw Error('Choose exactly '+SLOT_COUNT+' photos');
+ const photos=raw.photos.map(photo=>{
+  if(!photo||typeof photo!=='object'||Array.isArray(photo)||Object.keys(photo).some(k=>!['resourceId','width','height'].includes(k)))throw Error('Invalid Image Resource');
+  if(!Number.isSafeInteger(photo.width)||photo.width<1||!Number.isSafeInteger(photo.height)||photo.height<1)throw Error('Invalid Image dimensions');
+  return {resourceId:clean(photo.resourceId,'Image Resource ID'),width:photo.width,height:photo.height};
+ });
+ const framing=[];
+ const inFraming=raw.framing??[];
+ if(!Array.isArray(inFraming)||inFraming.length>SLOT_COUNT)throw Error('Invalid photo framing');
+ for(let i=0;i<SLOT_COUNT;i++){const p=inFraming[i]??{x:.5,y:.5},x=p.x??.5,y=p.y??.5;if(!Number.isFinite(x)||x<0||x>1||!Number.isFinite(y)||y<0||y>1)throw Error('Photo framing must be between 0 and 1');framing.push({x,y});}
+ const plan=scenePlan(raw.fps??30);
+ if(!Array.isArray(raw.placements)||raw.placements.length!==SLOT_COUNT)throw Error('Expected '+SLOT_COUNT+' Image clips');
+ raw.placements.forEach((row,i)=>{const o=plan.occurrences[i];if(!row||typeof row!=='object'||row.slot!==o.slot||!Number.isSafeInteger(row.clipId)||row.clipId<0||typeof row.trackId!=='string'||!row.trackId||row.startFrame!==o.startFrame||row.endFrame!==o.endFrame)throw Error('Image placement differs from the reference plan');});
+ if(new Set(raw.placements.map(p=>p.clipId)).size!==SLOT_COUNT)throw Error('Image clips must be independent');
+ const sounds={};
+ for(const s of plan.sounds){const id=raw.sounds?.[s.key];sounds[s.key]=clean(id,'Shutter sound Resource ID');}
+ return {projectId,draftId,fps:plan.fps,photos,placements:raw.placements.map(p=>({slot:p.slot,clipId:p.clipId,trackId:p.trackId,startFrame:p.startFrame,endFrame:p.endFrame})),framing,sounds};
+}
+
+export const authorFinishSource=String.raw`async function authorFinish(selects,input,plan,EFFECT_CODE){
+ let commitStarted=false,stage='read';
+ try{
+  const project=selects.project(input.projectId),d=selects.draft(input.draftId);
+  if(!(await project.meta()).draftIds?.includes(input.draftId))throw Error('Draft is not in the selected Project');
+  const meta=await d.meta();
+  if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames||meta.frameSize?.width!==plan.canvas.width||meta.frameSize?.height!==plan.canvas.height)throw Error('Draft frame grid changed');
+  const types=new Map((await project.resources()).map(r=>[r.resourceId,r.type]));
+  for(const [key,id] of Object.entries(input.sounds))if(types.get(id)!=='Audio')throw Error('Shutter sound is not an Audio resource: '+key);
+  const rows=await d.clips({trackScope:'all'});
+  for(const [i,o] of plan.occurrences.entries()){
+   const placed=input.placements[i],photo=input.photos[i];
+   const clip=rows.find(c=>c.clipId===placed.clipId&&c.trackId===placed.trackId);
+   if(!clip||clip.startFrame!==o.startFrame||clip.endFrame!==o.endFrame||clip.resourceId!==photo.resourceId||types.get(clip.resourceId)!=='Image')throw Error('Image clip readback differs from the plan (photo '+o.slot+')');
+  }
+  for(const [i,o] of plan.occurrences.entries()){
+   const placed=input.placements[i],photo=input.photos[i],r=o.rect,w=photo.width,h=photo.height;
+   const clip=(await d.clips({trackScope:'all'})).find(c=>c.clipId===placed.clipId&&c.trackId===placed.trackId);
+   if(!clip)throw Error('Image clip changed during authoring');
+   // q: source pixels per canvas pixel after cover-cropping into the slot; c: the
+   // editor's default fit of the whole photo into the canvas.
+   const q=Math.min(w/r.width,h/r.height),c=Math.min(plan.canvas.width/w,plan.canvas.height/h);
+   const g={w,h,mw:r.width*q,mh:r.height*q,left:(w-r.width*q)/2,top:(h-r.height*q)/2};
+   const position={x:(r.x+r.width/2-plan.canvas.width/2)/plan.canvas.height*100,y:(plan.canvas.height/2-r.y-r.height/2)/plan.canvas.height*100};
+   stage='transform photo '+o.slot;
+   await d.setClipTransform({clip,enabled:true,scale:{x:1/(q*c),y:1/(q*c)},position,anchor:{x:0,y:0},rotation:0});
+   const current=(await d.clips({trackScope:'all'})).find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);
+   const focus=input.framing[i];
+   stage='crop photo '+o.slot;
+   await d.addVideoEffect({clip:current,label:'Photo '+o.slot+' crop',tsxCode:EFFECT_CODE,parameters:{g,focusX:focus.x,focusY:focus.y},editableParameters:[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:focus.x,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:focus.y,min:0,max:1,step:.01}]});
+  }
+  const sounds=[];
+  for(const s of plan.sounds){
+   stage='shutter sound '+s.slot;
+   const r=await d.overlayResource({resource:project.resource(input.sounds[s.key]),over:await d.rangeAtFrames(s.startFrame,s.endFrame)});
+   sounds.push({slot:s.slot,atFrame:r.atFrame});
+  }
+  stage='readback';
+  const after=await d.clips({trackScope:'all'});
+  const audio=after.filter(c=>Object.values(input.sounds).includes(c.resourceId));
+  if(audio.length!==plan.sounds.length)throw Error('Expected '+plan.sounds.length+' shutter sound clips, found '+audio.length);
+  for(const s of plan.sounds)if(!audio.some(c=>c.startFrame===s.startFrame))throw Error('Shutter sound '+s.slot+' is not at frame '+s.startFrame);
+  commitStarted=true;const saved=await d.commitAll('Finish Camera Shutter Dump Draft');
+  if(!saved?.commitId)throw Error('Draft save response did not include its commit ID');
+  return {status:'saved',projectId:input.projectId,draftId:input.draftId,clips:input.placements,sounds};
+ }catch(error){return {status:commitStarted?'outcomeUnknown':'notSaved',stage,message:String(error?.message||error),draftId:input?.draftId};}
+}`;
+
+export function buildFinishScript(raw){
+ const input=normalizeFinish(raw);
+ return `const input=${JSON.stringify(input)};const plan=${JSON.stringify(scenePlan(input.fps))};return await (${authorFinishSource})(selects,input,plan,${JSON.stringify(EFFECT_CODE)});`;
+}
+
+// The bundled files ship base64-encoded beside the Panel. The shell decodes them
+// into plugin-data with its own base64 and shasum (no Node.js needed), checks each
+// against the manifest, and reuses a copy that already matches. Prints the folder.
+export function unpackCommand(manifest,{id,folder,store,label}){
+ const lines=['set -e','src="${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}/'+id+'/'+folder+'"','store="$HOME/.selects/plugin-data/'+store+'"','mkdir -p "$store"','digest(){ /usr/bin/shasum -a 256 "$1" 2>/dev/null | cut -c1-64; }'];
+ const entries=Object.values(manifest||{});
+ if(!entries.length)throw Error('Invalid bundled file manifest');
+ for(const v of entries){
+  if(!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(v?.file||'')||!/^[0-9a-f]{64}$/.test(v?.sha256||''))throw Error('Invalid bundled file manifest');
+  lines.push(`f='${v.file}'; h='${v.sha256}'; if [ "$(digest "$store/$f")" != "$h" ]; then t="$store/$f.tmp-$$"; base64 --decode < "$src/$f.b64" > "$t"; if [ "$(digest "$t")" != "$h" ]; then rm -f "$t"; echo "${label} does not match its manifest: $f" >&2; exit 1; fi; mv -f "$t" "$store/$f"; fi`);
+ }
+ lines.push('printf "%s" "$store"');
+ return lines.join('\n');
+}
+// @operation-end
+
 const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.has(n.resourceId)).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path}));`;
-const encode=value=>{
- const bytes=new TextEncoder().encode(JSON.stringify(value));let binary='';
- for(const b of bytes)binary+=String.fromCharCode(b);
- return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-};
 async function inventory(sdk,projectId,summary){
  const r=await sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary,allowCommit:false});
  if(r.isError||!Array.isArray(r.result))throw Error(r.output||'Could not read the Project files.');
  return r.result;
 }
-async function builder(sdk,request,summary,maxOutputBytes=49152){
- const r=await sdk.runShell({summary,command:BUILDER+encode(request),timeoutMs:30000,maxOutputBytes});
- if(r.isError||r.exitCode!==0||!r.stdout)throw Error(r.stderr||r.output||summary+' failed.');
- return r.stdout;
-}
-
 // The editor's existing Image placement path is not exposed by the public panel SDK
 // (overlayResource rejects Image resources). Same narrow bridge as Four Photo Reveal:
 // validate every selected path and reject unknown hosts. No client code is changed.
@@ -98,14 +224,26 @@ export async function placeNativeImages(prepared,draftId,plan){
  return {placements,photos:sources.map(s=>({width:s.width,height:s.height}))};
 }
 
+// Decodes the bundled shutter sounds into plugin-data and says where each one is.
+async function unpackSounds(sdk){
+ const read=await sdk.runShell({summary:'Read shutter sound list',command:'cat "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}/camera-shutter-dump/sfx/manifest.json"',timeoutMs:15000,maxOutputBytes:15000});
+ if(read.isError||read.exitCode!==0||!read.stdout)throw Error(read.stderr||read.output||'Read shutter sound list failed.');
+ const manifest=JSON.parse(read.stdout);
+ const r=await sdk.runShell({summary:'Unpack shutter sounds',command:unpackCommand(manifest,{id:'camera-shutter-dump',folder:'sfx',store:'camera-shutter-dump/sfx',label:'Bundled sound'}),timeoutMs:30000,maxOutputBytes:15000});
+ if(r.isError||r.exitCode!==0||!r.stdout)throw Error(r.stderr||r.output||'Unpack shutter sounds failed.');
+ return Object.fromEntries(Object.entries(manifest).map(([key,v])=>[key,{path:r.stdout+'/'+v.file,duration:v.duration}]));
+}
+
 // Registers the bundled shutter sounds in the Project once, reusing earlier imports by path.
 async function ensureSounds(sdk,projectId){
- const files=JSON.parse(await builder(sdk,{mode:'sounds'},'Unpack shutter sounds',15000));
+ const files=await unpackSounds(sdk);
  let rows=await inventory(sdk,projectId,'Find shutter sounds');
  const missing=Object.values(files).map(f=>f.path).filter(p=>!rows.some(r=>r.path===p&&r.type==='Audio'));
  if(missing.length){
   const r=await sdk.runScript({script:`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:${JSON.stringify(missing)}});`,summary:'Import shutter sounds',allowCommit:true});
   if(r.isError)throw Error(r.output||'Could not import the shutter sounds.');
+  // importFiles skips files it cannot use (e.g. media under one second) without an error.
+  if((r.result?.addedResourceIds?.length??0)<missing.length)throw Error('Selects skipped the shutter sounds when importing them.');
   rows=await inventory(sdk,projectId,'Confirm shutter sounds');
  }
  const ids={};
@@ -139,13 +277,13 @@ export async function createPhotoDraft(sdk,{projectId,selected,framing,name,part
   if(seed.isError||!seed.result?.draftId){const error=Error(seed.output||'Could not create the Draft. Check the Project before retrying.');error.seedOutput=seed.output;throw error;}
   ({draftId,fps}=seed.result);
  }
- const plan=JSON.parse(await builder(sdk,{mode:'plan',fps},'Read shutter dump plan',15000));
+ const plan=scenePlan(fps);
  if(plan.fps!==fps||plan.occurrences?.length!==SLOTS||plan.sounds?.length!==SLOTS)throw Error('The reference plan is incomplete.');
  onDraft(draftId);
  say('Placing 12 photos…');
  const native=await placeNativeImages(prepared,draftId,plan);
  const request={mode:'finish',projectId,draftId,fps,photos:selected.map((p,i)=>({resourceId:p.resourceId,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements,framing:Array.from({length:SLOTS},(_,i)=>framing[i]||{x:.5,y:.5}),sounds};
- const script=await builder(sdk,request,'Build shutter dump finishing step');
+ const script=buildFinishScript(request);
  say('Cropping photos and adding shutter sounds…');
  const result=await sdk.runScript({script,summary:'Finish shutter dump Draft',allowCommit:true,timeoutSeconds:120});
  if(result.isError||!result.result)throw Error(result.output||'Could not confirm the save. Check the Project before retrying.');
@@ -270,6 +408,7 @@ function templateMessage(error){
  if(match)return match[1]+' is missing from this Project or matches more than one photo.';
  if(/^This Selects version does not support/.test(said))return TEMPLATE_UNSUPPORTED;
  if(/^The selected photos changed/.test(said))return 'The picked photos changed while the Draft was being made; try again.';
+ if(/^Selects skipped the shutter sounds/.test(said))return 'This version of Selects could not add the Camera Shutter Dump sounds to this Project; update the plugin, then try again.';
  if(/not ready in the Project yet/.test(said))return 'Camera Shutter Dump is still adding its sounds to this Project; try again in a moment.';
  return TEMPLATE_FAILED;
 }

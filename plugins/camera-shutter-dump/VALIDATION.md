@@ -10,7 +10,7 @@ A trending "camera shutter dump" short-form template (30 fps, 279 frames, 718x12
 
 ## Automated checks
 
-`node --test tests/camera_shutter_dump.test.mjs` (9 tests): the plan's frames equal the reference table above (typed independently, not read from the plan); 24 and 60 fps convert to the same times; slot shapes; sound unpack with hash check and reuse; request validation (exactly 12 photos, all sounds, reference placements, independent clips); the builder modes the panel calls; the finish script against a mock Draft (12 transforms, 12 crop effects, 12 sound overlays at the beep frames, one save); refusal without saving when clips moved; and the panel's Image placement bridge on a fake timeline (holds longer and shorter than the 120-frame still source; reverting the `sourceDuration` fix makes it fail).
+`node --test tests/camera_shutter_dump.test.mjs` (9 tests): the plan's frames equal the reference table above (typed independently, not read from the plan); 24 and 60 fps convert to the same times; slot shapes; sound unpack in `/bin/sh` and zsh with only system tools on PATH (no Node.js), with hash check, reuse and repair; request validation (exactly 12 photos, all sounds, reference placements, independent clips); the panel builds the finishing step itself and contains no Node.js call; the finish script against a mock Draft (12 transforms, 12 crop effects, 12 sound overlays at the beep frames, one save); refusal without saving when clips moved; and the panel's Image placement bridge on a fake timeline (holds longer and shorter than the 120-frame still source; reverting the `sourceDuration` fix makes it fail).
 
 ## Live run (local Selects dev build, develop 89996b58e, 2026-09-30)
 
@@ -25,6 +25,7 @@ Project: 12 imported JPGs with mixed shapes (3:4, 16:9, 1:1, 4:5, 4:3) to check 
 | 5 | Panel lost its SDK session | App window was reloaded during testing and the host MCP server restarted; reopening the panel fixed it. Host behaviour, not the plugin. |
 | 6 | Saved | Draft 23.976 fps, 223 frames, 720x1280 (exported and compared below). |
 | 7 | Saved on the first click | After padding the sounds to 0.5 s (`shutter-v2-*`, so a 14/30 s range at 30 or 60 fps stays inside the file) and adding the bridge unit test. Same readback as run 6. |
+| 8 | Template run: "still adding its sounds" on every retry (2026-10-01, Staging 2.0.533) | Selects now skips media shorter than one second on import (cutback-client #7027), so `importFiles` returned no ids for the 0.5 s sounds. The sounds are padded with silence to 1.2 s (`shutter-v3-*`; the first 0.5 s is sample-identical to v2), and a skipped import now reports itself instead of asking for a retry. Not yet re-run in the app. |
 
 All six were found and fixed by the agent; none was a user correction. The final run was a fresh panel run from Load to Save.
 

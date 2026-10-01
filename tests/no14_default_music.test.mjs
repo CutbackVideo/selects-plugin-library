@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {authorNativeFinish,nativeScenePlan,normalizeNativeFinish} from '../plugins/no14-still-video/operation.mjs';
+import {loadPanelOperation} from './panel_operation.mjs';
+
+const {authorNativeFinish,nativeScenePlan,normalizeNativeFinish}=loadPanelOperation('no14-still-video');
 
 function fixture(musicType='Audio',durationSeconds=9) {
  const plan=nativeScenePlan();

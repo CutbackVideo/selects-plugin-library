@@ -1,10 +1,11 @@
 # Runtime dependencies
 
-This package does not bundle third-party binaries. It uses the installed Selects React panel UI, Python 3 standard library, yt-dlp, FFmpeg and ffprobe. Setup uses Homebrew only if a required program is missing.
+This package does not bundle third-party binaries.
 
-- yt-dlp: https://github.com/yt-dlp/yt-dlp
-- FFmpeg: https://ffmpeg.org
-- Python: https://www.python.org
-- Homebrew: https://brew.sh
+- yt-dlp (https://github.com/yt-dlp/yt-dlp): downloaded by the panel from the
+  project's official GitHub releases the first time a video link is used. Its
+  own license applies.
+- FFmpeg (https://ffmpeg.org): the copy that ships with Selects is used.
 
-Their respective licenses apply to separately installed tools. Browser authentication data is runtime user data and is never part of this package.
+Browser sign-in data used to retry a download stays on the user's computer and
+is never part of this package.

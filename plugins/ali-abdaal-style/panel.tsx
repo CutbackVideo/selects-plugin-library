@@ -218,21 +218,24 @@ function portraitDraftScript(projectId: string, sequenceId: string, sourceName: 
 }
 
 /**
- * A template run's draft: an exact copy of the timeline, keeping its own frame
- * size and fps. A saved project draft is duplicated as is; any other timeline
- * has what plays copied into a new draft. Either way the copy must play the
- * same words at the same frames, or the overlays would drift, so the script
- * refuses (`ali_template:copy_mismatch`) instead of building on a bad copy.
- * The source timeline is only read.
+ * A template run on a timeline styles that draft itself. It must still play
+ * the words the plan was made from, at the same frames, or the overlays would
+ * drift: a draft edited while the plan was being made is refused
+ * (`ali_template:draft_changed`), and so is one that already carries graphics
+ * (`ali_template:has_graphics`), since the style is built on a clean draft.
  */
-function timelineCopyScript(projectId: string, timeline: TimelineInput, sourceName: string, words: Word[], startFrame: number, endFrame: number) {
-  return `const project=selects.project(${JSON.stringify(projectId)});const source=selects.draft(${JSON.stringify(timeline.sequenceId)});const meta=await source.meta();${uniqueDraftNameScript(sourceName)}let d;try{d=await project.duplicateDraft({sourceDraftId:${JSON.stringify(timeline.sequenceId)},name:outputName});}catch(error){if(!/read_only_sequence/.test(String(error&&error.message||error)))throw error;d=await project.createDraft({name:outputName});await d.insert({source:await source.rangeAtFrames(${startFrame},${endFrame}),tracks:'all'});if(meta.frameSize?.width&&meta.frameSize?.height)await d.setFrameSize({width:meta.frameSize.width,height:meta.frameSize.height});}const copyMeta=await d.meta();const expectedWords=${JSON.stringify(words)};const copiedWords=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()&&w.startFrame>=${startFrame}&&w.startFrame<${endFrame});if(Number(copyMeta.fps)!==Number(meta.fps)||copyMeta.frameSize?.width!==meta.frameSize?.width||copyMeta.frameSize?.height!==meta.frameSize?.height||copiedWords.length!==expectedWords.length||copiedWords.some((w,i)=>w.text!==expectedWords[i].text||w.startFrame!==expectedWords[i].startFrame||w.endFrame!==expectedWords[i].endFrame))throw new Error('ali_template:copy_mismatch');`;
+function inPlaceDraftScript(timeline: TimelineInput, words: Word[], startFrame: number, endFrame: number) {
+  return `const d=selects.draft(${JSON.stringify(timeline.sequenceId)});if((await d.motionGraphics()).length)throw new Error('ali_template:has_graphics');const expectedWords=${JSON.stringify(words)};const draftWords=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()&&w.startFrame>=${startFrame}&&w.startFrame<${endFrame});if(draftWords.length!==expectedWords.length||draftWords.some((w,i)=>w.text!==expectedWords[i].text||w.startFrame!==expectedWords[i].startFrame||w.endFrame!==expectedWords[i].endFrame))throw new Error('ali_template:draft_changed');`;
+}
+
+function inPlaceCommitScript(sequenceId: string) {
+  return `await d.commitAll('Apply Ali Abdaal Style');return {id:${JSON.stringify(sequenceId)}};`;
 }
 
 /**
  * A template run's draft from a picked clip: a new draft holding the whole clip
- * on Main, at the clip's own frame size (not reframed). Runs twice, as the
- * timeline copy does: once uncommitted to read the words the draft plays (the
+ * on Main, at the clip's own frame size (not reframed). Runs twice:
+ * once uncommitted to read the words the draft plays (the
  * working copy is discarded when that script ends), then again to style and
  * commit, refusing (`ali_template:clip_mismatch`) if the words moved between.
  */
@@ -258,7 +261,8 @@ const COMMIT_SCRIPT = `const saved=await d.commitAll('Create Ali Abdaal Style dr
 
 const TEMPLATE_FAILED = "Selects could not create the styled timeline. Try again.";
 const TEMPLATE_ERRORS: Record<string, string> = {
-  copy_mismatch: "Selects could not copy this timeline exactly. Save it as a draft, then try again.",
+  draft_changed: "The draft changed while Selects was styling it. Try again.",
+  has_graphics: "This draft already has graphics. Use a draft with only video and audio, then try again.",
   clip_mismatch: "The clip changed while Selects was styling it. Try again.",
 };
 /** Thrown at a checkpoint once the app has started a newer run; that run reports instead. */
@@ -308,7 +312,7 @@ async function templateTranscript(run: Run, projectId: string, sequenceId: strin
   }));
 }
 
-/** Build the styled copy of the template's timeline; resolves to the new draft's sequence id. */
+/** Style the template's timeline in place; resolves to its own sequence id. */
 async function buildTemplateDraft(sdk: any, projectId: string, timeline: TimelineInput, report: (status: string) => void, checkpoint: () => void): Promise<string> {
   const run = scriptRunner(sdk);
   const sequenceId = timeline.sequenceId;
@@ -324,11 +328,10 @@ async function buildTemplateDraft(sdk: any, projectId: string, timeline: Timelin
   report("Choosing the visual beats…");
   const plan = await step("Selects AI could not plan the visual beats. Check that you are signed in and online, then try again.", () => planTreatment(sdk, words, endFrame));
   checkpoint();
-  report("Creating the new timeline…");
-  const sourceName = input.meta?.name || timeline.name;
-  const created = await step(TEMPLATE_FAILED, () => run(timelineCopyScript(projectId, timeline, sourceName, words, startFrame, endFrame) + styleScript(words, plan) + COMMIT_SCRIPT, "Create Ali Abdaal Style timeline", true));
-  if (!created?.id) throw panelError(TEMPLATE_FAILED);
-  return String(created.id);
+  report("Styling the draft…");
+  const styled = await step(TEMPLATE_FAILED, () => run(inPlaceDraftScript(timeline, words, startFrame, endFrame) + styleScript(words, plan) + inPlaceCommitScript(sequenceId), "Apply Ali Abdaal Style", true));
+  if (!styled?.id) throw panelError(TEMPLATE_FAILED);
+  return String(styled.id);
 }
 
 /**
@@ -382,7 +385,7 @@ function TemplateRun({ sdk, context }: any) {
         const projectId = context.projectId || "";
         const speaker = templateSpeaker(context.template);
         if (!projectId) throw panelError("Open a project, then try again.");
-        if (!speaker) throw panelError("Pick a talking-head video, then try again.");
+        if (!speaker) throw panelError("Open a draft of one person talking to camera, then try again.");
         const sequenceId = speaker.kind === "video"
           ? await buildClipDraft(sdk, projectId, speaker, report, checkpoint)
           : await buildTemplateDraft(sdk, projectId, speaker, report, checkpoint);
