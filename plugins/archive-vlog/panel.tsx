@@ -132,6 +132,8 @@ const STRINGS = {
     "fail.too-few": "Your footage cannot fill even the shortest version.",
     "fail.music-too-short": "This track is too short for even the shortest version from this section.",
     "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "No plan fits this footage.",
     addFootage: "Add more varied footage or select more clips.",
     addFootagePhotos: "Add more varied footage or photos, or select more clips.",
@@ -304,6 +306,8 @@ const STRINGS = {
     "fail.too-few": "Your footage cannot fill even the shortest version.",
     "fail.music-too-short": "This track is too short for even the shortest version from this section.",
     "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Für dieses Material passt kein Plan.",
     addFootage: "Füge abwechslungsreicheres Material hinzu oder wähle mehr Clips aus.",
     addFootagePhotos: "Füge abwechslungsreicheres Material oder Fotos hinzu oder wähle mehr Clips aus.",
@@ -476,6 +480,8 @@ const STRINGS = {
     "fail.too-few": "Your footage cannot fill even the shortest version.",
     "fail.music-too-short": "This track is too short for even the shortest version from this section.",
     "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Ningún plan encaja con este material.",
     addFootage: "Añade material más variado o selecciona más clips.",
     addFootagePhotos: "Añade material más variado o fotos, o selecciona más clips.",
@@ -648,6 +654,8 @@ const STRINGS = {
     "fail.too-few": "Your footage cannot fill even the shortest version.",
     "fail.music-too-short": "This track is too short for even the shortest version from this section.",
     "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Aucun plan ne convient à ces images.",
     addFootage: "Ajoutez des images plus variées ou sélectionnez plus de clips.",
     addFootagePhotos: "Ajoutez des images plus variées ou des photos, ou sélectionnez plus de clips.",
@@ -820,6 +828,8 @@ const STRINGS = {
     "fail.too-few": "Your footage cannot fill even the shortest version.",
     "fail.music-too-short": "This track is too short for even the shortest version from this section.",
     "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Nessun piano si adatta a questo materiale.",
     addFootage: "Aggiungi materiale più vario o seleziona più clip.",
     addFootagePhotos: "Aggiungi materiale più vario o foto, oppure seleziona più clip.",
@@ -992,6 +1002,8 @@ const STRINGS = {
     "fail.too-few": "Your footage cannot fill even the shortest version.",
     "fail.music-too-short": "This track is too short for even the shortest version from this section.",
     "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "この素材に合うプランがありません。",
     addFootage: "変化のある素材を追加するか、クリップをもっと選択してください。",
     addFootagePhotos: "変化のある素材や写真を追加するか、クリップをもっと選択してください。",
@@ -1164,6 +1176,8 @@ const STRINGS = {
     "fail.too-few": "Your footage cannot fill even the shortest version.",
     "fail.music-too-short": "This track is too short for even the shortest version from this section.",
     "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "\uc774 \uc601\uc0c1\uc5d0 \ub9de\ub294 \uad6c\uc131\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
     addFootage: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
     addFootagePhotos: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
@@ -1336,6 +1350,8 @@ const STRINGS = {
     "fail.too-few": "Your footage cannot fill even the shortest version.",
     "fail.music-too-short": "This track is too short for even the shortest version from this section.",
     "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Nenhum plano se encaixa neste material.",
     addFootage: "Adicione material mais variado ou selecione mais clipes.",
     addFootagePhotos: "Adicione material mais variado ou fotos, ou selecione mais clipes.",
@@ -1508,6 +1524,8 @@ const STRINGS = {
     "fail.too-few": "Your footage cannot fill even the shortest version.",
     "fail.music-too-short": "This track is too short for even the shortest version from this section.",
     "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Bu görüntülere uyan bir plan yok.",
     addFootage: "Daha çeşitli görüntüler ekleyin veya daha fazla klip seçin.",
     addFootagePhotos: "Daha çeşitli görüntüler veya fotoğraflar ekleyin ya da daha fazla klip seçin.",
@@ -1680,6 +1698,8 @@ const STRINGS = {
     "fail.too-few": "Your footage cannot fill even the shortest version.",
     "fail.music-too-short": "This track is too short for even the shortest version from this section.",
     "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "没有适合这些素材的方案。",
     addFootage: "请添加更多样的素材，或选择更多片段。",
     addFootagePhotos: "请添加更多样的素材或照片，或选择更多片段。",
@@ -2625,6 +2645,8 @@ const AV_FAIL = {
   "too-few": "Your footage cannot fill even the shortest version",
   "music-too-short": "This track is too short for even the shortest version from this section",
   "no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot",
+  "opening-too-short": "No video clip is long enough for the opening shot",
+  "ending-too-short": "No video clip is long enough for the last shot",
 };
 
 // The credit's face (presets.json role "condensed").
@@ -3250,12 +3272,6 @@ async function hostProbeSeconds(path) {
 }
 // av-host:end
 
-// The panel's words for a host error (one "needs a newer Selects" message for every missing host member).
-function hostSay(e: any): Say | null {
-  if (e?.code === "host-missing") return (l) => t(l, "hostTooOld");
-  if (e?.code === "not-found") return (l) => t(l, "foldersNotFound");
-  return null;
-}
 // Joins a path under the install folder.
 const pjoin = hostJoin;
 const readBytes = hostReadBytes;
@@ -4196,7 +4212,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       if (!plan.ok) {
         const failed = found.failed.length;
         // Whole sentences joined with `gap` (no space after a full stop in ja and zh).
-        throw uiError((l) => [failText(l, plan.reason),
+        throw uiError((l) => [failText(l, plan.reason, plan),
           plan.reason === "too-few" ? (usePhotos ? t(l, "addFootagePhotos") : t(l, "addFootage")) : "",
           failed ? t(l, "retryUnchecked", { count: failed }) : ""].filter(Boolean).join(t(l, "gap")));
       }
@@ -4346,7 +4362,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     : musicKind !== "none" && (!fitted || start == null) ? (l) => t(l, "fail.music-too-short")
     : selectedRids.length + usedPhotoCount < 2 ? (l) => t(l, "fail.one-resource")
     : null;
-  const blockFor = (plan: any): Say | null => baseBlock || (plan && !plan.ok && !plan.retryable ? (l) => failText(l, plan.reason) : null);
+  const blockFor = (plan: any): Say | null => baseBlock || (plan && !plan.ok && !plan.retryable ? (l) => failText(l, plan.reason, plan) : null);
   const blockReason = blockFor(readyPlan);
   const anotherBlock = blockFor(readyPlans.another);
   const ready = !!inventory && !!assets && !!roots;
@@ -4618,7 +4634,11 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
 }
 
 // A plan failure in the UI language (`noPlan` for a reason AV_FAIL does not list).
-function failText(lang: Lang, reason: string) {
+// `plan` carries the reason's numbers (the opening or final shot's length in seconds when no clip is long enough).
+function failText(lang: Lang, reason: string, plan: any = {}) {
+  const seconds = Math.round((Number(plan?.seconds) || 0) * 10) / 10;
+  if (reason === "opening-too-short") return t(lang, "fail.opening-too-short", { seconds });
+  if (reason === "ending-too-short") return t(lang, "fail.ending-too-short", { seconds });
   if (reason === "one-resource") return t(lang, "fail.one-resource");
   if (reason === "too-few") return t(lang, "fail.too-few");
   if (reason === "music-too-short") return t(lang, "fail.music-too-short");
@@ -4783,7 +4803,7 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
     seed: String(TEMPLATE_SEED) });
   if (!plan.ok) {
     const waiting = unanalysed ? " " + unanalysed + (unanalysed === 1 ? " video is" : " videos are") + " not analyzed yet, so it could not be used." : "";
-    throw templateIssue(failText(bl, plan.reason) + waiting);
+    throw templateIssue(failText(bl, plan.reason, plan) + waiting);
   }
 
   // Commit 1: the music, then the clips on a new Draft.

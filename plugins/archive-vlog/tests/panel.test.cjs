@@ -186,6 +186,12 @@ for (const r of ['one-resource', 'too-few', 'music-too-short', 'no-video']) {
   assert.ok(K.AV_FAIL[r], 'AV_FAIL ' + r);
   assert.ok(ui.includes('if (reason === "' + r + '") return t(lang, "fail.' + r + '");'), 'fail.' + r + ' in the UI language');
 }
+// The planner's length failures name the seconds the shot needs (fix lane M6/M7; numbers from the plan).
+for (const r of ['opening-too-short', 'ending-too-short']) {
+  assert.ok(K.AV_FAIL[r] && ui.includes('if (reason === "' + r + '") return t(lang, "fail.' + r + '", { seconds });'), 'fail.' + r);
+  assert.ok(en['fail.' + r].includes('{seconds} s'), 'fail.' + r + ' says the seconds');
+}
+assert.ok(ui.includes('failText(l, plan.reason, plan)') && ui.includes('failText(bl, plan.reason, plan)'), 'failures get the plan');
 
 // A plan from the dev fixtures (videos and photos), and the configs built from it.
 const inv = JSON.parse(read('dev/fixtures/daily-inventory.json')), found = JSON.parse(read('dev/fixtures/daily-search.json'));
