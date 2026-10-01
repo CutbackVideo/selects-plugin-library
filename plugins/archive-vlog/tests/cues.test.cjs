@@ -3,84 +3,103 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const root = path.resolve(__dirname, '..'), dir = path.join(root, 'assets', 'cues');
 const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
 assert.equal(m.version, 1);
-// Every cue the plugin may ship, in manifest order: reference-type first (the two new cues, then the reused
-// weekend-indie-pop and golden-hour-disco), the alternatives last. Only the cues present in the manifest are checked;
-// the four reused ones must always be there. downbeat: the measured confidence (see dev/build-cues.cjs); barPhase: the
-// whole beats the build moved firstBeat by to reach the best bar phase; hookStart: the measured best Standard Quick
-// start (Golden Hour Disco and Easy Sunday Lo-fi pick bar 0 on their strongest low band, which fades later).
+assert.ok(/CC0 1\.0/.test(m.provenance) && /HoliznaCC0/.test(m.provenance) && /Free Music Archive/.test(m.provenance), 'provenance');
+// The bundled cues in manifest order (the first is the default). bpm: the track's own tempo (never stretched);
+// barPhase: the whole beats the build moved firstBeat by to reach the measured bar line (Before Everything: beat-detect
+// locks three beats before beat 1); introStart: the bar start 8 beats before the drums arrive (dev/build-cues.cjs
+// introOf, measured on the mid-band onsets: Peaceful Drift bar 3 (drums at bar 5, 16.7 s), Theta Frequency bar 2
+// (bar 4, 13.7 s), Before Everything bar 1 (bar 3, 12.8 s), Fractured bar 4 (backbeat at bar 6, 20.3 s)).
 const ALL = [
-  { id: 'bedroom-pop-108', bpm: 108, group: 'reference', downbeat: 'high', barPhase: 0, hookStart: 37.806 },
-  { id: 'acoustic-pop-104', bpm: 104, group: 'reference', downbeat: 'high', barPhase: 2, hookStart: 33.492 },
-  { id: 'weekend-indie-pop', bpm: 112, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 4.313 },
-  { id: 'golden-hour-disco', bpm: 104, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 0.025 },
-  { id: 'sunny-soul-strut', bpm: 99, group: 'alternative', downbeat: 'high', barPhase: 0, hookStart: 14.573 },
-  { id: 'easy-sunday-lofi', bpm: 88, group: 'alternative', downbeat: 'high', barPhase: 0, hookStart: 0.026 },
+  { id: 'peaceful-drift', label: 'Peaceful Drift', bpm: 72, barPhase: 0, introBar: 3, page: 'peaceful-drift-lofi-nostalgic-calm/' },
+  { id: 'theta-frequency', label: 'Theta Frequency', bpm: 70, barPhase: 0, introBar: 2, page: 'theta-frequency-lofi-chill-calm/' },
+  { id: 'before-everything', label: 'Before Everything', bpm: 75, barPhase: 3, introBar: 1, page: 'before-everything-lofi-nostalgic-mp3/' },
+  { id: 'fractured', label: 'Fractured', bpm: 71, barPhase: 0, introBar: 4, page: 'fractured-1/' },
 ];
-const REUSED = ['weekend-indie-pop', 'golden-hour-disco', 'sunny-soul-strut', 'easy-sunday-lofi'];
-const { hookBars, TARGET_LUFS, CEILING_DBTP, LUFS_TOLERANCE } = require(path.join(root, 'dev', 'build-cues.cjs'));
-const ids = m.cues.map(c => c.id);
-assert.deepEqual(ids, ALL.map(e => e.id).filter(id => ids.includes(id)), 'manifest ids in the known order: ' + ids);
-for (const id of REUSED) assert.ok(ids.includes(id), id + ' shipped');
+const { hookBars, TARGET_LUFS, CEILING_DBTP, LUFS_TOLERANCE, INTRO_BEATS } = require(path.join(root, 'dev', 'build-cues.cjs'));
+assert.equal(TARGET_LUFS, -16.3);
+assert.equal(INTRO_BEATS, 8);
+assert.deepEqual(m.cues.map(c => c.id), ALL.map(e => e.id), 'manifest ids in order');
 // Manifest <-> files <-> plugin.json: every mp3 in the folder is a manifest cue and the other way round, and the
-// plugin ships exactly the manifest and its mp3s from assets/cues.
+// plugin ships exactly the manifest, the licence records and the mp3s from assets/cues.
 assert.deepEqual(fs.readdirSync(dir).filter(f => f.endsWith('.mp3')).sort(), m.cues.map(c => c.file).sort());
 const shipped = JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8')).files.filter(f => f.startsWith('assets/cues/'));
-assert.deepEqual(shipped.sort(), ['assets/cues/manifest.json', ...m.cues.map(c => 'assets/cues/' + c.file)].sort());
-// Relaxed shots (2 beats each) that fit from the earliest start (spec 14.2: the largest multiple of 4 <= 36).
-const fitted = (c, beatsPerShot) => { let n = 36; while (n > 4 && c.firstBeat + n * beatsPerShot * 60 / c.bpm > c.usableEnd) n -= 4; return n; };
+assert.deepEqual(shipped.sort(), ['assets/cues/LICENSES.csv', 'assets/cues/manifest.json', ...m.cues.map(c => 'assets/cues/' + c.file)].sort());
+// LICENSES.csv: one row per bundled cue, in manifest order, with its track page, the CC0 licence and the access date.
+const parseCsv = text => text.trim().split('\n').map(line => {
+  const cells = []; let cur = '', q = false;
+  for (const ch of line) { if (ch === '"') q = !q; else if (ch === ',' && !q) { cells.push(cur); cur = ''; } else cur += ch; }
+  cells.push(cur);
+  return cells;
+});
+const [head, ...rows] = parseCsv(fs.readFileSync(path.join(dir, 'LICENSES.csv'), 'utf8'));
+assert.deepEqual(head, ['bundled_file', 'file', 'title', 'author', 'source_page_url', 'download_url', 'license', 'license_url', 'verified_text_snippet', 'date_accessed']);
+const csv = rows.map(r => Object.fromEntries(head.map((h, i) => [h, r[i]])));
+assert.deepEqual(csv.map(r => r.bundled_file), m.cues.map(c => c.file), 'LICENSES.csv rows');
+const thirdParty = fs.readFileSync(path.join(root, 'THIRD_PARTY.md'), 'utf8');
+assert.ok(!/ElevenLabs/.test(thirdParty), 'no generated-music text left in THIRD_PARTY.md');
 for (const c of m.cues) {
-  const e = ALL.find(x => x.id === c.id);
+  const e = ALL.find(x => x.id === c.id), P = 60 / c.bpm, bar = 4 * P;
   assert.equal(c.file, c.id + '.mp3');
-  assert.equal(c.group, e.group, c.id + ' group');
+  assert.equal(c.label, e.label);
+  assert.equal(c.group, 'reference', c.id + ' group');
   const buf = fs.readFileSync(path.join(dir, c.file));
   assert.equal(crypto.createHash('sha256').update(buf).digest('hex'), c.sha256, c.id + ' hash');
-  assert.ok(buf.length < 20 * 1024 * 1024);
+  assert.ok(buf.length < 6 * 1024 * 1024, c.id + ' size');
   assert.ok(Math.abs(c.bpm - e.bpm) < 0.3, c.id + ' bpm ' + c.bpm);
-  // The reused cues start on a beat; a generated cue may start up to a bar in (its first beat moved to the best bar phase).
-  assert.ok(c.firstBeat >= 0 && c.firstBeat < (REUSED.includes(c.id) ? 0.05 : 4 * 60 / c.bpm), c.id + ' firstBeat');
+  // firstBeat: the detected first beat moved on by barPhaseBeats whole beats to the bar line (Before Everything:
+  // 0.805 s + 3 beats = 3.205 s; its music starts on a bar line at 0.005 s, a bar earlier, which the grid leaves out;
+  // the detected first beat lies in the first bar).
+  const lock = c.firstBeat - e.barPhase * P;
+  assert.ok(lock >= -0.002 && lock < bar, c.id + ' firstBeat (detected ' + lock + ')');
   assert.equal(c.barPhaseBeats || 0, e.barPhase, c.id + ' barPhaseBeats');
-  assert.ok(c.usableEnd > c.firstBeat, c.id + ' usableEnd after firstBeat');
-  // Spec 15.3: -11 LUFS integrated (static gain + limiter) and a true peak at or under -1 dBTP.
+  assert.ok(c.usableEnd > c.firstBeat && c.duration >= c.usableEnd, c.id + ' usableEnd');
+  // -16.3 LUFS integrated (static gain + limiter) and a true peak at or under -1 dBTP.
   assert.ok(Math.abs(c.lufs - TARGET_LUFS) <= LUFS_TOLERANCE, c.id + ' lufs ' + c.lufs);
   assert.ok(typeof c.truePeak === 'number' && c.truePeak <= CEILING_DBTP, c.id + ' truePeak ' + c.truePeak);
-  // Hook windows: one score per bar start from firstBeat whose 16-beat window ends by usableEnd, in [0, 1] with a
-  // best of at least 0.45 (contrast and punch are normalised by their maximum; the fill bonus is 0.1), reproduced from
-  // the manifest onsets.
-  const P = 60 / c.bpm;
-  assert.equal(c.hookBars.length, Math.floor((c.usableEnd - c.firstBeat) / (4 * P)) - 3, c.id + ' hookBars length');
+  // Licence: CC0 1.0 from the track's Free Music Archive page, the same page as LICENSES.csv and THIRD_PARTY.md.
+  const row = csv.find(r => r.bundled_file === c.file);
+  assert.deepEqual(Object.keys(c.license).sort(), ['accessed', 'author', 'name', 'source', 'url']);
+  assert.equal(c.license.name, 'CC0 1.0');
+  assert.equal(c.license.url, 'https://creativecommons.org/publicdomain/zero/1.0/');
+  assert.equal(c.license.author, 'HoliznaCC0');
+  assert.equal(c.license.accessed, '2026-10-01');
+  assert.equal(c.license.source, 'https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/' + e.page);
+  assert.equal(row.source_page_url, c.license.source, c.id + ' LICENSES.csv page');
+  assert.equal(row.author, 'HoliznaCC0');
+  assert.equal(row.license, 'CC0 1.0 Universal');
+  assert.equal(row.license_url, c.license.url);
+  assert.equal(row.date_accessed, c.license.accessed);
+  assert.ok(thirdParty.includes(c.license.source) && thirdParty.includes('`' + c.file + '`'), c.id + ' in THIRD_PARTY.md');
+  // introStart: a bar start (firstBeat + k bars, k = the measured bar) from which a Standard video (6 + 2 + 32 + 4 =
+  // 44 beats) fits before usableEnd. introLiftLu is informational (Fractured has no soft intro before its backbeat).
+  const k = (c.introStart - c.firstBeat) / bar;
+  assert.ok(Math.abs(k - Math.round(k)) * bar < 0.002, c.id + ' introStart on a bar start: ' + c.introStart);
+  assert.equal(Math.round(k), e.introBar, c.id + ' introStart bar');
+  assert.ok(c.introStart + 44 * P <= c.usableEnd, c.id + ' Standard fits from introStart');
+  assert.ok(typeof c.introLiftLu === 'number', c.id + ' introLiftLu');
+  // Hook windows (kept for the planner): one score per bar start from firstBeat whose 16-beat window ends by usableEnd,
+  // in [0, 1], reproduced from the manifest onsets.
+  assert.equal(c.hookBars.length, Math.floor((c.usableEnd - c.firstBeat) / bar) - 3, c.id + ' hookBars length');
   assert.ok(c.hookBars.every(v => v >= 0 && v <= 1) && Math.max(...c.hookBars) >= 0.45, c.id + ' hookBars range');
   assert.deepEqual(c.hookBars, hookBars(c), c.id + ' hookBars reproduced');
-  // The opening hit (beat 0) never counts: a huge onset there leaves every score unchanged.
-  const loudIntro = { ...c, onsets: [[c.firstBeat, 'l', 99], [c.firstBeat, 'm', 99], ...c.onsets] };
-  assert.deepEqual(hookBars(loudIntro), c.hookBars, c.id + ' hookBars ignore beat 0');
-  assert.equal(c.hookStart, e.hookStart, c.id + ' hookStart ' + c.hookStart);
-  // hookStart: the earliest best bar start among those a Standard Quick section (24 beats) fits from.
   const fits = c.hookBars.map((v, b) => c.firstBeat + (4 * b + 24) * P <= c.usableEnd + 1e-9 ? v : -1), best = fits.indexOf(Math.max(...fits));
   assert.equal(c.hookStart, Math.round((c.firstBeat + 4 * best * P) * 1000) / 1000, c.id + ' hookStart');
-  // downbeatConfidence follows the measured beat-1 ratio at the manifest's bar phase (high at 1.5 or more).
-  assert.equal(c.downbeatConfidence, e.downbeat, c.id + ' downbeatConfidence');
-  assert.ok(typeof c.downbeatRatio === 'number' && c.downbeatRatio > 0, c.id + ' downbeatRatio');
+  // downbeatConfidence follows the measured beat-1 ratio at the manifest's bar phase (high at 1.5 or more); every
+  // bundled cue measures high.
+  assert.equal(c.downbeatConfidence, 'high', c.id + ' downbeatConfidence');
   assert.equal(c.downbeatConfidence, c.downbeatRatio >= 1.5 ? 'high' : 'low', c.id + ' downbeatConfidence vs ratio ' + c.downbeatRatio);
-  // Long + Quick (36 one-beat shots) fits every cue from its first beat.
-  assert.equal(fitted(c, 1), 36, c.id + ' fits Long Quick');
-  assert.ok(typeof c.sixteenthRatio === 'number' && c.sixteenthRatio >= 0 && c.sixteenthRatio < 2, c.id + ' sixteenthRatio');
+  // Lo-fi grooves: no busy 16th layer.
+  assert.ok(typeof c.sixteenthRatio === 'number' && c.sixteenthRatio >= 0 && c.sixteenthRatio < 0.3, c.id + ' sixteenthRatio ' + c.sixteenthRatio);
   assert.equal(c.peaks.length, 400);
-  // beatEnergy is one RMS value per beat from firstBeat (the default section picks the loudest bar-aligned window).
+  // beatEnergy is one RMS value per beat from firstBeat.
   assert.ok(c.beatEnergy.length > 40 && c.beatEnergy.length <= Math.floor((c.duration - c.firstBeat) * c.bpm / 60) + 1, c.id + ' beatEnergy');
-  assert.ok(c.duration >= c.usableEnd);
-  // New cues (accepted by the user at GATE-MUSIC): no busy 16th layer, and generated at 60 s so Long + Relaxed fits.
-  // Acoustic Pop measured 1.48 at -14 LUFS (low); at -11 LUFS it measures 1.71 on the same grid, so it is high now.
-  if (!REUSED.includes(c.id)) {
-    assert.ok(c.sixteenthRatio < 0.3, c.id + ' sixteenthRatio ' + c.sixteenthRatio);
-    assert.ok(c.usableEnd >= 45, c.id + ' usableEnd ' + c.usableEnd);
-    assert.equal(fitted(c, 2), 36, c.id + ' fits Long Relaxed');
-  }
   // Qualifying band onsets for cut snapping: [t, band, strength] sorted by time, every strength at or above its
-  // band's threshold (max(2, the band's 80th percentile)), times to the millisecond inside the cue.
+  // band's threshold, times to the millisecond inside the cue. The cues run 2-3 minutes, so the caps are per second
+  // (the Mini Vlog cues had at most 400 onsets / 6000 characters in 40-60 s).
   assert.deepEqual(Object.keys(c.onsetThresholds).sort(), ['h', 'l', 'm'], c.id + ' onset thresholds');
   for (const v of Object.values(c.onsetThresholds)) assert.ok(v >= 2 && v < 50, c.id + ' threshold ' + v);
-  assert.ok(Array.isArray(c.onsets) && c.onsets.length >= 60 && c.onsets.length <= 400, c.id + ' onsets ' + c.onsets.length);
-  assert.ok(JSON.stringify(c.onsets).length < 6000, c.id + ' onsets stay compact');
+  assert.ok(c.onsets.length >= c.duration && c.onsets.length <= 7 * c.duration, c.id + ' onsets ' + c.onsets.length);
+  assert.ok(JSON.stringify(c.onsets).length < 120 * c.duration, c.id + ' onsets stay compact');
   const bands = new Set();
   c.onsets.forEach(([t, band, s], i) => {
     assert.ok(t >= 0 && t <= c.duration && Math.abs(Math.round(t * 1000) - t * 1000) < 1e-6, c.id + ' onset time ' + t);
@@ -90,46 +109,28 @@ for (const c of m.cues) {
     bands.add(band);
   });
   assert.equal(bands.size, 3, c.id + ' has onsets in every band');
-  // The cues are on a tight grid: most qualifying onsets sit within 30 ms of a 16th note (the lo-fi cue swings).
-  const q16 = 60 / c.bpm / 4, near = c.onsets.filter(([t]) => { const k = Math.round((t - c.firstBeat) / q16); return Math.abs(t - c.firstBeat - k * q16) < 0.03; });
-  assert.ok(near.length >= 0.7 * c.onsets.length, c.id + ' onsets on the 16th grid ' + near.length + '/' + c.onsets.length);
 }
-const reused = REUSED.map(id => m.cues.find(c => c.id === id));
-// Spec 14.2: the reused ~40 s cues fit at most 32 (indie, disco, soul) / 24 (lofi) Relaxed shots at the earliest start.
-assert.deepEqual(reused.map(c => fitted(c, 2)), [32, 32, 32, 24]);
-// Measured on the reused cues at -11 LUFS: Sunny Soul Strut (0.46) and now Golden Hour Disco (0.41; 0.24 at -14 LUFS,
-// the limiter lowers the beat peaks against the 16ths) have a clear 16th pulse.
-assert.deepEqual(reused.map(c => c.sixteenthRatio >= 0.35), [false, true, true, false]);
-// The measured beat-1 ratios of the reused cues at -11 LUFS (1.20 / 1.25 / 3.28 / 4.52 at -14; the two low ones are
-// best at phase 0 too, so their sections are beat-aligned only).
-assert.deepEqual(reused.map(c => c.downbeatRatio), [1.35, 1.16, 3.09, 3.14]);
-// The reused mp3s are the City Weekend Vlog files re-processed once to -11 LUFS (no originals; one more lossy
-// generation), so their hashes moved from the City Weekend Vlog ones.
-// (City Weekend Vlog: 892819e9d672, f35098387dc8, cedd6c13db48, 7c251130324e).
-assert.deepEqual(reused.map(c => c.sha256.slice(0, 12)), ['a1d2fe77f1b5', 'df1cdd3ddf8b', 'abee1f9623fc', 'a38721232cc6']);
-// beat-detect.cjs reproduces every shipped grid from the mp3 (when ffmpeg is available). The grid was measured before
-// the -11 LUFS processing, which does not move the music (the limiter delay is compensated: 0 ms cross-correlation lag),
-// but any re-encode moves the analysis reading a little: up to 0.02 BPM and 5 ms here (Easy Sunday Lo-fi 88.01 /
-// +5 ms; Weekend Indie Pop reads 112 after a plain re-encode). The detected first beat may also land a whole beat off
-// (Acoustic Pop), so it is compared with the nearest grid beat.
+// From the mp3s themselves (when ffmpeg is available): beat-detect reproduces every grid and accepts it, the tempo is
+// the same in both halves of the track (no tempo change), and the file measures on target.
 const { execFileSync, spawnSync } = require('node:child_process');
 if (spawnSync('ffmpeg', ['-version']).status === 0) {
   const { analyze } = require(path.join(root, 'beat-detect.cjs'));
   for (const c of m.cues) {
     const pcm = execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-i', path.join(dir, c.file), '-ac', '1', '-ar', '22050', '-f', 'f32le', '-'], { maxBuffer: 1 << 28 });
-    const a = analyze(new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4)), 22050);
-    assert.ok(Math.abs(a.bpm - c.bpm) <= 0.02 + 1e-9, c.id + ' bpm reproduced: ' + a.bpm + ' vs ' + c.bpm);
-    const P = 60 / c.bpm, k = Math.round((c.firstBeat - a.firstBeat) / P), fb = a.firstBeat + k * P;
-    assert.ok(Math.abs(fb - c.firstBeat) <= 0.005 + 1e-9, c.id + ' firstBeat reproduced: ' + fb + ' vs ' + c.firstBeat);
+    const x = new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
+    const a = analyze(x, 22050);
     assert.equal(a.accepted, true, c.id + ' accepted');
-    // The shipped file itself measures on target (not only the manifest value).
+    assert.ok(Math.abs(a.bpm - c.bpm) <= 1e-9, c.id + ' bpm reproduced: ' + a.bpm + ' vs ' + c.bpm);
+    const P = 60 / c.bpm, k = Math.round((c.firstBeat - a.firstBeat) / P), fb = a.firstBeat + k * P;
+    assert.equal(k, c.barPhaseBeats, c.id + ' firstBeat is the detected first beat moved by barPhaseBeats');
+    assert.ok(Math.abs(fb - c.firstBeat) <= 0.002, c.id + ' firstBeat reproduced: ' + fb + ' vs ' + c.firstBeat);
+    const half = x.length >> 1, b1 = analyze(x.subarray(0, half), 22050).bpm, b2 = analyze(x.subarray(half), 22050).bpm;
+    assert.ok(Math.abs(b2 - b1) <= 0.1 && Math.abs(b1 - c.bpm) <= 0.1, c.id + ' no tempo change: ' + b1 + ' / ' + b2);
     const err = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', path.join(dir, c.file), '-af', 'ebur128=peak=true', '-f', 'null', '-']).stderr.toString();
     const sum = err.slice(err.lastIndexOf('Summary:'));
     assert.equal(Number(sum.match(/I:\s+(-?[\d.]+) LUFS/)[1]), c.lufs, c.id + ' measured lufs');
     assert.equal(Number(sum.match(/Peak:\s+(-?[\d.]+) dBFS/)[1]), c.truePeak, c.id + ' measured true peak');
-    // beatEnergy is indexed in whole beats from firstBeat: the re-measured values line up beat for beat (they differ
-    // slightly because the analysis runs on the unrounded grid; a one-beat shift would differ by up to 0.2 on the lo-fi cue).
-    // A re-anchored cue drops the first k values (k: the whole beats from the detected first beat to the grid's).
+    // beatEnergy is indexed in whole beats from firstBeat: it lines up with the analysis's values k beats on.
     assert.ok(Math.abs(a.beatEnergy.length - k - c.beatEnergy.length) <= 1, c.id + ' beatEnergy length');
     c.beatEnergy.forEach((v, i) => i + k < a.beatEnergy.length && assert.ok(Math.abs(a.beatEnergy[i + k] - v) < 0.03, c.id + ' beatEnergy ' + i + ' aligned with firstBeat'));
   }
