@@ -61,6 +61,12 @@ test('bundled sounds unpack without Node.js, with matching hashes, and are reuse
   assert.equal(wav.readUInt32LE(24),44100);
   // Padded past the longest Draft range (14/30 s) so an overlay always fits inside the file.
   assert.ok(manifest['shutter.1'].duration>14/30+0.02);
+  // Selects skips imported media shorter than one second, so every file is padded past it.
+  for(const v of Object.values(manifest)){
+   const data=fs.readFileSync(path.join(store,v.file)),at=data.indexOf('data',12,'ascii');
+   const seconds=data.readUInt32LE(at+4)/data.readUInt32LE(28);
+   assert.ok(seconds>=1.1&&Math.abs(seconds-v.duration)<1e-6,v.file+' lasts '+seconds+' s');
+  }
   run();
   assert.equal(fs.statSync(first).mtimeMs,mtime);
   fs.writeFileSync(first,'corrupt');run();
