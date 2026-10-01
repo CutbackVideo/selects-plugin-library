@@ -40,6 +40,7 @@ jobs:
           node plugins/torn-paper-love/tests/build-config.test.cjs
           node plugins/torn-paper-love/tests/cues.test.cjs
           node plugins/torn-paper-love/tests/fonts.test.cjs
+          node plugins/torn-paper-love/tests/i18n.test.cjs
           node plugins/torn-paper-love/tests/letters.test.cjs
           node plugins/torn-paper-love/tests/panel.test.cjs
           node plugins/torn-paper-love/tests/pick.test.cjs
@@ -54,6 +55,7 @@ jobs:
           node plugins/mini-vlog/tests/beat-detect.test.cjs
           node plugins/mini-vlog/tests/cues.test.cjs
           node plugins/mini-vlog/tests/fonts.test.cjs
+          node plugins/mini-vlog/tests/i18n.test.cjs
           node plugins/mini-vlog/tests/look.test.cjs
           node plugins/mini-vlog/tests/motion.test.cjs
           node plugins/mini-vlog/tests/panel.test.cjs
@@ -72,6 +74,7 @@ jobs:
           node plugins/the-end-credits/tests/fonts.test.cjs
           node plugins/the-end-credits/tests/frame.test.cjs
           node plugins/the-end-credits/tests/graphic.test.cjs
+          node plugins/the-end-credits/tests/i18n.test.cjs
           node plugins/the-end-credits/tests/look.test.cjs
           node plugins/the-end-credits/tests/panel.test.cjs
           node plugins/the-end-credits/tests/planner.test.cjs
@@ -94,3 +97,4 @@ jobs:
           node plugins/summer-trip/tests/panel.test.cjs
           node plugins/summer-trip/tests/package.test.cjs
           node plugins/summer-trip/tests/adapter.test.cjs
+          node plugins/summer-trip/tests/i18n.test.cjs

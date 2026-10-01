@@ -274,8 +274,11 @@ eq(j(P.stPhotoMotions([{ rid: 'v', kind: 'video', role: 'montage' }, { rid: 'p',
 // Build progress (as City Weekend Vlog).
 eq(P.ST_BUILD_STEPS.length, 5);
 eq(P.ST_BUILD_STEPS.reduce((x, s) => x + s.weight, 0), 100);
-eq(P.stProgress('shots', 0).label, 'Step 1/5 · Choosing shots · 0%');
-eq(P.stProgress('shots', 0.5, '12/24 videos checked').label, 'Step 1/5 · Choosing shots (12/24 videos checked) · 20%');
+// Steps carry ids and weights only; the panel names them in the UI language (STRINGS "step.<id>").
+eq(P.ST_BUILD_STEPS.map(s => s.id).join(','), 'shots,music,draft,look,open');
+ok(P.ST_BUILD_STEPS.every(s => Object.keys(s).join(',') === 'id,weight'), 'no English step labels in the planner');
+eq(JSON.stringify(P.stProgress('shots', 0)), JSON.stringify({ id: 'shots', value: 0, percent: 0, current: 0 }));
+eq(P.stProgress('shots', 0.5).percent, 20);
 eq(P.stProgress('draft', 0).percent, 50);
 eq(P.stProgress('draft', 0).current, 2);
 eq(P.stProgress('open', 0.99).percent, 99);

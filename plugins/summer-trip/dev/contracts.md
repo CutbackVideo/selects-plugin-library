@@ -120,7 +120,10 @@ and Fe (head trimmed via sourceStartSeconds when that would start before 0).
   videoMotion: null | { tsx, strength },               // montage VIDEO clips on Main (not photos, grid panels or ending clips):
                                                     // "Video motion", a slow 1.00 -> 1.04 push-in, strength editable (0-2)
   endingMotion: { [endingIndex]: { motion, direction, axis } }, // ending photos: done inside the film-frame effect
-  photos: [rid]                       // photo resource ids
+  photos: [rid],                      // photo resource ids
+  adjustLabels?: { look, grain, leak, motion, motionStrength, videoMotion } // Adjust labels of the effects in the panel's UI
+                                                    // language at Build (the panel always sends them; English when absent).
+                                                    // title/labels editableParameters and motion.options labels arrive translated
 }
 ```
 Effect labels (idempotency keys): "Summer look", "Grid panel", "Film frame", "Photo motion", "Video motion"; graphics "Summer Trip title",
@@ -188,7 +191,8 @@ are **flat top-level keys** because the Inspector edits one top-level key per ed
   placeSeconds })` → Labels: `{ preset, topMain, topItalic, creditPrefix, creditName, creditUppercase (false), placePrefix, place,
   placeSeconds, labelColor, placeColor, shadow, labelSize, creditSize, labelTracking, creditTracking, placeSize, topY (8.6), creditY (93.0), placeX (72.5),
   placeY (38.9), prefixScale, prefixDrop, placeCapRatio, marginPct, faces, fonts }`.
-- `faces`: `{ [role]: { family, case, tracking, scaleX, fillWidth? } }` (title roles line1/season/label/labelItalic; labels roles
+- `faces`: `{ [role]: { family, koFamily?, case, tracking, scaleX, fillWidth? } }` (koFamily: the macOS Korean system face of the
+  role, last in the font stack; title roles line1/season/label/labelItalic; labels roles
   label/labelItalic/place/placePrefix). `fonts`: `{ [family]: base64 }` — only the chosen preset's families.
 - Faces: every `ST ...` family is a single face. The graphics declare each `@font-face` as normal/400 and never request
   italic/bold in CSS (the family itself is the italic/bold face); the panel preview must register them the same way (ignore

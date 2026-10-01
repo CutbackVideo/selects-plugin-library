@@ -96,11 +96,12 @@ function tplSectionStart(grid, section, videoSeconds) {
 
 // Everything the build needs, planned at TPL_PLAN_FPS. input: { projectId, inv: { photos, resources } (inventory.js),
 // found: { best: { [rid]: seconds | null } } (search.js), cue: manifest cue | null (No music), options (tplOptions),
-// now (draft name time) }. Returns { ok: false, reason } when it can't be built.
+// now (draft name time) }. Returns { ok: false, reason, code, vars } when it can't be built: reason in English (errors,
+// the headless driver), code + vars for the panel's translated text (STRINGS `reason.<code>`).
 function tplPlanState(input) {
   const options = tplOptions(input.options);
-  const fail = reason => ({ ok: false, reason, options });
-  if (!options.words.some(w => w.trim())) return fail('Type at least one word');
+  const fail = (code, reason, vars) => ({ ok: false, reason, code, vars: vars || {}, options });
+  if (!options.words.some(w => w.trim())) return fail('noWords', 'Type at least one word');
   const inv = input.inv || {};
   const best = (input.found && input.found.best) || {};
   const grid = tplGrid(input.cue || null);
@@ -118,13 +119,14 @@ function tplPlanState(input) {
   for (let round = 0; round < 8; round++) {
     const available = photos.length + videos.length;
     const tentative = Math.min(requested, available);
-    if (tentative < TPL_MIN_PICTURES) return fail('Add at least 3 photos or clips');
+    if (tentative < TPL_MIN_PICTURES) return fail('fewPictures', 'Add at least 3 photos or clips', { min: TPL_MIN_PICTURES });
     sectionStart = tplSectionStart(grid, options.section, tplTemplate(tentative, options.pace).total * unitSec);
     const fit = tplFitN({ requested, available, sectionStart: sectionStart == null ? 0 : sectionStart, usableEnd, bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm,
       pace: options.pace });
     if (!fit.N) {
-      if (fit.reason === 'pictures') return fail('Add at least 3 photos or clips');
-      return fail('This track needs at least ' + (tplTemplate(TPL_MIN_PICTURES, options.pace).total * unitSec).toFixed(1) + ' s from the section start');
+      if (fit.reason === 'pictures') return fail('fewPictures', 'Add at least 3 photos or clips', { min: TPL_MIN_PICTURES });
+      const need = tplTemplate(TPL_MIN_PICTURES, options.pace).total * unitSec;
+      return fail('musicTooShort', 'This track needs at least ' + need.toFixed(1) + ' s from the section start', { seconds: Math.round(need * 10) / 10 });
     }
     N = fit.N; fitReason = fit.reason;
     schedule = tplSchedule({ bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: TPL_PLAN_FPS, N, pace: options.pace, sectionStart,
@@ -237,37 +239,46 @@ function tplPhasesFor(kind, fps) {
   return tplPhaseFrames(kind, fps).map(p => ({ name: p.name, start: p.start, end: p.end }));
 }
 
-function tplTornEditable(state) {
+// An Inspector label: the panel's translation (labels, keyed 'torn.<key>', 'letters.<key>', 'motion.<value>', in the
+// UI language at the Build click) or the English default (the headless driver passes none).
+function tplLabel(labels, key, en) {
+  return labels && typeof labels[key] === 'string' && labels[key] ? labels[key] : en;
+}
+
+function tplTornEditable(state, labels) {
   const o = state.options;
+  const l = (key, en) => tplLabel(labels, key, en);
   return [
-    { key: 'look', label: 'Faded film', type: 'number', defaultValue: o.look, min: 0, max: 1, step: 0.05 },
-    { key: 'backdropColor', label: 'Backdrop colour', type: 'color', defaultValue: TPL_BACKDROP_COLORS[o.backdrop] },
-    { key: 'edge', label: 'Edge width', type: 'number', defaultValue: TPL_EDGE, min: 0.5, max: 3, step: 0.1 },
-    { key: 'inset', label: 'Photo size', type: 'number', defaultValue: TPL_INSET, min: 70, max: 95, step: 1 },
-    { key: 'tilt', label: 'Tilt', type: 'number', defaultValue: 0, min: -5, max: 5, step: 0.5 },
-    { key: 'seed', label: 'Tear seed', type: 'number', defaultValue: 0, min: 0, max: 9999, step: 1 },
-    { key: 'motion', label: 'Photo motion', type: 'select', defaultValue: 'off', options: [
-      { label: 'Off', value: 'off' }, { label: 'Push in', value: 'push-in' }, { label: 'Pull out', value: 'pull-out' }, { label: 'Drift', value: 'drift' }] },
-    { key: 'motionStrength', label: 'Motion strength', type: 'number', defaultValue: TPL_MOTION_STRENGTH, min: 0, max: 1, step: 0.05 },
+    { key: 'look', label: l('torn.look', 'Faded film'), type: 'number', defaultValue: o.look, min: 0, max: 1, step: 0.05 },
+    { key: 'backdropColor', label: l('torn.backdropColor', 'Backdrop colour'), type: 'color', defaultValue: TPL_BACKDROP_COLORS[o.backdrop] },
+    { key: 'edge', label: l('torn.edge', 'Edge width'), type: 'number', defaultValue: TPL_EDGE, min: 0.5, max: 3, step: 0.1 },
+    { key: 'inset', label: l('torn.inset', 'Photo size'), type: 'number', defaultValue: TPL_INSET, min: 70, max: 95, step: 1 },
+    { key: 'tilt', label: l('torn.tilt', 'Tilt'), type: 'number', defaultValue: 0, min: -5, max: 5, step: 0.5 },
+    { key: 'seed', label: l('torn.seed', 'Tear seed'), type: 'number', defaultValue: 0, min: 0, max: 9999, step: 1 },
+    { key: 'motion', label: l('torn.motion', 'Photo motion'), type: 'select', defaultValue: 'off', options: [
+      { label: l('motion.off', 'Off'), value: 'off' }, { label: l('motion.push-in', 'Push in'), value: 'push-in' },
+      { label: l('motion.pull-out', 'Pull out'), value: 'pull-out' }, { label: l('motion.drift', 'Drift'), value: 'drift' }] },
+    { key: 'motionStrength', label: l('torn.motionStrength', 'Motion strength'), type: 'number', defaultValue: TPL_MOTION_STRENGTH, min: 0, max: 1, step: 0.05 },
   ];
 }
 
-function tplLettersEditable(state) {
+function tplLettersEditable(state, labels) {
   const o = state.options;
   const seed = typeof o.seed === 'number' && isFinite(o.seed) ? o.seed : 0;
+  const l = (key, en) => tplLabel(labels, key, en);
   return [
-    { key: 'word1', label: 'Word 1', type: 'text', defaultValue: o.words[0] },
-    { key: 'word2', label: 'Word 2', type: 'text', defaultValue: o.words[1] },
-    { key: 'size', label: 'Size', type: 'number', defaultValue: TPL_LETTER_SIZE, min: 4.5, max: 10, step: 0.1 },
-    { key: 'y', label: 'Vertical position', type: 'number', defaultValue: TPL_LETTER_Y, min: 30, max: 70, step: 1 },
-    { key: 'accent', label: 'Accent colour', type: 'color', defaultValue: TPL_ACCENT },
-    { key: 'seed', label: 'Letter seed', type: 'number', defaultValue: Math.max(0, Math.min(999999, Math.round(seed))), min: 0, max: 999999, step: 1 },
-    { key: 'restyle', label: 'Re-style', type: 'boolean', defaultValue: true },
+    { key: 'word1', label: l('letters.word1', 'Word 1'), type: 'text', defaultValue: o.words[0] },
+    { key: 'word2', label: l('letters.word2', 'Word 2'), type: 'text', defaultValue: o.words[1] },
+    { key: 'size', label: l('letters.size', 'Size'), type: 'number', defaultValue: TPL_LETTER_SIZE, min: 4.5, max: 10, step: 0.1 },
+    { key: 'y', label: l('letters.y', 'Vertical position'), type: 'number', defaultValue: TPL_LETTER_Y, min: 30, max: 70, step: 1 },
+    { key: 'accent', label: l('letters.accent', 'Accent colour'), type: 'color', defaultValue: TPL_ACCENT },
+    { key: 'seed', label: l('letters.seed', 'Letter seed'), type: 'number', defaultValue: Math.max(0, Math.min(999999, Math.round(seed))), min: 0, max: 999999, step: 1 },
+    { key: 'restyle', label: l('letters.restyle', 'Re-style'), type: 'boolean', defaultValue: true },
   ];
 }
 
 // scripts/decorate.js cfg. assembled = assemble.js's result ({ sequenceId, fps, frames }); assets = { tornTsx,
-// lettersTsx, looks (assets/fonts/looks.json), fonts: { family: dataUrl } }.
+// lettersTsx, looks (assets/fonts/looks.json), fonts: { family: dataUrl }, labels? (tplLabel) }.
 function tplDecorateConfig(state, assembled, assets) {
   const o = state.options, fps = assembled.fps;
   const timing = tplTimingAt(state, fps, assembled.frames);
@@ -293,7 +304,7 @@ function tplDecorateConfig(state, assembled, assets) {
     sequenceId: assembled.sequenceId,
     mute: o.clipSound === 'off',
     photos: state.picks.filter(p => p.kind === 'photo').map(p => p.rid),
-    torn: { tsx: assets.tornTsx, editable: tplTornEditable(state), clips },
+    torn: { tsx: assets.tornTsx, editable: tplTornEditable(state, assets.labels), clips },
     letters: {
       tsx: assets.lettersTsx,
       parameters: {
@@ -301,7 +312,7 @@ function tplDecorateConfig(state, assembled, assets) {
         ticks: tplLetterTicks(timing),
         looks: looks.looks || [], advance: looks.advance || {}, faces: looks.faces || {}, fonts: assets.fonts || {},
       },
-      editable: tplLettersEditable(state),
+      editable: tplLettersEditable(state, assets.labels),
       startFrame: timing.lettersStartFrame,
       endFrame: timing.totalFrames,
     },

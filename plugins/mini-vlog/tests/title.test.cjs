@@ -256,4 +256,54 @@ assert.ok(src.includes('mvShadeLayers(items)') && src.includes('shadow * layer.s
 }
 // Only the Mini vlog big word is tracked and stroked; other presets are untouched.
 for (const id of ['day-in-my-life', 'small-glimpse']) for (const i of lay(id, { year: '2026', big: 'mini vlog', tag: 'a day in my life', top: 'a', bottom: 'b' }).filter(i => i.kind === 'text')) assert.ok(i.tracking === 0 && i.stroke === 0 && i.shade === 1, id + ' ' + i.part);
+
+// --- Korean titles (Hangul; escapes only, the plugin holds no literal Hangul) ---------------
+{
+  vm.runInContext('globalThis.K={ stack: mvFontStack, hangul: mvHasHangul, split: mvSplit, adv: mvAdvance, ink: mvInk, band: mvBand, faces: MV_KO_FACES };', box);
+  const K = box.K;
+  const ILSANG = '\uc77c\uc0c1', HARU = '\ud558\ub8e8', SOGAE = '\uc791\uc740 \uc21c\uac04', VLOG = '\ube0c\uc774\ub85c\uadf8';
+  // Every bundled family has its Korean system face by role: serif faces AppleMyungjo, the rest Apple SD Gothic Neo,
+  // placed after the Latin fallbacks and before the generic family.
+  const roleFace = { 'MV Instrument Serif Italic': 'AppleMyungjo', 'MV DM Serif Display': 'AppleMyungjo', 'MV Rounded Bold': 'Apple SD Gothic Neo', 'MV DM Mono': 'Apple SD Gothic Neo' };
+  for (const p of presets.presets) for (const f of p.fonts) assert.equal(K.faces[f.family], roleFace[f.family], f.family);
+  assert.equal(K.stack('MV Instrument Serif Italic'), '"MV Instrument Serif Italic", "Helvetica Neue", Arial, "AppleMyungjo", serif');
+  assert.equal(K.stack('MV Rounded Bold'), '"MV Rounded Bold", "Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif');
+  assert.ok(src.slice(end).includes('fontFamily={mvFontStack(it.font.family)}') && !src.includes('const FALLBACK'), 'the render uses the stack');
+  const panel = fs.readFileSync(path.resolve(__dirname, '..', 'panel.tsx'), 'utf8');
+  assert.ok(panel.includes('fontFamily={mvFontStack(it.font.family)}') && panel.includes('fontFamily: mvFontStack(face.family)') && !panel.includes('PREVIEW_FALLBACK'), 'preview and tiles use the stack');
+  // A wide character without an advance in the metrics counts 1 em (Latin keeps 0.56 em).
+  const m = presets.metrics['MV Rounded Bold'];
+  assert.equal(K.adv(m, '\uac00'), m.unitsPerEm); assert.equal(K.adv(m, '一'), m.unitsPerEm);
+  assert.equal(K.adv({ unitsPerEm: 1000, advances: {} }, 'a'), 560);
+  // Hangul reaches the ascent and below the baseline (its ink box is not x-height tall).
+  const ik = JSON.parse(JSON.stringify(K.ink(HARU, m)));
+  assert.ok(ik.up >= m.capHeight / m.unitsPerEm && ik.down > 0, 'Hangul ink ' + JSON.stringify(ik));
+  assert.deepEqual(ik, { up: 0.86, down: 0.12 }, 'Hangul ink: 0.86 em up, 0.12 em down');
+  // Stars and the year centre on the middle of Hangul ink, on the x-height band of Latin.
+  near(K.band(HARU, m), 0.37, 1e-9, 'Hangul band'); near(K.band('day', m), m.xHeight / m.unitsPerEm / 2, 1e-9, 'Latin band');
+  // A spaceless Hangul word is never hyphenated; with a space it splits there.
+  assert.deepEqual(JSON.parse(JSON.stringify(K.split(VLOG, true))), [VLOG]);
+  const texts = (big) => lay('small-glimpse', { top: '', big, bottom: '' }).filter(i => i.kind === 'text').map(i => i.text);
+  assert.deepEqual(texts(VLOG), [VLOG]);
+  assert.deepEqual(texts(SOGAE), SOGAE.split(' '));
+  // No tracking on Hangul: the Mini vlog big word drops its -0.05 em, Latin keeps it (also in a mixed title the
+  // sparkles still sit on the Latin i).
+  const ko = lay('mini-vlog', { big: ILSANG, small: VLOG }), la = lay('mini-vlog', { big: 'mini', small: 'vlog' });
+  assert.equal(one(ko, 'big').tracking, 0); assert.ok(one(la, 'big').tracking < 0);
+  const mixed = lay('mini-vlog', { big: 'mini ' + HARU, small: 'vlog' });
+  assert.equal(one(mixed, 'big').tracking, 0); assert.equal(kinds(mixed, 'sparkle').length, 2, 'sparkles over the two i');
+  // The same "mini" size: Hangul does not change the big word's font size.
+  near(one(lay('mini-vlog', { big: ILSANG, small: 'vlog' }, { size: 100 }), 'big').size, one(lay('mini-vlog', { big: 'mm', small: 'vlog' }), 'big').size, 1e-6, 'size from "mini"');
+  // Every preset lays out Korean text inside the frame and the 60 % width cap, centred on the anchor.
+  for (const [id, fields] of [['mini-vlog', { big: ILSANG + HARU, small: VLOG }], ['day-in-my-life', { year: '2026', big: ILSANG + ' ' + HARU, tag: SOGAE }],
+    ['small-glimpse', { top: SOGAE, big: VLOG, bottom: HARU }], ['small-glimpse', { top: 'a small', big: '\uc8fc\ub9d0 weekend', bottom: 'of ' + HARU }]]) {
+    const it = lay(id, fields), b = bounds(it);
+    assert.ok(b.w <= 0.6 * W + 0.5 && b.x0 >= 0 && b.y0 >= 0 && b.x1 <= W && b.y1 <= H, id + ' Korean bounds ' + JSON.stringify(b));
+    near(b.cx, 0.49 * W, 0.01 * W, id + ' Korean centre x'); near(b.cy, 0.52 * H, 0.01 * H, id + ' Korean centre y');
+    for (const i of it.filter(i => i.kind === 'text' && K.hangul(i.text))) assert.equal(i.tracking, 0, id + ' ' + i.part + ' tracking');
+  }
+  // Long Korean words shrink to the width cap like Latin ones.
+  const long = lay('day-in-my-life', { year: '2026', big: HARU.repeat(6), tag: SOGAE.repeat(3) });
+  assert.ok(bounds(long).w <= 0.6 * W + 0.5, 'long Korean width ' + bounds(long).w);
+}
 console.log(JSON.stringify({ title: 'ok' }));

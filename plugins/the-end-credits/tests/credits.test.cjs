@@ -70,6 +70,13 @@ t('place, dates, moments helpers', () => {
   assert.equal(P.tecSuggestPlace('new_york-city'), 'new york city');
   assert.equal(P.tecSuggestPlace('Paris vlog'), '');
   assert.equal(P.tecSuggestPlace('2026 trip'), '');
+  // Hangul names count 2 columns per syllable (2-31 columns); Korean working-title words are skipped like English ones.
+  assert.equal(P.tecSuggestPlace('\uc81c\uc8fc'), '\uc81c\uc8fc');
+  assert.equal(P.tecSuggestPlace('\uc11c\uc6b8 \uc5ec\ud589'), '\uc11c\uc6b8 \uc5ec\ud589');
+  assert.equal(P.tecSuggestPlace('\ubd80\uc0b0 \ube0c\uc774\ub85c\uadf8'), '');
+  assert.equal(P.tecSuggestPlace('\uac00'.repeat(16)), '', '32 columns is too long');
+  assert.equal(P.tecSuggestPlace('\uac00'.repeat(15)), '\uac00'.repeat(15));
+  assert.equal(P.tecSuggestPlace('Ab'), 'Ab'); assert.equal(P.tecSuggestPlace('A'), ''); assert.equal(P.tecSuggestPlace('A'.repeat(32)), '');
   assert.equal(P.tecDateRange(['2026-09-12']), 'Sep 12, 2026');
   assert.equal(P.tecDateRange(['2026-09-28', '2026-10-02']), 'Sep 28 ' + DASH + ' Oct 2, 2026');
   assert.equal(P.tecDateRange(['2026-09-01', '2026-09-25']), 'September 2026');

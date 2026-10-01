@@ -47,6 +47,14 @@ function loadPlanner(source) {
   return box.P;
 }
 const j = v => JSON.parse(JSON.stringify(v)); // vm objects -> plain objects
+// panel.tsx fieldLen() / fieldClip(): title field limits count Hangul, kana, CJK and fullwidth characters as 2.
+const WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+const fieldLen = text => { let n = 0; for (const ch of text) n += WIDE_RE.test(ch) ? 2 : 1; return n; };
+function fieldClip(text, max) {
+  let out = '', n = 0;
+  for (const ch of text) { const w = fieldLen(ch); if (n + w > max) break; out += ch; n += w; }
+  return out;
+}
 // panel.tsx stamp(): local date and time to the second, so reruns never reuse a Draft name.
 function stamp(d) {
   const p = n => String(n).padStart(2, '0');
@@ -76,20 +84,21 @@ const PANEL_DECORATE = [
   'const parameters = { preset: f.preset, ...flat, fields: { ...flat }, primary: p.colors.primary, secondary: p.colors.secondary, ...TITLE_LOOK, fonts,',
   'provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart, pace: f.pace, length: f.length,',
   'seed: f.seed, clipSound: f.clipSound, punch: f.punch, hook: f.hook, groove: res.plan.groove || null, picks: res.plan.picks } };',
-  '...p.fields.map((fl: any) => ({ key: fl.key, label: fl.label, type: "text", defaultValue: flat[fl.key] })),',
-  '{ key: "primary", label: "Main color", type: "color", defaultValue: p.colors.primary },',
-  '{ key: "secondary", label: "Second color", type: "color", defaultValue: p.colors.secondary },',
-  '{ key: "shadow", label: "Shadow", type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },',
-  '{ key: "size", label: "Size (%)", type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },',
-  '{ key: "x", label: "Horizontal position (%)", type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },',
-  '{ key: "y", label: "Vertical position (%)", type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },',
-  '{ key: "sparkles", label: f.preset === "mini-vlog" ? "Sparkles" : "Stars", type: "boolean", defaultValue: TITLE_LOOK.sparkles },',
+  // The panel writes these labels in its UI language at Build (STRINGS); the adapter writes the English ones.
+  '...p.fields.map((fl: any) => ({ key: fl.key, label: tOr(bl, "field." + p.id + "." + fl.key, fl.label), type: "text", defaultValue: flat[fl.key] })),',
+  '{ key: "primary", label: t(bl, "param.mainColor"), type: "color", defaultValue: p.colors.primary },',
+  '{ key: "secondary", label: t(bl, "param.secondColor"), type: "color", defaultValue: p.colors.secondary },',
+  '{ key: "shadow", label: t(bl, "param.shadow"), type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },',
+  '{ key: "size", label: t(bl, "param.size"), type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },',
+  '{ key: "x", label: t(bl, "param.x"), type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },',
+  '{ key: "y", label: t(bl, "param.y"), type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },',
+  '{ key: "sparkles", label: f.preset === "mini-vlog" ? t(bl, "param.sparkles") : t(bl, "param.stars"), type: "boolean", defaultValue: TITLE_LOOK.sparkles },',
   'const moves: any[] = mvPhotoMotions(res.plan.picks, String(f.seed), sizes);',
   'const cover = sz ? Math.max(MV_W / sz.width, MV_H / sz.height) / Math.min(MV_W / sz.width, MV_H / sz.height) : 1;',
   'byRid[k.rid] = { ...moves[i], cover };',
   'const punch = f.punch ? { tsx: assets.punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: f.bpm ? 60 / f.bpm * res.fps : 0,',
   'punchFrames: mvPunchFrames({ bpm: f.bpm, fps: res.fps, sectionStart: f.sectionStart, videoEnd: res.videoEnd }), picks: res.plan.picks } : null;',
-  '{ sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: MOTION_OPTIONS, byRid }, photoEffects: true, punch }',
+  '{ sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch, labels }',
 ];
 const WANT_LABEL = (src, name) => { const m = new RegExp(name + " = '([^']+)'").exec(src); if (!m) throw Error('decorate.js has no ' + name); return m[1]; };
 
@@ -210,7 +219,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         for (const [fk, fv] of Object.entries(r.fields || {})) {
           const fl = p && p.fields.find(x => x.key === fk);
           if (!fl) unknown.push(r.key + ': field ' + fk);
-          else if (String(fv).length > fl.max) unknown.push(r.key + ': field ' + fk + ' longer than ' + fl.max);
+          else if (fieldLen(String(fv)) > fl.max) unknown.push(r.key + ': field ' + fk + ' longer than ' + fl.max);
         }
       }
       return { ok: missing.length === 0 && unknown.length === 0, ab, counts, missing, unknown };
@@ -246,7 +255,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       // current year, from the panel's own mvCurrentYear().
       const year = currentYear();
       const fields = Object.fromEntries(chosen.fields.map(fl => {
-        const v = row.fields[fl.key] != null ? String(row.fields[fl.key]).slice(0, fl.max) : (fl.initial ?? '');
+        const v = row.fields[fl.key] != null ? fieldClip(String(row.fields[fl.key]), fl.max) : (fl.initial ?? '');
         return [fl.key, v === '@year' ? year : v];
       }));
       if (!String(fields.big || '').trim()) throw Error("Type the title's big word to build.");

@@ -334,15 +334,17 @@ assert.deepEqual(j(P.tplFitN(Object.assign({}, fitBase, { requested: 7, availabl
 
 // Progress.
 {
-  assert.deepEqual(j(P.TPL_BUILD_STEPS.map(s => s.label)), ['Reading your pictures', 'Finding moments', 'Planning', 'Placing pictures', 'Adding letters and paper']);
+  // Ids only: the panel names the steps in its UI language (STRINGS step.<id>).
+  assert.deepEqual(j(P.TPL_BUILD_STEPS.map(s => s.id)), ['pictures', 'moments', 'plan', 'place', 'decorate']);
+  assert.ok(P.TPL_BUILD_STEPS.every(s => !('label' in s)), 'no English step names in the planner');
   assert.equal(P.TPL_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);
   const first = P.tplProgress(P.TPL_BUILD_STEPS[0].id, 0);
   assert.equal(first.percent, 0); assert.equal(first.current, 0);
-  assert.ok(first.label.startsWith('Step 1/5 · Reading your pictures'));
+  assert.equal(first.id, 'pictures'); assert.equal(first.detail, null);
   const last = P.tplProgress(P.TPL_BUILD_STEPS[4].id, 1);
   assert.equal(last.percent, 100);
   const mid = P.tplProgress(P.TPL_BUILD_STEPS[3].id, 0.5, '3/14');
-  assert.ok(mid.label.includes('(3/14)'));
+  assert.equal(mid.id, 'place'); assert.equal(mid.detail, '3/14', 'the detail is passed through');
   assert.throws(() => P.tplProgress('nope', 0));
 }
 

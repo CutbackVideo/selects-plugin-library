@@ -256,6 +256,16 @@ for (const [st, fps] of [[s, 25], [s, 29.97], [L, 25], [L, 29.97], [plan({ pace:
   assert.deepEqual(D.letters.editable.map(e => e.key), ['word1', 'word2', 'size', 'y', 'accent', 'seed', 'restyle']);
   assert.deepEqual([Lx['Vertical position'].min, Lx['Vertical position'].max], [30, 70]);
   assert.equal(Lx['Re-style'].type, 'boolean');
+  // Inspector labels from the panel's UI language (assets.labels, tplLabel keys); keys, ranges and values never change.
+  const ko = { 'torn.look': 'K-look', 'torn.seed': 'K-tear', 'motion.drift': 'K-drift', 'letters.word1': 'K-word1', 'letters.seed': 'K-letter', 'letters.restyle': '' };
+  const DK = j(P.tplDecorateConfig(s, assembleAt(s, 30), { ...assets, labels: ko }));
+  assert.deepEqual(DK.torn.editable.map(e => e.label), ['K-look', 'Backdrop colour', 'Edge width', 'Photo size', 'Tilt', 'K-tear', 'Photo motion', 'Motion strength']);
+  assert.deepEqual(DK.torn.editable[6].options.map(o => o.label), ['Off', 'Push in', 'Pull out', 'K-drift']);
+  assert.deepEqual(DK.letters.editable.map(e => e.label), ['K-word1', 'Word 2', 'Size', 'Vertical position', 'Accent colour', 'K-letter', 'Re-style'], 'an empty label keeps English');
+  const strip = list => list.map(e => ({ ...e, label: null, options: e.options && e.options.map(o => o.value) }));
+  assert.deepEqual(strip(DK.torn.editable), strip(D.torn.editable));
+  assert.deepEqual(strip(DK.letters.editable), strip(D.letters.editable));
+  assert.deepEqual({ ...DK, torn: null, letters: null }, { ...D, torn: null, letters: null }, 'labels change nothing else');
   // Every editable key is a data key the graphics read.
   for (const e of D.torn.editable) assert.ok(e.key in D.torn.clips[0].data, 'torn data has ' + e.key);
   for (const e of D.letters.editable) assert.ok(e.key in D.letters.parameters, 'letters parameters have ' + e.key);
@@ -451,6 +461,7 @@ const assembleChecks = (async () => {
   const r = j(P.tplPlanState({ projectId: 'proj', inv: few, found: {}, cue, options: defaults, now }));
   assert.equal(r.ok, false);
   assert.equal(r.reason, 'Add at least 3 photos or clips');
+  assert.deepEqual([r.code, r.vars], ['fewPictures', { min: 3 }], 'code + vars for the panel');
   // Two photos + a video, but Use videos is off.
   const r2 = j(P.tplPlanState({ projectId: 'proj', inv: { photos: few.photos, resources: [video('v1', 20, 1920, 1080, 1, 3)] }, found: {}, cue, options: { ...defaults, useVideos: false }, now }));
   assert.equal(r2.ok, false);
@@ -461,6 +472,7 @@ const assembleChecks = (async () => {
   assert.equal(r3.ok, false);
   const need = P.tplTemplate(3, 'quick').total * P.tplUnit(cue.bpm).unitSec;
   assert.equal(r3.reason, 'This track needs at least ' + need.toFixed(1) + ' s from the section start');
+  assert.deepEqual([r3.code, r3.vars], ['musicTooShort', { seconds: Math.round(need * 10) / 10 }]);
   // A shorter track fits fewer pictures: N drops for the music.
   const mid = { ...cue, usableEnd: cue.firstBeat + P.tplTemplate(5, 'quick').total * P.tplUnit(cue.bpm).unitSec + 0.01 };
   const r4 = j(P.tplPlanState({ projectId: 'proj', inv: j(inv), found, cue: mid, options: defaults, now }));
@@ -471,6 +483,7 @@ const assembleChecks = (async () => {
   const r5 = plan({ words: ['  ', ''] });
   assert.equal(r5.ok, false);
   assert.equal(r5.reason, 'Type at least one word');
+  assert.deepEqual([r5.code, j(r5.vars)], ['noWords', {}]);
   // One empty word is fine, and a long name is kept for the graphic to fit.
   const r6 = plan({ words: ['JENNIFER', ''] });
   assert.equal(r6.ok, true);

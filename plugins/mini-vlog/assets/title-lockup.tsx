@@ -30,6 +30,24 @@ var MV_FACES = {
 // Used only when a family's metrics are missing: a generic 0.56 em advance.
 var MV_FALLBACK_METRICS = { unitsPerEm: 1000, xHeight: 500, capHeight: 700, ascent: 720, descent: -220, dots: { i: [150, 650], j: [150, 650] }, advances: {} };
 var MV_FIT = 0.6; // max lockup width, fraction of canvas width
+// Korean titles. Text with Hangul is never tracked, a spaceless Hangul word is never hyphenated, and a wide character
+// (Hangul, kana, CJK, fullwidth) without an advance in the metrics counts as 1 em (Latin keeps the 0.56 em fallback).
+var MV_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
+var MV_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+// The macOS Korean system face per bundled family (by role: serif faces AppleMyungjo, the rest Apple SD Gothic Neo).
+var MV_KO_FACES = { "MV Instrument Serif Italic": "AppleMyungjo", "MV DM Serif Display": "AppleMyungjo", "MV Rounded Bold": "Apple SD Gothic Neo", "MV DM Mono": "Apple SD Gothic Neo" };
+function mvHasHangul(text) { return MV_HANGUL_RE.test(String(text || "")); }
+// The system Korean faces' ink in em: Hangul reaches about 0.86 em above the baseline and 0.12 em below it.
+var MV_WIDE_UP = 0.86, MV_WIDE_DOWN = 0.12;
+// Where a star or year centres on a line: the x-height band of Latin text, the middle of the ink of wide text.
+function mvBand(text, m) {
+  return MV_WIDE_RE.test(text) ? (MV_WIDE_UP - MV_WIDE_DOWN) / 2 : m.xHeight / m.unitsPerEm / 2;
+}
+// A text item's font stack: the bundled face, the Latin fallbacks, then the family's Korean face before the generic one.
+function mvFontStack(family) {
+  var ko = MV_KO_FACES[family] || "Apple SD Gothic Neo";
+  return '"' + family + '", "Helvetica Neue", Arial, "' + ko + '", ' + (ko === "AppleMyungjo" ? "serif" : "sans-serif");
+}
 var MV_MINI_WIDTH = (0.155 * 1920) / 1080; // "mini" advance width at size 100, fraction of height
 
 function mvFace(data, preset, role) {
@@ -42,7 +60,7 @@ function mvFace(data, preset, role) {
 
 function mvAdvance(m, ch) {
   var a = m.advances[ch];
-  return typeof a === "number" ? a : 0.56 * m.unitsPerEm;
+  return typeof a === "number" ? a : (MV_WIDE_RE.test(ch) ? 1 : 0.56) * m.unitsPerEm;
 }
 
 // Advance width of `text` at `px` (kerning ignored), plus `tracking` em (optional, default 0) between letters
@@ -53,18 +71,21 @@ function mvTextWidth(text, m, px, tracking = 0) {
   return (units * px) / m.unitsPerEm + (tracking || 0) * px * Math.max(0, text.length - 1);
 }
 
-// Ink extents above / below the baseline in em, from the characters present.
+// Ink extents above / below the baseline in em, from the characters present. Wide characters (Hangul) reach the ascent
+// and sit a little below the baseline, so they count like capitals and descenders.
 function mvInk(text, m) {
-  var up = m.xHeight, down = 0;
+  var up = m.xHeight, down = 0, wide = MV_WIDE_RE.test(text);
   if (/[A-Z0-9bdfhklt\u00c0-\u00de\u00df!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.ascent, m.capHeight);
   else if (/[ij]/.test(text)) up = Math.max(up, m.dots.i[1] + 0.07 * m.unitsPerEm);
   if (/[gjpqy,;()[\]{}|]/.test(text)) down = -m.descent;
+  if (wide) { up = Math.max(up, MV_WIDE_UP * m.unitsPerEm); down = Math.max(down, MV_WIDE_DOWN * m.unitsPerEm); }
   return { up: up / m.unitsPerEm, down: down / m.unitsPerEm };
 }
 
 // Boxes span the advance width (plus half the stroke, which grows outward), not the ink:
 // an italic's overhang can reach past box[2]. `tracking` and `stroke` are px for the SVG.
 function mvText(part, text, f, x, y, size, color) {
+  if (f.tracking && mvHasHangul(text)) f = Object.assign({}, f, { tracking: 0 });
   var w = mvTextWidth(text, f.m, size, f.tracking), ink = mvInk(text, f.m), s = f.stroke * size, h = s / 2;
   return { kind: "text", part: part, text: text, font: { family: f.family, style: f.style, weight: f.weight }, x: x, y: y, size: size, color: color, w: w,
     tracking: f.tracking * size, stroke: s, shade: f.shade, box: [x - h, y - ink.up * size - h, x + w + h, y + ink.down * size + h] };
@@ -84,12 +105,13 @@ function mvLockupBounds(items) {
   return b;
 }
 
-// Split at the space nearest the middle; without a space, at the middle with a hyphen.
+// Split at the space nearest the middle; without a space, at the middle with a hyphen (never in a wide-character word,
+// which stays on one line).
 function mvSplit(text, hyphen) {
   var mid = text.length / 2, at = -1;
   for (var i = 0; i < text.length; i++) if (text.charAt(i) === " " && (at < 0 || Math.abs(i - mid) < Math.abs(at - mid))) at = i;
   if (at > 0) return [text.slice(0, at).trim(), text.slice(at + 1).trim()];
-  if (!hyphen) return [text];
+  if (!hyphen || MV_WIDE_RE.test(text)) return [text];
   var cut = Math.ceil(text.length / 2);
   return [text.slice(0, cut) + "-", text.slice(cut)];
 }
@@ -101,6 +123,8 @@ function mvLayoutMini(data, fields, H, S, col) {
   // Footprint wins over x-height: at size 100 "mini" is 0.155 of a 16:9 canvas's width
   // (No.17 measures ~290-300 px at 1920x1080), expressed relative to the height.
   var Fb = ((MV_MINI_WIDTH * H) / mvTextWidth("mini", mb, 1, fb.tracking)) * S, xh = mb.xHeight / mb.unitsPerEm;
+  // The big word's tracking: none on Hangul (the size above still comes from the tracked "mini").
+  var tb = mvHasHangul(fields.big) ? 0 : fb.tracking;
   // Sparkled i/j are drawn dotless when the font has the glyph, so the sparkle replaces the dot.
   var chars = fields.big.split(""), marks = [];
   for (var i = 0; i < chars.length && marks.length < (data.sparkles === false ? 0 : 3); i++) {
@@ -111,7 +135,7 @@ function mvLayoutMini(data, fields, H, S, col) {
     if (typeof mb.advances[dotless] === "number") chars[i] = dotless;
   }
   var bigText = chars.join("");
-  var wb = mvTextWidth(bigText, mb, Fb, fb.tracking);
+  var wb = mvTextWidth(bigText, mb, Fb, tb);
   var big = mvText("big", bigText, fb, -wb / 2, 0, Fb, col.primary);
   items.push(big);
   var spark = 0.36 * xh * Fb;
@@ -119,7 +143,7 @@ function mvLayoutMini(data, fields, H, S, col) {
     var letter = fields.big.charAt(marks[k]), stem = mb.stems && mb.stems[letter];
     var dot = mb.dots[letter] || mb.dots.i;
     // Pen position of the letter: advances plus the tracking after each earlier letter.
-    var pen = big.x + mvTextWidth(bigText.slice(0, marks[k]), mb, Fb) + fb.tracking * Fb * marks[k];
+    var pen = big.x + mvTextWidth(bigText.slice(0, marks[k]), mb, Fb) + tb * Fb * marks[k];
     var px, py;
     if (bigText.charAt(marks[k]) !== letter && stem) {
       // Dotless letter: the sparkle sits on its stem top, its bottom 0.12 x-height above it.
@@ -134,7 +158,8 @@ function mvLayoutMini(data, fields, H, S, col) {
     items.push(mvMark("sparkle", "sparkle", px, py, spark, col.primary));
   }
   if (data.sparkles !== false && marks.length === 0) {
-    items.push(mvMark("sparkle", "sparkle", big.box[2] + 0.04 * Fb, big.box[1] - 0.06 * Fb, spark, col.primary));
+    // Hangul in the italic preset is slanted by the renderer past its advance box, so its sparkle moves further right.
+    items.push(mvMark("sparkle", "sparkle", big.box[2] + (mvHasHangul(bigText) ? 0.2 : 0.04) * Fb, big.box[1] - 0.06 * Fb, spark, col.primary));
   }
   if (fields.small) {
     // "vlog" is 43 % of "mini"'s width in No.17; 41 % (5 % smaller) keeps the one-weight face from reading heavy.
@@ -158,7 +183,7 @@ function mvLayoutDay(data, fields, H, S, col) {
   var l1 = lines.length > 1 ? lines[0] : "", l2 = lines.length > 1 ? lines[1] : lines[0];
   var row1 = [], row2 = [];
   // Row 1: star + year centred on the big line's x-height band, then the first big line.
-  var y1 = 0, band1 = y1 - (xh * Fb) / 2, x = 0;
+  var y1 = 0, band1 = y1 - mvBand(l1 || l2, m) * Fb, x = 0;
   if (fields.year) {
     // The star only takes room when it is drawn.
     if (accents) {
@@ -182,7 +207,7 @@ function mvLayoutDay(data, fields, H, S, col) {
   var b2 = mvText("big2", l2, fb, 0, y2, Fb, col.primary);
   row2.push(b2);
   if (fields.tag) {
-    var tag = mvSplit(fields.tag, false), band2 = y2 - (xh * Fb) / 2, tx = b2.box[2] + 0.08 * Fb;
+    var tag = mvSplit(fields.tag, false), band2 = y2 - mvBand(l2, m) * Fb, tx = b2.box[2] + 0.08 * Fb;
     var lead = 1.2 * Ft;
     // Two lines: the block (line 1 x-height top to line 2 baseline) is centred on the band.
     var t1y = tag.length > 1 ? band2 - (lead - xhT * Ft) / 2 : band2 + (xhT * Ft) / 2;
@@ -214,7 +239,7 @@ function mvLayoutGlimpse(data, fields, H, S, col) {
   var up2 = mvInk(lines[lines.length - 1], m).up;
   var y2 = first ? 0.66 * Fb + Math.max(0, (up2 - xh) * Fb) : 0;
   var starD = 0.4 * Fb;
-  if (data.sparkles !== false) items.push(mvMark("star", "star", 0.2 * Fb, y2 - (xh * Fb) / 2, starD, col.secondary));
+  if (data.sparkles !== false) items.push(mvMark("star", "star", 0.2 * Fb, y2 - mvBand(lines[lines.length - 1], m) * Fb, starD, col.secondary));
   last = mvText("big2", lines[lines.length - 1], fb, 0.5 * Fb, y2, Fb, col.primary);
   items.push(last);
   var topLine = first || last;
@@ -297,7 +322,6 @@ function mvStarPath(cx, cy, size) {
 }
 // mv-lockup:end
 
-const FALLBACK = '"Helvetica Neue", Arial, sans-serif';
 const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 
 export default function MiniVlogTitle({ data: raw }: { data: any }) {
@@ -338,7 +362,7 @@ export default function MiniVlogTitle({ data: raw }: { data: any }) {
           <svg key={l} width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ position: "absolute", left: 0, top: 0, overflow: "visible", filter: a > 0 ? `drop-shadow(0 ${drop}px ${blur * layer.shade}px rgba(0,0,0,${a}))` : undefined }}>
             {layer.items.map((it: any, i: number) =>
               it.kind === "text" ? (
-                <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={`"${it.font.family}", ${FALLBACK}`} fontStyle={it.font.style} fontWeight={it.font.weight} stroke={it.stroke > 0 ? it.color : undefined} strokeWidth={it.stroke} strokeLinejoin="round" style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: it.tracking }}>{it.text}</text>
+                <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={mvFontStack(it.font.family)} fontStyle={it.font.style} fontWeight={it.font.weight} stroke={it.stroke > 0 ? it.color : undefined} strokeWidth={it.stroke} strokeLinejoin="round" style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: it.tracking }}>{it.text}</text>
               ) : (
                 <path key={i} d={it.kind === "sparkle" ? mvSparklePath(it.x, it.y, it.size) : mvStarPath(it.x, it.y, it.size)} fill={it.color} />
               ),

@@ -30,14 +30,21 @@ const stack = async clip => [].concat(...(await d.videoEffects(clip)).map(e => [
 // Inspector definitions. Each default is this clip's own value (the fades differ per clip). The window is adjustable
 // in Classic only; every shot (video or photo) gets its motion and strength (the effect scales the strength to the
 // window's restrained move).
+// Labels come from cfg.labels in the panel's UI language at build time; each one falls back to English (the headless
+// driver sends none).
+const labels = opt.labels || {};
+const label = (key, en) => (typeof labels[key] === 'string' && labels[key] ? labels[key] : en);
+const motionLabels = labels.motions || {};
 const MOTIONS = [['none', 'None'], ['push-in', 'Push in'], ['pull-out', 'Pull out'], ['drift-left', 'Drift left'], ['drift-right', 'Drift right'],
-  ['drift-up', 'Drift up'], ['drift-down', 'Drift down'], ['tilt', 'Tilt'], ['push-drift', 'Push and drift']].map(([value, label]) => ({ label, value }));
+  ['drift-up', 'Drift up'], ['drift-down', 'Drift down'], ['tilt', 'Tilt'], ['push-drift', 'Push and drift']]
+  .map(([value, en]) => ({ label: typeof motionLabels[value] === 'string' && motionLabels[value] ? motionLabels[value] : en, value }));
 const num = (key, label, value, min, max, step) => ({ key, label, type: 'number', defaultValue: value, min, max, step });
 const frameDefs = params => {
   const defs: any[] = [];
-  if (classic) defs.push(num('x', 'Window X (%)', params.x, 0, 100, 0.1), num('y', 'Window Y (%)', params.y, 0, 100, 0.1), num('w', 'Window size (%)', params.w, 5, 100, 0.1));
-  defs.push(num('fadeInSeconds', 'Fade in (s)', params.fadeInSeconds, 0, 3, 0.05), num('fadeOutSeconds', 'Fade out (s)', params.fadeOutSeconds, 0, 3, 0.05));
-  defs.push({ key: 'motion', label: 'Motion', type: 'select', defaultValue: params.motion, options: MOTIONS }, num('strength', 'Motion strength', params.strength, 0, 2, 0.1));
+  if (classic) defs.push(num('x', label('windowX', 'Window X (%)'), params.x, 0, 100, 0.1), num('y', label('windowY', 'Window Y (%)'), params.y, 0, 100, 0.1),
+    num('w', label('windowSize', 'Window size (%)'), params.w, 5, 100, 0.1));
+  defs.push(num('fadeInSeconds', label('fadeIn', 'Fade in (s)'), params.fadeInSeconds, 0, 3, 0.05), num('fadeOutSeconds', label('fadeOut', 'Fade out (s)'), params.fadeOutSeconds, 0, 3, 0.05));
+  defs.push({ key: 'motion', label: label('motion', 'Motion'), type: 'select', defaultValue: params.motion, options: MOTIONS }, num('strength', label('motionStrength', 'Motion strength'), params.strength, 0, 2, 0.1));
   return defs;
 };
 const notes = [];
@@ -65,7 +72,7 @@ if (!hasGraphic) await d.addMotionGraphic({ within: await d.rangeAtFrames(0, end
 // Per shot: the Cinematic look first, then the Shot frame last, so the look never tints the black surround.
 const lookOn = !!(cfg.look && cfg.look.on);
 const lookStrength = cfg.look && typeof cfg.look.strength === 'number' ? cfg.look.strength : 0.5;
-const lookDefs = [num('strength', 'Look strength', lookStrength, 0, 1, 0.05)];
+const lookDefs = [num('strength', label('lookStrength', 'Look strength'), lookStrength, 0, 1, 0.05)];
 let looks = 0, looksKept = 0, looksSkipped = 0, shotFrames = 0, shotFramesKept = 0;
 const count = (await shots()).length;
 for (let i = 0; i < count; i++) {
