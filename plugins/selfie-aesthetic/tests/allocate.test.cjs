@@ -129,16 +129,19 @@ function checkPlan(plan, p, label) {
 }
 {
   // Fewer face clips than video bars with photos around: face (up to 2 uses each, never adjacent) -> photos beyond
-  // round(N/3) -> non-face clips.
+  // round(N/3) (bars 2..N-2 only) -> non-face clips.
   const p = pool({ face: 1, other: 2, photos: 6 });
-  const plan = build(p, { bars: 6 });
+  const plan = build(p, { bars: 8 });
   checkPlan(plan, p, 'face photo order');
   const b = barsOf(plan);
   assert.equal(b.filter(h => h.rid === 'f0').length, 2, 'the face clip is used twice');
   assert.equal(b[0].rid, 'f0', 'bar 0 takes the face clip');
-  assert.ok(b.filter(h => h.kind === 'photo').length > Math.round(6 / 3), 'extra photos before non-face clips');
-  // A non-face clip only where the face clip is used up (or adjacent) and another photo would make 3 in a row.
-  b.forEach((h, k) => { if (h.rid[0] === 'n') assert.ok(k >= 2 && b[k - 1].kind === 'photo' && b[k - 2].kind === 'photo', 'non-face only when photos cannot fill: bar ' + k); });
+  assert.equal(b[1].kind, 'video', 'bar 1 is never a photo while videos exist');
+  assert.equal(b[7].kind, 'video', 'the finale is never a photo while videos exist');
+  assert.ok(b.filter(h => h.kind === 'photo').length >= Math.round(8 / 3), 'photos where the run limit allows');
+  // From bar 2 on, a non-face clip only where the face clip is used up (or adjacent) and another photo would make
+  // 3 in a row (or it is the finale).
+  b.forEach((h, k) => { if (h.rid[0] === 'n' && k >= 2 && k < 7) assert.ok(b[k - 1].kind === 'photo' && b[k - 2].kind === 'photo', 'non-face only when photos cannot fill: bar ' + k); });
 }
 {
   // Plenty of face clips: only face clips, no repeats.
@@ -186,22 +189,46 @@ function checkPlan(plan, p, label) {
   assert.ok(bar0.every(h => Math.abs(h.srcStart - 4) > 0.05), 'bar 0 avoids the gesture moment: ' + bar0.map(h => h.srcStart));
 }
 
-// ---- Photos: about a third of the bars, max 2 in a row, inner bars first ----
-for (const N of [3, 4, 5, 6, 7, 8]) for (const seed of [1, 2, 3, 4, 5]) {
-  const p = pool({ face: 8, photos: 8 });
+// ---- Expressive A/B pairs: different roles and >= 1.5 s apart beat two hits of one role close together ----
+{
+  const c = (t, role, score) => ({ rid: 'e', role, t, score });
+  const base = [c(0.3, 'control', 0.18)];
+  // Two selfie hits 1.0 s apart (the best raw sum), an expression and a glance hit far away (slightly lower).
+  const cands = base.concat([c(2, 'selfie', 0.33), c(3, 'selfie', 0.33), c(6, 'expression', 0.31), c(9, 'glance', 0.31)]);
+  const m = j(P.saeMoments({ candidates: cands, durations: { e: 12 }, fps: 30, beatSeconds: 0.8 })).clips[0];
+  const best = m.pairs[0];
+  assert.notEqual(best.roles[0], best.roles[1], 'best pair mixes roles: ' + JSON.stringify(best));
+  assert.ok(Math.abs(best.a - best.b) >= 1.5, 'best pair >= 1.5 s apart');
+  const same = m.pairs.find(q => [q.a, q.b].sort().join() === '2,3');
+  assert.ok(!same || same.score < best.score, 'the close same-role pair ranks lower');
+  // Never overlapping: at 70 BPM the window (~1.1 s) is longer than SAE_PAIR_GAP (0.8 s).
+  const win = 60 / 70 + 0.15 + 2 / 30;
+  const dense = base.concat([0.5, 1, 1.5, 2, 2.5, 3, 3.5].map((t, i) => c(t, ['selfie', 'expression', 'glance'][i % 3], 0.3)));
+  const md = j(P.saeMoments({ candidates: dense, durations: { e: 4.6 }, fps: 30, beatSeconds: win })).clips[0];
+  assert.ok(md.pairs.length > 0 && md.pairs.filter(q => !q.relaxed).every(q => Math.abs(q.a - q.b) >= win - 1e-9), 'A/B windows never overlap');
+}
+
+// ---- Photos: about a third of the bars (Standard / Long), max 2 in a row, bars 2..N-2 only ----
+// Short (<= 4 bars): at most 1 photo bar, and only with fewer than 3 face clips (video-rich input plays video pairs).
+// 3 bars (shrunk): bar 2 is the finale, so no photo bar at all.
+for (const N of [3, 4, 5, 6, 7, 8]) for (const seed of [1, 2, 3, 4, 5]) for (const face of [1, 2, 3, 8]) {
+  const p = pool({ face, other: 4, photos: 8 });
   const plan = build(p, { bars: N, seed });
-  checkPlan(plan, p, 'photos N=' + N);
-  const kinds = barsOf(plan).map(h => h.kind);
-  assert.equal(kinds.filter(k => k === 'photo').length, Math.round(N / 3), 'photo bars = round(N/3)');
-  assert.equal(kinds[0], 'video', 'bar 0 is a video'); assert.equal(kinds[N - 1], 'video', 'the finale is a video');
+  checkPlan(plan, p, 'photos N=' + N + ' face ' + face);
+  const kinds = barsOf(plan).map(h => h.kind), photos = kinds.filter(k => k === 'photo').length;
+  assert.equal(kinds[0], 'video', 'bar 0 is a video'); assert.equal(kinds[1], 'video', 'bar 1 is a video');
+  assert.equal(kinds[N - 1], 'video', 'the finale is a video');
+  if (N <= 4) assert.equal(photos, N === 4 && face < 3 ? 1 : 0, 'Short: ' + photos + ' photo bars with ' + face + ' face clips');
+  else if (face === 8) assert.equal(photos, Math.round(N / 3), 'photo bars = round(N/3)');
+  else assert.ok(photos >= Math.round(N / 3), 'few face clips: at least round(N/3) photo bars');
 }
 {
   // Few face clips: photos rank above non-face clips, still max 2 in a row.
   const p = pool({ face: 1, other: 5, photos: 6 });
-  const plan = build(p, { bars: 6 });
+  const plan = build(p, { bars: 8 });
   checkPlan(plan, p, 'few-face photos');
   const kinds = barsOf(plan).map(h => h.kind);
-  assert.ok(kinds.filter(k => k === 'photo').length > Math.round(6 / 3), 'photos replace non-face clips');
+  assert.ok(kinds.filter(k => k === 'photo').length >= Math.round(8 / 3), 'photos replace non-face clips where they may');
   assert.equal(barsOf(plan)[0].rid, 'f0', 'bar 0 takes the face clip');
   assert.ok(plan.notes.includes('few-face'));
   // usePhotos off: no photo bars.

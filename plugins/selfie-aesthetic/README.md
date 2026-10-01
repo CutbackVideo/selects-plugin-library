@@ -19,8 +19,11 @@ any source file. It is inspired by a CapCut aesthetic-edit template.
   and Long is 8 bars. If your footage cannot fill the chosen length, the edit gets
   shorter and the panel says how many bars fit.
 - **Canvas.** 1080x1920. Landscape clips and photos are centre-cropped.
-- **Photos** fill about a third of the bars. A photo bar moves between two framings so it
-  does not look frozen.
+- **Photos** fill about a third of the bars in Standard and Long edits, from the third bar on
+  and never the finale. A Short edit uses at most one photo bar, and only when you have fewer
+  than three close-up clips. A photo bar moves between two framings so it does not look frozen.
+- **Framing.** Close-up clips are framed a little tighter, toward the face; switch a clip to
+  Full in Adjust to see the whole frame.
 - **Music.** Four bundled CC0 tracks (see `THIRD_PARTY.md`), or your own file.
 - **Look.** A colour look and a whip on every clip, set as one effect per clip so you can
   change them in Adjust.
@@ -53,8 +56,8 @@ Analyse them in Selects first.
 - **Clip sound**: Off, Ambient (default, the clips' own sound quietly under the music) or Full.
 - **Use photos**: on by default.
 
-After the build, select a clip in the Draft and use Adjust to change its look, look strength
-or whip strength. Building again creates a new Draft and does not keep Adjust edits.
+After the build, select a clip in the Draft and use Adjust to change its look, look strength,
+whip strength or (video clips) framing. Building again creates a new Draft and does not keep Adjust edits.
 
 ## Windows and macOS
 

@@ -141,8 +141,9 @@ test('weight 0.6: a still filler beats a hit only when the hit moves about 2.2x 
 });
 
 test('still fillers come from motion minima off the filler grid', () => {
-  // No hits: moments are fillers. The stillest window starts at 6.125 s (off the 0.5 s grid), on the next frame.
-  const motion = { c: curve(12, (t) => (t >= 6.1 && t < 7.2 ? 0.1 : 3)) };
+  // No hits: moments are fillers. The stillest window starts at 6.125 s (off the 0.5 s grid), on the next frame. The
+  // still stretch holds two non-overlapping windows (A and B never overlap), so the best pair can sit inside it.
+  const motion = { c: curve(12, (t) => (t >= 6.1 && t < 8.3 ? 0.1 : 3)) };
   const t0 = Math.ceil(6.125 * FPS) / FPS;
   const run = (stillWeight) => P.saeMoments({ fps: FPS, beatSeconds: WIN, durations: { c: 12 }, candidates: [], motion, stillWeight }).clips[0];
   const off = run(0), on = run(0.6);

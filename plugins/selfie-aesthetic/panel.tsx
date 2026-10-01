@@ -1382,8 +1382,18 @@ const SAE_SOURCE_TAIL = 0.15;
 // SAE_WHIP_SECONDS matches the effect's), so the whip transition has source before the incoming clip's srcStart.
 const SAE_HEAD_FRAMES = 3;
 const SAE_WHIP_SECONDS = 0.067;
-// Moments A and B of one bar are at least this far apart in the source.
+// Moments A and B of one bar are at least this far apart in the source, and never overlap (at least the window
+// length apart).
 const SAE_PAIR_GAP = 0.8;
+// Expressive pairs: a moment's role is the pose role whose nearby hit (within SAE_ROLE_NEAR of its window) stands
+// furthest above that role's mean hit score in the clip (none without nearby pose-role hits). A pair of two different
+// roles (e.g. expression vs glance) gains SAE_PAIR_ROLE_BONUS; A and B at least SAE_PAIR_SEP seconds apart gain
+// SAE_PAIR_SEP_BONUS, so visibly different moments beat two hits of one role close together.
+// Only pose roles label a moment (a hand is a gesture, not an expression; see SAE_ROLE_TOP).
+const SAE_POSE_ROLES = ['selfie', 'expression', 'glance'];
+const SAE_PAIR_ROLE_BONUS = 0.06;
+const SAE_PAIR_SEP = 1.5;
+const SAE_PAIR_SEP_BONUS = 0.04;
 // Filler candidate times every SAE_FILLER_STEP seconds per clip (at most SAE_MAX_FILLERS, evenly spaced, so a long
 // clip does not blow up the pair search). Fillers score SAE_FILLER_SCORE, below any scene-search hit.
 const SAE_FILLER_STEP = 0.5;
@@ -1411,9 +1421,16 @@ const SAE_MOMENT_NEAR = 0.4;
 // planner tests. A clip without any control hit (the control search failed) is not a face clip; it stays usable.
 const SAE_FACE_MARGIN = 0.02;
 const SAE_FACE_ROLES = ['selfie', 'hand', 'expression', 'glance'];
-// Photos: about SAE_PHOTO_SHARE of the bars, at most SAE_PHOTO_RUN_MAX photo bars in a row.
+// Photos: about SAE_PHOTO_SHARE of the bars, at most SAE_PHOTO_RUN_MAX photo bars in a row, never before bar
+// SAE_PHOTO_FIRST_BAR (the opening and the next bar stay video, so the face A/B ping-pong lands first) nor in the
+// finale while any video exists. Short edits (<= SAE_PHOTO_SHORT_BARS bars) take at most SAE_PHOTO_SHORT_MAX photo bar,
+// and only when there are fewer than SAE_PHOTO_SHORT_FACES face clips (video-rich input plays video pairs).
 const SAE_PHOTO_SHARE = 1 / 3;
 const SAE_PHOTO_RUN_MAX = 2;
+const SAE_PHOTO_FIRST_BAR = 2;
+const SAE_PHOTO_SHORT_BARS = 4;
+const SAE_PHOTO_SHORT_MAX = 1;
+const SAE_PHOTO_SHORT_FACES = 3;
 // Face clips are reused (with another A/B pair) up to this many bars each before photos and non-face clips fill in.
 const SAE_FACE_MAX_USES = 2;
 // Gesture vs face pose (the SDK gives no face position, only per-role scene-search hits). Per clip: the mean of
@@ -1435,6 +1452,9 @@ const SAE_GESTURE_KEY = 0.3;
 const SAE_KEY_POSE_WEIGHT = 0.5;
 const SAE_KEY_STILL_WEIGHT = 0.1;
 const SAE_KEY_JITTER = 0.02;
+// Inner bars: the clip order adds SAE_GESTURE_CLIP_MILD * (pose - hand top) to the face score (a mild nudge; the
+// clip jitter is SAE_CLIP_JITTER).
+const SAE_GESTURE_CLIP_MILD = 0.5;
 // Seeded jitter: clip order inside one use-count/tier group, and pair choice among a clip's unused pairs.
 const SAE_CLIP_JITTER = 0.1;
 const SAE_PAIR_JITTER = 0.05;
@@ -1562,7 +1582,8 @@ function saeSchedule(opts) {
 // without face or control hits; face = faceScore > margin. Candidate times: every hit time (any score) plus fillers;
 // a time t is kept when its window [s, s + beatSeconds] (s = t snapped down to a whole frame, and no earlier than the
 // head handle: max(SAE_HEAD_FRAMES, whip frames + 1) frames; earlier times move there) misses every bad span
-// and ends at least SAE_SOURCE_TAIL before the end of the source. Pairs: A and B >= SAE_PAIR_GAP apart, best summed
+// and ends at least SAE_SOURCE_TAIL before the end of the source. Pairs: A and B >= max(SAE_PAIR_GAP, window) apart
+// (never overlapping), best summed
 // score first (scores less the still penalty; ties: farther apart, then earlier), A = the better-scoring moment; up
 // to SAE_MAX_PAIRS distinct pairs, pairs whose moments no earlier pair uses first. A clip with no such pair gets one relaxed pair (its two
 // farthest-apart times, or one time twice), marked relaxed and scored below every real pair.
@@ -1599,6 +1620,8 @@ function saeMoments(opts) {
     const poseTops = [top('selfie'), top('expression')].filter(v => v !== null);
     const pose = poseTops.length ? poseTops.reduce((x, y) => x + y, 0) / poseTops.length : null;
     const handTop = top('hand') !== null ? top('hand') : control !== null ? control : 0;
+    const roleMean = {};
+    for (const r of SAE_FACE_ROLES) if (byRole[r]) roleMean[r] = byRole[r].reduce((x, y) => x + y, 0) / byRole[r].length;
     const gesture = pose === null ? null : handTop - pose;
     const spans = (spansOf[rid] || []).filter(s => s && saeFinite(s[0]) && saeFinite(s[1]));
     // Window start for a time, or null when the window is not usable.
@@ -1641,15 +1664,27 @@ function saeMoments(opts) {
       const faceNear = Math.max(nearBest.selfie !== undefined ? nearBest.selfie : -Infinity, nearBest.expression !== undefined ? nearBest.expression : -Infinity);
       e.pose = faceNear > -Infinity ? faceNear : 0;
       e.gesture = nearBest.hand !== undefined && (faceNear === -Infinity || nearBest.hand - faceNear > SAE_GESTURE_MARGIN + 1e-12) ? 1 : 0;
+      let role = null, lift = -Infinity;
+      for (const r of SAE_POSE_ROLES) {
+        if (nearBest[r] === undefined) continue;
+        const v = nearBest[r] - roleMean[r];
+        if (v > lift + 1e-12) { lift = v; role = r; }
+      }
+      e.role = role;
     }
+    // A and B never overlap: at least the window length (and SAE_PAIR_GAP) apart.
+    const gap = Math.max(SAE_PAIR_GAP, win);
     const all = [];
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         const p = list[i], q = list[j];
-        if (q.t - p.t < SAE_PAIR_GAP - 1e-9) continue;
+        if (q.t - p.t < gap - 1e-9) continue;
         const aFirst = p.score >= q.score;
         const gesture = p.gesture + q.gesture;
-        all.push({ a: aFirst ? p.t : q.t, b: aFirst ? q.t : p.t, score: p.score + q.score - SAE_GESTURE_MILD * gesture, sep: q.t - p.t, early: p.t,
+        const roles = !!p.role && !!q.role && p.role !== q.role;
+        const bonus = (roles ? SAE_PAIR_ROLE_BONUS : 0) + (q.t - p.t >= SAE_PAIR_SEP - 1e-9 ? SAE_PAIR_SEP_BONUS : 0);
+        all.push({ a: aFirst ? p.t : q.t, b: aFirst ? q.t : p.t, score: p.score + q.score - SAE_GESTURE_MILD * gesture + bonus, sep: q.t - p.t, early: p.t,
+          roles: aFirst ? [p.role, q.role] : [q.role, p.role],
           gesture, pose: p.pose + q.pose, still: cost ? p.cost + q.cost : null });
       }
     }
@@ -1669,7 +1704,7 @@ function saeMoments(opts) {
     }
     if (!pairs.length && list.length) {
       const p = list[0], q = list[list.length - 1];
-      pairs.push({ a: p.t, b: q.t, score: p.score + q.score - 100, relaxed: true, gesture: p.gesture + q.gesture, pose: p.pose + q.pose, still: null });
+      pairs.push({ a: p.t, b: q.t, score: p.score + q.score - 100, relaxed: true, gesture: p.gesture + q.gesture, pose: p.pose + q.pose, still: null, roles: [p.role, q.role] });
     }
     clips.push({ rid, duration: dur, face, faceScore, control, pose, gesture, handTop, times: list.length, pairs });
   }
@@ -1677,8 +1712,9 @@ function saeMoments(opts) {
 }
 
 // The pair fields saeMoments returns: { a, b, score, gesture (gesture-dominated moments, 0-2), pose (summed near
-// selfie / expression evidence), still (summed motion cost, null without the stillness picker) }.
-function saePairOut(p) { return { a: p.a, b: p.b, score: p.score, gesture: p.gesture, pose: p.pose, still: p.still }; }
+// selfie / expression evidence), still (summed motion cost, null without the stillness picker), roles ([A, B] moment
+// roles, see SAE_PAIR_ROLE_BONUS) }.
+function saePairOut(p) { return { a: p.a, b: p.b, score: p.score, gesture: p.gesture, pose: p.pose, still: p.still, roles: p.roles }; }
 
 // Motion cost per window of `win` seconds for one clip's curve ({ fps, values }; see SAE_STILL_WEIGHT), or null
 // when the curve is unusable. Returns { at(s): cost of the window [s, s + win], minima: window starts (seconds) at
@@ -1708,14 +1744,14 @@ function saeStillCost(curve, win) {
   return { at, minima: minima.slice(0, SAE_STILL_MINIMA).map(m => m.k / mfps) };
 }
 
-// Bars that hold photos: up to `count` of the bars 0..bars-1, inner bars (1..bars-2) first, evenly spread from a
-// seeded phase, never more than SAE_PHOTO_RUN_MAX in a row. innerOnly: bar 0 and the finale never hold a photo (any
-// video exists), so fewer than `count` bars may come back.
+// Bars that hold photos: up to `count` of the bars 0..bars-1, inner bars (SAE_PHOTO_FIRST_BAR..bars-2) first, evenly
+// spread from a seeded phase, never more than SAE_PHOTO_RUN_MAX in a row. innerOnly (any video exists): only those
+// inner bars, so fewer than `count` bars may come back; otherwise bars 1, 0 and the finale may follow.
 function saePhotoBars(bars, count, seed, innerOnly) {
   const out = {};
   if (!(count > 0)) return out;
   const inner = [];
-  for (let k = 1; k < bars - 1; k++) inner.push(k);
+  for (let k = SAE_PHOTO_FIRST_BAR; k < bars - 1; k++) inner.push(k);
   const order = [];
   const phase = saeHash(seed + ':photo-bars');
   const evenly = (pool, n) => {
@@ -1728,9 +1764,12 @@ function saePhotoBars(bars, count, seed, innerOnly) {
   };
   evenly(inner, Math.min(count, inner.length)).forEach(k => order.push(k));
   // Then any remaining inner bar, then bar 0 and the finale, in seeded order.
-  inner.concat(innerOnly ? [] : [0, bars - 1].filter((k, i, a) => k >= 0 && a.indexOf(k) === i))
+  const edge = k => k < SAE_PHOTO_FIRST_BAR || k === bars - 1;
+  const outer = [];
+  for (let k = 0; k < bars; k++) if (edge(k)) outer.push(k);
+  inner.concat(innerOnly ? [] : outer)
     .map(k => ({ k, v: saeHash(seed + ':photo-bar:' + k) }))
-    .sort((p, q) => (p.k === 0 || p.k === bars - 1 ? 1 : 0) - (q.k === 0 || q.k === bars - 1 ? 1 : 0) || p.v - q.v)
+    .sort((p, q) => (edge(p.k) ? 1 : 0) - (edge(q.k) ? 1 : 0) || p.v - q.v)
     .forEach(x => { if (order.indexOf(x.k) < 0) order.push(x.k); });
   const runOk = (set, k) => {
     let left = 0, right = 0;
@@ -1746,11 +1785,12 @@ function saePhotoBars(bars, count, seed, innerOnly) {
 // Bar allocation (spec "Bar allocation", with the user's GATE-A ruling on few face clips). opts: { clips (saeMoments
 // clips), photos: [{ rid }] | [rid], bars, seed, usePhotos (default true), allowAdjacent?, allowPairReuse?
 // (relaxations for tiny pools) }.
-// Photo bars: round(bars / 3) (capped by the photos), inner bars only while any video exists, at most
-// SAE_PHOTO_RUN_MAX in a row: photos are a default style element. Every other bar takes, in this order:
+// Photo bars: round(bars / 3) (capped by the photos; Short edits see SAE_PHOTO_SHORT_BARS), bars
+// SAE_PHOTO_FIRST_BAR..bars-2 only while any video exists, at most SAE_PHOTO_RUN_MAX in a row: photos are a default
+// style element. Every other bar takes, in this order:
 //   1. a face clip used fewer than SAE_FACE_MAX_USES times, least-used first (every face clip once before any face
 //      repeat), then by face score plus a seeded jitter;
-//   2. an extra (unused) photo, while the run limit allows;
+//   2. an extra (unused) photo, while the run limit allows (same bars as above; Short: within its photo cap);
 //   3. a non-face clip, least-used first;
 //   4. a face clip beyond SAE_FACE_MAX_USES uses (last resort before shrinking).
 // So when face clips are few, the edit reuses them (with a different A/B pair) until one would need a third use or
@@ -1770,13 +1810,20 @@ function saeAllocate(opts) {
     .filter(r => typeof r === 'string' && !seenPhoto[r] && (seenPhoto[r] = true)).sort();
   const sources = vids.length + pics.length;
   if (!sources || !(N >= 1)) return { ok: false, bars: [], uses: {}, photoBars: 0, failedAt: 0 };
-  const photoCount = Math.min(pics.length, Math.round(N * SAE_PHOTO_SHARE));
+  const short = N <= SAE_PHOTO_SHORT_BARS;
+  const faceVids = vids.filter(c => c.face).length;
+  const photoMax = short ? (faceVids < SAE_PHOTO_SHORT_FACES ? SAE_PHOTO_SHORT_MAX : 0) : Infinity;
+  const photoCount = Math.min(pics.length, photoMax, Math.round(N * SAE_PHOTO_SHARE));
   const photoBar = saePhotoBars(N, photoCount, seed, vids.length > 0);
   const uses = {}, pairUsed = {}, picks = [];
-  let prev = null, photoRun = 0;
+  let prev = null, photoRun = 0, photoBars = 0, bar = 0;
   const notPrev = rid => rid !== prev || sources < 2 || !!opts.allowAdjacent;
+  // While any video exists, photos never hold the first SAE_PHOTO_FIRST_BAR bars nor the finale, and a Short edit
+  // stays within its photo cap (allowRun, the tiny-pool fallback, skips these rules).
+  const photoBarOk = () => !vids.length || (bar >= SAE_PHOTO_FIRST_BAR && bar !== N - 1 && photoBars < photoMax);
   const pickPhoto = allowRun => {
     if (!allowRun && photoRun >= SAE_PHOTO_RUN_MAX) return null;
+    if (!allowRun && !photoBarOk()) return null;
     let best = null;
     for (const rid of pics) {
       if (!notPrev(rid)) continue;
@@ -1799,7 +1846,8 @@ function saeAllocate(opts) {
       // Clips without selfie / expression hits keep the plain order (below every clip with a key score).
       const v = key && saeFinite(c.pose)
         ? c.pose - c.handTop + SAE_KEY_JITTER * saeHash(seed + ':key:' + c.rid + ':' + u)
-        : (saeFinite(c.faceScore) ? c.faceScore : -1) + SAE_CLIP_JITTER * saeHash(seed + ':clip:' + c.rid + ':' + u) - (key ? 1 : 0);
+        : (saeFinite(c.faceScore) ? c.faceScore : -1) + SAE_CLIP_JITTER * saeHash(seed + ':clip:' + c.rid + ':' + u) - (key ? 1 : 0) +
+          (!key && saeFinite(c.pose) ? SAE_GESTURE_CLIP_MILD * (c.pose - c.handTop) : 0);
       if (!best || u < best.u || (u === best.u && (v > best.v + 1e-12 || (Math.abs(v - best.v) <= 1e-12 && c.rid < best.c.rid)))) best = { c, u, v };
     }
     if (!best) return null;
@@ -1821,12 +1869,13 @@ function saeAllocate(opts) {
     k => pickVideo(c => c.face, k),
   ];
   for (let k = 0; k < N; k++) {
+    bar = k;
     let pick = photoBar[k] ? pickPhoto(false) : null;
     for (let t = 0; !pick && t < tiers.length; t++) pick = tiers[t](k);
     if (!pick && (!vids.length || opts.allowAdjacent)) pick = pickPhoto(true);
     if (!pick) return { ok: false, bars: picks, uses, photoBars: picks.filter(x => x.kind === 'photo').length, failedAt: k };
     uses[pick.rid] = (uses[pick.rid] || 0) + 1;
-    if (pick.kind === 'video') { (pairUsed[pick.rid] = pairUsed[pick.rid] || {})[pick.pairIndex] = true; photoRun = 0; } else photoRun++;
+    if (pick.kind === 'video') { (pairUsed[pick.rid] = pairUsed[pick.rid] || {})[pick.pairIndex] = true; photoRun = 0; } else { photoRun++; photoBars++; }
     picks.push({ bar: k, kind: pick.kind, rid: pick.rid, pair: pick.pair });
     prev = pick.rid;
   }
@@ -1988,7 +2037,7 @@ if (typeof module !== 'undefined' && module && module.exports) {
     SAE_LEAD, SAE_END_TAIL, SAE_STANDARD_BAR, SAE_FINALE_BAR, SAE_LENGTHS, SAE_MIN_BARS, SAE_FIXED_BPM, SAE_FACE_MARGIN,
     SAE_FACE_ROLES, SAE_FACE_MAX_USES, SAE_SOURCE_TAIL, SAE_HEAD_FRAMES, SAE_PAIR_GAP, SAE_FADE_OUT, SAE_PHOTO_SHARE, SAE_PHOTO_RUN_MAX, SAE_SNAP_WINDOW,
     SAE_MIN_HOLD_FRAMES, SAE_ANGLE_MIN, SAE_ANGLE_MAX, SAE_STILL_WEIGHT, SAE_STILL_FLOOR, SAE_STILL_COST_MAX, SAE_STILL_MINIMA,
-    SAE_ROLE_TOP, SAE_ROLE_NEAR, SAE_GESTURE_MARGIN, SAE_GESTURE_MILD, SAE_GESTURE_KEY, SAE_KEY_POSE_WEIGHT, SAE_KEY_STILL_WEIGHT, SAE_KEY_JITTER,
+    SAE_PAIR_ROLE_BONUS, SAE_PAIR_SEP, SAE_PAIR_SEP_BONUS, SAE_ROLE_TOP, SAE_ROLE_NEAR, SAE_GESTURE_MARGIN, SAE_GESTURE_MILD, SAE_GESTURE_KEY, SAE_KEY_POSE_WEIGHT, SAE_KEY_STILL_WEIGHT, SAE_KEY_JITTER, SAE_GESTURE_CLIP_MILD, SAE_PHOTO_FIRST_BAR, SAE_PHOTO_SHORT_BARS, SAE_PHOTO_SHORT_MAX, SAE_PHOTO_SHORT_FACES,
     saeStillCost, saeHash, saeEditBpm, saeTempo, saeVideoSeconds, saeMusicOffset, saeTemplate, saeSchedule, saeMoments, saePhotoBars,
     saeAllocate, saeWhipKinds, saeBarGrid, saeSectionRange, saeDefaultSection, saeSnapSection, saePlanBuild,
   });
