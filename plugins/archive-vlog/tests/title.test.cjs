@@ -18,7 +18,7 @@ function block(file, name) {
 }
 const title = block('decode-title.tsx', 'av-decode'), credit = block('archived-credit.tsx', 'av-credit');
 const T = {}; vm.createContext(T);
-vm.runInContext(title + ';globalThis.X={avKoMeasure,avTitleLayout,avDecodeFrame,avTiming,avFontStack,avGhostChar,avHash,avGraphemes,avCharClass,AV_TITLE_FACES,AV_KICKER_FACE,AV_TAGLINE_FACE,AV_TITLE_PRESETS,AV_POOL_HANGUL,AV_POOL_UPPER,AV_POOL_LOWER,AV_FIELD_MAX,AV_SEGMENTER};', T);
+vm.runInContext(title + ';globalThis.X={avScrim,avScrimAt,AV_SCRIM_DEFAULT,avKoMeasure,avTitleLayout,avDecodeFrame,avTiming,avFontStack,avGhostChar,avHash,avGraphemes,avCharClass,AV_TITLE_FACES,AV_KICKER_FACE,AV_TAGLINE_FACE,AV_TITLE_PRESETS,AV_POOL_HANGUL,AV_POOL_UPPER,AV_POOL_LOWER,AV_FIELD_MAX,AV_SEGMENTER};', T);
 const C = {}; vm.createContext(C);
 vm.runInContext(credit + ';globalThis.X={avcKoMeasure,avCreditLayout,avcFontStack,AVC_FACE};', C);
 // Also loadable the way the panel does it, and both blocks together in one scope (no name clashes).
@@ -468,5 +468,55 @@ const SEOUL_TRIP = ko(0xC11C, 0xC6B8, 0x20, 0xC5EC, 0xD589), SEOUL = ko(0xC11C, 
   assert.deepEqual(mc.koInk, { up: 0.81, down: 0.15 }); assert.deepEqual(Object.keys(mc.koAdvances).sort(), Array.from(SEOUL).sort());
   assert.equal(fonts2d[fonts2d.length - 1], '700 100px ' + Y.avcFontStack('AV Oswald Bold'));
   assert.equal(mC.f({ name: 'KIM' }), null);
+}
+// --- Backdrop (scrim): a soft dark ellipse behind the lockup, fading in with the text, no layout change.
+{
+  const d0 = { preset: 'cinematic', kicker: 'MINI VLOG', title: 'CINEMATIC', tagline: 'CAPTURE THE MOMENTS', fonts };
+  assert.equal(X.AV_SCRIM_DEFAULT, 0.4);
+  assert.deepEqual(lay({ scrim: 0.9 }), lay(), 'scrim never changes the layout');
+  const L0 = lay(), inF = Math.round(2.4 * 30);
+  const sc = (data, f, fps = 30, layout = L0, h = H) => plain(X.avScrim(layout, data, f, fps, h));
+  // Nothing before textIn, with scrim 0, or without a lockup.
+  assert.equal(sc(d0, inF - 1), null, 'no backdrop before textIn');
+  assert.equal(sc({ ...d0, scrim: 0 }, inF + 30), null, 'scrim 0 draws nothing');
+  assert.equal(sc(d0, 100, 30, lay({ kicker: '', title: '', tagline: '' })), null, 'no lockup, no backdrop');
+  assert.equal(X.avScrimAt(null, 0, 0), 0);
+  // Fades in from textIn over 0.3 s (monotone, smooth), then holds at the peak; the default peak and clamping.
+  let prev = 0;
+  for (let f = inF; f < inF + 12; f++) { const o = sc(d0, f).opacity; assert.ok(o > 0 && o >= prev - 1e-12, 'ramp ' + f); prev = o; }
+  assert.ok(sc(d0, inF).opacity < 0.1, 'starts faint');
+  near(sc(d0, inF + 8).opacity, 0.4, 1e-12, 'full by 0.3 s at 30 fps');
+  near(sc(d0, inF + 200).opacity, 0.4, 1e-12, 'stays while the title is up');
+  near(sc({ ...d0, scrim: 0.25 }, inF + 30).opacity, 0.25, 1e-12);
+  near(sc({ ...d0, scrim: 7 }, inF + 30).opacity, 1, 1e-12, 'clamped to 1');
+  near(sc({ ...d0, scrim: 'x' }, inF + 30).opacity, 0.4, 1e-12, 'non-number: default');
+  near(sc(d0, Math.round(2.4 * 24) + 7, 24).opacity, 0.4, 1e-12, 'full by 0.3 s at 24 fps');
+  // Follows the timing it is given (the planner's textIn).
+  assert.equal(sc({ ...d0, timing: { textIn: 1.5, decodeStart: 2 } }, Math.round(1.5 * 30) - 1), null);
+  assert.ok(sc({ ...d0, timing: { textIn: 1.5, decodeStart: 2 } }, Math.round(1.5 * 30)).opacity > 0);
+  // Deterministic: the same inputs, the same backdrop.
+  assert.deepEqual(sc(d0, inF + 5), sc(d0, inF + 5));
+  // Gradient stops: start fully dark, monotone non-increasing, end at 0 at the ellipse edge.
+  const st = sc(d0, inF + 30).stops;
+  assert.equal(st[0].offset, 0); assert.equal(st[0].alpha, 1); assert.equal(st[st.length - 1].offset, 1); near(st[st.length - 1].alpha, 0, 1e-12, 'edge');
+  for (let i = 1; i < st.length; i++) assert.ok(st[i].offset > st[i - 1].offset && st[i].alpha <= st[i - 1].alpha, 'stops ' + i);
+  // Centred on the ink box and covering it with margin, at several canvases, sizes and texts: every point of the box
+  // gets at least 40 % of the peak, the box centre the full peak, and the ellipse extends past the box on every side.
+  for (const [extra, w, h] of [[{}, W, H], [{}, 1280, 720], [{ size: 160 }, W, H], [{ size: 60 }, W, H], [{ title: 'A', kicker: '', tagline: '' }, W, H],
+    [{ tagline: 'A VERY LONG TAGLINE THAT FILLS THE WHOLE WIDTH OF THE FRAME' }, W, H], [{ title: SEOUL_TRIP, x: 30, y: 70 }, W, H], [{}, 1080, 1920]]) {
+    const L = lay(extra, w, h), s = sc({ ...d0, ...extra }, inF + 30, 30, L, h), b = L.box;
+    near(s.cx, (b[0] + b[2]) / 2, 1e-9, 'cx'); near(s.cy, (b[1] + b[3]) / 2, 1e-9, 'cy');
+    assert.ok(s.rx > (b[2] - b[0]) / 2 + 0.03 * h && s.ry > (b[3] - b[1]) / 2 + 0.07 * h, 'margins ' + JSON.stringify(extra));
+    near(X.avScrimAt(s, s.cx, s.cy), 0.4, 1e-12, 'peak at the centre');
+    for (const [x, y] of [[b[0], b[1]], [b[2], b[1]], [b[0], b[3]], [b[2], b[3]], [s.cx, b[1]], [s.cx, b[3]], [b[0], s.cy], [b[2], s.cy]])
+      assert.ok(X.avScrimAt(s, x, y) >= 0.4 * 0.4, `box point covered ${JSON.stringify(extra)} ${x},${y}: ${X.avScrimAt(s, x, y)}`);
+    assert.equal(X.avScrimAt(s, s.cx + s.rx + 1, s.cy), 0, 'nothing outside the ellipse');
+    assert.equal(X.avScrimAt(s, s.cx, s.cy - s.ry - 1), 0);
+  }
+  // The component draws it in its own SVG under the text, outside the drop-shadow filter.
+  const tsx = fs.readFileSync(path.join(ROOT, 'assets', 'decode-title.tsx'), 'utf8');
+  const iS = tsx.indexOf('<radialGradient'), iT = tsx.indexOf('{line(layout.kicker)}');
+  assert.ok(iS > 0 && iT > iS, 'backdrop before (under) the text');
+  assert.ok(tsx.includes('avScrim(layout, mdata, frame, fps, height)'), 'component uses the block');
 }
 console.log(JSON.stringify({ title: 'ok' }));
