@@ -26,6 +26,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Camera Shutter Dump](plugins/camera-shutter-dump) — twelve photos stack into a collage, one per shutter sound | Experimental |
 | [Polaroid Photo Dump](plugins/polaroid-photo-dump) — seventeen photos switch inside an instant-film frame on the beat, with a slow zoom | Experimental |
 | [Epidemic Sound Search](plugins/epidemic-sound-search) — search, audition and save Epidemic Sound tracks into your library and Draft | Experimental |
+| [Archive Vlog](plugins/archive-vlog) — 16:9 cinematic city vlog: letterbox-open intro, decode-in title, "Archived by" credit, cut to the beat | Experimental |
 | [Mini Vlog](plugins/mini-vlog) — 16:9 everyday mini vlog cut to the beat, with a pale pink title | Experimental |
 | [Torn Paper Love](plugins/torn-paper-love) — 4:3 torn-paper couple photo edit with ransom-note letters | Experimental |
 | [THE END Credits](plugins/the-end-credits) — end-credits roll with a typed THE END title and a window of your clips | Experimental |
