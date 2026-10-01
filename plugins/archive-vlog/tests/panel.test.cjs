@@ -646,3 +646,11 @@ assert.ok(!/new Function|\beval\(/.test(ui), 'no runtime evaluation in the panel
 }
 
 hostTests.then(() => console.log('panel ok'), e => { console.error(e); process.exit(1); });
+
+// The panel is a standalone app in the Apps list. A `// @collection <app>` header line hands a panel to that app as a
+// template, and the Selects renderer then leaves it out of the Apps list (cutback-client panelCollection.ts), so the
+// header must never carry one.
+{
+  const header = panel.split('\n', 24);
+  assert.ok(!header.some(l => /^[ \t]*\/\/[ \t]*@collection\b/.test(l)), 'panel header must not contain @collection');
+}

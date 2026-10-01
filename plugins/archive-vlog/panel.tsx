@@ -1,5 +1,4 @@
 // @name Archive Vlog
-// @collection visual-highlights
 // @name:de Archive Vlog
 // @name:en Archive Vlog
 // @name:es Archive Vlog
