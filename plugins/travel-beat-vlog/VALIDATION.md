@@ -84,4 +84,5 @@ The first "Load Project media" right after the app restarted and opened the Proj
 ## Not yet verified
 
 - The in-app chat path.
+- The Clip highlights template run with a picked song (the catalog reads the main branch, so this is checked after merge).
 - Replacing a video inside a saved clip. Create a revised Draft instead.
