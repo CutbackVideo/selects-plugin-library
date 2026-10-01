@@ -213,8 +213,9 @@ function sentences(words, fps) {
 var GUIDE = `You are the editor of a short-form "quote" channel. From the podcast transcript below, pick ONE quote and plan its reel.
 
 The reel format:
-- The quote is 12-22 seconds of continuous speech, self-contained and quotable (a clear insight, advice or reframing), starting at the beginning of a thought.
-- It is cut into 5-9 clauses, each 1.2-3.6 seconds, split at natural phrase boundaries. Each clause becomes one shot with its own caption.
+- The quote is 15-22 seconds of continuous speech, self-contained and quotable (a clear insight, advice or reframing), starting at the beginning of a thought.
+- It is cut into 6-10 clauses. Each clause becomes one shot with one typographic caption. Cut only at natural boundaries: a sentence end, a comma, or before a conjunction ("and", "but", "because"), never inside a phrase that belongs together.
+- Keep the rhythm of a real edit, mostly quick with a few longer beats: the hook 7-10 words, the black key line 6-10 words, most other clauses 4-8 words (about 1.5-2.5 seconds), and never more than 10 words in a clause.
 - Clause roles:
   - "speaker": the speaker on camera. The first clause (the hook) is always "speaker".
   - "black": the core line of the quote on a black screen with no music. Exactly ONE clause, ideally clause 2 or 3, the line that states the thesis.
@@ -295,9 +296,15 @@ function resolve(o, words, sents, fps) {
     if (c.role === "broll") brolls += 1;
   });
   const dur = (words[clauses[clauses.length - 1].b].e - words[clauses[0].a].s) / fps;
-  if (dur < 11) issues.push("the quote is only " + dur.toFixed(1) + " s; it must be 12-22 s");
-  if (dur > 24) issues.push("the quote is " + dur.toFixed(1) + " s; it must be 12-22 s");
-  return { clauses, why: String(o.why || "").slice(0, 200), source: "ai", issues };
+  if (dur < 14) issues.push("the quote is only " + dur.toFixed(1) + " s; it must be 15-22 s");
+  if (dur > 24) issues.push("the quote is " + dur.toFixed(1) + " s; it must be 15-22 s");
+  const shots = mergeShort(splitLong(clauses, words, fps));
+  for (const c of shots) {
+    if (c.role !== "outro" && c.b - c.a + 1 < CLAUSE_WORDS.min) {
+      issues.push('the clause "' + words.slice(c.a, c.b + 1).map((w) => w.t).join(" ") + '" has only ' + (c.b - c.a + 1) + " words; every clause needs at least " + CLAUSE_WORDS.min + " (the hook 7-10)");
+    }
+  }
+  return { clauses: shots, why: String(o.why || "").slice(0, 200), source: "ai", issues };
 }
 function matchAt(words, a, want) {
   if (!want.length || a < 0 || a + want.length > words.length) return -1;
@@ -320,14 +327,73 @@ function ruleStory(words, fps, why) {
   for (let i = best.a; i <= best.b; i += 1) {
     const len = (words[i].e - words[a].s) / fps;
     const gap = i < best.b ? (words[i + 1].s - words[i].e) / fps : 99;
-    const punct = /[,.;:!?]["”’)]*$/.test(words[i].t);
-    if (i === best.b || len >= 1.2 && (punct || gap > 0.25) || len >= 3.2) {
+    const punct = PUNCT.test(words[i].t);
+    const room = best.b - i >= CLAUSE_WORDS.min;
+    if (i === best.b || room && (i - a + 1 >= 5 && (punct || gap > 0.25) || i - a + 1 >= 9)) {
       clauses.push({ a, b: i, role: "speaker" });
       a = i + 1;
     }
   }
   if (clauses.length > 1) clauses[1].role = "black";
-  return { clauses, why, source: "rules" };
+  return { clauses: mergeShort(splitLong(clauses, words, fps)), why, source: "rules" };
+}
+var CLAUSE_WORDS = { min: 4, max: 10, keyMax: 14 };
+var PUNCT = /[,.;:!?]["”’)]*$/;
+function splitLong(list2, words, fps) {
+  const out = [];
+  const queue = list2.map((c) => ({ ...c }));
+  while (queue.length) {
+    const c = queue.shift();
+    const n = c.b - c.a + 1;
+    if (c.role === "outro" || n <= (c.role === "black" ? CLAUSE_WORDS.keyMax : CLAUSE_WORDS.max)) {
+      out.push(c);
+      continue;
+    }
+    let at = -1, best = -1e9;
+    for (let j = c.a + CLAUSE_WORDS.min - 1; j <= c.b - CLAUSE_WORDS.min; j += 1) {
+      const gap = Math.min(1, Math.max(0, (words[j + 1].s - words[j].e) / fps));
+      const score = (PUNCT.test(words[j].t) ? 1 : 0) + 2 * gap - Math.abs(j + 0.5 - (c.a + c.b) / 2) / n;
+      if (score > best) [best, at] = [score, j];
+    }
+    if (at < 0) {
+      out.push(c);
+      continue;
+    }
+    queue.unshift({ a: c.a, b: at, role: c.role, query: c.query }, { a: at + 1, b: c.b, role: "speaker" });
+  }
+  return out;
+}
+function mergeShort(list2) {
+  const n = (c) => c.b - c.a + 1;
+  const span = (x, y) => y.b - x.a + 1;
+  const out = list2.map((c) => ({ ...c }));
+  const join2 = (x, y) => {
+    const role = x.role === "black" || y.role === "black" ? "black" : x.role === "broll" || y.role === "broll" ? "broll" : "speaker";
+    return { a: x.a, b: y.b, role, query: role === "broll" ? x.query || y.query : void 0 };
+  };
+  const free = (c) => !!c && c.role !== "black" && c.role !== "outro";
+  for (let i = 0; i < out.length; ) {
+    const c = out[i], next = out[i + 1], prev = out[i - 1];
+    if (n(c) >= CLAUSE_WORDS.min || c.role === "outro") {
+      i += 1;
+      continue;
+    }
+    if (c.role === "black") {
+      if (free(next) && span(c, next) <= CLAUSE_WORDS.max) out.splice(i, 2, join2(c, next));
+      else i += 1;
+      continue;
+    }
+    if (free(next) && span(c, next) <= CLAUSE_WORDS.max) out.splice(i, 2, join2(c, next));
+    else if (free(prev) && span(prev, c) <= CLAUSE_WORDS.max) {
+      out.splice(i - 1, 2, join2(prev, c));
+      i -= 1;
+    } else i += 1;
+  }
+  if (out[0] && out[0].role === "broll" && out.length > 1) out[0].role = "speaker";
+  for (let i = 1; i < out.length; i += 1) {
+    if (out[i].role === "broll" && out[i - 1].role === "broll") out[i] = { a: out[i].a, b: out[i].b, role: "speaker" };
+  }
+  return out;
 }
 
 // src/plan.ts
@@ -336,26 +402,48 @@ var H = 1920;
 var CARD = { x: 47, y: 255.5, w: 986, h: 1409, r: 120 };
 var MUSIC = { file: "momentum.m4a", cue: 11.486, seconds: 94.14, volumeDb: -6 };
 var FADE_SECONDS = 0.27;
+var sourceAt = (shot, f) => shot.src + (f - shot.from);
+var CUT = {
+  hold: 0.2,
+  intoKey: 0.1,
+  keyLead: 0.65,
+  keyHold: 0.8,
+  onset: 2
+  /* frames */
+};
 function displayWord(t) {
   return String(t || "").replace(/[“”"«»]/g, "").replace(/[,.;:!…]+/g, "").replace(/^[-–—'‘]+|[-–—]+$/g, "").trim();
 }
 function makePlan(src, story) {
   const { words, fps } = src;
   const cl = story.clauses;
+  const sec = (x) => Math.round(x * fps);
   const a0 = cl[0].a, b1 = cl[cl.length - 1].b;
-  const lead = Math.round(0.15 * fps), tail = Math.round(0.8 * fps);
-  const srcFrom = Math.max(a0 > 0 ? words[a0 - 1].e : 0, words[a0].s - lead);
-  const srcTo = Math.max(words[b1].e, Math.min(b1 + 1 < words.length ? words[b1 + 1].s : src.endFrame, words[b1].e + tail));
-  const end = srcTo - srcFrom;
+  const srcFrom = Math.max(a0 > 0 ? words[a0 - 1].e : 0, words[a0].s - sec(0.15));
+  const srcTo = Math.max(words[b1].e, Math.min(b1 + 1 < words.length ? words[b1 + 1].s : src.endFrame, words[b1].e + sec(0.8)));
   const at = (f) => f - srcFrom;
+  const spans = cl.map(() => ({ a: 0, b: srcTo - srcFrom }));
+  for (let k = 1; k < cl.length; k += 1) {
+    const said = at(words[cl[k].a - 1].e), next = at(words[cl[k].a].s) - CUT.onset;
+    const intoKey = cl[k].role === "black";
+    const hold = intoKey ? CUT.intoKey : cl[k - 1].role === "black" ? CUT.keyHold : CUT.hold;
+    const shown = at(words[cl[k - 1].b].s) + CUT.onset + 1;
+    const end = Math.max(spans[k - 1].a + 1, shown, Math.min(next, said + sec(hold)));
+    spans[k - 1].b = end;
+    spans[k].a = Math.max(end, intoKey ? next - sec(CUT.keyLead) : next);
+  }
+  let t = 0;
   const shots = cl.map((c, k) => {
-    const prevEnd = k > 0 ? at(words[cl[k - 1].b].e) : 0;
-    const from = k === 0 ? 0 : Math.max(prevEnd, at(words[c.a].s) - 2);
-    const ws = words.slice(c.a, c.b + 1).map((w) => ({ t: displayWord(w.t), reveal: Math.max(from, at(w.s)) })).filter((w) => w.t);
-    return { k, role: c.role, from, to: end, query: c.query, text: ws.map((w) => w.t).join(" "), words: ws };
+    const from = t;
+    t += spans[k].b - spans[k].a;
+    const shift = spans[k].a - from;
+    const ws = words.slice(c.a, c.b + 1).map((w) => {
+      const reveal = Math.max(from, at(w.s) - shift);
+      return { t: displayWord(w.t), reveal, end: Math.max(reveal, Math.min(t, at(w.e) - shift)) };
+    }).filter((w) => w.t);
+    return { k, role: c.role, from, to: t, src: spans[k].a, query: c.query, text: ws.map((w) => w.t).join(" "), words: ws };
   });
-  for (let k = 0; k + 1 < shots.length; k += 1) shots[k].to = shots[k + 1].from;
-  return { fps, srcFrom, srcTo, end, shots };
+  return { fps, srcFrom, srcTo, end: t, shots };
 }
 var blackRanges = (plan) => plan.shots.filter((s) => s.role === "black" || s.role === "outro").map((s) => [s.from, s.to]);
 function musicClips(plan) {
@@ -363,15 +451,17 @@ function musicClips(plan) {
   const black = plan.shots.find((s) => s.role === "black");
   const out = [];
   if (!black) {
-    out.push({ from: 0, to: plan.end, sourceStart: Math.max(0, MUSIC.cue - 2) });
+    out.push({ from: 0, to: plan.end, sourceStart: Math.max(0, MUSIC.cue - 2), part: "after" });
     return out;
   }
   if (black.from > 0) {
     const before = black.from / fps;
     const startAt = before > MUSIC.cue ? Math.round((before - MUSIC.cue) * fps) : 0;
-    out.push({ from: startAt, to: black.from, sourceStart: Math.max(0, MUSIC.cue - before) });
+    out.push({ from: startAt, to: black.from, sourceStart: Math.max(0, MUSIC.cue - before), part: "before" });
   }
-  if (black.to < plan.end) out.push({ from: black.to, to: plan.end, sourceStart: MUSIC.cue });
+  const last = black.words[black.words.length - 1];
+  const back = last ? Math.max(black.from + 1, Math.min(black.to, last.end + 1)) : black.to;
+  if (back < plan.end) out.push({ from: back, to: plan.end, sourceStart: MUSIC.cue, part: "after" });
   return out;
 }
 function coverScale(sw, sh) {
@@ -944,7 +1034,9 @@ var RULES = {
   side: 0.06,
   // card side to text (cw)
   underRoom: 0.35,
-  // a flow needs this much space under the chin (ch)
+  // below this much space under the chin (ch) a long line goes beside the face instead
+  besideMaxWords: 4,
+  // longer lines go under the chin as one block
   smallFace: 0.15,
   // below this face height (ch) the talking-head rules do not apply
   bigFace: 0.5,
@@ -962,7 +1054,6 @@ function picture(sw, sh) {
   const fitW = sw * c, fitH = sh * c;
   return { fitW, fitH, cover: Math.max(cw / fitW, ch / fitH) };
 }
-var underCount = (n) => n <= 5 ? 1 : n <= 9 ? 2 : 3;
 function planShot(sw, sh, face, n, angle) {
   const pic = picture(sw || 1920, sh || 1080);
   if (!face && angle) face = angle.face;
@@ -1003,15 +1094,14 @@ function planShot(sw, sh, face, n, angle) {
   const roomOk = room(side) >= RULES.roomMin;
   const underSpace = (cy1 - sideBox[3]) / ch;
   let family;
-  if (n <= 2) family = roomOk ? "column" : "under";
-  else if (fhCard >= RULES.bigFace || underSpace < RULES.underRoom) family = roomOk ? "column" : "under";
-  else family = roomOk ? "flow" : "under";
+  if (n <= RULES.besideMaxWords && roomOk) family = "column";
+  else if (underSpace < RULES.underRoom && roomOk) family = "column";
+  else family = "under";
   if (family === "under") {
     const px = angle?.side ? pxFor(angle.side) : pxFor(null);
     return { family, side: null, crop: crop(px), face: boxAt(px), eye, split: n, yaw: face.yaw, pic: picAt(px) };
   }
-  const split = family === "flow" ? Math.max(1, n - underCount(n)) : n;
-  return { family, side, crop: crop(pxFor(side)), face: sideBox, eye, split, yaw: face.yaw, pic: picAt(pxFor(side)) };
+  return { family, side, crop: crop(pxFor(side)), face: sideBox, eye, split: n, yaw: face.yaw, pic: picAt(pxFor(side)) };
 }
 var tf = (b, s, x0, y0) => [round(s), round(x0 - s * b[0], 10), round(y0 - s * b[1], 10)];
 function placeParts(p, parts, tuck = 0) {
@@ -1194,7 +1284,7 @@ function graphicData(plan, captions, uid, masks = null) {
       }
     });
     const behind = masks && cap.behind?.length && cap.pic ? cap.behind : void 0;
-    return { from: shot.from, to: shot.to, tf: null, shadow: cap.shadow ? 1 : 0, g, ...behind ? { behind, pic: cap.pic.map((v) => r1(v)) } : {} };
+    return { from: shot.from, to: shot.to, tf: null, shadow: cap.shadow ? 1 : 0, g, ...behind ? { behind, pic: cap.pic.map((v) => r1(v)), ms: shot.src - shot.from } : {} };
   });
   return { uid, fade: Math.max(1, Math.round(FADE_SECONDS * plan.fps)), defs, colors, scenes, ...masks ? { masks } : {} };
 }
@@ -1369,12 +1459,13 @@ async function speakerMattes(sdk, projectId, src, plan, notes, progress) {
       await writeText(attemptsFile, String(attempt + 1));
       throw new Error("Speaker masks failed (" + (j.errorCode || j.status) + ").");
     }
-    progress((["preparing", "uploading", "submitting"].includes(j.status) ? "uploading for speaker masks" : "making speaker masks") + " \xB7 " + Math.round((Date.now() - t0) / 1e3) + " s");
-    if (Date.now() - t0 > 15 * 6e4) {
+    const uploading = ["preparing", "uploading", "submitting"].includes(j.status);
+    progress((uploading ? "uploading for speaker masks" : "making speaker masks") + " \xB7 " + Math.round((Date.now() - t0) / 1e3) + " s");
+    if (Date.now() - t0 > (uploading ? 4 : 15) * 6e4) {
       await mg.cancel(scope, jobId).catch(() => {
       });
       await writeText(attemptsFile, String(attempt + 1));
-      throw new Error("Speaker masks took too long.");
+      throw new Error(uploading ? "the upload for speaker masks did not go through" + (j.errorCode ? " (" + j.errorCode + ")" : "") + "; words stay in front of the speaker." : "Speaker masks took too long.");
     }
   }
   if (!alpha) {
@@ -1507,7 +1598,7 @@ function Lockups({ data = {} }) {
   const shadow = scene.shadow ? "url(#" + uid + "sh)" : void 0;
   let layer = null;
   if (pic && behind.length) {
-    const url = masks.base + "/matte_" + String(Math.min(n(masks.count, 1), Math.max(1, f + 1))).padStart(6, "0") + ".png";
+    const url = masks.base + "/matte_" + String(Math.min(n(masks.count, 1), Math.max(1, f + n(scene.ms, 0) + 1))).padStart(6, "0") + ".png";
     const left = pic[0] * sx, top = pic[1] * sy, w = (pic[2] - pic[0]) * sx, h = (pic[3] - pic[1]) * sy;
     layer = /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", left, top, width: w, height: h, overflow: "hidden", maskImage: 'url("' + url + '")', maskMode: "luminance", maskSize: "100% 100%", maskRepeat: "no-repeat", maskPosition: "0 0" } }, /* @__PURE__ */ React.createElement("svg", { width: W, height: H, viewBox: "0 0 1080 1920", style: { position: "absolute", left: -left, top: -top } }, /* @__PURE__ */ React.createElement("g", { filter: shadow }, behind)));
   }
@@ -1539,7 +1630,7 @@ return paths.map((path) => { const f = files.find((x: any) => x.path === path); 
     true
   );
 }
-async function createReel(sdk, projectId, sequenceId, name, plan, crops) {
+async function createReel(sdk, projectId, sequenceId, name, plan, crops, voiceDb = 0) {
   return script(
     sdk,
     "Create the reel Draft",
@@ -1549,14 +1640,23 @@ const taken: string[] = ((await p.readFootage()) as any).drafts.map((d: any) => 
 let name = ${J(name)};
 for (let k = 2; taken.includes(name); k += 1) name = ${J(name)} + " (" + k + ")";
 const d = await p.createDraft({ name });
-await d.insert({ source: await src.rangeAtFrames(${plan.srcFrom}, ${plan.srcTo}), tracks: "main" });
-await d.setFrameSize({ width: ${1080}, height: ${1920} });
+// Each shot's stretch of the quote, in order (the long pauses between clauses left out).
+const spans: number[][] = ${J(plan.shots.map((s) => [plan.srcFrom + s.src, plan.srcFrom + s.src + s.to - s.from]))};
+for (let i = 0; i < spans.length; i += 1) {
+  await d.insert({ source: await src.rangeAtFrames(spans[i][0], spans[i][1]), tracks: "main" });
+  if (i === 0) await d.setFrameSize({ width: ${1080}, height: ${1920} });
+}
 const shots: { from: number; to: number; crop: { scale: number; posX: number; posY: number } | null; rid: string | null }[] = ${J(crops)};
-// One Main clip per shot, so every shot gets its own framing (the audio is untouched).
+// One Main clip per shot, so every shot gets its own framing (inserts of touching stretches may have joined).
 for (const s of shots.slice(1)) { try { await d.splitAt({ frame: s.from }); } catch {} }
 const sizes: Record<string, number[]> = {};
 const mains = async () => (await d.clips({ trackScope: "main" })).filter((c: any) => c.trackKind === "main" && c.resourceId != null);
+const voiceDb: number = ${voiceDb};
 for (const id of (await mains()).map((c: any) => c.clipId)) {
+  // The voice at its measured level (the music is set under it). This replaces any volume set on the podcast Draft's
+  // clips: the measurement reads the recording itself.
+  const c0: any = (await mains()).find((c: any) => c.clipId === id);
+  if (c0) await d.setClipAudio({ clip: c0, volumeDb: voiceDb });
   const clip: any = (await mains()).find((c: any) => c.clipId === id);
   if (!clip) continue;
   const shot = shots.find((s) => clip.startFrame >= s.from && clip.startFrame < s.to);
@@ -1572,14 +1672,16 @@ for (const id of (await mains()).map((c: any) => c.clipId)) {
   const s = Math.max(${CARD.w} / (sw * c), ${CARD.h} / (sh * c));
   await d.setClipTransform({ clip, scale: { x: s, y: s }, position: { x: 0, y: 0 } });
 }
+const frames = (await d.meta()).durationFrames;
+if (Math.abs(frames - ${plan.end}) > 2) throw new Error("The reel came out " + frames + " frames long instead of " + ${plan.end} + ".");
 const saved = await d.commitAll("Quote Lockup Reel: new reel");
 if (!saved.createdDraftId) throw new Error("The reel Draft was not created.");
 return { id: saved.createdDraftId, name };`,
     true
   );
 }
-async function finishReel(sdk, projectId, reelId, plan, broll, musicId, captions) {
-  const music = musicId ? musicClips(plan) : [];
+async function finishReel(sdk, projectId, reelId, plan, broll, musicId, captions, levels) {
+  const music = musicId ? musicClips(plan).map((m) => ({ ...m, volumeDb: levels.musicDb[m.part] })) : [];
   return script(
     sdk,
     "Add B-roll, frame, captions and music",
@@ -1607,8 +1709,8 @@ for (const m of ${J(music)}) {
   if (m.to - m.from < 2) continue;
   const r: any = await d.overlayResource({ resource: p.resource(${J(musicId)}), over: await d.rangeAtFrames(m.from, m.to), sourceStartSeconds: m.sourceStart });
   const clip: any = (await all()).find((c: any) => c.trackKind === "audio" && c.resourceId === ${J(musicId)} && c.startFrame === (r?.atFrame ?? m.from));
-  // The piano bed has no fades; it starts and stops on the cut.
-  if (clip) await d.setClipAudio({ clip, volumeDb: ${MUSIC.volumeDb} });
+  // The piano bed has no fades: it stops on the cut into the key line and comes back as the line ends.
+  if (clip) await d.setClipAudio({ clip, volumeDb: m.volumeDb });
   beds += 1;
 }
 const saved = await d.commitAll("Quote Lockup Reel: B-roll, frame, captions and music");
@@ -1624,6 +1726,110 @@ async function canAuthor(sdk) {
     return !!await sdk.call("canAuthorGeneratedMedia");
   } catch {
     return true;
+  }
+}
+
+// src/loudness.ts
+var LEVELS = { voice: -16, peak: -3, gap: 6, maxLift: 12, maxCut: 10, music: { before: -18, after: -16.8 } };
+var RATE = 48e3;
+var clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+var round1 = (v) => Math.round(v * 10) / 10;
+function mixLevels(v) {
+  if (!v || !Number.isFinite(v.lufs) || v.lufs <= -60) return { voiceDb: 0, musicDb: { before: MUSIC.volumeDb, after: MUSIC.volumeDb } };
+  const voiceDb = clamp(Math.min(LEVELS.voice - v.lufs, LEVELS.peak - v.peak), -LEVELS.maxCut, LEVELS.maxLift);
+  const music = v.lufs + voiceDb - LEVELS.gap;
+  return { voiceDb: round1(voiceDb), musicDb: { before: round1(clamp(music - LEVELS.music.before, -40, 6)), after: round1(clamp(music - LEVELS.music.after, -40, 6)) } };
+}
+function voiceSpans(src, plan) {
+  const out = [];
+  for (const s of plan.shots) {
+    const a = plan.srcFrom + s.src, b = a + (s.to - s.from);
+    for (const c of src.clips) {
+      const x = Math.max(a, c.s), y = Math.min(b, c.e);
+      if (y <= x || !c.path || c.off == null) continue;
+      const t0 = c.speed * x / plan.fps + c.off, t1 = c.speed * y / plan.fps + c.off;
+      if (t1 - t0 > 0.05) out.push({ path: c.path, start: Math.max(0, t0), seconds: t1 - t0 });
+    }
+  }
+  return out;
+}
+function loudness(parts, rate = RATE) {
+  const [b0, b1, b2, a1, a2] = [1.53512485958697, -2.69169618940638, 1.19839281085285, -1.69065929318241, 0.73248077421585];
+  const [c1, c2] = [-1.99004745483398, 0.99007225036621];
+  const st = [0, 1].map(() => ({ x1: 0, x2: 0, y1: 0, y2: 0, u1: 0, u2: 0, w1: 0, w2: 0 }));
+  const step = Math.round(rate * 0.1);
+  const sums = [];
+  let acc = 0, n = 0, peak = 0;
+  for (const p of parts) {
+    for (let i = 0; i + 1 < p.length; i += 2) {
+      for (let ch2 = 0; ch2 < 2; ch2 += 1) {
+        const x = p[i + ch2], s = st[ch2];
+        if (Math.abs(x) > peak) peak = Math.abs(x);
+        const y = b0 * x + b1 * s.x1 + b2 * s.x2 - a1 * s.y1 - a2 * s.y2;
+        s.x2 = s.x1;
+        s.x1 = x;
+        s.y2 = s.y1;
+        s.y1 = y;
+        const w = y - 2 * s.u1 + s.u2 - c1 * s.w1 - c2 * s.w2;
+        s.u2 = s.u1;
+        s.u1 = y;
+        s.w2 = s.w1;
+        s.w1 = w;
+        acc += w * w;
+      }
+      n += 1;
+      if (n === step) {
+        sums.push(acc / step);
+        acc = 0;
+        n = 0;
+      }
+    }
+  }
+  const peakDb = peak > 0 ? 20 * Math.log10(peak) : -120;
+  const blocks = [];
+  for (let k = 0; k + 3 < sums.length; k += 1) blocks.push((sums[k] + sums[k + 1] + sums[k + 2] + sums[k + 3]) / 4);
+  const lufs = (z) => -0.691 + 10 * Math.log10(z);
+  const mean = (zs) => zs.reduce((x, y) => x + y, 0) / zs.length;
+  const loud = blocks.filter((z) => z > 0 && lufs(z) > -70);
+  if (!loud.length) return { lufs: -70, peak: peakDb };
+  const gate = lufs(mean(loud)) - 10;
+  const kept = loud.filter((z) => lufs(z) > gate);
+  return { lufs: lufs(mean(kept)), peak: peakDb };
+}
+async function voiceLoudness(sdk, src, plan, runKey) {
+  const spans = voiceSpans(src, plan);
+  if (!spans.length) return null;
+  const dir = dataDir("voice", runKey);
+  try {
+    const outs = spans.map((_, i) => join(dir, "v" + i + ".f32"));
+    await ffmpegRuns(sdk, "Measure the voice level", spans.map((s, i) => [
+      "-ss",
+      s.start.toFixed(3),
+      "-i",
+      s.path,
+      "-t",
+      s.seconds.toFixed(3),
+      "-vn",
+      "-ac",
+      "2",
+      "-ar",
+      RATE,
+      "-f",
+      "f32le",
+      outs[i]
+    ]));
+    const parts = [];
+    for (const o of outs) {
+      if (!exists(o)) continue;
+      const buf = await readBytes(o);
+      parts.push(new Float32Array(buf, 0, Math.floor(buf.byteLength / 4)));
+    }
+    return parts.length ? loudness(parts) : null;
+  } finally {
+    try {
+      fs().rmSync(dir, { recursive: true, force: true });
+    } catch {
+    }
   }
 }
 
@@ -1707,7 +1913,7 @@ async function makeReel(sdk, open, onStep) {
     let tfs = sp ? placeParts(sp, boxes) : parts.map(() => null);
     let behind;
     if (mattes && sp && s.role === "speaker" && (sp.family === "column" || sp.family === "flow")) {
-      const frames = (await Promise.all(BEHIND.frames.map((q) => readMatte(mattes, Math.round(s.from + (s.to - s.from) * q))))).filter(Boolean);
+      const frames = (await Promise.all(BEHIND.frames.map((q) => readMatte(mattes, sourceAt(s, Math.round(s.from + (s.to - s.from) * q)))))).filter(Boolean);
       let found = false;
       for (const tuck of BEHIND.tucks) {
         const t = placeParts(sp, boxes, tuck);
@@ -1746,15 +1952,24 @@ async function makeReel(sdk, open, onStep) {
     const s = plan.shots[b.shot];
     return { id, from: s.from, to: s.to, sw: b.stock.w, sh: b.stock.h, offset: brollOffset(b.stock, plan, b.shot), crop: shotPlans[b.shot]?.crop ?? null };
   });
+  onStep("draft", "run", "measuring the voice");
+  let voice = null;
+  try {
+    voice = await voiceLoudness(sdk, src, plan, String(Date.now()));
+  } catch (e) {
+    notes.push("Voice level: " + String(e?.message || e));
+  }
+  if (!voice) notes.push("The voice level could not be measured; the music keeps its default level.");
+  const levels = mixLevels(voice);
   onStep("draft", "run", "creating");
   const crops = plan.shots.map((sh, i) => ({ from: sh.from, to: sh.to, crop: sh.role === "speaker" ? shotPlans[i]?.crop ?? null : null, rid: sh.role === "speaker" ? geometry(src, plan, broll, i).rid ?? null : null }));
-  const reel = await createReel(sdk, ctx.projectId, ctx.sequenceId, src.name + " \xB7 Quote Reel", plan, crops);
+  const reel = await createReel(sdk, ctx.projectId, ctx.sequenceId, src.name + " \xB7 Quote Reel", plan, crops, levels.voiceDb);
   const dir = dataDir("reels", reel.id);
-  const job = { version: 2, projectId: ctx.projectId, sourceId: ctx.sequenceId, reelId: reel.id, name: reel.name, story, plan, broll, musicId, ids, shotPlans };
+  const job = { version: 2, projectId: ctx.projectId, sourceId: ctx.sequenceId, reelId: reel.id, name: reel.name, story, plan, broll, musicId, ids, shotPlans, voice, levels };
   await writeText(join(dir, "job.json"), J(job));
   onStep("draft", "run", "captions, B-roll and music");
   const data = graphicData(plan, captions, reel.id.slice(0, 8), mattes ? { base: mattes.base, count: mattes.count } : null);
-  const fin = await finishReel(sdk, ctx.projectId, reel.id, plan, places, musicId, data);
+  const fin = await finishReel(sdk, ctx.projectId, reel.id, plan, places, musicId, data, levels);
   if (fin?.skipped?.length) notes.push(fin.skipped.length + " B-roll clip(s) could not be placed.");
   await writeText(join(dir, "captions.json"), J(captions.map((c, i) => ({ shot: i, tfs: c.tfs, firstWord: c.firstWord, parts: c.parts.map((l) => ({ id: l.id, box: l.box, meta: l.meta })) }))));
   onStep("draft", "done");
@@ -1801,9 +2016,10 @@ function geometry(src, plan, broll, i) {
     const off = brollOffset(b.stock, plan, s.k);
     return { sw: b.stock.w, sh: b.stock.h, ask: { key, path: b.stock.path, portrait: b.stock.h > b.stock.w, seconds: at.map((f) => off + (f - s.from) / plan.fps) } };
   }
-  const clip = src.clips.find((c) => c.s <= at[1] + plan.srcFrom && at[1] + plan.srcFrom < c.e);
+  const onSource = (f) => plan.srcFrom + sourceAt(s, f);
+  const clip = src.clips.find((c) => c.s <= onSource(at[1]) && onSource(at[1]) < c.e);
   if (!clip) return { sw: 1920, sh: 1080, ask: null };
-  const ask2 = clip.path && clip.off != null ? { key, path: clip.path, portrait: clip.sh > clip.sw, seconds: at.map((f) => clip.speed * (f + plan.srcFrom) / plan.fps + clip.off) } : null;
+  const ask2 = clip.path && clip.off != null ? { key, path: clip.path, portrait: clip.sh > clip.sw, seconds: at.map((f) => clip.speed * onSource(f) / plan.fps + clip.off) } : null;
   return { sw: clip.sw || 1920, sh: clip.sh || 1080, ask: ask2, rid: clip.rid };
 }
 async function planShots(sdk, src, plan, broll, palettes, angleOf) {
@@ -1865,6 +2081,7 @@ function captionJobs(plan, shotPlans) {
       owners.push({ shot: i, firstWord: from });
     };
     if (s.role === "outro") add(0, words.length, "line");
+    else if (sp && (sp.family === "under" || sp.family === "above") && words.length >= 7) add(0, words.length, "lockup", { aspectBias: -0.6 });
     else if (!sp || sp.family === "free" || sp.family === "under" || sp.family === "above") add(0, words.length, "lockup");
     else if (sp.family === "column") add(0, words.length, "lockup", words.length > 4 ? { aspectBias: 0.6 } : void 0);
     else {
@@ -1929,7 +2146,7 @@ function QuoteLockupReel({ sdk, context }) {
   };
   const icon = (s) => s === "done" ? "\u2713" : s === "run" ? "\u2026" : s === "fail" ? "!" : s === "skip" ? "\u2013" : "\xB7";
   const { busy, steps, result, error } = current;
-  return /* @__PURE__ */ React.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Quote reel, one click"), /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "Turns this podcast Draft into a new 9:16 reel: the best 12-22 s quote cut by clause, the picture in a rounded card on black, packed lockup captions that appear as each word is spoken, the key line on black, stock B-roll and a piano bed.")), /* @__PURE__ */ React.createElement("button", { onClick: make, disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the reel\u2026 " + clock + " s" : result ? "Make another reel" : "Make reel"), (busy || steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, steps.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React.createElement("span", { style: { color: "var(--panel-muted-fg)" } }, " \u2014 ", s.note) : null)))), error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, error), result && !busy && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", null, "Made \u201C", result.name, "\u201D in ", Math.round(result.seconds), " s."), result.credits.length ? /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "B-roll:", " ", result.credits.map((c, i) => /* @__PURE__ */ React.createElement(React.Fragment, { key: i }, i ? ", " : "", /* @__PURE__ */ React.createElement("a", { href: c.url, target: "_blank", rel: "noreferrer" }, c.credit), c.service ? " (" + c.service + ")" : ""))) : null, result.notes.length ? /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: 18, color: "var(--panel-muted-fg)" } }, result.notes.map((n, i) => /* @__PURE__ */ React.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the reel")));
+  return /* @__PURE__ */ React.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Quote reel, one click"), /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "Turns this podcast Draft into a new 9:16 reel: the best 15-22 s quote cut by clause, the picture in a rounded card on black, packed lockup captions that appear as each word is spoken, the key line on black, stock B-roll and a piano bed.")), /* @__PURE__ */ React.createElement("button", { onClick: make, disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the reel\u2026 " + clock + " s" : result ? "Make another reel" : "Make reel"), (busy || steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, steps.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React.createElement("span", { style: { color: "var(--panel-muted-fg)" } }, " \u2014 ", s.note) : null)))), error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, error), result && !busy && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", null, "Made \u201C", result.name, "\u201D in ", Math.round(result.seconds), " s."), result.credits.length ? /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "B-roll:", " ", result.credits.map((c, i) => /* @__PURE__ */ React.createElement(React.Fragment, { key: i }, i ? ", " : "", /* @__PURE__ */ React.createElement("a", { href: c.url, target: "_blank", rel: "noreferrer" }, c.credit), c.service ? " (" + c.service + ")" : ""))) : null, result.notes.length ? /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: 18, color: "var(--panel-muted-fg)" } }, result.notes.map((n, i) => /* @__PURE__ */ React.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the reel")));
 }
 export {
   QuoteLockupReel as default

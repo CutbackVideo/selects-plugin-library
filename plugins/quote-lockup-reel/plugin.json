@@ -3,7 +3,7 @@
   "id": "quote-lockup-reel",
   "version": "0.1.0",
   "name": "Quote Lockup Reel",
-  "summary": "One click turns a podcast Draft into a 9:16 quote reel: the strongest 12-22 second quote cut by clause, each shot in a rounded card on black, packed typographic captions that appear word by word beside the speaker, the key line on black, stock B-roll and an original piano bed.",
+  "summary": "One click turns a podcast Draft into a 9:16 quote reel: the strongest 15-22 second quote cut by clause, each shot in a rounded card on black, packed typographic captions that appear word by word beside or under the speaker, the key line on black, stock B-roll and an original piano bed.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -35,43 +35,43 @@
   "localized": {
     "de": {
       "name": "Zitat-Reel mit Typo-Lockups",
-      "summary": "Macht aus einem Podcast-Draft mit einem Klick ein 9:16-Zitat-Reel: das st\u00e4rkste Zitat von 12\u201322 Sekunden, nach Satzteilen geschnitten, jede Einstellung in einer abgerundeten Karte auf Schwarz, dichte typografische Untertitel, die Wort f\u00fcr Wort neben der Person erscheinen, die Kernaussage auf Schwarz, Stock-B-Roll und eigene Klaviermusik."
+      "summary": "Macht aus einem Podcast-Draft mit einem Klick ein 9:16-Zitat-Reel: das st\u00e4rkste Zitat von 15\u201322 Sekunden, nach Satzteilen geschnitten, jede Einstellung in einer abgerundeten Karte auf Schwarz, dichte typografische Untertitel, die Wort f\u00fcr Wort neben oder unter der Person erscheinen, die Kernaussage auf Schwarz, Stock-B-Roll und eigene Klaviermusik."
     },
     "en": {
       "name": "Quote Lockup Reel",
-      "summary": "One click turns a podcast Draft into a 9:16 quote reel: the strongest 12-22 second quote cut by clause, each shot in a rounded card on black, packed typographic captions that appear word by word beside the speaker, the key line on black, stock B-roll and an original piano bed."
+      "summary": "One click turns a podcast Draft into a 9:16 quote reel: the strongest 15-22 second quote cut by clause, each shot in a rounded card on black, packed typographic captions that appear word by word beside or under the speaker, the key line on black, stock B-roll and an original piano bed."
     },
     "es": {
       "name": "Reel de citas tipogr\u00e1fico",
-      "summary": "Convierte un Draft de p\u00f3dcast en un reel de cita 9:16 con un clic: la mejor cita de 12-22 segundos cortada por frases, cada plano en una tarjeta redondeada sobre negro, subt\u00edtulos tipogr\u00e1ficos compactos que aparecen palabra a palabra junto a quien habla, la frase clave sobre negro, B-roll de stock y un piano original."
+      "summary": "Convierte un Draft de p\u00f3dcast en un reel de cita 9:16 con un clic: la mejor cita de 15-22 segundos cortada por frases, cada plano en una tarjeta redondeada sobre negro, subt\u00edtulos tipogr\u00e1ficos compactos que aparecen palabra a palabra junto a quien habla o debajo, la frase clave sobre negro, B-roll de stock y un piano original."
     },
     "fr": {
       "name": "Reel de citation typographique",
-      "summary": "Transforme en un clic un Draft de podcast en reel de citation 9:16 : la meilleure citation de 12 \u00e0 22 secondes coup\u00e9e par propositions, chaque plan dans une carte arrondie sur fond noir, des sous-titres typographiques serr\u00e9s qui apparaissent mot \u00e0 mot pr\u00e8s de l\u2019orateur, la phrase cl\u00e9 sur noir, du B-roll de stock et un piano original."
+      "summary": "Transforme en un clic un Draft de podcast en reel de citation 9:16 : la meilleure citation de 15 \u00e0 22 secondes coup\u00e9e par propositions, chaque plan dans une carte arrondie sur fond noir, des sous-titres typographiques serr\u00e9s qui apparaissent mot \u00e0 mot \u00e0 c\u00f4t\u00e9 ou en dessous de l\u2019orateur, la phrase cl\u00e9 sur noir, du B-roll de stock et un piano original."
     },
     "it": {
       "name": "Reel di citazioni tipografico",
-      "summary": "Trasforma con un clic un Draft di podcast in un reel di citazione 9:16: la citazione migliore di 12-22 secondi tagliata per frasi, ogni inquadratura in una scheda arrotondata su nero, sottotitoli tipografici compatti che compaiono parola per parola accanto a chi parla, la frase chiave su nero, B-roll di stock e un pianoforte originale."
+      "summary": "Trasforma con un clic un Draft di podcast in un reel di citazione 9:16: la citazione migliore di 15-22 secondi tagliata per frasi, ogni inquadratura in una scheda arrotondata su nero, sottotitoli tipografici compatti che compaiono parola per parola accanto o sotto a chi parla, la frase chiave su nero, B-roll di stock e un pianoforte originale."
     },
     "ja": {
       "name": "\u540d\u8a00\u30bf\u30a4\u30dd\u30b0\u30e9\u30d5\u30a3\u30fb\u30ea\u30fc\u30eb",
-      "summary": "\u30dd\u30c3\u30c9\u30ad\u30e3\u30b9\u30c8\u306eDraft\u3092\u30ef\u30f3\u30af\u30ea\u30c3\u30af\u30679:16\u306e\u540d\u8a00\u30ea\u30fc\u30eb\u306b\u300212\u301c22\u79d2\u306e\u540d\u8a00\u3092\u7bc0\u3054\u3068\u306b\u30ab\u30c3\u30c8\u3057\u3001\u5404\u30b7\u30e7\u30c3\u30c8\u3092\u9ed2\u5730\u306e\u89d2\u4e38\u30ab\u30fc\u30c9\u306b\u53ce\u3081\u3001\u8a71\u8005\u306e\u6a2a\u306b\u4e00\u8a9e\u305a\u3064\u73fe\u308c\u308b\u5bc6\u306a\u30bf\u30a4\u30dd\u30b0\u30e9\u30d5\u30a3\u5b57\u5e55\u3001\u9ed2\u753b\u9762\u306e\u30ad\u30fc\u30d5\u30ec\u30fc\u30ba\u3001\u30b9\u30c8\u30c3\u30afB\u30ed\u30fc\u30eb\u3001\u30aa\u30ea\u30b8\u30ca\u30eb\u306e\u30d4\u30a2\u30ce\u66f2\u3092\u4ed8\u3051\u307e\u3059\u3002"
+      "summary": "\u30dd\u30c3\u30c9\u30ad\u30e3\u30b9\u30c8\u306eDraft\u3092\u30ef\u30f3\u30af\u30ea\u30c3\u30af\u30679:16\u306e\u540d\u8a00\u30ea\u30fc\u30eb\u306b\u300215\u301c22\u79d2\u306e\u540d\u8a00\u3092\u7bc0\u3054\u3068\u306b\u30ab\u30c3\u30c8\u3057\u3001\u5404\u30b7\u30e7\u30c3\u30c8\u3092\u9ed2\u5730\u306e\u89d2\u4e38\u30ab\u30fc\u30c9\u306b\u53ce\u3081\u3001\u8a71\u8005\u306e\u6a2a\u3084\u4e0b\u306b\u4e00\u8a9e\u305a\u3064\u73fe\u308c\u308b\u5bc6\u306a\u30bf\u30a4\u30dd\u30b0\u30e9\u30d5\u30a3\u5b57\u5e55\u3001\u9ed2\u753b\u9762\u306e\u30ad\u30fc\u30d5\u30ec\u30fc\u30ba\u3001\u30b9\u30c8\u30c3\u30afB\u30ed\u30fc\u30eb\u3001\u30aa\u30ea\u30b8\u30ca\u30eb\u306e\u30d4\u30a2\u30ce\u66f2\u3092\u4ed8\u3051\u307e\u3059\u3002"
     },
     "ko": {
       "name": "\uba85\uc5b8 \ud0c0\uc774\ud3ec \ub9b4",
-      "summary": "\ud31f\uce90\uc2a4\ud2b8 Draft\ub97c \ud074\ub9ad \ud55c \ubc88\uc73c\ub85c 9:16 \uba85\uc5b8 \ub9b4\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. 12~22\ucd08 \uc778\uc6a9\uc744 \uc808\ub9c8\ub2e4 \uc790\ub974\uace0, \uac01 \uc0f7\uc744 \uac80\uc740 \ubc14\ud0d5\uc758 \ub465\uadfc \uce74\ub4dc\uc5d0 \ub2f4\uc544 \ud654\uc790 \uc606\uc5d0 \ub2e8\uc5b4\ubcc4\ub85c \ub098\ud0c0\ub098\ub294 \ucd18\ucd18\ud55c \ud0c0\uc774\ud3ec \uc790\ub9c9, \uac80\uc740 \ud654\uba74\uc758 \ud575\uc2ec \ubb38\uc7a5, \uc2a4\ud1a1 B\ub864, \uc624\ub9ac\uc9c0\ub110 \ud53c\uc544\ub178 \uc74c\uc545\uc744 \ub123\uc2b5\ub2c8\ub2e4."
+      "summary": "\ud31f\uce90\uc2a4\ud2b8 Draft\ub97c \ud074\ub9ad \ud55c \ubc88\uc73c\ub85c 9:16 \uba85\uc5b8 \ub9b4\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. 15~22\ucd08 \uc778\uc6a9\uc744 \uc808\ub9c8\ub2e4 \uc790\ub974\uace0, \uac01 \uc0f7\uc744 \uac80\uc740 \ubc14\ud0d5\uc758 \ub465\uadfc \uce74\ub4dc\uc5d0 \ub2f4\uc544 \ud654\uc790 \uc606\uc774\ub098 \uc544\ub798\uc5d0 \ub2e8\uc5b4\ubcc4\ub85c \ub098\ud0c0\ub098\ub294 \ucd18\ucd18\ud55c \ud0c0\uc774\ud3ec \uc790\ub9c9, \uac80\uc740 \ud654\uba74\uc758 \ud575\uc2ec \ubb38\uc7a5, \uc2a4\ud1a1 B\ub864, \uc624\ub9ac\uc9c0\ub110 \ud53c\uc544\ub178 \uc74c\uc545\uc744 \ub123\uc2b5\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Reel de cita\u00e7\u00f5es tipogr\u00e1fico",
-      "summary": "Transforma com um clique um Draft de podcast num reel de cita\u00e7\u00e3o 9:16: a melhor cita\u00e7\u00e3o de 12 a 22 segundos cortada por frases, cada plano num cart\u00e3o arredondado sobre preto, legendas tipogr\u00e1ficas compactas que surgem palavra a palavra ao lado de quem fala, a frase-chave sobre preto, B-roll de stock e um piano original."
+      "summary": "Transforma com um clique um Draft de podcast num reel de cita\u00e7\u00e3o 9:16: a melhor cita\u00e7\u00e3o de 15 a 22 segundos cortada por frases, cada plano num cart\u00e3o arredondado sobre preto, legendas tipogr\u00e1ficas compactas que surgem palavra a palavra ao lado ou abaixo de quem fala, a frase-chave sobre preto, B-roll de stock e um piano original."
     },
     "tr": {
       "name": "Tipografik Al\u0131nt\u0131 Reel'i",
-      "summary": "Bir podcast Draft'\u0131n\u0131 tek t\u0131kla 9:16 al\u0131nt\u0131 reel'ine d\u00f6n\u00fc\u015ft\u00fcr\u00fcr: 12-22 saniyelik en g\u00fc\u00e7l\u00fc al\u0131nt\u0131 c\u00fcmleciklere g\u00f6re kesilir, her \u00e7ekim siyah \u00fczerinde yuvarlak k\u00f6\u015feli bir kartta durur, konu\u015fan\u0131n yan\u0131nda kelime kelime beliren s\u0131k tipografik altyaz\u0131lar, siyah ekranda ana c\u00fcmle, stok B-roll ve \u00f6zg\u00fcn bir piyano m\u00fczi\u011fi eklenir."
+      "summary": "Bir podcast Draft'\u0131n\u0131 tek t\u0131kla 9:16 al\u0131nt\u0131 reel'ine d\u00f6n\u00fc\u015ft\u00fcr\u00fcr: 15-22 saniyelik en g\u00fc\u00e7l\u00fc al\u0131nt\u0131 c\u00fcmleciklere g\u00f6re kesilir, her \u00e7ekim siyah \u00fczerinde yuvarlak k\u00f6\u015feli bir kartta durur, konu\u015fan\u0131n yan\u0131nda ya da alt\u0131nda kelime kelime beliren s\u0131k tipografik altyaz\u0131lar, siyah ekranda ana c\u00fcmle, stok B-roll ve \u00f6zg\u00fcn bir piyano m\u00fczi\u011fi eklenir."
     },
     "zh": {
       "name": "\u91d1\u53e5\u6392\u7248\u77ed\u7247",
-      "summary": "\u4e00\u952e\u628a\u64ad\u5ba2 Draft \u53d8\u6210 9:16 \u91d1\u53e5\u77ed\u7247\uff1a\u9009\u51fa 12\u201322 \u79d2\u6700\u6709\u529b\u7684\u91d1\u53e5\u5e76\u6309\u5206\u53e5\u526a\u5207\uff0c\u6bcf\u4e2a\u955c\u5934\u653e\u8fdb\u9ed1\u5e95\u5706\u89d2\u5361\u7247\uff0c\u7d27\u51d1\u7684\u6392\u7248\u5b57\u5e55\u5728\u8bf4\u8bdd\u4eba\u65c1\u9010\u8bcd\u51fa\u73b0\uff0c\u5173\u952e\u53e5\u653e\u5728\u9ed1\u5c4f\u4e0a\uff0c\u5e76\u914d\u4e0a\u7d20\u6750\u5e93 B-roll \u548c\u539f\u521b\u94a2\u7434\u914d\u4e50\u3002"
+      "summary": "\u4e00\u952e\u628a\u64ad\u5ba2 Draft \u53d8\u6210 9:16 \u91d1\u53e5\u77ed\u7247\uff1a\u9009\u51fa 15\u201322 \u79d2\u6700\u6709\u529b\u7684\u91d1\u53e5\u5e76\u6309\u5206\u53e5\u526a\u5207\uff0c\u6bcf\u4e2a\u955c\u5934\u653e\u8fdb\u9ed1\u5e95\u5706\u89d2\u5361\u7247\uff0c\u7d27\u51d1\u7684\u6392\u7248\u5b57\u5e55\u5728\u8bf4\u8bdd\u4eba\u65c1\u8fb9\u6216\u4e0b\u65b9\u9010\u8bcd\u51fa\u73b0\uff0c\u5173\u952e\u53e5\u653e\u5728\u9ed1\u5c4f\u4e0a\uff0c\u5e76\u914d\u4e0a\u7d20\u6750\u5e93 B-roll \u548c\u539f\u521b\u94a2\u7434\u914d\u4e50\u3002"
     }
   }
 }
