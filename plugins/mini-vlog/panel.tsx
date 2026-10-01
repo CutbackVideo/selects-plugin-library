@@ -1,4 +1,5 @@
 // @name Mini Vlog
+// @collection visual-highlights
 // @name:de Mini-Vlog
 // @name:en Mini Vlog
 // @name:es Mini vlog
@@ -1843,7 +1844,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.1";
+const PLUGIN_VERSION = "0.1.0-alpha.2";
 const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
 const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
@@ -3302,7 +3303,22 @@ function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, 
   );
 }
 
-export default function Panel({ sdk, context, ui }: any) {
+// The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing. Shared by
+// the panel and a template run.
+async function locateRoots(sdk: any) {
+  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
+  const [plugin, data] = String(where?.stdout || "").split("\n").map((x: string) => x.trim());
+  if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
+  return { plugin, data };
+}
+
+// A template run (Clip highlights hands the footage over in `context.template`) builds out of sight; anything else is
+// the panel.
+export default function Panel(props: any) {
+  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <MiniVlogPanel {...props} />;
+}
+
+function MiniVlogPanel({ sdk, context, ui }: any) {
   // The UI language, read on every render: Selects can switch languages while the panel is open.
   const L = uiLang(context);
   // The language at Build: Inspector labels written into the Draft use it and do not follow a later switch.
@@ -3468,9 +3484,7 @@ export default function Panel({ sdk, context, ui }: any) {
     let alive = true;
     (async () => {
       try {
-        const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-        const [plugin, data] = String(where?.stdout || "").split("\n").map((x) => x.trim());
-        if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
+        const { plugin, data } = await locateRoots(sdk);
         if (!alive) return;
         setRoots({ plugin, data });
         // ffmpeg and node are only needed for previews and own music; bundled cues work without them.
@@ -4249,4 +4263,290 @@ export default function Panel({ sdk, context, ui }: any) {
     </ui.Stack>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Template runs. Clip highlights asks the person for the footage and a few choices, mounts this panel out of sight and
+// hands them over in `context.template`. The run builds a new Draft at once from only those files, as Build does with
+// every other setting at the panel's default, never opens it, and ends by calling `sdk.finishTemplate` exactly once.
+// ---------------------------------------------------------------------------
+type TemplateOutcome = { sequenceId: string } | { error: string };
+// The panel's first Build uses seed 1 ("Create another version" counts up from there).
+const TEMPLATE_SEED = 1;
+// Files per alias call: a photo gets its own scratch Draft, which keeps each call well inside runScript's 30 s.
+const TEMPLATE_ALIAS_BATCH = 6;
+// An error whose message is written for the person; anything else a run throws becomes a plain "stopped" sentence.
+function templateIssue(message: string) { const e: any = new Error(message); e.forPerson = true; return e; }
+// Error text for the hidden frame's log (an Error logged as an object shows as {}).
+function errorText(e: any) { return String(e?.message || e); }
+
+// One panel script; a lost session is resent (never a committing call), and a read that comes back empty is read
+// again up to twice: an alias checkpoint ack can answer a pending read with undefined right after a script mints new
+// short ids, which a template run does for every handed file just before its inventory read.
+const EMPTY_READ = /Cannot read properties of (undefined|null)|is not iterable/;
+async function runTemplateStep(sdk: any, summary: string, script: string, allowCommit = false) {
+  for (let attempt = 0; ; attempt++) {
+    let r = await sdk.runScript({ summary, script, allowCommit });
+    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
+    if (!r.isError && r.result != null) return r.result as any;
+    const text = String(r.output || "Selects could not complete this step.");
+    if (allowCommit || attempt >= 2 || !(EMPTY_READ.test(text) || (r.result == null && !r.isError))) throw new Error(text);
+    console.warn("[mini-vlog] " + summary + " came back empty, reading again:", text);
+    await new Promise((d) => setTimeout(d, 1500));
+  }
+}
+
+// Handed files carry the app's own Resource ids, but resources() and a Draft's clips report the Project's short
+// aliases (r0, r1, ...), which inventory.js filters on and assemble.js / decorate.js match clips by. So each handed
+// file is placed once on an unsaved scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its
+// own, whose frame size is the photo's. Nothing is committed. A file that cannot be placed is left out.
+const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
+const p = selects.project(cfg.projectId);
+const resolved = [];
+let shared = null;
+for (const h of cfg.files) {
+  try {
+    const photo = h.kind === 'image';
+    const d = photo || !shared ? await p.createDraft({ name: 'Mini Vlog id check' }) : shared;
+    if (!photo) shared = d;
+    const before = new Set((await d.clips({ trackScope: 'main' })).map(c => c.clipId));
+    try { await d.insertResource({ resourceId: h.rid, sourceRange: { startSeconds: 0, endSeconds: 0.5 } }); }
+    catch (e) { await d.insertResource({ resourceId: h.rid }); }
+    const clip = (await d.clips({ trackScope: 'main' })).find(c => c.resourceId !== null && !before.has(c.clipId));
+    if (!clip) continue;
+    let size = null;
+    if (photo) {
+      const fs = (await d.meta()).frameSize;
+      if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
+    }
+    resolved.push({ rid: h.rid, alias: clip.resourceId, size });
+  } catch (e) {}
+}
+return { resolved };`;
+
+// The handed videos and photos, each once, in the order they were picked.
+function templateFootage(context: any) {
+  const seen = new Set<string>();
+  const files: Array<{ rid: string; kind: string }> = [];
+  for (const input of context?.template?.inputs?.footage ?? []) {
+    if (!input || (input.kind !== "video" && input.kind !== "image") || !input.resourceId || seen.has(input.resourceId)) continue;
+    seen.add(input.resourceId);
+    files.push({ rid: String(input.resourceId), kind: input.kind });
+  }
+  return files;
+}
+
+// The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer run
+// (or the frame closing) replaced this one. `say` names the current step for the status line.
+async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
+  // The UI language when the run starts: its messages and the Inspector labels written into the Draft use it.
+  const bl = uiLang(context);
+  const pid: string | null = context?.projectId ?? null;
+  if (!pid) throw templateIssue(t(bl, "openProject"));
+  const files = templateFootage(context);
+  if (!files.length) throw templateIssue("Choose videos or photos for the footage, then try again.");
+  const run = (summary: string, script: string, allowCommit = false) => runTemplateStep(sdk, summary, script, allowCommit);
+  const options = context?.template?.options || {};
+
+  say("Reading the chosen files");
+  const roots = await locateRoots(sdk);
+  check();
+  const read = (rel: string) => readText(roots.plugin, rel);
+  const [manifestText, presetsText, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, softTsx, motionTsx, punchTsx] = await Promise.all([
+    read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("scripts/inventory.js"), read("scripts/search.js"),
+    read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-lockup.tsx"), read("assets/soft-look.tsx"),
+    read("assets/photo-motion.tsx"), read("assets/beat-punch.tsx")]);
+  check();
+  const manifest = JSON.parse(manifestText), presets = JSON.parse(presetsText);
+  // The track, length and title style chosen on the app's page; an unknown or missing one gets the panel's default.
+  const cues: any[] = manifest.cues || [];
+  const cue = cues.find((c) => c.id === options.track) || cues.find((c) => c.id === PREFERRED_CUE) || cues.find((c) => c.id === DEFAULT_CUE);
+  if (!cue) throw templateIssue("Mini Vlog's music is missing; reinstall the plugin and try again.");
+  const length: "short" | "standard" | "long" = options.length === "short" || options.length === "long" ? options.length : DEFAULT_LENGTH;
+  const chosen = presets.presets.find((x: any) => x.id === options.title) || presets.presets.find((x: any) => x.id === DEFAULT_PRESET);
+  if (!chosen) throw templateIssue("Mini Vlog's title styles are missing; reinstall the plugin and try again.");
+
+  // Handed ids to the Project's aliases; the files the first pass skipped get one more.
+  const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const resolveFiles = async (list: Array<{ rid: string; kind: string }>) => {
+    for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
+      const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH) }));
+      check();
+      resolved.push(...(r.resolved || []));
+    }
+  };
+  await resolveFiles(files);
+  const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
+  if (unresolved.length) await resolveFiles(unresolved);
+  const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const known: Record<string, { width: number; height: number }> = {};
+  for (const r of resolved) if (r.size) known[r.alias] = r.size;
+  if (!aliases.length) throw templateIssue("None of the chosen files could be found in this Project. Choose them again, then try again.");
+  // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
+  const inventory = await run("Read footage", fill(inventoryJs, { projectId: pid, only: aliases, known, measureMs: INVENTORY_MEASURE_MS }));
+  check();
+  inventory.resources = inventory.resources || [];
+  inventory.photos = inventory.photos || [];
+  const sizes: Record<string, { width: number; height: number }> = { ...known };
+  for (const ph of inventory.photos) if (ph.width > 0 && ph.height > 0) sizes[ph.rid] = { width: ph.width, height: ph.height };
+  const unanalysed = inventory.skipped?.unanalysed || 0;
+
+  // Music, length and pace as the panel works them out for a bundled track at its defaults (Quick pace, Beat punch
+  // and Start at the hook on).
+  const pace = DEFAULT_PACE, punch = DEFAULT_PUNCH;
+  const grid: any = { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null };
+  const gridded = mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted });
+  const approxTempo = mvApproxTempo({ gridded, approxBpm: grid.approxBpm });
+  const tempo = gridded ? grid.bpm : approxTempo;
+  const guard: any = tempo ? mvBeatsPerShot(pace, tempo) : { beats: null, overridden: false };
+  const shotSeconds = mvShotSeconds({ bpm: grid.bpm, beatsPerShot: guard.beats, pace, gridded, approxBpm: approxTempo });
+  const requested = MV_LENGTHS[length];
+  const fitted = mvFitShots({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });
+  const videoSeconds = fitted ? fitted * shotSeconds : requested * shotSeconds;
+  const snap = (value: number) => mvSnapSection({ value, firstBeat: grid.firstBeat, bpm: tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: !!tempo });
+  const hookAt = DEFAULT_HOOK && gridded ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue.barPhaseBeats }) : null;
+  const section = !gridded ? snap(0) : hookAt ?? mvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? snap(grid.firstBeat);
+  const musicStart = snap(section ?? 0);
+  if (musicStart == null || !fitted) throw templateIssue(t(bl, "fail.music-too-short"));
+  const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };
+
+  // Scene search over the handed videos (with the motion query, as Beat punch is on). Nobody can press Build again, so
+  // videos whose search failed get one more try.
+  say("Choosing shots");
+  const rids: string[] = inventory.resources.map((r: any) => r.rid);
+  const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
+  const search = async (todo: string[]) => {
+    const list: any[] = []; const failed: string[] = [];
+    for (let i = 0; i < todo.length; i += SEARCH_BATCH) {
+      say("Choosing shots", i + "/" + todo.length + (todo.length === 1 ? " video" : " videos"));
+      const r = await run("Search shots", fill(searchJs, { projectId: pid, rids: todo.slice(i, i + SEARCH_BATCH), queries: mvSearchQueries(MV_QUERIES, punch), pageSize: 4 }));
+      check();
+      list.push(...r.candidates); failed.push(...r.failed);
+    }
+    return { list, failed };
+  };
+  let found = await search(rids);
+  if (found.failed.length) {
+    const retried = new Set(found.failed);
+    const again = await search(found.failed);
+    found = { list: [...found.list.filter((c: any) => !retried.has(c.rid)), ...again.list], failed: again.failed };
+  }
+  if (found.failed.length) console.info("[mini-vlog] template run: scene search failed for", found.failed.join(", "));
+  const candidates = found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }));
+  const photoCands = photoCandsOf(inventory, null, true);
+  const plan: any = mvPlanBuild({ candidates: mvMotionBonus(candidates).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(TEMPLATE_SEED) });
+  if (!plan.ok) {
+    const waiting = unanalysed ? " " + unanalysed + (unanalysed === 1 ? " video is" : " videos are") + " not analyzed yet, so it could not be used." : "";
+    throw templateIssue((MV_FAIL[plan.reason] ? t(bl, "fail." + plan.reason) : t(bl, "noPlan")) + waiting);
+  }
+
+  // Commit 1: the music, then the clips on a new Draft.
+  say("Adding music");
+  const music = await run("Add music to the project", fill(ensureJs, { projectId: pid, path: roots.plugin + "/assets/cues/" + cue.file }), true);
+  check();
+  say("Making the Draft");
+  const crops = Object.fromEntries([...inventory.resources, ...inventory.photos.filter((r: any) => r.width > 0 && r.height > 0)]
+    .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
+  const draftName = "Mini Vlog " + chosen.label + " " + stamp(new Date());
+  const clipSound = "ambient";
+  // Never resent: the reply may be lost after the Draft was saved.
+  const a = await run("Assemble the Mini Vlog", fill(assembleJs, {
+    projectId: pid, draftName, picks: plan.picks, boundaries: plan.schedule.cuts, crops,
+    music: music ? { resourceId: music.resourceId, sectionStart: musicStart } : null, clipSound, ambientDb: AMBIENT_DB }), true);
+  check();
+  if (!a.sequenceId || !(a.totalFrames > 0)) throw templateIssue("The Draft \"" + draftName + "\" may have been saved without its title. Open it from the Drafts list, or try again.");
+
+  // Commit 2: the title lockup, Soft look, photo motion and Beat punch, as the panel's Finish step adds them.
+  say("Adding title and look");
+  const fonts = await Promise.all(presetFonts(chosen, presets).map(async (x: any) => {
+    const { file, ...face } = x;
+    return { ...face, metrics: presets.metrics[x.family] || null, b64: (await readText(roots.plugin, "assets/fonts/" + file)).replace(/\s+/g, "") };
+  }));
+  check();
+  const flat: Record<string, string> = {};
+  for (const fl of chosen.fields) { const v = fl.initial ?? ""; flat[fl.key] = String(v === "@year" ? mvCurrentYear() : v).slice(0, fl.max); }
+  const bpm = gridded ? grid.bpm : null;
+  const parameters = { preset: chosen.id, ...flat, fields: { ...flat }, primary: chosen.colors.primary, secondary: chosen.colors.secondary, ...TITLE_LOOK, fonts,
+    provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: chosen.id, cue: cue.id, sectionStart: musicStart, pace, length,
+      seed: TEMPLATE_SEED, clipSound, punch, hook: DEFAULT_HOOK, groove: plan.groove || null, picks: plan.picks } };
+  const editableParameters = [
+    ...chosen.fields.map((fl: any) => ({ key: fl.key, label: tOr(bl, "field." + chosen.id + "." + fl.key, fl.label), type: "text", defaultValue: flat[fl.key] })),
+    { key: "primary", label: t(bl, "param.mainColor"), type: "color", defaultValue: chosen.colors.primary },
+    { key: "secondary", label: t(bl, "param.secondColor"), type: "color", defaultValue: chosen.colors.secondary },
+    { key: "shadow", label: t(bl, "param.shadow"), type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
+    { key: "size", label: t(bl, "param.size"), type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },
+    { key: "x", label: t(bl, "param.x"), type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },
+    { key: "y", label: t(bl, "param.y"), type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },
+    { key: "sparkles", label: chosen.id === "mini-vlog" ? t(bl, "param.sparkles") : t(bl, "param.stars"), type: "boolean", defaultValue: TITLE_LOOK.sparkles },
+  ];
+  const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));
+  const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };
+  const photoRids = [...new Set(plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
+  const moves: any[] = mvPhotoMotions(plan.picks, String(TEMPLATE_SEED), sizes);
+  const byRid: Record<string, any> = {};
+  plan.picks.forEach((k: any, i: number) => {
+    if (!moves[i]) return;
+    const sz = sizes[k.rid];
+    const cover = sz ? Math.max(MV_W / sz.width, MV_H / sz.height) / Math.min(MV_W / sz.width, MV_H / sz.height) : 1;
+    byRid[k.rid] = { ...moves[i], cover };
+  });
+  const punchCfg = punch ? { tsx: punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: bpm ? 60 / bpm * a.fps : 0,
+    punchFrames: mvPunchFrames({ bpm, fps: a.fps, sectionStart: musicStart, videoEnd: a.totalFrames }), picks: plan.picks } : null;
+  const finish = () => run("Add title and look", fill(decorateJs, { sequenceId: a.sequenceId, mute: false, videoEnd: a.totalFrames, title: { tsx: titleTsx, parameters, editableParameters },
+    soft: { tsx: softTsx, strength: SOFT_STRENGTH }, photos: photoRids, motion: { tsx: motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch: punchCfg, labels }), true);
+  // decorate.js skips what an earlier attempt added, so a failed attempt is tried once more.
+  try {
+    await finish();
+  } catch (e) {
+    console.warn("[mini-vlog] Add title and look failed, trying again:", errorText(e));
+    check();
+    try { await finish(); } catch (e2) {
+      console.warn("[mini-vlog] Add title and look failed again:", errorText(e2));
+      throw templateIssue("The Draft was made, but its title and look could not be added; try again.");
+    }
+  }
+  check();
+  // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
+  return { sequenceId: a.sequenceId };
+}
+
+// What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
+// exactly once, unless a newer run (or the frame closing) replaced it; then it reports nothing.
+function TemplateRun({ sdk, context }: any) {
+  const [status, setStatus] = React.useState("Starting");
+  const begun = React.useRef<string | null>(null);
+  const alive = React.useRef(true);
+  // The latest context, so a run reports only while it is still the current one.
+  const latest = React.useRef<any>(context);
+  latest.current = context;
+  const runId: string | null = context?.template?.runId ?? null;
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  React.useEffect(() => {
+    if (runId == null || begun.current === runId) return;
+    begun.current = runId;
+    const snapshot = context;
+    const live = () => alive.current && latest.current?.template?.runId === runId;
+    const check = () => { if (!live()) throw STALE; };
+    let ended = false, step = "starting";
+    const say = (text: string, detail?: string) => { step = text; if (live()) setStatus(text + (detail ? " (" + detail + ")" : "")); };
+    const end = (outcome: TemplateOutcome | null) => {
+      if (ended) return;
+      ended = true;
+      if (!outcome || !live()) return;
+      setStatus("sequenceId" in outcome ? "Done" : outcome.error);
+      try { sdk.finishTemplate(outcome); } catch (e) { console.warn("[mini-vlog] finishTemplate failed:", errorText(e)); }
+    };
+    (async () => {
+      try {
+        end(await runMiniVlogTemplate(sdk, snapshot, check, say));
+      } catch (e: any) {
+        if (e === STALE) { end(null); return; }
+        console.warn("[mini-vlog] template run failed while " + step + ":", errorText(e), e);
+        end({ error: e?.forPerson ? String(e.message) : "Mini Vlog stopped while " + step.charAt(0).toLowerCase() + step.slice(1) + "; try again." });
+      } finally {
+        end({ error: "Mini Vlog stopped before the Draft was ready; try again." });
+      }
+    })();
+  }, [runId]);
+  return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{status}</div>;
 }
