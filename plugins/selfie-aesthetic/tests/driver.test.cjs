@@ -127,7 +127,7 @@ test('step configs carry exactly the keys panel.tsx build() sends', () => {
   assert.deepEqual(Object.keys(steps.assemble.config.music), ['resourceId', 'sourceStart']);
   assert.deepEqual(Object.keys(steps.decorate.config), literalKeys('const deco = {'));
   assert.deepEqual(Object.keys(steps.decorate.config.effect), ['tsx', 'look', 'lookStrength', 'whip']);
-  assert.deepEqual(Object.keys(steps.decorate.config.adjustLabels), ['look', 'lookStrength', 'whip']);
+  assert.deepEqual(Object.keys(steps.decorate.config.adjustLabels), ['look', 'lookStrength', 'whip', 'framing']);
   // Scripts read every key (the panel test's lists).
   const asm = read('scripts/assemble.js'), deco = read('scripts/decorate.js');
   for (const k of Object.keys(steps.assemble.config)) assert.ok(asm.includes('cfg.' + k), 'assemble.js reads cfg.' + k);
@@ -145,6 +145,8 @@ test('step configs carry exactly the keys panel.tsx build() sends', () => {
   assert.deepEqual(steps.decorate.config.effect, { tsx: read('assets/selfie-whip-look.tsx'), look: 'soft-glow', lookStrength: 0.5, whip: 1 });
   assert.equal(steps.decorate.config.transitionTsx, read('assets/selfie-whip-transition.tsx'));
   assert.deepEqual(steps.decorate.config.lookOptions, A.panelConstants.LOOK_OPTIONS);
+  assert.deepEqual(steps.decorate.config.framingOptions, A.panelConstants.FRAMING_OPTIONS);
+  assert.deepEqual(A.panelConstants.FRAMING_OPTIONS.map(o => o.value), ['tight', 'full']);
   for (const st of ['ensure', 'assemble', 'decorate']) assert.equal(steps[st].allowCommit, true, st + ' commits');
   for (const st of ['inventory', 'search']) assert.ok(!steps[st].allowCommit, st + ' is read only');
 });
@@ -221,7 +223,8 @@ test('transition mode and Korean Adjust labels', () => {
   const { extractStrings } = require(path.join(root, 'dev', 'i18n-check.cjs'));
   const ko = extractStrings(panel).strings.ko;
   assert.equal(steps.decorate.config.whipMode, 'transition');
-  assert.deepEqual(steps.decorate.config.adjustLabels, { look: ko['param.look'], lookStrength: ko['param.lookStrength'], whip: ko['param.whip'] });
+  assert.deepEqual(steps.decorate.config.adjustLabels, { look: ko['param.look'], lookStrength: ko['param.lookStrength'], whip: ko['param.whip'], framing: ko['param.framing'] });
+  assert.deepEqual(steps.decorate.config.framingOptions.map(o => o.label), ['tight', 'full'].map(v => ko['framing.' + v]));
   assert.deepEqual(steps.decorate.config.lookOptions.map(o => o.label), ['soft-glow', 'night-glam', 'clean', 'none'].map(v => ko['look.' + v]));
   assert.equal(rec.rec.expectedTransitions, s.holds.length - 1);
   assert.deepEqual(exp.effects, [{ name: 'Selfie whip + look', perMainClip: 1 }]);

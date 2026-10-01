@@ -136,6 +136,9 @@ const STRINGS = {
     "param.look": "Look",
     "param.lookStrength": "Look strength",
     "param.whip": "Whip strength",
+    "param.framing": "Framing",
+    "framing.tight": "Tight",
+    "framing.full": "Full",
   },
   de: {
     openProject: "Öffne ein Projekt, um ein Selfie Aesthetic Edit zu erstellen.",
@@ -254,6 +257,9 @@ const STRINGS = {
     "param.look": "Look",
     "param.lookStrength": "Look-Stärke",
     "param.whip": "Whip-Stärke",
+    "param.framing": "Bildausschnitt",
+    "framing.tight": "Eng",
+    "framing.full": "Voll",
   },
   es: {
     openProject: "Abre un proyecto para crear un Selfie Aesthetic Edit.",
@@ -372,6 +378,9 @@ const STRINGS = {
     "param.look": "Look",
     "param.lookStrength": "Intensidad del look",
     "param.whip": "Intensidad del whip",
+    "param.framing": "Encuadre",
+    "framing.tight": "Cerrado",
+    "framing.full": "Completo",
   },
   fr: {
     openProject: "Ouvrez un projet pour créer un Selfie Aesthetic Edit.",
@@ -490,6 +499,9 @@ const STRINGS = {
     "param.look": "Look",
     "param.lookStrength": "Intensité du look",
     "param.whip": "Intensité du whip",
+    "param.framing": "Cadrage",
+    "framing.tight": "Serré",
+    "framing.full": "Complet",
   },
   it: {
     openProject: "Apri un progetto per creare un Selfie Aesthetic Edit.",
@@ -608,6 +620,9 @@ const STRINGS = {
     "param.look": "Look",
     "param.lookStrength": "Intensità del look",
     "param.whip": "Intensità del whip",
+    "param.framing": "Inquadratura",
+    "framing.tight": "Stretta",
+    "framing.full": "Intera",
   },
   ja: {
     openProject: "Selfie Aesthetic Edit を作成するには、プロジェクトを開いてください。",
@@ -726,6 +741,9 @@ const STRINGS = {
     "param.look": "ルック",
     "param.lookStrength": "ルックの強さ",
     "param.whip": "Whip の強さ",
+    "param.framing": "フレーミング",
+    "framing.tight": "タイト",
+    "framing.full": "フル",
   },
   ko: {
     openProject: "Selfie Aesthetic Edit\uc744 \ub9cc\ub4e4\ub824\uba74 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.",
@@ -844,6 +862,9 @@ const STRINGS = {
     "param.look": "\uc0c9\uac10",
     "param.lookStrength": "\uc0c9\uac10 \uac15\ub3c4",
     "param.whip": "Whip \uac15\ub3c4",
+    "param.framing": "\uad6c\ub3c4",
+    "framing.tight": "\uac00\uae5d\uac8c",
+    "framing.full": "\uc804\uccb4",
   },
   pt: {
     openProject: "Abra um projeto para criar um Selfie Aesthetic Edit.",
@@ -962,6 +983,9 @@ const STRINGS = {
     "param.look": "Look",
     "param.lookStrength": "Intensidade do look",
     "param.whip": "Intensidade do whip",
+    "param.framing": "Enquadramento",
+    "framing.tight": "Fechado",
+    "framing.full": "Completo",
   },
   tr: {
     openProject: "Selfie Aesthetic Edit oluşturmak için bir proje açın.",
@@ -1080,6 +1104,9 @@ const STRINGS = {
     "param.look": "Görünüm",
     "param.lookStrength": "Görünüm gücü",
     "param.whip": "Whip gücü",
+    "param.framing": "Kadraj",
+    "framing.tight": "Yakın",
+    "framing.full": "Tam",
   },
   zh: {
     openProject: "请先打开一个项目，再制作 Selfie Aesthetic Edit。",
@@ -1198,6 +1225,9 @@ const STRINGS = {
     "param.look": "色调",
     "param.lookStrength": "色调强度",
     "param.whip": "Whip 强度",
+    "param.framing": "构图",
+    "framing.tight": "紧凑",
+    "framing.full": "完整",
   },
 };
 // STRINGS:END
@@ -1288,6 +1318,9 @@ const LOOK_OPTIONS = [
   { label: "Soft glow", value: "soft-glow" }, { label: "Night glam", value: "night-glam" },
   { label: "Clean", value: "clean" }, { label: "None", value: "none" },
 ];
+// The Framing choices of a video clip in Adjust (the effect's data.framing; the planner sets 'tight' on face clips,
+// 'full' on others). English defaults; a build writes STRINGS `framing.<value>` in the UI language.
+const FRAMING_OPTIONS = [{ label: "Tight", value: "tight" }, { label: "Full", value: "full" }];
 // Files the panel reads from the installed plugin folder, as path parts under it.
 const ASSET_FILES = {
   manifest: ["assets", "cues", "manifest.json"],
@@ -1919,13 +1952,17 @@ function saePlanBuild(opts) {
   if (!alloc) return { ok: false, notes: ['no-sources'], fit: { bars: 0, wanted }, faceClips: moments.faceCount };
   const sched = saeSchedule({ editBpm, fps, bars, sectionStart: cue ? sectionStart : undefined, snap,
     onsets: cue && cue.onsets, onsetThresholds: cue && cue.onsetThresholds });
+  // Framing per hold: photos full (A) / punch (B); face-clip videos 'tight' (a zoom toward the upper middle, where
+  // selfie faces sit); other videos 'full'.
+  const faceRid = {};
+  for (const c of moments.clips) if (c.face) faceRid[c.rid] = true;
   const raw = sched.holds.map(h => {
     const b = alloc.bars[h.bar];
     const photo = b.kind === 'photo';
     return { i: h.i, bar: h.bar, kind: b.kind, rid: b.rid, moment: h.moment,
       srcStart: photo ? 0 : (h.moment === 'A' ? b.pair.a : b.pair.b),
       frames: h.frames, startFrame: h.startFrame, endFrame: h.endFrame,
-      framing: photo ? (h.moment === 'A' ? 'full' : 'punch') : null };
+      framing: photo ? (h.moment === 'A' ? 'full' : 'punch') : faceRid[b.rid] ? 'tight' : 'full' };
   });
   const holds = saeWhipKinds(raw, seed);
   const notes = [];
@@ -3064,6 +3101,10 @@ function tileRow(children: React.ReactNode, label: string) {
   return <div role="group" aria-label={label} style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", gap: 6, minWidth: 0 }}>{children}</div>;
 }
 // The look labels by id (explicit keys, so the i18n checker sees each one).
+function framingLabel(lang: Lang, id: string) {
+  if (id === "tight") return t(lang, "framing.tight");
+  return t(lang, "framing.full");
+}
 function lookLabel(lang: Lang, id: string) {
   if (id === "soft-glow") return t(lang, "look.soft-glow");
   if (id === "night-glam") return t(lang, "look.night-glam");
@@ -3636,8 +3677,9 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
         sequenceId: a.sequenceId, holds, whipMode: SAE_WHIP_MODE,
         effect: { tsx: assets.effectTsx, look: settings.lookOn ? preset.id : "none", lookStrength: preset.strength ?? LOOK_STRENGTH, whip: preset.whip },
         transitionTsx: assets.transitionTsx, covers: a.covers || [], clipSound: settings.clipSound,
-        adjustLabels: { look: t(bl, "param.look"), lookStrength: t(bl, "param.lookStrength"), whip: t(bl, "param.whip") },
+        adjustLabels: { look: t(bl, "param.look"), lookStrength: t(bl, "param.lookStrength"), whip: t(bl, "param.whip"), framing: t(bl, "param.framing") },
         lookOptions: LOOK_OPTIONS.map((o) => ({ label: lookLabel(bl, o.value), value: o.value })),
+        framingOptions: FRAMING_OPTIONS.map((o) => ({ label: framingLabel(bl, o.value), value: o.value })),
       };
       const seconds = a.fps > 0 && a.totalFrames > 0 ? a.totalFrames / a.fps : SAE_LEAD + saeVideoSeconds(plan.bars, plan.editBpm);
       setResult({ name, sequenceId: a.sequenceId, decorated: false, deco, link: null, shots: holds.length, seconds,

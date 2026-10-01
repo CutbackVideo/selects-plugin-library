@@ -613,13 +613,17 @@ function saePlanBuild(opts) {
   if (!alloc) return { ok: false, notes: ['no-sources'], fit: { bars: 0, wanted }, faceClips: moments.faceCount };
   const sched = saeSchedule({ editBpm, fps, bars, sectionStart: cue ? sectionStart : undefined, snap,
     onsets: cue && cue.onsets, onsetThresholds: cue && cue.onsetThresholds });
+  // Framing per hold: photos full (A) / punch (B); face-clip videos 'tight' (a zoom toward the upper middle, where
+  // selfie faces sit); other videos 'full'.
+  const faceRid = {};
+  for (const c of moments.clips) if (c.face) faceRid[c.rid] = true;
   const raw = sched.holds.map(h => {
     const b = alloc.bars[h.bar];
     const photo = b.kind === 'photo';
     return { i: h.i, bar: h.bar, kind: b.kind, rid: b.rid, moment: h.moment,
       srcStart: photo ? 0 : (h.moment === 'A' ? b.pair.a : b.pair.b),
       frames: h.frames, startFrame: h.startFrame, endFrame: h.endFrame,
-      framing: photo ? (h.moment === 'A' ? 'full' : 'punch') : null };
+      framing: photo ? (h.moment === 'A' ? 'full' : 'punch') : faceRid[b.rid] ? 'tight' : 'full' };
   });
   const holds = saeWhipKinds(raw, seed);
   const notes = [];

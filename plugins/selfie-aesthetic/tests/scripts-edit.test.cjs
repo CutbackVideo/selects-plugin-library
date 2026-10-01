@@ -254,13 +254,16 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   assert.deepEqual(fx.map(x => x[1]), mains.map(c => c.clipId), 'one effect per clip in order');
   assert.ok(fx.every(x => x[2] === 'Selfie whip + look' && x[3] === 'EFFECT_TSX'));
   assert.deepEqual(fx.map(x => [x[4].whipIn, x[4].whipOut]), [[0, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 0]]);
-  assert.deepEqual(fx[5][4], { whipIn: 1, whipOut: 1, kindIn: 'dir', kindOut: 'spin', angle: -30, angleIn: 33, angleOut: -30, whip: 1, look: 'soft-glow', lookStrength: 0.35, framing: null, cover: r.covers[5] });
+  assert.deepEqual(fx[5][4], { whipIn: 1, whipOut: 1, kindIn: 'dir', kindOut: 'spin', angle: -30, angleIn: 33, angleOut: -30, whip: 1, look: 'soft-glow', lookStrength: 0.35, framing: 'full', cover: r.covers[5] });
   // Effect mode: the head whips on angleIn, the tail on angleOut; both clips of a cut carry the same angle.
   assert.deepEqual(fx.map(x => [x[4].angleIn, x[4].angleOut]), holds.map(h => [h.angleIn, h.angleOut]));
   for (let i = 0; i + 1 < fx.length; i++) assert.equal(fx[i][4].angleOut, fx[i + 1][4].angleIn, 'cut ' + i + ' shares its angle');
   assert.deepEqual([fx[6][4].framing, fx[7][4].framing, fx[7][4].cover], ['full', 'punch', r.covers[7]]);
   const defs = fx[0][5];
-  assert.deepEqual(defs.map(e => [e.key, e.label, e.type]), [['look', 'Look', 'select'], ['lookStrength', 'Look strength', 'number'], ['whip', 'Whip strength', 'number']]);
+  assert.deepEqual(defs.map(e => [e.key, e.label, e.type]), [['look', 'Look', 'select'], ['lookStrength', 'Look strength', 'number'], ['whip', 'Whip strength', 'number'], ['framing', 'Framing', 'select']]);
+  // Video clips: a Framing select (default from the plan, 'full' without one; English options without cfg); photos none.
+  assert.deepEqual([defs[3].defaultValue, defs[3].options], ['full', [{ label: 'Tight', value: 'tight' }, { label: 'Full', value: 'full' }]]);
+  assert.deepEqual([fx[6][5].length, fx[7][5].length], [3, 3], 'photo clips have no Framing select');
   assert.deepEqual(defs[0].options, lookOptions);
   assert.equal(defs[0].defaultValue, 'soft-glow');
   assert.deepEqual([defs[1].min, defs[1].max, defs[1].step, defs[1].defaultValue], [0, 1, 0.05, 0.35]);
@@ -309,7 +312,7 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   assert.deepEqual(dt, { mode: 'transition', effects: 8, effectsKept: 0, transitions: 7, transitionsKept: 0, muted: false, muteKept: false, committed: true, alreadyDone: false, notes: [] });
   const tfx = mt.log.filter(x => x[0] === 'effect');
   assert.ok(tfx.every(x => x[4].whipIn === 0 && x[4].whipOut === 0), 'look-only effects');
-  assert.deepEqual(tfx[0][5].map(e => e.key), ['look', 'lookStrength']);
+  assert.deepEqual(tfx[0][5].map(e => e.key), ['look', 'lookStrength', 'framing'], 'transition mode: no whip parameter; video clips keep Framing');
   const tr = mt.log.filter(x => x[0] === 'transition');
   const tmains = mt.clips.filter(c => c.trackKind === 'main');
   assert.deepEqual(tr.map(x => x[1]), tmains.slice(0, -1).map(c => c.clipId), 'after every clip but the last');
@@ -344,10 +347,13 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   const ml = mockDraft(FPS, { photos: ['p1'], durations });
   await load('assemble.js', assembleCfg())(project(() => ml.d));
   ml.reopen();
-  const adjustLabels = { look: '\ub8e9', lookStrength: 'Look "strength" $& $1', whip: 'Wisch\u00adst\u00e4rke' };
-  await load('decorate.js', decoCfg({ adjustLabels, clipSound: 'ambient' }))({ draft: () => ml.d });
+  const adjustLabels = { look: '\ub8e9', lookStrength: 'Look "strength" $& $1', whip: 'Wisch\u00adst\u00e4rke', framing: '\uad6c\ub3c4' };
+  const framingOptions = [{ label: '\uac00\uae5d\uac8c', value: 'tight' }, { label: '\uc804\uccb4', value: 'full' }];
+  const tightHolds = holds.map((h, i) => (i === 0 ? { ...h, framing: 'tight' } : h));
+  await load('decorate.js', decoCfg({ adjustLabels, framingOptions, holds: tightHolds, clipSound: 'ambient' }))({ draft: () => ml.d });
   const lfx = ml.log.filter(x => x[0] === 'effect');
-  assert.deepEqual(lfx[0][5].map(e => e.label), [adjustLabels.look, adjustLabels.lookStrength, adjustLabels.whip]);
+  assert.deepEqual(lfx[0][5].map(e => e.label), [adjustLabels.look, adjustLabels.lookStrength, adjustLabels.whip, adjustLabels.framing]);
+  assert.deepEqual([lfx[0][4].framing, lfx[0][5][3].defaultValue, lfx[0][5][3].options], ['tight', 'tight', framingOptions], 'a tight hold: framing param and select default');
   assert.ok(lfx.every(x => x[2] === 'Selfie whip + look'));
   // The TS casts sit on editableParameters (run_script type-checks the JSON-widened literals); nothing else is TS-only.
   const deco = source('decorate.js');

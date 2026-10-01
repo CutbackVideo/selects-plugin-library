@@ -1,10 +1,10 @@
 // Selfie Aesthetic Edit "Selfie whip + look": one effect per clip that smears the first and last w frames of the clip
 // into a whip-pan (directional blur along the cut's angle, a slide and, at bar changes, a spin), grades the picture
-// with a look preset, and frames photos (full cover or a punch-in toward the upper third).
+// with a look preset, and frames photos (full cover or a punch-in toward the upper third) and face videos (tight).
 // data: whipIn, whipOut (0-1.5, 0 = no whip on that side), kindIn, kindOut ('none' | 'dir' | 'spin'), angleIn /
 // angleOut (deg: the angle of the head's and of the tail's cut, shared by both clips of a cut; each falls back to
 // angle), whip (global multiplier, default 1), look ('soft-glow' | 'night-glam' | 'clean' | 'none'), lookStrength
-// (0-1, default: the preset's strength, Soft glow 0.5, others 0.35), framing ('full' | 'punch' | null), cover (the clip's native cover-crop scale; translations
+// (0-1, default: the preset's strength, Soft glow 0.5, others 0.35), framing ('full' | 'punch' | 'tight' | null), cover (the clip's native cover-crop scale; translations
 // are divided by it). Frame 0 is the clip's first timeline frame; its length is
 // rangeDurationInFrames.
 import React from "react";
@@ -155,6 +155,10 @@ function saeBlurLayout() {
 }
 // sae-whip:end
 
+// Tight framing (data.framing 'tight'): zoom and the fixed point's height in the visible frame (0 = top).
+const SAE_TIGHT_SCALE = 1.14;
+const SAE_TIGHT_ANCHOR = 0.38;
+
 // Unique SVG filter ids: React.useId when the runtime's React has it, else a per-instance module counter.
 let saeIdCounter = 0;
 const saeHasUseId = typeof React.useId === "function";
@@ -178,9 +182,13 @@ export default function SelfieWhipLook({ Source, children, data, rangeDurationIn
   const look = saeLookFilter(d.look ?? "soft-glow", d.lookStrength);
   const k = Number(d.cover) > 1 ? Number(d.cover) : 1;
 
-  // Photo framing: a punch-in 1.12x shifted 4% down so the upper third (faces) sits nearer the centre.
-  const punch = d.framing === "punch";
-  const fs = punch ? 1.12 : 1, fty = punch ? 4 / k : 0;
+  // Photo framing: a punch-in 1.12x shifted 4% down so the upper third (faces) sits nearer the centre. Tight (face
+  // video holds): a SAE_TIGHT_SCALE zoom about the point SAE_TIGHT_ANCHOR down the visible frame (where selfie faces
+  // sit), so that point stays put and the face fills more of the frame; a scale >= 1 about a point inside the frame
+  // never shows past the source edge. Translations are divided by cover (the visible part of the box).
+  const punch = d.framing === "punch", tight = d.framing === "tight";
+  const fs = punch ? 1.12 : tight ? SAE_TIGHT_SCALE : 1;
+  const fty = punch ? 4 / k : tight ? (SAE_TIGHT_ANCHOR - 0.5) * (1 - SAE_TIGHT_SCALE) * 100 / k : 0;
   const tx = m.txPct, ty = m.tyPct + fty, sc = fs * m.scale;
   const transform = tx === 0 && ty === 0 && m.rotDeg === 0 && sc === 1
     ? undefined

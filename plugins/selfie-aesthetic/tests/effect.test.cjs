@@ -184,10 +184,16 @@ for (const fps of [15, 23.976, 30, 45, 60]) for (let dur = 1; dur <= 12; dur++) 
 // Coverage: no edge ever shows. The picture exactly covers the frame; the blur fades its own edges over 2 sigma
 // along (and across) the blur axis; every frame corner mapped back through the outer transform (translate % of
 // the box, rotate, scale) must land inside the opaque part. Checked with the native cover-crop applied after the
-// effect (window = frame) and before it (window = frame / cover), with and without photo punch framing.
-function covered(m, punch, W, H, cover, before) {
+// effect (window = frame) and before it (window = frame / cover), with no framing, photo punch and face tight.
+// Framing transform (as in selfie-whip-look.tsx): punch 1.12x + 4 / cover % down; tight 1.14x + (0.38 - 0.5)(1 - 1.14)
+// * 100 / cover % down (a zoom about the point 38 % down the visible frame).
+const TIGHT = 1.14, ANCHOR = 0.38;
+const framingOf = (fr, k) => fr === 'punch' ? { s: 1.12, ty: 4 / k } : fr === 'tight' ? { s: TIGHT, ty: (ANCHOR - 0.5) * (1 - TIGHT) * 100 / k } : { s: 1, ty: 0 };
+function covered(m, framing, W, H, cover, before) {
+  const punch = framing === true ? 'punch' : framing || null;
   const k = cover > 1 ? cover : 1;
-  const tx = m.txPct / 100 * W, ty = (m.tyPct + (punch ? 4 / k : 0)) / 100 * H, sc = (punch ? 1.12 : 1) * m.scale;
+  const fr = framingOf(punch, k);
+  const tx = m.txPct / 100 * W, ty = (m.tyPct + fr.ty) / 100 * H, sc = fr.s * m.scale;
   const th = m.angleDeg * Math.PI / 180, sx = m.blurX / 100 * W, sy = m.blurY / 100 * W;
   const fx = 2 * (sx * Math.abs(Math.cos(th)) + sy * Math.abs(Math.sin(th))), fy = 2 * (sx * Math.abs(Math.sin(th)) + sy * Math.abs(Math.cos(th)));
   const ww = before ? W / k : W, wh = before ? H / k : H, r = -m.rotDeg * Math.PI / 180;
@@ -205,7 +211,7 @@ for (const kind of ['dir', 'spin']) for (const angle of [-90, -60, -35, -30, -25
     for (const cover of [1, 1.333, 1.778]) for (const f of [0, 1, 2, 3, 20, 21, 22, 23]) {
       const m = F.saeWhipAt(f, 24, 60, both(kind, { angle, whipIn: st, whipOut: st, whip: g, cover, width: W, height: H }));
       if (W === 1080 && H === 1920 && cover === 1 && g === 1 && st === 1 && Math.abs(angle) <= 35) maxScale[kind] = Math.max(maxScale[kind], m.scale);
-      for (const punch of [false, true]) for (const before of [false, true]) {
+      for (const punch of [null, 'punch', 'tight']) for (const before of [false, true]) {
         const o = covered(m, punch, W, H, cover, before);
         assert.ok(o >= -1e-6, 'edge shows: ' + JSON.stringify({ kind, angle, st, g, W, H, cover, f, punch, before, o }));
       }
@@ -216,6 +222,14 @@ for (const cover of [1, 1.333, 1.778]) for (const before of [false, true]) {
   assert.ok(o >= 0, 'punch overhang ' + cover + ' ' + before);
 }
 near(covered(ID, true, 1080, 1920, 1, false), 0.02 * 1920 / 1.12, 'punch leaves 2% of the height at the top (in picture px)');
+// Tight framing alone: covered for any cover (a zoom >= 1 about a point inside the frame), and the anchor point 38 %
+// down the visible window stays where it is while the frame zooms 1.14x around it.
+for (const cover of [1, 1.0667, 1.333, 1.778, 2.667]) for (const before of [false, true]) {
+  assert.ok(covered(ID, 'tight', 1080, 1920, cover, before) >= 0, 'tight overhang ' + cover + ' ' + before);
+  const k = cover, fr = framingOf('tight', k), wh = 1920 / k;
+  const y0 = (ANCHOR - 0.5) * wh; // anchor, px from the box centre (visible window = frame / cover)
+  near(y0 * fr.s + fr.ty / 100 * 1920, y0, 'anchor fixed at cover ' + cover, 1e-6);
+}
 
 // Blur container: the rotated container (SAE_BLUR_BOX % of the clip's box on both axes) holds the upright frame
 // counter-rotated by any planner angle (<= 35 deg) for box aspects from 9:16 to 16:9, and is smaller than the old 250%.
@@ -390,6 +404,10 @@ if (esbuild) {
   frame = 10;
   const p = call(Look, { Source, data: Object.assign({}, data, { framing: 'punch' }), rangeDurationInFrames: 24, sequenceFps: 25 });
   assert.equal(p.props.style.transform, 'translate(0.000%, 4.000%) rotate(0.000deg) scale(1.1200)', 'punch framing');
+  const tt = call(Look, { Source, data: Object.assign({}, data, { framing: 'tight' }), rangeDurationInFrames: 24, sequenceFps: 25 });
+  assert.equal(tt.props.style.transform, 'translate(0.000%, 1.680%) rotate(0.000deg) scale(1.1400)', 'tight framing');
+  const tk = call(Look, { Source, data: Object.assign({}, data, { framing: 'tight', cover: 1.0667 }), rangeDurationInFrames: 24, sequenceFps: 25 });
+  assert.equal(tk.props.style.transform, 'translate(0.000%, 1.575%) rotate(0.000deg) scale(1.1400)', 'tight framing: shift divided by cover');
   const tr = call(Trans, { children: 'clip', presentationDirection: 'entering', presentationProgress: 0.25, data: { kind: 'dir', angle: -30 } });
   assert.equal(find(tr, 'feGaussianBlur').length, 1); near(tr.props.style.opacity, 0, 'entering hidden at 0.25');
   assert.equal(find(tr, 'filter')[0].props.primitiveUnits, 'objectBoundingBox');

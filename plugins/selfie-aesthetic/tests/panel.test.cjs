@@ -86,11 +86,16 @@ test('UI text lives in STRINGS: no literal JSX text or labels, state text is a s
 });
 test('Adjust labels and Look options: English defaults match decorate.js and STRINGS.en', () => {
   const deco = read('scripts', 'decorate.js');
-  const m = deco.match(/const LABELS = \{ look: '([^']+)', lookStrength: '([^']+)', whip: '([^']+)'/);
+  const m = deco.match(/const LABELS = \{ look: '([^']+)', lookStrength: '([^']+)', whip: '([^']+)', framing: '([^']+)'/);
   assert.ok(m, 'decorate.js LABELS');
-  assert.deepEqual([en['param.look'], en['param.lookStrength'], en['param.whip']], [m[1], m[2], m[3]]);
+  assert.deepEqual([en['param.look'], en['param.lookStrength'], en['param.whip'], en['param.framing']], [m[1], m[2], m[3], m[4]]);
+  for (const id of ['tight', 'full']) {
+    assert.ok(own.includes('{ label: "' + en['framing.' + id] + '", value: "' + id + '" }'), 'FRAMING_OPTIONS ' + id);
+    assert.ok(deco.includes("{ label: '" + en['framing.' + id] + "', value: '" + id + "' }"), 'decorate.js framing default ' + id);
+  }
+  assert.ok(own.includes('framingOptions: FRAMING_OPTIONS.map((o) => ({ label: framingLabel(bl, o.value), value: o.value })),'));
   for (const id of ['soft-glow', 'night-glam', 'clean', 'none']) assert.ok(own.includes('{ label: "' + en['look.' + id] + '", value: "' + id + '" }'), 'LOOK_OPTIONS ' + id);
-  assert.ok(own.includes('adjustLabels: { look: t(bl, "param.look"), lookStrength: t(bl, "param.lookStrength"), whip: t(bl, "param.whip") }'));
+  assert.ok(own.includes('adjustLabels: { look: t(bl, "param.look"), lookStrength: t(bl, "param.lookStrength"), whip: t(bl, "param.whip"), framing: t(bl, "param.framing") }'));
   assert.ok(own.includes('lookOptions: LOOK_OPTIONS.map((o) => ({ label: lookLabel(bl, o.value), value: o.value }))'));
   assert.ok(/const bl = langRef\.current;/.test(own), 'labels use the build-time language');
 });

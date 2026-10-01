@@ -116,11 +116,13 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   const LOOK_STRENGTH = panelScalar(panel, 'LOOK_STRENGTH');
   const LOOK_PRESETS = panelConst(panel, 'LOOK_PRESETS', '];');
   const LOOK_OPTIONS = panelConst(panel, 'LOOK_OPTIONS', '];');
+  const FRAMING_OPTIONS = panelConst(panel, 'FRAMING_OPTIONS', '];');
   if (panelScalar(panel, 'SAE_PCM_RATE') !== PCM_RATE || panelScalar(panel, 'SAE_PCM_SECONDS') !== PCM_SECONDS) throw Error('panel.tsx own-music decode changed (SAE_PCM_RATE / SAE_PCM_SECONDS)');
   const { extractStrings } = require(path.join(pluginDir, 'dev', 'i18n-check.cjs'));
   const STRINGS = extractStrings(panel).strings;
   const t = (lang, key) => (STRINGS[lang] && STRINGS[lang][key]) ?? STRINGS.en[key] ?? key;
   const lookLabel = (lang, id) => t(lang, id === 'soft-glow' || id === 'night-glam' || id === 'clean' ? 'look.' + id : 'look.none');
+  const framingLabel = (lang, id) => t(lang, id === 'tight' ? 'framing.tight' : 'framing.full');
   const cues = JSON.parse(read('assets/cues/manifest.json')).cues;
   const effectTsx = read('assets/selfie-whip-look.tsx'), transitionTsx = read('assets/selfie-whip-transition.tsx');
   const beat = require(path.join(pluginDir, 'beat-detect.cjs'));
@@ -182,7 +184,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     label: 'SAE',
     searchBatch: SEARCH_BATCH,
     // Exposed for tests and tools.
-    planner: P, host: H, motionCurve, panelConstants: { QUERIES, PAGE_SIZE, SEARCH_BATCH, WHIP_MODE, AMBIENT_DB, LOOK_STRENGTH, LOOK_PRESETS, LOOK_OPTIONS, STILL_WEIGHT }, draftNameOf,
+    planner: P, host: H, motionCurve, panelConstants: { QUERIES, PAGE_SIZE, SEARCH_BATCH, WHIP_MODE, AMBIENT_DB, LOOK_STRENGTH, LOOK_PRESETS, LOOK_OPTIONS, FRAMING_OPTIONS, STILL_WEIGHT }, draftNameOf,
 
     // Coverage the Selfie Aesthetic matrix must meet: each value below in >= 2 builds' rows, a Korean-UI row, unique
     // Draft names over rows x seeds, known values only.
@@ -342,8 +344,9 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         sequenceId: a.sequenceId, holds: s.holds, whipMode: row.whipMode,
         effect: { tsx: effectTsx, look: row.look ? preset.id : 'none', lookStrength: typeof preset.strength === 'number' ? preset.strength : LOOK_STRENGTH, whip: preset.whip },
         transitionTsx, covers: a.covers || [], clipSound: row.clipSound,
-        adjustLabels: { look: t(lang, 'param.look'), lookStrength: t(lang, 'param.lookStrength'), whip: t(lang, 'param.whip') },
-        lookOptions: LOOK_OPTIONS.map(o => ({ label: lookLabel(lang, o.value), value: o.value })) } };
+        adjustLabels: { look: t(lang, 'param.look'), lookStrength: t(lang, 'param.lookStrength'), whip: t(lang, 'param.whip'), framing: t(lang, 'param.framing') },
+        lookOptions: LOOK_OPTIONS.map(o => ({ label: lookLabel(lang, o.value), value: o.value })),
+        framingOptions: FRAMING_OPTIONS.map(o => ({ label: framingLabel(lang, o.value), value: o.value })) } };
     },
 
     // Readback expectations. Not expressible in the kit readback (recorded instead, see record()): the transitions of

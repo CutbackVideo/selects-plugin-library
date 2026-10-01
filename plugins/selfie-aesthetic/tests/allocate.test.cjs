@@ -34,6 +34,8 @@ const build = (p, o) => j(P.saePlanBuild({ fps: 30, bars: 6, seed: 1, cue, ...p,
 const barsOf = plan => Array.from({ length: plan.bars }, (_, k) => plan.holds.find(h => h.bar === k));
 const shots = plan => plan.holds.map(h => h.rid + '@' + h.srcStart).join(',');
 
+// saeMoments of a pool at 30 fps (only the clip-level face test matters for framing; it ignores fps/window).
+const m0 = p => P.saeMoments({ candidates: p.candidates, durations: p.durations, badSpans: p.badSpans, fps: 30, beatSeconds: 0.8 });
 function checkPlan(plan, p, label) {
   assert.ok(plan.ok, label + ': ok');
   const fps = plan.fps;
@@ -57,7 +59,8 @@ function checkPlan(plan, p, label) {
     if (bar[0].kind === 'photo') {
       assert.ok(bar.every(h => h.srcStart === 0 && h.framing === (h.moment === 'A' ? 'full' : 'punch')), label + ': photo framing');
     } else {
-      assert.ok(bar.every(h => h.framing === null));
+      const face = m0(p).clips.find(c => c.rid === bar[0].rid).face;
+      assert.ok(bar.every(h => h.framing === (face ? 'tight' : 'full')), label + ': face videos tight, others full');
       const a = bar.find(h => h.moment === 'A').srcStart, b = bar.find(h => h.moment === 'B').srcStart;
       assert.ok(Math.abs(a - b) >= 0.8 - 1e-9, label + ': A/B >= 0.8 s apart');
     }

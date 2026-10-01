@@ -3,7 +3,9 @@ const d = selects.draft(cfg.sequenceId);
 // Effect and transition names identify what an earlier run added (and the kit's readback), so they stay English.
 const EFFECT_LABEL = 'Selfie whip + look', TRANSITION_LABEL = 'Selfie whip';
 // Inspector parameter labels in the panel's UI language at build time (cfg.adjustLabels); English without them.
-const LABELS = { look: 'Look', lookStrength: 'Look strength', whip: 'Whip strength', ...(cfg.adjustLabels || {}) };
+const LABELS = { look: 'Look', lookStrength: 'Look strength', whip: 'Whip strength', framing: 'Framing', ...(cfg.adjustLabels || {}) };
+// Framing choices of a video clip (cfg.framingOptions in the UI language; English without them).
+const FRAMING_OPTIONS = cfg.framingOptions || [{ label: 'Tight', value: 'tight' }, { label: 'Full', value: 'full' }];
 const holds = cfg.holds || [];
 const mode = cfg.whipMode === 'transition' ? 'transition' : 'effect';
 const effect = cfg.effect || {};
@@ -63,9 +65,14 @@ for (let i = 0; i < n; i++) {
   const h = holds[i];
   const whipIn = mode === 'effect' && i > 0 && h.cutIn !== 'none' ? 1 : 0;
   const whipOut = mode === 'effect' && i < n - 1 && h.cutOut !== 'none' ? 1 : 0;
+  // Video clips get a Framing select (tight: zoom toward the upper middle, full: the whole frame); photos keep their
+  // planned full / punch framing without one.
+  const video = h.kind !== 'photo';
+  const framing = video ? (h.framing === 'tight' ? 'tight' : 'full') : h.framing || null;
   const parameters = { whipIn, whipOut, kindIn: h.cutIn || 'none', kindOut: h.cutOut || 'none', angle: num(h.angle, 0),
-    angleIn: angleInOf(i), angleOut: angleOutOf(i), whip, look, lookStrength, framing: h.framing || null, cover: coverOf(i) };
-  const defs = mode === 'effect' ? [...lookDefs, whipDef] : lookDefs;
+    angleIn: angleInOf(i), angleOut: angleOutOf(i), whip, look, lookStrength, framing, cover: coverOf(i) };
+  const framingDef = { key: 'framing', label: LABELS.framing, type: 'select', defaultValue: framing, options: FRAMING_OPTIONS };
+  const defs = [...lookDefs, ...(mode === 'effect' ? [whipDef] : []), ...(video ? [framingDef] : [])];
   await d.addVideoEffect({ clip, label: EFFECT_LABEL, tsxCode: effect.tsx, parameters, editableParameters: defs as any });
   effects++;
 }
