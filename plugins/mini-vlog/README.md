@@ -120,7 +120,7 @@ disabled and the panel shows the reason:
 - "Your footage fits fewer than 4 shots." when the footage cannot fill four
   shots. This is known only once the clips have been searched: the first
   Build then stops with "Your footage fits fewer than 4 shots. Add more
-  varied footage or photos or select more clips.", and Build stays disabled
+  varied footage or photos, or select more clips.", and Build stays disabled
   afterwards;
 - "Type the title's big word to build." when the big word is empty.
 
@@ -314,7 +314,8 @@ Three lockup presets, chosen in the panel with a live preview:
 
 - The Year starts as the current year (editable).
 - Each field shows how many characters it holds and allows (for example
-  "Big word (4/10)").
+  "Big word (4/10)"). Korean letters count as two (see [Languages](#languages)).
+- Titles can be Korean (Hangul); see [Languages](#languages).
 - Each preset keeps its own text, so switching presets does not overwrite
   another preset's edits. An empty big word disables Build; an empty small
   field is left out.
@@ -331,6 +332,37 @@ Three lockup presets, chosen in the panel with a live preview:
     big word of A small glimpse. It is a subset of Quicksand Bold, renamed
     because "Quicksand" is a Reserved Font Name;
   - **MV DM Mono**: the top and bottom lines of A small glimpse.
+
+## Languages
+
+**The panel** follows the language of the Selects app and changes with it
+while the panel is open. It is translated into German, English, Spanish,
+French, Italian, Japanese, Korean, Portuguese, Turkish and Chinese; any other
+app language shows English. Track names, the Draft's name and the technical
+detail after an error message stay in English.
+
+**The title in the video** can be typed in English or Korean (Hangul):
+
+- The pre-filled words stay English in every language ("mini", "vlog", "a day
+  in my life", "a small", "glimpse", "of today"). Type over them to change
+  them.
+- The bundled typefaces have no Korean letters, so Korean text is drawn with
+  the macOS system font of each typeface's kind: **AppleMyungjo** for the
+  serif typefaces (the Mini vlog big and small words; the big word keeps its
+  slant) and **Apple SD Gothic Neo** for the rounded and monospaced ones (A day
+  in my life, A small glimpse).
+- Korean text is never letter-spaced. A Korean word without a space stays on
+  one line in A small glimpse (it is not split with a hyphen); with a space
+  it splits there. A long title shrinks to fit 60 % of the video's width, as
+  Latin text does.
+- The field limits count a Korean letter as two characters, so the Big word
+  of Mini vlog takes up to five Korean letters.
+- Korean titles need macOS, where Selects and its export run. Style-matched
+  Korean typefaces are planned for a later version.
+
+**Inspector labels** of the title, the Soft look, the Beat punch and the photo
+motion are written into the Draft in the panel's language at the time of the
+build. They do not change if the app language is switched later.
 
 ## Advanced
 

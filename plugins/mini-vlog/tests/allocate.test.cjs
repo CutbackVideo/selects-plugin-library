@@ -483,7 +483,10 @@ assert.equal(gFast.beatsPerShot, 2); assert.equal(gFast.overridden, true); asser
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.MV_BUILD_STEPS.length, 5);
 assert.equal(P.MV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);
-assert.equal(P.mvProgress('shots', 0.5, '12/24 videos checked').label, 'Step 1/5 · Choosing shots (12/24 videos checked) · 20%');
+// Steps carry no text: the panel names them in the UI language (STRINGS `step.<id>`, tests/panel.test.cjs).
+assert.equal(P.MV_BUILD_STEPS.map(s => s.id).join(' '), 'shots music draft look open');
+assert.ok(P.MV_BUILD_STEPS.every(s => !('label' in s)), 'no English step labels in the planner');
+assert.deepEqual(JSON.parse(JSON.stringify(P.mvProgress('shots', 0.5))), { id: 'shots', value: 0.2, percent: 20, current: 0 });
 assert.equal(P.mvProgress('draft', 0).percent, 50);
 assert.equal(P.mvProgress('open', 0.99).percent, 99);
 assert.equal(P.mvProgress('music', 7).percent, 50, 'fraction is clamped');

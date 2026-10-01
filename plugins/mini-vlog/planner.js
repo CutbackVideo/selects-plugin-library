@@ -715,17 +715,18 @@ function mvPhotoMotions(picks, seed, sizes) {
   return out;
 }
 
-// Build steps shown in the panel's progress bar, with each step's share of the bar in percent.
+// Build steps shown in the panel's progress bar, with each step's share of the bar in percent. The panel names each
+// step in the UI language (STRINGS `step.<id>`).
 const MV_BUILD_STEPS = [
-  { id: 'shots', label: 'Choosing shots', weight: 40 },
-  { id: 'music', label: 'Preparing music', weight: 10 },
-  { id: 'draft', label: 'Creating Draft', weight: 25 },
-  { id: 'look', label: 'Adding title and look', weight: 20 },
-  { id: 'open', label: 'Opening Draft', weight: 5 },
+  { id: 'shots', weight: 40 },
+  { id: 'music', weight: 10 },
+  { id: 'draft', weight: 25 },
+  { id: 'look', weight: 20 },
+  { id: 'open', weight: 5 },
 ];
 
 // Progress for a step that is `fraction` done. Floors the percent so 100% only shows at the very end.
-function mvProgress(stepId, fraction, detail) {
+function mvProgress(stepId, fraction) {
   const i = MV_BUILD_STEPS.findIndex(s => s.id === stepId);
   if (i < 0) throw new Error('unknown build step ' + stepId);
   const total = MV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0);
@@ -733,11 +734,5 @@ function mvProgress(stepId, fraction, detail) {
   const f = Math.min(1, Math.max(0, Number(fraction) || 0));
   const value = (before + MV_BUILD_STEPS[i].weight * f) / total;
   const percent = Math.floor(value * 100 + 1e-9);
-  const step = MV_BUILD_STEPS[i];
-  return {
-    value,
-    percent,
-    current: i,
-    label: 'Step ' + (i + 1) + '/' + MV_BUILD_STEPS.length + ' · ' + step.label + (detail ? ' (' + detail + ')' : '') + ' · ' + percent + '%',
-  };
+  return { id: stepId, value, percent, current: i };
 }

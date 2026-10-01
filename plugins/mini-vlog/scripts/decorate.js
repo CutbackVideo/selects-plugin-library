@@ -2,6 +2,9 @@ const cfg = __CONFIG__;
 if (!(cfg.videoEnd > 0)) throw Error('decorate: cfg.videoEnd missing');
 const d = selects.draft(cfg.sequenceId);
 const TITLE_LABEL = 'Mini vlog title', SOFT_LABEL = 'Soft look', MOTION_LABEL = 'Photo motion', PUNCH_LABEL = 'Beat punch';
+// Inspector (Adjust) labels in the panel's UI language at Build (cfg.labels), English without them. The effect and
+// graphic names above stay English: a retry and the readback recognise what is already there by them.
+const LABELS = { motion: 'Motion', motionStrength: 'Motion strength', punch: 'Punch', softness: 'Softness', ...(cfg.labels || {}) };
 // Photo resource ids in this Draft. Photos have no sound, so their audio routing stays null after muting.
 const photoIds = new Set(cfg.photos || []);
 // Effects on photo clips (Soft look and motion) only when cfg.photoEffects is exactly true. Export renders them; Draft.captureFrames
@@ -45,8 +48,8 @@ if (cfg.motion && photoEffects) {
     await d.addVideoEffect({ clip, label: MOTION_LABEL, tsxCode: cfg.motion.tsx,
       parameters: { motion: m.motion, strength: cfg.motion.strength, direction: m.direction, axis: m.axis, cover: m.cover || 1, holdSeconds },
       editableParameters: [
-        { key: 'motion', label: 'Motion', type: 'select', defaultValue: m.motion, options: cfg.motion.options },
-        { key: 'strength', label: 'Motion strength', type: 'number', defaultValue: cfg.motion.strength, min: 0, max: 2, step: 0.1 }] });
+        { key: 'motion', label: LABELS.motion, type: 'select', defaultValue: m.motion, options: cfg.motion.options },
+        { key: 'strength', label: LABELS.motionStrength, type: 'number', defaultValue: cfg.motion.strength, min: 0, max: 2, step: 0.1 }] });
     motions++;
   }
 }
@@ -76,7 +79,7 @@ if (cfg.punch) {
     const punches = frames.map(f => f - clip.startFrame).filter(t => t > -0.5 * beat && t < want);
     await d.addVideoEffect({ clip, label: PUNCH_LABEL, tsxCode: cfg.punch.tsx,
       parameters: { strength: cfg.punch.strength, push: cfg.punch.push, punches, beatFrames: beat, sourceStartFrame, durationFrames: want },
-      editableParameters: [{ key: 'strength', label: 'Punch', type: 'number', defaultValue: cfg.punch.strength, min: 0, max: 1, step: 0.05 }] });
+      editableParameters: [{ key: 'strength', label: LABELS.punch, type: 'number', defaultValue: cfg.punch.strength, min: 0, max: 1, step: 0.05 }] });
     punchAdded++;
   }
 }
@@ -89,7 +92,7 @@ if (cfg.soft) {
     if (!clip) continue;
     if (photoIds.has(clip.resourceId) && !photoEffects) { photoEffectsSkipped++; continue; }
     if (await hasEffect(clip, SOFT_LABEL)) { effectsKept++; continue; }
-    await d.addVideoEffect({ clip, label: SOFT_LABEL, tsxCode: cfg.soft.tsx, parameters: { strength: cfg.soft.strength }, editableParameters: [{ key: 'strength', label: 'Softness', type: 'number', defaultValue: cfg.soft.strength, min: 0, max: 1, step: 0.05 }] });
+    await d.addVideoEffect({ clip, label: SOFT_LABEL, tsxCode: cfg.soft.tsx, parameters: { strength: cfg.soft.strength }, editableParameters: [{ key: 'strength', label: LABELS.softness, type: 'number', defaultValue: cfg.soft.strength, min: 0, max: 1, step: 0.05 }] });
     effects++;
   }
 }
