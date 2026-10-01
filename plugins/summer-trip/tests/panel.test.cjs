@@ -87,6 +87,18 @@ for (const [key, text] of [['anotherVersion', 'Create another version'], ['finis
   ['dropAt', 'Drop at {seconds} s'], ['sectionAt', 'Section at {seconds} s'], ['noMusicTiming', 'No music: the cuts use approximate timing (a fixed 0.5 s beat).'],
   ['noDrop', 'No drop found: the grid starts after the 2-bar title.'], ['muffleSkippedPlain', 'ending muffle skipped'],
   ['fitDistinct', '{"one":"{count} different clip or photo","other":"{count} different clips and photos"}']]) says(key, text);
+// A sentence with two numbers takes its plural form from {count}, so the noun must sit next to {count}, never next to
+// the other number ({selected}, {done}, {distinct}); a part with the other number must read the same in every form.
+{
+  const all = require(path.join(root, 'dev', 'i18n-check.cjs')).extractStrings(panel).strings, forms = v => (typeof v === 'string' ? [v] : Object.values(v));
+  for (const lang of ['de', 'en', 'es', 'fr', 'it', 'pt']) for (const key of ['clipsSelected', 'photosSelected']) for (const f of forms(all[lang][key]))
+    assert.ok(/\{selected\} \S+ \{count\} \S/.test(f), lang + '.' + key + ': {selected} before {count} and its noun: ' + f);
+  for (const lang of Object.keys(all)) {
+    for (const f of forms(all[lang].videosChecked)) assert.ok(/\{done\}\/\{count\}/.test(f), lang + '.videosChecked: {done}/{count} together: ' + f);
+    assert.equal(new Set(forms(all[lang].fitShrunk).map(f => f.split(/[.\u3002]/)[0])).size, 1, lang + '.fitShrunk: the {distinct} sentence is the same in every form');
+    for (const k of Object.keys(all[lang])) for (const f of forms(all[lang][k])) assert.ok(!/of them|davon \{|\{photos\} (photos|Fotos|son|s\u00e3o|en photo)/.test(f), lang + '.' + k + ': no partial count agreeing with another number: ' + f);
+  }
+}
 // The language is read on every render, first in the component (before any early return), and never cached.
 const comp = code.slice(code.indexOf('export default function Panel('));
 assert.ok(/^export default function Panel\(\{ sdk, context, ui \}: any\) \{\n(?:\s*\/\/[^\n]*\n)*\s*const L = uiLang\(context\);/.test(comp), 'uiLang(context) first in the component');
