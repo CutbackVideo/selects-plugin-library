@@ -41,11 +41,13 @@ function bigScore(line: Token[], tags: Tags, isLast: boolean): number {
     const n = norm(t.t);
     if (isNumberWord(t.t) || /\d/.test(t.t)) s += 3;
     if (INTENSIFIER.has(n)) s += 1.5;
-    if (DISCOURSE.test(n)) s -= 2.5;
+    if (DISCOURSE.test(n)) s -= 1.2;
     else if (wordClass(t.t) === "CONT") s += 0.6 + Math.min(0.6, n.length / 15);
     else s -= 0.4;
   }
   if (line.length > 3) s -= 2 * (line.length - 3);
+  // a line of function words only never carries the lockup
+  if (line.every((t) => wordClass(t.t) !== "CONT" && !isNumberWord(t.t))) s -= 4;
   if (isLast) s += 0.8;
   return s;
 }
@@ -299,14 +301,31 @@ function tidy(gs: Group[]): Group[] {
   for (let k = 0; k + 1 < gs.length; k += 1) {
     const g = gs[k];
     const next = gs[k + 1];
-    if (g.kind === "plain" || g.lines.length < 2 || next.kind !== "plain" || next.sentence !== g.sentence) continue;
+    if (g.kind === "plain" || g.lines.length < 2 || next.sentence !== g.sentence) continue;
     const tailFrom = g.lines[g.lines.length - 1];
     if (g.lines.length - 1 <= g.big) continue;
     const tail = g.toks.slice(tailFrom);
     if (!tail.every(isFunction) || tail.some(stall) || /[.?!]$/.test(tail[tail.length - 1].t)) continue;
     gs[k] = { ...g, toks: g.toks.slice(0, tailFrom), lines: g.lines.slice(0, -1), template: g.lines.length - 1 === 1 ? "single" : g.big === 0 ? "headTail" : "leadBig", sentenceEnd: false, phraseEnd: false };
-    gs[k + 1] = { ...next, toks: [...tail, ...next.toks] };
+    // the tail joins the next caption's first line
+    gs[k + 1] = { ...next, toks: [...tail, ...next.toks], lines: next.lines.map((o, j) => (j === 0 ? 0 : o + tail.length)) };
   }
+  // a plain line longer than about 24 characters is split at its best break rather than shrunk
+  const split: Group[] = [];
+  for (const g of gs) {
+    const text = g.toks.map((t) => t.t).join(" ");
+    if (g.kind !== "plain" || text.length <= 24 || g.toks.length < 4) {
+      split.push(g);
+      continue;
+    }
+    const parts = splitPhrase(g.toks, {}, { TW: g.toks.length / 2 } as Style, 4);
+    if (parts.length < 2) {
+      split.push(g);
+      continue;
+    }
+    parts.forEach((toks, j) => split.push({ ...g, toks, sentenceEnd: g.sentenceEnd && j === parts.length - 1, phraseEnd: g.phraseEnd && j === parts.length - 1 }));
+  }
+  gs = split;
   const out: Group[] = [];
   for (let k = 0; k < gs.length; k += 1) {
     const g = gs[k];

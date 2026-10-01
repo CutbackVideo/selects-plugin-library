@@ -186,19 +186,29 @@ export function compileCaptions(inp: CompileInput): CaptionTrack {
 
   // ---- positions -----------------------------------------------------------------------------------
   const shotAt = (t: number) => shots.find((s) => t >= s.from - 1e-6 && t < s.to) || shots[shots.length - 1];
-  const segY = new Map<number, number>();
+  // speaker shots: the caption sits just under the chin (its top about 0.035 H below it), clamped to
+  // 0.50-0.80; the values are pooled into at most three levels so the line does not wander between
+  // shots of one angle
+  const raw = shots.filter((s) => s.kind === "speaker").map((s) => (s.face ? Math.min(0.8, Math.max(0.5, s.face.chin + 0.046)) : 0.52));
+  const levels: number[] = [];
+  for (const v of [...raw].sort((a, b) => a - b)) {
+    const last = levels[levels.length - 1];
+    if (last != null && v - last < 0.04) levels[levels.length - 1] = Math.max(last, v);
+    else levels.push(v);
+  }
+  while (levels.length > 3) {
+    // merge the closest pair, keeping the lower position (further from the face)
+    let k = 0;
+    for (let j = 1; j + 1 < levels.length; j += 1) if (levels[j + 1] - levels[j] < levels[k + 1] - levels[k]) k = j;
+    levels.splice(k, 2, Math.max(levels[k], levels[k + 1]));
+  }
+  const level = (v: number) => levels.find((l) => l >= v - 1e-6) ?? levels[levels.length - 1] ?? v;
   const yFor = (t: number): number => {
     const s = shotAt(t);
     if (!s) return 0.5;
     if (s.kind !== "speaker") return 0.52;
     if (style.yAnchor === "fixed_050") return 0.5;
-    const seg = s.segment ?? -1;
-    if (segY.has(seg)) return segY.get(seg)!;
-    const first = shots.find((x) => x.kind === "speaker" && (x.segment ?? -1) === seg && x.face) || s;
-    const f = first.face;
-    const y = f ? Math.min(0.8, Math.max(0.36, Math.max(0.5, f.chin + style.chinGap * f.h + 0.0225))) : 0.5;
-    segY.set(seg, y);
-    return y;
+    return level(s.face ? Math.min(0.8, Math.max(0.5, s.face.chin + 0.046)) : 0.52);
   };
 
   // ---- build (word by word) ranking (spec 7.4) ----------------------------------------------------

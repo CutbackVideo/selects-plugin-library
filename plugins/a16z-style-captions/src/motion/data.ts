@@ -21,7 +21,7 @@ export type PUnit = {
 
 export type NameTag = { a: number; b: number; first: string; last: string; role: string; x: number; y: number; cap: number; small?: boolean };
 // A full-frame designed insert. Items appear on their spoken onsets (`at`, Draft frames).
-export type DesignKind = "keyword" | "chapter" | "number" | "versus" | "list" | "bubbles" | "quote";
+export type DesignKind = "keyword" | "chapter" | "number" | "versus" | "list" | "bubbles" | "quote" | "window" | "search" | "document";
 export type DItem = { text: string; at: number; role?: "title" | "connector" | "label" | "me" | "them" | "key" | "item" };
 export type Card = {
   a: number;
@@ -30,6 +30,8 @@ export type Card = {
   items: DItem[];
   numeral?: string; // chapter numeral ("I.") or the number a counter lands on
   seed?: number;
+  palette?: "burgundy" | "cream";
+  aspect?: number; // window card: the speaker picture's width / height
 };
 export type Mark = { src: string; w: number; h: number; opacity: number };
 
@@ -44,5 +46,6 @@ export type GraphicData = {
   cards?: Card[];
   mark?: Mark | null;
   quoteBlocks?: [number, number, number][]; // [first frame, end frame, y]
+  title?: { a: number; b: number; lines: string[] } | null; // hook title plate
   fonts?: { sans?: string; serif?: string; roman?: string };
 };

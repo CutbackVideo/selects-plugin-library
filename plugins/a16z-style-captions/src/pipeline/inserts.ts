@@ -11,8 +11,9 @@ export type Beat = { span: Span; query: string; alt?: string };
 export type InsertShot = { a: number; b: number; query: string; alt: string; run: number; k: number };
 export type InsertRun = { a: number; b: number; shots: InsertShot[] };
 
-export function planInserts(words: Word[], beats: Beat[], duration: number, blocked: [number, number][], opts: { earliest: number }): InsertRun[] {
-  const onsets = words.map((w) => w.s).sort((a, b) => a - b);
+export function planInserts(words: Word[], beats: Beat[], duration: number, blocked: [number, number][], opts: { earliest: number; starts?: number[] }): InsertRun[] {
+  // cuts land on caption-unit starts where one is near, else on a word onset
+  const onsets = (opts.starts && opts.starts.length ? opts.starts : words.map((w) => w.s)).slice().sort((a, b) => a - b);
   const snap = (t: number) => onsets.reduce((best, o) => (Math.abs(o - t) < Math.abs(best - t) ? o : best), t);
   const at = (i: number) => words.find((w) => w.i === i);
   const runs: InsertRun[] = [];
@@ -28,11 +29,12 @@ export function planInserts(words: Word[], beats: Beat[], duration: number, bloc
     return words[words.length - 1].e;
   };
   for (const { b, w0, w1 } of sorted) {
-    let a = Math.max(0, w0!.s - 0.04);
-    // a run carries the rest of its sentence when that stays under 5.5 s
-    let e = Math.max(w1!.e, Math.min(sentenceEnd(w1!), a + 5.5)) + 0.08;
+    let a = Math.max(0, snap(w0!.s) - 0.04);
+    // a run covers the words that name the thing and ends on the next caption start
+    let e = w1!.e + 0.08;
     const next = onsets.find((o) => o > e - 0.08);
-    if (next != null && next - e < 0.35) e = next - 0.04;
+    if (next != null && next - e < 0.6) e = next - 0.04;
+    void sentenceEnd;
     if (e - a < 2.0) e = snap(a + 2.2) - 0.04;
     if (e - a > 5.5) e = snap(a + 5.0) - 0.04;
     if (a < opts.earliest) {
@@ -61,7 +63,7 @@ export function planInserts(words: Word[], beats: Beat[], duration: number, bloc
     }
     // stock stays a minority of the Short: designed inserts and the speaker carry the rest
     if ((covered + (e - a)) / duration > 0.32) break;
-    const n = Math.max(1, Math.min(4, Math.round((e - a) / 1.45)));
+    const n = Math.max(1, Math.min(4, Math.ceil((e - a) / 1.8)));
     const cuts = [a];
     for (let k = 1; k < n; k += 1) cuts.push(Math.max(cuts[k - 1] + 0.9, snap(a + ((e - a) * k) / n) - 0.04));
     cuts.push(e);
@@ -171,7 +173,7 @@ export async function fetchInserts(
     const prompt =
       "Pure image task: do NOT use any tools. You pick stock B-roll for an a16z-style Short. Each attached sheet has one row per moment; each row shows up to six candidate clips (columns 1-6, left to right; dark grey tiles are empty).\n\n" +
       lines.join("\n") +
-      "\n\nFor each moment choose, in order of preference, the columns whose clip clearly shows the exact thing the words name (an object, place, action or era - coffee is not tea, a treadmill is not a conveyor belt). Never choose: a stranger's face or posed person as the main subject (unless the words are about people in general), neon or club lighting, strong colour casts, visible text, logos or watermarks, charts or screens with made-up data, fog or near-empty frames, or a visual pun. Return an empty list when nothing fits; staying on the speaker is better than a wrong clip.\n\nReply with ONLY a JSON object like {\"M1\": [3, 1], \"M2\": []}.";
+      "\n\nFor each moment choose, in order of preference, the columns whose clip a documentary editor would cut to: it must show the exact object, place, action or era the whole phrase names (coffee is not tea, a treadmill is not a running track). Never choose: a person or people as the main subject (faces, actors, posing, business people, models), 3D renders, CG animations, illustrations or motion graphics, neon or club lighting, strong colour casts, visible text, logos or watermarks, charts or screens with made-up data, fog or near-empty frames, or a visual pun. Hands doing the named action are fine. Return an empty list when nothing fits; staying on the speaker is better than a wrong or generic clip. "+ "Reply with ONLY a JSON object like {\"M1\": [3, 1], \"M2\": []}.";
     const images: { dataUrl: string; name: string }[] = [];
     for (let si = 0; si < sheets.length; si += 1) {
       try {

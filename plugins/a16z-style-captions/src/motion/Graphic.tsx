@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useCurrentFrame, delayRender, continueRender } from "remotion";
-import { clearTextCache, metrics, type FontSpec } from "./text";
+import { clearTextCache, metrics, width100, type FontSpec } from "./text";
 import { drawUnit, layoutUnit, clearLayoutCache, type Faces } from "./captions";
 import { drawNameTag } from "./nametag";
 import { drawCard } from "./cards";
@@ -74,6 +74,7 @@ export default function Graphic({ data }: Props) {
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
       {(d.cards || []).filter((c) => frame >= c.a && frame < c.b).map((c, i) => drawCard(c, i, frame, d, faces))}
       {d.nameTag && frame >= d.nameTag.a && frame < d.nameTag.b ? drawNameTag(placeTag(d, faces), frame, d, faces) : null}
+      {d.title && frame >= d.title.a && frame < d.title.b ? titlePlate(d.title, frame, d, faces) : null}
       {quote && live.length ? quoteGlyph(layoutUnit(live[0].u, live[0].k, d, faces, shrinkOf(live[0].k)).top, d, faces) : null}
       {live.map(({ u, k }) => (
         <React.Fragment key={k}>{drawUnit(u, k, frame, d, faces, shrinkOf(k))}</React.Fragment>
@@ -137,4 +138,39 @@ function placeTag(d: GraphicData, faces: Faces): NameTag {
   });
   const y = Math.min(0.82, Math.max(tag.y, bottom / d.H + 0.03));
   return (tagCache[key] = { ...tag, y });
+}
+
+// The hook title: white plates with a black serif-italic title, typed in at about 45 characters a second
+// with each plate growing just ahead of its letters.
+function titlePlate(t: { a: number; b: number; lines: string[] }, frame: number, d: GraphicData, faces: Faces): React.ReactNode {
+  const H = d.H;
+  const W = d.W;
+  const face = faces.serif;
+  const m = metrics(face);
+  const size = (0.034 * H) / m.cap;
+  const cps = 45;
+  const shown = Math.floor(((frame - t.a) / d.fps) * cps);
+  const padX = 0.018 * W;
+  const lineH = size * 1.32;
+  const x0 = 0.08 * W;
+  let y = 0.6 * H;
+  let used = 0;
+  const out: React.ReactNode[] = [];
+  t.lines.forEach((line, k) => {
+    const n = Math.max(0, Math.min(line.length, shown - used));
+    used += line.length + 1;
+    if (n <= 0) return;
+    const text = line.slice(0, n);
+    const w = (width100(text, face) / 100) * size;
+    const ahead = n < line.length ? 0.4 * size : 0;
+    out.push(
+      <div key={"tp" + k} style={{ position: "absolute", left: x0, top: y, width: w + 2 * padX + ahead, height: lineH, background: "#FFFFFF" }}>
+        <div style={{ position: "absolute", left: padX, top: lineH / 2 + (m.cap * size) / 2 - (size * (1 + m.ascent - m.descent)) / 2, fontFamily: face.family, fontStyle: face.style, fontWeight: face.weight, fontSize: size, lineHeight: 1, whiteSpace: "pre", color: "#111111" }}>
+          {text}
+        </div>
+      </div>
+    );
+    y += lineH;
+  });
+  return <React.Fragment key="title">{out}</React.Fragment>;
 }

@@ -41,6 +41,8 @@ export type Prepared = {
   cuts: number[];
   cards: Card[];
   suppress: [number, number][];
+  windows: { from: number; to: number }[];
+  title: { a: number; b: number; lines: string[] } | null;
 };
 
 // The Short's words (with source indices), the semantic tags, picture cuts and keyword cards.
@@ -97,8 +99,8 @@ export function prepareShort(job: Job, short: DraftInfo): Prepared {
       if (!first || !last) continue;
       const lead = dz.kind === "chapter" ? 0.1 : 0.12;
       const a = Math.round((first.s - lead) * fps);
-      const minDur = dz.kind === "chapter" ? 1.6 : 1.4;
-      const maxDur = dz.kind === "list" || dz.kind === "bubbles" ? 5.5 : 3.2;
+      const minDur = dz.kind === "chapter" || dz.kind === "window" ? 1.6 : 1.4;
+      const maxDur = dz.kind === "list" || dz.kind === "bubbles" ? 5.5 : dz.kind === "versus" ? 2.5 : dz.kind === "window" || dz.kind === "document" ? 4 : 3.2;
       const b = Math.round(Math.min(first.s + maxDur, Math.max(first.s + minDur, last.e + 0.35)) * fps);
       if (!free(a, b)) continue;
       const items = dz.parts.map((p, k) => {
@@ -108,14 +110,50 @@ export function prepareShort(job: Job, short: DraftInfo): Prepared {
         const text = p.role === "key" && dz.kind === "number" ? p.text : p.text.replace(/["“”]/g, "").split(/\s+/).map(caseWord).join(" ");
         return { text, at: Math.max(a, Math.round((t - 1 / fps) * fps)), role: p.role };
       });
-      place({ a, b, kind: dz.kind, items, numeral: dz.numeral });
+      const src = short.clips[0];
+      place({ a, b, kind: dz.kind, items, numeral: dz.numeral, aspect: src && src.sw && src.sh ? src.sw / src.sh : 16 / 9 });
     }
   }
   cards.sort((x, y) => x.a - y.a);
+  // one card palette per video: cream as soon as any designed card is light
+  const light = cards.some((c) => c.kind !== "keyword" && c.kind !== "window");
+  for (const c of cards) if (c.kind === "keyword") c.palette = light ? "cream" : "burgundy";
+  // window cards are drawn by the frame effect on the Main clips
+  const windows = cards.filter((c) => c.kind === "window").map((c) => ({ from: c.a, to: c.b }));
+
+  // the hook title: an editor's title over the opening when the first sentence only sets up
+  let title: Prepared["title"] = null;
+  const firstEnd = words.find((w) => /[.!?]["”’)]*$/.test(w.t));
+  const hookType = semantic?.tags.hook?.type;
+  if (semantic?.title && (hookType === "H4" || hookType === "H2" || (firstEnd && firstEnd.e > 3.5))) {
+    const firstCut = cuts.find((c) => c > 1.3) ?? 2.3;
+    const b = Math.round(Math.min(2.3, Math.max(1.3, firstCut)) * fps);
+    const ws = semantic.title.split(/\s+/);
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of ws) {
+      if (cur && (cur + " " + w).length > 18) {
+        lines.push(cur);
+        cur = w;
+      } else cur = cur ? cur + " " + w : w;
+    }
+    if (cur) lines.push(cur);
+    title = { a: 0, b, lines };
+    const inside = words.filter((w) => w.s * fps < b && w.i >= 0).map((w) => w.i);
+    if (inside.length) suppress.push([Math.min(...inside), Math.max(...inside)] as Span);
+  }
   // the picture changes at a card's edges
   for (const c of cards) cuts.push(c.a / fps, c.b / fps);
   cuts.sort((a, b) => a - b);
-  return { fps, duration, words, semantic, cuts, cards, suppress };
+  return { fps, duration, words, semantic, cuts, cards, suppress, windows, title };
+}
+
+// Caption unit starts before any B-roll is placed, so B-roll cuts can land on them.
+export function unitStarts(job: Job, prep: Prepared): number[] {
+  const tags = prep.semantic?.tags || {};
+  const style = chooseStyle(prep.words, tags, prep.fps);
+  const track = compileCaptions({ words: prep.words, tags, style, cuts: prep.cuts, shots: job.framing.shots, duration: prep.duration, suppress: prep.suppress });
+  return track.units.map((u) => u.start);
 }
 
 export async function buildGraphic(o: {
@@ -147,17 +185,19 @@ export async function buildGraphic(o: {
 
   // name tag on the opening speaker run, under the captions
   let nameTag: NameTag | null = null;
-  const nm = (job.opts.name || "").trim();
+  const said = semantic?.speaker;
+  const nm = (job.opts.name || "").trim() || (said?.name || "");
+  const roleLine = (job.opts.name || "").trim() ? (job.opts.role || "").trim() : said?.role || "";
   if (nm) {
     const parts = nm.split(/\s+/);
     const last = parts.length > 1 ? parts.pop()! : "";
     const firstCard = cards.length ? cards[0].a : Infinity;
     const firstInsert = o.inserts.length ? Math.round(o.inserts[0].a * fps) : Infinity;
-    const a = Math.round(0.1 * fps);
+    const a = prep.title ? prep.title.b : Math.round(0.1 * fps);
     const b = Math.min(firstCard, firstInsert, a + Math.round(2.6 * fps));
     // under the opening caption block (a hook lockup grows about 0.08 H below its first line)
     const y = Math.min(0.8, (track.units[0]?.y || 0.55) + 0.12);
-    nameTag = { a, b, first: parts.join(" "), last, role: (job.opts.role || "").trim(), x: 0.1, y, cap: 0.042 };
+    if (b - a >= Math.round(1.2 * fps)) nameTag = { a, b, first: parts.join(" "), last, role: roleLine, x: 0.1, y, cap: 0.042 };
   }
 
   // the user's own mark, top right
@@ -209,6 +249,7 @@ export async function buildGraphic(o: {
     cards,
     mark,
     quoteBlocks,
+    title: prep.title,
     fonts: o.fonts,
   };
   // a readable record of the captions next to the job, for checking a build

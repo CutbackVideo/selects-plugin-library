@@ -10,7 +10,7 @@ import { planFraming, type FramingPlan } from "./framing";
 import { makeMusic, loudness, gains } from "./sound";
 import { mediaGeneration } from "./media";
 import { createShort, importFiles, finishShort, stripShort, type PlacedInsert } from "./apply";
-import { buildGraphic, prepareShort, type Look } from "./graphic";
+import { buildGraphic, prepareShort, unitStarts, type Look } from "./graphic";
 import { planInserts, fetchInserts, coverRect, type InsertCache } from "./inserts";
 
 export type Step = { id: string; label: string; state: "wait" | "run" | "done" | "skip" | "fail"; note?: string };
@@ -180,7 +180,7 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
     onStep("broll", "run", "Finding footage…");
     try {
       const blocked = prep.cards.map((c) => [c.a / fps, c.b / fps] as [number, number]);
-      const runs = planInserts(prep.words, job.semantic.broll, prep.duration, blocked, { earliest: 2.4 });
+      const runs = planInserts(prep.words, job.semantic.broll, prep.duration, blocked, { earliest: prep.title ? prep.title.b / fps + 0.3 : 2.4, starts: unitStarts(job, prep) });
       job.brollCache = job.brollCache || {};
       const got = await fetchInserts(sdk, runs, dir, (s) => onStep("broll", "run", s), job.brollCache, prep.words);
       notes.push(...got.notes);
@@ -247,7 +247,7 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
     notes.push("Levels: " + String(e?.message || e).slice(0, 160));
   }
   await saveJob(job);
-  await finishShort(sdk, job.shortId, pid, end, look.data, music, voiceDb, placed, fps);
+  await finishShort(sdk, job.shortId, pid, end, look.data, music, voiceDb, placed, fps, { clips: job.framing.clips, windows: prep.windows });
   onStep("captions", "done", look.summary);
   return notes;
 }

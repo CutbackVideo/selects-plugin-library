@@ -19,6 +19,7 @@ type Data = {
   push?: number; // a slow push over the clip (B-roll), as a fraction
   end?: number;
   grade?: string; // a CSS filter that pulls stock toward one shared look
+  windows?: { from: number; to: number }[]; // window cards: the speaker inset on a light field
 };
 
 const n = (v: any, f: number) => (typeof v === "number" && Number.isFinite(v) ? v : f);
@@ -41,6 +42,22 @@ export default function Look({ Source, data }: { Source: React.ComponentType; da
     const k = (f - n(shots[0].from, 0)) * (24 / n(d.fps, 24));
     const z = 1 + (d.open.s0 - 1) * Math.pow(0.68, Math.max(0, k));
     if (z > 1.0005) transform = "translate(" + d.open.ax + "px," + d.open.ay + "px) scale(" + z.toFixed(4) + ") translate(" + -d.open.ax + "px," + -d.open.ay + "px)";
+  }
+  // a window card: the whole source picture, inset at 0.78 W on a light field, shrinking slowly
+  const win = (d.windows || []).find((w) => f >= w.from && f < w.to);
+  if (win) {
+    const p = Math.max(0, Math.min(1, (f - win.from) / Math.max(1, win.to - win.from)));
+    const iw = 0.78 * W * (1 - 0.04 * p);
+    const ih = (iw * sh) / sw;
+    return (
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden", backgroundColor: "#F4F5F7" }}>
+        <div style={{ position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: "scale(" + sw / W + ", " + sh / H + ")", overflow: "hidden", backgroundColor: "#F4F5F7" }}>
+          <div style={{ position: "absolute", left: (W - iw) / 2, top: 0.54 * H - ih / 2, width: iw, height: ih, overflow: "hidden" }}>
+            <Source />
+          </div>
+        </div>
+      </div>
+    );
   }
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", backgroundColor: "#000" }}>

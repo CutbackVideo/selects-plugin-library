@@ -81,14 +81,36 @@ export type PlacedInsert = { id: string; a: number; b: number; sw: number; sh: n
 // B-roll first (each clip silent, cover-cropped by the frame effect), then the graphic over the whole
 // Short (new tracks go on top, so the captions sit over the B-roll), the music bed and the gains, in
 // one commit.
-export async function finishShort(sdk: Sdk, rid: string, pid: string, endFrame: number, data: any, music: { id: string; db: number } | null, voiceDb: number, inserts: PlacedInsert[] = [], fps = 24) {
+export async function finishShort(
+  sdk: Sdk,
+  rid: string,
+  pid: string,
+  endFrame: number,
+  data: any,
+  music: { id: string; db: number } | null,
+  voiceDb: number,
+  inserts: PlacedInsert[] = [],
+  fps = 24,
+  relook: { clips: ClipFrame[]; windows: { from: number; to: number }[] } | null = null
+) {
+  const frames = relook ? relook.clips.map((c) => ({ start: c.start, sw: c.sw, sh: c.sh, shots: c.shots, open: c.open || null })) : [];
   return script(
     sdk,
     "Add B-roll, captions, graphics and music",
     `const d = selects.draft(${J(rid)});
 const p = selects.project(${J(pid)});
 const INS: any[] = ${J(inserts)};
-const LOOK = ${J(inserts.length ? lookCode : "")};
+const LOOK = ${J(inserts.length || relook ? lookCode : "")};
+// the Main clips' frame effect again, with this build's window cards
+const FRAMES: any[] = ${J(frames)};
+const WINDOWS: any[] = ${J(relook ? relook.windows : [])};
+for (const m of FRAMES) {
+  const clip: any = (await d.clips({ trackScope: "main" })).find((c: any) => c.trackKind === "main" && c.startFrame === m.start);
+  if (!clip) continue;
+  for (const e of await d.videoEffects(clip)) if (e.name === ${J(LOOK_LABEL)}) await d.removeVideoEffect(e);
+  const again: any = (await d.clips({ trackScope: "main" })).find((c: any) => c.clipId === clip.clipId);
+  await d.addVideoEffect({ clip: again, label: ${J(LOOK_LABEL)}, tsxCode: LOOK, parameters: { W: ${W}, H: ${H}, fps: ${J(fps)}, sw: m.sw, sh: m.sh, start: again.startFrame, shots: m.shots, open: m.open, windows: WINDOWS }, editableParameters: [] });
+}
 const stretch = (sw: number, sh: number) => { const k = Math.min(${W} / sw, ${H} / sh); return { x: ${W} / (sw * k), y: ${H} / (sh * k) }; };
 let placed = 0;
 const skipped: number[] = [];

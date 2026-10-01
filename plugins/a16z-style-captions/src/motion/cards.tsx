@@ -165,11 +165,12 @@ export function drawCard(c: Card, i: number, frame: number, d: GraphicData, face
   let fadeWhite = 0;
 
   if (c.kind === "keyword") {
-    field = burgundyField(d, uid, frame);
+    const cream = c.palette === "cream";
+    field = cream ? creamField(d, uid, frame, (f / dur) * W * 0.05) : burgundyField(d, uid, frame);
     push = 0.05;
     const it = itemsOf(c)[0];
     if (it) {
-      const t = fit({ text: it.text, face: faces.sans, size: sizeFor(faces.sans, 0.057 * H), color: "#FFFFFF", track: -0.03 }, 0.8 * W);
+      const t = fit({ text: it.text, face: faces.sans, size: sizeFor(faces.sans, 0.057 * H), color: cream ? INK : "#FFFFFF", track: -0.03 }, 0.8 * W);
       const base = 0.49 * H + (metrics(faces.sans).cap * t.size) / 2;
       const g = (frame - it.at) / s24;
       if (g >= 4) {
@@ -178,11 +179,11 @@ export function drawCard(c: Card, i: number, frame: number, d: GraphicData, face
           textAt("k" + i, t, (W - tw(t)) / 2, base, {
             opacity: 0.36 + 0.64 * p,
             filter: p < 1 ? "blur(" + ((1 - p) * 4 * (W / 1080)).toFixed(2) + "px)" : undefined,
-            textShadow: "0 0 " + (0.12 * t.size).toFixed(1) + "px rgba(255,225,232,0.45)",
+            textShadow: cream ? "none" : "0 0 " + (0.12 * t.size).toFixed(1) + "px rgba(255,225,232,0.45)",
           })
         );
       }
-      if (g >= 3 && g < 7)
+      if (g >= 3 && g < 7 && !cream)
         for (let n = 0; n < 7; n += 1)
           nodes.push(
             <div
@@ -394,6 +395,121 @@ export function drawCard(c: Card, i: number, frame: number, d: GraphicData, face
     // a large faint quote mark behind the sentence
     const mark = { text: "\u201C", face: faces.roman, size: 0.16 * H, color: "#E3DCCB" };
     nodes.unshift(textAt("qm", mark, (W - tw(mark)) / 2, 0.5 * H - lineH * 0.6));
+  }
+
+  if (c.kind === "window") {
+    // the Look effect draws the field and the speaker inset; this adds the window frame and the typed line
+    const aspect = c.aspect || 16 / 9;
+    const iw = 0.78 * W * (1 - 0.04 * clamp01(f / dur));
+    const ih = iw / aspect;
+    const ix = (W - iw) / 2;
+    const iy = 0.54 * H - ih / 2;
+    const bar = 0.03 * H;
+    const frameNodes: React.ReactNode[] = [
+      <div key="shadow" style={{ position: "absolute", left: ix, top: iy - bar, width: iw, height: ih + bar, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", borderRadius: 10 }} />,
+      <div key="bar" style={{ position: "absolute", left: ix, top: iy - bar, width: iw, height: bar, background: "#E8E9EC", borderTopLeftRadius: 10, borderTopRightRadius: 10, borderBottom: "1px solid #D5D7DB" }} />,
+      ...["#FF5F57", "#FEBC2E", "#28C840"].map((col, k) => <div key={"dot" + k} style={{ position: "absolute", left: ix + 0.02 * W + k * 0.028 * W, top: iy - bar + bar / 2 - 0.006 * W, width: 0.012 * W, height: 0.012 * W, borderRadius: "50%", background: col }} />),
+    ];
+    // typed words above the window, near-black, hard word pops, on one or two lines
+    const size = sizeFor(faces.sans, 0.026 * H);
+    const words = c.items;
+    const space = (width100(" ", faces.sans) / 100) * size * 0.9;
+    const lines: DItem[][] = [[]];
+    let lw = 0;
+    for (const it of words) {
+      const w = tw({ text: it.text, face: faces.sans, size, color: INK, track: -0.03 });
+      if (lw + w > 0.8 * W && lines[lines.length - 1].length) {
+        lines.push([]);
+        lw = 0;
+      }
+      lines[lines.length - 1].push(it);
+      lw += w + space;
+    }
+    lines.forEach((line, li) => {
+      const widths = line.map((it) => tw({ text: it.text, face: faces.sans, size, color: INK, track: -0.03 }));
+      let x = (W - (widths.reduce((a, b) => a + b, 0) + space * (line.length - 1))) / 2;
+      const base = iy - bar - 0.05 * H - (lines.length - 1 - li) * size * 1.25;
+      line.forEach((it, j) => {
+        if (frame >= it.at) nodes.push(textAt("w" + li + "-" + j, { text: it.text, face: faces.sans, size, color: INK, track: -0.03 }, x, base));
+        x += widths[j] + space;
+      });
+    });
+    return (
+      <div key={"card" + i} style={{ position: "absolute", inset: 0 }}>
+        {frameNodes}
+        {nodes}
+      </div>
+    );
+  }
+  if (c.kind === "search") {
+    field = [<div key="bg" style={{ position: "absolute", inset: 0, background: "#FFFFFF" }} />];
+    fadeWhite = 3;
+    const typed = c.items.map((x) => x.text).join(" ");
+    const start = c.items[0]?.at ?? c.a;
+    const n = Math.max(0, Math.min(typed.length, Math.floor((frame - start) * 1.6 / s24)));
+    const bw = 0.84 * W;
+    const bh = 0.062 * H;
+    const bx = (W - bw) / 2;
+    const by = 0.4 * H;
+    const size = sizeFor(faces.sans, 0.022 * H);
+    nodes.push(<div key="box" style={{ position: "absolute", left: bx, top: by, width: bw, height: bh, borderRadius: bh / 2, border: "2px solid #DADCE0", boxShadow: "0 2px 10px rgba(32,33,36,0.16)", background: "#FFFFFF" }} />);
+    // magnifier
+    const r = bh * 0.17;
+    nodes.push(<div key="lens" style={{ position: "absolute", left: bx + bh * 0.42, top: by + bh / 2 - r - 2, width: 2 * r, height: 2 * r, borderRadius: "50%", border: "3px solid #9AA0A6" }} />);
+    nodes.push(<div key="handle" style={{ position: "absolute", left: bx + bh * 0.42 + 1.6 * r, top: by + bh / 2 + 0.6 * r, width: r * 0.9, height: 3, background: "#9AA0A6", transform: "rotate(45deg)", transformOrigin: "0 50%" }} />);
+    const t = { text: typed.slice(0, n), face: faces.sans, size, color: "#202124", track: -0.01 };
+    const tx = bx + bh * 1.05;
+    nodes.push(textAt("typed", t, tx, by + bh / 2 + (metrics(faces.sans).xh * size) / 2));
+    if (Math.floor(frame / (12 * s24)) % 2 === 0 || n < typed.length) nodes.push(<div key="cursor" style={{ position: "absolute", left: tx + tw(t) + 3, top: by + bh * 0.25, width: 2, height: bh * 0.5, background: "#1A73E8" }} />);
+    if (n >= typed.length) {
+      const p = clamp01((frame - start - typed.length / 1.6 * s24) / (6 * s24));
+      for (let k = 0; k < 3; k += 1)
+        nodes.push(<div key={"sg" + k} style={{ position: "absolute", left: bx + bh * 1.05, top: by + bh * 1.35 + k * bh * 0.75, width: bw * (0.62 - k * 0.12), height: bh * 0.2, borderRadius: 6, background: "#E8EAED", opacity: p }} />);
+    }
+  }
+  if (c.kind === "document") {
+    field = [<div key="bg" style={{ position: "absolute", inset: 0, background: "#E9E8E4" }} />, grain("n" + uid, 4, 0.06, "multiply")];
+    fadeWhite = 4;
+    const claim = itemsOf(c, "item")[0];
+    const label = itemsOf(c, "label")[0];
+    const px = 0.08 * W;
+    const pw = 0.84 * W;
+    const ptop = 0.16 * H;
+    const ph = 0.72 * H;
+    nodes.push(<div key="page" style={{ position: "absolute", left: px, top: ptop, width: pw, height: ph, background: "#FFFFFF", boxShadow: "0 10px 40px rgba(0,0,0,0.15)" }} />);
+    if (label) nodes.push(textAt("lab", { text: label.text.toUpperCase(), face: faces.sans, size: sizeFor(faces.sans, 0.012 * H), color: "#8A8A8A", track: 0.08 }, px + 0.06 * W, ptop + 0.06 * H));
+    const bars = (y0: number, count: number, seed: number) => {
+      for (let k = 0; k < count; k += 1)
+        nodes.push(<div key={"bar" + seed + k} style={{ position: "absolute", left: px + 0.06 * W, top: y0 + k * 0.022 * H, width: pw * (0.72 + 0.16 * rand(seed + k)) - 0.12 * W, height: 0.008 * H, background: "#E3E3E3", borderRadius: 3 }} />);
+    };
+    bars(ptop + 0.09 * H, 9, 11);
+    // the cited line, highlighted as it is spoken
+    if (claim) {
+      const size = sizeFor(faces.roman, 0.024 * H);
+      const words = claim.text.replace(/["“”]/g, "").split(/\s+/);
+      const lines: string[] = [];
+      let cur = "";
+      for (const w of words) {
+        const next = cur ? cur + " " + w : w;
+        if (tw({ text: next, face: faces.roman, size, color: INK }) > pw - 0.12 * W && cur) {
+          lines.push(cur);
+          cur = w;
+        } else cur = next;
+      }
+      if (cur) lines.push(cur);
+      const y0 = ptop + 0.33 * H;
+      const lineH = size * 1.5;
+      const wipe = clamp01((frame - claim.at) / Math.max(1, 0.45 * fps));
+      lines.forEach((l, k) => {
+        const t = { text: l, face: faces.roman, size, color: INK };
+        const w = tw(t);
+        const hl = clamp01(wipe * lines.length - k);
+        nodes.push(<div key={"hl" + k} style={{ position: "absolute", left: px + 0.055 * W, top: y0 + k * lineH - size * 0.78, width: w * hl + 0.01 * W, height: size * 1.05, background: "#F7E26B", opacity: hl > 0 ? 0.9 : 0 }} />);
+        nodes.push(textAt("cl" + k, t, px + 0.06 * W, y0 + k * lineH));
+      });
+      bars(y0 + lines.length * lineH + 0.02 * H, 8, 31);
+      push = 0.12;
+    }
   }
 
   const zoom = 1 + push * clamp01(f / dur);
