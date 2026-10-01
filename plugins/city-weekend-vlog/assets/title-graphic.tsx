@@ -26,6 +26,28 @@ function cwvFitSize(targetPx, measuredWidthAtTarget, boxPx) {
 }
 // cwv-fit:end
 
+// cwv-hangul:start
+// Korean titles. Text with Hangul is never uppercased or tracked, and breaks between words only (keep-all). Before a
+// canvas can measure, wide characters (Hangul, kana, CJK, fullwidth) count as 1 em and everything else as the Latin
+// average of 0.6 em.
+const CWV_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
+const CWV_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+function cwvHasHangul(text) { return CWV_HANGUL_RE.test(String(text || "")); }
+function cwvEstimateEm(text) {
+  let em = 0;
+  for (const ch of String(text || "")) em += CWV_WIDE_RE.test(ch) ? 1 : 0.6;
+  return em;
+}
+// A state's font stack: its face, the Latin fallbacks, then the Korean system face of its role (`koFamily` in
+// presets.json: AppleMyungjo for serif faces, Apple SD Gothic Neo for the rest) before the generic family.
+const CWV_FALLBACK_LATIN = '"Snell Roundhand", "Brush Script MT"';
+const CWV_KO_FALLBACK = "Apple SD Gothic Neo";
+function cwvFontStack(state, override) {
+  const ko = typeof state.koFamily === "string" && state.koFamily ? state.koFamily : CWV_KO_FALLBACK;
+  return (override ? `"${override}", ` : "") + `"${state.family}", ${CWV_FALLBACK_LATIN}, "${ko}", cursive`;
+}
+// cwv-hangul:end
+
 // Shared 2D context for glyph measurement. A document canvas is preferred because it
 // resolves the @font-face rules injected by this component.
 let measureCtx = null;
@@ -41,8 +63,8 @@ function cwvMeasure(text, f, px) {
     }
     if (!measureCtx) measureCtx = false;
   }
-  // Without a canvas, assume a generous 0.6 em average advance.
-  if (!measureCtx) return [...shown].length * px * 0.6;
+  // Without a canvas, estimate: 0.6 em per Latin character, 1 em per wide one.
+  if (!measureCtx) return cwvEstimateEm(shown) * px;
   measureCtx.font = `${f.fontStyle} ${f.fontWeight} ${px}px ${f.fontFamily}`;
   const m = measureCtx.measureText(shown);
   // Script faces can overhang their advance with swashes, so take the wider of advance and ink box.
@@ -52,7 +74,6 @@ function cwvMeasure(text, f, px) {
 
 const str = (v, d) => (typeof v === "string" ? v : d);
 const num = (v, d) => (typeof v === "number" && Number.isFinite(v) ? v : d);
-const FALLBACK = '"Snell Roundhand", "Brush Script MT", cursive';
 
 export default function CityWeekendTitle({ data }) {
   const frame = useCurrentFrame();
@@ -82,15 +103,15 @@ export default function CityWeekendTitle({ data }) {
   const st = cwvTitleState(frame, data.events || {}, place.length > 0);
   const states = data.states || {};
   const override = str(data.fontFamily, "").trim();
-  const face = (key) => {
+  const face = (key, text) => {
     const s = states[key] || states.A || { family: "", case: "none", style: "normal", weight: 400, scale: 1 };
-    const family = key === "A" && override ? `"${override}", "${s.family}", ${FALLBACK}` : `"${s.family}", ${FALLBACK}`;
-    return { fontFamily: family, fontStyle: s.style, fontWeight: s.weight, textTransform: s.case === "upper" ? "uppercase" : "none", scale: num(s.scale, 1) };
+    return { fontFamily: cwvFontStack(s, key === "A" ? override : ""), fontStyle: s.style, fontWeight: s.weight,
+      textTransform: s.case === "upper" && !cwvHasHangul(text) ? "uppercase" : "none", scale: num(s.scale, 1) };
   };
   const size = num(data.size, 150);
   const shadowAlpha = Math.max(0, Math.min(1, num(data.shadow, 0.45)));
   const ink = str(data.ink, "#F6ECB8");
-  const common = { color: ink, whiteSpace: "nowrap", lineHeight: 1, textShadow: `0 4px 14px rgba(0,0,0,${shadowAlpha})`, textAlign: "center", width: "100%" };
+  const common = { color: ink, whiteSpace: "nowrap", wordBreak: "keep-all", letterSpacing: 0, lineHeight: 1, textShadow: `0 4px 14px rgba(0,0,0,${shadowAlpha})`, textAlign: "center", width: "100%" };
   const swapLine = place ? "place" : "line1";
   const rotation = num(data.rotation, -7);
   // Long lines shrink to fit the 70% title box instead of overflowing. The usable width
@@ -107,7 +128,7 @@ export default function CityWeekendTitle({ data }) {
     const add = (id, text, base, keys) => {
       out[id] = {};
       for (const k of keys) {
-        const f = face(k);
+        const f = face(k, text);
         const target = base * f.scale;
         out[id][k] = cwvFitSize(target, cwvMeasure(text, f, target), boxPx);
       }
@@ -119,8 +140,8 @@ export default function CityWeekendTitle({ data }) {
     }
     return out;
   }, [ready, line1, connector, place, size, override, JSON.stringify(states), boxPx]);
-  const lineStyle = (id, key, base) => {
-    const f = face(key);
+  const lineStyle = (id, key, base, text) => {
+    const f = face(key, text);
     const k = fitted[id] && fitted[id][key] != null ? fitted[id][key] : base * f.scale;
     return { ...common, fontFamily: f.fontFamily, fontStyle: f.fontStyle, fontWeight: f.fontWeight, textTransform: f.textTransform, fontSize: k };
   };
@@ -129,9 +150,9 @@ export default function CityWeekendTitle({ data }) {
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start" }}>
       {fontFaces ? <style>{fontFaces}</style> : null}
       <div style={{ position: "absolute", left: "15%", right: "15%", top: `${num(data.position, 46) - 11}%`, transform: `rotate(${rotation}deg)`, display: "flex", flexDirection: "column", alignItems: "center", gap: size * 0.05 }}>
-        <div style={{ ...lineStyle("line1", swapLine === "line1" ? st.state : "A", size), visibility: st.line1 ? "visible" : "hidden" }}>{line1}</div>
-        {place ? <div style={{ ...lineStyle("connector", "A", size * 0.45), visibility: st.connector ? "visible" : "hidden" }}>{connector}</div> : null}
-        {place ? <div style={{ ...lineStyle("place", st.state, size), visibility: st.place ? "visible" : "hidden" }}>{place}</div> : null}
+        <div style={{ ...lineStyle("line1", swapLine === "line1" ? st.state : "A", size, line1), visibility: st.line1 ? "visible" : "hidden" }}>{line1}</div>
+        {place ? <div style={{ ...lineStyle("connector", "A", size * 0.45, connector), visibility: st.connector ? "visible" : "hidden" }}>{connector}</div> : null}
+        {place ? <div style={{ ...lineStyle("place", st.state, size, place), visibility: st.place ? "visible" : "hidden" }}>{place}</div> : null}
       </div>
     </AbsoluteFill>
   );

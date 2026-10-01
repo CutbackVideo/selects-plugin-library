@@ -2,29 +2,29 @@
   "version": 1,
   "presets": [
     { "id": "classic", "label": "Classic", "shadow": 0.45, "states": {
-      "A": { "file": "yellowtail.woff2.b64", "family": "CWV Yellowtail", "case": "none", "style": "normal", "weight": 400, "scale": 1 },
-      "B": { "file": "instrument-serif-italic.woff2.b64", "family": "CWV Instrument Serif Italic", "case": "upper", "style": "italic", "weight": 400, "scale": 1.1 },
-      "C": { "file": "sacramento.woff2.b64", "family": "CWV Sacramento", "case": "none", "style": "normal", "weight": 400, "scale": 1.15 },
-      "D": { "file": "instrument-serif.woff2.b64", "family": "CWV Instrument Serif", "case": "none", "style": "normal", "weight": 400, "scale": 1.15 } } },
+      "A": { "file": "yellowtail.woff2.b64", "family": "CWV Yellowtail", "case": "none", "style": "normal", "weight": 400, "scale": 1, "koFamily": "Apple SD Gothic Neo" },
+      "B": { "file": "instrument-serif-italic.woff2.b64", "family": "CWV Instrument Serif Italic", "case": "upper", "style": "italic", "weight": 400, "scale": 1.1, "koFamily": "AppleMyungjo" },
+      "C": { "file": "sacramento.woff2.b64", "family": "CWV Sacramento", "case": "none", "style": "normal", "weight": 400, "scale": 1.15, "koFamily": "Apple SD Gothic Neo" },
+      "D": { "file": "instrument-serif.woff2.b64", "family": "CWV Instrument Serif", "case": "none", "style": "normal", "weight": 400, "scale": 1.15, "koFamily": "AppleMyungjo" } } },
     { "id": "romantic", "label": "Romantic", "shadow": 0.6, "states": {
-      "A": { "file": "great-vibes.woff2.b64", "family": "CWV Great Vibes", "case": "none", "style": "normal", "weight": 400, "scale": 1.05 },
-      "B": { "file": "playfair-display-italic.woff2.b64", "family": "CWV Playfair Display Italic", "case": "upper", "style": "italic", "weight": 500, "scale": 0.8 },
-      "C": { "file": "parisienne.woff2.b64", "family": "CWV Parisienne", "case": "none", "style": "normal", "weight": 400, "scale": 0.9 },
-      "D": { "file": "playfair-display.woff2.b64", "family": "CWV Playfair Display", "case": "none", "style": "normal", "weight": 500, "scale": 0.9 } } },
+      "A": { "file": "great-vibes.woff2.b64", "family": "CWV Great Vibes", "case": "none", "style": "normal", "weight": 400, "scale": 1.05, "koFamily": "Apple SD Gothic Neo" },
+      "B": { "file": "playfair-display-italic.woff2.b64", "family": "CWV Playfair Display Italic", "case": "upper", "style": "italic", "weight": 500, "scale": 0.8, "koFamily": "AppleMyungjo" },
+      "C": { "file": "parisienne.woff2.b64", "family": "CWV Parisienne", "case": "none", "style": "normal", "weight": 400, "scale": 0.9, "koFamily": "Apple SD Gothic Neo" },
+      "D": { "file": "playfair-display.woff2.b64", "family": "CWV Playfair Display", "case": "none", "style": "normal", "weight": 500, "scale": 0.9, "koFamily": "AppleMyungjo" } } },
     { "id": "retro-diner", "label": "Retro Diner", "shadow": 0.45, "states": {
-      "A": { "file": "lobster.woff2.b64", "family": "CWV Lobster", "case": "none", "style": "normal", "weight": 400, "scale": 0.9 },
-      "B": { "file": "abril-fatface.woff2.b64", "family": "CWV Abril Fatface", "case": "upper", "style": "normal", "weight": 400, "scale": 0.8 },
-      "C": { "file": "pacifico.woff2.b64", "family": "CWV Pacifico", "case": "none", "style": "normal", "weight": 400, "scale": 0.75 },
-      "D": { "file": "bebas-neue.woff2.b64", "family": "CWV Bebas Neue", "case": "none", "style": "normal", "weight": 400, "scale": 1.15 } } },
+      "A": { "file": "lobster.woff2.b64", "family": "CWV Lobster", "case": "none", "style": "normal", "weight": 400, "scale": 0.9, "koFamily": "Apple SD Gothic Neo" },
+      "B": { "file": "abril-fatface.woff2.b64", "family": "CWV Abril Fatface", "case": "upper", "style": "normal", "weight": 400, "scale": 0.8, "koFamily": "AppleMyungjo" },
+      "C": { "file": "pacifico.woff2.b64", "family": "CWV Pacifico", "case": "none", "style": "normal", "weight": 400, "scale": 0.75, "koFamily": "Apple SD Gothic Neo" },
+      "D": { "file": "bebas-neue.woff2.b64", "family": "CWV Bebas Neue", "case": "none", "style": "normal", "weight": 400, "scale": 1.15, "koFamily": "Apple SD Gothic Neo" } } },
     { "id": "travel-journal", "label": "Travel Journal", "shadow": 0.45, "states": {
-      "A": { "file": "kaushan-script.woff2.b64", "family": "CWV Kaushan Script", "case": "none", "style": "normal", "weight": 400, "scale": 0.85 },
-      "B": { "file": "dm-serif-display-italic.woff2.b64", "family": "CWV DM Serif Display Italic", "case": "upper", "style": "italic", "weight": 400, "scale": 0.85 },
-      "C": { "file": "caveat.woff2.b64", "family": "CWV Caveat", "case": "none", "style": "normal", "weight": 600, "scale": 1.15 },
-      "D": { "file": "antonio.woff2.b64", "family": "CWV Antonio", "case": "none", "style": "normal", "weight": 500, "scale": 1.1 } } },
+      "A": { "file": "kaushan-script.woff2.b64", "family": "CWV Kaushan Script", "case": "none", "style": "normal", "weight": 400, "scale": 0.85, "koFamily": "Apple SD Gothic Neo" },
+      "B": { "file": "dm-serif-display-italic.woff2.b64", "family": "CWV DM Serif Display Italic", "case": "upper", "style": "italic", "weight": 400, "scale": 0.85, "koFamily": "AppleMyungjo" },
+      "C": { "file": "caveat.woff2.b64", "family": "CWV Caveat", "case": "none", "style": "normal", "weight": 600, "scale": 1.15, "koFamily": "Apple SD Gothic Neo" },
+      "D": { "file": "antonio.woff2.b64", "family": "CWV Antonio", "case": "none", "style": "normal", "weight": 500, "scale": 1.1, "koFamily": "Apple SD Gothic Neo" } } },
     { "id": "editorial", "label": "Editorial", "shadow": 0.6, "states": {
-      "A": { "file": "allura.woff2.b64", "family": "CWV Allura", "case": "none", "style": "normal", "weight": 400, "scale": 1.1 },
-      "B": { "file": "cormorant-garamond-italic.woff2.b64", "family": "CWV Cormorant Garamond Italic", "case": "upper", "style": "italic", "weight": 600, "scale": 0.95 },
-      "C": { "file": "mrs-saint-delafield.woff2.b64", "family": "CWV Mrs Saint Delafield", "case": "none", "style": "normal", "weight": 400, "scale": 1.15 },
-      "D": { "file": "cormorant-garamond.woff2.b64", "family": "CWV Cormorant Garamond", "case": "none", "style": "normal", "weight": 600, "scale": 1.05 } } }
+      "A": { "file": "allura.woff2.b64", "family": "CWV Allura", "case": "none", "style": "normal", "weight": 400, "scale": 1.1, "koFamily": "Apple SD Gothic Neo" },
+      "B": { "file": "cormorant-garamond-italic.woff2.b64", "family": "CWV Cormorant Garamond Italic", "case": "upper", "style": "italic", "weight": 600, "scale": 0.95, "koFamily": "AppleMyungjo" },
+      "C": { "file": "mrs-saint-delafield.woff2.b64", "family": "CWV Mrs Saint Delafield", "case": "none", "style": "normal", "weight": 400, "scale": 1.15, "koFamily": "Apple SD Gothic Neo" },
+      "D": { "file": "cormorant-garamond.woff2.b64", "family": "CWV Cormorant Garamond", "case": "none", "style": "normal", "weight": 600, "scale": 1.05, "koFamily": "AppleMyungjo" } } }
   ]
 }

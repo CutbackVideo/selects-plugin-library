@@ -4,11 +4,33 @@ const root = path.resolve(__dirname, '..');
 const panel = fs.readFileSync(path.join(root, 'panel.tsx'), 'utf8');
 const planner = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
 assert.ok(panel.includes(planner.trim()), 'panel.tsx must embed planner.js verbatim');
+// UI text lives in the STRINGS block (10 languages, tests/i18n.test.cjs). `says` checks the English wording of a key
+// and that the code reads the key with t(); `code` is the panel without the STRINGS block.
+const { extractStrings } = require(path.join(root, 'dev', 'i18n-check.cjs'));
+const block = extractStrings(panel), en = block.strings.en;
+const code = panel.slice(0, block.begin) + panel.slice(block.end);
+const textOf = key => (typeof en[key] === 'string' ? en[key] : Object.values(en[key] || {}).join('\n'));
+const says = (key, text) => {
+  assert.ok(textOf(key).includes(text), 'STRINGS.en.' + key + ' says "' + text + '": ' + textOf(key));
+  assert.ok(code.includes('t(L, "' + key + '"') || code.includes('t(l, "' + key + '"') || code.includes('t(lang, "' + key + '"') || code.includes('t(bl, "' + key + '"'), 't() reads ' + key);
+};
 assert.match(panel.split('\n').slice(0, 24).join('\n'), /\/\/ @name City Weekend Vlog/);
 assert.match(panel, /\/\/ @icon \w+/);
 assert.ok(!/^import .* from "(?!react")/m.test(panel), 'only react may be imported');
 for (const name of ['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js', 'title-graphic.tsx', 'warm-look.tsx', 'photo-motion.tsx', 'manifest.json', 'presets.json', 'beat-detect.cjs']) assert.ok(panel.includes(name), 'panel reads ' + name);
-for (const phrase of ['Create another version', 'label="Clip sound"', 'Silent video', 'cuts use the original rhythm', 'selects.editor.openDraft', 'Finish title and look', 'cwvProgress(', 'steps={CWV_BUILD_STEPS', 'Stopped at step', 'Install ffmpeg and Node.js', 'linkToDraftFrame', 'FontFace', 'Draft created; adding title and look', 'projectRef', 'ffprobe', 'aria-pressed', 'loadInventory(', 'still being analysed', 'this updates automatically', '>Refresh<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef']) assert.ok(panel.includes(phrase), phrase);
+for (const phrase of ['selects.editor.openDraft', 'cwvProgress(', 'steps={CWV_BUILD_STEPS.map((s) => t(L, "step." + s.id))}', 'label={t(L, "clipSound")}', 'linkToDraftFrame', 'FontFace', 'projectRef', 'ffprobe', 'aria-pressed', 'loadInventory(', '>{t(L, "refresh")}<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef']) assert.ok(code.includes(phrase), phrase);
+for (const [key, text] of [['anotherVersion', 'Create another version'], ['clipSound', 'Clip sound'], ['silentVideo', 'Silent video'], ['musicFixedRhythm', 'cuts use the original rhythm'], ['musicFixedRhythmDetail', 'cuts use the original rhythm'],
+  ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'], ['installTools', 'Install ffmpeg and Node.js'], ['draftCreatedAdding', 'Draft created; adding title and look'],
+  ['stillAnalysing', 'still being analysed'], ['noFootage', 'this updates automatically'], ['refresh', 'Refresh'], ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})'], ['clipsChecked', '{done}/{count} clips checked']]) says(key, text);
+assert.deepEqual(['shots', 'music', 'draft', 'look', 'open'].map(id => en['step.' + id]), ['Choosing shots', 'Preparing music', 'Creating Draft', 'Adding title and look', 'Opening Draft']);
+// No UI sentence is left outside STRINGS: JSX text and string props are t() calls.
+assert.ok(!/<ui\.\w+[^>]*>[A-Z][a-z]+[^<{]*</.test(code), 'no literal JSX text in ui components');
+assert.ok(!/\b(label|title|busyLabel|aria-label|aria-valuetext)="[A-Za-z]/.test(code), 'no literal label props');
+assert.ok(!/text: "/.test(code) && !/setStatus\(\{ tone: "\w+", text:/.test(code), 'status messages are t() closures (say), not text');
+// The language is read on every render, and messages kept in state follow a language switch.
+assert.ok(code.includes('const L = uiLang(context);') && code.indexOf('const L = uiLang(context);') < code.indexOf('if (!projectId) return <ui'), 'uiLang(context) in the component body');
+assert.ok(code.includes('{status.say(L)}') && code.includes('invError.say(L)') && code.includes('progress.detail(L)'), 'state messages are rendered with the current language');
+assert.ok(code.includes('<SectionSlider lang={L}'), 'the slider gets the language');
 // Hangul audit across the plugin, as place-count does.
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
 for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) assert.ok(!/[\uac00-\ud7a3]/.test(fs.readFileSync(f, 'utf8')), 'Korean text in ' + f);
@@ -20,13 +42,16 @@ assert.ok(!/reopen this panel/.test(panel), 'reopening the panel does not re-rea
 assert.ok(panel.indexOf('addEventListener("visibilitychange"') < panel.indexOf('if (!projectId) return <ui'), 'hooks stay before the early return');
 assert.ok(!/Streamable HTTP error/.test(panel), 'only the session-id failure is resent');
 // Music section slider: a canvas waveform with a draggable, keyboard-operable window, drawn in theme colours.
-for (const phrase of ['role="slider"', 'aria-valuenow', 'aria-valuetext', '--panel-accent', '--panel-muted-fg', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"grabbing"', '"ArrowLeft"', '"Home"', '"End"', 'drag to choose', 'fmtTime(total)', 'Starts at ']) assert.ok(panel.includes(phrase), phrase);
+for (const phrase of ['role="slider"', 'aria-valuenow', 'aria-valuetext', '--panel-accent', '--panel-muted-fg', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"grabbing"', '"ArrowLeft"', '"Home"', '"End"', 'fmtTime(total)']) assert.ok(code.includes(phrase), phrase);
+says('sectionHint', 'drag to choose'); says('sectionLabel', 'Music section'); says('startsAt', 'Starts at {seconds} s'); says('musicTooShort', 'too short');
+assert.ok(code.includes('aria-valuetext={section == null ? t(lang, "musicTooShort") : t(lang, "startsAt", { seconds: Math.round(section * 10) / 10 })}'), 'aria-valuetext follows the language');
 assert.ok(!/--text-tertiary/.test(panel), '--text-tertiary is not a panel token');
 assert.ok(!/var\(--accent\b/.test(panel), '--accent is not a panel token');
 // Title preview keeps one height: fixed slots sized for the largest scale, clipped by the box.
 for (const phrase of ['height: previewBox', 'slotStyle(bigSlot)', 'slotStyle(smallSlot)', 'maxScale']) assert.ok(panel.includes(phrase), phrase);
 // Section preview: play/stop toggle, cancellable preparation, playhead, auto-stop and a full-length clip read from a file.
-for (const phrase of ['Stop preview', 'Cancel preview', 'requestAnimationFrame', 'cancelAnimationFrame', '"Escape"', 'previewTokenRef', 'stopPreview()', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', 'preview-*.mp3', 'readText(roots.data', '[cueId, ownMusic?.path, section, length]']) assert.ok(panel.includes(phrase), phrase);
+says('stopPreview', 'Stop preview'); says('cancelPreview', 'Cancel preview'); says('previewSection', 'Preview this section');
+for (const phrase of ['requestAnimationFrame', 'cancelAnimationFrame', '"Escape"', 'previewTokenRef', 'stopPreview()', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', 'preview-*.mp3', 'readText(roots.data', '[cueId, ownMusic?.path, section, length]']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(!/-t 6 -i/.test(panel), 'the preview plays the whole section, not 6 s');
 assert.ok(!/-f mp3 - \| base64/.test(panel), 'the preview no longer pipes audio through stdout');
 assert.ok(/-t " \+ dur\.toFixed\(2\)/.test(panel), 'the preview length is videoSeconds');
@@ -42,7 +67,9 @@ assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 assert.ok(/decorateJs, \{ sequenceId, mute,/.test(panel) && panel.includes('result.mute !== false'), 'decorate mutes, also on retry');
 // Shortened montage note, "Create another version" flow and the clip checklist.
-for (const phrase of ['montage shots, so this video is about', 'Add more clips for the full length', 'plan.montageShots < fitted', 'footage fits ', 'function buildAnother()', 'onClick={buildAnother}', 'Choose clips', 'type="checkbox"', 'textOverflow: "ellipsis"', 'setOnly(null)', 'chooseClips(allRids)', 'chooseClips([])', 'clips selected', 'No clips selected']) assert.ok(panel.includes(phrase), phrase);
+for (const phrase of ['plan.montageShots < fitted', 'function buildAnother()', 'onClick={buildAnother}', 'type="checkbox"', 'textOverflow: "ellipsis"', 'setOnly(null)', 'chooseClips(allRids)', 'chooseClips([])']) assert.ok(code.includes(phrase), phrase);
+for (const [key, text] of [['shortened', 'montage shots, so this video is about'], ['shortened', 'Add more clips for the full length'], ['fitsShots', 'footage fits {count} montage shots'], ['chooseClips', 'Choose clips'],
+  ['chooseClipsCount', 'Choose clips ({selected}/{total})'], ['clipsSelected', '{selected} of {count} clips selected'], ['noClipsSelected', 'No clips selected'], ['ready', 'Ready: {summary}'], ['aboutSeconds', 'about {seconds} s']]) says(key, text);
 const anotherBody = panel.slice(panel.indexOf('function buildAnother()'), panel.indexOf('async function finishTitle('));
 assert.ok(anotherBody.indexOf('setResult(null)') >= 0 && anotherBody.indexOf('setResult(null)') < anotherBody.indexOf('build(s)'), 'another version clears the old result before building');
 assert.ok(/const s = seed \+ 1;/.test(anotherBody), 'another version changes the seed');
@@ -51,10 +78,24 @@ assert.ok(chooseBody.includes('setCandidates(null)') && chooseBody.includes('ord
 assert.ok(panel.includes('const candKey = projectId + "|" + JSON.stringify(only);') && panel.includes('const key = pid + "|" + JSON.stringify(only);'), 'readiness and build share the pid|only cache key');
 assert.ok(panel.indexOf('React.useMemo(') < panel.indexOf('if (!projectId) return <ui'), 'the fitted-count hook stays before the early return');
 // Photos: a Use photos toggle, photos in the clip list and the readiness line, photo-only builds, photo effects gated.
-for (const phrase of ['label="Use photos"', 'photos selected', '" photos"', '"Photo"', 'photoCandsOf(inventory, onlyPhotos, usePhotos)', 'of them photos', 'known: photoSizesRef.current',
+for (const [key, text] of [['usePhotos', 'Use photos'], ['photosSelected', '{selected} of {count} photos selected'], ['photos', '{count} photos'], ['photo', 'Photo'], ['foundShotsPhotos', '(photos: {photos})'], ['usePhotosOff', 'Use photos is off']]) says(key, text);
+for (const phrase of ['label={t(L, "usePhotos")}', 'photoCandsOf(inventory, onlyPhotos, usePhotos)', 'known: photoSizesRef.current',
   'cwvPhotoMotions(plan.picks, String(usedSeed), sizes, sched.titleSlots)', 'photoEffects: PHOTO_EFFECTS', 'const PHOTO_EFFECTS = true;', 'usedPhotoCount >= minShots', 'disabled={busy || !canBuild}', 'choosePhotos(allPhotoRids)']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(/const \[usePhotos, setUsePhotos\] = React\.useState\(true\)/.test(panel), 'Use photos is on by default');
-for (const m of ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift']) assert.ok(panel.includes('value: "' + m + '"'), 'motion option ' + m);
+// Motion choices: MOTION_OPTIONS keeps the values and the English default labels; a build labels them from STRINGS
+// `motion.<value>` in the UI language, and the two English sets agree.
+for (const m of ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift']) {
+  assert.ok(code.includes('value: "' + m + '"'), 'motion option ' + m);
+  assert.ok(code.includes('{ label: "' + en['motion.' + m] + '", value: "' + m + '" }'), 'English label of ' + m + ' matches STRINGS.en');
+}
+assert.ok(code.includes('MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }))') && code.includes('options: motionOptions, byRid }'), 'motion options are labelled at build time');
+// Inspector labels use the UI language at build time (langRef), for the title and for decorate.js's effect parameters.
+assert.ok(code.includes('const bl = langRef.current;') && code.includes('langRef.current = L;'), 'build-time language');
+for (const [key, text] of [['firstLine', 'First line'], ['connector', 'Connector'], ['place', 'Place'], ['param.font', 'Main font (optional)'], ['param.color', 'Title color'], ['param.shadow', 'Shadow'], ['param.size', 'Size'],
+  ['param.tilt', 'Tilt'], ['param.height', 'Height (%)'], ['param.motion', 'Motion'], ['param.motionStrength', 'Motion strength'], ['param.warmth', 'Warmth']]) {
+  assert.equal(en[key], text); assert.ok(code.includes('t(bl, "' + key + '")'), 'inspector label ' + key);
+}
+assert.ok(code.includes('photoEffects: PHOTO_EFFECTS, labels })'), 'decorate.js gets the effect parameter labels');
 const chooseP = panel.slice(panel.indexOf('const choosePhotos ='), panel.indexOf('const togglePhoto ='));
 assert.ok(!chooseP.includes('setCandidates(null)'), 'choosing photos keeps the scene search');
 assert.ok(panel.indexOf('const [usePhotos') < panel.indexOf('if (!projectId) return <ui'), 'photo hooks stay before the early return');
@@ -90,7 +131,16 @@ assert.ok(panel.includes('grid.onsets, grid.accepted]);'), 'the readiness plan f
 assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))') && panel.includes('!done.ok'), 'own-music analysis via a file');
 // Finish title and look retries with the inputs of the build, and clips whose scene search failed are reported.
 assert.ok(panel.includes('result.mute !== false, result.look, check)') && panel.includes('const { line1, connector, place, preset, warm, clipSound } = look;'), 'retry uses the build-time look');
-assert.ok(panel.includes('unchecked: found.failed.length') && panel.includes('Build again to retry '), 'unchecked clips are reported');
+assert.ok(code.includes('unchecked: found.failed.length'), 'unchecked clips are reported');
+says('unchecked', 'Build again to retry them.');
+// A sentence with two numbers takes its plural form from {count}, so the noun must sit next to {count}, not next to the
+// other number ({selected}, {photos}); checked in every language that has plural nouns.
+{
+  const all = block.strings, forms = v => (typeof v === 'string' ? [v] : Object.values(v));
+  for (const lang of ['de', 'en', 'es', 'fr', 'it', 'pt']) for (const key of ['clipsSelected', 'photosSelected']) for (const f of forms(all[lang][key]))
+    assert.ok(/\{selected\} \S+ \{count\}/.test(f), lang + '.' + key + ': {selected} must come before {count} and its noun: ' + f);
+  for (const lang of Object.keys(all)) for (const f of forms(all[lang].foundShotsPhotos)) assert.ok(!/\{photos\} (photos|Fotos|son|s\u00e3o|en photo)/.test(f), lang + '.foundShotsPhotos: no noun after {photos}: ' + f);
+} says('retryUnchecked', 'press Build to retry them.');
 // The own-music PCM is removed after beat detection, keeping the exit status; the preview mp3 once encoded.
 assert.ok(panel.includes('"; s=$?; rm -f " + sq(pcm) + "; exit $s"') && panel.includes('" && rm -f " + sq(base + ".mp3")'), 'temporary audio files are removed');
 assert.equal((ui.match(/cwvSchedule\(/g) || []).length, 2);
@@ -99,7 +149,8 @@ assert.ok(panel.includes('const minShots = cwvMinWindows(burst);') && !ui.includ
 assert.ok(!panel.includes('beatsAt'), 'boundaries come from the schedule cuts, not beat positions');
 assert.ok(!/i < 13/.test(panel), 'no fixed title slot count');
 // Same-source neighbours only when nothing else fits, and then the result says so.
-assert.ok(panel.includes('result?.plan?.adjacentRepeats') && panel.includes('from the same clip because there'), 'adjacent repeat note');
+assert.ok(code.includes('result?.plan?.adjacentRepeats'), 'adjacent repeat note');
+says('adjacentRepeats', 'from the same clip because there');
 // Photo effects are on; captureFrames breaks on image clips with effects, so the panel never uses it.
 assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel) && !/\.(captureFrames|captureVisualFrames)\(/.test(fs.readFileSync(path.join(root, "scripts", "decorate.js"), "utf8")), 'no frame capture in the panel');
 // Own music's grid (cwvOwnGrid) from beat-detect.cjs's grid state. accepted: its tempo, first beat and bars. 'approximate'
@@ -110,7 +161,7 @@ assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel) && !/\.(capture
   const vm = require('node:vm');
   const between = (s, a, b) => s.slice(s.indexOf(a), s.indexOf(b) + b.length);
   const box = { Math, Number, Object, Array, String, Set, Map, Infinity, NaN, Error, JSON, isFinite }; vm.createContext(box);
-  vm.runInContext(planner + '\n' + between(panel, '// cwv-own-grid:start', '// cwv-own-grid:end') + '\n;globalThis.X = { cwvOwnGrid, cwvFaintText, cwvSnapSection, cwvDefaultSection, CWV_REFERENCE_BPM };', box);
+  vm.runInContext(planner + '\n' + between(panel, '// cwv-own-grid:start', '// cwv-own-grid:end') + '\n;globalThis.X = { cwvOwnGrid, cwvSnapSection, cwvDefaultSection, CWV_REFERENCE_BPM };', box);
   const X = box.X, NO = [];
   const near = (a, b) => Math.abs(a - b) < 1e-9;
   const base = { bpm: 100, firstBeat: 0.37, durationSeconds: 90, beatEnergy: [1, 5, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], peaks: [0.1], sixteenthRatio: 0.6, onsets: [[1, 'l', 3]], onsetThresholds: { l: 2 } };
@@ -126,8 +177,7 @@ assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel) && !/\.(capture
   assert.ok(near(X.cwvSnapSection({ value: 10, firstBeat: faint.firstBeat, bpm: faint.bpm, usableEnd: faint.usableEnd, videoSeconds, gridAccepted: faint.accepted || faint.faint }), 9.97));
   const d = X.cwvDefaultSection({ firstBeat: faint.firstBeat, bpm: faint.bpm, beatEnergy: faint.beatEnergy, usableEnd: faint.usableEnd, videoSeconds });
   assert.ok(d != null && near((d - 0.37) / 2.4, Math.round((d - 0.37) / 2.4)), 'default section on a bar of the detected grid: ' + d);
-  assert.equal(X.cwvFaintText(faint.bpm), 'Approximate timing on the detected tempo (100 BPM): the tempo was found but the beat is faint, so the cuts may miss it.');
-  assert.equal(X.cwvFaintText(119.6), 'Approximate timing on the detected tempo (120 BPM): the tempo was found but the beat is faint, so the cuts may miss it.');
+  assert.equal(en.faintTiming, 'Approximate timing on the detected tempo ({bpm} BPM): the tempo was found but the beat is faint, so the cuts may miss it.');
   const fixed = g => [g.bpm, g.firstBeat, g.accepted, g.faint, g.sixteenthRatio];
   const FIXED = [X.CWV_REFERENCE_BPM, 0, false, false, null];
   for (const own of [{ ...base, accepted: false, grid: 'none' }, { ...base, accepted: false }, { ...base, accepted: false, grid: 'approximate', bpm: 60 },
@@ -144,7 +194,14 @@ assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel) && !/\.(capture
   // Wiring: the section snaps to an approximate grid's bars; burst and low-confidence snapping follow `accepted`; the
   // detection status and a note under the file say "Approximate timing on the detected tempo"; 'none' keeps its text.
   for (const phrase of ['const onBars = grid.accepted || !!grid.faint;', 'gridAccepted: onBars });', 'const start = onBars ? snap(section || 0) : (section || 0);', 'if (!onBars) { setSection(snap(0)); return; }',
-    'og.faint ? { tone: "info", text: cwvFaintText(og.bpm) }', '{ownMusic && grid.faint ? <ui.Message tone="muted">{cwvFaintText(grid.bpm)}</ui.Message> : null}']) assert.ok(panel.includes(phrase), phrase);
+    'const bpm = Math.round(og.bpm);', 'og.faint ? { tone: "info", say: (l) => t(l, "faintTiming", { bpm }) }', '{ownMusic && grid.faint ? <ui.Message tone="muted">{t(L, "faintTiming", { bpm: Math.round(grid.bpm) })}</ui.Message> : null}']) assert.ok(code.includes(phrase), phrase);
   assert.ok(!/ownGrid\.accepted \?/.test(panel), 'own music is read through cwvOwnGrid');
 }
+// Korean in the title preview: each state's stack ends with the Korean system face of its role (presets.json koFamily)
+// before the generic family; text with Hangul is not uppercased or tracked, breaks between words, and counts as 2 in
+// length estimates. A Hangul Project name can be the suggested place.
+for (const phrase of ['(s.koFamily || KO_FALLBACK) + \'", cursive\'', 'const KO_FALLBACK = "Apple SD Gothic Neo";', 's.case === "upper" && !HANGUL_RE.test(text) ? "uppercase" : "none"', 'letterSpacing: 0, wordBreak: "keep-all"',
+  'Math.max(11, fieldLen(text))', 'faceStyle(chosen.states[swapKey], placeText)', 'fieldLen(name) > 31']) assert.ok(code.includes(phrase), phrase);
+// Default in-video phrases stay English in every language.
+assert.ok(code.includes('const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];') && code.includes(': "A day";') && code.includes('React.useState("in")'), 'English in-video defaults');
 console.log(JSON.stringify({ panel: 'ok' }));
