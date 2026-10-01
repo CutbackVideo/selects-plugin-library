@@ -39,18 +39,22 @@ Then open **Selfie Aesthetic Edit** in the Plugin list with a Project open.
 
 None to install. Music previews and your own music use the ffmpeg bundled with Selects,
 and beat detection runs inside the panel. If your version of Selects is too old for them,
-the panel says "This needs a newer version of Selects" for those two features; the bundled
-tracks and the Draft build still work.
+the panel says "Your own music and the section preview need a newer version of Selects. The
+bundled tracks still work." The Draft build still works too.
 
 ## Files the plugin writes
 
 The plugin changes your Projects only by creating a new Draft in the open Project and
-importing the chosen music into it. Temporary audio files go in
-`.selects/plugin-data/selfie-aesthetic` in your home folder, never in either install folder:
+importing the chosen music into it. Temporary files go in
+`.selects/plugin-data/selfie-aesthetic` in your home folder, never in either install folder.
+Each one is deleted right after it is used:
 
-- `own-music.f32`: your own music decoded for beat detection (up to about 32 MB). It is
-  deleted when detection finishes.
-- `preview-*.mp3`: the section preview, replaced by the next preview.
+- `pcm-*.f32`: your own music decoded for beat detection (the first 4 minutes, up to about
+  21 MB).
+- `preview-*.mp3` (or `preview-*.wav` when the bundled ffmpeg has no mp3 encoder): the
+  audio of a section preview, read into the panel and then deleted.
+- `motion-*.gray`: small grey frames used to measure how still a clip is. These are written
+  only when the stillness weight is enabled in the panel source; it is off in this release.
 
 ## Verify
 

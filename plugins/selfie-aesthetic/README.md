@@ -9,8 +9,9 @@ any source file. It is inspired by a CapCut aesthetic-edit template.
 
 - **The style.** Close-up faces, soft and slightly glowing, held and cut on the beat.
   Each bar alternates between two shots: a hold of one beat, a run of half-beat holds that
-  stutter back and forth, and a final hold. Every cut gets a short blur whip (two frames
-  out, two frames in) centred on the cut, so the picture smears and snaps on the hit.
+  stutter back and forth, and a final hold. Every cut gets a short blur whip centred on the
+  cut (one strong frame on each side with a faint shoulder), so the picture smears and snaps
+  on the hit.
 - **Rhythm.** One source per bar. A standard bar has 6 holds (cuts at +1, +1.5, +2, +2.5
   and +3 beats, then the bar change). The last bar is a finale with a cut every half beat.
   The edit starts about 0.15 s before the first beat of the chosen music section and ends
@@ -21,7 +22,10 @@ any source file. It is inspired by a CapCut aesthetic-edit template.
 - **Canvas.** 1080x1920. Landscape clips and photos are centre-cropped.
 - **Photos** fill about a third of the bars in Standard and Long edits, from the third bar on
   and never the finale. A Short edit uses at most one photo bar, and only when you have fewer
-  than three close-up clips. A photo bar moves between two framings so it does not look frozen.
+  than three close-up clips. When there are too few close-up videos to fill the edit, photos
+  may also appear in the second bar or in the finale (and a Short edit may then use more than
+  one photo bar); the panel says so. The first bar is a video whenever you have one. A photo
+  bar moves between two framings so it does not look frozen.
 - **Framing.** Close-up clips are framed a little tighter, toward the face; switch a clip to
   Full in Adjust to see the whole frame.
 - **Music.** Four bundled CC0 tracks (see `THIRD_PARTY.md`), or your own file.
