@@ -3192,10 +3192,10 @@ async function hostSkillsRoot(sdk) {
     return !out || /[%$]/.test(out) || /^ECHO is/i.test(out) ? null : out;
   } catch { return null; }
 }
-// The plugin's install folder and its data folder. The install folder is the host's default skills folder
-// (<home>/.selects/skills/<id>) when it holds `marker` (a file every install has); only when it does not does
-// SELECTS_USER_SKILLS_ROOT decide. The data folder (<home>/.selects/plugin-data/<id>) is created when missing; null
-// when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+// The plugin's install folder and its data folder. The install folder is the host's default skills folder (the home
+// folder joined with .selects, skills and <id>) when it holds `marker` (a file every install has); only when it does
+// not does SELECTS_USER_SKILLS_ROOT decide. The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
   const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
   const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };

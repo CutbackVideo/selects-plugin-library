@@ -335,7 +335,7 @@ function hostBox({ platform, files = new Set(), shell = null, ffmpeg = null, noJ
   const calls = { shell: [], mkdir: [], removed: [], ffmpeg: [] };
   const FileSystem = {
     ...(noJoin ? {} : { join: (...a) => pathMod.join(...a) }),
-    homedir: () => (platform === 'win32' ? 'C:\\Users\\me' : '/Users/me'),
+    homedir: () => (platform === 'win32' ? 'C:\\Users\\me' : '/u/me'),
     existsSync: p => files.has(p),
     mkdirSync: (p, o) => calls.mkdir.push([p, o]),
     readFile: readFile || (async p => { throw Error('no file ' + p); }),
@@ -352,9 +352,9 @@ function hostBox({ platform, files = new Set(), shell = null, ffmpeg = null, noJ
 const hostTests = (async () => {
   // macOS: the default skills folder, no shell; the data folder is created.
   {
-    const { H, calls, sdk } = hostBox({ platform: 'darwin', files: new Set(['/Users/me/.selects/skills/archive-vlog/planner.js']) });
-    assert.deepEqual(j(await H.hostRoots(sdk, 'archive-vlog', 'planner.js')), { plugin: '/Users/me/.selects/skills/archive-vlog', data: '/Users/me/.selects/plugin-data/archive-vlog' });
-    assert.deepEqual(calls.shell, []); assert.deepEqual(j(calls.mkdir), [['/Users/me/.selects/plugin-data/archive-vlog', { recursive: true }]]);
+    const { H, calls, sdk } = hostBox({ platform: 'darwin', files: new Set(['/u/me/.selects/skills/archive-vlog/planner.js']) });
+    assert.deepEqual(j(await H.hostRoots(sdk, 'archive-vlog', 'planner.js')), { plugin: '/u/me/.selects/skills/archive-vlog', data: '/u/me/.selects/plugin-data/archive-vlog' });
+    assert.deepEqual(calls.shell, []); assert.deepEqual(j(calls.mkdir), [['/u/me/.selects/plugin-data/archive-vlog', { recursive: true }]]);
   }
   // Windows: SELECTS_USER_SKILLS_ROOT through cmd.exe when the default folder is not the install.
   {
@@ -364,7 +364,7 @@ const hostTests = (async () => {
     assert.deepEqual(calls.shell, ['echo(%SELECTS_USER_SKILLS_ROOT%']);
   }
   // An unset variable (cmd prints an empty line or the literal) and macOS's command.
-  for (const stdout of ['\r\n', '%SELECTS_USER_SKILLS_ROOT%\r\n', 'ECHO is on.\r\n']) {
+  for (const stdout of ['\r\n', '%SELECTS_USER_SKILLS_ROOT%' + '\r\n', 'ECHO is on.\r\n']) {
     const { H, sdk } = hostBox({ platform: 'win32', shell: () => ({ stdout }) });
     await assert.rejects(H.hostRoots(sdk, 'archive-vlog', 'planner.js'), e => e.code === 'not-found', JSON.stringify(stdout));
   }
