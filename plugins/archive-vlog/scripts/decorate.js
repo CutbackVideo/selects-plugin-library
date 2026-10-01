@@ -76,7 +76,10 @@ const lookOn = async (id, have) => {
 for (let i = 0; i < rows.length; i++) {
   const row = rows[i], id = row.clipId, photo = photoIds.has(row.resourceId);
   if (photo && !photoEffects) { photoEffectsSkipped++; continue; }
-  const have = (await d.videoEffects(row)).flatMap(e => [e.name, e.effectName]).filter(n => OUR_EFFECTS.includes(n));
+  // The rows above predate this run's edits: read the clip again before reading its effects.
+  const now = await clipById(id);
+  if (!now) continue;
+  const have = (await d.videoEffects(now)).flatMap(e => [e.name, e.effectName]).filter(n => OUR_EFFECTS.includes(n));
   const holdSeconds = Math.round((row.endFrame - row.startFrame) / fps * 1000) / 1000;
   const m = photo ? (motion && motion.byRid && motion.byRid[row.resourceId]) : (i > 0 && video && video.byIndex ? video.byIndex[String(i)] : null);
   if (m && photo) {
@@ -106,10 +109,12 @@ for (let i = 0; i < rows.length; i++) {
 }
 // Cinematic look also on clips placed on other video tracks (none in a fresh Build; a user's B-roll on a retry).
 if (cfg.look) {
-  const others = (await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'video' && c.resourceId !== null);
-  for (const c of others) {
+  const others = (await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'video' && c.resourceId !== null).map(c => c.clipId);
+  for (const id of others) {
+    const c = await clipById(id);
+    if (!c) continue;
     if (photoIds.has(c.resourceId) && !photoEffects) { photoEffectsSkipped++; continue; }
-    await lookOn(c.clipId, (await d.videoEffects(c)).flatMap(e => [e.name, e.effectName]));
+    await lookOn(id, (await d.videoEffects(c)).flatMap(e => [e.name, e.effectName]));
   }
 }
 // Commit only when this run added or changed something: commitAll rejects an empty change ("Nothing to stage"), which a

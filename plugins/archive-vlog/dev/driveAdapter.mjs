@@ -91,7 +91,7 @@ function panelConst(panel, name, close) {
 }
 // A scalar the panel declares (number, string or boolean), or undefined.
 function panelScalar(panel, name) {
-  const m = new RegExp('const ' + name + '(?::[^=]+)? = (-?[\\d.]+|"[^"]*"|\'[^\']*\'|true|false);').exec(panel);
+  const m = new RegExp('(?:const|,) ' + name + '(?::[^=]+)? = (-?[\\d.]+|"[^"]*"|\'[^\']*\'|true|false)[;,]').exec(panel);
   return m ? (0, eval)('(' + m[1] + ')') : undefined;
 }
 
@@ -182,9 +182,8 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   const presets = presetsJson.presets;
 
   // Panel constants, validated: a value that does not fit this app falls back to PANEL_DEFAULTS (with a warning).
-  const roles = [...P.AV_ROLES, 'motion'];
   const checks = {
-    AV_QUERIES: v => v && typeof v === 'object' && roles.every(r => typeof v[r] === 'string' && v[r]),
+    AV_QUERIES: v => !!v && typeof v === 'object' && P.AV_ROLES.every(r => typeof v[r] === 'string' && v[r]),
     DEFAULT_CUE: v => cues.some(c => c.id === v),
     DEFAULT_PRESET: v => presets.some(p => p.id === v),
     DEFAULT_LENGTH: v => !!P.AV_LENGTHS[v],
@@ -201,6 +200,11 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     const ok = v !== undefined && (checks[name] ? checks[name](v) : typeof v === typeof fallback);
     if (ok) C[name] = v;
     else { C[name] = fallback; fallbacks.push(name + (v === undefined ? (fresh ? ' (missing)' : ' (panel not updated)') : ' (unfit: ' + JSON.stringify(v).slice(0, 60) + ')')); }
+  }
+  // The motion query is part of AV_QUERIES (always searched); a panel that keeps it elsewhere gets the agreed one here.
+  if (typeof C.AV_QUERIES.motion !== 'string' || !C.AV_QUERIES.motion) {
+    C.AV_QUERIES = { ...C.AV_QUERIES, motion: PANEL_DEFAULTS.AV_QUERIES.motion };
+    warn('panel.tsx AV_QUERIES has no motion query; adding the agreed one');
   }
   // A scalar whose value differs from the agreed one is used as the panel has it, but reported.
   for (const name of ['AMBIENT_DB', 'LOOK_STRENGTH', 'MOTION_STRENGTH', 'VIDEO_MOTION_STRENGTH', 'FADE_SECONDS', 'MUSIC_FADE_OUT', 'DEFAULT_CUE', 'DEFAULT_PRESET', 'DEFAULT_LENGTH', 'DEFAULT_PACE'])
