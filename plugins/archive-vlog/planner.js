@@ -48,7 +48,8 @@ const AV_FILLER_MAX = 48;
 // far back to keep it inside its source.
 const AV_SOURCE_TAIL = 0.15;
 // Photos (Image resources) have no scene search. Each one fills at most one slot of any length up to the 5 s an
-// image source lasts. About AV_PHOTO_SHARE of the slots that may hold a photo (the montage), evenly spread from a seeded
+// image source lasts, less AV_SOURCE_TAIL (a slot grows by up to 1/30 + 1/fps s at the Draft's real rate, as for
+// videos), so 4.85 s. About AV_PHOTO_SHARE of the slots that may hold a photo (the montage), evenly spread from a seeded
 // offset, are photo slots where an unused photo comes first. Elsewhere photos rank after every real video hit and
 // before fillers. Never more than AV_PHOTO_RUN_MAX photos play in a row (a hard rule) unless the pool has no video at
 // all.
@@ -417,7 +418,7 @@ function avAllocate(opts) {
   // available, spaced evenly from a seeded phase. With no photos there are none, and every slot goes to video.
   const photoSlots = {};
   const phase = avHash(opts.seed + ':photo-slots');
-  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds <= AV_PHOTO_HOLD_MAX + 1e-9 && !(opener && sl === first));
+  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds + AV_SOURCE_TAIL <= AV_PHOTO_HOLD_MAX + 1e-9 && !(opener && sl === first));
   const share = opts.photoShare == null ? AV_PHOTO_SHARE : opts.photoShare;
   const target = Math.min(photos.length, holdable.length, Math.round(opts.slots.filter(sl => !sl.videoOnly).length * share));
   for (let k = 0; k < target; k++) photoSlots[holdable[Math.floor((k + phase) * holdable.length / target)].index] = true;
@@ -446,7 +447,7 @@ function avAllocate(opts) {
   // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos. A photo is never a
   // neighbour's source, since each photo is used once.
   function searchPhoto(slot) {
-    if (slot.videoOnly || slot.seconds > AV_PHOTO_HOLD_MAX + 1e-9) return null;
+    if (slot.videoOnly || slot.seconds + AV_SOURCE_TAIL > AV_PHOTO_HOLD_MAX + 1e-9) return null;
     let best = null;
     for (const c of photos) {
       if (photoUsed[c.rid]) continue;
@@ -520,7 +521,8 @@ function avAllocate(opts) {
 // final shots are never dropped. Every attempt allocates from scratch with filler candidates added (see `attempts`
 // below). Failure reasons: 'music-too-short' (not even a one-bar montage fits the music), 'one-resource' (fewer than 2
 // distinct sources: the adjacency rule cannot hold), 'no-video' (photos only, and they cannot fill even the shortest
-// plan: a photo holds at most AV_PHOTO_HOLD_MAX s, which the opening shot outlasts at or below 72 bpm), 'too-few' (the
+// plan: a photo holds at most AV_PHOTO_HOLD_MAX - AV_SOURCE_TAIL = 4.85 s, which the 6-beat opening outlasts below
+// 74.2 bpm), 'too-few' (the
 // footage cannot fill even the shortest plan). A failure carries usableShots (montage slots the shortest plan filled)
 // and usableSlots (all slots it filled).
 // A pool with no usable video lets photos take the opening, credit and final shots and plays photos in any run (as

@@ -86,16 +86,19 @@ assert.equal(j(P.avAllocate({ candidates: three.concat(photos(10)), slots: tplSl
 assert.equal(j(P.avAllocate({ candidates: photos(4), slots: [{ index: 0, role: 'opening', seconds: 5, videoOnly: true }], seed: 'x' })).missing, 1);
 
 // 4) No video at all (Mini Vlog's photo-only case): photos may take every slot and play in any run; the plan says so
-// in notes. A photo holds at most 5 s, so the opening (6 beats) needs >= 72 bpm at the plan's 30 fps.
+// in notes. A photo holds at most 5 s - AV_SOURCE_TAIL = 4.85 s, so the opening (6 beats) needs >= 74.2 bpm: of the
+// bundled cues only Before Everything (75) builds from photos alone.
 {
   const po = plan(photos(30), { bpm: 100 });
   assert.equal(po.ok, true); assert.deepEqual(po.notes, ['no-video']);
   assert.equal(po.photoShots, po.slots); assert.equal(maxRun(po.picks), po.slots); assert.ok(!adjacent(po.picks));
-  const at72 = plan(photos(30));
-  assert.equal(at72.ok, true, '72 bpm: the opening is exactly 5 s'); assert.equal(at72.picks[0].holdSeconds, 5);
-  const at70 = plan(photos(30), { bpm: 70 });
-  assert.deepEqual([at70.ok, at70.reason, at70.notes], [false, 'no-video', ['no-video']], '70 bpm: a 5.14 s opening no photo can hold');
-  assert.equal(at70.usableShots, 2, 'the one-bar montage filled'); assert.ok(at70.usableSlots >= 3);
+  const at75 = plan(photos(30), { bpm: 75 });
+  assert.equal(at75.ok, true, '75 bpm: a 4.80 s opening'); assert.equal(at75.picks[0].holdSeconds, 4.8);
+  const at72 = plan(photos(30), { bpm: 72 });
+  assert.deepEqual([at72.ok, at72.reason, at72.notes], [false, 'no-video', ['no-video']], '72 bpm: a 5.00 s opening no photo can hold');
+  assert.equal(j(P.avAllocate({ candidates: photos(1), slots: [{ index: 0, role: 'crowd', seconds: 4.9 }], seed: 'x' })).missing, 1, '4.9 s + tail > 5 s');
+  assert.equal(j(P.avAllocate({ candidates: photos(1), slots: [{ index: 0, role: 'crowd', seconds: 4.85 }], seed: 'x' })).missing, 0);
+  assert.equal(at72.usableShots, 2, 'the one-bar montage filled'); assert.ok(at72.usableSlots >= 3);
   // Too few photos for the shortest plan (opening, credit, one bar of montage, final = 5 slots).
   assert.equal(plan(photos(4), { bpm: 100 }).reason, 'no-video');
   assert.equal(plan(photos(5), { bpm: 100 }).shots, 2);
