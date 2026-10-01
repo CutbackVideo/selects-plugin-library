@@ -422,7 +422,7 @@ export function drawCard(c: Card, i: number, frame: number, d: GraphicData, face
       ...["#FF5F57", "#FEBC2E", "#28C840"].map((col, k) => <div key={"dot" + k} style={{ position: "absolute", left: ix + 0.02 * W + k * 0.028 * W, top: iy - bar + bar / 2 - 0.006 * W, width: 0.012 * W, height: 0.012 * W, borderRadius: "50%", background: col }} />),
     ];
     // typed words above the window, near-black, hard word pops, on one or two lines
-    const size = sizeFor(faces.sans, 0.026 * H);
+    const size = sizeFor(faces.sans, 0.032 * H);
     const words = c.items;
     const space = (width100(" ", faces.sans) / 100) * size * 0.9;
     const lines: DItem[][] = [[]];
@@ -439,7 +439,7 @@ export function drawCard(c: Card, i: number, frame: number, d: GraphicData, face
     lines.forEach((line, li) => {
       const widths = line.map((it) => tw({ text: it.text, face: faces.sans, size, color: INK, track: -0.03 }));
       let x = (W - (widths.reduce((a, b) => a + b, 0) + space * (line.length - 1))) / 2;
-      const base = iy - bar - 0.05 * H - (lines.length - 1 - li) * size * 1.25;
+      const base = iy - bar - 0.035 * H - (lines.length - 1 - li) * size * 1.22;
       line.forEach((it, j) => {
         if (frame >= it.at) nodes.push(textAt("w" + li + "-" + j, { text: it.text, face: faces.sans, size, color: INK, track: -0.03 }, x, base));
         x += widths[j] + space;

@@ -141,7 +141,7 @@ function keyCentered(toks: Token[], tags: Tags, kind: "hook" | "lockup"): { line
   while (b > a && wordClass(toks[b].t) !== "CONT" && !isNumberWord(toks[b].t)) b -= 1;
   const lead = a;
   const tail = toks.length - 1 - b;
-  if (lead > 4 || tail > 4) return null;
+  if (lead > 3 || tail > 4) return null;
   const lines: number[] = [];
   if (lead) lines.push(0);
   lines.push(a);

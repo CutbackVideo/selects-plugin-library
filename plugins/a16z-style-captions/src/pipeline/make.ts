@@ -10,7 +10,7 @@ import { planFraming, addFramingChanges, type FramingPlan } from "./framing";
 import { makeMusic, loudness, gains } from "./sound";
 import { mediaGeneration } from "./media";
 import { createShort, importFiles, finishShort, stripShort, type PlacedInsert } from "./apply";
-import { buildGraphic, prepareShort, unitStarts, type Look } from "./graphic";
+import { buildGraphic, prepareShort, unitStarts, fillCoverage, type Look } from "./graphic";
 import { planInserts, fetchInserts, coverRect, type InsertCache } from "./inserts";
 
 export type Step = { id: string; label: string; state: "wait" | "run" | "done" | "skip" | "fail"; note?: string };
@@ -216,6 +216,10 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
   } else onStep("broll", "skip", job.opts.broll === false ? "off" : "no footage moments");
 
   onStep("captions", "run", "Designing captions…");
+  // designed cards fill what stock and the planned designs leave uncovered
+  const src0 = short.clips[0];
+  const filled = job.opts.cards !== false ? fillCoverage(prep, insertTimes, unitStarts(job, prep), !!(job.opts.name || job.semantic?.speaker), src0 && src0.sw && src0.sh ? src0.sw / src0.sh : 16 / 9) : 0;
+  if (filled) notes.push(filled + " designed card" + (filled === 1 ? "" : "s") + " added to keep the picture moving.");
   // the picture changes at least every few seconds: crop changes where no cut, insert or card does it
   const covered: [number, number][] = [
     ...insertTimes.map((x) => [x.a, x.b] as [number, number]),

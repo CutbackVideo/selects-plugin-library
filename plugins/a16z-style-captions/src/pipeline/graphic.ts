@@ -3,6 +3,7 @@
 import { fs } from "./host";
 import { resolveSemantic, sentences, parseLoose } from "./semantic";
 import { compileCaptions, unitText } from "../captions/compile";
+import { wordClass } from "../captions/lexicon";
 import { chooseStyle } from "../captions/style";
 import { packCaptions } from "../captions/pack";
 import type { Word, Span, Shot } from "../captions/types";
@@ -161,6 +162,123 @@ export function prepareShort(job: Job, short: DraftInfo): Prepared {
   return { fps, duration, words, semantic, cuts, cards, suppress, windows, title };
 }
 
+// Insert coverage (spec 9.1): full-frame inserts cover 40-65% of the Short, the first lands early and
+// no speaker-only stretch runs past 6 s before the last fifth. Where stock and the planned designs leave
+// gaps, designed cards fill them from the transcript itself: a key term becomes a thesis card, a short
+// sentence a quote card, any other line a window card with the speaker inset. Mutates `prep`.
+export function fillCoverage(prep: Prepared, inserts: { a: number; b: number }[], starts: number[], hasTag: boolean, aspect: number): number {
+  const { fps, duration, words } = prep;
+  const tags = prep.semantic?.tags || {};
+  const covered = (): [number, number][] =>
+    [...inserts.map((x) => [x.a, x.b] as [number, number]), ...prep.cards.map((c) => [c.a / fps, c.b / fps] as [number, number]), ...(prep.title ? [[0, prep.title.b / fps] as [number, number]] : [])].sort((a, b) => a[0] - b[0]);
+  const coverage = () => covered().reduce((n, [a, b]) => n + (b - a), 0) / duration;
+  const caseWord = (w: string) => (/[A-Z].*[A-Z]/.test(w) || properNoun(w, words) ? w : w.toLowerCase());
+  const clean = (t: string) => t.replace(/[.,!?;:"“”]+$/g, "").replace(/^["“]/, "");
+  const free = (a: number, b: number) => covered().every(([x, y]) => b <= x - 1.4 || a >= y + 1.4);
+  let added = 0;
+  let lastKind = "";
+  const sentenceFirst = words.filter((w, k) => k === 0 || /[.!?]["”’)]*$/.test(words[k - 1].t));
+  const startsSentence = (t: number) => sentenceFirst.find((w) => Math.abs(w.s - t) < 0.15);
+  const count = (kind: string) => prep.cards.filter((c) => c.kind === kind).length;
+  const place = (t: number): boolean => {
+    const a = Math.round((t - 0.04) * fps);
+    const inWin = (end: number) => words.filter((w) => w.s >= t - 0.01 && w.s < end && w.i >= 0);
+    // a key term spoken inside the next 2.2 s
+    const key = (tags.keyTerms || []).filter((k) => k.priority >= 3 && ["T", "P", "I", "N", "K"].includes(k.kind)).find((k) => {
+      const w = words.find((x) => x.i === k.head);
+      return w && w.s >= t && w.s < t + 1.6;
+    });
+    const options: (() => boolean)[] = [];
+    if (key) options.push(() => {
+      const ws = words.filter((w) => w.i >= key.span[0] && w.i <= key.span[1]);
+      if (!ws.length) return false;
+      const lead = words.filter((w) => w.s >= t - 0.01 && w.s < ws[0].s - 0.01 && w.i >= 0).slice(-3);
+      const b = Math.round(Math.max(ws[0].s + 1.5, ws[ws.length - 1].e + 0.35) * fps);
+      if (!free(a / fps, b / fps)) return false;
+      const items: Card["items"] = [];
+      if (lead.length) items.push({ text: lead.map((w) => caseWord(clean(w.t))).join(" "), at: a, role: "label" });
+      items.push({ text: ws.map((w) => caseWord(clean(w.t))).join(" "), at: Math.max(a, Math.round((ws[0].s - 1 / fps) * fps)), role: "key" });
+      prep.cards.push({ a, b, kind: "keyword", items });
+      lastKind = "keyword";
+      return true;
+    });
+    const sw = startsSentence(t);
+    if (sw) options.push(() => {
+      const k0 = words.indexOf(sw);
+      let k1 = k0;
+      while (k1 < words.length - 1 && !/[.!?]["”’)]*$/.test(words[k1].t)) k1 += 1;
+      const ws = words.slice(k0, k1 + 1).filter((w) => w.i >= 0);
+      if (ws.length < 4 || ws.length > 10 || ws[ws.length - 1].e - t > 3.4) return false;
+      const b = Math.round((ws[ws.length - 1].e + 0.35) * fps);
+      if (!free(a / fps, b / fps)) return false;
+      const keyIdx = ws.findIndex((w) => (tags.keyTerms || []).some((k) => k.head === w.i));
+      prep.cards.push({ a, b, kind: "quote", items: ws.map((w, j) => ({ text: (j === 0 ? clean(w.t).charAt(0).toUpperCase() + clean(w.t).slice(1) : caseWord(clean(w.t))), at: Math.max(a, Math.round((w.s - 1 / fps) * fps)), role: j === keyIdx ? "key" : "item" })) });
+      lastKind = "quote";
+      return true;
+    });
+    options.push(() => {
+      // the window card is the rarest device: two at most
+      if (count("window") >= 2) return false;
+      const ws = inWin(t + 2.2).slice(0, 10);
+      if (ws.length < 3) return false;
+      const b = Math.round(Math.max(t + 1.6, ws[ws.length - 1].e + 0.3) * fps);
+      if (!free(a / fps, b / fps)) return false;
+      prep.cards.push({ a, b, kind: "window", items: ws.map((w) => ({ text: caseWord(clean(w.t)), at: Math.max(a, Math.round((w.s - 1 / fps) * fps)), role: "item" })), aspect });
+      lastKind = "window";
+      return true;
+    });
+    // variety: the kind used last goes to the back of the queue
+    const kinds = options.map((o) => (o === options[0] && key ? "keyword" : o === options[options.length - 1] ? "window" : "quote"));
+    const order = options.map((o, i) => ({ o, k: kinds[i] })).sort((x, y) => Number(x.k === lastKind) - Number(y.k === lastKind));
+    for (const { o } of order) if (o()) return true;
+    return false;
+  };
+  const limitFirst = prep.title || hasTag ? 4 : 2.5;
+  // the first insert lands early
+  if (!covered().some(([a]) => a <= limitFirst)) {
+    for (const t of starts) if (t >= 1.2 && t <= limitFirst && place(t)) {
+      added += 1;
+      break;
+    }
+  }
+  // no long speaker-only stretch, and coverage up to 40%
+  for (let guard = 0; guard < 12; guard += 1) {
+    const cov = covered();
+    const gaps: [number, number][] = [];
+    let at = 0;
+    for (const [a, b] of cov) {
+      if (a > at) gaps.push([at, a]);
+      at = Math.max(at, b);
+    }
+    if (at < duration) gaps.push([at, duration]);
+    const long = gaps
+      .filter(([a, b]) => a < 0.8 * duration && b - a > (coverage() < 0.4 ? 4.5 : 6))
+      .sort((x, y) => y[1] - y[0] - (x[1] - x[0]))[0];
+    if (!long) break;
+    const mid = long[0] + Math.min(3, (long[1] - long[0]) / 2);
+    const cands = starts.filter((t) => t >= long[0] + 1.6 && t <= long[1] - 2.2).sort((x, y) => Math.abs(x - mid) - Math.abs(y - mid));
+    let ok = false;
+    for (const t of cands) if (place(t)) {
+      ok = true;
+      break;
+    }
+    if (!ok) break;
+    added += 1;
+  }
+  prep.cards.sort((x, y) => x.a - y.a);
+  // captions under the new cards, windows for the frame effect, a cut at each edge
+  for (const c of prep.cards) {
+    const inside = words.filter((w) => w.s * fps >= c.a - 1 && w.s * fps < c.b && w.i >= 0).map((w) => w.i);
+    if (inside.length) prep.suppress.push([Math.min(...inside), Math.max(...inside)] as Span);
+    prep.cuts.push(c.a / fps, c.b / fps);
+  }
+  prep.cuts = [...new Set(prep.cuts)].sort((a, b) => a - b);
+  const light = prep.cards.some((c) => c.kind !== "keyword" && c.kind !== "window");
+  for (const c of prep.cards) if (c.kind === "keyword") c.palette = light ? "cream" : "burgundy";
+  prep.windows = prep.cards.filter((c) => c.kind === "window").map((c) => ({ from: c.a, to: c.b }));
+  return added;
+}
+
 // Caption unit starts before any B-roll is placed, so B-roll cuts can land on them.
 export function unitStarts(job: Job, prep: Prepared): number[] {
   const tags = prep.semantic?.tags || {};
@@ -287,6 +405,8 @@ export async function buildGraphic(o: {
 // A word the transcript capitalises in mid-sentence (and never writes lowercase) is a name.
 function properNoun(w: string, words: Word[]): boolean {
   const n = norm(w);
+  // closed-class words and question words are never names, whatever the transcript's capitals say
+  if (wordClass(n) !== "CONT" || /^(what|who|why|how|when|where|which|yeah|okay|hey|well|so|now|then)$/.test(n)) return false;
   let caps = 0;
   let lower = 0;
   words.forEach((x, k) => {

@@ -278,9 +278,17 @@ export function compileCaptions(inp: CompileInput): CaptionTrack {
         lines.forEach((l) => (l.face = "serif"));
         lastSerif = u.start;
       } else {
-        lines[0].tier = "large";
-        lines[0].scale = n <= 2 ? 1.6 : 1.37;
-        role = "large";
+        // the large line starts and ends on content: leading function words become a small lead-in
+        let lead = 0;
+        while (lead < n - 1 && wordClass(tokens[lead].text) !== "CONT" && !isNumberWord(tokens[lead].text)) lead += 1;
+        if (lead > 0 && lead <= 3 && n - lead >= 1 && lines.length === 1) {
+          lines.splice(0, 1, { from: 0, to: lead, tier: "small", scale: 0.85, face: "sans" }, { from: lead, to: n, tier: "big", scale: n - lead <= 2 ? 1.6 : 1.37, face: "sans" });
+          role = "large";
+        } else {
+          lines[0].tier = "large";
+          lines[0].scale = n <= 2 ? 1.6 : 1.37;
+          role = "large";
+        }
       }
     }
     // lockup big lines stay in the sans (as the corpus sets them); only a quoted punch line goes serif
@@ -326,7 +334,7 @@ export function compileCaptions(inp: CompileInput): CaptionTrack {
     const unit: CapUnit = {
       tokens,
       lines,
-      template: lines.length === 1 ? "single" : u.template,
+      template: lines.length === 1 ? "single" : u.kind === "plain" ? "leadBig" : u.template,
       start: u.start,
       end: u.end,
       build: build.has(k),

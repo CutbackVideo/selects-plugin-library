@@ -117,8 +117,15 @@ export function layoutUnit(u: PUnit, k: number, data: GraphicData, faces: Faces,
   placed.push({ li: bigIdx, line: bigLine, m: bm, base: 0, x0: 0 });
   // lines above: flush left with the big line
   let base = 0;
+  // a small line is never wider than the big line (the big line stays the widest)
+  const smallFor = (li: number) => {
+    let sz = smallSans * shrink;
+    const w = measureLine(mk(li, sz), faces, W, em0).width;
+    if (w > bm.width * 0.96) sz *= Math.max(0.75, (bm.width * 0.96) / w);
+    return sz;
+  };
   for (let li = bigIdx - 1; li >= 0; li -= 1) {
-    const line = mk(li, smallSans * shrink);
+    const line = mk(li, smallFor(li));
     const m = measureLine(line, faces, W, em0);
     // the lead-in's baseline rests on the big line's cap height (ink gap about zero)
     const capBig = metrics(bigFace).cap * sized(bigFace, bigSans);
@@ -128,7 +135,7 @@ export function layoutUnit(u: PUnit, k: number, data: GraphicData, faces: Faces,
   // lines below: flush right
   base = 0;
   for (let li = bigIdx + 1; li < lines.length; li += 1) {
-    const line = mk(li, smallSans * shrink);
+    const line = mk(li, smallFor(li));
     const m = measureLine(line, faces, W, em0);
     // the tail's x-height top sits just under the big baseline, so its ascenders nest into the big
     // line's lower half; a centred stack keeps a small positive gap instead

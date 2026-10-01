@@ -161,7 +161,9 @@ export function resolveSemantic(o: any, words: TWord[], sents: { from: number; t
       const sp = f(k.s, k.q);
       if (!sp) return null;
       const kind = (kinds.has(k.kind) ? k.kind : "T") as EmphasisKind;
-      return { head: headOf(words, sp), span: sp, kind, priority: Math.max(1, Math.min(5, Math.round(Number(k.p) || 3))) };
+      // a contrast is marked on the word that differs (the negator or modifier), not the shared noun
+      const head = kind === "C" ? sp[0] : headOf(words, sp);
+      return { head, span: sp, kind, priority: Math.max(1, Math.min(5, Math.round(Number(k.p) || 3))) };
     })
     .filter(Boolean) as any;
   tags.punchlines = arr(o.punch).map((p: any) => f(p.s, p.q)).filter(Boolean) as Span[];
