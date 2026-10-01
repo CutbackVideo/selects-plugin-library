@@ -39,7 +39,7 @@ const STRINGS = {
     track: "Track",
     ownMusic: "Your own music",
     noMusic: "No music",
-    installTools: "Install ffmpeg and Node.js 18+ to preview music or use your own track.",
+    installTools: "Install ffmpeg to preview music or use your own track.",
     sectionHint: "Music section — drag to choose",
     sectionLabel: "Music section",
     musicTooShort: "This music is too short for this length",
@@ -63,6 +63,7 @@ const STRINGS = {
     checkingPictures: "Checking your pictures",
     checkingPicturesNow: "Checking your pictures…",
     listening: "Listening for the beat",
+    preparingTools: "Preparing beat detection (first time only)",
     listeningNow: "Listening for the beat…",
     dropMusicAbove: "Drop a music file above, or choose one of the tracks.",
     noPictures: "No photos or analysed clips in this Project yet. Add photos (or clips and analyse them); this updates automatically.",
@@ -183,7 +184,7 @@ const STRINGS = {
     track: "Musikstück",
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
-    installTools: "Installiere ffmpeg und Node.js 18+, um Musik vorzuhören oder eigene Musik zu verwenden.",
+    installTools: "Installiere ffmpeg, um Musik vorzuhören oder eigene Musik zu verwenden.",
     sectionHint: "Musikabschnitt – zum Auswählen ziehen",
     sectionLabel: "Musikabschnitt",
     musicTooShort: "Diese Musik ist für diese Länge zu kurz",
@@ -207,6 +208,7 @@ const STRINGS = {
     checkingPictures: "Bilder werden geprüft",
     checkingPicturesNow: "Bilder werden geprüft …",
     listening: "Beat wird gesucht",
+    preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     listeningNow: "Beat wird gesucht …",
     dropMusicAbove: "Lege oben eine Musikdatei ab oder wähle eines der Musikstücke.",
     noPictures: "In diesem Projekt gibt es noch keine Fotos oder analysierten Clips. Füge Fotos hinzu (oder Clips, und analysiere sie); die Anzeige aktualisiert sich automatisch.",
@@ -327,7 +329,7 @@ const STRINGS = {
     track: "Pista",
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
-    installTools: "Instala ffmpeg y Node.js 18+ para escuchar la música o usar tu propia pista.",
+    installTools: "Instala ffmpeg para escuchar la música o usar tu propia pista.",
     sectionHint: "Sección de música: arrastra para elegir",
     sectionLabel: "Sección de música",
     musicTooShort: "Esta música es demasiado corta para esta duración",
@@ -351,6 +353,7 @@ const STRINGS = {
     checkingPictures: "Comprobando tus imágenes",
     checkingPicturesNow: "Comprobando tus imágenes…",
     listening: "Buscando el ritmo",
+    preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     listeningNow: "Buscando el ritmo…",
     dropMusicAbove: "Suelta un archivo de música arriba o elige una de las pistas.",
     noPictures: "Este proyecto aún no tiene fotos ni clips analizados. Añade fotos (o clips y analízalos); se actualizará automáticamente.",
@@ -471,7 +474,7 @@ const STRINGS = {
     track: "Morceau",
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
-    installTools: "Installez ffmpeg et Node.js 18+ pour écouter la musique ou utiliser votre propre morceau.",
+    installTools: "Installez ffmpeg pour écouter la musique ou utiliser votre propre morceau.",
     sectionHint: "Section musicale : faites glisser pour choisir",
     sectionLabel: "Section musicale",
     musicTooShort: "Cette musique est trop courte pour cette durée",
@@ -495,6 +498,7 @@ const STRINGS = {
     checkingPictures: "Vérification des images",
     checkingPicturesNow: "Vérification des images…",
     listening: "Recherche du rythme",
+    preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     listeningNow: "Recherche du rythme…",
     dropMusicAbove: "Déposez un fichier audio ci-dessus ou choisissez l'un des morceaux.",
     noPictures: "Ce projet ne contient pas encore de photo ni de clip analysé. Ajoutez des photos (ou des clips, puis analysez-les) ; l'affichage se met à jour automatiquement.",
@@ -615,7 +619,7 @@ const STRINGS = {
     track: "Brano",
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
-    installTools: "Installa ffmpeg e Node.js 18+ per ascoltare la musica o usare un tuo brano.",
+    installTools: "Installa ffmpeg per ascoltare la musica o usare un tuo brano.",
     sectionHint: "Sezione musicale: trascina per scegliere",
     sectionLabel: "Sezione musicale",
     musicTooShort: "Questa musica è troppo corta per questa durata",
@@ -639,6 +643,7 @@ const STRINGS = {
     checkingPictures: "Controllo delle immagini",
     checkingPicturesNow: "Controllo delle immagini…",
     listening: "Ricerca del ritmo",
+    preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     listeningNow: "Ricerca del ritmo…",
     dropMusicAbove: "Trascina un file musicale qui sopra o scegli uno dei brani.",
     noPictures: "In questo progetto non ci sono ancora foto né clip analizzate. Aggiungi foto (oppure clip, e analizzale); si aggiorna automaticamente.",
@@ -759,7 +764,7 @@ const STRINGS = {
     track: "トラック",
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
-    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg と Node.js 18 以降をインストールしてください。",
+    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg をインストールしてください。",
     sectionHint: "音楽の区間 — ドラッグして選択",
     sectionLabel: "音楽の区間",
     musicTooShort: "この音楽は、この長さには短すぎます",
@@ -783,6 +788,7 @@ const STRINGS = {
     checkingPictures: "素材を確認中",
     checkingPicturesNow: "素材を確認中…",
     listening: "ビートを検出中",
+    preparingTools: "ビート検出を準備中(初回のみ)",
     listeningNow: "ビートを検出中…",
     dropMusicAbove: "上に音楽ファイルをドロップするか、用意されたトラックを選んでください。",
     noPictures: "このプロジェクトには、写真も解析済みのクリップもまだありません。写真を追加するか、クリップを追加して解析してください。自動で更新されます。",
@@ -903,7 +909,7 @@ const STRINGS = {
     track: "\ud2b8\ub799",
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
-    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\uc640 Node.js 18 \uc774\uc0c1\uc744 \uc124\uce58\ud558\uc138\uc694.",
+    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\ub97c \uc124\uce58\ud558\uc138\uc694.",
     sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
     sectionLabel: "\uc74c\uc545 \uad6c\uac04",
     musicTooShort: "\uc774 \uae38\uc774\ub85c \ub9cc\ub4e4\uae30\uc5d0\ub294 \uc74c\uc545\uc774 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4",
@@ -927,6 +933,7 @@ const STRINGS = {
     checkingPictures: "\uc0ac\uc9c4 \ud655\uc778 \uc911",
     checkingPicturesNow: "\uc0ac\uc9c4 \ud655\uc778 \uc911…",
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
+    preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     listeningNow: "\ube44\ud2b8 \ucc3e\ub294 \uc911…",
     dropMusicAbove: "\uc704\uc5d0 \uc74c\uc545 \ud30c\uc77c\uc744 \ub04c\uc5b4\ub2e4 \ub193\uac70\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     noPictures: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc0ac\uc9c4\uc774\ub098 \ubd84\uc11d\ub41c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ucd94\uac00\ud574 \ubd84\uc11d\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
@@ -1047,7 +1054,7 @@ const STRINGS = {
     track: "Faixa",
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
-    installTools: "Instale o ffmpeg e o Node.js 18+ para ouvir a música ou usar sua própria faixa.",
+    installTools: "Instale o ffmpeg para ouvir a música ou usar sua própria faixa.",
     sectionHint: "Trecho da música: arraste para escolher",
     sectionLabel: "Trecho da música",
     musicTooShort: "Esta música é curta demais para esta duração",
@@ -1071,6 +1078,7 @@ const STRINGS = {
     checkingPictures: "Verificando suas imagens",
     checkingPicturesNow: "Verificando suas imagens…",
     listening: "Procurando a batida",
+    preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     listeningNow: "Procurando a batida…",
     dropMusicAbove: "Solte um arquivo de música acima ou escolha uma das faixas.",
     noPictures: "Este projeto ainda não tem fotos nem clipes analisados. Adicione fotos (ou clipes e analise-os); a lista é atualizada automaticamente.",
@@ -1191,7 +1199,7 @@ const STRINGS = {
     track: "Parça",
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
-    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg ve Node.js 18+ yükleyin.",
+    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg yükleyin.",
     sectionHint: "Müzik bölümü — seçmek için sürükleyin",
     sectionLabel: "Müzik bölümü",
     musicTooShort: "Bu müzik bu uzunluk için çok kısa",
@@ -1215,6 +1223,7 @@ const STRINGS = {
     checkingPictures: "Görselleriniz kontrol ediliyor",
     checkingPicturesNow: "Görselleriniz kontrol ediliyor…",
     listening: "Ritim aranıyor",
+    preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     listeningNow: "Ritim aranıyor…",
     dropMusicAbove: "Yukarıya bir müzik dosyası bırakın veya hazır parçalardan birini seçin.",
     noPictures: "Bu projede henüz fotoğraf veya analiz edilmiş klip yok. Fotoğraf ekleyin (ya da klip ekleyip analiz edin); burası otomatik olarak güncellenir.",
@@ -1335,7 +1344,7 @@ const STRINGS = {
     track: "曲目",
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
-    installTools: "请安装 ffmpeg 和 Node.js 18+，才能试听音乐或使用自己的曲目。",
+    installTools: "请安装 ffmpeg，才能试听音乐或使用自己的曲目。",
     sectionHint: "音乐片段 — 拖动选择",
     sectionLabel: "音乐片段",
     musicTooShort: "这段音乐太短，不够这个时长",
@@ -1359,6 +1368,7 @@ const STRINGS = {
     checkingPictures: "正在检查素材",
     checkingPicturesNow: "正在检查素材…",
     listening: "正在识别节拍",
+    preparingTools: "正在准备节拍检测(仅首次)",
     listeningNow: "正在识别节拍…",
     dropMusicAbove: "请在上方拖入一个音乐文件，或选择内置曲目。",
     noPictures: "此项目中还没有照片或已分析的片段。请添加照片（或添加片段并进行分析）；这里会自动更新。",
@@ -2832,9 +2842,19 @@ async function readText(root: string, rel: string) {
   // Some host builds return text directly; others return bytes.
   return typeof v === "string" ? v : new TextDecoder().decode(new Uint8Array(v));
 }
-// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew and the newest nvm Node.
-const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; '
-  + 'n=$( (ls -d "$HOME"/.nvm/versions/node/*/bin) 2>/dev/null | sort -V | tail -1); [ -n "$n" ] && export PATH="$PATH:$n"; ';
+// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew.
+const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; ';
+// Own music's beat detection runs beat-detect.cjs on Node.js. Selects puts no Node on the shell's PATH and a stock
+// Mac has none, so runtime.sh fetches a pinned copy into ~/.selects/plugin-data/_runtime the first time (shared by
+// every plugin) and prints its path. Later calls in this session reuse it.
+let nodePath: string | null = null;
+async function ensureNode(sdk: any): Promise<string> {
+  if (nodePath) return nodePath;
+  const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: TOOL_PATH + "sh " + dq(SKILLS_DIR + "/runtime.sh") + " node", timeoutMs: 290000, maxOutputBytes: 8000 });
+  const found = String(r?.stdout || "").trim().split("\n").filter(Boolean).pop() || "";
+  if (r?.isError || r?.exitCode !== 0 || !found.startsWith("/")) throw new Error(String(r?.stderr || "").trim().split("\n").pop() || "Could not prepare Node.js.");
+  return (nodePath = found);
+}
 // A short orientation hint for the clip list; nothing when the frame size is unknown.
 function shapeHint(lang: Lang, width: number | null, height: number | null) {
   if (!(width! > 0) || !(height! > 0)) return "";
@@ -3303,7 +3323,7 @@ function TornPaperPanel({ sdk, context, ui }: any) {
   // Single-flight guard (tplExclusive): state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef<any>(null);
   const [step, setStep] = React.useState<{ say: Say } | null>(null);
-  const [tools, setTools] = React.useState({ ffmpeg: true, node: true });
+  const [tools, setTools] = React.useState({ ffmpeg: true });
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
   const registered = React.useRef<Set<string>>(new Set());
   const [progress, setProgress] = React.useState<any>(null);
@@ -3403,14 +3423,14 @@ function TornPaperPanel({ sdk, context, ui }: any) {
         if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
         if (!alive) return;
         setRoots({ plugin, data });
-        // ffmpeg and node are only needed for previews and own music; bundled cues work without them.
+        // ffmpeg is only needed for previews and own music (own music also fetches Node.js on first use); bundled cues work without it.
         let have = "";
         try {
-          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg; command -v node >/dev/null && echo node", timeoutMs: 10000 });
+          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg", timeoutMs: 10000 });
           have = String(probe?.stdout || "");
         } catch { have = ""; }
         if (!alive) return;
-        setTools({ ffmpeg: have.includes("ffmpeg"), node: have.includes("node") });
+        setTools({ ffmpeg: have.includes("ffmpeg") });
         const read = (rel: string) => readText(plugin, rel);
         const [manifest, looks, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, tornTsx, lettersTsx] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/looks.json"), read("scripts/inventory.js"), read("scripts/search.js"),
@@ -3516,8 +3536,11 @@ function TornPaperPanel({ sdk, context, ui }: any) {
       try {
         // The decoded PCM (up to ~32 MB) is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit
         // status. The result goes to a file (a long track's onsets come close to the 48 KB shell output cap).
+        if (!nodePath) setStep({ say: (l) => t(l, "preparingTools") });
+        const node = await ensureNode(sdk);
+        setStep({ say: (l) => t(l, "listening") });
         const pcm = roots.data + "/own-music.f32";
-        const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && node " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json")
+        const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json")
           + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
         const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
         const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
@@ -3719,7 +3742,7 @@ function TornPaperPanel({ sdk, context, ui }: any) {
   const peaks: number[] = planCue ? planCue.peaks || [] : [];
   const total = planCue ? (track === "own" ? ownDuration || 1 : manifestCue?.duration || 1) : 1;
   const silent = track === "none" && clipSound === "off";
-  const canOwnMusic = tools.ffmpeg && tools.node;
+  const canOwnMusic = tools.ffmpeg;
   const canBuild = !!assets && !!roots && !!plan?.ok && !ownPending && !busy;
   const cueOptions = [
     ...(manifest?.cues || []).map((c: any) => ({ label: c.label, value: c.id })),

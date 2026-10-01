@@ -167,7 +167,7 @@ track); the cuts may miss the beat you hear. When no steady beat is found,
 or no multiple fits, the panel says "No steady beat found: shots are 3.9 s"
 and uses fixed 3.9 s shots; the box then moves in 0.1 s steps. The reveal goes to the loudest part
 of your track. Your own music and the previews need ffmpeg; your own music
-also needs Node.js 18 or later (see [INSTALL.md](INSTALL.md)). The bundled
+also runs on a pinned Node.js, which the panel downloads the first time (see [INSTALL.md](INSTALL.md)). The bundled
 tracks work without them.
 
 **No music** builds with fixed 3.9 s shots. With Clip sound also **Off**, the

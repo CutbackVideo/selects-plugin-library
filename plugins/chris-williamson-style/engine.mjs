@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Chris Williamson Style — host-side asset engine (Node 18+, macOS).
+// Chris Williamson Style — host-side asset engine (macOS; run by the Node.js that runtime.sh provides).
 //
 //   node engine.mjs shots   <job.json>   find camera changes inside each Main clip's source range (ffmpeg scene score)
 //   node engine.mjs faces   <job.json>   sample source frames, detect the speaker's face (Apple Vision)
@@ -10,10 +10,12 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { candidates, assets } from "./media.mjs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
-const HELPER = path.join(HERE, ".local", "vision-helper");
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+// Apple Vision runs through the system's JavaScript for Automation: no compiled helper, nothing to build.
+const HELPER = path.join(HERE, "vision-helper.js");
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 // Wikimedia asks API and media clients for a descriptive user agent and throttles browser-like ones.
 const WM_UA = "SelectsPluginChrisWilliamsonStyle/0.1 (https://github.com/CutbackVideo/selects-plugin-library)";
@@ -154,8 +156,8 @@ async function cmdFaces(job, dir) {
   const ok = files.filter(Boolean);
   const out = {};
   if (ok.length) {
-    const r = await run(HELPER, ["faces", ...ok], { timeoutMs: 120000 });
-    if (r.code !== 0) throw new Error("vision-helper faces failed: " + r.err.trim());
+    const r = await run("/usr/bin/osascript", ["-l", "JavaScript", HELPER, "faces", ...ok], { timeoutMs: 120000 });
+    if (r.code !== 0) throw new Error("Face detection failed: " + r.err.trim());
     const rows = r.out.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
     for (const row of rows) {
       const i = files.indexOf(row.file);

@@ -17,17 +17,18 @@
 
 The title, the grid, the look, the film frame, the sound effects and the
 Draft build need nothing beyond Selects. Two optional features use
-command-line tools. The panel finds them on the shell `PATH` and also in
-`/opt/homebrew/bin`, `/usr/local/bin` and the newest nvm Node
-(`~/.nvm/versions/node/*/bin`), so tools installed with Homebrew or nvm work
-even when Selects is opened from Finder:
+command-line tools. The panel finds ffmpeg on the shell `PATH` and also in
+`/opt/homebrew/bin` and `/usr/local/bin`, so a Homebrew ffmpeg works even when
+Selects is opened from Finder:
 
 - **ffmpeg** (it includes `ffprobe`): music previews, your own music and its
   muffled ending copy. Check with `ffmpeg -version` and `ffprobe -version`.
-- **Node.js 18 or later**: your own music only (beat and drop detection).
-  Check with `node --version`.
+- **Node.js**: your own music only (beat and drop detection). Nothing to install: the first time
+  you choose your own music, the panel downloads a pinned Node.js (about 26 MB)
+  with `runtime.sh` into `~/.selects/plugin-data/_runtime`, shared by every
+  plugin. That needs an internet connection once.
 
-When either tool is missing, the panel hides **Your own music**, says so,
+When ffmpeg is missing, the panel hides **Your own music**, says so,
 and everything else keeps working.
 
 ## Files the plugin writes
@@ -64,7 +65,7 @@ folder, never in either install folder:
 3. With at least 6 different clips or photos, one of them a video clip of
    about 5 s or more, press **Build**. A new Draft opens at 1920x1080 with
    the title, the grid, the clips and the ending film frame.
-4. Optional: if ffmpeg and Node.js are installed, **Your own music** appears
+4. Optional: if ffmpeg is installed, **Your own music** appears
    in the Track list and **Preview this section** plays the chosen section.
 
 ## Uninstall

@@ -125,7 +125,7 @@ Choose a **Track**:
   montage cut and the ending may move onto a strong bass hit within 120 ms,
   and the panel says "Approximate timing on the detected tempo". Songs
   where no steady beat is found use approximate timing (a fixed 0.5 s beat,
-  the same bass-hit moves), and the panel says so. Your own music needs ffmpeg and Node.js 18 or later (see
+  the same bass-hit moves), and the panel says so. Your own music needs ffmpeg and runs on a pinned Node.js, which the panel downloads the first time (see
   [INSTALL.md](INSTALL.md)). The ending muffle for your own music is a
   muffled copy baked with ffmpeg; for a compressed file (mp3, aac) it is
   baked from ffmpeg's decode, so at the joint it may sit a few milliseconds

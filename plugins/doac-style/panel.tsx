@@ -153,25 +153,40 @@ export function replaceWording(job,index,value){
 }
 // The caption renderer's own Python and font, made on first use inside the
 // package so nothing is installed system-wide: a virtual environment with
-// approved/requirements.txt, and the bundled font decoded. Checked again only
-// when a check fails, once per panel load.
-const RUNTIME_SETUP=[
- 'set -e',
+// approved/requirements.txt, and the bundled font decoded. A stock Mac has no
+// Python, so the environment is built on the pinned one runtime.sh fetches
+// (shared by every plugin under ~/.selects/plugin-data/_runtime). Checked once
+// per panel load, and set up again when a check fails.
+const RUNTIME_VARS=[
  'ROOT="$SELECTS_USER_SKILLS_ROOT/doac-style"',
  'PY="$ROOT/.runtime/bin/python3"',
+ 'FONT="$ROOT/approved/native/fonts/permanentmarker/PermanentMarker-Regular.ttf"',
+];
+const RUNTIME_CHECK=[...RUNTIME_VARS,'if [ -x "$PY" ] && [ -s "$FONT" ] && "$PY" -c "import PIL, numpy, scipy" 2>/dev/null; then echo ready; else echo missing; fi'].join('\n');
+const shellQuote=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
+const runtimeSetup=python=>[
+ 'set -e',
+ ...RUNTIME_VARS,
  'if [ ! -x "$PY" ] || ! "$PY" -c "import PIL, numpy, scipy" 2>/dev/null; then',
- '  python3 -m venv --clear "$ROOT/.runtime"',
+ '  '+shellQuote(python)+' -m venv --clear "$ROOT/.runtime"',
  '  "$PY" -m pip install --quiet --disable-pip-version-check -r "$ROOT/approved/requirements.txt"',
  'fi',
- 'FONT="$ROOT/approved/native/fonts/permanentmarker/PermanentMarker-Regular.ttf"',
  '[ -s "$FONT" ] || base64 -D -i "$FONT.b64" -o "$FONT"',
  '"$PY" -c "import PIL, numpy, scipy"',
 ].join('\n');
+const SETUP_FAILED='DOAC Style could not set up its caption renderer. Check the internet connection, then try again.';
 let runtimeReady=null;
-function ensureRuntime(sdk){
- runtimeReady??=sdk.runShell({summary:'Set up the DOAC Style caption renderer',command:RUNTIME_SETUP,timeoutMs:600000,maxOutputBytes:16000}).then(r=>{
-  if(r.isError||r.exitCode!==0)throw stepError('setup','DOAC Style could not set up its caption renderer. Check that Python 3 is installed and you are online, then try again.');
- }).catch(e=>{runtimeReady=null;throw e;});
+function ensureRuntime(sdk,say=()=>{}){
+ runtimeReady??=(async()=>{
+  const check=await sdk.runShell({summary:'Check the DOAC Style caption renderer',command:RUNTIME_CHECK,timeoutMs:60000,maxOutputBytes:4000});
+  if(!check.isError&&check.exitCode===0&&/\bready\s*$/.test(check.stdout||''))return;
+  say('Preparing (first run only)\u2026');
+  const py=await sdk.runShell({summary:'Prepare Python (first run only)',command:'sh "$SELECTS_USER_SKILLS_ROOT/doac-style/runtime.sh" python',timeoutMs:290000,maxOutputBytes:8000});
+  const python=String(py.stdout||'').trim().split('\n').filter(Boolean).pop();
+  if(py.isError||py.exitCode!==0||!python?.startsWith('/'))throw stepError('setup',String(py.stderr||'').trim().split('\n').filter(Boolean).pop()||SETUP_FAILED);
+  const r=await sdk.runShell({summary:'Set up the DOAC Style caption renderer',command:runtimeSetup(python),timeoutMs:290000,maxOutputBytes:16000});
+  if(r.isError||r.exitCode!==0)throw stepError('setup',SETUP_FAILED);
+ })().catch(e=>{runtimeReady=null;throw e;});
  return runtimeReady;
 }
 function stepError(code,message){return Object.assign(Error(message),{code});}
@@ -194,7 +209,7 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  async function run(script,summary,allowCommit=false){const r=await sdk.runScript({script,summary,allowCommit});if(r.isError||r.result==null)throw Error(r.output||'Could not confirm the save. Check the result draft before trying again.');return r.result;}
  async function shell(args){await ensureRuntime(sdk);const r=await sdk.runShell({summary:'Compile approved captions',command:'"$SELECTS_USER_SKILLS_ROOT/doac-style/.runtime/bin/python3" "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/compile-captions.py" '+args,timeoutMs:300000,maxOutputBytes:48000});if(r.isError||r.exitCode!==0){const detail=(r.stderr||r.output||'').match(/(?:ValueError|AssertionError): ([^\n]+)/);throw stepError('render',detail?detail[1]:"The caption renderer could not complete this version. Check the DOAC Style installation, then try again.");}return r.stdout;}
  function sameProject(j){if(currentProject()!==j.projectId)throw stepError('project-changed','Project changed. Return to the original project to continue.');}
- async function compile(j,scene){onStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/\/[^/]+$/,''),'revision-'+Date.now());f.mkdirSync(dir,{recursive:true});const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
+ async function compile(j,scene){await ensureRuntime(sdk,onStatus);onStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/\/[^/]+$/,''),'revision-'+Date.now());f.mkdirSync(dir,{recursive:true});const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
  async function compileWithRecovery(j){
   try{return {job:j,manifest:await compile(j)};}
   catch(first){
@@ -247,7 +262,7 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  if(!v.words.length)throw stepError('no-transcript','This draft needs a transcript. Analyze its footage in Selects, then create captions.');
  if(!anyAspect&&v.meta.frameSize.width/v.meta.frameSize.height!==1080/1920)throw stepError('not-vertical','This style needs a vertical 9:16 draft. Change the aspect ratio in Selects first.');
  if(v.clips.some(c=>c.trackKind==='video'&&c.resourceId===null))throw stepError('has-graphics','This draft already contains generated graphics. Open the original draft without captions.');
- const catalogue=JSON.parse(await shell('catalogue'));const f=fs(),dir=f.join(f.getOrCreateTmpDirPath(),'approved-captions-'+Date.now());f.mkdirSync(dir,{recursive:true});
+ await ensureRuntime(sdk,onStatus);const catalogue=JSON.parse(await shell('catalogue'));const f=fs(),dir=f.join(f.getOrCreateTmpDirPath(),'approved-captions-'+Date.now());f.mkdirSync(dir,{recursive:true});
  const input={fps:v.meta.fps,frames:Math.max(...v.clips.filter(c=>c.trackKind==='main').map(c=>c.endFrame)),words:v.words};
  onStatus('Designing the full caption edit…');
  const cachePath=f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+pid+'-'+cacheKey+'.json');
@@ -305,7 +320,7 @@ const TEMPLATE_ERRORS={
  'file-access':'Update Selects to use DOAC Style captions.',
  'renderer':'DOAC Style is not fully installed. Reinstall it, then try again.',
  'render':'DOAC Style could not draw these captions. Check its installation, then try again.',
- 'setup':'DOAC Style could not set up its caption renderer. Check that Python 3 is installed and you are online, then try again.',
+ 'setup':SETUP_FAILED,
  'plan':'Selects AI could not plan the captions. Try again.',
  'no-scenes':'No captions could be added to the timeline. Try again.',
 };

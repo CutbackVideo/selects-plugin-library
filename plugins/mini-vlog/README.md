@@ -261,10 +261,10 @@ approximate timing (0.55 s).". Without an accepted grid (the approximate
 tempo or fixed lengths), cuts still move onto a clearly strong bass hit nearby
 (within 120 ms).
 
-Your own music needs ffmpeg and Node.js 18 or later, and the previews need
-ffmpeg (see [INSTALL.md](INSTALL.md)). Without both tools the panel does not
-list Your own music and says "Install ffmpeg and Node.js 18+ to preview music
-or use your own track." The bundled tracks work without them.
+Your own music and the previews need ffmpeg; your own music also runs on
+a pinned Node.js, which the panel downloads the first time (see [INSTALL.md](INSTALL.md)). Without ffmpeg the panel does
+not list Your own music and says "Install ffmpeg to preview music or use your
+own track." The bundled tracks work without them.
 
 **No music** uses the same fixed shot lengths ("No music: shots use
 approximate timing (0.55 s).") and has no length limit.

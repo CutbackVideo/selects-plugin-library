@@ -5,25 +5,18 @@ Draft authoring and frame capture. Legacy cleanup also needs the mapped Sequence
 
 Requirements:
 
-- Node.js 18 or later on the shell `PATH` (`node --version`).
-- Xcode Command Line Tools (`xcode-select --install`) to build the Vision helper; macOS 14+.
+- macOS 14 or later.
 - FFmpeg: the copy bundled inside Selects is used, otherwise one on `PATH`.
+- An internet connection on first use: `runtime.sh` downloads a pinned Node.js 22 (checksum-verified) into
+  `~/.selects/plugin-data/_runtime/`, shared with other plugins. Nothing else is installed and nothing is compiled;
+  face detection runs through Apple Vision from `vision-helper.js` (`osascript -l JavaScript`).
 
 ## Setup
 
 1. Place `panel.tsx` in `chris-williamson-style` beneath `SELECTS_USER_PANELS_ROOT` and everything else in
    `chris-williamson-style` beneath `SELECTS_USER_SKILLS_ROOT`.
-2. Build the Vision helper:
-
-   ```sh
-   cd "$SELECTS_USER_SKILLS_ROOT/chris-williamson-style"
-   mkdir -p .local
-   swiftc -O vision-helper.swift -o .local/vision-helper
-   ```
-
-   Check: `.local/vision-helper faces <any-photo.jpg>` prints one JSON line.
-3. Open a talking-head Draft with an analysed transcript, then open **Chris Williamson Style** from the
-   Plugin list. The panel reports missing Node.js or a missing helper instead of running.
+2. Open a talking-head Draft with an analysed transcript, then open **Chris Williamson Style** from the
+   Plugin list, or run it as a Clip highlights template. The first run prepares Node.js automatically.
 
 Pictures and run reports go beneath `~/.selects/plugin-data/chris-williamson-style/runs/`;
 the Project keeps referencing the imported media, so do not delete a run folder that a Draft still uses.

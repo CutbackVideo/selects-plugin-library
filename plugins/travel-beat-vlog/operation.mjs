@@ -134,21 +134,17 @@ export function gradeClips(clips,strength){
 }
 
 // Local Apple Vision cutout of the hero photo (people, or the main subject), written as
-// an RGBA PNG the size of the photo into plugin-data. The Swift tool is compiled once.
+// an RGBA PNG the size of the photo into plugin-data. The tool is JavaScript for Automation
+// (tools/cutout.js), which every Mac runs through osascript, so nothing is compiled.
 export function heroCutout(photo,mode){
  if(!['person','foreground'].includes(mode))throw Error('Unknown cutout mode');
- fs.mkdirSync(path.join(STORE,'bin'),{recursive:true});
- const src=path.join(PKG,'tools','cutout.swift'),bin=path.join(STORE,'bin','cutout-v1');
- if(!fs.existsSync(bin)||fs.statSync(src).mtimeMs>fs.statSync(bin).mtimeMs){
-  try{execFileSync('swiftc',['-O',src,'-o',bin+'.tmp'],{stdio:'pipe'});fs.renameSync(bin+'.tmp',bin);}
-  catch(e){throw Error('The cutout tool did not compile. Install the Xcode Command Line Tools (xcode-select --install).');}
- }
+ const tool=path.join(PKG,'tools','cutout.js');
  const stat=fs.statSync(photo),key=Buffer.from(photo+':'+stat.size+':'+stat.mtimeMs+':'+mode).toString('base64url').slice(-40);
  const out=path.join(STORE,'cutouts','hero-'+key+'.png');
  fs.mkdirSync(path.dirname(out),{recursive:true});
  if(!fs.existsSync(out)){
   const tmp=out+'.tmp.png';
-  try{execFileSync(bin,[photo,tmp,mode],{stdio:'pipe'});}catch(e){throw Error(String(e.stderr||'').trim()||'Apple Vision found no subject in the hero photo.');}
+  try{execFileSync('/usr/bin/osascript',['-l','JavaScript',tool,photo,tmp,mode],{stdio:'pipe'});}catch(e){throw Error(String(e.stderr||'').trim()||'Apple Vision found no subject in the hero photo.');}
   fs.renameSync(tmp,out);
  }
  return {path:out};

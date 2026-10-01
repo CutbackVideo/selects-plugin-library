@@ -41,8 +41,8 @@ Use **Handoff → Export** for final video.
 
 ## Limits
 
-- macOS arm64: speaker masks are compiled locally with `swiftc` (Xcode Command
-  Line Tools) and launched with `python3`.
+- macOS arm64 (macOS 12 or later): speaker masks are made locally with the
+  system's Vision framework through `osascript`; nothing is installed.
 - Windows x64: speaker masks need Selects generation on the account; the panel
   says so if it is unavailable. Turning off **Behind speaker** makes plain
   captions without it.

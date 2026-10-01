@@ -15,21 +15,22 @@
 ## Dependencies
 
 The bundled music tracks, the title, the credits, the look and the Draft build
-need nothing beyond Selects. Two optional features use command-line tools. The
-panel finds them on the shell `PATH` and also in `/opt/homebrew/bin`,
-`/usr/local/bin` and the newest nvm Node (`~/.nvm/versions/node/*/bin`), so
-tools installed with Homebrew or nvm work even when Selects is opened from
-Finder:
+need nothing beyond Selects. Two optional features use
+command-line tools. The panel finds ffmpeg on the shell `PATH` and also in
+`/opt/homebrew/bin` and `/usr/local/bin`, so a Homebrew ffmpeg works even when
+Selects is opened from Finder:
 
 - **ffmpeg** (it includes `ffprobe`): music previews, your own music, and
   measuring how much each clip moves (so moving footage is preferred; without
   ffmpeg the shots are chosen by the scene match alone). Check with
   `ffmpeg -version` and `ffprobe -version`.
-- **Node.js 18 or later**: your own music only (beat detection). Check with
-  `node --version`.
+- **Node.js**: your own music only (beat detection). Nothing to install: the first time
+  you choose your own music, the panel downloads a pinned Node.js (about 26 MB)
+  with `runtime.sh` into `~/.selects/plugin-data/_runtime`, shared by every
+  plugin. That needs an internet connection once.
 
-When either tool is missing, the panel hides **Your own music**, shows
-"Install ffmpeg and Node.js 18+ to preview music or use your own track", and
+When ffmpeg is missing, the panel hides **Your own music**, shows
+"Install ffmpeg to preview music or use your own track", and
 everything else keeps working.
 
 ## Files the plugin writes
@@ -68,7 +69,7 @@ in either install folder:
 3. With at least 4 usable clips or photos (5 in Full frame), press **Build**.
    A new 1920x1080 Draft opens with the typed title, the rolling credits, the
    clips and the music.
-4. Optional: if ffmpeg and Node.js are installed, **Your own music** appears
+4. Optional: if ffmpeg is installed, **Your own music** appears
    in the Track list and the play button (**Preview the music of the whole
    video**) plays the chosen section.
 

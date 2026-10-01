@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "torn-paper-love",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "name": "Torn Paper Love",
   "summary": "Turn couple photos into a 4:3 torn-paper love edit cut on the beat, with ransom-note letters, as a new editable Draft.",
   "status": "experimental",
@@ -35,6 +35,7 @@
     "beat-detect.cjs",
     "build-config.js",
     "panel.tsx",
+    "runtime.sh",
     "planner.js",
     "scripts/assemble.js",
     "scripts/decorate.js",
@@ -46,7 +47,7 @@
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg and Node.js 18+ on PATH only for music previews and your own music."
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg only for music previews and your own music; your own music also downloads a pinned Node.js the first time (runtime.sh)."
   },
   "localized": {
     "de": {

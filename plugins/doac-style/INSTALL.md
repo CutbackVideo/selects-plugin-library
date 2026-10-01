@@ -10,8 +10,11 @@ Experimental: macOS arm64 and a compatible Selects development build.
    Panel runs its caption compiler from the package's `approved/` folder.
 2. Nothing else to install by hand. On first use the Panel sets up its caption
    renderer inside the package: a Python virtual environment in `.runtime/` with
-   `approved/requirements.txt`, and the bundled font decoded. It needs `python3`
-   and a network connection that once; later runs reuse it.
+   `approved/requirements.txt`, and the bundled font decoded. The environment is
+   built on a pinned CPython 3.11.13 that `runtime.sh` downloads (through uv,
+   checked by SHA-256) into `~/.selects/plugin-data/_runtime/`, shared with other
+   plugins; a system `python3` is not used. It needs a network connection that
+   once; later runs reuse it.
 3. Reload Selects, open a vertical English talking-head Draft, and choose
    **Create captions** in the **DOAC Style** panel.
 

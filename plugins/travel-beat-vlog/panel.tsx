@@ -14,7 +14,7 @@
 import React from 'react';
 
 const VIDEO_SLOTS=Array.from({length:26},(_,i)=>'V'+(i+1));
-const BUILDER='node "$SELECTS_USER_SKILLS_ROOT/travel-beat-vlog/build-script.mjs" ';
+const BUILDER=' "$SELECTS_USER_SKILLS_ROOT/travel-beat-vlog/build-script.mjs" ';
 const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.has(n.resourceId)).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path,width:n.frameSize?.width??null,height:n.frameSize?.height??null,duration:n.durationSeconds??null}));`;
 const encode=value=>{
  const bytes=new TextEncoder().encode(JSON.stringify(value));let binary='';
@@ -29,8 +29,29 @@ async function inventory(sdk,projectId,summary){
  if(r.isError||!Array.isArray(r.result))throw Error('Could not read the Project files. Wait a moment and load again.');
  return r.result;
 }
+// Selects puts no Node.js on the panel shell's PATH, so the plugin's runtime.sh fetches a
+// pinned one into ~/.selects/plugin-data/_runtime on first use (shared by all plugins)
+// and prints its path. Resolved once per Panel; later runs reuse it.
+let nodePath=null;
+const shellQuote=value=>"'"+String(value).replace(/'/g,"'\\''")+"'";
+async function runtimeNode(sdk,say=()=>{}){
+ if(nodePath)return nodePath;
+ say('Preparing (first run only)…');
+ const r=await sdk.runShell({summary:'Prepare Node.js (first run only)',command:'sh "$SELECTS_USER_SKILLS_ROOT/travel-beat-vlog/runtime.sh" node',timeoutMs:290000,maxOutputBytes:8000});
+ const found=String(r.stdout||'').split('\n').map(line=>line.trim()).filter(Boolean).pop();
+ if(r.isError||r.exitCode!==0||!found){
+  const said=String(r.stderr||r.output||'').trim().split('\n').filter(Boolean).pop()||'';
+  const message=r.exitCode===3?'Travel Beat Vlog needs the internet once to download Node.js; check the connection, then try again.'
+   :r.exitCode===4?'The Node.js download did not match its pinned checksum; try again later.'
+   :'Travel Beat Vlog could not prepare Node.js'+(said?': '+said:'.');
+  throw Object.assign(Error(message),{publicMessage:message});
+ }
+ nodePath=found;
+ return found;
+}
 async function builder(sdk,request,summary,maxOutputBytes=49152,timeoutMs=60000){
- const r=await sdk.runShell({summary,command:BUILDER+encode(request),timeoutMs,maxOutputBytes:Math.min(maxOutputBytes,49152)});
+ const node=await runtimeNode(sdk);
+ const r=await sdk.runShell({summary,command:shellQuote(node)+BUILDER+encode(request),timeoutMs,maxOutputBytes:Math.min(maxOutputBytes,49152)});
  if(r.isError||r.exitCode!==0||!r.stdout)throw Error(r.stderr||r.output||summary+' failed.');
  return r.stdout;
 }
@@ -120,6 +141,7 @@ async function ensureImported(sdk,projectId,file,type,summary){
 // Builds the vlog from 26 chosen videos (by slot), a hero photo and the user's song, all inventory rows:
 // the panel's Create Draft and a template run share it. Resolves to the saved Draft.
 async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,color,cutoutMode,grade,name,say,stillCurrent,libraryId=null,onDraft=_id=>{}}){
+ await runtimeNode(sdk,say);
  say('Finding the beat of your song…');
  const fit=JSON.parse(await builder(sdk,{mode:'song',song:song.path,cuts},'Fit the vlog to the song',49152,240000));
  const timing=fit.timing;
@@ -168,7 +190,9 @@ function templateMessage(error){
  if(/^This Selects version does not support/.test(said))return 'Update Selects to use Travel Beat Vlog.';
  if(/needs at least/.test(said))return said.replace(/^V\d+ \((.+?)\) is/,'$1 is');
  if(/song is too short|song file is missing/i.test(said))return said;
- if(/cutout|swiftc|Vision/i.test(said))return 'Travel Beat Vlog could not cut out the hero photo. Check that Xcode Command Line Tools are installed, then try again.';
+ if(/^No person found/.test(said))return 'Travel Beat Vlog found no people in the hero photo; pick a photo with people, then try again.';
+ if(/^No subject found/.test(said))return 'Travel Beat Vlog found no main subject in the hero photo; pick another photo, then try again.';
+ if(/cutout|Vision|Cannot read the photo/i.test(said))return 'Travel Beat Vlog could not cut out the hero photo; try again.';
  return TEMPLATE_FAILED;
 }
 // The app hands a template its own Resource ids, but every run_script read

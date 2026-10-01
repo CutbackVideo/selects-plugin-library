@@ -137,7 +137,7 @@ for (const phrase of ['linkToDraftFrame', 'selects.editor.openDraft', 'FontFace'
   'previewTokenRef', 'URL.revokeObjectURL', 'preview-*.mp3', 'readText(roots.data', 'height: PREVIEW_HEIGHT', 'Your footage fits', 'disabledReason',
   'style: "normal", weight: "400"']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['anotherVersion', 'Try other shots'], ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'],
-  ['installTools', 'Install ffmpeg and Node.js 18+ to preview music or use your own track.'], ['draftCreatedAdding', 'Draft created; adding title and look\u2026'],
+  ['installTools', 'Install ffmpeg to preview music or use your own track.'], ['preparingTools', 'Preparing beat detection (first time only)'], ['draftCreatedAdding', 'Draft created; adding title and look\u2026'],
   ['analysing', '{"one":"{count} clip is being analysed. This updates automatically when it finishes.","other":"{count} clips are being analysed. This updates automatically when they finish."}'],
   ['notAnalysedAnalyse', '{"one":"{count} clip is not analysed yet. Analyse it in Selects to use it here.","other":"{count} clips are not analysed yet. Analyse them in Selects to use them here."}'],
   ['noFootage', 'No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.'], ['refresh', 'Refresh'],
@@ -175,7 +175,11 @@ assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capt
 const early = panel.indexOf('if (!projectId) return <ui');
 for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo<any>(', 'const lengthRef = React.useRef', '[cueId, ownMusic?.path, section, length]', 'const [sfxOn']) assert.ok(panel.indexOf(hook) > 0 && panel.indexOf(hook) < early, hook + ' before the early return');
 // Shell: PATH prefix on every tool step, user paths single-quoted, big outputs through files, one decode per SFX.
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('.nvm/versions/node/*/bin'), 'Homebrew and nvm paths');
+assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Homebrew path, no nvm hunting');
+// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
+assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
+assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
+assert.equal(read('runtime.sh'), fs.readFileSync(path.join(__dirname, '..', '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
 for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/,
   /shell\("Read your music", TOOL_PATH \+ "shasum/, /shell\("Muffle the ending of your music", TOOL_PATH \+/, /const cmd = TOOL_PATH \+ "mkdir -p "/]) assert.ok(re.test(panel), String(re));
 assert.ok(!/dq\((file|ownMusic|roots|path|out|src|dry)/.test(panel), 'user paths must not be double-quoted into the shell');

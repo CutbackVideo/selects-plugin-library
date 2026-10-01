@@ -52,7 +52,7 @@ for (const phrase of ['projectRef', 'No valid session ID', 'visibilitychange', '
   'FontFace', '--panel-accent', '--panel-muted-fg', 'fmtTime(total)', 'ffprobe']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['refresh', 'Refresh'], ['stopPreview', 'Stop preview'], ['cancelPreview', 'Cancel preview'], ['analysing', 'being analysed. This updates automatically'],
   ['noFootage', 'this updates automatically'], ['finishTitle', 'Finish title and look'], ['anotherVersion', 'Try other shots'],
-  ['stoppedAt', 'Stopped at step {step}/{total} ({name}): {detail}'], ['installTools', 'Install ffmpeg and Node.js'], ['draftCreatedAdding', 'Draft created; adding credits and look'],
+  ['stoppedAt', 'Stopped at step {step}/{total} ({name}): {detail}'], ['installTools', 'Install ffmpeg to preview'], ['preparingTools', 'first time only'], ['draftCreatedAdding', 'Draft created; adding credits and look'],
   ['sectionHint', 'drag to choose'], ['sectionLabel', 'Music section'], ['startsAt', 'Starts at {seconds} s'], ['musicTooShort', 'too short for this length'],
   ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})']]) says(key, text);
 assert.deepEqual(['prepare', 'plan', 'music', 'assemble', 'decorate'].map(id => en['step.' + id]), ['Finding shots', 'Planning the edit', 'Preparing music', 'Creating Draft', 'Adding credits and look']);
@@ -76,15 +76,19 @@ assert.ok(!/#[0-9a-f]{3,8}\b/i.test(panel.slice(early).replace(/var\(--panel-[a-
 // Only a lost session is resent, and never a committing call.
 assert.ok(panel.includes('if (r.isError && !allowCommit && /No valid session ID/.test(r.output || ""))'), 'no auto-resend of commits');
 assert.ok(!/Streamable HTTP error/.test(panel), 'only the session-id failure is resent');
-// Finder-launched apps lack Homebrew/nvm: every shell step that runs ffmpeg, ffprobe, node or rm extends PATH.
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('.nvm/versions/node/*/bin'), 'Homebrew and nvm paths');
+// Finder-launched apps lack Homebrew: every shell step that runs ffmpeg, ffprobe, Node.js or rm extends PATH.
+assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Homebrew path, no nvm hunting');
+// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
+assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
+assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
+assert.equal(fs.readFileSync(path.join(root, 'runtime.sh'), 'utf8'), fs.readFileSync(path.join(root, '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
 for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -i "/]) assert.ok(re.test(panel), String(re));
 const shells = panel.match(/sdk\.runShell\(\{[^\n]*/g) || [];
-assert.equal(shells.length, 10, 'folder lookup, tool check, waveform + cleanup, beat detection, ffprobe, preview + cleanup, motion + cleanup');
+assert.equal(shells.length, 11, 'folder lookup, tool check, Node.js runtime, waveform + cleanup, beat detection, ffprobe, preview + cleanup, motion + cleanup');
 for (const s of shells) if (!/Locate plugin folders/.test(s)) assert.ok(/TOOL_PATH/.test(s) || /command: cmd/.test(s), 'shell step without TOOL_PATH: ' + s);
 // User paths go to the shell single-quoted; dq() is only for the $HOME / $SELECTS_USER_SKILLS_ROOT constants.
 assert.ok(!/dq\((file|ownMusic|roots|cue|base|pcm)/.test(panel), 'user paths must not be double-quoted into the shell');
-assert.equal((panel.match(/dq\(/g) || []).length, 4, 'dq only for the two folder constants (plus its definition)');
+assert.equal((panel.match(/dq\(/g) || []).length, 5, 'dq only for the two folder constants and runtime.sh (plus its definition)');
 for (const p of ['sq(file.path)', 'sq(pcm)', 'sq(file)', 'sq(base + ".mp3")', 'sq(roots.plugin + "/assets/cues/" + cue.file)', 'sq(r.path)', 'sq(roots.data)']) assert.ok(panel.includes(p), p);
 // In-shot motion: ffmpeg once per clip, in the data folder (the filtergraph gets a bare file name, no path to escape),
 // written to a file (not stdout), read back and removed; cached per Project + clip; any failure leaves the clip
