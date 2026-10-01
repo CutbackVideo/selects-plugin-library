@@ -84,8 +84,9 @@ assert.ok(early > 0);
 for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', '[track, ownMusic?.path, sectionShown, length, pace]', 'setInterval(() => setTick']) assert.ok(panel.indexOf(hook) > 0 && panel.indexOf(hook) < early, hook + ' before the early return');
 // The UI language is read on every render, first thing in the component (before any hook and the early return).
 {
-  const body = panel.slice(panel.indexOf('export default function Panel('));
-  assert.ok(/^export default function Panel\(\{ sdk, context, ui \}: any\) \{\n(?:\s*\/\/.*\n)*\s*const L = uiLang\(context\);/.test(body), 'const L = uiLang(context) first');
+  // The panel UI is TornPaperPanel; Panel only hands a Clip highlights run to TemplateRun.
+  const body = panel.slice(panel.indexOf('function TornPaperPanel('));
+  assert.ok(/^function TornPaperPanel\(\{ sdk, context, ui \}: any\) \{\n(?:\s*\/\/.*\n)*\s*const L = uiLang\(context\);/.test(body), 'const L = uiLang(context) first');
   assert.ok(code.includes('if (!projectId) return <ui.Message tone="error">{t(L, "openProject")}</ui.Message>;'));
   says('openProject', 'Open a Project to build a Torn Paper Love edit.');
 }
