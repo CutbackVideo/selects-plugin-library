@@ -11,6 +11,8 @@ const look = typeof effect.look === 'string' ? effect.look : 'soft-glow';
 const lookStrength = typeof effect.lookStrength === 'number' ? effect.lookStrength : 0.35;
 const whip = typeof effect.whip === 'number' ? effect.whip : 1;
 const covers = cfg.covers || [];
+// The cover scale assemble applied to clip i (assemble's result `covers`); 1 when none.
+const coverOf = i => (typeof covers[i] === 'number' && covers[i] > 0 ? covers[i] : 1);
 const notes = [];
 const photoIds = new Set(holds.filter(h => h.kind === 'photo').map(h => h.rid));
 // Main clips in timeline order, read from trackScope 'all' (addVideoEffect / addTransition want those rows).
@@ -56,13 +58,16 @@ for (let i = 0; i < n; i++) {
   const whipIn = mode === 'effect' && i > 0 && h.cutIn !== 'none' ? 1 : 0;
   const whipOut = mode === 'effect' && i < n - 1 && h.cutOut !== 'none' ? 1 : 0;
   const parameters = { whipIn, whipOut, kindIn: h.cutIn || 'none', kindOut: h.cutOut || 'none', angle: typeof h.angle === 'number' ? h.angle : 0,
-    whip, look, lookStrength, framing: h.framing || null, cover: typeof covers[i] === 'number' ? covers[i] : 1 };
+    whip, look, lookStrength, framing: h.framing || null, cover: coverOf(i) };
   const defs = mode === 'effect' ? [...lookDefs, whipDef] : lookDefs;
   await d.addVideoEffect({ clip, label: EFFECT_LABEL, tsxCode: effect.tsx, parameters, editableParameters: defs as any });
   effects++;
 }
 // Transition mode (the A/B alternative): one native transition of w + w frames on every cut between two clips; never
 // after the last clip (no transition from/to nothing). A cut that already has one keeps it.
+// selfie-whip-transition.tsx data: { kind, angle, strength (per cut, 1), whip (global, editable), cover }. Both clips
+// render during the transition; the smaller cover of the two keeps the translated frames covered (1 = worst case).
+const transitionCover = i => Math.min(coverOf(i), coverOf(i + 1));
 let transitions = 0, transitionsKept = 0;
 if (mode === 'transition') {
   for (let i = 0; i < n - 1; i++) {
@@ -72,7 +77,7 @@ if (mode === 'transition') {
     if (existing) { transitionsKept++; continue; }
     const h = holds[i];
     await d.addTransition({ after: clip, label: TRANSITION_LABEL, tsxCode: cfg.transitionTsx, inOffsetSeconds: w / fps, outOffsetSeconds: w / fps,
-      parameters: { kind: h.cutOut && h.cutOut !== 'none' ? h.cutOut : 'dir', angle: typeof h.angle === 'number' ? h.angle : 0, whip },
+      parameters: { kind: h.cutOut && h.cutOut !== 'none' ? h.cutOut : 'dir', angle: typeof h.angle === 'number' ? h.angle : 0, strength: 1, whip, cover: transitionCover(i) },
       editableParameters: [whipDef] as any });
     transitions++;
   }

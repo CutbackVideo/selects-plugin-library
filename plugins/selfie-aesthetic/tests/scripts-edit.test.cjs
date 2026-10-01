@@ -179,6 +179,37 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   await load('assemble.js', assembleCfg())(project(() => { const x = mockDraft(FPS, { adoptFps: 30, photos: ['p1'], durations }); d30.push(x); return x.d; }));
   assert.deepEqual(d30[1].clips.filter(c => c.trackKind === 'main').map(c => c.endFrame), cutSeconds.slice(1).map(s => Math.round(s * 30)));
 
+  // --- cfg.cutSecondsRaw (no music offset): delta = s - round(s * fps) / fps is added once, at the real rate ---
+  const cutRaw = beats.map((b, i) => i === 0 ? 0 : lead + b * 60 / bpm);
+  const srcS = sectionStart - lead; // 12.195 s: not frame-aligned at 23.976 (0.39 frame) or 30 (-0.15 frame)
+  const deltaAt = f => srcS - Math.round(srcS * f) / f;
+  const rawWant = (f, dl) => cutRaw.slice(1).map(t => Math.round((t + dl) * f));
+  const rawCfg = (extra = {}) => assembleCfg({ cutSeconds: undefined, cutSecondsRaw: cutRaw, clipSound: 'full', ...extra });
+  const layRaw = async (start, adoptFps, extra) => {
+    const ds = [];
+    const out = await load('assemble.js', rawCfg(extra))(project(() => { const x = mockDraft(start, { adoptFps, photos: ['p1'], durations }); ds.push(x); return x.d; }));
+    return { out, ds, ends: ds[ds.length - 1].clips.filter(c => c.trackKind === 'main').map(c => c.endFrame) };
+  };
+  for (const f of [FPS, 30]) {
+    assert.ok(Math.abs(deltaAt(f) * f) > 0.1, 'sourceStart is not frame-aligned at ' + f);
+    const { ends, ds, out } = await layRaw(f, f);
+    assert.equal(ds.length, 1);
+    assert.deepEqual(ends, rawWant(f, deltaAt(f)), 'delta once at ' + f);
+    assert.notDeepEqual(ends, rawWant(f, 0), 'the offset matters at ' + f);
+    assert.notDeepEqual(ends, rawWant(f, 2 * deltaAt(f)), 'not applied twice at ' + f);
+    assert.equal(out.totalFrames, ends[ends.length - 1]);
+  }
+  // A re-lay at another rate uses that rate's delta (the 30 fps Draft switches to 23.976 on the first insert).
+  const relay = await layRaw(30, FPS);
+  assert.equal(relay.ds.length, 2);
+  assert.equal(relay.ds[0].log.filter(x => x[0] === 'commit').length, 0);
+  assert.deepEqual(relay.ends, rawWant(FPS, deltaAt(FPS)));
+  assert.notDeepEqual(relay.ends, rawWant(FPS, deltaAt(30)));
+  // No music: no offset.
+  assert.deepEqual((await layRaw(FPS, FPS, { music: null })).ends, rawWant(FPS, 0));
+  // cutSecondsRaw wins over cutSeconds when both are given.
+  assert.deepEqual((await layRaw(FPS, FPS, { cutSeconds: cutRaw.map(() => 99) })).ends, rawWant(FPS, deltaAt(FPS)));
+
   // --- clip sound full / off, no music ---
   const sound = async (clipSound) => {
     const ms = mockDraft(FPS, { photos: ['p1'], durations });
@@ -283,7 +314,11 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   assert.equal(w, 2);
   assert.ok(tr.every(x => x[2] === 'Selfie whip' && x[3] === 'TRANSITION_TSX' && close(x[4], w / FPS) && close(x[5], w / FPS)));
   assert.deepEqual(tr.map(x => x[6].kind), ['dir', 'dir', 'dir', 'dir', 'dir', 'spin', 'dir']);
-  assert.deepEqual(tr[0][6], { kind: 'dir', angle: 30, whip: 1 });
+  // selfie-whip-transition.tsx data: { kind, angle, strength, whip, cover }; cover = the smaller of the two clips' covers.
+  assert.deepEqual(tr[0][6], { kind: 'dir', angle: 30, strength: 1, whip: 1, cover: r.covers[0] });
+  assert.deepEqual(tr.map(x => x[6].cover), r.covers.slice(0, -1).map((c, i) => Math.min(c, r.covers[i + 1])));
+  assert.equal(tr[2][6].cover, 1, 'v1 -> portrait vshort');
+  assert.ok(close(tr[5][6].cover, r.covers[6]), 'v1 -> photo: the photo cover');
   assert.deepEqual(tr[0][7].map(e => e.key), ['whip']);
   assert.deepEqual(mt.trans.map(x => [x.startFrame, x.endFrame]), tmains.slice(0, -1).map(c => [c.endFrame - 2, c.endFrame + 2]));
   mt.reopen();
