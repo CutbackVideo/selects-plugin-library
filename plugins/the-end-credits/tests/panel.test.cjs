@@ -220,6 +220,15 @@ for (const [key, text] of [['clipSound', 'Clip sound'], ['cinematicLook', 'Cinem
   ['clipsSelected', '{selected} of {count} clips selected'], ['noClipsSelected', 'No clips selected'], ['photosSelected', '{selected} of {count} photos selected'], ['silentVideo', 'Silent video'],
   ['photo', 'Photo'], ['usePhotosOff', 'Use photos is off']]) says(key, text);
 assert.ok(code.includes('t(L, "shape." + hint)') && ['tall', 'wide', 'square'].every(k => en['shape.' + k]), 'shape hints are keys');
+// A sentence with two numbers takes its plural form from {count}, so the noun must sit next to {count}, not next to the
+// other number ({selected}, {found}); checked in every language that has plural nouns.
+{
+  const all = block.strings, forms = v => (typeof v === 'string' ? [v] : Object.values(v));
+  for (const lang of ['de', 'en', 'es', 'fr', 'it', 'pt']) for (const key of ['clipsSelected', 'photosSelected']) for (const f of forms(all[lang][key]))
+    assert.ok(/\{selected\} \S+ \{count\}/.test(f), lang + '.' + key + ': {selected} must come before {count} and its noun: ' + f);
+  for (const lang of ['es', 'fr', 'it', 'pt']) for (const f of forms(all[lang].needsShots))
+    assert.ok(/: \{found\}\)/.test(f), lang + '.needsShots: no noun or participle agreeing with {found}: ' + f);
+}
 const chooseBody = panel.slice(panel.indexOf('const chooseClips ='), panel.indexOf('const toggleClip ='));
 assert.ok(chooseBody.includes('setCandidates(null)') && chooseBody.includes('ordered.length === allRids.length ? null : ordered'), 'a new selection drops the cache');
 // Preview: fixed-height canvas, planner layout at the computed speed, 3 scrub points, bundled fonts.
