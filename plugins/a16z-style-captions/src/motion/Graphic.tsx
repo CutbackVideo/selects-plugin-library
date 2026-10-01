@@ -73,7 +73,7 @@ export default function Graphic({ data }: Props) {
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
       {(d.cards || []).filter((c) => frame >= c.a && frame < c.b).map((c, i) => drawCard(c, i, frame, d, faces))}
-      {d.nameTag && frame >= d.nameTag.a && frame < d.nameTag.b ? drawNameTag(placeTag(d, faces), frame, d, faces) : null}
+      {d.nameTag && frame >= d.nameTag.a && frame < placeTag(d, faces).b ? drawNameTag(placeTag(d, faces), frame, d, faces) : null}
       {d.title && frame >= d.title.a && frame < d.title.b ? titlePlate(d.title, frame, d, faces) : null}
       {quote && live.length ? quoteGlyph(layoutUnit(live[0].u, live[0].k, d, faces, shrinkOf(live[0].k)).top, d, faces) : null}
       {live.map(({ u, k }) => (
@@ -131,13 +131,23 @@ function placeTag(d: GraphicData, faces: Faces): NameTag {
   const tag = d.nameTag as NameTag;
   const key = d.uid;
   if (tagCache[key]) return tagCache[key];
+  // below the captions it shares the screen with; a later caption that would run into it ends it
+  // (after at least 1.3 s)
   let bottom = 0;
-  (d.units || []).forEach((u, k) => {
-    if (u.b <= tag.a || u.a >= tag.b) return;
-    bottom = Math.max(bottom, layoutUnit(u, k, d, faces, 1).bottom);
-  });
+  let b = tag.b;
+  const tagH = 0.1 * d.H;
+  const units = (d.units || []).map((u, k) => ({ u, k })).filter(({ u }) => u.b > tag.a && u.a < tag.b);
+  for (const { u, k } of units) {
+    const lay = layoutUnit(u, k, d, faces, 1);
+    const y = Math.min(0.82 * d.H, Math.max(tag.y * d.H, bottom + 0.03 * d.H));
+    if (u.a > tag.a + 1.3 * d.fps && lay.bottom + 0.02 * d.H > y && lay.top < y + tagH) {
+      b = u.a;
+      break;
+    }
+    bottom = Math.max(bottom, lay.bottom);
+  }
   const y = Math.min(0.82, Math.max(tag.y, bottom / d.H + 0.03));
-  return (tagCache[key] = { ...tag, y });
+  return (tagCache[key] = { ...tag, y, b });
 }
 
 // The hook title: white plates with a black serif-italic title, typed in at about 45 characters a second

@@ -259,6 +259,10 @@ export async function buildGraphic(o: {
     await fs().writeFile(fs().join(dir, "captions.txt"), rows.join("\n"));
     await fs().writeFile(fs().join(dir, "inputs.json"), JSON.stringify({ words, tags, cuts, shots, duration, suppress, cards, fps, inserts: o.inserts }));
   } catch {}
+  try {
+    const dir = fs().join(fs().homedir(), ".selects", "plugin-data", "a16z-style-captions", "shorts", job.shortId);
+    await fs().writeFile(fs().join(dir, "graphic.json"), JSON.stringify({ ...data, fonts: undefined }));
+  } catch {}
   const lockups = track.units.filter((u) => u.lines.length > 1).length;
   const summary = units.length + " captions, " + lockups + " lockups, " + cards.length + " card" + (cards.length === 1 ? "" : "s") + (nameTag ? ", name tag" : "");
   return { data, notes: [...notes, ...track.notes.filter((n) => /^No /.test(n))], summary };

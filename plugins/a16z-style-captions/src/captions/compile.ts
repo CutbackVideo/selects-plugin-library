@@ -337,6 +337,16 @@ export function compileCaptions(inp: CompileInput): CaptionTrack {
     };
     return unit;
   });
+  // the caption keeps its height through a sentence on the speaker: a punch-in jump cut mid-sentence
+  // does not move it
+  let held: { sentence: number; y: number } | null = null;
+  out.forEach((unit, k) => {
+    const s = shotAt(unit.start);
+    const onSpeaker = !s || s.kind === "speaker";
+    if (onSpeaker && held && held.sentence === us[k].sentence) unit.y = held.y;
+    else if (onSpeaker) held = { sentence: us[k].sentence, y: unit.y };
+    else held = null;
+  });
 
   // slot swaps and repetition grow (spec 7.6)
   for (let k = 1; k < out.length; k += 1) {
