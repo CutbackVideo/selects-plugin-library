@@ -3,7 +3,8 @@
 // shot (2 beats, so the montage starts on beat 8, a downbeat), a montage of N shots of M beats each, and a held final
 // shot (F beats). Pace Cinematic: M = 2 up to 110 bpm, 4 above; Quick: M = 1 up to 110 bpm, 2 above, with twice the
 // shots, so a Length keeps its duration. F = 4 up to 110 bpm, 8 above. The montage is always whole bars (N x M a
-// multiple of 4) and shrinks by whole bars when the footage or the music is short; the intro and the final shot stay.
+// multiple of 4) and shrinks by whole bars when the footage or the music is short, down to AV_MIN_MONTAGE shots; the
+// intro and the final shot stay.
 // Without a usable grid (tempo outside 70-160 bpm, own music not accepted, or No music) the same template runs on a
 // fixed beat: an approximate tempo's (avApproxTempo) when own music has one, else 60 / AV_FALLBACK_BPM s.
 // Montage shots per Length at Pace Cinematic (Quick doubles them, avMontageShots).
@@ -16,6 +17,8 @@ const AV_TEMPO_MAX = 160;
 const AV_FALLBACK_BPM = 72;
 // Up to this tempo montage shots are 2 beats (Quick 1) and the final shot 4 beats; above it 4 (Quick 2) and 8.
 const AV_SLOW_MAX_BPM = 110;
+// The shortest montage, in shots, at both paces (kit default): 4 x M beats is whole bars for every M (1, 2 or 4).
+const AV_MIN_MONTAGE = 4;
 // Slot roles: the intro's two, the montage cycle, the final shot (spec 8). The panel holds the search queries.
 const AV_MONTAGE_ROLES = ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline'];
 const AV_ROLES = ['opening', 'portrait'].concat(AV_MONTAGE_ROLES, ['ending']);
@@ -102,11 +105,11 @@ function avMontageShots(length, pace) {
 }
 
 // The montage lengths (shots) a plan may try, longest first. opts: { requested, pace, bpm (avTempo's tempo) }. The
-// steps keep the montage whole bars and the shot count stable across tempos: Cinematic shrinks by 2 shots, Quick by 4;
-// the shortest montage is one bar (4 / M shots), added at the end when the steps miss it (Cinematic above 110 bpm:
-// 8, 6, 4, 2, 1; Quick above 110 bpm: 16, 12, 8, 4, 2). A non-finite request counts as Standard.
+// steps keep the montage whole bars and the shot count stable across tempos: Cinematic shrinks by 2 shots, Quick by 4,
+// both down to AV_MIN_MONTAGE (4) shots (Cinematic 16: 16, 14, ..., 4; Quick 32: 32, 28, ..., 4). A non-finite request
+// counts as Standard; a request under 4 shots gives [4].
 function avMontageLadder(opts) {
-  const m = avMontageBeats(opts.pace, opts.bpm), step = opts.pace === 'quick' ? 4 : 2, least = 4 / m;
+  const step = opts.pace === 'quick' ? 4 : 2, least = AV_MIN_MONTAGE;
   const asked = typeof opts.requested === 'number' && isFinite(opts.requested) ? opts.requested : avMontageShots('standard', opts.pace);
   const out = [];
   for (let n = Math.floor(asked / step) * step; n >= least; n -= step) out.push(n);
@@ -135,7 +138,7 @@ function avVideoSeconds(opts) {
 }
 
 // Music capacity: the longest montage (avMontageLadder) whose whole video fits between sectionStart and usableEnd, in
-// shots, else 0. opts: { requested, pace, bpm (avTempo's tempo), sectionStart?, usableEnd? (Infinity / omitted without
+// montage shots (the 3 bookend shots are not counted), else 0 (not even AV_MIN_MONTAGE shots fit). opts: { requested, pace, bpm (avTempo's tempo), sectionStart?, usableEnd? (Infinity / omitted without
 // music) }.
 function avFitShots(opts) {
   const start = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
@@ -148,11 +151,14 @@ function avFitShots(opts) {
 
 // The opening animation's timings (spec 4) in seconds from the clip start: the reference's, scaled by
 // k = min(1, openingSeconds / AV_OPENING_REF_SECONDS), so a faster cue compresses the animation instead of lengthening
-// the intro. Letterbox reveal from revealStart to revealEnd, kicker and tagline at textIn, decode from decodeStart,
-// letterSeconds per title letter.
+// the intro. Letterbox reveal from revealStart to revealEnd (fully open at 2.35 s in the reference), kicker and tagline
+// at textIn, decode from decodeStart, letterSeconds per title letter (9 letters end at 2.90 + 9 x 0.115 = 3.935 s, the
+// reference's ~3.94 s). cutSeconds is the opening shot's length (the cut the title holds until, unscaled): the title
+// fits its decode before it with a readable hold (decode-title.tsx avTiming).
 function avOpeningTiming(openingSeconds) {
-  const k = Math.min(1, Math.max(0, Number(openingSeconds) || 0) / AV_OPENING_REF_SECONDS);
-  return { k, revealStart: 0.22 * k, revealEnd: 2.30 * k, textIn: 2.40 * k, decodeStart: 2.90 * k, letterSeconds: 0.11 * k };
+  const cutSeconds = Math.max(0, Number(openingSeconds) || 0);
+  const k = Math.min(1, cutSeconds / AV_OPENING_REF_SECONDS);
+  return { k, revealStart: 0.22 * k, revealEnd: 2.35 * k, textIn: 2.40 * k, decodeStart: 2.90 * k, letterSeconds: 0.115 * k, cutSeconds };
 }
 
 // Where the music's beats land on the timeline. Selects snaps the music's source start (sectionStart) to a timeline
@@ -515,41 +521,71 @@ function avAllocate(opts) {
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
 // approxBpm? (avApproxTempo), fps, pace: 'cinematic' (default) | 'quick', requested (montage shots, avMontageShots),
 // sectionStart?, usableEnd? (Infinity / omitted without music), onsets?, onsetThresholds?, lowConfidence?, seed,
-// photoShare?, motionOpener? (avAllocate) }.
-// Order: the music caps the montage (avFitShots), then the plan tries that montage and shrinks it down the ladder
-// (avMontageLadder: whole bars, one bar at least) until the strict allocation fills every slot; the opening, credit and
-// final shots are never dropped. Every attempt allocates from scratch with filler candidates added (see `attempts`
-// below). Failure reasons: 'music-too-short' (not even a one-bar montage fits the music), 'one-resource' (fewer than 2
-// distinct sources: the adjacency rule cannot hold), 'no-video' (photos only, and they cannot fill even the shortest
-// plan: a photo holds at most AV_PHOTO_HOLD_MAX - AV_SOURCE_TAIL = 4.85 s, which the 6-beat opening outlasts below
-// 74.2 bpm), 'too-few' (the
-// footage cannot fill even the shortest plan). A failure carries usableShots (montage slots the shortest plan filled)
+// photoShare?, motionOpener? (avAllocate) }. There is no credit option: Credit off only drops the credit graphic, the
+// 2-beat credit shot stays, so the plan never depends on it.
+// Eligibility (spec 3): the opening, credit and final shots (the 3 bookends) are video only; photos only fill montage
+// shots. Every shot count here is montage shots: `shots`, `requested`, `musicShots` and `usableShots` exclude the 3
+// bookends (`slots` = shots + 3 counts them).
+// Preflight, before any allocation, in this order. Each failure is { ok: false, reason, usableShots: 0, usableSlots: 0,
+// ...vars } with the vars the panel's message needs:
+// - 'no-video': no usable video at all (photos alone cannot fill the bookends).
+// - 'one-video': a single video source. The opening and credit shots are adjacent video-only shots and the previous
+//   shot's source is never used again, so they need 2 distinct videos (photos cannot help).
+// - 'opening-too-short': no video source is long enough for the opening shot (6 beats) at this tempo. vars:
+//   neededSeconds (the source length the shot needs: its length at opts.fps + AV_SOURCE_TAIL, as avAllocate checks
+//   it), shotSeconds (the shot's length), longestSeconds (the longest video source).
+// - 'ending-too-short': the same for the final shot (4 beats, 8 above 110 bpm).
+// - 'music-too-short': the music section cannot hold the intro, AV_MIN_MONTAGE montage shots and the final shot.
+//   vars: neededSeconds (that video's length), availableSeconds (usableEnd - sectionStart).
+// The bookend lengths come from the longest montage the music fits (the shortest one when nothing fits), on the plan
+// rate opts.fps.
+// Then the music caps the montage (avFitShots), and the plan tries that montage and shrinks it down the ladder
+// (avMontageLadder: whole bars, AV_MIN_MONTAGE shots at least) until the strict allocation fills every slot; the
+// bookends are never dropped. Every attempt allocates from scratch with filler candidates added (see `attempts` below).
+// When even the shortest plan cannot be filled: 'too-few', with usableShots (montage slots the shortest plan filled)
 // and usableSlots (all slots it filled).
-// A pool with no usable video lets photos take the opening, credit and final shots and plays photos in any run (as
-// Mini Vlog's photo-only pool); notes then holds 'no-video' so the panel can say so.
 // A plan returns { ok: true, schedule (its slots carry role, part and beats), picks, shots: montage shots, requested:
-// the montage asked for (the ladder's top), slots: all slots, fittedByMusic, pace, montageBeats, finalBeats, tempo,
-// beatSeconds, gridded, approxBpm (the approximate tempo the fixed timing used, else null), fillerShots, photoShots,
-// attempt, notes }.
+// the montage asked for (the ladder's top), musicShots: the montage the music fits (avFitShots), slots: all slots,
+// fittedByMusic, pace, montageBeats, finalBeats, tempo, beatSeconds, gridded, approxBpm (the approximate tempo the
+// fixed timing used, else null), fillerShots, photoShots, attempt, notes ([], kept for the panel) }.
 function avPlanBuild(opts) {
   const pace = opts.pace === 'quick' ? 'quick' : 'cinematic';
   // The tempo the template follows: the grid's, else an approximate one, else AV_FALLBACK_BPM (fixed timing).
   const { gridded, approxBpm, tempo, beatSeconds } = avTempo(opts);
   const ladder = avMontageLadder({ requested: opts.requested, pace, bpm: tempo });
-  const requested = ladder[0];
+  const requested = ladder[0], least = ladder[ladder.length - 1];
   const top = avFitShots({ requested, pace, bpm: tempo, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd });
-  if (top === 0) return { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0 };
+  const fail = (reason, vars) => ({ ok: false, reason, usableShots: 0, usableSlots: 0, ...(vars || {}) });
   // Distinct sources the allocator can use: valid videos (as avAllocate filters them) and photos.
   const finite = v => typeof v === 'number' && isFinite(v);
-  const rids = {};
-  let hasPhotos = false, hasVideo = false;
+  const videos = {};
+  let hasPhotos = false;
   for (const c of opts.candidates) {
     if (!c || typeof c.rid !== 'string') continue;
-    if (c.kind === 'photo') { rids[c.rid] = true; hasPhotos = true; }
-    else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) { rids[c.rid] = true; hasVideo = true; }
+    if (c.kind === 'photo') hasPhotos = true;
+    else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) videos[c.rid] = Math.max(videos[c.rid] || 0, c.sourceDuration);
   }
-  if (Object.keys(rids).length < 2) return { ok: false, reason: 'one-resource', usableShots: 0, usableSlots: 0 };
-  const notes = hasVideo ? [] : ['no-video'];
+  const videoRids = Object.keys(videos);
+  if (!videoRids.length) return fail('no-video');
+  if (videoRids.length < 2) return fail('one-video');
+  const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
+  const scheduleOf = tpl => avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
+  // Bookend preflight: a video source must hold the opening and the final shot whole (avAllocate's own test).
+  {
+    const sch = scheduleOf(avTemplate({ bpm: tempo, pace, montageShots: top || least }));
+    const longest = Math.max(...videoRids.map(r => videos[r]));
+    const check = (reason, slot) => {
+      const shotSeconds = (slot.endFrame - slot.startFrame) / opts.fps;
+      return longest < shotSeconds + AV_SOURCE_TAIL ? fail(reason, { neededSeconds: shotSeconds + AV_SOURCE_TAIL, shotSeconds, longestSeconds: longest }) : null;
+    };
+    const bad = check('opening-too-short', sch.slots[0]) || check('ending-too-short', sch.slots[sch.slots.length - 1]);
+    if (bad) return bad;
+  }
+  if (top === 0) {
+    const start = finite(opts.sectionStart) ? opts.sectionStart : 0;
+    return fail('music-too-short', { neededSeconds: avVideoSeconds({ bpm: tempo, pace, montageShots: least }), availableSeconds: Math.max(0, opts.usableEnd - start) });
+  }
+  const notes = [];
   const candidates = opts.candidates.concat(avFillers(opts.candidates));
   // Share attempts per length. The greedy allocator spends a scarce video window after every photo outside the photo
   // slots, which can strand photos behind the run limit although the length is fillable (P P a P P b P P). So before a
@@ -570,8 +606,6 @@ function avPlanBuild(opts) {
   let usableShots = 0, usableSlots = 0;
   // Whether avAllocate's motion opener can apply (some video candidate carries motion).
   const motionTagged = opts.motionOpener !== false && candidates.some(c => c && c.kind !== 'photo' && c.motion > 0);
-  const least = ladder[ladder.length - 1];
-  const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
   // The shortest plan's fill, for the failure report.
   const tally = (alloc, tpl) => {
     usableSlots = Math.max(usableSlots, alloc.filled);
@@ -580,8 +614,8 @@ function avPlanBuild(opts) {
   for (const n of ladder) {
     if (n > top) continue;
     const tpl = avTemplate({ bpm: tempo, pace, montageShots: n });
-    const schedule = avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
-    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: hasVideo && tpl.videoOnly[i] }));
+    const schedule = scheduleOf(tpl);
+    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: tpl.videoOnly[i] }));
     for (const attempt of attempts) {
       let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: opts.motionOpener });
       let name = attempt.name;
@@ -593,14 +627,14 @@ function avPlanBuild(opts) {
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
-        return { ok: true, schedule, picks: alloc.picks, shots: n, requested, slots: slots.length, fittedByMusic: top < requested, pace,
+        return { ok: true, schedule, picks: alloc.picks, shots: n, requested, musicShots: top, slots: slots.length, fittedByMusic: top < requested, pace,
           montageBeats: tpl.montageBeats, finalBeats: tpl.finalBeats, tempo, beatSeconds, gridded, approxBpm,
           fillerShots: alloc.fillerShots, photoShots: alloc.photoShots, attempt: name, notes };
       }
       if (n === least) tally(alloc, tpl);
     }
   }
-  return { ok: false, reason: hasVideo ? 'too-few' : 'no-video', usableShots, usableSlots, notes };
+  return { ok: false, reason: 'too-few', usableShots, usableSlots, notes };
 }
 
 // Photo motions, in pick order: every photo pick gets one; videos and empty picks get null.
