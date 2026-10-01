@@ -244,7 +244,8 @@ test('saeMotionCurve on a static-then-moving clip: low then high; the driver com
 test('driver still row: measures source paths and plans with the weight', async () => {
   const { createAdapter } = await import(require('node:url').pathToFileURL(path.join(root, 'dev', 'driver-adapter.mjs')).href);
   const A = await createAdapter({ pluginDir: root, installedDir: '/installed/selfie-aesthetic', read: (rel) => fs.readFileSync(path.join(root, rel), 'utf8') });
-  assert.equal(A.panelConstants.STILL_WEIGHT, 0, 'the panel ships with the stillness picker off');
+  assert.equal(A.panelConstants.STILL_WEIGHT, 0.6, 'the panel ships with the stillness picker at 0.6 (Staging A/B, round 2)');
+  assert.equal(P.SAE_STILL_WEIGHT, 0, 'the planner default stays off');
   const c = cases().find((x) => x.opts.cue && x.opts.cue.id === 'make-funk' && x.opts.bars === 4);
   const inv = { resources: Object.keys(c.opts.durations).map((rid) => ({ rid, name: rid, duration: c.opts.durations[rid], width: 1080, height: 1920, path: null })), photos: [] };
   const found = { failed: [], list: c.opts.candidates.map((x) => ({ ...x, sourceDuration: c.opts.durations[x.rid] })) };

@@ -101,7 +101,8 @@ export function ownPath(cue) {
   return path.resolve(p);
 }
 
-export async function createAdapter({ pluginDir, installedDir, read }) {
+// measure (optional, tests): file -> { fps, values } | null in place of the local-ffmpeg motionCurve.
+export async function createAdapter({ pluginDir, installedDir, read, measure }) {
   let manifestJson;
   try { manifestJson = JSON.parse(read('plugin.json')); } catch { manifestJson = { id: 'selfie-aesthetic', version: '0.0.0' }; }
   const panel = read('panel.tsx');
@@ -283,7 +284,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       if (weight > 0) {
         // An inventory from before source paths (an old --inventory file or plan-only cache) cannot be measured.
         if (inv.resources.length && !inv.resources.some(r => r.path)) throw Error('still > 0 needs source paths: the inventory has none (re-read it; delete an old inventory-<pid>.json cache)');
-        for (const r of inv.resources) { const c = motionCurve(r.path); if (c) motion[r.rid] = c; }
+        for (const r of inv.resources) { const c = (measure || motionCurve)(r.path); if (c) motion[r.rid] = c; }
       }
       const still = { weight, measured: Object.keys(motion).length, videos: rids.length };
       const plan = j(P.saePlanBuild({ fps: 30, bars: wantedBars, seed, cue, sectionStart: section ?? undefined, candidates, durations, badSpans, photos, usePhotos: row.photos,

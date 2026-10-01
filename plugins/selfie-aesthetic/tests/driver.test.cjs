@@ -34,10 +34,10 @@ function literalKeys(marker) {
 // A fake Project: four 12 s videos, two with clear face hits, and two photos.
 const FAKE_INV = {
   resources: [
-    { rid: 'r1', name: 'a.mov', duration: 12, width: 1080, height: 1920 },
-    { rid: 'r2', name: 'b.mov', duration: 12, width: 1920, height: 1080 },
-    { rid: 'r3', name: 'c.mov', duration: 12, width: 1080, height: 1920 },
-    { rid: 'r4', name: 'd.mov', duration: 12, width: 1080, height: 1920 },
+    { rid: 'r1', name: 'a.mov', duration: 12, width: 1080, height: 1920, path: '/src/a.mov' },
+    { rid: 'r2', name: 'b.mov', duration: 12, width: 1920, height: 1080, path: '/src/b.mov' },
+    { rid: 'r3', name: 'c.mov', duration: 12, width: 1080, height: 1920, path: '/src/c.mov' },
+    { rid: 'r4', name: 'd.mov', duration: 12, width: 1080, height: 1920, path: '/src/d.mov' },
   ],
   photos: [{ rid: 'p1', width: 3024, height: 4032 }, { rid: 'p2', width: 0, height: 0 }],
   skipped: { unanalysed: 0, missing: 0, short: 0, analysing: 0, notAnalysed: 0, failed: 0, statusKnown: true },
@@ -47,11 +47,17 @@ const hits = (rid, face) => ['selfie', 'hand', 'expression', 'glance', 'control'
 // The kit driver's search cache: batch order plus sourceDuration on every hit.
 const FAKE_FOUND = { failed: [], list: ['r4', 'r3', 'r2', 'r1'].flatMap(rid => hits(rid, rid === 'r1' || rid === 'r3').map(c => ({ ...c, sourceDuration: 12 }))) };
 const FPS = 24000 / 1001;
+// Fake motion curves (the adapter's `measure` hook replaces the local ffmpeg): 8 fps over 12 s, each clip moving
+// except for one still stretch that depends on the file, so a still weight moves the moments.
+const STILL_AT = { '/src/a.mov': 6, '/src/b.mov': 2, '/src/c.mov': 9, '/src/d.mov': 4 };
+const fakeCurve = file => (file in STILL_AT
+  ? { fps: 8, values: Array.from({ length: 96 }, (_, i) => (Math.abs(i / 8 - STILL_AT[file]) < 1 ? 0.3 : 4 + (i % 5))) } : null);
+const FAKE_MOTION = Object.fromEntries(FAKE_INV.resources.map(r => [r.rid, fakeCurve(r.path)]));
 
 let A;
 const mk = async () => {
   const { createAdapter } = await import(pathToFileURL(path.join(root, 'dev', 'driver-adapter.mjs')).href);
-  return createAdapter({ pluginDir: root, installedDir: '/installed/selfie-aesthetic', read });
+  return createAdapter({ pluginDir: root, installedDir: '/installed/selfie-aesthetic', read, measure: fakeCurve });
 };
 // One full offline pass of a row: every step the driver would send, with a fake ensure-audio / assemble result.
 function pass(row, fps = FPS, seed = 1) {
@@ -157,9 +163,19 @@ test('the plan equals the panel planner call with the default section and invent
   const cue = JSON.parse(read('assets/cues/manifest.json')).cues.find(c => c.id === 'make-funk');
   const bars = P.SAE_LENGTHS.short, editBpm = P.saeTempo(cue).editBpm;
   const candidates = ['r1', 'r2', 'r3', 'r4'].flatMap(rid => hits(rid, rid === 'r1' || rid === 'r3'));
-  const want = JSON.parse(JSON.stringify(P.saePlanBuild({ fps: 30, bars, seed: 1, cue, sectionStart: P.saeDefaultSection(cue, bars, editBpm), candidates,
-    durations: { r1: 12, r2: 12, r3: 12, r4: 12 }, badSpans: {}, photos: ['p1', 'p2'], usePhotos: true })));
+  const panelCall = (extra) => JSON.parse(JSON.stringify(P.saePlanBuild({ fps: 30, bars, seed: 1, cue, sectionStart: P.saeDefaultSection(cue, bars, editBpm), candidates,
+    durations: { r1: 12, r2: 12, r3: 12, r4: 12 }, badSpans: {}, photos: ['p1', 'p2'], usePhotos: true, ...extra })));
+  // A row without `still` plans like the panel: its SAE_STILL_WEIGHT_PANEL (0.6) with every video's motion.
+  assert.equal(A.panelConstants.STILL_WEIGHT, 0.6);
+  const want = panelCall({ motion: FAKE_MOTION, stillWeight: 0.6 });
   assert.deepEqual(s.plan, want);
+  assert.deepEqual(s.still, { weight: 0.6, measured: 4, videos: 4 });
+  // The weight moved moments (not cuts) compared with weight 0; a still: 0 row is the plain planner call.
+  const off = A.plan({ row: { ...base, still: 0 }, seed: 1, inv: JSON.parse(JSON.stringify(FAKE_INV)), found: FAKE_FOUND });
+  assert.deepEqual(off.plan, panelCall({}));
+  assert.deepEqual(off.still, { weight: 0, measured: 0, videos: 4 });
+  assert.deepEqual(s.plan.cutSecondsRaw, off.plan.cutSecondsRaw);
+  assert.notDeepEqual(s.plan.holds.map(h => h.srcStart), off.plan.holds.map(h => h.srcStart));
   assert.equal(s.plan.holds.length, 6 * (s.plan.bars - 1) + 7);
   // Sections: early / late / seconds snap like the panel's waveform.
   const early = A.plan({ row: { ...base, section: 'early' }, seed: 1, inv: JSON.parse(JSON.stringify(FAKE_INV)), found: FAKE_FOUND });

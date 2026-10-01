@@ -39,7 +39,8 @@ Row inputs: `cue`, `preset`, `look`, `length`, `clipSound`, `photos`, `section` 
 names: `Selfie test <A|B> <cue> <preset> <length> s<seed>`, plus ` transition` in transition mode and ` still<w>` on a
 row that sets `still` (0 included).
 
-Stillness A/B: rows `a-still0` / `a-still6` are the same Project A build at weight 0 and 0.6 (both exported). With
+Stillness A/B: rows `a-still0` / `a-still6` are the same Project A build at weight 0 and 0.6 (both exported). The panel
+ships with 0.6 (round 2 A/B), so every other row also plans at 0.6. With
 `still` > 0 the adapter measures every video's motion with the local ffmpeg (`FFMPEG_DIR` or PATH) on the source paths
 inventory.js returns, using the host block's own `saeMotionArgs` / `saeMotionValues` (the panel's argv and arithmetic,
 8 fps, 32x56 gray, first 120 s), and passes it to the planner as the panel does. `rec.still` records

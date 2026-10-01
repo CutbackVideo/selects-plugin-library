@@ -161,7 +161,7 @@ test('configs sent to each script carry what the scripts read', () => {
   assert.ok(own.includes('saePlanBuild({ fps: 30, bars: settings.bars, seed: nextSeed, cue: settings.cue, sectionStart: settings.section ?? undefined,'));
   assert.ok(own.includes('candidates, durations, badSpans, photos, usePhotos: settings.usePhotos, motion, stillWeight: SAE_STILL_WEIGHT_PANEL })'));
   // Stillness picker: off by default (no motion step, plans as before); on, motion per clip through the host block, guarded.
-  assert.ok(own.includes('const SAE_STILL_WEIGHT_PANEL: number = 0;'), 'stillness picker off until the Staging A/B');
+  assert.ok(own.includes('const SAE_STILL_WEIGHT_PANEL: number = 0.6;'), 'stillness picker on at 0.6 (Staging A/B, round 2)');
   assert.ok(own.includes('const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok;'));
   assert.ok(own.includes('await saeMotionCurve(pathOf[rid], dataDir, {})') && own.includes('t(l, "videosMeasured", { done, count: total })'));
   assert.ok(own.includes('motion, stillWeight: SAE_STILL_WEIGHT_PANEL });'), 'the dry run uses the cached motion too');

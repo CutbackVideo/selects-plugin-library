@@ -1297,8 +1297,8 @@ const SAE_WHIP_MODE: "effect" | "transition" = "effect";
 // Stillness picker weight sent to the planner (planner SAE_STILL_WEIGHT; the reference freezes each hold, ours are
 // real-time micro-windows, so holds should come from the stillest moments). 0 = off: no motion is measured and plans
 // are exactly as without it. When > 0 and the host can run ffmpeg, the Check step measures each chosen video's
-// motion (saeMotionCurve, cached per clip). Kept 0 until the Staging A/B decides.
-const SAE_STILL_WEIGHT_PANEL: number = 0;
+// motion (saeMotionCurve, cached per clip). 0.6 from the Staging A/B (round 2: motion_inside_shots 8.58 -> 6.22).
+const SAE_STILL_WEIGHT_PANEL: number = 0.6;
 // Scene-search roles and queries (spec "Shot roles, search and allocation"). The planner compares each clip's face
 // scores with its best control score to decide what counts as a close-up.
 const SAE_QUERIES = {
