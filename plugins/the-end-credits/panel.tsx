@@ -1,4 +1,5 @@
 // @name THE END Credits
+// @collection visual-highlights
 // @name:de THE END Abspann
 // @name:en THE END Credits
 // @name:es Créditos THE END
@@ -3050,7 +3051,327 @@ function guardKeys(e: React.KeyboardEvent) {
   if (e.key === " " || e.key === "Spacebar") { e.preventDefault(); e.stopPropagation(); if (t && t.tagName === "BUTTON") t.click(); }
 }
 
-export default function Panel({ sdk, context, ui }: any) {
+// ---------------------------------------------------------------------------
+// Template runs. Clip highlights asks the person for the footage and a few choices, mounts this panel out of sight and
+// hands them over in `context.template`. The run builds a new Draft at once from only those files, as Build does with
+// every other setting at the panel's default, never opens it, and ends by calling `sdk.finishTemplate` exactly once.
+// ---------------------------------------------------------------------------
+type TemplateOutcome = { sequenceId: string } | { error: string };
+// The panel's first Build uses seed 1 ("Create another version" counts up from there).
+const TEMPLATE_SEED = 1;
+// Files per alias call: a photo gets its own scratch Draft, which keeps each call well inside runScript's 30 s.
+const TEMPLATE_ALIAS_BATCH = 6;
+// An error whose message is written for the person; anything else a run throws becomes a plain "stopped" sentence.
+function templateIssue(message: string) { const e: any = new Error(message); e.forPerson = true; return e; }
+// Error text for the hidden frame's log (an Error logged as an object shows as {}).
+function errorText(e: any) { return String(e?.message || e); }
+
+// One panel script; a lost session is resent (never a committing call), and a read that comes back empty is read
+// again up to twice: an alias checkpoint ack can answer a pending read with undefined right after a script mints new
+// short ids, which a template run does for every handed file just before its inventory read.
+const EMPTY_READ = /Cannot read properties of (undefined|null)|is not iterable/;
+async function runTemplateStep(sdk: any, summary: string, script: string, allowCommit = false) {
+  for (let attempt = 0; ; attempt++) {
+    let r = await sdk.runScript({ summary, script, allowCommit });
+    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
+    if (!r.isError && r.result != null) return r.result as any;
+    const text = String(r.output || "Selects could not complete this step.");
+    if (allowCommit || attempt >= 2 || !(EMPTY_READ.test(text) || (r.result == null && !r.isError))) throw new Error(text);
+    console.warn("[the-end-credits] " + summary + " came back empty, reading again:", text);
+    await new Promise((d) => setTimeout(d, 1500));
+  }
+}
+
+// Handed files carry the app's own Resource ids, but resources() and a Draft's clips report the Project's short
+// aliases (r0, r1, ...), which inventory.js filters on and assemble.js / decorate.js match clips by. So each handed
+// file is placed once on an unsaved scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its
+// own, whose frame size is the photo's. Nothing is committed. A file that cannot be placed is left out.
+const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
+const p = selects.project(cfg.projectId);
+const resolved = [];
+let shared = null;
+for (const h of cfg.files) {
+  try {
+    const photo = h.kind === 'image';
+    const d = photo || !shared ? await p.createDraft({ name: 'THE END Credits id check' }) : shared;
+    if (!photo) shared = d;
+    const before = new Set((await d.clips({ trackScope: 'main' })).map(c => c.clipId));
+    try { await d.insertResource({ resourceId: h.rid, sourceRange: { startSeconds: 0, endSeconds: 0.5 } }); }
+    catch (e) { await d.insertResource({ resourceId: h.rid }); }
+    const clip = (await d.clips({ trackScope: 'main' })).find(c => c.resourceId !== null && !before.has(c.clipId));
+    if (!clip) continue;
+    let size = null;
+    if (photo) {
+      const fs = (await d.meta()).frameSize;
+      if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
+    }
+    resolved.push({ rid: h.rid, alias: clip.resourceId, size });
+  } catch (e) {}
+}
+return { resolved };`;
+
+// The handed videos and photos, each once, in the order they were picked.
+function templateFootage(context: any) {
+  const seen = new Set<string>();
+  const files: Array<{ rid: string; kind: string }> = [];
+  for (const input of context?.template?.inputs?.footage ?? []) {
+    if (!input || (input.kind !== "video" && input.kind !== "image") || !input.resourceId || seen.has(input.resourceId)) continue;
+    seen.add(input.resourceId);
+    files.push({ rid: String(input.resourceId), kind: input.kind });
+  }
+  return files;
+}
+
+// The bundled faces in this frame's document, so the roll speed is measured as the graphic renders it. A face that
+// fails only makes the measurement fall back, as in the panel.
+async function loadCreditFaces(fontsB64: Record<string, string>) {
+  if (typeof FontFace === "undefined") return true;
+  try {
+    for (const f of TEC_FONTS) {
+      const face = new FontFace(f.family, "url(data:font/woff2;base64," + fontsB64[f.file] + ")", { style: f.style, weight: String(f.weight) });
+      await face.load();
+      (document as any).fonts.add(face);
+    }
+    await (document as any).fonts?.ready;
+    return true;
+  } catch { return false; }
+}
+
+// The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer run
+// (or the frame closing) replaced this one. `say` names the current step for the status line.
+async function runEndCreditsTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
+  // The UI language when the run starts: its messages and the Inspector labels written into the Draft use it.
+  const bl = uiLang(context);
+  const pid: string | null = context?.projectId ?? null;
+  if (!pid) throw templateIssue(t(bl, "openProject"));
+  const files = templateFootage(context);
+  if (!files.length) throw templateIssue("Choose videos or photos for the footage, then try again.");
+  const run = (summary: string, script: string, allowCommit = false) => runTemplateStep(sdk, summary, script, allowCommit);
+  const options = context?.template?.options || {};
+
+  say("Reading the chosen files");
+  const roots = await locateRoots(sdk);
+  check();
+  const read = (rel: string) => readText(roots.plugin, rel);
+  const [manifestText, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, graphicTsx, frameTsx, lookTsx, titleB64, creditsB64] = await Promise.all([
+    read("assets/cues/manifest.json"), read("scripts/inventory.js"), read("scripts/search.js"), read("scripts/ensure-audio.js"),
+    read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/credits-graphic.tsx"), read("assets/shot-frame.tsx"),
+    read("assets/cinematic-look.tsx"), read("assets/fonts/tec-title-serif.woff2.b64"), read("assets/fonts/tec-credits-sans.woff2.b64")]);
+  check();
+  const fontsB64: Record<string, string> = { "tec-title-serif.woff2.b64": titleB64.replace(/\s+/g, ""), "tec-credits-sans.woff2.b64": creditsB64.replace(/\s+/g, "") };
+  const facesLoaded = await loadCreditFaces(fontsB64);
+  check();
+  // The track, length and layout chosen on the app's page; an unknown or missing one gets the panel's default.
+  const cues: any[] = JSON.parse(manifestText).cues || [];
+  const cue = cues.find((c) => c.id === options.track) || cues.find((c) => c.default) || cues[0];
+  if (!cue) throw templateIssue("THE END Credits' music is missing; reinstall the plugin and try again.");
+  const length = options.length === "short" || options.length === "long" || options.length === "standard" ? options.length : TEC_DEFAULT_LENGTH;
+  const layout: "classic" | "full" = options.layout === "full" ? "full" : "classic";
+  const requested = TEC_LENGTHS[length];
+  // The music's phrase and the default section (the reveal on the swell), as the panel works them out for a bundled track.
+  const beats = cue.phraseBeats > 0 ? cue.phraseBeats : 4;
+  const P = (beats * 60) / cue.bpm;
+  const videoSeconds = tecVideoSeconds(requested, P);
+  const sectionInfo = tecSection({ firstBeat: cue.firstBeat, P, L: TEC_LEAD_IN, videoSeconds, usableEnd: cue.usableEnd, swell: cue.swell ?? cue.swellFallback, fixed: false, value: undefined });
+  if (!sectionInfo) throw templateIssue(t(bl, "trackTooShort"));
+
+  // Handed ids to the Project's aliases; the files the first pass skipped get one more.
+  const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const resolveFiles = async (list: Array<{ rid: string; kind: string }>) => {
+    for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
+      const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH) }));
+      check();
+      resolved.push(...(r.resolved || []));
+    }
+  };
+  await resolveFiles(files);
+  const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
+  if (unresolved.length) await resolveFiles(unresolved);
+  const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const known: Record<string, { width: number; height: number }> = {};
+  for (const r of resolved) if (r.size) known[r.alias] = r.size;
+  if (!aliases.length) throw templateIssue("None of the chosen files could be found in this Project. Choose them again, then try again.");
+  // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
+  const inv = await run("Read footage", fill(inventoryJs, { projectId: pid, only: aliases, known }));
+  check();
+  inv.resources = inv.resources || [];
+  inv.photos = inv.photos || [];
+  const unanalysed = inv.skipped?.unanalysed || 0;
+
+  // Scene search over the handed videos. Nobody can press Build again, so videos whose search failed get one more
+  // try. In-shot motion is not measured here (it needs ffmpeg per clip); the allocation scores those clips as the
+  // panel does without ffmpeg.
+  say("Choosing shots");
+  const rids: string[] = inv.resources.map((r: any) => r.rid);
+  const dur: Record<string, number> = Object.fromEntries(inv.resources.map((r: any) => [r.rid, r.duration]));
+  const search = async (todo: string[]) => {
+    const list: any[] = []; const failed: string[] = [];
+    for (let i = 0; i < todo.length; i += 4) {
+      say("Choosing shots", i + "/" + todo.length + (todo.length === 1 ? " video" : " videos"));
+      const r = await run("Search scenic shots", fill(searchJs, { projectId: pid, rids: todo.slice(i, i + 4), queries: TEC_SEARCH_QUERIES, pageSize: 4 }));
+      check();
+      list.push(...r.candidates); failed.push(...r.failed);
+    }
+    return { list, failed };
+  };
+  let found = await search(rids);
+  if (found.failed.length) {
+    const retried = new Set(found.failed);
+    const again = await search(found.failed);
+    found = { list: [...found.list.filter((c: any) => !retried.has(c.rid)), ...again.list], failed: again.failed };
+  }
+  if (found.failed.length) console.info("[the-end-credits] template run: scene search failed for", found.failed.join(", "));
+  const candidates = found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }));
+  const plan: any = tecPlanBuild({ layout, N: requested, P, candidates: candidates.concat(photoCandsOf(inv, null, true)), seed: String(TEMPLATE_SEED), motion: {} });
+  if (!plan.ok) {
+    const waiting = unanalysed ? " " + unanalysed + (unanalysed === 1 ? " video is" : " videos are") + " not analyzed yet, so it could not be used." : "";
+    throw templateIssue(t(bl, "needsShots", { count: plan.needed, found: plan.usableShots }) + t(bl, "gap") + t(bl, "addFootage") + waiting);
+  }
+
+  // The credit rows of the default preset, filled from the Project, the track and the footage as the panel fills them.
+  const rows = tecCleanRows(tecPresetRows(TEC_DEFAULT_PRESET, {
+    projectName: context?.projectName || "",
+    dates: [...inv.resources, ...inv.photos].map((r: any) => r.recordedAt).filter(Boolean),
+    cueTitle: cue.title || "", ownMusicName: "", clips: rids.length, photos: inv.photos.length,
+  }));
+
+  // Commit 1: the music, then the shots on a new Draft.
+  say("Adding music");
+  const musicRes = await run("Add music to the project", fill(ensureJs, { projectId: pid, path: roots.plugin + "/assets/cues/" + cue.file }), true);
+  check();
+  say("Making the Draft");
+  const sizeOf = (rid: string) => [...inv.resources, ...inv.photos].find((r: any) => r.rid === rid) || null;
+  const pickedRids = [...new Set(plan.picks.map((k: any) => k.rid as string))] as string[];
+  const sources: Record<string, { aspect: number | null }> = {};
+  for (const rid of pickedRids) { const r: any = sizeOf(rid); sources[rid] = { aspect: r && r.aspect > 0 ? r.aspect : null }; }
+  const clipSound = "ambient";
+  const name = "THE END Credits " + new Date().toISOString().slice(0, 16).replace("T", " ");
+  // Never resent: the reply may be lost after the Draft was saved.
+  const a = await run("Assemble the THE END Credits", fill(assembleJs, {
+    projectId: pid, draftName: name, layout, picks: plan.picks, boundaries: plan.timeline.boundaries, L: plan.timeline.L,
+    music: musicRes ? { resourceId: musicRes.resourceId, sectionStart: sectionInfo.start } : null,
+    clipSound, ambientDb: AMBIENT_DB, musicFadeOut: MUSIC_FADE_OUT, sources }), true);
+  check();
+  if (!a.sequenceId) throw templateIssue("The Draft \"" + name + "\" may have been saved without its credits. Open it from the Drafts list, or try again.");
+
+  // Commit 2: the credits graphic, the Cinematic look and the Shot frame, as the panel's Finish step adds them.
+  say("Adding credits and look");
+  const frames: number[] = a.frames;
+  const endSec = frames[frames.length - 1] / a.fps, revealSec = frames[1] / a.fps;
+  if (!facesLoaded) console.info("[the-end-credits] template run: the bundled fonts did not load, so the roll speed was measured with a fallback face");
+  const model = tecCreditLayout({ rows, layout, H: 1080, measure: (text: string, px: number) => measureCredit(text, px) });
+  const speed = tecRollSpeed({ endSec, L: revealSec, H: 1080, lastLineBottom: model.lastLineBottom, rowTops: model.rowTops, rowBottoms: model.rowBottoms });
+  const sizes: Record<string, { width: number; height: number }> = { ...known };
+  for (const r of [...inv.resources, ...inv.photos]) if (r.width > 0 && r.height > 0) sizes[r.rid] = { width: r.width, height: r.height };
+  const moves = tecShotMotions(plan.picks, String(TEMPLATE_SEED), sizes, { pool: plan.motionPool });
+  const photos: Record<string, any> = {}, byRid: Record<string, any> = {};
+  const byShot = moves.map((mv: any) => (mv ? { motion: mv.motion, direction: mv.direction, axis: mv.axis, frameStrength: mv.frameStrength } : null));
+  plan.picks.forEach((k: any, i: number) => {
+    if (!k || k.kind !== "photo" || !moves[i]) return;
+    const mv = moves[i];
+    photos[k.rid] = { aspect: sources[k.rid]?.aspect ?? null, motion: mv.motion, direction: mv.direction, axis: mv.axis };
+    byRid[k.rid] = { motion: mv.motion, direction: mv.direction, axis: mv.axis };
+  });
+  const record = { layout, sequenceId: a.sequenceId, fps: a.fps, frames, titleText: DEFAULT_TITLE, rows,
+    speedPxPerSec: speed.pxPerSec, window: WINDOWS[layout], look: { on: true, strength: LOOK_STRENGTH }, clipSound,
+    photos, sources, fades: FADES, musicFadeOut: MUSIC_FADE_OUT };
+  // The credits graphic's data and Adjust fields, as the panel's graphicFor builds them.
+  const scalars: Record<string, string> = {};
+  const editableRows: any[] = [];
+  rows.forEach((r: any, i: number) => {
+    scalars["role" + (i + 1)] = r.role; scalars["name" + (i + 1)] = r.name;
+    editableRows.push({ key: "role" + (i + 1), label: t(bl, "roleN", { n: i + 1 }), type: "text", defaultValue: r.role }, { key: "name" + (i + 1), label: t(bl, "nameN", { n: i + 1 }), type: "text", defaultValue: r.name });
+  });
+  const graphic = { tsx: graphicTsx,
+    parameters: { layout, fps: a.fps, revealFrame: frames[1], endFrame: frames[frames.length - 1], title: DEFAULT_TITLE, titleColor: TITLE_COLOR, creditColor: CREDIT_COLOR,
+      rows, ...scalars, rowCount: rows.length, speedPxPerSec: speed.pxPerSec, speed: 1, showTitle: true,
+      fonts: TEC_FONTS.map((f) => ({ family: f.family, b64: fontsB64[f.file], weight: f.weight, style: f.style })) },
+    editableParameters: [
+      { key: "title", label: t(bl, "title"), type: "text", defaultValue: DEFAULT_TITLE },
+      { key: "titleColor", label: t(bl, "param.titleColor"), type: "color", defaultValue: TITLE_COLOR },
+      { key: "creditColor", label: t(bl, "param.creditColor"), type: "color", defaultValue: CREDIT_COLOR },
+      { key: "speed", label: t(bl, "param.rollSpeed"), type: "number", defaultValue: 1, min: 0.5, max: 2, step: 0.05 },
+      { key: "showTitle", label: t(bl, "param.showTitle"), type: "boolean", defaultValue: true },
+      ...editableRows,
+    ] };
+  const finish = () => run("Add credits and look", fill(decorateJs, { ...record, graphic, frame: { tsx: frameTsx },
+    look: { tsx: lookTsx, strength: record.look.strength, on: record.look.on }, photoMotion: { byRid, byShot }, labels: {
+      windowX: t(bl, "param.windowX"), windowY: t(bl, "param.windowY"), windowSize: t(bl, "param.windowSize"), fadeIn: t(bl, "param.fadeIn"),
+      fadeOut: t(bl, "param.fadeOut"), motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), lookStrength: t(bl, "param.lookStrength"),
+      motions: Object.fromEntries(["none", ...TEC_PHOTO_MOTIONS].map((v) => [v, t(bl, "motion." + v)])) } }), true);
+  // decorate.js never replaces effects already on the Draft, so a failed attempt is tried once more.
+  try {
+    await finish();
+  } catch (e) {
+    console.warn("[the-end-credits] Add credits and look failed, trying again:", errorText(e));
+    check();
+    try { await finish(); } catch (e2) {
+      console.warn("[the-end-credits] Add credits and look failed again:", errorText(e2));
+      throw templateIssue("The Draft was made, but its credits and look could not be added; try again.");
+    }
+  }
+  check();
+  // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
+  return { sequenceId: a.sequenceId };
+}
+
+// What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
+// exactly once, unless a newer run (or the frame closing) replaced it; then it reports nothing.
+function TemplateRun({ sdk, context }: any) {
+  const [status, setStatus] = React.useState("Starting");
+  const begun = React.useRef<string | null>(null);
+  const alive = React.useRef(true);
+  // The latest context, so a run reports only while it is still the current one.
+  const latest = React.useRef<any>(context);
+  latest.current = context;
+  const runId: string | null = context?.template?.runId ?? null;
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  React.useEffect(() => {
+    if (runId == null || begun.current === runId) return;
+    begun.current = runId;
+    const snapshot = context;
+    const live = () => alive.current && latest.current?.template?.runId === runId;
+    const check = () => { if (!live()) throw STALE; };
+    let ended = false, step = "starting";
+    const say = (text: string, detail?: string) => { step = text; if (live()) setStatus(text + (detail ? " (" + detail + ")" : "")); };
+    const end = (outcome: TemplateOutcome | null) => {
+      if (ended) return;
+      ended = true;
+      if (!outcome || !live()) return;
+      setStatus("sequenceId" in outcome ? "Done" : outcome.error);
+      try { sdk.finishTemplate(outcome); } catch (e) { console.warn("[the-end-credits] finishTemplate failed:", errorText(e)); }
+    };
+    (async () => {
+      try {
+        end(await runEndCreditsTemplate(sdk, snapshot, check, say));
+      } catch (e: any) {
+        if (e === STALE) { end(null); return; }
+        console.warn("[the-end-credits] template run failed while " + step + ":", errorText(e), e);
+        end({ error: e?.forPerson ? String(e.message) : "THE END Credits stopped while " + step.charAt(0).toLowerCase() + step.slice(1) + "; try again." });
+      } finally {
+        end({ error: "THE END Credits stopped before the Draft was ready; try again." });
+      }
+    })();
+  }, [runId]);
+  return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{status}</div>;
+}
+
+// A template run (Clip highlights hands the footage over in `context.template`) builds out of sight; anything else is
+// the panel.
+export default function Panel(props: any) {
+  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <EndCreditsPanel {...props} />;
+}
+
+// The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing. Shared by
+// the panel and a template run.
+async function locateRoots(sdk: any) {
+  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
+  const [plugin, data] = String(where?.stdout || "").split("\n").map((x: string) => x.trim());
+  if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
+  return { plugin, data };
+}
+
+function EndCreditsPanel({ sdk, context, ui }: any) {
   // The UI language, read on every render: the app can switch languages while the panel is open.
   const L = uiLang(context);
   // Inspector labels are written into the Draft in the UI language at build time; they do not follow a later switch.
@@ -3175,9 +3496,7 @@ export default function Panel({ sdk, context, ui }: any) {
     let alive = true;
     (async () => {
       try {
-        const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-        const [plugin, data] = String(where?.stdout || "").split("\n").map((x) => x.trim());
-        if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
+        const { plugin, data } = await locateRoots(sdk);
         if (!alive || projectRef.current !== projectId) return;
         setRoots({ plugin, data });
         // ffmpeg and node are only needed for music previews and own music; bundled cues build without them.
