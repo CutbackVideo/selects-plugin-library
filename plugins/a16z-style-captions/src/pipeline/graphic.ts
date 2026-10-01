@@ -90,14 +90,12 @@ export function prepareShort(job: Job, short: DraftInfo): Prepared {
       const a = Math.round((textWord.s - 4 / 24) * fps);
       const b = Math.min(Math.round((textWord.s + 2.2) * fps), Math.max(Math.round((textWord.s + 1.4) * fps), Math.round((last.e + 0.2) * fps)));
       if (a / fps > 0.7 * duration || !free(a, b)) continue;
-      // the spoken words just before the concept ride above it as a small lead-in ("it's called the")
-      const lead = words.filter((w) => w.s >= first.s - 0.01 && w.s < textWord.s - 0.01 && w.i >= 0).slice(-4).map((w) => caseWord(w.t.replace(/[.,!?;:"]+$/g, "")));
-      const items: Card["items"] = [];
-      if (lead.length) items.push({ text: lead.join(" "), at: Math.max(0, Math.round((first.s - 1 / fps) * fps)), role: "label" });
-      items.push({ text: c.text.split(/\s+/).map(caseWord).join(" "), at: a, role: "key" });
-      place({ a: Math.min(a, items[0].at), b, kind: "keyword", items });
+      // the card starts on the concept itself; the words before it stay in the captions
+      place({ a, b, kind: "keyword", items: [{ text: c.text.split(/\s+/).map(caseWord).join(" "), at: a, role: "key" }] });
     }
     for (const dz of semantic?.designs || []) {
+      // one window card at most, and not over the opening
+      if (dz.kind === "window" && cards.some((c) => c.kind === "window")) continue;
       const spoken = dz.parts.filter((p) => p.span);
       const first = onset(spoken[0]?.span || null);
       const lastPart = spoken[spoken.length - 1]?.span;
@@ -108,7 +106,7 @@ export function prepareShort(job: Job, short: DraftInfo): Prepared {
       const minDur = dz.kind === "chapter" || dz.kind === "window" ? 1.6 : 1.4;
       const maxDur = dz.kind === "list" || dz.kind === "bubbles" ? 5.5 : dz.kind === "versus" ? 2.5 : dz.kind === "window" || dz.kind === "document" ? 4 : 3.2;
       const b = Math.round(Math.min(first.s + maxDur, Math.max(first.s + minDur, last.e + 0.35)) * fps);
-      if (!free(a, b)) continue;
+      if (!free(a, b) || (dz.kind === "window" && a / fps < 6)) continue;
       const items = dz.parts.map((p, k) => {
         const w = onset(p.span);
         const prev = dz.parts[k - 1]?.span ? at(dz.parts[k - 1].span![1]) : undefined;
@@ -190,15 +188,13 @@ export function fillCoverage(prep: Prepared, inserts: { a: number; b: number }[]
     });
     const options: (() => boolean)[] = [];
     if (key) options.push(() => {
-      const ws = words.filter((w) => w.i >= key.span[0] && w.i <= key.span[1]);
-      if (!ws.length) return false;
-      const lead = words.filter((w) => w.s >= t - 0.01 && w.s < ws[0].s - 0.01 && w.i >= 0).slice(-3);
+      const ws = words.filter((w) => w.i >= key.span[0] && w.i <= key.span[1] && wordClass(w.t) === "CONT");
+      if (!ws.length || count("keyword") >= 3) return false;
+      const ka = Math.round((ws[0].s - 2 / 24) * fps);
+      if (prep.cards.some((c) => c.kind === "keyword" && Math.abs(c.a - ka) < 8 * fps)) return false;
       const b = Math.round(Math.max(ws[0].s + 1.5, ws[ws.length - 1].e + 0.35) * fps);
-      if (!free(a / fps, b / fps)) return false;
-      const items: Card["items"] = [];
-      if (lead.length) items.push({ text: lead.map((w) => caseWord(clean(w.t))).join(" "), at: a, role: "label" });
-      items.push({ text: ws.map((w) => caseWord(clean(w.t))).join(" "), at: Math.max(a, Math.round((ws[0].s - 1 / fps) * fps)), role: "key" });
-      prep.cards.push({ a, b, kind: "keyword", items });
+      if (!free(ka / fps, b / fps)) return false;
+      prep.cards.push({ a: ka, b, kind: "keyword", items: [{ text: ws.map((w) => caseWord(clean(w.t))).join(" "), at: ka, role: "key" }] });
       lastKind = "keyword";
       return true;
     });
@@ -217,8 +213,8 @@ export function fillCoverage(prep: Prepared, inserts: { a: number; b: number }[]
       return true;
     });
     options.push(() => {
-      // the window card is the rarest device: two at most
-      if (count("window") >= 2) return false;
+      // the window card is not a filler (on its own it reads as a template)
+      if (count("window") >= 0) return false;
       const ws = inWin(t + 2.2).slice(0, 10);
       if (ws.length < 3) return false;
       const b = Math.round(Math.max(t + 1.6, ws[ws.length - 1].e + 0.3) * fps);
