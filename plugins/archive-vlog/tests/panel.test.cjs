@@ -479,7 +479,7 @@ for (const s of ['React.useState(DEFAULT_PRESET)', 'React.useState(DEFAULT_CUE)'
 assert.ok(ui.includes('options={[{ label: t(L, "pace.cinematic"), value: "cinematic" }, { label: t(L, "pace.quick"), value: "quick" }]}'));
 // Style tiles: the sample and the name inside one bordered box (panel-ui.md section 2), one tile per preset.
 for (const s of ['presetList.map((p) => {', 'aria-pressed={on}', 'onClick={() => choosePreset(p.id)}', 'height: "auto", maxHeight: "none", boxSizing: "border-box", padding: "8px 6px"',
-  'display: "flex", flexDirection: "column", alignItems: "center", gap: 6', 'border: on ? "2px solid var(--panel-fg, #ffffff)"', 'overflowWrap: "anywhere", wordBreak: L === "ko" ? "keep-all" : undefined'])
+  'display: "flex", flexDirection: "column", alignItems: "center", gap: 6', 'border: on ? "2px solid var(--panel-fg, #ffffff)"', '<span lang="en" style={{ fontSize: 12, lineHeight: 1.2, textAlign: "center", overflowWrap: "anywhere", hyphens: "auto",'])
   assert.ok(ui.includes(s), s);
 assert.equal(presets.presets.length, 3);
 for (const p of presets.presets) {

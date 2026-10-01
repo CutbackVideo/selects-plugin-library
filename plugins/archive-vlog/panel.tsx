@@ -4799,8 +4799,10 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
                 <span aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", maxWidth: 72, height: 26, borderRadius: 4,
                   background: PREVIEW_BG, color: p.colors.title, fontFamily: AV_TITLE.avFontStack(face.family), fontWeight: face.weight, fontSize: 16, letterSpacing: 0.5,
                   lineHeight: 1 }}>{TILE_SAMPLE}</span>
-                <span style={{ fontSize: 12, lineHeight: 1.2, textAlign: "center", overflowWrap: "anywhere", wordBreak: L === "ko" ? "keep-all" : undefined, display: "-webkit-box",
-                  WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as any}>{tOr(L, "preset." + p.id, p.label)}</span>
+                {/* The preset names are English in every language (lang="en"): at the docked width (~180 px, three tiles) a
+                    long one ("Cinematic") breaks with a hyphen over at most 2 lines inside the box. */}
+                <span lang="en" style={{ fontSize: 12, lineHeight: 1.2, textAlign: "center", overflowWrap: "anywhere", hyphens: "auto", display: "-webkit-box",
+                  WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%" } as any}>{tOr(L, "preset." + p.id, p.label)}</span>
               </button>
             );
           })}
