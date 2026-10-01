@@ -3,7 +3,7 @@ const p = selects.project(cfg.projectId);
 // Imports the music file (a bundled cue or the user's own music) once per Project and returns its resource id; an Audio
 // resource with the same file is reused. importFiles is a Project write, so this call never commits a Draft.
 // Paths are compared normalised: NFC, forward slashes, and case-folded when either side looks like a Windows path
-// (a drive letter or a backslash), because the Project may store `C:/Users/A/...` for a cfg path `C:\Users\a\...`.
+// (a drive letter or a backslash), because the Project may store `C:/Music/A/...` for a cfg path `C:\Music\a\...`.
 // Without a full-path match, an Audio resource with the same file name (same normalisation) is reused, unless
 // cfg.matchByName is false (the user's own music: a different song may share its file name).
 const norm = s => String(s || '').normalize('NFC').replace(/\\/g, '/');

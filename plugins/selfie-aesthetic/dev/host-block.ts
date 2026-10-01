@@ -122,6 +122,18 @@ async function saeReadBytes(fs, file) {
   return saeBytes(await fs.readFile(file));
 }
 
+// An ffmpeg output file: missing or empty (ffmpeg resolved without writing it) is media_failed, not a raw read error.
+async function saeReadOutput(fs, file, what) {
+  let bytes;
+  try {
+    bytes = await saeReadBytes(fs, file);
+  } catch (e) {
+    throw saeFail('media_failed', what + ' missing: ' + String((e && e.message) || e));
+  }
+  if (!bytes.byteLength) throw saeFail('media_failed', 'empty ' + what);
+  return bytes;
+}
+
 // Best effort; a leftover file in the data folder is harmless.
 async function saeRemove(fs, file) {
   try {
@@ -152,7 +164,7 @@ async function saeDecodePcm(file, dataDir, maxSeconds) {
   try {
     await saeFFmpeg(['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', file, '-t', String(maxSeconds || 360),
       '-vn', '-ac', '1', '-ar', '22050', '-f', 'f32le', out], { timeoutMs: 120000 });
-    const bytes = await saeReadBytes(fs, out);
+    const bytes = await saeReadOutput(fs, out, 'samples');
     if (bytes.byteLength < 4) throw saeFail('media_failed', 'no samples');
     return new Float32Array(bytes.buffer, 0, Math.floor(bytes.byteLength / 4));
   } finally {
@@ -176,8 +188,7 @@ async function saePreviewUrl(file, start, duration, dataDir) {
   for (const t of tries) {
     try {
       await saeFFmpeg(cut.concat(t.args, [t.out]), { timeoutMs: 60000 });
-      const bytes = await saeReadBytes(fs, t.out);
-      if (!bytes.byteLength) throw saeFail('media_failed', 'empty preview');
+      const bytes = await saeReadOutput(fs, t.out, 'preview');
       return URL.createObjectURL(new Blob([bytes], { type: t.type }));
     } catch (e) {
       lastErr = e;

@@ -368,12 +368,12 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
       importFiles: async ({ paths }) => { calls.imports.push(paths); return { addedResourceIds: ['new1'] }; },
     }) } };
   };
-  const winCfg = 'C:\\Users\\a\\.selects\\skills\\selfie-aesthetic\\assets\\cues\\make-funk.mp3';
-  const w1 = audioProject(['D:/other/song.mp3', 'C:/Users/A/.selects/skills/selfie-aesthetic/assets/cues/make-funk.mp3']);
+  const winCfg = 'C:\\Music\\a\\.selects\\skills\\selfie-aesthetic\\assets\\cues\\make-funk.mp3';
+  const w1 = audioProject(['D:/other/song.mp3', 'C:/Music/A/.selects/skills/selfie-aesthetic/assets/cues/make-funk.mp3']);
   assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCfg })(w1.selects), { resourceId: 'a1', imported: false });
   assert.equal(w1.calls.imports.length, 0);
   // NFC: a decomposed stored path (macOS) matches the composed cfg path.
-  const nfd = '/Users/\u1112\u1161\u11ab/cues/cue.mp3', nfc = nfd.normalize('NFC');
+  const nfd = '/Volumes/\u1112\u1161\u11ab/cues/cue.mp3', nfc = nfd.normalize('NFC');
   assert.notEqual(nfd, nfc);
   const w2 = audioProject([nfd]);
   assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: nfc })(w2.selects), { resourceId: 'a0', imported: false });
@@ -384,11 +384,11 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   const w4 = audioProject(['/old/place/x.mp3', '/old/place/make-funk.mp3']);
   assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCfg })(w4.selects), { resourceId: 'a1', imported: false });
   // Own music (matchByName false): another file with the same name is not reused.
-  const w4b = audioProject(['/Users/x/Downloads/track.mp3']);
-  assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/Users/x/Music/track.mp3', matchByName: false })(w4b.selects), { resourceId: 'new1', imported: true });
-  assert.deepEqual(w4b.calls.imports, [['/Users/x/Music/track.mp3']]);
-  const w4c = audioProject(['/Users/x/Music/track.mp3']);
-  assert.equal((await load('ensure-audio.js', { projectId: 'p', path: '/Users/x/Music/track.mp3', matchByName: false })(w4c.selects)).resourceId, 'a0');
+  const w4b = audioProject(['/Volumes/x/Downloads/track.mp3']);
+  assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/Volumes/x/Music/track.mp3', matchByName: false })(w4b.selects), { resourceId: 'new1', imported: true });
+  assert.deepEqual(w4b.calls.imports, [['/Volumes/x/Music/track.mp3']]);
+  const w4c = audioProject(['/Volumes/x/Music/track.mp3']);
+  assert.equal((await load('ensure-audio.js', { projectId: 'p', path: '/Volumes/x/Music/track.mp3', matchByName: false })(w4c.selects)).resourceId, 'a0');
   // No match: imported once; a non-Audio resource with the same path is ignored.
   const w5 = audioProject(['/x/other.mp3'], [{ resourceId: 'vid', type: 'Video' }]);
   assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/cues/make-funk.mp3' })(w5.selects), { resourceId: 'new1', imported: true });

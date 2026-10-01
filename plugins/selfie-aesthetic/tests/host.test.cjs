@@ -179,6 +179,23 @@ test('timeouts and tool failures map to timeout / media_failed', async () => {
   await rejectsCode(failing.saeProbeDuration('x'), 'media_failed');
 });
 
+test('ffmpeg that succeeds without writing its output maps to media_failed', async () => {
+  // runFFmpeg resolves but writes nothing (or an empty file): the read must not leak a raw ENOENT.
+  for (const write of [false, true]) {
+    const s = sandbox({ FileSystem: realFS(), Runtime: { runFFmpeg: async (args) => {
+      if (write) fs.writeFileSync(args[args.length - 1], '');
+      return { stdout: '', stderr: '' };
+    } } });
+    const dir = s.H.saeDataDir('no-output-' + write);
+    const pcm = await rejectsCode(s.H.saeDecodePcm(path.join(tmp, 'in.wav'), dir), 'media_failed');
+    assert.ok(pcm.detail && pcm.detail.length, 'pcm detail');
+    const prev = await rejectsCode(s.H.saePreviewUrl(path.join(tmp, 'in.wav'), 0, 1, dir), 'media_failed');
+    assert.ok(prev.detail && prev.detail.length, 'preview detail');
+    if (!write) assert.match(pcm.detail + prev.detail, /missing/);
+    assert.deepEqual(fs.readdirSync(dir), [], 'nothing left behind');
+  }
+});
+
 // ---- paths ----
 test('platform, skills dir, data dir', () => {
   assert.equal(sandbox({ Runtime: { getPlatform: () => 'win32' } }).H.saePlatform(), 'win32');

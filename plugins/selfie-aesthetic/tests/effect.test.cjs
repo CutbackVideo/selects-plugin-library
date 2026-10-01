@@ -12,7 +12,7 @@ const block = blockOf(lookSrc);
 assert.equal(blockOf(transSrc), block, 'both files carry the identical sae-whip block');
 
 const box = { Math, Number, isFinite }; vm.createContext(box);
-vm.runInContext(block + ';globalThis.F={saeWhipAt,saeWhipFrames,saeLookFilter,saeWhipPose,saeNum};', box);
+vm.runInContext(block + ';globalThis.F={saeWhipAt,saeWhipFrames,saeLookFilter,saeWhipPose,saeNum,saeBlurStd,SAE_BLUR_BOX};', box);
 // The transition's pose helper lives outside the block; evaluate it on top of the block.
 const tp = transSrc.slice(transSrc.indexOf('export function saeWhipTransitionPose'), transSrc.indexOf('export default'));
 vm.runInContext(tp.replace('export function', 'function') + ';globalThis.F.tpose=saeWhipTransitionPose;', box);
@@ -181,6 +181,25 @@ for (const cover of [1, 1.333, 1.778]) for (const before of [false, true]) {
 }
 near(covered(ID, true, 1080, 1920, 1, false), 0.02 * 1920 / 1.12, 'punch leaves 2% of the height at the top (in picture px)');
 
+// Blur container: the rotated container (SAE_BLUR_BOX % of the clip's box on both axes) holds the upright frame
+// counter-rotated by any planner angle (<= 35 deg) for box aspects from 9:16 to 16:9, and is smaller than the old 250%.
+{
+  const B = F.SAE_BLUR_BOX / 100;
+  assert.ok(B < 2.5, 'smaller than 250%');
+  for (const [W, H] of [[1080, 1920], [1080, 1080], [1920, 1080], [1080, 1350]]) for (let a = 0; a <= 35; a += 0.5) {
+    const c = Math.cos(a * Math.PI / 180), s = Math.sin(a * Math.PI / 180);
+    assert.ok(c + s * H / W <= B && s * W / H + c <= B, 'container holds the rotated frame ' + W + 'x' + H + ' ' + a);
+  }
+  // stdDeviation in objectBoundingBox units of the container: x = blurX % of the box width over the container width
+  // (no frame size needed); y = blurY % of the box width, converted with the box aspect.
+  const m = F.saeWhipAt(23, 24, 25, both('dir'));
+  const sd = j(F.saeBlurStd(m, 1080 / 1920));
+  near(sd.x * B * 1080, m.blurX / 100 * 1080, 'x sigma in box px');
+  near(sd.y * B * 1920, m.blurY / 100 * 1080, 'y sigma in box px');
+  for (const [W, H] of [[720, 1280], [1080, 1920], [2160, 3840]]) near(j(F.saeBlurStd(m, W / H)).x * B * W, m.blurX / 100 * W, 'scales with the box ' + W);
+  assert.deepEqual(j(F.saeBlurStd(F.saeWhipAt(10, 24, 25, both('dir')), 0.5625)), { x: 0, y: 0 }, 'identity: no blur');
+}
+
 // Look filter.
 const L = (look, s) => j(F.saeLookFilter(look, s));
 for (const look of ['none', 'nope', undefined]) assert.deepEqual(L(look, 1), { filter: '', overlay: null });
@@ -278,16 +297,46 @@ if (esbuild) {
   const find = (n, t) => { const out = []; walk(n, x => { if (x.type === t) out.push(x); }); return out; };
   const call = (C, props) => { const out = C(props); walk(out, x => { if (typeof x.type === 'function') { Object.assign(x, call(x.type, x.props)); } }); return out; };
   const Source = function Source() { return { type: 'video', props: {} }; };
+  // [type, key, child index] from the root to the first node of type t (filter ids excluded: they differ per call).
+  const pathTo = (root, t) => {
+    const go = (n, acc) => {
+      if (!n || typeof n !== 'object') return null;
+      if (n.type === t) return acc;
+      const kids = (n.props && n.props.children) || [];
+      for (let i = 0; i < kids.length; i++) { const r = go(kids[i], acc.concat([[typeof kids[i] === 'object' && kids[i] ? kids[i].type : typeof kids[i], kids[i] && kids[i].props ? kids[i].props.key : undefined, i]])); if (r) return r; }
+      return null;
+    };
+    return go(root, [[root.type, root.props.key, 0]]);
+  };
+  // The rotated container the blur filter is applied to.
+  const blurBox = root => find(root, 'div').find(x => x.props.style && 'filter' in x.props.style);
   const data = { whipIn: 1, whipOut: 1, kindIn: 'dir', kindOut: 'spin', angle: 30, look: 'soft-glow', lookStrength: 0.35, framing: null, cover: 1 };
   frame = 10;
   let t = call(Look, { Source, data, rangeDurationInFrames: 24, sequenceFps: 25 });
-  assert.equal(find(t, 'svg').length, 0, 'cheap path: no svg filter');
-  assert.equal(t.props.style.transform, undefined, 'cheap path: no transform');
+  // Plain frame: the same tree as a whip frame (no remount of <Source /> at the whip edges), the filter idle.
+  assert.equal(find(t, 'feGaussianBlur').length, 1, 'plain frame keeps the svg filter element');
+  assert.equal(find(t, 'feGaussianBlur')[0].props.stdDeviation, '0 0', 'idle blur');
+  assert.equal(blurBox(t).props.style.filter, 'none', 'plain frame: no filter applied');
+  assert.match(blurBox(t).props.style.transform, /^rotate\(0\.000deg\)$/, 'plain frame: no rotation');
+  assert.equal(t.props.style.transform, undefined, 'plain frame: no transform');
+  const plainPath = pathTo(t, 'video');
   assert.equal(find(t, 'video').length, 1, 'renders <Source /> (expanded by the stub)');
   frame = 23;
   t = call(Look, { Source, data, rangeDurationInFrames: 24, sequenceFps: 25 });
   const f1 = find(t, 'filter'); assert.equal(f1.length, 1, 'whip frame: svg filter');
+  assert.deepEqual(pathTo(t, 'video'), plainPath, 'the element path to <Source /> is the same on plain and whip frames');
+  assert.match(blurBox(t).props.style.filter, /^url\(#/, 'whip frame: filter applied');
+  for (const f of [0, 1, 2, 21, 22, 23]) { frame = f; assert.deepEqual(pathTo(call(Look, { Source, data, rangeDurationInFrames: 24, sequenceFps: 25 }), 'video'), plainPath, 'stable path f' + f); }
+  frame = 23;
   assert.ok(find(t, 'feGaussianBlur')[0].props.stdDeviation.split(' ').length === 2);
+  // Blur in the clip's own box: objectBoundingBox units, the fractions from saeBlurStd.
+  assert.equal(f1[0].props.primitiveUnits, 'objectBoundingBox');
+  { const sd = F.saeBlurStd(F.saeWhipAt(23, 24, 25, Object.assign({}, data, { width: 1080, height: 1920 })), 1080 / 1920);
+    assert.equal(find(t, 'feGaussianBlur')[0].props.stdDeviation, sd.x.toFixed(6) + ' ' + sd.y.toFixed(6)); }
+  { const bb = blurBox(t).props.style, up = find(blurBox(t), 'div').find(x => x !== blurBox(t)).props.style, B = F.SAE_BLUR_BOX;
+    near(parseFloat(bb.width), B, 'container width', 1e-3); near(parseFloat(bb.height), B, 'container height', 1e-3);
+    near(parseFloat(bb.left), -(B - 100) / 2, 'container centred', 1e-3);
+    near(parseFloat(up.width) * B / 100, 100, 'upright box = the clip box', 1e-3); near((parseFloat(up.left) + parseFloat(up.width) / 2) * B / 100 + parseFloat(bb.left), 50, 'upright box centred', 1e-3); }
   assert.match(t.props.style.transform, /rotate\(8\.000deg\)/, 'tail spin');
   const t2 = call(Look, { Source, data, rangeDurationInFrames: 24, sequenceFps: 25 });
   assert.notEqual(find(t2, 'filter')[0].props.id, f1[0].props.id, 'unique filter id per instance');
@@ -296,6 +345,18 @@ if (esbuild) {
   assert.equal(p.props.style.transform, 'translate(0.000%, 4.000%) rotate(0.000deg) scale(1.1200)', 'punch framing');
   const tr = call(Trans, { children: 'clip', presentationDirection: 'entering', presentationProgress: 0.25, data: { kind: 'dir', angle: -30 } });
   assert.equal(find(tr, 'feGaussianBlur').length, 1); near(tr.props.style.opacity, 0, 'entering hidden at 0.25');
+  assert.equal(find(tr, 'filter')[0].props.primitiveUnits, 'objectBoundingBox');
+  near(parseFloat(blurBox(tr).props.style.width), F.SAE_BLUR_BOX, 'transition container width', 1e-3);
+  // The transition keeps one tree from progress 0 to 1 (the children never remount at its ends).
+  const clipEl = { type: 'clip', props: {} };
+  const tpath = (dir, p) => pathTo(call(Trans, { children: clipEl, presentationDirection: dir, presentationProgress: p, data: { kind: 'spin', angle: 30 } }), 'clip');
+  for (const dir of ['entering', 'exiting']) {
+    const ref = tpath(dir, 0.5);
+    assert.ok(ref.length > 1, 'transition renders its children');
+    for (const p of [0, 0.1, 0.9, 1]) assert.deepEqual(tpath(dir, p), ref, 'stable transition path ' + dir + ' ' + p);
+  }
+  const idle = call(Trans, { children: clipEl, presentationDirection: 'exiting', presentationProgress: 0, data: { kind: 'dir', angle: 30 } });
+  assert.equal(blurBox(idle).props.style.filter, 'none', 'idle transition: no filter applied');
   bundle = 'ok (' + path.basename(path.dirname(path.dirname(path.dirname(esbuild)))) + ')';
 }
 

@@ -311,4 +311,66 @@ for (const cue of manifest.cues) {
   assert.equal(short.clips[0].pairs.length, 1); assert.equal(short.clips[0].pairs[0].relaxed, true);
 }
 
+// ---- Bar count capped by the music: the edit always ends before the cue's fade-out ----
+{
+  const fps = 30, durs = { v1: 20, v2: 20, v3: 20, v4: 20, v5: 20, v6: 20, v7: 20, v8: 20 };
+  const own = { bpm: 100, firstBeat: 0, grid: 'accepted', durationSeconds: 14 };
+  const fits = (plan, cue) => plan.musicSourceStart + plan.totalFrames / fps <= cue.durationSeconds - P.SAE_FADE_OUT + 1 / fps;
+  // Long (8 bars) does not fit 14 s at 100 BPM: shrunk to the most bars that fit on a bar line.
+  const long = P.saePlanBuild({ fps, bars: 8, cue: own, candidates: [], durations: durs });
+  assert.equal(long.ok, true);
+  assert.ok(long.bars < 8 && long.bars >= 3, 'shrunk: ' + long.bars);
+  assert.ok(long.notes.includes('shrunk'), 'shrunk note');
+  assert.deepEqual(j(long.fit), { bars: long.bars, wanted: 8 });
+  assert.ok(fits(long, own), 'music outlasts the video: ' + (long.musicSourceStart + long.totalFrames / fps));
+  // The most bars that fit: one more bar would not fit on any bar line.
+  assert.equal(P.saeDefaultSection(own, long.bars + 1, 100), null);
+  assert.ok(P.saeDefaultSection(own, long.bars, 100) !== null);
+  // A late user section: shrunk until the edit ends before the fade-out.
+  const late = P.saePlanBuild({ fps, bars: 8, cue: own, sectionStart: 4.8, candidates: [], durations: durs });
+  assert.equal(late.ok, true); assert.equal(late.sectionStart, 4.8);
+  assert.ok(late.bars < long.bars, 'late section shrinks further: ' + late.bars);
+  assert.ok(late.notes.includes('shrunk')); assert.ok(fits(late, own), 'late section fits');
+  assert.equal(late.bars, Math.max(...[3, 4, 5, 6, 7, 8].filter(n => 12 - P.saeVideoSeconds(n, 100) >= 4.8)), 'the largest n that fits');
+  // Too late even for 3 bars.
+  assert.deepEqual(j(P.saePlanBuild({ fps, bars: 4, cue: own, sectionStart: 9, candidates: [], durations: durs }).notes), ['music-too-short']);
+  // A Long edit that fits keeps its 8 bars.
+  const roomy = P.saePlanBuild({ fps, bars: 8, cue: { ...own, durationSeconds: 60 }, candidates: [], durations: durs });
+  assert.equal(roomy.bars, 8); assert.ok(!roomy.notes.includes('shrunk'));
+}
+
+// ---- Source windows fit every hold, including hold 0 (lead + 1 beat + offset), the way assemble.js lays them ----
+// assemble: f0 = round(srcStart * rate), n = the hold's frames; it slides the window back when f0 + n passes
+// floor((duration - 0.15) * rate). Planner output must never need that slide.
+for (const cue of [null, { bpm: 100, firstBeat: 0.013, grid: 'accepted', durationSeconds: 60 }]) {
+  const fps = 24000 / 1001, rids = ['c1', 'c2', 'c3'], durations = {}, candidates = [];
+  // Moment A (the best hit) near the end of a 3 s clip: inside the old 1-beat window, past the hold-0 window.
+  for (const rid of rids) {
+    durations[rid] = 3;
+    candidates.push({ rid, role: 'selfie', t: 2.15, score: 0.5 }, { rid, role: 'control', t: 0.5, score: 0.1 });
+  }
+  const plan = P.saePlanBuild({ fps, bars: 4, cue, candidates, durations });
+  assert.equal(plan.ok, true);
+  assert.equal(plan.holds[0].kind, 'video'); assert.equal(plan.holds[0].moment, 'A');
+  for (const h of plan.holds) {
+    if (h.kind !== 'video') continue;
+    const f0 = Math.round(h.srcStart * fps), last = Math.floor((durations[h.rid] - P.SAE_SOURCE_TAIL) * fps);
+    assert.ok(f0 + h.frames <= last, 'hold ' + h.i + ' window ends before the source tail: ' + (f0 + h.frames) + ' > ' + last);
+  }
+}
+
+// ---- Head handles: no moment starts in the first frames of its source (the whip transition needs source before
+// the incoming clip's srcStart: w + 1 frames, at least 3) ----
+for (const fps of [24000 / 1001, 25, 30, 60]) {
+  const head = Math.max(3, Math.round(0.067 * fps) + 1), beat = 60 / 97 + 0.15 + 2 / fps;
+  const m = j(P.saeMoments({ fps, beatSeconds: beat, durations: { h: 6, z: 1.6 },
+    candidates: [{ rid: 'h', role: 'selfie', t: 0, score: 0.9 }, { rid: 'h', role: 'control', t: 3, score: 0.1 }, { rid: 'z', role: 'hand', t: 0.01, score: 0.4 }] }));
+  for (const c of m.clips) {
+    assert.ok(c.pairs.length, 'pairs ' + c.rid);
+    for (const p of c.pairs) for (const t of [p.a, p.b]) assert.ok(t >= head / fps - 1e-9, `moment ${t} of ${c.rid} at ${fps} keeps ${head} head frames`);
+  }
+  // The hit at t = 0 is kept (moved to the first frame with a head handle), not dropped.
+  assert.ok(Math.abs(m.clips[0].pairs[0].a - head / fps) < 1e-9, 'clamped hit is moment A');
+}
+
 console.log('planner.test: ok');
