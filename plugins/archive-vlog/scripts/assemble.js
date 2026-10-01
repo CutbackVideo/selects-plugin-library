@@ -93,7 +93,9 @@ if (cfg.music) {
   // Find the clip the overlay just created: new audio clips only, preferring the music resource.
   const added = (await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'audio' && !audioBefore.has(c.clipId));
   const music = added.find(c => c.resourceId === cfg.music.resourceId) || added[0];
-  if (music) await d.setClipAudio({ clip: music, fadeInSeconds: 0, fadeOutSeconds: 0.12 });
+  // The music fades out over the last cfg.musicFadeOut seconds (default 1.0), with the picture's Fade out to black.
+  const fadeOut = typeof cfg.musicFadeOut === 'number' && cfg.musicFadeOut >= 0 ? cfg.musicFadeOut : 1.0;
+  if (music) await d.setClipAudio({ clip: music, fadeInSeconds: 0, fadeOutSeconds: fadeOut });
   else notes.push('music fade not applied');
 }
 const commit = await d.commitAll('Archive Vlog: assemble');
