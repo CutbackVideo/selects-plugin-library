@@ -1,0 +1,346 @@
+{
+  "style": "jude-kinetic",
+  "reference": {
+    "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+    "width": 720,
+    "height": 1280,
+    "fps": 30,
+    "duration": 10.9
+  },
+  "updatedAt": "2026-09-30T07:32:22+00:00",
+  "summary": "White bold sans with red italic keywords; cream card, red circle expansion; alternating central and upper-side typography whose lines interlock (short lines tucked beside or between the tall letters of the next line). Content ends around 6.27 s; later black tail is not a style element.",
+  "elements": [
+    {
+      "id": "sans",
+      "kind": "caption",
+      "what": "White Poppins Bold support lines",
+      "status": "measured",
+      "refs": [
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 0.1,
+          "end": 1.9,
+          "note": "White Poppins Bold support lines"
+        }
+      ],
+      "props": {
+        "font": "Poppins Bold",
+        "fontSizePx": 90,
+        "position": {
+          "x": 0.5,
+          "y": 0.58
+        },
+        "animation": "Word opacity fade; the block also rises on entrance (see rise)"
+      },
+      "evidence": [
+        {
+          "time": 0.1,
+          "how": "fonts at 1.7 s, single: Poppins Bold mask overlap 0.939; 0–0.6 s burst at 30 fps"
+        }
+      ]
+    },
+    {
+      "id": "italic",
+      "kind": "caption",
+      "what": "Red high-contrast italic emphasis and oversized white italic payoff",
+      "status": "measured",
+      "refs": [
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 0.5,
+          "end": 1.9,
+          "note": "Red high-contrast italic emphasis and oversized white italic payoff"
+        }
+      ],
+      "props": {
+        "fill": "red / white",
+        "fontIdentity": "unconfirmed",
+        "implementationFont": "Playfair Display Medium Italic (approximation)",
+        "cardFontSizePx": 180,
+        "trackingEm": -0.055
+      },
+      "evidence": [
+        {
+          "time": 0.5,
+          "how": "fonts at 2.6 s, ability: best tested OFL candidate Playfair Medium Italic overlap 0.639; not exact"
+        }
+      ]
+    },
+    {
+      "id": "cream",
+      "kind": "transition",
+      "what": "Cream background fades over the speaker",
+      "status": "measured",
+      "refs": [
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 2.033,
+          "end": 2.467,
+          "note": "Cream background fades over the speaker"
+        }
+      ],
+      "props": {
+        "color": "#d4d6c8",
+        "durationSeconds": 0.433
+      },
+      "evidence": [
+        {
+          "time": 2.033,
+          "how": "Full-resolution frames 61–74 at 30 fps, flat colour mode sampled at 2.6 s"
+        }
+      ]
+    },
+    {
+      "id": "circle",
+      "kind": "transition",
+      "what": "Red circle grows, holds, then fills the frame",
+      "status": "measured",
+      "refs": [
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 2.8,
+          "end": 3.5,
+          "note": "Red circle grows, holds, then fills the frame"
+        }
+      ],
+      "props": {
+        "red": "#9a2328",
+        "center": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "smallRadiusFractionOfHeight": 0.15,
+        "growSeconds": 0.133,
+        "fillSeconds": 0.3
+      },
+      "evidence": [
+        {
+          "time": 2.8,
+          "how": "Full-resolution burst 84–105 at 30 fps; flat red RGB mode 154,35,40 at 3.8 s"
+        }
+      ]
+    },
+    {
+      "id": "sides",
+      "kind": "caption",
+      "what": "Compact stacked captions beside the speaker",
+      "status": "measured",
+      "refs": [
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 4.033,
+          "end": 6.233,
+          "note": "Compact stacked captions beside the speaker"
+        }
+      ],
+      "props": {
+        "leftPosition": {
+          "x": 0.24,
+          "y": 0.27
+        },
+        "rightPosition": {
+          "x": 0.76,
+          "y": 0.17
+        }
+      },
+      "evidence": [
+        {
+          "time": 4.033,
+          "how": "Contact frames at 4.5 s and 5.5 s; positions are approximated from visible bounds"
+        }
+      ]
+    },
+    {
+      "id": "interlock",
+      "kind": "layout",
+      "what": "Lines of a block interlock instead of stacking as plain rows: the next line's x-height sits just under the previous baseline, and a shorter white line is placed beside or between the tall letters of the italic line below it. Ink never touches.",
+      "status": "measured",
+      "refs": [
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 0.1,
+          "end": 1.9,
+          "note": "\"the single\" ends before the k/l/l of \"skill\"; small \"you can\" sits between the d and l of \"develop\""
+        },
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 4.033,
+          "end": 6.233,
+          "note": "b of \"absence\" rises between \"in\" and \"the\"; \"in a\" sits between the two d's of \"good mood\""
+        }
+      ],
+      "props": {
+        "inkClearancePx": "about 8-19 at 1080 wide",
+        "smallSansLine": "\"you can\" is about 0.7x the other white lines",
+        "implementation": "packed from measured glyph ink; clearance 10 px, side clearance 12 px, optional 0.72x white line"
+      },
+      "evidence": [
+        {
+          "time": 1.9,
+          "how": "Full-resolution crop 720x520 at 1.9 s, 2x"
+        },
+        {
+          "time": 4.9,
+          "how": "Full-resolution crop at 4.9 s, 3x"
+        },
+        {
+          "time": 6.2,
+          "how": "Full-resolution crop at 6.2 s, 3x"
+        }
+      ]
+    },
+    {
+      "id": "card-count",
+      "kind": "transition",
+      "what": "The cream card with the red circle is used exactly once per clip, at the moment that suits it best.",
+      "status": "user-confirmed",
+      "refs": [
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 2.033,
+          "end": 3.5,
+          "note": "The reference's card, about 2 s in, after one opening block"
+        }
+      ],
+      "timing": {
+        "rule": "Exactly one per clip, at the strongest statement; no fixed position (the reference's own card comes about 2 s in, after one opening block)."
+      }
+    },
+    {
+      "id": "turn",
+      "kind": "layout",
+      "what": "The left-hand block is turned in 3D about the frame's vertical centre line: its lines slope down to the right and converge towards the speaker, whose head covers the end of \"absence\". The right-hand block and the centre stack are flat.",
+      "status": "measured",
+      "refs": [
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 4.167,
+          "end": 5.0,
+          "note": "Baselines of \"in the\" / \"absence\" / \"of things\" slope down to the right by different amounts"
+        },
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 5.267,
+          "end": 6.233,
+          "note": "Right-hand block: level baselines"
+        }
+      ],
+      "props": {
+        "baselineSlopes": "0.057 at y=387, 0.041 at y=447, 0.029 at y=513 (of 1280): proportional to the distance above y≈645, the frame centre",
+        "tanAngleOverPerspective": "1.5e-4 per px at 1080 wide",
+        "implementation": "rotateY 12° with perspective 1417 px; only the ratio was measurable, the 12° split is a choice (foreshortening under 3% could not be seen)",
+        "behindSpeaker": "built: Apple Vision person mask per line, only while people hide at most 25% of a line; the reference's close-up (face about 38% of the frame width) is not reproduced, so on wider shots the text often does not reach the speaker"
+      },
+      "evidence": [
+        {
+          "time": 4.9,
+          "how": "Per-letter top/bottom rows from raw 720x1280 frames; line fit through flat-bottomed letters"
+        },
+        {
+          "time": 6.2,
+          "how": "Same measurement on the right-hand block: all baselines level within 1 px"
+        }
+      ]
+    },
+    {
+      "id": "rise",
+      "kind": "other",
+      "what": "Every block (centre, left, right) slides up as it enters and eases to rest; all its lines move together while words keep fading in.",
+      "status": "measured",
+      "refs": [
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 0.133,
+          "end": 1.0,
+          "note": "Centre stack: \"the\" top 770 -> 725 (of 1280)"
+        },
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 4.167,
+          "end": 4.933,
+          "note": "Left block: \"in\" top 341 -> 285"
+        },
+        {
+          "url": "https://www.tiktok.com/@judecalsado8/video/7532912841712471304",
+          "start": 5.267,
+          "end": 5.867,
+          "note": "Right block: \"to\" top 193 -> 164"
+        }
+      ],
+      "props": {
+        "distancePx": "about 75-90 at 1080 wide",
+        "easing": "exponential, remaining offset x0.87 per frame at 30 fps (time constant about 0.24 s)",
+        "built": true,
+        "implementation": "80 px, offset x exp(-t/0.24 s) from the block's first word; all lines of a block share the clock"
+      },
+      "timing": {
+        "seconds": 0.7,
+        "rule": "From the block's first word."
+      },
+      "evidence": [
+        {
+          "time": 0.167,
+          "how": "Row span of the first letter against the frame before it, every frame at 30 fps"
+        }
+      ]
+    }
+  ],
+  "absent": [
+    "Caption outline or drop shadow in inspected text crops",
+    "B-roll in the active 0–6.27 s sequence"
+  ],
+  "open": [
+    "Exact italic font identity",
+    "Audio style is outside style-cloner scope.",
+    "Automatic framing is shot-based, not continuous tracking; speaker identity is not matched to detected faces.",
+    "A masked caption has not been checked in an exported MP4.",
+    "The reference frames the speaker much tighter (face about 38% of the frame width) than the plugin's cover framing."
+  ],
+  "history": [
+    {
+      "at": "2026-09-30T05:51:00+00:00",
+      "by": "user",
+      "change": "The circle graphic may appear exactly twice, and one must be at the start for impact."
+    },
+    {
+      "at": "2026-09-30T05:51:00+00:00",
+      "by": "user",
+      "change": "Typography is good, but letters must not overlap, and lines should tuck into each other the way the reference does (text placed between parts that stick out and parts that do not)."
+    },
+    {
+      "at": "2026-09-30T05:51:00+00:00",
+      "by": "agent",
+      "change": "Added the interlock element from full-resolution crops at 1.9, 4.9 and 6.2 s; the plugin now packs lines from measured glyph ink. Hero lines are always the white italic, as in the reference's \"develop\"."
+    },
+    {
+      "at": "2026-09-30T07:15:37+00:00",
+      "by": "user",
+      "change": "Asked whether the original also has text turned sideways as if in 3D."
+    },
+    {
+      "at": "2026-09-30T07:15:37+00:00",
+      "by": "agent",
+      "change": "Confirmed on the left-hand block (4.17-5.0 s) and built it as a 12° turn; also found the entrance rise of every block, which the earlier spec had recorded as a fixed layout. The rise is not built."
+    },
+    {
+      "at": "2026-09-30T07:32:22+00:00",
+      "by": "user",
+      "change": "Build both remaining items: the entrance rise and text behind the speaker (another plugin already used Apple Vision for the cut-out)."
+    },
+    {
+      "at": "2026-09-30T07:32:22+00:00",
+      "by": "user",
+      "change": "Remove the rule that puts a circle card at the start; use exactly one circle card, at a suitable moment."
+    },
+    {
+      "at": "2026-09-30T07:32:22+00:00",
+      "by": "agent",
+      "change": "Built the rise and the person mask for left-hand lines; the card rule is now exactly one, anywhere."
+    },
+    {
+      "date": "2026-10-01",
+      "by": "user",
+      "change": "Add background music: Kevin MacLeod 'Dark Hallway (distressed)' (CC BY 4.0) from its start, -5 dB. Not measured from the reference (audio is outside style-cloner scope)."
+    }
+  ]
+}
