@@ -3920,8 +3920,13 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     const at = progressRef.current;
     return (l) => (at ? t(l, "stoppedAt", { step: at.current + 1, total: AV_BUILD_STEPS.length, name: t(l, "step." + at.id), detail: sayError(l, e) }) : sayError(l, e));
   };
-  const endRun = (pid: string) => {
-    if (projectRef.current !== pid) return;
+  // Each build or Finish run takes a new epoch, and a Project switch bumps it too: a run that was superseded (the
+  // Project changed, even back to the same one, while it ran) fails its next check and never clears the busy state or
+  // the progress of the run that replaced it.
+  const runEpochRef = React.useRef(0);
+  const runLive = (pid: string, epoch: number) => projectRef.current === pid && runEpochRef.current === epoch;
+  const endRun = (pid: string, epoch: number) => {
+    if (!runLive(pid, epoch)) return;
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
   };
 
@@ -3981,6 +3986,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
     setOnly(null); setOnlyPhotos(null);
     invSigRef.current = null; photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false);
+    runEpochRef.current++;
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
     if (!projectId) return;
     let alive = true;
@@ -4335,8 +4341,8 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     // The gate for the seed this build uses (Build: seed; Try other shots: seed + 1).
     const gate = nextSeed === seed ? blockReason : anotherBlock;
     if (gate) { setStatus({ tone: "error", say: gate }); return; }
-    const pid = projectId;
-    const check = () => { if (projectRef.current !== pid) throw STALE; };
+    const pid = projectId, epoch = ++runEpochRef.current;
+    const check = () => { if (!runLive(pid, epoch)) throw STALE; };
     // Every input as it is at Build. The build and a later "Finish title and look" read only this; the Inspector labels
     // are written in the UI language of this moment and do not follow a later switch.
     const frozen = Object.freeze({
@@ -4413,8 +4419,8 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       setResult(res);
       await decorate(res, check);
     } catch (e: any) {
-      if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) });
-    } finally { endRun(pid); }
+      if (e !== STALE && runLive(pid, epoch)) setStatus({ tone: "error", say: stopAt(e) });
+    } finally { endRun(pid, epoch); }
   }
 
   // Another version: same clips and cached scene search, a new seed. The previous result goes first, then the
@@ -4431,11 +4437,12 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     if (busyRef.current || !result || !assets || !roots) return;
     const pid = projectId;
     if (result.frozen.pid !== pid) return;
-    const check = () => { if (projectRef.current !== pid) throw STALE; };
+    const epoch = ++runEpochRef.current;
+    const check = () => { if (!runLive(pid, epoch)) throw STALE; };
     busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
     try { await decorate(result, check); }
-    catch (e: any) { if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) }); }
-    finally { endRun(pid); }
+    catch (e: any) { if (e !== STALE && runLive(pid, epoch)) setStatus({ tone: "error", say: stopAt(e) }); }
+    finally { endRun(pid, epoch); }
   }
 
   // Commit 2 (mute when Clip sound is Off, the decode title, the credit, the letterbox reveal, photo and shot motion,

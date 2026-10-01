@@ -549,7 +549,22 @@ for (const s of ['label={t(L, "clipSound")}', 'label={t(L, "cinematicLook")}', '
   'const strength = lookStrength ?? presetStrength;', 'label={t(L, "usePhotos")}', 'aria-label={t(L, "chooseClips")}', 'scrollbarGutter: "stable", scrollbarWidth: "thin"']) assert.ok(ui.includes(s), s);
 assert.ok(ui.includes('const cw = Math.round(width * dpr), chh = Math.round(WAVE_HEIGHT * dpr);'), 'canvas backing store in whole device pixels');
 // Build: plan, music, assemble, decorate (two commits), open; stale-project guards; retry and new seed.
-for (const s of ['const check = () => { if (projectRef.current !== pid) throw STALE; };', 'a = await run("Assemble Archive Vlog",', 'await run("Add title and look",',
+// Stale runs: every build and Finish takes a new run epoch, the Project-change effect bumps it, and check(), endRun()
+// and the error status all compare the epoch and the Project, so a superseded run never continues nor clears the busy
+// state or progress of the run that replaced it (A -> B -> A while a build on A runs).
+{
+  assert.ok(ui.includes('const runLive = (pid: string, epoch: number) => projectRef.current === pid && runEpochRef.current === epoch;'));
+  assert.ok(/const endRun = \(pid: string, epoch: number\) => \{\n    if \(!runLive\(pid, epoch\)\) return;/.test(ui), 'endRun checks the epoch');
+  assert.equal((ui.match(/const check = \(\) => \{ if \(!runLive\(pid, epoch\)\) throw STALE; \};/g) || []).length, 2, 'build and Finish');
+  assert.equal((ui.match(/= \+\+runEpochRef\.current;/g) || []).length, 2, 'build and Finish take a new epoch');
+  assert.equal((ui.match(/finally \{ endRun\(pid, epoch\); \}/g) || []).length, 2);
+  assert.equal((ui.match(/endRun\(/g) || []).length, 2, 'no endRun without an epoch');
+  assert.ok(!/projectRef\.current !== pid\) throw STALE/.test(ui), 'no Project-only check left');
+  const effect = ui.slice(ui.indexOf('// Mount and Project switch'), ui.indexOf('}, [projectId]);'));
+  assert.ok(effect.includes('runEpochRef.current++;'), 'a Project switch supersedes the running build');
+  assert.equal((ui.match(/e !== STALE && runLive\(pid, epoch\)\) setStatus/g) || []).length, 2);
+}
+for (const s of ['const check = () => { if (!runLive(pid, epoch)) throw STALE; };', 'a = await run("Assemble Archive Vlog",', 'await run("Add title and look",',
   'async function finishTitle() {', 'try { await decorate(result, check); }', 'const s = seed + 1;', 'const gate = nextSeed === seed ? blockReason : anotherBlock;',
   'saved = await findDraftByName(pid, frozen.draftName);', 'draftName: draftNameOf(titleFields.title, chosen.label, new Date()),']) assert.ok(ui.includes(s), s);
 assert.equal((ui.match(/avPlanBuild\(\{/g) || []).length, 3, 'the build plan, the readiness plan and the template run');
