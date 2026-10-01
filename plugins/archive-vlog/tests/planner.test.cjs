@@ -7,14 +7,23 @@ const F = 30000 / 1001;
 const near = (x, y, eps, msg) => assert.ok(Math.abs(x - y) <= eps, (msg || '') + ': ' + x + ' vs ' + y);
 
 // Constants.
-const K = j(vm.runInContext('({ AV_LENGTHS, AV_INTRO_BEATS, AV_TEMPO_MIN, AV_TEMPO_MAX, AV_FALLBACK_BPM, AV_SLOW_MAX_BPM, AV_MIN_MONTAGE, AV_ROLES, AV_MONTAGE_ROLES, AV_ROLE_FALLBACK, AV_SOURCE_TAIL, AV_PHOTO_SHARE, AV_PHOTO_RUN_MAX })', ctx));
+const K = j(vm.runInContext('({ AV_LENGTHS, AV_INTRO_BEATS, AV_TEMPO_MIN, AV_TEMPO_MAX, AV_FALLBACK_BPM, AV_SLOW_MAX_BPM, AV_MIN_MONTAGE, AV_ROLES, AV_MONTAGE_ROLES, AV_ROLE_FALLBACK, AV_SOURCE_TAIL, AV_PHOTO_SHARE, AV_PHOTO_RUN_MAX, AV_WIDE_ROLES, AV_ROLE_STEP, AV_REPEAT_STEP, AV_JITTER, AV_REUSE_APART })', ctx));
 assert.deepStrictEqual(K.AV_LENGTHS, { short: 8, standard: 16, long: 24 });
 assert.deepStrictEqual(K.AV_INTRO_BEATS, { opening: 6, credit: 2 });
 assert.strictEqual(K.AV_TEMPO_MIN, 70); assert.strictEqual(K.AV_TEMPO_MAX, 160);
 assert.strictEqual(K.AV_FALLBACK_BPM, 72); assert.strictEqual(K.AV_SLOW_MAX_BPM, 110); assert.strictEqual(K.AV_MIN_MONTAGE, 4);
 assert.strictEqual(K.AV_SOURCE_TAIL, 0.15); assert.strictEqual(K.AV_PHOTO_SHARE, 1 / 3); assert.strictEqual(K.AV_PHOTO_RUN_MAX, 2);
-assert.deepStrictEqual(K.AV_MONTAGE_ROLES, ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline']);
-assert.deepStrictEqual(K.AV_ROLES, ['opening', 'portrait', 'crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline', 'ending']);
+// The montage cycle alternates shot scales: a wide role never follows a wide role, the wrap included.
+assert.deepStrictEqual(K.AV_MONTAGE_ROLES, ['crowd', 'architecture', 'ride', 'water', 'food', 'transit', 'skyline']);
+assert.deepStrictEqual(K.AV_ROLES, ['opening', 'portrait', 'crowd', 'architecture', 'ride', 'water', 'food', 'transit', 'skyline', 'ending']);
+assert.deepStrictEqual(K.AV_WIDE_ROLES, ['opening', 'architecture', 'water', 'skyline']);
+for (let i = 0; i < K.AV_MONTAGE_ROLES.length; i++) {
+  const a = K.AV_MONTAGE_ROLES[i], b = K.AV_MONTAGE_ROLES[(i + 1) % K.AV_MONTAGE_ROLES.length];
+  assert.ok(!(K.AV_WIDE_ROLES.includes(a) && K.AV_WIDE_ROLES.includes(b)), 'two wide roles in a row: ' + a + ', ' + b);
+}
+// Ranking steps: the panel's motion bonus (0.2) plus the jitter stays below one role step; a repeat costs more.
+assert.strictEqual(K.AV_ROLE_STEP, 0.3); assert.strictEqual(K.AV_REPEAT_STEP, 0.4); assert.strictEqual(K.AV_JITTER, 0.05); assert.strictEqual(K.AV_REUSE_APART, 4);
+assert.ok(0.2 + K.AV_JITTER < K.AV_ROLE_STEP && K.AV_REPEAT_STEP > K.AV_ROLE_STEP);
 assert.deepStrictEqual(Object.keys(K.AV_ROLE_FALLBACK).sort(), K.AV_ROLES.slice().sort(), 'a fallback list per role');
 for (const [role, list] of Object.entries(K.AV_ROLE_FALLBACK)) {
   assert.ok(list.length >= 1 && list.every(r => K.AV_ROLES.includes(r) && r !== role), role + ' fallbacks are other roles');
@@ -66,8 +75,8 @@ const t72 = j(ctx.avTemplate({ bpm: 72, pace: 'cinematic', montageShots: 16 }));
 assert.deepStrictEqual(t72.beatsList, [6, 2].concat(Array(16).fill(2), [4]));
 assert.strictEqual(t72.totalBeats, 44); assert.strictEqual(t72.montageStart, 8);
 near(ctx.avVideoSeconds({ bpm: 72, pace: 'cinematic', montageShots: 16 }), 44 * 60 / 72, 1e-9, 'Standard at 72 bpm = 36.7 s');
-assert.deepStrictEqual(t72.roles.slice(0, 11), ['opening', 'portrait', 'crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline', 'crowd', 'transit']);
-assert.strictEqual(t72.roles[17], 'transit'); assert.strictEqual(t72.roles[18], 'ending');
+assert.deepStrictEqual(t72.roles.slice(0, 11), ['opening', 'portrait', 'crowd', 'architecture', 'ride', 'water', 'food', 'transit', 'skyline', 'crowd', 'architecture']);
+assert.strictEqual(t72.roles[17], 'architecture'); assert.strictEqual(t72.roles[18], 'ending');
 assert.deepStrictEqual(t72.parts.filter((p, i) => i < 2 || i === 18), ['opening', 'credit', 'final']);
 assert.ok(t72.parts.slice(2, 18).every(p => p === 'montage'));
 assert.deepStrictEqual(t72.videoOnly, [true, true].concat(Array(16).fill(false), [true]));
@@ -121,7 +130,7 @@ const gat = t72.beatsList.reduce((a, b) => (a.push(a[a.length - 1] + b), a), [0]
 g.slots.forEach((x, i) => { assert.strictEqual(x.startBeat, null); assert.strictEqual(x.endFrame, Math.round(gat[i + 1] * (60 / 72) * F)); });
 // Without beatsList the schedule is uniform (shots x beatsPerShot) and roles cycle through the montage roles.
 const u = j(ctx.avSchedule({ bpm: 108, fps: F, shots: 9, beatsPerShot: 1 }));
-assert.deepStrictEqual(u.slots.map(x => x.role), ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline', 'crowd', 'transit']);
+assert.deepStrictEqual(u.slots.map(x => x.role), ['crowd', 'architecture', 'ride', 'water', 'food', 'transit', 'skyline', 'crowd', 'architecture']);
 assert.throws(() => ctx.avSchedule({ bpm: 108, fps: F, shots: 0, beatsPerShot: 1 }));
 
 // Music offset: sectionStart 1.0 at 29.97 -> round(29.97)=30 -> delta = 1 - 30/F.

@@ -270,6 +270,72 @@ assert.notDeepEqual(plan(four, { seed: '2' }).picks, plan(four, { seed: '1' }).p
   assert.ok(built > 40 && opened > 10 && retried > 0, 'fuzz exercised the opener: built ' + built + ', opened ' + opened + ', retried ' + retried);
 }
 
+// 11) Soft preferences (never a reason to leave a slot empty).
+// The opening prefers a landscape source among the same or a better role rank; a portrait-only pool still opens.
+{
+  const tall = { width: 1080, height: 1920 }, wide = { width: 1920, height: 1080 }, four3 = { width: 1440, height: 1080 };
+  const openSlot = { index: 0, role: 'opening', seconds: 5, videoOnly: true, part: 'opening' };
+  const first = (cands, sizes, seed = 'x') => j(P.avAllocate({ candidates: cands, slots: [openSlot], seed, sizes })).picks[0].rid;
+  const pair = [mk('p', 'opening', 10, 0.9, 30), mk('l', 'opening', 10, 0.5, 30)];
+  assert.equal(first(pair), 'p', 'no sizes: score decides');
+  assert.equal(first(pair, { p: tall, l: wide }), 'l', 'a landscape opening over a portrait one of the same role');
+  assert.equal(first(pair, { p: tall, l: four3 }), 'l', '4:3 counts as landscape');
+  assert.equal(first(pair, { p: tall }), 'l', 'an unknown size counts as landscape');
+  assert.equal(first([mk('p', 'opening', 10, 0.9, 30), mk('l', 'ride', 10, 0.9, 30)], { p: tall, l: wide }), 'p', 'never over a better role match');
+  assert.equal(first([mk('p', 'crowd', 10, 0.9, 30), mk('l', 'opening', 10, 0.1, 30)], { p: tall, l: wide }), 'l', 'a better role rank is fine');
+  assert.equal(first([mk('p', 'opening', 10, 0.9, 30), mk('q', 'crowd', 10, 0.9, 30)], { p: tall, q: tall }), 'p', 'portrait only: still opens');
+  // The plan passes sizes through; the montage may still use the portrait clip.
+  const pool = video('p', 0.9).concat(video('l', 0.3), video('m', 0.3), video('n', 0.3));
+  const sizes = { p: tall, l: wide, m: wide, n: wide };
+  const with_ = plan(pool, { sizes }), without = plan(pool);
+  assert.equal(with_.ok, true); assert.equal(with_.shots, without.shots, 'the preference never shortens the plan');
+  assert.equal(without.picks[0].rid, 'p');
+  assert.notEqual(with_.picks[0].rid, 'p', 'the opening is landscape');
+  assert.deepEqual(plan(pool, { sizes }), with_, 'deterministic per seed');
+  assert.equal(plan(['p', 'q', 'r'].flatMap(r => video(r)), { sizes: { p: tall, q: tall, r: tall } }).ok, true, 'never fails for it');
+}
+// The montage leaves the opening's and the credit's sources alone while other sources fit.
+{
+  const pool = ['a', 'b', 'c', 'd', 'e'].flatMap(r => video(r));
+  for (const seed of ['s1', 's2', 's3', 's4']) {
+    const r = plan(pool, { seed });
+    assert.equal(r.ok, true); assert.equal(r.shots, 16);
+    const book = [r.picks[0].rid, r.picks[1].rid];
+    const parts = r.schedule.slots.map(x => x.part);
+    const back = r.picks.filter((p, i) => parts[i] === 'montage' && book.includes(p.rid)).length;
+    assert.equal(back, 0, seed + ': bookend sources back in the montage: ' + sig(r.picks));
+    assert.ok(!adjacent(r.picks));
+  }
+  // With four sources the last montage shot sits between two others (the final shot's source and the shot before), so
+  // a bookend's source fills it rather than shortening the plan; with three, they fill the montage throughout.
+  const four = plan(['a', 'b', 'c', 'd'].flatMap(r => video(r)));
+  assert.equal(four.ok, true); assert.equal(four.shots, 16);
+  const three = plan(['a', 'b', 'c'].flatMap(r => video(r)));
+  assert.equal(three.ok, true); assert.equal(three.shots, 16);
+}
+// A reused source shows a window apart from its earlier ones (AV_REUSE_APART s, or the other half of the clip).
+{
+  const slots = [0, 1, 2, 3].map(i => ({ index: i, role: 'crowd', seconds: 1.2, part: 'montage' }));
+  const cands = [mk('c', 'crowd', 10, 0.9, 60), mk('c', 'crowd', 12, 0.8, 60), mk('c', 'crowd', 40, 0.1, 60),
+    mk('d', 'crowd', 20, 0.85, 60), mk('d', 'crowd', 22.5, 0.8, 60), mk('d', 'crowd', 25, 0.1, 60)];
+  const r = j(P.avAllocate({ candidates: cands, slots, seed: 'x', photoShare: 0 }));
+  assert.equal(r.missing, 0);
+  const at = r.picks.map(p => p.rid + '@' + ((p.startSeconds + p.endSeconds) / 2).toFixed(1));
+  assert.deepEqual(at.slice(0, 2), ['c@10.0', 'd@20.0']);
+  assert.equal(at[2], 'c@40.0', 'the other half of c, not 2 s from its first window');
+  assert.equal(at[3], 'd@25.0', '5 s from d\'s first window, same half');
+  // Nothing apart left: the near window is still used.
+  const near = j(P.avAllocate({ candidates: cands.filter(c => c.t !== 40), slots, seed: 'x', photoShare: 0 }));
+  assert.equal(near.missing, 0); assert.equal(near.picks[2].rid, 'c');
+}
+// A full motion bonus (0.2, av-hook) on a fallback-role window never beats an equal window of the slot's own role.
+for (let k = 0; k < 40; k++) {
+  const r = one([mk('own', 'crowd', 5, 0.3, 30), mk('moving', 'ride', 5, 0.3 + 0.2, 30)].map(c => c), { index: 0, role: 'crowd', seconds: 1.2 });
+  assert.equal(r.rid, 'own');
+  const s2 = j(P.avAllocate({ candidates: [mk('own', 'crowd', 5, 0.3, 30), mk('moving' + k, 'ride', 5, 0.5, 30)], slots: [{ index: 0, role: 'crowd', seconds: 1.2 }], seed: 'm' + k, photoShare: 0 }));
+  assert.equal(s2.picks[0].rid, 'own', 'seed m' + k);
+}
+
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.AV_BUILD_STEPS.length, 5);
 assert.equal(P.AV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);

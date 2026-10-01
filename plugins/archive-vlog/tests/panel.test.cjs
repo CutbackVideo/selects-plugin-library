@@ -329,7 +329,7 @@ for (const [seed, pace, music, preset, creditOn, lookOn, clipSound] of [[1, 'cin
   const list = [{ rid: 'a', role: 'crowd', t: 2, score: 0.3, sourceDuration: 10 }, { rid: 'a', role: 'motion', t: 2.5, score: 0.4, sourceDuration: 10 },
     { rid: 'b', role: 'motion', t: 1, score: 0.2, sourceDuration: 8 }];
   const out = j(P.avMotionBonus(list));
-  assert.equal(out[0].motion, 1); assert.ok(Math.abs(out[0].score - 0.4) < 1e-9);
+  assert.equal(out[0].motion, 1); assert.ok(Math.abs(out[0].score - 0.5) < 1e-9, 'bonus 0.2 at full motion');
   assert.deepEqual(out[1], { rid: 'b', role: 'motion', sourceDuration: 8 }, 'a clip with only motion hits keeps a stub row');
 }
 // The panel and its template run use the builders (one config path for both).

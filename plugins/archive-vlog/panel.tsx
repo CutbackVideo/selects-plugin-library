@@ -1866,8 +1866,11 @@ const AV_FALLBACK_BPM = 72;
 const AV_SLOW_MAX_BPM = 110;
 // The shortest montage, in shots, at both paces (kit default): 4 x M beats is whole bars for every M (1, 2 or 4).
 const AV_MIN_MONTAGE = 4;
-// Slot roles: the intro's two, the montage cycle, the final shot (spec 8). The panel holds the search queries.
-const AV_MONTAGE_ROLES = ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline'];
+// Slot roles: the intro's two, the montage cycle, the final shot (spec 8). The panel holds the search queries. The cycle
+// alternates shot scales: a wide or establishing role (architecture, water, skyline) never follows another one, across
+// the wrap too (skyline -> crowd), so the montage never plays two wide views in a row by role.
+const AV_MONTAGE_ROLES = ['crowd', 'architecture', 'ride', 'water', 'food', 'transit', 'skyline'];
+const AV_WIDE_ROLES = ['opening', 'architecture', 'water', 'skyline'];
 const AV_ROLES = ['opening', 'portrait'].concat(AV_MONTAGE_ROLES, ['ending']);
 // Which other candidate roles may fill a slot role, best first (the slot's own role always ranks first).
 const AV_ROLE_FALLBACK = {
@@ -1906,6 +1909,15 @@ const AV_SOURCE_TAIL = 0.15;
 const AV_PHOTO_HOLD_MAX = 5;
 const AV_PHOTO_RUN_MAX = 2;
 const AV_PHOTO_SHARE = 1 / 3;
+// Ranking a video window (avAllocate): score - AV_ROLE_STEP per role rank - AV_REPEAT_STEP per recent use of its source +
+// a seeded jitter of up to AV_JITTER. The panel's motion bonus (av-hook AV_MOTION_BONUS, 0.2) plus the jitter stays below
+// one role step, so a moving moment never outranks a better role match; a repeat costs more than one role step.
+const AV_ROLE_STEP = 0.3;
+const AV_REPEAT_STEP = 0.4;
+const AV_JITTER = 0.05;
+// A reused clip's new window should show another composition: at least this far (centre to centre) from each earlier
+// window of the clip, or in the other half of the clip (avAllocate prefers such windows when it reuses a source).
+const AV_REUSE_APART = 4;
 
 // A beat grid is used only for a tempo in [AV_TEMPO_MIN, AV_TEMPO_MAX] whose detection was accepted (bundled cues
 // always are).
@@ -2228,9 +2240,9 @@ function avFillers(candidates) {
   return out;
 }
 
-// Strict allocation. opts: { candidates, slots: [{ index, role, seconds, videoOnly? }], seed, gapSeconds = 0.5,
-// photoShare = AV_PHOTO_SHARE, spread = true, motionOpener = true, finalEarly = true }. A videoOnly slot (the opening, credit and final
-// shots) never takes a photo, and the photo share counts only the other slots (the montage). Two hard rules, never
+// Strict allocation. opts: { candidates, slots: [{ index, role, seconds, videoOnly?, part? }], seed, gapSeconds = 0.5,
+// photoShare = AV_PHOTO_SHARE, spread = true, motionOpener = true, finalEarly = true, sizes? (rid -> { width, height },
+// an unknown size counts as landscape) }. A videoOnly slot (the opening, credit and final shots) never takes a photo, and the photo share counts only the other slots (the montage). Two hard rules, never
 // relaxed: the previous slot's source is never used again for the next slot, and at most AV_PHOTO_RUN_MAX photos play
 // in a row (unless the pool has no video candidate). A slot nothing fits under them stays null (counted in `missing`);
 // avPlanBuild then tries a shorter montage.
@@ -2240,6 +2252,10 @@ function avFillers(candidates) {
 // AV_SOURCE_TAIL cannot. If the opener is not videoOnly it is also left out of the photo slots, so the photo share
 // moves to the others. Without tagged candidates, with none that fits, or with motionOpener: false the allocation is
 // exactly as without this rule.
+// Soft preferences, never a reason to leave a slot empty: the opening shot takes a landscape window over a portrait one
+// of the same or a worse role rank; with spread, a montage slot (part 'montage', or not videoOnly) takes the opening's
+// and the credit's sources only when no other source fits at any use count, and a reused source first offers windows
+// AV_REUSE_APART s from its earlier ones (or in the source's other half), then any window.
 function avAllocate(opts) {
   const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
   const finite = v => typeof v === 'number' && isFinite(v);
@@ -2255,10 +2271,13 @@ function avAllocate(opts) {
   const spread = opts.spread !== false;
   const pool = candidates.filter(c => c.sourceDuration > 0);
   // Each candidate's seeded tie-break jitter, hashed once per call rather than per slot, tier and use count.
-  const jitter = pool.map(c => avHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05);
+  const jitter = pool.map(c => avHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * AV_JITTER);
   // Photo-only pools (no usable video) may play any number of photos in a row.
   const runLimited = pool.length > 0;
   let missing = 0, fillerShots = 0, photoShots = 0;
+  // Source sizes (opts.sizes: rid -> { width, height }); an unknown size counts as landscape.
+  const sizes = opts.sizes || {};
+  const landscape = c => { const z = sizes[c.rid]; return !(z && z.width > 0 && z.height > 0 && z.height >= z.width); };
   // The motion opener (see above). Nothing is used yet, so this is the pick the first slot's loop turn would make with
   // the motion rank.
   const first = opts.slots[0];
@@ -2278,7 +2297,7 @@ function avAllocate(opts) {
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
   // `exclude` lists the neighbouring shots' sources, which may not be used; `level`, when not null, keeps only sources
   // used exactly that many times.
-  function searchVideo(slot, rankOf, exclude, level) {
+  function searchVideo(slot, rankOf, exclude, level, accept) {
     let best = null;
     for (let i = 0; i < pool.length; i++) {
       const c = pool[i];
@@ -2290,12 +2309,25 @@ function avAllocate(opts) {
       const end = start + slot.seconds;
       if ((used[c.rid] || []).some(([a, b]) => start < b + gap && end > a - gap)) continue;
       const repeats = recent.filter(r => r === c.rid).length;
-      const value = c.score - rank * 0.15 - repeats * 0.2 + jitter[i];
+      if (accept && !accept(c, start, end)) continue;
+      const value = c.score - rank * AV_ROLE_STEP - repeats * AV_REPEAT_STEP + jitter[i];
       const better = !best || value > best.value + 1e-12 ||
         (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)));
-      if (better) best = { value, c, start, end };
+      if (better) best = { value, c, start, end, rank };
+    }
+    // The opening shot prefers a landscape source (less of it is cropped away, and its letterbox opens on more of the
+    // picture): a portrait pick gives way to the best landscape window of the same or a better role rank, if any.
+    if (best && slot === first && !landscape(best.c)) {
+      const rankAt = best.rank;
+      const wide = searchVideo(slot, c => (landscape(c) && rankOf(c) >= 0 && rankOf(c) <= rankAt ? rankOf(c) : -1), exclude, level, accept);
+      if (wide) return wide;
     }
     return best;
+  }
+  // A reused window far enough from the clip's earlier windows (AV_REUSE_APART, or the clip's other half).
+  function apart(c, start, end) {
+    const mid = (start + end) / 2, half = c.sourceDuration / 2;
+    return (used[c.rid] || []).every(([a, b]) => Math.abs(mid - (a + b) / 2) >= AV_REUSE_APART - 1e-9 || (mid < half) !== ((a + b) / 2 < half));
   }
   // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos. A photo is never a
   // neighbour's source, since each photo is used once.
@@ -2323,9 +2355,14 @@ function avAllocate(opts) {
     const roles = [slot.role].concat(AV_ROLE_FALLBACK[slot.role] || []);
     const exclude = [pos - 1, pos + 1].filter(i => picks[i]).map(i => picks[i].rid);
     const photo = () => searchPhoto(slot);
-    const preferred = level => () => searchVideo(slot, c => roles.indexOf(c.role), exclude, level);
-    const anyReal = level => () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude, level);
-    const filler = level => () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1), exclude, level);
+    const preferred = (level, accept) => () => searchVideo(slot, c => roles.indexOf(c.role), exclude, level, accept);
+    const anyReal = (level, accept) => () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude, level, accept);
+    const filler = (level, accept) => () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1), exclude, level, accept);
+    // Reuse preferences (spread only, sources already used): a montage shot leaves the opening's and the credit's
+    // sources alone while another source fits, and a reused source shows a window apart from its earlier ones.
+    const montage = slot.part ? slot.part === 'montage' : !slot.videoOnly;
+    const bookends = montage ? [0, 1].filter(i => i !== pos && picks[i] && picks[i].kind !== 'photo').map(i => picks[i].rid) : [];
+    const notBookend = c => bookends.indexOf(c.rid) < 0;
     // Tiers, best first. A photo slot puts an unused photo first. With spread (the default) the video tiers run once
     // per use count, fewest first: preferred-role hits, any-role hits, then fillers of sources used that often, so
     // role and score only rank sources used equally often and an unused clip (even by a filler) beats any reuse.
@@ -2335,7 +2372,12 @@ function avAllocate(opts) {
     const tiers = photoSlots[slot.index] ? [photo] : [];
     if (spread) {
       const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => Number(x) - Number(y));
-      for (const level of levels) tiers.push(preferred(level), anyReal(level), filler(level));
+      // Per use count (fewest first): windows apart from the source's earlier ones, then any. The bookends' sources join
+      // only once no other source fits at any count (unused sources always come first: they are never bookends).
+      const byLevel = accept => level => (level > 0 ? [preferred(level, (c, a, z) => accept(c) && apart(c, a, z)), anyReal(level, (c, a, z) => accept(c) && apart(c, a, z)),
+        filler(level, (c, a, z) => accept(c) && apart(c, a, z))] : []).concat([preferred(level, accept), anyReal(level, accept), filler(level, accept)]);
+      if (bookends.length) for (const level of levels) tiers.push(...byLevel(notBookend)(level));
+      for (const level of levels) tiers.push(...byLevel(() => true)(level));
       tiers.push(photo);
     } else {
       tiers.push(preferred(null), anyReal(null), photo, filler(null));
@@ -2368,7 +2410,7 @@ function avAllocate(opts) {
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
 // approxBpm? (avApproxTempo), fps, pace: 'cinematic' (default) | 'quick', requested (montage shots, avMontageShots),
 // sectionStart?, usableEnd? (Infinity / omitted without music), onsets?, onsetThresholds?, lowConfidence?, seed,
-// photoShare?, motionOpener? (avAllocate) }. There is no credit option: Credit off only drops the credit graphic, the
+// photoShare?, motionOpener?, sizes? (avAllocate) }. There is no credit option: Credit off only drops the credit graphic, the
 // 2-beat credit shot stays, so the plan never depends on it.
 // Eligibility (spec 3): the opening, credit and final shots (the 3 bookends) are video only; photos only fill montage
 // shots. Every shot count here is montage shots: `shots`, `requested`, `musicShots` and `usableShots` exclude the 3
@@ -2462,15 +2504,15 @@ function avPlanBuild(opts) {
     if (n > top) continue;
     const tpl = avTemplate({ bpm: tempo, pace, montageShots: n });
     const schedule = scheduleOf(tpl);
-    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: tpl.videoOnly[i] }));
+    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, part: tpl.parts[i], seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: tpl.videoOnly[i] }));
     for (const attempt of attempts) {
-      let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: opts.motionOpener });
+      let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: opts.motionOpener, sizes: opts.sizes });
       let name = attempt.name;
       // The motion opener never costs length: an attempt it leaves short is retried without it (named
       // '<attempt>-no-opener') before the next attempt or a shorter montage. Untagged pools never retry.
       if (alloc.missing > 0 && motionTagged) {
         if (n === least) tally(alloc, tpl);
-        alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: false });
+        alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: false, sizes: opts.sizes });
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
@@ -2547,14 +2589,14 @@ function avProgress(stepId, fraction) {
 // candidates. Each hit's score is min-max normalised over the run's motion hits (0 for the weakest, 1 for the
 // strongest; 0 for all when they are equal), and a role candidate gains AV_MOTION_BONUS times the best normalised motion
 // hit on the same clip within AV_MOTION_REACH seconds of its centre (the allocator centres a shot on its candidate, so
-// this stands in for the shot's window +/- 0.5 s). The bonus is a tie-break: at most 0.1, below the allocator's 0.15
-// step between roles minus its 0.05 seeded jitter, so it never changes the role order, only which of two similar
-// moments of a clip comes first. It is added before the planner's seeded tie-break, so a build stays deterministic. A
+// this stands in for the shot's window +/- 0.5 s). The bonus is a tie-break: at most 0.2, below the allocator's 0.3
+// step between roles (planner AV_ROLE_STEP) minus its 0.05 seeded jitter, so it never changes the role order, only which
+// of two similar moments (or clips) of the same role comes first. It is added before the planner's seeded tie-break, so a build stays deterministic. A
 // candidate with a bonus also carries `motion` (its normalised motion, > 0): the planner opens the video on the best
 // such window (avAllocate's motion opener). A clip whose only hits are motion hits keeps a stub row (rid and
 // sourceDuration, no time or score): the planner skips it as a candidate but still makes the clip's filler windows.
 const AV_MOTION_ROLE = 'motion';
-const AV_MOTION_BONUS = 0.1;
+const AV_MOTION_BONUS = 0.2;
 const AV_MOTION_REACH = 0.75;
 function avMotionBonus(list) {
   const finite = v => typeof v === 'number' && isFinite(v);
