@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "camera-shutter-dump",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "name": "Camera Shutter Dump",
   "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects.",
   "status": "experimental",
@@ -14,12 +14,12 @@
     "VALIDATION.md",
     "panel.tsx",
     "sfx/manifest.json",
-    "sfx/shutter-v2-1.wav.b64",
-    "sfx/shutter-v2-2.wav.b64",
-    "sfx/shutter-v2-3.wav.b64",
-    "sfx/shutter-v2-4.wav.b64",
-    "sfx/shutter-v2-5.wav.b64",
-    "sfx/shutter-v2-6.wav.b64"
+    "sfx/shutter-v3-1.wav.b64",
+    "sfx/shutter-v3-2.wav.b64",
+    "sfx/shutter-v3-3.wav.b64",
+    "sfx/shutter-v3-4.wav.b64",
+    "sfx/shutter-v3-5.wav.b64",
+    "sfx/shutter-v3-6.wav.b64"
   ],
   "compatibility": {
     "platforms": [

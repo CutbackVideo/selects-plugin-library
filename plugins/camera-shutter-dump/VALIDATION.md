@@ -25,6 +25,7 @@ Project: 12 imported JPGs with mixed shapes (3:4, 16:9, 1:1, 4:5, 4:3) to check 
 | 5 | Panel lost its SDK session | App window was reloaded during testing and the host MCP server restarted; reopening the panel fixed it. Host behaviour, not the plugin. |
 | 6 | Saved | Draft 23.976 fps, 223 frames, 720x1280 (exported and compared below). |
 | 7 | Saved on the first click | After padding the sounds to 0.5 s (`shutter-v2-*`, so a 14/30 s range at 30 or 60 fps stays inside the file) and adding the bridge unit test. Same readback as run 6. |
+| 8 | Template run: "still adding its sounds" on every retry (2026-10-01, Staging 2.0.533) | Selects now skips media shorter than one second on import (cutback-client #7027), so `importFiles` returned no ids for the 0.5 s sounds. The sounds are padded with silence to 1.2 s (`shutter-v3-*`; the first 0.5 s is sample-identical to v2), and a skipped import now reports itself instead of asking for a retry. Not yet re-run in the app. |
 
 All six were found and fixed by the agent; none was a user correction. The final run was a fresh panel run from Load to Save.
 
