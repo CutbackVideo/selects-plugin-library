@@ -174,7 +174,14 @@ const sectionAt = key => code.indexOf('<ui.Section title={t(L, "' + key + '")}>'
 for (const [key, text] of [['layout', 'Layout'], ['title', 'Title'], ['credits', 'Credits'], ['length', 'Length'], ['music', 'Music'], ['advanced', 'Advanced'], ['preview', 'Preview']]) {
   assert.ok(sectionAt(key) > 0, 'section ' + key); says(key, text);
 }
-assert.ok(sectionAt('layout') < sectionAt('title') && sectionAt('credits') < sectionAt('length') && sectionAt('length') < sectionAt('music') && sectionAt('music') < sectionAt('advanced'), 'section order');
+assert.ok(sectionAt('layout') < sectionAt('preview') && sectionAt('preview') < sectionAt('title') && sectionAt('title') < sectionAt('credits') && sectionAt('credits') < sectionAt('length') && sectionAt('length') < sectionAt('music') && sectionAt('music') < sectionAt('advanced'), 'section order');
+// Preview sits right below Layout (status / Refresh, Layout, Preview, Title, Credits, ...) and draws from the same state.
+{
+  const pv = code.slice(sectionAt('preview'), code.indexOf('</ui.Section>', sectionAt('preview')));
+  assert.equal(code.indexOf('<ui.Section', code.indexOf('</ui.Section>', sectionAt('layout'))), sectionAt('preview'), 'Preview is the section after Layout');
+  assert.ok(pv.includes('<CreditsPreview lang={L} layout={layout} title={title} model={creditModel} pxPerSec={roll.pxPerSec} endSec={videoSeconds} time={previewTime} fontsReady={fontsReady} />'), 'the Preview follows Layout, Title and the credit rows');
+  assert.ok(code.includes('const creditModel = React.useMemo(() => tecCreditLayout({ rows: cleanRows, layout,'), 'the credit model follows the rows and the layout');
+}
 says('layout.classic', 'Classic (window)'); says('layout.full', 'Full frame');
 // Layout: two schematic buttons with aria-pressed; Classic is the default.
 assert.ok(panel.includes('aria-pressed={on}') && panel.includes('<LayoutIcon kind={value} />') && panel.includes('React.useState<"classic" | "full">("classic")'), 'layout buttons');

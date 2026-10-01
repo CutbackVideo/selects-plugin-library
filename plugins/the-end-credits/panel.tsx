@@ -4372,6 +4372,16 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       <ui.Section title={t(L, "layout")}>
         <LayoutTiles lang={L} layout={layout} busy={busy} onPick={setLayout} onKeyDown={guardKeys} />
       </ui.Section>
+      <ui.Section title={t(L, "preview")}>
+        <CreditsPreview lang={L} layout={layout} title={title} model={creditModel} pxPerSec={roll.pxPerSec} endSec={videoSeconds} time={previewTime} fontsReady={fontsReady} />
+        <ui.Slider label={t(L, "previewAt")} unit={t(L, "secondsUnit")} min={0} max={Math.round(videoSeconds * 10) / 10} step={0.1} value={previewTime} onChange={setPreviewTime} />
+        <ui.Row gap={4}>
+          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(firstRowSec * 10) / 10)}>{t(L, "firstRow")}</ui.Button>
+          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(lastRowSec * 10) / 10)}>{t(L, "lastRow")}</ui.Button>
+          <ui.Button variant="ghost" onClick={() => setPreviewTime(endScrubSec)}>{t(L, "end")}</ui.Button>
+        </ui.Row>
+        {rollNotice ? <ui.Message tone="muted">{rollNotice}</ui.Message> : null}
+      </ui.Section>
       <ui.Section title={t(L, "title")}>
         <ui.TextField label={t(L, "title")} value={title} placeholder={DEFAULT_TITLE} onChange={setTitle} disabled={busy} />
       </ui.Section>
@@ -4463,16 +4473,6 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
             </div>
           </div>
         ) : null}
-      </ui.Section>
-      <ui.Section title={t(L, "preview")}>
-        <CreditsPreview lang={L} layout={layout} title={title} model={creditModel} pxPerSec={roll.pxPerSec} endSec={videoSeconds} time={previewTime} fontsReady={fontsReady} />
-        <ui.Slider label={t(L, "previewAt")} unit={t(L, "secondsUnit")} min={0} max={Math.round(videoSeconds * 10) / 10} step={0.1} value={previewTime} onChange={setPreviewTime} />
-        <ui.Row gap={4}>
-          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(firstRowSec * 10) / 10)}>{t(L, "firstRow")}</ui.Button>
-          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(lastRowSec * 10) / 10)}>{t(L, "lastRow")}</ui.Button>
-          <ui.Button variant="ghost" onClick={() => setPreviewTime(endScrubSec)}>{t(L, "end")}</ui.Button>
-        </ui.Row>
-        {rollNotice ? <ui.Message tone="muted">{rollNotice}</ui.Message> : null}
       </ui.Section>
       {progress ? <ui.Progress value={progress.value} label={progressLabel} steps={TEC_BUILD_STEPS.map((s: any) => t(L, "step." + s.id))} current={progress.current} />
         : busy ? <ui.Progress label={stepLabel || t(L, "working")} /> : null}
