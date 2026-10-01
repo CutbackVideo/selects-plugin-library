@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import {spawnSync} from 'node:child_process';
-import {buildNativeFinishScript,normalizeNativeFinish,authorNativeFinish,nativeScenePlan,transitionCoefficients} from '../plugins/no14-still-video/operation.mjs';
+import {loadPanelOperation} from './panel_operation.mjs';
+
+const {buildNativeFinishScript,normalizeNativeFinish,authorNativeFinish,nativeScenePlan,transitionCoefficients}=loadPanelOperation('no14-still-video');
 
 const panelPath=path.resolve(import.meta.dirname,'../plugins/no14-still-video/panel.tsx');
 const panelSource=fs.readFileSync(panelPath,'utf8');
@@ -12,12 +13,9 @@ const bridgeSource=panelSource.slice(panelSource.indexOf('export async function 
 assert.ok(bridgeSource.startsWith('export async function prepareNativeImages')&&bridgeSource.includes('export async function placeNativeImages'));
 const {prepareNativeImages,placeNativeImages}=vm.runInThisContext('(function(){'+bridgeSource.replaceAll('export async function','async function')+';return {prepareNativeImages,placeNativeImages};})()');
 
-test('installed builder rejects the obsolete still-video route',()=>{
- const builder=path.resolve(import.meta.dirname,'../plugins/no14-still-video/build-script.mjs');
- const encoded=Buffer.from(JSON.stringify({projectId:'project',videos:[]})).toString('base64url');
- const run=spawnSync(process.execPath,[builder,encoded],{encoding:'utf8'});
- assert.notEqual(run.status,0);
- assert.match(run.stderr,/only original Image operations/);
+test('the Panel builds the plan and finishing step itself, with no Node.js, and rejects the obsolete still-video route',()=>{
+ assert.doesNotMatch(panelSource,/\bnode ["$]|build-script/);
+ assert.throws(()=>buildNativeFinishScript({projectId:'project',videos:[]}),/Unsupported original Image/);
 });
 
 test('native plan preserves the reference windows with independently editable overlaps',()=>{
