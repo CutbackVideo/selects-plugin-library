@@ -63,7 +63,12 @@ The panel also skips media it created itself (the cutout) when it picks the defa
 
 ## Preview run (local develop build, 2026-10-01)
 
-On a new Project with the 26 generated preview clips and the generated hero photo, the panel saved on the first click (30 fps, 468 frames, default colour strength 0.7). Readback: 35 video clips in slot order v01-v26 at the planned frames, the hero at 55-102, the people cutout at 62-102 above the title graphic at 62-102, the ending graphic at 464-468 and the music at 0-468. In the export, the people stand in front of the title. `preview.mp4` and `poster.webp` are made from this export.
+On a new Project with the 26 generated preview clips and the generated hero photo, the panel saved on the first click (30 fps, 468 frames, default colour strength 0.7). Readback: 35 video clips in slot order v01-v26 at the planned frames, the hero at 55-102, the people cutout at 62-102 above the title graphic at 62-102, the ending graphic at 464-468 and the music at 0-468. In the export, the people stand in front of the title. 
+## Selects Staging (2.0.519, 2026-10-01)
+
+Installed panel run from the Apps tab on a new Project with the same preview media. It saved on the first Create click at 30 fps. Readback matches the local run clip for clip. The FHD export is pixel-identical to the local develop build's export on all 468 frames; the audio has the same length and timing (no offset) and differs only by encoding. `preview.mp4` and `poster.webp` are made from the Staging export.
+
+The first "Load Project media" right after the app restarted and opened the Project failed once inside the host's script runtime (`Cannot read properties of undefined (reading 'reduce')`); the identical script succeeded seconds later. The panel now retries the read once before reporting an error, and the updated panel loaded the media in Staging.
 
 ## Not yet verified
 

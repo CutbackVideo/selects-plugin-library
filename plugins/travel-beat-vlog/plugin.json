@@ -23,7 +23,7 @@
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Needs public Video/Audio overlays, clip effects and motion graphics, the editor's existing original Image placement service for the hero photo, Node.js in the panel shell, and the Swift compiler (Xcode Command Line Tools) for the Apple Vision cutout. Verified in a local develop build on 2026-10-01: saved Draft readback and export."
+    "selects": "Needs public Video/Audio overlays, clip effects and motion graphics, the editor's existing original Image placement service for the hero photo, Node.js in the panel shell, and the Swift compiler (Xcode Command Line Tools) for the Apple Vision cutout. Verified in Selects Staging 2.0.519 and a local develop build on 2026-10-01: saved Draft readback and export (pixel-identical between the two)."
   },
   "preview": {
     "video": "preview.mp4",

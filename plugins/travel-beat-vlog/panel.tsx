@@ -21,9 +21,12 @@ const encode=value=>{
  for(const b of bytes)binary+=String.fromCharCode(b);
  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 };
+// Right after the app opens a Project its file list can briefly fail to read, so try once more.
 async function inventory(sdk,projectId,summary){
- const r=await sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary,allowCommit:false});
- if(r.isError||!Array.isArray(r.result))throw Error(r.output||'Could not read the Project files.');
+ const run=()=>sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary,allowCommit:false});
+ let r=await run();
+ if(r.isError||!Array.isArray(r.result)){await new Promise(done=>setTimeout(done,1500));r=await run();}
+ if(r.isError||!Array.isArray(r.result))throw Error('Could not read the Project files. Wait a moment and load again.');
  return r.result;
 }
 async function builder(sdk,request,summary,maxOutputBytes=49152,timeoutMs=60000){
