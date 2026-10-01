@@ -23,6 +23,13 @@ const windowOf = (hold, n, rate) => {
   }
   return { startSeconds: f0 / rate, endSeconds: (f0 + n) / rate };
 };
+// Selects snaps the music's source start to a timeline frame, which shifts the whole track by
+// delta = s - round(s * fps) / fps (s = cfg.music.sourceStart = section start minus the lead); every cut moves with it
+// so it stays on the beat. It depends on the rate, so it is computed at the Draft's real rate (again after a re-lay).
+const delta = f => (cfg.music ? cfg.music.sourceStart - Math.round(cfg.music.sourceStart * f) / f : 0);
+// Boundary i in timeline seconds. cfg.cutSecondsRaw (preferred) has no music offset: delta is added here, once.
+// Without it, cfg.cutSeconds already carries the offset the planner computed at the planned rate.
+const boundary = (i, f) => (Array.isArray(cfg.cutSecondsRaw) ? (i === 0 ? 0 : cfg.cutSecondsRaw[i] + delta(f)) : cfg.cutSeconds[i]);
 // Lays the holds on a new Draft, aiming every boundary at `rate` (or the new Draft's own rate).
 // A new Draft adopts its first clip's rate and frame size on the first insert. When the rate changes there, the holds
 // were aimed at the wrong rate, so this returns the real rate unless `final`; the caller then lays them again on a
@@ -33,9 +40,9 @@ const lay = async (rate, final) => {
   fps = rate || (await d.meta()).fps;
   endFrame = 0;
   for (let i = 0; i < holds.length; i++) {
-    // cfg.cutSeconds are the planner's boundary times in seconds (beat grid, music offset applied); each hold ends on
-    // its boundary frame at the Draft's real rate, counted from where the previous hold really ended so nothing drifts.
-    const n = Math.max(1, Math.round(cfg.cutSeconds[i + 1] * fps) - endFrame);
+    // Each hold ends on its boundary frame at the Draft's real rate, counted from where the previous hold really ended
+    // so nothing drifts.
+    const n = Math.max(1, Math.round(boundary(i + 1, fps) * fps) - endFrame);
     await d.insertResource({ resourceId: holds[i].rid, sourceRange: windowOf(holds[i], n, fps) });
     const before = endFrame;
     endFrame = (await main()).reduce((a, c) => Math.max(a, c.endFrame), 0);
