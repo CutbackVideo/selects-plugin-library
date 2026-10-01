@@ -110,6 +110,7 @@ const STRINGS = {
     progressDetail: "Step {step}/{total} · {name} ({detail}) · {percent}%",
     videosChecked: { one: "{done}/{count} video checked", other: "{done}/{count} videos checked" },
     videosSearched: { one: "{done}/{count} video searched", other: "{done}/{count} videos searched" },
+    videosMeasured: { one: "{done}/{count} video measured", other: "{done}/{count} videos measured" },
     "detail.music": "adding the music",
     "detail.open": "opening the Draft",
     stoppedAt: "Stopped at step {step}/{total}, {name}: {detail}",
@@ -227,6 +228,7 @@ const STRINGS = {
     progressDetail: "Schritt {step}/{total} · {name} ({detail}) · {percent} %",
     videosChecked: { one: "{done}/{count} Video geprüft", other: "{done}/{count} Videos geprüft" },
     videosSearched: { one: "{done}/{count} Video durchsucht", other: "{done}/{count} Videos durchsucht" },
+    videosMeasured: { one: "{done}/{count} Video gemessen", other: "{done}/{count} Videos gemessen" },
     "detail.music": "Musik wird hinzugefügt",
     "detail.open": "Draft wird geöffnet",
     stoppedAt: "Abgebrochen bei Schritt {step}/{total}, {name}: {detail}",
@@ -344,6 +346,7 @@ const STRINGS = {
     progressDetail: "Paso {step}/{total} · {name} ({detail}) · {percent} %",
     videosChecked: { one: "{done}/{count} vídeo comprobado", many: "{done}/{count} de vídeos comprobados", other: "{done}/{count} vídeos comprobados" },
     videosSearched: { one: "{done}/{count} vídeo explorado", many: "{done}/{count} de vídeos explorados", other: "{done}/{count} vídeos explorados" },
+    videosMeasured: { one: "{done}/{count} vídeo medido", many: "{done}/{count} de vídeos medidos", other: "{done}/{count} vídeos medidos" },
     "detail.music": "añadiendo la música",
     "detail.open": "abriendo el Draft",
     stoppedAt: "Se detuvo en el paso {step}/{total}, {name}: {detail}",
@@ -461,6 +464,7 @@ const STRINGS = {
     progressDetail: "Étape {step}/{total} · {name} ({detail}) · {percent} %",
     videosChecked: { one: "{done}/{count} vidéo vérifiée", many: "{done}/{count} de vidéos vérifiées", other: "{done}/{count} vidéos vérifiées" },
     videosSearched: { one: "{done}/{count} vidéo analysée", many: "{done}/{count} de vidéos analysées", other: "{done}/{count} vidéos analysées" },
+    videosMeasured: { one: "{done}/{count} vidéo mesurée", many: "{done}/{count} de vidéos mesurées", other: "{done}/{count} vidéos mesurées" },
     "detail.music": "ajout de la musique",
     "detail.open": "ouverture du Draft",
     stoppedAt: "Arrêt à l'étape {step}/{total}, {name} : {detail}",
@@ -578,6 +582,7 @@ const STRINGS = {
     progressDetail: "Passaggio {step}/{total} · {name} ({detail}) · {percent}%",
     videosChecked: { one: "{done}/{count} video controllato", many: "{done}/{count} di video controllati", other: "{done}/{count} video controllati" },
     videosSearched: { one: "{done}/{count} video esaminato", many: "{done}/{count} di video esaminati", other: "{done}/{count} video esaminati" },
+    videosMeasured: { one: "{done}/{count} video misurato", many: "{done}/{count} di video misurati", other: "{done}/{count} video misurati" },
     "detail.music": "aggiunta della musica",
     "detail.open": "apertura del Draft",
     stoppedAt: "Interrotto al passaggio {step}/{total}, {name}: {detail}",
@@ -695,6 +700,7 @@ const STRINGS = {
     progressDetail: "ステップ {step}/{total} · {name}（{detail}）· {percent}%",
     videosChecked: { other: "動画 {done}/{count} 本を確認" },
     videosSearched: { other: "動画 {done}/{count} 本を検索" },
+    videosMeasured: { other: "動画 {done}/{count} 本を測定" },
     "detail.music": "音楽を追加中",
     "detail.open": "Draft を開いています",
     stoppedAt: "ステップ {step}/{total}（{name}）で停止しました: {detail}",
@@ -812,6 +818,7 @@ const STRINGS = {
     progressDetail: "{step}/{total}\ub2e8\uacc4 · {name}({detail}) · {percent}%",
     videosChecked: { other: "\uc601\uc0c1 {done}/{count}\uac1c \ud655\uc778" },
     videosSearched: { other: "\uc601\uc0c1 {done}/{count}\uac1c \uac80\uc0c9" },
+    videosMeasured: { other: "\uc601\uc0c1 {done}/{count}\uac1c \uce21\uc815" },
     "detail.music": "\uc74c\uc545 \ucd94\uac00 \uc911",
     "detail.open": "Draft \uc5ec\ub294 \uc911",
     stoppedAt: "{step}/{total}\ub2e8\uacc4({name})\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {detail}",
@@ -929,6 +936,7 @@ const STRINGS = {
     progressDetail: "Etapa {step}/{total} · {name} ({detail}) · {percent}%",
     videosChecked: { one: "{done}/{count} vídeo verificado", many: "{done}/{count} de vídeos verificados", other: "{done}/{count} vídeos verificados" },
     videosSearched: { one: "{done}/{count} vídeo pesquisado", many: "{done}/{count} de vídeos pesquisados", other: "{done}/{count} vídeos pesquisados" },
+    videosMeasured: { one: "{done}/{count} vídeo medido", many: "{done}/{count} de vídeos medidos", other: "{done}/{count} vídeos medidos" },
     "detail.music": "adicionando a música",
     "detail.open": "abrindo o Draft",
     stoppedAt: "Parou na etapa {step}/{total}, {name}: {detail}",
@@ -1046,6 +1054,7 @@ const STRINGS = {
     progressDetail: "Adım {step}/{total} · {name} ({detail}) · %{percent}",
     videosChecked: { one: "{done}/{count} video kontrol edildi", other: "{done}/{count} video kontrol edildi" },
     videosSearched: { one: "{done}/{count} video tarandı", other: "{done}/{count} video tarandı" },
+    videosMeasured: { one: "{done}/{count} video ölçüldü", other: "{done}/{count} video ölçüldü" },
     "detail.music": "müzik ekleniyor",
     "detail.open": "Draft açılıyor",
     stoppedAt: "{step}/{total}. adımda durdu, {name}: {detail}",
@@ -1163,6 +1172,7 @@ const STRINGS = {
     progressDetail: "第 {step}/{total} 步 · {name}（{detail}）· {percent}%",
     videosChecked: { other: "已检查 {done}/{count} 个视频" },
     videosSearched: { other: "已搜索 {done}/{count} 个视频" },
+    videosMeasured: { other: "已测量 {done}/{count} 个视频" },
     "detail.music": "正在添加音乐",
     "detail.open": "正在打开 Draft",
     stoppedAt: "在第 {step}/{total} 步（{name}）停止：{detail}",
@@ -1244,6 +1254,11 @@ const PLUGIN_ID = "selfie-aesthetic";
 // Whip implementation sent to decorate.js: 'effect' (one per-clip effect smears each clip's head and tail; default) or
 // 'transition' (native 2 + 2-frame transitions plus a look-only effect), kept switchable for the Staging A/B.
 const SAE_WHIP_MODE: "effect" | "transition" = "effect";
+// Stillness picker weight sent to the planner (planner SAE_STILL_WEIGHT; the reference freezes each hold, ours are
+// real-time micro-windows, so holds should come from the stillest moments). 0 = off: no motion is measured and plans
+// are exactly as without it. When > 0 and the host can run ffmpeg, the Check step measures each chosen video's
+// motion (saeMotionCurve, cached per clip). Kept 0 until the Staging A/B decides.
+const SAE_STILL_WEIGHT_PANEL: number = 0;
 // Scene-search roles and queries (spec "Shot roles, search and allocation"). The planner compares each clip's face
 // scores with its best control score to decide what counts as a close-up.
 const SAE_QUERIES = {
@@ -1342,6 +1357,17 @@ const SAE_MAX_FILLERS = 40;
 const SAE_FILLER_SCORE = -1;
 // Distinct moment pairs kept per clip (a repeated clip uses a different pair).
 const SAE_MAX_PAIRS = 8;
+// Stillness (the reference freezes every hold; ours are real-time micro-windows, so holds should come from the
+// stillest moments). motion: { [rid]: { fps, values } }, values[i] = mean absolute luma difference between motion
+// frames i and i + 1, covering source seconds [i / fps, (i + 1) / fps]. A window's motion cost is the mean of the
+// values it overlaps over the clip's median (floored at SAE_STILL_FLOOR, capped at SAE_STILL_COST_MAX; 1 when no
+// value overlaps). Moment score = hit score - weight * cost; pair score = the sum. With weight > 0 the local minima
+// of the window cost (up to SAE_STILL_MINIMA per clip, lowest first) are added as filler candidates. Weight 0
+// (the default) leaves every plan exactly as without motion.
+const SAE_STILL_WEIGHT = 0;
+const SAE_STILL_FLOOR = 0.5;
+const SAE_STILL_COST_MAX = 4;
+const SAE_STILL_MINIMA = 12;
 // Moments within this distance of a moment an earlier pair already uses count as "the same moment" when picking
 // further pairs (pairs with fresh moments come first).
 const SAE_MOMENT_NEAR = 0.4;
@@ -1478,14 +1504,14 @@ function saeSchedule(opts) {
 
 // Moments (spec "Moments"). opts: { candidates: [{ rid, role, t, score }], durations: { [rid]: seconds },
 // badSpans?: { [rid]: [[s, e], ...] }, fps, beatSeconds (window length: the longest hold a moment plays),
-// margin? (default SAE_FACE_MARGIN) }.
+// margin? (default SAE_FACE_MARGIN), motion?, stillWeight? (default SAE_STILL_WEIGHT; see SAE_STILL_WEIGHT) }.
 // Per clip (every rid in durations, sorted): faceScore = max over face-role hits of (score - best control score), null
 // without face or control hits; face = faceScore > margin. Candidate times: every hit time (any score) plus fillers;
 // a time t is kept when its window [s, s + beatSeconds] (s = t snapped down to a whole frame, and no earlier than the
 // head handle: max(SAE_HEAD_FRAMES, whip frames + 1) frames; earlier times move there) misses every bad span
 // and ends at least SAE_SOURCE_TAIL before the end of the source. Pairs: A and B >= SAE_PAIR_GAP apart, best summed
-// score first (ties: farther apart, then earlier), A = the better-scoring moment; up to SAE_MAX_PAIRS distinct pairs,
-// pairs whose moments no earlier pair uses first. A clip with no such pair gets one relaxed pair (its two
+// score first (scores less the still penalty; ties: farther apart, then earlier), A = the better-scoring moment; up
+// to SAE_MAX_PAIRS distinct pairs, pairs whose moments no earlier pair uses first. A clip with no such pair gets one relaxed pair (its two
 // farthest-apart times, or one time twice), marked relaxed and scored below every real pair.
 // Returns { clips: [{ rid, duration, face, faceScore, control, times, pairs: [{ a, b, score, relaxed? }] }], faceCount }.
 function saeMoments(opts) {
@@ -1494,6 +1520,8 @@ function saeMoments(opts) {
   const margin = saeFinite(opts.margin) ? opts.margin : SAE_FACE_MARGIN;
   const durations = opts.durations || {}, spansOf = opts.badSpans || {};
   const head = Math.max(SAE_HEAD_FRAMES, Math.round(SAE_WHIP_SECONDS * fps) + 1);
+  const still = saeFinite(opts.stillWeight) ? Math.max(0, opts.stillWeight) : SAE_STILL_WEIGHT;
+  const motionOf = opts.motion || {};
   const byRid = {};
   for (const c of opts.candidates || []) {
     if (!c || typeof c.rid !== 'string' || !saeFinite(c.t) || !saeFinite(c.score)) continue;
@@ -1519,6 +1547,8 @@ function saeMoments(opts) {
       if (spans.some(sp => s < sp[1] && e > sp[0])) return null;
       return { f, s };
     };
+    // Motion cost of the window starting at s, or null without a still weight / a usable curve.
+    const cost = still > 0 ? saeStillCost(motionOf[rid], win) : null;
     const times = new Map(); // frame -> { t, score, hit }
     for (const h of hits) {
       if (h.role === 'control') continue;
@@ -1527,12 +1557,20 @@ function saeMoments(opts) {
       const old = times.get(w.f);
       if (!old || h.score > old.score) times.set(w.f, { t: w.s, score: h.score, hit: true });
     }
+    if (cost) {
+      // A minimum's window starts on the next whole frame (snapping down would pull in the motion sample before it).
+      for (const t of cost.minima) {
+        const w = startOf(Math.ceil(t * fps - 1e-6) / fps);
+        if (w && !times.has(w.f)) times.set(w.f, { t: w.s, score: SAE_FILLER_SCORE, hit: false });
+      }
+    }
     const fillers = [];
     for (let k = 0; k * SAE_FILLER_STEP <= dur + 1e-9; k++) { const w = startOf(k * SAE_FILLER_STEP); if (w) fillers.push(w); }
     const keep = fillers.length <= SAE_MAX_FILLERS ? fillers
       : Array.from({ length: SAE_MAX_FILLERS }, (_, j) => fillers[Math.round(j * (fillers.length - 1) / (SAE_MAX_FILLERS - 1))]);
     for (const w of keep) if (!times.has(w.f)) times.set(w.f, { t: w.s, score: SAE_FILLER_SCORE, hit: false });
     const list = Array.from(times.values()).sort((p, q) => p.t - q.t);
+    if (cost) for (const e of list) e.score = e.score - still * cost.at(e.t);
     const all = [];
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
@@ -1563,6 +1601,34 @@ function saeMoments(opts) {
     clips.push({ rid, duration: dur, face, faceScore, control, times: list.length, pairs });
   }
   return { clips, faceCount: clips.filter(c => c.face && c.pairs.length).length };
+}
+
+// Motion cost per window of `win` seconds for one clip's curve ({ fps, values }; see SAE_STILL_WEIGHT), or null
+// when the curve is unusable. Returns { at(s): cost of the window [s, s + win], minima: window starts (seconds) at
+// local minima of the cost, lowest first (ties: earlier), at most SAE_STILL_MINIMA }.
+function saeStillCost(curve, win) {
+  const mfps = curve && curve.fps, vals = curve && curve.values;
+  if (!(mfps > 0) || !vals || !(vals.length >= 2)) return null;
+  const n = vals.length, v = [];
+  for (let i = 0; i < n; i++) { const x = Number(vals[i]); v.push(isFinite(x) && x > 0 ? x : 0); }
+  const sorted = v.slice().sort((a, b) => a - b);
+  const median = n % 2 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+  const norm = Math.max(SAE_STILL_FLOOR, median);
+  const prefix = [0];
+  for (let i = 0; i < n; i++) prefix.push(prefix[i] + v[i]);
+  const at = s => {
+    const i0 = Math.max(0, Math.floor(s * mfps + 1e-6)), i1 = Math.min(n, Math.ceil((s + win) * mfps - 1e-6));
+    if (i1 <= i0) return 1;
+    return Math.min(SAE_STILL_COST_MAX, (prefix[i1] - prefix[i0]) / (i1 - i0) / norm);
+  };
+  const c = [];
+  for (let k = 0; k < n; k++) c.push(at(k / mfps));
+  const minima = [];
+  for (let k = 0; k < n; k++) {
+    if ((k === 0 || c[k] < c[k - 1]) && (k === n - 1 || c[k] <= c[k + 1])) minima.push({ k, c: c[k] });
+  }
+  minima.sort((p, q) => p.c - q.c || p.k - q.k);
+  return { at, minima: minima.slice(0, SAE_STILL_MINIMA).map(m => m.k / mfps) };
 }
 
 // Bars that hold photos: up to `count` of the bars 0..bars-1, inner bars (1..bars-2) first, evenly spread from a
@@ -1749,7 +1815,7 @@ function saeSnapSection(sec, cue, opts) {
 // The whole plan. opts: { fps, bars (wanted; SAE_LENGTHS), seed (default 1), cue (manifest entry or own-music
 // analysis { bpm, firstBeat, grid, downbeat?, durationSeconds, defaultSection?, onsets?, onsetThresholds? }; null = no
 // music), sectionStart? (default saeDefaultSection), candidates, durations, badSpans?, photos?, usePhotos? (default
-// true), margin? }.
+// true), margin?, motion?, stillWeight? (saeMoments: the stillness penalty, off by default) }.
 // Tries the wanted bar count (capped so the video ends before the music's fade-out), then fewer (down to SAE_MIN_BARS)
 // until the sources fill every bar under the rules; a pool too small even for that builds SAE_MIN_BARS bars with
 // adjacency / pair reuse relaxed.
@@ -1785,7 +1851,8 @@ function saePlanBuild(opts) {
   // with 2 frames for rounding, plus an onset snap's shift. Then every hold fits in [srcStart, duration - TAIL] and
   // assemble.js never slides a window back.
   const beatSeconds = spb + SAE_LEAD + 2 / fps + (snap ? SAE_SNAP_WINDOW : 0);
-  const moments = saeMoments({ candidates: opts.candidates, durations: opts.durations, badSpans: opts.badSpans, fps, beatSeconds, margin: opts.margin });
+  const moments = saeMoments({ candidates: opts.candidates, durations: opts.durations, badSpans: opts.badSpans, fps, beatSeconds, margin: opts.margin,
+    motion: opts.motion, stillWeight: opts.stillWeight });
   const base = { clips: moments.clips, photos: opts.photos, seed, usePhotos: opts.usePhotos };
   let alloc = null, bars = 0;
   const relax = [];
@@ -1833,8 +1900,8 @@ if (typeof module !== 'undefined' && module && module.exports) {
   Object.assign(module.exports, {
     SAE_LEAD, SAE_END_TAIL, SAE_STANDARD_BAR, SAE_FINALE_BAR, SAE_LENGTHS, SAE_MIN_BARS, SAE_FIXED_BPM, SAE_FACE_MARGIN,
     SAE_FACE_ROLES, SAE_FACE_MAX_USES, SAE_SOURCE_TAIL, SAE_HEAD_FRAMES, SAE_PAIR_GAP, SAE_FADE_OUT, SAE_PHOTO_SHARE, SAE_PHOTO_RUN_MAX, SAE_SNAP_WINDOW,
-    SAE_MIN_HOLD_FRAMES, SAE_ANGLE_MIN, SAE_ANGLE_MAX,
-    saeHash, saeEditBpm, saeTempo, saeVideoSeconds, saeMusicOffset, saeTemplate, saeSchedule, saeMoments, saePhotoBars,
+    SAE_MIN_HOLD_FRAMES, SAE_ANGLE_MIN, SAE_ANGLE_MAX, SAE_STILL_WEIGHT, SAE_STILL_FLOOR, SAE_STILL_COST_MAX, SAE_STILL_MINIMA,
+    saeStillCost, saeHash, saeEditBpm, saeTempo, saeVideoSeconds, saeMusicOffset, saeTemplate, saeSchedule, saeMoments, saePhotoBars,
     saeAllocate, saeWhipKinds, saeBarGrid, saeSectionRange, saeDefaultSection, saeSnapSection, saePlanBuild,
   });
 }
@@ -2006,6 +2073,49 @@ async function saeDecodePcm(file, dataDir, maxSeconds) {
     const bytes = await saeReadOutput(fs, out, 'samples');
     if (bytes.byteLength < 4) throw saeFail('media_failed', 'no samples');
     return new Float32Array(bytes.buffer, 0, Math.floor(bytes.byteLength / 4));
+  } finally {
+    await saeRemove(fs, out);
+  }
+}
+
+// Motion curve of a video for the stillness picker (planner SAE_STILL_WEIGHT): SAE_MOTION_FPS gray frames per second
+// at a fixed SAE_MOTION_W x SAE_MOTION_H (any aspect squeezes to it; only frame-to-frame change matters), the first
+// maxSeconds. saeMotionArgs and saeMotionValues are pure, so the headless driver runs the same ffmpeg argv and the
+// same arithmetic in node.
+const SAE_MOTION_FPS = 8;
+const SAE_MOTION_W = 32;
+const SAE_MOTION_H = 56;
+function saeMotionArgs(file, out, maxSeconds) {
+  return ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', file, '-t', String(maxSeconds || 120), '-an',
+    '-vf', 'fps=' + SAE_MOTION_FPS + ',scale=' + SAE_MOTION_W + ':' + SAE_MOTION_H + ',setsar=1,format=gray', '-f', 'rawvideo', out];
+}
+// values[i] = mean absolute difference (0-255) between frames i and i + 1, or null when the bytes are not at least two
+// whole frames.
+function saeMotionValues(bytes) {
+  const size = SAE_MOTION_W * SAE_MOTION_H;
+  const frames = bytes && bytes.byteLength % size === 0 ? bytes.byteLength / size : 0;
+  if (frames < 2) return null;
+  const values = new Float32Array(frames - 1);
+  for (let i = 0; i < frames - 1; i++) {
+    let sum = 0;
+    const a = i * size, b = a + size;
+    for (let k = 0; k < size; k++) sum += Math.abs(bytes[b + k] - bytes[a + k]);
+    values[i] = sum / size;
+  }
+  return values;
+}
+// { fps, values } for `file` (opts: { maxSeconds (default 120), timeoutMs (default 90000) }). Errors as above; the
+// caller treats any failure as "motion unknown".
+async function saeMotionCurve(file, dataDir, opts) {
+  const { fs } = saeNeed(['rt.runFFmpeg', 'fs.join']);
+  saeNeedReader();
+  const o = opts || {};
+  const out = fs.join(dataDir, 'motion-' + saeToken() + '.gray');
+  try {
+    await saeFFmpeg(saeMotionArgs(file, out, o.maxSeconds), { timeoutMs: o.timeoutMs || 90000 });
+    const values = saeMotionValues(await saeReadOutput(fs, out, 'frames'));
+    if (!values) throw saeFail('media_failed', 'too few frames');
+    return { fps: SAE_MOTION_FPS, values };
   } finally {
     await saeRemove(fs, out);
   }
@@ -2958,6 +3068,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   // a new clip choice and a refreshed inventory reuse them; clips whose search failed stay out and are retried.
   const searchCache = React.useRef<Map<string, any[]>>(new Map());
   const spansCache = React.useRef<Map<string, number[][]>>(new Map());
+  const motionCache = React.useRef<Map<string, { fps: number; values: Float32Array }>>(new Map());
   const [cacheTick, setCacheTick] = React.useState(0);
   // Photo sizes measured by earlier inventory reads, passed back so a refresh does not measure them again.
   const photoSizesRef = React.useRef<Record<string, { width: number; height: number }>>({});
@@ -3295,7 +3406,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   const searchedAll = !!projectId && selectedRids.every((rid) => searchCache.current.has(projectId + "|" + rid));
   const dry = React.useMemo(() => {
     if (!inventory || !projectId || (!selectedRids.length && !usedPhotoRids.length)) return null;
-    const durations: Record<string, number> = {}, badSpans: Record<string, number[][]> = {};
+    const durations: Record<string, number> = {}, badSpans: Record<string, number[][]> = {}, motion: Record<string, any> = {};
     const candidates: any[] = [];
     for (const r of inventory.resources) {
       if (!selectedRids.includes(r.rid)) continue;
@@ -3304,9 +3415,12 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
       if (hits) candidates.push(...hits);
       const spans = spansCache.current.get(projectId + "|" + r.rid);
       if (spans) badSpans[r.rid] = spans;
+      const curve = motionCache.current.get(projectId + "|" + r.rid);
+      if (curve) motion[r.rid] = curve;
     }
     try {
-      return saePlanBuild({ fps: 30, bars: wantedBars, seed, cue, sectionStart: drySection ?? undefined, candidates, durations, badSpans, photos: usedPhotoRids, usePhotos });
+      return saePlanBuild({ fps: 30, bars: wantedBars, seed, cue, sectionStart: drySection ?? undefined, candidates, durations, badSpans, photos: usedPhotoRids, usePhotos,
+        motion, stillWeight: SAE_STILL_WEIGHT_PANEL });
     } catch { return null; }
   }, [inventory, projectId, selectedRids.join(","), usedPhotoRids.join(","), usePhotos, cue, drySection, wantedBars, seed, cacheTick]);
   const fitBars = dry && dry.ok ? dry.fit.bars : wantedBars;
@@ -3340,6 +3454,33 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
       // Failures stay uncached, so the next Build asks again.
       if (spans) spansCache.current.set(key, spans);
       out[rid] = spans || [];
+    }
+    onProgress(rids.length, rids.length);
+    return out;
+  }
+  // Motion curves per video for the stillness picker (source files from the inventory's `path`), cached per clip.
+  // A clip whose curve fails stays without one (planned as before) and uncached, so the next Build asks again; a host
+  // without the tools ends the step.
+  async function readMotion(pid: string, inv: any, rids: string[], check: () => void, onProgress: (done: number, total: number) => void) {
+    const out: Record<string, { fps: number; values: Float32Array }> = {};
+    let dataDir: string;
+    try { dataDir = saeDataDir(PLUGIN_ID); } catch { return out; }
+    const pathOf: Record<string, string> = {};
+    for (const r of inv.resources) if (r.path) pathOf[r.rid] = r.path;
+    for (let i = 0; i < rids.length; i++) {
+      onProgress(i, rids.length);
+      const rid = rids[i], key = pid + "|" + rid;
+      const cached = motionCache.current.get(key);
+      if (cached) { out[rid] = cached; continue; }
+      if (!pathOf[rid]) continue;
+      let stop = false;
+      try {
+        const curve = await saeMotionCurve(pathOf[rid], dataDir, {});
+        motionCache.current.set(key, curve);
+        out[rid] = curve;
+      } catch (e: any) { stop = String(e?.message) === "host_tools"; }
+      check();
+      if (stop) break;
     }
     onProgress(rids.length, rids.length);
     return out;
@@ -3390,7 +3531,12 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
       const photos: string[] = settings.usePhotos ? inv.photos.filter((p: any) => !settings.onlyPhotos || settings.onlyPhotos.includes(p.rid)).map((p: any) => p.rid) : [];
       if (!rids.length && !photos.length) throw uiError((l) => t(l, "noSources"));
       advance("check", 0.2);
-      const badSpans = await readBadSpans(pid, inv, rids, check, (done, total) => advance("check", 0.2 + 0.8 * (total ? done / total : 1), (l) => t(l, "videosChecked", { done, count: total })));
+      // With the stillness picker on, spans take the step to 60% and motion the rest.
+      const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok;
+      const spanShare = stillOn ? 0.4 : 0.8;
+      const badSpans = await readBadSpans(pid, inv, rids, check, (done, total) => advance("check", 0.2 + spanShare * (total ? done / total : 1), (l) => t(l, "videosChecked", { done, count: total })));
+      check();
+      const motion = stillOn ? await readMotion(pid, inv, rids, check, (done, total) => advance("check", 0.6 + 0.4 * (total ? done / total : 1), (l) => t(l, "videosMeasured", { done, count: total }))) : {};
       check();
       advance("check", 1);
       // Step 2: close-ups (cached per clip).
@@ -3404,7 +3550,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
       for (const r of inv.resources) if (rids.includes(r.rid)) durations[r.rid] = r.duration;
       const candidates = rids.flatMap((rid) => searchCache.current.get(pid + "|" + rid) || []);
       const plan = saePlanBuild({ fps: 30, bars: settings.bars, seed: nextSeed, cue: settings.cue, sectionStart: settings.section ?? undefined,
-        candidates, durations, badSpans, photos, usePhotos: settings.usePhotos });
+        candidates, durations, badSpans, photos, usePhotos: settings.usePhotos, motion, stillWeight: SAE_STILL_WEIGHT_PANEL });
       if (!plan.ok) {
         if ((plan.notes || []).includes("music-too-short")) throw uiError((l) => t(l, "musicTooShortBuild"));
         throw uiError((l) => t(l, "noSources"));

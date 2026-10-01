@@ -115,3 +115,4 @@ jobs:
           node plugins/selfie-aesthetic/tests/public-paths.test.cjs
           node plugins/selfie-aesthetic/tests/scripts-edit.test.cjs
           node plugins/selfie-aesthetic/tests/scripts-read.test.cjs
+          node plugins/selfie-aesthetic/tests/still.test.cjs

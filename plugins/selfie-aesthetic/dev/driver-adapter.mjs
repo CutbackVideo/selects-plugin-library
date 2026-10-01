@@ -8,14 +8,19 @@
 //   - No bad-shot spans: the panel reads them with sdk.call("getResourceVisualSpans"), which run_script / MCP cannot
 //     reach, so the plan gets badSpans {} (a moment the panel would move off a bad span may differ).
 //   - whipMode is a row input (the panel always sends its SAE_WHIP_MODE constant) for the effect/transition A/B.
-//   - The Draft name is "Selfie test <A|B> <cue> <preset> <length> s<seed>[ transition]", not the panel's date name.
+//   - The Draft name is "Selfie test <A|B> <cue> <preset> <length> s<seed>[ transition][ still<w>]", not the panel's
+//     date name.
+//   - Motion for the stillness picker (row `still` > 0) is measured with the local ffmpeg (FFMPEG_DIR or PATH) on the
+//     inventory's source paths, with the host block's own saeMotionArgs / saeMotionValues (the panel's argv and
+//     arithmetic); the panel runs the host's bundled ffmpeg. A clip without a readable source has no curve.
 //
 // Row inputs: key, pid, project ('A'|'B', optional; from the pid otherwise), seeds, cue ('make-funk' | 'day-trips' |
 // 'sensual-melancholia' | 'pantheon' | 'none' | 'own:<abs path>'; '$VAR' / '${VAR}' expand from the environment;
 // --own <path> on the driver's command line replaces the path of every own row), preset ('soft-glow' | 'night-glam' |
 // 'clean'), look (bool), length ('short'|'standard'|'long'), clipSound ('off'|'ambient'|'full'), photos (bool),
 // section ('default'|'early'|'late'|seconds), whipMode ('effect'|'transition'), uiLang ('en'|'ko'|...: Adjust
-// labels), export, capture.
+// labels), still (stillness picker weight, a number >= 0; default the panel's SAE_STILL_WEIGHT_PANEL; a row that sets
+// it, 0 included, gets ' still<w>' in its Draft name), export, capture.
 import vm from 'node:vm';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -57,6 +62,16 @@ export function loadPlannerAndPanel(plannerSrc, panelSrc) {
   return box.P;
 }
 
+// The panel's host block (between its markers in panel.tsx) in node:vm with a bare window, for its pure motion helpers.
+export function loadHostHelpers(panelSrc) {
+  const a = panelSrc.indexOf('// sae-host:start'), b = panelSrc.indexOf('// sae-host:end');
+  if (a < 0 || b < a) throw Error('panel.tsx has no sae-host block');
+  const box = { window: { parent: {} }, navigator: {}, setTimeout, clearTimeout, AbortController };
+  vm.createContext(box);
+  vm.runInContext(panelSrc.slice(a, b) + ';globalThis.H={saeMotionArgs,saeMotionValues,SAE_MOTION_FPS};', box);
+  return box.H;
+}
+
 const PROJECT_LETTERS = { '28579d3f-de18-4af5-8f3d-f1bf9245fc20': 'A', '4a9c32f1-1b61-4962-b2db-51fec2637b0e': 'B' };
 export const ROW_DEFAULTS = { cue: 'make-funk', preset: 'soft-glow', look: true, length: 'short', clipSound: 'ambient', photos: true, section: 'default', uiLang: 'en' };
 const EFFECT_NAME = 'Selfie whip + look';
@@ -91,6 +106,8 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   try { manifestJson = JSON.parse(read('plugin.json')); } catch { manifestJson = { id: 'selfie-aesthetic', version: '0.0.0' }; }
   const panel = read('panel.tsx');
   const P = loadPlannerAndPanel(read('planner.js'), panel);
+  const H = loadHostHelpers(panel);
+  const STILL_WEIGHT = panelScalar(panel, 'SAE_STILL_WEIGHT_PANEL');
   const QUERIES = panelConst(panel, 'SAE_QUERIES', '};');
   const PAGE_SIZE = panelScalar(panel, 'SAE_SEARCH_PAGE_SIZE');
   const SEARCH_BATCH = panelScalar(panel, 'SAE_SEARCH_BATCH');
@@ -107,16 +124,38 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   const cues = JSON.parse(read('assets/cues/manifest.json')).cues;
   const effectTsx = read('assets/selfie-whip-look.tsx'), transitionTsx = read('assets/selfie-whip-transition.tsx');
   const beat = require(path.join(pluginDir, 'beat-detect.cjs'));
-  const ownCache = new Map();
+  const ownCache = new Map(), motionCache = new Map();
   const withDefaults = r => ({ ...ROW_DEFAULTS, whipMode: WHIP_MODE, ...r });
+  // `still` stays off the defaults so the Draft name shows it only on rows that set it.
+  const stillOf = row => (row.still === undefined ? STILL_WEIGHT : row.still);
   const letterOf = row => row.project || PROJECT_LETTERS[row.pid] || String(row.pid).slice(0, 4);
   const cueName = cue => (isOwn(cue) ? 'own' : cue);
   // "Selfie test <A|B> <cue> <preset> <length> s<seed>", plus " transition" in transition mode so an effect/transition
   // A/B pair with the same inputs gets two names.
   const draftNameOf = (r0, seed) => {
     const row = withDefaults(r0);
-    return row.draftName || ['Selfie test', letterOf(row), cueName(row.cue), row.preset, row.length, 's' + seed].join(' ') + (row.whipMode === 'transition' ? ' transition' : '');
+    return row.draftName || ['Selfie test', letterOf(row), cueName(row.cue), row.preset, row.length, 's' + seed].join(' ') + (row.whipMode === 'transition' ? ' transition' : '')
+      + (r0 && r0.still !== undefined ? ' still' + r0.still : '');
   };
+
+  // A source's motion curve like the panel's saeMotionCurve: the same ffmpeg argv (saeMotionArgs, first 120 s) and
+  // the same frame differences (saeMotionValues). null when the file is missing or ffmpeg fails. Cached per file.
+  function motionCurve(file) {
+    if (motionCache.has(file)) return motionCache.get(file);
+    let curve = null;
+    if (file && fs.existsSync(file)) {
+      const ff = process.env.FFMPEG_DIR ? path.join(process.env.FFMPEG_DIR, 'ffmpeg') : 'ffmpeg';
+      const tmp = path.join(os.tmpdir(), 'sae-motion-' + process.pid + '-' + Date.now() + '.gray');
+      try {
+        execFileSync(ff, H.saeMotionArgs(file, tmp), { stdio: ['ignore', 'ignore', 'pipe'] });
+        const buf = fs.readFileSync(tmp);
+        const values = H.saeMotionValues(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
+        curve = values ? { fps: H.SAE_MOTION_FPS, values } : null;
+      } catch { curve = null; } finally { try { fs.unlinkSync(tmp); } catch { /* not written */ } }
+    }
+    motionCache.set(file, curve);
+    return curve;
+  }
 
   // Own music like the panel's analyseOwn(): the host ffmpeg decode (mono f32le, 22050 Hz, first 240 s), then
   // beat-detect's analyze on all of it (the Worker path), as the planner cue saeOwnCue builds. Cached per file.
@@ -143,7 +182,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     label: 'SAE',
     searchBatch: SEARCH_BATCH,
     // Exposed for tests and tools.
-    planner: P, panelConstants: { QUERIES, PAGE_SIZE, SEARCH_BATCH, WHIP_MODE, AMBIENT_DB, LOOK_STRENGTH, LOOK_PRESETS, LOOK_OPTIONS }, draftNameOf,
+    planner: P, host: H, motionCurve, panelConstants: { QUERIES, PAGE_SIZE, SEARCH_BATCH, WHIP_MODE, AMBIENT_DB, LOOK_STRENGTH, LOOK_PRESETS, LOOK_OPTIONS, STILL_WEIGHT }, draftNameOf,
 
     // Coverage the Selfie Aesthetic matrix must meet: each value below in >= 2 builds' rows, a Korean-UI row, unique
     // Draft names over rows x seeds, known values only.
@@ -177,6 +216,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         if (typeof r.section !== 'number' && !['default', 'early', 'late'].includes(r.section)) unknown.push(r.key + ': section ' + r.section);
         if (!STRINGS[r.uiLang]) unknown.push(r.key + ': uiLang ' + r.uiLang);
         if (typeof r.look !== 'boolean' || typeof r.photos !== 'boolean') unknown.push(r.key + ': look/photos must be booleans');
+        if (r.still !== undefined && !(typeof r.still === 'number' && isFinite(r.still) && r.still >= 0)) unknown.push(r.key + ': still must be a number >= 0');
         if (isOwn(r.cue) && /\/(?:Users|home)\//.test(r.cue)) unknown.push(r.key + ': own path must come from $TEST_MUSIC or --own, not a home path');
       }
       const names = R.flatMap(r => (r.seeds || [1]).map(sd => draftNameOf(r, sd)));
@@ -236,7 +276,16 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       for (const r of inv.resources) durations[r.rid] = r.duration;
       const candidates = rids.flatMap(rid => found.list.filter(c => c.rid === rid).map(({ sourceDuration, ...c }) => c));
       const badSpans = {}; // sdk.call only (see the header)
-      const plan = j(P.saePlanBuild({ fps: 30, bars: wantedBars, seed, cue, sectionStart: section ?? undefined, candidates, durations, badSpans, photos, usePhotos: row.photos }));
+      // The panel's Check step measures motion only while the still weight is > 0.
+      const motion = {}, weight = stillOf(row);
+      if (weight > 0) {
+        // An inventory from before source paths (an old --inventory file or plan-only cache) cannot be measured.
+        if (inv.resources.length && !inv.resources.some(r => r.path)) throw Error('still > 0 needs source paths: the inventory has none (re-read it; delete an old inventory-<pid>.json cache)');
+        for (const r of inv.resources) { const c = motionCurve(r.path); if (c) motion[r.rid] = c; }
+      }
+      const still = { weight, measured: Object.keys(motion).length, videos: rids.length };
+      const plan = j(P.saePlanBuild({ fps: 30, bars: wantedBars, seed, cue, sectionStart: section ?? undefined, candidates, durations, badSpans, photos, usePhotos: row.photos,
+        motion, stillWeight: weight }));
       const summary = plan.ok
         ? { ok: true, bars: plan.bars, wanted: wantedBars, holds: plan.holds.length, editBpm: plan.editBpm, sectionStart: plan.sectionStart, faceClips: plan.faceClips, photoBars: plan.photoBars, notes: plan.notes }
         : { ok: false, notes: plan.notes, fit: plan.fit };
@@ -249,7 +298,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       if (adjacentBars.length && sources >= 2 && !plan.notes.includes('adjacent')) throw Error('planner put one source in adjacent bars ' + adjacentBars.join(','));
       const crops = {};
       for (const r of [...inv.resources, ...inv.photos]) if (r.width > 0 && r.height > 0) crops[r.rid] = { width: r.width, height: r.height };
-      return { row, seed, inv, found, cue, ownFile, preset, wantedBars, section, plan, planSummary: summary, durations, crops, barRids, adjacentBars, sources,
+      return { row, seed, inv, found, cue, ownFile, preset, wantedBars, section, plan, planSummary: summary, durations, crops, barRids, adjacentBars, sources, still,
         holds: j(P.saeTrimHolds(plan.holds)), boundaries: plan.cutSecondsRaw, start: plan.sectionStart };
     },
 
@@ -329,7 +378,8 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       return {
         rec: {
           inputs: { project: letterOf(row), cue: row.cue, preset: row.preset, look: row.look, length: row.length, clipSound: row.clipSound, photos: row.photos,
-            section: row.section, whipMode: row.whipMode, uiLang: row.uiLang },
+            section: row.section, whipMode: row.whipMode, uiLang: row.uiLang, still: stillOf(row) },
+          still: s.still, // { weight, measured: clips with a motion curve, videos }
           name: s.draftName, ownFile: s.ownFile ? path.basename(s.ownFile) : null, ownCue: s.ownFile ? { bpm: s.cue.bpm, firstBeat: s.cue.firstBeat, grid: s.cue.grid, durationSeconds: s.cue.durationSeconds } : null,
           sectionStart: plan.sectionStart, musicSourceStart: plan.musicSourceStart, musicOffset: s.offset, editBpm: plan.editBpm, bpm: plan.bpm,
           plan: s.planSummary, bars: plan.bars, wantedBars: s.wantedBars, holds: s.holds.length, snapLog: plan.snapLog,

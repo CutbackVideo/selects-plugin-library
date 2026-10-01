@@ -35,7 +35,16 @@ The adapter decodes it like the panel (ffmpeg `-t 240 -ac 1 -ar 22050 -f f32le`;
 Row inputs: `cue`, `preset`, `look`, `length`, `clipSound`, `photos`, `section` (`default` = the panel's default,
 `early` / `late` = the first / last bar line the edit fits, or seconds, snapped like the waveform), `whipMode`
 (the A/B; the panel itself always sends `SAE_WHIP_MODE`), `uiLang` (Adjust labels from STRINGS), `seeds`, `export`,
-`capture`. Draft names: `Selfie test <A|B> <cue> <preset> <length> s<seed>`, plus ` transition` in transition mode.
+`capture`, `still` (the stillness picker weight, a number >= 0; default the panel's `SAE_STILL_WEIGHT_PANEL`). Draft
+names: `Selfie test <A|B> <cue> <preset> <length> s<seed>`, plus ` transition` in transition mode and ` still<w>` on a
+row that sets `still` (0 included).
+
+Stillness A/B: rows `a-still0` / `a-still6` are the same Project A build at weight 0 and 0.6 (both exported). With
+`still` > 0 the adapter measures every video's motion with the local ffmpeg (`FFMPEG_DIR` or PATH) on the source paths
+inventory.js returns, using the host block's own `saeMotionArgs` / `saeMotionValues` (the panel's argv and arithmetic,
+8 fps, 32x56 gray, first 120 s), and passes it to the planner as the panel does. `rec.still` records
+`{ weight, measured, videos }`; a clip whose source cannot be read has no curve (planned as at weight 0). An inventory
+without source paths (a cache from before this change) throws for still rows.
 
 Differences from a panel Build and what the readback cannot check:
 - No bad-shot spans. The panel reads them with `sdk.call("getResourceVisualSpans")`, which run_script / MCP cannot

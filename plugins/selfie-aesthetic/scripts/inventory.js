@@ -2,13 +2,13 @@ const cfg = __CONFIG__;
 // Selfie Aesthetic Edit — inventory (run_script, read only; adapted from the City Weekend Vlog inventory).
 // The first config placeholder above is replaced by the panel/driver with JSON.parse("...") before running.
 // cfg: { projectId, only: rid[] | null, known?: { [rid]: { width, height } }, measureMs?: number (default 8000) }
-// Returns { resources: [video], photos: [photo], skipped: { unanalysed, missing, short, analysing, notAnalysed, failed, statusKnown } }.
+// Returns { resources: [video (with `path`: its source file, null when sourceFiles() has none)], photos: [photo], skipped: { unanalysed, missing, short, analysing, notAnalysed, failed, statusKnown } }.
 // Nothing here imports, commits or edits a saved Draft.
 const MIN_VIDEO_SECONDS = 1.2;
 const p = selects.project(cfg.projectId);
 const all = await p.resources();
-const sizes = {};
-const walk = nodes => { for (const n of nodes || []) { if (n.type === 'dir') walk(n.children); else if (n.resourceId) sizes[n.resourceId] = n.frameSize || null; } };
+const sizes = {}, paths = {};
+const walk = nodes => { for (const n of nodes || []) { if (n.type === 'dir') walk(n.children); else if (n.resourceId) { sizes[n.resourceId] = n.frameSize || null; paths[n.resourceId] = n.path || null; } } };
 const files = await p.sourceFiles();
 if ('fileTree' in files) walk(files.fileTree);
 else for (const f of files.folders || []) { const d = await p.sourceFiles({ folder: f.name }); if ('fileTree' in d) walk(d.fileTree); }
@@ -48,7 +48,7 @@ for (const r of video) {
   if (!(r.durationSeconds > 0)) { missing++; continue; }
   // A bar needs two 1-beat windows plus a tail; clips shorter than this cannot hold one.
   if (r.durationSeconds < MIN_VIDEO_SECONDS) { short++; continue; }
-  resources.push({ rid: r.resourceId, name: r.name, duration: r.durationSeconds, width: size ? size.width : null, height: size ? size.height : null, recordedAt: recordedAt(r), kind: 'video' });
+  resources.push({ rid: r.resourceId, name: r.name, duration: r.durationSeconds, width: size ? size.width : null, height: size ? size.height : null, recordedAt: recordedAt(r), kind: 'video', path: paths[r.resourceId] || null });
 }
 // Photos (Image resources) have no analysis and no scene search; they are placed whole. sourceFiles() often reports no
 // frameSize for them, so an unsaved scratch Draft measures each one: a new Draft adopts its first clip's frame size.
