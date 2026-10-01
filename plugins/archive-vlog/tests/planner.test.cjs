@@ -356,11 +356,11 @@ for (const fps of [23.976, 25, 29.97, 30, 60]) for (const ss of [0, 0.013, 7.31,
   assert.deepStrictEqual(cap.schedule.beatsList.slice(0, 2), [6, 2]); assert.strictEqual(cap.schedule.beatsList[cap.schedule.beatsList.length - 1], 4);
   // Too short for intro + 4 montage shots + final (20 beats = 16.67 s at 72 bpm).
   const tooShort = build({ sectionStart: 2, usableEnd: 14 });
-  assert.deepStrictEqual(tooShort, { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0, neededSeconds: 20 * b72, availableSeconds: 12 });
+  assert.deepStrictEqual(tooShort, { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0, notes: [], neededSeconds: 20 * b72, availableSeconds: 12 });
   assert.ok(build({ sectionStart: 0, usableEnd: 20 * b72 }).ok, 'exactly the minimum');
   assert.strictEqual(build({ sectionStart: 0, usableEnd: 20 * b72 }).shots, 4);
   assert.deepStrictEqual(build({ pace: 'quick', requested: 32, sectionStart: 0, usableEnd: 15 * b72 }),
-    { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0, neededSeconds: 16 * b72, availableSeconds: 15 * b72 });
+    { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0, notes: [], neededSeconds: 16 * b72, availableSeconds: 15 * b72 });
   // No credit option: Credit off only drops the graphic, the plan (and its 2-beat credit shot) never changes.
   for (const extra of [{ credit: false }, { credit: true }, { creditOn: false }, { credit: { enabled: false, name: '' } }])
     assert.deepStrictEqual(build(extra), p, 'credit input ignored: ' + JSON.stringify(extra));

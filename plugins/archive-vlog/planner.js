@@ -55,7 +55,7 @@ const AV_SOURCE_TAIL = 0.15;
 // videos), so 4.85 s. About AV_PHOTO_SHARE of the slots that may hold a photo (the montage), evenly spread from a seeded
 // offset, are photo slots where an unused photo comes first. Elsewhere photos rank after every real video hit and
 // before fillers. Never more than AV_PHOTO_RUN_MAX photos play in a row (a hard rule) unless the pool has no video at
-// all.
+// all (avAllocate alone: avPlanBuild never plans without videos).
 const AV_PHOTO_HOLD_MAX = 5;
 const AV_PHOTO_RUN_MAX = 2;
 const AV_PHOTO_SHARE = 1 / 3;
@@ -527,7 +527,7 @@ function avAllocate(opts) {
 // shots. Every shot count here is montage shots: `shots`, `requested`, `musicShots` and `usableShots` exclude the 3
 // bookends (`slots` = shots + 3 counts them).
 // Preflight, before any allocation, in this order. Each failure is { ok: false, reason, usableShots: 0, usableSlots: 0,
-// ...vars } with the vars the panel's message needs:
+// notes: [], ...vars } with the vars the panel's message needs:
 // - 'no-video': no usable video at all (photos alone cannot fill the bookends).
 // - 'one-video': a single video source. The opening and credit shots are adjacent video-only shots and the previous
 //   shot's source is never used again, so they need 2 distinct videos (photos cannot help).
@@ -555,7 +555,7 @@ function avPlanBuild(opts) {
   const ladder = avMontageLadder({ requested: opts.requested, pace, bpm: tempo });
   const requested = ladder[0], least = ladder[ladder.length - 1];
   const top = avFitShots({ requested, pace, bpm: tempo, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd });
-  const fail = (reason, vars) => ({ ok: false, reason, usableShots: 0, usableSlots: 0, ...(vars || {}) });
+  const fail = (reason, vars) => ({ ok: false, reason, usableShots: 0, usableSlots: 0, notes: [], ...(vars || {}) });
   // Distinct sources the allocator can use: valid videos (as avAllocate filters them) and photos.
   const finite = v => typeof v === 'number' && isFinite(v);
   const videos = {};
