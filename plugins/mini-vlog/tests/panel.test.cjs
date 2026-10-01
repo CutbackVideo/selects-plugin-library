@@ -101,7 +101,8 @@ for (const [k, v] of [['pace.quick', 'Quick'], ['pace.relaxed', 'Relaxed'], ['pa
 assert.ok(ui.includes('export default function Panel({ sdk, context, ui }: any) {\n  // The UI language, read on every render: Selects can switch languages while the panel is open.\n  const L = uiLang(context);'), 'L first in the component');
 assert.ok(ui.includes('const langRef = React.useRef(L);\n  langRef.current = L;') && ui.includes('const bl = langRef.current;'), 'Build-time language');
 {
-  const kit = path.resolve(root, '..', '..', '..', 'selects-app-kit', 'tools', 'i18n', 'i18n-runtime.ts');
+  // Compared with the kit copy when it is available (SELECTS_APP_KIT, else ~/Workspaces/selects-app-kit); CI checks the markers only.
+  const kit = path.join(process.env.SELECTS_APP_KIT || path.join(require('node:os').homedir(), 'Workspaces', 'selects-app-kit'), 'tools', 'i18n', 'i18n-runtime.ts');
   const marker = '// i18n runtime for style-app panels (selects-app-kit tools/i18n/i18n-runtime.ts). Paste it below the STRINGS block.';
   assert.ok(panel.includes(marker) && panel.indexOf(marker) > panel.indexOf('// STRINGS:END'), 'kit runtime below the STRINGS block');
   for (const s of ['function uiLang(context?: { language?: string | null } | null): Lang {', 'function t(lang: Lang, key: string, vars: Vars = {}): string {', 'function tOr(lang: Lang, key: string, fallback: string, vars: Vars = {}): string {', 'function fieldLen(text: string): number {']) assert.ok(panel.includes(s), s);
