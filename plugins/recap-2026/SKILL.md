@@ -13,7 +13,8 @@ The published package does not install an example render. `preview.mp4` and `pos
 
 ## Fixed template
 
-- 1080 × 1920 portrait Draft.
+- Portrait 1080 × 1920 by default; landscape 1920 × 1080 and square 1080 × 1080 are panel options.
+- Portrait and square: optional automatic framing shifts each cut's crop toward its subject.
 - Slot 1: 4.7-second intro with separate editable `thank you` and `2026` title graphic.
 - Slots 2–160: 159 short clips following `timing.json`.
 - Repeat slots 61–143 with the same source ranges, in the same order.

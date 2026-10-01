@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "recap-2026",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "name": "2026 Recap",
-  "summary": "Build a beat-timed 1080x1920 recap Draft from the open Project's footage: a 4.7-second title intro plus 159 fast cuts locked to a bundled 61.5-second soundtrack.",
+  "summary": "Build a beat-timed recap Draft in portrait (1080x1920), landscape (1920x1080) or square (1080x1080) from the open Project's footage: a 4.7-second title intro plus 159 fast cuts locked to a bundled 61.5-second soundtrack.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -29,44 +29,44 @@
   },
   "localized": {
     "de": {
-      "name": "2026 Rückblick",
-      "summary": "Erstellt aus dem Material des offenen Projekts einen beatgenauen 1080x1920-Rückblick-Draft: 4,7 Sekunden Titel-Intro plus 159 schnelle Schnitte, fest auf einen mitgelieferten 61,5-Sekunden-Soundtrack getaktet."
+      "name": "2026 R\u00fcckblick",
+      "summary": "Erstellt aus dem Material des offenen Projekts einen beatgenauen 1080x1920 / 1920x1080 / 1080x1080-R\u00fcckblick-Draft: 4,7 Sekunden Titel-Intro plus 159 schnelle Schnitte, fest auf einen mitgelieferten 61,5-Sekunden-Soundtrack getaktet."
     },
     "en": {
       "name": "2026 Recap",
-      "summary": "Build a beat-timed 1080x1920 recap Draft from the open Project's footage: a 4.7-second title intro plus 159 fast cuts locked to a bundled 61.5-second soundtrack."
+      "summary": "Build a beat-timed recap Draft in portrait (1080x1920), landscape (1920x1080) or square (1080x1080) from the open Project's footage: a 4.7-second title intro plus 159 fast cuts locked to a bundled 61.5-second soundtrack."
     },
     "es": {
       "name": "Resumen de 2026",
-      "summary": "Crea un Draft de resumen de 1080x1920 sincronizado al ritmo con el material del proyecto abierto: una intro con título de 4,7 segundos y 159 cortes rápidos ajustados a una pista de 61,5 segundos incluida."
+      "summary": "Crea un Draft de resumen de 1080x1920 / 1920x1080 / 1080x1080 sincronizado al ritmo con el material del proyecto abierto: una intro con t\u00edtulo de 4,7 segundos y 159 cortes r\u00e1pidos ajustados a una pista de 61,5 segundos incluida."
     },
     "fr": {
-      "name": "Rétrospective 2026",
-      "summary": "Crée un Draft récapitulatif 1080x1920 calé sur le rythme à partir des rushes du projet ouvert : une intro titrée de 4,7 secondes et 159 coupes rapides verrouillées sur une bande-son de 61,5 secondes fournie."
+      "name": "R\u00e9trospective 2026",
+      "summary": "Cr\u00e9e un Draft r\u00e9capitulatif 1080x1920 / 1920x1080 / 1080x1080 cal\u00e9 sur le rythme \u00e0 partir des rushes du projet ouvert : une intro titr\u00e9e de 4,7 secondes et 159 coupes rapides verrouill\u00e9es sur une bande-son de 61,5 secondes fournie."
     },
     "it": {
       "name": "Recap 2026",
-      "summary": "Crea un Draft di riepilogo 1080x1920 a tempo dal materiale del progetto aperto: un'introduzione con titolo di 4,7 secondi e 159 stacchi rapidi agganciati a una traccia di 61,5 secondi inclusa."
+      "summary": "Crea un Draft di riepilogo 1080x1920 / 1920x1080 / 1080x1080 a tempo dal materiale del progetto aperto: un'introduzione con titolo di 4,7 secondi e 159 stacchi rapidi agganciati a una traccia di 61,5 secondi inclusa."
     },
     "ja": {
-      "name": "2026 まとめ",
-      "summary": "開いているプロジェクトの素材から、ビートに合わせた 1080x1920 のまとめ Draft を作成します。4.7 秒のタイトルイントロと、同梱の 61.5 秒のサウンドトラックに固定された 159 個の高速カットで构成されます。"
+      "name": "2026 \u307e\u3068\u3081",
+      "summary": "\u958b\u3044\u3066\u3044\u308b\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u7d20\u6750\u304b\u3089\u3001\u30d3\u30fc\u30c8\u306b\u5408\u308f\u305b\u305f 1080x1920 / 1920x1080 / 1080x1080 \u306e\u307e\u3068\u3081 Draft \u3092\u4f5c\u6210\u3057\u307e\u3059\u30024.7 \u79d2\u306e\u30bf\u30a4\u30c8\u30eb\u30a4\u30f3\u30c8\u30ed\u3068\u3001\u540c\u68b1\u306e 61.5 \u79d2\u306e\u30b5\u30a6\u30f3\u30c9\u30c8\u30e9\u30c3\u30af\u306b\u56fa\u5b9a\u3055\u308c\u305f 159 \u500b\u306e\u9ad8\u901f\u30ab\u30c3\u30c8\u3067\u6784\u6210\u3055\u308c\u307e\u3059\u3002"
     },
     "ko": {
       "name": "2026 \ub9ac\ucea1",
-      "summary": "\uc5f4\ub824 \uc788\ub294 \ud504\ub85c\uc81d\ud2b8\uc758 \ud478\ud2f0\uc9c0\ub85c \ube44\ud2b8\uc5d0 \ub9de\ucd98 1080x1920 \ub9ac\ucea1 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. 4.7\ucd08 \ud0c0\uc774\ud2c0 \uc778\ud2b8\ub85c\uc640, \ud568\uaed8 \uc81c\uacf5\ub418\ub294 61.5\ucd08 \uc0ac\uc6b4\ub4dc\ud2b8\ub799\uc5d0 \uace0\uc815\ub41c 159\uac1c\uc758 \ube60\ub978 \ucef7\uc73c\ub85c \uad6c\uc131\ub429\ub2c8\ub2e4."
+      "summary": "\uc5f4\ub824 \uc788\ub294 \ud504\ub85c\uc81d\ud2b8\uc758 \ud478\ud2f0\uc9c0\ub85c \ube44\ud2b8\uc5d0 \ub9de\ucd98 1080x1920 / 1920x1080 / 1080x1080 \ub9ac\ucea1 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. 4.7\ucd08 \ud0c0\uc774\ud2c0 \uc778\ud2b8\ub85c\uc640, \ud568\uaed8 \uc81c\uacf5\ub418\ub294 61.5\ucd08 \uc0ac\uc6b4\ub4dc\ud2b8\ub799\uc5d0 \uace0\uc815\ub41c 159\uac1c\uc758 \ube60\ub978 \ucef7\uc73c\ub85c \uad6c\uc131\ub429\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Retrospectiva de 2026",
-      "summary": "Cria um Draft de retrospectiva 1080x1920 sincronizado com a batida a partir do material do projeto aberto: uma introdução com título de 4,7 segundos e 159 cortes rápidos travados numa trilha de 61,5 segundos incluída."
+      "summary": "Cria um Draft de retrospectiva 1080x1920 / 1920x1080 / 1080x1080 sincronizado com a batida a partir do material do projeto aberto: uma introdu\u00e7\u00e3o com t\u00edtulo de 4,7 segundos e 159 cortes r\u00e1pidos travados numa trilha de 61,5 segundos inclu\u00edda."
     },
     "tr": {
-      "name": "2026 Özeti",
-      "summary": "Açık projedeki görüntülerden ritme kilitli 1080x1920 bir özet Draft'ı oluşturur: 4,7 saniyelik başlık girişi ve pakete dahil 61,5 saniyelik müziğe sabitlenmiş 159 hızlı kesme."
+      "name": "2026 \u00d6zeti",
+      "summary": "A\u00e7\u0131k projedeki g\u00f6r\u00fcnt\u00fclerden ritme kilitli 1080x1920 / 1920x1080 / 1080x1080 bir \u00f6zet Draft'\u0131 olu\u015fturur: 4,7 saniyelik ba\u015fl\u0131k giri\u015fi ve pakete dahil 61,5 saniyelik m\u00fczi\u011fe sabitlenmi\u015f 159 h\u0131zl\u0131 kesme."
     },
     "zh": {
-      "name": "2026 年度回顾",
-      "summary": "使用当前项目中的素材生成与节拍对齐的 1080x1920 年度回顾 Draft：4.7 秒标题片头，以及锁定在随附 61.5 秒配乐上的 159 个快切。"
+      "name": "2026 \u5e74\u5ea6\u56de\u987e",
+      "summary": "\u4f7f\u7528\u5f53\u524d\u9879\u76ee\u4e2d\u7684\u7d20\u6750\u751f\u6210\u4e0e\u8282\u62cd\u5bf9\u9f50\u7684 1080x1920 / 1920x1080 / 1080x1080 \u5e74\u5ea6\u56de\u987e Draft\uff1a4.7 \u79d2\u6807\u9898\u7247\u5934\uff0c\u4ee5\u53ca\u9501\u5b9a\u5728\u968f\u9644 61.5 \u79d2\u914d\u4e50\u4e0a\u7684 159 \u4e2a\u5feb\u5207\u3002"
     }
   },
   "collection": "visual-highlights",

@@ -1,8 +1,8 @@
 # 2026 Recap
 
 Build a beat-timed year-in-review Draft from footage already imported in the
-open Selects Project. The template is fixed: a 1080 x 1920 portrait Draft that
-runs about 61.5 seconds, made of a 4.7-second title intro plus 159 short fast
+open Selects Project. The template is fixed: a portrait (1080 x 1920), landscape (1920 x 1080) or
+square (1080 x 1080) Draft that runs about 61.5 seconds, made of a 4.7-second title intro plus 159 short fast
 cuts locked to the bundled soundtrack.
 
 ## What it makes
@@ -53,7 +53,9 @@ choices made before that change.
   filename order and starts later passes at different source offsets where
   duration allows. One long video can serve as both intro and montage. The
   output stays about 61.5 seconds either way.
-- Landscape footage is cover-scaled into the portrait frame.
+- Footage whose shape differs from the frame is cover-scaled. For portrait and
+  square output, **Find the framing** reads where the subject sits in every cut
+  and shifts the crop so faces stay in frame; any cut can still be moved by hand.
 
 ## Fixed by design
 
