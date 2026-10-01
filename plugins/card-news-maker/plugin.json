@@ -5,6 +5,7 @@
   "name": "Card News Maker",
   "summary": "Turn a news article, pasted text or a project video into an editable 4:5 card news Draft, then export each card as an image.",
   "status": "experimental",
+  "category": "tool",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
   "files": [

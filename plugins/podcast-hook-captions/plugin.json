@@ -5,6 +5,7 @@
   "name": "Podcast Hook Captions",
   "summary": "Turn a podcast Draft into an editable short-form reel: yellow word-pop captions, kinetic hook titles, a warm punch-in look, optional B-roll and synced sound effects.",
   "status": "experimental",
+  "category": "tool",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
   "files": [

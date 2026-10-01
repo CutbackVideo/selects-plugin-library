@@ -5,6 +5,7 @@
   "name": "Vox Style Explainer",
   "summary": "Give it a link or some text, and it makes a Vox-style explainer video from it.",
   "status": "experimental",
+  "category": "tool",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
   "files": [

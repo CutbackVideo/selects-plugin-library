@@ -5,6 +5,7 @@
   "name": "Six Clip Velocity",
   "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips.",
   "status": "experimental",
+  "category": "tool",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
   "files": [

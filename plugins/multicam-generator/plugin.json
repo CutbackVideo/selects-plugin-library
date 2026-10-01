@@ -5,6 +5,7 @@
   "name": "Multicam Generator",
   "summary": "Choose a model and camera angle, generate with original-speech lip sync, and automatically add a separate editable clip to your Draft.",
   "status": "experimental",
+  "category": "tool",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
   "files": [

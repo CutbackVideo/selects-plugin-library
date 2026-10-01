@@ -5,6 +5,7 @@
   "name": "Timeline Shorts Builder",
   "summary": "Create an editable vertical Draft with uncropped native-size media above an optimized, export-safe Selects-style timeline.",
   "status": "experimental",
+  "category": "tool",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
   "files": [

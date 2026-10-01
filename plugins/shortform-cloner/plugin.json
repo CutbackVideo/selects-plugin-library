@@ -5,6 +5,7 @@
   "name": "Selects Clips",
   "summary": "Make a template from a channel's best shorts, then turn any long video into editable shorts that follow it.",
   "status": "experimental",
+  "category": "tool",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
   "files": [

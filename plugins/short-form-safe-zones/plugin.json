@@ -5,6 +5,7 @@
   "name": "Short Form Safe Zones",
   "summary": "Overlay TikTok, Reels, Shorts, Stories and LinkedIn safe-zone guides and composition grids as a removable clip in the Draft preview.",
   "status": "experimental",
+  "category": "tool",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
   "files": [
