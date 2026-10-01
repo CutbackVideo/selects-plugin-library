@@ -58,6 +58,7 @@ The test inputs cap the score: a segment cut from a 432x768 screen recording, up
 | 5 | Saved | The fade ran onto pure black and one frame late. It now fades the clip onto the ending colour inside its effect, with its timing and level fitted to the reference per frame; the ending colour was calibrated through export. |
 | 6 | Saved | Colour targets had been measured at a different resolution, which raised contrast on every slot. They were remeasured with the plugin's own pipeline. |
 | 7 | Direct tool test | On the preview's hero photo (two people about a fifth of the photo high) Vision person segmentation returned an empty mask without an error, which would have left the title over the people. The tool now segments a padded crop around the people Vision detects and stops with "No person found" on an empty mask. |
+| 8 | Preview review (user) | In the preview the title showed through the left person's white shirt: plain person segmentation dropped light clothing against the bright sky. The tool now uses person instance masks on the whole photo plus a crop around the detected people, which keep both people, their clothing and hair; a detected person is required, so a frame-like shape in a photo without people no longer produces a cutout. |
 
 The panel also skips media it created itself (the cutout) when it picks the default hero photo.
 

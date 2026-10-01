@@ -10,7 +10,7 @@
 
 ## Tools
 
-- Apple Vision (`VNGeneratePersonSegmentationRequest`, `VNGenerateForegroundInstanceMaskRequest`) is a macOS system framework, called by `tools/cutout.swift`.
+- Apple Vision (`VNGeneratePersonInstanceMaskRequest`, `VNDetectHumanRectanglesRequest`, `VNGenerateForegroundInstanceMaskRequest`) is a macOS system framework, called by `tools/cutout.swift`.
 - Node.js runs `build-script.mjs` from the Selects panel shell. FFmpeg measures clip colour: the one on the PATH, or else the copy inside the Selects app bundle.
 - The title uses the Impact font when it is installed on the system, otherwise the closest condensed bold fallback. No font file is included.
 - React and Remotion APIs are provided by the Selects panel and effect hosts.

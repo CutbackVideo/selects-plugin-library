@@ -21,31 +21,32 @@ if mode == "foreground" {
   let buf = try obs.generateScaledMaskForImage(forInstances: obs.allInstances, from: handler)
   mask = CIImage(cvPixelBuffer: buf)
 } else {
-  // Person segmentation misses small people, so segment a padded crop around the people Vision detects
-  // and place that mask back; without detections, segment the whole photo.
-  func segment(_ img: CGImage) throws -> CIImage? {
-    let req = VNGeneratePersonSegmentationRequest(); req.qualityLevel = .accurate; req.outputPixelFormat = kCVPixelFormatType_OneComponent8
-    try VNImageRequestHandler(cgImage: img, options: [:]).perform([req])
-    guard let buf = req.results?.first?.pixelBuffer else { return nil }
-    let m = CIImage(cvPixelBuffer: buf)
-    return m.transformed(by: CGAffineTransform(scaleX: CGFloat(img.width) / m.extent.width, y: CGFloat(img.height) / m.extent.height))
+  // Person instance masks (macOS 14+) keep light clothing and hair that plain person segmentation drops against a
+  // bright sky. Run on the whole photo and, for small people, on a padded crop around the people Vision detects;
+  // the union of both is the mask.
+  let W = CGFloat(cg.width), H = CGFloat(cg.height), full = CGRect(x: 0, y: 0, width: W, height: H)
+  func people(_ img: CGImage, at r: CGRect) throws -> CIImage? {
+    let req = VNGeneratePersonInstanceMaskRequest(); let h = VNImageRequestHandler(cgImage: img, options: [:])
+    try h.perform([req])
+    guard let obs = req.results?.first, !obs.allInstances.isEmpty else { return nil }
+    let m = CIImage(cvPixelBuffer: try obs.generateScaledMaskForImage(forInstances: obs.allInstances, from: h))
+    return m.transformed(by: CGAffineTransform(scaleX: r.width / m.extent.width, y: r.height / m.extent.height))
+      .transformed(by: CGAffineTransform(translationX: r.minX, y: H - r.maxY))
   }
+  // Instance masks can also pick up person-like shapes (a window frame), so a detected person is required.
   let humans = VNDetectHumanRectanglesRequest(); humans.upperBodyOnly = false
   try handler.perform([humans])
-  let W = CGFloat(cg.width), H = CGFloat(cg.height)
-  var found: CIImage? = nil
-  if let boxes = humans.results, !boxes.isEmpty {
+  guard let boxes = humans.results, !boxes.isEmpty else { fputs("No person found.\n", stderr); exit(4) }
+  var found: CIImage? = try people(cg, at: full)
+  do {
     let u = boxes.map { $0.boundingBox }.reduce(boxes[0].boundingBox) { $0.union($1) }
     let side = max(u.width * W, u.height * H) * 1.6
-    let cx = u.midX * W, cy = (1 - u.midY) * H
-    let crop = CGRect(x: cx - side / 2, y: cy - side / 2, width: side, height: side).intersection(CGRect(x: 0, y: 0, width: W, height: H)).integral
-    if let part = cg.cropping(to: crop), let m = try segment(part) {
-      found = m.transformed(by: CGAffineTransform(translationX: crop.minX, y: H - crop.maxY))
-        .composited(over: CIImage(color: .black).cropped(to: image.extent))
+    let crop = CGRect(x: u.midX * W - side / 2, y: (1 - u.midY) * H - side / 2, width: side, height: side).intersection(full).integral
+    if let part = cg.cropping(to: crop), let m = try people(part, at: crop) {
+      found = found.map { m.applyingFilter("CIMaximumCompositing", parameters: [kCIInputBackgroundImageKey: $0]) } ?? m
     }
-  } else {
-    found = try segment(cg)
   }
+  found = found?.composited(over: CIImage(color: .black).cropped(to: image.extent))
   guard let m = found else { fputs("No person found.\n", stderr); exit(4) }
   mask = m.cropped(to: image.extent)
   // An empty mask would silently leave the title over the people.
