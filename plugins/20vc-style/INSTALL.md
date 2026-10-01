@@ -5,8 +5,9 @@ Experimental: macOS arm64 and a compatible Selects development build.
 This plugin is a Skill only. It contains no panel, no executable code, and no
 dependencies.
 
-1. Place this package in `20vc-style` under `SELECTS_USER_SKILLS_ROOT`, so that
-   `SKILL.md` sits at `SELECTS_USER_SKILLS_ROOT/20vc-style/SKILL.md`.
+1. Install with the library's standard layout: every listed file goes beneath
+   `SELECTS_USER_SKILLS_ROOT/20vc-style`, so that `SKILL.md` sits at
+   `SELECTS_USER_SKILLS_ROOT/20vc-style/SKILL.md`. There is no Panel.
 2. Reload Selects, open a project with a synchronized conversation, interview,
    or podcast timeline, and ask the agent for a 20VC-style short.
 
