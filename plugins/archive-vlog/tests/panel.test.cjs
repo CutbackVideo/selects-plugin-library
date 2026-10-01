@@ -161,7 +161,7 @@ for (const r of j(P.AV_ROLES)) assert.ok(K.AV_QUERIES[r], 'a query for role ' + 
 assert.ok(K.SEARCH_BATCH * Object.keys(K.AV_QUERIES).length <= 22, 'a search call stays within search.js budget (22 searches)');
 assert.equal(K.SEARCH_BATCH, 2);
 assert.deepEqual([K.AMBIENT_DB, K.DEFAULT_CUE, K.DEFAULT_PRESET, K.DEFAULT_LENGTH, K.DEFAULT_PACE, K.DEFAULT_CLIP_SOUND, K.LOOK_STRENGTH, K.MOTION_STRENGTH,
-  K.VIDEO_MOTION_STRENGTH, K.FADE_SECONDS, K.MUSIC_FADE_OUT], [-18, 'peaceful-drift', 'cinematic', 'standard', 'cinematic', 'ambient', 0.3, 0.5, 0.5, 1, 1]);
+  K.VIDEO_MOTION_STRENGTH, K.FADE_SECONDS, K.MUSIC_FADE_OUT], [-18, 'peaceful-drift', 'cinematic', 'standard', 'cinematic', 'ambient', 0.3, 0.5, 0.8, 1, 1]);
 assert.ok(/const FADE_SECONDS = 1\.0;/.test(panel) && /const MUSIC_FADE_OUT = 1\.0;/.test(panel), 'the fades as the driver reads them');
 assert.ok(manifest.cues.some(c => c.id === K.DEFAULT_CUE) && presets.presets.some(p => p.id === K.DEFAULT_PRESET), 'defaults exist');
 assert.deepEqual(K.MOTION_OPTIONS.map(o => o.value), j(P.AV_PHOTO_MOTIONS), 'every photo motion is a choice');
@@ -283,7 +283,7 @@ for (const [seed, pace, music, preset, creditOn, lookOn, clipSound] of [[1, 'cin
   const photoPicks = plan.picks.map((k, i) => [k, i]).filter(([k]) => k && k.kind === 'photo');
   assert.deepEqual(cfg.photos, [...new Set(photoPicks.map(([k]) => k.rid))]);
   assert.deepEqual(Object.keys(cfg.motion.byRid).sort(), cfg.photos.slice().sort());
-  assert.equal(cfg.motion.strength, 0.5); assert.equal(cfg.motion.video.strength, 0.5);
+  assert.equal(cfg.motion.strength, 0.5); assert.equal(cfg.motion.video.strength, 0.8);
   const byIndex = cfg.motion.video.byIndex;
   const videoIdx = plan.picks.map((k, i) => (k && k.kind === 'video' && i > 0 ? String(i) : null)).filter(Boolean);
   assert.deepEqual(Object.keys(byIndex).sort(), videoIdx.slice().sort(), 'every video clip but the opening');

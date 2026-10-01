@@ -2638,7 +2638,7 @@ const DEFAULT_CLIP_SOUND = "ambient";
 const LOOK_STRENGTH = 0.3;
 // Photo motion and the video clips' gentle shot motion.
 const MOTION_STRENGTH = 0.5;
-const VIDEO_MOTION_STRENGTH = 0.5;
+const VIDEO_MOTION_STRENGTH = 0.8;
 // The last clip fades to black over this long, and the music fades out with it.
 const FADE_SECONDS = 1.0;
 const MUSIC_FADE_OUT = 1.0;
