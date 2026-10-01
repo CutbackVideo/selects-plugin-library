@@ -45,7 +45,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} of {count} clip selected", other: "{selected} of {count} clips selected" },
     photos: { one: "{count} photo", other: "{count} photos" },
     photosSelected: { one: "{selected} of {count} photo selected", other: "{selected} of {count} photos selected" },
-    aboutSeconds: "about {seconds} s",
     notAnalysed: { one: "{count} clip not analysed yet", other: "{count} clips not analysed yet" },
     analysing: { one: "{count} clip is being analysed. This updates automatically when it finishes.", other: "{count} clips are being analysed. This updates automatically when they finish." },
     notAnalysedAnalyse: { one: "{count} clip is not analysed yet. Analyse it in Selects to use it here.", other: "{count} clips are not analysed yet. Analyse them in Selects to use them here." },
@@ -65,10 +64,13 @@ const STRINGS = {
     creditShot: "Credit shot",
     creditName: "Name on the credit",
     creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Music",
     track: "Track",
     ownMusic: "Your own music",
     noMusic: "No music",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} bpm",
     sectionHint: "Music section — drag to choose",
     sectionLabel: "Music section",
@@ -98,6 +100,7 @@ const STRINGS = {
     faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
     outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
     noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Advanced",
     clipSound: "Clip sound",
     "sound.off": "Off",
@@ -134,7 +137,6 @@ const STRINGS = {
     addFootagePhotos: "Add more varied footage or photos, or select more clips.",
     retryUnchecked: { one: "Could not check {count} video; press Build to retry it.", other: "Could not check {count} videos; press Build to retry them." },
     typeTitle: "Type a title to build.",
-    typeName: "Type a name for the credit, or turn off Credit shot.",
     dropMusic: "Drop a music file, or choose one of the tracks.",
     musicLengthUnread: "The length of your music could not be read. Choose another file or one of the tracks.",
     musicApprox: "Music added; cuts use approximate timing ({detail}).",
@@ -215,7 +217,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} von {count} Clip ausgewählt", other: "{selected} von {count} Clips ausgewählt" },
     photos: { one: "{count} Foto", other: "{count} Fotos" },
     photosSelected: { one: "{selected} von {count} Foto ausgewählt", other: "{selected} von {count} Fotos ausgewählt" },
-    aboutSeconds: "ca. {seconds} s",
     notAnalysed: { one: "{count} Clip noch nicht analysiert", other: "{count} Clips noch nicht analysiert" },
     analysing: { one: "{count} Clip wird analysiert. Das aktualisiert sich automatisch, sobald er fertig ist.", other: "{count} Clips werden analysiert. Das aktualisiert sich automatisch, sobald sie fertig sind." },
     notAnalysedAnalyse: { one: "{count} Clip ist noch nicht analysiert. Analysiere ihn in Selects, um ihn hier zu verwenden.", other: "{count} Clips sind noch nicht analysiert. Analysiere sie in Selects, um sie hier zu verwenden." },
@@ -235,10 +236,13 @@ const STRINGS = {
     creditShot: "Credit shot",
     creditName: "Name on the credit",
     creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Musik",
     track: "Musikstück",
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
     sectionHint: "Musikabschnitt – zum Auswählen ziehen",
     sectionLabel: "Musikabschnitt",
@@ -268,6 +272,7 @@ const STRINGS = {
     faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
     outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
     noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Erweitert",
     clipSound: "Clip-Ton",
     "sound.off": "Aus",
@@ -304,7 +309,6 @@ const STRINGS = {
     addFootagePhotos: "Füge abwechslungsreicheres Material oder Fotos hinzu oder wähle mehr Clips aus.",
     retryUnchecked: { one: "{count} Video konnte nicht geprüft werden; drücke „Erstellen“, um es erneut zu versuchen.", other: "{count} Videos konnten nicht geprüft werden; drücke „Erstellen“, um sie erneut zu versuchen." },
     typeTitle: "Type a title to build.",
-    typeName: "Type a name for the credit, or turn off Credit shot.",
     dropMusic: "Lege eine Musikdatei ab oder wähle eines der Musikstücke.",
     musicLengthUnread: "Die Länge deiner Musik konnte nicht gelesen werden. Wähle eine andere Datei oder eines der Musikstücke.",
     musicApprox: "Musik hinzugefügt; die Schnitte haben ein ungefähres Timing ({detail}).",
@@ -385,7 +389,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} de {count} clip seleccionado", many: "{selected} de {count} de clips seleccionados", other: "{selected} de {count} clips seleccionados" },
     photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
     photosSelected: { one: "{selected} de {count} foto seleccionada", many: "{selected} de {count} de fotos seleccionadas", other: "{selected} de {count} fotos seleccionadas" },
-    aboutSeconds: "unos {seconds} s",
     notAnalysed: { one: "{count} clip sin analizar", many: "{count} de clips sin analizar", other: "{count} clips sin analizar" },
     analysing: { one: "Se está analizando {count} clip. Esto se actualiza solo cuando termine.", many: "Se están analizando {count} de clips. Esto se actualiza solo cuando terminen.", other: "Se están analizando {count} clips. Esto se actualiza solo cuando terminen." },
     notAnalysedAnalyse: { one: "{count} clip aún no está analizado. Analízalo en Selects para usarlo aquí.", many: "{count} de clips aún no están analizados. Analízalos en Selects para usarlos aquí.", other: "{count} clips aún no están analizados. Analízalos en Selects para usarlos aquí." },
@@ -405,10 +408,13 @@ const STRINGS = {
     creditShot: "Credit shot",
     creditName: "Name on the credit",
     creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Música",
     track: "Pista",
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", many: "Only the first {count} minutes of your track are analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
     sectionHint: "Sección de música: arrastra para elegir",
     sectionLabel: "Sección de música",
@@ -438,6 +444,7 @@ const STRINGS = {
     faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
     outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
     noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Avanzado",
     clipSound: "Sonido de los clips",
     "sound.off": "Apagado",
@@ -474,7 +481,6 @@ const STRINGS = {
     addFootagePhotos: "Añade material más variado o fotos, o selecciona más clips.",
     retryUnchecked: { one: "No se pudo comprobar {count} vídeo; pulsa «Crear» para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos; pulsa «Crear» para reintentarlos.", other: "No se pudieron comprobar {count} vídeos; pulsa «Crear» para reintentarlos." },
     typeTitle: "Type a title to build.",
-    typeName: "Type a name for the credit, or turn off Credit shot.",
     dropMusic: "Suelta un archivo de música o elige una de las pistas.",
     musicLengthUnread: "No se pudo leer la duración de tu música. Elige otro archivo o una de las pistas.",
     musicApprox: "Música añadida; los cortes usan una sincronía aproximada ({detail}).",
@@ -555,7 +561,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} sur {count} clip sélectionné", many: "{selected} sur {count} de clips sélectionnés", other: "{selected} sur {count} clips sélectionnés" },
     photos: { one: "{count} photo", many: "{count} de photos", other: "{count} photos" },
     photosSelected: { one: "{selected} sur {count} photo sélectionnée", many: "{selected} sur {count} de photos sélectionnées", other: "{selected} sur {count} photos sélectionnées" },
-    aboutSeconds: "environ {seconds} s",
     notAnalysed: { one: "{count} clip pas encore analysé", many: "{count} de clips pas encore analysés", other: "{count} clips pas encore analysés" },
     analysing: { one: "{count} clip est en cours d'analyse. Ceci se met à jour automatiquement à la fin.", many: "{count} de clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin.", other: "{count} clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin." },
     notAnalysedAnalyse: { one: "{count} clip n'est pas encore analysé. Analysez-le dans Selects pour l'utiliser ici.", many: "{count} de clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici.", other: "{count} clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici." },
@@ -575,10 +580,13 @@ const STRINGS = {
     creditShot: "Credit shot",
     creditName: "Name on the credit",
     creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Musique",
     track: "Morceau",
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", many: "Only the first {count} minutes of your track are analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
     sectionHint: "Section musicale : faites glisser pour choisir",
     sectionLabel: "Section musicale",
@@ -608,6 +616,7 @@ const STRINGS = {
     faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
     outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
     noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Avancé",
     clipSound: "Son des clips",
     "sound.off": "Coupé",
@@ -644,7 +653,6 @@ const STRINGS = {
     addFootagePhotos: "Ajoutez des images plus variées ou des photos, ou sélectionnez plus de clips.",
     retryUnchecked: { one: "{count} vidéo n'a pas pu être vérifiée ; appuyez sur « Créer » pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées ; appuyez sur « Créer » pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées ; appuyez sur « Créer » pour réessayer." },
     typeTitle: "Type a title to build.",
-    typeName: "Type a name for the credit, or turn off Credit shot.",
     dropMusic: "Déposez un fichier audio ou choisissez l'un des morceaux.",
     musicLengthUnread: "La durée de votre musique n'a pas pu être lue. Choisissez un autre fichier ou l'un des morceaux.",
     musicApprox: "Musique ajoutée ; les coupes utilisent un calage approximatif ({detail}).",
@@ -725,7 +733,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} di {count} clip selezionata", many: "{selected} di {count} clip selezionate", other: "{selected} di {count} clip selezionate" },
     photos: { one: "{count} foto", many: "{count} di foto", other: "{count} foto" },
     photosSelected: { one: "{selected} di {count} foto selezionata", many: "{selected} di {count} foto selezionate", other: "{selected} di {count} foto selezionate" },
-    aboutSeconds: "circa {seconds} s",
     notAnalysed: { one: "{count} clip non ancora analizzata", many: "{count} di clip non ancora analizzate", other: "{count} clip non ancora analizzate" },
     analysing: { one: "{count} clip è in fase di analisi. Si aggiorna automaticamente al termine.", many: "{count} di clip sono in fase di analisi. Si aggiorna automaticamente al termine.", other: "{count} clip sono in fase di analisi. Si aggiorna automaticamente al termine." },
     notAnalysedAnalyse: { one: "{count} clip non è ancora analizzata. Analizzala in Selects per usarla qui.", many: "{count} di clip non sono ancora analizzate. Analizzale in Selects per usarle qui.", other: "{count} clip non sono ancora analizzate. Analizzale in Selects per usarle qui." },
@@ -745,10 +752,13 @@ const STRINGS = {
     creditShot: "Credit shot",
     creditName: "Name on the credit",
     creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Musica",
     track: "Brano",
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", many: "Only the first {count} minutes of your track are analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
     sectionHint: "Sezione musicale: trascina per scegliere",
     sectionLabel: "Sezione musicale",
@@ -778,6 +788,7 @@ const STRINGS = {
     faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
     outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
     noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Avanzate",
     clipSound: "Audio delle clip",
     "sound.off": "Spento",
@@ -814,7 +825,6 @@ const STRINGS = {
     addFootagePhotos: "Aggiungi materiale più vario o foto, oppure seleziona più clip.",
     retryUnchecked: { one: "Non è stato possibile controllare {count} video; premi «Crea» per riprovare.", many: "Non è stato possibile controllare {count} di video; premi «Crea» per riprovare.", other: "Non è stato possibile controllare {count} video; premi «Crea» per riprovare." },
     typeTitle: "Type a title to build.",
-    typeName: "Type a name for the credit, or turn off Credit shot.",
     dropMusic: "Trascina qui un file musicale o scegli uno dei brani.",
     musicLengthUnread: "Non è stato possibile leggere la durata della tua musica. Scegli un altro file o uno dei brani.",
     musicApprox: "Musica aggiunta; i tagli usano una sincronia approssimativa ({detail}).",
@@ -895,7 +905,6 @@ const STRINGS = {
     clipsSelected: { other: "クリップ {count} 本中 {selected} 本を選択" },
     photos: { other: "写真 {count} 枚" },
     photosSelected: { other: "写真 {count} 枚中 {selected} 枚を選択" },
-    aboutSeconds: "約 {seconds} 秒",
     notAnalysed: { other: "未解析のクリップ {count} 本" },
     analysing: { other: "{count} 本のクリップを解析中です。終わると自動で更新されます。" },
     notAnalysedAnalyse: { other: "{count} 本のクリップがまだ解析されていません。ここで使うには Selects で解析してください。" },
@@ -915,10 +924,13 @@ const STRINGS = {
     creditShot: "Credit shot",
     creditName: "Name on the credit",
     creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "音楽",
     track: "トラック",
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
+    ownMusicHint: { other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
     sectionHint: "音楽の区間 — ドラッグして選択",
     sectionLabel: "音楽の区間",
@@ -948,6 +960,7 @@ const STRINGS = {
     faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
     outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
     noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "詳細設定",
     clipSound: "クリップの音",
     "sound.off": "オフ",
@@ -984,7 +997,6 @@ const STRINGS = {
     addFootagePhotos: "変化のある素材や写真を追加するか、クリップをもっと選択してください。",
     retryUnchecked: { other: "{count} 本の動画を確認できませんでした。「作成」を押すと再試行します。" },
     typeTitle: "Type a title to build.",
-    typeName: "Type a name for the credit, or turn off Credit shot.",
     dropMusic: "音楽ファイルをドロップするか、用意されたトラックを選んでください。",
     musicLengthUnread: "音楽の長さを読み取れませんでした。別のファイルか、用意されたトラックを選んでください。",
     musicApprox: "音楽を追加しました。カットはおおよそのタイミングになります（{detail}）。",
@@ -1065,7 +1077,6 @@ const STRINGS = {
     clipsSelected: { other: "\ud074\ub9bd {count}\uac1c \uc911 {selected}\uac1c \uc120\ud0dd" },
     photos: { other: "\uc0ac\uc9c4 {count}\uc7a5" },
     photosSelected: { other: "\uc0ac\uc9c4 {count}\uc7a5 \uc911 {selected}\uc7a5 \uc120\ud0dd" },
-    aboutSeconds: "\uc57d {seconds}\ucd08",
     notAnalysed: { other: "\uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd {count}\uac1c" },
     analysing: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4. \ubd84\uc11d\uc774 \ub05d\ub098\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
     notAnalysedAnalyse: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uc5ec\uae30\uc11c \uc4f0\ub824\uba74 Selects\uc5d0\uc11c \ubd84\uc11d\ud558\uc138\uc694." },
@@ -1085,10 +1096,13 @@ const STRINGS = {
     creditShot: "Credit shot",
     creditName: "Name on the credit",
     creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "\uc74c\uc545",
     track: "\ud2b8\ub799",
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
+    ownMusicHint: { other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
     sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
     sectionLabel: "\uc74c\uc545 \uad6c\uac04",
@@ -1118,6 +1132,7 @@ const STRINGS = {
     faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
     outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
     noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "\uace0\uae09",
     clipSound: "\ud074\ub9bd \uc18c\ub9ac",
     "sound.off": "\ub054",
@@ -1154,7 +1169,6 @@ const STRINGS = {
     addFootagePhotos: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
     retryUnchecked: { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. ‘\ub9cc\ub4e4\uae30’\ub97c \ub204\ub974\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
     typeTitle: "Type a title to build.",
-    typeName: "Type a name for the credit, or turn off Credit shot.",
     dropMusic: "\uc74c\uc545 \ud30c\uc77c\uc744 \ub04c\uc5b4\ub2e4 \ub193\uac70\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     musicLengthUnread: "\uc74c\uc545\uc758 \uae38\uc774\ub97c \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \ud30c\uc77c\uc774\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     musicApprox: "\uc74c\uc545\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4. \ucef7\uc740 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4 ({detail}).",
@@ -1235,7 +1249,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} de {count} clipe selecionado", many: "{selected} de {count} de clipes selecionados", other: "{selected} de {count} clipes selecionados" },
     photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
     photosSelected: { one: "{selected} de {count} foto selecionada", many: "{selected} de {count} de fotos selecionadas", other: "{selected} de {count} fotos selecionadas" },
-    aboutSeconds: "cerca de {seconds} s",
     notAnalysed: { one: "{count} clipe ainda não analisado", many: "{count} de clipes ainda não analisados", other: "{count} clipes ainda não analisados" },
     analysing: { one: "{count} clipe está sendo analisado. Isto se atualiza sozinho quando terminar.", many: "{count} de clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem.", other: "{count} clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem." },
     notAnalysedAnalyse: { one: "{count} clipe ainda não foi analisado. Analise-o no Selects para usá-lo aqui.", many: "{count} de clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui.", other: "{count} clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui." },
@@ -1255,10 +1268,13 @@ const STRINGS = {
     creditShot: "Credit shot",
     creditName: "Name on the credit",
     creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Música",
     track: "Faixa",
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", many: "Only the first {count} minutes of your track are analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
     sectionHint: "Trecho da música: arraste para escolher",
     sectionLabel: "Trecho da música",
@@ -1288,6 +1304,7 @@ const STRINGS = {
     faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
     outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
     noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Avançado",
     clipSound: "Som dos clipes",
     "sound.off": "Desligado",
@@ -1324,7 +1341,6 @@ const STRINGS = {
     addFootagePhotos: "Adicione material mais variado ou fotos, ou selecione mais clipes.",
     retryUnchecked: { one: "Não foi possível verificar {count} vídeo; pressione “Criar” para tentar de novo.", many: "Não foi possível verificar {count} de vídeos; pressione “Criar” para tentar de novo.", other: "Não foi possível verificar {count} vídeos; pressione “Criar” para tentar de novo." },
     typeTitle: "Type a title to build.",
-    typeName: "Type a name for the credit, or turn off Credit shot.",
     dropMusic: "Solte um arquivo de música ou escolha uma das faixas.",
     musicLengthUnread: "Não foi possível ler a duração da sua música. Escolha outro arquivo ou uma das faixas.",
     musicApprox: "Música adicionada; os cortes usam uma sincronia aproximada ({detail}).",
@@ -1405,7 +1421,6 @@ const STRINGS = {
     clipsSelected: { one: "{count} klipten {selected} tanesi seçili", other: "{count} klipten {selected} tanesi seçili" },
     photos: { one: "{count} fotoğraf", other: "{count} fotoğraf" },
     photosSelected: { one: "{count} fotoğraftan {selected} tanesi seçili", other: "{count} fotoğraftan {selected} tanesi seçili" },
-    aboutSeconds: "yaklaşık {seconds} sn",
     notAnalysed: { one: "{count} klip henüz analiz edilmedi", other: "{count} klip henüz analiz edilmedi" },
     analysing: { one: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir.", other: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir." },
     notAnalysedAnalyse: { one: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin.", other: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin." },
@@ -1425,10 +1440,13 @@ const STRINGS = {
     creditShot: "Credit shot",
     creditName: "Name on the credit",
     creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Müzik",
     track: "Parça",
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
     sectionHint: "Müzik bölümü — seçmek için sürükleyin",
     sectionLabel: "Müzik bölümü",
@@ -1458,6 +1476,7 @@ const STRINGS = {
     faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
     outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
     noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Gelişmiş",
     clipSound: "Klip sesi",
     "sound.off": "Kapalı",
@@ -1494,7 +1513,6 @@ const STRINGS = {
     addFootagePhotos: "Daha çeşitli görüntüler veya fotoğraflar ekleyin ya da daha fazla klip seçin.",
     retryUnchecked: { one: "{count} video kontrol edilemedi; yeniden denemek için “Oluştur”a basın.", other: "{count} video kontrol edilemedi; yeniden denemek için “Oluştur”a basın." },
     typeTitle: "Type a title to build.",
-    typeName: "Type a name for the credit, or turn off Credit shot.",
     dropMusic: "Bir müzik dosyası bırakın veya hazır parçalardan birini seçin.",
     musicLengthUnread: "Müziğinizin uzunluğu okunamadı. Başka bir dosya veya hazır parçalardan birini seçin.",
     musicApprox: "Müzik eklendi; kesmeler yaklaşık zamanlama kullanır ({detail}).",
@@ -1575,7 +1593,6 @@ const STRINGS = {
     clipsSelected: { other: "已选 {selected}/{count} 个片段" },
     photos: { other: "{count} 张照片" },
     photosSelected: { other: "已选 {selected}/{count} 张照片" },
-    aboutSeconds: "约 {seconds} 秒",
     notAnalysed: { other: "{count} 个片段尚未分析" },
     analysing: { other: "正在分析 {count} 个片段。分析完成后会自动更新。" },
     notAnalysedAnalyse: { other: "有 {count} 个片段尚未分析。请在 Selects 中分析后再在这里使用。" },
@@ -1595,10 +1612,13 @@ const STRINGS = {
     creditShot: "Credit shot",
     creditName: "Name on the credit",
     creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "音乐",
     track: "曲目",
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
+    ownMusicHint: { other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
     sectionHint: "音乐片段 — 拖动选择",
     sectionLabel: "音乐片段",
@@ -1628,6 +1648,7 @@ const STRINGS = {
     faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
     outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
     noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "高级",
     clipSound: "片段原声",
     "sound.off": "关闭",
@@ -1664,7 +1685,6 @@ const STRINGS = {
     addFootagePhotos: "请添加更多样的素材或照片，或选择更多片段。",
     retryUnchecked: { other: "有 {count} 个视频无法检查；点击“生成”重试。" },
     typeTitle: "Type a title to build.",
-    typeName: "Type a name for the credit, or turn off Credit shot.",
     dropMusic: "请拖入一个音乐文件，或选择内置曲目。",
     musicLengthUnread: "无法读取你的音乐时长。请选择其他文件或内置曲目。",
     musicApprox: "已添加音乐；剪切点使用大致的时间（{detail}）。",
@@ -1807,8 +1827,9 @@ const INVENTORY_RETRY_MS = 2000;
 const INCOMPLETE_POLL_MAX = 6;
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
 const DRAFT_LOOKUP_MAX = 50;
-// Your own music: at most this much of the track is analysed (and used), mono at this rate (beat-detect's rate).
-const OWN_MAX_SECONDS = 360;
+// Your own music: at most this much of the track is analysed (and used), mono at this rate (beat-detect's rate, and
+// the CLI's ffmpeg command), which keeps the worker near 150 MB and a few seconds.
+const OWN_MAX_SECONDS = 240;
 const OWN_RATE = 22050;
 // The section preview fades out over its last PREVIEW_FADE seconds, then stops.
 const PREVIEW_FADE = 0.4;
@@ -2644,7 +2665,7 @@ function avAssembleConfig(o) {
 }
 // decorate.js cfg. o: { sequenceId, videoEnd, fps (assemble's), plan, presets (presets.json), tsx: { title, credit,
 // letterbox, look, fade, motion }, fonts: { file: WOFF2 data }, sizes: { rid: { width, height } }, provenance, frozen }.
-// frozen (the inputs at the Build click): { seed, preset, fields: { kicker, title, tagline }, credit: { on, name },
+// frozen (the inputs at the Build click): { seed, preset, fields: { kicker, title, tagline }, credit: { on, prefix?, name },
 // clipSound, look: { on, strength }, sectionStart (null without music), labels (adjustLabels, English without), motionOptions }.
 function avDecorateConfig(o) {
   const f = o.frozen, plan = o.plan, p = avPreset(o.presets, f.preset);
@@ -2671,7 +2692,8 @@ function avDecorateConfig(o) {
     ],
   };
   const name = String((f.credit && f.credit.name) || '');
-  const prefix = (p.credit && p.credit.prefix) || '';
+  // The prefix typed in the panel, else the preset's ("ARCHIVED BY", "LOCATION |").
+  const prefix = f.credit && typeof f.credit.prefix === 'string' ? f.credit.prefix : (p.credit && p.credit.prefix) || '';
   const credit = f.credit && f.credit.on ? {
     tsx: o.tsx.credit,
     parameters: { prefix, name, color: p.colors.text, size: CREDIT_LOOK.size, shadow: CREDIT_LOOK.shadow, fonts: fonts.filter(x => x.family === CREDIT_FAMILY) },
@@ -3079,437 +3101,18 @@ function avCreditLayout(data, width, height) {
 // av-credit:end
   return { avCreditLayout, avcKoMeasure };
 })();
-// The beat detector (beat-detect.cjs, embedded verbatim from its first constant up to its CLI), so your own music is
-// analysed inside the panel on every OS. Self-contained: a Web Worker runs it from this function's own source.
-function avBeatDetector() {
-// av-beat:start
-const WIN = 1024, HOP = 256;
-// Frame f analyses samples [f*HOP - WIN, f*HOP) (negative indices read as silence, so an onset
-// at t = 0 still registers). Its flux measures what entered since frame f-1, i.e. samples
-// [f*HOP - HOP, f*HOP); each frame is stamped at the middle of that span so onset times are
-// approximately unbiased, +7 ms on clicks (stamping at the window start put every onset ~36 ms early).
-const FRAME_LAG = -HOP / 2;
-// An onset must rise at least this far above the local flux mean, relative to that mean.
-// Measured on picked peaks: white noise 0.05-0.19, a real 99 BPM track 1.15-4.0, clicks 7-11.
-const MIN_PROMINENCE = 0.5;
-// A beat window below this fraction of the track's median per-beat RMS (-20 dB) is leading silence.
-const SILENT_BEAT = 0.1;
-// Onsets in the envelope peak about this long after the attack (7 ms on clicks through the flux window). The first
-// beat is corrected by it, and the 16th-onset ratio reads the envelope this much after each grid position.
-const ONSET_LAG = 0.007;
-// 16th-onset ratio window: the envelope maximum within this many seconds of each grid position.
-const RATIO_WINDOW = 0.03;
-// Grid acceptance (v2.7). A grid line "hits" when an onset lies within HIT_WINDOW of it; its residual is that distance.
-// Lines are counted from the first beat up to the last onset (a silent or onset-free outro does not dilute hitRate).
-// - Strict: median residual <= RESIDUAL_MAX_MS and hitRate >= HIT_RATE_MIN over at least STRICT_MIN_HITS hits (every
-//   bundled cue; the shortest reference clip has 11). Counting lines only up to the last onset would otherwise give
-//   a lone onset in noise hitRate 1.
-// - Sparse: lo-fi and half-time grooves put a kick or snare on only some beats (a CC0 lo-fi track at 120 BPM: hitRate
-//   0.45, but a 4.3 ms median residual over 188 hits, and 97% of its onsets on the beat or the 8th between). A median
-//   residual <= SPARSE_RESIDUAL_MS over at least SPARSE_MIN_HITS hits with hitRate >= SPARSE_HIT_RATE is accepted too.
-//   Random onsets near a grid have residuals spread over 0-70 ms (median about 35); the hit floor keeps a handful of
-//   chance hits (noise has 1, at 0.4-3.6 ms) from passing.
-// - Consistency, required by both, over CONSISTENCY_WINDOW-second windows CONSISTENCY_HOP apart:
-//   a) residual: a window with at least CONSISTENCY_MIN_HITS hits keeps its median residual <= RESIDUAL_MAX_MS;
-//   b) on-grid share: a window with at least ONGRID_MIN_ONSETS onsets keeps the share of its onsets within
-//      ONGRID_WINDOW of a beat or half-beat line at >= ONGRID_MIN_RATIO x the track's share. (a) catches a wrong
-//      tempo in dense music (hits keep coming, but loose); (b) catches it in sparse music, where the wrong stretch
-//      yields misses rather than loose hits and (a) never has enough hits to judge. Hit density per window does not
-//      work for (b): the lo-fi track's intro window has 0.44 x its hit rate, as low as the sparse tempo changes.
-//   Measured: every positive (bundled cues, reference audio, the lo-fi track, with or without a silent outro) has
-//   window residuals <= 13.1 ms and on-grid ratios >= 0.93; cues joined at different tempos 32-40 ms or ratios
-//   0.44-0.58; sparse kicks changing tempo ratios 0.30-0.32; a rubato piano 23.5 ms. What it guarantees: a grid that
-//   is wrong for at least one whole window (about 30 s of music with onsets) is refused when that window has 12+
-//   loose hits (a) or 8+ onsets mostly off the beat and half-beat lines (b). Not caught: a shorter wrong stretch; a
-//   track under about 30 s (a single window, so a tempo change inside it); a window with under 8 onsets and under 12
-//   hits; and a wrong stretch whose onsets still fall on beat or half-beat lines, such as a half-beat phase slip.
-// grid: 'accepted' (either rule and consistent); 'approximate' (consistent, as tight as the sparse rule, median
-// residual <= SPARSE_RESIDUAL_MS over >= SPARSE_MIN_HITS hits, but hitRate under SPARSE_HIT_RATE; it still needs
-// hitRate >= APPROX_HIT_RATE, about one hit a bar, and hits in at least two CONSISTENCY_HOP-second blocks, so a kick
-// every few bars, which fits many tempos, is not a tempo: the tempo and first beat are a usable guide, cuts on them may
-// miss the heard beat); else 'none'. A looser median is not called a tempo: a rubato piano measures 19.7 ms and
-// looped speech 11.9 ms.
-const HIT_WINDOW = 0.07;
-const RESIDUAL_MAX_MS = 20;
-const HIT_RATE_MIN = 0.7;
-const STRICT_MIN_HITS = 8;
-const SPARSE_RESIDUAL_MS = 10;
-const SPARSE_HIT_RATE = 0.35;
-const SPARSE_MIN_HITS = 16;
-const APPROX_HIT_RATE = 0.2;
-const CONSISTENCY_WINDOW = 30;
-const CONSISTENCY_HOP = 15;
-const CONSISTENCY_MIN_HITS = 12;
-const ONGRID_WINDOW = 0.035;
-const ONGRID_MIN_ONSETS = 8;
-const ONGRID_MIN_RATIO = 0.7;
-const GRID_RANK = { none: 0, approximate: 1, accepted: 2 };
-// The half-beat move (offBeatLocked) is taken unless it lowers the grid state: an accepted fit never becomes
-// approximate or none, an approximate fit never none.
-const takeFlip = (fit, flipped) => GRID_RANK[flipped.grid] >= GRID_RANK[fit.grid];
-// Upper median, as residualMedianMs reports it.
-const upperMedian = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
-const sparseTight = (med, hits) => med != null && med <= SPARSE_RESIDUAL_MS && hits >= SPARSE_MIN_HITS;
-// The grid state from evaluate()'s measures: hits ([line time, residual ms]), the counted line count, the onsets
-// (seconds) and the grid (firstBeat, period).
-function gridState({ hits, beats, onsets, firstBeat, period, durationSeconds }) {
-  const med = upperMedian(hits.map(h => h[1]));
-  const rate = beats ? hits.length / beats : 0;
-  const half = period / 2;
-  const onGrid = o => { const d = (((o - firstBeat) % half) + half) % half; return Math.min(d, half - d) < ONGRID_WINDOW; };
-  const heard = onsets.filter(o => o >= firstBeat - ONGRID_WINDOW);
-  const share = heard.length ? heard.filter(onGrid).length / heard.length : 0;
-  let consistent = true;
-  for (let w = 0; consistent && (w === 0 || w + CONSISTENCY_HOP < durationSeconds); w += CONSISTENCY_HOP) {
-    const r = hits.filter(h => h[0] >= w && h[0] < w + CONSISTENCY_WINDOW).map(h => h[1]);
-    if (r.length >= CONSISTENCY_MIN_HITS && upperMedian(r) > RESIDUAL_MAX_MS) consistent = false;
-    const o = heard.filter(t => t >= w && t < w + CONSISTENCY_WINDOW);
-    if (o.length >= ONGRID_MIN_ONSETS && o.filter(onGrid).length / o.length < ONGRID_MIN_RATIO * share) consistent = false;
-  }
-  const strict = med != null && med <= RESIDUAL_MAX_MS && rate >= HIT_RATE_MIN && hits.length >= STRICT_MIN_HITS;
-  const sparse = sparseTight(med, hits.length) && rate >= SPARSE_HIT_RATE;
-  if (consistent && (strict || sparse)) return 'accepted';
-  const blocks = new Set(hits.map(h => Math.floor(h[0] / CONSISTENCY_HOP))).size;
-  return consistent && sparseTight(med, hits.length) && rate >= APPROX_HIT_RATE && blocks >= 2 ? 'approximate' : 'none';
+// av-beat-worker:start
+// The source of the Web Worker that runs beat-detect.cjs, read from the install folder and used unmodified (one source
+// for the CLI, the tests and the panel). The file runs inside a function with its own `module`, `exports` and an inert
+// `require`: require.main is undefined, so its CLI branch never runs. The worker answers one { samples, rate } message
+// with { ok: analyze(samples, rate) } or { error }. Plain JS, so tests run the same source in node:vm.
+function avBeatWorkerSource(beatDetectText) {
+  return '"use strict";\nvar avBeat = (function () {\n  var module = { exports: {} };\n  var require = function () { return {}; };\n'
+    + '  (function (module, exports, require) {\n' + beatDetectText + '\n  })(module, module.exports, require);\n  return module.exports;\n})();\n'
+    + 'onmessage = function (e) {\n  try { postMessage({ ok: avBeat.analyze(e.data.samples, e.data.rate) }); }\n'
+    + '  catch (err) { postMessage({ error: String((err && err.message) || err) }); }\n};\n';
 }
-
-function fft(re, im) {
-  const n = re.length;
-  for (let i = 1, j = 0; i < n; i++) {
-    let bit = n >> 1;
-    for (; j & bit; bit >>= 1) j ^= bit;
-    j ^= bit;
-    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
-  }
-  for (let len = 2; len <= n; len <<= 1) {
-    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
-    for (let i = 0; i < n; i += len) {
-      let cr = 1, ci = 0;
-      for (let k = 0; k < len / 2; k++) {
-        const ar = re[i + k], ai = im[i + k];
-        const br = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci;
-        const bi = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr;
-        re[i + k] = ar + br; im[i + k] = ai + bi;
-        re[i + k + len / 2] = ar - br; im[i + k + len / 2] = ai - bi;
-        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
-      }
-    }
-  }
-}
-
-// Spectral flux per frame of `hop` samples; the local mean spans +/- 8 default hops (~93 ms) at any hop.
-function onsetEnvelope(x, hop = HOP) {
-  const frames = Math.floor(x.length / hop) + 1;
-  const radius = Math.round(8 * HOP / hop);
-  const win = new Float64Array(WIN).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (WIN - 1)));
-  const env = new Float64Array(frames);
-  let prev = new Float64Array(WIN / 2);
-  const re = new Float64Array(WIN), im = new Float64Array(WIN);
-  for (let f = 0; f < frames; f++) {
-    for (let i = 0, j = f * hop - WIN; i < WIN; i++, j++) { re[i] = (j >= 0 ? x[j] : 0) * win[i]; im[i] = 0; }
-    fft(re, im);
-    let flux = 0;
-    const mag = new Float64Array(WIN / 2);
-    for (let k = 0; k < WIN / 2; k++) {
-      mag[k] = Math.log1p(10 * Math.hypot(re[k], im[k]));
-      if (f > 0) flux += Math.max(0, mag[k] - prev[k]);
-    }
-    env[f] = flux; prev = mag;
-  }
-  // Remove the local mean so sustained loud passages do not look like onsets.
-  // Normalising by the maximum makes the envelope scale-free, so `strong` keeps the absolute
-  // prominence test that separates real onsets from broadband noise fluctuations.
-  const out = new Float64Array(frames), strong = new Uint8Array(frames);
-  let max = 0;
-  for (let f = 0; f < frames; f++) {
-    let s = 0, c = 0;
-    for (let k = Math.max(0, f - radius); k < Math.min(frames, f + radius); k++) { s += env[k]; c++; }
-    const mean = s / c;
-    out[f] = Math.max(0, env[f] - mean);
-    strong[f] = out[f] > MIN_PROMINENCE * mean ? 1 : 0;
-    if (out[f] > max) max = out[f];
-  }
-  if (max > 0) for (let f = 0; f < frames; f++) out[f] /= max;
-  return { env: out, strong };
-}
-
-function gridScore(env, fps, t0, period, phase, t1) {
-  let s = 0, c = 0;
-  for (let t = phase; t < t1; t += period) {
-    const i = Math.round((t - t0) * fps);
-    if (i < 1 || i >= env.length - 1) continue;
-    s += Math.max(env[i - 1], env[i], env[i + 1]); c++;
-  }
-  return c ? s / c : 0;
-}
-
-function bestPhase(env, fps, t0, period, t1, step) {
-  let best = { score: -1, phase: 0 };
-  for (let phase = 0; phase < period; phase += step) {
-    const score = gridScore(env, fps, t0, period, phase, t1);
-    if (score > best.score) best = { score, phase };
-  }
-  return best;
-}
-
-const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
-
-// How clearly the music articulates 16th notes: the median onset strength on the 16th offbeats (.25 and .75 of a
-// beat) divided by the median on the beats, over [firstBeat, endSeconds). Uses a finer (128-sample) envelope so
-// 16ths at up to ~180 BPM stay apart. null when there is no grid or no on-beat onset.
-function sixteenthRatio(samples, sampleRate, bpm, firstBeat, endSeconds) {
-  if (!(bpm > 0) || !(firstBeat >= 0)) return null;
-  const hop = HOP / 2, { env } = onsetEnvelope(samples, hop);
-  const rate = sampleRate / hop, t0 = -hop / 2 / sampleRate, q16 = 60 / bpm / 4;
-  const end = Math.min(endSeconds == null ? Infinity : endSeconds, samples.length / sampleRate) - 0.05;
-  const on = [], off = [];
-  for (let q = 0; firstBeat + q * q16 < end; q++) {
-    if (q % 4 === 2) continue;
-    const t = firstBeat + q * q16;
-    if (t < 0.03) continue;
-    const c = (t + ONSET_LAG - t0) * rate;
-    let m = 0;
-    for (let i = Math.max(0, Math.floor(c - RATIO_WINDOW * rate)); i <= Math.min(env.length - 1, Math.ceil(c + RATIO_WINDOW * rate)); i++) m = Math.max(m, env[i]);
-    (q % 4 === 0 ? on : off).push(m);
-  }
-  const a = median(on), b = median(off);
-  return a > 0 && b != null ? Math.round(b / a * 1000) / 1000 : null;
-}
-
-// Band onsets for cut snapping (the planner's onset snap). Spectral flux of log magnitudes in three bands (low < 150 Hz,
-// mid 150-2000 Hz, high > 5 kHz; the bands of the reference-edit analysis), lag-2 difference over a 2.9 ms hop,
-// 3-frame smoothing, then peaks that are the maximum within +/- 50 ms. A peak's strength is its flux over the band's
-// median flux. It qualifies when the strength reaches the band threshold max(2, 80th percentile of the band's peak
-// strengths). Frames are centred on their stamp, which puts the flux peak about 15 ms before the attack (measured on
-// synthetic kick, snare and hat hits in every band), so each onset is moved forward by BAND_ONSET_LAG.
-const BAND_ONSET_LAG = 0.015;
-const ONSET_BANDS = [['l', 20, 150], ['m', 150, 2000], ['h', 5000, Infinity]];
-const ONSET_MIN_STRENGTH = 2;
-const ONSET_PERCENTILE = 0.8;
-function percentile(values, q) {
-  if (!values.length) return null;
-  const s = [...values].sort((a, b) => a - b), x = q * (s.length - 1), i = Math.floor(x);
-  return i + 1 < s.length ? s[i] + (s[i + 1] - s[i]) * (x - i) : s[i];
-}
-// Returns { onsets: [[seconds, band 'l' | 'm' | 'h', strength], ...] sorted by time (qualifying onsets only; time to
-// the millisecond, strength to 0.1), thresholds: { l, m, h } (floored to 0.1, so every listed strength reaches its
-// band's threshold) }.
-// The smoothed flux of each band ([low, mid, high] Float64Arrays), the hop in samples and the frame count; frame i is
-// stamped at i * hop / sampleRate, so an onset peaking at frame i is at that time + BAND_ONSET_LAG.
-function bandFlux(samples, sampleRate) {
-  const scale = Math.max(1, Math.round(sampleRate / 22050));
-  const nfft = 1024 * scale, hop = 64 * scale, lag = 2;
-  const frames = Math.floor(samples.length / hop) + 1;
-  const win = new Float64Array(nfft).map((_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / nfft));
-  const bins = ONSET_BANDS.map(([, lo, hi]) => [Math.max(1, Math.ceil(lo * nfft / sampleRate)), Math.min(nfft / 2, Math.ceil(hi * nfft / sampleRate))]);
-  const flux = ONSET_BANDS.map(() => new Float64Array(frames));
-  // The last `lag` log spectra, kept in a ring so memory stays flat for long tracks.
-  const ring = Array.from({ length: lag + 1 }, () => new Float64Array(nfft / 2));
-  const re = new Float64Array(nfft), im = new Float64Array(nfft);
-  for (let f = 0; f < frames; f++) {
-    for (let i = 0, j = f * hop - nfft / 2; i < nfft; i++, j++) { re[i] = (j >= 0 && j < samples.length ? samples[j] : 0) * win[i]; im[i] = 0; }
-    fft(re, im);
-    const cur = ring[f % (lag + 1)], old = ring[(f + 1) % (lag + 1)];
-    for (let k = 0; k < nfft / 2; k++) cur[k] = Math.log1p(100 * Math.hypot(re[k], im[k]));
-    if (f < lag) continue;
-    bins.forEach(([k0, k1], b) => { let s = 0; for (let k = k0; k < k1; k++) s += Math.max(0, cur[k] - old[k]); flux[b][f] = s; });
-  }
-  const smooth = flux.map(d => {
-    const e = new Float64Array(frames);
-    for (let f = 0; f < frames; f++) e[f] = ((f > 0 ? d[f - 1] : 0) + d[f] + (f + 1 < frames ? d[f + 1] : 0)) / 3;
-    return e;
-  });
-  return { flux: smooth, hop, frames };
-}
-
-// Returns { onsets: [[seconds, band 'l' | 'm' | 'h', strength], ...] sorted by time (qualifying onsets only; time to
-// the millisecond, strength to 0.1), thresholds: { l, m, h } (floored to 0.1, so every listed strength reaches its
-// band's threshold) }. `flux` (a bandFlux result) is reused when given.
-function bandOnsets(samples, sampleRate, flux) {
-  const { flux: smooth, hop, frames } = flux || bandFlux(samples, sampleRate);
-  const gap = Math.round(0.05 * sampleRate / hop), onsets = [], thresholds = {};
-  ONSET_BANDS.forEach(([band], b) => {
-    const e = smooth[b];
-    const med = (percentile(Array.from(e), 0.5) || 0) + 1e-9;
-    const peaks = [];
-    for (let i = 1; i < frames - 1; i++) {
-      if (!(e[i] > 0)) continue;
-      let top = true;
-      for (let q = Math.max(0, i - gap); q <= Math.min(frames - 1, i + gap) && top; q++) if (e[q] > e[i]) top = false;
-      if (top) peaks.push([i * hop / sampleRate + BAND_ONSET_LAG, e[i] / med]);
-    }
-    const thr = Math.floor(Math.max(ONSET_MIN_STRENGTH, percentile(peaks.map(p => p[1]), ONSET_PERCENTILE) || 0) * 10) / 10;
-    thresholds[band] = thr;
-    for (const [t, s] of peaks) if (s >= thr) onsets.push([Math.round(t * 1000) / 1000, band, Math.round(s * 10) / 10]);
-  });
-  onsets.sort((a, b) => a[0] - b[0] || (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
-  return { onsets, thresholds };
-}
-
-// Phase sanity check (v2.6). The broadband fit can lock onto the 8th off-beats when hats or ghost notes on the "and"s
-// carry more flux than the beats (Downtown Funk Break: first beat 0.341 s, half a beat late). On the beat the kick
-// (low band) should hit, and in 4/4 pop and funk the snare (mid band) marks every other beat (the backbeat, 2 and 4).
-// For the fitted phase and the phase half a beat on, over [0, t1): low = the mean low-band flux peak within
-// PHASE_WINDOW of each grid line; backbeat = the mean mid-band peak on the stronger of the two alternating beat sets
-// (which beat is 1 is unknown). The phase moves only when the other grid wins on both, by PHASE_LOW_MARGIN and
-// PHASE_BACKBEAT_MARGIN: a track with its bass on the off-beats (Weekend Indie Pop: low 1.66x on the off-beats, but
-// backbeat 1.01x) or the reference edit's music (low 1.28x, backbeat 0.76x) keeps its grid. Measured on the bundled
-// cues' fitted grids: Downtown Funk Break low 1.16x / backbeat 1.22x on the other phase; every other cue, the reference
-// audio and the two Sinatra references at most 1.03x backbeat when low is above 1.
-const PHASE_WINDOW = 0.03;
-const PHASE_LOW_MARGIN = 1.05;
-const PHASE_BACKBEAT_MARGIN = 1.1;
-function phaseEvidence(bf, sampleRate, attack, period, t1) {
-  const peak = (e, t) => {
-    const c = (t - BAND_ONSET_LAG) * sampleRate / bf.hop, r = PHASE_WINDOW * sampleRate / bf.hop;
-    let m = 0;
-    for (let i = Math.max(0, Math.floor(c - r)); i <= Math.min(e.length - 1, Math.ceil(c + r)); i++) if (e[i] > m) m = e[i];
-    return m;
-  };
-  let low = 0, n = 0;
-  const mid = [0, 0], count = [0, 0];
-  for (let t = attack; t < t1 - 0.05; t += period, n++) {
-    low += peak(bf.flux[0], t);
-    mid[n % 2] += peak(bf.flux[1], t); count[n % 2]++;
-  }
-  return { beats: n, low: n ? low / n : 0, backbeat: Math.max(count[0] ? mid[0] / count[0] : 0, count[1] ? mid[1] / count[1] : 0) };
-}
-// true when the grid half a beat on is clearly the beat (phaseEvidence of both, at the attack times).
-function offBeatLocked(bf, sampleRate, attack, period, t1) {
-  const fit = phaseEvidence(bf, sampleRate, attack, period, t1), alt = phaseEvidence(bf, sampleRate, attack + period / 2, period, t1);
-  if (fit.beats < 8 || alt.beats < 8 || !(fit.low > 0) || !(fit.backbeat > 0)) return false;
-  return alt.low >= PHASE_LOW_MARGIN * fit.low && alt.backbeat >= PHASE_BACKBEAT_MARGIN * fit.backbeat;
-}
-
-// opts.phaseBeats (dev only, default 0): move the grid by this many beats before the first beat is chosen, after the
-// phase sanity check (offBeatLocked); no bundled cue needs it since v2.6.
-function analyze(samples, sampleRate, opts) {
-  const durationSeconds = samples.length / sampleRate;
-  const { env, strong } = onsetEnvelope(samples);
-  const fps = sampleRate / HOP;
-  const t0 = FRAME_LAG / sampleRate;                        // time of frame 0
-  const t1 = Math.min(durationSeconds, 60);                 // tempo from the first minute
-  let best = { score: -1, bpm: 120, phase: 0 };
-  for (let bpm = 70; bpm <= 180; bpm += 0.5) {
-    const r = bestPhase(env, fps, t0, 60 / bpm, t1, 0.01);
-    if (r.score > best.score) best = { score: r.score, bpm, phase: r.phase };
-  }
-  for (let bpm = best.bpm - 0.5; bpm <= best.bpm + 0.5; bpm += 0.02) {
-    const r = bestPhase(env, fps, t0, 60 / bpm, t1, 0.004);
-    if (r.score > best.score) best = { score: r.score, bpm, phase: r.phase };
-  }
-  // Prefer the octave inside 80-160 BPM when it explains the onsets nearly as well.
-  const octave = m => { const r = bestPhase(env, fps, t0, 60 / (best.bpm * m), t1, 0.004); return { score: r.score, bpm: best.bpm * m, phase: r.phase }; };
-  if (best.bpm < 80) { const d = octave(2); if (d.score >= 0.9 * best.score) best = d; }
-  else if (best.bpm > 160) { const h = octave(0.5); if (h.score >= 0.9 * best.score) best = h; }
-  let period = 60 / best.bpm;
-
-  const onsets = [];
-  for (let i = 1; i < env.length - 1; i++) if (strong[i] && env[i] > 0.25 && env[i] >= env[i - 1] && env[i] >= env[i + 1]) onsets.push(t0 + i / fps);
-  // The +/-1 frame tolerance in gridScore leaves a flat score plateau in both tempo and phase,
-  // and the searches keep its lowest value. Fit t = phase + k * period by least squares to the
-  // onsets that sit on the grid instead.
-  let phase = best.phase;
-  const ks = [], ts = [];
-  for (const o of onsets) {
-    if (o >= t1) break;
-    const k = Math.round((o - phase) / period);
-    if (Math.abs(o - phase - k * period) < 0.03) { ks.push(k); ts.push(o); }
-  }
-  if (ks.length >= 8) {
-    const n = ks.length, mk = ks.reduce((a, b) => a + b) / n, mt = ts.reduce((a, b) => a + b) / n;
-    let sxy = 0, sxx = 0;
-    for (let i = 0; i < n; i++) { sxy += (ks[i] - mk) * (ts[i] - mt); sxx += (ks[i] - mk) ** 2; }
-    const fit = sxx > 0 ? sxy / sxx : period;
-    if (Math.abs(fit - period) < 0.01 * period) { period = fit; phase = mt - fit * mk; }
-  }
-  // Level, first beat and acceptance of the grid at one phase (fitted phase, before opts.phaseBeats).
-  const evaluate = ph => {
-    ph = ((ph % period) + period) % period;
-    if (ph > period - 0.03) ph = Math.max(0, ph - period);
-    // The first beat is the first grid line that is not leading silence. Judge by level, not by
-    // onsets: a first beat with a soft attack (a pad swelling in) is audible music with no onset.
-    // Each beat window starts 30 ms early so it holds its own attack but not the next one.
-    const beatRms = t => {
-      const a = Math.max(0, Math.floor((t - 0.03) * sampleRate)), z = Math.min(samples.length, Math.floor((t + period - 0.03) * sampleRate));
-      let q = 0;
-      for (let i = a; i < z; i++) q += samples[i] * samples[i];
-      return Math.sqrt(q / Math.max(1, z - a));
-    };
-    const levels = [];
-    for (let t = ph; t + period <= durationSeconds; t += period) levels.push(beatRms(t));
-    levels.sort((a, b) => a - b);
-    const quiet = SILENT_BEAT * (levels.length ? levels[Math.floor(levels.length / 2)] : 0);
-    let fb = ph;
-    while (fb + period < durationSeconds && beatRms(fb) <= quiet) fb += period;
-    if (beatRms(fb) <= quiet) fb = ph;
-    // Onsets peak ONSET_LAG after the attack, so the grid fitted to them is that much late (measured 6-8 ms on the
-    // bundled cues against the rendered audio). Move the first beat back onto the attack.
-    fb = Math.max(0, fb - ONSET_LAG);
-    const hits = [];
-    let beats = 0;
-    const lastOnset = onsets.length ? onsets[onsets.length - 1] : 0;
-    for (let t = fb; t < durationSeconds && t < lastOnset + HIT_WINDOW; t += period) {
-      beats++;
-      let near = Infinity;
-      for (const o of onsets) { const d = Math.abs(o - t); if (d < near) near = d; }
-      if (near < HIT_WINDOW) hits.push([t, near * 1000]);
-    }
-    const residuals = hits.map(h => h[1]).sort((a, b) => a - b);
-    const med = residuals.length ? residuals[Math.floor(residuals.length / 2)] : Infinity;
-    const rate = beats ? residuals.length / beats : 0;
-    const grid = gridState({ hits, beats, onsets, firstBeat: fb, period, durationSeconds });
-    return { firstBeat: fb, residualMedianMs: med, hitRate: rate, accepted: grid === 'accepted', grid };
-  };
-  // The fitted phase is on the onset-envelope peaks, ONSET_LAG after the attacks that the band flux is stamped at.
-  // The half-beat move is refused when it would lower the grid state the fitted phase had (accepted > approximate > none).
-  const bf = bandFlux(samples, sampleRate);
-  const shift = opts && opts.phaseBeats ? opts.phaseBeats * period : 0;
-  let g = evaluate(phase + shift);
-  if (offBeatLocked(bf, sampleRate, phase - ONSET_LAG, period, t1)) {
-    const flipped = evaluate(phase + period / 2 + shift);
-    if (takeFlip(g, flipped)) g = flipped;
-  }
-  const { firstBeat, residualMedianMs, hitRate, accepted, grid } = g;
-
-  const peaks = [];
-  const bucket = Math.max(1, Math.floor(samples.length / 400));
-  for (let b = 0; b < 400; b++) {
-    let m = 0;
-    for (let i = b * bucket; i < Math.min(samples.length, (b + 1) * bucket); i++) m = Math.max(m, Math.abs(samples[i]));
-    peaks.push(Math.round(m * 1000) / 1000);
-  }
-  const bands = bandOnsets(samples, sampleRate, bf);
-  const beatEnergy = [];
-  for (let t = firstBeat; t + period <= durationSeconds; t += period) {
-    let s = 0;
-    const a = Math.floor(t * sampleRate), z = Math.floor((t + period) * sampleRate);
-    for (let i = a; i < z; i++) s += samples[i] * samples[i];
-    beatEnergy.push(Math.round(Math.sqrt(s / Math.max(1, z - a)) * 10000) / 10000);
-  }
-  return {
-    durationSeconds: Math.round(durationSeconds * 1000) / 1000,
-    bpm: Math.round(6000 / period) / 100,
-    firstBeat: Math.round(firstBeat * 1000) / 1000,
-    residualMedianMs: Number.isFinite(residualMedianMs) ? Math.round(residualMedianMs * 10) / 10 : null,
-    hitRate: Math.round(hitRate * 1000) / 1000,
-    accepted,
-    // 'accepted' | 'approximate' | 'none' (gridState); accepted is grid === 'accepted'.
-    grid,
-    lastOnsetSeconds: onsets.length ? Math.round(onsets[onsets.length - 1] * 100) / 100 : 0,
-    sixteenthRatio: sixteenthRatio(samples, sampleRate, 60 / period, firstBeat, durationSeconds),
-    peaks,
-    beatEnergy,
-    // Qualifying band onsets and their thresholds (bandOnsets), also when the grid is not accepted: the fixed-timing
-    // cuts then snap to low-band onsets.
-    onsets: bands.onsets,
-    onsetThresholds: bands.thresholds,
-  };
-}
-
-// av-beat:end
-  return { analyze };
-}
+// av-beat-worker:end
 
 // av-host:start
 // Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
@@ -3520,7 +3123,7 @@ function analyze(samples, sampleRate, opts) {
 // file names are ASCII. The one shell call is the SELECTS_USER_SKILLS_ROOT fallback in hostSkillsRoot (cmd.exe on
 // Windows, the login shell on macOS). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
 // build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
-function hostError(code, message, member) { const e = new Error(message); e.code = code; if (member) e.member = member; return e; }
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
 function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
@@ -3613,13 +3216,15 @@ async function hostRoots(sdk, id, marker) {
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
 // temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
-// throws when ffmpeg fails.
-async function hostDecodePcm(path, dataDir, rate, maxSeconds, timeoutMs = 120000) {
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
   const rt = hostApi("Runtime", "runFFmpeg");
   if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
   const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
   const controller = typeof AbortController === "undefined" ? null : new AbortController();
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
   try {
     await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
     const bytes = await hostReadBytes(tmp);
@@ -3627,7 +3232,11 @@ async function hostDecodePcm(path, dataDir, rate, maxSeconds, timeoutMs = 120000
     const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
     if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
     return samples;
-  } finally { if (timer) clearTimeout(timer); await hostRemove(tmp); }
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
 }
 // An audio or video file's length in seconds from the host's ffprobe, or null.
 async function hostProbeSeconds(path) {
@@ -3657,9 +3266,10 @@ const locateRoots = (sdk: any) => hostRoots(sdk, PLUGIN_ID, "planner.js");
 // Mono samples at OWN_RATE, at most OWN_MAX_SECONDS: the host's ffmpeg when it has one (hostDecodePcm); without it, or
 // when it fails, the panel decodes the file's bytes with WebAudio (whatever Chromium decodes: mp3, m4a/aac, wav, flac,
 // ogg) and averages the channels, as ffmpeg's mono downmix does.
-async function decodeOwnMusic(path: string, dataDir: string | null): Promise<Float32Array> {
+async function decodeOwnMusic(path: string, dataDir: string | null, signal: AbortSignal): Promise<Float32Array> {
   let first: any = null;
-  try { const s = await hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS); if (s) return s; } catch (e) { first = e; }
+  try { const s = await hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal); if (s) return s; } catch (e) { first = e; }
+  if (signal.aborted) throw new Error("cancelled");
   try {
     const Ctx: any = (window as any).OfflineAudioContext || (window as any).webkitOfflineAudioContext;
     if (!Ctx) throw new Error("this panel cannot decode audio");
@@ -3676,29 +3286,29 @@ async function decodeOwnMusic(path: string, dataDir: string | null): Promise<Flo
     return out;
   } catch (e) { throw first || e; }
 }
-// beat-detect's analysis of the samples, in a Web Worker built from avBeatDetector's own source so the panel keeps
-// responding. A host that refuses the worker (or a worker that fails to start) gets the analysis on the panel's thread.
-function analyseBeat(samples: Float32Array): Promise<any> {
+// beat-detect's analysis of the samples in a Web Worker (avBeatWorkerSource), never on the panel's thread: the panel
+// CSP allows blob: workers (cutback-client panelSandbox.ts: worker-src * data: blob:). A host that refuses the worker
+// rejects the analysis, and the panel falls back to fixed timing. `signal` aborts it (worker.terminate()).
+function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null): Promise<any> {
   return new Promise((resolve, reject) => {
     let worker: Worker | null = null, url: string | null = null, done = false;
-    const cleanup = () => { done = true; try { worker?.terminate(); } catch { /* gone */ } if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } } };
-    const inPanel = () => {
-      cleanup();
-      // Let the spinner paint before the analysis holds the thread.
-      setTimeout(() => { try { resolve(avBeatDetector().analyze(samples, OWN_RATE, undefined)); } catch (e) { reject(e); } }, 30);
-    };
-    try {
-      const src = "var avBeatDetector = " + avBeatDetector.toString() + ";\n"
-        + "onmessage = function (e) { try { postMessage({ ok: avBeatDetector().analyze(e.data.samples, e.data.rate) }); } catch (err) { postMessage({ error: String((err && err.message) || err) }); } };";
-      url = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
-      worker = new Worker(url);
-    } catch { inPanel(); return; }
-    worker.onmessage = (e: MessageEvent) => {
+    const finish = (fn: () => void) => {
       if (done) return;
-      cleanup();
-      if (e.data && e.data.error) reject(new Error(e.data.error)); else resolve(e.data && e.data.ok);
+      done = true;
+      try { worker?.terminate(); } catch { /* gone */ }
+      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
+      signal?.removeEventListener("abort", onAbort);
+      fn();
     };
-    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } if (!done) inPanel(); };
+    const onAbort = () => finish(() => reject(new Error("cancelled")));
+    if (signal?.aborted) { reject(new Error("cancelled")); return; }
+    signal?.addEventListener("abort", onAbort);
+    try {
+      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+      worker = new Worker(url);
+    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
+    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.error ? reject(new Error(e.data.error)) : resolve(e.data && e.data.ok)));
+    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
     worker.postMessage({ samples, rate: OWN_RATE });
   });
 }
@@ -3723,13 +3333,13 @@ class BusyError extends Error {
 // Everything a build reads from the install folder, once.
 async function loadAssets(plugin: string) {
   const read = (...rel: string[]) => readText(plugin, ...rel);
-  const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, title, credit, letterbox, look, fade, motion] = await Promise.all([
+  const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, title, credit, letterbox, look, fade, motion, beatDetect] = await Promise.all([
     read("assets", "cues", "manifest.json"), read("assets", "fonts", "presets.json"), read("scripts", "inventory.js"), read("scripts", "search.js"),
     read("scripts", "ensure-audio.js"), read("scripts", "assemble.js"), read("scripts", "decorate.js"), read("assets", "decode-title.tsx"),
     read("assets", "archived-credit.tsx"), read("assets", "letterbox-reveal.tsx"), read("assets", "cinematic-look.tsx"), read("assets", "fade-out.tsx"),
-    read("assets", "photo-motion.tsx")]);
+    read("assets", "photo-motion.tsx"), read("beat-detect.cjs")]);
   return { manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs },
-    tsx: { title, credit, letterbox, look, fade, motion } };
+    tsx: { title, credit, letterbox, look, fade, motion }, beatWorker: avBeatWorkerSource(beatDetect) };
 }
 // Every font file the presets use (four small files).
 function fontFiles(presets: any): string[] {
@@ -4031,16 +3641,22 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const [inventory, setInventory] = React.useState<any>(null);
   const [candidates, setCandidates] = React.useState<any>(null);
   const [preset, setPreset] = React.useState(DEFAULT_PRESET);
-  // Title text per preset ({ presetId: { fieldKey: text } }); a field not in here shows its preset's initial text.
-  // Switching presets never overwrites another preset's edits.
-  const [fieldsBy, setFieldsBy] = React.useState<Record<string, Record<string, string>>>({});
-  // The credit shot ("<prefix> <name>"): on by default; the name is the user's, the prefix the preset's.
+  // The title text the user typed ({ fieldKey: text }); a field not in here shows the preset's initial text. Switching
+  // presets keeps what was typed and only drops edits equal to the old preset's text (choosePreset).
+  const [fieldEdits, setFieldEdits] = React.useState<Record<string, string>>({});
+  // The credit shot ("<prefix> <name>"): on by default. The prefix and the name start as the preset's sample text
+  // (null); a name cleared by the user leaves the credit out, so "YOURNAME" is never published by accident.
   const [creditOn, setCreditOn] = React.useState(true);
+  const [creditPrefix, setCreditPrefix] = React.useState<string | null>(null);
   const [creditName, setCreditName] = React.useState<string | null>(null);
   // cueId: a manifest cue id, "own" (your own music) or "none" (No music).
   const [cueId, setCueId] = React.useState(DEFAULT_CUE);
   const [ownMusic, setOwnMusic] = React.useState<{ path: string; name: string } | null>(null);
   const [ownGrid, setOwnGrid] = React.useState<any>(null);
+  // Your own music being decoded and analysed (Build waits); the job id drops a result that a newer track, a Project
+  // switch or closing the panel made stale, and its AbortController stops ffmpeg and the worker.
+  const [listening, setListening] = React.useState(false);
+  const ownJobRef = React.useRef<{ id: number; abort: AbortController | null }>({ id: 0, abort: null });
   const [length, setLength] = React.useState<"short" | "standard" | "long">(DEFAULT_LENGTH);
   const [pace, setPace] = React.useState<"cinematic" | "quick">(DEFAULT_PACE);
   // Clip sound: the clips' own sound is off (muted), ambient (-18 dB under the music) or full (0 dB).
@@ -4060,13 +3676,13 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const [busy, setBusy] = React.useState(false);
   // Single-flight guard: state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef(false);
-  // The one-call spinner's text: "checkingClips", "listening" (STRINGS keys) or "".
+  // The one-call spinner's text: "checkingClips" (a STRINGS key) or "".
   const [step, setStep] = React.useState("");
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
   const registered = React.useRef<Set<string>>(new Set());
   // Bumped when a bundled font has loaded, so the preview measures again with it.
   const [fontsReady, setFontsReady] = React.useState(0);
-  // Build progress (bar + step list). `step` stays for the one-call spinner (own-music beat detection).
+  // Build progress (bar + step list). `step` stays for the one-call spinner (the first clip check).
   const [progress, setProgress] = React.useState<any>(null);
   const progressRef = React.useRef<any>(null);
   // `detail` is a message in the UI language (e.g. how many videos were checked).
@@ -4209,8 +3825,12 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
         if (alive) setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "startFailed", { detail })) });
       } finally { if (alive) setStep(""); }
     })();
-    // Project switch or unmount stops a preview, including one still being prepared.
-    return () => { alive = false; stopPreview(); };
+    // Project switch or unmount stops a preview, including one still being prepared, and an own-music analysis (its
+    // track is dropped: the next Project starts without it).
+    return () => {
+      alive = false; stopPreview();
+      if (cancelOwnMusic() && mountedRef.current) { setOwnMusic(null); setOwnGrid(null); }
+    };
   }, [projectId]);
 
   // Clips being analysed (or no clips at all yet): re-read the inventory every 10 s until they are ready. Clips whose
@@ -4304,14 +3924,37 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const presetList: any[] = assets?.presets.presets || [];
   const chosen = presetList.find((x) => x.id === preset) || null;
   // A field's text: the user's edit, else the preset's initial text.
-  const fieldText = (presetId: string, fl: any) => fieldsBy[presetId]?.[fl.key] ?? fl.initial ?? "";
+  const fieldText = (fl: any) => fieldEdits[fl.key] ?? fl.initial ?? "";
   const setField = (fl: any, value: string) => {
     const v = fieldClip(String(value), fl.max);
-    setFieldsBy((all) => ({ ...all, [preset]: { ...(all[preset] || {}), [fl.key]: v } }));
+    setFieldEdits((all) => ({ ...all, [fl.key]: v }));
   };
-  const titleFields: Record<string, string> = chosen ? Object.fromEntries(chosen.fields.map((fl: any) => [fl.key, fieldText(preset, fl)])) : {};
+  // A new preset: typed text stays; a field still showing the old preset's text takes the new preset's. The same for
+  // the credit prefix and name.
+  const choosePreset = (id: string) => {
+    if (busyRef.current || id === preset) return;
+    const old = chosen, next = presetList.find((x) => x.id === id);
+    if (old && next) {
+      setFieldEdits((all) => {
+        const out: Record<string, string> = {};
+        for (const fl of next.fields) {
+          const v = all[fl.key], was = old.fields.find((o: any) => o.key === fl.key);
+          if (v != null && v !== (was?.initial ?? "")) out[fl.key] = fieldClip(v, fl.max);
+        }
+        return out;
+      });
+      setCreditPrefix((v) => (v != null && v !== (old.credit?.prefix || "") ? v : null));
+      setCreditName((v) => (v != null && v !== (old.credit?.name || "") ? v : null));
+    }
+    setPreset(id);
+  };
+  const titleFields: Record<string, string> = chosen ? Object.fromEntries(chosen.fields.map((fl: any) => [fl.key, fieldText(fl)])) : {};
   const titleText = String(titleFields.title || "").trim();
-  const nameText = creditName ?? (chosen?.credit?.name || "");
+  const samplePrefix = chosen?.credit?.prefix || "", sampleName = chosen?.credit?.name || "";
+  const prefixText = creditPrefix ?? samplePrefix;
+  const nameText = creditName ?? sampleName;
+  // The credit is built when Credit shot is on and the name is not empty.
+  const creditUsed = creditOn && !!nameText.trim();
   const presetStrength = avLookStrength(chosen);
   const strength = lookStrength ?? presetStrength;
   // The preview's opening timing: the 6-beat opening at the current tempo (the Draft's comes from its real frames).
@@ -4338,14 +3981,14 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     try { return AV_TITLE.avDecodeFrame(previewLayout, previewData, replayFrame == null ? 1e9 : replayFrame, 30); } catch { return null; }
   }, [previewLayout, previewData, replayFrame]);
   const creditLayout: any = React.useMemo(() => {
-    if (!chosen || !assets || !creditOn) return null;
-    const base: any = { prefix: chosen.credit?.prefix || "", name: nameText, color: chosen.colors.text, size: CREDIT_LOOK.size,
+    if (!chosen || !assets || !creditUsed) return null;
+    const base: any = { prefix: prefixText, name: nameText, color: chosen.colors.text, size: CREDIT_LOOK.size,
       fonts: avPresetFonts(assets.presets, chosen, null).filter((x: any) => x.family === CREDIT_FAMILY) };
     try {
       const ko = AV_CREDIT.avcKoMeasure(base);
       return AV_CREDIT.avCreditLayout(ko ? Object.assign({}, base, ko) : base, AV_W, AV_H);
     } catch { return null; }
-  }, [chosen, assets, creditOn, nameText, fontsReady]);
+  }, [chosen, assets, creditUsed, prefixText, nameText, fontsReady]);
   // Replays the decode from just before the kicker appears, at 30 fps, then shows the finished lockup again.
   function replayTitle() {
     if (!previewLayout || !previewData) return;
@@ -4366,27 +4009,48 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   }
   // A new preset or title text shows the finished lockup (any replay stops).
   React.useEffect(() => { replayRef.current++; setReplayFrame(null); }, [preset, JSON.stringify(titleFields)]);
+  // The credit field limits (fieldLen units).
+  const prefixMax = CREDIT_NAME_MAX, nameMax = CREDIT_NAME_MAX;
 
+  // Stops a running own-music analysis; true when one was running.
+  function cancelOwnMusic() {
+    const job = ownJobRef.current, running = !!job.abort;
+    job.id++;
+    if (job.abort) { job.abort.abort(); job.abort = null; }
+    if (mountedRef.current) setListening(false);
+    return running;
+  }
   async function detectOwnMusic(file: { path: string; name: string }) {
-    if (busyRef.current || !roots) return;
-    busyRef.current = true;
+    if (busyRef.current || !roots || !assets) return;
+    cancelOwnMusic();
+    const job = ownJobRef.current, id = job.id, pid = projectRef.current, abort = new AbortController();
+    job.abort = abort;
+    const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;
     stopPreview();
-    setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("listening"); setStatus(null);
+    setOwnMusic(file); setOwnGrid(null); setListening(true); setStatus(null);
     let samples: Float32Array | null = null;
     try {
-      samples = await decodeOwnMusic(file.path, roots.data);
-      const g = await analyseBeat(samples);
+      samples = await decodeOwnMusic(file.path, roots.data, abort.signal);
+      if (!live()) return;
+      const g = await analyseBeat(assets.beatWorker, samples, abort.signal);
+      if (!live()) return;
       if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
     } catch (e: any) {
-      // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
+      if (!live()) return;
+      // Any failure falls back to fixed timing (no grid); the track's real length still bounds the section.
       let duration: number | null = samples && samples.length ? Math.round((samples.length / OWN_RATE) * 1000) / 1000 : null;
       if (!duration) { const v = await hostProbeSeconds(file.path); if (v) duration = Math.min(v, OWN_MAX_SECONDS); }
+      if (!live()) return;
       setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });
       setStatus(duration
         ? { tone: "info", say: errorSay(e, (l, detail) => t(l, "musicApprox", { detail })) }
         : { tone: "error", say: errorSay(e, (l, detail) => t(l, "musicUnreadable", { detail })) });
-    } finally { busyRef.current = false; setBusy(false); setStep(""); }
+    } finally {
+      // The decoded samples (up to about 21 MB) are dropped with this call.
+      samples = null;
+      if (ownJobRef.current.id === id) { ownJobRef.current.abort = null; if (mountedRef.current) setListening(false); }
+    }
   }
 
   // Section preview: "idle" -> "loading" (reading the file) -> "playing". The whole track plays from a blob: URL of its
@@ -4493,7 +4157,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     // are written in the UI language of this moment and do not follow a later switch.
     const frozen = Object.freeze({
       pid, seed: nextSeed, preset, fields: { kicker: titleFields.kicker || "", title: titleFields.title || "", tagline: titleFields.tagline || "" },
-      credit: { on: creditOn, name: nameText }, clipSound, look: { on: look, strength }, usePhotos, only, onlyPhotos,
+      credit: { on: creditUsed, prefix: prefixText.trim(), name: nameText.trim() }, clipSound, look: { on: look, strength }, usePhotos, only, onlyPhotos,
       music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null,
       sectionStart: musicStart, pace, length, requested: fit.requested,
       labels: adjustLabelsFor(L), motionOptions: motionOptionsFor(L),
@@ -4676,7 +4340,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const baseBlock: Say | null = !inventory || !assets ? null
     : inventory.incomplete ? (l) => t(l, "sizesLoading")
     : !titleText ? (l) => t(l, "typeTitle")
-    : creditOn && !nameText.trim() ? (l) => t(l, "typeName")
+    : listening ? (l) => t(l, "listening")
     : musicKind === "own" && !ownMusic ? (l) => t(l, "dropMusic")
     : musicKind === "own" && !ownDuration ? (l) => t(l, "musicLengthUnread")
     : musicKind !== "none" && (!fitted || start == null) ? (l) => t(l, "fail.music-too-short")
@@ -4694,14 +4358,13 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
     usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
   ].filter(Boolean).join(" · ");
-  const plannedSeconds = readyPlan && readyPlan.ok ? planSeconds(readyPlan) : videoSeconds;
   const readiness = !inventory ? (invError ? (invError.busy ? invError.say(L) : t(L, "invFailed")) : t(L, "checkingClipsNow"))
     : inventory.incomplete && incompleteStalled ? t(L, "invPartial")
     : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? t(L, "stillReading")
     : inventory.resources.length === 0 && !allPhotoRids.length ? (analysisText || t(L, "noFootage"))
     : inventory.resources.length === 0 && !usePhotos ? [analysisText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))
     : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
-    : t(L, "ready", { summary: [clipCount, t(L, "aboutSeconds", { seconds: Math.round(plannedSeconds) }), ...avAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
+    : t(L, "ready", { summary: [clipCount, ...avAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
   // Requested vs fitted montage shots, then the footage's own fit once it is known. Seconds with one decimal.
   const tenths = (s: number) => Math.round(s * 10) / 10;
   const lengthName = length === "short" ? t(L, "length.short") : length === "long" ? t(L, "length.long") : t(L, "length.standard");
@@ -4718,11 +4381,13 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   // A tempo that was found (an accepted grid, or own music's approximate one) but is outside 70-160 bpm, else null. Used
   // only where no grid or approximate tempo applies, so it is always out of range there.
   const outsideBpm: number | null = grid.accepted ? grid.bpm : ownApprox ? ownGrid.bpm : null;
+  // Above 110 bpm the template doubles its beats per shot (planner avMontageBeats), so shots keep their length.
+  const fastNote = tempo > 110 ? t(L, "fastTempo") : "";
   const paceNote = !assets ? null
-    : gridded ? shotNote
+    : gridded ? [shotNote, fastNote].filter(Boolean).join(t(L, "gap"))
     : musicKind === "none" ? [t(L, "noMusicTiming", { bpm: Math.round(tempo) }), shotNote].join(t(L, "gap"))
     : musicKind === "own" && !ownGrid ? null
-    : approxTempo ? [t(L, "faintTempoTiming", { bpm: Math.round(approxTempo) }), shotNote].join(t(L, "gap"))
+    : approxTempo ? [t(L, "faintTempoTiming", { bpm: Math.round(approxTempo) }), shotNote, fastNote].filter(Boolean).join(t(L, "gap"))
     : outsideBpm ? [t(L, "outsideTempoTiming", { bpm: Math.round(outsideBpm), fixed: Math.round(tempo) }), shotNote].join(t(L, "gap"))
     : [t(L, "noBeatTiming", { bpm: Math.round(tempo) }), shotNote].join(t(L, "gap"));
   // What the beat detection found in your own music, shown under the file (null while it runs, and after a failed
@@ -4738,7 +4403,11 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   // Your own music needs the panel to read files (FileSystem.readFile); every host this app supports has it.
   const canOwnMusic = !!hostApi("FileSystem", "readFile");
   const cues: any[] = assets?.manifest.cues || [];
-  const chooseTrack = (v: string) => { if (busyRef.current) return; setCueId(v); if (v !== "own") { setOwnMusic(null); setOwnGrid(null); } };
+  const chooseTrack = (v: string) => {
+    if (busyRef.current) return;
+    setCueId(v);
+    if (v !== "own") { cancelOwnMusic(); setOwnMusic(null); setOwnGrid(null); }
+  };
   // One row of the track list: a radio-style button that truncates its name and keeps the tempo visible.
   const trackRow = (value: string, label: string, meta: string) => {
     const on = cueId === value;
@@ -4757,7 +4426,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const progressLabel = progress ? (progress.detail
     ? t(L, "progressDetail", { step: progress.current + 1, total: AV_BUILD_STEPS.length, name: t(L, "step." + progress.id), detail: progress.detail(L), percent: progress.percent })
     : t(L, "progress", { step: progress.current + 1, total: AV_BUILD_STEPS.length, name: t(L, "step." + progress.id), percent: progress.percent })) : "";
-  const stepText = step === "listening" ? t(L, "listening") : step === "checkingClips" ? t(L, "checkingClips") : "";
+  const stepText = step === "checkingClips" ? t(L, "checkingClips") : "";
   const displayFace = (p: any) => (p.fonts.find((x: any) => x.role === "display") || p.fonts[0]) as any;
 
   if (!projectId) return <ui.Message tone="error">{t(L, "openProject")}</ui.Message>;
@@ -4773,7 +4442,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
           {presetList.map((p) => {
             const on = p.id === preset, face = displayFace(p);
             return (
-              <button key={p.id} type="button" aria-pressed={on} disabled={busy} onClick={() => setPreset(p.id)}
+              <button key={p.id} type="button" aria-pressed={on} disabled={busy} onClick={() => choosePreset(p.id)}
                 style={{ flex: "1 1 0", minWidth: 0, width: "auto", maxWidth: "none", height: "auto", maxHeight: "none", boxSizing: "border-box", padding: "8px 6px",
                   display: "flex", flexDirection: "column", alignItems: "center", gap: 6, borderRadius: 8, cursor: busy ? "default" : "pointer", color: "inherit",
                   font: "inherit", fontWeight: 400, background: on ? "color-mix(in srgb, var(--panel-fg, #ffffff) 8%, transparent)" : "transparent",
@@ -4802,14 +4471,18 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
           ) : null}
         </div>
         {chosen ? chosen.fields.map((fl: any) => (
-          <ui.TextField key={preset + ":" + fl.key} label={t(L, "fieldCount", { label: fieldLabel(L, fl.key), used: fieldLen(fieldText(preset, fl)), max: fl.max })}
-            value={fieldText(preset, fl)} disabled={busy} onChange={(v: string) => setField(fl, v)} />
+          <ui.TextField key={preset + ":" + fl.key} label={t(L, "fieldCount", { label: fieldLabel(L, fl.key), used: fieldLen(fieldText(fl)), max: fl.max })}
+            value={fieldText(fl)} placeholder={fl.initial || undefined} disabled={busy} onChange={(v: string) => setField(fl, v)} />
         )) : null}
         <ui.Toggle label={t(L, "creditShot")} value={creditOn} onChange={setCreditOn} disabled={busy} />
         {creditOn ? (
           <>
-            <ui.TextField label={t(L, "fieldCount", { label: t(L, "creditName"), used: fieldLen(nameText), max: CREDIT_NAME_MAX })} value={nameText} disabled={busy}
-              onChange={(v: string) => setCreditName(fieldClip(String(v), CREDIT_NAME_MAX))} />
+            <ui.TextField label={t(L, "fieldCount", { label: t(L, "param.prefix"), used: fieldLen(prefixText), max: prefixMax })} value={prefixText} placeholder={samplePrefix || undefined}
+              disabled={busy} onChange={(v: string) => setCreditPrefix(fieldClip(String(v), prefixMax))} />
+            <ui.TextField label={t(L, "fieldCount", { label: t(L, "creditName"), used: fieldLen(nameText), max: nameMax })} value={nameText} placeholder={sampleName || undefined}
+              disabled={busy} onChange={(v: string) => setCreditName(fieldClip(String(v), nameMax))} />
+            {creditName == null && sampleName ? <ui.Message tone="muted">{t(L, "creditSample", { name: sampleName })}</ui.Message> : null}
+            {!creditUsed ? <ui.Message tone="muted">{t(L, "creditCleared")}</ui.Message> : null}
             <div role="img" aria-label={t(L, "creditPreview")} style={{ height: CREDIT_HEIGHT, borderRadius: 6, overflow: "hidden", background: PREVIEW_BG }}>
               {creditLayout ? (
                 <svg width="100%" height={CREDIT_HEIGHT} viewBox={CREDIT_VIEW} preserveAspectRatio="xMidYMid meet" style={{ display: "block" }}>
@@ -4828,7 +4501,9 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
           {trackRow("none", t(L, "noMusic"), "")}
         </div>
         {musicKind === "own" && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
-          onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
+          onChange={(f: any) => { if (f) detectOwnMusic(f); else { cancelOwnMusic(); setOwnMusic(null); setOwnGrid(null); } }} /> : null}
+        {musicKind === "own" && canOwnMusic ? <ui.Message tone="muted">{t(L, "ownMusicHint", { count: OWN_MAX_SECONDS / 60 })}</ui.Message> : null}
+        {listening ? <ui.Progress label={t(L, "listening")} /> : null}
         {ownBeatLine ? <ui.Message tone="muted">{ownBeatLine}</ui.Message> : null}
         {musicKind !== "none" ? (ownMusic || cue ? (
           // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
@@ -4840,7 +4515,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
               <ui.IconButton icon={playState === "playing" ? "pause" : playState === "loading" ? "loading" : "play"}
                 label={playState === "playing" ? t(L, "stopPreview") : playState === "loading" ? t(L, "cancelPreview") : t(L, "previewSection")}
                 onClick={preview} disabled={busy || (playState === "idle" && start == null)} />
-              <span>{musicKind === "own" && !ownDuration ? (busy ? t(L, "readingMusic") : t(L, "musicLengthUnknown"))
+              <span>{musicKind === "own" && !ownDuration ? (listening ? t(L, "readingMusic") : t(L, "musicLengthUnknown"))
                 : start == null ? t(L, "musicTooShort") : t(L, "startsAt", { seconds: tenths(start) })}</span>
             </ui.Row>
           </div>
@@ -5154,7 +4829,7 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
 // What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
 // exactly once, unless a newer run (or the frame closing) replaced it; then it reports nothing.
 function TemplateRun({ sdk, context }: any) {
-  const [status, setStatus] = React.useState("Starting");
+  const [runStatus, setRunStatus] = React.useState("Starting");
   const begun = React.useRef<string | null>(null);
   const alive = React.useRef(true);
   // The latest context, so a run reports only while it is still the current one.
@@ -5169,12 +4844,12 @@ function TemplateRun({ sdk, context }: any) {
     const live = () => alive.current && latest.current?.template?.runId === runId;
     const check = () => { if (!live()) throw STALE; };
     let ended = false, step = "starting";
-    const say = (text: string, detail?: string) => { step = text; if (live()) setStatus(text + (detail ? " (" + detail + ")" : "")); };
+    const say = (text: string, detail?: string) => { step = text; if (live()) setRunStatus(text + (detail ? " (" + detail + ")" : "")); };
     const end = (outcome: TemplateOutcome | null) => {
       if (ended) return;
       ended = true;
       if (!outcome || !live()) return;
-      setStatus("sequenceId" in outcome ? "Done" : outcome.error);
+      setRunStatus("sequenceId" in outcome ? "Done" : outcome.error);
       try { sdk.finishTemplate(outcome); } catch (e) { console.warn("[archive-vlog] finishTemplate failed:", errorText(e)); }
     };
     (async () => {
@@ -5189,5 +4864,5 @@ function TemplateRun({ sdk, context }: any) {
       }
     })();
   }, [runId]);
-  return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{status}</div>;
+  return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{runStatus}</div>;
 }

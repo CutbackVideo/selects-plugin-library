@@ -1,6 +1,7 @@
 // plugins/archive-vlog/tests/panel.test.cjs
-// The panel: verbatim blocks (planner, decode title, credit, beat detector), the build contract's configs (av-build),
-// shot motions (av-hook), host I/O without a POSIX shell (av-host), UI wiring and wording (STRINGS.en via t()).
+// The panel: verbatim blocks (planner, decode title, credit), the beat detector's worker (beat-detect.cjs unmodified,
+// av-beat-worker), the build contract's configs (av-build), shot motions (av-hook), host I/O without a POSIX shell
+// (av-host), UI wiring and wording (STRINGS.en via t()).
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
 const read = f => fs.readFileSync(path.join(root, f), 'utf8');
@@ -31,21 +32,21 @@ assert.equal(block(panel, 'av-decode'), block(read('assets/decode-title.tsx'), '
 assert.equal(block(panel, 'av-credit'), block(read('assets/archived-credit.tsx'), 'av-credit'), 'panel.tsx must embed the av-credit block verbatim');
 assert.ok(/const AV_TITLE: any = \(function \(\) \{\n\/\/ av-decode:start\n/.test(panel), 'the decode block runs in its own function scope');
 assert.ok(/const AV_CREDIT: any = \(function \(\) \{\n\/\/ av-credit:start\n/.test(panel), 'the credit block runs in its own function scope');
-// The beat detector: beat-detect.cjs from its first constant up to its CLI, verbatim, inside avBeatDetector().
+// The beat detector is one source: the panel reads beat-detect.cjs from the install folder and runs it unmodified in a
+// Web Worker (av-beat-worker); no copy of its code is in panel.tsx.
 const beatSrc = read('beat-detect.cjs');
-const beatBody = beatSrc.slice(beatSrc.indexOf('const WIN = 1024'), beatSrc.indexOf('module.exports'));
-assert.ok(beatBody.length > 5000, 'the beat-detect slice');
-assert.equal(block(panel, 'av-beat'), beatBody, 'panel.tsx must embed beat-detect.cjs analysis verbatim');
-assert.ok(/function avBeatDetector\(\) \{\n\/\/ av-beat:start\n/.test(panel) && panel.includes('// av-beat:end\n  return { analyze };\n}'), 'avBeatDetector wraps the block');
-const hookBlock = block(panel, 'av-hook'), buildBlock = block(panel, 'av-build'), hostBlock = block(panel, 'av-host');
-const verbatim = ['av-planner', 'av-decode', 'av-credit', 'av-beat'].map(n => block(panel, n));
+for (const fn of ['function bandFlux(', 'function onsetEnvelope(', 'function gridState(', 'function analyze(']) assert.ok(!panel.includes(fn), 'no copy of beat-detect.cjs (' + fn + ')');
+assert.ok(panel.includes('read("beat-detect.cjs")') && panel.includes('beatWorker: avBeatWorkerSource(beatDetect)'), 'the panel reads beat-detect.cjs');
+const hookBlock = block(panel, 'av-hook'), buildBlock = block(panel, 'av-build'), hostBlock = block(panel, 'av-host'), workerBlock = block(panel, 'av-beat-worker');
+const verbatim = ['av-planner', 'av-decode', 'av-credit'].map(n => block(panel, n));
 // The panel's own code: no STRINGS block, no verbatim blocks.
 const sBegin = panel.indexOf('// STRINGS:BEGIN'), sEnd = panel.indexOf('// STRINGS:END');
 let own = panel.slice(0, sBegin) + panel.slice(sEnd);
 for (const v of verbatim) own = own.replace(v, '');
 const ui = own;
 
-// The embedded beat detector gives exactly beat-detect.cjs's result (a click track at 120 bpm with an offbeat hat).
+// The worker gives exactly beat-detect.cjs's result (a click track at 120 bpm with an offbeat hat), its CLI branch
+// stays inert (the worker has no `process`), and an error comes back as a message.
 {
   const rate = 22050, seconds = 24, x = new Float32Array(rate * seconds);
   for (let b = 0; b * 0.5 + 0.2 < seconds; b++) {
@@ -54,12 +55,19 @@ const ui = own;
     const off = at + Math.round(0.25 * rate);
     for (let i = 0; i < 200 && off + i < x.length; i++) x[off + i] += (((i * 7919) % 97) / 97 - 0.5) * 0.2 * Math.exp(-i / 40);
   }
-  const box = { Math, Float64Array, Float32Array, Uint8Array, Array, Number, Set, Infinity, isFinite };
-  vm.createContext(box);
-  vm.runInContext('function avBeatDetector() {\n' + block(panel, 'av-beat') + '  return { analyze };\n}\nthis.analyze = avBeatDetector().analyze;', box);
+  const mk = {}; vm.createContext(mk); vm.runInContext(workerBlock + '\nthis.src = avBeatWorkerSource;', mk);
+  const source = mk.src(beatSrc);
+  const posted = [];
+  const worker = { postMessage: (m) => posted.push(m) };
+  vm.createContext(worker);
+  vm.runInContext(source, worker);
+  worker.onmessage({ data: { samples: x, rate } });
   const want = require(path.join(root, 'beat-detect.cjs')).analyze(x, rate);
-  assert.deepEqual(j(box.analyze(x, rate)), j(want), 'in-panel beat detection equals beat-detect.cjs');
+  assert.equal(posted.length, 1);
+  assert.deepEqual(j(posted[0].ok), j(want), 'the worker equals beat-detect.cjs');
   assert.equal(want.accepted, true, 'the click track is accepted');
+  worker.onmessage({ data: { samples: null, rate } });
+  assert.ok(typeof posted[1].error === 'string' && !posted[1].ok, 'an analysis error is posted, not thrown');
 }
 
 // ---- Header and files ---------------------------------------------------------------------------------------------
@@ -114,7 +122,8 @@ says('style', 'Style'); says('creditShot', 'Credit shot'); says('creditName', 'N
 says('pace', 'Pace'); says('pace.cinematic', 'Cinematic'); says('pace.quick', 'Quick'); says('replayDecode', 'Replay');
 says('fitPartial', 'montage shots fit this track'); says('fitFull', 'montage shots'); says('footageFits', 'Your footage fits');
 says('hostTooOld', 'needs a newer version of Selects'); says('fail.no-video', 'at least one video clip');
-says('typeTitle', 'Type a title'); says('typeName', 'turn off Credit shot');
+says('typeTitle', 'Type a title'); says('creditSample', 'sample text'); says('creditCleared', 'without a credit'); says('fastTempo', 'Above 110 bpm');
+says('ownMusicHint', 'first {count} minutes');
 says('progress', 'Step {step}/{total}'); says('montageBeats', 'Montage shots hold');
 family('step', { shots: 'Choosing shots', music: 'Preparing music', draft: 'Creating Draft', look: 'Adding title and look', open: 'Opening Draft' });
 family('motion', { 'push-in': 'Push in', 'pull-out': 'Pull out', 'drift-left': 'Drift left', 'drift-right': 'Drift right', 'drift-up': 'Drift up', 'drift-down': 'Drift down',
@@ -123,7 +132,7 @@ family('param', { motion: 'Motion', look: 'Look strength', speed: 'Decode speed'
 for (const p of presets.presets) assert.equal(en['preset.' + p.id], p.label, 'preset.' + p.id);
 assert.ok(ui.includes('{tOr(L, "preset." + p.id, p.label)}') && ui.includes('i18n-used: preset.*'), 'preset labels by id');
 // A quoted UI name inside a sentence equals that control's label.
-assert.ok(en.typeName.includes(en.creditShot) && en.turnOnPhotos.includes(en.usePhotos) && en.finishFailed.includes(en.finishTitle), 'quoted UI names');
+assert.ok(en.turnOnPhotos.includes(en.usePhotos) && en.finishFailed.includes(en.finishTitle), 'quoted UI names');
 // No literal English UI text in JSX.
 assert.ok(!/>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*</.test(ui), 'no literal English text between JSX tags');
 assert.ok(!/(?:label|title|aria-label|busyLabel)="[A-Z]/.test(ui), 'no literal English UI props');
@@ -372,7 +381,7 @@ const hostTests = (async () => {
     const { H } = hostBox({ platform: 'darwin' });
     assert.equal(H.hostApi('Runtime', 'runFFmpeg'), null);
     assert.throws(() => H.hostNeed('Runtime', 'runFFmpeg'), e => e.code === 'host-missing' && e.member === 'Runtime.runFFmpeg');
-    assert.equal(await H.hostDecodePcm('/x.mp3', '/data', 22050, 360), null, 'no ffmpeg: null (the panel decodes with WebAudio)');
+    assert.equal(await H.hostDecodePcm('/x.mp3', '/data', 22050, 240), null, 'no ffmpeg: null (the panel decodes with WebAudio)');
   }
   // Bytes from a Buffer that is a view into a larger pool.
   {
@@ -388,10 +397,10 @@ const hostTests = (async () => {
     let wrote = null;
     const { H, calls } = hostBox({ platform: 'win32', ffmpeg: argv => { wrote = argv[argv.length - 1]; return { stdout: '', stderr: '' }; },
       readFile: async p => { assert.equal(p, wrote); return raw.subarray(3); } });
-    const out = await H.hostDecodePcm('C:\\Users\\me\\Music\\my song.mp3', 'C:\\data', 22050, 360);
+    const out = await H.hostDecodePcm('C:\\Users\\me\\Music\\my song.mp3', 'C:\\data', 22050, 240);
     assert.deepEqual(Array.from(out), Array.from(samples));
     const argv = j(calls.ffmpeg[0]);
-    assert.deepEqual(argv.slice(0, 8), ['-nostdin', '-v', 'error', '-y', '-t', '360', '-i', 'C:\\Users\\me\\Music\\my song.mp3']);
+    assert.deepEqual(argv.slice(0, 8), ['-nostdin', '-v', 'error', '-y', '-t', '240', '-i', 'C:\\Users\\me\\Music\\my song.mp3']);
     assert.deepEqual(argv.slice(8, 14), ['-ac', '1', '-ar', '22050', '-f', 'f32le']);
     assert.ok(/^C:\\data\\pcm-[\w-]+\.f32$/.test(wrote), 'temp file in the data folder, ASCII name: ' + wrote);
     assert.deepEqual(calls.removed, [wrote], 'the temp file is removed');
@@ -411,7 +420,7 @@ for (const s of ['React.useState(DEFAULT_PRESET)', 'React.useState(DEFAULT_CUE)'
 // Pace: Cinematic / Quick only.
 assert.ok(ui.includes('options={[{ label: t(L, "pace.cinematic"), value: "cinematic" }, { label: t(L, "pace.quick"), value: "quick" }]}'));
 // Style tiles: the sample and the name inside one bordered box (panel-ui.md section 2), one tile per preset.
-for (const s of ['presetList.map((p) => {', 'aria-pressed={on}', 'onClick={() => setPreset(p.id)}', 'height: "auto", maxHeight: "none", boxSizing: "border-box", padding: "8px 6px"',
+for (const s of ['presetList.map((p) => {', 'aria-pressed={on}', 'onClick={() => choosePreset(p.id)}', 'height: "auto", maxHeight: "none", boxSizing: "border-box", padding: "8px 6px"',
   'display: "flex", flexDirection: "column", alignItems: "center", gap: 6', 'border: on ? "2px solid var(--panel-fg, #ffffff)"', 'overflowWrap: "anywhere", wordBreak: "keep-all"'])
   assert.ok(ui.includes(s), s);
 assert.equal(presets.presets.length, 3);
@@ -421,7 +430,7 @@ for (const p of presets.presets) {
   assert.ok(p.colors.title && p.colors.text && p.credit.prefix && p.credit.name && p.look.strength > 0, p.id);
 }
 // Title fields with their limits counted in fieldLen units (Hangul 2).
-assert.ok(ui.includes('label={t(L, "fieldCount", { label: fieldLabel(L, fl.key), used: fieldLen(fieldText(preset, fl)), max: fl.max })}'));
+assert.ok(ui.includes('label={t(L, "fieldCount", { label: fieldLabel(L, fl.key), used: fieldLen(fieldText(fl)), max: fl.max })}'));
 assert.ok(ui.includes('const v = fieldClip(String(value), fl.max);'));
 {
   const runtime = panel.slice(panel.indexOf('// Field limits count Hangul'), panel.indexOf('// A message that follows the UI language'));
@@ -451,8 +460,16 @@ for (const s of ['try { ko = AV_TITLE.avKoMeasure(base); } catch { ko = null; }'
   }
 }
 // Credit: on by default, the preset's prefix and name, Credit shot off removes it from the build.
-for (const s of ['const nameText = creditName ?? (chosen?.credit?.name || "");', 'credit: { on: creditOn, name: nameText }', 'onChange={(v: string) => setCreditName(fieldClip(String(v), CREDIT_NAME_MAX))}',
-  ': creditOn && !nameText.trim() ? (l) => t(l, "typeName")', ': !titleText ? (l) => t(l, "typeTitle")']) assert.ok(ui.includes(s), s);
+for (const s of ['const nameText = creditName ?? sampleName;', 'const creditUsed = creditOn && !!nameText.trim();',
+  'credit: { on: creditUsed, prefix: prefixText.trim(), name: nameText.trim() }', 'onChange={(v: string) => setCreditName(fieldClip(String(v), nameMax))}',
+  'onChange={(v: string) => setCreditPrefix(fieldClip(String(v), prefixMax))}', '{creditName == null && sampleName ? <ui.Message tone="muted">{t(L, "creditSample", { name: sampleName })}</ui.Message> : null}',
+  ': !titleText ? (l) => t(l, "typeTitle")', ': listening ? (l) => t(l, "listening")']) assert.ok(ui.includes(s), s);
+// Switching presets keeps typed text: only edits equal to the old preset's text (and the sample credit) follow the new preset.
+for (const s of ['onClick={() => choosePreset(p.id)}', 'if (v != null && v !== (was?.initial ?? "")) out[fl.key] = fieldClip(v, fl.max);',
+  'setCreditPrefix((v) => (v != null && v !== (old.credit?.prefix || "") ? v : null));', 'setCreditName((v) => (v != null && v !== (old.credit?.name || "") ? v : null));'])
+  assert.ok(ui.includes(s), s);
+// The readiness line counts the inventory; the output (montage shots, seconds) has its own line.
+assert.ok(ui.includes('t(L, "ready", { summary: [clipCount, ...avAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") })'), 'readiness: inventory only');
 // Length: "N of M shots fit" from the planner, durations from avVideoSeconds.
 for (const s of ['const requested = avMontageShots(length, pace);', 'avFitShots({ requested, pace, bpm: tm.tempo, sectionStart: timed ? grid.firstBeat : 0, usableEnd: grid.usableEnd })',
   'const seconds = (n: number) => avVideoSeconds({ bpm: tm.tempo, pace, montageShots: n });', 't(L, "fitPartial", { length: lengthName, fitted, count: fit.top, seconds: tenths(videoSeconds) })',
@@ -474,11 +491,15 @@ for (const c of manifest.cues) {
 for (const s of ['const bytes = await readBytes(file);', 'URL.createObjectURL(new Blob([bytes as any], { type: audioType(file) }))', 'audio.currentTime = from;',
   'audio.volume = Math.max(0, Math.min(1, (end - at) / PREVIEW_FADE));', 'if (at >= end) { stopPreview(); return; }', 'URL.revokeObjectURL(previewUrlRef.current)',
   'const file = musicKind === "own" ? ownMusic!.path : pjoin(roots.plugin, "assets", "cues", cue.file);']) assert.ok(ui.includes(s), s);
-// Own music: decoded by the host's ffmpeg or WebAudio, analysed by the embedded detector in a worker or the panel.
-for (const s of ['samples = await decodeOwnMusic(file.path, roots.data);', 'const g = await analyseBeat(samples);', 'hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS)',
-  'ctx.decodeAudioData(bytes.slice().buffer)', '"var avBeatDetector = " + avBeatDetector.toString()', 'worker = new Worker(url);', '} catch { inPanel(); return; }',
-  'worker.onerror = (e: any) => {', 'const v = await hostProbeSeconds(file.path);']) assert.ok(ui.includes(s), s);
-assert.ok(/const OWN_RATE = 22050;/.test(panel) && /const OWN_MAX_SECONDS = 360;/.test(panel));
+// Own music: decoded by the host's ffmpeg (WebAudio without it), analysed in a worker only, cancellable, stale results
+// dropped; any failure falls back to fixed timing.
+for (const s of ['samples = await decodeOwnMusic(file.path, roots.data, abort.signal);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal);',
+  'hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal)', 'ctx.decodeAudioData(bytes.slice().buffer)', 'worker = new Worker(url);', 'try { worker?.terminate(); } catch',
+  'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });',
+  'if (v !== "own") { cancelOwnMusic(); setOwnMusic(null); setOwnGrid(null); }', 'if (cancelOwnMusic() && mountedRef.current) { setOwnMusic(null); setOwnGrid(null); }',
+  'worker-src * data: blob:', 'const v = await hostProbeSeconds(file.path);', 't(L, "ownMusicHint", { count: OWN_MAX_SECONDS / 60 })']) assert.ok(ui.includes(s), s);
+assert.ok(/const OWN_RATE = 22050;/.test(panel) && /const OWN_MAX_SECONDS = 240;/.test(panel));
+assert.ok(!/analyze\(samples, OWN_RATE/.test(ui), 'never analysed on the panel thread');
 // The music cue is imported from the install folder by a joined path.
 assert.ok(ui.includes('musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null'));
 assert.ok(ui.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: pjoin(roots.plugin, "assets", "cues", cue.file) })'), 'template run cue path');
