@@ -20,13 +20,16 @@ export type PUnit = {
 };
 
 export type NameTag = { a: number; b: number; first: string; last: string; role: string; x: number; y: number; cap: number; small?: boolean };
+// A full-frame designed insert. Items appear on their spoken onsets (`at`, Draft frames).
+export type DesignKind = "keyword" | "chapter" | "number" | "versus" | "list" | "bubbles" | "quote";
+export type DItem = { text: string; at: number; role?: "title" | "connector" | "label" | "me" | "them" | "key" | "item" };
 export type Card = {
   a: number;
   b: number;
-  kind: "keyword" | "number" | "thesis";
-  palette: "burgundy" | "cream";
-  lines: { text: string; at: number; face: 0 | 1 | 2; scale: number }[];
-  push?: number;
+  kind: DesignKind;
+  items: DItem[];
+  numeral?: string; // chapter numeral ("I.") or the number a counter lands on
+  seed?: number;
 };
 export type Mark = { src: string; w: number; h: number; opacity: number };
 

@@ -30,7 +30,7 @@ const GUIDE = `You are the story editor of an a16z-style talking-head Short (whi
 
 Fields (every quote is copied exactly from the numbered sentence "s"; keep quotes 1-4 words unless stated):
 - format: "standard" (a thesis or advice), "story" (a first-person anecdote) or "explainer".
-- hook: {"type": "H1" if sentence 1 is short (<= 8 words) and states the thesis, "H6" if its thesis is 1-2 words, "H2" if it is a long claim, "H4" for a narrative opener; "big": the 1-3 words of sentence 1 that should be set big}.
+- hook: {"type": "H1" if sentence 1 is short (<= 8 words) and states the thesis, "H6" if its thesis is 1-2 words, "H2" if it is a long claim, "H4" for a narrative opener; "big": the 1-3 content words of sentence 1 that should be set big (a noun, verb, adjective or number; never "sometimes", "so", "basically", "let's say" or a pronoun)}.
 - key: emphasis targets, each {"s", "q", "kind", "p"}: kind T = the topic/thesis term (first mention), P = the payoff that answers a setup, C = a contrast or negation word, N = a number that pays off a scale claim, I = intensifier + head ("much less", "10x better"), D = an imperative ("keep doing stuff"), Q = a quoted punch line. p = priority 1-5 (5 = the most important idea of the Short).
 - punch: the punchline sentences, each {"s", "q": its last 2-4 words}.
 - compounds: multiword names and fixed collocations that must never be split across two captions ("social media", "venture capital", "Elon Musk").
@@ -38,11 +38,18 @@ Fields (every quote is copied exactly from the numbered sentence "s"; keep quote
 - quotes: quoted or imagined speech and coined terms: {"s", "q": the quoted words (up to 12), "kind": "reported" | "imagined" | "famous" | "coined"}.
 - drops: words a careful editor would leave out of the captions: abandoned words before a self-interruption, stutters, a filler "like" that interrupts a phrase. {"s", "q"}.
 - cards: 0-2 keyword cards. A card is a full-screen burgundy title shown for about 1.5 s while the speaker keeps talking: use it for a named concept introduced as the payoff of a setup ("the inventor", "taste"), or the single most important idea. {"s", "q": the 1-6 spoken words the card covers, "text": 1-3 of those exact spoken words, the concept itself; never a paraphrase}. Not in the first 3 seconds, not in the last 30% of the Short, at least 6 s apart.
-- broll: about one moment per 4 seconds of speech (an a16z Short spends about half its time on footage) where footage would carry the line, as an a16z editor cuts away from the speaker: a concrete object, place, action, era or group of people the words name or imply (skip the opening sentence and the final sentence; never two moments in a row). {"s", "q": the 4-12 spoken words it covers, "query": a 2-4 word stock-footage search in plain documentary terms (no names, no brands, no abstract ideas), "alt": a second, different search for the same moment}.`;
+- broll: moments where real footage of a concrete thing would carry the line, as an a16z editor cuts away from the speaker: an object, a place, an action or an era the words literally name (never a metaphor, a feeling or an abstract idea; skip the opening and the final sentence; never two moments in a row). About one per 6 seconds. {"s", "q": the 4-12 spoken words it covers, "kind": "object" | "place" | "action" | "era" | "people", "query": a 2-4 word stock-footage search naming that exact thing in plain documentary terms (prefer objects and places over people; no names, brands or abstract words), "alt": a second search for the same thing}.
+- designs: designed full-screen inserts the a16z team builds from the words themselves (0-5, about one per 12-15 s, at least 5 s apart, not in the first 3 s or the last 2 s, never on the same words as a card or a broll moment). Every text field is copied exactly from the transcript except "numeral". Kinds:
+  {"kind": "chapter", "s", "numeral": "I." / "II." / "III.", "q": the 2-7 spoken words naming that section} - only when the speaker announces numbered sections or reasons ("the first one is", "number two").
+  {"kind": "list", "s", "items": ["...", "...", "..."]} - three or more items named in a row (1-4 spoken words each, in spoken order; they may run into the next sentences).
+  {"kind": "versus", "s", "left": "...", "connector": "&" | "vs" | "or" | "not", "right": "..."} - two things set against each other (1-5 spoken words each).
+  {"kind": "number", "s", "q": the spoken number words, "numeral": how it is written ("1000x", "97%", "10 years"), "label": 1-4 spoken words saying what it counts} - a magnitude that pays off a claim.
+  {"kind": "bubbles", "s", "lines": [{"who": "them" | "me", "q": "..."}]} - a short exchange or message the speaker quotes (each line 2-12 spoken words; "me" is the speaker's side).
+  {"kind": "quote", "s", "q": the single thesis sentence (4-10 spoken words), "key": the one word of it to set in serif italic}.`;
 
-const SHAPE = `{"format":"standard","hook":{"type":"H1","big":"AI native"},"key":[{"s":3,"q":"much less","kind":"I","p":4}],"punch":[{"s":9,"q":"keep doing stuff"}],"compounds":[{"s":2,"q":"venture capital"}],"reveal":[],"quotes":[],"drops":[],"cards":[{"s":5,"q":"the inventor","text":"inventor"}],"broll":[{"s":4,"q":"the first time I walked into the factory","query":"factory floor workers","alt":"assembly line machines"}]}`;
+const SHAPE = `{"format":"standard","hook":{"type":"H1","big":"AI native"},"key":[{"s":3,"q":"much less","kind":"I","p":4}],"punch":[{"s":9,"q":"keep doing stuff"}],"compounds":[{"s":2,"q":"venture capital"}],"reveal":[],"quotes":[],"drops":[],"cards":[{"s":5,"q":"the inventor","text":"inventor"}],"broll":[{"s":4,"q":"the first time I walked into the factory","kind":"place","query":"factory floor machines","alt":"assembly line"}],"designs":[{"kind":"list","s":9,"items":["taste","experience","soul"]}]}`;
 
-async function ask(sdk: Sdk, prompt: string): Promise<string> {
+export async function ask(sdk: Sdk, prompt: string, images?: { dataUrl: string; name: string }[]): Promise<string> {
   let last: any = null;
   // The app's assistant can fail a turn while its runtime (re)starts ("model metadata unavailable");
   // it recovers within about a minute, so retry with growing pauses.
@@ -50,7 +57,7 @@ async function ask(sdk: Sdk, prompt: string): Promise<string> {
   for (let attempt = 0; attempt < waits.length; attempt += 1) {
     if (waits[attempt]) await new Promise((r) => setTimeout(r, waits[attempt]));
     try {
-      return (await sdk.askAI({ prompt, timeoutMs: 300000 })).text;
+      return (await (sdk.askAI as any)(images && images.length ? { prompt, timeoutMs: 300000, images } : { prompt, timeoutMs: 300000 })).text;
     } catch (e) {
       last = e;
     }
@@ -74,7 +81,7 @@ function find(words: TWord[], sents: { from: number; to: number }[], s: number, 
   return null;
 }
 
-export type Semantic = { tags: Tags; cards: { span: Span; text: string }[]; broll: { span: Span; query: string; alt: string }[]; missing: number; raw: string };
+export type Semantic = { tags: Tags; cards: { span: Span; text: string }[]; broll: { span: Span; query: string; alt: string; kind?: string }[]; designs?: DesignPlan[]; missing: number; raw: string };
 
 export async function semanticPass(sdk: Sdk, words: TWord[], hint = ""): Promise<Semantic> {
   const sents = sentences(words);
@@ -176,10 +183,74 @@ export function resolveSemantic(o: any, words: TWord[], sents: { from: number; t
       const sp = f(b.s, b.q);
       const query = String(b.query || "").trim();
       const alt = String(b.alt || "").trim();
-      return sp && query ? { span: sp, query, alt: alt || query } : null;
+      const kind = String(b.kind || "object");
+      return sp && query ? { span: sp, query, alt: alt || query, kind } : null;
     })
-    .filter(Boolean) as { span: Span; query: string; alt: string }[];
-  return { tags, cards, broll, missing, raw };
+    .filter(Boolean) as { span: Span; query: string; alt: string; kind: string }[];
+  const designs = resolveDesigns(arr(o.designs), words, sents, f);
+  return { tags, cards, broll, designs, missing, raw };
+}
+
+export type DesignPart = { role: "title" | "connector" | "label" | "me" | "them" | "key" | "item"; span: Span | null; text: string };
+export type DesignPlan = { kind: "chapter" | "list" | "versus" | "number" | "bubbles" | "quote"; parts: DesignPart[]; numeral?: string };
+
+// Designed inserts from the assistant's answer; a design whose spoken parts are not all found is dropped.
+function resolveDesigns(list: any[], words: TWord[], sents: { from: number; to: number }[], f: (s: any, q: any) => Span | null): DesignPlan[] {
+  const out: DesignPlan[] = [];
+  const near = (s: number, q: string, after = -1): Span | null => {
+    // the sentence given, then the next three (list items run on)
+    for (let k = 0; k < 4; k += 1) {
+      const sp = find(words, sents, s + k, q);
+      if (sp && sp[0] > after) return sp;
+    }
+    return null;
+  };
+  for (const d of list) {
+    const s = Number(d?.s) || 0;
+    if (d?.kind === "chapter") {
+      const sp = f(s, d.q);
+      if (sp) out.push({ kind: "chapter", numeral: String(d.numeral || "I.").slice(0, 5), parts: [{ role: "title", span: sp, text: String(d.q) }] });
+    } else if (d?.kind === "list") {
+      const items: DesignPart[] = [];
+      let after = -1;
+      for (const it of Array.isArray(d.items) ? d.items.slice(0, 5) : []) {
+        const sp = near(s, String(it), after);
+        if (!sp) break;
+        items.push({ role: "item", span: sp, text: String(it) });
+        after = sp[1];
+      }
+      if (items.length >= 3) out.push({ kind: "list", parts: items });
+    } else if (d?.kind === "versus") {
+      const l = f(s, d.left);
+      const r = near(s, String(d.right || ""), l ? l[1] : -1);
+      const conn = ["&", "vs", "or", "not"].includes(d.connector) ? d.connector : "&";
+      if (l && r) out.push({ kind: "versus", parts: [{ role: "item", span: l, text: String(d.left) }, { role: "connector", span: null, text: conn }, { role: "item", span: r, text: String(d.right) }] });
+    } else if (d?.kind === "number") {
+      const sp = f(s, d.q);
+      const lab = d.label ? near(s, String(d.label)) : null;
+      const numeral = String(d.numeral || "").trim();
+      if (sp && /\d/.test(numeral)) out.push({ kind: "number", numeral, parts: [{ role: "key", span: sp, text: numeral }, ...(lab ? [{ role: "label" as const, span: lab, text: String(d.label) }] : [])] });
+    } else if (d?.kind === "bubbles") {
+      const lines: DesignPart[] = [];
+      let after = -1;
+      for (const l of Array.isArray(d.lines) ? d.lines.slice(0, 4) : []) {
+        const sp = near(s, String(l?.q || ""), after);
+        if (!sp) continue;
+        lines.push({ role: l?.who === "me" ? "me" : "them", span: sp, text: String(l.q) });
+        after = sp[1];
+      }
+      if (lines.length) out.push({ kind: "bubbles", parts: lines });
+    } else if (d?.kind === "quote") {
+      const sp = f(s, d.q);
+      if (sp) {
+        const key = norm(String(d.key || ""));
+        const parts: DesignPart[] = [];
+        for (const w of words) if (w.i >= sp[0] && w.i <= sp[1]) parts.push({ role: norm(w.t) === key ? "key" : "item", span: [w.i, w.i], text: w.t.replace(/[.,!?;:"]+$/g, "") });
+        out.push({ kind: "quote", parts });
+      }
+    }
+  }
+  return out;
 }
 
 const range = (sp: Span) => {

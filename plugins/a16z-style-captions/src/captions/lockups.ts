@@ -20,6 +20,7 @@ export type Group = {
 };
 
 const words = (g: { toks: Token[] }) => g.toks.length;
+const DISCOURSE = /^(sometimes|so|basically|actually|really|just|like|well|now|then|also|maybe|probably|literally|obviously|honestly)$/;
 const has = (t: Token, i: number) => t.src.includes(i);
 
 export function plainGroups(chunks: Chunk[]): Group[] {
@@ -35,12 +36,13 @@ export function plainGroups(chunks: Chunk[]): Group[] {
 function bigScore(line: Token[], tags: Tags, isLast: boolean): number {
   let s = 0;
   for (const k of tags.keyTerms || []) if (line.some((t) => has(t, k.head))) s += 2 + k.priority;
-  for (const i of tags.hook?.big || []) if (line.some((t) => has(t, i))) s += 6;
+  for (const i of tags.hook?.big || []) if (line.some((t) => has(t, i) && !DISCOURSE.test(norm(t.t)))) s += 6;
   for (const t of line) {
     const n = norm(t.t);
     if (isNumberWord(t.t) || /\d/.test(t.t)) s += 3;
     if (INTENSIFIER.has(n)) s += 1.5;
-    if (wordClass(t.t) === "CONT") s += 0.6 + Math.min(0.6, n.length / 15);
+    if (DISCOURSE.test(n)) s -= 2.5;
+    else if (wordClass(t.t) === "CONT") s += 0.6 + Math.min(0.6, n.length / 15);
     else s -= 0.4;
   }
   if (line.length > 3) s -= 2 * (line.length - 3);
@@ -126,10 +128,13 @@ function keyCentered(toks: Token[], tags: Tags, kind: "hook" | "lockup"): { line
   }
   if (a < 0) return null;
   if (b - a > 2) a = b - 2;
+  // openers and discourse adverbs never carry the big line
+  if (DISCOURSE.test(norm(toks[a].t)) && a === b) return null;
   const punct = (t: Token) => /[.,!?;:]["”’)]*$/.test(t.t);
-  // grow over adjacent content words: 'greatest' -> 'greatest artist'
-  while (b - a < 2 && b + 1 < toks.length && !punct(toks[b]) && wordClass(toks[b + 1].t) === "CONT") b += 1;
-  while (b - a < 2 && a - 1 >= 0 && !punct(toks[a - 1]) && wordClass(toks[a - 1].t) === "CONT" && !isNumberWord(toks[a].t)) a -= 1;
+  // grow over adjacent content words: 'greatest' -> 'greatest artist' (two words, about 14 characters at most)
+  const chars = () => toks.slice(a, b + 1).map((t) => t.t).join(" ").length;
+  while (b - a < 1 && b + 1 < toks.length && !punct(toks[b]) && wordClass(toks[b + 1].t) === "CONT" && chars() + toks[b + 1].t.length < 16) b += 1;
+  while (b - a < 1 && a - 1 >= 0 && !punct(toks[a - 1]) && wordClass(toks[a - 1].t) === "CONT" && !isNumberWord(toks[a].t) && !DISCOURSE.test(norm(toks[a - 1].t))) a -= 1;
   // function words never close the big line
   while (b > a && wordClass(toks[b].t) !== "CONT" && !isNumberWord(toks[b].t)) b -= 1;
   const lead = a;

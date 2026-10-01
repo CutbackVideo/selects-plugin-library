@@ -84,9 +84,10 @@ export function planFraming(clips: NewClip[], faces: Record<string, SourceFaces>
     if (c.jump) {
       jumps += 1;
       const r = hash(jumps + ci);
-      let next = r < 0.45 ? m : m === 1 ? (r < 0.75 ? 1.15 : 1.25) : 1;
+      // modest punches: the source is already enlarged to fill a 9:16 frame
+      let next = r < 0.45 ? m : m === 1 ? (r < 0.75 ? 1.1 : 1.18) : 1;
       const t = c.start / fps;
-      if (next === lastM && t - lastCutAt < 0.8) next = m === 1 ? 1.15 : 1;
+      if (next === lastM && t - lastCutAt < 0.8) next = m === 1 ? 1.1 : 1;
       m = next;
     } else if (ci > 0) m = 1;
     if (ci > 0) {

@@ -137,7 +137,7 @@ export function layoutUnit(u: PUnit, k: number, data: GraphicData, faces: Faces,
       li === bigIdx + 1
         ? centered
           ? metrics(bigFace).descent * sized(bigFace, bigSans) + ms.cap * smallPx + 0.05 * xhBig
-          : 0.14 * xhBig + ms.xh * smallPx
+          : tailGap(bigLine, bm, smallPx, xhBig, ms.xh)
         : base + 1.08 * smallPx;
     const right = Math.min(bm.width + 0.06 * W, Math.max(bm.width, m.width));
     placed.push({ li, line, m, base, x0: centered ? (bm.width - m.width) / 2 : right - m.width });
@@ -166,6 +166,18 @@ export function layoutUnit(u: PUnit, k: number, data: GraphicData, faces: Faces,
   const res = { tokens: laid, top: minY + dy, bottom: maxY + dy };
   cache[key] = res;
   return res;
+}
+
+// Under a big line whose right half has descenders (g, j, p, q, y), the flush-right tail drops below
+// them with a little clearance; otherwise its x-height top tucks just under the big baseline.
+function tailGap(big: LineIn, m: { width: number; parts: { dx: number; w: number }[] }, smallPx: number, xhBig: number, xhRatio: number): number {
+  let desc = false;
+  big.toks.forEach((t, j) => {
+    const part = m.parts[j];
+    if (part.dx + part.w > m.width * 0.4 && /[gjpqy,;]/.test(t.text)) desc = true;
+  });
+  const size = big.toks[0]?.size || 0;
+  return (desc ? 0.24 * size + 0.15 * smallPx : 0.14 * xhBig) + xhRatio * smallPx;
 }
 
 const mix = (a: string, b: string, p: number) => {

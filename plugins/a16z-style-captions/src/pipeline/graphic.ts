@@ -63,32 +63,55 @@ export function prepareShort(job: Job, short: DraftInfo): Prepared {
   for (const c of job.framing.cuts) cutSet.add(c);
   const cuts = [...cutSet].sort((a, b) => a - b);
 
-  // keyword cards: not in the first 3 s or the last 30%, at least 6 s apart, at most two
+  // keyword cards and designed inserts. A card spells a concept for about 1.5 s; a design carries the
+  // words themselves (list, quote, bubbles...). None in the first 3 s or the last 1.5 s, at least 4 s
+  // apart, no captions while one is up.
   const cards: Card[] = [];
   const suppress: [number, number][] = [];
-  if (job.opts.cards !== false)
+  const caseWord = (w: string) => (/[A-Z].*[A-Z]/.test(w) || properNoun(w, words) ? w : w.toLowerCase());
+  const free = (a: number, b: number) => a / fps >= 3 && b / fps <= duration - 1.5 && !cards.some((x) => a < x.b + 4 * fps && b > x.a - 4 * fps);
+  const place = (c: Card) => {
+    cards.push(c);
+    const inside = words.filter((w) => w.s * fps >= c.a - 1 && w.s * fps < c.b && w.i >= 0).map((w) => w.i);
+    if (inside.length) suppress.push([Math.min(...inside), Math.max(...inside)] as Span);
+  };
+  const onset = (sp: Span | null) => (sp ? at(sp[0]) : undefined);
+  if (job.opts.cards !== false) {
     for (const c of semantic?.cards || []) {
-      if (cards.length >= 2) break;
+      if (cards.filter((x) => x.kind === "keyword").length >= 2) break;
       const first = at(c.span[0]);
       const last = at(c.span[1]);
       if (!first || !last) continue;
       // the card cuts in four frames before the word it spells (the house build: empty, specks, word)
       const textWord = words.find((w) => w.s >= first.s - 0.01 && w.e <= last.e + 0.01 && norm(w.t) === norm(c.text.split(/\s+/)[0])) || first;
-      const a = Math.round((textWord.s - (4 * fps) / 24 / fps) * fps);
-      if (a / fps < 3 || a / fps > 0.7 * duration) continue;
-      if (cards.some((x) => Math.abs(x.a - a) < 6 * fps)) continue;
+      const a = Math.round((textWord.s - 4 / 24) * fps);
       const b = Math.min(Math.round((textWord.s + 2.2) * fps), Math.max(Math.round((textWord.s + 1.4) * fps), Math.round((last.e + 0.2) * fps)));
-      const appear = a;
-      // the caption case rule: lowercase, but names and acronyms keep their capitals
-      const text = c.text
-        .split(/\s+/)
-        .map((w) => (/[A-Z].*[A-Z]/.test(w) || properNoun(w, words) ? w : w.toLowerCase()))
-        .join(" ");
-      cards.push({ a, b, kind: "keyword", palette: "burgundy", lines: [{ text, at: appear, face: 0, scale: 1.5 }], push: 0.04 });
-      // no captions while the card is up
-      const inside = words.filter((w) => w.s * fps >= a - 1 && w.s * fps < b && w.i >= 0).map((w) => w.i);
-      if (inside.length) suppress.push([Math.min(...inside), Math.max(...inside)] as Span);
+      if (a / fps > 0.7 * duration || !free(a, b)) continue;
+      place({ a, b, kind: "keyword", items: [{ text: c.text.split(/\s+/).map(caseWord).join(" "), at: a, role: "key" }] });
     }
+    for (const dz of semantic?.designs || []) {
+      const spoken = dz.parts.filter((p) => p.span);
+      const first = onset(spoken[0]?.span || null);
+      const lastPart = spoken[spoken.length - 1]?.span;
+      const last = lastPart ? at(lastPart[1]) : undefined;
+      if (!first || !last) continue;
+      const lead = dz.kind === "chapter" ? 0.1 : 0.12;
+      const a = Math.round((first.s - lead) * fps);
+      const minDur = dz.kind === "chapter" ? 1.6 : 1.4;
+      const maxDur = dz.kind === "list" || dz.kind === "bubbles" ? 5.5 : 3.2;
+      const b = Math.round(Math.min(first.s + maxDur, Math.max(first.s + minDur, last.e + 0.35)) * fps);
+      if (!free(a, b)) continue;
+      const items = dz.parts.map((p, k) => {
+        const w = onset(p.span);
+        const prev = dz.parts[k - 1]?.span ? at(dz.parts[k - 1].span![1]) : undefined;
+        const t = w ? w.s : prev ? prev.e : first.s;
+        const text = p.role === "key" && dz.kind === "number" ? p.text : p.text.replace(/["“”]/g, "").split(/\s+/).map(caseWord).join(" ");
+        return { text, at: Math.max(a, Math.round((t - 1 / fps) * fps)), role: p.role };
+      });
+      place({ a, b, kind: dz.kind, items, numeral: dz.numeral });
+    }
+  }
+  cards.sort((x, y) => x.a - y.a);
   // the picture changes at a card's edges
   for (const c of cards) cuts.push(c.a / fps, c.b / fps);
   cuts.sort((a, b) => a - b);
@@ -134,7 +157,7 @@ export async function buildGraphic(o: {
     const b = Math.min(firstCard, firstInsert, a + Math.round(2.6 * fps));
     // under the opening caption block (a hook lockup grows about 0.08 H below its first line)
     const y = Math.min(0.8, (track.units[0]?.y || 0.55) + 0.12);
-    nameTag = { a, b, first: parts.join(" "), last, role: (job.opts.role || "").trim(), x: 0.1, y, cap: 0.032 };
+    nameTag = { a, b, first: parts.join(" "), last, role: (job.opts.role || "").trim(), x: 0.1, y, cap: 0.042 };
   }
 
   // the user's own mark, top right

@@ -18,6 +18,7 @@ type Data = {
   open?: { s0: number; ax: number; ay: number } | null;
   push?: number; // a slow push over the clip (B-roll), as a fraction
   end?: number;
+  grade?: string; // a CSS filter that pulls stock toward one shared look
 };
 
 const n = (v: any, f: number) => (typeof v === "number" && Number.isFinite(v) ? v : f);
@@ -45,7 +46,7 @@ export default function Look({ Source, data }: { Source: React.ComponentType; da
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", backgroundColor: "#000" }}>
       <div style={{ position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: "scale(" + sw / W + ", " + sh / H + ")", overflow: "hidden" }}>
         <div style={{ position: "absolute", left: 0, top: 0, width: W, height: H, transform: transform || undefined, transformOrigin: "0 0" }}>
-          <div style={{ position: "absolute", left: s.x, top: s.y, width: s.w, height: s.h }}>
+          <div style={{ position: "absolute", left: s.x, top: s.y, width: s.w, height: s.h, filter: d.grade || undefined }}>
             <Source />
           </div>
         </div>

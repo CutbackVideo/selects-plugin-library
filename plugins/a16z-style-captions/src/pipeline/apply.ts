@@ -91,8 +91,10 @@ const INS: any[] = ${J(inserts)};
 const LOOK = ${J(inserts.length ? lookCode : "")};
 const stretch = (sw: number, sh: number) => { const k = Math.min(${W} / sw, ${H} / sh); return { x: ${W} / (sw * k), y: ${H} / (sh * k) }; };
 let placed = 0;
+const skipped: number[] = [];
 for (const b of INS) {
-  await d.overlayResource({ resource: p.resource(b.id), over: await d.rangeAtFrames(b.a, b.b), sourceStartSeconds: 0 });
+  // one clip that will not place must not stop the captions
+  try { await d.overlayResource({ resource: p.resource(b.id), over: await d.rangeAtFrames(b.a, b.b), sourceStartSeconds: 0 }); } catch { skipped.push(b.a); continue; }
   const all = await d.clips({ trackScope: "all" });
   const video: any = all.filter((c: any) => c.trackKind === "video" && c.resourceId === b.id && c.startFrame === b.a)[0];
   if (!video) continue;
@@ -101,7 +103,7 @@ for (const b of INS) {
   const v1: any = (await d.clips({ trackScope: "all" })).find((c: any) => c.clipId === video.clipId);
   await d.setClipTransform({ clip: v1, scale: stretch(b.sw, b.sh), position: { x: 0, y: 0 }, rotation: 0 });
   const v2: any = (await d.clips({ trackScope: "all" })).find((c: any) => c.clipId === video.clipId);
-  await d.addVideoEffect({ clip: v2, label: ${J(LOOK_LABEL)}, tsxCode: LOOK, parameters: { W: ${W}, H: ${H}, fps: ${J(fps)}, sw: b.sw, sh: b.sh, start: b.a, end: b.b, push: b.push, shots: [{ from: b.a, to: b.b, ...b.rect }] }, editableParameters: [] });
+  await d.addVideoEffect({ clip: v2, label: ${J(LOOK_LABEL)}, tsxCode: LOOK, parameters: { W: ${W}, H: ${H}, fps: ${J(fps)}, sw: b.sw, sh: b.sh, start: b.a, end: b.b, push: b.push, grade: "saturate(0.8) contrast(1.05) brightness(0.97) sepia(0.07)", shots: [{ from: b.a, to: b.b, ...b.rect }] }, editableParameters: [] });
   placed += 1;
 }
 const g = await d.addMotionGraphic({ label: ${J(GRAPHIC_LABEL)}, tsxCode: ${J(graphicCode)}, parameters: ${J(data)}, editableParameters: [], within: await d.rangeAtFrames(0, ${endFrame}) });
@@ -118,7 +120,7 @@ if (voice) for (const id of (await d.clips({ trackScope: "main" })).filter((c: a
   if (clip) await d.setClipAudio({ clip, volumeDb: voice });
 }
 const saved = await d.commitAll("a16z Style Captions: B-roll, captions, graphics and music");
-return { commitId: saved.commitId, graphic: g.clipId, music: bed ? bed.inserted : 0, placed };`,
+return { commitId: saved.commitId, graphic: g.clipId, music: bed ? bed.inserted : 0, placed, skipped };`,
     true
   );
 }

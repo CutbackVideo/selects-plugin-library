@@ -182,7 +182,7 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
       const blocked = prep.cards.map((c) => [c.a / fps, c.b / fps] as [number, number]);
       const runs = planInserts(prep.words, job.semantic.broll, prep.duration, blocked, { earliest: 2.4 });
       job.brollCache = job.brollCache || {};
-      const got = await fetchInserts(sdk, runs, dir, (s) => onStep("broll", "run", s), job.brollCache);
+      const got = await fetchInserts(sdk, runs, dir, (s) => onStep("broll", "run", s), job.brollCache, prep.words);
       notes.push(...got.notes);
       if (got.shots.length) {
         const paths = [...new Set(got.shots.map((x) => x.clip.path))];
@@ -194,14 +194,16 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
           .map((x, k) => ({
             id: idOf(x.clip.path),
             a: Math.round(x.a * fps),
-            b: Math.round(x.b * fps),
+            // never past the end of the cut clip
+            b: Math.min(Math.round(x.b * fps), Math.round(x.a * fps) + (x.clip.dur ? Math.floor((x.clip.dur - 0.06) * fps) : 1e9)),
             sw: x.clip.width,
             sh: x.clip.height,
             rect: coverRect(x.clip.width, x.clip.height, 1080, 1920),
             // a slow push on about one shot in six
             push: k % 6 === 2 ? 0.06 : 0,
           }));
-        insertTimes = got.shots.filter((x) => idOf(x.clip.path)).map((x) => ({ a: Math.round(x.a * fps) / fps, b: Math.round(x.b * fps) / fps, bright: (x.luma ?? 0) > 175 }));
+        placed = placed.filter((x) => x.b - x.a >= Math.round(0.5 * fps));
+        insertTimes = placed.map((x) => ({ a: x.a / fps, b: x.b / fps, bright: (got.shots.find((g) => idOf(g.clip.path) === x.id && Math.round(g.a * fps) === x.a)?.luma ?? 0) > 175 }));
         const credits = [...new Set(got.shots.map((x) => x.clip.credit + " (" + x.clip.service + ")"))];
         notes.push("Stock footage: " + credits.join(", ") + ".");
       }
