@@ -97,3 +97,4 @@ jobs:
           node plugins/summer-trip/tests/panel.test.cjs
           node plugins/summer-trip/tests/package.test.cjs
           node plugins/summer-trip/tests/adapter.test.cjs
+          node plugins/summer-trip/tests/i18n.test.cjs
