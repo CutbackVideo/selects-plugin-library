@@ -41,6 +41,10 @@ Your saved library, independent of any project.
 
 - Play a track locally, read and edit a short note on it, or reveal it in
   Finder (macOS) or File Explorer (Windows).
+- While a track plays, its waveform shows under the card: click or drag on it
+  to scrub, as in Browse. Tracks saved without an Epidemic waveform get one
+  drawn from the file on disk (macOS: ffmpeg, which Selects provides; Windows:
+  ffmpeg if it is on your PATH, otherwise WAV files only).
 - **Add to draft** imports the file into the current project if it is not there
   yet and places it on the open Draft, either at the start or at the playhead.
   It commits the Draft, so the clip is editable straight away.
