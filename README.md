@@ -32,7 +32,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Torn Paper Love](plugins/torn-paper-love) — 4:3 torn-paper couple photo edit with ransom-note letters | Experimental |
 | [THE END Credits](plugins/the-end-credits) — end-credits roll with a typed THE END title and a window of your clips | Experimental |
 | [Summer Trip](plugins/summer-trip) — beat-synced 16:9 summer trip video with a typed title, a split-screen grid and a film-frame ending | Experimental |
-| [Travel Beat Vlog](plugins/travel-beat-vlog) — fast 9:16 travel edit with two quick montages, a hero title, two grids, reference colour and bundled music | Experimental |
+| [Travel Beat Vlog](plugins/travel-beat-vlog) — fast 9:16 travel edit cut to your own song: two quick montages on its drum hits, a hero title, two grids and reference colour | Experimental |
 | [Six Clip Velocity](plugins/six-clip-velocity) — six videos become a speed-ramped velocity edit with blur cuts, a white flash and kinetic subtitles | Experimental |
 | [Vox Style Explainer](plugins/vox-explainer) — a Vox-style explainer video from a link or text | Experimental |
 | [Card News Maker](plugins/card-news-maker) — editable 4:5 card news from a news article | Experimental |

@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import {spawnSync} from 'node:child_process';
-import {scenePlan,slotNeeds,colorTransfer,normalizeFinish,buildFinishScript,buildCutoutScript,VIDEO_SLOTS} from '../plugins/travel-beat-vlog/operation.mjs';
+import {scenePlan,slotNeeds,colorTransfer,normalizeFinish,buildFinishScript,buildCutoutScript,VIDEO_SLOTS,REFERENCE_TIMING,validateTiming,withinLimits,LIMITS} from '../plugins/travel-beat-vlog/operation.mjs';
+import {analyseSamples,timingFrom,hits,rolls} from '../plugins/travel-beat-vlog/analyze.mjs';
 
 const dir=path.resolve(import.meta.dirname,'../plugins/travel-beat-vlog');
 // Independent reference measurements (30 fps, 468 frames), typed from the frame analysis.
@@ -48,7 +49,7 @@ test('colour transfer is identity when the clip already matches, and clamps extr
 });
 
 const plan=scenePlan(30);
-const request=()=>({mode:'finish',projectId:'p',draftId:'d',fps:30,musicResourceId:'m',
+const request=()=>({mode:'finish',projectId:'p',draftId:'d',fps:30,songResourceId:'m',timing:REFERENCE_TIMING,
  videos:Object.fromEntries(VIDEO_SLOTS.map((s,i)=>[s,{resourceId:'v'+i,width:1080,height:1920}])),
  hero:{resourceId:'h',width:3000,height:4000},placements:[{clipId:7,trackId:'th'}],grades:{},title:{text:'TRAVEL',color:'#F4C711'}});
 
@@ -70,7 +71,7 @@ function fakeSelects(){
  return {selects:{project:()=>project,draft:()=>d},log};
 }
 
-test('finish places 35 muted video clips, grids, the hero, the title and music, then saves once',async()=>{
+test('finish places 35 muted video clips, grids, the hero, the title and the song, then saves once',async()=>{
  const {selects,log}=fakeSelects();
  const r=await vm.runInNewContext('(async()=>{'+buildFinishScript(request()).replace(/const (input|plan):any=/g,'const $1=')+'})()',{selects});
  assert.equal(r.status,'saved',r.message);
@@ -98,7 +99,7 @@ test('builder modes run as the panel calls them',()=>{
 
 // The panel's Image bridge: stills are held past their 5 s source (hero 47 frames is shorter; cutout 40).
 const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
-const bridge=panelSource.slice(panelSource.indexOf('export async function placeNativeImages'),panelSource.indexOf('// Registers the bundled music'));
+const bridge=panelSource.slice(panelSource.indexOf('export async function placeNativeImages'),panelSource.indexOf('// Registers a file the plugin wrote'));
 const {placeNativeImages}=vm.runInThisContext('(function(){'+bridge.replaceAll('export async function','async function')+';return {placeNativeImages};})()');
 test('bridge places each item at its frames with a safe sourceDuration',async()=>{
  const trims=[];let n=1;const clips=new Map();
@@ -107,4 +108,67 @@ test('bridge places each item at its frames with a safe sourceDuration',async()=
  const di={ProjectRepository:{findById:async()=>({getEditedSequences:()=>['d']})},SequenceRepository:{findById:async()=>({getFrameRate:()=>30,getDuration:()=>468})},TimelineMutation:{run:async(_s,_l,fn)=>({status:'committed',sequence:fn({clone:()=>cand})})}};
  const out=await placeNativeImages({di,libraryId:'l',projectId:'p',sources:[{analyzed:{},main:{},primary:{getId:()=>1},width:3000,height:4000}]},'d',plan,[{source:0,startFrame:55,endFrame:102}],'hero');
  assert.deepEqual(out.placements.map(p=>[p.startFrame,p.endFrame]),[[55,102]]);assert.deepEqual(trims,[150]);
+});
+
+// --- song fitting (analyze.mjs) ---
+const SR=22050;
+// A synthetic song: a kick on every beat, a pitched stab on every off-beat, and one 12-hit roll (0.12 s apart)
+// that, like a drum fill, replaces the groove while it plays.
+function synthSong(bpm,seconds,rollAt){
+ const x=new Float32Array(Math.round(seconds*SR)),P=60/bpm;
+ const add=(t,f,len,amp)=>{const i0=Math.round(t*SR);for(let i=0;i<len*SR&&i0+i<x.length;i++){const e=Math.exp(-i/(len*SR/4));x[i0+i]+=amp*e*Math.sin(2*Math.PI*f*i/SR);}};
+ const fill=t=>t>rollAt-0.1&&t<rollAt+12*0.12;
+ for(let t=0.05;t<seconds;t+=P){if(!fill(t))add(t,55,0.18,0.9);if(!fill(t+P/2))add(t+P/2,880,0.06,0.25);}
+ for(let k=0;k<12;k++){add(rollAt+k*0.12,660,0.05,0.8);add(rollAt+k*0.12,1320,0.05,0.4);}
+ return x;
+}
+test('a synthetic song: tempo found, the window opens on the drum roll, and its timing is valid',()=>{
+ const fit=analyseSamples(synthSong(120,45,12.0));
+ assert.ok(Math.abs(fit.bpm-120)<1.5,'bpm '+fit.bpm);
+ assert.equal(fit.K,1.5);
+ assert.ok(Math.abs(fit.window.m1[0]-12.0)<0.04,'window starts at '+fit.window.m1[0]);
+ assert.ok(fit.window.roll>=10);
+ const t=withinLimits(validateTiming(timingFrom(fit,'hits')));
+ assert.equal(t.m1[0],12);
+ const want=fit.window.m1.slice(0,11).map(v=>Math.round((v-fit.window.m1[0]+0.4)*30));
+ assert.deepEqual(t.m1.slice(0,want.length),want);   // montage-1 cuts sit on the roll's hits
+});
+test('hits and rolls: 12 evenly spaced hits form one roll, a 16th-note groove does not',()=>{
+ assert.deepEqual(rolls(Array.from({length:12},(_,i)=>1+i*0.12)).map(r=>r.count),[12]);
+ assert.deepEqual(rolls(Array.from({length:20},(_,i)=>1+i*0.167)),[]);
+});
+test('every timing a song can produce stays within the lengths the template promises',()=>{
+ let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+ const b=f=>(f-102)/(30*60/89.4);
+ for(let bpm=75;bpm<=150;bpm+=2.5){
+  const P=60/bpm,K=(2*bpm/89.4)>=2.5?1.5:1,D=20,T=f=>D+K*b(f)*P;
+  for(let trial=0;trial<25;trial++){
+   const some=(a,c,n)=>Array.from({length:n},()=>a+rnd()*(c-a)).sort((u,v)=>u-v).filter((v,i,arr)=>!i||v-arr[i-1]>=2/30);
+   const m1=[T(12),...some(T(12)+0.07,T(55)-P/8,Math.floor(rnd()*14))];
+   const fit={P,K,bpm,window:{D,m1,m2:some(T(364)-P/4,T(424)-P/8,Math.floor(rnd()*14)),g1:some(T(147),T(182)-P/8,Math.floor(rnd()*6)),g2:some(T(227),T(263)-P/8,Math.floor(rnd()*6))}};
+   for(const mode of ['hits','reference']){
+    const t=withinLimits(validateTiming(timingFrom(fit,mode)));
+    for(const [s,v] of Object.entries(slotNeeds(t)))assert.ok(v<=(['V12','V17','V22'].includes(s)?LIMITS.long:LIMITS.clip)+1e-9,`${bpm} BPM ${mode}: ${s} needs ${v.toFixed(2)} s`);
+   }
+  }
+ }
+});
+
+// The template path: picks carry the app's Resource ids; the song is matched like the clips (SELECTS-1452).
+const templateSource=['const VIDEO_SLOTS=','const INVENTORY=','async function inventory','function templateIssue','async function scriptResourceIds','const LONG_SLOTS','async function templateMedia']
+ .map(start=>{const i=panelSource.indexOf(start);let j=panelSource.indexOf('\n}',i);if(start.startsWith('const '))j=panelSource.indexOf('\n',i)-1;return panelSource.slice(i,j+2);}).join('\n');
+const {templateMedia}=vm.runInThisContext('(function(){'+templateSource+';return {templateMedia};})()');
+function fakeTemplateSdk(){
+ const files=[...VIDEO_SLOTS.map((s,i)=>({name:'v'+i+'.mp4',type:'Video'})),{name:'hero.jpg',type:'Image'},{name:'song.m4a',type:'Audio'}].map((f,i)=>({...f,app:'uuid-'+i,short:'r'+i}));
+ const rows=files.map(f=>({resourceId:f.short,type:f.type,name:f.name,path:'/m/'+f.name,width:f.type==='Video'?1080:null,height:f.type==='Video'?1920:null,duration:4}));
+ return {files,sdk:{call:async()=>files.map(f=>({resourceId:f.app,name:f.name,type:f.type})),
+  runScript:async({script})=>({isError:false,result:script.includes('sourceFiles')?rows:files.map(f=>({id:f.short,name:f.name,type:f.type}))})}};
+}
+test('template run: the picked song is found by its app id, and a run without a song is refused',async()=>{
+ const {files,sdk}=fakeTemplateSdk(),pick=f=>({kind:f.type.toLowerCase(),resourceId:f.app,name:f.name});
+ const vids=files.filter(f=>f.type==='Video');
+ const inputs={hero:[pick(files.find(f=>f.type==='Image'))],long:vids.slice(0,3).map(pick),clips:vids.slice(3).map(pick),song:[pick(files.find(f=>f.type==='Audio'))]};
+ const got=await templateMedia(sdk,'p',inputs);
+ assert.equal(got.song.name,'song.m4a');assert.equal(got.song.type,'Audio');assert.equal(got.song.path,'/m/song.m4a');
+ await assert.rejects(templateMedia(sdk,'p',{...inputs,song:[]}),/Pick one song/);
 });

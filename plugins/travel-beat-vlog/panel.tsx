@@ -14,7 +14,6 @@
 import React from 'react';
 
 const VIDEO_SLOTS=Array.from({length:26},(_,i)=>'V'+(i+1));
-const SLOT_HINTS={V1:'Montage 1',V11:'Montage 1 (last)',V12:'Long shot under grid 1',V13:'Grid 1 top-left',V14:'Grid 1 top-right',V15:'Grid 1 bottom-left',V16:'Grid 1 bottom-right',V17:'Long shot under grid 2',V18:'Grid 2 top-left',V19:'Grid 2 top-right',V20:'Grid 2 bottom-left',V21:'Grid 2 bottom-right',V22:'Long shot',V23:'Short shot',V24:'Montage 2',V25:'Montage 2',V26:'Ending (fades out)'};
 const BUILDER='node "$SELECTS_USER_SKILLS_ROOT/travel-beat-vlog/build-script.mjs" ';
 const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.has(n.resourceId)).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path,width:n.frameSize?.width??null,height:n.frameSize?.height??null,duration:n.durationSeconds??null}));`;
 const encode=value=>{
@@ -106,7 +105,7 @@ export async function placeNativeImages(prepared,draftId,plan,items,label){
  return {placements,photos:sources.map(s=>({width:s.width,height:s.height}))};
 }
 
-// Registers the bundled music in the Project once, reusing an earlier import by path.
+// Registers a file the plugin wrote (hero cutout, song section) in the Project once, reusing an earlier import by path.
 async function ensureImported(sdk,projectId,file,type,summary){
  let rows=await inventory(sdk,projectId,'Find '+summary);
  if(!rows.some(r=>r.path===file&&r.type===type)){
@@ -118,44 +117,47 @@ async function ensureImported(sdk,projectId,file,type,summary){
  return m;
 }
 
-// Builds the vlog from 26 chosen videos (by slot) and a hero photo, both inventory rows:
+// Builds the vlog from 26 chosen videos (by slot), a hero photo and the user's song, all inventory rows:
 // the panel's Create Draft and a template run share it. Resolves to the saved Draft.
-async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,title,color,cutoutMode,grade,name,say,stillCurrent,libraryId=null,onDraft=_id=>{}}){
- const needs=JSON.parse(await builder(sdk,{mode:'needs'},'Read slot lengths',15000));
+async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,color,cutoutMode,grade,name,say,stillCurrent,libraryId=null,onDraft=_id=>{}}){
+ say('Finding the beat of your song…');
+ const fit=JSON.parse(await builder(sdk,{mode:'song',song:song.path,cuts},'Fit the vlog to the song',49152,240000));
+ const timing=fit.timing;
+ const needs=JSON.parse(await builder(sdk,{mode:'needs',timing},'Read slot lengths',15000));
  for(const s of VIDEO_SLOTS){const d=chosen[s].duration;if(d!=null&&d+1e-3<needs[s])throw Error(s+' ('+chosen[s].name+') is '+d.toFixed(2)+' s; it needs at least '+needs[s].toFixed(2)+' s.');}
  say('Cutting out the hero subject…');
  const cut=JSON.parse(await builder(sdk,{mode:'cutout',photo:heroPhoto.path,cutoutMode},'Cut out hero subject',15000,180000));
  const cutRow=await ensureImported(sdk,projectId,cut.path,'Image','hero cutout');
- const music=await ensureImported(sdk,projectId,JSON.parse(await builder(sdk,{mode:'music'},'Locate bundled music',15000)).path,'Audio','bundled music');
+ const songRow=await ensureImported(sdk,projectId,fit.audio,'Audio','song section');
  say('Matching colour to the reference…');
  // Measured before the Draft exists (reference 30 fps timing; seconds are rate-free), so a failure leaves no partial Draft.
- const ref=JSON.parse(await builder(sdk,{mode:'plan',fps:30},'Read travel vlog plan',30000));
+ const ref=JSON.parse(await builder(sdk,{mode:'plan',fps:30,timing},'Read travel vlog plan',30000));
  const clips=ref.clips.filter(c=>!c.image).map(c=>({key:c.slot+'@'+c.index,slot:c.slot,path:chosen[c.slot].path,inSeconds:c.inSeconds,seconds:(c.endFrame-c.startFrame)/30}));
  clips.push({key:'H',slot:'H',path:heroPhoto.path,inSeconds:0,seconds:0.1});
  const grades=JSON.parse(await builder(sdk,{mode:'grade',clips,strength:grade},'Measure colour',49152,240000));
  const prepared=await prepareNativeImages(window.parent,projectId,[{...heroPhoto},{...cutRow,name:'hero cutout'}],libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  say('Creating the Draft…');
- const seed=await script(sdk,`const p=selects.project(${JSON.stringify(projectId)});const d=await p.createDraft({name:${JSON.stringify(name.trim()||'Travel beat vlog')}});await d.insertGap({seconds:468/30});await d.setFrameSize({width:1080,height:1920});const m=await d.meta();if(m.durationFrames!==Math.round(468*m.fps/30)||m.frameSize?.width!==1080||m.frameSize?.height!==1920)throw Error('Draft frame grid differs from the reference.');const saved=await d.commitAll('Start Travel Beat Vlog Draft');return {draftId:saved.createdDraftId,fps:m.fps};`,'Create travel vlog Draft',true);
+ const seed=await script(sdk,`const p=selects.project(${JSON.stringify(projectId)});const d=await p.createDraft({name:${JSON.stringify(name.trim()||'Travel beat vlog')}});await d.insertGap({seconds:${timing.durationFrames}/30});await d.setFrameSize({width:1080,height:1920});const m=await d.meta();if(m.durationFrames!==Math.round(${timing.durationFrames}*m.fps/30)||m.frameSize?.width!==1080||m.frameSize?.height!==1920)throw Error('Draft frame grid differs from the reference.');const saved=await d.commitAll('Start Travel Beat Vlog Draft');return {draftId:saved.createdDraftId,fps:m.fps};`,'Create travel vlog Draft',true);
  const {draftId,fps}=seed;onDraft(draftId);
- const plan=JSON.parse(await builder(sdk,{mode:'plan',fps},'Read travel vlog plan',30000));
+ const plan=JSON.parse(await builder(sdk,{mode:'plan',fps,timing},'Read travel vlog plan',30000));
  say('Placing the hero photo…');
  const heroClip=plan.clips.find(c=>c.image);
  const placed=await placeNativeImages(prepared,draftId,plan,[{source:0,startFrame:heroClip.startFrame,endFrame:heroClip.endFrame}],'hero');
- say('Placing 35 video clips, grids, title and music…');
- const request={mode:'finish',projectId,draftId,fps,videos:Object.fromEntries(VIDEO_SLOTS.map(s=>[s,{resourceId:chosen[s].resourceId,width:chosen[s].width,height:chosen[s].height}])),hero:{resourceId:heroPhoto.resourceId,width:placed.photos[0].width,height:placed.photos[0].height},placements:placed.placements,grades,musicResourceId:music.resourceId,title:{text:title,color}};
+ say('Placing 35 video clips, grids, title and your song…');
+ const request={mode:'finish',projectId,draftId,fps,videos:Object.fromEntries(VIDEO_SLOTS.map(s=>[s,{resourceId:chosen[s].resourceId,width:chosen[s].width,height:chosen[s].height}])),hero:{resourceId:heroPhoto.resourceId,width:placed.photos[0].width,height:placed.photos[0].height},placements:placed.placements,grades,songResourceId:songRow.resourceId,title:{text:title,color},timing};
  const fin=await script(sdk,await builder(sdk,request,'Build travel vlog finishing step',400000),'Finish travel vlog Draft',true,120);
  if(fin?.status!=='saved')throw Error((fin?.message||'Could not save the Draft.')+(fin?.stage?' ('+fin.stage+')':''));
  say('Putting the hero subject in front of the title…');
  const top=await placeNativeImages(prepared,draftId,plan,[{source:1,startFrame:plan.title.startFrame,endFrame:plan.title.endFrame}],'cutout');
- const fin2=await script(sdk,await builder(sdk,{mode:'cutoutFinish',fps,draftId,cutout:top.placements[0],hero:request.hero,grade:grades.H||null},'Build cutout step',100000),'Finish hero cutout',true,60);
+ const fin2=await script(sdk,await builder(sdk,{mode:'cutoutFinish',fps,draftId,cutout:top.placements[0],hero:request.hero,grade:grades.H||null,timing},'Build cutout step',100000),'Finish hero cutout',true,60);
  if(fin2?.status!=='saved')throw Error(fin2?.message||'Could not save the hero cutout.');
  return {draftId};
 }
 
 // A template run (Clip highlights): the app hands over the hero photo, the three
-// long shots (under the two grids and before the ending) and the other 23 clips,
-// in the order picked; everything else is this panel's own default.
+// long shots (under the two grids and before the ending), the other 23 clips in the
+// order picked, and the song; everything else is this panel's own default.
 const LONG_SLOTS=['V12','V17','V22'],SHORT_SLOTS=VIDEO_SLOTS.filter(s=>!LONG_SLOTS.includes(s));
 const TEMPLATE_DEFAULTS={title:'TRAVEL',color:'#F4C711',cutoutMode:'person',grade:0.7,name:'Travel beat vlog'};
 const TEMPLATE_FAILED='Travel Beat Vlog could not make the timeline; try again.';
@@ -165,6 +167,7 @@ function templateMessage(error){
  const said=String(error?.message||'');
  if(/^This Selects version does not support/.test(said))return 'Update Selects to use Travel Beat Vlog.';
  if(/needs at least/.test(said))return said.replace(/^V\d+ \((.+?)\) is/,'$1 is');
+ if(/song is too short|song file is missing/i.test(said))return said;
  if(/cutout|swiftc|Vision/i.test(said))return 'Travel Beat Vlog could not cut out the hero photo. Check that Xcode Command Line Tools are installed, then try again.';
  return TEMPLATE_FAILED;
 }
@@ -186,9 +189,11 @@ async function templateMedia(sdk,projectId,inputs){
  const hero=(inputs?.hero||[]).filter(x=>x?.kind==='image'&&x.resourceId);
  const long=(inputs?.long||[]).filter(x=>x?.kind==='video'&&x.resourceId);
  const clips=(inputs?.clips||[]).filter(x=>x?.kind==='video'&&x.resourceId);
+ const song=(inputs?.song||[]).filter(x=>x?.kind==='audio'&&x.resourceId);
  if(hero.length!==1)throw templateIssue('Pick one hero photo, then try again.');
  if(long.length!==LONG_SLOTS.length)throw templateIssue('Pick three long shots, then try again.');
  if(clips.length!==SHORT_SLOTS.length)throw templateIssue('Pick 23 clips, then try again.');
+ if(song.length!==1)throw templateIssue('Pick one song, then try again.');
  const rows=await inventory(sdk,projectId,'List project media');
  const ids=await scriptResourceIds(sdk,projectId);
  const row=(pick,type)=>{
@@ -201,7 +206,7 @@ async function templateMedia(sdk,projectId,inputs){
  const chosen={};
  LONG_SLOTS.forEach((s,i)=>{chosen[s]=row(long[i],'Video');});
  SHORT_SLOTS.forEach((s,i)=>{chosen[s]=row(clips[i],'Video');});
- return {chosen,heroPhoto:row(hero[0],'Image')};
+ return {chosen,heroPhoto:row(hero[0],'Image'),song:row(song[0],'Audio')};
 }
 // Nobody sees this frame, so it shows one status line. It starts once per run id
 // and reports once, unless a newer run replaced it.
@@ -220,9 +225,10 @@ function TravelTemplateRun({sdk,context}){
    try{
     if(!projectId)throw templateIssue('Open a project, then try again.');
     say('Finding your clips…');
-    const {chosen,heroPhoto}=await templateMedia(sdk,projectId,template?.inputs);
+    const {chosen,heroPhoto,song}=await templateMedia(sdk,projectId,template?.inputs);
     const cutoutMode=template?.options?.subject==='foreground'?'foreground':TEMPLATE_DEFAULTS.cutoutMode;
-    const done=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto,...TEMPLATE_DEFAULTS,cutoutMode,say,stillCurrent:live,libraryId:template?.libraryId||null,onDraft:id=>{draftId=id;}});
+    const cuts=template?.options?.cuts==='reference'?'reference':'hits';
+    const done=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,...TEMPLATE_DEFAULTS,cutoutMode,say,stillCurrent:live,libraryId:template?.libraryId||null,onDraft:id=>{draftId=id;}});
     finish({sequenceId:done.draftId});
    }catch(error){
     console.warn('[travel-beat-vlog] template run failed:',error?.message||String(error),{draftId});
@@ -234,25 +240,29 @@ function TravelTemplateRun({sdk,context}){
 }
 
 export default function Panel(props){return props.context.template?<TravelTemplateRun {...props}/>:<TravelPanel {...props}/>;}
+// The manual panel asks for the same things, in the same groups, as the template page:
+// hero photo, three long shots, 23 clips, the song, and the template's two choices.
 function TravelPanel({sdk,context,ui}){
- const [media,setMedia]=React.useState([]),[videos,setVideos]=React.useState({}),[hero,setHero]=React.useState(''),[loadedProject,setLoadedProject]=React.useState(null);
- const [title,setTitle]=React.useState('TRAVEL'),[color,setColor]=React.useState('#F4C711'),[cutoutMode,setCutoutMode]=React.useState('person'),[grade,setGrade]=React.useState(0.7),[name,setName]=React.useState('Travel beat vlog');
+ const [media,setMedia]=React.useState([]),[loadedProject,setLoadedProject]=React.useState(null);
+ const [hero,setHero]=React.useState(''),[long,setLong]=React.useState(['','','']),[clips,setClips]=React.useState(Array(23).fill('')),[song,setSong]=React.useState('');
+ const [cutoutMode,setCutoutMode]=React.useState('person'),[cuts,setCuts]=React.useState('hits');
+ const [title,setTitle]=React.useState('TRAVEL'),[color,setColor]=React.useState('#F4C711'),[grade,setGrade]=React.useState(0.7),[name,setName]=React.useState('Travel beat vlog');
  const [busy,setBusy]=React.useState(false),[status,setStatus]=React.useState(''),[saved,setSaved]=React.useState(null);
  const running=React.useRef(false),currentProject=React.useRef(context.projectId);currentProject.current=context.projectId;
- React.useEffect(()=>{setMedia([]);setVideos({});setHero('');setLoadedProject(null);setSaved(null);setStatus('');},[context.projectId]);
- // Files the plugin created itself (the hero cutout) are not user media.
+ React.useEffect(()=>{setMedia([]);setHero('');setLong(['','','']);setClips(Array(23).fill(''));setSong('');setLoadedProject(null);setSaved(null);setStatus('');},[context.projectId]);
+ // Files the plugin created itself (the hero cutout, the song section) are not user media.
  const own=m=>/\/\.selects\/plugin-data\//.test(m.path||'');
- const vids=media.filter(m=>m.type==='Video'&&!own(m)),imgs=media.filter(m=>m.type==='Image'&&!own(m));
+ const of=type=>media.filter(m=>m.type===type&&!own(m));
  async function load(){
   if(!context.projectId||running.current)return;running.current=true;setBusy(true);setStatus('Loading project media…');
   try{
    const projectId=context.projectId,rows=await inventory(sdk,projectId,'List project media');
    if(currentProject.current!==projectId)return;
    setMedia(rows);setLoadedProject(projectId);
-   const mine=r=>/\/\.selects\/plugin-data\//.test(r.path||''),v=rows.filter(r=>r.type==='Video'&&!mine(r)),im=rows.filter(r=>r.type==='Image'&&!mine(r));
-   setVideos(old=>Object.fromEntries(VIDEO_SLOTS.map((s,i)=>[s,old[s]||v[i]?.resourceId||''])));
-   setHero(old=>old||im[0]?.resourceId||'');
-   setStatus(v.length>=26&&im.length?'Check the order of videos 1–26 and the hero photo.':'The format needs 26 videos and 1 hero photo; this Project has '+v.length+' videos and '+im.length+' photos.');
+   const mine=r=>/\/\.selects\/plugin-data\//.test(r.path||''),v=rows.filter(r=>r.type==='Video'&&!mine(r)),im=rows.filter(r=>r.type==='Image'&&!mine(r)),au=rows.filter(r=>r.type==='Audio'&&!mine(r));
+   setLong(old=>old.map((x,i)=>x||v[i]?.resourceId||''));setClips(old=>old.map((x,i)=>x||v[3+i]?.resourceId||''));
+   setHero(old=>old||im[0]?.resourceId||'');setSong(old=>old||au[0]?.resourceId||'');
+   setStatus(v.length>=26&&im.length&&au.length?'Check the hero photo, the long shots, the 23 clips and the song.':'The format needs 1 hero photo, 26 videos and 1 song; this Project has '+im.length+' photos, '+v.length+' videos and '+au.length+' songs.');
   }catch(error){setStatus(String(error?.message||error));}finally{running.current=false;setBusy(false);}
  }
  async function create(){
@@ -260,27 +270,33 @@ function TravelPanel({sdk,context,ui}){
   if(running.current||!projectId||loadedProject!==projectId)return;
   running.current=true;setBusy(true);setStatus('Checking media…');
   try{
-   const pick=id=>{const m=media.filter(x=>x.resourceId===id);if(m.length!==1)throw Error('Check the selected media again.');return m[0];};
-   const chosen=Object.fromEntries(VIDEO_SLOTS.map(s=>{if(!videos[s])throw Error('Choose a video for '+s+'.');const m=pick(videos[s]);if(m.type!=='Video')throw Error(s+' must be a video.');if(!m.width||!m.height)throw Error(m.name+' has no frame size yet; wait for the Project to finish reading it.');return [s,m];}));
-   const heroPhoto=pick(hero);if(heroPhoto.type!=='Image')throw Error('The hero must be a photo.');
-   const {draftId}=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto,title,color,cutoutMode,grade,name,say:setStatus,stillCurrent:()=>currentProject.current===projectId});
+   const pick=(id,type,what)=>{const m=media.filter(x=>x.resourceId===id);if(m.length!==1)throw Error('Choose '+what+'.');if(m[0].type!==type)throw Error(m[0].name+' is not '+(type==='Video'?'a video':type==='Image'?'a photo':'a song')+'.');return m[0];};
+   const chosen={};
+   LONG_SLOTS.forEach((s,i)=>{chosen[s]=pick(long[i],'Video','long shot '+(i+1));});
+   SHORT_SLOTS.forEach((s,i)=>{chosen[s]=pick(clips[i],'Video','clip '+(i+1));});
+   for(const m of Object.values(chosen))if(!m.width||!m.height)throw Error(m.name+' has no frame size yet; wait for the Project to finish reading it.');
+   const {draftId}=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto:pick(hero,'Image','a hero photo'),song:pick(song,'Audio','a song'),cuts,title,color,cutoutMode,grade,name,say:setStatus,stillCurrent:()=>currentProject.current===projectId});
    setSaved({draftId});setStatus('Saved. Every shot is its own clip with focus controls; the title text and colour are editable.');
   }catch(error){setStatus(String(error?.message||error));}finally{running.current=false;setBusy(false);}
  }
  const ready=!busy&&loadedProject===context.projectId;
- const vOpts=vids.map(m=>({value:m.resourceId,label:m.name})),iOpts=imgs.map(m=>({value:m.resourceId,label:m.name}));
+ const opts=type=>of(type).map(m=>({value:m.resourceId,label:m.name}));
+ const vOpts=opts('Video'),setAt=(setter,i)=>v=>setter(old=>old.map((x,j)=>j===i?v:x));
  return <ui.Stack gap={16}><ui.Section title="Travel Beat Vlog">
-  <ui.Message>A 15.6 s travel music vlog in 9:16: two fast beat montages, a hero photo with the title behind its subject, two 2×2 grids that fill on the beat, and a fade out. Needs 26 videos and 1 hero photo. Music is included.</ui.Message>
+  <ui.Message>A travel beat vlog in 9:16 cut to your song: two fast montages on its drum hits, a hero photo with the title behind its subject, two 2×2 grids that fill on the beat, and a fade out.</ui.Message>
   {!context.projectId&&<ui.Message>Open a Project first.</ui.Message>}
   <ui.Button variant="secondary" onClick={load} disabled={!context.projectId||busy} busy={busy}>Load Project media</ui.Button>
-  <ui.Select label="Hero photo (title goes behind its subject)" value={hero} onChange={setHero} options={iOpts} placeholder="Choose photo" disabled={!ready}/>
-  {VIDEO_SLOTS.map(s=><ui.Select key={s} label={'Video '+s.slice(1)+(SLOT_HINTS[s]?' · '+SLOT_HINTS[s]:'')} value={videos[s]||''} onChange={v=>setVideos(old=>({...old,[s]:v}))} options={vOpts} placeholder="Choose video" disabled={!ready}/>)}
+  <ui.Select label="Hero photo" value={hero} onChange={setHero} options={opts('Image')} placeholder="Choose photo" disabled={!ready}/>
+  {long.map((v,i)=><ui.Select key={'l'+i} label={'Long shot '+(i+1)} value={v} onChange={setAt(setLong,i)} options={vOpts} placeholder="Choose video" disabled={!ready}/>)}
+  {clips.map((v,i)=><ui.Select key={'c'+i} label={'Clip '+(i+1)} value={v} onChange={setAt(setClips,i)} options={vOpts} placeholder="Choose video" disabled={!ready}/>)}
+  <ui.Select label="Song" value={song} onChange={setSong} options={opts('Audio')} placeholder="Choose song" disabled={!ready}/>
+  <ui.Select label="In front of the title" value={cutoutMode} onChange={setCutoutMode} options={[{value:'person',label:'People'},{value:'foreground',label:'Main subject'}]} disabled={busy}/>
+  <ui.Select label="Cuts" value={cuts} onChange={setCuts} options={[{value:'hits',label:"Follow the song's hits"},{value:'reference',label:'Keep the original rhythm'}]} disabled={busy}/>
   <ui.TextField label="Title" value={title} onChange={setTitle} disabled={busy}/>
   <ui.TextField label="Title colour (#RRGGBB)" value={color} onChange={setColor} disabled={busy}/>
-  <ui.Select label="Subject in front of the title" value={cutoutMode} onChange={setCutoutMode} options={[{value:'person',label:'People'},{value:'foreground',label:'Main subject'}]} disabled={busy}/>
   <ui.Slider label="Match colour to the reference" min={0} max={1} step={0.05} value={grade} onChange={setGrade} disabled={busy}/>
   <ui.TextField label="Draft name" value={name} onChange={setName} disabled={busy}/>
-  <ui.Actions><ui.Button variant="primary" onClick={create} disabled={!ready||!hero||VIDEO_SLOTS.some(s=>!videos[s])||!/^#[0-9a-fA-F]{6}$/.test(color)} busy={busy}>{saved?'Create another Draft':'Create Draft'}</ui.Button></ui.Actions>
+  <ui.Actions><ui.Button variant="primary" onClick={create} disabled={!ready||!hero||!song||long.some(v=>!v)||clips.some(v=>!v)||!/^#[0-9a-fA-F]{6}$/.test(color)} busy={busy}>{saved?'Create another Draft':'Create Draft'}</ui.Button></ui.Actions>
   {status&&<ui.Message>{status}</ui.Message>}
   {saved&&<ui.Button variant="secondary" onClick={()=>sdk.runScript({script:'return await selects.editor.openDraft('+JSON.stringify(saved.draftId)+');',summary:'Open saved Draft',allowCommit:false})}>Open saved Draft</ui.Button>}
  </ui.Section></ui.Stack>;
