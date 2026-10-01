@@ -161,25 +161,23 @@ export default function SelfieWhipLook({ Source, children, data, rangeDurationIn
     </>
   );
 
-  if (!(m.amount > 0)) {
-    // Cheap path: no SVG filter at all.
-    return <AbsoluteFill style={{ transform, transformOrigin: "50% 50%", isolation: "isolate" }}>{content}</AbsoluteFill>;
-  }
-
+  // One tree on every frame (same elements, same keys), so <Source /> never remounts at the whip edges: on plain
+  // frames the blur filter stays defined but unused (filter "none", stdDeviation 0) and the container is unrotated.
   // Directional blur: a container rotated by the angle (oversized to 250% so the filter region never clips the
   // visible frame) blurs mostly along its x axis; the picture inside is counter-rotated back upright.
+  const blurOn = m.amount > 0;
   const bx = (m.blurX / 100) * width, by = (m.blurY / 100) * width;
   return (
     <AbsoluteFill style={{ transform, transformOrigin: "50% 50%" }}>
-      <svg width="0" height="0" style={{ position: "absolute" }}>
+      <svg key="sae-defs" width="0" height="0" style={{ position: "absolute" }}>
         <defs>
           <filter id={fid} x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation={`${bx.toFixed(2)} ${by.toFixed(2)}`} />
+            <feGaussianBlur stdDeviation={blurOn ? `${bx.toFixed(2)} ${by.toFixed(2)}` : "0 0"} />
           </filter>
         </defs>
       </svg>
-      <div style={{ position: "absolute", left: "-75%", top: "-75%", width: "250%", height: "250%", transform: `rotate(${m.angleDeg.toFixed(3)}deg)`, transformOrigin: "50% 50%", filter: `url(#${fid})`, overflow: "visible" }}>
-        <div style={{ position: "absolute", left: "30%", top: "30%", width: "40%", height: "40%", transform: `rotate(${(-m.angleDeg).toFixed(3)}deg)`, transformOrigin: "50% 50%", overflow: "hidden", isolation: "isolate" }}>
+      <div key="sae-blur" style={{ position: "absolute", left: "-75%", top: "-75%", width: "250%", height: "250%", transform: `rotate(${m.angleDeg.toFixed(3)}deg)`, transformOrigin: "50% 50%", filter: blurOn ? `url(#${fid})` : "none", overflow: "visible" }}>
+        <div key="sae-upright" style={{ position: "absolute", left: "30%", top: "30%", width: "40%", height: "40%", transform: `rotate(${(-m.angleDeg).toFixed(3)}deg)`, transformOrigin: "50% 50%", overflow: "hidden", isolation: "isolate" }}>
           {content}
         </div>
       </div>

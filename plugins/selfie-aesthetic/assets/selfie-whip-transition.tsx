@@ -148,21 +148,23 @@ export default function SelfieWhipTransition({ children, presentationDirection, 
   const { width, height } = useVideoConfig();
   const fid = useSaeFilterId(String(presentationDirection) + String(data?.angle ?? ""));
   const { m, opacity } = saeWhipTransitionPose(presentationDirection, presentationProgress, data, width, height);
-  if (!(m.amount > 0)) return <AbsoluteFill style={{ opacity }}>{children}</AbsoluteFill>;
-  const transform = `translate(${m.txPct.toFixed(3)}%, ${m.tyPct.toFixed(3)}%) rotate(${m.rotDeg.toFixed(3)}deg) scale(${m.scale.toFixed(4)})`;
+  // One tree for the whole transition (same elements, same keys), so the children never remount at progress 0 / 1:
+  // when the layer is untouched the blur filter stays defined but unused and the container is unrotated.
+  const blurOn = m.amount > 0;
+  const transform = blurOn ? `translate(${m.txPct.toFixed(3)}%, ${m.tyPct.toFixed(3)}%) rotate(${m.rotDeg.toFixed(3)}deg) scale(${m.scale.toFixed(4)})` : undefined;
   const bx = (m.blurX / 100) * width, by = (m.blurY / 100) * width;
   return (
     <AbsoluteFill style={{ opacity, overflow: "hidden" }}>
       <AbsoluteFill style={{ transform, transformOrigin: "50% 50%" }}>
-        <svg width="0" height="0" style={{ position: "absolute" }}>
+        <svg key="sae-defs" width="0" height="0" style={{ position: "absolute" }}>
           <defs>
             <filter id={fid} x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation={`${bx.toFixed(2)} ${by.toFixed(2)}`} />
+              <feGaussianBlur stdDeviation={blurOn ? `${bx.toFixed(2)} ${by.toFixed(2)}` : "0 0"} />
             </filter>
           </defs>
         </svg>
-        <div style={{ position: "absolute", left: "-75%", top: "-75%", width: "250%", height: "250%", transform: `rotate(${m.angleDeg.toFixed(3)}deg)`, transformOrigin: "50% 50%", filter: `url(#${fid})`, overflow: "visible" }}>
-          <div style={{ position: "absolute", left: "30%", top: "30%", width: "40%", height: "40%", transform: `rotate(${(-m.angleDeg).toFixed(3)}deg)`, transformOrigin: "50% 50%", overflow: "hidden" }}>
+        <div key="sae-blur" style={{ position: "absolute", left: "-75%", top: "-75%", width: "250%", height: "250%", transform: `rotate(${m.angleDeg.toFixed(3)}deg)`, transformOrigin: "50% 50%", filter: blurOn ? `url(#${fid})` : "none", overflow: "visible" }}>
+          <div key="sae-upright" style={{ position: "absolute", left: "30%", top: "30%", width: "40%", height: "40%", transform: `rotate(${(-m.angleDeg).toFixed(3)}deg)`, transformOrigin: "50% 50%", overflow: "hidden" }}>
             {children}
           </div>
         </div>
