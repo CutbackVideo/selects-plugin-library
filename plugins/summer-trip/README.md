@@ -68,8 +68,10 @@ makes another Draft with a different shot choice, reusing the shot search.
 | Credit prefix | "By" | the word before the credit name |
 
 The panel stops the text at these limits and shows the limit under the
-field. Long texts shrink to keep a margin at the sides. The fonts cover Latin
-text; other scripts use a system fallback font.
+field. Korean, Japanese and Chinese characters count as 2, so Line 1 holds
+about 16 Korean syllables and the place 9. Long texts shrink to keep a margin
+at the sides. The fonts cover Latin text; Korean uses the macOS system fonts
+(see Languages) and other scripts a system fallback font.
 
 ## Styles
 
@@ -207,6 +209,34 @@ never scene-searched.
   shots stay still.
 - The size of a photo Selects does not report is read once by placing it on
   an unsaved scratch Draft; nothing is saved.
+
+## Languages
+
+**The panel** follows the language of the Selects app and changes with it
+while the panel is open. It is translated into German, English, Spanish,
+French, Italian, Japanese, Korean, Portuguese, Turkish and Chinese; any other
+app language shows English. Track names, the Draft's name, notes from the
+build scripts and the technical detail after an error message stay in English.
+
+**The title in the video** can be typed in English or Korean (Hangul):
+
+- The pre-filled words stay English in every language: **Line 1** "that one
+  trip in", the season word (SUMMER, AUTUMN, ...), the top label's "VLOG", and
+  the prefixes "By" and "in". Type over them to change them.
+- The bundled typefaces have no Korean letters, so Korean text is drawn with
+  the macOS system font of each typeface's kind: **AppleMyungjo** for the
+  serif typefaces (the place title in every style, and Line 1 and the season
+  word in Postcard) and **Apple SD Gothic Neo** for the others.
+- Korean text is never set in capitals, letter-spaced or narrowed: the season
+  word's and the place title's narrow setting applies to Latin text only. A
+  long line shrinks to fit in one piece, as Latin text does.
+- Korean titles need macOS, where Selects and its export run. Style-matched
+  Korean typefaces are planned for a later version.
+
+**Inspector labels** (Adjust tab) of the title, the labels, the Summer look,
+the film frame and the photo and video motion are written into the Draft in
+the panel's language at the time of the build. They do not change if the app
+language is switched later.
 
 ## Requirements
 
