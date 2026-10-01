@@ -6,23 +6,22 @@
 
 ## Fonts
 
-The title fonts are bundled in `assets/fonts/` as base64-encoded WOFF2 text (`*.woff2.b64`). Each is a **Latin subset** of the Google Fonts release, with hinting removed and, for the variable Quicksand family, a single static Bold (700) instance. A subset is a Modified Version under the SIL Open Font License. Every bundled font carries an `MV ` prefix in its name table and in the title, and the Quicksand subset is named `MV Rounded Bold` because "Quicksand" is a Reserved Font Name:
+The title and credit fonts are bundled in `assets/fonts/` as base64-encoded WOFF2 text (`*.woff2.b64`). Each is a **Latin subset** of the Google Fonts release, with hinting and kerning removed and, for the variable Oswald and Inter families, a single static instance (Oswald Bold 700; Inter Medium 500 and Regular 400 at optical size 20). A subset is a Modified Version under the SIL Open Font License. Every bundled font carries an `AV ` prefix in its name table and in the graphics:
 
-- `MV Instrument Serif Italic`: the big word of the Mini vlog title;
-- `MV DM Serif Display`: the small word of the Mini vlog title;
-- `MV Rounded Bold` (a subset of Quicksand Bold): the big words and tag of A day in my life and the big word of A small glimpse;
-- `MV DM Mono`: the top and bottom lines of A small glimpse. The fonts are embedded in the title graphic's parameters when a Draft is built.
+- `AV Anton`: the title (drawn at 0.84 width for Latin text);
+- `AV Oswald Bold`: the credit line, and the title's alternative face;
+- `AV Inter Medium`: the title's small line above (kicker);
+- `AV Inter`: the tagline under the title. The fonts are embedded in the graphics' parameters when a Draft is built.
 
-The subsets cover Latin text only. Other scripts are drawn in a system font.
+The subsets cover Latin text only. Other scripts (Korean included) are drawn in a system font (Apple SD Gothic Neo on macOS, Malgun Gothic on Windows).
 
 Each family's licence text is in `assets/fonts/licenses/`.
 
 | Family | Bundled files | Copyright and Reserved Font Names | Licence |
 | --- | --- | --- | --- |
-| DM Serif Display | `dm-serif-display` | Copyright 2014-2018 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'. All Rights Reserved. Source is a trademark of Adobe in the United States and/or other countries. Copyright 2019 Google LLC. | SIL OFL 1.1 (`dmserifdisplay-OFL.txt`) |
-| Instrument Serif | `instrument-serif-italic` | Copyright 2022 The Instrument Serif Project Authors (https://github.com/Instrument/instrument-serif). No Reserved Font Name. | SIL OFL 1.1 (`instrumentserif-OFL.txt`) |
-| Quicksand | `mv-rounded-bold` | Copyright 2011 The Quicksand Project Authors (https://github.com/andrew-paglinawan/QuicksandFamily), with Reserved Font Name "Quicksand". | SIL OFL 1.1 (`quicksand-OFL.txt`) |
-| DM Mono | `dm-mono` | Copyright 2020 The DM Mono Project Authors (https://www.github.com/googlefonts/dm-mono). No Reserved Font Name. | SIL OFL 1.1 (`dmmono-OFL.txt`) |
+| Anton | `anton` | Copyright 2020 The Anton Project Authors (https://github.com/googlefonts/AntonFont.git). No Reserved Font Name. | SIL OFL 1.1 (`anton-OFL.txt`) |
+| Oswald | `oswald-bold` | Copyright 2016 The Oswald Project Authors (https://github.com/googlefonts/OswaldFont). No Reserved Font Name. | SIL OFL 1.1 (`oswald-OFL.txt`) |
+| Inter | `inter-medium`, `inter-regular` | Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter). No Reserved Font Name. | SIL OFL 1.1 (`inter-OFL.txt`) |
 
 ## Music
 

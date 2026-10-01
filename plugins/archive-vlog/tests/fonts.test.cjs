@@ -3,70 +3,66 @@ const fs = require('node:fs'), path = require('node:path'), assert = require('no
 const dir = path.resolve(__dirname, '..', 'assets', 'fonts');
 const p = JSON.parse(fs.readFileSync(path.join(dir, 'presets.json'), 'utf8'));
 assert.equal(p.version, 1);
-assert.deepEqual(p.presets.map(x => x.id), ['archive-vlog', 'day-in-my-life', 'small-glimpse']);
+// Style presets (spec 9): Cinematic (default), A Day Out, Golden Hour.
+assert.deepEqual(p.presets.map(x => x.id), ['cinematic', 'a-day-out', 'golden-hour']);
 const byId = Object.fromEntries(p.presets.map(x => [x.id, x]));
-// Fields per spec 14.8 (initial text and max length); the year's initial is resolved by the panel.
-const fields = (id) => byId[id].fields.map(f => [f.key, f.initial, f.max]);
-assert.deepEqual(fields('archive-vlog'), [['big', 'mini', 10], ['small', 'vlog', 12]]);
-assert.deepEqual(fields('day-in-my-life'), [['year', '@year', 4], ['big', 'mini vlog', 12], ['tag', 'a day in my life', 24]]);
-assert.deepEqual(fields('small-glimpse'), [['top', 'a small', 16], ['big', 'glimpse', 12], ['bottom', 'of today', 16]]);
+const fields = (id) => byId[id].fields.map(f => [f.key, f.initial]);
+assert.deepEqual(fields('cinematic'), [['kicker', 'MINI VLOG'], ['title', 'CINEMATIC'], ['tagline', 'CAPTURE THE MOMENTS']]);
+assert.deepEqual(fields('a-day-out')[0], ['kicker', ''], 'A Day Out has no kicker');
+assert.equal(fields('a-day-out')[1][1], 'A DAY OUT');
+assert.equal(fields('golden-hour')[1][1], 'GOLDEN HOUR');
+assert.deepEqual(byId.cinematic.colors, { title: '#FCE070', text: '#FFFFFF' });
+assert.deepEqual(byId['a-day-out'].colors, { title: '#FFFFFF', text: '#FFFFFF' });
+assert.equal(byId['golden-hour'].colors.text, '#FFFFFF');
+assert.match(byId['golden-hour'].colors.title, /^#F[0-9A-F]{5}$/, 'warm cream');
+assert.deepEqual(byId.cinematic.credit, { prefix: 'ARCHIVED BY', name: 'YOURNAME' });
+assert.deepEqual(byId['a-day-out'].credit, { prefix: 'LOCATION |', name: 'YOURNAME' });
+assert.deepEqual(byId['golden-hour'].credit, { prefix: 'ARCHIVED BY', name: 'YOURNAME' });
+assert.deepEqual(p.presets.map(x => x.look.strength), [0.3, 0.3, 0.45]);
 for (const preset of p.presets) {
-  assert.ok(preset.label && preset.fields.every(f => f.label), preset.id + ' labels');
-  assert.deepEqual(preset.colors, { primary: '#F7C8E6', secondary: '#FFFFFF' }, preset.id + ' colors');
+  assert.ok(preset.label && preset.fields.every(f => f.label && f.max > 0 && f.initial.length <= f.max), preset.id + ' labels and max');
+  assert.ok(preset.taglineTracking > 0 && preset.taglineSize > 0, preset.id + ' tagline style');
 }
 const EXPECTED = {
-  'dm-serif-display.woff2.b64': ['MV DM Serif Display', 'normal', 400],
-  'instrument-serif-italic.woff2.b64': ['MV Instrument Serif Italic', 'italic', 400],
-  'mv-rounded-bold.woff2.b64': ['MV Rounded Bold', 'normal', 700],
-  'dm-mono.woff2.b64': ['MV DM Mono', 'normal', 400],
+  'anton.woff2.b64': ['AV Anton', 'normal', 400],
+  'oswald-bold.woff2.b64': ['AV Oswald Bold', 'normal', 700],
+  'inter-medium.woff2.b64': ['AV Inter Medium', 'normal', 500],
+  'inter-regular.woff2.b64': ['AV Inter', 'normal', 400],
 };
-const roles = (id) => Object.fromEntries(byId[id].fonts.map(f => [f.role, f.family]));
-assert.deepEqual(roles('archive-vlog'), { big: 'MV Instrument Serif Italic', small: 'MV DM Serif Display' });
-assert.deepEqual(roles('day-in-my-life'), { big: 'MV Rounded Bold', tag: 'MV Rounded Bold' });
-assert.deepEqual(roles('small-glimpse'), { big: 'MV Rounded Bold', mono: 'MV DM Mono' });
+const ROLES = { display: 'AV Anton', condensed: 'AV Oswald Bold', kicker: 'AV Inter Medium', tagline: 'AV Inter' };
 const files = new Set();
-for (const preset of p.presets) for (const f of preset.fonts) {
-  assert.ok(f.family.startsWith('MV '), f.family);
-  assert.deepEqual([f.family, f.style, f.weight], EXPECTED[f.file], preset.id + ' ' + f.role);
-  files.add(f.file);
+for (const preset of p.presets) {
+  assert.deepEqual(Object.fromEntries(preset.fonts.map(f => [f.role, f.family])), ROLES, preset.id + ' roles');
+  for (const f of preset.fonts) {
+    assert.ok(f.family.startsWith('AV '), f.family);
+    assert.deepEqual([f.family, f.style, f.weight], EXPECTED[f.file], preset.id + ' ' + f.role);
+    files.add(f.file);
+  }
 }
 assert.deepEqual([...files].sort(), Object.keys(EXPECTED).sort());
+let total = 0;
 for (const file of files) {
   const b64 = fs.readFileSync(path.join(dir, file), 'utf8').replace(/\s+/g, '');
   assert.equal(Buffer.from(b64, 'base64').subarray(0, 4).toString('latin1'), 'wOF2', file + ' is WOFF2');
   assert.ok(b64.length < 60000, file + ' subset too large: ' + b64.length);
+  total += b64.length;
 }
-// Every shipped b64 is referenced by a preset (no stale CWV subsets left behind).
+// Every shipped b64 is referenced by a preset (no stale Mini Vlog subsets left behind).
 assert.deepEqual(fs.readdirSync(dir).filter(f => f.endsWith('.b64')).sort(), [...files].sort());
-// Largest preset payload stays far under the ~260 KB run_script guard.
-for (const preset of p.presets) {
-  const total = [...new Set(preset.fonts.map(f => f.file))].reduce((a, f) => a + fs.statSync(path.join(dir, f)).size, 0);
-  assert.ok(total < 120000, preset.id + ' payload ' + total);
-}
+// One decorate run carries the title (all four faces: Adjust can switch the title face) and the credit (Oswald again):
+// far under the ~260 KB run_script guard.
+const credit = fs.statSync(path.join(dir, 'oswald-bold.woff2.b64')).size;
+assert.ok(total + credit < 120000, 'title + credit font payload ' + (total + credit));
 // Metrics measured from the built subsets drive the layout (no browser needed).
 for (const [family] of Object.values(EXPECTED)) {
   const m = p.metrics[family];
   assert.ok(m, 'metrics for ' + family);
   assert.ok(m.unitsPerEm > 0 && m.xHeight > 0 && m.capHeight > 0 && m.ascent > 0 && m.descent < 0, family + ' vertical metrics');
-  for (const ch of 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -') assert.ok(m.advances[ch] > 0 || (ch === ' ' && m.advances[ch] >= 0), family + ' advance ' + JSON.stringify(ch));
-  // [centre x, centre y, half height] of the dot contour.
-  for (const ch of ['i', 'j']) assert.ok(Array.isArray(m.dots[ch]) && m.dots[ch].length === 3 && m.dots[ch][2] > 0, family + ' ' + ch + ' dot');
-  assert.ok(m.dots.i[1] > m.xHeight, family + ' i dot sits above the x-height');
+  for (const ch of 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -|,.\u00c9\u00e9') assert.ok(m.advances[ch] > 0, family + ' advance ' + JSON.stringify(ch));
 }
-// The sparkled face has dotless i/j and their stem tops ([x, y] of the topmost outline points).
-const inst = p.metrics['MV Instrument Serif Italic'];
-assert.ok(inst.advances['\u0131'] > 0 && inst.advances['\u0237'] > 0, 'dotless i and j for sparkles');
-for (const ch of ['i', 'j']) {
-  const st = inst.stems[ch];
-  assert.ok(Array.isArray(st) && st.length === 2 && st[1] >= inst.xHeight * 0.95 && st[1] < inst.dots[ch][1], ch + ' stem top at the x-height, below the dot');
-  assert.ok(st[0] > 0 && st[0] < inst.advances[ch === 'i' ? '\u0131' : '\u0237'] * 1.2, ch + ' stem top x inside the glyph');
-}
-assert.ok(Math.abs(inst.xHeight / inst.unitsPerEm - 0.51) < 0.03, 'Instrument Serif Italic x-height ratio ~0.51');
-// DM Mono is monospaced.
-const mono = p.metrics['MV DM Mono'].advances;
-assert.ok(new Set(['a', 'm', 'i', 'W', ' '].map(c => mono[c])).size === 1, 'DM Mono advances are equal');
+assert.deepEqual(Object.keys(p.metrics).sort(), Object.values(EXPECTED).map(e => e[0]).sort());
 // Each OFL family ships its own OFL.txt (with that family's copyright line).
-const LIC = ['dmserifdisplay-OFL.txt', 'instrumentserif-OFL.txt', 'quicksand-OFL.txt', 'dmmono-OFL.txt'];
+const LIC = ['anton-OFL.txt', 'oswald-OFL.txt', 'inter-OFL.txt'];
 assert.deepEqual(fs.readdirSync(path.join(dir, 'licenses')).sort(), [...LIC].sort());
 for (const f of LIC) {
   const text = fs.readFileSync(path.join(dir, 'licenses', f), 'utf8');
@@ -101,11 +97,13 @@ function woff2Tables(bin) {
 }
 // Subset fonts are Modified Versions under OFL: they must be renamed away from any Reserved Font Name.
 const LICENCE = {
-  'dm-serif-display.woff2.b64': 'dmserifdisplay-OFL.txt',
-  'instrument-serif-italic.woff2.b64': 'instrumentserif-OFL.txt',
-  'mv-rounded-bold.woff2.b64': 'quicksand-OFL.txt',
-  'dm-mono.woff2.b64': 'dmmono-OFL.txt',
+  'anton.woff2.b64': 'anton-OFL.txt',
+  'oswald-bold.woff2.b64': 'oswald-OFL.txt',
+  'inter-medium.woff2.b64': 'inter-OFL.txt',
+  'inter-regular.woff2.b64': 'inter-OFL.txt',
 };
+// The source family names: renamed name records (1/4/6/16/17) must not keep them.
+const SOURCE = { 'anton-OFL.txt': 'Anton', 'oswald-OFL.txt': 'Oswald', 'inter-OFL.txt': 'Inter' };
 // Quoted names after "Reserved Font Name(s)" in a licence's copyright lines ('x', "x" or curly quotes).
 function reservedNames(lic) {
   const text = fs.readFileSync(path.join(dir, 'licenses', lic), 'utf8').split(/This Font Software is licensed/)[0];
@@ -115,10 +113,10 @@ function reservedNames(lic) {
   }
   return out;
 }
-assert.deepEqual(reservedNames('dmserifdisplay-OFL.txt'), ['Source']);
-assert.deepEqual(reservedNames('quicksand-OFL.txt'), ['Quicksand']);
-assert.deepEqual(reservedNames('dmmono-OFL.txt'), []);
-assert.deepEqual(reservedNames('instrumentserif-OFL.txt'), []);
+// The parser itself (each family's RFNs are checked below; these three declare none).
+assert.deepEqual(reservedNames('anton-OFL.txt'), []);
+assert.deepEqual(reservedNames('oswald-OFL.txt'), []);
+assert.deepEqual(reservedNames('inter-OFL.txt'), []);
 for (const file of files) {
   const family = EXPECTED[file][0];
   const { data, tables } = woff2Tables(Buffer.from(fs.readFileSync(path.join(dir, file), 'utf8').replace(/\s+/g, ''), 'base64'));
@@ -147,5 +145,9 @@ for (const file of files) {
   if (ids[16] !== undefined) assert.equal(ids[16], family, file + ' name ID 16');
   if (ids[17] !== undefined) assert.ok(/^(Regular|Italic)$/.test(ids[17]), file + ' name ID 17 ' + ids[17]);
   if (ids[3] !== undefined) assert.ok(ids[3].includes(family.replace(/ /g, '')), file + ' name ID 3 ' + ids[3]);
+  // Every family-name record carries the AV prefix (the source name only after it).
+  for (const r of records) if ([1, 4, 16].includes(r.nameID)) assert.ok(r.text.startsWith('AV '), `${file} name ID ${r.nameID}: ${r.text}`);
+  for (const r of records) if (r.nameID === 6) assert.ok(r.text.startsWith('AV'), `${file} name ID 6: ${r.text}`);
+  assert.ok(family.startsWith('AV ' + SOURCE[LICENCE[file]]), file + ' family ' + family);
 }
 console.log(JSON.stringify({ fonts: 'ok', files: files.size }));
