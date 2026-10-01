@@ -153,6 +153,21 @@ function eligible(videos, folder) {
 
 const FAILED = "Portrait Beat Montage couldn't make the timeline. Try again.";
 
+// The app hands a template its own Resource ids, but every run_script read
+// (resources(), clips()) speaks the short ids the script SDK gives out (r0, r1…).
+// The app's list (sdk.call) and the script's list are the Project's Resources in
+// the same order, so they pair up row by row; names and types are compared so a
+// list that changed in between is refused rather than mismatched.
+async function scriptResourceIds(sdk, projectId) {
+  const [app, run] = await Promise.all([
+    sdk.call("listProjectResources", projectId),
+    sdk.runScript({ summary: "Match picked videos", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
+  ]);
+  const rows = run?.result;
+  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked videos to this project.");
+  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+}
+
 // A Clip highlights run (`context.template`): the 10 clips picked in the app.
 function TemplateRun({ sdk, context }) {
   const runId = context.template?.runId;
@@ -170,10 +185,11 @@ function TemplateRun({ sdk, context }) {
       if (picks.length !== SHOTS) throw new Error(`Pick ${SHOTS} videos, then try again.`);
       const doctor = await pipeline(sdk, "doctor", {});
       if (!doctor.ready) throw new Error("Open Portrait Beat Montage from the Plugin list once to finish its setup.");
+      const ids = await scriptResourceIds(sdk, projectId);
       const reply = await sdk.runScript({ summary: "Find montage media", script: mediaScript(projectId) });
       if (reply.isError || !reply.result) throw new Error("Couldn't read this project's files. Try again.");
       const byId = new Map((reply.result.videos || []).map((item) => [item.resourceId, item]));
-      const files = picks.map((pick) => byId.get(pick.resourceId));
+      const files = picks.map((pick) => byId.get(ids.get(pick.resourceId) ?? pick.resourceId));
       const missing = picks.find((pick, i) => !files[i]?.path);
       if (missing) throw new Error(`Couldn't find ${missing.name || "a picked video"} in this project.`);
       const draftId = await buildMontage(sdk, {

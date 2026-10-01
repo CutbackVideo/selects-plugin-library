@@ -545,6 +545,21 @@ return true;`,
 
 const TEMPLATE_FAILED = "Thank You Recap couldn't make the timeline. Try again.";
 
+// The app hands a template its own Resource ids, but every run_script read
+// (resources(), clips()) speaks the short ids the script SDK gives out (r0, r1…).
+// The app's list (sdk.call) and the script's list are the Project's Resources in
+// the same order, so they pair up row by row; names and types are compared so a
+// list that changed in between is refused rather than mismatched.
+async function scriptResourceIds(sdk, projectId: string): Promise<Map<string, string>> {
+  const [app, run] = await Promise.all([
+    sdk.call("listProjectResources", projectId),
+    sdk.runScript({ summary: "Match picked videos", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
+  ]);
+  const rows = run?.result;
+  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked videos to this project.");
+  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+}
+
 // A Clip highlights run (`context.template`): the hero and clips picked in the
 // app (no AI pick), this year, built out of sight and reported once.
 function TemplateRun({ sdk, context }) {
@@ -566,13 +581,15 @@ function TemplateRun({ sdk, context }) {
       const heroPick = (template.inputs?.hero ?? []).find((x) => x?.resourceId);
       const clipPicks = (template.inputs?.clips ?? []).filter((x) => x?.resourceId && x.resourceId !== heroPick?.resourceId);
       if (!heroPick || clipPicks.length < 2) throw new Error("Pick a hero video and at least two other videos, then try again.");
+      const ids = await scriptResourceIds(sdk, projectId);
+      const own = (id: string) => ids.get(id) ?? id;
       const r = await sdk.runScript({ summary: "Read project media", script: mediaScript(projectId) });
       if (r.isError || !Array.isArray(r.result)) throw new Error("Couldn't read this project's videos. Try again.");
       const byId = new Map((r.result as Media[]).map((v) => [v.id, v]));
-      const hero = byId.get(heroPick.resourceId);
+      const hero = byId.get(own(heroPick.resourceId));
       if (!hero) throw new Error(`Couldn't find ${heroPick.name || "the hero video"} in this project. Try again.`);
       if (hero.seconds < HERO_SECONDS + 0.1) throw new Error(`Pick a hero video at least ${(HERO_SECONDS + 0.1).toFixed(1)} seconds long.`);
-      const clips = clipPicks.map((x) => byId.get(x.resourceId));
+      const clips = clipPicks.map((x) => byId.get(own(x.resourceId)));
       const missing = clipPicks.find((x, i) => !clips[i]);
       if (missing) throw new Error(`Couldn't find ${missing.name || "a picked video"} in this project. Try again.`);
       if (!live()) return;
