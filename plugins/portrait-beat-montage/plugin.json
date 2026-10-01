@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "id": "portrait-beat-montage",
+  "version": "0.1.1",
+  "name": "Portrait Beat Montage",
+  "summary": "Builds an editable 16.3-second 3:4 portrait montage Draft from 10 person clips: a monochrome strobe intro, beat-timed cuts that enter on a person-only zigzag smear with a warm flash, and a white glow ending, cut to the bundled soundtrack.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx",
+    "pipeline.py",
+    "assets/music-bed.wav",
+    "assets/riser.wav",
+    "assets/shutter.wav",
+    "rvm/THIRD_PARTY.md",
+    "rvm/benchmark.py",
+    "rvm/requirements-hashed.txt",
+    "rvm/run.sh",
+    "rvm/runtime.py",
+    "rvm/setup.sh"
+  ],
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 720
+  },
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Development build only. Released-version compatibility is unverified."
+  },
+  "localized": {
+    "de": {
+      "name": "Portrait Beat Montage",
+      "summary": "Erstellt aus 10 Personenclips einen bearbeitbaren, 16,3 Sekunden langen 3:4-Hochformat-Zusammenschnitt als Draft: ein monochromes Stroboskop-Intro, beatgenaue Schnitte, die mit einem nur auf die Person wirkenden Zickzack-Schmier und einem warmen Blitz einsetzen, und ein weißes Glow-Ende, geschnitten auf den mitgelieferten Soundtrack."
+    },
+    "en": {
+      "name": "Portrait Beat Montage",
+      "summary": "Builds an editable 16.3-second 3:4 portrait montage Draft from 10 person clips: a monochrome strobe intro, beat-timed cuts that enter on a person-only zigzag smear with a warm flash, and a white glow ending, cut to the bundled soundtrack."
+    },
+    "es": {
+      "name": "Portrait Beat Montage",
+      "summary": "Crea un Draft de montaje vertical 3:4 editable de 16,3 segundos a partir de 10 clips de personas: una intro estroboscópica monocroma, cortes al ritmo que entran con un barrido en zigzag aplicado solo a la persona y un destello cálido, y un final con resplandor blanco, montado sobre la banda sonora incluida."
+    },
+    "fr": {
+      "name": "Portrait Beat Montage",
+      "summary": "Crée un Draft de montage vertical 3:4 modifiable de 16,3 secondes à partir de 10 plans de personnes : une intro stroboscopique monochrome, des coupes calées sur le rythme qui entrent par un filé en zigzag appliqué à la seule personne avec un flash chaud, et une fin en halo blanc, monté sur la bande-son fournie."
+    },
+    "it": {
+      "name": "Portrait Beat Montage",
+      "summary": "Crea un Draft di montaggio verticale 3:4 modificabile di 16,3 secondi da 10 clip di persone: un'introduzione stroboscopica monocroma, stacchi a tempo che entrano con una sbavatura a zigzag applicata alla sola persona e un flash caldo, e un finale con bagliore bianco, montato sulla colonna sonora inclusa."
+    },
+    "ja": {
+      "name": "Portrait Beat Montage",
+      "summary": "人物が写った10本のクリップから、16.3秒の3:4縦型モンタージュを編集可能なDraftとして作成します。モノクロのストロボイントロ、人物だけがジグザグに流れるスメアと暖色のフラッシュで入るビートカット、白いグローで終わる構成で、付属のサウンドトラックに合わせてカットします。"
+    },
+    "ko": {
+      "name": "Portrait Beat Montage",
+      "summary": "\uc778\ubb3c\uc774 \ub098\uc624\ub294 \ud074\ub9bd 10\uac1c\ub85c 16.3\ucd08 3:4 \uc138\ub85c \ubaa8\ud0c0\uc8fc\ub97c \uc218\uc815 \uac00\ub2a5\ud55c Draft\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. \ud751\ubc31 \uc2a4\ud2b8\ub85c\ube0c \uc778\ud2b8\ub85c\ub85c \uc2dc\uc791\ud574, \uc778\ubb3c\ub9cc \uc9c0\uadf8\uc7ac\uadf8\ub85c \ubc88\uc9c0\ub294 \uc2a4\uba54\uc5b4\uc640 \ub530\ub73b\ud55c \ud50c\ub798\uc2dc\ub85c \ub4e4\uc5b4\uc624\ub294 \ube44\ud2b8 \ucef7\uc744 \uac70\uccd0 \ud770 \uae00\ub85c\uc6b0\ub85c \ub05d\ub098\uba70, \ub0b4\uc7a5 \uc74c\uc6d0\uc5d0 \ub9de\ucd94\uc5b4 \ucef7\ud569\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Portrait Beat Montage",
+      "summary": "Cria um Draft de montagem vertical 3:4 editável de 16,3 segundos a partir de 10 clipes de pessoas: uma introdução estroboscópica monocromática, cortes no ritmo que entram com um borrão em ziguezague aplicado apenas à pessoa e um flash quente, e um final com brilho branco, montado na trilha sonora incluída."
+    },
+    "tr": {
+      "name": "Portrait Beat Montage",
+      "summary": "İnsan görünen 10 klipten düzenlenebilir 16,3 saniyelik 3:4 dikey montaj Draft'ı oluşturur: tek renkli bir stroboskop girişi, yalnızca kişiye uygulanan zikzak bulanıklık ve sıcak bir parıltıyla giren ritme kilitli kesmeler ve beyaz bir parıltıyla biten final; pakete dahil müziğe göre kurgulanır."
+    },
+    "zh": {
+      "name": "Portrait Beat Montage",
+      "summary": "从 10 段人物素材生成可编辑的 16.3 秒 3:4 竖版人像混剪 Draft：黑白频闪开场，每个镜头随节拍切入并带有仅作用于人物的锯齿拖影和暖色闪光，结尾为白色光晕，按插件自带的配乐切点。"
+    }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "clips",
+      "label": "Select 10 videos",
+      "hint": "One person per clip, from the face to the chest. The first five come back after the tenth.",
+      "accepts": [
+        "video"
+      ],
+      "min": 10,
+      "max": 10,
+      "minSeconds": 1.1,
+      "query": "a person facing the camera"
+    }
+  ],
+  "prepare": [
+    "10 videos, at least 1.1 seconds each",
+    "One person per clip, framed from the face to the chest",
+    "macOS on Apple silicon, with ffmpeg installed",
+    "A one-time RVM setup download of a few hundred MB"
+  ]
+}

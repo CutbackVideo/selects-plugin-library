@@ -37,6 +37,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 
 | [Photo Grid Reveal](plugins/photo-gallery-no2) — editable 21-tile photo/video grid with sequential reveals and a shared monochrome-to-color switch | Experimental |
 | [Cinema Vlog Studio](plugins/cinema-vlog-studio) — 21-second cinematic street vlog with marker-driven cuts, a scramble title and inset cards | Experimental |
+| [Portrait Beat Montage](plugins/portrait-beat-montage) — 16.3-second 3:4 portrait montage from 10 person clips, with a monochrome strobe intro, person-only zigzag smear cuts on the beat and a white glow ending | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 

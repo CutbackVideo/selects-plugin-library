@@ -3163,6 +3163,21 @@ function LettersPreview({ lang, word1, word2, seed, looksFile, backdrop }: {
 
 const TEMPLATE_FAILED = "Torn Paper Love couldn't make the timeline. Try again.";
 
+// The app hands a template its own Resource ids, but every run_script read
+// (resources(), clips()) speaks the short ids the script SDK gives out (r0, r1…).
+// The app's list (sdk.call) and the script's list are the Project's Resources in
+// the same order, so they pair up row by row; names and types are compared so a
+// list that changed in between is refused rather than mismatched.
+async function scriptResourceIds(sdk: any, projectId: string): Promise<Map<string, string>> {
+  const [app, run] = await Promise.all([
+    sdk.call("listProjectResources", projectId),
+    sdk.runScript({ summary: "Match picked pictures", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
+  ]);
+  const rows = run?.result;
+  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a: any, i: number) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked pictures to this project.");
+  return new Map(app.map((a: any, i: number) => [a.resourceId, rows[i].id]));
+}
+
 // A Clip highlights run (`context.template`): the pictures picked in the app (`only`), the panel's defaults for the
 // rest (MY / LOVE, Night, quick pace, ambient clip sound, faded look) with the run's length and music, built by the
 // same tplRunBuild as the panel, left closed, reported once. `live` is false once the run is superseded.
@@ -3170,8 +3185,10 @@ async function tplTemplateRun(sdk: any, context: any, live: () => boolean, say: 
   const L = uiLang(context);
   const pid = context?.projectId ?? null;
   if (!pid) throw uiError((l) => t(l, "openProject"));
-  const only = [...new Set<string>((context.template?.inputs?.pictures ?? []).map((x: any) => x?.resourceId).filter(Boolean))];
-  if (only.length < TPL_MIN_PICTURES) throw uiError((l) => t(l, "reason.fewPictures", { min: TPL_MIN_PICTURES }));
+  const picked = [...new Set<string>((context.template?.inputs?.pictures ?? []).map((x: any) => x?.resourceId).filter(Boolean))];
+  if (picked.length < TPL_MIN_PICTURES) throw uiError((l) => t(l, "reason.fewPictures", { min: TPL_MIN_PICTURES }));
+  const ids = await scriptResourceIds(sdk, pid);
+  const only = picked.map((id) => ids.get(id) ?? id);
   const run = async (summary: string, script: string, allowCommit = false) => {
     let r = await sdk.runScript({ summary, script, allowCommit });
     // Only a lost session is resent, and never a committing call: its commit may already have landed.

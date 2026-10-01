@@ -10,5 +10,4 @@
 
 ## Tools
 
-- Node.js runs `build-script.mjs` from the Selects panel shell. No binary is included.
 - React and Remotion APIs are provided by the Selects panel and effect hosts.

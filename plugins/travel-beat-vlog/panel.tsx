@@ -168,6 +168,20 @@ function templateMessage(error){
  if(/cutout|swiftc|Vision/i.test(said))return 'Travel Beat Vlog could not cut out the hero photo. Check that Xcode Command Line Tools are installed, then try again.';
  return TEMPLATE_FAILED;
 }
+// The app hands a template its own Resource ids, but every run_script read
+// (resources(), clips()) speaks the short ids the script SDK gives out (r0, r1…).
+// The app's list (sdk.call) and the script's list are the Project's Resources in
+// the same order, so they pair up row by row; names and types are compared so a
+// list that changed in between is refused rather than mismatched.
+async function scriptResourceIds(sdk, projectId) {
+  const [app, run] = await Promise.all([
+    sdk.call("listProjectResources", projectId),
+    sdk.runScript({ summary: "Match picked files", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
+  ]);
+  const rows = run?.result;
+  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked files to this project.");
+  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+}
 async function templateMedia(sdk,projectId,inputs){
  const hero=(inputs?.hero||[]).filter(x=>x?.kind==='image'&&x.resourceId);
  const long=(inputs?.long||[]).filter(x=>x?.kind==='video'&&x.resourceId);
@@ -176,8 +190,10 @@ async function templateMedia(sdk,projectId,inputs){
  if(long.length!==LONG_SLOTS.length)throw templateIssue('Pick three long shots, then try again.');
  if(clips.length!==SHORT_SLOTS.length)throw templateIssue('Pick 23 clips, then try again.');
  const rows=await inventory(sdk,projectId,'List project media');
+ const ids=await scriptResourceIds(sdk,projectId);
  const row=(pick,type)=>{
-  const m=rows.find(r=>r.resourceId===pick.resourceId&&r.type===type);
+  const id=ids.get(pick.resourceId)??pick.resourceId;
+  const m=rows.find(r=>r.resourceId===id&&r.type===type);
   if(!m)throw templateIssue((pick.name||'A picked file')+' is no longer in this project.');
   if(type==='Video'&&(!m.width||!m.height))throw templateIssue(m.name+' is still being read; wait a moment, then try again.');
   return m;
