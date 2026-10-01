@@ -21,8 +21,8 @@ def main() -> None:
     encoded = sys.argv[1]
     manifest = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
     clips = manifest["clips"]
-    if len(clips) != 15:
-        raise SystemExit("The gallery template needs exactly 15 clips")
+    if not clips:
+        raise SystemExit("The gallery template received no clips")
 
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -33,9 +33,9 @@ def main() -> None:
     if not ffmpeg:
         raise SystemExit("ffmpeg is not installed or could not be found")
 
-    output_dir = Path.home() / ".selects" / "plugin-data" / "gongju-gallery" / uuid.uuid4().hex
+    output_dir = Path(root).resolve().parent / "generated" / "gongju-gallery" / uuid.uuid4().hex
     output_dir.mkdir(parents=True, exist_ok=False)
-    audio_path = Path(root).resolve() / "gongju-gallery" / "assets" / "gallery-bgm-gallery-montage-12s-v2.wav"
+    audio_path = Path(root).resolve() / "gongju-gallery" / "assets" / "gallery-bgm-almost-new-12s.wav"
     if not audio_path.is_file():
         raise SystemExit("The fixed gallery soundtrack is missing from the plugin")
     music_hash = hashlib.sha256(audio_path.read_bytes()).digest()
