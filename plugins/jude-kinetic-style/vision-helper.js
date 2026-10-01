@@ -21,9 +21,11 @@ function cgImage(path) {
 }
 
 function perform(image, request) {
-  const error = Ref();
+  // An NSError** out-parameter takes $(): after a failed call it is the NSError.
+  // (Reading [0] of a Ref() there crashes osascript.)
+  const error = $();
   if (!$.VNImageRequestHandler.alloc.initWithCGImageOptions(image, $({})).performRequestsError($([request]), error)) {
-    throw new Error(error[0] && !error[0].isNil() ? ObjC.unwrap(error[0].localizedDescription) : 'Vision request failed');
+    throw new Error((error.localizedDescription && error.localizedDescription.js) || 'Vision request failed');
   }
 }
 

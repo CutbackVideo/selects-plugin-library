@@ -259,6 +259,9 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
  const report:any={warnings:['Italic font: Playfair Display Medium Italic is a measured approximation; the exact reference font is unconfirmed.'],counts:{captions:items.captions.length,cards:items.cards.length},draftId:sequenceId};
  const jobDir=env.dataDir+'/runs/'+Date.now().toString(36);
  await env.runShell('mkdir -p '+q(jobDir),'Prepare the run folder',10000);
+ // Fetch Node.js now, outside the optional steps below: a failed download must stop
+ // the run with its own message, not quietly drop cut detection and framing.
+ await env.node();
  // Analyse source framing before making any persisted edit.
  const externalGraphics=await env.runScript(`const d=selects.draft(${JSON.stringify(sequenceId)});return (await d.motionGraphics()).filter(x=>!x.name.startsWith(${JSON.stringify(PREFIX)})).length;`,'Check existing graphics');
  let cameraCuts:Record<string,number[]>={};
@@ -449,7 +452,7 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
     readText,
     writeText,
     status,
-    // Resolved once per run, on the first engine step; a failed download is tried again on the next step.
+    // Resolved once per run, before the first engine step; a failed download is tried again on the next run.
     node: () => node ??= (async () => {
       status("Preparing Node.js (first run only)…");
       const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: NODE_COMMAND, timeoutMs: 290000, maxOutputBytes: 8000 });
@@ -639,6 +642,9 @@ function TemplateRun({ sdk, context }: any) {
         if (!projectId) throw new Error("Open a project, then try again.");
         if (!speaker) throw new Error("Pick a talking-head video, then try again.");
         const env = panelEnv(sdk, await templatePaths(sdk), report);
+        if (superseded()) return;
+        // Before a picked video becomes a Draft, so a failed download leaves nothing behind.
+        await env.node();
         if (superseded()) return;
         // A picked video becomes a new Draft; a timeline is styled in place.
         const draftId = speaker.kind === "video" ? await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);

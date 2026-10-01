@@ -43,12 +43,14 @@ case "$(uname -m)" in
   *) echo "This Mac's processor ($(uname -m)) is not supported." >&2; exit 2 ;;
 esac
 
-# fetch URL SHA256 FILE: download, verify, then move into place.
+# fetch URL SHA256 FILE: download, verify, then move into place. A download the
+# panel shell cut short (it stops a call after a few minutes) stays as FILE.partial
+# and the next call resumes it; one that fails its checksum is thrown away.
 fetch() {
-  part="$3.partial.$$"
+  part="$3.partial"
   echo "Downloading $(basename "$1")…" >&2
-  if ! curl --fail --location --retry 2 --proto '=https' --tlsv1.2 -sS "$1" -o "$part"; then
-    rm -f "$part"
+  if ! curl --fail --location --retry 2 --proto '=https' --tlsv1.2 -sS -C - "$1" -o "$part" \
+    && ! printf '%s  %s\n' "$2" "$part" | shasum -a 256 -c - >/dev/null 2>&1; then
     echo "Could not download $(basename "$1"). Check the internet connection, then try again." >&2
     exit 3
   fi
