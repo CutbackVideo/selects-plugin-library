@@ -1118,10 +1118,10 @@ const STRINGS = {
     rolePlaceholder: "\uc5ed\ud560(\uc608: \uac10\ub3c5)",
     namePlaceholder: "\uc774\ub984",
     resetPreset: "\ud504\ub9ac\uc14b\uc73c\ub85c \ub418\ub3cc\ub9ac\uae30",
-    "list.reorderHandle": "{n}\ubc88\uc9f8 \ud589 \uc21c\uc11c \ubc14\uafb8\uae30: {label}",
-    "list.removeRow": "{n}\ubc88\uc9f8 \ud589 \uc0ad\uc81c",
+    "list.reorderHandle": "{n}\ubc88\uc9f8 \uc904 \uc21c\uc11c \ubc14\uafb8\uae30: {label}",
+    "list.removeRow": "{n}\ubc88\uc9f8 \uc904 \uc0ad\uc81c",
     "list.moved": "{label}: {total}\uac1c \uc911 {pos}\ubc88\uc9f8\ub85c \uc62e\uacbc\uc2b5\ub2c8\ub2e4",
-    "list.addRow": "\ud589 \ucd94\uac00",
+    "list.addRow": "\uc904 \ucd94\uac00",
     noRows: "\uc904\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud06c\ub808\ub527\uc5d0\ub294 \ud0c0\uc774\ud2c0\ub9cc \ub098\uc635\ub2c8\ub2e4.",
     rowsHint: "\ub450 \uce78\uc774 \ubaa8\ub450 \ube44\uc5b4 \uc788\ub294 \uc904\uc740 \ube60\uc9d1\ub2c8\ub2e4. [\ub300\uad04\ud638] \uc548\uc758 \uae00\uc790\ub294 \uc9c1\uc811 \ubc14\uafd4 \uc8fc\uc138\uc694.",
     placeholdersLeft: { other: "{count}\uac1c \uc904\uc5d0 \uc544\uc9c1 \uc608\uc2dc \uae00\uc790\uac00 \ub0a8\uc544 \uc788\uc2b5\ub2c8\ub2e4." },
@@ -3166,7 +3166,7 @@ function CreditRows({ lang, rows, busy, ui, onEdit, onAdd, onReset, canReset, on
             </div>
           );
         })}
-        {lineY != null ? <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: lineY - 1, height: 2, borderRadius: 1, background: "var(--panel-accent, rgba(128, 128, 128, 0.9))", pointerEvents: "none", zIndex: 3 }} /> : null}
+        {lineY != null ? <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: lineY - 1, height: 2, borderRadius: 1, background: "var(--panel-fg, rgba(242, 242, 242, 0.9))", pointerEvents: "none", zIndex: 3 }} /> : null}
       </div>
       <div aria-live="polite" style={VISUALLY_HIDDEN}>{said}</div>
       {!n ? <small style={{ wordBreak: "keep-all" }}>{t(lang, "noRows")}</small> : null}
