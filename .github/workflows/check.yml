@@ -115,3 +115,20 @@ jobs:
           node plugins/summer-trip/tests/package.test.cjs
           node plugins/summer-trip/tests/adapter.test.cjs
           node plugins/summer-trip/tests/i18n.test.cjs
+      - name: Test Selfie Aesthetic Edit
+        run: |
+          node plugins/selfie-aesthetic/tests/allocate.test.cjs
+          node plugins/selfie-aesthetic/tests/beat-detect.test.cjs
+          node plugins/selfie-aesthetic/tests/cues.test.cjs
+          node plugins/selfie-aesthetic/tests/driver.test.cjs
+          node plugins/selfie-aesthetic/tests/effect.test.cjs
+          node plugins/selfie-aesthetic/tests/eval-whips.test.cjs
+          node plugins/selfie-aesthetic/tests/host.test.cjs
+          node plugins/selfie-aesthetic/tests/i18n.test.cjs
+          node plugins/selfie-aesthetic/tests/package.test.cjs
+          node plugins/selfie-aesthetic/tests/panel.test.cjs
+          node plugins/selfie-aesthetic/tests/planner.test.cjs
+          node plugins/selfie-aesthetic/tests/public-paths.test.cjs
+          node plugins/selfie-aesthetic/tests/scripts-edit.test.cjs
+          node plugins/selfie-aesthetic/tests/scripts-read.test.cjs
+          node plugins/selfie-aesthetic/tests/still.test.cjs

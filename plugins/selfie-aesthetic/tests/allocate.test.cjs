@@ -1,0 +1,372 @@
+// plugins/selfie-aesthetic/tests/allocate.test.cjs — bar allocation and the whole plan (saeAllocate, saePlanBuild).
+const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), assert = require('node:assert/strict');
+const root = path.resolve(__dirname, '..');
+const source = fs.readFileSync(path.join(root, 'planner.js'), 'utf8');
+const manifest = JSON.parse(fs.readFileSync(path.join(root, 'assets', 'cues', 'manifest.json'), 'utf8'));
+const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
+vm.createContext(box);
+vm.runInContext(source + ';globalThis.P={saeAllocate,saePlanBuild,saeMoments,saeEditBpm,saeMusicOffset,saeTemplate,saePhotoBars,SAE_LEAD,SAE_END_TAIL};', box);
+const P = box.P;
+const j = v => JSON.parse(JSON.stringify(v));
+const FPS = [24000 / 1001, 25, 30000 / 1001, 30];
+const cue = manifest.cues[0];
+
+// A pool: face clips (a face hit well over control), non-face clips (control wins), photos.
+function pool({ face = 0, other = 0, photos = 0, dur = 9 }) {
+  const candidates = [], durations = {};
+  for (let i = 0; i < face; i++) {
+    const rid = 'f' + i;
+    durations[rid] = dur + i * 0.5;
+    candidates.push({ rid, role: 'control', t: 0.5, score: 0.18 });
+    candidates.push({ rid, role: 'selfie', t: 1 + (i % 3) * 0.2, score: 0.30 + i * 0.003 });
+    candidates.push({ rid, role: 'hand', t: 4.2, score: 0.28 });
+    candidates.push({ rid, role: 'expression', t: 6.5, score: 0.27 });
+  }
+  for (let i = 0; i < other; i++) {
+    const rid = 'n' + i;
+    durations[rid] = dur;
+    candidates.push({ rid, role: 'control', t: 2, score: 0.33 });
+    candidates.push({ rid, role: 'selfie', t: 3, score: 0.2 });
+  }
+  return { candidates, durations, photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) };
+}
+const build = (p, o) => j(P.saePlanBuild({ fps: 30, bars: 6, seed: 1, cue, ...p, ...o }));
+const barsOf = plan => Array.from({ length: plan.bars }, (_, k) => plan.holds.find(h => h.bar === k));
+const shots = plan => plan.holds.map(h => h.rid + '@' + h.srcStart).join(',');
+
+// saeMoments of a pool at 30 fps (only the clip-level face test matters for framing; it ignores fps/window).
+const m0 = p => P.saeMoments({ candidates: p.candidates, durations: p.durations, badSpans: p.badSpans, fps: 30, beatSeconds: 0.8 });
+function checkPlan(plan, p, label) {
+  assert.ok(plan.ok, label + ': ok');
+  const fps = plan.fps;
+  assert.equal(plan.holds.length, 6 * (plan.bars - 1) + 7, label + ': hold count');
+  assert.equal(plan.cuts.length, plan.holds.length - 1);
+  assert.equal(plan.holds[0].startFrame, 0);
+  plan.holds.forEach((h, i) => {
+    assert.equal(h.i, i);
+    if (i) assert.equal(h.startFrame, plan.holds[i - 1].endFrame, label + ': contiguous');
+    if (i) assert.equal(plan.cuts[i - 1], Math.round(plan.cutSeconds[i] * fps));
+    if (i) assert.equal(h.startFrame, Math.round((plan.cutSecondsRaw[i] + plan.offset) * fps));
+    assert.ok(h.frames >= 3, label + ': hold >= 3 frames');
+    assert.equal(h.frames, h.endFrame - h.startFrame);
+  });
+  assert.equal(plan.totalFrames, plan.holds[plan.holds.length - 1].endFrame);
+  // One source per bar; A holds of a bar replay one srcStart and B holds another.
+  for (let k = 0; k < plan.bars; k++) {
+    const bar = plan.holds.filter(h => h.bar === k);
+    assert.equal(new Set(bar.map(h => h.rid)).size, 1, label + ': one source per bar');
+    for (const m of ['A', 'B']) assert.equal(new Set(bar.filter(h => h.moment === m).map(h => h.srcStart)).size, 1);
+    if (bar[0].kind === 'photo') {
+      assert.ok(bar.every(h => h.srcStart === 0 && h.framing === (h.moment === 'A' ? 'full' : 'punch')), label + ': photo framing');
+    } else {
+      const face = m0(p).clips.find(c => c.rid === bar[0].rid).face;
+      assert.ok(bar.every(h => h.framing === (face ? 'tight' : 'full')), label + ': face videos tight, others full');
+      const a = bar.find(h => h.moment === 'A').srcStart, b = bar.find(h => h.moment === 'B').srcStart;
+      assert.ok(Math.abs(a - b) >= 0.8 - 1e-9, label + ': A/B >= 0.8 s apart');
+    }
+  }
+  // Played windows lie inside the source with a 0.15 s tail, start on whole frames and avoid bad spans.
+  for (const h of plan.holds.filter(x => x.kind === 'video')) {
+    const dur = p.durations[h.rid];
+    assert.ok(Math.abs(h.srcStart * fps - Math.round(h.srcStart * fps)) < 1e-6, label + ': frame-aligned srcStart');
+    assert.ok(h.srcStart >= 0 && h.srcStart + h.frames / fps <= dur - 0.15 + 1e-9, label + ': inside the source with tail');
+    for (const [s, e] of (p.badSpans && p.badSpans[h.rid]) || []) assert.ok(!(h.srcStart < e && h.srcStart + h.frames / fps > s), label + ': clear of bad spans');
+  }
+  // Whips.
+  assert.equal(plan.holds[0].cutIn, 'none'); assert.equal(plan.holds[plan.holds.length - 1].cutOut, 'none');
+  for (let i = 0; i + 1 < plan.holds.length; i++) {
+    const kind = plan.holds[i + 1].bar !== plan.holds[i].bar ? 'spin' : 'dir';
+    assert.equal(plan.holds[i].cutOut, kind); assert.equal(plan.holds[i + 1].cutIn, kind);
+    assert.equal(plan.holds[i].angleOut, plan.holds[i + 1].angleIn);
+  }
+  // No adjacent same rid when >= 2 sources exist (unless the plan says it relaxed that).
+  const sources = Object.keys(p.durations).length + (p.usePhotos === false ? 0 : (p.photos || []).length);
+  if (sources >= 2 && !plan.notes.includes('adjacent')) {
+    const b = barsOf(plan);
+    for (let k = 1; k < b.length; k++) assert.notEqual(b[k].rid, b[k - 1].rid, label + ': adjacent bars use different sources');
+  }
+  // Photos: at most 2 photo bars in a row.
+  if (!plan.notes.includes('photo-run')) {
+    const kinds = barsOf(plan).map(h => h.kind).join(',');
+    assert.ok(!/photo,photo,photo/.test(kinds), label + ': max 2 photo bars in a row');
+  }
+  // A repeated clip uses a different pair.
+  const pairs = {};
+  for (const h of barsOf(plan).filter(x => x.kind === 'video')) {
+    const bar = plan.holds.filter(x => x.bar === h.bar);
+    const key = bar.find(x => x.moment === 'A').srcStart + ':' + bar.find(x => x.moment === 'B').srcStart;
+    if (!plan.notes.includes('pair-reuse')) assert.ok(!(pairs[h.rid] || []).includes(key), label + ': repeat uses a different pair');
+    (pairs[h.rid] = pairs[h.rid] || []).push(key);
+  }
+  for (const key of ['fps', 'bpm', 'editBpm', 'firstBeat', 'sectionStart', 'lead', 'bars', 'totalFrames', 'holds', 'cuts', 'cutSeconds', 'cutSecondsRaw', 'musicSourceStart', 'beats', 'notes', 'fit']) assert.ok(key in plan, 'plan.' + key);
+  for (const key of ['i', 'bar', 'kind', 'rid', 'moment', 'srcStart', 'frames', 'startFrame', 'endFrame', 'cutIn', 'cutOut', 'angle', 'framing']) assert.ok(key in plan.holds[0], 'hold.' + key);
+}
+
+// ---- Face tier first (GATE-A ruling): every face clip once, then face reuse, then photos, then non-face clips ----
+{
+  const p = pool({ face: 4, other: 4 });
+  const plan = build(p, { usePhotos: false });
+  checkPlan(plan, p, 'face first');
+  const rids = barsOf(plan).map(h => h.rid);
+  assert.ok(rids.every(r => r[0] === 'f'), 'face reuse comes before non-face clips');
+  assert.equal(new Set(rids.slice(0, 4)).size, 4, 'every face clip once before any face repeat');
+  assert.ok(plan.notes.includes('reused') && plan.notes.includes('few-face'), '4 face clips for 6 bars');
+  assert.equal(plan.faceClips, 4);
+}
+{
+  // The ruling's case: 2 face clips + 3 non-face + 0 photos, 6 bars. The face clips alternate with distinct pairs
+  // until each has 2 uses, then the non-face clips fill in; never adjacent.
+  const p = pool({ face: 2, other: 3 });
+  for (const seed of [1, 2, 3]) {
+    const plan = build(p, { bars: 6, seed });
+    checkPlan(plan, p, 'ruling seed ' + seed);
+    const rids = barsOf(plan).map(h => h.rid);
+    assert.ok(rids.slice(0, 4).every(r => r[0] === 'f'), 'face clips first: ' + rids);
+    assert.ok(rids.slice(4).every(r => r[0] === 'n'), 'then non-face clips: ' + rids);
+    assert.notEqual(rids[0], rids[1]); assert.equal(rids[0], rids[2]); assert.equal(rids[1], rids[3]);
+    assert.ok(plan.notes.includes('few-face') && plan.notes.includes('reused'));
+  }
+}
+{
+  // Fewer face clips than video bars with photos around: face (up to 2 uses each, never adjacent) -> photos beyond
+  // round(N/3) (bars 2..N-2 only) -> non-face clips.
+  const p = pool({ face: 1, other: 2, photos: 6 });
+  const plan = build(p, { bars: 8 });
+  checkPlan(plan, p, 'face photo order');
+  const b = barsOf(plan);
+  assert.equal(b.filter(h => h.rid === 'f0').length, 2, 'the face clip is used twice');
+  assert.equal(b[0].rid, 'f0', 'bar 0 takes the face clip');
+  assert.equal(b[1].kind, 'video', 'bar 1 is never a photo while videos exist');
+  assert.equal(b[7].kind, 'video', 'the finale is never a photo while videos exist');
+  assert.ok(b.filter(h => h.kind === 'photo').length >= Math.round(8 / 3), 'photos where the run limit allows');
+  // From bar 2 on, a non-face clip only where the face clip is used up (or adjacent) and another photo would make
+  // 3 in a row (or it is the finale).
+  b.forEach((h, k) => { if (h.rid[0] === 'n' && k >= 2 && k < 7) assert.ok(b[k - 1].kind === 'photo' && b[k - 2].kind === 'photo', 'non-face only when photos cannot fill: bar ' + k); });
+}
+{
+  // Plenty of face clips: only face clips, no repeats.
+  const p = pool({ face: 8, other: 3 });
+  const plan = build(p, { usePhotos: false, bars: 8 });
+  checkPlan(plan, p, 'plenty');
+  assert.ok(barsOf(plan).every(h => h.rid[0] === 'f'));
+  assert.equal(new Set(barsOf(plan).map(h => h.rid)).size, 8);
+  assert.deepEqual(plan.notes, []);
+}
+
+// ---- Key bars (opening and finale) prefer clean face poses over gesture-dominated clips / moments ----
+{
+  // g: the best face score, but its hand hits beat its selfie / expression hits (a hand reaching at the lens).
+  // c0, c1: clean face poses (selfie + expression well over hand).
+  const candidates = [], durations = { g: 12, c0: 12, c1: 12 };
+  const add = (rid, role, t, score) => candidates.push({ rid, role, t, score });
+  add('g', 'control', 0.5, 0.18); add('c0', 'control', 0.5, 0.18); add('c1', 'control', 0.5, 0.18);
+  for (const t of [1, 4, 7, 10]) { add('g', 'hand', t, 0.36); add('g', 'selfie', t + 0.2, 0.33); }
+  for (const rid of ['c0', 'c1']) for (const t of [1, 4, 7, 10]) { add(rid, t % 2 ? 'selfie' : 'expression', t, 0.30); add(rid, 'hand', t + 1, 0.2); }
+  const p = { candidates, durations };
+  const m = j(P.saeMoments({ candidates, durations, fps: 30, beatSeconds: 0.9 }));
+  const g = m.clips.find(c => c.rid === 'g'), c0 = m.clips.find(c => c.rid === 'c0');
+  assert.ok(g.faceScore > c0.faceScore, 'g has the better face score');
+  assert.ok(g.gesture > 0 && c0.gesture < 0, 'clip gesture: g ' + g.gesture + ', c0 ' + c0.gesture);
+  assert.ok(g.pairs.filter(q => q.score > 0).length >= 2 && g.pairs.filter(q => q.score > 0).every(q => q.gesture === 2), 'every g hit moment is gesture-dominated');
+  assert.ok(c0.pairs.slice(0, 2).every(q => q.gesture === 0) && c0.pairs.some(q => q.gesture === 2), 'the best c0 pairs are clean; its hand-only moments are flagged');
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    const plan = build(p, { bars: 4, seed, usePhotos: false });
+    checkPlan(plan, p, 'key bars seed ' + seed);
+    const rids = barsOf(plan).map(h => h.rid);
+    assert.ok(rids[0][0] === 'c' && rids[3][0] === 'c', 'opening and finale are clean face clips: ' + rids);
+    assert.ok(rids.includes('g'), 'the gesture clip still plays in an inner bar: ' + rids);
+  }
+  // Moment level: one clip whose 4 s moment is gesture-dominated; bar 0 takes a pair without it.
+  const one = [], d1 = { s: 12 };
+  one.push({ rid: 's', role: 'control', t: 0.5, score: 0.18 });
+  for (const t of [1, 7, 10]) one.push({ rid: 's', role: t === 7 ? 'expression' : 'selfie', t, score: 0.30 });
+  one.push({ rid: 's', role: 'selfie', t: 4, score: 0.31 }, { rid: 's', role: 'hand', t: 4, score: 0.40 });
+  const ms = j(P.saeMoments({ candidates: one, durations: d1, fps: 30, beatSeconds: 0.9 })).clips[0];
+  const at4 = q => Math.abs(q.a - 4) < 0.05 || Math.abs(q.b - 4) < 0.05;
+  assert.ok(ms.pairs.some(q => at4(q) && q.gesture === 1), 'the 4 s moment is gesture-dominated');
+  const plan = build({ candidates: one, durations: d1 }, { bars: 4, usePhotos: false });
+  const bar0 = plan.holds.filter(h => h.bar === 0);
+  assert.ok(bar0.every(h => Math.abs(h.srcStart - 4) > 0.05), 'bar 0 avoids the gesture moment: ' + bar0.map(h => h.srcStart));
+}
+
+// ---- One face clip + photos: photos relax into bar 1 (and the finale if needed) instead of shrinking ----
+for (const seed of [1, 2, 3]) for (const N of [4, 6, 8]) {
+  const p = pool({ face: 1, photos: 6 });
+  const plan = build(p, { bars: N, seed });
+  checkPlan(plan, p, 'one face + photos N=' + N + ' seed ' + seed);
+  const b = barsOf(plan);
+  assert.equal(plan.bars, N, 'no shrink: ' + plan.notes);
+  assert.ok(!plan.notes.includes('adjacent') && !plan.notes.includes('shrunk'), 'no adjacency / shrink: ' + plan.notes);
+  assert.ok(plan.notes.includes('photos-early'), 'noted');
+  assert.equal(b[0].rid, 'f0', 'bar 0 is still the face clip');
+  assert.equal(b[1].kind, 'photo', 'f0 P ... : ' + b.map(h => h.rid));
+  if (N === 4) assert.deepEqual(b.map(h => h.kind), ['video', 'photo', 'photo', 'video'], 'Short: f0 P P f0');
+}
+{
+  // Strict rules still win when they can fill: 2+ face clips keep photos from bar 2 on, no 'photos-early'.
+  for (const face of [2, 3]) {
+    const plan = build(pool({ face, photos: 6 }), { bars: 4 });
+    assert.ok(!plan.notes.includes('photos-early'), face + ' face clips: strict photo rules');
+    assert.equal(barsOf(plan)[1].kind, 'video');
+  }
+}
+
+// ---- Expressive A/B pairs: different roles and >= 1.5 s apart beat two hits of one role close together ----
+{
+  const c = (t, role, score) => ({ rid: 'e', role, t, score });
+  const base = [c(0.3, 'control', 0.18)];
+  // Two selfie hits 1.0 s apart (the best raw sum), an expression and a glance hit far away (slightly lower).
+  const cands = base.concat([c(2, 'selfie', 0.33), c(3, 'selfie', 0.33), c(6, 'expression', 0.31), c(9, 'glance', 0.31)]);
+  const m = j(P.saeMoments({ candidates: cands, durations: { e: 12 }, fps: 30, beatSeconds: 0.8 })).clips[0];
+  const best = m.pairs[0];
+  assert.notEqual(best.roles[0], best.roles[1], 'best pair mixes roles: ' + JSON.stringify(best));
+  assert.ok(Math.abs(best.a - best.b) >= 1.5, 'best pair >= 1.5 s apart');
+  const same = m.pairs.find(q => [q.a, q.b].sort().join() === '2,3');
+  assert.ok(!same || same.score < best.score, 'the close same-role pair ranks lower');
+  // Never overlapping: at 70 BPM the window (~1.1 s) is longer than SAE_PAIR_GAP (0.8 s).
+  const win = 60 / 70 + 0.15 + 2 / 30;
+  const dense = base.concat([0.5, 1, 1.5, 2, 2.5, 3, 3.5].map((t, i) => c(t, ['selfie', 'expression', 'glance'][i % 3], 0.3)));
+  const md = j(P.saeMoments({ candidates: dense, durations: { e: 4.6 }, fps: 30, beatSeconds: win })).clips[0];
+  assert.ok(md.pairs.length > 0 && md.pairs.filter(q => !q.relaxed).every(q => Math.abs(q.a - q.b) >= win - 1e-9), 'A/B windows never overlap');
+}
+
+// ---- Photos: about a third of the bars (Standard / Long), max 2 in a row, bars 2..N-2 only ----
+// Short (<= 4 bars): at most 1 photo bar, and only with fewer than 3 face clips (video-rich input plays video pairs).
+// 3 bars (shrunk): bar 2 is the finale, so no photo bar at all.
+for (const N of [3, 4, 5, 6, 7, 8]) for (const seed of [1, 2, 3, 4, 5]) for (const face of [1, 2, 3, 8]) {
+  const p = pool({ face, other: 4, photos: 8 });
+  const plan = build(p, { bars: N, seed });
+  checkPlan(plan, p, 'photos N=' + N + ' face ' + face);
+  const kinds = barsOf(plan).map(h => h.kind), photos = kinds.filter(k => k === 'photo').length;
+  assert.equal(kinds[0], 'video', 'bar 0 is a video'); assert.equal(kinds[1], 'video', 'bar 1 is a video');
+  assert.equal(kinds[N - 1], 'video', 'the finale is a video');
+  if (N <= 4) assert.equal(photos, N === 4 && face < 3 ? 1 : 0, 'Short: ' + photos + ' photo bars with ' + face + ' face clips');
+  else if (face === 8) assert.equal(photos, Math.round(N / 3), 'photo bars = round(N/3)');
+  else assert.ok(photos >= Math.round(N / 3), 'few face clips: at least round(N/3) photo bars');
+}
+{
+  // Few face clips: photos rank above non-face clips, still max 2 in a row.
+  const p = pool({ face: 1, other: 5, photos: 6 });
+  const plan = build(p, { bars: 8 });
+  checkPlan(plan, p, 'few-face photos');
+  const kinds = barsOf(plan).map(h => h.kind);
+  assert.ok(kinds.filter(k => k === 'photo').length >= Math.round(8 / 3), 'photos replace non-face clips where they may');
+  assert.equal(barsOf(plan)[0].rid, 'f0', 'bar 0 takes the face clip');
+  assert.ok(plan.notes.includes('few-face'));
+  // usePhotos off: no photo bars.
+  const off = build(p, { bars: 6, usePhotos: false });
+  checkPlan(off, { ...p, usePhotos: false }, 'photos off');
+  assert.ok(off.holds.every(h => h.kind === 'video'));
+}
+{
+  // Only photos: a photo-only build still works (runs relaxed, noted).
+  const p = pool({ photos: 5 });
+  const plan = build(p, { bars: 4 });
+  checkPlan(plan, p, 'photo-only');
+  assert.ok(plan.holds.every(h => h.kind === 'photo'));
+  assert.ok(plan.notes.includes('photo-run'));
+}
+
+// ---- Few face clips: reuse with different pairs, never adjacent ----
+{
+  const p = pool({ face: 2 });
+  const plan = build(p, { bars: 6, usePhotos: false });
+  checkPlan(plan, p, 'reuse');
+  const rids = barsOf(plan).map(h => h.rid);
+  assert.equal(new Set(rids).size, 2);
+  assert.ok(plan.notes.includes('few-face') && plan.notes.includes('reused'));
+  assert.deepEqual(plan.fit, { bars: 6, wanted: 6 });
+}
+{
+  // One source: adjacency cannot apply; every bar uses a different pair of the same clip.
+  const p = pool({ face: 1, dur: 12 });
+  const plan = build(p, { bars: 4, usePhotos: false });
+  checkPlan(plan, p, 'single');
+  assert.equal(new Set(plan.holds.map(h => h.rid)).size, 1);
+  assert.ok(plan.notes.includes('reused'));
+}
+
+// ---- Shrink ----
+{
+  // A long clip and a 2 s clip with a single A/B pair: A B A is the longest strict fill, so 4 or 6 bars shrink to 3.
+  const p = { candidates: [], durations: { long: 12, short: 2 } };
+  const m = j(P.saeMoments({ candidates: [], durations: p.durations, fps: 30, beatSeconds: 60 / cue.bpm + 1 / 30 }));
+  assert.equal(m.clips.find(c => c.rid === 'short').pairs.length, 1);
+  for (const N of [4, 6]) {
+    const plan = build(p, { bars: N });
+    checkPlan(plan, p, 'shrink');
+    assert.deepEqual(plan.fit, { bars: 3, wanted: N });
+    assert.equal(plan.bars, 3);
+    assert.ok(plan.notes.includes('shrunk'));
+    assert.deepEqual(barsOf(plan).map(h => h.rid), ['long', 'short', 'long']);
+  }
+  // A single clip too short for a strict pair: three bars with the pair reused (noted).
+  const tiny = { candidates: [], durations: { t: 1.3 } };
+  const plan = build(tiny, { bars: 4 });
+  assert.ok(plan.ok);
+  assert.equal(plan.bars, 3);
+  assert.ok(plan.notes.includes('shrunk') && plan.notes.includes('pair-reuse'));
+  // Nothing at all.
+  const none = build({ candidates: [], durations: {} }, {});
+  assert.equal(none.ok, false); assert.deepEqual(none.notes, ['no-sources']);
+}
+
+// ---- Clips too short for a real A/B pair are a last resort ----
+{
+  const p = pool({ face: 3, other: 1 });
+  p.durations.s0 = 1.3;
+  p.candidates.push({ rid: 's0', role: 'control', t: 0.2, score: 0.1 }, { rid: 's0', role: 'selfie', t: 0.3, score: 0.5 });
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    const plan = build(p, { bars: 6, seed, usePhotos: false });
+    checkPlan(plan, p, 'short clip seed ' + seed);
+    assert.ok(plan.holds.every(h => h.rid !== 's0'), 'the 1.3 s clip is not used while real pairs exist');
+  }
+}
+
+// ---- Bad spans ----
+{
+  const p = pool({ face: 3 });
+  p.badSpans = { f0: [[0, 3.5]], f1: [[3.9, 5]], f2: [[6, 9]] };
+  const plan = build(p, { bars: 6, usePhotos: false });
+  checkPlan(plan, p, 'bad spans');
+}
+
+// ---- Determinism, seeds, input order ----
+{
+  const p = pool({ face: 5, other: 2, photos: 4 });
+  const a = build(p, { seed: 1 }), b = build(p, { seed: 1 });
+  assert.deepEqual(a, b, 'same seed, same plan');
+  const shuffled = { ...p, candidates: p.candidates.slice().reverse(), photos: p.photos.slice().reverse() };
+  assert.deepEqual(build(shuffled, { seed: 1 }), a, 'input order does not matter');
+  const c = build(p, { seed: 2 });
+  checkPlan(c, p, 'seed 2');
+  assert.ok(!a.notes.includes('few-face'), '5 face clips fill the 4 video bars');
+  assert.notEqual(shots(c), shots(a), '"Try other shots" (seed 2) picks other shots');
+  let differ = 0;
+  for (let s = 2; s <= 11; s++) if (shots(build(p, { seed: s })) !== shots(a)) differ++;
+  assert.ok(differ >= 8, 'most seeds give another plan (' + differ + '/10)');
+}
+
+// ---- Adjacency and frames over many pools, seeds, fps and cues ----
+for (const c of manifest.cues.concat([null, { grid: 'none', bpm: 133, firstBeat: 0.2, durationSeconds: 90 }])) {
+  for (const fps of FPS) {
+    for (const [face, other, photos] of [[2, 0, 0], [2, 1, 1], [3, 0, 2], [1, 1, 0], [0, 3, 0], [6, 2, 5]]) {
+      for (const seed of [1, 2, 7]) for (const bars of [4, 6, 8]) {
+        const p = pool({ face, other, photos });
+        const plan = j(P.saePlanBuild({ fps, bars, seed, cue: c, ...p }));
+        checkPlan(plan, p, (c ? c.id || 'own' : 'none') + ' fps ' + fps.toFixed(3) + ' pool ' + [face, other, photos] + ' seed ' + seed);
+        if (c && c.grid === 'accepted') {
+          // The plan's frames follow the schedule formula with the music offset of sectionStart - lead.
+          const e = P.saeEditBpm(c.bpm), m = plan.sectionStart - P.SAE_LEAD, d = m - Math.round(m * fps) / fps;
+          const tpl = P.saeTemplate(plan.bars);
+          plan.holds.forEach((h, i) => { if (i) assert.equal(h.startFrame, Math.round((P.SAE_LEAD + tpl[i].startBeat * (60 / e) + d) * fps)); });
+          assert.equal(plan.editBpm, e); assert.equal(plan.bpm, c.bpm);
+          assert.ok(Math.abs(plan.musicSourceStart - m) < 1e-12);
+        }
+        if (!c) { assert.ok(plan.notes.includes('no-music')); assert.equal(plan.offset, 0); assert.equal(plan.sectionStart, null); assert.equal(plan.musicSourceStart, null); }
+      }
+    }
+  }
+}
+
+console.log('allocate.test: ok');
