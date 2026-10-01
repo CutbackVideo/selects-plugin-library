@@ -2717,6 +2717,12 @@ var MV_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\u
 // The macOS Korean system face per bundled family (by role: serif faces AppleMyungjo, the rest Apple SD Gothic Neo).
 var MV_KO_FACES = { "MV Instrument Serif Italic": "AppleMyungjo", "MV DM Serif Display": "AppleMyungjo", "MV Rounded Bold": "Apple SD Gothic Neo", "MV DM Mono": "Apple SD Gothic Neo" };
 function mvHasHangul(text) { return MV_HANGUL_RE.test(String(text || "")); }
+// The system Korean faces' ink in em: Hangul reaches about 0.86 em above the baseline and 0.12 em below it.
+var MV_WIDE_UP = 0.86, MV_WIDE_DOWN = 0.12;
+// Where a star or year centres on a line: the x-height band of Latin text, the middle of the ink of wide text.
+function mvBand(text, m) {
+  return MV_WIDE_RE.test(text) ? (MV_WIDE_UP - MV_WIDE_DOWN) / 2 : m.xHeight / m.unitsPerEm / 2;
+}
 // A text item's font stack: the bundled face, the Latin fallbacks, then the family's Korean face before the generic one.
 function mvFontStack(family) {
   var ko = MV_KO_FACES[family] || "Apple SD Gothic Neo";
@@ -2749,9 +2755,10 @@ function mvTextWidth(text, m, px, tracking = 0) {
 // and sit a little below the baseline, so they count like capitals and descenders.
 function mvInk(text, m) {
   var up = m.xHeight, down = 0, wide = MV_WIDE_RE.test(text);
-  if (wide || /[A-Z0-9bdfhklt\u00c0-\u00de\u00df!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.ascent, m.capHeight);
+  if (/[A-Z0-9bdfhklt\u00c0-\u00de\u00df!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.ascent, m.capHeight);
   else if (/[ij]/.test(text)) up = Math.max(up, m.dots.i[1] + 0.07 * m.unitsPerEm);
-  if (wide || /[gjpqy,;()[\]{}|]/.test(text)) down = -m.descent;
+  if (/[gjpqy,;()[\]{}|]/.test(text)) down = -m.descent;
+  if (wide) { up = Math.max(up, MV_WIDE_UP * m.unitsPerEm); down = Math.max(down, MV_WIDE_DOWN * m.unitsPerEm); }
   return { up: up / m.unitsPerEm, down: down / m.unitsPerEm };
 }
 
@@ -2831,7 +2838,8 @@ function mvLayoutMini(data, fields, H, S, col) {
     items.push(mvMark("sparkle", "sparkle", px, py, spark, col.primary));
   }
   if (data.sparkles !== false && marks.length === 0) {
-    items.push(mvMark("sparkle", "sparkle", big.box[2] + 0.04 * Fb, big.box[1] - 0.06 * Fb, spark, col.primary));
+    // Hangul in the italic preset is slanted by the renderer past its advance box, so its sparkle moves further right.
+    items.push(mvMark("sparkle", "sparkle", big.box[2] + (mvHasHangul(bigText) ? 0.2 : 0.04) * Fb, big.box[1] - 0.06 * Fb, spark, col.primary));
   }
   if (fields.small) {
     // "vlog" is 43 % of "mini"'s width in No.17; 41 % (5 % smaller) keeps the one-weight face from reading heavy.
@@ -2855,7 +2863,7 @@ function mvLayoutDay(data, fields, H, S, col) {
   var l1 = lines.length > 1 ? lines[0] : "", l2 = lines.length > 1 ? lines[1] : lines[0];
   var row1 = [], row2 = [];
   // Row 1: star + year centred on the big line's x-height band, then the first big line.
-  var y1 = 0, band1 = y1 - (xh * Fb) / 2, x = 0;
+  var y1 = 0, band1 = y1 - mvBand(l1 || l2, m) * Fb, x = 0;
   if (fields.year) {
     // The star only takes room when it is drawn.
     if (accents) {
@@ -2879,7 +2887,7 @@ function mvLayoutDay(data, fields, H, S, col) {
   var b2 = mvText("big2", l2, fb, 0, y2, Fb, col.primary);
   row2.push(b2);
   if (fields.tag) {
-    var tag = mvSplit(fields.tag, false), band2 = y2 - (xh * Fb) / 2, tx = b2.box[2] + 0.08 * Fb;
+    var tag = mvSplit(fields.tag, false), band2 = y2 - mvBand(l2, m) * Fb, tx = b2.box[2] + 0.08 * Fb;
     var lead = 1.2 * Ft;
     // Two lines: the block (line 1 x-height top to line 2 baseline) is centred on the band.
     var t1y = tag.length > 1 ? band2 - (lead - xhT * Ft) / 2 : band2 + (xhT * Ft) / 2;
@@ -2911,7 +2919,7 @@ function mvLayoutGlimpse(data, fields, H, S, col) {
   var up2 = mvInk(lines[lines.length - 1], m).up;
   var y2 = first ? 0.66 * Fb + Math.max(0, (up2 - xh) * Fb) : 0;
   var starD = 0.4 * Fb;
-  if (data.sparkles !== false) items.push(mvMark("star", "star", 0.2 * Fb, y2 - (xh * Fb) / 2, starD, col.secondary));
+  if (data.sparkles !== false) items.push(mvMark("star", "star", 0.2 * Fb, y2 - mvBand(lines[lines.length - 1], m) * Fb, starD, col.secondary));
   last = mvText("big2", lines[lines.length - 1], fb, 0.5 * Fb, y2, Fb, col.primary);
   items.push(last);
   var topLine = first || last;

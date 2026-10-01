@@ -259,7 +259,7 @@ for (const id of ['day-in-my-life', 'small-glimpse']) for (const i of lay(id, { 
 
 // --- Korean titles (Hangul; escapes only, the plugin holds no literal Hangul) ---------------
 {
-  vm.runInContext('globalThis.K={ stack: mvFontStack, hangul: mvHasHangul, split: mvSplit, adv: mvAdvance, ink: mvInk, faces: MV_KO_FACES };', box);
+  vm.runInContext('globalThis.K={ stack: mvFontStack, hangul: mvHasHangul, split: mvSplit, adv: mvAdvance, ink: mvInk, band: mvBand, faces: MV_KO_FACES };', box);
   const K = box.K;
   const ILSANG = '\uc77c\uc0c1', HARU = '\ud558\ub8e8', SOGAE = '\uc791\uc740 \uc21c\uac04', VLOG = '\ube0c\uc774\ub85c\uadf8';
   // Every bundled family has its Korean system face by role: serif faces AppleMyungjo, the rest Apple SD Gothic Neo,
@@ -278,6 +278,9 @@ for (const id of ['day-in-my-life', 'small-glimpse']) for (const i of lay(id, { 
   // Hangul reaches the ascent and below the baseline (its ink box is not x-height tall).
   const ik = JSON.parse(JSON.stringify(K.ink(HARU, m)));
   assert.ok(ik.up >= m.capHeight / m.unitsPerEm && ik.down > 0, 'Hangul ink ' + JSON.stringify(ik));
+  assert.deepEqual(ik, { up: 0.86, down: 0.12 }, 'Hangul ink: 0.86 em up, 0.12 em down');
+  // Stars and the year centre on the middle of Hangul ink, on the x-height band of Latin.
+  near(K.band(HARU, m), 0.37, 1e-9, 'Hangul band'); near(K.band('day', m), m.xHeight / m.unitsPerEm / 2, 1e-9, 'Latin band');
   // A spaceless Hangul word is never hyphenated; with a space it splits there.
   assert.deepEqual(JSON.parse(JSON.stringify(K.split(VLOG, true))), [VLOG]);
   const texts = (big) => lay('small-glimpse', { top: '', big, bottom: '' }).filter(i => i.kind === 'text').map(i => i.text);
