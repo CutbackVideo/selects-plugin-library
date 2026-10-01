@@ -1,26 +1,27 @@
 // @name Archive Vlog
 // @collection visual-highlights
-// @name:de Mini-Vlog
+// @name:de Archive Vlog
 // @name:en Archive Vlog
-// @name:es Mini vlog
-// @name:fr Mini vlog
-// @name:it Mini vlog
-// @name:ja ミニ Vlog
+// @name:es Archive Vlog
+// @name:fr Archive Vlog
+// @name:it Archive Vlog
+// @name:ja Archive Vlog
 // @name:ko Archive Vlog
-// @name:pt Mini vlog
+// @name:pt Archive Vlog
 // @name:tr Archive Vlog
-// @name:zh 迷你 Vlog
+// @name:zh Archive Vlog
 // @icon sparkles
-// Builds a beat-cut 16:9 mini vlog with one static title lockup and a soft look as a new, editable Draft.
+// Builds a 16:9 cinematic city or travel vlog as a new, editable Draft: a letterbox-open first shot with a decoding
+// title, an "archived by" credit shot, a montage cut on the music's beat and a held last shot that fades to black.
 import React from "react";
 
 // STRINGS:BEGIN
 const STRINGS = {
   en: {
-    openProject: "Open a Project to build a Archive Vlog.",
+    openProject: "Open a Project to build an Archive Vlog.",
     startFailed: "Archive Vlog could not start: {detail}. Reinstall the plugin if this persists.",
     foldersNotFound: "the plugin folders could not be found",
-    adapterNeeded: "This Selects build needs an updated {name} adapter.",
+    hostTooOld: "Archive Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     stepFailed: "Selects could not complete this step.",
     busy: "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.",
     invFailed: "Couldn't read this Project's clips yet. Press Refresh.",
@@ -44,7 +45,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} of {count} clip selected", other: "{selected} of {count} clips selected" },
     photos: { one: "{count} photo", other: "{count} photos" },
     photosSelected: { one: "{selected} of {count} photo selected", other: "{selected} of {count} photos selected" },
-    aboutSeconds: "about {seconds} s",
     notAnalysed: { one: "{count} clip not analysed yet", other: "{count} clips not analysed yet" },
     analysing: { one: "{count} clip is being analysed. This updates automatically when it finishes.", other: "{count} clips are being analysed. This updates automatically when they finish." },
     notAnalysedAnalyse: { one: "{count} clip is not analysed yet. Analyse it in Selects to use it here.", other: "{count} clips are not analysed yet. Analyse them in Selects to use them here." },
@@ -52,30 +52,26 @@ const STRINGS = {
     analysisFailed: { one: "{count} clip could not be analysed.", other: "{count} clips could not be analysed." },
     noteAnalysing: { one: "{count} clip being analysed", other: "{count} clips being analysed" },
     noteFailed: { one: "{count} clip could not be analysed", other: "{count} clips could not be analysed" },
-    title: "Title",
-    titleStyle: "Title style",
+    style: "Style",
     titlePreview: "Title preview",
     previewUnavailable: "Preview unavailable; the title is still added to the Draft.",
+    replayDecode: "Replay the title animation",
     loading: "Loading…",
-    "preset.archive-vlog": "Mini vlog",
-    "preset.day-in-my-life": "A day in my life",
-    "preset.small-glimpse": "A small glimpse",
-    "field.archive-vlog.big": "Big word",
-    "field.archive-vlog.small": "Small word",
-    "field.day-in-my-life.year": "Year",
-    "field.day-in-my-life.big": "Big words",
-    "field.day-in-my-life.tag": "Tag line",
-    "field.small-glimpse.top": "Top line",
-    "field.small-glimpse.big": "Big word",
-    "field.small-glimpse.bottom": "Bottom line",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
+    creditShot: "Credit shot",
+    creditName: "Name on the credit",
+    creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Music",
     track: "Track",
-    alternatives: "Alternatives",
     ownMusic: "Your own music",
     noMusic: "No music",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} bpm",
-    installTools: "Install ffmpeg and Node.js 18+ to preview music or use your own track.",
     sectionHint: "Music section — drag to choose",
     sectionLabel: "Music section",
     musicTooShort: "This track is too short for this length",
@@ -85,7 +81,6 @@ const STRINGS = {
     previewSection: "Preview this section",
     readingMusic: "Reading the music…",
     musicLengthUnknown: "The length of this music is unknown",
-    startAtHook: "Start at the hook",
     beatFound: "Beat found: {bpm} bpm. Cuts follow the beat.",
     faintTempo: "Tempo found ({bpm} bpm) but the beat is faint, so cuts follow a {bpm} bpm grid approximately.",
     outsideTempo: "Its tempo ({bpm} bpm) is outside 70–160 bpm, so cuts use approximate timing.",
@@ -95,29 +90,23 @@ const STRINGS = {
     "length.standard": "Standard",
     "length.long": "Long",
     pace: "Pace",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Quick",
-    "pace.relaxed": "Relaxed",
-    "pace.groove": "Groove",
-    fitPartial: { one: "{length}: {fitted} of {count} shot fit this track ({seconds} s)", other: "{length}: {fitted} of {count} shots fit this track ({seconds} s)" },
-    fitFull: { one: "{length}: {count} shot ({seconds} s)", other: "{length}: {count} shots ({seconds} s)" },
-    footageFits: { one: "Your footage fits {fitted} of {count} shot ({seconds} s)", other: "Your footage fits {fitted} of {count} shots ({seconds} s)" },
-    seconds: "{seconds} s",
-    grooveTiming: "Groove on a {beat} s beat: {hold}, {beat} and {eighth} s shots",
-    quickTwoBeats: "At {bpm} bpm Quick uses 2 beats per shot.",
-    relaxedOneBeat: "At {bpm} bpm Relaxed uses 1 beat per shot.",
-    grooveOneBeat: "At {bpm} bpm Groove opens phrases with 1 beat.",
-    grooveTwoBeats: "At {bpm} bpm Groove uses 2 beats per shot.",
-    noMusicTiming: "No music: shots use approximate timing ({timing}).",
-    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately ({timing}).",
-    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): shots use approximate timing ({timing}).",
-    noBeatTiming: "No steady beat found: shots use approximate timing ({timing}).",
+    fitPartial: { one: "{length}: {fitted} of {count} montage shot fit this track ({seconds} s)", other: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)" },
+    fitFull: { one: "{length}: {count} montage shot ({seconds} s)", other: "{length}: {count} montage shots ({seconds} s)" },
+    footageFits: { one: "Your footage fits {fitted} of {count} montage shot ({seconds} s)", other: "Your footage fits {fitted} of {count} montage shots ({seconds} s)" },
+    montageBeats: { one: "Montage shots hold {count} beat ({seconds} s).", other: "Montage shots hold {count} beats ({seconds} s)." },
+    noMusicTiming: "No music: cuts follow a steady {bpm} bpm beat.",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
+    noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Advanced",
     clipSound: "Clip sound",
     "sound.off": "Off",
     "sound.ambient": "Ambient",
     "sound.full": "Full",
-    softLook: "Soft look",
-    beatPunch: "Beat punch",
+    cinematicLook: "Cinematic look",
     usePhotos: "Use photos",
     usePhotosOff: "Use photos is off",
     silentVideo: "Silent video: no music and Clip sound is Off.",
@@ -140,31 +129,34 @@ const STRINGS = {
     photosOnly: "photos only",
     stoppedAt: "Stopped at step {step}/{total}, {name}: {detail}",
     "fail.one-resource": "Add at least 2 clips or photos.",
-    "fail.too-few": "Your footage fits fewer than 4 shots.",
-    "fail.music-too-short": "This track is too short for 4 shots from this section.",
+    "fail.too-few": "Your footage cannot fill even the shortest version.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
+    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "No plan fits this footage.",
     addFootage: "Add more varied footage or select more clips.",
     addFootagePhotos: "Add more varied footage or photos, or select more clips.",
     retryUnchecked: { one: "Could not check {count} video; press Build to retry it.", other: "Could not check {count} videos; press Build to retry them." },
-    typeBigWord: "Type the title's big word to build.",
+    typeTitle: "Type a title to build.",
     dropMusic: "Drop a music file, or choose one of the tracks.",
     musicLengthUnread: "The length of your music could not be read. Choose another file or one of the tracks.",
     musicApprox: "Music added; cuts use approximate timing ({detail}).",
     musicUnreadable: "Could not read this music file ({detail}). Choose another file or one of the tracks.",
     beatFailed: "beat detection failed",
     previewFailed: "Could not play a preview: {detail}.",
-    previewNotCut: "the preview could not be cut",
     noAudio: "no audio came back",
     draftNoId: "The Draft \"{name}\" may have been saved, but Selects did not report its id. Open it from the Drafts list, or build again.",
     draftEmpty: "The Draft \"{name}\" has no clips. Build again.",
     finishFailed: "The Draft was created, but its title, look and clip sound are not applied yet: {detail}. Press Finish title and look to try again.",
     openFailed: "The Draft is ready, but it could not be opened: {detail}. Use the link below or open it from the Drafts list.",
-    draftCreated: "Draft created. Select the title to edit its words, colors, size or position, a clip to adjust its crop, softness, motion or sound level, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
+    draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft created; adding title and look…",
     draftNotFinished: "Draft created, but its title, look and clip sound are not applied yet.",
+    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Open the new Draft",
     copyLink: "Copy the link to the new Draft",
-    shortened: { one: "Your footage fits {fitted} of {count} shot, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
+    shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "Note: {detail}.",
     unchecked: { one: "Could not check {count} video; it was skipped. Build again to retry it.", other: "Could not check {count} videos; they were skipped. Build again to retry them." },
     createsDraft: "Creates a new 16:9 Draft",
@@ -172,18 +164,24 @@ const STRINGS = {
     anotherVersion: "Try other shots",
     build: "Build",
     building: "Building",
-    "param.mainColor": "Main color",
-    "param.secondColor": "Second color",
-    "param.shadow": "Shadow",
-    "param.size": "Size (%)",
-    "param.x": "Horizontal position (%)",
-    "param.y": "Vertical position (%)",
-    "param.sparkles": "Sparkles",
-    "param.stars": "Stars",
     "param.motion": "Motion",
     "param.motionStrength": "Motion strength",
-    "param.punch": "Punch",
-    "param.softness": "Softness",
+    "param.reveal": "Reveal",
+    "param.letterbox": "Letterbox reveal",
+    "param.look": "Look strength",
+    "param.warmth": "Warmth",
+    "param.fade": "Fade out",
+    "param.kicker": "Kicker",
+    "param.title": "Title",
+    "param.tagline": "Tagline",
+    "param.titleColor": "Title colour",
+    "param.textColor": "Text colour",
+    "param.size": "Size",
+    "param.font": "Font",
+    "param.speed": "Decode speed",
+    "param.shadow": "Shadow",
+    "param.prefix": "Credit prefix",
+    "param.name": "Name",
     "motion.push-in": "Push in",
     "motion.pull-out": "Pull out",
     "motion.drift-left": "Drift left",
@@ -197,7 +195,7 @@ const STRINGS = {
     openProject: "Öffne ein Projekt, um ein Archive Vlog zu erstellen.",
     startFailed: "Archive Vlog konnte nicht starten: {detail}. Installiere das Plugin neu, falls das weiterhin passiert.",
     foldersNotFound: "die Plugin-Ordner wurden nicht gefunden",
-    adapterNeeded: "Diese Selects-Version braucht einen aktualisierten {name}-Adapter.",
+    hostTooOld: "Archive Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     stepFailed: "Selects konnte diesen Schritt nicht abschließen.",
     busy: "Selects ist ausgelastet und hat nicht rechtzeitig geantwortet. Warte kurz und drücke „Aktualisieren“. Wenn das öfter passiert, starte Selects neu.",
     invFailed: "Die Clips dieses Projekts konnten noch nicht gelesen werden. Klicke auf „Aktualisieren“.",
@@ -221,7 +219,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} von {count} Clip ausgewählt", other: "{selected} von {count} Clips ausgewählt" },
     photos: { one: "{count} Foto", other: "{count} Fotos" },
     photosSelected: { one: "{selected} von {count} Foto ausgewählt", other: "{selected} von {count} Fotos ausgewählt" },
-    aboutSeconds: "ca. {seconds} s",
     notAnalysed: { one: "{count} Clip noch nicht analysiert", other: "{count} Clips noch nicht analysiert" },
     analysing: { one: "{count} Clip wird analysiert. Das aktualisiert sich automatisch, sobald er fertig ist.", other: "{count} Clips werden analysiert. Das aktualisiert sich automatisch, sobald sie fertig sind." },
     notAnalysedAnalyse: { one: "{count} Clip ist noch nicht analysiert. Analysiere ihn in Selects, um ihn hier zu verwenden.", other: "{count} Clips sind noch nicht analysiert. Analysiere sie in Selects, um sie hier zu verwenden." },
@@ -229,30 +226,26 @@ const STRINGS = {
     analysisFailed: { one: "{count} Clip konnte nicht analysiert werden.", other: "{count} Clips konnten nicht analysiert werden." },
     noteAnalysing: { one: "{count} Clip wird analysiert", other: "{count} Clips werden analysiert" },
     noteFailed: { one: "{count} Clip nicht analysierbar", other: "{count} Clips nicht analysierbar" },
-    title: "Titel",
-    titleStyle: "Titelstil",
+    style: "Style",
     titlePreview: "Titelvorschau",
     previewUnavailable: "Vorschau nicht verfügbar; der Titel wird trotzdem zum Draft hinzugefügt.",
+    replayDecode: "Replay the title animation",
     loading: "Wird geladen…",
-    "preset.archive-vlog": "Archive Vlog",
-    "preset.day-in-my-life": "Ein Tag in meinem Leben",
-    "preset.small-glimpse": "Ein kleiner Einblick",
-    "field.archive-vlog.big": "Großes Wort",
-    "field.archive-vlog.small": "Kleines Wort",
-    "field.day-in-my-life.year": "Jahr",
-    "field.day-in-my-life.big": "Große Wörter",
-    "field.day-in-my-life.tag": "Kurzzeile",
-    "field.small-glimpse.top": "Obere Zeile",
-    "field.small-glimpse.big": "Großes Wort",
-    "field.small-glimpse.bottom": "Untere Zeile",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
+    creditShot: "Credit shot",
+    creditName: "Name on the credit",
+    creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Musik",
     track: "Musikstück",
-    alternatives: "Alternativen",
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
-    installTools: "Installiere ffmpeg und Node.js 18+, um Musik vorzuhören oder eigene Musik zu verwenden.",
     sectionHint: "Musikabschnitt – zum Auswählen ziehen",
     sectionLabel: "Musikabschnitt",
     musicTooShort: "Dieses Musikstück ist für diese Länge zu kurz",
@@ -262,7 +255,6 @@ const STRINGS = {
     previewSection: "Diesen Abschnitt vorhören",
     readingMusic: "Musik wird gelesen …",
     musicLengthUnknown: "Die Länge dieser Musik ist unbekannt",
-    startAtHook: "Beim Hook beginnen",
     beatFound: "Beat gefunden: {bpm} BPM. Die Schnitte folgen dem Beat.",
     faintTempo: "Tempo gefunden ({bpm} BPM), aber der Beat ist schwach, daher folgen die Schnitte ungefähr einem {bpm}-BPM-Raster.",
     outsideTempo: "Das Tempo ({bpm} BPM) liegt außerhalb von 70–160 BPM, daher haben die Schnitte ein ungefähres Timing.",
@@ -272,29 +264,23 @@ const STRINGS = {
     "length.standard": "Standard",
     "length.long": "Lang",
     pace: "Rhythmus",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Schnell",
-    "pace.relaxed": "Ruhig",
-    "pace.groove": "Groove",
-    fitPartial: { one: "{length}: {fitted} von {count} Einstellung passt zu diesem Musikstück ({seconds} s)", other: "{length}: {fitted} von {count} Einstellungen passen zu diesem Musikstück ({seconds} s)" },
-    fitFull: { one: "{length}: {count} Einstellung ({seconds} s)", other: "{length}: {count} Einstellungen ({seconds} s)" },
-    footageFits: { one: "Dein Material reicht für {fitted} von {count} Einstellung ({seconds} s)", other: "Dein Material reicht für {fitted} von {count} Einstellungen ({seconds} s)" },
-    seconds: "{seconds} s",
-    grooveTiming: "Groove auf einem {beat}-s-Beat: Einstellungen mit {hold}, {beat} und {eighth} s",
-    quickTwoBeats: "Bei {bpm} BPM nutzt „Schnell“ 2 Beats pro Einstellung.",
-    relaxedOneBeat: "Bei {bpm} BPM nutzt „Ruhig“ 1 Beat pro Einstellung.",
-    grooveOneBeat: "Bei {bpm} BPM beginnt „Groove“ Phrasen mit 1 Beat.",
-    grooveTwoBeats: "Bei {bpm} BPM nutzt „Groove“ 2 Beats pro Einstellung.",
-    noMusicTiming: "Keine Musik: Die Einstellungen haben ein ungefähres Timing ({timing}).",
-    faintTempoTiming: "Tempo gefunden ({bpm} BPM), aber der Beat ist schwach: Die Schnitte folgen ungefähr einem {bpm}-BPM-Raster ({timing}).",
-    outsideTempoTiming: "Tempo außerhalb von 70–160 BPM ({bpm} BPM): Die Einstellungen haben ein ungefähres Timing ({timing}).",
-    noBeatTiming: "Kein gleichmäßiger Beat gefunden: Die Einstellungen haben ein ungefähres Timing ({timing}).",
+    fitPartial: { one: "{length}: {fitted} of {count} montage shot fit this track ({seconds} s)", other: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)" },
+    fitFull: { one: "{length}: {count} montage shot ({seconds} s)", other: "{length}: {count} montage shots ({seconds} s)" },
+    footageFits: { one: "Your footage fits {fitted} of {count} montage shot ({seconds} s)", other: "Your footage fits {fitted} of {count} montage shots ({seconds} s)" },
+    montageBeats: { one: "Montage shots hold {count} beat ({seconds} s).", other: "Montage shots hold {count} beats ({seconds} s)." },
+    noMusicTiming: "No music: cuts follow a steady {bpm} bpm beat.",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
+    noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Erweitert",
     clipSound: "Clip-Ton",
     "sound.off": "Aus",
     "sound.ambient": "Leise",
     "sound.full": "Voll",
-    softLook: "Weicher Look",
-    beatPunch: "Beat-Punch",
+    cinematicLook: "Cinematic look",
     usePhotos: "Fotos verwenden",
     usePhotosOff: "„Fotos verwenden“ ist aus",
     silentVideo: "Stummes Video: keine Musik und Clip-Ton ist „Aus“.",
@@ -317,31 +303,34 @@ const STRINGS = {
     photosOnly: "nur Fotos",
     stoppedAt: "Abgebrochen bei Schritt {step}/{total}, {name}: {detail}",
     "fail.one-resource": "Füge mindestens 2 Clips oder Fotos hinzu.",
-    "fail.too-few": "Dein Material reicht für weniger als 4 Einstellungen.",
-    "fail.music-too-short": "Dieses Musikstück ist ab diesem Abschnitt zu kurz für 4 Einstellungen.",
+    "fail.too-few": "Your footage cannot fill even the shortest version.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
+    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Für dieses Material passt kein Plan.",
     addFootage: "Füge abwechslungsreicheres Material hinzu oder wähle mehr Clips aus.",
     addFootagePhotos: "Füge abwechslungsreicheres Material oder Fotos hinzu oder wähle mehr Clips aus.",
     retryUnchecked: { one: "{count} Video konnte nicht geprüft werden; drücke „Erstellen“, um es erneut zu versuchen.", other: "{count} Videos konnten nicht geprüft werden; drücke „Erstellen“, um sie erneut zu versuchen." },
-    typeBigWord: "Gib das große Wort des Titels ein, um zu erstellen.",
+    typeTitle: "Type a title to build.",
     dropMusic: "Lege eine Musikdatei ab oder wähle eines der Musikstücke.",
     musicLengthUnread: "Die Länge deiner Musik konnte nicht gelesen werden. Wähle eine andere Datei oder eines der Musikstücke.",
     musicApprox: "Musik hinzugefügt; die Schnitte haben ein ungefähres Timing ({detail}).",
     musicUnreadable: "Diese Musikdatei konnte nicht gelesen werden ({detail}). Wähle eine andere Datei oder eines der Musikstücke.",
     beatFailed: "Beat-Erkennung fehlgeschlagen",
     previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
-    previewNotCut: "die Vorschau konnte nicht geschnitten werden",
     noAudio: "es kam kein Audio zurück",
     draftNoId: "Der Draft „{name}“ wurde möglicherweise gespeichert, aber Selects hat seine ID nicht gemeldet. Öffne ihn aus der Draft-Liste oder erstelle ihn erneut.",
     draftEmpty: "Der Draft „{name}“ enthält keine Clips. Erstelle ihn erneut.",
     finishFailed: "Der Draft wurde erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet: {detail}. Klicke auf „Titel und Look fertigstellen“, um es erneut zu versuchen.",
     openFailed: "Der Draft ist fertig, konnte aber nicht geöffnet werden: {detail}. Nutze den Link unten oder öffne ihn in der Draft-Liste.",
-    draftCreated: "Draft erstellt. Wähle den Titel, um Wörter, Farben, Größe oder Position zu bearbeiten, einen Clip, um Zuschnitt, Weichheit, Bewegung oder Lautstärke anzupassen, und die Musik, um ihre Lautstärke zu ändern. Ein neuer Build erstellt einen neuen Draft und übernimmt keine Änderungen aus dem Inspektor.",
+    draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft erstellt; Titel und Look werden hinzugefügt …",
     draftNotFinished: "Draft erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet.",
+    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Neuen Draft öffnen",
     copyLink: "Link zum neuen Draft kopieren",
-    shortened: { one: "Dein Material reicht für {fitted} von {count} Einstellung, daher ist dieses Video etwa {seconds} s lang. Füge mehr Clips oder Fotos für die volle Länge hinzu.", other: "Dein Material reicht für {fitted} von {count} Einstellungen, daher ist dieses Video etwa {seconds} s lang. Füge mehr Clips oder Fotos für die volle Länge hinzu." },
+    shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "Hinweis: {detail}.",
     unchecked: { one: "{count} Video konnte nicht geprüft werden und wurde übersprungen. Erstelle erneut, um es nochmals zu versuchen.", other: "{count} Videos konnten nicht geprüft werden und wurden übersprungen. Erstelle erneut, um sie nochmals zu versuchen." },
     createsDraft: "Erstellt einen neuen 16:9-Draft",
@@ -349,18 +338,24 @@ const STRINGS = {
     anotherVersion: "Andere Aufnahmen probieren",
     build: "Erstellen",
     building: "Wird erstellt",
-    "param.mainColor": "Hauptfarbe",
-    "param.secondColor": "Zweitfarbe",
-    "param.shadow": "Schatten",
-    "param.size": "Größe (%)",
-    "param.x": "Horizontale Position (%)",
-    "param.y": "Vertikale Position (%)",
-    "param.sparkles": "Funkeln",
-    "param.stars": "Sterne",
     "param.motion": "Bewegung",
     "param.motionStrength": "Bewegungsstärke",
-    "param.punch": "Punch",
-    "param.softness": "Weichheit",
+    "param.reveal": "Reveal",
+    "param.letterbox": "Letterbox reveal",
+    "param.look": "Look strength",
+    "param.warmth": "Warmth",
+    "param.fade": "Fade out",
+    "param.kicker": "Kicker",
+    "param.title": "Title",
+    "param.tagline": "Tagline",
+    "param.titleColor": "Title colour",
+    "param.textColor": "Text colour",
+    "param.size": "Size",
+    "param.font": "Font",
+    "param.speed": "Decode speed",
+    "param.shadow": "Schatten",
+    "param.prefix": "Credit prefix",
+    "param.name": "Name",
     "motion.push-in": "Heranzoomen",
     "motion.pull-out": "Herauszoomen",
     "motion.drift-left": "Nach links gleiten",
@@ -374,7 +369,7 @@ const STRINGS = {
     openProject: "Abre un proyecto para crear un Archive Vlog.",
     startFailed: "Archive Vlog no pudo iniciarse: {detail}. Reinstala el plugin si el problema continúa.",
     foldersNotFound: "no se encontraron las carpetas del plugin",
-    adapterNeeded: "Esta versión de Selects necesita un adaptador {name} actualizado.",
+    hostTooOld: "Archive Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     stepFailed: "Selects no pudo completar este paso.",
     busy: "Selects está ocupado y no respondió a tiempo. Espera un momento y pulsa «Actualizar». Si sigue pasando, reinicia Selects.",
     invFailed: "Aún no se pudieron leer los clips de este proyecto. Pulsa «Actualizar».",
@@ -398,7 +393,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} de {count} clip seleccionado", many: "{selected} de {count} de clips seleccionados", other: "{selected} de {count} clips seleccionados" },
     photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
     photosSelected: { one: "{selected} de {count} foto seleccionada", many: "{selected} de {count} de fotos seleccionadas", other: "{selected} de {count} fotos seleccionadas" },
-    aboutSeconds: "unos {seconds} s",
     notAnalysed: { one: "{count} clip sin analizar", many: "{count} de clips sin analizar", other: "{count} clips sin analizar" },
     analysing: { one: "Se está analizando {count} clip. Esto se actualiza solo cuando termine.", many: "Se están analizando {count} de clips. Esto se actualiza solo cuando terminen.", other: "Se están analizando {count} clips. Esto se actualiza solo cuando terminen." },
     notAnalysedAnalyse: { one: "{count} clip aún no está analizado. Analízalo en Selects para usarlo aquí.", many: "{count} de clips aún no están analizados. Analízalos en Selects para usarlos aquí.", other: "{count} clips aún no están analizados. Analízalos en Selects para usarlos aquí." },
@@ -406,30 +400,26 @@ const STRINGS = {
     analysisFailed: { one: "No se pudo analizar {count} clip.", many: "No se pudieron analizar {count} de clips.", other: "No se pudieron analizar {count} clips." },
     noteAnalysing: { one: "{count} clip en análisis", many: "{count} de clips en análisis", other: "{count} clips en análisis" },
     noteFailed: { one: "{count} clip sin poder analizarse", many: "{count} de clips sin poder analizarse", other: "{count} clips sin poder analizarse" },
-    title: "Título",
-    titleStyle: "Estilo del título",
+    style: "Style",
     titlePreview: "Vista previa del título",
     previewUnavailable: "Vista previa no disponible; el título se añadirá igualmente al Draft.",
+    replayDecode: "Replay the title animation",
     loading: "Cargando…",
-    "preset.archive-vlog": "Mini vlog",
-    "preset.day-in-my-life": "Un día en mi vida",
-    "preset.small-glimpse": "Un pequeño vistazo",
-    "field.archive-vlog.big": "Palabra grande",
-    "field.archive-vlog.small": "Palabra pequeña",
-    "field.day-in-my-life.year": "Año",
-    "field.day-in-my-life.big": "Palabras grandes",
-    "field.day-in-my-life.tag": "Frase corta",
-    "field.small-glimpse.top": "Línea superior",
-    "field.small-glimpse.big": "Palabra grande",
-    "field.small-glimpse.bottom": "Línea inferior",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
+    creditShot: "Credit shot",
+    creditName: "Name on the credit",
+    creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Música",
     track: "Pista",
-    alternatives: "Alternativas",
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", many: "Only the first {count} minutes of your track are analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
-    installTools: "Instala ffmpeg y Node.js 18+ para escuchar la música o usar tu propia pista.",
     sectionHint: "Sección de música: arrastra para elegir",
     sectionLabel: "Sección de música",
     musicTooShort: "Esta pista es demasiado corta para esta duración",
@@ -439,7 +429,6 @@ const STRINGS = {
     previewSection: "Escuchar esta sección",
     readingMusic: "Leyendo la música…",
     musicLengthUnknown: "Se desconoce la duración de esta música",
-    startAtHook: "Empezar en el gancho",
     beatFound: "Ritmo encontrado: {bpm} BPM. Los cortes siguen el ritmo.",
     faintTempo: "Se encontró el tempo ({bpm} BPM), pero el ritmo es débil, así que los cortes siguen aproximadamente una cuadrícula de {bpm} BPM.",
     outsideTempo: "Su tempo ({bpm} BPM) está fuera del rango 70–160 BPM, así que los cortes usan una sincronía aproximada.",
@@ -449,29 +438,23 @@ const STRINGS = {
     "length.standard": "Estándar",
     "length.long": "Larga",
     pace: "Cadencia",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Rápida",
-    "pace.relaxed": "Pausada",
-    "pace.groove": "Groove",
-    fitPartial: { one: "{length}: {fitted} de {count} plano caben en esta pista ({seconds} s)", many: "{length}: {fitted} de {count} de planos caben en esta pista ({seconds} s)", other: "{length}: {fitted} de {count} planos caben en esta pista ({seconds} s)" },
-    fitFull: { one: "{length}: {count} plano ({seconds} s)", many: "{length}: {count} de planos ({seconds} s)", other: "{length}: {count} planos ({seconds} s)" },
-    footageFits: { one: "Tu material alcanza para {fitted} de {count} plano ({seconds} s)", many: "Tu material alcanza para {fitted} de {count} de planos ({seconds} s)", other: "Tu material alcanza para {fitted} de {count} planos ({seconds} s)" },
-    seconds: "{seconds} s",
-    grooveTiming: "Groove con un ritmo de {beat} s: planos de {hold}, {beat} y {eighth} s",
-    quickTwoBeats: "A {bpm} BPM, «Rápida» usa 2 tiempos por plano.",
-    relaxedOneBeat: "A {bpm} BPM, «Pausada» usa 1 tiempo por plano.",
-    grooveOneBeat: "A {bpm} BPM, «Groove» abre las frases con 1 tiempo.",
-    grooveTwoBeats: "A {bpm} BPM, «Groove» usa 2 tiempos por plano.",
-    noMusicTiming: "Sin música: los planos usan una sincronía aproximada ({timing}).",
-    faintTempoTiming: "Se encontró el tempo ({bpm} BPM), pero el ritmo es débil: los cortes siguen aproximadamente una cuadrícula de {bpm} BPM ({timing}).",
-    outsideTempoTiming: "Tempo fuera del rango 70–160 BPM ({bpm} BPM): los planos usan una sincronía aproximada ({timing}).",
-    noBeatTiming: "No se encontró un ritmo estable: los planos usan una sincronía aproximada ({timing}).",
+    fitPartial: { one: "{length}: {fitted} of {count} montage shot fit this track ({seconds} s)", many: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)", other: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)" },
+    fitFull: { one: "{length}: {count} montage shot ({seconds} s)", many: "{length}: {count} montage shots ({seconds} s)", other: "{length}: {count} montage shots ({seconds} s)" },
+    footageFits: { one: "Your footage fits {fitted} of {count} montage shot ({seconds} s)", many: "Your footage fits {fitted} of {count} montage shots ({seconds} s)", other: "Your footage fits {fitted} of {count} montage shots ({seconds} s)" },
+    montageBeats: { one: "Montage shots hold {count} beat ({seconds} s).", many: "Montage shots hold {count} beats ({seconds} s).", other: "Montage shots hold {count} beats ({seconds} s)." },
+    noMusicTiming: "No music: cuts follow a steady {bpm} bpm beat.",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
+    noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Avanzado",
     clipSound: "Sonido de los clips",
     "sound.off": "Apagado",
     "sound.ambient": "Ambiente",
     "sound.full": "Completo",
-    softLook: "Look suave",
-    beatPunch: "Golpe al ritmo",
+    cinematicLook: "Cinematic look",
     usePhotos: "Usar fotos",
     usePhotosOff: "«Usar fotos» está desactivado",
     silentVideo: "Vídeo sin sonido: sin música y con el sonido de los clips en «Apagado».",
@@ -494,31 +477,34 @@ const STRINGS = {
     photosOnly: "solo fotos",
     stoppedAt: "Se detuvo en el paso {step}/{total}, {name}: {detail}",
     "fail.one-resource": "Añade al menos 2 clips o fotos.",
-    "fail.too-few": "Tu material alcanza para menos de 4 planos.",
-    "fail.music-too-short": "Esta pista es demasiado corta para 4 planos desde esta sección.",
+    "fail.too-few": "Your footage cannot fill even the shortest version.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
+    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Ningún plan encaja con este material.",
     addFootage: "Añade material más variado o selecciona más clips.",
     addFootagePhotos: "Añade material más variado o fotos, o selecciona más clips.",
     retryUnchecked: { one: "No se pudo comprobar {count} vídeo; pulsa «Crear» para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos; pulsa «Crear» para reintentarlos.", other: "No se pudieron comprobar {count} vídeos; pulsa «Crear» para reintentarlos." },
-    typeBigWord: "Escribe la palabra grande del título para crear.",
+    typeTitle: "Type a title to build.",
     dropMusic: "Suelta un archivo de música o elige una de las pistas.",
     musicLengthUnread: "No se pudo leer la duración de tu música. Elige otro archivo o una de las pistas.",
     musicApprox: "Música añadida; los cortes usan una sincronía aproximada ({detail}).",
     musicUnreadable: "No se pudo leer este archivo de música ({detail}). Elige otro archivo o una de las pistas.",
     beatFailed: "falló la detección del ritmo",
     previewFailed: "No se pudo reproducir la vista previa: {detail}.",
-    previewNotCut: "no se pudo recortar la vista previa",
     noAudio: "no se recibió audio",
     draftNoId: "Es posible que el Draft «{name}» se haya guardado, pero Selects no informó de su ID. Ábrelo desde la lista de Drafts o vuelve a crearlo.",
     draftEmpty: "El Draft «{name}» no tiene clips. Vuelve a crearlo.",
     finishFailed: "El Draft se creó, pero aún no se aplicaron el título, el look ni el sonido de los clips: {detail}. Pulsa «Terminar título y look» para intentarlo de nuevo.",
     openFailed: "El Draft está listo, pero no se pudo abrir: {detail}. Usa el enlace de abajo o ábrelo desde la lista de Drafts.",
-    draftCreated: "Draft creado. Selecciona el título para editar sus palabras, colores, tamaño o posición; un clip para ajustar su encuadre, suavidad, movimiento o volumen; y la música para cambiar su volumen. Volver a crear genera un nuevo Draft y no conserva los cambios del Inspector.",
+    draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft creado; añadiendo título y look…",
     draftNotFinished: "Draft creado, pero aún no se aplicaron el título, el look ni el sonido de los clips.",
+    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Abrir el nuevo Draft",
     copyLink: "Copiar el enlace al nuevo Draft",
-    shortened: { one: "Tu material alcanza para {fitted} de {count} plano, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa.", many: "Tu material alcanza para {fitted} de {count} de planos, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa.", other: "Tu material alcanza para {fitted} de {count} planos, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa." },
+    shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", many: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "Nota: {detail}.",
     unchecked: { one: "No se pudo comprobar {count} vídeo; se omitió. Vuelve a crear para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos; se omitieron. Vuelve a crear para reintentarlos.", other: "No se pudieron comprobar {count} vídeos; se omitieron. Vuelve a crear para reintentarlos." },
     createsDraft: "Crea un nuevo Draft 16:9",
@@ -526,18 +512,24 @@ const STRINGS = {
     anotherVersion: "Probar otros planos",
     build: "Crear",
     building: "Creando",
-    "param.mainColor": "Color principal",
-    "param.secondColor": "Color secundario",
-    "param.shadow": "Sombra",
-    "param.size": "Tamaño (%)",
-    "param.x": "Posición horizontal (%)",
-    "param.y": "Posición vertical (%)",
-    "param.sparkles": "Destellos",
-    "param.stars": "Estrellas",
     "param.motion": "Movimiento",
     "param.motionStrength": "Intensidad del movimiento",
-    "param.punch": "Golpe",
-    "param.softness": "Suavidad",
+    "param.reveal": "Reveal",
+    "param.letterbox": "Letterbox reveal",
+    "param.look": "Look strength",
+    "param.warmth": "Warmth",
+    "param.fade": "Fade out",
+    "param.kicker": "Kicker",
+    "param.title": "Title",
+    "param.tagline": "Tagline",
+    "param.titleColor": "Title colour",
+    "param.textColor": "Text colour",
+    "param.size": "Size",
+    "param.font": "Font",
+    "param.speed": "Decode speed",
+    "param.shadow": "Sombra",
+    "param.prefix": "Credit prefix",
+    "param.name": "Name",
     "motion.push-in": "Acercar",
     "motion.pull-out": "Alejar",
     "motion.drift-left": "Deslizar a la izquierda",
@@ -551,7 +543,7 @@ const STRINGS = {
     openProject: "Ouvrez un projet pour créer un Archive Vlog.",
     startFailed: "Archive Vlog n'a pas pu démarrer : {detail}. Réinstallez le plugin si le problème persiste.",
     foldersNotFound: "les dossiers du plugin sont introuvables",
-    adapterNeeded: "Cette version de Selects nécessite un adaptateur {name} à jour.",
+    hostTooOld: "Archive Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     stepFailed: "Selects n'a pas pu terminer cette étape.",
     busy: "Selects est occupé et n'a pas répondu à temps. Patientez un instant puis appuyez sur « Actualiser ». Si cela se reproduit, redémarrez Selects.",
     invFailed: "Impossible de lire les clips de ce projet pour l'instant. Appuyez sur « Actualiser ».",
@@ -575,7 +567,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} sur {count} clip sélectionné", many: "{selected} sur {count} de clips sélectionnés", other: "{selected} sur {count} clips sélectionnés" },
     photos: { one: "{count} photo", many: "{count} de photos", other: "{count} photos" },
     photosSelected: { one: "{selected} sur {count} photo sélectionnée", many: "{selected} sur {count} de photos sélectionnées", other: "{selected} sur {count} photos sélectionnées" },
-    aboutSeconds: "environ {seconds} s",
     notAnalysed: { one: "{count} clip pas encore analysé", many: "{count} de clips pas encore analysés", other: "{count} clips pas encore analysés" },
     analysing: { one: "{count} clip est en cours d'analyse. Ceci se met à jour automatiquement à la fin.", many: "{count} de clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin.", other: "{count} clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin." },
     notAnalysedAnalyse: { one: "{count} clip n'est pas encore analysé. Analysez-le dans Selects pour l'utiliser ici.", many: "{count} de clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici.", other: "{count} clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici." },
@@ -583,30 +574,26 @@ const STRINGS = {
     analysisFailed: { one: "{count} clip n'a pas pu être analysé.", many: "{count} de clips n'ont pas pu être analysés.", other: "{count} clips n'ont pas pu être analysés." },
     noteAnalysing: { one: "{count} clip en cours d'analyse", many: "{count} de clips en cours d'analyse", other: "{count} clips en cours d'analyse" },
     noteFailed: { one: "{count} clip non analysable", many: "{count} de clips non analysables", other: "{count} clips non analysables" },
-    title: "Titre",
-    titleStyle: "Style du titre",
+    style: "Style",
     titlePreview: "Aperçu du titre",
     previewUnavailable: "Aperçu indisponible ; le titre sera tout de même ajouté au Draft.",
+    replayDecode: "Replay the title animation",
     loading: "Chargement…",
-    "preset.archive-vlog": "Mini vlog",
-    "preset.day-in-my-life": "Une journée dans ma vie",
-    "preset.small-glimpse": "Un petit aperçu",
-    "field.archive-vlog.big": "Grand mot",
-    "field.archive-vlog.small": "Petit mot",
-    "field.day-in-my-life.year": "Année",
-    "field.day-in-my-life.big": "Grands mots",
-    "field.day-in-my-life.tag": "Petite phrase",
-    "field.small-glimpse.top": "Ligne du haut",
-    "field.small-glimpse.big": "Grand mot",
-    "field.small-glimpse.bottom": "Ligne du bas",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
+    creditShot: "Credit shot",
+    creditName: "Name on the credit",
+    creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Musique",
     track: "Morceau",
-    alternatives: "Autres choix",
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", many: "Only the first {count} minutes of your track are analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
-    installTools: "Installez ffmpeg et Node.js 18+ pour écouter la musique ou utiliser votre propre morceau.",
     sectionHint: "Section musicale : faites glisser pour choisir",
     sectionLabel: "Section musicale",
     musicTooShort: "Ce morceau est trop court pour cette durée",
@@ -616,7 +603,6 @@ const STRINGS = {
     previewSection: "Écouter cette section",
     readingMusic: "Lecture de la musique…",
     musicLengthUnknown: "La durée de cette musique est inconnue",
-    startAtHook: "Commencer sur l'accroche",
     beatFound: "Rythme trouvé : {bpm} BPM. Les coupes suivent le rythme.",
     faintTempo: "Tempo trouvé ({bpm} BPM), mais le rythme est peu marqué : les coupes suivent donc approximativement une grille à {bpm} BPM.",
     outsideTempo: "Son tempo ({bpm} BPM) est hors de la plage 70–160 BPM : les coupes utilisent donc un calage approximatif.",
@@ -626,29 +612,23 @@ const STRINGS = {
     "length.standard": "Standard",
     "length.long": "Longue",
     pace: "Cadence",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Rapide",
-    "pace.relaxed": "Posée",
-    "pace.groove": "Groove",
-    fitPartial: { one: "{length} : {fitted} sur {count} plan tiennent dans ce morceau ({seconds} s)", many: "{length} : {fitted} sur {count} de plans tiennent dans ce morceau ({seconds} s)", other: "{length} : {fitted} sur {count} plans tiennent dans ce morceau ({seconds} s)" },
-    fitFull: { one: "{length} : {count} plan ({seconds} s)", many: "{length} : {count} de plans ({seconds} s)", other: "{length} : {count} plans ({seconds} s)" },
-    footageFits: { one: "Vos images suffisent pour {fitted} sur {count} plan ({seconds} s)", many: "Vos images suffisent pour {fitted} sur {count} de plans ({seconds} s)", other: "Vos images suffisent pour {fitted} sur {count} plans ({seconds} s)" },
-    seconds: "{seconds} s",
-    grooveTiming: "Groove sur un temps de {beat} s : plans de {hold}, {beat} et {eighth} s",
-    quickTwoBeats: "À {bpm} BPM, « Rapide » utilise 2 temps par plan.",
-    relaxedOneBeat: "À {bpm} BPM, « Posée » utilise 1 temps par plan.",
-    grooveOneBeat: "À {bpm} BPM, « Groove » ouvre les phrases avec 1 temps.",
-    grooveTwoBeats: "À {bpm} BPM, « Groove » utilise 2 temps par plan.",
-    noMusicTiming: "Sans musique : les plans utilisent un calage approximatif ({timing}).",
-    faintTempoTiming: "Tempo trouvé ({bpm} BPM), mais le rythme est peu marqué : les coupes suivent approximativement une grille à {bpm} BPM ({timing}).",
-    outsideTempoTiming: "Tempo hors de la plage 70–160 BPM ({bpm} BPM) : les plans utilisent un calage approximatif ({timing}).",
-    noBeatTiming: "Aucun rythme régulier trouvé : les plans utilisent un calage approximatif ({timing}).",
+    fitPartial: { one: "{length}: {fitted} of {count} montage shot fit this track ({seconds} s)", many: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)", other: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)" },
+    fitFull: { one: "{length}: {count} montage shot ({seconds} s)", many: "{length}: {count} montage shots ({seconds} s)", other: "{length}: {count} montage shots ({seconds} s)" },
+    footageFits: { one: "Your footage fits {fitted} of {count} montage shot ({seconds} s)", many: "Your footage fits {fitted} of {count} montage shots ({seconds} s)", other: "Your footage fits {fitted} of {count} montage shots ({seconds} s)" },
+    montageBeats: { one: "Montage shots hold {count} beat ({seconds} s).", many: "Montage shots hold {count} beats ({seconds} s).", other: "Montage shots hold {count} beats ({seconds} s)." },
+    noMusicTiming: "No music: cuts follow a steady {bpm} bpm beat.",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
+    noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Avancé",
     clipSound: "Son des clips",
     "sound.off": "Coupé",
     "sound.ambient": "Ambiance",
     "sound.full": "Plein",
-    softLook: "Look doux",
-    beatPunch: "Punch sur le rythme",
+    cinematicLook: "Cinematic look",
     usePhotos: "Utiliser les photos",
     usePhotosOff: "« Utiliser les photos » est désactivé",
     silentVideo: "Vidéo muette : pas de musique et son des clips sur « Coupé ».",
@@ -671,31 +651,34 @@ const STRINGS = {
     photosOnly: "photos uniquement",
     stoppedAt: "Arrêt à l'étape {step}/{total}, {name} : {detail}",
     "fail.one-resource": "Ajoutez au moins 2 clips ou photos.",
-    "fail.too-few": "Vos images suffisent pour moins de 4 plans.",
-    "fail.music-too-short": "Ce morceau est trop court pour 4 plans à partir de cette section.",
+    "fail.too-few": "Your footage cannot fill even the shortest version.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
+    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Aucun plan ne convient à ces images.",
     addFootage: "Ajoutez des images plus variées ou sélectionnez plus de clips.",
     addFootagePhotos: "Ajoutez des images plus variées ou des photos, ou sélectionnez plus de clips.",
     retryUnchecked: { one: "{count} vidéo n'a pas pu être vérifiée ; appuyez sur « Créer » pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées ; appuyez sur « Créer » pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées ; appuyez sur « Créer » pour réessayer." },
-    typeBigWord: "Saisissez le grand mot du titre pour créer.",
+    typeTitle: "Type a title to build.",
     dropMusic: "Déposez un fichier audio ou choisissez l'un des morceaux.",
     musicLengthUnread: "La durée de votre musique n'a pas pu être lue. Choisissez un autre fichier ou l'un des morceaux.",
     musicApprox: "Musique ajoutée ; les coupes utilisent un calage approximatif ({detail}).",
     musicUnreadable: "Impossible de lire ce fichier audio ({detail}). Choisissez un autre fichier ou l'un des morceaux.",
     beatFailed: "la détection du rythme a échoué",
     previewFailed: "Impossible de lire l'aperçu : {detail}.",
-    previewNotCut: "l'aperçu n'a pas pu être découpé",
     noAudio: "aucun son n'a été renvoyé",
     draftNoId: "Le Draft « {name} » a peut-être été enregistré, mais Selects n'a pas indiqué son identifiant. Ouvrez-le depuis la liste des Drafts ou relancez la création.",
     draftEmpty: "Le Draft « {name} » ne contient aucun clip. Relancez la création.",
     finishFailed: "Le Draft a été créé, mais le titre, le look et le son des clips ne sont pas encore appliqués : {detail}. Appuyez sur « Terminer le titre et le look » pour réessayer.",
     openFailed: "Le Draft est prêt, mais n'a pas pu être ouvert : {detail}. Utilisez le lien ci-dessous ou ouvrez-le depuis la liste des Drafts.",
-    draftCreated: "Draft créé. Sélectionnez le titre pour modifier ses mots, ses couleurs, sa taille ou sa position, un clip pour ajuster son cadrage, sa douceur, son mouvement ou son volume, et la musique pour changer son volume. Recréer génère un nouveau Draft et ne conserve pas les modifications de l'Inspecteur.",
+    draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft créé ; ajout du titre et du look…",
     draftNotFinished: "Draft créé, mais le titre, le look et le son des clips ne sont pas encore appliqués.",
+    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Ouvrir le nouveau Draft",
     copyLink: "Copier le lien vers le nouveau Draft",
-    shortened: { one: "Vos images suffisent pour {fitted} sur {count} plan : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète.", many: "Vos images suffisent pour {fitted} sur {count} de plans : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète.", other: "Vos images suffisent pour {fitted} sur {count} plans : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète." },
+    shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", many: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "Remarque : {detail}.",
     unchecked: { one: "{count} vidéo n'a pas pu être vérifiée et a été ignorée. Relancez la création pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer." },
     createsDraft: "Crée un nouveau Draft 16:9",
@@ -703,18 +686,24 @@ const STRINGS = {
     anotherVersion: "Essayer d'autres plans",
     build: "Créer",
     building: "Création",
-    "param.mainColor": "Couleur principale",
-    "param.secondColor": "Couleur secondaire",
-    "param.shadow": "Ombre",
-    "param.size": "Taille (%)",
-    "param.x": "Position horizontale (%)",
-    "param.y": "Position verticale (%)",
-    "param.sparkles": "Étincelles",
-    "param.stars": "Étoiles",
     "param.motion": "Mouvement",
     "param.motionStrength": "Intensité du mouvement",
-    "param.punch": "Punch",
-    "param.softness": "Douceur",
+    "param.reveal": "Reveal",
+    "param.letterbox": "Letterbox reveal",
+    "param.look": "Look strength",
+    "param.warmth": "Warmth",
+    "param.fade": "Fade out",
+    "param.kicker": "Kicker",
+    "param.title": "Title",
+    "param.tagline": "Tagline",
+    "param.titleColor": "Title colour",
+    "param.textColor": "Text colour",
+    "param.size": "Size",
+    "param.font": "Font",
+    "param.speed": "Decode speed",
+    "param.shadow": "Ombre",
+    "param.prefix": "Credit prefix",
+    "param.name": "Name",
     "motion.push-in": "Zoom avant",
     "motion.pull-out": "Zoom arrière",
     "motion.drift-left": "Glisser vers la gauche",
@@ -728,7 +717,7 @@ const STRINGS = {
     openProject: "Apri un progetto per creare un Archive Vlog.",
     startFailed: "Archive Vlog non è riuscito ad avviarsi: {detail}. Reinstalla il plugin se il problema persiste.",
     foldersNotFound: "le cartelle del plugin non sono state trovate",
-    adapterNeeded: "Questa versione di Selects richiede un adattatore {name} aggiornato.",
+    hostTooOld: "Archive Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     stepFailed: "Selects non è riuscito a completare questo passaggio.",
     busy: "Selects è occupato e non ha risposto in tempo. Attendi un momento e premi «Aggiorna». Se continua a succedere, riavvia Selects.",
     invFailed: "Non è ancora stato possibile leggere le clip di questo progetto. Premi «Aggiorna».",
@@ -752,7 +741,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} di {count} clip selezionata", many: "{selected} di {count} clip selezionate", other: "{selected} di {count} clip selezionate" },
     photos: { one: "{count} foto", many: "{count} di foto", other: "{count} foto" },
     photosSelected: { one: "{selected} di {count} foto selezionata", many: "{selected} di {count} foto selezionate", other: "{selected} di {count} foto selezionate" },
-    aboutSeconds: "circa {seconds} s",
     notAnalysed: { one: "{count} clip non ancora analizzata", many: "{count} di clip non ancora analizzate", other: "{count} clip non ancora analizzate" },
     analysing: { one: "{count} clip è in fase di analisi. Si aggiorna automaticamente al termine.", many: "{count} di clip sono in fase di analisi. Si aggiorna automaticamente al termine.", other: "{count} clip sono in fase di analisi. Si aggiorna automaticamente al termine." },
     notAnalysedAnalyse: { one: "{count} clip non è ancora analizzata. Analizzala in Selects per usarla qui.", many: "{count} di clip non sono ancora analizzate. Analizzale in Selects per usarle qui.", other: "{count} clip non sono ancora analizzate. Analizzale in Selects per usarle qui." },
@@ -760,30 +748,26 @@ const STRINGS = {
     analysisFailed: { one: "Non è stato possibile analizzare {count} clip.", many: "Non è stato possibile analizzare {count} di clip.", other: "Non è stato possibile analizzare {count} clip." },
     noteAnalysing: { one: "{count} clip in analisi", many: "{count} di clip in analisi", other: "{count} clip in analisi" },
     noteFailed: { one: "{count} clip non analizzabile", many: "{count} di clip non analizzabili", other: "{count} clip non analizzabili" },
-    title: "Titolo",
-    titleStyle: "Stile del titolo",
+    style: "Style",
     titlePreview: "Anteprima del titolo",
     previewUnavailable: "Anteprima non disponibile; il titolo verrà comunque aggiunto al Draft.",
+    replayDecode: "Replay the title animation",
     loading: "Caricamento…",
-    "preset.archive-vlog": "Mini vlog",
-    "preset.day-in-my-life": "Un giorno della mia vita",
-    "preset.small-glimpse": "Un piccolo scorcio",
-    "field.archive-vlog.big": "Parola grande",
-    "field.archive-vlog.small": "Parola piccola",
-    "field.day-in-my-life.year": "Anno",
-    "field.day-in-my-life.big": "Parole grandi",
-    "field.day-in-my-life.tag": "Frase breve",
-    "field.small-glimpse.top": "Riga in alto",
-    "field.small-glimpse.big": "Parola grande",
-    "field.small-glimpse.bottom": "Riga in basso",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
+    creditShot: "Credit shot",
+    creditName: "Name on the credit",
+    creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Musica",
     track: "Brano",
-    alternatives: "Alternative",
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", many: "Only the first {count} minutes of your track are analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
-    installTools: "Installa ffmpeg e Node.js 18+ per ascoltare la musica o usare un tuo brano.",
     sectionHint: "Sezione musicale: trascina per scegliere",
     sectionLabel: "Sezione musicale",
     musicTooShort: "Questo brano è troppo corto per questa durata",
@@ -793,7 +777,6 @@ const STRINGS = {
     previewSection: "Ascolta questa sezione",
     readingMusic: "Lettura della musica…",
     musicLengthUnknown: "La durata di questa musica è sconosciuta",
-    startAtHook: "Inizia dall'hook",
     beatFound: "Ritmo trovato: {bpm} BPM. I tagli seguono il ritmo.",
     faintTempo: "Tempo trovato ({bpm} BPM) ma il ritmo è debole, quindi i tagli seguono approssimativamente una griglia a {bpm} BPM.",
     outsideTempo: "Il suo tempo ({bpm} BPM) è fuori dall'intervallo 70–160 BPM, quindi i tagli usano una sincronia approssimativa.",
@@ -803,29 +786,23 @@ const STRINGS = {
     "length.standard": "Standard",
     "length.long": "Lunga",
     pace: "Cadenza",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Veloce",
-    "pace.relaxed": "Rilassata",
-    "pace.groove": "Groove",
-    fitPartial: { one: "{length}: {fitted} di {count} inquadratura entrano in questo brano ({seconds} s)", many: "{length}: {fitted} di {count} di inquadrature entrano in questo brano ({seconds} s)", other: "{length}: {fitted} di {count} inquadrature entrano in questo brano ({seconds} s)" },
-    fitFull: { one: "{length}: {count} inquadratura ({seconds} s)", many: "{length}: {count} di inquadrature ({seconds} s)", other: "{length}: {count} inquadrature ({seconds} s)" },
-    footageFits: { one: "Il tuo materiale basta per {fitted} di {count} inquadratura ({seconds} s)", many: "Il tuo materiale basta per {fitted} di {count} di inquadrature ({seconds} s)", other: "Il tuo materiale basta per {fitted} di {count} inquadrature ({seconds} s)" },
-    seconds: "{seconds} s",
-    grooveTiming: "Groove su un battito di {beat} s: inquadrature da {hold}, {beat} e {eighth} s",
-    quickTwoBeats: "A {bpm} BPM «Veloce» usa 2 battiti per inquadratura.",
-    relaxedOneBeat: "A {bpm} BPM «Rilassata» usa 1 battito per inquadratura.",
-    grooveOneBeat: "A {bpm} BPM «Groove» apre le frasi con 1 battito.",
-    grooveTwoBeats: "A {bpm} BPM «Groove» usa 2 battiti per inquadratura.",
-    noMusicTiming: "Nessuna musica: le inquadrature usano una sincronia approssimativa ({timing}).",
-    faintTempoTiming: "Tempo trovato ({bpm} BPM) ma il ritmo è debole: i tagli seguono approssimativamente una griglia a {bpm} BPM ({timing}).",
-    outsideTempoTiming: "Tempo fuori dall'intervallo 70–160 BPM ({bpm} BPM): le inquadrature usano una sincronia approssimativa ({timing}).",
-    noBeatTiming: "Nessun ritmo regolare trovato: le inquadrature usano una sincronia approssimativa ({timing}).",
+    fitPartial: { one: "{length}: {fitted} of {count} montage shot fit this track ({seconds} s)", many: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)", other: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)" },
+    fitFull: { one: "{length}: {count} montage shot ({seconds} s)", many: "{length}: {count} montage shots ({seconds} s)", other: "{length}: {count} montage shots ({seconds} s)" },
+    footageFits: { one: "Your footage fits {fitted} of {count} montage shot ({seconds} s)", many: "Your footage fits {fitted} of {count} montage shots ({seconds} s)", other: "Your footage fits {fitted} of {count} montage shots ({seconds} s)" },
+    montageBeats: { one: "Montage shots hold {count} beat ({seconds} s).", many: "Montage shots hold {count} beats ({seconds} s).", other: "Montage shots hold {count} beats ({seconds} s)." },
+    noMusicTiming: "No music: cuts follow a steady {bpm} bpm beat.",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
+    noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Avanzate",
     clipSound: "Audio delle clip",
     "sound.off": "Spento",
     "sound.ambient": "Ambiente",
     "sound.full": "Pieno",
-    softLook: "Look morbido",
-    beatPunch: "Punch a ritmo",
+    cinematicLook: "Cinematic look",
     usePhotos: "Usa foto",
     usePhotosOff: "«Usa foto» è disattivato",
     silentVideo: "Video senza audio: nessuna musica e audio delle clip su «Spento».",
@@ -848,31 +825,34 @@ const STRINGS = {
     photosOnly: "solo foto",
     stoppedAt: "Interrotto al passaggio {step}/{total}, {name}: {detail}",
     "fail.one-resource": "Aggiungi almeno 2 clip o foto.",
-    "fail.too-few": "Il tuo materiale basta per meno di 4 inquadrature.",
-    "fail.music-too-short": "Questo brano è troppo corto per 4 inquadrature a partire da questa sezione.",
+    "fail.too-few": "Your footage cannot fill even the shortest version.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
+    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Nessun piano si adatta a questo materiale.",
     addFootage: "Aggiungi materiale più vario o seleziona più clip.",
     addFootagePhotos: "Aggiungi materiale più vario o foto, oppure seleziona più clip.",
     retryUnchecked: { one: "Non è stato possibile controllare {count} video; premi «Crea» per riprovare.", many: "Non è stato possibile controllare {count} di video; premi «Crea» per riprovare.", other: "Non è stato possibile controllare {count} video; premi «Crea» per riprovare." },
-    typeBigWord: "Scrivi la parola grande del titolo per creare.",
+    typeTitle: "Type a title to build.",
     dropMusic: "Trascina qui un file musicale o scegli uno dei brani.",
     musicLengthUnread: "Non è stato possibile leggere la durata della tua musica. Scegli un altro file o uno dei brani.",
     musicApprox: "Musica aggiunta; i tagli usano una sincronia approssimativa ({detail}).",
     musicUnreadable: "Impossibile leggere questo file musicale ({detail}). Scegli un altro file o uno dei brani.",
     beatFailed: "rilevamento del ritmo non riuscito",
     previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
-    previewNotCut: "non è stato possibile ritagliare l'anteprima",
     noAudio: "non è stato restituito alcun audio",
     draftNoId: "Il Draft «{name}» potrebbe essere stato salvato, ma Selects non ne ha comunicato l'ID. Aprilo dall'elenco dei Draft o crealo di nuovo.",
     draftEmpty: "Il Draft «{name}» non contiene clip. Crealo di nuovo.",
     finishFailed: "Il Draft è stato creato, ma titolo, look e audio delle clip non sono ancora applicati: {detail}. Premi «Completa titolo e look» per riprovare.",
     openFailed: "Il Draft è pronto, ma non è stato possibile aprirlo: {detail}. Usa il link qui sotto o aprilo dall'elenco dei Draft.",
-    draftCreated: "Draft creato. Seleziona il titolo per modificarne parole, colori, dimensione o posizione, una clip per regolarne inquadratura, morbidezza, movimento o volume, e la musica per cambiarne il volume. Ricreare genera un nuovo Draft e non mantiene le modifiche dell'Inspector.",
+    draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft creato; aggiunta di titolo e look…",
     draftNotFinished: "Draft creato, ma titolo, look e audio delle clip non sono ancora applicati.",
+    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Apri il nuovo Draft",
     copyLink: "Copia il link al nuovo Draft",
-    shortened: { one: "Il tuo materiale basta per {fitted} di {count} inquadratura, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa.", many: "Il tuo materiale basta per {fitted} di {count} di inquadrature, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa.", other: "Il tuo materiale basta per {fitted} di {count} inquadrature, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa." },
+    shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", many: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "Nota: {detail}.",
     unchecked: { one: "Non è stato possibile controllare {count} video, che è stato saltato. Crea di nuovo per riprovare.", many: "Non è stato possibile controllare {count} di video, che sono stati saltati. Crea di nuovo per riprovare.", other: "Non è stato possibile controllare {count} video, che sono stati saltati. Crea di nuovo per riprovare." },
     createsDraft: "Crea un nuovo Draft 16:9",
@@ -880,18 +860,24 @@ const STRINGS = {
     anotherVersion: "Prova altre inquadrature",
     build: "Crea",
     building: "Creazione",
-    "param.mainColor": "Colore principale",
-    "param.secondColor": "Colore secondario",
-    "param.shadow": "Ombra",
-    "param.size": "Dimensione (%)",
-    "param.x": "Posizione orizzontale (%)",
-    "param.y": "Posizione verticale (%)",
-    "param.sparkles": "Scintille",
-    "param.stars": "Stelle",
     "param.motion": "Movimento",
     "param.motionStrength": "Intensità del movimento",
-    "param.punch": "Punch",
-    "param.softness": "Morbidezza",
+    "param.reveal": "Reveal",
+    "param.letterbox": "Letterbox reveal",
+    "param.look": "Look strength",
+    "param.warmth": "Warmth",
+    "param.fade": "Fade out",
+    "param.kicker": "Kicker",
+    "param.title": "Title",
+    "param.tagline": "Tagline",
+    "param.titleColor": "Title colour",
+    "param.textColor": "Text colour",
+    "param.size": "Size",
+    "param.font": "Font",
+    "param.speed": "Decode speed",
+    "param.shadow": "Ombra",
+    "param.prefix": "Credit prefix",
+    "param.name": "Name",
     "motion.push-in": "Zoom avanti",
     "motion.pull-out": "Zoom indietro",
     "motion.drift-left": "Scorri a sinistra",
@@ -905,7 +891,7 @@ const STRINGS = {
     openProject: "Archive Vlog を作成するには、プロジェクトを開いてください。",
     startFailed: "Archive Vlog を起動できませんでした: {detail}。問題が続く場合はプラグインを再インストールしてください。",
     foldersNotFound: "プラグインのフォルダが見つかりませんでした",
-    adapterNeeded: "この Selects のビルドには、更新された {name} アダプターが必要です。",
+    hostTooOld: "Archive Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     stepFailed: "Selects はこのステップを完了できませんでした。",
     busy: "Selects が混み合っていて時間内に応答しませんでした。少し待ってから「更新」を押してください。何度も起きる場合は Selects を再起動してください。",
     invFailed: "このプロジェクトのクリップをまだ読み込めません。「更新」を押してください。",
@@ -929,7 +915,6 @@ const STRINGS = {
     clipsSelected: { other: "クリップ {count} 本中 {selected} 本を選択" },
     photos: { other: "写真 {count} 枚" },
     photosSelected: { other: "写真 {count} 枚中 {selected} 枚を選択" },
-    aboutSeconds: "約 {seconds} 秒",
     notAnalysed: { other: "未解析のクリップ {count} 本" },
     analysing: { other: "{count} 本のクリップを解析中です。終わると自動で更新されます。" },
     notAnalysedAnalyse: { other: "{count} 本のクリップがまだ解析されていません。ここで使うには Selects で解析してください。" },
@@ -937,30 +922,26 @@ const STRINGS = {
     analysisFailed: { other: "{count} 本のクリップを解析できませんでした。" },
     noteAnalysing: { other: "解析中のクリップ {count} 本" },
     noteFailed: { other: "解析できなかったクリップ {count} 本" },
-    title: "タイトル",
-    titleStyle: "タイトルのスタイル",
+    style: "Style",
     titlePreview: "タイトルのプレビュー",
     previewUnavailable: "プレビューを表示できません。タイトルは Draft に追加されます。",
+    replayDecode: "Replay the title animation",
     loading: "読み込み中…",
-    "preset.archive-vlog": "ミニ Vlog",
-    "preset.day-in-my-life": "わたしの一日",
-    "preset.small-glimpse": "小さなひとコマ",
-    "field.archive-vlog.big": "大きな文字",
-    "field.archive-vlog.small": "小さな文字",
-    "field.day-in-my-life.year": "年",
-    "field.day-in-my-life.big": "大きな文字",
-    "field.day-in-my-life.tag": "タグライン",
-    "field.small-glimpse.top": "上の行",
-    "field.small-glimpse.big": "大きな文字",
-    "field.small-glimpse.bottom": "下の行",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label}（{used}/{max}）",
+    creditShot: "Credit shot",
+    creditName: "Name on the credit",
+    creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "音楽",
     track: "トラック",
-    alternatives: "その他の曲",
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
+    ownMusicHint: { other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
-    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg と Node.js 18 以降をインストールしてください。",
     sectionHint: "音楽の区間 — ドラッグして選択",
     sectionLabel: "音楽の区間",
     musicTooShort: "このトラックはこの長さには短すぎます",
@@ -970,7 +951,6 @@ const STRINGS = {
     previewSection: "この区間をプレビュー",
     readingMusic: "音楽を読み込み中…",
     musicLengthUnknown: "この音楽の長さがわかりません",
-    startAtHook: "サビから始める",
     beatFound: "ビートを検出: {bpm} BPM。カットはビートに合わせます。",
     faintTempo: "テンポ（{bpm} BPM）は見つかりましたがビートが弱いため、カットは {bpm} BPM のグリッドにおおよそ合わせます。",
     outsideTempo: "テンポ（{bpm} BPM）が 70〜160 BPM の範囲外のため、カットはおおよそのタイミングになります。",
@@ -980,29 +960,23 @@ const STRINGS = {
     "length.standard": "標準",
     "length.long": "長め",
     pace: "ペース",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "クイック",
-    "pace.relaxed": "ゆったり",
-    "pace.groove": "グルーヴ",
-    fitPartial: { other: "{length}: このトラックに収まるのは {count} ショット中 {fitted} ショット（{seconds} 秒）" },
-    fitFull: { other: "{length}: {count} ショット（{seconds} 秒）" },
-    footageFits: { other: "素材で作れるのは {count} ショット中 {fitted} ショット（{seconds} 秒）" },
-    seconds: "{seconds} 秒",
-    grooveTiming: "{beat} 秒のビートでグルーヴ: {hold}・{beat}・{eighth} 秒のショット",
-    quickTwoBeats: "{bpm} BPM では「クイック」は 1 ショット 2 ビートになります。",
-    relaxedOneBeat: "{bpm} BPM では「ゆったり」は 1 ショット 1 ビートになります。",
-    grooveOneBeat: "{bpm} BPM では「グルーヴ」はフレーズを 1 ビートで始めます。",
-    grooveTwoBeats: "{bpm} BPM では「グルーヴ」は 1 ショット 2 ビートになります。",
-    noMusicTiming: "音楽なし: ショットはおおよそのタイミングになります（{timing}）。",
-    faintTempoTiming: "テンポ（{bpm} BPM）は見つかりましたがビートが弱いため、カットは {bpm} BPM のグリッドにおおよそ合わせます（{timing}）。",
-    outsideTempoTiming: "テンポが 70〜160 BPM の範囲外です（{bpm} BPM）: ショットはおおよそのタイミングになります（{timing}）。",
-    noBeatTiming: "安定したビートが見つかりません: ショットはおおよそのタイミングになります（{timing}）。",
+    fitPartial: { other: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)" },
+    fitFull: { other: "{length}: {count} montage shots ({seconds} s)" },
+    footageFits: { other: "Your footage fits {fitted} of {count} montage shots ({seconds} s)" },
+    montageBeats: { other: "Montage shots hold {count} beats ({seconds} s)." },
+    noMusicTiming: "No music: cuts follow a steady {bpm} bpm beat.",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
+    noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "詳細設定",
     clipSound: "クリップの音",
     "sound.off": "オフ",
     "sound.ambient": "環境音",
     "sound.full": "フル",
-    softLook: "ソフトルック",
-    beatPunch: "ビートパンチ",
+    cinematicLook: "Cinematic look",
     usePhotos: "写真を使う",
     usePhotosOff: "「写真を使う」がオフです",
     silentVideo: "無音の動画: 音楽なしで、クリップの音が「オフ」です。",
@@ -1025,31 +999,34 @@ const STRINGS = {
     photosOnly: "写真のみ",
     stoppedAt: "ステップ {step}/{total}（{name}）で停止しました: {detail}",
     "fail.one-resource": "クリップか写真を 2 つ以上追加してください。",
-    "fail.too-few": "素材で作れるのは 4 ショット未満です。",
-    "fail.music-too-short": "このトラックはこの区間から 4 ショットを作るには短すぎます。",
+    "fail.too-few": "Your footage cannot fill even the shortest version.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
+    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "この素材に合うプランがありません。",
     addFootage: "変化のある素材を追加するか、クリップをもっと選択してください。",
     addFootagePhotos: "変化のある素材や写真を追加するか、クリップをもっと選択してください。",
     retryUnchecked: { other: "{count} 本の動画を確認できませんでした。「作成」を押すと再試行します。" },
-    typeBigWord: "作成するには、タイトルの大きな文字を入力してください。",
+    typeTitle: "Type a title to build.",
     dropMusic: "音楽ファイルをドロップするか、用意されたトラックを選んでください。",
     musicLengthUnread: "音楽の長さを読み取れませんでした。別のファイルか、用意されたトラックを選んでください。",
     musicApprox: "音楽を追加しました。カットはおおよそのタイミングになります（{detail}）。",
     musicUnreadable: "この音楽ファイルを読み込めませんでした（{detail}）。別のファイルか、用意されたトラックを選んでください。",
     beatFailed: "ビートの検出に失敗しました",
     previewFailed: "プレビューを再生できませんでした: {detail}。",
-    previewNotCut: "プレビューを切り出せませんでした",
     noAudio: "音声が返されませんでした",
     draftNoId: "Draft「{name}」は保存された可能性がありますが、Selects から ID が返されませんでした。Draft の一覧から開くか、もう一度作成してください。",
     draftEmpty: "Draft「{name}」にクリップがありません。もう一度作成してください。",
     finishFailed: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません: {detail}。「タイトルとルックを仕上げる」を押して再試行してください。",
     openFailed: "Draft の準備はできましたが、開けませんでした: {detail}。下のリンクを使うか、Draft 一覧から開いてください。",
-    draftCreated: "Draft を作成しました。タイトルを選ぶと文字・色・サイズ・位置を、クリップを選ぶと切り抜き・ソフトさ・モーション・音量を、音楽を選ぶと音量を変更できます。作り直すと新しい Draft が作成され、インスペクタでの編集は引き継がれません。",
+    draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft を作成しました。タイトルとルックを追加中…",
     draftNotFinished: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません。",
+    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "新しい Draft を開く",
     copyLink: "新しい Draft へのリンクをコピー",
-    shortened: { other: "素材で作れるのは {count} ショット中 {fitted} ショットのため、この動画は約 {seconds} 秒です。フルの長さにするにはクリップか写真を追加してください。" },
+    shortened: { other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "メモ: {detail}。",
     unchecked: { other: "{count} 本の動画を確認できなかったため、スキップしました。もう一度作成すると再試行します。" },
     createsDraft: "16:9 の新しい Draft を作成します",
@@ -1057,18 +1034,24 @@ const STRINGS = {
     anotherVersion: "別のショットで作成",
     build: "作成",
     building: "作成中",
-    "param.mainColor": "メインの色",
-    "param.secondColor": "サブの色",
-    "param.shadow": "影",
-    "param.size": "サイズ (%)",
-    "param.x": "横位置 (%)",
-    "param.y": "縦位置 (%)",
-    "param.sparkles": "キラキラ",
-    "param.stars": "星",
     "param.motion": "モーション",
     "param.motionStrength": "モーションの強さ",
-    "param.punch": "パンチ",
-    "param.softness": "ソフトさ",
+    "param.reveal": "Reveal",
+    "param.letterbox": "Letterbox reveal",
+    "param.look": "Look strength",
+    "param.warmth": "Warmth",
+    "param.fade": "Fade out",
+    "param.kicker": "Kicker",
+    "param.title": "Title",
+    "param.tagline": "Tagline",
+    "param.titleColor": "Title colour",
+    "param.textColor": "Text colour",
+    "param.size": "Size",
+    "param.font": "Font",
+    "param.speed": "Decode speed",
+    "param.shadow": "影",
+    "param.prefix": "Credit prefix",
+    "param.name": "Name",
     "motion.push-in": "ズームイン",
     "motion.pull-out": "ズームアウト",
     "motion.drift-left": "左へスライド",
@@ -1082,7 +1065,7 @@ const STRINGS = {
     openProject: "Archive Vlog\ub97c \ub9cc\ub4e4\ub824\uba74 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.",
     startFailed: "Archive Vlog\ub97c \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uacc4\uc18d\ub418\uba74 \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud558\uc138\uc694.",
     foldersNotFound: "\ud50c\ub7ec\uadf8\uc778 \ud3f4\ub354\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
-    adapterNeeded: "\uc774 Selects \ube4c\ub4dc\uc5d0\ub294 \uc5c5\ub370\uc774\ud2b8\ub41c {name} \uc5b4\ub311\ud130\uac00 \ud544\uc694\ud569\ub2c8\ub2e4.",
+    hostTooOld: "Archive Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     stepFailed: "Selects\uac00 \uc774 \ub2e8\uacc4\ub97c \uc644\ub8cc\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     busy: "Selects\uac00 \ubc14\ube60\uc11c \uc81c\ub54c \uc751\ub2f5\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \uae30\ub2e4\ub9b0 \ub4a4 ‘\uc0c8\ub85c\uace0\uce68’\uc744 \ub204\ub974\uc138\uc694. \uacc4\uc18d\ub418\uba74 Selects\ub97c \ub2e4\uc2dc \uc2dc\uc791\ud558\uc138\uc694.",
     invFailed: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \ud074\ub9bd\uc744 \uc544\uc9c1 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. ‘\uc0c8\ub85c\uace0\uce68’\uc744 \ub204\ub974\uc138\uc694.",
@@ -1106,7 +1089,6 @@ const STRINGS = {
     clipsSelected: { other: "\ud074\ub9bd {count}\uac1c \uc911 {selected}\uac1c \uc120\ud0dd" },
     photos: { other: "\uc0ac\uc9c4 {count}\uc7a5" },
     photosSelected: { other: "\uc0ac\uc9c4 {count}\uc7a5 \uc911 {selected}\uc7a5 \uc120\ud0dd" },
-    aboutSeconds: "\uc57d {seconds}\ucd08",
     notAnalysed: { other: "\uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd {count}\uac1c" },
     analysing: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4. \ubd84\uc11d\uc774 \ub05d\ub098\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
     notAnalysedAnalyse: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uc5ec\uae30\uc11c \uc4f0\ub824\uba74 Selects\uc5d0\uc11c \ubd84\uc11d\ud558\uc138\uc694." },
@@ -1114,30 +1096,26 @@ const STRINGS = {
     analysisFailed: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4." },
     noteAnalysing: { other: "\ubd84\uc11d \uc911\uc778 \ud074\ub9bd {count}\uac1c" },
     noteFailed: { other: "\ubd84\uc11d\ud558\uc9c0 \ubabb\ud55c \ud074\ub9bd {count}\uac1c" },
-    title: "\ud0c0\uc774\ud2c0",
-    titleStyle: "\ud0c0\uc774\ud2c0 \uc2a4\ud0c0\uc77c",
+    style: "Style",
     titlePreview: "\ud0c0\uc774\ud2c0 \ubbf8\ub9ac\ubcf4\uae30",
     previewUnavailable: "\ubbf8\ub9ac\ubcf4\uae30\ub97c \ud45c\uc2dc\ud560 \uc218 \uc5c6\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uc740 Draft\uc5d0 \ucd94\uac00\ub429\ub2c8\ub2e4.",
+    replayDecode: "Replay the title animation",
     loading: "\ubd88\ub7ec\uc624\ub294 \uc911…",
-    "preset.archive-vlog": "\ubbf8\ub2c8 \ube0c\uc774\ub85c\uadf8",
-    "preset.day-in-my-life": "\ub098\uc758 \ud558\ub8e8",
-    "preset.small-glimpse": "\uc791\uc740 \uc21c\uac04",
-    "field.archive-vlog.big": "\ud070 \uae00\uc790",
-    "field.archive-vlog.small": "\uc791\uc740 \uae00\uc790",
-    "field.day-in-my-life.year": "\uc5f0\ub3c4",
-    "field.day-in-my-life.big": "\ud070 \uae00\uc790",
-    "field.day-in-my-life.tag": "\ud0dc\uadf8 \ubb38\uad6c",
-    "field.small-glimpse.top": "\uc704 \uc904",
-    "field.small-glimpse.big": "\ud070 \uae00\uc790",
-    "field.small-glimpse.bottom": "\uc544\ub798 \uc904",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
+    creditShot: "Credit shot",
+    creditName: "Name on the credit",
+    creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "\uc74c\uc545",
     track: "\ud2b8\ub799",
-    alternatives: "\ub2e4\ub978 \ud2b8\ub799",
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
+    ownMusicHint: { other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
-    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\uc640 Node.js 18 \uc774\uc0c1\uc744 \uc124\uce58\ud558\uc138\uc694.",
     sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
     sectionLabel: "\uc74c\uc545 \uad6c\uac04",
     musicTooShort: "\uc774 \ud2b8\ub799\uc740 \uc774 \uae38\uc774\uc5d0 \ube44\ud574 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4",
@@ -1147,7 +1125,6 @@ const STRINGS = {
     previewSection: "\uc774 \uad6c\uac04 \ubbf8\ub9ac\ub4e3\uae30",
     readingMusic: "\uc74c\uc545 \uc77d\ub294 \uc911…",
     musicLengthUnknown: "\uc774 \uc74c\uc545\uc758 \uae38\uc774\ub97c \uc54c \uc218 \uc5c6\uc2b5\ub2c8\ub2e4",
-    startAtHook: "\ud558\uc774\ub77c\uc774\ud2b8\ubd80\ud130 \uc2dc\uc791",
     beatFound: "\ube44\ud2b8 \ucc3e\uc74c: {bpm} BPM. \ucef7\uc774 \ube44\ud2b8\uc5d0 \ub9de\ucdb0\uc9d1\ub2c8\ub2e4.",
     faintTempo: "\ud15c\ud3ec({bpm} BPM)\ub294 \ucc3e\uc558\uc9c0\ub9cc \ube44\ud2b8\uac00 \uc57d\ud574\uc11c \ucef7\uc774 {bpm} BPM \uadf8\ub9ac\ub4dc\uc5d0 \ub300\ub7b5 \ub9de\ucdb0\uc9d1\ub2c8\ub2e4.",
     outsideTempo: "\ud15c\ud3ec({bpm} BPM)\uac00 70~160 BPM \ubc94\uc704\ub97c \ubc97\uc5b4\ub098\uc11c \ucef7\uc774 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4.",
@@ -1157,29 +1134,23 @@ const STRINGS = {
     "length.standard": "\ubcf4\ud1b5",
     "length.long": "\uae38\uac8c",
     pace: "\ucef7 \uc18d\ub3c4",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "\ube60\ub974\uac8c",
-    "pace.relaxed": "\uc5ec\uc720\ub86d\uac8c",
-    "pace.groove": "\uadf8\ub8e8\ube0c",
-    fitPartial: { other: "{length}: \uc774 \ud2b8\ub799\uc5d0 {count}\uc0f7 \uc911 {fitted}\uc0f7\uc774 \ub4e4\uc5b4\uac11\ub2c8\ub2e4 ({seconds}\ucd08)" },
-    fitFull: { other: "{length}: {count}\uc0f7 ({seconds}\ucd08)" },
-    footageFits: { other: "\uc601\uc0c1\uc73c\ub85c {count}\uc0f7 \uc911 {fitted}\uc0f7\uc744 \ub9cc\ub4e4 \uc218 \uc788\uc2b5\ub2c8\ub2e4 ({seconds}\ucd08)" },
-    seconds: "{seconds}\ucd08",
-    grooveTiming: "{beat}\ucd08 \ube44\ud2b8\uc758 \uadf8\ub8e8\ube0c: {hold}\ucd08, {beat}\ucd08, {eighth}\ucd08 \uc0f7",
-    quickTwoBeats: "{bpm} BPM\uc5d0\uc11c\ub294 ‘\ube60\ub974\uac8c’\uac00 \uc0f7\ub2f9 2\ube44\ud2b8\ub97c \uc501\ub2c8\ub2e4.",
-    relaxedOneBeat: "{bpm} BPM\uc5d0\uc11c\ub294 ‘\uc5ec\uc720\ub86d\uac8c’\uac00 \uc0f7\ub2f9 1\ube44\ud2b8\ub97c \uc501\ub2c8\ub2e4.",
-    grooveOneBeat: "{bpm} BPM\uc5d0\uc11c\ub294 ‘\uadf8\ub8e8\ube0c’\uac00 \ud504\ub808\uc774\uc988\ub97c 1\ube44\ud2b8\ub85c \uc2dc\uc791\ud569\ub2c8\ub2e4.",
-    grooveTwoBeats: "{bpm} BPM\uc5d0\uc11c\ub294 ‘\uadf8\ub8e8\ube0c’\uac00 \uc0f7\ub2f9 2\ube44\ud2b8\ub97c \uc501\ub2c8\ub2e4.",
-    noMusicTiming: "\uc74c\uc545 \uc5c6\uc74c: \uc0f7\uc774 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4 ({timing}).",
-    faintTempoTiming: "\ud15c\ud3ec({bpm} BPM)\ub294 \ucc3e\uc558\uc9c0\ub9cc \ube44\ud2b8\uac00 \uc57d\ud569\ub2c8\ub2e4: \ucef7\uc774 {bpm} BPM \uadf8\ub9ac\ub4dc\uc5d0 \ub300\ub7b5 \ub9de\ucdb0\uc9d1\ub2c8\ub2e4 ({timing}).",
-    outsideTempoTiming: "\ud15c\ud3ec\uac00 70~160 BPM \ubc94\uc704\ub97c \ubc97\uc5b4\ub0ac\uc2b5\ub2c8\ub2e4({bpm} BPM): \uc0f7\uc774 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4 ({timing}).",
-    noBeatTiming: "\uc77c\uc815\ud55c \ube44\ud2b8\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: \uc0f7\uc774 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4 ({timing}).",
+    fitPartial: { other: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)" },
+    fitFull: { other: "{length}: {count} montage shots ({seconds} s)" },
+    footageFits: { other: "Your footage fits {fitted} of {count} montage shots ({seconds} s)" },
+    montageBeats: { other: "Montage shots hold {count} beats ({seconds} s)." },
+    noMusicTiming: "No music: cuts follow a steady {bpm} bpm beat.",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
+    noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "\uace0\uae09",
     clipSound: "\ud074\ub9bd \uc18c\ub9ac",
     "sound.off": "\ub054",
     "sound.ambient": "\ubc30\uacbd\uc74c",
     "sound.full": "\uc6d0\uc74c",
-    softLook: "\ubd80\ub4dc\ub7ec\uc6b4 \uc0c9\uac10",
-    beatPunch: "\ube44\ud2b8 \ud380\uce58",
+    cinematicLook: "Cinematic look",
     usePhotos: "\uc0ac\uc9c4 \uc0ac\uc6a9",
     usePhotosOff: "‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc774 \uaebc\uc838 \uc788\uc74c",
     silentVideo: "\ubb34\uc74c \uc601\uc0c1: \uc74c\uc545\uc774 \uc5c6\uace0 \ud074\ub9bd \uc18c\ub9ac\uac00 ‘\ub054’\uc785\ub2c8\ub2e4.",
@@ -1202,31 +1173,34 @@ const STRINGS = {
     photosOnly: "\uc0ac\uc9c4\ub9cc",
     stoppedAt: "{step}/{total}\ub2e8\uacc4({name})\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {detail}",
     "fail.one-resource": "\ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 2\uac1c \uc774\uc0c1 \ucd94\uac00\ud558\uc138\uc694.",
-    "fail.too-few": "\uc601\uc0c1\uc73c\ub85c \ub9cc\ub4e4 \uc218 \uc788\ub294 \uc0f7\uc774 4\uac1c\ubcf4\ub2e4 \uc801\uc2b5\ub2c8\ub2e4.",
-    "fail.music-too-short": "\uc774 \ud2b8\ub799\uc740 \uc774 \uad6c\uac04\ubd80\ud130 4\uc0f7\uc744 \ub9cc\ub4e4\uae30\uc5d0 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4.",
+    "fail.too-few": "Your footage cannot fill even the shortest version.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
+    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "\uc774 \uc601\uc0c1\uc5d0 \ub9de\ub294 \uad6c\uc131\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
     addFootage: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
     addFootagePhotos: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
     retryUnchecked: { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. ‘\ub9cc\ub4e4\uae30’\ub97c \ub204\ub974\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
-    typeBigWord: "\ub9cc\ub4e4\ub824\uba74 \ud0c0\uc774\ud2c0\uc758 \ud070 \uae00\uc790\ub97c \uc785\ub825\ud558\uc138\uc694.",
+    typeTitle: "Type a title to build.",
     dropMusic: "\uc74c\uc545 \ud30c\uc77c\uc744 \ub04c\uc5b4\ub2e4 \ub193\uac70\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     musicLengthUnread: "\uc74c\uc545\uc758 \uae38\uc774\ub97c \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \ud30c\uc77c\uc774\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     musicApprox: "\uc74c\uc545\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4. \ucef7\uc740 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4 ({detail}).",
     musicUnreadable: "\uc774 \uc74c\uc545 \ud30c\uc77c\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4({detail}). \ub2e4\ub978 \ud30c\uc77c\uc774\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     beatFailed: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
     previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
-    previewNotCut: "\ubbf8\ub9ac\ub4e3\uae30 \uad6c\uac04\uc744 \uc798\ub77c\ub0b4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
     noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
     draftNoId: "Draft ‘{name}’\uc774(\uac00) \uc800\uc7a5\ub418\uc5c8\uc744 \uc218 \uc788\uc9c0\ub9cc Selects\uac00 ID\ub97c \uc54c\ub824 \uc8fc\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Draft \ubaa9\ub85d\uc5d0\uc11c \uc5f4\uac70\ub098 \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.",
     draftEmpty: "Draft ‘{name}’\uc5d0 \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.",
     finishFailed: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4: {detail}. ‘\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac’\ub97c \ub20c\ub7ec \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     openFailed: "Draft\ub294 \uc900\ube44\ub418\uc5c8\uc9c0\ub9cc \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uc544\ub798 \ub9c1\ud06c\ub97c \uc4f0\uac70\ub098 Draft \ubaa9\ub85d\uc5d0\uc11c \uc5ec\uc138\uc694.",
-    draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uc744 \uc120\ud0dd\ud558\uba74 \uae00\uc790, \uc0c9, \ud06c\uae30, \uc704\uce58\ub97c, \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uba74 \ud06c\ub86d, \ubd80\ub4dc\ub7ec\uc6c0, \ubaa8\uc158, \uc18c\ub9ac \ud06c\uae30\ub97c, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \ubcfc\ub968\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc0c8 Draft\uac00 \uc0dd\uae30\uace0 \uc778\uc2a4\ud399\ud130\uc5d0\uc11c \ud55c \ud3b8\uc9d1\uc740 \uc720\uc9c0\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\ub294 \uc911…",
     draftNotFinished: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
+    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "\uc0c8 Draft \uc5f4\uae30",
     copyLink: "\uc0c8 Draft \ub9c1\ud06c \ubcf5\uc0ac",
-    shortened: { other: "\uc601\uc0c1\uc73c\ub85c {count}\uc0f7 \uc911 {fitted}\uc0f7\ub9cc \ub9cc\ub4e4 \uc218 \uc788\uc5b4 \uc774 \ub3d9\uc601\uc0c1\uc740 \uc57d {seconds}\ucd08\uc785\ub2c8\ub2e4. \uc804\uccb4 \uae38\uc774\ub85c \ub9cc\ub4e4\ub824\uba74 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ub354 \ucd94\uac00\ud558\uc138\uc694." },
+    shortened: { other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "\ucc38\uace0: {detail}.",
     unchecked: { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud574 \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
     createsDraft: "\uc0c8 16:9 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4",
@@ -1234,18 +1208,24 @@ const STRINGS = {
     anotherVersion: "\ub2e4\ub978 \uc0f7\uc73c\ub85c \ub9cc\ub4e4\uae30",
     build: "\ub9cc\ub4e4\uae30",
     building: "\ub9cc\ub4dc\ub294 \uc911",
-    "param.mainColor": "\uc8fc \uc0c9\uc0c1",
-    "param.secondColor": "\ubcf4\uc870 \uc0c9\uc0c1",
-    "param.shadow": "\uadf8\ub9bc\uc790",
-    "param.size": "\ud06c\uae30 (%)",
-    "param.x": "\uac00\ub85c \uc704\uce58 (%)",
-    "param.y": "\uc138\ub85c \uc704\uce58 (%)",
-    "param.sparkles": "\ubc18\uc9dd\uc774",
-    "param.stars": "\ubcc4",
     "param.motion": "\ubaa8\uc158",
     "param.motionStrength": "\ubaa8\uc158 \uac15\ub3c4",
-    "param.punch": "\ud380\uce58",
-    "param.softness": "\ubd80\ub4dc\ub7ec\uc6c0",
+    "param.reveal": "Reveal",
+    "param.letterbox": "Letterbox reveal",
+    "param.look": "Look strength",
+    "param.warmth": "Warmth",
+    "param.fade": "Fade out",
+    "param.kicker": "Kicker",
+    "param.title": "Title",
+    "param.tagline": "Tagline",
+    "param.titleColor": "Title colour",
+    "param.textColor": "Text colour",
+    "param.size": "Size",
+    "param.font": "Font",
+    "param.speed": "Decode speed",
+    "param.shadow": "\uadf8\ub9bc\uc790",
+    "param.prefix": "Credit prefix",
+    "param.name": "Name",
     "motion.push-in": "\uc90c \uc778",
     "motion.pull-out": "\uc90c \uc544\uc6c3",
     "motion.drift-left": "\uc67c\ucabd\uc73c\ub85c \uc774\ub3d9",
@@ -1259,7 +1239,7 @@ const STRINGS = {
     openProject: "Abra um projeto para criar um Archive Vlog.",
     startFailed: "O Archive Vlog não conseguiu iniciar: {detail}. Reinstale o plugin se o problema continuar.",
     foldersNotFound: "as pastas do plugin não foram encontradas",
-    adapterNeeded: "Esta versão do Selects precisa de um adaptador {name} atualizado.",
+    hostTooOld: "Archive Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     stepFailed: "O Selects não conseguiu concluir esta etapa.",
     busy: "O Selects está ocupado e não respondeu a tempo. Aguarde um momento e pressione “Atualizar”. Se continuar acontecendo, reinicie o Selects.",
     invFailed: "Ainda não foi possível ler os clipes deste projeto. Pressione “Atualizar”.",
@@ -1283,7 +1263,6 @@ const STRINGS = {
     clipsSelected: { one: "{selected} de {count} clipe selecionado", many: "{selected} de {count} de clipes selecionados", other: "{selected} de {count} clipes selecionados" },
     photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
     photosSelected: { one: "{selected} de {count} foto selecionada", many: "{selected} de {count} de fotos selecionadas", other: "{selected} de {count} fotos selecionadas" },
-    aboutSeconds: "cerca de {seconds} s",
     notAnalysed: { one: "{count} clipe ainda não analisado", many: "{count} de clipes ainda não analisados", other: "{count} clipes ainda não analisados" },
     analysing: { one: "{count} clipe está sendo analisado. Isto se atualiza sozinho quando terminar.", many: "{count} de clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem.", other: "{count} clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem." },
     notAnalysedAnalyse: { one: "{count} clipe ainda não foi analisado. Analise-o no Selects para usá-lo aqui.", many: "{count} de clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui.", other: "{count} clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui." },
@@ -1291,30 +1270,26 @@ const STRINGS = {
     analysisFailed: { one: "Não foi possível analisar {count} clipe.", many: "Não foi possível analisar {count} de clipes.", other: "Não foi possível analisar {count} clipes." },
     noteAnalysing: { one: "{count} clipe em análise", many: "{count} de clipes em análise", other: "{count} clipes em análise" },
     noteFailed: { one: "{count} clipe não pôde ser analisado", many: "{count} de clipes não puderam ser analisados", other: "{count} clipes não puderam ser analisados" },
-    title: "Título",
-    titleStyle: "Estilo do título",
+    style: "Style",
     titlePreview: "Prévia do título",
     previewUnavailable: "Prévia indisponível; o título ainda será adicionado ao Draft.",
+    replayDecode: "Replay the title animation",
     loading: "Carregando…",
-    "preset.archive-vlog": "Mini vlog",
-    "preset.day-in-my-life": "Um dia na minha vida",
-    "preset.small-glimpse": "Um pequeno vislumbre",
-    "field.archive-vlog.big": "Palavra grande",
-    "field.archive-vlog.small": "Palavra pequena",
-    "field.day-in-my-life.year": "Ano",
-    "field.day-in-my-life.big": "Palavras grandes",
-    "field.day-in-my-life.tag": "Frase curta",
-    "field.small-glimpse.top": "Linha de cima",
-    "field.small-glimpse.big": "Palavra grande",
-    "field.small-glimpse.bottom": "Linha de baixo",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
+    creditShot: "Credit shot",
+    creditName: "Name on the credit",
+    creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Música",
     track: "Faixa",
-    alternatives: "Alternativas",
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", many: "Only the first {count} minutes of your track are analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
-    installTools: "Instale o ffmpeg e o Node.js 18+ para ouvir a música ou usar sua própria faixa.",
     sectionHint: "Trecho da música: arraste para escolher",
     sectionLabel: "Trecho da música",
     musicTooShort: "Esta faixa é curta demais para esta duração",
@@ -1324,7 +1299,6 @@ const STRINGS = {
     previewSection: "Ouvir este trecho",
     readingMusic: "Lendo a música…",
     musicLengthUnknown: "A duração desta música é desconhecida",
-    startAtHook: "Começar no gancho",
     beatFound: "Batida encontrada: {bpm} BPM. Os cortes seguem a batida.",
     faintTempo: "Andamento encontrado ({bpm} BPM), mas a batida é fraca, então os cortes seguem aproximadamente uma grade de {bpm} BPM.",
     outsideTempo: "O andamento ({bpm} BPM) está fora da faixa de 70–160 BPM, então os cortes usam uma sincronia aproximada.",
@@ -1334,29 +1308,23 @@ const STRINGS = {
     "length.standard": "Padrão",
     "length.long": "Longa",
     pace: "Cadência",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Rápida",
-    "pace.relaxed": "Tranquila",
-    "pace.groove": "Groove",
-    fitPartial: { one: "{length}: {fitted} de {count} plano cabem nesta faixa ({seconds} s)", many: "{length}: {fitted} de {count} de planos cabem nesta faixa ({seconds} s)", other: "{length}: {fitted} de {count} planos cabem nesta faixa ({seconds} s)" },
-    fitFull: { one: "{length}: {count} plano ({seconds} s)", many: "{length}: {count} de planos ({seconds} s)", other: "{length}: {count} planos ({seconds} s)" },
-    footageFits: { one: "Seu material dá para {fitted} de {count} plano ({seconds} s)", many: "Seu material dá para {fitted} de {count} de planos ({seconds} s)", other: "Seu material dá para {fitted} de {count} planos ({seconds} s)" },
-    seconds: "{seconds} s",
-    grooveTiming: "Groove em uma batida de {beat} s: planos de {hold}, {beat} e {eighth} s",
-    quickTwoBeats: "A {bpm} BPM, “Rápida” usa 2 batidas por plano.",
-    relaxedOneBeat: "A {bpm} BPM, “Tranquila” usa 1 batida por plano.",
-    grooveOneBeat: "A {bpm} BPM, “Groove” abre as frases com 1 batida.",
-    grooveTwoBeats: "A {bpm} BPM, “Groove” usa 2 batidas por plano.",
-    noMusicTiming: "Sem música: os planos usam uma sincronia aproximada ({timing}).",
-    faintTempoTiming: "Andamento encontrado ({bpm} BPM), mas a batida é fraca: os cortes seguem aproximadamente uma grade de {bpm} BPM ({timing}).",
-    outsideTempoTiming: "Andamento fora da faixa de 70–160 BPM ({bpm} BPM): os planos usam uma sincronia aproximada ({timing}).",
-    noBeatTiming: "Nenhuma batida regular encontrada: os planos usam uma sincronia aproximada ({timing}).",
+    fitPartial: { one: "{length}: {fitted} of {count} montage shot fit this track ({seconds} s)", many: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)", other: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)" },
+    fitFull: { one: "{length}: {count} montage shot ({seconds} s)", many: "{length}: {count} montage shots ({seconds} s)", other: "{length}: {count} montage shots ({seconds} s)" },
+    footageFits: { one: "Your footage fits {fitted} of {count} montage shot ({seconds} s)", many: "Your footage fits {fitted} of {count} montage shots ({seconds} s)", other: "Your footage fits {fitted} of {count} montage shots ({seconds} s)" },
+    montageBeats: { one: "Montage shots hold {count} beat ({seconds} s).", many: "Montage shots hold {count} beats ({seconds} s).", other: "Montage shots hold {count} beats ({seconds} s)." },
+    noMusicTiming: "No music: cuts follow a steady {bpm} bpm beat.",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
+    noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Avançado",
     clipSound: "Som dos clipes",
     "sound.off": "Desligado",
     "sound.ambient": "Ambiente",
     "sound.full": "Total",
-    softLook: "Look suave",
-    beatPunch: "Punch na batida",
+    cinematicLook: "Cinematic look",
     usePhotos: "Usar fotos",
     usePhotosOff: "“Usar fotos” está desativado",
     silentVideo: "Vídeo sem som: sem música e com o som dos clipes em “Desligado”.",
@@ -1379,31 +1347,34 @@ const STRINGS = {
     photosOnly: "só fotos",
     stoppedAt: "Parou na etapa {step}/{total}, {name}: {detail}",
     "fail.one-resource": "Adicione pelo menos 2 clipes ou fotos.",
-    "fail.too-few": "Seu material dá para menos de 4 planos.",
-    "fail.music-too-short": "Esta faixa é curta demais para 4 planos a partir deste trecho.",
+    "fail.too-few": "Your footage cannot fill even the shortest version.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
+    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Nenhum plano se encaixa neste material.",
     addFootage: "Adicione material mais variado ou selecione mais clipes.",
     addFootagePhotos: "Adicione material mais variado ou fotos, ou selecione mais clipes.",
     retryUnchecked: { one: "Não foi possível verificar {count} vídeo; pressione “Criar” para tentar de novo.", many: "Não foi possível verificar {count} de vídeos; pressione “Criar” para tentar de novo.", other: "Não foi possível verificar {count} vídeos; pressione “Criar” para tentar de novo." },
-    typeBigWord: "Digite a palavra grande do título para criar.",
+    typeTitle: "Type a title to build.",
     dropMusic: "Solte um arquivo de música ou escolha uma das faixas.",
     musicLengthUnread: "Não foi possível ler a duração da sua música. Escolha outro arquivo ou uma das faixas.",
     musicApprox: "Música adicionada; os cortes usam uma sincronia aproximada ({detail}).",
     musicUnreadable: "Não foi possível ler este arquivo de música ({detail}). Escolha outro arquivo ou uma das faixas.",
     beatFailed: "a detecção da batida falhou",
     previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
-    previewNotCut: "não foi possível recortar a prévia",
     noAudio: "nenhum áudio foi retornado",
     draftNoId: "O Draft “{name}” pode ter sido salvo, mas o Selects não informou o ID dele. Abra-o na lista de Drafts ou crie de novo.",
     draftEmpty: "O Draft “{name}” não tem clipes. Crie de novo.",
     finishFailed: "O Draft foi criado, mas o título, o look e o som dos clipes ainda não foram aplicados: {detail}. Pressione “Concluir título e look” para tentar de novo.",
     openFailed: "O Draft está pronto, mas não pôde ser aberto: {detail}. Use o link abaixo ou abra-o pela lista de Drafts.",
-    draftCreated: "Draft criado. Selecione o título para editar as palavras, as cores, o tamanho ou a posição; um clipe para ajustar o enquadramento, a suavidade, o movimento ou o volume; e a música para mudar o volume. Criar de novo gera um novo Draft e não mantém as edições do Inspetor.",
+    draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft criado; adicionando título e look…",
     draftNotFinished: "Draft criado, mas o título, o look e o som dos clipes ainda não foram aplicados.",
+    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Abrir o novo Draft",
     copyLink: "Copiar o link do novo Draft",
-    shortened: { one: "Seu material dá para {fitted} de {count} plano, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa.", many: "Seu material dá para {fitted} de {count} de planos, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa.", other: "Seu material dá para {fitted} de {count} planos, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa." },
+    shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", many: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "Observação: {detail}.",
     unchecked: { one: "Não foi possível verificar {count} vídeo; ele foi ignorado. Crie de novo para tentar outra vez.", many: "Não foi possível verificar {count} de vídeos; eles foram ignorados. Crie de novo para tentar outra vez.", other: "Não foi possível verificar {count} vídeos; eles foram ignorados. Crie de novo para tentar outra vez." },
     createsDraft: "Cria um novo Draft 16:9",
@@ -1411,18 +1382,24 @@ const STRINGS = {
     anotherVersion: "Testar outros planos",
     build: "Criar",
     building: "Criando",
-    "param.mainColor": "Cor principal",
-    "param.secondColor": "Cor secundária",
-    "param.shadow": "Sombra",
-    "param.size": "Tamanho (%)",
-    "param.x": "Posição horizontal (%)",
-    "param.y": "Posição vertical (%)",
-    "param.sparkles": "Brilhos",
-    "param.stars": "Estrelas",
     "param.motion": "Movimento",
     "param.motionStrength": "Intensidade do movimento",
-    "param.punch": "Punch",
-    "param.softness": "Suavidade",
+    "param.reveal": "Reveal",
+    "param.letterbox": "Letterbox reveal",
+    "param.look": "Look strength",
+    "param.warmth": "Warmth",
+    "param.fade": "Fade out",
+    "param.kicker": "Kicker",
+    "param.title": "Title",
+    "param.tagline": "Tagline",
+    "param.titleColor": "Title colour",
+    "param.textColor": "Text colour",
+    "param.size": "Size",
+    "param.font": "Font",
+    "param.speed": "Decode speed",
+    "param.shadow": "Sombra",
+    "param.prefix": "Credit prefix",
+    "param.name": "Name",
     "motion.push-in": "Aproximar",
     "motion.pull-out": "Afastar",
     "motion.drift-left": "Deslizar para a esquerda",
@@ -1436,7 +1413,7 @@ const STRINGS = {
     openProject: "Archive Vlog oluşturmak için bir proje açın.",
     startFailed: "Archive Vlog başlatılamadı: {detail}. Sorun sürerse eklentiyi yeniden yükleyin.",
     foldersNotFound: "eklenti klasörleri bulunamadı",
-    adapterNeeded: "Bu Selects sürümü güncel bir {name} bağdaştırıcısı gerektiriyor.",
+    hostTooOld: "Archive Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     stepFailed: "Selects bu adımı tamamlayamadı.",
     busy: "Selects meşgul ve zamanında yanıt vermedi. Biraz bekleyip “Yenile”ye basın. Bu tekrarlanırsa Selects'i yeniden başlatın.",
     invFailed: "Bu projenin klipleri henüz okunamadı. “Yenile”ye basın.",
@@ -1460,7 +1437,6 @@ const STRINGS = {
     clipsSelected: { one: "{count} klipten {selected} tanesi seçili", other: "{count} klipten {selected} tanesi seçili" },
     photos: { one: "{count} fotoğraf", other: "{count} fotoğraf" },
     photosSelected: { one: "{count} fotoğraftan {selected} tanesi seçili", other: "{count} fotoğraftan {selected} tanesi seçili" },
-    aboutSeconds: "yaklaşık {seconds} sn",
     notAnalysed: { one: "{count} klip henüz analiz edilmedi", other: "{count} klip henüz analiz edilmedi" },
     analysing: { one: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir.", other: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir." },
     notAnalysedAnalyse: { one: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin.", other: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin." },
@@ -1468,30 +1444,26 @@ const STRINGS = {
     analysisFailed: { one: "{count} klip analiz edilemedi.", other: "{count} klip analiz edilemedi." },
     noteAnalysing: { one: "{count} klip analiz ediliyor", other: "{count} klip analiz ediliyor" },
     noteFailed: { one: "{count} klip analiz edilemedi", other: "{count} klip analiz edilemedi" },
-    title: "Başlık",
-    titleStyle: "Başlık stili",
+    style: "Style",
     titlePreview: "Başlık önizlemesi",
     previewUnavailable: "Önizleme kullanılamıyor; başlık yine de Draft'a eklenir.",
+    replayDecode: "Replay the title animation",
     loading: "Yükleniyor…",
-    "preset.archive-vlog": "Mini vlog",
-    "preset.day-in-my-life": "Hayatımdan bir gün",
-    "preset.small-glimpse": "Küçük bir an",
-    "field.archive-vlog.big": "Büyük kelime",
-    "field.archive-vlog.small": "Küçük kelime",
-    "field.day-in-my-life.year": "Yıl",
-    "field.day-in-my-life.big": "Büyük kelimeler",
-    "field.day-in-my-life.tag": "Kısa satır",
-    "field.small-glimpse.top": "Üst satır",
-    "field.small-glimpse.big": "Büyük kelime",
-    "field.small-glimpse.bottom": "Alt satır",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
+    creditShot: "Credit shot",
+    creditName: "Name on the credit",
+    creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "Müzik",
     track: "Parça",
-    alternatives: "Alternatifler",
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
+    ownMusicHint: { one: "Only the first {count} minute of your track is analysed and used.", other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
-    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg ve Node.js 18+ yükleyin.",
     sectionHint: "Müzik bölümü — seçmek için sürükleyin",
     sectionLabel: "Müzik bölümü",
     musicTooShort: "Bu parça bu uzunluk için çok kısa",
@@ -1501,7 +1473,6 @@ const STRINGS = {
     previewSection: "Bu bölümü önizle",
     readingMusic: "Müzik okunuyor…",
     musicLengthUnknown: "Bu müziğin uzunluğu bilinmiyor",
-    startAtHook: "Nakarattan başla",
     beatFound: "Ritim bulundu: {bpm} BPM. Kesmeler ritmi izler.",
     faintTempo: "Tempo bulundu ({bpm} BPM) ama ritim zayıf, bu yüzden kesmeler yaklaşık olarak {bpm} BPM'lik bir ızgarayı izler.",
     outsideTempo: "Temposu ({bpm} BPM) 70–160 BPM aralığının dışında, bu yüzden kesmeler yaklaşık zamanlama kullanır.",
@@ -1511,29 +1482,23 @@ const STRINGS = {
     "length.standard": "Standart",
     "length.long": "Uzun",
     pace: "Kurgu hızı",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Hızlı",
-    "pace.relaxed": "Sakin",
-    "pace.groove": "Groove",
-    fitPartial: { one: "{length}: {count} çekimden {fitted} tanesi bu parçaya sığıyor ({seconds} sn)", other: "{length}: {count} çekimden {fitted} tanesi bu parçaya sığıyor ({seconds} sn)" },
-    fitFull: { one: "{length}: {count} çekim ({seconds} sn)", other: "{length}: {count} çekim ({seconds} sn)" },
-    footageFits: { one: "Görüntüleriniz {count} çekimden {fitted} tanesine yetiyor ({seconds} sn)", other: "Görüntüleriniz {count} çekimden {fitted} tanesine yetiyor ({seconds} sn)" },
-    seconds: "{seconds} sn",
-    grooveTiming: "{beat} sn'lik vuruşta Groove: {hold}, {beat} ve {eighth} sn'lik çekimler",
-    quickTwoBeats: "{bpm} BPM'de “Hızlı” çekim başına 2 vuruş kullanır.",
-    relaxedOneBeat: "{bpm} BPM'de “Sakin” çekim başına 1 vuruş kullanır.",
-    grooveOneBeat: "{bpm} BPM'de “Groove” cümleleri 1 vuruşla açar.",
-    grooveTwoBeats: "{bpm} BPM'de “Groove” çekim başına 2 vuruş kullanır.",
-    noMusicTiming: "Müzik yok: çekimler yaklaşık zamanlama kullanır ({timing}).",
-    faintTempoTiming: "Tempo bulundu ({bpm} BPM) ama ritim zayıf: kesmeler yaklaşık olarak {bpm} BPM'lik bir ızgarayı izler ({timing}).",
-    outsideTempoTiming: "Tempo 70–160 BPM aralığının dışında ({bpm} BPM): çekimler yaklaşık zamanlama kullanır ({timing}).",
-    noBeatTiming: "Düzenli bir ritim bulunamadı: çekimler yaklaşık zamanlama kullanır ({timing}).",
+    fitPartial: { one: "{length}: {fitted} of {count} montage shot fit this track ({seconds} s)", other: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)" },
+    fitFull: { one: "{length}: {count} montage shot ({seconds} s)", other: "{length}: {count} montage shots ({seconds} s)" },
+    footageFits: { one: "Your footage fits {fitted} of {count} montage shot ({seconds} s)", other: "Your footage fits {fitted} of {count} montage shots ({seconds} s)" },
+    montageBeats: { one: "Montage shots hold {count} beat ({seconds} s).", other: "Montage shots hold {count} beats ({seconds} s)." },
+    noMusicTiming: "No music: cuts follow a steady {bpm} bpm beat.",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
+    noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "Gelişmiş",
     clipSound: "Klip sesi",
     "sound.off": "Kapalı",
     "sound.ambient": "Ortam",
     "sound.full": "Tam",
-    softLook: "Yumuşak görünüm",
-    beatPunch: "Ritim vuruşu",
+    cinematicLook: "Cinematic look",
     usePhotos: "Fotoğrafları kullan",
     usePhotosOff: "“Fotoğrafları kullan” kapalı",
     silentVideo: "Sessiz video: müzik yok ve klip sesi “Kapalı”.",
@@ -1556,31 +1521,34 @@ const STRINGS = {
     photosOnly: "yalnızca fotoğraflar",
     stoppedAt: "{step}/{total}. adımda durdu, {name}: {detail}",
     "fail.one-resource": "En az 2 klip veya fotoğraf ekleyin.",
-    "fail.too-few": "Görüntüleriniz 4 çekimden azına yetiyor.",
-    "fail.music-too-short": "Bu parça, bu bölümden itibaren 4 çekim için çok kısa.",
+    "fail.too-few": "Your footage cannot fill even the shortest version.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
+    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "Bu görüntülere uyan bir plan yok.",
     addFootage: "Daha çeşitli görüntüler ekleyin veya daha fazla klip seçin.",
     addFootagePhotos: "Daha çeşitli görüntüler veya fotoğraflar ekleyin ya da daha fazla klip seçin.",
     retryUnchecked: { one: "{count} video kontrol edilemedi; yeniden denemek için “Oluştur”a basın.", other: "{count} video kontrol edilemedi; yeniden denemek için “Oluştur”a basın." },
-    typeBigWord: "Oluşturmak için başlığın büyük kelimesini yazın.",
+    typeTitle: "Type a title to build.",
     dropMusic: "Bir müzik dosyası bırakın veya hazır parçalardan birini seçin.",
     musicLengthUnread: "Müziğinizin uzunluğu okunamadı. Başka bir dosya veya hazır parçalardan birini seçin.",
     musicApprox: "Müzik eklendi; kesmeler yaklaşık zamanlama kullanır ({detail}).",
     musicUnreadable: "Bu müzik dosyası okunamadı ({detail}). Başka bir dosya veya hazır parçalardan birini seçin.",
     beatFailed: "ritim algılama başarısız oldu",
     previewFailed: "Önizleme oynatılamadı: {detail}.",
-    previewNotCut: "önizleme kesilemedi",
     noAudio: "ses geri gelmedi",
     draftNoId: "“{name}” Draft'ı kaydedilmiş olabilir ama Selects kimliğini bildirmedi. Draft listesinden açın veya yeniden oluşturun.",
     draftEmpty: "“{name}” Draft'ında hiç klip yok. Yeniden oluşturun.",
     finishFailed: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı: {detail}. Yeniden denemek için “Başlığı ve görünümü tamamla”ya basın.",
     openFailed: "Draft hazır ama açılamadı: {detail}. Aşağıdaki bağlantıyı kullanın veya Draft listesinden açın.",
-    draftCreated: "Draft oluşturuldu. Kelimelerini, renklerini, boyutunu veya konumunu düzenlemek için başlığı; kırpmasını, yumuşaklığını, hareketini veya ses düzeyini ayarlamak için bir klibi; ses seviyesini değiştirmek için müziği seçin. Yeniden oluşturmak yeni bir Draft oluşturur ve Denetçi düzenlemelerini korumaz.",
+    draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft oluşturuldu; başlık ve görünüm ekleniyor…",
     draftNotFinished: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı.",
+    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Yeni Draft'ı aç",
     copyLink: "Yeni Draft'ın bağlantısını kopyala",
-    shortened: { one: "Görüntüleriniz {count} çekimden {fitted} tanesine yetiyor, bu yüzden bu video yaklaşık {seconds} sn. Tam uzunluk için daha fazla klip veya fotoğraf ekleyin.", other: "Görüntüleriniz {count} çekimden {fitted} tanesine yetiyor, bu yüzden bu video yaklaşık {seconds} sn. Tam uzunluk için daha fazla klip veya fotoğraf ekleyin." },
+    shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "Not: {detail}.",
     unchecked: { one: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun.", other: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun." },
     createsDraft: "Yeni bir 16:9 Draft oluşturur",
@@ -1588,18 +1556,24 @@ const STRINGS = {
     anotherVersion: "Başka çekimler dene",
     build: "Oluştur",
     building: "Oluşturuluyor",
-    "param.mainColor": "Ana renk",
-    "param.secondColor": "İkinci renk",
-    "param.shadow": "Gölge",
-    "param.size": "Boyut (%)",
-    "param.x": "Yatay konum (%)",
-    "param.y": "Dikey konum (%)",
-    "param.sparkles": "Parıltılar",
-    "param.stars": "Yıldızlar",
     "param.motion": "Hareket",
     "param.motionStrength": "Hareket gücü",
-    "param.punch": "Vuruş",
-    "param.softness": "Yumuşaklık",
+    "param.reveal": "Reveal",
+    "param.letterbox": "Letterbox reveal",
+    "param.look": "Look strength",
+    "param.warmth": "Warmth",
+    "param.fade": "Fade out",
+    "param.kicker": "Kicker",
+    "param.title": "Title",
+    "param.tagline": "Tagline",
+    "param.titleColor": "Title colour",
+    "param.textColor": "Text colour",
+    "param.size": "Size",
+    "param.font": "Font",
+    "param.speed": "Decode speed",
+    "param.shadow": "Gölge",
+    "param.prefix": "Credit prefix",
+    "param.name": "Name",
     "motion.push-in": "Yakınlaş",
     "motion.pull-out": "Uzaklaş",
     "motion.drift-left": "Sola kay",
@@ -1613,7 +1587,7 @@ const STRINGS = {
     openProject: "请先打开一个项目，再制作 Archive Vlog。",
     startFailed: "Archive Vlog 无法启动：{detail}。如果问题持续，请重新安装插件。",
     foldersNotFound: "找不到插件文件夹",
-    adapterNeeded: "此版本的 Selects 需要更新的 {name} 适配器。",
+    hostTooOld: "Archive Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     stepFailed: "Selects 无法完成这一步。",
     busy: "Selects 正忙，未能及时响应。请稍等片刻再点击“刷新”。如果反复出现，请重启 Selects。",
     invFailed: "暂时无法读取此项目的片段。请点击“刷新”。",
@@ -1637,7 +1611,6 @@ const STRINGS = {
     clipsSelected: { other: "已选 {selected}/{count} 个片段" },
     photos: { other: "{count} 张照片" },
     photosSelected: { other: "已选 {selected}/{count} 张照片" },
-    aboutSeconds: "约 {seconds} 秒",
     notAnalysed: { other: "{count} 个片段尚未分析" },
     analysing: { other: "正在分析 {count} 个片段。分析完成后会自动更新。" },
     notAnalysedAnalyse: { other: "有 {count} 个片段尚未分析。请在 Selects 中分析后再在这里使用。" },
@@ -1645,30 +1618,26 @@ const STRINGS = {
     analysisFailed: { other: "有 {count} 个片段无法分析。" },
     noteAnalysing: { other: "{count} 个片段分析中" },
     noteFailed: { other: "{count} 个片段无法分析" },
-    title: "标题",
-    titleStyle: "标题样式",
+    style: "Style",
     titlePreview: "标题预览",
     previewUnavailable: "无法显示预览；标题仍会添加到 Draft。",
+    replayDecode: "Replay the title animation",
     loading: "加载中…",
-    "preset.archive-vlog": "迷你 Vlog",
-    "preset.day-in-my-life": "我的一天",
-    "preset.small-glimpse": "小小一瞥",
-    "field.archive-vlog.big": "大字",
-    "field.archive-vlog.small": "小字",
-    "field.day-in-my-life.year": "年份",
-    "field.day-in-my-life.big": "大字",
-    "field.day-in-my-life.tag": "标语",
-    "field.small-glimpse.top": "上行文字",
-    "field.small-glimpse.big": "大字",
-    "field.small-glimpse.bottom": "下行文字",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label}（{used}/{max}）",
+    creditShot: "Credit shot",
+    creditName: "Name on the credit",
+    creditPreview: "Credit preview",
+    creditSample: "{name} is sample text: type your name, or clear it to leave the credit out.",
+    creditCleared: "No name: the credit shot plays without a credit.",
     music: "音乐",
     track: "曲目",
-    alternatives: "其他曲目",
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
+    ownMusicHint: { other: "Only the first {count} minutes of your track are analysed and used." },
     bpm: "{bpm} BPM",
-    installTools: "请安装 ffmpeg 和 Node.js 18+，才能试听音乐或使用自己的曲目。",
     sectionHint: "音乐片段 — 拖动选择",
     sectionLabel: "音乐片段",
     musicTooShort: "此曲目对这个时长来说太短",
@@ -1678,7 +1647,6 @@ const STRINGS = {
     previewSection: "试听这一段",
     readingMusic: "正在读取音乐…",
     musicLengthUnknown: "无法得知这段音乐的时长",
-    startAtHook: "从高潮开始",
     beatFound: "已找到节拍：{bpm} BPM。剪切点跟随节拍。",
     faintTempo: "已找到速度（{bpm} BPM），但节拍较弱，因此剪切点大致跟随 {bpm} BPM 的网格。",
     outsideTempo: "其速度（{bpm} BPM）超出 70–160 BPM 范围，因此剪切点使用大致的时间。",
@@ -1688,29 +1656,23 @@ const STRINGS = {
     "length.standard": "标准",
     "length.long": "长",
     pace: "剪辑节奏",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "快速",
-    "pace.relaxed": "舒缓",
-    "pace.groove": "律动",
-    fitPartial: { other: "{length}：此曲目可容纳 {count} 个镜头中的 {fitted} 个（{seconds} 秒）" },
-    fitFull: { other: "{length}：{count} 个镜头（{seconds} 秒）" },
-    footageFits: { other: "你的素材够用 {count} 个镜头中的 {fitted} 个（{seconds} 秒）" },
-    seconds: "{seconds} 秒",
-    grooveTiming: "以 {beat} 秒的节拍律动：{hold}、{beat} 和 {eighth} 秒的镜头",
-    quickTwoBeats: "在 {bpm} BPM 下，“快速”每个镜头用 2 拍。",
-    relaxedOneBeat: "在 {bpm} BPM 下，“舒缓”每个镜头用 1 拍。",
-    grooveOneBeat: "在 {bpm} BPM 下，“律动”以 1 拍开始每个乐句。",
-    grooveTwoBeats: "在 {bpm} BPM 下，“律动”每个镜头用 2 拍。",
-    noMusicTiming: "无音乐：镜头使用大致的时间（{timing}）。",
-    faintTempoTiming: "已找到速度（{bpm} BPM），但节拍较弱：剪切点大致跟随 {bpm} BPM 的网格（{timing}）。",
-    outsideTempoTiming: "速度超出 70–160 BPM 范围（{bpm} BPM）：镜头使用大致的时间（{timing}）。",
-    noBeatTiming: "未找到稳定的节拍：镜头使用大致的时间（{timing}）。",
+    fitPartial: { other: "{length}: {fitted} of {count} montage shots fit this track ({seconds} s)" },
+    fitFull: { other: "{length}: {count} montage shots ({seconds} s)" },
+    footageFits: { other: "Your footage fits {fitted} of {count} montage shots ({seconds} s)" },
+    montageBeats: { other: "Montage shots hold {count} beats ({seconds} s)." },
+    noMusicTiming: "No music: cuts follow a steady {bpm} bpm beat.",
+    faintTempoTiming: "Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately.",
+    outsideTempoTiming: "Tempo outside 70–160 bpm ({bpm} bpm): cuts follow a steady {fixed} bpm beat.",
+    noBeatTiming: "No steady beat found: cuts follow a steady {bpm} bpm beat.",
+    fastTempo: "Above 110 bpm every shot holds twice as many beats, so shots last about as long as on a slower track.",
     advanced: "高级",
     clipSound: "片段原声",
     "sound.off": "关闭",
     "sound.ambient": "环境音",
     "sound.full": "原音量",
-    softLook: "柔和色调",
-    beatPunch: "节拍冲击",
+    cinematicLook: "Cinematic look",
     usePhotos: "使用照片",
     usePhotosOff: "“使用照片”已关闭",
     silentVideo: "无声视频：没有音乐，且片段原声为“关闭”。",
@@ -1733,31 +1695,34 @@ const STRINGS = {
     photosOnly: "仅照片",
     stoppedAt: "在第 {step}/{total} 步（{name}）停止：{detail}",
     "fail.one-resource": "请至少添加 2 个片段或照片。",
-    "fail.too-few": "你的素材不够 4 个镜头。",
-    "fail.music-too-short": "从这一段开始，此曲目不够 4 个镜头。",
+    "fail.too-few": "Your footage cannot fill even the shortest version.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
+    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
     noPlan: "没有适合这些素材的方案。",
     addFootage: "请添加更多样的素材，或选择更多片段。",
     addFootagePhotos: "请添加更多样的素材或照片，或选择更多片段。",
     retryUnchecked: { other: "有 {count} 个视频无法检查；点击“生成”重试。" },
-    typeBigWord: "请输入标题的大字后再生成。",
+    typeTitle: "Type a title to build.",
     dropMusic: "请拖入一个音乐文件，或选择内置曲目。",
     musicLengthUnread: "无法读取你的音乐时长。请选择其他文件或内置曲目。",
     musicApprox: "已添加音乐；剪切点使用大致的时间（{detail}）。",
     musicUnreadable: "无法读取这个音乐文件（{detail}）。请选择其他文件或内置曲目。",
     beatFailed: "节拍识别失败",
     previewFailed: "无法播放试听：{detail}。",
-    previewNotCut: "无法截取试听片段",
     noAudio: "没有返回音频",
     draftNoId: "Draft“{name}”可能已保存，但 Selects 没有返回它的 ID。请从 Draft 列表中打开，或重新生成。",
     draftEmpty: "Draft“{name}”中没有片段。请重新生成。",
     finishFailed: "Draft 已创建，但标题、色调和片段原声尚未应用：{detail}。点击“完成标题和色调”重试。",
     openFailed: "Draft 已就绪，但无法打开：{detail}。请使用下方链接，或从 Draft 列表中打开。",
-    draftCreated: "Draft 已创建。选中标题可编辑文字、颜色、大小或位置；选中片段可调整裁切、柔和度、运动或音量；选中音乐可调整其音量。重新生成会创建新的 Draft，不会保留在检查器中的编辑。",
+    draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft 已创建；正在添加标题和色调…",
     draftNotFinished: "Draft 已创建，但标题、色调和片段原声尚未应用。",
+    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "打开新的 Draft",
     copyLink: "复制新 Draft 的链接",
-    shortened: { other: "你的素材只够 {count} 个镜头中的 {fitted} 个，所以这个视频约 {seconds} 秒。添加更多片段或照片即可达到完整时长。" },
+    shortened: { other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "提示：{detail}。",
     unchecked: { other: "有 {count} 个视频无法检查，已跳过。重新生成即可重试。" },
     createsDraft: "创建一个新的 16:9 Draft",
@@ -1765,18 +1730,24 @@ const STRINGS = {
     anotherVersion: "换一组镜头",
     build: "生成",
     building: "正在生成",
-    "param.mainColor": "主色",
-    "param.secondColor": "辅色",
-    "param.shadow": "阴影",
-    "param.size": "大小 (%)",
-    "param.x": "水平位置 (%)",
-    "param.y": "垂直位置 (%)",
-    "param.sparkles": "闪光",
-    "param.stars": "星星",
     "param.motion": "运动",
     "param.motionStrength": "运动强度",
-    "param.punch": "冲击",
-    "param.softness": "柔和度",
+    "param.reveal": "Reveal",
+    "param.letterbox": "Letterbox reveal",
+    "param.look": "Look strength",
+    "param.warmth": "Warmth",
+    "param.fade": "Fade out",
+    "param.kicker": "Kicker",
+    "param.title": "Title",
+    "param.tagline": "Tagline",
+    "param.titleColor": "Title colour",
+    "param.textColor": "Text colour",
+    "param.size": "Size",
+    "param.font": "Font",
+    "param.speed": "Decode speed",
+    "param.shadow": "阴影",
+    "param.prefix": "Credit prefix",
+    "param.name": "Name",
     "motion.push-in": "推近",
     "motion.pull-out": "拉远",
     "motion.drift-left": "向左平移",
@@ -1835,8 +1806,18 @@ function fieldLen(text: string): number {
 type Say = (lang: Lang) => string;
 // An error whose text follows the UI language; `message` keeps the English text. SDK and script details stay English.
 function uiError(say: Say) { const e: any = new Error(say("en")); e.say = say; return e; }
-function sayError(lang: Lang, e: any): string { return typeof e?.say === "function" ? e.say(lang) : String(e?.message || e); }
-// A title field's text cut to its limit, counted like the counter next to it (fieldLen: Hangul counts 2).
+function sayError(lang: Lang, e: any): string {
+  if (typeof e?.say === "function") return e.say(lang);
+  // Host errors (av-host block) by their code.
+  if (e?.code === "not-found") return t(lang, "foldersNotFound");
+  return String(e?.message || e);
+}
+// A status message for an error: a missing host member says only that Selects needs an update; anything else goes into
+// `wrap` as its detail.
+function errorSay(e: any, wrap: (lang: Lang, detail: string) => string): Say {
+  return e?.code === "host-missing" ? (l) => t(l, "hostTooOld") : (l) => wrap(l, sayError(l, e));
+}
+// A text field's value cut to its limit, counted like the counter next to it (fieldLen: Hangul counts 2).
 function fieldClip(text: string, max: number) {
   let out = "", n = 0;
   for (const ch of text) { const w = fieldLen(ch); if (n + w > max) break; out += ch; n += w; }
@@ -1844,106 +1825,72 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.2";
-const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
-const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
-// The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
-const AV_W = 1920, AV_H = 1080;
-// One scene-search query per shot role (planner AV_ROLES). With Beat punch on, the search also runs the motion query
-// (AV_MOTION_QUERY, avSearchQueries in the av-hook block).
-const AV_QUERIES = {
-  drink: "a coffee, matcha or drink in a cup held in hand or on a table",
-  street: "a sunny city street with buildings and blue sky",
-  food: "a plate of food, dessert or pastry on a table, seen from above",
-  park: "green grass or trees in a park on a sunny day",
-  book: "an open book or magazine on a lap or table",
-  transit: "inside a subway or train, or a train passing by",
-  flowers: "flowers, a bouquet or a flower shop close up",
-  cafe: "a cozy cafe interior or a window seat with daylight",
-};
-// Clips per scene-search call: eight queries each (nine with Beat punch), so three clips (24 or 27 searches) stay inside
-// run_script's 30 s deadline (search.js stops starting new searches after 22 s and reports the rest as failed, retried
-// by the next Build).
-const SEARCH_BATCH = 3;
-// Ambient clip sound: the clips' own sound sits this far under the music, which stays at 0 dB.
-const AMBIENT_DB = -18;
-// Default track until the new bedroom-pop cue ships; the preferred cue replaces it once the manifest has it.
-const DEFAULT_CUE = "weekend-indie-pop";
-const PREFERRED_CUE = "bedroom-pop-108";
-// The title preset selected when the panel opens (A small glimpse); Mini vlog and A day in my life stay selectable.
-const DEFAULT_PRESET = "small-glimpse";
-const DEFAULT_LENGTH = "standard";
-const DEFAULT_PACE = "quick";
-// Hook B defaults after the A/B (spec 15.4): Beat punch (with the motion query and bonus) and Start at the hook are on.
-const DEFAULT_PUNCH = true;
-const DEFAULT_HOOK = true;
-// Soft look strength, and photo motion at half of CWV's strength (mild).
-const SOFT_STRENGTH = 0.35;
-const MOTION_STRENGTH = 0.5;
-// Beat punch (spec 15.2 b/c): the Adjust "Punch" default (1 = a 1.06 punch) and the push-in amount for a clip without
-// a punch (1 = 1.03).
-const PUNCH_STRENGTH = 1;
-const PUNCH_PUSH = 1;
-// The title's Adjust defaults; the panel preview draws with the same values.
-const TITLE_LOOK = { shadow: 0.35, size: 100, x: 49, y: 52, sparkles: true };
-// The Motion choices of a photo clip in the Inspector. The labels are English for dev/driveAdapter.mjs; a Build writes
-// STRINGS `motion.<value>` in the UI language.
-const MOTION_OPTIONS = [
-  { label: "Push in", value: "push-in" }, { label: "Pull out", value: "pull-out" },
-  { label: "Drift left", value: "drift-left" }, { label: "Drift right", value: "drift-right" },
-  { label: "Drift up", value: "drift-up" }, { label: "Drift down", value: "drift-down" },
-  { label: "Tilt", value: "tilt" }, { label: "Push and drift", value: "push-drift" },
-];
+const PLUGIN_VERSION = "0.1.0-alpha.1";
+// The credit name's limit (fieldLen units, Hangul counts 2).
+const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
 const NO_ONSETS: any[] = [];
 // A busy app (renderer near 100 % CPU) can take most of run_script's 30 s deadline before a script even starts.
 // Read-only calls ask for READ_TIMEOUT_SECONDS (hosts that do not take the option keep their own deadline) and retry a
 // host-busy or deadline failure after each BUSY_BACKOFF_MS pause, one attempt at a time. Commit calls do neither: a
-// commit is never resent (spec 14.6).
+// commit is never resent.
 const READ_TIMEOUT_SECONDS = 90;
 const BUSY_BACKOFF_MS = [5000, 15000];
 // Photo measuring inside the inventory call; a retry after a busy failure skips it (assemble measures unsized photos).
 const INVENTORY_MEASURE_MS = 4000;
-// Its message is STRINGS `busy`.
 // A Project still loading (right after an app restart) can fail the first inventory read outright. That first read
 // is tried once more after INVENTORY_RETRY_MS (read-only; a busy failure already waited through its backoff).
 const INVENTORY_RETRY_MS = 2000;
-// The readiness line then says STRINGS `invFailed`.
 // A partial inventory (`incomplete`: some clip sizes unknown) holds Build, since a clip without a size is placed
 // uncropped. It is re-read with the 10 s poll, at most INCOMPLETE_POLL_MAX times in a row (about a minute); then
 // polling stops until Refresh starts the cycle again.
 const INCOMPLETE_POLL_MAX = 6;
-// Their messages are STRINGS `sizesLoading` (next to Build) and `invPartial` (the readiness line).
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
 const DRAFT_LOOKUP_MAX = 50;
+// Your own music: at most this much of the track is analysed (and used), mono at this rate (beat-detect's rate, and
+// the CLI's ffmpeg command), which keeps the worker near 150 MB and a few seconds.
+const OWN_MAX_SECONDS = 240;
+const OWN_RATE = 22050;
+// The section preview fades out over its last PREVIEW_FADE seconds, then stops.
+const PREVIEW_FADE = 0.4;
 
 // av-planner:start
 // Archive Vlog planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
-// One hard cut per shot on the music's beat grid: Quick = 1 beat per shot, Relaxed = 2 (with a tempo guard), Groove =
-// a 4-bar phrase rhythm (2, 1, 1, ..., and the phrase's last beat split into two 8ths on a drum fill). Shot roles cycle
-// through AV_ROLES; there is no title burst and no montage section (the title spans the whole video).
-// Without a usable grid (tempo outside 70-160 bpm, own music not accepted, or No music) shots have a fixed length: the
-// beat of an approximate tempo (avApproxTempo) when own music has one, else AV_FALLBACK_SHOT.
-const AV_LENGTHS = { short: 12, standard: 24, long: 36 };
-// Fewest shots a build needs; every length is a multiple of it, so the video is whole bars from its first beat.
-const AV_MIN_SHOTS = 4;
+// One hard cut per slot on the music's beat grid, in a fixed template (spec 3): an opening shot (6 beats), a credit
+// shot (2 beats, so the montage starts on beat 8, a downbeat), a montage of N shots of M beats each, and a held final
+// shot (F beats). Pace Cinematic: M = 2 up to 110 bpm, 4 above; Quick: M = 1 up to 110 bpm, 2 above, with twice the
+// shots, so a Length keeps its duration. F = 4 up to 110 bpm, 8 above. The montage is always whole bars (N x M a
+// multiple of 4) and shrinks by whole bars when the footage or the music is short; the intro and the final shot stay.
+// Without a usable grid (tempo outside 70-160 bpm, own music not accepted, or No music) the same template runs on a
+// fixed beat: an approximate tempo's (avApproxTempo) when own music has one, else 60 / AV_FALLBACK_BPM s.
+// Montage shots per Length at Pace Cinematic (Quick doubles them, avMontageShots).
+const AV_LENGTHS = { short: 8, standard: 16, long: 24 };
+// The intro in beats: opening + credit = 8, so the montage starts on a downbeat.
+const AV_INTRO_BEATS = { opening: 6, credit: 2 };
 const AV_TEMPO_MIN = 70;
 const AV_TEMPO_MAX = 160;
-// Shot length in seconds when there is no grid.
-const AV_FALLBACK_SHOT = { quick: 0.55, relaxed: 1.10 };
-// Slot roles, in order (a product cycle alternating close and wide shots).
-const AV_ROLES = ['drink', 'street', 'food', 'park', 'book', 'transit', 'flowers', 'cafe'];
+// The beat without a grid (and without an approximate tempo): 60 / 72 s, the default cue's tempo.
+const AV_FALLBACK_BPM = 72;
+// Up to this tempo montage shots are 2 beats (Quick 1) and the final shot 4 beats; above it 4 (Quick 2) and 8.
+const AV_SLOW_MAX_BPM = 110;
+// Slot roles: the intro's two, the montage cycle, the final shot (spec 8). The panel holds the search queries.
+const AV_MONTAGE_ROLES = ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline'];
+const AV_ROLES = ['opening', 'portrait'].concat(AV_MONTAGE_ROLES, ['ending']);
 // Which other candidate roles may fill a slot role, best first (the slot's own role always ranks first).
 const AV_ROLE_FALLBACK = {
-  drink: ['cafe', 'food'],
-  cafe: ['drink', 'book', 'food'],
-  food: ['drink', 'cafe'],
-  book: ['cafe'],
-  street: ['transit', 'park'],
-  transit: ['street'],
-  park: ['flowers', 'street'],
-  flowers: ['park'],
+  opening: ['crowd', 'ride', 'skyline'],
+  portrait: ['crowd', 'food'],
+  crowd: ['ride', 'opening'],
+  transit: ['ride', 'crowd'],
+  water: ['skyline', 'architecture'],
+  architecture: ['skyline', 'opening'],
+  ride: ['crowd', 'transit'],
+  food: ['crowd'],
+  skyline: ['water', 'architecture'],
+  ending: ['skyline', 'transit', 'crowd'],
 };
+// The reference's opening shot lasts this long; its animation timings scale down for a shorter one (avOpeningTiming).
+const AV_OPENING_REF_SECONDS = 5.60;
 // Scene-search hits collapse onto a few distinct times per clip, so every searched source also gets evenly spaced
 // 'filler' candidates. They score below any real hit and are only used by the last tier, after photos.
 const AV_FILLER_STEP = 0.5;
@@ -1958,36 +1905,14 @@ const AV_FILLER_MAX = 48;
 // far back to keep it inside its source.
 const AV_SOURCE_TAIL = 0.15;
 // Photos (Image resources) have no scene search. Each one fills at most one slot of any length up to the 5 s an
-// image source lasts. About AV_PHOTO_SHARE of the slots, evenly spread from a seeded offset, are photo slots where an
-// unused photo comes first. Elsewhere photos rank after every real video hit and before fillers. Never more than
-// AV_PHOTO_RUN_MAX photos play in a row (a hard rule) unless the pool has no video at all.
+// image source lasts, less AV_SOURCE_TAIL (a slot grows by up to 1/30 + 1/fps s at the Draft's real rate, as for
+// videos), so 4.85 s. About AV_PHOTO_SHARE of the slots that may hold a photo (the montage), evenly spread from a seeded
+// offset, are photo slots where an unused photo comes first. Elsewhere photos rank after every real video hit and
+// before fillers. Never more than AV_PHOTO_RUN_MAX photos play in a row (a hard rule) unless the pool has no video at
+// all.
 const AV_PHOTO_HOLD_MAX = 5;
 const AV_PHOTO_RUN_MAX = 2;
 const AV_PHOTO_SHARE = 1 / 3;
-// Groove (spec 15.1). A phrase is 4 bars (16 beats) from the section start; every cut sits on the beat or 8th grid.
-// - Holds: the first shot of every phrase holds 2 beats; so does the bar-3 downbeat of a final phrase the video ends
-//   in its second half (avGrooveHolds). Every other shot is 1 beat.
-// - Bursts: a split candidate is the last beat of each half-phrase (beat 7 = end of bar 2, beat 15 = phrase end) and
-//   the video's final beat (a phrase end even mid-phrase) (avGrooveCandidates); a split beat plays two 8th shots. At
-//   most one burst per half-phrase (2 bars).
-// - Which candidates split (avFillBeats), detection first per class (phrase ends incl. the final beat / bar-2
-//   accents): those whose onset density (sum of onset strengths in the beat) reaches AV_GROOVE_FILL_RATIO x the median
-//   beat of the span; a class with none detected, or no onset data at all, splits all of its candidates (the bundled
-//   cues carry a short drum fill at the end of every 4 bars).
-// - 8th shots are video only. A span is whole bars and at least AV_GROOVE_MIN_BEATS (one bar: 2, 1, 1/2, 1/2 = 4
-//   shots, AV_MIN_SHOTS). Without a grid the pattern runs
-//   on AV_GROOVE_FALLBACK_BEAT-second beats (2 x 0.55, 0.55 ..., 2 x 0.275) with every candidate split.
-// - Opener guard: when a 2-beat hold would last longer than AV_GROOVE_OPENER_MAX seconds (below 85.71 bpm) every hold
-//   is 1 beat, so no shot outruns Relaxed's cap.
-const AV_GROOVE_PHRASE_BEATS = 16;
-const AV_GROOVE_FILL_RATIO = 1.5;
-const AV_GROOVE_FALLBACK_BEAT = 0.55;
-const AV_GROOVE_MIN_BEATS = 4;
-const AV_GROOVE_OPENER_MAX = 1.40;
-// An onset counts for the beat it sits in, from this many seconds (one frame at 30 fps) before the beat: manifest and
-// detector onsets land a hair early (about 1 ms on the bundled cues). A fixed time, not a share of the beat, so a slow
-// tempo does not pull an 8th-note pickup into the next beat.
-const AV_GROOVE_ONSET_LEAD = 1 / 30;
 
 // A beat grid is used only for a tempo in [AV_TEMPO_MIN, AV_TEMPO_MAX] whose detection was accepted (bundled cues
 // always are).
@@ -1998,164 +1923,93 @@ function avGridUsable(opts) {
 
 // The approximate tempo fixed timing runs on, or null. beat-detect.cjs reports an own track's grid as 'approximate' when
 // it is tight (median residual <= 10 ms) and holds across the track but too few beats carry an onset to accept it. Its
-// tempo (opts.approxBpm), in [AV_TEMPO_MIN, AV_TEMPO_MAX] and only without a usable grid (opts.gridded), sets the fixed
-// shot length (avShotSeconds) and Groove's beat, so the cuts do not drift against the music. Everything else stays
-// gridless: cuts snap only to bass onsets (avSnapCuts lowConfidence), Groove splits every candidate, no beat punch.
+// tempo (opts.approxBpm), in [AV_TEMPO_MIN, AV_TEMPO_MAX] and only without a usable grid (opts.gridded), sets the beat
+// the template runs on, so the cuts do not drift against the music. Everything else stays gridless: cuts snap only to
+// bass onsets (avSnapCuts lowConfidence).
 function avApproxTempo(opts) {
   const bpm = opts && opts.approxBpm;
   return !(opts && opts.gridded) && typeof bpm === 'number' && isFinite(bpm) && bpm >= AV_TEMPO_MIN && bpm <= AV_TEMPO_MAX ? bpm : null;
 }
 
-// Beats per shot for a pace. Quick is 1 beat, but 2 above 150 bpm so shots stay >= 0.40 s; Relaxed is 2 beats, but 1
-// below 86 bpm so shots stay <= 1.40 s. `overridden` tells the panel the guard changed the choice. Groove returns
-// { beats: 1 (its beat unit), groove: true, opener: the phrase opener's beats (avGrooveOpener) }, overridden when the
-// opener guard makes it 1 beat (below 85.71 bpm). Above 150 bpm its 8ths would be under 0.2 s, so it plays 2 beats per
-// shot like Quick (no `groove` key).
-function avBeatsPerShot(pace, bpm) {
-  if (pace === 'relaxed') return bpm < 86 ? { beats: 1, overridden: true } : { beats: 2, overridden: false };
-  if (pace === 'groove') {
-    if (bpm > 150) return { beats: 2, overridden: true };
-    const opener = avGrooveOpener(bpm);
-    return { beats: 1, overridden: opener < 2, groove: true, opener };
-  }
-  return bpm > 150 ? { beats: 2, overridden: true } : { beats: 1, overridden: false };
+// The tempo the template runs on. opts: { bpm, accepted, approxBpm? }. Returns { gridded (avGridUsable), approxBpm
+// (avApproxTempo, null on a grid), tempo: the grid's bpm, else the approximate tempo, else AV_FALLBACK_BPM, and
+// beatSeconds: 60 / tempo }.
+function avTempo(opts) {
+  const gridded = avGridUsable({ bpm: opts && opts.bpm, accepted: opts && opts.accepted });
+  const approxBpm = avApproxTempo({ gridded, approxBpm: opts && opts.approxBpm });
+  const tempo = gridded ? opts.bpm : approxBpm || AV_FALLBACK_BPM;
+  return { gridded, approxBpm, tempo, beatSeconds: 60 / tempo };
 }
 
-// Seconds per shot: the beats on a grid, else on an approximate tempo (opts.approxBpm from avApproxTempo, with
-// beatsPerShot from avBeatsPerShot at that tempo), else the fixed fallback for the pace (for Groove: seconds per beat
-// unit).
-function avShotSeconds(opts) {
-  if (opts.gridded) return opts.beatsPerShot * 60 / opts.bpm;
-  if (opts.approxBpm > 0 && opts.beatsPerShot > 0) return opts.beatsPerShot * 60 / opts.approxBpm;
-  if (opts.pace === 'groove') return AV_GROOVE_FALLBACK_BEAT;
-  return opts.pace === 'relaxed' ? AV_FALLBACK_SHOT.relaxed : AV_FALLBACK_SHOT.quick;
+// Beats per montage shot for a pace ('quick', else Cinematic) at a tempo (avTempo's).
+function avMontageBeats(pace, bpm) {
+  const slow = !(bpm > AV_SLOW_MAX_BPM);
+  return pace === 'quick' ? (slow ? 1 : 2) : (slow ? 2 : 4);
 }
 
-// The largest multiple of AV_MIN_SHOTS (<= requested) whose shots fit between sectionStart and usableEnd, else 0.
-// usableEnd is Infinity without music.
+// Beats of the final shot at a tempo.
+function avFinalBeats(bpm) {
+  return bpm > AV_SLOW_MAX_BPM ? 8 : 4;
+}
+
+// Montage shots a Length asks for: AV_LENGTHS (Standard when unknown), doubled for Quick.
+function avMontageShots(length, pace) {
+  const n = AV_LENGTHS[length] || AV_LENGTHS.standard;
+  return pace === 'quick' ? 2 * n : n;
+}
+
+// The montage lengths (shots) a plan may try, longest first. opts: { requested, pace, bpm (avTempo's tempo) }. The
+// steps keep the montage whole bars and the shot count stable across tempos: Cinematic shrinks by 2 shots, Quick by 4;
+// the shortest montage is one bar (4 / M shots), added at the end when the steps miss it (Cinematic above 110 bpm:
+// 8, 6, 4, 2, 1; Quick above 110 bpm: 16, 12, 8, 4, 2). A non-finite request counts as Standard.
+function avMontageLadder(opts) {
+  const m = avMontageBeats(opts.pace, opts.bpm), step = opts.pace === 'quick' ? 4 : 2, least = 4 / m;
+  const asked = typeof opts.requested === 'number' && isFinite(opts.requested) ? opts.requested : avMontageShots('standard', opts.pace);
+  const out = [];
+  for (let n = Math.floor(asked / step) * step; n >= least; n -= step) out.push(n);
+  if (out[out.length - 1] !== least) out.push(least);
+  return out;
+}
+
+// The slot template. opts: { bpm (avTempo's tempo), pace, montageShots }. Returns { beatsList (beats per slot: 6, 2,
+// M x N, F), roles, parts ('opening' | 'credit' | 'montage' | 'final' per slot), videoOnly (per slot: the opening,
+// credit and final shots never take a photo), montageBeats: M, finalBeats: F, montageShots: N, montageStart: 8 (the
+// montage's first beat), totalBeats }. Throws when the montage would not be whole bars.
+function avTemplate(opts) {
+  const m = avMontageBeats(opts.pace, opts.bpm), f = avFinalBeats(opts.bpm), n = opts.montageShots;
+  if (!(n >= 1) || Math.floor(n) !== n || (n * m) % 4 !== 0) throw Error('avTemplate: the montage must be whole bars');
+  const beatsList = [AV_INTRO_BEATS.opening, AV_INTRO_BEATS.credit], roles = ['opening', 'portrait'], parts = ['opening', 'credit'];
+  for (let k = 0; k < n; k++) { beatsList.push(m); roles.push(AV_MONTAGE_ROLES[k % AV_MONTAGE_ROLES.length]); parts.push('montage'); }
+  beatsList.push(f); roles.push('ending'); parts.push('final');
+  const montageStart = AV_INTRO_BEATS.opening + AV_INTRO_BEATS.credit;
+  return { beatsList, roles, parts, videoOnly: parts.map(p => p !== 'montage'), montageBeats: m, finalBeats: f, montageShots: n, montageStart,
+    totalBeats: montageStart + n * m + f };
+}
+
+// Seconds of a video with N montage shots: opts { bpm (avTempo's tempo), pace, montageShots }.
+function avVideoSeconds(opts) {
+  return avTemplate(opts).totalBeats * 60 / opts.bpm;
+}
+
+// Music capacity: the longest montage (avMontageLadder) whose whole video fits between sectionStart and usableEnd, in
+// shots, else 0. opts: { requested, pace, bpm (avTempo's tempo), sectionStart?, usableEnd? (Infinity / omitted without
+// music) }.
 function avFitShots(opts) {
   const start = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
   const end = opts.usableEnd == null ? Infinity : opts.usableEnd;
-  for (let n = Math.floor(opts.requested / AV_MIN_SHOTS) * AV_MIN_SHOTS; n >= AV_MIN_SHOTS; n -= AV_MIN_SHOTS) {
-    if (start + n * opts.shotSeconds <= end + 1e-6) return n;
+  for (const n of avMontageLadder(opts)) {
+    if (start + avVideoSeconds({ bpm: opts.bpm, pace: opts.pace, montageShots: n }) <= end + 1e-6) return n;
   }
   return 0;
 }
 
-// Beats of a Groove phrase's opening shot: 2, or 1 when 2 beats would last longer than AV_GROOVE_OPENER_MAX. Without a
-// grid (bpm not a number) the opener is 2 x AV_GROOVE_FALLBACK_BEAT = 1.10 s, so 2.
-function avGrooveOpener(bpm) {
-  return bpm > 0 && 2 * 60 / bpm > AV_GROOVE_OPENER_MAX + 1e-9 ? 1 : 2;
-}
-
-// Beats of a span of `beats` (whole bars) that may split into two 8ths, ascending: the last beat of every half-phrase
-// (beats 7 and 15 of each phrase: the end of bar 2 and the phrase end) inside the span, and the span's final beat (the
-// video's end counts as a phrase end when it falls mid-phrase). Each half-phrase holds at most one of them, so there is
-// at most one burst per 2 bars.
-function avGrooveCandidates(beats) {
-  const half = AV_GROOVE_PHRASE_BEATS / 2, out = [];
-  for (let b = half - 1; b < beats; b += half) out.push(b);
-  if (beats > 0 && out[out.length - 1] !== beats - 1) out.push(beats - 1);
-  return out;
-}
-
-// Beats where a Groove span has a 2-beat shot: every phrase start and, when the span ends inside a phrase's second
-// half, that half-phrase's start (bar 3 downbeat), so a partial phrase keeps a long hold after its first half.
-// None with a 1-beat opener (avGrooveOpener).
-function avGrooveHolds(beats, opener) {
-  if (opener === 1) return [];
-  const half = AV_GROOVE_PHRASE_BEATS / 2, out = [];
-  for (let p = 0; p < beats; p += AV_GROOVE_PHRASE_BEATS) {
-    out.push(p);
-    if (p + AV_GROOVE_PHRASE_BEATS > beats && beats - p > half) out.push(p + half);
-  }
-  return out;
-}
-
-// Groove slot lengths in beats for a span of `beats` (whole bars): 2-beat holds at avGrooveHolds, each beat in
-// `splits` (beat indices, from avGrooveCandidates) as two 8ths, every other beat 1. opener (default 2) as in
-// avGrooveHolds. The lengths sum to `beats`.
-function avGrooveBeats(opts) {
-  const beats = opts.beats, list = [];
-  const holds = avGrooveHolds(beats, opts.opener === 1 ? 1 : 2), splits = opts.splits || [];
-  for (let b = 0; b < beats;) {
-    if (holds.indexOf(b) >= 0 && beats - b >= 2) { list.push(2); b += 2; }
-    else if (splits.indexOf(b) >= 0) { list.push(0.5, 0.5); b += 1; }
-    else { list.push(1); b += 1; }
-  }
-  return list;
-}
-
-// Shots in a span of `beats` with the pattern (every candidate split) and the given opener (default 2).
-function avGrooveCount(beats, opener) {
-  return avGrooveBeats({ beats, splits: avGrooveCandidates(beats), opener }).length;
-}
-
-// The nominal Groove span for a requested number of shots: the whole-bar span (>= AV_GROOVE_MIN_BEATS) whose pattern
-// shot count is nearest the request, the longer one on a tie (2-beat opener: 12 -> 12 beats / 12 shots, 24 -> 24 /
-// 25, 36 -> 36 / 38). It depends on the length and the opener only, never on the music section, so the panel can size
-// the section before fills are known; detected fills then change the shot count inside the same span (the plan
-// reports the actual shots). opener: avGrooveOpener(bpm), default 2.
-function avGrooveSpan(requested, opener) {
-  const want = Math.max(AV_MIN_SHOTS, Math.floor(requested) || 0);
-  let beats = AV_GROOVE_MIN_BEATS;
-  while (avGrooveCount(beats, opener) < want) beats += 4;
-  const lower = beats - 4;
-  if (lower >= AV_GROOVE_MIN_BEATS && want - avGrooveCount(lower, opener) < avGrooveCount(beats, opener) - want) beats = lower;
-  return { beats, shots: avGrooveCount(beats, opener) };
-}
-
-// Music capacity for Groove (avFitShots on beat spans): the nominal span, shortened by whole bars until
-// sectionStart + beats x beatSeconds <= usableEnd; { beats: 0, shots: 0 } when not even AV_GROOVE_MIN_BEATS fit.
-// `shots` is the pattern count for the fitted span; usableEnd is Infinity (or null) without music; opener? as in
-// avGrooveSpan.
-function avGrooveFit(opts) {
-  const start = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
-  const end = opts.usableEnd == null ? Infinity : opts.usableEnd;
-  const nominal = avGrooveSpan(opts.requested, opts.opener);
-  for (let beats = nominal.beats; beats >= AV_GROOVE_MIN_BEATS; beats -= 4) {
-    if (start + beats * opts.beatSeconds <= end + 1e-6) return { beats, shots: avGrooveCount(beats, opts.opener), requestedBeats: nominal.beats };
-  }
-  return { beats: 0, shots: 0, requestedBeats: nominal.beats };
-}
-
-// Drum fills of a Groove span. opts: { onsets: [[music seconds, band, strength], ...], sectionStart (music seconds),
-// bpm, firstBeat? (re-phases sectionStart onto the beat grid), beats (the span) }. A beat's density is the sum of its
-// onsets' strengths (count x strength); a candidate beat (avGrooveCandidates) carries a fill when its density reaches
-// AV_GROOVE_FILL_RATIO x the median beat density of the span. Candidates come in two classes: phrase ends (beat 15 of
-// a phrase, and the span's final beat) and bar-2 accents (beat 7 of a phrase, unless it is the final beat). Detection
-// first, per class: when a class has a candidate with a fill, just those split; a class without one falls back to all
-// of its candidates. No onsets, no bpm or section start or a median of 0 -> every candidate splits. Returns { splits:
-// beat indices, candidates, source: 'onsets' (both classes detected) | 'mixed' | 'pattern' (neither), ratios: density
-// / median per candidate (empty without data) }. Assumes sectionStart is on the bar grid (avSnapSection /
-// avDefaultSection), since candidates are counted in beats from it; with firstBeat it is only re-phased to the nearest
-// beat, never to a bar. The median is taken over the whole span (not per phrase), which is steadier on short spans.
-function avFillBeats(opts) {
-  const n = Math.max(0, Math.floor(opts.beats) || 0), candidates = avGrooveCandidates(n);
-  const fallback = ratios => ({ splits: candidates.slice(), candidates, source: 'pattern', ratios });
-  const bpm = opts.bpm, finite = v => typeof v === 'number' && isFinite(v);
-  if (!n || !(bpm > 0) || !finite(opts.sectionStart) || !Array.isArray(opts.onsets) || !opts.onsets.length) return fallback([]);
-  const beat = 60 / bpm;
-  const start = finite(opts.firstBeat) ? opts.firstBeat + Math.round((opts.sectionStart - opts.firstBeat) / beat) * beat : opts.sectionStart;
-  const density = Array(n).fill(0);
-  for (const o of opts.onsets) {
-    if (!o || !finite(o[0]) || !finite(o[2]) || !(o[2] > 0)) continue;
-    const k = Math.floor((o[0] - start + AV_GROOVE_ONSET_LEAD) / beat);
-    if (k >= 0 && k < n) density[k] += o[2];
-  }
-  const sorted = density.slice().sort((a, b) => a - b);
-  const median = (sorted[(n - 1) >> 1] + sorted[n >> 1]) / 2;
-  if (!(median > 0)) return fallback([]);
-  const ratios = candidates.map(b => Math.round(density[b] / median * 100) / 100);
-  const isEnd = b => b === n - 1 || b % AV_GROOVE_PHRASE_BEATS === AV_GROOVE_PHRASE_BEATS - 1;
-  const fill = b => density[b] / median >= AV_GROOVE_FILL_RATIO - 1e-9;
-  let detected = 0;
-  const pick = list => { const hit = list.filter(fill); if (hit.length) detected++; return hit.length ? hit : list; };
-  const ends = pick(candidates.filter(isEnd)), accents = pick(candidates.filter(b => !isEnd(b)));
-  const splits = ends.concat(accents).sort((a, b) => a - b);
-  // Two classes when the span has accents; a class that is empty counts as detected for 'onsets'.
-  const classes = candidates.some(b => !isEnd(b)) ? 2 : 1;
-  return { splits, candidates, source: detected === 0 ? 'pattern' : detected === classes ? 'onsets' : 'mixed', ratios };
+// The opening animation's timings (spec 4) in seconds from the clip start: the reference's, scaled by
+// k = min(1, openingSeconds / AV_OPENING_REF_SECONDS), so a faster cue compresses the animation instead of lengthening
+// the intro. Letterbox reveal from revealStart to revealEnd, kicker and tagline at textIn, decode from decodeStart,
+// letterSeconds per title letter.
+function avOpeningTiming(openingSeconds) {
+  const k = Math.min(1, Math.max(0, Number(openingSeconds) || 0) / AV_OPENING_REF_SECONDS);
+  return { k, revealStart: 0.22 * k, revealEnd: 2.30 * k, textIn: 2.40 * k, decodeStart: 2.90 * k, letterSeconds: 0.11 * k };
 }
 
 // Where the music's beats land on the timeline. Selects snaps the music's source start (sectionStart) to a timeline
@@ -2167,7 +2021,8 @@ function avMusicOffset(sectionStart, fps) {
 
 // Onset-snapped cuts. The cuts stay on the grid; a cut moves onto a clearly strong music onset near it, and only when
 // nothing already marks the grid position. Only a cut that starts a slot of at least one beat is snappable: with
-// opts.beatsList (Groove) a cut starting an 8th slot stays on the grid; without it every inner cut qualifies.
+// opts.beatsList a cut starting a slot under one beat stays on the grid (every template slot is >= 1 beat, so every
+// inner cut qualifies, as without beatsList).
 // Conservative rules (from CWV v2.6): a cut stays on the grid when a qualifying onset of any band lies within one frame
 // of it; otherwise the candidate must reach AV_SNAP_MIN_RATIO of its band threshold, candidates rank by
 // ratio - AV_SNAP_DISTANCE_COST * |offset| / window, and a low-band candidate must also beat the grid position's own
@@ -2187,7 +2042,7 @@ const AV_SNAP_LOW_CONFIDENCE_WINDOW = 0.120;
 // onsets: [[seconds in the music source, band 'l' | 'm' | 'h', strength], ...].
 // opts: { bpm (null without a grid), fps, sectionStart (the music second at the section start; onsets are shifted by
 // it), thresholds?: { l, m, h }, lowConfidence?: true for fixed timing (forced when bpm is not a number), beatsList?:
-// slot lengths in beats }. The min-frames / min-share rule below keeps an 8th slot next to a snapped cut. Returns
+// slot lengths in beats }. The min-frames / min-share rule below keeps a short slot next to a snapped cut. Returns
 // { cuts: seconds like boundaries, frames: the cuts at opts.fps with the music offset (same expression as avSchedule
 // and assemble.js), log: one entry per inner cut, window }. A snapped cut sits exactly on its onset, so rounding it to
 // a frame at any rate never puts it more than half a frame before the onset.
@@ -2249,25 +2104,28 @@ function avSnapCuts(boundaries, onsets, opts) {
   return { cuts, frames: cuts.map(frameOf), log, window: reach };
 }
 
-// opts: { bpm (null without a usable grid), fps, shots, beatsPerShot, shotSeconds? (the fixed shot length, needed
-// when bpm is null), sectionStart?: seconds into the music (omit without music), onsets?, onsetThresholds?,
-// lowConfidence? (avSnapCuts; used only with a sectionStart), cuts?: cut seconds decided earlier (a schedule's `cuts`,
-// reused as they are, e.g. to rebuild at the Draft's real fps), beatsList?: per-slot lengths in beats (Groove; replaces
-// shots and beatsPerShot; without a grid shotSeconds is the seconds per beat) }. Slots carry their grid beat span
-// (startBeat, endBeat; null without a grid) and frames, and with beatsList also `beats` (the slot's length in beats);
-// `offset` is the music offset every boundary is shifted by; `cuts` are the boundaries in seconds from the section
-// start (the grid, or the snapped cuts) and `snapLog` explains each inner cut. With beatsList the result also carries
-// `beatsList`.
+// opts: { bpm (null without a usable grid), fps, beatsList: per-slot lengths in beats (avTemplate's; without a grid
+// shotSeconds is the seconds per beat), roles?, parts? (per slot, avTemplate's), shotSeconds? (needed when bpm is
+// null), sectionStart?: seconds into the music (omit without music), onsets?, onsetThresholds?, lowConfidence?
+// (avSnapCuts; used only with a sectionStart), cuts?: cut seconds decided earlier (a schedule's `cuts`, reused as they
+// are, e.g. to rebuild at the Draft's real fps) }. Without beatsList, `shots` slots of `beatsPerShot` beats each (or
+// shotSeconds each without a grid). Slots carry their role (opts.roles, else the montage cycle), their grid beat span
+// (startBeat, endBeat; null without a grid) and frames, with beatsList also `beats` (the slot's length in beats) and
+// with parts `part`; `offset` is the music offset every boundary is shifted by; `cuts` are the boundaries in seconds
+// from the section start (the grid, or the snapped cuts) and `snapLog` explains each inner cut. With beatsList the
+// result also carries `beatsList`.
 function avSchedule(opts) {
   const list = Array.isArray(opts.beatsList) ? opts.beatsList : null;
   const fps = opts.fps, n = list ? list.length : opts.shots, gridded = opts.bpm > 0;
   if (!(fps > 0) || !(n >= 1)) throw Error('avSchedule needs fps and shots');
   if (list && !list.every(b => typeof b === 'number' && b > 0 && isFinite(b))) throw Error('avSchedule: beatsList needs positive beat lengths');
+  const roles = Array.isArray(opts.roles) ? opts.roles : null, parts = Array.isArray(opts.parts) ? opts.parts : null;
+  if ((roles && roles.length !== n) || (parts && parts.length !== n)) throw Error('avSchedule: roles and parts need one entry per slot');
   const bps = gridded ? (list ? 1 : opts.beatsPerShot) : null;
   if (gridded && !(bps > 0)) throw Error('avSchedule needs beatsPerShot');
   const shotSeconds = gridded ? bps * 60 / opts.bpm : opts.shotSeconds;
   if (!(shotSeconds > 0)) throw Error('avSchedule needs bpm or shotSeconds');
-  // Slot k starts `at[k]` units (beats, or fixed shots / beat units without a grid) in; sums of 0.5, 1 and 2 are exact.
+  // Slot k starts `at[k]` units (beats, or fixed shots / beats without a grid) in; sums of whole beats are exact.
   const at = [0];
   for (let k = 0; k < n; k++) at.push(at[k] + (list ? list[k] : 1));
   // Every boundary is an absolute position (k shots in), shifted by the music offset and snapped once to a frame;
@@ -2289,12 +2147,13 @@ function avSchedule(opts) {
   for (let i = 0; i < n; i++) {
     slots.push({
       index: i,
-      role: AV_ROLES[i % AV_ROLES.length],
+      role: roles ? roles[i] : AV_MONTAGE_ROLES[i % AV_MONTAGE_ROLES.length],
       startBeat: gridded ? at[i] * bps : null,
       endBeat: gridded ? at[i + 1] * bps : null,
       startFrame: frameOf(cuts[i]),
       endFrame: frameOf(cuts[i + 1]),
       ...(list ? { beats: list[i] } : {}),
+      ...(parts ? { part: parts[i] } : {}),
     });
   }
   return { offset, cuts, snapLog, slots, totalFrames: slots[n - 1].endFrame, gridded, ...(list ? { beatsList: list.slice() } : {}) };
@@ -2331,22 +2190,16 @@ function avDefaultSection(opts) {
   return best ? best.start : null;
 }
 
-// Hook section (spec 15.3, "Start at the hook"): the bar start with the highest hookBars score (manifest; index b =
-// the start firstBeat + 4b beats, scored by onset contrast and low-band punch) among the starts whose video of
-// videoSeconds fits before usableEnd, earliest on ties; the manifest's hookStart is this pick for 24 beats. null when
-// there are no scores (own music, No music), no tempo or nothing fits, so the caller falls back to avDefaultSection.
-// opts: { hookBars, firstBeat, bpm, usableEnd, videoSeconds, barPhaseBeats? }. barPhaseBeats is informational only:
-// the manifest's firstBeat already carries the bar phase, so it never shifts the start.
-function avHookSection(opts) {
-  const bars = opts.hookBars, bar = 4 * 60 / opts.bpm;
-  if (!Array.isArray(bars) || !bars.length || !(opts.bpm > 0)) return null;
-  let best = null;
-  for (let b = 0; b < bars.length; b++) {
-    const start = opts.firstBeat + b * bar, score = bars[b];
-    if (typeof score !== 'number' || !isFinite(score) || start + opts.videoSeconds > opts.usableEnd + 1e-6) continue;
-    if (!best || score > best.score + 1e-9) best = { start, score };
-  }
-  return best ? best.start : null;
+// Default music section of a bundled cue (spec 7): the manifest's introStart, a bar start about 8 beats before the
+// drums arrive, so the opening and credit play over the soft intro and the montage starts with the groove; used when
+// the video of videoSeconds fits from there before usableEnd. Otherwise (no introStart, own music, a video too long)
+// avDefaultSection's most energetic window, or null when nothing fits. opts: { introStart?, firstBeat, bpm, usableEnd,
+// videoSeconds, beatEnergy?, downbeatHigh? }.
+function avIntroSection(opts) {
+  const at = opts.introStart;
+  if (typeof at === 'number' && isFinite(at) && at >= 0 && at + opts.videoSeconds <= opts.usableEnd + 1e-6) return at;
+  if (!(opts.bpm > 0)) return null;
+  return avDefaultSection({ ...opts, beatEnergy: Array.isArray(opts.beatEnergy) ? opts.beatEnergy : [] });
 }
 
 function avHash(str) {
@@ -2380,15 +2233,17 @@ function avFillers(candidates) {
 }
 
 // Strict allocation. opts: { candidates, slots: [{ index, role, seconds, videoOnly? }], seed, gapSeconds = 0.5,
-// photoShare = AV_PHOTO_SHARE, spread = true, motionOpener = true }. A videoOnly slot (a Groove 8th) never takes a
-// photo, and the photo share counts only the other slots. Two hard rules, never relaxed: the previous slot's source is never used again for the next slot,
-// and at most AV_PHOTO_RUN_MAX photos play in a row (unless the pool has no video candidate). A slot nothing fits under
-// them stays null (counted in `missing`); avPlanBuild then tries a shorter length.
-// Motion opener: a video candidate with `motion` > 0 (tagged by the panel's motion bonus, only with Beat punch) marks a
-// moving moment. The first slot takes the best such window that fits it (the usual role rank, score and jitter; a role
-// outside the slot's roles ranks after them), ahead of a photo slot and the normal tiers, and is then left out of the
-// photo slots so the photo share moves to the others. Without tagged candidates (Beat punch off), with none that fits,
-// or with motionOpener: false the allocation is exactly as without this rule.
+// photoShare = AV_PHOTO_SHARE, spread = true, motionOpener = true, finalEarly = true }. A videoOnly slot (the opening, credit and final
+// shots) never takes a photo, and the photo share counts only the other slots (the montage). Two hard rules, never
+// relaxed: the previous slot's source is never used again for the next slot, and at most AV_PHOTO_RUN_MAX photos play
+// in a row (unless the pool has no video candidate). A slot nothing fits under them stays null (counted in `missing`);
+// avPlanBuild then tries a shorter montage.
+// Motion opener: a video candidate with `motion` > 0 (tagged by the panel's motion bonus) marks a moving moment. The
+// first slot (the opening shot) takes the best such window that fits it whole (the usual role rank, score and jitter; a
+// role outside the slot's roles ranks after them), ahead of the normal tiers; a tagged clip shorter than the slot plus
+// AV_SOURCE_TAIL cannot. If the opener is not videoOnly it is also left out of the photo slots, so the photo share
+// moves to the others. Without tagged candidates, with none that fits, or with motionOpener: false the allocation is
+// exactly as without this rule.
 function avAllocate(opts) {
   const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
   const finite = v => typeof v === 'number' && isFinite(v);
@@ -2397,7 +2252,7 @@ function avAllocate(opts) {
   const photoSeen = {};
   const photos = opts.candidates.filter(c => c && c.kind === 'photo' && typeof c.rid === 'string' && !photoSeen[c.rid] && (photoSeen[c.rid] = true))
     .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
-  const used = {}, uses = {}, recent = [], picks = [], photoUsed = {};
+  const used = {}, uses = {}, recent = [], photoUsed = {};
   // Variety first (default): a slot takes an unused resource whenever one fits before reusing any, and reuse goes to
   // the least-used resource. spread: false ranks by role and score only (the fallback avPlanBuild tries before it
   // shrinks, since spending every fresh clip first can strand a length that a reuse-tolerant order fills).
@@ -2407,7 +2262,7 @@ function avAllocate(opts) {
   const jitter = pool.map(c => avHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05);
   // Photo-only pools (no usable video) may play any number of photos in a row.
   const runLimited = pool.length > 0;
-  let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, prevRid = null;
+  let missing = 0, fillerShots = 0, photoShots = 0;
   // The motion opener (see above). Nothing is used yet, so this is the pick the first slot's loop turn would make with
   // the motion rank.
   const first = opts.slots[0];
@@ -2420,18 +2275,18 @@ function avAllocate(opts) {
   // available, spaced evenly from a seeded phase. With no photos there are none, and every slot goes to video.
   const photoSlots = {};
   const phase = avHash(opts.seed + ':photo-slots');
-  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds <= AV_PHOTO_HOLD_MAX + 1e-9 && !(opener && sl === first));
+  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds + AV_SOURCE_TAIL <= AV_PHOTO_HOLD_MAX + 1e-9 && !(opener && sl === first));
   const share = opts.photoShare == null ? AV_PHOTO_SHARE : opts.photoShare;
   const target = Math.min(photos.length, holdable.length, Math.round(opts.slots.filter(sl => !sl.videoOnly).length * share));
   for (let k = 0; k < target; k++) photoSlots[holdable[Math.floor((k + phase) * holdable.length / target)].index] = true;
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
-  // `exclude` is the previous shot's source, which may not be used; `level`, when not null, keeps only sources used
-  // exactly that many times.
+  // `exclude` lists the neighbouring shots' sources, which may not be used; `level`, when not null, keeps only sources
+  // used exactly that many times.
   function searchVideo(slot, rankOf, exclude, level) {
     let best = null;
     for (let i = 0; i < pool.length; i++) {
       const c = pool[i];
-      if (c.rid === exclude) continue;
+      if (exclude && exclude.indexOf(c.rid) >= 0) continue;
       if (level != null && (uses[c.rid] || 0) !== level) continue;
       const rank = rankOf(c);
       if (rank < 0 || c.sourceDuration < slot.seconds + AV_SOURCE_TAIL) continue;
@@ -2446,10 +2301,10 @@ function avAllocate(opts) {
     }
     return best;
   }
-  // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos. A photo is never the
-  // previous source, since each photo is used once.
+  // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos. A photo is never a
+  // neighbour's source, since each photo is used once.
   function searchPhoto(slot) {
-    if (slot.videoOnly || slot.seconds > AV_PHOTO_HOLD_MAX + 1e-9) return null;
+    if (slot.videoOnly || slot.seconds + AV_SOURCE_TAIL > AV_PHOTO_HOLD_MAX + 1e-9) return null;
     let best = null;
     for (const c of photos) {
       if (photoUsed[c.rid]) continue;
@@ -2458,9 +2313,19 @@ function avAllocate(opts) {
     }
     return best;
   }
-  for (const slot of opts.slots) {
+  // Fill order: the timeline, except that a video-only last slot (the held final shot) is filled right after the
+  // first (unless finalEarly: false), so the montage cannot spend every window long enough for it. Each slot excludes
+  // the sources of its already filled neighbours on both sides.
+  const n = opts.slots.length, order = opts.slots.map((sl, i) => i);
+  const early = opts.finalEarly !== false && n > 2 && !!opts.slots[n - 1].videoOnly;
+  if (early) { order.pop(); order.splice(1, 0, n - 1); }
+  const picks = Array(n).fill(null);
+  // Photos in a row right before position i (picks after it are not filled yet, except a video-only last slot).
+  const runBefore = i => { let k = 0; while (i - 1 - k >= 0 && picks[i - 1 - k] && picks[i - 1 - k].kind === 'photo') k++; return k; };
+  for (const pos of order) {
+    const slot = opts.slots[pos];
     const roles = [slot.role].concat(AV_ROLE_FALLBACK[slot.role] || []);
-    const exclude = prevRid;
+    const exclude = [pos - 1, pos + 1].filter(i => picks[i]).map(i => picks[i].rid);
     const photo = () => searchPhoto(slot);
     const preferred = level => () => searchVideo(slot, c => roles.indexOf(c.role), exclude, level);
     const anyReal = level => () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude, level);
@@ -2470,7 +2335,7 @@ function avAllocate(opts) {
     // role and score only rank sources used equally often and an unused clip (even by a filler) beats any reuse.
     // Outside photo slots a photo is then the last resort, which keeps the photo share. Without spread the CWV order
     // applies: preferred, any-role, photo, filler. After AV_PHOTO_RUN_MAX photos in a row the photo tier is skipped.
-    const runFull = runLimited && photoRun >= AV_PHOTO_RUN_MAX;
+    const runFull = runLimited && runBefore(pos) >= AV_PHOTO_RUN_MAX;
     const tiers = photoSlots[slot.index] ? [photo] : [];
     if (spread) {
       const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => Number(x) - Number(y));
@@ -2486,56 +2351,51 @@ function avAllocate(opts) {
         if ((best = tier())) break;
       }
     }
-    if (!best) { missing++; picks.push(null); photoRun = 0; prevRid = null; continue; }
-    prevRid = best.c.rid;
-    recent.push(best.c.rid);
-    if (recent.length > 3) recent.shift();
+    if (!best) { missing++; continue; }
+    // Recent sources (a repeat penalty) follow the timeline, so the out-of-order final shot does not count.
+    if (!(early && pos === n - 1)) { recent.push(best.c.rid); if (recent.length > 3) recent.shift(); }
     if (best.photo) {
       photoUsed[best.c.rid] = true;
-      photoShots++; photoRun++;
-      picks.push({ slot: slot.index, rid: best.c.rid, kind: 'photo', holdSeconds: slot.seconds });
+      photoShots++;
+      picks[pos] = { slot: slot.index, rid: best.c.rid, kind: 'photo', holdSeconds: slot.seconds };
       continue;
     }
-    photoRun = 0;
     (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
     uses[best.c.rid] = (uses[best.c.rid] || 0) + 1;
     if (best.c.role === 'filler') fillerShots++;
     // sourceDuration lets assemble.js keep the window inside its source at the Draft's real rate.
-    picks.push({ slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end, sourceDuration: best.c.sourceDuration });
+    picks[pos] = { slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end, sourceDuration: best.c.sourceDuration };
   }
   return { picks, missing, filled: picks.filter(Boolean).length, fillerShots, photoShots };
 }
 
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
-// approxBpm? (avApproxTempo), fps, pace: 'quick' | 'relaxed' | 'groove', requested (shots), sectionStart?, usableEnd? (Infinity / omitted without
-// music), onsets?, onsetThresholds?, lowConfidence?, seed, photoShare?, motionOpener? (avAllocate) }.
-// A plan carries approxBpm: the approximate tempo its fixed timing used, else null.
-// Order: the music caps the length (avFitShots), then the plan tries that length and shrinks by AV_MIN_SHOTS down to
-// AV_MIN_SHOTS until the strict allocation fills every slot. Every attempt allocates from scratch with filler
-// candidates added (see `attempts` below). Failure reasons: 'music-too-short' (not even AV_MIN_SHOTS fit the music), 'one-resource' (fewer
-// than 2 distinct sources: the adjacency rule cannot hold), 'too-few' (the footage fills fewer than AV_MIN_SHOTS).
-// Groove (unless its tempo guard falls back to 2 beats per shot): the length is a beat span (avGrooveFit: the nominal
-// span for `requested`, capped by the music in whole bars) and shrinks by whole bars down to AV_GROOVE_MIN_BEATS; each
-// span's fills come from the section's onsets (avFillBeats), and `shots` is that span's actual slot count. A pool with
-// no usable video gets no 8ths (photos cannot take them). The result then has beatsPerShot null, shotSeconds null and
-// groove: { beats, requestedBeats, splits (beats split into 8ths), fillSource, ratios (avFillBeats), beatSeconds,
-// opener }; its slots carry
-// `beats`.
+// approxBpm? (avApproxTempo), fps, pace: 'cinematic' (default) | 'quick', requested (montage shots, avMontageShots),
+// sectionStart?, usableEnd? (Infinity / omitted without music), onsets?, onsetThresholds?, lowConfidence?, seed,
+// photoShare?, motionOpener? (avAllocate) }.
+// Order: the music caps the montage (avFitShots), then the plan tries that montage and shrinks it down the ladder
+// (avMontageLadder: whole bars, one bar at least) until the strict allocation fills every slot; the opening, credit and
+// final shots are never dropped. Every attempt allocates from scratch with filler candidates added (see `attempts`
+// below). Failure reasons: 'music-too-short' (not even a one-bar montage fits the music), 'one-resource' (fewer than 2
+// distinct sources: the adjacency rule cannot hold), 'no-video' (photos only, and they cannot fill even the shortest
+// plan: a photo holds at most AV_PHOTO_HOLD_MAX - AV_SOURCE_TAIL = 4.85 s, which the 6-beat opening outlasts below
+// 74.2 bpm), 'too-few' (the
+// footage cannot fill even the shortest plan). A failure carries usableShots (montage slots the shortest plan filled)
+// and usableSlots (all slots it filled).
+// A pool with no usable video lets photos take the opening, credit and final shots and plays photos in any run (as
+// Mini Vlog's photo-only pool); notes then holds 'no-video' so the panel can say so.
+// A plan returns { ok: true, schedule (its slots carry role, part and beats), picks, shots: montage shots, requested:
+// the montage asked for (the ladder's top), slots: all slots, fittedByMusic, pace, montageBeats, finalBeats, tempo,
+// beatSeconds, gridded, approxBpm (the approximate tempo the fixed timing used, else null), fillerShots, photoShots,
+// attempt, notes }.
 function avPlanBuild(opts) {
-  const gridded = avGridUsable({ bpm: opts.bpm, accepted: opts.accepted });
-  // The tempo the shots follow: the grid's, else an approximate one (fixed timing on its beat), else null (0.55 s).
-  const approxBpm = avApproxTempo({ gridded, approxBpm: opts.approxBpm });
-  const tempo = gridded ? opts.bpm : approxBpm;
-  const guard = tempo ? avBeatsPerShot(opts.pace, tempo) : { beats: null, overridden: false };
-  const grooved = opts.pace === 'groove' && (tempo ? !!guard.groove : true);
-  const shotSeconds = grooved ? null : avShotSeconds({ bpm: opts.bpm, beatsPerShot: guard.beats, pace: opts.pace, gridded, approxBpm });
-  const beatSeconds = grooved ? (tempo ? 60 / tempo : AV_GROOVE_FALLBACK_BEAT) : null;
-  const opener = grooved && tempo ? avGrooveOpener(tempo) : 2;
-  const asked = typeof opts.requested === 'number' && isFinite(opts.requested) ? opts.requested : AV_LENGTHS.standard;
-  const requested = Math.max(AV_MIN_SHOTS, Math.floor(asked / AV_MIN_SHOTS) * AV_MIN_SHOTS);
-  const fit = grooved ? avGrooveFit({ requested, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd, beatSeconds, opener }) : null;
-  const top = grooved ? fit.beats : avFitShots({ requested, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd, shotSeconds });
-  if (top === 0) return { ok: false, reason: 'music-too-short', usableShots: 0 };
+  const pace = opts.pace === 'quick' ? 'quick' : 'cinematic';
+  // The tempo the template follows: the grid's, else an approximate one, else AV_FALLBACK_BPM (fixed timing).
+  const { gridded, approxBpm, tempo, beatSeconds } = avTempo(opts);
+  const ladder = avMontageLadder({ requested: opts.requested, pace, bpm: tempo });
+  const requested = ladder[0];
+  const top = avFitShots({ requested, pace, bpm: tempo, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd });
+  if (top === 0) return { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0 };
   // Distinct sources the allocator can use: valid videos (as avAllocate filters them) and photos.
   const finite = v => typeof v === 'number' && isFinite(v);
   const rids = {};
@@ -2545,7 +2405,8 @@ function avPlanBuild(opts) {
     if (c.kind === 'photo') { rids[c.rid] = true; hasPhotos = true; }
     else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) { rids[c.rid] = true; hasVideo = true; }
   }
-  if (Object.keys(rids).length < 2) return { ok: false, reason: 'one-resource', usableShots: 0 };
+  if (Object.keys(rids).length < 2) return { ok: false, reason: 'one-resource', usableShots: 0, usableSlots: 0 };
+  const notes = hasVideo ? [] : ['no-video'];
   const candidates = opts.candidates.concat(avFillers(opts.candidates));
   // Share attempts per length. The greedy allocator spends a scarce video window after every photo outside the photo
   // slots, which can strand photos behind the run limit although the length is fillable (P P a P P b P P). So before a
@@ -2555,54 +2416,51 @@ function avPlanBuild(opts) {
   if (hasPhotos && shares[0] !== 1) shares.push(1);
   // Variety first; spending every fresh clip early can also strand a fillable length (a s s s ... where a s a s ...
   // fits), so a length is only given up after the role-and-score order (spread: false) fails too.
-  // Each attempt's name ('spread', 'spread-share1', 'role-first', 'role-first-share1', each with '-no-opener' when the
-  // motion opener's retry built it) is returned as `attempt`, so the panel and logs can tell when a fallback built the
-  // plan.
-  const attempts = [true, false].flatMap(spread => shares.map((photoShare, i) =>
-    ({ spread, photoShare, name: (spread ? 'spread' : 'role-first') + (i ? '-share1' : '') })));
-  let usableShots = 0;
+  // Filling the final shot early keeps a long window for it, but it can break the strict alternation a pool of few
+  // sources needs (with two sources, a b a b ... decides the last slot's source), so each order is also tried with the
+  // slots filled in timeline order ('-in-order').
+  // Each attempt's name ('spread', 'spread-in-order', 'spread-share1', ..., 'role-first', 'role-first-share1', ..., each
+  // with '-no-opener' when the motion opener's retry built it) is returned as `attempt`, so the panel and logs can tell
+  // when a fallback built the plan.
+  const attempts = [true, false].flatMap(spread => shares.flatMap((photoShare, i) => [true, false].map(finalEarly =>
+    ({ spread, photoShare, finalEarly, name: (spread ? 'spread' : 'role-first') + (i ? '-share1' : '') + (finalEarly ? '' : '-in-order') }))));
+  let usableShots = 0, usableSlots = 0;
   // Whether avAllocate's motion opener can apply (some video candidate carries motion).
   const motionTagged = opts.motionOpener !== false && candidates.some(c => c && c.kind !== 'photo' && c.motion > 0);
-  // Lengths to try, longest first: shots (Quick / Relaxed) or beat spans (Groove).
-  const step = grooved ? 4 : AV_MIN_SHOTS, least = grooved ? AV_GROOVE_MIN_BEATS : AV_MIN_SHOTS;
-  for (let n = top; n >= least; n -= step) {
-    const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
-    // Groove fills for this span: none without video (photos cannot take an 8th), the pattern without a grid.
-    const fills = !grooved ? null
-      : !hasVideo ? { splits: [], source: 'no-video', ratios: [] }
-      : gridded ? avFillBeats({ onsets: opts.onsets, sectionStart: opts.sectionStart, bpm: opts.bpm, beats: n })
-      : { splits: avGrooveCandidates(n), source: 'pattern', ratios: [] };
-    const schedule = fills
-      ? avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: avGrooveBeats({ beats: n, splits: fills.splits, opener }), shotSeconds: beatSeconds, ...snapOpts })
-      : avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, shots: n, beatsPerShot: guard.beats, shotSeconds, ...snapOpts });
-    const slots = schedule.slots.map(s => (fills
-      ? { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: (s.beats || 1) < 1 }
-      : { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
+  const least = ladder[ladder.length - 1];
+  const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
+  // The shortest plan's fill, for the failure report.
+  const tally = (alloc, tpl) => {
+    usableSlots = Math.max(usableSlots, alloc.filled);
+    usableShots = Math.max(usableShots, alloc.picks.filter((p, i) => p && tpl.parts[i] === 'montage').length);
+  };
+  for (const n of ladder) {
+    if (n > top) continue;
+    const tpl = avTemplate({ bpm: tempo, pace, montageShots: n });
+    const schedule = avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
+    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: hasVideo && tpl.videoOnly[i] }));
     for (const attempt of attempts) {
-      let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: opts.motionOpener });
+      let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: opts.motionOpener });
       let name = attempt.name;
       // The motion opener never costs length: an attempt it leaves short is retried without it (named
-      // '<attempt>-no-opener') before the next attempt or a shorter length. Untagged pools never retry.
+      // '<attempt>-no-opener') before the next attempt or a shorter montage. Untagged pools never retry.
       if (alloc.missing > 0 && motionTagged) {
-        if (n === least) usableShots = Math.max(usableShots, alloc.filled);
-        alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: false });
+        if (n === least) tally(alloc, tpl);
+        alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: false });
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
-        return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
-          beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, approxBpm, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
-          attempt: name,
-          ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, ratios: fills.ratios, beatSeconds, opener } } : {}) };
+        return { ok: true, schedule, picks: alloc.picks, shots: n, requested, slots: slots.length, fittedByMusic: top < requested, pace,
+          montageBeats: tpl.montageBeats, finalBeats: tpl.finalBeats, tempo, beatSeconds, gridded, approxBpm,
+          fillerShots: alloc.fillerShots, photoShots: alloc.photoShots, attempt: name, notes };
       }
-      // The shortest length misses slots with every share, so usableShots < AV_MIN_SHOTS.
-      if (n === least) usableShots = Math.max(usableShots, alloc.filled);
+      if (n === least) tally(alloc, tpl);
     }
   }
-  return { ok: false, reason: 'too-few', usableShots };
+  return { ok: false, reason: hasVideo ? 'too-few' : 'no-video', usableShots, usableSlots, notes };
 }
 
-// Photo motions, in pick order: every photo pick gets one (the title covers the whole video and does not restrict
-// motion); videos and empty picks get null.
+// Photo motions, in pick order: every photo pick gets one; videos and empty picks get null.
 // Deterministic per seed; never the same motion twice in a row, never the same family (drift, tilt, ...) twice in a row;
 // drift, tilt and push-drift directions alternate. Drift follows the photo: vertical for portrait, horizontal otherwise.
 // Each entry is { motion, direction: 1 | -1, axis: 'x' | 'y' } for assets/photo-motion.tsx.
@@ -2659,28 +2517,21 @@ function avProgress(stepId, fraction) {
 // av-planner:end
 
 // av-hook:start
-// Hook B helpers (spec 15.2), plain JS outside the planner block: the headless driver (dev/driveAdapter.mjs) loads
-// this block next to planner.js, so the panel and the driver compute the same motion bonus and punch frames.
-// Motion bonus (15.2 a), only with Beat punch on (off, the search and the plan are exactly as without it): the search
-// adds the motion query (avSearchQueries), whose hits are not shot candidates. Each hit's score is min-max normalised
-// over the run's motion hits (0 for the weakest, 1 for the strongest; 0 for all when they are equal), and a role
-// candidate gains AV_MOTION_BONUS times the best normalised motion hit on the same clip within AV_MOTION_REACH seconds of
-// its centre (the allocator centres a shot on its candidate, so this stands in for the shot's window +/- 0.5 s). The
-// bonus is a tie-break: at most 0.1, below the allocator's 0.15 step between roles minus its 0.05 seeded jitter, so it
-// never changes the role order, only which of two similar moments of a clip comes first. It is added before the
-// planner's seeded tie-break, so a build stays deterministic. A candidate with a bonus also carries `motion` (its
-// normalised motion, > 0): the planner opens the video on the best such window (avAllocate's motion opener), the one
-// place where motion outranks the role order. A clip whose only hits are motion hits keeps a stub row
-// (rid and sourceDuration, no time or score): the planner skips it as a candidate but still makes the clip's filler
-// windows from it.
+// Shot helpers outside the planner, plain JS: the headless driver (dev/driveAdapter.mjs) and tests/panel.test.cjs load
+// this block next to planner.js, so the panel and the driver compute the same motion bonus and video motions.
+// Motion bonus (spec 8): the scene search also runs the motion query (AV_QUERIES.motion), whose hits are not shot
+// candidates. Each hit's score is min-max normalised over the run's motion hits (0 for the weakest, 1 for the
+// strongest; 0 for all when they are equal), and a role candidate gains AV_MOTION_BONUS times the best normalised motion
+// hit on the same clip within AV_MOTION_REACH seconds of its centre (the allocator centres a shot on its candidate, so
+// this stands in for the shot's window +/- 0.5 s). The bonus is a tie-break: at most 0.1, below the allocator's 0.15
+// step between roles minus its 0.05 seeded jitter, so it never changes the role order, only which of two similar
+// moments of a clip comes first. It is added before the planner's seeded tie-break, so a build stays deterministic. A
+// candidate with a bonus also carries `motion` (its normalised motion, > 0): the planner opens the video on the best
+// such window (avAllocate's motion opener). A clip whose only hits are motion hits keeps a stub row (rid and
+// sourceDuration, no time or score): the planner skips it as a candidate but still makes the clip's filler windows.
 const AV_MOTION_ROLE = 'motion';
-const AV_MOTION_QUERY = 'hands moving, pouring, walking or the camera moving';
 const AV_MOTION_BONUS = 0.1;
 const AV_MOTION_REACH = 0.75;
-// The scene-search queries for a build: the role queries, plus the motion query with Beat punch on.
-function avSearchQueries(queries, punch) {
-  return punch ? { ...queries, [AV_MOTION_ROLE]: AV_MOTION_QUERY } : queries;
-}
 function avMotionBonus(list) {
   const finite = v => typeof v === 'number' && isFinite(v);
   const hits = {}, rest = [], stubs = {};
@@ -2704,373 +2555,789 @@ function avMotionBonus(list) {
     return motion > 0 ? { ...c, score: c.score + AV_MOTION_BONUS * motion, motion } : c;
   }).concat(kept);
 }
-// Punch frames (15.2 b): the Draft frames where a Beat punch starts, the bar downbeats of the section (beats 0, 4, 8 ...
-// from the section start, which sits on a bar) at the Draft's real fps with the music offset (avMusicOffset: the frame
-// expression of avSchedule and assemble.js), before videoEnd. opts: { bpm (null without a grid), fps, sectionStart,
-// videoEnd }. [] without a grid: every video clip then gets the push-in only. Groove does not change them: punches
-// follow the beat grid, not the cuts.
-function avPunchFrames(opts) {
-  const bpm = opts.bpm, fps = opts.fps, end = opts.videoEnd;
-  if (!(bpm > 0) || !(fps > 0) || !(end > 0)) return [];
-  const beat = 60 / bpm, offset = avMusicOffset(opts.sectionStart, fps), out = [];
-  const total = Math.ceil(end / fps / beat);
-  for (let b = 0; b <= total; b += 4) {
-    const f = b === 0 ? 0 : Math.round((b * beat + offset) * fps);
-    if (f < end) out.push(f);
-  }
+// Shot motion (build contract): every video clip but the opening (index 0, which has the letterbox reveal) gets one
+// gentle move from two families, 'push-in' and 'drift', seeded like avPhotoMotions. A clip never takes the family of
+// the clip before it (a photo's family from photoMoves, avPhotoMotions' result for the same picks: push-in -> 'push-in',
+// drift-* -> 'drift', others their own name); when both families are free, avHash(seed + ':shot:' + k + ':' + family)
+// picks (higher wins, k = video motions so far). Drifts alternate right and left (axis x: the 16:9 video has no crop
+// to drift into vertically). Returns { "<main clip index>": { motion, direction, axis } } for decorate.js
+// (cfg.motion.video.byIndex).
+function avVideoMotions(picks, seed, photoMoves) {
+  const family = m => (m === 'push-in' ? 'push-in' : /^drift-/.test(m) ? 'drift' : m);
+  const out = {};
+  let prev = null, k = 0, drift = 1;
+  picks.forEach((pick, i) => {
+    if (!pick || pick.kind === 'photo') { const pm = photoMoves && photoMoves[i]; prev = pm ? family(pm.motion) : null; return; }
+    if (i === 0) { prev = null; return; }
+    const order = ['push-in', 'drift'].map(f => ({ f, v: avHash(seed + ':shot:' + k + ':' + f) })).sort((a, b) => b.v - a.v || (a.f < b.f ? -1 : 1)).map(x => x.f);
+    const f = order.find(x => x !== prev) || order[0];
+    if (f === 'drift') { out[String(i)] = { motion: drift > 0 ? 'drift-right' : 'drift-left', direction: drift, axis: 'x' }; drift = -drift; }
+    else out[String(i)] = { motion: 'push-in', direction: 1, axis: 'x' };
+    prev = f; k++;
+  });
   return out;
 }
 // av-hook:end
 
-// The title layout, embedded verbatim from assets/title-lockup.tsx (tests/panel.test.cjs checks it), so the preview
-// places every word, sparkle and star with the same code as the Draft's title.
-// av-lockup:start
-// Pure layout, shared with the panel preview (which evaluates this block as plain JS).
-// Text is measured with the per-font advance tables from presets.json (`metrics`), passed
-// in `data.fonts[i].metrics`, so the layout is identical in Node, the panel and the render.
-// All lengths are canvas pixels; sizes are relative to the canvas height.
-// Items: text {part, text, font, x (left), y (baseline), size (font px), w (advance width), shade (shadow fraction)},
-// sparkle/star {part, x, y (centre), size (full height)}; each carries its ink box [x0, y0, x1, y1].
-var AV_FACES = {
-  "archive-vlog": {
-    // No.17's face: tight tracking and a thin same-colour stroke (em) soften the contrast.
-    big: { family: "MV Instrument Serif Italic", style: "italic", weight: 400, tracking: -0.05, stroke: 0.01 },
-    // DM Serif Display has one weight, so "vlog" reads lighter through a softer drop shadow (`shade`: a fraction of the
-    // title's shadow opacity and blur) and a slightly smaller size (avLayoutMini).
-    small: { family: "MV DM Serif Display", style: "normal", weight: 400, shade: 0.6 },
-  },
-  "day-in-my-life": {
-    big: { family: "MV Rounded Bold", style: "normal", weight: 700 },
-    tag: { family: "MV Rounded Bold", style: "normal", weight: 700 },
-  },
-  "small-glimpse": {
-    big: { family: "MV Rounded Bold", style: "normal", weight: 700 },
-    mono: { family: "MV DM Mono", style: "normal", weight: 400 },
-  },
+// av-build:start
+// Build constants and config builders, plain JS: the panel, its template run, tests/panel.test.cjs and the headless
+// driver (dev/driveAdapter.mjs) load this block next to planner.js and the av-hook block, so all of them hand
+// scripts/assemble.js and scripts/decorate.js the same configs (the build contract).
+// The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
+const AV_W = 1920, AV_H = 1080;
+// One scene-search query per shot role (planner AV_ROLES), plus the motion query (av-hook avMotionBonus).
+const AV_QUERIES = {
+  opening: "wide city street with traffic and people walking",
+  portrait: "a person sitting outside, relaxed portrait",
+  crowd: "crowd of people walking on a busy street",
+  transit: "tram, train or bus passing by",
+  water: "ferry or boat on the water, harbour",
+  architecture: "historic building facade, landmark architecture",
+  ride: "cyclist or person walking, street level",
+  food: "street food stall or market",
+  skyline: "city skyline or golden hour light",
+  ending: "golden hour street or train station, sunset",
+  motion: "people walking, vehicles passing or the camera moving",
 };
-// Used only when a family's metrics are missing: a generic 0.56 em advance.
-var AV_FALLBACK_METRICS = { unitsPerEm: 1000, xHeight: 500, capHeight: 700, ascent: 720, descent: -220, dots: { i: [150, 650], j: [150, 650] }, advances: {} };
-var AV_FIT = 0.6; // max lockup width, fraction of canvas width
-// Korean titles. Text with Hangul is never tracked, a spaceless Hangul word is never hyphenated, and a wide character
-// (Hangul, kana, CJK, fullwidth) without an advance in the metrics counts as 1 em (Latin keeps the 0.56 em fallback).
-var AV_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
-var AV_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
-// The macOS Korean system face per bundled family (by role: serif faces AppleMyungjo, the rest Apple SD Gothic Neo).
-var AV_KO_FACES = { "MV Instrument Serif Italic": "AppleMyungjo", "MV DM Serif Display": "AppleMyungjo", "MV Rounded Bold": "Apple SD Gothic Neo", "MV DM Mono": "Apple SD Gothic Neo" };
-function avHasHangul(text) { return AV_HANGUL_RE.test(String(text || "")); }
-// The system Korean faces' ink in em: Hangul reaches about 0.86 em above the baseline and 0.12 em below it.
-var AV_WIDE_UP = 0.86, AV_WIDE_DOWN = 0.12;
-// Where a star or year centres on a line: the x-height band of Latin text, the middle of the ink of wide text.
-function avBand(text, m) {
-  return AV_WIDE_RE.test(text) ? (AV_WIDE_UP - AV_WIDE_DOWN) / 2 : m.xHeight / m.unitsPerEm / 2;
-}
-// A text item's font stack: the bundled face, the Latin fallbacks, then the family's Korean face before the generic one.
-function avFontStack(family) {
-  var ko = AV_KO_FACES[family] || "Apple SD Gothic Neo";
-  return '"' + family + '", "Helvetica Neue", Arial, "' + ko + '", ' + (ko === "AppleMyungjo" ? "serif" : "sans-serif");
-}
-var AV_MINI_WIDTH = (0.155 * 1920) / 1080; // "mini" advance width at size 100, fraction of height
-
-function avFace(data, preset, role) {
-  var face = AV_FACES[preset][role];
-  var fonts = data && Array.isArray(data.fonts) ? data.fonts : [];
-  var m = null;
-  for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === face.family && fonts[i].metrics) m = fonts[i].metrics;
-  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, shade: typeof face.shade === "number" ? face.shade : 1, m: m || AV_FALLBACK_METRICS };
-}
-
-function avAdvance(m, ch) {
-  var a = m.advances[ch];
-  return typeof a === "number" ? a : (AV_WIDE_RE.test(ch) ? 1 : 0.56) * m.unitsPerEm;
-}
-
-// Advance width of `text` at `px` (kerning ignored), plus `tracking` em (optional, default 0) between letters
-// (CSS letter-spacing also follows the last letter, but that space is never visible).
-function avTextWidth(text, m, px, tracking = 0) {
-  var units = 0;
-  for (var i = 0; i < text.length; i++) units += avAdvance(m, text.charAt(i));
-  return (units * px) / m.unitsPerEm + (tracking || 0) * px * Math.max(0, text.length - 1);
-}
-
-// Ink extents above / below the baseline in em, from the characters present. Wide characters (Hangul) reach the ascent
-// and sit a little below the baseline, so they count like capitals and descenders.
-function avInk(text, m) {
-  var up = m.xHeight, down = 0, wide = AV_WIDE_RE.test(text);
-  if (/[A-Z0-9bdfhklt\u00c0-\u00de\u00df!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.ascent, m.capHeight);
-  else if (/[ij]/.test(text)) up = Math.max(up, m.dots.i[1] + 0.07 * m.unitsPerEm);
-  if (/[gjpqy,;()[\]{}|]/.test(text)) down = -m.descent;
-  if (wide) { up = Math.max(up, AV_WIDE_UP * m.unitsPerEm); down = Math.max(down, AV_WIDE_DOWN * m.unitsPerEm); }
-  return { up: up / m.unitsPerEm, down: down / m.unitsPerEm };
-}
-
-// Boxes span the advance width (plus half the stroke, which grows outward), not the ink:
-// an italic's overhang can reach past box[2]. `tracking` and `stroke` are px for the SVG.
-function avText(part, text, f, x, y, size, color) {
-  if (f.tracking && avHasHangul(text)) f = Object.assign({}, f, { tracking: 0 });
-  var w = avTextWidth(text, f.m, size, f.tracking), ink = avInk(text, f.m), s = f.stroke * size, h = s / 2;
-  return { kind: "text", part: part, text: text, font: { family: f.family, style: f.style, weight: f.weight }, x: x, y: y, size: size, color: color, w: w,
-    tracking: f.tracking * size, stroke: s, shade: f.shade, box: [x - h, y - ink.up * size - h, x + w + h, y + ink.down * size + h] };
-}
-
-function avMark(kind, part, x, y, size, color) {
-  return { kind: kind, part: part, x: x, y: y, size: size, color: color, box: [x - size / 2, y - size / 2, x + size / 2, y + size / 2] };
-}
-
-// [x0, y0, x1, y1] around every item's ink box.
-function avLockupBounds(items) {
-  var b = [Infinity, Infinity, -Infinity, -Infinity];
-  for (var i = 0; i < items.length; i++) {
-    var q = items[i].box;
-    b = [Math.min(b[0], q[0]), Math.min(b[1], q[1]), Math.max(b[2], q[2]), Math.max(b[3], q[3])];
-  }
-  return b;
-}
-
-// Split at the space nearest the middle; without a space, at the middle with a hyphen (never in a wide-character word,
-// which stays on one line).
-function avSplit(text, hyphen) {
-  var mid = text.length / 2, at = -1;
-  for (var i = 0; i < text.length; i++) if (text.charAt(i) === " " && (at < 0 || Math.abs(i - mid) < Math.abs(at - mid))) at = i;
-  if (at > 0) return [text.slice(0, at).trim(), text.slice(at + 1).trim()];
-  if (!hyphen || AV_WIDE_RE.test(text)) return [text];
-  var cut = Math.ceil(text.length / 2);
-  return [text.slice(0, cut) + "-", text.slice(cut)];
-}
-
-// "Mini vlog" (No.17): italic big word, sparkles over up to three i/j, upright small word under it.
-function avLayoutMini(data, fields, H, S, col) {
-  var fb = avFace(data, "archive-vlog", "big"), fs = avFace(data, "archive-vlog", "small"), mb = fb.m;
-  var items = [];
-  // Footprint wins over x-height: at size 100 "mini" is 0.155 of a 16:9 canvas's width
-  // (No.17 measures ~290-300 px at 1920x1080), expressed relative to the height.
-  var Fb = ((AV_MINI_WIDTH * H) / avTextWidth("mini", mb, 1, fb.tracking)) * S, xh = mb.xHeight / mb.unitsPerEm;
-  // The big word's tracking: none on Hangul (the size above still comes from the tracked "mini").
-  var tb = avHasHangul(fields.big) ? 0 : fb.tracking;
-  // Sparkled i/j are drawn dotless when the font has the glyph, so the sparkle replaces the dot.
-  var chars = fields.big.split(""), marks = [];
-  for (var i = 0; i < chars.length && marks.length < (data.sparkles === false ? 0 : 3); i++) {
-    var ch = chars[i];
-    if (ch !== "i" && ch !== "j") continue;
-    marks.push(i);
-    var dotless = ch === "i" ? "\u0131" : "\u0237";
-    if (typeof mb.advances[dotless] === "number") chars[i] = dotless;
-  }
-  var bigText = chars.join("");
-  var wb = avTextWidth(bigText, mb, Fb, tb);
-  var big = avText("big", bigText, fb, -wb / 2, 0, Fb, col.primary);
-  items.push(big);
-  var spark = 0.36 * xh * Fb;
-  for (var k = 0; k < marks.length; k++) {
-    var letter = fields.big.charAt(marks[k]), stem = mb.stems && mb.stems[letter];
-    var dot = mb.dots[letter] || mb.dots.i;
-    // Pen position of the letter: advances plus the tracking after each earlier letter.
-    var pen = big.x + avTextWidth(bigText.slice(0, marks[k]), mb, Fb) + tb * Fb * marks[k];
-    var px, py;
-    if (bigText.charAt(marks[k]) !== letter && stem) {
-      // Dotless letter: the sparkle sits on its stem top, its bottom 0.12 x-height above it.
-      px = pen + (stem[0] / mb.unitsPerEm) * Fb;
-      py = -(stem[1] / mb.unitsPerEm + 0.12 * xh) * Fb - spark / 2;
-    } else {
-      px = pen + (dot[0] / mb.unitsPerEm) * Fb;
-      py = -(dot[1] / mb.unitsPerEm) * Fb;
-      // A letter that kept its dot (no dotless glyph) gets the sparkle above the dot.
-      if (bigText.charAt(marks[k]) === letter) py = -((dot[1] + (dot[2] || 0.06 * mb.unitsPerEm)) / mb.unitsPerEm) * Fb - 0.03 * Fb - spark / 2;
-    }
-    items.push(avMark("sparkle", "sparkle", px, py, spark, col.primary));
-  }
-  if (data.sparkles !== false && marks.length === 0) {
-    // Hangul in the italic preset is slanted by the renderer past its advance box, so its sparkle moves further right.
-    items.push(avMark("sparkle", "sparkle", big.box[2] + (avHasHangul(bigText) ? 0.2 : 0.04) * Fb, big.box[1] - 0.06 * Fb, spark, col.primary));
-  }
-  if (fields.small) {
-    // "vlog" is 43 % of "mini"'s width in No.17; 41 % (5 % smaller) keeps the one-weight face from reading heavy.
-    // Kept as a font-size ratio for other words.
-    var ms = fs.m;
-    var Fs = (Fb * 0.41 * avTextWidth("mini", mb, 1, fb.tracking)) / avTextWidth("vlog", ms, 1);
-    var ws = avTextWidth(fields.small, ms, Fs), inkS = avInk(fields.small, ms);
-    var y2 = big.box[3] + 0.03 * Fb + inkS.up * Fs;
-    items.push(avText("small", fields.small, fs, -ws / 2, y2, Fs, col.secondary));
-  }
-  return items;
-}
-
-// "A day in my life": [star year] big line 1 / big line 2 [two-line tag star], rows right-aligned.
-function avLayoutDay(data, fields, H, S, col) {
-  var fb = avFace(data, "day-in-my-life", "big"), ft = avFace(data, "day-in-my-life", "tag"), m = fb.m;
-  var accents = data.sparkles !== false;
-  var Fb = ((0.07 * H) / (m.xHeight / m.unitsPerEm)) * S, Fy = 0.36 * Fb, Ft = 0.28 * Fb;
-  var xh = m.xHeight / m.unitsPerEm, cap = m.capHeight / m.unitsPerEm, xhT = ft.m.xHeight / ft.m.unitsPerEm;
-  var lines = avSplit(fields.big, false);
-  var l1 = lines.length > 1 ? lines[0] : "", l2 = lines.length > 1 ? lines[1] : lines[0];
-  var row1 = [], row2 = [];
-  // Row 1: star + year centred on the big line's x-height band, then the first big line.
-  var y1 = 0, band1 = y1 - avBand(l1 || l2, m) * Fb, x = 0;
-  if (fields.year) {
-    // The star only takes room when it is drawn.
-    if (accents) {
-      var sy = 0.3 * Fb;
-      row1.push(avMark("star", "star", x + sy / 2, band1, sy, col.secondary));
-      x += sy + 0.06 * Fb;
-    }
-    var year = avText("year", fields.year, fb, x, band1 + (cap * Fy) / 2, Fy, col.secondary);
-    row1.push(year);
-    x = year.box[2] + 0.12 * Fb;
-  }
-  var inkBottom1 = 0;
-  if (l1) {
-    var b1 = avText("big1", l1, fb, x, y1, Fb, col.primary);
-    row1.push(b1);
-    inkBottom1 = b1.box[3];
-  }
-  // Row 2: tight under row 1 (ink to ink), big line then the tag centred on its x-height band.
-  var y2 = inkBottom1 + 0.05 * Fb + avInk(l2, m).up * Fb;
-  if (!l1 && fields.year) y2 = Math.max(y2, y1 + 0.7 * Fb);
-  var b2 = avText("big2", l2, fb, 0, y2, Fb, col.primary);
-  row2.push(b2);
-  if (fields.tag) {
-    var tag = avSplit(fields.tag, false), band2 = y2 - avBand(l2, m) * Fb, tx = b2.box[2] + 0.08 * Fb;
-    var lead = 1.2 * Ft;
-    // Two lines: the block (line 1 x-height top to line 2 baseline) is centred on the band.
-    var t1y = tag.length > 1 ? band2 - (lead - xhT * Ft) / 2 : band2 + (xhT * Ft) / 2;
-    var t1 = avText("tag1", tag[0], ft, tx, t1y, Ft, col.secondary);
-    row2.push(t1);
-    if (tag.length > 1) row2.push(avText("tag2", tag[1], ft, tx, t1y + lead, Ft, col.secondary));
-    if (accents) {
-      var st = 0.2 * Fb;
-      row2.push(avMark("star", "star", t1.box[2] + 0.05 * Fb + st / 2, band2, st, col.secondary));
-    }
-  }
-  // Right-align the rows (a lone year row stays left-aligned over the big word).
-  var r1 = row1.length ? avLockupBounds(row1)[2] : 0, r2 = avLockupBounds(row2)[2], right = Math.max(r1, r2);
-  var shift1 = l1 ? right - r1 : avLockupBounds(row2)[0] - (row1.length ? avLockupBounds(row1)[0] : 0), shift2 = right - r2;
-  return avShift(row1, shift1, 0).concat(avShift(row2, shift2, 0));
-}
-
-// "A small glimpse": tiny mono top line / big word split in two with a star before line 2 / tiny mono bottom line.
-function avLayoutGlimpse(data, fields, H, S, col) {
-  var fb = avFace(data, "small-glimpse", "big"), fm = avFace(data, "small-glimpse", "mono"), m = fb.m;
-  var Fb = ((0.075 * H) / (m.xHeight / m.unitsPerEm)) * S, Fm = 0.25 * Fb, xh = m.xHeight / m.unitsPerEm;
-  var word = fields.big;
-  var lines = word.replace(/\s/g, "").length <= 3 ? [word] : avSplit(word, true);
-  var items = [], first = null, last;
-  if (lines.length > 1) {
-    first = avText("big1", lines[0], fb, 0, 0, Fb, col.primary);
-    items.push(first);
-  }
-  var up2 = avInk(lines[lines.length - 1], m).up;
-  var y2 = first ? 0.66 * Fb + Math.max(0, (up2 - xh) * Fb) : 0;
-  var starD = 0.4 * Fb;
-  if (data.sparkles !== false) items.push(avMark("star", "star", 0.2 * Fb, y2 - avBand(lines[lines.length - 1], m) * Fb, starD, col.secondary));
-  last = avText("big2", lines[lines.length - 1], fb, 0.5 * Fb, y2, Fb, col.primary);
-  items.push(last);
-  var topLine = first || last;
-  if (fields.top) items.push(avText("top", fields.top, fm, topLine.x + 0.1 * Fb, topLine.box[1] - 0.22 * Fb, Fm, col.secondary));
-  if (fields.bottom) items.push(avText("bottom", fields.bottom, fm, last.x + 0.75 * last.w, y2 + 0.34 * Fb, Fm, col.secondary));
-  return items;
-}
-
-function avShift(items, dx, dy) {
-  return items.map(function (it) {
-    return Object.assign({}, it, { x: it.x + dx, y: it.y + dy, box: [it.box[0] + dx, it.box[1] + dy, it.box[2] + dx, it.box[3] + dy] });
-  });
-}
-
-function avLockupLayout(data, width, height) {
-  data = data || {};
-  var W = width > 0 ? width : 1920, H = height > 0 ? height : 1080;
-  var preset = AV_FACES[data.preset] ? data.preset : "archive-vlog";
-  var raw = data.fields || {};
-  // Adjust edits land on flat keys (data.big, data.small, ...), so a flat string wins over data.fields.
-  var pick = function (k) { var v = typeof data[k] === "string" ? data[k] : raw[k]; return typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""; };
-  var fields = { big: pick("big"), small: pick("small"), tag: pick("tag"), year: pick("year"), top: pick("top"), bottom: pick("bottom") };
-  if (!fields.big) return [];
-  var num = function (v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
-  var S = num(data.size, 100, 60, 160) / 100;
-  var col = {
-    primary: typeof data.primary === "string" && data.primary ? data.primary : "#F7C8E6",
-    secondary: typeof data.secondary === "string" && data.secondary ? data.secondary : "#FFFFFF",
-  };
-  var items = preset === "day-in-my-life" ? avLayoutDay(data, fields, H, S, col)
-    : preset === "small-glimpse" ? avLayoutGlimpse(data, fields, H, S, col)
-    : avLayoutMini(data, fields, H, S, col);
-  // Shrink the whole lockup to the max width, then centre its ink box on the anchor.
-  var b = avLockupBounds(items);
-  var k = Math.min(1, (AV_FIT * W) / (b[2] - b[0]));
-  var cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
-  var ax = (num(data.x, 49, 20, 80) / 100) * W, ay = (num(data.y, 52, 20, 80) / 100) * H;
-  var tx = function (v) { return ax + (v - cx) * k; }, ty = function (v) { return ay + (v - cy) * k; };
-  return items.map(function (it) {
-    var o = Object.assign({}, it, { x: tx(it.x), y: ty(it.y), size: it.size * k, box: [tx(it.box[0]), ty(it.box[1]), tx(it.box[2]), ty(it.box[3])] });
-    if (typeof it.w === "number") { o.w = it.w * k; o.tracking = it.tracking * k; o.stroke = it.stroke * k; }
-    return o;
-  });
-}
-
-// Items grouped by shade in first-appearance order ([{ shade, items }]); marks carry the full shadow (1). Each group
-// is drawn as its own SVG with the title's drop shadow scaled by its shade.
-function avShadeLayers(items) {
-  var layers = [];
-  for (var i = 0; i < items.length; i++) {
-    var sh = typeof items[i].shade === "number" ? items[i].shade : 1, at = -1;
-    for (var j = 0; j < layers.length; j++) if (layers[j].shade === sh) at = j;
-    if (at < 0) { layers.push({ shade: sh, items: [] }); at = layers.length - 1; }
-    layers[at].items.push(items[i]);
-  }
-  return layers;
-}
-
-function avF(v) { return Math.round(v * 100) / 100; }
-
-// Four-point sparkle (concave sides) centred on (cx, cy), `size` tall and wide.
-function avSparklePath(cx, cy, size) {
-  var r = size / 2, c = r * 0.14;
-  return "M" + avF(cx) + " " + avF(cy - r)
-    + " Q" + avF(cx + c) + " " + avF(cy - c) + " " + avF(cx + r) + " " + avF(cy)
-    + " Q" + avF(cx + c) + " " + avF(cy + c) + " " + avF(cx) + " " + avF(cy + r)
-    + " Q" + avF(cx - c) + " " + avF(cy + c) + " " + avF(cx - r) + " " + avF(cy)
-    + " Q" + avF(cx - c) + " " + avF(cy - c) + " " + avF(cx) + " " + avF(cy - r) + " Z";
-}
-
-// Five-point star centred on (cx, cy), `size` across the outer points.
-function avStarPath(cx, cy, size) {
-  var R = size / 2, r = R * 0.45, d = "";
-  for (var i = 0; i < 10; i++) {
-    var a = -Math.PI / 2 + (i * Math.PI) / 5, rad = i % 2 ? r : R;
-    // Nudge down so the star's visual centre (not its top point) sits on cy.
-    d += (i ? " L" : "M") + avF(cx + rad * Math.cos(a)) + " " + avF(cy + rad * Math.sin(a) + R * 0.05);
-  }
-  return d + " Z";
-}
-// av-lockup:end
-
+// Clips per scene-search call: eleven queries each, so two clips (22 searches) stay inside run_script's 30 s deadline
+// (search.js stops starting new searches after 22 s and reports the rest as failed, retried by the next Build).
+const SEARCH_BATCH = 2;
+// Ambient clip sound: the clips' own sound sits this far under the music, which stays at 0 dB.
+const AMBIENT_DB = -18;
+const DEFAULT_CUE = "peaceful-drift";
+const DEFAULT_PRESET = "cinematic";
+const DEFAULT_LENGTH = "standard";
+const DEFAULT_PACE = "cinematic";
+const DEFAULT_CLIP_SOUND = "ambient";
+// Cinematic look strength when a preset names none (presets.json look.strength: 0.3 / 0.3 / 0.45); its highlight
+// warmth is the preset's look.warmth, else 1.
+const LOOK_STRENGTH = 0.3;
+// Photo motion and the video clips' gentle shot motion.
+const MOTION_STRENGTH = 0.5;
+const VIDEO_MOTION_STRENGTH = 0.5;
+// The last clip fades to black over this long, and the music fades out with it.
+const FADE_SECONDS = 1.0;
+const MUSIC_FADE_OUT = 1.0;
+// The title's and the credit's Adjust defaults (the decode block's own defaults); the panel preview draws with them.
+const TITLE_LOOK = { font: "anton", size: 100, speed: 100, shadow: 0.3 };
+const CREDIT_LOOK = { size: 100, shadow: 0.3 };
+// The title's main-font choices in Adjust (bundled faces, by name).
+const TITLE_FONT_OPTIONS = [{ label: "Anton", value: "anton" }, { label: "Oswald", value: "oswald" }];
+// The Motion choices of a photo clip in the Inspector. The labels are English for dev/driveAdapter.mjs; a Build writes
+// STRINGS `motion.<value>` in the UI language.
+const MOTION_OPTIONS = [
+  { label: "Push in", value: "push-in" }, { label: "Pull out", value: "pull-out" },
+  { label: "Drift left", value: "drift-left" }, { label: "Drift right", value: "drift-right" },
+  { label: "Drift up", value: "drift-up" }, { label: "Drift down", value: "drift-down" },
+  { label: "Tilt", value: "tilt" }, { label: "Push and drift", value: "push-drift" },
+];
+// Inspector (Adjust) labels, English (decorate.js's defaults). A Build passes them in the UI language as adjustLabels
+// (STRINGS `param.<key>`), frozen at the Build click.
+const AV_ADJUST_LABELS = {
+  motion: "Motion", motionStrength: "Motion strength", reveal: "Reveal", letterbox: "Letterbox reveal", look: "Look strength",
+  warmth: "Warmth", fade: "Fade out", kicker: "Kicker", title: "Title", tagline: "Tagline", titleColor: "Title colour",
+  textColor: "Text colour", size: "Size", font: "Font", speed: "Decode speed", shadow: "Shadow", prefix: "Credit prefix", name: "Name",
+};
 // Why a plan cannot be built (planner avPlanBuild reasons). English for dev/driveAdapter.mjs; the panel says STRINGS
 // `fail.<reason>` in the UI language (`noPlan` for a reason not listed here).
-const AV_FAIL: Record<string, string> = {
+const AV_FAIL = {
   "one-resource": "Add at least 2 clips or photos",
-  "too-few": "Your footage fits fewer than 4 shots",
-  "music-too-short": "This track is too short for 4 shots from this section",
+  "too-few": "Your footage cannot fill even the shortest version",
+  "music-too-short": "This track is too short for even the shortest version from this section",
+  "no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot",
+  "opening-too-short": "No video clip is long enough for the opening shot",
+  "ending-too-short": "No video clip is long enough for the last shot",
 };
 
-// Double quotes let $HOME and $SELECTS_USER_SKILLS_ROOT expand: use only for those constants.
-function dq(value: string) { return '"' + String(value).replace(/(["\\`])/g, "\\$1") + '"'; }
-// Single quotes pass user paths to the shell literally (no $, backtick or glob expansion).
-function sq(value: string) { return "'" + String(value).replace(/'/g, "'\\''") + "'"; }
-function service(name: string, method: string) {
-  const s = (window.parent as any)?.__DI__?.[name];
-  if (!s || typeof s[method] !== "function") throw uiError((l) => t(l, "adapterNeeded", { name }));
+// The credit's face (presets.json role "condensed").
+const CREDIT_FAMILY = "AV Oswald Bold";
+// A preset's look strength (presets.json look.strength), else LOOK_STRENGTH.
+function avLookStrength(p) { return p && p.look && typeof p.look.strength === 'number' ? p.look.strength : LOOK_STRENGTH; }
+// A preset of presets.json by id (the default one when unknown).
+function avPreset(presets, id) {
+  const list = (presets && presets.presets) || [];
+  return list.find(p => p.id === id) || list.find(p => p.id === DEFAULT_PRESET) || list[0] || null;
+}
+// The preset's fonts, one per family, with the advance metrics the layouts measure with (and, given `b64` as file name
+// -> WOFF2 data, the font data a graphic embeds).
+function avPresetFonts(presets, preset, b64) {
+  const seen = {};
+  return ((preset && preset.fonts) || []).filter(f => !seen[f.family] && (seen[f.family] = true)).map(f => {
+    const face = { role: f.role, family: f.family, style: f.style, weight: f.weight, metrics: (presets.metrics || {})[f.family] || null };
+    return b64 ? Object.assign(face, { b64: b64[f.file] || "" }) : face;
+  });
+}
+// The opening shot's length in seconds at the Draft's real fps: the plan's cut seconds (grid or snapped) placed at
+// `fps` with the music offset, as assemble.js places them.
+function avOpeningSeconds(plan, fps, sectionStart) {
+  const s = avSchedule({ bpm: plan.gridded ? plan.tempo : null, fps, beatsList: plan.schedule.beatsList, shotSeconds: plan.beatSeconds,
+    sectionStart: typeof sectionStart === 'number' ? sectionStart : undefined, cuts: plan.schedule.cuts });
+  return (s.slots[0].endFrame - s.slots[0].startFrame) / fps;
+}
+// assemble.js cfg. o: { projectId, draftName, plan, inventory (resources and photos with their sizes), music
+// ({ resourceId } from ensure-audio.js, or null), sectionStart, clipSound }.
+function avAssembleConfig(o) {
+  // Photo sizes the inventory has not measured yet stay out; assemble.js measures those itself.
+  const sized = (o.inventory.resources || []).concat((o.inventory.photos || []).filter(r => r.width > 0 && r.height > 0));
+  const crops = {};
+  for (const r of sized) crops[r.rid] = { width: r.width, height: r.height };
+  return { projectId: o.projectId, draftName: o.draftName, picks: o.plan.picks, boundaries: o.plan.schedule.cuts, crops, clipSound: o.clipSound,
+    ambientDb: AMBIENT_DB, music: o.music ? { resourceId: o.music.resourceId, sectionStart: o.sectionStart == null ? 0 : o.sectionStart } : null,
+    musicFadeOut: MUSIC_FADE_OUT };
+}
+// decorate.js cfg. o: { sequenceId, videoEnd, fps (assemble's), plan, presets (presets.json), tsx: { title, credit,
+// letterbox, look, fade, motion }, fonts: { file: WOFF2 data }, sizes: { rid: { width, height } }, provenance, frozen }.
+// frozen (the inputs at the Build click): { seed, preset, fields: { kicker, title, tagline }, credit: { on, prefix?, name },
+// clipSound, look: { on, strength }, sectionStart (null without music), labels (adjustLabels, English without), motionOptions }.
+function avDecorateConfig(o) {
+  const f = o.frozen, plan = o.plan, p = avPreset(o.presets, f.preset);
+  if (!p) throw Error('presets.json has no preset ' + f.preset);
+  const L = Object.assign({}, AV_ADJUST_LABELS, f.labels || {});
+  const fonts = avPresetFonts(o.presets, p, o.fonts);
+  const timing = avOpeningTiming(avOpeningSeconds(plan, o.fps, f.sectionStart));
+  const text = k => String((f.fields && f.fields[k]) || '');
+  const fields = { kicker: text('kicker'), title: text('title'), tagline: text('tagline') };
+  const title = {
+    tsx: o.tsx.title,
+    parameters: Object.assign({ preset: p.id }, fields, { fields: Object.assign({}, fields), titleColor: p.colors.title, textColor: p.colors.text,
+      taglineTracking: p.taglineTracking, font: TITLE_LOOK.font, size: TITLE_LOOK.size, speed: TITLE_LOOK.speed, shadow: TITLE_LOOK.shadow, timing, fonts, provenance: Object.assign({}, o.provenance || {}, { picks: plan.picks }) }),
+    editableParameters: [
+      { key: 'kicker', label: L.kicker, type: 'text', defaultValue: fields.kicker },
+      { key: 'title', label: L.title, type: 'text', defaultValue: fields.title },
+      { key: 'tagline', label: L.tagline, type: 'text', defaultValue: fields.tagline },
+      { key: 'titleColor', label: L.titleColor, type: 'color', defaultValue: p.colors.title },
+      { key: 'textColor', label: L.textColor, type: 'color', defaultValue: p.colors.text },
+      { key: 'size', label: L.size, type: 'number', defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },
+      { key: 'font', label: L.font, type: 'select', defaultValue: TITLE_LOOK.font, options: TITLE_FONT_OPTIONS },
+      { key: 'speed', label: L.speed, type: 'number', defaultValue: TITLE_LOOK.speed, min: 25, max: 400, step: 5 },
+      { key: 'shadow', label: L.shadow, type: 'number', defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
+    ],
+  };
+  const name = String((f.credit && f.credit.name) || '');
+  // The prefix typed in the panel, else the preset's ("ARCHIVED BY", "LOCATION |").
+  const prefix = f.credit && typeof f.credit.prefix === 'string' ? f.credit.prefix : (p.credit && p.credit.prefix) || '';
+  const credit = f.credit && f.credit.on ? {
+    tsx: o.tsx.credit,
+    parameters: { prefix, name, color: p.colors.text, size: CREDIT_LOOK.size, shadow: CREDIT_LOOK.shadow, fonts: fonts.filter(x => x.family === CREDIT_FAMILY) },
+    editableParameters: [
+      { key: 'prefix', label: L.prefix, type: 'text', defaultValue: prefix },
+      { key: 'name', label: L.name, type: 'text', defaultValue: name },
+    ],
+  } : null;
+  const letterbox = { tsx: o.tsx.letterbox, parameters: { revealStart: timing.revealStart, revealEnd: timing.revealEnd,
+    revealSeconds: timing.revealEnd - timing.revealStart, enabled: true } };
+  // The look's strength is the one frozen at Build (the panel's slider, else the preset's); its warmth the preset's.
+  const look = f.look && f.look.on ? { tsx: o.tsx.look, strength: typeof f.look.strength === 'number' ? f.look.strength : avLookStrength(p),
+    warmth: (p.look && typeof p.look.warmth === 'number') ? p.look.warmth : 1 } : null;
+  const fade = { tsx: o.tsx.fade, fadeSeconds: FADE_SECONDS };
+  // Photos in this Draft and a planned motion for each of them; a gentle move for every video clip but the opening.
+  const sizes = o.sizes || {};
+  const moves = avPhotoMotions(plan.picks, String(f.seed), sizes);
+  const byRid = {}, photos = [];
+  plan.picks.forEach((k, i) => {
+    if (!k || k.kind !== 'photo') return;
+    if (photos.indexOf(k.rid) < 0) photos.push(k.rid);
+    if (!moves[i]) return;
+    const sz = sizes[k.rid];
+    // The clip's cover-crop scale, so the motion's drift stays inside the photo.
+    const cover = sz ? Math.max(AV_W / sz.width, AV_H / sz.height) / Math.min(AV_W / sz.width, AV_H / sz.height) : 1;
+    byRid[k.rid] = Object.assign({}, moves[i], { cover });
+  });
+  const byIndex = avVideoMotions(plan.picks, String(f.seed), moves);
+  return { sequenceId: o.sequenceId, videoEnd: o.videoEnd, mute: f.clipSound === 'off', photos, photoEffects: true, title, credit, letterbox, look, fade,
+    motion: { tsx: o.tsx.motion, strength: MOTION_STRENGTH, options: f.motionOptions || MOTION_OPTIONS, byRid, video: { strength: VIDEO_MOTION_STRENGTH, byIndex } },
+    adjustLabels: L };
+}
+// av-build:end
+
+// The decode title's layout and decode state (assets/decode-title.tsx, embedded verbatim; tests/panel.test.cjs checks
+// it), in a scope of its own so its helpers never meet the planner's. The preview draws the same lockup as the Draft.
+const AV_TITLE: any = (function () {
+// av-decode:start
+// Pure layout and decode state, shared with the panel preview (which evaluates this block as plain JS).
+// Text is measured with the per-font advance tables from presets.json (`metrics`), passed in `data.fonts[i].metrics`,
+// so the layout is identical in Node, the panel and the render. Lengths are canvas pixels; sizes are relative to the
+// canvas height (reference: 1920x1080, "CINEMATIC" flat cap height 150 px, kicker cap 22 px, tagline cap 19 px).
+// The title is laid out once with its final text: each letter keeps its final box while decoding, so nothing shifts.
+var AV_TITLE_FACES = {
+  // Anton drawn at 0.84 width matches the reference's ultra-condensed face (width, stem and bowl proportions).
+  anton: { family: "AV Anton", weight: 400, condense: 0.84 },
+  oswald: { family: "AV Oswald Bold", weight: 700, condense: 0.9 },
+};
+var AV_KICKER_FACE = { family: "AV Inter Medium", weight: 500 };
+var AV_TAGLINE_FACE = { family: "AV Inter", weight: 400 };
+// Style defaults per preset (the same values as presets.json `colors` / `taglineTracking` / `taglineSize`).
+var AV_TITLE_PRESETS = {
+  cinematic: { titleColor: "#FCE070", textColor: "#FFFFFF", taglineTracking: 0.5, taglineSize: 100 },
+  "a-day-out": { titleColor: "#FFFFFF", textColor: "#FFFFFF", taglineTracking: 0.12, taglineSize: 80 },
+  "golden-hour": { titleColor: "#F6E3C2", textColor: "#FFFFFF", taglineTracking: 0.5, taglineSize: 100 },
+};
+// Default timing in seconds from the clip start (the reference at k = 1; decorate passes the planner's scaled values).
+var AV_TIMING = { textIn: 2.4, decodeStart: 2.9, letterSeconds: 0.11 };
+var AV_TITLE_CAP = 150 / 1080, AV_KICKER_CAP = 22 / 1080, AV_TAGLINE_CAP = 19 / 1080;
+var AV_GAP_KICKER = 21 / 150, AV_GAP_TAGLINE = 22 / 150; // ink gaps, fractions of the title's cap height
+var AV_FIT = 0.8; // max lockup width, fraction of canvas width
+var AV_TITLE_FLOOR = 0.5, AV_SMALL_FLOOR = 0.6, AV_TRACK_FLOOR = 0.15;
+var AV_GHOST_OPACITY = 0.5;
+// Used only when a family's metrics are missing: a generic 0.56 em advance.
+var AV_FALLBACK_METRICS = { unitsPerEm: 1000, xHeight: 500, capHeight: 700, ascent: 720, descent: -220, advances: {} };
+// Korean text: no uppercase, no tracking, no condense. A wide character (Hangul, kana, CJK, fullwidth) has no advance
+// in the bundled metrics: it is drawn in the system Korean face ("Apple SD Gothic Neo" on macOS, "Malgun Gothic" on
+// Windows), whose metrics differ, so the render and the panel measure it with a canvas (avKoMeasure) and pass
+// `data.koInk` ({ up, down } em) and `data.koAdvances` ({ char: em }). Without them (Node) a wide character counts as
+// 1 em and its ink as 0.86 em above the baseline and 0.12 em below (tuned on Apple SD Gothic Neo).
+var AV_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
+var AV_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+var AV_WIDE_UP = 0.86, AV_WIDE_DOWN = 0.12;
+// Latin fallbacks per bundled family (macOS and Windows), then both Korean system faces before the generic family.
+var AV_LATIN_FALLBACKS = {
+  "AV Anton": 'Impact, "Arial Narrow"',
+  "AV Oswald Bold": '"Arial Narrow", Impact',
+  "AV Inter Medium": '"Segoe UI", "Helvetica Neue", Arial',
+  "AV Inter": '"Segoe UI", "Helvetica Neue", Arial',
+};
+function avFontStack(family) {
+  return '"' + family + '", ' + (AV_LATIN_FALLBACKS[family] || "Arial") + ', "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';
+}
+function avHasHangul(text) { return AV_HANGUL_RE.test(String(text || "")); }
+// Decode glyph pools: capitals, lower case, digits and common Hangul syllables (code points, no literal Hangul).
+var AV_POOL_UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+var AV_POOL_LOWER = "abcdefghijklmnopqrstuvwxyz".split("");
+var AV_POOL_DIGIT = "0123456789".split("");
+var AV_POOL_HANGUL = [0xAC00, 0xB098, 0xB2E4, 0xB77C, 0xB9C8, 0xBC14, 0xC0AC, 0xC544, 0xC790, 0xCC28, 0xCE74, 0xD0C0, 0xD30C, 0xD558,
+  0xC11C, 0xC6B8, 0xC5EC, 0xD589, 0xC77C, 0xC0C1, 0xAE30, 0xB85D, 0xC2DC, 0xAC04, 0xBE5B, 0xB8E8, 0xC624, 0xB298, 0xC6B0, 0xB9AC, 0xB3C4,
+  0xB78C, 0xAF43, 0xAE38, 0xBC24, 0xBCC4, 0xB178, 0xC744, 0xC601, 0xD654, 0xC21C, 0xAC10, 0xC815, 0xC5B5, 0xCD94, 0xD55C, 0xAD6D, 0xBD80,
+  0xC0B0, 0xC81C, 0xC8FC, 0xAC70, 0xD48D, 0xACBD].map(function (c) { return String.fromCharCode(c); });
+
+// A character's class: which pool its ghost glyphs come from ("space" takes no decode time).
+function avCharClass(ch) {
+  if (/\s/.test(ch)) return "space";
+  if (AV_HANGUL_RE.test(ch)) return "hangul";
+  if (/[0-9]/.test(ch)) return "digit";
+  if (/[A-Z\u00c0-\u00de]/.test(ch)) return "upper";
+  if (/[a-z\u00df-\u00ff]/.test(ch)) return "lower";
+  return "other";
+}
+function avPool(cls, ch) {
+  return cls === "hangul" ? AV_POOL_HANGUL : cls === "digit" ? AV_POOL_DIGIT : cls === "upper" ? AV_POOL_UPPER : cls === "lower" ? AV_POOL_LOWER : [ch];
+}
+// Integer hash of (letter index, frame): the same ghost in the panel preview, the Draft preview and the export.
+function avHash(a, b) {
+  var h = (Math.imul(a + 1, 374761393) + Math.imul(b + 7, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+// The ghost glyph letter `index` shows at `frame`: never its own final character when the pool has another.
+function avGhostChar(ch, index, frame) {
+  var pool = avPool(avCharClass(ch), ch);
+  var at = avHash(index, frame) % pool.length;
+  if (pool[at] === ch && pool.length > 1) at = (at + 1) % pool.length;
+  return pool[at];
+}
+
+// Wide-glyph metrics from `data`: measured values when valid, else the constants above.
+function avKoWide(data) {
+  var ink = data && data.koInk, adv = data && data.koAdvances;
+  var ok = ink && typeof ink.up === "number" && typeof ink.down === "number" && ink.up > 0.3 && ink.up < 1.5 && ink.down >= 0 && ink.down < 0.6;
+  return { up: ok ? ink.up : AV_WIDE_UP, down: ok ? ink.down : AV_WIDE_DOWN, adv: adv && typeof adv === "object" ? adv : null };
+}
+function avKoAdvance(kw, ch) {
+  var a = kw && kw.adv ? kw.adv[ch] : undefined;
+  return typeof a === "number" && isFinite(a) && a > 0.2 && a < 2 ? a : 1;
+}
+// Measures the wide glyphs on a 2D canvas with the exact stack and weight the title draws them with (call it once the
+// fonts are loaded): { koInk, koAdvances } to merge into `data`, or null in Node or when the text has no wide glyph.
+// Ink comes from a Hangul sample; advances from each wide character of the kicker, title, tagline and (for a title
+// with Hangul) the decode pool. Hangul syllables share one advance across the weights of the Korean system faces, so
+// the kicker and tagline use the same table.
+function avKoMeasure(data) {
+  data = data || {};
+  var f = avTitleFields(data), text = f.kicker + f.title + f.tagline;
+  if (!AV_WIDE_RE.test(text) || typeof document === "undefined" || !document.createElement) return null;
+  var ctx = null;
+  try { ctx = document.createElement("canvas").getContext("2d"); } catch (e) { ctx = null; }
+  if (!ctx || typeof ctx.measureText !== "function") return null;
+  var face = AV_TITLE_FACES[data.font] || AV_TITLE_FACES.anton, px = 100;
+  ctx.font = "700 " + px + "px " + avFontStack(face.family);
+  var out = { koAdvances: {} };
+  var s = ctx.measureText("\ud55c\uae00");
+  if (s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0) out.koInk = { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px };
+  var chars = Array.from(text).concat(avHasHangul(f.title) ? AV_POOL_HANGUL : []);
+  for (var i = 0; i < chars.length; i++) {
+    if (AV_WIDE_RE.test(chars[i]) && !(chars[i] in out.koAdvances)) out.koAdvances[chars[i]] = ctx.measureText(chars[i]).width / px;
+  }
+  return out;
+}
+
+function avMetrics(data, family) {
+  var fonts = data && Array.isArray(data.fonts) ? data.fonts : [];
+  for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === family && fonts[i].metrics) return fonts[i].metrics;
+  return AV_FALLBACK_METRICS;
+}
+// `kw` (avKoWide) supplies measured wide advances; Latin always comes from the metrics (or the 0.56 em fallback).
+function avAdvance(m, ch, kw) {
+  var a = m.advances[ch];
+  return typeof a === "number" ? a : (AV_WIDE_RE.test(ch) ? avKoAdvance(kw, ch) : 0.56) * m.unitsPerEm;
+}
+// Advance width of `text` at `px` (kerning ignored), plus `tracking` em between letters (CSS letter-spacing also
+// follows the last letter, but that space is never visible).
+function avTextWidth(text, m, px, tracking, kw) {
+  var units = 0, chars = Array.from(text);
+  for (var i = 0; i < chars.length; i++) units += avAdvance(m, chars[i], kw);
+  return (units * px) / m.unitsPerEm + (tracking || 0) * px * Math.max(0, chars.length - 1);
+}
+// Ink extents above / below the baseline in em.
+function avInk(text, m, kw) {
+  var up = m.xHeight, down = 0;
+  if (/[A-Z0-9bdfhklt\u00c0-\u00de\u00df!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.capHeight);
+  if (/[gjpqy,;()[\]{}|]/.test(text)) down = -m.descent;
+  if (AV_WIDE_RE.test(text)) { up = Math.max(up, kw.up * m.unitsPerEm); down = Math.max(down, kw.down * m.unitsPerEm); }
+  return { up: up / m.unitsPerEm, down: down / m.unitsPerEm };
+}
+// Latin is set in capitals; text with Hangul keeps its case.
+function avCase(text) { return avHasHangul(text) ? text : text.toUpperCase(); }
+
+function avTitleFields(data) {
+  var raw = data.fields || {};
+  // Adjust edits land on flat keys (data.title, ...), so a flat string wins over data.fields.
+  var pick = function (k) { var v = typeof data[k] === "string" ? data[k] : raw[k]; return typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""; };
+  return { kicker: avCase(pick("kicker")), title: avCase(pick("title")), tagline: avCase(pick("tagline")) };
+}
+function avNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
+
+// A one-line text item (kicker, tagline): x = left edge, y = baseline; `tracking` em (0 with Hangul).
+function avLine(part, text, face, m, size, tracking, color, kw) {
+  var tr = avHasHangul(text) ? 0 : tracking;
+  return { part: part, text: text, family: face.family, weight: face.weight, stack: avFontStack(face.family), size: size, tracking: tr, color: color,
+    w: avTextWidth(text, m, size, tr, kw), ink: avInk(text, m, kw), x: 0, y: 0 };
+}
+
+// The lockup at canvas size: { title: { letters, size, y, ... } | null, kicker, tagline, box, steps }.
+function avTitleLayout(data, width, height) {
+  data = data || {};
+  var W = width > 0 ? width : 1920, H = height > 0 ? height : 1080;
+  var preset = AV_TITLE_PRESETS[data.preset] || AV_TITLE_PRESETS.cinematic;
+  var fields = avTitleFields(data);
+  var S = avNum(data.size, 100, 60, 160) / 100;
+  var titleColor = typeof data.titleColor === "string" && data.titleColor ? data.titleColor : preset.titleColor;
+  var textColor = typeof data.textColor === "string" && data.textColor ? data.textColor : preset.textColor;
+  var face = AV_TITLE_FACES[data.font] || AV_TITLE_FACES.anton;
+  var mt = avMetrics(data, face.family), mk = avMetrics(data, AV_KICKER_FACE.family), mg = avMetrics(data, AV_TAGLINE_FACE.family);
+  var fitW = AV_FIT * W, kw = avKoWide(data);
+  // Title: sized by the face's cap height, condensed (Latin only), shrunk to the fit width down to a floor.
+  var title = null;
+  if (fields.title) {
+    var ko = avHasHangul(fields.title), cx = ko ? 1 : face.condense;
+    var F0 = (AV_TITLE_CAP * H * S) / (mt.capHeight / mt.unitsPerEm);
+    var w0 = avTextWidth(fields.title, mt, F0, 0, kw) * cx;
+    var F = F0 * Math.max(AV_TITLE_FLOOR, Math.min(1, fitW / w0));
+    var chars = Array.from(fields.title), pen = 0, step = 0, letters = [];
+    for (var i = 0; i < chars.length; i++) {
+      var ch = chars[i], cls = avCharClass(ch), w = (avAdvance(mt, ch, kw) * F * cx) / mt.unitsPerEm;
+      letters.push({ ch: ch, cls: cls, x: pen, w: w, step: cls === "space" ? -1 : step++ });
+      pen += w;
+    }
+    title = { part: "title", text: fields.title, family: face.family, weight: face.weight, stack: avFontStack(face.family), size: F, condense: cx,
+      color: titleColor, w: pen, ink: avInk(fields.title, mt, kw), x: 0, y: 0, letters: letters, steps: step,
+      // Hangul is drawn in the system Korean face, whose regular weight looks light next to Anton.
+      koWeight: 700 };
+  }
+  var capPx = title ? (title.size * mt.capHeight) / mt.unitsPerEm : AV_TITLE_CAP * H * S;
+  var kicker = fields.kicker ? avLine("kicker", fields.kicker, AV_KICKER_FACE, mk, (AV_KICKER_CAP * H * S) / (mk.capHeight / mk.unitsPerEm), 0, textColor, kw) : null;
+  var tagline = null;
+  if (fields.tagline) {
+    var Fg = ((AV_TAGLINE_CAP * H * S) / (mg.capHeight / mg.unitsPerEm)) * (preset.taglineSize / 100);
+    tagline = avLine("tagline", fields.tagline, AV_TAGLINE_FACE, mg, Fg, avNum(data.taglineTracking, preset.taglineTracking, 0, 1), textColor, kw);
+    // Too wide: less tracking first (down to a floor), then a smaller size.
+    if (tagline.w > fitW && tagline.tracking > AV_TRACK_FLOOR) {
+      var n = Array.from(tagline.text).length - 1, plain = avTextWidth(tagline.text, mg, Fg, 0, kw);
+      var tr = n > 0 ? Math.max(AV_TRACK_FLOOR, (fitW - plain) / (n * Fg)) : 0;
+      tagline = avLine("tagline", fields.tagline, AV_TAGLINE_FACE, mg, Fg, Math.min(tagline.tracking, tr), textColor, kw);
+    }
+    if (tagline.w > fitW) tagline = avLine("tagline", fields.tagline, AV_TAGLINE_FACE, mg, Fg * Math.max(AV_SMALL_FLOOR, fitW / tagline.w), tagline.tracking, textColor, kw);
+  }
+  if (kicker && kicker.w > fitW) kicker = avLine("kicker", fields.kicker, AV_KICKER_FACE, mk, kicker.size * Math.max(AV_SMALL_FLOOR, fitW / kicker.w), 0, textColor, kw);
+  // Stack top to bottom (ink to ink), each line centred on x = 0; the title baseline is y = 0.
+  var top = title ? -title.ink.up * title.size : 0, bottom = title ? title.ink.down * title.size : 0;
+  if (title) title.x = -title.w / 2;
+  if (kicker) {
+    kicker.x = -kicker.w / 2;
+    kicker.y = title ? top - AV_GAP_KICKER * capPx - kicker.ink.down * kicker.size : 0;
+  }
+  if (tagline) {
+    tagline.x = -tagline.w / 2;
+    tagline.y = title || kicker ? (title ? bottom : kicker.y + kicker.ink.down * kicker.size) + AV_GAP_TAGLINE * capPx + tagline.ink.up * tagline.size : 0;
+  }
+  var parts = [kicker, title, tagline].filter(Boolean);
+  if (!parts.length) return { title: null, kicker: null, tagline: null, box: null, steps: 0 };
+  var box = [Infinity, Infinity, -Infinity, -Infinity];
+  parts.forEach(function (p) {
+    box = [Math.min(box[0], p.x), Math.min(box[1], p.y - p.ink.up * p.size), Math.max(box[2], p.x + p.w), Math.max(box[3], p.y + p.ink.down * p.size)];
+  });
+  // Never wider than the fit width (a long title past its floor): scale everything, then centre the ink box.
+  var k = Math.min(1, fitW / (box[2] - box[0]));
+  var ax = (avNum(data.x, 50, 20, 80) / 100) * W, ay = (avNum(data.y, 48, 20, 80) / 100) * H;
+  var bx = (box[0] + box[2]) / 2, by = (box[1] + box[3]) / 2;
+  var tx = function (v) { return ax + (v - bx) * k; }, ty = function (v) { return ay + (v - by) * k; };
+  var place = function (p) {
+    if (!p) return null;
+    var o = Object.assign({}, p, { x: tx(p.x), y: ty(p.y), size: p.size * k, w: p.w * k });
+    o.box = [o.x, o.y - p.ink.up * o.size, o.x + o.w, o.y + p.ink.down * o.size];
+    if (p.letters) o.letters = p.letters.map(function (l) { return Object.assign({}, l, { x: o.x + l.x * k, w: l.w * k }); });
+    return o;
+  };
+  var out = { title: place(title), kicker: place(kicker), tagline: place(tagline), box: [tx(box[0]), ty(box[1]), tx(box[2]), ty(box[3])], steps: title ? title.steps : 0 };
+  out.metrics = mt;
+  return out;
+}
+
+// Timing in seconds ({ revealStart?, textIn, decodeStart, letterSeconds }); `speed` (%) scales the letter rate.
+// revealStart is accepted so the planner's timing object can be passed whole; the title does not use it.
+function avTiming(data) {
+  var t = (data && data.timing) || {};
+  var textIn = avNum(t.textIn, AV_TIMING.textIn, 0, 600);
+  var decodeStart = Math.max(textIn, avNum(t.decodeStart, AV_TIMING.decodeStart, 0, 600));
+  var ls = avNum(t.letterSeconds, AV_TIMING.letterSeconds, 0.005, 5) * (100 / avNum(data && data.speed, 100, 25, 400));
+  return { textIn: textIn, decodeStart: decodeStart, letterSeconds: ls };
+}
+
+// What to draw at `frame` (timeline frame = clip frame): { textOpacity, glyphs: [{ ch, x (left), y (baseline), size,
+// condense, opacity, ghost, family, weight, stack, color }], decoded }. Before textIn: nothing. From textIn: kicker and
+// tagline (fading in over 3 frames). From decodeStart: letter k (k-th non-space letter) shows a ghost glyph during
+// [decodeStart + k * letterSeconds, decodeStart + (k + 1) * letterSeconds), then is drawn solid; letters after it are
+// empty. Spaces take no time.
+function avDecodeFrame(layout, data, frame, fps) {
+  var tm = avTiming(data || {}), f = fps > 0 ? fps : 30;
+  var inF = Math.round(tm.textIn * f), decF = Math.round(tm.decodeStart * f), lsF = tm.letterSeconds * f;
+  var out = { textOpacity: 0, glyphs: [], decoded: 0 };
+  if (!layout || !layout.box || frame < inF) return out;
+  out.textOpacity = Math.min(1, (frame - inF + 1) / 3);
+  var t = layout.title;
+  if (!t || frame < decF) return out;
+  var now = Math.floor((frame - decF) / lsF + 1e-9); // the step showing a ghost (== steps: all locked)
+  var m = layout.metrics || AV_FALLBACK_METRICS, kw = avKoWide(data);
+  for (var i = 0; i < t.letters.length; i++) {
+    var l = t.letters[i];
+    if (l.step < 0 || l.step > now) continue;
+    var ghost = l.step === now, ch = ghost ? avGhostChar(l.ch, i, frame) : l.ch;
+    // A ghost glyph is centred in the final letter's box (its own advance may differ).
+    var gw = ghost ? (avAdvance(m, ch, kw) * t.size * t.condense) / m.unitsPerEm : l.w;
+    var ko = AV_HANGUL_RE.test(ch);
+    out.glyphs.push({ ch: ch, x: l.x + (l.w - gw) / 2, y: t.y, size: t.size, condense: t.condense, opacity: ghost ? AV_GHOST_OPACITY : 1, ghost: ghost,
+      family: t.family, weight: ko ? t.koWeight : t.weight, stack: t.stack, color: t.color });
+  }
+  out.decoded = Math.min(t.steps, now);
+  return out;
+}
+// av-decode:end
+  return { avTitleLayout, avDecodeFrame, avKoMeasure, avTiming, avFontStack, AV_TITLE_FACES };
+})();
+// The credit's layout (assets/archived-credit.tsx, embedded verbatim).
+const AV_CREDIT: any = (function () {
+// av-credit:start
+// Pure layout, shared with the panel preview (which evaluates this block as plain JS). Measured with the per-font
+// advance table from presets.json passed in `data.fonts[i].metrics`. Reference (1920x1080): Oswald Bold-like caps,
+// cap height 25 px, centred on the frame.
+var AVC_FACE = { family: "AV Oswald Bold", weight: 700 };
+var AVC_CAP = 25 / 1080;
+var AVC_FIT = 0.8; // max width, fraction of canvas width
+var AVC_DEFAULTS = { prefix: "ARCHIVED BY", name: "YOURNAME", color: "#FFFFFF" };
+var AVC_FALLBACK_METRICS = { unitsPerEm: 1000, xHeight: 500, capHeight: 700, ascent: 720, descent: -220, advances: {} };
+// Korean names: no uppercase or tracking, both Korean system faces in the stack. Wide characters are drawn in the
+// system Korean face ("Apple SD Gothic Neo" / "Malgun Gothic"), so the render and the panel measure them with a canvas
+// (avcKoMeasure) and pass `data.koInk` ({ up, down } em) and `data.koAdvances` ({ char: em }). Without them (Node) a
+// wide character counts as 1 em, its ink 0.86 em up and 0.12 em down (tuned on Apple SD Gothic Neo).
+var AVC_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
+var AVC_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+var AVC_WIDE_UP = 0.86, AVC_WIDE_DOWN = 0.12;
+function avcFontStack(family) {
+  return '"' + family + '", "Arial Narrow", Impact, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';
+}
+function avcKoWide(data) {
+  var ink = data.koInk, adv = data.koAdvances;
+  var ok = ink && typeof ink.up === "number" && typeof ink.down === "number" && ink.up > 0.3 && ink.up < 1.5 && ink.down >= 0 && ink.down < 0.6;
+  return { up: ok ? ink.up : AVC_WIDE_UP, down: ok ? ink.down : AVC_WIDE_DOWN, adv: adv && typeof adv === "object" ? adv : null };
+}
+function avcKoAdvance(kw, ch) {
+  var a = kw.adv ? kw.adv[ch] : undefined;
+  return typeof a === "number" && isFinite(a) && a > 0.2 && a < 2 ? a : 1;
+}
+// The credit's text as drawn (Latin in capitals, Korean as typed), or "" when empty.
+function avcFullText(data) {
+  var text = [avcText(data, "prefix"), avcText(data, "name")].filter(Boolean).join(" ");
+  return AVC_HANGUL_RE.test(text) ? text : text.toUpperCase();
+}
+// Measures the wide glyphs on a 2D canvas with the exact stack and weight the credit draws them with (call it once
+// the fonts are loaded): { koInk, koAdvances } to merge into `data`, or null in Node or without a wide glyph.
+function avcKoMeasure(data) {
+  data = data || {};
+  var text = avcFullText(data);
+  if (!AVC_WIDE_RE.test(text) || typeof document === "undefined" || !document.createElement) return null;
+  var ctx = null;
+  try { ctx = document.createElement("canvas").getContext("2d"); } catch (e) { ctx = null; }
+  if (!ctx || typeof ctx.measureText !== "function") return null;
+  var px = 100;
+  ctx.font = (AVC_HANGUL_RE.test(text) ? 700 : AVC_FACE.weight) + " " + px + "px " + avcFontStack(AVC_FACE.family);
+  var out = { koAdvances: {} };
+  var s = ctx.measureText("\ud55c\uae00");
+  if (s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0) out.koInk = { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px };
+  var chars = Array.from(text);
+  for (var i = 0; i < chars.length; i++) {
+    if (AVC_WIDE_RE.test(chars[i]) && !(chars[i] in out.koAdvances)) out.koAdvances[chars[i]] = ctx.measureText(chars[i]).width / px;
+  }
+  return out;
+}
+function avcNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
+function avcText(data, key) {
+  var v = typeof data[key] === "string" ? data[key] : AVC_DEFAULTS[key];
+  return String(v).replace(/\s+/g, " ").trim();
+}
+
+// { text, x (left), y (baseline), size, w, color, family, weight, stack, box } or null when there is no text.
+function avCreditLayout(data, width, height) {
+  data = data || {};
+  var W = width > 0 ? width : 1920, H = height > 0 ? height : 1080;
+  var text = avcFullText(data);
+  if (!text) return null;
+  var ko = AVC_HANGUL_RE.test(text), kw = avcKoWide(data);
+  var m = null, fonts = Array.isArray(data.fonts) ? data.fonts : [];
+  for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === AVC_FACE.family && fonts[i].metrics) m = fonts[i].metrics;
+  m = m || AVC_FALLBACK_METRICS;
+  var size = (AVC_CAP * H * (avcNum(data.size, 100, 60, 200) / 100)) / (m.capHeight / m.unitsPerEm);
+  var units = 0, chars = Array.from(text);
+  for (var j = 0; j < chars.length; j++) {
+    var a = m.advances[chars[j]];
+    units += typeof a === "number" ? a : (AVC_WIDE_RE.test(chars[j]) ? avcKoAdvance(kw, chars[j]) : 0.56) * m.unitsPerEm;
+  }
+  var w = (units * size) / m.unitsPerEm;
+  // Shrink a long name to the fit width.
+  if (w > AVC_FIT * W) { size *= (AVC_FIT * W) / w; w = AVC_FIT * W; }
+  var up = Math.max(m.capHeight / m.unitsPerEm, AVC_WIDE_RE.test(text) ? kw.up : 0);
+  var down = Math.max(/[gjpqy,;()[\]{}|]/.test(text) ? -m.descent / m.unitsPerEm : 0, AVC_WIDE_RE.test(text) ? kw.down : 0);
+  // The ink box is centred on (x %, y %) of the canvas.
+  var cx = (avcNum(data.x, 50, 10, 90) / 100) * W, cy = (avcNum(data.y, 50, 10, 90) / 100) * H;
+  var x = cx - w / 2, y = cy + ((up - down) / 2) * size;
+  return { text: text, x: x, y: y, size: size, w: w, hangul: ko, color: typeof data.color === "string" && data.color ? data.color : AVC_DEFAULTS.color,
+    family: AVC_FACE.family, weight: ko ? 700 : AVC_FACE.weight, stack: avcFontStack(AVC_FACE.family), box: [x, y - up * size, x + w, y + down * size] };
+}
+// av-credit:end
+  return { avCreditLayout, avcKoMeasure };
+})();
+// av-beat-worker:start
+// The source of the Web Worker that runs beat-detect.cjs, read from the install folder and used unmodified (one source
+// for the CLI, the tests and the panel). The file runs inside a function with its own `module`, `exports` and an inert
+// `require`: require.main is undefined, so its CLI branch never runs. The worker answers one { samples, rate } message
+// with { ok: analyze(samples, rate) } or { error }. Plain JS, so tests run the same source in node:vm.
+function avBeatWorkerSource(beatDetectText) {
+  return '"use strict";\nvar avBeat = (function () {\n  var module = { exports: {} };\n  var require = function () { return {}; };\n'
+    + '  (function (module, exports, require) {\n' + beatDetectText + '\n  })(module, module.exports, require);\n  return module.exports;\n})();\n'
+    + 'onmessage = function (e) {\n  try { postMessage({ ok: avBeat.analyze(e.data.samples, e.data.rate) }); }\n'
+    + '  catch (err) { postMessage({ error: String((err && err.message) || err) }); }\n};\n';
+}
+// av-beat-worker:end
+
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. The one shell call is the SELECTS_USER_SKILLS_ROOT fallback in hostSkillsRoot (cmd.exe on
+// Windows, the login shell on macOS). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
   return s;
 }
-async function readText(root: string, rel: string) {
-  const v = await service("FileSystem", "readFile").readFile(root + "/" + rel);
-  // Some host builds return text directly; others return bytes.
-  return typeof v === "string" ? v : new TextDecoder().decode(new Uint8Array(v));
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
 }
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool).
+function hostBytes(v) {
+  if (v instanceof ArrayBuffer) return new Uint8Array(v);
+  if (v && v.buffer instanceof ArrayBuffer) return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file; a failure only leaves it behind.
+async function hostRemove(path) {
+  try {
+    const fs = hostDI()?.FileSystem;
+    if (typeof fs?.removeFile === "function") await fs.removeFile({ filePath: path });
+    else if (typeof fs?.unlinkSync === "function") fs.unlinkSync(path);
+  } catch { /* best effort */ }
+}
+// The skills folder named by SELECTS_USER_SKILLS_ROOT, through the host shell, or null. Windows runs cmd.exe, where
+// `echo(` prints an empty line for an unset variable (a plain `echo` would print "ECHO is on."); macOS runs the login
+// shell. Only the variable's value comes back; no path goes in.
+async function hostSkillsRoot(sdk) {
+  if (typeof sdk?.runShell !== "function") return null;
+  const command = hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%" : 'echo "$SELECTS_USER_SKILLS_ROOT"';
+  try {
+    const r = await sdk.runShell({ summary: "Locate the plugin folder", command, timeoutMs: 10000 });
+    const out = String(r?.stdout || "").split(/\r?\n/).map((x) => x.trim()).find(Boolean) || "";
+    return !out || /[%$]/.test(out) || /^ECHO is/i.test(out) ? null : out;
+  } catch { return null; }
+}
+// The plugin's install folder and its data folder. The install folder is the host's default skills folder (the home
+// folder joined with .selects, skills and <id>) when it holds `marker` (a file every install has); only when it does
+// not does SELECTS_USER_SKILLS_ROOT decide. The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) {
+    const root = await hostSkillsRoot(sdk);
+    const dir = root ? hostJoin(root, id) : null;
+    if (holds(dir)) plugin = dir;
+  }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
+
+// Joins a path under the install folder.
+const pjoin = hostJoin;
+const readBytes = hostReadBytes;
+async function readText(root: string, ...rel: string[]) { return hostReadText(hostJoin(root, ...rel)); }
+const locateRoots = (sdk: any) => hostRoots(sdk, PLUGIN_ID, "planner.js");
+
+// ---- Your own music --------------------------------------------------------------------------------------------
+// Mono samples at OWN_RATE, at most OWN_MAX_SECONDS: the host's ffmpeg when it has one (hostDecodePcm); without it, or
+// when it fails, the panel decodes the file's bytes with WebAudio (whatever Chromium decodes: mp3, m4a/aac, wav, flac,
+// ogg) and averages the channels, as ffmpeg's mono downmix does.
+async function decodeOwnMusic(path: string, dataDir: string | null, signal: AbortSignal): Promise<Float32Array> {
+  let first: any = null;
+  try { const s = await hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal); if (s) return s; } catch (e) { first = e; }
+  if (signal.aborted) throw new Error("cancelled");
+  try {
+    const Ctx: any = (window as any).OfflineAudioContext || (window as any).webkitOfflineAudioContext;
+    if (!Ctx) throw new Error("this panel cannot decode audio");
+    const bytes = await readBytes(path);
+    const ctx = new Ctx(1, 1, OWN_RATE);
+    const buf: AudioBuffer = await ctx.decodeAudioData(bytes.slice().buffer);
+    const n = Math.min(buf.length, Math.round(OWN_MAX_SECONDS * buf.sampleRate));
+    const out = new Float32Array(n);
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const ch = buf.getChannelData(c);
+      for (let i = 0; i < n; i++) out[i] += ch[i] / buf.numberOfChannels;
+    }
+    if (!out.length) throw new Error("no audio");
+    return out;
+  } catch (e) { throw first || e; }
+}
+// beat-detect's analysis of the samples in a Web Worker (avBeatWorkerSource), never on the panel's thread: the panel
+// CSP allows blob: workers (cutback-client panelSandbox.ts: worker-src * data: blob:). A host that refuses the worker
+// rejects the analysis, and the panel falls back to fixed timing. `signal` aborts it (worker.terminate()).
+function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let worker: Worker | null = null, url: string | null = null, done = false;
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      try { worker?.terminate(); } catch { /* gone */ }
+      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
+      signal?.removeEventListener("abort", onAbort);
+      fn();
+    };
+    const onAbort = () => finish(() => reject(new Error("cancelled")));
+    if (signal?.aborted) { reject(new Error("cancelled")); return; }
+    signal?.addEventListener("abort", onAbort);
+    try {
+      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+      worker = new Worker(url);
+    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
+    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.error ? reject(new Error(e.data.error)) : resolve(e.data && e.data.ok)));
+    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
+    worker.postMessage({ samples, rate: OWN_RATE });
+  });
+}
+// A browser-playable type for a music file, by its extension ("" lets the browser sniff).
+function audioType(path: string) {
+  const ext = (String(path).split(/[\\/]/).pop() || "").split(".").pop()!.toLowerCase();
+  return ({ mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", flac: "audio/flac", ogg: "audio/ogg", opus: "audio/ogg" } as any)[ext] || "";
+}
+
+// ---- Panel helpers ---------------------------------------------------------------------------------------------
 // The config goes in as JSON.parse of a string so its type is `any`: an inlined literal widens `type` to string
 // (rejected by EditableParameterDefinition[]) and narrows a null option to `never` inside its `if`.
 function fill(script: string, cfg: unknown) { return script.replace("__CONFIG__", () => "JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"); }
-// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew and the newest nvm Node.
-const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; '
-  + 'n=$( (ls -d "$HOME"/.nvm/versions/node/*/bin) 2>/dev/null | sort -V | tail -1); [ -n "$n" ] && export PATH="$PATH:$n"; ';
 // Thrown when the Project changed while a build was running; its results are dropped silently.
 const STALE = new Error("The Project changed during the build.");
 // A read-only call that still failed with a host-busy / deadline error after its retries.
@@ -3079,21 +3346,45 @@ class BusyError extends Error {
   say: Say;
   constructor() { super("Selects is busy and didn't answer in time."); this.say = (l) => t(l, "busy"); }
 }
-
-// A preset's fonts, one per family (a family may serve two roles), with the advance metrics the layout measures with.
-function presetFonts(p: any, all: any) {
-  const seen = new Set<string>();
-  return (p?.fonts || []).filter((x: any) => !seen.has(x.family) && !!seen.add(x.family))
-    .map((x: any) => ({ role: x.role, family: x.family, style: x.style, weight: x.weight, file: x.file, metrics: all?.metrics?.[x.family] || null }));
+// Everything a build reads from the install folder, once.
+async function loadAssets(plugin: string) {
+  const read = (...rel: string[]) => readText(plugin, ...rel);
+  const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, title, credit, letterbox, look, fade, motion, beatDetect] = await Promise.all([
+    read("assets", "cues", "manifest.json"), read("assets", "fonts", "presets.json"), read("scripts", "inventory.js"), read("scripts", "search.js"),
+    read("scripts", "ensure-audio.js"), read("scripts", "assemble.js"), read("scripts", "decorate.js"), read("assets", "decode-title.tsx"),
+    read("assets", "archived-credit.tsx"), read("assets", "letterbox-reveal.tsx"), read("assets", "cinematic-look.tsx"), read("assets", "fade-out.tsx"),
+    read("assets", "photo-motion.tsx"), read("beat-detect.cjs")]);
+  return { manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs },
+    tsx: { title, credit, letterbox, look, fade, motion }, beatWorker: avBeatWorkerSource(beatDetect) };
 }
-// The `@year` token's text: the current year when the panel shows the field (recording dates never set it, since
-// imported or stock footage can be years old). dev/driveAdapter.mjs evaluates this same function.
-function avCurrentYear() { return String(new Date().getFullYear()); }
-// Preview geometry: a fixed-height box showing the middle of the frame, where the lockup sits (at most 60 % of the
-// width, centred at 49 / 52 %), so the box never changes height while typing or switching presets.
-const PREVIEW_HEIGHT = 112;
-const PREVIEW_VIEW = [0.15 * AV_W, 0.2 * AV_H, 0.7 * AV_W, 0.64 * AV_H].join(" ");
-
+// Every font file the presets use (four small files).
+function fontFiles(presets: any): string[] {
+  return [...new Set<string>((presets?.presets || []).flatMap((p: any) => (p.fonts || []).map((f: any) => f.file as string)))];
+}
+// A bundled cue's grid (manifest), the one a build and the section slider use.
+function cueGrid(cue: any) {
+  return { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, introStart: cue.introStart, beatEnergy: cue.beatEnergy || [],
+    downbeatHigh: cue.downbeatConfidence === "high", peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds };
+}
+const NO_MUSIC_GRID = { none: true, bpm: null, accepted: false, approxBpm: null, firstBeat: 0, usableEnd: null, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined };
+// The music side of a build: the tempo the template runs on (avTempo), the montage the music fits, the video's length
+// and the section snapping and default. Pure; the panel works it out on every render, a template run once.
+function musicFit(grid: any, length: string, pace: string) {
+  const tm = avTempo({ bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm });
+  // A beat (grid or approximate) the section snaps to in whole bars; otherwise to 0.1 s.
+  const timed = tm.gridded || !!tm.approxBpm;
+  const requested = avMontageShots(length, pace);
+  const top = avMontageLadder({ requested, pace, bpm: tm.tempo })[0];
+  const fitted = avFitShots({ requested, pace, bpm: tm.tempo, sectionStart: timed ? grid.firstBeat : 0, usableEnd: grid.usableEnd });
+  const seconds = (n: number) => avVideoSeconds({ bpm: tm.tempo, pace, montageShots: n });
+  const videoSeconds = seconds(fitted || top);
+  const snap = (value: number): number | null => (grid.none ? 0
+    : avSnapSection({ value, firstBeat: grid.firstBeat, bpm: tm.tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: timed }));
+  // The section a new track starts on: a bundled cue's soft intro (introStart), else the most energetic window.
+  const defaultSection = (): number | null => (grid.none ? 0 : !tm.gridded ? snap(0)
+    : avIntroSection({ introStart: grid.introStart, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, beatEnergy: grid.beatEnergy, downbeatHigh: grid.downbeatHigh }) ?? snap(grid.firstBeat));
+  return { ...tm, timed, requested, top, fitted, seconds, videoSeconds, snap, defaultSection };
+}
 // The photo rids a build uses: the selected photos (all when `onlyPhotos` is null), none while Use photos is off.
 function selectedPhotoRidsOf(inventory: any, onlyPhotos: string[] | null, usePhotos: boolean): string[] {
   if (!usePhotos || !inventory) return [];
@@ -3118,6 +3409,22 @@ function stamp(d: Date) {
   const p = (n: number) => String(n).padStart(2, "0");
   return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
 }
+// The Draft's name: "Archive Vlog", the title as typed (or the preset's name) and the time. English, like every Draft name.
+function draftNameOf(title: string, presetLabel: string, d: Date) {
+  return "Archive Vlog " + (String(title || "").replace(/\s+/g, " ").trim() || presetLabel) + " " + stamp(d);
+}
+// The Inspector labels and Motion choices in a language (frozen at Build).
+function adjustLabelsFor(lang: Lang) {
+  // i18n-used: param.*
+  return Object.fromEntries(Object.keys(AV_ADJUST_LABELS).map((k) => [k, t(lang, "param." + k)]));
+}
+function motionOptionsFor(lang: Lang) {
+  return MOTION_OPTIONS.map((o) => ({ label: tOr(lang, "motion." + o.value, o.label), value: o.value }));
+}
+// Field labels of the title (the same words as their Adjust labels).
+function fieldLabel(lang: Lang, key: string) {
+  return key === "kicker" ? t(lang, "param.kicker") : key === "tagline" ? t(lang, "param.tagline") : t(lang, "param.title");
+}
 // Resolves a --panel-* colour for canvas drawing; falls back when the token is missing or not a colour.
 function themeColor(el: Element, ctx: CanvasRenderingContext2D, name: string, fallback: string) {
   const v = getComputedStyle(el).getPropertyValue(name).trim();
@@ -3126,10 +3433,6 @@ function themeColor(el: Element, ctx: CanvasRenderingContext2D, name: string, fa
   ctx.fillStyle = v;
   return ctx.fillStyle === "#010203" ? fallback : v;
 }
-const WAVE_HEIGHT = 56;
-
-// Music section slider: waveform on a canvas with a draggable, snapped window over the chosen section.
-// While `audio` plays, a playhead follows its currentTime inside the window, redrawn on every animation frame.
 // Videos without analysis, from inventory.js's skipped counts: being analysed now, not analysed yet (never started; the
 // panel does not start analysis), or failed. known is false when the workflow read failed: pending clips then may or
 // may not be queued, so their wording is neutral and the panel keeps polling.
@@ -3152,6 +3455,9 @@ function avAnalysisNotes(lang: Lang, c: any) {
     c.failed ? t(lang, "noteFailed", { count: c.failed }) : ""];
 }
 
+const WAVE_HEIGHT = 56;
+// Music section slider: waveform on a canvas with a draggable, snapped window over the chosen section.
+// While `audio` plays, a playhead follows its currentTime (seconds into the track) inside the window.
 function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, snap, onChange, disabled, audio }: {
   lang: Lang; peaks: number[]; total: number; section: number | null; videoSeconds: number; barSeconds: number;
   snap: (v: number) => number | null; onChange: (v: number | null) => void; disabled: boolean; audio: HTMLAudioElement | null;
@@ -3175,20 +3481,21 @@ function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, 
 
   // Bundled peaks can exceed 1.0 slightly, so scale by the loudest bar when it does.
   const peakMax = Math.max(1, ...peaks);
-  // The latest draw, so the animation loop always paints with the current props. `playAt` is seconds into the section.
+  // The latest draw, so the animation loop always paints with the current props. `playAt` is seconds into the track.
   const drawRef = React.useRef<(playAt: number | null) => void>(() => {});
   drawRef.current = (playAt: number | null) => {
     const canvas = canvasRef.current, wrap = wrapRef.current;
     if (!canvas || !wrap || width <= 0) return;
     const dpr = window.devicePixelRatio || 1;
+    // The backing store in whole device pixels, so fractional scaling (125 %, 150 %) stays sharp.
     const cw = Math.round(width * dpr), chh = Math.round(WAVE_HEIGHT * dpr);
     if (canvas.width !== cw) canvas.width = cw;
     if (canvas.height !== chh) canvas.height = chh;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.setTransform(cw / width, 0, 0, chh / WAVE_HEIGHT, 0, 0);
     ctx.clearRect(0, 0, width, WAVE_HEIGHT);
-    const accent = themeColor(wrap, ctx, "--panel-accent", "#f6c343");
+    const accent = themeColor(wrap, ctx, "--panel-fg", "#f6c343");
     const muted = themeColor(wrap, ctx, "--panel-muted-fg", "#8a8a8a");
     const mid = WAVE_HEIGHT / 2;
     const x0 = section == null ? -1 : (section / total) * width;
@@ -3196,7 +3503,7 @@ function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, 
     const inside = (x: number) => x >= x0 && x <= x1;
     // Selected window: translucent fill under the bars.
     if (section != null) {
-      ctx.globalAlpha = 0.18; ctx.fillStyle = accent;
+      ctx.globalAlpha = 0.14; ctx.fillStyle = accent;
       ctx.fillRect(x0, 0, Math.max(2, x1 - x0), WAVE_HEIGHT);
       ctx.globalAlpha = 1;
     }
@@ -3229,7 +3536,7 @@ function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, 
       }
       // Playhead: a vertical line at the playing position, kept inside the window.
       if (playAt != null) {
-        const px = Math.min(x0 + w - 1, Math.max(x0 + 1, ((section + Math.min(playAt, videoSeconds)) / total) * width));
+        const px = Math.min(x0 + w - 1, Math.max(x0 + 1, (Math.min(playAt, section + videoSeconds) / total) * width));
         ctx.fillStyle = themeColor(wrap, ctx, "--panel-fg", "#ffffff");
         ctx.fillRect(px - 1, 0, 2, WAVE_HEIGHT);
       }
@@ -3251,14 +3558,14 @@ function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, 
   };
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (disabled || e.button !== 0) return;
-    const t = timeAt(e.clientX);
+    const at = timeAt(e.clientX);
     const s = section ?? 0;
     // Grabbing the window keeps the grab point; anywhere else centres the window there.
-    const offset = section != null && t >= s && t <= s + videoSeconds ? t - s : videoSeconds / 2;
+    const offset = section != null && at >= s && at <= s + videoSeconds ? at - s : videoSeconds / 2;
     dragRef.current = { offset };
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* capture is optional */ }
     setDragging(true);
-    onChange(snap(t - offset));
+    onChange(snap(at - offset));
   };
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragRef.current) return;
@@ -3268,7 +3575,7 @@ function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, 
     if (!dragRef.current) return;
     if (e.type === "pointerup") onChange(snap(timeAt(e.clientX) - dragRef.current.offset));
     dragRef.current = null; setDragging(false);
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+    try { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already released */ }
   };
   const first = snap(0), last = snap(total);
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -3293,7 +3600,7 @@ function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, 
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         style={{ position: "relative", width: "100%", minWidth: 0, height: WAVE_HEIGHT, touchAction: "none", userSelect: "none", outline: "none",
           cursor: disabled ? "default" : dragging ? "grabbing" : "grab", borderRadius: "var(--panel-radius, 6px)",
-          boxShadow: focused ? "0 0 0 2px var(--panel-accent, #f6c343)" : "inset 0 0 0 1px var(--panel-border, rgba(128, 128, 128, 0.35))", opacity: disabled ? 0.6 : 1 }}>
+          boxShadow: focused ? "0 0 0 2px var(--panel-fg, #f6c343)" : "inset 0 0 0 1px var(--panel-border, rgba(128, 128, 128, 0.35))", opacity: disabled ? 0.6 : 1 }}>
         <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: WAVE_HEIGHT, pointerEvents: "none" }} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--panel-muted-fg)", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
@@ -3303,77 +3610,108 @@ function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, 
   );
 }
 
-// The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing. Shared by
-// the panel and a template run.
-async function locateRoots(sdk: any) {
-  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-  const [plugin, data] = String(where?.stdout || "").split("\n").map((x: string) => x.trim());
-  if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
-  return { plugin, data };
+// Title preview geometry: a fixed-height box over the middle band of the frame, where the lockup sits (centred at
+// 50 / 48 %, at most 80 % of the width), so the box never changes height while typing or switching presets.
+const PREVIEW_HEIGHT = 112;
+const PREVIEW_VIEW = [0.08 * AV_W, 0.26 * AV_H, 0.84 * AV_W, 0.44 * AV_H].join(" ");
+// The credit strip: the middle band around the credit line.
+const CREDIT_HEIGHT = 30;
+const CREDIT_VIEW = [0.08 * AV_W, 0.44 * AV_H, 0.84 * AV_W, 0.12 * AV_H].join(" ");
+const PREVIEW_BG = "linear-gradient(135deg, #2f3236, #15171a)";
+// The type sample on a Style tile (letters, not words: never translated).
+const TILE_SAMPLE = "Aa";
+
+// The decode lockup as the Draft draws it at `state` (avDecodeFrame), in canvas pixels.
+function LockupSvg({ layout, state, shadow }: { layout: any; state: any; shadow: number }) {
+  const line = (p: any) => (p ? (
+    <text x={p.x} y={p.y} fill={p.color} fontSize={p.size} fontFamily={p.stack} fontWeight={p.weight} opacity={state.textOpacity}
+      style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: p.tracking * p.size } as any}>{p.text}</text>
+  ) : null);
+  return (
+    <svg width="100%" height={PREVIEW_HEIGHT} viewBox={PREVIEW_VIEW} preserveAspectRatio="xMidYMid meet"
+      style={{ display: "block", filter: shadow > 0 ? "drop-shadow(0 1px 3px rgba(0, 0, 0, " + shadow + "))" : undefined }}>
+      {line(layout.kicker)}
+      {state.glyphs.map((g: any, i: number) => (
+        <text key={i} transform={"translate(" + g.x + " " + g.y + ") scale(" + g.condense + " 1)"} x={0} y={0} fill={g.color} opacity={g.opacity}
+          fontSize={g.size} fontFamily={g.stack} fontWeight={g.weight} style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none" } as any}>{g.ch}</text>
+      ))}
+      {line(layout.tagline)}
+    </svg>
+  );
 }
 
 // A template run (Clip highlights hands the footage over in `context.template`) builds out of sight; anything else is
 // the panel.
 export default function Panel(props: any) {
-  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <MiniVlogPanel {...props} />;
+  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <ArchiveVlogPanel {...props} />;
 }
 
-function MiniVlogPanel({ sdk, context, ui }: any) {
+function ArchiveVlogPanel({ sdk, context, ui }: any) {
   // The UI language, read on every render: Selects can switch languages while the panel is open.
   const L = uiLang(context);
-  // The language at Build: Inspector labels written into the Draft use it and do not follow a later switch.
-  const langRef = React.useRef(L);
-  langRef.current = L;
   const projectId = context?.projectId ?? null;
   const projectRef = React.useRef(projectId);
   projectRef.current = projectId;
-  const [roots, setRoots] = React.useState<{ plugin: string; data: string } | null>(null);
+  const [roots, setRoots] = React.useState<{ plugin: string; data: string | null } | null>(null);
   const [assets, setAssets] = React.useState<any>(null);
   const [inventory, setInventory] = React.useState<any>(null);
   const [candidates, setCandidates] = React.useState<any>(null);
   const [preset, setPreset] = React.useState(DEFAULT_PRESET);
-  // Title text per preset ({ presetId: { fieldKey: text } }); a field not in here shows its preset's initial text.
-  // Switching presets never overwrites another preset's edits.
-  const [fieldsBy, setFieldsBy] = React.useState<Record<string, Record<string, string>>>({});
+  // The title text the user typed ({ fieldKey: text }); a field not in here shows the preset's initial text. Switching
+  // presets keeps what was typed and only drops edits equal to the old preset's text (choosePreset).
+  const [fieldEdits, setFieldEdits] = React.useState<Record<string, string>>({});
+  // The credit shot ("<prefix> <name>"): on by default. The prefix and the name start as the preset's sample text
+  // (null); a name cleared by the user leaves the credit out, so "YOURNAME" is never published by accident.
+  const [creditOn, setCreditOn] = React.useState(true);
+  const [creditPrefix, setCreditPrefix] = React.useState<string | null>(null);
+  const [creditName, setCreditName] = React.useState<string | null>(null);
   // cueId: a manifest cue id, "own" (your own music) or "none" (No music).
   const [cueId, setCueId] = React.useState(DEFAULT_CUE);
-  const cueDefaultedRef = React.useRef(false);
   const [ownMusic, setOwnMusic] = React.useState<{ path: string; name: string } | null>(null);
   const [ownGrid, setOwnGrid] = React.useState<any>(null);
+  // Your own music being decoded and analysed (Build waits); the job id drops a result that a newer track, a Project
+  // switch or closing the panel made stale, and its AbortController stops ffmpeg and the worker.
+  const [listening, setListening] = React.useState(false);
+  const ownJobRef = React.useRef<{ id: number; abort: AbortController | null }>({ id: 0, abort: null });
   const [length, setLength] = React.useState<"short" | "standard" | "long">(DEFAULT_LENGTH);
-  const [pace, setPace] = React.useState<"quick" | "relaxed" | "groove">(DEFAULT_PACE);
-  // Hook B (spec 15): Beat punch on every video clip, and the music section defaulting to the track's hook window
-  // (bundled tracks only). Both on by default, and both stay toggles.
-  const [beatPunch, setBeatPunch] = React.useState(DEFAULT_PUNCH);
-  const [hook, setHook] = React.useState(DEFAULT_HOOK);
+  const [pace, setPace] = React.useState<"cinematic" | "quick">(DEFAULT_PACE);
   // Clip sound: the clips' own sound is off (muted), ambient (-18 dB under the music) or full (0 dB).
-  const [clipSound, setClipSound] = React.useState<"off" | "ambient" | "full">("ambient");
-  const [soft, setSoft] = React.useState(true);
+  const [clipSound, setClipSound] = React.useState<"off" | "ambient" | "full">(DEFAULT_CLIP_SOUND);
+  // Cinematic look on every clip; its strength follows the preset until the user moves the slider.
+  const [look, setLook] = React.useState(true);
+  const [lookStrength, setLookStrength] = React.useState<number | null>(null);
   const [only, setOnly] = React.useState<string[] | null>(null);
   // Photos: on by default. `onlyPhotos` is the photo selection (null = all); `only` stays the video selection, so
   // choosing photos never invalidates the scene search.
   const [usePhotos, setUsePhotos] = React.useState(true);
   const [onlyPhotos, setOnlyPhotos] = React.useState<string[] | null>(null);
   const [section, setSection] = React.useState<number | null>(0);
+  // Whether the user moved the section: until then a new length or pace moves it to the track's default start.
+  const sectionTouchedRef = React.useRef(false);
   const [seed, setSeed] = React.useState(1);
   const [busy, setBusy] = React.useState(false);
   // Single-flight guard: state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef(false);
-  // The one-call spinner's text: "checkingClips", "listening" (STRINGS keys) or "".
+  // The one-call spinner's text: "checkingClips" (a STRINGS key) or "".
   const [step, setStep] = React.useState("");
-  const [tools, setTools] = React.useState({ ffmpeg: true, node: true });
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
   const registered = React.useRef<Set<string>>(new Set());
-  // Build progress (bar + step list). `step` stays for the one-call spinner (own-music beat detection).
+  // Bumped when a bundled font has loaded, so the preview measures again with it.
+  const [fontsReady, setFontsReady] = React.useState(0);
+  // Build progress (bar + step list). `step` stays for the one-call spinner (the first clip check).
   const [progress, setProgress] = React.useState<any>(null);
   const progressRef = React.useRef<any>(null);
   // `detail` is a message in the UI language (e.g. how many videos were checked).
   const advance = (id: string, fraction: number, detail?: Say) => { const p = { ...avProgress(id, fraction), detail }; progressRef.current = p; setProgress(p); };
   const [status, setStatus] = React.useState<{ tone: string; say: Say } | null>(null);
   const [result, setResult] = React.useState<any>(null);
+  // The title preview's replay: the frame shown while the decode replays, null for the finished lockup.
+  const [replayFrame, setReplayFrame] = React.useState<number | null>(null);
+  const replayRef = React.useRef(0);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const previewTokenRef = React.useRef(0);
   const previewUrlRef = React.useRef<string | null>(null);
+  const previewTimerRef = React.useRef<any>(null);
   const [playState, setPlayState] = React.useState<"idle" | "loading" | "playing">("idle");
   const [playingAudio, setPlayingAudio] = React.useState<HTMLAudioElement | null>(null);
 
@@ -3399,12 +3737,14 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   };
   const fontB64 = (plugin: string, file: string) => {
     if (!fontCache.current[file]) {
-      fontCache.current[file] = readText(plugin, "assets/fonts/" + file)
-        .then((t) => t.replace(/\s+/g, ""))
+      fontCache.current[file] = readText(plugin, "assets", "fonts", file)
+        .then((x) => x.replace(/\s+/g, ""))
         .catch((e) => { delete fontCache.current[file]; throw e; });
     }
     return fontCache.current[file];
   };
+  // Every bundled font as file name -> WOFF2 data (the title embeds all four, the credit one).
+  const allFonts = async (plugin: string, presets: any) => Object.fromEntries(await Promise.all(fontFiles(presets).map(async (f) => [f, await fontB64(plugin, f)])));
   // Registers a bundled font in this panel's document for the preset tiles and the live preview.
   async function registerFace(plugin: string, s: any) {
     const key = s.family + "|" + s.style + "|" + s.weight;
@@ -3469,7 +3809,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
     }
   }
-  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; replayRef.current++; }; }, []);
   // Refresh: a manual read that also restarts the incomplete-read cycle.
   const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); loadInventory(); };
 
@@ -3484,25 +3824,13 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     let alive = true;
     (async () => {
       try {
-        const { plugin, data } = await locateRoots(sdk);
+        const found = await locateRoots(sdk);
         if (!alive) return;
-        setRoots({ plugin, data });
-        // ffmpeg and node are only needed for previews and own music; bundled cues work without them.
-        let have = "";
-        try {
-          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg; command -v node >/dev/null && echo node", timeoutMs: 10000 });
-          have = String(probe?.stdout || "");
-        } catch { have = ""; }
+        setRoots(found);
+        const loaded = await loadAssets(found.plugin);
         if (!alive) return;
-        setTools({ ffmpeg: have.includes("ffmpeg"), node: have.includes("node") });
-        const read = (rel: string) => readText(plugin, rel);
-        const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, softTsx, motionTsx, punchTsx] = await Promise.all([
-          read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("scripts/inventory.js"), read("scripts/search.js"),
-          read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-lockup.tsx"), read("assets/soft-look.tsx"),
-          read("assets/photo-motion.tsx"), read("assets/beat-punch.tsx")]);
-        if (!alive) return;
-        setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, softTsx, motionTsx, punchTsx });
-        inventoryJsRef.current = inventoryJs;
+        setAssets(loaded);
+        inventoryJsRef.current = loaded.scripts.inventoryJs;
         setStep("checkingClips");
         // The first read right after the app starts can fail while the Project is still loading: one retry.
         if (await loadInventory(projectId, () => alive) === "failed" && alive) {
@@ -3510,11 +3838,15 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
           if (alive && projectRef.current === projectId) { setInvError(null); await loadInventory(projectId, () => alive); }
         }
       } catch (e: any) {
-        if (alive) setStatus({ tone: "error", say: (l: Lang) => t(l, "startFailed", { detail: sayError(l, e) }) });
+        if (alive) setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "startFailed", { detail })) });
       } finally { if (alive) setStep(""); }
     })();
-    // Project switch or unmount stops a preview, including one still being prepared.
-    return () => { alive = false; stopPreview(); };
+    // Project switch or unmount stops a preview, including one still being prepared, and an own-music analysis (its
+    // track is dropped: the next Project starts without it).
+    return () => {
+      alive = false; stopPreview();
+      if (cancelOwnMusic() && mountedRef.current) { setOwnMusic(null); setOwnGrid(null); }
+    };
   }, [projectId]);
 
   // Clips being analysed (or no clips at all yet): re-read the inventory every 10 s until they are ready. Clips whose
@@ -3528,8 +3860,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
-    const t = setInterval(() => { loadInventory(pid); }, 10000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => { loadInventory(pid); }, 10000);
+    return () => clearInterval(timer);
   }, [projectId, needsPoll, busy]);
   // Coming back to the panel (tab shown or window focused) re-reads the inventory.
   React.useEffect(() => {
@@ -3545,151 +3877,208 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   // Fonts for the tiles and the live preview: every preset's fonts (four small files).
   React.useEffect(() => {
     if (!assets || !roots) return;
-    // A font that fails to load only makes the preview fall back; the build reads the files again.
-    for (const p of assets.presets.presets) for (const f of p.fonts) registerFace(roots.plugin, f).catch(() => null);
+    const seen = new Set<string>();
+    for (const p of assets.presets.presets) for (const f of p.fonts) {
+      if (seen.has(f.family)) continue;
+      seen.add(f.family);
+      // A font that fails to load only makes the preview fall back; the build reads the files again.
+      registerFace(roots.plugin, f).then(() => { if (mountedRef.current) setFontsReady((n) => n + 1); }).catch(() => null);
+    }
   }, [assets, roots]);
-  // The preferred cue becomes the default once, when the manifest has it (a later choice is the user's).
-  React.useEffect(() => {
-    if (!assets || cueDefaultedRef.current) return;
-    cueDefaultedRef.current = true;
-    if (assets.manifest.cues.some((c: any) => c.id === PREFERRED_CUE)) setCueId((cur) => (cur === DEFAULT_CUE ? PREFERRED_CUE : cur));
-  }, [assets]);
-
-  // ---- Title fields ----
-  const presetList: any[] = assets?.presets.presets || [];
-  const chosen = presetList.find((x) => x.id === preset) || null;
-  // A field's text: the user's edit, else the preset's initial text; the `@year` token becomes the current year.
-  const fieldText = (presetId: string, fl: any) => {
-    const v = fieldsBy[presetId]?.[fl.key] ?? fl.initial ?? "";
-    return v === "@year" ? avCurrentYear() : v;
-  };
-  const setField = (fl: any, value: string) => {
-    const v = fieldClip(String(value), fl.max);
-    setFieldsBy((all) => ({ ...all, [preset]: { ...(all[preset] || {}), [fl.key]: v } }));
-  };
-  const titleFields: Record<string, string> = chosen ? Object.fromEntries(chosen.fields.map((fl: any) => [fl.key, fieldText(preset, fl)])) : {};
-  const bigText = String(titleFields.big || "").trim();
-  // The lockup items at canvas size, or null when the layout throws (the box then says the preview is unavailable).
-  const previewItems: any[] | null = React.useMemo(() => {
-    if (!chosen) return [];
-    try {
-      return avLockupLayout({ preset, fields: titleFields, primary: chosen.colors.primary, secondary: chosen.colors.secondary, ...TITLE_LOOK,
-        fonts: presetFonts(chosen, assets.presets) }, AV_W, AV_H);
-    } catch { return null; }
-  }, [chosen, preset, JSON.stringify(titleFields)]);
 
   // ---- Music, length and pace ----
   const musicKind: "cue" | "own" | "none" = cueId === "none" ? "none" : cueId === "own" ? "own" : "cue";
   const cue = musicKind === "cue" ? assets?.manifest.cues.find((c: any) => c.id === cueId) || null : null;
   const ownDuration = ownGrid && ownGrid.durationSeconds > 0 ? ownGrid.durationSeconds : null;
   // The music's grid. bpm is null without a beat (No music, or own music whose beat was not found); usableEnd is null
-  // without music (no cap). onsets / onsetThresholds are the music's band onsets in music seconds (manifest or
-  // beat-detect.cjs); the planner snaps the cuts to them. Own music without a reliable beat keeps its onsets: its
-  // fixed-length cuts snap to bass onsets only. hookBars (bundled cues only) scores each bar start for Start at the hook.
-  // approxBpm: own music whose grid beat-detect.cjs reports as 'approximate' (tight, but too few beats carry an onset):
-  // its tempo and first beat time the fixed-length shots (planner avApproxTempo); bpm stays null, so nothing else
-  // treats it as a beat grid.
+  // without music (no cap). onsets / onsetThresholds are the music's band onsets in music seconds (manifest or the
+  // beat detector); the planner snaps the cuts to them. Own music without a reliable beat keeps its onsets: its cuts
+  // snap to bass onsets only. approxBpm: own music whose grid the detector reports as 'approximate' (tight, but too
+  // few beats carry an onset): its tempo and first beat time the template (planner avApproxTempo); bpm stays null.
   const ownApprox = musicKind === "own" && ownGrid && !ownGrid.accepted && ownGrid.grid === "approximate" && ownGrid.bpm > 0;
-  const grid: any = musicKind === "none" ? { bpm: null, accepted: false, approxBpm: null, firstBeat: 0, usableEnd: null, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined, hookBars: null }
-    : musicKind === "own" ? (ownGrid && ownGrid.accepted
-      ? { bpm: ownGrid.bpm, accepted: true, approxBpm: null, firstBeat: ownGrid.firstBeat, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: ownGrid.beatEnergy || [], peaks: ownGrid.peaks || [], onsets: ownGrid.onsets || NO_ONSETS, onsetThresholds: ownGrid.onsetThresholds, hookBars: null }
-      : { bpm: null, accepted: false, approxBpm: ownApprox ? ownGrid.bpm : null, firstBeat: ownApprox ? ownGrid.firstBeat : 0, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: [], peaks: ownGrid?.peaks || [], onsets: ownGrid?.onsets || NO_ONSETS, onsetThresholds: ownGrid?.onsetThresholds, hookBars: null })
-    : cue ? { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null }
-    : { bpm: null, accepted: false, approxBpm: null, firstBeat: 0, usableEnd: 0, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined, hookBars: null };
-  // A grid only for 70-160 bpm with an accepted detection (spec 14.1); otherwise fixed shot lengths, on the beat of an
-  // approximate tempo when there is one (`tempo` is the grid's or that one, null for the 0.55 s fallback).
-  const gridded = avGridUsable({ bpm: grid.bpm, accepted: grid.accepted });
-  const approxTempo = avApproxTempo({ gridded, approxBpm: grid.approxBpm });
-  const tempo = gridded ? grid.bpm : approxTempo;
-  const guard: any = tempo ? avBeatsPerShot(pace, tempo) : { beats: null, overridden: false };
-  const shotSeconds = avShotSeconds({ bpm: grid.bpm, beatsPerShot: guard.beats, pace, gridded, approxBpm: approxTempo });
-  const requested = AV_LENGTHS[length];
-  // Groove (spec 15.1) is decided as avPlanBuild decides it: unless its tempo guard falls back to 2 beats per shot
-  // (above 150 bpm), the length is a beat span of whole bars and shotSeconds is the seconds per beat. Its phrase
-  // opener holds 2 beats, or 1 below 86 bpm (and 2 without a grid).
-  const grooved = pace === "groove" && (tempo ? !!guard.groove : true);
-  const opener = guard.groove ? guard.opener : 2;
-  // Music capacity (spec 14.2): the most shots (a multiple of 4) that fit from the earliest start, or for Groove the
-  // longest whole-bar span (avGrooveFit, shots = its pattern count); the section slider then only offers starts where
-  // that fits, so the plan's own music fit equals this.
-  const grooveFit: any = grooved ? avGrooveFit({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, beatSeconds: shotSeconds, opener }) : null;
-  const fitted = grooved ? grooveFit.shots : avFitShots({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });
-  // What the length asks for (Groove: the nominal span's pattern count, e.g. 25 shots for Standard) and the seconds of
-  // the fitted and the asked-for video. Groove's shots vary in length, so its seconds are always beats x beat.
-  const wanted = grooved ? avGrooveSpan(requested, opener).shots : requested;
-  const fittedSeconds = grooved ? grooveFit.beats * shotSeconds : fitted * shotSeconds;
-  const wantedSeconds = grooved ? grooveFit.requestedBeats * shotSeconds : requested * shotSeconds;
-  const videoSeconds = fitted ? fittedSeconds : wantedSeconds;
-  // A plan's length in seconds, and whether the footage made it shorter than the music allows (Groove compares beat
-  // spans: detected drum fills change its shot count inside the same span).
-  const planSeconds = (p: any) => (p.groove ? p.groove.beats * shotSeconds : p.shots * shotSeconds);
-  const planShort = (p: any) => (grooved ? !!p.groove && p.groove.beats < grooveFit.beats : p.shots < fitted);
-  const snap = (value: number) => (musicKind === "none" ? 0
-    : avSnapSection({ value, firstBeat: grid.firstBeat, bpm: tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: !!tempo }));
+  function musicGridFor(): any {
+    if (musicKind === "none") return NO_MUSIC_GRID;
+    if (musicKind === "own") {
+      const end = ownDuration ? ownDuration - 0.5 : 0;
+      return ownGrid && ownGrid.accepted
+        ? { bpm: ownGrid.bpm, accepted: true, approxBpm: null, firstBeat: ownGrid.firstBeat, usableEnd: end, beatEnergy: ownGrid.beatEnergy || [], peaks: ownGrid.peaks || [], onsets: ownGrid.onsets || NO_ONSETS, onsetThresholds: ownGrid.onsetThresholds }
+        : { bpm: null, accepted: false, approxBpm: ownApprox ? ownGrid.bpm : null, firstBeat: ownApprox ? ownGrid.firstBeat : 0, usableEnd: end, beatEnergy: [], peaks: ownGrid?.peaks || [], onsets: ownGrid?.onsets || NO_ONSETS, onsetThresholds: ownGrid?.onsetThresholds };
+    }
+    return cue ? cueGrid(cue) : { bpm: null, accepted: false, approxBpm: null, firstBeat: 0, usableEnd: 0, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined };
+  }
+  function musicFitFor() { return musicFit(musicGridFor(), length, pace); }
+  const grid = musicGridFor();
+  const fit = musicFitFor();
+  const { gridded, tempo, fitted, videoSeconds, snap } = fit;
+  const approxTempo = fit.approxBpm;
   // The section start the build uses; with music, every cut shifts with its frame-snapped start (planner avMusicOffset).
   const start = musicKind === "none" ? 0 : snap(section ?? 0);
   const musicStart = musicKind === "none" ? null : start;
   // Onset snapping for every plan; without a reliable beat only bass onsets count, in a wider window.
   const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };
+  const planSeconds = (p: any) => fit.seconds(p.shots);
 
-  // The hook window for the current length and pace (Start at the hook on a bundled track with a grid), else null.
-  const hookSection = () => (hook && gridded && musicKind === "cue" ? avHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null);
-  // A new track (or its grid) defaults the section to the most energetic window that fits; with Start at the hook,
-  // to the track's best-scoring hook window that fits (spec 15.3), falling back to the energy default when the track
-  // has no hook scores (your own music). Toggling Start at the hook picks the default again.
-  // `assets` is a dependency so the default also applies once the manifest has loaded.
+  // A new track (or its grid) starts on its default section: a bundled cue's soft intro, else the most energetic
+  // window that fits. `assets` is a dependency so the default also applies once the manifest has loaded.
   React.useEffect(() => {
     if (musicKind === "none") return;
-    if (!gridded) { setSection(snap(0)); return; }
-    const hookAt = hookSection();
-    setSection(hookAt ?? avDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? snap(grid.firstBeat));
-  }, [assets, cueId, ownMusic?.path, ownGrid, hook]);
-  // A new length or pace keeps the chosen start and only re-clamps it.
-  // With Start at the hook it moves to the hook window for the new length and pace instead.
-  React.useEffect(() => { const hookAt = hookSection(); setSection((s) => hookAt ?? snap(s ?? 0)); }, [length, pace]);
+    sectionTouchedRef.current = false;
+    setSection(fit.defaultSection());
+  }, [assets, cueId, ownMusic?.path, ownGrid]);
+  // A new length or pace moves an untouched section to the default for the new length, and only re-clamps one the
+  // user chose.
+  React.useEffect(() => {
+    if (musicKind === "none") return;
+    if (!sectionTouchedRef.current) setSection(fit.defaultSection());
+    else setSection((s) => snap(s ?? 0));
+  }, [length, pace]);
+  const moveSection = (v: number | null) => { sectionTouchedRef.current = true; setSection(v); };
   // A new track, section, length or pace makes a running preview stale, so it stops.
   React.useEffect(() => { stopPreview(); }, [cueId, ownMusic?.path, section, length, pace]);
 
-  async function detectOwnMusic(file: { path: string; name: string }) {
-    if (busyRef.current || !roots) return;
-    busyRef.current = true;
-    setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("listening");
+  // ---- Style: preset, title fields, credit ----
+  const presetList: any[] = assets?.presets.presets || [];
+  const chosen = presetList.find((x) => x.id === preset) || null;
+  // A field's text: the user's edit, else the preset's initial text.
+  const fieldText = (fl: any) => fieldEdits[fl.key] ?? fl.initial ?? "";
+  const setField = (fl: any, value: string) => {
+    const v = fieldClip(String(value), fl.max);
+    setFieldEdits((all) => ({ ...all, [fl.key]: v }));
+  };
+  // A new preset: typed text stays; a field still showing the old preset's text takes the new preset's. The same for
+  // the credit prefix and name.
+  const choosePreset = (id: string) => {
+    if (busyRef.current || id === preset) return;
+    const old = chosen, next = presetList.find((x) => x.id === id);
+    if (old && next) {
+      setFieldEdits((all) => {
+        const out: Record<string, string> = {};
+        for (const fl of next.fields) {
+          const v = all[fl.key], was = old.fields.find((o: any) => o.key === fl.key);
+          if (v != null && v !== (was?.initial ?? "")) out[fl.key] = fieldClip(v, fl.max);
+        }
+        return out;
+      });
+      setCreditPrefix((v) => (v != null && v !== (old.credit?.prefix || "") ? v : null));
+      setCreditName((v) => (v != null && v !== (old.credit?.name || "") ? v : null));
+    }
+    setPreset(id);
+  };
+  const titleFields: Record<string, string> = chosen ? Object.fromEntries(chosen.fields.map((fl: any) => [fl.key, fieldText(fl)])) : {};
+  const titleText = String(titleFields.title || "").trim();
+  const samplePrefix = chosen?.credit?.prefix || "", sampleName = chosen?.credit?.name || "";
+  const prefixText = creditPrefix ?? samplePrefix;
+  const nameText = creditName ?? sampleName;
+  // The credit is built when Credit shot is on and the name is not empty.
+  const creditUsed = creditOn && !!nameText.trim();
+  const presetStrength = avLookStrength(chosen);
+  const strength = lookStrength ?? presetStrength;
+  // The preview's opening timing: the 6-beat opening at the current tempo (the Draft's comes from its real frames).
+  const openingSeconds = 6 * (60 / tempo);
+  // The lockup and credit data as the Draft gets them (fonts by family with their metrics; no font data needed here).
+  const previewData = React.useMemo(() => {
+    if (!chosen || !assets) return null;
+    const base: any = { preset: chosen.id, ...titleFields, titleColor: chosen.colors.title, textColor: chosen.colors.text, taglineTracking: chosen.taglineTracking,
+      size: TITLE_LOOK.size, speed: TITLE_LOOK.speed, font: TITLE_LOOK.font, timing: avOpeningTiming(openingSeconds),
+      fonts: avPresetFonts(assets.presets, chosen, null) };
+    // Wide glyphs (Hangul) are measured in the system Korean face once the fonts are in; the same data feeds the
+    // layout and the decode state.
+    let ko: any = null;
+    try { ko = AV_TITLE.avKoMeasure(base); } catch { ko = null; }
+    return ko ? Object.assign({}, base, ko) : base;
+  }, [chosen, assets, JSON.stringify(titleFields), openingSeconds, fontsReady]);
+  // The lockup at canvas size, or null when the layout throws (the box then says the preview is unavailable).
+  const previewLayout: any = React.useMemo(() => {
+    if (!previewData) return null;
+    try { return AV_TITLE.avTitleLayout(previewData, AV_W, AV_H); } catch { return null; }
+  }, [previewData]);
+  const previewState: any = React.useMemo(() => {
+    if (!previewLayout || !previewData) return null;
+    try { return AV_TITLE.avDecodeFrame(previewLayout, previewData, replayFrame == null ? 1e9 : replayFrame, 30); } catch { return null; }
+  }, [previewLayout, previewData, replayFrame]);
+  const creditLayout: any = React.useMemo(() => {
+    if (!chosen || !assets || !creditUsed) return null;
+    const base: any = { prefix: prefixText, name: nameText, color: chosen.colors.text, size: CREDIT_LOOK.size,
+      fonts: avPresetFonts(assets.presets, chosen, null).filter((x: any) => x.family === CREDIT_FAMILY) };
     try {
-      // The decoded PCM (up to ~32 MB) is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit status.
-      // The result goes to a file (a long track's onsets come close to the 48 KB shell output cap); stdout says ok.
-      const pcm = roots.data + "/own-music.f32";
-      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && node " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json")
-        + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
-      const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
-      const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
-      if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw done.error || r.stderr ? new Error(done.error || r.stderr) : uiError((l) => t(l, "beatFailed"));
-      const g = JSON.parse(await readText(roots.data, "own-music.json"));
+      const ko = AV_CREDIT.avcKoMeasure(base);
+      return AV_CREDIT.avCreditLayout(ko ? Object.assign({}, base, ko) : base, AV_W, AV_H);
+    } catch { return null; }
+  }, [chosen, assets, creditUsed, prefixText, nameText, fontsReady]);
+  // Replays the decode from just before the kicker appears, at 30 fps, then shows the finished lockup again.
+  function replayTitle() {
+    if (!previewLayout || !previewData) return;
+    const token = ++replayRef.current, fps = 30;
+    const tm = AV_TITLE.avTiming(previewData);
+    const from = Math.max(0, Math.round(tm.textIn * fps) - 6);
+    const end = Math.round(tm.decodeStart * fps) + Math.ceil((previewLayout.steps || 0) * tm.letterSeconds * fps) + 2;
+    const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const tick = () => {
+      if (replayRef.current !== token || !mountedRef.current) return;
+      const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const frame = from + Math.floor(((now - t0) / 1000) * fps);
+      if (frame > end) { setReplayFrame(null); return; }
+      setReplayFrame(frame);
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }
+  // A new preset or title text shows the finished lockup (any replay stops).
+  React.useEffect(() => { replayRef.current++; setReplayFrame(null); }, [preset, JSON.stringify(titleFields)]);
+  // The credit field limits (fieldLen units).
+  const prefixMax = CREDIT_NAME_MAX, nameMax = CREDIT_NAME_MAX;
+
+  // Stops a running own-music analysis; true when one was running.
+  function cancelOwnMusic() {
+    const job = ownJobRef.current, running = !!job.abort;
+    job.id++;
+    if (job.abort) { job.abort.abort(); job.abort = null; }
+    if (mountedRef.current) setListening(false);
+    return running;
+  }
+  async function detectOwnMusic(file: { path: string; name: string }) {
+    if (busyRef.current || !roots || !assets) return;
+    cancelOwnMusic();
+    const job = ownJobRef.current, id = job.id, pid = projectRef.current, abort = new AbortController();
+    job.abort = abort;
+    const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;
+    stopPreview();
+    setOwnMusic(file); setOwnGrid(null); setListening(true); setStatus(null);
+    let samples: Float32Array | null = null;
+    try {
+      samples = await decodeOwnMusic(file.path, roots.data, abort.signal);
+      if (!live()) return;
+      const g = await analyseBeat(assets.beatWorker, samples, abort.signal);
+      if (!live()) return;
+      if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
-      // What was found is shown under the file (ownBeatLine), next to where the music was chosen.
-      setStatus(null);
     } catch (e: any) {
-      // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
-      let duration: number | null = null;
-      try {
-        const pr = await sdk.runShell({ summary: "Read the length of " + file.name, command: TOOL_PATH + "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " + sq(file.path), timeoutMs: 20000 });
-        const v = parseFloat(String(pr?.stdout || "").trim());
-        if (!pr?.isError && v > 0) duration = Math.min(v, 360);
-      } catch { duration = null; }
+      if (!live()) return;
+      // Any failure falls back to fixed timing (no grid); the track's real length still bounds the section.
+      let duration: number | null = samples && samples.length ? Math.round((samples.length / OWN_RATE) * 1000) / 1000 : null;
+      if (!duration) { const v = await hostProbeSeconds(file.path); if (v) duration = Math.min(v, OWN_MAX_SECONDS); }
+      if (!live()) return;
       setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });
       setStatus(duration
-        ? { tone: "info", say: (l: Lang) => t(l, "musicApprox", { detail: sayError(l, e) }) }
-        : { tone: "error", say: (l: Lang) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
-    } finally { busyRef.current = false; setBusy(false); setStep(""); }
+        ? { tone: "info", say: errorSay(e, (l, detail) => t(l, "musicApprox", { detail })) }
+        : { tone: "error", say: errorSay(e, (l, detail) => t(l, "musicUnreadable", { detail })) });
+    } finally {
+      // The decoded samples (up to about 21 MB) are dropped with this call.
+      samples = null;
+      if (ownJobRef.current.id === id) { ownJobRef.current.abort = null; if (mountedRef.current) setListening(false); }
+    }
   }
 
-  // Section preview: "idle" -> "loading" (ffmpeg cut) -> "playing". Every start or stop bumps the token, so a late
-  // result from a cancelled preparation is dropped.
+  // Section preview: "idle" -> "loading" (reading the file) -> "playing". The whole track plays from a blob: URL of its
+  // bytes, seeked to the section start; it fades out over the section's last PREVIEW_FADE seconds and stops at its end.
+  // Every start or stop bumps the token, so a late result from a cancelled preparation is dropped.
   function stopPreview() {
     previewTokenRef.current++;
+    if (previewTimerRef.current) { clearInterval(previewTimerRef.current); previewTimerRef.current = null; }
     const a = audioRef.current;
     audioRef.current = null;
     if (a) { a.onended = null; a.pause(); }
-    if (previewUrlRef.current) { try { URL.revokeObjectURL(previewUrlRef.current); } catch { /* data URL */ } previewUrlRef.current = null; }
+    if (previewUrlRef.current) { try { URL.revokeObjectURL(previewUrlRef.current); } catch { /* gone */ } previewUrlRef.current = null; }
     if (mountedRef.current) { setPlayState("idle"); setPlayingAudio(null); }
   }
 
@@ -3701,43 +4090,43 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     const live = () => previewTokenRef.current === token && mountedRef.current;
     setPlayState("loading");
     try {
-      const file = ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file;
-      // The whole section, written to a file (stdout is too small for ~20 s) and read back as base64 text.
-      // Earlier previews are removed first and the mp3 once encoded, so the data folder never collects them.
-      const dur = videoSeconds, base = roots.data + "/preview-" + token;
-      const cmd = TOOL_PATH + "rm -f " + sq(roots.data) + "/preview-*.mp3 " + sq(roots.data) + "/preview-*.b64; "
-        + "ffmpeg -nostdin -v error -y -ss " + start.toFixed(2) + " -t " + dur.toFixed(2) + " -i " + sq(file)
-        + " -ac 1 -ar 22050 -b:a 48k -af \"afade=t=out:st=" + Math.max(0, dur - 0.4).toFixed(2) + ":d=0.4\" -f mp3 " + sq(base + ".mp3")
-        + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64") + " && rm -f " + sq(base + ".mp3");
-      const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 60000 });
+      const file = musicKind === "own" ? ownMusic!.path : pjoin(roots.plugin, "assets", "cues", cue.file);
+      const bytes = await readBytes(file);
       if (!live()) return;
-      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw r?.stderr ? new Error(r.stderr) : uiError((l) => t(l, "previewNotCut"));
-      const b64 = (await readText(roots.data, "preview-" + token + ".b64")).replace(/\s+/g, "");
-      // Best-effort cleanup of the encoded file; playback does not wait for it.
-      void Promise.resolve(sdk.runShell({ summary: "Remove preview file", command: TOOL_PATH + "rm -f " + sq(base + ".b64"), timeoutMs: 10000 })).catch(() => {});
-      if (!live()) return;
-      if (b64.length < 200) throw uiError((l) => t(l, "noAudio"));
-      let url: string;
-      if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
-        const bin = atob(b64), bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
-        previewUrlRef.current = url;
-      } else url = "data:audio/mpeg;base64," + b64;
+      if (!bytes.byteLength) throw uiError((l) => t(l, "noAudio"));
+      const url = URL.createObjectURL(new Blob([bytes as any], { type: audioType(file) }));
+      previewUrlRef.current = url;
       const audio = new Audio(url);
-      audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
+      audio.preload = "auto";
       audioRef.current = audio;
+      // Seek once the length is known, then play.
+      await new Promise<void>((ok, fail) => {
+        audio.onloadedmetadata = () => ok();
+        audio.onerror = () => fail(uiError((l) => t(l, "noAudio")));
+      });
+      if (!live() || audioRef.current !== audio) return;
+      const from = start, end = start + videoSeconds;
+      audio.currentTime = from;
+      audio.volume = 1;
+      audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
       await audio.play();
       if (!live() || audioRef.current !== audio) { audio.pause(); return; }
+      // The fade and the stop at the section's end.
+      previewTimerRef.current = setInterval(() => {
+        if (audioRef.current !== audio) return;
+        const at = audio.currentTime;
+        if (at >= end) { stopPreview(); return; }
+        audio.volume = Math.max(0, Math.min(1, (end - at) / PREVIEW_FADE));
+      }, 40);
       setPlayState("playing"); setPlayingAudio(audio);
     } catch (e: any) {
       if (!live()) return;
       stopPreview();
-      setStatus({ tone: "error", say: (l: Lang) => t(l, "previewFailed", { detail: sayError(l, e) }) });
+      setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "previewFailed", { detail })) });
     }
   }
 
-  async function findCandidates(rids: string[], pid: string, check: () => void, queries: Record<string, string>) {
+  async function findCandidates(rids: string[], pid: string, check: () => void) {
     const list: any[] = []; const failed: string[] = [];
     // SEARCH_BATCH clips per call keeps each scene search under runScript's fixed 30 s deadline.
     // pageSize stays 4: hits are scene-level, so 8 adds almost no new times; the planner fills gaps with filler candidates.
@@ -3745,7 +4134,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       // Only videos are searched (photos join without a search), so the count is in videos.
       const done = i;
       advance("shots", i / rids.length, (l) => t(l, "videosChecked", { done, count: rids.length }));
-      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
+      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
       check();
       list.push(...r.candidates); failed.push(...r.failed);
     }
@@ -3780,20 +4169,23 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     if (gate) { setStatus({ tone: "error", say: gate }); return; }
     const pid = projectId;
     const check = () => { if (projectRef.current !== pid) throw STALE; };
-    // Every input as it is at Build. The build and a later "Finish title and look" read only this.
+    // Every input as it is at Build. The build and a later "Finish title and look" read only this; the Inspector labels
+    // are written in the UI language of this moment and do not follow a later switch.
     const frozen = Object.freeze({
-      pid, seed: nextSeed, preset, presetLabel: chosen.label, fields: { ...titleFields },
-      music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? roots.plugin + "/assets/cues/" + cue.file : null,
-      sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,
-      draftName: "Archive Vlog " + chosen.label + " " + stamp(new Date()),
+      pid, seed: nextSeed, preset, fields: { kicker: titleFields.kicker || "", title: titleFields.title || "", tagline: titleFields.tagline || "" },
+      credit: { on: creditUsed, prefix: prefixText.trim(), name: nameText.trim() }, clipSound, look: { on: look, strength }, usePhotos, only, onlyPhotos,
+      music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null,
+      sectionStart: musicStart, pace, length, requested: fit.requested,
+      labels: adjustLabelsFor(L), motionOptions: motionOptionsFor(L),
+      draftName: draftNameOf(titleFields.title, chosen.label, new Date()),
     });
     busyRef.current = true;
     stopPreview();
     setBusy(true); setStatus(null); setResult(null);
     advance("shots", 0);
     try {
-      // The scene search is cached per Project, clip selection and query set (the motion query runs only with Beat punch).
-      const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");
+      // The scene search is cached per Project and clip selection.
+      const key = pid + "|" + JSON.stringify(only);
       const rids: string[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid)).map((r: any) => r.rid);
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
       const cached = candidates && candidates.key === key ? candidates : null;
@@ -3804,23 +4196,23 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       if (!cached || cached.failed.length) {
         // Search everything the first time; afterwards retry only the clips whose search failed.
         const todo: string[] = cached ? cached.failed : rids;
-        const fresh = await findCandidates(todo, pid, check, avSearchQueries(AV_QUERIES, frozen.punch));
+        const fresh = await findCandidates(todo, pid, check);
         const retried = new Set(todo);
         found = { key, failed: fresh.failed,
           list: [...(cached ? cached.list.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))] };
         setCandidates(found);
       }
       advance("shots", 1, shotsDetail);
-      // Photos join as candidates without a search; with Use photos off there are none (the planner would otherwise
-      // retry with photos first).
+      // Photos join as candidates without a search; with Use photos off there are none.
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
-      // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. With Beat punch,
-      // motion hits become a tie-break bonus on the role candidates first (avMotionBonus).
-      const plan: any = avPlanBuild({ candidates: (frozen.punch ? avMotionBonus(found.list) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });
+      // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. Motion hits
+      // become a tie-break bonus on the role candidates first (avMotionBonus).
+      const plan: any = avPlanBuild({ candidates: avMotionBonus(found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30,
+        pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });
       if (!plan.ok) {
         const failed = found.failed.length;
         // Whole sentences joined with `gap` (no space after a full stop in ja and zh).
-        throw uiError((l) => [AV_FAIL[plan.reason] ? t(l, "fail." + plan.reason) : t(l, "noPlan"),
+        throw uiError((l) => [failText(l, plan.reason, plan),
           plan.reason === "too-few" ? (usePhotos ? t(l, "addFootagePhotos") : t(l, "addFootage")) : "",
           failed ? t(l, "retryUnchecked", { count: failed }) : ""].filter(Boolean).join(t(l, "gap")));
       }
@@ -3828,18 +4220,12 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       const music = frozen.musicPath == null ? null
         : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath }), true);
       check();
-      // Cut seconds from the section start: the grid, or the onset-snapped cuts (planner avSchedule `cuts`).
-      const boundaries: number[] = plan.schedule.cuts;
       advance("music", 1);
       advance("draft", 0);
-      // Photo sizes the inventory has not measured yet stay out; assemble.js measures those itself.
-      const crops = Object.fromEntries([...inventory.resources, ...(inventory.photos || []).filter((r: any) => r.width > 0 && r.height > 0)]
-        .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
       let a: any = null, lost: any = null;
       try {
-        a = await run("Assemble Archive Vlog", fill(assets.scripts.assembleJs, {
-          projectId: pid, draftName: frozen.draftName, picks: plan.picks, boundaries, crops,
-          music: music ? { resourceId: music.resourceId, sectionStart: frozen.sectionStart ?? 0 } : null, clipSound: frozen.clipSound, ambientDb: AMBIENT_DB }), true);
+        a = await run("Assemble Archive Vlog", fill(assets.scripts.assembleJs, avAssembleConfig({ projectId: pid, draftName: frozen.draftName, plan, inventory,
+          music, sectionStart: frozen.sectionStart, clipSound: frozen.clipSound })), true);
       } catch (e) { lost = e; }
       check();
       if (!a || !a.sequenceId) {
@@ -3851,10 +4237,11 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         a = { ...saved, notes: [...(a?.notes || []), "the Draft was found after its reply was lost"] };
       }
       if (!(a.totalFrames > 0)) throw uiError((l) => t(l, "draftEmpty", { name: frozen.draftName }));
-      // The planner drops shots when the footage cannot fill them; tell the user the real length at the Draft fps.
-      const shortened = planShort(plan) ? { shots: plan.shots, of: fitted, seconds: a.totalFrames / a.fps } : null;
+      // The planner drops montage shots when the footage cannot fill them; tell the user the real length at the Draft fps.
+      const shortened = plan.shots < fitted ? { shots: plan.shots, of: fitted, seconds: a.totalFrames / a.fps } : null;
       advance("draft", 1);
-      const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, plan, notes: a.notes || [], link: null, shortened, unchecked: found.failed.length };
+      const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, plan, notes: a.notes || [], link: null, shortened,
+        unchecked: found.failed.length, noVideo: (plan.notes || []).includes("no-video") };
       setResult(res);
       await decorate(res, check);
     } catch (e: any) {
@@ -3883,57 +4270,20 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     finally { endRun(pid); }
   }
 
-  // Commit 2 (mute the clips' own sound when Clip sound is Off, the title lockup, Soft look and photo motion), then
-  // open the Draft. decorate.js skips what an earlier attempt already added, so a retry is safe.
+  // Commit 2 (mute when Clip sound is Off, the decode title, the credit, the letterbox reveal, photo and shot motion,
+  // the fade out and the Cinematic look), then open the Draft. decorate.js skips what an earlier attempt already
+  // added, so a retry is safe.
   async function decorate(res: any, check: () => void) {
     advance("look", 0);
     const f = res.frozen;
-    // Inspector labels are written into the Draft in the UI language at build time; they do not follow a later switch.
-    const bl = langRef.current;
     try {
-      const p = assets.presets.presets.find((x: any) => x.id === f.preset);
-      if (!p) throw new Error("the title preset " + f.preset + " is missing");
-      // Only the chosen preset's fonts travel with the title, each with its advance metrics.
-      const fonts = await Promise.all(presetFonts(p, assets.presets).map(async (x: any) => {
-        const { file, ...face } = x;
-        return { ...face, metrics: assets.presets.metrics[x.family] || null, b64: await fontB64(roots!.plugin, file) };
-      }));
+      const fonts = await allFonts(roots!.plugin, assets.presets);
       check();
-      // Text fields are flat Adjust keys (the layout reads data[key] first); `fields` keeps the Build-time text too.
-      const flat: Record<string, string> = {};
-      for (const fl of p.fields) flat[fl.key] = String(f.fields[fl.key] ?? "");
-      const parameters = { preset: f.preset, ...flat, fields: { ...flat }, primary: p.colors.primary, secondary: p.colors.secondary, ...TITLE_LOOK, fonts,
-        provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart, pace: f.pace, length: f.length,
-          seed: f.seed, clipSound: f.clipSound, punch: f.punch, hook: f.hook, groove: res.plan.groove || null, picks: res.plan.picks } };
-      const editableParameters = [
-        ...p.fields.map((fl: any) => ({ key: fl.key, label: tOr(bl, "field." + p.id + "." + fl.key, fl.label), type: "text", defaultValue: flat[fl.key] })),
-        { key: "primary", label: t(bl, "param.mainColor"), type: "color", defaultValue: p.colors.primary },
-        { key: "secondary", label: t(bl, "param.secondColor"), type: "color", defaultValue: p.colors.secondary },
-        { key: "shadow", label: t(bl, "param.shadow"), type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
-        { key: "size", label: t(bl, "param.size"), type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },
-        { key: "x", label: t(bl, "param.x"), type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },
-        { key: "y", label: t(bl, "param.y"), type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },
-        { key: "sparkles", label: f.preset === "archive-vlog" ? t(bl, "param.sparkles") : t(bl, "param.stars"), type: "boolean", defaultValue: TITLE_LOOK.sparkles },
-      ];
-      const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));
-      const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };
-      // Photos in this Draft and a planned motion for each of them (the title restricts none).
-      const photoRids = [...new Set(res.plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
-      const sizes: Record<string, { width: number; height: number }> = { ...photoSizesRef.current };
-      const moves: any[] = avPhotoMotions(res.plan.picks, String(f.seed), sizes);
-      const byRid: Record<string, any> = {};
-      res.plan.picks.forEach((k: any, i: number) => {
-        if (!moves[i]) return;
-        const sz = sizes[k.rid];
-        // The clip's cover-crop scale, so the motion's drift stays inside the photo.
-        const cover = sz ? Math.max(AV_W / sz.width, AV_H / sz.height) / Math.min(AV_W / sz.width, AV_H / sz.height) : 1;
-        byRid[k.rid] = { ...moves[i], cover };
-      });
-      // Beat punch (spec 15.2 b/c) on every video clip: punches on the bar downbeats at the Draft's real fps, or the
-      // push-in only without a beat grid. decorate.js matches Main clip i to picks[i] and works out each clip's frames.
-      const punch = f.punch ? { tsx: assets.punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: f.bpm ? 60 / f.bpm * res.fps : 0,
-        punchFrames: avPunchFrames({ bpm: f.bpm, fps: res.fps, sectionStart: f.sectionStart, videoEnd: res.videoEnd }), picks: res.plan.picks } : null;
-      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch, labels }), true);
+      const cfg = avDecorateConfig({ sequenceId: res.sequenceId, videoEnd: res.videoEnd, fps: res.fps, plan: res.plan, presets: assets.presets, tsx: assets.tsx, fonts,
+        sizes: { ...photoSizesRef.current }, frozen: f,
+        provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart,
+          pace: f.pace, length: f.length, seed: f.seed, clipSound: f.clipSound, look: f.look.on, credit: f.credit.on } });
+      await run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
       check();
     } catch (e: any) {
       if (e === STALE) throw e;
@@ -3987,32 +4337,32 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   // Once a build has searched the current selection (or nothing needs searching: no video selected), plan it for the
   // readiness line, so the fitted shot count and a failure reason show before Build. The allocation depends on the
   // seed, so each button is gated with the seed it builds with: Build uses `seed`, Try other shots `seed + 1`.
-  const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");
+  const candKey = projectId + "|" + JSON.stringify(only);
   const readyPlans: any = React.useMemo(() => {
     if (!inventory || !fitted) return { build: null, another: null };
     const searched = candidates && candidates.key === candKey ? candidates : null;
     if (!searched && selectedRids.length) return { build: null, another: null };
-    const list = searched ? searched.list : [];
-    const scored = beatPunch ? avMotionBonus(list) : list;
+    const scored = avMotionBonus(searched ? searched.list : []);
     const planAt = (s: number) => {
-      const p: any = avPlanBuild({ candidates: scored.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(s) });
+      const p: any = avPlanBuild({ candidates: scored.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30,
+        pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(s) });
       // A search with failed clips is retried by Build, so its shortfall does not block Build yet.
       return { ...p, retryable: !!(searched && searched.failed.length) };
     };
     return { build: planAt(seed), another: planAt(seed + 1) };
-  }, [candidates, candKey, inventory, onlyPhotos, usePhotos, grid.bpm, grid.accepted, grid.approxBpm, grid.usableEnd, grid.onsets, pace, requested, musicStart, seed, fitted, selectedRids.length, beatPunch]);
+  }, [candidates, candKey, inventory, onlyPhotos, usePhotos, grid.bpm, grid.accepted, grid.approxBpm, grid.usableEnd, grid.onsets, pace, fit.requested, musicStart, seed, fitted, selectedRids.length]);
   const readyPlan: any = readyPlans.build;
   // Why a build with this readiness plan cannot run (null when it can), as a message in the UI language.
   const baseBlock: Say | null = !inventory || !assets ? null
     : inventory.incomplete ? (l) => t(l, "sizesLoading")
-    : !bigText ? (l) => t(l, "typeBigWord")
+    : !titleText ? (l) => t(l, "typeTitle")
+    : listening ? (l) => t(l, "listening")
     : musicKind === "own" && !ownMusic ? (l) => t(l, "dropMusic")
     : musicKind === "own" && !ownDuration ? (l) => t(l, "musicLengthUnread")
     : musicKind !== "none" && (!fitted || start == null) ? (l) => t(l, "fail.music-too-short")
     : selectedRids.length + usedPhotoCount < 2 ? (l) => t(l, "fail.one-resource")
     : null;
-  const blockFor = (plan: any): Say | null => baseBlock || (plan && !plan.ok && !plan.retryable
-    ? (l) => (AV_FAIL[plan.reason] ? t(l, "fail." + plan.reason) : t(l, "noPlan")) : null);
+  const blockFor = (plan: any): Say | null => baseBlock || (plan && !plan.ok && !plan.retryable ? (l) => failText(l, plan.reason, plan) : null);
   const blockReason = blockFor(readyPlan);
   const anotherBlock = blockFor(readyPlans.another);
   const ready = !!inventory && !!assets && !!roots;
@@ -4024,41 +4374,38 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
     usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
   ].filter(Boolean).join(" · ");
-  const plannedSeconds = readyPlan && readyPlan.ok ? planSeconds(readyPlan) : videoSeconds;
   const readiness = !inventory ? (invError ? (invError.busy ? invError.say(L) : t(L, "invFailed")) : t(L, "checkingClipsNow"))
     : inventory.incomplete && incompleteStalled ? t(L, "invPartial")
     : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? t(L, "stillReading")
     : inventory.resources.length === 0 && !allPhotoRids.length ? (analysisText || t(L, "noFootage"))
     : inventory.resources.length === 0 && !usePhotos ? [analysisText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))
     : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
-    : t(L, "ready", { summary: [clipCount, t(L, "aboutSeconds", { seconds: Math.round(plannedSeconds) }), ...avAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
-  // Requested vs fitted shots (spec 14.2), then the footage's own fit once it is known.
-  // Seconds shown with one decimal (formatted for the language by t()).
+    : t(L, "ready", { summary: [clipCount, ...avAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
+  // Requested vs fitted montage shots, then the footage's own fit once it is known. Seconds with one decimal.
   const tenths = (s: number) => Math.round(s * 10) / 10;
+  const lengthName = length === "short" ? t(L, "length.short") : length === "long" ? t(L, "length.long") : t(L, "length.standard");
   const fitLine = !assets ? null
     : musicKind !== "none" && !fitted ? t(L, "fail.music-too-short")
-    : (grooved ? grooveFit.beats < grooveFit.requestedBeats : fitted < requested) ? t(L, "fitPartial", { length: t(L, "length." + length), fitted, count: wanted, seconds: tenths(fittedSeconds) })
-    : t(L, "fitFull", { length: t(L, "length." + length), count: wanted, seconds: tenths(wantedSeconds) });
-  const footageLine = readyPlan && readyPlan.ok && planShort(readyPlan)
+    : fitted < fit.top ? t(L, "fitPartial", { length: lengthName, fitted, count: fit.top, seconds: tenths(videoSeconds) })
+    : t(L, "fitFull", { length: lengthName, count: fit.top, seconds: tenths(videoSeconds) });
+  const footageLine = readyPlan && readyPlan.ok && readyPlan.shots < fitted
     ? t(L, "footageFits", { fitted: readyPlan.shots, count: fitted, seconds: tenths(planSeconds(readyPlan)) }) : null;
-  // The tempo guard's override, or fixed timing without a grid (spec 14.1). Groove's guards: below 86 bpm its phrase
-  // opener holds 1 beat, above 150 bpm it plays 2 beats per shot.
-  // Fixed timing without a grid: the shot length, or for Groove its 0.55 s beat and the 2-beat, 1-beat and 8th shots.
+  // How long a montage shot lasts, and the fixed beat without a grid.
+  const montageBeats = avMontageBeats(pace, tempo);
   const hundredths = (s: number) => Math.round(s * 100) / 100;
-  const timing = grooved ? t(L, "grooveTiming", { beat: hundredths(shotSeconds), hold: hundredths(2 * shotSeconds), eighth: Math.round(shotSeconds / 2 * 1000) / 1000 })
-    : t(L, "seconds", { seconds: hundredths(shotSeconds) });
+  const shotNote = t(L, "montageBeats", { count: montageBeats, seconds: hundredths(montageBeats * 60 / tempo) });
   // A tempo that was found (an accepted grid, or own music's approximate one) but is outside 70-160 bpm, else null. Used
   // only where no grid or approximate tempo applies, so it is always out of range there.
   const outsideBpm: number | null = grid.accepted ? grid.bpm : ownApprox ? ownGrid.bpm : null;
+  // Above 110 bpm the template doubles its beats per shot (planner avMontageBeats), so shots keep their length.
+  const fastNote = tempo > 110 ? t(L, "fastTempo") : "";
   const paceNote = !assets ? null
-    : guard.overridden ? (pace === "quick" ? t(L, "quickTwoBeats", { bpm: Math.round(tempo) }) : pace === "relaxed" ? t(L, "relaxedOneBeat", { bpm: Math.round(tempo) })
-      : guard.groove ? t(L, "grooveOneBeat", { bpm: Math.round(tempo) }) : t(L, "grooveTwoBeats", { bpm: Math.round(tempo) }))
-    : !gridded ? (musicKind === "none" ? t(L, "noMusicTiming", { timing })
-      : musicKind === "own" && !ownGrid ? null
-      : approxTempo ? t(L, "faintTempoTiming", { bpm: Math.round(approxTempo), timing })
-      : outsideBpm ? t(L, "outsideTempoTiming", { bpm: Math.round(outsideBpm), timing })
-      : t(L, "noBeatTiming", { timing }))
-    : null;
+    : gridded ? [shotNote, fastNote].filter(Boolean).join(t(L, "gap"))
+    : musicKind === "none" ? [t(L, "noMusicTiming", { bpm: Math.round(tempo) }), shotNote].join(t(L, "gap"))
+    : musicKind === "own" && !ownGrid ? null
+    : approxTempo ? [t(L, "faintTempoTiming", { bpm: Math.round(approxTempo) }), shotNote, fastNote].filter(Boolean).join(t(L, "gap"))
+    : outsideBpm ? [t(L, "outsideTempoTiming", { bpm: Math.round(outsideBpm), fixed: Math.round(tempo) }), shotNote].join(t(L, "gap"))
+    : [t(L, "noBeatTiming", { bpm: Math.round(tempo) }), shotNote].join(t(L, "gap"));
   // What the beat detection found in your own music, shown under the file (null while it runs, and after a failed
   // detection, whose reason goes to the status line).
   const ownBeatLine: string | null = musicKind !== "own" || !ownGrid || ownGrid.failed ? null
@@ -4069,30 +4416,34 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const peaks: number[] = grid.peaks || [];
   const total = musicKind === "own" ? (ownDuration || 1) : (cue ? cue.duration : 1);
   const silent = musicKind === "none" && clipSound === "off";
-  const canOwnMusic = tools.ffmpeg && tools.node;
+  // Your own music needs the panel to read files (FileSystem.readFile); every host this app supports has it.
+  const canOwnMusic = !!hostApi("FileSystem", "readFile");
   const cues: any[] = assets?.manifest.cues || [];
-  const referenceCues = cues.filter((c) => c.group !== "alternative");
-  const alternativeCues = cues.filter((c) => c.group === "alternative");
-  const chooseTrack = (v: string) => { if (busyRef.current) return; setCueId(v); if (v !== "own") { setOwnMusic(null); setOwnGrid(null); } };
+  const chooseTrack = (v: string) => {
+    if (busyRef.current) return;
+    setCueId(v);
+    if (v !== "own") { cancelOwnMusic(); setOwnMusic(null); setOwnGrid(null); }
+  };
   // One row of the track list: a radio-style button that truncates its name and keeps the tempo visible.
   const trackRow = (value: string, label: string, meta: string) => {
     const on = cueId === value;
     return (
       <button key={value} type="button" role="radio" aria-checked={on} disabled={busy} onClick={() => chooseTrack(value)}
-        style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", minWidth: 0, padding: "5px 8px", border: "none", borderRadius: "var(--panel-radius, 6px)", cursor: busy ? "default" : "pointer",
-          color: "inherit", font: "inherit", textAlign: "left", background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 18%, transparent)" : "transparent",
-          boxShadow: on ? "inset 0 0 0 1px var(--panel-accent, #f6c343)" : "none", opacity: busy ? 0.6 : 1 }}>
+        style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", maxWidth: "none", minWidth: 0, height: "auto", padding: "5px 8px", border: "none",
+          borderRadius: "var(--panel-radius, 6px)", cursor: busy ? "default" : "pointer", color: "inherit", font: "inherit", fontWeight: on ? 600 : 400, textAlign: "left",
+          background: on ? "color-mix(in srgb, var(--panel-fg, #ffffff) 10%, transparent)" : "transparent",
+          boxShadow: on ? "inset 0 0 0 1px var(--panel-fg, #ffffff)" : "none", opacity: busy ? 0.6 : 1 }}>
         <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
         {meta ? <span style={{ flexShrink: 0, fontSize: 11, color: "var(--panel-muted-fg)", fontVariantNumeric: "tabular-nums" }}>{meta}</span> : null}
       </button>
     );
   };
   const bpmOf = (c: any) => t(L, "bpm", { bpm: Math.round(c.bpm) });
-  const tileFont = (p: any) => (p.fonts.find((x: any) => x.role === "big") || p.fonts[0]) as any;
   const progressLabel = progress ? (progress.detail
     ? t(L, "progressDetail", { step: progress.current + 1, total: AV_BUILD_STEPS.length, name: t(L, "step." + progress.id), detail: progress.detail(L), percent: progress.percent })
     : t(L, "progress", { step: progress.current + 1, total: AV_BUILD_STEPS.length, name: t(L, "step." + progress.id), percent: progress.percent })) : "";
-  const stepText = step === "listening" ? t(L, "listening") : step === "checkingClips" ? t(L, "checkingClips") : "";
+  const stepText = step === "checkingClips" ? t(L, "checkingClips") : "";
+  const displayFace = (p: any) => (p.fonts.find((x: any) => x.role === "display") || p.fonts[0]) as any;
 
   if (!projectId) return <ui.Message tone="error">{t(L, "openProject")}</ui.Message>;
 
@@ -4101,69 +4452,88 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     <div style={{ wordBreak: L === "ko" ? "keep-all" : undefined }}>
     <ui.Stack gap={16}>
       {inventory && invError ? <ui.Message tone="error">{invError.busy ? invError.say(L) : t(L, "refreshFailed", { detail: invError.say(L) })}</ui.Message> : null}
-      <ui.Section title={t(L, "title")}>
-        <div role="group" aria-label={t(L, "titleStyle")} style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      <ui.Section title={t(L, "style")}>
+        {/* Style tiles: a sample of the preset's title (its face and colour) and the name, both inside one bordered box. */}
+        <div role="group" aria-label={t(L, "style")} style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
           {presetList.map((p) => {
-            const on = p.id === preset, face = tileFont(p);
+            const on = p.id === preset, face = displayFace(p);
             return (
-              <button key={p.id} type="button" aria-pressed={on} disabled={busy} onClick={() => setPreset(p.id)}
-                style={{ flex: "1 1 80px", minWidth: 0, minHeight: 44, padding: "6px 6px", borderRadius: 8, cursor: busy ? "default" : "pointer", color: "inherit",
-                  background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 16%, transparent)" : "transparent", border: on ? "2px solid var(--panel-accent, #f6c343)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))",
-                  fontFamily: avFontStack(face.family), fontStyle: face.style, fontWeight: face.weight, fontSize: 15, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {tOr(L, "preset." + p.id, p.label)}
+              <button key={p.id} type="button" aria-pressed={on} disabled={busy} onClick={() => choosePreset(p.id)}
+                style={{ flex: "1 1 0", minWidth: 0, width: "auto", maxWidth: "none", height: "auto", maxHeight: "none", boxSizing: "border-box", padding: "8px 6px",
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 6, borderRadius: 8, cursor: busy ? "default" : "pointer", color: "inherit",
+                  font: "inherit", fontWeight: 400, background: on ? "color-mix(in srgb, var(--panel-fg, #ffffff) 8%, transparent)" : "transparent",
+                  border: on ? "2px solid var(--panel-fg, #ffffff)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))", opacity: busy ? 0.6 : 1 }}>
+                <span aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", maxWidth: 72, height: 26, borderRadius: 4,
+                  background: PREVIEW_BG, color: p.colors.title, fontFamily: AV_TITLE.avFontStack(face.family), fontWeight: face.weight, fontSize: 16, letterSpacing: 0.5,
+                  lineHeight: 1 }}>{TILE_SAMPLE}</span>
+                <span style={{ fontSize: 12, lineHeight: 1.2, textAlign: "center", overflowWrap: "anywhere", wordBreak: "keep-all", display: "-webkit-box",
+                  WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as any}>{tOr(L, "preset." + p.id, p.label)}</span>
               </button>
             );
           })}
         </div>
-        {/* Live preview: the same layout code as the Draft's title, over the middle of a 16:9 frame, in a box of fixed height. */}
-        <div aria-label={t(L, "titlePreview")} style={{ height: PREVIEW_HEIGHT, borderRadius: 8, overflow: "hidden", background: "linear-gradient(135deg, #3b3531, #1f1c1a)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {assets && previewItems ? (
-            <div style={{ position: "relative", width: "100%", height: PREVIEW_HEIGHT }}>
-              {/* One SVG per shade layer, stacked, so "vlog" gets the lighter shadow like the Draft's title. */}
-              {avShadeLayers(previewItems).map((layer: any, l: number) => (
-                <svg key={l} width="100%" height={PREVIEW_HEIGHT} viewBox={PREVIEW_VIEW} preserveAspectRatio="xMidYMid meet"
-                  style={{ display: "block", position: "absolute", left: 0, top: 0, filter: "drop-shadow(0 1px " + 3 * layer.shade + "px rgba(0, 0, 0, " + TITLE_LOOK.shadow * layer.shade + "))" }}>
-                  {layer.items.map((it: any, i: number) => (it.kind === "text"
-                    ? <text key={i} x={it.x} y={it.y} fill={it.color} fontSize={it.size} fontFamily={avFontStack(it.font.family)} fontStyle={it.font.style} fontWeight={it.font.weight}
-                      stroke={it.stroke > 0 ? it.color : undefined} strokeWidth={it.stroke} strokeLinejoin="round"
-                      style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: it.tracking } as any}>{it.text}</text>
-                    : <path key={i} d={it.kind === "sparkle" ? avSparklePath(it.x, it.y, it.size) : avStarPath(it.x, it.y, it.size)} fill={it.color} />))}
-                </svg>
-              ))}
+        {/* i18n-used: preset.* */}
+        {/* Live preview: the Draft's own layout and decode code, fully decoded, over the middle of a 16:9 frame, in a box of fixed height. */}
+        <div style={{ position: "relative" }}>
+          <div role="img" aria-label={t(L, "titlePreview")} style={{ height: PREVIEW_HEIGHT, borderRadius: 8, overflow: "hidden", background: PREVIEW_BG,
+            display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {assets && previewLayout && previewState ? <LockupSvg layout={previewLayout} state={previewState} shadow={TITLE_LOOK.shadow} />
+              : <small style={{ color: "#d8d2cc" }}>{assets ? t(L, "previewUnavailable") : t(L, "loading")}</small>}
+          </div>
+          {assets && previewLayout?.title ? (
+            <div style={{ position: "absolute", right: 4, bottom: 4 }}>
+              <ui.IconButton icon="play" label={t(L, "replayDecode")} onClick={replayTitle} disabled={busy} />
             </div>
-          ) : <small style={{ color: "#d8d2cc" }}>{assets ? t(L, "previewUnavailable") : t(L, "loading")}</small>}
+          ) : null}
         </div>
         {chosen ? chosen.fields.map((fl: any) => (
-          <ui.TextField key={preset + ":" + fl.key} label={t(L, "fieldCount", { label: tOr(L, "field." + preset + "." + fl.key, fl.label), used: fieldLen(fieldText(preset, fl)), max: fl.max })} value={fieldText(preset, fl)}
-            disabled={busy} onChange={(v: string) => setField(fl, v)} />
+          <ui.TextField key={preset + ":" + fl.key} label={t(L, "fieldCount", { label: fieldLabel(L, fl.key), used: fieldLen(fieldText(fl)), max: fl.max })}
+            value={fieldText(fl)} placeholder={fl.initial || undefined} disabled={busy} onChange={(v: string) => setField(fl, v)} />
         )) : null}
+        <ui.Toggle label={t(L, "creditShot")} value={creditOn} onChange={setCreditOn} disabled={busy} />
+        {creditOn ? (
+          <>
+            <ui.TextField label={t(L, "fieldCount", { label: t(L, "param.prefix"), used: fieldLen(prefixText), max: prefixMax })} value={prefixText} placeholder={samplePrefix || undefined}
+              disabled={busy} onChange={(v: string) => setCreditPrefix(fieldClip(String(v), prefixMax))} />
+            <ui.TextField label={t(L, "fieldCount", { label: t(L, "creditName"), used: fieldLen(nameText), max: nameMax })} value={nameText} placeholder={sampleName || undefined}
+              disabled={busy} onChange={(v: string) => setCreditName(fieldClip(String(v), nameMax))} />
+            {creditName == null && sampleName ? <ui.Message tone="muted">{t(L, "creditSample", { name: sampleName })}</ui.Message> : null}
+            {!creditUsed ? <ui.Message tone="muted">{t(L, "creditCleared")}</ui.Message> : null}
+            <div role="img" aria-label={t(L, "creditPreview")} style={{ height: CREDIT_HEIGHT, borderRadius: 6, overflow: "hidden", background: PREVIEW_BG }}>
+              {creditLayout ? (
+                <svg width="100%" height={CREDIT_HEIGHT} viewBox={CREDIT_VIEW} preserveAspectRatio="xMidYMid meet" style={{ display: "block" }}>
+                  <text x={creditLayout.x} y={creditLayout.y} fill={creditLayout.color} fontSize={creditLayout.size} fontFamily={creditLayout.stack} fontWeight={creditLayout.weight}
+                    style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none" } as any}>{creditLayout.text}</text>
+                </svg>
+              ) : null}
+            </div>
+          </>
+        ) : null}
       </ui.Section>
       <ui.Section title={t(L, "music")}>
         <div role="radiogroup" aria-label={t(L, "track")} style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-          {referenceCues.map((c) => trackRow(c.id, c.label, bpmOf(c)))}
-          {alternativeCues.length ? <small style={{ display: "block", margin: "4px 8px 0", fontSize: 11, color: "var(--panel-muted-fg)" }}>{t(L, "alternatives")}</small> : null}
-          {alternativeCues.map((c) => trackRow(c.id, c.label, bpmOf(c)))}
+          {cues.map((c) => trackRow(c.id, c.label, bpmOf(c)))}
           {canOwnMusic ? trackRow("own", t(L, "ownMusic"), "") : null}
           {trackRow("none", t(L, "noMusic"), "")}
         </div>
         {musicKind === "own" && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
-          onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
+          onChange={(f: any) => { if (f) detectOwnMusic(f); else { cancelOwnMusic(); setOwnMusic(null); setOwnGrid(null); } }} /> : null}
+        {musicKind === "own" && canOwnMusic ? <ui.Message tone="muted">{t(L, "ownMusicHint", { count: OWN_MAX_SECONDS / 60 })}</ui.Message> : null}
+        {listening ? <ui.Progress label={t(L, "listening")} /> : null}
         {ownBeatLine ? <ui.Message tone="muted">{ownBeatLine}</ui.Message> : null}
-        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "installTools")}</ui.Message> : null}
         {musicKind !== "none" ? (ownMusic || cue ? (
           // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
           <div onKeyDown={(e) => { if (e.key === "Escape" && playState !== "idle") { e.preventDefault(); stopPreview(); } }}>
-            <SectionSlider lang={L} peaks={peaks} total={total} section={start} videoSeconds={videoSeconds} barSeconds={tempo ? (4 * 60) / tempo : 1}
-              snap={snap} onChange={setSection} disabled={busy} audio={playingAudio} />
+            <SectionSlider lang={L} peaks={peaks} total={total} section={start} videoSeconds={videoSeconds} barSeconds={fit.timed ? (4 * 60) / tempo : 1}
+              snap={snap} onChange={moveSection} disabled={busy} audio={playingAudio} />
             <ui.Row gap={8} align="center">
               {/* The kit has no stop icon; "pause" marks stop, and the label says what it does. */}
               <ui.IconButton icon={playState === "playing" ? "pause" : playState === "loading" ? "loading" : "play"}
                 label={playState === "playing" ? t(L, "stopPreview") : playState === "loading" ? t(L, "cancelPreview") : t(L, "previewSection")}
-                onClick={preview} disabled={busy || !tools.ffmpeg || (playState === "idle" && start == null)} />
-              <span>{musicKind === "own" && !ownDuration ? (busy ? t(L, "readingMusic") : t(L, "musicLengthUnknown"))
+                onClick={preview} disabled={busy || (playState === "idle" && start == null)} />
+              <span>{musicKind === "own" && !ownDuration ? (listening ? t(L, "readingMusic") : t(L, "musicLengthUnknown"))
                 : start == null ? t(L, "musicTooShort") : t(L, "startsAt", { seconds: tenths(start) })}</span>
             </ui.Row>
-            {musicKind === "cue" ? <ui.Toggle label={t(L, "startAtHook")} value={hook} onChange={setHook} disabled={busy} /> : null}
           </div>
         ) : null) : null}
       </ui.Section>
@@ -4171,7 +4541,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         <ui.Segmented label={t(L, "length")} value={length} onChange={(v: any) => setLength(v)} disabled={busy}
           options={[{ label: t(L, "length.short"), value: "short" }, { label: t(L, "length.standard"), value: "standard" }, { label: t(L, "length.long"), value: "long" }]} />
         <ui.Segmented label={t(L, "pace")} value={pace} onChange={(v: any) => setPace(v)} disabled={busy}
-          options={[{ label: t(L, "pace.quick"), value: "quick" }, { label: t(L, "pace.relaxed"), value: "relaxed" }, { label: t(L, "pace.groove"), value: "groove" }]} />
+          options={[{ label: t(L, "pace.cinematic"), value: "cinematic" }, { label: t(L, "pace.quick"), value: "quick" }]} />
         {fitLine ? <ui.Message tone="muted">{fitLine}</ui.Message> : null}
         {footageLine ? <ui.Message tone="muted">{footageLine}</ui.Message> : null}
         {paceNote ? <ui.Message tone="muted">{paceNote}</ui.Message> : null}
@@ -4184,8 +4554,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       <ui.Section title={t(L, "advanced")}>
         <ui.Segmented label={t(L, "clipSound")} value={clipSound} onChange={(v: any) => setClipSound(v)} disabled={busy}
           options={[{ label: t(L, "sound.off"), value: "off" }, { label: t(L, "sound.ambient"), value: "ambient" }, { label: t(L, "sound.full"), value: "full" }]} />
-        <ui.Toggle label={t(L, "softLook")} value={soft} onChange={setSoft} disabled={busy} />
-        <ui.Toggle label={t(L, "beatPunch")} value={beatPunch} onChange={setBeatPunch} disabled={busy} />
+        <ui.Toggle label={t(L, "cinematicLook")} value={look} onChange={setLook} disabled={busy} />
+        {look ? <ui.Slider label={t(L, "param.look")} value={strength} min={0} max={1} step={0.05} onChange={(v: number) => setLookStrength(v)} disabled={busy} /> : null}
         <ui.Toggle label={t(L, "usePhotos")} value={usePhotos} onChange={setUsePhotos} disabled={busy} />
         {silent ? <ui.Message tone="muted">{t(L, "silentVideo")}</ui.Message> : null}
         {inventory && (allRids.length || allPhotoRids.length) ? (
@@ -4197,8 +4567,10 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
               <ui.Button variant="ghost" disabled={busy || (!only && !onlyPhotos)} onClick={() => { chooseClips(allRids); choosePhotos(allPhotoRids); }}>{t(L, "all")}</ui.Button>
               <ui.Button variant="ghost" disabled={busy || selectedRids.length + selectedPhotoRids.length === 0} onClick={() => { chooseClips([]); choosePhotos([]); }}>{t(L, "none")}</ui.Button>
             </ui.Row>
-            {/* One row per clip: the name truncates, duration and shape stay visible; long lists scroll inside. */}
-            <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
+            {/* One row per clip: the name truncates, duration and shape stay visible; long lists scroll inside (a thin,
+                stable scrollbar, so Windows' wide classic bars do not squeeze the rows). */}
+            <div style={{ maxHeight: 220, overflowY: "auto", scrollbarGutter: "stable", scrollbarWidth: "thin", marginTop: 4, borderRadius: "var(--panel-radius, 6px)",
+              border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" } as any}>
               {inventory.resources.map((r: any) => {
                 const on = selectedRids.includes(r.rid);
                 const hint = shapeHint(r.width, r.height);
@@ -4234,11 +4606,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       {progress ? <ui.Progress value={progress.value} label={progressLabel} steps={AV_BUILD_STEPS.map((s) => t(L, "step." + s.id))} current={progress.current} />
         : busy ? <ui.Progress label={stepText || t(L, "working")} /> : null}
       {status ? <ui.Message tone={status.tone === "error" ? "error" : "muted"}>{status.say(L)}</ui.Message> : null}
-      {result && result.decorated ? (
-        <ui.Message tone="success">
-          {t(L, "draftCreated")}
-        </ui.Message>
-      ) : result && busy ? <ui.Message tone="muted">{t(L, "draftCreatedAdding")}</ui.Message>
+      {result && result.decorated ? <ui.Message tone="success">{t(L, "draftCreated")}</ui.Message>
+        : result && busy ? <ui.Message tone="muted">{t(L, "draftCreatedAdding")}</ui.Message>
         : result ? <ui.Message tone="muted">{t(L, "draftNotFinished")}</ui.Message> : null}
       {result?.link ? (
         <ui.Row gap={8} align="center">
@@ -4247,10 +4616,9 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         </ui.Row>
       ) : null}
       {result?.shortened ? (
-        <ui.Message tone="muted">
-          {t(L, "shortened", { fitted: result.shortened.shots, count: result.shortened.of, seconds: tenths(result.shortened.seconds) })}
-        </ui.Message>
+        <ui.Message tone="muted">{t(L, "shortened", { fitted: result.shortened.shots, count: result.shortened.of, seconds: tenths(result.shortened.seconds) })}</ui.Message>
       ) : null}
+      {result?.noVideo ? <ui.Message tone="muted">{t(L, "noVideoNote")}</ui.Message> : null}
       {result?.notes?.length ? <ui.Message tone="muted">{t(L, "note", { detail: result.notes.join("; ") })}</ui.Message> : null}
       {result?.unchecked ? <ui.Message tone="muted">{t(L, "unchecked", { count: result.unchecked })}</ui.Message> : null}
       {blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}
@@ -4263,6 +4631,19 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     </ui.Stack>
     </div>
   );
+}
+
+// A plan failure in the UI language (`noPlan` for a reason AV_FAIL does not list).
+// `plan` carries the reason's numbers (the opening or final shot's length in seconds when no clip is long enough).
+function failText(lang: Lang, reason: string, plan: any = {}) {
+  const seconds = Math.round((Number(plan?.seconds) || 0) * 10) / 10;
+  if (reason === "opening-too-short") return t(lang, "fail.opening-too-short", { seconds });
+  if (reason === "ending-too-short") return t(lang, "fail.ending-too-short", { seconds });
+  if (reason === "one-resource") return t(lang, "fail.one-resource");
+  if (reason === "too-few") return t(lang, "fail.too-few");
+  if (reason === "music-too-short") return t(lang, "fail.music-too-short");
+  if (reason === "no-video") return t(lang, "fail.no-video");
+  return t(lang, "noPlan");
 }
 
 // ---------------------------------------------------------------------------
@@ -4338,7 +4719,7 @@ function templateFootage(context: any) {
 
 // The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer run
 // (or the frame closing) replaced this one. `say` names the current step for the status line.
-async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
+async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
   // The UI language when the run starts: its messages and the Inspector labels written into the Draft use it.
   const bl = uiLang(context);
   const pid: string | null = context?.projectId ?? null;
@@ -4351,19 +4732,14 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   say("Reading the chosen files");
   const roots = await locateRoots(sdk);
   check();
-  const read = (rel: string) => readText(roots.plugin, rel);
-  const [manifestText, presetsText, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, softTsx, motionTsx, punchTsx] = await Promise.all([
-    read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("scripts/inventory.js"), read("scripts/search.js"),
-    read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-lockup.tsx"), read("assets/soft-look.tsx"),
-    read("assets/photo-motion.tsx"), read("assets/beat-punch.tsx")]);
+  const assets = await loadAssets(roots.plugin);
   check();
-  const manifest = JSON.parse(manifestText), presets = JSON.parse(presetsText);
-  // The track, length and title style chosen on the app's page; an unknown or missing one gets the panel's default.
-  const cues: any[] = manifest.cues || [];
-  const cue = cues.find((c) => c.id === options.track) || cues.find((c) => c.id === PREFERRED_CUE) || cues.find((c) => c.id === DEFAULT_CUE);
+  // The track, length and style chosen on the app's page; an unknown or missing one gets the panel's default.
+  const cues: any[] = assets.manifest.cues || [];
+  const cue = cues.find((c) => c.id === options.track) || cues.find((c) => c.id === DEFAULT_CUE) || cues[0];
   if (!cue) throw templateIssue("Archive Vlog's music is missing; reinstall the plugin and try again.");
   const length: "short" | "standard" | "long" = options.length === "short" || options.length === "long" ? options.length : DEFAULT_LENGTH;
-  const chosen = presets.presets.find((x: any) => x.id === options.title) || presets.presets.find((x: any) => x.id === DEFAULT_PRESET);
+  const chosen = avPreset(assets.presets, options.title);
   if (!chosen) throw templateIssue("Archive Vlog's title styles are missing; reinstall the plugin and try again.");
 
   // Handed ids to the Project's aliases; the files the first pass skipped get one more.
@@ -4383,7 +4759,7 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   for (const r of resolved) if (r.size) known[r.alias] = r.size;
   if (!aliases.length) throw templateIssue("None of the chosen files could be found in this Project. Choose them again, then try again.");
   // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
-  const inventory = await run("Read footage", fill(inventoryJs, { projectId: pid, only: aliases, known, measureMs: INVENTORY_MEASURE_MS }));
+  const inventory = await run("Read footage", fill(assets.scripts.inventoryJs, { projectId: pid, only: aliases, known, measureMs: INVENTORY_MEASURE_MS }));
   check();
   inventory.resources = inventory.resources || [];
   inventory.photos = inventory.photos || [];
@@ -4391,27 +4767,16 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   for (const ph of inventory.photos) if (ph.width > 0 && ph.height > 0) sizes[ph.rid] = { width: ph.width, height: ph.height };
   const unanalysed = inventory.skipped?.unanalysed || 0;
 
-  // Music, length and pace as the panel works them out for a bundled track at its defaults (Quick pace, Beat punch
-  // and Start at the hook on).
-  const pace = DEFAULT_PACE, punch = DEFAULT_PUNCH;
-  const grid: any = { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null };
-  const gridded = avGridUsable({ bpm: grid.bpm, accepted: grid.accepted });
-  const approxTempo = avApproxTempo({ gridded, approxBpm: grid.approxBpm });
-  const tempo = gridded ? grid.bpm : approxTempo;
-  const guard: any = tempo ? avBeatsPerShot(pace, tempo) : { beats: null, overridden: false };
-  const shotSeconds = avShotSeconds({ bpm: grid.bpm, beatsPerShot: guard.beats, pace, gridded, approxBpm: approxTempo });
-  const requested = AV_LENGTHS[length];
-  const fitted = avFitShots({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });
-  const videoSeconds = fitted ? fitted * shotSeconds : requested * shotSeconds;
-  const snap = (value: number) => avSnapSection({ value, firstBeat: grid.firstBeat, bpm: tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: !!tempo });
-  const hookAt = DEFAULT_HOOK && gridded ? avHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue.barPhaseBeats }) : null;
-  const section = !gridded ? snap(0) : hookAt ?? avDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? snap(grid.firstBeat);
-  const musicStart = snap(section ?? 0);
-  if (musicStart == null || !fitted) throw templateIssue(t(bl, "fail.music-too-short"));
-  const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };
+  // Music, length and pace as the panel works them out for a bundled track at its defaults (Cinematic pace, the
+  // cue's soft-intro section).
+  const pace = DEFAULT_PACE;
+  const grid = cueGrid(cue);
+  const fit = musicFit(grid, length, pace);
+  const musicStart = fit.snap(fit.defaultSection() ?? 0);
+  if (musicStart == null || !fit.fitted) throw templateIssue(t(bl, "fail.music-too-short"));
 
-  // Scene search over the handed videos (with the motion query, as Beat punch is on). Nobody can press Build again, so
-  // videos whose search failed get one more try.
+  // Scene search over the handed videos (with the motion query). Nobody can press Build again, so videos whose search
+  // failed get one more try.
   say("Choosing shots");
   const rids: string[] = inventory.resources.map((r: any) => r.rid);
   const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
@@ -4419,7 +4784,7 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
     const list: any[] = []; const failed: string[] = [];
     for (let i = 0; i < todo.length; i += SEARCH_BATCH) {
       say("Choosing shots", i + "/" + todo.length + (todo.length === 1 ? " video" : " videos"));
-      const r = await run("Search shots", fill(searchJs, { projectId: pid, rids: todo.slice(i, i + SEARCH_BATCH), queries: avSearchQueries(AV_QUERIES, punch), pageSize: 4 }));
+      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: todo.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4 }));
       check();
       list.push(...r.candidates); failed.push(...r.failed);
     }
@@ -4433,67 +4798,38 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   }
   if (found.failed.length) console.info("[archive-vlog] template run: scene search failed for", found.failed.join(", "));
   const candidates = found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }));
-  const photoCands = photoCandsOf(inventory, null, true);
-  const plan: any = avPlanBuild({ candidates: avMotionBonus(candidates).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(TEMPLATE_SEED) });
+  const plan: any = avPlanBuild({ candidates: avMotionBonus(candidates).concat(photoCandsOf(inventory, null, true)), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm,
+    fps: 30, pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !fit.gridded,
+    seed: String(TEMPLATE_SEED) });
   if (!plan.ok) {
     const waiting = unanalysed ? " " + unanalysed + (unanalysed === 1 ? " video is" : " videos are") + " not analyzed yet, so it could not be used." : "";
-    throw templateIssue((AV_FAIL[plan.reason] ? t(bl, "fail." + plan.reason) : t(bl, "noPlan")) + waiting);
+    throw templateIssue(failText(bl, plan.reason, plan) + waiting);
   }
 
   // Commit 1: the music, then the clips on a new Draft.
   say("Adding music");
-  const music = await run("Add music to the project", fill(ensureJs, { projectId: pid, path: roots.plugin + "/assets/cues/" + cue.file }), true);
+  const music = await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: pjoin(roots.plugin, "assets", "cues", cue.file) }), true);
   check();
   say("Making the Draft");
-  const crops = Object.fromEntries([...inventory.resources, ...inventory.photos.filter((r: any) => r.width > 0 && r.height > 0)]
-    .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
-  const draftName = "Archive Vlog " + chosen.label + " " + stamp(new Date());
-  const clipSound = "ambient";
+  const fields: Record<string, string> = {};
+  for (const fl of chosen.fields) fields[fl.key] = fieldClip(String(fl.initial ?? ""), fl.max);
+  const draftName = draftNameOf(fields.title, chosen.label, new Date());
+  const clipSound = DEFAULT_CLIP_SOUND;
   // Never resent: the reply may be lost after the Draft was saved.
-  const a = await run("Assemble the Archive Vlog", fill(assembleJs, {
-    projectId: pid, draftName, picks: plan.picks, boundaries: plan.schedule.cuts, crops,
-    music: music ? { resourceId: music.resourceId, sectionStart: musicStart } : null, clipSound, ambientDb: AMBIENT_DB }), true);
+  const a = await run("Assemble the Archive Vlog", fill(assets.scripts.assembleJs, avAssembleConfig({ projectId: pid, draftName, plan, inventory, music, sectionStart: musicStart, clipSound })), true);
   check();
   if (!a.sequenceId || !(a.totalFrames > 0)) throw templateIssue("The Draft \"" + draftName + "\" may have been saved without its title. Open it from the Drafts list, or try again.");
 
-  // Commit 2: the title lockup, Soft look, photo motion and Beat punch, as the panel's Finish step adds them.
+  // Commit 2: the title, credit, letterbox reveal, motion, fade and look, as the panel's Finish step adds them.
   say("Adding title and look");
-  const fonts = await Promise.all(presetFonts(chosen, presets).map(async (x: any) => {
-    const { file, ...face } = x;
-    return { ...face, metrics: presets.metrics[x.family] || null, b64: (await readText(roots.plugin, "assets/fonts/" + file)).replace(/\s+/g, "") };
-  }));
+  const fonts = Object.fromEntries(await Promise.all(fontFiles(assets.presets).map(async (f) => [f, (await readText(roots.plugin, "assets", "fonts", f)).replace(/\s+/g, "")])));
   check();
-  const flat: Record<string, string> = {};
-  for (const fl of chosen.fields) { const v = fl.initial ?? ""; flat[fl.key] = String(v === "@year" ? avCurrentYear() : v).slice(0, fl.max); }
-  const bpm = gridded ? grid.bpm : null;
-  const parameters = { preset: chosen.id, ...flat, fields: { ...flat }, primary: chosen.colors.primary, secondary: chosen.colors.secondary, ...TITLE_LOOK, fonts,
-    provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: chosen.id, cue: cue.id, sectionStart: musicStart, pace, length,
-      seed: TEMPLATE_SEED, clipSound, punch, hook: DEFAULT_HOOK, groove: plan.groove || null, picks: plan.picks } };
-  const editableParameters = [
-    ...chosen.fields.map((fl: any) => ({ key: fl.key, label: tOr(bl, "field." + chosen.id + "." + fl.key, fl.label), type: "text", defaultValue: flat[fl.key] })),
-    { key: "primary", label: t(bl, "param.mainColor"), type: "color", defaultValue: chosen.colors.primary },
-    { key: "secondary", label: t(bl, "param.secondColor"), type: "color", defaultValue: chosen.colors.secondary },
-    { key: "shadow", label: t(bl, "param.shadow"), type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
-    { key: "size", label: t(bl, "param.size"), type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },
-    { key: "x", label: t(bl, "param.x"), type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },
-    { key: "y", label: t(bl, "param.y"), type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },
-    { key: "sparkles", label: chosen.id === "archive-vlog" ? t(bl, "param.sparkles") : t(bl, "param.stars"), type: "boolean", defaultValue: TITLE_LOOK.sparkles },
-  ];
-  const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));
-  const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };
-  const photoRids = [...new Set(plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
-  const moves: any[] = avPhotoMotions(plan.picks, String(TEMPLATE_SEED), sizes);
-  const byRid: Record<string, any> = {};
-  plan.picks.forEach((k: any, i: number) => {
-    if (!moves[i]) return;
-    const sz = sizes[k.rid];
-    const cover = sz ? Math.max(AV_W / sz.width, AV_H / sz.height) / Math.min(AV_W / sz.width, AV_H / sz.height) : 1;
-    byRid[k.rid] = { ...moves[i], cover };
-  });
-  const punchCfg = punch ? { tsx: punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: bpm ? 60 / bpm * a.fps : 0,
-    punchFrames: avPunchFrames({ bpm, fps: a.fps, sectionStart: musicStart, videoEnd: a.totalFrames }), picks: plan.picks } : null;
-  const finish = () => run("Add title and look", fill(decorateJs, { sequenceId: a.sequenceId, mute: false, videoEnd: a.totalFrames, title: { tsx: titleTsx, parameters, editableParameters },
-    soft: { tsx: softTsx, strength: SOFT_STRENGTH }, photos: photoRids, motion: { tsx: motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch: punchCfg, labels }), true);
+  const frozen = { seed: TEMPLATE_SEED, preset: chosen.id, fields, credit: { on: true, name: chosen.credit?.name || "" }, clipSound,
+    look: { on: true, strength: avLookStrength(chosen) }, sectionStart: musicStart, labels: adjustLabelsFor(bl), motionOptions: motionOptionsFor(bl) };
+  const cfg = avDecorateConfig({ sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, plan, presets: assets.presets, tsx: assets.tsx, fonts, sizes, frozen,
+    provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: chosen.id, cue: cue.id, sectionStart: musicStart, pace, length, seed: TEMPLATE_SEED, clipSound,
+      look: true, credit: true } });
+  const finish = () => run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
   // decorate.js skips what an earlier attempt added, so a failed attempt is tried once more.
   try {
     await finish();
@@ -4513,7 +4849,7 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
 // What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
 // exactly once, unless a newer run (or the frame closing) replaced it; then it reports nothing.
 function TemplateRun({ sdk, context }: any) {
-  const [status, setStatus] = React.useState("Starting");
+  const [runStatus, setRunStatus] = React.useState("Starting");
   const begun = React.useRef<string | null>(null);
   const alive = React.useRef(true);
   // The latest context, so a run reports only while it is still the current one.
@@ -4528,17 +4864,17 @@ function TemplateRun({ sdk, context }: any) {
     const live = () => alive.current && latest.current?.template?.runId === runId;
     const check = () => { if (!live()) throw STALE; };
     let ended = false, step = "starting";
-    const say = (text: string, detail?: string) => { step = text; if (live()) setStatus(text + (detail ? " (" + detail + ")" : "")); };
+    const say = (text: string, detail?: string) => { step = text; if (live()) setRunStatus(text + (detail ? " (" + detail + ")" : "")); };
     const end = (outcome: TemplateOutcome | null) => {
       if (ended) return;
       ended = true;
       if (!outcome || !live()) return;
-      setStatus("sequenceId" in outcome ? "Done" : outcome.error);
+      setRunStatus("sequenceId" in outcome ? "Done" : outcome.error);
       try { sdk.finishTemplate(outcome); } catch (e) { console.warn("[archive-vlog] finishTemplate failed:", errorText(e)); }
     };
     (async () => {
       try {
-        end(await runMiniVlogTemplate(sdk, snapshot, check, say));
+        end(await runArchiveVlogTemplate(sdk, snapshot, check, say));
       } catch (e: any) {
         if (e === STALE) { end(null); return; }
         console.warn("[archive-vlog] template run failed while " + step + ":", errorText(e), e);
@@ -4548,5 +4884,5 @@ function TemplateRun({ sdk, context }: any) {
       }
     })();
   }, [runId]);
-  return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{status}</div>;
+  return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{runStatus}</div>;
 }
