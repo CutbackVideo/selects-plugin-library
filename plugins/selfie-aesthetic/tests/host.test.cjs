@@ -1,189 +1,336 @@
-// plugins/selfie-aesthetic/tests/host.test.cjs
-// Host helpers: the panel's shell-agnostic block (root probe parsing, path joins, node command quoting) and
-// tools/run.cjs (jobs run through real ffmpeg when it is installed).
+// plugins/selfie-aesthetic/tests/host.test.cjs (run: node plugins/selfie-aesthetic/tests/host.test.cjs)
+// The panel's host block (dev/host-block.ts) evaluated as plain JS in node:vm with a fake window.parent.__DI__ built
+// on node:fs/node:path and a fake Runtime that runs the real ffmpeg/ffprobe (SAE_FFMPEG_DIR, else PATH; the ffmpeg
+// cases are skipped with a note when neither has them). Also checks that the beat detector core (beat-detect.cjs up
+// to module.exports) is browser-safe: it runs in a bare vm context with no require/module/process.
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), vm = require('node:vm');
 const assert = require('node:assert/strict');
-const { execFileSync, spawnSync } = require('node:child_process');
+const { execFile, spawnSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
-const RUN = path.join(root, 'tools', 'run.cjs');
+const tests = [];
+const test = (name, fn) => tests.push({ name, fn });
 
-// ---- host block, evaluated as plain JS exactly like the panel copy ----
-const src = fs.readFileSync(path.join(root, 'dev', 'host-block.ts'), 'utf8');
-const a = src.indexOf('// sae-host:start'), z = src.indexOf('// sae-host:end');
-assert.ok(a >= 0 && z > a, 'host block markers');
-const block = src.slice(a, z);
-const box = { String, RegExp, Error }; vm.createContext(box);
-vm.runInContext(block + ';globalThis.H={saeRootProbeCommand,saeParseRoot,saeSep,saeJoin,saeNodeCmd};', box);
-const H = box.H;
+// ---- sources ----
+const hostSrc = fs.readFileSync(path.join(root, 'dev', 'host-block.ts'), 'utf8');
+const ha = hostSrc.indexOf('// sae-host:start'), hz = hostSrc.indexOf('// sae-host:end');
+assert.ok(ha >= 0 && hz > ha, 'host block markers');
+const block = hostSrc.slice(ha, hz);
+const API = ['saeDI', 'saeHas', 'saePlatform', 'saeSkillsDir', 'saeDataDir', 'saeFFmpeg', 'saeFFprobe', 'saeProbeDuration',
+  'saeDecodePcm', 'saePreviewUrl', 'saeSamePath', 'saeBaseName', 'saeYield'];
 
-assert.equal(H.saeRootProbeCommand(), 'echo %SELECTS_USER_SKILLS_ROOT% $SELECTS_USER_SKILLS_ROOT');
-// cmd.exe expands the first word; CRLF and spaces in the path.
-assert.equal(H.saeParseRoot('C:\\Users\\a b\\.selects\\skills $SELECTS_USER_SKILLS_ROOT\r\n'), 'C:\\Users\\a b\\.selects\\skills');
-assert.equal(H.saeParseRoot('\r\nC:\\Users\\a b\\.selects\\skills\\ $SELECTS_USER_SKILLS_ROOT\r\n'), 'C:\\Users\\a b\\.selects\\skills');
-// sh expands the second word.
-assert.equal(H.saeParseRoot('%SELECTS_USER_SKILLS_ROOT% /Users/x/.selects/skills\n'), '/Users/x/.selects/skills');
-assert.equal(H.saeParseRoot('%SELECTS_USER_SKILLS_ROOT% /Users/x y/Library/Application Support/skills/\r\n'), '/Users/x y/Library/Application Support/skills');
-// Neither expanded: unset in cmd.exe (both literal) or in sh (empty second word).
-assert.equal(H.saeParseRoot('%SELECTS_USER_SKILLS_ROOT% $SELECTS_USER_SKILLS_ROOT\r\n'), null);
-assert.equal(H.saeParseRoot('%SELECTS_USER_SKILLS_ROOT% \n'), null);
-assert.equal(H.saeParseRoot(''), null);
-assert.equal(H.saeParseRoot(undefined), null);
+const beatSrc = fs.readFileSync(path.join(root, 'beat-detect.cjs'), 'utf8');
+const bz = beatSrc.search(/^module\.exports\b/m);
+assert.ok(bz > 0, 'beat-detect.cjs has a module.exports line');
+const beatCore = beatSrc.slice(0, bz);
 
-assert.equal(H.saeSep('C:\\Users\\a b\\.selects\\skills'), '\\');
-assert.equal(H.saeSep('\\\\server\\share\\skills'), '\\');
-assert.equal(H.saeSep('/Users/x/.selects/skills'), '/');
-assert.equal(H.saeJoin('C:\\Users\\a b\\skills', 'selfie-aesthetic', 'assets/cues/a.mp3'), 'C:\\Users\\a b\\skills\\selfie-aesthetic\\assets\\cues\\a.mp3');
-assert.equal(H.saeJoin('C:\\Users\\a b\\skills\\', '\\selfie-aesthetic\\', 'tools', 'run.cjs'), 'C:\\Users\\a b\\skills\\selfie-aesthetic\\tools\\run.cjs');
-assert.equal(H.saeJoin('C:\\', 'x'), 'C:\\x');
-assert.equal(H.saeJoin('/Users/x/skills/', '/selfie-aesthetic/', 'assets\\cues', 'a.mp3'), '/Users/x/skills/selfie-aesthetic/assets/cues/a.mp3');
-assert.equal(H.saeJoin('/', 'tmp-like'), '/tmp-like');
-assert.equal(H.saeJoin('/Users/x/skills'), '/Users/x/skills');
+// ---- tools ----
+const toolDir = process.env.SAE_FFMPEG_DIR || '';
+const tool = (name) => (toolDir ? path.join(toolDir, name) : name);
+const hasTool = (name) => { try { return spawnSync(tool(name), ['-version'], { stdio: 'ignore' }).status === 0; } catch (e) { return false; } };
+const HAVE_FF = hasTool('ffmpeg') && hasTool('ffprobe');
 
-assert.equal(H.saeNodeCmd('/Users/x y/skills/selfie-aesthetic/tools/run.cjs', '/Users/x y/skills/selfie-aesthetic/.local/job.json'),
-  'node "/Users/x y/skills/selfie-aesthetic/tools/run.cjs" "/Users/x y/skills/selfie-aesthetic/.local/job.json"');
-assert.equal(H.saeNodeCmd('C:\\Users\\a b\\run.cjs', 'C:\\Users\\a b\\job.json'), 'node "C:\\Users\\a b\\run.cjs" "C:\\Users\\a b\\job.json"');
-assert.equal(H.saeNodeCmd('/s/run.cjs', '/s/job.json', '/opt/homebrew/bin/node'), '/opt/homebrew/bin/node "/s/run.cjs" "/s/job.json"');
-assert.equal(H.saeNodeCmd('C:\\s\\run.cjs', 'C:\\s\\j.json', 'C:\\Program Files\\nodejs\\node.exe'),
-  '"C:\\Program Files\\nodejs\\node.exe" "C:\\s\\run.cjs" "C:\\s\\j.json"');
-for (const bad of ['/a"b', '/a%b%', '/a$HOME', '/a`x`', '/a\nb', '/a\rb', 'C:\\dir\\', ''])
-  assert.throws(() => H.saeNodeCmd(bad, '/j.json'), /saeNodeCmd/, 'rejects script ' + JSON.stringify(bad));
-assert.throws(() => H.saeNodeCmd('/s.cjs', '/j$X.json'), /saeNodeCmd/);
-assert.throws(() => H.saeNodeCmd('/s.cjs', '/j.json', 'no"de'), /saeNodeCmd/);
-// The command really runs through the local shell (sh here; cmd.exe on Windows hosts).
-{
-  const t = fs.mkdtempSync(path.join(os.tmpdir(), 'sae host '));
-  const script = path.join(t, 'echo args.cjs');
-  fs.writeFileSync(script, 'process.stdout.write(JSON.stringify(process.argv.slice(2)))');
-  const job = path.join(t, 'a & b; c.json');
-  const out = execFileSync(process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
-    process.platform === 'win32' ? ['/d', '/s', '/c', '"' + H.saeNodeCmd(script, job, process.execPath) + '"'] : ['-c', H.saeNodeCmd(script, job, process.execPath)],
-    { encoding: 'utf8', windowsVerbatimArguments: true });
-  assert.deepEqual(JSON.parse(out), [job]);
-  fs.rmSync(t, { recursive: true, force: true });
+function runTool(name, args, signal) {
+  return new Promise((resolve, reject) => {
+    execFile(tool(name), args, { signal, maxBuffer: 64 << 20, encoding: 'utf8' }, (err, stdout, stderr) => {
+      if (err) { err.stderr = stderr; reject(err); } else resolve({ stdout, stderr });
+    });
+  });
 }
 
-// ---- static checks on run.cjs ----
-const runSrc = fs.readFileSync(RUN, 'utf8');
-assert.ok(!/shell\s*:\s*true/.test(runSrc), 'no shell: true');
-assert.ok(!/\bexec\s*\(|\bexecSync\s*\(/.test(runSrc), 'execFile/spawn only');
-assert.ok(!runSrc.includes('/tmp'), 'no /tmp');
-assert.ok(!runSrc.includes('~'), 'no ~');
-assert.ok(!/os\.tmpdir|tmpdir\(/.test(runSrc), 'no system temp dir');
+// ---- vm sandbox ----
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sae-host-'));
+const HOME = path.join(tmp, 'home dir');
+fs.mkdirSync(HOME, { recursive: true });
 
-// ---- run.cjs jobs ----
-const work = fs.mkdtempSync(path.join(os.tmpdir(), 'sae-run '));
-const dataDir = path.join(work, 'data dir');
-let n = 0;
-function job(obj, env) {
-  const f = path.join(work, 'job' + (n++) + '.json');
-  fs.writeFileSync(f, typeof obj === 'string' ? obj : JSON.stringify(obj));
-  const r = spawnSync(process.execPath, [RUN, f], { encoding: 'utf8', env: Object.assign({}, process.env, env || {}) });
-  const lines = r.stdout.split('\n').filter(Boolean);
-  assert.equal(lines.length, 1, 'one stdout line: ' + r.stdout + r.stderr);
-  assert.ok(Buffer.byteLength(lines[0]) <= 2048, 'line <= 2 KB');
-  return { code: r.status, out: JSON.parse(lines[0]) };
+function realFS(overrides) {
+  return Object.assign({
+    join: path.join, homedir: () => HOME, mkdirSync: fs.mkdirSync, existsSync: fs.existsSync,
+    readFileSync: fs.readFileSync, readFile: fs.promises.readFile, writeFileSync: fs.writeFileSync,
+    unlinkSync: fs.unlinkSync, removeFile: async ({ filePath }) => fs.promises.unlink(filePath),
+  }, overrides || {});
+}
+function realRT(overrides) {
+  return Object.assign({
+    getPlatform: () => process.platform,
+    runFFmpeg: (args, quiet, signal) => runTool('ffmpeg', args, signal),
+    runFFprobe: (args, quiet, signal) => runTool('ffprobe', args, signal),
+  }, overrides || {});
 }
 
-const tools = job({ job: 'tools' });
-assert.equal(tools.code, 0);
-assert.equal(tools.out.ok, true);
-assert.equal(tools.out.node, process.version);
-assert.equal(tools.out.platform, process.platform);
-assert.ok(tools.out.ffmpeg === null || path.isAbsolute(tools.out.ffmpeg));
-// Finder-launched apps have no Homebrew PATH: the script still finds ffmpeg in the usual folders.
-if (process.platform === 'darwin' && tools.out.ffmpeg && /^\/(opt\/homebrew|usr\/local)\/bin\//.test(tools.out.ffmpeg)) {
-  const bare = job({ job: 'tools' }, { PATH: '/usr/bin:/bin' });
-  assert.equal(bare.out.ffmpeg, tools.out.ffmpeg, 'found without PATH');
+// di: the __DI__ object (or undefined); where: 'parent' | 'self'.
+function sandbox(di, opts) {
+  opts = opts || {};
+  const blobs = [];
+  let urls = 0;
+  class Blob { constructor(parts, o) { this.parts = parts; this.type = (o && o.type) || ''; this.size = parts.reduce((n, p) => n + p.byteLength, 0); } }
+  const box = {
+    setTimeout, clearTimeout, AbortController, Blob,
+    URL: { createObjectURL: (b) => { blobs.push(b); return 'blob:sae/' + (++urls); }, revokeObjectURL() {} },
+    navigator: { userAgent: opts.ua || '' },
+  };
+  box.window = opts.where === 'self' ? { parent: {}, __DI__: di } : { parent: { __DI__: di } };
+  vm.createContext(box);
+  vm.runInContext(block + ';globalThis.H={' + API.join(',') + '};', box);
+  return { H: box.H, box, blobs };
 }
 
-const ens = job({ job: 'ensureDir', dataDir });
-assert.equal(ens.code, 0);
-assert.ok(fs.statSync(dataDir).isDirectory());
-
-// Malformed and invalid jobs: non-zero exit and a JSON error.
-for (const bad of ['{not json', JSON.stringify({ job: 'nope', dataDir }), JSON.stringify({ job: 'ensureDir', dataDir: 'relative/dir' }),
-  JSON.stringify({ job: 'probe', file: path.join(work, 'missing.wav') })]) {
-  const r = job(bad);
-  assert.notEqual(r.code, 0, 'fails: ' + bad);
-  assert.equal(r.out.ok, false);
-  assert.equal(typeof r.out.error, 'string');
+async function rejectsCode(p, code) {
+  let err = null;
+  try { await p; } catch (e) { err = e; }
+  assert.ok(err, 'expected rejection ' + code);
+  assert.equal(err.message, code);
+  return err;
 }
-{
-  const r = spawnSync(process.execPath, [RUN], { encoding: 'utf8' });
-  assert.notEqual(r.status, 0);
-  assert.equal(JSON.parse(r.stdout).ok, false);
+function throwsCode(fn, code) {
+  let err = null;
+  try { fn(); } catch (e) { err = e; }
+  assert.ok(err, 'expected throw ' + code);
+  assert.equal(err.message, code);
+  return err;
 }
 
-// cleanup: inside dataDir only.
-fs.writeFileSync(path.join(dataDir, 'tmp1.txt'), 'x');
-fs.writeFileSync(path.join(work, 'outside.txt'), 'x');
-for (const outside of [path.join(work, 'outside.txt'), path.join('..', 'outside.txt'), dataDir, '.']) {
-  const r = job({ job: 'cleanup', dataDir, files: [path.join(dataDir, 'tmp1.txt'), outside] });
-  assert.notEqual(r.code, 0, 'refuses ' + outside);
-  assert.match(r.out.error, /outside dataDir/);
+// ---- fixtures ----
+// 16-bit PCM WAV written in JS (no ffmpeg needed). The name has a space and a Hangul syllable built from code points.
+function writeWav(file, sr, samples) {
+  const n = samples.length, buf = Buffer.alloc(44 + n * 2);
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write('WAVE', 8); buf.write('fmt ', 12);
+  buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(sr, 24);
+  buf.writeUInt32LE(sr * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34); buf.write('data', 36); buf.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) buf.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(samples[i] * 32767))), 44 + i * 2);
+  fs.writeFileSync(file, buf);
 }
-assert.ok(fs.existsSync(path.join(dataDir, 'tmp1.txt')), 'nothing deleted when one path is refused');
-assert.ok(fs.existsSync(path.join(work, 'outside.txt')));
-{
-  const r = job({ job: 'cleanup', dataDir, files: [path.join(dataDir, 'tmp1.txt'), 'never-existed.txt'] });
-  assert.equal(r.code, 0);
-  assert.equal(r.out.removed, 1);
-  assert.ok(!fs.existsSync(path.join(dataDir, 'tmp1.txt')));
-}
-
-const ffmpeg = tools.out.ffmpeg, ffprobe = tools.out.ffprobe;
-if (!ffmpeg || !ffprobe) {
-  console.log('host.test: ffmpeg/ffprobe not found, skipping probe/preview/beat');
-} else {
-  const sine = path.join(work, 'sine 2s.wav');
-  execFileSync(ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', '-ar', '44100', sine]);
-  const pr = job({ job: 'probe', dataDir, file: sine });
-  assert.equal(pr.code, 0, JSON.stringify(pr.out));
-  assert.ok(Math.abs(pr.out.duration - 2) < 0.05, 'duration ' + pr.out.duration);
-
-  const pv = job({ job: 'preview', dataDir, file: sine, start: 0.5, duration: 1 });
-  assert.equal(pv.code, 0, JSON.stringify(pv.out));
-  assert.equal(path.dirname(pv.out.out), path.resolve(dataDir), 'preview inside dataDir');
-  const b64 = fs.readFileSync(pv.out.out, 'utf8');
-  assert.match(b64, /^[A-Za-z0-9+/]+=*$/);
-  const mp3 = Buffer.from(b64, 'base64');
-  assert.equal(mp3.byteLength, pv.out.bytes);
-  assert.ok(mp3.subarray(0, 3).toString() === 'ID3' || (mp3[0] === 0xff && (mp3[1] & 0xe0) === 0xe0), 'mp3 data');
-  assert.deepEqual(fs.readdirSync(dataDir).filter((f) => f.endsWith('.mp3')), [], 'mp3 temp removed');
-  assert.equal(job({ job: 'cleanup', dataDir, files: [pv.out.out] }).out.removed, 1);
-  assert.equal(job({ job: 'preview', dataDir, file: sine, start: 0, duration: 'x' }).code, 1, 'bad duration');
-
-  // beat: the detector ships as ../beat-detect.cjs (another lane); fall back to the kit copy via SAE_BEAT_DETECT.
-  const shipped = path.join(root, 'beat-detect.cjs');
-  const kit = path.join(os.homedir(), 'Workspaces', 'selects-app-kit', 'tools', 'audio', 'beat-detect.cjs');
-  let env = null;
-  if (!fs.existsSync(shipped) && fs.existsSync(kit)) {
-    const copy = path.join(work, 'beat-detect.cjs');
-    fs.copyFileSync(kit, copy);
-    env = { SAE_BEAT_DETECT: copy };
+function clickTrack(bpm, first, seconds, sr) {
+  const x = new Float32Array(Math.round(seconds * sr));
+  for (let t = first; t < seconds; t += 60 / bpm) {
+    const i0 = Math.round(t * sr);
+    for (let k = 0; k < 400 && i0 + k < x.length; k++) x[i0 + k] += Math.sin(2 * Math.PI * 1000 * k / sr) * Math.exp(-k / 80);
   }
-  if (!fs.existsSync(shipped) && !env) {
-    console.log('host.test: beat detector not found, skipping beat');
-  } else {
-    // A 120 BPM click track, 8 s.
-    const clicks = path.join(work, 'clicks.wav');
-    execFileSync(ffmpeg, ['-v', 'error', '-y', '-f', 'lavfi', '-i',
-      "aevalsrc='if(lt(mod(t,0.5),0.01),sin(2*PI*1000*t),0)':s=44100:d=8", clicks]);
-    const bt = job({ job: 'beat', dataDir, file: clicks, maxSeconds: 360 }, env);
-    assert.equal(bt.code, 0, JSON.stringify(bt.out));
-    assert.equal(bt.out.out, path.join(path.resolve(dataDir), 'own-music.json'));
-    const full = JSON.parse(fs.readFileSync(bt.out.out, 'utf8'));
-    assert.ok(Math.abs(full.bpm - 120) < 1, 'bpm ' + full.bpm);
-    assert.equal(full.bpm, bt.out.bpm);
-    assert.ok(Array.isArray(full.beatEnergy) && Array.isArray(full.peaks), 'full result written');
-    assert.deepEqual(fs.readdirSync(dataDir).filter((f) => f.endsWith('.f32')), [], 'f32 temp removed');
-    // maxSeconds caps the decode.
-    const capped = job({ job: 'beat', dataDir, file: clicks, maxSeconds: 4 }, env);
-    assert.equal(capped.code, 0);
-    assert.ok(Math.abs(capped.out.durationSeconds - 4) < 0.05, 'capped ' + capped.out.durationSeconds);
-  }
+  return x;
 }
+const KO = String.fromCodePoint(0xC74C, 0xC545); // two Hangul syllables
+const media = path.join(tmp, 'my ' + KO + ' track (1).wav');
+const SR_IN = 44100;
+writeWav(media, SR_IN, Float32Array.from({ length: 2 * SR_IN }, (_, i) => 0.5 * Math.sin(2 * Math.PI * 440 * i / SR_IN)));
+const clicks = path.join(tmp, 'clicks ' + KO + '.wav');
+writeWav(clicks, SR_IN, clickTrack(120, 0.5, 30, SR_IN));
+const lsData = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir) : []);
 
-fs.rmSync(work, { recursive: true, force: true });
-console.log('host.test: ok');
+// ---- static ----
+test('block is plain JS with no host shell and no hand-built paths', () => {
+  for (const name of API) assert.ok(new RegExp('function ' + name + '\\(').test(block), 'defines ' + name);
+  for (const bad of ['runShell', '/tmp', '~/', '$HOME', '%USERPROFILE%', 'process.env', 'require(', 'import '])
+    assert.ok(!block.includes(bad), 'block must not contain ' + bad);
+  assert.ok(!/\+\s*["'`][\\/]+["'`]/.test(block), 'no + "/" path concatenation');
+  assert.ok(!/["'`][\\/]+["'`]\s*\+/.test(block), 'no "/" + path concatenation');
+  assert.ok(!/:\s*(string|number|boolean|any)\b|\bas any\b|\binterface\s/.test(block), 'no TS-only syntax');
+});
+
+// ---- missing host ----
+test('missing __DI__ or members -> host_tools', async () => {
+  const { H } = sandbox(undefined);
+  assert.deepEqual(JSON.parse(JSON.stringify(H.saeDI())), { fs: null, rt: null });
+  const has = H.saeHas(['fs.join', 'rt.runFFmpeg']);
+  assert.equal(has.ok, false);
+  assert.deepEqual(Array.from(has.missing), ['fs.join', 'rt.runFFmpeg']);
+  throwsCode(() => H.saeDataDir('x'), 'host_tools');
+  throwsCode(() => H.saeSkillsDir('x'), 'host_tools');
+  await rejectsCode(H.saeFFmpeg(['-version']), 'host_tools');
+  await rejectsCode(H.saeFFprobe(['-version']), 'host_tools');
+  await rejectsCode(H.saeProbeDuration(media), 'host_tools');
+  await rejectsCode(H.saeDecodePcm(media, tmp), 'host_tools');
+  await rejectsCode(H.saePreviewUrl(media, 0, 1, tmp), 'host_tools');
+
+  // Partial hosts: FileSystem without mkdirSync; Runtime without runFFprobe; no file reader at all. The reader is
+  // checked before ffmpeg runs, so nothing is written.
+  let ran = 0;
+  const partial = sandbox({ FileSystem: realFS({ mkdirSync: undefined, readFileSync: undefined, readFile: undefined }),
+    Runtime: { runFFmpeg: async () => { ran++; return { stdout: '', stderr: '' }; } } }).H;
+  const err = throwsCode(() => partial.saeDataDir('x'), 'host_tools');
+  assert.deepEqual(Array.from(err.missing), ['fs.mkdirSync']);
+  await rejectsCode(partial.saeFFprobe(['-version']), 'host_tools');
+  await rejectsCode(partial.saeDecodePcm(media, tmp), 'host_tools');
+  await rejectsCode(partial.saePreviewUrl(media, 0, 1, tmp), 'host_tools');
+  assert.equal(ran, 0, 'ffmpeg not started without a reader');
+  assert.equal(partial.saeHas(['rt.runFFmpeg', 'fs.join']).ok, true);
+
+  // window.__DI__ is accepted when window.parent has none; a throwing window.parent does not escape saeDI.
+  const self = sandbox({ FileSystem: realFS(), Runtime: realRT() }, { where: 'self' }).H;
+  assert.equal(self.saeHas(['fs.join', 'rt.runFFmpeg']).ok, true);
+  const box = { window: {} };
+  Object.defineProperty(box.window, 'parent', { get() { throw new Error('SecurityError'); } });
+  vm.createContext(box);
+  vm.runInContext(block + ';globalThis.D=saeDI();', box);
+  assert.equal(box.D.fs, null);
+});
+
+test('timeouts and tool failures map to timeout / media_failed', async () => {
+  const hung = (args, quiet, signal) => new Promise((resolve, reject) => {
+    signal.addEventListener('abort', () => reject(new Error('aborted')));
+  });
+  const { H } = sandbox({ FileSystem: realFS(), Runtime: { runFFmpeg: hung, runFFprobe: hung } });
+  await rejectsCode(H.saeFFmpeg(['-i', 'x'], { timeoutMs: 50 }), 'timeout');
+  await rejectsCode(H.saeFFprobe(['-i', 'x'], { timeoutMs: 50 }), 'timeout');
+  const failing = sandbox({ FileSystem: realFS(), Runtime: {
+    runFFmpeg: async () => { const e = new Error('ffmpeg exited 1'); e.stderr = 'No such file'; throw e; },
+    runFFprobe: async () => ({ stdout: '{}', stderr: '' }) } }).H;
+  const err = await rejectsCode(failing.saeFFmpeg(['-i', 'x']), 'media_failed');
+  assert.match(err.detail, /No such file/);
+  await rejectsCode(failing.saeProbeDuration('x'), 'media_failed');
+});
+
+// ---- paths ----
+test('platform, skills dir, data dir', () => {
+  assert.equal(sandbox({ Runtime: { getPlatform: () => 'win32' } }).H.saePlatform(), 'win32');
+  assert.equal(sandbox({ Runtime: { getPlatform: () => 'darwin' } }).H.saePlatform(), 'darwin');
+  assert.equal(sandbox({}, { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Selects' }).H.saePlatform(), 'win32');
+  assert.equal(sandbox({}, { ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }).H.saePlatform(), 'darwin');
+  assert.equal(sandbox(undefined, { ua: 'Mozilla/5.0 (X11; Linux x86_64)' }).H.saePlatform(), 'linux');
+
+  const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
+  const skill = path.join(HOME, '.selects', 'skills', 'selfie-aesthetic');
+  assert.equal(H.saeSkillsDir('selfie-aesthetic'), null, 'no folder yet');
+  fs.mkdirSync(skill, { recursive: true });
+  assert.equal(H.saeSkillsDir('selfie-aesthetic'), null, 'folder without planner.js');
+  fs.writeFileSync(path.join(skill, 'planner.js'), '');
+  assert.equal(H.saeSkillsDir('selfie-aesthetic'), skill);
+
+  const data = path.join(HOME, '.selects', 'plugin-data', 'selfie-aesthetic');
+  assert.ok(!fs.existsSync(data));
+  assert.equal(H.saeDataDir('selfie-aesthetic'), data);
+  assert.ok(fs.statSync(data).isDirectory());
+  assert.equal(H.saeDataDir('selfie-aesthetic'), data, 'idempotent');
+});
+
+test('samePath / baseName', () => {
+  const { H } = sandbox(undefined);
+  assert.equal(H.saeSamePath('C:\\Users\\A\\x.mp3', 'c:/users/a/x.mp3'), true);
+  assert.equal(H.saeSamePath('C:\\Users\\A\\x.mp3', 'C:\\Users\\A\\y.mp3'), false);
+  assert.equal(H.saeSamePath('D:\\Music\\', 'd:/music'), true);
+  assert.equal(H.saeSamePath('\\\\server\\Share\\a.mp3', '//server/share/A.mp3'), true);
+  const nfc = String.fromCodePoint(0xD55C, 0xAE00), nfd = nfc.normalize('NFD');
+  assert.notEqual(nfc, nfd);
+  assert.equal(H.saeSamePath('/srv/m/' + nfc + '.mp3', '/srv/m/' + nfd + '.mp3'), true);
+  assert.equal(H.saeSamePath('C:\\m\\' + nfd + '.mp3', 'c:/M/' + nfc + '.mp3'), true);
+  assert.equal(H.saeSamePath('/srv/a/X.mp3', '/srv/a/x.mp3'), false, 'POSIX stays case-sensitive');
+  assert.equal(H.saeSamePath('/srv/a/x.mp3', '/srv/a/x.mp3'), true);
+  assert.equal(H.saeSamePath(null, '/srv/a'), false);
+  assert.equal(H.saeBaseName('C:\\m\\a b.mp3'), 'a b.mp3');
+  assert.equal(H.saeBaseName('/srv/m/' + nfd + '.mp3'), nfc + '.mp3');
+  assert.equal(H.saeBaseName('/srv/m/dir/'), 'dir');
+  assert.equal(H.saeBaseName(undefined), '');
+});
+
+test('saeYield resolves on a later tick', async () => {
+  const { H } = sandbox(undefined);
+  let after = false;
+  const p = H.saeYield().then(() => { assert.equal(after, true); });
+  after = true;
+  await p;
+});
+
+// ---- beat detector core in the panel ----
+function evalBeat(wrapped) {
+  const box = {}; // no require, module, exports, process, Buffer
+  vm.createContext(box);
+  const code = wrapped
+    ? 'globalThis.B = (function () {\n' + beatCore + '\nreturn { analyze };\n})();'
+    : beatCore + '\n;globalThis.B = { analyze };';
+  vm.runInContext(code, box);
+  return box.B;
+}
+test('beat detector core is browser-safe (bare and IIFE-wrapped)', () => {
+  for (const bad of [/\brequire\s*\(/, /\bprocess\./, /\bBuffer\b/, /\bmodule\./, /\bexports\./])
+    assert.ok(!bad.test(beatCore), 'detector core must not use ' + bad);
+  for (const wrapped of [false, true]) {
+    const B = evalBeat(wrapped);
+    assert.equal(typeof B.analyze, 'function');
+    const a = B.analyze(clickTrack(120, 0.5, 30, 22050), 22050);
+    assert.ok(Math.abs(a.bpm - 120) <= 1, 'bpm ' + a.bpm);
+    assert.equal(a.accepted, true);
+  }
+});
+
+// ---- real ffmpeg through the fake host ----
+const ffTest = (name, fn) => test(name, async () => {
+  if (!HAVE_FF) { console.log('  SKIP (no ffmpeg/ffprobe; set SAE_FFMPEG_DIR or install them): ' + name); return 'skip'; }
+  return fn();
+});
+
+ffTest('probe duration', async () => {
+  const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
+  const d = await H.saeProbeDuration(media);
+  assert.ok(Math.abs(d - 2) <= 0.05, 'duration ' + d);
+  await rejectsCode(H.saeProbeDuration(path.join(tmp, 'missing.wav')), 'media_failed');
+});
+
+ffTest('decode PCM (Buffer and ArrayBuffer readers) leaves no file', async () => {
+  const readers = {
+    buffer: realFS(),
+    arraybuffer: realFS({ readFileSync: (p) => { const b = fs.readFileSync(p); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); } }),
+    asyncOnly: realFS({ readFileSync: undefined }),
+    removeFileOnly: realFS({ unlinkSync: undefined }),
+  };
+  for (const [name, FileSystem] of Object.entries(readers)) {
+    const { H } = sandbox({ FileSystem, Runtime: realRT() });
+    const dir = H.saeDataDir('pcm-' + name);
+    const pcm = await H.saeDecodePcm(media, dir);
+    assert.equal(Object.prototype.toString.call(pcm), '[object Float32Array]', name);
+    assert.ok(Math.abs(pcm.length - 44100) <= 64, name + ' length ' + pcm.length);
+    let peak = 0; for (let i = 0; i < pcm.length; i++) peak = Math.max(peak, Math.abs(pcm[i]));
+    assert.ok(peak > 0.4 && peak < 0.6, name + ' peak ' + peak);
+    assert.deepEqual(lsData(dir), [], name + ' leaves nothing behind');
+    const short = await H.saeDecodePcm(media, dir, 1);
+    assert.ok(Math.abs(short.length - 22050) <= 64, name + ' maxSeconds ' + short.length);
+  }
+  const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
+  const dir = H.saeDataDir('pcm-missing');
+  await rejectsCode(H.saeDecodePcm(path.join(tmp, 'missing.wav'), dir), 'media_failed');
+  assert.deepEqual(lsData(dir), []);
+});
+
+ffTest('decoded PCM feeds the vm detector (end to end)', async () => {
+  const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
+  const pcm = await H.saeDecodePcm(clicks, H.saeDataDir('e2e'));
+  const a = evalBeat(true).analyze(pcm, 22050);
+  assert.ok(Math.abs(a.bpm - 120) <= 1, 'bpm ' + a.bpm);
+  assert.ok(Math.abs(a.firstBeat - 0.5) <= 0.03, 'firstBeat ' + a.firstBeat);
+});
+
+ffTest('preview blob URL, mp3 with WAV fallback, no file left', async () => {
+  const s = sandbox({ FileSystem: realFS(), Runtime: realRT() });
+  const dir = s.H.saeDataDir('preview');
+  const url = await s.H.saePreviewUrl(media, 0.5, 1, dir);
+  assert.equal(url, 'blob:sae/1');
+  assert.equal(s.blobs.length, 1);
+  assert.equal(s.blobs[0].type, 'audio/mpeg');
+  assert.ok(s.blobs[0].size > 1000, 'mp3 bytes ' + s.blobs[0].size);
+  assert.deepEqual(lsData(dir), []);
+
+  // A host ffmpeg without libmp3lame: the WAV fallback still yields a preview.
+  const noLame = sandbox({ FileSystem: realFS(), Runtime: realRT({
+    runFFmpeg: (args, quiet, signal) => (args.includes('libmp3lame') ? Promise.reject(new Error('Unknown encoder')) : runTool('ffmpeg', args, signal)),
+  }) });
+  await noLame.H.saePreviewUrl(media, 0, 1, dir);
+  assert.equal(noLame.blobs[0].type, 'audio/wav');
+  assert.ok(Math.abs(noLame.blobs[0].size - (44 + 44100 * 4)) < 2048, 'wav bytes ' + noLame.blobs[0].size);
+  assert.deepEqual(lsData(dir), []);
+
+  await rejectsCode(s.H.saePreviewUrl(path.join(tmp, 'missing.wav'), 0, 1, dir), 'media_failed');
+  assert.deepEqual(lsData(dir), []);
+});
+
+(async () => {
+  let failed = 0, skipped = 0;
+  for (const t of tests) {
+    try {
+      if ((await t.fn()) === 'skip') skipped++; else console.log('ok   ' + t.name);
+    } catch (e) {
+      failed++;
+      console.log('FAIL ' + t.name + '\n' + (e && e.stack || e));
+    }
+  }
+  fs.rmSync(tmp, { recursive: true, force: true });
+  console.log((failed ? 'host tests FAILED: ' + failed : 'host tests passed') + ' (' + tests.length + ' tests, ' + skipped + ' skipped, ffmpeg ' + (HAVE_FF ? (toolDir || 'PATH') : 'absent') + ')');
+  process.exit(failed ? 1 : 0);
+})();
