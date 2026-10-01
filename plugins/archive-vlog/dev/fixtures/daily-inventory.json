@@ -1,0 +1,344 @@
+{
+ "resources": [
+  {
+   "rid": "r0",
+   "name": "book-01-landscape.mp4",
+   "duration": 11.925,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:01:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r1",
+   "name": "book-02-landscape.mp4",
+   "duration": 12.521667,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:02:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r2",
+   "name": "book-03-landscape.mp4",
+   "duration": 14.56,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:03:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r3",
+   "name": "book-04-landscape.mp4",
+   "duration": 10.076733,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:04:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r4",
+   "name": "cafe-01-landscape.mp4",
+   "duration": 9.4,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:05:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r5",
+   "name": "cafe-02-landscape.mp4",
+   "duration": 8.708333,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:06:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r6",
+   "name": "cafe-03-landscape.mp4",
+   "duration": 11.878533,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:07:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r7",
+   "name": "drink-01-landscape.mp4",
+   "duration": 6.033333,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:08:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r8",
+   "name": "drink-02-landscape.mp4",
+   "duration": 11.881667,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:09:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r9",
+   "name": "drink-03-landscape.mp4",
+   "duration": 12.16,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:10:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r10",
+   "name": "drink-04-landscape.mp4",
+   "duration": 15.015,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:11:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r11",
+   "name": "flowers-01-landscape.mp4",
+   "duration": 18.6,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:12:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r12",
+   "name": "flowers-02-landscape.mp4",
+   "duration": 21.291667,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:13:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r13",
+   "name": "flowers-03-landscape.mp4",
+   "duration": 26.066667,
+   "width": 2048,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:14:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r14",
+   "name": "flowers-04-landscape.mp4",
+   "duration": 5.958333,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:15:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r15",
+   "name": "food-01-landscape.mp4",
+   "duration": 6.25,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:16:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r16",
+   "name": "food-02-landscape.mp4",
+   "duration": 7.640967,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:17:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r17",
+   "name": "food-03-landscape.mp4",
+   "duration": 5.28,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:18:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r18",
+   "name": "food-04-landscape.mp4",
+   "duration": 8.174833,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:19:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r19",
+   "name": "park-01-landscape.mp4",
+   "duration": 9.9,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:20:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r20",
+   "name": "park-02-landscape.mp4",
+   "duration": 16.8,
+   "width": 2048,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:21:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r21",
+   "name": "park-03-landscape.mp4",
+   "duration": 13.845,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:22:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r22",
+   "name": "street-01-landscape.mp4",
+   "duration": 10.01,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:23:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r23",
+   "name": "street-02-landscape.mp4",
+   "duration": 16.648333,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:24:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r24",
+   "name": "street-03-landscape.mp4",
+   "duration": 25.535,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:25:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r25",
+   "name": "street-04-landscape.mp4",
+   "duration": 8.4084,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:26:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r26",
+   "name": "transit-01-landscape.mp4",
+   "duration": 25.84,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:27:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r27",
+   "name": "transit-02-landscape.mp4",
+   "duration": 10.466667,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:28:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r28",
+   "name": "transit-03-landscape.mp4",
+   "duration": 13.013,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:29:00",
+   "kind": "video"
+  },
+  {
+   "rid": "r29",
+   "name": "transit-04-landscape.mp4",
+   "duration": 8.575,
+   "width": 1920,
+   "height": 1080,
+   "recordedAt": "2025-05-17T10:30:00",
+   "kind": "video"
+  }
+ ],
+ "photos": [
+  {
+   "rid": "r30",
+   "name": "photo-book-01.jpg",
+   "width": 2400,
+   "height": 1600,
+   "recordedAt": "2025-05-18T09:00:00",
+   "kind": "photo"
+  },
+  {
+   "rid": "r31",
+   "name": "photo-cafe-01.jpg",
+   "width": 2400,
+   "height": 1594,
+   "recordedAt": "2025-05-18T09:00:00",
+   "kind": "photo"
+  },
+  {
+   "rid": "r32",
+   "name": "photo-drink-01.jpg",
+   "width": 2400,
+   "height": 1600,
+   "recordedAt": "2025-05-18T09:00:00",
+   "kind": "photo"
+  },
+  {
+   "rid": "r33",
+   "name": "photo-flowers-01.jpg",
+   "width": 2400,
+   "height": 1600,
+   "recordedAt": "2025-05-18T09:00:00",
+   "kind": "photo"
+  },
+  {
+   "rid": "r34",
+   "name": "photo-food-01.jpg",
+   "width": 2400,
+   "height": 1346,
+   "recordedAt": "2025-05-18T09:00:00",
+   "kind": "photo"
+  },
+  {
+   "rid": "r35",
+   "name": "photo-park-01.jpg",
+   "width": 2400,
+   "height": 1600,
+   "recordedAt": "2025-05-18T09:00:00",
+   "kind": "photo"
+  },
+  {
+   "rid": "r36",
+   "name": "photo-street-01.jpg",
+   "width": 2400,
+   "height": 1350,
+   "recordedAt": "2025-05-18T09:00:00",
+   "kind": "photo"
+  },
+  {
+   "rid": "r37",
+   "name": "photo-transit-01.jpg",
+   "width": 2400,
+   "height": 1798,
+   "recordedAt": "2025-05-18T09:00:00",
+   "kind": "photo"
+  }
+ ],
+ "skipped": {
+  "unanalysed": 0,
+  "missing": 0
+ }
+}
