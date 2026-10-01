@@ -1,16 +1,23 @@
 {
   "schemaVersion": 1,
   "id": "a16z-style-captions",
-  "version": "0.16.0",
+  "version": "0.20.0",
   "name": "a16z Style Captions",
-  "summary": "Editable blur-to-sharp editorial captions for the active Draft, with optional B-roll and motion graphics.",
+  "summary": "One click turns a talking-head Draft into a 9:16 Short in the a16z house style: framing, editorial captions, keyword cards, B-roll, name tag and music.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
   "files": [
     "SKILL.md",
     "INSTALL.md",
-    "panel.tsx"
+    "THIRD_PARTY.md",
+    "panel.tsx",
+    "fonts/InterDisplay-Medium.woff2.b64",
+    "fonts/EditorialSerif-Italic.woff2.b64",
+    "fonts/EditorialSerif-Regular.woff2.b64",
+    "fonts/EditorialSerif-Light.woff2.b64",
+    "fonts/OFL-Inter.txt",
+    "fonts/OFL-PlayfairDisplay.txt"
   ],
   "compatibility": {
     "platforms": [
@@ -21,43 +28,49 @@
   "localized": {
     "de": {
       "name": "a16z-Stil-Untertitel",
-      "summary": "Bearbeitbare Blur-to-Sharp-Untertitel im Editorial-Stil f\u00fcr den aktiven Draft, optional mit B-Roll und Grafiken."
+      "summary": "Macht mit einem Klick aus einem Talking-Head-Draft ein 9:16-Short im a16z-Hausstil: Framing, redaktionelle Untertitel, Keyword-Karten, B-Roll, Namenseinblendung und Musik."
     },
     "en": {
       "name": "a16z Style Captions",
-      "summary": "Editable blur-to-sharp editorial captions for the active Draft, with optional B-roll and motion graphics."
+      "summary": "One click turns a talking-head Draft into a 9:16 Short in the a16z house style: framing, editorial captions, keyword cards, B-roll, name tag and music."
     },
     "es": {
       "name": "Subt\u00edtulos estilo a16z",
-      "summary": "Subt\u00edtulos editoriales editables de desenfocado a n\u00edtido para el Draft activo, con B-roll y gr\u00e1ficos opcionales."
+      "summary": "Con un clic convierte un Draft de persona hablando en un Short 9:16 al estilo de a16z: encuadre, subt\u00edtulos editoriales, tarjetas de palabras clave, B-roll, r\u00f3tulo con el nombre y m\u00fasica."
     },
     "fr": {
       "name": "Sous-titres style a16z",
-      "summary": "Sous-titres \u00e9ditoriaux modifiables, du flou au net, pour le Draft actif, avec B-roll et animations en option."
+      "summary": "En un clic, transforme un Draft face cam\u00e9ra en Short 9:16 dans le style maison d\u2019a16z : cadrage, sous-titres \u00e9ditoriaux, cartes mots-cl\u00e9s, B-roll, nom \u00e0 l\u2019\u00e9cran et musique."
     },
     "it": {
       "name": "Sottotitoli stile a16z",
-      "summary": "Sottotitoli editoriali modificabili da sfocato a nitido per il Draft attivo, con B-roll e grafiche opzionali."
+      "summary": "Con un clic trasforma un Draft con una persona che parla in uno Short 9:16 nello stile di a16z: inquadratura, sottotitoli editoriali, schede con parole chiave, B-roll, sottopancia e musica."
     },
     "ja": {
       "name": "a16z\u30b9\u30bf\u30a4\u30eb\u5b57\u5e55",
-      "summary": "\u30a2\u30af\u30c6\u30a3\u30d6\u306aDraft\u306b\u3001\u307c\u304b\u3057\u304b\u3089\u30b7\u30e3\u30fc\u30d7\u306b\u73fe\u308c\u308b\u7de8\u96c6\u53ef\u80fd\u306a\u5b57\u5e55\u3092\u8ffd\u52a0\u3002B\u30ed\u30fc\u30eb\u3068\u30e2\u30fc\u30b7\u30e7\u30f3\u30b0\u30e9\u30d5\u30a3\u30c3\u30af\u30b9\u3082\u4efb\u610f\u3067\u8ffd\u52a0\u3067\u304d\u307e\u3059\u3002"
+      "summary": "\u30ef\u30f3\u30af\u30ea\u30c3\u30af\u3067\u3001\u8a71\u3057\u624b\u3092\u6620\u3057\u305fDraft\u3092a16z\u30b9\u30bf\u30a4\u30eb\u306e9:16\u30b7\u30e7\u30fc\u30c8\u306b\u5909\u63db\u3057\u307e\u3059\u3002\u30d5\u30ec\u30fc\u30df\u30f3\u30b0\u3001\u7de8\u96c6\u7684\u306a\u5b57\u5e55\u3001\u30ad\u30fc\u30ef\u30fc\u30c9\u30ab\u30fc\u30c9\u3001B\u30ed\u30fc\u30eb\u3001\u540d\u524d\u30c6\u30ed\u30c3\u30d7\u3001\u97f3\u697d\u4ed8\u304d\u3002"
     },
     "ko": {
       "name": "a16z \uc2a4\ud0c0\uc77c \uc790\ub9c9",
-      "summary": "\ud65c\uc131 Draft\uc5d0 \ud750\ub9bc\uc5d0\uc11c \uc120\uba85\ud558\uac8c \ub098\ud0c0\ub098\ub294 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc5d0\ub514\ud1a0\ub9ac\uc5bc \uc790\ub9c9\uc744 \ucd94\uac00\ud558\uace0, B\ub864\uacfc \ubaa8\uc158 \uadf8\ub798\ud53d\ub3c4 \uc120\ud0dd\uc801\uc73c\ub85c \ub123\uc2b5\ub2c8\ub2e4."
+      "summary": "\ud074\ub9ad \ud55c \ubc88\uc73c\ub85c \ud1a0\ud0b9\ud5e4\ub4dc Draft\ub97c a16z \uc2a4\ud0c0\uc77c\uc758 9:16 \uc1fc\uce20\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. \ud504\ub808\uc774\ubc0d, \uc5d0\ub514\ud1a0\ub9ac\uc5bc \uc790\ub9c9, \ud0a4\uc6cc\ub4dc \uce74\ub4dc, B\ub864, \uc774\ub984\ud45c, \uc74c\uc545\uae4c\uc9c0 \ub123\uc2b5\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Legendas estilo a16z",
-      "summary": "Legendas editoriais edit\u00e1veis de desfocado para n\u00edtido no Draft ativo, com B-roll e gr\u00e1ficos opcionais."
+      "summary": "Com um clique, transforma um Draft de pessoa falando em um Short 9:16 no estilo da a16z: enquadramento, legendas editoriais, cart\u00f5es de palavra-chave, B-roll, nome na tela e m\u00fasica."
     },
     "tr": {
       "name": "a16z Tarz\u0131 Altyaz\u0131lar",
-      "summary": "Etkin Draft i\u00e7in bulan\u0131ktan keskine d\u00fczenlenebilir editoryal altyaz\u0131lar; iste\u011fe ba\u011fl\u0131 B-roll ve hareketli grafikler."
+      "summary": "Tek t\u0131kla konu\u015fan ki\u015fi i\u00e7eren bir Draft\u2019\u0131 a16z tarz\u0131nda 9:16 bir Short\u2019a d\u00f6n\u00fc\u015ft\u00fcr\u00fcr: \u00e7er\u00e7eveleme, editoryal altyaz\u0131lar, anahtar kelime kartlar\u0131, B-roll, isim etiketi ve m\u00fczik."
     },
     "zh": {
       "name": "a16z \u98ce\u683c\u5b57\u5e55",
-      "summary": "\u4e3a\u5f53\u524d Draft \u6dfb\u52a0\u53ef\u7f16\u8f91\u7684\u7531\u6a21\u7cca\u5230\u6e05\u6670\u7684\u7f16\u8f91\u98ce\u683c\u5b57\u5e55\uff0c\u5e76\u53ef\u9009\u6dfb\u52a0 B-roll \u548c\u52a8\u6001\u56fe\u5f62\u3002"
+      "summary": "\u4e00\u952e\u628a\u53e3\u64ad Draft \u505a\u6210 a16z \u98ce\u683c\u7684 9:16 \u77ed\u89c6\u9891\uff1a\u4eba\u7269\u6784\u56fe\u3001\u7f16\u8f91\u98ce\u683c\u5b57\u5e55\u3001\u5173\u952e\u8bcd\u5361\u7247\u3001B-roll\u3001\u59d3\u540d\u6761\u548c\u97f3\u4e50\u3002"
     }
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
   }
 }
