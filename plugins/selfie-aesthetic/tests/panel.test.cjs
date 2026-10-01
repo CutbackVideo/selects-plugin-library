@@ -279,6 +279,13 @@ test('run generation: a build from Project A that resumes after A -> B -> A writ
   assert.equal((own.match(/finally \{ endRun\(guard\); \}/g) || []).length, 2);
   assert.ok(!/projectRef\.current !== pid\) throw STALE|endRun\(pid\)|e !== STALE && projectRef\.current === pid/.test(own), 'no pid-only guards left');
 });
+test('decorate.js result is kept: its notes join the note line, alreadyDone counts as done', () => {
+  assert.ok(own.includes('dr = await run("Add whip and look", fill(assets.scripts.decorateJs, deco), true);'), 'result kept');
+  assert.ok(own.includes('{ ...r, decorated: true, decoNotes: (dr && dr.notes) || [] }'), 'notes replace, decorated on any success');
+  assert.ok(own.includes('[...(result.notes || []), ...(result.decoNotes || [])]') && own.includes('t(L, "note", { detail: scriptNotes.join("; ") })'));
+  assert.ok(!/alreadyDone/.test(own.replace(/\/\/[^\n]*/g, '')), 'alreadyDone is not treated as a failure');
+  assert.ok(/alreadyDone: !committed, notes \}/.test(read('scripts', 'decorate.js')), 'decorate.js returns notes and alreadyDone');
+});
 test('bad-shot spans: every track merged, malformed entries skipped; alias ids mapped once', () => {
   assert.deepEqual(plain(api.saeSpansOf({ spans: { 1: { badShotSpans: [[4, 5], [1, 2]] }, 0: { badShotSpans: [[0.5, 0.8], [3, 3], ['x', 2], [7]] } } })), [[0.5, 0.8], [1, 2], [4, 5]]);
   assert.deepEqual(plain(api.saeSpansOf({ spans: {} })), []);

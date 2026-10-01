@@ -3766,14 +3766,17 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   // only what an earlier attempt did not, so "Finish look" can run it again.
   async function decorate(deco: any, check: () => void) {
     advance("look", 0);
+    let dr: any;
     try {
-      await run("Add whip and look", fill(assets.scripts.decorateJs, deco), true);
+      dr = await run("Add whip and look", fill(assets.scripts.decorateJs, deco), true);
     } catch (e: any) {
       if (e === STALE) throw e;
       throw uiError((l) => t(l, "finishFailed", { detail: sayError(l, e) }));
     }
     check();
-    setResult((r: any) => (r ? { ...r, decorated: true } : r));
+    // alreadyDone (an earlier attempt's commit landed, nothing left to add) is success too. decorate.js notes are
+    // English details like assemble.js's; they replace the previous attempt's so a "Finish look" retry never repeats them.
+    setResult((r: any) => (r ? { ...r, decorated: true, decoNotes: (dr && dr.notes) || [] } : r));
     advance("look", 0.8, (l) => t(l, "detail.open"));
     try {
       const o = await run("Open the new Draft", "const id = " + JSON.stringify(deco.sequenceId) + ";\n"
@@ -3837,6 +3840,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   const showSlider = !!cue && total > 0 && !(musicId === "own" && (!ownFile || listening));
   const shrunk = dry && dry.ok && dry.fit.bars < dry.fit.wanted;
   const planNotes = result ? saePlanNotes(L, result.plan) : [];
+  const scriptNotes: string[] = result ? [...(result.notes || []), ...(result.decoNotes || [])] : [];
 
   if (!projectId) return <ui.Message tone="error">{t(L, "openProject")}</ui.Message>;
   if (fatal) return <ui.Message tone="error">{fatal.say(L)}</ui.Message>;
@@ -3967,7 +3971,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
         ) : null}
         {planNotes.map((text, i) => <ui.Message key={i} tone="muted">{text}</ui.Message>)}
         {result?.unsearched ? <ui.Message tone="muted">{t(L, "unsearched", { count: result.unsearched })}</ui.Message> : null}
-        {result?.notes?.length ? <ui.Message tone="muted">{t(L, "note", { detail: result.notes.join("; ") })}</ui.Message> : null}
+        {scriptNotes.length ? <ui.Message tone="muted">{t(L, "note", { detail: scriptNotes.join("; ") })}</ui.Message> : null}
         <ui.Actions>
           {result && !result.decorated && !busy ? <ui.Button onClick={finishLook} disabled={busy}>{t(L, "finishLook")}</ui.Button> : null}
           {result ? <ui.Button variant="secondary" onClick={buildAnother} disabled={busy || !canBuild}>{t(L, "anotherVersion")}</ui.Button> : null}
