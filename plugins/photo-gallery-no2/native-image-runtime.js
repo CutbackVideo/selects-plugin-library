@@ -1,9 +1,16 @@
 // Panel-only adapter to the editor's own timeline mutation service. The
 // public plugin SDK currently refuses Image Resources in overlayResource.
-async function galleryNativeContext(projectId) {
+// A template run passes the library it was handed (`context.template.libraryId`),
+// since it keeps running while the person moves to another page; the Panel reads
+// the open Project from the app's address.
+async function galleryNativeContext(projectId, knownLibraryId = null) {
   const app = window.parent;
-  const match = app.location.pathname.match(/libraries\/([^/]+)\/projects\/([^/]+)/);
-  if (!match || match[2] !== projectId) throw new Error('The open Project changed; reload its media');
+  let libraryId = knownLibraryId;
+  if (!libraryId) {
+    const match = app.location.pathname.match(/libraries\/([^/]+)\/projects\/([^/]+)/);
+    if (!match || match[2] !== projectId) throw new Error('The open Project changed; reload its media');
+    libraryId = match[1];
+  }
   const di = app.__DI__;
   if (typeof di?.TimelineMutation?.run !== 'function' ||
       typeof di?.ProjectRepository?.findById !== 'function' ||
@@ -11,13 +18,13 @@ async function galleryNativeContext(projectId) {
       typeof di?.SequenceRepository?.findById !== 'function') {
     throw new Error('This Selects build does not expose native Image placement to plugins');
   }
-  const project = await di.ProjectRepository.findById(match[1], projectId);
+  const project = await di.ProjectRepository.findById(libraryId, projectId);
   if (!project) throw new Error('The open Project was not found');
-  return { di, libraryId: match[1], project };
+  return { di, libraryId, project };
 }
 
-async function galleryNativeResources(projectId, media) {
-  const ctx = await galleryNativeContext(projectId);
+async function galleryNativeResources(projectId, media, libraryId = null) {
+  const ctx = await galleryNativeContext(projectId, libraryId);
   const members = await Promise.all(ctx.project.getResources().map(id =>
     ctx.di.ResourceRepository.findById(ctx.libraryId, id)));
   const selected = media.map((item, index) => {
@@ -41,8 +48,8 @@ async function galleryNativeDraft(ctx, draftId) {
   return sequence;
 }
 
-async function galleryNativeSetFps(projectId, draftId) {
-  const ctx = await galleryNativeContext(projectId);
+async function galleryNativeSetFps(projectId, draftId, libraryId = null) {
+  const ctx = await galleryNativeContext(projectId, libraryId);
   const sequence = await galleryNativeDraft(ctx, draftId);
   const outcome = await ctx.di.TimelineMutation.run(sequence, 'photoGallery:set60Fps', current => {
     if (!current.isEmpty() || current.getDuration('resolved') !== 0) throw new Error('The new Draft is no longer empty');
@@ -55,10 +62,10 @@ async function galleryNativeSetFps(projectId, draftId) {
   if (outcome.status !== 'committed') throw new Error(`60 fps change ${outcome.status}; inspect the Draft before retrying`);
 }
 
-async function galleryNativePlace(projectId, draftId, media, plan) {
+async function galleryNativePlace(projectId, draftId, media, plan, libraryId = null) {
   const imageTiles = plan.tiles.map((tile, i) => ({ tile, media: media[i], index: i })).filter(item => item.tile.kind === 'image');
   if (!imageTiles.length) return;
-  const ctx = await galleryNativeResources(projectId, imageTiles.map(item => item.media));
+  const ctx = await galleryNativeResources(projectId, imageTiles.map(item => item.media), libraryId);
   const prepared = await Promise.all(ctx.selected.map(async (item, i) => {
     const analyzed = await item.nativeResource.getAnalyzedSequence();
     const main = analyzed?.getMainTrack();
