@@ -584,13 +584,14 @@ assert.ok(ui.includes('if (timer) clearTimeout(timer);'), 'the timer stops with 
   assert.equal((dec.match(/if \(signal\.aborted\) throw new Error\("cancelled"\);/g) || []).length, 3, 'after ffmpeg, the file read and the decode');
   assert.ok(dec.includes('throw signal.aborted ? new Error("cancelled") : first || e;'));
 }
-// Template runs: no credit (the sample name is never published), the decorate step is sent once (never resent after a
-// lost reply), and every message is a STRINGS key in the run's language (plural objects joined with `gap`).
+// Template runs: no credit (the sample name is never published), the decorate step follows the template convention of
+// Mini Vlog / City Weekend Vlog (one retry; decorate.js is idempotent), and every message is a STRINGS key in the run's
+// language (plural objects joined with `gap`).
 {
   const tpl = ui.slice(ui.indexOf('async function runArchiveVlogTemplate('), ui.indexOf('// What the app mounts out of sight for a template run'));
   assert.ok(tpl.includes('credit: { on: false, name: "" }') && tpl.includes('look: true, credit: false } });'), 'template credit off');
-  assert.equal((tpl.match(/run\("Add title and look"/g) || []).length, 1, 'decorate sent once');
-  assert.ok(!/finish\(\)/.test(tpl), 'no resend helper');
+  assert.equal((tpl.match(/run\("Add title and look"/g) || []).length, 1, 'one decorate call site');
+  assert.equal((tpl.match(/await finish\(\)/g) || []).length, 2, 'one retry, as the inherited template run');
   assert.ok(!/templateIssue\("/.test(ui), 'no English template messages');
   for (const k of ['tpl.noFootage', 'tpl.noMusic', 'tpl.noStyles', 'tpl.notFound', 'tpl.notAnalysed', 'tpl.noTitle', 'tpl.finishFailed']) assert.ok(tpl.includes('t(bl, "' + k + '"'), k);
   assert.ok(tpl.includes('unanalysed ? t(bl, "tpl.notAnalysed", { count: unanalysed }) : ""].filter(Boolean).join(t(bl, "gap"))'));

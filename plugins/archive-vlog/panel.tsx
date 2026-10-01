@@ -5255,13 +5255,17 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
     openingSize: frames[plan.picks[0]?.rid] || null, frozen,
     provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: chosen.id, cue: cue.id, sectionStart: musicStart, pace, length, seed: TEMPLATE_SEED, clipSound,
       look: true, credit: false } });
-  // Sent once, never resent: a lost reply may follow a landed commit, and a resend would race it.
+  const finish = () => run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
+  // decorate.js skips what an earlier attempt added, so a failed attempt is tried once more.
   try {
-    await run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
+    await finish();
   } catch (e) {
-    console.warn("[archive-vlog] Add title and look failed:", errorText(e));
+    console.warn("[archive-vlog] Add title and look failed, trying again:", errorText(e));
     check();
-    throw templateIssue(t(bl, "tpl.finishFailed"));
+    try { await finish(); } catch (e2) {
+      console.warn("[archive-vlog] Add title and look failed again:", errorText(e2));
+      throw templateIssue(t(bl, "tpl.finishFailed"));
+    }
   }
   check();
   // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
