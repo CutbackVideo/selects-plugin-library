@@ -71,6 +71,7 @@ jobs:
           node plugins/the-end-credits/tests/fonts.test.cjs
           node plugins/the-end-credits/tests/frame.test.cjs
           node plugins/the-end-credits/tests/graphic.test.cjs
+          node plugins/the-end-credits/tests/i18n.test.cjs
           node plugins/the-end-credits/tests/look.test.cjs
           node plugins/the-end-credits/tests/panel.test.cjs
           node plugins/the-end-credits/tests/planner.test.cjs

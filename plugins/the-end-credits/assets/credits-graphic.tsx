@@ -37,6 +37,20 @@ var TEC_FULL_FX = { moveSec: 0.8, overlayLead: 0.5, overlaySec: 1.0, scrim: 0.25
 
 function tecClamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
+// Hangul (v1: the macOS system faces at the end of each font stack). Hangul is never squeezed: a title holding any
+// Hangul is drawn at scaleX 1, so a mixed Latin + Hangul title is not condensed either.
+var TEC_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
+// Wide characters (Hangul, kana, CJK, fullwidth forms) for the width estimate without a canvas.
+var TEC_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+function tecHasHangul(text) { return TEC_HANGUL_RE.test(typeof text === "string" ? text : ""); }
+function tecTitleScaleX(text) { return tecHasHangul(text) ? 1 : TEC_TITLE.scaleX; }
+// Advance width without a canvas: wide characters 1.0 em, anything else the 0.6 em Latin average.
+function tecFallbackWidth(text, px) {
+  var w = 0;
+  Array.from(typeof text === "string" ? text : "").forEach(function (ch) { w += TEC_WIDE_RE.test(ch) ? 1 : 0.6; });
+  return w * px;
+}
+
 // Typing: one slot per code point (Array.from); the space takes a slot; no cursor.
 function tecTyping(text) {
   var n = Array.from(typeof text === "string" ? text : "").length;
@@ -137,11 +151,11 @@ function tecFitLine(text, nominalPx, boxPx, measure) {
   return { lines: best.lines, size: Math.max(min, tecFitSize(nominalPx, best.wide, boxPx)) };
 }
 
-// Title sizes. measure(text, px) is the unscaled advance; the visible width is ×scaleX.
+// Title sizes. measure(text, px) is the unscaled advance; the visible width is ×scaleX (tecTitleScaleX: 1 with Hangul).
 // size: the column size (cap 16 % of H, fitted to titleMaxW·W); big: the Full frame typing size.
 function tecTitleSizes(text, layout, W, H, measure) {
   var L = TEC_LAYOUTS[layout] || TEC_LAYOUTS.classic;
-  var sx = TEC_TITLE.scaleX;
+  var sx = tecTitleScaleX(text);
   var target = (TEC_TITLE.capFrac * H) / TEC_TITLE.cap;
   var perPx = text ? (measure(text, target) * sx) / target : 0; // visible width per px of font size
   var size = tecFitSize(target, perPx * target, L.titleMaxW * W);
@@ -221,8 +235,8 @@ function tecMeasure(text, font, px) {
     }
     if (!measureCtx) measureCtx = false;
   }
-  // Without a canvas, assume a 0.6 em average advance.
-  if (!measureCtx) return Array.from(text).length * px * 0.6;
+  // Without a canvas: 0.6 em per character, 1.0 em per wide one (Hangul, kana, CJK).
+  if (!measureCtx) return tecFallbackWidth(text, px);
   measureCtx.font = `${font.style} ${font.weight} ${px}px ${font.stack}`;
   return measureCtx.measureText(text).width;
 }
@@ -231,8 +245,10 @@ const str = (v, d) => (typeof v === "string" ? v : d);
 const num = (v, d) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const TITLE_FAMILY = "TEC Title Serif";
 const CREDITS_FAMILY = "TEC Credits Sans";
-const TITLE_FALLBACK = 'Georgia, "Times New Roman", serif';
-const CREDITS_FALLBACK = '"Helvetica Neue", Arial, sans-serif';
+// Hangul falls back to the macOS system face of each role: AppleMyungjo for the serif title, Apple SD Gothic Neo for
+// the sans credits (zero bytes; style-matched Korean fonts are a later step).
+const TITLE_FALLBACK = 'Georgia, "Times New Roman", "AppleMyungjo", serif';
+const CREDITS_FALLBACK = '"Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif';
 
 export default function TheEndCredits({ data }) {
   const frame = useCurrentFrame();
@@ -309,7 +325,7 @@ export default function TheEndCredits({ data }) {
         key={key}
         style={{
           position: "absolute", left: credits.colX - credits.colW / 2, width: credits.colW, top,
-          textAlign: "center", whiteSpace: "nowrap", fontFamily: creditFace.stack, fontWeight: creditFace.weight,
+          textAlign: "center", whiteSpace: "nowrap", wordBreak: "keep-all", fontFamily: creditFace.stack, fontWeight: creditFace.weight,
           fontStyle: creditFace.style, fontSize: size, lineHeight: `${lh * size}px`, color: creditColor,
           textShadow: layout === "full" ? `0 ${0.002 * H}px ${0.008 * H}px rgba(0,0,0,0.7)` : "none",
         }}
@@ -340,8 +356,8 @@ export default function TheEndCredits({ data }) {
         {showTitle && glyphs.length > 0 && titleTop < H && titleTop + (TEC_TITLE.ascent + TEC_TITLE.descent) * pose.size > 0 ? (
           <div
             style={{
-              position: "absolute", left: pose.cx, top: titleTop, whiteSpace: "nowrap",
-              transform: `translateX(-50%) scaleX(${TEC_TITLE.scaleX})`, transformOrigin: "50% 50%",
+              position: "absolute", left: pose.cx, top: titleTop, whiteSpace: "nowrap", wordBreak: "keep-all",
+              transform: `translateX(-50%) scaleX(${tecTitleScaleX(title)})`, transformOrigin: "50% 50%",
               fontFamily: titleFace.stack, fontWeight: titleFace.weight, fontStyle: titleFace.style,
               fontSize: pose.size, lineHeight: `${(TEC_TITLE.ascent + TEC_TITLE.descent) * pose.size}px`, color: titleColor,
               textShadow: layout === "full" ? `0 ${0.012 * H}px ${0.03 * H}px rgba(0,0,0,0.55)` : "none",

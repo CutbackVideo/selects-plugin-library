@@ -275,8 +275,10 @@ const record = (r, extra = {}) => ({ layout: 'classic', sequenceId: r.sequenceId
   // photo keeps its move at 1. byShot wins over byRid.
   const byShot = [{ motion: 'push-in', direction: 1, axis: 'y', frameStrength: 0.5 }, { motion: 'none', direction: 1, axis: 'y', frameStrength: 0.5 },
     { motion: 'drift-up', direction: -1, axis: 'y', frameStrength: 0.5 }, { motion: 'tilt', direction: -1, axis: 'y', frameStrength: 1 }, { motion: 'drift-left', direction: -1, axis: 'x', frameStrength: 0.5 }];
+  // Inspector labels from cfg.labels (the panel's build-time UI language); a missing one falls back to English.
+  const labels = { fadeIn: 'L-fadeIn', motion: 'L-motion', motionStrength: '', motions: { tilt: 'L-tilt' } };
   const df = await load('decorate.js', record(rf, { layout: 'full', clipSound: 'full', look: { tsx: 'LK', strength: 0.5, on: false },
-    photoMotion: { byRid: { p1: { motion: 'push-in', direction: 1, axis: 'x' } }, byShot } }))(project(mf));
+    photoMotion: { byRid: { p1: { motion: 'push-in', direction: 1, axis: 'x' } }, byShot }, labels }))(project(mf));
   assert.equal(df.shotFrames, 5);
   assert.equal(df.looks, 0);
   const pf = shotRows(mf).map(c => mf.effects[c.clipId].map(e => e.name).join('|') && mf.effects[c.clipId][0].parameters);
@@ -287,6 +289,9 @@ const record = (r, extra = {}) => ({ layout: 'classic', sequenceId: r.sequenceId
   // Full frame: no window fields in the Inspector; every shot has its motion fields.
   const edf = shotRows(mf).map(c => mf.effects[c.clipId][0].editableParameters.map(e => e.key));
   assert.deepEqual(edf[0], ['fadeInSeconds', 'fadeOutSeconds', 'motion', 'strength']);
+  const edl = mf.effects[shotRows(mf)[0].clipId][0].editableParameters;
+  assert.deepEqual(edl.map(e => e.label), ['L-fadeIn', 'Fade out (s)', 'L-motion', 'Motion strength'], 'labels from cfg.labels, English fallback');
+  assert.deepEqual(edl[2].options.map(o => o.label), ['None', 'Push in', 'Pull out', 'Drift left', 'Drift right', 'Drift up', 'Drift down', 'L-tilt', 'Push and drift']);
   assert.deepEqual(edf[3], ['fadeInSeconds', 'fadeOutSeconds', 'motion', 'strength']);
   assert.deepEqual(shotRows(mf).map(c => mf.effects[c.clipId][0].editableParameters.find(e => e.key === 'strength').defaultValue), [0.5, 0.5, 0.5, 1, 0.5]);
   assert.deepEqual(kinds(mf.log, 'graphic')[0][1], { startFrame: 0, endFrame: ff[5] });

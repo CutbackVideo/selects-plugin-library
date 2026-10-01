@@ -220,6 +220,36 @@ If the scene search fails for some clips, the build goes on without them and
 says "Could not check N videos; they were skipped. Build again to retry them."
 (Only videos are searched and measured, so these counts leave out photos.)
 
+## Languages
+
+**The panel** follows the language of the Selects app and changes with it
+while the panel is open. It is translated into German, English, Spanish,
+French, Italian, Japanese, Korean, Portuguese, Turkish and Chinese; any other
+app language shows English. Track names, the Draft's name and the technical
+detail after an error message stay in English.
+
+**The title and credits in the video** can be typed in English or Korean
+(Hangul):
+
+- The pre-filled text stays English in every language: the title "THE END",
+  the preset roles ("Director", "A film by", "Music by" …), the dates
+  ("Sep 12-14, 2026"), the clip and photo counts and "Selects". Type over
+  them to change them.
+- **Filmed in** and **Places** are pre-filled from the Project name when it
+  looks like a place, also when the name is Korean.
+- The bundled typefaces have no Korean letters, so Korean text is drawn with
+  the macOS system font of each typeface's kind: **AppleMyungjo** for the
+  serif title and **Apple SD Gothic Neo** for the sans-serif credits.
+- A title with Korean in it is not drawn condensed (Latin titles are narrowed
+  to 78%), and Korean is never set in capitals or letter-spaced. A long role
+  or name still shrinks to fit its column and then wraps between words.
+- Korean titles need macOS, where Selects and its export run. Style-matched
+  Korean typefaces are planned for a later version.
+
+**Inspector labels** of the credits, the Shot frame, its Motion choices and
+the Cinematic look are written into the Draft in the panel's language at the
+time of the build. They do not change if the app language is switched later.
+
 ## The Draft and editing it
 
 The Draft contains one clip or photo per shot, cut on the phrase grid (in
@@ -243,7 +273,9 @@ Finished videos are exported from the Draft with **Handoff -> Export**.
 - Layout, length, title, credits preset and music section are chosen in the
   panel. Rebuilding creates a new Draft and does not keep Inspector edits.
 - The fonts are Latin subsets. Characters outside them use a system serif or
-  sans-serif font, and the panel says "Some characters use a system font".
+  sans-serif font (AppleMyungjo and Apple SD Gothic Neo for Korean, see
+  [Languages](#languages)), and the panel says "Some characters use a system
+  font".
 - Long titles are fitted to the column once; each role and name is fitted to
   its width down to 70% of its size, then wraps to two lines.
 - The Draft is built in two commits (clips and music, then the title, the

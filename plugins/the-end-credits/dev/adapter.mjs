@@ -56,9 +56,11 @@ const FONTS = [
   { file: 'tec-title-serif.woff2.b64', family: 'TEC Title Serif', style: 'normal', weight: 800 },
   { file: 'tec-credits-sans.woff2.b64', family: 'TEC Credits Sans', style: 'normal', weight: 600 },
 ];
-// The panel measures credit lines with a canvas; headless we assume an average advance of 0.55 em.
+// The panel measures credit lines with a canvas; headless we assume an average advance of 0.55 em (1.0 em for wide
+// characters: Hangul, kana, CJK).
 const MEASURE_EM = 0.55;
-const measure = (text, px) => Array.from(String(text)).length * px * MEASURE_EM;
+const WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+const measure = (text, px) => Array.from(String(text)).reduce((a, ch) => a + (WIDE_RE.test(ch) ? 1 : MEASURE_EM), 0) * px;
 // Matrix coverage rules (spec §14 + the Lane D brief).
 const LONG_TITLE_GLYPHS = 30;
 const SECTIONS = ['default', 'early', 'late'];
