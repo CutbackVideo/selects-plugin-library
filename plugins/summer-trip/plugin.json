@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "summer-trip",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "Summer Trip",
   "summary": "Turn travel footage into a beat-synced 16:9 summer trip video with a typed title, a split-screen grid and a film-frame ending, as a new editable Draft.",
   "status": "experimental",
@@ -110,5 +110,70 @@
     "poster": "poster.webp",
     "width": 960,
     "height": 540
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "footage",
+      "label": "Trip clips and photos",
+      "hint": "The sea, beaches, streets and places from one trip.",
+      "accepts": [
+        "video",
+        "image"
+      ],
+      "min": 6,
+      "max": 50,
+      "query": "travel scenery: the sea, a beach, a town or a landmark"
+    }
+  ],
+  "options": [
+    {
+      "id": "track",
+      "label": "Music",
+      "default": "surf-indie",
+      "choices": [
+        {
+          "id": "surf-indie",
+          "label": "Surf Indie"
+        },
+        {
+          "id": "tropical-house",
+          "label": "Tropical House"
+        },
+        {
+          "id": "cinematic-pop",
+          "label": "Cinematic Pop"
+        },
+        {
+          "id": "nu-disco",
+          "label": "Nu Disco"
+        }
+      ]
+    },
+    {
+      "id": "length",
+      "label": "Length",
+      "default": "standard",
+      "choices": [
+        {
+          "id": "short",
+          "label": "Short"
+        },
+        {
+          "id": "standard",
+          "label": "Standard"
+        },
+        {
+          "id": "long",
+          "label": "Long"
+        }
+      ]
+    }
+  ],
+  "prepare": [
+    "Trip clips and photos, at least 6 different ones",
+    "One video 5 seconds or longer, for the opening",
+    "Videos analyzed, so the scene search can find their shots"
+  ]
 }
