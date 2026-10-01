@@ -3216,7 +3216,159 @@ function lookLabel(lang: Lang, id: string) {
   return t(lang, "look.none");
 }
 
-type BeatJob = { id: number; worker: Worker | null; url: string | null; timer: any };
+// ---------------------------------------------------------------------------
+// Build steps shared by the panel's Build and a template run (TemplateRun, below the panel).
+// ---------------------------------------------------------------------------
+type RunFn = (summary: string, script: string, allowCommit?: boolean) => Promise<any>;
+type Advance = (id: string, fraction: number, detail?: Say) => void;
+
+// Bad-shot spans per video (source seconds) through sdk.call; any failure means no spans for that clip. When the
+// inventory's id is not one sdk.call knows, `realIds` maps it (a template run passes the handed ids), else
+// listProjectResources maps it once (saeRealIds). Spans are cached per `projectId|rid` in `spansCache`.
+async function readSpans(sdk: any, pid: string, inv: any, rids: string[], spansCache: Map<string, number[][]>, check: () => void,
+  onProgress: (done: number, total: number) => void, realIds: Record<string, string> | null = null) {
+  const out: Record<string, number[][]> = {};
+  const spansFor = async (id: string) => {
+    try { return saeSpansOf(await sdk.call("getResourceVisualSpans", pid, id)); } catch { return null; }
+  };
+  for (let i = 0; i < rids.length; i++) {
+    onProgress(i, rids.length);
+    const rid = rids[i], key = pid + "|" + rid;
+    const cached = spansCache.get(key);
+    if (cached) { out[rid] = cached; continue; }
+    let spans = await spansFor(rid);
+    check();
+    if (spans === null) {
+      if (realIds === null) {
+        try { realIds = saeRealIds(await sdk.call("listProjectResources", pid), inv.resources); } catch { realIds = {}; }
+        check();
+      }
+      const real = realIds![rid];
+      if (real && real !== rid) { spans = await spansFor(real); check(); }
+    }
+    // Failures stay uncached, so the next Build asks again.
+    if (spans) spansCache.set(key, spans);
+    out[rid] = spans || [];
+  }
+  onProgress(rids.length, rids.length);
+  return out;
+}
+// Motion curves per video for the stillness picker (source files from the inventory's `path`), cached per clip.
+// A clip whose curve fails stays without one (planned as before) and uncached, so the next Build asks again; a host
+// without the tools ends the step.
+async function readMotionCurves(pid: string, inv: any, rids: string[], motionCache: Map<string, { fps: number; values: Float32Array }>, check: () => void,
+  onProgress: (done: number, total: number) => void) {
+  const out: Record<string, { fps: number; values: Float32Array }> = {};
+  let dataDir: string;
+  try { dataDir = saeDataDir(PLUGIN_ID); } catch { return out; }
+  const pathOf: Record<string, string> = {};
+  for (const r of inv.resources) if (r.path) pathOf[r.rid] = r.path;
+  for (let i = 0; i < rids.length; i++) {
+    onProgress(i, rids.length);
+    const rid = rids[i], key = pid + "|" + rid;
+    const cached = motionCache.get(key);
+    if (cached) { out[rid] = cached; continue; }
+    if (!pathOf[rid]) continue;
+    let stop = false;
+    try {
+      const curve = await saeMotionCurve(pathOf[rid], dataDir, {});
+      motionCache.set(key, curve);
+      out[rid] = curve;
+    } catch (e: any) { stop = String(e?.message) === "host_tools"; }
+    check();
+    if (stop) break;
+  }
+  onProgress(rids.length, rids.length);
+  return out;
+}
+// Scene search for the clips not in the cache yet, SAE_SEARCH_BATCH clips per call. Returns the rids that failed.
+// `onProgress(fraction, done, total)` runs before each call.
+async function searchCloseUps(run: RunFn, assets: any, pid: string, rids: string[], searchCache: { current: Map<string, any[]> }, check: () => void,
+  onProgress: (fraction: number, done: number, total: number) => void) {
+  const todo = rids.filter((rid) => !searchCache.current.has(pid + "|" + rid));
+  const failed: string[] = [];
+  const doneBefore = rids.length - todo.length;
+  for (let i = 0; i < todo.length; i += SAE_SEARCH_BATCH) {
+    onProgress(todo.length ? i / todo.length : 1, doneBefore + i, rids.length);
+    const batch = todo.slice(i, i + SAE_SEARCH_BATCH);
+    // A call that fails as a whole (its deadline, say) leaves its clips unsearched: they still build, as regular clips.
+    let r: any;
+    try { r = await run("Find close-ups", fill(assets.scripts.searchJs, { projectId: pid, rids: batch, queries: SAE_QUERIES, pageSize: SAE_SEARCH_PAGE_SIZE })); }
+    catch { r = { candidates: [], failed: batch }; }
+    check();
+    const bad = new Set<string>(r.failed || []);
+    for (const rid of batch) {
+      if (bad.has(rid)) { failed.push(rid); continue; }
+      searchCache.current.set(pid + "|" + rid, (r.candidates || []).filter((c: any) => c.rid === rid));
+    }
+  }
+  return failed;
+}
+// From the searched clips to a saved Draft (commit 1): plan the edit, import the music, lay the holds on a new
+// 1080x1920 Draft, then freeze commit 2's config. `settings` are the Build's choices as they were at the click (a
+// template run passes the panel's defaults); `bl` is the language the Adjust labels are written in.
+async function buildDraft(o: {
+  run: RunFn; assets: any; pid: string; skillsDir: string; settings: any; nextSeed: number; bl: Lang; inv: any; rids: string[]; photos: string[];
+  badSpans: Record<string, number[][]>; motion: Record<string, any>; searchCache: { current: Map<string, any[]> }; check: () => void; advance: Advance;
+}) {
+  const { run, assets, pid, skillsDir, settings, nextSeed, bl, inv, rids, photos, badSpans, motion, searchCache, check, advance } = o;
+  const cues: any[] = assets.manifest.cues || [];
+  // Step 3: the plan.
+  advance("plan", 0);
+  const durations: Record<string, number> = {};
+  for (const r of inv.resources) if (rids.includes(r.rid)) durations[r.rid] = r.duration;
+  const candidates = rids.flatMap((rid) => searchCache.current.get(pid + "|" + rid) || []);
+  const plan = saePlanBuild({ fps: 30, bars: settings.bars, seed: nextSeed, cue: settings.cue, sectionStart: settings.section ?? undefined,
+    candidates, durations, badSpans, photos, usePhotos: settings.usePhotos, motion, stillWeight: SAE_STILL_WEIGHT_PANEL });
+  if (!plan.ok) {
+    if ((plan.notes || []).includes("music-too-short")) throw uiError((l) => t(l, "musicTooShortBuild"));
+    throw uiError((l) => t(l, "noSources"));
+  }
+  advance("plan", 1);
+  // Step 4: the music import, then the Draft (commit 1).
+  if (settings.cue) advance("assemble", 0, (l) => t(l, "detail.music")); else advance("assemble", 0);
+  let music: any = null;
+  if (settings.cue) {
+    const own = settings.musicId === "own";
+    const path = own ? settings.ownFile!.path : saeDI().fs.join(skillsDir, "assets", "cues", cues.find((c) => c.id === settings.musicId).file);
+    music = await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path, ...(own ? { matchByName: false } : {}) }), true);
+    check();
+  }
+  advance("assemble", 0.15);
+  // Photo sizes the inventory has not measured stay out; assemble.js measures those itself.
+  const crops: Record<string, { width: number; height: number }> = {};
+  for (const r of [...inv.resources, ...inv.photos]) if (r.width > 0 && r.height > 0) crops[r.rid] = { width: r.width, height: r.height };
+  const name = saeDraftName(new Date());
+  const holds = saeTrimHolds(plan.holds);
+  const a = await run("Assemble Selfie Aesthetic Edit", fill(assets.scripts.assembleJs, {
+    projectId: pid, draftName: name, holds, cutSecondsRaw: plan.cutSecondsRaw,
+    music: music ? { resourceId: music.resourceId, sourceStart: plan.musicSourceStart } : null,
+    durations, crops, clipSound: settings.clipSound, ambientDb: AMBIENT_DB }), true);
+  check();
+  if (!a.sequenceId) throw uiError((l) => t(l, "draftNoId", { name }));
+  advance("assemble", 1);
+  // Commit 2's config, frozen here so "Finish look" sends the same thing. Adjust labels use the UI language of
+  // this click; effect, transition and Draft names stay English.
+  const preset = LOOK_PRESETS.find((p) => p.id === settings.lookId) || LOOK_PRESETS[0];
+  const deco = {
+    sequenceId: a.sequenceId, holds, whipMode: SAE_WHIP_MODE,
+    effect: { tsx: assets.effectTsx, look: settings.lookOn ? preset.id : "none", lookStrength: preset.strength ?? LOOK_STRENGTH, whip: preset.whip },
+    transitionTsx: assets.transitionTsx, covers: a.covers || [], clipSound: settings.clipSound,
+    adjustLabels: { look: t(bl, "param.look"), lookStrength: t(bl, "param.lookStrength"), whip: t(bl, "param.whip"), framing: t(bl, "param.framing") },
+    lookOptions: LOOK_OPTIONS.map((o) => ({ label: lookLabel(bl, o.value), value: o.value })),
+    framingOptions: FRAMING_OPTIONS.map((o) => ({ label: framingLabel(bl, o.value), value: o.value })),
+  };
+  const seconds = a.fps > 0 && a.totalFrames > 0 ? a.totalFrames / a.fps : SAE_LEAD + saeVideoSeconds(plan.bars, plan.editBpm);
+  return { plan, a, name, holds, deco, seconds };
+}
+// Commit 2 on a saved Draft: mute the clips when Clip sound is Off, one whip + look effect per clip. decorate.js adds
+// only what an earlier attempt did not, so it can run again.
+async function addWhipAndLook(run: RunFn, assets: any, deco: any) {
+  const dr = await run("Add whip and look", fill(assets.scripts.decorateJs, deco), true);
+  return dr;
+}
+
+type BeatJob ={ id: number; worker: Worker | null; url: string | null; timer: any };
 
 function SelfieAestheticPanel({ sdk, context, ui }: any) {
   // The UI language, read on every render: the app can switch languages while the panel is open.
@@ -3628,82 +3780,15 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   const canBuild = !!assets && !!inventory && !!dry && dry.ok && !listening && !(musicId === "own" && !ownFile);
 
   // ---- build ----
-  // Bad-shot spans per video (source seconds) through sdk.call; any failure means no spans for that clip. When the
-  // inventory's id is not one sdk.call knows, listProjectResources maps it once (saeRealIds).
-  async function readBadSpans(pid: string, inv: any, rids: string[], check: () => void, onProgress: (done: number, total: number) => void) {
-    const out: Record<string, number[][]> = {};
-    let realIds: Record<string, string> | null = null;
-    const spansFor = async (id: string) => {
-      try { return saeSpansOf(await sdk.call("getResourceVisualSpans", pid, id)); } catch { return null; }
-    };
-    for (let i = 0; i < rids.length; i++) {
-      onProgress(i, rids.length);
-      const rid = rids[i], key = pid + "|" + rid;
-      const cached = spansCache.current.get(key);
-      if (cached) { out[rid] = cached; continue; }
-      let spans = await spansFor(rid);
-      check();
-      if (spans === null) {
-        if (realIds === null) {
-          try { realIds = saeRealIds(await sdk.call("listProjectResources", pid), inv.resources); } catch { realIds = {}; }
-          check();
-        }
-        const real = realIds[rid];
-        if (real && real !== rid) { spans = await spansFor(real); check(); }
-      }
-      // Failures stay uncached, so the next Build asks again.
-      if (spans) spansCache.current.set(key, spans);
-      out[rid] = spans || [];
-    }
-    onProgress(rids.length, rids.length);
-    return out;
+  // Bad-shot spans, motion curves and scene search through the shared steps above, with this panel's caches.
+  function readBadSpans(pid: string, inv: any, rids: string[], check: () => void, onProgress: (done: number, total: number) => void) {
+    return readSpans(sdk, pid, inv, rids, spansCache.current, check, onProgress);
   }
-  // Motion curves per video for the stillness picker (source files from the inventory's `path`), cached per clip.
-  // A clip whose curve fails stays without one (planned as before) and uncached, so the next Build asks again; a host
-  // without the tools ends the step.
-  async function readMotion(pid: string, inv: any, rids: string[], check: () => void, onProgress: (done: number, total: number) => void) {
-    const out: Record<string, { fps: number; values: Float32Array }> = {};
-    let dataDir: string;
-    try { dataDir = saeDataDir(PLUGIN_ID); } catch { return out; }
-    const pathOf: Record<string, string> = {};
-    for (const r of inv.resources) if (r.path) pathOf[r.rid] = r.path;
-    for (let i = 0; i < rids.length; i++) {
-      onProgress(i, rids.length);
-      const rid = rids[i], key = pid + "|" + rid;
-      const cached = motionCache.current.get(key);
-      if (cached) { out[rid] = cached; continue; }
-      if (!pathOf[rid]) continue;
-      let stop = false;
-      try {
-        const curve = await saeMotionCurve(pathOf[rid], dataDir, {});
-        motionCache.current.set(key, curve);
-        out[rid] = curve;
-      } catch (e: any) { stop = String(e?.message) === "host_tools"; }
-      check();
-      if (stop) break;
-    }
-    onProgress(rids.length, rids.length);
-    return out;
+  function readMotion(pid: string, inv: any, rids: string[], check: () => void, onProgress: (done: number, total: number) => void) {
+    return readMotionCurves(pid, inv, rids, motionCache.current, check, onProgress);
   }
-  // Scene search for the clips not in the cache yet, SAE_SEARCH_BATCH clips per call. Returns the rids that failed.
   async function searchClips(pid: string, rids: string[], check: () => void) {
-    const todo = rids.filter((rid) => !searchCache.current.has(pid + "|" + rid));
-    const failed: string[] = [];
-    const doneBefore = rids.length - todo.length;
-    for (let i = 0; i < todo.length; i += SAE_SEARCH_BATCH) {
-      advance("search", todo.length ? i / todo.length : 1, (l) => t(l, "videosSearched", { done: doneBefore + i, count: rids.length }));
-      const batch = todo.slice(i, i + SAE_SEARCH_BATCH);
-      // A call that fails as a whole (its deadline, say) leaves its clips unsearched: they still build, as regular clips.
-      let r: any;
-      try { r = await run("Find close-ups", fill(assets.scripts.searchJs, { projectId: pid, rids: batch, queries: SAE_QUERIES, pageSize: SAE_SEARCH_PAGE_SIZE })); }
-      catch { r = { candidates: [], failed: batch }; }
-      check();
-      const bad = new Set<string>(r.failed || []);
-      for (const rid of batch) {
-        if (bad.has(rid)) { failed.push(rid); continue; }
-        searchCache.current.set(pid + "|" + rid, (r.candidates || []).filter((c: any) => c.rid === rid));
-      }
-    }
+    const failed = await searchCloseUps(run, assets, pid, rids, searchCache, check, (fraction, done, total) => advance("search", fraction, (l) => t(l, "videosSearched", { done, count: total })));
     setCacheTick((n) => n + 1);
     return failed;
   }
@@ -3745,52 +3830,9 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
       const unsearched = await searchClips(pid, rids, check);
       check();
       advance("search", 1, (l) => t(l, "videosSearched", { done: rids.length, count: rids.length }));
-      // Step 3: the plan.
-      advance("plan", 0);
-      const durations: Record<string, number> = {};
-      for (const r of inv.resources) if (rids.includes(r.rid)) durations[r.rid] = r.duration;
-      const candidates = rids.flatMap((rid) => searchCache.current.get(pid + "|" + rid) || []);
-      const plan = saePlanBuild({ fps: 30, bars: settings.bars, seed: nextSeed, cue: settings.cue, sectionStart: settings.section ?? undefined,
-        candidates, durations, badSpans, photos, usePhotos: settings.usePhotos, motion, stillWeight: SAE_STILL_WEIGHT_PANEL });
-      if (!plan.ok) {
-        if ((plan.notes || []).includes("music-too-short")) throw uiError((l) => t(l, "musicTooShortBuild"));
-        throw uiError((l) => t(l, "noSources"));
-      }
-      advance("plan", 1);
-      // Step 4: the music import, then the Draft (commit 1).
-      if (settings.cue) advance("assemble", 0, (l) => t(l, "detail.music")); else advance("assemble", 0);
-      let music: any = null;
-      if (settings.cue) {
-        const own = settings.musicId === "own";
-        const path = own ? settings.ownFile!.path : saeDI().fs.join(skillsDir, "assets", "cues", cues.find((c) => c.id === settings.musicId).file);
-        music = await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path, ...(own ? { matchByName: false } : {}) }), true);
-        check();
-      }
-      advance("assemble", 0.15);
-      // Photo sizes the inventory has not measured stay out; assemble.js measures those itself.
-      const crops: Record<string, { width: number; height: number }> = {};
-      for (const r of [...inv.resources, ...inv.photos]) if (r.width > 0 && r.height > 0) crops[r.rid] = { width: r.width, height: r.height };
-      const name = saeDraftName(new Date());
-      const holds = saeTrimHolds(plan.holds);
-      const a = await run("Assemble Selfie Aesthetic Edit", fill(assets.scripts.assembleJs, {
-        projectId: pid, draftName: name, holds, cutSecondsRaw: plan.cutSecondsRaw,
-        music: music ? { resourceId: music.resourceId, sourceStart: plan.musicSourceStart } : null,
-        durations, crops, clipSound: settings.clipSound, ambientDb: AMBIENT_DB }), true);
+      // Steps 3 and 4: the plan, the music and the Draft (commit 1).
+      const { plan, a, name, holds, deco, seconds } = await buildDraft({ run, assets, pid, skillsDir, settings, nextSeed, bl, inv, rids, photos, badSpans, motion, searchCache, check, advance });
       check();
-      if (!a.sequenceId) throw uiError((l) => t(l, "draftNoId", { name }));
-      advance("assemble", 1);
-      // Commit 2's config, frozen here so "Finish look" sends the same thing. Adjust labels use the UI language of
-      // this click; effect, transition and Draft names stay English.
-      const preset = LOOK_PRESETS.find((p) => p.id === settings.lookId) || LOOK_PRESETS[0];
-      const deco = {
-        sequenceId: a.sequenceId, holds, whipMode: SAE_WHIP_MODE,
-        effect: { tsx: assets.effectTsx, look: settings.lookOn ? preset.id : "none", lookStrength: preset.strength ?? LOOK_STRENGTH, whip: preset.whip },
-        transitionTsx: assets.transitionTsx, covers: a.covers || [], clipSound: settings.clipSound,
-        adjustLabels: { look: t(bl, "param.look"), lookStrength: t(bl, "param.lookStrength"), whip: t(bl, "param.whip"), framing: t(bl, "param.framing") },
-        lookOptions: LOOK_OPTIONS.map((o) => ({ label: lookLabel(bl, o.value), value: o.value })),
-        framingOptions: FRAMING_OPTIONS.map((o) => ({ label: framingLabel(bl, o.value), value: o.value })),
-      };
-      const seconds = a.fps > 0 && a.totalFrames > 0 ? a.totalFrames / a.fps : SAE_LEAD + saeVideoSeconds(plan.bars, plan.editBpm);
       setResult({ name, sequenceId: a.sequenceId, decorated: false, deco, link: null, shots: holds.length, seconds,
         plan: { notes: plan.notes, faceClips: plan.faceClips, fit: plan.fit }, unsearched: unsearched.length, notes: a.notes || [] });
       await decorate(deco, check);
@@ -3805,7 +3847,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
     advance("look", 0);
     let dr: any;
     try {
-      dr = await run("Add whip and look", fill(assets.scripts.decorateJs, deco), true);
+      dr = await addWhipAndLook(run, assets, deco);
     } catch (e: any) {
       if (e === STALE) throw e;
       throw uiError((l) => t(l, "finishFailed", { detail: sayError(l, e) }));
@@ -4019,6 +4061,195 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Template runs. A built-in app asks the person for the footage and a track, mounts this panel out of sight and hands
+// both over in `context.template`. The run builds a new Draft at once from only those files, as Build does with every
+// other setting at the panel's default, never opens it, and ends by calling `sdk.finishTemplate` exactly once.
+// ---------------------------------------------------------------------------
+type TemplateOutcome = { sequenceId: string } | { error: string };
+const TEMPLATE_TRACK = "make-funk";
+// The panel's first Build uses seed 1 ("Try other shots" counts up from there).
+const TEMPLATE_SEED = 1;
+// Files per alias call: a photo gets its own scratch Draft, which keeps each call well inside runScript's 30 s.
+const TEMPLATE_ALIAS_BATCH = 6;
+// Error text for the hidden frame's log (an Error logged as an object shows as {}).
+function errorText(e: any) { return String(e?.message || e); }
+
+// Handed files carry the app's own Resource ids. The SDK accepts those as input, but reads back the Project's short
+// aliases (r0, r1, ...) from resources() and from a Draft's clips, and assemble.js and decorate.js match the placed
+// clips to their holds by that id (crop, clip sound, whip and look). So each handed file is placed once on an unsaved
+// scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its own, whose frame size is the
+// photo's, as inventory.js measures it. Nothing is committed. A file that cannot be placed is left out.
+const TEMPLATE_ALIAS_JS = `const cfg = __CONFIG__;
+const p = selects.project(cfg.projectId);
+const resolved = [];
+let shared = null;
+for (const h of cfg.files) {
+  try {
+    const photo = h.kind === 'image';
+    const d = photo || !shared ? await p.createDraft({ name: 'Selfie Aesthetic Edit id check' }) : shared;
+    if (!photo) shared = d;
+    const before = new Set((await d.clips({ trackScope: 'main' })).map(c => c.clipId));
+    try { await d.insertResource({ resourceId: h.rid, sourceRange: { startSeconds: 0, endSeconds: 0.5 } }); }
+    catch (e) { await d.insertResource({ resourceId: h.rid }); }
+    const clip = (await d.clips({ trackScope: 'main' })).find(c => c.resourceId !== null && !before.has(c.clipId));
+    if (!clip) continue;
+    let size = null;
+    if (photo) {
+      const fs = (await d.meta()).frameSize;
+      if (fs && fs.width > 0 && fs.height > 0) size = { width: fs.width, height: fs.height };
+    }
+    resolved.push({ rid: h.rid, alias: clip.resourceId, size });
+  } catch (e) {}
+}
+return { resolved };`;
+
+// The whole template build. Returns the new Draft; throws a uiError for the person, or STALE when a newer run (or the
+// frame closing) replaced this one. `advance` names the current build step for the status line and the error.
+async function runSelfieTemplate(sdk: any, context: any, check: () => void, advance: Advance): Promise<{ sequenceId: string }> {
+  const pid: string | null = context?.projectId ?? null;
+  if (!pid) throw uiError((l) => t(l, "openProject"));
+  // Each handed video or photo once, in the order it was picked.
+  const seen = new Set<string>();
+  const files: Array<{ rid: string; kind: string }> = [];
+  for (const input of context?.template?.inputs?.footage ?? []) {
+    if (!input || (input.kind !== "video" && input.kind !== "image") || !input.resourceId || seen.has(input.resourceId)) continue;
+    seen.add(input.resourceId);
+    files.push({ rid: String(input.resourceId), kind: input.kind });
+  }
+  const run: RunFn = (summary, script, allowCommit = false) => runStep(sdk, summary, script, allowCommit);
+
+  advance("check", 0);
+  // The installed plugin folder through the host FileSystem, as the panel finds it (no shell, so Windows works too).
+  const skillsDir = saeSkillsDir(PLUGIN_ID);
+  if (!skillsDir) throw uiError((l) => t(l, "pluginMissing"));
+  let assets: any;
+  try { assets = await loadAssets(skillsDir); }
+  catch (e: any) { if (String(e?.message) === "host_tools") throw uiError((l) => t(l, "needsNewerSelects")); throw e; }
+  check();
+  // The track chosen on the app's page; an unknown or missing one gets the panel's default.
+  const cues: any[] = assets.manifest.cues || [];
+  const cue = cues.find((c) => c.id === context?.template?.options?.track) || cues.find((c) => c.id === TEMPLATE_TRACK) || cues[0];
+  if (!cue) throw new Error("no bundled music in assets/cues/manifest.json");
+
+  const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const resolveFiles = async (list: Array<{ rid: string; kind: string }>) => {
+    for (let i = 0; i < list.length; i += TEMPLATE_ALIAS_BATCH) {
+      const r = await run("Find the chosen files", fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: list.slice(i, i + TEMPLATE_ALIAS_BATCH) }));
+      check();
+      resolved.push(...(r.resolved || []));
+    }
+  };
+  await resolveFiles(files);
+  // The alias script skips a file whose placement fails, so the files it skipped get one more pass.
+  const unresolved = files.filter((f) => !resolved.some((r) => r.rid === f.rid));
+  if (unresolved.length) await resolveFiles(unresolved);
+  const aliases = [...new Set(resolved.map((r) => r.alias))];
+  const known: Record<string, { width: number; height: number }> = {};
+  for (const r of resolved) if (r.size) known[r.alias] = r.size;
+  // sdk.call (bad-shot spans) wants the app's ids: each alias maps back to the handed id it came from.
+  const realIds: Record<string, string> = {};
+  for (const r of resolved) realIds[r.alias] = r.rid;
+  // The panel's inventory limited to the handed files: analysed videos with their length, frame size and source file,
+  // and photos.
+  const inv = aliases.length
+    ? await run("Read footage", fill(assets.scripts.inventoryJs, { projectId: pid, only: aliases, known }))
+    : { resources: [], photos: [], skipped: { unanalysed: 0, missing: 0 } };
+  check();
+  inv.resources = inv.resources || [];
+  inv.photos = inv.photos || [];
+  const rids: string[] = inv.resources.map((r: any) => r.rid);
+  const photos: string[] = inv.photos.map((p: any) => p.rid);
+  if (!rids.length && !photos.length) throw uiError((l) => t(l, "noSources"));
+  advance("check", 0.2);
+  // Bad-shot spans and, with the stillness picker on, motion curves, as Build reads them.
+  const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok;
+  const spanShare = stillOn ? 0.4 : 0.8;
+  const badSpans = await readSpans(sdk, pid, inv, rids, new Map(), check, (done, total) => advance("check", 0.2 + spanShare * (total ? done / total : 1)), realIds);
+  check();
+  const motion = stillOn ? await readMotionCurves(pid, inv, rids, new Map(), check, (done, total) => advance("check", 0.6 + 0.4 * (total ? done / total : 1))) : {};
+  check();
+  advance("check", 1);
+
+  // Scene search over the handed videos. Nobody can press Build again, so clips whose search failed get one more try
+  // (the cache keeps the ones that worked); any still unsearched build as regular clips, as in the panel.
+  advance("search", 0);
+  const searchCache = { current: new Map<string, any[]>() };
+  const progress = (fraction: number) => advance("search", fraction);
+  let failed = await searchCloseUps(run, assets, pid, rids, searchCache, check, progress);
+  if (failed.length) failed = await searchCloseUps(run, assets, pid, rids, searchCache, check, progress);
+  if (failed.length) console.info("[selfie-aesthetic] template run: scene search failed for", failed.join(", "));
+  advance("search", 1);
+
+  // Every other setting at the panel's default: the Short length, Soft glow on, Ambient clip sound, photos on, the
+  // track's default section.
+  const bars = SAE_LENGTHS.short;
+  const section = saeDefaultSection(cue, bars, saeTempo(cue).editBpm);
+  const settings = { cue, musicId: cue.id, ownFile: null, section, lookId: "soft-glow", lookOn: true, bars, clipSound: "ambient", usePhotos: true, only: null, onlyPhotos: null };
+  const { a, deco } = await buildDraft({ run, assets, pid, skillsDir, settings, nextSeed: TEMPLATE_SEED, bl: uiLang(context), inv, rids, photos, badSpans, motion, searchCache, check, advance });
+  check();
+  if (a.notes?.length) console.info("[selfie-aesthetic] template run notes:", a.notes.join("; "));
+
+  // Commit 2. decorate.js skips what an earlier attempt added, so a failed attempt is tried once more.
+  advance("look", 0);
+  try {
+    await addWhipAndLook(run, assets, deco);
+  } catch (e) {
+    console.warn("[selfie-aesthetic] Add whip and look failed, trying again:", errorText(e));
+    check();
+    await addWhipAndLook(run, assets, deco);
+  }
+  check();
+  advance("look", 1);
+  // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
+  return { sequenceId: a.sequenceId };
+}
+
+// What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
+// exactly once, unless a newer run (or the frame closing) replaced it; then it reports nothing.
+function TemplateRun({ sdk, context }: any) {
+  const L = uiLang(context);
+  const [status, setStatus] = React.useState<Say>(() => (l: Lang) => t(l, "working"));
+  const started = React.useRef<string | null>(null);
+  const alive = React.useRef(true);
+  // The latest context, so a run reports only while it is still the current one.
+  const latest = React.useRef<any>(context);
+  latest.current = context;
+  const runId: string | null = context?.template?.runId ?? null;
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  React.useEffect(() => {
+    if (runId == null || started.current === runId) return;
+    started.current = runId;
+    const snapshot = context;
+    const lang = uiLang(snapshot);
+    const live = () => alive.current && latest.current?.template?.runId === runId;
+    const check = () => { if (!live()) throw STALE; };
+    let ended = false, at: any = null;
+    const advance = (id: string, fraction: number) => { at = saeProgress(id, fraction); if (live()) setStatus(() => (l: Lang) => t(l, "step." + id)); };
+    const end = (outcome: TemplateOutcome | null) => {
+      if (ended) return;
+      ended = true;
+      if (!outcome || !live()) return;
+      try { sdk.finishTemplate(outcome); } catch (e) { console.warn("[selfie-aesthetic] finishTemplate failed:", errorText(e)); }
+    };
+    (async () => {
+      try {
+        end(await runSelfieTemplate(sdk, snapshot, check, advance));
+      } catch (e: any) {
+        if (e === STALE) { end(null); return; }
+        console.warn("[selfie-aesthetic] template run failed" + (at ? " at " + at.id : "") + ":", errorText(e), e);
+        // A message written for the person is said as is; anything else names the step it stopped at.
+        const said = typeof e?.say === "function" || !at ? sayError(lang, e)
+          : t(lang, "stoppedAt", { step: at.current + 1, total: SAE_BUILD_STEPS.length, name: t(lang, "step." + at.id), detail: sayError(lang, e) });
+        end({ error: said });
+      } finally {
+        end({ error: sayError(lang, uiError((l) => t(l, "stepFailed"))) });
+      }
+    })();
+  }, [runId]);
+  return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{status(L)}</div>;
+}
+
 export default function Panel(props: any) {
-  return <SelfieAestheticPanel {...props} />;
+  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <SelfieAestheticPanel {...props} />;
 }
