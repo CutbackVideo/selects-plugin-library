@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "shortform-cloner",
-  "version": "0.2.0-alpha.2",
+  "version": "0.3.0-alpha.1",
   "name": "Selects Clips",
-  "summary": "Turn long videos into editable shorts with reference-inspired styles, captions and AI review.",
+  "summary": "Make a template from a channel's best shorts, then turn any long video into editable shorts that follow it.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -11,17 +11,14 @@
     "README.md",
     "INSTALL.md",
     "THIRD_PARTY.md",
-    "setup.command",
-    "panel.tsx",
-    "setup.ps1",
-    "verify_runtime.py"
+    "panel.tsx"
   ],
   "compatibility": {
     "platforms": [
       "macOS",
       "Windows"
     ],
-    "selects": "Existing documented Panels APIs: call, askAI, runShell and runScript; native draft editing, generated-media authoring, frame capture, ordinary video export and workflow inspection. SDK declarations checked against installed Selects 2.0.430. Account must have plugin/generated-media authoring enabled. No host patch or private browser service. Python 3.9+, yt-dlp, ffmpeg and ffprobe required. Windows native end-to-end validation pending."
+    "selects": "Requires Panel SDK runScript/runShell/askAI with pictures, Draft setFrameSize, setClipTransform and addMotionGraphic, project transcription, and the panel runtime FileSystem service. No Python or separate setup."
   },
   "preview": {
     "poster": "poster.webp",
@@ -31,43 +28,43 @@
   "localized": {
     "en": {
       "name": "Selects Clips",
-      "summary": "Turn long videos into editable shorts with reference-inspired styles, captions and AI review."
+      "summary": "Make a template from a channel's best shorts, then turn any long video into editable shorts that follow it."
     },
     "de": {
       "name": "Selects Clips",
-      "summary": "Erstelle aus langen Videos bearbeitbare Kurzvideos mit referenzbasierten Stilen, Untertiteln und KI-Pr\u00fcfung."
+      "summary": "Erstellen Sie aus den erfolgreichsten Shorts eines Kanals eine Vorlage und machen Sie aus jedem langen Video bearbeitbare Shorts in diesem Stil."
     },
     "es": {
       "name": "Selects Clips",
-      "summary": "Convierte videos largos en clips editables con estilos de referencia, subt\u00edtulos y revisi\u00f3n con IA."
+      "summary": "Crea una plantilla a partir de los mejores clips cortos de un canal y convierte cualquier v\u00eddeo largo en clips cortos editables que la siguen."
     },
     "fr": {
       "name": "Selects Clips",
-      "summary": "Transformez vos longues vid\u00e9os en clips modifiables avec styles de r\u00e9f\u00e9rence, sous-titres et v\u00e9rification par IA."
+      "summary": "Cr\u00e9ez un mod\u00e8le \u00e0 partir des meilleurs shorts d'une cha\u00eene, puis transformez n'importe quelle longue vid\u00e9o en shorts modifiables qui le suivent."
     },
     "it": {
       "name": "Selects Clips",
-      "summary": "Trasforma video lunghi in clip modificabili con stili di riferimento, sottotitoli e revisione IA."
+      "summary": "Crea un modello dai migliori short di un canale, poi trasforma qualsiasi video lungo in short modificabili che lo seguono."
     },
     "ja": {
       "name": "Selects Clips",
-      "summary": "\u9577\u3044\u52d5\u753b\u304b\u3089\u3001\u53c2\u8003\u52d5\u753b\u306e\u30b9\u30bf\u30a4\u30eb\u30fb\u5b57\u5e55\u30fbAI\u30ec\u30d3\u30e5\u30fc\u4ed8\u304d\u306e\u7de8\u96c6\u53ef\u80fd\u306a\u30b7\u30e7\u30fc\u30c8\u52d5\u753b\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002"
+      "summary": "\u30c1\u30e3\u30f3\u30cd\u30eb\u306e\u4eba\u6c17\u30b7\u30e7\u30fc\u30c8\u52d5\u753b\u304b\u3089\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u3092\u4f5c\u308a\u3001\u9577\u3044\u52d5\u753b\u3092\u305d\u306e\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u306b\u6cbf\u3063\u305f\u7de8\u96c6\u53ef\u80fd\u306a\u30b7\u30e7\u30fc\u30c8\u52d5\u753b\u306b\u3057\u307e\u3059\u3002"
     },
     "ko": {
       "name": "Selects Clips",
-      "summary": "\uae34 \uc601\uc0c1\uc5d0\uc11c \ub808\ud37c\ub7f0\uc2a4 \uc2a4\ud0c0\uc77c, \uc790\ub9c9, AI \ub9ac\ubdf0\ub97c \uc801\uc6a9\ud55c \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc20f\ud3fc\uc744 \ub9cc\ub4dc\uc138\uc694."
+      "summary": "\ucc44\ub110\uc758 \uc798 \ub41c \uc20f\ud3fc\uc73c\ub85c \ud15c\ud50c\ub9bf\uc744 \ub9cc\ub4e4\uace0, \uae34 \uc601\uc0c1\uc744 \uadf8 \ud15c\ud50c\ub9bf\ub300\ub85c \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc20f\ud3fc\uc73c\ub85c \ub9cc\ub4ed\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Selects Clips",
-      "summary": "Transforme v\u00eddeos longos em clipes edit\u00e1veis com estilos de refer\u00eancia, legendas e revis\u00e3o por IA."
+      "summary": "Crie um modelo a partir dos melhores shorts de um canal e transforme qualquer v\u00eddeo longo em shorts edit\u00e1veis que o seguem."
     },
     "tr": {
       "name": "Selects Clips",
-      "summary": "Uzun videolar\u0131 referans stilleri, altyaz\u0131lar ve yapay zek\u00e2 incelemesiyle d\u00fczenlenebilir k\u0131sa videolara d\u00f6n\u00fc\u015ft\u00fcr\u00fcn."
+      "summary": "Bir kanal\u0131n en iyi k\u0131sa videolar\u0131ndan \u015fablon olu\u015fturun, ard\u0131ndan her uzun videoyu bu \u015fablona uyan d\u00fczenlenebilir k\u0131sa videolara d\u00f6n\u00fc\u015ft\u00fcr\u00fcn."
     },
     "zh": {
       "name": "Selects Clips",
-      "summary": "\u5c06\u957f\u89c6\u9891\u8f6c\u4e3a\u53ef\u7f16\u8f91\u7684\u77ed\u89c6\u9891\uff0c\u7ed3\u5408\u53c2\u8003\u98ce\u683c\u3001\u5b57\u5e55\u548c AI \u5ba1\u6838\u3002"
+      "summary": "\u7528\u9891\u9053\u6700\u53d7\u6b22\u8fce\u7684\u77ed\u7247\u5236\u4f5c\u6a21\u677f\uff0c\u518d\u628a\u4efb\u4f55\u957f\u89c6\u9891\u505a\u6210\u7b26\u5408\u8be5\u6a21\u677f\u3001\u53ef\u7f16\u8f91\u7684\u77ed\u7247\u3002"
     }
   }
 }
