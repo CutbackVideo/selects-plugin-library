@@ -165,12 +165,12 @@ assert.deepEqual([K.AMBIENT_DB, K.DEFAULT_CUE, K.DEFAULT_PRESET, K.DEFAULT_LENGT
 assert.ok(/const FADE_SECONDS = 1\.0;/.test(panel) && /const MUSIC_FADE_OUT = 1\.0;/.test(panel), 'the fades as the driver reads them');
 assert.ok(manifest.cues.some(c => c.id === K.DEFAULT_CUE) && presets.presets.some(p => p.id === K.DEFAULT_PRESET), 'defaults exist');
 assert.deepEqual(K.MOTION_OPTIONS.map(o => o.value), j(P.AV_PHOTO_MOTIONS), 'every photo motion is a choice');
-assert.deepEqual(K.TITLE_LOOK, { font: 'anton', size: 100, speed: 100, shadow: 0.3 });
+assert.deepEqual(K.TITLE_LOOK, { font: 'anton', size: 100, speed: 100, shadow: 0.3, scrim: 0.4 });
 assert.deepEqual(K.TITLE_FONT_OPTIONS, [{ label: 'Anton', value: 'anton' }, { label: 'Oswald', value: 'oswald' }]);
 assert.equal(K.CREDIT_FAMILY, 'AV Oswald Bold');
 assert.ok(/const CREDIT_NAME_MAX = 24;/.test(panel), 'credit name limit 24');
 assert.deepEqual(Object.keys(K.AV_ADJUST_LABELS), ['motion', 'motionStrength', 'reveal', 'letterbox', 'look', 'warmth', 'fade', 'kicker', 'title', 'tagline', 'titleColor',
-  'textColor', 'size', 'font', 'speed', 'shadow', 'prefix', 'name'], 'adjustLabels keys (build contract)');
+  'textColor', 'size', 'font', 'speed', 'shadow', 'scrim', 'prefix', 'name'], 'adjustLabels keys (build contract)');
 for (const [k, v] of Object.entries(K.AV_ADJUST_LABELS)) assert.equal(en['param.' + k], v, 'STRINGS.en param.' + k + ' = the English label');
 // decorate.js's own English defaults are the same words.
 {
@@ -182,6 +182,8 @@ for (const [k, v] of Object.entries(K.AV_ADJUST_LABELS)) assert.equal(en['param.
 assert.ok(ui.includes('labels: adjustLabelsFor(L), motionOptions: motionOptionsFor(L),'), 'Inspector labels frozen at Build in the UI language');
 assert.ok(ui.includes('return Object.fromEntries(Object.keys(AV_ADJUST_LABELS).map((k) => [k, t(lang, "param." + k)]));'), 'adjustLabels from STRINGS');
 assert.equal(j(P.AV_BUILD_STEPS).length, 5, 'Step n/5');
+// The title preview draws the Draft's backdrop (decode-title avScrim) under the lockup.
+assert.ok(ui.includes('AV_TITLE.avScrim(previewLayout, previewData, replayFrame == null ? 1e9 : replayFrame, 30, AV_H)') && ui.includes('scrim={previewScrim}'), 'preview backdrop');
 // Every planner failure reason (avPlanBuild) has an English AV_FAIL line and a sentence in the UI language with the
 // failure's numbers; photos never stand in for the video-only bookends, so there is no "one-resource" any more.
 assert.ok(!('one-resource' in K.AV_FAIL) && !('fail.one-resource' in en), 'no one-resource failure');
@@ -260,15 +262,16 @@ for (const [seed, pace, music, preset, creditOn, lookOn, clipSound] of [[1, 'cin
   // Title
   const tp = cfg.title.parameters;
   for (const [k, v] of Object.entries({ preset, kicker: 'K', title: 'TITLE', tagline: 'T', titleColor: p.colors.title, textColor: p.colors.text, taglineTracking: p.taglineTracking,
-    font: 'anton', size: 100, speed: 100, shadow: 0.3 })) assert.deepEqual(tp[k], v, 'title ' + k);
+    font: 'anton', size: 100, speed: 100, shadow: 0.3, scrim: 0.4 })) assert.deepEqual(tp[k], v, 'title ' + k);
   assert.deepEqual(tp.fields, { kicker: 'K', title: 'TITLE', tagline: 'T' });
   assert.deepEqual(tp.fonts.map(f => f.family).sort(), ['AV Anton', 'AV Inter', 'AV Inter Medium', 'AV Oswald Bold']);
   for (const f of tp.fonts) assert.ok(f.b64.length > 1000 && f.metrics && f.metrics.unitsPerEm > 0, 'title font ' + f.family);
   assert.deepEqual(tp.provenance.picks, j(plan.picks));
   assert.deepEqual(cfg.title.editableParameters.map(e => [e.key, e.type]), [['kicker', 'text'], ['title', 'text'], ['tagline', 'text'], ['titleColor', 'color'], ['textColor', 'color'],
-    ['size', 'number'], ['font', 'select'], ['speed', 'number'], ['shadow', 'number']]);
+    ['size', 'number'], ['font', 'select'], ['speed', 'number'], ['shadow', 'number'], ['scrim', 'number']]);
   const ed = k => cfg.title.editableParameters.find(e => e.key === k);
   assert.deepEqual([ed('size').min, ed('size').max, ed('size').step, ed('speed').min, ed('speed').max, ed('speed').step, ed('shadow').min, ed('shadow').max, ed('shadow').step], [60, 160, 5, 25, 400, 5, 0, 1, 0.05]);
+  assert.deepEqual([ed('scrim').defaultValue, ed('scrim').min, ed('scrim').max, ed('scrim').step, ed('scrim').label], [0.4, 0, 1, 0.05, 'Backdrop']);
   assert.equal(ed('speed').label, 'Decode speed'); assert.deepEqual(ed('font').options, K.TITLE_FONT_OPTIONS);
   // Credit (null when off), Oswald only
   if (!creditOn) assert.equal(cfg.credit, null);

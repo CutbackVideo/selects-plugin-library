@@ -181,6 +181,7 @@ const STRINGS = {
     "param.font": "Font",
     "param.speed": "Decode speed",
     "param.shadow": "Shadow",
+    "param.scrim": "Backdrop",
     "param.prefix": "Credit prefix",
     "param.name": "Name",
     "motion.push-in": "Push in",
@@ -368,6 +369,7 @@ const STRINGS = {
     "param.font": "Schrift",
     "param.speed": "Entschlüsselungstempo",
     "param.shadow": "Schatten",
+    "param.scrim": "Hintergrund abdunkeln",
     "param.prefix": "Credit-Präfix",
     "param.name": "Name",
     "motion.push-in": "Heranzoomen",
@@ -555,6 +557,7 @@ const STRINGS = {
     "param.font": "Fuente",
     "param.speed": "Velocidad de descifrado",
     "param.shadow": "Sombra",
+    "param.scrim": "Oscurecer fondo",
     "param.prefix": "Prefijo del crédito",
     "param.name": "Nombre",
     "motion.push-in": "Acercar",
@@ -742,6 +745,7 @@ const STRINGS = {
     "param.font": "Police",
     "param.speed": "Vitesse de déchiffrage",
     "param.shadow": "Ombre",
+    "param.scrim": "Fond assombri",
     "param.prefix": "Préfixe du crédit",
     "param.name": "Nom",
     "motion.push-in": "Zoom avant",
@@ -929,6 +933,7 @@ const STRINGS = {
     "param.font": "Carattere",
     "param.speed": "Velocità di decifrazione",
     "param.shadow": "Ombra",
+    "param.scrim": "Scurisci sfondo",
     "param.prefix": "Prefisso del credito",
     "param.name": "Nome",
     "motion.push-in": "Zoom avanti",
@@ -1116,6 +1121,7 @@ const STRINGS = {
     "param.font": "フォント",
     "param.speed": "デコード速度",
     "param.shadow": "影",
+    "param.scrim": "背景を暗く",
     "param.prefix": "クレジットの前置き",
     "param.name": "名前",
     "motion.push-in": "ズームイン",
@@ -1303,6 +1309,7 @@ const STRINGS = {
     "param.font": "\ud3f0\ud2b8",
     "param.speed": "\ub514\ucf54\ub529 \uc18d\ub3c4",
     "param.shadow": "\uadf8\ub9bc\uc790",
+    "param.scrim": "\ubc30\uacbd \uc5b4\ub461\uac8c",
     "param.prefix": "\ud06c\ub808\ub527 \uc55e \ubb38\uad6c",
     "param.name": "\uc774\ub984",
     "motion.push-in": "\uc90c \uc778",
@@ -1490,6 +1497,7 @@ const STRINGS = {
     "param.font": "Fonte",
     "param.speed": "Velocidade de decifração",
     "param.shadow": "Sombra",
+    "param.scrim": "Escurecer fundo",
     "param.prefix": "Prefixo do crédito",
     "param.name": "Nome",
     "motion.push-in": "Aproximar",
@@ -1677,6 +1685,7 @@ const STRINGS = {
     "param.font": "Yazı tipi",
     "param.speed": "Çözülme hızı",
     "param.shadow": "Gölge",
+    "param.scrim": "Arka planı karart",
     "param.prefix": "Jenerik ön eki",
     "param.name": "Ad",
     "motion.push-in": "Yakınlaş",
@@ -1864,6 +1873,7 @@ const STRINGS = {
     "param.font": "字体",
     "param.speed": "解码速度",
     "param.shadow": "阴影",
+    "param.scrim": "背景压暗",
     "param.prefix": "署名前缀",
     "param.name": "名字",
     "motion.push-in": "推近",
@@ -2826,7 +2836,7 @@ const VIDEO_MOTION_STRENGTH = 0.8;
 const FADE_SECONDS = 1.0;
 const MUSIC_FADE_OUT = 1.0;
 // The title's and the credit's Adjust defaults (the decode block's own defaults); the panel preview draws with them.
-const TITLE_LOOK = { font: "anton", size: 100, speed: 100, shadow: 0.3 };
+const TITLE_LOOK = { font: "anton", size: 100, speed: 100, shadow: 0.3, scrim: 0.4 };
 const CREDIT_LOOK = { size: 100, shadow: 0.3 };
 // The title's main-font choices in Adjust (bundled faces, by name).
 const TITLE_FONT_OPTIONS = [{ label: "Anton", value: "anton" }, { label: "Oswald", value: "oswald" }];
@@ -2843,7 +2853,7 @@ const MOTION_OPTIONS = [
 const AV_ADJUST_LABELS = {
   motion: "Motion", motionStrength: "Motion strength", reveal: "Reveal", letterbox: "Letterbox reveal", look: "Look strength",
   warmth: "Warmth", fade: "Fade out", kicker: "Top line", title: "Title", tagline: "Bottom line", titleColor: "Title colour",
-  textColor: "Text colour", size: "Size", font: "Font", speed: "Decode speed", shadow: "Shadow", prefix: "Credit prefix", name: "Name",
+  textColor: "Text colour", size: "Size", font: "Font", speed: "Decode speed", shadow: "Shadow", scrim: "Backdrop", prefix: "Credit prefix", name: "Name",
 };
 // Why a plan cannot be built (planner avPlanBuild reasons). English for dev/driveAdapter.mjs; the panel says STRINGS
 // `fail.<reason>` in the UI language (`noPlan` for a reason not listed here).
@@ -2921,7 +2931,7 @@ function avDecorateConfig(o) {
   const title = {
     tsx: o.tsx.title,
     parameters: Object.assign({ preset: p.id }, fields, { fields: Object.assign({}, fields), titleColor: p.colors.title, textColor: p.colors.text,
-      taglineTracking: p.taglineTracking, font: TITLE_LOOK.font, size: TITLE_LOOK.size, speed: TITLE_LOOK.speed, shadow: TITLE_LOOK.shadow, timing, fonts, provenance: Object.assign({}, o.provenance || {}, { picks: plan.picks }) }),
+      taglineTracking: p.taglineTracking, font: TITLE_LOOK.font, size: TITLE_LOOK.size, speed: TITLE_LOOK.speed, shadow: TITLE_LOOK.shadow, scrim: TITLE_LOOK.scrim, timing, fonts, provenance: Object.assign({}, o.provenance || {}, { picks: plan.picks }) }),
     editableParameters: [
       { key: 'kicker', label: L.kicker, type: 'text', defaultValue: fields.kicker },
       { key: 'title', label: L.title, type: 'text', defaultValue: fields.title },
@@ -2932,6 +2942,7 @@ function avDecorateConfig(o) {
       { key: 'font', label: L.font, type: 'select', defaultValue: TITLE_LOOK.font, options: TITLE_FONT_OPTIONS },
       { key: 'speed', label: L.speed, type: 'number', defaultValue: TITLE_LOOK.speed, min: 25, max: 400, step: 5 },
       { key: 'shadow', label: L.shadow, type: 'number', defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
+      { key: 'scrim', label: L.scrim, type: 'number', defaultValue: TITLE_LOOK.scrim, min: 0, max: 1, step: 0.05 },
     ],
   };
   const name = String((f.credit && f.credit.name) || '');
@@ -3319,8 +3330,47 @@ function avDecodeFrame(layout, data, frame, fps) {
   out.decoded = Math.min(t.steps, now);
   return out;
 }
+
+// Backdrop ("scrim"): a soft black ellipse behind the lockup, so the white kicker and tagline stay readable over a
+// bright opening shot (the reference's dark opening isolates the whole lockup). data.scrim 0-1 is its peak opacity
+// (default AV_SCRIM_DEFAULT; 0 draws nothing). It is centred on the lockup's ink box with generous margins, fully dark
+// out to AV_SCRIM_CORE of its radii and feathered to 0 at the edge (smoothstep), and fades in from textIn over
+// AV_SCRIM_FADE s, then stays while the title is up. It never changes the text layout.
+var AV_SCRIM_DEFAULT = 0.4, AV_SCRIM_FADE = 0.3, AV_SCRIM_CORE = 0.5, AV_SCRIM_STOPS = 8;
+// Radii: the box's half sizes x AV_SCRIM_GROW (the box corners land at radius sqrt(2) / GROW = 0.75, still about half
+// the peak), plus a margin in canvas heights.
+var AV_SCRIM_GROW = Math.SQRT2 / 0.75, AV_SCRIM_PAD_X = 0.04, AV_SCRIM_PAD_Y = 0.08;
+// The backdrop at `frame`: { cx, cy, rx, ry, opacity, stops: [{ offset, alpha }] } in canvas pixels (alpha 0-1 of the
+// peak, drawn as a radial gradient on the ellipse), or null when there is nothing to draw (scrim 0, no lockup, before
+// textIn). `height` is the canvas height.
+function avScrim(layout, data, frame, fps, height) {
+  var peak = avNum(data && data.scrim, AV_SCRIM_DEFAULT, 0, 1), f = fps > 0 ? fps : 30, H = height > 0 ? height : 1080;
+  if (!layout || !layout.box || peak <= 0) return null;
+  var tm = avTiming(data || {}, layout.title ? layout.title.steps : 0, f), inF = Math.round(tm.textIn * f);
+  if (frame < inF) return null;
+  // The same frame rounding as the text (avDecodeFrame), ramped over the fade with a smoothstep.
+  var u = Math.min(1, (frame - inF + 1) / Math.max(1, AV_SCRIM_FADE * f)), ramp = u * u * (3 - 2 * u);
+  var b = layout.box, stops = [];
+  for (var i = 0; i <= AV_SCRIM_STOPS; i++) {
+    var r = AV_SCRIM_CORE + ((1 - AV_SCRIM_CORE) * i) / AV_SCRIM_STOPS, v = (r - AV_SCRIM_CORE) / (1 - AV_SCRIM_CORE);
+    stops.push({ offset: r, alpha: 1 - v * v * (3 - 2 * v) });
+  }
+  return { cx: (b[0] + b[2]) / 2, cy: (b[1] + b[3]) / 2, rx: ((b[2] - b[0]) / 2) * AV_SCRIM_GROW + AV_SCRIM_PAD_X * H,
+    ry: ((b[3] - b[1]) / 2) * AV_SCRIM_GROW + AV_SCRIM_PAD_Y * H, opacity: peak * ramp, stops: [{ offset: 0, alpha: 1 }].concat(stops) };
+}
+// The backdrop's darkening at canvas point (x, y): the fraction of the light it takes away (0-1), exactly as the
+// gradient draws it (piecewise linear between the stops). For tests and measurements.
+function avScrimAt(scrim, x, y) {
+  if (!scrim) return 0;
+  var dx = (x - scrim.cx) / scrim.rx, dy = (y - scrim.cy) / scrim.ry, r = Math.sqrt(dx * dx + dy * dy), s = scrim.stops;
+  if (r >= 1) return 0;
+  for (var i = 1; i < s.length; i++) {
+    if (r <= s[i].offset) return scrim.opacity * (s[i - 1].alpha + ((r - s[i - 1].offset) / (s[i].offset - s[i - 1].offset)) * (s[i].alpha - s[i - 1].alpha));
+  }
+  return 0;
+}
 // av-decode:end
-  return { avTitleLayout, avDecodeFrame, avKoMeasure, avTiming, avFontStack, AV_TITLE_FACES };
+  return { avTitleLayout, avDecodeFrame, avKoMeasure, avTiming, avFontStack, AV_TITLE_FACES, avScrim };
 })();
 // The credit's layout (assets/archived-credit.tsx, embedded verbatim).
 const AV_CREDIT: any = (function () {
@@ -3937,8 +3987,9 @@ const PREVIEW_BG = "linear-gradient(135deg, #2f3236, #15171a)";
 // The type sample on a Style tile (letters, not words: never translated).
 const TILE_SAMPLE = "Aa";
 
-// The decode lockup as the Draft draws it at `state` (avDecodeFrame), in canvas pixels.
-function LockupSvg({ layout, state, shadow }: { layout: any; state: any; shadow: number }) {
+// The decode lockup as the Draft draws it at `state` (avDecodeFrame), in canvas pixels, over its backdrop (`scrim`:
+// decode-title avScrim at the same frame, or null).
+function LockupSvg({ layout, state, shadow, scrim }: { layout: any; state: any; shadow: number; scrim?: any }) {
   const line = (p: any) => (p ? (
     <text x={p.x} y={p.y} fill={p.color} fontSize={p.size} fontFamily={p.stack} fontWeight={p.weight} opacity={state.textOpacity}
       style={{ whiteSpace: "pre", fontKerning: "none", fontVariantLigatures: "none", letterSpacing: p.tracking * p.size } as any}>{p.text}</text>
@@ -3946,6 +3997,16 @@ function LockupSvg({ layout, state, shadow }: { layout: any; state: any; shadow:
   return (
     <svg width="100%" height={PREVIEW_HEIGHT} viewBox={PREVIEW_VIEW} preserveAspectRatio="xMidYMid meet"
       style={{ display: "block", filter: shadow > 0 ? "drop-shadow(0 1px 3px rgba(0, 0, 0, " + shadow + "))" : undefined }}>
+      {scrim && scrim.opacity > 0 ? (
+        <>
+          <defs>
+            <radialGradient id="av-preview-scrim" cx="0.5" cy="0.5" r="0.5">
+              {scrim.stops.map((s: any, i: number) => <stop key={i} offset={s.offset} stopColor="#000000" stopOpacity={s.alpha} />)}
+            </radialGradient>
+          </defs>
+          <ellipse cx={scrim.cx} cy={scrim.cy} rx={scrim.rx} ry={scrim.ry} fill="url(#av-preview-scrim)" opacity={scrim.opacity} />
+        </>
+      ) : null}
       {line(layout.kicker)}
       {state.glyphs.map((g: any, i: number) => (
         <text key={i} transform={"translate(" + g.x + " " + g.y + ") scale(" + g.condense + " 1)"} x={0} y={0} fill={g.color} opacity={g.opacity}
@@ -4301,7 +4362,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const previewData = React.useMemo(() => {
     if (!chosen || !assets) return null;
     const base: any = { preset: chosen.id, ...titleFields, titleColor: chosen.colors.title, textColor: chosen.colors.text, taglineTracking: chosen.taglineTracking,
-      size: TITLE_LOOK.size, speed: TITLE_LOOK.speed, font: TITLE_LOOK.font, timing: avOpeningTiming(openingSeconds),
+      size: TITLE_LOOK.size, speed: TITLE_LOOK.speed, font: TITLE_LOOK.font, scrim: TITLE_LOOK.scrim, timing: avOpeningTiming(openingSeconds),
       fonts: avPresetFonts(assets.presets, chosen, null) };
     // Wide glyphs (Hangul) are measured in the system Korean face once the fonts are in; the same data feeds the
     // layout and the decode state.
@@ -4317,6 +4378,11 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const previewState: any = React.useMemo(() => {
     if (!previewLayout || !previewData) return null;
     try { return AV_TITLE.avDecodeFrame(previewLayout, previewData, replayFrame == null ? 1e9 : replayFrame, 30); } catch { return null; }
+  }, [previewLayout, previewData, replayFrame]);
+  // The title backdrop at the same frame (decode-title avScrim), drawn under the preview lockup.
+  const previewScrim: any = React.useMemo(() => {
+    if (!previewLayout || !previewData) return null;
+    try { return AV_TITLE.avScrim(previewLayout, previewData, replayFrame == null ? 1e9 : replayFrame, 30, AV_H); } catch { return null; }
   }, [previewLayout, previewData, replayFrame]);
   // How the decode fits the opening shot at the current tempo (decode-title avTiming): anything but 'none' means a
   // long title decodes faster (or starts earlier) so it still holds, readable, before the cut.
@@ -4812,7 +4878,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
         <div style={{ position: "relative" }}>
           <div role="img" aria-label={t(L, "titlePreview")} style={{ height: PREVIEW_HEIGHT, borderRadius: 8, overflow: "hidden", background: PREVIEW_BG,
             display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {assets && previewLayout && previewState ? <LockupSvg layout={previewLayout} state={previewState} shadow={TITLE_LOOK.shadow} />
+            {assets && previewLayout && previewState ? <LockupSvg layout={previewLayout} state={previewState} shadow={TITLE_LOOK.shadow} scrim={previewScrim} />
               : <small style={{ color: "#d8d2cc" }}>{assets ? t(L, "previewUnavailable") : t(L, "loading")}</small>}
           </div>
           {assets && previewLayout?.title ? (

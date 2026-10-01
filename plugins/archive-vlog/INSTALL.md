@@ -56,7 +56,11 @@ is open.
    not start analysis itself.
 3. With at least 2 analysed video clips (photos are optional), press
    **Build**. A new 16:9 Draft opens at 1920x1080 with the letterbox opening
-   and title, the credit, the montage, the fade to black and the music.
+   and title (over a soft dark Backdrop, set in the title's Adjust tab), the
+   credit, the montage, the fade to black and the music. Every shot carries
+   the Cinematic look: deeper shadows with the black point kept, softened
+   near-white highlights, restrained greens and cyans, very saturated sunsets
+   capped, and warm amber highlights.
 4. **Your own music**: drop an audio file. Under it the panel says what it
    found ("Beat found: ... bpm"), and **Preview this section** plays the
    chosen section.
