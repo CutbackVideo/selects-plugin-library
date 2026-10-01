@@ -1,6 +1,7 @@
 // Archive Vlog title: kicker / big condensed title / wide-tracked tagline, centred, over the opening shot. Kicker and
 // tagline appear at textIn; the title decodes in left to right (the next position flips through pseudo-random glyphs,
-// then locks). Placed `within` clip 1's range, which starts at timeline frame 0, so the frame here is the timeline frame.
+// then locks) and always ends with a readable hold before the cut (avTiming). Placed `within` clip 1's range, which
+// starts at timeline frame 0, so the frame here is the timeline frame.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AbsoluteFill, continueRender, delayRender, useCurrentFrame, useVideoConfig } from "remotion";
 
@@ -23,8 +24,15 @@ var AV_TITLE_PRESETS = {
   "a-day-out": { titleColor: "#FFFFFF", textColor: "#FFFFFF", taglineTracking: 0.12, taglineSize: 80 },
   "golden-hour": { titleColor: "#F6E3C2", textColor: "#FFFFFF", taglineTracking: 0.5, taglineSize: 100 },
 };
-// Default timing in seconds from the clip start (the reference at k = 1; decorate passes the planner's scaled values).
-var AV_TIMING = { textIn: 2.4, decodeStart: 2.9, letterSeconds: 0.11 };
+// Default timing in seconds from the clip start (the reference at k = 1; decorate passes the planner's scaled values,
+// planner avOpeningTiming, with cutSeconds: the opening shot's length).
+var AV_TIMING = { textIn: 2.4, decodeStart: 2.9, letterSeconds: 0.115 };
+// Decode fit (avTiming): the title holds fully decoded for at least max(AV_HOLD_MIN, AV_HOLD_SHARE x cutSeconds) before
+// the cut; a letter takes at least AV_LETTER_MIN s unless even starting at textIn cannot fit that.
+var AV_HOLD_MIN = 0.8, AV_HOLD_SHARE = 0.25, AV_LETTER_MIN = 0.03;
+// Graphemes per field, the presets' `max` (presets.json, the same for every preset). Adjust edits bypass the panel's
+// counter, so the graphic cuts longer text itself.
+var AV_FIELD_MAX = { kicker: 24, title: 16, tagline: 48 };
 var AV_TITLE_CAP = 150 / 1080, AV_KICKER_CAP = 22 / 1080, AV_TAGLINE_CAP = 19 / 1080;
 var AV_GAP_KICKER = 21 / 150, AV_GAP_TAGLINE = 22 / 150; // ink gaps, fractions of the title's cap height
 var AV_FIT = 0.8; // max lockup width, fraction of canvas width
@@ -60,15 +68,40 @@ var AV_POOL_HANGUL = [0xAC00, 0xB098, 0xB2E4, 0xB77C, 0xB9C8, 0xBC14, 0xC0AC, 0x
   0xB78C, 0xAF43, 0xAE38, 0xBC24, 0xBCC4, 0xB178, 0xC744, 0xC601, 0xD654, 0xC21C, 0xAC10, 0xC815, 0xC5B5, 0xCD94, 0xD55C, 0xAD6D, 0xBD80,
   0xC0B0, 0xC81C, 0xC8FC, 0xAC70, 0xD48D, 0xACBD].map(function (c) { return String.fromCharCode(c); });
 
-// A character's class: which pool its ghost glyphs come from ("space" takes no decode time).
-function avCharClass(ch) {
-  if (/\s/.test(ch)) return "space";
-  if (AV_HANGUL_RE.test(ch)) return "hangul";
-  if (/[0-9]/.test(ch)) return "digit";
-  if (/[A-Z\u00c0-\u00de]/.test(ch)) return "upper";
-  if (/[a-z\u00df-\u00ff]/.test(ch)) return "lower";
-  return "other";
+// Letters and numbers of any script (Unicode property escapes where the engine has them; else cased letters and wide
+// glyphs).
+var AV_LETTER_RE = (function () { try { return new RegExp("[\\p{L}\\p{N}]", "u"); } catch (e) { return null; } })();
+function avIsLetter(ch) {
+  return AV_LETTER_RE ? AV_LETTER_RE.test(ch) : ch.toUpperCase() !== ch.toLowerCase() || AV_WIDE_RE.test(ch) || /[0-9]/.test(ch);
 }
+// Grapheme clusters (Intl.Segmenter when the engine has it, else code points), so a letter with a combining mark or a
+// surrogate pair is one decode position and counts once against AV_FIELD_MAX. Precomposed Latin, Hangul syllables and
+// digits split the same either way; a combining sequence or an emoji sequence may count differently on an engine
+// without Intl.Segmenter.
+var AV_SEGMENTER = (function () {
+  try { return typeof Intl !== "undefined" && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null; } catch (e) { return null; }
+})();
+function avGraphemes(text) {
+  text = String(text || "");
+  if (!AV_SEGMENTER) return Array.from(text);
+  var out = [], it = AV_SEGMENTER.segment(text)[Symbol.iterator](), step = it.next();
+  while (!step.done) { out.push(step.value.segment); step = it.next(); }
+  return out;
+}
+// A grapheme's class, from its first code point: which pool its ghost glyphs come from. Each position flips through its
+// own script's pool, so a mixed Latin / Hangul title keeps Latin ghosts on Latin letters. "space" and "fixed"
+// (punctuation, symbols) take no decode time; "other" (a letter of another script) takes a step and ghosts as itself.
+function avCharClass(ch) {
+  var c = Array.from(String(ch || " "))[0];
+  if (/\s/.test(c)) return "space";
+  if (AV_HANGUL_RE.test(c)) return "hangul";
+  if (/[0-9]/.test(c)) return "digit";
+  if (/[A-Z\u00c0-\u00d6\u00d8-\u00de\u0100-\u024f]/.test(c) && c !== c.toLowerCase()) return "upper";
+  if (/[a-z\u00df-\u00f6\u00f8-\u00ff\u0100-\u024f]/.test(c)) return "lower";
+  return avIsLetter(c) ? "other" : "fixed";
+}
+// Classes that take a decode step.
+function avLockable(cls) { return cls !== "space" && cls !== "fixed"; }
 function avPool(cls, ch) {
   return cls === "hangul" ? AV_POOL_HANGUL : cls === "digit" ? AV_POOL_DIGIT : cls === "upper" ? AV_POOL_UPPER : cls === "lower" ? AV_POOL_LOWER : [ch];
 }
@@ -148,11 +181,16 @@ function avInk(text, m, kw) {
 // Latin is set in capitals; text with Hangul keeps its case.
 function avCase(text) { return avHasHangul(text) ? text : text.toUpperCase(); }
 
+// The three text fields, each cut to AV_FIELD_MAX graphemes (after the case change, which can lengthen a word).
 function avTitleFields(data) {
   var raw = data.fields || {};
   // Adjust edits land on flat keys (data.title, ...), so a flat string wins over data.fields.
-  var pick = function (k) { var v = typeof data[k] === "string" ? data[k] : raw[k]; return typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""; };
-  return { kicker: avCase(pick("kicker")), title: avCase(pick("title")), tagline: avCase(pick("tagline")) };
+  var pick = function (k) {
+    var v = typeof data[k] === "string" ? data[k] : raw[k];
+    var g = avGraphemes(avCase(typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""));
+    return g.slice(0, AV_FIELD_MAX[k]).join("").trim();
+  };
+  return { kicker: pick("kicker"), title: pick("title"), tagline: pick("tagline") };
 }
 function avNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
 
@@ -180,12 +218,19 @@ function avTitleLayout(data, width, height) {
   if (fields.title) {
     var ko = avHasHangul(fields.title), cx = ko ? 1 : face.condense;
     var F0 = (AV_TITLE_CAP * H * S) / (mt.capHeight / mt.unitsPerEm);
-    var w0 = avTextWidth(fields.title, mt, F0, 0, kw) * cx;
+    // One letter box per grapheme, advanced by its first code point (a combining mark adds no width).
+    var chars = avGraphemes(fields.title), units = 0;
+    for (var u = 0; u < chars.length; u++) units += avAdvance(mt, Array.from(chars[u])[0], kw);
+    var w0 = ((units * F0) / mt.unitsPerEm) * cx;
     var F = F0 * Math.max(AV_TITLE_FLOOR, Math.min(1, fitW / w0));
-    var chars = Array.from(fields.title), pen = 0, step = 0, letters = [];
+    var pen = 0, step = 0, letters = [];
     for (var i = 0; i < chars.length; i++) {
-      var ch = chars[i], cls = avCharClass(ch), w = (avAdvance(mt, ch, kw) * F * cx) / mt.unitsPerEm;
-      letters.push({ ch: ch, cls: cls, x: pen, w: w, step: cls === "space" ? -1 : step++ });
+      var ch = chars[i], cls = avCharClass(ch), w = (avAdvance(mt, Array.from(ch)[0], kw) * F * cx) / mt.unitsPerEm;
+      // step: the letter's decode step (-1 for a space or punctuation); at: the step from which it is drawn (a
+      // punctuation mark is drawn solid once every letter before it has locked).
+      var lock = avLockable(cls);
+      letters.push({ ch: ch, cls: cls, x: pen, w: w, step: lock ? step : -1, at: step });
+      if (lock) step++;
       pen += w;
     }
     title = { part: "title", text: fields.title, family: face.family, weight: face.weight, stack: avFontStack(face.family), size: F, condense: cx,
@@ -242,37 +287,62 @@ function avTitleLayout(data, width, height) {
   return out;
 }
 
-// Timing in seconds ({ revealStart?, textIn, decodeStart, letterSeconds }); `speed` (%) scales the letter rate.
-// revealStart is accepted so the planner's timing object can be passed whole; the title does not use it.
-function avTiming(data) {
+// Timing in seconds for a title of `steps` decode steps (its lockable graphemes; spaces and punctuation take none) at
+// `fps` (default 30): { textIn, decodeStart, letterSeconds, cutSeconds, minHold, fit }. data.timing is the planner's
+// avOpeningTiming ({ revealStart?, revealEnd?, k?, textIn, decodeStart, letterSeconds, cutSeconds? }; the reveal keys
+// are accepted so the object can be passed whole). `speed` (%, clamped to 25-400) scales the letter rate:
+// base = letterSeconds x 100 / speed.
+// Fit, when cutSeconds (the opening shot's length) is given and the title has steps: the last letter must lock by
+// end = cutSeconds - minHold - 2 / fps, minHold = max(AV_HOLD_MIN, AV_HOLD_SHARE x cutSeconds) (the 2 frames cover the
+// frame rounding of decodeStart and of the last lock, so the hold is >= minHold in whole frames).
+//   1. letterSeconds = min(base, max(AV_LETTER_MIN, (end - decodeStart) / steps)): never slower than asked, faster
+//      when the decode would run into the hold ('letters').
+//   2. Still past end at AV_LETTER_MIN per letter: the decode starts earlier, decodeStart = max(textIn, end - steps x
+//      AV_LETTER_MIN) ('early').
+//   3. Still past end (decodeStart = textIn): letterSeconds = max(0, (end - textIn) / steps), several letters per frame;
+//      0 (textIn already past end) draws the title whole at textIn ('squeezed').
+// fit is 'none' when nothing changed. Without cutSeconds (older Drafts) the timing is as before: decodeStart and base.
+function avTiming(data, steps, fps) {
   var t = (data && data.timing) || {};
+  var f = fps > 0 ? fps : 30, n = steps > 0 ? steps : 0;
   var textIn = avNum(t.textIn, AV_TIMING.textIn, 0, 600);
   var decodeStart = Math.max(textIn, avNum(t.decodeStart, AV_TIMING.decodeStart, 0, 600));
   var ls = avNum(t.letterSeconds, AV_TIMING.letterSeconds, 0.005, 5) * (100 / avNum(data && data.speed, 100, 25, 400));
-  return { textIn: textIn, decodeStart: decodeStart, letterSeconds: ls };
+  var cut = avNum(t.cutSeconds, 0, 0, 600), minHold = cut > 0 ? Math.max(AV_HOLD_MIN, AV_HOLD_SHARE * cut) : 0, fit = "none";
+  if (cut > 0 && n > 0) {
+    var end = cut - minHold - 2 / f;
+    var fitLs = Math.min(ls, Math.max(AV_LETTER_MIN, (end - decodeStart) / n));
+    if (fitLs < ls) { ls = fitLs; fit = "letters"; }
+    if (decodeStart + n * ls > end + 1e-9) { decodeStart = Math.max(textIn, end - n * ls); fit = "early"; }
+    if (decodeStart + n * ls > end + 1e-9) { ls = Math.max(0, (end - decodeStart) / n); fit = "squeezed"; }
+  }
+  return { textIn: textIn, decodeStart: decodeStart, letterSeconds: ls, cutSeconds: cut, minHold: minHold, fit: fit };
 }
 
 // What to draw at `frame` (timeline frame = clip frame): { textOpacity, glyphs: [{ ch, x (left), y (baseline), size,
 // condense, opacity, ghost, family, weight, stack, color }], decoded }. Before textIn: nothing. From textIn: kicker and
-// tagline (fading in over 3 frames). From decodeStart: letter k (k-th non-space letter) shows a ghost glyph during
-// [decodeStart + k * letterSeconds, decodeStart + (k + 1) * letterSeconds), then is drawn solid; letters after it are
-// empty. Spaces take no time.
+// tagline (fading in over 3 frames). From decodeStart (avTiming, fitted before the cut): letter k (k-th lockable
+// grapheme) shows a ghost glyph during [decodeStart + k * letterSeconds, decodeStart + (k + 1) * letterSeconds), then
+// is drawn solid; letters after it are empty. Spaces are never drawn; punctuation takes no time and is drawn solid
+// once every letter before it has locked.
 function avDecodeFrame(layout, data, frame, fps) {
-  var tm = avTiming(data || {}), f = fps > 0 ? fps : 30;
+  var t = layout && layout.title, f = fps > 0 ? fps : 30;
+  var tm = avTiming(data || {}, t ? t.steps : 0, f);
   var inF = Math.round(tm.textIn * f), decF = Math.round(tm.decodeStart * f), lsF = tm.letterSeconds * f;
   var out = { textOpacity: 0, glyphs: [], decoded: 0 };
   if (!layout || !layout.box || frame < inF) return out;
   out.textOpacity = Math.min(1, (frame - inF + 1) / 3);
-  var t = layout.title;
   if (!t || frame < decF) return out;
-  var now = Math.floor((frame - decF) / lsF + 1e-9); // the step showing a ghost (== steps: all locked)
+  // The step showing a ghost (>= steps: all locked); a zero letter time locks everything at decodeStart.
+  var now = lsF > 0 ? Math.floor((frame - decF) / lsF + 1e-9) : t.steps;
   var m = layout.metrics || AV_FALLBACK_METRICS, kw = avKoWide(data);
   for (var i = 0; i < t.letters.length; i++) {
     var l = t.letters[i];
-    if (l.step < 0 || l.step > now) continue;
-    var ghost = l.step === now, ch = ghost ? avGhostChar(l.ch, i, frame) : l.ch;
+    if (l.cls === "space") continue;
+    if (l.step < 0 ? l.at > now : l.step > now) continue;
+    var ghost = l.step >= 0 && l.step === now, ch = ghost ? avGhostChar(l.ch, i, frame) : l.ch;
     // A ghost glyph is centred in the final letter's box (its own advance may differ).
-    var gw = ghost ? (avAdvance(m, ch, kw) * t.size * t.condense) / m.unitsPerEm : l.w;
+    var gw = ghost ? (avAdvance(m, Array.from(ch)[0], kw) * t.size * t.condense) / m.unitsPerEm : l.w;
     var ko = AV_HANGUL_RE.test(ch);
     out.glyphs.push({ ch: ch, x: l.x + (l.w - gw) / 2, y: t.y, size: t.size, condense: t.condense, opacity: ghost ? AV_GHOST_OPACITY : 1, ghost: ghost,
       family: t.family, weight: ko ? t.koWeight : t.weight, stack: t.stack, color: t.color });

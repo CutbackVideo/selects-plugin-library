@@ -18,7 +18,7 @@ function block(file, name) {
 }
 const title = block('decode-title.tsx', 'av-decode'), credit = block('archived-credit.tsx', 'av-credit');
 const T = {}; vm.createContext(T);
-vm.runInContext(title + ';globalThis.X={avKoMeasure,avTitleLayout,avDecodeFrame,avTiming,avFontStack,avGhostChar,avHash,AV_TITLE_FACES,AV_KICKER_FACE,AV_TAGLINE_FACE,AV_TITLE_PRESETS,AV_POOL_HANGUL};', T);
+vm.runInContext(title + ';globalThis.X={avKoMeasure,avTitleLayout,avDecodeFrame,avTiming,avFontStack,avGhostChar,avHash,avGraphemes,avCharClass,AV_TITLE_FACES,AV_KICKER_FACE,AV_TAGLINE_FACE,AV_TITLE_PRESETS,AV_POOL_HANGUL,AV_POOL_UPPER,AV_POOL_LOWER,AV_FIELD_MAX,AV_SEGMENTER};', T);
 const C = {}; vm.createContext(C);
 vm.runInContext(credit + ';globalThis.X={avcKoMeasure,avCreditLayout,avcFontStack,AVC_FACE};', C);
 // Also loadable the way the panel does it, and both blocks together in one scope (no name clashes).
@@ -112,7 +112,7 @@ const SEOUL_TRIP = ko(0xC11C, 0xC6B8, 0x20, 0xC5EC, 0xD589), SEOUL = ko(0xC11C, 
   near(wide.title.w, 0.8 * W, 1, 'long title shrinks to the fit width');
   // A short title keeps the reference size.
   assert.equal(lay({ title: 'TOKYO' }).title.size, ref.title.size);
-  const longTag = lay({ tagline: 'A WEEKEND OF SLOW MORNINGS AND LONG WALKS BY THE RIVER' });
+  const longTag = lay({ size: 140, tagline: 'A WEEKEND OF SLOW MORNINGS AND LONG WALKS BY SEA' });
   assert.ok(longTag.tagline.tracking < 0.5 && longTag.tagline.tracking >= 0.15, 'tagline tracking reduced: ' + longTag.tagline.tracking);
   assert.ok(longTag.tagline.w <= 0.8 * W + 1e-6, 'tagline fits');
 }
@@ -163,10 +163,10 @@ const SEOUL_TRIP = ko(0xC11C, 0xC6B8, 0x20, 0xC5EC, 0xD589), SEOUL = ko(0xC11C, 
 }
 
 // --- Decode state per frame (30 fps, default timing: textIn 2.40 s = frame 72, decodeStart 2.90 s = frame 87,
-// 0.11 s = 3.3 frames per letter).
+// 0.115 s = 3.45 frames per letter; the reference's 9 letters end at 3.935 s).
 {
   const L = lay(), D = {};
-  const steps = L.steps, fps = 30, ls = 0.11 * fps;
+  const steps = L.steps, fps = 30, ls = 0.115 * fps;
   // Before textIn: nothing.
   for (const f of [0, 30, 71]) { const s = frameAt(L, D, f); assert.equal(s.textOpacity, 0); assert.equal(s.glyphs.length, 0); }
   // Kicker and tagline fade in over 3 frames (hard on); the title is still empty.
@@ -207,13 +207,16 @@ const SEOUL_TRIP = ko(0xC11C, 0xC6B8, 0x20, 0xC5EC, 0xD589), SEOUL = ko(0xC11C, 
   assert.equal(frameAt(L, D, 143, 60).textOpacity, 0); assert.equal(frameAt(L, D, 144, 60).textOpacity, 1 / 3);
   assert.equal(frameAt(L, D, 173, 60).glyphs.length, 0); assert.equal(frameAt(L, D, 174, 60).glyphs.length, 1);
   // The planner's scaled timing (k = 0.89, revealStart passed through) and the speed parameter.
-  const k = 0.89, Tm = { timing: { revealStart: 0.2 * k, textIn: 2.4 * k, decodeStart: 2.9 * k, letterSeconds: 0.11 * k } };
+  const k = 0.89, Tm = { timing: { revealStart: 0.2 * k, textIn: 2.4 * k, decodeStart: 2.9 * k, letterSeconds: 0.115 * k } };
   assert.equal(frameAt(L, Tm, Math.round(2.4 * k * 30) - 1).textOpacity, 0);
   assert.ok(frameAt(L, Tm, Math.round(2.4 * k * 30)).textOpacity > 0);
   assert.equal(frameAt(L, Tm, Math.round(2.9 * k * 30)).glyphs.length, 1);
   const tm = plain(X.avTiming({ ...Tm, speed: 200 }));
-  near(tm.letterSeconds, 0.11 * k / 2, 1e-12, 'speed 200 % halves the letter time');
-  assert.deepEqual(plain(X.avTiming({})), { textIn: 2.4, decodeStart: 2.9, letterSeconds: 0.11 });
+  near(tm.letterSeconds, 0.115 * k / 2, 1e-12, 'speed 200 % halves the letter time');
+  assert.deepEqual(plain(X.avTiming({})), { textIn: 2.4, decodeStart: 2.9, letterSeconds: 0.115, cutSeconds: 0, minHold: 0, fit: 'none' });
+  // Speed is clamped to 25-400 % inside the graphic (Adjust bypasses the panel).
+  near(plain(X.avTiming({ speed: 1000 })).letterSeconds, 0.115 / 4, 1e-12, 'speed max 400 %');
+  near(plain(X.avTiming({ speed: 1 })).letterSeconds, 0.115 * 4, 1e-12, 'speed min 25 %');
   // decodeStart never before textIn.
   assert.equal(plain(X.avTiming({ timing: { textIn: 3, decodeStart: 1 } })).decodeStart, 3);
 }
@@ -223,9 +226,9 @@ const SEOUL_TRIP = ko(0xC11C, 0xC6B8, 0x20, 0xC5EC, 0xD589), SEOUL = ko(0xC11C, 
   // Spaces lock instantly: "A DAY OUT" has 7 steps; the spaces are never drawn.
   const L = lay({ preset: 'a-day-out', kicker: '', title: 'A DAY OUT' });
   assert.equal(L.steps, 7);
-  const fin = frameAt(L, {}, 87 + Math.ceil(7 * 3.3));
+  const fin = frameAt(L, {}, 87 + Math.ceil(7 * 3.45));
   assert.equal(fin.glyphs.map(g => g.ch).join(''), 'ADAYOUT');
-  assert.equal(frameAt(L, {}, 87 + Math.ceil(7 * 3.3) - 1).glyphs.filter(g => g.ghost).length, 1);
+  assert.equal(frameAt(L, {}, 87 + Math.ceil(7 * 3.45) - 1).glyphs.filter(g => g.ghost).length, 1);
   // Pools: capitals, lower case, digits and Hangul syllables, never the letter's own glyph.
   const hangulPool = plain(X.AV_POOL_HANGUL);
   assert.ok(hangulPool.length >= 40 && hangulPool.every(c => c.charCodeAt(0) >= 0xac00 && c.charCodeAt(0) <= 0xd7a3), 'Hangul pool');
@@ -244,6 +247,121 @@ const SEOUL_TRIP = ko(0xC11C, 0xC6B8, 0x20, 0xC5EC, 0xD589), SEOUL = ko(0xC11C, 
   // Digits flip through digits.
   const N = lay({ title: '2026' });
   assert.match(frameAt(N, { timing: { textIn: 0, decodeStart: 0, letterSeconds: 1 } }, 3).glyphs[0].ch, /^[0-9]$/);
+}
+
+// --- Decode fit (M6): with timing.cutSeconds (the opening shot's length) the decode always ends with a hold of at least
+// minHold = max(0.8, 0.25 x cut) before the cut, in whole frames, at any title length and decode speed.
+{
+  const ref = { textIn: 2.4, decodeStart: 2.9, letterSeconds: 0.115 };
+  // The planner's timing at 72 bpm (5 s opening, k = 5 / 5.6) and at the reference (k = 1), and a fast cue (150 bpm).
+  const scaled = cut => { const k = Math.min(1, cut / 5.6); return { textIn: 2.4 * k, decodeStart: 2.9 * k, letterSeconds: 0.115 * k, cutSeconds: cut }; };
+  // The default 9-letter title is unchanged by the fit at the reference and at 72 bpm.
+  for (const cut of [5.6, 5, 6 * 60 / 110]) {
+    const t = plain(X.avTiming({ timing: scaled(cut) }, 9, 30)), k = Math.min(1, cut / 5.6);
+    assert.equal(t.fit, 'none', 'no fit at ' + cut); near(t.letterSeconds, 0.115 * k, 1e-12); near(t.decodeStart, 2.9 * k, 1e-12);
+    near(t.minHold, Math.max(0.8, 0.25 * cut), 1e-12);
+  }
+  // The rule, by lockable count (24 and 40 are past the 16-grapheme title limit, so they test the rule directly).
+  const minHold = cut => Math.max(0.8, 0.25 * cut);
+  for (const fps of [30, 25, 60, 30000 / 1001]) for (const cut of [5.6, 5, 4, 6 * 60 / 150, 6 * 60 / 160]) for (const steps of [1, 9, 16, 24, 40]) for (const speed of [25, 100, 400]) {
+    const tag = [fps.toFixed(2), cut.toFixed(2), steps, speed].join(' ');
+    const t = plain(X.avTiming({ timing: scaled(cut), speed }, steps, fps)), tIn = scaled(cut).textIn;
+    assert.ok(t.letterSeconds <= 0.115 * Math.min(1, cut / 5.6) * 100 / speed + 1e-12, tag + ' never slower than asked');
+    assert.ok(t.decodeStart >= tIn - 1e-12 && t.decodeStart <= scaled(cut).decodeStart + 1e-12, tag + ' starts between textIn and decodeStart');
+    const base = 0.115 * Math.min(1, cut / 5.6) * 100 / speed;
+    if (t.fit !== 'squeezed') assert.ok(t.letterSeconds >= Math.min(0.03, base) - 1e-12, tag + ' the fit never goes under 0.03 s per letter');
+    if (t.fit !== 'early' && t.fit !== 'squeezed') near(t.decodeStart, scaled(cut).decodeStart, 1e-12, tag + ' keeps decodeStart');
+    assert.ok(t.decodeStart + steps * t.letterSeconds <= cut - minHold(cut) - 2 / fps + 1e-9, tag + ' seconds: ends before the hold');
+  }
+  // Frame level through avDecodeFrame, with real titles: the first frame with every letter locked is at least minHold
+  // before the cut frame.
+  const lockFrame = (Lt, data, fps) => { for (let f = 0; f < 60 * fps; f++) { const s = frameAt(Lt, data, f, fps); if (s.decoded === Lt.steps && !s.glyphs.some(g => g.ghost)) return f; } return Infinity; };
+  const long16 = lay({ title: 'WWWWWWWWWWWWWWWW' }), long24 = lay({ title: 'THE LONGEST WEEKEND IN THE CITY BY THE SEA' });
+  assert.equal(long24.title.text, 'THE LONGEST WEEK', '24+ graphemes are cut to 16');
+  for (const Lt of [lay(), long16, long24, lay({ title: SEOUL_TRIP + SEOUL_TRIP + SEOUL_TRIP })]) for (const fps of [30, 25, 60]) for (const cut of [5.6, 5, 2.4, 2.25]) for (const speed of [25, 100, 400]) {
+    const data = { timing: scaled(cut), speed }, f = lockFrame(Lt, data, fps), cutF = Math.round(cut * fps);
+    assert.ok(cutF - f >= minHold(cut) * fps - 1e-9, [Lt.title.text, fps, cut, speed].join(' ') + ': hold ' + (cutF - f) / fps + ' s');
+  }
+  // Slow speed on a 16-letter title at 72 bpm: letters speed up (0.03 floor not reached), the start stays.
+  const s25 = plain(X.avTiming({ timing: scaled(5), speed: 25 }, 16, 30));
+  assert.equal(s25.fit, 'letters'); near(s25.decodeStart, 2.9 * 5 / 5.6, 1e-12);
+  near(s25.letterSeconds, (5 - 1.25 - 2 / 30 - 2.9 * 5 / 5.6) / 16, 1e-12);
+  // Fast cue (150 bpm: 2.4 s opening): 16 letters at 0.03 s need an earlier start, still after textIn.
+  const e = plain(X.avTiming({ timing: scaled(2.4) }, 16, 30));
+  assert.equal(e.fit, 'early'); near(e.letterSeconds, 0.03, 1e-12); near(e.decodeStart, 2.4 - 0.8 - 2 / 30 - 16 * 0.03, 1e-12);
+  assert.ok(e.decodeStart > scaled(2.4).textIn);
+  // At 160 bpm (2.25 s) even that would start before textIn: from textIn, a little under 0.03 s per letter.
+  const e2 = plain(X.avTiming({ timing: scaled(2.25) }, 16, 30));
+  assert.equal(e2.fit, 'squeezed'); near(e2.decodeStart, scaled(2.25).textIn, 1e-12); assert.ok(e2.letterSeconds > 0.025 && e2.letterSeconds < 0.03);
+  // 40 steps cannot fit at 0.03 s even from textIn: squeezed below 0.03 s, ending on time.
+  const q = plain(X.avTiming({ timing: scaled(2.25) }, 40, 30));
+  assert.equal(q.fit, 'squeezed'); near(q.decodeStart, scaled(2.25).textIn, 1e-12);
+  near(q.decodeStart + 40 * q.letterSeconds, 2.25 - 0.8 - 2 / 30, 1e-12);
+  // textIn already past the hold: the title appears whole at textIn.
+  const z = plain(X.avTiming({ timing: { textIn: 1, decodeStart: 1.2, letterSeconds: 0.1, cutSeconds: 1.5 } }, 5, 30));
+  assert.deepEqual([z.fit, z.decodeStart, z.letterSeconds], ['squeezed', 1, 0]);
+  const zl = lay({ title: 'TOKYO' }), zs = frameAt(zl, { timing: { textIn: 1, decodeStart: 1.2, letterSeconds: 0.1, cutSeconds: 1.5 } }, 30);
+  assert.equal(zs.glyphs.map(g => g.ch).join(''), 'TOKYO'); assert.ok(zs.glyphs.every(g => !g.ghost));
+  // No cutSeconds (older Drafts) or no steps: exactly the old timing.
+  for (const timing of [ref, { ...ref, cutSeconds: 0 }, { ...ref, cutSeconds: 'x' }, { ...ref, cutSeconds: -3 }])
+    assert.deepEqual(plain(X.avTiming({ timing, speed: 25 }, 40, 30)), { ...ref, letterSeconds: 0.46, cutSeconds: 0, minHold: 0, fit: 'none' });
+  assert.equal(plain(X.avTiming({ timing: scaled(2.25) }, 0, 30)).fit, 'none');
+  // Old Draft frames are unchanged by the new code path.
+  const L = lay();
+  for (const f of [86, 87, 90, 100, 117, 118, 200]) assert.deepEqual(frameAt(L, { timing: ref }, f), frameAt(L, {}, f), 'old timing at ' + f);
+}
+
+// --- Graphemes, field limits, punctuation and mixed scripts.
+{
+  // Field limits: the presets' max graphemes, enforced inside the graphic.
+  assert.deepEqual(plain(X.AV_FIELD_MAX), { kicker: 24, title: 16, tagline: 48 });
+  for (const p of presets.presets) for (const fl of p.fields) assert.equal(X.AV_FIELD_MAX[fl.key], fl.max, p.id + ' ' + fl.key + ' max');
+  const big = lay({ kicker: 'K'.repeat(40), title: 'T'.repeat(40), tagline: 'G'.repeat(80) });
+  assert.equal(big.kicker.text.length, 24); assert.equal(big.title.text.length, 16); assert.equal(big.tagline.text.length, 48);
+  assert.equal(big.steps, 16);
+  assert.equal(lay({ title: 'ABCDEFGHIJKLMNO PQRS' }).title.text, 'ABCDEFGHIJKLMNO', 'a cut never ends in a space');
+  // Graphemes: a combining sequence is one position (Intl.Segmenter); Hangul syllables are one each.
+  assert.ok(X.AV_SEGMENTER, 'Node has Intl.Segmenter');
+  assert.deepEqual(plain(X.avGraphemes('Café')), ['C', 'a', 'f', 'é']);
+  assert.deepEqual(plain(X.avGraphemes(SEOUL_TRIP)), Array.from(SEOUL_TRIP));
+  const acc = lay({ title: 'café 2026' });
+  assert.equal(acc.title.letters.length, 9); assert.equal(acc.steps, 8);
+  // Without Intl.Segmenter: code points; Latin, Hangul and digits split the same.
+  const NS = { Intl: { ...Intl, Segmenter: undefined } }; vm.createContext(NS);
+  vm.runInContext(title + ';globalThis.X={avGraphemes,avTitleLayout,AV_SEGMENTER};', NS);
+  assert.equal(NS.X.AV_SEGMENTER, null);
+  for (const t of ['CINEMATIC', SEOUL_TRIP, 'Seoul ' + SEOUL + ' 2026!', 'A DAY OUT']) {
+    assert.deepEqual(plain(NS.X.avGraphemes(t)), plain(X.avGraphemes(t)), 'fallback agrees on ' + t);
+    assert.deepEqual(plain(NS.X.avTitleLayout({ title: t, fonts }, W, H)), plain(X.avTitleLayout({ title: t, fonts }, W, H)));
+  }
+  // Classes: Latin by case, digits, Hangul; spaces and punctuation are fixed (no decode time); other scripts' letters
+  // take a step and ghost as themselves.
+  assert.deepEqual(['A', 'e', 'É', 'é', 'Ł', 'ł', '7', SEOUL[0], ' ', '!', ',', '-', '&', '·', 'Ж', 'あ'].map(c => X.avCharClass(c)),
+    ['upper', 'lower', 'upper', 'lower', 'upper', 'lower', 'digit', 'hangul', 'space', 'fixed', 'fixed', 'fixed', 'fixed', 'fixed', 'other', 'other']);
+  // Punctuation takes no time: "HI, YOU!" has 5 steps; the comma shows once "HI" has locked, the "!" with the end.
+  const P = lay({ title: 'HI, YOU!' });
+  assert.equal(P.steps, 5);
+  const slowP = { timing: { textIn: 0, decodeStart: 0, letterSeconds: 1 } };
+  const at = f => frameAt(P, slowP, f).glyphs.map(g => (g.ghost ? '?' : g.ch)).join('');
+  assert.equal(at(0), '?'); assert.equal(at(30), 'H?'); assert.equal(at(60), 'HI,?'); assert.equal(at(149), 'HI,YO?'); assert.equal(at(150), 'HI,YOU!');
+  // Mixed script: every position flips through its own script's pool; punctuation and spaces stay fixed.
+  const M = lay({ title: 'Seoul ' + SEOUL + ' 2026!' });
+  assert.deepEqual(M.title.letters.map(l => l.cls), ['upper', 'lower', 'lower', 'lower', 'lower', 'space', 'hangul', 'hangul', 'space', 'digit', 'digit', 'digit', 'digit', 'fixed']);
+  assert.equal(M.steps, 11);
+  const hangulPool = plain(X.AV_POOL_HANGUL), upper = plain(X.AV_POOL_UPPER), lower = plain(X.AV_POOL_LOWER);
+  const pools = { upper, lower, hangul: hangulPool, digit: '0123456789'.split('') };
+  const lockable = M.title.letters.filter(l => l.step >= 0);
+  for (const l of lockable) for (let f = 0; f < 20; f++) {
+    // One second per letter: at frame (step x 30 + f) the ghost sits on this letter.
+    const s = frameAt(M, slowP, l.step * 30 + f), g = s.glyphs.find(x => x.ghost);
+    assert.ok(pools[l.cls].includes(g.ch) && g.ch !== l.ch, l.cls + ' ghost ' + g.ch + ' from its own pool');
+  }
+  // Determinism: the same frames twice, in any order, give the same glyphs.
+  const frames = Array.from({ length: 400 }, (_, f) => f);
+  const a = frames.map(f => frameAt(M, slowP, f)), b = frames.slice().reverse().map(f => frameAt(M, slowP, f)).reverse();
+  assert.deepEqual(a, b, 'deterministic');
+  const fitted = { timing: { textIn: 2.14, decodeStart: 2.59, letterSeconds: 0.103, cutSeconds: 5 }, speed: 25 };
+  assert.deepEqual(frames.map(f => frameAt(M, fitted, f)), frames.map(f => frameAt(M, fitted, f)), 'deterministic with the fit');
 }
 
 // --- Empty fields.

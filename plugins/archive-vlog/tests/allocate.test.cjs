@@ -51,12 +51,17 @@ assert.match(twoPlan.attempt, /^spread(-in-order)?$/);
 const oneSrc = j(P.avAllocate({ candidates: video('a'), slots: tplSlots(2), seed: 'x' }));
 assert.equal(oneSrc.picks[0].rid, 'a'); assert.equal(oneSrc.picks[1], null); assert.ok(oneSrc.missing >= 1);
 
-// 2) One resource.
-assert.equal(plan(video('a')).reason, 'one-resource');
-assert.equal(plan(photos(1)).reason, 'one-resource');
-assert.equal(plan([]).reason, 'one-resource');
-assert.equal(plan(photos(1).concat(photos(1))).reason, 'one-resource', 'duplicate rids count once');
-assert.equal(plan(video('a').concat([{ rid: 'b', role: 'crowd', t: 1, score: 0.5 }])).reason, 'one-resource', 'an invalid video is no source');
+// 2) Preflight: no video at all, or a single video source (the opening and credit shots are adjacent video-only
+// shots, so they need two videos; photos cannot help).
+const failOf = r => [r.ok, r.reason, r.usableShots, r.usableSlots];
+assert.deepEqual(failOf(plan([])), [false, 'no-video', 0, 0]);
+assert.deepEqual(failOf(plan(photos(1))), [false, 'no-video', 0, 0]);
+assert.deepEqual(failOf(plan(photos(30))), [false, 'no-video', 0, 0], 'photos alone never build');
+assert.deepEqual(failOf(plan(photos(30), { bpm: 100 })), [false, 'no-video', 0, 0]);
+assert.equal(plan(video('a')).reason, 'one-video');
+assert.equal(plan(video('a').concat(photos(20))).reason, 'one-video', 'photos do not replace a second video');
+assert.equal(plan(video('a').concat(video('a', 0.7))).reason, 'one-video', 'duplicate rids count once');
+assert.equal(plan(video('a').concat([{ rid: 'b', role: 'crowd', t: 1, score: 0.5 }])).reason, 'one-video', 'an invalid video is no source');
 
 // 3) Video-only slots: the opening, credit and final shots never take a photo, even when every slot is a photo slot,
 // and the photo share (1/3) counts only the montage: Standard 16 -> 5 photos, never 3 in a row, each photo once.
@@ -85,25 +90,28 @@ assert.equal(j(P.avAllocate({ candidates: three.concat(photos(10)), slots: tplSl
 // A video-only slot with only photos stays empty.
 assert.equal(j(P.avAllocate({ candidates: photos(4), slots: [{ index: 0, role: 'opening', seconds: 5, videoOnly: true }], seed: 'x' })).missing, 1);
 
-// 4) No video at all (Mini Vlog's photo-only case): photos may take every slot and play in any run; the plan says so
-// in notes. A photo holds at most 5 s - AV_SOURCE_TAIL = 4.85 s, so the opening (6 beats) needs >= 74.2 bpm: of the
-// bundled cues only Before Everything (75) builds from photos alone.
+// 4) Bookend preflight: some video source must hold the opening (6 beats) and the final shot (4 beats, 8 above 110
+// bpm) whole, with AV_SOURCE_TAIL; the failure says how long a source must be. At 72 bpm (30 fps): opening 150 frames
+// = 5 s -> 5.15 s, final 100 frames = 3.33 s -> 3.48 s. Photos (at most 4.85 s) never count.
 {
-  const po = plan(photos(30), { bpm: 100 });
-  assert.equal(po.ok, true); assert.deepEqual(po.notes, ['no-video']);
-  assert.equal(po.photoShots, po.slots); assert.equal(maxRun(po.picks), po.slots); assert.ok(!adjacent(po.picks));
-  const at75 = plan(photos(30), { bpm: 75 });
-  assert.equal(at75.ok, true, '75 bpm: a 4.80 s opening'); assert.equal(at75.picks[0].holdSeconds, 4.8);
-  const at72 = plan(photos(30), { bpm: 72 });
-  assert.deepEqual([at72.ok, at72.reason, at72.notes], [false, 'no-video', ['no-video']], '72 bpm: a 5.00 s opening no photo can hold');
+  const clips = (dur, n = 4) => Array.from({ length: n }, (_, i) => mk('v' + i, 'crowd', dur / 2, 0.5, dur));
+  const op = plan(clips(4).concat(photos(20)));
+  assert.deepEqual(failOf(op), [false, 'opening-too-short', 0, 0]);
+  assert.ok(Math.abs(op.neededSeconds - 5.15) < 1e-9 && Math.abs(op.shotSeconds - 5) < 1e-9 && op.longestSeconds === 4, JSON.stringify(op));
+  // One long clip is enough to pass the preflight (the allocator may still fall short: too-few).
+  assert.notEqual(plan(clips(4).concat([mk('L', 'crowd', 3, 0.5, 5.15)])).reason, 'opening-too-short');
+  // Faster cue: a shorter opening (6 beats at 150 bpm = 2.4 s) passes, the 8-beat final shot (3.2 s) does not.
+  const en = plan(clips(3.3), { bpm: 150 });
+  assert.deepEqual(failOf(en), [false, 'ending-too-short', 0, 0]);
+  assert.ok(Math.abs(en.neededSeconds - 3.35) < 1e-9 && Math.abs(en.shotSeconds - 3.2) < 1e-9 && en.longestSeconds === 3.3, JSON.stringify(en));
+  // The footage checks come before the music check.
+  assert.equal(plan(clips(4), { sectionStart: 0, usableEnd: 5 }).reason, 'opening-too-short');
+  // A photo holds at most 5 s - AV_SOURCE_TAIL = 4.85 s.
   assert.equal(j(P.avAllocate({ candidates: photos(1), slots: [{ index: 0, role: 'crowd', seconds: 4.9 }], seed: 'x' })).missing, 1, '4.9 s + tail > 5 s');
   assert.equal(j(P.avAllocate({ candidates: photos(1), slots: [{ index: 0, role: 'crowd', seconds: 4.85 }], seed: 'x' })).missing, 0);
-  assert.equal(at72.usableShots, 2, 'the one-bar montage filled'); assert.ok(at72.usableSlots >= 3);
-  // Too few photos for the shortest plan (opening, credit, one bar of montage, final = 5 slots).
-  assert.equal(plan(photos(4), { bpm: 100 }).reason, 'no-video');
-  assert.equal(plan(photos(5), { bpm: 100 }).shots, 2);
-  // With any usable video the notes stay empty and the intro is video.
-  assert.deepEqual(plan(three.concat(photos(5))).notes, []);
+  // Notes stay empty; the bookends are video.
+  const ok = plan(three.concat(photos(5)));
+  assert.deepEqual(ok.notes, []); assert.ok(intro(ok).every(p => p.kind === 'video'));
 }
 
 // 5) Fresh first: a slot takes an unused resource whenever one fits before reusing any; reuse goes to the least-used
@@ -144,9 +152,14 @@ assert.equal(j(P.avAllocate({ candidates: photos(4), slots: [{ index: 0, role: '
   assert.equal(r.requested, 16); assert.equal(r.fittedByMusic, false);
   assert.deepEqual(r.schedule.beatsList.slice(0, 2), [6, 2]); assert.equal(r.schedule.beatsList[r.schedule.beatsList.length - 1], 4);
   assert.equal(r.slots, r.shots + 3); assert.ok(!adjacent(r.picks));
-  // Nothing long enough for the 5 s opening: too-few, with what the shortest plan filled.
+  // Nothing long enough for the 5 s opening: the preflight says so before any allocation.
   const short = plan(['a', 'b', 'c', 'd', 'e', 'f'].map(rid => mk(rid, 'crowd', 2, 0.5, 4)));
-  assert.equal(short.ok, false); assert.equal(short.reason, 'too-few'); assert.equal(short.usableShots, 2); assert.equal(short.usableSlots, 4);
+  assert.equal(short.ok, false); assert.equal(short.reason, 'opening-too-short'); assert.equal(short.usableShots, 0);
+  // Long enough bookends but too little footage for 4 montage shots: too-few, with what the shortest plan filled
+  // (four 5.3 s clips, one window each: opening, final and two montage shots; the credit and two montage shots stay
+  // empty, so no 4-shot montage).
+  const few = plan(singles.slice(0, 4));
+  assert.deepEqual([few.ok, few.reason, few.usableShots, few.usableSlots], [false, 'too-few', 2, 4]);
   // Quick shrinks by 4 shots (one bar of 1-beat shots).
   const q = plan(singles, { pace: 'quick', requested: 32 });
   assert.equal(q.ok, true); assert.equal(q.shots, 20);

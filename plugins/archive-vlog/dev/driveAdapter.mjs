@@ -76,6 +76,9 @@ const AV_FAIL_DEFAULT = {
   'one-resource': 'Add at least 2 clips or photos',
   'too-few': 'Your footage fits too few shots',
   'no-video': 'Add at least one analysed video',
+  'one-video': 'Add at least 2 analysed videos (the opening and credit shots are videos)',
+  'opening-too-short': 'No video is long enough for the opening shot',
+  'ending-too-short': 'No video is long enough for the final shot',
   'music-too-short': 'This track is too short for this length from this section',
 };
 

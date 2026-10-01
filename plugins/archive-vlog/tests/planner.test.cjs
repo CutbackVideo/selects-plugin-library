@@ -7,11 +7,11 @@ const F = 30000 / 1001;
 const near = (x, y, eps, msg) => assert.ok(Math.abs(x - y) <= eps, (msg || '') + ': ' + x + ' vs ' + y);
 
 // Constants.
-const K = j(vm.runInContext('({ AV_LENGTHS, AV_INTRO_BEATS, AV_TEMPO_MIN, AV_TEMPO_MAX, AV_FALLBACK_BPM, AV_SLOW_MAX_BPM, AV_ROLES, AV_MONTAGE_ROLES, AV_ROLE_FALLBACK, AV_SOURCE_TAIL, AV_PHOTO_SHARE, AV_PHOTO_RUN_MAX })', ctx));
+const K = j(vm.runInContext('({ AV_LENGTHS, AV_INTRO_BEATS, AV_TEMPO_MIN, AV_TEMPO_MAX, AV_FALLBACK_BPM, AV_SLOW_MAX_BPM, AV_MIN_MONTAGE, AV_ROLES, AV_MONTAGE_ROLES, AV_ROLE_FALLBACK, AV_SOURCE_TAIL, AV_PHOTO_SHARE, AV_PHOTO_RUN_MAX })', ctx));
 assert.deepStrictEqual(K.AV_LENGTHS, { short: 8, standard: 16, long: 24 });
 assert.deepStrictEqual(K.AV_INTRO_BEATS, { opening: 6, credit: 2 });
 assert.strictEqual(K.AV_TEMPO_MIN, 70); assert.strictEqual(K.AV_TEMPO_MAX, 160);
-assert.strictEqual(K.AV_FALLBACK_BPM, 72); assert.strictEqual(K.AV_SLOW_MAX_BPM, 110);
+assert.strictEqual(K.AV_FALLBACK_BPM, 72); assert.strictEqual(K.AV_SLOW_MAX_BPM, 110); assert.strictEqual(K.AV_MIN_MONTAGE, 4);
 assert.strictEqual(K.AV_SOURCE_TAIL, 0.15); assert.strictEqual(K.AV_PHOTO_SHARE, 1 / 3); assert.strictEqual(K.AV_PHOTO_RUN_MAX, 2);
 assert.deepStrictEqual(K.AV_MONTAGE_ROLES, ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline']);
 assert.deepStrictEqual(K.AV_ROLES, ['opening', 'portrait', 'crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline', 'ending']);
@@ -128,12 +128,14 @@ assert.throws(() => ctx.avSchedule({ bpm: 108, fps: F, shots: 0, beatsPerShot: 1
 near(ctx.avMusicOffset(1.0, F), 1 - 30 / F, 1e-12, 'offset');
 assert.strictEqual(ctx.avMusicOffset(null, F), 0);
 
-// The shrink ladder: whole bars, Cinematic by 2 shots, Quick by 4, down to a one-bar montage.
+// The shrink ladder: whole bars, Cinematic by 2 shots, Quick by 4, down to 4 montage shots at both paces.
 const ladder = (requested, pace, bpm) => j(ctx.avMontageLadder({ requested, pace, bpm }));
-assert.deepStrictEqual(ladder(16, 'cinematic', 72), [16, 14, 12, 10, 8, 6, 4, 2]);
-assert.deepStrictEqual(ladder(8, 'cinematic', 120), [8, 6, 4, 2, 1]);
+assert.deepStrictEqual(ladder(16, 'cinematic', 72), [16, 14, 12, 10, 8, 6, 4]);
+assert.deepStrictEqual(ladder(8, 'cinematic', 120), [8, 6, 4]);
 assert.deepStrictEqual(ladder(32, 'quick', 72), [32, 28, 24, 20, 16, 12, 8, 4]);
-assert.deepStrictEqual(ladder(16, 'quick', 120), [16, 12, 8, 4, 2]);
+assert.deepStrictEqual(ladder(16, 'quick', 120), [16, 12, 8, 4]);
+assert.deepStrictEqual(ladder(2, 'cinematic', 72), [4], 'a request under the minimum asks for 4');
+assert.deepStrictEqual(ladder(0, 'quick', 120), [4]);
 assert.deepStrictEqual(ladder(15, 'cinematic', 72)[0], 14, 'a request rounds down to a step');
 for (const requested of [NaN, undefined, Infinity]) {
   assert.strictEqual(ladder(requested, 'cinematic', 72)[0], 16, 'non-finite -> Standard');
@@ -142,7 +144,8 @@ for (const requested of [NaN, undefined, Infinity]) {
 for (const pace of ['cinematic', 'quick']) for (const bpm of [72, 100, 110, 120, 150]) for (const l of ['short', 'standard', 'long']) {
   const m = ctx.avMontageBeats(pace, bpm), list = ladder(ctx.avMontageShots(l, pace), pace, bpm);
   list.forEach(n => assert.strictEqual((n * m) % 4, 0, pace + ' ' + bpm + ' ' + n + ' shots are whole bars'));
-  assert.strictEqual(list[list.length - 1] * m, 4, 'the shortest montage is one bar');
+  assert.strictEqual(list[list.length - 1], 4, 'the shortest montage is 4 shots');
+  assert.ok(list.every(n => n >= 4));
 }
 
 // Music capacity: the longest montage whose whole video fits from the section start.
@@ -153,9 +156,12 @@ assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, s
 assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: 1, usableEnd: 1 + 43 * b72 }), 14);
 assert.strictEqual(ctx.avFitShots({ requested: 24, pace: 'cinematic', bpm: 72, sectionStart: 0, usableEnd: 30 }), 12, '8 + 24 + 4 = 36 beats = 30 s');
 assert.strictEqual(ctx.avFitShots({ requested: 32, pace: 'quick', bpm: 72, sectionStart: 0, usableEnd: 30 }), 24);
-assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: 0, usableEnd: 16 * b72 }), 2, 'one bar of montage');
-assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: 0, usableEnd: 15 * b72 }), 0, 'not even one bar');
-assert.strictEqual(ctx.avFitShots({ requested: 8, pace: 'cinematic', bpm: 120, sectionStart: 0, usableEnd: 20 * 0.5 }), 1, '8 + 4 + 8 beats at 120');
+assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: 0, usableEnd: 20 * b72 }), 4, 'the 4-shot montage: 8 + 8 + 4 beats');
+assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: 0, usableEnd: 19 * b72 }), 0, 'not even 4 shots');
+assert.strictEqual(ctx.avFitShots({ requested: 32, pace: 'quick', bpm: 72, sectionStart: 0, usableEnd: 16 * b72 }), 4, 'Quick: 8 + 4 + 4 beats');
+assert.strictEqual(ctx.avFitShots({ requested: 32, pace: 'quick', bpm: 72, sectionStart: 0, usableEnd: 15 * b72 }), 0);
+assert.strictEqual(ctx.avFitShots({ requested: 8, pace: 'cinematic', bpm: 120, sectionStart: 0, usableEnd: 32 * 0.5 }), 4, '8 + 16 + 8 beats at 120');
+assert.strictEqual(ctx.avFitShots({ requested: 8, pace: 'cinematic', bpm: 120, sectionStart: 0, usableEnd: 31 * 0.5 }), 0);
 
 // Sections: snap to bars and clamp so the video fits; default = most energetic bar-aligned window.
 const bar = 4 * 60 / 99.02, vid = 24 * 60 / 99.02;
@@ -218,23 +224,33 @@ for (const downbeatHigh of [true, false, undefined]) {
   }
 }
 
-// Opening animation timings: scaled by k = min(1, opening seconds / 5.60).
+// Opening animation timings: scaled by k = min(1, opening seconds / 5.60). Reference (Codex re-measure): the letterbox
+// is fully open at 2.35 s and the 9-letter decode ends at 2.90 + 9 x 0.115 = 3.935 s (~3.94 s). cutSeconds is the
+// opening's own length, unscaled.
 const ot = s => j(ctx.avOpeningTiming(s));
-assert.deepStrictEqual(ot(5.6), { k: 1, revealStart: 0.22, revealEnd: 2.30, textIn: 2.40, decodeStart: 2.90, letterSeconds: 0.11 });
-assert.deepStrictEqual(ot(8), ot(5.6), 'never stretched');
+assert.deepStrictEqual(ot(5.6), { k: 1, revealStart: 0.22, revealEnd: 2.35, textIn: 2.40, decodeStart: 2.90, letterSeconds: 0.115, cutSeconds: 5.6 });
+near(ot(5.6).decodeStart + 9 * ot(5.6).letterSeconds, 3.935, 1e-12, 'reference decode end');
+{
+  const { cutSeconds, ...rest } = ot(8);
+  assert.strictEqual(cutSeconds, 8, 'cutSeconds is the opening length');
+  const { cutSeconds: c56, ...ref } = ot(5.6);
+  assert.deepStrictEqual(rest, ref, 'never stretched');
+}
 {
   const o = ot(6 * 60 / 72), k = 5 / 5.6;   // 72 bpm: 5.00 s, k = 0.8929
-  near(o.k, k, 1e-12, 'k at 72 bpm');
-  near(o.revealStart, 0.22 * k, 1e-12); near(o.revealEnd, 2.30 * k, 1e-12); near(o.textIn, 2.40 * k, 1e-12);
-  near(o.decodeStart, 2.90 * k, 1e-12); near(o.letterSeconds, 0.11 * k, 1e-12);
-  near(o.revealStart, 0.196, 0.001); near(o.revealEnd, 2.054, 0.001); near(o.textIn, 2.143, 0.001); near(o.decodeStart, 2.589, 0.001);
+  near(o.k, k, 1e-12, 'k at 72 bpm'); near(o.cutSeconds, 5, 1e-12, 'cut at 72 bpm');
+  near(o.revealStart, 0.22 * k, 1e-12); near(o.revealEnd, 2.35 * k, 1e-12); near(o.textIn, 2.40 * k, 1e-12);
+  near(o.decodeStart, 2.90 * k, 1e-12); near(o.letterSeconds, 0.115 * k, 1e-12);
+  near(o.revealStart, 0.196, 0.001); near(o.revealEnd, 2.098, 0.001); near(o.textIn, 2.143, 0.001); near(o.decodeStart, 2.589, 0.001);
+  near(o.decodeStart + 9 * o.letterSeconds, 3.513, 0.001, '9 letters end at 72 bpm');
 }
 {
   const o = ot(6 * 60 / 150), k = 2.4 / 5.6;   // 150 bpm: 2.40 s
-  near(o.k, k, 1e-12); near(o.decodeStart + 9 * o.letterSeconds, (2.9 + 0.99) * k, 1e-12);
+  near(o.k, k, 1e-12); near(o.decodeStart + 9 * o.letterSeconds, (2.9 + 9 * 0.115) * k, 1e-12);
   assert.ok(o.decodeStart + 9 * o.letterSeconds < 2.4, 'a 9-letter title decodes inside the opening at 150 bpm');
 }
 assert.strictEqual(ot(0).k, 0); assert.strictEqual(ot(undefined).k, 0); assert.strictEqual(ot(-1).k, 0);
+assert.strictEqual(ot(0).cutSeconds, 0); assert.strictEqual(ot(undefined).cutSeconds, 0); assert.strictEqual(ot(-1).cutSeconds, 0);
 
 // ---- Onset snapping (avSnapCuts, Mini Vlog rules) ----
 const B = 60 / 99.2;
@@ -311,8 +327,9 @@ for (const fps of [23.976, 25, 29.97, 30, 60]) for (const ss of [0, 0.013, 7.31,
   assert.strictEqual(p.tempo, 72); assert.strictEqual(p.gridded, true); assert.strictEqual(p.approxBpm, null); assert.deepStrictEqual(p.notes, []);
   assert.deepStrictEqual(p.schedule.beatsList, [6, 2].concat(Array(16).fill(2), [4]));
   assert.deepStrictEqual(p.schedule.slots.map(s => s.part).filter((x, i, a) => a.indexOf(x) === i), ['opening', 'credit', 'montage', 'final']);
-  assert.deepStrictEqual(Object.keys(p).sort(), ['approxBpm', 'attempt', 'beatSeconds', 'fillerShots', 'finalBeats', 'fittedByMusic', 'gridded', 'montageBeats', 'notes', 'ok', 'pace', 'photoShots',
+  assert.deepStrictEqual(Object.keys(p).sort(), ['approxBpm', 'attempt', 'beatSeconds', 'fillerShots', 'finalBeats', 'fittedByMusic', 'gridded', 'montageBeats', 'musicShots', 'notes', 'ok', 'pace', 'photoShots',
     'picks', 'requested', 'schedule', 'shots', 'slots', 'tempo']);
+  assert.strictEqual(p.musicShots, 16, 'no music: no cap');
   // An unknown pace is Cinematic; Quick doubles the shots at the same length.
   assert.strictEqual(build({ pace: 'relaxed' }).pace, 'cinematic');
   const q = build({ pace: 'quick', requested: 32 });
@@ -333,11 +350,22 @@ for (const fps of [23.976, 25, 29.97, 30, 60]) for (const ss of [0, 0.013, 7.31,
   assert.strictEqual(build({ bpm: 108, approxBpm: 120 }).tempo, 108);
   // Music cap: the section and usableEnd shrink the montage by whole bars, the intro and final shot stay.
   const cap = build({ sectionStart: 2, usableEnd: 2 + 27 });   // 32.4 beats: 8 + 2 x 10 + 4
-  assert.ok(cap.ok); assert.strictEqual(cap.shots, 10); assert.strictEqual(cap.fittedByMusic, true);
+  assert.ok(cap.ok); assert.strictEqual(cap.shots, 10); assert.strictEqual(cap.fittedByMusic, true); assert.strictEqual(cap.musicShots, 10);
+  assert.strictEqual(cap.slots, 13, 'counts exclude the 3 bookends: slots = shots + 3');
   assert.ok(2 + cap.schedule.totalFrames / 30 <= 29 + 1 / 30, 'the picture never outruns the music');
   assert.deepStrictEqual(cap.schedule.beatsList.slice(0, 2), [6, 2]); assert.strictEqual(cap.schedule.beatsList[cap.schedule.beatsList.length - 1], 4);
-  const tooShort = build({ sectionStart: 0, usableEnd: 12 });
-  assert.deepStrictEqual(tooShort, { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0 });
+  // Too short for intro + 4 montage shots + final (20 beats = 16.67 s at 72 bpm).
+  const tooShort = build({ sectionStart: 2, usableEnd: 14 });
+  assert.deepStrictEqual(tooShort, { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0, notes: [], neededSeconds: 20 * b72, availableSeconds: 12 });
+  assert.ok(build({ sectionStart: 0, usableEnd: 20 * b72 }).ok, 'exactly the minimum');
+  assert.strictEqual(build({ sectionStart: 0, usableEnd: 20 * b72 }).shots, 4);
+  assert.deepStrictEqual(build({ pace: 'quick', requested: 32, sectionStart: 0, usableEnd: 15 * b72 }),
+    { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0, notes: [], neededSeconds: 16 * b72, availableSeconds: 15 * b72 });
+  // No credit option: Credit off only drops the graphic, the plan (and its 2-beat credit shot) never changes.
+  for (const extra of [{ credit: false }, { credit: true }, { creditOn: false }, { credit: { enabled: false, name: '' } }])
+    assert.deepStrictEqual(build(extra), p, 'credit input ignored: ' + JSON.stringify(extra));
+  assert.strictEqual(p.schedule.slots[1].part, 'credit'); assert.strictEqual(p.schedule.slots[1].beats, 2);
+  assert.ok(!/opts\.credit/i.test(fs.readFileSync(__dirname + '/../planner.js', 'utf8')), 'the planner reads no credit option');
   // A non-finite request falls back to Standard.
   for (const requested of [NaN, undefined, Infinity]) assert.strictEqual(build({ requested }).shots, 16);
 }
