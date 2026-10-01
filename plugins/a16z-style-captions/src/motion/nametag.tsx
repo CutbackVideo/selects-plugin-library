@@ -11,11 +11,28 @@ const easeOutQuad = (p: number) => 1 - (1 - p) * (1 - p);
 const easeInOut = (p: number) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
-export function drawNameTag(tag: NameTag, frame: number, d: GraphicData, faces: Faces): React.ReactNode {
+// A long role line first gets smaller, then breaks in two (after a comma when it has one).
+function splitRole(role: string): string[] {
+  const words = role.split(" ");
+  if (words.length < 2) return [role];
+  const mid = role.length / 2;
+  let best = 1;
+  let score = Infinity;
+  for (let k = 1; k < words.length; k += 1) {
+    const at = words.slice(0, k).join(" ").length;
+    const s = Math.abs(at - mid) - (/,$/.test(words[k - 1]) ? role.length : 0);
+    if (s < score) {
+      score = s;
+      best = k;
+    }
+  }
+  return [words.slice(0, best).join(" "), words.slice(best).join(" ")];
+}
+
+// Sizes and positions of the tag, shared by the drawing and by the placement against captions.
+export function tagLayout(tag: NameTag, d: GraphicData, faces: Faces) {
   const W = d.W;
   const H = d.H;
-  const s = d.fps / 24; // the wipe is measured in 24 fps frames
-  const f = (frame - tag.a) / s;
   // line 1 at the given cap height, narrowed so the name stays within about 0.62 W
   let capPx = tag.cap * H;
   const lineW = (cap: number) => {
@@ -25,21 +42,42 @@ export function drawNameTag(tag: NameTag, frame: number, d: GraphicData, faces: 
   };
   if (lineW(capPx) > 0.62 * W) capPx *= (0.62 * W) / lineW(capPx);
   const size1 = capPx / metrics(faces.roman).cap;
-  const size2 = size1 * 0.68;
   const serifSize = (size1 * metrics(faces.roman).xh) / metrics(faces.serif).xh;
   const w1a = (width100(tag.first + " ", faces.roman) / 100) * size1;
   const w1b = (width100(tag.last, faces.serif) / 100) * serifSize;
-  const w2 = (width100(tag.role, faces.sans) / 100) * size2 - tag.role.length * 0.01 * size2;
   const barW = 0.012 * W;
   const barX = tag.x * W;
   const textX = barX + barW + 0.0065 * W;
+  // the role line stays inside the frame: smaller first (not below about half the name), then two lines
+  const avail = 0.95 * W - 0.012 * W - textX;
+  const roleW = (text: string, size: number) => (width100(text, faces.sans) / 100) * size - text.length * 0.01 * size;
+  let size2 = size1 * 0.68;
+  let roles = [tag.role];
+  if (roleW(tag.role, size2) > avail) {
+    const fit = (size2 * avail) / roleW(tag.role, size2);
+    if (fit >= size1 * 0.52) size2 = fit;
+    else {
+      roles = splitRole(tag.role);
+      const widest = Math.max(...roles.map((r) => roleW(r, size2)));
+      if (widest > avail) size2 *= avail / widest;
+    }
+  }
+  const w2 = Math.max(...roles.map((r) => roleW(r, size2)));
   const top = tag.y * H;
   const base1 = top + capPx;
-  const base2 = base1 + size2 * 1.18;
+  const bases = roles.map((_, k) => base1 + size2 * 1.18 * (k + 1));
   const textW = Math.max(w1a + w1b, w2);
   const blockTop = top - 0.08 * capPx;
-  const blockBottom = base2 + size2 * 0.28;
+  const blockBottom = bases[bases.length - 1] + size2 * 0.28;
   const R = Math.min(0.95 * W, textX + textW + 0.012 * W);
+  return { capPx, size1, size2, serifSize, w1a, barW, barX, textX, top, base1, bases, roles, blockTop, blockBottom, R };
+}
+
+export function drawNameTag(tag: NameTag, frame: number, d: GraphicData, faces: Faces): React.ReactNode {
+  const W = d.W;
+  const s = d.fps / 24; // the wipe is measured in 24 fps frames
+  const f = (frame - tag.a) / s;
+  const { capPx, size1, size2, serifSize, w1a, barW, barX, textX, top, base1, bases, roles, blockTop, blockBottom, R } = tagLayout(tag, d, faces);
   // block edges over the wipe
   let left = barX;
   let right = R;
@@ -83,7 +121,7 @@ export function drawNameTag(tag: NameTag, frame: number, d: GraphicData, faces: 
       <div style={{ position: "absolute", inset: 0, clipPath: "inset(0 0 0 " + Math.max(0, reveal).toFixed(1) + "px)" }}>
         {line("n1", textX, base1, size1, faces.roman, tag.first + " ")}
         {line("n2", textX + w1a, base1, serifSize, faces.serif, tag.last)}
-        {line("n3", textX, base2, size2, faces.sans, tag.role, -0.01 * size2)}
+        {roles.map((r, k) => line("n" + (3 + k), textX, bases[k], size2, faces.sans, r, -0.01 * size2))}
       </div>
       {block ? (
         <div style={{ position: "absolute", left, width: Math.max(0, right - left), top: blockTop, height: blockBottom - blockTop, background: "linear-gradient(90deg, #962C39, #5E0A22)" }} />

@@ -1,7 +1,7 @@
 // B-roll inserts (spec 9): full-bleed literal footage over the speaker for a phrase at a time. A run
 // starts on a word onset, lasts 2-5.5 s and holds 1-4 shots of about 1.4 s; the first run waits for
 // the opening line, the last 1.5 s stay on the speaker, and coverage stays under 60%.
-import { fs, q, shell, type Sdk } from "./host";
+import { fs, q, shell, sleep, type Sdk } from "./host";
 import { FF } from "./sound";
 import { searchCandidates, cutCandidate, stockSearchAvailable, probeDuration, hash, type StockClip, type Candidate } from "./stock";
 import { ask, parseLoose } from "./semantic";
@@ -83,6 +83,21 @@ export function planInserts(words: Word[], beats: Beat[], duration: number, bloc
   return runs;
 }
 
+// A preview comes through the app's own downloader (no shell, so no command-length limit and no curl).
+// The downloader keeps whatever the server answered, so a file that is not a picture is removed.
+async function fetchPreview(url: string, path: string) {
+  try {
+    await fs().downloadFile(url, path);
+    const head = new Uint8Array(await fs().readRange(path, 0, 4));
+    const picture = (head[0] === 0xff && head[1] === 0xd8) || (head[0] === 0x89 && head[1] === 0x50) || (head[0] === 0x52 && head[1] === 0x49);
+    if (!picture) fs().unlinkSync(path);
+  } catch {
+    try {
+      if (fs().existsSync(path)) fs().unlinkSync(path);
+    } catch {}
+  }
+}
+
 export type FetchedShot = InsertShot & { clip: StockClip; luma?: number | null };
 void hash;
 
@@ -122,13 +137,26 @@ export async function fetchInserts(
   }
   if (!todo.length) return { shots: out, notes };
 
-  // candidates
-  const cands: Candidate[][] = [];
+  // candidates. The search answers an empty list when the stock services fail, so a moment with nothing
+  // is asked once more after a pause; one still empty is left for a later rebuild, not settled.
+  const found: { run: InsertRun; cands: Candidate[] }[] = [];
+  const empty: InsertRun[] = [];
   for (let k = 0; k < todo.length; k += 1) {
     onTick("Searching footage " + (k + 1) + " of " + todo.length);
     const s0 = todo[k].shots[0];
-    cands.push(await searchCandidates([s0.query, s0.alt], 6, used).catch(() => []));
+    let list = await searchCandidates([s0.query, s0.alt], 6, used).catch(() => [] as Candidate[]);
+    if (!list.length) {
+      await sleep(3000);
+      list = await searchCandidates([s0.query, s0.alt], 6, used).catch(() => [] as Candidate[]);
+    }
+    if (list.length) found.push({ run: todo[k], cands: list });
+    else empty.push(todo[k]);
   }
+  if (empty.length) notes.push("B-roll: the stock search returned nothing for " + empty.length + " of " + todo.length + " moments (the service may be busy); rebuild to try them again.");
+  todo.length = 0;
+  todo.push(...found.map((f) => f.run));
+  const cands = found.map((f) => f.cands);
+  if (!todo.length) return { shots: out.sort((a, b) => a.a - b.a), notes };
   // previews and contact sheets
   const pdir = fs().join(dir, "previews");
   fs().mkdirSync(pdir, { recursive: true });
@@ -136,7 +164,7 @@ export async function fetchInserts(
   const all = cands.flat().filter((c) => !fs().existsSync(file(c)));
   if (all.length) {
     onTick("Fetching previews");
-    await shell(sdk, "Fetch footage previews", all.map((c) => "curl -sfL --max-time 20 -o " + q(file(c)) + " " + q(c.preview) + " || true").join("; "), 180000, 4000).catch(() => "");
+    for (let k = 0; k < all.length; k += 6) await Promise.all(all.slice(k, k + 6).map((c) => fetchPreview(c.preview, file(c))));
   }
   const sheets: { path: string; rows: number[] }[] = [];
   for (let s = 0; s * 4 < todo.length && s < 4; s += 1) {
@@ -206,6 +234,8 @@ export async function fetchInserts(
     }
   }
 
+  // a moment counts as checked only when the assistant saw a sheet row with at least one of its previews
+  const shown = (r: number) => sheets.some((sh) => sh.rows.includes(r)) && cands[r].some((c) => fs().existsSync(file(c)));
   // cut the chosen clips; a clip whose middle is near black is dropped
   const cut = async (cand: Candidate, s: InsertShot) => {
     onTick("Cutting footage " + (out.length + 1));
@@ -235,10 +265,10 @@ export async function fetchInserts(
         out.push({ ...s, clip: clip.clip, luma: clip.luma });
       }
       // a settled answer is kept, so a rebuild does not search again
-      if (clip || checked) part.slice(clip ? 1 : 0).forEach((x) => (cache[cacheKey(x)] = { clip: null }));
+      if (clip || (checked && shown(r))) part.slice(clip ? 1 : 0).forEach((x) => (cache[cacheKey(x)] = { clip: null }));
     }
   }
-  const wanted = runs.reduce((n, r) => n + (r.shots[r.shots.length - 1].b - r.a), 0);
+  const wanted = runs.filter((r) => !empty.includes(r)).reduce((n, r) => n + (r.shots[r.shots.length - 1].b - r.a), 0);
   const got = out.reduce((n, x) => n + x.b - x.a, 0);
   if (got < wanted - 0.05) notes.push("B-roll: " + (wanted - got).toFixed(1) + " of " + wanted.toFixed(1) + " s had no fitting footage and stay on the speaker.");
   out.sort((a, b) => a.a - b.a);

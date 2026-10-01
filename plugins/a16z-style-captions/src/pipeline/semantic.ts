@@ -56,15 +56,19 @@ const SHAPE = `{"format":"standard","hook":{"type":"H1","big":"AI native"},"key"
 
 export async function ask(sdk: Sdk, prompt: string, images?: { dataUrl: string; name: string }[]): Promise<string> {
   let last: any = null;
+  let timeouts = 0;
   // The app's assistant can fail a turn while its runtime (re)starts ("model metadata unavailable");
-  // it recovers within about a minute, so retry with growing pauses.
+  // it recovers within about a minute, so retry with growing pauses. A turn that ran out of time starts
+  // over from nothing, so that is tried once more at most. The app caps the time at ten minutes (five
+  // in versions before that).
   const waits = [0, 4000, 12000, 30000, 60000, 90000];
   for (let attempt = 0; attempt < waits.length; attempt += 1) {
     if (waits[attempt]) await new Promise((r) => setTimeout(r, waits[attempt]));
     try {
-      return (await (sdk.askAI as any)(images && images.length ? { prompt, timeoutMs: 300000, images } : { prompt, timeoutMs: 300000 })).text;
-    } catch (e) {
+      return (await (sdk.askAI as any)(images && images.length ? { prompt, timeoutMs: 600000, images } : { prompt, timeoutMs: 600000 })).text;
+    } catch (e: any) {
       last = e;
+      if (/did not finish within/i.test(String(e?.message || e)) && ++timeouts >= 2) break;
     }
   }
   throw last || new Error("The assistant did not answer.");

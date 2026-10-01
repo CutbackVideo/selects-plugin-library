@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useCurrentFrame, delayRender, continueRender } from "remotion";
 import { clearTextCache, metrics, width100, type FontSpec } from "./text";
 import { drawUnit, layoutUnit, clearLayoutCache, type Faces } from "./captions";
-import { drawNameTag } from "./nametag";
+import { drawNameTag, tagLayout } from "./nametag";
 import { drawCard } from "./cards";
 import type { GraphicData, NameTag } from "./data";
 
@@ -138,18 +138,21 @@ function placeTag(d: GraphicData, faces: Faces): NameTag {
   // (after at least 1.3 s)
   let bottom = 0;
   let b = tag.b;
-  const tagH = 0.1 * d.H;
+  const box = tagLayout(tag, d, faces);
+  const tagH = Math.max(0.1 * d.H, box.blockBottom - box.top + 0.01 * d.H);
+  // a taller tag (two role lines) still ends above about 0.92 H
+  const yMax = Math.min(0.82, (0.92 * d.H - tagH) / d.H);
   const units = (d.units || []).map((u, k) => ({ u, k })).filter(({ u }) => u.b > tag.a && u.a < tag.b);
   for (const { u, k } of units) {
     const lay = layoutUnit(u, k, d, faces, 1);
-    const y = Math.min(0.82 * d.H, Math.max(tag.y * d.H, bottom + 0.03 * d.H));
+    const y = Math.min(yMax * d.H, Math.max(tag.y * d.H, bottom + 0.03 * d.H));
     if (u.a > tag.a + 1.3 * d.fps && lay.bottom + 0.02 * d.H > y && lay.top < y + tagH) {
       b = u.a;
       break;
     }
     bottom = Math.max(bottom, lay.bottom);
   }
-  const y = Math.min(0.82, Math.max(tag.y, bottom / d.H + 0.03));
+  const y = Math.min(yMax, Math.max(tag.y, bottom / d.H + 0.03));
   return (tagCache[key] = { ...tag, y, b });
 }
 
