@@ -51,8 +51,8 @@ function states(variant, T) {
     case 'ownNone': return { ...base, cueId: 'own', ownMusic: { path: '/m/song.mp3', name: 'song.mp3' }, ownGrid: { accepted: false, grid: 'none', failed: true, durationSeconds: 90, peaks: [] },
       status: { tone: 'info', say: (l) => T(l, 'musicApprox', { detail: 'beat detection failed' }) } };
     case 'busy': return { ...base, busy: true, progress: { id: 'shots', value: 0.2, percent: 20, current: 0, detail: (l) => T(l, 'videosChecked', { done: 4, count: 30 }) } };
-    case 'done': return { ...base, result: { decorated: true, link: 'selects://draft', shortened: { shots: 12, of: 16, seconds: 31.4 }, notes: ['the Draft was found after its reply was lost'],
-      unchecked: 2, frozen: { pid: 'pid' } } };
+    case 'done': return { ...base, result: { decorated: true, link: 'selects://draft', shortened: { shots: 12, of: 16, seconds: 31.4 }, notes: ['a photo could not be measured, so it may show bars'],
+      recovered: true, unchecked: 2, frozen: { pid: 'pid' } } };
     case 'unfinished': return { ...base, result: { decorated: false, frozen: { pid: 'pid' } },
       status: { tone: 'error', say: (l) => T(l, 'stoppedAt', { step: 4, total: 5, name: T(l, 'step.look'), detail: T(l, 'finishFailed', { detail: 'invalid_source_range' }) }) } };
     case 'invBusy': return { assets: ASSETS, roots: base.roots, invError: { busy: true, say: (l) => T(l, 'busy') } };
@@ -95,7 +95,7 @@ const EXPECT = {
   ownApprox: (T, l) => [T(l, 'faintTempo', { bpm: 96 })],
   ownNone: (T, l) => [T(l, 'musicApprox', { detail: 'beat detection failed' })],
   busy: (T, l) => [T(l, 'progressDetail', { step: 1, total: 5, name: T(l, 'step.shots'), detail: T(l, 'videosChecked', { done: 4, count: 30 }), percent: 20 })],
-  done: (T, l) => [T(l, 'draftCreated'), T(l, 'openDraft'), T(l, 'anotherVersion')],
+  done: (T, l) => [T(l, 'draftCreated'), T(l, 'openDraft'), T(l, 'anotherVersion'), T(l, 'draftRecovered')],
   unfinished: (T, l) => [T(l, 'draftNotFinished'), T(l, 'finishTitle')],
   invBusy: (T, l) => [T(l, 'busy')],
   invFailed: (T, l) => [T(l, 'invFailed')],

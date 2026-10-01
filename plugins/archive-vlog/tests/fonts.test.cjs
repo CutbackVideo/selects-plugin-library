@@ -11,6 +11,7 @@ assert.deepEqual(fields('cinematic'), [['kicker', 'MINI VLOG'], ['title', 'CINEM
 assert.deepEqual(fields('a-day-out')[0], ['kicker', ''], 'A Day Out has no kicker');
 assert.equal(fields('a-day-out')[1][1], 'A DAY OUT');
 assert.equal(fields('golden-hour')[1][1], 'GOLDEN HOUR');
+assert.equal(fields('golden-hour')[0][1], 'TRAVEL DIARY', 'Golden Hour kicker');
 assert.deepEqual(byId.cinematic.colors, { title: '#FCE070', text: '#FFFFFF' });
 assert.deepEqual(byId['a-day-out'].colors, { title: '#FFFFFF', text: '#FFFFFF' });
 assert.equal(byId['golden-hour'].colors.text, '#FFFFFF');

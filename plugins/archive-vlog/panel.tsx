@@ -144,6 +144,7 @@ const STRINGS = {
     musicApprox: "Music added; cuts use approximate timing ({detail}).",
     musicUnreadable: "Could not read this music file ({detail}). Choose another file or one of the tracks.",
     beatFailed: "beat detection failed",
+    beatTimeout: "beat detection took too long",
     previewFailed: "Could not play a preview: {detail}.",
     noAudio: "no audio came back",
     draftNoId: "The Draft \"{name}\" may have been saved, but Selects did not report its id. Open it from the Drafts list, or build again.",
@@ -157,6 +158,7 @@ const STRINGS = {
     copyLink: "Copy the link to the new Draft",
     shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
     note: "Note: {detail}.",
+    draftRecovered: "Selects did not confirm the new Draft, so it was found by its name in the Drafts list.",
     unchecked: { one: "Could not check {count} video; it was skipped. Build again to retry it.", other: "Could not check {count} videos; they were skipped. Build again to retry them." },
     createsDraft: "Creates a new 16:9 Draft",
     finishTitle: "Finish title and look",
@@ -170,9 +172,9 @@ const STRINGS = {
     "param.look": "Look strength",
     "param.warmth": "Warmth",
     "param.fade": "Fade out",
-    "param.kicker": "Kicker",
+    "param.kicker": "Top line",
     "param.title": "Title",
-    "param.tagline": "Tagline",
+    "param.tagline": "Bottom line",
     "param.titleColor": "Title colour",
     "param.textColor": "Text colour",
     "param.size": "Size",
@@ -189,6 +191,18 @@ const STRINGS = {
     "motion.drift-down": "Drift down",
     "motion.tilt": "Tilt",
     "motion.push-drift": "Push and drift",
+    "tpl.files": "Reading the chosen files",
+    "tpl.stepDetail": "{name} ({detail})",
+    "tpl.done": "Done",
+    "tpl.noFootage": "Choose videos or photos for the footage, then try again.",
+    "tpl.noMusic": "Archive Vlog's music is missing. Reinstall the plugin and try again.",
+    "tpl.noStyles": "Archive Vlog's title styles are missing. Reinstall the plugin and try again.",
+    "tpl.notFound": "None of the chosen files could be found in this Project. Choose them again, then try again.",
+    "tpl.notAnalysed": { one: "{count} video is not analysed yet, so it could not be used.", other: "{count} videos are not analysed yet, so they could not be used." },
+    "tpl.noTitle": "The Draft \"{name}\" may have been saved without its title. Open it from the Drafts list, or try again.",
+    "tpl.finishFailed": "The Draft was made, but its title and look could not be added. Try again.",
+    "tpl.stoppedAt": "Archive Vlog stopped at this step: {step}. Try again.",
+    "tpl.stopped": "Archive Vlog stopped before the Draft was ready. Try again.",
   },
   de: {
     openProject: "Öffne ein Projekt, um ein Archive Vlog zu erstellen.",
@@ -230,9 +244,9 @@ const STRINGS = {
     replayDecode: "Titelanimation erneut abspielen",
     decodeFitted: "Die erste Einstellung ist für diesen Titel bei diesem Tempo kurz, daher entschlüsselt sich der Titel schneller, damit er vor dem Schnitt lesbar ist.",
     loading: "Wird geladen…",
-    "preset.cinematic": "Filmisch",
-    "preset.a-day-out": "Ein Tag unterwegs",
-    "preset.golden-hour": "Goldene Stunde",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
     creditShot: "Credit-Einstellung",
     creditName: "Name im Credit",
@@ -263,7 +277,7 @@ const STRINGS = {
     "length.standard": "Standard",
     "length.long": "Lang",
     pace: "Rhythmus",
-    "pace.cinematic": "Filmisch",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Schnell",
     fitPartial: { one: "{length}: {fitted} von {count} Montage-Einstellung passt zu diesem Musikstück ({seconds} s)", other: "{length}: {fitted} von {count} Montage-Einstellungen passen zu diesem Musikstück ({seconds} s)" },
     fitFull: { one: "{length}: {count} Montage-Einstellung ({seconds} s)", other: "{length}: {count} Montage-Einstellungen ({seconds} s)" },
@@ -317,6 +331,7 @@ const STRINGS = {
     musicApprox: "Musik hinzugefügt; die Schnitte haben ein ungefähres Timing ({detail}).",
     musicUnreadable: "Diese Musikdatei konnte nicht gelesen werden ({detail}). Wähle eine andere Datei oder eines der Musikstücke.",
     beatFailed: "Beat-Erkennung fehlgeschlagen",
+    beatTimeout: "Beat-Erkennung hat zu lange gedauert",
     previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
     noAudio: "es kam kein Audio zurück",
     draftNoId: "Der Draft „{name}“ wurde möglicherweise gespeichert, aber Selects hat seine ID nicht gemeldet. Öffne ihn aus der Draft-Liste oder erstelle ihn erneut.",
@@ -330,6 +345,7 @@ const STRINGS = {
     copyLink: "Link zum neuen Draft kopieren",
     shortened: { one: "Dein Material reicht für {fitted} von {count} Montage-Einstellung, daher ist dieses Video etwa {seconds} s lang. Füge mehr Clips oder Fotos für die volle Länge hinzu.", other: "Dein Material reicht für {fitted} von {count} Montage-Einstellungen, daher ist dieses Video etwa {seconds} s lang. Füge mehr Clips oder Fotos für die volle Länge hinzu." },
     note: "Hinweis: {detail}.",
+    draftRecovered: "Selects hat den neuen Draft nicht bestätigt, daher wurde er über seinen Namen in der Draft-Liste gefunden.",
     unchecked: { one: "{count} Video konnte nicht geprüft werden und wurde übersprungen. Erstelle erneut, um es nochmals zu versuchen.", other: "{count} Videos konnten nicht geprüft werden und wurden übersprungen. Erstelle erneut, um sie nochmals zu versuchen." },
     createsDraft: "Erstellt einen neuen 16:9-Draft",
     finishTitle: "Titel und Look fertigstellen",
@@ -343,9 +359,9 @@ const STRINGS = {
     "param.look": "Look-Stärke",
     "param.warmth": "Wärme",
     "param.fade": "Abblenden",
-    "param.kicker": "Dachzeile",
+    "param.kicker": "Obere Zeile",
     "param.title": "Titel",
-    "param.tagline": "Unterzeile",
+    "param.tagline": "Untere Zeile",
     "param.titleColor": "Titelfarbe",
     "param.textColor": "Textfarbe",
     "param.size": "Größe",
@@ -362,6 +378,18 @@ const STRINGS = {
     "motion.drift-down": "Nach unten gleiten",
     "motion.tilt": "Neigen",
     "motion.push-drift": "Zoomen und gleiten",
+    "tpl.files": "Ausgewählte Dateien lesen",
+    "tpl.stepDetail": "{name} ({detail})",
+    "tpl.done": "Fertig",
+    "tpl.noFootage": "Wähle Videos oder Fotos als Material aus und versuche es dann erneut.",
+    "tpl.noMusic": "Die Musik von Archive Vlog fehlt. Installiere das Plugin neu und versuche es erneut.",
+    "tpl.noStyles": "Die Titelstile von Archive Vlog fehlen. Installiere das Plugin neu und versuche es erneut.",
+    "tpl.notFound": "Keine der ausgewählten Dateien wurde in diesem Projekt gefunden. Wähle sie erneut aus und versuche es dann noch einmal.",
+    "tpl.notAnalysed": { one: "{count} Video ist noch nicht analysiert und konnte daher nicht verwendet werden.", other: "{count} Videos sind noch nicht analysiert und konnten daher nicht verwendet werden." },
+    "tpl.noTitle": "Der Draft „{name}“ wurde möglicherweise ohne Titel gespeichert. Öffne ihn aus der Draft-Liste oder versuche es erneut.",
+    "tpl.finishFailed": "Der Draft wurde erstellt, aber Titel und Look konnten nicht hinzugefügt werden. Versuche es erneut.",
+    "tpl.stoppedAt": "Archive Vlog wurde bei diesem Schritt abgebrochen: {step}. Versuche es erneut.",
+    "tpl.stopped": "Archive Vlog wurde abgebrochen, bevor der Draft fertig war. Versuche es erneut.",
   },
   es: {
     openProject: "Abre un proyecto para crear un Archive Vlog.",
@@ -403,9 +431,9 @@ const STRINGS = {
     replayDecode: "Repetir la animación del título",
     decodeFitted: "El plano de apertura es corto para este título con este tempo, así que el título se descifra más rápido para que se pueda leer antes del corte.",
     loading: "Cargando…",
-    "preset.cinematic": "Cine",
-    "preset.a-day-out": "Un día fuera",
-    "preset.golden-hour": "Hora dorada",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
     creditShot: "Plano de crédito",
     creditName: "Nombre en el crédito",
@@ -436,7 +464,7 @@ const STRINGS = {
     "length.standard": "Estándar",
     "length.long": "Larga",
     pace: "Cadencia",
-    "pace.cinematic": "Cine",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Rápida",
     fitPartial: { one: "{length}: {fitted} de {count} plano de montaje caben en esta pista ({seconds} s)", many: "{length}: {fitted} de {count} de planos de montaje caben en esta pista ({seconds} s)", other: "{length}: {fitted} de {count} planos de montaje caben en esta pista ({seconds} s)" },
     fitFull: { one: "{length}: {count} plano de montaje ({seconds} s)", many: "{length}: {count} de planos de montaje ({seconds} s)", other: "{length}: {count} planos de montaje ({seconds} s)" },
@@ -490,6 +518,7 @@ const STRINGS = {
     musicApprox: "Música añadida; los cortes usan una sincronía aproximada ({detail}).",
     musicUnreadable: "No se pudo leer este archivo de música ({detail}). Elige otro archivo o una de las pistas.",
     beatFailed: "falló la detección del ritmo",
+    beatTimeout: "la detección del ritmo tardó demasiado",
     previewFailed: "No se pudo reproducir la vista previa: {detail}.",
     noAudio: "no se recibió audio",
     draftNoId: "Es posible que el Draft «{name}» se haya guardado, pero Selects no informó de su ID. Ábrelo desde la lista de Drafts o vuelve a crearlo.",
@@ -503,6 +532,7 @@ const STRINGS = {
     copyLink: "Copiar el enlace al nuevo Draft",
     shortened: { one: "Tu material alcanza para {fitted} de {count} plano de montaje, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa.", many: "Tu material alcanza para {fitted} de {count} de planos de montaje, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa.", other: "Tu material alcanza para {fitted} de {count} planos de montaje, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa." },
     note: "Nota: {detail}.",
+    draftRecovered: "Selects no confirmó el nuevo Draft, así que se encontró por su nombre en la lista de Drafts.",
     unchecked: { one: "No se pudo comprobar {count} vídeo; se omitió. Vuelve a crear para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos; se omitieron. Vuelve a crear para reintentarlos.", other: "No se pudieron comprobar {count} vídeos; se omitieron. Vuelve a crear para reintentarlos." },
     createsDraft: "Crea un nuevo Draft 16:9",
     finishTitle: "Terminar título y look",
@@ -516,9 +546,9 @@ const STRINGS = {
     "param.look": "Intensidad del look",
     "param.warmth": "Calidez",
     "param.fade": "Fundido de salida",
-    "param.kicker": "Antetítulo",
+    "param.kicker": "Línea superior",
     "param.title": "Título",
-    "param.tagline": "Lema",
+    "param.tagline": "Línea inferior",
     "param.titleColor": "Color del título",
     "param.textColor": "Color del texto",
     "param.size": "Tamaño",
@@ -535,6 +565,18 @@ const STRINGS = {
     "motion.drift-down": "Deslizar hacia abajo",
     "motion.tilt": "Inclinar",
     "motion.push-drift": "Acercar y deslizar",
+    "tpl.files": "Leyendo los archivos elegidos",
+    "tpl.stepDetail": "{name} ({detail})",
+    "tpl.done": "Listo",
+    "tpl.noFootage": "Elige vídeos o fotos como material y vuelve a intentarlo.",
+    "tpl.noMusic": "Falta la música de Archive Vlog. Reinstala el plugin y vuelve a intentarlo.",
+    "tpl.noStyles": "Faltan los estilos de título de Archive Vlog. Reinstala el plugin y vuelve a intentarlo.",
+    "tpl.notFound": "No se encontró ninguno de los archivos elegidos en este proyecto. Vuelve a elegirlos e inténtalo de nuevo.",
+    "tpl.notAnalysed": { one: "{count} vídeo aún no está analizado, así que no se pudo usar.", many: "{count} de vídeos aún no están analizados, así que no se pudieron usar.", other: "{count} vídeos aún no están analizados, así que no se pudieron usar." },
+    "tpl.noTitle": "Es posible que el Draft «{name}» se haya guardado sin su título. Ábrelo desde la lista de Drafts o vuelve a intentarlo.",
+    "tpl.finishFailed": "El Draft se creó, pero no se pudieron añadir el título y el look. Vuelve a intentarlo.",
+    "tpl.stoppedAt": "Archive Vlog se detuvo en este paso: {step}. Vuelve a intentarlo.",
+    "tpl.stopped": "Archive Vlog se detuvo antes de que el Draft estuviera listo. Vuelve a intentarlo.",
   },
   fr: {
     openProject: "Ouvrez un projet pour créer un Archive Vlog.",
@@ -576,9 +618,9 @@ const STRINGS = {
     replayDecode: "Rejouer l'animation du titre",
     decodeFitted: "Le plan d'ouverture est court pour ce titre à ce tempo : le titre se déchiffre donc plus vite pour rester lisible avant la coupe.",
     loading: "Chargement…",
-    "preset.cinematic": "Cinéma",
-    "preset.a-day-out": "Une journée dehors",
-    "preset.golden-hour": "Heure dorée",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
     creditShot: "Plan du crédit",
     creditName: "Nom du crédit",
@@ -609,7 +651,7 @@ const STRINGS = {
     "length.standard": "Standard",
     "length.long": "Longue",
     pace: "Cadence",
-    "pace.cinematic": "Cinéma",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Rapide",
     fitPartial: { one: "{length} : {fitted} sur {count} plan de montage tiennent dans ce morceau ({seconds} s)", many: "{length} : {fitted} sur {count} de plans de montage tiennent dans ce morceau ({seconds} s)", other: "{length} : {fitted} sur {count} plans de montage tiennent dans ce morceau ({seconds} s)" },
     fitFull: { one: "{length} : {count} plan de montage ({seconds} s)", many: "{length} : {count} de plans de montage ({seconds} s)", other: "{length} : {count} plans de montage ({seconds} s)" },
@@ -663,6 +705,7 @@ const STRINGS = {
     musicApprox: "Musique ajoutée ; les coupes utilisent un calage approximatif ({detail}).",
     musicUnreadable: "Impossible de lire ce fichier audio ({detail}). Choisissez un autre fichier ou l'un des morceaux.",
     beatFailed: "la détection du rythme a échoué",
+    beatTimeout: "la détection du rythme a pris trop de temps",
     previewFailed: "Impossible de lire l'aperçu : {detail}.",
     noAudio: "aucun son n'a été renvoyé",
     draftNoId: "Le Draft « {name} » a peut-être été enregistré, mais Selects n'a pas indiqué son identifiant. Ouvrez-le depuis la liste des Drafts ou relancez la création.",
@@ -676,6 +719,7 @@ const STRINGS = {
     copyLink: "Copier le lien vers le nouveau Draft",
     shortened: { one: "Vos images suffisent pour {fitted} sur {count} plan de montage : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète.", many: "Vos images suffisent pour {fitted} sur {count} de plans de montage : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète.", other: "Vos images suffisent pour {fitted} sur {count} plans de montage : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète." },
     note: "Remarque : {detail}.",
+    draftRecovered: "Selects n'a pas confirmé le nouveau Draft ; il a été retrouvé par son nom dans la liste des Drafts.",
     unchecked: { one: "{count} vidéo n'a pas pu être vérifiée et a été ignorée. Relancez la création pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer." },
     createsDraft: "Crée un nouveau Draft 16:9",
     finishTitle: "Terminer le titre et le look",
@@ -689,9 +733,9 @@ const STRINGS = {
     "param.look": "Intensité du look",
     "param.warmth": "Chaleur",
     "param.fade": "Fondu de sortie",
-    "param.kicker": "Surtitre",
+    "param.kicker": "Ligne du haut",
     "param.title": "Titre",
-    "param.tagline": "Accroche",
+    "param.tagline": "Ligne du bas",
     "param.titleColor": "Couleur du titre",
     "param.textColor": "Couleur du texte",
     "param.size": "Taille",
@@ -708,6 +752,18 @@ const STRINGS = {
     "motion.drift-down": "Glisser vers le bas",
     "motion.tilt": "Incliner",
     "motion.push-drift": "Zoom et glissement",
+    "tpl.files": "Lecture des fichiers choisis",
+    "tpl.stepDetail": "{name} ({detail})",
+    "tpl.done": "Terminé",
+    "tpl.noFootage": "Choisissez des vidéos ou des photos comme images, puis réessayez.",
+    "tpl.noMusic": "La musique d'Archive Vlog est introuvable. Réinstallez le plugin, puis réessayez.",
+    "tpl.noStyles": "Les styles de titre d'Archive Vlog sont introuvables. Réinstallez le plugin, puis réessayez.",
+    "tpl.notFound": "Aucun des fichiers choisis n'a été trouvé dans ce projet. Choisissez-les à nouveau, puis réessayez.",
+    "tpl.notAnalysed": { one: "{count} vidéo n'est pas encore analysée et n'a donc pas pu être utilisée.", many: "{count} de vidéos ne sont pas encore analysées et n'ont donc pas pu être utilisées.", other: "{count} vidéos ne sont pas encore analysées et n'ont donc pas pu être utilisées." },
+    "tpl.noTitle": "Le Draft « {name} » a peut-être été enregistré sans son titre. Ouvrez-le depuis la liste des Drafts ou réessayez.",
+    "tpl.finishFailed": "Le Draft a été créé, mais le titre et le look n'ont pas pu être ajoutés. Réessayez.",
+    "tpl.stoppedAt": "Archive Vlog s'est arrêté à cette étape : {step}. Réessayez.",
+    "tpl.stopped": "Archive Vlog s'est arrêté avant que le Draft soit prêt. Réessayez.",
   },
   it: {
     openProject: "Apri un progetto per creare un Archive Vlog.",
@@ -749,9 +805,9 @@ const STRINGS = {
     replayDecode: "Riproduci di nuovo l'animazione del titolo",
     decodeFitted: "L'inquadratura d'apertura è corta per questo titolo a questo tempo, quindi il titolo si decifra più in fretta per restare leggibile prima del taglio.",
     loading: "Caricamento…",
-    "preset.cinematic": "Cinema",
-    "preset.a-day-out": "Una giornata fuori",
-    "preset.golden-hour": "Ora d'oro",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
     creditShot: "Inquadratura del credito",
     creditName: "Nome nel credito",
@@ -782,7 +838,7 @@ const STRINGS = {
     "length.standard": "Standard",
     "length.long": "Lunga",
     pace: "Cadenza",
-    "pace.cinematic": "Cinema",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Veloce",
     fitPartial: { one: "{length}: {fitted} di {count} inquadratura di montaggio entrano in questo brano ({seconds} s)", many: "{length}: {fitted} di {count} di inquadrature di montaggio entrano in questo brano ({seconds} s)", other: "{length}: {fitted} di {count} inquadrature di montaggio entrano in questo brano ({seconds} s)" },
     fitFull: { one: "{length}: {count} inquadratura di montaggio ({seconds} s)", many: "{length}: {count} di inquadrature di montaggio ({seconds} s)", other: "{length}: {count} inquadrature di montaggio ({seconds} s)" },
@@ -836,6 +892,7 @@ const STRINGS = {
     musicApprox: "Musica aggiunta; i tagli usano una sincronia approssimativa ({detail}).",
     musicUnreadable: "Impossibile leggere questo file musicale ({detail}). Scegli un altro file o uno dei brani.",
     beatFailed: "rilevamento del ritmo non riuscito",
+    beatTimeout: "il rilevamento del ritmo ha richiesto troppo tempo",
     previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
     noAudio: "non è stato restituito alcun audio",
     draftNoId: "Il Draft «{name}» potrebbe essere stato salvato, ma Selects non ne ha comunicato l'ID. Aprilo dall'elenco dei Draft o crealo di nuovo.",
@@ -849,6 +906,7 @@ const STRINGS = {
     copyLink: "Copia il link al nuovo Draft",
     shortened: { one: "Il tuo materiale basta per {fitted} di {count} inquadratura di montaggio, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa.", many: "Il tuo materiale basta per {fitted} di {count} di inquadrature di montaggio, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa.", other: "Il tuo materiale basta per {fitted} di {count} inquadrature di montaggio, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa." },
     note: "Nota: {detail}.",
+    draftRecovered: "Selects non ha confermato il nuovo Draft, quindi è stato trovato per nome nell'elenco dei Draft.",
     unchecked: { one: "Non è stato possibile controllare {count} video, che è stato saltato. Crea di nuovo per riprovare.", many: "Non è stato possibile controllare {count} di video, che sono stati saltati. Crea di nuovo per riprovare.", other: "Non è stato possibile controllare {count} video, che sono stati saltati. Crea di nuovo per riprovare." },
     createsDraft: "Crea un nuovo Draft 16:9",
     finishTitle: "Completa titolo e look",
@@ -862,9 +920,9 @@ const STRINGS = {
     "param.look": "Intensità del look",
     "param.warmth": "Calore",
     "param.fade": "Dissolvenza in uscita",
-    "param.kicker": "Occhiello",
+    "param.kicker": "Riga superiore",
     "param.title": "Titolo",
-    "param.tagline": "Slogan",
+    "param.tagline": "Riga inferiore",
     "param.titleColor": "Colore del titolo",
     "param.textColor": "Colore del testo",
     "param.size": "Dimensione",
@@ -881,6 +939,18 @@ const STRINGS = {
     "motion.drift-down": "Scorri in basso",
     "motion.tilt": "Inclina",
     "motion.push-drift": "Zoom e scorrimento",
+    "tpl.files": "Lettura dei file scelti",
+    "tpl.stepDetail": "{name} ({detail})",
+    "tpl.done": "Fatto",
+    "tpl.noFootage": "Scegli video o foto come materiale, poi riprova.",
+    "tpl.noMusic": "Manca la musica di Archive Vlog. Reinstalla il plugin e riprova.",
+    "tpl.noStyles": "Mancano gli stili del titolo di Archive Vlog. Reinstalla il plugin e riprova.",
+    "tpl.notFound": "Nessuno dei file scelti è stato trovato in questo progetto. Sceglili di nuovo, poi riprova.",
+    "tpl.notAnalysed": { one: "{count} video non è ancora analizzato, quindi non è stato possibile usarlo.", many: "{count} di video non sono ancora analizzati, quindi non è stato possibile usarli.", other: "{count} video non sono ancora analizzati, quindi non è stato possibile usarli." },
+    "tpl.noTitle": "Il Draft «{name}» potrebbe essere stato salvato senza titolo. Aprilo dall'elenco dei Draft o riprova.",
+    "tpl.finishFailed": "Il Draft è stato creato, ma non è stato possibile aggiungere titolo e look. Riprova.",
+    "tpl.stoppedAt": "Archive Vlog si è fermato a questo passaggio: {step}. Riprova.",
+    "tpl.stopped": "Archive Vlog si è fermato prima che il Draft fosse pronto. Riprova.",
   },
   ja: {
     openProject: "Archive Vlog を作成するには、プロジェクトを開いてください。",
@@ -922,9 +992,9 @@ const STRINGS = {
     replayDecode: "タイトルのアニメーションをもう一度再生",
     decodeFitted: "このテンポではオープニングショットがこのタイトルには短いため、カットの前に読めるようタイトルのデコードを速めます。",
     loading: "読み込み中…",
-    "preset.cinematic": "シネマティック",
-    "preset.a-day-out": "おでかけの日",
-    "preset.golden-hour": "ゴールデンアワー",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label}（{used}/{max}）",
     creditShot: "クレジットショット",
     creditName: "クレジットの名前",
@@ -955,7 +1025,7 @@ const STRINGS = {
     "length.standard": "標準",
     "length.long": "長め",
     pace: "ペース",
-    "pace.cinematic": "シネマティック",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "クイック",
     fitPartial: { other: "{length}: このトラックに収まるのはモンタージュ {count} ショット中 {fitted} ショット（{seconds} 秒）" },
     fitFull: { other: "{length}: モンタージュ {count} ショット（{seconds} 秒）" },
@@ -1009,6 +1079,7 @@ const STRINGS = {
     musicApprox: "音楽を追加しました。カットはおおよそのタイミングになります（{detail}）。",
     musicUnreadable: "この音楽ファイルを読み込めませんでした（{detail}）。別のファイルか、用意されたトラックを選んでください。",
     beatFailed: "ビートの検出に失敗しました",
+    beatTimeout: "ビートの検出に時間がかかりすぎました",
     previewFailed: "プレビューを再生できませんでした: {detail}。",
     noAudio: "音声が返されませんでした",
     draftNoId: "Draft「{name}」は保存された可能性がありますが、Selects から ID が返されませんでした。Draft の一覧から開くか、もう一度作成してください。",
@@ -1022,6 +1093,7 @@ const STRINGS = {
     copyLink: "新しい Draft へのリンクをコピー",
     shortened: { other: "素材で作れるのはモンタージュ {count} ショット中 {fitted} ショットのため、この動画は約 {seconds} 秒です。フルの長さにするにはクリップか写真を追加してください。" },
     note: "メモ: {detail}。",
+    draftRecovered: "Selects から新しい Draft の確認が返らなかったため、Draft の一覧から名前で見つけました。",
     unchecked: { other: "{count} 本の動画を確認できなかったため、スキップしました。もう一度作成すると再試行します。" },
     createsDraft: "16:9 の新しい Draft を作成します",
     finishTitle: "タイトルとルックを仕上げる",
@@ -1054,6 +1126,18 @@ const STRINGS = {
     "motion.drift-down": "下へスライド",
     "motion.tilt": "傾ける",
     "motion.push-drift": "ズームしてスライド",
+    "tpl.files": "選んだファイルを読み込み",
+    "tpl.stepDetail": "{name}（{detail}）",
+    "tpl.done": "完了",
+    "tpl.noFootage": "素材にする動画または写真を選んでから、もう一度お試しください。",
+    "tpl.noMusic": "Archive Vlog の音楽が見つかりません。プラグインを再インストールしてから、もう一度お試しください。",
+    "tpl.noStyles": "Archive Vlog のタイトルスタイルが見つかりません。プラグインを再インストールしてから、もう一度お試しください。",
+    "tpl.notFound": "選んだファイルがこのプロジェクトに見つかりませんでした。選び直してから、もう一度お試しください。",
+    "tpl.notAnalysed": { other: "{count} 本の動画がまだ解析されていないため、使用できませんでした。" },
+    "tpl.noTitle": "Draft「{name}」はタイトルなしで保存された可能性があります。Draft の一覧から開くか、もう一度お試しください。",
+    "tpl.finishFailed": "Draft は作成されましたが、タイトルとルックを追加できませんでした。もう一度お試しください。",
+    "tpl.stoppedAt": "Archive Vlog は次のステップで停止しました: {step}。もう一度お試しください。",
+    "tpl.stopped": "Draft の準備ができる前に Archive Vlog が停止しました。もう一度お試しください。",
   },
   ko: {
     openProject: "Archive Vlog\ub97c \ub9cc\ub4e4\ub824\uba74 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.",
@@ -1095,9 +1179,9 @@ const STRINGS = {
     replayDecode: "\ud0c0\uc774\ud2c0 \uc560\ub2c8\uba54\uc774\uc158 \ub2e4\uc2dc \ubcf4\uae30",
     decodeFitted: "\uc774 \ud15c\ud3ec\uc5d0\uc11c\ub294 \uc624\ud504\ub2dd \uc0f7\uc774 \uc774 \ud0c0\uc774\ud2c0\uc5d0 \ube44\ud574 \uc9e7\uc544\uc11c, \ucef7 \uc804\uc5d0 \uc77d\uc744 \uc218 \uc788\ub3c4\ub85d \ud0c0\uc774\ud2c0\uc774 \ub354 \ube60\ub974\uac8c \ub514\ucf54\ub529\ub429\ub2c8\ub2e4.",
     loading: "\ubd88\ub7ec\uc624\ub294 \uc911…",
-    "preset.cinematic": "\uc2dc\ub124\ub9c8\ud2f1",
-    "preset.a-day-out": "\ud558\ub8e8 \ub098\ub4e4\uc774",
-    "preset.golden-hour": "\uace8\ub4e0 \uc544\uc6cc",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
     creditShot: "\ud06c\ub808\ub527 \uc0f7",
     creditName: "\ud06c\ub808\ub527 \uc774\ub984",
@@ -1128,7 +1212,7 @@ const STRINGS = {
     "length.standard": "\ubcf4\ud1b5",
     "length.long": "\uae38\uac8c",
     pace: "\ucef7 \uc18d\ub3c4",
-    "pace.cinematic": "\uc2dc\ub124\ub9c8\ud2f1",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "\ube60\ub974\uac8c",
     fitPartial: { other: "{length}: \uc774 \ud2b8\ub799\uc5d0 \ubabd\ud0c0\uc8fc \uc0f7 {count}\uac1c \uc911 {fitted}\uac1c\uac00 \ub4e4\uc5b4\uac11\ub2c8\ub2e4 ({seconds}\ucd08)" },
     fitFull: { other: "{length}: \ubabd\ud0c0\uc8fc \uc0f7 {count}\uac1c ({seconds}\ucd08)" },
@@ -1182,6 +1266,7 @@ const STRINGS = {
     musicApprox: "\uc74c\uc545\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4. \ucef7\uc740 \ub300\ub7b5\uc801\uc778 \ud0c0\uc774\ubc0d\uc744 \uc501\ub2c8\ub2e4 ({detail}).",
     musicUnreadable: "\uc774 \uc74c\uc545 \ud30c\uc77c\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4({detail}). \ub2e4\ub978 \ud30c\uc77c\uc774\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     beatFailed: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
+    beatTimeout: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2dc\uac04\uc774 \ub108\ubb34 \uc624\ub798 \uac78\ub838\uc2b5\ub2c8\ub2e4",
     previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
     noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
     draftNoId: "Draft ‘{name}’\uc774(\uac00) \uc800\uc7a5\ub418\uc5c8\uc744 \uc218 \uc788\uc9c0\ub9cc Selects\uac00 ID\ub97c \uc54c\ub824 \uc8fc\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Draft \ubaa9\ub85d\uc5d0\uc11c \uc5f4\uac70\ub098 \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.",
@@ -1195,6 +1280,7 @@ const STRINGS = {
     copyLink: "\uc0c8 Draft \ub9c1\ud06c \ubcf5\uc0ac",
     shortened: { other: "\uc601\uc0c1\uc73c\ub85c \ubabd\ud0c0\uc8fc \uc0f7 {count}\uac1c \uc911 {fitted}\uac1c\ub9cc \ub9cc\ub4e4 \uc218 \uc788\uc5b4 \uc774 \ub3d9\uc601\uc0c1\uc740 \uc57d {seconds}\ucd08\uc785\ub2c8\ub2e4. \uc804\uccb4 \uae38\uc774\ub85c \ub9cc\ub4e4\ub824\uba74 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ub354 \ucd94\uac00\ud558\uc138\uc694." },
     note: "\ucc38\uace0: {detail}.",
+    draftRecovered: "Selects\uac00 \uc0c8 Draft\ub97c \ud655\uc778\ud574 \uc8fc\uc9c0 \uc54a\uc544 Draft \ubaa9\ub85d\uc5d0\uc11c \uc774\ub984\uc73c\ub85c \ucc3e\uc558\uc2b5\ub2c8\ub2e4.",
     unchecked: { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud574 \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
     createsDraft: "\uc0c8 16:9 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4",
     finishTitle: "\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac",
@@ -1227,6 +1313,18 @@ const STRINGS = {
     "motion.drift-down": "\uc544\ub798\ub85c \uc774\ub3d9",
     "motion.tilt": "\uae30\uc6b8\uc774\uae30",
     "motion.push-drift": "\uc90c \uc778\ud558\uba70 \uc774\ub3d9",
+    "tpl.files": "\uc120\ud0dd\ud55c \ud30c\uc77c \uc77d\uae30",
+    "tpl.stepDetail": "{name} ({detail})",
+    "tpl.done": "\uc644\ub8cc",
+    "tpl.noFootage": "\uc601\uc0c1\uc73c\ub85c \uc4f8 \ub3d9\uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \uc120\ud0dd\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    "tpl.noMusic": "Archive Vlog\uc758 \uc74c\uc545\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    "tpl.noStyles": "Archive Vlog\uc758 \ud0c0\uc774\ud2c0 \uc2a4\ud0c0\uc77c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    "tpl.notFound": "\uc120\ud0dd\ud55c \ud30c\uc77c\uc744 \uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\uc11c \ud558\ub098\ub3c4 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc120\ud0dd\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    "tpl.notAnalysed": { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc544 \uc0ac\uc6a9\ud560 \uc218 \uc5c6\uc5c8\uc2b5\ub2c8\ub2e4." },
+    "tpl.noTitle": "Draft ‘{name}’\uc774(\uac00) \ud0c0\uc774\ud2c0 \uc5c6\uc774 \uc800\uc7a5\ub418\uc5c8\uc744 \uc218 \uc788\uc2b5\ub2c8\ub2e4. Draft \ubaa9\ub85d\uc5d0\uc11c \uc5f4\uac70\ub098 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    "tpl.finishFailed": "Draft\ub294 \ub9cc\ub4e4\uc5b4\uc84c\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    "tpl.stoppedAt": "Archive Vlog\uac00 \uc774 \ub2e8\uacc4\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {step}. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    "tpl.stopped": "Draft\uac00 \uc900\ube44\ub418\uae30 \uc804\uc5d0 Archive Vlog\uac00 \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
   },
   pt: {
     openProject: "Abra um projeto para criar um Archive Vlog.",
@@ -1268,9 +1366,9 @@ const STRINGS = {
     replayDecode: "Repetir a animação do título",
     decodeFitted: "O plano de abertura é curto para este título neste andamento, então o título se decifra mais rápido para ficar legível antes do corte.",
     loading: "Carregando…",
-    "preset.cinematic": "Cinema",
-    "preset.a-day-out": "Um dia fora",
-    "preset.golden-hour": "Hora dourada",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
     creditShot: "Plano do crédito",
     creditName: "Nome no crédito",
@@ -1301,7 +1399,7 @@ const STRINGS = {
     "length.standard": "Padrão",
     "length.long": "Longa",
     pace: "Cadência",
-    "pace.cinematic": "Cinema",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Rápida",
     fitPartial: { one: "{length}: {fitted} de {count} plano de montagem cabem nesta faixa ({seconds} s)", many: "{length}: {fitted} de {count} de planos de montagem cabem nesta faixa ({seconds} s)", other: "{length}: {fitted} de {count} planos de montagem cabem nesta faixa ({seconds} s)" },
     fitFull: { one: "{length}: {count} plano de montagem ({seconds} s)", many: "{length}: {count} de planos de montagem ({seconds} s)", other: "{length}: {count} planos de montagem ({seconds} s)" },
@@ -1355,6 +1453,7 @@ const STRINGS = {
     musicApprox: "Música adicionada; os cortes usam uma sincronia aproximada ({detail}).",
     musicUnreadable: "Não foi possível ler este arquivo de música ({detail}). Escolha outro arquivo ou uma das faixas.",
     beatFailed: "a detecção da batida falhou",
+    beatTimeout: "a detecção da batida demorou demais",
     previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
     noAudio: "nenhum áudio foi retornado",
     draftNoId: "O Draft “{name}” pode ter sido salvo, mas o Selects não informou o ID dele. Abra-o na lista de Drafts ou crie de novo.",
@@ -1368,6 +1467,7 @@ const STRINGS = {
     copyLink: "Copiar o link do novo Draft",
     shortened: { one: "Seu material dá para {fitted} de {count} plano de montagem, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa.", many: "Seu material dá para {fitted} de {count} de planos de montagem, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa.", other: "Seu material dá para {fitted} de {count} planos de montagem, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa." },
     note: "Observação: {detail}.",
+    draftRecovered: "O Selects não confirmou o novo Draft, então ele foi encontrado pelo nome na lista de Drafts.",
     unchecked: { one: "Não foi possível verificar {count} vídeo; ele foi ignorado. Crie de novo para tentar outra vez.", many: "Não foi possível verificar {count} de vídeos; eles foram ignorados. Crie de novo para tentar outra vez.", other: "Não foi possível verificar {count} vídeos; eles foram ignorados. Crie de novo para tentar outra vez." },
     createsDraft: "Cria um novo Draft 16:9",
     finishTitle: "Concluir título e look",
@@ -1383,7 +1483,7 @@ const STRINGS = {
     "param.fade": "Fade de saída",
     "param.kicker": "Linha superior",
     "param.title": "Título",
-    "param.tagline": "Slogan",
+    "param.tagline": "Linha inferior",
     "param.titleColor": "Cor do título",
     "param.textColor": "Cor do texto",
     "param.size": "Tamanho",
@@ -1400,6 +1500,18 @@ const STRINGS = {
     "motion.drift-down": "Deslizar para baixo",
     "motion.tilt": "Inclinar",
     "motion.push-drift": "Aproximar e deslizar",
+    "tpl.files": "Lendo os arquivos escolhidos",
+    "tpl.stepDetail": "{name} ({detail})",
+    "tpl.done": "Pronto",
+    "tpl.noFootage": "Escolha vídeos ou fotos como material e tente de novo.",
+    "tpl.noMusic": "A música do Archive Vlog está faltando. Reinstale o plugin e tente de novo.",
+    "tpl.noStyles": "Os estilos de título do Archive Vlog estão faltando. Reinstale o plugin e tente de novo.",
+    "tpl.notFound": "Nenhum dos arquivos escolhidos foi encontrado neste projeto. Escolha-os de novo e tente outra vez.",
+    "tpl.notAnalysed": { one: "{count} vídeo ainda não foi analisado, então não pôde ser usado.", many: "{count} de vídeos ainda não foram analisados, então não puderam ser usados.", other: "{count} vídeos ainda não foram analisados, então não puderam ser usados." },
+    "tpl.noTitle": "O Draft “{name}” pode ter sido salvo sem o título. Abra-o na lista de Drafts ou tente de novo.",
+    "tpl.finishFailed": "O Draft foi criado, mas não foi possível adicionar o título e o look. Tente de novo.",
+    "tpl.stoppedAt": "O Archive Vlog parou nesta etapa: {step}. Tente de novo.",
+    "tpl.stopped": "O Archive Vlog parou antes de o Draft ficar pronto. Tente de novo.",
   },
   tr: {
     openProject: "Archive Vlog oluşturmak için bir proje açın.",
@@ -1441,9 +1553,9 @@ const STRINGS = {
     replayDecode: "Başlık animasyonunu yeniden oynat",
     decodeFitted: "Bu tempoda açılış çekimi bu başlık için kısa; bu yüzden başlık, kesmeden önce okunabilsin diye daha hızlı çözülür.",
     loading: "Yükleniyor…",
-    "preset.cinematic": "Sinematik",
-    "preset.a-day-out": "Bir Gün Dışarıda",
-    "preset.golden-hour": "Altın Saat",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label} ({used}/{max})",
     creditShot: "Jenerik çekimi",
     creditName: "Jenerikteki ad",
@@ -1474,7 +1586,7 @@ const STRINGS = {
     "length.standard": "Standart",
     "length.long": "Uzun",
     pace: "Kurgu hızı",
-    "pace.cinematic": "Sinematik",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "Hızlı",
     fitPartial: { one: "{length}: {count} montaj çekiminden {fitted} tanesi bu parçaya sığıyor ({seconds} sn)", other: "{length}: {count} montaj çekiminden {fitted} tanesi bu parçaya sığıyor ({seconds} sn)" },
     fitFull: { one: "{length}: {count} montaj çekimi ({seconds} sn)", other: "{length}: {count} montaj çekimi ({seconds} sn)" },
@@ -1528,6 +1640,7 @@ const STRINGS = {
     musicApprox: "Müzik eklendi; kesmeler yaklaşık zamanlama kullanır ({detail}).",
     musicUnreadable: "Bu müzik dosyası okunamadı ({detail}). Başka bir dosya veya hazır parçalardan birini seçin.",
     beatFailed: "ritim algılama başarısız oldu",
+    beatTimeout: "ritim algılama çok uzun sürdü",
     previewFailed: "Önizleme oynatılamadı: {detail}.",
     noAudio: "ses geri gelmedi",
     draftNoId: "“{name}” Draft'ı kaydedilmiş olabilir ama Selects kimliğini bildirmedi. Draft listesinden açın veya yeniden oluşturun.",
@@ -1541,6 +1654,7 @@ const STRINGS = {
     copyLink: "Yeni Draft'ın bağlantısını kopyala",
     shortened: { one: "Görüntüleriniz {count} montaj çekiminden {fitted} tanesine yetiyor, bu yüzden bu video yaklaşık {seconds} sn. Tam uzunluk için daha fazla klip veya fotoğraf ekleyin.", other: "Görüntüleriniz {count} montaj çekiminden {fitted} tanesine yetiyor, bu yüzden bu video yaklaşık {seconds} sn. Tam uzunluk için daha fazla klip veya fotoğraf ekleyin." },
     note: "Not: {detail}.",
+    draftRecovered: "Selects yeni Draft'ı onaylamadı, bu yüzden Draft listesinde adıyla bulundu.",
     unchecked: { one: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun.", other: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun." },
     createsDraft: "Yeni bir 16:9 Draft oluşturur",
     finishTitle: "Başlığı ve görünümü tamamla",
@@ -1554,9 +1668,9 @@ const STRINGS = {
     "param.look": "Görünüm gücü",
     "param.warmth": "Sıcaklık",
     "param.fade": "Kararma",
-    "param.kicker": "Üst başlık",
+    "param.kicker": "Üst satır",
     "param.title": "Başlık",
-    "param.tagline": "Slogan",
+    "param.tagline": "Alt satır",
     "param.titleColor": "Başlık rengi",
     "param.textColor": "Metin rengi",
     "param.size": "Boyut",
@@ -1573,6 +1687,18 @@ const STRINGS = {
     "motion.drift-down": "Aşağı kay",
     "motion.tilt": "Eğ",
     "motion.push-drift": "Yakınlaş ve kay",
+    "tpl.files": "Seçilen dosyalar okunuyor",
+    "tpl.stepDetail": "{name} ({detail})",
+    "tpl.done": "Tamamlandı",
+    "tpl.noFootage": "Görüntü olarak video veya fotoğraf seçin, ardından yeniden deneyin.",
+    "tpl.noMusic": "Archive Vlog'un müziği eksik. Eklentiyi yeniden yükleyip tekrar deneyin.",
+    "tpl.noStyles": "Archive Vlog'un başlık stilleri eksik. Eklentiyi yeniden yükleyip tekrar deneyin.",
+    "tpl.notFound": "Seçilen dosyaların hiçbiri bu projede bulunamadı. Onları yeniden seçip tekrar deneyin.",
+    "tpl.notAnalysed": { one: "{count} video henüz analiz edilmediği için kullanılamadı.", other: "{count} video henüz analiz edilmediği için kullanılamadı." },
+    "tpl.noTitle": "“{name}” Draft'ı başlığı olmadan kaydedilmiş olabilir. Draft listesinden açın veya yeniden deneyin.",
+    "tpl.finishFailed": "Draft oluşturuldu ancak başlık ve görünüm eklenemedi. Yeniden deneyin.",
+    "tpl.stoppedAt": "Archive Vlog şu adımda durdu: {step}. Yeniden deneyin.",
+    "tpl.stopped": "Archive Vlog, Draft hazır olmadan durdu. Yeniden deneyin.",
   },
   zh: {
     openProject: "请先打开一个项目，再制作 Archive Vlog。",
@@ -1614,9 +1740,9 @@ const STRINGS = {
     replayDecode: "重播标题动画",
     decodeFitted: "在此速度下，开场镜头对这个标题来说较短，因此标题会更快解码，以便在剪切前看清。",
     loading: "加载中…",
-    "preset.cinematic": "电影感",
-    "preset.a-day-out": "出游一日",
-    "preset.golden-hour": "黄金时刻",
+    "preset.cinematic": "Cinematic",
+    "preset.a-day-out": "A Day Out",
+    "preset.golden-hour": "Golden Hour",
     fieldCount: "{label}（{used}/{max}）",
     creditShot: "署名镜头",
     creditName: "署名中的名字",
@@ -1647,7 +1773,7 @@ const STRINGS = {
     "length.standard": "标准",
     "length.long": "长",
     pace: "剪辑节奏",
-    "pace.cinematic": "电影感",
+    "pace.cinematic": "Cinematic",
     "pace.quick": "快速",
     fitPartial: { other: "{length}：此曲目可容纳 {count} 个蒙太奇镜头中的 {fitted} 个（{seconds} 秒）" },
     fitFull: { other: "{length}：{count} 个蒙太奇镜头（{seconds} 秒）" },
@@ -1701,6 +1827,7 @@ const STRINGS = {
     musicApprox: "已添加音乐；剪切点使用大致的时间（{detail}）。",
     musicUnreadable: "无法读取这个音乐文件（{detail}）。请选择其他文件或内置曲目。",
     beatFailed: "节拍识别失败",
+    beatTimeout: "节拍识别耗时过长",
     previewFailed: "无法播放试听：{detail}。",
     noAudio: "没有返回音频",
     draftNoId: "Draft“{name}”可能已保存，但 Selects 没有返回它的 ID。请从 Draft 列表中打开，或重新生成。",
@@ -1714,6 +1841,7 @@ const STRINGS = {
     copyLink: "复制新 Draft 的链接",
     shortened: { other: "你的素材只够 {count} 个蒙太奇镜头中的 {fitted} 个，所以这个视频约 {seconds} 秒。添加更多片段或照片即可达到完整时长。" },
     note: "提示：{detail}。",
+    draftRecovered: "Selects 没有确认新的 Draft，因此已在 Draft 列表中按名称找到它。",
     unchecked: { other: "有 {count} 个视频无法检查，已跳过。重新生成即可重试。" },
     createsDraft: "创建一个新的 16:9 Draft",
     finishTitle: "完成标题和色调",
@@ -1746,6 +1874,18 @@ const STRINGS = {
     "motion.drift-down": "向下平移",
     "motion.tilt": "倾斜",
     "motion.push-drift": "推近并平移",
+    "tpl.files": "读取所选文件",
+    "tpl.stepDetail": "{name}（{detail}）",
+    "tpl.done": "完成",
+    "tpl.noFootage": "请选择用作素材的视频或照片，然后重试。",
+    "tpl.noMusic": "缺少 Archive Vlog 的音乐。请重新安装插件后重试。",
+    "tpl.noStyles": "缺少 Archive Vlog 的标题样式。请重新安装插件后重试。",
+    "tpl.notFound": "在此项目中找不到所选的任何文件。请重新选择后重试。",
+    "tpl.notAnalysed": { other: "有 {count} 个视频尚未分析，因此无法使用。" },
+    "tpl.noTitle": "Draft“{name}”可能已在没有标题的情况下保存。请从 Draft 列表中打开，或重试。",
+    "tpl.finishFailed": "Draft 已创建，但无法添加标题和色调。请重试。",
+    "tpl.stoppedAt": "Archive Vlog 在此步骤停止：{step}。请重试。",
+    "tpl.stopped": "Archive Vlog 在 Draft 准备好之前停止了。请重试。",
   },
 };
 // STRINGS:END
@@ -1800,6 +1940,7 @@ function sayError(lang: Lang, e: any): string {
   if (typeof e?.say === "function") return e.say(lang);
   // Host errors (av-host block) by their code.
   if (e?.code === "not-found") return t(lang, "foldersNotFound");
+  if (e?.code === "beat-timeout") return t(lang, "beatTimeout");
   return String(e?.message || e);
 }
 // A status message for an error: a missing host member says only that Selects needs an update; anything else goes into
@@ -1866,8 +2007,11 @@ const AV_FALLBACK_BPM = 72;
 const AV_SLOW_MAX_BPM = 110;
 // The shortest montage, in shots, at both paces (kit default): 4 x M beats is whole bars for every M (1, 2 or 4).
 const AV_MIN_MONTAGE = 4;
-// Slot roles: the intro's two, the montage cycle, the final shot (spec 8). The panel holds the search queries.
-const AV_MONTAGE_ROLES = ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline'];
+// Slot roles: the intro's two, the montage cycle, the final shot (spec 8). The panel holds the search queries. The cycle
+// alternates shot scales: a wide or establishing role (architecture, water, skyline) never follows another one, across
+// the wrap too (skyline -> crowd), so the montage never plays two wide views in a row by role.
+const AV_MONTAGE_ROLES = ['crowd', 'architecture', 'ride', 'water', 'food', 'transit', 'skyline'];
+const AV_WIDE_ROLES = ['opening', 'architecture', 'water', 'skyline'];
 const AV_ROLES = ['opening', 'portrait'].concat(AV_MONTAGE_ROLES, ['ending']);
 // Which other candidate roles may fill a slot role, best first (the slot's own role always ranks first).
 const AV_ROLE_FALLBACK = {
@@ -1906,6 +2050,15 @@ const AV_SOURCE_TAIL = 0.15;
 const AV_PHOTO_HOLD_MAX = 5;
 const AV_PHOTO_RUN_MAX = 2;
 const AV_PHOTO_SHARE = 1 / 3;
+// Ranking a video window (avAllocate): score - AV_ROLE_STEP per role rank - AV_REPEAT_STEP per recent use of its source +
+// a seeded jitter of up to AV_JITTER. The panel's motion bonus (av-hook AV_MOTION_BONUS, 0.2) plus the jitter stays below
+// one role step, so a moving moment never outranks a better role match; a repeat costs more than one role step.
+const AV_ROLE_STEP = 0.3;
+const AV_REPEAT_STEP = 0.4;
+const AV_JITTER = 0.05;
+// A reused clip's new window should show another composition: at least this far (centre to centre) from each earlier
+// window of the clip, or in the other half of the clip (avAllocate prefers such windows when it reuses a source).
+const AV_REUSE_APART = 4;
 
 // A beat grid is used only for a tempo in [AV_TEMPO_MIN, AV_TEMPO_MAX] whose detection was accepted (bundled cues
 // always are).
@@ -2228,9 +2381,9 @@ function avFillers(candidates) {
   return out;
 }
 
-// Strict allocation. opts: { candidates, slots: [{ index, role, seconds, videoOnly? }], seed, gapSeconds = 0.5,
-// photoShare = AV_PHOTO_SHARE, spread = true, motionOpener = true, finalEarly = true }. A videoOnly slot (the opening, credit and final
-// shots) never takes a photo, and the photo share counts only the other slots (the montage). Two hard rules, never
+// Strict allocation. opts: { candidates, slots: [{ index, role, seconds, videoOnly?, part? }], seed, gapSeconds = 0.5,
+// photoShare = AV_PHOTO_SHARE, spread = true, motionOpener = true, finalEarly = true, sizes? (rid -> { width, height },
+// an unknown size counts as landscape) }. A videoOnly slot (the opening, credit and final shots) never takes a photo, and the photo share counts only the other slots (the montage). Two hard rules, never
 // relaxed: the previous slot's source is never used again for the next slot, and at most AV_PHOTO_RUN_MAX photos play
 // in a row (unless the pool has no video candidate). A slot nothing fits under them stays null (counted in `missing`);
 // avPlanBuild then tries a shorter montage.
@@ -2240,6 +2393,10 @@ function avFillers(candidates) {
 // AV_SOURCE_TAIL cannot. If the opener is not videoOnly it is also left out of the photo slots, so the photo share
 // moves to the others. Without tagged candidates, with none that fits, or with motionOpener: false the allocation is
 // exactly as without this rule.
+// Soft preferences, never a reason to leave a slot empty: the opening shot takes a landscape window over a portrait one
+// of the same or a worse role rank; with spread, a montage slot (part 'montage', or not videoOnly) takes the opening's
+// and the credit's sources only when no other source fits at any use count, and a reused source first offers windows
+// AV_REUSE_APART s from its earlier ones (or in the source's other half), then any window.
 function avAllocate(opts) {
   const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
   const finite = v => typeof v === 'number' && isFinite(v);
@@ -2255,10 +2412,13 @@ function avAllocate(opts) {
   const spread = opts.spread !== false;
   const pool = candidates.filter(c => c.sourceDuration > 0);
   // Each candidate's seeded tie-break jitter, hashed once per call rather than per slot, tier and use count.
-  const jitter = pool.map(c => avHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05);
+  const jitter = pool.map(c => avHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * AV_JITTER);
   // Photo-only pools (no usable video) may play any number of photos in a row.
   const runLimited = pool.length > 0;
   let missing = 0, fillerShots = 0, photoShots = 0;
+  // Source sizes (opts.sizes: rid -> { width, height }); an unknown size counts as landscape.
+  const sizes = opts.sizes || {};
+  const landscape = c => { const z = sizes[c.rid]; return !(z && z.width > 0 && z.height > 0 && z.height >= z.width); };
   // The motion opener (see above). Nothing is used yet, so this is the pick the first slot's loop turn would make with
   // the motion rank.
   const first = opts.slots[0];
@@ -2278,7 +2438,7 @@ function avAllocate(opts) {
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
   // `exclude` lists the neighbouring shots' sources, which may not be used; `level`, when not null, keeps only sources
   // used exactly that many times.
-  function searchVideo(slot, rankOf, exclude, level) {
+  function searchVideo(slot, rankOf, exclude, level, accept) {
     let best = null;
     for (let i = 0; i < pool.length; i++) {
       const c = pool[i];
@@ -2290,12 +2450,25 @@ function avAllocate(opts) {
       const end = start + slot.seconds;
       if ((used[c.rid] || []).some(([a, b]) => start < b + gap && end > a - gap)) continue;
       const repeats = recent.filter(r => r === c.rid).length;
-      const value = c.score - rank * 0.15 - repeats * 0.2 + jitter[i];
+      if (accept && !accept(c, start, end)) continue;
+      const value = c.score - rank * AV_ROLE_STEP - repeats * AV_REPEAT_STEP + jitter[i];
       const better = !best || value > best.value + 1e-12 ||
         (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)));
-      if (better) best = { value, c, start, end };
+      if (better) best = { value, c, start, end, rank };
+    }
+    // The opening shot prefers a landscape source (less of it is cropped away, and its letterbox opens on more of the
+    // picture): a portrait pick gives way to the best landscape window of the same or a better role rank, if any.
+    if (best && slot === first && !landscape(best.c)) {
+      const rankAt = best.rank;
+      const wide = searchVideo(slot, c => (landscape(c) && rankOf(c) >= 0 && rankOf(c) <= rankAt ? rankOf(c) : -1), exclude, level, accept);
+      if (wide) return wide;
     }
     return best;
+  }
+  // A reused window far enough from the clip's earlier windows (AV_REUSE_APART, or the clip's other half).
+  function apart(c, start, end) {
+    const mid = (start + end) / 2, half = c.sourceDuration / 2;
+    return (used[c.rid] || []).every(([a, b]) => Math.abs(mid - (a + b) / 2) >= AV_REUSE_APART - 1e-9 || (mid < half) !== ((a + b) / 2 < half));
   }
   // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos. A photo is never a
   // neighbour's source, since each photo is used once.
@@ -2323,9 +2496,14 @@ function avAllocate(opts) {
     const roles = [slot.role].concat(AV_ROLE_FALLBACK[slot.role] || []);
     const exclude = [pos - 1, pos + 1].filter(i => picks[i]).map(i => picks[i].rid);
     const photo = () => searchPhoto(slot);
-    const preferred = level => () => searchVideo(slot, c => roles.indexOf(c.role), exclude, level);
-    const anyReal = level => () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude, level);
-    const filler = level => () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1), exclude, level);
+    const preferred = (level, accept) => () => searchVideo(slot, c => roles.indexOf(c.role), exclude, level, accept);
+    const anyReal = (level, accept) => () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude, level, accept);
+    const filler = (level, accept) => () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1), exclude, level, accept);
+    // Reuse preferences (spread only, sources already used): a montage shot leaves the opening's and the credit's
+    // sources alone while another source fits, and a reused source shows a window apart from its earlier ones.
+    const montage = slot.part ? slot.part === 'montage' : !slot.videoOnly;
+    const bookends = montage ? [0, 1].filter(i => i !== pos && picks[i] && picks[i].kind !== 'photo').map(i => picks[i].rid) : [];
+    const notBookend = c => bookends.indexOf(c.rid) < 0;
     // Tiers, best first. A photo slot puts an unused photo first. With spread (the default) the video tiers run once
     // per use count, fewest first: preferred-role hits, any-role hits, then fillers of sources used that often, so
     // role and score only rank sources used equally often and an unused clip (even by a filler) beats any reuse.
@@ -2335,7 +2513,12 @@ function avAllocate(opts) {
     const tiers = photoSlots[slot.index] ? [photo] : [];
     if (spread) {
       const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => Number(x) - Number(y));
-      for (const level of levels) tiers.push(preferred(level), anyReal(level), filler(level));
+      // Per use count (fewest first): windows apart from the source's earlier ones, then any. The bookends' sources join
+      // only once no other source fits at any count (unused sources always come first: they are never bookends).
+      const byLevel = accept => level => (level > 0 ? [preferred(level, (c, a, z) => accept(c) && apart(c, a, z)), anyReal(level, (c, a, z) => accept(c) && apart(c, a, z)),
+        filler(level, (c, a, z) => accept(c) && apart(c, a, z))] : []).concat([preferred(level, accept), anyReal(level, accept), filler(level, accept)]);
+      if (bookends.length) for (const level of levels) tiers.push(...byLevel(notBookend)(level));
+      for (const level of levels) tiers.push(...byLevel(() => true)(level));
       tiers.push(photo);
     } else {
       tiers.push(preferred(null), anyReal(null), photo, filler(null));
@@ -2368,7 +2551,7 @@ function avAllocate(opts) {
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
 // approxBpm? (avApproxTempo), fps, pace: 'cinematic' (default) | 'quick', requested (montage shots, avMontageShots),
 // sectionStart?, usableEnd? (Infinity / omitted without music), onsets?, onsetThresholds?, lowConfidence?, seed,
-// photoShare?, motionOpener? (avAllocate) }. There is no credit option: Credit off only drops the credit graphic, the
+// photoShare?, motionOpener?, sizes? (avAllocate) }. There is no credit option: Credit off only drops the credit graphic, the
 // 2-beat credit shot stays, so the plan never depends on it.
 // Eligibility (spec 3): the opening, credit and final shots (the 3 bookends) are video only; photos only fill montage
 // shots. Every shot count here is montage shots: `shots`, `requested`, `musicShots` and `usableShots` exclude the 3
@@ -2462,15 +2645,15 @@ function avPlanBuild(opts) {
     if (n > top) continue;
     const tpl = avTemplate({ bpm: tempo, pace, montageShots: n });
     const schedule = scheduleOf(tpl);
-    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: tpl.videoOnly[i] }));
+    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, part: tpl.parts[i], seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: tpl.videoOnly[i] }));
     for (const attempt of attempts) {
-      let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: opts.motionOpener });
+      let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: opts.motionOpener, sizes: opts.sizes });
       let name = attempt.name;
       // The motion opener never costs length: an attempt it leaves short is retried without it (named
       // '<attempt>-no-opener') before the next attempt or a shorter montage. Untagged pools never retry.
       if (alloc.missing > 0 && motionTagged) {
         if (n === least) tally(alloc, tpl);
-        alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: false });
+        alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: false, sizes: opts.sizes });
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
@@ -2547,14 +2730,14 @@ function avProgress(stepId, fraction) {
 // candidates. Each hit's score is min-max normalised over the run's motion hits (0 for the weakest, 1 for the
 // strongest; 0 for all when they are equal), and a role candidate gains AV_MOTION_BONUS times the best normalised motion
 // hit on the same clip within AV_MOTION_REACH seconds of its centre (the allocator centres a shot on its candidate, so
-// this stands in for the shot's window +/- 0.5 s). The bonus is a tie-break: at most 0.1, below the allocator's 0.15
-// step between roles minus its 0.05 seeded jitter, so it never changes the role order, only which of two similar
-// moments of a clip comes first. It is added before the planner's seeded tie-break, so a build stays deterministic. A
+// this stands in for the shot's window +/- 0.5 s). The bonus is a tie-break: at most 0.2, below the allocator's 0.3
+// step between roles (planner AV_ROLE_STEP) minus its 0.05 seeded jitter, so it never changes the role order, only which
+// of two similar moments (or clips) of the same role comes first. It is added before the planner's seeded tie-break, so a build stays deterministic. A
 // candidate with a bonus also carries `motion` (its normalised motion, > 0): the planner opens the video on the best
 // such window (avAllocate's motion opener). A clip whose only hits are motion hits keeps a stub row (rid and
 // sourceDuration, no time or score): the planner skips it as a candidate but still makes the clip's filler windows.
 const AV_MOTION_ROLE = 'motion';
-const AV_MOTION_BONUS = 0.1;
+const AV_MOTION_BONUS = 0.2;
 const AV_MOTION_REACH = 0.75;
 function avMotionBonus(list) {
   const finite = v => typeof v === 'number' && isFinite(v);
@@ -2659,7 +2842,7 @@ const MOTION_OPTIONS = [
 // (STRINGS `param.<key>`), frozen at the Build click.
 const AV_ADJUST_LABELS = {
   motion: "Motion", motionStrength: "Motion strength", reveal: "Reveal", letterbox: "Letterbox reveal", look: "Look strength",
-  warmth: "Warmth", fade: "Fade out", kicker: "Kicker", title: "Title", tagline: "Tagline", titleColor: "Title colour",
+  warmth: "Warmth", fade: "Fade out", kicker: "Top line", title: "Title", tagline: "Bottom line", titleColor: "Title colour",
   textColor: "Text colour", size: "Size", font: "Font", speed: "Decode speed", shadow: "Shadow", prefix: "Credit prefix", name: "Name",
 };
 // Why a plan cannot be built (planner avPlanBuild reasons). English for dev/driveAdapter.mjs; the panel says STRINGS
@@ -2698,19 +2881,33 @@ function avOpeningSeconds(plan, fps, sectionStart) {
     sectionStart: typeof sectionStart === 'number' ? sectionStart : undefined, cuts: plan.schedule.cuts });
   return (s.slots[0].endFrame - s.slots[0].startFrame) / fps;
 }
+// Frame sizes by rid ({ width, height }) from an inventory: its videos and the photos it has measured. Photo sizes not
+// measured yet stay out (assemble.js measures those itself). The planner's sizes (the landscape opening) and assemble's crops.
+function avSizesOf(inventory) {
+  const sized = ((inventory && inventory.resources) || []).concat(((inventory && inventory.photos) || []).filter(r => r.width > 0 && r.height > 0));
+  // Object({}): an untyped map (the panel type-checks this block).
+  const out = Object({});
+  for (const r of sized) out[r.rid] = { width: r.width, height: r.height };
+  return out;
+}
+// The fraction of a source's height the 16:9 canvas shows once assemble.js cover-crops it, to 4 decimals: 1 for a
+// source as wide as 16:9 or wider (cropped at the sides only) and for an unknown size; 4:3 0.75, 9:16 0.3164. The
+// letterbox reveal remaps its band with it (letterbox-reveal.tsx `visible`).
+function avVisibleFraction(size) {
+  if (!size || !(size.width > 0) || !(size.height > 0)) return 1;
+  return Math.round(Math.min(1, (size.width / size.height) / (AV_W / AV_H)) * 1e4) / 1e4;
+}
 // assemble.js cfg. o: { projectId, draftName, plan, inventory (resources and photos with their sizes), music
 // ({ resourceId } from ensure-audio.js, or null), sectionStart, clipSound }.
 function avAssembleConfig(o) {
-  // Photo sizes the inventory has not measured yet stay out; assemble.js measures those itself.
-  const sized = (o.inventory.resources || []).concat((o.inventory.photos || []).filter(r => r.width > 0 && r.height > 0));
-  const crops = {};
-  for (const r of sized) crops[r.rid] = { width: r.width, height: r.height };
+  const crops = avSizesOf(o.inventory);
   return { projectId: o.projectId, draftName: o.draftName, picks: o.plan.picks, boundaries: o.plan.schedule.cuts, crops, clipSound: o.clipSound,
     ambientDb: AMBIENT_DB, music: o.music ? { resourceId: o.music.resourceId, sectionStart: o.sectionStart == null ? 0 : o.sectionStart } : null,
     musicFadeOut: MUSIC_FADE_OUT };
 }
 // decorate.js cfg. o: { sequenceId, videoEnd, fps (assemble's), plan, presets (presets.json), tsx: { title, credit,
-// letterbox, look, fade, motion }, fonts: { file: WOFF2 data }, sizes: { rid: { width, height } }, provenance, frozen }.
+// letterbox, look, fade, motion }, fonts: { file: WOFF2 data }, sizes: { rid: { width, height } }, openingSize (the opening
+// pick's { width, height }, or null), provenance, frozen }.
 // frozen (the inputs at the Build click): { seed, preset, fields: { kicker, title, tagline }, credit: { on, prefix?, name },
 // clipSound, look: { on, strength }, sectionStart (null without music), labels (adjustLabels, English without), motionOptions }.
 function avDecorateConfig(o) {
@@ -2749,7 +2946,7 @@ function avDecorateConfig(o) {
     ],
   } : null;
   const letterbox = { tsx: o.tsx.letterbox, parameters: { revealStart: timing.revealStart, revealEnd: timing.revealEnd,
-    revealSeconds: timing.revealEnd - timing.revealStart, enabled: true } };
+    revealSeconds: timing.revealEnd - timing.revealStart, enabled: true, visible: avVisibleFraction(o.openingSize) } };
   // The look's strength is the one frozen at Build (the panel's slider, else the preset's); its warmth the preset's.
   const look = f.look && f.look.on ? { tsx: o.tsx.look, strength: typeof f.look.strength === 'number' ? f.look.strength : avLookStrength(p),
     warmth: (p.look && typeof p.look.warmth === 'number') ? p.look.warmth : 1 } : null;
@@ -3155,10 +3352,11 @@ function avcKoAdvance(kw, ch) {
   var a = kw.adv ? kw.adv[ch] : undefined;
   return typeof a === "number" && isFinite(a) && a > 0.2 && a < 2 ? a : 1;
 }
-// The credit's text as drawn (Latin in capitals, Korean as typed), or "" when empty.
+// The credit's text as drawn, or "" when empty: Latin in capitals even next to Hangul (Hangul has no case, so it stays
+// as typed), e.g. "ARCHIVED BY KIM <Korean name>".
 function avcFullText(data) {
   var text = [avcText(data, "prefix"), avcText(data, "name")].filter(Boolean).join(" ");
-  return AVC_HANGUL_RE.test(text) ? text : text.toUpperCase();
+  return text.toUpperCase();
 }
 // Measures the wide glyphs on a 2D canvas with the exact stack and weight the credit draws them with (call it once
 // the fonts are loaded): { koInk, koAdvances } to merge into `data`, or null in Node or without a wide glyph.
@@ -3300,13 +3498,18 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file; a failure only leaves it behind.
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
 async function hostRemove(path) {
-  try {
-    const fs = hostDI()?.FileSystem;
-    if (typeof fs?.removeFile === "function") await fs.removeFile({ filePath: path });
-    else if (typeof fs?.unlinkSync === "function") fs.unlinkSync(path);
-  } catch { /* best effort */ }
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
 }
 // The skills folder named by SELECTS_USER_SKILLS_ROOT, through the host shell, or null. Windows runs cmd.exe, where
 // `echo(` prints an empty line for an unset variable (a plain `echo` would print "ECHO is on."); macOS runs the login
@@ -3396,8 +3599,10 @@ async function decodeOwnMusic(path: string, dataDir: string | null, signal: Abor
     const Ctx: any = (window as any).OfflineAudioContext || (window as any).webkitOfflineAudioContext;
     if (!Ctx) throw new Error("this panel cannot decode audio");
     const bytes = await readBytes(path);
+    if (signal.aborted) throw new Error("cancelled");
     const ctx = new Ctx(1, 1, OWN_RATE);
     const buf: AudioBuffer = await ctx.decodeAudioData(bytes.slice().buffer);
+    if (signal.aborted) throw new Error("cancelled");
     const n = Math.min(buf.length, Math.round(OWN_MAX_SECONDS * buf.sampleRate));
     const out = new Float32Array(n);
     for (let c = 0; c < buf.numberOfChannels; c++) {
@@ -3406,17 +3611,21 @@ async function decodeOwnMusic(path: string, dataDir: string | null, signal: Abor
     }
     if (!out.length) throw new Error("no audio");
     return out;
-  } catch (e) { throw first || e; }
+  } catch (e) { throw signal.aborted ? new Error("cancelled") : first || e; }
 }
 // beat-detect's analysis of the samples in a Web Worker (avBeatWorkerSource), never on the panel's thread: the panel
 // CSP allows blob: workers (cutback-client panelSandbox.ts: worker-src * data: blob:). A host that refuses the worker
-// rejects the analysis, and the panel falls back to fixed timing. `signal` aborts it (worker.terminate()).
-function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null): Promise<any> {
+// rejects the analysis, and the panel falls back to fixed timing. `signal` aborts it (worker.terminate()); so does
+// `timeoutMs` (BEAT_TIMEOUT_MS): a worker that never answers rejects with code "beat-timeout" (fixed timing then).
+const BEAT_TIMEOUT_MS = 60000;
+function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = BEAT_TIMEOUT_MS): Promise<any> {
   return new Promise((resolve, reject) => {
     let worker: Worker | null = null, url: string | null = null, done = false;
+    let timer: any = null;
     const finish = (fn: () => void) => {
       if (done) return;
       done = true;
+      if (timer) clearTimeout(timer);
       try { worker?.terminate(); } catch { /* gone */ }
       if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
       signal?.removeEventListener("abort", onAbort);
@@ -3431,6 +3640,7 @@ function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal 
     } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
     worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.error ? reject(new Error(e.data.error)) : resolve(e.data && e.data.ok)));
     worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
+    timer = setTimeout(() => finish(() => { const err: any = new Error("the beat detection took too long"); err.code = "beat-timeout"; reject(err); }), timeoutMs);
     worker.postMessage({ samples, rate: OWN_RATE });
   });
 }
@@ -3864,8 +4074,13 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     const at = progressRef.current;
     return (l) => (at ? t(l, "stoppedAt", { step: at.current + 1, total: AV_BUILD_STEPS.length, name: t(l, "step." + at.id), detail: sayError(l, e) }) : sayError(l, e));
   };
-  const endRun = (pid: string) => {
-    if (projectRef.current !== pid) return;
+  // Each build or Finish run takes a new epoch, and a Project switch bumps it too: a run that was superseded (the
+  // Project changed, even back to the same one, while it ran) fails its next check and never clears the busy state or
+  // the progress of the run that replaced it.
+  const runEpochRef = React.useRef(0);
+  const runLive = (pid: string, epoch: number) => projectRef.current === pid && runEpochRef.current === epoch;
+  const endRun = (pid: string, epoch: number) => {
+    if (!runLive(pid, epoch)) return;
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
   };
 
@@ -3925,6 +4140,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
     setOnly(null); setOnlyPhotos(null);
     invSigRef.current = null; photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false);
+    runEpochRef.current++;
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
     if (!projectId) return;
     let alive = true;
@@ -4279,14 +4495,16 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     // The gate for the seed this build uses (Build: seed; Try other shots: seed + 1).
     const gate = nextSeed === seed ? blockReason : anotherBlock;
     if (gate) { setStatus({ tone: "error", say: gate }); return; }
-    const pid = projectId;
-    const check = () => { if (projectRef.current !== pid) throw STALE; };
+    const pid = projectId, epoch = ++runEpochRef.current;
+    const check = () => { if (!runLive(pid, epoch)) throw STALE; };
     // Every input as it is at Build. The build and a later "Finish title and look" read only this; the Inspector labels
     // are written in the UI language of this moment and do not follow a later switch.
     const frozen = Object.freeze({
       pid, seed: nextSeed, preset, fields: { kicker: titleFields.kicker || "", title: titleFields.title || "", tagline: titleFields.tagline || "" },
       credit: { on: creditUsed, prefix: prefixText.trim(), name: nameText.trim() }, clipSound, look: { on: look, strength }, usePhotos, only, onlyPhotos,
       music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null,
+      // A bundled cue's length (manifest): ensure-audio.js takes a same-named Project file for the cue only at this length.
+      musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,
       sectionStart: musicStart, pace, length, requested: fit.requested,
       labels: adjustLabelsFor(L), motionOptions: motionOptionsFor(L),
       draftName: draftNameOf(titleFields.title, chosen.label, new Date()),
@@ -4316,8 +4534,9 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
       // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. Motion hits
       // become a tie-break bonus on the role candidates first (avMotionBonus).
+      const sizes = avSizesOf(inventory);
       const plan: any = avPlanBuild({ candidates: avMotionBonus(found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30,
-        pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });
+        pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed), sizes });
       if (!plan.ok) {
         const failed = found.failed.length;
         // Whole sentences joined with `gap` (no space after a full stop in ja and zh).
@@ -4327,7 +4546,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       }
       advance("music", 0);
       const music = frozen.musicPath == null ? null
-        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath }), true);
+        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, duration: frozen.musicDuration }), true);
       check();
       advance("music", 1);
       advance("draft", 0);
@@ -4343,20 +4562,21 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
         try { saved = await findDraftByName(pid, frozen.draftName); } catch { saved = null; }
         check();
         if (!saved) throw lost || uiError((l) => t(l, "draftNoId", { name: frozen.draftName }));
-        a = { ...saved, notes: [...(a?.notes || []), "the Draft was found after its reply was lost"] };
+        a = { ...saved, notes: a?.notes || [], recovered: true };
       }
       if (!(a.totalFrames > 0)) throw uiError((l) => t(l, "draftEmpty", { name: frozen.draftName }));
       // The planner drops montage shots when the footage cannot fill all the music fits (plan.musicShots); tell the user
       // the real length at the Draft fps.
       const shortened = plan.shots < plan.musicShots ? { shots: plan.shots, of: plan.musicShots, seconds: a.totalFrames / a.fps } : null;
       advance("draft", 1);
+      // The opening's frame size, as it was at Build (a later "Finish title and look" may meet another inventory).
       const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, plan, notes: a.notes || [], link: null, shortened,
-        unchecked: found.failed.length };
+        unchecked: found.failed.length, openingSize: sizes[plan.picks[0]?.rid] || null, recovered: !!a.recovered };
       setResult(res);
       await decorate(res, check);
     } catch (e: any) {
-      if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) });
-    } finally { endRun(pid); }
+      if (e !== STALE && runLive(pid, epoch)) setStatus({ tone: "error", say: stopAt(e) });
+    } finally { endRun(pid, epoch); }
   }
 
   // Another version: same clips and cached scene search, a new seed. The previous result goes first, then the
@@ -4373,11 +4593,12 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     if (busyRef.current || !result || !assets || !roots) return;
     const pid = projectId;
     if (result.frozen.pid !== pid) return;
-    const check = () => { if (projectRef.current !== pid) throw STALE; };
+    const epoch = ++runEpochRef.current;
+    const check = () => { if (!runLive(pid, epoch)) throw STALE; };
     busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
     try { await decorate(result, check); }
-    catch (e: any) { if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) }); }
-    finally { endRun(pid); }
+    catch (e: any) { if (e !== STALE && runLive(pid, epoch)) setStatus({ tone: "error", say: stopAt(e) }); }
+    finally { endRun(pid, epoch); }
   }
 
   // Commit 2 (mute when Clip sound is Off, the decode title, the credit, the letterbox reveal, photo and shot motion,
@@ -4390,7 +4611,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       const fonts = await allFonts(roots!.plugin, assets.presets);
       check();
       const cfg = avDecorateConfig({ sequenceId: res.sequenceId, videoEnd: res.videoEnd, fps: res.fps, plan: res.plan, presets: assets.presets, tsx: assets.tsx, fonts,
-        sizes: { ...photoSizesRef.current }, frozen: f,
+        sizes: { ...photoSizesRef.current }, openingSize: res.openingSize || null, frozen: f,
         provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart,
           pace: f.pace, length: f.length, seed: f.seed, clipSound: f.clipSound, look: f.look.on, credit: f.credit.on } });
       await run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
@@ -4455,7 +4676,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     const scored = avMotionBonus(searched ? searched.list : []);
     const planAt = (s: number) => {
       const p: any = avPlanBuild({ candidates: scored.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30,
-        pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(s) });
+        pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(s), sizes: avSizesOf(inventory) });
       // A search with failed clips is retried by Build, so its shortfall does not block Build yet.
       return { ...p, retryable: !!(searched && searched.failed.length) };
     };
@@ -4495,7 +4716,8 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   // Requested vs fitted montage shots, then the footage's own fit once it is known. Seconds with one decimal.
   const tenths = (s: number) => Math.round(s * 10) / 10;
   const lengthName = length === "short" ? t(L, "length.short") : length === "long" ? t(L, "length.long") : t(L, "length.standard");
-  const fitLine = !assets ? null
+  // Your own music before a file is chosen and analysed has no length yet: no fit line (and no failure text).
+  const fitLine = !assets || (musicKind === "own" && (!ownMusic || !ownGrid)) ? null
     : musicKind !== "none" && !fitted ? t(L, "fail.music-too-short")
     : fitted < fit.top ? t(L, "fitPartial", { length: lengthName, fitted, count: fit.top, seconds: tenths(videoSeconds) })
     : t(L, "fitFull", { length: lengthName, count: fit.top, seconds: tenths(videoSeconds) });
@@ -4577,8 +4799,10 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
                 <span aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", maxWidth: 72, height: 26, borderRadius: 4,
                   background: PREVIEW_BG, color: p.colors.title, fontFamily: AV_TITLE.avFontStack(face.family), fontWeight: face.weight, fontSize: 16, letterSpacing: 0.5,
                   lineHeight: 1 }}>{TILE_SAMPLE}</span>
-                <span style={{ fontSize: 12, lineHeight: 1.2, textAlign: "center", overflowWrap: "anywhere", wordBreak: "keep-all", display: "-webkit-box",
-                  WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as any}>{tOr(L, "preset." + p.id, p.label)}</span>
+                {/* The preset names are English in every language (lang="en"): at the docked width (~180 px, three tiles) a
+                    long one ("Cinematic") breaks with a hyphen over at most 2 lines inside the box. */}
+                <span lang="en" style={{ fontSize: 12, lineHeight: 1.2, textAlign: "center", overflowWrap: "anywhere", hyphens: "auto", display: "-webkit-box",
+                  WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", maxWidth: "100%" } as any}>{tOr(L, "preset." + p.id, p.label)}</span>
               </button>
             );
           })}
@@ -4731,6 +4955,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
         <ui.Message tone="muted">{t(L, "shortened", { fitted: result.shortened.shots, count: result.shortened.of, seconds: tenths(result.shortened.seconds) })}</ui.Message>
       ) : null}
       {result?.notes?.length ? <ui.Message tone="muted">{t(L, "note", { detail: result.notes.join("; ") })}</ui.Message> : null}
+      {result?.recovered ? <ui.Message tone="muted">{t(L, "draftRecovered")}</ui.Message> : null}
       {result?.unchecked ? <ui.Message tone="muted">{t(L, "unchecked", { count: result.unchecked })}</ui.Message> : null}
       {blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}
       <ui.Message tone="muted">{t(L, "createsDraft")}</ui.Message>
@@ -4833,19 +5058,23 @@ function templateFootage(context: any) {
   return files;
 }
 
+// A template run's step (its status line and the "stopped at" message): "files" (reading the chosen files) or a build
+// step of AV_BUILD_STEPS (STRINGS `step.<id>`).
+function templateStepName(lang: Lang, step: string) { return step === "files" ? t(lang, "tpl.files") : t(lang, "step." + step); }
+
 // The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer run
-// (or the frame closing) replaced this one. `say` names the current step for the status line.
+// (or the frame closing) replaced this one. `say` names the current step (templateStepName) for the status line.
 async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
   // The UI language when the run starts: its messages and the Inspector labels written into the Draft use it.
   const bl = uiLang(context);
   const pid: string | null = context?.projectId ?? null;
   if (!pid) throw templateIssue(t(bl, "openProject"));
   const files = templateFootage(context);
-  if (!files.length) throw templateIssue("Choose videos or photos for the footage, then try again.");
+  if (!files.length) throw templateIssue(t(bl, "tpl.noFootage"));
   const run = (summary: string, script: string, allowCommit = false) => runTemplateStep(sdk, summary, script, allowCommit);
   const options = context?.template?.options || {};
 
-  say("Reading the chosen files");
+  say("files");
   const roots = await locateRoots(sdk);
   check();
   const assets = await loadAssets(roots.plugin);
@@ -4853,10 +5082,10 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   // The track, length and style chosen on the app's page; an unknown or missing one gets the panel's default.
   const cues: any[] = assets.manifest.cues || [];
   const cue = cues.find((c) => c.id === options.track) || cues.find((c) => c.id === DEFAULT_CUE) || cues[0];
-  if (!cue) throw templateIssue("Archive Vlog's music is missing; reinstall the plugin and try again.");
+  if (!cue) throw templateIssue(t(bl, "tpl.noMusic"));
   const length: "short" | "standard" | "long" = options.length === "short" || options.length === "long" ? options.length : DEFAULT_LENGTH;
   const chosen = avPreset(assets.presets, options.title);
-  if (!chosen) throw templateIssue("Archive Vlog's title styles are missing; reinstall the plugin and try again.");
+  if (!chosen) throw templateIssue(t(bl, "tpl.noStyles"));
 
   // Handed ids to the Project's aliases; the files the first pass skipped get one more.
   const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
@@ -4873,7 +5102,7 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   const aliases = [...new Set(resolved.map((r) => r.alias))];
   const known: Record<string, { width: number; height: number }> = {};
   for (const r of resolved) if (r.size) known[r.alias] = r.size;
-  if (!aliases.length) throw templateIssue("None of the chosen files could be found in this Project. Choose them again, then try again.");
+  if (!aliases.length) throw templateIssue(t(bl, "tpl.notFound"));
   // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
   const inventory = await run("Read footage", fill(assets.scripts.inventoryJs, { projectId: pid, only: aliases, known, measureMs: INVENTORY_MEASURE_MS }));
   check();
@@ -4893,13 +5122,13 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
 
   // Scene search over the handed videos (with the motion query). Nobody can press Build again, so videos whose search
   // failed get one more try.
-  say("Choosing shots");
+  say("shots");
   const rids: string[] = inventory.resources.map((r: any) => r.rid);
   const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
   const search = async (todo: string[]) => {
     const list: any[] = []; const failed: string[] = [];
     for (let i = 0; i < todo.length; i += SEARCH_BATCH) {
-      say("Choosing shots", i + "/" + todo.length + (todo.length === 1 ? " video" : " videos"));
+      say("shots", t(bl, "videosChecked", { done: i, count: todo.length }));
       const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: todo.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4 }));
       check();
       list.push(...r.candidates); failed.push(...r.failed);
@@ -4914,19 +5143,21 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   }
   if (found.failed.length) console.info("[archive-vlog] template run: scene search failed for", found.failed.join(", "));
   const candidates = found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }));
+  const frames = { ...sizes, ...avSizesOf(inventory) };
   const plan: any = avPlanBuild({ candidates: avMotionBonus(candidates).concat(photoCandsOf(inventory, null, true)), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm,
     fps: 30, pace, requested: fit.requested, sectionStart: musicStart, usableEnd: grid.usableEnd, onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !fit.gridded,
-    seed: String(TEMPLATE_SEED) });
+    seed: String(TEMPLATE_SEED), sizes: frames });
   if (!plan.ok) {
-    const waiting = unanalysed ? " " + unanalysed + (unanalysed === 1 ? " video is" : " videos are") + " not analyzed yet, so it could not be used." : "";
-    throw templateIssue(failText(bl, plan.reason, plan) + waiting);
+    // Whole sentences joined with `gap` (no space after a full stop in ja and zh).
+    throw templateIssue([failText(bl, plan.reason, plan), unanalysed ? t(bl, "tpl.notAnalysed", { count: unanalysed }) : ""].filter(Boolean).join(t(bl, "gap")));
   }
 
   // Commit 1: the music, then the clips on a new Draft.
-  say("Adding music");
-  const music = await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: pjoin(roots.plugin, "assets", "cues", cue.file) }), true);
+  say("music");
+  const music = await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: pjoin(roots.plugin, "assets", "cues", cue.file),
+    duration: typeof cue.duration === "number" ? cue.duration : null }), true);
   check();
-  say("Making the Draft");
+  say("draft");
   const fields: Record<string, string> = {};
   for (const fl of chosen.fields) fields[fl.key] = fieldClip(String(fl.initial ?? ""), fl.max);
   const draftName = draftNameOf(fields.title, chosen.label, new Date());
@@ -4934,28 +5165,26 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   // Never resent: the reply may be lost after the Draft was saved.
   const a = await run("Assemble the Archive Vlog", fill(assets.scripts.assembleJs, avAssembleConfig({ projectId: pid, draftName, plan, inventory, music, sectionStart: musicStart, clipSound })), true);
   check();
-  if (!a.sequenceId || !(a.totalFrames > 0)) throw templateIssue("The Draft \"" + draftName + "\" may have been saved without its title. Open it from the Drafts list, or try again.");
+  if (!a.sequenceId || !(a.totalFrames > 0)) throw templateIssue(t(bl, "tpl.noTitle", { name: draftName }));
 
   // Commit 2: the title, credit, letterbox reveal, motion, fade and look, as the panel's Finish step adds them.
-  say("Adding title and look");
+  say("look");
   const fonts = Object.fromEntries(await Promise.all(fontFiles(assets.presets).map(async (f) => [f, (await readText(roots.plugin, "assets", "fonts", f)).replace(/\s+/g, "")])));
   check();
-  const frozen = { seed: TEMPLATE_SEED, preset: chosen.id, fields, credit: { on: true, name: chosen.credit?.name || "" }, clipSound,
+  // No credit: nobody can type a name in a template run, and the preset's sample name ("YOURNAME") is never published.
+  const frozen = { seed: TEMPLATE_SEED, preset: chosen.id, fields, credit: { on: false, name: "" }, clipSound,
     look: { on: true, strength: avLookStrength(chosen) }, sectionStart: musicStart, labels: adjustLabelsFor(bl), motionOptions: motionOptionsFor(bl) };
-  const cfg = avDecorateConfig({ sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, plan, presets: assets.presets, tsx: assets.tsx, fonts, sizes, frozen,
+  const cfg = avDecorateConfig({ sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, plan, presets: assets.presets, tsx: assets.tsx, fonts, sizes,
+    openingSize: frames[plan.picks[0]?.rid] || null, frozen,
     provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: chosen.id, cue: cue.id, sectionStart: musicStart, pace, length, seed: TEMPLATE_SEED, clipSound,
-      look: true, credit: true } });
-  const finish = () => run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
-  // decorate.js skips what an earlier attempt added, so a failed attempt is tried once more.
+      look: true, credit: false } });
+  // Sent once, never resent: a lost reply may follow a landed commit, and a resend would race it.
   try {
-    await finish();
+    await run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
   } catch (e) {
-    console.warn("[archive-vlog] Add title and look failed, trying again:", errorText(e));
+    console.warn("[archive-vlog] Add title and look failed:", errorText(e));
     check();
-    try { await finish(); } catch (e2) {
-      console.warn("[archive-vlog] Add title and look failed again:", errorText(e2));
-      throw templateIssue("The Draft was made, but its title and look could not be added; try again.");
-    }
+    throw templateIssue(t(bl, "tpl.finishFailed"));
   }
   check();
   // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
@@ -4965,7 +5194,7 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
 // What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
 // exactly once, unless a newer run (or the frame closing) replaced it; then it reports nothing.
 function TemplateRun({ sdk, context }: any) {
-  const [runStatus, setRunStatus] = React.useState("Starting");
+  const [runStatus, setRunStatus] = React.useState(() => t(uiLang(context), "working"));
   const begun = React.useRef<string | null>(null);
   const alive = React.useRef(true);
   // The latest context, so a run reports only while it is still the current one.
@@ -4976,16 +5205,19 @@ function TemplateRun({ sdk, context }: any) {
   React.useEffect(() => {
     if (runId == null || begun.current === runId) return;
     begun.current = runId;
-    const snapshot = context;
+    const snapshot = context, bl = uiLang(context);
     const live = () => alive.current && latest.current?.template?.runId === runId;
     const check = () => { if (!live()) throw STALE; };
-    let ended = false, step = "starting";
-    const say = (text: string, detail?: string) => { step = text; if (live()) setRunStatus(text + (detail ? " (" + detail + ")" : "")); };
+    let ended = false, step: string | null = null;
+    const say = (id: string, detail?: string) => {
+      step = id;
+      if (live()) setRunStatus(detail ? t(bl, "tpl.stepDetail", { name: templateStepName(bl, id), detail }) : templateStepName(bl, id));
+    };
     const end = (outcome: TemplateOutcome | null) => {
       if (ended) return;
       ended = true;
       if (!outcome || !live()) return;
-      setRunStatus("sequenceId" in outcome ? "Done" : outcome.error);
+      setRunStatus("sequenceId" in outcome ? t(bl, "tpl.done") : outcome.error);
       try { sdk.finishTemplate(outcome); } catch (e) { console.warn("[archive-vlog] finishTemplate failed:", errorText(e)); }
     };
     (async () => {
@@ -4993,10 +5225,10 @@ function TemplateRun({ sdk, context }: any) {
         end(await runArchiveVlogTemplate(sdk, snapshot, check, say));
       } catch (e: any) {
         if (e === STALE) { end(null); return; }
-        console.warn("[archive-vlog] template run failed while " + step + ":", errorText(e), e);
-        end({ error: e?.forPerson ? String(e.message) : "Archive Vlog stopped while " + step.charAt(0).toLowerCase() + step.slice(1) + "; try again." });
+        console.warn("[archive-vlog] template run failed at " + (step || "the start") + ":", errorText(e), e);
+        end({ error: e?.forPerson ? String(e.message) : step ? t(bl, "tpl.stoppedAt", { step: templateStepName(bl, step) }) : t(bl, "tpl.stopped") });
       } finally {
-        end({ error: "Archive Vlog stopped before the Draft was ready; try again." });
+        end({ error: t(bl, "tpl.stopped") });
       }
     })();
   }, [runId]);

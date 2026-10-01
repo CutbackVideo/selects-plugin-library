@@ -32,16 +32,18 @@ const lay = async (rate, final) => {
     const cap = pick.sourceDuration > 0 ? Math.floor(pick.sourceDuration * fps + 1e-6) - want : Infinity;
     const k = pick.kind === 'photo' ? 0 : Math.max(0, Math.min(Math.round(pick.startSeconds * fps), cap));
     await d.insertResource({ resourceId: pick.rid, sourceRange: { startSeconds: k / fps, endSeconds: (k + want) / fps } });
+    // A whole-frame window places exactly `want` frames, so the end is tracked without reading every clip again (a
+    // read per insert costs a long Draft most of run_script's deadline). The first clip is read: on the `final` pass
+    // after a rate change it was aimed at the old rate. The end is read once more after the loop.
+    if (i > 0) { endFrame += want; continue; }
     endFrame = (await main()).reduce((a, c) => Math.max(a, c.endFrame), 0);
-    if (i === 0) {
-      // The first insert adopted the clip's frame size, so the 16:9 canvas is set again before the rate is read.
-      const size0 = (await d.meta()).frameSize;
-      if (size0.width !== W || size0.height !== H) await d.setFrameSize({ width: W, height: H });
-      const real = (await d.meta()).fps;
-      if (real !== fps) {
-        if (!final) return real;
-        fps = real;
-      }
+    // The first insert adopted the clip's frame size, so the 16:9 canvas is set again before the rate is read.
+    const size0 = (await d.meta()).frameSize;
+    if (size0.width !== W || size0.height !== H) await d.setFrameSize({ width: W, height: H });
+    const real = (await d.meta()).fps;
+    if (real !== fps) {
+      if (!final) return real;
+      fps = real;
     }
   }
   return null;
@@ -60,6 +62,10 @@ for (const pick of cfg.picks) {
   } catch (e) { notes.push('a photo could not be measured, so it may show bars'); }
 }
 const rows = await main();
+endFrame = rows.reduce((a, c) => Math.max(a, c.endFrame), 0);
+// An edit makes earlier rows stale, so the Main clips are read again only after one (null: read before the next use).
+let fresh = rows;
+const rowAt = async i => (fresh || (fresh = await main()))[i];
 for (let i = 0; i < rows.length; i++) {
   const size = crops[rows[i].resourceId];
   if (!size || !size.width || !size.height) continue;
@@ -67,8 +73,9 @@ for (let i = 0; i < rows.length; i++) {
   const fit = Math.min(W / size.width, H / size.height), fill = Math.max(W / size.width, H / size.height);
   const scale = fill / fit;
   if (scale <= 1.001) continue;
-  const clip = (await main())[i];
+  const clip = await rowAt(i);
   await d.setClipTransform({ clip, scale: { x: scale, y: scale }, position: { x: 0, y: 0 } });
+  fresh = null;
 }
 // Clip sound: 'ambient' keeps the clips' own sound under the music at cfg.ambientDb (default -18 dB), 'full' leaves
 // it at 0 dB, and 'off' mutes it in decorate.js after this commit (muting needs the saved Draft's audio inventory).
@@ -78,12 +85,13 @@ if (cfg.clipSound === 'ambient') {
   const db = typeof cfg.ambientDb === 'number' ? cfg.ambientDb : -18;
   const photoRids = new Set(cfg.picks.filter(k => k.kind === 'photo').map(k => k.rid));
   let failed = 0;
-  const count = (await main()).length;
+  const count = (fresh || (fresh = await main())).length;
   for (let i = 0; i < count; i++) {
-    // Re-read each time: a sound edit makes earlier rows stale.
-    const clip = (await main())[i];
+    // Read again after each sound edit: it makes earlier rows stale.
+    const clip = await rowAt(i);
     if (!clip || photoRids.has(clip.resourceId)) continue;
     try { await d.setClipAudio({ clip, volumeDb: db }); ambientClips++; } catch (e) { failed++; }
+    fresh = null;
   }
   if (failed) notes.push('the sound of ' + failed + (failed === 1 ? ' clip' : ' clips') + ' could not be lowered under the music');
 }

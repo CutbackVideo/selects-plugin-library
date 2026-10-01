@@ -17,8 +17,12 @@ const photoIds = new Set(cfg.photos || []);
 const photoEffects = cfg.photoEffects === true;
 // The Main clips in timeline order: clip 0 is the opening shot, clip 1 the credit shot, the last one the final shot.
 const mainClips = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null).sort((a, b) => a.startFrame - b.startFrame);
-// Re-read a clip by id before each edit: an edit makes earlier rows stale.
-const clipById = async id => (await d.clips({ trackScope: 'all' })).find(c => c.clipId === id);
+// Every clip by id, read once and again only after an edit (any edit makes earlier rows stale): one read per pass
+// and per edit instead of one per lookup, which a long Draft could not afford inside run_script's deadline.
+let current = null;
+const allClips = async () => current || (current = await d.clips({ trackScope: 'all' }));
+const clipById = async id => (await allClips()).find(c => c.clipId === id);
+const edited = () => { current = null; };
 // Idempotent: a retry after a half-finished or unreported earlier run adds only what is still missing (by name).
 // Mute first: setAudioTracks reads the saved Draft's audio inventory, which a Draft created in the same call lacks.
 let muted = false, muteKept = false;
@@ -45,11 +49,11 @@ const graphics = (await d.motionGraphics()).map(g => g.name);
 let titleAdded = false, creditAdded = false;
 if (cfg.title && !graphics.includes(TITLE_LABEL)) {
   await d.addMotionGraphic({ within: await d.rangeAtFrames(rows[0].startFrame, rows[0].endFrame), label: TITLE_LABEL, tsxCode: cfg.title.tsx, parameters: cfg.title.parameters, editableParameters: cfg.title.editableParameters });
-  titleAdded = true;
+  titleAdded = true; edited();
 }
 if (cfg.credit && rows.length > 1 && !graphics.includes(CREDIT_LABEL)) {
   await d.addMotionGraphic({ within: await d.rangeAtFrames(rows[1].startFrame, rows[1].endFrame), label: CREDIT_LABEL, tsxCode: cfg.credit.tsx, parameters: cfg.credit.parameters, editableParameters: cfg.credit.editableParameters });
-  creditAdded = true;
+  creditAdded = true; edited();
 }
 // Effects, one pass per clip in this order (each call appends to the clip's stack): Photo motion (photos) or Shot motion
 // (video clips but the opening, which has the reveal) -> Letterbox reveal (clip 0) / Fade out (the last clip; a one-clip
@@ -64,6 +68,7 @@ const addEffect = async (id, have, label, tsxCode, parameters, editableParameter
   const clip = await clipById(id);
   if (!clip) return false;
   await d.addVideoEffect({ clip, label, tsxCode, parameters, editableParameters });
+  edited();
   return true;
 };
 const lookOn = async (id, have) => {
@@ -76,7 +81,7 @@ const lookOn = async (id, have) => {
 for (let i = 0; i < rows.length; i++) {
   const row = rows[i], id = row.clipId, photo = photoIds.has(row.resourceId);
   if (photo && !photoEffects) { photoEffectsSkipped++; continue; }
-  // The rows above predate this run's edits: read the clip again before reading its effects.
+  // The rows above predate this run's edits: the clip's current row (read again after an edit) for its effects.
   const now = await clipById(id);
   if (!now) continue;
   const have = (await d.videoEffects(now)).flatMap(e => [e.name, e.effectName]).filter(n => OUR_EFFECTS.includes(n));
@@ -107,9 +112,11 @@ for (let i = 0; i < rows.length; i++) {
   }
   await lookOn(id, have);
 }
-// Cinematic look also on clips placed on other video tracks (none in a fresh Build; a user's B-roll on a retry).
+// Cinematic look also on clips placed on other video tracks (none in a fresh Build; a user's B-roll on a retry). The
+// Main clips had their pass above, so they are left out here even if the host lists them as video rows.
 if (cfg.look) {
-  const others = (await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'video' && c.resourceId !== null).map(c => c.clipId);
+  const mainIds = new Set(rows.map(r => r.clipId));
+  const others = (await allClips()).filter(c => c.trackKind === 'video' && c.resourceId !== null && !mainIds.has(c.clipId)).map(c => c.clipId);
   for (const id of others) {
     const c = await clipById(id);
     if (!c) continue;

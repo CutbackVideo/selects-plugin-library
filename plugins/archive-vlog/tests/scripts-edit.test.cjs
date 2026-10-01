@@ -11,10 +11,12 @@ const load = (name, cfg) => new Function('selects', `return (async()=>{${fs.read
 // Like Selects (probed on Staging), a source range is placed as round(end * fps) - round(start * fps) frames: each end
 // snaps to a Draft frame on its own, so a start on a half frame loses or gains one. `durations` ({ rid: seconds }) caps
 // a video's source at its whole Draft frames: an end past floor(duration * fps) / fps is invalid_source_range.
-function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [], silent = [], adoptFps = null, durations = {} } = {}) {
-  const log = [], clips = [], graphics = [], effects = {};
+// `reads` counts clips() calls (run_script's deadline: a long Draft cannot afford a read per insert or per lookup).
+// `mainAsVideo` lists the Main clips as trackKind 'video' rows in clips({ trackScope: 'all' }), as a host may.
+function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }, photos = [], silent = [], adoptFps = null, durations = {}, mainAsVideo = false } = {}) {
+  const log = [], clips = [], graphics = [], effects = {}, reads = { clips: 0 };
   let frame = 0, committed = false, frameSize = { width: 1920, height: 1080 }, inserted = false;
-  return { log, clips, graphics, effects, reopen() { unsaved = false; committed = false; }, d: {
+  return { log, clips, graphics, effects, reads, reopen() { unsaved = false; committed = false; }, d: {
     meta: async () => ({ fps, frameSize: { ...frameSize } }),
     setFrameSize: async (s) => { frameSize = { ...s }; log.push(['size', s]); },
     insertResource: async ({ resourceId, sourceRange }) => {
@@ -22,7 +24,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
       if (photos.includes(resourceId) && sourceRange.endSeconds > 5 + 1e-9) throw Error('invalid_source_range');
       if (sourceRange.startSeconds < 0 || (durations[resourceId] != null && sourceRange.endSeconds > Math.floor(durations[resourceId] * fps) / fps + 1e-9)) throw Error('invalid_source_range');
       const len = Math.round(sourceRange.endSeconds * fps) - Math.round(sourceRange.startSeconds * fps); clips.push({ clipId: clips.length + 1, resourceId, trackKind: 'main', startFrame: frame, endFrame: frame + len, audioSourceIndexes: null }); frame += len; log.push(['insert', resourceId, sourceRange]); },
-    clips: async ({ trackScope } = {}) => clips.filter(c => trackScope !== 'main' || c.trackKind === 'main').map(c => ({ ...c })),
+    clips: async ({ trackScope } = {}) => { reads.clips++; return clips.filter(c => trackScope !== 'main' || c.trackKind === 'main').map(c => ({ ...c, trackKind: mainAsVideo && trackScope !== 'main' && c.trackKind === 'main' ? 'video' : c.trackKind })); },
     clipTransform: async () => ({ scale: { x: 1, y: 1 }, position: { x: 0, y: 0 } }),
     setClipTransform: async (o) => log.push(['transform', o.clip.clipId, o.scale]),
     rangeAtFrames: async (a, b) => ({ a, b }),
@@ -226,6 +228,26 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
     assert.deepEqual(mf.log.find(x => x[0] === 'fade').slice(1), [99, 0, 0.5]);
   }
 
+  // Reads: the Main clips are read after the first insert (its real length and rate) and once after the last, not
+  // after every insert; a 40-clip Draft lays out exactly as a read per insert would place it.
+  {
+    const many = mockDraft(30);
+    const n = 40, mb = Array.from({ length: n + 1 }, (_, i) => i * 0.8 + (i % 3) * 0.0123);
+    const rm = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: Array.from({ length: n }, (_, i) => ({ rid: 'r' + (i % 5), kind: 'video', startSeconds: 1, endSeconds: 1.8 })),
+      boundaries: mb, crops: {}, music: { resourceId: 'r9', sectionStart: 4.847 } })({ project: () => ({ createDraft: async () => many.d, resource: id => ({ id }) }) });
+    const offM = 4.847 - Math.round(4.847 * 30) / 30;
+    assert.deepEqual(many.clips.filter(c => c.trackKind === 'main').map(c => c.endFrame), mb.slice(1).map(b => Math.round((b + offM) * 30)));
+    assert.equal(rm.totalFrames, Math.round((mb[n] + offM) * 30));
+    assert.equal(rm.placed, n);
+    assert.ok(many.reads.clips <= 4, 'clip reads do not grow with the clip count: ' + many.reads.clips);
+    // Ambient sound reads again only after each edit (an edit makes earlier rows stale).
+    const amb2 = mockDraft(30);
+    await load('assemble.js', { projectId: 'p', draftName: 'x', picks: Array.from({ length: 6 }, (_, i) => ({ rid: 'r' + i, kind: 'video', startSeconds: 1, endSeconds: 2 })),
+      boundaries: [0, 1, 2, 3, 4, 5, 6], crops: {}, music: null, clipSound: 'ambient' })({ project: () => ({ createDraft: async () => amb2.d, resource: id => ({ id }) }) });
+    assert.equal(amb2.log.filter(x => x[0] === 'volume').length, 6);
+    assert.ok(amb2.reads.clips <= 2 + 6, 'one read per sound edit at most: ' + amb2.reads.clips);
+  }
+
   // ---- decorate.js ----
   const fxOf = (mk, id) => (mk.effects[id] || []).map(e => e.name);
   const fxLog = (mk, label) => mk.log.filter(x => x[0] === 'fx' && x[2] === label);
@@ -354,6 +376,31 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.equal(mk.log.slice(logLen).filter(x => x[0] !== 'mute').length, 0, 'nothing added, nothing committed');
   assert.deepEqual(fxOf(mk, 5), ['Shot motion', 'Fade out', 'Cinematic look']);
 
+  // Reads: one clip list per pass, read again only after an edit; a retry that adds nothing reads it once more at most.
+  {
+    const mr1 = built();
+    await load('decorate.js', fullCfg())({ draft: () => mr1.d });
+    const edits = mr1.log.filter(x => x[0] === 'fx' || x[0] === 'graphic').length;
+    assert.ok(mr1.reads.clips <= edits + 2, 'reads ' + mr1.reads.clips + ' for ' + edits + ' edits');
+    mr1.reopen();
+    const before = mr1.reads.clips;
+    await load('decorate.js', fullCfg())({ draft: () => mr1.d });
+    assert.ok(mr1.reads.clips - before <= 2, 'a retry reads the clips once (plus the Main list): ' + (mr1.reads.clips - before));
+  }
+  // A host that lists the Main clips as video rows too: they are not decorated twice, and a retry does not count their
+  // effects twice (effectsKept 12, as above) nor a skipped photo twice.
+  {
+    const mv = built({ mainAsVideo: true });
+    const dv = await load('decorate.js', fullCfg())({ draft: () => mv.d });
+    assert.deepEqual([dv.effects, dv.effectsKept], [6, 0]);
+    assert.deepEqual(fxLog(mv, 'Cinematic look').map(x => x[1]), [1, 2, 3, 4, 5, 6]);
+    mv.reopen();
+    const dv2 = await load('decorate.js', fullCfg())({ draft: () => mv.d });
+    assert.deepEqual([dv2.effects, dv2.effectsKept, dv2.committed], [0, 12, false]);
+    const mvp = built({ mainAsVideo: true });
+    const dvp = await load('decorate.js', fullCfg({ photoEffects: false }))({ draft: () => mvp.d });
+    assert.equal(dvp.photoEffectsSkipped, 1);
+  }
   // adjustLabels: the Inspector labels in the panel's UI language; effect names stay English (identity).
   {
     const ml = built();

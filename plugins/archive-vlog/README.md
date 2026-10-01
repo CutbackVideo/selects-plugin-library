@@ -68,13 +68,13 @@ here."); the panel never starts analysis itself.
 
 **Style** has three presets, each a tile with a sample of its title colour:
 
-| Style | Title | Small line (kicker) | Tagline | Credit | Look |
+| Style | Title | Top line | Bottom line | Credit | Look |
 | --- | --- | --- | --- | --- | --- |
 | Cinematic (default) | CINEMATIC in yellow | MINI VLOG | CAPTURE THE MOMENTS, widely spaced | ARCHIVED BY YOURNAME | 0.30 |
 | A Day Out | A DAY OUT in white | none | A QUIET DAY IN THE CITY, ONE FRAME AT A TIME | LOCATION \| YOURNAME | 0.30 |
-| Golden Hour | GOLDEN HOUR in warm cream | MINI VLOG | CHASING THE LAST LIGHT | ARCHIVED BY YOURNAME | 0.45 |
+| Golden Hour | GOLDEN HOUR in warm cream | TRAVEL DIARY | CHASING THE LAST LIGHT | ARCHIVED BY YOURNAME | 0.45 |
 
-- The **Kicker**, **Title** and **Tagline** fields hold each preset's text
+- The **Top line**, **Title** and **Bottom line** fields hold each preset's text
   (limits 24, 16 and 48; Korean, Japanese and Chinese characters count as 2).
   Switching presets keeps what you typed for each preset. Latin text is set in
   capitals; Korean text is kept as typed, without letter spacing.
@@ -158,13 +158,15 @@ The Draft contains:
 Edit it in the Inspector's **Adjust** tab (labels are written in the panel's
 language at Build):
 
-- **Archive title**: Kicker, Title and Tagline text, Title colour, Text colour,
+- **Archive title**: Top line, Title and Bottom line text, Title colour, Text colour,
   Size (60 to 160 %), Font (Anton or Oswald), Decode speed (25 to 400 %) and
   Shadow (0 to 1).
 - **Archived credit**: Credit prefix and Name.
 - **Letterbox reveal**: Reveal (seconds until the band is fully open) and
   Letterbox reveal (on or off).
-- **Fade out**: Fade out (seconds).
+- **Fade out**: Fade out (seconds). Its length in frames is the last clip's at
+  Build: after re-trimming the last clip, adjust **Fade out** so it still ends
+  in black on the new last frame.
 - **Shot motion** and **Photo motion**: Motion and Motion strength.
 - **Cinematic look**: Look strength and Warmth.
 

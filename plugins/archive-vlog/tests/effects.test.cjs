@@ -20,13 +20,13 @@ assert.ok(B.src.includes('clipPath'), 'letterbox masks with clip-path');
 assert.ok(!/scale\(/.test(B.src), 'a mask, not a zoom');
 assert.ok(B.src.includes('frame / '), 'seconds from frame / fps');
 // Defaults: the reference's 0.22 s -> 2.35 s, on.
-assert.deepEqual({ ...B.avBoxTimes(undefined) }, { enabled: true, start: 0.22, end: 2.35 });
-assert.deepEqual({ ...B.avBoxTimes({ revealStart: 0.2, revealEnd: 2.05 }) }, { enabled: true, start: 0.2, end: 2.05 });
+assert.deepEqual({ ...B.avBoxTimes(undefined) }, { enabled: true, start: 0.22, end: 2.35, visible: 1 });
+assert.deepEqual({ ...B.avBoxTimes({ revealStart: 0.2, revealEnd: 2.05 }) }, { enabled: true, start: 0.2, end: 2.05, visible: 1 });
 // revealSeconds (the Adjust duration) wins over revealEnd.
-assert.deepEqual({ ...B.avBoxTimes({ revealStart: 0.2, revealEnd: 2.05, revealSeconds: 1 }) }, { enabled: true, start: 0.2, end: 1.2 });
+assert.deepEqual({ ...B.avBoxTimes({ revealStart: 0.2, revealEnd: 2.05, revealSeconds: 1 }) }, { enabled: true, start: 0.2, end: 1.2, visible: 1 });
 assert.equal(B.avBoxTimes({ enabled: false }).enabled, false);
 // An end before the start is clamped to the start; negative start to 0.
-assert.deepEqual({ ...B.avBoxTimes({ revealStart: -1, revealEnd: -2 }) }, { enabled: true, start: 0, end: 0 });
+assert.deepEqual({ ...B.avBoxTimes({ revealStart: -1, revealEnd: -2 }) }, { enabled: true, start: 0, end: 0, visible: 1 });
 
 // Scaled reference at k = 0.89 (72 BPM): 0.1958 s -> 2.0915 s.
 const k = 0.89, rs = 0.22 * k, re = 2.35 * k;
@@ -55,6 +55,30 @@ assert.equal(B.avBoxInset(0), 'inset(50.0000% 0% 50.0000% 0%)');
 assert.equal(B.avBoxInset(0.5), 'inset(25.0000% 0% 25.0000% 0%)');
 assert.equal(B.avBoxInset(1), 'inset(0.0000% 0% 0.0000% 0%)');
 assert.equal(B.avBoxInset(2), 'inset(0.0000% 0% 0.0000% 0%)');
+// A non-16:9 opening is cover-cropped (assemble.js), so the canvas shows only the centred `visible` fraction of the
+// clip's box: v = min(1, (srcW / srcH) / (16 / 9)). The inset is remapped so the band the viewer sees opens linearly
+// from black to the full canvas over revealStart -> revealEnd, exactly as on a 16:9 source.
+const pct = s => Number(/^inset\(([\d.]+)%/.exec(s)[1]) / 100;
+const V43 = (4 / 3) / (16 / 9), V916 = (9 / 16) / (16 / 9);
+near(V43, 0.75, 1e-12, '4:3'); near(V916, 0.31640625, 1e-12, '9:16');
+for (const v of [1, V43, V916]) {
+  near(pct(B.avBoxInset(0, v)), 0.5, 1e-6, 'black at band 0, v ' + v);
+  // The box's edge at band 1 is the canvas's own edge: (1 - v) / 2 of the box is cropped away on each side.
+  near(pct(B.avBoxInset(1, v)), (1 - v) / 2, 1e-6, 'full canvas at band 1, v ' + v);
+  for (let t = 0; t <= 3; t += 0.01) {
+    const band = B.avBoxBand(t, 0.22, 2.35), e = pct(B.avBoxInset(band, v));
+    // Visible band on the canvas: the open part of the box (1 - 2e) seen through the cropped window (v), over v.
+    const seen = Math.min(1 - 2 * e, v) / v;
+    near(seen, band, 1e-5, 'canvas band at ' + t.toFixed(2) + ' s, v ' + v);
+  }
+}
+assert.equal(B.avBoxInset(0.5, 1), B.avBoxInset(0.5), 'v = 1 is the 16:9 mask');
+assert.equal(B.avBoxInset(0.5, 0.75), 'inset(31.2500% 0% 31.2500% 0%)');
+assert.equal(B.avBoxInset(0.5, V916), 'inset(42.0898% 0% 42.0898% 0%)');
+// visible: unset, invalid or out of range is 1 (a source as wide as or wider than 16:9 is cropped at the sides only).
+for (const visible of [undefined, null, 'x', 0, -1, 1, 1.4]) assert.equal(B.avBoxTimes({ visible }).visible, 1, String(visible));
+near(B.avBoxTimes({ visible: 0.75 }).visible, 0.75, 1e-12);
+assert.ok(B.src.includes('avBoxInset(band, times.visible)'), 'the render passes visible');
 
 // ---- Fade out ----
 const F = load('fade-out.tsx', 'av-fade', ['avFadeAlpha', 'avFadeSeconds']);

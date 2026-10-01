@@ -65,7 +65,7 @@ const PANEL_DEFAULTS = {
 const STATE_DEFAULTS = { clipSound: 'ambient', look: true, usePhotos: true, credit: true };
 // English Adjust labels decorate.js gets (the panel passes its UI language; the names of effects never change).
 const ADJUST_LABELS = { motion: 'Motion', motionStrength: 'Motion strength', reveal: 'Reveal', letterbox: 'Letterbox reveal', look: 'Look strength',
-  warmth: 'Warmth', fade: 'Fade out', kicker: 'Kicker', title: 'Title', tagline: 'Tagline', titleColor: 'Title colour', textColor: 'Text colour',
+  warmth: 'Warmth', fade: 'Fade out', kicker: 'Top line', title: 'Title', tagline: 'Bottom line', titleColor: 'Title colour', textColor: 'Text colour',
   size: 'Size', font: 'Font', speed: 'Decode speed', shadow: 'Shadow', prefix: 'Credit prefix', name: 'Name' };
 // Title look defaults (decode-title.tsx: size %, decode speed %, shadow 0-1, display face).
 const TITLE_LOOK = { font: 'anton', size: 100, speed: 100, shadow: 0.3 };
@@ -170,6 +170,21 @@ function localVideoMotions(picks, seed, photoMoves, avHash) {
     prev = f; k++;
   });
   return out;
+}
+
+// The panel's av-build avSizesOf / avVisibleFraction (scratchpad parity checks the configs match): frame sizes by rid
+// (videos, and photos the inventory measured), and the fraction of a source's height the 16:9 canvas shows once
+// assemble.js cover-crops it (1 for 16:9 or wider, or an unknown size), to 4 decimals.
+// The credit graphic is added only when Credit is on and the name is not empty (the panel's creditUsed).
+const creditUsed = s => !!s.row.credit && !!String(s.creditName || '').trim();
+function sizesOf(inv) {
+  const out = {};
+  for (const r of [...(inv.resources || []), ...(inv.photos || []).filter(p => p.width > 0 && p.height > 0)]) out[r.rid] = { width: r.width, height: r.height };
+  return out;
+}
+function visibleFraction(size) {
+  if (!size || !(size.width > 0) || !(size.height > 0)) return 1;
+  return Math.round(Math.min(1, (size.width / size.height) / (1920 / 1080)) * 1e4) / 1e4;
 }
 
 export async function createAdapter({ pluginDir, installedDir, read }) {
@@ -317,7 +332,8 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       if (!chosen) throw Error('unknown preset ' + row.preset + '; one of ' + presets.map(p => p.id).join(', '));
       // The user's edit (cut to the field's max), else the preset's initial text.
       const fields = Object.fromEntries(chosen.fields.map(fl => [fl.key, row.fields[fl.key] != null ? fieldClip(String(row.fields[fl.key]), fl.max) : (fl.initial ?? '')]));
-      const creditName = row.creditName != null ? fieldClip(String(row.creditName), CREDIT_NAME_MAX) : (chosen.credit?.name ?? 'YOURNAME');
+      // Trimmed, as the panel freezes it; an empty name leaves the credit out (the panel's creditUsed).
+      const creditName = (row.creditName != null ? fieldClip(String(row.creditName), CREDIT_NAME_MAX) : (chosen.credit?.name ?? 'YOURNAME')).trim();
 
       // Own music is not modelled (it needs beat-detect on a real file): bundled cues and No music only.
       if (row.cue === 'own') throw Error('own music is not supported by the driver');
@@ -357,9 +373,12 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       if (inv.resources.length < 2) throw Error(AV_FAIL[inv.resources.length ? 'one-video' : 'no-video'] + '.');
       // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. The motion hits
       // become a tie-break bonus (and the opener's `motion` tag) on the role candidates.
+      // Frame sizes (the panel's avSizesOf): the planner prefers a landscape opening, and the letterbox reveal is remapped
+      // for the opening's cover crop (visible fraction).
+      const frameSizes = sizesOf(inv);
       const plan = j(P.avPlanBuild({ candidates: motionBonus(found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: null, fps: 30, pace, requested,
         sectionStart: musicStart ?? undefined, usableEnd: musicKind === 'none' ? undefined : grid.usableEnd, onsets: grid.onsets, onsetThresholds: grid.onsetThresholds,
-        lowConfidence: !gridded, seed: String(seed) }));
+        lowConfidence: !gridded, seed: String(seed), sizes: frameSizes }));
       const planSummary = { ok: plan.ok, reason: plan.reason, shots: plan.shots, requested, fitted, montageBeats: plan.montageBeats, finalBeats: plan.finalBeats,
         tempo, gridded, photoShots: plan.photoShots, fillerShots: plan.fillerShots, usableShots: plan.usableShots, attempt: plan.attempt, notes: plan.notes,
         sectionStart: musicStart, pace, motionHits: found.list.filter(c => c && c.role === MOTION_ROLE).length };
@@ -367,15 +386,17 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       // Photo sizes the inventory measured (the panel's photo size cache).
       const photoSizes = {};
       for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizes[ph.rid] = { width: ph.width, height: ph.height };
+      const openingSize = frameSizes[plan.picks[0]?.rid] || null;
       return { row, seed, inv, found, cue, musicKind, grid, gridded, tempo, pace, requested, fitted, section, start, musicStart, plan, planSummary,
-        photoSizes, fields, creditName, chosen, boundaries: plan.schedule.cuts, burst: null };
+        photoSizes, openingSize, fields, creditName, chosen, boundaries: plan.schedule.cuts, burst: null };
     },
 
     ensureAudio(s) {
       if (s.musicKind === 'none') return null;
       resolve(s.row, { required: true });
       // The panel imports the cue from the INSTALLED plugin folder, not from the repo checkout.
-      return { summary: 'Add music to the project', script: 'scripts/ensure-audio.js', config: { projectId: s.row.pid, path: installedDir + '/assets/cues/' + s.cue.file }, allowCommit: true };
+      return { summary: 'Add music to the project', script: 'scripts/ensure-audio.js', config: { projectId: s.row.pid, path: installedDir + '/assets/cues/' + s.cue.file,
+        duration: typeof s.cue.duration === 'number' ? s.cue.duration : null }, allowCommit: true };
     },
 
     assemble(s, music) {
@@ -411,7 +432,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const parameters = { preset: row.preset, ...titleFields, fields: { ...titleFields }, titleColor: p.colors.title, textColor: p.colors.text,
         taglineTracking: p.taglineTracking, ...TITLE_LOOK, timing, fonts: presetFonts(p),
         provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: row.preset, cue: cueProv, sectionStart: s.musicStart, pace: s.pace, length: row.length,
-          seed: s.seed, clipSound: row.clipSound, look: !!row.look, credit: !!row.credit, picks: plan.picks } };
+          seed: s.seed, clipSound: row.clipSound, look: !!row.look, credit: creditUsed(s), picks: plan.picks } };
       const editableParameters = [
         { key: 'kicker', label: L.kicker, type: 'text', defaultValue: titleFields.kicker },
         { key: 'title', label: L.title, type: 'text', defaultValue: titleFields.title },
@@ -424,7 +445,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         { key: 'shadow', label: L.shadow, type: 'number', defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
       ];
       const prefix = p.credit?.prefix ?? 'ARCHIVED BY';
-      const credit = row.credit ? { tsx: read('assets/archived-credit.tsx'),
+      const credit = creditUsed(s) ? { tsx: read('assets/archived-credit.tsx'),
         parameters: { prefix, name: s.creditName, color: p.colors.text, size: 100, shadow: TITLE_LOOK.shadow, fonts: presetFonts(p, CREDIT_FAMILY) },
         editableParameters: [{ key: 'prefix', label: L.prefix, type: 'text', defaultValue: prefix }, { key: 'name', label: L.name, type: 'text', defaultValue: s.creditName }] } : null;
       // Photo motions (planner avPhotoMotions) with each photo's cover-crop scale; Shot motions on the video clips.
@@ -447,7 +468,8 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         sequenceId: a.sequenceId, videoEnd: a.totalFrames, mute: row.clipSound === 'off', photos: photoRids, photoEffects: true,
         title: { tsx: read('assets/decode-title.tsx'), parameters, editableParameters },
         credit,
-        letterbox: { tsx: read('assets/letterbox-reveal.tsx'), parameters: { revealStart: timing.revealStart, revealEnd: timing.revealEnd, revealSeconds: timing.revealEnd - timing.revealStart, enabled: true } },
+        letterbox: { tsx: read('assets/letterbox-reveal.tsx'), parameters: { revealStart: timing.revealStart, revealEnd: timing.revealEnd, revealSeconds: timing.revealEnd - timing.revealStart, enabled: true,
+          visible: visibleFraction(s.openingSize) } },
         look,
         fade: { tsx: read('assets/fade-out.tsx'), fadeSeconds: C.FADE_SECONDS },
         motion: { tsx: read('assets/photo-motion.tsx'), strength: C.MOTION_STRENGTH, options: C.MOTION_OPTIONS, byRid, video: { strength: C.VIDEO_MOTION_STRENGTH, byIndex } },
@@ -462,7 +484,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         frameSize: { width: C.AV_W, height: C.AV_H }, fps: a.fps,
         cuts: sl.map(x => x.endFrame), noAdjacent: true,
         graphics: [{ name: NAMES.title, count: 1, startFrame: sl[0].startFrame, endFrame: sl[0].endFrame },
-          s.row.credit ? { name: NAMES.credit, count: 1, startFrame: sl[1].startFrame, endFrame: sl[1].endFrame } : { name: NAMES.credit, count: 0 }],
+          creditUsed(s) ? { name: NAMES.credit, count: 1, startFrame: sl[1].startFrame, endFrame: sl[1].endFrame } : { name: NAMES.credit, count: 0 }],
         effects: [{ name: NAMES.look, perMainClip: s.row.look ? 1 : 0 }],
         music: s.music ? { resourceId: s.music.resourceId, db: 0, fadeOutSeconds: C.MUSIC_FADE_OUT } : { none: true },
         // Clip sound: Off is checkable on every Main clip (silent photos may stay unrouted). A level is set on video clips
