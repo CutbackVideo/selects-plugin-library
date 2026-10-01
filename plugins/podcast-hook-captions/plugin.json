@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "podcast-hook-captions",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": "Podcast Hook Captions",
   "summary": "Turn a podcast Draft into an editable short-form reel: yellow word-pop captions, kinetic hook titles, a warm punch-in look, optional B-roll and synced sound effects.",
   "status": "experimental",
@@ -12,16 +12,48 @@
     "INSTALL.md",
     "THIRD_PARTY.md",
     "panel.tsx",
-    "person-cutout.swift",
-    "fonts/SixCaps-Regular.woff2.b64",
+    "build.cjs",
+    "fonts/OFL-RedditSans.txt",
+    "fonts/OFL-RobotoFlex.txt",
     "fonts/OFL-SixCaps.txt",
+    "fonts/RedditSans-Lead.woff2.b64",
+    "fonts/RobotoFlex-Caption.woff2.b64",
+    "fonts/SixCaps-Regular.woff2.b64",
+    "src/Panel.tsx",
+    "src/plan.ts",
+    "src/renderers.ts",
+    "src/pipeline/apply.ts",
+    "src/pipeline/cvstats.ts",
+    "src/pipeline/faceFrames.ts",
+    "src/pipeline/faceRuntime.ts",
+    "src/pipeline/faceTrack.ts",
+    "src/pipeline/faceWorker.ts",
+    "src/pipeline/faces.ts",
+    "src/pipeline/host.ts",
+    "src/pipeline/make.ts",
+    "src/pipeline/media.ts",
+    "src/pipeline/reel.ts",
+    "src/pipeline/render.ts",
+    "src/pipeline/select.ts",
+    "src/pipeline/sound.ts",
+    "src/pipeline/stock.ts",
+    "src/pipeline/yunetDecode.ts",
+    "src/pipeline/yunetModel.ts",
+    "src/motion/Look.tsx",
+    "src/motion/Reel.tsx",
+    "src/motion/camera.ts",
+    "src/motion/grade.tsx",
+    "src/motion/grid.tsx",
+    "src/motion/text.ts",
     ".gitignore"
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "macOS x64",
+      "Windows x64"
     ],
-    "selects": "Tested in a Selects build on macOS 26 arm64 (2026-09). Requires Panel runScript/runShell, Draft authoring and frame capture, Node.js 18+ on PATH, and Xcode Command Line Tools for the optional segmentation helper. Other builds and Intel Macs are unverified."
+    "selects": "Selects 2.0.512 or later (Panel runScript and askAI, Draft authoring, Selects generation with plug-in files). Tested on macOS 26 arm64 (2026-10); the Windows path shares the same code (bundled ffmpeg run without a shell, face tracking in WebAssembly) but has not been run on a Windows PC."
   },
   "localized": {
     "de": {
@@ -64,5 +96,11 @@
       "name": "\u64ad\u5ba2\u94a9\u5b50\u5b57\u5e55",
       "summary": "\u628a\u64ad\u5ba2 Draft \u505a\u6210\u53ef\u7f16\u8f91\u7684\u77ed\u89c6\u9891\uff1a\u9010\u8bcd\u5f39\u51fa\u7684\u9ec4\u8272\u5b57\u5e55\u3001\u52a8\u6001\u94a9\u5b50\u6807\u9898\u3001\u6696\u8272\u63a8\u8fd1\u6548\u679c\u3001\u53ef\u9009 B-roll\uff0c\u4ee5\u53ca\u540c\u6b65\u7684\u97f3\u6548\u3002"
     }
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
   }
 }

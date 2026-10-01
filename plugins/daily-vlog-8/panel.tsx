@@ -629,6 +629,20 @@ return {draftId:saved.createdDraftId,name,frames:endFrame,fps:(await draft.meta(
 // long as the longest of them), any others become the two short inserts.
 const TEMPLATE_FAILED = "8-Clip Daily Vlog could not make the timeline; try again.";
 const templateIssue = message => Object.assign(new Error(message), { publicMessage: message });
+// The app hands a template its own Resource ids, but every run_script read
+// (resources(), clips()) speaks the short ids the script SDK gives out (r0, r1…).
+// The app's list (sdk.call) and the script's list are the Project's Resources in
+// the same order, so they pair up row by row; names and types are compared so a
+// list that changed in between is refused rather than mismatched.
+async function scriptResourceIds(sdk, projectId) {
+  const [app, run] = await Promise.all([
+    sdk.call("listProjectResources", projectId),
+    sdk.runScript({ summary: "Match picked clips", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
+  ]);
+  const rows = run?.result;
+  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked clips to this project.");
+  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+}
 const VIDEO_LENGTHS = pid => `const rows=await selects.project(${JSON.stringify(pid)}).resources();return rows.filter(x=>x.type==='Video').map(x=>({id:x.resourceId,name:x.name,duration:x.durationSeconds||0}));`;
 
 function DailyTemplateRun({ sdk, context }) {
@@ -649,13 +663,16 @@ function DailyTemplateRun({ sdk, context }) {
       try {
         if (!projectId) throw templateIssue("Open a project, then try again.");
         const picked = id => (inputs[id] || []).filter(x => x?.kind === "video" && x.resourceId);
-        const [opening] = picked("opening"), clips = picked("clips");
+        let [opening] = picked("opening"), clips = picked("clips");
         if (!opening) throw templateIssue("Pick an opening clip, then try again.");
         if (clips.length < 7) throw templateIssue("Pick at least seven more clips, then try again.");
         say("Finding your clips…");
+        const ids = await scriptResourceIds(sdk, projectId);
+        const own = pick => pick && { ...pick, resourceId: ids.get(pick.resourceId) ?? pick.resourceId };
         const r = await sdk.runScript({ summary: "List daily vlog videos", script: VIDEO_LENGTHS(projectId), allowCommit: false });
         if (r.isError || !Array.isArray(r.result)) throw new Error(r.output || "Could not read the project videos.");
         const byId = new Map(r.result.map(v => [v.id, v]));
+        opening = own(opening); clips = clips.map(own);
         for (const pick of [opening, ...clips]) if (!byId.has(pick.resourceId)) throw templateIssue((pick.name || "A picked clip") + " is no longer in this project.");
         if (!live()) return;
         say("Cutting your daily vlog…");

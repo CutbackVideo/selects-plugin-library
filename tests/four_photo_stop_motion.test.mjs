@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import os from 'node:os';
 import {spawnSync} from 'node:child_process';
-import {scenePlan,normalizeFinish,buildFinishScript,authorFinish,LOOK} from '../plugins/four-photo-stop-motion/operation.mjs';
+import {loadPanelOperation,runPanelShell} from './panel_operation.mjs';
+
+const {scenePlan,normalizeFinish,buildFinishScript,authorFinish,LOOK,MUSIC_COMMAND}=loadPanelOperation('four-photo-stop-motion');
 
 const dir=path.resolve(import.meta.dirname,'../plugins/four-photo-stop-motion');
 // Independent reference measurements (ffmpeg, 30 fps, 347 frames): photo cut frames.
@@ -43,7 +46,7 @@ test('other frame rates keep the same times',()=>{
 
 test('beat hit shows the reference states by time at 23.976, 30 and 60 fps',async()=>{
  // Evaluate the effect's frame logic with a stub renderer.
- const src=fs.readFileSync(path.join(dir,'operation.mjs'),'utf8');
+ const src=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
  const body=src.slice(src.indexOf('const refFrame='),src.indexOf('const x=Math.max'));
  const state=(frame,fps,refStart=80)=>{const startFrame=Math.round(refStart*fps/30);return new Function('frame','data','g',body+'return {hit,blur,shake};')(frame,{fps,startFrame,refStart,kind:'hit',introBlur:5,hitBlur:10,hitShake:[0,0,12]},{q:1});};
  const at=(fps,refStart)=>Array.from({length:Math.ceil(fps*0.2)},(_,f)=>state(f,fps,refStart)).filter(s=>s.hit).map(s=>s.shake);
@@ -57,14 +60,18 @@ test('beat hit shows the reference states by time at 23.976, 30 and 60 fps',asyn
  assert.equal(state(2,24000/1001,117).hit,false);
 });
 
+test('the Panel builds the plan and finishing step itself, with no Node.js',()=>{
+ assert.doesNotMatch(fs.readFileSync(path.join(dir,'panel.tsx'),'utf8'),/\bnode ["$]|build-script/);
+});
+
 test('look constants match the measured blur and shake',()=>{
  assert.equal(LOOK.introBlur,5);assert.equal(LOOK.hitBlur,10);assert.deepEqual(LOOK.hitShake,[0,0,12]);
 });
 
-test('bundled music exists and outlasts the Draft',()=>{
- const run=spawnSync(process.execPath,[path.join(dir,'build-script.mjs'),Buffer.from(JSON.stringify({mode:'music'})).toString('base64url')],{encoding:'utf8'});
+test('bundled music is found without Node.js and outlasts the Draft',()=>{
+ const run=runPanelShell(MUSIC_COMMAND,{home:fs.mkdtempSync(path.join(os.tmpdir(),'fpsm-'))});
  assert.equal(run.status,0,run.stderr);
- const file=JSON.parse(run.stdout).path;assert.ok(fs.statSync(file).size>50000);
+ const file=run.stdout;assert.equal(file,fs.realpathSync(path.join(dir,'assets','music.mp3')));assert.ok(fs.statSync(file).size>50000);
  const probe=spawnSync('ffprobe',['-v','error','-show_entries','format=duration','-of','csv=p=0',file],{encoding:'utf8'});
  if(probe.status===0)assert.ok(Number(probe.stdout)>347/30+0.1,'music must be longer than the Draft');
 });

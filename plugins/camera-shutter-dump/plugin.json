@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "camera-shutter-dump",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "name": "Camera Shutter Dump",
   "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects.",
   "status": "experimental",
@@ -12,22 +12,20 @@
     "INSTALL.md",
     "THIRD_PARTY.md",
     "VALIDATION.md",
-    "operation.mjs",
-    "build-script.mjs",
     "panel.tsx",
     "sfx/manifest.json",
-    "sfx/shutter-v2-1.wav.b64",
-    "sfx/shutter-v2-2.wav.b64",
-    "sfx/shutter-v2-3.wav.b64",
-    "sfx/shutter-v2-4.wav.b64",
-    "sfx/shutter-v2-5.wav.b64",
-    "sfx/shutter-v2-6.wav.b64"
+    "sfx/shutter-v3-1.wav.b64",
+    "sfx/shutter-v3-2.wav.b64",
+    "sfx/shutter-v3-3.wav.b64",
+    "sfx/shutter-v3-4.wav.b64",
+    "sfx/shutter-v3-5.wav.b64",
+    "sfx/shutter-v3-6.wav.b64"
   ],
   "compatibility": {
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal), public clip effects and Audio overlays, and Node.js in the panel shell. Verified in Selects Staging and a local develop build on 2026-09-30: saved Draft readback and HD export."
+    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal), public clip effects and Audio overlays; no Node.js. Verified in Selects Staging and a local develop build on 2026-09-30: saved Draft readback and HD export. The Node-free panel (2026-10-01) passed its local tests but has not yet been run in the app."
   },
   "preview": {
     "video": "preview.mp4",

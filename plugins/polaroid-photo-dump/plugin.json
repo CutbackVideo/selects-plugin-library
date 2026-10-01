@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "polaroid-photo-dump",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "name": "Polaroid Photo Dump",
   "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption.",
   "status": "experimental",
@@ -12,8 +12,6 @@
     "INSTALL.md",
     "THIRD_PARTY.md",
     "VALIDATION.md",
-    "operation.mjs",
-    "build-script.mjs",
     "panel.tsx",
     "assets/manifest.json",
     "assets/frame-v1.png.b64",
@@ -23,7 +21,7 @@
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal and Camera Shutter Dump), transparent PNG Image clips, public clip effects, motion graphics and Audio overlays, and Node.js in the panel shell. Verified in Selects Staging and a local develop build on 2026-09-30: saved Draft readback and FHD export."
+    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal and Camera Shutter Dump), transparent PNG Image clips, public clip effects, motion graphics and Audio overlays; no Node.js. Verified in Selects Staging and a local develop build on 2026-09-30: saved Draft readback and FHD export. The Node-free panel (2026-10-01) passed its local tests but has not yet been run in the app."
   },
   "preview": {
     "video": "preview.mp4",

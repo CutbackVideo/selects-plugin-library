@@ -4,7 +4,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 
 | Plugin | Status |
 | --- | --- |
-| [Selects Clips](plugins/shortform-cloner) — AI clips from long videos, with reusable styles | Experimental |
+| [Selects Clips](plugins/shortform-cloner) — shorts from long videos, using templates made from a channel's best shorts | Experimental |
 | [Multicam Generator](plugins/multicam-generator) | Experimental |
 | [Place Count](plugins/place-count) | Experimental |
 | [Postcard Cutout Studio](plugins/postcard-cutout-studio) | Experimental |
@@ -38,6 +38,8 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 
 | [Photo Grid Reveal](plugins/photo-gallery-no2) — editable 21-tile photo/video grid with sequential reveals and a shared monochrome-to-color switch | Experimental |
 | [Cinema Vlog Studio](plugins/cinema-vlog-studio) — 21-second cinematic street vlog with marker-driven cuts, a scramble title and inset cards | Experimental |
+| [Portrait Beat Montage](plugins/portrait-beat-montage) — 16.3-second 3:4 portrait montage from 10 person clips, with a monochrome strobe intro, person-only zigzag smear cuts on the beat and a white glow ending | Experimental |
+| [Beat Cutout Gallery](plugins/cutout-beat-gallery) — 15.9-second 3:4 beat-cut photo gallery where cut-out people with paper outlines slide in, stack over the photo on screen and lead into the next cut, on a bundled soundtrack | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 

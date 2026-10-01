@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "torn-paper-love",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "name": "Torn Paper Love",
   "summary": "Turn couple photos into a 4:3 torn-paper love edit cut on the beat, with ransom-note letters, as a new editable Draft.",
   "status": "experimental",
