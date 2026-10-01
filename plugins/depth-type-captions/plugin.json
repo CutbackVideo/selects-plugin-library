@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "depth-type-captions",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "name": "Depth Type Captions",
   "summary": "Editable phrase typography that wraps around the speaker with subject-aware depth.",
   "status": "experimental",
@@ -72,20 +72,16 @@
   "inputs": [
     {
       "id": "speaker",
-      "label": "Select video",
-      "accepts": [
-        "video"
-      ],
-      "min": 1,
-      "max": 1,
+      "label": "This draft",
+      "kind": "timeline",
       "requires": [
         "transcript"
-      ],
-      "query": "one person talking to camera"
+      ]
     }
   ],
   "prepare": [
-    "A video of one person talking to camera",
+    "A draft of one person talking to camera, up to 90 seconds",
+    "Only video and audio on it, no captions or effects yet",
     "Analyzed, so it has a transcript",
     "On a Mac, the Xcode Command Line Tools (Windows uses Selects credits instead)"
   ]
