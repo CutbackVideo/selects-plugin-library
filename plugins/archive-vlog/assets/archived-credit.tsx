@@ -19,7 +19,7 @@ var AVC_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
 var AVC_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
 var AVC_WIDE_UP = 0.86, AVC_WIDE_DOWN = 0.12;
 function avcFontStack(family) {
-  return '"' + family + '", "Arial Narrow", Impact, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+  return '"' + family + '", "Arial Narrow", Impact, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';
 }
 function avcKoWide(data) {
   var ink = data.koInk, adv = data.koAdvances;

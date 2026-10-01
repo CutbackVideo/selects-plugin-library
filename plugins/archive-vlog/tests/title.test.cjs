@@ -149,14 +149,14 @@ const SEOUL_TRIP = ko(0xC11C, 0xC6B8, 0x20, 0xC5EC, 0xD589), SEOUL = ko(0xC11C, 
     const parts = s.split(',').map(x => x.trim());
     assert.equal(parts[0], '"' + family + '"', s);
     assert.equal(parts[parts.length - 1], 'sans-serif', s);
-    assert.deepEqual(parts.slice(-3, -1), ['"Apple SD Gothic Neo"', '"Malgun Gothic"'], s);
+    assert.deepEqual(parts.slice(-4, -1), ['"Apple SD Gothic Neo"', '"Malgun Gothic"', '"Noto Sans KR"'], s);
     assert.ok(parts.length >= 5, 'a Latin fallback before the Korean faces: ' + s);
   }
   // Windows Latin fallbacks per role.
   assert.match(X.avFontStack('AV Anton'), /Impact/); assert.match(X.avFontStack('AV Inter'), /"Segoe UI"/);
   // Items carry their stack.
   const L = lay();
-  for (const p of [L.title, L.kicker, L.tagline]) assert.match(p.stack, /"Apple SD Gothic Neo", "Malgun Gothic", sans-serif$/);
+  for (const p of [L.title, L.kicker, L.tagline]) assert.match(p.stack, /"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif$/);
   for (const g of frameAt(L, {}, 1000).glyphs) assert.match(g.stack, /"Malgun Gothic"/);
   // Families are bundled in presets.json.
   for (const f of families) assert.ok(presets.metrics[f], f + ' bundled');

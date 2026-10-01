@@ -48,7 +48,7 @@ var AV_LATIN_FALLBACKS = {
   "AV Inter": '"Segoe UI", "Helvetica Neue", Arial',
 };
 function avFontStack(family) {
-  return '"' + family + '", ' + (AV_LATIN_FALLBACKS[family] || "Arial") + ', "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+  return '"' + family + '", ' + (AV_LATIN_FALLBACKS[family] || "Arial") + ', "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';
 }
 function avHasHangul(text) { return AV_HANGUL_RE.test(String(text || "")); }
 // Decode glyph pools: capitals, lower case, digits and common Hangul syllables (code points, no literal Hangul).
