@@ -122,6 +122,17 @@ const SAE_PAIR_JITTER = 0.05;
 // Whip angle magnitude per cut, degrees; the sign alternates cut by cut from a seeded start.
 const SAE_ANGLE_MIN = 25;
 const SAE_ANGLE_MAX = 35;
+// Whip strength per cut (the effect's whipIn / whipOut, 0-1.5, times the global Whip strength), after the reference's
+// per-bar depth: bar changes ('spin') full; inner cuts of a standard bar lighter; the "subtle" bars (odd bar indexes
+// 1, 3, 5 ... before the finale, only when there are at least SAE_WHIP_SUBTLE_MIN_BARS bars: the reference's bar 2
+// is a gaze alternation with barely a smear) faint; the finale's inner cuts still pop. Both sides of a cut share it.
+// At 0.35 the whip still dips to ~0.1 relative sharpness on similar A/B holds at 25 fps (eval-whips' primary
+// threshold is 0.3; 0.2 still reads ~0.22), so beat verification keeps finding every cut.
+const SAE_WHIP_SPIN = 1;
+const SAE_WHIP_INNER = 0.6;
+const SAE_WHIP_SUBTLE = 0.35;
+const SAE_WHIP_FINALE = 0.75;
+const SAE_WHIP_SUBTLE_MIN_BARS = 4;
 
 const saeFinite = v => typeof v === 'number' && isFinite(v);
 
@@ -547,22 +558,37 @@ function saeAllocate(opts) {
   return { ok: true, bars: picks, uses, photoBars: picks.filter(b => b.kind === 'photo').length };
 }
 
-// Whip kinds and angles for holds in order. A cut at a bar boundary is 'spin', inside a bar 'dir'; the first hold has
-// cutIn 'none', the last cutOut 'none'. Cut j (between hold j and j + 1) gets angle sign * (25..35 deg), the sign
-// alternating cut by cut from a seeded start; both sides of a cut share kind and angle (angleOut of hold j = angleIn of
-// hold j + 1). `angle` repeats angleOut (angleIn on the last hold) for consumers that take one angle per clip.
+// The whip strength of a cut inside bar `bar` of `bars` (SAE_WHIP_*): a bar change ('spin') SAE_WHIP_SPIN; inside
+// the finale SAE_WHIP_FINALE; inside a subtle bar (odd index before the finale, bars >= SAE_WHIP_SUBTLE_MIN_BARS)
+// SAE_WHIP_SUBTLE; inside any other standard bar SAE_WHIP_INNER.
+function saeWhipStrength(kind, bar, bars) {
+  if (kind === 'spin') return SAE_WHIP_SPIN;
+  if (bar >= bars - 1) return SAE_WHIP_FINALE;
+  if (bars >= SAE_WHIP_SUBTLE_MIN_BARS && bar % 2 === 1) return SAE_WHIP_SUBTLE;
+  return SAE_WHIP_INNER;
+}
+
+// Whip kinds, angles and strengths for holds in order. A cut at a bar boundary is 'spin', inside a bar 'dir'; the
+// first hold has cutIn 'none', the last cutOut 'none'. Cut j (between hold j and j + 1) gets angle sign * (25..35 deg),
+// the sign alternating cut by cut from a seeded start, and strength saeWhipStrength (bar count = the last hold's bar
+// + 1); both sides of a cut share kind, angle and strength (angleOut / whipOut of hold j = angleIn / whipIn of hold
+// j + 1; a 'none' side has strength 0). `angle` repeats angleOut (angleIn on the last hold) for consumers that take
+// one angle per clip.
 function saeWhipKinds(holds, seed) {
   const s = String(seed == null ? 1 : seed);
   const sign0 = saeHash(s + ':angle-sign') < 0.5 ? 1 : -1;
+  const bars = holds.reduce((m, h) => Math.max(m, h.bar + 1), 0);
   const cuts = [];
   for (let j = 0; j + 1 < holds.length; j++) {
     const mag = SAE_ANGLE_MIN + (SAE_ANGLE_MAX - SAE_ANGLE_MIN) * saeHash(s + ':angle:' + j);
-    cuts.push({ kind: holds[j + 1].bar !== holds[j].bar ? 'spin' : 'dir', angle: Math.round(sign0 * (j % 2 ? -1 : 1) * mag * 10) / 10 });
+    const kind = holds[j + 1].bar !== holds[j].bar ? 'spin' : 'dir';
+    cuts.push({ kind, angle: Math.round(sign0 * (j % 2 ? -1 : 1) * mag * 10) / 10, strength: saeWhipStrength(kind, holds[j].bar, bars) });
   }
   return holds.map((h, i) => {
     const cin = i > 0 ? cuts[i - 1] : null, cout = i < cuts.length ? cuts[i] : null;
     return { ...h, cutIn: cin ? cin.kind : 'none', cutOut: cout ? cout.kind : 'none',
-      angleIn: cin ? cin.angle : 0, angleOut: cout ? cout.angle : 0, angle: cout ? cout.angle : cin ? cin.angle : 0 };
+      angleIn: cin ? cin.angle : 0, angleOut: cout ? cout.angle : 0, angle: cout ? cout.angle : cin ? cin.angle : 0,
+      whipIn: cin ? cin.strength : 0, whipOut: cout ? cout.strength : 0 };
   });
 }
 
@@ -707,9 +733,9 @@ if (typeof module !== 'undefined' && module && module.exports) {
   Object.assign(module.exports, {
     SAE_LEAD, SAE_END_TAIL, SAE_STANDARD_BAR, SAE_FINALE_BAR, SAE_LENGTHS, SAE_MIN_BARS, SAE_FIXED_BPM, SAE_FACE_MARGIN,
     SAE_FACE_ROLES, SAE_FACE_MAX_USES, SAE_SOURCE_TAIL, SAE_HEAD_FRAMES, SAE_PAIR_GAP, SAE_FADE_OUT, SAE_PHOTO_SHARE, SAE_PHOTO_RUN_MAX, SAE_SNAP_WINDOW,
-    SAE_MIN_HOLD_FRAMES, SAE_ANGLE_MIN, SAE_ANGLE_MAX, SAE_STILL_WEIGHT, SAE_STILL_FLOOR, SAE_STILL_COST_MAX, SAE_STILL_MINIMA,
+    SAE_MIN_HOLD_FRAMES, SAE_ANGLE_MIN, SAE_ANGLE_MAX, SAE_WHIP_SPIN, SAE_WHIP_INNER, SAE_WHIP_SUBTLE, SAE_WHIP_FINALE, SAE_WHIP_SUBTLE_MIN_BARS, SAE_STILL_WEIGHT, SAE_STILL_FLOOR, SAE_STILL_COST_MAX, SAE_STILL_MINIMA,
     SAE_PAIR_ROLE_BONUS, SAE_PAIR_SEP, SAE_PAIR_SEP_BONUS, SAE_ROLE_TOP, SAE_ROLE_NEAR, SAE_GESTURE_MARGIN, SAE_GESTURE_MILD, SAE_GESTURE_KEY, SAE_KEY_POSE_WEIGHT, SAE_KEY_STILL_WEIGHT, SAE_KEY_JITTER, SAE_GESTURE_CLIP_MILD, SAE_PHOTO_FIRST_BAR, SAE_PHOTO_SHORT_BARS, SAE_PHOTO_SHORT_MAX, SAE_PHOTO_SHORT_FACES,
     saeStillCost, saeHash, saeEditBpm, saeTempo, saeVideoSeconds, saeMusicOffset, saeTemplate, saeSchedule, saeMoments, saePhotoBars,
-    saeAllocate, saeWhipKinds, saeBarGrid, saeSectionRange, saeDefaultSection, saeSnapSection, saePlanBuild,
+    saeAllocate, saeWhipStrength, saeWhipKinds, saeBarGrid, saeSectionRange, saeDefaultSection, saeSnapSection, saePlanBuild,
   });
 }

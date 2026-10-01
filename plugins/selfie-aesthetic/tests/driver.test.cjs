@@ -144,7 +144,7 @@ test('step configs carry exactly the keys panel.tsx build() sends', () => {
   assert.equal(steps.assemble.config.ambientDb, -18);
   assert.equal(steps.assemble.config.music.sourceStart, s.plan.musicSourceStart);
   assert.deepEqual(steps.assemble.config.cutSecondsRaw, s.plan.cutSecondsRaw);
-  assert.deepEqual(Object.keys(steps.assemble.config.holds[0]), ['i', 'bar', 'kind', 'rid', 'moment', 'srcStart', 'frames', 'cutIn', 'cutOut', 'angleIn', 'angleOut', 'angle', 'framing']);
+  assert.deepEqual(Object.keys(steps.assemble.config.holds[0]), ['i', 'bar', 'kind', 'rid', 'moment', 'srcStart', 'frames', 'cutIn', 'cutOut', 'angleIn', 'angleOut', 'angle', 'whipIn', 'whipOut', 'framing']);
   assert.deepEqual(steps.assemble.config.crops.p1, { width: 3024, height: 4032 });
   assert.ok(!('p2' in steps.assemble.config.crops), 'unmeasured photos stay out of crops');
   assert.equal(steps.assemble.config.draftName, 'Selfie test A make-funk soft-glow short s1');

@@ -306,10 +306,10 @@ test('Draft name is ASCII "Selfie Aesthetic Edit - YYYY-MM-DD HH:MM" in local ti
 });
 test('holds sent to the scripts keep exactly the fields they read', () => {
   const h = { i: 0, bar: 0, kind: 'video', rid: 'r1', moment: 'A', srcStart: 1.25, frames: 9, startFrame: 0, endFrame: 9, beats: 1, startBeat: 0, endBeat: 1,
-    cutIn: 'none', cutOut: 'dir', angleIn: 0, angleOut: 30.5, angle: 30.5, framing: null };
-  assert.deepEqual(Object.keys(api.saeTrimHolds([h])[0]), ['i', 'bar', 'kind', 'rid', 'moment', 'srcStart', 'frames', 'cutIn', 'cutOut', 'angleIn', 'angleOut', 'angle', 'framing']);
+    cutIn: 'none', cutOut: 'dir', angleIn: 0, angleOut: 30.5, angle: 30.5, whipIn: 0, whipOut: 0.6, framing: null };
+  assert.deepEqual(Object.keys(api.saeTrimHolds([h])[0]), ['i', 'bar', 'kind', 'rid', 'moment', 'srcStart', 'frames', 'cutIn', 'cutOut', 'angleIn', 'angleOut', 'angle', 'whipIn', 'whipOut', 'framing']);
   const deco = read('scripts', 'decorate.js'), asm = read('scripts', 'assemble.js');
-  for (const k of ['cutIn', 'cutOut', 'angleIn', 'angleOut', 'angle', 'framing', 'kind', 'rid']) assert.ok(deco.includes('.' + k), 'decorate.js reads hold.' + k);
+  for (const k of ['cutIn', 'cutOut', 'angleIn', 'angleOut', 'angle', 'whipIn', 'whipOut', 'framing', 'kind', 'rid']) assert.ok(deco.includes('.' + k), 'decorate.js reads hold.' + k);
   for (const k of ['kind', 'rid', 'srcStart']) assert.ok(asm.includes('.' + k), 'assemble.js reads hold.' + k);
 });
 test('own music: cue from the analysis, loudest bar-aligned section inside the fit range', () => {

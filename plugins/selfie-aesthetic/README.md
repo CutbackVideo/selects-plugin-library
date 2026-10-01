@@ -11,7 +11,8 @@ any source file. It is inspired by a CapCut aesthetic-edit template.
   Each bar alternates between two shots: a hold of one beat, a run of half-beat holds that
   stutter back and forth, and a final hold. Every cut gets a short blur whip centred on the
   cut (one strong frame on each side with a faint shoulder), so the picture smears and snaps
-  on the hit.
+  on the hit. Bar changes whip hardest, cuts inside a bar lighter, every other bar only
+  faintly, and the finale's quick cuts pop again.
 - **Rhythm.** One source per bar. A standard bar has 6 holds (cuts at +1, +1.5, +2, +2.5
   and +3 beats, then the bar change). The last bar is a finale with a cut every half beat.
   The edit starts about 0.15 s before the first beat of the chosen music section and ends

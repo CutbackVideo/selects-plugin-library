@@ -328,6 +328,24 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   assert.ok(close(tr[5][6].cover, r.covers[6]), 'v1 -> photo: the photo cover');
   assert.deepEqual(tr[0][7].map(e => e.key), ['whip']);
   assert.deepEqual(mt.trans.map(x => [x.startFrame, x.endFrame]), tmains.slice(0, -1).map(c => [c.endFrame - 2, c.endFrame + 2]));
+
+  // --- per-cut whip strengths (planner hold.whipIn / whipOut): effect mode passes them per side, transition mode
+  // takes the outgoing hold's whipOut as the cut's strength; the first head and last tail stay 0 ---
+  const cutStr = [0.6, 0.35, 0.6, 0.35, 0.6, 1, 0.75];
+  const holdsS = holds.map((h, i) => ({ ...h, whipIn: i > 0 ? cutStr[i - 1] : 0, whipOut: i < cutStr.length ? cutStr[i] : 0 }));
+  const msx = mockDraft(FPS, { photos: ['p1'], durations });
+  await load('assemble.js', assembleCfg({ holds: holdsS }))(project(() => msx.d));
+  msx.reopen();
+  await load('decorate.js', decoCfg({ holds: holdsS, clipSound: 'full' }))({ draft: () => msx.d });
+  const sfx = msx.log.filter(x => x[0] === 'effect');
+  assert.deepEqual(sfx.map(x => [x[4].whipIn, x[4].whipOut]), holdsS.map((h, i) => [i > 0 ? h.whipIn : 0, i < holdsS.length - 1 ? h.whipOut : 0]), 'effect: per-side strengths');
+  for (let i = 0; i + 1 < sfx.length; i++) assert.equal(sfx[i][4].whipOut, sfx[i + 1][4].whipIn, 'cut ' + i + ' shares its strength');
+  const mtx = mockDraft(FPS, { photos: ['p1'], durations });
+  await load('assemble.js', assembleCfg({ holds: holdsS }))(project(() => mtx.d));
+  mtx.reopen();
+  await load('decorate.js', decoCfg({ holds: holdsS, whipMode: 'transition', clipSound: 'full' }))({ draft: () => mtx.d });
+  assert.deepEqual(mtx.log.filter(x => x[0] === 'transition').map(x => x[6].strength), cutStr, 'transition: the cut strength');
+  assert.ok(mtx.log.filter(x => x[0] === 'effect').every(x => x[4].whipIn === 0 && x[4].whipOut === 0), 'transition mode: look-only effects');
   mt.reopen();
   const dt2 = await load('decorate.js', decoCfg({ whipMode: 'transition', clipSound: 'full' }))({ draft: () => mt.d });
   assert.equal(dt2.transitions, 0); assert.equal(dt2.transitionsKept, 7); assert.equal(dt2.committed, false);

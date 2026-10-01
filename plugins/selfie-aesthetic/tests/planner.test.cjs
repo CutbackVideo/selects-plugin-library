@@ -11,7 +11,7 @@ const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JS
 vm.createContext(box);
 const NAMES = ['SAE_LEAD', 'SAE_END_TAIL', 'SAE_FIXED_BPM', 'SAE_FACE_MARGIN', 'SAE_SOURCE_TAIL', 'SAE_PAIR_GAP', 'SAE_FADE_OUT',
   'SAE_SNAP_WINDOW', 'SAE_MIN_HOLD_FRAMES', 'SAE_LENGTHS', 'saeEditBpm', 'saeTempo', 'saeVideoSeconds', 'saeMusicOffset', 'saeTemplate',
-  'saeSchedule', 'saeMoments', 'saeWhipKinds', 'saeBarGrid', 'saeDefaultSection', 'saeSnapSection', 'saePlanBuild'];
+  'saeSchedule', 'saeMoments', 'saeWhipKinds', 'saeWhipStrength', 'SAE_WHIP_SPIN', 'SAE_WHIP_INNER', 'SAE_WHIP_SUBTLE', 'SAE_WHIP_FINALE', 'saeBarGrid', 'saeDefaultSection', 'saeSnapSection', 'saePlanBuild'];
 vm.runInContext(source + ';globalThis.P={' + NAMES.join(',') + '};', box);
 const P = box.P;
 // The CommonJS export carries the same functions.
@@ -250,8 +250,30 @@ for (const cue of manifest.cues) {
     lastSign = Math.sign(a);
   }
   assert.equal(w1.filter(h => h.cutOut === 'spin').length, 5, 'one spin per bar change');
+  for (let i = 0; i + 1 < w1.length; i++) assert.equal(w1[i].whipOut, w1[i + 1].whipIn, 'both sides share the strength');
+  assert.equal(w1[0].whipIn, 0); assert.equal(w1[w1.length - 1].whipOut, 0, 'no whip on the outer sides');
   const mags = new Set(w1.slice(0, -1).map(h => Math.abs(h.angleOut)));
   assert.ok(mags.size > 10, 'magnitudes vary cut by cut');
+}
+
+// ---- Whip strengths per bar (the reference's per-cut whip depth) ----
+{
+  assert.deepEqual([P.SAE_WHIP_SPIN, P.SAE_WHIP_INNER, P.SAE_WHIP_SUBTLE, P.SAE_WHIP_FINALE], [1, 0.6, 0.35, 0.75]);
+  // Cut strengths by bar: S = standard (inner 0.6), s = subtle (0.35), F = finale (0.75); bar changes 1.
+  const expect = { 3: 'SSF', 4: 'SsSF', 6: 'SsSsSF', 8: 'SsSsSsSF' };
+  const val = { S: P.SAE_WHIP_INNER, s: P.SAE_WHIP_SUBTLE, F: P.SAE_WHIP_FINALE };
+  for (const n of [3, 4, 6, 8]) {
+    const w = P.saeWhipKinds(P.saeTemplate(n).map(h => ({ i: h.i, bar: h.bar })), 1);
+    const cuts = w.slice(0, -1).map((h, j) => ({ kind: h.cutOut, bar: h.bar, s: h.whipOut, next: w[j + 1].whipIn }));
+    assert.equal(cuts.length, 6 * (n - 1) + 6);
+    for (const c of cuts) {
+      assert.equal(c.s, c.next, 'N=' + n + ': both sides of a cut share its strength');
+      assert.equal(c.s, c.kind === 'spin' ? P.SAE_WHIP_SPIN : val[expect[n][c.bar]], 'N=' + n + ' bar ' + c.bar + ' ' + c.kind);
+    }
+    assert.equal(cuts.filter(c => c.kind === 'spin').length, n - 1, 'N=' + n + ': bar changes at full strength');
+    assert.ok(cuts.filter(c => c.bar === n - 1).every(c => c.s === P.SAE_WHIP_FINALE), 'N=' + n + ': the finale is never subtle');
+  }
+  assert.equal(P.saeWhipStrength('dir', 1, 3), P.SAE_WHIP_INNER, 'a shrunk 3-bar edit has no subtle bar');
 }
 
 // ---- Moments ----
