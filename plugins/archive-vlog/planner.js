@@ -1,29 +1,39 @@
 // Archive Vlog planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
-// One hard cut per shot on the music's beat grid: Quick = 1 beat per shot, Relaxed = 2 (with a tempo guard), Groove =
-// a 4-bar phrase rhythm (2, 1, 1, ..., and the phrase's last beat split into two 8ths on a drum fill). Shot roles cycle
-// through AV_ROLES; there is no title burst and no montage section (the title spans the whole video).
-// Without a usable grid (tempo outside 70-160 bpm, own music not accepted, or No music) shots have a fixed length: the
-// beat of an approximate tempo (avApproxTempo) when own music has one, else AV_FALLBACK_SHOT.
-const AV_LENGTHS = { short: 12, standard: 24, long: 36 };
-// Fewest shots a build needs; every length is a multiple of it, so the video is whole bars from its first beat.
-const AV_MIN_SHOTS = 4;
+// One hard cut per slot on the music's beat grid, in a fixed template (spec 3): an opening shot (6 beats), a credit
+// shot (2 beats, so the montage starts on beat 8, a downbeat), a montage of N shots of M beats each, and a held final
+// shot (F beats). Pace Cinematic: M = 2 up to 110 bpm, 4 above; Quick: M = 1 up to 110 bpm, 2 above, with twice the
+// shots, so a Length keeps its duration. F = 4 up to 110 bpm, 8 above. The montage is always whole bars (N x M a
+// multiple of 4) and shrinks by whole bars when the footage or the music is short; the intro and the final shot stay.
+// Without a usable grid (tempo outside 70-160 bpm, own music not accepted, or No music) the same template runs on a
+// fixed beat: an approximate tempo's (avApproxTempo) when own music has one, else 60 / AV_FALLBACK_BPM s.
+// Montage shots per Length at Pace Cinematic (Quick doubles them, avMontageShots).
+const AV_LENGTHS = { short: 8, standard: 16, long: 24 };
+// The intro in beats: opening + credit = 8, so the montage starts on a downbeat.
+const AV_INTRO_BEATS = { opening: 6, credit: 2 };
 const AV_TEMPO_MIN = 70;
 const AV_TEMPO_MAX = 160;
-// Shot length in seconds when there is no grid.
-const AV_FALLBACK_SHOT = { quick: 0.55, relaxed: 1.10 };
-// Slot roles, in order (a product cycle alternating close and wide shots).
-const AV_ROLES = ['drink', 'street', 'food', 'park', 'book', 'transit', 'flowers', 'cafe'];
+// The beat without a grid (and without an approximate tempo): 60 / 72 s, the default cue's tempo.
+const AV_FALLBACK_BPM = 72;
+// Up to this tempo montage shots are 2 beats (Quick 1) and the final shot 4 beats; above it 4 (Quick 2) and 8.
+const AV_SLOW_MAX_BPM = 110;
+// Slot roles: the intro's two, the montage cycle, the final shot (spec 8). The panel holds the search queries.
+const AV_MONTAGE_ROLES = ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline'];
+const AV_ROLES = ['opening', 'portrait'].concat(AV_MONTAGE_ROLES, ['ending']);
 // Which other candidate roles may fill a slot role, best first (the slot's own role always ranks first).
 const AV_ROLE_FALLBACK = {
-  drink: ['cafe', 'food'],
-  cafe: ['drink', 'book', 'food'],
-  food: ['drink', 'cafe'],
-  book: ['cafe'],
-  street: ['transit', 'park'],
-  transit: ['street'],
-  park: ['flowers', 'street'],
-  flowers: ['park'],
+  opening: ['crowd', 'ride', 'skyline'],
+  portrait: ['crowd', 'food'],
+  crowd: ['ride', 'opening'],
+  transit: ['ride', 'crowd'],
+  water: ['skyline', 'architecture'],
+  architecture: ['skyline', 'opening'],
+  ride: ['crowd', 'transit'],
+  food: ['crowd'],
+  skyline: ['water', 'architecture'],
+  ending: ['skyline', 'transit', 'crowd'],
 };
+// The reference's opening shot lasts this long; its animation timings scale down for a shorter one (avOpeningTiming).
+const AV_OPENING_REF_SECONDS = 5.60;
 // Scene-search hits collapse onto a few distinct times per clip, so every searched source also gets evenly spaced
 // 'filler' candidates. They score below any real hit and are only used by the last tier, after photos.
 const AV_FILLER_STEP = 0.5;
@@ -38,36 +48,14 @@ const AV_FILLER_MAX = 48;
 // far back to keep it inside its source.
 const AV_SOURCE_TAIL = 0.15;
 // Photos (Image resources) have no scene search. Each one fills at most one slot of any length up to the 5 s an
-// image source lasts. About AV_PHOTO_SHARE of the slots, evenly spread from a seeded offset, are photo slots where an
-// unused photo comes first. Elsewhere photos rank after every real video hit and before fillers. Never more than
-// AV_PHOTO_RUN_MAX photos play in a row (a hard rule) unless the pool has no video at all.
+// image source lasts, less AV_SOURCE_TAIL (a slot grows by up to 1/30 + 1/fps s at the Draft's real rate, as for
+// videos), so 4.85 s. About AV_PHOTO_SHARE of the slots that may hold a photo (the montage), evenly spread from a seeded
+// offset, are photo slots where an unused photo comes first. Elsewhere photos rank after every real video hit and
+// before fillers. Never more than AV_PHOTO_RUN_MAX photos play in a row (a hard rule) unless the pool has no video at
+// all.
 const AV_PHOTO_HOLD_MAX = 5;
 const AV_PHOTO_RUN_MAX = 2;
 const AV_PHOTO_SHARE = 1 / 3;
-// Groove (spec 15.1). A phrase is 4 bars (16 beats) from the section start; every cut sits on the beat or 8th grid.
-// - Holds: the first shot of every phrase holds 2 beats; so does the bar-3 downbeat of a final phrase the video ends
-//   in its second half (avGrooveHolds). Every other shot is 1 beat.
-// - Bursts: a split candidate is the last beat of each half-phrase (beat 7 = end of bar 2, beat 15 = phrase end) and
-//   the video's final beat (a phrase end even mid-phrase) (avGrooveCandidates); a split beat plays two 8th shots. At
-//   most one burst per half-phrase (2 bars).
-// - Which candidates split (avFillBeats), detection first per class (phrase ends incl. the final beat / bar-2
-//   accents): those whose onset density (sum of onset strengths in the beat) reaches AV_GROOVE_FILL_RATIO x the median
-//   beat of the span; a class with none detected, or no onset data at all, splits all of its candidates (the bundled
-//   cues carry a short drum fill at the end of every 4 bars).
-// - 8th shots are video only. A span is whole bars and at least AV_GROOVE_MIN_BEATS (one bar: 2, 1, 1/2, 1/2 = 4
-//   shots, AV_MIN_SHOTS). Without a grid the pattern runs
-//   on AV_GROOVE_FALLBACK_BEAT-second beats (2 x 0.55, 0.55 ..., 2 x 0.275) with every candidate split.
-// - Opener guard: when a 2-beat hold would last longer than AV_GROOVE_OPENER_MAX seconds (below 85.71 bpm) every hold
-//   is 1 beat, so no shot outruns Relaxed's cap.
-const AV_GROOVE_PHRASE_BEATS = 16;
-const AV_GROOVE_FILL_RATIO = 1.5;
-const AV_GROOVE_FALLBACK_BEAT = 0.55;
-const AV_GROOVE_MIN_BEATS = 4;
-const AV_GROOVE_OPENER_MAX = 1.40;
-// An onset counts for the beat it sits in, from this many seconds (one frame at 30 fps) before the beat: manifest and
-// detector onsets land a hair early (about 1 ms on the bundled cues). A fixed time, not a share of the beat, so a slow
-// tempo does not pull an 8th-note pickup into the next beat.
-const AV_GROOVE_ONSET_LEAD = 1 / 30;
 
 // A beat grid is used only for a tempo in [AV_TEMPO_MIN, AV_TEMPO_MAX] whose detection was accepted (bundled cues
 // always are).
@@ -78,164 +66,93 @@ function avGridUsable(opts) {
 
 // The approximate tempo fixed timing runs on, or null. beat-detect.cjs reports an own track's grid as 'approximate' when
 // it is tight (median residual <= 10 ms) and holds across the track but too few beats carry an onset to accept it. Its
-// tempo (opts.approxBpm), in [AV_TEMPO_MIN, AV_TEMPO_MAX] and only without a usable grid (opts.gridded), sets the fixed
-// shot length (avShotSeconds) and Groove's beat, so the cuts do not drift against the music. Everything else stays
-// gridless: cuts snap only to bass onsets (avSnapCuts lowConfidence), Groove splits every candidate, no beat punch.
+// tempo (opts.approxBpm), in [AV_TEMPO_MIN, AV_TEMPO_MAX] and only without a usable grid (opts.gridded), sets the beat
+// the template runs on, so the cuts do not drift against the music. Everything else stays gridless: cuts snap only to
+// bass onsets (avSnapCuts lowConfidence).
 function avApproxTempo(opts) {
   const bpm = opts && opts.approxBpm;
   return !(opts && opts.gridded) && typeof bpm === 'number' && isFinite(bpm) && bpm >= AV_TEMPO_MIN && bpm <= AV_TEMPO_MAX ? bpm : null;
 }
 
-// Beats per shot for a pace. Quick is 1 beat, but 2 above 150 bpm so shots stay >= 0.40 s; Relaxed is 2 beats, but 1
-// below 86 bpm so shots stay <= 1.40 s. `overridden` tells the panel the guard changed the choice. Groove returns
-// { beats: 1 (its beat unit), groove: true, opener: the phrase opener's beats (avGrooveOpener) }, overridden when the
-// opener guard makes it 1 beat (below 85.71 bpm). Above 150 bpm its 8ths would be under 0.2 s, so it plays 2 beats per
-// shot like Quick (no `groove` key).
-function avBeatsPerShot(pace, bpm) {
-  if (pace === 'relaxed') return bpm < 86 ? { beats: 1, overridden: true } : { beats: 2, overridden: false };
-  if (pace === 'groove') {
-    if (bpm > 150) return { beats: 2, overridden: true };
-    const opener = avGrooveOpener(bpm);
-    return { beats: 1, overridden: opener < 2, groove: true, opener };
-  }
-  return bpm > 150 ? { beats: 2, overridden: true } : { beats: 1, overridden: false };
+// The tempo the template runs on. opts: { bpm, accepted, approxBpm? }. Returns { gridded (avGridUsable), approxBpm
+// (avApproxTempo, null on a grid), tempo: the grid's bpm, else the approximate tempo, else AV_FALLBACK_BPM, and
+// beatSeconds: 60 / tempo }.
+function avTempo(opts) {
+  const gridded = avGridUsable({ bpm: opts && opts.bpm, accepted: opts && opts.accepted });
+  const approxBpm = avApproxTempo({ gridded, approxBpm: opts && opts.approxBpm });
+  const tempo = gridded ? opts.bpm : approxBpm || AV_FALLBACK_BPM;
+  return { gridded, approxBpm, tempo, beatSeconds: 60 / tempo };
 }
 
-// Seconds per shot: the beats on a grid, else on an approximate tempo (opts.approxBpm from avApproxTempo, with
-// beatsPerShot from avBeatsPerShot at that tempo), else the fixed fallback for the pace (for Groove: seconds per beat
-// unit).
-function avShotSeconds(opts) {
-  if (opts.gridded) return opts.beatsPerShot * 60 / opts.bpm;
-  if (opts.approxBpm > 0 && opts.beatsPerShot > 0) return opts.beatsPerShot * 60 / opts.approxBpm;
-  if (opts.pace === 'groove') return AV_GROOVE_FALLBACK_BEAT;
-  return opts.pace === 'relaxed' ? AV_FALLBACK_SHOT.relaxed : AV_FALLBACK_SHOT.quick;
+// Beats per montage shot for a pace ('quick', else Cinematic) at a tempo (avTempo's).
+function avMontageBeats(pace, bpm) {
+  const slow = !(bpm > AV_SLOW_MAX_BPM);
+  return pace === 'quick' ? (slow ? 1 : 2) : (slow ? 2 : 4);
 }
 
-// The largest multiple of AV_MIN_SHOTS (<= requested) whose shots fit between sectionStart and usableEnd, else 0.
-// usableEnd is Infinity without music.
+// Beats of the final shot at a tempo.
+function avFinalBeats(bpm) {
+  return bpm > AV_SLOW_MAX_BPM ? 8 : 4;
+}
+
+// Montage shots a Length asks for: AV_LENGTHS (Standard when unknown), doubled for Quick.
+function avMontageShots(length, pace) {
+  const n = AV_LENGTHS[length] || AV_LENGTHS.standard;
+  return pace === 'quick' ? 2 * n : n;
+}
+
+// The montage lengths (shots) a plan may try, longest first. opts: { requested, pace, bpm (avTempo's tempo) }. The
+// steps keep the montage whole bars and the shot count stable across tempos: Cinematic shrinks by 2 shots, Quick by 4;
+// the shortest montage is one bar (4 / M shots), added at the end when the steps miss it (Cinematic above 110 bpm:
+// 8, 6, 4, 2, 1; Quick above 110 bpm: 16, 12, 8, 4, 2). A non-finite request counts as Standard.
+function avMontageLadder(opts) {
+  const m = avMontageBeats(opts.pace, opts.bpm), step = opts.pace === 'quick' ? 4 : 2, least = 4 / m;
+  const asked = typeof opts.requested === 'number' && isFinite(opts.requested) ? opts.requested : avMontageShots('standard', opts.pace);
+  const out = [];
+  for (let n = Math.floor(asked / step) * step; n >= least; n -= step) out.push(n);
+  if (out[out.length - 1] !== least) out.push(least);
+  return out;
+}
+
+// The slot template. opts: { bpm (avTempo's tempo), pace, montageShots }. Returns { beatsList (beats per slot: 6, 2,
+// M x N, F), roles, parts ('opening' | 'credit' | 'montage' | 'final' per slot), videoOnly (per slot: the opening,
+// credit and final shots never take a photo), montageBeats: M, finalBeats: F, montageShots: N, montageStart: 8 (the
+// montage's first beat), totalBeats }. Throws when the montage would not be whole bars.
+function avTemplate(opts) {
+  const m = avMontageBeats(opts.pace, opts.bpm), f = avFinalBeats(opts.bpm), n = opts.montageShots;
+  if (!(n >= 1) || Math.floor(n) !== n || (n * m) % 4 !== 0) throw Error('avTemplate: the montage must be whole bars');
+  const beatsList = [AV_INTRO_BEATS.opening, AV_INTRO_BEATS.credit], roles = ['opening', 'portrait'], parts = ['opening', 'credit'];
+  for (let k = 0; k < n; k++) { beatsList.push(m); roles.push(AV_MONTAGE_ROLES[k % AV_MONTAGE_ROLES.length]); parts.push('montage'); }
+  beatsList.push(f); roles.push('ending'); parts.push('final');
+  const montageStart = AV_INTRO_BEATS.opening + AV_INTRO_BEATS.credit;
+  return { beatsList, roles, parts, videoOnly: parts.map(p => p !== 'montage'), montageBeats: m, finalBeats: f, montageShots: n, montageStart,
+    totalBeats: montageStart + n * m + f };
+}
+
+// Seconds of a video with N montage shots: opts { bpm (avTempo's tempo), pace, montageShots }.
+function avVideoSeconds(opts) {
+  return avTemplate(opts).totalBeats * 60 / opts.bpm;
+}
+
+// Music capacity: the longest montage (avMontageLadder) whose whole video fits between sectionStart and usableEnd, in
+// shots, else 0. opts: { requested, pace, bpm (avTempo's tempo), sectionStart?, usableEnd? (Infinity / omitted without
+// music) }.
 function avFitShots(opts) {
   const start = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
   const end = opts.usableEnd == null ? Infinity : opts.usableEnd;
-  for (let n = Math.floor(opts.requested / AV_MIN_SHOTS) * AV_MIN_SHOTS; n >= AV_MIN_SHOTS; n -= AV_MIN_SHOTS) {
-    if (start + n * opts.shotSeconds <= end + 1e-6) return n;
+  for (const n of avMontageLadder(opts)) {
+    if (start + avVideoSeconds({ bpm: opts.bpm, pace: opts.pace, montageShots: n }) <= end + 1e-6) return n;
   }
   return 0;
 }
 
-// Beats of a Groove phrase's opening shot: 2, or 1 when 2 beats would last longer than AV_GROOVE_OPENER_MAX. Without a
-// grid (bpm not a number) the opener is 2 x AV_GROOVE_FALLBACK_BEAT = 1.10 s, so 2.
-function avGrooveOpener(bpm) {
-  return bpm > 0 && 2 * 60 / bpm > AV_GROOVE_OPENER_MAX + 1e-9 ? 1 : 2;
-}
-
-// Beats of a span of `beats` (whole bars) that may split into two 8ths, ascending: the last beat of every half-phrase
-// (beats 7 and 15 of each phrase: the end of bar 2 and the phrase end) inside the span, and the span's final beat (the
-// video's end counts as a phrase end when it falls mid-phrase). Each half-phrase holds at most one of them, so there is
-// at most one burst per 2 bars.
-function avGrooveCandidates(beats) {
-  const half = AV_GROOVE_PHRASE_BEATS / 2, out = [];
-  for (let b = half - 1; b < beats; b += half) out.push(b);
-  if (beats > 0 && out[out.length - 1] !== beats - 1) out.push(beats - 1);
-  return out;
-}
-
-// Beats where a Groove span has a 2-beat shot: every phrase start and, when the span ends inside a phrase's second
-// half, that half-phrase's start (bar 3 downbeat), so a partial phrase keeps a long hold after its first half.
-// None with a 1-beat opener (avGrooveOpener).
-function avGrooveHolds(beats, opener) {
-  if (opener === 1) return [];
-  const half = AV_GROOVE_PHRASE_BEATS / 2, out = [];
-  for (let p = 0; p < beats; p += AV_GROOVE_PHRASE_BEATS) {
-    out.push(p);
-    if (p + AV_GROOVE_PHRASE_BEATS > beats && beats - p > half) out.push(p + half);
-  }
-  return out;
-}
-
-// Groove slot lengths in beats for a span of `beats` (whole bars): 2-beat holds at avGrooveHolds, each beat in
-// `splits` (beat indices, from avGrooveCandidates) as two 8ths, every other beat 1. opener (default 2) as in
-// avGrooveHolds. The lengths sum to `beats`.
-function avGrooveBeats(opts) {
-  const beats = opts.beats, list = [];
-  const holds = avGrooveHolds(beats, opts.opener === 1 ? 1 : 2), splits = opts.splits || [];
-  for (let b = 0; b < beats;) {
-    if (holds.indexOf(b) >= 0 && beats - b >= 2) { list.push(2); b += 2; }
-    else if (splits.indexOf(b) >= 0) { list.push(0.5, 0.5); b += 1; }
-    else { list.push(1); b += 1; }
-  }
-  return list;
-}
-
-// Shots in a span of `beats` with the pattern (every candidate split) and the given opener (default 2).
-function avGrooveCount(beats, opener) {
-  return avGrooveBeats({ beats, splits: avGrooveCandidates(beats), opener }).length;
-}
-
-// The nominal Groove span for a requested number of shots: the whole-bar span (>= AV_GROOVE_MIN_BEATS) whose pattern
-// shot count is nearest the request, the longer one on a tie (2-beat opener: 12 -> 12 beats / 12 shots, 24 -> 24 /
-// 25, 36 -> 36 / 38). It depends on the length and the opener only, never on the music section, so the panel can size
-// the section before fills are known; detected fills then change the shot count inside the same span (the plan
-// reports the actual shots). opener: avGrooveOpener(bpm), default 2.
-function avGrooveSpan(requested, opener) {
-  const want = Math.max(AV_MIN_SHOTS, Math.floor(requested) || 0);
-  let beats = AV_GROOVE_MIN_BEATS;
-  while (avGrooveCount(beats, opener) < want) beats += 4;
-  const lower = beats - 4;
-  if (lower >= AV_GROOVE_MIN_BEATS && want - avGrooveCount(lower, opener) < avGrooveCount(beats, opener) - want) beats = lower;
-  return { beats, shots: avGrooveCount(beats, opener) };
-}
-
-// Music capacity for Groove (avFitShots on beat spans): the nominal span, shortened by whole bars until
-// sectionStart + beats x beatSeconds <= usableEnd; { beats: 0, shots: 0 } when not even AV_GROOVE_MIN_BEATS fit.
-// `shots` is the pattern count for the fitted span; usableEnd is Infinity (or null) without music; opener? as in
-// avGrooveSpan.
-function avGrooveFit(opts) {
-  const start = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
-  const end = opts.usableEnd == null ? Infinity : opts.usableEnd;
-  const nominal = avGrooveSpan(opts.requested, opts.opener);
-  for (let beats = nominal.beats; beats >= AV_GROOVE_MIN_BEATS; beats -= 4) {
-    if (start + beats * opts.beatSeconds <= end + 1e-6) return { beats, shots: avGrooveCount(beats, opts.opener), requestedBeats: nominal.beats };
-  }
-  return { beats: 0, shots: 0, requestedBeats: nominal.beats };
-}
-
-// Drum fills of a Groove span. opts: { onsets: [[music seconds, band, strength], ...], sectionStart (music seconds),
-// bpm, firstBeat? (re-phases sectionStart onto the beat grid), beats (the span) }. A beat's density is the sum of its
-// onsets' strengths (count x strength); a candidate beat (avGrooveCandidates) carries a fill when its density reaches
-// AV_GROOVE_FILL_RATIO x the median beat density of the span. Candidates come in two classes: phrase ends (beat 15 of
-// a phrase, and the span's final beat) and bar-2 accents (beat 7 of a phrase, unless it is the final beat). Detection
-// first, per class: when a class has a candidate with a fill, just those split; a class without one falls back to all
-// of its candidates. No onsets, no bpm or section start or a median of 0 -> every candidate splits. Returns { splits:
-// beat indices, candidates, source: 'onsets' (both classes detected) | 'mixed' | 'pattern' (neither), ratios: density
-// / median per candidate (empty without data) }. Assumes sectionStart is on the bar grid (avSnapSection /
-// avDefaultSection), since candidates are counted in beats from it; with firstBeat it is only re-phased to the nearest
-// beat, never to a bar. The median is taken over the whole span (not per phrase), which is steadier on short spans.
-function avFillBeats(opts) {
-  const n = Math.max(0, Math.floor(opts.beats) || 0), candidates = avGrooveCandidates(n);
-  const fallback = ratios => ({ splits: candidates.slice(), candidates, source: 'pattern', ratios });
-  const bpm = opts.bpm, finite = v => typeof v === 'number' && isFinite(v);
-  if (!n || !(bpm > 0) || !finite(opts.sectionStart) || !Array.isArray(opts.onsets) || !opts.onsets.length) return fallback([]);
-  const beat = 60 / bpm;
-  const start = finite(opts.firstBeat) ? opts.firstBeat + Math.round((opts.sectionStart - opts.firstBeat) / beat) * beat : opts.sectionStart;
-  const density = Array(n).fill(0);
-  for (const o of opts.onsets) {
-    if (!o || !finite(o[0]) || !finite(o[2]) || !(o[2] > 0)) continue;
-    const k = Math.floor((o[0] - start + AV_GROOVE_ONSET_LEAD) / beat);
-    if (k >= 0 && k < n) density[k] += o[2];
-  }
-  const sorted = density.slice().sort((a, b) => a - b);
-  const median = (sorted[(n - 1) >> 1] + sorted[n >> 1]) / 2;
-  if (!(median > 0)) return fallback([]);
-  const ratios = candidates.map(b => Math.round(density[b] / median * 100) / 100);
-  const isEnd = b => b === n - 1 || b % AV_GROOVE_PHRASE_BEATS === AV_GROOVE_PHRASE_BEATS - 1;
-  const fill = b => density[b] / median >= AV_GROOVE_FILL_RATIO - 1e-9;
-  let detected = 0;
-  const pick = list => { const hit = list.filter(fill); if (hit.length) detected++; return hit.length ? hit : list; };
-  const ends = pick(candidates.filter(isEnd)), accents = pick(candidates.filter(b => !isEnd(b)));
-  const splits = ends.concat(accents).sort((a, b) => a - b);
-  // Two classes when the span has accents; a class that is empty counts as detected for 'onsets'.
-  const classes = candidates.some(b => !isEnd(b)) ? 2 : 1;
-  return { splits, candidates, source: detected === 0 ? 'pattern' : detected === classes ? 'onsets' : 'mixed', ratios };
+// The opening animation's timings (spec 4) in seconds from the clip start: the reference's, scaled by
+// k = min(1, openingSeconds / AV_OPENING_REF_SECONDS), so a faster cue compresses the animation instead of lengthening
+// the intro. Letterbox reveal from revealStart to revealEnd, kicker and tagline at textIn, decode from decodeStart,
+// letterSeconds per title letter.
+function avOpeningTiming(openingSeconds) {
+  const k = Math.min(1, Math.max(0, Number(openingSeconds) || 0) / AV_OPENING_REF_SECONDS);
+  return { k, revealStart: 0.22 * k, revealEnd: 2.30 * k, textIn: 2.40 * k, decodeStart: 2.90 * k, letterSeconds: 0.11 * k };
 }
 
 // Where the music's beats land on the timeline. Selects snaps the music's source start (sectionStart) to a timeline
@@ -247,7 +164,8 @@ function avMusicOffset(sectionStart, fps) {
 
 // Onset-snapped cuts. The cuts stay on the grid; a cut moves onto a clearly strong music onset near it, and only when
 // nothing already marks the grid position. Only a cut that starts a slot of at least one beat is snappable: with
-// opts.beatsList (Groove) a cut starting an 8th slot stays on the grid; without it every inner cut qualifies.
+// opts.beatsList a cut starting a slot under one beat stays on the grid (every template slot is >= 1 beat, so every
+// inner cut qualifies, as without beatsList).
 // Conservative rules (from CWV v2.6): a cut stays on the grid when a qualifying onset of any band lies within one frame
 // of it; otherwise the candidate must reach AV_SNAP_MIN_RATIO of its band threshold, candidates rank by
 // ratio - AV_SNAP_DISTANCE_COST * |offset| / window, and a low-band candidate must also beat the grid position's own
@@ -267,7 +185,7 @@ const AV_SNAP_LOW_CONFIDENCE_WINDOW = 0.120;
 // onsets: [[seconds in the music source, band 'l' | 'm' | 'h', strength], ...].
 // opts: { bpm (null without a grid), fps, sectionStart (the music second at the section start; onsets are shifted by
 // it), thresholds?: { l, m, h }, lowConfidence?: true for fixed timing (forced when bpm is not a number), beatsList?:
-// slot lengths in beats }. The min-frames / min-share rule below keeps an 8th slot next to a snapped cut. Returns
+// slot lengths in beats }. The min-frames / min-share rule below keeps a short slot next to a snapped cut. Returns
 // { cuts: seconds like boundaries, frames: the cuts at opts.fps with the music offset (same expression as avSchedule
 // and assemble.js), log: one entry per inner cut, window }. A snapped cut sits exactly on its onset, so rounding it to
 // a frame at any rate never puts it more than half a frame before the onset.
@@ -329,25 +247,28 @@ function avSnapCuts(boundaries, onsets, opts) {
   return { cuts, frames: cuts.map(frameOf), log, window: reach };
 }
 
-// opts: { bpm (null without a usable grid), fps, shots, beatsPerShot, shotSeconds? (the fixed shot length, needed
-// when bpm is null), sectionStart?: seconds into the music (omit without music), onsets?, onsetThresholds?,
-// lowConfidence? (avSnapCuts; used only with a sectionStart), cuts?: cut seconds decided earlier (a schedule's `cuts`,
-// reused as they are, e.g. to rebuild at the Draft's real fps), beatsList?: per-slot lengths in beats (Groove; replaces
-// shots and beatsPerShot; without a grid shotSeconds is the seconds per beat) }. Slots carry their grid beat span
-// (startBeat, endBeat; null without a grid) and frames, and with beatsList also `beats` (the slot's length in beats);
-// `offset` is the music offset every boundary is shifted by; `cuts` are the boundaries in seconds from the section
-// start (the grid, or the snapped cuts) and `snapLog` explains each inner cut. With beatsList the result also carries
-// `beatsList`.
+// opts: { bpm (null without a usable grid), fps, beatsList: per-slot lengths in beats (avTemplate's; without a grid
+// shotSeconds is the seconds per beat), roles?, parts? (per slot, avTemplate's), shotSeconds? (needed when bpm is
+// null), sectionStart?: seconds into the music (omit without music), onsets?, onsetThresholds?, lowConfidence?
+// (avSnapCuts; used only with a sectionStart), cuts?: cut seconds decided earlier (a schedule's `cuts`, reused as they
+// are, e.g. to rebuild at the Draft's real fps) }. Without beatsList, `shots` slots of `beatsPerShot` beats each (or
+// shotSeconds each without a grid). Slots carry their role (opts.roles, else the montage cycle), their grid beat span
+// (startBeat, endBeat; null without a grid) and frames, with beatsList also `beats` (the slot's length in beats) and
+// with parts `part`; `offset` is the music offset every boundary is shifted by; `cuts` are the boundaries in seconds
+// from the section start (the grid, or the snapped cuts) and `snapLog` explains each inner cut. With beatsList the
+// result also carries `beatsList`.
 function avSchedule(opts) {
   const list = Array.isArray(opts.beatsList) ? opts.beatsList : null;
   const fps = opts.fps, n = list ? list.length : opts.shots, gridded = opts.bpm > 0;
   if (!(fps > 0) || !(n >= 1)) throw Error('avSchedule needs fps and shots');
   if (list && !list.every(b => typeof b === 'number' && b > 0 && isFinite(b))) throw Error('avSchedule: beatsList needs positive beat lengths');
+  const roles = Array.isArray(opts.roles) ? opts.roles : null, parts = Array.isArray(opts.parts) ? opts.parts : null;
+  if ((roles && roles.length !== n) || (parts && parts.length !== n)) throw Error('avSchedule: roles and parts need one entry per slot');
   const bps = gridded ? (list ? 1 : opts.beatsPerShot) : null;
   if (gridded && !(bps > 0)) throw Error('avSchedule needs beatsPerShot');
   const shotSeconds = gridded ? bps * 60 / opts.bpm : opts.shotSeconds;
   if (!(shotSeconds > 0)) throw Error('avSchedule needs bpm or shotSeconds');
-  // Slot k starts `at[k]` units (beats, or fixed shots / beat units without a grid) in; sums of 0.5, 1 and 2 are exact.
+  // Slot k starts `at[k]` units (beats, or fixed shots / beats without a grid) in; sums of whole beats are exact.
   const at = [0];
   for (let k = 0; k < n; k++) at.push(at[k] + (list ? list[k] : 1));
   // Every boundary is an absolute position (k shots in), shifted by the music offset and snapped once to a frame;
@@ -369,12 +290,13 @@ function avSchedule(opts) {
   for (let i = 0; i < n; i++) {
     slots.push({
       index: i,
-      role: AV_ROLES[i % AV_ROLES.length],
+      role: roles ? roles[i] : AV_MONTAGE_ROLES[i % AV_MONTAGE_ROLES.length],
       startBeat: gridded ? at[i] * bps : null,
       endBeat: gridded ? at[i + 1] * bps : null,
       startFrame: frameOf(cuts[i]),
       endFrame: frameOf(cuts[i + 1]),
       ...(list ? { beats: list[i] } : {}),
+      ...(parts ? { part: parts[i] } : {}),
     });
   }
   return { offset, cuts, snapLog, slots, totalFrames: slots[n - 1].endFrame, gridded, ...(list ? { beatsList: list.slice() } : {}) };
@@ -411,22 +333,16 @@ function avDefaultSection(opts) {
   return best ? best.start : null;
 }
 
-// Hook section (spec 15.3, "Start at the hook"): the bar start with the highest hookBars score (manifest; index b =
-// the start firstBeat + 4b beats, scored by onset contrast and low-band punch) among the starts whose video of
-// videoSeconds fits before usableEnd, earliest on ties; the manifest's hookStart is this pick for 24 beats. null when
-// there are no scores (own music, No music), no tempo or nothing fits, so the caller falls back to avDefaultSection.
-// opts: { hookBars, firstBeat, bpm, usableEnd, videoSeconds, barPhaseBeats? }. barPhaseBeats is informational only:
-// the manifest's firstBeat already carries the bar phase, so it never shifts the start.
-function avHookSection(opts) {
-  const bars = opts.hookBars, bar = 4 * 60 / opts.bpm;
-  if (!Array.isArray(bars) || !bars.length || !(opts.bpm > 0)) return null;
-  let best = null;
-  for (let b = 0; b < bars.length; b++) {
-    const start = opts.firstBeat + b * bar, score = bars[b];
-    if (typeof score !== 'number' || !isFinite(score) || start + opts.videoSeconds > opts.usableEnd + 1e-6) continue;
-    if (!best || score > best.score + 1e-9) best = { start, score };
-  }
-  return best ? best.start : null;
+// Default music section of a bundled cue (spec 7): the manifest's introStart, a bar start about 8 beats before the
+// drums arrive, so the opening and credit play over the soft intro and the montage starts with the groove; used when
+// the video of videoSeconds fits from there before usableEnd. Otherwise (no introStart, own music, a video too long)
+// avDefaultSection's most energetic window, or null when nothing fits. opts: { introStart?, firstBeat, bpm, usableEnd,
+// videoSeconds, beatEnergy?, downbeatHigh? }.
+function avIntroSection(opts) {
+  const at = opts.introStart;
+  if (typeof at === 'number' && isFinite(at) && at >= 0 && at + opts.videoSeconds <= opts.usableEnd + 1e-6) return at;
+  if (!(opts.bpm > 0)) return null;
+  return avDefaultSection({ ...opts, beatEnergy: Array.isArray(opts.beatEnergy) ? opts.beatEnergy : [] });
 }
 
 function avHash(str) {
@@ -460,15 +376,17 @@ function avFillers(candidates) {
 }
 
 // Strict allocation. opts: { candidates, slots: [{ index, role, seconds, videoOnly? }], seed, gapSeconds = 0.5,
-// photoShare = AV_PHOTO_SHARE, spread = true, motionOpener = true }. A videoOnly slot (a Groove 8th) never takes a
-// photo, and the photo share counts only the other slots. Two hard rules, never relaxed: the previous slot's source is never used again for the next slot,
-// and at most AV_PHOTO_RUN_MAX photos play in a row (unless the pool has no video candidate). A slot nothing fits under
-// them stays null (counted in `missing`); avPlanBuild then tries a shorter length.
-// Motion opener: a video candidate with `motion` > 0 (tagged by the panel's motion bonus, only with Beat punch) marks a
-// moving moment. The first slot takes the best such window that fits it (the usual role rank, score and jitter; a role
-// outside the slot's roles ranks after them), ahead of a photo slot and the normal tiers, and is then left out of the
-// photo slots so the photo share moves to the others. Without tagged candidates (Beat punch off), with none that fits,
-// or with motionOpener: false the allocation is exactly as without this rule.
+// photoShare = AV_PHOTO_SHARE, spread = true, motionOpener = true, finalEarly = true }. A videoOnly slot (the opening, credit and final
+// shots) never takes a photo, and the photo share counts only the other slots (the montage). Two hard rules, never
+// relaxed: the previous slot's source is never used again for the next slot, and at most AV_PHOTO_RUN_MAX photos play
+// in a row (unless the pool has no video candidate). A slot nothing fits under them stays null (counted in `missing`);
+// avPlanBuild then tries a shorter montage.
+// Motion opener: a video candidate with `motion` > 0 (tagged by the panel's motion bonus) marks a moving moment. The
+// first slot (the opening shot) takes the best such window that fits it whole (the usual role rank, score and jitter; a
+// role outside the slot's roles ranks after them), ahead of the normal tiers; a tagged clip shorter than the slot plus
+// AV_SOURCE_TAIL cannot. If the opener is not videoOnly it is also left out of the photo slots, so the photo share
+// moves to the others. Without tagged candidates, with none that fits, or with motionOpener: false the allocation is
+// exactly as without this rule.
 function avAllocate(opts) {
   const gap = opts.gapSeconds == null ? 0.5 : opts.gapSeconds;
   const finite = v => typeof v === 'number' && isFinite(v);
@@ -477,7 +395,7 @@ function avAllocate(opts) {
   const photoSeen = {};
   const photos = opts.candidates.filter(c => c && c.kind === 'photo' && typeof c.rid === 'string' && !photoSeen[c.rid] && (photoSeen[c.rid] = true))
     .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
-  const used = {}, uses = {}, recent = [], picks = [], photoUsed = {};
+  const used = {}, uses = {}, recent = [], photoUsed = {};
   // Variety first (default): a slot takes an unused resource whenever one fits before reusing any, and reuse goes to
   // the least-used resource. spread: false ranks by role and score only (the fallback avPlanBuild tries before it
   // shrinks, since spending every fresh clip first can strand a length that a reuse-tolerant order fills).
@@ -487,7 +405,7 @@ function avAllocate(opts) {
   const jitter = pool.map(c => avHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05);
   // Photo-only pools (no usable video) may play any number of photos in a row.
   const runLimited = pool.length > 0;
-  let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, prevRid = null;
+  let missing = 0, fillerShots = 0, photoShots = 0;
   // The motion opener (see above). Nothing is used yet, so this is the pick the first slot's loop turn would make with
   // the motion rank.
   const first = opts.slots[0];
@@ -500,18 +418,18 @@ function avAllocate(opts) {
   // available, spaced evenly from a seeded phase. With no photos there are none, and every slot goes to video.
   const photoSlots = {};
   const phase = avHash(opts.seed + ':photo-slots');
-  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds <= AV_PHOTO_HOLD_MAX + 1e-9 && !(opener && sl === first));
+  const holdable = opts.slots.filter(sl => !sl.videoOnly && sl.seconds + AV_SOURCE_TAIL <= AV_PHOTO_HOLD_MAX + 1e-9 && !(opener && sl === first));
   const share = opts.photoShare == null ? AV_PHOTO_SHARE : opts.photoShare;
   const target = Math.min(photos.length, holdable.length, Math.round(opts.slots.filter(sl => !sl.videoOnly).length * share));
   for (let k = 0; k < target; k++) photoSlots[holdable[Math.floor((k + phase) * holdable.length / target)].index] = true;
   // Best fitting video candidate for a slot. rankOf returns the candidate's rank in this tier, or -1 to skip it.
-  // `exclude` is the previous shot's source, which may not be used; `level`, when not null, keeps only sources used
-  // exactly that many times.
+  // `exclude` lists the neighbouring shots' sources, which may not be used; `level`, when not null, keeps only sources
+  // used exactly that many times.
   function searchVideo(slot, rankOf, exclude, level) {
     let best = null;
     for (let i = 0; i < pool.length; i++) {
       const c = pool[i];
-      if (c.rid === exclude) continue;
+      if (exclude && exclude.indexOf(c.rid) >= 0) continue;
       if (level != null && (uses[c.rid] || 0) !== level) continue;
       const rank = rankOf(c);
       if (rank < 0 || c.sourceDuration < slot.seconds + AV_SOURCE_TAIL) continue;
@@ -526,10 +444,10 @@ function avAllocate(opts) {
     }
     return best;
   }
-  // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos. A photo is never the
-  // previous source, since each photo is used once.
+  // An unused photo for the slot, chosen by a seeded hash so another seed picks other photos. A photo is never a
+  // neighbour's source, since each photo is used once.
   function searchPhoto(slot) {
-    if (slot.videoOnly || slot.seconds > AV_PHOTO_HOLD_MAX + 1e-9) return null;
+    if (slot.videoOnly || slot.seconds + AV_SOURCE_TAIL > AV_PHOTO_HOLD_MAX + 1e-9) return null;
     let best = null;
     for (const c of photos) {
       if (photoUsed[c.rid]) continue;
@@ -538,9 +456,19 @@ function avAllocate(opts) {
     }
     return best;
   }
-  for (const slot of opts.slots) {
+  // Fill order: the timeline, except that a video-only last slot (the held final shot) is filled right after the
+  // first (unless finalEarly: false), so the montage cannot spend every window long enough for it. Each slot excludes
+  // the sources of its already filled neighbours on both sides.
+  const n = opts.slots.length, order = opts.slots.map((sl, i) => i);
+  const early = opts.finalEarly !== false && n > 2 && !!opts.slots[n - 1].videoOnly;
+  if (early) { order.pop(); order.splice(1, 0, n - 1); }
+  const picks = Array(n).fill(null);
+  // Photos in a row right before position i (picks after it are not filled yet, except a video-only last slot).
+  const runBefore = i => { let k = 0; while (i - 1 - k >= 0 && picks[i - 1 - k] && picks[i - 1 - k].kind === 'photo') k++; return k; };
+  for (const pos of order) {
+    const slot = opts.slots[pos];
     const roles = [slot.role].concat(AV_ROLE_FALLBACK[slot.role] || []);
-    const exclude = prevRid;
+    const exclude = [pos - 1, pos + 1].filter(i => picks[i]).map(i => picks[i].rid);
     const photo = () => searchPhoto(slot);
     const preferred = level => () => searchVideo(slot, c => roles.indexOf(c.role), exclude, level);
     const anyReal = level => () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude, level);
@@ -550,7 +478,7 @@ function avAllocate(opts) {
     // role and score only rank sources used equally often and an unused clip (even by a filler) beats any reuse.
     // Outside photo slots a photo is then the last resort, which keeps the photo share. Without spread the CWV order
     // applies: preferred, any-role, photo, filler. After AV_PHOTO_RUN_MAX photos in a row the photo tier is skipped.
-    const runFull = runLimited && photoRun >= AV_PHOTO_RUN_MAX;
+    const runFull = runLimited && runBefore(pos) >= AV_PHOTO_RUN_MAX;
     const tiers = photoSlots[slot.index] ? [photo] : [];
     if (spread) {
       const levels = Array.from(new Set(pool.map(c => uses[c.rid] || 0))).sort((x, y) => Number(x) - Number(y));
@@ -566,56 +494,51 @@ function avAllocate(opts) {
         if ((best = tier())) break;
       }
     }
-    if (!best) { missing++; picks.push(null); photoRun = 0; prevRid = null; continue; }
-    prevRid = best.c.rid;
-    recent.push(best.c.rid);
-    if (recent.length > 3) recent.shift();
+    if (!best) { missing++; continue; }
+    // Recent sources (a repeat penalty) follow the timeline, so the out-of-order final shot does not count.
+    if (!(early && pos === n - 1)) { recent.push(best.c.rid); if (recent.length > 3) recent.shift(); }
     if (best.photo) {
       photoUsed[best.c.rid] = true;
-      photoShots++; photoRun++;
-      picks.push({ slot: slot.index, rid: best.c.rid, kind: 'photo', holdSeconds: slot.seconds });
+      photoShots++;
+      picks[pos] = { slot: slot.index, rid: best.c.rid, kind: 'photo', holdSeconds: slot.seconds };
       continue;
     }
-    photoRun = 0;
     (used[best.c.rid] = used[best.c.rid] || []).push([best.start, best.end]);
     uses[best.c.rid] = (uses[best.c.rid] || 0) + 1;
     if (best.c.role === 'filler') fillerShots++;
     // sourceDuration lets assemble.js keep the window inside its source at the Draft's real rate.
-    picks.push({ slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end, sourceDuration: best.c.sourceDuration });
+    picks[pos] = { slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end, sourceDuration: best.c.sourceDuration };
   }
   return { picks, missing, filled: picks.filter(Boolean).length, fillerShots, photoShots };
 }
 
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
-// approxBpm? (avApproxTempo), fps, pace: 'quick' | 'relaxed' | 'groove', requested (shots), sectionStart?, usableEnd? (Infinity / omitted without
-// music), onsets?, onsetThresholds?, lowConfidence?, seed, photoShare?, motionOpener? (avAllocate) }.
-// A plan carries approxBpm: the approximate tempo its fixed timing used, else null.
-// Order: the music caps the length (avFitShots), then the plan tries that length and shrinks by AV_MIN_SHOTS down to
-// AV_MIN_SHOTS until the strict allocation fills every slot. Every attempt allocates from scratch with filler
-// candidates added (see `attempts` below). Failure reasons: 'music-too-short' (not even AV_MIN_SHOTS fit the music), 'one-resource' (fewer
-// than 2 distinct sources: the adjacency rule cannot hold), 'too-few' (the footage fills fewer than AV_MIN_SHOTS).
-// Groove (unless its tempo guard falls back to 2 beats per shot): the length is a beat span (avGrooveFit: the nominal
-// span for `requested`, capped by the music in whole bars) and shrinks by whole bars down to AV_GROOVE_MIN_BEATS; each
-// span's fills come from the section's onsets (avFillBeats), and `shots` is that span's actual slot count. A pool with
-// no usable video gets no 8ths (photos cannot take them). The result then has beatsPerShot null, shotSeconds null and
-// groove: { beats, requestedBeats, splits (beats split into 8ths), fillSource, ratios (avFillBeats), beatSeconds,
-// opener }; its slots carry
-// `beats`.
+// approxBpm? (avApproxTempo), fps, pace: 'cinematic' (default) | 'quick', requested (montage shots, avMontageShots),
+// sectionStart?, usableEnd? (Infinity / omitted without music), onsets?, onsetThresholds?, lowConfidence?, seed,
+// photoShare?, motionOpener? (avAllocate) }.
+// Order: the music caps the montage (avFitShots), then the plan tries that montage and shrinks it down the ladder
+// (avMontageLadder: whole bars, one bar at least) until the strict allocation fills every slot; the opening, credit and
+// final shots are never dropped. Every attempt allocates from scratch with filler candidates added (see `attempts`
+// below). Failure reasons: 'music-too-short' (not even a one-bar montage fits the music), 'one-resource' (fewer than 2
+// distinct sources: the adjacency rule cannot hold), 'no-video' (photos only, and they cannot fill even the shortest
+// plan: a photo holds at most AV_PHOTO_HOLD_MAX - AV_SOURCE_TAIL = 4.85 s, which the 6-beat opening outlasts below
+// 74.2 bpm), 'too-few' (the
+// footage cannot fill even the shortest plan). A failure carries usableShots (montage slots the shortest plan filled)
+// and usableSlots (all slots it filled).
+// A pool with no usable video lets photos take the opening, credit and final shots and plays photos in any run (as
+// Mini Vlog's photo-only pool); notes then holds 'no-video' so the panel can say so.
+// A plan returns { ok: true, schedule (its slots carry role, part and beats), picks, shots: montage shots, requested:
+// the montage asked for (the ladder's top), slots: all slots, fittedByMusic, pace, montageBeats, finalBeats, tempo,
+// beatSeconds, gridded, approxBpm (the approximate tempo the fixed timing used, else null), fillerShots, photoShots,
+// attempt, notes }.
 function avPlanBuild(opts) {
-  const gridded = avGridUsable({ bpm: opts.bpm, accepted: opts.accepted });
-  // The tempo the shots follow: the grid's, else an approximate one (fixed timing on its beat), else null (0.55 s).
-  const approxBpm = avApproxTempo({ gridded, approxBpm: opts.approxBpm });
-  const tempo = gridded ? opts.bpm : approxBpm;
-  const guard = tempo ? avBeatsPerShot(opts.pace, tempo) : { beats: null, overridden: false };
-  const grooved = opts.pace === 'groove' && (tempo ? !!guard.groove : true);
-  const shotSeconds = grooved ? null : avShotSeconds({ bpm: opts.bpm, beatsPerShot: guard.beats, pace: opts.pace, gridded, approxBpm });
-  const beatSeconds = grooved ? (tempo ? 60 / tempo : AV_GROOVE_FALLBACK_BEAT) : null;
-  const opener = grooved && tempo ? avGrooveOpener(tempo) : 2;
-  const asked = typeof opts.requested === 'number' && isFinite(opts.requested) ? opts.requested : AV_LENGTHS.standard;
-  const requested = Math.max(AV_MIN_SHOTS, Math.floor(asked / AV_MIN_SHOTS) * AV_MIN_SHOTS);
-  const fit = grooved ? avGrooveFit({ requested, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd, beatSeconds, opener }) : null;
-  const top = grooved ? fit.beats : avFitShots({ requested, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd, shotSeconds });
-  if (top === 0) return { ok: false, reason: 'music-too-short', usableShots: 0 };
+  const pace = opts.pace === 'quick' ? 'quick' : 'cinematic';
+  // The tempo the template follows: the grid's, else an approximate one, else AV_FALLBACK_BPM (fixed timing).
+  const { gridded, approxBpm, tempo, beatSeconds } = avTempo(opts);
+  const ladder = avMontageLadder({ requested: opts.requested, pace, bpm: tempo });
+  const requested = ladder[0];
+  const top = avFitShots({ requested, pace, bpm: tempo, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd });
+  if (top === 0) return { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0 };
   // Distinct sources the allocator can use: valid videos (as avAllocate filters them) and photos.
   const finite = v => typeof v === 'number' && isFinite(v);
   const rids = {};
@@ -625,7 +548,8 @@ function avPlanBuild(opts) {
     if (c.kind === 'photo') { rids[c.rid] = true; hasPhotos = true; }
     else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) { rids[c.rid] = true; hasVideo = true; }
   }
-  if (Object.keys(rids).length < 2) return { ok: false, reason: 'one-resource', usableShots: 0 };
+  if (Object.keys(rids).length < 2) return { ok: false, reason: 'one-resource', usableShots: 0, usableSlots: 0 };
+  const notes = hasVideo ? [] : ['no-video'];
   const candidates = opts.candidates.concat(avFillers(opts.candidates));
   // Share attempts per length. The greedy allocator spends a scarce video window after every photo outside the photo
   // slots, which can strand photos behind the run limit although the length is fillable (P P a P P b P P). So before a
@@ -635,54 +559,51 @@ function avPlanBuild(opts) {
   if (hasPhotos && shares[0] !== 1) shares.push(1);
   // Variety first; spending every fresh clip early can also strand a fillable length (a s s s ... where a s a s ...
   // fits), so a length is only given up after the role-and-score order (spread: false) fails too.
-  // Each attempt's name ('spread', 'spread-share1', 'role-first', 'role-first-share1', each with '-no-opener' when the
-  // motion opener's retry built it) is returned as `attempt`, so the panel and logs can tell when a fallback built the
-  // plan.
-  const attempts = [true, false].flatMap(spread => shares.map((photoShare, i) =>
-    ({ spread, photoShare, name: (spread ? 'spread' : 'role-first') + (i ? '-share1' : '') })));
-  let usableShots = 0;
+  // Filling the final shot early keeps a long window for it, but it can break the strict alternation a pool of few
+  // sources needs (with two sources, a b a b ... decides the last slot's source), so each order is also tried with the
+  // slots filled in timeline order ('-in-order').
+  // Each attempt's name ('spread', 'spread-in-order', 'spread-share1', ..., 'role-first', 'role-first-share1', ..., each
+  // with '-no-opener' when the motion opener's retry built it) is returned as `attempt`, so the panel and logs can tell
+  // when a fallback built the plan.
+  const attempts = [true, false].flatMap(spread => shares.flatMap((photoShare, i) => [true, false].map(finalEarly =>
+    ({ spread, photoShare, finalEarly, name: (spread ? 'spread' : 'role-first') + (i ? '-share1' : '') + (finalEarly ? '' : '-in-order') }))));
+  let usableShots = 0, usableSlots = 0;
   // Whether avAllocate's motion opener can apply (some video candidate carries motion).
   const motionTagged = opts.motionOpener !== false && candidates.some(c => c && c.kind !== 'photo' && c.motion > 0);
-  // Lengths to try, longest first: shots (Quick / Relaxed) or beat spans (Groove).
-  const step = grooved ? 4 : AV_MIN_SHOTS, least = grooved ? AV_GROOVE_MIN_BEATS : AV_MIN_SHOTS;
-  for (let n = top; n >= least; n -= step) {
-    const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
-    // Groove fills for this span: none without video (photos cannot take an 8th), the pattern without a grid.
-    const fills = !grooved ? null
-      : !hasVideo ? { splits: [], source: 'no-video', ratios: [] }
-      : gridded ? avFillBeats({ onsets: opts.onsets, sectionStart: opts.sectionStart, bpm: opts.bpm, beats: n })
-      : { splits: avGrooveCandidates(n), source: 'pattern', ratios: [] };
-    const schedule = fills
-      ? avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: avGrooveBeats({ beats: n, splits: fills.splits, opener }), shotSeconds: beatSeconds, ...snapOpts })
-      : avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, shots: n, beatsPerShot: guard.beats, shotSeconds, ...snapOpts });
-    const slots = schedule.slots.map(s => (fills
-      ? { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: (s.beats || 1) < 1 }
-      : { index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps }));
+  const least = ladder[ladder.length - 1];
+  const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
+  // The shortest plan's fill, for the failure report.
+  const tally = (alloc, tpl) => {
+    usableSlots = Math.max(usableSlots, alloc.filled);
+    usableShots = Math.max(usableShots, alloc.picks.filter((p, i) => p && tpl.parts[i] === 'montage').length);
+  };
+  for (const n of ladder) {
+    if (n > top) continue;
+    const tpl = avTemplate({ bpm: tempo, pace, montageShots: n });
+    const schedule = avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
+    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: hasVideo && tpl.videoOnly[i] }));
     for (const attempt of attempts) {
-      let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: opts.motionOpener });
+      let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: opts.motionOpener });
       let name = attempt.name;
       // The motion opener never costs length: an attempt it leaves short is retried without it (named
-      // '<attempt>-no-opener') before the next attempt or a shorter length. Untagged pools never retry.
+      // '<attempt>-no-opener') before the next attempt or a shorter montage. Untagged pools never retry.
       if (alloc.missing > 0 && motionTagged) {
-        if (n === least) usableShots = Math.max(usableShots, alloc.filled);
-        alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, motionOpener: false });
+        if (n === least) tally(alloc, tpl);
+        alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: false });
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
-        return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
-          beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, approxBpm, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
-          attempt: name,
-          ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, ratios: fills.ratios, beatSeconds, opener } } : {}) };
+        return { ok: true, schedule, picks: alloc.picks, shots: n, requested, slots: slots.length, fittedByMusic: top < requested, pace,
+          montageBeats: tpl.montageBeats, finalBeats: tpl.finalBeats, tempo, beatSeconds, gridded, approxBpm,
+          fillerShots: alloc.fillerShots, photoShots: alloc.photoShots, attempt: name, notes };
       }
-      // The shortest length misses slots with every share, so usableShots < AV_MIN_SHOTS.
-      if (n === least) usableShots = Math.max(usableShots, alloc.filled);
+      if (n === least) tally(alloc, tpl);
     }
   }
-  return { ok: false, reason: 'too-few', usableShots };
+  return { ok: false, reason: hasVideo ? 'too-few' : 'no-video', usableShots, usableSlots, notes };
 }
 
-// Photo motions, in pick order: every photo pick gets one (the title covers the whole video and does not restrict
-// motion); videos and empty picks get null.
+// Photo motions, in pick order: every photo pick gets one; videos and empty picks get null.
 // Deterministic per seed; never the same motion twice in a row, never the same family (drift, tilt, ...) twice in a row;
 // drift, tilt and push-drift directions alternate. Drift follows the photo: vertical for portrait, horizontal otherwise.
 // Each entry is { motion, direction: 1 | -1, axis: 'x' | 'y' } for assets/photo-motion.tsx.

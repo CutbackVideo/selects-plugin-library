@@ -4,77 +4,160 @@ const ctx = {}; vm.createContext(ctx); vm.runInContext(fs.readFileSync(__dirname
 // Objects built inside the vm context have that realm's prototypes, which deepStrictEqual rejects; compare plain copies.
 const j = v => JSON.parse(JSON.stringify(v));
 const F = 30000 / 1001;
+const near = (x, y, eps, msg) => assert.ok(Math.abs(x - y) <= eps, (msg || '') + ': ' + x + ' vs ' + y);
 
 // Constants.
-const K = j(vm.runInContext('({ AV_LENGTHS, AV_MIN_SHOTS, AV_TEMPO_MIN, AV_TEMPO_MAX, AV_FALLBACK_SHOT, AV_ROLES, AV_ROLE_FALLBACK })', ctx));
-assert.deepStrictEqual(K.AV_LENGTHS, { short: 12, standard: 24, long: 36 });
-assert.strictEqual(K.AV_MIN_SHOTS, 4);
+const K = j(vm.runInContext('({ AV_LENGTHS, AV_INTRO_BEATS, AV_TEMPO_MIN, AV_TEMPO_MAX, AV_FALLBACK_BPM, AV_SLOW_MAX_BPM, AV_ROLES, AV_MONTAGE_ROLES, AV_ROLE_FALLBACK, AV_SOURCE_TAIL, AV_PHOTO_SHARE, AV_PHOTO_RUN_MAX })', ctx));
+assert.deepStrictEqual(K.AV_LENGTHS, { short: 8, standard: 16, long: 24 });
+assert.deepStrictEqual(K.AV_INTRO_BEATS, { opening: 6, credit: 2 });
 assert.strictEqual(K.AV_TEMPO_MIN, 70); assert.strictEqual(K.AV_TEMPO_MAX, 160);
-assert.deepStrictEqual(K.AV_FALLBACK_SHOT, { quick: 0.55, relaxed: 1.10 });
-assert.deepStrictEqual(K.AV_ROLES, ['drink', 'street', 'food', 'park', 'book', 'transit', 'flowers', 'cafe']);
-assert.deepStrictEqual(K.AV_ROLE_FALLBACK, { drink: ['cafe', 'food'], cafe: ['drink', 'book', 'food'], food: ['drink', 'cafe'], book: ['cafe'], street: ['transit', 'park'], transit: ['street'], park: ['flowers', 'street'], flowers: ['park'] });
-// The CWV title machinery is gone.
-for (const name of ['AV_TITLE_BEATS', 'AV_FONT_STATES', 'avTitle', 'avMinWindows', 'avBurstFor', 'avFitMontage', 'AV_MONTAGE_ROLES'])
+assert.strictEqual(K.AV_FALLBACK_BPM, 72); assert.strictEqual(K.AV_SLOW_MAX_BPM, 110);
+assert.strictEqual(K.AV_SOURCE_TAIL, 0.15); assert.strictEqual(K.AV_PHOTO_SHARE, 1 / 3); assert.strictEqual(K.AV_PHOTO_RUN_MAX, 2);
+assert.deepStrictEqual(K.AV_MONTAGE_ROLES, ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline']);
+assert.deepStrictEqual(K.AV_ROLES, ['opening', 'portrait', 'crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline', 'ending']);
+assert.deepStrictEqual(Object.keys(K.AV_ROLE_FALLBACK).sort(), K.AV_ROLES.slice().sort(), 'a fallback list per role');
+for (const [role, list] of Object.entries(K.AV_ROLE_FALLBACK)) {
+  assert.ok(list.length >= 1 && list.every(r => K.AV_ROLES.includes(r) && r !== role), role + ' fallbacks are other roles');
+  assert.ok(!list.includes('portrait') && !list.includes('ending'), role + ': the credit and final roles are never fallbacks');
+}
+assert.deepStrictEqual(K.AV_ROLE_FALLBACK.opening, ['crowd', 'ride', 'skyline']);
+assert.deepStrictEqual(K.AV_ROLE_FALLBACK.ending, ['skyline', 'transit', 'crowd']);
+// Mini Vlog's Groove, hook section and per-shot pace machinery are gone.
+for (const name of ['AV_GROOVE_PHRASE_BEATS', 'AV_GROOVE_FILL_RATIO', 'AV_MIN_SHOTS', 'AV_FALLBACK_SHOT', 'avGrooveBeats', 'avGrooveSpan', 'avGrooveFit',
+  'avGrooveCandidates', 'avGrooveHolds', 'avGrooveOpener', 'avFillBeats', 'avHookSection', 'avBeatsPerShot', 'avShotSeconds'])
   assert.strictEqual(vm.runInContext('typeof ' + name, ctx), 'undefined', name + ' removed');
 
-// pace guard
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('quick', 108)), { beats: 1, overridden: false });
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('quick', 158)), { beats: 2, overridden: true });
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('relaxed', 108)), { beats: 2, overridden: false });
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('relaxed', 84)), { beats: 1, overridden: true });
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('quick', 150)), { beats: 1, overridden: false });
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('relaxed', 86)), { beats: 2, overridden: false });
+// Grid and tempo.
 assert.strictEqual(ctx.avGridUsable({ bpm: 65, accepted: true }), false);
-assert.strictEqual(ctx.avGridUsable({ bpm: 108, accepted: true }), true);
 assert.strictEqual(ctx.avGridUsable({ bpm: 70, accepted: true }), true);
 assert.strictEqual(ctx.avGridUsable({ bpm: 160, accepted: true }), true);
 assert.strictEqual(ctx.avGridUsable({ bpm: 161, accepted: true }), false);
 assert.strictEqual(ctx.avGridUsable({ bpm: 108, accepted: false }), false);
 assert.strictEqual(ctx.avGridUsable({ bpm: null, accepted: true }), false);
-// shot length
-assert.ok(Math.abs(ctx.avShotSeconds({ bpm: 108, beatsPerShot: 1, pace: 'quick', gridded: true }) - 60 / 108) < 1e-12);
-assert.ok(Math.abs(ctx.avShotSeconds({ bpm: 108, beatsPerShot: 2, pace: 'relaxed', gridded: true }) - 120 / 108) < 1e-12);
-assert.strictEqual(ctx.avShotSeconds({ bpm: null, beatsPerShot: 1, pace: 'quick', gridded: false }), 0.55);
-assert.strictEqual(ctx.avShotSeconds({ bpm: 200, beatsPerShot: 2, pace: 'relaxed', gridded: false }), 1.10);
+assert.deepStrictEqual(j(ctx.avTempo({ bpm: 72, accepted: true })), { gridded: true, approxBpm: null, tempo: 72, beatSeconds: 60 / 72 });
+// No music, own music 'none' (not accepted, no approximate tempo), or a tempo outside the range: the 72 bpm beat.
+for (const o of [{ bpm: null, accepted: false }, { bpm: 108, accepted: false }, { bpm: 60, accepted: true }, {}])
+  assert.deepStrictEqual(j(ctx.avTempo(o)), { gridded: false, approxBpm: null, tempo: 72, beatSeconds: 60 / 72 }, JSON.stringify(o));
+// Own music 'approximate': its detected beat, still gridless.
+assert.deepStrictEqual(j(ctx.avTempo({ bpm: null, accepted: false, approxBpm: 96 })), { gridded: false, approxBpm: 96, tempo: 96, beatSeconds: 60 / 96 });
+assert.strictEqual(ctx.avTempo({ bpm: 108, accepted: true, approxBpm: 96 }).tempo, 108, 'a usable grid wins');
+assert.strictEqual(ctx.avTempo({ bpm: null, accepted: false, approxBpm: 200 }).tempo, 72, 'approximate tempo out of range');
+assert.strictEqual(ctx.avApproxTempo({ gridded: false, approxBpm: 120 }), 120);
+assert.strictEqual(ctx.avApproxTempo({ gridded: true, approxBpm: 120 }), null);
+assert.strictEqual(ctx.avApproxTempo({ gridded: false, approxBpm: 65 }), null);
+assert.strictEqual(ctx.avApproxTempo({ gridded: false }), null);
 
-// frame fixture (spec §14.7)
-const end = (shots, b) => ctx.avSchedule({ bpm: 108, fps: F, shots, beatsPerShot: b }).totalFrames;
-assert.deepStrictEqual([end(12,1), end(24,1), end(36,1)], [200, 400, 599]);
-assert.deepStrictEqual([end(12,2), end(24,2), end(36,2)], [400, 799, 1199]);
-const s = ctx.avSchedule({ bpm: 108, fps: F, shots: 24, beatsPerShot: 1 });
-assert.strictEqual(s.slots.length, 24); assert.strictEqual(s.slots[0].startFrame, 0);
-s.slots.forEach((x, i) => { if (i) assert.strictEqual(x.startFrame, s.slots[i - 1].endFrame); assert.ok(x.endFrame - x.startFrame >= 16 && x.endFrame - x.startFrame <= 17); });
-assert.deepStrictEqual(j(s.slots.slice(0, 9).map(x => x.role)), ['drink','street','food','park','book','transit','flowers','cafe','drink']);
-assert.strictEqual(s.gridded, true); assert.strictEqual(s.offset, 0);
-assert.deepStrictEqual(j(Object.keys(s.slots[0]).sort()), ['endBeat', 'endFrame', 'index', 'role', 'startBeat', 'startFrame']);
-s.slots.forEach((x, i) => { assert.strictEqual(x.index, i); assert.strictEqual(x.startBeat, i); assert.strictEqual(x.endBeat, i + 1); });
-const r2 = ctx.avSchedule({ bpm: 108, fps: F, shots: 12, beatsPerShot: 2 });
-assert.deepStrictEqual(j(r2.slots.map(x => x.endBeat)), [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24]);
-// Absolute boundaries: every cut is round(beats * 60 / bpm * fps), no accumulated rounding.
-r2.slots.forEach(x => assert.strictEqual(x.endFrame, Math.round(x.endBeat * 60 / 108 * F)));
+// Template rhythm: montage beats per shot and final beats, split at 110 bpm.
+for (const [bpm, cin, quick, fin] of [[60, 2, 1, 4], [72, 2, 1, 4], [110, 2, 1, 4], [110.01, 4, 2, 8], [120, 4, 2, 8], [150, 4, 2, 8], [160, 4, 2, 8]]) {
+  assert.strictEqual(ctx.avMontageBeats('cinematic', bpm), cin, 'cinematic M at ' + bpm);
+  assert.strictEqual(ctx.avMontageBeats(undefined, bpm), cin, 'Cinematic is the default pace');
+  assert.strictEqual(ctx.avMontageBeats('quick', bpm), quick, 'quick M at ' + bpm);
+  assert.strictEqual(ctx.avFinalBeats(bpm), fin, 'F at ' + bpm);
+}
+// Lengths: Quick doubles the shots so a Length keeps its duration.
+assert.deepStrictEqual(['short', 'standard', 'long', 'nope'].map(l => ctx.avMontageShots(l, 'cinematic')), [8, 16, 24, 16]);
+assert.deepStrictEqual(['short', 'standard', 'long'].map(l => ctx.avMontageShots(l, 'quick')), [16, 32, 48]);
+for (const bpm of [72, 100, 120, 150]) for (const l of ['short', 'standard', 'long'])
+  assert.strictEqual(ctx.avTemplate({ bpm, pace: 'quick', montageShots: ctx.avMontageShots(l, 'quick') }).totalBeats,
+    ctx.avTemplate({ bpm, pace: 'cinematic', montageShots: ctx.avMontageShots(l, 'cinematic') }).totalBeats, l + ' keeps its length at ' + bpm);
+
+// The template: 6 + 2 + M x N + F, roles opening / portrait / montage cycle / ending, intro and final video-only.
+const t72 = j(ctx.avTemplate({ bpm: 72, pace: 'cinematic', montageShots: 16 }));
+assert.deepStrictEqual(t72.beatsList, [6, 2].concat(Array(16).fill(2), [4]));
+assert.strictEqual(t72.totalBeats, 44); assert.strictEqual(t72.montageStart, 8);
+near(ctx.avVideoSeconds({ bpm: 72, pace: 'cinematic', montageShots: 16 }), 44 * 60 / 72, 1e-9, 'Standard at 72 bpm = 36.7 s');
+assert.deepStrictEqual(t72.roles.slice(0, 11), ['opening', 'portrait', 'crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline', 'crowd', 'transit']);
+assert.strictEqual(t72.roles[17], 'transit'); assert.strictEqual(t72.roles[18], 'ending');
+assert.deepStrictEqual(t72.parts.filter((p, i) => i < 2 || i === 18), ['opening', 'credit', 'final']);
+assert.ok(t72.parts.slice(2, 18).every(p => p === 'montage'));
+assert.deepStrictEqual(t72.videoOnly, [true, true].concat(Array(16).fill(false), [true]));
+assert.deepStrictEqual(j(ctx.avTemplate({ bpm: 120, pace: 'cinematic', montageShots: 16 })).beatsList, [6, 2].concat(Array(16).fill(4), [8]));
+assert.deepStrictEqual(j(ctx.avTemplate({ bpm: 120, pace: 'quick', montageShots: 32 })).beatsList, [6, 2].concat(Array(32).fill(2), [8]));
+assert.deepStrictEqual(j(ctx.avTemplate({ bpm: 90, pace: 'quick', montageShots: 4 })).beatsList, [6, 2, 1, 1, 1, 1, 4]);
+// The montage must be whole bars.
+assert.throws(() => ctx.avTemplate({ bpm: 72, pace: 'cinematic', montageShots: 3 }), /whole bars/);
+assert.throws(() => ctx.avTemplate({ bpm: 72, pace: 'quick', montageShots: 6 }), /whole bars/);
+assert.throws(() => ctx.avTemplate({ bpm: 72, pace: 'cinematic', montageShots: 0 }), /whole bars/);
+assert.doesNotThrow(() => ctx.avTemplate({ bpm: 120, pace: 'cinematic', montageShots: 1 }));
+
+// Schedules at every tempo, both paces, every Length, at 29.97 and 25 fps, with and without a music offset: the
+// boundaries are integer frames at round((beats * 60 / bpm + delta) * fps), the beat sums are exact, the montage starts
+// on beat 8 and the final shot ends the video.
+const totals = {};
+for (const bpm of [60, 70, 72, 75, 80, 100, 120, 150]) for (const pace of ['cinematic', 'quick']) for (const length of ['short', 'standard', 'long'])
+  for (const fps of [F, 25]) for (const ss of [undefined, 0.013, 7.31]) {
+    const tpl = ctx.avTemplate({ bpm, pace, montageShots: ctx.avMontageShots(length, pace) });
+    const s = ctx.avSchedule({ bpm, fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, sectionStart: ss });
+    const off = ctx.avMusicOffset(ss, fps), tag = [bpm, pace, length, fps.toFixed(2), ss].join(' ');
+    assert.strictEqual(s.slots.length, tpl.beatsList.length, tag);
+    assert.strictEqual(s.slots[0].startFrame, 0, tag);
+    let beats = 0;
+    s.slots.forEach((x, i) => {
+      assert.ok(Number.isInteger(x.startFrame) && Number.isInteger(x.endFrame), tag + ' integer frames');
+      if (i) assert.strictEqual(x.startFrame, s.slots[i - 1].endFrame, tag + ' contiguous');
+      assert.strictEqual(x.startBeat, beats, tag + ' exact beat sum'); beats += tpl.beatsList[i];
+      assert.strictEqual(x.endBeat, beats, tag);
+      assert.strictEqual(x.endFrame, Math.round((x.endBeat * 60 / bpm + off) * fps), tag + ' absolute boundary');
+      assert.strictEqual(x.role, tpl.roles[i]); assert.strictEqual(x.part, tpl.parts[i]); assert.strictEqual(x.beats, tpl.beatsList[i]);
+    });
+    assert.strictEqual(beats, tpl.totalBeats, tag);
+    assert.strictEqual(s.slots[2].startBeat, 8, tag + ' montage on beat 8');
+    assert.strictEqual(s.slots[s.slots.length - 1].endBeat, tpl.totalBeats, tag);
+    assert.strictEqual(s.totalFrames, Math.round((tpl.totalBeats * 60 / bpm + off) * fps), tag + ' totalFrames');
+    if (fps === F && ss === undefined) totals[bpm + ' ' + pace + ' ' + length] = s.totalFrames;
+  }
+// Literal fixtures at 29.97 fps (delta 0), Standard: 44 beats up to 110 bpm, 80 above.
+assert.deepStrictEqual([60, 70, 72, 75, 80, 100, 120, 150].map(b => totals[b + ' cinematic standard']), [1319, 1130, 1099, 1055, 989, 791, 1199, 959]);
+assert.deepStrictEqual([60, 70, 72, 75, 80, 100, 120, 150].map(b => totals[b + ' quick standard']), [1319, 1130, 1099, 1055, 989, 791, 1199, 959]);
+assert.deepStrictEqual(['short', 'standard', 'long'].map(l => totals['72 cinematic ' + l]), [699, 1099, 1499]);
+// Keys of a template slot.
+assert.deepStrictEqual(j(Object.keys(ctx.avSchedule({ bpm: 72, fps: F, beatsList: t72.beatsList, roles: t72.roles, parts: t72.parts }).slots[0]).sort()),
+  ['beats', 'endBeat', 'endFrame', 'index', 'part', 'role', 'startBeat', 'startFrame']);
+assert.throws(() => ctx.avSchedule({ bpm: 72, fps: F, beatsList: [6, 2], roles: ['opening'] }), /one entry per slot/);
+// No grid: the same template on the 72 bpm beat (seconds per beat as shotSeconds), beats null.
+const g = j(ctx.avSchedule({ bpm: null, fps: F, beatsList: t72.beatsList, roles: t72.roles, shotSeconds: 60 / 72 }));
+assert.strictEqual(g.gridded, false); assert.strictEqual(g.totalFrames, 1099);
+const gat = t72.beatsList.reduce((a, b) => (a.push(a[a.length - 1] + b), a), [0]);
+g.slots.forEach((x, i) => { assert.strictEqual(x.startBeat, null); assert.strictEqual(x.endFrame, Math.round(gat[i + 1] * (60 / 72) * F)); });
+// Without beatsList the schedule is uniform (shots x beatsPerShot) and roles cycle through the montage roles.
+const u = j(ctx.avSchedule({ bpm: 108, fps: F, shots: 9, beatsPerShot: 1 }));
+assert.deepStrictEqual(u.slots.map(x => x.role), ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline', 'crowd', 'transit']);
 assert.throws(() => ctx.avSchedule({ bpm: 108, fps: F, shots: 0, beatsPerShot: 1 }));
 
-// music offset: sectionStart 1.0 at 29.97 -> round(29.97)=30 -> delta = 1 - 30/F
-assert.ok(Math.abs(ctx.avMusicOffset(1.0, F) - (1 - 30 / F)) < 1e-12);
+// Music offset: sectionStart 1.0 at 29.97 -> round(29.97)=30 -> delta = 1 - 30/F.
+near(ctx.avMusicOffset(1.0, F), 1 - 30 / F, 1e-12, 'offset');
 assert.strictEqual(ctx.avMusicOffset(null, F), 0);
-const o = ctx.avSchedule({ bpm: 108, fps: F, shots: 12, beatsPerShot: 1, sectionStart: 1.0 });
-assert.strictEqual(o.slots[0].startFrame, 0);
-o.slots.forEach(x => assert.strictEqual(x.endFrame, Math.round((x.endBeat * 60 / 108 + o.offset) * F)));
 
-// capacity (weekend-indie-pop 111.99: firstBeat 0.027, usableEnd 34.82)
-const q = 60 / 111.99;
-assert.strictEqual(ctx.avFitShots({ requested: 36, sectionStart: 0.027, usableEnd: 34.82, shotSeconds: q }), 36);
-assert.strictEqual(ctx.avFitShots({ requested: 36, sectionStart: 0.027, usableEnd: 34.82, shotSeconds: 2 * q }), 32);
-assert.strictEqual(ctx.avFitShots({ requested: 12, sectionStart: 0, usableEnd: 1, shotSeconds: 0.5 }), 0);
-assert.strictEqual(ctx.avFitShots({ requested: 24, sectionStart: 0, usableEnd: Infinity, shotSeconds: 0.55 }), 24);
-assert.strictEqual(ctx.avFitShots({ requested: 12, sectionStart: 0, usableEnd: 2, shotSeconds: 0.5 }), 4, 'exactly 4 shots fit');
+// The shrink ladder: whole bars, Cinematic by 2 shots, Quick by 4, down to a one-bar montage.
+const ladder = (requested, pace, bpm) => j(ctx.avMontageLadder({ requested, pace, bpm }));
+assert.deepStrictEqual(ladder(16, 'cinematic', 72), [16, 14, 12, 10, 8, 6, 4, 2]);
+assert.deepStrictEqual(ladder(8, 'cinematic', 120), [8, 6, 4, 2, 1]);
+assert.deepStrictEqual(ladder(32, 'quick', 72), [32, 28, 24, 20, 16, 12, 8, 4]);
+assert.deepStrictEqual(ladder(16, 'quick', 120), [16, 12, 8, 4, 2]);
+assert.deepStrictEqual(ladder(15, 'cinematic', 72)[0], 14, 'a request rounds down to a step');
+for (const requested of [NaN, undefined, Infinity]) {
+  assert.strictEqual(ladder(requested, 'cinematic', 72)[0], 16, 'non-finite -> Standard');
+  assert.strictEqual(ladder(requested, 'quick', 72)[0], 32);
+}
+for (const pace of ['cinematic', 'quick']) for (const bpm of [72, 100, 110, 120, 150]) for (const l of ['short', 'standard', 'long']) {
+  const m = ctx.avMontageBeats(pace, bpm), list = ladder(ctx.avMontageShots(l, pace), pace, bpm);
+  list.forEach(n => assert.strictEqual((n * m) % 4, 0, pace + ' ' + bpm + ' ' + n + ' shots are whole bars'));
+  assert.strictEqual(list[list.length - 1] * m, 4, 'the shortest montage is one bar');
+}
 
-// no grid: fixed shots
-const g = ctx.avSchedule({ bpm: null, fps: F, shots: 12, beatsPerShot: 1, shotSeconds: 0.55 });
-assert.strictEqual(g.gridded, false); assert.strictEqual(g.totalFrames, Math.round(12 * 0.55 * F));
-g.slots.forEach((x, i) => { assert.strictEqual(x.startBeat, null); assert.strictEqual(x.endBeat, null); assert.strictEqual(x.endFrame, Math.round((i + 1) * 0.55 * F)); });
+// Music capacity: the longest montage whose whole video fits from the section start.
+const b72 = 60 / 72;
+assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: 0, usableEnd: Infinity }), 16);
+assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72 }), 16, 'no music: no cap');
+assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: 1, usableEnd: 1 + 44 * b72 }), 16, 'exactly fits');
+assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: 1, usableEnd: 1 + 43 * b72 }), 14);
+assert.strictEqual(ctx.avFitShots({ requested: 24, pace: 'cinematic', bpm: 72, sectionStart: 0, usableEnd: 30 }), 12, '8 + 24 + 4 = 36 beats = 30 s');
+assert.strictEqual(ctx.avFitShots({ requested: 32, pace: 'quick', bpm: 72, sectionStart: 0, usableEnd: 30 }), 24);
+assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: 0, usableEnd: 16 * b72 }), 2, 'one bar of montage');
+assert.strictEqual(ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: 0, usableEnd: 15 * b72 }), 0, 'not even one bar');
+assert.strictEqual(ctx.avFitShots({ requested: 8, pace: 'cinematic', bpm: 120, sectionStart: 0, usableEnd: 20 * 0.5 }), 1, '8 + 4 + 8 beats at 120');
 
-// Sections (CWV maths): snap to bars and clamp so the video fits; default = most energetic bar-aligned window.
+// Sections: snap to bars and clamp so the video fits; default = most energetic bar-aligned window.
 const bar = 4 * 60 / 99.02, vid = 24 * 60 / 99.02;
 assert.strictEqual(ctx.avSnapSection({ value: 5.1, firstBeat: 0, bpm: 99.02, usableEnd: 39.3, videoSeconds: vid, gridAccepted: true }), 2 * bar);
 assert.strictEqual(ctx.avSnapSection({ value: 99, firstBeat: 0, bpm: 99.02, usableEnd: 39.3, videoSeconds: vid, gridAccepted: true }), 10 * bar);
@@ -85,8 +168,75 @@ for (const downbeatHigh of [true, false, undefined]) {
   assert.strictEqual(ctx.avDefaultSection({ firstBeat: 0, bpm: 99.02, beatEnergy: energy, usableEnd: 39.3, videoSeconds: vid, downbeatHigh }), 4 * bar);
   assert.strictEqual(ctx.avDefaultSection({ firstBeat: 0, bpm: 99.02, beatEnergy: Array(64).fill(0.5), usableEnd: 39.3, videoSeconds: vid, downbeatHigh }), 0);
 }
+// Intro section (spec 7): the manifest's introStart when the video fits from there, else the energy default.
+{
+  const bar72 = 4 * b72, v = 44 * b72, e = Array(120).fill(0.1); for (let i = 40; i < 120; i++) e[i] = 0.9;
+  const base = { firstBeat: 0.3, bpm: 72, usableEnd: 90, videoSeconds: v, beatEnergy: e };
+  assert.strictEqual(ctx.avIntroSection({ ...base, introStart: 0.3 + 2 * bar72 }), 0.3 + 2 * bar72, 'introStart fits');
+  assert.strictEqual(ctx.avIntroSection({ ...base, introStart: 90 - v }), 90 - v, 'exactly fits');
+  const energyDefault = ctx.avDefaultSection(base);
+  assert.strictEqual(energyDefault, 0.3 + 10 * bar72);
+  assert.strictEqual(ctx.avIntroSection({ ...base, introStart: 60 }), energyDefault, 'too late for the video: energy default');
+  for (const introStart of [undefined, null, NaN, -1, 'x']) assert.strictEqual(ctx.avIntroSection({ ...base, introStart }), energyDefault, 'no introStart: ' + introStart);
+  assert.strictEqual(ctx.avIntroSection({ ...base, introStart: undefined, beatEnergy: undefined }), null, 'no energy data and no introStart');
+  assert.strictEqual(ctx.avIntroSection({ ...base, introStart: undefined, usableEnd: 10 }), null, 'nothing fits');
+  assert.strictEqual(ctx.avIntroSection({ ...base, bpm: null, introStart: 2 }), 2, 'introStart needs no grid');
+}
 
-// ---- Onset snapping (avSnapCuts, CWV rules without the burst template) ----
+// The bundled cues (manifest): introStart is a bar start on the grid, every Length and pace fits from it, so it is the
+// default section; the schedule from there (with onset snapping) keeps every boundary on an integer frame within the
+// snap window of its grid time, and the montage starts 8 beats in.
+{
+  const manifest = JSON.parse(fs.readFileSync(__dirname + '/../assets/cues/manifest.json', 'utf8'));
+  assert.deepStrictEqual(manifest.cues.map(c => c.id).sort(), ['before-everything', 'fractured', 'peaceful-drift', 'theta-frequency']);
+  for (const cue of manifest.cues) {
+    const tempo = j(ctx.avTempo({ bpm: cue.bpm, accepted: true }));
+    assert.strictEqual(tempo.gridded, true, cue.id + ' has a usable grid');
+    const bar = 4 * 60 / cue.bpm;
+    // The manifest rounds seconds to 1 ms.
+    near(cue.introStart, cue.firstBeat + Math.round((cue.introStart - cue.firstBeat) / bar) * bar, 0.001, cue.id + ' introStart on a bar');
+    for (const pace of ['cinematic', 'quick']) for (const length of ['short', 'standard', 'long']) {
+      const requested = ctx.avMontageShots(length, pace), tag = cue.id + ' ' + pace + ' ' + length;
+      const videoSeconds = ctx.avVideoSeconds({ bpm: cue.bpm, pace, montageShots: requested });
+      const ss = ctx.avIntroSection({ introStart: cue.introStart, firstBeat: cue.firstBeat, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds, beatEnergy: cue.beatEnergy });
+      assert.strictEqual(ss, cue.introStart, tag + ' starts at introStart');
+      near(ctx.avSnapSection({ value: ss, firstBeat: cue.firstBeat, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds, gridAccepted: true }), ss, 0.001, tag + ' snap keeps it');
+      assert.strictEqual(ctx.avFitShots({ requested, pace, bpm: cue.bpm, sectionStart: ss, usableEnd: cue.usableEnd }), requested, tag + ' fits whole');
+      const tpl = ctx.avTemplate({ bpm: cue.bpm, pace, montageShots: requested });
+      for (const fps of [F, 25]) {
+        const sch = j(ctx.avSchedule({ bpm: cue.bpm, fps, beatsList: tpl.beatsList, roles: tpl.roles, sectionStart: ss, onsets: cue.onsets, onsetThresholds: cue.onsetThresholds }));
+        assert.strictEqual(sch.slots[2].startBeat, 8, tag);
+        const win = Math.min(0.1 * 60 / cue.bpm, 0.07);
+        sch.slots.forEach((x, i) => {
+          assert.ok(Number.isInteger(x.endFrame), tag);
+          if (i < sch.slots.length - 1) assert.ok(Math.abs(sch.cuts[i + 1] - x.endBeat * 60 / cue.bpm) <= win + 1e-9, tag + ' cut within the snap window');
+        });
+        assert.strictEqual(sch.totalFrames, Math.round((tpl.totalBeats * 60 / cue.bpm + sch.offset) * fps), tag + ' the end is on the grid');
+        assert.ok(ss + sch.totalFrames / fps <= cue.usableEnd + 1 / fps, tag + ' inside the music');
+      }
+    }
+  }
+}
+
+// Opening animation timings: scaled by k = min(1, opening seconds / 5.60).
+const ot = s => j(ctx.avOpeningTiming(s));
+assert.deepStrictEqual(ot(5.6), { k: 1, revealStart: 0.22, revealEnd: 2.30, textIn: 2.40, decodeStart: 2.90, letterSeconds: 0.11 });
+assert.deepStrictEqual(ot(8), ot(5.6), 'never stretched');
+{
+  const o = ot(6 * 60 / 72), k = 5 / 5.6;   // 72 bpm: 5.00 s, k = 0.8929
+  near(o.k, k, 1e-12, 'k at 72 bpm');
+  near(o.revealStart, 0.22 * k, 1e-12); near(o.revealEnd, 2.30 * k, 1e-12); near(o.textIn, 2.40 * k, 1e-12);
+  near(o.decodeStart, 2.90 * k, 1e-12); near(o.letterSeconds, 0.11 * k, 1e-12);
+  near(o.revealStart, 0.196, 0.001); near(o.revealEnd, 2.054, 0.001); near(o.textIn, 2.143, 0.001); near(o.decodeStart, 2.589, 0.001);
+}
+{
+  const o = ot(6 * 60 / 150), k = 2.4 / 5.6;   // 150 bpm: 2.40 s
+  near(o.k, k, 1e-12); near(o.decodeStart + 9 * o.letterSeconds, (2.9 + 0.99) * k, 1e-12);
+  assert.ok(o.decodeStart + 9 * o.letterSeconds < 2.4, 'a 9-letter title decodes inside the opening at 150 bpm');
+}
+assert.strictEqual(ot(0).k, 0); assert.strictEqual(ot(undefined).k, 0); assert.strictEqual(ot(-1).k, 0);
+
+// ---- Onset snapping (avSnapCuts, Mini Vlog rules) ----
 const B = 60 / 99.2;
 const grid = j(ctx.avSchedule({ bpm: 99.2, fps: 30, shots: 12, beatsPerShot: 1 }).cuts);
 assert.deepStrictEqual(grid, Array.from({ length: 13 }, (_, k) => k * B));
@@ -118,7 +268,7 @@ const tiny = j(ctx.avSnapCuts([0, 1.02, 1.19, 3], [[1.145, 'l', 5]], { bpm: 60, 
 assert.strictEqual(tiny.cuts[2], 1.19);
 assert.match(tiny.log.find(e => e.index === 2).reason, /reverted: slot 1 min-frames/);
 // Onsets are in music seconds: the section start shifts them.
-assert.ok(Math.abs(snap([[20 + 5 * B + 0.045, 'l', 5]], { sectionStart: 20 }).cuts[5] - (5 * B + 0.045)) < 1e-9);
+near(snap([[20 + 5 * B + 0.045, 'l', 5]], { sectionStart: 20 }).cuts[5], 5 * B + 0.045, 1e-9, 'shifted');
 // Low confidence: low band only, +/-120 ms.
 assert.strictEqual(snap([[5 * B + 0.1, 'l', 5]], { lowConfidence: true }).cuts[5], 5 * B + 0.1);
 assert.strictEqual(snap([[5 * B + 0.05, 'h', 9]], { lowConfidence: true }).cuts[5], 5 * B);
@@ -130,301 +280,66 @@ for (const fps of [23.976, 25, 29.97, 30, 60]) for (const ss of [0, 0.013, 7.31,
   assert.ok(r.log.some(e => e.reason === 'onset'));
   r.log.filter(e => e.reason === 'onset').forEach(e => assert.ok(Math.abs(r.frames[e.index] / fps - (e.onset + off)) <= 0.5 / fps + 1e-9));
 }
-// The schedule uses snapped cuts; without music (no section start) nothing snaps; reused cuts keep their seconds.
-const on = [[3 * B + 0.045, 'l', 6], [7 * B - 0.045, 'h', 6]];
-const sn = j(ctx.avSchedule({ bpm: 99.2, fps: 30, shots: 12, beatsPerShot: 1, sectionStart: 0, onsets: on, onsetThresholds: { l: 3, m: 3, h: 3 } }));
-assert.strictEqual(sn.cuts[3], 3 * B + 0.045); assert.strictEqual(sn.cuts[7], 7 * B - 0.045);
-assert.strictEqual(sn.slots[3].startFrame, Math.round((3 * B + 0.045) * 30));
-assert.strictEqual(sn.snapLog.length, 11);
-assert.deepStrictEqual(j(ctx.avSchedule({ bpm: 99.2, fps: 30, shots: 12, beatsPerShot: 1, onsets: on }).cuts), grid);
-const re = j(ctx.avSchedule({ bpm: 99.2, fps: 25, shots: 12, beatsPerShot: 1, sectionStart: 14.58, cuts: sn.cuts }));
-re.slots.forEach((x, i) => assert.strictEqual(x.endFrame, Math.round((sn.cuts[i + 1] + ctx.avMusicOffset(14.58, 25)) * 25)));
-assert.throws(() => ctx.avSchedule({ bpm: 99.2, fps: 30, shots: 8, beatsPerShot: 1, cuts: sn.cuts }), /cuts do not match/);
-// No grid with music: low-band snapping within 120 ms.
-const ng = j(ctx.avSchedule({ bpm: null, fps: 30, shots: 8, beatsPerShot: 1, shotSeconds: 0.55, sectionStart: 0, onsets: [[2.2 + 0.1, 'l', 5], [1.1 + 0.05, 'h', 9]] }));
-assert.strictEqual(ng.cuts[4], 2.2 + 0.1); assert.strictEqual(ng.cuts[2], 1.1);
-
-// ---- Groove pace (spec 15.1) ----
-const G = j(vm.runInContext('({ AV_GROOVE_PHRASE_BEATS, AV_GROOVE_FILL_RATIO, AV_GROOVE_FALLBACK_BEAT, AV_GROOVE_MIN_BEATS, AV_GROOVE_ONSET_LEAD })', ctx));
-assert.deepStrictEqual(G, { AV_GROOVE_PHRASE_BEATS: 16, AV_GROOVE_FILL_RATIO: 1.5, AV_GROOVE_FALLBACK_BEAT: 0.55, AV_GROOVE_MIN_BEATS: 4, AV_GROOVE_ONSET_LEAD: 1 / 30 });
-// Guard: Groove keeps its phrase rhythm up to 150 bpm; above it the 8th cuts would be < 0.2 s, so it uses 2 beats (as Quick).
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('groove', 108)), { beats: 1, overridden: false, groove: true, opener: 2 });
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('groove', 150)), { beats: 1, overridden: false, groove: true, opener: 2 });
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('groove', 158)), { beats: 2, overridden: true });
-// Opener guard: a 2-beat opener longer than 1.40 s (below 85.71 bpm) becomes 1 beat.
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('groove', 86)), { beats: 1, overridden: false, groove: true, opener: 2 });
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('groove', 85)), { beats: 1, overridden: true, groove: true, opener: 1 });
-assert.deepStrictEqual(j(ctx.avBeatsPerShot('groove', 72)), { beats: 1, overridden: true, groove: true, opener: 1 });
-assert.strictEqual(ctx.avGrooveOpener(86), 2); assert.strictEqual(ctx.avGrooveOpener(85.7), 1); assert.strictEqual(ctx.avGrooveOpener(null), 2, 'no grid: 1.10 s opener');
-assert.deepStrictEqual(j(ctx.avGrooveBeats({ beats: 16, splits: [7, 15], opener: 1 })), [1, 1, 1, 1, 1, 1, 1, 0.5, 0.5, 1, 1, 1, 1, 1, 1, 1, 0.5, 0.5]);
-assert.deepStrictEqual(j(ctx.avGrooveHolds(36, 1)), [], 'a 1-beat opener has no 2-beat holds');
-assert.deepStrictEqual(j(ctx.avGrooveSpan(24, 1)), { beats: 20, shots: 23 });
-assert.deepStrictEqual(j(ctx.avGrooveFit({ requested: 24, sectionStart: 0, usableEnd: Infinity, beatSeconds: 60 / 80, opener: 1 })), { beats: 20, shots: 23, requestedBeats: 20 });
-assert.strictEqual(ctx.avShotSeconds({ bpm: null, beatsPerShot: null, pace: 'groove', gridded: false }), 0.55);
-// Split candidates: the last beat of every half-phrase (beats 7 and 15 of a phrase) and the span's final beat (the video
-// end counts as a phrase end mid-phrase). At most one per half-phrase (bars 1-2, bars 3-4).
-assert.deepStrictEqual(j(ctx.avGrooveCandidates(8)), [7]);
-assert.deepStrictEqual(j(ctx.avGrooveCandidates(12)), [7, 11]);
-assert.deepStrictEqual(j(ctx.avGrooveCandidates(16)), [7, 15]);
-assert.deepStrictEqual(j(ctx.avGrooveCandidates(24)), [7, 15, 23]);
-assert.deepStrictEqual(j(ctx.avGrooveCandidates(36)), [7, 15, 23, 31, 35]);
-for (let beats = 8; beats <= 64; beats += 4) {
-  const cands = ctx.avGrooveCandidates(beats);
-  const perHalf = {};
-  cands.forEach(b => { const h = Math.floor(b / 8); perHalf[h] = (perHalf[h] || 0) + 1; });
-  assert.ok(Object.values(perHalf).every(v => v === 1), 'one burst per half-phrase at most (' + beats + ')');
-}
-// 2-beat holds: every phrase start, plus the bar-3 downbeat of a final phrase that ends in its second half.
-assert.deepStrictEqual(j(ctx.avGrooveHolds(12, 2)), [0, 8]);
-assert.deepStrictEqual(j(ctx.avGrooveHolds(16, 2)), [0]);
-assert.deepStrictEqual(j(ctx.avGrooveHolds(24, 2)), [0, 16]);
-assert.deepStrictEqual(j(ctx.avGrooveHolds(28, 2)), [0, 16, 24]);
-assert.deepStrictEqual(j(ctx.avGrooveHolds(36, 2)), [0, 16, 32]);
-// Slot lengths.
-assert.deepStrictEqual(j(ctx.avGrooveBeats({ beats: 16, splits: [7, 15] })), [2, 1, 1, 1, 1, 1, 0.5, 0.5, 1, 1, 1, 1, 1, 1, 1, 0.5, 0.5]);
-assert.deepStrictEqual(j(ctx.avGrooveBeats({ beats: 16, splits: [] })), [2].concat(Array(14).fill(1)));
-assert.deepStrictEqual(j(ctx.avGrooveBeats({ beats: 12, splits: [7, 11] })), [2, 1, 1, 1, 1, 1, 0.5, 0.5, 2, 1, 0.5, 0.5]);
-assert.deepStrictEqual(j(ctx.avGrooveBeats({ beats: 8, splits: [] })), [2, 1, 1, 1, 1, 1, 1]);
-for (const beats of [8, 12, 16, 20, 24, 28, 36, 40, 48]) {
-  const l = ctx.avGrooveBeats({ beats, splits: ctx.avGrooveCandidates(beats) });
-  assert.strictEqual(l.reduce((a, b) => a + b, 0), beats, 'the slots fill the span');
-}
-// Nominal span for a length: the whole-bar span whose pattern (every candidate split) shot count is nearest the
-// request, the longer on a tie. 12 -> 12 beats / 12 shots, 24 -> 24 / 25 (20 would be 21), 36 -> 36 / 38 (32: 34).
-assert.deepStrictEqual(j(ctx.avGrooveSpan(12)), { beats: 12, shots: 12 });
-assert.deepStrictEqual(j(ctx.avGrooveSpan(24)), { beats: 24, shots: 25 });
-assert.deepStrictEqual(j(ctx.avGrooveSpan(36)), { beats: 36, shots: 38 });
-// The shortest span is one bar: 2 + 1 + 1/2 + 1/2 = 4 shots (AV_MIN_SHOTS).
-assert.deepStrictEqual(j(ctx.avGrooveSpan(4)), { beats: 4, shots: 4 });
-assert.deepStrictEqual(j(ctx.avGrooveBeats({ beats: 4, splits: ctx.avGrooveCandidates(4) })), [2, 1, 0.5, 0.5]);
-// Music capacity on beat spans: shrink by whole bars (min one bar, 4 beats), 0 when not even one bar fits.
-const b108 = 60 / 108;
-assert.deepStrictEqual(j(ctx.avGrooveFit({ requested: 12, sectionStart: 0, usableEnd: 6 * b108, beatSeconds: b108 })), { beats: 4, shots: 4, requestedBeats: 12 }, '6 beats of music fit one bar');
-assert.deepStrictEqual(j(ctx.avGrooveFit({ requested: 36, sectionStart: 0.028, usableEnd: 53.6, beatSeconds: b108 })), { beats: 36, shots: 38, requestedBeats: 36 });
-assert.deepStrictEqual(j(ctx.avGrooveFit({ requested: 36, sectionStart: 0, usableEnd: 22 * b108, beatSeconds: b108 })), { beats: 20, shots: 21, requestedBeats: 36 });
-assert.deepStrictEqual(j(ctx.avGrooveFit({ requested: 24, sectionStart: 0, usableEnd: 3 * b108, beatSeconds: b108 })), { beats: 0, shots: 0, requestedBeats: 24 }, 'not even one bar');
-assert.deepStrictEqual(j(ctx.avGrooveFit({ requested: 24, sectionStart: 0, usableEnd: Infinity, beatSeconds: 0.55 })), { beats: 24, shots: 25, requestedBeats: 24 });
-assert.deepStrictEqual(j(ctx.avGrooveFit({ requested: 24, sectionStart: 0, usableEnd: null, beatSeconds: 0.55 })), { beats: 24, shots: 25, requestedBeats: 24 });
-
-// Fill detection: onset density (sum of strengths) of each candidate beat vs the median beat of the span, detection
-// first per class (phrase ends incl. the final beat / bar-2 accents), a class without a fill falls back to all of it.
-const fb = (bpm, ss, beatStrengths) => {
-  const B = 60 / bpm, out = [];
-  beatStrengths.forEach((list, k) => list.forEach((s, i) => out.push([ss + k * B + i * B / 4, 'l', s])));
-  return out;
-};
-const plain = Array.from({ length: 32 }, () => [10]);
-const fd = (strengths, extra = {}) => j(ctx.avFillBeats({ onsets: fb(108, 3, strengths), sectionStart: 3, bpm: 108, beats: 32, ...extra }));
-assert.deepStrictEqual(fd(plain), { splits: [7, 15, 23, 31], candidates: [7, 15, 23, 31], source: 'pattern', ratios: [1, 1, 1, 1] }, 'no fill found -> every candidate');
-const fillAt = (beats, add = 5) => plain.map((x, k) => (beats.indexOf(k) >= 0 ? [10, add] : x));   // 15 = 1.5 x median 10
-const f2 = fd(fillAt([31]));
-assert.deepStrictEqual(f2.splits, [7, 23, 31], 'phrase ends detected (31 only), accents fall back'); assert.strictEqual(f2.source, 'mixed');
-assert.deepStrictEqual(f2.ratios, [1, 1, 1, 1.5]);
-assert.deepStrictEqual(fd(fillAt([7])).splits, [7, 15, 31], 'accents detected (7 only), phrase ends fall back');
-const both = fd(fillAt([7, 31]));
-assert.deepStrictEqual(both.splits, [7, 31]); assert.strictEqual(both.source, 'onsets');
-assert.strictEqual(fd(fillAt([31], 4.9)).source, 'pattern', '1.49x is no fill');
-// The final beat of a span that ends mid-phrase is a phrase end: detected there, it replaces the other phrase ends.
-assert.deepStrictEqual(j(ctx.avFillBeats({ onsets: fb(108, 3, fillAt([23])), sectionStart: 3, bpm: 108, beats: 24 })).splits, [7, 23]);
-// An onset up to one frame at 30 fps (1/30 s) before its beat counts for that beat (manifest onsets sit ~1 ms early);
-// one further back belongs to the beat before.
-const early = fb(108, 3, fillAt([7, 31])).map(o => [o[0] - 0.004, o[1], o[2]]);
-assert.deepStrictEqual(j(ctx.avFillBeats({ onsets: early, sectionStart: 3, bpm: 108, beats: 32 })).splits, [7, 31]);
-const single = plain.map((x, k) => (k === 7 || k === 31 ? [15] : x));   // one onset per beat, fills on 7 and 31
-assert.deepStrictEqual(j(ctx.avFillBeats({ onsets: fb(108, 3, single), sectionStart: 3, bpm: 108, beats: 32 })).splits, [7, 31]);
-const tooEarly = fb(108, 3, single).map(o => [o[0] - 0.04, o[1], o[2]]);
-const te = j(ctx.avFillBeats({ onsets: tooEarly, sectionStart: 3, bpm: 108, beats: 32 }));
-assert.strictEqual(te.source, 'pattern', '40 ms early: the fills land on beats 6 and 30 (no candidates)');
-// The section start is re-phased onto the beat grid from firstBeat when given.
-assert.deepStrictEqual(fd(fillAt([7, 31]), { sectionStart: 3.01, firstBeat: 3 - 4 * b108 }).splits, [7, 31]);
-// Onsets outside the span do not count; no onsets, no bpm, no section start, a median of 0 or no span -> pattern.
-assert.strictEqual(fd(fillAt([7, 31]), { sectionStart: 30 }).source, 'pattern');
-assert.deepStrictEqual(j(ctx.avFillBeats({ onsets: [], sectionStart: 3, bpm: 108, beats: 12 })), { splits: [7, 11], candidates: [7, 11], source: 'pattern', ratios: [] });
-assert.strictEqual(fd(plain, { onsets: null }).source, 'pattern');
-assert.strictEqual(fd(fillAt([7, 31]), { sectionStart: null }).source, 'pattern');
-assert.strictEqual(fd(fillAt([7, 31]), { bpm: null }).source, 'pattern');
-assert.strictEqual(fd(Array.from({ length: 32 }, (_, k) => (k === 15 ? [9] : []))).source, 'pattern', 'median 0');
-assert.deepStrictEqual(fd(fillAt([7, 31]), { beats: 0 }), { splits: [], candidates: [], source: 'pattern', ratios: [] });
-assert.deepStrictEqual(fd(fillAt([31])), f2, 'deterministic');
-
-// Groove schedule (per-slot beat lengths). Frame fixtures: every boundary is round((beat * 60 / bpm + delta) * fps),
-// boundary 0 is frame 0, at 30000/1001 and at 25 fps, with and without a music offset.
-const gl = ctx.avGrooveBeats({ beats: 24, splits: [15] });
-const at = l => l.reduce((acc, b) => (acc.push(acc[acc.length - 1] + b), acc), [0]);
-for (const fps of [F, 25]) for (const ss of [undefined, 0, 4.472, 7.31]) {
-  const gs = j(ctx.avSchedule({ bpm: 108, fps, beatsList: gl, sectionStart: ss }));
-  const delta = ctx.avMusicOffset(ss, fps);
-  assert.strictEqual(gs.slots.length, gl.length); assert.strictEqual(gs.slots[0].startFrame, 0);
-  at(gl).slice(1).forEach((beat, i) => assert.strictEqual(gs.slots[i].endFrame, Math.round((beat * 60 / 108 + delta) * fps), 'boundary ' + (i + 1) + ' at ' + fps));
-  gs.slots.forEach((x, i) => {
-    assert.strictEqual(x.beats, gl[i]); assert.strictEqual(x.endBeat - x.startBeat, gl[i]);
-    if (i) assert.strictEqual(x.startFrame, gs.slots[i - 1].endFrame);
-    assert.strictEqual(x.role, ['drink', 'street', 'food', 'park', 'book', 'transit', 'flowers', 'cafe'][i % 8]);
-  });
-  assert.deepStrictEqual(gs.beatsList, j(gl));
-}
-// Literal fixture at 29.97 (delta 0): 24 beats end at frame 400; beat 15's two 8ths are 8 frames each.
-const gf = j(ctx.avSchedule({ bpm: 108, fps: F, beatsList: gl }));
-assert.strictEqual(gf.totalFrames, 400);
-assert.deepStrictEqual(gf.slots.slice(13, 17).map(x => [x.startFrame, x.endFrame]), [[233, 250], [250, 258], [258, 266], [266, 300]]);
-const gf25 = j(ctx.avSchedule({ bpm: 108, fps: 25, beatsList: gl }));
-assert.strictEqual(gf25.totalFrames, Math.round(24 * 60 / 108 * 25));
-assert.deepStrictEqual(gf25.slots.slice(14, 16).map(x => [x.startFrame, x.endFrame]), [[208, 215], [215, 222]]);
-// No grid: the same pattern on 0.55 s beats (2 x 0.55, 0.55 ..., last 2 x 0.275).
-const gn = j(ctx.avSchedule({ bpm: null, fps: F, beatsList: gl, shotSeconds: 0.55 }));
-assert.strictEqual(gn.gridded, false);
-at(gl).slice(1).forEach((beat, i) => assert.strictEqual(gn.slots[i].endFrame, Math.round(beat * 0.55 * F)));
-assert.strictEqual(gn.slots[14].beats, 0.5); assert.strictEqual(gn.slots[14].startBeat, null);
-// Quick schedules keep their shape (no beats / beatsList keys).
-assert.ok(!('beatsList' in j(ctx.avSchedule({ bpm: 108, fps: F, shots: 12, beatsPerShot: 1 }))));
-assert.throws(() => ctx.avSchedule({ bpm: 108, fps: F, beatsList: [] }));
-assert.throws(() => ctx.avSchedule({ bpm: 108, fps: F, beatsList: [1, 0, 1] }));
-// Snapping on a groove schedule: cuts that start an 8th slot never snap; the cut after the 8ths (phrase start) may,
-// but never below the 8th slot's min-frames / min-share rule.
-const gcut = at(gl).map(b => b * b108);
-const thr3 = { l: 3, m: 3, h: 3 };
-const snapG = on => j(ctx.avSchedule({ bpm: 108, fps: F, beatsList: gl, sectionStart: 0, onsets: on, onsetThresholds: thr3 }));
-const e1 = snapG([[gcut[14] + 0.045, 'l', 9], [gcut[15] + 0.045, 'l', 9]]);
-assert.strictEqual(e1.cuts[14], gcut[14]); assert.strictEqual(e1.cuts[15], gcut[15]);
-assert.strictEqual(e1.snapLog.find(e => e.index === 14).reason, 'eighth: stays on the grid');
-assert.strictEqual(e1.snapLog.find(e => e.index === 15).reason, 'eighth: stays on the grid');
-const e2 = snapG([[gcut[16] + 0.045, 'l', 9]]);
-assert.strictEqual(e2.cuts[16], gcut[16] + 0.045, 'the phrase-start cut after the 8ths snaps later');
-// An early snap shortens the second 8th, within the rules: the window (0.1 beat) is below the 0.25 beat an 8th may lose.
-const e3 = snapG([[gcut[16] - 0.05, 'l', 9]]);
-assert.strictEqual(e3.cuts[16], gcut[16] - 0.05);
-assert.ok(e3.slots[15].endFrame - e3.slots[15].startFrame >= 4 && e3.cuts[16] - e3.cuts[15] >= 0.75 * b108 / 2);
-// The min-frames / min-share rule still guards 8th slots when a snap would cross it (direct boundaries, wide window).
-const guard8 = j(ctx.avSnapCuts([0, 1, 1.25, 1.5, 3], [[1.43, 'l', 9]], { bpm: 30, fps: 30, sectionStart: 0, thresholds: thr3, beatsList: [0.5, 0.125, 0.125, 1] }));
-assert.strictEqual(guard8.cuts[3], 1.5);
-assert.match(guard8.log.find(e => e.index === 3).reason, /^reverted: slot 2 min-/);
-// Every snapped groove cut still leaves each 8th slot >= min(4, grid frames) frames.
-for (const d of [-0.07, -0.05, -0.03, 0.03, 0.05, 0.07]) {
-  const r = snapG(gcut.slice(1, -1).map(x => [x + d, 'l', 9]));
-  r.slots.forEach((x, i) => { if (gl[i] === 0.5) assert.ok(x.endFrame - x.startFrame >= 4); });
-  [14, 15].forEach(i => assert.strictEqual(r.cuts[i], gcut[i]));
-}
-
-// Bedroom Pop 108 (manifest), default sections: interval_cv by hook-metrics' definition (population std / mean of the
-// intervals between inner cuts, i.e. first and last slot dropped) in 0.30-0.45 at Short, Standard and Long, at 29.97
-// and 25 fps, on every bundled cue; std / mean over all slots in 0.3-0.6 for Bedroom Pop Standard.
-const manifest = JSON.parse(fs.readFileSync(__dirname + '/../assets/cues/manifest.json', 'utf8'));
-const cv = xs => { const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length) / m; };
-const avOf = (cueId, requested, fps = F) => {
-  const cue = manifest.cues.find(c => c.id === cueId), B = 60 / cue.bpm;
-  const opener = ctx.avGrooveOpener(cue.bpm);
-  const fit = ctx.avGrooveFit({ requested, sectionStart: cue.firstBeat, usableEnd: cue.usableEnd, beatSeconds: B, opener });
-  const ss = ctx.avDefaultSection({ firstBeat: cue.firstBeat, bpm: cue.bpm, beatEnergy: cue.beatEnergy, usableEnd: cue.usableEnd, videoSeconds: fit.beats * B });
-  const fills = ctx.avFillBeats({ onsets: cue.onsets, sectionStart: ss, firstBeat: cue.firstBeat, bpm: cue.bpm, beats: fit.beats });
-  const sch = ctx.avSchedule({ bpm: cue.bpm, fps, beatsList: ctx.avGrooveBeats({ beats: fit.beats, splits: fills.splits, opener }), sectionStart: ss, onsets: cue.onsets, onsetThresholds: cue.onsetThresholds });
-  const d = sch.slots.map(x => (x.endFrame - x.startFrame) / fps);
-  // inner: hook-metrics' definition (population std / mean of the intervals between inner cuts: first and last slot dropped).
-  return { cv: cv(d), inner: cv(d.slice(1, -1)), shots: sch.slots.length, beats: fit.beats, fills: j(fills) };
-};
-for (const cue of manifest.cues) for (const fps of [F, 25]) for (const req of [12, 24, 36]) {
-  const r = avOf(cue.id, req, fps);
-  assert.ok(r.inner >= 0.30 && r.inner <= 0.45, cue.id + ' ' + req + ' at ' + fps + ': inner interval_cv ' + r.inner);
-}
-const bp = avOf('bedroom-pop-108', 24);
-assert.ok(bp.cv >= 0.3 && bp.cv <= 0.6, 'interval_cv ' + bp.cv);
-// Quick on the same cue is flat (the A baseline).
-const bq = ctx.avSchedule({ bpm: 108, fps: F, shots: 24, beatsPerShot: 1, sectionStart: 4.472 });
-assert.ok(cv(bq.slots.map(x => (x.endFrame - x.startFrame) / F)) < 0.05);
-
-// Hook section (spec 15.3): the best-scoring bar start (hookBars, index = bar from firstBeat) among the starts whose
-// video fits, earliest on ties. For a Standard Quick video (24 beats) it is the manifest's own hookStart on every cue.
-for (const cue of manifest.cues) {
-  const hs = ctx.avHookSection({ hookBars: cue.hookBars, firstBeat: cue.firstBeat, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds: 24 * 60 / cue.bpm, barPhaseBeats: cue.barPhaseBeats });
-  assert.ok(Math.abs(hs - cue.hookStart) < 1e-3, cue.id + ' hook section ' + hs + ' vs hookStart ' + cue.hookStart);
-  // The pick is a start the section snap keeps as it is.
-  const snapped = ctx.avSnapSection({ value: hs, firstBeat: cue.firstBeat, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds: 24 * 60 / cue.bpm, gridAccepted: true });
-  assert.ok(Math.abs(snapped - hs) < 1e-9, cue.id + ' hook section survives snapping');
-}
+// The template schedule snaps its inner cuts (all slots are >= 1 beat), the montage start included; reused cuts keep
+// their seconds at another rate.
 {
-  const bar = 4 * 60 / 120, base = { firstBeat: 0.5, bpm: 120, usableEnd: 0.5 + 10 * bar, videoSeconds: 4 * bar };
-  // Earliest of equal scores; a start whose video would run past usableEnd is skipped even when it scores best.
-  assert.strictEqual(ctx.avHookSection({ ...base, hookBars: [0.2, 0.9, 0.4, 0.9, 0.1, 0.3, 0.2] }), 0.5 + bar);
-  assert.strictEqual(ctx.avHookSection({ ...base, hookBars: [0.2, 0.3, 0.4, 0.5, 0.1, 0.3, 0.2, 1] }), 0.5 + 3 * bar);
-  // Exactly fitting counts (bar 6 ends at usableEnd).
-  assert.strictEqual(ctx.avHookSection({ ...base, hookBars: [0, 0, 0, 0, 0, 0, 0.7] }), 0.5 + 6 * bar);
-  // Starts past the scored bars (the last 3 bars of a cue have no score) are never picked.
-  assert.strictEqual(ctx.avHookSection({ ...base, videoSeconds: bar, hookBars: [0.1, 0.2] }), 0.5 + bar);
-  // No hookBars (own music, No music), an empty list, no tempo, or nothing that fits: null (the caller falls back).
-  for (const hookBars of [undefined, null, [], 'x']) assert.strictEqual(ctx.avHookSection({ ...base, hookBars }), null);
-  assert.strictEqual(ctx.avHookSection({ ...base, bpm: null, hookBars: [1] }), null);
-  assert.strictEqual(ctx.avHookSection({ ...base, videoSeconds: 11 * bar, hookBars: [1, 1] }), null);
-  // Non-numeric scores are skipped; barPhaseBeats never shifts the start (firstBeat already carries the bar phase).
-  assert.strictEqual(ctx.avHookSection({ ...base, hookBars: [null, 0.3, 'a', 0.2] }), 0.5 + bar);
-  assert.strictEqual(ctx.avHookSection({ ...base, barPhaseBeats: 2, hookBars: [0.1, 0.5] }), 0.5 + bar);
-}
-// Groove sizes the hook window by its beat span: Bedroom Pop Long Groove (36 beats) cannot start at bar 17.
-{
-  const c = manifest.cues.find(x => x.id === 'bedroom-pop-108');
-  const hs = ctx.avHookSection({ hookBars: c.hookBars, firstBeat: c.firstBeat, bpm: c.bpm, usableEnd: c.usableEnd, videoSeconds: 36 * 60 / c.bpm });
-  assert.ok(hs + 36 * 60 / c.bpm <= c.usableEnd + 1e-6 && hs < c.hookStart, 'long hook section fits ' + hs);
+  const tpl = j(ctx.avTemplate({ bpm: 72, pace: 'cinematic', montageShots: 8 }));
+  const on = [[8 * b72 + 0.045, 'l', 6], [12 * b72 - 0.045, 'h', 6]];
+  const sn = j(ctx.avSchedule({ bpm: 72, fps: 30, beatsList: tpl.beatsList, roles: tpl.roles, sectionStart: 0, onsets: on, onsetThresholds: { l: 3, m: 3, h: 3 } }));
+  assert.strictEqual(sn.cuts[2], 8 * b72 + 0.045, 'the montage start snaps');
+  assert.strictEqual(sn.cuts[4], 12 * b72 - 0.045);
+  assert.strictEqual(sn.slots[2].startFrame, Math.round((8 * b72 + 0.045) * 30));
+  assert.strictEqual(sn.snapLog.length, tpl.beatsList.length - 1);
+  assert.deepStrictEqual(j(ctx.avSchedule({ bpm: 72, fps: 30, beatsList: tpl.beatsList, onsets: on }).cuts), j(ctx.avSchedule({ bpm: 72, fps: 30, beatsList: tpl.beatsList }).cuts), 'no section start: no snapping');
+  const re = j(ctx.avSchedule({ bpm: 72, fps: 25, beatsList: tpl.beatsList, sectionStart: 14.58, cuts: sn.cuts }));
+  re.slots.forEach((x, i) => assert.strictEqual(x.endFrame, Math.round((sn.cuts[i + 1] + ctx.avMusicOffset(14.58, 25)) * 25)));
+  assert.throws(() => ctx.avSchedule({ bpm: 72, fps: 30, beatsList: [6, 2, 4], cuts: sn.cuts }), /cuts do not match/);
+  // No grid with music: low-band snapping within 120 ms.
+  const ng = j(ctx.avSchedule({ bpm: null, fps: 30, beatsList: tpl.beatsList, shotSeconds: b72, sectionStart: 0, onsets: [[8 * b72 + 0.1, 'l', 5], [6 * b72 + 0.05, 'h', 9]] }));
+  near(ng.cuts[2], 8 * b72 + 0.1, 1e-12, 'gridless low-band snap'); near(ng.cuts[1], 6 * b72, 1e-12, 'gridless: high band ignored');
 }
 
-// First shot on a moving moment: avPlanBuild passes motion-tagged candidates to the allocator's slot-0 rule; untagged
-// (Beat punch off) plans are the ones the previous planner made.
-{
-  const ROLES = K.AV_ROLES, mk = (rid, role, t, score) => ({ rid, role, t, score, sourceDuration: 60 });
-  const vid = rid => Array.from({ length: 39 }, (_, k) => mk(rid, ROLES[k % ROLES.length], 1 + k * 1.5, 0.5));
-  const pics = Array.from({ length: 6 }, (_, i) => ({ rid: 'p0' + i, kind: 'photo' }));
-  const three = vid('a').concat(vid('b'), vid('c'));
-  const sig = picks => picks.map(p => (p ? p.rid + (p.kind === 'photo' ? '' : '@' + p.startSeconds.toFixed(2)) : '-')).join(' ');
-  const build = (cands, extra) => j(ctx.avPlanBuild({ candidates: cands, bpm: 108, accepted: true, fps: F, pace: 'quick', requested: 12, seed: 's1', ...extra }));
-  assert.strictEqual(sig(build(three.concat(pics)).picks), 'p00 b@2.23 c@51.72 p01 a@30.73 b@44.22 p02 c@11.23 a@12.72 p03 b@27.73 c@5.22');
-  assert.strictEqual(sig(build(three.concat(pics), { seed: 's2' }).picks), 'b@24.72 p03 a@27.72 c@17.22 p02 b@32.22 a@45.72 p01 c@0.72 b@2.22 p00 a@17.22');
-  assert.strictEqual(sig(build(three.concat(pics), { pace: 'groove' }).picks), 'p00 b@2.22 p01 c@5.23 a@30.72 p02 b@21.87 c@11.37 a@12.43 b@50.23 c@51.87 a@17.35');
-  const tagged = three.map(c => (c.rid === 'a' && c.t === 40 ? { ...c, score: 0.6, motion: 1 } : c));
-  for (const pace of ['quick', 'groove']) {
-    const p = build(tagged.concat(pics), { pace });
-    assert.ok(p.ok); assert.strictEqual(p.picks[0].rid, 'a', pace);
-    const mid = (p.picks[0].startSeconds + p.picks[0].endSeconds) / 2;
-    assert.ok(Math.abs(mid - 40) < 1e-6, pace + ' opens on the moving moment ' + mid);
-    assert.strictEqual(p.photoShots, build(three.concat(pics), { pace }).photoShots, pace + ' photo share kept');
-    assert.strictEqual(sig(build(tagged.concat(pics), { pace, motionOpener: false }).picks)[0], 'p', pace + ' opener off');
-  }
-}
-
-// Approximate tempo (own music whose beat-detect grid is 'approximate'): used only without a usable grid and inside
-// 70-160 bpm. Fixed timing then runs on its beat (Quick 1, Relaxed 2, Groove's pattern on that beat, with the tempo
-// guards) instead of 0.55 s; the schedule stays gridless (bpm null: bass-only snapping, no fills from onsets).
-assert.strictEqual(ctx.avApproxTempo({ gridded: false, approxBpm: 120 }), 120);
-assert.strictEqual(ctx.avApproxTempo({ gridded: true, approxBpm: 120 }), null, 'a usable grid wins');
-assert.strictEqual(ctx.avApproxTempo({ gridded: false, approxBpm: 65 }), null);
-assert.strictEqual(ctx.avApproxTempo({ gridded: false, approxBpm: 161 }), null);
-assert.strictEqual(ctx.avApproxTempo({ gridded: false, approxBpm: null }), null);
-assert.strictEqual(ctx.avApproxTempo({ gridded: false }), null);
-assert.strictEqual(ctx.avShotSeconds({ bpm: null, beatsPerShot: 1, pace: 'quick', gridded: false, approxBpm: 120 }), 0.5);
-assert.strictEqual(ctx.avShotSeconds({ bpm: null, beatsPerShot: 2, pace: 'relaxed', gridded: false, approxBpm: 120 }), 1);
-assert.strictEqual(ctx.avShotSeconds({ bpm: null, beatsPerShot: 1, pace: 'groove', gridded: false, approxBpm: 120 }), 0.5);
-assert.strictEqual(ctx.avShotSeconds({ bpm: null, beatsPerShot: null, pace: 'quick', gridded: false, approxBpm: null }), 0.55);
+// avPlanBuild on the template (allocation details are in allocate.test.cjs).
 {
   const ROLES = K.AV_ROLES, mk = (rid, role, t) => ({ rid, role, t, score: 0.5, sourceDuration: 60 });
-  const pool = ['a', 'b', 'c'].flatMap(rid => Array.from({ length: 39 }, (_, k) => mk(rid, ROLES[k % ROLES.length], 1 + k * 1.5)));
-  const build = extra => j(ctx.avPlanBuild({ candidates: pool, bpm: null, accepted: false, fps: 30, pace: 'quick', requested: 12, sectionStart: 0.04, usableEnd: 200, seed: 's1', ...extra }));
-  const q = build({ approxBpm: 120 });
-  assert.ok(q.ok);
-  assert.strictEqual(q.shotSeconds, 0.5); assert.strictEqual(q.beatsPerShot, 1); assert.strictEqual(q.approxBpm, 120);
-  assert.strictEqual(q.schedule.gridded, false, 'no beat grid: bass-only snapping');
-  assert.deepStrictEqual(q.schedule.cuts.map(c => Math.round(c * 1000) / 1000), Array.from({ length: 13 }, (_, k) => k * 0.5), 'no onsets: every cut on the beat');
-  const r = build({ approxBpm: 120, pace: 'relaxed' });
-  assert.strictEqual(r.shotSeconds, 1); assert.strictEqual(r.beatsPerShot, 2);
-  const fast = build({ approxBpm: 156 });
-  assert.strictEqual(fast.beatsPerShot, 2); assert.strictEqual(fast.overridden, true, 'tempo guard applies');
-  assert.ok(Math.abs(fast.shotSeconds - 120 / 156) < 1e-12);
-  const g = build({ approxBpm: 120, pace: 'groove' });
-  assert.ok(g.ok); assert.strictEqual(g.groove.beatSeconds, 0.5); assert.strictEqual(g.groove.fillSource, 'pattern'); assert.strictEqual(g.groove.opener, 2);
-  const slow = build({ approxBpm: 80, pace: 'groove' });
-  assert.strictEqual(slow.groove.opener, 1, 'opener guard below 86 bpm');
-  // Out of range or absent: the 0.55 s fallback, as before.
-  assert.strictEqual(build({ approxBpm: 200 }).shotSeconds, 0.55);
-  assert.strictEqual(build({}).shotSeconds, 0.55);
-  assert.strictEqual(build({}).approxBpm, null);
+  const pool = ['a', 'b', 'c', 'd'].flatMap(rid => Array.from({ length: 38 }, (_, k) => mk(rid, ROLES[k % ROLES.length], 3 + k * 1.5)));
+  const build = extra => j(ctx.avPlanBuild({ candidates: pool, bpm: 72, accepted: true, fps: 30, pace: 'cinematic', requested: 16, seed: 's1', ...extra }));
+  const p = build();
+  assert.ok(p.ok);
+  assert.strictEqual(p.shots, 16); assert.strictEqual(p.requested, 16); assert.strictEqual(p.slots, 19); assert.strictEqual(p.fittedByMusic, false);
+  assert.strictEqual(p.pace, 'cinematic'); assert.strictEqual(p.montageBeats, 2); assert.strictEqual(p.finalBeats, 4);
+  assert.strictEqual(p.tempo, 72); assert.strictEqual(p.gridded, true); assert.strictEqual(p.approxBpm, null); assert.deepStrictEqual(p.notes, []);
+  assert.deepStrictEqual(p.schedule.beatsList, [6, 2].concat(Array(16).fill(2), [4]));
+  assert.deepStrictEqual(p.schedule.slots.map(s => s.part).filter((x, i, a) => a.indexOf(x) === i), ['opening', 'credit', 'montage', 'final']);
+  assert.deepStrictEqual(Object.keys(p).sort(), ['approxBpm', 'attempt', 'beatSeconds', 'fillerShots', 'finalBeats', 'fittedByMusic', 'gridded', 'montageBeats', 'notes', 'ok', 'pace', 'photoShots',
+    'picks', 'requested', 'schedule', 'shots', 'slots', 'tempo']);
+  // An unknown pace is Cinematic; Quick doubles the shots at the same length.
+  assert.strictEqual(build({ pace: 'relaxed' }).pace, 'cinematic');
+  const q = build({ pace: 'quick', requested: 32 });
+  assert.ok(q.ok); assert.strictEqual(q.shots, 32); assert.strictEqual(q.montageBeats, 1); assert.strictEqual(q.schedule.totalFrames, p.schedule.totalFrames);
+  // Above 110 bpm: 4-beat montage shots and an 8-beat final shot.
+  const fast = build({ bpm: 120 });
+  assert.strictEqual(fast.montageBeats, 4); assert.strictEqual(fast.finalBeats, 8); assert.strictEqual(fast.schedule.slots[18].beats, 8);
+  // No usable grid: the 72 bpm beat; own music 'approximate': its beat.
+  for (const extra of [{ bpm: null, accepted: false }, { bpm: 108, accepted: false }, { bpm: 65, accepted: true }]) {
+    const ng = build(extra);
+    assert.ok(ng.ok); assert.strictEqual(ng.gridded, false); assert.strictEqual(ng.tempo, 72); assert.strictEqual(ng.schedule.gridded, false);
+    assert.strictEqual(ng.schedule.totalFrames, Math.round(44 * b72 * 30));
+  }
+  const ap = build({ bpm: null, accepted: false, approxBpm: 120, sectionStart: 0.04, usableEnd: 200 });
+  assert.strictEqual(ap.tempo, 120); assert.strictEqual(ap.approxBpm, 120); assert.strictEqual(ap.montageBeats, 4); assert.strictEqual(ap.schedule.gridded, false);
+  assert.deepStrictEqual(ap.schedule.cuts.map(c => Math.round(c * 1000) / 1000), [0, 3, 4].concat(Array.from({ length: 16 }, (_, k) => 4 + 2 * (k + 1)), [40]), 'no onsets: every cut on the beat');
   // An accepted grid ignores approxBpm.
-  const acc = build({ bpm: 108, accepted: true, approxBpm: 120 });
-  assert.ok(Math.abs(acc.shotSeconds - 60 / 108) < 1e-12); assert.strictEqual(acc.approxBpm, null);
+  assert.strictEqual(build({ bpm: 108, approxBpm: 120 }).tempo, 108);
+  // Music cap: the section and usableEnd shrink the montage by whole bars, the intro and final shot stay.
+  const cap = build({ sectionStart: 2, usableEnd: 2 + 27 });   // 32.4 beats: 8 + 2 x 10 + 4
+  assert.ok(cap.ok); assert.strictEqual(cap.shots, 10); assert.strictEqual(cap.fittedByMusic, true);
+  assert.ok(2 + cap.schedule.totalFrames / 30 <= 29 + 1 / 30, 'the picture never outruns the music');
+  assert.deepStrictEqual(cap.schedule.beatsList.slice(0, 2), [6, 2]); assert.strictEqual(cap.schedule.beatsList[cap.schedule.beatsList.length - 1], 4);
+  const tooShort = build({ sectionStart: 0, usableEnd: 12 });
+  assert.deepStrictEqual(tooShort, { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0 });
+  // A non-finite request falls back to Standard.
+  for (const requested of [NaN, undefined, Infinity]) assert.strictEqual(build({ requested }).shots, 16);
 }
 
 // Progress: ids and numbers only (the panel labels the steps in the UI language).
