@@ -4,7 +4,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 
 | Plugin | Status |
 | --- | --- |
-| [Selects Clips](plugins/shortform-cloner) — AI clips from long videos, with reusable styles | Experimental |
+| [Selects Clips](plugins/shortform-cloner) — shorts from long videos, using templates made from a channel's best shorts | Experimental |
 | [Multicam Generator](plugins/multicam-generator) | Experimental |
 | [Place Count](plugins/place-count) | Experimental |
 | [Postcard Cutout Studio](plugins/postcard-cutout-studio) | Experimental |
