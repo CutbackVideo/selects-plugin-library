@@ -5,7 +5,7 @@ const a = src.indexOf('// tec-graphic:start'), b = src.indexOf('// tec-graphic:e
 assert.ok(a >= 0 && b > a, 'pure block markers present');
 const block = src.slice(a, b);
 const box = {}; vm.createContext(box);
-vm.runInContext(block + ';globalThis.G={TEC_ROLL_EXIT_LEAD_SEC,TEC_LAYOUTS,TEC_TITLE,TEC_CREDITS,TEC_FULL_BIG,tecTyping,tecSlotStart,tecTypedCount,tecScrollY,tecCreditsOpacity,tecMaskAlpha,tecMaskCss,tecEaseInOut,tecFullMove,tecFullOverlay,tecResolveRows,tecFitSize,tecFitLine,tecTitleSizes,tecTitlePose,tecCreditLayout,tecFitSpeed};', box);
+vm.runInContext(block + ';globalThis.G={tecHasHangul,tecTitleScaleX,tecFallbackWidth,TEC_ROLL_EXIT_LEAD_SEC,TEC_LAYOUTS,TEC_TITLE,TEC_CREDITS,TEC_FULL_BIG,tecTyping,tecSlotStart,tecTypedCount,tecScrollY,tecCreditsOpacity,tecMaskAlpha,tecMaskCss,tecEaseInOut,tecFullMove,tecFullOverlay,tecResolveRows,tecFitSize,tecFitLine,tecTitleSizes,tecTitlePose,tecCreditLayout,tecFitSpeed};', box);
 const G = box.G;
 const near = (x, y, eps, msg) => assert.ok(Math.abs(x - y) <= eps, `${msg}: ${x} vs ${y}`);
 const plain = (x) => JSON.parse(JSON.stringify(x));
@@ -101,6 +101,14 @@ const longT = 'THE END OF OUR SUMMER';
 const s2 = G.tecTitleSizes(longT, 'classic', 1920, 1080, titleM);
 near(s2.widthPerPx * s2.size, 0.34 * 1920, 1e-6, 'long title fits 34 % of W');
 near(s2.widthPerPx, longT.length * 0.47 * 0.78, 1e-12, 'visible width uses scaleX');
+// Hangul is never squeezed: a title with any Hangul (also mixed with Latin) is measured and drawn at scaleX 1.
+const ko = '\ub05d', mixed = 'THE END \uc5ec\ub984';
+assert.equal(G.tecHasHangul('THE END'), false); assert.equal(G.tecHasHangul(mixed), true); assert.equal(G.tecHasHangul(undefined), false);
+assert.equal(G.tecTitleScaleX('THE END'), 0.78); assert.equal(G.tecTitleScaleX(ko), 1); assert.equal(G.tecTitleScaleX(mixed), 1);
+near(G.tecTitleSizes(mixed, 'classic', 1920, 1080, titleM).widthPerPx, mixed.length * 0.47, 1e-12, 'Hangul title: visible width at scaleX 1');
+// Without a canvas, wide characters (Hangul, kana, CJK) count 1.0 em and anything else 0.6 em.
+near(G.tecFallbackWidth('AB', 10), 12, 1e-9, 'Latin 0.6 em'); near(G.tecFallbackWidth('\uac00\ub098', 10), 20, 1e-9, 'Hangul 1.0 em');
+near(G.tecFallbackWidth('A \uac00', 10), 22, 1e-9, 'mixed'); near(G.tecFallbackWidth('\u3042\u6f22', 10), 20, 1e-9, 'kana and CJK 1.0 em');
 // Full frame big size: cap 20 % of H, fitted to 60 % of W.
 near(s1.big, 0.2 * 1080 / 0.71, 1e-9, 'big title cap 20 % of H');
 
@@ -175,7 +183,13 @@ assert.equal(l0.rows.length, 0); assert.equal(l0.lastRoleTop, null); assert.equa
 for (const key of ['layout', 'fps', 'revealFrame', 'title', 'titleColor', 'creditColor', 'rows', 'rowCount', 'speedPxPerSec', 'speed', 'showTitle', 'fonts'])
   assert.ok(src.includes('data.' + key) || new RegExp(`\\bd\\.${key}\\b`).test(block), key);
 assert.ok(src.includes('"#FBE4BB"') && src.includes('"#F0EBDD"'), 'default colours');
-assert.ok(src.includes('scaleX(${TEC_TITLE.scaleX})') && /scaleX: 0\.78/.test(block), 'title scaleX 0.78');
+assert.ok(src.includes('scaleX(${tecTitleScaleX(title)})') && /scaleX: 0\.78/.test(block), 'title scaleX 0.78, 1 with Hangul');
+// Korean (v1): the macOS system face of each role ends the stack, before the generic family; no tracking or uppercase.
+assert.ok(src.includes(`const TITLE_FALLBACK = 'Georgia, "Times New Roman", "AppleMyungjo", serif';`), 'serif title: AppleMyungjo');
+assert.ok(src.includes(`const CREDITS_FALLBACK = '"Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif';`), 'sans credits: Apple SD Gothic Neo');
+assert.equal((src.match(/wordBreak: "keep-all"/g) || []).length, 2, 'keep-all on the title and the credit lines');
+assert.ok(!/letterSpacing|textTransform|toUpperCase/.test(src), 'no tracking or uppercase');
+assert.ok(src.includes('if (!measureCtx) return tecFallbackWidth(text, px);'), 'the canvas-less measure counts wide characters at 1 em');
 assert.ok(src.includes('delayRender') && src.includes('continueRender'), 'waits for fonts');
 assert.ok(src.includes('measureText'), 'measures real glyph advances');
 const imports = src.split('\n').filter((l) => /^\s*import\b/.test(l));

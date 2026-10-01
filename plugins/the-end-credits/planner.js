@@ -533,11 +533,15 @@ const TEC_DAY_RANGE_MAX = 10;
 const TEC_EN_DASH = '\u2013';
 const TEC_MID_DOT = '\u00b7';
 
-// The CWV place heuristic: a short Latin Project name that does not look like a working title.
+// The CWV place heuristic: a short Latin or Hangul Project name (2 to 31 columns, Hangul counts as 2) that does not
+// look like a working title.
 function tecSuggestPlace(projectName) {
   const name = String(projectName || '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!/^[A-Za-z][A-Za-z .']{1,30}$/.test(name)) return '';
+  const cols = Array.from(name).reduce((a, ch) => a + (/[\uac00-\ud7a3]/.test(ch) ? 2 : 1), 0);
+  if (!/^[A-Za-z\uac00-\ud7a3][A-Za-z\uac00-\ud7a3 .']*$/.test(name) || cols < 2 || cols > 31) return '';
   if (/\b(project|untitled|test|draft|copy|export|final|edit|vlog)\b/i.test(name)) return '';
+  // The same generic words in Korean (project, untitled, test, draft, copy, export, final, edit, vlog).
+  if (/\ud504\ub85c\uc81d\ud2b8|\ubb34\uc81c|\uc81c\ubaa9\u0020\uc5c6\uc74c|\ud14c\uc2a4\ud2b8|\ucd08\uc548|\ubcf5\uc0ac\ubcf8|\ub0b4\ubcf4\ub0b4\uae30|\ucd5c\uc885|\ud3b8\uc9d1|\ube0c\uc774\ub85c\uadf8/.test(name)) return '';
   return name;
 }
 
@@ -771,17 +775,17 @@ function tecTitleExitSec(layout, pxPerSec, L) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // Build progress: 5 UI steps over 6 operations (Prepare = inventory + search; Plan; Music = ensure-audio;
-// Assemble; Decorate). Each step's share of the bar is in percent.
+// Assemble; Decorate). Each step's share of the bar is in percent. The panel names the steps in the UI language.
 const TEC_BUILD_STEPS = [
-  { id: 'prepare', label: 'Finding shots', weight: 35 },
-  { id: 'plan', label: 'Planning the edit', weight: 5 },
-  { id: 'music', label: 'Preparing music', weight: 10 },
-  { id: 'assemble', label: 'Creating Draft', weight: 30 },
-  { id: 'decorate', label: 'Adding credits and look', weight: 20 },
+  { id: 'prepare', weight: 35 },
+  { id: 'plan', weight: 5 },
+  { id: 'music', weight: 10 },
+  { id: 'assemble', weight: 30 },
+  { id: 'decorate', weight: 20 },
 ];
 
 // Progress for a step that is `fraction` done. Floors the percent so 100% only shows at the very end.
-function tecProgress(stepId, fraction, detail) {
+function tecProgress(stepId, fraction) {
   const i = TEC_BUILD_STEPS.findIndex(s => s.id === stepId);
   if (i < 0) throw new Error('unknown build step ' + stepId);
   const total = TEC_BUILD_STEPS.reduce((a, s) => a + s.weight, 0);
@@ -789,12 +793,6 @@ function tecProgress(stepId, fraction, detail) {
   const f = Math.min(1, Math.max(0, Number(fraction) || 0));
   const value = (before + TEC_BUILD_STEPS[i].weight * f) / total;
   const percent = Math.floor(value * 100 + 1e-9);
-  const step = TEC_BUILD_STEPS[i];
-  return {
-    value,
-    percent,
-    current: i,
-    label: 'Step ' + (i + 1) + '/' + TEC_BUILD_STEPS.length + ' \u00b7 ' + step.label + (detail ? ' (' + detail + ')' : '') + ' \u00b7 ' + percent + '%',
-  };
+  return { id: TEC_BUILD_STEPS[i].id, value, percent, current: i };
 }
 // tec-planner:end
