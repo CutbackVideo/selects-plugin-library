@@ -353,7 +353,11 @@ function No14Panel({sdk,context,ui}){
    const r=await sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary:'List project photos',allowCommit:false});
    if(r.isError||!Array.isArray(r.result))throw Error(r.output||'Could not read project photos.');
    if(currentProject.current!==projectId)return;
-   setPhotos(r.result);setLoadedProject(projectId);setStatus(r.result.length?'Choose photos for A, B, C, and D.':'This Project has no photos. Import photos first.');
+   const rows=r.result;
+   setPhotos(rows);setLoadedProject(projectId);
+   // Fill empty slots in Project order; the user can change any slot.
+   setSlots(old=>old.map((x,i)=>x||rows[i]?.resourceId||''));
+   setStatus(rows.length>=4?'Check the order of photos A–D.':rows.length?'This Project has '+rows.length+' photos. The format needs 4; import more or choose a photo twice on purpose.':'This Project has no photos. Import photos first.');
   }catch(error){setStatus(String(error?.message||error));}finally{running.current=false;setBusy(false);}
  }
  async function create(){
