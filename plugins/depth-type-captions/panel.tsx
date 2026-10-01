@@ -1,4 +1,5 @@
 // @name Depth Type Captions
+// @collection visual-highlights
 // @name:de Depth-Type-Untertitel
 // @name:en Depth Type Captions
 // @name:es Subtítulos Depth Type
@@ -579,10 +580,13 @@ function depthBase(sequence, excluded) {
     }),
   };
 }
+// A template run pins the library it started in: it goes on while the person
+// moves to another page, whose address may no longer name the library.
+let depthPinnedLibraryId = null;
 function depthDI() {
   const app = window.parent,
     di = app.__DI__,
-    libraryId = app.location.pathname.match(/libraries\/([^/]+)/)?.[1];
+    libraryId = depthPinnedLibraryId || app.location.pathname.match(/libraries\/([^/]+)/)?.[1];
   if (!di || !libraryId) throw new Error("Open a draft in Selects.");
   return { app, di, libraryId };
 }
@@ -1446,6 +1450,249 @@ async function depthFallbackPlacement(phrase,settings,width,height,mask){
   return phrase;
 }
 
+// --- Make depth captions: the steps shared by the panel and the template run ---
+// A cleared line is left out when saving; a phrase with no lines left is dropped.
+function depthCleanPlan(ps) {
+  return ps.map((p) => ({ ...p, layers: p.layers.filter((l) => String(l.text || "").trim()).map(({ front, ...l }) => l) })).filter((p) => p.layers.length);
+}
+function depthComposeFromWords(words, meta, settings, fallbackWidth, fallbackHeight) {
+  const next = depthPlanWords(words, meta.fps, meta.duration),
+    w = meta.width || fallbackWidth,
+    hh = meta.height || fallbackHeight;
+  return depthReferenceComposition(depthRestoreTypography(next, w, hh, settings), w, hh, settings);
+}
+async function depthNewMaskJob(sdk, pid, sid) {
+  const fs = depthDI().di.FileSystem,
+    root = depthPluginRoot(),
+    dir = fs.join(depthMaskDraftDir(pid, sid), Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(fs.join(root, "bin"), { recursive: true });
+  } catch (e) {
+    throw new Error("Could not create the mask folder: " + (e?.message || e));
+  }
+  return { root, dir };
+}
+// Full-size render of the draft, then speaker masks from it. `onRender` gets the
+// render as soon as it exists.
+async function depthMakeSpeakerMasks(sdk, pid, sid, meta, settings, excluded, control, progress, onRender) {
+  depthRequireHost();
+  const fs = depthDI().di.FileSystem, maskJob = await depthNewMaskJob(sdk, pid, sid);
+  const p = await depthPrepareVideo(pid, sid, excluded, control, progress, meta, fs.join(maskJob.dir, "render.mp4"));
+  if (control.canceled) throw new Error("Canceled.");
+  onRender?.(p);
+  return DEPTH_CLOUD_MASKS
+    ? await depthPrepareCloudMasks(sdk, p, pid, maskJob, progress, control)
+    : await depthPrepareMasks(sdk, p, settings, maskJob, progress, control);
+}
+// Masks are reused while the footage, canvas and speaker setting are what they were made from.
+async function depthMaskIsCurrent(files, meta, settings, sid, excluded) {
+  if (!files || files.canvasWidth !== meta.width || files.canvasHeight !== meta.height) return false;
+  if ((files.subject || "foreground") !== depthSubject(settings) || (files.grow || 0) !== DEPTH_MATTE_GROW || (files.version || 0) !== DEPTH_MATTE_VERSION) return false;
+  try {
+    const fs = depthDI().di.FileSystem;
+    if (!fs.existsSync(fs.join(files.dir, "matte_" + String(files.count).padStart(6, "0") + ".png"))) return false;
+    return (await depthCurrentKey(sid, excluded)) === files.sourceKey;
+  } catch {
+    return false;
+  }
+}
+// Make and Redo: dialogue → speaker masks (`reuse`d while the footage is unchanged) →
+// lines placed around the speaker → one caption clip on the timeline, replacing `owned`.
+// The hooks let the panel show each stage; the template run passes none.
+async function depthMakeCaptions({ sdk, pid, sid, settings, owned = null, reuse = null, control, progress, fallbackSize = {}, hooks = {} }) {
+  const r = await sdk.runScript({ script: depthReadScript(pid, sid), summary: "Read dialogue for Depth Type captions", allowCommit: false });
+  if (r.isError || !r.result) throw new Error(r.output || "No draft data returned.");
+  const meta = r.result;
+  let next = depthComposeFromWords(meta.words, meta, settings, fallbackSize.width, fallbackSize.height);
+  if (!next.length) throw new Error("No dialogue found in this draft.");
+  hooks.onRead?.(meta, next);
+  // Everything this panel placed: never part of the speaker render or its key.
+  const excluded = [owned, ...depthCutawayRefs(pid, sid)];
+  let files = null, around = 0;
+  if (settings.depth) {
+    depthRequireHost();
+    let layoutMask;
+    if (reuse?.files && (await depthMaskIsCurrent(reuse.files, meta, settings, sid, excluded))) {
+      files = reuse.files;
+      layoutMask = reuse.mask || (await depthLoadLayoutMask(files));
+      if (!reuse.mask) hooks.onMaskLoaded?.(layoutMask);
+    } else {
+      const made = await depthMakeSpeakerMasks(sdk, pid, sid, meta, settings, excluded, control, progress, hooks.onRender);
+      hooks.onMasks?.(made);
+      files = made.files;
+      layoutMask = made.mask;
+    }
+    const composed = depthCopy(next);
+    for (let i = 0; i < next.length; i++) {
+      if (control.canceled) throw new Error("Canceled.");
+      progress("Placing captions around the speaker · " + (i + 1) + " / " + next.length);
+      try {
+        const c = await depthComposeWithSpeaker(next[i], next, settings, layoutMask, meta.width, meta.height, () => {});
+        if (c) {
+          composed[i] = c;
+          around++;
+          continue;
+        }
+      } catch {}
+      // No open space around the speaker for this phrase: its supporting lines keep the
+      // design's stack, inside the frame, drawn in front of the speaker so they stay readable.
+      const placed = await depthFallbackPlacement(next[i], settings, meta.width, meta.height, layoutMask);
+      composed[i] = { ...placed, layers: placed.layers.map((l) => (l.id.endsWith("-hero") ? l : { ...l, depth: "front" })) };
+    }
+    next = composed;
+  } else {
+    const placed = [];
+    for (const p of next) placed.push(await depthFallbackPlacement(p, settings, meta.width, meta.height, null));
+    next = placed;
+  }
+  hooks.onPlaced?.(next);
+  if (control.canceled) throw new Error("Canceled.");
+  progress("Saving captions…");
+  const savePlan = depthCleanPlan(next);
+  const ar = await sdk.runScript({ summary: "Apply Depth Type captions", allowCommit: true, script: depthApplyScript(pid, sid, savePlan, settings, files, owned, depthCutawayRefs(pid, sid)).script });
+  if (ar.isError || !ar.result?.owned) throw new Error(ar.output || "Captions were not confirmed on the timeline.");
+  return { meta, savePlan, files, around, result: ar.result };
+}
+
+// --- Template run: headless, for a built-in app, nobody watching ---------------
+// Behind speaker currently caps a Draft at 90 seconds (depthPrepareVideo). A longer
+// clip becomes a Draft of its first 90 seconds, ending with the last word that
+// finishes by then; the margin keeps frame rounding on insert under the cap.
+const DEPTH_TEMPLATE_SECONDS = 90, DEPTH_TEMPLATE_MARGIN = 0.1;
+const DEPTH_TEMPLATE_ERRORS = {
+  "no-project": "Open a project, then try again.",
+  "no-video": "Pick a video of one person talking to camera, then try again.",
+  "host": "Depth Type Captions needs a newer version of Selects. Update Selects, then try again.",
+  "tools": "Install the Xcode Command Line Tools (run xcode-select --install in Terminal), then try again.",
+  "no-transcript": "This video has no transcript to make captions from.",
+  "no-speech-in-limit": "The first 90 seconds of this video have no speech to caption.",
+};
+const DEPTH_TEMPLATE_FAILED = "Depth Type Captions could not make the captioned timeline. Try again.";
+const depthTemplateError = (code) => Object.assign(new Error(DEPTH_TEMPLATE_ERRORS[code] || DEPTH_TEMPLATE_FAILED), { code });
+// A file name without its extension, for naming the new Draft.
+function depthClipBaseName(name) {
+  const trimmed = String(name || "").trim();
+  return trimmed.replace(/\.[A-Za-z0-9]{1,5}$/, "") || trimmed || "Video";
+}
+// Speaker masks compile with swiftc and launch through python3, both from the Xcode
+// Command Line Tools. `xcode-select -p` first, so a Mac without them gets no install prompt.
+async function depthHasCommandLineTools(sdk) {
+  const r = await sdk.runShell({
+    summary: "Check for the Xcode Command Line Tools",
+    timeoutMs: 20000,
+    maxOutputBytes: 2000,
+    command: "if xcode-select -p >/dev/null 2>&1 && xcrun --find swiftc >/dev/null 2>&1 && python3 -c '' >/dev/null 2>&1; then echo depth-tools-ok; else echo depth-tools-missing; fi",
+  });
+  if (/depth-tools-ok/.test(r.stdout || r.output || "")) return true;
+  if (/depth-tools-missing/.test(r.stdout || r.output || "")) return false;
+  throw new Error(r.stderr || r.output || "The Command Line Tools check did not run.");
+}
+// A new Draft holding the clip on Main at the clip's own frame size (fps is the
+// project's), named "<clip> · Depth Type", unique among the Project's drafts, and
+// committed so later scripts read it by id. A clip longer than the cap is inserted up
+// to its last word that finishes by then. Nothing is created without spoken words.
+function depthClipDraftScript(pid, resourceId, baseName) {
+  const limit = DEPTH_TEMPLATE_SECONDS - DEPTH_TEMPLATE_MARGIN;
+  return `const p=selects.project(${JSON.stringify(pid)});const resourceId=${JSON.stringify(resourceId)};const res=p.resource(resourceId);
+let spoken;try{spoken=(await res.words({view:'playback'})).filter(w=>!w.nonSpeech&&!w.unanalyzed&&String(w.text||'').trim());}catch(e){if(/not_analyzed/.test(String(e&&e.message||e)))return {noWords:true};throw e;}
+if(!spoken.length)return {noWords:true};
+const rm=await res.meta();const fps=Number(rm.fps);if(!(fps>0))throw new Error('The clip has no frame rate.');
+const total=Number(rm.durationFrames)/fps;let range=null;
+if(!(total<=${limit})){const fit=spoken.filter(w=>w.endFrame/fps<=${limit});if(!fit.length)return {noSpeechInLimit:true};range={startSeconds:0,endSeconds:Math.max(...fit.map(w=>w.endFrame))/fps};}
+let size=null;const fsz=rm.frameSize;if(fsz&&Number.isInteger(fsz.width)&&Number.isInteger(fsz.height)&&fsz.width>0&&fsz.height>0)size={width:fsz.width,height:fsz.height};
+const base=${JSON.stringify(baseName + " · Depth Type")};const names=[];for(const id of (await p.meta()).draftIds||[]){try{names.push((await selects.draft(id).meta()).name);}catch{}}
+let name=base;for(let n=2;names.includes(name);n++)name=base+' ('+n+')';
+const d=await p.createDraft({name});
+await d.insertResource(range?{resourceId,sourceRange:range}:{resourceId});
+try{await d.setFrameSize(size||'original');}catch{}
+const dm=await d.meta();
+const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&!w.cut&&!w.unanalyzed&&String(w.text||'').trim());
+if(!words.length)return {noWords:true};
+if(!(dm.durationFrames>0)||dm.durationFrames/dm.fps>${DEPTH_TEMPLATE_SECONDS})throw new Error('The new Draft runs '+(dm.durationFrames/dm.fps)+' s, over the ${DEPTH_TEMPLATE_SECONDS} s limit.');
+const r=await d.commitAll('Create Depth Type draft from a video');if(!r.createdDraftId)throw new Error('The Draft was not created.');
+return {id:r.createdDraftId,name,sourceSeconds:total,endSeconds:range?range.endSeconds:null,draftSeconds:dm.durationFrames/dm.fps,words:words.length};`;
+}
+function DepthTemplateRun({ sdk, context }) {
+  const template = context.template,
+    runId = template?.runId;
+  const live = useRef(runId), started = useRef(null);
+  live.current = runId;
+  const [status, setStatus] = useState("Starting Depth Type Captions…");
+  useEffect(() => {
+    if (!runId || started.current === runId) return;
+    started.current = runId;
+    const control = { canceled: false, workflowId: null, stop: null };
+    const superseded = () => live.current !== runId;
+    const progress = (text) => {
+      if (!superseded() && !control.canceled) setStatus(text);
+    };
+    let done = false;
+    // Exactly once, and only for the current run: the runtime reports under the current run id.
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      if (superseded() || control.canceled) return;
+      setStatus("sequenceId" in result ? "Done." : result.error);
+      sdk.finishTemplate(result);
+    };
+    (async () => {
+      try {
+        const pid = context.projectId;
+        if (!pid) throw depthTemplateError("no-project");
+        const speaker = (template.inputs?.speaker || []).find((x) => x?.kind === "video" && x.resourceId);
+        if (!speaker) throw depthTemplateError("no-video");
+        // The app hands over the library: the person may move to another page while this runs.
+        const libraryId = template.libraryId;
+        if (!libraryId || !window.parent.__DI__) throw depthTemplateError("host");
+        depthPinnedLibraryId = libraryId;
+        if (depthHostProblem()) throw depthTemplateError("host");
+        // Only the Mac makes masks on the machine; Windows masks come from Selects generation.
+        if (!DEPTH_CLOUD_MASKS) {
+          progress("Checking the speaker mask tools…");
+          if (!(await depthHasCommandLineTools(sdk))) throw depthTemplateError("tools");
+        }
+        if (control.canceled) throw new Error("Canceled.");
+        progress("Placing your video…");
+        const r = await sdk.runScript({ script: depthClipDraftScript(pid, speaker.resourceId, depthClipBaseName(speaker.name)), summary: "Create Depth Type draft from a video", allowCommit: true });
+        if (r.isError || !r.result) throw new Error(r.output || "The Draft was not created.");
+        if (r.result.noWords) throw depthTemplateError("no-transcript");
+        if (r.result.noSpeechInLimit) throw depthTemplateError("no-speech-in-limit");
+        if (!r.result.id) throw new Error("The Draft was not created.");
+        const sid = String(r.result.id);
+        if (r.result.endSeconds != null)
+          console.info("[depth-type] template run: clip of " + r.result.sourceSeconds + " s placed up to " + r.result.endSeconds + " s (Behind speaker handles " + DEPTH_TEMPLATE_SECONDS + " s).");
+        const settings = { ...DEPTH_DEFAULTS };
+        const made = await depthMakeCaptions({ sdk, pid, sid, settings, control, progress });
+        const { savePlan, files, around, result } = made;
+        // Remembered as the panel remembers a save, so opening the panel on this Draft
+        // shows these captions for Fine-tune, Redo (reusing the masks) and Remove.
+        const plan = result.trimmed ? depthBoundPlan(savePlan, result.duration).plan : savePlan;
+        const summary = { phrases: savePlan.length, around, masks: files?.count || 0, width: files?.width || 0, height: files?.height || 0 };
+        try {
+          localStorage.setItem(DEPTH_TAG + ":" + pid + ":" + sid, JSON.stringify({ settings, plan, owned: result.owned, summary, masks: files, savedMasks: files?.dir || null }));
+        } catch {}
+        finish({ sequenceId: sid });
+      } catch (e) {
+        if (superseded() || control.canceled) return finish({ error: DEPTH_TEMPLATE_FAILED });
+        console.warn("[depth-type] template run failed:", e?.code || "", e?.message || e);
+        finish({ error: e?.code && DEPTH_TEMPLATE_ERRORS[e.code] ? DEPTH_TEMPLATE_ERRORS[e.code] : DEPTH_TEMPLATE_FAILED });
+      }
+    })().catch(() => finish({ error: DEPTH_TEMPLATE_FAILED }));
+    // A newer run, or the app taking the frame down, stops this one's render and masks.
+    return () => {
+      control.canceled = true;
+      try {
+        if (control.workflowId) window.parent.__DI__?.WorkflowClient?.cancel(control.workflowId)?.catch?.(() => {});
+      } catch {}
+      try {
+        control.stop?.()?.catch?.(() => {});
+      } catch {}
+    };
+  }, [runId]);
+  return h("small", null, status);
+}
+
 function DepthVideo({ preview, time, playing, onTime, onEnded, onError }) {
   const mount = useRef(null), video = useRef(null), callbacks = useRef({ onTime, onEnded, onError });
   callbacks.current = { onTime, onEnded, onError };
@@ -1466,6 +1713,7 @@ function DepthVideo({ preview, time, playing, onTime, onEnded, onError }) {
   return h('div',{ref:mount,style:{position:'absolute',inset:0}});
 }
 export default function DepthTypePanel({ sdk, context }) {
+  if (context.template) return h(DepthTemplateRun, { sdk, context });
   return h(DepthEditor, {
     key: String(context.projectId) + ":" + String(context.sequenceId),
     sdk,
@@ -1620,59 +1868,10 @@ function DepthEditor({ sdk, context }) {
     setEdited(true);
     setSettings((s) => ({ ...s, ...patch }));
   };
-  // A cleared line is left out when saving; a phrase with no lines left is dropped.
-  const cleanPlan = (ps) => ps.map((p) => ({ ...p, layers: p.layers.filter((l) => String(l.text || "").trim()).map(({ front, ...l }) => l) })).filter((p) => p.layers.length);
-  const composeFromWords = (words, meta) => {
-    const next = depthPlanWords(words, meta.fps, meta.duration),
-      w = meta.width || W,
-      hh = meta.height || H;
-    return depthReferenceComposition(depthRestoreTypography(next, w, hh, settings), w, hh, settings);
-  };
+  const cleanPlan = depthCleanPlan;
   // Everything this panel placed: never part of the speaker render or its key.
   const excludedRefs = (ownedRef = owned) => [ownedRef, ...depthCutawayRefs(pid, sid)];
-  const newMaskJob = async () => {
-    const fs = depthDI().di.FileSystem,
-      root = depthPluginRoot(),
-      dir = fs.join(depthMaskDraftDir(pid, sid), Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
-    try {
-      fs.mkdirSync(dir, { recursive: true });
-      fs.mkdirSync(fs.join(root, "bin"), { recursive: true });
-    } catch (e) {
-      throw new Error("Could not create the mask folder: " + (e?.message || e));
-    }
-    return { root, dir };
-  };
-  // Full-size render of the draft, then speaker masks from it.
-  const makeSpeakerMasks = async (meta, control, progress) => {
-    depthRequireHost();
-    const fs = depthDI().di.FileSystem, maskJob = await newMaskJob();
-    const p = await depthPrepareVideo(pid, sid, excludedRefs(), control, progress, meta, fs.join(maskJob.dir, "render.mp4"));
-    if (control.canceled) throw new Error("Canceled.");
-    if (alive.current) {
-      setPreview(p);
-      setMask(null);
-    }
-    const made = DEPTH_CLOUD_MASKS
-      ? await depthPrepareCloudMasks(sdk, p, pid, maskJob, progress, control)
-      : await depthPrepareMasks(sdk, p, settings, maskJob, progress, control);
-    if (alive.current && !control.canceled) {
-      setMask(made.mask);
-      setMaskFiles(made.files);
-    }
-    return made;
-  };
-  // Masks are reused while the footage, canvas and speaker setting are what they were made from.
-  const maskIsCurrent = async (meta) => {
-    if (!maskFiles || maskFiles.canvasWidth !== meta.width || maskFiles.canvasHeight !== meta.height) return false;
-    if ((maskFiles.subject || "foreground") !== depthSubject(settings) || (maskFiles.grow || 0) !== DEPTH_MATTE_GROW || (maskFiles.version || 0) !== DEPTH_MATTE_VERSION) return false;
-    try {
-      const fs = depthDI().di.FileSystem;
-      if (!fs.existsSync(fs.join(maskFiles.dir, "matte_" + String(maskFiles.count).padStart(6, "0") + ".png"))) return false;
-      return (await depthCurrentKey(sid, excludedRefs())) === maskFiles.sourceKey;
-    } catch {
-      return false;
-    }
-  };
+  const maskIsCurrent = (meta) => depthMaskIsCurrent(maskFiles, meta, settings, sid, excludedRefs());
   const verifyMask = async () => {
     if (!maskFiles) throw new Error("Choose Make depth captions first, or turn off Behind speaker.");
     const fresh = await sdk.runScript({ script: depthReadScript(pid, sid), summary: "Verify speaker mask canvas", allowCommit: false });
@@ -1705,75 +1904,57 @@ function DepthEditor({ sdk, context }) {
       };
       const before = { owned, savedMasks, summary, plan: lastSaved.current };
       try {
-        const r = await sdk.runScript({ script: depthReadScript(pid, sid), summary: "Read dialogue for Depth Type captions", allowCommit: false });
-        if (r.isError || !r.result) throw new Error(r.output || "No draft data returned.");
-        const meta = r.result;
-        let next = composeFromWords(meta.words, meta);
-        if (!next.length) throw new Error("No dialogue found in this draft.");
-        if (alive.current) {
-          setInfo(meta);
-          setPlan(next);
-          setSelected(0);
-          setLayerIndex(0);
-          setTime(next[0]?.start || 0);
-        }
-        let files = null, around = 0;
-        if (settings.depth) {
-          depthRequireHost();
-          let layoutMask;
-          if (await maskIsCurrent(meta)) {
-            files = maskFiles;
-            layoutMask = mask || (await depthLoadLayoutMask(maskFiles));
-            if (alive.current && !mask) setMask(layoutMask);
-          } else {
-            const made = await makeSpeakerMasks(meta, control, progress);
-            files = made.files;
-            layoutMask = made.mask;
-          }
-          const composed = depthCopy(next);
-          for (let i = 0; i < next.length; i++) {
-            if (control.canceled) throw new Error("Canceled.");
-            progress("Placing captions around the speaker · " + (i + 1) + " / " + next.length);
-            try {
-              const c = await depthComposeWithSpeaker(next[i], next, settings, layoutMask, meta.width, meta.height, () => {});
-              if (c) {
-                composed[i] = c;
-                around++;
-                continue;
-              }
-            } catch {}
-            // No open space around the speaker for this phrase: its supporting lines keep the
-            // design's stack, inside the frame, drawn in front of the speaker so they stay readable.
-            const placed = await depthFallbackPlacement(next[i], settings, meta.width, meta.height, layoutMask);
-            composed[i] = { ...placed, layers: placed.layers.map((l) => (l.id.endsWith("-hero") ? l : { ...l, depth: "front" })) };
-          }
-          next = composed;
-          if (alive.current) setPlan(next);
-        } else {
-          const placed = [];
-          for (const p of next) placed.push(await depthFallbackPlacement(p, settings, meta.width, meta.height, null));
-          next = placed;
-          if (alive.current) setPlan(next);
-        }
-        if (control.canceled) throw new Error("Canceled.");
-        progress("Saving captions…");
-        const savePlan = cleanPlan(next);
-        const ar = await sdk.runScript({ summary: "Apply Depth Type captions", allowCommit: true, script: depthApplyScript(pid, sid, savePlan, settings, files, owned, depthCutawayRefs(pid, sid)).script });
-        if (ar.isError || !ar.result?.owned) throw new Error(ar.output || "Captions were not confirmed on the timeline.");
+        const { savePlan, files, around, result } = await depthMakeCaptions({
+          sdk,
+          pid,
+          sid,
+          settings,
+          owned,
+          reuse: { files: maskFiles, mask },
+          control,
+          progress,
+          fallbackSize: { width: W, height: H },
+          hooks: {
+            onRead: (meta, next) => {
+              if (!alive.current) return;
+              setInfo(meta);
+              setPlan(next);
+              setSelected(0);
+              setLayerIndex(0);
+              setTime(next[0]?.start || 0);
+            },
+            onMaskLoaded: (layoutMask) => {
+              if (alive.current) setMask(layoutMask);
+            },
+            onRender: (p) => {
+              if (!alive.current) return;
+              setPreview(p);
+              setMask(null);
+            },
+            onMasks: (made) => {
+              if (!alive.current || control.canceled) return;
+              setMask(made.mask);
+              setMaskFiles(made.files);
+            },
+            onPlaced: (next) => {
+              if (alive.current) setPlan(next);
+            },
+          },
+        });
         const done = { phrases: savePlan.length, around, masks: files?.count || 0, width: files?.width || 0, height: files?.height || 0 };
         if (alive.current) {
-          setOwned(ar.result.owned);
+          setOwned(result.owned);
           setSavedMasks(files?.dir || null);
-          lastSaved.current = ar.result.trimmed ? depthBoundPlan(savePlan, ar.result.duration).plan : savePlan;
-          if (ar.result.trimmed) setPlan(lastSaved.current);
+          lastSaved.current = result.trimmed ? depthBoundPlan(savePlan, result.duration).plan : savePlan;
+          if (result.trimmed) setPlan(lastSaved.current);
           setSummary(done);
           setEdited(false);
-          setUndo({ id: ar.result.commitId, ...before, owned: ar.result.recovered ? null : before.owned });
+          setUndo({ id: result.commitId, ...before, owned: result.recovered ? null : before.owned });
           setStatus(
             "Done. " + describe(done) + "." +
               (files && done.around < done.phrases ? " The other " + (done.phrases - done.around) + " keep their smaller lines in front of the speaker." : "") +
               (files ? " Words behind the speaker use " + files.count + " full-size masks (" + files.width + " × " + files.height + ")" + (files.misses ? "; " + files.misses + " frames without a detected speaker hide them" : "") + "." : "") +
-              saveNote(ar.result),
+              saveNote(result),
           );
         }
         await pruneMasks(files?.dir, before.savedMasks);

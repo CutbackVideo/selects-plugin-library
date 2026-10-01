@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "photo-gallery-no2",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "name": "Photo Grid Reveal",
   "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch.",
   "status": "experimental",
@@ -76,5 +76,51 @@
     "poster": "poster.webp",
     "width": 540,
     "height": 960
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "photos",
+      "label": "Photos",
+      "hint": "15 photos for the still tiles, in order.",
+      "accepts": [
+        "image"
+      ],
+      "min": 15,
+      "max": 15
+    },
+    {
+      "id": "clips",
+      "label": "Videos",
+      "hint": "6 videos for the moving tiles, in order.",
+      "accepts": [
+        "video"
+      ],
+      "min": 6,
+      "max": 6,
+      "query": "people moving or a lively moment"
+    }
+  ],
+  "options": [
+    {
+      "id": "music",
+      "label": "Music",
+      "default": "bundled",
+      "choices": [
+        {
+          "id": "bundled",
+          "label": "Unexplored · TAD MILLER"
+        },
+        {
+          "id": "none",
+          "label": "No music"
+        }
+      ]
+    }
+  ],
+  "prepare": [
+    "15 photos and 6 videos",
+    "Python 3 on this Mac, to hold short videos on their last frame"
+  ]
 }

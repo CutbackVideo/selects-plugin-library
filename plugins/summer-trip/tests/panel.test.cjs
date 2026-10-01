@@ -159,8 +159,9 @@ for (const [key, text] of [['anotherVersion', 'Create another version'], ['finis
   }
 }
 // The language is read on every render, first in the component (before any early return), and never cached.
-const comp = code.slice(code.indexOf('export default function Panel('));
-assert.ok(/^export default function Panel\(\{ sdk, context, ui \}: any\) \{\n(?:\s*\/\/[^\n]*\n)*\s*const L = uiLang\(context\);/.test(comp), 'uiLang(context) first in the component');
+// The panel UI is SummerTripPanel; Panel only hands a Clip highlights run to TemplateRun.
+const comp = code.slice(code.indexOf('function SummerTripPanel('));
+assert.ok(/^function SummerTripPanel\(\{ sdk, context, ui \}: any\) \{\n(?:\s*\/\/[^\n]*\n)*\s*const L = uiLang\(context\);/.test(comp), 'uiLang(context) first in the component');
 assert.ok(!/useMemo\([^)]*uiLang|useEffect\([^)]*uiLang|useState\([^)]*uiLang/.test(code), 'the language is not memoised');
 // Text kept in state renders in the language of the moment: status, progress detail and build-time notes are closures.
 assert.ok(code.includes('React.useState<{ tone: string; say: (lang: Lang) => string } | null>') && !/setStatus\(\{ tone: "\w+", text:/.test(code), 'status is a say(lang) closure');

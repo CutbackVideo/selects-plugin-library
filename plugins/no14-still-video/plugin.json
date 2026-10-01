@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "no14-still-video",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "name": "Four Photo Reveal",
   "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music.",
   "status": "experimental",
@@ -70,5 +70,21 @@
       "name": "Four Photo Reveal",
       "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "photos",
+      "label": "Photos",
+      "accepts": [
+        "image"
+      ],
+      "min": 4,
+      "max": 4
+    }
+  ],
+  "prepare": [
+    "4 photos, in the order they appear"
+  ]
 }

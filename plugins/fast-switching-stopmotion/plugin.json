@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "fast-switching-stopmotion",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "name": "Fast Switching Stop Motion",
   "summary": "Turn selfie videos into a fast outfit-switch stop-motion edit as a new editable Draft.",
   "status": "experimental",
@@ -67,5 +67,41 @@
       "name": "\u5feb\u901f\u5207\u6362\u5b9a\u683c\u52a8\u753b",
       "summary": "\u5c06\u81ea\u62cd\u89c6\u9891\u5236\u4f5c\u6210\u5feb\u901f\u5207\u6362\u7a7f\u642d\u7684\u5b9a\u683c\u52a8\u753b\u526a\u8f91\uff0c\u5e76\u751f\u6210\u53ef\u7f16\u8f91\u7684\u65b0\u8349\u7a3f\u3002"
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": true,
+  "inputs": [
+    {
+      "id": "looks",
+      "label": "Select outfit videos",
+      "hint": "One selfie video per outfit, in the order they switch.",
+      "accepts": [
+        "video"
+      ],
+      "min": 2,
+      "max": 12,
+      "query": "a person posing to the camera in an outfit"
+    }
+  ],
+  "prepare": [
+    "Selfie videos, one per outfit",
+    "Same spot and framing in each video looks best"
+  ],
+  "options": [
+    {
+      "id": "sound",
+      "label": "Original sound",
+      "choices": [
+        {
+          "id": "mute",
+          "label": "Muted"
+        },
+        {
+          "id": "keep",
+          "label": "Keep"
+        }
+      ],
+      "default": "mute"
+    }
+  ]
 }

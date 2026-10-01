@@ -12,6 +12,13 @@ class PreviewAssetTest(unittest.TestCase):
         self.assertEqual(public.inspect('plugins/example/preview.mp4', b'\x00\x00\x00\x18ftypisom'), [])
         self.assertEqual(public.inspect('plugins/example/poster.webp', b'RIFF0000WEBP'), [])
 
+    def test_a_variants_media_headers(self):
+        self.assertEqual(public.inspect('plugins/example/preview-whip-cut.mp4', b'\x00\x00\x00\x18ftypisom'), [])
+        self.assertEqual(public.inspect('plugins/example/poster-funny-quotes.webp', b'RIFF0000WEBP'), [])
+        self.assertTrue(public.inspect('plugins/example/poster-funny-quotes.webp', b'not an image'))
+        for path in ('plugins/example/poster-.webp', 'plugins/example/poster-a.mp4', 'plugins/example/preview-a.webp'):
+            self.assertTrue(public.inspect(path, b'RIFF0000WEBP\xff\xfe'))
+
     def test_arbitrary_binaries_remain_blocked(self):
         for path in ('plugins/example/other.mp4', 'preview.mp4', 'plugins/example/.local/preview.mp4'):
             self.assertTrue(public.inspect(path, b'\x00\x00\x00\x18ftypisom'))

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "cinema-vlog-studio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Cinema Vlog Studio",
   "summary": "Rebuild a fixed 21-second cinematic street-vlog edit as an editable 1920x1080 Draft: 22 marker-driven cuts, a scramble title behind a closing black curtain, three inset cards that snap to full frame, and a bundled score.",
   "status": "experimental",
@@ -28,6 +28,50 @@
     "width": 960,
     "height": 540
   },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "title",
+      "label": "Title clip",
+      "hint": "The street shot the title sits on, behind the black curtain.",
+      "accepts": [
+        "video"
+      ],
+      "min": 1,
+      "max": 1,
+      "minSeconds": 5.3,
+      "query": "European city street"
+    },
+    {
+      "id": "cards",
+      "label": "Card clips",
+      "hint": "Each opens as an inset card, then fills the frame.",
+      "accepts": [
+        "video"
+      ],
+      "min": 3,
+      "max": 3,
+      "minSeconds": 1.6,
+      "query": "city street scenery"
+    },
+    {
+      "id": "clips",
+      "label": "Street clips",
+      "hint": "The quick cuts around them; fewer than ten are reused.",
+      "accepts": [
+        "video"
+      ],
+      "min": 1,
+      "max": 10,
+      "minSeconds": 1.7,
+      "query": "city street scenery"
+    }
+  ],
+  "prepare": [
+    "City or street footage, ideally from one place",
+    "A title clip of at least 5.3 seconds"
+  ],
   "localized": {
     "de": {
       "name": "Cinema Vlog Studio",

@@ -159,7 +159,8 @@ for (const [k, v] of [['pace.quick', 'Quick'], ['pace.relaxed', 'Relaxed'], ['pa
   ['sound.off', 'Off'], ['sound.ambient', 'Ambient'], ['sound.full', 'Full']]) says(k, v);
 // The UI language: context.language on every render (before the early return), the Build-time language for Inspector
 // labels, the kit runtime pasted unchanged, and no literal UI text left in JSX.
-assert.ok(ui.includes('export default function Panel({ sdk, context, ui }: any) {\n  // The UI language, read on every render: Selects can switch languages while the panel is open.\n  const L = uiLang(context);'), 'L first in the component');
+// The panel UI is MiniVlogPanel; Panel only hands a Clip highlights run to TemplateRun.
+assert.ok(ui.includes('function MiniVlogPanel({ sdk, context, ui }: any) {\n  // The UI language, read on every render: Selects can switch languages while the panel is open.\n  const L = uiLang(context);'), 'L first in the component');
 assert.ok(ui.includes('const langRef = React.useRef(L);\n  langRef.current = L;') && ui.includes('const bl = langRef.current;'), 'Build-time language');
 {
   // Compared with the kit copy when it is available (SELECTS_APP_KIT, else ~/Workspaces/selects-app-kit); CI checks the markers only.
@@ -228,8 +229,8 @@ assert.ok(ui.includes('"one-resource": "Add at least 2 clips or photos"') && ui.
   && ui.includes('"music-too-short": "This track is too short for 4 shots from this section"'), 'fail reason messages');
 for (const r of ['one-resource', 'too-few', 'music-too-short']) assert.ok(en['fail.' + r].startsWith(/"[^"]+": "([^"]+)"/.exec(ui.slice(ui.indexOf('"' + r + '": "')))[1]), 'fail.' + r + ' matches MV_FAIL');
 assert.ok(ui.includes('MV_FAIL[plan.reason] ? t(l, "fail." + plan.reason) : t(l, "noPlan")'), 'reasons through STRINGS');
-assert.equal((ui.match(/mvPlanBuild\(/g) || []).length, 2, 'the build plan and the readiness plan');
-assert.equal((ui.match(/mvPlanBuild\(\{ candidates: [^;]*, bpm: grid\.bpm, accepted: grid\.accepted, approxBpm: grid\.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid\.usableEnd, \.\.\.snapCuts, seed: String\(/g) || []).length, 2, 'both plans get the same inputs');
+assert.equal((ui.match(/mvPlanBuild\(/g) || []).length, 3, 'the build plan, the readiness plan and the template run');
+assert.equal((ui.match(/mvPlanBuild\(\{ candidates: [^;]*, bpm: grid\.bpm, accepted: grid\.accepted, approxBpm: grid\.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid\.usableEnd, \.\.\.snapCuts, seed: String\(/g) || []).length, 3, 'every plan gets the same inputs');
 assert.ok(ui.includes('const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };'));
 // Own music with an approximate grid (beat-detect grid 'approximate'): fixed timing on its tempo and first beat, bpm stays
 // null (no grid features); the pace note and the line under the file say so. The detection result is shown under the

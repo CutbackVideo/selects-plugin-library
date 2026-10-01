@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "camera-shutter-dump",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Camera Shutter Dump",
   "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects.",
   "status": "experimental",
@@ -76,5 +76,23 @@
       "name": "Camera Shutter Dump",
       "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects."
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "photos",
+      "label": "Photos",
+      "hint": "In order; the last two sit in landscape slots.",
+      "accepts": [
+        "image"
+      ],
+      "min": 12,
+      "max": 12
+    }
+  ],
+  "prepare": [
+    "12 photos, in the order they appear",
+    "The last two look best in landscape"
+  ]
 }

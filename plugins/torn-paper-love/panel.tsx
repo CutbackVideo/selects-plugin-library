@@ -10,6 +10,7 @@
 // @name:tr Torn Paper Love
 // @name:zh Torn Paper Love
 // @icon sparkles
+// @collection visual-highlights
 // Builds a 4:3 torn-paper love edit of your photos, cut on the beat, with ransom-note letters, as a new editable Draft.
 import React from "react";
 
@@ -2803,6 +2804,8 @@ async function tplFinish(state, assembled, d) {
     throw tplSay('The Draft was created, but its letters and paper could not be added: ' + why + '. ' + advice,
       (l) => (rebuild ? t(l, "finishFailedRebuild", { detail: tplSayOf(l, e) }) : t(l, "finishFailed", { detail: tplSayOf(l, e) })));
   }
+  // A Clip highlights run (d.open === false) leaves the Draft closed: the app announces it.
+  if (d.open === false) { d.advance('decorate', 1); return { link: null, openError: null }; }
   d.advance('decorate', 0.8, (l) => t(l, "detail.openingDraft"));
   let link = null, openError = null;
   try {
@@ -3158,7 +3161,98 @@ function LettersPreview({ lang, word1, word2, seed, looksFile, backdrop }: {
   );
 }
 
-export default function Panel({ sdk, context, ui }: any) {
+const TEMPLATE_FAILED = "Torn Paper Love couldn't make the timeline. Try again.";
+
+// A Clip highlights run (`context.template`): the pictures picked in the app (`only`), the panel's defaults for the
+// rest (MY / LOVE, Night, quick pace, ambient clip sound, faded look) with the run's length and music, built by the
+// same tplRunBuild as the panel, left closed, reported once. `live` is false once the run is superseded.
+async function tplTemplateRun(sdk: any, context: any, live: () => boolean, say: (text: string) => void) {
+  const L = uiLang(context);
+  const pid = context?.projectId ?? null;
+  if (!pid) throw uiError((l) => t(l, "openProject"));
+  const only = [...new Set<string>((context.template?.inputs?.pictures ?? []).map((x: any) => x?.resourceId).filter(Boolean))];
+  if (only.length < TPL_MIN_PICTURES) throw uiError((l) => t(l, "reason.fewPictures", { min: TPL_MIN_PICTURES }));
+  const run = async (summary: string, script: string, allowCommit = false) => {
+    let r = await sdk.runScript({ summary, script, allowCommit });
+    // Only a lost session is resent, and never a committing call: its commit may already have landed.
+    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
+    if (r.isError || r.result == null) throw r.output ? new Error(r.output) : uiError((l) => t(l, "stepFailed"));
+    return r.result as any;
+  };
+  const check = () => { if (!live()) throw TPL_STALE; };
+  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
+  const [plugin] = String(where?.stdout || "").split("\n").map((x) => x.trim());
+  if (!plugin) throw uiError((l) => t(l, "startFailed", { detail: t(l, "foldersNotFound") }));
+  const read = (rel: string) => readText(plugin, rel);
+  const [manifestText, looksText, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, tornTsx, lettersTsx] = await Promise.all([
+    read("assets/cues/manifest.json"), read("assets/fonts/looks.json"), read("scripts/inventory.js"), read("scripts/search.js"),
+    read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/torn-photo.tsx"), read("assets/ransom-letters.tsx")]);
+  check();
+  const manifest = JSON.parse(manifestText), looks = JSON.parse(looksText);
+  say(t(L, "checkingPicturesNow"));
+  // Photo sizes are measured a few at a time; read again while each pass measures more.
+  const known: Record<string, { width: number; height: number }> = {};
+  let inv: any = null;
+  for (let pass = 0; pass < 6; pass++) {
+    inv = await run("Read your pictures", tplFill(inventoryJs, { projectId: pid, only, known }));
+    check();
+    const before = Object.keys(known).length;
+    for (const ph of inv.photos || []) if (ph.width > 0 && ph.height > 0) known[ph.rid] = { width: ph.width, height: ph.height };
+    if (!(inv.counts?.unmeasured > 0) || Object.keys(known).length === before) break;
+  }
+  if (inv.counts?.unanalysed > 0) throw uiError((l) => t(l, "stillAnalysing", { count: inv.counts.unanalysed }));
+  const cue = manifest.cues.find((c: any) => c.id === context.template?.options?.music) || manifest.cues.find((c: any) => c.id === manifest.defaultCue) || manifest.cues[0] || null;
+  const fontUrls = async () => {
+    const out: Record<string, string> = {};
+    for (const face of Object.keys(looks.faces || {})) out[looks.faces[face]] = "data:font/woff2;base64," + (await readText(plugin, "assets/fonts/tpl-" + face + ".woff2.b64")).replace(/\s+/g, "");
+    return out;
+  };
+  const f = tplFreezeBuild({
+    projectId: pid,
+    inventory: { photos: inv.photos || [], resources: inv.resources || [] },
+    found: null,
+    cue, musicPath: cue ? plugin + "/assets/cues/" + cue.file : null,
+    options: tplOptions({ length: context.template?.options?.length, only, seed: 1 }),
+    now: Date.now(), clock: TPL_EFFECT_CLOCK,
+  });
+  const out = await tplRunBuild(f, {
+    run, check, open: false, scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs },
+    advance: (id: string) => { if (TPL_BUILD_STEPS.some((x) => x.id === id) && live()) say(t(L, "step." + id) + "…"); },
+    readAssets: async () => ({ tornTsx, lettersTsx, looks, fonts: await fontUrls(), labels: inspectorLabels(L) }),
+  });
+  if (!out?.assembled?.sequenceId) throw new Error(TEMPLATE_FAILED);
+  return out.assembled.sequenceId as string;
+}
+
+function TemplateRun({ sdk, context }: any) {
+  const runId: string | null = context?.template?.runId ?? null;
+  const [status, setStatus] = React.useState("Making your torn paper edit…");
+  const started = React.useRef<string | null>(null), alive = React.useRef(true), latest = React.useRef(context);
+  latest.current = context;
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  React.useEffect(() => {
+    if (!runId || started.current === runId) return;
+    started.current = runId;
+    const live = () => alive.current && latest.current?.template?.runId === runId;
+    let ended = false;
+    const finish = (result: any) => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch (_) {} };
+    tplTemplateRun(sdk, context, live, (text) => { if (live()) setStatus(text); })
+      .then((sequenceId) => finish({ sequenceId }))
+      .catch((e: any) => {
+        if (e === TPL_STALE) return;
+        console.warn("[torn-paper-love] template run failed:", e);
+        const said = tplSayOf(uiLang(latest.current), e);
+        finish({ error: said && said.length <= 200 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED });
+      });
+  }, [runId]);
+  return <small>{status}</small>;
+}
+
+export default function Panel(props: any) {
+  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <TornPaperPanel {...props} />;
+}
+
+function TornPaperPanel({ sdk, context, ui }: any) {
   // The UI language, read on every render: Selects can switch languages while the panel is open.
   const L = uiLang(context);
   const projectId = context?.projectId ?? null;

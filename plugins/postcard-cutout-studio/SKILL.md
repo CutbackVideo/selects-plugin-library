@@ -26,6 +26,22 @@ an existing Draft.
    `Title (1)`, `Title (2)`, and so on. After changing settings the button reads
    **Rebuild**; with nothing changed it reads **Open**. **Start over** picks a new folder.
 
+## As a template
+
+Visual highlights can run the Panel as a template: the person picks a `subject`
+video, one to six `panels` and one to twelve `ending` clips or photos in the app,
+and the app runs the Panel out of sight with `context.template`. The Panel then
+builds a new Draft from those Project files without asking anything: the title
+`MY POSTCARD` (named `MY POSTCARD (1)` and so on when taken), subject start 0 s,
+Fill frame, and the format of the timeline open when the run started, taken as the
+nearest of Landscape, Portrait and Square (Match subject when none is open). The
+ending draws on the panels and the ending picks, never the subject. It waits for
+background removal for as long as it is mounted, does not open the Draft, and ends
+with `sdk.finishTemplate`: the Draft's id, or one sentence saying what to do. It
+never takes over an unfinished run; when one is under way it stops and says so.
+A template run that fails before any cutout is on its way is let go, keeping its
+cutout reusable.
+
 Cloud background removal may use credits. A verified cutout is reused for the same
 source and range, so rebuilding with new settings does not pay for it again.
 

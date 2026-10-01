@@ -8,6 +8,7 @@
 // @name:pt Estúdio de vlog de cinema
 // @name:tr Sinema Vlog Stüdyosu
 // @name:zh 电影感 Vlog 工作室
+// @collection visual-highlights
 // @icon video
 // Rebuilds a fixed 22-cut cinematic street rhythm as an editable Selects Draft.
 import React, { useEffect, useRef, useState } from 'react';
@@ -105,7 +106,124 @@ return out;`;
 
 function assembly(c){return `const c=${clean(c)};const p=selects.project(c.projectId);const d=await p.createDraft({name:c.name});await d.setFrameSize({width:1920,height:1080});const fps=(await d.meta()).fps,fr=n=>Math.round(n/30*fps);await d.insertGap({seconds:fr(5)/fps});for(let i=0;i<c.cuts.length;i++){if(i===c.gapBeforeIndex)await d.insertGap({seconds:(fr(55)-fr(54))/fps});const [slot,a,b]=c.cuts[i],id=c.videoIds[slot-1],len=(fr(b)-fr(a))/fps,src=c.lengths[id]||0;if(src<len+.03)throw Error('Slot '+slot+' is shorter than '+len.toFixed(2)+' seconds');const starts=c.starts,proposed=starts[i],start=Math.min(Math.max(0,proposed),Math.max(0,src-len-.04));await d.insertResource({resourceId:id,sourceRange:{startSeconds:start,endSeconds:start+len}})}const main=await d.clips({trackScope:'main'}),end=main.reduce((n,x)=>Math.max(n,x.endFrame),0),at=n=>Math.min(end,fr(n));for(const original of main){const current=(await d.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current&&current.resourceId)await d.setClipAudio({clip:current,volumeDb:-60});}for(const {i,widthPct} of c.cards)await d.addVideoEffect({clip:(await d.clips({trackScope:'main'}))[i],label:'Cinema Vlog · inset '+(i-9),tsxCode:${clean(CARD)},parameters:{widthPct}});for(const {i,widthPct} of c.cards){const edge=at(c.cuts[i][2]);await d.addMotionGraphic({label:'Cinema Vlog · inset flash '+(i-9),tsxCode:${clean(CARD_FLASH)},within:await d.rangeAtFrames(edge-1,edge),parameters:{widthPct}})}const glitchFrame=at(c.glitchRefFrame),glitchClip=(await d.clips({trackScope:'main'})).find(x=>x.startFrame<=glitchFrame&&glitchFrame<x.endFrame);if(!glitchClip)throw Error('Glitch marker does not fall on footage');await d.addVideoEffect({clip:glitchClip,label:'Cinema Vlog · marker-triggered monochrome stutter',tsxCode:${clean(GLITCH)},parameters:{triggerLocalFrame:glitchFrame-glitchClip.startFrame}});await d.addMotionGraphic({label:'Cinema Vlog · three-step black curtain',tsxCode:${clean(CURTAIN)},within:await d.rangeAtFrames(at(55),at(210)),parameters:{referenceStartFrame:55}});await d.addMotionGraphic({label:'Cinema Vlog · alphabet swap title',tsxCode:${clean(TITLE)},within:await d.rangeAtFrames(at(132),at(196)),parameters:{referenceStartFrame:132,title:c.title,kicker:c.kicker,subtitle:c.subtitle,fontFamily:c.font,titleColor:'#eed65d',smallColor:'#ffffff'},editableParameters:[{key:'title',label:'Main title',type:'text',defaultValue:c.title},{key:'kicker',label:'Upper line',type:'text',defaultValue:c.kicker},{key:'subtitle',label:'Lower line',type:'text',defaultValue:c.subtitle},{key:'fontFamily',label:'Font',type:'text',defaultValue:c.font},{key:'titleColor',label:'Title color',type:'color',defaultValue:'#eed65d'},{key:'smallColor',label:'Small text color',type:'color',defaultValue:'#ffffff'}]});await d.addMotionGraphic({label:'Cinema Vlog · single-frame white flash',tsxCode:${clean(FLASH)},within:await d.rangeAtFrames(at(54),at(55))});if(c.introFxId)await d.overlayResource({resource:p.resource(c.introFxId),over:await d.rangeAtFrames(0,at(204)),sourceStartSeconds:0});if(c.musicId){await d.overlayResource({resource:p.resource(c.musicId),over:await d.rangeAtFrames(at(204),end),sourceStartSeconds:0});const musicClip=(await d.clips({trackScope:'all'})).find(x=>x.trackKind==='audio'&&x.resourceId===c.musicId&&x.startFrame===at(204));if(!musicClip)throw Error('Music clip was not created');await d.setClipAudio({clip:musicClip,fadeInSeconds:0.18,fadeOutSeconds:0.5})}if(c.effectSoundId)await d.overlayResource({resource:p.resource(c.effectSoundId),over:await d.rangeAtFrames(at(c.glitchRefFrame),Math.min(end,at(c.glitchRefFrame)+7)),sourceStartSeconds:0});const saved=await d.commitAll('Cinema Vlog Studio: user marker cuts, Postcard curtain and alphabet swap');if(!saved.createdDraftId)throw Error('Draft save did not return an id');const actual=selects.draft(saved.createdDraftId),clips=await actual.clips({trackScope:'all'});return{draftId:saved.createdDraftId,name:c.name,fps,endFrame:clips.reduce((n,x)=>Math.max(n,x.endFrame),0),mainClips:clips.filter(x=>x.trackKind==='main').length,audioClips:clips.filter(x=>x.trackKind==='audio').length,graphics:clips.filter(x=>x.resourceId===null).length};`}
 
-export default function CinemaVlogStudio({ sdk, context, ui }) {
+// The bundled sounds, imported into the Project once and found by name after.
+async function cinemaSounds(sdk, projectId) {
+  const root = await sdk.runShell({ summary: 'Locate Cinema Vlog assets', command: 'printf "%s" "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}/cinema-vlog-studio/assets"' });
+  if (root.isError || root.exitCode !== 0 || !root.stdout.trim()) throw Error('Template assets directory is unavailable.');
+  const assetPaths = ASSETS.map(n => root.stdout.trim() + '/' + n);
+  return await call(sdk, ensureSounds(projectId, assetPaths, ASSETS), 'Import Cinema Vlog sounds', true);
+}
+
+// The cut table, moved to the open Draft's markers when it has them (null: the
+// reference timing), with the glitch cut split out.
+function cinemaCuts(markerData) {
+  const cuts = CUTS.map(x => x.slice());
+  const starts = STARTS.slice();
+  let glitchRefFrame = 360, markerFps = 24000 / 1001;
+  if (markerData?.markers?.length) {
+    markerFps = markerData.fps;
+    const special = markerData.markers.filter(x => isGlitchNote(x.note));
+    const regular = markerData.markers.filter(x => !isGlitchNote(x.note)).sort((a, b) => a.frame - b.frame);
+    if (regular.length !== 12 || special.length !== 1) throw Error(`This Draft needs 12 scene markers plus one marker whose note contains "glitch". Found ${regular.length} and ${special.length}.`);
+    const boundaries = regular.map(x => Math.round(x.frame / markerFps * 30));
+    if (boundaries.some((n, i) => n <= 55 || n >= 641 || (i > 0 && n <= boundaries[i - 1]))) throw Error('Markers must be in increasing order inside the music section.');
+    boundaries.forEach((n, i) => { cuts[i + 9][2] = n; cuts[i + 10][1] = n });
+    glitchRefFrame = Math.round(special[0].frame / markerFps * 30);
+  }
+  // Cut at the glitch so the click and the stutter reveal a different clip.
+  const g = cuts.findIndex((c, i) => i >= 10 && c[1] < glitchRefFrame && glitchRefFrame < c[2]);
+  if (g >= 0 && glitchRefFrame - cuts[g][1] >= 2 && cuts[g][2] - glitchRefFrame >= 2) {
+    cuts.splice(g + 1, 0, [GLITCH_SLOT, glitchRefFrame, cuts[g][2]]);
+    starts.splice(g + 1, 0, 0);
+    cuts[g][2] = glitchRefFrame;
+  }
+  const cards = [[12, 19], [13, 51], [14, 79]].map(([slot, widthPct]) => ({ i: cuts.findIndex(c => c[0] === slot), widthPct }));
+  if (cards.some(c => c.i < 0)) throw Error('An inset card cut is missing from the cut table.');
+  const gapBeforeIndex = cuts.findIndex(c => c[1] === 55);
+  if (gapBeforeIndex < 0) throw Error('The title cut is missing from the cut table.');
+  return { cuts, starts, cards, gapBeforeIndex, glitchRefFrame };
+}
+
+// A template run (Clip highlights): the app hands over the clip the title sits
+// on, the three card clips and the street clips; the cut table is the
+// reference's (an open Draft's markers are not read), the text and name the
+// panel's defaults. The longest street clips go to the slots that use the most
+// footage, reused round the list when there are fewer clips than slots; a clip
+// shorter than its slot's usual in-point is cut from earlier in it.
+const TEMPLATE_TEXT = {
+  kicker: 'DAILYCINEMA',
+  title: 'LIVE YOUR LIFE',
+  subtitle: 'Make every moment count, embrace every journey, follow your dreams, explore new places, and create a life filled with beautiful stories and unforgettable memories.',
+  font: 'Georgia',
+};
+const TEMPLATE_FAILED = 'Cinema Vlog Studio could not make the timeline; try again.';
+const templateIssue = message => Object.assign(Error(message), { publicMessage: message });
+const videoLengths = pid => `const rows=await selects.project(${clean(pid)}).resources();return rows.filter(x=>x.type==='Video').map(x=>({resourceId:x.resourceId,name:x.name,duration:x.durationSeconds||0}));`;
+
+export function templateSlotIds(title, cardIds, clips) {
+  const ids = Array(SLOT_COUNT).fill('');
+  ids[3 - 1] = title;
+  [12, 13, 14].forEach((slot, i) => { ids[slot - 1] = cardIds[i]; });
+  const longest = clips.slice().sort((a, b) => b.duration - a.duration);
+  AUTO_SLOTS.slice().sort((a, b) => MIN[b - 1] - MIN[a - 1]).forEach((slot, i) => { ids[slot - 1] = longest[i % longest.length].resourceId; });
+  return ids;
+}
+
+function CinemaTemplateRun({ sdk, context }) {
+  const runId = context.template?.runId;
+  const [status, setStatus] = useState('Making your cinema vlog…');
+  const started = useRef(null), alive = useRef(true), latest = useRef(context);
+  latest.current = context;
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => {
+    if (!runId || started.current === runId) return;
+    started.current = runId;
+    const live = () => alive.current && latest.current.template?.runId === runId;
+    let ended = false;
+    const finish = result => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch {} };
+    const say = text => { if (live()) setStatus(text); };
+    const projectId = context.projectId, inputs = context.template?.inputs || {};
+    (async () => {
+      try {
+        if (!projectId) throw templateIssue('Open a project, then try again.');
+        const picked = id => (inputs[id] || []).filter(x => x?.kind === 'video' && x.resourceId);
+        const [title] = picked('title'), cardPicks = picked('cards'), clipPicks = picked('clips');
+        if (!title) throw templateIssue('Pick the clip the title sits on, then try again.');
+        if (cardPicks.length !== 3) throw templateIssue('Pick three card clips, then try again.');
+        if (!clipPicks.length) throw templateIssue('Pick the street clips, then try again.');
+        say('Finding your clips…');
+        const videos = await call(sdk, videoLengths(projectId), 'List Cinema Vlog videos');
+        const byId = new Map(videos.map(v => [v.resourceId, v]));
+        for (const pick of [title, ...cardPicks, ...clipPicks]) if (!byId.has(pick.resourceId)) throw templateIssue((pick.name || 'A picked clip') + ' is no longer in this project.');
+        const ids = templateSlotIds(title.resourceId, cardPicks.map(x => x.resourceId), clipPicks.map(x => byId.get(x.resourceId)));
+        say('Adding the sounds…');
+        const sounds = await cinemaSounds(sdk, projectId);
+        if (!live()) return;
+        const { cuts, starts, cards, gapBeforeIndex, glitchRefFrame } = cinemaCuts(null);
+        say('Cutting your cinema vlog…');
+        const name = 'Cinema Vlog · ' + new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const result = await call(sdk, assembly({
+          projectId, name, cuts, starts, cards, gapBeforeIndex, glitchRefFrame,
+          videoIds: ids, musicId: sounds[MUSIC], introFxId: sounds[INTRO_FX], effectSoundId: sounds[CLICK],
+          lengths: Object.fromEntries(videos.map(v => [v.resourceId, v.duration])),
+          ...TEMPLATE_TEXT,
+        }), 'Create Cinema Vlog Draft', true);
+        finish({ sequenceId: result.draftId });
+      } catch (e) {
+        console.warn('[cinema-vlog-studio] template run failed:', e?.message || String(e));
+        const said = String(e?.message || '');
+        finish({ error: e?.publicMessage || (/^Slot \d+ is shorter than/.test(said) ? 'A picked clip is too short for its cut; pick longer clips, then try again.' : TEMPLATE_FAILED) });
+      } finally { finish({ error: TEMPLATE_FAILED }); }
+    })();
+  }, [runId]);
+  return <p role="status" style={{ margin: 0, fontSize: 12 }}>{status}</p>;
+}
+
+export default function CinemaVlogStudio(props) {
+  return props.context.template ? <CinemaTemplateRun {...props} /> : <CinemaVlogPanel {...props} />;
+}
+
+function CinemaVlogPanel({ sdk, context, ui }) {
   const t = LANG[context.language] || LANG.en;
   const [folders, setFolders] = useState([]);
   const [folderName, setFolderName] = useState(null);
@@ -217,39 +335,13 @@ export default function CinemaVlogStudio({ sdk, context, ui }) {
     if (USED_SLOTS.some(s => !ids[s - 1])) { setStatus(t.needAll); return; }
     lock.current = true; setBusy(true);
     try {
-      const root = await sdk.runShell({ summary: 'Locate Cinema Vlog assets', command: 'printf "%s" "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}/cinema-vlog-studio/assets"' });
-      if (root.isError || root.exitCode !== 0 || !root.stdout.trim()) throw Error('Template assets directory is unavailable.');
-      const assetPaths = ASSETS.map(n => root.stdout.trim() + '/' + n);
-      const sounds = await call(sdk, ensureSounds(context.projectId, assetPaths, ASSETS), 'Import Cinema Vlog sounds', true);
+      const sounds = await cinemaSounds(sdk, context.projectId);
 
       let markerData = null;
       if (context.sequenceId) {
         markerData = await call(sdk, `const d=selects.draft(${clean(context.sequenceId)});return{fps:(await d.meta()).fps,markers:await d.markers()};`, 'Read Cinema Vlog markers');
       }
-      const cuts = CUTS.map(x => x.slice());
-      const starts = STARTS.slice();
-      let glitchRefFrame = 360, markerFps = 24000 / 1001;
-      if (markerData?.markers?.length) {
-        markerFps = markerData.fps;
-        const special = markerData.markers.filter(x => isGlitchNote(x.note));
-        const regular = markerData.markers.filter(x => !isGlitchNote(x.note)).sort((a, b) => a.frame - b.frame);
-        if (regular.length !== 12 || special.length !== 1) throw Error(`This Draft needs 12 scene markers plus one marker whose note contains "glitch". Found ${regular.length} and ${special.length}.`);
-        const boundaries = regular.map(x => Math.round(x.frame / markerFps * 30));
-        if (boundaries.some((n, i) => n <= 55 || n >= 641 || (i > 0 && n <= boundaries[i - 1]))) throw Error('Markers must be in increasing order inside the music section.');
-        boundaries.forEach((n, i) => { cuts[i + 9][2] = n; cuts[i + 10][1] = n });
-        glitchRefFrame = Math.round(special[0].frame / markerFps * 30);
-      }
-      // Cut at the glitch so the click and the stutter reveal a different clip.
-      const g = cuts.findIndex((c, i) => i >= 10 && c[1] < glitchRefFrame && glitchRefFrame < c[2]);
-      if (g >= 0 && glitchRefFrame - cuts[g][1] >= 2 && cuts[g][2] - glitchRefFrame >= 2) {
-        cuts.splice(g + 1, 0, [GLITCH_SLOT, glitchRefFrame, cuts[g][2]]);
-        starts.splice(g + 1, 0, 0);
-        cuts[g][2] = glitchRefFrame;
-      }
-      const cards = [[12, 19], [13, 51], [14, 79]].map(([slot, widthPct]) => ({ i: cuts.findIndex(c => c[0] === slot), widthPct }));
-      if (cards.some(c => c.i < 0)) throw Error('An inset card cut is missing from the cut table.');
-      const gapBeforeIndex = cuts.findIndex(c => c[1] === 55);
-      if (gapBeforeIndex < 0) throw Error('The title cut is missing from the cut table.');
+      const { cuts, starts, cards, gapBeforeIndex, glitchRefFrame } = cinemaCuts(markerData);
       // Reading every Draft's meta costs seconds each, so only look for a leftover
       // Draft when this is a retry of a name we already tried to create.
       const retry = Boolean(pending.current?.name);

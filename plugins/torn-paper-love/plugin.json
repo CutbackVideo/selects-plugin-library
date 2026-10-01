@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "torn-paper-love",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "Torn Paper Love",
   "summary": "Turn couple photos into a 4:3 torn-paper love edit cut on the beat, with ransom-note letters, as a new editable Draft.",
   "status": "experimental",
@@ -95,5 +95,74 @@
     "poster": "poster.webp",
     "width": 960,
     "height": 720
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "pictures",
+      "label": "Select photos or clips",
+      "hint": "Photos of the two of you; clips fill in when there are too few photos.",
+      "accepts": [
+        "image",
+        "video"
+      ],
+      "min": 3,
+      "max": 10,
+      "minSeconds": 1.5,
+      "query": "a couple together"
+    }
+  ],
+  "prepare": [
+    "Photos of the two of you, at least 3",
+    "Any clips you add analyzed first, at least 1.5 seconds long"
+  ],
+  "options": [
+    {
+      "id": "length",
+      "label": "Length",
+      "choices": [
+        {
+          "id": "short",
+          "label": "Short"
+        },
+        {
+          "id": "standard",
+          "label": "Standard"
+        },
+        {
+          "id": "long",
+          "label": "Long"
+        }
+      ],
+      "default": "standard"
+    },
+    {
+      "id": "music",
+      "label": "Music",
+      "choices": [
+        {
+          "id": "bedroom-pop-love",
+          "label": "Bedroom Pop Love"
+        },
+        {
+          "id": "slow-rnb-glow",
+          "label": "Slow R&B Glow"
+        },
+        {
+          "id": "first-love-guitar",
+          "label": "First Love Guitar"
+        },
+        {
+          "id": "easy-sunday-lofi",
+          "label": "Easy Sunday Lo-fi"
+        },
+        {
+          "id": "sunny-soul-strut",
+          "label": "Sunny Soul Strut"
+        }
+      ],
+      "default": "bedroom-pop-love"
+    }
+  ]
 }

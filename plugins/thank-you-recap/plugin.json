@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "thank-you-recap",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "Thank You Recap",
   "summary": "Turn your year's videos into a 16:9 \"Thank you\" recap Draft: a beat-cut intro, a held hero shot under a flickering year, and a salsa finale on bundled music.",
   "status": "experimental",
@@ -74,5 +74,37 @@
       "name": "Thank You \u5e74\u5ea6\u56de\u987e",
       "summary": "\u7528\u4e00\u5e74\u7684\u89c6\u9891\u5236\u4f5c 16:9 \u7684\u201cThank you\u201d\u5e74\u5ea6\u56de\u987e\u8349\u7a3f\uff1a\u5361\u70b9\u5f00\u573a\u3001\u95ea\u70c1\u5e74\u4efd\u4e0b\u7684\u4e3b\u955c\u5934\uff0c\u4ee5\u53ca\u914d\u4e0a\u5185\u7f6e\u97f3\u4e50\u7684\u8428\u5c14\u8428\u7ed3\u5c3e\u3002"
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "hero",
+      "label": "Select hero video",
+      "hint": "Held for about 6 seconds under THANK YOU and the year.",
+      "accepts": [
+        "video"
+      ],
+      "min": 1,
+      "max": 1,
+      "minSeconds": 6.1,
+      "query": "a calm wide scenic shot"
+    },
+    {
+      "id": "clips",
+      "label": "Select clips",
+      "hint": "Cut fast to the music; fewer clips repeat at later moments.",
+      "accepts": [
+        "video"
+      ],
+      "min": 2,
+      "max": 40,
+      "minSeconds": 0.9,
+      "query": "happy moments with friends"
+    }
+  ],
+  "prepare": [
+    "Videos from your year",
+    "One calm, wide video at least 6.1 seconds long for the hero shot"
+  ]
 }

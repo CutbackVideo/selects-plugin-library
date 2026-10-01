@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "city-weekend-vlog",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "City Weekend Vlog",
   "summary": "Turn city footage into a beat-synced 9:16 weekend vlog with a font-switching title, as a new editable Draft.",
   "status": "experimental",
@@ -135,5 +135,61 @@
     "poster": "poster.webp",
     "width": 540,
     "height": 960
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": false,
+  "inputs": [
+    {
+      "id": "footage",
+      "label": "City footage and photos",
+      "accepts": [
+        "video",
+        "image"
+      ],
+      "min": 4,
+      "max": 40,
+      "query": "streets, architecture, parks and city details"
+    }
+  ],
+  "options": [
+    {
+      "id": "track",
+      "label": "Music",
+      "default": "sunny-soul-strut",
+      "choices": [
+        {
+          "id": "sunny-soul-strut",
+          "label": "Sunny Soul Strut"
+        },
+        {
+          "id": "golden-hour-disco",
+          "label": "Golden Hour Disco"
+        },
+        {
+          "id": "easy-sunday-lofi",
+          "label": "Easy Sunday Lo-fi"
+        },
+        {
+          "id": "weekend-indie-pop",
+          "label": "Weekend Indie Pop"
+        },
+        {
+          "id": "brooklyn-boom-bap",
+          "label": "Brooklyn Boom Bap"
+        },
+        {
+          "id": "downtown-funk-break",
+          "label": "Downtown Funk Break"
+        },
+        {
+          "id": "sunset-afro-house",
+          "label": "Sunset Afro House"
+        }
+      ]
+    }
+  ],
+  "prepare": [
+    "Clips or photos, enough for 16 short shots",
+    "Clips analyzed"
+  ]
 }

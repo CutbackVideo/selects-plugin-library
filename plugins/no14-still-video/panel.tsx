@@ -1,4 +1,5 @@
 // @name Four Photo Reveal
+// @collection visual-highlights
 // @name:de Four Photo Reveal
 // @name:en Four Photo Reveal
 // @name:es Four Photo Reveal
@@ -21,10 +22,16 @@ const encode=value=>{
 
 // The editor's existing Image placement path is not exposed by the public panel SDK.
 // Keep this bridge narrow, validate every selected path, and reject unknown hosts.
-export async function prepareNativeImages(app,projectId,photos){
- const match=app.location.pathname.match(/libraries\/([^/]+)\/projects\/([^/]+)/);
- if(!match||match[2]!==projectId)throw Error('Open the selected Project before creating the Draft.');
- const [libraryId]=match.slice(1),di=app.__DI__;
+// A template run passes the library it resolved when it started, because it keeps
+// running while the person moves to another page; the Panel reads the open Project.
+export async function prepareNativeImages(app,projectId,photos,knownLibraryId=null){
+ let libraryId=knownLibraryId;
+ if(!libraryId){
+  const match=app.location.pathname.match(/libraries\/([^/]+)\/projects\/([^/]+)/);
+  if(!match||match[2]!==projectId)throw Error('Open the selected Project before creating the Draft.');
+  libraryId=match[1];
+ }
+ const di=app.__DI__;
  if(typeof di?.ProjectRepository?.findById!=='function'||typeof di?.ResourceRepository?.findById!=='function'||typeof di?.SequenceRepository?.findById!=='function'||typeof di?.TimelineMutation?.run!=='function')throw Error('This Selects version does not support original Image placement from this plugin.');
  const project=await di.ProjectRepository.findById(libraryId,projectId);
  if(!project)throw Error('The selected Project was not found.');
@@ -77,11 +84,77 @@ export async function placeNativeImages(prepared,draftId,plan){
  return {placements,photos:sources.map(s=>({width:s.width,height:s.height})),status:outcome.status};
 }
 
-export default function Panel({sdk,context,ui}){
+// A template run gets its own component, so it never touches the Panel's state.
+export default function Panel(props){return props.context?.template?<No14TemplateRun {...props}/>:<No14Panel {...props}/>;}
+
+// A new Draft takes its Project's frame rate and the SDK cannot change it, so the
+// plan is made at that rate. Read it from a Draft this run never saves.
+export async function readProjectFps(sdk,projectId){
+ const probe=await sdk.runScript({script:'const d=await selects.project('+JSON.stringify(projectId)+').createDraft({name:"No.14 frame rate check"});return {fps:(await d.meta()).fps};',summary:'Read the Project frame rate',allowCommit:false});
+ const fps=probe.result?.fps;
+ if(probe.isError||typeof fps!=='number'||!(fps>0))throw Error('Could not read the Project frame rate.');
+ return fps;
+}
+
+export const DEFAULT_DECORATION={shape:'heart',color:'#ffffff'},DEFAULT_DRAFT_NAME='No.14 photo format',DEFAULT_MUSIC='on';
+
+// The create steps, shared by the Panel and a template run. `stillCurrent` says the
+// run still belongs to its Project; `onSeed` runs just before the first save and
+// `onDraft` with the Draft the later steps fill. Returns the saved result.
+export async function createNo14Draft(sdk,{projectId,selected,decoration,framing,music=DEFAULT_MUSIC,name,partialDraftId=null,libraryId=null,stillCurrent,say,onSeed=()=>{},onDraft=_id=>{}}){
+ const fresh=await sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary:'Confirm selected Image sources',allowCommit:false});
+ if(fresh.isError||!Array.isArray(fresh.result)||selected.some(p=>fresh.result.filter(r=>r.resourceId===p.resourceId&&r.path===p.path).length!==1))throw Error('The selected photos changed. Reload the Project photos.');
+ const prepared=await prepareNativeImages(window.parent,projectId,selected,libraryId);
+ if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
+ const fps=await readProjectFps(sdk,projectId);
+ const planBuild=await sdk.runShell({summary:'Read No.14 reference plan',command:'node "$SELECTS_USER_SKILLS_ROOT/no14-still-video/build-script.mjs" '+encode({mode:'native-plan',fps}),timeoutMs:30000,maxOutputBytes:15000});
+ if(planBuild.isError||planBuild.exitCode!==0)throw Error(planBuild.stderr||planBuild.output||'Could not read the reference plan.');
+ const plan=JSON.parse(planBuild.stdout||'{}');
+ if(plan.fps!==fps||!Number.isSafeInteger(plan.durationFrames)||plan.durationFrames<1||(fps===30&&plan.durationFrames!==266)||plan.occurrences?.length!==8)throw Error('The reference plan is incomplete.');
+ let musicResource=null;
+ if(music==='on'){
+  say('Checking bundled music…');
+  const root=await sdk.runShell({summary:'Locate bundled music',command:'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}"'});
+  if(root.isError||!root.stdout?.trim())throw Error('The installed music asset could not be located. Reinstall the plugin.');
+  const musicPath=root.stdout.trim()+'/no14-still-video/assets/music.mp3';
+  const imported=await sdk.runScript({summary:'Import bundled music',allowCommit:true,script:`const p=selects.project(${JSON.stringify(projectId)}),path=${JSON.stringify(musicPath)};const nodes=[];const walk=tree=>{for(const n of tree??[]){if(n.path)nodes.push(n);if(n.children)walk(n.children);}};const tree=await p.sourceFiles();if('fileTree' in tree)walk(tree.fileTree);else if('folders' in tree)for(const f of tree.folders){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)walk(part.fileTree);}const found=nodes.filter(n=>n.path===path);if(found.length>1)throw Error('Bundled music source is ambiguous.');const id=found[0]?.resourceId??(await p.importFiles({paths:[path]})).addedResourceIds[0];if(!id)throw Error('Bundled music is missing. Reinstall the plugin.');return {resourceId:id};`});
+  if(imported.isError||!imported.result?.resourceId)throw Error(imported.output||'Could not import bundled music.');
+  musicResource=imported.result;
+  const ready=await sdk.runScript({summary:'Check music readiness',allowCommit:false,script:`const r=(await selects.project(${JSON.stringify(projectId)}).resources()).find(r=>r.resourceId===${JSON.stringify(musicResource.resourceId)});if(!r||r.type!=='Audio'||!Number.isFinite(r.durationSeconds)||r.durationSeconds<${plan.durationFrames/plan.fps})throw Error('Bundled music is not ready. Wait for the import to finish, then create the Draft again.');return true;`});
+  if(ready.isError||ready.result!==true)throw Error(ready.output||'Bundled music is not ready.');
+ }
+ if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
+ say('Creating an editable Image Draft…');
+ let draftId;
+ if(partialDraftId){
+  const checkScript=`const p=selects.project(${JSON.stringify(projectId)}),id=${JSON.stringify(partialDraftId)};if(!(await p.meta()).draftIds.includes(id))throw Error('Partial Draft is not in this Project.');const d=selects.draft(id),m=await d.meta(),rows=await d.clips({trackScope:'all'});if(m.fps!==${plan.fps}||m.durationFrames!==${plan.durationFrames}||m.frameSize?.width!==${plan.canvas.width}||m.frameSize?.height!==${plan.canvas.height}||rows.some(x=>x.resourceId))throw Error('Partial Draft is not empty; inspect it before retrying.');return {draftId:id};`;
+  const check=await sdk.runScript({script:checkScript,summary:'Inspect partial Image Draft',allowCommit:false});
+  if(check.isError||check.result?.draftId!==partialDraftId)throw Error(check.output||'The partial Draft cannot be safely continued.');
+  draftId=partialDraftId;
+ }else{
+  onSeed();
+  const seedScript=`const p=selects.project(${JSON.stringify(projectId)});const d=await p.createDraft({name:${JSON.stringify(name)}});await d.insertGap({seconds:${plan.durationFrames/plan.fps}});await d.setFrameSize(${JSON.stringify(plan.canvas)});const m=await d.meta();if(m.fps!==${plan.fps}||m.durationFrames!==${plan.durationFrames}||m.frameSize?.width!==${plan.canvas.width}||m.frameSize?.height!==${plan.canvas.height})throw Error('No.14 Draft frame grid differs from the reference.');const saved=await d.commitAll('Start No.14 original Image Draft');return {draftId:saved.createdDraftId};`;
+  const seed=await sdk.runScript({script:seedScript,summary:'Create No.14 Image Draft',allowCommit:true});
+  if(seed.isError||!seed.result?.draftId){const error=Error(seed.output||'Could not create the Image Draft. Check the Project before retrying.');error.seedOutput=seed.output;throw error;}
+  draftId=seed.result.draftId;
+ }
+ onDraft(draftId);
+ const native=await placeNativeImages(prepared,draftId,plan);
+ const request={mode:'native-finish',projectId,draftId,photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements,decoration,framing,music:musicResource,fps:plan.fps};
+ const builder=await sdk.runShell({summary:'Build No.14 Image finishing operation',command:'node "$SELECTS_USER_SKILLS_ROOT/no14-still-video/build-script.mjs" '+encode(request),timeoutMs:30000,maxOutputBytes:49152});
+ if(builder.isError||builder.exitCode!==0||!builder.stdout)throw Error(builder.stderr||builder.output||'Could not build the editing operation.');
+ const result=await sdk.runScript({script:builder.stdout,summary:'Finish No.14 Image Draft',allowCommit:true,timeoutSeconds:120});
+ if(result.isError||!result.result)throw Error(result.output||'Could not confirm the save. Check the Project before retrying.');
+ if(result.result.status==='outcomeUnknown')throw Error('Save outcome is unknown. Check the Project Draft list before retrying.');
+ if(result.result.status!=='saved'||!result.result.draftId)throw Error(result.result.message||'Could not save the Draft.');
+ return result.result;
+}
+
+function No14Panel({sdk,context,ui}){
  const [photos,setPhotos]=React.useState([]),[slots,setSlots]=React.useState(['','','','']),[loadedProject,setLoadedProject]=React.useState(null);
  const [framing,setFraming]=React.useState({});
- const [music,setMusic]=React.useState('on');
- const [shape,setShape]=React.useState('heart'),[color,setColor]=React.useState('#ffffff'),[name,setName]=React.useState('No.14 photo format');
+ const [music,setMusic]=React.useState(DEFAULT_MUSIC);
+ const [shape,setShape]=React.useState(DEFAULT_DECORATION.shape),[color,setColor]=React.useState(DEFAULT_DECORATION.color),[name,setName]=React.useState(DEFAULT_DRAFT_NAME);
  const [busy,setBusy]=React.useState(false),[status,setStatus]=React.useState(''),[saved,setSaved]=React.useState(null),[partialDraftId,setPartialDraftId]=React.useState(null);
  const running=React.useRef(false),currentProject=React.useRef(context.projectId);currentProject.current=context.projectId;
  React.useEffect(()=>{setPhotos([]);setSlots(['','','','']);setFraming({});setLoadedProject(null);setSaved(null);setPartialDraftId(null);setStatus('');},[context.projectId]);
@@ -102,50 +175,8 @@ export default function Panel({sdk,context,ui}){
   let createdDraftId=null;
   try{
    const selected=slots.map(id=>{const matches=photos.filter(p=>p.resourceId===id);if(matches.length!==1)throw Error('Check the selected photos again.');return matches[0];});
-   const fresh=await sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary:'Confirm selected Image sources',allowCommit:false});
-   if(fresh.isError||!Array.isArray(fresh.result)||selected.some(p=>fresh.result.filter(r=>r.resourceId===p.resourceId&&r.path===p.path).length!==1))throw Error('The selected photos changed. Reload the Project photos.');
-   const prepared=await prepareNativeImages(window.parent,projectId,selected);
-   if(currentProject.current!==projectId)throw Error('The Project changed. Start again in the selected Project.');
-   const planBuild=await sdk.runShell({summary:'Read No.14 reference plan',command:'node "$SELECTS_USER_SKILLS_ROOT/no14-still-video/build-script.mjs" '+encode({mode:'native-plan'}),timeoutMs:30000,maxOutputBytes:15000});
-   if(planBuild.isError||planBuild.exitCode!==0)throw Error(planBuild.stderr||planBuild.output||'Could not read the reference plan.');
-   const plan=JSON.parse(planBuild.stdout||'{}');
-   if(plan.fps!==30||plan.durationFrames!==266||plan.occurrences?.length!==8)throw Error('The reference plan is incomplete.');
-   let musicResource=null;
-   if(music==='on'){
-    setStatus('Checking bundled music…');
-    const root=await sdk.runShell({summary:'Locate bundled music',command:'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}"'});
-    if(root.isError||!root.stdout?.trim())throw Error('The installed music asset could not be located. Reinstall the plugin.');
-    const musicPath=root.stdout.trim()+'/no14-still-video/assets/music.mp3';
-    const imported=await sdk.runScript({summary:'Import bundled music',allowCommit:true,script:`const p=selects.project(${JSON.stringify(projectId)}),path=${JSON.stringify(musicPath)};const nodes=[];const walk=tree=>{for(const n of tree??[]){if(n.path)nodes.push(n);if(n.children)walk(n.children);}};const tree=await p.sourceFiles();if('fileTree' in tree)walk(tree.fileTree);else if('folders' in tree)for(const f of tree.folders){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)walk(part.fileTree);}const found=nodes.filter(n=>n.path===path);if(found.length>1)throw Error('Bundled music source is ambiguous.');const id=found[0]?.resourceId??(await p.importFiles({paths:[path]})).addedResourceIds[0];if(!id)throw Error('Bundled music is missing. Reinstall the plugin.');return {resourceId:id};`});
-    if(imported.isError||!imported.result?.resourceId)throw Error(imported.output||'Could not import bundled music.');
-    musicResource=imported.result;
-    const ready=await sdk.runScript({summary:'Check music readiness',allowCommit:false,script:`const r=(await selects.project(${JSON.stringify(projectId)}).resources()).find(r=>r.resourceId===${JSON.stringify(musicResource.resourceId)});if(!r||r.type!=='Audio'||!Number.isFinite(r.durationSeconds)||r.durationSeconds<${plan.durationFrames/plan.fps})throw Error('Bundled music is not ready. Wait for the import to finish, then create the Draft again.');return true;`});
-    if(ready.isError||ready.result!==true)throw Error(ready.output||'Bundled music is not ready.');
-   }
-   if(currentProject.current!==projectId)throw Error('The Project changed. Start again in the selected Project.');
-   setStatus('Creating an editable Image Draft…');
-   let draftId;
-   if(partialDraftId){
-    const checkScript=`const p=selects.project(${JSON.stringify(projectId)}),id=${JSON.stringify(partialDraftId)};if(!(await p.meta()).draftIds.includes(id))throw Error('Partial Draft is not in this Project.');const d=selects.draft(id),m=await d.meta(),rows=await d.clips({trackScope:'all'});if(m.fps!==${plan.fps}||m.durationFrames!==${plan.durationFrames}||m.frameSize?.width!==${plan.canvas.width}||m.frameSize?.height!==${plan.canvas.height}||rows.some(x=>x.resourceId))throw Error('Partial Draft is not empty; inspect it before retrying.');return {draftId:id};`;
-    const check=await sdk.runScript({script:checkScript,summary:'Inspect partial Image Draft',allowCommit:false});
-    if(check.isError||check.result?.draftId!==partialDraftId)throw Error(check.output||'The partial Draft cannot be safely continued.');
-    draftId=partialDraftId;
-   }else{
-    const seedScript=`const p=selects.project(${JSON.stringify(projectId)});const d=await p.createDraft({name:${JSON.stringify(name.trim())}});await d.insertGap({seconds:${plan.durationFrames/plan.fps}});await d.setFrameSize(${JSON.stringify(plan.canvas)});const m=await d.meta();if(m.fps!==${plan.fps}||m.durationFrames!==${plan.durationFrames}||m.frameSize?.width!==${plan.canvas.width}||m.frameSize?.height!==${plan.canvas.height})throw Error('No.14 Draft frame grid differs from the reference.');const saved=await d.commitAll('Start No.14 original Image Draft');return {draftId:saved.createdDraftId};`;
-    const seed=await sdk.runScript({script:seedScript,summary:'Create No.14 Image Draft',allowCommit:true});
-    if(seed.isError||!seed.result?.draftId)throw Error(seed.output||'Could not create the Image Draft. Check the Project before retrying.');
-    draftId=seed.result.draftId;
-   }
-   createdDraftId=draftId;
-   const native=await placeNativeImages(prepared,draftId,plan);
-   const request={mode:'native-finish',projectId,draftId,photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements,decoration:{shape,color},framing,music:musicResource};
-   const builder=await sdk.runShell({summary:'Build No.14 Image finishing operation',command:'node "$SELECTS_USER_SKILLS_ROOT/no14-still-video/build-script.mjs" '+encode(request),timeoutMs:30000,maxOutputBytes:49152});
-   if(builder.isError||builder.exitCode!==0||!builder.stdout)throw Error(builder.stderr||builder.output||'Could not build the editing operation.');
-   const result=await sdk.runScript({script:builder.stdout,summary:'Finish No.14 Image Draft',allowCommit:true,timeoutSeconds:120});
-   if(result.isError||!result.result)throw Error(result.output||'Could not confirm the save. Check the Project before retrying.');
-   if(result.result.status==='outcomeUnknown')throw Error('Save outcome is unknown. Check the Project Draft list before retrying.');
-   if(result.result.status!=='saved'||!result.result.draftId)throw Error(result.result.message||'Could not save the Draft.');
-   setPartialDraftId(null);setSaved(result.result);setStatus('Saved Draft: '+result.result.draftId+'. To change one photo or the decoration, keep the other choices and create a revised Draft. The previous Draft stays available.');
+   const done=await createNo14Draft(sdk,{projectId,selected,decoration:{shape,color},framing,music,name:name.trim(),partialDraftId,stillCurrent:()=>currentProject.current===projectId,say:setStatus,onDraft:id=>{createdDraftId=id;}});
+   setPartialDraftId(null);setSaved(done);setStatus('Saved Draft: '+done.draftId+'. To change one photo or the decoration, keep the other choices and create a revised Draft. The previous Draft stays available.');
   }catch(error){if(createdDraftId)setPartialDraftId(createdDraftId);setStatus(String(error?.message||error)+(createdDraftId?' The partial Draft is '+createdDraftId+'; it will be checked before continuing.':''));}finally{running.current=false;setBusy(false);}
  }
  return <ui.Stack gap={16}><ui.Section title="No.14 photo format">
@@ -165,3 +196,117 @@ export default function Panel({sdk,context,ui}){
   {saved&&<ui.Button variant="secondary" onClick={()=>sdk.runScript({script:'return await selects.editor.openDraft('+JSON.stringify(saved.draftId)+');',summary:'Open saved No.14 Draft',allowCommit:false})}>Open saved Draft</ui.Button>}
  </ui.Section></ui.Stack>;
 }
+
+// --- Template run ------------------------------------------------------------
+// A built-in app can run this Panel as a template: the person picks four photos
+// in the app (input `photos`, in A/B/C/D order) and the app mounts the Panel out
+// of sight with `context.template`. It makes a new Draft through the Panel's own
+// create steps with every choice at its default (white Heart, centered grid and
+// fullscreen framing, the bundled music), never opens or exports it, and ends with one
+// `sdk.finishTemplate`.
+const TEMPLATE_FAILED='Four Photo Reveal could not make the Draft; open it from the Plugin list to try again.';
+const TEMPLATE_UNSUPPORTED='This version of Selects cannot place photos for Four Photo Reveal; update Selects, then try again.';
+const templatePartial=name=>'Four Photo Reveal stopped part way, so the Draft "'+name+'" may be incomplete; check it in this Project before trying again.';
+function templateIssue(message){const error=Error(message);error.publicMessage=message;return error;}
+const templateUncertain=name=>'Four Photo Reveal could not confirm whether the Draft "'+name+'" was created; check this Project\'s Drafts before trying again.';
+// The run report of the step that creates the Draft: its leading JSON object.
+function templateReport(output){
+ const text=String(output||'');
+ for(let end=text.lastIndexOf('}');end>=0;end=text.lastIndexOf('}',end-1)){try{const value=JSON.parse(text.slice(0,end+1));return value&&typeof value==='object'?value:null;}catch{}}
+ return null;
+}
+// That step failed without a Draft id: a report with an error and no committed
+// edit means nothing was saved, so the cause is said; anything else may have saved.
+function templateSeedMessage(error,name){
+ const report=templateReport(error?.seedOutput);
+ const edits=Array.isArray(report?.edits)?report.edits:[];
+ if(typeof report?.error!=='string'||edits.some(edit=>edit?.committed!==false))return templateUncertain(name);
+ const cause=report.error.trim().replace(/[.\s]+$/,'');
+ if(/frame grid differs/.test(cause))return 'Four Photo Reveal could not set up its 720×1280 Draft in this project, so nothing was saved.';
+ return cause&&cause.length<=160&&!/[\n\r{}]|Traceback|Error:|\w+_\w+:/.test(cause)?'Four Photo Reveal could not create the Draft, so nothing was saved: '+cause+'.':'Four Photo Reveal could not create the Draft, so nothing was saved; try again.';
+}
+// The library the run works in, as the app hands it over: the person may move to
+// another page while it runs, so the app's address cannot say.
+function templateLibrary(template){
+ if(!template?.libraryId)throw templateIssue(TEMPLATE_UNSUPPORTED);
+ return template.libraryId;
+}
+// The app hands over its own Resource ids; the Panel works from the run_script
+// Image rows, so each pick is joined to its row by its original file, the same
+// file prepareNativeImages later checks the Project's Image against.
+async function templateSelection(sdk,app,projectId,libraryId,inputs){
+ const picks=Array.isArray(inputs?.photos)?inputs.photos:[];
+ if(picks.length!==4||picks.some(x=>x?.kind!=='image'||!x.resourceId))throw templateIssue('Pick exactly four photos, then try again.');
+ const di=app?.__DI__;
+ if(typeof di?.ProjectRepository?.findById!=='function'||typeof di?.ResourceRepository?.findById!=='function')throw templateIssue(TEMPLATE_UNSUPPORTED);
+ const project=libraryId?await di.ProjectRepository.findById(libraryId,projectId):null;
+ if(!project)throw templateIssue('Could not find this Project; open it, then try again.');
+ const members=new Set(project.getResources()||[]);
+ const inventory=await sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary:'List project photos',allowCommit:false});
+ if(inventory.isError||!Array.isArray(inventory.result))throw Error(inventory.output||'Could not read project photos.');
+ const selected=[];
+ for(const pick of picks){
+  const label=pick.name||'A picked photo';
+  const resource=members.has(pick.resourceId)?await di.ResourceRepository.findById(libraryId,pick.resourceId):null;
+  if(!resource)throw templateIssue(label+' is missing from this Project.');
+  if(resource.getType()!=='Image')throw templateIssue(label+' is not a photo Four Photo Reveal can use.');
+  const media=resource.getMedia(),path=media?.originalPath??media?.path;
+  const rows=path?inventory.result.filter(row=>row.path===path):[];
+  if(rows.length!==1)throw templateIssue(label+' is missing from this Project or matches more than one photo.');
+  selected.push(rows[0]);
+ }
+ return selected;
+}
+// One plain sentence for the person, from a failure before anything was saved.
+function templateMessage(error){
+ if(error?.publicMessage)return error.publicMessage;
+ const said=String(error?.message||'');
+ let match=said.match(/^A selected Image is not ready for editing: (.+)$/);
+ if(match)return match[1]+' is not ready yet; wait for it to finish importing, then try again.';
+ match=said.match(/^A selected Image is missing or ambiguous in the Project: (.+)$/);
+ if(match)return match[1]+' is missing from this Project or matches more than one photo.';
+ if(/^This Selects version does not support/.test(said))return TEMPLATE_UNSUPPORTED;
+ if(/^Could not read the Project frame rate/.test(said))return 'Four Photo Reveal could not read this project\'s frame rate; try again.';
+ if(/frame rate cannot hold/.test(said))return 'Four Photo Reveal cannot fit its timing to this project\'s frame rate.';
+ if(/^The selected photos changed/.test(said))return 'The picked photos changed while the Draft was being made; try again.';
+ return TEMPLATE_FAILED;
+}
+// Nobody sees this frame, so it shows one status line. It starts once per run
+// id and reports once, unless a newer run replaced it; a save that began is
+// reported as a possibly incomplete Draft and never retried.
+function No14TemplateRun({sdk,context}){
+ const runId=context.template?.runId,[status,setStatus]=React.useState('Making your Draft…');
+ const started=React.useRef(null),alive=React.useRef(true),latest=React.useRef(context);latest.current=context;
+ React.useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
+ React.useEffect(()=>{
+  if(!runId||started.current===runId)return;started.current=runId;
+  const live=()=>alive.current&&latest.current.template?.runId===runId;
+  let ended=false;
+  const finish=result=>{if(ended)return;ended=true;if(!live())return;try{sdk.finishTemplate(result);}catch{}};
+  const say=text=>{if(live())setStatus(text);};
+  const projectId=context.projectId,template=context.template;
+  let seeding=false,draftId=null;
+  (async()=>{
+   try{
+    if(!projectId)throw templateIssue('Open a Project, then try again.');
+    const app=window.parent,libraryId=templateLibrary(template);
+    say('Finding your photos…');
+    const selected=await templateSelection(sdk,app,projectId,libraryId,template?.inputs);
+    if(!live())throw Error('The template run ended before the Draft was made.');
+    const done=await createNo14Draft(sdk,{projectId,selected,decoration:{...DEFAULT_DECORATION},framing:{},music:DEFAULT_MUSIC,name:DEFAULT_DRAFT_NAME,libraryId,stillCurrent:live,say,
+     onSeed:()=>{if(!live())throw Error('The template run ended before the Draft was made.');seeding=true;},onDraft:id=>{draftId=id;}});
+    if(done.draftId!==draftId||!Array.isArray(done.clips)||done.clips.length!==8)throw Error('The saved Draft did not report eight photo clips.');
+    say('Done.');
+    finish({sequenceId:done.draftId});
+   }catch(error){
+    console.warn('[four-photo-reveal] template run failed:',error?.message||String(error),{draftId,seeding});
+    say('Stopped.');
+    finish({error:draftId?templatePartial(DEFAULT_DRAFT_NAME):seeding?templateSeedMessage(error,DEFAULT_DRAFT_NAME):templateMessage(error)});
+   }finally{
+    finish({error:TEMPLATE_FAILED});
+   }
+  })();
+ },[runId]);
+ return <p role="status" style={{margin:0,fontSize:12,color:'var(--panel-muted-fg)'}}>{status}</p>;
+}
+
