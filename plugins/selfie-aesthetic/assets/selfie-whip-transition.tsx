@@ -10,7 +10,7 @@ import { AbsoluteFill, useVideoConfig } from "remotion";
 // sae-whip:start
 // Pure maths shared by selfie-whip-look.tsx and selfie-whip-transition.tsx (kept byte-identical; a test checks it).
 // saeWhipAt returns the whip pose of one frame: amount (0-1 ramp toward the cut), side ('in' = head, 'out' = tail,
-// null = untouched), blurX / blurY (gaussian stdDeviation along / across the cut angle, in percent of the frame
+// null = untouched), blurX / blurY (gaussian stdDeviation along / across the cut angle, in percent of the clip box
 // width), angleDeg, txPct / tyPct (CSS translate percentages of the frame box, divided by cover), rotDeg and scale.
 // The outgoing clip moves forward along the angle and the incoming one arrives from behind, so the motion keeps one
 // direction across the cut. The scale is at least the nominal zoom (1.08 dir / 1.12 spin at full amount) and
@@ -116,6 +116,27 @@ function saeLookFilter(look, strength) {
   var overlay = p.overlay ? { color: p.overlay.color, blend: p.overlay.blend, opacity: Number((p.overlay.opacity * t).toFixed(4)) } : null;
   return { filter: filter, overlay: overlay };
 }
+// The directional blur runs on a container rotated by the cut angle, SAE_BLUR_BOX % of the clip's box on both axes
+// (centred), holding the upright picture counter-rotated inside. Effects render in the clip's own box (source pixel
+// space), whose aspect can be anything from 9:16 to 16:9, so the size covers both: the frame counter-rotated by the
+// largest planner angle (35 deg) spans cos 35 + sin 35 * 16 / 9 = 1.84 of the box on its long side -> 190%.
+var SAE_BLUR_BOX = 190;
+// stdDeviation of the blur in objectBoundingBox units of that container (fractions of its width / height), so it
+// scales with the clip's own box instead of the sequence size. x: blurX % of the box width (exact, no size needed);
+// y: blurY % of the box width, converted to the container height with `aspect` = box width / height (the caller
+// passes the sequence aspect; approximate for other boxes, but blurY is only 8% of blurX).
+function saeBlurStd(m, aspect) {
+  var a = typeof aspect === "number" && aspect > 0 ? aspect : 9 / 16;
+  var b = SAE_BLUR_BOX / 100;
+  return { x: m.blurX / 100 / b, y: m.blurY / 100 * a / b };
+}
+// CSS box of the rotated blur container (SAE_BLUR_BOX % of the clip box, centred) and of the upright picture inside
+// it (the clip box again, centred), as percentages of their parents.
+function saeBlurLayout() {
+  var b = SAE_BLUR_BOX;
+  return { outerPos: (-(b - 100) / 2).toFixed(4) + "%", outerSize: b + "%",
+    innerPos: ((b - 100) / 2 / b * 100).toFixed(4) + "%", innerSize: (100 * 100 / b).toFixed(4) + "%" };
+}
 // sae-whip:end
 
 let saeIdCounter = 0;
@@ -152,19 +173,19 @@ export default function SelfieWhipTransition({ children, presentationDirection, 
   // when the layer is untouched the blur filter stays defined but unused and the container is unrotated.
   const blurOn = m.amount > 0;
   const transform = blurOn ? `translate(${m.txPct.toFixed(3)}%, ${m.tyPct.toFixed(3)}%) rotate(${m.rotDeg.toFixed(3)}deg) scale(${m.scale.toFixed(4)})` : undefined;
-  const bx = (m.blurX / 100) * width, by = (m.blurY / 100) * width;
+  const sd = saeBlurStd(m, width / height), lay = saeBlurLayout();
   return (
     <AbsoluteFill style={{ opacity, overflow: "hidden" }}>
       <AbsoluteFill style={{ transform, transformOrigin: "50% 50%" }}>
         <svg key="sae-defs" width="0" height="0" style={{ position: "absolute" }}>
           <defs>
-            <filter id={fid} x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation={blurOn ? `${bx.toFixed(2)} ${by.toFixed(2)}` : "0 0"} />
+            <filter id={fid} x="-20%" y="-20%" width="140%" height="140%" primitiveUnits="objectBoundingBox">
+              <feGaussianBlur stdDeviation={blurOn ? `${sd.x.toFixed(6)} ${sd.y.toFixed(6)}` : "0 0"} />
             </filter>
           </defs>
         </svg>
-        <div key="sae-blur" style={{ position: "absolute", left: "-75%", top: "-75%", width: "250%", height: "250%", transform: `rotate(${m.angleDeg.toFixed(3)}deg)`, transformOrigin: "50% 50%", filter: blurOn ? `url(#${fid})` : "none", overflow: "visible" }}>
-          <div key="sae-upright" style={{ position: "absolute", left: "30%", top: "30%", width: "40%", height: "40%", transform: `rotate(${(-m.angleDeg).toFixed(3)}deg)`, transformOrigin: "50% 50%", overflow: "hidden" }}>
+        <div key="sae-blur" style={{ position: "absolute", left: lay.outerPos, top: lay.outerPos, width: lay.outerSize, height: lay.outerSize, transform: `rotate(${m.angleDeg.toFixed(3)}deg)`, transformOrigin: "50% 50%", filter: blurOn ? `url(#${fid})` : "none", overflow: "visible" }}>
+          <div key="sae-upright" style={{ position: "absolute", left: lay.innerPos, top: lay.innerPos, width: lay.innerSize, height: lay.innerSize, transform: `rotate(${(-m.angleDeg).toFixed(3)}deg)`, transformOrigin: "50% 50%", overflow: "hidden" }}>
             {children}
           </div>
         </div>
