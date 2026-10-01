@@ -450,17 +450,19 @@ function cwvPhotoMotions(picks, seed, sizes, titleSlots) {
   return out;
 }
 
-// Build steps shown in the panel's progress bar, with each step's share of the bar in percent.
+// Build steps shown in the panel's progress bar, with each step's share of the bar in percent. The panel names them
+// in the UI language (STRINGS `step.<id>`).
 const CWV_BUILD_STEPS = [
-  { id: 'shots', label: 'Choosing shots', weight: 40 },
-  { id: 'music', label: 'Preparing music', weight: 10 },
-  { id: 'draft', label: 'Creating Draft', weight: 25 },
-  { id: 'look', label: 'Adding title and look', weight: 20 },
-  { id: 'open', label: 'Opening Draft', weight: 5 },
+  { id: 'shots', weight: 40 },
+  { id: 'music', weight: 10 },
+  { id: 'draft', weight: 25 },
+  { id: 'look', weight: 20 },
+  { id: 'open', weight: 5 },
 ];
 
-// Progress for a step that is `fraction` done. Floors the percent so 100% only shows at the very end.
-function cwvProgress(stepId, fraction, detail) {
+// Progress for a step that is `fraction` done. Floors the percent so 100% only shows at the very end. The panel
+// builds the label from `id`, `current` and `percent` in the UI language.
+function cwvProgress(stepId, fraction) {
   const i = CWV_BUILD_STEPS.findIndex(s => s.id === stepId);
   if (i < 0) throw new Error('unknown build step ' + stepId);
   const total = CWV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0);
@@ -468,11 +470,5 @@ function cwvProgress(stepId, fraction, detail) {
   const f = Math.min(1, Math.max(0, Number(fraction) || 0));
   const value = (before + CWV_BUILD_STEPS[i].weight * f) / total;
   const percent = Math.floor(value * 100 + 1e-9);
-  const step = CWV_BUILD_STEPS[i];
-  return {
-    value,
-    percent,
-    current: i,
-    label: 'Step ' + (i + 1) + '/' + CWV_BUILD_STEPS.length + ' · ' + step.label + (detail ? ' (' + detail + ')' : '') + ' · ' + percent + '%',
-  };
+  return { id: stepId, value, percent, current: i };
 }

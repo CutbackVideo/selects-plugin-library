@@ -31,6 +31,24 @@ assert.equal(fbox.F(150, 500, 717), 150, 'narrow line keeps the target size');
 assert.equal(fbox.F(150, 717, 717), 150, 'exact fit keeps the target size');
 assert.equal(fbox.F(150, 0, 717), 150, 'unmeasurable line keeps the target size');
 assert.ok(src.includes('measureText'), 'measures real glyph advances');
+// Korean titles: wide characters count as 1 em in the no-canvas estimate, Hangul is detected for the no-uppercase rule,
+// and every stack ends with the state's Korean system face before the generic family.
+const koBlock = src.slice(src.indexOf('// cwv-hangul:start'), src.indexOf('// cwv-hangul:end'));
+assert.ok(koBlock.length > 50, 'hangul block present');
+const kbox = {}; vm.createContext(kbox);
+vm.runInContext(koBlock + ';globalThis.K={cwvHasHangul,cwvEstimateEm,cwvFontStack};', kbox);
+const SEOUL = '\uc11c\uc6b8', WEEKEND = '\uc8fc\ub9d0 \ub098\ub4e4\uc774';
+assert.equal(kbox.K.cwvHasHangul(SEOUL), true);
+assert.equal(kbox.K.cwvHasHangul('Seoul'), false);
+assert.equal(kbox.K.cwvHasHangul('in ' + SEOUL), true);
+assert.ok(Math.abs(kbox.K.cwvEstimateEm('Seoul') - 3) < 1e-9, 'Latin 0.6 em each');
+assert.ok(Math.abs(kbox.K.cwvEstimateEm(SEOUL) - 2) < 1e-9, 'Hangul 1 em each');
+assert.ok(Math.abs(kbox.K.cwvEstimateEm(WEEKEND) - 5.6) < 1e-9, 'five syllables and a space');
+assert.ok(Math.abs(kbox.K.cwvEstimateEm('\u6771\u4eac\uff01') - 3) < 1e-9, 'CJK and fullwidth count as wide');
+assert.equal(kbox.K.cwvFontStack({ family: 'CWV Yellowtail', koFamily: 'Apple SD Gothic Neo' }, ''), '"CWV Yellowtail", "Snell Roundhand", "Brush Script MT", "Apple SD Gothic Neo", cursive');
+assert.equal(kbox.K.cwvFontStack({ family: 'CWV Instrument Serif', koFamily: 'AppleMyungjo' }, ''), '"CWV Instrument Serif", "Snell Roundhand", "Brush Script MT", "AppleMyungjo", cursive');
+assert.equal(kbox.K.cwvFontStack({ family: 'CWV Yellowtail' }, 'Futura'), '"Futura", "CWV Yellowtail", "Snell Roundhand", "Brush Script MT", "Apple SD Gothic Neo", cursive', 'a Draft built before koFamily, with a font override');
+for (const phrase of ['s.case === "upper" && !cwvHasHangul(text) ? "uppercase" : "none"', 'wordBreak: "keep-all", letterSpacing: 0', 'cwvEstimateEm(shown) * px', 'cwvFontStack(s, key === "A" ? override : "")']) assert.ok(src.includes(phrase), phrase);
 // Component contract.
 for (const key of ['line1', 'connector', 'place', 'fontFamily', 'ink', 'shadow', 'size', 'rotation', 'position']) assert.ok(src.includes('data.' + key) || src.includes('"' + key + '"'), key);
 assert.ok(src.includes('delayRender') && src.includes('continueRender'), 'waits for fonts');
