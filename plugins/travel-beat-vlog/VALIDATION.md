@@ -73,9 +73,11 @@ The panel also skips media it created itself (the cutout) when it picks the defa
 
 On a new Project with the 26 generated preview clips, the generated hero photo and the CC0 song, the panel saved on the first click (30 fps, 494 frames, default colour strength 0.7). Readback: 35 video clips in slot order, the hero and the people cutout above the title graphic, the ending graphic and the song section from frame 0. In the export all 36 planned cuts are present, each within 19 ms of a hit in the audio, and the people stand in front of the title. `preview.mp4` and `poster.webp` are made from this export.
 
-## Selects Staging (2.0.519, 2026-10-01)
+## Selects Staging (2.0.519, 2026-10-02)
 
-Installed panel run from the Apps tab on a new Project with the same preview media. It saved on the first Create click at 30 fps. Readback matches the local run clip for clip. The FHD export is pixel-identical to the local develop build's export on all 468 frames; the audio has the same length and timing (no offset) and differs only by encoding. `preview.mp4` and `poster.webp` are made from the Staging export.
+Installed panel run from the Apps tab on a new Project with the same preview media and the CC0 song. It saved on the first Create click at 30 fps, 494 frames. Readback matches the local run clip for clip (39 video-track items and the song section at 0-494). The FHD export is pixel-identical to the local develop build's export on all 494 frames, and all 36 planned cuts are within 19 ms of a hit in its audio.
+
+Staging shows Clip highlights template plugins in the Apps list only until the plugin catalog loads; after that the panel is reached from its tab or through the template. The template path reads the manifest from the library's main branch, so it is checked after merge.
 
 The first "Load Project media" right after the app restarted and opened the Project failed once inside the host's script runtime (`Cannot read properties of undefined (reading 'reduce')`); the identical script succeeded seconds later. The panel now retries the read once before reporting an error, and the updated panel loaded the media in Staging.
 
