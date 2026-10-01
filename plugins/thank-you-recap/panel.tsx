@@ -9,6 +9,7 @@
 // @name:pt Retrospectiva Thank You
 // @name:tr Thank You Özeti
 // @name:zh Thank You 年度回顾
+// @collection visual-highlights
 // @icon video
 // Builds a "Thank you <year>" recap Draft on the template's fixed 16:9 timeline:
 // a rapid montage cut on every hit of the opening bass roll, one held hero shot
@@ -385,7 +386,215 @@ async function aiHero(sdk, videos: Media[]): Promise<Media | null> {
   return Number.isInteger(i) && videos[i] ? videos[i] : null;
 }
 
-export default function Panel({ sdk, context, ui }) {
+// The project's videos: names, lengths, file paths and frame sizes.
+function mediaScript(projectId: string) {
+  return `const project = selects.project(${JSON.stringify(projectId)});
+const files = {};
+const walk = (nodes) => { for (const n of nodes ?? []) { if (n.resourceId) files[n.resourceId] = n; walk(n.children); } };
+// Past 200 files sourceFiles() returns per-folder counts; read each folder then.
+const tree = await project.sourceFiles();
+if ("fileTree" in tree) walk(tree.fileTree);
+else for (const f of tree.folders) { const sub = await project.sourceFiles({ folder: f.name }); if ("fileTree" in sub) walk(sub.fileTree); }
+return (await project.resources())
+  .filter(r => r.type === "Video")
+  .map(r => ({ id: r.resourceId, name: r.name, type: r.type, seconds: r.durationSeconds ?? 0,
+    path: files[r.resourceId]?.path ?? null,
+    width: files[r.resourceId]?.frameSize?.width ?? null, height: files[r.resourceId]?.frameSize?.height ?? null }));`;
+}
+
+// Cuts the montage around `hero`, then adds the music and titles. Resolves the
+// new Draft; throws with what went wrong. `onStep` follows `steps` 1 and 2.
+async function buildRecap(
+  sdk,
+  { projectId, chosen, hero, year, name, onStep = (_: number) => {} }:
+    { projectId: string; chosen: Media[]; hero: Media; year: string; name: string; onStep?: (step: number) => void }
+) {
+  // 2. Montage: every slot but the hero takes the next video in turn, and
+  //    each reuse of a video moves to a later moment in it.
+  onStep(1);
+  const pool = chosen.filter((v) => v.id !== hero!.id).length >= 2 ? chosen.filter((v) => v.id !== hero!.id) : chosen;
+  const heroIndex = ROLL.length;
+  const uses = new Map<string, number>();
+  const slots = STARTS.map((_, i) => {
+    if (i === heroIndex) return { id: hero!.id, seconds: hero!.seconds, hero: true, use: 0, of: 1 };
+    const k = i < heroIndex ? i : i - 1;
+    const v = pool[k % pool.length];
+    const use = uses.get(v.id) ?? 0;
+    uses.set(v.id, use + 1);
+    return { id: v.id, seconds: v.seconds, hero: false, use, of: 0 };
+  });
+  for (const s of slots) if (!s.hero) s.of = uses.get(s.id)!;
+  const plan = { projectId, slots, starts: STARTS, end: END, frame: FRAME, name };
+  const built = await sdk.runScript({
+    summary: "Cut recap montage",
+    allowCommit: true,
+    script: `
+const plan = ${JSON.stringify(plan)};
+const project = selects.project(plan.projectId);
+const draft = await project.createDraft({ name: plan.name });
+const fps = (await draft.meta()).fps;
+const edges = [...plan.starts, plan.end].map((s) => Math.round(s * fps));
+for (let i = 0; i < plan.slots.length; i++) {
+  const slot = plan.slots[i];
+  const len = Math.max(1, edges[i + 1] - edges[i]) / fps;
+  const room = Math.max(0, slot.seconds - len - 0.1);
+  // The hero plays from the middle of its take; montage moments spread evenly.
+  const start = slot.hero ? room / 2 : Math.min(room, 0.05 + ((slot.use + 0.5) / slot.of) * room);
+  await draft.insertResource({ resourceId: slot.id, sourceRange: { startSeconds: start, endSeconds: start + len } });
+}
+// Set after the clips: the first insert would otherwise size the canvas to its source.
+await draft.setFrameSize(plan.frame);
+const saved = await draft.commitAll("Cut recap montage");
+const main = await draft.clips({ trackScope: "main" });
+return { draftId: saved.createdDraftId, cuts: main.length, endFrame: main.reduce((a, c) => Math.max(a, c.endFrame), 0), fps, edges };`,
+  });
+  const made = built.result as { draftId?: string; cuts: number; endFrame: number; fps: number; edges: number[] } | undefined;
+  if (built.isError || !made?.draftId) throw new Error(built.output);
+
+  // 3. Music and titles. The track ships in this plugin's asset folder and
+  //    is imported into the Project once; importing is a Project edit, so
+  //    it runs in its own call before the Draft edit.
+  onStep(2);
+  const root = await sdk.runShell({ summary: "Locate template music", command: 'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}"' });
+  if (root.isError || !root.stdout) throw new Error(root.stderr || root.output);
+  // Import a copy named by its checksum, so a plugin update that changes the
+  // music never reuses the older track already imported into a Project.
+  const staged = await sdk.runShell({
+    summary: "Stage template music",
+    command: `src=${shq(`${root.stdout.trim()}/${PLUGIN_ID}/${MUSIC_FILE}`)}; dir="$HOME/.selects/plugin-data/${PLUGIN_ID}"; sum=$(cksum < "$src" | cut -d' ' -f1); dst="$dir/music-$sum.mp3"; mkdir -p "$dir" && { [ -f "$dst" ] || cp "$src" "$dst"; } && printf %s "$dst"`,
+  });
+  if (staged.isError || staged.exitCode !== 0 || !staged.stdout.trim()) throw new Error(staged.stderr || staged.output);
+  const musicPath = staged.stdout.trim();
+  // Shell output is capped at 48KB, so the faces file is read in slices.
+  const facesFile = shq(`${root.stdout.trim()}/${PLUGIN_ID}/${YEAR_FONTS_FILE}`);
+  const facesSize = await sdk.runShell({ summary: "Measure year faces", command: `wc -c < ${facesFile}` });
+  if (facesSize.isError || facesSize.exitCode !== 0) throw new Error(facesSize.stderr || facesSize.output);
+  const facesTotal = Number(facesSize.stdout.trim());
+  let facesJson = "";
+  for (let at = 0; at < facesTotal; at += 45000) {
+    const part = await sdk.runShell({
+      summary: "Read year faces",
+      command: `tail -c +${at + 1} ${facesFile} | head -c 45000`,
+      maxOutputBytes: 48 * 1024,
+    });
+    if (part.isError || part.exitCode !== 0) throw new Error(part.stderr || part.output);
+    facesJson += part.stdout;
+  }
+  if (facesJson.length !== facesTotal) throw new Error(`year faces read ${facesJson.length}/${facesTotal}`);
+  const yearFonts = JSON.parse(facesJson) as { family: string; src: string }[];
+  const imported = await sdk.runScript({
+    summary: "Add template music",
+    allowCommit: true,
+    script: `
+const project = selects.project(${JSON.stringify(projectId)});
+const musicPath = ${JSON.stringify(musicPath)};
+const files = {};
+const walk = (nodes) => { for (const n of nodes ?? []) { if (n.path) files[n.path] = n.resourceId; walk(n.children); } };
+const tree = await project.sourceFiles();
+if ("fileTree" in tree) walk(tree.fileTree);
+const existing = files[musicPath];
+if (existing) return existing;
+const added = (await project.importFiles({ paths: [musicPath] })).addedResourceIds[0];
+if (!added) throw new Error("Template music could not be imported: " + musicPath);
+return added;`,
+  });
+  const musicId = imported.result as string | undefined;
+  if (imported.isError || !musicId) throw new Error(imported.output);
+  const heroFrame = made.edges[ROLL.length];
+  const titlesEnd = made.edges[ROLL.length + 2 + CLOSING.length];
+  const at = (s: number) => (Math.round(s * made.fps) - heroFrame) / made.fps;
+  const titles = {
+    caption: "THANK YOU",
+    year: year.trim() || String(new Date().getFullYear()),
+    yearColor: "#F7C600",
+    captionFont: "",
+    fonts: yearFonts.map((f) => ({ ...f, scale: YEAR_FACE_SCALE[f.family] ?? 1 })),
+    yearAt: at(YEAR_AT),
+    heroSwitch: BEAT / 2,
+    closeSwitch: BEAT / 4,
+    closeAt: at(HOLD),
+    closeEnd: at(PIANO_START),
+  };
+  const editable = [
+    { key: "caption", label: "Caption", type: "text", defaultValue: titles.caption },
+    { key: "year", label: "Year", type: "text", defaultValue: titles.year },
+    { key: "yearColor", label: "Year color", type: "color", defaultValue: titles.yearColor },
+    { key: "captionFont", label: "Caption font", type: "text", defaultValue: "" },
+  ];
+  const finish = await sdk.runScript({
+    summary: "Add recap music and titles",
+    allowCommit: true,
+    script: `
+const draft = selects.draft(${JSON.stringify(made.draftId)});
+const whole = await draft.rangeAtFrames(0, ${made.endFrame});
+await draft.setAudioTracks({ target: whole, audioSourceIndexes: [] });
+await draft.overlayResource({ resource: selects.project(${JSON.stringify(projectId)}).resource(${JSON.stringify(musicId)}), over: whole });
+await draft.addMotionGraphic({
+  label: "Thank you titles",
+  tsxCode: ${JSON.stringify(TITLES_TSX)},
+  parameters: ${JSON.stringify(titles)},
+  editableParameters: ${JSON.stringify(editable)},
+  within: await draft.rangeAtFrames(${heroFrame}, ${titlesEnd}),
+});
+await draft.commitAll("Add recap music and titles");
+return true;`,
+  });
+  if (finish.isError) throw new Error(finish.output);
+  return made;
+}
+
+const TEMPLATE_FAILED = "Thank You Recap couldn't make the timeline. Try again.";
+
+// A Clip highlights run (`context.template`): the hero and clips picked in the
+// app (no AI pick), this year, built out of sight and reported once.
+function TemplateRun({ sdk, context }) {
+  const runId = context.template?.runId;
+  const [status, setStatus] = useState("Making your recap…");
+  const started = useRef<string | null>(null), alive = useRef(true), latest = useRef(context);
+  latest.current = context;
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => {
+    if (!runId || started.current === runId) return;
+    started.current = runId;
+    const live = () => alive.current && latest.current.template?.runId === runId;
+    let ended = false;
+    const finish = (result) => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch {} };
+    (async () => {
+      const t = STRINGS[context.language] ?? STRINGS.en;
+      const template = context.template, projectId = context.projectId;
+      if (!projectId) throw new Error("Open a project, then try again.");
+      const heroPick = (template.inputs?.hero ?? []).find((x) => x?.resourceId);
+      const clipPicks = (template.inputs?.clips ?? []).filter((x) => x?.resourceId && x.resourceId !== heroPick?.resourceId);
+      if (!heroPick || clipPicks.length < 2) throw new Error("Pick a hero video and at least two other videos, then try again.");
+      const r = await sdk.runScript({ summary: "Read project media", script: mediaScript(projectId) });
+      if (r.isError || !Array.isArray(r.result)) throw new Error("Couldn't read this project's videos. Try again.");
+      const byId = new Map((r.result as Media[]).map((v) => [v.id, v]));
+      const hero = byId.get(heroPick.resourceId);
+      if (!hero) throw new Error(`Couldn't find ${heroPick.name || "the hero video"} in this project. Try again.`);
+      if (hero.seconds < HERO_SECONDS + 0.1) throw new Error(`Pick a hero video at least ${(HERO_SECONDS + 0.1).toFixed(1)} seconds long.`);
+      const clips = clipPicks.map((x) => byId.get(x.resourceId));
+      const missing = clipPicks.find((x, i) => !clips[i]);
+      if (missing) throw new Error(`Couldn't find ${missing.name || "a picked video"} in this project. Try again.`);
+      if (!live()) return;
+      setStatus("Cutting your clips to the music…");
+      const made = await buildRecap(sdk, {
+        projectId, chosen: [hero, ...(clips as Media[])], hero, year: String(new Date().getFullYear()), name: t.title,
+      });
+      finish({ sequenceId: made.draftId });
+    })().catch((e) => {
+      console.warn("[thank-you-recap] template run failed:", e);
+      const said = String(e?.message ?? "");
+      finish({ error: said && said.length <= 160 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED });
+    });
+  }, [runId]);
+  return <small>{status}</small>;
+}
+
+export default function Panel(props) {
+  return props.context?.template ? <TemplateRun {...props} /> : <RecapPanel {...props} />;
+}
+
+function RecapPanel({ sdk, context, ui }) {
   const t = STRINGS[context.language] ?? STRINGS.en;
   const projectId: string | null = context.projectId;
   const [media, setMedia] = useState<Media[] | null>(null);
@@ -411,18 +620,7 @@ export default function Panel({ sdk, context, ui }) {
     async function load() {
       const r = await sdk.runScript({
         summary: "Read project media",
-        script: `const project = selects.project(${JSON.stringify(projectId)});
-const files = {};
-const walk = (nodes) => { for (const n of nodes ?? []) { if (n.resourceId) files[n.resourceId] = n; walk(n.children); } };
-// Past 200 files sourceFiles() returns per-folder counts; read each folder then.
-const tree = await project.sourceFiles();
-if ("fileTree" in tree) walk(tree.fileTree);
-else for (const f of tree.folders) { const sub = await project.sourceFiles({ folder: f.name }); if ("fileTree" in sub) walk(sub.fileTree); }
-return (await project.resources())
-  .filter(r => r.type === "Video")
-  .map(r => ({ id: r.resourceId, name: r.name, type: r.type, seconds: r.durationSeconds ?? 0,
-    path: files[r.resourceId]?.path ?? null,
-    width: files[r.resourceId]?.frameSize?.width ?? null, height: files[r.resourceId]?.frameSize?.height ?? null }));`,
+        script: mediaScript(projectId),
       });
       if (!live) return;
       if (r.isError || !Array.isArray(r.result)) {
@@ -499,146 +697,7 @@ return (await project.resources())
         hero = hero ?? [...heroable].sort((a, b) => b.seconds - a.seconds)[0];
       }
 
-      // 2. Montage: every slot but the hero takes the next video in turn, and
-      //    each reuse of a video moves to a later moment in it.
-      setStep(1);
-      const pool = chosen.filter((v) => v.id !== hero!.id).length >= 2 ? chosen.filter((v) => v.id !== hero!.id) : chosen;
-      const heroIndex = ROLL.length;
-      const uses = new Map<string, number>();
-      const slots = STARTS.map((_, i) => {
-        if (i === heroIndex) return { id: hero!.id, seconds: hero!.seconds, hero: true, use: 0, of: 1 };
-        const k = i < heroIndex ? i : i - 1;
-        const v = pool[k % pool.length];
-        const use = uses.get(v.id) ?? 0;
-        uses.set(v.id, use + 1);
-        return { id: v.id, seconds: v.seconds, hero: false, use, of: 0 };
-      });
-      for (const s of slots) if (!s.hero) s.of = uses.get(s.id)!;
-      const plan = { projectId, slots, starts: STARTS, end: END, frame: FRAME, name: t.title };
-      const built = await sdk.runScript({
-        summary: "Cut recap montage",
-        allowCommit: true,
-        script: `
-const plan = ${JSON.stringify(plan)};
-const project = selects.project(plan.projectId);
-const draft = await project.createDraft({ name: plan.name });
-const fps = (await draft.meta()).fps;
-const edges = [...plan.starts, plan.end].map((s) => Math.round(s * fps));
-for (let i = 0; i < plan.slots.length; i++) {
-  const slot = plan.slots[i];
-  const len = Math.max(1, edges[i + 1] - edges[i]) / fps;
-  const room = Math.max(0, slot.seconds - len - 0.1);
-  // The hero plays from the middle of its take; montage moments spread evenly.
-  const start = slot.hero ? room / 2 : Math.min(room, 0.05 + ((slot.use + 0.5) / slot.of) * room);
-  await draft.insertResource({ resourceId: slot.id, sourceRange: { startSeconds: start, endSeconds: start + len } });
-}
-// Set after the clips: the first insert would otherwise size the canvas to its source.
-await draft.setFrameSize(plan.frame);
-const saved = await draft.commitAll("Cut recap montage");
-const main = await draft.clips({ trackScope: "main" });
-return { draftId: saved.createdDraftId, cuts: main.length, endFrame: main.reduce((a, c) => Math.max(a, c.endFrame), 0), fps, edges };`,
-      });
-      const made = built.result as { draftId?: string; cuts: number; endFrame: number; fps: number; edges: number[] } | undefined;
-      if (built.isError || !made?.draftId) {
-        setStatus({ tone: "error", text: built.output });
-        return;
-      }
-
-      // 3. Music and titles. The track ships in this plugin's asset folder and
-      //    is imported into the Project once; importing is a Project edit, so
-      //    it runs in its own call before the Draft edit.
-      setStep(2);
-      const root = await sdk.runShell({ summary: "Locate template music", command: 'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}"' });
-      if (root.isError || !root.stdout) throw new Error(root.stderr || root.output);
-      // Import a copy named by its checksum, so a plugin update that changes the
-      // music never reuses the older track already imported into a Project.
-      const staged = await sdk.runShell({
-        summary: "Stage template music",
-        command: `src=${shq(`${root.stdout.trim()}/${PLUGIN_ID}/${MUSIC_FILE}`)}; dir="$HOME/.selects/plugin-data/${PLUGIN_ID}"; sum=$(cksum < "$src" | cut -d' ' -f1); dst="$dir/music-$sum.mp3"; mkdir -p "$dir" && { [ -f "$dst" ] || cp "$src" "$dst"; } && printf %s "$dst"`,
-      });
-      if (staged.isError || staged.exitCode !== 0 || !staged.stdout.trim()) throw new Error(staged.stderr || staged.output);
-      const musicPath = staged.stdout.trim();
-      // Shell output is capped at 48KB, so the faces file is read in slices.
-      const facesFile = shq(`${root.stdout.trim()}/${PLUGIN_ID}/${YEAR_FONTS_FILE}`);
-      const facesSize = await sdk.runShell({ summary: "Measure year faces", command: `wc -c < ${facesFile}` });
-      if (facesSize.isError || facesSize.exitCode !== 0) throw new Error(facesSize.stderr || facesSize.output);
-      const facesTotal = Number(facesSize.stdout.trim());
-      let facesJson = "";
-      for (let at = 0; at < facesTotal; at += 45000) {
-        const part = await sdk.runShell({
-          summary: "Read year faces",
-          command: `tail -c +${at + 1} ${facesFile} | head -c 45000`,
-          maxOutputBytes: 48 * 1024,
-        });
-        if (part.isError || part.exitCode !== 0) throw new Error(part.stderr || part.output);
-        facesJson += part.stdout;
-      }
-      if (facesJson.length !== facesTotal) throw new Error(`year faces read ${facesJson.length}/${facesTotal}`);
-      const yearFonts = JSON.parse(facesJson) as { family: string; src: string }[];
-      const imported = await sdk.runScript({
-        summary: "Add template music",
-        allowCommit: true,
-        script: `
-const project = selects.project(${JSON.stringify(projectId)});
-const musicPath = ${JSON.stringify(musicPath)};
-const files = {};
-const walk = (nodes) => { for (const n of nodes ?? []) { if (n.path) files[n.path] = n.resourceId; walk(n.children); } };
-const tree = await project.sourceFiles();
-if ("fileTree" in tree) walk(tree.fileTree);
-const existing = files[musicPath];
-if (existing) return existing;
-const added = (await project.importFiles({ paths: [musicPath] })).addedResourceIds[0];
-if (!added) throw new Error("Template music could not be imported: " + musicPath);
-return added;`,
-      });
-      const musicId = imported.result as string | undefined;
-      if (imported.isError || !musicId) {
-        setStatus({ tone: "error", text: imported.output });
-        return;
-      }
-      const heroFrame = made.edges[ROLL.length];
-      const titlesEnd = made.edges[ROLL.length + 2 + CLOSING.length];
-      const at = (s: number) => (Math.round(s * made.fps) - heroFrame) / made.fps;
-      const titles = {
-        caption: "THANK YOU",
-        year: year.trim() || String(new Date().getFullYear()),
-        yearColor: "#F7C600",
-        captionFont: "",
-        fonts: yearFonts.map((f) => ({ ...f, scale: YEAR_FACE_SCALE[f.family] ?? 1 })),
-        yearAt: at(YEAR_AT),
-        heroSwitch: BEAT / 2,
-        closeSwitch: BEAT / 4,
-        closeAt: at(HOLD),
-        closeEnd: at(PIANO_START),
-      };
-      const editable = [
-        { key: "caption", label: "Caption", type: "text", defaultValue: titles.caption },
-        { key: "year", label: "Year", type: "text", defaultValue: titles.year },
-        { key: "yearColor", label: "Year color", type: "color", defaultValue: titles.yearColor },
-        { key: "captionFont", label: "Caption font", type: "text", defaultValue: "" },
-      ];
-      const finish = await sdk.runScript({
-        summary: "Add recap music and titles",
-        allowCommit: true,
-        script: `
-const draft = selects.draft(${JSON.stringify(made.draftId)});
-const whole = await draft.rangeAtFrames(0, ${made.endFrame});
-await draft.setAudioTracks({ target: whole, audioSourceIndexes: [] });
-await draft.overlayResource({ resource: selects.project(${JSON.stringify(projectId)}).resource(${JSON.stringify(musicId)}), over: whole });
-await draft.addMotionGraphic({
-  label: "Thank you titles",
-  tsxCode: ${JSON.stringify(TITLES_TSX)},
-  parameters: ${JSON.stringify(titles)},
-  editableParameters: ${JSON.stringify(editable)},
-  within: await draft.rangeAtFrames(${heroFrame}, ${titlesEnd}),
-});
-await draft.commitAll("Add recap music and titles");
-return true;`,
-      });
-      if (finish.isError) {
-        setStatus({ tone: "error", text: finish.output });
-        return;
-      }
+      const made = await buildRecap(sdk, { projectId, chosen, hero, year, name: t.title, onStep: setStep });
 
       // 4. Bring the new Draft forward.
       setStep(3);
