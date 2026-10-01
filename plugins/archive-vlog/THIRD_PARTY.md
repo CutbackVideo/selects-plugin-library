@@ -26,29 +26,20 @@ Each family's licence text is in `assets/fonts/licenses/`.
 
 ## Music
 
-The six bundled tracks in `assets/cues/` were generated for the Selects plugin library with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Each is an instrumental, brought to -11 LUFS integrated with a static gain and a true-peak limiter at -1 dBTP, and encoded at 44.1 kHz, 192 kbps. Tempo, first beat, usable end, loudness and true peak, bar confidence and the measured downbeat ratio, hook-window scores, list group and content hash are recorded in `assets/cues/manifest.json`.
+<!-- Music section: maintained with dev/build-cues.cjs and assets/cues/LICENSES.csv. -->
 
-- **Bedroom Pop** and **Acoustic Pop** were generated for this plugin (instrumental only, 60 seconds, delivered as 44.1 kHz 128 kbps MP3) from the prompts below.
-- **Weekend Indie Pop**, **Golden Hour Disco**, **Sunny Soul Strut** and **Easy Sunday Lo-fi** are 40-second tracks that are also bundled with another plugin in this library; here they were re-processed once from those mp3s to the loudness above (no other change). Their generation prompts were not recorded.
+The four bundled tracks in `assets/cues/` are by **HoliznaCC0**, published on the Free Music Archive under **CC0 1.0 Universal** (public domain dedication, https://creativecommons.org/publicdomain/zero/1.0/). Each track page stated "licensed under a CC0 1.0 Universal License" when it was checked on 2026-10-01. CC0 needs no attribution; the records are kept here as proof of the licence. `assets/cues/LICENSES.csv` lists the same tracks with their download URLs and the licence text found on each page.
 
-The tracks are bundled for use in the videos this plugin builds and are not for redistribution as standalone tracks.
+What we changed: each track was brought to -16.3 LUFS integrated with a static gain and a true-peak limiter at -1 dBTP, and re-encoded from the 48 kHz, 320 kbps download to 44.1 kHz, 192 kbps MP3 (`dev/build-cues.cjs`). Tempo, pitch and structure are unchanged: nothing is time-stretched, pitch-shifted, cut or rearranged. Tempo, first beat, soft-intro start, loudness, onsets and content hash are recorded in `assets/cues/manifest.json`.
 
-| Track | File | Tempo | Group |
-| --- | --- | --- | --- |
-| Bedroom Pop | `bedroom-pop-108.mp3` | 108 BPM | Reference |
-| Acoustic Pop | `acoustic-pop-104.mp3` | 104 BPM | Reference |
-| Weekend Indie Pop | `weekend-indie-pop.mp3` | 112 BPM | Reference |
-| Golden Hour Disco | `golden-hour-disco.mp3` | 104 BPM | Reference |
-| Sunny Soul Strut | `sunny-soul-strut.mp3` | 99 BPM | Alternatives |
-| Easy Sunday Lo-fi | `easy-sunday-lofi.mp3` | 88 BPM | Alternatives |
+| Track | Bundled file | Author | Track page | Licence | Accessed | Tempo |
+| --- | --- | --- | --- | --- | --- | --- |
+| Peaceful Drift (Lofi, Nostalgic, Calm) | `peaceful-drift.mp3` | HoliznaCC0 | https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/peaceful-drift-lofi-nostalgic-calm/ | CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) | 2026-10-01 | 72 BPM |
+| Theta Frequency (Lofi, Chill, Calm) | `theta-frequency.mp3` | HoliznaCC0 | https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/theta-frequency-lofi-chill-calm/ | CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) | 2026-10-01 | 70 BPM |
+| Before Everything (LoFi, Nostalgic) | `before-everything.mp3` | HoliznaCC0 | https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/before-everything-lofi-nostalgic-mp3/ | CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) | 2026-10-01 | 75 BPM |
+| Fractured | `fractured.mp3` | HoliznaCC0 | https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/fractured-1/ | CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) | 2026-10-01 | 71 BPM |
 
-Prompt for Bedroom Pop (`bedroom-pop-108.mp3`):
-
-> Cute, bright instrumental bedroom-pop at exactly 108 BPM in 4/4, sunny, light, cozy daily-vlog mood, no vocals. Drums are the loudest element in the mix: a soft but punchy kick on every beat, a clean snare and clap on beats 2 and 4 for a clear backbeat, and steady straight 8th-note hi-hats (not 16ths, not swung). The drums start within the first second with a strong downbeat on bar 1, with no fade-in and no ambient intro. Add a short drum fill at the end of every 4 bars. Keep the tempo steady and quantized, with no rubato, tempo changes or breakdowns. Plucky clean electric guitar, a warm bass line, glockenspiel and soft synth pads sit underneath the drums. The track is 60 seconds long.
-
-Prompt for Acoustic Pop (`acoustic-pop-104.mp3`):
-
-> Soft, happy instrumental acoustic-pop at exactly 104 BPM in 4/4, warm morning-coffee daily-vlog mood, no vocals. Drums are the loudest element in the mix: a round, punchy kick on beats 1 and 3 plus light kicks on 2 and 4, a crisp snare and hand clap on beats 2 and 4 for a clear backbeat, and straight 8th-note shaker and hi-hat (not 16ths, not swung). The drums start within the first second with a strong downbeat on bar 1, with no fade-in and no ambient intro. Add a short drum fill at the end of every 4 bars. Keep the tempo steady and quantized, with no rubato, tempo changes or breakdowns. Strummed acoustic guitar, ukulele, a warm bass line and light piano sit underneath the drums. The track is 60 seconds long.
+<!-- End of Music section. -->
 
 ## Gallery preview footage
 

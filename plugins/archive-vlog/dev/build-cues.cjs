@@ -1,37 +1,33 @@
 // plugins/archive-vlog/dev/build-cues.cjs
-// Dev-only: bring the cues to -11 LUFS (static gain + a true-peak limiter), measure their grids, onsets and hook windows
-// and write assets/cues/manifest.json.
-// Usage: node dev/build-cues.cjs <folder-with-generated-mp3s>   (builds the cues whose source is in the folder; a
-//        shipped cue without a source keeps its mp3 and grid, and is re-processed from its shipped mp3 only when its
-//        recorded loudness is off target; an optional cue with neither is skipped)
+// Dev-only: bring the bundled CC0 tracks to -16.3 LUFS (static gain + a true-peak limiter), measure their grids,
+// onsets, hook windows and soft-intro starts, and write assets/cues/manifest.json.
+// Usage: node dev/build-cues.cjs <folder-with-the-source-mp3s>   (the HoliznaCC0 downloads named in CUES; see
+//        assets/cues/LICENSES.csv for where each came from)
 //        node dev/build-cues.cjs --onsets   (re-measure only the onsets and hook windows of the shipped cues)
-// Env SELECTS_APP_KIT: the selects-app-kit checkout. Its tools/eval/cue-metrics.cjs measures the downbeat (required to
-// build or re-process a cue; kept cues are re-measured when it is set and keep their recorded values otherwise).
+// Env SELECTS_APP_KIT: the selects-app-kit checkout (required to build). Its tools/eval/cue-metrics.cjs measures the
+// downbeat and the band onset envelopes the intro detection uses.
+// Nothing here edits the music: no time-stretch, no pitch shift, no cut. The tempo is the track's own, measured.
 'use strict';
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), { execFileSync, spawnSync } = require('node:child_process');
 const { analyze, sixteenthRatio, bandOnsets } = require('../beat-detect.cjs');
-const PROVENANCE = "Generated with ElevenLabs Music v2.5 (instrumental) for the Selects plugin library; bundled for use in the plugin's output videos, not for redistribution as standalone tracks. Prompts and sources: THIRD_PARTY.md.";
-// Manifest order: reference-type cues first (the two new cues, then the reused City Weekend Vlog ones), the
-// alternatives last. group: 'reference' | 'alternative' (the panel labels the list by it).
+const PROVENANCE = 'CC0 1.0 (public domain) tracks by HoliznaCC0 from the Free Music Archive, levelled to -16.3 LUFS and re-encoded (no tempo, pitch or structure edit). Track pages and access dates: THIRD_PARTY.md and assets/cues/LICENSES.csv.';
+const CC0 = { name: 'CC0 1.0', url: 'https://creativecommons.org/publicdomain/zero/1.0/', author: 'HoliznaCC0', accessed: '2026-10-01' };
+// Manifest order = panel order; the first is the default (Peaceful Drift). All four sit in the 'reference' group
+// (group: 'reference' | 'alternative'; the panel labels the list by it). page: the Free Music Archive track page that
+// states the CC0 licence (checked 2026-10-01).
+const FMA = 'https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/';
+const CUES = [
+  { id: 'peaceful-drift', label: 'Peaceful Drift', source: 'holiznacc0-peaceful-drift.mp3', group: 'reference', page: FMA + 'peaceful-drift-lofi-nostalgic-calm/' },
+  { id: 'theta-frequency', label: 'Theta Frequency', source: 'holiznacc0-theta-frequency.mp3', group: 'reference', page: FMA + 'theta-frequency-lofi-chill-calm/' },
+  { id: 'before-everything', label: 'Before Everything', source: 'holiznacc0-before-everything.mp3', group: 'reference', page: FMA + 'before-everything-lofi-nostalgic-mp3/' },
+  { id: 'fractured', label: 'Fractured', source: 'holiznacc0-fractured.mp3', group: 'reference', page: FMA + 'fractured-1/' },
+];
 // Downbeat, measured, never declared: downbeatRatio is the low-band onset median on beat 1 over the median on beats
 // 2-4, per beat from firstBeat to usableEnd minus a beat (the cue-metrics.cjs --manifest formula, with its code), and
-// downbeatConfidence is 'high' when it is at least 1.5, else 'low'. A built cue first moves firstBeat by whole beats
-// (barPhaseBeats, 0-3) to the bar phase with the highest ratio, dropping as many beatEnergy values so that stays
-// indexed from firstBeat. At -14 LUFS: Bedroom Pop 1.63 at phase 0 (high); Acoustic Pop 0.83 at phase 0 and 1.48 at
-// phase 2, so it starts two beats in; the reused cues 1.20 / 1.25 / 3.28 / 4.52 (indie, disco, soul, lofi; indie and
-// disco were checked at every bar phase, indie 1.20 / 0.95 / 0.86 / 0.94, disco 1.25 / 0.81 / 0.70 / 1.02, so they
-// keep beat alignment only). Re-measured at -11 LUFS on the same grids (the limiter reshapes the kicks): Bedroom Pop
-// 1.70, Acoustic Pop 1.71 (now high), indie 1.35, disco 1.16, soul 3.09, lofi 3.14. The ratio is sensitive to the
-// grid (Bedroom Pop reads 1.44 on the 107.99 BPM an analysis of the -11 LUFS file gives), one reason the grid is kept.
-// optional: a cue the build skips while its source is missing and it is not shipped yet.
-const CUES = [
-  { id: 'bedroom-pop-108', label: 'Bedroom Pop', source: 'minivlog-bedroom-pop-108bpm.mp3', group: 'reference', optional: true },
-  { id: 'acoustic-pop-104', label: 'Acoustic Pop', source: 'minivlog-acoustic-pop-104bpm.mp3', group: 'reference', optional: true },
-  { id: 'weekend-indie-pop', label: 'Weekend Indie Pop', source: 'nyvlog-weekend-indie-pop-112bpm.mp3', group: 'reference' },
-  { id: 'golden-hour-disco', label: 'Golden Hour Disco', source: 'nyvlog-golden-hour-disco-104bpm.mp3', group: 'reference' },
-  { id: 'sunny-soul-strut', label: 'Sunny Soul Strut', source: 'nyvlog-sunny-soul-strut-99bpm.mp3', group: 'alternative' },
-  { id: 'easy-sunday-lofi', label: 'Easy Sunday Lo-fi', source: 'nyvlog-easy-sunday-lofi-88bpm.mp3', group: 'alternative' },
-];
+// downbeatConfidence is 'high' when it is at least 1.5, else 'low'. The build first moves firstBeat by whole beats
+// (barPhaseBeats, 0-3) to the bar phase with the highest ratio, so beatEnergy, hookBars and introStart are indexed
+// from the real bar line (Before Everything: beat-detect locks its first beat at 0.806 s, bar phase 3, so firstBeat
+// moves three beats on to 3.206 s).
 const DOWNBEAT_HIGH = 1.5;
 const kit = process.env.SELECTS_APP_KIT ? require(path.join(path.resolve(process.env.SELECTS_APP_KIT), 'tools', 'eval', 'cue-metrics.cjs')) : null;
 // Low-band onset strength per beat from firstBeat (cue-metrics.cjs manifestMode), and the beat-1 ratio at bar phase k.
@@ -43,15 +39,18 @@ const lowPerBeat = (file, bpm, firstBeat, usableEnd) => {
 const beatOneRatio = (low, k) => kit.median(low.filter((_, i) => (i - k) % 4 === 0 && i >= k)) / kit.median(low.filter((_, i) => i < k || (i - k) % 4 !== 0));
 const round2 = v => Math.round(v * 100) / 100, round3 = v => Math.round(v * 1000) / 1000;
 
-// Loudness (spec 15.3): -11 LUFS integrated by static gain, then a true-peak limiter at -1 dBTP, so swells keep their
-// shape (no dynamic loudnorm). The gain is measured with ebur128; the limiter (alimiter, auto level off, 5 ms attack,
-// 50 ms release, its lookahead delay compensated so the grid does not move) runs at 4x the sample rate so it catches
-// inter-sample peaks. The mp3 encode adds a little overshoot, so the ceiling starts 0.3 dB under -1 dBTP and both are
-// corrected from the encoded file's measurement until it lands within 0.1 LU of the target and at or under -1 dBTP.
-const TARGET_LUFS = -11, CEILING_DBTP = -1, LUFS_TOLERANCE = 0.5;
-// Integrated loudness (LUFS), loudness range (LU) and true peak (dBTP) from ebur128's summary.
-const loudness = file => {
-  const err = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', file, '-af', 'ebur128=peak=true', '-f', 'null', '-']).stderr.toString();
+// Loudness: -16.3 LUFS integrated (the reference video's level) by static gain, then a true-peak limiter at -1 dBTP,
+// so the intro-to-groove swell keeps its shape (no dynamic loudnorm). The gain is measured with ebur128; the limiter
+// (alimiter, auto level off, 5 ms attack, 50 ms release, its lookahead delay compensated so the grid does not move)
+// runs at 4x the sample rate so it catches inter-sample peaks. The mp3 encode adds a little overshoot, so the ceiling
+// starts 0.3 dB under -1 dBTP and both are corrected from the encoded file's measurement until it lands within 0.1 LU
+// of the target and at or under -1 dBTP. Output: 44.1 kHz stereo, 192 kbps (the sources are 48 kHz, 320 kbps).
+const TARGET_LUFS = -16.3, CEILING_DBTP = -1, LUFS_TOLERANCE = 0.5;
+// Integrated loudness (LUFS), loudness range (LU) and true peak (dBTP) from ebur128's summary; `trim` = [from, to]
+// seconds measures that part only.
+const loudness = (file, trim) => {
+  const af = (trim ? 'atrim=' + trim[0].toFixed(3) + ':' + trim[1].toFixed(3) + ',' : '') + 'ebur128=peak=true';
+  const err = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', file, '-af', af, '-f', 'null', '-']).stderr.toString();
   const sum = err.slice(err.lastIndexOf('Summary:')), num = re => Number(sum.match(re)[1]);
   return { lufs: num(/I:\s+(-?[\d.]+) LUFS/), lra: num(/LRA:\s+(-?[\d.]+) LU/), tp: num(/Peak:\s+(-?[\d.]+) dBFS/) };
 };
@@ -123,8 +122,6 @@ const hookStart = (c, bars, beats) => {
   return best < 0 ? null : round3(c.firstBeat + 4 * best * P);
 };
 const withHook = c => { const bars = hookBars(c); return { ...c, hookBars: bars, hookStart: hookStart(c, bars, HOOK_STANDARD_QUICK_BEATS) }; };
-module.exports = { hookBars, hookStart, HOOK_BEATS, HOOK_STANDARD_QUICK_BEATS, TARGET_LUFS, CEILING_DBTP, LUFS_TOLERANCE };
-
 const decode = file => {
   const pcm = execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-i', file, '-ac', '1', '-ar', '22050', '-f', 'f32le', '-'], { maxBuffer: 1 << 28 });
   return new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
@@ -143,48 +140,79 @@ const beatEnergyOn = (samples, bpm, firstBeat) => {
   }
   return e;
 };
-// Encode `input` to the cue's mp3 at the target loudness and measure it. kept: the cue's shipped entry. Loudness
-// processing does not move the music (the limiter's lookahead is compensated; cross-correlation with the input: 0 ms
-// lag), so a shipped cue keeps its recorded grid (bpm, firstBeat, barPhaseBeats, usableEnd) and only the values that
-// depend on the level or the encode are re-measured on it. The beat analysis of the new file is logged as a check: any
-// re-encode moves its reading by up to 0.02 BPM and 5 ms (Weekend Indie Pop reads 112 instead of 111.99 after a plain
-// re-encode at unchanged level). Only a cue that is not shipped yet takes the detected grid and searches its bar phase.
-const buildCue = (c, input, kept) => {
+// Soft-intro start (spec 7, 7.1). The video opens with 8 beats (opening 6 + credit 2) that should play over the cue's
+// soft intro, so the montage starts as the drums come in (the reference's ~6 LU lift at the handover comes from the
+// music, not from ducking). introStart is the bar start (firstBeat + k * 4P, k >= 0) INTRO_BEATS beats before the
+// groove arrives, measured:
+//   groove[b] = the mid-band (150 Hz - 5 kHz, cue-metrics bandEnvelopes) onset strength summed over the 16 sixteenth
+//               positions of bar b, over the 75th percentile of that sum across the bars that end by usableEnd. The
+//               mid band carries the snare / clap / hat attacks; the low band does not separate the drums from the
+//               intro's bass and keys (Peaceful Drift bars 2-3 and Fractured bars 2-5 read as much low-band onset as
+//               the groove, at a third of its mid-band onset);
+//   rms[b]    = the bar's RMS level in dB (mono, 22.05 kHz).
+// The groove arrives at the first bar b >= 1 with groove[b] >= GROOVE_ON, the mean of groove[b .. b + 3] >= GROOVE_ON
+// and the mean of rms[b .. b + 3] >= the median bar rms - 3 dB (a whole 4-bar phrase of drums at body level, so a
+// lone fill does not count). introStart = the bar INTRO_BEATS / 4 bars earlier, clamped to bar 0. A cue whose drums
+// play from bar 0 (no soft intro) gets introStart = firstBeat. introLiftLu = the integrated loudness of the 20 s after
+// the intro minus that of the intro itself ([introStart, introStart + INTRO_BEATS * P]), on the built file.
+const INTRO_BEATS = 8, GROOVE_ON = 0.6, LIFT_BODY_SECONDS = 20;
+const introOf = (file, bpm, firstBeat, usableEnd) => {
+  const x = kit.decode(file), E = kit.bandEnvelopes(x), P = 60 / bpm, sr = 22050, groove = [], rms = [];
+  for (let t = firstBeat; t + 4 * P <= usableEnd; t += 4 * P) {
+    let m = 0, s = 0;
+    for (let j = 0; j < 16; j++) m += kit.envAt(E.bands.mid, E, t + j * P / 4);
+    const a = Math.floor(t * sr), z = Math.floor((t + 4 * P) * sr);
+    for (let i = a; i < z; i++) s += x[i] * x[i];
+    groove.push(m);
+    rms.push(10 * Math.log10(s / Math.max(1, z - a) + 1e-12));
+  }
+  const ref = percentile(groove, 0.75) || 1, g = groove.map(v => v / ref), rmsMedian = percentile(rms, 0.5);
+  const mean = a => a.reduce((p, q) => p + q, 0) / a.length;
+  let arrival = 0;
+  for (let b = 1; b + 4 <= g.length; b++) {
+    if (g[b] >= GROOVE_ON && mean(g.slice(b, b + 4)) >= GROOVE_ON && mean(rms.slice(b, b + 4)) >= rmsMedian - 3) { arrival = b; break; }
+  }
+  if (g[0] >= GROOVE_ON) arrival = 0;
+  const bar = Math.max(0, arrival - INTRO_BEATS / 4), introStart = round3(firstBeat + bar * 4 * P);
+  const intro = loudness(file, [introStart, introStart + INTRO_BEATS * P]), body = loudness(file, [introStart + INTRO_BEATS * P, introStart + INTRO_BEATS * P + LIFT_BODY_SECONDS]);
+  return { arrival, bar, introStart, introLiftLu: round2(body.lufs - intro.lufs), groove: g.map(round2), rms: rms.map(v => Math.round(v * 10) / 10) };
+};
+
+// Build one cue from its source mp3: encode at the target loudness, then measure the encoded file. The grid is
+// beat-detect's on the built file (bpm as detected, never rounded or forced), moved to the best bar phase.
+const buildCue = (c, input) => {
   const file = c.id + '.mp3', dst = path.join(out, file);
   const loud = encodeLoud(input, dst);
   const samples = decode(dst);
-  // phaseBeats: a manual half-beat correction for a cue whose grid the phase check does not fix (none since v2.6).
-  const a = analyze(samples, 22050, { phaseBeats: c.phaseBeats || 0 });
-  let bpm, firstBeat, k, usableEnd, ratios = [];
-  if (kept) {
-    ({ bpm, firstBeat, usableEnd } = kept);
-    k = kept.barPhaseBeats || 0;
-    // The detected first beat may be a whole beat off the recorded one (which beat the fit locks first is arbitrary):
-    // compare with the nearest recorded beat.
-    const P = 60 / bpm, d = a.firstBeat - firstBeat - Math.round((a.firstBeat - firstBeat) / P) * P;
-    console.log(c.id, 'grid kept', bpm, firstBeat, '| analysis', a.bpm, a.firstBeat, 'off the grid by', Math.round(d * 1000), 'ms, usableEnd', usableEnd, '| analysis', Math.round(Math.min(a.durationSeconds, a.lastOnsetSeconds + 0.5) * 100) / 100);
-  } else {
-    bpm = a.bpm;
-    usableEnd = Math.round(Math.min(a.durationSeconds, a.lastOnsetSeconds + 0.5) * 100) / 100;
-    // Bar phase: the whole-beat offset with the highest beat-1 ratio on the detected grid, then the ratio re-measured
-    // on the moved grid (what cue-metrics.cjs --manifest reports for the shipped cue).
-    const low = lowPerBeat(dst, a.bpm, a.firstBeat, usableEnd);
-    ratios = [0, 1, 2, 3].map(j => beatOneRatio(low, j));
-    k = ratios.indexOf(Math.max(...ratios));
-    firstBeat = Math.round((a.firstBeat + k * 60 / a.bpm) * 1000) / 1000;
-  }
+  const a = analyze(samples, 22050);
+  if (!a.accepted) throw Error(c.id + ': beat-detect did not accept the grid');
+  // Tempo-change guard: each half of the file analysed on its own must give the same tempo.
+  const half = samples.length >> 1, b1 = analyze(samples.subarray(0, half), 22050).bpm, b2 = analyze(samples.subarray(half), 22050).bpm;
+  if (Math.abs(b2 - b1) > 0.1) throw Error(c.id + ': tempo changes between the halves (' + b1 + ' / ' + b2 + ')');
+  const bpm = a.bpm, usableEnd = round2(Math.min(a.durationSeconds, a.lastOnsetSeconds + 0.5));
+  // Bar phase: the whole-beat offset with the highest beat-1 ratio on the detected grid, then the ratio re-measured on
+  // the moved grid (what cue-metrics.cjs --manifest reports for the shipped cue).
+  const ratios = [0, 1, 2, 3].map(j => beatOneRatio(lowPerBeat(dst, bpm, a.firstBeat, usableEnd), j));
+  const k = ratios.indexOf(Math.max(...ratios)), firstBeat = round3(a.firstBeat + k * 60 / bpm);
   const downbeatRatio = round2(beatOneRatio(lowPerBeat(dst, bpm, firstBeat, usableEnd), 0));
-  console.log(c.id, JSON.stringify(loud), bpm, firstBeat, 'phase +' + k, ratios.map(round2).join('/'), 'downbeat', downbeatRatio, a.residualMedianMs, a.hitRate);
+  const intro = introOf(dst, bpm, firstBeat, usableEnd);
+  console.log(c.id, JSON.stringify({ gain: loud.gain, limiterMaxGainReduction: loud.limiterMaxGainReduction, before: loud.before, after: loud.after, passes: loud.passes }));
+  console.log(c.id, 'bpm', bpm, 'halves', b1, b2, 'firstBeat', firstBeat, 'phase +' + k, ratios.map(round2).join('/'), 'downbeat', downbeatRatio, 'resid', a.residualMedianMs, 'hit', a.hitRate, 'usableEnd', usableEnd);
+  console.log(c.id, 'groove by bar', intro.groove.slice(0, 12).join(' '), '| rms', intro.rms.slice(0, 12).join(' '));
+  console.log(c.id, 'groove arrives at bar', intro.arrival, '(' + round3(firstBeat + intro.arrival * 240 / bpm) + ' s); introStart bar', intro.bar, '=', intro.introStart, 's; intro->body lift', intro.introLiftLu, 'LU');
   return withHook({
     id: c.id, label: c.label, group: c.group, file, duration: a.durationSeconds,
-    bpm, firstBeat, barPhaseBeats: k, usableEnd,
-    lufs: loud.after.lufs, truePeak: loud.after.tp, sha256: crypto.createHash('sha256').update(fs.readFileSync(dst)).digest('hex'),
+    bpm, firstBeat, barPhaseBeats: k, usableEnd, introStart: intro.introStart, introLiftLu: intro.introLiftLu,
+    lufs: loud.after.lufs, truePeak: loud.after.tp, lra: loud.after.lra, sha256: crypto.createHash('sha256').update(fs.readFileSync(dst)).digest('hex'),
     downbeatConfidence: downbeatRatio >= DOWNBEAT_HIGH ? 'high' : 'low', downbeatRatio,
     // The 16th-onset ratio over the usable part of the cue decides the title burst (see planner.js).
     sixteenthRatio: sixteenthRatio(samples, 22050, bpm, firstBeat, usableEnd), peaks: a.peaks, beatEnergy: beatEnergyOn(samples, bpm, firstBeat),
     ...onsetFields(samples),
+    license: { name: CC0.name, url: CC0.url, source: c.page, author: CC0.author, accessed: CC0.accessed },
   });
 };
+
+module.exports = { hookBars, hookStart, HOOK_BEATS, HOOK_STANDARD_QUICK_BEATS, TARGET_LUFS, CEILING_DBTP, LUFS_TOLERANCE, INTRO_BEATS };
 
 const out = path.resolve(__dirname, '..', 'assets', 'cues');
 function main() {
@@ -198,36 +226,12 @@ function main() {
     m.cues.forEach(c => console.log(c.id, c.onsets.length, 'onsets', JSON.stringify(c.onsetThresholds), 'hookStart', c.hookStart));
     return;
   }
-  const shipped = fs.existsSync(path.join(out, 'manifest.json')) ? JSON.parse(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8')).cues : [];
-  const cues = [];
-  for (const c of CUES) {
-    const kept = shipped.find(k => k.id === c.id);
-    if (fs.existsSync(path.join(src, c.source))) {
-      if (!kit) throw Error(c.id + ': set SELECTS_APP_KIT to the selects-app-kit checkout to measure the downbeat');
-      cues.push(buildCue(c, path.join(src, c.source), kept));
-      continue;
-    }
-    if (!kept && c.optional) { console.log(c.id, 'skipped (no source yet)'); continue; }
-    if (!kept) throw Error(c.id + ': ' + c.source + ' is not in ' + src + ' and the cue is not shipped yet');
-    if (Math.abs(kept.lufs - TARGET_LUFS) > LUFS_TOLERANCE) {
-      // Off-target shipped cue without a source (the reused City Weekend Vlog cues have no originals): re-process a
-      // copy of the shipped mp3 (one more lossy generation) on its recorded grid.
-      if (!kit) throw Error(c.id + ': set SELECTS_APP_KIT to re-process the shipped cue');
-      const copy = path.join(fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'av-cue-')), kept.file);
-      fs.copyFileSync(path.join(out, kept.file), copy);
-      cues.push(buildCue(c, copy, kept));
-      continue;
-    }
-    // The kept entry takes its group from CUES (placed after the label, like a built entry). Its grid stays; its
-    // downbeat is re-measured on that grid when the kit is available.
-    const entry = Object.assign({ id: kept.id, label: kept.label, group: c.group }, kept, { group: c.group });
-    if (kit) {
-      const ratio = round2(beatOneRatio(lowPerBeat(path.join(out, kept.file), kept.bpm, kept.firstBeat, kept.usableEnd), 0));
-      Object.assign(entry, { downbeatConfidence: ratio >= DOWNBEAT_HIGH ? 'high' : 'low', downbeatRatio: ratio });
-    }
-    cues.push(withHook(entry));
-    console.log(c.id, 'kept', entry.downbeatRatio, entry.downbeatConfidence);
-  }
+  if (!kit) throw Error('set SELECTS_APP_KIT to the selects-app-kit checkout to measure the downbeat and the intro');
+  const cues = CUES.map(c => {
+    const input = path.join(src, c.source);
+    if (!fs.existsSync(input)) throw Error(c.id + ': ' + c.source + ' is not in ' + src);
+    return buildCue(c, input);
+  });
   fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify({ version: 1, provenance: PROVENANCE, cues }) + '\n');
 }
 if (require.main === module) main();
