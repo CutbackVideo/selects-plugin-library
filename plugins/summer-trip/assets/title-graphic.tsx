@@ -59,6 +59,31 @@ function stFitSize(targetPx, measuredWidthAtTarget, boxPx) {
 }
 // st-title-state:end
 
+// st-hangul:start
+// Korean text (the same block in title-graphic.tsx and labels-graphic.tsx). A line with Hangul is never uppercased,
+// tracked or squeezed (scaleX 1), and breaks between words only (keep-all). Before a canvas can measure, wide characters
+// (Hangul, kana, CJK, fullwidth) count as 1 em and everything else as the Latin average of 0.6 em. Every font stack ends
+// with the role's Korean system face (presets.json koFamily: AppleMyungjo for serif faces, Apple SD Gothic Neo
+// otherwise) before the generic family.
+const ST_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\ua960-\ua97f\uac00-\ud7a3\ud7b0-\ud7ff]/;
+const ST_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+const ST_KO_SANS = "Apple SD Gothic Neo";
+function stHasHangul(text) { return ST_HANGUL_RE.test(String(text || "")); }
+function stEstimateEm(text) {
+  let em = 0;
+  for (const ch of String(text || "")) em += ST_WIDE_RE.test(ch) ? 1 : 0.6;
+  return em;
+}
+function stFontStack(family, koFamily) {
+  const ko = typeof koFamily === "string" && koFamily ? koFamily : ST_KO_SANS;
+  return (family ? `"${family}", ` : "") + `"Helvetica Neue", Arial, "${ko}", ${ko === "AppleMyungjo" ? "serif" : "sans-serif"}`;
+}
+// The face for one line: with Hangul in the text, no case change, no tracking and no horizontal squeeze.
+function stFaceFor(face, text) {
+  return stHasHangul(text) ? { ...face, upper: false, lower: false, tracking: 0, scaleX: 1 } : face;
+}
+// st-hangul:end
+
 // Shared 2D context for glyph measurement (a document canvas resolves the injected @font-face rules).
 let measureCtx = null;
 function stCtx() {
@@ -78,7 +103,7 @@ function stMeasure(text, face, px) {
   if (!text) return 0;
   const ctx = stCtx();
   const n = [...text].length;
-  let w = n * px * 0.6;
+  let w = stEstimateEm(text) * px;
   if (ctx) {
     ctx.font = `${px}px ${face.css}`;
     w = ctx.measureText(text).width;
@@ -96,13 +121,12 @@ function stCapRatio(face) {
 
 const str = (v, d) => (typeof v === "string" ? v : d);
 const num = (v, d) => (typeof v === "number" && Number.isFinite(v) ? v : d);
-const FALLBACK = '"Helvetica Neue", Arial, sans-serif';
 
 function stFace(faces, key) {
   const f = (faces && faces[key]) || {};
   const family = str(f.family, "");
   return {
-    css: family ? `"${family}", ${FALLBACK}` : FALLBACK,
+    css: stFontStack(family, f.koFamily),
     upper: f.case === "upper",
     lower: f.case === "lower",
     tracking: num(f.tracking, 0),
@@ -144,17 +168,22 @@ export default function SummerTripTitle({ data }) {
   const k = H / 1080; // sizes are authored in px of a 1080-high frame
   const { ready, css } = useStFonts(data.fonts);
   const faces = data.faces || {};
-  const fLine1 = stFace(faces, "line1"), fSeason = stFace(faces, "season"), fLabel = stFace(faces, "label"), fItalic = stFace(faces, "labelItalic");
+  const line1 = str(data.line1, "");
+  const seasonText = str(data.season, "").trim();
+  const topMain = str(data.topMain, ""), topItalic = str(data.topItalic, "");
+  const creditPrefix = str(data.creditPrefix, ""), creditName = str(data.creditName, "").trim();
+  // Lines with Hangul drop case, tracking and squeeze (st-hangul).
+  const topText = topMain + topItalic, creditText = creditPrefix + creditName;
+  const fLine1 = stFaceFor(stFace(faces, "line1"), line1), fSeason = stFaceFor(stFace(faces, "season"), seasonText);
+  const fLabel = stFace(faces, "label"), fItalic = stFace(faces, "labelItalic");
   // Per-line tracking (em): the reference sets its labels tighter than the face default, most of all the late credit.
   const withTracking = (face, t) => ({ ...face, tracking: t });
   const topT = num(data.labelTracking, fLabel.tracking), creditT = num(data.creditTracking, fLabel.tracking);
-  const fTop = withTracking(fLabel, topT), fTopI = withTracking(fItalic, topT), fCredit = withTracking(fLabel, creditT), fCreditI = withTracking(fItalic, creditT);
+  const fTop = stFaceFor(withTracking(fLabel, topT), topText), fTopI = stFaceFor(withTracking(fItalic, topT), topText);
+  const fCredit = stFaceFor(withTracking(fLabel, creditT), creditText), fCreditI = stFaceFor(withTracking(fItalic, creditT), creditText);
 
-  const line1 = str(data.line1, "");
-  const season = cased(str(data.season, "").trim(), fSeason);
-  const topMain = str(data.topMain, ""), topItalic = str(data.topItalic, "");
-  const creditUpper = data.creditUppercase !== false;
-  const creditPrefix = str(data.creditPrefix, ""), creditName = str(data.creditName, "").trim();
+  const season = cased(seasonText, fSeason);
+  const creditUpper = data.creditUppercase !== false && !stHasHangul(creditText);
   const credit = { prefix: creditUpper ? creditPrefix.toUpperCase() : creditPrefix, name: creditUpper ? creditName.toUpperCase() : creditName };
   const st = stTitleState(frame, fps, { ...data, season });
 
@@ -194,7 +223,7 @@ export default function SummerTripTitle({ data }) {
     position: "absolute", left: 0, right: 0, top: `${yPct}%`, height: 0, display: "flex", justifyContent: "center", alignItems: "center",
   });
   const textStyle = (px, face, color) => ({
-    fontFamily: face.css, fontSize: px, lineHeight: 1, letterSpacing: `${face.tracking}em`, color, whiteSpace: "pre",
+    fontFamily: face.css, fontSize: px, lineHeight: 1, letterSpacing: `${face.tracking}em`, color, whiteSpace: "pre", wordBreak: "keep-all",
     textShadow: shadow, transform: face.scaleX !== 1 ? `scaleX(${face.scaleX})` : undefined, transformOrigin: "50% 50%",
   });
   const hide = { visibility: "hidden" };

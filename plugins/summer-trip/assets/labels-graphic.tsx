@@ -31,6 +31,31 @@ function stFitSize(targetPx, measuredWidthAtTarget, boxPx) {
 }
 // st-labels-state:end
 
+// st-hangul:start
+// Korean text (the same block in title-graphic.tsx and labels-graphic.tsx). A line with Hangul is never uppercased,
+// tracked or squeezed (scaleX 1), and breaks between words only (keep-all). Before a canvas can measure, wide characters
+// (Hangul, kana, CJK, fullwidth) count as 1 em and everything else as the Latin average of 0.6 em. Every font stack ends
+// with the role's Korean system face (presets.json koFamily: AppleMyungjo for serif faces, Apple SD Gothic Neo
+// otherwise) before the generic family.
+const ST_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\ua960-\ua97f\uac00-\ud7a3\ud7b0-\ud7ff]/;
+const ST_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+const ST_KO_SANS = "Apple SD Gothic Neo";
+function stHasHangul(text) { return ST_HANGUL_RE.test(String(text || "")); }
+function stEstimateEm(text) {
+  let em = 0;
+  for (const ch of String(text || "")) em += ST_WIDE_RE.test(ch) ? 1 : 0.6;
+  return em;
+}
+function stFontStack(family, koFamily) {
+  const ko = typeof koFamily === "string" && koFamily ? koFamily : ST_KO_SANS;
+  return (family ? `"${family}", ` : "") + `"Helvetica Neue", Arial, "${ko}", ${ko === "AppleMyungjo" ? "serif" : "sans-serif"}`;
+}
+// The face for one line: with Hangul in the text, no case change, no tracking and no horizontal squeeze.
+function stFaceFor(face, text) {
+  return stHasHangul(text) ? { ...face, upper: false, lower: false, tracking: 0, scaleX: 1 } : face;
+}
+// st-hangul:end
+
 let measureCtx = null;
 function stCtx() {
   if (measureCtx === null) {
@@ -49,7 +74,7 @@ function stAdvance(text, face, px) {
   if (!text) return 0;
   const ctx = stCtx();
   const n = [...text].length;
-  let w = n * px * 0.6;
+  let w = stEstimateEm(text) * px;
   if (ctx) {
     ctx.font = `${px}px ${face.css}`;
     w = ctx.measureText(text).width;
@@ -59,13 +84,12 @@ function stAdvance(text, face, px) {
 
 const str = (v, d) => (typeof v === "string" ? v : d);
 const num = (v, d) => (typeof v === "number" && Number.isFinite(v) ? v : d);
-const FALLBACK = '"Helvetica Neue", Arial, sans-serif';
 
 function stFace(faces, key) {
   const f = (faces && faces[key]) || {};
   const family = str(f.family, "");
   return {
-    css: family ? `"${family}", ${FALLBACK}` : FALLBACK,
+    css: stFontStack(family, f.koFamily),
     upper: f.case === "upper",
     lower: f.case === "lower",
     tracking: num(f.tracking, 0),
@@ -103,19 +127,24 @@ export default function SummerTripLabels({ data }) {
   const k = H / 1080; // sizes are authored in px of a 1080-high frame
   const { ready, css } = useStFonts(data.fonts);
   const faces = data.faces || {};
-  const fLabel = stFace(faces, "label"), fItalic = stFace(faces, "labelItalic"), fPlace = stFace(faces, "place"), fPrefix = stFace(faces, "placePrefix");
+  const topMain = str(data.topMain, ""), topItalic = str(data.topItalic, "");
+  const creditPrefix = str(data.creditPrefix, ""), creditName = str(data.creditName, "").trim();
+  const placeText = str(data.place, "").trim(), prefixText = str(data.placePrefix, "").trim();
+  // Lines with Hangul drop case, tracking and squeeze (st-hangul); the place block keeps one scaleX for both parts.
+  const topText = topMain + topItalic, creditText = creditPrefix + creditName;
+  const fLabel = stFace(faces, "label"), fItalic = stFace(faces, "labelItalic");
+  const fPlace = stFaceFor(stFace(faces, "place"), placeText + prefixText), fPrefix = stFaceFor(stFace(faces, "placePrefix"), placeText + prefixText);
   // Per-line tracking (em): the reference sets its labels tighter than the face default, most of all the late credit.
   const withTracking = (face, t) => ({ ...face, tracking: t });
   const topT = num(data.labelTracking, fLabel.tracking), creditT = num(data.creditTracking, fLabel.tracking);
-  const fTop = withTracking(fLabel, topT), fTopI = withTracking(fItalic, topT), fCredit = withTracking(fLabel, creditT), fCreditI = withTracking(fItalic, creditT);
+  const fTop = stFaceFor(withTracking(fLabel, topT), topText), fTopI = stFaceFor(withTracking(fItalic, topT), topText);
+  const fCredit = stFaceFor(withTracking(fLabel, creditT), creditText), fCreditI = stFaceFor(withTracking(fItalic, creditT), creditText);
   const st = stLabelsState(frame, fps, data);
 
-  const topMain = str(data.topMain, ""), topItalic = str(data.topItalic, "");
-  const upper = data.creditUppercase === true;
-  const creditPrefix = str(data.creditPrefix, ""), creditName = str(data.creditName, "").trim();
+  const upper = data.creditUppercase === true && !stHasHangul(creditText);
   const credit = { prefix: upper ? creditPrefix.toUpperCase() : creditPrefix, name: upper ? creditName.toUpperCase() : creditName };
-  const place = cased(str(data.place, "").trim(), fPlace);
-  const prefix = cased(str(data.placePrefix, "").trim(), fPrefix);
+  const place = cased(placeText, fPlace);
+  const prefix = cased(prefixText, fPrefix);
 
   const margin = Math.max(0, Math.min(0.3, num(data.marginPct, 6) / 100));
   const box = W * (1 - 2 * margin);
@@ -134,7 +163,7 @@ export default function SummerTripLabels({ data }) {
   }, [ready, topMain, topItalic, credit.prefix, credit.name, place, prefix, W, H, JSON.stringify(faces), topT, creditT, data.labelSize, data.creditSize, data.placeSize, data.placeX, prefixScale, box]);
 
   const lineBox = (yPct) => ({ position: "absolute", left: 0, right: 0, top: `${yPct}%`, height: 0, display: "flex", justifyContent: "center", alignItems: "center" });
-  const textStyle = (px, face, color) => ({ fontFamily: face.css, fontSize: px, lineHeight: 1, letterSpacing: `${face.tracking}em`, color, whiteSpace: "pre", textShadow: shadow });
+  const textStyle = (px, face, color) => ({ fontFamily: face.css, fontSize: px, lineHeight: 1, letterSpacing: `${face.tracking}em`, color, whiteSpace: "pre", wordBreak: "keep-all", textShadow: shadow });
   const labelColor = str(data.labelColor, "#FFFFFF");
   const placeColor = str(data.placeColor, "#F8DC70");
   // Gloock-like caps: the prefix baseline sits ~38% of the cap height below the cap top (reference "in ITALY").
@@ -159,7 +188,7 @@ export default function SummerTripLabels({ data }) {
       ) : null}
       {st.place ? (
         <div style={{ position: "absolute", left: fit.placeCx, top: `${num(data.placeY, 38.9)}%`, width: 0, height: 0, display: "flex", justifyContent: "center", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "baseline", whiteSpace: "pre", lineHeight: 1, color: placeColor, textShadow: shadow, transform: `scaleX(${fPlace.scaleX})` }}>
+          <div style={{ display: "flex", alignItems: "baseline", whiteSpace: "pre", wordBreak: "keep-all", lineHeight: 1, color: placeColor, textShadow: shadow, transform: `scaleX(${fPlace.scaleX})` }}>
             {prefix ? (
               <span style={{ fontFamily: fPrefix.css, fontSize: fit.place * prefixScale, letterSpacing: `${fPrefix.tracking}em`, position: "relative", top: -prefixLift, marginRight: -0.02 * fit.place }}>{prefix}</span>
             ) : null}

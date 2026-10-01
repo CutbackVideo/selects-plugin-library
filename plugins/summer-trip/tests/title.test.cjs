@@ -146,4 +146,40 @@ if (ts) {
     assert.equal(r.diagnostics.length, 0, name + ': ' + r.diagnostics.map(d => ts.flattenDiagnosticMessageText(d.messageText, ' ')).join('; '));
   }
 }
+// ---- Korean titles (st-hangul, the same block in both graphics; kit i18n policy) ----
+const hangulTitle = block(titleSrc, 'st-hangul'), hangulLabels = block(labelsSrc, 'st-hangul');
+assert.equal(hangulTitle, hangulLabels, 'st-hangul is identical in title-graphic.tsx and labels-graphic.tsx');
+const K = load(hangulTitle, ['stHasHangul', 'stEstimateEm', 'stFontStack', 'stFaceFor']);
+const seoul = '\uc11c\uc6b8', yeoreum = '\uc5ec\ub984';
+assert.ok(K.stHasHangul(seoul) && K.stHasHangul('in ' + seoul) && !K.stHasHangul('SUMMER') && !K.stHasHangul(''));
+// Before a canvas can measure: wide characters 1 em, Latin 0.6 em.
+assert.equal(K.stEstimateEm(seoul), 2);
+assert.ok(Math.abs(K.stEstimateEm('ab' + seoul) - 3.2) < 1e-9);
+assert.ok(Math.abs(K.stEstimateEm('\u3042\u4e2d') - 2) < 1e-9, 'kana and CJK count as wide too');
+// Font stacks end with the role's Korean system face before the generic family.
+assert.equal(K.stFontStack('ST Gloock', 'AppleMyungjo'), '"ST Gloock", "Helvetica Neue", Arial, "AppleMyungjo", serif');
+assert.equal(K.stFontStack('ST Poppins Bold', 'Apple SD Gothic Neo'), '"ST Poppins Bold", "Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif');
+assert.equal(K.stFontStack('', undefined), '"Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif', 'no koFamily: the sans face');
+// A line with Hangul: no case change, no tracking, no squeeze; Latin lines keep the style.
+const styled = { css: 'x', upper: true, lower: false, tracking: -0.04, scaleX: 0.8, fillWidth: 0.9 };
+assert.deepEqual(plain(K.stFaceFor(styled, yeoreum)), { css: 'x', upper: false, lower: false, tracking: 0, scaleX: 1, fillWidth: 0.9 });
+assert.deepEqual(plain(K.stFaceFor(styled, 'SUMMER')), plain(styled));
+for (const [name, src] of [['title', titleSrc], ['labels', labelsSrc]]) {
+  assert.ok(src.includes('css: stFontStack(family, f.koFamily)'), name + ': faces use the stack with the Korean face');
+  assert.ok(src.includes('let w = stEstimateEm(text) * px;') && !/n \* px \* 0\.6/.test(src), name + ': wide-aware width estimate');
+  assert.ok(/wordBreak: "keep-all"/.test(src), name + ': keep-all');
+  assert.ok(!/[\uac00-\ud7a3]/.test(src), name + ': no literal Hangul');
+}
+assert.ok(titleSrc.includes('stFaceFor(stFace(faces, "line1"), line1)') && titleSrc.includes('stFaceFor(stFace(faces, "season"), seasonText)'), 'title: line 1 and season faces follow their text');
+assert.ok(titleSrc.includes('const creditUpper = data.creditUppercase !== false && !stHasHangul(creditText);'), 'title: a Hangul credit is not uppercased');
+assert.ok(labelsSrc.includes('const upper = data.creditUppercase === true && !stHasHangul(creditText);'), 'labels: a Hangul credit is not uppercased');
+assert.ok(labelsSrc.includes('stFaceFor(stFace(faces, "place"), placeText + prefixText)'), 'labels: a Hangul place drops caps and the 0.8 squeeze');
+// Every font of presets.json names its Korean face by role: serif faces AppleMyungjo, the rest Apple SD Gothic Neo.
+const presetsK = JSON.parse(fs.readFileSync(path.join(root, 'assets', 'fonts', 'presets.json'), 'utf8'));
+const serif = ['gloock.woff2.b64', 'instrument-serif-italic.woff2.b64'];
+for (const [file, font] of Object.entries(presetsK.fonts)) assert.equal(font.koFamily, serif.includes(file) ? 'AppleMyungjo' : 'Apple SD Gothic Neo', file + ' koFamily');
+// graphics-defs passes koFamily into every face.
+const GK = load(block(defsSrc, 'st-graphics'), ['stFacesFor', 'stPreset']);
+const facesK = plain(GK.stFacesFor(presetsK, GK.stPreset(presetsK, 'postcard'), ['line1', 'season', 'label', 'place']).faces);
+assert.deepEqual(Object.values(facesK).map(f => f.koFamily), ['AppleMyungjo', 'AppleMyungjo', 'Apple SD Gothic Neo', 'AppleMyungjo']);
 console.log(JSON.stringify({ title: 'ok', tsxSyntax: ts ? 'checked' : 'skipped (no typescript)' }));

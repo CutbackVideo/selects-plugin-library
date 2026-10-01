@@ -6,6 +6,16 @@ const root = path.resolve(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 const panel = read('panel.tsx');
 const between = (text, a, b) => { const i = text.indexOf(a), j = text.indexOf(b); assert.ok(i >= 0 && j > i, 'markers ' + a); return text.slice(i, j + b.length); };
+// UI wording lives in the STRINGS block (10 languages): `says(key, text)` checks the English text of a key and that the
+// panel reads it with t(). Code phrases are asserted on `code`, the panel without STRINGS, so English sitting in
+// STRINGS can never satisfy them.
+const en = require(path.join(root, 'dev', 'i18n-check.cjs')).extractStrings(panel).strings.en;
+const code = panel.slice(0, panel.indexOf('// STRINGS:BEGIN')) + panel.slice(panel.indexOf('// STRINGS:END'));
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const says = (key, text) => {
+  assert.equal(typeof en[key] === 'string' ? en[key] : JSON.stringify(en[key]), text, 'STRINGS.en.' + key);
+  assert.ok(new RegExp('\\bt\\((L|lang|l), "' + esc(key) + '"').test(code), key + ' is read with t()');
+};
 
 // ---- Embedded modules: byte-identical to their source files ----
 const planner = read('planner.js');
@@ -42,26 +52,49 @@ for (const re of [/React\.useState<"off" \| "ambient" \| "full">\("ambient"\)/, 
 assert.ok(panel.includes("const ST_LOOK_DEFAULT = 0.45;") && panel.includes("const ST_LINE1_DEFAULT = 'that one trip in';") && panel.includes("const ST_TOP_ITALIC_DEFAULT = 'VLOG';") && panel.includes("const ST_CREDIT_PREFIX = 'By';"));
 assert.ok(panel.includes("const ST_GRID_SOUND = 'volume';") && panel.includes("const ST_TIME_ORIGIN = 'clip';") && panel.includes('const ST_AMBIENT_DB = -18;') && panel.includes('const ST_INTRO_DUCK_DB = -7;'), 'live rulings');
 // No Pace option; Length is Short / Standard / Long; three presets; muffle hidden with No music.
-assert.ok(!/label="Pace"/.test(ui));
-for (const phrase of ['label="Length"', 'label="Clip sound"', 'label="Look strength"', 'label="Sound effects"', 'label="Ending muffle"', 'label="Use photos"', 'Choose clips',
-  'label="Style"', '"Summer", value: "summer"', '"Poster", value: "poster"', '"Postcard", value: "postcard"', 'placeholder="Optional — leave blank to hide"', 'label="Credit name"',
-  'label="Season"', 'reset to ', 'label="Top label"', 'label="Top label (italic part)"', '{music.kind !== "none" ? <ui.Toggle label="Ending muffle"',
-  '<ui.Toggle label="Summer look" value={lookOn}', 'label="Look strength" value={lookStrength} onChange={setLookStrength} min={0} max={1} step={0.05} disabled={busy || !lookOn}',
-  'label="Place prefix" value={placePrefix}', 'label="Credit prefix" value={creditPrefix}', 'creditPrefix={creditPrefix}',
+assert.ok(!/label="Pace"/.test(ui) && !('pace' in en));
+for (const phrase of ['label={t(L, "length")}', 'label={t(L, "clipSound")}', 'label={t(L, "lookStrength")}', 'label={t(L, "soundEffects")}', 'label={t(L, "endingMuffle")}',
+  'label={t(L, "usePhotos")}', 'label={t(L, "style")}', '{ label: t(L, "preset.summer"), value: "summer" }', '{ label: t(L, "preset.poster"), value: "poster" }',
+  '{ label: t(L, "preset.postcard"), value: "postcard" }', 'placeholder={t(L, "placeOptional")}', 'label={t(L, "creditName")}', 'label={t(L, "season")}',
+  't(L, "resetTo", { season: inferredSeason })', 'label={t(L, "topLabel")}', 'label={t(L, "topItalic")}', '{music.kind !== "none" ? <ui.Toggle label={t(L, "endingMuffle")}',
+  '<ui.Toggle label={t(L, "summerLook")} value={lookOn}', 'label={t(L, "lookStrength")} value={lookStrength} onChange={setLookStrength} min={0} max={1} step={0.05} disabled={busy || !lookOn}',
+  'label={t(L, "placePrefix")} value={placePrefix}', 'label={t(L, "creditPrefix")} value={creditPrefix}', 'creditPrefix={creditPrefix}',
   'setLine1(stLimitText(v, ST_LIMITS.line1.chars, ST_LIMITS.line1.words))', 'setSeasonEdit(stLimitText(v, ST_LIMITS.season.chars, 0))', 'setPlace(stLimitText(v, ST_LIMITS.place.chars, 0))',
-  'Line 1 takes up to 32 characters and 6 words.', 'The season takes up to 10 characters.', 'The place takes up to 18 characters.']) assert.ok(ui.includes(phrase), phrase);
+  't(L, "line1Limit", { chars: ST_LIMITS.line1.chars, words: ST_LIMITS.line1.words })', 't(L, "seasonLimit", { chars: ST_LIMITS.season.chars })',
+  't(L, "placeLimit", { chars: ST_LIMITS.place.chars })']) assert.ok(ui.includes(phrase), phrase);
+for (const [key, text] of [['length', 'Length'], ['clipSound', 'Clip sound'], ['lookStrength', 'Look strength'], ['soundEffects', 'Sound effects'], ['endingMuffle', 'Ending muffle'],
+  ['usePhotos', 'Use photos'], ['chooseClips', 'Choose clips'], ['style', 'Style'], ['preset.summer', 'Summer'], ['preset.poster', 'Poster'], ['preset.postcard', 'Postcard'],
+  ['placeOptional', 'Optional \u2014 leave blank to hide'], ['creditName', 'Credit name'], ['season', 'Season'], ['resetTo', 'reset to {season}'], ['topLabel', 'Top label'],
+  ['topItalic', 'Top label (italic part)'], ['summerLook', 'Summer look'], ['placePrefix', 'Place prefix'], ['creditPrefix', 'Credit prefix'],
+  ['line1Limit', 'Line 1 takes up to {chars} characters and {words} words.'], ['seasonLimit', 'The season takes up to {chars} characters.'],
+  ['placeLimit', 'The place takes up to {chars} characters.'], ['wideCounts', 'Korean, Japanese and Chinese characters count as 2.']]) says(key, text);
 for (const re of [/\[lookOn, setLookOn\] = React\.useState\(true\)/, /\[creditPrefix, setCreditPrefix\] = React\.useState\(ST_CREDIT_PREFIX\)/, /\[placePrefix, setPlacePrefix\] = React\.useState\(ST_PLACE_PREFIX\)/])
   assert.ok(re.test(ui), String(re));
 
 // ---- Pitfall guards (kit) ----
-for (const phrase of ['Create another version', 'Finish title and look', 'Stopped at step', 'Install ffmpeg and Node.js', 'linkToDraftFrame', 'selects.editor.openDraft', 'FontFace',
-  'Draft created; adding title and look', 'projectRef', 'ffprobe', 'loadInventory(', 'still being analysed', 'this updates automatically', '>Refresh<', 'visibilitychange',
-  'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef', 'No valid session ID', 'readFootage()', 'Nothing was saved', 'Never resend a committing call',
+for (const phrase of ['linkToDraftFrame', 'selects.editor.openDraft', 'FontFace', 'projectRef', 'ffprobe', 'loadInventory(', 'visibilitychange', 'onClick={() => loadInventory()}>{t(L, "refresh")}<',
+  'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef', 'No valid session ID', 'readFootage()', 't(l, "nothingSaved"', 'Never resend a committing call',
   'role="slider"', 'aria-valuenow', 'aria-valuetext', '--panel-accent', '--panel-muted-fg', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"grabbing"',
-  '"ArrowLeft"', '"Home"', '"End"', 'drag to choose', 'fmtTime(total)', 'Stop preview', 'Cancel preview', '"pause"', 'requestAnimationFrame', 'cancelAnimationFrame', '"Escape"',
-  'previewTokenRef', 'URL.revokeObjectURL', 'preview-*.mp3', 'readText(roots.data', 'height: PREVIEW_HEIGHT', 'Drop', '"Section"', 'approximate timing',
-  'No drop found: the grid starts after the 2-bar title', 'ending muffle skipped', 'Your footage fits ', 'different clips and photos', 'disabledReason',
-  'style: "normal", weight: "400"']) assert.ok(panel.includes(phrase), phrase);
+  '"ArrowLeft"', '"Home"', '"End"', 'fmtTime(total)', '"pause"', 'requestAnimationFrame', 'cancelAnimationFrame', '"Escape"',
+  'previewTokenRef', 'URL.revokeObjectURL', 'preview-*.mp3', 'readText(roots.data', 'height: PREVIEW_HEIGHT', 'Your footage fits', 'disabledReason',
+  'style: "normal", weight: "400"']) assert.ok(code.includes(phrase), phrase);
+for (const [key, text] of [['anotherVersion', 'Create another version'], ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'],
+  ['installTools', 'Install ffmpeg and Node.js 18+ to preview music or use your own track.'], ['draftCreatedAdding', 'Draft created; adding title and look\u2026'],
+  ['stillAnalysing', '{"one":"{count} clip is still being analysed.","other":"{count} clips are still being analysed."}'],
+  ['noFootage', 'No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.'], ['refresh', 'Refresh'],
+  ['nothingSaved', '{detail} Nothing was saved; press Build to try again.'], ['sectionHint', 'Music section \u2014 drag to choose'], ['stopPreview', 'Stop preview'],
+  ['cancelPreview', 'Cancel preview'], ['dropStartsAt', 'Drop \u00b7 starts at {seconds} s'], ['sectionStartsAt', 'Section \u00b7 starts at {seconds} s'],
+  ['dropAt', 'Drop at {seconds} s'], ['sectionAt', 'Section at {seconds} s'], ['noMusicTiming', 'No music: the cuts use approximate timing (a fixed 0.5 s beat).'],
+  ['noDrop', 'No drop found: the grid starts after the 2-bar title.'], ['muffleSkippedPlain', 'ending muffle skipped'],
+  ['fitDistinct', '{"one":"{count} different clip or photo","other":"{count} different clips and photos"}']]) says(key, text);
+// The language is read on every render, first in the component (before any early return), and never cached.
+const comp = code.slice(code.indexOf('export default function Panel('));
+assert.ok(/^export default function Panel\(\{ sdk, context, ui \}: any\) \{\n(?:\s*\/\/[^\n]*\n)*\s*const L = uiLang\(context\);/.test(comp), 'uiLang(context) first in the component');
+assert.ok(!/useMemo\([^)]*uiLang|useEffect\([^)]*uiLang|useState\([^)]*uiLang/.test(code), 'the language is not memoised');
+// Text kept in state renders in the language of the moment: status, progress detail and build-time notes are closures.
+assert.ok(code.includes('React.useState<{ tone: string; say: (lang: Lang) => string } | null>') && !/setStatus\(\{ tone: "\w+", text:/.test(code), 'status is a say(lang) closure');
+assert.ok(code.includes('{status.say(L)}') && code.includes('label={progressText(L, progress)}') && code.includes('typeof n === "function" ? n(L) : n'));
+assert.ok(!/new Error\("[A-Z]/.test(code.slice(code.indexOf('export default function Panel('))), 'panel errors that reach the UI are uiError(say)');
 assert.ok(!/--text-tertiary/.test(panel), '--text-tertiary is not a panel token');
 assert.ok(!/var\(--accent\b/.test(panel), '--accent is not a panel token');
 assert.ok(!/icon="stop"/.test(panel), 'the kit has no stop icon');
@@ -102,8 +135,9 @@ assert.ok(/const inputs = \{[^}]*creditPrefix[^}]*placePrefix[^}]*lookOn/.test(b
 // A lost assemble reply: the new Draft is found by comparing Draft ids with the list taken before assemble (never by
 // name when that list is known), and a single new Draft is offered Finish title and look from a recovered result.
 assert.ok(buildBody.indexOf('run("List Drafts"') > 0 && buildBody.indexOf('run("List Drafts"') < buildBody.indexOf('assembleJs'), 'Draft ids listed before assemble');
-assert.ok(buildBody.includes('before.indexOf(d.sequenceId) < 0') && buildBody.includes('stRecoverAssembly(cfg, foundFps, newIds[0])') && buildBody.includes('press Finish title and look'));
-assert.ok(buildBody.includes('It has no title or look yet'), 'an unrecoverable saved Draft says it has no title or look');
+assert.ok(buildBody.includes('before.indexOf(d.sequenceId) < 0') && buildBody.includes('stRecoverAssembly(cfg, foundFps, newIds[0])') && buildBody.includes('t(l, "draftUnconfirmedFinish"'));
+assert.ok(/press Finish title and look/.test(en.draftUnconfirmedFinish) && buildBody.includes('t(l, "draftUnconfirmed", {'), 'a recovered Draft offers Finish title and look');
+assert.ok(/It has no title or look yet/.test(en.draftUnconfirmed), 'an unrecoverable saved Draft says it has no title or look');
 // Real-fps planning: plans use the Project's learnt Draft rate, assemble lays at the real rate, decorate uses assemble's frames.
 assert.ok(buildBody.includes('const planFps = fpsRef.current[pid!] || ST_GUESS_FPS;') && buildBody.includes('if (a.fps > 0) fpsRef.current[pid!] = a.fps;'));
 
@@ -111,7 +145,7 @@ assert.ok(buildBody.includes('const planFps = fpsRef.current[pid!] || ST_GUESS_F
 const block = [between(panel, '// st-planner:start', '// st-planner:end'), between(panel, '// st-graphics:start', '// st-graphics:end'),
   between(panel, '// st-muffle:start', '// st-muffle:end'), between(panel, '// st-panel:start', '// st-panel:end')].join('\n');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, NaN, Error, JSON, Date, isFinite, parseFloat }; vm.createContext(box);
-vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stFaintText, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, ST_MUFFLE_TAG, stMuffleCommand, ST_FILM_WINDOW };', box);
+vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stSfxFiles, stFieldLen, stHasWide, stPlanText, ST_PLAN_TEXT, ST_MOTION_OPTIONS, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, ST_MUFFLE_TAG, stMuffleCommand, ST_FILM_WINDOW };', box);
 const X = box.X;
 const j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
@@ -146,6 +180,41 @@ assert.equal(X.stLimitText('SUMMERTIMES!', 10, 0), 'SUMMERTIME');
 assert.equal(X.stLimitText('Santa Margherita Ligure', 18, 0), 'Santa Margherita L');
 assert.equal(X.stLimitText('that one trip in', 32, 6), 'that one trip in');
 assert.ok(X.stAtLimit('a b c d e f', 32, 6) && X.stAtLimit('x'.repeat(10), 10, 0) && !X.stAtLimit('that one trip in', 32, 6));
+// Wide characters (Hangul, kana, CJK) count as 2 (kit i18n policy): a 10-column season holds 5 syllables.
+const yeoreum = '\uc5ec\ub984', seoul = '\uc11c\uc6b8'; // escapes: no literal Hangul in the plugin
+assert.equal(X.stFieldLen(yeoreum), 4); assert.equal(X.stFieldLen('ab' + seoul), 6); assert.equal(X.stFieldLen('SUMMER'), 6);
+assert.equal(X.stLimitText(yeoreum.repeat(3), 10, 0), yeoreum.repeat(2) + yeoreum[0], 'Hangul cut at 10 columns');
+assert.equal(X.stLimitText('a' + yeoreum.repeat(3), 10, 0), 'a' + yeoreum.repeat(2), 'a wide character never straddles the limit');
+assert.equal(X.stFieldLen(X.stLimitText(seoul.repeat(10), 18, 0)), 18);
+assert.ok(X.stAtLimit(yeoreum.repeat(2) + yeoreum[0], 10, 0) && X.stAtLimit('a' + yeoreum.repeat(2), 10, 0) && !X.stAtLimit(yeoreum, 10, 0), 'at the limit when no wide character fits');
+assert.ok(X.stHasWide(seoul) && !X.stHasWide('Seoul'));
+// Planner text maps to "plan.<id>" keys (the planner stays English). Every planner sentence and the panel's own section
+// note is recognised; the planner sources hold no other disabledReason / note sentence.
+const planSentences = [
+  ['Needs at least 6 different clips or photos (found 3)', 'needDistinct', { count: 6, found: 3 }],
+  ['Needs one video clip at least 5.0 s long for the opening', 'needOpener', { seconds: 5 }],
+  ['Needs a second clip at least 2.4 s long (or a photo) for the place shot', 'needPlace', { seconds: 2.4 }],
+  ['Needs at least 6 different clips or photos long enough for the grid panels (found 5)', 'needGrid', { count: 6, found: 5 }],
+  ['Your footage is too short for 4 montage shots', 'tooShort', { count: 4 }],
+  ['Some shots reuse footage from the same moment of a clip', 'reuseMoments', {}],
+  ['More than 2 photos play in a row (not enough video)', 'photoRun', { count: 2 }],
+  ['Some photos are used twice', 'reusedPhotos', {}],
+  ['The drop is too close to the start of the track; the title runs over the first two bars', 'dropTooEarly', {}],
+  ['The drop section does not fit this length; moved to the latest start that fits', 'dropNoFit', {}],
+  ['The section did not fit this length; moved to the latest start that fits', 'sectionMoved', {}],
+];
+for (const [text, id, vars] of planSentences) {
+  assert.deepEqual(j(X.stPlanText(text)), { id, vars }, text);
+  assert.ok(typeof en['plan.' + id] === 'string' && Object.keys(vars).every(k => en['plan.' + id].includes('{' + k + '}')), 'plan.' + id);
+}
+assert.equal(X.ST_PLAN_TEXT.length, planSentences.length);
+assert.equal(X.stPlanText('stPlanBuild needs bpm and fps'), null, 'anything else shows as written');
+const plannerSrc = read('planner.js');
+assert.equal((plannerSrc.match(/\bfail\('/g) || []).length, 5, 'planner fail() sentences: needDistinct, needOpener, needPlace, needGrid, tooShort');
+assert.equal((plannerSrc.match(/notes\.push\('/g) || []).length, 4, 'planner notes: reuseMoments, (footage fits: shown by the panel), photoRun, reusedPhotos');
+assert.ok(plannerSrc.includes("'The drop is too close to the start of the track; the title runs over the first two bars'") && plannerSrc.includes("'The drop section does not fit this length; moved to the latest start that fits'"));
+assert.ok(code.includes('c.note || "The section did not fit this length; moved to the latest start that fits"'), 'the panel section note is the mapped sentence');
+assert.ok(code.includes('sayPlan(L, readyPlan.disabledReason)') && code.includes('sayPlan(L, sectionNote)') && code.includes('.map((n: string) => sayPlan(L, n))') && code.includes('sayPlan(l, reason)'));
 // Title hits (a bundled cue's measured beats) only when the chosen section is the drop section.
 const hitsCue = { kind: 'cue', titleHits: [0, 1, 2, 3, 4, 5] };
 assert.deepEqual(j(X.stTitleHitsFor(hitsCue, 'drop')), [0, 1, 2, 3, 4, 5]);
@@ -219,9 +288,11 @@ assert.equal('sectionStart' in X.stPlanOptions({ music: X.stMusicFor({ choice: '
   const dd = X.stDefaultStart(mFaintDrop, 8);
   assert.ok(near(dd.start, 4.3) && dd.kind === 'drop' && mFaintDrop.noDrop === false, JSON.stringify(dd));
   // The texts: tempo found, beat faint, approximate timing on the detected tempo.
-  assert.equal(X.stFaintText(mFaint), 'Approximate timing on the detected tempo (100 BPM): the tempo was found but the beat is faint, so the cuts may miss it. No drop found: the grid starts after the 2-bar title.');
-  assert.equal(X.stFaintText(mFaintDrop), 'Approximate timing on the detected tempo (120 BPM): the tempo was found but the beat is faint, so the cuts may miss it.');
-  assert.ok(panel.includes(': m.faint ? { tone: "info", text: stFaintText(m) }') && panel.includes(': music.kind === "own" && music.faint ? stFaintText(music)'), 'status and timing note use the faint text');
+  assert.equal(mFaint.noDrop, true); assert.equal(mFaintDrop.noDrop, false);
+  says('faintTiming', 'Approximate timing on the detected tempo ({bpm} BPM): the tempo was found but the beat is faint, so the cuts may miss it.');
+  // Two whole sentences joined with `gap` (no space in ja/zh), the second only without a drop.
+  assert.ok(code.includes('t(lang, "faintTiming", { bpm: Math.round(music.bpm) }) + (music.noDrop ? t(lang, "gap") + t(lang, "noDrop") : "")'));
+  assert.ok(code.includes(': m.faint ? { tone: "info", say: (l) => faintText(l, m) }') && code.includes(': music.kind === "own" && music.faint ? faintText(L, music)'), 'status and timing note use the faint text');
   // An accepted grid is not faint.
   assert.equal(mOwn.faint, false); assert.equal(mOwn.approximate, false);
   // 'none' (and an analysis without a grid state, e.g. the length-only fallback) keep the fixed 0.5 s fallback.
@@ -286,7 +357,7 @@ function mockProject(o) {
       motionGraphics: async () => graphics.map(g => ({ name: g.name })),
       addMotionGraphic: async x => { graphics.push({ name: x.label, within: x.within, parameters: x.parameters, editableParameters: x.editableParameters }); return {}; },
       videoEffects: async c => (effects[c.clipId] || []).map(e => ({ name: e.name, effectName: e.name })),
-      addVideoEffect: async x => { (effects[x.clip.clipId] = effects[x.clip.clipId] || []).push({ name: x.label, parameters: x.parameters }); return {}; },
+      addVideoEffect: async x => { (effects[x.clip.clipId] = effects[x.clip.clipId] || []).push({ name: x.label, parameters: x.parameters, editableParameters: x.editableParameters }); return {}; },
       commitAll: async () => { if (committed) throw Error('already committed'); committed = true; return { createdDraftId: 'seq-' + drafts.indexOf(d) }; },
       reopen() { committed = false; },
     };
@@ -385,8 +456,19 @@ const payloads = {};
     await loadScript('assemble.js', acfg)(mock2.selects);
     const last2 = mock2.drafts.filter(dd => dd.name === acfg.draftName).pop();
     last2.reopen();
-    const inputs2 = { ...inputs, lookOn: false, creditPrefix: 'Shot by', placePrefix: 'at' };
+    // Adjust labels in the UI language at Build (here a partial set): given keys replace the English label, the rest and
+    // every effect / graphic name stay English. Without labels the config is the English one (no `labels` key).
+    const labels = { graphic: { line1: 'Zeile 1', place: 'Ort (leer blendet ihn aus)' }, effect: { look: 'Sommer-Look', leak: 'Lichteinfall', motion: 'Bewegung' },
+      motion: { 'push-in': 'Heranfahren' } };
+    const inputs2 = { ...inputs, lookOn: false, creditPrefix: 'Shot by', placePrefix: 'at', labels };
     const dcfg2 = X.stDecorateConfig({ a: ra, plan, inputs: inputs2, presets, fontsB64, tsx });
+    assert.ok(!('adjustLabels' in dcfg) && dcfg.labels.tsx === tsx.labels, 'no labels: English config');
+    assert.deepEqual(j(dcfg.title.editableParameters.map(e => e.label).slice(0, 2)), ['Line 1', 'Season word']);
+    assert.deepEqual(j(dcfg2.title.editableParameters.map(e => e.label).slice(0, 2)), ['Zeile 1', 'Season word']);
+    assert.equal(dcfg2.labels.editableParameters.find(e => e.key === 'place').label, 'Ort (leer blendet ihn aus)');
+    assert.deepEqual(j(dcfg2.motion.options.slice(0, 2)), [{ label: 'Heranfahren', value: 'push-in' }, { label: 'Pull out', value: 'pull-out' }]);
+    assert.deepEqual(j(dcfg.motion.options), j(X.ST_MOTION_OPTIONS));
+    assert.deepEqual(j(dcfg2.adjustLabels), labels.effect); assert.equal(dcfg2.labels.tsx, tsx.labels);
     assert.deepEqual(j(dcfg2.look), { tsx: tsx.look, strength: 0, leakStrength: 1, gradeOff: true }, 'look off: gradeOff, strength 0');
     assert.equal(dcfg2.title.parameters.creditPrefix, 'Shot by'); assert.equal(dcfg2.labels.parameters.placePrefix, 'at');
     const d2 = await loadScript('decorate.js', dcfg2)({ draft: () => last2 });
@@ -394,6 +476,11 @@ const payloads = {};
     const main2 = last2.rows.filter(c => c.trackKind === 'main');
     assert.equal(main2.filter(c => (last2.effects[c.clipId] || []).some(e => e.name === 'Summer look')).length, 1, 'look off: only the leak clip keeps a (strength 0) look');
     assert.equal(main2.filter(c => (last2.effects[c.clipId] || []).some(e => e.name === 'Film frame')).length, 3);
+    const eff2 = Object.values(last2.effects).flat();
+    const labelOf = (name, key) => eff2.find(e => e.name === name).editableParameters.find(p => p.key === key).label;
+    assert.deepEqual([labelOf('Summer look', 'strength'), labelOf('Summer look', 'grain'), labelOf('Summer look', 'leakStrength'), labelOf('Film frame', 'leakStrength')],
+      ['Sommer-Look', 'Film grain', 'Lichteinfall', 'Lichteinfall'], 'decorate.js takes cfg.adjustLabels, English for the rest');
+    assert.equal(last2.graphics.find(g => g.name === 'Summer Trip title').editableParameters[0].label, 'Zeile 1');
     const d = await loadScript('decorate.js', dcfg)({ draft: () => last });
     assert.ok(d.committed && d.titleAdded && d.labelsAdded, JSON.stringify(d));
     assert.equal(d.muted, clipSound === 'off');

@@ -3,6 +3,9 @@ const d = selects.draft(cfg.sequenceId);
 const W = cfg.W || 1920, H = cfg.H || 1080;
 const LOOK = 'Summer look', GRID = 'Grid panel', FILM = 'Film frame', MOTION = 'Photo motion', VMOTION = 'Video motion';
 const TITLE = 'Summer Trip title', LABELS = 'Summer Trip labels';
+// Adjust labels in the panel's UI language at Build (the names above stay English: they identify what is already there).
+const LB = cfg.adjustLabels || {};
+const lab = (key, english) => (typeof LB[key] === 'string' && LB[key] ? LB[key] : english);
 const fr = cfg.frames;
 const fps = (await d.meta()).fps;
 const notes = [];
@@ -125,13 +128,13 @@ const lookFor = (clip, sourceStartSeconds, leakOut, canvasInBox) => ({
   parameters: { strength: cfg.look.gradeOff ? 0 : cfg.look.strength, grain: lookGrain, leakOutSeconds: leakOut, leakStrength: leakStrength(cfg.look), clipSeconds: (clip.endFrame - clip.startFrame) / fps, sourceStartSeconds, timeOrigin,
     ...(canvasInBox ? { canvasInBox } : {}) },
   editableParameters: [
-    { key: 'strength', label: 'Summer look', type: 'number', defaultValue: cfg.look.strength, min: 0, max: 1, step: 0.05 },
-    { key: 'grain', label: 'Film grain', type: 'number', defaultValue: lookGrain, min: 0, max: 1, step: 0.05 },
-    { key: 'leakStrength', label: 'Light leak', type: 'number', defaultValue: leakStrength(cfg.look), min: 0, max: 2, step: 0.05 }],
+    { key: 'strength', label: lab('look', 'Summer look'), type: 'number', defaultValue: cfg.look.strength, min: 0, max: 1, step: 0.05 },
+    { key: 'grain', label: lab('grain', 'Film grain'), type: 'number', defaultValue: lookGrain, min: 0, max: 1, step: 0.05 },
+    { key: 'leakStrength', label: lab('leak', 'Light leak'), type: 'number', defaultValue: leakStrength(cfg.look), min: 0, max: 2, step: 0.05 }],
 });
 const motionDefs = m => [
-  { key: 'motion', label: 'Motion', type: 'select', defaultValue: m.motion, options: cfg.motion.options || [] },
-  { key: 'strength', label: 'Motion strength', type: 'number', defaultValue: cfg.motion.strength, min: 0, max: 2, step: 0.1 }];
+  { key: 'motion', label: lab('motion', 'Motion'), type: 'select', defaultValue: m.motion, options: cfg.motion.options || [] },
+  { key: 'strength', label: lab('motionStrength', 'Motion strength'), type: 'number', defaultValue: cfg.motion.strength, min: 0, max: 2, step: 0.1 }];
 
 const nMain = fr.mainFrames.length - 1;
 const endingFirst = nMain - 3, lastMontage = nMain - 4;
@@ -163,7 +166,7 @@ for (let i = 0; i < nMain; i++) {
   if (!isPhoto && cfg.videoMotion && i >= 2 && i <= lastMontage) {
     await ensure(clip.clipId, 'videoMotion', VMOTION, c => ({ tsx: cfg.videoMotion.tsx,
       parameters: { strength: cfg.videoMotion.strength, clipSeconds: (c.endFrame - c.startFrame) / fps, sourceStartSeconds: ss, timeOrigin },
-      editableParameters: [{ key: 'strength', label: 'Video motion', type: 'number', defaultValue: cfg.videoMotion.strength, min: 0, max: 2, step: 0.1 }] }));
+      editableParameters: [{ key: 'strength', label: lab('videoMotion', 'Video motion'), type: 'number', defaultValue: cfg.videoMotion.strength, min: 0, max: 2, step: 0.1 }] }));
   }
   // Summer look on every clip; the last montage clip carries the outgoing leak (a quarter beat before the ending cut).
   // Look off (gradeOff): no grade anywhere, but the last montage clip keeps a strength-0 look for its outgoing leak.
@@ -190,7 +193,7 @@ for (let i = 0; i < nMain; i++) {
         sourceStartSeconds: ss, timeOrigin, ...(fringe != null ? { fringe } : {}),
       };
       return { tsx: cfg.filmFrame.tsx, parameters,
-        editableParameters: [{ key: 'leakStrength', label: 'Light leak', type: 'number', defaultValue: leakStrength(cfg.filmFrame), min: 0, max: 2, step: 0.05 }] };
+        editableParameters: [{ key: 'leakStrength', label: lab('leak', 'Light leak'), type: 'number', defaultValue: leakStrength(cfg.filmFrame), min: 0, max: 2, step: 0.05 }] };
     });
   }
 }
