@@ -8,6 +8,7 @@
 // @name:pt Retrospectiva de 2026
 // @name:tr 2026 Özeti
 // @name:zh 2026 年度回顾
+// @collection visual-highlights
 // @icon clock
 // Build a beat-timed, editable recap Draft from footage in the current project.
 import React from "react";
@@ -294,7 +295,148 @@ function finishScript(cfg) {
   ].join("\n");
 }
 
-export default function Panel({ sdk, context, ui }) {
+async function ensureAudio(sdk, projectId) {
+  let r = await sdk.runScript({
+    summary:"Find fixed soundtrack",
+    script:core({projectId}) + "const r=await p.resources();return r.filter(x=>x.type==='Audio'&&(x.name===cfg.fixed||x.name===cfg.original)).map(x=>({id:x.resourceId,name:x.name,status:x.status}));".replace("cfg.fixed",embedded(AUDIO_NAME)).replace("cfg.original",embedded(AUDIO_SOURCE_NAME))
+  });
+  let found = scriptResult(r);
+  if (found.length) return found.find((x) => x.name === AUDIO_NAME)?.id || found[0].id;
+  const path = shellResult(await sdk.runShell({
+    summary:"Locate fixed soundtrack",
+    command:'printf "%s" "$SELECTS_USER_SKILLS_ROOT/' + SLUG + '/assets/' + AUDIO_NAME + '"'
+  }));
+  r = await sdk.runScript({
+    summary:"Import fixed soundtrack",allowCommit:true,
+    script:core({projectId,path}) + "return await p.importFiles({paths:[cfg.path]});"
+  });
+  let imported = scriptResult(r).addedResourceIds;
+  if (!imported?.length) {
+    const alternate = shellResult(await sdk.runShell({
+      summary:"Prepare fixed soundtrack",
+      command:'cp "$SELECTS_USER_SKILLS_ROOT/' + SLUG + '/assets/' + AUDIO_NAME + '" "$HOME/Downloads/' + AUDIO_NAME + '" && printf "%s" "$HOME/Downloads/' + AUDIO_NAME + '"'
+    }));
+    r = await sdk.runScript({
+      summary:"Import fixed soundtrack",allowCommit:true,
+      script:core({projectId,path:alternate}) + "return await p.importFiles({paths:[cfg.path]});"
+    });
+    imported = scriptResult(r).addedResourceIds;
+  }
+  if (!imported?.length) throw new Error("Could not import the bundled soundtrack");
+  const id = imported[0];
+  r = await sdk.runScript({
+    summary:"Analyze fixed soundtrack",allowCommit:true,
+    script:core({projectId,id}) + "return await p.startAnalysis({resourceIds:[cfg.id]});"
+  });
+  scriptResult(r);
+  for (let attempt=0;attempt<60;attempt++) {
+    await new Promise((resolve) => setTimeout(resolve,2000));
+    r = await sdk.runScript({
+      summary:"Check soundtrack analysis",
+      script:core({projectId,id}) + "const x=(await p.resources()).find(v=>v.resourceId===cfg.id);return {status:x?.status};"
+    });
+    const status = scriptResult(r).status;
+    if (status === "analyzingSucceeded") return id;
+    if (status === "analyzingFailed" || status === "samplingFailed") throw new Error("Soundtrack analysis failed: " + status);
+  }
+  throw new Error("Soundtrack analysis is still running. Wait for it to finish, then create the Draft again.");
+}
+
+
+// Builds the recap Draft: the intro, the 242 fast cuts in batches, then the
+// soundtrack and title. `slots` holds the intro and 159 cut sources; `byId`
+// the videos they name. Resolves the new Draft's id, name and clip count.
+async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_count,_limit)=>{}}) {
+  const manifestText = shellResult(await sdk.runShell({
+    summary:"Read recap timing",
+    command:'cat "$SELECTS_USER_SKILLS_ROOT/' + SLUG + '/timing.json"',
+    maxOutputBytes:48000
+  }));
+  const manifest = JSON.parse(manifestText);
+  if (manifest.placements?.length !== 243) throw new Error("Template timing is incomplete");
+  const audioId = await ensureAudio(sdk, projectId);
+  const name = "2026 Recap — " + (mode === "sample" ? "12s sample " : "") + new Date().toLocaleString();
+  let r = await sdk.runScript({
+    summary:"Create recap intro",allowCommit:true,
+    script:createScript({projectId,name,intro,introEnd:manifest.placements[1].startSeconds})
+  });
+  const draftId = scriptResult(r).draftId;
+  if (!draftId) throw new Error("Created Draft ID missing");
+  const limit = mode === "sample" ? 33 : manifest.placements.length;
+  for (let end=25;end<limit+24;end+=24) {
+    const to = Math.min(end,limit);
+    if (to <= 1) break;
+    r = await sdk.runScript({
+      summary:"Add recap footage",allowCommit:true,
+      script:batchScript({projectId,draftId,start:1,end:to,placements:manifest.placements,slots,media:byId})
+    });
+    const out = scriptResult(r);
+    onProgress(out.mainCount, limit);
+    if (to === limit) break;
+  }
+  r = await sdk.runScript({
+    summary:"Finish recap Draft",allowCommit:true,
+    script:finishScript({projectId,draftId,audioId,introEnd:manifest.placements[1].startSeconds,full:mode==="full",titleCode:TITLE_CODE,fadeCode:FADE_CODE})
+  });
+  const out = scriptResult(r);
+  return {draftId,name,mainCount:out.mainCount};
+}
+
+// Every video of the project at least 1.7 s long, with its path, length and size.
+const allVideosScript = (projectId) => core({projectId}) +
+  "const items=[];const walk=(nodes)=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.type==='video'&&n.resourceId)items.push({resourceId:n.resourceId,name:n.name,path:n.path,durationSeconds:n.durationSeconds,frameSize:n.frameSize});}};const r=await p.sourceFiles();if('fileTree' in r)walk(r.fileTree);else for(const f of r.folders){const page=await p.sourceFiles({folder:f.name});if('fileTree' in page)walk(page.fileTree);}return items;";
+
+const TEMPLATE_FAILED = "2026 Recap couldn't make the timeline. Try again.";
+
+// A Clip highlights run (`context.template`): the intro and clips picked in
+// the app, cut in full to the soundtrack, built out of sight, reported once.
+function TemplateRun({ sdk, context }) {
+  const runId = context.template?.runId;
+  const [status, setStatus] = React.useState("Making your recap\u2026");
+  const started = React.useRef(null), alive = React.useRef(true), latest = React.useRef(context);
+  latest.current = context;
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  React.useEffect(() => {
+    if (!runId || started.current === runId) return;
+    started.current = runId;
+    const live = () => alive.current && latest.current.template?.runId === runId;
+    let ended = false;
+    const finish = (result) => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch (_) {} };
+    (async () => {
+      const template = context.template, projectId = context.projectId;
+      if (!projectId) throw new Error("Open a project, then try again.");
+      const introPick = (template.inputs?.intro || []).find((x) => x?.resourceId);
+      const clipPicks = (template.inputs?.clips || []).filter((x) => x?.resourceId);
+      if (!introPick || !clipPicks.length) throw new Error("Pick an intro and at least one clip, then try again.");
+      const found = scriptResult(await sdk.runScript({ script: allVideosScript(projectId), summary: "Read footage" }));
+      const byId = Object.fromEntries(found.map((v) => [v.resourceId, v]));
+      const introVideo = byId[introPick.resourceId];
+      if (!introVideo || !(introVideo.durationSeconds >= 5)) throw new Error("Pick an intro clip at least 5 seconds long.");
+      const videos = clipPicks.map((x) => byId[x.resourceId]);
+      const short = clipPicks.find((x, i) => !(videos[i]?.durationSeconds >= 1.7));
+      if (short) throw new Error((short.name || "A picked clip") + " is shorter than 1.7 seconds. Pick longer clips.");
+      const intro = { resourceId: introVideo.resourceId, startSeconds: 0 };
+      const slots = buildSlots(videos, intro);
+      if (!live()) return;
+      setStatus("Cutting your clips to the beat\u2026");
+      // Only the picked videos go into each batch script.
+      const media = Object.fromEntries([introVideo, ...videos].map((v) => [v.resourceId, v]));
+      const made = await buildRecap(sdk, { projectId, slots, byId: media, intro: { ...intro, frameSize: introVideo.frameSize }, mode: "full" });
+      finish({ sequenceId: made.draftId });
+    })().catch((e) => {
+      console.warn("[recap-2026] template run failed:", e);
+      const said = String(e?.message || "");
+      finish({ error: said && said.length <= 160 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED });
+    });
+  }, [runId]);
+  return <small>{status}</small>;
+}
+
+export default function Panel(props) {
+  return props.context?.template ? <TemplateRun {...props} /> : <RecapPanel {...props} />;
+}
+
+function RecapPanel({ sdk, context, ui }) {
   const t = WORDS[context.language] || WORDS.en;
   const projectId = context.projectId;
   const [folders, setFolders] = React.useState([]);
@@ -452,53 +594,6 @@ export default function Panel({ sdk, context, ui }) {
     return ()=>{live=false;};
   },[excludeOpen,videos,selectedFolders.join("|"),galleryPage]);
 
-  async function ensureAudio() {
-    let r = await sdk.runScript({
-      summary:"Find fixed soundtrack",
-      script:core({projectId}) + "const r=await p.resources();return r.filter(x=>x.type==='Audio'&&(x.name===cfg.fixed||x.name===cfg.original)).map(x=>({id:x.resourceId,name:x.name,status:x.status}));".replace("cfg.fixed",embedded(AUDIO_NAME)).replace("cfg.original",embedded(AUDIO_SOURCE_NAME))
-    });
-    let found = scriptResult(r);
-    if (found.length) return found.find((x) => x.name === AUDIO_NAME)?.id || found[0].id;
-    const path = shellResult(await sdk.runShell({
-      summary:"Locate fixed soundtrack",
-      command:'printf "%s" "$SELECTS_USER_SKILLS_ROOT/' + SLUG + '/assets/' + AUDIO_NAME + '"'
-    }));
-    r = await sdk.runScript({
-      summary:"Import fixed soundtrack",allowCommit:true,
-      script:core({projectId,path}) + "return await p.importFiles({paths:[cfg.path]});"
-    });
-    let imported = scriptResult(r).addedResourceIds;
-    if (!imported?.length) {
-      const alternate = shellResult(await sdk.runShell({
-        summary:"Prepare fixed soundtrack",
-        command:'cp "$SELECTS_USER_SKILLS_ROOT/' + SLUG + '/assets/' + AUDIO_NAME + '" "$HOME/Downloads/' + AUDIO_NAME + '" && printf "%s" "$HOME/Downloads/' + AUDIO_NAME + '"'
-      }));
-      r = await sdk.runScript({
-        summary:"Import fixed soundtrack",allowCommit:true,
-        script:core({projectId,path:alternate}) + "return await p.importFiles({paths:[cfg.path]});"
-      });
-      imported = scriptResult(r).addedResourceIds;
-    }
-    if (!imported?.length) throw new Error("Could not import the bundled soundtrack");
-    const id = imported[0];
-    r = await sdk.runScript({
-      summary:"Analyze fixed soundtrack",allowCommit:true,
-      script:core({projectId,id}) + "return await p.startAnalysis({resourceIds:[cfg.id]});"
-    });
-    scriptResult(r);
-    for (let attempt=0;attempt<60;attempt++) {
-      await new Promise((resolve) => setTimeout(resolve,2000));
-      r = await sdk.runScript({
-        summary:"Check soundtrack analysis",
-        script:core({projectId,id}) + "const x=(await p.resources()).find(v=>v.resourceId===cfg.id);return {status:x?.status};"
-      });
-      const status = scriptResult(r).status;
-      if (status === "analyzingSucceeded") return id;
-      if (status === "analyzingFailed" || status === "samplingFailed") throw new Error("Soundtrack analysis failed: " + status);
-    }
-    throw new Error("Soundtrack analysis is still running. Wait for it to finish, then create the Draft again.");
-  }
-
   async function make(mode) {
     if (!projectId || slots.length !== 160 || busy || loadedKey!==projectId) return;
     setBusy(true);setError("");setMessage(t.progress);
@@ -507,39 +602,8 @@ export default function Panel({ sdk, context, ui }) {
       const byId = Object.fromEntries(videos.map((v) => [v.resourceId,v]));
       const intro = {...slots[0],frameSize:byId[slots[0].resourceId]?.frameSize};
       if ((byId[intro.resourceId]?.durationSeconds || 0)-intro.startSeconds < 5) throw new Error(t.invalid);
-      const manifestText = shellResult(await sdk.runShell({
-        summary:"Read recap timing",
-        command:'cat "$SELECTS_USER_SKILLS_ROOT/' + SLUG + '/timing.json"',
-        maxOutputBytes:48000
-      }));
-      const manifest = JSON.parse(manifestText);
-      if (manifest.placements?.length !== 243) throw new Error("Template timing is incomplete");
-      const audioId = await ensureAudio();
-      const name = "2026 Recap — " + (mode === "sample" ? "12s sample " : "") + new Date().toLocaleString();
-      let r = await sdk.runScript({
-        summary:"Create recap intro",allowCommit:true,
-        script:createScript({projectId,name,intro,introEnd:manifest.placements[1].startSeconds})
-      });
-      const draftId = scriptResult(r).draftId;
-      if (!draftId) throw new Error("Created Draft ID missing");
-      const limit = mode === "sample" ? 33 : manifest.placements.length;
-      for (let end=25;end<limit+24;end+=24) {
-        const to = Math.min(end,limit);
-        if (to <= 1) break;
-        r = await sdk.runScript({
-          summary:"Add recap footage",allowCommit:true,
-          script:batchScript({projectId,draftId,start:1,end:to,placements:manifest.placements,slots,media:byId})
-        });
-        const out = scriptResult(r);
-        setMessage(t.progress + " " + out.mainCount + "/" + limit);
-        if (to === limit) break;
-      }
-      r = await sdk.runScript({
-        summary:"Finish recap Draft",allowCommit:true,
-        script:finishScript({projectId,draftId,audioId,introEnd:manifest.placements[1].startSeconds,full:mode==="full",titleCode:TITLE_CODE,fadeCode:FADE_CODE})
-      });
-      const out = scriptResult(r);
-      setMessage("Draft created: " + name + " (" + out.mainCount + " video clips)");
+      const {name,mainCount} = await buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress:(count,limit)=>setMessage(t.progress + " " + count + "/" + limit)});
+      setMessage("Draft created: " + name + " (" + mainCount + " video clips)");
     } catch (e) {
       setError(String(e.message || e));
     } finally {setBusy(false);}
