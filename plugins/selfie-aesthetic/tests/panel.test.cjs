@@ -124,7 +124,8 @@ test('panel UI: canvas DPR backing, scrollbar gutter, slider keyboard, theme tok
   const early = own.indexOf('if (!projectId) return <ui');
   const comp = own.slice(own.indexOf('function SelfieAestheticPanel('), early);
   assert.ok(comp.includes('addEventListener("visibilitychange"') && comp.includes('React.useMemo('), 'hooks before the early return');
-  assert.ok(!own.slice(early).includes('React.use'), 'no hook after the early return');
+  // The panel UI is SelfieAestheticPanel; the template run's own hooks sit below it, in TemplateRun.
+  assert.ok(!own.slice(early, own.indexOf('// Template runs.')).includes('React.use'), 'no hook after the early return');
 });
 
 // ---- scripts, configs and the build pipeline ----
@@ -408,6 +409,82 @@ test('the worker source runs the unmodified beat-detect.cjs and matches analyze(
 });
 
 // ---- the plugin carries no literal Hangul (check_public) ----
+// ---- Clip highlights template run ----
+// Panel hands a run with `context.template` to TemplateRun (out of sight); anything else is the panel UI.
+const tplSrc = own.slice(own.indexOf('// Template runs.'), own.indexOf('export default function Panel('));
+const tplRun = between(own, 'async function runSelfieTemplate(', '\nfunction TemplateRun(');
+test('template run: Panel hands context.template to TemplateRun, which ends each runId exactly once', () => {
+  const manifest = JSON.parse(read('plugin.json'));
+  assert.equal(manifest.collection, 'visual-highlights');
+  assert.match(panel.split('\n').slice(0, 24).join('\n'), /^\/\/ @collection visual-highlights$/m);
+  assert.ok(own.includes('export default function Panel(props: any) {\n  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <SelfieAestheticPanel {...props} />;\n}'), 'Panel dispatches on context.template');
+  assert.ok(tplSrc.length > 0 && own.indexOf('// Template runs.') > own.indexOf('function SelfieAestheticPanel('), 'the template run sits below the panel');
+  // One start per runId; reports only while the run is current; finishTemplate once, never for a replaced run.
+  for (const s of ['if (runId == null || started.current === runId) return;', 'const live = () => alive.current && latest.current?.template?.runId === runId;',
+    'const check = () => { if (!live()) throw STALE; };', 'if (ended) return;\n      ended = true;\n      if (!outcome || !live()) return;',
+    'if (e === STALE) { end(null); return; }', 'end({ error: said });', '} finally {\n        end({ error: sayError(lang, uiError((l) => t(l, "stepFailed"))) });', '}, [runId]);']) assert.ok(tplSrc.includes(s), s);
+  assert.equal((panel.match(/sdk\.finishTemplate\(/g) || []).length, 1, 'one finishTemplate call');
+  assert.ok(tplSrc.includes('try { sdk.finishTemplate(outcome); } catch (e) {'), 'finishTemplate(outcome) with { sequenceId } | { error }');
+  assert.ok(tplSrc.includes('type TemplateOutcome = { sequenceId: string } | { error: string };') && tplRun.includes('return { sequenceId: a.sequenceId };'));
+  // Status: the step name in the UI language; a stop names the step, as the panel's stoppedAt does.
+  assert.ok(tplSrc.includes('React.useState<Say>(() => (l: Lang) => t(l, "working"))') && tplSrc.includes('setStatus(() => (l: Lang) => t(l, "step." + id))') && tplSrc.includes('{status(L)}'));
+  assert.ok(tplSrc.includes('t(lang, "stoppedAt", { step: at.current + 1, total: SAE_BUILD_STEPS.length, name: t(lang, "step." + at.id), detail: sayError(lang, e) })'));
+});
+test('template run: the handed footage, the track option, the panel defaults, the shared build steps, no open', () => {
+  const manifest = JSON.parse(read('plugin.json'));
+  const footage = manifest.inputs.find((x) => x.id === 'footage');
+  assert.deepEqual(footage.accepts, ['video', 'image']);
+  assert.ok(tplRun.includes('context?.template?.inputs?.footage ?? []') && tplRun.includes('(input.kind !== "video" && input.kind !== "image")'), 'videos and photos from the footage input');
+  // Track: the option's id picks a bundled cue; unknown or missing gets the option default (the panel's first cue).
+  const track = manifest.options.find((x) => x.id === 'track');
+  const cues = JSON.parse(read('assets', 'cues', 'manifest.json')).cues.map((c) => c.id);
+  assert.deepEqual(track.choices.map((c) => c.id).filter((id) => !cues.includes(id)), [], 'every track choice is a bundled cue');
+  assert.equal(track.default, cues[0], 'the option default is the panel default');
+  assert.ok(own.includes('const TEMPLATE_TRACK = "' + track.default + '";'));
+  assert.ok(tplRun.includes('cues.find((c) => c.id === context?.template?.options?.track) || cues.find((c) => c.id === TEMPLATE_TRACK) || cues[0]'));
+  // The panel's defaults for everything else (its useState initial values and first-Build seed).
+  for (const s of ['React.useState("soft-glow")', 'React.useState<"short" | "standard" | "long">("short")', 'React.useState<"off" | "ambient" | "full">("ambient")', 'const [seed, setSeed] = React.useState(1);', 'const [usePhotos, setUsePhotos] = React.useState(true);']) assert.ok(own.includes(s), s);
+  assert.ok(tplRun.includes('const bars = SAE_LENGTHS.short;') && tplRun.includes('const section = saeDefaultSection(cue, bars, saeTempo(cue).editBpm);'));
+  assert.ok(tplRun.includes('{ cue, musicId: cue.id, ownFile: null, section, lookId: "soft-glow", lookOn: true, bars, clipSound: "ambient", usePhotos: true, only: null, onlyPhotos: null }'));
+  assert.ok(own.includes('const TEMPLATE_SEED = 1;') && tplRun.includes('nextSeed: TEMPLATE_SEED'));
+  // Handed ids to the Project's aliases, then the panel's inventory limited to them; spans map back to the handed ids.
+  assert.ok(tplRun.includes('fill(assets.scripts.inventoryJs, { projectId: pid, only: aliases, known })') && tplRun.includes('realIds[r.alias] = r.rid;'));
+  assert.ok(tplRun.includes('readSpans(sdk, pid, inv, rids, new Map(), check,') && tplRun.includes(', realIds);'));
+  // The same steps as Build: one plan / assemble / deco config (buildDraft), one search, one decorate call site.
+  assert.equal((own.match(/await buildDraft\(\{/g) || []).length, 2, 'Build and the template run share buildDraft');
+  assert.equal((own.match(/await searchCloseUps\(/g) || []).length, 3, 'searchClips and the template run (with its one retry) share searchCloseUps');
+  assert.equal((own.match(/await addWhipAndLook\(/g) || []).length, 3, 'decorate() and the template run (with its one retry) share addWhipAndLook');
+  assert.equal((own.match(/await readSpans\(|readSpans\(sdk, /g) || []).length, 2, 'bad spans shared');
+  assert.equal((own.match(/readMotionCurves\(pid, /g) || []).length, 2, 'motion shared');
+  for (const s of ['fill(assets.scripts.assembleJs, {', 'fill(assets.scripts.ensureJs, {', 'fill(assets.scripts.decorateJs, deco)', 'const deco = {', 'saePlanBuild({ fps: 30, bars: settings.bars']) assert.equal(own.split(s).length - 1, 1, 'one ' + s);
+  // No Draft open in a template run, no shell (Windows), the folder through the host block.
+  assert.ok(!/openDraft|linkToDraftFrame/.test(tplSrc), 'a template run never opens the Draft');
+  assert.ok(!/runShell|readText\(/.test(tplSrc) && tplRun.includes('const skillsDir = saeSkillsDir(PLUGIN_ID);') && tplRun.includes('await loadAssets(skillsDir)'));
+  // Every await in the run is followed by check() (or hands check to the step).
+  const awaits = (tplRun.match(/await /g) || []).length, checks = (tplRun.match(/check\(\);|, check[,)]/g) || []).length;
+  assert.ok(checks >= awaits - 1, 'check() after the awaits (' + awaits + ' awaits, ' + checks + ' checks)');
+});
+test('template run: the alias script maps handed ids to the clips it places, a Draft per photo, nothing committed', async () => {
+  const js = between(own, 'const TEMPLATE_ALIAS_JS = `', '`;');
+  assert.ok(!/commit/.test(js), 'nothing committed');
+  const drafts = [];
+  const project = {
+    async createDraft({ name }) {
+      const clips = [], d = { name, size: null,
+        async clips() { return clips.slice(); },
+        async insertResource({ resourceId }) { if (resourceId === 'gone') throw new Error('missing'); clips.push({ clipId: 'c' + clips.length, resourceId: 'r' + resourceId.slice(1) }); if (resourceId.startsWith('p')) d.size = { width: 3000, height: 4000 }; },
+        async meta() { return { frameSize: d.size }; } };
+      drafts.push(d); return d;
+    },
+  };
+  const selects = { project: () => project };
+  const cfg = { projectId: 'P', files: [{ rid: 'u1', kind: 'video' }, { rid: 'p2', kind: 'image' }, { rid: 'gone', kind: 'video' }, { rid: 'u3', kind: 'video' }] };
+  const fn = new Function('selects', 'return (async () => {' + js.replace('__CONFIG__', JSON.stringify(cfg)) + '})();');
+  const r = await fn(selects);
+  assert.deepEqual(plain(r.resolved), [{ rid: 'u1', alias: 'r1', size: null }, { rid: 'p2', alias: 'r2', size: { width: 3000, height: 4000 } }, { rid: 'u3', alias: 'r3', size: null }]);
+  assert.equal(drafts.length, 2, 'one shared scratch Draft for videos, one per photo');
+  assert.ok(drafts.every((d) => d.name === 'Selfie Aesthetic Edit id check'));
+});
 test('no literal Hangul in the plugin', () => {
   const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
   for (const f of walk(root).filter((f) => /\.(tsx|js|cjs|json|md|ts)$/.test(f))) assert.ok(!/[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/.test(fs.readFileSync(f, 'utf8')), 'Hangul in ' + f);
