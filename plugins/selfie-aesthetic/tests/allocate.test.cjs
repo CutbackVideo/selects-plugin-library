@@ -99,19 +99,43 @@ function checkPlan(plan, p, label) {
   for (const key of ['i', 'bar', 'kind', 'rid', 'moment', 'srcStart', 'frames', 'startFrame', 'endFrame', 'cutIn', 'cutOut', 'angle', 'framing']) assert.ok(key in plan.holds[0], 'hold.' + key);
 }
 
-// ---- Fresh-first: every source once before any repeat ----
+// ---- Face tier first (GATE-A ruling): every face clip once, then face reuse, then photos, then non-face clips ----
 {
   const p = pool({ face: 4, other: 4 });
   const plan = build(p, { usePhotos: false });
-  checkPlan(plan, p, 'fresh');
+  checkPlan(plan, p, 'face first');
   const rids = barsOf(plan).map(h => h.rid);
-  assert.equal(new Set(rids).size, 6, 'six bars, six different clips');
-  assert.equal(rids.filter(r => r[0] === 'f').length, 4, 'all face clips used');
-  assert.equal(rids[0][0], 'f', 'bar 0 takes a face clip');
-  assert.equal(rids[5][0], 'f', 'the finale takes a face clip');
-  assert.ok(!plan.notes.includes('reused'));
-  assert.ok(plan.notes.includes('few-face'), '4 face clips for 6 bars');
+  assert.ok(rids.every(r => r[0] === 'f'), 'face reuse comes before non-face clips');
+  assert.equal(new Set(rids.slice(0, 4)).size, 4, 'every face clip once before any face repeat');
+  assert.ok(plan.notes.includes('reused') && plan.notes.includes('few-face'), '4 face clips for 6 bars');
   assert.equal(plan.faceClips, 4);
+}
+{
+  // The ruling's case: 2 face clips + 3 non-face + 0 photos, 6 bars. The face clips alternate with distinct pairs
+  // until each has 2 uses, then the non-face clips fill in; never adjacent.
+  const p = pool({ face: 2, other: 3 });
+  for (const seed of [1, 2, 3]) {
+    const plan = build(p, { bars: 6, seed });
+    checkPlan(plan, p, 'ruling seed ' + seed);
+    const rids = barsOf(plan).map(h => h.rid);
+    assert.ok(rids.slice(0, 4).every(r => r[0] === 'f'), 'face clips first: ' + rids);
+    assert.ok(rids.slice(4).every(r => r[0] === 'n'), 'then non-face clips: ' + rids);
+    assert.notEqual(rids[0], rids[1]); assert.equal(rids[0], rids[2]); assert.equal(rids[1], rids[3]);
+    assert.ok(plan.notes.includes('few-face') && plan.notes.includes('reused'));
+  }
+}
+{
+  // Fewer face clips than video bars with photos around: face (up to 2 uses each, never adjacent) -> photos beyond
+  // round(N/3) -> non-face clips.
+  const p = pool({ face: 1, other: 2, photos: 6 });
+  const plan = build(p, { bars: 6 });
+  checkPlan(plan, p, 'face photo order');
+  const b = barsOf(plan);
+  assert.equal(b.filter(h => h.rid === 'f0').length, 2, 'the face clip is used twice');
+  assert.equal(b[0].rid, 'f0', 'bar 0 takes the face clip');
+  assert.ok(b.filter(h => h.kind === 'photo').length > Math.round(6 / 3), 'extra photos before non-face clips');
+  // A non-face clip only where the face clip is used up (or adjacent) and another photo would make 3 in a row.
+  b.forEach((h, k) => { if (h.rid[0] === 'n') assert.ok(k >= 2 && b[k - 1].kind === 'photo' && b[k - 2].kind === 'photo', 'non-face only when photos cannot fill: bar ' + k); });
 }
 {
   // Plenty of face clips: only face clips, no repeats.
@@ -140,7 +164,6 @@ for (const N of [3, 4, 5, 6, 7, 8]) for (const seed of [1, 2, 3, 4, 5]) {
   const kinds = barsOf(plan).map(h => h.kind);
   assert.ok(kinds.filter(k => k === 'photo').length > Math.round(6 / 3), 'photos replace non-face clips');
   assert.equal(barsOf(plan)[0].rid, 'f0', 'bar 0 takes the face clip');
-  assert.equal(kinds[5], 'video', 'the finale stays a video while videos exist');
   assert.ok(plan.notes.includes('few-face'));
   // usePhotos off: no photo bars.
   const off = build(p, { bars: 6, usePhotos: false });

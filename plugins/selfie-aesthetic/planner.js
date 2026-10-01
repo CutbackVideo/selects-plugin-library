@@ -60,6 +60,8 @@ const SAE_FACE_ROLES = ['selfie', 'hand', 'expression', 'glance'];
 // Photos: about SAE_PHOTO_SHARE of the bars, at most SAE_PHOTO_RUN_MAX photo bars in a row.
 const SAE_PHOTO_SHARE = 1 / 3;
 const SAE_PHOTO_RUN_MAX = 2;
+// Face clips are reused (with another A/B pair) up to this many bars each before photos and non-face clips fill in.
+const SAE_FACE_MAX_USES = 2;
 // Seeded jitter: clip order inside one use-count/tier group, and pair choice among a clip's unused pairs.
 const SAE_CLIP_JITTER = 0.1;
 const SAE_PAIR_JITTER = 0.05;
@@ -302,13 +304,19 @@ function saePhotoBars(bars, count, seed, innerOnly) {
   return out;
 }
 
-// Bar allocation (spec "Bar allocation"). opts: { clips (saeMoments clips), photos: [{ rid }] | [rid], bars, seed,
-// usePhotos (default true), allowAdjacent?, allowPairReuse? (relaxations for tiny pools) }.
-// Photo bars: round(bars / 3), raised toward bars - faceClips when face clips are few (photos rank above non-face
-// clips), capped by the photos, by bars - 2 when any video exists (bar 0 and the finale prefer video face clips), and
-// by the run limit. Video bars: least-used clip first; equal use counts rank face clips first, then by face score plus
-// a seeded jitter. The last fresh face clip is kept for the finale while other clips can fill the inner bars. Never the
-// same rid in adjacent bars when >= 2 sources exist. A repeated clip takes one of its unused pairs.
+// Bar allocation (spec "Bar allocation", with the user's GATE-A ruling on few face clips). opts: { clips (saeMoments
+// clips), photos: [{ rid }] | [rid], bars, seed, usePhotos (default true), allowAdjacent?, allowPairReuse?
+// (relaxations for tiny pools) }.
+// Photo bars: round(bars / 3) (capped by the photos), inner bars only while any video exists, at most
+// SAE_PHOTO_RUN_MAX in a row: photos are a default style element. Every other bar takes, in this order:
+//   1. a face clip used fewer than SAE_FACE_MAX_USES times, least-used first (every face clip once before any face
+//      repeat), then by face score plus a seeded jitter;
+//   2. an extra (unused) photo, while the run limit allows;
+//   3. a non-face clip, least-used first;
+//   4. a face clip beyond SAE_FACE_MAX_USES uses (last resort before shrinking).
+// So when face clips are few, the edit reuses them (with a different A/B pair) until one would need a third use or
+// adjacency gets in the way, then photos beyond round(bars / 3), then non-face clips. Never the same rid in adjacent
+// bars when >= 2 sources exist. A repeated clip takes one of its unused pairs.
 // Returns { ok, bars: [{ bar, kind, rid, pair }], uses: { [rid]: n }, photoBars, failedAt? }.
 function saeAllocate(opts) {
   const N = opts.bars, seed = String(opts.seed == null ? 1 : opts.seed);
@@ -323,46 +331,32 @@ function saeAllocate(opts) {
     .filter(r => typeof r === 'string' && !seenPhoto[r] && (seenPhoto[r] = true)).sort();
   const sources = vids.length + pics.length;
   if (!sources || !(N >= 1)) return { ok: false, bars: [], uses: {}, photoBars: 0, failedAt: 0 };
-  const faceN = vids.filter(c => c.face).length;
-  let photoCount = Math.min(pics.length, Math.max(Math.round(N * SAE_PHOTO_SHARE), N - faceN));
-  if (vids.length) photoCount = Math.min(photoCount, Math.max(0, N - 2));
+  const photoCount = Math.min(pics.length, Math.round(N * SAE_PHOTO_SHARE));
   const photoBar = saePhotoBars(N, photoCount, seed, vids.length > 0);
   const uses = {}, pairUsed = {}, picks = [];
   let prev = null, photoRun = 0;
-  const photoRank = rid => saeHash(seed + ':photo:' + rid);
-  const pickPhoto = (allowRun) => {
+  const notPrev = rid => rid !== prev || sources < 2 || !!opts.allowAdjacent;
+  const pickPhoto = allowRun => {
     if (!allowRun && photoRun >= SAE_PHOTO_RUN_MAX) return null;
     let best = null;
     for (const rid of pics) {
-      if (rid === prev && sources >= 2 && !opts.allowAdjacent) continue;
+      if (!notPrev(rid)) continue;
       const u = uses[rid] || 0;
       if (u > 0 && !opts.allowPairReuse) continue; // a photo holds one bar (tiny pools: fewest uses first)
-      const v = photoRank(rid);
+      const v = saeHash(seed + ':photo:' + rid);
       if (!best || u < best.u || (u === best.u && v > best.v)) best = { rid, v, u };
     }
     return best && { kind: 'photo', rid: best.rid, pair: null };
   };
-  const freshFace = () => vids.filter(c => c.face && !(uses[c.rid] > 0));
-  const pickVideo = k => {
-    const ok = c => (c.rid !== prev || sources < 2 || opts.allowAdjacent) &&
-      (opts.allowPairReuse || c.pairs.some((p, i) => !(pairUsed[c.rid] && pairUsed[c.rid][i])));
-    let cands = vids.filter(ok);
-    // Keep the last fresh face clip for the finale while another clip of the same use count can fill an inner bar.
-    if (k > 0 && k < N - 1) {
-      const ff = freshFace();
-      if (ff.length === 1 && cands.length > 1) {
-        const min = Math.min.apply(null, cands.map(c => uses[c.rid] || 0));
-        const others = cands.filter(c => c.rid !== ff[0].rid && (uses[c.rid] || 0) === min);
-        if (others.length) cands = cands.filter(c => c.rid !== ff[0].rid);
-      }
-    }
+  const hasPair = c => opts.allowPairReuse || c.pairs.some((p, i) => !(pairUsed[c.rid] && pairUsed[c.rid][i]));
+  // The least-used clip among those `keep` accepts, then by face score plus a seeded jitter; its best unused pair.
+  const pickVideo = keep => {
     let best = null;
-    for (const c of cands) {
-      const u = uses[c.rid] || 0, tier = c.face ? 0 : 1;
+    for (const c of vids) {
+      if (!keep(c) || !notPrev(c.rid) || !hasPair(c)) continue;
+      const u = uses[c.rid] || 0;
       const v = (saeFinite(c.faceScore) ? c.faceScore : -1) + SAE_CLIP_JITTER * saeHash(seed + ':clip:' + c.rid + ':' + u);
-      const better = !best || u < best.u || (u === best.u && (tier < best.tier || (tier === best.tier && (v > best.v + 1e-12 ||
-        (Math.abs(v - best.v) <= 1e-12 && c.rid < best.c.rid)))));
-      if (better) best = { c, u, tier, v };
+      if (!best || u < best.u || (u === best.u && (v > best.v + 1e-12 || (Math.abs(v - best.v) <= 1e-12 && c.rid < best.c.rid)))) best = { c, u, v };
     }
     if (!best) return null;
     const c = best.c, usedSet = pairUsed[c.rid] || {};
@@ -375,11 +369,17 @@ function saeAllocate(opts) {
     });
     return { kind: 'video', rid: c.rid, pair: c.pairs[bp.i], pairIndex: bp.i };
   };
+  const tiers = [
+    () => pickVideo(c => c.face && (uses[c.rid] || 0) < SAE_FACE_MAX_USES),
+    () => pickPhoto(false),
+    () => pickVideo(c => !c.face),
+    () => pickVideo(c => c.face),
+  ];
   for (let k = 0; k < N; k++) {
     let pick = photoBar[k] ? pickPhoto(false) : null;
-    if (!pick) pick = vids.length ? pickVideo(k) : null;
-    if (!pick) pick = pickPhoto(!vids.length || !!opts.allowAdjacent);
-    if (!pick) return { ok: false, bars: picks, uses, photoBars: photoCount, failedAt: k };
+    for (let t = 0; !pick && t < tiers.length; t++) pick = tiers[t]();
+    if (!pick && (!vids.length || opts.allowAdjacent)) pick = pickPhoto(true);
+    if (!pick) return { ok: false, bars: picks, uses, photoBars: picks.filter(x => x.kind === 'photo').length, failedAt: k };
     uses[pick.rid] = (uses[pick.rid] || 0) + 1;
     if (pick.kind === 'video') { (pairUsed[pick.rid] = pairUsed[pick.rid] || {})[pick.pairIndex] = true; photoRun = 0; } else photoRun++;
     picks.push({ bar: k, kind: pick.kind, rid: pick.rid, pair: pick.pair });
@@ -523,7 +523,7 @@ function saePlanBuild(opts) {
 if (typeof module !== 'undefined' && module && module.exports) {
   Object.assign(module.exports, {
     SAE_LEAD, SAE_END_TAIL, SAE_STANDARD_BAR, SAE_FINALE_BAR, SAE_LENGTHS, SAE_MIN_BARS, SAE_FIXED_BPM, SAE_FACE_MARGIN,
-    SAE_FACE_ROLES, SAE_SOURCE_TAIL, SAE_PAIR_GAP, SAE_FADE_OUT, SAE_PHOTO_SHARE, SAE_PHOTO_RUN_MAX, SAE_SNAP_WINDOW,
+    SAE_FACE_ROLES, SAE_FACE_MAX_USES, SAE_SOURCE_TAIL, SAE_PAIR_GAP, SAE_FADE_OUT, SAE_PHOTO_SHARE, SAE_PHOTO_RUN_MAX, SAE_SNAP_WINDOW,
     SAE_MIN_HOLD_FRAMES, SAE_ANGLE_MIN, SAE_ANGLE_MAX,
     saeHash, saeEditBpm, saeTempo, saeVideoSeconds, saeMusicOffset, saeTemplate, saeSchedule, saeMoments, saePhotoBars,
     saeAllocate, saeWhipKinds, saeBarGrid, saeSectionRange, saeDefaultSection, saeSnapSection, saePlanBuild,
