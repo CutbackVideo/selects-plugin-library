@@ -36,6 +36,8 @@ const keepAlive = setInterval(() => {}, 50);
   assert.deepEqual(inv.resources.map(r => [r.rid, r.width, r.height, r.duration, r.kind]),
     [['r0', 1920, 1080, 20, 'video'], ['r3', 1080, 1920, 12, 'video'], ['r7', null, null, 1.2, 'video']]);
   assert.equal(inv.resources[0].recordedAt, '2026-09-26T15:00:00Z');
+  // Source paths (the stillness picker measures motion on them); a resource outside the file tree has none.
+  assert.deepEqual(inv.resources.map(r => r.path), ['/v/a.mov', '/v/c.mov', null]);
   assert.equal(inv.skipped.unanalysed, 1);
   assert.equal(inv.skipped.short, 1, 'the 1.1 s clip is skipped as short');
   assert.equal(inv.skipped.missing, 0);

@@ -52,6 +52,17 @@ const SAE_MAX_FILLERS = 40;
 const SAE_FILLER_SCORE = -1;
 // Distinct moment pairs kept per clip (a repeated clip uses a different pair).
 const SAE_MAX_PAIRS = 8;
+// Stillness (the reference freezes every hold; ours are real-time micro-windows, so holds should come from the
+// stillest moments). motion: { [rid]: { fps, values } }, values[i] = mean absolute luma difference between motion
+// frames i and i + 1, covering source seconds [i / fps, (i + 1) / fps]. A window's motion cost is the mean of the
+// values it overlaps over the clip's median (floored at SAE_STILL_FLOOR, capped at SAE_STILL_COST_MAX; 1 when no
+// value overlaps). Moment score = hit score - weight * cost; pair score = the sum. With weight > 0 the local minima
+// of the window cost (up to SAE_STILL_MINIMA per clip, lowest first) are added as filler candidates. Weight 0
+// (the default) leaves every plan exactly as without motion.
+const SAE_STILL_WEIGHT = 0;
+const SAE_STILL_FLOOR = 0.5;
+const SAE_STILL_COST_MAX = 4;
+const SAE_STILL_MINIMA = 12;
 // Moments within this distance of a moment an earlier pair already uses count as "the same moment" when picking
 // further pairs (pairs with fresh moments come first).
 const SAE_MOMENT_NEAR = 0.4;
@@ -188,14 +199,14 @@ function saeSchedule(opts) {
 
 // Moments (spec "Moments"). opts: { candidates: [{ rid, role, t, score }], durations: { [rid]: seconds },
 // badSpans?: { [rid]: [[s, e], ...] }, fps, beatSeconds (window length: the longest hold a moment plays),
-// margin? (default SAE_FACE_MARGIN) }.
+// margin? (default SAE_FACE_MARGIN), motion?, stillWeight? (default SAE_STILL_WEIGHT; see SAE_STILL_WEIGHT) }.
 // Per clip (every rid in durations, sorted): faceScore = max over face-role hits of (score - best control score), null
 // without face or control hits; face = faceScore > margin. Candidate times: every hit time (any score) plus fillers;
 // a time t is kept when its window [s, s + beatSeconds] (s = t snapped down to a whole frame, and no earlier than the
 // head handle: max(SAE_HEAD_FRAMES, whip frames + 1) frames; earlier times move there) misses every bad span
 // and ends at least SAE_SOURCE_TAIL before the end of the source. Pairs: A and B >= SAE_PAIR_GAP apart, best summed
-// score first (ties: farther apart, then earlier), A = the better-scoring moment; up to SAE_MAX_PAIRS distinct pairs,
-// pairs whose moments no earlier pair uses first. A clip with no such pair gets one relaxed pair (its two
+// score first (scores less the still penalty; ties: farther apart, then earlier), A = the better-scoring moment; up
+// to SAE_MAX_PAIRS distinct pairs, pairs whose moments no earlier pair uses first. A clip with no such pair gets one relaxed pair (its two
 // farthest-apart times, or one time twice), marked relaxed and scored below every real pair.
 // Returns { clips: [{ rid, duration, face, faceScore, control, times, pairs: [{ a, b, score, relaxed? }] }], faceCount }.
 function saeMoments(opts) {
@@ -204,6 +215,8 @@ function saeMoments(opts) {
   const margin = saeFinite(opts.margin) ? opts.margin : SAE_FACE_MARGIN;
   const durations = opts.durations || {}, spansOf = opts.badSpans || {};
   const head = Math.max(SAE_HEAD_FRAMES, Math.round(SAE_WHIP_SECONDS * fps) + 1);
+  const still = saeFinite(opts.stillWeight) ? Math.max(0, opts.stillWeight) : SAE_STILL_WEIGHT;
+  const motionOf = opts.motion || {};
   const byRid = {};
   for (const c of opts.candidates || []) {
     if (!c || typeof c.rid !== 'string' || !saeFinite(c.t) || !saeFinite(c.score)) continue;
@@ -229,6 +242,8 @@ function saeMoments(opts) {
       if (spans.some(sp => s < sp[1] && e > sp[0])) return null;
       return { f, s };
     };
+    // Motion cost of the window starting at s, or null without a still weight / a usable curve.
+    const cost = still > 0 ? saeStillCost(motionOf[rid], win) : null;
     const times = new Map(); // frame -> { t, score, hit }
     for (const h of hits) {
       if (h.role === 'control') continue;
@@ -237,12 +252,20 @@ function saeMoments(opts) {
       const old = times.get(w.f);
       if (!old || h.score > old.score) times.set(w.f, { t: w.s, score: h.score, hit: true });
     }
+    if (cost) {
+      // A minimum's window starts on the next whole frame (snapping down would pull in the motion sample before it).
+      for (const t of cost.minima) {
+        const w = startOf(Math.ceil(t * fps - 1e-6) / fps);
+        if (w && !times.has(w.f)) times.set(w.f, { t: w.s, score: SAE_FILLER_SCORE, hit: false });
+      }
+    }
     const fillers = [];
     for (let k = 0; k * SAE_FILLER_STEP <= dur + 1e-9; k++) { const w = startOf(k * SAE_FILLER_STEP); if (w) fillers.push(w); }
     const keep = fillers.length <= SAE_MAX_FILLERS ? fillers
       : Array.from({ length: SAE_MAX_FILLERS }, (_, j) => fillers[Math.round(j * (fillers.length - 1) / (SAE_MAX_FILLERS - 1))]);
     for (const w of keep) if (!times.has(w.f)) times.set(w.f, { t: w.s, score: SAE_FILLER_SCORE, hit: false });
     const list = Array.from(times.values()).sort((p, q) => p.t - q.t);
+    if (cost) for (const e of list) e.score = e.score - still * cost.at(e.t);
     const all = [];
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
@@ -273,6 +296,34 @@ function saeMoments(opts) {
     clips.push({ rid, duration: dur, face, faceScore, control, times: list.length, pairs });
   }
   return { clips, faceCount: clips.filter(c => c.face && c.pairs.length).length };
+}
+
+// Motion cost per window of `win` seconds for one clip's curve ({ fps, values }; see SAE_STILL_WEIGHT), or null
+// when the curve is unusable. Returns { at(s): cost of the window [s, s + win], minima: window starts (seconds) at
+// local minima of the cost, lowest first (ties: earlier), at most SAE_STILL_MINIMA }.
+function saeStillCost(curve, win) {
+  const mfps = curve && curve.fps, vals = curve && curve.values;
+  if (!(mfps > 0) || !vals || !(vals.length >= 2)) return null;
+  const n = vals.length, v = [];
+  for (let i = 0; i < n; i++) { const x = Number(vals[i]); v.push(isFinite(x) && x > 0 ? x : 0); }
+  const sorted = v.slice().sort((a, b) => a - b);
+  const median = n % 2 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+  const norm = Math.max(SAE_STILL_FLOOR, median);
+  const prefix = [0];
+  for (let i = 0; i < n; i++) prefix.push(prefix[i] + v[i]);
+  const at = s => {
+    const i0 = Math.max(0, Math.floor(s * mfps + 1e-6)), i1 = Math.min(n, Math.ceil((s + win) * mfps - 1e-6));
+    if (i1 <= i0) return 1;
+    return Math.min(SAE_STILL_COST_MAX, (prefix[i1] - prefix[i0]) / (i1 - i0) / norm);
+  };
+  const c = [];
+  for (let k = 0; k < n; k++) c.push(at(k / mfps));
+  const minima = [];
+  for (let k = 0; k < n; k++) {
+    if ((k === 0 || c[k] < c[k - 1]) && (k === n - 1 || c[k] <= c[k + 1])) minima.push({ k, c: c[k] });
+  }
+  minima.sort((p, q) => p.c - q.c || p.k - q.k);
+  return { at, minima: minima.slice(0, SAE_STILL_MINIMA).map(m => m.k / mfps) };
 }
 
 // Bars that hold photos: up to `count` of the bars 0..bars-1, inner bars (1..bars-2) first, evenly spread from a
@@ -459,7 +510,7 @@ function saeSnapSection(sec, cue, opts) {
 // The whole plan. opts: { fps, bars (wanted; SAE_LENGTHS), seed (default 1), cue (manifest entry or own-music
 // analysis { bpm, firstBeat, grid, downbeat?, durationSeconds, defaultSection?, onsets?, onsetThresholds? }; null = no
 // music), sectionStart? (default saeDefaultSection), candidates, durations, badSpans?, photos?, usePhotos? (default
-// true), margin? }.
+// true), margin?, motion?, stillWeight? (saeMoments: the stillness penalty, off by default) }.
 // Tries the wanted bar count (capped so the video ends before the music's fade-out), then fewer (down to SAE_MIN_BARS)
 // until the sources fill every bar under the rules; a pool too small even for that builds SAE_MIN_BARS bars with
 // adjacency / pair reuse relaxed.
@@ -495,7 +546,8 @@ function saePlanBuild(opts) {
   // with 2 frames for rounding, plus an onset snap's shift. Then every hold fits in [srcStart, duration - TAIL] and
   // assemble.js never slides a window back.
   const beatSeconds = spb + SAE_LEAD + 2 / fps + (snap ? SAE_SNAP_WINDOW : 0);
-  const moments = saeMoments({ candidates: opts.candidates, durations: opts.durations, badSpans: opts.badSpans, fps, beatSeconds, margin: opts.margin });
+  const moments = saeMoments({ candidates: opts.candidates, durations: opts.durations, badSpans: opts.badSpans, fps, beatSeconds, margin: opts.margin,
+    motion: opts.motion, stillWeight: opts.stillWeight });
   const base = { clips: moments.clips, photos: opts.photos, seed, usePhotos: opts.usePhotos };
   let alloc = null, bars = 0;
   const relax = [];
@@ -543,8 +595,8 @@ if (typeof module !== 'undefined' && module && module.exports) {
   Object.assign(module.exports, {
     SAE_LEAD, SAE_END_TAIL, SAE_STANDARD_BAR, SAE_FINALE_BAR, SAE_LENGTHS, SAE_MIN_BARS, SAE_FIXED_BPM, SAE_FACE_MARGIN,
     SAE_FACE_ROLES, SAE_FACE_MAX_USES, SAE_SOURCE_TAIL, SAE_HEAD_FRAMES, SAE_PAIR_GAP, SAE_FADE_OUT, SAE_PHOTO_SHARE, SAE_PHOTO_RUN_MAX, SAE_SNAP_WINDOW,
-    SAE_MIN_HOLD_FRAMES, SAE_ANGLE_MIN, SAE_ANGLE_MAX,
-    saeHash, saeEditBpm, saeTempo, saeVideoSeconds, saeMusicOffset, saeTemplate, saeSchedule, saeMoments, saePhotoBars,
+    SAE_MIN_HOLD_FRAMES, SAE_ANGLE_MIN, SAE_ANGLE_MAX, SAE_STILL_WEIGHT, SAE_STILL_FLOOR, SAE_STILL_COST_MAX, SAE_STILL_MINIMA,
+    saeStillCost, saeHash, saeEditBpm, saeTempo, saeVideoSeconds, saeMusicOffset, saeTemplate, saeSchedule, saeMoments, saePhotoBars,
     saeAllocate, saeWhipKinds, saeBarGrid, saeSectionRange, saeDefaultSection, saeSnapSection, saePlanBuild,
   });
 }

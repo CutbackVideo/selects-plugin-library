@@ -89,7 +89,15 @@ test('dev/matrix.json meets checkMatrix', () => {
   const r = A.checkMatrix(matrix);
   assert.ok(r.ok, JSON.stringify({ missing: r.missing, unknown: r.unknown }));
   assert.ok(matrix.length >= 16 && matrix.length <= 20, 'rows ' + matrix.length);
-  const ex = matrix.filter(x => x.export);
+  // The stillness A/B pair: the same Project A inputs at weight 0 and 0.6, both exported.
+  const st = matrix.filter(x => x.still !== undefined);
+  assert.deepEqual(st.map(x => x.still), [0, 0.6]);
+  const strip = ({ key, still, ...rest }) => rest;
+  assert.deepEqual(strip(st[0]), strip(st[1]));
+  assert.ok(st.every(x => x.export && x.project === 'A'), 'still rows export on Project A');
+  assert.deepEqual(st.flatMap(x => (x.seeds || [1]).map(sd => A.draftNameOf(x, sd))),
+    ['Selfie test A make-funk soft-glow short s1 still0', 'Selfie test A make-funk soft-glow short s1 still0.6']);
+  const ex = matrix.filter(x => x.export && x.still === undefined);
   assert.equal(ex.length, 4, 'export rows');
   assert.equal(new Set(ex.map(x => (x.cue.startsWith('own') ? 'own' : x.cue))).size, 4, 'export rows use different cues');
   assert.deepEqual([...new Set(ex.map(x => x.whipMode))].sort(), ['effect', 'transition']);
@@ -103,6 +111,7 @@ test('checkMatrix flags missing coverage, unknown values and duplicate Draft nam
   assert.ok(r.missing.includes('uiLang=ko (0)'));
   assert.ok(r.unknown.some(u => u === 'y: cue nope'));
   assert.ok(r.unknown.some(u => u === 'y: preset loud'));
+  assert.ok(A.checkMatrix([{ ...base, key: 'w', still: -1 }]).unknown.includes('w: still must be a number >= 0'));
   assert.ok(A.checkMatrix([{ ...base, key: 'x' }, { ...base, key: 'z' }]).unknown.some(u => u.startsWith('duplicate Draft name')));
 });
 

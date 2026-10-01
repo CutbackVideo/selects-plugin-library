@@ -172,6 +172,49 @@ async function saeDecodePcm(file, dataDir, maxSeconds) {
   }
 }
 
+// Motion curve of a video for the stillness picker (planner SAE_STILL_WEIGHT): SAE_MOTION_FPS gray frames per second
+// at a fixed SAE_MOTION_W x SAE_MOTION_H (any aspect squeezes to it; only frame-to-frame change matters), the first
+// maxSeconds. saeMotionArgs and saeMotionValues are pure, so the headless driver runs the same ffmpeg argv and the
+// same arithmetic in node.
+const SAE_MOTION_FPS = 8;
+const SAE_MOTION_W = 32;
+const SAE_MOTION_H = 56;
+function saeMotionArgs(file, out, maxSeconds) {
+  return ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', file, '-t', String(maxSeconds || 120), '-an',
+    '-vf', 'fps=' + SAE_MOTION_FPS + ',scale=' + SAE_MOTION_W + ':' + SAE_MOTION_H + ',setsar=1,format=gray', '-f', 'rawvideo', out];
+}
+// values[i] = mean absolute difference (0-255) between frames i and i + 1, or null when the bytes are not at least two
+// whole frames.
+function saeMotionValues(bytes) {
+  const size = SAE_MOTION_W * SAE_MOTION_H;
+  const frames = bytes && bytes.byteLength % size === 0 ? bytes.byteLength / size : 0;
+  if (frames < 2) return null;
+  const values = new Float32Array(frames - 1);
+  for (let i = 0; i < frames - 1; i++) {
+    let sum = 0;
+    const a = i * size, b = a + size;
+    for (let k = 0; k < size; k++) sum += Math.abs(bytes[b + k] - bytes[a + k]);
+    values[i] = sum / size;
+  }
+  return values;
+}
+// { fps, values } for `file` (opts: { maxSeconds (default 120), timeoutMs (default 90000) }). Errors as above; the
+// caller treats any failure as "motion unknown".
+async function saeMotionCurve(file, dataDir, opts) {
+  const { fs } = saeNeed(['rt.runFFmpeg', 'fs.join']);
+  saeNeedReader();
+  const o = opts || {};
+  const out = fs.join(dataDir, 'motion-' + saeToken() + '.gray');
+  try {
+    await saeFFmpeg(saeMotionArgs(file, out, o.maxSeconds), { timeoutMs: o.timeoutMs || 90000 });
+    const values = saeMotionValues(await saeReadOutput(fs, out, 'frames'));
+    if (!values) throw saeFail('media_failed', 'too few frames');
+    return { fps: SAE_MOTION_FPS, values };
+  } finally {
+    await saeRemove(fs, out);
+  }
+}
+
 // A blob: URL of `duration` seconds from `start` (mp3 128k; WAV when the host ffmpeg has no mp3 encoder).
 // The caller revokes it with URL.revokeObjectURL.
 async function saePreviewUrl(file, start, duration, dataDir) {

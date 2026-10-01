@@ -67,7 +67,7 @@ test('readiness, progress and counters are whole sentences with {vars}', () => {
   assert.equal(en.beatNone, 'No steady beat found; cuts use a fixed length');
   assert.equal(en.needsNewerSelects, 'This needs a newer version of Selects.');
   // Two-number plurals keep the noun next to {count}.
-  for (const k of ['barsFit', 'videosChecked', 'videosSearched', 'note.shrunk']) for (const form of Object.values(en[k])) assert.match(form, /\{count\} (bars?|videos?)\b/, k);
+  for (const k of ['barsFit', 'videosChecked', 'videosSearched', 'videosMeasured', 'note.shrunk']) for (const form of Object.values(en[k])) assert.match(form, /\{count\} (bars?|videos?)\b/, k);
   for (const k of ['ready', 'readyClips', 'readyCloseUps', 'readyPhotos', 'aboutSeconds', 'progress', 'progressDetail']) assert.match(textOf(k), /\{\w+\}/, k);
   // No sentence built by concatenation.
   assert.ok(!/"Step " \+|\+ " ?(clips?|photos?|videos?|bars?|s)"|"Ready: " \+/.test(own), 'no concatenated sentences');
@@ -154,7 +154,12 @@ test('configs sent to each script carry what the scripts read', () => {
   assert.ok(own.includes('sdk.call("getResourceVisualSpans", pid, id)') && own.includes('catch { return null; }'));
   // planner: photos / usePhotos / seed / section.
   assert.ok(own.includes('saePlanBuild({ fps: 30, bars: settings.bars, seed: nextSeed, cue: settings.cue, sectionStart: settings.section ?? undefined,'));
-  assert.ok(own.includes('candidates, durations, badSpans, photos, usePhotos: settings.usePhotos })'));
+  assert.ok(own.includes('candidates, durations, badSpans, photos, usePhotos: settings.usePhotos, motion, stillWeight: SAE_STILL_WEIGHT_PANEL })'));
+  // Stillness picker: off by default (no motion step, plans as before); on, motion per clip through the host block, guarded.
+  assert.ok(own.includes('const SAE_STILL_WEIGHT_PANEL: number = 0;'), 'stillness picker off until the Staging A/B');
+  assert.ok(own.includes('const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok;'));
+  assert.ok(own.includes('await saeMotionCurve(pathOf[rid], dataDir, {})') && own.includes('t(l, "videosMeasured", { done, count: total })'));
+  assert.ok(own.includes('motion, stillWeight: SAE_STILL_WEIGHT_PANEL });'), 'the dry run uses the cached motion too');
   // ensure-audio: bundled cue path from the skills dir; own music never matched by name.
   assert.ok(own.includes('fill(assets.scripts.ensureJs, { projectId: pid, path, ...(own ? { matchByName: false } : {}) })'));
   // assemble.
