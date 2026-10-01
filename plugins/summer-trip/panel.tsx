@@ -26,8 +26,6 @@ const STRINGS = {
     checkingClips: "Checking clips",
     listening: "Listening for the beat",
     working: "Working",
-    stillAnalysing: { one: "{count} clip is still being analysed.", other: "{count} clips are still being analysed." },
-    autoUpdate: "This updates automatically when they finish.",
     noFootage: "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.",
     noClipsSelected: "No clips selected. Choose clips in Advanced.",
     gap: " ",
@@ -37,7 +35,13 @@ const STRINGS = {
     photos: { one: "{count} photo", other: "{count} photos" },
     photosSelected: { one: "{selected} of {count} photo", other: "{selected} of {count} photos" },
     aboutSeconds: "about {seconds} s",
-    stillAnalysingShort: { one: "{count} clip still being analysed", other: "{count} clips still being analysed" },
+    notAnalysed: { one: "{count} clip not analysed yet", other: "{count} clips not analysed yet" },
+    analysing: { one: "{count} clip is being analysed. This updates automatically when it finishes.", other: "{count} clips are being analysed. This updates automatically when they finish." },
+    notAnalysedAnalyse: { one: "{count} clip is not analysed yet. Analyse it in Selects to use it here.", other: "{count} clips are not analysed yet. Analyse them in Selects to use them here." },
+    notAnalysedMaybe: { one: "{count} clip is not analysed yet. If Selects is analysing it, this updates automatically.", other: "{count} clips are not analysed yet. If Selects is analysing them, this updates automatically." },
+    analysisFailed: { one: "{count} clip could not be analysed.", other: "{count} clips could not be analysed." },
+    noteAnalysing: { one: "{count} clip being analysed", other: "{count} clips being analysed" },
+    noteFailed: { one: "{count} clip could not be analysed", other: "{count} clips could not be analysed" },
     fitDistinct: { one: "{count} different clip or photo", other: "{count} different clips and photos" },
     fitShrunk: { one: "{distinct} different clips and photos. Your footage fits {count} montage shot (about {seconds} s)", other: "{distinct} different clips and photos. Your footage fits {count} montage shots (about {seconds} s)" },
     title: "Title",
@@ -210,8 +214,6 @@ const STRINGS = {
     checkingClips: "Clips werden geprüft",
     listening: "Beat wird gesucht",
     working: "In Arbeit",
-    stillAnalysing: { one: "{count} Clip wird noch analysiert.", other: "{count} Clips werden noch analysiert." },
-    autoUpdate: "Die Anzeige aktualisiert sich automatisch, sobald sie fertig sind.",
     noFootage: "In diesem Projekt gibt es noch keine analysierten Videos oder Fotos. Füge Videoclips hinzu und analysiere sie, oder füge Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
     noClipsSelected: "Keine Clips ausgewählt. Wähle Clips unter „Erweitert“.",
     gap: " ",
@@ -221,7 +223,13 @@ const STRINGS = {
     photos: { one: "{count} Foto", other: "{count} Fotos" },
     photosSelected: { one: "{selected} von {count} Foto", other: "{selected} von {count} Fotos" },
     aboutSeconds: "ca. {seconds} s",
-    stillAnalysingShort: { one: "{count} Clip wird noch analysiert", other: "{count} Clips werden noch analysiert" },
+    notAnalysed: { one: "{count} Clip noch nicht analysiert", other: "{count} Clips noch nicht analysiert" },
+    analysing: { one: "{count} Clip wird analysiert. Das aktualisiert sich automatisch, sobald er fertig ist.", other: "{count} Clips werden analysiert. Das aktualisiert sich automatisch, sobald sie fertig sind." },
+    notAnalysedAnalyse: { one: "{count} Clip ist noch nicht analysiert. Analysiere ihn in Selects, um ihn hier zu verwenden.", other: "{count} Clips sind noch nicht analysiert. Analysiere sie in Selects, um sie hier zu verwenden." },
+    notAnalysedMaybe: { one: "{count} Clip ist noch nicht analysiert. Falls Selects ihn gerade analysiert, aktualisiert sich das automatisch.", other: "{count} Clips sind noch nicht analysiert. Falls Selects sie gerade analysiert, aktualisiert sich das automatisch." },
+    analysisFailed: { one: "{count} Clip konnte nicht analysiert werden.", other: "{count} Clips konnten nicht analysiert werden." },
+    noteAnalysing: { one: "{count} Clip wird analysiert", other: "{count} Clips werden analysiert" },
+    noteFailed: { one: "{count} Clip nicht analysierbar", other: "{count} Clips nicht analysierbar" },
     fitDistinct: { one: "{count} Clip oder Foto", other: "{count} verschiedene Clips und Fotos" },
     fitShrunk: { one: "{distinct} verschiedene Clips und Fotos. Dein Material reicht für {count} Montage-Einstellung (ca. {seconds} s)", other: "{distinct} verschiedene Clips und Fotos. Dein Material reicht für {count} Montage-Einstellungen (ca. {seconds} s)" },
     title: "Titel",
@@ -394,8 +402,6 @@ const STRINGS = {
     checkingClips: "Comprobando clips",
     listening: "Buscando el ritmo",
     working: "Trabajando",
-    stillAnalysing: { one: "{count} clip se sigue analizando.", many: "{count} de clips se siguen analizando.", other: "{count} clips se siguen analizando." },
-    autoUpdate: "Se actualizará automáticamente cuando terminen.",
     noFootage: "Este proyecto aún no tiene vídeos analizados ni fotos. Añade clips de vídeo y analízalos, o añade fotos; se actualizará automáticamente.",
     noClipsSelected: "No hay clips seleccionados. Elige clips en «Avanzado».",
     gap: " ",
@@ -405,7 +411,13 @@ const STRINGS = {
     photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
     photosSelected: { one: "{selected} de {count} foto", many: "{selected} de {count} de fotos", other: "{selected} de {count} fotos" },
     aboutSeconds: "unos {seconds} s",
-    stillAnalysingShort: { one: "{count} clip aún en análisis", many: "{count} de clips aún en análisis", other: "{count} clips aún en análisis" },
+    notAnalysed: { one: "{count} clip sin analizar", many: "{count} de clips sin analizar", other: "{count} clips sin analizar" },
+    analysing: { one: "Se está analizando {count} clip. Esto se actualiza solo cuando termine.", many: "Se están analizando {count} de clips. Esto se actualiza solo cuando terminen.", other: "Se están analizando {count} clips. Esto se actualiza solo cuando terminen." },
+    notAnalysedAnalyse: { one: "{count} clip aún no está analizado. Analízalo en Selects para usarlo aquí.", many: "{count} de clips aún no están analizados. Analízalos en Selects para usarlos aquí.", other: "{count} clips aún no están analizados. Analízalos en Selects para usarlos aquí." },
+    notAnalysedMaybe: { one: "{count} clip aún no está analizado. Si Selects lo está analizando, esto se actualiza solo.", many: "{count} de clips aún no están analizados. Si Selects los está analizando, esto se actualiza solo.", other: "{count} clips aún no están analizados. Si Selects los está analizando, esto se actualiza solo." },
+    analysisFailed: { one: "No se pudo analizar {count} clip.", many: "No se pudieron analizar {count} de clips.", other: "No se pudieron analizar {count} clips." },
+    noteAnalysing: { one: "{count} clip en análisis", many: "{count} de clips en análisis", other: "{count} clips en análisis" },
+    noteFailed: { one: "{count} clip sin poder analizarse", many: "{count} de clips sin poder analizarse", other: "{count} clips sin poder analizarse" },
     fitDistinct: { one: "{count} clip o foto distinto", many: "{count} de clips y fotos distintos", other: "{count} clips y fotos distintos" },
     fitShrunk: { one: "{distinct} clips y fotos distintos. Tu material da para {count} plano de montaje (unos {seconds} s)", many: "{distinct} clips y fotos distintos. Tu material da para {count} de planos de montaje (unos {seconds} s)", other: "{distinct} clips y fotos distintos. Tu material da para {count} planos de montaje (unos {seconds} s)" },
     title: "Título",
@@ -578,8 +590,6 @@ const STRINGS = {
     checkingClips: "Vérification des clips",
     listening: "Recherche du rythme",
     working: "En cours",
-    stillAnalysing: { one: "{count} clip est encore en cours d'analyse.", many: "{count} de clips sont encore en cours d'analyse.", other: "{count} clips sont encore en cours d'analyse." },
-    autoUpdate: "L'affichage se met à jour automatiquement à la fin de l'analyse.",
     noFootage: "Ce projet ne contient pas encore de vidéo analysée ni de photo. Ajoutez des clips vidéo et analysez-les, ou ajoutez des photos ; l'affichage se met à jour automatiquement.",
     noClipsSelected: "Aucun clip sélectionné. Choisissez des clips dans « Avancé ».",
     gap: " ",
@@ -589,7 +599,13 @@ const STRINGS = {
     photos: { one: "{count} photo", many: "{count} de photos", other: "{count} photos" },
     photosSelected: { one: "{selected} sur {count} photo", many: "{selected} sur {count} de photos", other: "{selected} sur {count} photos" },
     aboutSeconds: "environ {seconds} s",
-    stillAnalysingShort: { one: "{count} clip encore en cours d'analyse", many: "{count} de clips encore en cours d'analyse", other: "{count} clips encore en cours d'analyse" },
+    notAnalysed: { one: "{count} clip pas encore analysé", many: "{count} de clips pas encore analysés", other: "{count} clips pas encore analysés" },
+    analysing: { one: "{count} clip est en cours d'analyse. Ceci se met à jour automatiquement à la fin.", many: "{count} de clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin.", other: "{count} clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin." },
+    notAnalysedAnalyse: { one: "{count} clip n'est pas encore analysé. Analysez-le dans Selects pour l'utiliser ici.", many: "{count} de clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici.", other: "{count} clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici." },
+    notAnalysedMaybe: { one: "{count} clip n'est pas encore analysé. Si Selects l'analyse, ceci se met à jour automatiquement.", many: "{count} de clips ne sont pas encore analysés. Si Selects les analyse, ceci se met à jour automatiquement.", other: "{count} clips ne sont pas encore analysés. Si Selects les analyse, ceci se met à jour automatiquement." },
+    analysisFailed: { one: "{count} clip n'a pas pu être analysé.", many: "{count} de clips n'ont pas pu être analysés.", other: "{count} clips n'ont pas pu être analysés." },
+    noteAnalysing: { one: "{count} clip en cours d'analyse", many: "{count} de clips en cours d'analyse", other: "{count} clips en cours d'analyse" },
+    noteFailed: { one: "{count} clip non analysable", many: "{count} de clips non analysables", other: "{count} clips non analysables" },
     fitDistinct: { one: "{count} clip ou photo distinct", many: "{count} de clips et photos distincts", other: "{count} clips et photos distincts" },
     fitShrunk: { one: "{distinct} clips et photos distincts. Vos images suffisent pour {count} plan de montage (environ {seconds} s)", many: "{distinct} clips et photos distincts. Vos images suffisent pour {count} de plans de montage (environ {seconds} s)", other: "{distinct} clips et photos distincts. Vos images suffisent pour {count} plans de montage (environ {seconds} s)" },
     title: "Titre",
@@ -762,8 +778,6 @@ const STRINGS = {
     checkingClips: "Controllo delle clip",
     listening: "Ricerca del ritmo",
     working: "In corso",
-    stillAnalysing: { one: "{count} clip è ancora in analisi.", many: "{count} di clip sono ancora in analisi.", other: "{count} clip sono ancora in analisi." },
-    autoUpdate: "Si aggiorna automaticamente al termine dell'analisi.",
     noFootage: "In questo progetto non ci sono ancora video analizzati né foto. Aggiungi clip video e analizzale, oppure aggiungi foto; si aggiorna automaticamente.",
     noClipsSelected: "Nessuna clip selezionata. Scegli le clip in «Avanzate».",
     gap: " ",
@@ -773,7 +787,13 @@ const STRINGS = {
     photos: { one: "{count} foto", many: "{count} di foto", other: "{count} foto" },
     photosSelected: { one: "{selected} di {count} foto", many: "{selected} di {count} di foto", other: "{selected} di {count} foto" },
     aboutSeconds: "circa {seconds} s",
-    stillAnalysingShort: { one: "{count} clip ancora in analisi", many: "{count} di clip ancora in analisi", other: "{count} clip ancora in analisi" },
+    notAnalysed: { one: "{count} clip non ancora analizzata", many: "{count} di clip non ancora analizzate", other: "{count} clip non ancora analizzate" },
+    analysing: { one: "{count} clip è in fase di analisi. Si aggiorna automaticamente al termine.", many: "{count} di clip sono in fase di analisi. Si aggiorna automaticamente al termine.", other: "{count} clip sono in fase di analisi. Si aggiorna automaticamente al termine." },
+    notAnalysedAnalyse: { one: "{count} clip non è ancora analizzata. Analizzala in Selects per usarla qui.", many: "{count} di clip non sono ancora analizzate. Analizzale in Selects per usarle qui.", other: "{count} clip non sono ancora analizzate. Analizzale in Selects per usarle qui." },
+    notAnalysedMaybe: { one: "{count} clip non è ancora analizzata. Se Selects la sta analizzando, si aggiorna automaticamente.", many: "{count} di clip non sono ancora analizzate. Se Selects le sta analizzando, si aggiorna automaticamente.", other: "{count} clip non sono ancora analizzate. Se Selects le sta analizzando, si aggiorna automaticamente." },
+    analysisFailed: { one: "Non è stato possibile analizzare {count} clip.", many: "Non è stato possibile analizzare {count} di clip.", other: "Non è stato possibile analizzare {count} clip." },
+    noteAnalysing: { one: "{count} clip in analisi", many: "{count} di clip in analisi", other: "{count} clip in analisi" },
+    noteFailed: { one: "{count} clip non analizzabile", many: "{count} di clip non analizzabili", other: "{count} clip non analizzabili" },
     fitDistinct: { one: "{count} clip o foto distinta", many: "{count} di clip e foto distinte", other: "{count} clip e foto distinte" },
     fitShrunk: { one: "{distinct} clip e foto distinte. Il tuo materiale basta per {count} inquadratura di montaggio (circa {seconds} s)", many: "{distinct} clip e foto distinte. Il tuo materiale basta per {count} di inquadrature di montaggio (circa {seconds} s)", other: "{distinct} clip e foto distinte. Il tuo materiale basta per {count} inquadrature di montaggio (circa {seconds} s)" },
     title: "Titolo",
@@ -946,8 +966,6 @@ const STRINGS = {
     checkingClips: "クリップを確認中",
     listening: "ビートを検出中",
     working: "処理中",
-    stillAnalysing: { other: "{count} 本のクリップがまだ解析中です。" },
-    autoUpdate: "解析が終わると自動で更新されます。",
     noFootage: "このプロジェクトには、解析済みの動画も写真もまだありません。動画クリップを追加して解析するか、写真を追加してください。自動で更新されます。",
     noClipsSelected: "クリップが選択されていません。「詳細設定」でクリップを選んでください。",
     gap: "",
@@ -957,7 +975,13 @@ const STRINGS = {
     photos: { other: "写真 {count} 枚" },
     photosSelected: { other: "写真 {count} 枚中 {selected} 枚を選択" },
     aboutSeconds: "約 {seconds} 秒",
-    stillAnalysingShort: { other: "解析中のクリップ {count} 本" },
+    notAnalysed: { other: "未解析のクリップ {count} 本" },
+    analysing: { other: "{count} 本のクリップを解析中です。終わると自動で更新されます。" },
+    notAnalysedAnalyse: { other: "{count} 本のクリップがまだ解析されていません。ここで使うには Selects で解析してください。" },
+    notAnalysedMaybe: { other: "{count} 本のクリップがまだ解析されていません。Selects が解析中なら、自動で更新されます。" },
+    analysisFailed: { other: "{count} 本のクリップを解析できませんでした。" },
+    noteAnalysing: { other: "解析中のクリップ {count} 本" },
+    noteFailed: { other: "解析できなかったクリップ {count} 本" },
     fitDistinct: { other: "異なるクリップ・写真 {count} 点" },
     fitShrunk: { other: "異なるクリップ・写真 {distinct} 点。素材で作れるモンタージュは {count} ショット（約 {seconds} 秒）" },
     title: "タイトル",
@@ -1130,8 +1154,6 @@ const STRINGS = {
     checkingClips: "\ud074\ub9bd \ud655\uc778 \uc911",
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
     working: "\uc791\uc5c5 \uc911",
-    stillAnalysing: { other: "\ud074\ub9bd {count}\uac1c\ub97c \uc544\uc9c1 \ubd84\uc11d\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4." },
-    autoUpdate: "\ubd84\uc11d\uc774 \ub05d\ub098\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
     noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \ubd84\uc11d\ub41c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc744 \ucd94\uac00\ud574 \ubd84\uc11d\ud558\uac70\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
     noClipsSelected: "\uc120\ud0dd\ud55c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. ‘\uace0\uae09’\uc5d0\uc11c \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     gap: " ",
@@ -1141,7 +1163,13 @@ const STRINGS = {
     photos: { other: "\uc0ac\uc9c4 {count}\uc7a5" },
     photosSelected: { other: "\uc0ac\uc9c4 {count}\uc7a5 \uc911 {selected}\uc7a5 \uc120\ud0dd" },
     aboutSeconds: "\uc57d {seconds}\ucd08",
-    stillAnalysingShort: { other: "\uc544\uc9c1 \ubd84\uc11d \uc911\uc778 \ud074\ub9bd {count}\uac1c" },
+    notAnalysed: { other: "\uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd {count}\uac1c" },
+    analysing: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4. \ubd84\uc11d\uc774 \ub05d\ub098\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
+    notAnalysedAnalyse: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uc5ec\uae30\uc11c \uc4f0\ub824\uba74 Selects\uc5d0\uc11c \ubd84\uc11d\ud558\uc138\uc694." },
+    notAnalysedMaybe: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Selects\uc5d0\uc11c \ubd84\uc11d \uc911\uc774\ub77c\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
+    analysisFailed: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4." },
+    noteAnalysing: { other: "\ubd84\uc11d \uc911\uc778 \ud074\ub9bd {count}\uac1c" },
+    noteFailed: { other: "\ubd84\uc11d\ud558\uc9c0 \ubabb\ud55c \ud074\ub9bd {count}\uac1c" },
     fitDistinct: { other: "\uc11c\ub85c \ub2e4\ub978 \ud074\ub9bd·\uc0ac\uc9c4 {count}\uac1c" },
     fitShrunk: { other: "\uc11c\ub85c \ub2e4\ub978 \ud074\ub9bd·\uc0ac\uc9c4 {distinct}\uac1c. \uc601\uc0c1\uc73c\ub85c \ucc44\uc6b8 \uc218 \uc788\ub294 \ubabd\ud0c0\uc8fc \uc0f7 {count}\uac1c(\uc57d {seconds}\ucd08)" },
     title: "\ud0c0\uc774\ud2c0",
@@ -1314,8 +1342,6 @@ const STRINGS = {
     checkingClips: "Verificando clipes",
     listening: "Procurando a batida",
     working: "Trabalhando",
-    stillAnalysing: { one: "{count} clipe ainda está sendo analisado.", many: "{count} de clipes ainda estão sendo analisados.", other: "{count} clipes ainda estão sendo analisados." },
-    autoUpdate: "A lista é atualizada automaticamente quando a análise terminar.",
     noFootage: "Este projeto ainda não tem vídeos analisados nem fotos. Adicione clipes de vídeo e analise-os, ou adicione fotos; a lista é atualizada automaticamente.",
     noClipsSelected: "Nenhum clipe selecionado. Escolha clipes em “Avançado”.",
     gap: " ",
@@ -1325,7 +1351,13 @@ const STRINGS = {
     photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
     photosSelected: { one: "{selected} de {count} foto", many: "{selected} de {count} de fotos", other: "{selected} de {count} fotos" },
     aboutSeconds: "cerca de {seconds} s",
-    stillAnalysingShort: { one: "{count} clipe ainda em análise", many: "{count} de clipes ainda em análise", other: "{count} clipes ainda em análise" },
+    notAnalysed: { one: "{count} clipe ainda não analisado", many: "{count} de clipes ainda não analisados", other: "{count} clipes ainda não analisados" },
+    analysing: { one: "{count} clipe está sendo analisado. Isto se atualiza sozinho quando terminar.", many: "{count} de clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem.", other: "{count} clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem." },
+    notAnalysedAnalyse: { one: "{count} clipe ainda não foi analisado. Analise-o no Selects para usá-lo aqui.", many: "{count} de clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui.", other: "{count} clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui." },
+    notAnalysedMaybe: { one: "{count} clipe ainda não foi analisado. Se o Selects estiver analisando, isto se atualiza sozinho.", many: "{count} de clipes ainda não foram analisados. Se o Selects estiver analisando, isto se atualiza sozinho.", other: "{count} clipes ainda não foram analisados. Se o Selects estiver analisando, isto se atualiza sozinho." },
+    analysisFailed: { one: "Não foi possível analisar {count} clipe.", many: "Não foi possível analisar {count} de clipes.", other: "Não foi possível analisar {count} clipes." },
+    noteAnalysing: { one: "{count} clipe em análise", many: "{count} de clipes em análise", other: "{count} clipes em análise" },
+    noteFailed: { one: "{count} clipe não pôde ser analisado", many: "{count} de clipes não puderam ser analisados", other: "{count} clipes não puderam ser analisados" },
     fitDistinct: { one: "{count} clipe ou foto diferente", many: "{count} de clipes e fotos diferentes", other: "{count} clipes e fotos diferentes" },
     fitShrunk: { one: "{distinct} clipes e fotos diferentes. Seu material rende {count} plano de montagem (cerca de {seconds} s)", many: "{distinct} clipes e fotos diferentes. Seu material rende {count} de planos de montagem (cerca de {seconds} s)", other: "{distinct} clipes e fotos diferentes. Seu material rende {count} planos de montagem (cerca de {seconds} s)" },
     title: "Título",
@@ -1498,8 +1530,6 @@ const STRINGS = {
     checkingClips: "Klipler kontrol ediliyor",
     listening: "Ritim aranıyor",
     working: "Çalışıyor",
-    stillAnalysing: { one: "{count} klip hâlâ analiz ediliyor.", other: "{count} klip hâlâ analiz ediliyor." },
-    autoUpdate: "Analiz bitince burası otomatik olarak güncellenir.",
     noFootage: "Bu projede henüz analiz edilmiş video veya fotoğraf yok. Video klipleri ekleyip analiz edin ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
     noClipsSelected: "Klip seçilmedi. “Gelişmiş” bölümünden klip seçin.",
     gap: " ",
@@ -1509,7 +1539,13 @@ const STRINGS = {
     photos: { one: "{count} fotoğraf", other: "{count} fotoğraf" },
     photosSelected: { one: "{count} fotoğraftan {selected}", other: "{count} fotoğraftan {selected}" },
     aboutSeconds: "yaklaşık {seconds} sn",
-    stillAnalysingShort: { one: "{count} klip hâlâ analiz ediliyor", other: "{count} klip hâlâ analiz ediliyor" },
+    notAnalysed: { one: "{count} klip henüz analiz edilmedi", other: "{count} klip henüz analiz edilmedi" },
+    analysing: { one: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir.", other: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir." },
+    notAnalysedAnalyse: { one: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin.", other: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin." },
+    notAnalysedMaybe: { one: "{count} klip henüz analiz edilmedi. Selects analiz ediyorsa bu otomatik olarak güncellenir.", other: "{count} klip henüz analiz edilmedi. Selects analiz ediyorsa bu otomatik olarak güncellenir." },
+    analysisFailed: { one: "{count} klip analiz edilemedi.", other: "{count} klip analiz edilemedi." },
+    noteAnalysing: { one: "{count} klip analiz ediliyor", other: "{count} klip analiz ediliyor" },
+    noteFailed: { one: "{count} klip analiz edilemedi", other: "{count} klip analiz edilemedi" },
     fitDistinct: { one: "{count} farklı klip veya fotoğraf", other: "{count} farklı klip ve fotoğraf" },
     fitShrunk: { one: "{distinct} farklı klip ve fotoğraf. Görüntüleriniz {count} montaj çekimine yetiyor (yaklaşık {seconds} sn)", other: "{distinct} farklı klip ve fotoğraf. Görüntüleriniz {count} montaj çekimine yetiyor (yaklaşık {seconds} sn)" },
     title: "Başlık",
@@ -1682,8 +1718,6 @@ const STRINGS = {
     checkingClips: "正在检查片段",
     listening: "正在识别节拍",
     working: "处理中",
-    stillAnalysing: { other: "还有 {count} 个片段正在分析。" },
-    autoUpdate: "分析完成后会自动更新。",
     noFootage: "此项目中还没有已分析的视频或照片。请添加视频片段并进行分析，或添加照片；这里会自动更新。",
     noClipsSelected: "未选择片段。请在“高级”中选择片段。",
     gap: "",
@@ -1693,7 +1727,13 @@ const STRINGS = {
     photos: { other: "{count} 张照片" },
     photosSelected: { other: "已选 {selected}/{count} 张照片" },
     aboutSeconds: "约 {seconds} 秒",
-    stillAnalysingShort: { other: "{count} 个片段仍在分析" },
+    notAnalysed: { other: "{count} 个片段尚未分析" },
+    analysing: { other: "正在分析 {count} 个片段。分析完成后会自动更新。" },
+    notAnalysedAnalyse: { other: "有 {count} 个片段尚未分析。请在 Selects 中分析后再在这里使用。" },
+    notAnalysedMaybe: { other: "有 {count} 个片段尚未分析。如果 Selects 正在分析，这里会自动更新。" },
+    analysisFailed: { other: "有 {count} 个片段无法分析。" },
+    noteAnalysing: { other: "{count} 个片段分析中" },
+    noteFailed: { other: "{count} 个片段无法分析" },
     fitDistinct: { other: "{count} 个不同的片段和照片" },
     fitShrunk: { other: "{distinct} 个不同的片段和照片。素材可支持 {count} 个蒙太奇镜头（约 {seconds} 秒）" },
     title: "标题",
@@ -3370,6 +3410,28 @@ const WAVE_HEIGHT = 56;
 
 // Music section slider: waveform on a canvas with a draggable, bar-snapped window over the chosen section.
 // While `audio` plays, a playhead follows its currentTime inside the window, redrawn on every animation frame.
+// Videos without analysis, from inventory.js's skipped counts: being analysed now, not analysed yet (never started; the
+// panel does not start analysis), or failed. known is false when the workflow read failed: pending clips then may or
+// may not be queued, so their wording is neutral and the panel keeps polling.
+function stAnalysisCounts(skipped: any) {
+  const s = skipped || {}, total = s.unanalysed || 0;
+  if (s.analysing == null) return { total, analysing: 0, notAnalysed: total, failed: 0, known: false };
+  return { total, analysing: s.analysing || 0, notAnalysed: s.notAnalysed || 0, failed: s.failed || 0, known: s.statusKnown !== false };
+}
+// The sentences for the readiness line in the UI language ("" when every video is analysed).
+function stAnalysisText(lang: Lang, c: any) {
+  return [
+    c.analysing ? t(lang, "analysing", { count: c.analysing }) : "",
+    c.notAnalysed ? (c.known ? t(lang, "notAnalysedAnalyse", { count: c.notAnalysed }) : t(lang, "notAnalysedMaybe", { count: c.notAnalysed })) : "",
+    c.failed ? t(lang, "analysisFailed", { count: c.failed }) : "",
+  ].filter(Boolean).join(t(lang, "gap"));
+}
+// The short facts for the end of the Ready line ("" for a count of 0).
+function stAnalysisNotes(lang: Lang, c: any) {
+  return [c.analysing ? t(lang, "noteAnalysing", { count: c.analysing }) : "", c.notAnalysed ? t(lang, "notAnalysed", { count: c.notAnalysed }) : "",
+    c.failed ? t(lang, "noteFailed", { count: c.failed }) : ""];
+}
+
 function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, onChange, disabled, audio, drop, lang }: {
   peaks: number[]; total: number; section: number | null; videoSeconds: number; barSeconds: number;
   snap: (v: number) => number | null; onChange: (v: number | null) => void; disabled: boolean; audio: HTMLAudioElement | null; drop: boolean; lang: Lang;
@@ -3767,7 +3829,8 @@ export default function Panel({ sdk, context, ui }: any) {
       if (!live() || busyRef.current) return;
       inv.photos = inv.photos || [];
       for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizesRef.current[ph.rid] = { width: ph.width, height: ph.height };
-      const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + (inv.skipped?.unanalysed || 0);
+      const sk = inv.skipped || {};
+      const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + [sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown].map((x) => String(x ?? "")).join(",");
       // A changed clip set drops the cached scene search so a build never uses stale candidates.
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
       setInventory(inv); setInvError(null);
@@ -3831,10 +3894,13 @@ export default function Panel({ sdk, context, ui }: any) {
     return () => { alive = false; stopPreview(); };
   }, [projectId]);
 
-  // Clips still being analysed (or none yet): re-read the inventory every 10 s until they are ready.
+  // Clips being analysed (or no clips at all yet): re-read the inventory every 10 s until they are ready. Clips whose
+  // analysis was never started (or failed) do not poll on their own: nothing changes until the user analyses them in
+  // Selects, and coming back to the panel or Refresh picks that up. With an unknown status, unanalysed clips poll.
   // The effect re-arms on each new inventory, and stops on unmount, Project switch and while busy.
   // A Project with only photos has nothing to wait for, so it does not poll (each read measures new photos).
-  const needsPoll = !!inventory && (inventory.skipped?.unanalysed > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
+  const invAnalysis = stAnalysisCounts(inventory?.skipped);
+  const needsPoll = !!inventory && (invAnalysis.analysing > 0 || (!invAnalysis.known && invAnalysis.total > 0) || (inventory.resources.length === 0 && !inventory.photos?.length && invAnalysis.total === 0));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
@@ -4266,18 +4332,16 @@ export default function Panel({ sdk, context, ui }: any) {
       return stPlanBuild(stPlanOptions({ music, section: start ?? 0, candidates: cands, fps: fpsRef.current[projectId] || ST_GUESS_FPS, montageShots: requested, seed, sizes: sizesOf(inventory) }));
     } catch (e: any) { return { ok: false, disabledReason: String(e?.message || e) }; }
   }, [inventory, candidates, candKey, only, onlyPhotos, usePhotos, musicKey, start, requested, seed, projectId]);
-  const pending = inventory?.skipped?.unanalysed || 0;
+  const analysisText = stAnalysisText(L, invAnalysis);
   const clipCount = [
     allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
     usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
   ].filter(Boolean).join(" · ");
   const readiness = !inventory ? (invError ? t(L, "readFailed", { detail: sayError(L, invError) }) : t(L, "checkingClipsNow"))
-    : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0
-      ? t(L, "stillAnalysing", { count: pending }) + t(L, "gap") + t(L, "autoUpdate")
-      : t(L, "noFootage"))
+    : inventory.resources.length === 0 && !allPhotoRids.length ? (analysisText || t(L, "noFootage"))
     : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
     : t(L, "ready", { summary: [clipCount || t(L, "clips", { count: 0 }), t(L, "aboutSeconds", { seconds: Math.round(readyPlan && readyPlan.ok ? readyPlan.seconds : videoSeconds) }),
-      ...(pending > 0 ? [t(L, "stillAnalysingShort", { count: pending })] : [])].join(" · ") });
+      ...stAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
   const fitLine = readyPlan && readyPlan.ok ? (readyPlan.shrunk
     ? t(L, "fitShrunk", { distinct: readyPlan.distinct, count: readyPlan.montageShots, seconds: Math.round(readyPlan.seconds) })
     : t(L, "fitDistinct", { count: readyPlan.distinct })) : null;

@@ -56,7 +56,9 @@ never in either install folder:
    readiness line at the bottom of the Length section reads, for example,
    "Ready: 6 clips · 12 photos · about 13 s", the Track
    list shows the four bundled tracks (two reference tracks, then two
-   alternatives), and the Title preview renders in its own typefaces.
+   alternatives), and the Title preview renders in its own typefaces. In a Project whose clips were never analysed, it
+   reads "N clips are not analysed yet. Analyse them in Selects to use them
+   here." (never "being analysed"); the panel does not start analysis itself.
 3. With at least 4 usable shots from 2 different clips or photos, press
    **Build**. A new 16:9 Draft opens at 1920x1080 with the title, the clips
    and the music.
