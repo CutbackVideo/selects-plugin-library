@@ -7,7 +7,7 @@
       "fields": [
         {
           "key": "kicker",
-          "label": "Small line",
+          "label": "Top line",
           "initial": "MINI VLOG",
           "max": 24
         },
@@ -19,7 +19,7 @@
         },
         {
           "key": "tagline",
-          "label": "Tagline",
+          "label": "Bottom line",
           "initial": "CAPTURE THE MOMENTS",
           "max": 48
         }
@@ -74,7 +74,7 @@
       "fields": [
         {
           "key": "kicker",
-          "label": "Small line",
+          "label": "Top line",
           "initial": "",
           "max": 24
         },
@@ -86,7 +86,7 @@
         },
         {
           "key": "tagline",
-          "label": "Tagline",
+          "label": "Bottom line",
           "initial": "A QUIET DAY IN THE CITY, ONE FRAME AT A TIME",
           "max": 48
         }
@@ -141,8 +141,8 @@
       "fields": [
         {
           "key": "kicker",
-          "label": "Small line",
-          "initial": "MINI VLOG",
+          "label": "Top line",
+          "initial": "TRAVEL DIARY",
           "max": 24
         },
         {
@@ -153,7 +153,7 @@
         },
         {
           "key": "tagline",
-          "label": "Tagline",
+          "label": "Bottom line",
           "initial": "CHASING THE LAST LIGHT",
           "max": 48
         }

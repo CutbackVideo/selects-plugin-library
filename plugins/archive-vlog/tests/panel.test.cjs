@@ -445,6 +445,24 @@ const hostTests = (async () => {
     assert.ok(/^C:\\data\\pcm-[\w-]+\.f32$/.test(wrote), 'temp file in the data folder, ASCII name: ' + wrote);
     assert.deepEqual(calls.removed, [wrote], 'the temp file is removed');
   }
+  // hostRemove: the first FileSystem remover present that works (removeFile, remove, rm, unlink, unlinkSync); a host
+  // without one, or with only failing ones, leaves the file and never throws.
+  {
+    const removeWith = async (FileSystem) => {
+      const ctx = { window: { parent: { __DI__: { FileSystem } } }, navigator: { platform: '', userAgent: '' }, Math, String, Error };
+      vm.createContext(ctx); vm.runInContext(hostBlock + '\nthis.R = hostRemove;', ctx);
+      await ctx.R('/d/x.f32');
+    };
+    const seen = [];
+    await removeWith({ remove: async p => seen.push(['remove', p]) });
+    await removeWith({ removeFile: async () => { throw Error('no'); }, rm: async p => seen.push(['rm', p]), unlink: async p => seen.push(['unlink', p]) });
+    await removeWith({ unlink: p => seen.push(['unlink', p]) });
+    await removeWith({ unlinkSync: p => seen.push(['unlinkSync', p]) });
+    await removeWith({ remove: () => { throw Error('busy'); }, unlinkSync: () => { throw Error('busy'); } });
+    await removeWith({});
+    await removeWith(undefined);
+    assert.deepEqual(seen, [['remove', '/d/x.f32'], ['rm', '/d/x.f32'], ['unlink', '/d/x.f32'], ['unlinkSync', '/d/x.f32']]);
+  }
 })();
 
 // ---- UI wiring --------------------------------------------------------------------------------------------------
@@ -461,7 +479,7 @@ for (const s of ['React.useState(DEFAULT_PRESET)', 'React.useState(DEFAULT_CUE)'
 assert.ok(ui.includes('options={[{ label: t(L, "pace.cinematic"), value: "cinematic" }, { label: t(L, "pace.quick"), value: "quick" }]}'));
 // Style tiles: the sample and the name inside one bordered box (panel-ui.md section 2), one tile per preset.
 for (const s of ['presetList.map((p) => {', 'aria-pressed={on}', 'onClick={() => choosePreset(p.id)}', 'height: "auto", maxHeight: "none", boxSizing: "border-box", padding: "8px 6px"',
-  'display: "flex", flexDirection: "column", alignItems: "center", gap: 6', 'border: on ? "2px solid var(--panel-fg, #ffffff)"', 'overflowWrap: "anywhere", wordBreak: "keep-all"'])
+  'display: "flex", flexDirection: "column", alignItems: "center", gap: 6', 'border: on ? "2px solid var(--panel-fg, #ffffff)"', 'overflowWrap: "anywhere", wordBreak: L === "ko" ? "keep-all" : undefined'])
   assert.ok(ui.includes(s), s);
 assert.equal(presets.presets.length, 3);
 for (const p of presets.presets) {
@@ -542,13 +560,51 @@ assert.ok(/const OWN_RATE = 22050;/.test(panel) && /const OWN_MAX_SECONDS = 240;
 assert.ok(!/analyze\(samples, OWN_RATE/.test(ui), 'never analysed on the panel thread');
 // The music cue is imported from the install folder by a joined path.
 assert.ok(ui.includes('musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null'));
-assert.ok(ui.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: pjoin(roots.plugin, "assets", "cues", cue.file) })'), 'template run cue path');
+assert.ok(ui.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: pjoin(roots.plugin, "assets", "cues", cue.file),\n    duration: typeof cue.duration === "number" ? cue.duration : null })'), 'template run cue path and length');
+assert.ok(ui.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, duration: frozen.musicDuration })'), 'Build passes the cue length');
+assert.ok(ui.includes('musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,'));
 // Advanced: Clip sound, the Cinematic look (strength follows the preset until moved), photos, Choose clips (thin stable
 // scrollbar for Windows).
 for (const s of ['label={t(L, "clipSound")}', 'label={t(L, "cinematicLook")}', '<ui.Slider label={t(L, "param.look")} value={strength} min={0} max={1} step={0.05}',
   'const strength = lookStrength ?? presetStrength;', 'label={t(L, "usePhotos")}', 'aria-label={t(L, "chooseClips")}', 'scrollbarGutter: "stable", scrollbarWidth: "thin"']) assert.ok(ui.includes(s), s);
 assert.ok(ui.includes('const cw = Math.round(width * dpr), chh = Math.round(WAVE_HEIGHT * dpr);'), 'canvas backing store in whole device pixels');
 // Build: plan, music, assemble, decorate (two commits), open; stale-project guards; retry and new seed.
+// Own music: no fit line (and no failure text) before a file is chosen and analysed.
+assert.ok(ui.includes('const fitLine = !assets || (musicKind === "own" && (!ownMusic || !ownGrid)) ? null'));
+// The beat analysis times out (fixed timing then, as for any failed analysis), and the WebAudio fallback honours the
+// cancel signal (a cancelled analysis never reports another file's error).
+assert.ok(ui.includes('const BEAT_TIMEOUT_MS = 60000;') && ui.includes('timeoutMs: number = BEAT_TIMEOUT_MS'));
+assert.ok(ui.includes('err.code = "beat-timeout"') && ui.includes('if (e?.code === "beat-timeout") return t(lang, "beatTimeout");'));
+assert.ok(ui.includes('if (timer) clearTimeout(timer);'), 'the timer stops with the worker');
+{
+  const dec = ui.slice(ui.indexOf('async function decodeOwnMusic('), ui.indexOf('function analyseBeat('));
+  assert.equal((dec.match(/if \(signal\.aborted\) throw new Error\("cancelled"\);/g) || []).length, 3, 'after ffmpeg, the file read and the decode');
+  assert.ok(dec.includes('throw signal.aborted ? new Error("cancelled") : first || e;'));
+}
+// Template runs: no credit (the sample name is never published), the decorate step is sent once (never resent after a
+// lost reply), and every message is a STRINGS key in the run's language (plural objects joined with `gap`).
+{
+  const tpl = ui.slice(ui.indexOf('async function runArchiveVlogTemplate('), ui.indexOf('// What the app mounts out of sight for a template run'));
+  assert.ok(tpl.includes('credit: { on: false, name: "" }') && tpl.includes('look: true, credit: false } });'), 'template credit off');
+  assert.equal((tpl.match(/run\("Add title and look"/g) || []).length, 1, 'decorate sent once');
+  assert.ok(!/finish\(\)/.test(tpl), 'no resend helper');
+  assert.ok(!/templateIssue\("/.test(ui), 'no English template messages');
+  for (const k of ['tpl.noFootage', 'tpl.noMusic', 'tpl.noStyles', 'tpl.notFound', 'tpl.notAnalysed', 'tpl.noTitle', 'tpl.finishFailed']) assert.ok(tpl.includes('t(bl, "' + k + '"'), k);
+  assert.ok(tpl.includes('unanalysed ? t(bl, "tpl.notAnalysed", { count: unanalysed }) : ""].filter(Boolean).join(t(bl, "gap"))'));
+  const run = ui.slice(ui.indexOf('function TemplateRun('));
+  for (const k of ['tpl.stoppedAt', 'tpl.stopped', 'tpl.done', 'tpl.stepDetail']) assert.ok(run.includes('"' + k + '"'), k);
+  assert.ok(!/stopped while|"Done"|"Starting"/.test(run));
+  for (const l of Object.keys(strings)) assert.ok(typeof strings[l]['tpl.notAnalysed'] === 'object', l + ' plural');
+}
+// A Draft found by its name after a lost reply: a STRINGS note, not English text in the script notes.
+assert.ok(ui.includes('a = { ...saved, notes: a?.notes || [], recovered: true };') && ui.includes('{result?.recovered ? <ui.Message tone="muted">{t(L, "draftRecovered")}</ui.Message> : null}'));
+assert.ok(!ui.includes('the Draft was found after its reply was lost'));
+// Preset names and the Pace option Cinematic stay English in every language; Kicker and Tagline are position labels.
+for (const [l, table] of Object.entries(strings)) {
+  assert.deepEqual([table['preset.cinematic'], table['preset.a-day-out'], table['preset.golden-hour'], table['pace.cinematic']], ['Cinematic', 'A Day Out', 'Golden Hour', 'Cinematic'], l);
+}
+assert.deepEqual([strings.en['param.kicker'], strings.en['param.tagline']], ['Top line', 'Bottom line']);
+assert.deepEqual([K.AV_ADJUST_LABELS.kicker, K.AV_ADJUST_LABELS.tagline], ['Top line', 'Bottom line'], 'decorate labels without a UI language');
 // Stale runs: every build and Finish takes a new run epoch, the Project-change effect bumps it, and check(), endRun()
 // and the error status all compare the epoch and the Project, so a superseded run never continues nor clears the busy
 // state or progress of the run that replaced it (A -> B -> A while a build on A runs).
