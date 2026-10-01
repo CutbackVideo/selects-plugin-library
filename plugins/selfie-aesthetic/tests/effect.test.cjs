@@ -68,6 +68,37 @@ for (const angle of [-35, -25, 25, 35]) for (const kind of ['dir', 'spin']) {
   }
 }
 
+// Per-side angles (planner holds: angleIn / angleOut, alternating sign cut by cut). Clip j's tail and clip j + 1's
+// head share the cut's angle, so the motion keeps its direction across every cut; a clip's head and tail can differ.
+{
+  const cuts = [31.2, -27.5, 33.9, -25.4]; // cut k between clip k and clip k + 1
+  const clips = [0, 1, 2, 3, 4].map(k => ({ whipIn: k ? 1 : 0, whipOut: k < 4 ? 1 : 0, kindIn: k ? (k === 2 ? 'spin' : 'dir') : 'none',
+    kindOut: k < 4 ? (k === 1 ? 'spin' : 'dir') : 'none', angle: k < 4 ? cuts[k] : cuts[3], angleIn: k ? cuts[k - 1] : 0, angleOut: k < 4 ? cuts[k] : 0, whip: 1 }));
+  const dur = 10, fps = 25;
+  for (let k = 0; k < 4; k++) {
+    const a = cuts[k], th = a * Math.PI / 180;
+    const along = m => m.txPct / 100 * 1080 * Math.cos(th) + m.tyPct / 100 * 1920 * Math.sin(th);
+    const seq = [F.saeWhipAt(dur - 2, dur, fps, clips[k]), F.saeWhipAt(dur - 1, dur, fps, clips[k]),
+      F.saeWhipAt(0, dur, fps, clips[k + 1]), F.saeWhipAt(1, dur, fps, clips[k + 1])];
+    for (const m of seq) near(m.angleDeg, a, 'both sides of cut ' + k + ' use its angle');
+    assert.ok(along(seq[0]) < along(seq[1]) && along(seq[1]) > 0 && along(seq[2]) < 0 && along(seq[2]) < along(seq[3]), 'continuous direction across cut ' + k);
+    // The slide is colinear with the cut's direction on both sides (same unit vector, opposite ends).
+    for (const m of [seq[1], seq[2]]) near(m.txPct / 100 * 1080 * Math.sin(th) - m.tyPct / 100 * 1920 * Math.cos(th), 0, 'colinear ' + k, 1e-6);
+    if (k) assert.equal(Math.sign(cuts[k]), -Math.sign(cuts[k - 1]), 'alternating signs');
+  }
+  // Clip 1: head on cut 0 (+31.2), tail on cut 1 (-27.5).
+  near(F.saeWhipAt(0, dur, fps, clips[1]).angleDeg, 31.2, 'head uses angleIn');
+  near(F.saeWhipAt(dur - 1, dur, fps, clips[1]).angleDeg, -27.5, 'tail uses angleOut');
+  // Spin on a per-side angle rotates with that side's sign (clip 1 tail spins with -27.5, clip 2 head arrives from +8).
+  near(F.saeWhipAt(dur - 1, dur, fps, clips[1]).rotDeg, -8, 'spin tail follows angleOut sign');
+  near(F.saeWhipAt(0, dur, fps, clips[2]).rotDeg, 8, 'spin head follows angleIn sign');
+  // Fallback: without angleIn / angleOut both sides use angle (older data).
+  const old = both('dir', { angle: -30 });
+  near(F.saeWhipAt(0, dur, fps, old).angleDeg, -30, 'head falls back to angle');
+  near(F.saeWhipAt(dur - 1, dur, fps, old).angleDeg, -30, 'tail falls back to angle');
+  near(F.saeWhipAt(0, dur, fps, both('dir', { angle: 20, angleIn: 'x' })).angleDeg, 20, 'a non-number angleIn falls back');
+}
+
 // spin vs dir.
 {
   const d = F.saeWhipAt(23, 24, 25, both('dir')), s = F.saeWhipAt(23, 24, 25, both('spin'));

@@ -14,6 +14,12 @@ const covers = cfg.covers || [];
 // The cover scale assemble applied to clip i (assemble's result `covers`); 1 when none.
 const coverOf = i => (typeof covers[i] === 'number' && covers[i] > 0 ? covers[i] : 1);
 const notes = [];
+// Whip angles: both clips of a cut share the cut's angle. The planner gives each hold angleIn (its head's cut) and
+// angleOut (its tail's cut); `angle` = angleOut. Older holds without them: angleOut = angle, angleIn = the previous
+// hold's angleOut (its own angle on the first hold).
+const num = (v, dflt) => (typeof v === 'number' && isFinite(v) ? v : dflt);
+const angleOutOf = i => num(holds[i] && holds[i].angleOut, num(holds[i] && holds[i].angle, 0));
+const angleInOf = i => num(holds[i] && holds[i].angleIn, i > 0 ? angleOutOf(i - 1) : num(holds[i] && holds[i].angle, 0));
 const photoIds = new Set(holds.filter(h => h.kind === 'photo').map(h => h.rid));
 // Main clips in timeline order, read from trackScope 'all' (addVideoEffect / addTransition want those rows).
 const main = async () => (await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'main' && c.resourceId !== null).sort((a, b) => a.startFrame - b.startFrame);
@@ -57,8 +63,8 @@ for (let i = 0; i < n; i++) {
   const h = holds[i];
   const whipIn = mode === 'effect' && i > 0 && h.cutIn !== 'none' ? 1 : 0;
   const whipOut = mode === 'effect' && i < n - 1 && h.cutOut !== 'none' ? 1 : 0;
-  const parameters = { whipIn, whipOut, kindIn: h.cutIn || 'none', kindOut: h.cutOut || 'none', angle: typeof h.angle === 'number' ? h.angle : 0,
-    whip, look, lookStrength, framing: h.framing || null, cover: coverOf(i) };
+  const parameters = { whipIn, whipOut, kindIn: h.cutIn || 'none', kindOut: h.cutOut || 'none', angle: num(h.angle, 0),
+    angleIn: angleInOf(i), angleOut: angleOutOf(i), whip, look, lookStrength, framing: h.framing || null, cover: coverOf(i) };
   const defs = mode === 'effect' ? [...lookDefs, whipDef] : lookDefs;
   await d.addVideoEffect({ clip, label: EFFECT_LABEL, tsxCode: effect.tsx, parameters, editableParameters: defs as any });
   effects++;
@@ -77,7 +83,7 @@ if (mode === 'transition') {
     if (existing) { transitionsKept++; continue; }
     const h = holds[i];
     await d.addTransition({ after: clip, label: TRANSITION_LABEL, tsxCode: cfg.transitionTsx, inOffsetSeconds: w / fps, outOffsetSeconds: w / fps,
-      parameters: { kind: h.cutOut && h.cutOut !== 'none' ? h.cutOut : 'dir', angle: typeof h.angle === 'number' ? h.angle : 0, strength: 1, whip, cover: transitionCover(i) },
+      parameters: { kind: h.cutOut && h.cutOut !== 'none' ? h.cutOut : 'dir', angle: angleOutOf(i), strength: 1, whip, cover: transitionCover(i) },
       editableParameters: [whipDef] as any });
     transitions++;
   }
