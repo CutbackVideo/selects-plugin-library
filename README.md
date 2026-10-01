@@ -28,6 +28,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Torn Paper Love](plugins/torn-paper-love) — 4:3 torn-paper couple photo edit with ransom-note letters | Experimental |
 | [THE END Credits](plugins/the-end-credits) — end-credits roll with a typed THE END title and a window of your clips | Experimental |
 | [Summer Trip](plugins/summer-trip) — beat-synced 16:9 summer trip video with a typed title, a split-screen grid and a film-frame ending | Experimental |
+| [Travel Beat Vlog](plugins/travel-beat-vlog) — fast 9:16 travel edit with two quick montages, a hero title, two grids, reference colour and bundled music | Experimental |
 
 | [Photo Grid Reveal](plugins/photo-gallery-no2) — editable 21-tile photo/video grid with sequential reveals and a shared monochrome-to-color switch | Experimental |
 
