@@ -66,5 +66,11 @@
       "name": "a16z \u98ce\u683c\u5b57\u5e55",
       "summary": "\u4e00\u952e\u628a\u53e3\u64ad Draft \u505a\u6210 a16z \u98ce\u683c\u7684 9:16 \u77ed\u89c6\u9891\uff1a\u4eba\u7269\u6784\u56fe\u3001\u7f16\u8f91\u98ce\u683c\u5b57\u5e55\u3001\u5173\u952e\u8bcd\u5361\u7247\u3001B-roll\u3001\u59d3\u540d\u6761\u548c\u97f3\u4e50\u3002"
     }
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
   }
 }
