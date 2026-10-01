@@ -156,6 +156,41 @@ const keepAlive = setInterval(() => {}, 50);
   assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(done)), { unanalysed: 1, analysing: 1, notAnalysed: 0, failed: 0, statusKnown: true });
   assert.equal(wfCalls, 0, 'no workflows() read without a pending clip');
 
+  // ensure-audio.js: the cue's path matches the host's stored path after normalising (NFC, backslashes as slashes,
+  // case-folded), else by file name; only a cue the Project lacks is imported.
+  const audioProject = (stored, name) => {
+    const imports = [];
+    return { imports, sel: { project: () => ({
+      sourceFiles: async () => ({ fileTree: [{ type: 'dir', name: 'cues', children: [{ type: 'audio', name, resourceId: 'a1', path: stored }] }] }),
+      resources: async () => [{ resourceId: 'v1', type: 'Video', name: 'x.mov' }, { resourceId: 'a1', type: 'Audio', name }],
+      importFiles: async ({ paths }) => { imports.push(...paths); return { addedResourceIds: ['a9'] }; },
+    }) } };
+  };
+  const winCue = 'D:\\Data\\AppData\\Selects\\skills\\archive-vlog\\assets\\cues\\peaceful-drift.mp3';
+  {
+    // Windows: the panel joins with backslashes, the host stored forward slashes and another drive-letter case.
+    const a = audioProject('d:/data/AppData/Selects/skills/archive-vlog/assets/cues/peaceful-drift.mp3', 'peaceful-drift.mp3');
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue })(a.sel), { resourceId: 'a1', imported: false });
+    assert.deepEqual(a.imports, []);
+  }
+  {
+    // A Korean file name stored decomposed (NFD, macOS) matches the composed (NFC) path the panel builds.
+    const ko = '\uac00\ub098\ub2e4.mp3';
+    const a = audioProject('/x/cues/' + ko.normalize('NFD'), ko.normalize('NFD'));
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/x/cues/' + ko })(a.sel), { resourceId: 'a1', imported: false });
+  }
+  {
+    // Same cue file in another folder (the plugin moved): matched by its file name.
+    const a = audioProject('/old/place/peaceful-drift.mp3', 'peaceful-drift.mp3');
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue })(a.sel), { resourceId: 'a1', imported: false });
+  }
+  {
+    // Not in the Project: imported once, with the panel's path unchanged.
+    const a = audioProject('/x/cues/fractured.mp3', 'fractured.mp3');
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue })(a.sel), { resourceId: 'a9', imported: true });
+    assert.deepEqual(a.imports, [winCue]);
+  }
+
   clearInterval(keepAlive);
   console.log(JSON.stringify({ scriptsRead: 'ok' }));
 })().catch(e => { console.error(e); process.exit(1); });

@@ -41,8 +41,12 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
       if (o.volumeDb != null) { const c = clips.find(x => x.clipId === o.clip.clipId); c.volumeDb = o.volumeDb; log.push(['volume', o.clip.clipId, o.volumeDb]); }
       if (o.fadeOutSeconds != null || o.fadeInSeconds != null) log.push(['fade', o.clip.clipId, o.fadeInSeconds, o.fadeOutSeconds]);
     },
-    addMotionGraphic: async (o) => { graphics.push({ name: o.label, clip: {} }); log.push(['title', o.within, o.label]); },
-    addVideoEffect: async (o) => { (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label }); log.push(['look', o.clip.clipId, o.parameters.strength, o.label, o.editableParameters]); },
+    addMotionGraphic: async (o) => { graphics.push({ name: o.label, clip: {} }); log.push(['graphic', o.within, o.label, o.parameters, o.editableParameters, o.tsxCode]); },
+    addVideoEffect: async (o) => {
+      if (!clips.some(c => c.clipId === o.clip.clipId)) throw Error('unknown clip');
+      (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label });
+      log.push(['fx', o.clip.clipId, o.label, o.parameters, o.editableParameters, o.tsxCode]);
+    },
     motionGraphics: async () => graphics.map(g => ({ ...g })),
     videoEffects: async (clip) => (effects[clip.clipId] || []).map(e => ({ ...e })),
     commitAll: async (reason) => {
@@ -73,28 +77,10 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   for (const x of t) { assert.ok(Math.abs(x[2].x - (1920 / 1080) / (1080 / 1920)) < 1e-6, 'cover scale ' + x[2].x); assert.equal(x[2].y, x[2].x); }
   assert.equal(m.log.filter(x => x[0] === 'mute').length, 0, 'assemble leaves muting to decorate');
   assert.equal(m.log.find(x => x[0] === 'music')[1], 4.847);
-  assert.deepEqual(m.log.find(x => x[0] === 'fade').slice(1), [99, 0, 0.12]);
+  assert.deepEqual(m.log.find(x => x[0] === 'fade').slice(1), [99, 0, 1.0], 'the music fades out over 1.0 s by default');
   assert.equal(m.log.filter(x => x[0] === 'commit').length, 1);
   assert.deepEqual(Object.keys(r).sort(), ['ambientClips', 'fps', 'notes', 'placed', 'sequenceId', 'totalFrames']);
   assert.equal(m.log.filter(x => x[0] === 'volume').length, 0, 'no clipSound: the clips keep their level');
-
-  // The next call reopens the saved Draft: decorate mutes the Main clips, then adds the title and look, in one commit.
-  m.reopen();
-  const cfgM = { sequenceId: 'seq-new', mute: true, videoEnd: 77, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null };
-  const dm = await load('decorate.js', cfgM)(selects);
-  assert.deepEqual(dm, { title: true, titleAdded: true, effects: 0, effectsKept: 0, muted: true, muteKept: false, committed: true, alreadyDone: false });
-  const mi = m.log.findIndex(x => x[0] === 'mute');
-  assert.deepEqual(m.log[mi][1], []);
-  assert.ok(mi < m.log.findIndex(x => x[0] === 'title'), 'mute comes first');
-  assert.deepEqual(m.log.find(x => x[0] === 'title').slice(1), [{ a: 0, b: 77 }, 'Mini vlog title'], 'the title spans the whole video');
-  assert.ok(m.clips.filter(c => c.trackKind === 'main').every(c => c.audioSourceIndexes.length === 0));
-  assert.equal(m.clips.find(c => c.clipId === 99).audioSourceIndexes, undefined, 'music keeps its sound');
-  assert.equal(m.log.filter(x => x[0] === 'commit').length, 2);
-  // Retrying an already muted and titled Draft neither mutes nor commits again.
-  m.reopen();
-  const dm2 = await load('decorate.js', cfgM)(selects);
-  assert.deepEqual(dm2, { title: true, titleAdded: false, effects: 0, effectsKept: 0, muted: false, muteKept: true, committed: false, alreadyDone: true });
-  assert.equal(m.log.filter(x => x[0] === 'mute').length, 1);
 
   // 24 fps footage in a Draft that starts at 30 fps: the first insert switches the rate, so assembly starts again on a
   // fresh Draft aimed at 24 fps. Only that Draft is committed, and every boundary (the first included) lands on it.
@@ -126,68 +112,6 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.deepEqual(m3.log.filter(x => x[0] === 'fade').map(x => x[1]), [99], 'fade targets only the new music clip');
   assert.deepEqual(r3.notes, []);
 
-  // A mute failure fails the step (the panel reports it and offers the retry) and commits nothing.
-  const bad = mockDraft(30); bad.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null });
-  bad.d.setAudioTracks = async () => { throw Error('nope'); };
-  await assert.rejects(load('decorate.js', { sequenceId: 's', mute: true, videoEnd: 10, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null })({ draft: () => bad.d }), /mute the clips' own sound: nope/);
-  assert.equal(bad.log.filter(x => x[0] === 'commit' || x[0] === 'title').length, 0);
-  // The title needs the video's end frame: a missing or non-positive videoEnd fails before anything is touched.
-  for (const videoEnd of [undefined, 0, -5, 'x']) {
-    const g = mockDraft(30); g.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null });
-    await assert.rejects(load('decorate.js', { sequenceId: 's', mute: true, videoEnd, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null })({ draft: () => g.d }), /decorate: cfg\.videoEnd missing/);
-    assert.equal(g.log.length, 0, 'nothing is changed without videoEnd');
-  }
-
-  // Silent sources (no audio stream) keep null routing after muting. A first run on an all-silent Draft mutes nothing:
-  // muted is false and the title still commits.
-  const cfgS = { sequenceId: 's', mute: true, videoEnd: 10, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null };
-  const ms = mockDraft(30, { silent: ['s0', 's1'] });
-  ms.clips.push({ clipId: 1, resourceId: 's0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null }, { clipId: 2, resourceId: 's1', trackKind: 'main', startFrame: 30, endFrame: 60, audioSourceIndexes: null });
-  const dsil = await load('decorate.js', cfgS)({ draft: () => ms.d });
-  assert.deepEqual(dsil, { title: true, titleAdded: true, effects: 0, effectsKept: 0, muted: false, muteKept: true, committed: true, alreadyDone: false });
-  assert.equal(ms.log.filter(x => x[0] === 'commit').length, 1);
-  // Retry after a landed but unreported commit on a Draft with one silent and one muted video: the null routing sends
-  // the mute again, it changes nothing (opCount 0), and nothing is committed ("Nothing to stage" otherwise).
-  const mr = mockDraft(30, { silent: ['s0'] });
-  mr.clips.push({ clipId: 1, resourceId: 's0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null }, { clipId: 2, resourceId: 'r0', trackKind: 'main', startFrame: 30, endFrame: 60, audioSourceIndexes: [] });
-  mr.graphics.push({ name: 'Mini vlog title', clip: {} });
-  mr.d.commitAll = async () => { throw Error('Nothing to stage'); };
-  const dret = await load('decorate.js', cfgS)({ draft: () => mr.d });
-  assert.deepEqual(dret, { title: true, titleAdded: false, effects: 0, effectsKept: 0, muted: false, muteKept: true, committed: false, alreadyDone: true });
-  assert.equal(mr.log.filter(x => x[0] === 'mute').length, 1, 'the mute was attempted');
-
-  const m2 = mockDraft(30); m2.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 }, { clipId: 3, resourceId: 'm', trackKind: 'audio', startFrame: 0, endFrame: 60 });
-  const sel3 = { draft: () => m2.d };
-  const dres = await load('decorate.js', { sequenceId: 'seq-new', videoEnd: 60, title: { tsx: 'x', parameters: { line1: 'Saturday' }, editableParameters: [] }, soft: { tsx: 'y', strength: 0.35 } })(sel3);
-  assert.deepEqual(dres, { title: true, titleAdded: true, effects: 2, effectsKept: 0, muted: false, muteKept: false, committed: true, alreadyDone: false });
-  assert.deepEqual(m2.log.find(x => x[0] === 'title')[1], { a: 0, b: 60 });
-  const look0 = m2.log.find(x => x[0] === 'look');
-  assert.deepEqual([look0[2], look0[3]], [0.35, 'Soft look']);
-  assert.deepEqual(look0[4], [{ key: 'strength', label: 'Softness', type: 'number', defaultValue: 0.35, min: 0, max: 1, step: 0.05 }]);
-  assert.equal(m2.log.filter(x => x[0] === 'commit').length, 1);
-  // cfg.labels: the Inspector labels in the panel's UI language at Build; the effect name stays English (identity).
-  {
-    const ml = mockDraft(30); ml.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 });
-    await load('decorate.js', { sequenceId: 's', videoEnd: 60, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: { tsx: 'y', strength: 0.35 }, labels: { softness: 'Weichheit' } })({ draft: () => ml.d });
-    const lk = ml.log.find(x => x[0] === 'look');
-    assert.equal(lk[3], 'Soft look'); assert.equal(lk[4][0].label, 'Weichheit');
-  }
-
-  // Retrying on an already decorated Draft adds nothing and does not commit again.
-  const cfgD = { sequenceId: 'seq-new', videoEnd: 60, title: { tsx: 'x', parameters: { line1: 'Saturday' }, editableParameters: [] }, soft: { tsx: 'y', strength: 0.35 } };
-  const again = await load('decorate.js', cfgD)(sel3);
-  assert.deepEqual(again, { title: true, titleAdded: false, effects: 0, effectsKept: 2, muted: false, muteKept: false, committed: false, alreadyDone: true });
-  assert.equal(m2.log.filter(x => x[0] === 'title').length, 1, 'title is not duplicated');
-  assert.equal(m2.log.filter(x => x[0] === 'look').length, 2, 'Soft look effects are not duplicated');
-  assert.equal(m2.log.filter(x => x[0] === 'commit').length, 1, 'no second commit');
-
-  // A partial earlier attempt: the title exists, one clip already has the Soft look.
-  const m4 = mockDraft(30); m4.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 });
-  m4.graphics.push({ name: 'Mini vlog title', clip: {} }); m4.effects[1] = [{ name: 'Soft look', effectName: 'Soft look' }];
-  const part = await load('decorate.js', cfgD)({ draft: () => m4.d });
-  assert.deepEqual(part, { title: true, titleAdded: false, effects: 1, effectsKept: 1, muted: false, muteKept: false, committed: true, alreadyDone: false });
-  assert.deepEqual(m4.log.filter(x => x[0] === 'look').map(x => x[1]), [2]);
-  assert.equal(m4.log.filter(x => x[0] === 'title').length, 0);
 
   // Photos: placed from 0 for the slot's frame-snapped hold, cover-cropped like videos; an unmeasured photo is measured
   // on an unsaved scratch Draft (it adopts the photo's size) and nothing but the real Draft is committed.
@@ -219,55 +143,6 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.deepEqual((await mp.d.meta()).frameSize, { width: 1920, height: 1080 });
   assert.deepEqual(rp.notes, []);
 
-  // Decorate with photos: the mute tolerates their null routing (and counts as kept on retry); by default photo clips
-  // get no effects (the renderer cannot draw effects on image clips yet).
-  mp.reopen();
-  const opts = ['push-in', 'pull-out', 'tilt'].map(v => ({ label: v, value: v }));
-  const cfgP = { sequenceId: 'seq-new', mute: true, videoEnd: 113, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: { tsx: 'y', strength: 0.35 }, photos: ['p1', 'p2', 'p3'],
-    motion: { tsx: 'motion', strength: 1, options: opts, byRid: { p1: { motion: 'pull-out', direction: 1, axis: 'x', cover: 1.778 }, p2: { motion: 'tilt', direction: -1, axis: 'x', cover: 1.333 }, p3: { motion: 'push-in', direction: 1, axis: 'y', cover: 1 } } }, photoEffects: false };
-  const dp = await load('decorate.js', cfgP)(selP);
-  assert.deepEqual(dp, { title: true, titleAdded: true, effects: 1, effectsKept: 0, muted: true, muteKept: false, committed: true, alreadyDone: false, photos: { motions: 0, motionsKept: 0, effectsSkipped: 3 } });
-  assert.deepEqual(mp.clips.map(c => c.audioSourceIndexes), [null, [], null, null]);
-  mp.reopen();
-  const dp2 = await load('decorate.js', cfgP)(selP);
-  assert.equal(dp2.muteKept, true, 'photo clips without routing do not force another mute');
-  assert.equal(dp2.committed, false);
-  assert.equal(mp.log.filter(x => x[0] === 'mute').length, 1);
-  // With photo effects on: one motion per photo, the one at frame 0 under the full-length title included, stacked with
-  // the Soft look on the Image clips; idempotent. Anything but `photoEffects: true` keeps photos plain.
-  mp.reopen();
-  const cfgE = { ...cfgP, photoEffects: true };
-  mp.d.addVideoEffect = (orig => async (o) => { if (o.label === 'Photo motion') mp.log.push(['motion', o.clip.clipId, o.parameters, o.editableParameters]); return orig(o); })(mp.d.addVideoEffect);
-  const de = await load('decorate.js', cfgE)(selP);
-  assert.deepEqual(de.photos, { motions: 3, motionsKept: 0, effectsSkipped: 0 });
-  assert.equal(de.effects, 3);
-  assert.equal(de.effectsKept, 1);
-  const moves = mp.log.filter(x => x[0] === 'motion');
-  assert.deepEqual(moves.map(x => mp.clips.find(c => c.clipId === x[1]).resourceId), ['p1', 'p2', 'p3'], 'every photo moves, p1 at frame 0 too');
-  assert.equal(mp.clips.find(c => c.clipId === moves[0][1]).startFrame, 0);
-  assert.deepEqual(moves[0][2], { motion: 'pull-out', strength: 1, direction: 1, axis: 'x', cover: 1.778, holdSeconds: 1.067 });
-  assert.deepEqual(moves.map(x => x[2]).slice(1), [
-    { motion: 'tilt', strength: 1, direction: -1, axis: 'x', cover: 1.333, holdSeconds: 0.6 },
-    { motion: 'push-in', strength: 1, direction: 1, axis: 'y', cover: 1, holdSeconds: 1.2 }]);
-  assert.deepEqual(moves[1][3].map(e => [e.key, e.type]), [['motion', 'select'], ['strength', 'number']]);
-  assert.deepEqual(moves[1][3][0].options, opts);
-  assert.deepEqual([moves[1][3][1].min, moves[1][3][1].max, moves[1][3][1].defaultValue], [0, 2, 1]);
-  assert.deepEqual(Object.keys(mp.effects).map(Number).sort(), [1, 2, 3, 4], 'every clip has an effect');
-  assert.deepEqual(mp.effects[1].map(e => e.name), ['Photo motion', 'Soft look'], 'motion and Soft look stack on the Image clip at frame 0');
-  assert.deepEqual(mp.effects[3].map(e => e.name), ['Photo motion', 'Soft look'], 'motion and Soft look stack on a photo');
-  mp.reopen();
-  const de2 = await load('decorate.js', cfgE)(selP);
-  assert.deepEqual(de2.photos, { motions: 0, motionsKept: 3, effectsSkipped: 0 });
-  assert.equal(de2.committed, false);
-  assert.equal(de2.alreadyDone, true, 'a second run is a no-op');
-  assert.equal(mp.log.filter(x => x[0] === 'motion').length, 3, 'no second motion effect');
-  assert.equal(mp.log.filter(x => x[0] === 'commit').length, 3, 'assemble, the plain decorate and the photo-effects run; not this one');
-  // A truthy but non-boolean photoEffects is not true: photo clips stay plain.
-  const plain = mockDraft(30, { photos: ['p1'] });
-  plain.clips.push({ clipId: 1, resourceId: 'p1', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null });
-  const dplain = await load('decorate.js', { ...cfgP, mute: false, videoEnd: 30, photos: ['p1'], photoEffects: 'yes' })({ draft: () => plain.d });
-  assert.deepEqual(dplain.photos, { motions: 0, motionsKept: 0, effectsSkipped: 1 });
-  assert.equal(plain.log.filter(x => x[0] === 'look').length, 0);
 
   // Music offset: a section start of 4.845 s is snapped to 4.8333 s (frame 145), so the music plays 0.35 frame early
   // on the timeline and every cut moves by the same offset (planner avMusicOffset): 1.0056 s lands on frame 31, not 30.
@@ -343,57 +218,216 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.equal(fo.ambientClips, 1);
   assert.deepEqual(fo.notes, ['the sound of 1 clip could not be lowered under the music']);
 
-  // Beat punch (spec §15.2 b/c): one effect per video clip on Main, before the Soft look; photos keep Photo motion only.
-  // Main clip i is cfg.punch.picks[i] (the picks assemble.js placed). The source start is recomputed with assemble's
-  // expression (r1's window slides back to end inside its 5.5 s source); punches are localised from Draft frames.
-  const mk = mockDraft(30, { photos: ['p1'] });
-  mk.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null },
-    { clipId: 2, resourceId: 'p1', trackKind: 'main', startFrame: 30, endFrame: 50, audioSourceIndexes: null },
-    { clipId: 3, resourceId: 'r1', trackKind: 'main', startFrame: 50, endFrame: 80, audioSourceIndexes: null },
-    { clipId: 99, resourceId: 'm', trackKind: 'audio', startFrame: 0, endFrame: 80 });
-  mk.d.addVideoEffect = (orig => async (o) => { if (o.label === 'Beat punch') mk.log.push(['punch', o.clip.clipId, o.parameters, o.editableParameters, o.tsxCode]); return orig(o); })(mk.d.addVideoEffect);
-  const beatK = 30 * 60 / 108;
-  const cfgK = { sequenceId: 'seq-new', videoEnd: 80, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: { tsx: 'y', strength: 0.35 }, photos: ['p1'],
-    punch: { tsx: 'punch', strength: 1, push: 1, beatFrames: beatK, punchFrames: [0, 25, 67, 200],
-      picks: [{ slot: 0, rid: 'r0', kind: 'video', startSeconds: 2, endSeconds: 3, sourceDuration: 10 }, { slot: 1, rid: 'p1', kind: 'photo', holdSeconds: 0.667 },
-        { slot: 2, rid: 'r1', kind: 'video', startSeconds: 5, endSeconds: 6, sourceDuration: 5.5 }] } };
-  const dk = await load('decorate.js', cfgK)({ draft: () => mk.d });
-  assert.deepEqual(dk.punch, { added: 2, kept: 0, skipped: 0 });
-  const pk = mk.log.filter(x => x[0] === 'punch');
-  assert.deepEqual(pk.map(x => x[1]), [1, 3], 'video clips only');
-  assert.equal(pk[0][4], 'punch');
-  // r0: source frame 60; the downbeats at 0 and 25 are inside it. r1: round(5 * 30) = 150 slides back to 165 - 30 = 135;
-  // 67 is local 17, and 25 (local -25) is more than half a beat before it, so it is left out.
-  assert.deepEqual(pk[0][2], { strength: 1, push: 1, punches: [0, 25], beatFrames: beatK, sourceStartFrame: 60, durationFrames: 30 });
-  assert.deepEqual(pk[1][2], { strength: 1, push: 1, punches: [17], beatFrames: beatK, sourceStartFrame: 135, durationFrames: 30 });
-  assert.deepEqual(pk[0][3], [{ key: 'strength', label: 'Punch', type: 'number', defaultValue: 1, min: 0, max: 1, step: 0.05 }]);
-  assert.deepEqual(mk.effects[1].map(e => e.name), ['Beat punch', 'Soft look'], 'Soft look wraps the punch');
-  assert.equal((mk.effects[2] || []).some(e => e.name === 'Beat punch'), false, 'no punch on the photo');
-  assert.equal(dk.committed, true);
-  // Idempotent: a second run keeps both and commits nothing.
-  const dk2 = await load('decorate.js', cfgK)({ draft: () => mk.d });
-  assert.deepEqual(dk2.punch, { added: 0, kept: 2, skipped: 0 });
-  assert.equal(dk2.alreadyDone, true);
-  assert.equal(mk.log.filter(x => x[0] === 'punch').length, 2, 'no second punch');
-  // A punch at the cut before a clip (within half a beat) keeps its tail; a clip without punches gets the push-in only.
-  const mt = mockDraft(30);
-  mt.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 });
-  mt.d.addVideoEffect = (orig => async (o) => { mt.log.push(['punch', o.clip.clipId, o.parameters]); return orig(o); })(mt.d.addVideoEffect);
-  const dt = await load('decorate.js', { sequenceId: 's', videoEnd: 60, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null,
-    punch: { tsx: 'punch', strength: 0.5, push: 0.4, beatFrames: 20, punchFrames: [28],
-      picks: [{ rid: 'r0', kind: 'video', startSeconds: 0, endSeconds: 1 }, { rid: 'r1', kind: 'video', startSeconds: 1.01, endSeconds: 2 }] } })({ draft: () => mt.d });
-  assert.deepEqual(dt.punch, { added: 2, kept: 0, skipped: 0 });
-  assert.deepEqual(mt.log.filter(x => x[0] === 'punch').map(x => [x[2].punches, x[2].sourceStartFrame, x[2].strength, x[2].push]), [[[28], 0, 0.5, 0.4], [[-2], 30, 0.5, 0.4]]);
-  // A Main clip that does not match its pick (another resource, or no pick) is skipped, not guessed.
-  const mm = mockDraft(30);
-  mm.clips.push({ clipId: 1, resourceId: 'rX', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 });
-  const dmm = await load('decorate.js', { sequenceId: 's', videoEnd: 60, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null,
-    punch: { tsx: 'punch', strength: 1, push: 1, beatFrames: 20, punchFrames: [], picks: [{ rid: 'r0', kind: 'video', startSeconds: 0 }] } })({ draft: () => mm.d });
-  assert.deepEqual(dmm.punch, { added: 0, kept: 0, skipped: 2 });
-  // cfg.punch null: no punch, and no punch key in the result.
-  const mq = mockDraft(30); mq.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 });
-  const dn = await load('decorate.js', { sequenceId: 's', videoEnd: 30, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null, punch: null })({ draft: () => mq.d });
-  assert.equal(dn.punch, undefined);
-  assert.equal(mq.log.filter(x => x[0] === 'look').length, 0);
+  // A music fade other than the default (cfg.musicFadeOut) is passed through.
+  {
+    const mf = mockDraft(30);
+    await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [{ rid: 'r0', startSeconds: 0, endSeconds: 1 }], boundaries: [0, 1], crops: {}, music: { resourceId: 'r9', sectionStart: 0 }, musicFadeOut: 0.5 })(
+      { project: () => ({ createDraft: async () => mf.d, resource: id => ({ id }) }) });
+    assert.deepEqual(mf.log.find(x => x[0] === 'fade').slice(1), [99, 0, 0.5]);
+  }
+
+  // ---- decorate.js ----
+  const fxOf = (mk, id) => (mk.effects[id] || []).map(e => e.name);
+  const fxLog = (mk, label) => mk.log.filter(x => x[0] === 'fx' && x[2] === label);
+  const RESULT_KEYS = ['alreadyDone', 'committed', 'creditAdded', 'effects', 'effectsKept', 'fades', 'letterbox', 'motions', 'muteKept', 'muted', 'photoEffectsSkipped', 'titleAdded', 'videoMotions'];
+
+  // The saved Draft from the first assemble (clips [0, 32), [32, 59), [59, 77)): decorate mutes the Main clips, then
+  // adds the title within clip 0's range, in one commit.
+  m.reopen();
+  const cfgM = { sequenceId: 'seq-new', mute: true, videoEnd: 77, title: { tsx: 'x', parameters: {}, editableParameters: [] }, credit: null, letterbox: null, look: null, fade: null };
+  const dm = await load('decorate.js', cfgM)(selects);
+  assert.deepEqual(dm, { titleAdded: true, creditAdded: false, letterbox: 0, fades: 0, effects: 0, effectsKept: 0, motions: 0, videoMotions: 0, muted: true, muteKept: false, committed: true, alreadyDone: false, photoEffectsSkipped: 0 });
+  const mi = m.log.findIndex(x => x[0] === 'mute');
+  assert.deepEqual(m.log[mi][1], []);
+  assert.ok(mi < m.log.findIndex(x => x[0] === 'graphic'), 'mute comes first');
+  assert.deepEqual(m.log.find(x => x[0] === 'graphic').slice(1, 3), [{ a: 0, b: 32 }, 'Archive title'], 'the title spans the opening shot only');
+  assert.ok(m.clips.filter(c => c.trackKind === 'main').every(c => c.audioSourceIndexes.length === 0));
+  assert.equal(m.clips.find(c => c.clipId === 99).audioSourceIndexes, undefined, 'music keeps its sound');
+  assert.deepEqual(m.log.filter(x => x[0] === 'commit').map(x => x[1]), ['Archive Vlog: assemble', 'Archive Vlog: title and look']);
+  // Retrying an already muted and titled Draft neither mutes nor commits again.
+  m.reopen();
+  const dm2 = await load('decorate.js', cfgM)(selects);
+  assert.deepEqual(dm2, { titleAdded: false, creditAdded: false, letterbox: 0, fades: 0, effects: 0, effectsKept: 0, motions: 0, videoMotions: 0, muted: false, muteKept: true, committed: false, alreadyDone: true, photoEffectsSkipped: 0 });
+  assert.equal(m.log.filter(x => x[0] === 'mute').length, 1);
+
+  // A mute failure fails the step (the panel reports it and offers the retry) and commits nothing.
+  const bad = mockDraft(30); bad.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null });
+  bad.d.setAudioTracks = async () => { throw Error('nope'); };
+  await assert.rejects(load('decorate.js', { ...cfgM, sequenceId: 's', videoEnd: 30 })({ draft: () => bad.d }), /mute the clips' own sound: nope/);
+  assert.equal(bad.log.filter(x => x[0] === 'commit' || x[0] === 'graphic').length, 0);
+  // A missing or non-positive videoEnd fails before anything is touched.
+  for (const videoEnd of [undefined, 0, -5, 'x']) {
+    const g = mockDraft(30); g.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null });
+    await assert.rejects(load('decorate.js', { ...cfgM, sequenceId: 's', videoEnd })({ draft: () => g.d }), /decorate: cfg\.videoEnd missing/);
+    assert.equal(g.log.length, 0, 'nothing is changed without videoEnd');
+  }
+  // Silent sources (no audio stream) keep null routing after muting. A first run on an all-silent Draft mutes nothing:
+  // muted is false and the title still commits.
+  const ms = mockDraft(30, { silent: ['s0', 's1'] });
+  ms.clips.push({ clipId: 1, resourceId: 's0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null }, { clipId: 2, resourceId: 's1', trackKind: 'main', startFrame: 30, endFrame: 60, audioSourceIndexes: null });
+  const dsil = await load('decorate.js', { ...cfgM, sequenceId: 's', videoEnd: 60 })({ draft: () => ms.d });
+  assert.deepEqual([dsil.muted, dsil.muteKept, dsil.titleAdded, dsil.committed], [false, true, true, true]);
+  // Retry after a landed but unreported commit on a Draft with one silent and one muted video: the null routing sends
+  // the mute again, it changes nothing (opCount 0), and nothing is committed ("Nothing to stage" otherwise).
+  const mr = mockDraft(30, { silent: ['s0'] });
+  mr.clips.push({ clipId: 1, resourceId: 's0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null }, { clipId: 2, resourceId: 'r0', trackKind: 'main', startFrame: 30, endFrame: 60, audioSourceIndexes: [] });
+  mr.graphics.push({ name: 'Archive title', clip: {} });
+  mr.d.commitAll = async () => { throw Error('Nothing to stage'); };
+  const dret = await load('decorate.js', { ...cfgM, sequenceId: 's', videoEnd: 60 })({ draft: () => mr.d });
+  assert.deepEqual([dret.muted, dret.muteKept, dret.committed, dret.alreadyDone], [false, true, false, true]);
+  assert.equal(mr.log.filter(x => x[0] === 'mute').length, 1, 'the mute was attempted');
+
+  // The full decorate on a built Draft: opening (clip 0), credit (clip 1), a montage video, a montage photo, the final
+  // shot, plus a clip on another video track (Cinematic look only). The Main clips come back out of order: decorate
+  // sorts them by start frame.
+  const opts = ['push-in', 'pull-out', 'drift-left', 'drift-right'].map(v => ({ label: v, value: v }));
+  const fullCfg = (extra = {}) => ({ sequenceId: 's', videoEnd: 392, mute: false,
+    title: { tsx: 'TITLE', parameters: { title: 'CINEMATIC', timing: { textIn: 2.14 } }, editableParameters: [{ key: 'title', label: 'Title', type: 'text', defaultValue: 'CINEMATIC' }] },
+    credit: { tsx: 'CREDIT', parameters: { prefix: 'ARCHIVED BY', name: 'YOURNAME' }, editableParameters: [{ key: 'name', label: 'Name', type: 'text', defaultValue: 'YOURNAME' }] },
+    letterbox: { tsx: 'BOX', parameters: { revealStart: 0.2, revealEnd: 2.05, revealSeconds: 1.85, enabled: true } },
+    look: { tsx: 'LOOK', strength: 0.3, warmth: 1 },
+    fade: { tsx: 'FADE', fadeSeconds: 1.0 },
+    photos: ['p1'], photoEffects: true,
+    motion: { tsx: 'MOTION', strength: 0.5, options: opts, byRid: { p1: { motion: 'pull-out', direction: 1, axis: 'x', cover: 1.333 } },
+      // '0' is never used: the opening has the letterbox reveal instead of a shot motion.
+      video: { strength: 0.5, byIndex: { 0: { motion: 'drift-right', direction: 1, axis: 'x' }, 1: { motion: 'push-in', direction: 1, axis: 'x' },
+        2: { motion: 'drift-left', direction: -1, axis: 'x' }, 4: { motion: 'push-in', direction: 1, axis: 'x' } } } },
+    ...extra });
+  const built = (opts2 = {}) => {
+    const mk = mockDraft(30, { photos: ['p1'], ...opts2 });
+    mk.clips.push({ clipId: 3, resourceId: 'r2', trackKind: 'main', startFrame: 200, endFrame: 236, audioSourceIndexes: null },
+      { clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 150, audioSourceIndexes: null },
+      { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 150, endFrame: 200, audioSourceIndexes: null },
+      { clipId: 4, resourceId: 'p1', trackKind: 'main', startFrame: 236, endFrame: 272, audioSourceIndexes: null },
+      { clipId: 5, resourceId: 'r3', trackKind: 'main', startFrame: 272, endFrame: 392, audioSourceIndexes: null },
+      { clipId: 6, resourceId: 'r9', trackKind: 'video', startFrame: 0, endFrame: 30 },
+      { clipId: 99, resourceId: 'm', trackKind: 'audio', startFrame: 0, endFrame: 392 });
+    return mk;
+  };
+  const mk = built();
+  const dk = await load('decorate.js', fullCfg())({ draft: () => mk.d });
+  assert.deepEqual(Object.keys(dk).sort(), RESULT_KEYS);
+  assert.deepEqual(dk, { titleAdded: true, creditAdded: true, letterbox: 1, fades: 1, effects: 6, effectsKept: 0, motions: 1, videoMotions: 3, muted: false, muteKept: false, committed: true, alreadyDone: false, photoEffectsSkipped: 0 });
+  // Title within clip 0's range, credit within clip 1's, each with the panel's parameters and Adjust items.
+  const gr = mk.log.filter(x => x[0] === 'graphic');
+  assert.deepEqual(gr.map(x => [x[2], x[1], x[5]]), [['Archive title', { a: 0, b: 150 }, 'TITLE'], ['Archived credit', { a: 150, b: 200 }, 'CREDIT']]);
+  assert.deepEqual(gr[0][3], { title: 'CINEMATIC', timing: { textIn: 2.14 } });
+  assert.deepEqual(gr[1][4], [{ key: 'name', label: 'Name', type: 'text', defaultValue: 'YOURNAME' }]);
+  // Effects per clip, in stacking order.
+  assert.deepEqual(fxOf(mk, 1), ['Letterbox reveal', 'Cinematic look'], 'opening: reveal, no shot motion');
+  assert.deepEqual(fxOf(mk, 2), ['Shot motion', 'Cinematic look'], 'credit shot');
+  assert.deepEqual(fxOf(mk, 3), ['Shot motion', 'Cinematic look']);
+  assert.deepEqual(fxOf(mk, 4), ['Photo motion', 'Cinematic look'], 'photo');
+  assert.deepEqual(fxOf(mk, 5), ['Shot motion', 'Fade out', 'Cinematic look'], 'final shot');
+  assert.deepEqual(fxOf(mk, 6), ['Cinematic look'], 'another video track: look only');
+  assert.deepEqual(fxOf(mk, 99), [], 'music untouched');
+  // Parameters.
+  const box = fxLog(mk, 'Letterbox reveal')[0];
+  assert.equal(box[5], 'BOX');
+  assert.deepEqual(box[3], { revealStart: 0.2, revealEnd: 2.05, revealSeconds: 1.85, enabled: true });
+  assert.deepEqual(box[4], [{ key: 'revealSeconds', label: 'Reveal', type: 'number', defaultValue: 1.85, min: 0, max: 5, step: 0.05 },
+    { key: 'enabled', label: 'Letterbox reveal', type: 'boolean', defaultValue: true }]);
+  const fade = fxLog(mk, 'Fade out');
+  assert.deepEqual(fade.map(x => [x[1], x[3], x[5]]), [[5, { durationFrames: 120, fadeSeconds: 1 }, 'FADE']], 'durationFrames = the last clip length');
+  assert.deepEqual(fade[0][4], [{ key: 'fadeSeconds', label: 'Fade out', type: 'number', defaultValue: 1, min: 0, max: 3, step: 0.1 }]);
+  const shots = fxLog(mk, 'Shot motion');
+  assert.deepEqual(shots.map(x => [x[1], x[3]]), [
+    [2, { motion: 'push-in', strength: 0.5, direction: 1, axis: 'x', cover: 1, holdSeconds: 1.667 }],
+    [3, { motion: 'drift-left', strength: 0.5, direction: -1, axis: 'x', cover: 1, holdSeconds: 1.2 }],
+    [5, { motion: 'push-in', strength: 0.5, direction: 1, axis: 'x', cover: 1, holdSeconds: 4 }]]);
+  assert.ok(shots.every(x => x[5] === 'MOTION'), 'shot motion uses photo-motion.tsx');
+  assert.deepEqual(shots[0][4].map(e => [e.key, e.type, e.label, e.defaultValue]), [['motion', 'select', 'Motion', 'push-in'], ['strength', 'number', 'Motion strength', 0.5]]);
+  assert.deepEqual(shots[0][4][0].options, opts);
+  const pm = fxLog(mk, 'Photo motion');
+  assert.deepEqual(pm.map(x => [x[1], x[3]]), [[4, { motion: 'pull-out', strength: 0.5, direction: 1, axis: 'x', cover: 1.333, holdSeconds: 1.2 }]]);
+  const looks = fxLog(mk, 'Cinematic look');
+  assert.deepEqual(looks.map(x => x[1]), [1, 2, 3, 4, 5, 6]);
+  assert.ok(looks.every(x => JSON.stringify(x[3]) === JSON.stringify({ strength: 0.3, warmth: 1 }) && x[5] === 'LOOK'));
+  assert.deepEqual(looks[0][4], [{ key: 'strength', label: 'Look strength', type: 'number', defaultValue: 0.3, min: 0, max: 1, step: 0.05 },
+    { key: 'warmth', label: 'Warmth', type: 'number', defaultValue: 1, min: 0, max: 2, step: 0.1 }]);
+  assert.deepEqual(mk.log.filter(x => x[0] === 'commit').map(x => x[1]), ['Archive Vlog: title and look'], 'one commit');
+  // Idempotent: a second run finds every graphic and effect by name, adds nothing and does not commit.
+  const logLen = mk.log.length;
+  mk.reopen();
+  const dk2 = await load('decorate.js', fullCfg())({ draft: () => mk.d });
+  assert.deepEqual(dk2, { titleAdded: false, creditAdded: false, letterbox: 0, fades: 0, effects: 0, effectsKept: 12, motions: 0, videoMotions: 0, muted: false, muteKept: false, committed: false, alreadyDone: true, photoEffectsSkipped: 0 });
+  assert.equal(mk.log.slice(logLen).filter(x => x[0] !== 'mute').length, 0, 'nothing added, nothing committed');
+  assert.deepEqual(fxOf(mk, 5), ['Shot motion', 'Fade out', 'Cinematic look']);
+
+  // adjustLabels: the Inspector labels in the panel's UI language; effect names stay English (identity).
+  {
+    const ml = built();
+    await load('decorate.js', fullCfg({ adjustLabels: { look: 'Staerke', warmth: 'Waerme', reveal: 'Aufdecken', letterbox: 'Kasch', fade: 'Abblende', motion: 'Bewegung', motionStrength: 'Bewegungsstaerke' } }))({ draft: () => ml.d });
+    assert.deepEqual(fxOf(ml, 5), ['Shot motion', 'Fade out', 'Cinematic look']);
+    assert.deepEqual(fxLog(ml, 'Cinematic look')[0][4].map(e => e.label), ['Staerke', 'Waerme']);
+    assert.deepEqual(fxLog(ml, 'Letterbox reveal')[0][4].map(e => e.label), ['Aufdecken', 'Kasch']);
+    assert.deepEqual(fxLog(ml, 'Fade out')[0][4].map(e => e.label), ['Abblende']);
+    assert.deepEqual(fxLog(ml, 'Shot motion')[0][4].map(e => e.label), ['Bewegung', 'Bewegungsstaerke']);
+  }
+  // Credit off (null): no credit graphic; Cinematic look off (null): no look anywhere; the rest unchanged.
+  {
+    const mc = built();
+    const dc = await load('decorate.js', fullCfg({ credit: null, look: null }))({ draft: () => mc.d });
+    assert.deepEqual(mc.log.filter(x => x[0] === 'graphic').map(x => x[2]), ['Archive title']);
+    assert.equal(dc.creditAdded, false);
+    assert.equal(dc.effects, 0);
+    assert.equal(fxLog(mc, 'Cinematic look').length, 0);
+    assert.deepEqual(fxOf(mc, 1), ['Letterbox reveal']);
+    assert.deepEqual(fxOf(mc, 5), ['Shot motion', 'Fade out']);
+    assert.equal(dc.committed, true);
+  }
+  // Letterbox and fade off, no shot motions (no cfg.motion.video), a fade length from cfg.
+  {
+    const mo = built();
+    const cfgO = fullCfg({ letterbox: null, fade: { tsx: 'FADE', fadeSeconds: 0.5 } });
+    delete cfgO.motion.video;
+    const dO = await load('decorate.js', cfgO)({ draft: () => mo.d });
+    assert.deepEqual([dO.letterbox, dO.fades, dO.videoMotions, dO.motions], [0, 1, 0, 1]);
+    assert.deepEqual(fxOf(mo, 1), ['Cinematic look']);
+    assert.deepEqual(fxLog(mo, 'Fade out')[0][3], { durationFrames: 120, fadeSeconds: 0.5 });
+    const mf2 = built();
+    const dF = await load('decorate.js', fullCfg({ fade: null }))({ draft: () => mf2.d });
+    assert.equal(dF.fades, 0);
+    assert.deepEqual(fxOf(mf2, 5), ['Shot motion', 'Cinematic look']);
+  }
+  // photoEffects not exactly true: the photo clip gets no effect at all; video clips are decorated as usual.
+  {
+    const mp2 = built();
+    const dp = await load('decorate.js', fullCfg({ photoEffects: 'yes' }))({ draft: () => mp2.d });
+    assert.deepEqual(fxOf(mp2, 4), []);
+    assert.equal(dp.photoEffectsSkipped, 1);
+    assert.equal(dp.motions, 0);
+    assert.deepEqual(fxOf(mp2, 2), ['Shot motion', 'Cinematic look']);
+  }
+  // A partial earlier run: the title and the opening's reveal exist; only the rest is added, reveal not duplicated.
+  {
+    const mpart = built();
+    mpart.graphics.push({ name: 'Archive title', clip: {} });
+    mpart.effects[1] = [{ name: 'Letterbox reveal', effectName: 'Letterbox reveal' }];
+    const dpart = await load('decorate.js', fullCfg())({ draft: () => mpart.d });
+    assert.deepEqual([dpart.titleAdded, dpart.creditAdded, dpart.letterbox, dpart.effectsKept, dpart.committed], [false, true, 0, 1, true]);
+    assert.deepEqual(fxOf(mpart, 1), ['Letterbox reveal', 'Cinematic look']);
+    assert.equal(mpart.log.filter(x => x[0] === 'graphic').length, 1);
+  }
+  // A one-clip Draft: the clip is both the opening and the last: reveal, then fade, then look; no credit (no clip 1).
+  {
+    const one = mockDraft(30);
+    one.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 90, audioSourceIndexes: null });
+    const d1 = await load('decorate.js', fullCfg({ videoEnd: 90 }))({ draft: () => one.d });
+    assert.deepEqual(fxOf(one, 1), ['Letterbox reveal', 'Fade out', 'Cinematic look']);
+    assert.equal(d1.creditAdded, false);
+    assert.deepEqual(one.log.filter(x => x[0] === 'graphic').map(x => [x[2], x[1]]), [['Archive title', { a: 0, b: 90 }]]);
+  }
+  // Mute with photos: their null routing does not force another mute on a retry.
+  {
+    const mm = built({ unsaved: false });
+    const cfgMute = fullCfg({ mute: true });
+    const d1 = await load('decorate.js', cfgMute)({ draft: () => mm.d });
+    assert.equal(d1.muted, true);
+    assert.deepEqual(mm.clips.filter(c => c.trackKind === 'main').sort((a, b) => a.startFrame - b.startFrame).map(c => c.audioSourceIndexes), [[], [], [], null, []]);
+    mm.reopen();
+    const d2 = await load('decorate.js', cfgMute)({ draft: () => mm.d });
+    assert.deepEqual([d2.muted, d2.muteKept, d2.committed], [false, true, false]);
+  }
   console.log(JSON.stringify({ scriptsEdit: 'ok' }));
 })().catch(e => { console.error(e); process.exit(1); });
