@@ -1567,6 +1567,9 @@ const DEPTH_TEMPLATE_ERRORS = {
   "tools": "Install the Xcode Command Line Tools (run xcode-select --install in Terminal), then try again.",
   "no-transcript": "This video has no transcript to make captions from.",
   "no-speech-in-limit": "The first 90 seconds of this video have no speech to caption.",
+  "no-draft": "Open a draft of one person talking to camera, then try again.",
+  "too-long": "This draft runs over 90 seconds. Depth Type Captions works on drafts up to 90 seconds.",
+  "no-dialogue": "This draft has no speech to caption.",
 };
 const DEPTH_TEMPLATE_FAILED = "Depth Type Captions could not make the captioned timeline. Try again.";
 const depthTemplateError = (code) => Object.assign(new Error(DEPTH_TEMPLATE_ERRORS[code] || DEPTH_TEMPLATE_FAILED), { code });
@@ -1640,8 +1643,11 @@ function DepthTemplateRun({ sdk, context }) {
       try {
         const pid = context.projectId;
         if (!pid) throw depthTemplateError("no-project");
-        const speaker = (template.inputs?.speaker || []).find((x) => x?.kind === "video" && x.resourceId);
-        if (!speaker) throw depthTemplateError("no-video");
+        const given = template.inputs?.speaker || [];
+        // The open draft (a timeline) is captioned in place; a picked video, from older apps, gets a new Draft.
+        const timeline = given.find((x) => x?.kind === "timeline" && x.sequenceId);
+        const speaker = timeline || given.find((x) => x?.kind === "video" && x.resourceId);
+        if (!speaker) throw depthTemplateError(given.some((x) => x?.kind === "video") ? "no-video" : "no-draft");
         // The app hands over the library: the person may move to another page while this runs.
         const libraryId = template.libraryId;
         if (!libraryId || !window.parent.__DI__) throw depthTemplateError("host");
@@ -1653,17 +1659,33 @@ function DepthTemplateRun({ sdk, context }) {
           if (!(await depthHasCommandLineTools(sdk))) throw depthTemplateError("tools");
         }
         if (control.canceled) throw new Error("Canceled.");
-        progress("Placing your video…");
-        const r = await sdk.runScript({ script: depthClipDraftScript(pid, speaker.resourceId, depthClipBaseName(speaker.name)), summary: "Create Depth Type draft from a video", allowCommit: true });
-        if (r.isError || !r.result) throw new Error(r.output || "The Draft was not created.");
-        if (r.result.noWords) throw depthTemplateError("no-transcript");
-        if (r.result.noSpeechInLimit) throw depthTemplateError("no-speech-in-limit");
-        if (!r.result.id) throw new Error("The Draft was not created.");
-        const sid = String(r.result.id);
-        if (r.result.endSeconds != null)
-          console.info("[depth-type] template run: clip of " + r.result.sourceSeconds + " s placed up to " + r.result.endSeconds + " s (Behind speaker handles " + DEPTH_TEMPLATE_SECONDS + " s).");
+        let sid;
+        if (timeline) {
+          // Behind speaker handles a draft up to 90 seconds, as the panel does.
+          const m = await sdk.runScript({ script: `const m=await selects.draft(${JSON.stringify(String(timeline.sequenceId))}).meta();return {seconds:Number(m.durationFrames)/Number(m.fps)};`, summary: "Read the draft's length", allowCommit: false });
+          if (m.isError || !m.result) throw new Error(m.output || "The draft could not be read.");
+          if (!(m.result.seconds <= DEPTH_TEMPLATE_SECONDS)) throw depthTemplateError("too-long");
+          sid = String(timeline.sequenceId);
+        } else {
+          progress("Placing your video…");
+          const r = await sdk.runScript({ script: depthClipDraftScript(pid, speaker.resourceId, depthClipBaseName(speaker.name)), summary: "Create Depth Type draft from a video", allowCommit: true });
+          if (r.isError || !r.result) throw new Error(r.output || "The Draft was not created.");
+          if (r.result.noWords) throw depthTemplateError("no-transcript");
+          if (r.result.noSpeechInLimit) throw depthTemplateError("no-speech-in-limit");
+          if (!r.result.id) throw new Error("The Draft was not created.");
+          sid = String(r.result.id);
+          if (r.result.endSeconds != null)
+            console.info("[depth-type] template run: clip of " + r.result.sourceSeconds + " s placed up to " + r.result.endSeconds + " s (Behind speaker handles " + DEPTH_TEMPLATE_SECONDS + " s).");
+        }
         const settings = { ...DEPTH_DEFAULTS };
-        const made = await depthMakeCaptions({ sdk, pid, sid, settings, control, progress });
+        let made;
+        try {
+          made = await depthMakeCaptions({ sdk, pid, sid, settings, control, progress });
+        } catch (e) {
+          if (/No dialogue found/.test(String(e?.message || e))) throw depthTemplateError("no-dialogue");
+          if (/up to 90 seconds/.test(String(e?.message || e))) throw depthTemplateError("too-long");
+          throw e;
+        }
         const { savePlan, files, around, result } = made;
         // Remembered as the panel remembers a save, so opening the panel on this Draft
         // shows these captions for Fine-tune, Redo (reusing the masks) and Remove.

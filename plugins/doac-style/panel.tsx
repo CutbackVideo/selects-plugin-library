@@ -262,12 +262,17 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  }
  // Duplicate the source into the caption draft (once) and add each compiled scene.
  // `inPlace` adds the scenes to the source draft itself (a draft this run just
- // made) instead of a copy; `fit` scales captions to non-9:16 frames;
+ // made, or the draft a template run was given) instead of a copy, once its
+ // words are still the ones the plan was made from; `fit` scales captions to non-9:16 frames;
  // `skipFailedScenes` keeps going past a scene that fails to save (template
  // runs); `open` opens the draft when done.
  async function create(task,{open=true,fit=false,skipFailedScenes=false,inPlace=false}={}){let j=task;sameProject(j);if(!j.manifest)throw Error('Prepare captions before applying them.');
  if(j.uncertain)throw Error('The last save was not confirmed. Check the result draft before retrying.');
- if(inPlace&&!j.targetId){j={...j,targetId:j.sourceId,clipIds:[]};persist(j);}
+ if(inPlace&&!j.targetId){
+  const same=await run(`const s=selects.draft(${JSON.stringify(j.sourceId)});const words=(await s.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,start:w.startFrame,end:w.endFrame}));return JSON.stringify(words)===${JSON.stringify(j.signature)};`,'Check the draft is unchanged');
+  if(!same)throw stepError('draft-changed','The draft changed while captions were being planned. Try again.');
+  j={...j,targetId:j.sourceId,clipIds:[]};persist(j);
+ }
  if(!j.targetId){onStatus('Creating your captioned draft…');persist({...j,uncertain:true});const r=await run(`const s=selects.draft(${JSON.stringify(j.sourceId)});const words=(await s.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,start:w.startFrame,end:w.endFrame}));if(JSON.stringify(words)!==${JSON.stringify(j.signature)})throw Error('The original draft changed. Create a new caption plan.');const d=await selects.project(${JSON.stringify(j.projectId)}).duplicateDraft({sourceDraftId:${JSON.stringify(j.sourceId)},name:${JSON.stringify('DOAC Style Captions')}});const r=await d.commitAll('Create approved caption draft');return {id:r.createdDraftId,link:await selects.editor.linkToDraftFrame(r.createdDraftId,0)};`,'Create approved caption draft',true);j={...j,targetId:r.id,link:r.link,clipIds:[],uncertain:false};persist(j);}
  // Renderer code comes from the installed package, not an independently generated effect.
  const codeResult=await sdk.runShell({summary:'Read caption renderer',command:'cat "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/caption-scene.tsx.txt"',maxOutputBytes:16000});if(codeResult.isError||codeResult.exitCode!==0)throw stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');
@@ -294,6 +299,7 @@ const TEMPLATE_ERRORS={
  'no-timeline':'Open a timeline with speech, then try again.',
  'no-video':'Pick a video of one person talking, then try again.',
  'no-transcript':'This timeline has no transcript yet. Analyze its footage, then try again.',
+ 'draft-changed':'The draft changed while captions were being planned. Try again.',
  'has-graphics':'This timeline already has generated graphics. Use a timeline without captions, then try again.',
  'project-changed':'The project changed while captions were being made. Stay in the project, then try again.',
  'file-access':'Update Selects to use DOAC Style captions.',
@@ -301,12 +307,12 @@ const TEMPLATE_ERRORS={
  'render':'DOAC Style could not draw these captions. Check its installation, then try again.',
  'setup':'DOAC Style could not set up its caption renderer. Check that Python 3 is installed and you are online, then try again.',
  'plan':'Selects AI could not plan the captions. Try again.',
- 'no-scenes':'No captions could be added to the new timeline. Try again.',
+ 'no-scenes':'No captions could be added to the timeline. Try again.',
 };
 const TEMPLATE_FALLBACK='DOAC Style could not make the captioned timeline. Try again.';
 // Headless run for a built-in app, with the plugin's defaults and nobody
 // watching, reported once per run. A Project video is placed whole on a new
-// draft and captioned in place; a timeline gets a captioned copy.
+// draft and captioned in place; a timeline (the open draft) is captioned in place.
 function TemplateRun({sdk,context}){
  const [status,setStatus]=useState('Starting DOAC Style…');
  const started=useRef(new Set()),live=useRef(null),project=useRef(context.projectId);
@@ -334,7 +340,7 @@ function TemplateRun({sdk,context}){
      result=await steps.create(prepared,{open:false,fit:true,skipFailedScenes:true,inPlace:true});
     }else{
      const prepared=await steps.prepare({projectId:pid,sourceId:source.sequenceId,anyAspect:true});
-     result=await steps.create(prepared,{open:false,fit:true,skipFailedScenes:true});
+     result=await steps.create(prepared,{open:false,fit:true,skipFailedScenes:true,inPlace:true});
     }
     finish({sequenceId:result.job.targetId});
    }catch(e){
