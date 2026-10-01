@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "no14-still-video",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "name": "Four Photo Reveal",
   "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music.",
   "status": "experimental",
@@ -11,8 +11,6 @@
     "SKILL.md",
     "INSTALL.md",
     "VALIDATION.md",
-    "operation.mjs",
-    "build-script.mjs",
     "panel.tsx",
     "assets/music.mp3",
     "THIRD_PARTY.md"
@@ -21,7 +19,7 @@
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Needs the editor's existing original Image placement service plus public effects and motion graphics. Image Draft creation and export were verified in Selects Staging; exact reference-format fidelity remains provisional."
+    "selects": "Needs the editor's existing original Image placement service plus public effects and motion graphics. Image Draft creation and export were verified in Selects Staging; exact reference-format fidelity remains provisional. The Node-free panel (2026-10-01) passed its local tests but has not yet been run in the app."
   },
   "preview": {
     "video": "preview.mp4",

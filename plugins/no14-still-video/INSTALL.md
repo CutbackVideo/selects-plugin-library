@@ -1,6 +1,6 @@
 # Install Four Photo Reveal
 
-Install this folder through the Selects plugin library. The installer puts `panel.tsx` at `SELECTS_USER_PANELS_ROOT/no14-still-video/panel.tsx` and the listed support files under `SELECTS_USER_SKILLS_ROOT/no14-still-video`. Node.js must be available to the Selects panel shell.
+Install this folder through the Selects plugin library. The installer puts `panel.tsx` at `SELECTS_USER_PANELS_ROOT/no14-still-video/panel.tsx` and the listed support files under `SELECTS_USER_SKILLS_ROOT/no14-still-video`. No Node.js or other runtime is needed: the panel computes the plan and finishing step itself.
 
 The panel accepts four registered Project Image resources and places the original JPG/PNG/HEIC files as eight independently editable Image clips. It does not modify Selects client source and does not create still MP4 source copies. The final Draft can be exported as MP4. Reusing one image for two explicit slots is allowed.
 
