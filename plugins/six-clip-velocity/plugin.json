@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "id": "six-clip-velocity",
+  "version": "0.1.0",
+  "name": "Six Clip Velocity",
+  "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "VALIDATION.md",
+    "operation.mjs",
+    "build-script.mjs",
+    "panel.tsx",
+    "assets/music.mp3"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64"
+    ],
+    "selects": "Needs the editor's existing original clip placement service (as Four Photo Reveal and Camera Shutter Dump use), clip retiming, public clip effects, motion graphics and Audio overlays, and Node.js in the panel shell. Verified in Selects Staging and a local develop build on 2026-10-01: saved Draft readback and export."
+  },
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 720
+  },
+  "localized": {
+    "de": {
+      "name": "Six Clip Velocity",
+      "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips."
+    },
+    "en": {
+      "name": "Six Clip Velocity",
+      "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips."
+    },
+    "es": {
+      "name": "Six Clip Velocity",
+      "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips."
+    },
+    "fr": {
+      "name": "Six Clip Velocity",
+      "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips."
+    },
+    "it": {
+      "name": "Six Clip Velocity",
+      "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips."
+    },
+    "ja": {
+      "name": "Six Clip Velocity",
+      "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips."
+    },
+    "ko": {
+      "name": "Six Clip Velocity",
+      "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips."
+    },
+    "pt": {
+      "name": "Six Clip Velocity",
+      "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips."
+    },
+    "tr": {
+      "name": "Six Clip Velocity",
+      "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips."
+    },
+    "zh": {
+      "name": "Six Clip Velocity",
+      "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips."
+    }
+  }
+}
