@@ -78,7 +78,7 @@ assert.ok(chooseBody.includes('setCandidates(null)') && chooseBody.includes('ord
 assert.ok(panel.includes('const candKey = projectId + "|" + JSON.stringify(only);') && panel.includes('const key = pid + "|" + JSON.stringify(only);'), 'readiness and build share the pid|only cache key');
 assert.ok(panel.indexOf('React.useMemo(') < panel.indexOf('if (!projectId) return <ui'), 'the fitted-count hook stays before the early return');
 // Photos: a Use photos toggle, photos in the clip list and the readiness line, photo-only builds, photo effects gated.
-for (const [key, text] of [['usePhotos', 'Use photos'], ['photosSelected', '{selected} of {count} photos selected'], ['photos', '{count} photos'], ['photo', 'Photo'], ['foundShotsPhotos', 'of them photos'], ['usePhotosOff', 'Use photos is off']]) says(key, text);
+for (const [key, text] of [['usePhotos', 'Use photos'], ['photosSelected', '{selected} of {count} photos selected'], ['photos', '{count} photos'], ['photo', 'Photo'], ['foundShotsPhotos', '(photos: {photos})'], ['usePhotosOff', 'Use photos is off']]) says(key, text);
 for (const phrase of ['label={t(L, "usePhotos")}', 'photoCandsOf(inventory, onlyPhotos, usePhotos)', 'known: photoSizesRef.current',
   'cwvPhotoMotions(plan.picks, String(usedSeed), sizes, sched.titleSlots)', 'photoEffects: PHOTO_EFFECTS', 'const PHOTO_EFFECTS = true;', 'usedPhotoCount >= minShots', 'disabled={busy || !canBuild}', 'choosePhotos(allPhotoRids)']) assert.ok(panel.includes(phrase), phrase);
 assert.ok(/const \[usePhotos, setUsePhotos\] = React\.useState\(true\)/.test(panel), 'Use photos is on by default');
@@ -132,7 +132,15 @@ assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && pa
 // Finish title and look retries with the inputs of the build, and clips whose scene search failed are reported.
 assert.ok(panel.includes('result.mute !== false, result.look, check)') && panel.includes('const { line1, connector, place, preset, warm, clipSound } = look;'), 'retry uses the build-time look');
 assert.ok(code.includes('unchecked: found.failed.length'), 'unchecked clips are reported');
-says('unchecked', 'Build again to retry them.'); says('retryUnchecked', 'press Build to retry them.');
+says('unchecked', 'Build again to retry them.');
+// A sentence with two numbers takes its plural form from {count}, so the noun must sit next to {count}, not next to the
+// other number ({selected}, {photos}); checked in every language that has plural nouns.
+{
+  const all = block.strings, forms = v => (typeof v === 'string' ? [v] : Object.values(v));
+  for (const lang of ['de', 'en', 'es', 'fr', 'it', 'pt']) for (const key of ['clipsSelected', 'photosSelected']) for (const f of forms(all[lang][key]))
+    assert.ok(/\{selected\} \S+ \{count\}/.test(f), lang + '.' + key + ': {selected} must come before {count} and its noun: ' + f);
+  for (const lang of Object.keys(all)) for (const f of forms(all[lang].foundShotsPhotos)) assert.ok(!/\{photos\} (photos|Fotos|son|s\u00e3o|en photo)/.test(f), lang + '.foundShotsPhotos: no noun after {photos}: ' + f);
+} says('retryUnchecked', 'press Build to retry them.');
 // The own-music PCM is removed after beat detection, keeping the exit status; the preview mp3 once encoded.
 assert.ok(panel.includes('"; s=$?; rm -f " + sq(pcm) + "; exit $s"') && panel.includes('" && rm -f " + sq(base + ".mp3")'), 'temporary audio files are removed');
 assert.equal((ui.match(/cwvSchedule\(/g) || []).length, 2);
