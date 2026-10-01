@@ -56,7 +56,7 @@ Analyse them in Selects first.
 - **Music**: one of the four bundled tracks, **Your own music** (drop an audio file; the beat
   is detected inside the panel) or No music. A draggable **Music section** bar chooses where
   in the track the edit starts, and **Preview this section** plays it.
-- **Look**: Soft glow (default), Night glam, Clean or None.
+- **Look**: Soft glow (default; a warm rose grade with a gentle dark vignette), Night glam, Clean or None.
 - **Length**: Short (default), Standard or Long.
 - **Clip sound**: Off, Ambient (default, the clips' own sound quietly under the music) or Full.
 - **Use photos**: on by default.

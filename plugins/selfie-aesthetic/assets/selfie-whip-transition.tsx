@@ -114,7 +114,7 @@ function saeWhipAt(frame, durFrames, fps, d) {
 // a strong version of the same. Night glam (default 0.35): deeper blacks, magenta/pink cast. Clean (default 0.35):
 // near-neutral with mild warmth.
 var SAE_LOOKS = {
-  "soft-glow": { strength: 0.5, sepia: 1, saturate: 2.2, hue: -20, contrast: 0.95, brightness: 0.82, overlay: { color: "#ff7a9a", blend: "lighten", opacity: 0.03 } },
+  "soft-glow": { strength: 0.5, sepia: 1, saturate: 2.2, hue: -20, contrast: 0.95, brightness: 0.82, overlay: { color: "#ff7a9a", blend: "lighten", opacity: 0.03 }, vignette: 0.25 },
   "night-glam": { strength: 0.35, sepia: 0.35, saturate: 1.15, hue: -48, contrast: 1.12, brightness: 0.92, overlay: { color: "#ff4fa3", blend: "screen", opacity: 0.05 } },
   "clean": { strength: 0.35, sepia: 0.15, saturate: 1.04, hue: 0, contrast: 0.98, brightness: 1, overlay: null },
 };
@@ -128,6 +128,38 @@ function saeLookFilter(look, strength) {
     (p.hue * t).toFixed(2) + "deg) contrast(" + lerp(p.contrast).toFixed(3) + ") brightness(" + lerp(p.brightness).toFixed(3) + ")";
   var overlay = p.overlay ? { color: p.overlay.color, blend: p.overlay.blend, opacity: Number((p.overlay.opacity * t).toFixed(4)) } : null;
   return { filter: filter, overlay: overlay };
+}
+// Vignette (Soft glow only: the reference's darker surround around a lit face): a static radial gradient over the
+// graded picture, transparent inside SAE_VIGNETTE_INNER of the way to the corner (the face area is untouched) and
+// rising to the preset's `vignette` alpha (black) at SAE_VIGNETTE_OUTER, scaled by strength / the preset strength (so
+// the default 0.5 gives the designed 0.25 at the corners, strength 1 twice that). The ellipse runs through the box
+// corners (farthest-corner), and the full alpha already from SAE_VIGNETTE_OUTER on keeps the visible corners at the
+// designed darkness under tight / punch framing (1.12-1.14x: they sit at ~0.86-0.89 of the way). A clip with
+// cover > 1 shows less of its box, so its vignette is milder. Returns null (no layer) when it is off.
+var SAE_VIGNETTE_INNER = 0.6;
+var SAE_VIGNETTE_OUTER = 0.85;
+function saeLookVignette(look, strength) {
+  var p = SAE_LOOKS[look];
+  if (!p || !p.vignette) return null;
+  var t = saeNum(strength, 0, 1, p.strength);
+  var alpha = Number((p.vignette * t / p.strength).toFixed(4));
+  if (!(alpha > 0)) return null;
+  var mid = (SAE_VIGNETTE_INNER + SAE_VIGNETTE_OUTER) / 2;
+  return {
+    alpha: alpha, inner: SAE_VIGNETTE_INNER, outer: SAE_VIGNETTE_OUTER,
+    background: "radial-gradient(ellipse farthest-corner at 50% 50%, rgba(0,0,0,0) " + (SAE_VIGNETTE_INNER * 100).toFixed(1) +
+      "%, rgba(0,0,0," + (alpha * 0.4).toFixed(4) + ") " + (mid * 100).toFixed(1) + "%, rgba(0,0,0," + alpha.toFixed(4) + ") " +
+      (SAE_VIGNETTE_OUTER * 100).toFixed(1) + "%)",
+  };
+}
+// The vignette's alpha at r (0 = centre, 1 = box corner along the farthest-corner ellipse), as the gradient above
+// renders it (linear between its stops); for tests and stills.
+function saeVignetteAlpha(v, r) {
+  if (!v || !(r > v.inner)) return 0;
+  var mid = (v.inner + v.outer) / 2;
+  if (r >= v.outer) return v.alpha;
+  if (r <= mid) return v.alpha * 0.4 * (r - v.inner) / (mid - v.inner);
+  return v.alpha * (0.4 + 0.6 * (r - mid) / (v.outer - mid));
 }
 // The directional blur runs on a container rotated by the cut angle, SAE_BLUR_BOX % of the clip's box on both axes
 // (centred), holding the upright picture counter-rotated inside. Effects render in the clip's own box (source pixel

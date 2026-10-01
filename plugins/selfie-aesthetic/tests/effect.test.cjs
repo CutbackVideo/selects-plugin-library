@@ -12,7 +12,7 @@ const block = blockOf(lookSrc);
 assert.equal(blockOf(transSrc), block, 'both files carry the identical sae-whip block');
 
 const box = { Math, Number, isFinite }; vm.createContext(box);
-vm.runInContext(block + ';globalThis.F={saeWhipAt,saeWhipFrames,saeLookFilter,saeWhipPose,saeNum,saeBlurStd,SAE_BLUR_BOX};', box);
+vm.runInContext(block + ';globalThis.F={saeWhipAt,saeWhipFrames,saeLookFilter,saeWhipPose,saeNum,saeBlurStd,SAE_BLUR_BOX,saeLookVignette,saeVignetteAlpha,SAE_LOOKS};', box);
 // The transition's pose helper lives outside the block; evaluate it on top of the block.
 const tp = transSrc.slice(transSrc.indexOf('export function saeWhipTransitionPose'), transSrc.indexOf('export default'));
 vm.runInContext(tp.replace('export function', 'function') + ';globalThis.F.tpose=saeWhipTransitionPose;', box);
@@ -321,6 +321,43 @@ for (const look of ['soft-glow', 'night-glam', 'clean']) {
   assert.deepEqual(grade('none', 1, 0.5).map(Math.round), [128, 128, 128]);
 }
 
+// Vignette (Soft glow only): the graded ramp is untouched in the face area and darker toward the corners, by the
+// designed 0.25 at the default strength 0.5 (scaled by strength / 0.5); the visible corners under tight / punch
+// framing get the full amount; the whip maths ignore the look.
+{
+  const V = (look, s) => F.saeLookVignette(look, s);
+  for (const look of ['night-glam', 'clean', 'none', 'nope']) assert.equal(V(look, 0.5), null, look + ': no vignette');
+  assert.equal(V('soft-glow', 0), null, 'strength 0: no vignette');
+  near(V('soft-glow', 0.5).alpha, 0.25, 'default strength: 0.25 at the corners');
+  near(V('soft-glow', undefined).alpha, 0.25, 'missing strength: the preset default');
+  near(V('soft-glow', 1).alpha, 0.5, 'strength 1: twice'); near(V('soft-glow', 0.25).alpha, 0.125, 'strength 0.25: half');
+  const v = V('soft-glow', 0.5);
+  assert.match(v.background, /^radial-gradient\(ellipse farthest-corner at 50% 50%, rgba\(0,0,0,0\) 60\.0%, rgba\(0,0,0,0\.1000\) 72\.5%, rgba\(0,0,0,0\.2500\) 85\.0%\)$/);
+  const A = r => F.saeVignetteAlpha(v, r);
+  // r: distance along the farthest-corner ellipse (1 = box corner) of a point (x, y) in box fractions.
+  const rOf = (x, y) => Math.hypot((x - 0.5) / 0.5, (y - 0.5) / 0.5) / Math.SQRT2;
+  const vig = (look, s, grey, r) => grade(look, s, grey).map(c => c * (1 - F.saeVignetteAlpha(F.saeLookVignette(look, s), r)));
+  for (let i = 0; i <= 10; i++) {
+    const g = i / 10;
+    assert.deepEqual(vig('soft-glow', 0.5, g, 0), grade('soft-glow', 0.5, g), 'centre: graded ramp unchanged at ' + g);
+    assert.deepEqual(vig('soft-glow', 0.5, g, 0.6), grade('soft-glow', 0.5, g), 'face area (r <= 0.6) unchanged at ' + g);
+    if (g > 0) assert.ok(luma(vig('soft-glow', 0.5, g, 1)) < luma(grade('soft-glow', 0.5, g)) * 0.76, 'corner darker at ' + g);
+  }
+  assert.equal(A(rOf(0.5, 0.3)), 0, 'face height (upper middle) untouched');
+  assert.ok(A(rOf(0.5, 0)) > 0 && A(rOf(0.5, 0)) < A(1), 'edge midpoints: a little darker, less than the corners');
+  for (let r = 0.6; r < 1; r += 0.05) assert.ok(A(r + 0.05) >= A(r), 'monotone toward the corners');
+  // Visible corners after the framing transform (translate ty % then scale about the centre).
+  for (const [name, sc, ty] of [['full', 1, 0], ['tight', 1.14, 0.0168], ['punch', 1.12, 0.04]]) {
+    for (const [vx, vy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+      const r = rOf(0.5 + (vx - 0.5) / sc, 0.5 + (vy - 0.5 - ty) / sc);
+      near(A(r), 0.25, name + ' visible corner ' + vx + ',' + vy + ' (r ' + r.toFixed(3) + ')', 1e-9);
+    }
+  }
+  assert.ok(F.SAE_LOOKS['night-glam'].vignette === undefined && F.SAE_LOOKS['clean'].vignette === undefined, 'other looks unchanged');
+  const wd = { whipIn: 0.35, whipOut: 1, kindIn: 'dir', kindOut: 'spin', angle: 30, width: 1080, height: 1920 };
+  for (const f of [0, 1, 12, 22, 23]) assert.deepEqual(j(F.saeWhipAt(f, 24, 25, { ...wd, look: 'soft-glow', lookStrength: 1 })), j(F.saeWhipAt(f, 24, 25, { ...wd, look: 'none' })), 'whip maths ignore the look f' + f);
+}
+
 // Transition pose: exiting = tail maths rising with progress, entering = head maths falling, entering fades in.
 {
   const D = { kind: 'spin', angle: 30, strength: 1 };
@@ -408,6 +445,12 @@ if (esbuild) {
   assert.equal(tt.props.style.transform, 'translate(0.000%, 1.680%) rotate(0.000deg) scale(1.1400)', 'tight framing');
   const tk = call(Look, { Source, data: Object.assign({}, data, { framing: 'tight', cover: 1.0667 }), rangeDurationInFrames: 24, sequenceFps: 25 });
   assert.equal(tk.props.style.transform, 'translate(0.000%, 1.575%) rotate(0.000deg) scale(1.1400)', 'tight framing: shift divided by cover');
+  // Soft glow: one static vignette layer inside the graded picture, on plain and whip frames alike; other looks none.
+  const vigOf = n => find(n, 'AbsoluteFill').filter(x => x.props.style && String(x.props.style.backgroundImage || '').startsWith('radial-gradient'));
+  for (const f of [10, 0, 23]) { frame = f; const vt = call(Look, { Source, data, rangeDurationInFrames: 24, sequenceFps: 25 });
+    assert.equal(vigOf(vt).length, 1, 'soft glow vignette f' + f); assert.equal(vigOf(vt)[0].props.style.backgroundImage, F.saeLookVignette('soft-glow', 0.5).background); }
+  frame = 10;
+  for (const lk of ['night-glam', 'clean', 'none']) assert.equal(vigOf(call(Look, { Source, data: Object.assign({}, data, { look: lk }), rangeDurationInFrames: 24, sequenceFps: 25 })).length, 0, lk + ': no vignette layer');
   const tr = call(Trans, { children: 'clip', presentationDirection: 'entering', presentationProgress: 0.25, data: { kind: 'dir', angle: -30 } });
   assert.equal(find(tr, 'feGaussianBlur').length, 1); near(tr.props.style.opacity, 0, 'entering hidden at 0.25');
   assert.equal(find(tr, 'filter')[0].props.primitiveUnits, 'objectBoundingBox');
