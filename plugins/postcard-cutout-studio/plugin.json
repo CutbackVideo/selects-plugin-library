@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "postcard-cutout-studio",
-  "version": "0.2.0-alpha.4",
+  "version": "0.2.0-alpha.5",
   "name": "Postcard Cutout Studio",
   "summary": "Turn a folder of travel videos and photos into an editable moving-postcard opener: a cut-out subject over snapping panels, a scrambled title with synced sound, and a photo ending cut to the beat.",
   "status": "experimental",
@@ -84,5 +84,48 @@
       "name": "\u660e\u4fe1\u7247\u62a0\u50cf\u5de5\u4f5c\u5ba4",
       "summary": "\u628a\u4e00\u4e2a\u6587\u4ef6\u5939\u7684\u65c5\u884c\u89c6\u9891\u548c\u7167\u7247\u505a\u6210\u53ef\u7f16\u8f91\u7684\u201c\u52a8\u6001\u660e\u4fe1\u7247\u201d\u7247\u5934\uff1a\u62a0\u51fa\u7684\u4e3b\u4f53\u53e0\u5728\u4f9d\u6b21\u51fa\u73b0\u7684\u80cc\u666f\u6761\u4e0a\uff0c\u6807\u9898\u968f\u97f3\u6548\u6eda\u52a8\u5b9a\u683c\uff0c\u7ed3\u5c3e\u7167\u7247\u6309\u8282\u62cd\u5207\u6362\u3002"
     }
-  }
+  },
+  "collection": "visual-highlights",
+  "usesCredits": true,
+  "inputs": [
+    {
+      "id": "subject",
+      "label": "Subject",
+      "hint": "The person cut out and placed over the other clips.",
+      "accepts": [
+        "video"
+      ],
+      "min": 1,
+      "max": 1,
+      "query": "a person walking or posing"
+    },
+    {
+      "id": "panels",
+      "label": "Background clips",
+      "hint": "One strip each, left to right. Six fills the frame like the preview.",
+      "accepts": [
+        "video",
+        "image"
+      ],
+      "min": 1,
+      "max": 6,
+      "query": "buildings, streets and landscapes"
+    },
+    {
+      "id": "ending",
+      "label": "Ending clips",
+      "hint": "Cut to the beat at the end.",
+      "accepts": [
+        "video",
+        "image"
+      ],
+      "min": 1,
+      "max": 12,
+      "query": "moments from the trip"
+    }
+  ],
+  "prepare": [
+    "A clip of one person (they'll be cut out as the subject)",
+    "Clips or photos of places for the background and ending"
+  ]
 }
