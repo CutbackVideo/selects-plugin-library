@@ -36,6 +36,17 @@ const keepAlive = setInterval(() => {}, 50);
   assert.deepEqual(inv.resources.map(r => [r.rid, r.width, r.height, r.duration, r.kind]),
     [['r0', 1920, 1080, 20, 'video'], ['r3', 1080, 1920, 12, 'video'], ['r7', null, null, 1.2, 'video']]);
   assert.equal(inv.resources[0].recordedAt, '2026-09-26T15:00:00Z');
+  // A partly loaded file tree right after an app start throws "reading 'reduce'" once; inventory retries and succeeds.
+  let treeCalls = 0;
+  const flaky = await load('inventory.js', { projectId: 'p', only: null })({ project: () => ({ resources: async () => resources,
+    sourceFiles: async () => { if (treeCalls++ === 0) throw new TypeError("Cannot read properties of undefined (reading 'reduce')"); return tree; } }) });
+  assert.equal(treeCalls, 2, 'sourceFiles retried once');
+  assert.deepEqual(flaky.resources.map(r => r.rid), inv.resources.map(r => r.rid));
+  // Any other sourceFiles error is not retried.
+  let otherCalls = 0;
+  await assert.rejects(load('inventory.js', { projectId: 'p', only: null })({ project: () => ({ resources: async () => resources,
+    sourceFiles: async () => { otherCalls++; throw new Error('project_not_found'); } }) }), /project_not_found/);
+  assert.equal(otherCalls, 1);
   // Source paths (the stillness picker measures motion on them); a resource outside the file tree has none.
   assert.deepEqual(inv.resources.map(r => r.path), ['/v/a.mov', '/v/c.mov', null]);
   assert.equal(inv.skipped.unanalysed, 1);

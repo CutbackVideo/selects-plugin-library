@@ -9,9 +9,24 @@ const p = selects.project(cfg.projectId);
 const all = await p.resources();
 const sizes = {}, paths = {};
 const walk = nodes => { for (const n of nodes || []) { if (n.type === 'dir') walk(n.children); else if (n.resourceId) { sizes[n.resourceId] = n.frameSize || null; paths[n.resourceId] = n.path || null; } } };
-const files = await p.sourceFiles();
+// Right after an app start the SDK's sourceFiles() can throw "Cannot read properties of undefined (reading 'reduce')"
+// on a partly loaded file tree (seen live on Staging, 2026-10-01); it reads fine a moment later, so retry twice.
+// run_script has no setTimeout: Atomics.waitAsync on a private buffer waits without blocking.
+const pause = ms => {
+  const atomics = Object(globalThis).Atomics;
+  if (!atomics || typeof atomics.waitAsync !== 'function') return Promise.resolve();
+  const w = atomics.waitAsync(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  return w.async ? w.value : Promise.resolve();
+};
+const readTree = async (opts = null) => {
+  for (let i = 0; ; i++) {
+    try { return opts ? await p.sourceFiles(opts) : await p.sourceFiles(); }
+    catch (e) { if (i >= 2 || !/reduce/.test(String((e && e.message) || e))) throw e; await pause(400 * (i + 1)); }
+  }
+};
+const files = await readTree();
 if ('fileTree' in files) walk(files.fileTree);
-else for (const f of files.folders || []) { const d = await p.sourceFiles({ folder: f.name }); if ('fileTree' in d) walk(d.fileTree); }
+else for (const f of files.folders || []) { const d = await readTree({ folder: f.name }); if ('fileTree' in d) walk(d.fileTree); }
 const wanted = r => !cfg.only || cfg.only.includes(r.resourceId);
 const recordedAt = r => (r.recording && (r.recording.recordedAt || r.recording.filenameTimestamp || r.recording.creationAt)) || null;
 const video = all.filter(r => r.type === 'Video' && wanted(r));
