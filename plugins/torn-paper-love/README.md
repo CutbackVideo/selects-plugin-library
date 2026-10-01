@@ -187,8 +187,9 @@ Finished videos are exported from the Draft with **Handoff → Export**.
 
 ## Letters
 
-Each word is up to 8 characters (a Korean, Japanese or Chinese character
-counts as 2). Supported letters are A-Z, a-z, 0-9 and the characters
+Each word is up to 8 characters (in the panel, a Korean, Japanese or Chinese
+character counts as 2; the Inspector's Word fields take 8 characters of any
+kind). Supported letters are A-Z, a-z, 0-9 and the characters
 . , ! ? & ' - and ♥. Anything else (accents, Korean, other scripts) is drawn in
 a system fallback font on a plain white chip (see [Languages](#languages)). Upper or
 lower case is part of each letter's look, so "love" and "LOVE" can look the
@@ -216,7 +217,7 @@ detail after an error message stay in English.
   (Re-style does not change them).
 - Korean letters are never set in capitals, letter-spaced or squeezed. They
   are measured as wide letters, so a word shrinks to fit its side as Latin
-  words do; a Korean character counts as 2 of a word's 8.
+  words do; in the panel a Korean character counts as 2 of a word's 8.
 - Korean letters need macOS, where Selects and its export run. Style-matched
   Korean typefaces are planned for a later version.
 
