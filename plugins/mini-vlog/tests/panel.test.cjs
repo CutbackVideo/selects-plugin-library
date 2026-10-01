@@ -422,6 +422,13 @@ assert.deepEqual(en.retryUnchecked, { one: 'Could not check {count} video; press
 assert.deepEqual(en.unchecked, { one: 'Could not check {count} video; it was skipped. Build again to retry it.', other: 'Could not check {count} videos; they were skipped. Build again to retry them.' });
 // A plan failure is whole sentences joined with `gap` (no space after a full stop in ja and zh).
 assert.ok(ui.includes('failed ? t(l, "retryUnchecked", { count: failed }) : ""].filter(Boolean).join(t(l, "gap")));'), 'sentences joined with gap');
+// A sentence with two numbers takes its plural form from {count}, so the noun must sit next to {count}, not next to the
+// other number ({selected}, {fitted}); checked in every language with plural nouns (the CWV fix, PR #93).
+{
+  const all = extractStrings(panel).strings, forms = v => (typeof v === 'string' ? [v] : Object.values(v));
+  for (const lang of ['de', 'en', 'es', 'fr', 'it', 'pt']) for (const key of ['clipsSelected', 'photosSelected', 'fitPartial', 'footageFits', 'shortened'])
+    for (const f of forms(all[lang][key])) assert.ok(/\{(selected|fitted)\} \S+ \{count\}/.test(f), lang + '.' + key + ': the other number must come before {count} and its noun: ' + f);
+}
 assert.equal(extractStrings(panel).strings.ja.gap, ''); assert.equal(extractStrings(panel).strings.zh.gap, ''); assert.equal(en.gap, ' ');
 
 // decorate.js refuses a config without videoEnd.
