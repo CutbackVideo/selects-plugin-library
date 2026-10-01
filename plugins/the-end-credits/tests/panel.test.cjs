@@ -322,12 +322,14 @@ assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel 
 // Layout buttons: the button holds the thumbnail and the label (a column that grows with the label, no fixed height),
 // the label wraps inside it, and the two buttons share the row equally.
 {
-  const at = panel.indexOf('<ui.Section title={t(L, "layout")}>');
-  const block = panel.slice(at, panel.indexOf('</ui.Section>', at));
+  const sec = panel.indexOf('<ui.Section title={t(L, "layout")}>');
+  assert.ok(panel.slice(sec, panel.indexOf('</ui.Section>', sec)).includes('<LayoutTiles '), 'the Layout section draws LayoutTiles');
+  const at = panel.indexOf('function LayoutTiles(');
+  const block = panel.slice(at, panel.indexOf('\n}\n', at));
   const button = block.slice(block.indexOf('<button '), block.indexOf('</button>') + '</button>'.length);
   const style = button.slice(button.indexOf('style={{'), button.indexOf('}}>') + 2);
   assert.ok(button.includes('<LayoutIcon kind={value} />') && button.includes('>{label}</span>'), 'the thumbnail and the label are inside the button');
-  for (const phrase of ['flex: "1 1 0"', 'minWidth: 0', 'height: "auto"', 'display: "flex"', 'flexDirection: "column"', 'gap: 4', 'whiteSpace: "normal"']) assert.ok(style.includes(phrase), 'layout button ' + phrase);
+  for (const phrase of ['flex: "1 1 0"', 'minWidth: 0', 'height: "auto"', 'display: "flex"', 'flexDirection: "column"', 'whiteSpace: "normal"', 'maxWidth: "none"', 'maxHeight: "none"', 'boxSizing: "border-box"']) assert.ok(style.includes(phrase), 'layout button ' + phrase);
   assert.ok(!/(?:^|[^a-zA-Z])(?:min|max)?[hH]eight: (?:[1-9]|"\d)/.test(style), 'no fixed pixel height on the layout button');
   assert.ok(button.includes('overflowWrap: "anywhere"') && !button.includes('nowrap') && !button.includes('textOverflow'), 'the label wraps inside the button');
   assert.ok(block.includes('alignItems: "stretch"') && !block.includes('flexWrap: "wrap"'), 'one row; the buttons grow to the tallest');

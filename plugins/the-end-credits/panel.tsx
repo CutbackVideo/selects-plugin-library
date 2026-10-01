@@ -2903,6 +2903,34 @@ function LayoutIcon({ kind }: { kind: "classic" | "full" }) {
   );
 }
 
+// The two Layout tiles: one bordered box each, holding the icon and its label. The host's base stylesheet gives every
+// plain <button> a fixed row height, a field max-width and side padding (it is meant for the panel's one action), so
+// each of those is overridden inline: the box grows with its label, which wraps to two centred lines in long
+// languages, and the row stretches both tiles to the taller one.
+function LayoutTiles({ lang, layout, busy, onPick, onKeyDown }: {
+  lang: Lang; layout: "classic" | "full"; busy: boolean; onPick: (v: "classic" | "full") => void; onKeyDown?: (e: any) => void;
+}) {
+  return (
+    <div role="group" aria-label={t(lang, "layout")} onKeyDown={onKeyDown} style={{ display: "flex", alignItems: "stretch", gap: 8, minWidth: 0 }}>
+      {(["classic", "full"] as const).map((value) => {
+        const on = layout === value, label = t(lang, "layout." + value);
+        return (
+          <button key={value} type="button" aria-pressed={on} disabled={busy} onClick={() => onPick(value)}
+            style={{ flex: "1 1 0", minWidth: 0, width: "auto", maxWidth: "none", height: "auto", minHeight: 0, maxHeight: "none", boxSizing: "border-box",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 6,
+              padding: "8px 6px", font: "inherit", fontWeight: 600, whiteSpace: "normal", lineHeight: 1.25, textAlign: "center",
+              borderRadius: "var(--panel-radius, 6px)", cursor: busy ? "default" : "pointer", color: "inherit",
+              background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 16%, transparent)" : "transparent",
+              border: on ? "2px solid var(--panel-accent, #f6c343)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))" }}>
+            <LayoutIcon kind={value} />
+            <span style={{ display: "block", width: "100%", fontSize: 12, whiteSpace: "normal", wordBreak: "keep-all", overflowWrap: "anywhere" }}>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 const PREVIEW_HEIGHT = 124;
 
 // The Preview: a canvas mock of the chosen layout at one moment. Classic: black frame, typed title, credit rows and
@@ -4097,21 +4125,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       </ui.Row>
       {inventory && invError ? <ui.Message tone="error">{t(L, "refreshFailed", { detail: invError.say(L) })}</ui.Message> : null}
       <ui.Section title={t(L, "layout")}>
-        <div role="group" aria-label={t(L, "layout")} onKeyDown={guardKeys} style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
-          {(["classic", "full"] as const).map((value) => {
-            const on = layout === value, label = t(L, "layout." + value);
-            return (
-              <button key={value} type="button" aria-pressed={on} disabled={busy} onClick={() => setLayout(value)}
-                style={{ flex: "1 1 0", minWidth: 0, height: "auto", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 4,
-                  padding: "6px 4px", whiteSpace: "normal", lineHeight: 1.25, textAlign: "center", borderRadius: "var(--panel-radius, 6px)", cursor: busy ? "default" : "pointer", color: "inherit",
-                  background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 16%, transparent)" : "transparent",
-                  border: on ? "2px solid var(--panel-accent, #f6c343)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))" }}>
-                <LayoutIcon kind={value} />
-                <span style={{ display: "block", maxWidth: "100%", fontSize: 12, whiteSpace: "normal", wordBreak: "keep-all", overflowWrap: "anywhere" }}>{label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <LayoutTiles lang={L} layout={layout} busy={busy} onPick={setLayout} onKeyDown={guardKeys} />
       </ui.Section>
       <ui.Section title={t(L, "title")}>
         <ui.TextField label={t(L, "title")} value={title} placeholder={DEFAULT_TITLE} onChange={setTitle} disabled={busy} />
