@@ -42,4 +42,26 @@ What we changed: each track was brought to -16.3 LUFS integrated with a static g
 
 ## Gallery preview footage
 
-`preview.mp4` and `poster.webp` are not installed with the plugin. They show an Archive Vlog build with the default settings (Peaceful Drift from its soft intro, Cinematic style, Cinematic pace, Standard length, Credit shot, Cinematic look, Ambient clip sound). The clips and photos it is made from, with their licences and authors, are listed here when the gallery preview is made; until then the plugin ships no gallery footage.
+`preview.mp4` and `poster.webp` are not installed with the plugin. They show an Archive Vlog build with the default settings (Peaceful Drift from its soft intro, Cinematic style, Cinematic pace, Standard length, Credit shot with the sample name, Cinematic look, Ambient clip sound) on a set of golden-hour Istanbul stock footage, encoded to 960x540. Every clip and photo below is used under the Pexels License (https://www.pexels.com/license/), accessed 2026-10-01; the music is Peaceful Drift by HoliznaCC0 (CC0 1.0, see Music).
+
+| Title | Kind | Author | Source |
+|---|---|---|---|
+| Sunset View of Maiden's Tower in Istanbul | video | Sururi Ballıdağ Director | https://www.pexels.com/video/sunset-view-of-maiden-s-tower-in-istanbul-35631868/ |
+| Sunset at Maiden's Tower in Istanbul | photo | Aydın Kiraz | https://www.pexels.com/photo/sunset-at-maiden-s-tower-in-istanbul-39523207/ |
+| Photo of Istanbul at Sunset, Turkey | photo | Halil Fatih Çetin | https://www.pexels.com/photo/photo-of-istanbul-at-sunset-turkey-20577444/ |
+| Bosphorus Evening with Ferry and Crowd | video | bilal findikci | https://www.pexels.com/video/bosphorus-evening-with-ferry-and-crowd-34671857/ |
+| Sunset View at Istanbul Waterfront Promenade | video | Sururi Ballıdağ Director | https://www.pexels.com/video/sunset-view-at-istanbul-waterfront-promenade-39443869/ |
+| Scenic Sunset at Bosphorus Ferry Dock | video | Sururi Ballıdağ Director | https://www.pexels.com/video/scenic-sunset-at-bosphorus-ferry-dock-34321424/ |
+| Sunset View of Suleymaniye Mosque Istanbul | video | Tuğba Kuyoğlu | https://www.pexels.com/video/sunset-view-of-suleymaniye-mosque-istanbul-30209847/ |
+| Bustling Outdoor Market Scene at Sunset | video | Yaşar Başkurt | https://www.pexels.com/video/bustling-outdoor-market-scene-at-sunset-39315748/ |
+| Serene Sunset by the Waterfront with Ferries | video | Sururi Ballıdağ Director | https://www.pexels.com/video/serene-sunset-by-the-waterfront-with-ferries-31492319/ |
+| Romantic Sunset View at Istanbul Waterfront | photo | Aydın Kiraz | https://www.pexels.com/photo/romantic-sunset-view-at-istanbul-waterfront-39227045/ |
+| Women Enjoying Scenic Istanbul Waterfront View | photo | Serdar Göksu | https://www.pexels.com/photo/women-enjoying-scenic-istanbul-waterfront-view-30984120/ |
+| Sunset Over Bosphorus with Istanbul Skyline | photo | Aydın Kiraz | https://www.pexels.com/photo/sunset-over-bosphorus-with-istanbul-skyline-37084105/ |
+| Bustling Evening at Istanbul's Historic District | video | Sururi Ballıdağ Director | https://www.pexels.com/video/bustling-evening-at-istanbul-s-historic-district-34948791/ |
+| Vibrant City Traffic at Sunset with Mosque Backdrop | video | bilal findikci | https://www.pexels.com/video/vibrant-city-traffic-at-sunset-with-mosque-backdrop-34671859/ |
+| Galata Tower and Busy Street Scene at Sunset | video | Ahmed | https://www.pexels.com/video/galata-tower-and-busy-street-scene-at-sunset-39571301/ |
+| Busy Istanbul Street at Sunset with Traffic and Public Transport | video | bilal findikci | https://www.pexels.com/video/busy-istanbul-street-at-sunset-with-traffic-and-public-transport-34978691/ |
+| Sunset Street Scene with Tram and Pedestrians | video | Yaşar Başkurt | https://www.pexels.com/video/sunset-street-scene-with-tram-and-pedestrians-33535985/ |
+| Scenic Bosphorus Ferry Ride at Sunset | video | Sururi Ballıdağ Director | https://www.pexels.com/video/scenic-bosphorus-ferry-ride-at-sunset-35345597/ |
+| Scenic View of Eminonu Istanbul at Dusk | video | Sururi Ballıdağ Director | https://www.pexels.com/video/scenic-view-of-eminonu-istanbul-at-dusk-34948793/ |
