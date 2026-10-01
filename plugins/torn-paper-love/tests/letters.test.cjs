@@ -280,4 +280,22 @@ assert.ok(src.includes('useVideoConfig'), 'scales to the sequence size');
 assert.ok(src.includes('<svg'), 'heart drawn as SVG');
 assert.ok(!/[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]/.test(src), 'no literal Hangul');
 assert.ok(!src.includes('/Users/'), 'no local paths');
+// Hangul: no TPL face draws it, so it gets a plain fallback chip, measured 1.0 em wide, never re-cased, in a stack that
+// ends with the role's macOS Korean face (serif faces AppleMyungjo, the others Apple SD Gothic Neo).
+{
+  const stacks = src.slice(src.indexOf('const TPL_FACE_STACK'), src.indexOf('const str = '));
+  for (const face of ['didone', 'serif', 'slab']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"AppleMyungjo\", serif'"), face);
+  for (const face of ['condensed', 'black']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"Apple SD Gothic Neo\", sans-serif'"), face);
+  assert.match(stacks, /typewriter: '[^']*"Apple SD Gothic Neo", monospace'/);
+  assert.match(stacks, /TPL_FALLBACK_STACK = '[^']*"AppleMyungjo", serif'/);
+  assert.ok(src.includes('const text = fallback ? c.ch : tplCased(c.ch, look);'), 'fallback chips keep the typed character');
+  const ko = ['\uc0ac', '\ub791', '\ud574'];
+  for (const ch of ko) { assert.equal(L.tplSupported(ch), false); assert.equal(L.tplLetterEm(ch, null, real.advance), 1.0); }
+  const assigned = L.tplAssignLooks(ko.concat(['L', 'O', 'V', 'E']), 3, real.looks, real.advance);
+  assert.deepEqual(JSON.parse(JSON.stringify(assigned.slice(0, 3).map(a => a.length))), [0, 0, 0], 'no looks on Hangul');
+  assert.ok(assigned.slice(3).every(a => a.length >= 2), 'the Latin word keeps its looks');
+  const lay = L.tplLayout(['\uc0ac\ub791\ud574\uc694', 'LOVE'], 6, 50, real.advance, 1440, 1080, 1);
+  assert.ok(lay.fits, 'four syllables fit at full size');
+  assert.ok(lay.chips.slice(0, 4).every(c => c.kind === 'fallback' && c.em === 1.0));
+}
 console.log(JSON.stringify({ letters: 'ok', share: Number(share.toFixed(3)) }));

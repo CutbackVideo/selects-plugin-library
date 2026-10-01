@@ -453,16 +453,18 @@ function tplFillers(candidates) {
   return out;
 }
 
-// Build steps shown in the panel's progress bar, with each step's share of the bar in percent.
+// Build steps shown in the panel's progress bar, with each step's share of the bar in percent. The panel names them
+// in its UI language (STRINGS `step.<id>`).
 const TPL_BUILD_STEPS = [
-  { id: 'pictures', label: 'Reading your pictures', weight: 15 },
-  { id: 'moments', label: 'Finding moments', weight: 25 },
-  { id: 'plan', label: 'Planning', weight: 10 },
-  { id: 'place', label: 'Placing pictures', weight: 30 },
-  { id: 'decorate', label: 'Adding letters and paper', weight: 20 },
+  { id: 'pictures', weight: 15 },
+  { id: 'moments', weight: 25 },
+  { id: 'plan', weight: 10 },
+  { id: 'place', weight: 30 },
+  { id: 'decorate', weight: 20 },
 ];
 
-// Progress for a step that is `fraction` done. Floors the percent so 100% only shows at the very end.
+// Progress for a step that is `fraction` done. Floors the percent so 100% only shows at the very end. `detail` (text or
+// a function of the UI language) is passed through for the panel's label; empty means none.
 function tplProgress(stepId, fraction, detail) {
   const i = TPL_BUILD_STEPS.findIndex(s => s.id === stepId);
   if (i < 0) throw new Error('unknown build step ' + stepId);
@@ -471,11 +473,5 @@ function tplProgress(stepId, fraction, detail) {
   const f = Math.min(1, Math.max(0, Number(fraction) || 0));
   const value = (before + TPL_BUILD_STEPS[i].weight * f) / total;
   const percent = Math.floor(value * 100 + 1e-9);
-  const step = TPL_BUILD_STEPS[i];
-  return {
-    value,
-    percent,
-    current: i,
-    label: 'Step ' + (i + 1) + '/' + TPL_BUILD_STEPS.length + ' · ' + step.label + (detail ? ' (' + detail + ')' : '') + ' · ' + percent + '%',
-  };
+  return { id: TPL_BUILD_STEPS[i].id, value, percent, current: i, detail: detail || null };
 }
