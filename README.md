@@ -21,6 +21,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Vlog Edit](plugins/vlog-edit) | Experimental |
 | [Podcast Hook Captions](plugins/podcast-hook-captions) — yellow word-pop captions and kinetic hook titles for podcast shorts | Experimental |
 | [City Weekend Vlog](plugins/city-weekend-vlog) — beat-synced city weekend vlog with a font-switching title | Experimental |
+| [Selfie Aesthetic Edit](plugins/selfie-aesthetic) — beat-locked close-up selfie edit with freeze-frame stutters and blur whips | Experimental |
 | [Four Photo Reveal](plugins/no14-still-video) — four original photos in an editable grid and fullscreen sequence | Experimental |
 | [Four Photo Stop Motion](plugins/four-photo-stop-motion) — four photos cycle on the beat with blur hits, a black pause and a dark fade | Experimental |
 | [Camera Shutter Dump](plugins/camera-shutter-dump) — twelve photos stack into a collage, one per shutter sound | Experimental |
