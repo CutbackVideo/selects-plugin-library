@@ -10,7 +10,7 @@ const norm = s => String(s || '').normalize('NFC').replace(/\\/g, '/');
 const isWin = s => /^[A-Za-z]:|\\/.test(String(s || ''));
 const base = s => norm(s).split('/').pop();
 // `name` compares only the file names; the case folding still follows the full paths.
-const same = (a, b, name) => {
+const same = (a, b, name = false) => {
   const fold = isWin(a) || isWin(b);
   const x = name ? base(a) : norm(a), y = name ? base(b) : norm(b);
   return fold ? x.toLowerCase() === y.toLowerCase() : x === y;
