@@ -66,9 +66,9 @@ const STATE_DEFAULTS = { clipSound: 'ambient', look: true, usePhotos: true, cred
 // English Adjust labels decorate.js gets (the panel passes its UI language; the names of effects never change).
 const ADJUST_LABELS = { motion: 'Motion', motionStrength: 'Motion strength', reveal: 'Reveal', letterbox: 'Letterbox reveal', look: 'Look strength',
   warmth: 'Warmth', fade: 'Fade out', kicker: 'Top line', title: 'Title', tagline: 'Bottom line', titleColor: 'Title colour', textColor: 'Text colour',
-  size: 'Size', font: 'Font', speed: 'Decode speed', shadow: 'Shadow', prefix: 'Credit prefix', name: 'Name' };
-// Title look defaults (decode-title.tsx: size %, decode speed %, shadow 0-1, display face).
-const TITLE_LOOK = { font: 'anton', size: 100, speed: 100, shadow: 0.3 };
+  size: 'Size', font: 'Font', speed: 'Decode speed', shadow: 'Shadow', scrim: 'Backdrop', prefix: 'Credit prefix', name: 'Name' };
+// Title look defaults (decode-title.tsx: size %, decode speed %, shadow 0-1, backdrop 0-1, display face).
+const TITLE_LOOK = { font: 'anton', size: 100, speed: 100, shadow: 0.3, scrim: 0.4 };
 const TITLE_FONTS = [{ label: 'Anton', value: 'anton' }, { label: 'Oswald', value: 'oswald' }];
 const CREDIT_FAMILY = 'AV Oswald Bold';
 const CREDIT_NAME_MAX = 24;
@@ -443,6 +443,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         { key: 'font', label: L.font, type: 'select', defaultValue: TITLE_LOOK.font, options: TITLE_FONTS },
         { key: 'speed', label: L.speed, type: 'number', defaultValue: TITLE_LOOK.speed, min: 25, max: 400, step: 5 },
         { key: 'shadow', label: L.shadow, type: 'number', defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
+        { key: 'scrim', label: L.scrim, type: 'number', defaultValue: TITLE_LOOK.scrim, min: 0, max: 1, step: 0.05 },
       ];
       const prefix = p.credit?.prefix ?? 'ARCHIVED BY';
       const credit = creditUsed(s) ? { tsx: read('assets/archived-credit.tsx'),

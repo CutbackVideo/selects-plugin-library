@@ -136,8 +136,11 @@ shots"; the opening, credit and final shots are always kept.
 
 - **Clip sound**: Off (muted), **Ambient** (default: the clips' own sound
   18 dB under the music) or Full.
-- **Cinematic look**: on by default. **Look strength** (0 to 1) starts at the
-  preset's strength; moving it keeps your value.
+- **Cinematic look**: on by default. It deepens the shadows while keeping the
+  black point, softens near-white highlights, restrains greens and cyans, caps
+  very saturated sunsets and warms the highlights towards amber. **Look
+  strength** (0 to 1) starts at the preset's strength; moving it keeps your
+  value.
 - **Use photos**: on by default. Off builds from video clips only.
 - **Choose clips**: tick the clips and photos the build may use (all by
   default). Changing the clip selection searches again on the next Build.
@@ -159,8 +162,11 @@ Edit it in the Inspector's **Adjust** tab (labels are written in the panel's
 language at Build):
 
 - **Archive title**: Top line, Title and Bottom line text, Title colour, Text colour,
-  Size (60 to 160 %), Font (Anton or Oswald), Decode speed (25 to 400 %) and
-  Shadow (0 to 1).
+  Size (60 to 160 %), Font (Anton or Oswald), Decode speed (25 to 400 %),
+  Shadow (0 to 1) and Backdrop (0 to 1, default 0.4): a soft dark ellipse
+  behind the title that fades in with the top line and keeps the white text
+  readable over a bright opening shot. 0 turns it off; it never moves the
+  text. The panel's title preview draws it too.
 - **Archived credit**: Credit prefix and Name.
 - **Letterbox reveal**: Reveal (seconds until the band is fully open) and
   Letterbox reveal (on or off).
