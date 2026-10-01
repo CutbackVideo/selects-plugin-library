@@ -67,11 +67,11 @@ const STRINGS = {
     nameN: "Name {n}",
     rolePlaceholder: "Role (e.g. Director)",
     namePlaceholder: "Name",
-    up: "Up",
-    down: "Down",
-    remove: "Remove",
-    addRow: "Add row",
     resetPreset: "Reset to preset",
+    "list.reorderHandle": "Reorder row {n}: {label}",
+    "list.removeRow": "Remove row {n}",
+    "list.moved": "{label} moved to position {pos} of {total}",
+    "list.addRow": "Add row",
     noRows: "No rows: the roll shows only the title.",
     rowsHint: "Rows with both fields empty are left out. Replace text in [brackets] with your own.",
     placeholdersLeft: { one: "{count} row still has a placeholder.", other: "{count} rows still have placeholders." },
@@ -242,11 +242,11 @@ const STRINGS = {
     nameN: "Name {n}",
     rolePlaceholder: "Rolle (z. B. Regie)",
     namePlaceholder: "Name",
-    up: "Hoch",
-    down: "Runter",
-    remove: "Entfernen",
-    addRow: "Zeile hinzufügen",
     resetPreset: "Vorlage wiederherstellen",
+    "list.reorderHandle": "Zeile {n} verschieben: {label}",
+    "list.removeRow": "Zeile {n} entfernen",
+    "list.moved": "{label} ist jetzt an Position {pos} von {total}",
+    "list.addRow": "Zeile hinzufügen",
     noRows: "Keine Zeilen: Der Abspann zeigt nur den Titel.",
     rowsHint: "Zeilen mit zwei leeren Feldern werden weggelassen. Ersetze Text in [Klammern] durch deinen eigenen.",
     placeholdersLeft: { one: "{count} Zeile enthält noch einen Platzhalter.", other: "{count} Zeilen enthalten noch Platzhalter." },
@@ -417,11 +417,11 @@ const STRINGS = {
     nameN: "Nombre {n}",
     rolePlaceholder: "Función (p. ej., Dirección)",
     namePlaceholder: "Nombre",
-    up: "Subir",
-    down: "Bajar",
-    remove: "Quitar",
-    addRow: "Añadir fila",
     resetPreset: "Restablecer plantilla",
+    "list.reorderHandle": "Reordenar la fila {n}: {label}",
+    "list.removeRow": "Quitar la fila {n}",
+    "list.moved": "{label} se movió a la posición {pos} de {total}",
+    "list.addRow": "Añadir fila",
     noRows: "Sin filas: los créditos solo muestran el título.",
     rowsHint: "Las filas con ambos campos vacíos se omiten. Sustituye el texto entre [corchetes] por el tuyo.",
     placeholdersLeft: { one: "{count} fila aún tiene un texto de ejemplo.", many: "{count} de filas aún tienen textos de ejemplo.", other: "{count} filas aún tienen textos de ejemplo." },
@@ -592,11 +592,11 @@ const STRINGS = {
     nameN: "Nom {n}",
     rolePlaceholder: "Rôle (p. ex. Réalisation)",
     namePlaceholder: "Nom",
-    up: "Monter",
-    down: "Descendre",
-    remove: "Supprimer",
-    addRow: "Ajouter une ligne",
     resetPreset: "Rétablir le préréglage",
+    "list.reorderHandle": "Déplacer la ligne {n} : {label}",
+    "list.removeRow": "Supprimer la ligne {n}",
+    "list.moved": "{label} déplacé en position {pos} sur {total}",
+    "list.addRow": "Ajouter une ligne",
     noRows: "Aucune ligne : le générique n'affiche que le titre.",
     rowsHint: "Les lignes dont les deux champs sont vides sont ignorées. Remplacez le texte entre [crochets] par le vôtre.",
     placeholdersLeft: { one: "{count} ligne contient encore un texte d'exemple.", many: "{count} de lignes contiennent encore des textes d'exemple.", other: "{count} lignes contiennent encore des textes d'exemple." },
@@ -767,11 +767,11 @@ const STRINGS = {
     nameN: "Nome {n}",
     rolePlaceholder: "Ruolo (es. Regia)",
     namePlaceholder: "Nome",
-    up: "Su",
-    down: "Giù",
-    remove: "Rimuovi",
-    addRow: "Aggiungi riga",
     resetPreset: "Ripristina preimpostazione",
+    "list.reorderHandle": "Riordina la riga {n}: {label}",
+    "list.removeRow": "Rimuovi la riga {n}",
+    "list.moved": "{label} spostato in posizione {pos} di {total}",
+    "list.addRow": "Aggiungi riga",
     noRows: "Nessuna riga: i titoli di coda mostrano solo il titolo.",
     rowsHint: "Le righe con entrambi i campi vuoti vengono omesse. Sostituisci il testo tra [parentesi] con il tuo.",
     placeholdersLeft: { one: "{count} riga contiene ancora un testo segnaposto.", many: "{count} di righe contengono ancora testi segnaposto.", other: "{count} righe contengono ancora testi segnaposto." },
@@ -942,11 +942,11 @@ const STRINGS = {
     nameN: "名前 {n}",
     rolePlaceholder: "役職（例: 監督）",
     namePlaceholder: "名前",
-    up: "上へ",
-    down: "下へ",
-    remove: "削除",
-    addRow: "行を追加",
     resetPreset: "プリセットに戻す",
+    "list.reorderHandle": "行 {n} を並べ替え：{label}",
+    "list.removeRow": "行 {n} を削除",
+    "list.moved": "{label} を {total} 件中 {pos} 番目に移動しました",
+    "list.addRow": "行を追加",
     noRows: "行がありません。クレジットにはタイトルだけが表示されます。",
     rowsHint: "両方の欄が空の行は省かれます。[角かっこ] 内のテキストは自分の内容に置き換えてください。",
     placeholdersLeft: { other: "{count} 行にまだ仮のテキストが残っています。" },
@@ -1117,11 +1117,11 @@ const STRINGS = {
     nameN: "\uc774\ub984 {n}",
     rolePlaceholder: "\uc5ed\ud560(\uc608: \uac10\ub3c5)",
     namePlaceholder: "\uc774\ub984",
-    up: "\uc704\ub85c",
-    down: "\uc544\ub798\ub85c",
-    remove: "\uc0ad\uc81c",
-    addRow: "\uc904 \ucd94\uac00",
     resetPreset: "\ud504\ub9ac\uc14b\uc73c\ub85c \ub418\ub3cc\ub9ac\uae30",
+    "list.reorderHandle": "{n}\ubc88\uc9f8 \uc904 \uc21c\uc11c \ubc14\uafb8\uae30: {label}",
+    "list.removeRow": "{n}\ubc88\uc9f8 \uc904 \uc0ad\uc81c",
+    "list.moved": "{label}: {total}\uac1c \uc911 {pos}\ubc88\uc9f8\ub85c \uc62e\uacbc\uc2b5\ub2c8\ub2e4",
+    "list.addRow": "\uc904 \ucd94\uac00",
     noRows: "\uc904\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud06c\ub808\ub527\uc5d0\ub294 \ud0c0\uc774\ud2c0\ub9cc \ub098\uc635\ub2c8\ub2e4.",
     rowsHint: "\ub450 \uce78\uc774 \ubaa8\ub450 \ube44\uc5b4 \uc788\ub294 \uc904\uc740 \ube60\uc9d1\ub2c8\ub2e4. [\ub300\uad04\ud638] \uc548\uc758 \uae00\uc790\ub294 \uc9c1\uc811 \ubc14\uafd4 \uc8fc\uc138\uc694.",
     placeholdersLeft: { other: "{count}\uac1c \uc904\uc5d0 \uc544\uc9c1 \uc608\uc2dc \uae00\uc790\uac00 \ub0a8\uc544 \uc788\uc2b5\ub2c8\ub2e4." },
@@ -1292,11 +1292,11 @@ const STRINGS = {
     nameN: "Nome {n}",
     rolePlaceholder: "Função (ex.: Direção)",
     namePlaceholder: "Nome",
-    up: "Subir",
-    down: "Descer",
-    remove: "Remover",
-    addRow: "Adicionar linha",
     resetPreset: "Restaurar predefinição",
+    "list.reorderHandle": "Reordenar a linha {n}: {label}",
+    "list.removeRow": "Remover a linha {n}",
+    "list.moved": "{label} movido para a posição {pos} de {total}",
+    "list.addRow": "Adicionar linha",
     noRows: "Sem linhas: os créditos mostram só o título.",
     rowsHint: "Linhas com os dois campos vazios são ignoradas. Substitua o texto entre [colchetes] pelo seu.",
     placeholdersLeft: { one: "{count} linha ainda tem um texto de exemplo.", many: "{count} de linhas ainda têm textos de exemplo.", other: "{count} linhas ainda têm textos de exemplo." },
@@ -1467,11 +1467,11 @@ const STRINGS = {
     nameN: "İsim {n}",
     rolePlaceholder: "Görev (ör. Yönetmen)",
     namePlaceholder: "İsim",
-    up: "Yukarı",
-    down: "Aşağı",
-    remove: "Kaldır",
-    addRow: "Satır ekle",
     resetPreset: "Hazır ayara sıfırla",
+    "list.reorderHandle": "{n}. satırı taşı: {label}",
+    "list.removeRow": "{n}. satırı kaldır",
+    "list.moved": "{label}, {total} öğe içinde {pos}. sıraya taşındı",
+    "list.addRow": "Satır ekle",
     noRows: "Satır yok: jenerikte yalnızca başlık görünür.",
     rowsHint: "İki alanı da boş olan satırlar atlanır. [Köşeli parantez] içindeki metni kendinizinkiyle değiştirin.",
     placeholdersLeft: { one: "{count} satırda hâlâ örnek metin var.", other: "{count} satırda hâlâ örnek metin var." },
@@ -1642,11 +1642,11 @@ const STRINGS = {
     nameN: "姓名 {n}",
     rolePlaceholder: "职务（例如：导演）",
     namePlaceholder: "姓名",
-    up: "上移",
-    down: "下移",
-    remove: "删除",
-    addRow: "添加一行",
     resetPreset: "恢复预设",
+    "list.reorderHandle": "调整第 {n} 行的顺序：{label}",
+    "list.removeRow": "删除第 {n} 行",
+    "list.moved": "{label} 已移至第 {pos} 位（共 {total} 项）",
+    "list.addRow": "添加一行",
     noRows: "没有字幕行：只显示标题。",
     rowsHint: "两栏都为空的行会被忽略。请把 [方括号] 中的文字换成你自己的内容。",
     placeholdersLeft: { other: "还有 {count} 行包含示例文字。" },
@@ -2903,6 +2903,282 @@ function LayoutIcon({ kind }: { kind: "classic" | "full" }) {
   );
 }
 
+// The two Layout tiles: one bordered box each, holding the icon and its label. The host's base stylesheet gives every
+// plain <button> a fixed row height, a field max-width and side padding (it is meant for the panel's one action), so
+// each of those is overridden inline: the box grows with its label, which wraps to two centred lines in long
+// languages, and the row stretches both tiles to the taller one.
+function LayoutTiles({ lang, layout, busy, onPick, onKeyDown }: {
+  lang: Lang; layout: "classic" | "full"; busy: boolean; onPick: (v: "classic" | "full") => void; onKeyDown?: (e: any) => void;
+}) {
+  return (
+    <div role="group" aria-label={t(lang, "layout")} onKeyDown={onKeyDown} style={{ display: "flex", alignItems: "stretch", gap: 8, minWidth: 0 }}>
+      {(["classic", "full"] as const).map((value) => {
+        const on = layout === value, label = t(lang, "layout." + value);
+        return (
+          <button key={value} type="button" aria-pressed={on} disabled={busy} onClick={() => onPick(value)}
+            style={{ flex: "1 1 0", minWidth: 0, width: "auto", maxWidth: "none", height: "auto", minHeight: 0, maxHeight: "none", boxSizing: "border-box",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 6,
+              padding: "8px 6px", font: "inherit", fontWeight: 600, whiteSpace: "normal", lineHeight: 1.25, textAlign: "center",
+              borderRadius: "var(--panel-radius, 6px)", cursor: busy ? "default" : "pointer", color: "inherit",
+              background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 16%, transparent)" : "transparent",
+              border: on ? "2px solid var(--panel-accent, #f6c343)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))" }}>
+            <LayoutIcon kind={value} />
+            <span style={{ display: "block", width: "100%", fontSize: 12, whiteSpace: "normal", wordBreak: "keep-all", overflowWrap: "anywhere" }}>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// tec-reorder:start
+// Reorderable list maths (kit panel-ui.md §1). Plain functions, so the tests load them in node.
+// The list with the item at `from` moved to `to` (a copy; out-of-range or equal indices return an unchanged copy).
+function arrayMove(list: any, from: number, to: number) {
+  const c = list.slice();
+  if (from === to || from < 0 || to < 0 || from >= c.length || to >= c.length) return c;
+  const [x] = c.splice(from, 1);
+  c.splice(to, 0, x);
+  return c;
+}
+// Where a dragged row lands: how many other rows' mid-points its centre has passed (arrayMove semantics). `mids` are
+// the rows' mid-points when the drag began and `centre` the dragged row's centre now, in the same coordinates.
+function reorderTarget(mids: any, from: number, centre: number) {
+  let to = 0;
+  for (let k = 0; k < mids.length; k++) if (k !== from && centre > mids[k]) to++;
+  return Math.max(0, Math.min(to, mids.length - 1));
+}
+// One keyboard step (dir -1 up, +1 down), kept inside the list.
+function reorderStep(at: number, dir: number, count: number) {
+  return Math.max(0, Math.min(count - 1, at + dir));
+}
+// How far row k slides while row `from` (height h) is held over `to`: the rows in between make room for it.
+function reorderShift(k: number, from: number, to: number, h: number) {
+  if (from < to && k > from && k <= to) return -h;
+  if (to < from && k >= to && k < from) return h;
+  return 0;
+}
+// The top of the slot the held row would fill, from the rows' untransformed tops and heights.
+function reorderSlotTop(tops: any, heights: any, from: number, to: number) {
+  return to <= from ? tops[to] : tops[to] + heights[to] - heights[from];
+}
+// The drop line (2 px): above the target row when moving up, below it when moving down; null when nothing moves.
+function reorderLineY(tops: any, heights: any, from: number, to: number) {
+  if (to === from) return null;
+  return to < from ? tops[to] : tops[to] + heights[to];
+}
+// tec-reorder:end
+
+// The element that scrolls the panel: the nearest scrolling ancestor, else the document (the host scrolls the root).
+function scrollParent(el: HTMLElement | null): HTMLElement {
+  for (let p = el ? el.parentElement : null; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY;
+    if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return (document.scrollingElement || document.documentElement) as HTMLElement;
+}
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+const ROW_DIVIDER = "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))";
+const VISUALLY_HIDDEN = { position: "absolute", width: 1, height: 1, margin: -1, padding: 0, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 } as any;
+
+// The ≡ grip: three short lines in the current (muted) colour.
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width={16} height={16} aria-hidden="true" style={{ display: "block", flex: "none" }}>
+      <path d="M3 4.5h10M3 8h10M3 11.5h10" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
+
+// The credit rows (kit panel-ui.md §1): compact rows, each a drag handle, the role and name fields and a × remove,
+// reordered by dragging the handle (Pointer Events) or from the keyboard (Alt+arrows, or Space/Enter to grab, arrows
+// to move, Space/Enter to drop and Escape to cancel). `onEdit` takes an updater over the list, like the panel's
+// editRows; a reorder commits once, with arrayMove, on drop.
+function CreditRows({ lang, rows, busy, ui, onEdit, onAdd, onReset, canReset, onKeyDown }: {
+  lang: Lang; rows: EditRow[]; busy: boolean; ui: any; onEdit: (fn: (list: EditRow[]) => EditRow[]) => void;
+  onAdd: () => void; onReset: () => void; canReset: boolean; onKeyDown?: (e: any) => void;
+}) {
+  type Drag = { from: number; to: number; dy: number; started: boolean; kbd: boolean };
+  const listRef = React.useRef<HTMLDivElement | null>(null);
+  const rowEls = React.useRef<Record<string, HTMLDivElement | null>>({});
+  const handleEls = React.useRef<Record<string, HTMLButtonElement | null>>({});
+  const [drag, setDragState] = React.useState<Drag | null>(null);
+  const dragRef = React.useRef<Drag | null>(null);
+  const setDrag = (d: Drag | null) => { dragRef.current = d; setDragState(d); };
+  // Measured when a drag begins, in list coordinates (offsetTop/offsetHeight ignore the rows' transforms).
+  const geo = React.useRef({ tops: [] as number[], heights: [] as number[], mids: [] as number[], y0: 0, y: 0, s0: 0,
+    scroller: null as HTMLElement | null, el: null as HTMLElement | null, pointerId: -1, raf: 0, reduced: false, onKey: null as any });
+  const focusId = React.useRef<string | null>(null);
+  const [said, setSaid] = React.useState("");
+  const n = rows.length;
+  const labelOf = (r: EditRow, i: number) => r.role.trim() || r.name.trim() || t(lang, "creditN", { n: i + 1 });
+
+  const measure = () => {
+    const g = geo.current;
+    const els = rows.map((r) => rowEls.current[r.id]);
+    g.tops = els.map((el) => (el ? el.offsetTop : 0));
+    g.heights = els.map((el) => (el ? el.offsetHeight : 0));
+    g.mids = g.tops.map((top, k) => top + g.heights[k] / 2);
+    g.reduced = prefersReducedMotion();
+  };
+  const announce = (r: EditRow, idx: number, pos: number) => setSaid(t(lang, "list.moved", { label: labelOf(r, idx), pos: pos + 1, total: n }));
+  const move = (from: number, to: number) => {
+    if (to === from) return;
+    focusId.current = rows[from].id;
+    onEdit((l) => arrayMove(l, from, to));
+    announce(rows[from], from, to);
+  };
+  // Pointer position (and the container's scroll since the drag began) to the held row's offset and target.
+  const follow = () => {
+    const d = dragRef.current, g = geo.current;
+    if (!d || d.kbd) return;
+    if (!d.started && Math.abs(g.y - g.y0) < 4) return;
+    const last = g.tops.length - 1;
+    const scrolled = g.scroller ? g.scroller.scrollTop - g.s0 : 0;
+    // The target follows the pointer itself; only the drawn row stays inside the list.
+    const moved = g.y - g.y0 + scrolled;
+    const dy = Math.max(-g.tops[d.from], Math.min(g.tops[last] + g.heights[last] - g.tops[d.from] - g.heights[d.from], moved));
+    const wasStarted = d.started;
+    setDrag({ ...d, dy, to: reorderTarget(g.mids, d.from, g.mids[d.from] + moved), started: true });
+    if (!wasStarted && !g.raf) g.raf = requestAnimationFrame(autoScroll);
+  };
+  // Near the top or bottom 32 px of the scroll container, scroll a few px per frame, then follow again.
+  const autoScroll = () => {
+    const d = dragRef.current, g = geo.current, s = g.scroller;
+    if (!d || !d.started || d.kbd || !s) { g.raf = 0; return; }
+    const root = s === document.scrollingElement || s === document.documentElement;
+    const box = root ? { top: 0, bottom: window.innerHeight } : s.getBoundingClientRect();
+    const EDGE = 32;
+    const v = g.y < box.top + EDGE ? -Math.min(12, Math.ceil((box.top + EDGE - g.y) / 3)) : g.y > box.bottom - EDGE ? Math.min(12, Math.ceil((g.y - box.bottom + EDGE) / 3)) : 0;
+    if (v) { const before = s.scrollTop; s.scrollTop = before + v; if (s.scrollTop !== before) follow(); }
+    g.raf = requestAnimationFrame(autoScroll);
+  };
+  const finish = (commit: boolean) => {
+    const d = dragRef.current, g = geo.current;
+    if (g.raf) cancelAnimationFrame(g.raf);
+    g.raf = 0;
+    if (g.el && g.pointerId >= 0) { try { if (g.el.hasPointerCapture(g.pointerId)) g.el.releasePointerCapture(g.pointerId); } catch {} }
+    g.el = null; g.pointerId = -1;
+    if (g.onKey) { window.removeEventListener("keydown", g.onKey, true); g.onKey = null; }
+    setDrag(null);
+    if (!d) return;
+    if (commit && d.started && d.to !== d.from) move(d.from, d.to);
+    else if (d.kbd && d.started) announce(rows[d.from], d.from, d.from);
+  };
+
+  // A build starting, or the rows changing underneath (an auto value, Reset), ends a drag without a move.
+  React.useEffect(() => { if (dragRef.current) finish(false); }, [busy, n]);
+  React.useEffect(() => () => finish(false), []);
+  // A committed move re-orders the rows: keep the focus on the moved row's handle.
+  React.useLayoutEffect(() => {
+    const id = focusId.current;
+    if (!id) return;
+    focusId.current = null;
+    const h = handleEls.current[id];
+    if (h && document.activeElement !== h) h.focus();
+  }, [rows]);
+
+  const handleProps = (i: number) => ({
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (busy || e.button !== 0 || dragRef.current) return;
+      const g = geo.current;
+      measure();
+      g.y0 = g.y = e.clientY; g.scroller = scrollParent(listRef.current); g.s0 = g.scroller.scrollTop;
+      g.el = e.currentTarget; g.pointerId = e.pointerId;
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+      // Escape cancels a drag wherever the focus is, and never reaches the app's shortcuts.
+      g.onKey = (k: KeyboardEvent) => { if (k.key === "Escape") { k.preventDefault(); k.stopPropagation(); finish(false); } };
+      window.addEventListener("keydown", g.onKey, true);
+      setDrag({ from: i, to: i, dy: 0, started: false, kbd: false });
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLButtonElement>) => {
+      const d = dragRef.current;
+      if (!d || d.kbd || e.pointerId !== geo.current.pointerId) return;
+      geo.current.y = e.clientY;
+      follow();
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLButtonElement>) => { const d = dragRef.current; if (d && !d.kbd && e.pointerId === geo.current.pointerId) finish(true); },
+    onPointerCancel: () => { const d = dragRef.current; if (d && !d.kbd) finish(false); },
+    onLostPointerCapture: () => { const d = dragRef.current; if (d && !d.kbd) finish(false); },
+    onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (busy) return;
+      const k = e.key, d = dragRef.current;
+      const dir = k === "ArrowUp" ? -1 : k === "ArrowDown" ? 1 : 0;
+      const grab = k === " " || k === "Spacebar" || k === "Enter";
+      const consume = () => { e.preventDefault(); e.stopPropagation(); };
+      if (d && d.kbd) {
+        if (dir) {
+          consume();
+          const g = geo.current, to = reorderStep(d.to, dir, n);
+          setDrag({ ...d, to, dy: reorderSlotTop(g.tops, g.heights, d.from, to) - g.tops[d.from] });
+          announce(rows[d.from], d.from, to);
+        } else if (grab) { consume(); finish(true); }
+        else if (k === "Escape") { consume(); finish(false); }
+        return;
+      }
+      if (d) { if (k === "Escape") consume(); return; }
+      if (dir && e.altKey) { consume(); move(i, reorderStep(i, dir, n)); return; }
+      if (grab) { consume(); measure(); setDrag({ from: i, to: i, dy: 0, started: true, kbd: true }); }
+    },
+    onBlur: () => { const d = dragRef.current; if (d && d.kbd) finish(false); },
+  });
+
+  const g = geo.current;
+  const held = drag && drag.started ? drag : null;
+  const lineY = held ? reorderLineY(g.tops, g.heights, held.from, held.to) : null;
+  const field = { flex: "1 1 140px", minWidth: 0, width: "auto", maxWidth: "none", boxSizing: "border-box" } as any;
+  const marked = { ...field, boxShadow: "inset 0 0 0 1px var(--panel-accent, #f6c343)" };
+  const isPlaceholder = (v: string) => /\[[^\]]*\]/.test(v);
+  return (
+    <div role="group" aria-label={t(lang, "creditRows")} onKeyDown={onKeyDown} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+      <div ref={listRef} role="list" style={{ position: "relative", display: "flex", flexDirection: "column", minWidth: 0, borderTop: n ? ROW_DIVIDER : "none" }}>
+        {rows.map((r, i) => {
+          const lifted = !!held && held.from === i;
+          const shift = held && !lifted && !g.reduced ? reorderShift(i, held.from, held.to, g.heights[held.from]) : 0;
+          // Held from the keyboard with reduced motion, the row stays put and the drop line shows where it goes.
+          const dy = lifted && !(held!.kbd && g.reduced) ? held!.dy : shift;
+          return (
+            <div key={r.id} ref={(el) => { rowEls.current[r.id] = el; }} role="listitem" aria-label={t(lang, "creditN", { n: i + 1 })}
+              style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, padding: "5px 0", minWidth: 0, boxSizing: "border-box", borderBottom: ROW_DIVIDER,
+                transform: dy ? "translateY(" + dy + "px)" : "none", transition: !held || lifted || g.reduced ? "none" : "transform 140ms ease",
+                zIndex: lifted ? 2 : "auto", opacity: lifted ? 0.9 : 1, boxShadow: lifted ? "0 4px 14px rgba(0, 0, 0, 0.35)" : "none",
+                background: lifted ? "var(--panel-surface, var(--background, rgb(23, 23, 23)))" : "transparent" }}>
+              <button type="button" ref={(el) => { handleEls.current[r.id] = el; }} aria-label={t(lang, "list.reorderHandle", { n: i + 1, label: labelOf(r, i) })}
+                disabled={busy} {...handleProps(i)}
+                style={{ flex: "none", width: 24, minWidth: 24, maxWidth: "none", height: 24, minHeight: 24, padding: 0, margin: 0, border: 0, borderRadius: 4,
+                  display: "flex", alignItems: "center", justifyContent: "center", background: lifted ? "var(--panel-accent, rgba(128, 128, 128, 0.25))" : "transparent",
+                  color: "var(--panel-muted-fg, rgba(160, 160, 160, 1))", font: "inherit", touchAction: "none", userSelect: "none",
+                  cursor: busy ? "default" : lifted ? "grabbing" : "grab" }}>
+                <GripIcon />
+              </button>
+              <div style={{ flex: "1 1 0", minWidth: 0, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <input type="text" aria-label={t(lang, "roleN", { n: i + 1 })} placeholder={t(lang, "rolePlaceholder")} value={r.role} disabled={busy}
+                  style={isPlaceholder(r.role) ? marked : field}
+                  onChange={(e) => { const v = e.currentTarget.value; onEdit((l) => l.map((x) => (x.id === r.id ? { ...x, role: v } : x))); }} onKeyDown={(e) => e.stopPropagation()} />
+                <input type="text" aria-label={t(lang, "nameN", { n: i + 1 })} placeholder={t(lang, "namePlaceholder")} value={r.name} disabled={busy}
+                  style={isPlaceholder(r.name) ? marked : field}
+                  onChange={(e) => { const v = e.currentTarget.value; onEdit((l) => l.map((x) => (x.id === r.id ? { ...x, name: v } : x))); }} onKeyDown={(e) => e.stopPropagation()} />
+              </div>
+              <ui.IconButton icon="close" label={t(lang, "list.removeRow", { n: i + 1 })} disabled={busy || !!drag} onClick={() => onEdit((l) => l.filter((x) => x.id !== r.id))} />
+            </div>
+          );
+        })}
+        {lineY != null ? <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: lineY - 1, height: 2, borderRadius: 1, background: "var(--panel-fg, rgba(242, 242, 242, 0.9))", pointerEvents: "none", zIndex: 3 }} /> : null}
+      </div>
+      <div aria-live="polite" style={VISUALLY_HIDDEN}>{said}</div>
+      {!n ? <small style={{ wordBreak: "keep-all" }}>{t(lang, "noRows")}</small> : null}
+      <small style={{ wordBreak: "keep-all" }}>{t(lang, "rowsHint")}</small>
+      <ui.Row gap={4}>
+        <ui.Button variant="ghost" icon="plus" disabled={busy} onClick={onAdd}>{t(lang, "list.addRow")}</ui.Button>
+        <ui.Button variant="ghost" disabled={busy || !canReset} onClick={onReset}>{t(lang, "resetPreset")}</ui.Button>
+      </ui.Row>
+    </div>
+  );
+}
+
 const PREVIEW_HEIGHT = 124;
 
 // The Preview: a canvas mock of the chosen layout at one moment. Classic: black frame, typed title, credit rows and
@@ -4085,9 +4361,6 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
   const lengthOptions = TEC_LENGTH_ORDER.map((k: string) => ({ label: t(L, "length." + k), value: k }));
   const trackOptions = [...(assets?.manifest.cues || []).map((c: any) => ({ label: c.title, value: c.id })),
     ...(canOwnMusic || cueId === "own" ? [{ label: t(L, "ownMusic"), value: "own" }] : []), { label: t(L, "noMusic"), value: "none" }];
-  const inputStyle = { width: "100%", minWidth: 0, boxSizing: "border-box" } as any;
-  const placeholderStyle = { ...inputStyle, boxShadow: "inset 0 0 0 1px var(--panel-accent, #f6c343)" };
-  const isPlaceholder = (v: string) => /\[[^\]]*\]/.test(v);
 
   return (
     <ui.Stack gap={16}>
@@ -4097,21 +4370,17 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       </ui.Row>
       {inventory && invError ? <ui.Message tone="error">{t(L, "refreshFailed", { detail: invError.say(L) })}</ui.Message> : null}
       <ui.Section title={t(L, "layout")}>
-        <div role="group" aria-label={t(L, "layout")} onKeyDown={guardKeys} style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
-          {(["classic", "full"] as const).map((value) => {
-            const on = layout === value, label = t(L, "layout." + value);
-            return (
-              <button key={value} type="button" aria-pressed={on} disabled={busy} onClick={() => setLayout(value)}
-                style={{ flex: "1 1 0", minWidth: 0, height: "auto", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 4,
-                  padding: "6px 4px", whiteSpace: "normal", lineHeight: 1.25, textAlign: "center", borderRadius: "var(--panel-radius, 6px)", cursor: busy ? "default" : "pointer", color: "inherit",
-                  background: on ? "color-mix(in srgb, var(--panel-accent, #f6c343) 16%, transparent)" : "transparent",
-                  border: on ? "2px solid var(--panel-accent, #f6c343)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))" }}>
-                <LayoutIcon kind={value} />
-                <span style={{ display: "block", maxWidth: "100%", fontSize: 12, whiteSpace: "normal", wordBreak: "keep-all", overflowWrap: "anywhere" }}>{label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <LayoutTiles lang={L} layout={layout} busy={busy} onPick={setLayout} onKeyDown={guardKeys} />
+      </ui.Section>
+      <ui.Section title={t(L, "preview")}>
+        <CreditsPreview lang={L} layout={layout} title={title} model={creditModel} pxPerSec={roll.pxPerSec} endSec={videoSeconds} time={previewTime} fontsReady={fontsReady} />
+        <ui.Slider label={t(L, "previewAt")} unit={t(L, "secondsUnit")} min={0} max={Math.round(videoSeconds * 10) / 10} step={0.1} value={previewTime} onChange={setPreviewTime} />
+        <ui.Row gap={4}>
+          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(firstRowSec * 10) / 10)}>{t(L, "firstRow")}</ui.Button>
+          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(lastRowSec * 10) / 10)}>{t(L, "lastRow")}</ui.Button>
+          <ui.Button variant="ghost" onClick={() => setPreviewTime(endScrubSec)}>{t(L, "end")}</ui.Button>
+        </ui.Row>
+        {rollNotice ? <ui.Message tone="muted">{rollNotice}</ui.Message> : null}
       </ui.Section>
       <ui.Section title={t(L, "title")}>
         <ui.TextField label={t(L, "title")} value={title} placeholder={DEFAULT_TITLE} onChange={setTitle} disabled={busy} />
@@ -4119,30 +4388,8 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       <ui.Section title={t(L, "credits")}>
         <ui.Select label={t(L, "preset")} value={preset} disabled={busy} onChange={(v: string) => { setPreset(v); setCustomRows(null); }}
           options={TEC_PRESET_ORDER.map((id: string) => ({ label: tOr(L, "preset." + id, (TEC_PRESETS as any)[id].label), value: id }))} />
-        <div role="group" aria-label={t(L, "creditRows")} onKeyDown={guardKeys} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-          {rows.map((r, i) => (
-            <div key={r.id} role="group" aria-label={t(L, "creditN", { n: i + 1 })}
-              style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, padding: 6, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
-              <input type="text" aria-label={t(L, "roleN", { n: i + 1 })} placeholder={t(L, "rolePlaceholder")} value={r.role} disabled={busy}
-                style={isPlaceholder(r.role) ? placeholderStyle : inputStyle}
-                onChange={(e) => { const v = e.currentTarget.value; editRows((l) => l.map((x) => (x.id === r.id ? { ...x, role: v } : x))); }} onKeyDown={(e) => e.stopPropagation()} />
-              <input type="text" aria-label={t(L, "nameN", { n: i + 1 })} placeholder={t(L, "namePlaceholder")} value={r.name} disabled={busy}
-                style={isPlaceholder(r.name) ? placeholderStyle : inputStyle}
-                onChange={(e) => { const v = e.currentTarget.value; editRows((l) => l.map((x) => (x.id === r.id ? { ...x, name: v } : x))); }} onKeyDown={(e) => e.stopPropagation()} />
-              <ui.Row gap={4}>
-                <ui.Button variant="ghost" disabled={busy || i === 0} onClick={() => editRows((l) => { const k = l.findIndex((x) => x.id === r.id); if (k > 0) [l[k - 1], l[k]] = [l[k], l[k - 1]]; return l; })}>{t(L, "up")}</ui.Button>
-                <ui.Button variant="ghost" disabled={busy || i === rows.length - 1} onClick={() => editRows((l) => { const k = l.findIndex((x) => x.id === r.id); if (k >= 0 && k < l.length - 1) [l[k], l[k + 1]] = [l[k + 1], l[k]]; return l; })}>{t(L, "down")}</ui.Button>
-                <ui.Button variant="ghost" disabled={busy} onClick={() => editRows((l) => l.filter((x) => x.id !== r.id))}>{t(L, "remove")}</ui.Button>
-              </ui.Row>
-            </div>
-          ))}
-          {!rows.length ? <small style={{ wordBreak: "keep-all" }}>{t(L, "noRows")}</small> : null}
-          <small style={{ wordBreak: "keep-all" }}>{t(L, "rowsHint")}</small>
-          <ui.Row gap={4}>
-            <ui.Button variant="ghost" disabled={busy} onClick={() => editRows((l) => [...l, { id: newRowId(), role: "", name: "" }])}>{t(L, "addRow")}</ui.Button>
-            <ui.Button variant="ghost" disabled={busy || !customRows} onClick={() => { if (!busyRef.current) setCustomRows(null); }}>{t(L, "resetPreset")}</ui.Button>
-          </ui.Row>
-        </div>
+        <CreditRows lang={L} rows={rows} busy={busy} ui={ui} onEdit={editRows} onKeyDown={guardKeys}
+          onAdd={() => editRows((l) => [...l, { id: newRowId(), role: "", name: "" }])} onReset={() => { if (!busyRef.current) setCustomRows(null); }} canReset={!!customRows} />
         {placeholders ? <ui.Message tone="muted">{t(L, "placeholdersLeft", { count: placeholders })}</ui.Message> : null}
         {nonLatin ? <ui.Message tone="muted">{t(L, "systemFont")}</ui.Message> : null}
       </ui.Section>
@@ -4226,16 +4473,6 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
             </div>
           </div>
         ) : null}
-      </ui.Section>
-      <ui.Section title={t(L, "preview")}>
-        <CreditsPreview lang={L} layout={layout} title={title} model={creditModel} pxPerSec={roll.pxPerSec} endSec={videoSeconds} time={previewTime} fontsReady={fontsReady} />
-        <ui.Slider label={t(L, "previewAt")} unit={t(L, "secondsUnit")} min={0} max={Math.round(videoSeconds * 10) / 10} step={0.1} value={previewTime} onChange={setPreviewTime} />
-        <ui.Row gap={4}>
-          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(firstRowSec * 10) / 10)}>{t(L, "firstRow")}</ui.Button>
-          <ui.Button variant="ghost" onClick={() => setPreviewTime(Math.round(lastRowSec * 10) / 10)}>{t(L, "lastRow")}</ui.Button>
-          <ui.Button variant="ghost" onClick={() => setPreviewTime(endScrubSec)}>{t(L, "end")}</ui.Button>
-        </ui.Row>
-        {rollNotice ? <ui.Message tone="muted">{rollNotice}</ui.Message> : null}
       </ui.Section>
       {progress ? <ui.Progress value={progress.value} label={progressLabel} steps={TEC_BUILD_STEPS.map((s: any) => t(L, "step." + s.id))} current={progress.current} />
         : busy ? <ui.Progress label={stepLabel || t(L, "working")} /> : null}

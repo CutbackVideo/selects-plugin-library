@@ -89,8 +89,9 @@ a role and a name.
 - **Travel** has Directed by, Starring, Memories, Places, Music by, Special
   Thanks and Created with.
 
-In the panel list you can edit a row in place, add or remove rows, move rows
-up or down, and **Reset to preset**. Blank rows are dropped. Text in `[ ]` is
+In the panel list you can edit a row in place, add or remove rows, reorder
+rows by dragging their handle (or Alt+Up/Down on the handle), and **Reset to
+preset**. Blank rows are dropped. Text in `[ ]` is
 a placeholder: it is allowed in the build, and the panel warns how many rows
 still have placeholders.
 

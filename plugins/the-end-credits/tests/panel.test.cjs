@@ -174,19 +174,28 @@ const sectionAt = key => code.indexOf('<ui.Section title={t(L, "' + key + '")}>'
 for (const [key, text] of [['layout', 'Layout'], ['title', 'Title'], ['credits', 'Credits'], ['length', 'Length'], ['music', 'Music'], ['advanced', 'Advanced'], ['preview', 'Preview']]) {
   assert.ok(sectionAt(key) > 0, 'section ' + key); says(key, text);
 }
-assert.ok(sectionAt('layout') < sectionAt('title') && sectionAt('credits') < sectionAt('length') && sectionAt('length') < sectionAt('music') && sectionAt('music') < sectionAt('advanced'), 'section order');
+assert.ok(sectionAt('layout') < sectionAt('preview') && sectionAt('preview') < sectionAt('title') && sectionAt('title') < sectionAt('credits') && sectionAt('credits') < sectionAt('length') && sectionAt('length') < sectionAt('music') && sectionAt('music') < sectionAt('advanced'), 'section order');
+// Preview sits right below Layout (status / Refresh, Layout, Preview, Title, Credits, ...) and draws from the same state.
+{
+  const pv = code.slice(sectionAt('preview'), code.indexOf('</ui.Section>', sectionAt('preview')));
+  assert.equal(code.indexOf('<ui.Section', code.indexOf('</ui.Section>', sectionAt('layout'))), sectionAt('preview'), 'Preview is the section after Layout');
+  assert.ok(pv.includes('<CreditsPreview lang={L} layout={layout} title={title} model={creditModel} pxPerSec={roll.pxPerSec} endSec={videoSeconds} time={previewTime} fontsReady={fontsReady} />'), 'the Preview follows Layout, Title and the credit rows');
+  assert.ok(code.includes('const creditModel = React.useMemo(() => tecCreditLayout({ rows: cleanRows, layout,'), 'the credit model follows the rows and the layout');
+}
 says('layout.classic', 'Classic (window)'); says('layout.full', 'Full frame');
 // Layout: two schematic buttons with aria-pressed; Classic is the default.
 assert.ok(panel.includes('aria-pressed={on}') && panel.includes('<LayoutIcon kind={value} />') && panel.includes('React.useState<"classic" | "full">("classic")'), 'layout buttons');
 assert.ok(panel.includes('const DEFAULT_TITLE = "THE END";') && panel.includes('React.useState(DEFAULT_TITLE)'), 'default title');
-// Credits: preset select, row editor with labelled inputs and buttons, reset, blank-row drop, key guard.
+// Credits: preset select, the CreditRows editor (drag & drop, kit panel-ui.md §1) with labelled inputs, reset, blank-row drop, key guard.
 for (const phrase of ['label={t(L, "preset")}', 'TEC_PRESET_ORDER.map(', 'tOr(L, "preset." + id, (TEC_PRESETS as any)[id].label)', 'React.useState(TEC_DEFAULT_PRESET)', 'tecPresetRows(preset, creditInfo)',
-  'aria-label={t(L, "roleN", { n: i + 1 })}', 'aria-label={t(L, "nameN", { n: i + 1 })}', 'placeholder={t(L, "rolePlaceholder")}', 'placeholder={t(L, "namePlaceholder")}',
-  '>{t(L, "up")}</ui.Button>', '>{t(L, "down")}</ui.Button>', '>{t(L, "remove")}</ui.Button>', '>{t(L, "addRow")}</ui.Button>', '>{t(L, "resetPreset")}</ui.Button>',
-  'onKeyDown={(e) => e.stopPropagation()}', 'onKeyDown={guardKeys}', 'tecCleanRows(rows)', 'minWidth: 0, boxSizing: "border-box"']) assert.ok(code.includes(phrase), phrase);
-for (const [key, text] of [['rolePlaceholder', 'Role (e.g. Director)'], ['namePlaceholder', 'Name'], ['up', 'Up'], ['down', 'Down'], ['remove', 'Remove'], ['addRow', 'Add row'], ['resetPreset', 'Reset to preset'],
+  'aria-label={t(lang, "roleN", { n: i + 1 })}', 'aria-label={t(lang, "nameN", { n: i + 1 })}', 'placeholder={t(lang, "rolePlaceholder")}', 'placeholder={t(lang, "namePlaceholder")}',
+  '>{t(lang, "list.addRow")}</ui.Button>', '>{t(lang, "resetPreset")}</ui.Button>',
+  'onKeyDown={(e) => e.stopPropagation()}', 'onKeyDown={guardKeys}', 'tecCleanRows(rows)', 'minWidth: 0, width: "auto", maxWidth: "none", boxSizing: "border-box"']) assert.ok(code.includes(phrase), phrase);
+for (const [key, text] of [['rolePlaceholder', 'Role (e.g. Director)'], ['namePlaceholder', 'Name'], ['list.addRow', 'Add row'], ['resetPreset', 'Reset to preset'],
+  ['list.reorderHandle', 'Reorder row {n}: {label}'], ['list.removeRow', 'Remove row {n}'], ['list.moved', '{label} moved to position {pos} of {total}'],
   ['rowsHint', 'Rows with both fields empty are left out'], ['placeholdersLeft', 'still have placeholders'], ['systemFont', 'Some characters use a system font'], ['creditN', 'Credit {n}'],
   ['preset.filmCrew', 'Film crew'], ['preset.personal', 'Personal'], ['preset.travel', 'Travel']]) says(key, text);
+for (const key of ['up', 'down', 'remove', 'addRow']) assert.equal(en[key], undefined, 'the Up / Down / Remove / old Add row strings are gone: ' + key);
 const guard = panel.slice(panel.indexOf('function guardKeys('), panel.indexOf('export default function Panel('));
 assert.ok(guard.includes('e.stopPropagation()') && guard.includes('"Delete"') && guard.includes('"Backspace"') && guard.includes('" "') && guard.includes('e.preventDefault()'), 'Delete/Space never reach the app');
 // Edits survive music, inventory and length changes; unedited auto values follow; No music drops the Music credit.
@@ -322,16 +331,112 @@ assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel 
 // Layout buttons: the button holds the thumbnail and the label (a column that grows with the label, no fixed height),
 // the label wraps inside it, and the two buttons share the row equally.
 {
-  const at = panel.indexOf('<ui.Section title={t(L, "layout")}>');
-  const block = panel.slice(at, panel.indexOf('</ui.Section>', at));
+  const sec = panel.indexOf('<ui.Section title={t(L, "layout")}>');
+  assert.ok(panel.slice(sec, panel.indexOf('</ui.Section>', sec)).includes('<LayoutTiles '), 'the Layout section draws LayoutTiles');
+  const at = panel.indexOf('function LayoutTiles(');
+  const block = panel.slice(at, panel.indexOf('\n}\n', at));
   const button = block.slice(block.indexOf('<button '), block.indexOf('</button>') + '</button>'.length);
   const style = button.slice(button.indexOf('style={{'), button.indexOf('}}>') + 2);
   assert.ok(button.includes('<LayoutIcon kind={value} />') && button.includes('>{label}</span>'), 'the thumbnail and the label are inside the button');
-  for (const phrase of ['flex: "1 1 0"', 'minWidth: 0', 'height: "auto"', 'display: "flex"', 'flexDirection: "column"', 'gap: 4', 'whiteSpace: "normal"']) assert.ok(style.includes(phrase), 'layout button ' + phrase);
+  for (const phrase of ['flex: "1 1 0"', 'minWidth: 0', 'height: "auto"', 'display: "flex"', 'flexDirection: "column"', 'whiteSpace: "normal"', 'maxWidth: "none"', 'maxHeight: "none"', 'boxSizing: "border-box"']) assert.ok(style.includes(phrase), 'layout button ' + phrase);
   assert.ok(!/(?:^|[^a-zA-Z])(?:min|max)?[hH]eight: (?:[1-9]|"\d)/.test(style), 'no fixed pixel height on the layout button');
   assert.ok(button.includes('overflowWrap: "anywhere"') && !button.includes('nowrap') && !button.includes('textOverflow'), 'the label wraps inside the button');
   assert.ok(block.includes('alignItems: "stretch"') && !block.includes('flexWrap: "wrap"'), 'one row; the buttons grow to the tallest');
   assert.ok(!/#[0-9a-f]{3,8}\b/i.test(button.replace(/var\(--panel-[a-z-]+, [^)]*\)+/g, '')), 'only --panel-* colours');
+}
+
+// Credit rows: drag & drop reordering (kit panel-ui.md §1).
+{
+  const sec = panel.indexOf('<ui.Section title={t(L, "credits")}>');
+  const secBody = panel.slice(sec, panel.indexOf('</ui.Section>', sec));
+  assert.ok(secBody.includes('<CreditRows lang={L} rows={rows} busy={busy} ui={ui} onEdit={editRows} onKeyDown={guardKeys}'), 'the Credits section draws CreditRows, edits go through editRows');
+  assert.ok(secBody.includes('canReset={!!customRows}') && secBody.includes('setCustomRows(null)') && secBody.includes('newRowId()'), 'Add and Reset keep their behaviour');
+  assert.ok(!/ArrowUp|"up"|"down"/.test(secBody) && !/<ui\.Button[^>]*>\{t\(L, "(up|down|remove)"\)\}/.test(code), 'no Up / Down buttons');
+  const at = code.indexOf('function CreditRows(');
+  assert.ok(at > 0 && at < code.indexOf('export default function Panel('), 'CreditRows is a module-level component');
+  const comp = code.slice(at, code.indexOf('\n}\n', at));
+  // The handle: a focusable <button> with the reorder label, an inline SVG grip, >= 24 px, grab / grabbing cursors,
+  // and the host <button> defaults (fill, width 100%, fixed height) overridden inline.
+  const handle = comp.slice(comp.indexOf('<button type="button"'), comp.indexOf('</button>') + 9);
+  assert.ok(handle.includes('aria-label={t(lang, "list.reorderHandle", { n: i + 1, label: labelOf(r, i) })}') && handle.includes('<GripIcon />'), 'labelled grip handle');
+  assert.ok(handle.includes('{...handleProps(i)}') && handle.includes('disabled={busy}'), 'the handle carries the drag handlers and is disabled while busy');
+  for (const phrase of ['width: 24', 'height: 24', 'maxWidth: "none"', 'padding: 0', 'border: 0', 'touchAction: "none"', 'cursor: busy ? "default" : lifted ? "grabbing" : "grab"', 'background: lifted ?']) assert.ok(handle.includes(phrase), 'handle ' + phrase);
+  assert.ok(code.includes('function GripIcon()') && /stroke="currentColor"/.test(code.slice(code.indexOf('function GripIcon()'), at)), 'the grip is an inline currentColor SVG');
+  // Pointer handlers live only on the handle: never on the row, the fields or the list.
+  const pointerUses = (comp.match(/onPointer\w+|onLostPointerCapture|draggable|onDrag\w*/g) || []);
+  assert.deepEqual([...new Set(pointerUses)].sort(), ['onLostPointerCapture', 'onPointerCancel', 'onPointerDown', 'onPointerMove', 'onPointerUp'], 'pointer handlers only in handleProps');
+  const handlePropsBody = comp.slice(comp.indexOf('const handleProps = '), comp.indexOf('const g = geo.current;\n  const held'));
+  assert.equal((comp.match(/onPointer\w+:/g) || []).length, (handlePropsBody.match(/onPointer\w+:/g) || []).length, 'every pointer handler is in handleProps');
+  assert.equal((comp.match(/\{\.\.\.handleProps\(i\)\}/g) || []).length, 1, 'handleProps spread once, on the handle');
+  assert.ok(!/draggable[=:]|onDragStart/.test(code), 'no HTML5 drag and drop');
+  for (const phrase of ['setPointerCapture(e.pointerId)', 'releasePointerCapture', 'e.button !== 0', 'Math.abs(g.y - g.y0) < 4', 'requestAnimationFrame(autoScroll)', 'cancelAnimationFrame', 'const EDGE = 32;',
+    'scrollParent(listRef.current)', 'g.scroller.scrollTop - g.s0', 'k.key === "Escape"', 'window.addEventListener("keydown", g.onKey, true)', 'onEdit((l) => arrayMove(l, from, to))',
+    'prefers-reduced-motion: reduce', '"transform 140ms ease"', 'opacity: lifted ? 0.9 : 1', 'height: 2', 'var(--panel-accent', 'e.altKey', 'reorderStep(i, dir, n)', 'h.focus()', 'useLayoutEffect']) assert.ok(comp.includes(phrase) || code.includes(phrase), 'reorder ' + phrase);
+  // Look: no card per row, 1 px dividers, 5 px vertical padding, fields side by side or stacked.
+  assert.ok(comp.includes('padding: "5px 0"') && comp.includes('borderBottom: ROW_DIVIDER') && code.includes('const ROW_DIVIDER = "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))";'), 'divided compact rows');
+  assert.ok(!/border: "1px solid/.test(comp), 'no card border per row');
+  assert.ok(comp.includes('flexWrap: "wrap"') && comp.includes('flex: "1 1 140px", minWidth: 0'), 'fields wrap');
+  // Accessibility: list roles, the × IconButton, Add with the shared key, the polite live region with the moved text.
+  assert.ok(comp.includes('role="list"') && comp.includes('role="listitem"'), 'list roles');
+  assert.ok(comp.includes('<ui.IconButton icon="close" label={t(lang, "list.removeRow", { n: i + 1 })} disabled={busy || !!drag}'), '× remove');
+  assert.ok(comp.includes('<ui.Button variant="ghost" icon="plus" disabled={busy} onClick={onAdd}>{t(lang, "list.addRow")}</ui.Button>'), '+ Add row');
+  assert.ok(comp.includes('<div aria-live="polite" style={VISUALLY_HIDDEN}>{said}</div>') && comp.includes('t(lang, "list.moved", { label: labelOf(r, idx), pos: pos + 1, total: n })'), 'announcements');
+  assert.ok(comp.slice(comp.indexOf('role="list"'), comp.indexOf('aria-live')).split('role="listitem"').length === 2, 'only rows (and the drop line) inside the list');
+  // The fields keep text selection: they stop key propagation and nothing else.
+  for (const m of comp.matchAll(/<input [^]*?\/>/g)) assert.ok(m[0].includes('onKeyDown={(e) => e.stopPropagation()}') && !/onPointer|onMouse/.test(m[0]), 'plain field');
+  // The reorder maths, loaded from the panel.
+  const s0 = panel.indexOf('// tec-reorder:start'), s1 = panel.indexOf('// tec-reorder:end');
+  assert.ok(s0 > 0 && s1 > s0, 'reorder maths markers');
+  const box = {};
+  vm.runInNewContext(panel.slice(s0, s1).replace(/(\w)\??: (?:any|number)\b/g, '$1') + '\nthis.api = { arrayMove, reorderTarget, reorderStep, reorderShift, reorderSlotTop, reorderLineY };', box);
+  const R = box.api, L5 = ['a', 'b', 'c', 'd', 'e'];
+  const am = (...a) => Array.from(R.arrayMove(...a));
+  assert.deepEqual(am(L5, 0, 4), ['b', 'c', 'd', 'e', 'a'], 'first to last');
+  assert.deepEqual(am(L5, 4, 0), ['e', 'a', 'b', 'c', 'd'], 'last to first');
+  assert.deepEqual(am(L5, 2, 2), L5, 'no-op');
+  assert.deepEqual(am(L5, 1, 3), ['a', 'c', 'd', 'b', 'e']);
+  assert.deepEqual(am(L5, 3, 1), ['a', 'd', 'b', 'c', 'e']);
+  assert.deepEqual(am(L5, 0, 9), L5, 'out of range: unchanged');
+  assert.notEqual(R.arrayMove(L5, 0, 1), L5, 'a copy');
+  assert.deepEqual(L5, ['a', 'b', 'c', 'd', 'e'], 'the input is untouched');
+  // Five 40 px rows: mid-points 20, 60, 100, 140, 180.
+  const tops = [0, 40, 80, 120, 160], hs = [40, 40, 40, 40, 40], mids = tops.map((t, k) => t + hs[k] / 2);
+  assert.equal(R.reorderTarget(mids, 0, 20), 0, 'no movement: no-op');
+  assert.equal(R.reorderTarget(mids, 0, 59), 0, 'not past the next mid-point');
+  assert.equal(R.reorderTarget(mids, 0, 61), 1);
+  assert.equal(R.reorderTarget(mids, 0, 180 + 1), 4, 'first to last');
+  assert.equal(R.reorderTarget(mids, 0, 9999), 4, 'clamped');
+  assert.equal(R.reorderTarget(mids, 4, 19), 0, 'last to first');
+  assert.equal(R.reorderTarget(mids, 4, -9999), 0, 'clamped');
+  assert.equal(R.reorderTarget(mids, 2, 100), 2, 'dropped in place');
+  assert.equal(R.reorderTarget(mids, 2, 61), 2, 'still nearer its own slot');
+  assert.equal(R.reorderTarget(mids, 2, 59), 1);
+  // Cancel: the drag state is dropped without a move, so the list is the one the drag began with (the component's
+  // finish(false) never calls onEdit); the committed path is arrayMove(from, to) of the measured target.
+  assert.ok(comp.includes('if (commit && d.started && d.to !== d.from) move(d.from, d.to);') && /onPointerCancel: \(\) => \{[^}]*finish\(false\)/.test(comp), 'cancel restores');
+  assert.deepEqual(am(L5, 2, R.reorderTarget(mids, 2, 100)), L5, 'a drop in place changes nothing');
+  assert.deepEqual([R.reorderStep(0, -1, 5), R.reorderStep(0, 1, 5), R.reorderStep(4, 1, 5), R.reorderStep(3, -1, 5)], [0, 1, 4, 2], 'keyboard steps stay in the list');
+  assert.deepEqual([0, 1, 2, 3, 4].map(k => R.reorderShift(k, 0, 3, 40)), [0, -40, -40, -40, 0], 'rows slide up under a row moving down');
+  assert.deepEqual([0, 1, 2, 3, 4].map(k => R.reorderShift(k, 4, 1, 40)), [0, 40, 40, 40, 0], 'rows slide down under a row moving up');
+  assert.deepEqual([R.reorderSlotTop(tops, hs, 0, 3), R.reorderSlotTop(tops, hs, 4, 1), R.reorderSlotTop(tops, hs, 2, 2)], [120, 40, 80]);
+  assert.deepEqual([R.reorderLineY(tops, hs, 0, 3), R.reorderLineY(tops, hs, 4, 1), R.reorderLineY(tops, hs, 2, 2)], [160, 40, null], 'drop line below / above the target, none in place');
+  // The build reads the edited order: CreditRows edits the list through editRows (customRows), rows is that list, and
+  // the Build inputs are tecCleanRows(rows), which keeps the order.
+  assert.ok(panel.includes('const editRows = (fn: (list: EditRow[]) => EditRow[]) => { if (!busyRef.current) setCustomRows(fn((customRows ?? presetRows).slice())); };'), 'editRows marks the list customised');
+  assert.ok(panel.includes('const rows: EditRow[] = customRows ?? presetRows;') && panel.includes('const inputs = { layout, title, rows: tecCleanRows(rows),'), 'the build reads rows');
+  const pctx = { Math, Array, Object, JSON, Number, String, isFinite, Error };
+  vm.createContext(pctx);
+  vm.runInContext(planner + '\nthis.api = { tecPresetRows, tecCleanRows };', pctx);
+  const crew = pctx.api.tecPresetRows('filmCrew').map((r, i) => ({ id: 'p' + i, role: r.role, name: r.name }));
+  let custom = null;
+  const editRows = fn => { custom = fn((custom ?? crew).slice()); };
+  editRows(l => R.arrayMove(l, 0, crew.length - 1));
+  editRows(l => R.arrayMove(l, crew.length - 1, 0));
+  editRows(l => R.arrayMove(l, 1, 3));
+  const built = Array.from(pctx.api.tecCleanRows(custom ?? crew)).map(r => r.role);
+  const expect = R.arrayMove(crew.map(r => r.role), 1, 3);
+  assert.deepEqual(built, Array.from(expect), 'the build reads the edited order');
+  assert.notDeepEqual(built, crew.map(r => r.role));
 }
 
 // Hangul audit across the plugin.
