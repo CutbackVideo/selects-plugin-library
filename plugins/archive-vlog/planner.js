@@ -555,7 +555,7 @@ function avPlanBuild(opts) {
   const ladder = avMontageLadder({ requested: opts.requested, pace, bpm: tempo });
   const requested = ladder[0], least = ladder[ladder.length - 1];
   const top = avFitShots({ requested, pace, bpm: tempo, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd });
-  const fail = (reason, vars) => ({ ok: false, reason, usableShots: 0, usableSlots: 0, notes: [], ...(vars || {}) });
+  const fail = (reason, vars = {}) => ({ ok: false, reason, usableShots: 0, usableSlots: 0, notes: [], ...vars });
   // Distinct sources the allocator can use: valid videos (as avAllocate filters them) and photos.
   const finite = v => typeof v === 'number' && isFinite(v);
   const videos = {};

@@ -94,7 +94,7 @@ for (let i = 0; i < rows.length; i++) {
   }
   if (i === 0 && cfg.letterbox) {
     const lp = cfg.letterbox.parameters || {};
-    const revealSeconds = num(lp.revealSeconds, num(lp.revealEnd, 2.3) - num(lp.revealStart, 0.22));
+    const revealSeconds = num(lp.revealSeconds, num(lp.revealEnd, 2.35) - num(lp.revealStart, 0.22));
     if (await addEffect(id, have, LETTERBOX_LABEL, cfg.letterbox.tsx, { ...lp, revealSeconds, enabled: lp.enabled !== false }, [
       { key: 'revealSeconds', label: LABELS.reveal, type: 'number', defaultValue: Math.round(revealSeconds * 100) / 100, min: 0, max: 5, step: 0.05 },
       { key: 'enabled', label: LABELS.letterbox, type: 'boolean', defaultValue: lp.enabled !== false }])) letterbox++;

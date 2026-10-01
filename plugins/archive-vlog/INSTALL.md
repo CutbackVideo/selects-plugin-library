@@ -54,7 +54,7 @@ is open.
    a Project whose clips were never analysed, it reads "N clips are not
    analysed yet. Analyse them in Selects to use them here."; the panel does
    not start analysis itself.
-3. With at least 2 different clips or photos, including a video clip, press
+3. With at least 2 analysed video clips (photos are optional), press
    **Build**. A new 16:9 Draft opens at 1920x1080 with the letterbox opening
    and title, the credit, the montage, the fade to black and the music.
 4. **Your own music**: drop an audio file. Under it the panel says what it

@@ -19,8 +19,8 @@ assert.ok(B.src.includes('<Source />'), 'letterbox renders the clip');
 assert.ok(B.src.includes('clipPath'), 'letterbox masks with clip-path');
 assert.ok(!/scale\(/.test(B.src), 'a mask, not a zoom');
 assert.ok(B.src.includes('frame / '), 'seconds from frame / fps');
-// Defaults: the reference's 0.22 s -> 2.30 s, on.
-assert.deepEqual({ ...B.avBoxTimes(undefined) }, { enabled: true, start: 0.22, end: 2.3 });
+// Defaults: the reference's 0.22 s -> 2.35 s, on.
+assert.deepEqual({ ...B.avBoxTimes(undefined) }, { enabled: true, start: 0.22, end: 2.35 });
 assert.deepEqual({ ...B.avBoxTimes({ revealStart: 0.2, revealEnd: 2.05 }) }, { enabled: true, start: 0.2, end: 2.05 });
 // revealSeconds (the Adjust duration) wins over revealEnd.
 assert.deepEqual({ ...B.avBoxTimes({ revealStart: 0.2, revealEnd: 2.05, revealSeconds: 1 }) }, { enabled: true, start: 0.2, end: 1.2 });
@@ -28,8 +28,8 @@ assert.equal(B.avBoxTimes({ enabled: false }).enabled, false);
 // An end before the start is clamped to the start; negative start to 0.
 assert.deepEqual({ ...B.avBoxTimes({ revealStart: -1, revealEnd: -2 }) }, { enabled: true, start: 0, end: 0 });
 
-// Scaled reference at k = 0.89 (72 BPM): 0.1958 s -> 2.047 s.
-const k = 0.89, rs = 0.22 * k, re = 2.3 * k;
+// Scaled reference at k = 0.89 (72 BPM): 0.1958 s -> 2.0915 s.
+const k = 0.89, rs = 0.22 * k, re = 2.35 * k;
 for (const fps of [23.976, 25, 29.97, 30, 60]) {
   const band = (f) => B.avBoxBand(f / fps, rs, re);
   // Black on frame 0 and until revealStart.
@@ -43,13 +43,13 @@ for (const fps of [23.976, 25, 29.97, 30, 60]) {
   assert.equal(band(Math.ceil(re * fps)), 1, 'full at revealEnd');
   assert.equal(band(Math.ceil(re * fps) + 30), 1, 'stays full');
 }
-// Edge speed on a 1080 frame ~ 250-260 px/s per edge (reference 0.22 -> 2.30 s).
-const edgeSpeed = 540 / (2.3 - 0.22);
+// Edge speed on a 1080 frame ~ 250-260 px/s per edge (reference 0.22 -> 2.35 s).
+const edgeSpeed = 540 / (2.35 - 0.22);
 assert.ok(edgeSpeed > 240 && edgeSpeed < 270, 'edge speed ' + edgeSpeed);
 // A zero-length reveal cuts from black to full at the start.
 assert.equal(B.avBoxBand(0.1, 0.22, 0.22), 0);
 assert.equal(B.avBoxBand(0.22, 0.22, 0.22), 1);
-assert.equal(B.avBoxBand(NaN, 0.22, 2.3), 0);
+assert.equal(B.avBoxBand(NaN, 0.22, 2.35), 0);
 // The mask: symmetric insets, 50 % each at 0 (nothing), 0 at 1 (everything), 25 % at half.
 assert.equal(B.avBoxInset(0), 'inset(50.0000% 0% 50.0000% 0%)');
 assert.equal(B.avBoxInset(0.5), 'inset(25.0000% 0% 25.0000% 0%)');

@@ -73,7 +73,6 @@ const TITLE_FONTS = [{ label: 'Anton', value: 'anton' }, { label: 'Oswald', valu
 const CREDIT_FAMILY = 'AV Oswald Bold';
 const CREDIT_NAME_MAX = 24;
 const AV_FAIL_DEFAULT = {
-  'one-resource': 'Add at least 2 clips or photos',
   'too-few': 'Your footage fits too few shots',
   'no-video': 'Add at least one analysed video',
   'one-video': 'Add at least 2 analysed videos (the opening and credit shots are videos)',
@@ -354,7 +353,8 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const musicStart = musicKind === 'none' ? null : start;
       if (musicKind !== 'none' && (!fitted || start == null)) throw Error(AV_FAIL['music-too-short'] + '.');
       const photoCands = row.usePhotos ? inv.photos.map(p => ({ rid: p.rid, kind: 'photo' })) : [];
-      if (inv.resources.length + photoCands.length < 2) throw Error(AV_FAIL['one-resource'] + '.');
+      // The panel's gate: the bookends are video only, so photos never make up for a video.
+      if (inv.resources.length < 2) throw Error(AV_FAIL[inv.resources.length ? 'one-video' : 'no-video'] + '.');
       // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. The motion hits
       // become a tie-break bonus (and the opener's `motion` tag) on the role candidates.
       const plan = j(P.avPlanBuild({ candidates: motionBonus(found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: null, fps: 30, pace, requested,

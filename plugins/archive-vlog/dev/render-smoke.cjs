@@ -19,9 +19,12 @@ const USAGE = `usage: node render-smoke.cjs <plugin dir> [--langs de,ko] [--show
 // Variants rendered for every language: no Project, loading, ready (with a searched plan), Quick / Long / Golden Hour
 // with Credit and Look off, No music + Clip sound Off, own music (accepted / approximate / none), busy with progress,
 // a finished result with notes, an unfinished result with an error, inventory errors, clips being analysed, a Korean
-// title and credit, a host too old for the panel, and a playing preview.
+// title and credit, a host too old for the panel, a playing preview, every plan failure (photos only, one video, no
+// clip long enough for the opening or the final shot, too few shots, music too short) and a title whose decode is
+// fitted to a short opening shot.
 const VARIANTS = ['noProject', 'loading', 'ready', 'quickLong', 'noMusic', 'ownAccepted', 'ownApprox', 'ownNone', 'busy', 'done', 'unfinished', 'invBusy',
-  'invFailed', 'analysing', 'korean', 'hostTooOld', 'playing', 'listening', 'creditCleared', 'fast'];
+  'invFailed', 'analysing', 'korean', 'hostTooOld', 'playing', 'listening', 'creditCleared', 'fast', 'noVideo', 'oneVideo', 'openingShort', 'endingShort',
+  'tooFew', 'musicShort', 'decodeFit'];
 const PLUGIN = path.resolve(__dirname, '..');
 const readJson = (f) => JSON.parse(fs.readFileSync(path.join(PLUGIN, f), 'utf8'));
 const ASSETS = { manifest: readJson('assets/cues/manifest.json'), presets: readJson('assets/fonts/presets.json'),
@@ -29,6 +32,10 @@ const ASSETS = { manifest: readJson('assets/cues/manifest.json'), presets: readJ
 const INV = readJson('dev/fixtures/daily-inventory.json'), FOUND = readJson('dev/fixtures/daily-search.json');
 const HANGUL = (...cps) => String.fromCharCode(...cps);
 const KO_TITLE = HANGUL(0xc11c, 0xc6b8, 0x0020, 0xc0b0, 0xcc45), KO_NAME = HANGUL(0xd64d, 0xae38, 0xb3d9);
+// The searched clips with every source cut to `seconds` (a plan failure on the bookend lengths).
+const shortList = (seconds) => ({ candidates: { key: 'pid|null', failed: [], list: FOUND.list.map((c) => ({ ...c, sourceDuration: seconds })) } });
+// The longest fixed run of a message around its placeholders (the numbers come from the planner).
+const fragment = (text) => text.split(/\{[^}]*\}|[0-9.]+/).reduce((a, b) => (b.trim().length > a.trim().length ? b : a), '').trim();
 // State by `const [name, setName] = React.useState(...)` name. Text kept in state is a function of the language.
 function states(variant, T) {
   if (variant === 'noProject' || variant === 'loading') return {};
@@ -44,7 +51,7 @@ function states(variant, T) {
     case 'ownNone': return { ...base, cueId: 'own', ownMusic: { path: '/m/song.mp3', name: 'song.mp3' }, ownGrid: { accepted: false, grid: 'none', failed: true, durationSeconds: 90, peaks: [] },
       status: { tone: 'info', say: (l) => T(l, 'musicApprox', { detail: 'beat detection failed' }) } };
     case 'busy': return { ...base, busy: true, progress: { id: 'shots', value: 0.2, percent: 20, current: 0, detail: (l) => T(l, 'videosChecked', { done: 4, count: 30 }) } };
-    case 'done': return { ...base, result: { decorated: true, link: 'selects://draft', shortened: { shots: 12, of: 16, seconds: 31.4 }, noVideo: true, notes: ['the Draft was found after its reply was lost'],
+    case 'done': return { ...base, result: { decorated: true, link: 'selects://draft', shortened: { shots: 12, of: 16, seconds: 31.4 }, notes: ['the Draft was found after its reply was lost'],
       unchecked: 2, frozen: { pid: 'pid' } } };
     case 'unfinished': return { ...base, result: { decorated: false, frozen: { pid: 'pid' } },
       status: { tone: 'error', say: (l) => T(l, 'stoppedAt', { step: 4, total: 5, name: T(l, 'step.look'), detail: T(l, 'finishFailed', { detail: 'invalid_source_range' }) }) } };
@@ -58,6 +65,15 @@ function states(variant, T) {
     case 'listening': return { ...base, cueId: 'own', ownMusic: { path: '/m/song.mp3', name: 'song.mp3' }, listening: true };
     case 'creditCleared': return { ...base, preset: 'a-day-out', creditName: '', creditPrefix: 'BUSAN |' };
     case 'fast': return { ...base, cueId: 'own', ownMusic: { path: '/m/song.mp3', name: 'song.mp3' }, ownGrid: grid({ accepted: true, grid: 'accepted', bpm: 128 }) };
+    case 'noVideo': return { ...base, inventory: { ...INV, resources: [] } };
+    case 'oneVideo': return { ...base, inventory: { ...INV, resources: INV.resources.slice(0, 1) } };
+    case 'openingShort': return { ...base, ...shortList(2) };
+    // At 128 bpm the opening is 6 beats (2.8 s) and the final shot 8 (3.75 s): 3.5 s sources hold only the opening.
+    case 'endingShort': return { ...base, ...shortList(3.5), cueId: 'own', ownMusic: { path: '/m/song.mp3', name: 'song.mp3' }, ownGrid: grid({ accepted: true, grid: 'accepted', bpm: 128 }) };
+    case 'tooFew': return { ...base, status: { tone: 'error', say: (l) => [T(l, 'fail.too-few', { filled: 5, total: 7 }), T(l, 'addFootagePhotos')].join(T(l, 'gap')) } };
+    case 'musicShort': return { ...base, status: { tone: 'error', say: (l) => T(l, 'fail.music-too-short-seconds', { needed: 20.1, available: 12.3 }) } };
+    case 'decodeFit': return { ...base, ...searched, cueId: 'own', ownMusic: { path: '/m/song.mp3', name: 'song.mp3' }, ownGrid: grid({ accepted: true, grid: 'accepted', bpm: 150 }),
+      fieldEdits: { title: 'ABCDEFGHIJKLMNOP' } };
   }
   return base;
 }
@@ -79,7 +95,7 @@ const EXPECT = {
   ownApprox: (T, l) => [T(l, 'faintTempo', { bpm: 96 })],
   ownNone: (T, l) => [T(l, 'musicApprox', { detail: 'beat detection failed' })],
   busy: (T, l) => [T(l, 'progressDetail', { step: 1, total: 5, name: T(l, 'step.shots'), detail: T(l, 'videosChecked', { done: 4, count: 30 }), percent: 20 })],
-  done: (T, l) => [T(l, 'draftCreated'), T(l, 'noVideoNote'), T(l, 'openDraft'), T(l, 'anotherVersion')],
+  done: (T, l) => [T(l, 'draftCreated'), T(l, 'openDraft'), T(l, 'anotherVersion')],
   unfinished: (T, l) => [T(l, 'draftNotFinished'), T(l, 'finishTitle')],
   invBusy: (T, l) => [T(l, 'busy')],
   invFailed: (T, l) => [T(l, 'invFailed')],
@@ -90,6 +106,13 @@ const EXPECT = {
   listening: (T, l) => [T(l, 'listening'), T(l, 'ownMusicHint', { count: 4 })],
   creditCleared: (T, l) => [T(l, 'creditCleared')],
   fast: (T, l) => [T(l, 'fastTempo')],
+  noVideo: (T, l) => [T(l, 'fail.no-video'), T(l, 'noFootage')],
+  oneVideo: (T, l) => [T(l, 'fail.one-video')],
+  openingShort: (T, l) => [fragment(T(l, 'fail.opening-too-short', { needed: '{needed}', longest: '{longest}' }))],
+  endingShort: (T, l) => [fragment(T(l, 'fail.ending-too-short', { needed: '{needed}', longest: '{longest}' }))],
+  tooFew: (T, l) => [T(l, 'fail.too-few', { filled: 5, total: 7 })],
+  musicShort: (T, l) => [T(l, 'fail.music-too-short-seconds', { needed: 20.1, available: 12.3 })],
+  decodeFit: (T, l) => [T(l, 'decodeFitted')],
 };
 // ---- end ADAPT ---------------------------------------------------------------------------------------------------
 

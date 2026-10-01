@@ -1,7 +1,7 @@
 # Third-party components
 
 - React and Remotion are imported from the Selects host environment. This package does not redistribute those runtimes; the host's dependency versions and applicable terms govern their use.
-- ffmpeg, ffprobe and Node.js are not bundled. When they are installed, the panel runs them through the Selects shell for music previews and your own music.
+- ffmpeg is not bundled with the plugin: your own music is decoded with the ffmpeg that ships with Selects; Node.js is not used.
 - Users supply their own footage and photos and, optionally, their own music. No sample recordings, reference footage or model weights are included.
 
 ## Fonts

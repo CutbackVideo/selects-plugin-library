@@ -36,8 +36,7 @@ const STRINGS = {
     listening: "Listening for the beat",
     working: "Working",
     stillReading: "Still reading this Project's clips… This updates automatically.",
-    noFootage: "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.",
-    turnOnPhotos: "Turn on Use photos in Advanced to build from this Project's photos.",
+    noFootage: "No analysed video clips in this Project yet. Add video clips and analyse them; this updates automatically.",
     noClipsSelected: "No clips selected. Choose clips in Advanced.",
     gap: " ",
     ready: "Ready: {summary}",
@@ -56,6 +55,7 @@ const STRINGS = {
     titlePreview: "Title preview",
     previewUnavailable: "Preview unavailable; the title is still added to the Draft.",
     replayDecode: "Replay the title animation",
+    decodeFitted: "The opening shot is short for this title at this tempo, so the title decodes faster to stay readable before the cut.",
     loading: "Loading…",
     "preset.cinematic": "Cinematic",
     "preset.a-day-out": "A Day Out",
@@ -126,14 +126,14 @@ const STRINGS = {
     progress: "Step {step}/{total} · {name} · {percent}%",
     progressDetail: "Step {step}/{total} · {name} ({detail}) · {percent}%",
     videosChecked: { one: "{done}/{count} video checked", other: "{done}/{count} videos checked" },
-    photosOnly: "photos only",
     stoppedAt: "Stopped at step {step}/{total}, {name}: {detail}",
-    "fail.one-resource": "Add at least 2 clips or photos.",
-    "fail.too-few": "Your footage cannot fill even the shortest version.",
-    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
-    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
-    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
-    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.too-few": "Your footage fills only {filled} of the {total} shots even the shortest version needs.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section. Move the section earlier or choose a longer track.",
+    "fail.music-too-short-seconds": "This track is too short from this section: even the shortest version needs {needed} s of music and only {available} s are left. Move the section earlier or choose a longer track.",
+    "fail.no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video, so photos alone are not enough. Add analysed video clips or select more clips.",
+    "fail.one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot. Add another analysed video clip or select more clips.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip or choose faster music.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip.",
     noPlan: "No plan fits this footage.",
     addFootage: "Add more varied footage or select more clips.",
     addFootagePhotos: "Add more varied footage or photos, or select more clips.",
@@ -153,7 +153,6 @@ const STRINGS = {
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft created; adding title and look…",
     draftNotFinished: "Draft created, but its title, look and clip sound are not applied yet.",
-    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Open the new Draft",
     copyLink: "Copy the link to the new Draft",
     shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -210,8 +209,7 @@ const STRINGS = {
     listening: "Beat wird gesucht",
     working: "In Arbeit",
     stillReading: "Die Clips dieses Projekts werden noch gelesen… Das aktualisiert sich automatisch.",
-    noFootage: "In diesem Projekt gibt es noch keine analysierten Videos oder Fotos. Füge Videoclips hinzu und analysiere sie, oder füge Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
-    turnOnPhotos: "Aktiviere „Fotos verwenden“ unter „Erweitert“, um aus den Fotos dieses Projekts zu erstellen.",
+    noFootage: "No analysed video clips in this Project yet. Add video clips and analyse them; this updates automatically.",
     noClipsSelected: "Keine Clips ausgewählt. Wähle Clips unter „Erweitert“.",
     gap: " ",
     ready: "Bereit: {summary}",
@@ -230,6 +228,7 @@ const STRINGS = {
     titlePreview: "Titelvorschau",
     previewUnavailable: "Vorschau nicht verfügbar; der Titel wird trotzdem zum Draft hinzugefügt.",
     replayDecode: "Replay the title animation",
+    decodeFitted: "The opening shot is short for this title at this tempo, so the title decodes faster to stay readable before the cut.",
     loading: "Wird geladen…",
     "preset.cinematic": "Cinematic",
     "preset.a-day-out": "A Day Out",
@@ -300,14 +299,14 @@ const STRINGS = {
     progress: "Schritt {step}/{total} · {name} · {percent} %",
     progressDetail: "Schritt {step}/{total} · {name} ({detail}) · {percent} %",
     videosChecked: { one: "{done}/{count} Video geprüft", other: "{done}/{count} Videos geprüft" },
-    photosOnly: "nur Fotos",
     stoppedAt: "Abgebrochen bei Schritt {step}/{total}, {name}: {detail}",
-    "fail.one-resource": "Füge mindestens 2 Clips oder Fotos hinzu.",
-    "fail.too-few": "Your footage cannot fill even the shortest version.",
-    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
-    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
-    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
-    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.too-few": "Your footage fills only {filled} of the {total} shots even the shortest version needs.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section. Move the section earlier or choose a longer track.",
+    "fail.music-too-short-seconds": "This track is too short from this section: even the shortest version needs {needed} s of music and only {available} s are left. Move the section earlier or choose a longer track.",
+    "fail.no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video, so photos alone are not enough. Add analysed video clips or select more clips.",
+    "fail.one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot. Add another analysed video clip or select more clips.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip or choose faster music.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip.",
     noPlan: "Für dieses Material passt kein Plan.",
     addFootage: "Füge abwechslungsreicheres Material hinzu oder wähle mehr Clips aus.",
     addFootagePhotos: "Füge abwechslungsreicheres Material oder Fotos hinzu oder wähle mehr Clips aus.",
@@ -327,7 +326,6 @@ const STRINGS = {
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft erstellt; Titel und Look werden hinzugefügt …",
     draftNotFinished: "Draft erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet.",
-    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Neuen Draft öffnen",
     copyLink: "Link zum neuen Draft kopieren",
     shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -384,8 +382,7 @@ const STRINGS = {
     listening: "Buscando el ritmo",
     working: "Trabajando",
     stillReading: "Todavía se están leyendo los clips de este proyecto… Esto se actualiza automáticamente.",
-    noFootage: "Este proyecto aún no tiene vídeos analizados ni fotos. Añade clips de vídeo y analízalos, o añade fotos; se actualizará automáticamente.",
-    turnOnPhotos: "Activa «Usar fotos» en «Avanzado» para crear con las fotos de este proyecto.",
+    noFootage: "No analysed video clips in this Project yet. Add video clips and analyse them; this updates automatically.",
     noClipsSelected: "No hay clips seleccionados. Elige clips en «Avanzado».",
     gap: " ",
     ready: "Listo: {summary}",
@@ -404,6 +401,7 @@ const STRINGS = {
     titlePreview: "Vista previa del título",
     previewUnavailable: "Vista previa no disponible; el título se añadirá igualmente al Draft.",
     replayDecode: "Replay the title animation",
+    decodeFitted: "The opening shot is short for this title at this tempo, so the title decodes faster to stay readable before the cut.",
     loading: "Cargando…",
     "preset.cinematic": "Cinematic",
     "preset.a-day-out": "A Day Out",
@@ -474,14 +472,14 @@ const STRINGS = {
     progress: "Paso {step}/{total} · {name} · {percent} %",
     progressDetail: "Paso {step}/{total} · {name} ({detail}) · {percent} %",
     videosChecked: { one: "{done}/{count} vídeo revisado", many: "{done}/{count} de vídeos revisados", other: "{done}/{count} vídeos revisados" },
-    photosOnly: "solo fotos",
     stoppedAt: "Se detuvo en el paso {step}/{total}, {name}: {detail}",
-    "fail.one-resource": "Añade al menos 2 clips o fotos.",
-    "fail.too-few": "Your footage cannot fill even the shortest version.",
-    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
-    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
-    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
-    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.too-few": "Your footage fills only {filled} of the {total} shots even the shortest version needs.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section. Move the section earlier or choose a longer track.",
+    "fail.music-too-short-seconds": "This track is too short from this section: even the shortest version needs {needed} s of music and only {available} s are left. Move the section earlier or choose a longer track.",
+    "fail.no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video, so photos alone are not enough. Add analysed video clips or select more clips.",
+    "fail.one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot. Add another analysed video clip or select more clips.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip or choose faster music.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip.",
     noPlan: "Ningún plan encaja con este material.",
     addFootage: "Añade material más variado o selecciona más clips.",
     addFootagePhotos: "Añade material más variado o fotos, o selecciona más clips.",
@@ -501,7 +499,6 @@ const STRINGS = {
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft creado; añadiendo título y look…",
     draftNotFinished: "Draft creado, pero aún no se aplicaron el título, el look ni el sonido de los clips.",
-    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Abrir el nuevo Draft",
     copyLink: "Copiar el enlace al nuevo Draft",
     shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", many: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -558,8 +555,7 @@ const STRINGS = {
     listening: "Recherche du rythme",
     working: "En cours",
     stillReading: "Lecture des clips de ce projet en cours… La liste se met à jour automatiquement.",
-    noFootage: "Ce projet ne contient pas encore de vidéo analysée ni de photo. Ajoutez des clips vidéo et analysez-les, ou ajoutez des photos ; l'affichage se met à jour automatiquement.",
-    turnOnPhotos: "Activez « Utiliser les photos » dans « Avancé » pour créer à partir des photos de ce projet.",
+    noFootage: "No analysed video clips in this Project yet. Add video clips and analyse them; this updates automatically.",
     noClipsSelected: "Aucun clip sélectionné. Choisissez des clips dans « Avancé ».",
     gap: " ",
     ready: "Prêt : {summary}",
@@ -578,6 +574,7 @@ const STRINGS = {
     titlePreview: "Aperçu du titre",
     previewUnavailable: "Aperçu indisponible ; le titre sera tout de même ajouté au Draft.",
     replayDecode: "Replay the title animation",
+    decodeFitted: "The opening shot is short for this title at this tempo, so the title decodes faster to stay readable before the cut.",
     loading: "Chargement…",
     "preset.cinematic": "Cinematic",
     "preset.a-day-out": "A Day Out",
@@ -648,14 +645,14 @@ const STRINGS = {
     progress: "Étape {step}/{total} · {name} · {percent} %",
     progressDetail: "Étape {step}/{total} · {name} ({detail}) · {percent} %",
     videosChecked: { one: "{done}/{count} vidéo vérifiée", many: "{done}/{count} de vidéos vérifiées", other: "{done}/{count} vidéos vérifiées" },
-    photosOnly: "photos uniquement",
     stoppedAt: "Arrêt à l'étape {step}/{total}, {name} : {detail}",
-    "fail.one-resource": "Ajoutez au moins 2 clips ou photos.",
-    "fail.too-few": "Your footage cannot fill even the shortest version.",
-    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
-    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
-    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
-    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.too-few": "Your footage fills only {filled} of the {total} shots even the shortest version needs.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section. Move the section earlier or choose a longer track.",
+    "fail.music-too-short-seconds": "This track is too short from this section: even the shortest version needs {needed} s of music and only {available} s are left. Move the section earlier or choose a longer track.",
+    "fail.no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video, so photos alone are not enough. Add analysed video clips or select more clips.",
+    "fail.one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot. Add another analysed video clip or select more clips.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip or choose faster music.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip.",
     noPlan: "Aucun plan ne convient à ces images.",
     addFootage: "Ajoutez des images plus variées ou sélectionnez plus de clips.",
     addFootagePhotos: "Ajoutez des images plus variées ou des photos, ou sélectionnez plus de clips.",
@@ -675,7 +672,6 @@ const STRINGS = {
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft créé ; ajout du titre et du look…",
     draftNotFinished: "Draft créé, mais le titre, le look et le son des clips ne sont pas encore appliqués.",
-    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Ouvrir le nouveau Draft",
     copyLink: "Copier le lien vers le nouveau Draft",
     shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", many: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -732,8 +728,7 @@ const STRINGS = {
     listening: "Ricerca del ritmo",
     working: "In corso",
     stillReading: "Lettura delle clip di questo progetto in corso… Si aggiorna automaticamente.",
-    noFootage: "In questo progetto non ci sono ancora video analizzati né foto. Aggiungi clip video e analizzale, oppure aggiungi foto; si aggiorna automaticamente.",
-    turnOnPhotos: "Attiva «Usa foto» in «Avanzate» per creare dalle foto di questo progetto.",
+    noFootage: "No analysed video clips in this Project yet. Add video clips and analyse them; this updates automatically.",
     noClipsSelected: "Nessuna clip selezionata. Scegli le clip in «Avanzate».",
     gap: " ",
     ready: "Pronto: {summary}",
@@ -752,6 +747,7 @@ const STRINGS = {
     titlePreview: "Anteprima del titolo",
     previewUnavailable: "Anteprima non disponibile; il titolo verrà comunque aggiunto al Draft.",
     replayDecode: "Replay the title animation",
+    decodeFitted: "The opening shot is short for this title at this tempo, so the title decodes faster to stay readable before the cut.",
     loading: "Caricamento…",
     "preset.cinematic": "Cinematic",
     "preset.a-day-out": "A Day Out",
@@ -822,14 +818,14 @@ const STRINGS = {
     progress: "Passaggio {step}/{total} · {name} · {percent}%",
     progressDetail: "Passaggio {step}/{total} · {name} ({detail}) · {percent}%",
     videosChecked: { one: "{done}/{count} video controllato", many: "{done}/{count} di video controllati", other: "{done}/{count} video controllati" },
-    photosOnly: "solo foto",
     stoppedAt: "Interrotto al passaggio {step}/{total}, {name}: {detail}",
-    "fail.one-resource": "Aggiungi almeno 2 clip o foto.",
-    "fail.too-few": "Your footage cannot fill even the shortest version.",
-    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
-    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
-    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
-    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.too-few": "Your footage fills only {filled} of the {total} shots even the shortest version needs.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section. Move the section earlier or choose a longer track.",
+    "fail.music-too-short-seconds": "This track is too short from this section: even the shortest version needs {needed} s of music and only {available} s are left. Move the section earlier or choose a longer track.",
+    "fail.no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video, so photos alone are not enough. Add analysed video clips or select more clips.",
+    "fail.one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot. Add another analysed video clip or select more clips.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip or choose faster music.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip.",
     noPlan: "Nessun piano si adatta a questo materiale.",
     addFootage: "Aggiungi materiale più vario o seleziona più clip.",
     addFootagePhotos: "Aggiungi materiale più vario o foto, oppure seleziona più clip.",
@@ -849,7 +845,6 @@ const STRINGS = {
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft creato; aggiunta di titolo e look…",
     draftNotFinished: "Draft creato, ma titolo, look e audio delle clip non sono ancora applicati.",
-    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Apri il nuovo Draft",
     copyLink: "Copia il link al nuovo Draft",
     shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", many: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -906,8 +901,7 @@ const STRINGS = {
     listening: "ビートを検出中",
     working: "処理中",
     stillReading: "このプロジェクトのクリップを読み込み中… 自動で更新されます。",
-    noFootage: "このプロジェクトには、解析済みの動画も写真もまだありません。動画クリップを追加して解析するか、写真を追加してください。自動で更新されます。",
-    turnOnPhotos: "このプロジェクトの写真から作成するには、「詳細設定」で「写真を使う」をオンにしてください。",
+    noFootage: "No analysed video clips in this Project yet. Add video clips and analyse them; this updates automatically.",
     noClipsSelected: "クリップが選択されていません。「詳細設定」でクリップを選んでください。",
     gap: "",
     ready: "準備完了: {summary}",
@@ -926,6 +920,7 @@ const STRINGS = {
     titlePreview: "タイトルのプレビュー",
     previewUnavailable: "プレビューを表示できません。タイトルは Draft に追加されます。",
     replayDecode: "Replay the title animation",
+    decodeFitted: "The opening shot is short for this title at this tempo, so the title decodes faster to stay readable before the cut.",
     loading: "読み込み中…",
     "preset.cinematic": "Cinematic",
     "preset.a-day-out": "A Day Out",
@@ -996,14 +991,14 @@ const STRINGS = {
     progress: "ステップ {step}/{total} · {name} · {percent}%",
     progressDetail: "ステップ {step}/{total} · {name}（{detail}）· {percent}%",
     videosChecked: { other: "{done}/{count} 本の動画を確認済み" },
-    photosOnly: "写真のみ",
     stoppedAt: "ステップ {step}/{total}（{name}）で停止しました: {detail}",
-    "fail.one-resource": "クリップか写真を 2 つ以上追加してください。",
-    "fail.too-few": "Your footage cannot fill even the shortest version.",
-    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
-    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
-    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
-    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.too-few": "Your footage fills only {filled} of the {total} shots even the shortest version needs.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section. Move the section earlier or choose a longer track.",
+    "fail.music-too-short-seconds": "This track is too short from this section: even the shortest version needs {needed} s of music and only {available} s are left. Move the section earlier or choose a longer track.",
+    "fail.no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video, so photos alone are not enough. Add analysed video clips or select more clips.",
+    "fail.one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot. Add another analysed video clip or select more clips.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip or choose faster music.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip.",
     noPlan: "この素材に合うプランがありません。",
     addFootage: "変化のある素材を追加するか、クリップをもっと選択してください。",
     addFootagePhotos: "変化のある素材や写真を追加するか、クリップをもっと選択してください。",
@@ -1023,7 +1018,6 @@ const STRINGS = {
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft を作成しました。タイトルとルックを追加中…",
     draftNotFinished: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません。",
-    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "新しい Draft を開く",
     copyLink: "新しい Draft へのリンクをコピー",
     shortened: { other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -1080,8 +1074,7 @@ const STRINGS = {
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
     working: "\uc791\uc5c5 \uc911",
     stillReading: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \ud074\ub9bd\uc744 \uc77d\ub294 \uc911… \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
-    noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \ubd84\uc11d\ub41c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc744 \ucd94\uac00\ud574 \ubd84\uc11d\ud558\uac70\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
-    turnOnPhotos: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc0ac\uc9c4\uc73c\ub85c \ub9cc\ub4e4\ub824\uba74 ‘\uace0\uae09’\uc5d0\uc11c ‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc744 \ucf1c\uc138\uc694.",
+    noFootage: "No analysed video clips in this Project yet. Add video clips and analyse them; this updates automatically.",
     noClipsSelected: "\uc120\ud0dd\ud55c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. ‘\uace0\uae09’\uc5d0\uc11c \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     gap: " ",
     ready: "\uc900\ube44 \uc644\ub8cc: {summary}",
@@ -1100,6 +1093,7 @@ const STRINGS = {
     titlePreview: "\ud0c0\uc774\ud2c0 \ubbf8\ub9ac\ubcf4\uae30",
     previewUnavailable: "\ubbf8\ub9ac\ubcf4\uae30\ub97c \ud45c\uc2dc\ud560 \uc218 \uc5c6\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uc740 Draft\uc5d0 \ucd94\uac00\ub429\ub2c8\ub2e4.",
     replayDecode: "Replay the title animation",
+    decodeFitted: "The opening shot is short for this title at this tempo, so the title decodes faster to stay readable before the cut.",
     loading: "\ubd88\ub7ec\uc624\ub294 \uc911…",
     "preset.cinematic": "Cinematic",
     "preset.a-day-out": "A Day Out",
@@ -1170,14 +1164,14 @@ const STRINGS = {
     progress: "{step}/{total}\ub2e8\uacc4 · {name} · {percent}%",
     progressDetail: "{step}/{total}\ub2e8\uacc4 · {name} ({detail}) · {percent}%",
     videosChecked: { other: "\ub3d9\uc601\uc0c1 {done}/{count}\uac1c \ud655\uc778" },
-    photosOnly: "\uc0ac\uc9c4\ub9cc",
     stoppedAt: "{step}/{total}\ub2e8\uacc4({name})\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {detail}",
-    "fail.one-resource": "\ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 2\uac1c \uc774\uc0c1 \ucd94\uac00\ud558\uc138\uc694.",
-    "fail.too-few": "Your footage cannot fill even the shortest version.",
-    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
-    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
-    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
-    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.too-few": "Your footage fills only {filled} of the {total} shots even the shortest version needs.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section. Move the section earlier or choose a longer track.",
+    "fail.music-too-short-seconds": "This track is too short from this section: even the shortest version needs {needed} s of music and only {available} s are left. Move the section earlier or choose a longer track.",
+    "fail.no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video, so photos alone are not enough. Add analysed video clips or select more clips.",
+    "fail.one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot. Add another analysed video clip or select more clips.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip or choose faster music.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip.",
     noPlan: "\uc774 \uc601\uc0c1\uc5d0 \ub9de\ub294 \uad6c\uc131\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
     addFootage: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
     addFootagePhotos: "\ub354 \ub2e4\uc591\ud55c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ub354 \uc120\ud0dd\ud558\uc138\uc694.",
@@ -1197,7 +1191,6 @@ const STRINGS = {
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\ub294 \uc911…",
     draftNotFinished: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
-    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "\uc0c8 Draft \uc5f4\uae30",
     copyLink: "\uc0c8 Draft \ub9c1\ud06c \ubcf5\uc0ac",
     shortened: { other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -1254,8 +1247,7 @@ const STRINGS = {
     listening: "Procurando a batida",
     working: "Trabalhando",
     stillReading: "Ainda lendo os clipes deste projeto… Isto se atualiza automaticamente.",
-    noFootage: "Este projeto ainda não tem vídeos analisados nem fotos. Adicione clipes de vídeo e analise-os, ou adicione fotos; a lista é atualizada automaticamente.",
-    turnOnPhotos: "Ative “Usar fotos” em “Avançado” para criar com as fotos deste projeto.",
+    noFootage: "No analysed video clips in this Project yet. Add video clips and analyse them; this updates automatically.",
     noClipsSelected: "Nenhum clipe selecionado. Escolha clipes em “Avançado”.",
     gap: " ",
     ready: "Pronto: {summary}",
@@ -1274,6 +1266,7 @@ const STRINGS = {
     titlePreview: "Prévia do título",
     previewUnavailable: "Prévia indisponível; o título ainda será adicionado ao Draft.",
     replayDecode: "Replay the title animation",
+    decodeFitted: "The opening shot is short for this title at this tempo, so the title decodes faster to stay readable before the cut.",
     loading: "Carregando…",
     "preset.cinematic": "Cinematic",
     "preset.a-day-out": "A Day Out",
@@ -1344,14 +1337,14 @@ const STRINGS = {
     progress: "Etapa {step}/{total} · {name} · {percent}%",
     progressDetail: "Etapa {step}/{total} · {name} ({detail}) · {percent}%",
     videosChecked: { one: "{done}/{count} vídeo verificado", many: "{done}/{count} de vídeos verificados", other: "{done}/{count} vídeos verificados" },
-    photosOnly: "só fotos",
     stoppedAt: "Parou na etapa {step}/{total}, {name}: {detail}",
-    "fail.one-resource": "Adicione pelo menos 2 clipes ou fotos.",
-    "fail.too-few": "Your footage cannot fill even the shortest version.",
-    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
-    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
-    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
-    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.too-few": "Your footage fills only {filled} of the {total} shots even the shortest version needs.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section. Move the section earlier or choose a longer track.",
+    "fail.music-too-short-seconds": "This track is too short from this section: even the shortest version needs {needed} s of music and only {available} s are left. Move the section earlier or choose a longer track.",
+    "fail.no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video, so photos alone are not enough. Add analysed video clips or select more clips.",
+    "fail.one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot. Add another analysed video clip or select more clips.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip or choose faster music.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip.",
     noPlan: "Nenhum plano se encaixa neste material.",
     addFootage: "Adicione material mais variado ou selecione mais clipes.",
     addFootagePhotos: "Adicione material mais variado ou fotos, ou selecione mais clipes.",
@@ -1371,7 +1364,6 @@ const STRINGS = {
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft criado; adicionando título e look…",
     draftNotFinished: "Draft criado, mas o título, o look e o som dos clipes ainda não foram aplicados.",
-    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Abrir o novo Draft",
     copyLink: "Copiar o link do novo Draft",
     shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", many: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -1428,8 +1420,7 @@ const STRINGS = {
     listening: "Ritim aranıyor",
     working: "Çalışıyor",
     stillReading: "Bu projenin klipleri hâlâ okunuyor… Bu otomatik olarak güncellenir.",
-    noFootage: "Bu projede henüz analiz edilmiş video veya fotoğraf yok. Video klipleri ekleyip analiz edin ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
-    turnOnPhotos: "Bu projenin fotoğraflarından oluşturmak için “Gelişmiş” bölümünde “Fotoğrafları kullan” seçeneğini açın.",
+    noFootage: "No analysed video clips in this Project yet. Add video clips and analyse them; this updates automatically.",
     noClipsSelected: "Klip seçilmedi. “Gelişmiş” bölümünden klip seçin.",
     gap: " ",
     ready: "Hazır: {summary}",
@@ -1448,6 +1439,7 @@ const STRINGS = {
     titlePreview: "Başlık önizlemesi",
     previewUnavailable: "Önizleme kullanılamıyor; başlık yine de Draft'a eklenir.",
     replayDecode: "Replay the title animation",
+    decodeFitted: "The opening shot is short for this title at this tempo, so the title decodes faster to stay readable before the cut.",
     loading: "Yükleniyor…",
     "preset.cinematic": "Cinematic",
     "preset.a-day-out": "A Day Out",
@@ -1518,14 +1510,14 @@ const STRINGS = {
     progress: "Adım {step}/{total} · {name} · %{percent}",
     progressDetail: "Adım {step}/{total} · {name} ({detail}) · %{percent}",
     videosChecked: { one: "{done}/{count} video kontrol edildi", other: "{done}/{count} video kontrol edildi" },
-    photosOnly: "yalnızca fotoğraflar",
     stoppedAt: "{step}/{total}. adımda durdu, {name}: {detail}",
-    "fail.one-resource": "En az 2 klip veya fotoğraf ekleyin.",
-    "fail.too-few": "Your footage cannot fill even the shortest version.",
-    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
-    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
-    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
-    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.too-few": "Your footage fills only {filled} of the {total} shots even the shortest version needs.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section. Move the section earlier or choose a longer track.",
+    "fail.music-too-short-seconds": "This track is too short from this section: even the shortest version needs {needed} s of music and only {available} s are left. Move the section earlier or choose a longer track.",
+    "fail.no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video, so photos alone are not enough. Add analysed video clips or select more clips.",
+    "fail.one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot. Add another analysed video clip or select more clips.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip or choose faster music.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip.",
     noPlan: "Bu görüntülere uyan bir plan yok.",
     addFootage: "Daha çeşitli görüntüler ekleyin veya daha fazla klip seçin.",
     addFootagePhotos: "Daha çeşitli görüntüler veya fotoğraflar ekleyin ya da daha fazla klip seçin.",
@@ -1545,7 +1537,6 @@ const STRINGS = {
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft oluşturuldu; başlık ve görünüm ekleniyor…",
     draftNotFinished: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı.",
-    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "Yeni Draft'ı aç",
     copyLink: "Yeni Draft'ın bağlantısını kopyala",
     shortened: { one: "Your footage fits {fitted} of {count} montage shot, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -1602,8 +1593,7 @@ const STRINGS = {
     listening: "正在识别节拍",
     working: "处理中",
     stillReading: "仍在读取此项目的片段… 完成后会自动更新。",
-    noFootage: "此项目中还没有已分析的视频或照片。请添加视频片段并进行分析，或添加照片；这里会自动更新。",
-    turnOnPhotos: "请在“高级”中开启“使用照片”，即可用此项目的照片制作。",
+    noFootage: "No analysed video clips in this Project yet. Add video clips and analyse them; this updates automatically.",
     noClipsSelected: "未选择片段。请在“高级”中选择片段。",
     gap: "",
     ready: "已就绪：{summary}",
@@ -1622,6 +1612,7 @@ const STRINGS = {
     titlePreview: "标题预览",
     previewUnavailable: "无法显示预览；标题仍会添加到 Draft。",
     replayDecode: "Replay the title animation",
+    decodeFitted: "The opening shot is short for this title at this tempo, so the title decodes faster to stay readable before the cut.",
     loading: "加载中…",
     "preset.cinematic": "Cinematic",
     "preset.a-day-out": "A Day Out",
@@ -1692,14 +1683,14 @@ const STRINGS = {
     progress: "第 {step}/{total} 步 · {name} · {percent}%",
     progressDetail: "第 {step}/{total} 步 · {name}（{detail}）· {percent}%",
     videosChecked: { other: "已检查 {done}/{count} 个视频" },
-    photosOnly: "仅照片",
     stoppedAt: "在第 {step}/{total} 步（{name}）停止：{detail}",
-    "fail.one-resource": "请至少添加 2 个片段或照片。",
-    "fail.too-few": "Your footage cannot fill even the shortest version.",
-    "fail.music-too-short": "This track is too short for even the shortest version from this section.",
-    "fail.no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot.",
-    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs about {seconds} s. Add longer clips or choose more clips.",
-    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs about {seconds} s. Add longer clips or choose more clips.",
+    "fail.too-few": "Your footage fills only {filled} of the {total} shots even the shortest version needs.",
+    "fail.music-too-short": "This track is too short for even the shortest version from this section. Move the section earlier or choose a longer track.",
+    "fail.music-too-short-seconds": "This track is too short from this section: even the shortest version needs {needed} s of music and only {available} s are left. Move the section earlier or choose a longer track.",
+    "fail.no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video, so photos alone are not enough. Add analysed video clips or select more clips.",
+    "fail.one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot. Add another analysed video clip or select more clips.",
+    "fail.opening-too-short": "No video clip is long enough for the opening shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip or choose faster music.",
+    "fail.ending-too-short": "No video clip is long enough for the last shot: it needs a clip of at least {needed} s, and the longest is {longest} s. Add a longer clip.",
     noPlan: "没有适合这些素材的方案。",
     addFootage: "请添加更多样的素材，或选择更多片段。",
     addFootagePhotos: "请添加更多样的素材或照片，或选择更多片段。",
@@ -1719,7 +1710,6 @@ const STRINGS = {
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft 已创建；正在添加标题和色调…",
     draftNotFinished: "Draft 已创建，但标题、色调和片段原声尚未应用。",
-    noVideoNote: "No video clips: photos also play the opening, credit and last shot.",
     openDraft: "打开新的 Draft",
     copyLink: "复制新 Draft 的链接",
     shortened: { other: "Your footage fits {fitted} of {count} montage shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -1860,7 +1850,8 @@ const PREVIEW_FADE = 0.4;
 // shot (2 beats, so the montage starts on beat 8, a downbeat), a montage of N shots of M beats each, and a held final
 // shot (F beats). Pace Cinematic: M = 2 up to 110 bpm, 4 above; Quick: M = 1 up to 110 bpm, 2 above, with twice the
 // shots, so a Length keeps its duration. F = 4 up to 110 bpm, 8 above. The montage is always whole bars (N x M a
-// multiple of 4) and shrinks by whole bars when the footage or the music is short; the intro and the final shot stay.
+// multiple of 4) and shrinks by whole bars when the footage or the music is short, down to AV_MIN_MONTAGE shots; the
+// intro and the final shot stay.
 // Without a usable grid (tempo outside 70-160 bpm, own music not accepted, or No music) the same template runs on a
 // fixed beat: an approximate tempo's (avApproxTempo) when own music has one, else 60 / AV_FALLBACK_BPM s.
 // Montage shots per Length at Pace Cinematic (Quick doubles them, avMontageShots).
@@ -1873,6 +1864,8 @@ const AV_TEMPO_MAX = 160;
 const AV_FALLBACK_BPM = 72;
 // Up to this tempo montage shots are 2 beats (Quick 1) and the final shot 4 beats; above it 4 (Quick 2) and 8.
 const AV_SLOW_MAX_BPM = 110;
+// The shortest montage, in shots, at both paces (kit default): 4 x M beats is whole bars for every M (1, 2 or 4).
+const AV_MIN_MONTAGE = 4;
 // Slot roles: the intro's two, the montage cycle, the final shot (spec 8). The panel holds the search queries.
 const AV_MONTAGE_ROLES = ['crowd', 'transit', 'water', 'architecture', 'ride', 'food', 'skyline'];
 const AV_ROLES = ['opening', 'portrait'].concat(AV_MONTAGE_ROLES, ['ending']);
@@ -1909,7 +1902,7 @@ const AV_SOURCE_TAIL = 0.15;
 // videos), so 4.85 s. About AV_PHOTO_SHARE of the slots that may hold a photo (the montage), evenly spread from a seeded
 // offset, are photo slots where an unused photo comes first. Elsewhere photos rank after every real video hit and
 // before fillers. Never more than AV_PHOTO_RUN_MAX photos play in a row (a hard rule) unless the pool has no video at
-// all.
+// all (avAllocate alone: avPlanBuild never plans without videos).
 const AV_PHOTO_HOLD_MAX = 5;
 const AV_PHOTO_RUN_MAX = 2;
 const AV_PHOTO_SHARE = 1 / 3;
@@ -1959,11 +1952,11 @@ function avMontageShots(length, pace) {
 }
 
 // The montage lengths (shots) a plan may try, longest first. opts: { requested, pace, bpm (avTempo's tempo) }. The
-// steps keep the montage whole bars and the shot count stable across tempos: Cinematic shrinks by 2 shots, Quick by 4;
-// the shortest montage is one bar (4 / M shots), added at the end when the steps miss it (Cinematic above 110 bpm:
-// 8, 6, 4, 2, 1; Quick above 110 bpm: 16, 12, 8, 4, 2). A non-finite request counts as Standard.
+// steps keep the montage whole bars and the shot count stable across tempos: Cinematic shrinks by 2 shots, Quick by 4,
+// both down to AV_MIN_MONTAGE (4) shots (Cinematic 16: 16, 14, ..., 4; Quick 32: 32, 28, ..., 4). A non-finite request
+// counts as Standard; a request under 4 shots gives [4].
 function avMontageLadder(opts) {
-  const m = avMontageBeats(opts.pace, opts.bpm), step = opts.pace === 'quick' ? 4 : 2, least = 4 / m;
+  const step = opts.pace === 'quick' ? 4 : 2, least = AV_MIN_MONTAGE;
   const asked = typeof opts.requested === 'number' && isFinite(opts.requested) ? opts.requested : avMontageShots('standard', opts.pace);
   const out = [];
   for (let n = Math.floor(asked / step) * step; n >= least; n -= step) out.push(n);
@@ -1992,7 +1985,7 @@ function avVideoSeconds(opts) {
 }
 
 // Music capacity: the longest montage (avMontageLadder) whose whole video fits between sectionStart and usableEnd, in
-// shots, else 0. opts: { requested, pace, bpm (avTempo's tempo), sectionStart?, usableEnd? (Infinity / omitted without
+// montage shots (the 3 bookend shots are not counted), else 0 (not even AV_MIN_MONTAGE shots fit). opts: { requested, pace, bpm (avTempo's tempo), sectionStart?, usableEnd? (Infinity / omitted without
 // music) }.
 function avFitShots(opts) {
   const start = typeof opts.sectionStart === 'number' && isFinite(opts.sectionStart) ? opts.sectionStart : 0;
@@ -2005,11 +1998,14 @@ function avFitShots(opts) {
 
 // The opening animation's timings (spec 4) in seconds from the clip start: the reference's, scaled by
 // k = min(1, openingSeconds / AV_OPENING_REF_SECONDS), so a faster cue compresses the animation instead of lengthening
-// the intro. Letterbox reveal from revealStart to revealEnd, kicker and tagline at textIn, decode from decodeStart,
-// letterSeconds per title letter.
+// the intro. Letterbox reveal from revealStart to revealEnd (fully open at 2.35 s in the reference), kicker and tagline
+// at textIn, decode from decodeStart, letterSeconds per title letter (9 letters end at 2.90 + 9 x 0.115 = 3.935 s, the
+// reference's ~3.94 s). cutSeconds is the opening shot's length (the cut the title holds until, unscaled): the title
+// fits its decode before it with a readable hold (decode-title.tsx avTiming).
 function avOpeningTiming(openingSeconds) {
-  const k = Math.min(1, Math.max(0, Number(openingSeconds) || 0) / AV_OPENING_REF_SECONDS);
-  return { k, revealStart: 0.22 * k, revealEnd: 2.30 * k, textIn: 2.40 * k, decodeStart: 2.90 * k, letterSeconds: 0.11 * k };
+  const cutSeconds = Math.max(0, Number(openingSeconds) || 0);
+  const k = Math.min(1, cutSeconds / AV_OPENING_REF_SECONDS);
+  return { k, revealStart: 0.22 * k, revealEnd: 2.35 * k, textIn: 2.40 * k, decodeStart: 2.90 * k, letterSeconds: 0.115 * k, cutSeconds };
 }
 
 // Where the music's beats land on the timeline. Selects snaps the music's source start (sectionStart) to a timeline
@@ -2372,41 +2368,71 @@ function avAllocate(opts) {
 // The whole plan. opts: { candidates (video hits and { rid, kind: 'photo' }), bpm (null without music), accepted,
 // approxBpm? (avApproxTempo), fps, pace: 'cinematic' (default) | 'quick', requested (montage shots, avMontageShots),
 // sectionStart?, usableEnd? (Infinity / omitted without music), onsets?, onsetThresholds?, lowConfidence?, seed,
-// photoShare?, motionOpener? (avAllocate) }.
-// Order: the music caps the montage (avFitShots), then the plan tries that montage and shrinks it down the ladder
-// (avMontageLadder: whole bars, one bar at least) until the strict allocation fills every slot; the opening, credit and
-// final shots are never dropped. Every attempt allocates from scratch with filler candidates added (see `attempts`
-// below). Failure reasons: 'music-too-short' (not even a one-bar montage fits the music), 'one-resource' (fewer than 2
-// distinct sources: the adjacency rule cannot hold), 'no-video' (photos only, and they cannot fill even the shortest
-// plan: a photo holds at most AV_PHOTO_HOLD_MAX - AV_SOURCE_TAIL = 4.85 s, which the 6-beat opening outlasts below
-// 74.2 bpm), 'too-few' (the
-// footage cannot fill even the shortest plan). A failure carries usableShots (montage slots the shortest plan filled)
+// photoShare?, motionOpener? (avAllocate) }. There is no credit option: Credit off only drops the credit graphic, the
+// 2-beat credit shot stays, so the plan never depends on it.
+// Eligibility (spec 3): the opening, credit and final shots (the 3 bookends) are video only; photos only fill montage
+// shots. Every shot count here is montage shots: `shots`, `requested`, `musicShots` and `usableShots` exclude the 3
+// bookends (`slots` = shots + 3 counts them).
+// Preflight, before any allocation, in this order. Each failure is { ok: false, reason, usableShots: 0, usableSlots: 0,
+// notes: [], ...vars } with the vars the panel's message needs:
+// - 'no-video': no usable video at all (photos alone cannot fill the bookends).
+// - 'one-video': a single video source. The opening and credit shots are adjacent video-only shots and the previous
+//   shot's source is never used again, so they need 2 distinct videos (photos cannot help).
+// - 'opening-too-short': no video source is long enough for the opening shot (6 beats) at this tempo. vars:
+//   neededSeconds (the source length the shot needs: its length at opts.fps + AV_SOURCE_TAIL, as avAllocate checks
+//   it), shotSeconds (the shot's length), longestSeconds (the longest video source).
+// - 'ending-too-short': the same for the final shot (4 beats, 8 above 110 bpm).
+// - 'music-too-short': the music section cannot hold the intro, AV_MIN_MONTAGE montage shots and the final shot.
+//   vars: neededSeconds (that video's length), availableSeconds (usableEnd - sectionStart).
+// The bookend lengths come from the longest montage the music fits (the shortest one when nothing fits), on the plan
+// rate opts.fps.
+// Then the music caps the montage (avFitShots), and the plan tries that montage and shrinks it down the ladder
+// (avMontageLadder: whole bars, AV_MIN_MONTAGE shots at least) until the strict allocation fills every slot; the
+// bookends are never dropped. Every attempt allocates from scratch with filler candidates added (see `attempts` below).
+// When even the shortest plan cannot be filled: 'too-few', with usableShots (montage slots the shortest plan filled)
 // and usableSlots (all slots it filled).
-// A pool with no usable video lets photos take the opening, credit and final shots and plays photos in any run (as
-// Mini Vlog's photo-only pool); notes then holds 'no-video' so the panel can say so.
 // A plan returns { ok: true, schedule (its slots carry role, part and beats), picks, shots: montage shots, requested:
-// the montage asked for (the ladder's top), slots: all slots, fittedByMusic, pace, montageBeats, finalBeats, tempo,
-// beatSeconds, gridded, approxBpm (the approximate tempo the fixed timing used, else null), fillerShots, photoShots,
-// attempt, notes }.
+// the montage asked for (the ladder's top), musicShots: the montage the music fits (avFitShots), slots: all slots,
+// fittedByMusic, pace, montageBeats, finalBeats, tempo, beatSeconds, gridded, approxBpm (the approximate tempo the
+// fixed timing used, else null), fillerShots, photoShots, attempt, notes ([], kept for the panel) }.
 function avPlanBuild(opts) {
   const pace = opts.pace === 'quick' ? 'quick' : 'cinematic';
   // The tempo the template follows: the grid's, else an approximate one, else AV_FALLBACK_BPM (fixed timing).
   const { gridded, approxBpm, tempo, beatSeconds } = avTempo(opts);
   const ladder = avMontageLadder({ requested: opts.requested, pace, bpm: tempo });
-  const requested = ladder[0];
+  const requested = ladder[0], least = ladder[ladder.length - 1];
   const top = avFitShots({ requested, pace, bpm: tempo, sectionStart: opts.sectionStart, usableEnd: opts.usableEnd });
-  if (top === 0) return { ok: false, reason: 'music-too-short', usableShots: 0, usableSlots: 0 };
+  const fail = (reason, vars = {}) => ({ ok: false, reason, usableShots: 0, usableSlots: 0, notes: [], ...vars });
   // Distinct sources the allocator can use: valid videos (as avAllocate filters them) and photos.
   const finite = v => typeof v === 'number' && isFinite(v);
-  const rids = {};
-  let hasPhotos = false, hasVideo = false;
+  const videos = {};
+  let hasPhotos = false;
   for (const c of opts.candidates) {
     if (!c || typeof c.rid !== 'string') continue;
-    if (c.kind === 'photo') { rids[c.rid] = true; hasPhotos = true; }
-    else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) { rids[c.rid] = true; hasVideo = true; }
+    if (c.kind === 'photo') hasPhotos = true;
+    else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) videos[c.rid] = Math.max(videos[c.rid] || 0, c.sourceDuration);
   }
-  if (Object.keys(rids).length < 2) return { ok: false, reason: 'one-resource', usableShots: 0, usableSlots: 0 };
-  const notes = hasVideo ? [] : ['no-video'];
+  const videoRids = Object.keys(videos);
+  if (!videoRids.length) return fail('no-video');
+  if (videoRids.length < 2) return fail('one-video');
+  const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
+  const scheduleOf = tpl => avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
+  // Bookend preflight: a video source must hold the opening and the final shot whole (avAllocate's own test).
+  {
+    const sch = scheduleOf(avTemplate({ bpm: tempo, pace, montageShots: top || least }));
+    const longest = Math.max(...videoRids.map(r => videos[r]));
+    const check = (reason, slot) => {
+      const shotSeconds = (slot.endFrame - slot.startFrame) / opts.fps;
+      return longest < shotSeconds + AV_SOURCE_TAIL ? fail(reason, { neededSeconds: shotSeconds + AV_SOURCE_TAIL, shotSeconds, longestSeconds: longest }) : null;
+    };
+    const bad = check('opening-too-short', sch.slots[0]) || check('ending-too-short', sch.slots[sch.slots.length - 1]);
+    if (bad) return bad;
+  }
+  if (top === 0) {
+    const start = finite(opts.sectionStart) ? opts.sectionStart : 0;
+    return fail('music-too-short', { neededSeconds: avVideoSeconds({ bpm: tempo, pace, montageShots: least }), availableSeconds: Math.max(0, opts.usableEnd - start) });
+  }
+  const notes = [];
   const candidates = opts.candidates.concat(avFillers(opts.candidates));
   // Share attempts per length. The greedy allocator spends a scarce video window after every photo outside the photo
   // slots, which can strand photos behind the run limit although the length is fillable (P P a P P b P P). So before a
@@ -2427,8 +2453,6 @@ function avPlanBuild(opts) {
   let usableShots = 0, usableSlots = 0;
   // Whether avAllocate's motion opener can apply (some video candidate carries motion).
   const motionTagged = opts.motionOpener !== false && candidates.some(c => c && c.kind !== 'photo' && c.motion > 0);
-  const least = ladder[ladder.length - 1];
-  const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
   // The shortest plan's fill, for the failure report.
   const tally = (alloc, tpl) => {
     usableSlots = Math.max(usableSlots, alloc.filled);
@@ -2437,8 +2461,8 @@ function avPlanBuild(opts) {
   for (const n of ladder) {
     if (n > top) continue;
     const tpl = avTemplate({ bpm: tempo, pace, montageShots: n });
-    const schedule = avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
-    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: hasVideo && tpl.videoOnly[i] }));
+    const schedule = scheduleOf(tpl);
+    const slots = schedule.slots.map((s, i) => ({ index: s.index, role: s.role, seconds: (s.endFrame - s.startFrame) / opts.fps, videoOnly: tpl.videoOnly[i] }));
     for (const attempt of attempts) {
       let alloc = avAllocate({ candidates, slots, seed: opts.seed, photoShare: attempt.photoShare, spread: attempt.spread, finalEarly: attempt.finalEarly, motionOpener: opts.motionOpener });
       let name = attempt.name;
@@ -2450,14 +2474,14 @@ function avPlanBuild(opts) {
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
-        return { ok: true, schedule, picks: alloc.picks, shots: n, requested, slots: slots.length, fittedByMusic: top < requested, pace,
+        return { ok: true, schedule, picks: alloc.picks, shots: n, requested, musicShots: top, slots: slots.length, fittedByMusic: top < requested, pace,
           montageBeats: tpl.montageBeats, finalBeats: tpl.finalBeats, tempo, beatSeconds, gridded, approxBpm,
           fillerShots: alloc.fillerShots, photoShots: alloc.photoShots, attempt: name, notes };
       }
       if (n === least) tally(alloc, tpl);
     }
   }
-  return { ok: false, reason: hasVideo ? 'too-few' : 'no-video', usableShots, usableSlots, notes };
+  return { ok: false, reason: 'too-few', usableShots, usableSlots, notes };
 }
 
 // Photo motions, in pick order: every photo pick gets one; videos and empty picks get null.
@@ -2641,10 +2665,10 @@ const AV_ADJUST_LABELS = {
 // Why a plan cannot be built (planner avPlanBuild reasons). English for dev/driveAdapter.mjs; the panel says STRINGS
 // `fail.<reason>` in the UI language (`noPlan` for a reason not listed here).
 const AV_FAIL = {
-  "one-resource": "Add at least 2 clips or photos",
   "too-few": "Your footage cannot fill even the shortest version",
   "music-too-short": "This track is too short for even the shortest version from this section",
-  "no-video": "Archive Vlog needs at least one video clip for the opening, credit and last shot",
+  "no-video": "Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video",
+  "one-video": "Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot",
   "opening-too-short": "No video clip is long enough for the opening shot",
   "ending-too-short": "No video clip is long enough for the last shot",
 };
@@ -2772,8 +2796,15 @@ var AV_TITLE_PRESETS = {
   "a-day-out": { titleColor: "#FFFFFF", textColor: "#FFFFFF", taglineTracking: 0.12, taglineSize: 80 },
   "golden-hour": { titleColor: "#F6E3C2", textColor: "#FFFFFF", taglineTracking: 0.5, taglineSize: 100 },
 };
-// Default timing in seconds from the clip start (the reference at k = 1; decorate passes the planner's scaled values).
-var AV_TIMING = { textIn: 2.4, decodeStart: 2.9, letterSeconds: 0.11 };
+// Default timing in seconds from the clip start (the reference at k = 1; decorate passes the planner's scaled values,
+// planner avOpeningTiming, with cutSeconds: the opening shot's length).
+var AV_TIMING = { textIn: 2.4, decodeStart: 2.9, letterSeconds: 0.115 };
+// Decode fit (avTiming): the title holds fully decoded for at least max(AV_HOLD_MIN, AV_HOLD_SHARE x cutSeconds) before
+// the cut; a letter takes at least AV_LETTER_MIN s unless even starting at textIn cannot fit that.
+var AV_HOLD_MIN = 0.8, AV_HOLD_SHARE = 0.25, AV_LETTER_MIN = 0.03;
+// Graphemes per field, the presets' `max` (presets.json, the same for every preset). Adjust edits bypass the panel's
+// counter, so the graphic cuts longer text itself.
+var AV_FIELD_MAX = { kicker: 24, title: 16, tagline: 48 };
 var AV_TITLE_CAP = 150 / 1080, AV_KICKER_CAP = 22 / 1080, AV_TAGLINE_CAP = 19 / 1080;
 var AV_GAP_KICKER = 21 / 150, AV_GAP_TAGLINE = 22 / 150; // ink gaps, fractions of the title's cap height
 var AV_FIT = 0.8; // max lockup width, fraction of canvas width
@@ -2809,15 +2840,41 @@ var AV_POOL_HANGUL = [0xAC00, 0xB098, 0xB2E4, 0xB77C, 0xB9C8, 0xBC14, 0xC0AC, 0x
   0xB78C, 0xAF43, 0xAE38, 0xBC24, 0xBCC4, 0xB178, 0xC744, 0xC601, 0xD654, 0xC21C, 0xAC10, 0xC815, 0xC5B5, 0xCD94, 0xD55C, 0xAD6D, 0xBD80,
   0xC0B0, 0xC81C, 0xC8FC, 0xAC70, 0xD48D, 0xACBD].map(function (c) { return String.fromCharCode(c); });
 
-// A character's class: which pool its ghost glyphs come from ("space" takes no decode time).
-function avCharClass(ch) {
-  if (/\s/.test(ch)) return "space";
-  if (AV_HANGUL_RE.test(ch)) return "hangul";
-  if (/[0-9]/.test(ch)) return "digit";
-  if (/[A-Z\u00c0-\u00de]/.test(ch)) return "upper";
-  if (/[a-z\u00df-\u00ff]/.test(ch)) return "lower";
-  return "other";
+// Letters and numbers of any script (Unicode property escapes where the engine has them; else cased letters and wide
+// glyphs).
+var AV_LETTER_RE = (function () { try { return new RegExp("[\\p{L}\\p{N}]", "u"); } catch (e) { return null; } })();
+function avIsLetter(ch) {
+  return AV_LETTER_RE ? AV_LETTER_RE.test(ch) : ch.toUpperCase() !== ch.toLowerCase() || AV_WIDE_RE.test(ch) || /[0-9]/.test(ch);
 }
+// Grapheme clusters (Intl.Segmenter when the engine has it, else code points), so a letter with a combining mark or a
+// surrogate pair is one decode position and counts once against AV_FIELD_MAX. Precomposed Latin, Hangul syllables and
+// digits split the same either way; a combining sequence or an emoji sequence may count differently on an engine
+// without Intl.Segmenter.
+var AV_SEGMENTER = (function () {
+  // Object(Intl): untyped, so the block type-checks against libs without Intl.Segmenter.
+  try { var I = typeof Intl !== "undefined" ? Object(Intl) : null; return I && I.Segmenter ? new I.Segmenter(undefined, { granularity: "grapheme" }) : null; } catch (e) { return null; }
+})();
+function avGraphemes(text) {
+  text = String(text || "");
+  if (!AV_SEGMENTER) return Array.from(text);
+  var out = [], it = AV_SEGMENTER.segment(text)[Symbol.iterator](), step = it.next();
+  while (!step.done) { out.push(step.value.segment); step = it.next(); }
+  return out;
+}
+// A grapheme's class, from its first code point: which pool its ghost glyphs come from. Each position flips through its
+// own script's pool, so a mixed Latin / Hangul title keeps Latin ghosts on Latin letters. "space" and "fixed"
+// (punctuation, symbols) take no decode time; "other" (a letter of another script) takes a step and ghosts as itself.
+function avCharClass(ch) {
+  var c = Array.from(String(ch || " "))[0];
+  if (/\s/.test(c)) return "space";
+  if (AV_HANGUL_RE.test(c)) return "hangul";
+  if (/[0-9]/.test(c)) return "digit";
+  if (/[A-Z\u00c0-\u00d6\u00d8-\u00de\u0100-\u024f]/.test(c) && c !== c.toLowerCase()) return "upper";
+  if (/[a-z\u00df-\u00f6\u00f8-\u00ff\u0100-\u024f]/.test(c)) return "lower";
+  return avIsLetter(c) ? "other" : "fixed";
+}
+// Classes that take a decode step.
+function avLockable(cls) { return cls !== "space" && cls !== "fixed"; }
 function avPool(cls, ch) {
   return cls === "hangul" ? AV_POOL_HANGUL : cls === "digit" ? AV_POOL_DIGIT : cls === "upper" ? AV_POOL_UPPER : cls === "lower" ? AV_POOL_LOWER : [ch];
 }
@@ -2859,14 +2916,15 @@ function avKoMeasure(data) {
   if (!ctx || typeof ctx.measureText !== "function") return null;
   var face = AV_TITLE_FACES[data.font] || AV_TITLE_FACES.anton, px = 100;
   ctx.font = "700 " + px + "px " + avFontStack(face.family);
-  var out = { koAdvances: {} };
+  // Built in one literal at the end (the panel type-checks this block: no keys added later). Object({}) is an
+  // untyped map for the per-character advances.
   var s = ctx.measureText("\ud55c\uae00");
-  if (s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0) out.koInk = { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px };
-  var chars = Array.from(text).concat(avHasHangul(f.title) ? AV_POOL_HANGUL : []);
+  var ink = s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0 ? { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px } : null;
+  var adv = Object({}), chars = Array.from(text).concat(avHasHangul(f.title) ? AV_POOL_HANGUL : []);
   for (var i = 0; i < chars.length; i++) {
-    if (AV_WIDE_RE.test(chars[i]) && !(chars[i] in out.koAdvances)) out.koAdvances[chars[i]] = ctx.measureText(chars[i]).width / px;
+    if (AV_WIDE_RE.test(chars[i]) && !(chars[i] in adv)) adv[chars[i]] = ctx.measureText(chars[i]).width / px;
   }
-  return out;
+  return ink ? { koAdvances: adv, koInk: ink } : { koAdvances: adv };
 }
 
 function avMetrics(data, family) {
@@ -2897,11 +2955,16 @@ function avInk(text, m, kw) {
 // Latin is set in capitals; text with Hangul keeps its case.
 function avCase(text) { return avHasHangul(text) ? text : text.toUpperCase(); }
 
+// The three text fields, each cut to AV_FIELD_MAX graphemes (after the case change, which can lengthen a word).
 function avTitleFields(data) {
   var raw = data.fields || {};
   // Adjust edits land on flat keys (data.title, ...), so a flat string wins over data.fields.
-  var pick = function (k) { var v = typeof data[k] === "string" ? data[k] : raw[k]; return typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""; };
-  return { kicker: avCase(pick("kicker")), title: avCase(pick("title")), tagline: avCase(pick("tagline")) };
+  var pick = function (k) {
+    var v = typeof data[k] === "string" ? data[k] : raw[k];
+    var g = avGraphemes(avCase(typeof v === "string" ? v.replace(/\s+/g, " ").trim() : ""));
+    return g.slice(0, AV_FIELD_MAX[k]).join("").trim();
+  };
+  return { kicker: pick("kicker"), title: pick("title"), tagline: pick("tagline") };
 }
 function avNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
 
@@ -2929,12 +2992,19 @@ function avTitleLayout(data, width, height) {
   if (fields.title) {
     var ko = avHasHangul(fields.title), cx = ko ? 1 : face.condense;
     var F0 = (AV_TITLE_CAP * H * S) / (mt.capHeight / mt.unitsPerEm);
-    var w0 = avTextWidth(fields.title, mt, F0, 0, kw) * cx;
+    // One letter box per grapheme, advanced by its first code point (a combining mark adds no width).
+    var chars = avGraphemes(fields.title), units = 0;
+    for (var u = 0; u < chars.length; u++) units += avAdvance(mt, Array.from(chars[u])[0], kw);
+    var w0 = ((units * F0) / mt.unitsPerEm) * cx;
     var F = F0 * Math.max(AV_TITLE_FLOOR, Math.min(1, fitW / w0));
-    var chars = Array.from(fields.title), pen = 0, step = 0, letters = [];
+    var pen = 0, step = 0, letters = [];
     for (var i = 0; i < chars.length; i++) {
-      var ch = chars[i], cls = avCharClass(ch), w = (avAdvance(mt, ch, kw) * F * cx) / mt.unitsPerEm;
-      letters.push({ ch: ch, cls: cls, x: pen, w: w, step: cls === "space" ? -1 : step++ });
+      var ch = chars[i], cls = avCharClass(ch), w = (avAdvance(mt, Array.from(ch)[0], kw) * F * cx) / mt.unitsPerEm;
+      // step: the letter's decode step (-1 for a space or punctuation); at: the step from which it is drawn (a
+      // punctuation mark is drawn solid once every letter before it has locked).
+      var lock = avLockable(cls);
+      letters.push({ ch: ch, cls: cls, x: pen, w: w, step: lock ? step : -1, at: step });
+      if (lock) step++;
       pen += w;
     }
     title = { part: "title", text: fields.title, family: face.family, weight: face.weight, stack: avFontStack(face.family), size: F, condense: cx,
@@ -2986,42 +3056,65 @@ function avTitleLayout(data, width, height) {
     if (p.letters) o.letters = p.letters.map(function (l) { return Object.assign({}, l, { x: o.x + l.x * k, w: l.w * k }); });
     return o;
   };
-  var out = { title: place(title), kicker: place(kicker), tagline: place(tagline), box: [tx(box[0]), ty(box[1]), tx(box[2]), ty(box[3])], steps: title ? title.steps : 0 };
-  out.metrics = mt;
-  return out;
+  return { title: place(title), kicker: place(kicker), tagline: place(tagline), box: [tx(box[0]), ty(box[1]), tx(box[2]), ty(box[3])], steps: title ? title.steps : 0, metrics: mt };
 }
 
-// Timing in seconds ({ revealStart?, textIn, decodeStart, letterSeconds }); `speed` (%) scales the letter rate.
-// revealStart is accepted so the planner's timing object can be passed whole; the title does not use it.
-function avTiming(data) {
+// Timing in seconds for a title of `steps` decode steps (its lockable graphemes; spaces and punctuation take none) at
+// `fps` (default 30): { textIn, decodeStart, letterSeconds, cutSeconds, minHold, fit }. data.timing is the planner's
+// avOpeningTiming ({ revealStart?, revealEnd?, k?, textIn, decodeStart, letterSeconds, cutSeconds? }; the reveal keys
+// are accepted so the object can be passed whole). `speed` (%, clamped to 25-400) scales the letter rate:
+// base = letterSeconds x 100 / speed.
+// Fit, when cutSeconds (the opening shot's length) is given and the title has steps: the last letter must lock by
+// end = cutSeconds - minHold - 2 / fps, minHold = max(AV_HOLD_MIN, AV_HOLD_SHARE x cutSeconds) (the 2 frames cover the
+// frame rounding of decodeStart and of the last lock, so the hold is >= minHold in whole frames).
+//   1. letterSeconds = min(base, max(AV_LETTER_MIN, (end - decodeStart) / steps)): never slower than asked, faster
+//      when the decode would run into the hold ('letters').
+//   2. Still past end at AV_LETTER_MIN per letter: the decode starts earlier, decodeStart = max(textIn, end - steps x
+//      AV_LETTER_MIN) ('early').
+//   3. Still past end (decodeStart = textIn): letterSeconds = max(0, (end - textIn) / steps), several letters per frame;
+//      0 (textIn already past end) draws the title whole at textIn ('squeezed').
+// fit is 'none' when nothing changed. Without cutSeconds (older Drafts) the timing is as before: decodeStart and base.
+function avTiming(data, steps, fps) {
   var t = (data && data.timing) || {};
+  var f = fps > 0 ? fps : 30, n = steps > 0 ? steps : 0;
   var textIn = avNum(t.textIn, AV_TIMING.textIn, 0, 600);
   var decodeStart = Math.max(textIn, avNum(t.decodeStart, AV_TIMING.decodeStart, 0, 600));
   var ls = avNum(t.letterSeconds, AV_TIMING.letterSeconds, 0.005, 5) * (100 / avNum(data && data.speed, 100, 25, 400));
-  return { textIn: textIn, decodeStart: decodeStart, letterSeconds: ls };
+  var cut = avNum(t.cutSeconds, 0, 0, 600), minHold = cut > 0 ? Math.max(AV_HOLD_MIN, AV_HOLD_SHARE * cut) : 0, fit = "none";
+  if (cut > 0 && n > 0) {
+    var end = cut - minHold - 2 / f;
+    var fitLs = Math.min(ls, Math.max(AV_LETTER_MIN, (end - decodeStart) / n));
+    if (fitLs < ls) { ls = fitLs; fit = "letters"; }
+    if (decodeStart + n * ls > end + 1e-9) { decodeStart = Math.max(textIn, end - n * ls); fit = "early"; }
+    if (decodeStart + n * ls > end + 1e-9) { ls = Math.max(0, (end - decodeStart) / n); fit = "squeezed"; }
+  }
+  return { textIn: textIn, decodeStart: decodeStart, letterSeconds: ls, cutSeconds: cut, minHold: minHold, fit: fit };
 }
 
 // What to draw at `frame` (timeline frame = clip frame): { textOpacity, glyphs: [{ ch, x (left), y (baseline), size,
 // condense, opacity, ghost, family, weight, stack, color }], decoded }. Before textIn: nothing. From textIn: kicker and
-// tagline (fading in over 3 frames). From decodeStart: letter k (k-th non-space letter) shows a ghost glyph during
-// [decodeStart + k * letterSeconds, decodeStart + (k + 1) * letterSeconds), then is drawn solid; letters after it are
-// empty. Spaces take no time.
+// tagline (fading in over 3 frames). From decodeStart (avTiming, fitted before the cut): letter k (k-th lockable
+// grapheme) shows a ghost glyph during [decodeStart + k * letterSeconds, decodeStart + (k + 1) * letterSeconds), then
+// is drawn solid; letters after it are empty. Spaces are never drawn; punctuation takes no time and is drawn solid
+// once every letter before it has locked.
 function avDecodeFrame(layout, data, frame, fps) {
-  var tm = avTiming(data || {}), f = fps > 0 ? fps : 30;
+  var t = layout && layout.title, f = fps > 0 ? fps : 30;
+  var tm = avTiming(data || {}, t ? t.steps : 0, f);
   var inF = Math.round(tm.textIn * f), decF = Math.round(tm.decodeStart * f), lsF = tm.letterSeconds * f;
   var out = { textOpacity: 0, glyphs: [], decoded: 0 };
   if (!layout || !layout.box || frame < inF) return out;
   out.textOpacity = Math.min(1, (frame - inF + 1) / 3);
-  var t = layout.title;
   if (!t || frame < decF) return out;
-  var now = Math.floor((frame - decF) / lsF + 1e-9); // the step showing a ghost (== steps: all locked)
+  // The step showing a ghost (>= steps: all locked); a zero letter time locks everything at decodeStart.
+  var now = lsF > 0 ? Math.floor((frame - decF) / lsF + 1e-9) : t.steps;
   var m = layout.metrics || AV_FALLBACK_METRICS, kw = avKoWide(data);
   for (var i = 0; i < t.letters.length; i++) {
     var l = t.letters[i];
-    if (l.step < 0 || l.step > now) continue;
-    var ghost = l.step === now, ch = ghost ? avGhostChar(l.ch, i, frame) : l.ch;
+    if (l.cls === "space") continue;
+    if (l.step < 0 ? l.at > now : l.step > now) continue;
+    var ghost = l.step >= 0 && l.step === now, ch = ghost ? avGhostChar(l.ch, i, frame) : l.ch;
     // A ghost glyph is centred in the final letter's box (its own advance may differ).
-    var gw = ghost ? (avAdvance(m, ch, kw) * t.size * t.condense) / m.unitsPerEm : l.w;
+    var gw = ghost ? (avAdvance(m, Array.from(ch)[0], kw) * t.size * t.condense) / m.unitsPerEm : l.w;
     var ko = AV_HANGUL_RE.test(ch);
     out.glyphs.push({ ch: ch, x: l.x + (l.w - gw) / 2, y: t.y, size: t.size, condense: t.condense, opacity: ghost ? AV_GHOST_OPACITY : 1, ghost: ghost,
       family: t.family, weight: ko ? t.koWeight : t.weight, stack: t.stack, color: t.color });
@@ -3078,19 +3171,32 @@ function avcKoMeasure(data) {
   if (!ctx || typeof ctx.measureText !== "function") return null;
   var px = 100;
   ctx.font = (AVC_HANGUL_RE.test(text) ? 700 : AVC_FACE.weight) + " " + px + "px " + avcFontStack(AVC_FACE.family);
-  var out = { koAdvances: {} };
+  // Built in one literal at the end (the panel type-checks this block: no keys added later). Object({}) is an
+  // untyped map for the per-character advances.
   var s = ctx.measureText("\ud55c\uae00");
-  if (s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0) out.koInk = { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px };
-  var chars = Array.from(text);
+  var ink = s && s.actualBoundingBoxAscent > 0 && s.actualBoundingBoxDescent >= 0 ? { up: s.actualBoundingBoxAscent / px, down: s.actualBoundingBoxDescent / px } : null;
+  var adv = Object({}), chars = Array.from(text);
   for (var i = 0; i < chars.length; i++) {
-    if (AVC_WIDE_RE.test(chars[i]) && !(chars[i] in out.koAdvances)) out.koAdvances[chars[i]] = ctx.measureText(chars[i]).width / px;
+    if (AVC_WIDE_RE.test(chars[i]) && !(chars[i] in adv)) adv[chars[i]] = ctx.measureText(chars[i]).width / px;
+  }
+  return ink ? { koAdvances: adv, koInk: ink } : { koAdvances: adv };
+}
+function avcNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
+// Each of prefix and name is cut to AVC_MAX width units (a wide character counts 2), as the panel's fields count
+// them: Adjust edits never pass the panel's limit.
+var AVC_MAX = 24;
+function avcClip(text) {
+  var out = "", n = 0, chars = Array.from(String(text));
+  for (var i = 0; i < chars.length; i++) {
+    var w = AVC_WIDE_RE.test(chars[i]) ? 2 : 1;
+    if (n + w > AVC_MAX) break;
+    out += chars[i]; n += w;
   }
   return out;
 }
-function avcNum(v, d, lo, hi) { return typeof v === "number" && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; }
 function avcText(data, key) {
   var v = typeof data[key] === "string" ? data[key] : AVC_DEFAULTS[key];
-  return String(v).replace(/\s+/g, " ").trim();
+  return avcClip(String(v).replace(/\s+/g, " ").trim()).trim();
 }
 
 // { text, x (left), y (baseline), size, w, color, family, weight, stack, box } or null when there is no text.
@@ -3996,6 +4102,12 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     if (!previewLayout || !previewData) return null;
     try { return AV_TITLE.avDecodeFrame(previewLayout, previewData, replayFrame == null ? 1e9 : replayFrame, 30); } catch { return null; }
   }, [previewLayout, previewData, replayFrame]);
+  // How the decode fits the opening shot at the current tempo (decode-title avTiming): anything but 'none' means a
+  // long title decodes faster (or starts earlier) so it still holds, readable, before the cut.
+  const previewFit: string = React.useMemo(() => {
+    if (!previewLayout || !previewData) return "none";
+    try { return AV_TITLE.avTiming(previewData, previewLayout.steps || 0, 30).fit || "none"; } catch { return "none"; }
+  }, [previewLayout, previewData]);
   const creditLayout: any = React.useMemo(() => {
     if (!chosen || !assets || !creditUsed) return null;
     const base: any = { prefix: prefixText, name: nameText, color: chosen.colors.text, size: CREDIT_LOOK.size,
@@ -4009,7 +4121,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   function replayTitle() {
     if (!previewLayout || !previewData) return;
     const token = ++replayRef.current, fps = 30;
-    const tm = AV_TITLE.avTiming(previewData);
+    const tm = AV_TITLE.avTiming(previewData, previewLayout.steps || 0, fps);
     const from = Math.max(0, Math.round(tm.textIn * fps) - 6);
     const end = Math.round(tm.decodeStart * fps) + Math.ceil((previewLayout.steps || 0) * tm.letterSeconds * fps) + 2;
     const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -4189,9 +4301,6 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       const rids: string[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid)).map((r: any) => r.rid);
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
       const cached = candidates && candidates.key === key ? candidates : null;
-      // A build from photos alone has no videos to search; the step says so instead of a bare 0%.
-      const shotsDetail: Say | undefined = rids.length ? undefined : (l) => t(l, "photosOnly");
-      if (shotsDetail) advance("shots", 0, shotsDetail);
       let found = cached;
       if (!cached || cached.failed.length) {
         // Search everything the first time; afterwards retry only the clips whose search failed.
@@ -4202,7 +4311,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
           list: [...(cached ? cached.list.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))] };
         setCandidates(found);
       }
-      advance("shots", 1, shotsDetail);
+      advance("shots", 1);
       // Photos join as candidates without a search; with Use photos off there are none.
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
       // Plan at 30 fps for allocation; assembly places the same cut seconds at the Draft's real rate. Motion hits
@@ -4237,11 +4346,12 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
         a = { ...saved, notes: [...(a?.notes || []), "the Draft was found after its reply was lost"] };
       }
       if (!(a.totalFrames > 0)) throw uiError((l) => t(l, "draftEmpty", { name: frozen.draftName }));
-      // The planner drops montage shots when the footage cannot fill them; tell the user the real length at the Draft fps.
-      const shortened = plan.shots < fitted ? { shots: plan.shots, of: fitted, seconds: a.totalFrames / a.fps } : null;
+      // The planner drops montage shots when the footage cannot fill all the music fits (plan.musicShots); tell the user
+      // the real length at the Draft fps.
+      const shortened = plan.shots < plan.musicShots ? { shots: plan.shots, of: plan.musicShots, seconds: a.totalFrames / a.fps } : null;
       advance("draft", 1);
       const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, plan, notes: a.notes || [], link: null, shortened,
-        unchecked: found.failed.length, noVideo: (plan.notes || []).includes("no-video") };
+        unchecked: found.failed.length };
       setResult(res);
       await decorate(res, check);
     } catch (e: any) {
@@ -4360,7 +4470,9 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     : musicKind === "own" && !ownMusic ? (l) => t(l, "dropMusic")
     : musicKind === "own" && !ownDuration ? (l) => t(l, "musicLengthUnread")
     : musicKind !== "none" && (!fitted || start == null) ? (l) => t(l, "fail.music-too-short")
-    : selectedRids.length + usedPhotoCount < 2 ? (l) => t(l, "fail.one-resource")
+    // The opening, credit and final shots are video only (planner preflight), so photos never make up for a video.
+    : selectedRids.length === 0 ? (l) => t(l, "fail.no-video")
+    : selectedRids.length === 1 ? (l) => t(l, "fail.one-video")
     : null;
   const blockFor = (plan: any): Say | null => baseBlock || (plan && !plan.ok && !plan.retryable ? (l) => failText(l, plan.reason, plan) : null);
   const blockReason = blockFor(readyPlan);
@@ -4377,8 +4489,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const readiness = !inventory ? (invError ? (invError.busy ? invError.say(L) : t(L, "invFailed")) : t(L, "checkingClipsNow"))
     : inventory.incomplete && incompleteStalled ? t(L, "invPartial")
     : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? t(L, "stillReading")
-    : inventory.resources.length === 0 && !allPhotoRids.length ? (analysisText || t(L, "noFootage"))
-    : inventory.resources.length === 0 && !usePhotos ? [analysisText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))
+    : inventory.resources.length === 0 ? (analysisText || t(L, "noFootage"))
     : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
     : t(L, "ready", { summary: [clipCount, ...avAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
   // Requested vs fitted montage shots, then the footage's own fit once it is known. Seconds with one decimal.
@@ -4388,8 +4499,8 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     : musicKind !== "none" && !fitted ? t(L, "fail.music-too-short")
     : fitted < fit.top ? t(L, "fitPartial", { length: lengthName, fitted, count: fit.top, seconds: tenths(videoSeconds) })
     : t(L, "fitFull", { length: lengthName, count: fit.top, seconds: tenths(videoSeconds) });
-  const footageLine = readyPlan && readyPlan.ok && readyPlan.shots < fitted
-    ? t(L, "footageFits", { fitted: readyPlan.shots, count: fitted, seconds: tenths(planSeconds(readyPlan)) }) : null;
+  const footageLine = readyPlan && readyPlan.ok && readyPlan.shots < readyPlan.musicShots
+    ? t(L, "footageFits", { fitted: readyPlan.shots, count: readyPlan.musicShots, seconds: tenths(planSeconds(readyPlan)) }) : null;
   // How long a montage shot lasts, and the fixed beat without a grid.
   const montageBeats = avMontageBeats(pace, tempo);
   const hundredths = (s: number) => Math.round(s * 100) / 100;
@@ -4486,6 +4597,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
             </div>
           ) : null}
         </div>
+        {assets && previewFit !== "none" ? <ui.Message tone="muted">{t(L, "decodeFitted")}</ui.Message> : null}
         {chosen ? chosen.fields.map((fl: any) => (
           <ui.TextField key={preset + ":" + fl.key} label={t(L, "fieldCount", { label: fieldLabel(L, fl.key), used: fieldLen(fieldText(fl)), max: fl.max })}
             value={fieldText(fl)} placeholder={fl.initial || undefined} disabled={busy} onChange={(v: string) => setField(fl, v)} />
@@ -4618,7 +4730,6 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       {result?.shortened ? (
         <ui.Message tone="muted">{t(L, "shortened", { fitted: result.shortened.shots, count: result.shortened.of, seconds: tenths(result.shortened.seconds) })}</ui.Message>
       ) : null}
-      {result?.noVideo ? <ui.Message tone="muted">{t(L, "noVideoNote")}</ui.Message> : null}
       {result?.notes?.length ? <ui.Message tone="muted">{t(L, "note", { detail: result.notes.join("; ") })}</ui.Message> : null}
       {result?.unchecked ? <ui.Message tone="muted">{t(L, "unchecked", { count: result.unchecked })}</ui.Message> : null}
       {blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}
@@ -4633,16 +4744,21 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   );
 }
 
-// A plan failure in the UI language (`noPlan` for a reason AV_FAIL does not list).
-// `plan` carries the reason's numbers (the opening or final shot's length in seconds when no clip is long enough).
+// A plan failure in the UI language (`noPlan` for a reason AV_FAIL does not list). `plan` is the failure with the
+// reason's numbers (planner avPlanBuild): a length the clips or the music must reach rounds up, one they have rounds
+// down, so the sentence never understates the gap.
 function failText(lang: Lang, reason: string, plan: any = {}) {
-  const seconds = Math.round((Number(plan?.seconds) || 0) * 10) / 10;
-  if (reason === "opening-too-short") return t(lang, "fail.opening-too-short", { seconds });
-  if (reason === "ending-too-short") return t(lang, "fail.ending-too-short", { seconds });
-  if (reason === "one-resource") return t(lang, "fail.one-resource");
-  if (reason === "too-few") return t(lang, "fail.too-few");
-  if (reason === "music-too-short") return t(lang, "fail.music-too-short");
+  const up = (v: any) => Math.ceil((Number(v) || 0) * 10 - 1e-6) / 10, down = (v: any) => Math.floor((Number(v) || 0) * 10 + 1e-6) / 10;
+  if (reason === "opening-too-short") return t(lang, "fail.opening-too-short", { needed: up(plan?.neededSeconds), longest: down(plan?.longestSeconds) });
+  if (reason === "ending-too-short") return t(lang, "fail.ending-too-short", { needed: up(plan?.neededSeconds), longest: down(plan?.longestSeconds) });
+  if (reason === "too-few") return t(lang, "fail.too-few", { filled: Number(plan?.usableSlots) || 0, total: AV_MIN_MONTAGE + 3 });
+  if (reason === "music-too-short") {
+    return typeof plan?.neededSeconds === "number" && typeof plan?.availableSeconds === "number"
+      ? t(lang, "fail.music-too-short-seconds", { needed: up(plan.neededSeconds), available: down(plan.availableSeconds) })
+      : t(lang, "fail.music-too-short");
+  }
   if (reason === "no-video") return t(lang, "fail.no-video");
+  if (reason === "one-video") return t(lang, "fail.one-video");
   return t(lang, "noPlan");
 }
 

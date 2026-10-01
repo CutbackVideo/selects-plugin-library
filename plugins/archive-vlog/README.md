@@ -31,11 +31,14 @@ The video follows a fixed template, counted in beats of the music:
   frame of its beat moves onto a clearly strong hit within a tenth of a beat
   (at most 70 ms); every other cut stays on the grid.
 - The opening animation follows the reference's timing (black for 0.22 s, the
-  band fully open at 2.30 s, kicker and tagline at 2.40 s, the title decoding
-  from 2.90 s, one letter every 0.11 s), scaled down when the opening shot is
+  band fully open at 2.35 s, kicker and tagline at 2.40 s, the title decoding
+  from 2.90 s, one letter every 0.115 s), scaled down when the opening shot is
   shorter than the reference's 5.6 s.
 - The opening, credit and final shots are always video clips. Photos fill
   about a third of the montage, never more than two in a row.
+- So a build needs at least two video clips, one of them long enough for the
+  opening shot; photos alone cannot make one. When the clips fall short, the
+  panel says what is missing (for example how long the opening clip must be).
 - The opening shot prefers a moving moment (people walking, traffic, a moving
   camera) when the footage has one.
 - Every video clip after the opening gets a gentle **Shot motion** (a slow

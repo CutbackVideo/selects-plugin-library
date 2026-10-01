@@ -388,6 +388,12 @@ const SEOUL_TRIP = ko(0xC11C, 0xC6B8, 0x20, 0xC5EC, 0xD589), SEOUL = ko(0xC11C, 
   assert.equal(Y.avCreditLayout({ prefix: '', name: '', fonts }, W, H), null);
   const long = plain(Y.avCreditLayout({ name: 'A VERY LONG NAME THAT KEEPS GOING AND GOING ON AND ON AND ON', size: 200, fonts }, W, H));
   assert.ok(long.w <= 0.8 * W + 1e-6, 'credit fits');
+  // Prefix and name are each cut to 24 width units (a wide character counts 2), like the panel's fields.
+  assert.equal(long.text, 'ARCHIVED BY A VERY LONG NAME THAT KE');
+  assert.equal(plain(Y.avCreditLayout({ prefix: 'X'.repeat(30), name: 'kim', fonts }, W, H)).text, 'X'.repeat(24) + ' KIM');
+  const wide = String.fromCharCode(0xc11c).repeat(13);
+  assert.equal(plain(Y.avCreditLayout({ prefix: '', name: 'A' + wide, fonts }, W, H)).text, 'A' + wide.slice(0, 11));
+  assert.equal(plain(Y.avCreditLayout({ prefix: '', name: 'ABCDEFGHIJKLMNOPQRSTUVW  Z', fonts }, W, H)).text, 'ABCDEFGHIJKLMNOPQRSTUVW');
   const big = plain(Y.avCreditLayout({ size: 150, color: '#FCE070', fonts }, W, H));
   near(big.size, c.size * 1.5, 1e-6, 'credit size'); assert.equal(big.color, '#FCE070');
 }

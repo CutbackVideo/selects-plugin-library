@@ -121,7 +121,7 @@ says('build', 'Build'); says('anotherVersion', 'Try other shots'); says('finishT
 says('style', 'Style'); says('creditShot', 'Credit shot'); says('creditName', 'Name on the credit'); says('cinematicLook', 'Cinematic look');
 says('pace', 'Pace'); says('pace.cinematic', 'Cinematic'); says('pace.quick', 'Quick'); says('replayDecode', 'Replay');
 says('fitPartial', 'montage shots fit this track'); says('fitFull', 'montage shots'); says('footageFits', 'Your footage fits');
-says('hostTooOld', 'needs a newer version of Selects'); says('fail.no-video', 'at least one video clip');
+says('hostTooOld', 'needs a newer version of Selects'); says('fail.no-video', 'at least 2 video clips'); says('fail.one-video', 'one for the opening and one for the credit shot');
 says('typeTitle', 'Type a title'); says('creditSample', 'sample text'); says('creditCleared', 'without a credit'); says('fastTempo', 'Above 110 bpm');
 says('ownMusicHint', 'first {count} minutes');
 says('progress', 'Step {step}/{total}'); says('montageBeats', 'Montage shots hold');
@@ -132,7 +132,7 @@ family('param', { motion: 'Motion', look: 'Look strength', speed: 'Decode speed'
 for (const p of presets.presets) assert.equal(en['preset.' + p.id], p.label, 'preset.' + p.id);
 assert.ok(ui.includes('{tOr(L, "preset." + p.id, p.label)}') && ui.includes('i18n-used: preset.*'), 'preset labels by id');
 // A quoted UI name inside a sentence equals that control's label.
-assert.ok(en.turnOnPhotos.includes(en.usePhotos) && en.finishFailed.includes(en.finishTitle), 'quoted UI names');
+assert.ok(en.finishFailed.includes(en.finishTitle), 'quoted UI names');
 // No literal English UI text in JSX.
 assert.ok(!/>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*</.test(ui), 'no literal English text between JSX tags');
 assert.ok(!/(?:label|title|aria-label|busyLabel)="[A-Z]/.test(ui), 'no literal English UI props');
@@ -145,7 +145,7 @@ for (const k of ['fitPartial', 'footageFits', 'shortened', 'clipsSelected', 'pho
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, isFinite };
 vm.createContext(box);
 vm.runInContext(planner + '\n' + hookBlock + '\n' + buildBlock + `
-this.P = { avPlanBuild, avMontageShots, avOpeningTiming, avSchedule, avMusicOffset, avPhotoMotions, avMotionBonus, avVideoMotions, avAssembleConfig, avDecorateConfig,
+this.P = { AV_MIN_MONTAGE, avPlanBuild, avMontageShots, avOpeningTiming, avSchedule, avMusicOffset, avPhotoMotions, avMotionBonus, avVideoMotions, avAssembleConfig, avDecorateConfig,
   avOpeningSeconds, avPreset, avPresetFonts, avLookStrength, AV_ROLES, AV_PHOTO_MOTIONS, AV_BUILD_STEPS,
   K: { AV_QUERIES, SEARCH_BATCH, AMBIENT_DB, DEFAULT_CUE, DEFAULT_PRESET, DEFAULT_LENGTH, DEFAULT_PACE, DEFAULT_CLIP_SOUND, LOOK_STRENGTH, MOTION_STRENGTH,
     VIDEO_MOTION_STRENGTH, FADE_SECONDS, MUSIC_FADE_OUT, TITLE_LOOK, CREDIT_LOOK, TITLE_FONT_OPTIONS, MOTION_OPTIONS, AV_ADJUST_LABELS, AV_FAIL, AV_W, AV_H, CREDIT_FAMILY } };`, box);
@@ -182,16 +182,36 @@ for (const [k, v] of Object.entries(K.AV_ADJUST_LABELS)) assert.equal(en['param.
 assert.ok(ui.includes('labels: adjustLabelsFor(L), motionOptions: motionOptionsFor(L),'), 'Inspector labels frozen at Build in the UI language');
 assert.ok(ui.includes('return Object.fromEntries(Object.keys(AV_ADJUST_LABELS).map((k) => [k, t(lang, "param." + k)]));'), 'adjustLabels from STRINGS');
 assert.equal(j(P.AV_BUILD_STEPS).length, 5, 'Step n/5');
-for (const r of ['one-resource', 'too-few', 'music-too-short', 'no-video']) {
+// Every planner failure reason (avPlanBuild) has an English AV_FAIL line and a sentence in the UI language with the
+// failure's numbers; photos never stand in for the video-only bookends, so there is no "one-resource" any more.
+assert.ok(!('one-resource' in K.AV_FAIL) && !('fail.one-resource' in en), 'no one-resource failure');
+for (const r of ['no-video', 'one-video']) {
   assert.ok(K.AV_FAIL[r], 'AV_FAIL ' + r);
   assert.ok(ui.includes('if (reason === "' + r + '") return t(lang, "fail.' + r + '");'), 'fail.' + r + ' in the UI language');
 }
-// The planner's length failures name the seconds the shot needs (fix lane M6/M7; numbers from the plan).
-for (const r of ['opening-too-short', 'ending-too-short']) {
-  assert.ok(K.AV_FAIL[r] && ui.includes('if (reason === "' + r + '") return t(lang, "fail.' + r + '", { seconds });'), 'fail.' + r);
-  assert.ok(en['fail.' + r].includes('{seconds} s'), 'fail.' + r + ' says the seconds');
+for (const r of ['too-few', 'music-too-short', 'opening-too-short', 'ending-too-short']) assert.ok(K.AV_FAIL[r], 'AV_FAIL ' + r);
+const failText = new Function('t', 'AV_MIN_MONTAGE', ui.slice(ui.indexOf('function failText('), ui.indexOf('\n}\n', ui.indexOf('function failText(')) + 3)
+  .replace(/: Lang|: string|: any(?= = \{\})|: any/g, '') + ';return failText;')((l, k, v) => k + ' ' + JSON.stringify(v || {}), P.AV_MIN_MONTAGE);
+// Lengths the clips or music must reach round up, lengths they have round down.
+assert.equal(failText('en', 'opening-too-short', { neededSeconds: 5.1534, shotSeconds: 5.0034, longestSeconds: 4.99 }), 'fail.opening-too-short {"needed":5.2,"longest":4.9}');
+assert.equal(failText('en', 'ending-too-short', { neededSeconds: 3.5, shotSeconds: 3.35, longestSeconds: 3.46 }), 'fail.ending-too-short {"needed":3.5,"longest":3.4}');
+assert.equal(failText('en', 'music-too-short', { neededSeconds: 20.04, availableSeconds: 12.36 }), 'fail.music-too-short-seconds {"needed":20.1,"available":12.3}');
+assert.equal(failText('en', 'music-too-short', {}), 'fail.music-too-short {}');
+assert.equal(failText('en', 'too-few', { usableShots: 2, usableSlots: 5 }), 'fail.too-few {"filled":5,"total":7}');
+assert.equal(failText('en', 'one-video', {}), 'fail.one-video {}');
+assert.equal(failText('en', 'what', {}), 'noPlan {}');
+for (const [k, vars] of [['fail.opening-too-short', ['needed', 'longest']], ['fail.ending-too-short', ['needed', 'longest']],
+  ['fail.music-too-short-seconds', ['needed', 'available']], ['fail.too-few', ['filled', 'total']]]) {
+  for (const v of vars) assert.ok(en[k].includes('{' + v + '}'), k + ' says {' + v + '}');
 }
 assert.ok(ui.includes('failText(l, plan.reason, plan)') && ui.includes('failText(bl, plan.reason, plan)'), 'failures get the plan');
+// The planner's notes are always [] (no photo-only plans): no note path for them.
+assert.ok(!ui.includes('noVideo') && !('noVideoNote' in en) && !('photosOnly' in en), 'no photo-only note');
+// "N of M" compares the plan with the montage the music fits (plan.musicShots).
+assert.ok(ui.includes('readyPlan.shots < readyPlan.musicShots') && ui.includes('plan.shots < plan.musicShots'), 'footage fit vs plan.musicShots');
+// The preview says when a long title decodes faster to hold before the cut, and the replay times it the same way.
+assert.ok(ui.includes('AV_TITLE.avTiming(previewData, previewLayout.steps || 0, 30).fit') && ui.includes('t(L, "decodeFitted")'), 'decode fit hint');
+assert.ok(ui.includes('AV_TITLE.avTiming(previewData, previewLayout.steps || 0, fps)'), 'replay uses the fitted timing');
 
 // A plan from the dev fixtures (videos and photos), and the configs built from it.
 const inv = JSON.parse(read('dev/fixtures/daily-inventory.json')), found = JSON.parse(read('dev/fixtures/daily-search.json'));
@@ -479,7 +499,7 @@ assert.ok(ui.includes('t(L, "ready", { summary: [clipCount, ...avAnalysisNotes(L
 // Length: "N of M shots fit" from the planner, durations from avVideoSeconds.
 for (const s of ['const requested = avMontageShots(length, pace);', 'avFitShots({ requested, pace, bpm: tm.tempo, sectionStart: timed ? grid.firstBeat : 0, usableEnd: grid.usableEnd })',
   'const seconds = (n: number) => avVideoSeconds({ bpm: tm.tempo, pace, montageShots: n });', 't(L, "fitPartial", { length: lengthName, fitted, count: fit.top, seconds: tenths(videoSeconds) })',
-  'readyPlan.shots < fitted', 'const shortened = plan.shots < fitted ?']) assert.ok(ui.includes(s), s);
+  'readyPlan.shots < readyPlan.musicShots', 'const shortened = plan.shots < plan.musicShots ?']) assert.ok(ui.includes(s), s);
 // Music: four bundled cues, own music, no music; the default section is the cue's soft intro (avIntroSection).
 assert.deepEqual(manifest.cues.map(c => c.id).sort(), ['before-everything', 'fractured', 'peaceful-drift', 'theta-frequency']);
 for (const c of manifest.cues) assert.ok(c.introStart >= 0 && c.group === 'reference', c.id);

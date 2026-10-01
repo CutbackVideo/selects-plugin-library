@@ -1,6 +1,6 @@
 // Archive Vlog letterbox reveal (spec §4): the opening shot starts black, then a centred horizontal band of the
 // picture opens linearly until the whole frame shows. A mask, not a zoom: the picture inside the band is never scaled.
-// data: revealStart (seconds from the clip start, default 0.22), revealEnd (seconds, default 2.30), revealSeconds
+// data: revealStart (seconds from the clip start, default 0.22), revealEnd (seconds, default 2.35), revealSeconds
 // (optional; when it is a number the band is fully open at revealStart + revealSeconds, so Adjust can edit one
 // duration), enabled (default true; false shows the clip untouched).
 // useCurrentFrame() is 0 at the clip's first timeline frame (measured live) and fps is the sequence fps, so the times
@@ -11,7 +11,7 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
 // av-box:start
 const AV_BOX_START = 0.22;   // reference: black until 0.22 s
-const AV_BOX_END = 2.3;      // reference: full height at 2.30 s
+const AV_BOX_END = 2.35;     // reference: full height at 2.35 s
 
 function avBoxNum(x, fallback) {
   const n = typeof x === "number" ? x : Number(x);
