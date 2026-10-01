@@ -17,6 +17,12 @@
     "reference-manifest.json",
     "fixed-bgm.mp3"
   ],
+  "preview": {
+    "video": "preview.mp4",
+    "poster": "poster.webp",
+    "width": 540,
+    "height": 960
+  },
   "compatibility": {
     "platforms": [
       "macOS arm64"
