@@ -19,6 +19,8 @@ assert.deepEqual(byId.cinematic.credit, { prefix: 'ARCHIVED BY', name: 'YOURNAME
 assert.deepEqual(byId['a-day-out'].credit, { prefix: 'LOCATION |', name: 'YOURNAME' });
 assert.deepEqual(byId['golden-hour'].credit, { prefix: 'ARCHIVED BY', name: 'YOURNAME' });
 assert.deepEqual(p.presets.map(x => x.look.strength), [0.3, 0.3, 0.45]);
+// Golden Hour's grade is warmer (cinematic-look.tsx warmth); the others keep warmth 1 (unset).
+assert.deepEqual(p.presets.map(x => x.look.warmth), [undefined, undefined, 1.4]);
 for (const preset of p.presets) {
   assert.ok(preset.label && preset.fields.every(f => f.label && f.max > 0 && f.initial.length <= f.max), preset.id + ' labels and max');
   assert.ok(preset.taglineTracking > 0 && preset.taglineSize > 0, preset.id + ' tagline style');

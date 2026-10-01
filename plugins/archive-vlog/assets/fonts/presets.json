@@ -169,7 +169,8 @@
         "name": "YOURNAME"
       },
       "look": {
-        "strength": 0.45
+        "strength": 0.45,
+        "warmth": 1.4
       },
       "fonts": [
         {
