@@ -3512,65 +3512,65 @@ function analyze(samples, sampleRate, opts) {
 }
 
 // av-host:start
-// Host I/O for a style-app panel, self-contained (no app names, no UI text), so it can move to a shared kit file:
-// guarded access to the host's renderer services (window.parent.__DI__, documented as internal, so every member is
-// checked before use), the platform, path joins, file reads and removal, the install and data folders, and the host's
-// bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell, nothing for the user to install). Paths are
-// built with FileSystem.join and never pass through a console; generated file names are ASCII. The one shell call is
-// the SELECTS_USER_SKILLS_ROOT fallback in hostSkillsRoot (cmd.exe on Windows, the login shell on macOS). Errors carry
-// `code`: 'host-missing' (with `member`, a service method this Selects build lacks: the caller shows one "needs a newer
-// Selects" message) or 'not-found' (no install folder).
-function hostError(code: string, message: string, member?: string) { const e: any = new Error(message); e.code = code; if (member) e.member = member; return e; }
-function hostDI(): any { try { return (window.parent as any)?.__DI__ || null; } catch { return null; } }
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. The one shell call is the SELECTS_USER_SKILLS_ROOT fallback in hostSkillsRoot (cmd.exe on
+// Windows, the login shell on macOS). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member) { const e = new Error(message); e.code = code; if (member) e.member = member; return e; }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
-function hostApi(name: string, ...methods: string[]): any {
+function hostApi(name, ...methods) {
   const s = hostDI()?.[name];
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
-function hostNeed(name: string, method: string): any {
+function hostNeed(name, method) {
   const s = hostApi(name, method);
   if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
   return s;
 }
 // Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows(): boolean {
+function hostIsWindows() {
   try {
     const rt = hostApi("Runtime", "getPlatform");
     const p = rt ? String(rt.getPlatform() || "") : "";
     if (p) return /^win/i.test(p);
   } catch { /* the browser decides */ }
   try {
-    const n: any = navigator;
+    const n = navigator;
     return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
   } catch { return false; }
 }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
-function hostJoin(...parts: string[]): string {
+function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
   if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
   const sep = hostIsWindows() ? "\\" : "/";
   return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
 }
 // A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool).
-function hostBytes(v: any): Uint8Array {
+function hostBytes(v) {
   if (v instanceof ArrayBuffer) return new Uint8Array(v);
   if (v && v.buffer instanceof ArrayBuffer) return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
   throw hostError("read-failed", "the file could not be read");
 }
 // A file's bytes (FileSystem.readFile without an encoding).
-async function hostReadBytes(path: string): Promise<Uint8Array> {
-  const v: any = await hostNeed("FileSystem", "readFile").readFile(path);
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
   if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
   return hostBytes(v);
 }
 // A text file (some host builds return text directly, others bytes).
-async function hostReadText(path: string): Promise<string> {
-  const v: any = await hostNeed("FileSystem", "readFile").readFile(path);
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
 // Removes a file; a failure only leaves it behind.
-async function hostRemove(path: string) {
+async function hostRemove(path) {
   try {
     const fs = hostDI()?.FileSystem;
     if (typeof fs?.removeFile === "function") await fs.removeFile({ filePath: path });
@@ -3580,12 +3580,12 @@ async function hostRemove(path: string) {
 // The skills folder named by SELECTS_USER_SKILLS_ROOT, through the host shell, or null. Windows runs cmd.exe, where
 // `echo(` prints an empty line for an unset variable (a plain `echo` would print "ECHO is on."); macOS runs the login
 // shell. Only the variable's value comes back; no path goes in.
-async function hostSkillsRoot(sdk: any): Promise<string | null> {
+async function hostSkillsRoot(sdk) {
   if (typeof sdk?.runShell !== "function") return null;
   const command = hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%" : 'echo "$SELECTS_USER_SKILLS_ROOT"';
   try {
     const r = await sdk.runShell({ summary: "Locate the plugin folder", command, timeoutMs: 10000 });
-    const out = String(r?.stdout || "").split(/\r?\n/).map((x: string) => x.trim()).find(Boolean) || "";
+    const out = String(r?.stdout || "").split(/\r?\n/).map((x) => x.trim()).find(Boolean) || "";
     return !out || /[%$]/.test(out) || /^ECHO is/i.test(out) ? null : out;
   } catch { return null; }
 }
@@ -3593,10 +3593,10 @@ async function hostSkillsRoot(sdk: any): Promise<string | null> {
 // (<home>/.selects/skills/<id>) when it holds `marker` (a file every install has); only when it does not does
 // SELECTS_USER_SKILLS_ROOT decide. The data folder (<home>/.selects/plugin-data/<id>) is created when missing; null
 // when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
-async function hostRoots(sdk: any, id: string, marker: string): Promise<{ plugin: string; data: string | null }> {
+async function hostRoots(sdk, id, marker) {
   const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir: string | null) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin: string | null = null;
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
   try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
   if (!plugin) {
     const root = await hostSkillsRoot(sdk);
@@ -3604,7 +3604,7 @@ async function hostRoots(sdk: any, id: string, marker: string): Promise<{ plugin
     if (holds(dir)) plugin = dir;
   }
   if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data: string | null = null;
+  let data = null;
   try {
     const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
     if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
@@ -3614,14 +3614,14 @@ async function hostRoots(sdk: any, id: string, marker: string): Promise<{ plugin
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
 // temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
 // throws when ffmpeg fails.
-async function hostDecodePcm(path: string, dataDir: string | null, rate: number, maxSeconds: number, timeoutMs = 120000): Promise<Float32Array | null> {
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, timeoutMs = 120000) {
   const rt = hostApi("Runtime", "runFFmpeg");
   if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
   const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
   const controller = typeof AbortController === "undefined" ? null : new AbortController();
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
-    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller?.signal);
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
     const bytes = await hostReadBytes(tmp);
     // A copy, so the samples sit on a 4-byte boundary.
     const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
@@ -3630,7 +3630,7 @@ async function hostDecodePcm(path: string, dataDir: string | null, rate: number,
   } finally { if (timer) clearTimeout(timer); await hostRemove(tmp); }
 }
 // An audio or video file's length in seconds from the host's ffprobe, or null.
-async function hostProbeSeconds(path: string): Promise<number | null> {
+async function hostProbeSeconds(path) {
   try {
     const rt = hostApi("Runtime", "runFFprobe");
     if (!rt) return null;
@@ -3992,6 +3992,8 @@ const PREVIEW_VIEW = [0.08 * AV_W, 0.26 * AV_H, 0.84 * AV_W, 0.44 * AV_H].join("
 const CREDIT_HEIGHT = 30;
 const CREDIT_VIEW = [0.08 * AV_W, 0.44 * AV_H, 0.84 * AV_W, 0.12 * AV_H].join(" ");
 const PREVIEW_BG = "linear-gradient(135deg, #2f3236, #15171a)";
+// The type sample on a Style tile (letters, not words: never translated).
+const TILE_SAMPLE = "Aa";
 
 // The decode lockup as the Draft draws it at `state` (avDecodeFrame), in canvas pixels.
 function LockupSvg({ layout, state, shadow }: { layout: any; state: any; shadow: number }) {
@@ -4109,7 +4111,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     }
     return fontCache.current[file];
   };
-  // Every bundled font as { file: base64 } (the title embeds all four, the credit one).
+  // Every bundled font as file name -> WOFF2 data (the title embeds all four, the credit one).
   const allFonts = async (plugin: string, presets: any) => Object.fromEntries(await Promise.all(fontFiles(presets).map(async (f) => [f, await fontB64(plugin, f)])));
   // Registers a bundled font in this panel's document for the preset tiles and the live preview.
   async function registerFace(plugin: string, s: any) {
@@ -4778,7 +4780,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
                   border: on ? "2px solid var(--panel-fg, #ffffff)" : "1px solid var(--panel-border, rgba(128, 128, 128, 0.45))", opacity: busy ? 0.6 : 1 }}>
                 <span aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", maxWidth: 72, height: 26, borderRadius: 4,
                   background: PREVIEW_BG, color: p.colors.title, fontFamily: AV_TITLE.avFontStack(face.family), fontWeight: face.weight, fontSize: 16, letterSpacing: 0.5,
-                  lineHeight: 1 }}>Aa</span>
+                  lineHeight: 1 }}>{TILE_SAMPLE}</span>
                 <span style={{ fontSize: 12, lineHeight: 1.2, textAlign: "center", overflowWrap: "anywhere", wordBreak: "keep-all", display: "-webkit-box",
                   WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as any}>{tOr(L, "preset." + p.id, p.label)}</span>
               </button>
