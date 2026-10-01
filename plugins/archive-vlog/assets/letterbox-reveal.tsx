@@ -49,11 +49,11 @@ export default function LetterboxReveal({ Source, children, data }) {
   const clip = Source ? <Source /> : children;
   const times = avBoxTimes(data);
   const band = times.enabled ? avBoxBand(frame / (fps > 0 ? fps : 30), times.start, times.end) : 1;
-  if (band >= 1) return <AbsoluteFill>{clip}</AbsoluteFill>;
-  // The clip keeps playing under the mask, so the reveal shows it already in motion.
+  // One tree shape for the whole clip (only the style changes), so the Source is never remounted when the band
+  // finishes opening. The clip keeps playing under the mask, so the reveal shows it already in motion.
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
-      <AbsoluteFill style={{ clipPath: avBoxInset(band) }}>{clip}</AbsoluteFill>
+      <AbsoluteFill style={{ clipPath: band < 1 ? avBoxInset(band) : undefined }}>{clip}</AbsoluteFill>
     </AbsoluteFill>
   );
 }

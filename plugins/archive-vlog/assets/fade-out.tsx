@@ -35,7 +35,7 @@ export default function FadeOut({ Source, children, data }) {
   const { fps } = useVideoConfig();
   const clip = Source ? <Source /> : children;
   const alpha = avFadeAlpha(frame, data?.durationFrames, avFadeSeconds(data) * (fps > 0 ? fps : 30));
-  if (alpha <= 0) return <AbsoluteFill>{clip}</AbsoluteFill>;
+  // One tree shape for the whole clip (only the overlay's opacity changes), so the Source is never remounted.
   return (
     <AbsoluteFill>
       {clip}
