@@ -83,13 +83,14 @@ function timbreBlocks(x){  // spectral centroid and flatness per 2048-sample blo
  for(let i=0;i+n<=x.length;i+=n){const m=spectrum(x,i,n,w,re,im);let s=0,sf=0,lg=0;for(let k=0;k<m.length;k++){const v=m[k]+1e-9;s+=v;sf+=v*k*SR/n;lg+=Math.log(v);}out.push([sf/s,Math.exp(lg/m.length)/(s/m.length)]);}
  return out;
 }
-function pickHits(h,a,c,n){
+// n hits in [a,c). Hits within 2 frames of a stronger one are dropped first (one drum stroke can peak twice).
+// inOrder keeps the earliest n, so montage 1 rides the roll steadily and only its last shots stretch, like the
+// reference; otherwise the strongest n are kept.
+function pickHits(h,a,c,n,inOrder=false){
  const idx=[];for(let i=0;i<h.t.length;i++)if(h.t[i]>=a&&h.t[i]<c)idx.push(i);
- // Strongest first, skipping any within 2 frames of a kept hit (one drum stroke can peak twice), so a double
- // detection never pushes a real hit out of the n slots.
- const out=[];
- for(const i of idx.sort((i,j)=>h.p[j]-h.p[i]))if(out.length<n&&out.every(t=>Math.abs(h.t[i]-t)>=2/30))out.push(h.t[i]);
- return out.sort((u,v)=>u-v);
+ const kept=[];
+ for(const i of idx.sort((i,j)=>h.p[j]-h.p[i]))if(kept.every(t=>Math.abs(h.t[i]-t)>=2/30))kept.push(h.t[i]);
+ return (inOrder?kept.sort((u,v)=>u-v).slice(0,n):kept.slice(0,n)).sort((u,v)=>u-v);
 }
 
 // --- window choice -----------------------------------------------------------------------------------
@@ -108,7 +109,7 @@ export function analyseSamples(x){
  for(let n=0;n<beats.length;n++){
   const D=beats[n],T=fr=>D+K*b(fr)*P,start=T(12)-P/2,end=T(468);
   if(T(12)<0.1||end>dur-0.2)continue;
-  const m1=pickHits(h,start,T(55)-P/8,11);if(!m1.length)continue;
+  const first=pickHits(h,start,T(55)-P/8,11)[0],m1=first===undefined?[]:pickHits(h,first,T(55)-P/8,11,true);   // opens where the strongest hits beginif(!m1.length)continue;
   const m2=pickHits(h,T(364)-P/4,T(424)-P/8,11),g1=pickHits(h,T(147),T(182)-P/8,4),g2=pickHits(h,T(227),T(263)-P/8,4);
   const cuts=Math.min(11,m1.length)+Math.min(11,m2.length)+Math.min(4,g1.length)+Math.min(4,g2.length);
   const roll=Math.max(0,...R.filter(r=>Math.abs(r.start-T(12))<=P/2).map(r=>r.count));
