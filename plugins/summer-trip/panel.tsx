@@ -3744,7 +3744,8 @@ export default function Panel({ sdk, context, ui }: any) {
   const photoSizesRef = React.useRef<Record<string, { width: number; height: number }>>({});
   const invLoadingRef = React.useRef<string | null>(null);
   const mountedRef = React.useRef(true);
-  const [invError, setInvError] = React.useState<string | null>(null);
+  // The error of the last inventory read (rendered with sayError, so a translatable one follows the UI language).
+  const [invError, setInvError] = React.useState<any>(null);
   const [invLoading, setInvLoading] = React.useState(false);
 
   // Reads the Project's footage inventory. Never writes state for a stale Project, and never runs during a build.
@@ -3765,7 +3766,7 @@ export default function Panel({ sdk, context, ui }: any) {
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
       setInventory(inv); setInvError(null);
     } catch (e: any) {
-      if (live()) setInvError(String(e?.message || e));
+      if (live()) setInvError(e || new Error("unknown error"));
     } finally {
       if (invLoadingRef.current === pid) invLoadingRef.current = null;
       if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
@@ -4264,7 +4265,7 @@ export default function Panel({ sdk, context, ui }: any) {
     allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
     usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
   ].filter(Boolean).join(" · ");
-  const readiness = !inventory ? (invError ? t(L, "readFailed", { detail: invError }) : t(L, "checkingClipsNow"))
+  const readiness = !inventory ? (invError ? t(L, "readFailed", { detail: sayError(L, invError) }) : t(L, "checkingClipsNow"))
     : inventory.resources.length === 0 && !allPhotoRids.length ? (pending > 0
       ? t(L, "stillAnalysing", { count: pending }) + t(L, "gap") + t(L, "autoUpdate")
       : t(L, "noFootage"))
@@ -4304,7 +4305,7 @@ export default function Panel({ sdk, context, ui }: any) {
         <ui.Button variant="ghost" busy={invLoading} busyLabel={t(L, "refreshing")} disabled={busy || !assets} onClick={() => loadInventory()}>{t(L, "refresh")}</ui.Button>
       </ui.Row>
       {fitLine ? <ui.Message tone="muted">{fitLine}</ui.Message> : null}
-      {inventory && invError ? <ui.Message tone="error">{t(L, "refreshFailed", { detail: invError })}</ui.Message> : null}
+      {inventory && invError ? <ui.Message tone="error">{t(L, "refreshFailed", { detail: sayError(L, invError) })}</ui.Message> : null}
       <ui.Section title={t(L, "title")}>
         <ui.TextField label={t(L, "line1")} value={line1} onChange={(v: string) => setLine1(stLimitText(v, ST_LIMITS.line1.chars, ST_LIMITS.line1.words))} disabled={busy} />
         {stAtLimit(line1, ST_LIMITS.line1.chars, ST_LIMITS.line1.words) ? <small style={{ color: "var(--panel-muted-fg)", wordBreak: "keep-all" }}>{limitHint(t(L, "line1Limit", { chars: ST_LIMITS.line1.chars, words: ST_LIMITS.line1.words }), line1)}</small> : null}

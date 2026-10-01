@@ -141,6 +141,27 @@ assert.ok(/It has no title or look yet/.test(en.draftUnconfirmed), 'an unrecover
 // Real-fps planning: plans use the Project's learnt Draft rate, assemble lays at the real rate, decorate uses assemble's frames.
 assert.ok(buildBody.includes('const planFps = fpsRef.current[pid!] || ST_GUESS_FPS;') && buildBody.includes('if (a.fps > 0) fpsRef.current[pid!] = a.fps;'));
 
+// English Adjust labels from two sources must agree: the JS defaults (headless driver: ST_TITLE_EDITABLE /
+// ST_LABELS_EDITABLE, decorate.js lab() defaults, ST_MOTION_OPTIONS) and STRINGS.en through inspectorLabels() (panel).
+{
+  const labelKey = { line1: 'line1', season: 'param.seasonWord', topMain: 'topLabel', topItalic: 'topItalic', creditPrefix: 'creditPrefix', creditName: 'param.creditName',
+    placePrefix: 'placePrefix', place: 'param.place' };
+  const G = {}; vm.createContext(G); vm.runInContext(read('graphics-defs.js') + ';globalThis.D={ST_TITLE_EDITABLE,ST_LABELS_EDITABLE};', G);
+  for (const d of [...G.D.ST_TITLE_EDITABLE, ...G.D.ST_LABELS_EDITABLE]) {
+    const k = labelKey[d.key] || 'param.' + d.key;
+    assert.equal(en[k], d.label, 'STRINGS.en.' + k + ' = ' + d.key + ' default');
+    assert.ok(code.includes(d.key + ': t(lang, "' + k + '")'), 'inspectorLabels sends ' + d.key);
+  }
+  const deco = read('scripts/decorate.js');
+  for (const [k, sk] of [['look', 'summerLook'], ['grain', 'param.grain'], ['leak', 'param.leak'], ['motion', 'param.motion'], ['motionStrength', 'param.motionStrength'], ['videoMotion', 'param.videoMotion']]) {
+    assert.ok(deco.includes("lab('" + k + "', '" + en[sk] + "')"), 'decorate.js default for ' + k + ' = STRINGS.en.' + sk);
+    assert.ok(code.includes(k + ': t(lang, "' + sk + '")'), 'inspectorLabels sends ' + k);
+  }
+  const mo = [...code.matchAll(/\{ label: '([^']+)', value: '([^']+)' \}/g)];
+  assert.equal(mo.length, 8);
+  for (const [, label, value] of mo) assert.equal(en['motion.' + value], label, 'motion.' + value);
+}
+
 // ---- The pure helpers and configs (planner + graphics + muffle + panel blocks in node:vm) ----
 const block = [between(panel, '// st-planner:start', '// st-planner:end'), between(panel, '// st-graphics:start', '// st-graphics:end'),
   between(panel, '// st-muffle:start', '// st-muffle:end'), between(panel, '// st-panel:start', '// st-panel:end')].join('\n');
@@ -463,6 +484,8 @@ const payloads = {};
     const inputs2 = { ...inputs, lookOn: false, creditPrefix: 'Shot by', placePrefix: 'at', labels };
     const dcfg2 = X.stDecorateConfig({ a: ra, plan, inputs: inputs2, presets, fontsB64, tsx });
     assert.ok(!('adjustLabels' in dcfg) && dcfg.labels.tsx === tsx.labels, 'no labels: English config');
+    assert.deepEqual(Object.keys(dcfg2), [...DECORATE_KEYS, 'adjustLabels'], 'the panel config (always labelled) keys, contracts.md order');
+    assert.ok(/\badjustLabels\b/.test(decorateDoc) && /koFamily/.test(contracts), 'contracts.md documents adjustLabels and koFamily');
     assert.deepEqual(j(dcfg.title.editableParameters.map(e => e.label).slice(0, 2)), ['Line 1', 'Season word']);
     assert.deepEqual(j(dcfg2.title.editableParameters.map(e => e.label).slice(0, 2)), ['Zeile 1', 'Season word']);
     assert.equal(dcfg2.labels.editableParameters.find(e => e.key === 'place').label, 'Ort (leer blendet ihn aus)');
