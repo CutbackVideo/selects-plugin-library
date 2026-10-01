@@ -427,7 +427,7 @@ assert.strictEqual(ctx.mvShotSeconds({ bpm: null, beatsPerShot: null, pace: 'qui
   assert.ok(Math.abs(acc.shotSeconds - 60 / 108) < 1e-12); assert.strictEqual(acc.approxBpm, null);
 }
 
-// Progress (CWV labels).
-assert.strictEqual(ctx.mvProgress('shots', 0).label, 'Step 1/5 · Choosing shots · 0%');
+// Progress: ids and numbers only (the panel labels the steps in the UI language).
+assert.strictEqual(JSON.stringify(ctx.mvProgress('shots', 0)), JSON.stringify({ id: 'shots', value: 0, percent: 0, current: 0 }));
 assert.strictEqual(ctx.mvProgress('open', 1).percent, 100);
 console.log('planner ok');

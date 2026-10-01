@@ -24,6 +24,22 @@ assert.ok(hStart > pEnd && hEnd > hStart && hEnd < lStart, 'hook block between t
 assert.equal(panel.split('// mv-hook:start').length, 2, 'one hook block');
 const hookBlock = panel.slice(hStart, hEnd);
 const outside = panel.slice(0, pStart) + ui;
+// UI text lives in the STRINGS block (10 languages, tests/i18n.test.cjs), which sits before the planner, so `ui` is
+// code only. `says` checks the English wording of a key and that the code reads the key with t() / tOr().
+const { extractStrings } = require(path.join(root, 'dev', 'i18n-check.cjs'));
+// Plain objects (the block is evaluated in another vm realm, where deepEqual fails on equal content).
+const en = JSON.parse(JSON.stringify(extractStrings(panel).strings.en));
+const textOf = key => (typeof en[key] === 'string' ? en[key] : Object.values(en[key] || {}).join('\n'));
+const says = (key, text) => {
+  assert.ok(key in en, 'STRINGS.en has ' + key);
+  assert.ok(textOf(key).includes(text), 'STRINGS.en.' + key + ' says "' + text + '": ' + textOf(key));
+  assert.ok(new RegExp('\\bt\\((L|l|lang|bl), "' + key.replace(/[.]/g, '\\.') + '"').test(ui), 't() reads ' + key);
+};
+// A dynamic family (`t(L, "step." + id)`, `tOr(bl, "motion." + o.value, o.label)`) and its English values.
+const family = (prefix, values) => {
+  assert.ok(ui.includes('"' + prefix + '." + '), 'family ' + prefix + ' read dynamically');
+  for (const [k, v] of Object.entries(values)) assert.equal(en[prefix + '.' + k], v, prefix + '.' + k);
+};
 
 // Header: the name, ten localised names (ko in Latin letters), the icon and the plugin id.
 const head = panel.split('\n').slice(0, 16).join('\n');
@@ -71,14 +87,52 @@ assert.deepEqual(presets.presets.map(p => p.id).sort(), ['day-in-my-life', 'mini
 assert.ok(/cues\.some\(\(c: any\) => c\.id === PREFERRED_CUE\)/.test(panel) && panel.includes('(cur === DEFAULT_CUE ? PREFERRED_CUE : cur)'), 'bedroom-pop-108 becomes the default when present');
 
 // UI order (spec section 8).
-const order = ['title="Title"', 'title="Music"', 'title="Length"', 'title="Advanced"', 'Creates a new 16:9 Draft'].map(s => ui.indexOf(s));
+const order = ['title={t(L, "title")}', 'title={t(L, "music")}', 'title={t(L, "length")}', 'title={t(L, "advanced")}', 't(L, "createsDraft")'].map(s => ui.indexOf(s));
 assert.ok(order.every(i => i > 0), 'all sections present');
 assert.deepEqual(order.slice().sort((a, b) => a - b), order, 'Title, Music, Length, Advanced, Build');
-for (const s of ['label="Length"', 'label="Pace"', 'value: "quick"', 'value: "relaxed"', '{ label: "Groove", value: "groove" }', 'label="Beat punch"', 'label="Start at the hook"', 'label="Clip sound"', 'label="Soft look"', 'label="Use photos"', 'Choose clips']) assert.ok(ui.includes(s), s);
+for (const [k, v] of [['title', 'Title'], ['music', 'Music'], ['length', 'Length'], ['advanced', 'Advanced'], ['createsDraft', 'Creates a new 16:9 Draft'], ['pace', 'Pace'], ['beatPunch', 'Beat punch'],
+  ['startAtHook', 'Start at the hook'], ['clipSound', 'Clip sound'], ['softLook', 'Soft look'], ['usePhotos', 'Use photos'], ['chooseClips', 'Choose clips']]) says(k, v);
+for (const s of ['label={t(L, "length")}', 'label={t(L, "pace")}', 'value: "quick"', 'value: "relaxed"', '{ label: t(L, "pace.groove"), value: "groove" }', 'label={t(L, "beatPunch")}', 'label={t(L, "startAtHook")}',
+  'label={t(L, "clipSound")}', 'label={t(L, "softLook")}', 'label={t(L, "usePhotos")}']) assert.ok(ui.includes(s), s);
+for (const [k, v] of [['pace.quick', 'Quick'], ['pace.relaxed', 'Relaxed'], ['pace.groove', 'Groove'], ['length.short', 'Short'], ['length.standard', 'Standard'], ['length.long', 'Long'],
+  ['sound.off', 'Off'], ['sound.ambient', 'Ambient'], ['sound.full', 'Full']]) says(k, v);
+// The UI language: context.language on every render (before the early return), the Build-time language for Inspector
+// labels, the kit runtime pasted unchanged, and no literal UI text left in JSX.
+assert.ok(ui.includes('export default function Panel({ sdk, context, ui }: any) {\n  // The UI language, read on every render: Selects can switch languages while the panel is open.\n  const L = uiLang(context);'), 'L first in the component');
+assert.ok(ui.includes('const langRef = React.useRef(L);\n  langRef.current = L;') && ui.includes('const bl = langRef.current;'), 'Build-time language');
+{
+  const kit = path.resolve(root, '..', '..', '..', 'selects-app-kit', 'tools', 'i18n', 'i18n-runtime.ts');
+  const marker = '// i18n runtime for style-app panels (selects-app-kit tools/i18n/i18n-runtime.ts). Paste it below the STRINGS block.';
+  assert.ok(panel.includes(marker) && panel.indexOf(marker) > panel.indexOf('// STRINGS:END'), 'kit runtime below the STRINGS block');
+  for (const s of ['function uiLang(context?: { language?: string | null } | null): Lang {', 'function t(lang: Lang, key: string, vars: Vars = {}): string {', 'function tOr(lang: Lang, key: string, fallback: string, vars: Vars = {}): string {', 'function fieldLen(text: string): number {']) assert.ok(panel.includes(s), s);
+  if (fs.existsSync(kit)) assert.ok(panel.includes(fs.readFileSync(kit, 'utf8').trimEnd()), 'runtime identical to the kit copy');
+}
+assert.ok(!/>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*</.test(ui), 'no literal English text between JSX tags');
+assert.ok(!/(?:label|title|aria-label|busyLabel)="[A-Z]/.test(ui), 'no literal English UI props');
+// Korean breaks between words; other languages keep their own line breaking (keep-all would stop ja/zh wrapping).
+assert.ok(ui.includes('<div style={{ wordBreak: L === "ko" ? "keep-all" : undefined }}>'), 'keep-all for Korean');
 
 // Title: three preset tiles, per-preset fields with max lengths, @year resolved, live preview from the shared layout code.
-for (const s of ['aria-pressed', 'fieldsBy', '.slice(0, fl.max)', '"@year"', 
-  'mvLockupLayout(', 'mvSparklePath(', 'mvStarPath(', 'height: PREVIEW_HEIGHT', 'fontKerning: "none"', 'fontVariantLigatures: "none"', 'FontFace', 'Preview unavailable']) assert.ok(ui.includes(s), s);
+for (const s of ['aria-pressed', 'fieldsBy', 'fieldClip(String(value), fl.max)', '"@year"',
+  'mvLockupLayout(', 'mvSparklePath(', 'mvStarPath(', 'height: PREVIEW_HEIGHT', 'fontKerning: "none"', 'fontVariantLigatures: "none"', 'FontFace', 't(L, "previewUnavailable")']) assert.ok(ui.includes(s), s);
+says('previewUnavailable', 'Preview unavailable');
+// Preset tiles and field labels by id, the presets.json English label as the fallback; the field counter and the limit
+// count Hangul (and other wide characters) as 2.
+assert.ok(ui.includes('{tOr(L, "preset." + p.id, p.label)}') && ui.includes('tOr(L, "field." + preset + "." + fl.key, fl.label)'), 'preset and field labels by id');
+for (const p of presets.presets) {
+  assert.equal(en['preset.' + p.id], p.label, 'preset.' + p.id);
+  for (const f of p.fields) assert.equal(en['field.' + p.id + '.' + f.key], f.label, 'field.' + p.id + '.' + f.key);
+}
+assert.ok(ui.includes('used: fieldLen(fieldText(preset, fl)), max: fl.max'), 'counter in fieldLen units');
+{
+  const fl = /function fieldLen\(text: string\): number \{[^]*?\n\}/.exec(panel)[0].replace(': number', '').replace('text: string', 'text');
+  const fc = /function fieldClip\(text: string, max: number\) \{[^]*?\n\}/.exec(panel)[0].replace(/: (string|number)/g, '');
+  const re = /const WIDE_RE = [^\n]*;/.exec(panel)[0];
+  const F = new Function(re + '\n' + fl + '\n' + fc + '\nreturn { fieldLen, fieldClip };')();
+  const ga = '\uac00', na = '\ub098';
+  assert.equal(F.fieldLen('mini'), 4); assert.equal(F.fieldLen(ga + na), 4); assert.equal(F.fieldLen('a' + ga), 3);
+  assert.equal(F.fieldClip('glimpse of today', 12), 'glimpse of t'); assert.equal(F.fieldClip(ga.repeat(7), 12), ga.repeat(6)); assert.equal(F.fieldClip('ab' + ga + na, 5), 'ab' + ga);
+}
 // @year is the current year when the field shows (an edit in fieldsBy wins); recording dates never drive it.
 assert.ok(ui.includes('function mvCurrentYear() { return String(new Date().getFullYear()); }'), 'mvCurrentYear');
 assert.ok(ui.includes('const v = fieldsBy[presetId]?.[fl.key] ?? fl.initial ?? "";\n    return v === "@year" ? mvCurrentYear() : v;'), '@year -> mvCurrentYear() after the user edit');
@@ -100,12 +154,18 @@ assert.ok(items.length >= 3 && items.some(i => i.part === 'small'), 'block runs 
 for (const p of presets.presets) for (const f of p.fields) assert.ok(f.max > 0, p.id + '.' + f.key);
 
 // Music: reference cues first, then alternatives under a small label; own music and No music; section hidden for No music.
-for (const s of ['group !== "alternative"', 'group === "alternative"', '>Alternatives<', '"Your own music"', '"No music"', 'role="radiogroup"', 'musicKind !== "none" ?']) assert.ok(ui.includes(s), s);
+for (const s of ['group !== "alternative"', 'group === "alternative"', '>{t(L, "alternatives")}<', 'trackRow("own", t(L, "ownMusic"), "")', 'trackRow("none", t(L, "noMusic"), "")', 'role="radiogroup"', 'musicKind !== "none" ?']) assert.ok(ui.includes(s), s);
+for (const [k, v] of [['alternatives', 'Alternatives'], ['ownMusic', 'Your own music'], ['noMusic', 'No music'], ['track', 'Track']]) says(k, v);
 
 // Length, pace and capacity (spec 14.1 / 14.2).
-for (const s of ['mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted })', 'mvBeatsPerShot(pace, tempo)', 'mvShotSeconds(', 'mvFitShots(', ' shots fit this track (', 'Quick uses 2 beats', 'Relaxed uses 1 beat', 'approximate timing', '"Tempo outside 70\\u2013160 bpm ("', 'No steady beat']) assert.ok(ui.includes(s), s);
+for (const s of ['mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted })', 'mvBeatsPerShot(pace, tempo)', 'mvShotSeconds(', 'mvFitShots(']) assert.ok(ui.includes(s), s);
+says('fitPartial', ' shots fit this track ('); says('quickTwoBeats', 'Quick uses 2 beats'); says('relaxedOneBeat', 'Relaxed uses 1 beat'); says('noMusicTiming', 'approximate timing');
+says('outsideTempoTiming', 'Tempo outside 70\u2013160 bpm ('); says('noBeatTiming', 'No steady beat');
+// The failure reasons stay English in MV_FAIL (dev/driveAdapter.mjs reads it); the panel says STRINGS fail.<reason>.
 assert.ok(ui.includes('"one-resource": "Add at least 2 clips or photos"') && ui.includes('"too-few": "Your footage fits fewer than 4 shots"')
   && ui.includes('"music-too-short": "This track is too short for 4 shots from this section"'), 'fail reason messages');
+for (const r of ['one-resource', 'too-few', 'music-too-short']) assert.ok(en['fail.' + r].startsWith(/"[^"]+": "([^"]+)"/.exec(ui.slice(ui.indexOf('"' + r + '": "')))[1]), 'fail.' + r + ' matches MV_FAIL');
+assert.ok(ui.includes('MV_FAIL[plan.reason] ? t(l, "fail." + plan.reason) : t(l, "noPlan")'), 'reasons through STRINGS');
 assert.equal((ui.match(/mvPlanBuild\(/g) || []).length, 2, 'the build plan and the readiness plan');
 assert.equal((ui.match(/mvPlanBuild\(\{ candidates: [^;]*, bpm: grid\.bpm, accepted: grid\.accepted, approxBpm: grid\.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid\.usableEnd, \.\.\.snapCuts, seed: String\(/g) || []).length, 2, 'both plans get the same inputs');
 assert.ok(ui.includes('const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };'));
@@ -117,15 +177,18 @@ for (const s of ['const ownApprox = musicKind === "own" && ownGrid && !ownGrid.a
   'const approxTempo = mvApproxTempo({ gridded, approxBpm: grid.approxBpm });', 'const tempo = gridded ? grid.bpm : approxTempo;',
   'mvShotSeconds({ bpm: grid.bpm, beatsPerShot: guard.beats, pace, gridded, approxBpm: approxTempo })',
   'mvSnapSection({ value, firstBeat: grid.firstBeat, bpm: tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: !!tempo })',
-  '"Tempo found (" + Math.round(approxTempo) + " bpm) but the beat is faint: cuts follow a " + Math.round(approxTempo) + " bpm grid approximately (" + timing + ")."',
-  '"Tempo found (" + Math.round(approxTempo) + " bpm) but the beat is faint, so cuts follow a " + Math.round(approxTempo) + " bpm grid approximately."',
-  '"Beat found: " + Math.round(grid.bpm) + " bpm. Cuts follow the beat."', '"No steady beat found, so cuts use approximate timing."',
+  't(L, "faintTempoTiming", { bpm: Math.round(approxTempo), timing })', 't(L, "faintTempo", { bpm: Math.round(approxTempo) })',
+  't(L, "beatFound", { bpm: Math.round(grid.bpm) })', ': t(L, "noBeat");',
   '{ownBeatLine ? <ui.Message tone="muted">{ownBeatLine}</ui.Message> : null}', 'bpm: gridded ? grid.bpm : null, usePhotos']) assert.ok(ui.includes(s), s);
-assert.ok(ui.indexOf('{ownBeatLine ?') > ui.indexOf('<ui.FileDrop accept={["audio"]}') && ui.indexOf('{ownBeatLine ?') < ui.indexOf('<ui.Section title="Length">'), 'the beat line sits under the file drop');
+assert.ok(ui.indexOf('{ownBeatLine ?') > ui.indexOf('<ui.FileDrop accept={["audio"]}') && ui.indexOf('{ownBeatLine ?') < ui.indexOf('<ui.Section title={t(L, "length")}>'), 'the beat line sits under the file drop');
 assert.ok(!ui.includes('its beat could not be found reliably'), 'no detection result in the bottom status line');
 // An approximate tempo outside 70-160 bpm: both the line under the file and the pace note say the tempo is out of range.
+says('faintTempoTiming', 'Tempo found ({bpm} bpm) but the beat is faint: cuts follow a {bpm} bpm grid approximately ({timing}).');
+says('faintTempo', 'Tempo found ({bpm} bpm) but the beat is faint, so cuts follow a {bpm} bpm grid approximately.');
+says('beatFound', 'Beat found: {bpm} bpm. Cuts follow the beat.'); says('noBeat', 'No steady beat found, so cuts use approximate timing.');
 assert.ok(ui.includes('const outsideBpm: number | null = grid.accepted ? grid.bpm : ownApprox ? ownGrid.bpm : null;')
-  && ui.includes(': outsideBpm ? "Tempo outside 70\\u2013160 bpm (" + Math.round(outsideBpm) + " bpm)') && ui.includes(': outsideBpm ? "Its tempo (" + Math.round(outsideBpm) + " bpm) is outside'), 'out-of-range messages agree');
+  && ui.includes(': outsideBpm ? t(L, "outsideTempoTiming", { bpm: Math.round(outsideBpm), timing })') && ui.includes(': outsideBpm ? t(L, "outsideTempo", { bpm: Math.round(outsideBpm) })'), 'out-of-range messages agree');
+says('outsideTempo', 'Its tempo ({bpm} bpm) is outside 70\u2013160 bpm');
 // Use photos off drops the photo candidates before planning.
 assert.ok(ui.includes('if (!usePhotos || !inventory) return [];'), 'photos off -> no photo candidates');
 assert.equal((ui.match(/photoCandsOf\(inventory, onlyPhotos, usePhotos\)/g) || []).length, 2);
@@ -139,7 +202,8 @@ for (const s of ['const grooved = pace === "groove" && (tempo ? !!guard.groove :
   'const fittedSeconds = grooved ? grooveFit.beats * shotSeconds : fitted * shotSeconds;', 'const wantedSeconds = grooved ? grooveFit.requestedBeats * shotSeconds : requested * shotSeconds;',
   'const videoSeconds = fitted ? fittedSeconds : wantedSeconds;', 'const planSeconds = (p: any) => (p.groove ? p.groove.beats * shotSeconds : p.shots * shotSeconds);',
   'const planShort = (p: any) => (grooved ? !!p.groove && p.groove.beats < grooveFit.beats : p.shots < fitted);',
-  '"Groove opens phrases with 1 beat"', '"Groove uses 2 beats per shot"']) assert.ok(ui.includes(s), s);
+  't(L, "grooveOneBeat", { bpm: Math.round(tempo) })', 't(L, "grooveTwoBeats", { bpm: Math.round(tempo) })']) assert.ok(ui.includes(s), s);
+says('grooveOneBeat', 'Groove opens phrases with 1 beat'); says('grooveTwoBeats', 'Groove uses 2 beats per shot');
 assert.ok(!/fitted \* shotSeconds\)\.toFixed|requested \* shotSeconds\)\.toFixed|readyPlan\.shots \* shotSeconds|plannedShots \* shotSeconds/.test(ui), 'no shots x shotSeconds lines left');
 assert.ok(ui.includes('const shortened = planShort(plan) ?') && ui.includes('readyPlan && readyPlan.ok && planShort(readyPlan)'), 'footage shortfall compares Groove beat spans');
 // Start at the hook (spec 15.3): the default section is the hook window when the toggle is on and the cue has scores.
@@ -148,7 +212,9 @@ assert.ok(/const hookAt = hookSection\(\);\s*setSection\(hookAt \?\? mvDefaultSe
 // With the hook on, a new length or pace moves the section to that length's hook window (else it only re-clamps).
 assert.ok(ui.includes('React.useEffect(() => { const hookAt = hookSection(); setSection((s) => hookAt ?? snap(s ?? 0)); }, [length, pace]);'), 'hook re-picked on length / pace');
 // No grid: the pace note states Groove's 0.55 s beat and its shot lengths.
-assert.ok(ui.includes('const timing = grooved ? "Groove on a " + shotSeconds.toFixed(2) + " s beat: " + (2 * shotSeconds).toFixed(2) + ", " + shotSeconds.toFixed(2) + " and " + (shotSeconds / 2).toFixed(3) + " s shots"') && (ui.match(/approximate timing \(" \+ timing \+ "\)\."/g) || []).length === 3, 'no-grid timing note');
+assert.ok(ui.includes('const timing = grooved ? t(L, "grooveTiming", { beat: hundredths(shotSeconds), hold: hundredths(2 * shotSeconds), eighth: Math.round(shotSeconds / 2 * 1000) / 1000 })')
+  && ['noMusicTiming', 'outsideTempoTiming', 'noBeatTiming'].every(k => en[k].includes('approximate timing ({timing}).')), 'no-grid timing note');
+says('grooveTiming', 'Groove on a {beat} s beat: {hold}, {beat} and {eighth} s shots');
 assert.ok(ui.includes('}, [assets, cueId, ownMusic?.path, ownGrid, hook]);'), 'toggling the hook re-picks the default section');
 // Motion query and bonus only with Beat punch (off: the v1.2 search and plan); the search cache is keyed on it.
 assert.ok(ui.includes('candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands)') && ui.includes('const scored = beatPunch ? mvMotionBonus(list) : list;'), 'motion bonus before planning, with Beat punch only');
@@ -220,9 +286,9 @@ assert.ok(/if \(m\.name !== name\) continue;[^]*?return \{ sequenceId: id/.test(
 // The readiness gate uses the seed each button builds with: Build = seed, Create another version = seed + 1.
 assert.ok(ui.includes('planAt(seed)') && ui.includes('planAt(seed + 1)'), 'gates for both seeds');
 assert.ok(ui.includes('onClick={buildAnother} disabled={busy || !canBuildAnother}'), 'another version gated with seed + 1');
-assert.ok(build.includes('"Mini Vlog " + '), 'Draft name');
+assert.ok(build.includes('draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),'), 'Draft name (English: the lost-reply lookup finds it by name)');
 assert.ok(finish.includes('decorate(result, check)') && decorate.includes('const f = res.frozen;'), 'Finish title and look reuses the frozen inputs');
-assert.ok(ui.includes('title, look and clip sound are not applied yet'), 'unfinished build message');
+says('draftNotFinished', 'title, look and clip sound are not applied yet'); says('finishFailed', 'Press Finish title and look to try again');
 assert.match(panel, /No valid session ID/);
 assert.ok(ui.includes('!allowCommit && /No valid session ID/'), 'only non-committing calls are resent');
 // A busy app: read-only calls ask for a longer deadline and retry host-busy / deadline failures after 5 s and 15 s,
@@ -234,15 +300,16 @@ assert.ok(runBody.includes('allowCommit ? { summary, script: scriptAt(0), allowC
 assert.ok(runBody.includes('!allowCommit && isBusyError(') && runBody.includes('attempt < BUSY_BACKOFF_MS.length') && runBody.includes('opts.wanted && !opts.wanted()'), 'reads retry with backoff while wanted');
 assert.ok(runBody.includes('await new Promise((d) => setTimeout(d, BUSY_BACKOFF_MS[attempt - 1]))'), 'sequential backoff, no parallel retries');
 assert.ok(runBody.includes('throw new BusyError('), 'a final busy failure is a BusyError');
-assert.ok(panel.includes('const MV_BUSY = "Selects is busy and didn\'t answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.";'), 'actionable busy message');
+says('busy', "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.");
+assert.ok(ui.includes('this.say = (l) => t(l, "busy");'), 'BusyError says it in the UI language');
 // Inventory under load: the photo-size budget is small, and a retry skips measuring (assemble measures unsized photos).
 assert.ok(ui.includes('measureMs: attempt === 0 ? INVENTORY_MEASURE_MS : 0') && panel.includes('const INVENTORY_MEASURE_MS = 4000;'), 'inventory measures less under load');
-assert.ok(ui.includes('setInvError(e instanceof BusyError ? MV_BUSY : String(e?.message || e))'), 'busy inventory error message');
+assert.ok(ui.includes('setInvError(e instanceof BusyError ? { busy: true, say: e.say } : { say: (l: Lang) => sayError(l, e) })'), 'busy inventory error message');
 assert.ok(ui.includes('wanted: live'), 'inventory retries stop for a stale Project');
 // A Project still loading after an app restart: the first inventory read that fails (not busy) is tried once more
 // after 2 s, only from the mount effect (Refresh, focus and polling never auto-retry), and only while still wanted.
 assert.ok(panel.includes('const INVENTORY_RETRY_MS = 2000;'), 'retry delay');
-const mountFx = ui.slice(ui.indexOf('setStep("Checking clips");'), ui.indexOf('Mini Vlog could not start'));
+const mountFx = ui.slice(ui.indexOf('setStep("checkingClips");'), ui.indexOf('t(l, "startFailed"'));
 assert.ok(/if \(await loadInventory\(projectId, \(\) => alive\) === "failed" && alive\) \{\s*await new Promise\(\(d\) => setTimeout\(d, INVENTORY_RETRY_MS\)\);\s*if \(alive && projectRef\.current === projectId\) \{ setInvError\(null\); await loadInventory\(projectId, \(\) => alive\); \}\s*\}/.test(mountFx), 'one retry after a failed first read');
 assert.equal((mountFx.match(/loadInventory\(/g) || []).length, 2, 'exactly one retry');
 assert.equal((ui.match(/INVENTORY_RETRY_MS/g) || []).length, 1, 'the retry is used only by the mount effect');
@@ -250,33 +317,43 @@ const loadInv = ui.slice(ui.indexOf('async function loadInventory('), ui.indexOf
 assert.ok(loadInv.includes('return e instanceof BusyError ? "busy" : "failed";') && loadInv.includes('return "ok";'), 'a busy failure is not retried again');
 assert.ok(!/setTimeout/.test(loadInv), 'loadInventory itself never waits (Refresh / focus / poll do not auto-retry)');
 // A non-busy failure reads as transient; the raw error stays in a details line and the console.
-assert.ok(panel.includes('const MV_INV_FAILED = "Couldn\'t read this Project\'s clips yet. Press Refresh.";') && ui.includes('(invError === MV_BUSY ? MV_BUSY : MV_INV_FAILED)'), 'transient failure message');
-assert.ok(ui.includes('{!inventory && invError && invError !== MV_BUSY ? <ui.Message tone="muted">{"Details: " + invError}</ui.Message> : null}') && loadInv.includes('console.warn('), 'raw error kept');
+says('invFailed', "Couldn't read this Project's clips yet. Press Refresh."); assert.ok(ui.includes('(invError.busy ? invError.say(L) : t(L, "invFailed"))'), 'transient failure message');
+assert.ok(ui.includes('{!inventory && invError && !invError.busy ? <ui.Message tone="muted">{t(L, "details", { detail: invError.say(L) })}</ui.Message> : null}') && loadInv.includes('console.warn('), 'raw error kept');
 assert.ok(!ui.includes('Could not read the clips in this Project'), 'old message gone');
 // A partial inventory (the Project was still loading) keeps polling and never reads as an empty Project.
 assert.ok(/needsPoll = !!inventory && \(\(!!inventory\.incomplete && !incompleteStalled\) \|\|/.test(ui), 'incomplete inventory polls until stalled');
 // Build and Create another version wait for the clip sizes: an incomplete inventory blocks both with a muted hint
 // next to Build (blockReason), and build() refuses it; a later complete read clears the block.
-assert.ok(panel.includes('const MV_SIZES_LOADING = "Clip sizes are still loading\u2026";') || panel.includes('const MV_SIZES_LOADING = "Clip sizes are still loading…";'), 'sizes hint text');
-assert.ok(/const baseBlock: string \| null = !inventory \|\| !assets \? null\s*: inventory\.incomplete \? MV_SIZES_LOADING\s*:/.test(ui), 'incomplete blocks both buttons first');
-assert.ok(ui.includes('const canBuild = ready && !blockReason;') && ui.includes('const canBuildAnother = ready && !anotherBlock;') && ui.includes('{blockReason && !busy ? <ui.Message tone="muted">{blockReason}</ui.Message> : null}'), 'the block disables Build / another version and shows the hint');
+says('sizesLoading', 'Clip sizes are still loading\u2026');
+assert.ok(/const baseBlock: Say \| null = !inventory \|\| !assets \? null\s*: inventory\.incomplete \? \(l\) => t\(l, "sizesLoading"\)\s*:/.test(ui), 'incomplete blocks both buttons first');
+assert.ok(ui.includes('const canBuild = ready && !blockReason;') && ui.includes('const canBuildAnother = ready && !anotherBlock;') && ui.includes('{blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}'), 'the block disables Build / another version and shows the hint');
 assert.ok(build.includes('!inventory || inventory.incomplete ||'), 'build() refuses an incomplete inventory');
 // Incomplete polling is capped: INCOMPLETE_POLL_MAX (6) consecutive incomplete reads stop it with a Refresh hint;
 // a complete read, a Project switch or Refresh restart the count.
-assert.ok(panel.includes('const INCOMPLETE_POLL_MAX = 6;') && panel.includes('const MV_INV_PARTIAL = "Couldn\'t read all clips yet. Press Refresh.";'), 'cap constants');
+assert.ok(panel.includes('const INCOMPLETE_POLL_MAX = 6;'), 'cap constant'); says('invPartial', "Couldn't read all clips yet. Press Refresh.");
 assert.ok(loadInv.includes('if (inv.incomplete) { incompleteReadsRef.current++; if (incompleteReadsRef.current >= INCOMPLETE_POLL_MAX) setIncompleteStalled(true); }')
   && loadInv.includes('else { incompleteReadsRef.current = 0; setIncompleteStalled(false); }'), 'consecutive count, reset by a complete read');
 assert.ok(ui.includes('const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); loadInventory(); };'), 'Refresh restarts the cycle');
 assert.ok(ui.includes('photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false);'), 'Project switch resets the cycle');
-assert.ok(ui.includes(': inventory.incomplete && incompleteStalled ? MV_INV_PARTIAL'), 'stalled readiness message');
-assert.ok(ui.indexOf('inventory.incomplete ? "Still reading this Project\'s clips') < ui.indexOf('No analysed video or photos in this Project yet'), 'incomplete before "no footage"');
+assert.ok(ui.includes(': inventory.incomplete && incompleteStalled ? t(L, "invPartial")'), 'stalled readiness message');
+assert.ok(ui.indexOf('inventory.incomplete ? t(L, "stillReading")') > 0 && ui.indexOf('inventory.incomplete ? t(L, "stillReading")') < ui.indexOf('t(L, "noFootage")'), 'incomplete before "no footage"');
+says('stillReading', "Still reading this Project's clips"); says('noFootage', 'No analysed video or photos in this Project yet');
 assert.ok(/run\("Search shots"[^\n]*\{ wanted: \(\) => projectRef\.current === pid \}\)/.test(ui), 'search retries stop for a stale Project');
 // Refresh stays available after a failure; a later successful read clears the error (Build is gated only by the inventory).
-assert.ok(ui.includes('disabled={busy || !assets} onClick={refreshInventory}>Refresh<') && ui.includes('setInventory(inv); setInvError(null);'), 'Refresh stays enabled; success clears the error');
+assert.ok(ui.includes('disabled={busy || !assets} onClick={refreshInventory}>{t(L, "refresh")}<') && ui.includes('setInventory(inv); setInvError(null);'), 'Refresh stays enabled; success clears the error');
 for (const s of ['run("Assemble Mini Vlog"', 'run("Add title and look"', 'run("Add music to the project"']) assert.ok(new RegExp(s.replace(/[()]/g, '\\$&') + '[^;]*, true\\);').test(ui), s + ' is a commit call');
 // decorate cfg (scripts lane contract).
 assert.ok(decorate.includes('fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, '
-  + 'soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: MOTION_OPTIONS, byRid }, photoEffects: true, punch })'), 'decorate cfg');
+  + 'soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch, labels })'), 'decorate cfg');
+// Inspector labels in the Build-time language (bl): title parameters, motion options and the effects' labels (decorate.js
+// cfg.labels). The effect and graphic names stay English in decorate.js.
+assert.ok(decorate.includes('const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));'), 'motion options by value');
+assert.ok(decorate.includes('const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };'), 'effect labels');
+for (const [k, v] of [['param.mainColor', 'Main color'], ['param.secondColor', 'Second color'], ['param.shadow', 'Shadow'], ['param.size', 'Size (%)'], ['param.x', 'Horizontal position (%)'],
+  ['param.y', 'Vertical position (%)'], ['param.sparkles', 'Sparkles'], ['param.stars', 'Stars'], ['param.motion', 'Motion'], ['param.motionStrength', 'Motion strength'], ['param.punch', 'Punch'], ['param.softness', 'Softness']]) says(k, v);
+assert.ok(decorate.includes('label: tOr(bl, "field." + p.id + "." + fl.key, fl.label)'), 'field labels in the Build-time language');
+family('motion', { 'push-in': 'Push in', 'pull-out': 'Pull out', 'drift-left': 'Drift left', 'drift-right': 'Drift right', 'drift-up': 'Drift up', 'drift-down': 'Drift down', tilt: 'Tilt', 'push-drift': 'Push and drift' });
+for (const o of /const MOTION_OPTIONS = (\[[^]*?\]);/.exec(panel)[1].match(/\{ label: "[^"]+", value: "[^"]+" \}/g)) { const m = /label: "([^"]+)", value: "([^"]+)"/.exec(o); assert.equal(en['motion.' + m[2]], m[1], 'motion.' + m[2] + ' matches MOTION_OPTIONS'); }
 assert.ok(decorate.includes('const punch = f.punch ? { tsx: assets.punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: f.bpm ? 60 / f.bpm * res.fps : 0,')
   && decorate.includes('punchFrames: mvPunchFrames({ bpm: f.bpm, fps: res.fps, sectionStart: f.sectionStart, videoEnd: res.videoEnd }), picks: res.plan.picks } : null;'), 'Beat punch cfg at the real fps, off -> null');
 assert.ok(build.includes('sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,'), 'punch, hook (bundled tracks only) and the grid tempo are frozen');
@@ -293,7 +370,8 @@ assert.ok(ui.includes('const boundaries: number[] = plan.schedule.cuts;') && ui.
 assert.ok(build.includes('videoEnd: a.totalFrames'), 'the title ends at the last clip end');
 
 // Inventory refresh: poll while pending, focus / visibility, Refresh button; project switch drops the cache.
-for (const s of ['loadInventory(', 'still being analysed', 'this updates automatically', '>Refresh<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef', 'projectRef']) assert.ok(ui.includes(s), s);
+says('stillAnalysing', 'still being analysed'); says('noFootage', 'this updates automatically'); says('refresh', 'Refresh');
+for (const s of ['loadInventory(', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef', 'projectRef']) assert.ok(ui.includes(s), s);
 assert.ok(/needsPoll = [^\n]*inventory\.photos/.test(ui), 'a photos-only Project does not poll');
 assert.ok(ui.includes('const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");') && ui.includes('const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");'), 'scene search cache keyed on the Project');
 for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'const [usePhotos', 'const [clipSound', '[cueId, ownMusic?.path, section, length, pace]']) assert.ok(ui.indexOf(hook) < ui.indexOf('if (!projectId) return <ui'), hook + ' before the early return');
@@ -309,21 +387,41 @@ assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + 
 
 // Music section slider and preview (kit pitfalls).
 for (const s of ['role="slider"', 'aria-valuenow', 'aria-valuetext', '--panel-accent', '--panel-muted-fg', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"grabbing"', '"ArrowLeft"', '"Home"', '"End"',
-  'drag to choose', 'fmtTime(total)', 'Starts at ', 'Stop preview', 'Cancel preview', '"pause"', 'requestAnimationFrame', 'cancelAnimationFrame', '"Escape"', 'previewTokenRef', 'URL.createObjectURL', 'URL.revokeObjectURL',
-  'onended', 'preview-*.mp3', 'readText(roots.data', 'Install ffmpeg and Node.js']) assert.ok(panel.includes(s), s);
+  'fmtTime(total)', '"pause"', 'requestAnimationFrame', 'cancelAnimationFrame', '"Escape"', 'previewTokenRef', 'URL.createObjectURL', 'URL.revokeObjectURL',
+  'onended', 'preview-*.mp3', 'readText(roots.data']) assert.ok(panel.includes(s), s);
+says('sectionHint', 'drag to choose'); says('startsAt', 'Starts at '); says('stopPreview', 'Stop preview'); says('cancelPreview', 'Cancel preview'); says('installTools', 'Install ffmpeg and Node.js');
+// The slider follows the panel language (lang prop); numbers are passed as rounded numbers so t() formats them.
+assert.ok(ui.includes('<SectionSlider lang={L} peaks={peaks}') && ui.includes('aria-valuetext={section == null ? t(lang, "musicTooShort") : t(lang, "startsAt", { seconds: Math.round(section * 10) / 10 })}'), 'slider language');
 assert.ok(/-t " \+ dur\.toFixed\(2\)/.test(panel), 'the preview length is the video length');
 assert.ok(!/--text-tertiary/.test(panel) && !/var\(--accent\b/.test(panel), 'only --panel-* tokens');
 assert.ok(build.includes('stopPreview()') && finish.includes('stopPreview()'), 'Build and Finish stop the preview');
 
 // Results and flows.
-for (const s of ['Create another version', 'function buildAnother()', 'const s = seed + 1;', 'selects.editor.openDraft', 'linkToDraftFrame', 'Finish title and look', 'mvProgress(', 'steps={MV_BUILD_STEPS', 'Stopped at step',
-  'Draft created; adding title and look', 'Silent video', 'unchecked: found.failed.length', 'Build again to retry ', 'type="checkbox"', 'chooseClips(allRids)', 'choosePhotos(allPhotoRids)', 'No clips selected']) assert.ok(ui.includes(s), s);
+for (const s of ['function buildAnother()', 'const s = seed + 1;', 'selects.editor.openDraft', 'linkToDraftFrame', 'mvProgress(', 'steps={MV_BUILD_STEPS.map((s) => t(L, "step." + s.id))}',
+  'unchecked: found.failed.length', 'type="checkbox"', 'chooseClips(allRids)', 'choosePhotos(allPhotoRids)']) assert.ok(ui.includes(s), s);
+says('anotherVersion', 'Create another version'); says('finishTitle', 'Finish title and look'); says('stoppedAt', 'Stopped at step'); says('draftCreatedAdding', 'Draft created; adding title and look');
+says('silentVideo', 'Silent video'); says('unchecked', 'Build again to retry '); says('noClipsSelected', 'No clips selected'); says('build', 'Build'); says('building', 'Building');
+family('step', { shots: 'Choosing shots', music: 'Preparing music', draft: 'Creating Draft', look: 'Adding title and look', open: 'Opening Draft' });
+says('progress', 'Step {step}/{total} · {name} · {percent}%'); says('progressDetail', 'Step {step}/{total} · {name} ({detail}) · {percent}%');
+// Text kept in state follows a language switch: status, inventory errors and progress details are functions of the
+// language, and thrown errors carry one (uiError) while SDK details stay English after a translated prefix.
+assert.ok(ui.includes('const [status, setStatus] = React.useState<{ tone: string; say: Say } | null>(null);') && ui.includes('{status.say(L)}'), 'status follows the language');
+assert.ok(!/setStatus\(\{ tone: "[a-z]+", text:/.test(ui) && !/\bstatus\.text\b/.test(ui), 'no frozen status text');
+assert.ok(ui.includes('const p = { ...mvProgress(id, fraction), detail };') && ui.includes('progress.detail(L)'), 'progress detail follows the language');
+assert.ok(ui.includes('return (l) => (at ? t(l, "stoppedAt", { step: at.current + 1, total: MV_BUILD_STEPS.length, name: t(l, "step." + at.id), detail: sayError(l, e) }) : sayError(l, e));'), 'stopAt keeps the error');
+assert.ok(!/throw new Error\("[A-Z]/.test(ui), 'no English UI errors thrown');
 assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capture in the panel');
 // The search progress counts videos (photos are never searched), singular for one; a photos-only build says so.
-assert.ok(panel.includes('advance("shots", i / rids.length, i + "/" + rids.length + (rids.length === 1 ? " video" : " videos") + " checked");'), 'progress counts videos');
+assert.ok(ui.includes('advance("shots", i / rids.length, (l) => t(l, "videosChecked", { done, count: rids.length }));'), 'progress counts videos');
+assert.deepEqual(en.videosChecked, { one: '{done}/{count} video checked', other: '{done}/{count} videos checked' });
 assert.ok(!panel.includes('clips checked'), 'no "clips checked" wording');
-assert.ok(panel.includes('const shotsDetail = rids.length ? undefined : "photos only";') && panel.includes('advance("shots", 1, shotsDetail);'), 'photos-only detail');
-assert.ok(panel.includes('" video; press Build to retry it." : " videos; press Build to retry them."') && panel.includes('" video; it was" : " videos; they were"'), 'unchecked messages count videos');
+assert.ok(ui.includes('const shotsDetail: Say | undefined = rids.length ? undefined : (l) => t(l, "photosOnly");') && ui.includes('advance("shots", 1, shotsDetail);'), 'photos-only detail');
+says('photosOnly', 'photos only');
+assert.deepEqual(en.retryUnchecked, { one: 'Could not check {count} video; press Build to retry it.', other: 'Could not check {count} videos; press Build to retry them.' });
+assert.deepEqual(en.unchecked, { one: 'Could not check {count} video; it was skipped. Build again to retry it.', other: 'Could not check {count} videos; they were skipped. Build again to retry them.' });
+// A plan failure is whole sentences joined with `gap` (no space after a full stop in ja and zh).
+assert.ok(ui.includes('failed ? t(l, "retryUnchecked", { count: failed }) : ""].filter(Boolean).join(t(l, "gap")));'), 'sentences joined with gap');
+assert.equal(extractStrings(panel).strings.ja.gap, ''); assert.equal(extractStrings(panel).strings.zh.gap, ''); assert.equal(en.gap, ' ');
 
 // decorate.js refuses a config without videoEnd.
 assert.ok(fs.readFileSync(path.join(root, 'scripts', 'decorate.js'), 'utf8').includes("if (!(cfg.videoEnd > 0)) throw Error('decorate: cfg.videoEnd missing');"));

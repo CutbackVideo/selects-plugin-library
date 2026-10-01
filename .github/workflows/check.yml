@@ -53,6 +53,7 @@ jobs:
           node plugins/mini-vlog/tests/beat-detect.test.cjs
           node plugins/mini-vlog/tests/cues.test.cjs
           node plugins/mini-vlog/tests/fonts.test.cjs
+          node plugins/mini-vlog/tests/i18n.test.cjs
           node plugins/mini-vlog/tests/look.test.cjs
           node plugins/mini-vlog/tests/motion.test.cjs
           node plugins/mini-vlog/tests/panel.test.cjs
