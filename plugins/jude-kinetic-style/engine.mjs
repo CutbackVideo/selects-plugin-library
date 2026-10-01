@@ -4,7 +4,9 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const HELPER = path.join(HERE, ".local", "vision-helper");
+// Apple Vision runs through the system's JavaScript for Automation: no compiled helper, nothing to build.
+const HELPER = path.join(HERE, "vision-helper.js");
+const vision = (args, opts) => run("/usr/bin/osascript", ["-l", "JavaScript", HELPER, ...args], opts);
 function run(cmd, args, opts = {}) {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], ...opts });
@@ -61,8 +63,8 @@ async function cmdFaces(job, dir) {
   const ok = files.filter(Boolean);
   const out = {};
   if (ok.length) {
-    const r = await run(HELPER, ["faces", ...ok], { timeoutMs: 120000 });
-    if (r.code !== 0) throw new Error("vision-helper faces failed: " + r.err.trim());
+    const r = await vision(["faces", ...ok], { timeoutMs: 120000 });
+    if (r.code !== 0) throw new Error("Face detection failed: " + r.err.trim());
     const rows = r.out.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
     for (const row of rows) {
       const i = files.indexOf(row.file);
@@ -98,8 +100,8 @@ async function cmdMatte(job, dir) {
     }
     const made = (await fs.readdir(work)).filter((f) => /^f_\d+\.png$/.test(f)).length;
     if (!made || made !== total) throw new Error("The source does not cover the caption block.");
-    const r = await run(HELPER, ["matte-dir", work], { timeoutMs: 280000 });
-    if (r.code !== 0) throw new Error("vision-helper matte-dir failed: " + r.err.trim());
+    const r = await vision(["matte-dir", work], { timeoutMs: 280000 });
+    if (r.code !== 0) throw new Error("Person masking failed: " + r.err.trim());
     for (const line of block.lines) {
       const start = Math.ceil(line.fromFrame / step), count = total - start;
       if (count <= 0) continue;

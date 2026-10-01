@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "doac-style",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "name": "DOAC Style",
   "summary": "Create expressive, speech-timed captions on a separate editable vertical timeline.",
   "status": "experimental",
@@ -33,7 +33,8 @@
     "approved/rhythm.py",
     "approved/style.json",
     "approved/template-energy.json",
-    "panel.tsx"
+    "panel.tsx",
+    "runtime.sh"
   ],
   "compatibility": {
     "platforms": [

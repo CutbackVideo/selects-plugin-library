@@ -442,17 +442,21 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
 // Shell: single-quoted user paths, Finder PATH, big outputs through files, fixed call count.
 assert.ok(!/dq\((file|ownMusic|roots)/.test(panel), 'user paths must not be double-quoted into the shell');
 for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/]) assert.ok(re.test(panel), String(re));
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('.nvm/versions/node/*/bin'), 'Homebrew and nvm paths');
+assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Homebrew path, no nvm hunting');
+// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
+assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
+assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
+assert.equal(fs.readFileSync(path.join(__dirname, '..', 'runtime.sh'), 'utf8'), fs.readFileSync(path.join(__dirname, '..', '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
 assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))') && panel.includes('!done.ok'), 'own-music analysis via a file');
 assert.ok(panel.includes('"; s=$?; rm -f " + sq(pcm) + "; exit $s"') && panel.includes('" && rm -f " + sq(base + ".mp3")'), 'temporary audio files are removed');
-assert.equal((panel.match(/runShell\(/g) || []).length, 6, 'one folder lookup, four tool steps and the preview cleanup');
+assert.equal((panel.match(/runShell\(/g) || []).length, 7, 'one folder lookup, the Node.js runtime, four tool steps and the preview cleanup');
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 
 // Music section slider and preview (kit pitfalls).
 for (const s of ['role="slider"', 'aria-valuenow', 'aria-valuetext', '--panel-accent', '--panel-muted-fg', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"grabbing"', '"ArrowLeft"', '"Home"', '"End"',
   'fmtTime(total)', '"pause"', 'requestAnimationFrame', 'cancelAnimationFrame', '"Escape"', 'previewTokenRef', 'URL.createObjectURL', 'URL.revokeObjectURL',
   'onended', 'preview-*.mp3', 'readText(roots.data']) assert.ok(panel.includes(s), s);
-says('sectionHint', 'drag to choose'); says('startsAt', 'Starts at '); says('stopPreview', 'Stop preview'); says('cancelPreview', 'Cancel preview'); says('installTools', 'Install ffmpeg and Node.js');
+says('sectionHint', 'drag to choose'); says('startsAt', 'Starts at '); says('stopPreview', 'Stop preview'); says('cancelPreview', 'Cancel preview'); says('installTools', 'Install ffmpeg to preview'); says('preparingTools', 'first time only');
 // The slider follows the panel language (lang prop); numbers are passed as rounded numbers so t() formats them.
 assert.ok(ui.includes('<SectionSlider lang={L} peaks={peaks}') && ui.includes('aria-valuetext={section == null ? t(lang, "musicTooShort") : t(lang, "startsAt", { seconds: Math.round(section * 10) / 10 })}'), 'slider language');
 assert.ok(/-t " \+ dur\.toFixed\(2\)/.test(panel), 'the preview length is the video length');

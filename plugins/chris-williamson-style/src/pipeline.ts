@@ -90,7 +90,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     for(const item of Object.values(state.items) as any[])if(item.status==='applied'&&!idSet.has(item.clipId))item.status='deleted';
   }
   await save();
-  const engine=async(cmd:string,file:string,summary:string,timeoutMs:number)=>env.runShell("node "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),summary,timeoutMs);
+  const engine=async(cmd:string,file:string,summary:string,timeoutMs:number)=>env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),summary,timeoutMs);
   // Replanning is explicit. Captions-only and B-roll-only updates retain the established keyword slots.
   if(!state.keys || scope==='all' && !state.completed.includes('plan')) {
     env.status("Planning keywords…");

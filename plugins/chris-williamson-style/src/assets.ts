@@ -29,7 +29,7 @@ async function chooseAssets(env: Env, jobDir: string, mediaFolder: string, reel:
   const items=reel.brolls.map((b,i)=>({id:pass+String(i+1).padStart(3,"0"),keyword:b.key.text,query:b.query,desiredKind:"video",candidates:(Array.isArray(found[b.query])?found[b.query]:[]).filter(c=>!c.path||allowedLocal===null||allowedLocal.has(c.path))}));
   const callEngine=async(cmd:string,job:any)=>{
     const file=jobDir+"/"+cmd+".json";await env.writeText(file,JSON.stringify(job));
-    await env.runShell("node "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),"Prepare B-roll "+cmd,300000);
+    await env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),"Prepare B-roll "+cmd,300000);
     return JSON.parse(await env.readText(jobDir+"/"+cmd+"-result.json"));
   };
   const result=await callEngine("candidates",{candidates:{ffmpeg:env.ffmpeg,ffprobe,items}});

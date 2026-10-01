@@ -70,7 +70,22 @@ async function runScript(sdk,script,summary,allowCommit=false){const t0=performa
 // A media row with the size it is shown at, when the helper could read one.
 function sized(row,size){return row&&size?.width&&size?.height?{...row,frameSize:size}:row}
 function traceStep(label,t0){(window.__postcardTrace??=[]).push([label,Math.round(t0-(window.__postcardTraceStart||t0)),Math.round(performance.now()-t0)])}
-async function helper(sdk,op,args={}){const t0=performance.now(),r=await sdk.runShell({summary:'Postcard '+op,command:`python3 ${HELPER} ${quote(op)} ${quote(json(args))}`,timeoutMs:180000,maxOutputBytes:49152});traceStep('shell: '+op,t0);if(r.isError||r.exitCode!==0)throw Error(r.stderr||r.output||'Helper failed');return JSON.parse(r.stdout)}
+// A stock Mac has no Python, so runtime.sh fetches a pinned one on first use
+// (shared by every plugin under ~/.selects/plugin-data/_runtime) and prints its
+// path as the last line. One fetch per panel load, however many helpers ask at
+// once; `preparing.say` is whoever is showing progress at the time.
+const preparing={say:null};let pythonPath=null;
+function runtimePython(sdk){
+ if(!pythonPath)pythonPath=(async()=>{
+  preparing.say?.('Preparing (first run only)\u2026');
+  const r=await sdk.runShell({summary:'Prepare Python (first run only)',command:'sh "$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/runtime.sh" python',timeoutMs:290000,maxOutputBytes:8000});
+  const path=String(r.stdout||'').trim().split('\n').filter(Boolean).pop();
+  if(r.isError||r.exitCode!==0||!path?.startsWith('/'))throw Error(String(r.stderr||'').trim().split('\n').filter(Boolean).pop()||'Could not prepare Python for Postcard Cutout Studio. Check the internet connection, then try again.');
+  return path;
+ })().catch(e=>{pythonPath=null;throw e});
+ return pythonPath;
+}
+async function helper(sdk,op,args={}){const python=await runtimePython(sdk);const t0=performance.now(),r=await sdk.runShell({summary:'Postcard '+op,command:`${quote(python)} ${HELPER} ${quote(op)} ${quote(json(args))}`,timeoutMs:180000,maxOutputBytes:49152});traceStep('shell: '+op,t0);if(r.isError||r.exitCode!==0)throw Error(r.stderr||r.output||'Helper failed');return JSON.parse(r.stdout)}
 function inventoryCode(pid,offset=0){return `const p=selects.project(${json(pid)});const rs=await p.resources();let sf,warning='';try{sf=await p.sourceFiles()}catch{sf=await p.sourceFiles({folder:'(root)'});warning='Only top-level media could be loaded. Refresh media to retry the full library.'}const flat=(ns,o=[])=>{for(const n of ns||[])n.type==='dir'?flat(n.children,o):n.path&&o.push(n);return o};let fs=[];if('fileTree'in sf)fs=flat(sf.fileTree);else for(const f of sf.folders||[]){const s=await p.sourceFiles({folder:f.name});if('fileTree'in s)fs.push(...flat(s.fileTree))}const by=new Map(fs.map(f=>[f.resourceId,f]));const inventory=rs.flatMap(r=>{const f=by.get(r.resourceId);return f?.path?[{resourceId:r.resourceId,name:r.name,path:f.path,durationSeconds:r.durationSeconds||f.durationSeconds||null,frameSize:f.frameSize||null,frameRate:f.frameRate||null}]:[]});return {rows:inventory.slice(${offset},${offset+32}),total:inventory.length,warning}`}
 // A sound with takes in the manifest (`panel.1`..`panel.6`, `curtain.1`..) gets a
 // different take on each hit, as the reference never repeats one; others play as-is.
@@ -438,6 +453,7 @@ function PostcardTemplateRun({sdk,context}){
     const finish=result=>{if(finished)return;finished=true;try{sdk.finishTemplate(result)}catch{}};
     const guard=id=>{if(!alive.current)throw Error('The template run was closed before the postcard was made.');if(projectRef.current!==id)throw Error('The project changed before the postcard was made. Try again in this project.');};
     const say=text=>{if(alive.current)setStatus(text)};
+    preparing.say=say;
     (async()=>{
       try{
         const sequenceId=await runTemplate({sdk,pid,template:context.template,sequenceId:context.sequenceId,guard,setStatus:say});
@@ -524,8 +540,9 @@ async function dropFolder(event){
 
 const dirty=useRef(false);
 useEffect(()=>()=>{projectRef.current=null},[]);
+useEffect(()=>{preparing.say=setStatus;return()=>{if(preparing.say===setStatus)preparing.say=null}},[]);
 useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(!subject?.path)return;const path=subject.path;(async()=>{try{const r=await sdk.runShell({summary:'Probe subject duration',command:`ffprobe -v error -select_streams v:0 -show_entries format=duration:stream=width,height -of json ${quote(path)}`,timeoutMs:15000,maxOutputBytes:2000});if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
-useEffect(()=>{let alive=true;if(!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const r=await sdk.runShell({summary:'Preview selected range',command:`python3 "$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/scene_preview.py" ${quote(subject.path)} ${s.subjectStartSec} ${Math.min(duration,s.subjectStartSec+8.5)} 4`,timeoutMs:30000,maxOutputBytes:49152});if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
+useEffect(()=>{let alive=true;if(!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const python=await runtimePython(sdk);const r=await sdk.runShell({summary:'Preview selected range',command:`${quote(python)} "$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/scene_preview.py" ${quote(subject.path)} ${s.subjectStartSec} ${Math.min(duration,s.subjectStartSec+8.5)} 4`,timeoutMs:30000,maxOutputBytes:49152});if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
 function guard(pid){if(projectRef.current!==pid)throw Error('The Project changed. Stopped without resubmitting the current operation.')}
 const runner=createRunner({sdk,guard,setRun,setStatus});
 async function execute(kind){if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;window.__postcardTrace=[];window.__postcardTraceStart=performance.now();

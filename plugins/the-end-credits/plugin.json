@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "the-end-credits",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "name": "THE END Credits",
   "summary": "Turn travel footage into a 16:9 end-credits roll: THE END types in, the credits scroll up while your clips play in a small window, as a new editable Draft.",
   "status": "experimental",
@@ -27,6 +27,7 @@
     "beat-detect.cjs",
     "dev/i18n-check.cjs",
     "panel.tsx",
+    "runtime.sh",
     "planner.js",
     "scripts/assemble.js",
     "scripts/decorate.js",
@@ -51,7 +52,7 @@
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg and Node.js 18+ on PATH only for music previews and your own music (ffmpeg also measures in-shot motion; without it shots are chosen by scene alone)."
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg only for music previews and your own music; your own music also downloads a pinned Node.js the first time (runtime.sh) (ffmpeg also measures in-shot motion; without it shots are chosen by scene alone)."
   },
   "localized": {
     "de": {

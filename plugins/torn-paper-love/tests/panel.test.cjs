@@ -59,7 +59,11 @@ assert.ok(panel.includes('"assets/fonts/tpl-" + face + ".woff2.b64"'), 'fonts fr
 assert.ok(panel.includes('roots.plugin + "/beat-detect.cjs"') && panel.includes('roots.plugin + "/assets/cues/" + '), 'beat detection and cues from the installed folder');
 
 // ---- Host helpers copied from City Weekend Vlog.
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('.nvm/versions/node/*/bin'), 'Finder PATH prefix');
+assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Finder PATH prefix, no nvm hunting');
+// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
+assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
+assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
+assert.equal(read('runtime.sh'), fs.readFileSync(path.join(root, '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
 for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/]) assert.ok(re.test(panel), String(re));
 assert.ok(!/dq\((file|ownMusic|roots|musicPath)/.test(panel), 'user paths are single-quoted');
 assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))'), 'own-music analysis via a file (48 KB stdout)');

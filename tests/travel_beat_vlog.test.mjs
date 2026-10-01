@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import os from 'node:os';
+import zlib from 'node:zlib';
 import {spawnSync} from 'node:child_process';
 import {scenePlan,slotNeeds,colorTransfer,normalizeFinish,buildFinishScript,buildCutoutScript,VIDEO_SLOTS,REFERENCE_TIMING,validateTiming,withinLimits,LIMITS} from '../plugins/travel-beat-vlog/operation.mjs';
 import {analyseSamples,timingFrom,hits,rolls} from '../plugins/travel-beat-vlog/analyze.mjs';
@@ -95,6 +97,42 @@ test('builder modes run as the panel calls them',()=>{
  assert.equal(run(request()).status,0);
  assert.equal(run({mode:'cutoutFinish',fps:30,draftId:'d',cutout:{clipId:1,trackId:'t'},hero:{width:10,height:10}}).status,0);
  assert.notEqual(run({mode:'other'}).status,0);
+});
+
+// The panel runs build-script.mjs with the Node.js runtime.sh fetches, never a bare `node`,
+// and the cutout needs no compiler.
+test('panel uses the shared runtime and nothing needs Xcode tools',()=>{
+ assert.equal(fs.readFileSync(path.join(dir,'runtime.sh'),'utf8'),fs.readFileSync(path.resolve(dir,'../../tools/runtime.sh'),'utf8'));
+ const panel=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
+ assert.ok(panel.includes(`sh "$SELECTS_USER_SKILLS_ROOT/travel-beat-vlog/runtime.sh" node`));
+ assert.doesNotMatch(panel,/['"`]node\s/);
+ for(const f of ['panel.tsx','operation.mjs','build-script.mjs'])assert.doesNotMatch(fs.readFileSync(path.join(dir,f),'utf8'),/swiftc|xcrun|python3/);
+ const files=JSON.parse(fs.readFileSync(path.join(dir,'plugin.json'),'utf8')).files;
+ assert.ok(files.includes('runtime.sh')&&files.includes('tools/cutout.js')&&!files.some(f=>f.endsWith('.swift')));
+});
+
+// A flat RGB PNG with one filled box, written without any image tool.
+function boxPng(file,w,h,box){
+ const rows=[];
+ for(let y=0;y<h;y++){const row=Buffer.alloc(1+w*3);for(let x=0;x<w;x++){const inside=box&&x>=box.x&&x<box.x+box.w&&y>=box.y&&y<box.y+box.h;row.set(inside?[255,48,32]:[64,96,128],1+x*3);}rows.push(row);}
+ const crc=b=>{let c=~0;for(const v of b){c^=v;for(let k=0;k<8;k++)c=c&1?(c>>>1)^0xedb88320:c>>>1;}return ~c>>>0;};
+ const chunk=(type,data)=>{const t=Buffer.from(type),len=Buffer.alloc(4),sum=Buffer.alloc(4);len.writeUInt32BE(data.length);sum.writeUInt32BE(crc(Buffer.concat([t,data])));return Buffer.concat([len,t,data,sum]);};
+ const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(w,0);ihdr.writeUInt32BE(h,4);ihdr.set([8,2,0,0,0],8);
+ fs.writeFileSync(file,Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(Buffer.concat(rows))),chunk('IEND',Buffer.alloc(0))]));
+}
+test('cutout runs through osascript with only stock macOS tools',{skip:process.platform!=='darwin'},()=>{
+ const home=fs.mkdtempSync(path.join(os.tmpdir(),'travel-cutout-'));
+ const run=v=>spawnSync(process.execPath,[path.join(dir,'build-script.mjs'),Buffer.from(JSON.stringify(v)).toString('base64url')],{encoding:'utf8',env:{PATH:'/usr/bin:/bin',HOME:home}});
+ const box=path.join(home,'box.png'),plain=path.join(home,'plain.png');
+ boxPng(box,64,48,{x:22,y:14,w:20,h:20});boxPng(plain,64,48,null);
+ const fg=run({mode:'cutout',photo:box,cutoutMode:'foreground'});
+ assert.equal(fg.status,0,fg.stderr);
+ const out=JSON.parse(fg.stdout).path;
+ assert.ok(out.startsWith(path.join(home,'.selects','plugin-data','travel-beat-vlog','cutouts')));
+ assert.equal(fs.readFileSync(out).subarray(1,4).toString(),'PNG');
+ assert.equal(run({mode:'cutout',photo:box,cutoutMode:'foreground'}).stdout,fg.stdout,'second call reuses the cached cutout');
+ const none=run({mode:'cutout',photo:plain,cutoutMode:'person'});
+ assert.notEqual(none.status,0);assert.match(none.stderr,/^No person found\./);
 });
 
 // The panel's Image bridge: stills are held past their 5 s source (hero 47 frames is shorter; cutout 40).

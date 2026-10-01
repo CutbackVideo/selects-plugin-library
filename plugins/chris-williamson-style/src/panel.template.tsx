@@ -260,6 +260,8 @@ export type Env = {
   readText: (path: string) => Promise<string>;
   writeText: (path: string, text: string) => Promise<void>;
   status: (message: string) => void;
+  /** The Node.js that runs engine.mjs, prepared on first use. */
+  node: () => Promise<string>;
   dataDir: string;
   pluginDir: string;
   ffmpeg: string;
@@ -308,7 +310,10 @@ return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, wo
 
 // ---------------------------------------------------------------------------------------------------------
 // Panel UI.
-const SETUP_COMMAND = "mkdir -p " + DATA_DIR + " && printf '%s\\n%s\\n' \"" + DATA_DIR + "\" \"" + PLUGIN_DIR + "\" && (" + FFMPEG_PROBE + ") && printf '\\n' && ([ -x \"" + PLUGIN_DIR + "/.local/vision-helper\" ] && echo helper-ok || echo helper-missing) && (command -v node >/dev/null && node -e 'process.exit(+process.versions.node.split(\".\")[0] >= 18 ? 0 : 1)' && echo node-ok || echo node-missing)";
+const SETUP_COMMAND = "mkdir -p " + DATA_DIR + " && printf '%s\\n%s\\n' \"" + DATA_DIR + "\" \"" + PLUGIN_DIR + "\" && (" + FFMPEG_PROBE + ") && printf '\\n'";
+// Node.js is not on a stock Mac: runtime.sh fetches a pinned copy into ~/.selects/plugin-data on first use
+// and prints its path as its last line.
+const NODE_COMMAND = 'sh "' + PLUGIN_DIR + '/runtime.sh" node';
 
 function host() {
   const parent: any = window.parent;
@@ -377,6 +382,7 @@ async function removeLegacyFlashes(sdk:any,env:Env,projectId:string,id:string) {
 
 // Host access for the pipeline, shared by the panel and a template run.
 function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: string }, status: (message: string) => void): Env {
+  let node: Promise<string> | null = null;
   const env: Env = {
     runScript: async (script, summary, allowCommit = false) => {
       const r = await sdk.runScript({ script, summary, allowCommit });
@@ -404,6 +410,18 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
     readText,
     writeText,
     status,
+    // Resolved once per run, on the first engine step; a failed download is tried again on the next step.
+    node: () => node ??= (async () => {
+      status("Preparing Node.js (first run only)…");
+      const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: NODE_COMMAND, timeoutMs: 290000, maxOutputBytes: 8000 });
+      const found = String(r?.stdout || "").split("\n").map((x: string) => x.trim()).filter(Boolean).pop();
+      if (r?.isError || r?.exitCode !== 0 || !found) {
+        node = null;
+        const said = String(r?.stderr || "").trim().split("\n").pop() || "";
+        throw new Error(r?.exitCode === 3 || !said ? "Couldn't download what Chris Williamson Style needs; check the internet connection and try again." : said);
+      }
+      return found;
+    })(),
     dataDir: paths.data,
     pluginDir: paths.plugin,
     ffmpeg: paths.ffmpeg,
@@ -443,10 +461,7 @@ function StylePanel({ sdk, context, ui }: any) {
       .then((r: any) => {
         const lines = String(r?.stdout || "").split("\n").map((x: string) => x.trim());
         setPaths({ data: lines[0], plugin: lines[1], ffmpeg: lines[2] || "ffmpeg" });
-        const issues: string[] = [];
-        if (!lines.includes("node-ok")) issues.push("Node.js 18 or later is not installed on this Mac.");
-        if (!lines.includes("helper-ok")) issues.push("The Vision helper is missing; reinstall Chris Williamson Style.");
-        setSetupIssue(issues.join(" "));
+        setSetupIssue("");
       })
       .catch((e: any) => setSetupIssue(String(e?.message || e)));
   }, []);
@@ -547,8 +562,6 @@ function templateSpeaker(template: any): any {
 async function templatePaths(sdk: any) {
   const r = await sdk.runShell({ summary: "Check the Chris Williamson Style setup", command: SETUP_COMMAND, timeoutMs: 20000 });
   const lines = String(r?.stdout || "").split("\n").map((x: string) => x.trim());
-  if (!lines.includes("node-ok")) throw new Error("Chris Williamson Style needs Node.js 18 or later on this Mac.");
-  if (!lines.includes("helper-ok")) throw new Error("Chris Williamson Style is not fully installed (its Vision helper is missing). Reinstall it, then try again.");
   return { data: lines[0], plugin: lines[1], ffmpeg: lines[2] || "ffmpeg" };
 }
 

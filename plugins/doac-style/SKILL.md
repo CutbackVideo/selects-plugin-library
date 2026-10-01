@@ -12,6 +12,7 @@ returns to the source.
 
 Video and audio remain separate. Use **Handoff → Export** for final delivery.
 
-Requires macOS, Python 3 with Pillow, NumPy, and SciPy, the packaged font asset,
-and a Selects AI profile. The host controls AI inference. Released-version
+Requires macOS, the packaged font asset, and a Selects AI profile. On first use the
+Panel downloads a pinned Python (`runtime.sh`) and sets up Pillow, NumPy, and SciPy
+in its own environment, so it needs an internet connection that once. The host controls AI inference. Released-version
 compatibility and final export are unverified.

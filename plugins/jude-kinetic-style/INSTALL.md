@@ -5,23 +5,17 @@ motion graphics.
 
 Requirements:
 
-- Node.js 18 or later on the shell `PATH` (`node --version`).
-- Xcode Command Line Tools (`xcode-select --install`) to build the Vision helper (faces and person masks).
+- macOS 14 or later (Apple Vision person masks).
 - FFmpeg: the copy bundled inside Selects is used, otherwise one on `PATH`.
+- An internet connection on first use: `runtime.sh` downloads a pinned Node.js 22 (checksum-verified) into
+  `~/.selects/plugin-data/_runtime/`, shared with other plugins. Nothing else is installed and nothing is compiled;
+  faces and person masks run through Apple Vision from `vision-helper.js` (`osascript -l JavaScript`).
 
 ## Setup
 
-1. Build the Vision helper in the installed skill folder, and again after every update of `vision-helper.swift`:
-
-   ```sh
-   cd "$SELECTS_USER_SKILLS_ROOT/jude-kinetic-style"
-   mkdir -p .local
-   swiftc -O vision-helper.swift -o .local/vision-helper
-   ```
-
-2. Open a talking-head Draft with an analysed transcript, then open **Jude Kinetic Style** from Selects Apps.
-   The panel checks setup and reports missing dependencies. It uses the signed-in Selects AI profile; no API
-   key is required.
+Open a talking-head Draft with an analysed transcript, then open **Jude Kinetic Style** from Selects Apps, or run it
+as a Clip highlights template. The first run prepares Node.js automatically. It uses the signed-in Selects AI profile;
+no API key is required.
 
 Run reports, temporary face samples and mask frames are saved under
 `~/.selects/plugin-data/jude-kinetic-style/runs/`; the background music is fetched once to

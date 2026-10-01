@@ -10,7 +10,8 @@ Experimental: macOS arm64 only, tested with Selects Staging on Apple silicon.
 
 ## One-time RVM setup
 
-Press **Set up RVM** in the panel, or run:
+A Clip highlights run sets it up by itself the first time (a few minutes, once). In the panel, press
+**Set up RVM**. Either way setup runs in the background and keeps going if the panel closes. Or run:
 
 ```sh
 cd "$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage/rvm"

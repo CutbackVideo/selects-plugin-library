@@ -19,6 +19,25 @@ const SLOT_KEYS = Array.from({ length: 21 }, (_, i) => `tile-${String(i + 1).pad
 const REFERENCE_VIDEO_SLOTS = new Set([4, 6, 11, 17, 19, 21]);
 const emptySlots = () => SLOT_KEYS.map(() => ({ resourceId: '', focusX: 0.5, focusY: 0.5 }));
 const shellQuote = value => "'" + String(value).replace(/'/g, "'\"'\"'") + "'";
+
+// A stock Mac has no Python, so runtime.sh fetches a pinned one on first use
+// (shared by every plugin under ~/.selects/plugin-data/_runtime) and prints its
+// path as the last line. One fetch per panel load; `preparing.say` is whoever is
+// showing progress at the time.
+const preparing = { say: null };
+let pythonPath = null;
+function runtimePython(sdk) {
+  if (!pythonPath) pythonPath = (async () => {
+    preparing.say?.('Preparing (first run only)…');
+    const r = await sdk.runShell({ summary: 'Prepare Python (first run only)',
+      command: 'sh "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/runtime.sh" python', timeoutMs: 290000, maxOutputBytes: 8000 });
+    const path = String(r.stdout || '').trim().split('\n').filter(Boolean).pop();
+    if (r.isError || r.exitCode !== 0 || !path?.startsWith('/')) throw new Error(String(r.stderr || '').trim().split('\n').filter(Boolean).pop() ||
+      'Could not prepare Python for Photo Grid Reveal. Check the internet connection, then try again.');
+    return path;
+  })().catch(error => { pythonPath = null; throw error; });
+  return pythonPath;
+}
 const STRINGS = {
   "ko": {
     "title": "Photo Grid Reveal",
@@ -473,8 +492,9 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
     if (group.sources.some(item => !item.path)) throw new Error('Selected Project media has no readable file path.');
     if (!isCurrent()) throw new Error(t.changed);
     const request = { [group.key]: group.sources.map(item => ({ path: item.path })), durationFrames: frames };
+    const python = await runtimePython(sdk);
     const command = 'printf %s ' + shellQuote(JSON.stringify(request)) +
-      ' | python3 "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/' + group.script + '"';
+      ' | ' + shellQuote(python) + ' "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/' + group.script + '"';
     const shell = await sdk.runShell({ command, summary: group.summary,
       timeoutMs: 300000, maxOutputBytes: 49152 });
     let converted;
@@ -598,6 +618,11 @@ function GalleryPanel({ sdk, context, ui }) {
   const [savedTarget, setSavedTarget] = React.useState(null);
   const running = React.useRef(false);
   const current = React.useRef({ projectId: context.projectId, sequenceId: context.sequenceId });
+  React.useEffect(() => {
+    const say = text => setStatus({ tone: 'muted', text });
+    preparing.say = say;
+    return () => { if (preparing.say === say) preparing.say = null; };
+  }, []);
   current.current = { projectId: context.projectId, sequenceId: context.sequenceId };
   const key = JSON.stringify([context.projectId, context.sequenceId]);
   const ready = loadedKey === key && !!inventory;
@@ -652,7 +677,8 @@ function GalleryPanel({ sdk, context, ui }) {
   async function estimateMusic(audio) {
     if (!audio?.path) throw new Error(t.uncertain);
     if (estimated?.resourceId === audio.resourceId) return estimated.bpm;
-    const command = 'python3 "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/tempo.py" ' + shellQuote(audio.path);
+    const python = await runtimePython(sdk);
+    const command = shellQuote(python) + ' "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/tempo.py" ' + shellQuote(audio.path);
     const response = await sdk.runShell({ command, summary: 'Estimate BPM from selected Photo Gallery music', timeoutMs: 60000 });
     if (response.isError || response.exitCode !== 0) throw new Error(response.stderr || response.output || t.uncertain);
     let value;
@@ -836,7 +862,7 @@ function templateMessage(error) {
   const said = String(error?.message || '');
   if (/no verified (image )?dimensions|no unique Project Resource/.test(said)) return 'A picked file is not ready yet; wait for it to finish importing, then try again.';
   if (/no verified duration/.test(said)) return 'A picked video is not ready yet; wait for it to finish importing, then try again.';
-  if (/python3|No such file|command not found/i.test(said)) return 'Photo Grid Reveal needs Python 3 on this Mac to prepare short videos.';
+  if (/^(Could not download .+|The download of .+ did not match its pinned checksum|Could not prepare Python for .+)\.$/.test(said)) return said;
   if (/does not expose native Image placement/.test(said)) return 'This version of Selects cannot place photos for Photo Grid Reveal; update Selects, then try again.';
   return TEMPLATE_FAILED;
 }
@@ -858,6 +884,7 @@ function GalleryTemplateRun({ sdk, context }) {
     let ended = false;
     const finish = result => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch {} };
     const say = text => { if (live()) setStatus(text); };
+    preparing.say = say;
     const projectId = context.projectId, template = context.template;
     let dispatched = false, draftId = null;
     (async () => {

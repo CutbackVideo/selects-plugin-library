@@ -26,6 +26,7 @@ const STRINGS = {
     checkingClipsNow: "Checking clips…",
     checkingClips: "Checking clips",
     listening: "Listening for the beat",
+    preparingTools: "Preparing beat detection (first time only)",
     working: "Working",
     noFootage: "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.",
     noClipsSelected: "No clips selected. Choose clips in Advanced.",
@@ -73,7 +74,7 @@ const STRINGS = {
     ownMusic: "Your own music",
     noMusic: "No music",
     devPlaceholder: "{title} (development placeholder)",
-    installTools: "Install ffmpeg and Node.js 18+ to preview music or use your own track.",
+    installTools: "Install ffmpeg to preview music or use your own track.",
     length: "Length",
     "length.short": "Short",
     "length.standard": "Standard",
@@ -214,6 +215,7 @@ const STRINGS = {
     checkingClipsNow: "Clips werden geprüft …",
     checkingClips: "Clips werden geprüft",
     listening: "Beat wird gesucht",
+    preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     working: "In Arbeit",
     noFootage: "In diesem Projekt gibt es noch keine analysierten Videos oder Fotos. Füge Videoclips hinzu und analysiere sie, oder füge Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
     noClipsSelected: "Keine Clips ausgewählt. Wähle Clips unter „Erweitert“.",
@@ -261,7 +263,7 @@ const STRINGS = {
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
     devPlaceholder: "{title} (Entwicklungsplatzhalter)",
-    installTools: "Installiere ffmpeg und Node.js 18+, um Musik vorzuhören oder eigene Musik zu verwenden.",
+    installTools: "Installiere ffmpeg, um Musik vorzuhören oder eigene Musik zu verwenden.",
     length: "Länge",
     "length.short": "Kurz",
     "length.standard": "Standard",
@@ -402,6 +404,7 @@ const STRINGS = {
     checkingClipsNow: "Comprobando clips…",
     checkingClips: "Comprobando clips",
     listening: "Buscando el ritmo",
+    preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     working: "Trabajando",
     noFootage: "Este proyecto aún no tiene vídeos analizados ni fotos. Añade clips de vídeo y analízalos, o añade fotos; se actualizará automáticamente.",
     noClipsSelected: "No hay clips seleccionados. Elige clips en «Avanzado».",
@@ -449,7 +452,7 @@ const STRINGS = {
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
     devPlaceholder: "{title} (marcador de desarrollo)",
-    installTools: "Instala ffmpeg y Node.js 18+ para escuchar la música o usar tu propia pista.",
+    installTools: "Instala ffmpeg para escuchar la música o usar tu propia pista.",
     length: "Duración",
     "length.short": "Corta",
     "length.standard": "Estándar",
@@ -590,6 +593,7 @@ const STRINGS = {
     checkingClipsNow: "Vérification des clips…",
     checkingClips: "Vérification des clips",
     listening: "Recherche du rythme",
+    preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     working: "En cours",
     noFootage: "Ce projet ne contient pas encore de vidéo analysée ni de photo. Ajoutez des clips vidéo et analysez-les, ou ajoutez des photos ; l'affichage se met à jour automatiquement.",
     noClipsSelected: "Aucun clip sélectionné. Choisissez des clips dans « Avancé ».",
@@ -637,7 +641,7 @@ const STRINGS = {
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
     devPlaceholder: "{title} (substitut de développement)",
-    installTools: "Installez ffmpeg et Node.js 18+ pour écouter la musique ou utiliser votre propre morceau.",
+    installTools: "Installez ffmpeg pour écouter la musique ou utiliser votre propre morceau.",
     length: "Durée",
     "length.short": "Courte",
     "length.standard": "Standard",
@@ -778,6 +782,7 @@ const STRINGS = {
     checkingClipsNow: "Controllo delle clip…",
     checkingClips: "Controllo delle clip",
     listening: "Ricerca del ritmo",
+    preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     working: "In corso",
     noFootage: "In questo progetto non ci sono ancora video analizzati né foto. Aggiungi clip video e analizzale, oppure aggiungi foto; si aggiorna automaticamente.",
     noClipsSelected: "Nessuna clip selezionata. Scegli le clip in «Avanzate».",
@@ -825,7 +830,7 @@ const STRINGS = {
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
     devPlaceholder: "{title} (segnaposto di sviluppo)",
-    installTools: "Installa ffmpeg e Node.js 18+ per ascoltare la musica o usare un tuo brano.",
+    installTools: "Installa ffmpeg per ascoltare la musica o usare un tuo brano.",
     length: "Durata",
     "length.short": "Breve",
     "length.standard": "Standard",
@@ -966,6 +971,7 @@ const STRINGS = {
     checkingClipsNow: "クリップを確認中…",
     checkingClips: "クリップを確認中",
     listening: "ビートを検出中",
+    preparingTools: "ビート検出を準備中(初回のみ)",
     working: "処理中",
     noFootage: "このプロジェクトには、解析済みの動画も写真もまだありません。動画クリップを追加して解析するか、写真を追加してください。自動で更新されます。",
     noClipsSelected: "クリップが選択されていません。「詳細設定」でクリップを選んでください。",
@@ -1013,7 +1019,7 @@ const STRINGS = {
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
     devPlaceholder: "{title}（開発用の仮トラック）",
-    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg と Node.js 18 以降をインストールしてください。",
+    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg をインストールしてください。",
     length: "長さ",
     "length.short": "短め",
     "length.standard": "標準",
@@ -1154,6 +1160,7 @@ const STRINGS = {
     checkingClipsNow: "\ud074\ub9bd \ud655\uc778 \uc911…",
     checkingClips: "\ud074\ub9bd \ud655\uc778 \uc911",
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
+    preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     working: "\uc791\uc5c5 \uc911",
     noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \ubd84\uc11d\ub41c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc744 \ucd94\uac00\ud574 \ubd84\uc11d\ud558\uac70\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
     noClipsSelected: "\uc120\ud0dd\ud55c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. ‘\uace0\uae09’\uc5d0\uc11c \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
@@ -1201,7 +1208,7 @@ const STRINGS = {
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
     devPlaceholder: "{title} (\uac1c\ubc1c\uc6a9 \uc784\uc2dc \uc74c\uc6d0)",
-    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\uc640 Node.js 18 \uc774\uc0c1\uc744 \uc124\uce58\ud558\uc138\uc694.",
+    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\ub97c \uc124\uce58\ud558\uc138\uc694.",
     length: "\uae38\uc774",
     "length.short": "\uc9e7\uac8c",
     "length.standard": "\ubcf4\ud1b5",
@@ -1342,6 +1349,7 @@ const STRINGS = {
     checkingClipsNow: "Verificando clipes…",
     checkingClips: "Verificando clipes",
     listening: "Procurando a batida",
+    preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     working: "Trabalhando",
     noFootage: "Este projeto ainda não tem vídeos analisados nem fotos. Adicione clipes de vídeo e analise-os, ou adicione fotos; a lista é atualizada automaticamente.",
     noClipsSelected: "Nenhum clipe selecionado. Escolha clipes em “Avançado”.",
@@ -1389,7 +1397,7 @@ const STRINGS = {
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
     devPlaceholder: "{title} (marcador de desenvolvimento)",
-    installTools: "Instale o ffmpeg e o Node.js 18+ para ouvir a música ou usar sua própria faixa.",
+    installTools: "Instale o ffmpeg para ouvir a música ou usar sua própria faixa.",
     length: "Duração",
     "length.short": "Curta",
     "length.standard": "Padrão",
@@ -1530,6 +1538,7 @@ const STRINGS = {
     checkingClipsNow: "Klipler kontrol ediliyor…",
     checkingClips: "Klipler kontrol ediliyor",
     listening: "Ritim aranıyor",
+    preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     working: "Çalışıyor",
     noFootage: "Bu projede henüz analiz edilmiş video veya fotoğraf yok. Video klipleri ekleyip analiz edin ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
     noClipsSelected: "Klip seçilmedi. “Gelişmiş” bölümünden klip seçin.",
@@ -1577,7 +1586,7 @@ const STRINGS = {
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
     devPlaceholder: "{title} (geliştirme yer tutucusu)",
-    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg ve Node.js 18+ yükleyin.",
+    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg yükleyin.",
     length: "Uzunluk",
     "length.short": "Kısa",
     "length.standard": "Standart",
@@ -1718,6 +1727,7 @@ const STRINGS = {
     checkingClipsNow: "正在检查片段…",
     checkingClips: "正在检查片段",
     listening: "正在识别节拍",
+    preparingTools: "正在准备节拍检测(仅首次)",
     working: "处理中",
     noFootage: "此项目中还没有已分析的视频或照片。请添加视频片段并进行分析，或添加照片；这里会自动更新。",
     noClipsSelected: "未选择片段。请在“高级”中选择片段。",
@@ -1765,7 +1775,7 @@ const STRINGS = {
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
     devPlaceholder: "{title}（开发占位曲目）",
-    installTools: "请安装 ffmpeg 和 Node.js 18+，才能试听音乐或使用自己的曲目。",
+    installTools: "请安装 ffmpeg，才能试听音乐或使用自己的曲目。",
     length: "时长",
     "length.short": "短",
     "length.standard": "标准",
@@ -3369,9 +3379,19 @@ async function readText(root: string, rel: string) {
 // The config goes in as JSON.parse of a string so its type is `any`: an inlined literal widens `type` to string
 // (rejected by EditableParameterDefinition[]) and narrows a null option to `never` inside its `if`.
 function fill(script: string, cfg: unknown) { return script.replace("__CONFIG__", () => "JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"); }
-// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew and the newest nvm Node.
-const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; '
-  + 'n=$( (ls -d "$HOME"/.nvm/versions/node/*/bin) 2>/dev/null | sort -V | tail -1); [ -n "$n" ] && export PATH="$PATH:$n"; ';
+// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew.
+const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; ';
+// Own music's beat detection runs beat-detect.cjs on Node.js. Selects puts no Node on the shell's PATH and a stock
+// Mac has none, so runtime.sh fetches a pinned copy into ~/.selects/plugin-data/_runtime the first time (shared by
+// every plugin) and prints its path. Later calls in this session reuse it.
+let nodePath: string | null = null;
+async function ensureNode(sdk: any): Promise<string> {
+  if (nodePath) return nodePath;
+  const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: TOOL_PATH + "sh " + dq(SKILLS_DIR + "/runtime.sh") + " node", timeoutMs: 290000, maxOutputBytes: 8000 });
+  const found = String(r?.stdout || "").trim().split("\n").filter(Boolean).pop() || "";
+  if (r?.isError || r?.exitCode !== 0 || !found.startsWith("/")) throw new Error(String(r?.stderr || "").trim().split("\n").pop() || "Could not prepare Node.js.");
+  return (nodePath = found);
+}
 // Thrown when the Project changed while a build was running; its results are dropped silently.
 const STALE = new Error("The Project changed during the build.");
 
@@ -3753,7 +3773,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
   // Single-flight guard: state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef(false);
   const [step, setStep] = React.useState("");
-  const [tools, setTools] = React.useState({ ffmpeg: true, node: true });
+  const [tools, setTools] = React.useState({ ffmpeg: true });
   const [fontsTick, setFontsTick] = React.useState(0);
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
   const registered = React.useRef<Set<string>>(new Set());
@@ -3873,14 +3893,14 @@ function SummerTripPanel({ sdk, context, ui }: any) {
         const { plugin, data } = await locateRoots(sdk);
         if (!alive) return;
         setRoots({ plugin, data });
-        // ffmpeg and node are only needed for previews and own music; bundled cues work without them.
+        // ffmpeg is only needed for previews and own music (own music also fetches Node.js on first use); bundled cues work without it.
         let have = "";
         try {
-          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg; command -v node >/dev/null && echo node", timeoutMs: 10000 });
+          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg", timeoutMs: 10000 });
           have = String(probe?.stdout || "");
         } catch { have = ""; }
         if (!alive) return;
-        setTools({ ffmpeg: have.includes("ffmpeg"), node: have.includes("node") });
+        setTools({ ffmpeg: have.includes("ffmpeg") });
         const read = (rel: string) => readText(plugin, rel);
         const [manifest, presets, sfxManifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, labelsTsx, lookTsx, gridTsx, filmTsx, motionTsx, videoMotionTsx] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("sfx/manifest.json"), read("scripts/inventory.js"), read("scripts/search.js"),
@@ -3989,8 +4009,11 @@ function SummerTripPanel({ sdk, context, ui }: any) {
       // The decoded PCM (up to ~32 MB) is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit
       // status. The result goes to a file (a long track's onsets come close to the 48 KB shell output cap); stdout says
       // ok. 'largest' reports the largest loudness step as the drop (own music, spec 7.3).
+      if (!nodePath) setStep("preparing");
+      const node = await ensureNode(sdk);
+      setStep("listening");
       const pcm = roots.data + "/own-music.f32";
-      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && node " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json") + " largest"
+      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json") + " largest"
         + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
       const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
       const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
@@ -4370,13 +4393,13 @@ function SummerTripPanel({ sdk, context, ui }: any) {
   const presetsData = assets?.presets || null;
   const cueOptions = [
     ...cues.map((c: any) => ({ label: c.dev ? t(L, "devPlaceholder", { title: c.title }) : c.title, value: c.id as string })),
-    ...(tools.ffmpeg && tools.node ? [{ label: t(L, "ownMusic"), value: "own" }] : []),
+    ...(tools.ffmpeg ? [{ label: t(L, "ownMusic"), value: "own" }] : []),
     { label: t(L, "noMusic"), value: "none" },
   ];
-  const canOwnMusic = tools.ffmpeg && tools.node;
+  const canOwnMusic = tools.ffmpeg;
   const silent = music.kind === "none" && clipSound === "off";
   const isDrop = !!(sectionInfo && sectionInfo.kind === "drop");
-  const stepText = step === "checkingClips" ? t(L, "checkingClips") : step === "listening" ? t(L, "listening") : "";
+  const stepText = step === "checkingClips" ? t(L, "checkingClips") : step === "preparing" ? t(L, "preparingTools") : step === "listening" ? t(L, "listening") : "";
   // A field's limit hint; with wide characters typed it adds that they count as 2.
   const limitHint = (text: string, value: string) => text + (stHasWide(value) ? t(L, "gap") + t(L, "wideCounts") : "");
 

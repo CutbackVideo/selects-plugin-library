@@ -122,8 +122,8 @@ songs where no steady beat is found, fall back to fixed timing at
 99.2 BPM, and the panel says "cuts use the original rhythm". Those cuts
 still move onto a clearly strong bass hit nearby (within 120 ms). Without a
 detected tempo, the box moves in 0.1 s steps instead of bars. Your own music
-and the previews need ffmpeg; your own music also needs Node.js 18 or later
-(see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.
+and the previews need ffmpeg; your own music also runs on
+a pinned Node.js, which the panel downloads the first time (see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.
 
 ## Photos
 

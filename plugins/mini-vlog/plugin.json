@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "mini-vlog",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "name": "Mini Vlog",
   "summary": "Turn everyday clips and photos into a 16:9 mini vlog cut to the beat, with a pale pink title, as a new editable Draft.",
   "status": "experimental",
@@ -13,6 +13,7 @@
     "THIRD_PARTY.md",
     "beat-detect.cjs",
     "panel.tsx",
+    "runtime.sh",
     "planner.js",
     "dev/i18n-check.cjs",
     "assets/cues/acoustic-pop-104.mp3",
@@ -59,7 +60,7 @@
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg and Node.js 18+ on PATH only for music previews and your own music."
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg only for music previews and your own music; your own music also downloads a pinned Node.js the first time (runtime.sh)."
   },
   "localized": {
     "de": {

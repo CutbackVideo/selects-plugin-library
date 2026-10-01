@@ -26,6 +26,7 @@ const STRINGS = {
     checkingClipsNow: "Checking clips…",
     checkingClips: "Checking clips",
     listening: "Listening for the beat",
+    preparingTools: "Preparing beat detection (first time only)",
     working: "Working",
     noFootage: "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.",
     turnOnPhotos: "Turn on Use photos in Advanced to build from this Project's photos.",
@@ -85,7 +86,7 @@ const STRINGS = {
     ownMusic: "Your own music",
     noMusic: "No music",
     dropAudio: "Drop an audio file (mp3, wav, m4a…) that is on this computer.",
-    installTools: "Install ffmpeg and Node.js 18+ to preview music or use your own track.",
+    installTools: "Install ffmpeg to preview music or use your own track.",
     noSteadyBeat: "No steady beat found: shots are {seconds} s.",
     beatApprox: "Beat found (approximate): shots follow it at {seconds} s.",
     sectionHint: "Music section — drag to choose",
@@ -201,6 +202,7 @@ const STRINGS = {
     checkingClipsNow: "Clips werden geprüft …",
     checkingClips: "Clips werden geprüft",
     listening: "Beat wird gesucht",
+    preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     working: "In Arbeit",
     noFootage: "In diesem Projekt gibt es noch keine analysierten Videos oder Fotos. Füge Videoclips hinzu und analysiere sie, oder füge Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
     turnOnPhotos: "Aktiviere „Fotos verwenden“ unter „Erweitert“, um aus den Fotos dieses Projekts zu erstellen.",
@@ -260,7 +262,7 @@ const STRINGS = {
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
     dropAudio: "Lege eine Audiodatei (mp3, wav, m4a …) ab, die auf diesem Computer liegt.",
-    installTools: "Installiere ffmpeg und Node.js 18+, um Musik vorzuhören oder eigene Musik zu verwenden.",
+    installTools: "Installiere ffmpeg, um Musik vorzuhören oder eigene Musik zu verwenden.",
     noSteadyBeat: "Kein gleichmäßiger Beat gefunden: Einstellungen dauern {seconds} s.",
     beatApprox: "Beat gefunden (ungefähr): Die Einstellungen folgen ihm alle {seconds} s.",
     sectionHint: "Musikabschnitt – zum Auswählen ziehen",
@@ -376,6 +378,7 @@ const STRINGS = {
     checkingClipsNow: "Comprobando clips…",
     checkingClips: "Comprobando clips",
     listening: "Buscando el ritmo",
+    preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     working: "Trabajando",
     noFootage: "Este proyecto aún no tiene vídeos analizados ni fotos. Añade clips de vídeo y analízalos, o añade fotos; se actualizará automáticamente.",
     turnOnPhotos: "Activa «Usar fotos» en «Avanzado» para crear con las fotos de este proyecto.",
@@ -435,7 +438,7 @@ const STRINGS = {
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
     dropAudio: "Suelta un archivo de audio (mp3, wav, m4a…) que esté en este ordenador.",
-    installTools: "Instala ffmpeg y Node.js 18+ para escuchar la música o usar tu propia pista.",
+    installTools: "Instala ffmpeg para escuchar la música o usar tu propia pista.",
     noSteadyBeat: "No se encontró un ritmo estable: los planos duran {seconds} s.",
     beatApprox: "Ritmo encontrado (aproximado): los planos lo siguen cada {seconds} s.",
     sectionHint: "Sección de música: arrastra para elegir",
@@ -551,6 +554,7 @@ const STRINGS = {
     checkingClipsNow: "Vérification des clips…",
     checkingClips: "Vérification des clips",
     listening: "Recherche du rythme",
+    preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     working: "En cours",
     noFootage: "Ce projet ne contient pas encore de vidéo analysée ni de photo. Ajoutez des clips vidéo et analysez-les, ou ajoutez des photos ; l'affichage se met à jour automatiquement.",
     turnOnPhotos: "Activez « Utiliser les photos » dans « Avancé » pour créer à partir des photos de ce projet.",
@@ -610,7 +614,7 @@ const STRINGS = {
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
     dropAudio: "Déposez un fichier audio (mp3, wav, m4a…) présent sur cet ordinateur.",
-    installTools: "Installez ffmpeg et Node.js 18+ pour écouter la musique ou utiliser votre propre morceau.",
+    installTools: "Installez ffmpeg pour écouter la musique ou utiliser votre propre morceau.",
     noSteadyBeat: "Aucun rythme régulier trouvé : les plans durent {seconds} s.",
     beatApprox: "Rythme trouvé (approximatif) : les plans le suivent toutes les {seconds} s.",
     sectionHint: "Section musicale : faites glisser pour choisir",
@@ -726,6 +730,7 @@ const STRINGS = {
     checkingClipsNow: "Controllo delle clip…",
     checkingClips: "Controllo delle clip",
     listening: "Ricerca del ritmo",
+    preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     working: "In corso",
     noFootage: "In questo progetto non ci sono ancora video analizzati né foto. Aggiungi clip video e analizzale, oppure aggiungi foto; si aggiorna automaticamente.",
     turnOnPhotos: "Attiva «Usa foto» in «Avanzate» per creare dalle foto di questo progetto.",
@@ -785,7 +790,7 @@ const STRINGS = {
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
     dropAudio: "Trascina qui un file audio (mp3, wav, m4a…) presente su questo computer.",
-    installTools: "Installa ffmpeg e Node.js 18+ per ascoltare la musica o usare un tuo brano.",
+    installTools: "Installa ffmpeg per ascoltare la musica o usare un tuo brano.",
     noSteadyBeat: "Nessun ritmo regolare trovato: le inquadrature durano {seconds} s.",
     beatApprox: "Ritmo trovato (approssimativo): le inquadrature lo seguono ogni {seconds} s.",
     sectionHint: "Sezione musicale: trascina per scegliere",
@@ -901,6 +906,7 @@ const STRINGS = {
     checkingClipsNow: "クリップを確認中…",
     checkingClips: "クリップを確認中",
     listening: "ビートを検出中",
+    preparingTools: "ビート検出を準備中(初回のみ)",
     working: "処理中",
     noFootage: "このプロジェクトには、解析済みの動画も写真もまだありません。動画クリップを追加して解析するか、写真を追加してください。自動で更新されます。",
     turnOnPhotos: "このプロジェクトの写真から作成するには、「詳細設定」で「写真を使う」をオンにしてください。",
@@ -960,7 +966,7 @@ const STRINGS = {
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
     dropAudio: "このコンピュータ上のオーディオファイル（mp3、wav、m4a など）をドロップしてください。",
-    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg と Node.js 18 以降をインストールしてください。",
+    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg をインストールしてください。",
     noSteadyBeat: "一定のビートが見つかりません。ショットは {seconds} 秒ずつです。",
     beatApprox: "ビートを検出しました（おおよそ）。ショットは {seconds} 秒ごとに切り替わります。",
     sectionHint: "音楽の区間 — ドラッグして選択",
@@ -1076,6 +1082,7 @@ const STRINGS = {
     checkingClipsNow: "\ud074\ub9bd \ud655\uc778 \uc911…",
     checkingClips: "\ud074\ub9bd \ud655\uc778 \uc911",
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
+    preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     working: "\uc791\uc5c5 \uc911",
     noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \ubd84\uc11d\ub41c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc744 \ucd94\uac00\ud574 \ubd84\uc11d\ud558\uac70\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
     turnOnPhotos: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc0ac\uc9c4\uc73c\ub85c \ub9cc\ub4e4\ub824\uba74 ‘\uace0\uae09’\uc5d0\uc11c ‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc744 \ucf1c\uc138\uc694.",
@@ -1135,7 +1142,7 @@ const STRINGS = {
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
     dropAudio: "\uc774 \ucef4\ud4e8\ud130\uc5d0 \uc788\ub294 \uc624\ub514\uc624 \ud30c\uc77c(mp3, wav, m4a \ub4f1)\uc744 \ub04c\uc5b4\ub2e4 \ub193\uc73c\uc138\uc694.",
-    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\uc640 Node.js 18 \uc774\uc0c1\uc744 \uc124\uce58\ud558\uc138\uc694.",
+    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\ub97c \uc124\uce58\ud558\uc138\uc694.",
     noSteadyBeat: "\uc77c\uc815\ud55c \ube44\ud2b8\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc0f7\uc740 {seconds}\ucd08\uc529\uc785\ub2c8\ub2e4.",
     beatApprox: "\ube44\ud2b8\ub97c \ucc3e\uc558\uc2b5\ub2c8\ub2e4(\ub300\ub7b5). \uc0f7\uc774 {seconds}\ucd08\ub9c8\ub2e4 \ube44\ud2b8\ub97c \ub530\ub77c\uac11\ub2c8\ub2e4.",
     sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
@@ -1251,6 +1258,7 @@ const STRINGS = {
     checkingClipsNow: "Verificando clipes…",
     checkingClips: "Verificando clipes",
     listening: "Procurando a batida",
+    preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     working: "Trabalhando",
     noFootage: "Este projeto ainda não tem vídeos analisados nem fotos. Adicione clipes de vídeo e analise-os, ou adicione fotos; a lista é atualizada automaticamente.",
     turnOnPhotos: "Ative “Usar fotos” em “Avançado” para criar com as fotos deste projeto.",
@@ -1310,7 +1318,7 @@ const STRINGS = {
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
     dropAudio: "Solte um arquivo de áudio (mp3, wav, m4a…) que esteja neste computador.",
-    installTools: "Instale o ffmpeg e o Node.js 18+ para ouvir a música ou usar sua própria faixa.",
+    installTools: "Instale o ffmpeg para ouvir a música ou usar sua própria faixa.",
     noSteadyBeat: "Nenhuma batida constante encontrada: os planos duram {seconds} s.",
     beatApprox: "Batida encontrada (aproximada): os planos a seguem a cada {seconds} s.",
     sectionHint: "Trecho da música: arraste para escolher",
@@ -1426,6 +1434,7 @@ const STRINGS = {
     checkingClipsNow: "Klipler kontrol ediliyor…",
     checkingClips: "Klipler kontrol ediliyor",
     listening: "Ritim aranıyor",
+    preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     working: "Çalışıyor",
     noFootage: "Bu projede henüz analiz edilmiş video veya fotoğraf yok. Video klipleri ekleyip analiz edin ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
     turnOnPhotos: "Bu projenin fotoğraflarından oluşturmak için “Gelişmiş” bölümünde “Fotoğrafları kullan” seçeneğini açın.",
@@ -1485,7 +1494,7 @@ const STRINGS = {
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
     dropAudio: "Bu bilgisayardaki bir ses dosyasını (mp3, wav, m4a…) bırakın.",
-    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg ve Node.js 18+ yükleyin.",
+    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg yükleyin.",
     noSteadyBeat: "Düzenli bir ritim bulunamadı: çekimler {seconds} sn sürüyor.",
     beatApprox: "Ritim bulundu (yaklaşık): çekimler her {seconds} sn'de onu takip ediyor.",
     sectionHint: "Müzik bölümü — seçmek için sürükleyin",
@@ -1601,6 +1610,7 @@ const STRINGS = {
     checkingClipsNow: "正在检查片段…",
     checkingClips: "正在检查片段",
     listening: "正在识别节拍",
+    preparingTools: "正在准备节拍检测(仅首次)",
     working: "处理中",
     noFootage: "此项目中还没有已分析的视频或照片。请添加视频片段并进行分析，或添加照片；这里会自动更新。",
     turnOnPhotos: "请在“高级”中开启“使用照片”，即可用此项目的照片制作。",
@@ -1660,7 +1670,7 @@ const STRINGS = {
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
     dropAudio: "请拖入这台电脑上的音频文件（mp3、wav、m4a 等）。",
-    installTools: "请安装 ffmpeg 和 Node.js 18+，才能试听音乐或使用自己的曲目。",
+    installTools: "请安装 ffmpeg，才能试听音乐或使用自己的曲目。",
     noSteadyBeat: "未找到稳定的节拍：每个镜头 {seconds} 秒。",
     beatApprox: "已识别节拍（近似）：镜头每 {seconds} 秒跟随节拍切换。",
     sectionHint: "音乐片段 — 拖动选择",
@@ -2660,9 +2670,19 @@ async function readText(root: string, rel: string) {
 // The config goes in as JSON.parse of a string so its type is `any`: an inlined literal widens `type` to string
 // (rejected by EditableParameterDefinition[]) and narrows a null option to `never` inside its `if`.
 function fill(script: string, cfg: unknown) { return script.replace("__CONFIG__", () => "JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"); }
-// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew and the newest nvm Node.
-const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; '
-  + 'n=$( (ls -d "$HOME"/.nvm/versions/node/*/bin) 2>/dev/null | sort -V | tail -1); [ -n "$n" ] && export PATH="$PATH:$n"; ';
+// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew.
+const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; ';
+// Own music's beat detection runs beat-detect.cjs on Node.js. Selects puts no Node on the shell's PATH and a stock
+// Mac has none, so runtime.sh fetches a pinned copy into ~/.selects/plugin-data/_runtime the first time (shared by
+// every plugin) and prints its path. Later calls in this session reuse it.
+let nodePath: string | null = null;
+async function ensureNode(sdk: any): Promise<string> {
+  if (nodePath) return nodePath;
+  const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: TOOL_PATH + "sh " + dq(SKILLS_DIR + "/runtime.sh") + " node", timeoutMs: 290000, maxOutputBytes: 8000 });
+  const found = String(r?.stdout || "").trim().split("\n").filter(Boolean).pop() || "";
+  if (r?.isError || r?.exitCode !== 0 || !found.startsWith("/")) throw new Error(String(r?.stderr || "").trim().split("\n").pop() || "Could not prepare Node.js.");
+  return (nodePath = found);
+}
 // Thrown when the Project changed while a build was running; its results are dropped silently.
 const STALE = new Error("The Project changed during the build.");
 
@@ -3687,8 +3707,8 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
   // Single-flight guard: state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef(false);
   // The one-call spinner text (a key: inventory check or own-music beat detection).
-  const [step, setStep] = React.useState<"" | "checking" | "listening">("");
-  const [tools, setTools] = React.useState({ ffmpeg: true, node: true });
+  const [step, setStep] = React.useState<"" | "checking" | "preparing" | "listening">("");
+  const [tools, setTools] = React.useState({ ffmpeg: true });
   const [progress, setProgress] = React.useState<any>(null);
   const progressRef = React.useRef<any>(null);
   // Progress never goes backwards within a run.
@@ -3775,14 +3795,14 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
         const { plugin, data } = await locateRoots(sdk);
         if (!alive || projectRef.current !== projectId) return;
         setRoots({ plugin, data });
-        // ffmpeg and node are only needed for music previews and own music; bundled cues build without them.
+        // ffmpeg is only needed for music previews and own music (own music also fetches Node.js on first use); bundled cues build without it.
         let have = "";
         try {
-          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg; command -v node >/dev/null && echo node", timeoutMs: 10000 });
+          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg", timeoutMs: 10000 });
           have = String(probe?.stdout || "");
         } catch { have = ""; }
         if (!alive || projectRef.current !== projectId) return;
-        setTools({ ffmpeg: have.includes("ffmpeg"), node: have.includes("node") });
+        setTools({ ffmpeg: have.includes("ffmpeg") });
         const read = (rel: string) => readText(plugin, rel);
         const [manifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, graphicTsx, frameTsx, lookTsx, titleB64, creditsB64] = await Promise.all([
           read("assets/cues/manifest.json"), read("scripts/inventory.js"), read("scripts/search.js"), read("scripts/ensure-audio.js"),
@@ -3988,8 +4008,11 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     try {
       // The decoded PCM is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit status.
       // The result goes to a file (a long track's onsets come close to the 48 KB shell output cap); stdout says ok.
+      if (!nodePath) setStep("preparing");
+      const node = await ensureNode(sdk);
+      setStep("listening");
       const pcm = roots.data + "/own-music.f32";
-      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && node " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json")
+      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json")
         + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
       const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
       const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
@@ -4336,7 +4359,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     : fitsPlan && !fitsPlan.ok ? sentences([t(L, "needsShots", { count: fitsPlan.needed, found: fitsPlan.usableShots }), t(L, "addFootagePhotos"), analysisText])
     : t(L, "ready", { summary: [clipCount, shotsFit < requested ? t(L, "shotsFitted", { count: shotsFit + extra }) : t(L, "shots", { count: shotsFit + extra }),
       t(L, "aboutSeconds", { seconds: Math.round(tecVideoSeconds(shotsFit, music.P)) }), ...tecAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
-  const canOwnMusic = tools.ffmpeg && tools.node;
+  const canOwnMusic = tools.ffmpeg;
   const silent = cueId === "none" && clipSound === "off";
   const hidden = roll.hiddenRows;
   // Too many rows: even at its fastest the roll can't take the last line off the top before the end.
@@ -4351,7 +4374,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     : roll.exitsLate ? (length !== "long" ? t(L, "tooManyRowsOrLong", { count: dropRows, long: longLabel }) : t(L, "tooManyRows", { count: dropRows }))
     : roll.endsEarly ? t(L, "creditsEndEarly")
     : null;
-  const stepLabel = step === "checking" ? t(L, "checkingClips") : step === "listening" ? t(L, "listening") : "";
+  const stepLabel = step === "checking" ? t(L, "checkingClips") : step === "preparing" ? t(L, "preparingTools") : step === "listening" ? t(L, "listening") : "";
   const progressLabel = !progress ? "" : progress.detail
     ? t(L, "progressDetail", { step: progress.current + 1, total: TEC_BUILD_STEPS.length, name: t(L, "step." + progress.id), detail: progress.detail(L), percent: progress.percent })
     : t(L, "progress", { step: progress.current + 1, total: TEC_BUILD_STEPS.length, name: t(L, "step." + progress.id), percent: progress.percent });

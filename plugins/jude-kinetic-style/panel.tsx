@@ -121,7 +121,7 @@ export function boxParams(box:LineBox,serif:boolean,align:'center'|'left'|'right
 export type W = { i:number; text:string; startFrame:number; endFrame:number; sourceStartFrame:number|null; nonSpeech?:boolean };
 export type Line = { from:number; to:number; serif:boolean; hero?:boolean };
 export type Scene = { layout:'stack'|'left'|'right'|'card'; lines:Line[] };
-export type Env = {runScript:(code:string,summary:string,commit?:boolean)=>Promise<any>;runShell:(cmd:string,summary:string,timeout?:number)=>Promise<string>;askAI:(prompt:string,timeout?:number)=>Promise<string>;readText:(path:string)=>Promise<string>;writeText:(path:string,text:string)=>Promise<void>;status:(msg:string)=>void;dataDir:string;pluginDir:string;ffmpeg:string};
+export type Env = {runScript:(code:string,summary:string,commit?:boolean)=>Promise<any>;runShell:(cmd:string,summary:string,timeout?:number)=>Promise<string>;askAI:(prompt:string,timeout?:number)=>Promise<string>;readText:(path:string)=>Promise<string>;writeText:(path:string,text:string)=>Promise<void>;status:(msg:string)=>void;node:()=>Promise<string>;dataDir:string;pluginDir:string;ffmpeg:string};
 export type Options={copy:boolean;music?:boolean;instructions?:string;planOverride?:any;onDraft?:(id:string)=>void};
 const q=(s:string)=>"'"+s.replace(/'/g,"'\\''")+"'";
 const PREFIX='Jude Kinetic · ', SUFFIX=' · Jude Kinetic', FOLDER='Jude Kinetic';
@@ -265,7 +265,7 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
  if(!externalGraphics){
   const ranges=src.mains.map((m:any,i:number)=>({key:String(i),path:src.files[m.resourceId]?.path,startSeconds:m.sourceStartSeconds,seconds:(m.endFrame-m.startFrame)/src.fps})).filter((r:any)=>r.path&&r.startSeconds!=null);
   await env.writeText(jobDir+'/shots.json',JSON.stringify({shots:{ffmpeg:env.ffmpeg,threshold:.25,ranges}}));
-  try{await env.runShell('node '+q(env.pluginDir+'/engine.mjs')+' '+q(jobDir+'/shots.json'),'Detect camera cuts',240000);cameraCuts=JSON.parse(await env.readText(jobDir+'/shots-result.json')).cuts;}catch(e:any){report.warnings.push('Camera-cut detection failed; review framing across source cuts.');}
+  try{await env.runShell(q(await env.node())+' '+q(env.pluginDir+'/engine.mjs')+' '+q(jobDir+'/shots.json'),'Detect camera cuts',240000);cameraCuts=JSON.parse(await env.readText(jobDir+'/shots-result.json')).cuts;}catch(e:any){report.warnings.push('Camera-cut detection failed; review framing across source cuts.');}
  }
  const segments:any[]=[];
  for(const [mi,m] of src.mains.entries()){
@@ -279,7 +279,7 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
  if(samples.length){
   await env.writeText(jobDir+'/faces.json',JSON.stringify({ffmpeg:env.ffmpeg,faces:{samples}}));
   env.status('Measuring the speaker framing…');
-  try{await env.runShell('node '+q(env.pluginDir+'/engine.mjs')+' '+q(jobDir+'/faces.json'),'Measure source faces',240000);faces=JSON.parse(await env.readText(jobDir+'/faces-result.json')).detected;}catch(e:any){report.warnings.push('Face detection unavailable; footage is centre-cropped to vertical.');}
+  try{await env.runShell(q(await env.node())+' '+q(env.pluginDir+'/engine.mjs')+' '+q(jobDir+'/faces.json'),'Measure source faces',240000);faces=JSON.parse(await env.readText(jobDir+'/faces-result.json')).detected;}catch(e:any){report.warnings.push('Face detection unavailable; footage is centre-cropped to vertical.');}
  }
  if(Object.values(faces).some((f:any)=>f.faces?.length>1))report.warnings.push('Multiple faces found in some shots. Framing uses the largest visible face; review the result.');
  let draftId=sequenceId;
@@ -346,7 +346,7 @@ export async function placeBehind(env:Env,src:any,draftId:string,items:any,jobDi
  });
  if(!blocks.length)return warnings;
  await env.writeText(jobDir+'/matte.json',JSON.stringify({ffmpeg:env.ffmpeg,matte:{fps,step:BEHIND.step,blocks}}));
- await env.runShell('node '+q(env.pluginDir+'/engine.mjs')+' '+q(jobDir+'/matte.json'),'Find the speaker behind side captions',300000);
+ await env.runShell(q(await env.node())+' '+q(env.pluginDir+'/engine.mjs')+' '+q(jobDir+'/matte.json'),'Find the speaker behind side captions',300000);
  const made=JSON.parse(await env.readText(jobDir+'/matte-result.json')).lines;
  for(const block of blocks){
   const b=items.behind[Number(block.key.slice(1))],results=block.lines.map((l:any)=>made[l.key]);
@@ -413,7 +413,10 @@ for (const m of mains) {
 const endFrame = mains.reduce((a: number, m: any) => Math.max(a, m.endFrame), 0);
 return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, words, mains, files };`, "Read the talking-head Draft");
 }
-const SETUP_COMMAND = "printf '%s\\n%s\\n' \"" + DATA_DIR + "\" \"" + PLUGIN_DIR + "\" && (" + FFMPEG_PROBE + ") && printf '\\n' && ([ -x \"" + PLUGIN_DIR + "/.local/vision-helper\" ] && echo helper-ok || echo helper-missing) && (command -v node >/dev/null && node -e 'process.exit(+process.versions.node.split(\".\")[0] >= 18 ? 0 : 1)' && echo node-ok || echo node-missing)";
+const SETUP_COMMAND = "printf '%s\\n%s\\n' \"" + DATA_DIR + "\" \"" + PLUGIN_DIR + "\" && (" + FFMPEG_PROBE + ") && printf '\\n'";
+// Node.js is not on a stock Mac: runtime.sh fetches a pinned copy into ~/.selects/plugin-data on first use
+// and prints its path as its last line.
+const NODE_COMMAND = 'sh "' + PLUGIN_DIR + '/runtime.sh" node';
 
 function host() {
   const parent: any = window.parent;
@@ -430,6 +433,7 @@ async function writeText(path: string, text: string) {
 
 // Host access for the pipeline, shared by the panel and a template run.
 function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: string }, status: (message: string) => void): Env {
+  let node: Promise<string> | null = null;
   return {
     runScript: async (script, summary, allowCommit = false) => {
       const r = await sdk.runScript({ script, summary, allowCommit });
@@ -445,6 +449,18 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
     readText,
     writeText,
     status,
+    // Resolved once per run, on the first engine step; a failed download is tried again on the next step.
+    node: () => node ??= (async () => {
+      status("Preparing Node.js (first run only)…");
+      const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: NODE_COMMAND, timeoutMs: 290000, maxOutputBytes: 8000 });
+      const found = String(r?.stdout || "").split("\n").map((x: string) => x.trim()).filter(Boolean).pop();
+      if (r?.isError || r?.exitCode !== 0 || !found) {
+        node = null;
+        const said = String(r?.stderr || "").trim().split("\n").pop() || "";
+        throw new Error(r?.exitCode === 3 || !said ? "Couldn't download what Jude Kinetic needs; check the internet connection and try again." : said);
+      }
+      return found;
+    })(),
     dataDir: paths.data,
     pluginDir: paths.plugin,
     ffmpeg: paths.ffmpeg,
@@ -483,10 +499,7 @@ function StylePanel({ sdk, context, ui }: any) {
       .then((r: any) => {
         const lines = String(r?.stdout || "").split("\n").map((x: string) => x.trim());
         setPaths({ data: lines[0], plugin: lines[1], ffmpeg: lines[2] || "ffmpeg" });
-        const issues: string[] = [];
-        if (!lines.includes("node-ok")) issues.push("Node.js 18 or later is not installed on this Mac.");
-        if (!lines.includes("helper-ok")) issues.push("The Vision helper is missing; reinstall Jude Kinetic.");
-        setSetupIssue(issues.join(" "));
+        setSetupIssue("");
       })
       .catch((e: any) => setSetupIssue(String(e?.message || e)));
   }, []);
@@ -587,8 +600,6 @@ function templateSpeaker(template: any): any {
 async function templatePaths(sdk: any) {
   const r = await sdk.runShell({ summary: "Check the Jude Kinetic setup", command: SETUP_COMMAND, timeoutMs: 20000 });
   const lines = String(r?.stdout || "").split("\n").map((x: string) => x.trim());
-  if (!lines.includes("node-ok")) throw new Error("Jude Kinetic needs Node.js 18 or later on this Mac.");
-  if (!lines.includes("helper-ok")) throw new Error("Jude Kinetic is not fully installed (its Vision helper is missing). Reinstall it, then try again.");
   return { data: lines[0], plugin: lines[1], ffmpeg: lines[2] || "ffmpeg" };
 }
 

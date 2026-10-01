@@ -81,9 +81,25 @@ function fixedAudioOf(audios) {
   return (audios || []).find((item) => item.path?.replace(/\\/g, "/").endsWith(`/gongju-gallery/assets/${MUSIC_NAME}`))?.resourceId || null;
 }
 
+// A stock Mac has no Python, so runtime.sh fetches a pinned one on first use
+// (shared by every plugin under ~/.selects/plugin-data/_runtime) and prints its
+// path as the last line. Resolved once per panel load.
+let pythonPath = null;
+async function runtimePython(sdk, say) {
+  if (pythonPath) return pythonPath;
+  say?.("Preparing (first run only)\u2026");
+  const r = await sdk.runShell({ summary: "Prepare Python (first run only)", command: 'sh "$SELECTS_USER_SKILLS_ROOT/gongju-gallery/runtime.sh" python', timeoutMs: 290000, maxOutputBytes: 8000 });
+  const path = String(r.stdout || "").trim().split("\n").filter(Boolean).pop();
+  if (r.isError || r.exitCode !== 0 || !path?.startsWith("/")) {
+    throw new Error(String(r.stderr || "").trim().split("\n").filter(Boolean).pop() || "Could not prepare Python for this template. Check the internet connection, then try again.");
+  }
+  return (pythonPath = path);
+}
+const shellPath = (path) => "'" + path.replace(/'/g, "'\\''") + "'";
+
 // Crops the chosen clips to 3:4, imports them (and the soundtrack, once) and
 // builds the new draft. Resolves the new draft's id and the soundtrack's id.
-async function buildGallery(sdk, { projectId, language, chosen, audios, fixedAudioId }) {
+async function buildGallery(sdk, { projectId, language, chosen, audios, fixedAudioId, say }) {
   const fps = 30000 / 1001;
   const manifest = { audioCandidates: audios.filter((item) => item.name === MUSIC_NAME && item.path).map((item) => ({resourceId:item.resourceId,path:item.path})), clips: chosen.map((item, index) => {
     const frames = CUTS[index + 1] - CUTS[index];
@@ -92,9 +108,11 @@ async function buildGallery(sdk, { projectId, language, chosen, audios, fixedAud
     return { path: item.path, startSeconds: Math.max(0, Math.min(item.durationSeconds - seconds - 0.1, middle)), frames };
   }) };
 
+  const python = await runtimePython(sdk, say);
+  say?.("Cropping and placing your clips\u2026");
   const shell = await sdk.runShell({
     summary: "Make portrait gallery shots",
-    command: `python3 "$SELECTS_USER_SKILLS_ROOT/gongju-gallery/crop.py" ${encodeManifest(manifest)}`,
+    command: `${shellPath(python)} "$SELECTS_USER_SKILLS_ROOT/gongju-gallery/crop.py" ${encodeManifest(manifest)}`,
     timeoutMs: 300000,
   });
   if (shell.isError || shell.exitCode !== 0) throw new Error(shell.stderr || shell.output || "Portrait clips failed");
@@ -172,7 +190,7 @@ function TemplateRun({ sdk, context }) {
       if (!live()) return;
       setStatus("Cropping and placing your clips\u2026");
       const audios = reply.result.audios || [];
-      const { draftId } = await buildGallery(sdk, { projectId, language: context.language, chosen, audios, fixedAudioId: fixedAudioOf(audios) });
+      const { draftId } = await buildGallery(sdk, { projectId, language: context.language, chosen, audios, fixedAudioId: fixedAudioOf(audios), say: (text) => { if (live()) setStatus(text); } });
       finish({ sequenceId: draftId });
     })().catch((error) => {
       console.warn("[gongju-gallery] template run failed:", error);
@@ -239,7 +257,7 @@ function GalleryPanel({ sdk, context, ui }) {
     setStatus(null);
     try {
       const chosen = chooseShots(selectedVideos, selectionMode);
-      const { audioId } = await buildGallery(sdk, { projectId: context.projectId, language: context.language, chosen, audios, fixedAudioId });
+      const { audioId } = await buildGallery(sdk, { projectId: context.projectId, language: context.language, chosen, audios, fixedAudioId, say: (message) => setStatus({ type: "muted", message }) });
       if (!fixedAudioId) setFixedAudioId(audioId);
       setStatus({ type: "success", message: t.done });
     } catch (error) {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "portrait-beat-montage",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "name": "Portrait Beat Montage",
   "summary": "Builds an editable 16.3-second 3:4 portrait montage Draft from 10 person clips: a monochrome strobe intro, beat-timed cuts that enter on a person-only zigzag smear with a warm flash, and a white glow ending, cut to the bundled soundtrack.",
   "status": "experimental",

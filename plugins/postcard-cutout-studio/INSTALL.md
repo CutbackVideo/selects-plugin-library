@@ -1,8 +1,7 @@
 # Install Postcard Cutout Studio
 
-Experimental. Requires macOS, Python 3.9 or later (standard library only), FFmpeg and
-FFprobe with `libvpx-vp9` and `libx264` (the Selects shell puts its bundled copies on
-`PATH`), and a Selects build with Panel `runScript`/`runShell`, managed media
+Experimental. Requires macOS, FFmpeg and FFprobe with `libvpx-vp9` and `libx264` (the
+Selects shell puts its bundled copies on `PATH`), an internet connection on first use, and a Selects build with Panel `runScript`/`runShell`, managed media
 generation through the `MediaGeneration` service (host 2.0.433 or later), and Draft
 authoring.
 
@@ -13,9 +12,10 @@ authoring.
    in the library's [installation layout](../../PUBLISHING.md#installation-layout).
    The Panel runs `pipeline.py` and `scene_preview.py` from the package, and the
    sounds are decoded from `sfx/` and checked against its manifest on first use.
-2. Confirm the tools: `python3 --version`, `ffprobe -version`, and
-   `ffmpeg -hide_banner -encoders` listing `libvpx-vp9` and `libx264`. If macOS has
-   no working `python3`, `xcode-select --install` provides one.
+2. Nothing else to install by hand. On first use `runtime.sh` downloads a pinned
+   CPython 3.11.13 (through uv, checked by SHA-256) into
+   `~/.selects/plugin-data/_runtime/`, shared with other plugins; the helper uses only
+   its standard library. A system `python3` is not used.
 3. With a Project open, open **Postcard Cutout Studio** from the Plugin list.
 
 Runs, cutouts, held clips, decoded sounds and logs are kept beneath

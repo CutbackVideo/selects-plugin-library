@@ -159,16 +159,23 @@ test('an exact 15-photo/6-video selection assigns motion to the observed referen
 test('a short video is extended before any Draft is created', async () => {
   const media = [...photos.slice(0, 20), { resourceId: 'short-1', name: 'Short tile', kind: 'video',
     width: 128, height: 96, durationFrames: 60, path: '/fixture/short.mp4' }];
-  let conversions = 0;
+  let conversions = 0, prepared = 0;
   const h = harness(media, { runShell: async request => {
+    // The first call fetches the pinned Python; conversion then runs on it.
+    if (/runtime\.sh" python$/.test(request.command)) {
+      prepared++;
+      return { exitCode: 0, stdout: 'Downloading…\n/runtime/python3.11\n', stderr: '' };
+    }
     conversions++;
-    assert.match(request.command, /hold_video\.py/);
+    assert.match(request.command, /'\/runtime\/python3\.11' "\$SELECTS_USER_SKILLS_ROOT\/photo-gallery-no2\/hold_video\.py"/);
+    assert.doesNotMatch(request.command, /(^|\s)python3\s/);
     return { exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60, durationFrames: 853,
       videos: [{ inputIndex: 0, sourcePath: '/fixture/short.mp4', outputPath: '/cache/held-short.mp4' }] }) };
   } });
   await assignAndCreate(h.view);
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
   assert.equal(conversions, 1);
+  assert.equal(prepared, 1);
   assert.deepEqual(h.calls.slice(0, 3).map(call => call.input.operation), ['inspect', 'importConverted', 'preflight']);
   assert.equal(h.calls.find(call => call.input.operation === 'styleExisting').input.media[20].resourceId, 'held-1');
 });

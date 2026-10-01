@@ -20,7 +20,7 @@ assert.ok(!/^import .* from "(?!react")/m.test(panel), 'only react may be import
 for (const name of ['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js', 'title-graphic.tsx', 'warm-look.tsx', 'photo-motion.tsx', 'manifest.json', 'presets.json', 'beat-detect.cjs']) assert.ok(panel.includes(name), 'panel reads ' + name);
 for (const phrase of ['selects.editor.openDraft', 'cwvProgress(', 'steps={CWV_BUILD_STEPS.map((s) => t(L, "step." + s.id))}', 'label={t(L, "clipSound")}', 'linkToDraftFrame', 'FontFace', 'projectRef', 'ffprobe', 'aria-pressed', 'loadInventory(', '>{t(L, "refresh")}<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['anotherVersion', 'Try other shots'], ['clipSound', 'Clip sound'], ['silentVideo', 'Silent video'], ['musicFixedRhythm', 'cuts use the original rhythm'], ['musicFixedRhythmDetail', 'cuts use the original rhythm'],
-  ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'], ['installTools', 'Install ffmpeg and Node.js'], ['draftCreatedAdding', 'Draft created; adding title and look'],
+  ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'], ['installTools', 'Install ffmpeg to preview'], ['preparingTools', 'first time only'], ['draftCreatedAdding', 'Draft created; adding title and look'],
   ['analysing', 'This updates automatically when they finish.'], ['notAnalysedAnalyse', 'Analyse them in Selects to use them here.'], ['noFootage', 'this updates automatically'], ['refresh', 'Refresh'], ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})'], ['clipsChecked', '{done}/{count} clips checked']]) says(key, text);
 assert.deepEqual(['shots', 'music', 'draft', 'look', 'open'].map(id => en['step.' + id]), ['Choosing shots', 'Preparing music', 'Creating Draft', 'Adding title and look', 'Opening Draft']);
 // No UI sentence is left outside STRINGS: JSX text and string props are t() calls.
@@ -117,10 +117,14 @@ assert.ok(panel.indexOf('[cueId, ownMusic?.path, section, length]') < panel.inde
 const buildBody = panel.slice(panel.indexOf('async function build('), panel.indexOf('async function finishTitle('));
 assert.ok(buildBody.includes('stopPreview()'), 'Build stops the preview');
 assert.ok(panel.slice(panel.indexOf('async function finishTitle('), panel.indexOf('async function decorate(')).includes('stopPreview()'), 'Finish stops the preview');
-// Finder-launched apps lack Homebrew/nvm on PATH: every shell step that runs ffmpeg, ffprobe or node extends it.
+// Finder-launched apps lack Homebrew on PATH: every shell step that runs ffmpeg or ffprobe extends it.
 for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/]) assert.ok(re.test(panel), String(re));
-assert.equal((panel.match(/runShell\(/g) || []).length, 6, 'one folder lookup, four tool steps and the preview cleanup');
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && panel.includes('.nvm/versions/node/*/bin'), 'Homebrew and nvm paths');
+assert.equal((panel.match(/runShell\(/g) || []).length, 7, 'one folder lookup, the Node.js runtime, four tool steps and the preview cleanup');
+assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Homebrew path, no nvm hunting');
+// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
+assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
+assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
+assert.equal(fs.readFileSync(path.join(root, 'runtime.sh'), 'utf8'), fs.readFileSync(path.join(root, '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
 // Script configs arrive as JSON.parse(...) so the SDK type check sees `any`, not widened literal types.
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 assert.ok(/decorateJs, \{ sequenceId, mute,/.test(panel) && panel.includes('result.mute !== false'), 'decorate mutes, also on retry');

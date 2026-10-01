@@ -20,8 +20,9 @@ const SHOTS = 10;
 const MIN_SECONDS = 1.1;
 const json = JSON.stringify;
 const quote = (value) => "'" + String(value).replace(/'/g, "'\\''") + "'";
-// The pipeline runs on the RVM runtime's Python (it already has numpy and Pillow).
-const PYTHON = `S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; P="$S/rvm/.local/venv/bin/python"; [ -x "$P" ] || P=python3;`;
+// The pipeline runs on the RVM runtime's Python (it already has numpy and Pillow). Before setup there is no usable
+// Python on a stock Mac (/usr/bin/python3 only offers to install the Xcode tools), so a step reports setup instead.
+const PYTHON = `S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; P="$S/rvm/.local/venv/bin/python"; [ -x "$P" ] || { echo '{"error":"RVM runtime is not set up"}'; exit 2; };`;
 
 const T = {
   title: "Portrait Beat Montage",
@@ -63,6 +64,50 @@ async function pipeline(sdk, op, args, timeoutMs = 300000) {
     throw new Error(parsed?.error || reply.stderr || reply.output || `${op} failed`);
   }
   return parsed;
+}
+
+// One-time setup (rvm/setup.sh) downloads a few hundred MB, which can outlast one shell call: Selects ends each call
+// after five minutes and stops the processes it started. So setup runs in a session of its own (perl's setsid, part
+// of stock macOS), records its pid and exit status under plugin-data, and the panel polls. A setup that is already
+// running (its lock is held and it has not exited) is joined instead of started twice.
+const SETUP_DIR = `"$HOME/.selects/plugin-data/${PLUGIN}/setup"`;
+const SETUP_WAIT_MS = 30 * 60 * 1000;
+async function runSetup(sdk) {
+  const start = await sdk.runShell({
+    summary: "Portrait montage: start one-time setup",
+    command: `S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; D=${SETUP_DIR}; mkdir -p "$D" || exit 1; `
+      + `if [ -d "$S/rvm/.local/setup.lock" ] && [ ! -f "$D/exit" ] && kill -0 "$(cat "$D/pid" 2>/dev/null)" 2>/dev/null; then echo joined; exit 0; fi; `
+      + `rm -f "$D/exit" "$D/pid" "$D/stderr.log"; `
+      + `/usr/bin/perl -MPOSIX -e 'POSIX::setsid() or die "setsid: $!"; exec @ARGV or die "exec: $!"' /bin/sh -c 'echo $$ > "$2/pid"; sh "$1/rvm/setup.sh" 2>"$2/stderr.log"; echo $? > "$2/exit"' setup "$S" "$D" </dev/null >/dev/null 2>&1 & `
+      // Return only once setup has its own session (its pid is written after setsid), or this call's end would stop it.
+      + `i=0; while [ ! -s "$D/pid" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; [ -s "$D/pid" ] && echo started`,
+    timeoutMs: 30000,
+    maxOutputBytes: 4096,
+  });
+  if (start.isError || start.exitCode !== 0) throw new Error(start.stderr || "Could not start the setup.");
+  const until = Date.now() + SETUP_WAIT_MS;
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    const reply = await sdk.runShell({
+      summary: "Portrait montage: check setup",
+      command: `D=${SETUP_DIR}; if [ -f "$D/exit" ]; then cat "$D/exit"; elif kill -0 "$(cat "$D/pid" 2>/dev/null)" 2>/dev/null; then echo running; else echo stopped; fi`,
+      timeoutMs: 15000,
+      maxOutputBytes: 4096,
+    });
+    const state = (reply.stdout || "").trim().split("\n").pop() || "";
+    if (state === "0") return;
+    if (state === "running" && Date.now() < until) continue;
+    if (state === "running") throw new Error("Setup is still running after 30 minutes. Check the connection, then try again.");
+    // The last line setup wrote (its own log, else its stderr) says why it stopped.
+    const log = await sdk.runShell({
+      summary: "Portrait montage: read setup errors",
+      command: `S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; D=${SETUP_DIR}; { cat "$D/stderr.log"; tail -n 5 "$S/rvm/.local/setup.log"; } 2>/dev/null | grep -v '^SETUP ' | grep . | tail -n 1`,
+      timeoutMs: 15000,
+      maxOutputBytes: 4096,
+    });
+    const said = (log.stdout || "").trim();
+    throw new Error(said || (state === "stopped" ? "Setup stopped before it finished. Try again." : `Setup failed (exit ${state}). See rvm/.local/setup.log in the plugin folder.`));
+  }
 }
 
 // Mattes and transitions run detached, three shot windows at a time, so they keep
@@ -183,8 +228,15 @@ function TemplateRun({ sdk, context }) {
       if (!projectId) throw new Error("Open a project, then try again.");
       const picks = (context.template.inputs?.clips || []).filter((pick) => pick?.resourceId);
       if (picks.length !== SHOTS) throw new Error(`Pick ${SHOTS} videos, then try again.`);
-      const doctor = await pipeline(sdk, "doctor", {});
-      if (!doctor.ready) throw new Error("Open Portrait Beat Montage from the Plugin list once to finish its setup.");
+      // The first run on a Mac sets up RVM itself (a few minutes, once); later runs find it ready.
+      let doctor = await pipeline(sdk, "doctor", {}).catch(() => null);
+      if (!doctor?.ready) {
+        setStatus("Setting up person mattes (first run only, a few minutes)…");
+        await runSetup(sdk);
+        doctor = await pipeline(sdk, "doctor", {});
+        if (!doctor.ready) throw new Error(doctor.problems?.[0] || "Setup finished, but the montage tools are not ready.");
+        setStatus("Making your montage…");
+      }
       const ids = await scriptResourceIds(sdk, projectId);
       const reply = await sdk.runScript({ summary: "Find montage media", script: mediaScript(projectId) });
       if (reply.isError || !reply.result) throw new Error("Couldn't read this project's files. Try again.");
@@ -259,13 +311,7 @@ function MontagePanel({ sdk, context, ui }) {
     setSettingUp(true);
     setStatus(null);
     try {
-      const reply = await sdk.runShell({
-        summary: "Set up RVM for Portrait Beat Montage",
-        command: `sh "$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage/rvm/setup.sh" && sh "$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage/rvm/run.sh" doctor`,
-        timeoutMs: 900000,
-        maxOutputBytes: 20000,
-      });
-      if (reply.isError || reply.exitCode !== 0) throw new Error(reply.stderr || reply.output || "Setup failed. See rvm/.local/setup.log in the plugin folder.");
+      await runSetup(sdk);
       await checkSetup();
     } catch (error) {
       setStatus({ type: "error", message: String(error.message || error) });

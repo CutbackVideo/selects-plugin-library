@@ -129,8 +129,8 @@ already within a frame of the grid.
 With **No music** the panel says "the cuts keep a steady 0.35 s rhythm". If a
 track is too short to hold even 3 pictures from the section start, Build is
 disabled with "This track needs at least X s from the section start". Your own
-music and the previews need ffmpeg; your own music also needs Node.js 18 or
-later (see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.
+music and the previews need ffmpeg; your own music also runs on
+a pinned Node.js, which the panel downloads the first time (see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.
 
 ## Pictures
 
@@ -249,8 +249,8 @@ graphic names (Torn photo, Ransom letters) stay English.
 
 - Selects with Draft authoring and Panel `runScript` / `runShell`.
 - A Project with at least 3 photos or analysed video clips.
-- Optional: ffmpeg and Node.js 18 or later, for music previews and your own
-  music (see [INSTALL.md](INSTALL.md)).
+- Optional: ffmpeg, for music previews and your own music (which also
+  downloads a pinned Node.js the first time) (see [INSTALL.md](INSTALL.md)).
 
 ## Gallery
 
