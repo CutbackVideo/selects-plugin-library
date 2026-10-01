@@ -77,7 +77,7 @@ On a new Project with the 26 generated preview clips, the generated hero photo a
 
 Installed panel run from the Apps tab on a new Project with the same preview media and the CC0 song. It saved on the first Create click at 30 fps, 494 frames. Readback matches the local run clip for clip (39 video-track items and the song section at 0-494). The FHD export is pixel-identical to the local develop build's export on all 494 frames, and all 36 planned cuts are within 19 ms of a hit in its audio.
 
-Staging shows Clip highlights template plugins in the Apps list only until the plugin catalog loads; after that the panel is reached from its tab or through the template. The template path reads the manifest from the library's main branch, so it is checked after merge.
+In Staging 2.0.519 the panel was missing from the Apps list in a running app; after an app restart it appeared there and was opened from the list.
 
 The first "Load Project media" right after the app restarted and opened the Project failed once inside the host's script runtime (`Cannot read properties of undefined (reading 'reduce')`); the identical script succeeded seconds later. The panel now retries the read once before reporting an error, and the updated panel loaded the media in Staging.
 
