@@ -18,10 +18,10 @@ assert.match(panel.split('\n').slice(0, 24).join('\n'), /\/\/ @name City Weekend
 assert.match(panel, /\/\/ @icon \w+/);
 assert.ok(!/^import .* from "(?!react")/m.test(panel), 'only react may be imported');
 for (const name of ['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js', 'title-graphic.tsx', 'warm-look.tsx', 'photo-motion.tsx', 'manifest.json', 'presets.json', 'beat-detect.cjs']) assert.ok(panel.includes(name), 'panel reads ' + name);
-for (const phrase of ['selects.editor.openDraft', 'cwvProgress(', 'steps={CWV_BUILD_STEPS.map((s) => t(L, "step." + s.id))}', 'label={t(L, "clipSound")}', 'linkToDraftFrame', 'FontFace', 'projectRef', 'ffprobe', 'aria-pressed', 'loadInventory(', '>{t(L, "refresh")}<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef']) assert.ok(code.includes(phrase), phrase);
+for (const phrase of ['selects.editor.openDraft', 'cwvProgress(', 'steps={CWV_BUILD_STEPS.map((s) => t(L, "step." + s.id))}', 'label={t(L, "clipSound")}', 'linkToDraftFrame', 'FontFace', 'projectRef', 'aria-pressed', 'loadInventory(', '>{t(L, "refresh")}<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['anotherVersion', 'Try other shots'], ['clipSound', 'Clip sound'], ['silentVideo', 'Silent video'], ['musicFixedRhythm', 'cuts use the original rhythm'], ['musicFixedRhythmDetail', 'cuts use the original rhythm'],
-  ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'], ['installTools', 'Install ffmpeg to preview'], ['preparingTools', 'first time only'], ['draftCreatedAdding', 'Draft created; adding title and look'],
-  ['analysing', 'This updates automatically when they finish.'], ['notAnalysedAnalyse', 'Analyse them in Selects to use them here.'], ['noFootage', 'this updates automatically'], ['refresh', 'Refresh'], ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})'], ['clipsChecked', '{done}/{count} clips checked']]) says(key, text);
+  ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'], ['draftCreatedAdding', 'Draft created; adding title and look'],
+  ['notReady', 'This updates automatically.'], ['quickPicks', '{count} clips without analysis: quick picks'], ['noFootage', 'this updates automatically'], ['refresh', 'Refresh'], ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})'], ['clipsChecked', '{done}/{count} clips checked']]) says(key, text);
 assert.deepEqual(['shots', 'music', 'draft', 'look', 'open'].map(id => en['step.' + id]), ['Choosing shots', 'Preparing music', 'Creating Draft', 'Adding title and look', 'Opening Draft']);
 // No UI sentence is left outside STRINGS: JSX text and string props are t() calls.
 assert.ok(!/<ui\.\w+[^>]*>[A-Z][a-z]+[^<{]*</.test(code), 'no literal JSX text in ui components');
@@ -31,69 +31,50 @@ assert.ok(!/text: "/.test(code) && !/setStatus\(\{ tone: "\w+", text:/.test(code
 assert.ok(code.includes('const L = uiLang(context);') && code.indexOf('const L = uiLang(context);') < code.indexOf('if (!projectId) return <ui'), 'uiLang(context) in the component body');
 assert.ok(code.includes('{status.say(L)}') && code.includes('invError.say(L)') && code.includes('progress.detail(L)'), 'state messages are rendered with the current language');
 assert.ok(code.includes('<SectionSlider lang={L}'), 'the slider gets the language');
-// Unanalysed videos are worded by why (inventory.js's skipped split); the panel never claims clips are being analysed
-// when their analysis was never started, and never starts analysis itself.
-assert.ok(!panel.includes('still being analysed'), 'the old "still being analysed" wording is gone');
-assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel does not start analysis');
+// Analysis is optional (no-analysis builds): unanalysed videos are usable, the readiness line never asks to analyse,
+// and the panel never starts analysis. Details of the quick local check: tests/no-analysis.test.cjs.
+assert.ok(!panel.includes('still being analysed') && !code.includes('cwvAnalysisText') && !code.includes('invAnalysis'), 'no analysis wording or helpers');
+assert.ok(!/startAnalysis|analyzeResources|(?<!cwvBeat)\.analyze\(/.test(panel), 'the panel does not start analysis (cwvBeat.analyze is the beat Worker)');
+for (const k of ['analysing', 'notAnalysedAnalyse', 'notAnalysedMaybe', 'analysisFailed', 'noteAnalysing', 'noteFailed', 'notAnalysed']) assert.ok(!(k in en), 'retired key ' + k);
+assert.ok(!/analys/i.test(en.noFootage) && !/analys/i.test(textOf('onlyPhotos')), 'empty-Project and photos-only lines do not mention analysis');
+for (const phrase of ['const notReady = inventory?.skipped?.unanalysed || 0;', '(notReadyText || t(L, "noFootage"))', '[notReadyText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))',
+  'quickCount ? t(L, "quickPicks", { count: quickCount }) : ""', 'r.rid + (r.analysed === false ? "~" : "")']) assert.ok(code.includes(phrase), phrase);
 {
   const vm = require('node:vm');
-  const strings = require(path.join(root, 'dev', 'i18n-check.cjs')).extractStrings(panel).strings;
-  const start = panel.indexOf('function cwvAnalysisCounts('), end = panel.indexOf('function SectionSlider(');
-  assert.ok(start > 0 && end > start, 'the analysis wording helpers exist');
-  const js = panel.slice(start, end).replace(/(\w)\??: (?:any|number|string|Lang)\b/g, '$1');
-  // The panel's t() over its STRINGS block (plural by count; plain numbers are enough for these sentences).
-  const tt = (lang, key, vars = {}) => {
-    let msg = strings[lang][key] ?? strings.en[key];
-    if (typeof msg !== 'string') msg = msg[new Intl.PluralRules(lang).select(vars.count)] ?? msg.other;
-    return msg.replace(/\{(\w+)\}/g, (w, n) => (vars[n] === undefined ? w : String(vars[n])));
-  };
-  const box = { t: tt };
-  vm.runInNewContext(js + '\nthis.api = { cwvAnalysisCounts, cwvAnalysisText, cwvAnalysisNotes };', box);
-  const { cwvAnalysisCounts: counts } = box.api;
-  const text = c => box.api.cwvAnalysisText('en', c);
-  const note = c => box.api.cwvAnalysisNotes('en', c).filter(Boolean).map(x => ' · ' + x).join('');
-  const sk = (analysing, notAnalysed, failed, statusKnown = true) => ({ unanalysed: analysing + notAnalysed + failed, missing: 0, analysing, notAnalysed, failed, statusKnown });
-  // Other languages: whole sentences per status, joined by the language's gap (none in ja/zh).
-  assert.equal(box.api.cwvAnalysisText('ja', counts(sk(3, 1, 0))), tt('ja', 'analysing', { count: 3 }) + tt('ja', 'notAnalysedAnalyse', { count: 1 }));
-  assert.ok(!/undefined|\{\w+\}/.test(['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'].map(l => box.api.cwvAnalysisText(l, counts(sk(3, 1, 2))) + box.api.cwvAnalysisNotes(l, counts(sk(1, 2, 3))).join('')).join()), 'every language fills the counts');
-  assert.equal(text(counts(sk(160, 0, 0))), '160 clips are being analysed. This updates automatically when they finish.');
-  assert.equal(text(counts(sk(1, 0, 0))), '1 clip is being analysed. This updates automatically when it finishes.');
-  assert.equal(text(counts(sk(0, 160, 0))), '160 clips are not analysed yet. Analyse them in Selects to use them here.');
-  assert.equal(text(counts(sk(0, 1, 0))), '1 clip is not analysed yet. Analyse it in Selects to use it here.');
-  assert.equal(text(counts(sk(0, 0, 2))), '2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 1))), '1 clip could not be analysed.');
-  assert.equal(text(counts(sk(0, 160, 0, false))), '160 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(text(counts(sk(0, 1, 0, false))), '1 clip is not analysed yet. If Selects is analysing it, this updates automatically.');
-  assert.equal(text(counts(sk(3, 1, 2))), '3 clips are being analysed. This updates automatically when they finish. 1 clip is not analysed yet. Analyse it in Selects to use it here. 2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 0))), '', 'nothing to say when every video is analysed');
-  // An inventory without the split (older script) counts every unanalysed clip as unknown: the neutral wording.
-  assert.equal(text(counts({ unanalysed: 4, missing: 0 })), '4 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(note(counts(sk(2, 1, 0))), ' · 2 clips being analysed · 1 clip not analysed yet');
-  assert.equal(note(counts(sk(0, 0, 1))), ' · 1 clip could not be analysed');
-  assert.equal(note(counts(sk(0, 0, 0))), '');
-  // Every readiness branch uses the same sentences, and a status change refreshes the inventory signature.
-  for (const phrase of ['const analysisText = cwvAnalysisText(L, invAnalysis);', '(analysisText || t(L, "noFootage"))', '[analysisText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))', 't(L, "onlyPhotos", { count: usedPhotoCount, needed: minShots }), analysisText]', '...cwvAnalysisNotes(L, invAnalysis),',
-    '[sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown]']) assert.ok(panel.includes(phrase), phrase);
-  // Polling: only while clips are being analysed, while the status is unknown, or while the Project has no footage at all.
   const poll = (panel.match(/const needsPoll = ([^\n]*);/) || [])[1];
   assert.ok(poll, 'needsPoll');
-  const needsPoll = (inventory) => { const invAnalysis = counts(inventory && inventory.skipped); return vm.runInNewContext(poll, { inventory, invAnalysis }); };
-  const inv = (skipped, resources = 0, photos = 0) => ({ skipped, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
-  assert.equal(needsPoll(inv(sk(2, 0, 0), 5)), true, 'clips being analysed poll');
-  assert.equal(needsPoll(inv(sk(0, 160, 0))), false, 'never-started clips alone do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 2), 5)), false, 'not analysed and failed clips do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 0, false), 5)), true, 'an unknown status polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0))), true, 'an empty Project polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 0, 3)), false, 'photos only: no poll');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 5)), false, 'all analysed: no poll');
+  const needsPoll = (inventory) => vm.runInNewContext(poll, { inventory, notReady: (inventory && inventory.skipped && inventory.skipped.unanalysed) || 0 });
+  const inv = (unanalysed, resources = 0, photos = 0) => ({ skipped: { unanalysed, missing: 0, notAnalysed: 0 }, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
+  assert.equal(needsPoll(inv(2, 5)), true, 'clips that cannot be read yet poll');
+  assert.equal(needsPoll(inv(0, 0)), true, 'an empty Project polls');
+  assert.equal(needsPoll(inv(0, 0, 3)), false, 'photos only: no poll');
+  assert.equal(needsPoll(inv(0, 5)), false, 'usable clips, analysed or not: no poll');
   assert.equal(needsPoll(null), false);
 }
 
 // Hangul audit across the plugin, as place-count does.
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
 for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) assert.ok(!/[\uac00-\ud7a3]/.test(fs.readFileSync(f, 'utf8')), 'Korean text in ' + f);
-// User paths go to the shell single-quoted; dq() is only for the $HOME / $SELECTS_USER_SKILLS_ROOT constants.
-assert.ok(!/dq\((file|ownMusic|roots)/.test(panel), 'user paths must not be double-quoted into the shell');
+// Windows: no shell call at runtime (windows.md); paths are joined by the host.
+{
+  const runtime = [code,
+    ...['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js'].map(f => fs.readFileSync(path.join(root, 'scripts', f), 'utf8'))].join('\n').replace(/^\s*\/\/.*$/gm, '');
+  for (const bad of ['runShell', 'mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'command -v', '/opt/homebrew', 'TOOL_PATH', 'runtime.sh', '.nvm/', "'\\''", 'SELECTS_USER_SKILLS_ROOT/'])
+    assert.ok(!runtime.includes(bad), 'POSIX shell in the runtime: ' + bad);
+  assert.ok(!/["'`]\s*node\s/.test(runtime.replace(/\/\/.*$/gm, '')), 'no node subprocess');
+  const host = code.slice(code.indexOf('// av-host:start'), code.indexOf('// av-host:end'));
+  const av = fs.readFileSync(path.join(root, '..', 'archive-vlog', 'panel.tsx'), 'utf8');
+  assert.equal(host, av.slice(av.indexOf('// av-host:start'), av.indexOf('// av-host:end')), 'av-host is Archive Vlog\'s block, unchanged');
+  for (const phrase of ['hostRoots(sdk, PLUGIN_ID, "planner.js")', 'hostReadText(hostJoin(root, ...rel.split("/")))', 'hostJoin(roots.plugin, "assets", "cues", cue.file)',
+    'decodeOwnMusic(file.path, roots.data, abort.signal)', 'analyseBeat(assets.beatWorker, samples, abort.signal)', 'beatWorker: cwvBeatWorkerSource(beatDetect)', 'hostProbeSeconds(file.path)',
+    'const bytes = await hostReadBytes(file);', 'audio.currentTime = from;', 'duration: bundled ? bundled.duration : null']) assert.ok(code.includes(phrase), phrase);
+  // The beat Worker runs the kit's beat-detect.cjs unmodified.
+  assert.equal(fs.readFileSync(path.join(root, 'beat-detect.cjs'), 'utf8'), fs.readFileSync(path.join(root, '..', 'archive-vlog', 'beat-detect.cjs'), 'utf8'), 'beat-detect.cjs is the kit copy');
+  assert.ok(!fs.existsSync(path.join(root, 'runtime.sh')), 'no runtime.sh');
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8'));
+  assert.deepEqual(manifest.compatibility.platforms, ['macOS arm64', 'Windows x64']);
+  for (const f of ['INSTALL.md', 'README.md']) assert.ok(!/homebrew|nvm|Finder|command -v|runtime\.sh/i.test(fs.readFileSync(path.join(root, f), 'utf8')), f + ' has no macOS-only tool steps');
+}
 // Commit calls are never resent silently.
 assert.match(panel, /No valid session ID/);
 assert.ok(!/reopen this panel/.test(panel), 'reopening the panel does not re-read the inventory');
@@ -109,22 +90,13 @@ assert.ok(!/var\(--accent\b/.test(panel), '--accent is not a panel token');
 for (const phrase of ['height: previewBox', 'slotStyle(bigSlot)', 'slotStyle(smallSlot)', 'maxScale']) assert.ok(panel.includes(phrase), phrase);
 // Section preview: play/stop toggle, cancellable preparation, playhead, auto-stop and a full-length clip read from a file.
 says('stopPreview', 'Stop preview'); says('cancelPreview', 'Cancel preview'); says('previewSection', 'Preview this section');
-for (const phrase of ['requestAnimationFrame', 'cancelAnimationFrame', '"Escape"', 'previewTokenRef', 'stopPreview()', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', 'preview-*.mp3', 'readText(roots.data', '[cueId, ownMusic?.path, section, length]']) assert.ok(panel.includes(phrase), phrase);
-assert.ok(!/-t 6 -i/.test(panel), 'the preview plays the whole section, not 6 s');
-assert.ok(!/-f mp3 - \| base64/.test(panel), 'the preview no longer pipes audio through stdout');
-assert.ok(/-t " \+ dur\.toFixed\(2\)/.test(panel), 'the preview length is videoSeconds');
+for (const phrase of ['requestAnimationFrame', 'cancelAnimationFrame', '"Escape"', 'previewTokenRef', 'stopPreview()', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', '[cueId, ownMusic?.path, section, length]']) assert.ok(panel.includes(phrase), phrase);
+// The preview plays the whole section from the file's bytes and fades out over its last PREVIEW_FADE seconds.
+assert.ok(code.includes('const from = section, end = section + videoSeconds;') && code.includes('(end - at) / PREVIEW_FADE') && code.includes('clearInterval(previewTimerRef.current)'), 'section preview from bytes');
 assert.ok(panel.indexOf('[cueId, ownMusic?.path, section, length]') < panel.indexOf('if (!projectId) return <ui'), 'preview auto-stop hook stays before the early return');
 const buildBody = panel.slice(panel.indexOf('async function build('), panel.indexOf('async function finishTitle('));
 assert.ok(buildBody.includes('stopPreview()'), 'Build stops the preview');
 assert.ok(panel.slice(panel.indexOf('async function finishTitle('), panel.indexOf('async function decorate(')).includes('stopPreview()'), 'Finish stops the preview');
-// Finder-launched apps lack Homebrew on PATH: every shell step that runs ffmpeg or ffprobe extends it.
-for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/]) assert.ok(re.test(panel), String(re));
-assert.equal((panel.match(/runShell\(/g) || []).length, 7, 'one folder lookup, the Node.js runtime, four tool steps and the preview cleanup');
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Homebrew path, no nvm hunting');
-// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
-assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
-assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
-assert.equal(fs.readFileSync(path.join(root, 'runtime.sh'), 'utf8'), fs.readFileSync(path.join(root, '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
 // Script configs arrive as JSON.parse(...) so the SDK type check sees `any`, not widened literal types.
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 assert.ok(/decorateJs, \{ sequenceId, mute,/.test(panel) && panel.includes('result.mute !== false'), 'decorate mutes, also on retry');
@@ -189,8 +161,9 @@ assert.ok(panel.includes('onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.
 assert.ok(panel.includes('const boundaries: number[] = plan.schedule.cuts;') && panel.includes('picks: plan.picks, boundaries, crops,'), 'assemble gets the snapped cuts');
 assert.ok(/cwvSchedule\(\{ bpm: grid\.bpm, fps: a\.fps, montageShots: plan\.montageShots, burst, sectionStart: musicStart, cuts: boundaries \}\)/.test(panel), 'the Draft-rate schedule reuses the cut seconds');
 assert.ok(panel.includes('grid.onsets, grid.accepted]);'), 'the readiness plan follows the onsets');
-// Own music: beat-detect.cjs writes its result to a file (the shell output is capped at 48 KB) and prints {"ok":true}.
-assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))') && panel.includes('!done.ok'), 'own-music analysis via a file');
+// Own music: decoded mono at 22050 Hz (at most 360 s), analysed by beat-detect.cjs in a Web Worker; aborted on a Project
+// switch; any failure falls back to fixed timing with the track's length.
+assert.ok(code.includes('const OWN_RATE = 22050, OWN_MAX_SECONDS = 360;') && code.includes('ownAbortRef.current.abort()') && code.includes('worker.postMessage({ samples, rate: OWN_RATE })'), 'own music in a Worker');
 // Finish title and look retries with the inputs of the build, and clips whose scene search failed are reported.
 assert.ok(panel.includes('result.mute !== false, result.look, check)') && panel.includes('const { line1, connector, place, preset, warm, clipSound } = look;'), 'retry uses the build-time look');
 assert.ok(code.includes('unchecked: found.failed.length'), 'unchecked clips are reported');
@@ -203,8 +176,8 @@ says('unchecked', 'Build again to retry them.');
     assert.ok(/\{selected\} \S+ \{count\}/.test(f), lang + '.' + key + ': {selected} must come before {count} and its noun: ' + f);
   for (const lang of Object.keys(all)) for (const f of forms(all[lang].foundShotsPhotos)) assert.ok(!/\{photos\} (photos|Fotos|son|s\u00e3o|en photo)/.test(f), lang + '.foundShotsPhotos: no noun after {photos}: ' + f);
 } says('retryUnchecked', 'press Build to retry them.');
-// The own-music PCM is removed after beat detection, keeping the exit status; the preview mp3 once encoded.
-assert.ok(panel.includes('"; s=$?; rm -f " + sq(pcm) + "; exit $s"') && panel.includes('" && rm -f " + sq(base + ".mp3")'), 'temporary audio files are removed');
+// The decoded own-music PCM file is removed by hostDecodePcm once read; the preview writes nothing.
+assert.ok(code.includes('await hostRemove(tmp);'), 'temporary audio files are removed');
 assert.equal((ui.match(/cwvSchedule\(/g) || []).length, 2);
 assert.equal((ui.match(/cwvSchedule\(\{[^}]*burst/g) || []).length, 2, 'every schedule uses the burst');
 assert.ok(panel.includes('const minShots = cwvMinWindows(burst);') && !ui.includes('CWV_MIN_WINDOWS'), 'the shot minimum follows the burst');
@@ -262,7 +235,7 @@ assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel) && !/\.(capture
 // Korean in the title preview: each state's stack ends with the Korean system face of its role (presets.json koFamily)
 // before the generic family; text with Hangul is not uppercased or tracked, breaks between words, and counts as 2 in
 // length estimates. A Hangul Project name can be the suggested place.
-for (const phrase of ['(s.koFamily || KO_FALLBACK) + \'", cursive\'', 'const KO_FALLBACK = "Apple SD Gothic Neo";', 's.case === "upper" && !HANGUL_RE.test(text) ? "uppercase" : "none"', 'letterSpacing: 0, wordBreak: "keep-all"',
+for (const phrase of ['(s.koFamily === "AppleMyungjo" ? KO_FACES.serif : KO_FACES.sans) + ", cursive"', '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR"', '"AppleMyungjo", "Batang", "Noto Serif KR"', '"Segoe Script"', 's.case === "upper" && !HANGUL_RE.test(text) ? "uppercase" : "none"', 'letterSpacing: 0, wordBreak: "keep-all"',
   'Math.max(11, fieldLen(text))', 'faceStyle(chosen.states[swapKey], placeText)', 'fieldLen(name) > 31']) assert.ok(code.includes(phrase), phrase);
 // Default in-video phrases stay English in every language.
 assert.ok(code.includes('const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];') && code.includes(': "A day";') && code.includes('React.useState("in")'), 'English in-video defaults');
