@@ -195,9 +195,9 @@ Finished videos are exported from the Draft with **Handoff → Export**.
 The panel runs the same way on macOS and Windows and needs nothing besides
 Selects:
 
-- It finds its files in the Selects skills folder through the host's file
-  service (`%SELECTS_USER_SKILLS_ROOT%\archive-vlog` on Windows,
-  `$SELECTS_USER_SKILLS_ROOT/archive-vlog` on macOS).
+- It finds its files in the Selects skills folder (`.selects\skills\archive-vlog`
+  in your home folder on Windows, `.selects/skills/archive-vlog` on macOS)
+  through the host's file service; it runs no shell commands.
 - Your own music is decoded with the ffmpeg that ships with Selects (or, on a
   Selects build without it, by the panel itself) and analysed by the bundled
   `beat-detect.cjs` in a background worker inside the panel; no shell

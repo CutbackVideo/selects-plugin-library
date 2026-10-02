@@ -360,10 +360,8 @@ assert.ok(ui.includes('fill(assets.scripts.decorateJs, cfg)') && ui.includes('fi
 for (const bad of ['mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'TOOL_PATH', '/opt/homebrew', '.nvm', '/tmp', '~/', 'sq(', 'dq(', '| sort']) assert.ok(!own.includes(bad), 'no ' + bad);
 assert.ok(!/\bnode\s+["'\w./-]*\.c?js/.test(own) && !/\bffmpeg\s+-/.test(own) && !/\bffprobe\s+-/.test(own), 'no node / ffmpeg / ffprobe command lines');
 assert.ok(!/(?:plugin|root|data|dir|path|Dir|Path)\)?\s*\+\s*["'][\\/]|["'][\\/]assets/.test(own), 'paths are joined, never built with "/"');
-// One shell call, in the host block, for SELECTS_USER_SKILLS_ROOT only.
-assert.equal((panel.match(/runShell\(/g) || []).length, 1, 'one runShell call');
-assert.ok(hostBlock.includes('await sdk.runShell({ summary: "Locate the plugin folder", command, timeoutMs: 10000 })'));
-assert.ok(hostBlock.includes(`const command = hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%" : 'echo "$SELECTS_USER_SKILLS_ROOT"';`), 'per-platform one-liner');
+// No shell call at all at runtime (kit windows.md): the install folder comes from FileSystem only.
+assert.equal((panel.match(/runShell/g) || []).length, 0, 'no runShell anywhere in the panel');
 // The host's services are reached only through the guarded host blocks (av-host and the kit's quick-score block);
 // ffmpeg only through Runtime with an argv.
 const qsBlock = block(panel, 'quick-score');
@@ -390,7 +388,7 @@ function hostBox({ platform, files = new Set(), shell = null, ffmpeg = null, noJ
   const ctx = { window: { parent: { __DI__: { FileSystem, Runtime } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
     setTimeout, clearTimeout, AbortController, Date, Math, String, Error, parseFloat };
   vm.createContext(ctx);
-  vm.runInContext(hostBlock + '\nthis.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows, hostSkillsRoot };', ctx);
+  vm.runInContext(hostBlock + '\nthis.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows };', ctx);
   const sdk = { runShell: async (o) => { calls.shell.push(o.command); return shell ? shell(o.command) : { stdout: '' }; } };
   return { H: ctx.H, calls, sdk };
 }
@@ -401,22 +399,18 @@ const hostTests = (async () => {
     assert.deepEqual(j(await H.hostRoots(sdk, 'archive-vlog', 'planner.js')), { plugin: '/u/me/.selects/skills/archive-vlog', data: '/u/me/.selects/plugin-data/archive-vlog' });
     assert.deepEqual(calls.shell, []); assert.deepEqual(j(calls.mkdir), [['/u/me/.selects/plugin-data/archive-vlog', { recursive: true }]]);
   }
-  // Windows: SELECTS_USER_SKILLS_ROOT through cmd.exe when the default folder is not the install.
+  // Windows: the default skills folder under the user's home, no shell.
   {
-    const { H, calls, sdk } = hostBox({ platform: 'win32', files: new Set(['D:\\Skills\\archive-vlog\\planner.js']), shell: () => ({ stdout: 'D:\\Skills\r\n' }) });
+    const { H, calls, sdk } = hostBox({ platform: 'win32', files: new Set(['C:\\Users\\me\\.selects\\skills\\archive-vlog\\planner.js']) });
     const r = j(await H.hostRoots(sdk, 'archive-vlog', 'planner.js'));
-    assert.deepEqual(r, { plugin: 'D:\\Skills\\archive-vlog', data: 'C:\\Users\\me\\.selects\\plugin-data\\archive-vlog' });
-    assert.deepEqual(calls.shell, ['echo(%SELECTS_USER_SKILLS_ROOT%']);
+    assert.deepEqual(r, { plugin: 'C:\\Users\\me\\.selects\\skills\\archive-vlog', data: 'C:\\Users\\me\\.selects\\plugin-data\\archive-vlog' });
+    assert.deepEqual(calls.shell, []);
   }
-  // An unset variable (cmd prints an empty line or the literal) and macOS's command.
-  for (const stdout of ['\r\n', '%SELECTS_USER_SKILLS_ROOT%' + '\r\n', 'ECHO is on.\r\n']) {
-    const { H, sdk } = hostBox({ platform: 'win32', shell: () => ({ stdout }) });
-    await assert.rejects(H.hostRoots(sdk, 'archive-vlog', 'planner.js'), e => e.code === 'not-found', JSON.stringify(stdout));
-  }
+  // Not installed there: a not-found error (no shell fallback).
   {
-    const { H, calls, sdk } = hostBox({ platform: 'darwin', files: new Set(['/opt/skills/archive-vlog/planner.js']), shell: () => ({ stdout: '/opt/skills\n' }) });
-    assert.equal((await H.hostRoots(sdk, 'archive-vlog', 'planner.js')).plugin, '/opt/skills/archive-vlog');
-    assert.deepEqual(calls.shell, ['echo "$SELECTS_USER_SKILLS_ROOT"']);
+    const { H, calls, sdk } = hostBox({ platform: 'win32' });
+    await assert.rejects(H.hostRoots(sdk, 'archive-vlog', 'planner.js'), e => e.code === 'not-found');
+    assert.deepEqual(calls.shell, []);
   }
   // Without the host's join: the OS separator.
   assert.equal(hostBox({ platform: 'win32', noJoin: true }).H.hostJoin('C:\\a\\', 'assets', 'x.mp3'), 'C:\\a\\assets\\x.mp3');

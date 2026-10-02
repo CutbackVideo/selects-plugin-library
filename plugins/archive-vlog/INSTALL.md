@@ -26,10 +26,9 @@ Selects:
 - the quick check of clips without Selects' analysis: a small grey preview
   decoded by the same bundled ffmpeg, read back in the panel.
 
-The panel finds its folder through Selects' file service (the default skills
-folder, `.selects/skills/archive-vlog` in your home folder); only when the
-files are elsewhere does it ask the Selects shell for `SELECTS_USER_SKILLS_ROOT`
-(`echo` on either system). If the Selects build is too old for the panel, it
+The panel finds its folder through Selects' file service (the skills folder,
+`.selects/skills/archive-vlog` in your home folder, on macOS and Windows alike);
+it runs no shell commands. If the Selects build is too old for the panel, it
 says "Archive Vlog needs a newer version of Selects." and changes nothing.
 
 ## Files the plugin writes
