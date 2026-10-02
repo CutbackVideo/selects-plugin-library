@@ -1,9 +1,13 @@
 # Install notes
 
-Runs on macOS (tested on macOS 26, Apple silicon) and Windows x64. The two use different engines
-for **Analyze photos**; **Make video** is the same on both.
+Runs on macOS (tested on macOS 26, Apple silicon). On Windows the panel opens and shows the photos, but
+**Analyze photos** is "Available on macOS for now" (see below).
 
 ## Windows
+
+**On hold:** cutting people out on Windows uses Selects generation, which spends Selects credits; until
+that is decided, Analyze photos is disabled on Windows and nothing is sent. The Windows engine below is
+ready behind that switch (`WIN_CLOUD_ENABLED` in panel.tsx).
 
 Nothing to install. The panel checks and frames the photos itself, and the stickers and scene
 clips are written by the ffmpeg bundled with Selects.

@@ -219,8 +219,12 @@ const CLOUD_FAILED=['failed','cancelled','input_failed','submission_rejected','u
 const HOLD=10;
 const WIN_MIN_PHOTOS=22;
 const FRAME_SIZE='1080x1920';
+// Paid generation on Windows is on hold until the team decides on credit use (2026-10-02): the engine stays, but
+// Analyze is disabled on Windows and nothing is ever submitted while this is false.
+const WIN_CLOUD_ENABLED=false;
 // '' when this host can make Windows cutouts, else the WORDS key that says why not.
 function cloudProblem() {
+  if(!WIN_CLOUD_ENABLED) return 'macOnly';
   const mg=hostApi('MediaGeneration','submit','list','cancel');
   if(!mg||!hostApi('Runtime','runFFmpeg','runFFprobe')||!hostApi('FileSystem','join','homedir','existsSync','mkdirSync','readFile','writeFile','copyFile')) return 'newer';
   try {
@@ -553,7 +557,7 @@ export default function Panel({sdk,context,ui}) {
   // Windows, after the user agreed to use credits: person masks from Selects generation, then the layers.
   const sendCloud=async()=>{
     const p=pendingRef.current;
-    if(guard.current||!p) return;
+    if(guard.current||!p||!WIN_CLOUD_ENABLED) return;
     guard.current=true;setBusy(true);setFailed(false);setStatus(t.uploading);
     const ctl={canceled:false,engine:p.engine};
     control.current=ctl;

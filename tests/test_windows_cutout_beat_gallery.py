@@ -133,7 +133,8 @@ class CutoutBeatGalleryWindowsTest(unittest.TestCase):
         self.assertIn('cutout-engine.js', self.manifest['files'])
 
     def test_manifest_and_install_say_windows_honestly(self):
-        self.assertIn('Windows x64', self.manifest['compatibility']['platforms'])
+        # Paid generation on Windows is on hold: macOS only until the team decides on credit use.
+        self.assertNotIn('Windows x64', self.manifest['compatibility']['platforms'])
         self.assertNotEqual(self.manifest['version'], '0.1.1', 'bump the version so installs update')
         install = (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8')
         windows = install[install.index('## Windows'):install.index('## macOS')]
@@ -155,3 +156,13 @@ class CutoutBeatGalleryWindowsTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class CutoutBeatGalleryCreditHoldTest(unittest.TestCase):
+    def setUp(self):
+        self.text = PANEL.read_text(encoding='utf-8')
+
+    def test_windows_cannot_submit_a_paid_request(self):
+        self.assertIn("const WIN_CLOUD_ENABLED=false;", self.text)
+        self.assertIn("function cloudProblem() {\n  if(!WIN_CLOUD_ENABLED) return 'macOnly';", self.text)
+        self.assertIn("if(guard.current||!p||!WIN_CLOUD_ENABLED) return;", self.text)
