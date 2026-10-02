@@ -5,7 +5,9 @@ Mini Vlog turns the video clips and the photos in the open Project into a
 title lockup over the whole video. The result is a **new, editable Draft**.
 The plugin never renders a file and never changes an existing Draft or any
 source file. Clips do not need to be analysed first: see
-[Clips without analysis](#clips-without-analysis).
+[Clips without analysis](#clips-without-analysis). It works on macOS and
+Windows with nothing to install (no Homebrew, Node.js or command-line tools):
+everything uses what Selects brings.
 
 ## What it makes
 
@@ -294,10 +296,13 @@ approximate timing (0.55 s).". Without an accepted grid (the approximate
 tempo or fixed lengths), cuts still move onto a clearly strong bass hit nearby
 (within 120 ms).
 
-Your own music and the previews need ffmpeg; your own music also runs on
-a pinned Node.js, which the panel downloads the first time (see [INSTALL.md](INSTALL.md)). Without ffmpeg the panel does
-not list Your own music and says "Install ffmpeg to preview music or use your
-own track." The bundled tracks work without them.
+Your own music and the previews use the ffmpeg built into Selects, on macOS
+and Windows alike; there is nothing to install. The plugin listens to the
+first 4 minutes of your own track (the rest is not used), inside the panel,
+and stops listening after a minute at most (the cuts then use fixed timing).
+If this Selects is too old for that, the panel does not list Your own music
+and says "Previewing music and using your own track need a newer Selects."
+The bundled tracks work without it.
 
 **No music** uses the same fixed shot lengths ("No music: shots use
 approximate timing (0.55 s).") and has no length limit.
@@ -397,18 +402,23 @@ detail after an error message stay in English.
   in my life", "a small", "glimpse", "of today"). Type over them to change
   them.
 - The bundled typefaces have no Korean letters, so Korean text is drawn with
-  the macOS system font of each typeface's kind: **AppleMyungjo** for the
-  serif typefaces (the Mini vlog big and small words; the big word keeps its
-  slant) and **Apple SD Gothic Neo** for the rounded and monospaced ones (A day
-  in my life, A small glimpse).
+  the system font of each typeface's kind: **AppleMyungjo** on macOS and
+  **Batang** on Windows for the serif typefaces (the Mini vlog big and small
+  words; the big word keeps its slant), and **Apple SD Gothic Neo** on macOS
+  and **Malgun Gothic** on Windows for the rounded and monospaced ones (A day
+  in my life, A small glimpse); Noto Sans/Serif KR where installed. The
+  height of the Korean letters is measured in the font that draws them, so
+  the stars and the year sit right on both systems.
 - Korean text is never letter-spaced. A Korean word without a space stays on
   one line in A small glimpse (it is not split with a hyphen); with a space
   it splits there. A long title shrinks to fit 60 % of the video's width, as
   Latin text does.
 - The field limits count a Korean letter as two characters, so the Big word
   of Mini vlog takes up to five Korean letters.
-- Korean titles need macOS, where Selects and its export run. Style-matched
-  Korean typefaces are planned for a later version.
+- macOS and Windows draw Korean in different system fonts, so a Korean title
+  exported on each looks a little different (Batang depends on the installed
+  Korean font pack). Style-matched Korean typefaces are planned for a later
+  version.
 
 **Inspector labels** of the title, the Soft look, the Beat punch and the photo
 motion are written into the Draft in the panel's language at the time of the
@@ -470,6 +480,9 @@ Finished videos are exported from the Draft with **Handoff → Export**.
 ## Limitations
 
 - Only 16:9 (1920x1080) videos. There is no vertical option.
+- Windows support follows the same rules as macOS but has not yet been checked
+  on a real Windows machine.
+- Your own music: only the first 4 minutes are used.
 - The fonts cover Latin text only. Other scripts, such as Korean or Japanese,
   are shown in a system font instead.
 - The title preset cannot be switched in Adjust. To change it, pick another
