@@ -126,6 +126,11 @@ jobs:
           node plugins/summer-trip/tests/package.test.cjs
           node plugins/summer-trip/tests/adapter.test.cjs
           node plugins/summer-trip/tests/i18n.test.cjs
+          node plugins/summer-trip/tests/no-analysis.test.cjs
+          node plugins/summer-trip/tests/quick-score.test.cjs
+          node plugins/summer-trip/tests/no-shell.test.cjs
+          node plugins/summer-trip/tests/host.test.cjs
+          node plugins/summer-trip/tests/beat-worker.test.cjs
       - name: Test Selfie Aesthetic Edit
         run: |
           node plugins/selfie-aesthetic/tests/allocate.test.cjs

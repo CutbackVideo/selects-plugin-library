@@ -63,8 +63,8 @@ function stFitSize(targetPx, measuredWidthAtTarget, boxPx) {
 // Korean text (the same block in title-graphic.tsx and labels-graphic.tsx). A line with Hangul is never uppercased,
 // tracked or squeezed (scaleX 1), and breaks between words only (keep-all). Before a canvas can measure, wide characters
 // (Hangul, kana, CJK, fullwidth) count as 1 em and everything else as the Latin average of 0.6 em. Every font stack ends
-// with the role's Korean system face (presets.json koFamily: AppleMyungjo for serif faces, Apple SD Gothic Neo
-// otherwise) before the generic family.
+// with the role's Korean system faces, macOS then Windows (presets.json koFamily: AppleMyungjo for serif faces, Apple
+// SD Gothic Neo otherwise; Batang / Malgun Gothic on Windows) before the generic family.
 const ST_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\ua960-\ua97f\uac00-\ud7a3\ud7b0-\ud7ff]/;
 const ST_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
 const ST_KO_SANS = "Apple SD Gothic Neo";
@@ -74,9 +74,13 @@ function stEstimateEm(text) {
   for (const ch of String(text || "")) em += ST_WIDE_RE.test(ch) ? 1 : 0.6;
   return em;
 }
+// The Korean faces of a role, the macOS face first, then the Windows face, then the Noto face (kit i18n.md stacks):
+// macOS and Windows ship different Korean faces, so every stack names both.
+const ST_KO_STACKS = { sans: '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif', serif: '"AppleMyungjo", "Batang", "Noto Serif KR", serif' };
 function stFontStack(family, koFamily) {
   const ko = typeof koFamily === "string" && koFamily ? koFamily : ST_KO_SANS;
-  return (family ? `"${family}", ` : "") + `"Helvetica Neue", Arial, "${ko}", ${ko === "AppleMyungjo" ? "serif" : "sans-serif"}`;
+  const korean = ko === "AppleMyungjo" ? ST_KO_STACKS.serif : ko === ST_KO_SANS ? ST_KO_STACKS.sans : `"${ko}", ${ST_KO_STACKS.sans}`;
+  return (family ? `"${family}", ` : "") + `"Helvetica Neue", Arial, ` + korean;
 }
 // The face for one line: with Hangul in the text, no case change, no tracking and no horizontal squeeze.
 function stFaceFor(face, text) {

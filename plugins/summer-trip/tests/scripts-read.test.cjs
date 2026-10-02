@@ -34,11 +34,14 @@ const keepAlive = setInterval(() => {}, 50);
       drafts.push(d); return d; } }),
   };
   const inv = await load('inventory.js', { projectId: 'p', only: null })(sel);
-  assert.deepEqual(inv.resources.map(r => [r.rid, r.width, r.height, r.duration, r.kind]), [['r0', 1920, 1080, 20, 'video'], ['r3', 1080, 1920, 12, 'video']]);
+  // Every imported video is usable whatever its analysis: r1 (no analysis, with a file path) is listed too.
+  assert.deepEqual(inv.resources.map(r => [r.rid, r.width, r.height, r.duration, r.kind, r.hasAnalysis, r.path]),
+    [['r0', 1920, 1080, 20, 'video', true, '/v/a.mov'], ['r1', 1920, 1080, 20, 'video', false, '/v/b.mov'], ['r3', 1080, 1920, 12, 'video', true, '/v/c.mov']]);
   assert.equal(inv.resources[0].recordedAt, '2026-07-26T23:30:00-05:00');
   assert.equal(inv.resources[0].month, 7, 'month from the date text, not shifted by the time zone');
-  assert.equal(inv.resources[1].capturedAt, null, 'a transcode date (encodedBy) is not a capture date');
-  assert.equal(inv.skipped.unanalysed, 1);
+  assert.equal(inv.resources[2].capturedAt, null, 'a transcode date (encodedBy) is not a capture date');
+  assert.equal(inv.skipped.unanalysed, 0, 'no video is left out');
+  assert.equal(inv.skipped.withoutAnalysis, 1, 'one usable video without analysis');
   assert.deepEqual(inv.photos, [
     { rid: 'r4', name: 'IMG_1.jpeg', width: 4032, height: 3024, recordedAt: null, capturedAt: '2026:07:14 12:00:00', month: 7, kind: 'photo' },
     { rid: 'r5', name: 'IMG_2.jpeg', width: 2268, height: 4032, recordedAt: null, capturedAt: '2025-06-30T22:00:00Z', month: 6, kind: 'photo' }]);
@@ -149,6 +152,43 @@ const keepAlive = setInterval(() => {}, 50);
       assert.deepEqual([o2.ids, o2.imported, imp.length], [o1.ids, [], 1], 'the second run matches own music by path');
     }
   }
+  // Windows and Unicode paths: the Project's spelling of a path (forward slashes, another case, a decomposed Korean
+  // folder name) matches the panel's FileSystem.join path, so a second Build never re-imports a cue. A same-named file of
+  // another length is never taken for a cue that gives its duration; one with the right length is (a sound effect).
+  {
+    const nfc = '\uC74C\uC545', nfd = nfc.normalize('NFD');
+    assert.notEqual(nfc, nfd);
+    const aud = [{ resourceId: 'w1', name: 'surf-indie.mp3', type: 'Audio', durationSeconds: 65.02 },
+      { resourceId: 'w2', name: 'nu-disco.mp3', type: 'Audio', durationSeconds: 212.4 },
+      { resourceId: 'w3', name: 'shutter-1.wav', type: 'Audio', durationSeconds: 0.17 }];
+    const fl = [{ type: 'audio', resourceId: 'w1', path: 'c:/users/' + nfd + '/.selects/skills/summer-trip/assets/cues/surf-indie.mp3' },
+      { type: 'audio', resourceId: 'w2', path: 'D:\\Music\\nu-disco.mp3' }, { type: 'audio', resourceId: 'w3', path: 'E:\\old\\shutter-1.wav' }];
+    const imp = [];
+    const sel = { project: () => ({
+      resources: async () => aud.slice(), sourceFiles: async () => ({ fileTree: fl.slice() }),
+      importFiles: async ({ paths }) => {
+        imp.push(paths);
+        // A fresh import does not know its length yet.
+        const nids = paths.map((q, i) => 'w' + (aud.length + 1 + i));
+        paths.forEach((q, i) => { aud.push({ resourceId: nids[i], name: q.split(/[\\/]/).pop(), type: 'Audio' }); fl.push({ type: 'audio', resourceId: nids[i], path: q }); });
+        return { addedResourceIds: nids };
+      } }) };
+    const dir = 'C:\\Users\\' + nfc + '\\.selects\\skills\\summer-trip\\assets\\cues\\';
+    const winWant = [{ key: 'dry', path: dir + 'surf-indie.mp3', duration: 64.993 }, { key: 'wet', path: dir + 'nu-disco.mp3', duration: 65.045 },
+      { key: 'shutter-1', path: 'C:\\data\\sfx\\shutter-1.wav', duration: 0.17 }];
+    const w1 = await load('ensure-audio.js', { projectId: 'p', files: winWant })(sel);
+    assert.deepEqual(imp, [[dir + 'nu-disco.mp3']], 'only the cue whose same-named resource has another length is imported');
+    assert.deepEqual(w1, { ids: { dry: 'w1', wet: 'w4', 'shutter-1': 'w3' }, imported: ['wet'], missing: [] });
+    const w2 = await load('ensure-audio.js', { projectId: 'p', files: winWant })(sel);
+    assert.deepEqual([w2.ids, w2.imported, imp.length], [w1.ids, [], 1], 'the second Build imports nothing');
+    // POSIX paths stay case-sensitive: on macOS /Music/A/song.mp3 and /music/a/song.mp3 are different own-music files.
+    aud.push({ resourceId: 'm1', name: 'song.mp3', type: 'Audio', durationSeconds: 200 });
+    fl.push({ type: 'audio', resourceId: 'm1', path: '/Music/A/song.mp3' });
+    const px = await load('ensure-audio.js', { projectId: 'p', files: [{ key: 'x', path: '/music/a/song.mp3', matchByName: false }] })(sel);
+    assert.deepEqual(px.imported, ['x'], 'a POSIX path that differs in case is another file');
+    const py = await load('ensure-audio.js', { projectId: 'p', files: [{ key: 'x', path: '/Music/A/song.mp3'.normalize('NFD'), matchByName: false }] })(sel);
+    assert.deepEqual([py.ids.x, py.imported], ['m1', []], 'the same POSIX path matches');
+  }
   // Unanalysed videos by status: being analysed, never started, failed. The panel never starts analysis itself.
   const v = (id, status) => ({ resourceId: id, name: id + '.mov', type: 'Video', hasAnalysis: false, status, durationSeconds: 10 });
   const mixed = [resources[0], v('s1', 'sampling'), v('s2', 'samplingSucceeded'), v('s3', 'analyzing'), v('s4', 'samplingFailed'), v('s5', 'analyzingFailed'),
@@ -156,8 +196,10 @@ const keepAlive = setInterval(() => {}, 50);
   let wfCalls = 0;
   const withWf = wf => ({ project: () => ({ resources: async () => mixed, sourceFiles: async () => tree,
     workflows: async (f) => { wfCalls++; assert.equal(f, undefined, 'one unfiltered read'); if (wf instanceof Error) throw wf; return wf; } }) });
-  const split = inv => { const { unanalysed, analysing, notAnalysed, failed, statusKnown } = inv.skipped;
-    assert.equal(analysing + notAnalysed + failed, unanalysed, 'the split adds up'); return { unanalysed, analysing, notAnalysed, failed, statusKnown }; };
+  const split = inv => { const { unanalysed, withoutAnalysis, analysing, notAnalysed, failed, statusKnown } = inv.skipped;
+    assert.equal(analysing + notAnalysed + failed, unanalysed + withoutAnalysis, 'the status split covers every video without analysis');
+    assert.equal(inv.resources.filter(r => !r.hasAnalysis).length, withoutAnalysis, 'withoutAnalysis counts the listed videos without analysis');
+    return { unanalysed, analysing, notAnalysed, failed, statusKnown }; };
   // No workflows: pending clips were never started.
   assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([]))),
     { unanalysed: 9, analysing: 3, notAnalysed: 4, failed: 2, statusKnown: true });
@@ -181,6 +223,39 @@ const keepAlive = setInterval(() => {}, 50);
   const done = { project: () => ({ resources: async () => [resources[0], v('s1', 'analyzing')], sourceFiles: async () => tree, workflows: async () => { wfCalls++; return []; } }) };
   assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(done)), { unanalysed: 1, analysing: 1, notAnalysed: 0, failed: 0, statusKnown: true });
   assert.equal(wfCalls, 0, 'no workflows() read without a pending clip');
+
+  // Field split (template compat): videos without analysis that have a length and a file path are usable
+  // (resources + skipped.withoutAnalysis); skipped.unanalysed keeps only those that cannot be used yet (no length or no
+  // file path), which is what the Clip highlights template words as "not analyzed yet". Status never decides: a
+  // never-analysed import reads 'pending'.
+  {
+    const vids = [resources[0], v('n1', 'pending'), v('n2', 'pending'), v('n3', 'analyzingFailed'), v('n4', 'analyzing'),
+      { ...v('n5', 'pending'), durationSeconds: undefined }, v('n6', 'pending')];
+    const t2 = { fileTree: [{ type: 'video', resourceId: 'r0', path: '/v/a.mov' }, ...['n1', 'n2', 'n3', 'n4', 'n5'].map(id => ({ type: 'video', resourceId: id, path: '/v/' + id + '.mov' }))] };
+    const sel2 = { project: () => ({ resources: async () => vids, sourceFiles: async () => t2, workflows: async () => [] }) };
+    const out = await load('inventory.js', { projectId: 'p', only: null })(sel2);
+    assert.deepEqual(out.resources.map(r => [r.rid, r.hasAnalysis, r.status]), [['r0', true, null], ['n1', false, 'pending'], ['n2', false, 'pending'], ['n3', false, 'analyzingFailed'], ['n4', false, 'analyzing']]);
+    assert.equal(out.skipped.withoutAnalysis, 4);
+    assert.equal(out.skipped.unanalysed, 2, 'n5 (no length) and n6 (no file path) cannot be used yet');
+    assert.deepEqual(split(out), { unanalysed: 2, analysing: 1, notAnalysed: 4, failed: 1, statusKnown: true });
+    // An analysed video needs no file path (large Projects can report folders without paths).
+    const sel3 = { project: () => ({ resources: async () => [resources[0], resources[3]], sourceFiles: async () => ({ fileTree: [] }) }) };
+    const out3 = await load('inventory.js', { projectId: 'p', only: null, probeMs: 0 })(sel3);
+    assert.deepEqual(out3.resources.map(r => [r.rid, r.path]), [['r0', null], ['r3', null]]);
+  }
+  // search.js skips clips without analysis (reported in `unanalysed`, never in `failed`), so a caller that hands it
+  // every clip (the Clip highlights template) does not wait on failing searches or retry them.
+  {
+    const asked = [];
+    const selU = { project: () => ({ resources: async () => [{ resourceId: 'a1', hasAnalysis: true }, { resourceId: 'u1', hasAnalysis: false }],
+      resource: rid => ({ searchScenes: async () => { asked.push(rid); return { results: [{ timeSeconds: 3, score: 0.4 }], error: null }; } }) }) };
+    const su = await load('search.js', { projectId: 'p', rids: ['a1', 'u1'], queries: { q1: '1', q2: '2' } })(selU);
+    assert.deepEqual(su.unanalysed, ['u1']);
+    assert.deepEqual(su.failed, []);
+    assert.deepEqual([...new Set(asked)], ['a1'], 'only the analysed clip is searched');
+    assert.equal(su.stats.jobs, 2);
+    assert.ok(su.candidates.every(c => c.rid === 'a1'));
+  }
 
   clearInterval(keepAlive);
   console.log(JSON.stringify({ scriptsRead: 'ok' }));
