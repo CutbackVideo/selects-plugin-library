@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "thank-you-recap",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "name": "Thank You Recap",
   "summary": "Turn your year's videos into a 16:9 \"Thank you\" recap Draft: a beat-cut intro, a held hero shot under a flickering year, and a salsa finale on bundled music.",
   "status": "experimental",
@@ -23,9 +23,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS development builds"
+      "macOS development builds",
+      "Windows x64"
     ],
-    "selects": "Requires Panel SDK runScript/runShell/askAI, Draft setFrameSize and addMotionGraphic, and ffmpeg in the app shell. Released-version and Windows compatibility are unverified."
+    "selects": "Requires Panel SDK runScript/askAI, Draft setFrameSize and addMotionGraphic, and the host FileSystem and bundled ffmpeg (Runtime.runFFmpeg); no shell. Released-version compatibility is unverified, and the Windows pass has not run yet."
   },
   "preview": {
     "video": "preview.mp4",

@@ -39,6 +39,8 @@ const STRINGS = {
     aiFallback: "AI pick unavailable; used the longest video as the hero shot.",
     done: (n: number, s: string) => `Created a Draft with ${n} cuts (${s}s).`,
     failed: "Could not create the Draft.",
+    hostTooOld: "This template needs a newer version of Selects. Update Selects, then try again.",
+    notReady: (s: string) => `${s} isn't ready in Selects yet. Wait until it finishes importing, then try again. No Draft was made.`,
   },
   ko: {
     title: "Thank You Recap",
@@ -59,6 +61,8 @@ const STRINGS = {
     aiFallback: "AI \uc120\ud0dd\uc744 \uc4f8 \uc218 \uc5c6\uc5b4 \uac00\uc7a5 \uae34 \uc601\uc0c1\uc744 \uba54\uc778 \uc0f7\uc73c\ub85c \uc37c\uc2b5\ub2c8\ub2e4.",
     done: (n: number, s: string) => `\ucef7 ${n}\uac1c(${s}\ucd08)\ub85c Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.`,
     failed: "Draft\ub97c \ub9cc\ub4e4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
+    hostTooOld: "\uc774 \ud15c\ud50c\ub9bf\uc744 \uc4f0\ub824\uba74 \ub354 \ucd5c\uc2e0 \ubc84\uc804\uc758 Selects\uac00 \ud544\uc694\ud569\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    notReady: (s: string) => `${s}\uc740(\ub294) \uc544\uc9c1 Selects\uc5d0\uc11c \uc900\ube44\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uac00\uc838\uc624\uae30\uac00 \ub05d\ub09c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694. Draft\ub294 \ub9cc\ub4e4\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.`,
   },
   ja: {
     title: "Thank You リキャップ",
@@ -79,6 +83,8 @@ const STRINGS = {
     aiFallback: "AI選択を使えなかったため、最も長い動画をメインショットにしました。",
     done: (n: number, s: string) => `${n}カット（${s}秒）のドラフトを作成しました。`,
     failed: "ドラフトを作成できませんでした。",
+    hostTooOld: "このテンプレートには新しいバージョンの Selects が必要です。Selects をアップデートしてから、もう一度お試しください。",
+    notReady: (s: string) => `${s} はまだ Selects で準備ができていません。読み込みが終わってから、もう一度お試しください。ドラフトは作成していません。`,
   },
   zh: {
     title: "Thank You 年度回顾",
@@ -99,6 +105,8 @@ const STRINGS = {
     aiFallback: "无法使用 AI 选择，已将最长的视频用作主镜头。",
     done: (n: number, s: string) => `已创建包含 ${n} 个剪辑（${s} 秒）的草稿。`,
     failed: "无法创建草稿。",
+    hostTooOld: "此模板需要更新版本的 Selects。请更新 Selects 后重试。",
+    notReady: (s: string) => `${s} 在 Selects 中尚未就绪。请等它导入完成后重试。未创建草稿。`,
   },
   de: {
     title: "Thank You Rückblick",
@@ -119,6 +127,8 @@ const STRINGS = {
     aiFallback: "KI-Auswahl nicht verfügbar; das längste Video wurde als Hauptaufnahme verwendet.",
     done: (n: number, s: string) => `Entwurf mit ${n} Schnitten (${s} s) erstellt.`,
     failed: "Der Entwurf konnte nicht erstellt werden.",
+    hostTooOld: "Diese Vorlage braucht eine neuere Version von Selects. Aktualisiere Selects und versuche es erneut.",
+    notReady: (s: string) => `${s} ist in Selects noch nicht bereit. Warte, bis der Import fertig ist, und versuche es erneut. Es wurde kein Entwurf erstellt.`,
   },
   es: {
     title: "Resumen Thank You",
@@ -139,6 +149,8 @@ const STRINGS = {
     aiFallback: "La selección con IA no está disponible; se usó el vídeo más largo como plano principal.",
     done: (n: number, s: string) => `Borrador creado con ${n} cortes (${s} s).`,
     failed: "No se pudo crear el borrador.",
+    hostTooOld: "Esta plantilla necesita una versión más reciente de Selects. Actualiza Selects y vuelve a intentarlo.",
+    notReady: (s: string) => `${s} aún no está listo en Selects. Espera a que termine de importarse y vuelve a intentarlo. No se creó ningún borrador.`,
   },
   fr: {
     title: "Rétrospective Thank You",
@@ -159,6 +171,8 @@ const STRINGS = {
     aiFallback: "Sélection par IA indisponible ; la vidéo la plus longue sert de plan principal.",
     done: (n: number, s: string) => `Brouillon créé avec ${n} plans (${s} s).`,
     failed: "Impossible de créer le brouillon.",
+    hostTooOld: "Ce modèle nécessite une version plus récente de Selects. Mettez Selects à jour, puis réessayez.",
+    notReady: (s: string) => `${s} n'est pas encore prêt dans Selects. Attendez la fin de l'importation, puis réessayez. Aucun brouillon n'a été créé.`,
   },
   it: {
     title: "Recap Thank You",
@@ -179,6 +193,8 @@ const STRINGS = {
     aiFallback: "Selezione IA non disponibile; è stato usato il video più lungo come inquadratura principale.",
     done: (n: number, s: string) => `Bozza creata con ${n} tagli (${s} s).`,
     failed: "Impossibile creare la bozza.",
+    hostTooOld: "Questo modello richiede una versione più recente di Selects. Aggiorna Selects e riprova.",
+    notReady: (s: string) => `${s} non è ancora pronto in Selects. Attendi la fine dell'importazione e riprova. Nessuna bozza è stata creata.`,
   },
   pt: {
     title: "Retrospectiva Thank You",
@@ -199,6 +215,8 @@ const STRINGS = {
     aiFallback: "Seleção por IA indisponível; o vídeo mais longo foi usado como plano principal.",
     done: (n: number, s: string) => `Rascunho criado com ${n} cortes (${s} s).`,
     failed: "Não foi possível criar o rascunho.",
+    hostTooOld: "Este modelo precisa de uma versão mais recente do Selects. Atualize o Selects e tente novamente.",
+    notReady: (s: string) => `${s} ainda não está pronto no Selects. Aguarde a importação terminar e tente novamente. Nenhum rascunho foi criado.`,
   },
   tr: {
     title: "Thank You Özeti",
@@ -219,6 +237,8 @@ const STRINGS = {
     aiFallback: "Yapay zekâ seçimi kullanılamadı; en uzun video ana çekim olarak kullanıldı.",
     done: (n: number, s: string) => `${n} kesimli (${s} sn) bir taslak oluşturuldu.`,
     failed: "Taslak oluşturulamadı.",
+    hostTooOld: "Bu şablon Selects'in daha yeni bir sürümünü gerektiriyor. Selects'i güncelleyip yeniden deneyin.",
+    notReady: (s: string) => `${s} henüz Selects'te hazır değil. İçe aktarma bitene kadar bekleyip yeniden deneyin. Taslak oluşturulmadı.`,
   },
 };
 
@@ -333,11 +353,11 @@ export default function Graphic({ data }) {
 const YEAR_FACE_SCALE = { RecapGrunge: 1, RecapSerif: 1, RecapChunky: 1, RecapHand: 1.35, RecapScript: 1.45, RecapRound: 1 };
 const YEAR_FONTS_FILE = "assets/year-fonts.json";
 
-const shq = (v: string) => `'${v.replace(/'/g, `'\\''`)}'`;
-
 // One frame from the middle of each candidate, side by side, as a data URL.
+// The host's bundled ffmpeg writes the sheet to this plugin's data folder (no
+// shell, so it runs on Windows too); it is read back and removed.
 async function contactSheet(sdk, videos: Media[]): Promise<string> {
-  const inputs = videos.map((v) => `-ss ${(v.seconds / 2).toFixed(2)} -i ${shq(v.path!)}`);
+  const inputs = videos.flatMap((v) => ["-ss", (v.seconds / 2).toFixed(2), "-i", v.path!]);
   const cells = videos.map(
     (_, i) => `[${i}:v]scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2,trim=end_frame=1,setsar=1[c${i}]`
   );
@@ -345,30 +365,49 @@ async function contactSheet(sdk, videos: Media[]): Promise<string> {
     videos.length === 1
       ? `${cells[0].replace(/\[c0\]$/, "[out]")}`
       : `${cells.join(";")};${videos.map((_, i) => `[c${i}]`).join("")}hstack=${videos.length}[out]`;
-  // Shell output is capped (48KB) and each call gets its own temp dir, so the
-  // sheet goes to this plugin's data folder and is read back in chunks.
-  const dataDir = `"$HOME/.selects/plugin-data/${PLUGIN_ID}"`;
-  const file = `"$HOME/.selects/plugin-data/${PLUGIN_ID}/hero.jpg"`;
-  const made = await sdk.runShell({
-    summary: "Build hero candidates sheet",
-    command: `mkdir -p ${dataDir} && ffmpeg -v error -y ${inputs.join(" ")} -filter_complex "${graph}" -map "[out]" -frames:v 1 -q:v 7 ${file} && base64 < ${file} | tr -d '\\n' | wc -c`,
-    timeoutMs: 60000,
-  });
-  if (made.isError || made.exitCode !== 0) throw new Error(made.stderr || made.output);
-  const total = Number(made.stdout.trim());
-  const CHUNK = 45000;
-  let b64 = "";
-  for (let at = 0; at < total; at += CHUNK) {
-    const part = await sdk.runShell({
-      summary: "Read hero candidates sheet",
-      command: `base64 < ${file} | tr -d '\\n' | cut -c ${at + 1}-${Math.min(at + CHUNK, total)}`,
-      maxOutputBytes: 48 * 1024,
-    });
-    if (part.isError || part.exitCode !== 0) throw new Error(part.stderr || part.output);
-    b64 += part.stdout.trim();
+  const { data } = await hostRoots(sdk, PLUGIN_ID, YEAR_FONTS_FILE);
+  if (!data) throw new Error("no plugin data folder");
+  const file = hostJoin(data, "hero.jpg");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), 60000) : null;
+  try {
+    await hostNeed("Runtime", "runFFmpeg").runFFmpeg(
+      ["-nostdin", "-v", "error", "-y", ...inputs, "-filter_complex", graph, "-map", "[out]", "-frames:v", "1", "-q:v", "7", file],
+      true,
+      controller ? controller.signal : undefined
+    );
+    const bytes = await hostReadBytes(file);
+    let bin = "";
+    for (let at = 0; at < bytes.length; at += 0x8000) bin += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+    if (!bin) throw new Error("empty hero sheet");
+    return `data:image/jpeg;base64,${btoa(bin)}`;
+  } finally {
+    if (timer) clearTimeout(timer);
+    await hostRemove(file);
   }
-  if (b64.length !== total) throw new Error(`hero sheet read ${b64.length}/${total}`);
-  return `data:image/jpeg;base64,${b64}`;
+}
+
+// Finds the install and data folders, stages the music and reads the year
+// faces, all through the host FileSystem (no shell, so Windows works too).
+// Runs before the Draft is made, so a failure here leaves no partial Draft.
+async function stageAssets(sdk): Promise<{ musicPath: string; yearFonts: { family: string; src: string }[] }> {
+  const { plugin, data } = await hostRoots(sdk, PLUGIN_ID, YEAR_FONTS_FILE);
+  if (!data) throw new Error("Could not create the folder ~/.selects/plugin-data/" + PLUGIN_ID + ".");
+  // Import a copy named by its checksum, so a plugin update that changes the
+  // music never reuses the older track already imported into a Project.
+  const bytes = await hostReadBytes(hostJoin(plugin, ...MUSIC_FILE.split("/")));
+  const subtle = globalThis.crypto?.subtle;
+  let sum = "";
+  if (subtle) sum = [...new Uint8Array(await subtle.digest("SHA-256", bytes)).slice(0, 8)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  else { let h = 0x811c9dc5; for (const b of bytes) h = Math.imul(h ^ b, 0x01000193) >>> 0; sum = h.toString(16).padStart(8, "0") + bytes.length.toString(16); }
+  const musicPath = hostJoin(data, "music-" + sum + ".mp3");
+  if (!hostApi("FileSystem", "existsSync")?.existsSync(musicPath)) {
+    const tmp = hostJoin(data, "music-" + Date.now().toString(36) + ".part"), move = hostApi("FileSystem", "renameSync");
+    await hostNeed("FileSystem", "writeFile").writeFile(move ? tmp : musicPath, bytes);
+    if (move) move.renameSync(tmp, musicPath);
+  }
+  const yearFonts = JSON.parse(await hostReadText(hostJoin(plugin, ...YEAR_FONTS_FILE.split("/")))) as { family: string; src: string }[];
+  return { musicPath, yearFonts };
 }
 
 async function aiHero(sdk, videos: Media[]): Promise<Media | null> {
@@ -402,16 +441,53 @@ return (await project.resources())
     width: files[r.resourceId]?.frameSize?.width ?? null, height: files[r.resourceId]?.frameSize?.height ?? null }));`;
 }
 
-// Cuts the montage around `hero`, then adds the music and titles. Resolves the
-// new Draft; throws with what went wrong. `onStep` follows `steps` 1 and 2.
+// A video Selects can't place yet (still importing, or its source timeline
+// isn't available on this computer). `clip` is its name for the message.
+const notReady = (clip: string) => Object.assign(new Error(`${clip} is not ready in Selects yet.`), { code: "not-ready", clip: clip.slice(0, 40) });
+
+// Cuts the montage around `hero` and adds the music and titles in one Draft
+// edit, committed only when every clip and the music were placed, so a failure
+// leaves no partial Draft. Resolves the new Draft; throws with what went wrong.
+// `onStep` follows `steps` 1 and 2.
 async function buildRecap(
   sdk,
   { projectId, chosen, hero, year, name, onStep = (_: number) => {} }:
     { projectId: string; chosen: Media[]; hero: Media; year: string; name: string; onStep?: (step: number) => void }
 ) {
+  // Analysis is not needed (montage moments are spread evenly through each
+  // take), but a video must be imported: a length and a source file.
+  const waiting = chosen.find((v) => !(v.seconds > 0 && v.path));
+  if (waiting) throw notReady(waiting.name);
+  // The music and the year faces come first: if they can't be read, no Draft is made.
+  const { musicPath, yearFonts } = await stageAssets(sdk);
+
   // 2. Montage: every slot but the hero takes the next video in turn, and
   //    each reuse of a video moves to a later moment in it.
   onStep(1);
+  // The track ships in this plugin's asset folder and is imported into the
+  // Project once; importing is a Project edit, so it runs in its own call
+  // before the Draft edit.
+  const imported = await sdk.runScript({
+    summary: "Add template music",
+    allowCommit: true,
+    script: `
+const project = selects.project(${JSON.stringify(projectId)});
+const musicPath = ${JSON.stringify(musicPath)};
+// Host paths compare after NFC and backslashes to "/" (and case on Windows).
+const win = ${JSON.stringify(hostIsWindows())};
+const norm = (p) => { const s = String(p || "").normalize("NFC").replace(/\\\\/g, "/"); return win ? s.toLowerCase() : s; };
+const files = {};
+const walk = (nodes) => { for (const n of nodes ?? []) { if (n.path) files[norm(n.path)] = n.resourceId; walk(n.children); } };
+const tree = await project.sourceFiles();
+if ("fileTree" in tree) walk(tree.fileTree);
+const existing = files[norm(musicPath)];
+if (existing) return existing;
+const added = (await project.importFiles({ paths: [musicPath] })).addedResourceIds[0];
+if (!added) throw new Error("Template music could not be imported: " + musicPath);
+return added;`,
+  });
+  const musicId = imported.result as string | undefined;
+  if (imported.isError || !musicId) throw new Error(imported.output);
   const pool = chosen.filter((v) => v.id !== hero!.id).length >= 2 ? chosen.filter((v) => v.id !== hero!.id) : chosen;
   const heroIndex = ROLL.length;
   const uses = new Map<string, number>();
@@ -424,11 +500,10 @@ async function buildRecap(
     return { id: v.id, seconds: v.seconds, hero: false, use, of: 0 };
   });
   for (const s of slots) if (!s.hero) s.of = uses.get(s.id)!;
-  const plan = { projectId, slots, starts: STARTS, end: END, frame: FRAME, name };
-  const built = await sdk.runScript({
-    summary: "Cut recap montage",
-    allowCommit: true,
-    script: `
+  const plan = { projectId, slots, starts: STARTS, end: END, frame: FRAME, name, musicId };
+  // Every clip and the music are placed before the one commit: a clip or the
+  // music Selects can't place yet ends the run with nothing saved.
+  const script = `
 const plan = ${JSON.stringify(plan)};
 const project = selects.project(plan.projectId);
 const draft = await project.createDraft({ name: plan.name });
@@ -440,69 +515,37 @@ for (let i = 0; i < plan.slots.length; i++) {
   const room = Math.max(0, slot.seconds - len - 0.1);
   // The hero plays from the middle of its take; montage moments spread evenly.
   const start = slot.hero ? room / 2 : Math.min(room, 0.05 + ((slot.use + 0.5) / slot.of) * room);
-  await draft.insertResource({ resourceId: slot.id, sourceRange: { startSeconds: start, endSeconds: start + len } });
+  try { await draft.insertResource({ resourceId: slot.id, sourceRange: { startSeconds: start, endSeconds: start + len } }); }
+  catch (e) { return { notReady: slot.id, reason: String(e && e.message || e) }; }
 }
 // Set after the clips: the first insert would otherwise size the canvas to its source.
 await draft.setFrameSize(plan.frame);
-const saved = await draft.commitAll("Cut recap montage");
 const main = await draft.clips({ trackScope: "main" });
-return { draftId: saved.createdDraftId, cuts: main.length, endFrame: main.reduce((a, c) => Math.max(a, c.endFrame), 0), fps, edges };`,
-  });
-  const made = built.result as { draftId?: string; cuts: number; endFrame: number; fps: number; edges: number[] } | undefined;
-  if (built.isError || !made?.draftId) throw new Error(built.output);
-
-  // 3. Music and titles. The track ships in this plugin's asset folder and
-  //    is imported into the Project once; importing is a Project edit, so
-  //    it runs in its own call before the Draft edit.
-  onStep(2);
-  const root = await sdk.runShell({ summary: "Locate template music", command: 'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}"' });
-  if (root.isError || !root.stdout) throw new Error(root.stderr || root.output);
-  // Import a copy named by its checksum, so a plugin update that changes the
-  // music never reuses the older track already imported into a Project.
-  const staged = await sdk.runShell({
-    summary: "Stage template music",
-    command: `src=${shq(`${root.stdout.trim()}/${PLUGIN_ID}/${MUSIC_FILE}`)}; dir="$HOME/.selects/plugin-data/${PLUGIN_ID}"; sum=$(cksum < "$src" | cut -d' ' -f1); dst="$dir/music-$sum.mp3"; mkdir -p "$dir" && { [ -f "$dst" ] || cp "$src" "$dst"; } && printf %s "$dst"`,
-  });
-  if (staged.isError || staged.exitCode !== 0 || !staged.stdout.trim()) throw new Error(staged.stderr || staged.output);
-  const musicPath = staged.stdout.trim();
-  // Shell output is capped at 48KB, so the faces file is read in slices.
-  const facesFile = shq(`${root.stdout.trim()}/${PLUGIN_ID}/${YEAR_FONTS_FILE}`);
-  const facesSize = await sdk.runShell({ summary: "Measure year faces", command: `wc -c < ${facesFile}` });
-  if (facesSize.isError || facesSize.exitCode !== 0) throw new Error(facesSize.stderr || facesSize.output);
-  const facesTotal = Number(facesSize.stdout.trim());
-  let facesJson = "";
-  for (let at = 0; at < facesTotal; at += 45000) {
-    const part = await sdk.runShell({
-      summary: "Read year faces",
-      command: `tail -c +${at + 1} ${facesFile} | head -c 45000`,
-      maxOutputBytes: 48 * 1024,
-    });
-    if (part.isError || part.exitCode !== 0) throw new Error(part.stderr || part.output);
-    facesJson += part.stdout;
+const endFrame = main.reduce((a, c) => Math.max(a, c.endFrame), 0);
+try { await draft.overlayResource({ resource: project.resource(plan.musicId), over: await draft.rangeAtFrames(0, endFrame) }); }
+catch (e) { return { notReady: plan.musicId, reason: String(e && e.message || e) }; }
+const saved = await draft.commitAll("Cut recap montage");
+return { draftId: saved.createdDraftId, cuts: main.length, endFrame, fps, edges };`;
+  // A video or the music that was only just imported may need a moment before
+  // Selects can place it; nothing was saved, so the whole edit runs again.
+  let made: { draftId?: string; cuts: number; endFrame: number; fps: number; edges: number[]; notReady?: string; reason?: string } | undefined;
+  for (let attempt = 0; ; attempt++) {
+    const built = await sdk.runScript({ summary: "Cut recap montage", allowCommit: true, script });
+    made = built.result as typeof made;
+    if (built.isError) throw new Error(built.output);
+    if (!made?.notReady) break;
+    console.warn("[thank-you-recap] not placeable yet:", made.notReady, made.reason);
+    if (attempt >= 2) throw notReady(made.notReady === musicId ? "Template music" : chosen.find((v) => v.id === made!.notReady)?.name ?? made.notReady);
+    await new Promise((d) => setTimeout(d, 2000));
   }
-  if (facesJson.length !== facesTotal) throw new Error(`year faces read ${facesJson.length}/${facesTotal}`);
-  const yearFonts = JSON.parse(facesJson) as { family: string; src: string }[];
-  const imported = await sdk.runScript({
-    summary: "Add template music",
-    allowCommit: true,
-    script: `
-const project = selects.project(${JSON.stringify(projectId)});
-const musicPath = ${JSON.stringify(musicPath)};
-const files = {};
-const walk = (nodes) => { for (const n of nodes ?? []) { if (n.path) files[n.path] = n.resourceId; walk(n.children); } };
-const tree = await project.sourceFiles();
-if ("fileTree" in tree) walk(tree.fileTree);
-const existing = files[musicPath];
-if (existing) return existing;
-const added = (await project.importFiles({ paths: [musicPath] })).addedResourceIds[0];
-if (!added) throw new Error("Template music could not be imported: " + musicPath);
-return added;`,
-  });
-  const musicId = imported.result as string | undefined;
-  if (imported.isError || !musicId) throw new Error(imported.output);
+  if (!made?.draftId) throw new Error("The Draft could not be saved.");
+
+  // 3. Mute and titles. setAudioTracks reads the saved Draft's audio
+  //    inventory, so this runs after the commit.
+  onStep(2);
   const heroFrame = made.edges[ROLL.length];
   const titlesEnd = made.edges[ROLL.length + 2 + CLOSING.length];
-  const at = (s: number) => (Math.round(s * made.fps) - heroFrame) / made.fps;
+  const at = (s: number) => (Math.round(s * made!.fps) - heroFrame) / made!.fps;
   const titles = {
     caption: "THANK YOU",
     year: year.trim() || String(new Date().getFullYear()),
@@ -528,7 +571,6 @@ return added;`,
 const draft = selects.draft(${JSON.stringify(made.draftId)});
 const whole = await draft.rangeAtFrames(0, ${made.endFrame});
 await draft.setAudioTracks({ target: whole, audioSourceIndexes: [] });
-await draft.overlayResource({ resource: selects.project(${JSON.stringify(projectId)}).resource(${JSON.stringify(musicId)}), over: whole });
 await draft.addMotionGraphic({
   label: "Thank you titles",
   tsxCode: ${JSON.stringify(TITLES_TSX)},
@@ -540,7 +582,7 @@ await draft.commitAll("Add recap music and titles");
 return true;`,
   });
   if (finish.isError) throw new Error(finish.output);
-  return made;
+  return made as { draftId: string; cuts: number; endFrame: number; fps: number; edges: number[] };
 }
 
 const TEMPLATE_FAILED = "Thank You Recap couldn't make the timeline. Try again.";
@@ -600,8 +642,10 @@ function TemplateRun({ sdk, context }) {
       finish({ sequenceId: made.draftId });
     })().catch((e) => {
       console.warn("[thank-you-recap] template run failed:", e);
+      const tt = STRINGS[context.language] ?? STRINGS.en;
+      const known = e?.code === "host-missing" ? tt.hostTooOld : e?.code === "not-ready" ? tt.notReady(e.clip) : "";
       const said = String(e?.message ?? "");
-      finish({ error: said && said.length <= 160 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED });
+      finish({ error: known || (said && said.length <= 160 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED) });
     });
   }, [runId]);
   return <small>{status}</small>;
@@ -727,7 +771,7 @@ function RecapPanel({ sdk, context, ui }) {
         text: t.done(made.cuts, (made.endFrame / made.fps).toFixed(1)) + (aiNote ? ` ${aiNote}` : ""),
       });
     } catch (e) {
-      setStatus({ tone: "error", text: `${t.failed} ${String(e)}` });
+      setStatus({ tone: "error", text: e?.code === "host-missing" ? t.hostTooOld : e?.code === "not-ready" ? t.notReady(e.clip) : `${t.failed} ${String(e)}` });
     } finally {
       setBusy(false);
       setStep(-1);
@@ -782,3 +826,132 @@ function RecapPanel({ sdk, context, ui }) {
     </ui.Stack>
   );
 }
+
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
