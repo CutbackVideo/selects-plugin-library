@@ -111,6 +111,17 @@ test('identical requests reuse the cache and a corrupt cache entry is rebuilt', 
   assert.ok(fs.statSync(c.videos[0].outputPath).size > 100);
 });
 
+test('a source with a timecode track is held as one video stream (no tmcd track copied)', { skip: !tools && 'ffmpeg/ffprobe required' }, async () => {
+  // Camera and stock clips (e.g. the Staging test's field-01) carry a `timecode` tag; the mp4 muxer then writes a tmcd
+  // data track into the held clip unless told not to, and the one-stream check rejects it.
+  const dir = scratch(), plain = path.join(dir, 'plain.mp4'), source = path.join(dir, 'timecode.mp4');
+  sourceVideo(plain);
+  execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-i', plain, '-c', 'copy', '-timecode', '00:00:00:00', source]);
+  assert.ok(probe(source).length > 1, 'fixture has no timecode track');
+  const result = await load(host()).holdVideos({ videos: [{ path: source }], durationFrames: 18 }, path.join(dir, 'data'));
+  assert.deepEqual(probe(result.videos[0].outputPath).map(stream => stream.codec_name), ['h264']);
+});
+
 test('a missing or non-video source is rejected', { skip: !tools && 'ffmpeg/ffprobe required' }, async () => {
   const dir = scratch(), { holdVideos } = load(host());
   await assert.rejects(holdVideos({ videos: [{ path: path.join(dir, 'missing.mp4') }], durationFrames: 18 }, dir), /Video 1: Video is missing/);

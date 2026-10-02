@@ -219,11 +219,12 @@ async function holdKey(text) {
 async function holdEncode(source, target, frames) {
   const scale = 'scale=w=\'min(iw,' + HOLD_MAX_EDGE + ')\':h=\'min(ih,' + HOLD_MAX_EDGE + ')\':' +
     'force_original_aspect_ratio=decrease:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2:0:0:black,setsar=1';
+  // -write_tmcd 0: a source's timecode tag would otherwise add a tmcd data track, failing the one-stream check.
   const filters = 'fps=' + HOLD_FPS + ',tpad=stop_mode=clone:stop_duration=' + (frames / HOLD_FPS + 1).toFixed(6) + ',' + scale;
   try {
     await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-y', '-i', source, '-vf', filters, '-an', '-frames:v', String(frames),
       '-r', String(HOLD_FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p',
-      '-movflags', '+faststart', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)));
+      '-movflags', '+faststart', '-write_tmcd', '0', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)));
   } catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('ffmpeg could not extend the short video'); }
 }
 async function holdCached(videoPath, metaPath, identity, frames, dimensions) {

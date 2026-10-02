@@ -103,7 +103,7 @@ def encode(source, target, frames):
     command = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(source),
                "-vf", filters, "-an", "-frames:v", str(frames), "-r", str(FPS),
                "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-               "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+               "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-write_tmcd", "0",
                "-metadata", "creation_time=", "-f", "mp4", str(target)]
     result = run(command, timeout=max(90, min(900, frames // FPS * 8 + 60)))
     if result.returncode:
