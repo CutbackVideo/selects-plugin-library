@@ -286,24 +286,70 @@ for (const id of ['day-in-my-life', 'small-glimpse']) for (const i of lay(id, { 
   const ik = JSON.parse(JSON.stringify(K.ink(HARU, m)));
   assert.ok(ik.up >= m.capHeight / m.unitsPerEm && ik.down > 0, 'Hangul ink ' + JSON.stringify(ik));
   assert.deepEqual(ik, { up: 0.86, down: 0.12 }, 'Hangul ink without a measurement (node): the macOS 0.86 em up, 0.12 em down');
-  // Where a canvas exists (the panel preview, the Draft's render), the Hangul ink is measured in the family's stack
-  // (measureText actualBoundingBox*), once per family, and the layout uses it instead of the macOS figures.
-  {
+  // Where a canvas exists (the panel preview, the Draft's render) and the system is not macOS, the Hangul ink is
+  // measured in the family's stack (measureText actualBoundingBox*, at the family's weight), once per family, and the
+  // macOS figures move by its difference from the macOS face's reference (MV_WIDE_REF), clamped.
+  const canvasBox = (ascent, descent, opts = {}) => {
     const fonts = [];
-    const mbox = { document: { createElement: () => ({ getContext: () => ({ set font(v) { fonts.push(v); }, measureText: () => ({ actualBoundingBoxAscent: 92, actualBoundingBoxDescent: 18 }) }) }) } };
-    vm.createContext(mbox);
-    vm.runInContext(block + ';globalThis.L=mvLockupLayout;globalThis.W=mvWideInk;', mbox);
+    let font = '';
+    const ctx = {
+      set font(v) { fonts.push(v); font = v; }, get font() { return font; },
+      // Probe widths: the bare generic and '"<Apple face>", generic' measure alike unless opts.appleWidth says otherwise.
+      measureText: () => ({ actualBoundingBoxAscent: ascent, actualBoundingBoxDescent: descent, width: opts.appleWidth && /Apple/.test(font) && !/MV /.test(font) ? 700 : 600 }),
+    };
+    const box = { document: { createElement: () => ({ getContext: () => ctx }) } };
+    if (opts.navigator) box.navigator = opts.navigator;
+    vm.createContext(box);
+    vm.runInContext(block + ';globalThis.L=mvLockupLayout;globalThis.W=mvWideInk;', box);
+    return { box, fonts };
+  };
+  {
+    const win = { platform: 'Win32', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' };
+    const { box: mbox, fonts } = canvasBox(92, 18, { navigator: win });
     const w = JSON.parse(JSON.stringify(mbox.W('MV Rounded Bold')));
-    assert.deepEqual(w, { up: 0.92, down: 0.18, measured: true }, 'measured Hangul ink');
-    assert.ok(fonts[0].startsWith('100px "MV Rounded Bold"') && fonts[0].includes('"Malgun Gothic"'), 'measured in the family stack');
+    // MV Rounded Bold is drawn bold: Apple SD Gothic Neo Bold's 0.812 / 0.080 is the reference.
+    assert.deepEqual(w, { up: 0.968, down: 0.22, measured: true }, 'measured Hangul ink, relative to the macOS reference');
+    const famFonts = fonts.filter(f => f.includes('"MV Rounded Bold"'));
+    assert.equal(famFonts.length, 1, 'measured once');
+    assert.ok(famFonts[0].startsWith('bold 100px "MV Rounded Bold"') && famFonts[0].includes('"Malgun Gothic"'), 'measured in the family stack at its weight: ' + famFonts[0]);
     const item = JSON.parse(JSON.stringify(mbox.L({ ...DEFAULT, preset: 'small-glimpse', fields: { top: '', big: HARU, bottom: '' }, fonts: fontsFor('small-glimpse') }, W, H)))
       .find(i => i.kind === 'text' && i.text === HARU);
-    near((item.y - item.box[1]) / item.size, 0.92, 1e-9, 'layout uses the measured ascent'); near((item.box[3] - item.y) / item.size, 0.18, 1e-9, 'and descent');
+    near((item.y - item.box[1]) / item.size, 0.968, 1e-9, 'layout uses the adjusted ascent'); near((item.box[3] - item.y) / item.size, 0.22, 1e-9, 'and descent');
     mbox.W('MV Rounded Bold'); assert.equal(fonts.filter(f => f.includes('MV Rounded Bold')).length, 1, 'measured once per family');
-    // A measurement that looks wrong (no ascent) keeps the macOS figures.
+    // Serif families compare with AppleMyungjo, regular sans with Apple SD Gothic Neo Regular.
+    near(mbox.W('MV DM Serif Display').up, 0.86 + 0.92 - 0.831, 1e-9, 'serif ref'); near(mbox.W('MV DM Mono').down, 0.12 + 0.18 - 0.071, 1e-9, 'regular sans ref');
+    assert.ok(fonts.some(f => f.startsWith('100px "MV DM Mono"')), 'regular weight unprefixed');
+    // The same text as the macOS face measures gives the macOS figures exactly.
+    const same = canvasBox(81.2, 8, { navigator: win }).box;
+    assert.deepEqual(JSON.parse(JSON.stringify(same.W('MV Rounded Bold'))), { up: 0.86, down: 0.12, measured: true }, 'the reference measurement gives the macOS figures');
+    // An odd face is clamped to a sane range.
+    const odd = canvasBox(129, 49, { navigator: win }).box;
+    assert.deepEqual(JSON.parse(JSON.stringify(odd.W('MV DM Mono'))), { up: 1.1, down: 0.35, measured: true }, 'clamped');
+  }
+  // macOS: the macOS figures exactly, whatever the canvas measures (it is the face they were taken from).
+  for (const nav of [{ platform: 'MacIntel', userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }, { userAgentData: { platform: 'macOS' }, platform: '', userAgent: '' }]) {
+    const { box, fonts } = canvasBox(95, 20, { navigator: nav });
+    for (const fam of ['MV Rounded Bold', 'MV DM Serif Display']) assert.deepEqual(JSON.parse(JSON.stringify(box.W(fam))), { up: 0.86, down: 0.12, measured: false }, 'macOS: ' + fam);
+    assert.equal(fonts.filter(f => f.includes('"MV ')).length, 0, 'macOS: nothing measured');
+  }
+  // An Apple Korean face installed elsewhere draws the Hangul too: the macOS figures.
+  {
+    const { box } = canvasBox(95, 20, { navigator: { platform: 'Linux x86_64', userAgent: 'X11' }, appleWidth: true });
+    assert.deepEqual(JSON.parse(JSON.stringify(box.W('MV DM Mono'))), { up: 0.86, down: 0.12, measured: false }, 'Apple face installed');
+  }
+  // A measurement that looks wrong (no ascent), or no navigator at all, keeps the macOS figures when nothing measures.
+  {
     const bad = { document: { createElement: () => ({ getContext: () => ({ font: '', measureText: () => ({ actualBoundingBoxAscent: 0, actualBoundingBoxDescent: 0 }) }) }) } };
     vm.createContext(bad); vm.runInContext(block + ';globalThis.W=mvWideInk;', bad);
     assert.deepEqual(JSON.parse(JSON.stringify(bad.W('MV DM Mono'))), { up: 0.86, down: 0.12, measured: false });
+    const broken = { document: { createElement: () => ({ getContext: () => ({ set font(v) { throw new Error('no'); }, measureText: () => ({}) }) }) } };
+    vm.createContext(broken); vm.runInContext(block + ';globalThis.W=mvWideInk;', broken);
+    assert.deepEqual(JSON.parse(JSON.stringify(broken.W('MV Rounded Bold'))), { up: 0.86, down: 0.12, measured: false }, 'a throwing canvas');
+  }
+  // Preview and render run the same block (panel.tsx embeds it verbatim, tests/panel.test.cjs).
+  {
+    const panelSrc = fs.readFileSync(path.resolve(__dirname, '..', 'panel.tsx'), 'utf8');
+    assert.ok(panelSrc.includes(block), 'the panel preview runs the same mvWideInk as the render');
   }
   // Stars and the year centre on the middle of Hangul ink, on the x-height band of Latin.
   near(K.band(HARU, m), 0.37, 1e-9, 'Hangul band'); near(K.band('day', m), m.xHeight / m.unitsPerEm / 2, 1e-9, 'Latin band');

@@ -39,26 +39,67 @@ var MV_KO_FACES = { "MV Instrument Serif Italic": "AppleMyungjo", "MV DM Serif D
 // The Korean system faces of a role on macOS and Windows (and Noto where installed), in that order.
 var MV_KO_STACKS = { serif: '"AppleMyungjo", "Batang", "Noto Serif KR"', sans: '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR"' };
 function mvHasHangul(text) { return MV_HANGUL_RE.test(String(text || "")); }
-// Hangul ink in em, measured where the text is drawn (mvWideInk): the Korean face differs by OS (Apple SD Gothic Neo
-// and AppleMyungjo on macOS, Malgun Gothic and Batang on Windows). These are the macOS faces' figures (about 0.86 em
-// above the baseline and 0.12 em below it), used only where nothing can be measured (node, tests).
+// Hangul ink in em where the text is drawn (mvWideInk). The Korean face differs by OS: Apple SD Gothic Neo and
+// AppleMyungjo on macOS, Malgun Gothic and Batang on Windows. The layout was tuned on macOS with these figures (about
+// 0.86 em above the baseline and 0.12 em below it), so macOS always uses them as they are, and so do node and tests.
 var MV_WIDE_UP = 0.86, MV_WIDE_DOWN = 0.12;
 var MV_WIDE_SAMPLE = "\ud55c\uae00\ubdf0\ud790\uc77c\uc0c1";
+// The sample's ink in the macOS face of each family at the weight it is drawn in (CoreText: Apple SD Gothic Neo
+// Regular 0.804 / 0.071, Bold 0.812 / 0.080, AppleMyungjo 0.831 / 0.105). Elsewhere the measured ink moves the macOS
+// figures by its difference from these: up = 0.86 + (measured - ref.up), down = 0.12 + (measured - ref.down).
+var MV_WIDE_REF = {
+  "MV Instrument Serif Italic": { up: 0.831, down: 0.105, weight: "" },
+  "MV DM Serif Display": { up: 0.831, down: 0.105, weight: "" },
+  "MV Rounded Bold": { up: 0.812, down: 0.080, weight: "bold " },
+  "MV DM Mono": { up: 0.804, down: 0.071, weight: "" },
+};
 var MV_WIDE_CACHE = {};
-// A family's Hangul ink { up, down } in em: canvas measureText(...).actualBoundingBoxAscent / Descent of a few Hangul
-// syllables at 100 px in the family's font stack (so the system Korean face that really draws them), once per family;
-// the macOS figures when there is no canvas or the measurement looks wrong.
+var MV_WIDE_APPLE = null;
+// True on macOS, or where an Apple Korean face is installed (it is first among the Korean faces of every stack, so it
+// is the face that draws Hangul): the text then looks as it did when the macOS figures were taken. An installed face is
+// told apart by width: a sample in '"<face>", <generic>' measures differently from the bare generic.
+function mvAppleKorean(ctx) {
+  if (MV_WIDE_APPLE !== null) return MV_WIDE_APPLE;
+  var apple = false;
+  try {
+    var nav = typeof navigator !== "undefined" ? navigator : null;
+    var plat = nav ? String((nav.userAgentData && nav.userAgentData.platform) || nav.platform || "") + " " + String(nav.userAgent || "") : "";
+    apple = /mac/i.test(plat) && !/iphone|ipad|ipod/i.test(plat);
+    var probe = "mmmwwwlli " + MV_WIDE_SAMPLE;
+    var faces = ["Apple SD Gothic Neo", "AppleMyungjo"], generics = ["monospace", "serif", "sans-serif"];
+    for (var f = 0; !apple && f < faces.length; f++) {
+      for (var g = 0; !apple && g < generics.length; g++) {
+        ctx.font = "100px " + generics[g];
+        var bare = ctx.measureText(probe).width;
+        ctx.font = '100px "' + faces[f] + '", ' + generics[g];
+        var w = ctx.measureText(probe).width;
+        if (typeof bare === "number" && typeof w === "number" && Math.abs(w - bare) > 0.5) apple = true;
+      }
+    }
+  } catch (e) { /* not known to be Apple */ }
+  MV_WIDE_APPLE = apple;
+  return apple;
+}
+// A family's Hangul ink { up, down } in em, once per family: the macOS figures on macOS (mvAppleKorean), else those
+// figures moved by the difference between canvas measureText(...).actualBoundingBoxAscent / Descent of the sample at
+// 100 px in the family's stack (so the system Korean face that really draws it) and the macOS face's reference
+// (MV_WIDE_REF), clamped; the macOS figures when there is no canvas or the measurement looks wrong.
 function mvWideInk(family) {
   if (MV_WIDE_CACHE[family]) return MV_WIDE_CACHE[family];
   var ink = { up: MV_WIDE_UP, down: MV_WIDE_DOWN, measured: false };
   try {
     var doc = typeof document !== "undefined" ? document : null;
     var ctx = doc && doc.createElement ? doc.createElement("canvas").getContext("2d") : null;
-    if (ctx) {
-      ctx.font = "100px " + mvFontStack(family);
+    var ref = MV_WIDE_REF[family] || MV_WIDE_REF["MV DM Mono"];
+    if (ctx && !mvAppleKorean(ctx)) {
+      ctx.font = ref.weight + "100px " + mvFontStack(family);
       var r = ctx.measureText(MV_WIDE_SAMPLE);
-      var up = r.actualBoundingBoxAscent / 100, down = r.actualBoundingBoxDescent / 100;
-      if (up > 0.5 && up < 1.3 && down > -0.1 && down < 0.5) ink = { up: up, down: Math.max(0, down), measured: true };
+      var mu = r.actualBoundingBoxAscent / 100, md = r.actualBoundingBoxDescent / 100;
+      if (mu > 0.5 && mu < 1.3 && md > -0.1 && md < 0.5) {
+        var up = Math.min(1.1, Math.max(0.7, MV_WIDE_UP + (mu - ref.up)));
+        var down = Math.min(0.35, Math.max(0, MV_WIDE_DOWN + (md - ref.down)));
+        ink = { up: Math.round(up * 1e4) / 1e4, down: Math.round(down * 1e4) / 1e4, measured: true };
+      }
     }
   } catch (e) { /* the macOS figures */ }
   MV_WIDE_CACHE[family] = ink;
