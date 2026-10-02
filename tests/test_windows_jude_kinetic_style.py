@@ -2,9 +2,9 @@
 
 The panel runs on Windows too, where `sdk.runShell` is cmd.exe. Host I/O comes from
 the shared av-host block (copied unchanged from Archive Vlog); the Node engine and its
-shell calls stay inside `// mac-only:start` ... `// mac-only:end` regions, and every
-build entry (the panel button and the template run) stops on Windows before it changes
-anything. Set JUDE_PANEL to check another copy of the panel (e.g. the one on main).
+shell calls (Apple Vision faces and person masks) stay inside `// mac-only:start` ...
+`// mac-only:end` regions that Windows never reaches: there the build centre-crops and keeps
+captions in front. Camera cuts and the music run on host APIs on both systems. Set JUDE_PANEL to check another copy of the panel (e.g. the one on main).
 """
 import os
 from pathlib import Path
@@ -64,8 +64,9 @@ class JudeWindowsTest(unittest.TestCase):
         self.assertIsNone(re.search(r'\bq\(', self.own), 'q() quoting outside mac-only')
 
     def test_one_shell_call_outside_mac_only(self):
-        self.assertEqual(self.runtime.count('runShell('), 1, 'only av-host hostSkillsRoot may call the shell')
-        self.assertIn('runShell({ summary: "Locate the plugin folder"', self.runtime)
+        # At most the av-host hostSkillsRoot call (newer av-host blocks have none); nothing of the panel's own.
+        self.assertEqual(self.own.count('runShell('), 0, 'shell calls belong in mac-only regions')
+        self.assertLessEqual(self.runtime.count('runShell('), 1)
 
     def test_folders_and_ffprobe_come_from_the_host(self):
         self.assertIn('hostRoots(sdk, PANEL_ID,', self.runtime)
@@ -74,18 +75,33 @@ class JudeWindowsTest(unittest.TestCase):
         self.assertFalse('instanceof Uint8Array' in self.own, 'instanceof on host bytes')
         self.assertFalse("+'/" in self.own, "'/' path joins")
 
-    def test_build_entries_stop_on_windows_first(self):
+    def test_windows_builds_without_the_engine(self):
+        # Every engine step sits behind a Windows check in the build path; Windows centre-crops and keeps
+        # side captions in front, with the "Available on macOS for now" note.
         self.assertIn('"Available on macOS for now"', self.text)
-        panel = self.text[self.text.index('function StylePanel('):self.text.index('function templateSpeaker(')]
-        create = panel[panel.index('async function create()'):]
-        self.assertIn('hostIsWindows()', create[:create.index('ensureTranscript(')], 'the button refuses on Windows')
-        self.assertRegex(panel, r'disabled=\{[^}]*onWindows', 'the button is disabled on Windows')
+        pipeline = self.text[self.text.index('export async function runPipeline('):self.text.index('export async function placeBehind(')]
+        self.assertIn('const onWindows=hostIsWindows();\n if(!onWindows){\n  // mac-only:start', pipeline)
+        self.assertLess(pipeline.index('if(samples.length&&onWindows)'), pipeline.index("'Measure source faces'"))
+        self.assertIn('(onWindows?Promise.reject(Error(MAC_ONLY)):placeBehind(', pipeline)
+        self.assertIn('detectCuts(ranges,', pipeline)
         run = self.text[self.text.index('function TemplateRun('):]
-        guard = run.find('if (hostIsWindows()) throw new Error(MAC_ONLY)')
-        self.assertGreater(guard, 0, 'the template run refuses on Windows')
-        for later in ['panelEnv(', 'templateDraftFromVideo(', 'runPipeline(']:
-            with self.subTest(step=later):
-                self.assertLess(guard, run.index(later))
+        self.assertLess(run.index('if (!hostIsWindows()) {'), run.index('await env.node()'))
+        self.assertIn('WINDOWS_NOTE', self.text[self.text.index('function StylePanel('):self.text.index('function templateSpeaker(')])
+
+    def test_camera_cuts_match_the_engine(self):
+        engine = (PANEL.parent / 'engine.mjs').read_text(encoding='utf-8')
+        for needle in ["scale=320:-2,select='gt(scene,", '/pts_time:([0-9.]+)/g', 't>0.3&&t<seconds-0.3']:
+            with self.subTest(needle=needle):
+                self.assertFalse(needle not in self.own, needle)
+        self.assertIn("scale=320:-2,select='gt(scene,", engine)
+        self.assertIn('/pts_time:([0-9.]+)/g', engine)
+        self.assertFalse('runFFmpeg(args,true,' not in self.own, 'host ffmpeg with argv')
+
+    def test_music_is_bundled(self):
+        for needle in ["hostJoin(pluginDir,'assets',MUSIC.file+'.b64')", "sha256:'", "normalize('NFC')"]:
+            with self.subTest(needle=needle):
+                self.assertFalse(needle not in self.own, needle)
+        self.assertFalse('curl' in self.own, 'no download through a shell')
 
     def test_an_old_host_gets_one_message(self):
         self.assertIn('e?.code === "host-missing"', self.text)

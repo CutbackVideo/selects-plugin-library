@@ -135,6 +135,8 @@ export const MUSIC={
  title:'Dark Hallway (distressed)',artist:'Kevin MacLeod',
  url:'https://incompetech.com/music/royalty-free/mp3-royaltyfree/Dark%20Hallway%20-%20Distressed.mp3',
  file:'dark-hallway-distressed.mp3',license:'CC BY 4.0',
+ // The plugin ships the track as assets/<file>.b64; it is decoded once into the data folder and checked against this.
+ sha256:'c541eae126ce7ba72382dc1859d8d43adbb337a4e481aa3c87fb53472c8fb057',bytes:2200748,
  credit:'\u201cDark Hallway (distressed)\u201d Kevin MacLeod (incompetech.com), Licensed under Creative Commons: By Attribution 4.0 http://creativecommons.org/licenses/by/4.0/',
  levelDb:-5,startSeconds:0,fadeOutSeconds:2,
 };
@@ -232,6 +234,35 @@ export function placements(scenes:Scene[],words:W[],fps:number,total:number){
  });
  return {captions,cards,shots,behind};
 }
+// @operation-start
+// Camera cuts, ported from engine.mjs cmdShots: the host's ffmpeg scores scene changes at 320 px and showinfo logs
+// each frame that passes `threshold`. `ffmpeg(args)` runs ffmpeg and resolves to its log (stderr).
+export function cutArgs(range,threshold){
+ return ["-v","info","-ss",String(Math.max(0,range.startSeconds)),"-t",String(range.seconds),"-i",range.path,
+  "-an","-vf","scale=320:-2,select='gt(scene,"+(threshold||0.3)+")',showinfo","-f","null","-"];
+}
+// Cut times in seconds from the start of the range: none in the first or last 0.3 s, at least 0.8 s apart.
+export function cutsFromLog(log,seconds){
+ const times=[...String(log).matchAll(/pts_time:([0-9.]+)/g)].map((m)=>Number(m[1])).filter((t)=>t>0.3&&t<seconds-0.3);
+ const kept=[];
+ for(const t of times)if(!kept.length||t-kept[kept.length-1]>0.8)kept.push(Math.round(t*1000)/1000);
+ return kept;
+}
+// Every range's cuts by key, three ffmpeg runs at a time.
+export async function detectCuts(ranges,threshold,ffmpeg){
+ const out={},list=ranges||[];let next=0;
+ await Promise.all(Array.from({length:Math.min(3,list.length)},async()=>{
+  while(next<list.length){const range=list[next++];out[range.key]=cutsFromLog(await ffmpeg(cutArgs(range,threshold)),range.seconds);}
+ }));
+ return out;
+}
+// @operation-end
+// The host's ffmpeg log for one run (argv, no shell), stopped after `timeoutMs`.
+async function ffmpegLog(args:string[],timeoutMs=180000){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);let log='';
+ try{const r=await hostNeed('Runtime','runFFmpeg').runFFmpeg(args,true,controller.signal,undefined,(text:string)=>{log+=text;});return String(r?.stderr||'')||log;}
+ finally{clearTimeout(timer);}
+}
 // Every Main file needs its real picture size to be reframed to 9:16; Selects does not always report one.
 async function probeFrameSizes(env:Env,files:Record<string,any>){
  for(const f of Object.values(files||{}) as any[]){
@@ -262,20 +293,20 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
  const report:any={warnings:['Italic font: Playfair Display Medium Italic is a measured approximation; the exact reference font is unconfirmed.'],counts:{captions:items.captions.length,cards:items.cards.length},draftId:sequenceId};
  const jobDir=hostJoin(env.dataDir,'runs',Date.now().toString(36));
  hostNeed('FileSystem','mkdirSync').mkdirSync(jobDir,{recursive:true});
- // mac-only:start
- // Fetch Node.js now, outside the optional steps below: a failed download must stop
- // the run with its own message, not quietly drop cut detection and framing.
- await env.node();
- // mac-only:end
+ const onWindows=hostIsWindows();
+ if(!onWindows){
+  // mac-only:start
+  // Fetch Node.js now, outside the optional steps below: a failed download must stop
+  // the run with its own message, not quietly drop framing and the matte.
+  await env.node();
+  // mac-only:end
+ }
  // Analyse source framing before making any persisted edit.
  const externalGraphics=await env.runScript(`const d=selects.draft(${JSON.stringify(sequenceId)});return (await d.motionGraphics()).filter(x=>!x.name.startsWith(${JSON.stringify(PREFIX)})).length;`,'Check existing graphics');
  let cameraCuts:Record<string,number[]>={};
  if(!externalGraphics){
   const ranges=src.mains.map((m:any,i:number)=>({key:String(i),path:src.files[m.resourceId]?.path,startSeconds:m.sourceStartSeconds,seconds:(m.endFrame-m.startFrame)/src.fps})).filter((r:any)=>r.path&&r.startSeconds!=null);
-  // mac-only:start
-  await env.writeText(hostJoin(jobDir,'shots.json'),JSON.stringify({shots:{ffmpeg:await env.ffmpeg(),threshold:.25,ranges}}));
-  try{await env.runShell(q(await env.node())+' '+q(hostJoin(env.pluginDir,'engine.mjs'))+' '+q(hostJoin(jobDir,'shots.json')),'Detect camera cuts',240000);cameraCuts=JSON.parse(await env.readText(hostJoin(jobDir,'shots-result.json'))).cuts;}catch(e:any){report.warnings.push('Camera-cut detection failed; review framing across source cuts.');}
-  // mac-only:end
+  try{cameraCuts=await detectCuts(ranges,.25,(args:string[])=>ffmpegLog(args));}catch(e:any){report.warnings.push('Camera-cut detection failed; review framing across source cuts.');}
  }
  const segments:any[]=[];
  for(const [mi,m] of src.mains.entries()){
@@ -286,7 +317,9 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
  if(externalGraphics)report.warnings.push('Existing non-Jude graphics were preserved. They may overlap new captions; remove them on the output if unwanted.');
  const samples=segments.map((m:any,i:number)=>({key:String(i),path:src.files[m.resourceId]?.path,seconds:m.sourceStartSeconds==null?null:m.sourceStartSeconds+(m.endFrame-m.startFrame)/src.fps/2})).filter((s:any)=>s.path&&s.seconds!=null);
  let faces:any={};
- if(samples.length){
+ // Faces come from Apple Vision; on Windows every shot is centre-cropped.
+ if(samples.length&&onWindows)report.warnings.push('Face detection unavailable; footage is centre-cropped to vertical.');
+ else if(samples.length){
   // mac-only:start
   await env.writeText(hostJoin(jobDir,'faces.json'),JSON.stringify({ffmpeg:await env.ffmpeg(),faces:{samples}}));
   env.status('Measuring the speaker framing…');
@@ -318,7 +351,7 @@ export async function runPipeline(env:Env,projectId:string,sequenceId:string,opt
  }
  if(items.behind.length){
   env.status('Placing side captions behind the speaker…');
-  await placeBehind(env,src,draftId,items,jobDir).then(w=>report.warnings.push(...w),(e:any)=>report.warnings.push('Side captions stay in front of the speaker: '+String(e?.message||e).slice(0,200)));
+  await (onWindows?Promise.reject(Error(MAC_ONLY)):placeBehind(env,src,draftId,items,jobDir)).then(w=>report.warnings.push(...w),(e:any)=>report.warnings.push('Side captions stay in front of the speaker: '+String(e?.message||e).slice(0,200)));
  }
  // A caption that carries a mask sprite travels alone, so every host call stays small.
  const add=async(rows:any[],code:string,params:any[],kind:string)=>{
@@ -375,17 +408,32 @@ export async function placeBehind(env:Env,src:any,draftId:string,items:any,jobDi
  return warnings;
 }
 
+// The bundled track in the data folder, decoded from assets/<file>.b64 once and checked against MUSIC.sha256.
+async function unpackMusic(dataDir:string,pluginDir:string){
+ const fs=hostNeed('FileSystem','mkdirSync'),dir=hostJoin(dataDir,'music'),path=hostJoin(dir,MUSIC.file);
+ fs.mkdirSync(dir,{recursive:true});
+ const digest=async(bytes:Uint8Array)=>{const subtle=globalThis.crypto?.subtle;if(!subtle)return bytes.byteLength===MUSIC.bytes?MUSIC.sha256:'';
+  return [...new Uint8Array(await subtle.digest('SHA-256',bytes))].map((b)=>b.toString(16).padStart(2,'0')).join('');};
+ try{if(hostApi('FileSystem','existsSync')?.existsSync(path)&&await digest(await hostReadBytes(path))===MUSIC.sha256)return path;}catch{/* decode it again */}
+ const text=(await hostReadText(hostJoin(pluginDir,'assets',MUSIC.file+'.b64'))).replace(/\s+/g,'');
+ const raw=atob(text),bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+ if(await digest(bytes)!==MUSIC.sha256)throw Error('The bundled music file is damaged; reinstall the plugin.');
+ const tmp=hostJoin(dir,'music-'+Date.now().toString(36)+'.part'),move=hostApi('FileSystem','renameSync');
+ await hostNeed('FileSystem','writeFile').writeFile(move?tmp:path,bytes);
+ if(move){await hostRemove(path);move.renameSync(tmp,path);}
+ return path;
+}
 // One music clip from 0 s, at most the track's length. A rerun replaces the previous music clip instead of stacking another.
 export async function placeMusic(env:Env,projectId:string,draftId:string,fps:number){
- const path=hostJoin(env.dataDir,'music',MUSIC.file);
- // mac-only:start
- const probe=q((await env.ffmpeg()).replace(/ffmpeg$/,'ffprobe'));
- const trackSeconds=Number(await env.runShell('mkdir -p '+q(hostJoin(env.dataDir,'music'))+' && { [ -s '+q(path)+' ] || curl -L -sS --fail --max-time 240 -A "Mozilla/5.0" -o '+q(path)+' '+q(MUSIC.url)+'; } && '+probe+' -v error -show_entries format=duration -of csv=p=0 '+q(path),'Fetch the background music',300000));
- // mac-only:end
+ const path=await unpackMusic(env.dataDir,env.pluginDir);
+ const trackSeconds=Number(await hostProbeSeconds(path));
  if(!(trackSeconds>1))throw Error('The music file could not be read.');
  return await env.runScript(`const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});
-let rid=undefined as string|undefined;const find=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')find(n.children);else if(n.path===${JSON.stringify(path)})rid=n.resourceId;}};
-const read=async()=>{const tree:any=await project.sourceFiles();if(tree.fileTree)find(tree.fileTree);else for(const f of tree.folders||[])find(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);};
+// Host paths compare after NFC and \\ to / (and case on Windows); a file of the same name counts when no path matches.
+let rid=undefined as string|undefined,named=undefined as string|undefined;const win=${JSON.stringify(hostIsWindows())};
+const norm=(p:any)=>{const s=String(p||'').normalize('NFC').replace(/\\\\/g,'/');return win?s.toLowerCase():s;},want=norm(${JSON.stringify(path)}),base=(p:string)=>p.slice(p.lastIndexOf('/')+1);
+const find=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')find(n.children);else{const p=norm(n.path);if(p===want)rid=n.resourceId;else if(base(p)===base(want))named??=n.resourceId;}}};
+const read=async()=>{const tree:any=await project.sourceFiles();if(tree.fileTree)find(tree.fileTree);else for(const f of tree.folders||[])find(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);rid??=named;};
 await read();
 if(!rid){await project.importFiles({paths:[${JSON.stringify(path)}]});await read();if(rid){const foot=await project.readFootage();const home=foot.folders.find((x:any)=>x.name===${JSON.stringify(FOLDER)}&&!String(x.path).includes('/'));const id=home?home.folderId:(await project.createFolder({name:${JSON.stringify(FOLDER)}})).folderId;await project.moveToFolder({targetFolderId:id,resourceIds:[rid]});}}
 if(!rid)throw Error('The background music could not be imported.');
@@ -577,9 +625,10 @@ async function hostProbeSeconds(path) {
 }
 // av-host:end
 
-// The engine steps (Node.js through runtime.sh, Apple Vision) run on macOS only; a build on Windows stops before it
-// changes anything.
+// The engine steps (Node.js through runtime.sh, Apple Vision faces and person masks) run on macOS only; on Windows
+// the build centre-crops every shot and keeps side captions in front of the speaker.
 const MAC_ONLY = "Available on macOS for now";
+const WINDOWS_NOTE = "Face framing and lines behind the speaker: " + MAC_ONLY + ". On Windows, shots are centre-cropped and captions stay in front.";
 const HOST_TOO_OLD = "This panel needs a newer Selects. Update Selects, then try again.";
 // The plugin's install and data folders from the host, never from a shell.
 async function pluginPaths(sdk: any) {
@@ -721,7 +770,7 @@ function StylePanel({ sdk, context, ui }: any) {
   }
 
   async function create() {
-    if (locked.current || !projectId || !sequenceId || !paths || setupIssue || hostIsWindows()) return;
+    if (locked.current || !projectId || !sequenceId || !paths || setupIssue) return;
     const from = sequenceId;
     locked.current = true; setBusy(true); setError(""); setResult(null);
     try {
@@ -752,9 +801,9 @@ function StylePanel({ sdk, context, ui }: any) {
     <p>Turn a talking-head draft into red and cream kinetic typography.</p>
     {sourceName ? <p><strong>{sourceName}</strong></p> : <small>Open a draft to begin.</small>}
     {setupIssue && <ui.Message tone="error">{setupIssue}</ui.Message>}
-    {onWindows && <ui.Message>{MAC_ONLY}</ui.Message>}
-    <ui.Button onClick={() => void create()} disabled={busy || onWindows || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
+    <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
     <small>{helperText}</small>
+    {onWindows && <small>{WINDOWS_NOTE}</small>}
     {busy && <ui.Progress />}
     {status && <ui.Message>{status}</ui.Message>}
     {error && <ui.Message tone="error">{error}</ui.Message>}
@@ -810,14 +859,14 @@ function TemplateRun({ sdk, context }: any) {
         const speaker = templateSpeaker(context.template);
         if (!projectId) throw new Error("Open a project, then try again.");
         if (!speaker) throw new Error("Pick a talking-head video, then try again.");
-        // Before anything is created, so Windows is left untouched.
-        if (hostIsWindows()) throw new Error(MAC_ONLY);
         const env = panelEnv(sdk, await pluginPaths(sdk), report);
         if (superseded()) return;
-        // mac-only:start
-        // Before a picked video becomes a Draft, so a failed download leaves nothing behind.
-        await env.node();
-        // mac-only:end
+        if (!hostIsWindows()) {
+          // mac-only:start
+          // Before a picked video becomes a Draft, so a failed download leaves nothing behind.
+          await env.node();
+          // mac-only:end
+        }
         if (superseded()) return;
         // A picked video becomes a new Draft; a timeline is styled in place.
         const draftId = speaker.kind === "video" ? await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);

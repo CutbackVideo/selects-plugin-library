@@ -16,11 +16,13 @@
     "runtime.sh",
     "vision-helper.js",
     "fonts/Poppins-OFL.txt",
-    "fonts/PlayfairDisplay-OFL.txt"
+    "fonts/PlayfairDisplay-OFL.txt",
+    "assets/dark-hallway-distressed.mp3.b64"
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Requires Panel runScript/runShell/askAI and editable motion graphics. Development build only; released-version compatibility is unverified."
   },
