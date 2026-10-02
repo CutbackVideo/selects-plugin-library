@@ -163,3 +163,40 @@ test('a failed contact sheet skips the image check instead of stopping the video
   assert.match(panel, /result\.checkSkipped \? S\.checkSkipped :/);
   assert.equal((panel.match(/\bcheckSkipped: "/g) || []).length, (panel.match(/^  (\w\w): \{$/gm) || []).length);
 });
+
+// Windows Staging: the Draft step stopped with "imported media did not become ready". The file names were taken with
+// split("/"), which keeps a whole Windows path, so no Resource matched (and every Continue imported again). A Resource
+// is ready once it has a length; an unanalysed import stays "pending" and is still placeable.
+const untyped = (src) => src.replace(/: \{ file: string; name: string \}\[\]/g, '').replace(/: Record<string, string>/g, '')
+  .replace(/: string\[\]/g, '').replace(/\((\w+): any\)/g, '($1)');
+const runScript = (src, selects) => new Function('selects', `return (async () => {${untyped(src)}})();`)(selects);
+const WIN = ['C:\\Users\\x\\.selects\\plugin-data\\vox-explainer\\jobs\\vx1\\gen\\clips\\vx1_clip_1a_1.mp4',
+  'C:\\Users\\x\\.selects\\plugin-data\\vox-explainer\\jobs\\vx1\\gen\\narration\\vx1_narr_1_1.mp3'];
+
+test('the Draft step imports and finds Windows paths by file name; pending Resources with a length are ready', async () => {
+  assert.equal(op.voxBaseName(WIN[0]), 'vx1_clip_1a_1.mp4');
+  assert.equal(op.voxBaseName('/home-x/a b/c.mp3'), 'c.mp3');
+  const rows = [{resourceId: 'r0', name: 'vx1_clip_1a_1.mp4', status: 'pending', durationSeconds: 5.04}];
+  const imported = [];
+  const selects = {project: () => ({resources: async () => rows, importFiles: async ({paths}) => { imported.push(...paths); }})};
+  assert.deepEqual(await runScript(op.voxImportScript('p1', WIN), selects), {imported: 1});
+  assert.deepEqual(imported, [WIN[1]], 'only the file the Project lacks');
+  // The narration import has no length yet: not ready, and named.
+  rows.push({resourceId: 'r1', name: 'vx1_narr_1_1.mp3', status: 'pending', durationSeconds: null});
+  let r = await runScript(op.voxReadyScript('p1', WIN), selects);
+  assert.deepEqual(r.missing, ['vx1_narr_1_1.mp3']);
+  rows[1].durationSeconds = 6.12;
+  r = await runScript(op.voxReadyScript('p1', WIN), selects);
+  assert.deepEqual({...r.map}, {[WIN[0]]: 'r0', [WIN[1]]: 'r1'});
+  assert.deepEqual([...r.missing], []);
+  assert.deepEqual(await runScript(op.voxImportScript('p1', WIN), selects), {imported: 0}, 'a Continue imports nothing again');
+});
+
+test('the Draft step waits about two minutes, then names what is missing', () => {
+  assert.ok(op.VOX_READY_TRIES * op.VOX_READY_PAUSE_MS >= 90000 && op.VOX_READY_TRIES * op.VOX_READY_PAUSE_MS <= 180000);
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/vox-explainer/panel.tsx'), 'utf8');
+  assert.ok(panel.includes('script: voxImportScript(projectId, sel.files)') && panel.includes('script: voxReadyScript(projectId, sel.files)'));
+  assert.ok(!panel.includes('imported media did not become ready') && !panel.includes('.split("/").pop()'));
+  assert.equal((panel.match(/\bnotReady: \(n\) => `/g) || []).length, (panel.match(/^  (\w\w): \{$/gm) || []).length);
+  assert.ok(!/status/.test(op.voxReadyScript('p', WIN).replace('the status', '')), 'readiness never reads the status');
+});
