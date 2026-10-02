@@ -102,6 +102,27 @@ test('a held short Video Resource can be imported as a full-length replacement',
   assert.equal(imports, 1);
 });
 
+test('Windows paths: a held clip matches its source and its import across separators, case and NFD', async () => {
+  const { run, nodes, resources, project } = fixture({ shortVideo: true });
+  for (const node of nodes) node.path = node.path.replace('/test/', 'C:\\Users\\\u1112\u1169\u11BC\\');
+  const held = 'C:\\Users\\\uD64D\\.selects\\plugin-data\\photo-gallery-no2\\held-v1\\a.mp4';
+  let imports = 0;
+  project.importFiles = async ({ paths }) => {
+    imports++;
+    resources.push({ resourceId: 'held-0', name: 'a.mp4', type: 'Video' });
+    nodes.push({ type: 'video', resourceId: 'held-0', name: 'a.mp4', path: paths[0].replace(/\\/g, '/').toLowerCase(),
+      durationSeconds: 853 / 60, frameSize: { width: 1080, height: 1920 } });
+  };
+  const request = { operation: 'importConverted', projectId: 'project-1',
+    converted: [{ sourceResourceId: 'r0', sourcePath: 'c:/users/\uD64D/clip-0.mp4', path: held }] };
+  const result = await run(request);
+  assert.equal(result.status, 'prepared', result.message);
+  assert.equal(result.converted[0].resourceId, 'held-0');
+  assert.equal(result.converted[0].path, held.replace(/\\/g, '/').toLowerCase());
+  assert.equal((await run(request)).status, 'prepared');
+  assert.equal(imports, 1);
+});
+
 test('prepared media import resolves a source by its path when a Resource alias has shifted', async () => {
   const { run, nodes, resources, project } = fixture({ shortVideo: true });
   project.importFiles = async ({ paths }) => {

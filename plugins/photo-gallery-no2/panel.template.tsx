@@ -15,9 +15,139 @@
 import React from 'react';
 /*__SHARED_SCRIPT_BUILDER__*/
 
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
+
 const SLOT_KEYS = Array.from({ length: 21 }, (_, i) => `tile-${String(i + 1).padStart(2, '0')}`);
 const REFERENCE_VIDEO_SLOTS = new Set([4, 6, 11, 17, 19, 21]);
 const emptySlots = () => SLOT_KEYS.map(() => ({ resourceId: '', focusX: 0.5, focusY: 0.5 }));
+// mac-only:start
 const shellQuote = value => "'" + String(value).replace(/'/g, "'\"'\"'") + "'";
 
 // A stock Mac has no Python, so runtime.sh fetches a pinned one on first use
@@ -38,6 +168,7 @@ function runtimePython(sdk) {
   })().catch(error => { pythonPath = null; throw error; });
   return pythonPath;
 }
+// mac-only:end
 const STRINGS = {
   "ko": {
     "title": "Photo Grid Reveal",
@@ -79,7 +210,9 @@ const STRINGS = {
     "unknown": "\uc800\uc7a5 \uc5ec\ubd80\ub97c \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \uac19\uc740 \uc791\uc5c5\uc744 \ub2e4\uc2dc \uc2e4\ud589\ud558\uc9c0 \ub9d0\uace0 \ud3b8\uc9d1\ubcf8\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
     "openSaved": "\uc800\uc7a5\ud55c \ud3b8\uc9d1\ubcf8 \uc5f4\uae30",
     "musicSource": "\ucd9c\ucc98",
-    "musicCredit": "\uc601\uc0c1\uc744 \uacf5\uc720\ud560 \ub54c \uc774 \ud06c\ub808\ub527\uc744 \ud568\uaed8 \ud45c\uae30\ud558\uc138\uc694. 39.650\u201353.867\ucd08 \ubc1c\ucdcc, \ubcfc\ub968 \u22123.090 dB, \uc18d\ub3c4 \ubcc0\uacbd \uc5c6\uc74c."
+    "musicCredit": "\uc601\uc0c1\uc744 \uacf5\uc720\ud560 \ub54c \uc774 \ud06c\ub808\ub527\uc744 \ud568\uaed8 \ud45c\uae30\ud558\uc138\uc694. 39.650\u201353.867\ucd08 \ubc1c\ucdcc, \ubcfc\ub968 \u22123.090 dB, \uc18d\ub3c4 \ubcc0\uacbd \uc5c6\uc74c.",
+    "shortMacOnly": "\uacb0\uacfc \uae38\uc774\ubcf4\ub2e4 \uc9e7\uc740 \uc601\uc0c1\uc740 \uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub354 \uae34 \uc601\uc0c1\uc744 \uace0\ub974\uac70\ub098 \uae38\uc774\ub97c \uc904\uc774\uc138\uc694.",
+    "estimateMacOnly": "BPM \ucd94\uc815\uc740 \uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4. BPM\uc744 \uc9c1\uc811 \uc785\ub825\ud558\uc138\uc694."
   },
   "en": {
     "title": "Photo Grid Reveal",
@@ -121,7 +254,9 @@ const STRINGS = {
     "unknown": "Save outcome is unknown. Inspect the Draft before repeating this action.",
     "openSaved": "Open saved Draft",
     "musicSource": "Source",
-    "musicCredit": "Keep this credit with shared videos. Excerpt 39.650\u201353.867 s; gain \u22123.090 dB; no tempo change."
+    "musicCredit": "Keep this credit with shared videos. Excerpt 39.650\u201353.867 s; gain \u22123.090 dB; no tempo change.",
+    "shortMacOnly": "Videos shorter than the video length are available on macOS for now. Choose longer videos or a shorter length.",
+    "estimateMacOnly": "BPM estimation is available on macOS for now. Enter BPM manually."
   },
   "de": {
     "title": "Photo Grid Reveal",
@@ -163,7 +298,9 @@ const STRINGS = {
     "unknown": "Speicherergebnis unbekannt. Vor erneutem Ausf\u00fchren den Entwurf pr\u00fcfen.",
     "openSaved": "Gespeicherten Entwurf \u00f6ffnen",
     "musicSource": "Quelle",
-    "musicCredit": "Diesen Hinweis mit geteilten Videos beibehalten. Ausschnitt 39,650\u201353,867 s; Pegel \u22123,090 dB; Tempo unver\u00e4ndert."
+    "musicCredit": "Diesen Hinweis mit geteilten Videos beibehalten. Ausschnitt 39,650\u201353,867 s; Pegel \u22123,090 dB; Tempo unver\u00e4ndert.",
+    "shortMacOnly": "Videos, die k\u00fcrzer als die Videol\u00e4nge sind, sind vorerst nur unter macOS verf\u00fcgbar. W\u00e4hlen Sie l\u00e4ngere Videos oder eine k\u00fcrzere L\u00e4nge.",
+    "estimateMacOnly": "Die BPM-Sch\u00e4tzung ist vorerst nur unter macOS verf\u00fcgbar. Geben Sie die BPM manuell ein."
   },
   "es": {
     "title": "Photo Grid Reveal",
@@ -205,7 +342,9 @@ const STRINGS = {
     "unknown": "No se conoce el resultado del guardado. Revisa el borrador antes de repetir.",
     "openSaved": "Abrir borrador guardado",
     "musicSource": "Fuente",
-    "musicCredit": "Conserva este cr\u00e9dito al compartir v\u00eddeos. Fragmento 39,650\u201353,867 s; ganancia \u22123,090 dB; sin cambio de tempo."
+    "musicCredit": "Conserva este cr\u00e9dito al compartir v\u00eddeos. Fragmento 39,650\u201353,867 s; ganancia \u22123,090 dB; sin cambio de tempo.",
+    "shortMacOnly": "Los v\u00eddeos m\u00e1s cortos que la duraci\u00f3n del v\u00eddeo solo est\u00e1n disponibles en macOS por ahora. Elige v\u00eddeos m\u00e1s largos o una duraci\u00f3n menor.",
+    "estimateMacOnly": "La estimaci\u00f3n de BPM solo est\u00e1 disponible en macOS por ahora. Introduce el BPM manualmente."
   },
   "fr": {
     "title": "Photo Grid Reveal",
@@ -247,7 +386,9 @@ const STRINGS = {
     "unknown": "R\u00e9sultat d\u2019enregistrement inconnu. Inspectez le brouillon avant de recommencer.",
     "openSaved": "Ouvrir le brouillon enregistr\u00e9",
     "musicSource": "Source",
-    "musicCredit": "Conservez ce cr\u00e9dit avec les vid\u00e9os partag\u00e9es. Extrait 39,650\u201353,867 s ; gain \u22123,090 dB ; tempo inchang\u00e9."
+    "musicCredit": "Conservez ce cr\u00e9dit avec les vid\u00e9os partag\u00e9es. Extrait 39,650\u201353,867 s ; gain \u22123,090 dB ; tempo inchang\u00e9.",
+    "shortMacOnly": "Les vid\u00e9os plus courtes que la dur\u00e9e de la vid\u00e9o ne sont disponibles que sur macOS pour l\u2019instant. Choisissez des vid\u00e9os plus longues ou une dur\u00e9e plus courte.",
+    "estimateMacOnly": "L\u2019estimation du BPM n\u2019est disponible que sur macOS pour l\u2019instant. Saisissez le BPM manuellement."
   },
   "it": {
     "title": "Photo Grid Reveal",
@@ -289,7 +430,9 @@ const STRINGS = {
     "unknown": "Esito del salvataggio sconosciuto. Controlla la bozza prima di ripetere.",
     "openSaved": "Apri bozza salvata",
     "musicSource": "Fonte",
-    "musicCredit": "Mantieni questi crediti nei video condivisi. Estratto 39,650\u201353,867 s; guadagno \u22123,090 dB; tempo invariato."
+    "musicCredit": "Mantieni questi crediti nei video condivisi. Estratto 39,650\u201353,867 s; guadagno \u22123,090 dB; tempo invariato.",
+    "shortMacOnly": "I video pi\u00f9 brevi della durata del video sono disponibili solo su macOS per ora. Scegli video pi\u00f9 lunghi o una durata pi\u00f9 breve.",
+    "estimateMacOnly": "La stima dei BPM \u00e8 disponibile solo su macOS per ora. Inserisci i BPM manualmente."
   },
   "ja": {
     "title": "Photo Grid Reveal",
@@ -331,7 +474,9 @@ const STRINGS = {
     "unknown": "\u4fdd\u5b58\u7d50\u679c\u304c\u4e0d\u660e\u3067\u3059\u3002\u518d\u5b9f\u884c\u524d\u306b\u4e0b\u66f8\u304d\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     "openSaved": "\u4fdd\u5b58\u3057\u305f\u4e0b\u66f8\u304d\u3092\u958b\u304f",
     "musicSource": "\u51fa\u5178",
-    "musicCredit": "\u52d5\u753b\u306e\u5171\u6709\u6642\u306b\u3053\u306e\u30af\u30ec\u30b8\u30c3\u30c8\u3092\u8a18\u8f09\u3057\u3066\u304f\u3060\u3055\u3044\u300239.650\u201353.867\u79d2\u3092\u629c\u7c8b\u3001\u97f3\u91cf \u22123.090 dB\u3001\u901f\u5ea6\u5909\u66f4\u306a\u3057\u3002"
+    "musicCredit": "\u52d5\u753b\u306e\u5171\u6709\u6642\u306b\u3053\u306e\u30af\u30ec\u30b8\u30c3\u30c8\u3092\u8a18\u8f09\u3057\u3066\u304f\u3060\u3055\u3044\u300239.650\u201353.867\u79d2\u3092\u629c\u7c8b\u3001\u97f3\u91cf \u22123.090 dB\u3001\u901f\u5ea6\u5909\u66f4\u306a\u3057\u3002",
+    "shortMacOnly": "\u52d5\u753b\u306e\u9577\u3055\u3088\u308a\u77ed\u3044\u52d5\u753b\u306f\u3001\u73fe\u5728macOS\u3067\u306e\u307f\u4f7f\u7528\u3067\u304d\u307e\u3059\u3002\u3088\u308a\u9577\u3044\u52d5\u753b\u3092\u9078\u3076\u304b\u3001\u9577\u3055\u3092\u77ed\u304f\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+    "estimateMacOnly": "BPM\u306e\u63a8\u5b9a\u306f\u3001\u73fe\u5728macOS\u3067\u306e\u307f\u4f7f\u7528\u3067\u304d\u307e\u3059\u3002BPM\u3092\u624b\u52d5\u3067\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
   },
   "pt": {
     "title": "Photo Grid Reveal",
@@ -373,7 +518,9 @@ const STRINGS = {
     "unknown": "Resultado da grava\u00e7\u00e3o desconhecido. Inspecione o rascunho antes de repetir.",
     "openSaved": "Abrir rascunho guardado",
     "musicSource": "Fonte",
-    "musicCredit": "Mantenha este cr\u00e9dito nos v\u00eddeos partilhados. Excerto 39,650\u201353,867 s; ganho \u22123,090 dB; sem altera\u00e7\u00e3o de tempo."
+    "musicCredit": "Mantenha este cr\u00e9dito nos v\u00eddeos partilhados. Excerto 39,650\u201353,867 s; ganho \u22123,090 dB; sem altera\u00e7\u00e3o de tempo.",
+    "shortMacOnly": "V\u00eddeos mais curtos do que a dura\u00e7\u00e3o do v\u00eddeo est\u00e3o dispon\u00edveis apenas no macOS por enquanto. Escolha v\u00eddeos mais longos ou uma dura\u00e7\u00e3o menor.",
+    "estimateMacOnly": "A estimativa de BPM est\u00e1 dispon\u00edvel apenas no macOS por enquanto. Introduza o BPM manualmente."
   },
   "tr": {
     "title": "Photo Grid Reveal",
@@ -415,7 +562,9 @@ const STRINGS = {
     "unknown": "Kay\u0131t sonucu bilinmiyor. Tekrarlamadan \u00f6nce tasla\u011f\u0131 inceleyin.",
     "openSaved": "Kaydedilen tasla\u011f\u0131 a\u00e7",
     "musicSource": "Kaynak",
-    "musicCredit": "Payla\u015f\u0131lan videolarda bu bilgiyi koruyun. 39,650\u201353,867 s kesit; kazan\u00e7 \u22123,090 dB; tempo de\u011fi\u015fmedi."
+    "musicCredit": "Payla\u015f\u0131lan videolarda bu bilgiyi koruyun. 39,650\u201353,867 s kesit; kazan\u00e7 \u22123,090 dB; tempo de\u011fi\u015fmedi.",
+    "shortMacOnly": "Video uzunlu\u011fundan k\u0131sa videolar \u015fimdilik yaln\u0131zca macOS\u2019te kullan\u0131labilir. Daha uzun videolar se\u00e7in veya uzunlu\u011fu k\u0131salt\u0131n.",
+    "estimateMacOnly": "BPM tahmini \u015fimdilik yaln\u0131zca macOS\u2019te kullan\u0131labilir. BPM\u2019i elle girin."
   },
   "zh": {
     "title": "Photo Grid Reveal",
@@ -457,25 +606,36 @@ const STRINGS = {
     "unknown": "\u4fdd\u5b58\u7ed3\u679c\u672a\u77e5\u3002\u91cd\u8bd5\u524d\u8bf7\u68c0\u67e5\u8349\u7a3f\u3002",
     "openSaved": "\u6253\u5f00\u5df2\u4fdd\u5b58\u8349\u7a3f",
     "musicSource": "\u6765\u6e90",
-    "musicCredit": "\u5206\u4eab\u89c6\u9891\u65f6\u8bf7\u4fdd\u7559\u6b64\u7f72\u540d\u3002\u622a\u53d639.650\u201353.867\u79d2\uff0c\u589e\u76ca\u22123.090 dB\uff0c\u672a\u6539\u53d8\u901f\u5ea6\u3002"
+    "musicCredit": "\u5206\u4eab\u89c6\u9891\u65f6\u8bf7\u4fdd\u7559\u6b64\u7f72\u540d\u3002\u622a\u53d639.650\u201353.867\u79d2\uff0c\u589e\u76ca\u22123.090 dB\uff0c\u672a\u6539\u53d8\u901f\u5ea6\u3002",
+    "shortMacOnly": "\u6bd4\u89c6\u9891\u957f\u5ea6\u66f4\u77ed\u7684\u89c6\u9891\u76ee\u524d\u4ec5\u5728 macOS \u4e0a\u53ef\u7528\u3002\u8bf7\u9009\u62e9\u66f4\u957f\u7684\u89c6\u9891\u6216\u7f29\u77ed\u957f\u5ea6\u3002",
+    "estimateMacOnly": "BPM \u4f30\u7b97\u76ee\u524d\u4ec5\u5728 macOS \u4e0a\u53ef\u7528\u3002\u8bf7\u624b\u52a8\u8f93\u5165 BPM\u3002"
   }
 };
 
 // The bundled track, imported into the Project once; `durationFrames` is the
 // length it must cover.
 async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurrent, onImportStarted }) {
-  const located = await sdk.runShell({ summary: 'Locate bundled Photo Grid Reveal music',
-    command: 'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}/photo-gallery-no2/assets/music.mp3"' });
-  if (located.isError || located.exitCode !== 0 || !located.stdout?.trim()) {
-    throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
-  }
+  // The installed asset through the host FileSystem (no shell), the same on macOS and Windows.
+  let musicPath = null;
+  try {
+    const { plugin } = await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md');
+    const path = hostJoin(plugin, 'assets', 'music.mp3');
+    if (hostNeed('FileSystem', 'existsSync').existsSync(path)) musicPath = path;
+  } catch { musicPath = null; }
+  if (!musicPath) throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
   if (!isCurrent()) throw new Error(t.changed);
   onImportStarted();
   const response = await sdk.runScript({ summary: 'Prepare bundled Photo Grid Reveal music', allowCommit: true,
-    script: buildScript({ operation: 'importBundledMusic', projectId, path: located.stdout.trim(), durationFrames }) });
+    script: buildScript({ operation: 'importBundledMusic', projectId, path: musicPath, durationFrames }) });
   if (response.result?.status === 'notSaved') throw Object.assign(new Error(response.result.message), { safeNotSaved: true });
   if (response.isError || response.result?.status !== 'musicReady') throw new Error(response.result?.message || response.output || t.unknown);
   return response.result.music;
+}
+
+// Selected videos shorter than the result; each needs its last frame held. Holding runs on macOS only for now, so
+// on Windows both Create paths refuse these before the first mutation (the music import).
+function shortGalleryVideos(media, frames) {
+  return media.filter(item => item?.kind === 'video' && Number.isSafeInteger(item.durationFrames) && item.durationFrames < frames);
 }
 
 async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted, isCurrent) {
@@ -492,6 +652,9 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
     if (group.sources.some(item => !item.path)) throw new Error('Selected Project media has no readable file path.');
     if (!isCurrent()) throw new Error(t.changed);
     const request = { [group.key]: group.sources.map(item => ({ path: item.path })), durationFrames: frames };
+    // Callers refuse short videos on Windows before anything is saved (shortGalleryVideos).
+    if (hostIsWindows()) throw new Error(t.shortMacOnly);
+    // mac-only:start
     const python = await runtimePython(sdk);
     const command = 'printf %s ' + shellQuote(JSON.stringify(request)) +
       ' | ' + shellQuote(python) + ' "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/' + group.script + '"';
@@ -503,6 +666,7 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
     if (shell.isError || shell.exitCode !== 0 || converted.status !== 'converted' || output?.length !== group.sources.length) {
       throw new Error(converted.message || shell.stderr || 'Media conversion failed.');
     }
+    // mac-only:end
     if (converted.fps !== 60 || converted.durationFrames !== frames || output.some((item, i) =>
       item.inputIndex !== i || item.sourcePath !== group.sources[i].path || typeof item.outputPath !== 'string')) {
       throw new Error('Media conversion result does not match the requested inputs.');
@@ -617,6 +781,8 @@ function GalleryPanel({ sdk, context, ui }) {
   const [status, setStatus] = React.useState(null);
   const [savedTarget, setSavedTarget] = React.useState(null);
   const running = React.useRef(false);
+  // Windows: no short-video hold or BPM estimate yet (both need the macOS shell); everything else is the same.
+  const macOnly = React.useMemo(() => hostIsWindows(), []);
   const current = React.useRef({ projectId: context.projectId, sequenceId: context.sequenceId });
   React.useEffect(() => {
     const say = text => setStatus({ tone: 'muted', text });
@@ -677,12 +843,15 @@ function GalleryPanel({ sdk, context, ui }) {
   async function estimateMusic(audio) {
     if (!audio?.path) throw new Error(t.uncertain);
     if (estimated?.resourceId === audio.resourceId) return estimated.bpm;
+    if (macOnly) throw new Error(t.estimateMacOnly);
+    // mac-only:start
     const python = await runtimePython(sdk);
     const command = shellQuote(python) + ' "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/tempo.py" ' + shellQuote(audio.path);
     const response = await sdk.runShell({ command, summary: 'Estimate BPM from selected Photo Gallery music', timeoutMs: 60000 });
     if (response.isError || response.exitCode !== 0) throw new Error(response.stderr || response.output || t.uncertain);
     let value;
     try { value = JSON.parse(response.stdout); } catch { throw new Error(t.uncertain); }
+    // mac-only:end
     if (value?.status !== 'estimated' || !Number.isFinite(value.bpm)) throw new Error(value?.reason || t.uncertain);
     setEstimated({ resourceId: audio.resourceId, bpm: value.bpm });
     return value.bpm;
@@ -717,6 +886,8 @@ function GalleryPanel({ sdk, context, ui }) {
           durationFrames: selectedMusic.durationFrames, startFrame: 0 } : null };
       if (!input.name || input.media.some(item => !item.resourceId)) throw new Error(t.missing);
       if (input.media.some(item => !Number.isSafeInteger(item.width) || !Number.isSafeInteger(item.height))) throw new Error('A selected tile has no verified dimensions');
+      if (macOnly && shortGalleryVideos(input.media, durationFrames).length) throw new Error(t.shortMacOnly);
+      if (macOnly && !manualEnabled) throw new Error(t.estimateMacOnly);
     } catch (error) { setStatus({ tone: 'error', text: String(error?.message || error) }); return; }
     running.current = true; setBusy(true); setStatus(null);
     let dispatched = false;
@@ -782,7 +953,7 @@ function GalleryPanel({ sdk, context, ui }) {
         ...inventory.audio.map(item => ({ value: item.resourceId, label: item.name })),
       ]} disabled={busy}/>
       {musicChoice === 'bundled' && <small>Unexplored (long ver.) — <a href="https://www.youtube.com/c/Tadon" target="_blank" rel="noreferrer">TAD MILLER</a> · <a href="https://opengameart.org/content/unexplored-long-ver-orchestral-music" target="_blank" rel="noreferrer">{t.musicSource}</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>. {t.musicCredit}</small>}
-      <ui.Toggle label={t.bpmManual} value={manualEnabled} onChange={setManualEnabled} disabled={busy}/>
+      {macOnly ? <small>{t.estimateMacOnly}</small> : <ui.Toggle label={t.bpmManual} value={manualEnabled} onChange={setManualEnabled} disabled={busy}/>}
       {manualEnabled && <ui.NumberField label={t.bpm} value={manualBpm} onChange={setManualBpm} min={1} max={300} step={0.1} disabled={busy}/>}
       {!manualEnabled && selectedMusic && <ui.Button variant="secondary" onClick={estimateOnClick} disabled={busy}>{t.estimate}</ui.Button>}
       {estimated && selectedMusic && estimated.resourceId === selectedMusic.resourceId && <small>{t.estimated}: {estimated.bpm}</small>}
@@ -894,6 +1065,9 @@ function GalleryTemplateRun({ sdk, context }) {
         say('Finding your photos and videos…');
         const media = await templateTiles(sdk, app, projectId, libraryId, template?.inputs);
         if (!live()) throw templateIssue('The template run ended before the Draft was made.');
+        if (hostIsWindows() && shortGalleryVideos(media, TEMPLATE_DURATION_FRAMES).length) {
+          throw templateIssue('Videos shorter than ' + (TEMPLATE_DURATION_FRAMES / 60).toFixed(1) + ' seconds are available on macOS for now; pick longer videos, then try again.');
+        }
         const input = { operation: 'create', projectId, name: TEMPLATE_NAME, durationFrames: TEMPLATE_DURATION_FRAMES,
           media, music: null, manualBpm: TEMPLATE_BPM };
         if (template?.options?.music !== 'none') {

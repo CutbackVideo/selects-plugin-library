@@ -76,9 +76,16 @@ function harness(media = photos, options = {}) {
       options.onPlace?.();
     },
   };
+  // The host's renderer services: the bundled music is found through FileSystem, the platform through Runtime.
+  const sep = options.platform === 'win32' ? '\\' : '/';
+  const home = options.platform === 'win32' ? 'C:\\Users\\tester' : '/installed';
+  dom.window.__DI__ = {
+    FileSystem: { join: (...parts) => parts.join(sep), homedir: () => home, mkdirSync: () => {},
+      existsSync: path => !options.musicMissing && (path.endsWith('SKILL.md') || path.endsWith('music.mp3')) },
+    Runtime: { getPlatform: () => options.platform || 'darwin' },
+  };
   const sdk = {
     runShell: async request => {
-      if (request.summary === 'Locate bundled Photo Grid Reveal music') return { exitCode: 0, stdout: '/installed/photo-gallery-no2/assets/music.mp3' };
       if (options.runShell) return options.runShell(request);
       throw new Error('Unexpected media conversion');
     },
@@ -178,6 +185,39 @@ test('a short video is extended before any Draft is created', async () => {
   assert.equal(prepared, 1);
   assert.deepEqual(h.calls.slice(0, 3).map(call => call.input.operation), ['inspect', 'importConverted', 'preflight']);
   assert.equal(h.calls.find(call => call.input.operation === 'styleExisting').input.media[20].resourceId, 'held-1');
+});
+
+test('Windows: a short video is refused before the music import or any Draft', async () => {
+  const media = [...photos.slice(0, 20), { resourceId: 'short-1', name: 'Short tile', kind: 'video',
+    width: 128, height: 96, durationFrames: 60, path: 'C:\\fixture\\short.mp4' }];
+  const h = harness(media, { platform: 'win32', runShell: async () => { throw new Error('No shell on Windows'); } });
+  fireEvent.click(h.view.getByRole('button', { name: 'Load project media' }));
+  fireEvent.click(await waitFor(() => h.view.getByRole('button', { name: 'Assign all 21 in listed order' })));
+  fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
+  await waitFor(() => assert.match(h.view.container.textContent, /Videos shorter than the video length are available on macOS for now/));
+  assert.deepEqual(h.calls.map(call => call.input.operation), ['inspect']);
+  assert.equal(h.view.getByRole('button', { name: 'Create Draft' }).disabled, false);
+});
+
+test('Windows: the default build finds the bundled music through the host FileSystem, with no shell', async () => {
+  const h = harness(photos, { platform: 'win32', runShell: async () => { throw new Error('No shell on Windows'); } });
+  fireEvent.click(h.view.getByRole('button', { name: 'Load project media' }));
+  fireEvent.click(await waitFor(() => h.view.getByRole('button', { name: 'Assign all 21 in listed order' })));
+  assert.equal(h.view.queryByLabelText('Enter BPM manually'), null);
+  assert.match(h.view.container.textContent, /BPM estimation is available on macOS for now/);
+  fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
+  await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
+  assert.equal(h.calls.find(c => c.input.operation === 'importBundledMusic').input.path,
+    'C:\\Users\\tester\\.selects\\skills\\photo-gallery-no2\\assets\\music.mp3');
+});
+
+test('a missing bundled asset stops before any import', async () => {
+  const h = harness(photos, { musicMissing: true });
+  fireEvent.click(h.view.getByRole('button', { name: 'Load project media' }));
+  fireEvent.click(await waitFor(() => h.view.getByRole('button', { name: 'Assign all 21 in listed order' })));
+  fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
+  await waitFor(() => assert.match(h.view.container.textContent, /Reinstall Photo Grid Reveal/));
+  assert.ok(!h.calls.some(c => c.allowCommit));
 });
 
 test('missing native dimensions prevent a Draft and do not lock the panel', async () => {
