@@ -4470,6 +4470,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? hostJoin(roots.plugin, "assets", "cues", cue.file) : null,
       sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,
       draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),
+      // A bundled cue's length (manifest): ensure-audio.js may then match the cue by file name and length.
+      musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,
     });
     busyRef.current = true;
     stopPreview();
@@ -4537,7 +4539,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       }
       advance("music", 0);
       const music = frozen.musicPath == null ? null
-        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath }), true);
+        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, duration: frozen.musicDuration }), true);
       check();
       // Cut seconds from the section start: the grid, or the onset-snapped cuts (planner mvSchedule `cuts`).
       const boundaries: number[] = plan.schedule.cuts;

@@ -193,6 +193,37 @@ const keepAlive = setInterval(() => {}, 50);
   await load('search.js', { projectId: 'p', rids: ['a'], queries: { street: 'q1' }, pageSize: 4, checkAnalysis: false })({ project: () => ({ resources: async () => { reads++; return mixRes; }, resource: selS(mixRes).project().resource }) });
   assert.equal(reads, 0);
 
+  // ensure-audio.js: host paths compared normalised (NFC, backslashes, case on Windows), never as raw strings; a bundled
+  // cue also matches by file name, but only with the manifest length (within 0.25 s), so a user's same-named file never
+  // passes for the cue. Otherwise the file is imported.
+  {
+    const ensureSel = (audio, tree) => {
+      const imported = [];
+      return { imported, sel: { project: () => ({ sourceFiles: async () => ({ fileTree: tree }), resources: async () => audio,
+        importFiles: async ({ paths }) => { imported.push(...paths); return { addedResourceIds: ['new1'] }; } }) } };
+    };
+    const node = (rid, p) => ({ type: 'file', resourceId: rid, path: p });
+    // The Project stores the decomposed (NFD) Hangul folder name with backslashes; the panel asks with the composed
+    // (NFC) name, forward slashes and other letter case.
+    const stored = 'D:\\Media\\\u1112\u1169\u11bc\\mini-vlog\\assets\\cues\\bedroom-pop-108.mp3';
+    const want = 'd:/Media/\ud64d/mini-vlog/assets/cues/Bedroom-Pop-108.mp3';
+    let e = ensureSel([{ resourceId: 'a1', type: 'Audio', name: 'x', durationSeconds: 3 }], [node('a1', stored)]);
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: want })(e.sel), { resourceId: 'a1', imported: false }, 'Windows path: NFC, slashes, case');
+    // macOS keeps case: a differently cased path is another file, imported.
+    e = ensureSel([{ resourceId: 'a1', type: 'Audio', name: 'x', durationSeconds: 3 }], [node('a1', '/Volumes/Media/Music/Song.mp3')]);
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/Volumes/Media/Music/song.mp3' })(e.sel), { resourceId: 'new1', imported: true });
+    // A cue matched by file name with the manifest length; a same-named file of another length is not the cue.
+    const cuePath = '/Volumes/Home/.selects/skills/mini-vlog/assets/cues/bedroom-pop-108.mp3';
+    e = ensureSel([{ resourceId: 'a2', type: 'Audio', name: 'bedroom-pop-108.mp3', durationSeconds: 60.1 }], [node('a2', '/Volumes/Copy/bedroom-pop-108.mp3')]);
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: cuePath, duration: 60.029 })(e.sel), { resourceId: 'a2', imported: false }, 'name + length');
+    e = ensureSel([{ resourceId: 'a3', type: 'Audio', name: 'bedroom-pop-108.mp3', durationSeconds: 61 }], [node('a3', '/Volumes/Media/Music/bedroom-pop-108.mp3')]);
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: cuePath, duration: 60.029 })(e.sel), { resourceId: 'new1', imported: true }, 'same name, other length');
+    assert.deepEqual(e.imported, [cuePath]);
+    // Without a length (own music, the template run) only the path matches.
+    e = ensureSel([{ resourceId: 'a4', type: 'Audio', name: 'bedroom-pop-108.mp3', durationSeconds: 60.029 }], [node('a4', '/Volumes/Copy/bedroom-pop-108.mp3')]);
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: cuePath })(e.sel), { resourceId: 'new1', imported: true }, 'no length: path only');
+  }
+
   clearInterval(keepAlive);
   console.log(JSON.stringify({ scriptsRead: 'ok' }));
 })().catch(e => { console.error(e); process.exit(1); });
