@@ -240,15 +240,30 @@ function tecMeasure(text, font, px) {
   measureCtx.font = `${font.style} ${font.weight} ${px}px ${font.stack}`;
   return measureCtx.measureText(text).width;
 }
+// The title's ink above and below the baseline in em (it is centred on the cap-centre line). Latin: the bundled face's cap height and no
+// descent. A title holding Hangul renders in the system Korean face, whose ink differs per OS (Apple SD / AppleMyungjo
+// vs Malgun Gothic / Batang), so it is measured here with the canvas (actualBoundingBoxAscent / Descent), not taken
+// from a constant tuned on one OS; without a canvas, the Latin values.
+function tecTitleInk(text, font, px) {
+  var latin = { up: TEC_TITLE.cap, down: 0 };
+  if (!tecHasHangul(text) || !(px > 0)) return latin;
+  tecMeasure("x", font, px);
+  if (!measureCtx) return latin;
+  measureCtx.font = `${font.style} ${font.weight} ${px}px ${font.stack}`;
+  var m = measureCtx.measureText(text);
+  var up = Number(m.actualBoundingBoxAscent) / px, down = Number(m.actualBoundingBoxDescent) / px;
+  return up > 0 && isFinite(up) && isFinite(down) ? { up: up, down: Math.max(0, down) } : latin;
+}
 
 const str = (v, d) => (typeof v === "string" ? v : d);
 const num = (v, d) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const TITLE_FAMILY = "TEC Title Serif";
 const CREDITS_FAMILY = "TEC Credits Sans";
-// Hangul falls back to the macOS system face of each role: AppleMyungjo for the serif title, Apple SD Gothic Neo for
-// the sans credits (zero bytes; style-matched Korean fonts are a later step).
-const TITLE_FALLBACK = 'Georgia, "Times New Roman", "AppleMyungjo", serif';
-const CREDITS_FALLBACK = '"Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif';
+// Hangul falls back to the system Korean face of each role, macOS then Windows then a Noto install: AppleMyungjo,
+// Batang, Noto Serif KR for the serif title; Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR for the sans credits
+// (zero bytes; style-matched Korean fonts are a later step).
+const TITLE_FALLBACK = 'Georgia, "Times New Roman", "AppleMyungjo", "Batang", "Noto Serif KR", serif';
+const CREDITS_FALLBACK = '"Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';
 
 export default function TheEndCredits({ data }) {
   const frame = useCurrentFrame();
@@ -310,7 +325,9 @@ export default function TheEndCredits({ data }) {
   const pose = tecTitlePose(t, L, layout, sizes, W, H);
   const glyphs = Array.from(title);
   const typed = tecTypedCount(t, glyphs.length);
-  const titleBaseline = pose.cy + (TEC_TITLE.cap * pose.size) / 2 - scroll;
+  // The title's ink is centred on its cap-centre line: the Latin cap height, or the measured ink of a Hangul title.
+  const ink = tecTitleInk(title, titleFace, pose.size);
+  const titleBaseline = pose.cy + ((ink.up - ink.down) * pose.size) / 2 - scroll;
   const overlay = layout === "full" ? tecFullOverlay(t, L) : null;
   // Full frame: the credits arrive with the right gradient, after the big title has moved over.
   const creditsOpacity = overlay ? overlay.gradient : tecCreditsOpacity(t);

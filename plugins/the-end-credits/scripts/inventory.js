@@ -2,7 +2,7 @@ const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const all = await p.resources();
 const sizes = {}, paths = {};
-// The source file's frame size and path (the panel measures in-shot motion from the file with ffmpeg).
+// The source file's frame size and path (the panel scores unanalysed clips and measures in-shot motion from the file).
 const walk = nodes => { for (const n of nodes || []) { if (n.type === 'dir') walk(n.children); else if (n.resourceId) { sizes[n.resourceId] = n.frameSize || null; if (n.path) paths[n.resourceId] = n.path; } } };
 const files = await p.sourceFiles();
 if ('fileTree' in files) walk(files.fileTree);
@@ -14,38 +14,26 @@ const aspectOf = (w, h) => (w > 0 && h > 0 ? w / h : null);
 const video = all.filter(r => r.type === 'Video' && wanted(r));
 const ids = new Set(video.map(r => r.resourceId));
 const resources = [];
-let unanalysed = 0, missing = 0;
-// Videos without analysis, by why: being analysed now, never started (the panel never starts analysis itself), or
-// failed. Resources queued by startAnalysis can still read status 'pending', so a queued or running workflow for the
-// clip (or a running project:create fan-out) counts it as being analysed. One workflows() read; if it fails, a
-// pending clip is counted as not analysed and statusKnown is false, so the panel words it neutrally.
-const waiting = video.filter(r => !r.hasAnalysis);
-const busyRids: any = {};
-let fanout = false, statusKnown = true;
-if (waiting.some(r => r.status === 'pending')) {
-  try {
-    for (const w of await p.workflows()) {
-      if (w.status !== 'queued' && w.status !== 'running') continue;
-      if (w.type === 'project:create') fanout = true;
-      else if (w.type === 'project:analyze-resource' && w.resourceId) busyRids[w.resourceId] = true;
-    }
-  } catch (e) { statusKnown = false; }
-}
+// Analysis is never required: draft.insertResource places imported, unanalysed sources. A video is usable once it is
+// imported: it has a length and its source file resolves. Imports that were never analysed stay status 'pending' for
+// good, so status is informational only. analysed: false clips are scored locally by the panel (quick score) instead
+// of by scene search.
+// skipped.unanalysed: videos that cannot be used yet (no length or no source file: still importing). It keeps its old
+// name because a Clip highlights template run reads it for its "could not be used" note. skipped.notAnalysed: usable
+// videos without analysis (counted, not skipped); skipped.analysing: those Selects is analysing now (the panel only
+// refreshes its note for them). missing: analysed videos without a length (as before).
 const ANALYSING = ['sampling', 'samplingSucceeded', 'analyzing', 'analyzingSucceeded'];
-let analysing = 0, notAnalysed = 0, failed = 0;
-for (const r of waiting) {
-  if (ANALYSING.includes(r.status) || (r.status === 'pending' && statusKnown && (fanout || busyRids[r.resourceId]))) analysing++;
-  else if (r.status === 'samplingFailed' || r.status === 'analyzingFailed') failed++;
-  else notAnalysed++;
-}
+let unanalysed = 0, missing = 0, notAnalysed = 0, analysing = 0;
 for (const r of video) {
-  if (!r.hasAnalysis) { unanalysed++; continue; }
   if (r.owningSyncedSequenceResourceId && ids.has(r.owningSyncedSequenceResourceId)) continue;
-  const size = sizes[r.resourceId];
+  const analysed = !!r.hasAnalysis;
+  if (!analysed && !(r.durationSeconds > 0 && paths[r.resourceId])) { unanalysed++; continue; }
   if (!(r.durationSeconds > 0)) { missing++; continue; }
+  if (!analysed) { notAnalysed++; if (ANALYSING.includes(r.status)) analysing++; }
+  const size = sizes[r.resourceId];
   const width = size ? size.width : null, height = size ? size.height : null;
   resources.push({ rid: r.resourceId, name: r.name, duration: r.durationSeconds, width, height, aspect: aspectOf(width, height), recordedAt: recordedAt(r), kind: 'video',
-    path: paths[r.resourceId] || null });
+    path: paths[r.resourceId] || null, analysed });
 }
 // Photos (Image resources) have no analysis and no scene search; they are placed whole. sourceFiles() reports no
 // frameSize for them, so an unsaved scratch Draft measures each one: a new Draft adopts its first clip's frame size.
@@ -68,4 +56,4 @@ for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
   const width = ok ? size.width : null, height = ok ? size.height : null;
   photos.push({ rid: r.resourceId, name: r.name, width, height, aspect: aspectOf(width, height), recordedAt: recordedAt(r), kind: 'photo' });
 }
-return { resources, photos, skipped: { unanalysed, missing, analysing, notAnalysed, failed, statusKnown } };
+return { resources, photos, skipped: { unanalysed, missing, notAnalysed, analysing } };

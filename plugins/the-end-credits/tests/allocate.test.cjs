@@ -3,8 +3,8 @@ const fs = require('node:fs'), path = require('node:path'), vm = require('node:v
 const root = path.resolve(__dirname, '..');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date };
 vm.createContext(box);
-vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={tecAllocate,tecPlanBuild,tecFillers,tecHash,tecTimeline,tecFootageSlots,tecPhotoMotions,tecShotMotions,tecParseMotion,tecMotionStats,tecMotionAt,tecMotionPool,tecMotionScore,tecMotionStill,' +
-  'TEC_PHOTO_MOTIONS,TEC_SEARCH_ROLES,TEC_MOTION_WEIGHT,TEC_MOTION_FILTER};', box);
+vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + ';globalThis.P={tecAllocate,tecPlanBuild,tecFillers,tecHash,tecTimeline,tecFootageSlots,tecPhotoMotions,tecShotMotions,tecMotionArgs,tecMotionCurve,tecMotionStats,tecMotionAt,tecMotionPool,tecMotionScore,tecMotionStill,' +
+  'TEC_PHOTO_MOTIONS,TEC_SEARCH_ROLES,TEC_MOTION_WEIGHT,TEC_MOTION_FPS,TEC_MOTION_W,TEC_MOTION_H};', box);
 const P = box.P, j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps, msg) => assert.ok(Math.abs(a - b) <= eps, (msg || 'near') + ': ' + a + ' vs ' + b);
 let checks = 0;
@@ -158,12 +158,21 @@ const curve = (dur, level, spikes = {}) => {
   return { times, values };
 };
 
-t('motion: ffmpeg metadata parse, spike-capped window stats', () => {
-  assert.ok(P.TEC_MOTION_FILTER.startsWith('fps=4,scale=64:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file='));
-  const text = 'frame:0    pts:2       pts_time:0.5\nlavfi.signalstats.YAVG=2.5\nframe:1 pts:1 pts_time:0.25\nlavfi.signalstats.YAVG=1.5\nframe:2 pts:3 pts_time:0.75\n';
-  assert.deepEqual(j(P.tecParseMotion(text)), { times: [0.25, 0.5], values: [1.5, 2.5] }, 'sorted, a frame without a value is dropped');
-  assert.equal(P.tecParseMotion(''), null);
-  assert.equal(P.tecParseMotion('garbage'), null);
+t('motion: raw grey frames to a curve, spike-capped window stats', () => {
+  // The host ffmpeg argv: an array (no shell), grey frames at 4 fps squeezed to 64x36, written raw to `out`.
+  assert.deepEqual(j(P.tecMotionArgs('C:\\Users\\x\\a b.mp4', 'D:\\data\\motion-1.gray')), ['-nostdin', '-v', 'error', '-y', '-an', '-sn', '-dn', '-i', 'C:\\Users\\x\\a b.mp4',
+    '-vf', 'fps=4,scale=64:36,setsar=1,format=gray', '-f', 'rawvideo', 'D:\\data\\motion-1.gray']);
+  assert.equal(P.TEC_MOTION_FPS, 4);
+  const size = P.TEC_MOTION_W * P.TEC_MOTION_H;
+  const frames = new Uint8Array(size * 3);
+  frames.fill(10, 0, size); frames.fill(12, size, 2 * size); frames.fill(6, 2 * size);
+  frames[size] = 110; // one pixel moves by 100 in frame 1
+  const c = j(P.tecMotionCurve(frames));
+  assert.deepEqual(c.times, [0.25, 0.5]);
+  near(c.values[0], (2 * (size - 1) + 100) / size, 1e-4); near(c.values[1], (6 * (size - 1) + 104) / size, 1e-4);
+  assert.equal(P.tecMotionCurve(new Uint8Array(size)), null, 'one frame: no curve');
+  assert.equal(P.tecMotionCurve(null), null);
+  assert.equal(P.tecMotionCurve(new Uint8Array(0)), null);
   // A flash in a still window is capped (3 x the median) and flagged; the mean stays low.
   const still = curve(10, 0.3, { 5: 40 });
   const st = j(P.tecMotionStats(still, 3, 4));

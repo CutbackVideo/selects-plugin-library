@@ -166,9 +166,11 @@ says "Beat found (approximate): shots follow it at 4.00 s" (for a 120 bpm
 track); the cuts may miss the beat you hear. When no steady beat is found,
 or no multiple fits, the panel says "No steady beat found: shots are 3.9 s"
 and uses fixed 3.9 s shots; the box then moves in 0.1 s steps. The reveal goes to the loudest part
-of your track. Your own music and the previews need ffmpeg; your own music
-also runs on a pinned Node.js, which the panel downloads the first time (see [INSTALL.md](INSTALL.md)). The bundled
-tracks work without them.
+of your track. Your own music, the previews and the waveform use the ffmpeg
+that comes with Selects on macOS and Windows, and the beat is found inside the
+panel; there is nothing to install. On a Selects build too old for that, the
+panel says "This needs a newer version of Selects." and the bundled tracks
+still work.
 
 **No music** builds with fixed 3.9 s shots. With Clip sound also **Off**, the
 panel warns "Silent video: no music and Clip sound is Off."
@@ -198,13 +200,13 @@ tints the black surround.
 
 ## Motion
 
-- **Moving footage first.** When ffmpeg is installed, the panel measures how
+- **Moving footage first.** With the ffmpeg that comes with Selects, the panel measures how
   much each analysed clip moves (once per clip; it takes a few seconds per
   clip on the first build and is remembered after that). Among shots that fit
   the scene equally well, a part of a clip with movement is preferred over a
   still one. Parts with a flash, a cut or heavy shake are avoided. The scene
-  match still matters more than movement. Without ffmpeg, shots are chosen by
-  the scene match alone.
+  match still matters more than movement. On a Selects build without it,
+  shots are chosen by the scene match alone.
 - **Still clips get a gentle move.** A video shot that barely moves (or whose
   movement could not be measured) gets a slow push in or drift inside the
   window, never the same move twice in a row. Clips that already move play as
@@ -256,13 +258,15 @@ detail after an error message stay in English.
 - **Filmed in** and **Places** are pre-filled from the Project name when it
   looks like a place, also when the name is Korean.
 - The bundled typefaces have no Korean letters, so Korean text is drawn with
-  the macOS system font of each typeface's kind: **AppleMyungjo** for the
-  serif title and **Apple SD Gothic Neo** for the sans-serif credits.
+  the system font of each typeface's kind: on macOS **AppleMyungjo** for the
+  serif title and **Apple SD Gothic Neo** for the sans-serif credits, on
+  Windows **Batang** and **Malgun Gothic** (**Noto Serif KR** / **Noto Sans
+  KR** when installed). A Korean title is centred on its measured height, so
+  it sits right in either font; the two systems still look different.
 - A title with Korean in it is not drawn condensed (Latin titles are narrowed
   to 78%), and Korean is never set in capitals or letter-spaced. A long role
   or name still shrinks to fit its column and then wraps between words.
-- Korean titles need macOS, where Selects and its export run. Style-matched
-  Korean typefaces are planned for a later version.
+- Style-matched Korean typefaces are planned for a later version.
 
 **Inspector labels** of the credits, the Shot frame, its Motion choices and
 the Cinematic look are written into the Draft in the panel's language at the
@@ -302,4 +306,6 @@ Finished videos are exported from the Draft with **Handoff -> Export**.
 - Moving cuts in the Draft does not move the credits or the music.
 - Moving the window in Adjust moves one shot only: each shot has its own
   Shot frame effect.
-- macOS arm64 only, on a development build of Selects.
+- macOS arm64 and Windows x64, on a development build of Selects. Windows
+  follows the kit's Windows rules (no shell, the ffmpeg that comes with
+  Selects) but has not been checked on a Windows machine yet.
