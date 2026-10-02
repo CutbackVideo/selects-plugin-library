@@ -5,8 +5,9 @@ opens and says "Available on macOS for now"; it makes no Draft there yet.
 
 ## Requirements
 
-- `ffmpeg` and `ffprobe` on the shell `PATH`, with `libx264`, `libvpx-vp9` and the `minterpolate`
-  filter. The pipeline calls them by name; it does not use the ffmpeg bundled with Selects yet.
+- Nothing to install for video: the pipeline and the RVM runner use the `ffmpeg` and `ffprobe`
+  bundled with the Selects app the panel runs in (`Selects.app/Contents/Resources/app.asar.unpacked/dist/bin`).
+  Run by hand, `pipeline.py` looks for them in the Selects apps in `/Applications`, then on `PATH`.
 - The RVM runtime for person mattes (one-time setup, below).
 
 ## One-time RVM setup

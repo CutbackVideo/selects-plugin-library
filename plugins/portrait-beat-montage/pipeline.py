@@ -28,6 +28,26 @@ PLUGIN_ID = "portrait-beat-montage"
 DATA = Path.home() / ".selects" / "plugin-data" / PLUGIN_ID
 W, H, FPS = 540, 720, 60
 DRAFT_FPS = 30000 / 1001
+# The host's bundled ffmpeg/ffprobe: the panel passes the running Selects app's binaries in these variables (rvm/runtime.py
+# and rvm/benchmark.py read the same ones); run by hand, the Selects apps in /Applications are tried, then PATH.
+SELECTS_APPS = ("Selects", "Selects Staging", "Selects Alpha")
+
+
+def tool(name):
+    chosen = os.environ.get("POSTCARD_CUTOUT_RVM_" + name.upper())
+    if chosen:
+        return chosen
+    for app in SELECTS_APPS:
+        path = Path("/Applications") / (app + ".app") / "Contents/Resources/app.asar.unpacked/dist/bin" / name
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path)
+    return shutil.which(name) or name
+
+
+FFMPEG, FFPROBE = tool("ffmpeg"), tool("ffprobe")
+for _name, _binary in (("FFMPEG", FFMPEG), ("FFPROBE", FFPROBE)):   # the RVM runner and detached workers use the same ones
+    if os.path.isabs(_binary):
+        os.environ.setdefault("POSTCARD_CUTOUT_RVM_" + _name, _binary)
 Y = np.arange(H, dtype=np.float32)[:, None]
 X = np.arange(W, dtype=np.float32)[None, :]
 
@@ -70,7 +90,7 @@ def run(cmd, **kw):
 
 
 def ffprobe(path):
-    out = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+    out = run([FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_entries",
                "stream=width,height,r_frame_rate:stream_side_data=rotation:format=duration",
                "-of", "json", str(path)], stdout=subprocess.PIPE).stdout
     info = json.loads(out)
@@ -95,7 +115,7 @@ def crop_filter(w, h):
 
 
 def decode(path, count, vf="format=rgb24", size=(W, H)):
-    raw = run(["ffmpeg", "-v", "error", "-i", str(path), "-vf", vf, "-frames:v", str(count),
+    raw = run([FFMPEG, "-v", "error", "-i", str(path), "-vf", vf, "-frames:v", str(count),
                "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE).stdout
     frames = np.frombuffer(raw, np.uint8).reshape(-1, size[1], size[0], 3)
     if len(frames) < count:
@@ -107,7 +127,7 @@ def decode(path, count, vf="format=rgb24", size=(W, H)):
 def motion_scores(path, info):
     """Visible movement in the settled part of a shot (0.33-0.79 s after its start) for each start."""
     vf = crop_filter(info["width"], info["height"]) + ",fps=24,scale=135:180,format=gray"
-    raw = run(["ffmpeg", "-v", "error", "-t", "30", "-i", str(path), "-vf", vf, "-f", "rawvideo", "-"],
+    raw = run([FFMPEG, "-v", "error", "-t", "30", "-i", str(path), "-vf", vf, "-f", "rawvideo", "-"],
               stdout=subprocess.PIPE).stdout
     g = np.frombuffer(raw, np.uint8).reshape(-1, 180, 135).astype(np.float32)
     last_start = min(len(g) - 20, int((info["duration"] - 1.05) * 24))
@@ -176,13 +196,13 @@ def rvm_launcher():
 
 def op_doctor(_args):
     problems = []
-    for tool in ("ffmpeg", "ffprobe"):
-        if not shutil.which(tool):
-            problems.append(f"{tool} is not on PATH")
+    for name, binary in (("ffmpeg", FFMPEG), ("ffprobe", FFPROBE)):
+        if not (Path(binary).is_file() if os.sep in binary else shutil.which(binary)):
+            problems.append(f"{name} was not found (Selects' bundled {name} or one on PATH)")
     rvm = rvm_launcher()
     if not rvm:
         problems.append("RVM runtime is not set up")
-    return {"ready": not problems, "problems": problems, "rvm": str(rvm) if rvm else None,
+    return {"ready": not problems, "problems": problems, "rvm": str(rvm) if rvm else None, "ffmpeg": FFMPEG,
             "python": sys.version.split()[0]}
 
 
@@ -199,7 +219,7 @@ def mattes(video, folder):
         raise RuntimeError("RVM failed: " + out[-400:])
     masks = folder / "masks"
     masks.mkdir(exist_ok=True)
-    run(["ffmpeg", "-y", "-v", "error", "-c:v", "libvpx-vp9", "-i", result["result"], "-vf", "alphaextract",
+    run([FFMPEG, "-y", "-v", "error", "-c:v", "libvpx-vp9", "-i", result["result"], "-vf", "alphaextract",
          "-frames:v", str(MATTE_FRAMES), str(masks / "%03d.png")])
     alpha = np.stack([np.asarray(Image.open(masks / f"{k + 1:03d}.png").convert("L"), np.float32) / 255
                       for k in range(MATTE_FRAMES)])
@@ -355,7 +375,7 @@ def op_unit(args):
         return {"key": key, "cached": True}
     source = folder / "source.mp4"
     vf = crop_filter(unit["width"], unit["height"]) + f",scale={W}:{H},minterpolate=fps={FPS}:mi_mode=mci"
-    run(["ffmpeg", "-y", "-v", "error", "-ss", str(unit["start"]), "-i", unit["path"], "-vf", vf,
+    run([FFMPEG, "-y", "-v", "error", "-ss", str(unit["start"]), "-i", unit["path"], "-vf", vf,
          "-frames:v", str(SRC_FRAMES), "-an", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p", str(source)])
     frames = decode(source, SRC_FRAMES)
     alpha = mattes(source, folder)
@@ -439,7 +459,7 @@ class Encoder:
     def __init__(self, path, fps):
         self.path = path
         self.count = 0
-        self.proc = subprocess.Popen(["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
+        self.proc = subprocess.Popen([FFMPEG, "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                                       "-s", f"{W}x{H}", "-r", str(fps), "-i", "-", "-an", "-c:v", "libx264",
                                       "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p",
                                       "-movflags", "+faststart", str(path)], stdin=subprocess.PIPE)

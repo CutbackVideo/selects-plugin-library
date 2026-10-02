@@ -117,6 +117,19 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         self.assertEqual([i['id'] for i in manifest['inputs']], ['clips'])
         self.assertIn('export default function Panel(props)', self.text)
 
+    def test_macos_uses_the_selects_bundled_ffmpeg(self):
+        regions = '\n'.join(m.group(0) for m in MAC_ONLY.finditer(self.text))
+        self.assertIn('function macTools()', regions)
+        self.assertNotIn('function macTools()', self.portable)
+        self.assertIn('app.asar.unpacked", "dist", "bin"', regions)
+        self.assertIn('getHostingVersion', regions)
+        # Every shell entry that starts pipeline.py or setup exports the bundled binaries first.
+        self.assertEqual(self.text.count('command: `${macTools()}'), 3)
+        source = (PLUGIN / 'pipeline.py').read_text(encoding='utf-8')
+        self.assertNotRegex(source, r'\[\s*"ffmpeg"|\[\s*"ffprobe"|Popen\(\["ffmpeg"')
+        self.assertIn('os.environ.get("POSTCARD_CUTOUT_RVM_" + name.upper())', source)
+        self.assertNotIn('brew', (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8').lower())
+
     def test_manifest_and_docs(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64'])

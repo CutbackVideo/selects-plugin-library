@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
+import vm from 'node:vm';
 import {loadPanelOperation} from './panel_operation.mjs';
 
 const op=loadPanelOperation('portrait-beat-montage');
@@ -58,7 +59,7 @@ print(json.dumps(out))
 `;
 
 function pipelineRun(){
- const r=spawnSync('python3',['-c',PY,plugin,JSON.stringify(SIZES),JSON.stringify(STARTS)],{encoding:'utf8'});
+ const r=spawnSync('python3',['-c',PY,plugin,JSON.stringify(SIZES),JSON.stringify(STARTS)],{encoding:'utf8',env:{...process.env,POSTCARD_CUTOUT_RVM_FFMPEG:'ffmpeg',POSTCARD_CUTOUT_RVM_FFPROBE:'ffprobe'}});
  if(r.status!==0&&!/ModuleNotFoundError|ENOENT/.test(String(r.stderr||r.error)))throw Error('pipeline.py capture failed:\n'+r.stderr);
  if(r.status!==0)return {skip:'python3 with numpy and Pillow is needed for pipeline.py: '+(r.stderr||r.error||'').toString().trim().split('\n').pop()};
  return JSON.parse(r.stdout.trim().split('\n').pop());
@@ -96,4 +97,24 @@ test('the port section stays free of shell and host calls',()=>{
  for(const bad of ['runShell','__DI__','python','$(','printf','sdk.'])assert.ok(!body.includes(bad),bad);
  assert.ok(op.unitSourceArgs({start:1,path:'C:\\Users\\\uD64D\uAE38\uB3D9\\a.mov',width:1080,height:1920},'C:\\o\\source.mp4').every(a=>typeof a==='string'));
  assert.equal(op.pyStr(3),'3.0');assert.equal(op.pyStr(0.375),'0.375');
+});
+
+test('macOS: the shell steps export the running Selects app\'s bundled ffmpeg',()=>{
+ const src=fs.readFileSync(path.join(plugin,'panel.tsx'),'utf8');
+ const host=src.slice(src.indexOf('// av-host:start'),src.indexOf('// av-host:end'));
+ const i=src.indexOf('const quote = '),mac=src.slice(i,src.indexOf('// mac-only:end',i));
+ const apps=p=>p.replace(/^\/Applications\/([^/]+)\.app\/.*$/,'$1');
+ const run=({installed,version,name})=>{
+  const plist=v=>'<plist><dict><key>CFBundleShortVersionString</key>\n    <string>'+v+'</string></dict></plist>';
+  const versions={'Selects':'2.0.495','Selects Staging':'2.0.535','Selects Alpha':'2.0.340'};
+  const FileSystem={join:(...p)=>p.join('/'),existsSync:p=>installed.includes(apps(p)),readFileSync:p=>Buffer.from(plist(versions[apps(p)]))};
+  const Runtime={getHostingVersion:()=>version,getAppName:()=>name,getPlatform:()=>'darwin'};
+  const ctx=vm.createContext({window:{parent:{__DI__:{FileSystem,Runtime}}},navigator:{},TextDecoder});
+  return vm.runInContext(host+mac+';macTools()',ctx);
+ };
+ const all=['Selects','Selects Staging','Selects Alpha'];
+ assert.equal(run({installed:all,version:'2.0.535',name:'Selects'}),"export POSTCARD_CUTOUT_RVM_FFMPEG='/Applications/Selects Staging.app/Contents/Resources/app.asar.unpacked/dist/bin/ffmpeg' POSTCARD_CUTOUT_RVM_FFPROBE='/Applications/Selects Staging.app/Contents/Resources/app.asar.unpacked/dist/bin/ffprobe'; ");
+ assert.match(run({installed:all,version:'9.9.9',name:'Selects Alpha'}),/Selects Alpha\.app/);
+ assert.match(run({installed:['Selects Staging'],version:'',name:''}),/Selects Staging\.app/);
+ assert.equal(run({installed:[],version:'2.0.535',name:'Selects'}),'');
 });

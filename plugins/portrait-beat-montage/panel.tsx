@@ -216,6 +216,33 @@ const quote = (value) => "'" + String(value).replace(/'/g, "'\\''") + "'";
 // The pipeline runs on the RVM runtime's Python (it already has numpy and Pillow). Before setup there is no usable
 // Python on a stock Mac (/usr/bin/python3 only offers to install the Xcode tools), so a step reports setup instead.
 const PYTHON = `S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; P="$S/rvm/.local/venv/bin/python"; [ -x "$P" ] || { echo '{"error":"RVM runtime is not set up"}'; exit 2; };`;
+// The running Selects app's own ffmpeg/ffprobe (app.asar.unpacked/dist/bin), so no PATH or Homebrew ffmpeg is needed:
+// the app whose Info.plist version is Runtime.getHostingVersion(), else the one Runtime.getAppName() names, else the
+// first installed. Exported to pipeline.py, which hands them to rvm/runtime.py and its detached workers; with none
+// found pipeline.py looks in /Applications and then on PATH itself. Found once per panel session, by FileSystem.
+const MAC_APPS = ["Selects", "Selects Staging", "Selects Alpha"];
+let macToolsFound = null;
+function macTools() {
+  if (macToolsFound) return macToolsFound;
+  const fs = hostApi("FileSystem", "join", "existsSync");
+  if (!fs) return "";
+  const app = (name, ...rest) => fs.join("/Applications", name + ".app", "Contents", ...rest);
+  const bin = (name, tool) => app(name, "Resources", "app.asar.unpacked", "dist", "bin", tool);
+  const has = (name) => { try { return !!fs.existsSync(bin(name, "ffmpeg")) && !!fs.existsSync(bin(name, "ffprobe")); } catch { return false; } };
+  const said = (service, method) => { try { return String(hostApi(service, method)?.[method]() || ""); } catch { return ""; } };
+  const plistVersion = (name) => {
+    try {
+      const v = hostApi("FileSystem", "readFileSync").readFileSync(app(name, "Info.plist"), "utf8");
+      const text = typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+      return (text.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]*)<\/string>/) || [])[1] || "";
+    } catch { return ""; }
+  };
+  const installed = MAC_APPS.filter(has), version = said("Runtime", "getHostingVersion"), appName = said("Runtime", "getAppName");
+  const pick = installed.find((name) => version && plistVersion(name) === version) || installed.find((name) => name === appName) || installed[0];
+  if (!pick) return "";
+  macToolsFound = `export POSTCARD_CUTOUT_RVM_FFMPEG=${quote(bin(pick, "ffmpeg"))} POSTCARD_CUTOUT_RVM_FFPROBE=${quote(bin(pick, "ffprobe"))}; `;
+  return macToolsFound;
+}
 // mac-only:end
 
 const T = {
@@ -249,7 +276,7 @@ async function pipeline(sdk, op, args, timeoutMs = 300000) {
   if (hostIsWindows()) throw macOnlyError();
   const reply = await sdk.runShell({
     summary: "Portrait montage: " + op,
-    command: `${PYTHON} "$P" "$S/pipeline.py" ${op} ${quote(json(args))}`,
+    command: `${macTools()}${PYTHON} "$P" "$S/pipeline.py" ${op} ${quote(json(args))}`,
     timeoutMs,
     maxOutputBytes: 49152,
   });
@@ -272,7 +299,7 @@ async function runSetup(sdk) {
   if (hostIsWindows()) throw macOnlyError();
   const start = await sdk.runShell({
     summary: "Portrait montage: start one-time setup",
-    command: `S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; D=${SETUP_DIR}; mkdir -p "$D" || exit 1; `
+    command: `${macTools()}S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; D=${SETUP_DIR}; mkdir -p "$D" || exit 1; `
       + `if [ -d "$S/rvm/.local/setup.lock" ] && [ ! -f "$D/exit" ] && kill -0 "$(cat "$D/pid" 2>/dev/null)" 2>/dev/null; then echo joined; exit 0; fi; `
       + `rm -f "$D/exit" "$D/pid" "$D/stderr.log"; `
       + `/usr/bin/perl -MPOSIX -e 'POSIX::setsid() or die "setsid: $!"; exec @ARGV or die "exec: $!"' /bin/sh -c 'echo $$ > "$2/pid"; sh "$1/rvm/setup.sh" 2>"$2/stderr.log"; echo $? > "$2/exit"' setup "$S" "$D" </dev/null >/dev/null 2>&1 & `
@@ -315,7 +342,7 @@ async function renderUnits(sdk, runId, keys, onProgress) {
   const dir = `"$HOME/.selects/plugin-data/${PLUGIN}/runs/${runId}"`;
   const started = await sdk.runShell({
     summary: "Portrait montage: start mattes and transitions",
-    command: `${PYTHON} "$P" "$S/pipeline.py" spawn ${quote(json({ runId }))}`,
+    command: `${macTools()}${PYTHON} "$P" "$S/pipeline.py" spawn ${quote(json({ runId }))}`,
     timeoutMs: 30000,
     maxOutputBytes: 4096,
   });
