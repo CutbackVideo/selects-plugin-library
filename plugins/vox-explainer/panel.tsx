@@ -17,10 +17,12 @@
 import React from "react";
 
 const APP_ID = "vox-explainer";
-// The engine is installed with the plugin at SELECTS_USER_SKILLS_ROOT/vox-explainer/engine.py
+// The engine is installed with the plugin at SELECTS_USER_SKILLS_ROOT/vox-explainer/engine.py. It is a Python script
+// run through the shell, so the whole build runs on macOS only; on Windows the panel opens and says so.
+// mac-only:start
 const ENGINE = '"$SELECTS_USER_SKILLS_ROOT/vox-explainer/engine.py"';
-const IS_WIN = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent || "");
-const TPL: Record<string, string> = { headline: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Pretendard','Noto Sans KR',sans-serif\";\n\n// Constructivist headline: a slanted black bar with cream type and a red offset block.\nexport default function Headline({ data }) {\n  const frame = useCurrentFrame();\n  const { fps, width } = useVideoConfig();\n  const k = width / 1080;\n  const text = String(data?.text ?? '');\n  const size = Number(data?.fontSize ?? 92);\n  const top = Number(data?.top ?? 110);\n  const bar = String(data?.barColor ?? '#141414');\n  const fg = String(data?.textColor ?? '#F4ECDD');\n  const accent = String(data?.accentColor ?? '#D7261E');\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  const p = spring({ frame, fps, config: { damping: 16, stiffness: 170 } });\n  const x = interpolate(p, [0, 1], [-1200, 0]);\n  const ax = interpolate(p, [0, 1], [900, 0]);\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: '100%', height: 320 * k, pointerEvents: 'none' }}>\n      <div style={{ position: 'absolute', left: 70 * k, top: 8 * k, width: 300 * k, height: 34 * k, background: accent, transform: `translateX(${ax * k}px) rotate(-7deg)` }} />\n      <div style={{ position: 'absolute', left: 24 * k, right: 24 * k, top: 58 * k, display: 'flex', justifyContent: 'center', transform: `translateX(${x * k}px) rotate(-4deg)` }}>\n        <div style={{ background: bar, color: fg, fontFamily, fontWeight: 900, fontSize: size * k, letterSpacing: `${-2 * k}px`, lineHeight: 1.12, padding: `${16 * k}px ${34 * k}px ${22 * k}px`, boxShadow: `${12 * k}px ${12 * k}px 0 ${accent}`, whiteSpace: 'nowrap' }}>{text}</div>\n      </div>\n    </div>\n  );\n}\n", caption: "import React from 'react';\nimport { useVideoConfig } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Pretendard','Noto Sans KR',sans-serif\";\n\n// Spoken-line caption: cream type on a black box, low third of a 9:16 frame.\nexport default function Caption({ data }) {\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const lines = String(data?.text ?? '').split('\\n');\n  const size = Number(data?.fontSize ?? 56);\n  const bottom = Number(data?.bottom ?? 1560);\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  return (\n    <div style={{ position: 'absolute', left: 40 * k, width: 1000 * k, top: 0, height: bottom * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', pointerEvents: 'none' }}>\n      <div style={{ background: String(data?.boxColor ?? 'rgba(20,20,20,0.86)'), padding: `${10 * k}px ${26 * k}px ${14 * k}px`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n        {lines.map((line, i) => (\n          <div key={i} style={{ fontFamily, fontSize: size * k, fontWeight: 700, color: String(data?.textColor ?? '#F4ECDD'), lineHeight: 1.3, letterSpacing: `${-1 * k}px`, whiteSpace: 'nowrap' }}>{line}</div>\n        ))}\n      </div>\n    </div>\n  );\n}\n", credit: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Pretendard','Noto Sans KR',sans-serif\";\n\n// Closing source and photo credit strip.\nexport default function Credit({ data }) {\n  const frame = useCurrentFrame();\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const o = interpolate(frame, [0, 8], [0, 1], { extrapolateRight: 'clamp' });\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  return (\n    <div style={{ position: 'absolute', left: 50 * k, right: 50 * k, top: Number(data?.top ?? 1600) * k, opacity: o, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n      <div style={{ background: '#F4ECDD', color: '#141414', fontFamily, padding: `${14 * k}px ${24 * k}px`, borderLeft: `${10 * k}px solid #D7261E`, display: 'flex', flexDirection: 'column', gap: 6 * k }}>\n        <div style={{ fontSize: Number(data?.sourceSize ?? 34) * k, fontWeight: 800 }}>{String(data?.source ?? '')}</div>\n        <div style={{ fontSize: Number(data?.photoSize ?? 21) * k, fontWeight: 500, lineHeight: 1.3 }}>{String(data?.photos ?? '')}</div>\n      </div>\n    </div>\n  );\n}\n" };
+// mac-only:end
+const TPL: Record<string, string> = { headline: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Constructivist headline: a slanted black bar with cream type and a red offset block.\nexport default function Headline({ data }) {\n  const frame = useCurrentFrame();\n  const { fps, width } = useVideoConfig();\n  const k = width / 1080;\n  const text = String(data?.text ?? '');\n  const size = Number(data?.fontSize ?? 92);\n  const top = Number(data?.top ?? 110);\n  const bar = String(data?.barColor ?? '#141414');\n  const fg = String(data?.textColor ?? '#F4ECDD');\n  const accent = String(data?.accentColor ?? '#D7261E');\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  const p = spring({ frame, fps, config: { damping: 16, stiffness: 170 } });\n  const x = interpolate(p, [0, 1], [-1200, 0]);\n  const ax = interpolate(p, [0, 1], [900, 0]);\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: '100%', height: 320 * k, pointerEvents: 'none' }}>\n      <div style={{ position: 'absolute', left: 70 * k, top: 8 * k, width: 300 * k, height: 34 * k, background: accent, transform: `translateX(${ax * k}px) rotate(-7deg)` }} />\n      <div style={{ position: 'absolute', left: 24 * k, right: 24 * k, top: 58 * k, display: 'flex', justifyContent: 'center', transform: `translateX(${x * k}px) rotate(-4deg)` }}>\n        <div style={{ background: bar, color: fg, fontFamily, fontWeight: 900, fontSize: size * k, letterSpacing: `${-2 * k}px`, lineHeight: 1.12, padding: `${16 * k}px ${34 * k}px ${22 * k}px`, boxShadow: `${12 * k}px ${12 * k}px 0 ${accent}`, whiteSpace: 'nowrap' }}>{text}</div>\n      </div>\n    </div>\n  );\n}\n", caption: "import React from 'react';\nimport { useVideoConfig } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Spoken-line caption: cream type on a black box, low third of a 9:16 frame.\nexport default function Caption({ data }) {\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const lines = String(data?.text ?? '').split('\\n');\n  const size = Number(data?.fontSize ?? 56);\n  const bottom = Number(data?.bottom ?? 1560);\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  return (\n    <div style={{ position: 'absolute', left: 40 * k, width: 1000 * k, top: 0, height: bottom * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', pointerEvents: 'none' }}>\n      <div style={{ background: String(data?.boxColor ?? 'rgba(20,20,20,0.86)'), padding: `${10 * k}px ${26 * k}px ${14 * k}px`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n        {lines.map((line, i) => (\n          <div key={i} style={{ fontFamily, fontSize: size * k, fontWeight: 700, color: String(data?.textColor ?? '#F4ECDD'), lineHeight: 1.3, letterSpacing: `${-1 * k}px`, whiteSpace: 'nowrap' }}>{line}</div>\n        ))}\n      </div>\n    </div>\n  );\n}\n", credit: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Closing source and photo credit strip.\nexport default function Credit({ data }) {\n  const frame = useCurrentFrame();\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const o = interpolate(frame, [0, 8], [0, 1], { extrapolateRight: 'clamp' });\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  return (\n    <div style={{ position: 'absolute', left: 50 * k, right: 50 * k, top: Number(data?.top ?? 1600) * k, opacity: o, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n      <div style={{ background: '#F4ECDD', color: '#141414', fontFamily, padding: `${14 * k}px ${24 * k}px`, borderLeft: `${10 * k}px solid #D7261E`, display: 'flex', flexDirection: 'column', gap: 6 * k }}>\n        <div style={{ fontSize: Number(data?.sourceSize ?? 34) * k, fontWeight: 800 }}>{String(data?.source ?? '')}</div>\n        <div style={{ fontSize: Number(data?.photoSize ?? 21) * k, fontWeight: 500, lineHeight: 1.3 }}>{String(data?.photos ?? '')}</div>\n      </div>\n    </div>\n  );\n}\n" };
 const CAPTION_BOTTOM = 1790;
 const MUSIC_DB = -19;
 
@@ -54,7 +56,7 @@ const STRINGS: Record<string, Strings> = {
     noGeneration: "This Selects version cannot generate media from apps. Update Selects.",
     recent: "Unfinished jobs", resume: "Resume", dismiss: "Remove from list", retry: "Try again", elapsed: "Elapsed",
     noMusic: "The music could not be made; the Draft has no music.",
-    macOnly: "This app works on macOS for now.", noEngine: "The app's files are incomplete. Reinstall it from the Plugin Library.",
+    macOnly: "Available on macOS for now.", noEngine: "The app's files are incomplete. Reinstall it from the Plugin Library.",
     errors: { FETCH_FAILED: "The link could not be opened.", NO_TEXT: "No text was found at the link. Paste the text instead.",
       TEXT_TOO_SHORT: "The source text is too short.", NO_JSON: "The script could not be read from the AI answer. Try again." },
   },
@@ -74,7 +76,7 @@ const STRINGS: Record<string, Strings> = {
     noGeneration: "\uc774 Selects \ubc84\uc804\uc740 \uc571\uc5d0\uc11c \ubbf8\ub514\uc5b4 \uc0dd\uc131\uc744 \uc9c0\uc6d0\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud558\uc138\uc694.",
     recent: "\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5", resume: "\uc774\uc5b4\uc11c \ub9cc\ub4e4\uae30", dismiss: "\ubaa9\ub85d\uc5d0\uc11c \uc9c0\uc6b0\uae30", retry: "\ub2e4\uc2dc \uc2dc\ub3c4", elapsed: "\uacbd\uacfc",
     noMusic: "\ubc30\uacbd\uc74c\uc545\uc744 \ub9cc\ub4e4\uc9c0 \ubabb\ud574 \uc74c\uc545 \uc5c6\uc774 \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.",
-    macOnly: "\uc774 \uc571\uc740 \uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \ub3d9\uc791\ud569\ub2c8\ub2e4.", noEngine: "\uc571 \ud30c\uc77c\uc774 \ube60\uc838 \uc788\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778 \ub77c\uc774\ube0c\ub7ec\ub9ac\uc5d0\uc11c \ub2e4\uc2dc \uc124\uce58\ud558\uc138\uc694.",
+    macOnly: "\uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.", noEngine: "\uc571 \ud30c\uc77c\uc774 \ube60\uc838 \uc788\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778 \ub77c\uc774\ube0c\ub7ec\ub9ac\uc5d0\uc11c \ub2e4\uc2dc \uc124\uce58\ud558\uc138\uc694.",
     errors: { FETCH_FAILED: "\ub9c1\ud06c\ub97c \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", NO_TEXT: "\ub9c1\ud06c\uc5d0\uc11c \ubcf8\ubb38\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ud14d\uc2a4\ud2b8\ub85c \ubd99\uc5ec\ub123\uc5b4 \uc8fc\uc138\uc694.",
       TEXT_TOO_SHORT: "\uc6d0\ubb38 \ud14d\uc2a4\ud2b8\uac00 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4.", NO_JSON: "AI \uc751\ub2f5\uc5d0\uc11c \uad6c\uc131\uc548\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694." },
   },
@@ -95,7 +97,7 @@ const STRINGS: Record<string, Strings> = {
     noGeneration: "このバージョンのSelectsはアプリからのメディア生成に対応していません。Selectsを更新してください。",
     recent: "未完了のジョブ", resume: "続きから作成", dismiss: "一覧から削除", retry: "再試行", elapsed: "経過",
     noMusic: "BGMを作成できなかったため、音楽なしで作成しました。",
-    macOnly: "このアプリは現在 macOS でのみ動作します。", noEngine: "アプリのファイルが不足しています。プラグインライブラリから再インストールしてください。",
+    macOnly: "現在は macOS でのみ利用できます。", noEngine: "アプリのファイルが不足しています。プラグインライブラリから再インストールしてください。",
     errors: { FETCH_FAILED: "リンクを開けませんでした。", NO_TEXT: "リンクから本文が見つかりませんでした。テキストで貼り付けてください。",
       TEXT_TOO_SHORT: "原文テキストが短すぎます。", NO_JSON: "AIの回答から構成案を読み取れませんでした。再試行してください。" },
   },
@@ -115,7 +117,7 @@ const STRINGS: Record<string, Strings> = {
     noGeneration: "此版本的 Selects 不支持在应用中生成媒体。请更新 Selects。",
     recent: "未完成的任务", resume: "继续生成", dismiss: "从列表中移除", retry: "重试", elapsed: "已用时",
     noMusic: "未能生成背景音乐，草稿中没有音乐。",
-    macOnly: "此应用目前仅支持 macOS。", noEngine: "应用文件不完整。请从插件库重新安装。",
+    macOnly: "目前仅支持 macOS。", noEngine: "应用文件不完整。请从插件库重新安装。",
     errors: { FETCH_FAILED: "无法打开链接。", NO_TEXT: "未能从链接中找到正文，请粘贴文本。",
       TEXT_TOO_SHORT: "原文文本太短。", NO_JSON: "无法从 AI 回复中读取脚本，请重试。" },
   },
@@ -136,7 +138,7 @@ const STRINGS: Record<string, Strings> = {
     noGeneration: "Diese Selects-Version kann in Apps keine Medien erzeugen. Aktualisiere Selects.",
     recent: "Unfertige Aufträge", resume: "Fortsetzen", dismiss: "Aus der Liste entfernen", retry: "Erneut versuchen", elapsed: "Vergangen",
     noMusic: "Die Musik konnte nicht erstellt werden; der Entwurf hat keine Musik.",
-    macOnly: "Diese App läuft derzeit nur unter macOS.", noEngine: "Die Dateien der App sind unvollständig. Installiere sie erneut aus der Plugin-Bibliothek.",
+    macOnly: "Vorerst nur unter macOS verfügbar.", noEngine: "Die Dateien der App sind unvollständig. Installiere sie erneut aus der Plugin-Bibliothek.",
     errors: { FETCH_FAILED: "Der Link konnte nicht geöffnet werden.", NO_TEXT: "Unter dem Link wurde kein Text gefunden. Füge den Text ein.",
       TEXT_TOO_SHORT: "Der Quelltext ist zu kurz.", NO_JSON: "Das Skript konnte nicht aus der KI-Antwort gelesen werden. Versuche es erneut." },
   },
@@ -157,7 +159,7 @@ const STRINGS: Record<string, Strings> = {
     noGeneration: "Esta versión de Selects no puede generar contenido desde apps. Actualiza Selects.",
     recent: "Trabajos sin terminar", resume: "Continuar", dismiss: "Quitar de la lista", retry: "Reintentar", elapsed: "Transcurrido",
     noMusic: "No se pudo crear la música; el borrador no tiene música.",
-    macOnly: "Por ahora esta app solo funciona en macOS.", noEngine: "Faltan archivos de la app. Vuelve a instalarla desde la biblioteca de plugins.",
+    macOnly: "Por ahora solo disponible en macOS.", noEngine: "Faltan archivos de la app. Vuelve a instalarla desde la biblioteca de plugins.",
     errors: { FETCH_FAILED: "No se pudo abrir el enlace.", NO_TEXT: "No se encontró texto en el enlace. Pega el texto.",
       TEXT_TOO_SHORT: "El texto de la fuente es demasiado corto.", NO_JSON: "No se pudo leer el guion en la respuesta de la IA. Vuelve a intentarlo." },
   },
@@ -178,7 +180,7 @@ const STRINGS: Record<string, Strings> = {
     noGeneration: "Cette version de Selects ne peut pas générer de médias depuis les apps. Mettez Selects à jour.",
     recent: "Tâches inachevées", resume: "Reprendre", dismiss: "Retirer de la liste", retry: "Réessayer", elapsed: "Écoulé",
     noMusic: "La musique n'a pas pu être créée ; le brouillon n'a pas de musique.",
-    macOnly: "Cette app ne fonctionne pour l'instant que sur macOS.", noEngine: "Des fichiers de l'app manquent. Réinstallez-la depuis la bibliothèque de plugins.",
+    macOnly: "Disponible sur macOS pour le moment.", noEngine: "Des fichiers de l'app manquent. Réinstallez-la depuis la bibliothèque de plugins.",
     errors: { FETCH_FAILED: "Impossible d'ouvrir le lien.", NO_TEXT: "Aucun texte trouvé à ce lien. Collez le texte.",
       TEXT_TOO_SHORT: "Le texte source est trop court.", NO_JSON: "Impossible de lire le script dans la réponse de l'IA. Réessayez." },
   },
@@ -199,7 +201,7 @@ const STRINGS: Record<string, Strings> = {
     noGeneration: "Questa versione di Selects non può generare media dalle app. Aggiorna Selects.",
     recent: "Lavori non finiti", resume: "Riprendi", dismiss: "Rimuovi dall'elenco", retry: "Riprova", elapsed: "Trascorso",
     noMusic: "Non è stato possibile creare la musica; la bozza è senza musica.",
-    macOnly: "Per ora questa app funziona solo su macOS.", noEngine: "Mancano alcuni file dell'app. Reinstallala dalla libreria dei plugin.",
+    macOnly: "Per ora disponibile solo su macOS.", noEngine: "Mancano alcuni file dell'app. Reinstallala dalla libreria dei plugin.",
     errors: { FETCH_FAILED: "Impossibile aprire il link.", NO_TEXT: "Nessun testo trovato nel link. Incolla il testo.",
       TEXT_TOO_SHORT: "Il testo della fonte è troppo corto.", NO_JSON: "Impossibile leggere il copione dalla risposta dell'IA. Riprova." },
   },
@@ -220,7 +222,7 @@ const STRINGS: Record<string, Strings> = {
     noGeneration: "Esta versão do Selects não gera mídia a partir de apps. Atualize o Selects.",
     recent: "Trabalhos inacabados", resume: "Continuar", dismiss: "Remover da lista", retry: "Tentar de novo", elapsed: "Decorrido",
     noMusic: "Não foi possível criar a música; o rascunho está sem música.",
-    macOnly: "Por enquanto, este app funciona apenas no macOS.", noEngine: "Faltam arquivos do app. Reinstale-o pela biblioteca de plugins.",
+    macOnly: "Por enquanto, disponível apenas no macOS.", noEngine: "Faltam arquivos do app. Reinstale-o pela biblioteca de plugins.",
     errors: { FETCH_FAILED: "Não foi possível abrir o link.", NO_TEXT: "Nenhum texto encontrado no link. Cole o texto.",
       TEXT_TOO_SHORT: "O texto da fonte é curto demais.", NO_JSON: "Não foi possível ler o roteiro na resposta da IA. Tente de novo." },
   },
@@ -241,7 +243,7 @@ const STRINGS: Record<string, Strings> = {
     noGeneration: "Bu Selects sürümü uygulamalardan medya üretemiyor. Selects'i güncelleyin.",
     recent: "Tamamlanmamış işler", resume: "Devam et", dismiss: "Listeden kaldır", retry: "Tekrar dene", elapsed: "Geçen süre",
     noMusic: "Müzik oluşturulamadı; taslakta müzik yok.",
-    macOnly: "Bu uygulama şimdilik yalnızca macOS'ta çalışır.", noEngine: "Uygulamanın dosyaları eksik. Eklenti Kitaplığı'ndan yeniden yükleyin.",
+    macOnly: "Şimdilik yalnızca macOS'ta kullanılabilir.", noEngine: "Uygulamanın dosyaları eksik. Eklenti Kitaplığı'ndan yeniden yükleyin.",
     errors: { FETCH_FAILED: "Bağlantı açılamadı.", NO_TEXT: "Bağlantıda metin bulunamadı. Metni yapıştırın.",
       TEXT_TOO_SHORT: "Kaynak metni çok kısa.", NO_JSON: "Yapay zekâ yanıtından senaryo okunamadı. Tekrar deneyin." },
   },
@@ -249,7 +251,9 @@ const STRINGS: Record<string, Strings> = {
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const dec = (b: any) => new TextDecoder().decode(b);
+// mac-only:start
 const pq = (s: string) => "'" + String(s).replace(/'/g, "'\\''") + "'";
+// mac-only:end
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function bytesToB64(u: Uint8Array): string {
@@ -278,6 +282,204 @@ function hostFs(): any {
   const need = ["readFile", "writeFile", "homedir", "existsSync", "mkdirSync", "readdirSync"];
   return fs && need.every((k) => typeof fs[k] === "function") ? fs : null;
 }
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
+// @operation-start
+// Windows engine port, step 1: engine.py's ffmpeg-only steps (media_duration, silences, sheet, ken_burns) as argv for
+// the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe): plain JS, no shell, nothing for the user to install.
+// Each builder returns exactly the argv engine.py passes (tests/vox_explainer.test.mjs compares them). The build does
+// not call these yet: it still runs engine.py on macOS until the rest of the engine is ported.
+export const VOX_W = 1080, VOX_H = 1920, VOX_FPS = 24;
+// The host's ffmpeg log (stderr) for one run, stopped after `timeoutMs`.
+export async function voxFFmpegLog(args, timeoutMs = 180000) {
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
+  let log = "";
+  try {
+    const r = await hostNeed("Runtime", "runFFmpeg").runFFmpeg(args, true, controller.signal, undefined, (text) => { log += text; });
+    return String(r?.stderr || "") || log;
+  } finally { clearTimeout(timer); }
+}
+// media_duration: a file's length in seconds; throws when ffprobe reports none.
+export function voxDurationArgs(path) { return ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path]; }
+export function voxParseDuration(stdout, path) {
+  const t = String(stdout || "").trim(), v = Number(t);
+  if (!t || !isFinite(v)) throw new Error("cannot read duration: " + path);
+  return v;
+}
+export async function voxMediaDuration(path) {
+  const r = await hostNeed("Runtime", "runFFprobe").runFFprobe(voxDurationArgs(path), true);
+  return voxParseDuration(r?.stdout, path);
+}
+// silences: [start, end] pairs from silencedetect (end is null for a silence that runs to the end).
+export function voxSilenceArgs(path) { return ["-hide_banner", "-nostats", "-i", path, "-af", "silencedetect=noise=-38dB:d=0.12", "-f", "null", "-"]; }
+export function voxParseSilences(log) {
+  const s = String(log || "");
+  const starts = [...s.matchAll(/silence_start: ([\d.]+)/g)].map((m) => parseFloat(m[1]));
+  const ends = [...s.matchAll(/silence_end: ([\d.]+)/g)].map((m) => parseFloat(m[1]));
+  return starts.map((a, i) => [a, i < ends.length ? ends[i] : null]);
+}
+export async function voxSilences(path) { return voxParseSilences(await voxFFmpegLog(voxSilenceArgs(path))); }
+// sheet: numbered contact sheets of up to 12 keyframes each. `fileOf(shot)` is the keyframe path, `destOf(n)` the
+// n-th sheet's path, `font` a TTF for the shot labels (null: no labels, as engine.py does without its font).
+export function voxSheetFont(windows) { return windows ? "C:\\Windows\\Fonts\\arial.ttf" : "/System/Library/Fonts/Supplemental/Arial.ttf"; }
+// A path inside a filtergraph option: forward slashes, and the drive colon escaped.
+export function voxFilterPath(p) { return String(p).replace(/\\/g, "/").replace(/:/g, "\\:"); }
+export function voxSheetJobs(ids, fileOf, font, destOf) {
+  const jobs = [];
+  for (let part = 0; part < ids.length; part += 12) {
+    const chunk = ids.slice(part, part + 12);
+    const cols = chunk.length > 6 ? 4 : Math.max(1, Math.min(3, chunk.length));
+    const args = [];
+    let filt = "";
+    chunk.forEach((sid, i) => {
+      args.push("-i", fileOf(sid));
+      const label = font ? `drawtext=fontfile=${voxFilterPath(font)}:text='${sid}':x=8:y=8:fontsize=34:fontcolor=white:box=1:boxcolor=black@0.8:boxborderw=6,` : "";
+      filt += `[${i}:v]scale=270:480,${label}pad=276:486:3:3:white[v${i}];`;
+    });
+    const layout = chunk.map((_, i) => `${(i % cols) * 276}_${Math.floor(i / cols) * 486}`).join("|");
+    const stack = chunk.map((_, i) => `[v${i}]`).join("") + (chunk.length > 1 ? `xstack=inputs=${chunk.length}:layout=${layout}:fill=white` : "null");
+    const dest = destOf(part / 12 + 1);
+    jobs.push({ dest, shots: chunk, args: ["-loglevel", "error", "-y", ...args, "-filter_complex", filt + stack, "-frames:v", "1", "-q:v", "4", dest] });
+  }
+  return jobs;
+}
+// ken_burns: a pan-and-zoom clip of one keyframe over a blurred fill, `dur` seconds, 1080x1920 at 24 fps.
+export function voxKenBurnsArgs(img, dest, dur, zoomIn = true) {
+  const W = VOX_W, H = VOX_H, FPS = VOX_FPS, frames = Math.ceil(dur * FPS);
+  const z = zoomIn ? "min(zoom+0.0009,1.18)" : "if(eq(on,1),1.18,max(zoom-0.0009,1.0))";
+  const vf = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=26:2[bg];` +
+    `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];` +
+    `[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,scale=${W * 2}:${H * 2},` +
+    `zoompan=z='${z}':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${W}x${H}:fps=${FPS}[v]`;
+  return ["-y", "-loglevel", "error", "-loop", "1", "-i", img, "-filter_complex", vf, "-map", "[v]", "-t", dur.toFixed(3), "-c:v", "libx264", "-pix_fmt", "yuv420p", dest];
+}
+// @operation-end
 // Selects' own media generation for plug-in panels: billed to the user's Selects credits, results
 // saved into a folder under ~/.selects/plugin-data (Selects 2.0.512+).
 function generation(): any {
@@ -448,13 +650,19 @@ export default function Panel({ sdk, context, ui }: any) {
   };
 
   // ---- Host helpers ----
+  // The only shell call; on Windows sdk.runShell is cmd.exe, so it refuses there before running anything.
   const shell = async (command: string, summary: string, timeoutMs = 120000) => {
+    if (hostIsWindows()) throw new Error(S.macOnly);
+    // mac-only:start
     const r: any = await sdk.runShell({ summary, command, timeoutMs, maxOutputBytes: 48000 });
     return { ...r, stdout: String(r.stdout || ""), stderr: String(r.stderr || ""), output: String(r.output || "") };
+    // mac-only:end
   };
   async function home(): Promise<string> {
     if (fs) return fs.homedir();
+    // mac-only:start
     return (await shell(`printf %s "$HOME"`, "Find home folder")).stdout.trim();
+    // mac-only:end
   }
   async function readText(path: string): Promise<string | null> {
     if (fs) {
@@ -464,27 +672,33 @@ export default function Panel({ sdk, context, ui }: any) {
         return null;
       }
     }
+    // mac-only:start
     const r = await shell(`[ -f ${pq(path)} ] && cat ${pq(path)}`, "Read job file");
     return r.exitCode === 0 ? r.stdout : null;
+    // mac-only:end
   }
   async function writeBytes(path: string, bytes: Uint8Array) {
     if (fs) {
-      const dir = path.slice(0, path.lastIndexOf("/"));
+      const dir = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       await fs.writeFile(path, bytes);
       return;
     }
+    // mac-only:start
     const b64 = bytesToB64(bytes);
     await shell(`mkdir -p ${pq(path.slice(0, path.lastIndexOf("/")))} && : > ${pq(path + ".b64")}`, "Prepare file");
     for (let i = 0; i < b64.length; i += 60000) await shell(`printf %s ${pq(b64.slice(i, i + 60000))} >> ${pq(path + ".b64")}`, "Write file");
     await shell(`base64 -D -i ${pq(path + ".b64")} -o ${pq(path)} && rm ${pq(path + ".b64")}`, "Write file");
+    // mac-only:end
   }
   async function readB64(path: string): Promise<string> {
     if (fs) return bytesToB64(new Uint8Array(await fs.readFile(path)));
+    // mac-only:start
     const size = parseInt((await shell(`stat -f%z ${pq(path)}`, "Read image")).stdout.trim(), 10) || 0;
     let s = "";
     for (let i = 0; i * 30000 < size; i++) s += (await shell(`dd if=${pq(path)} bs=30000 skip=${i} count=1 2>/dev/null | base64`, "Read image")).stdout.replace(/\s+/g, "");
     return s;
+    // mac-only:end
   }
   const readJson = async (path: string) => {
     const t = await readText(path);
@@ -499,8 +713,9 @@ export default function Panel({ sdk, context, ui }: any) {
   // Working files live in ~/.selects/plugin-data/vox-explainer; the engine in the plugin's skills folder.
   async function ensureEnv() {
     if (env.current) return env.current;
-    if (IS_WIN) throw new Error(S.macOnly);
-    const root = `${await home()}/.selects/plugin-data/${APP_ID}`;
+    if (hostIsWindows()) throw new Error(S.macOnly);
+    const root = hostJoin(await home(), ".selects", "plugin-data", APP_ID);
+    // mac-only:start
     const r = await shell(
       `[ -f ${ENGINE} ] || { echo NO_ENGINE; exit 0; }; for p in /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do if [ -x "$p" ] && "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; then echo "$p"; break; fi; done`,
       "Find the engine and Python"
@@ -508,12 +723,15 @@ export default function Panel({ sdk, context, ui }: any) {
     const py = r.stdout.trim().split("\n")[0];
     if (py === "NO_ENGINE") throw new Error(S.noEngine);
     if (!py) throw new Error(S.noPython);
+    // mac-only:end
     env.current = { root, py };
     return env.current;
   }
   async function run(cmd: string, dir: string, extra = "", summary = "") {
     const e = await ensureEnv();
+    // mac-only:start
     const r = await shell(`${pq(e.py)} ${ENGINE} ${cmd} ${pq(dir)}${extra ? " " + extra : ""}`, summary || `Vox explainer: ${cmd}`, 280000);
+    // mac-only:end
     let j: any = null;
     try {
       j = JSON.parse(r.stdout.trim().split("\n").pop() || "");
@@ -546,7 +764,7 @@ export default function Panel({ sdk, context, ui }: any) {
   // gen.json lists every request (by key) and the file Selects delivered for it; the engine reads it.
   // One in-memory copy per run; writes are queued so parallel generations never overwrite each other.
   type Store = { dir: string; gen: any; chain: Promise<void> };
-  const persist = (st: Store) => (st.chain = st.chain.then(() => writeJson(`${st.dir}/gen.json`, st.gen)));
+  const persist = (st: Store) => (st.chain = st.chain.then(() => writeJson(hostJoin(st.dir, "gen.json"), st.gen)));
   async function generate(st: Store, sc: any, reqs: any[], label: string, onFail: "throw" | "keep" = "throw") {
     const m = generation();
     if (!m) throw new Error(S.noGeneration);
@@ -616,14 +834,14 @@ export default function Panel({ sdk, context, ui }: any) {
   const loadJobs = React.useCallback(async () => {
     if (!projectId || !fs) return;
     try {
-      const root = `${fs.homedir()}/.selects/plugin-data/${APP_ID}/jobs`;
+      const root = hostJoin(fs.homedir(), ".selects", "plugin-data", APP_ID, "jobs");
       if (!fs.existsSync(root)) return setJobs([]);
       const list: any[] = [];
       for (const n of fs.readdirSync(root)) {
-        const j = await readJson(`${root}/${n}/job.json`);
-        const pj = (await readJson(`${root}/${n}/panel.json`)) || {};
+        const j = await readJson(hostJoin(root, n, "job.json"));
+        const pj = (await readJson(hostJoin(root, n, "panel.json"))) || {};
         if (j && j.projectId === projectId && pj.started && !pj.done && !pj.dismissed)
-          list.push({ id: j.id, dir: `${root}/${n}`, title: pj.title || j.input?.url || j.id, updated: j.updated || "" });
+          list.push({ id: j.id, dir: hostJoin(root, n), title: pj.title || j.input?.url || j.id, updated: j.updated || "" });
       }
       setJobs(list.sort((a, b) => String(b.updated).localeCompare(String(a.updated))).slice(0, 5));
     } catch (e) {}
@@ -633,9 +851,9 @@ export default function Panel({ sdk, context, ui }: any) {
   }, [loadJobs]);
 
   async function savePanel(dir: string, patch: any) {
-    const cur = (await readJson(`${dir}/panel.json`)) || {};
+    const cur = (await readJson(hostJoin(dir, "panel.json"))) || {};
     const next = { ...cur, ...patch };
-    await writeJson(`${dir}/panel.json`, next);
+    await writeJson(hostJoin(dir, "panel.json"), next);
     return next;
   }
 
@@ -644,6 +862,7 @@ export default function Panel({ sdk, context, ui }: any) {
     setError("");
     setResult(null);
     setPlan(null);
+    if (hostIsWindows()) return setError(S.macOnly);
     if (!projectId) return setError(S.noProject);
     if (mode === "link" && !/^https?:\/\//.test(url.trim())) return setError(S.needUrl);
     if (mode === "text" && text.trim().length < 80) return setError(S.needText);
@@ -652,25 +871,25 @@ export default function Panel({ sdk, context, ui }: any) {
     try {
       const e = await ensureEnv();
       const id = `vx${Date.now().toString(36)}`;
-      const dir = `${e.root}/jobs/${id}`;
+      const dir = hostJoin(e.root, "jobs", id);
       const input = mode === "link" ? { kind: "link", url: url.trim() } : { kind: "text", text: text.trim() };
-      await writeJson(`${dir}/job.json`, { id, projectId, created: new Date().toISOString(), input, target, stage: "new" });
+      await writeJson(hostJoin(dir, "job.json"), { id, projectId, created: new Date().toISOString(), input, target, stage: "new" });
       setJob({ id, dir });
       setStep(0);
       setStatus(S.steps[0]);
       const f = await run("fetch", dir, "", "Read the source");
-      const art = await readJson(`${dir}/article.json`);
+      const art = await readJson(hostJoin(dir, "article.json"));
       setStep(1);
       setStatus(`${S.steps[1]} · ${f.title || ""}`);
       const script = await ask(scriptPrompt(art, f, target));
       setStatus(`${S.steps[1]} · ${f.title || ""} · 2/2`);
       const pics = await ask(picturePrompt(script));
       let parsed: any = { ...script, beats: (script.beats || []).map((bt: any, i: number) => ({ ...bt, ...((pics.beats || [])[i] || {}) })) };
-      await writeJson(`${dir}/plan.json`, parsed);
+      await writeJson(hostJoin(dir, "plan.json"), parsed);
       let v = await run("validate", dir, "", "Check the script");
       if (!v.ok) {
         parsed = await ask(repairPrompt(JSON.stringify(parsed), v.errors || []));
-        await writeJson(`${dir}/plan.json`, parsed);
+        await writeJson(hostJoin(dir, "plan.json"), parsed);
         v = await run("validate", dir, "", "Check the script");
         if (!v.ok) throw new Error((v.errors || []).join("; "));
       }
@@ -678,11 +897,11 @@ export default function Panel({ sdk, context, ui }: any) {
         // LESSON: the first English run read 27% long; fix the length before any narration is paid for.
         setStatus(`${S.steps[1]} · ${v.seconds}s → ${target}s`);
         parsed = await ask(shortenPrompt(parsed, f, target, v.seconds));
-        await writeJson(`${dir}/plan.json`, parsed);
+        await writeJson(hostJoin(dir, "plan.json"), parsed);
         const v2 = await run("validate", dir, "", "Check the script");
         if (v2.ok) v = v2;
       }
-      const p = await readJson(`${dir}/plan.json`);
+      const p = await readJson(hostJoin(dir, "plan.json"));
       setPlan(p);
       setCheck(v);
       await savePanel(dir, { title: p?.title || f.title });
@@ -698,6 +917,7 @@ export default function Panel({ sdk, context, ui }: any) {
   // ---- 2. Everything else, resumable ----
   async function produce(resume?: any) {
     setError("");
+    if (hostIsWindows()) return setError(S.macOnly);
     const j0 = resume || job;
     if (!j0) return;
     if (!projectId) return setError(S.noProject);
@@ -708,9 +928,9 @@ export default function Panel({ sdk, context, ui }: any) {
     try {
       if (!generation()) throw new Error(S.noGeneration);
       let pj = await savePanel(dir, { started: true });
-      if (!plan || resume) setPlan(await readJson(`${dir}/plan.json`));
+      if (!plan || resume) setPlan(await readJson(hostJoin(dir, "plan.json")));
       const sc = await scope();
-      const st: Store = { dir, gen: (await readJson(`${dir}/gen.json`)) || {}, chain: Promise.resolve() };
+      const st: Store = { dir, gen: (await readJson(hostJoin(dir, "gen.json"))) || {}, chain: Promise.resolve() };
 
       setStep(2);
       setStatus(S.steps[2]);
@@ -813,7 +1033,7 @@ return { map };`,
         if (b.isError || !b.result?.draftId) throw new Error(String(b.output || "draft failed").slice(0, 800));
         pj = await savePanel(dir, { draftId: b.result.draftId, seconds: b.result.seconds, done: true });
       }
-      const jd = (await readJson(`${dir}/job.json`)) || {};
+      const jd = (await readJson(hostJoin(dir, "job.json"))) || {};
       setResult({ seconds: pj.seconds, fallback: pj.fallback || [], rerolled: pj.rerolled || [], unverified: pj.unverified || [],
         noMusic: !!pj.noMusic, missing: Object.values(jd.portraits || {}).filter((v: any) => !v.ok).map((v: any) => v.name) });
       setStep(7);
@@ -832,10 +1052,11 @@ return { map };`,
   }
 
   const secs = busy && t0 ? Math.round((Date.now() - t0) / 1000) : 0;
+  const macOnly = hostIsWindows();
 
   return (
     <ui.Stack gap={16}>
-      {IS_WIN && <ui.Message tone="error">{S.macOnly}</ui.Message>}
+      {macOnly && <ui.Message>{S.macOnly}</ui.Message>}
       <ui.Section title={S.sourceTitle}>
         <ui.Tabs
           value={mode}
@@ -847,7 +1068,7 @@ return { map };`,
         />
         <ui.NumberField label={S.target} value={target} onChange={(v: number) => setTarget(Math.max(20, Math.min(120, Math.round(v))))} min={20} max={120} step={5} unit="s" disabled={!!busy} />
         <ui.Actions>
-          <ui.Button variant={plan ? "secondary" : "primary"} busy={busy === "plan"} busyLabel={S.planning} disabled={!!busy || IS_WIN} onClick={makePlan}>
+          <ui.Button variant={plan ? "secondary" : "primary"} busy={busy === "plan"} busyLabel={S.planning} disabled={!!busy || macOnly} onClick={makePlan}>
             {plan ? S.redo : S.makePlan}
           </ui.Button>
         </ui.Actions>
@@ -883,7 +1104,7 @@ return { map };`,
           </div>
           {check?.warnings?.length > 0 && <ui.Message tone="muted">{S.warnings}: {check.warnings.join(" / ")}</ui.Message>}
           <ui.Actions>
-            <ui.Button variant="primary" busy={busy === "make"} busyLabel={S.producing} disabled={!!busy || !!result} onClick={() => produce()}>
+            <ui.Button variant="primary" busy={busy === "make"} busyLabel={S.producing} disabled={!!busy || !!result || macOnly} onClick={() => produce()}>
               {S.produce}
             </ui.Button>
           </ui.Actions>
@@ -931,7 +1152,7 @@ return { map };`,
           <ui.Message tone="error">{error}</ui.Message>
           {job && !busy && (
             <ui.Actions>
-              <ui.Button variant="secondary" onClick={() => (plan ? produce(job) : makePlan())}>
+              <ui.Button variant="secondary" disabled={macOnly} onClick={() => (plan ? produce(job) : makePlan())}>
                 {S.retry}
               </ui.Button>
             </ui.Actions>
@@ -944,7 +1165,7 @@ return { map };`,
           {jobs.map((j) => (
             <ui.Row key={j.id} align="center">
               <small style={{ minWidth: 0, flex: 1 }}>{j.title}</small>
-              <ui.Button variant="ghost" onClick={() => produce(j)}>
+              <ui.Button variant="ghost" disabled={macOnly} onClick={() => produce(j)}>
                 {S.resume}
               </ui.Button>
               <ui.IconButton icon="close" label={S.dismiss} onClick={() => dismiss(j)} />

@@ -4,7 +4,7 @@ The Plugin Library places `panel.tsx` at `SELECTS_USER_PANELS_ROOT/vox-explainer
 
 ## Requirements
 
-- macOS and Selects 2.0.512 or later.
+- macOS and Selects 2.0.512 or later. Windows is not supported yet: the bundled engine is a Python script run through the macOS shell. On Windows the panel opens and says "Available on macOS for now".
 - Python 3.9 or later. macOS provides it with the Command Line Tools; if the app reports that Python is missing, run `xcode-select --install` in Terminal.
 
 ## Check
