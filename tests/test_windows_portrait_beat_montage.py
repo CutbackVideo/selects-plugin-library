@@ -94,7 +94,7 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         build = body(self.text, 'async function buildMontage(', '\n}\n')
         guard = build.find(WINDOWS_GUARD + 'language)')
         self.assertGreater(guard, -1)
-        for later in ('setStep(0)', 'pipeline(', 'renderUnits(', 'importFiles', 'createDraft'):
+        for later in ('pbmWindowsMontage(', 'macMontage(', 'importFiles', 'createDraft'):
             with self.subTest(later=later):
                 self.assertLess(guard, build.index(later))
 
@@ -129,6 +129,23 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         self.assertNotRegex(source, r'\[\s*"ffmpeg"|\[\s*"ffprobe"|Popen\(\["ffmpeg"')
         self.assertIn('os.environ.get("POSTCARD_CUTOUT_RVM_" + name.upper())', source)
         self.assertNotIn('brew', (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8').lower())
+
+    def test_windows_engine_is_portable_and_mac_build_is_mac_only(self):
+        engine = body(self.text, '// pbm-engine:start', '// pbm-engine:end')
+        for name in ('async function pbmPlan(', 'async function pbmUnits(', 'async function pbmAssemble(',
+                     'function pbmWorkerKernels(', 'async function pbmWindowsMontage(', 'async function pbmMattesFromAlpha('):
+            with self.subTest(name=name):
+                self.assertIn(name, engine)
+        self.assertNotIn('runShell', engine)
+        self.assertIn('"-nostdin"', engine)
+        regions = '\n'.join(m.group(0) for m in MAC_ONLY.finditer(self.text))
+        self.assertIn('async function macMontage(', regions)
+        self.assertTrue(self.text[self.text.index('async function macMontage('):].split('\n')[1].lstrip().startswith(WINDOWS_GUARD))
+        build = body(self.text, 'async function buildMontage(', '\n}\n')
+        self.assertIn('hostIsWindows() ? await pbmWindowsMontage(', build)
+        # One video stream per shot source, also when a clip has a timecode track.
+        self.assertIn('"-pix_fmt", "yuv420p", "-write_tmcd", "0", out]', self.text)
+        self.assertIn('"-pix_fmt", "yuv420p", "-write_tmcd", "0", str(source)]', (PLUGIN / 'pipeline.py').read_text(encoding='utf-8'))
 
     def test_manifest_and_docs(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))

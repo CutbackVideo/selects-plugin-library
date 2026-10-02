@@ -376,7 +376,7 @@ def op_unit(args):
     source = folder / "source.mp4"
     vf = crop_filter(unit["width"], unit["height"]) + f",scale={W}:{H},minterpolate=fps={FPS}:mi_mode=mci"
     run([FFMPEG, "-y", "-v", "error", "-ss", str(unit["start"]), "-i", unit["path"], "-vf", vf,
-         "-frames:v", str(SRC_FRAMES), "-an", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p", str(source)])
+         "-frames:v", str(SRC_FRAMES), "-an", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p", "-write_tmcd", "0", str(source)])
     frames = decode(source, SRC_FRAMES)
     alpha = mattes(source, folder)
     plate = background_plate(frames[0], alpha[0])
