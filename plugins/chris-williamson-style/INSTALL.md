@@ -5,7 +5,8 @@ Draft authoring and frame capture. Legacy cleanup also needs the mapped Sequence
 
 Windows: shot detection and B-roll preparation run inside the panel on the ffmpeg bundled with Selects; nothing
 else is installed. There is no face detection on Windows, so the speaker is centre-cropped to 9:16 (the run report
-says so). Without libx264 in that ffmpeg, B-roll cutaways are encoded as MPEG-4 instead of H.264. Not yet verified
+says so). Without libx264 in that ffmpeg, B-roll cutaways are encoded as MPEG-4 instead of H.264. B-roll candidates are downloaded
+with a 25 MB and 25-second limit (a larger video is cut to its first 15 seconds by that ffmpeg), as on macOS. Not yet verified
 on a real Windows machine.
 
 Requirements on macOS:
