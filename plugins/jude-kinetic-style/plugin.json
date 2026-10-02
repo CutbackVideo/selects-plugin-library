@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "jude-kinetic-style",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "name": "Jude Kinetic Style",
   "summary": "Editable red/cream kinetic podcast typography: bold white captions, red italic emphasis, a cream card, lines behind the speaker and a background music bed (Kevin MacLeod, CC BY 4.0).",
   "status": "experimental",
@@ -16,11 +16,13 @@
     "runtime.sh",
     "vision-helper.js",
     "fonts/Poppins-OFL.txt",
-    "fonts/PlayfairDisplay-OFL.txt"
+    "fonts/PlayfairDisplay-OFL.txt",
+    "assets/dark-hallway-distressed.mp3.b64"
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Requires Panel runScript/runShell/askAI and editable motion graphics. Development build only; released-version compatibility is unverified."
   },

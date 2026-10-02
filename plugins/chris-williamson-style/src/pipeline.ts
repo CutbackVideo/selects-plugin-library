@@ -2,26 +2,38 @@
 async function probeFrameSizes(env:Env,files:Record<string,any>){
   for(const f of Object.values(files||{}) as any[]){
     if(!f?.path||f.frameSize?.width)continue;
-    try{const s=JSON.parse(await env.runShell(q(env.ffmpeg.replace(/ffmpeg$/,'ffprobe'))+' -v error -select_streams v:0 -show_entries stream=width,height:stream_side_data=rotation -of json '+q(f.path),'Read the footage size',30000)).streams?.[0];
+    try{const s=JSON.parse(await ffprobeRun(['-v','error','-select_streams','v:0','-show_entries','stream=width,height:stream_side_data=rotation','-of','json',f.path])).streams?.[0];
       const rot=Math.abs(Number(s?.side_data_list?.find((x:any)=>x.rotation!=null)?.rotation||0))%180;
       if(s?.width&&s?.height)f.frameSize=rot===90?{width:s.height,height:s.width}:{width:s.width,height:s.height};}catch{}
   }
 }
-const stateFile = (env:Env,id:string) => env.dataDir+"/states/"+id.replace(/[^a-zA-Z0-9_-]/g,"")+".json";
+// The background music, downloaded once into the data folder by the host and checked with its ffprobe. On macOS a
+// failed host download is tried once more with curl and a browser user agent, as before.
+async function fetchMusic(env:Env,dir:string,musicPath:string){
+  const fs=hostNeed("FileSystem","downloadFile");
+  mkdirs(dir);
+  let size=0;try{size=fs.existsSync?.(musicPath)?Number(fs.statSync?.(musicPath)?.size||0):0;}catch{size=0;}
+  if(!size)try{await fs.downloadFile(MUSIC.url,musicPath);}catch{/* reported below */}
+  // mac-only:start
+  if(!hostIsWindows()&&!await hostProbeSeconds(musicPath)){await hostRemove(musicPath);try{await env.runShell('curl -L -sS --max-time 240 -A "Mozilla/5.0" -o '+q(musicPath)+' '+q(MUSIC.url),'Fetch the background music',300000);}catch{/* reported below */}}
+  // mac-only:end
+  if(!await hostProbeSeconds(musicPath)){await hostRemove(musicPath);throw new Error("The background music could not be downloaded; check the internet connection and try again.");}
+}
+const stateFile =(env:Env,id:string) => hostJoin(env.dataDir,"states",id.replace(/[^a-zA-Z0-9_-]/g,"")+".json");
 async function readState(env:Env,id:string) {
   let text:string;
   try{text=await env.readText(stateFile(env,id));}catch(e:any){if(/ENOENT|not found|does not exist/i.test(String(e?.message||e)))return null;throw e;}
   const data=JSON.parse(text);if(data.version!==2 || !data.items)throw new Error("Unrecognised run record; refusing to overwrite existing edits.");return data;
 }
 // Mean luma (0-255) and saturation of the caption band of a cutaway over the keyword's own seconds, read with
-// ffmpeg's signalstats, so the letter fill can be chosen from the picture instead of guessed.
+// ffmpeg's signalstats, so the letter fill can be chosen from the picture instead of guessed. The values are printed
+// to ffmpeg's log (no file paths inside the filter graph).
 async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:string):Promise<{y:number;sat:number}|null> {
-  const out=jobDir+"/band-"+tag.replace(/[^a-zA-Z0-9_-]/g,"");
-  const vf="crop=iw*0.76:ih*0.135:iw*0.12:ih*0.4325,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file="+q(out+".y")+",metadata=print:key=lavfi.signalstats.SATAVG:file="+q(out+".s");
+  const vf="crop=iw*0.76:ih*0.135:iw*0.12:ih*0.4325,signalstats,metadata=print:key=lavfi.signalstats.YAVG,metadata=print:key=lavfi.signalstats.SATAVG";
   try {
-    await env.runShell(q(env.ffmpeg)+" -v error -y -t "+Math.max(0.2,seconds).toFixed(2)+" -i "+q(path)+" -vf "+q(vf)+" -f null -","Measure footage under the keyword",60000);
-    const mean=async(file:string,key:string)=>{const v=(await env.readText(file)).split("\n").map(l=>l.match(new RegExp(key+"=([0-9.]+)"))).filter(Boolean).map(m=>Number(m![1]));return v.length?v.reduce((a,b)=>a+b,0)/v.length:NaN;};
-    const y=await mean(out+".y","YAVG"),sat=await mean(out+".s","SATAVG");
+    const log=(await ffmpegRun(["-nostdin","-v","info","-y","-t",Math.max(0.2,seconds).toFixed(2),"-i",path,"-vf",vf,"-f","null","-"])).stderr;
+    const mean=(key:string)=>{const v=[...log.matchAll(new RegExp("lavfi\\.signalstats\\."+key+"=([0-9.]+)","g"))].map(m=>Number(m[1]));return v.length?v.reduce((a,b)=>a+b,0)/v.length:NaN;};
+    const y=mean("YAVG"),sat=mean("SATAVG");
     return Number.isFinite(y)&&Number.isFinite(sat)?{y:Math.round(y),sat:Math.round(sat)}:null;
   } catch { return null; }
 }
@@ -52,7 +64,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   }
   const legacy=existing.graphics.some((g:any)=>g.name===PREFIX+"Captions");
   if(legacy&&!state&&(scope==='preserve'||scope==='broll'))throw new Error("This is a legacy Chris Draft. Choose Replace captions or Rebuild all, preferably on a copy. The old combined caption cannot be separated while preserving unknown manual parameter edits.");
-  await env.runShell("mkdir -p "+q(env.dataDir+"/states"),"Prepare run records",10000);
+  mkdirs(hostJoin(env.dataDir,"states"));
   let draftId=sequenceId;
   if(options.copy && !state?.pending) {
     const name=String(src.name||"Draft").replace(SUFFIX,"")+SUFFIX;
@@ -77,9 +89,9 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   }
   const newRun=!state || !state.pending;
   const job=String(draftId).slice(0,8)+"-"+Date.now().toString(36);
-  const jobDir=newRun?env.dataDir+"/runs/"+job:state.jobDir;
+  const jobDir=newRun?hostJoin(env.dataDir,"runs",job):state.jobDir;
   const mediaFolder=newRun?"Chris Williamson Style "+job:state.mediaFolder;
-  await env.runShell("mkdir -p "+q(jobDir+"/"+mediaFolder),"Prepare working media",10000);
+  mkdirs(hostJoin(jobDir,mediaFolder));
   state=state||{version:2,items:{},keys:null};
   if(!newRun)scope=state.scope;
   state={...state,draftId,projectId,signature,jobDir,mediaFolder,pending:true,scope};
@@ -90,7 +102,13 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     for(const item of Object.values(state.items) as any[])if(item.status==='applied'&&!idSet.has(item.clipId))item.status='deleted';
   }
   await save();
-  const engine=async(cmd:string,file:string,summary:string,timeoutMs:number)=>env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),summary,timeoutMs);
+  // engine.mjs on Node.js (macOS); on Windows the same commands in the panel (cwEngine).
+  const engine=async(cmd:string,file:string,summary:string,timeoutMs:number)=>{
+    if(hostIsWindows()){await cwEngine(env,cmd,file);return;}
+    // mac-only:start
+    await env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),summary,timeoutMs);
+    // mac-only:end
+  };
   // Replanning is explicit. Captions-only and B-roll-only updates retain the established keyword slots.
   if(!state.keys || scope==='all' && !state.completed.includes('plan')) {
     env.status("Planning keywords…");
@@ -126,9 +144,10 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   report.warnings.push(...(state.assetWarnings||[]).filter((w:string)=>!report.warnings.includes(w)));
   const assets:any[]=state.assets||[];
   // Import and file only when new assets exist. Project writes are separate from Draft commits.
-  if(needsAssets&&assets.some(a=>a.path.startsWith(jobDir+'/'))&&!state.completed.includes('import')) {
+  if(needsAssets&&assets.some(a=>pathKey(a.path).startsWith(pathKey(jobDir)+'/'))&&!state.completed.includes('import')) {
     const imported=await env.runScript(`const p=selects.project(${JSON.stringify(projectId)});return await p.sourceFiles();`,"Check imported run media");
-    if(!JSON.stringify(imported).includes(jobDir+"/"+mediaFolder))await env.runScript(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(jobDir+"/"+mediaFolder)}]});`,"Import verified B-roll",true);
+    const runMedia=hostJoin(jobDir,mediaFolder);
+    if(!treePaths(imported).some(p=>pathKey(p).startsWith(pathKey(runMedia))))await env.runScript(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(runMedia)}]});`,"Import verified B-roll",true);
     await env.runScript(`const p=selects.project(${JSON.stringify(projectId)});const f=await p.readFootage();const media=f.folders.find(x=>x.name===${JSON.stringify(mediaFolder)});let home=f.folders.find(x=>x.name==='Chris'&&!String(x.path).includes('/'));const id=home?home.folderId:(await p.createFolder({name:'Chris'})).folderId;if(media&&!String(media.path).startsWith('Chris/'))await p.moveToFolder({targetFolderId:id,folderIds:[media.folderId]});return true;`,"File verified media under Chris",true);
     state.completed.push('import');await save();
   }
@@ -162,20 +181,20 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     // Main-only splitting is not exposed by this SDK. Never razor unrelated overlays.
     const hasOverlays=existing.clips.some((c:any)=>c.trackKind==='video'||c.trackKind==='audio')||existing.graphics.length>0;
     if(!hasOverlays && !state.completed.includes('shots')) {
-      const shotsFile=jobDir+'/shots.json';
+      const shotsFile=hostJoin(jobDir,'shots.json');
       await env.writeText(shotsFile,JSON.stringify({shots:{ffmpeg:env.ffmpeg,threshold:0.3,ranges:mains.filter(m=>m.sourceStartSeconds!=null).map((m,i)=>({key:String(i),path:src.files[m.resourceId].path,startSeconds:m.sourceStartSeconds,seconds:(m.endFrame-m.startFrame)/fps}))}}));
       await engine('shots',shotsFile,'Find source camera changes',240000);
-      const cuts=JSON.parse(await env.readText(jobDir+'/shots-result.json')).cuts;
+      const cuts=JSON.parse(await env.readText(hostJoin(jobDir,'shots-result.json'))).cuts;
       const splitFrames=mains.flatMap((m,i)=>(cuts[String(i)]||[]).map((t:number)=>m.startFrame+Math.round(t*fps))).filter((f:number)=>f>0&&f<total);
       if(splitFrames.length)await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const starts=new Set((await d.clips({trackScope:'main'})).map(c=>c.startFrame));for(const f of ${JSON.stringify(splitFrames)})if(!starts.has(f))await d.splitAt({frame:f});await d.commitAll('Chris Williamson Style: measured camera cuts')${COMMIT_OK};return true;`,"Split measured camera changes",true);
       state.completed.push('shots');await save();
     }
     const freshDraft=await readDraft(env,projectId,draftId);mains.splice(0,mains.length,...freshDraft.mains);
-    const faceFile=jobDir+'/faces.json';
+    const faceFile=hostJoin(jobDir,'faces.json');
     const samples=mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[0.25,0.5,0.75].map(f=>({key:i+':'+f,path:src.files[m.resourceId].path,seconds:m.sourceStartSeconds!+(m.endFrame-m.startFrame)/fps*f})));
     await env.writeText(faceFile,JSON.stringify({ffmpeg:env.ffmpeg,faces:{samples}}));
     await engine('faces',faceFile,'Measure framing',240000);
-    const faces=JSON.parse(await env.readText(jobDir+'/faces-result.json')).detected||{};
+    const faces=JSON.parse(await env.readText(hostJoin(jobDir,'faces-result.json'))).detected||{};
     // Every Main clip is reframed to 9:16; a clip with no measured face is covered from a centred default.
     const framed=mains.map((m,i)=>{const ff=[0.25,0.5,0.75].map(f=>faces[i+':'+f]).filter(r=>r?.faces?.length);const face=ff.length?[0,1,2,3].map(k=>median(ff.map(r=>r.faces[0][k]))):[0.25,0.2,0.5,0.3];const probe=Object.keys(faces).filter(k=>k.startsWith(i+':')).map(k=>faces[k]).find(r=>r?.w);const size=src.files[m.resourceId].frameSize||(probe?{width:probe.w,height:probe.h}:null);if(!size)return null;return {start:m.startFrame,t:headFraming(face,size.width,size.height,ff.length&&i%2?STYLE.head.tight:1),zoomIn:i%2===0};}).filter(Boolean);
     if(framed.length<mains.length)report.warnings.push(`${mains.length-framed.length} clip(s) were not reframed: their source size could not be read.`);
@@ -201,21 +220,21 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     state.items[id]={category:'broll',status:'pending'};await save();
     const made=await env.runScript(`const S:any=selects;const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});${RESOLVE_PATHS}
 const clips=await d.clips({trackScope:'all'});let found;for(const c of clips)if(c.trackKind==='video'&&c.resourceId&&(await d.videoEffects(c)).some(e=>e.name===${JSON.stringify(label)})){found=c;break;}
-if(found)return {clipId:found.clipId};const resource=idByPath[${JSON.stringify(asset.path)}];if(!resource)throw Error('Verified media is not imported');const before=new Set(clips.map(c=>c.clipId));await d.overlayResource({resource:project.resource(resource),over:await d.rangeAtFrames(${b.start},${b.end})});let fresh=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId));const audio=fresh.filter(c=>c.trackKind==='audio');if(audio.length)await d.removeClips(audio);const c=(await d.clips({trackScope:'all'})).find(c=>!before.has(c.clipId)&&c.trackKind==='video')!;await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.stringify(BROLL_TSX)},parameters:{clipStart:0,clipFrames:c.endFrame-c.startFrame,zoom:${asset.kind==='video'?0:0.12},zoomIn:true,originX:50,originY:50,warmth:0.8,vignette:0.5,keyText:''},editableParameters:${JSON.stringify(BROLL_PARAMS.filter(p=>!['keyText','fontFamily','keywordSize','captionY','fillBlur','fillWhite'].includes(p.key)))}});await d.commitAll('Chris Williamson Style: verified B-roll');return {clipId:c.clipId};`,"Place verified B-roll",true);
+if(found)return {clipId:found.clipId};const resource=idByPath[__pk(${JSON.stringify(asset.path)})];if(!resource)throw Error('Verified media is not imported');const before=new Set(clips.map(c=>c.clipId));await d.overlayResource({resource:project.resource(resource),over:await d.rangeAtFrames(${b.start},${b.end})});let fresh=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId));const audio=fresh.filter(c=>c.trackKind==='audio');if(audio.length)await d.removeClips(audio);const c=(await d.clips({trackScope:'all'})).find(c=>!before.has(c.clipId)&&c.trackKind==='video')!;await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.stringify(BROLL_TSX)},parameters:{clipStart:0,clipFrames:c.endFrame-c.startFrame,zoom:${asset.kind==='video'?0:0.12},zoomIn:true,originX:50,originY:50,warmth:0.8,vignette:0.5,keyText:''},editableParameters:${JSON.stringify(BROLL_PARAMS.filter(p=>!['keyText','fontFamily','keywordSize','captionY','fillBlur','fillWhite'].includes(p.key)))}});await d.commitAll('Chris Williamson Style: verified B-roll');return {clipId:c.clipId};`,"Place verified B-roll",true);
     state.items[id]={category:'broll',status:'applied',clipId:made.clipId,label};await save();
   }
   // Background music under the speech: one shared file in the plugin data folder, imported once, placed
   // across the whole Draft at a low level with fades. Kept on Preserve; replaced on Rebuild all.
   if(options.music!==false && !(state.items['music']&&state.items['music'].status!=='pending')) {
     env.status('Adding the background music…');
-    const musicPath=env.dataDir+'/music/'+MUSIC.file;
-    await env.runShell('mkdir -p '+q(env.dataDir+'/music')+' && { [ -s '+q(musicPath)+' ] || curl -L -sS --max-time 240 -A "Mozilla/5.0" -o '+q(musicPath)+' '+q(MUSIC.url)+'; } && '+q(env.ffmpeg.replace(/ffmpeg$/,'ffprobe'))+' -v error -show_entries format=duration -of csv=p=0 '+q(musicPath),'Fetch the background music',300000);
+    const musicPath=hostJoin(env.dataDir,'music',MUSIC.file);
+    await fetchMusic(env,hostJoin(env.dataDir,'music'),musicPath);
     const label=PREFIX+MUSIC.title+' [cws:music]';
     const level=Math.max(-40,Math.min(0,Number(options.musicDb??MUSIC.levelDb)));
     state.items['music']={category:'music',status:'pending'};await save();
     const made=await env.runScript(`const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});${RESOLVE_PATHS}
-let rid=idByPath[${JSON.stringify(musicPath)}];
-if(!rid){await project.importFiles({paths:[${JSON.stringify(musicPath)}]});const tree:any=await project.sourceFiles();const walk=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')walk(n.children);else if(n.path===${JSON.stringify(musicPath)})rid=n.resourceId;}};if(tree.fileTree)walk(tree.fileTree);else for(const f of tree.folders||[])walk(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);
+let rid=idByPath[__pk(${JSON.stringify(musicPath)})];
+if(!rid){await project.importFiles({paths:[${JSON.stringify(musicPath)}]});const tree:any=await project.sourceFiles();const walk=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')walk(n.children);else if(__pk(n.path)===__pk(${JSON.stringify(musicPath)}))rid=n.resourceId;}};if(tree.fileTree)walk(tree.fileTree);else for(const f of tree.folders||[])walk(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);
   const foot=await project.readFootage();let home=foot.folders.find((x:any)=>x.name==='Chris'&&!String(x.path).includes('/'));const id=home?home.folderId:(await project.createFolder({name:'Chris'})).folderId;if(rid)await project.moveToFolder({targetFolderId:id,resourceIds:[rid]});}
 if(!rid)throw Error('The background music could not be imported.');return {rid};`,'Import the background music',true);
     const placed=await env.runScript(`const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});
@@ -228,7 +247,7 @@ await d.commitAll('Chris Williamson Style: background music');return {clipId:aud
     state.items['music']={category:'music',status:'applied',clipId:placed.clipId,label,levelDb:level};await save();
     report.music={title:MUSIC.title,artist:MUSIC.artist,license:MUSIC.license,credit:MUSIC.credit,levelDb:level};
   }
-  const fontCss=await env.readText(env.pluginDir+'/fonts/font.css');
+  const fontCss=await env.readText(hostJoin(env.pluginDir,'fonts','font.css'));
   const cues=captionCues(words,keys,fps,total);state.cues=cues;
   // A keyword shrunk by the fit check below keeps its new size on a resumed run.
   const sizeOf=(cue:Cue)=>state.keywordSizes?.[cue.id]??cue.key?.size??keywordSize(cue.text);
@@ -244,7 +263,7 @@ await d.commitAll('Chris Williamson Style: background music');return {clipId:aud
       state.items[cue.id]={category:'captions',status:'pending'};await save();
       const made=await env.runScript(`const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});${RESOLVE_PATHS}
 const clips=await d.clips({trackScope:'all'});for(const c of clips)if(c.trackKind==='video'&&c.resourceId&&(await d.videoEffects(c)).some(e=>e.name===${JSON.stringify(label)}))return {clipId:c.clipId};
-const resource=idByPath[${JSON.stringify(asset.path)}];if(!resource)throw Error('Keyword media is not imported');const before=new Set(clips.map(c=>c.clipId));await d.overlayResource({resource:project.resource(resource),over:await d.rangeAtFrames(${cue.start},${cue.end})});const aud=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId)&&c.trackKind==='audio');if(aud.length)await d.removeClips(aud);const c=(await d.clips({trackScope:'all'})).find(c=>!before.has(c.clipId)&&c.trackKind==='video')!;
+const resource=idByPath[__pk(${JSON.stringify(asset.path)})];if(!resource)throw Error('Keyword media is not imported');const before=new Set(clips.map(c=>c.clipId));await d.overlayResource({resource:project.resource(resource),over:await d.rangeAtFrames(${cue.start},${cue.end})});const aud=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId)&&c.trackKind==='audio');if(aud.length)await d.removeClips(aud);const c=(await d.clips({trackScope:'all'})).find(c=>!before.has(c.clipId)&&c.trackKind==='video')!;
 await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.stringify(BROLL_TSX)},parameters:${JSON.stringify({keywordOnly:true,text:cue.text,keyStart:0,keyEnd:cue.end-cue.start,clipFrames:(reel.brolls.find(b=>b.start===cue.start)?.end||cue.end)-cue.start,zoom:asset.kind==='video'?0:0.12,zoomIn:true,originX:50,originY:50,warmth:0.8,fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:sizeOf(cue),captionY:50,fillBlur:10,...fill,...(state.keywordCarry?.[cue.id]||{})})},editableParameters:${JSON.stringify(FOOTAGE_KEYWORD_PARAMS)}});await d.commitAll('Chris Williamson Style: editable footage keyword');return {clipId:c.clipId};`, 'Add editable footage keyword',true);
       state.items[cue.id]={category:'captions',status:'applied',clipId:made.clipId,label,resourceKeyword:true,band,fill};await save();return;
     }
@@ -294,5 +313,5 @@ await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.str
   report.counts.longestSpeakerSeconds=Math.round(longest/fps*10)/10;
   if(longest/fps>8)report.warnings.push(`The speaker stays on screen for ${report.counts.longestSpeakerSeconds} s without B-roll at one point; no usable picture was found there.`);
   report.seconds=Math.round((Date.now()-t0)/1000);report.jobDir=jobDir;report.name=src.name;
-  await env.writeText(jobDir+'/report.json',JSON.stringify(report,null,2));return report;
+  await env.writeText(hostJoin(jobDir,'report.json'),JSON.stringify(report,null,2));return report;
 }

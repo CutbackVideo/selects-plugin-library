@@ -15,7 +15,7 @@ export default function Caption({data = {}}: {data?: Record<string, any>}) {
   const size = Number(data.fontSize || 53) * scale;
   return <AbsoluteFill style={{pointerEvents: "none"}}>
     {data.fontCss && <style>{String(data.fontCss)}</style>}
-    <div style={{position: "absolute", left: "3%", width: "94%", top: Number(data.captionY ?? 50) + "%", transform: "translateY(-50%)", textAlign: "center", fontFamily: '"' + family + '"', fontWeight: Number(data.fontWeight || 800), color: String(data.color || "#ffffff"), fontSize: size, letterSpacing: Number(data.trackingEm ?? -0.03) + "em", lineHeight: 1.1, whiteSpace: data.keyword ? "nowrap" : "pre-wrap", overflowWrap: data.keyword ? "normal" : "anywhere"}}>
+    <div style={{position: "absolute", left: "3%", width: "94%", top: Number(data.captionY ?? 50) + "%", transform: "translateY(-50%)", textAlign: "center", fontFamily: '"' + family + '", "Helvetica Neue", "Segoe UI", Arial, sans-serif', fontWeight: Number(data.fontWeight || 800), color: String(data.color || "#ffffff"), fontSize: size, letterSpacing: Number(data.trackingEm ?? -0.03) + "em", lineHeight: 1.1, whiteSpace: data.keyword ? "nowrap" : "pre-wrap", overflowWrap: data.keyword ? "normal" : "anywhere"}}>
       {words.map((word, i) => {
         const at = matching ? starts[i] : start + (words.length < 2 ? 0 : span * i / (words.length - 1));
         const age = frame / fps - at;

@@ -35,6 +35,7 @@ const STRINGS = {
     aiFallback: "AI pick unavailable; used motion-only moments.",
     done: (n: number, s: string) => `Created a Draft with ${n} cuts (${s}s).`,
     failed: "Could not create the Draft.",
+    needsNewer: "This template needs a newer version of Selects. Update Selects and try again.",
   },
   ko: {
     title: "\ube60\ub978 \uc804\ud658 \uc2a4\ud1b1\ubaa8\uc158",
@@ -51,6 +52,7 @@ const STRINGS = {
     aiFallback: "AI \uc120\ud0dd\uc744 \uc4f8 \uc218 \uc5c6\uc5b4 \uc6c0\uc9c1\uc784 \uae30\uc900\uc73c\ub85c\ub9cc \uace8\ub790\uc2b5\ub2c8\ub2e4.",
     done: (n: number, s: string) => `\ucef7 ${n}\uac1c(${s}\ucd08)\ub85c Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.`,
     failed: "Draft\ub97c \ub9cc\ub4e4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
+    needsNewer: "\uc774 \ud15c\ud50c\ub9bf\uc744 \uc4f0\ub824\uba74 \ub354 \ucd5c\uc2e0 \ubc84\uc804\uc758 Selects\uac00 \ud544\uc694\ud569\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
   },
   ja: {
     title: "高速切り替えストップモーション",
@@ -67,6 +69,7 @@ const STRINGS = {
     aiFallback: "AI選択を使えなかったため、動きだけで選びました。",
     done: (n: number, s: string) => `${n}カット（${s}秒）のドラフトを作成しました。`,
     failed: "ドラフトを作成できませんでした。",
+    needsNewer: "このテンプレートには新しいバージョンの Selects が必要です。Selects をアップデートしてもう一度お試しください。",
   },
   zh: {
     title: "快速切换定格动画",
@@ -83,6 +86,7 @@ const STRINGS = {
     aiFallback: "无法使用 AI 选择，已仅按动作挑选。",
     done: (n: number, s: string) => `已创建包含 ${n} 个剪辑（${s} 秒）的草稿。`,
     failed: "无法创建草稿。",
+    needsNewer: "此模板需要更新版本的 Selects。请更新 Selects 后重试。",
   },
   de: {
     title: "Schneller Wechsel Stop-Motion",
@@ -99,6 +103,7 @@ const STRINGS = {
     aiFallback: "KI-Auswahl nicht verfügbar; Momente nur nach Bewegung gewählt.",
     done: (n: number, s: string) => `Entwurf mit ${n} Schnitten (${s} s) erstellt.`,
     failed: "Der Entwurf konnte nicht erstellt werden.",
+    needsNewer: "Diese Vorlage benötigt eine neuere Version von Selects. Aktualisiere Selects und versuche es erneut.",
   },
   es: {
     title: "Stop motion de cambio rápido",
@@ -115,6 +120,7 @@ const STRINGS = {
     aiFallback: "La selección con IA no está disponible; se usaron solo momentos por movimiento.",
     done: (n: number, s: string) => `Borrador creado con ${n} cortes (${s} s).`,
     failed: "No se pudo crear el borrador.",
+    needsNewer: "Esta plantilla necesita una versión más reciente de Selects. Actualiza Selects y vuelve a intentarlo.",
   },
   fr: {
     title: "Stop motion à changement rapide",
@@ -131,6 +137,7 @@ const STRINGS = {
     aiFallback: "Sélection par IA indisponible ; moments choisis selon le mouvement uniquement.",
     done: (n: number, s: string) => `Brouillon créé avec ${n} plans (${s} s).`,
     failed: "Impossible de créer le brouillon.",
+    needsNewer: "Ce modèle nécessite une version plus récente de Selects. Mettez Selects à jour et réessayez.",
   },
   it: {
     title: "Stop motion a cambio rapido",
@@ -147,6 +154,7 @@ const STRINGS = {
     aiFallback: "Selezione IA non disponibile; momenti scelti solo in base al movimento.",
     done: (n: number, s: string) => `Bozza creata con ${n} tagli (${s} s).`,
     failed: "Impossibile creare la bozza.",
+    needsNewer: "Questo modello richiede una versione più recente di Selects. Aggiorna Selects e riprova.",
   },
   pt: {
     title: "Stop motion de troca rápida",
@@ -163,6 +171,7 @@ const STRINGS = {
     aiFallback: "Seleção por IA indisponível; momentos escolhidos só pelo movimento.",
     done: (n: number, s: string) => `Rascunho criado com ${n} cortes (${s} s).`,
     failed: "Não foi possível criar o rascunho.",
+    needsNewer: "Este modelo precisa de uma versão mais recente do Selects. Atualize o Selects e tente novamente.",
   },
   tr: {
     title: "Hızlı Geçişli Stop Motion",
@@ -179,6 +188,7 @@ const STRINGS = {
     aiFallback: "Yapay zekâ seçimi kullanılamadı; anlar yalnızca harekete göre seçildi.",
     done: (n: number, s: string) => `${n} kesimli (${s} sn) bir taslak oluşturuldu.`,
     failed: "Taslak oluşturulamadı.",
+    needsNewer: "Bu şablon Selects'in daha yeni bir sürümünü gerektiriyor. Selects'i güncelleyip tekrar deneyin.",
   },
 };
 
@@ -200,17 +210,179 @@ const PLUGIN_ID = "fast-switching-stopmotion";
 const MUSIC_FILE = "assets/music.mp3";
 const CANDIDATES = 6;
 
-const shq = (v: string) => `'${v.replace(/'/g, `'\\''`)}'`;
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
 
-// One motion value per frame: difference to the previous frame.
-async function motionSeries(sdk, path: string): Promise<number[]> {
-  const r = await sdk.runShell({
-    summary: "Measure motion",
-    command: `ffmpeg -v error -i ${shq(path)} -vf "scale=64:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-" -f null - | grep -o 'YAVG=[0-9.]*' | cut -d= -f2 | tr '\\n' ' '`,
-    timeoutMs: 60000,
-  });
-  if (r.isError || r.exitCode !== 0) throw new Error(r.stderr || r.output);
-  return r.stdout.trim().split(/\s+/).map(Number).filter((x) => Number.isFinite(x));
+// The host's bundled ffmpeg with an argv array (no shell), stopped after `timeoutMs`.
+async function ffmpeg(args: string[], timeoutMs: number) {
+  const rt = hostNeed("Runtime", "runFFmpeg");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const r = await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", ...args], true, controller ? controller.signal : undefined);
+    return { stdout: String(r?.stdout || ""), stderr: String(r?.stderr || "") };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+// A path as a filter option value inside a filtergraph: escaped once for the
+// option (\ ' :) and once for the graph (\ ' [ ] , ;), so a Windows path such
+// as C:\Users\... reaches the filter intact.
+const filterPath = (p: string) => p.replace(/[\\':]/g, (c) => "\\" + c).replace(/[\\'\[\],;]/g, (c) => "\\" + c);
+
+// A unique ASCII file name for a temporary file in the data folder.
+const tempName = (prefix: string, ext: string) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`;
+
+// The YAVG values in ffmpeg's metadata=print output, in frame order.
+function parseYavg(text: string): number[] {
+  return Array.from(String(text).matchAll(/YAVG=([0-9.]+)/g), (m) => Number(m[1])).filter((x) => Number.isFinite(x));
+}
+
+// One motion value per frame: difference to the previous frame. The values go
+// to a temporary file in the data folder (or to stdout without one).
+async function motionSeries(path: string, dataDir: string | null): Promise<number[]> {
+  const tmp = dataDir ? hostJoin(dataDir, tempName("motion", "txt")) : null;
+  const graph = "scale=64:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=" + (tmp ? filterPath(tmp) : "-");
+  try {
+    const r = await ffmpeg(["-i", path, "-vf", graph, "-f", "null", "-"], 60000);
+    return parseYavg(tmp ? await hostReadText(tmp) : r.stdout);
+  } finally {
+    if (tmp) await hostRemove(tmp);
+  }
+}
+
+// Bytes as base64, in slices so a large image never overflows the argument list.
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let at = 0; at < bytes.length; at += 0x8000) bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(at, at + 0x8000)));
+  return btoa(bin);
 }
 
 // Candidate window starts (seconds): the take is split into CANDIDATES equal
@@ -238,7 +410,7 @@ function shortlist(series: number[], fps: number, cut: number, seconds: number) 
 }
 
 // A grid image: one row per video, one column per candidate moment.
-async function contactSheet(sdk, rows: { path: string; starts: number[] }[], cut: number): Promise<string> {
+async function contactSheet(rows: { path: string; starts: number[] }[], cut: number, dataDir: string | null): Promise<string> {
   const cols = Math.max(...rows.map((r) => r.starts.length));
   const inputs: string[] = [];
   const cells: string[] = [];
@@ -246,38 +418,25 @@ async function contactSheet(sdk, rows: { path: string; starts: number[] }[], cut
   rows.forEach((row, r) => {
     for (let c = 0; c < cols; c++) {
       const t = row.starts[Math.min(c, row.starts.length - 1)] + cut / 2;
-      inputs.push(`-ss ${t.toFixed(3)} -i ${shq(row.path)}`);
+      inputs.push("-ss", t.toFixed(3), "-i", row.path);
       cells.push(`[${i}:v]scale=150:266:force_original_aspect_ratio=decrease,pad=150:266,trim=end_frame=1,setsar=1[c${i}]`);
       i++;
     }
   });
   const rowsF = rows.map((_, r) => `${Array.from({ length: cols }, (_, c) => `[c${r * cols + c}]`).join("")}hstack=${cols}[r${r}]`);
   const graph = [...cells, ...rowsF, `${rows.map((_, r) => `[r${r}]`).join("")}vstack=${rows.length}[out]`].join(";");
-  // Shell output is capped (48KB), so write the sheet to a file and read its
-  // base64 back in chunks. Each shell call gets its own temp dir, so the file
-  // lives in this panel's asset folder instead.
-  const dataDir = `"$HOME/.selects/plugin-data/${PLUGIN_ID}"`;
-  const file = `"$HOME/.selects/plugin-data/${PLUGIN_ID}/sheet.jpg"`;
-  const made = await sdk.runShell({
-    summary: "Build moment contact sheet",
-    command: `mkdir -p ${dataDir} && ffmpeg -v error -y ${inputs.join(" ")} -filter_complex "${graph}" -map "[out]" -frames:v 1 -q:v 7 ${file} && base64 < ${file} | tr -d '\\n' | wc -c`,
-    timeoutMs: 60000,
-  });
-  if (made.isError || made.exitCode !== 0) throw new Error(made.stderr || made.output);
-  const total = Number(made.stdout.trim());
-  const CHUNK = 45000;
-  let b64 = "";
-  for (let at = 0; at < total; at += CHUNK) {
-    const part = await sdk.runShell({
-      summary: "Read contact sheet",
-      command: `base64 < ${file} | tr -d '\\n' | cut -c ${at + 1}-${Math.min(at + CHUNK, total)}`,
-      maxOutputBytes: 48 * 1024,
-    });
-    if (part.isError || part.exitCode !== 0) throw new Error(part.stderr || part.output);
-    b64 += part.stdout.trim();
+  // The sheet is written to a temporary file in the plugin's data folder and
+  // read back as bytes.
+  if (!dataDir) throw new Error("no data folder for the contact sheet");
+  const file = hostJoin(dataDir, tempName("sheet", "jpg"));
+  try {
+    await ffmpeg([...inputs, "-filter_complex", graph, "-map", "[out]", "-frames:v", "1", "-q:v", "7", file], 60000);
+    const bytes = await hostReadBytes(file);
+    if (!bytes.length) throw new Error("empty contact sheet");
+    return `data:image/jpeg;base64,${bytesToBase64(bytes)}`;
+  } finally {
+    await hostRemove(file);
   }
-  if (b64.length !== total) throw new Error(`contact sheet read ${b64.length}/${total}`);
-  return `data:image/jpeg;base64,${b64}`;
 }
 
 // Ask the Selects AI which two columns per row are the best moments.
@@ -321,19 +480,29 @@ async function buildStopMotion(
   { projectId, chosen, keepSound, name, onStep = (_: number) => {} }:
     { projectId: string; chosen: Media[]; keepSound: boolean; name: string; onStep?: (step: number) => void }
 ) {
+  // The host tools and the install folder are checked before anything is
+  // created, so a missing piece never leaves a half-made Draft behind.
+  hostNeed("Runtime", "runFFmpeg");
+  hostNeed("FileSystem", "readFile");
+  const { plugin, data } = await hostRoots(sdk, PLUGIN_ID, MUSIC_FILE);
+  const musicPath = hostJoin(plugin, ...MUSIC_FILE.split("/"));
+
   // 1. Find moments: motion shortlist per video, then an AI pick of two.
   onStep(0);
   const cut = CUT_SECONDS;
   const rows = [];
   for (const v of chosen) {
     if (!v.path) throw new Error(`No file path for ${v.name}`);
-    const starts = shortlist(await motionSeries(sdk, v.path), v.fps ?? 30, cut, v.seconds);
+    // Motion unknown (ffmpeg failed) falls back to the fixed moment below.
+    let series: number[] = [];
+    try { series = await motionSeries(v.path, data); } catch (e) { console.warn("[fast-switching-stopmotion] motion:", e); }
+    const starts = shortlist(series, v.fps ?? 30, cut, v.seconds);
     rows.push({ name: v.name, path: v.path, starts: starts.length ? starts : [Math.min(1, v.seconds / 4)] });
   }
   let moments: number[][] | null = null;
   let aiError = "";
   try {
-    moments = await aiPick(sdk, await contactSheet(sdk, rows, cut), rows);
+    moments = await aiPick(sdk, await contactSheet(rows, cut, data), rows);
     if (!moments) aiError = "unreadable AI answer";
   } catch (e) {
     aiError = String(e?.message ?? e).slice(0, 200);
@@ -382,9 +551,6 @@ return { draftId: saved.createdDraftId, cuts: main.length, endFrame: main.reduce
   //    whole Draft. The track ships in this panel's asset folder and is
   //    imported into the Project once.
   onStep(2);
-  const root = await sdk.runShell({ summary: "Locate template music", command: 'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}"' });
-  if (root.isError || !root.stdout) throw new Error(root.stderr || root.output);
-  const musicPath = `${root.stdout.trim()}/${PLUGIN_ID}/${MUSIC_FILE}`;
   // Importing is a Project edit, so it runs in its own call before the
   // Draft edit (one run_script cannot commit both).
   const imported = await sdk.runScript({
@@ -393,11 +559,16 @@ return { draftId: saved.createdDraftId, cuts: main.length, endFrame: main.reduce
     script: `
 const project = selects.project(${JSON.stringify(projectId)});
 const musicPath = ${JSON.stringify(musicPath)};
+// Host paths are compared normalised (NFC, / separators, case-folded on
+// Windows); the fallback matches the install's own folder/assets/file tail.
+const norm = (p) => { const s = String(p).normalize("NFC").replace(/\\\\/g, "/"); return ${JSON.stringify(hostIsWindows())} ? s.toLowerCase() : s; };
+const tail = (p) => norm(p).split("/").slice(-3).join("/");
 const files = {};
-const walk = (nodes) => { for (const n of nodes ?? []) { if (n.path) files[n.path] = n.resourceId; walk(n.children); } };
+const tails = {};
+const walk = (nodes) => { for (const n of nodes ?? []) { if (n.path) { files[norm(n.path)] = n.resourceId; const k = tail(n.path); if (!(k in tails)) tails[k] = n.resourceId; } walk(n.children); } };
 const tree = await project.sourceFiles();
 if ("fileTree" in tree) walk(tree.fileTree);
-const existing = files[musicPath];
+const existing = files[norm(musicPath)] ?? tails[tail(musicPath)];
 if (existing) return existing;
 const added = (await project.importFiles({ paths: [musicPath] })).addedResourceIds[0];
 if (!added) throw new Error("Template music could not be imported: " + musicPath);
@@ -473,7 +644,7 @@ function TemplateRun({ sdk, context }) {
       finish({ sequenceId: made.draftId });
     })().catch((e) => {
       console.warn("[fast-switching-stopmotion] template run failed:", e);
-      const said = String(e?.message ?? "");
+      const said = e?.code === "host-missing" ? t.needsNewer : String(e?.message ?? "");
       finish({ error: said && said.length <= 160 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED });
     });
   }, [runId]);
@@ -585,7 +756,7 @@ function StopMotionPanel({ sdk, context, ui }) {
         text: t.done(made.cuts, (made.endFrame / made.fps).toFixed(1)) + (usedFallback ? ` ${t.aiFallback} (${aiError})` : ""),
       });
     } catch (e) {
-      setStatus({ tone: "error", text: `${t.failed} ${String(e)}` });
+      setStatus({ tone: "error", text: e?.code === "host-missing" ? t.needsNewer : `${t.failed} ${String(e)}` });
     } finally {
       setBusy(false);
       setStep(-1);
