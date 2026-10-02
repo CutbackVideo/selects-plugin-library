@@ -73,7 +73,8 @@ wrong edit.
 - The cut schedule, durations and graphics are fixed; only the footage, the
   title text and the 12 marker boundaries change.
 - 16:9 only, 1920 x 1080.
-- macOS only: the panel locates its bundled sounds with a Unix shell command.
+- Windows: built to run there (no shell command), not yet checked on a Windows
+  machine.
 - The picture is cut from the selected folder without any shot analysis, so
   slot names like "Tram" or "Graffiti street" describe the reference edit, not
   what your clip contains.

@@ -133,3 +133,6 @@ jobs:
           node plugins/selfie-aesthetic/tests/scripts-edit.test.cjs
           node plugins/selfie-aesthetic/tests/scripts-read.test.cjs
           node plugins/selfie-aesthetic/tests/still.test.cjs
+      - name: Test template panels on Windows paths
+        run: |
+          node --test tests/cinema_vlog_studio.test.mjs
