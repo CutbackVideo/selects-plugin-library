@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {loadPanelOperation} from './panel_operation.mjs';
@@ -97,4 +98,68 @@ test('sheet argv and sheet list match engine.py', {skip}, () => {
 test('a Windows font path is escaped for the filtergraph', () => {
   assert.equal(op.voxFilterPath(op.voxSheetFont(true)), 'C\\:/Windows/Fonts/arial.ttf');
   assert.equal(op.voxFilterPath(op.voxSheetFont(false)), FONT);
+});
+
+// Windows Staging: "sheet: ...drawtext=... Error : Invalid argument". The filtergraph parser removes one level of
+// backslashes, so fontfile=C\:/Windows/... splits at the colon; the value is quoted when it has an escaped colon.
+test('a Windows font path is quoted for drawtext; a macOS path is written as engine.py did', () => {
+  assert.equal(op.voxFontOption(op.voxSheetFont(true)), "'C\\:/Windows/Fonts/arial.ttf'");
+  assert.equal(op.voxFontOption(op.voxSheetFont(false)), FONT);
+  const [job] = op.voxSheetJobs(['1a'], () => 'C:\\kf\\1a.png', op.voxSheetFont(true), () => 'C:\\out\\s.jpg');
+  assert.ok(job.args.join(' ').includes("drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='1a'"));
+});
+
+const ffmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
+const anyFont = [FONT, '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/Library/Fonts/Arial Unicode.ttf'].find((f) => fs.existsSync(f));
+test('ffmpeg accepts the sheet with a font under a drive-letter path', {skip: !(ffmpeg && anyFont) && 'ffmpeg and a TTF required'}, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vox-sheet-'));
+  const fontDir = path.join(dir, 'C:', 'Windows', 'Fonts');
+  fs.mkdirSync(fontDir, {recursive: true});
+  const font = path.join(fontDir, 'arial.ttf');
+  fs.copyFileSync(anyFont, font);
+  const kf = path.join(dir, 'kf.png');
+  spawnSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=540x960:rate=1:duration=1', '-frames:v', '1', kf]);
+  const jobs = op.voxSheetJobs(['1a', '1b', '2a'], () => kf, font, (n) => path.join(dir, `sheet_${n}.jpg`));
+  for (const j of jobs) {
+    const r = spawnSync('ffmpeg', j.args, {encoding: 'utf8'});
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(fs.statSync(j.dest).size > 1000);
+  }
+  // The old form (unquoted) is what failed.
+  const old = jobs[0].args.map((a) => a.split(`fontfile=${op.voxFontOption(font)}`).join(`fontfile=${op.voxFilterPath(font)}`));
+  assert.notEqual(spawnSync('ffmpeg', old, {encoding: 'utf8'}).status, 0);
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('a sheet ffmpeg refuses with labels is made once more without them', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vox-sheet-'));
+  fs.writeFileSync(path.join(dir, 'job.json'), JSON.stringify({id: 'vxS'}));
+  fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify({cast: [], beats: [{n: 1, shots: [{id: '1a', cast: [], scene: "A 'sign'"}]}]}));
+  fs.writeFileSync(path.join(dir, 'kf.png'), '');
+  fs.writeFileSync(path.join(dir, 'gen.json'), JSON.stringify({'kf:1a': {path: path.join(dir, 'kf.png')}}));
+  const calls = [];
+  const io = {
+    join: (...p) => path.join(...p), exists: (p) => p === FONT || fs.existsSync(p), mkdir: (p) => fs.mkdirSync(p, {recursive: true}),
+    readJson: async (p, def) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return def; } },
+    writeJson: async (p, v) => fs.writeFileSync(p, JSON.stringify(v)), now: () => 1700000000, sheetFont: () => FONT,
+    ffmpeg: async (args) => { calls.push(args); if (args.join(' ').includes('drawtext')) throw new Error('Error : Invalid argument'); },
+  };
+  const out = await op.voxEngine('sheet', dir, [], io);
+  assert.equal(out.ok, true);
+  assert.equal(out.unlabelled, true);
+  assert.equal(calls.length, 2);
+  assert.ok(!calls[1].join(' ').includes('drawtext'));
+  assert.deepEqual(out.expect[0].words, ['sign']);
+  const fail = await op.voxEngine('sheet', dir, [], {...io, ffmpeg: async () => { throw new Error('no xstack'); }});
+  assert.deepEqual(fail, {ok: false, error: 'sheet: no xstack'});
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('a failed contact sheet skips the image check instead of stopping the video', () => {
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/vox-explainer/panel.tsx'), 'utf8');
+  const loop = panel.slice(panel.indexOf('let checkSkipped = false;'), panel.indexOf('setStep(5);'));
+  assert.match(loop, /try \{\s*sh = await run\("sheet"[^]*?\} catch \(err: any\) \{[^]*?checkSkipped = true;\s*break;/);
+  assert.match(loop, /savePanel\(dir, \{ checked: true, checkSkipped,/);
+  assert.match(panel, /result\.checkSkipped \? S\.checkSkipped :/);
+  assert.equal((panel.match(/\bcheckSkipped: "/g) || []).length, (panel.match(/^  (\w\w): \{$/gm) || []).length);
 });
