@@ -251,7 +251,8 @@ async function hostProbeSeconds(path) {
 // host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v2. Long videos are never touched. A cache
 // entry is keyed by the source path, size and modification time; it is reused only when its metadata matches and
 // ffprobe still counts the expected frames. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
-// inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }.
+// inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }; source sizes
+// are upright (a source with a +-90 degree display rotation reports its height as width), as the held clip is.
 const HOLD_FPS = 60, HOLD_MAX_EDGE = 1920, HOLD_MAX_FRAMES = 36000, HOLD_MAX_VIDEOS = 21;
 const HOLD_ALGORITHM = 'photo-gallery-hold-v2-max1920-h264-crf18';
 function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed' }); }
@@ -276,7 +277,8 @@ async function holdProbe(path, countFrames = false) {
   let result;
   try {
     result = await holdTool('runFFprobe', ['-v', 'error', ...(countFrames ? ['-count_frames'] : []), '-show_entries',
-      'stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames', '-of', 'json', path], 45);
+      'stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames:stream_side_data=rotation:stream_tags=rotate',
+      '-of', 'json', path], 45);
   } catch (error) { if (error.code === 'host-missing' || /timed out/.test(error.message)) throw error; throw holdError('Video cannot be decoded'); }
   let streams, video;
   try { streams = JSON.parse(String(result?.stdout || '')).streams; video = streams.find(item => item?.codec_type === 'video'); } catch { video = null; }
@@ -285,6 +287,18 @@ async function holdProbe(path, countFrames = false) {
     throw holdError('Media dimensions are unavailable');
   }
   return { video, streams };
+}
+// A stream's display rotation in degrees (0, 90, 180 or 270): the display matrix side data, else the older `rotate`
+// tag. Phone footage is often stored landscape and shown upright through it.
+function holdRotation(video) {
+  const side = (Array.isArray(video?.side_data_list) ? video.side_data_list : []).find(item => Number.isFinite(Number(item?.rotation)));
+  const degrees = side ? Number(side.rotation) : Number(video?.tags?.rotate ?? 0);
+  return Number.isFinite(degrees) ? ((Math.round(degrees / 90) * 90) % 360 + 360) % 360 : 0;
+}
+// The size ffmpeg encodes: it turns a rotated source upright, so a quarter turn swaps width and height.
+function holdUpright(video) {
+  const quarter = holdRotation(video) % 180 === 90;
+  return quarter ? [video.height, video.width] : [video.width, video.height];
 }
 // The output size: at most 1920 on the long edge, then padded to even sides (as the encode filter does).
 function holdDimensions(width, height) {
@@ -390,7 +404,7 @@ async function holdVideos(request, dataDir) {
       if (!completed.has(id)) {
         const { video } = await holdProbe(raw, true);
         if (!(Number(video.nb_read_frames) >= 1)) throw holdError('Video has no readable frames');
-        const sourceDimensions = [video.width, video.height];
+        const sourceDimensions = holdUpright(video);
         const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot);
         completed.set(id, { ...done, sourceDimensions });
       }
