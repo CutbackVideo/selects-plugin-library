@@ -45,9 +45,10 @@ assert.ok(Math.abs(kbox.K.cwvEstimateEm('Seoul') - 3) < 1e-9, 'Latin 0.6 em each
 assert.ok(Math.abs(kbox.K.cwvEstimateEm(SEOUL) - 2) < 1e-9, 'Hangul 1 em each');
 assert.ok(Math.abs(kbox.K.cwvEstimateEm(WEEKEND) - 5.6) < 1e-9, 'five syllables and a space');
 assert.ok(Math.abs(kbox.K.cwvEstimateEm('\u6771\u4eac\uff01') - 3) < 1e-9, 'CJK and fullwidth count as wide');
-assert.equal(kbox.K.cwvFontStack({ family: 'CWV Yellowtail', koFamily: 'Apple SD Gothic Neo' }, ''), '"CWV Yellowtail", "Snell Roundhand", "Brush Script MT", "Apple SD Gothic Neo", cursive');
-assert.equal(kbox.K.cwvFontStack({ family: 'CWV Instrument Serif', koFamily: 'AppleMyungjo' }, ''), '"CWV Instrument Serif", "Snell Roundhand", "Brush Script MT", "AppleMyungjo", cursive');
-assert.equal(kbox.K.cwvFontStack({ family: 'CWV Yellowtail' }, 'Futura'), '"Futura", "CWV Yellowtail", "Snell Roundhand", "Brush Script MT", "Apple SD Gothic Neo", cursive', 'a Draft built before koFamily, with a font override');
+// Windows: the Latin fallbacks include Segoe Script, and each Korean role names the macOS, Windows and Noto faces.
+assert.equal(kbox.K.cwvFontStack({ family: 'CWV Yellowtail', koFamily: 'Apple SD Gothic Neo' }, ''), '"CWV Yellowtail", "Snell Roundhand", "Brush Script MT", "Segoe Script", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", cursive');
+assert.equal(kbox.K.cwvFontStack({ family: 'CWV Instrument Serif', koFamily: 'AppleMyungjo' }, ''), '"CWV Instrument Serif", "Snell Roundhand", "Brush Script MT", "Segoe Script", "AppleMyungjo", "Batang", "Noto Serif KR", cursive');
+assert.equal(kbox.K.cwvFontStack({ family: 'CWV Yellowtail' }, 'Futura'), '"Futura", "CWV Yellowtail", "Snell Roundhand", "Brush Script MT", "Segoe Script", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", cursive', 'a Draft built before koFamily, with a font override');
 for (const phrase of ['s.case === "upper" && !cwvHasHangul(text) ? "uppercase" : "none"', 'wordBreak: "keep-all", letterSpacing: 0', 'cwvEstimateEm(shown) * px', 'cwvFontStack(s, key === "A" ? override : "")']) assert.ok(src.includes(phrase), phrase);
 // Component contract.
 for (const key of ['line1', 'connector', 'place', 'fontFamily', 'ink', 'shadow', 'size', 'rotation', 'position']) assert.ok(src.includes('data.' + key) || src.includes('"' + key + '"'), key);

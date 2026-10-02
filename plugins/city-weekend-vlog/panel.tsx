@@ -26,7 +26,6 @@ const STRINGS = {
     checkingClipsNow: "Checking clips…",
     checkingClips: "Checking clips",
     listening: "Listening for the beat",
-    preparingTools: "Preparing beat detection (first time only)",
     working: "Working",
     noFootage: "No video or photos in this Project yet. Add video clips or photos; this updates automatically.",
     turnOnPhotos: "Turn on Use photos in Advanced to build from this Project's photos.",
@@ -56,7 +55,6 @@ const STRINGS = {
     ownMusic: "Your own music",
     noMusic: "No music",
     faintTiming: "Approximate timing on the detected tempo ({bpm} BPM): the tempo was found but the beat is faint, so the cuts may miss it.",
-    installTools: "Install ffmpeg to preview music or use your own track.",
     sectionHint: "Music section — drag to choose",
     sectionLabel: "Music section",
     musicTooShort: "This music is too short for this length",
@@ -117,7 +115,6 @@ const STRINGS = {
     musicUnreadable: "Could not read this music file ({detail}). Choose another file or one of the tracks.",
     beatFailed: "beat detection failed",
     previewFailed: "Could not play a preview: {detail}.",
-    previewNotCut: "the preview could not be cut",
     noAudio: "no audio came back",
     dropMusic: "Drop a music file, or choose one of the tracks.",
     musicLengthUnread: "The length of your music could not be read. Choose another file or one of the tracks.",
@@ -159,7 +156,6 @@ const STRINGS = {
     checkingClipsNow: "Clips werden geprüft …",
     checkingClips: "Clips werden geprüft",
     listening: "Beat wird gesucht",
-    preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     working: "In Arbeit",
     noFootage: "In diesem Projekt gibt es noch keine Videos oder Fotos. Füge Videoclips oder Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
     turnOnPhotos: "Aktiviere „Fotos verwenden“ unter „Erweitert“, um aus den Fotos dieses Projekts zu erstellen.",
@@ -189,7 +185,6 @@ const STRINGS = {
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
     faintTiming: "Ungefähres Timing im erkannten Tempo ({bpm} BPM): Das Tempo wurde gefunden, aber der Beat ist schwach, daher können die Schnitte danebenliegen.",
-    installTools: "Installiere ffmpeg, um Musik vorzuhören oder eigene Musik zu verwenden.",
     sectionHint: "Musikabschnitt – zum Auswählen ziehen",
     sectionLabel: "Musikabschnitt",
     musicTooShort: "Diese Musik ist für diese Länge zu kurz",
@@ -250,7 +245,6 @@ const STRINGS = {
     musicUnreadable: "Diese Musikdatei konnte nicht gelesen werden ({detail}). Wähle eine andere Datei oder eines der Musikstücke.",
     beatFailed: "Beat-Erkennung fehlgeschlagen",
     previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
-    previewNotCut: "die Vorschau konnte nicht geschnitten werden",
     noAudio: "es kam kein Audio zurück",
     dropMusic: "Lege eine Musikdatei ab oder wähle eines der Musikstücke.",
     musicLengthUnread: "Die Länge deiner Musik konnte nicht gelesen werden. Wähle eine andere Datei oder eines der Musikstücke.",
@@ -292,7 +286,6 @@ const STRINGS = {
     checkingClipsNow: "Comprobando clips…",
     checkingClips: "Comprobando clips",
     listening: "Buscando el ritmo",
-    preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     working: "Trabajando",
     noFootage: "Este proyecto aún no tiene vídeos ni fotos. Añade clips de vídeo o fotos; se actualizará automáticamente.",
     turnOnPhotos: "Activa «Usar fotos» en «Avanzado» para crear con las fotos de este proyecto.",
@@ -322,7 +315,6 @@ const STRINGS = {
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
     faintTiming: "Sincronía aproximada con el tempo detectado ({bpm} BPM): se encontró el tempo, pero el ritmo es débil, así que los cortes pueden no coincidir.",
-    installTools: "Instala ffmpeg para escuchar la música o usar tu propia pista.",
     sectionHint: "Sección de música: arrastra para elegir",
     sectionLabel: "Sección de música",
     musicTooShort: "Esta música es demasiado corta para esta duración",
@@ -383,7 +375,6 @@ const STRINGS = {
     musicUnreadable: "No se pudo leer este archivo de música ({detail}). Elige otro archivo o una de las pistas.",
     beatFailed: "falló la detección del ritmo",
     previewFailed: "No se pudo reproducir la vista previa: {detail}.",
-    previewNotCut: "no se pudo recortar la vista previa",
     noAudio: "no se recibió audio",
     dropMusic: "Suelta un archivo de música o elige una de las pistas.",
     musicLengthUnread: "No se pudo leer la duración de tu música. Elige otro archivo o una de las pistas.",
@@ -425,7 +416,6 @@ const STRINGS = {
     checkingClipsNow: "Vérification des clips…",
     checkingClips: "Vérification des clips",
     listening: "Recherche du rythme",
-    preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     working: "En cours",
     noFootage: "Ce projet ne contient pas encore de vidéo ni de photo. Ajoutez des clips vidéo ou des photos ; l'affichage se met à jour automatiquement.",
     turnOnPhotos: "Activez « Utiliser les photos » dans « Avancé » pour créer à partir des photos de ce projet.",
@@ -455,7 +445,6 @@ const STRINGS = {
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
     faintTiming: "Calage approximatif sur le tempo détecté ({bpm} BPM) : le tempo a été trouvé, mais le rythme est peu marqué ; les coupes peuvent donc tomber à côté.",
-    installTools: "Installez ffmpeg pour écouter la musique ou utiliser votre propre morceau.",
     sectionHint: "Section musicale : faites glisser pour choisir",
     sectionLabel: "Section musicale",
     musicTooShort: "Cette musique est trop courte pour cette durée",
@@ -516,7 +505,6 @@ const STRINGS = {
     musicUnreadable: "Impossible de lire ce fichier audio ({detail}). Choisissez un autre fichier ou l'un des morceaux.",
     beatFailed: "la détection du rythme a échoué",
     previewFailed: "Impossible de lire l'aperçu : {detail}.",
-    previewNotCut: "l'aperçu n'a pas pu être découpé",
     noAudio: "aucun son n'a été renvoyé",
     dropMusic: "Déposez un fichier audio ou choisissez l'un des morceaux.",
     musicLengthUnread: "La durée de votre musique n'a pas pu être lue. Choisissez un autre fichier ou l'un des morceaux.",
@@ -558,7 +546,6 @@ const STRINGS = {
     checkingClipsNow: "Controllo delle clip…",
     checkingClips: "Controllo delle clip",
     listening: "Ricerca del ritmo",
-    preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     working: "In corso",
     noFootage: "In questo progetto non ci sono ancora video né foto. Aggiungi clip video o foto; si aggiorna automaticamente.",
     turnOnPhotos: "Attiva «Usa foto» in «Avanzate» per creare dalle foto di questo progetto.",
@@ -588,7 +575,6 @@ const STRINGS = {
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
     faintTiming: "Sincronia approssimativa sul tempo rilevato ({bpm} BPM): il tempo è stato trovato ma il ritmo è debole, quindi i tagli potrebbero non coincidere.",
-    installTools: "Installa ffmpeg per ascoltare la musica o usare un tuo brano.",
     sectionHint: "Sezione musicale: trascina per scegliere",
     sectionLabel: "Sezione musicale",
     musicTooShort: "Questa musica è troppo corta per questa durata",
@@ -649,7 +635,6 @@ const STRINGS = {
     musicUnreadable: "Impossibile leggere questo file musicale ({detail}). Scegli un altro file o uno dei brani.",
     beatFailed: "rilevamento del ritmo non riuscito",
     previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
-    previewNotCut: "non è stato possibile ritagliare l'anteprima",
     noAudio: "non è stato restituito alcun audio",
     dropMusic: "Trascina qui un file musicale o scegli uno dei brani.",
     musicLengthUnread: "Non è stato possibile leggere la durata della tua musica. Scegli un altro file o uno dei brani.",
@@ -691,7 +676,6 @@ const STRINGS = {
     checkingClipsNow: "クリップを確認中…",
     checkingClips: "クリップを確認中",
     listening: "ビートを検出中",
-    preparingTools: "ビート検出を準備中(初回のみ)",
     working: "処理中",
     noFootage: "このプロジェクトには、動画も写真もまだありません。動画クリップか写真を追加してください。自動で更新されます。",
     turnOnPhotos: "このプロジェクトの写真から作成するには、「詳細設定」で「写真を使う」をオンにしてください。",
@@ -721,7 +705,6 @@ const STRINGS = {
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
     faintTiming: "検出したテンポ（{bpm} BPM）でのおおよそのタイミングです。テンポは見つかりましたがビートが弱いため、カットがずれることがあります。",
-    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg をインストールしてください。",
     sectionHint: "音楽の区間 — ドラッグして選択",
     sectionLabel: "音楽の区間",
     musicTooShort: "この音楽は、この長さには短すぎます",
@@ -782,7 +765,6 @@ const STRINGS = {
     musicUnreadable: "この音楽ファイルを読み込めませんでした（{detail}）。別のファイルか、用意されたトラックを選んでください。",
     beatFailed: "ビートの検出に失敗しました",
     previewFailed: "プレビューを再生できませんでした: {detail}。",
-    previewNotCut: "プレビューを切り出せませんでした",
     noAudio: "音声が返されませんでした",
     dropMusic: "音楽ファイルをドロップするか、用意されたトラックを選んでください。",
     musicLengthUnread: "音楽の長さを読み取れませんでした。別のファイルか、用意されたトラックを選んでください。",
@@ -824,7 +806,6 @@ const STRINGS = {
     checkingClipsNow: "\ud074\ub9bd \ud655\uc778 \uc911…",
     checkingClips: "\ud074\ub9bd \ud655\uc778 \uc911",
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
-    preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     working: "\uc791\uc5c5 \uc911",
     noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
     turnOnPhotos: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc0ac\uc9c4\uc73c\ub85c \ub9cc\ub4e4\ub824\uba74 ‘\uace0\uae09’\uc5d0\uc11c ‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc744 \ucf1c\uc138\uc694.",
@@ -854,7 +835,6 @@ const STRINGS = {
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
     faintTiming: "\uac10\uc9c0\ud55c \ud15c\ud3ec({bpm} BPM)\uc5d0 \ub300\ub7b5 \ub9de\ucd98 \ud0c0\uc774\ubc0d\uc785\ub2c8\ub2e4. \ud15c\ud3ec\ub294 \ucc3e\uc558\uc9c0\ub9cc \ube44\ud2b8\uac00 \uc57d\ud574\uc11c \ucef7\uc774 \uc5b4\uae0b\ub0a0 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
-    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\ub97c \uc124\uce58\ud558\uc138\uc694.",
     sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
     sectionLabel: "\uc74c\uc545 \uad6c\uac04",
     musicTooShort: "\uc774 \uae38\uc774\ub85c \ub9cc\ub4e4\uae30\uc5d0\ub294 \uc74c\uc545\uc774 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4",
@@ -915,7 +895,6 @@ const STRINGS = {
     musicUnreadable: "\uc774 \uc74c\uc545 \ud30c\uc77c\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4({detail}). \ub2e4\ub978 \ud30c\uc77c\uc774\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     beatFailed: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
     previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
-    previewNotCut: "\ubbf8\ub9ac\ub4e3\uae30 \uad6c\uac04\uc744 \uc798\ub77c\ub0b4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
     noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
     dropMusic: "\uc74c\uc545 \ud30c\uc77c\uc744 \ub04c\uc5b4\ub2e4 \ub193\uac70\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     musicLengthUnread: "\uc74c\uc545\uc758 \uae38\uc774\ub97c \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\ub978 \ud30c\uc77c\uc774\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
@@ -957,7 +936,6 @@ const STRINGS = {
     checkingClipsNow: "Verificando clipes…",
     checkingClips: "Verificando clipes",
     listening: "Procurando a batida",
-    preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     working: "Trabalhando",
     noFootage: "Este projeto ainda não tem vídeos nem fotos. Adicione clipes de vídeo ou fotos; a lista é atualizada automaticamente.",
     turnOnPhotos: "Ative “Usar fotos” em “Avançado” para criar com as fotos deste projeto.",
@@ -987,7 +965,6 @@ const STRINGS = {
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
     faintTiming: "Sincronia aproximada no andamento detectado ({bpm} BPM): o andamento foi encontrado, mas a batida é fraca, então os cortes podem não coincidir.",
-    installTools: "Instale o ffmpeg para ouvir a música ou usar sua própria faixa.",
     sectionHint: "Trecho da música: arraste para escolher",
     sectionLabel: "Trecho da música",
     musicTooShort: "Esta música é curta demais para esta duração",
@@ -1048,7 +1025,6 @@ const STRINGS = {
     musicUnreadable: "Não foi possível ler este arquivo de música ({detail}). Escolha outro arquivo ou uma das faixas.",
     beatFailed: "a detecção da batida falhou",
     previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
-    previewNotCut: "não foi possível recortar a prévia",
     noAudio: "nenhum áudio foi retornado",
     dropMusic: "Solte um arquivo de música ou escolha uma das faixas.",
     musicLengthUnread: "Não foi possível ler a duração da sua música. Escolha outro arquivo ou uma das faixas.",
@@ -1090,7 +1066,6 @@ const STRINGS = {
     checkingClipsNow: "Klipler kontrol ediliyor…",
     checkingClips: "Klipler kontrol ediliyor",
     listening: "Ritim aranıyor",
-    preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     working: "Çalışıyor",
     noFootage: "Bu projede henüz video veya fotoğraf yok. Video klipleri veya fotoğraf ekleyin; burası otomatik olarak güncellenir.",
     turnOnPhotos: "Bu projenin fotoğraflarından oluşturmak için “Gelişmiş” bölümünde “Fotoğrafları kullan” seçeneğini açın.",
@@ -1120,7 +1095,6 @@ const STRINGS = {
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
     faintTiming: "Algılanan tempoya ({bpm} BPM) göre yaklaşık zamanlama: tempo bulundu ama ritim zayıf, bu yüzden kesmeler ritmi kaçırabilir.",
-    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg yükleyin.",
     sectionHint: "Müzik bölümü — seçmek için sürükleyin",
     sectionLabel: "Müzik bölümü",
     musicTooShort: "Bu müzik bu uzunluk için çok kısa",
@@ -1181,7 +1155,6 @@ const STRINGS = {
     musicUnreadable: "Bu müzik dosyası okunamadı ({detail}). Başka bir dosya veya hazır parçalardan birini seçin.",
     beatFailed: "ritim algılama başarısız oldu",
     previewFailed: "Önizleme oynatılamadı: {detail}.",
-    previewNotCut: "önizleme kesilemedi",
     noAudio: "ses geri gelmedi",
     dropMusic: "Bir müzik dosyası bırakın veya hazır parçalardan birini seçin.",
     musicLengthUnread: "Müziğinizin uzunluğu okunamadı. Başka bir dosya veya hazır parçalardan birini seçin.",
@@ -1223,7 +1196,6 @@ const STRINGS = {
     checkingClipsNow: "正在检查片段…",
     checkingClips: "正在检查片段",
     listening: "正在识别节拍",
-    preparingTools: "正在准备节拍检测(仅首次)",
     working: "处理中",
     noFootage: "此项目中还没有视频或照片。请添加视频片段或照片；这里会自动更新。",
     turnOnPhotos: "请在“高级”中开启“使用照片”，即可用此项目的照片制作。",
@@ -1253,7 +1225,6 @@ const STRINGS = {
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
     faintTiming: "按识别到的速度（{bpm} BPM）大致对齐：已找到速度，但节拍较弱，剪切点可能对不上。",
-    installTools: "请安装 ffmpeg，才能试听音乐或使用自己的曲目。",
     sectionHint: "音乐片段 — 拖动选择",
     sectionLabel: "音乐片段",
     musicTooShort: "这段音乐太短，不够这个时长",
@@ -1314,7 +1285,6 @@ const STRINGS = {
     musicUnreadable: "无法读取这个音乐文件（{detail}）。请选择其他文件或内置曲目。",
     beatFailed: "节拍识别失败",
     previewFailed: "无法播放试听：{detail}。",
-    previewNotCut: "无法截取试听片段",
     noAudio: "没有返回音频",
     dropMusic: "请拖入一个音乐文件，或选择内置曲目。",
     musicLengthUnread: "无法读取你的音乐时长。请选择其他文件或内置曲目。",
@@ -1400,8 +1370,6 @@ function sayError(lang: Lang, e: any): string { return typeof e?.say === "functi
 const HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
 
 const PLUGIN_ID = "city-weekend-vlog";
-const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
-const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 const CWV_QUERIES = {
   street: "busy city street with cars, taxis or people walking",
   architecture: "building facade architecture",
@@ -1932,36 +1900,244 @@ function cwvOwnGrid(own, duration, noOnsets) {
 }
 // cwv-own-grid:end
 
-// Double quotes let $HOME and $SELECTS_USER_SKILLS_ROOT expand: use only for those constants.
-function dq(value: string) { return '"' + String(value).replace(/(["\\`])/g, "\\$1") + '"'; }
-// Single quotes pass user paths to the shell literally (no $, backtick or glob expansion).
-function sq(value: string) { return "'" + String(value).replace(/'/g, "'\\''") + "'"; }
-function service(name: string, method: string) {
-  const s = (window.parent as any)?.__DI__?.[name];
-  if (!s || typeof s[method] !== "function") throw uiError((l) => t(l, "adapterNeeded", { name }));
+// Host I/O, copied unchanged from Archive Vlog (plugins/archive-vlog, windows.md "Reference implementation"): FileSystem
+// roots and the data folder, the host's bundled ffmpeg / ffprobe with argv arrays, cross-realm byte reads. No POSIX
+// shell: the panel runs the same on macOS and Windows.
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. The one shell call is the SELECTS_USER_SKILLS_ROOT fallback in hostSkillsRoot (cmd.exe on
+// Windows, the login shell on macOS). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
   return s;
 }
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The skills folder named by SELECTS_USER_SKILLS_ROOT, through the host shell, or null. Windows runs cmd.exe, where
+// `echo(` prints an empty line for an unset variable (a plain `echo` would print "ECHO is on."); macOS runs the login
+// shell. Only the variable's value comes back; no path goes in.
+async function hostSkillsRoot(sdk) {
+  if (typeof sdk?.runShell !== "function") return null;
+  const command = hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%" : 'echo "$SELECTS_USER_SKILLS_ROOT"';
+  try {
+    const r = await sdk.runShell({ summary: "Locate the plugin folder", command, timeoutMs: 10000 });
+    const out = String(r?.stdout || "").split(/\r?\n/).map((x) => x.trim()).find(Boolean) || "";
+    return !out || /[%$]/.test(out) || /^ECHO is/i.test(out) ? null : out;
+  } catch { return null; }
+}
+// The plugin's install folder and its data folder. The install folder is the host's default skills folder (the home
+// folder joined with .selects, skills and <id>) when it holds `marker` (a file every install has); only when it does
+// not does SELECTS_USER_SKILLS_ROOT decide. The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) {
+    const root = await hostSkillsRoot(sdk);
+    const dir = root ? hostJoin(root, id) : null;
+    if (holds(dir)) plugin = dir;
+  }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
+
+// cwv-beat-worker:start
+// The source of the Web Worker that runs beat-detect.cjs, read from the install folder and used unmodified (one source
+// for the CLI, the tests and the panel). The file runs inside a function with its own `module`, `exports` and an inert
+// `require`: require.main is undefined, so its CLI branch never runs. The worker answers one { samples, rate } message
+// with { ok: analyze(samples, rate) } or { error }. Plain JS, so tests run the same source in node:vm.
+function cwvBeatWorkerSource(beatDetectText) {
+  return '"use strict";\nvar cwvBeat = (function () {\n  var module = { exports: {} };\n  var require = function () { return {}; };\n'
+    + '  (function (module, exports, require) {\n' + beatDetectText + '\n  })(module, module.exports, require);\n  return module.exports;\n})();\n'
+    + 'onmessage = function (e) {\n  try { postMessage({ ok: cwvBeat.analyze(e.data.samples, e.data.rate) }); }\n'
+    + '  catch (err) { postMessage({ error: String((err && err.message) || err) }); }\n};\n';
+}
+// cwv-beat-worker:end
+
+// Your own music: at most this much of the track is analysed (and used), mono at this rate (beat-detect's rate).
+const OWN_RATE = 22050, OWN_MAX_SECONDS = 360;
+// The preview fades out over the section's last this-many seconds.
+const PREVIEW_FADE = 0.4;
+// Mono samples at OWN_RATE, at most OWN_MAX_SECONDS: the host's ffmpeg when it has one (hostDecodePcm); without it, or
+// when it fails, the panel decodes the file's bytes with WebAudio (whatever Chromium decodes: mp3, m4a/aac, wav, flac,
+// ogg) and averages the channels, as ffmpeg's mono downmix does.
+async function decodeOwnMusic(path: string, dataDir: string | null, signal: AbortSignal): Promise<Float32Array> {
+  let first: any = null;
+  try { const s = await hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal); if (s) return s; } catch (e) { first = e; }
+  if (signal.aborted) throw new Error("cancelled");
+  try {
+    const Ctx: any = (window as any).OfflineAudioContext || (window as any).webkitOfflineAudioContext;
+    if (!Ctx) throw new Error("this panel cannot decode audio");
+    const bytes = await readBytes(path);
+    if (signal.aborted) throw new Error("cancelled");
+    const ctx = new Ctx(1, 1, OWN_RATE);
+    const buf: AudioBuffer = await ctx.decodeAudioData(bytes.slice().buffer);
+    if (signal.aborted) throw new Error("cancelled");
+    const n = Math.min(buf.length, Math.round(OWN_MAX_SECONDS * buf.sampleRate));
+    const out = new Float32Array(n);
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const ch = buf.getChannelData(c);
+      for (let i = 0; i < n; i++) out[i] += ch[i] / buf.numberOfChannels;
+    }
+    if (!out.length) throw new Error("no audio");
+    return out;
+  } catch (e) { throw signal.aborted ? new Error("cancelled") : first || e; }
+}
+// beat-detect's analysis of the samples in a Web Worker (avBeatWorkerSource), never on the panel's thread: the panel
+// CSP allows blob: workers (cutback-client panelSandbox.ts: worker-src * data: blob:). A host that refuses the worker
+// rejects the analysis, and the panel falls back to fixed timing. `signal` aborts it (worker.terminate()); so does
+// `timeoutMs` (BEAT_TIMEOUT_MS): a worker that never answers rejects with code "beat-timeout" (fixed timing then).
+const BEAT_TIMEOUT_MS = 60000;
+function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = BEAT_TIMEOUT_MS): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let worker: Worker | null = null, url: string | null = null, done = false;
+    let timer: any = null;
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
+      try { worker?.terminate(); } catch { /* gone */ }
+      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
+      signal?.removeEventListener("abort", onAbort);
+      fn();
+    };
+    const onAbort = () => finish(() => reject(new Error("cancelled")));
+    if (signal?.aborted) { reject(new Error("cancelled")); return; }
+    signal?.addEventListener("abort", onAbort);
+    try {
+      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+      worker = new Worker(url);
+    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
+    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.error ? reject(new Error(e.data.error)) : resolve(e.data && e.data.ok)));
+    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
+    timer = setTimeout(() => finish(() => { const err: any = new Error("the beat detection took too long"); err.code = "beat-timeout"; reject(err); }), timeoutMs);
+    worker.postMessage({ samples, rate: OWN_RATE });
+  });
+}
+// A browser-playable type for a music file, by its extension ("" lets the browser sniff).
+function audioType(path: string) {
+  const ext = (String(path).split(/[\\/]/).pop() || "").split(".").pop()!.toLowerCase();
+  return ({ mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", flac: "audio/flac", ogg: "audio/ogg", opus: "audio/ogg" } as any)[ext] || "";
+}
+
+// A text file under a folder; `rel` uses "/" and is joined with the host's separator. A host without FileSystem.readFile
+// gets the one "needs an updated adapter" message.
 async function readText(root: string, rel: string) {
-  const v = await service("FileSystem", "readFile").readFile(root + "/" + rel);
-  // Some host builds return text directly; others return bytes.
-  return typeof v === "string" ? v : new TextDecoder().decode(new Uint8Array(v));
+  try { return await hostReadText(hostJoin(root, ...rel.split("/"))); }
+  catch (e: any) { if (e?.code === "host-missing") throw uiError((l) => t(l, "adapterNeeded", { name: "FileSystem" })); throw e; }
 }
 // The config goes in as JSON.parse of a string so its type is `any`: an inlined literal widens `type` to string
 // (rejected by EditableParameterDefinition[]) and narrows a null option to `never` inside its `if`.
 function fill(script: string, cfg: unknown) { return script.replace("__CONFIG__", () => "JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"); }
-// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew.
-const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; ';
-// Own music's beat detection runs beat-detect.cjs on Node.js. Selects puts no Node on the shell's PATH and a stock
-// Mac has none, so runtime.sh fetches a pinned copy into ~/.selects/plugin-data/_runtime the first time (shared by
-// every plugin) and prints its path. Later calls in this session reuse it.
-let nodePath: string | null = null;
-async function ensureNode(sdk: any): Promise<string> {
-  if (nodePath) return nodePath;
-  const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: TOOL_PATH + "sh " + dq(SKILLS_DIR + "/runtime.sh") + " node", timeoutMs: 290000, maxOutputBytes: 8000 });
-  const found = String(r?.stdout || "").trim().split("\n").filter(Boolean).pop() || "";
-  if (r?.isError || r?.exitCode !== 0 || !found.startsWith("/")) throw new Error(String(r?.stderr || "").trim().split("\n").pop() || "Could not prepare Node.js.");
-  return (nodePath = found);
-}
 function suggestPlace(projectName: string) {
   const name = String(projectName || "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
   // Latin or Hangul names of 2 to 31 columns (Hangul counts as 2).
@@ -1982,9 +2158,11 @@ const STALE = new Error("The Project changed during the build.");
 const STATE_KEYS = ["A", "B", "C", "D"];
 // A state's font stack: its bundled face, the Latin fallbacks, then the Korean system face of its role (presets.json
 // `koFamily`: AppleMyungjo for serif faces, Apple SD Gothic Neo for the rest) before the generic family.
-const FALLBACK_LATIN = '"Snell Roundhand", "Brush Script MT"';
-const KO_FALLBACK = "Apple SD Gothic Neo";
-function fontStack(s: any) { return '"' + s.family + '", ' + FALLBACK_LATIN + ', "' + (s.koFamily || KO_FALLBACK) + '", cursive'; }
+// Latin fallbacks include a script face that ships with Windows (Segoe Script); the Korean faces of the role follow for
+// macOS, Windows and Noto, as in assets/title-graphic.tsx.
+const FALLBACK_LATIN = '"Snell Roundhand", "Brush Script MT", "Segoe Script"';
+const KO_FACES = { serif: '"AppleMyungjo", "Batang", "Noto Serif KR"', sans: '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR"' };
+function fontStack(s: any) { return '"' + s.family + '", ' + FALLBACK_LATIN + ", " + (s.koFamily === "AppleMyungjo" ? KO_FACES.serif : KO_FACES.sans) + ", cursive"; }
 // Text with Hangul is never uppercased or tracked, and breaks between words only.
 function faceStyle(s: any, text = "") {
   return { fontFamily: fontStack(s), fontStyle: s.style, fontWeight: s.weight, textTransform: s.case === "upper" && !HANGUL_RE.test(text) ? "uppercase" : "none",
@@ -2562,20 +2740,19 @@ async function runStep(sdk: any, summary: string, script: string, allowCommit = 
   return r.result as any;
 }
 // The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing.
-async function locateRoots(sdk: any) {
-  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-  const [plugin, data] = String(where?.stdout || "").split("\n").map((x) => x.trim());
-  if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
-  return { plugin, data };
+async function locateRoots(sdk: any): Promise<{ plugin: string; data: string | null }> {
+  try { return await hostRoots(sdk, PLUGIN_ID, "planner.js"); }
+  catch (e: any) { if (e?.code === "not-found") throw uiError((l) => t(l, "foldersNotFound")); throw e; }
 }
 // The bundled music manifest, font presets, build scripts and title / effect sources.
 async function loadAssets(plugin: string) {
   const read = (rel: string) => readText(plugin, rel);
-  const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, warmTsx, motionTsx] = await Promise.all([
+  const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, warmTsx, motionTsx, beatDetect] = await Promise.all([
     read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("scripts/inventory.js"), read("scripts/search.js"),
     read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-graphic.tsx"), read("assets/warm-look.tsx"),
-    read("assets/photo-motion.tsx")]);
-  return { manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, warmTsx, motionTsx };
+    read("assets/photo-motion.tsx"), read("beat-detect.cjs")]);
+  return { manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, warmTsx, motionTsx,
+    beatWorker: cwvBeatWorkerSource(beatDetect) };
 }
 // A bundled cue's beat grid, onsets and 16th-note ratio.
 function cueGrid(cue: any) {
@@ -2649,8 +2826,10 @@ async function buildDraft(o: {
   if (!plan.ok) throw o.shortage(plan);
   advance("music", 0);
   const musicPath = o.musicPath();
+  // A bundled cue (its file under assets/cues) also passes its length, so ensure-audio can match it by name as well.
+  const bundled = musicPath == null ? null : (assets.manifest.cues || []).find((c: any) => /[\\/]assets[\\/]cues[\\/]/.test(musicPath) && String(musicPath).split(/[\\/]/).pop() === c.file);
   const music = musicPath == null ? null
-    : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: musicPath }), true);
+    : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: musicPath, duration: bundled ? bundled.duration : null }), true);
   check();
   // Cut seconds from the section start: the grid, or the onset-snapped cuts (planner cwvSchedule `cuts`).
   const boundaries: number[] = plan.schedule.cuts;
@@ -2726,7 +2905,10 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
   const projectId = context?.projectId ?? null;
   const projectRef = React.useRef(projectId);
   projectRef.current = projectId;
-  const [roots, setRoots] = React.useState<{ plugin: string; data: string } | null>(null);
+  const [roots, setRoots] = React.useState<{ plugin: string; data: string | null } | null>(null);
+  // The running own-music analysis, aborted when the Project changes or the panel closes.
+  const ownAbortRef = React.useRef<AbortController | null>(null);
+  const previewTimerRef = React.useRef<any>(null);
   const [assets, setAssets] = React.useState<any>(null);
   const [inventory, setInventory] = React.useState<any>(null);
   const [candidates, setCandidates] = React.useState<any>(null);
@@ -2751,9 +2933,8 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
   const [busy, setBusy] = React.useState(false);
   // Single-flight guard: state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef(false);
-  // What the one-call spinner shows: "checking" (clips), "preparing" (own music's first Node.js fetch) or "listening" (its beat).
-  const [step, setStep] = React.useState<"" | "checking" | "preparing" | "listening">("");
-  const [tools, setTools] = React.useState({ ffmpeg: true });
+  // What the one-call spinner shows: "checking" (clips) or "listening" (own music's beat).
+  const [step, setStep] = React.useState<"" | "checking" | "listening">("");
   const [tick, setTick] = React.useState(0);
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
   const registered = React.useRef<Set<string>>(new Set());
@@ -2855,14 +3036,6 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
         const { plugin, data } = await locateRoots(sdk);
         if (!alive) return;
         setRoots({ plugin, data });
-        // ffmpeg is only needed for previews and own music (own music also fetches Node.js on first use); bundled cues work without it.
-        let have = "";
-        try {
-          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg", timeoutMs: 10000 });
-          have = String(probe?.stdout || "");
-        } catch { have = ""; }
-        if (!alive) return;
-        setTools({ ffmpeg: have.includes("ffmpeg") });
         const loaded = await loadAssets(plugin);
         if (!alive) return;
         setAssets(loaded);
@@ -2874,7 +3047,7 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
       } finally { if (alive) setStep(""); }
     })();
     // Project switch or unmount stops a preview, including one still being prepared.
-    return () => { alive = false; stopPreview(); };
+    return () => { alive = false; stopPreview(); if (ownAbortRef.current) { ownAbortRef.current.abort(); ownAbortRef.current = null; } };
   }, [projectId]);
 
   // Clips being analysed (or no clips at all yet): re-read the inventory every 10 s until they are ready. Clips whose
@@ -2950,46 +3123,44 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
   React.useEffect(() => { stopPreview(); }, [cueId, ownMusic?.path, section, length]);
 
   async function detectOwnMusic(file: { path: string; name: string }) {
-    if (busyRef.current || !roots) return;
+    if (busyRef.current || !roots || !assets) return;
     busyRef.current = true;
     setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("listening");
+    // Decoded by the host's ffmpeg (or WebAudio), analysed by beat-detect.cjs in a Web Worker; no shell, no Node.
+    const abort = new AbortController();
+    ownAbortRef.current = abort;
+    let samples: Float32Array | null = null;
     try {
-      // The decoded PCM (up to ~32 MB) is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit status.
-      // The result goes to a file (a long track's onsets come close to the 48 KB shell output cap); stdout says ok.
-      if (!nodePath) setStep("preparing");
-      const node = await ensureNode(sdk);
-      setStep("listening");
-      const pcm = roots.data + "/own-music.f32";
-      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json")
-        + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
-      const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
-      const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
-      if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw done.error || r.stderr ? new Error(done.error || r.stderr) : uiError((l) => t(l, "beatFailed"));
-      const g = JSON.parse(await readText(roots.data, "own-music.json"));
+      samples = await decodeOwnMusic(file.path, roots.data, abort.signal);
+      const g = await analyseBeat(assets.beatWorker, samples, abort.signal);
+      if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
       const og = cwvOwnGrid(g, null, NO_ONSETS);
       const bpm = Math.round(og.bpm);
       setStatus(g.accepted ? null : og.faint ? { tone: "info", say: (l) => t(l, "faintTiming", { bpm }) }
         : { tone: "info", say: (l) => t(l, "musicFixedRhythm") });
     } catch (e: any) {
+      if (abort.signal.aborted) return;
       // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
-      let duration: number | null = null;
-      try {
-        const pr = await sdk.runShell({ summary: "Read the length of " + file.name, command: TOOL_PATH + "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " + sq(file.path), timeoutMs: 20000 });
-        const v = parseFloat(String(pr?.stdout || "").trim());
-        if (!pr?.isError && v > 0) duration = Math.min(v, 360);
-      } catch { duration = null; }
+      let duration: number | null = samples && samples.length ? Math.round((samples.length / OWN_RATE) * 1000) / 1000 : null;
+      if (!duration) { const v = await hostProbeSeconds(file.path); if (v) duration = Math.min(v, OWN_MAX_SECONDS); }
       setOwnGrid({ accepted: false, durationSeconds: duration, peaks: [] });
       setStatus(duration
         ? { tone: "info", say: (l) => t(l, "musicFixedRhythmDetail", { detail: sayError(l, e) }) }
         : { tone: "error", say: (l) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
-    } finally { busyRef.current = false; setBusy(false); setStep(""); }
+    } finally {
+      // The decoded samples (up to about 32 MB) are dropped with this call.
+      samples = null;
+      if (ownAbortRef.current === abort) ownAbortRef.current = null;
+      busyRef.current = false; setBusy(false); setStep("");
+    }
   }
 
   // Section preview: "idle" -> "loading" (ffmpeg cut) -> "playing". Every start or stop bumps the token, so a late
   // result from a cancelled preparation is dropped.
   function stopPreview() {
     previewTokenRef.current++;
+    if (previewTimerRef.current) { clearInterval(previewTimerRef.current); previewTimerRef.current = null; }
     const a = audioRef.current;
     audioRef.current = null;
     if (a) { a.onended = null; a.pause(); }
@@ -3005,34 +3176,34 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
     const live = () => previewTokenRef.current === token && mountedRef.current;
     setPlayState("loading");
     try {
-      const file = ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file;
-      // The whole section, written to a file (stdout is too small for ~23 s) and read back as base64 text.
-      // Earlier previews are removed first and the mp3 once encoded, so the data folder never collects them.
-      const dur = videoSeconds, base = roots.data + "/preview-" + token;
-      const cmd = TOOL_PATH + "rm -f " + sq(roots.data) + "/preview-*.mp3 " + sq(roots.data) + "/preview-*.b64; "
-        + "ffmpeg -nostdin -v error -y -ss " + section.toFixed(2) + " -t " + dur.toFixed(2) + " -i " + sq(file)
-        + " -ac 1 -ar 22050 -b:a 48k -af \"afade=t=out:st=" + Math.max(0, dur - 0.4).toFixed(2) + ":d=0.4\" -f mp3 " + sq(base + ".mp3")
-        + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64") + " && rm -f " + sq(base + ".mp3");
-      const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 60000 });
+      // The whole file plays from a blob: URL of its bytes (no ffmpeg, no temporary files), seeked to the section; it
+      // fades out over the section's last PREVIEW_FADE seconds and stops at its end.
+      const file = ownMusic ? ownMusic.path : hostJoin(roots.plugin, "assets", "cues", cue.file);
+      const bytes = await hostReadBytes(file);
       if (!live()) return;
-      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw r?.stderr ? new Error(r.stderr) : uiError((l) => t(l, "previewNotCut"));
-      const b64 = (await readText(roots.data, "preview-" + token + ".b64")).replace(/\s+/g, "");
-      // Best-effort cleanup of the encoded file; playback does not wait for it.
-      void Promise.resolve(sdk.runShell({ summary: "Remove preview file", command: TOOL_PATH + "rm -f " + sq(base + ".b64"), timeoutMs: 10000 })).catch(() => {});
-      if (!live()) return;
-      if (b64.length < 200) throw uiError((l) => t(l, "noAudio"));
-      let url: string;
-      if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
-        const bin = atob(b64), bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
-        previewUrlRef.current = url;
-      } else url = "data:audio/mpeg;base64," + b64;
+      if (!bytes.byteLength) throw uiError((l) => t(l, "noAudio"));
+      const url = URL.createObjectURL(new Blob([bytes as any], { type: audioType(file) }));
+      previewUrlRef.current = url;
       const audio = new Audio(url);
-      audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
+      audio.preload = "auto";
       audioRef.current = audio;
+      await new Promise<void>((ok, fail) => {
+        audio.onloadedmetadata = () => ok();
+        audio.onerror = () => fail(uiError((l) => t(l, "noAudio")));
+      });
+      if (!live() || audioRef.current !== audio) return;
+      const from = section, end = section + videoSeconds;
+      audio.currentTime = from;
+      audio.volume = 1;
+      audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
       await audio.play();
       if (!live() || audioRef.current !== audio) { audio.pause(); return; }
+      previewTimerRef.current = setInterval(() => {
+        if (audioRef.current !== audio) return;
+        const at = audio.currentTime;
+        if (at >= end) { stopPreview(); return; }
+        audio.volume = Math.max(0, Math.min(1, (end - at) / PREVIEW_FADE));
+      }, 40);
       setPlayState("playing"); setPlayingAudio(audio);
     } catch (e: any) {
       if (!live()) return;
@@ -3077,7 +3248,7 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);
       const { plan, a, sched, shortened } = await buildDraft({ run, assets, projectId: pid, inventory, found, photoCands,
         grid, burst, requested, start, musicStart, snapCuts, clipSound, nextSeed, check, advance,
-        musicPath: () => (cueId === "none" ? null : ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file),
+        musicPath: () => (cueId === "none" ? null : ownMusic ? ownMusic.path : hostJoin(roots.plugin, "assets", "cues", cue.file)),
         shortage: (plan) => {
           const unchecked = found.failed.length, withPhotos = photoCands.length > 0, orPhotos = usePhotos;
           return uiError((l) => [
@@ -3202,14 +3373,13 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
     : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
     : !canBuild ? [t(L, "onlyPhotos", { count: usedPhotoCount, needed: minShots }), notReadyText].filter(Boolean).join(t(L, "gap"))
     : t(L, "ready", { summary: readyFacts });
-  const stepText = step === "checking" ? t(L, "checkingClips") : step === "preparing" ? t(L, "preparingTools") : step === "listening" ? t(L, "listening") : "";
+  const stepText = step === "checking" ? t(L, "checkingClips") : step === "listening" ? t(L, "listening") : "";
   const progressLabel = !progress ? "" : progress.detail
     ? t(L, "progressDetail", { step: progress.current + 1, total: CWV_BUILD_STEPS.length, name: t(L, "step." + progress.id), detail: progress.detail(L), percent: progress.percent })
     : t(L, "progress", { step: progress.current + 1, total: CWV_BUILD_STEPS.length, name: t(L, "step." + progress.id), percent: progress.percent });
   const peaks: number[] = grid.peaks || [];
   const total = ownMusic ? (ownDuration || 1) : (cue ? cue.duration : 1);
   const silent = cueId === "none" && !ownMusic && clipSound === "off";
-  const canOwnMusic = tools.ffmpeg;
   const presetList: any[] = assets?.presets.presets || [];
   const chosen = presetList.find((x) => x.id === preset) || null;
   const swapKey = STATE_KEYS[tick % STATE_KEYS.length];
@@ -3264,11 +3434,10 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
       </ui.Section>
       <ui.Section title={t(L, "music")}>
         <ui.Select label={t(L, "track")} value={ownMusic ? "own" : cueId} onChange={(v: string) => { setCueId(v); if (v !== "own") { setOwnMusic(null); setOwnGrid(null); } }}
-          options={[...(assets?.manifest.cues || []).map((c: any) => ({ label: c.label, value: c.id })), ...(canOwnMusic ? [{ label: t(L, "ownMusic"), value: "own" }] : []), { label: t(L, "noMusic"), value: "none" }]} />
-        {(ownMusic || cueId === "own") && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
+          options={[...(assets?.manifest.cues || []).map((c: any) => ({ label: c.label, value: c.id })), { label: t(L, "ownMusic"), value: "own" }, { label: t(L, "noMusic"), value: "none" }]} />
+        {ownMusic || cueId === "own" ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
           onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
         {ownMusic && grid.faint ? <ui.Message tone="muted">{t(L, "faintTiming", { bpm: Math.round(grid.bpm) })}</ui.Message> : null}
-        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "installTools")}</ui.Message> : null}
         {ownMusic || cue ? (
           // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
           <div onKeyDown={(e) => { if (e.key === "Escape" && playState !== "idle") { e.preventDefault(); stopPreview(); } }}>
@@ -3278,7 +3447,7 @@ function CityWeekendVlogPanel({ sdk, context, ui }: any) {
               {/* The kit has no stop icon; "pause" marks stop, and the label says what it does. */}
               <ui.IconButton icon={playState === "playing" ? "pause" : playState === "loading" ? "loading" : "play"}
                 label={playState === "playing" ? t(L, "stopPreview") : playState === "loading" ? t(L, "cancelPreview") : t(L, "previewSection")}
-                onClick={preview} disabled={busy || !tools.ffmpeg || (playState === "idle" && section == null)} />
+                onClick={preview} disabled={busy || (playState === "idle" && section == null)} />
               <span>{ownMusic && !ownDuration ? (busy ? t(L, "readingMusic") : t(L, "musicLengthUnknown"))
                 : section == null ? t(L, "musicTooShort") : t(L, "startsAt", { seconds: Math.round(section * 10) / 10 })}</span>
             </ui.Row>
