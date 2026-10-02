@@ -1,9 +1,10 @@
 """Windows safety of chris-williamson-style (static checks).
 
 The panel is generated from src/ by build.py. On Windows `sdk.runShell` is cmd.exe, so the runtime text (panel.tsx and
-the src/ files it is built from) must not reach a POSIX shell outside `// mac-only:start` ... `// mac-only:end` regions,
-and every build entry must stop on Windows before it changes anything. Set CW_PANEL to check another panel file (e.g.
-the one on main, which must fail).
+the src/ files it is built from) must not reach a POSIX shell outside `// mac-only:start` ... `// mac-only:end` regions.
+Windows runs the main path: every engine step goes to the panel's port (cwEngine), while macOS keeps engine.mjs on
+Node.js (runtime.sh) and Apple Vision inside mac-only regions. Set CW_PANEL to check another panel file (e.g. the one
+on main, which must fail).
 """
 import json
 import os
@@ -101,21 +102,50 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
             marks = re.findall(r'//\s*mac-only:(start|end)', text)
             self.assertEqual(marks, ['start', 'end'] * (len(marks) // 2), name)
 
-    def test_build_entries_stop_on_windows_before_any_change(self):
+    def test_build_entries_run_on_windows(self):
         p = self.panel
         self.assertNotIn('SETUP_COMMAND', p)
         self.assertIn('hostRoots(sdk, PANEL_ID, "engine.mjs")', p)
-        # The panel: the mount skips setup, the button stops before transcript analysis starts.
-        mount = p.index('resolvePaths(sdk)\n')
-        self.assertLess(p.rindex('if (hostIsWindows())', 0, mount), mount)
-        create = p.index('async function create()')
-        self.assertLess(p.index('if (hostIsWindows())', create), p.index('await ensureTranscript(', create))
-        # The template run: before the new Draft is made or anything is read.
-        run = p.index('function TemplateRun(')
-        guard = p.index('if (hostIsWindows()) throw new Error(MAC_ONLY)', run)
-        self.assertLess(guard, p.index('templatePaths(sdk)', run))
-        self.assertLess(guard, p.index('templateDraftFromVideo(env', run))
-        self.assertIn('const MAC_ONLY = "Available on macOS for now."', p)
+        # No entry stops on Windows any more: the mount, the button and the template run take the main path.
+        self.assertFalse('Available on macOS for now' in p, 'an entry still stops on Windows')
+        self.assertFalse('MAC_ONLY' in p, 'an entry still stops on Windows')
+        for entry, until in [('useEffect(() => {\n    resolvePaths(sdk)', None), ('async function create()', 'const actionLabel'),
+                             ('function TemplateRun(', 'export default function Panel')]:
+            at = p.index(entry)
+            body = p[at:p.index(until, at)] if until else p[at:p.index('}, []);', at)]
+            self.assertNotIn('hostIsWindows()', body, entry)
+
+    def test_windows_engine_steps_reach_cw_engine_and_never_run_shell(self):
+        s = self.sources
+        # Every engine.mjs call site sends Windows to the panel port first.
+        self.assertIn('if(hostIsWindows()){await cwEngine(env,cmd,file);return;}', s['pipeline.ts'])
+        self.assertIn('if(hostIsWindows())await cwEngine(env,cmd,file);', s['assets.ts'])
+        for name in ['pipeline.ts', 'assets.ts']:
+            self.assertEqual(without_comments(without_mac_only(s[name])).count('engine.mjs'), 0, name)
+        # The port handles all four engine.mjs commands; Windows faces return nothing (centre crop, with a warning).
+        engine = s['engine.ts']
+        for cmd in ['shots:', 'faces:', 'assets:', 'candidates:']:
+            self.assertIn(cmd, engine[engine.index('async function cwEngine('):])
+        self.assertIn('if (hostIsWindows()) return { detected: {}, sampled: samples.length, readable: 0 };', engine)
+        self.assertIn('they are centre-cropped to 9:16', s['pipeline.ts'])
+        # Outside mac-only regions the engine makes no shell call at all.
+        self.assertEqual(without_comments(without_mac_only(engine)).count('runShell'), 0)
+
+    def test_mac_only_regions_keep_the_mac_engine(self):
+        regions = '\n'.join(re.findall(r'//\s*mac-only:start(.*?)//\s*mac-only:end', self.panel, flags=re.S))
+        for needle in ['engine.mjs', 'runtime.sh', 'osascript -l JavaScript', 'vision-helper.js', 'curl ']:
+            self.assertIn(needle, regions, needle)
+        self.assertIn('return { data, plugin, ffmpeg: hostIsWindows() ? "ffmpeg" : await macFfmpegPath(sdk) };', self.panel)
+
+    def test_cutaways_fall_back_without_libx264(self):
+        engine = self.sources['engine.ts']
+        self.assertIn('const encoder = cwPickEncoder(await cwEncoders());', engine)
+        self.assertIn('"-hide_banner", "-encoders"', engine)
+        self.assertIn('...encoder.args, "-movflags", "+faststart", "-write_tmcd", "0"', engine)
+        self.assertNotIn('"-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-movflags"', engine)
+
+    def test_run_scripts_have_a_long_deadline(self):
+        self.assertIn('sdk.runScript({ script, summary, allowCommit, timeoutSeconds: 120 })', self.panel)
 
     def test_host_missing_is_one_message(self):
         self.assertIn('e?.code === "host-missing" ? new Error(NEEDS_NEWER)', self.panel)
@@ -123,10 +153,12 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
     def test_caption_font_has_windows_fallback(self):
         self.assertIn('"Segoe UI", Arial, sans-serif', self.sources['captions.tsx'])
 
-    def test_manifest_stays_macos_until_the_engine_is_ported(self):
+    def test_manifest_lists_windows(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
-        if 'Windows x64' in manifest['compatibility']['platforms']:
-            self.assertNotIn('throw new Error(MAC_ONLY)', self.panel)
+        self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
+        self.assertEqual(manifest['version'], '0.2.12')
+        self.assertIn('centre-cropped', manifest['compatibility']['selects'])
+        self.assertNotIn('Available on macOS for now', (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8'))
 
 
 if __name__ == '__main__':
