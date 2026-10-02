@@ -18,14 +18,14 @@ async function prepareForegroundResource(sdk,run,justMade=false){
   // in one import; once a project has them, later postcards reuse them.
   const sfx=Object.entries(run.sfx||{});
   let rows=justMade&&!sfx.length?[]:await readInventory(sdk,run.projectId);
-  const missing=[prepared.foregroundPath,...sfx.map(([,s])=>s.path)].filter(path=>!rows.some(x=>x.path===path));
+  const missing=[prepared.foregroundPath,...sfx.map(([,s])=>s.path)].filter(path=>!rows.some(x=>samePath(x.path,path)));
   if(missing.length){
     await runScript(sdk,`return await selects.project(${json(run.projectId)}).importFiles({paths:${json(missing)}});`,'Import postcard foreground and sounds',true);
     rows=await readInventory(sdk,run.projectId);
   }
-  const matches=rows.filter(x=>x.path===prepared.foregroundPath);
+  const matches=rows.filter(x=>samePath(x.path,prepared.foregroundPath));
   if(matches.length!==1||matches[0].resourceId===run.settings.subjectId)throw Error('Distinct cutout Resource was not confirmed; assembly stopped.');
-  const sfxIds=Object.fromEntries(sfx.map(([key,s])=>[key,{id:rows.find(x=>x.path===s.path)?.resourceId,duration:s.duration,soundSeconds:s.soundSeconds,sixteenth:s.sixteenth,ticks:s.ticks}]).filter(([,v])=>v.id));
+  const sfxIds=Object.fromEntries(sfx.map(([key,s])=>[key,{id:rows.find(x=>samePath(x.path,s.path))?.resourceId,duration:s.duration,soundSeconds:s.soundSeconds,sixteenth:s.sixteenth,ticks:s.ticks}]).filter(([,v])=>v.id));
   return {...prepared,foregroundResourceId:matches[0].resourceId,sfxIds};
 }
 // The ending cuts on every 16th note of the music asset (manifest `sixteenth`),
@@ -197,13 +197,29 @@ async function hostProbeSeconds(path) {
 // A media row with the size it is shown at, when the helper could read one.
 function sized(row,size){return row&&size?.width&&size?.height?{...row,frameSize:size}:row}
 function traceStep(label,t0){(window.__postcardTrace??=[]).push([label,Math.round(t0-(window.__postcardTraceStart||t0)),Math.round(performance.now()-t0)])}
-// Every helper op (run state, holds, cutout input, masks, previews) runs pipeline.py in a pinned Python through the
-// macOS shell; it needs fcntl and a POSIX shell, so on Windows each op stops here before anything runs.
-const MAC_ONLY='Available on macOS for now.';
+// Every helper op (run state, holds, cutout input, masks, previews): on macOS pipeline.py in a pinned Python through
+// the shell, as before; on Windows the same ops in this panel (pc-ledger and pc-port below), through the host's
+// FileSystem and bundled ffmpeg. Windows masks are read through FileSystem.pathToLocalURL, which effects may load
+// since Selects 2.0.508; an older build, or one without these host services, gets one "update Selects" line instead.
+const PC_MIN_HOST='2.0.508';
+const UPDATE_SELECTS='Postcard Cutout Studio needs Selects '+PC_MIN_HOST+' or later on Windows. Update Selects, then try again.';
+function pcVersionBelow(version,minimum){const a=String(version||'0').split('.').map(n=>parseInt(n,10)||0),b=minimum.split('.').map(n=>parseInt(n,10)||0);for(let i=0;i<3;i++)if((a[i]||0)!==(b[i]||0))return (a[i]||0)<(b[i]||0);return false}
+function pcHostIssue(){if(!hostIsWindows())return '';let version='';try{version=String(hostDI()?.Runtime?.getHostingVersion?.()||'')}catch{version=''}
+ const needs=[['Runtime','runFFmpeg','runFFprobe'],['FileSystem','join','homedir','dirname','existsSync','mkdirSync','readFile','writeFile','readdirSync','statSync','renameSync','pathToLocalURL','downloadFile']];
+ return !version||pcVersionBelow(version,PC_MIN_HOST)||needs.some(([name,...methods])=>!hostApi(name,...methods))?UPDATE_SELECTS:''}
 const preparing={say:null};
-async function helper(sdk,op,args={}){if(hostIsWindows())throw Error(MAC_ONLY);return macHelper(sdk,op,args)}
+let pcWin=null;
+function pcWindows(sdk){if(!pcWin)pcWin=(async()=>{const roots=await hostRoots(sdk,'postcard-cutout-studio',hostJoin('sfx','manifest.json'));if(!roots.data)throw Error(UPDATE_SELECTS);let port=null;const ledger=pcLedger(roots.data,{sfx:()=>port.sfx()});port=pcPort(roots,{ledger});return{...port,...ledger}})().catch(e=>{pcWin=null;throw e});return pcWin}
+const PC_OPS=['load','init','update','event','claim','reuse','ensure','folder-media','tile','strip','sizes','hold','silent','cutout-input','fetch-result','prepare','foreground','subject-box','settings-load','settings-save','job-record'];
+async function helper(sdk,op,args={}){if(!hostIsWindows())return macHelper(sdk,op,args);const issue=pcHostIssue();if(issue)throw Error(issue);if(!PC_OPS.includes(op))throw Error('Unknown operation');const ops=await pcWindows(sdk),t0=performance.now();try{return await ops[op](args)}finally{traceStep('host: '+op,t0)}}
+// The editor's subject probe and range preview and the export check, in the shape the shell gives them on macOS.
+async function probeSubject(sdk,path){if(!hostIsWindows())return macProbeSubject(sdk,path);const issue=pcHostIssue();if(issue)throw Error(issue);return{exitCode:0,stdout:(await (await pcWindows(sdk)).probeText(path))||'{}'}}
+async function rangePreview(sdk,path,start,end){if(!hostIsWindows())return macRangePreview(sdk,path,start,end);return{exitCode:0,stdout:JSON.stringify(await (await pcWindows(sdk)).rangePreview(path,start,end,4))}}
+async function decodeCheck(sdk,path){if(!hostIsWindows())return macDecodeCheck(sdk,path);return (await pcWindows(sdk)).decodeCheck(path)}
+// Two host paths name the same file: exactly, off Windows; on Windows also across case, separators and Unicode form.
+function samePath(a,b){if(a===b)return true;if(!hostIsWindows()||a==null||b==null)return false;const n=p=>String(p).normalize('NFC').replace(/\\/g,'/').toLowerCase();return n(a)===n(b)}
 // mac-only:start
-// Reached only when hostIsWindows() is false (helper above, and the editor's effects that return first on Windows).
+// Reached only when hostIsWindows() is false (helper, probeSubject, rangePreview and decodeCheck above).
 // A stock Mac has no Python, so runtime.sh fetches a pinned one on first use
 // (shared by every plugin under ~/.selects/plugin-data/_runtime) and prints its
 // path as the last line. One fetch per panel load, however many helpers ask at
@@ -230,8 +246,7 @@ async function macRangePreview(sdk,path,start,end){const python=await runtimePyt
 // The run ledger in the panel, for the Windows port: pipeline.py's init/load/update/event/claim/reuse with the same
 // files (<store>/runs/<id>/run.json, <store>/active-runs.json, <logDir>/events.jsonl and run.json) read and written
 // through the host's FileSystem. pipeline.py serialises writers with flock; here this panel is the only writer, so one
-// promise chain does it. Not wired in yet: helper() refuses Windows until every op is ported, and macOS keeps
-// pipeline.py. `store` is the data folder (hostRoots(...).data); `sfx` gives a new run its decoded sounds.
+// promise chain does it. helper() uses it on Windows; macOS keeps pipeline.py. `store` is the data folder (hostRoots(...).data); `sfx` gives a new run its decoded sounds.
 const LEDGER_SETTLED=['draftReady','exportFailed','generationFailed','complete','abandoned'];
 function pcLedger(store,{sfx=async()=>({}),now=()=>Date.now(),newId=()=>crypto.randomUUID()}={}){
  const fs=()=>hostNeed('FileSystem','existsSync'),J=(...p)=>hostJoin(...p);let chain=Promise.resolve();
@@ -563,7 +578,7 @@ function generationScope(pid){
 // the run_script aliases the rest of this panel uses; the file path joins them.
 async function appResourceIdForPath(di,scope,path){
   const ids=(await di.ProjectRepository.findById(scope.libraryId,scope.projectId)).getResources();
-  for(const id of ids){const res=await di.ResourceRepository.findById(scope.libraryId,id);if(res?.getVideoSources?.()?.some(v=>v.path===path))return id;}
+  for(const id of ids){const res=await di.ResourceRepository.findById(scope.libraryId,id);if(res?.getVideoSources?.()?.some(v=>samePath(v.path,path)))return id;}
   throw Error('Could not find the subject clip in this project.');
 }
 async function appResourcePath(di,scope,id){
@@ -598,7 +613,9 @@ if(!collect){
   const {jobIds}=await mg.submit({scope,key:'pc-'+r.runId,modelId:BRIA_MODEL_ID,
     input:{video_url:'selects-input:source',background_color:'Transparent',output_container_and_codec:'webm_vp9',auto_zoom:false,preserve_audio:false},
     uploads:{source:{resourceId}},
-    outputName:'postcard_cutout_'+r.runId,batch:1,origin:{tool:'video',tab:'postcard',recipeId:'postcard-cutout'}});
+    outputName:'postcard_cutout_'+r.runId,batch:1,origin:{tool:'video',tab:'postcard',recipeId:'postcard-cutout'},
+    // Windows: the host saves the result into the run's log folder when it can; macOS reads it from the journal.
+    ...(hostIsWindows()&&mg.supportsPluginFiles?.()?{delivery:{pluginFolder:hostJoin(r.logDir,'cloud')}}:{})});
   const jobId=jobIds?.[0];
   if(!/^selects-[a-f0-9]{64}$/.test(jobId||''))throw Error('The app did not return a background-removal job.');
   return persist(r,{generation:{jobId,scope,modelId:BRIA_MODEL_ID,submittedAt:new Date().toISOString(),status:'submitted',deliveredBy:'media-generation'},phase:'generationPending'},'generation','pending',{jobId});
@@ -612,11 +629,11 @@ if(!job)return r;
 const trail=(window.__postcardTrail??=new Map()),steps=trail.get(gen.jobId)||[],step=job.status+'/'+job.deliveryStatus;
 if(steps[steps.length-1]?.[1]!==step)trail.set(gen.jobId,[...steps,[Date.now(),step]]);
 if(['failed','canceled','cancelled'].includes(job.status)){const failed={...gen,status:job.status,error:job.errorCode||job.status};await persist(r,{generation:failed,phase:'generationFailed'},'generation','failed',{generation:failed});throw Error('Background removal '+job.status+(job.errorCode?' ('+job.errorCode+')':'')+'.');}
-const out=(job.outputs||[]).find(o=>o.resourceId);
-if(!out&&job.status!=='succeeded')return r;
+const out=(job.outputs||[]).find(o=>o.resourceId),file=hostIsWindows()&&job.deliveryStatus==='delivered'?(job.outputs||[]).find(o=>o.path)?.path||null:null;
+if(!out&&!file&&job.status!=='succeeded')return r;
 // Background removal finishes with no delivered outputs (the app lists none
 // for this model), so take the clip straight from the app's job journal.
-const cutoutPath=out?await appResourcePath(di,scope,out.resourceId):(await helper(sdk,'fetch-result',{jobId:gen.jobId,dest:r.logDir+'/cutout.webm'}).catch(()=>null))?.path;
+const cutoutPath=out?await appResourcePath(di,scope,out.resourceId):file||(await helper(sdk,'fetch-result',{jobId:gen.jobId,dest:hostJoin(r.logDir,'cutout.webm')}).catch(()=>null))?.path;
 if(!cutoutPath)return r;
 // Recorded by the next step ('prepare') in the same call that starts it; if
 // that never runs, the next check finds the job done and the clip on disk.
@@ -624,9 +641,9 @@ const done={...gen,status:'succeeded',resourceId:out?.resourceId??null,cutoutPat
 return {...r,generation:done,phase:'cutoutReady',finished:{durationMs:Date.now()-(r.generationStartedMs||Date.now()),jobId:gen.jobId,chargedCredits:job.chargedCredits??null,trail:trail.get(gen.jobId)||[]}};
 }
 async function exportRun(r){guard(r.projectId);await helper(sdk,'ensure');
-if(r.phase==='draftReady'){r=await claim(r,['draftReady'],{phase:'exportSubmitting',exportStartedMs:Date.now()},'export');const outPath=r.logDir+'/final.mp4';const result=await runScript(sdk,`const e=await selects.export.video({projectId:${json(r.projectId)},draftSequenceId:${json(r.draftId)},outPath:${json(outPath)},resolution:'FHD'});return{workflowId:e.workflowId,outPath:${json(outPath)}}`,'Start postcard Export',true);r=await persist(r,{phase:'exportPending',export:result},'export','submitted',result)}
+if(r.phase==='draftReady'){r=await claim(r,['draftReady'],{phase:'exportSubmitting',exportStartedMs:Date.now()},'export');const outPath=hostJoin(r.logDir,'final.mp4');const result=await runScript(sdk,`const e=await selects.export.video({projectId:${json(r.projectId)},draftSequenceId:${json(r.draftId)},outPath:${json(outPath)},resolution:'FHD'});return{workflowId:e.workflowId,outPath:${json(outPath)}}`,'Start postcard Export',true);r=await persist(r,{phase:'exportPending',export:result},'export','submitted',result)}
 if(r.phase!=='exportPending')throw Error('The panel will not resubmit an Export with an uncertain submission state. Inspect the run log.');
-for(let i=0;i<90;i++){guard(r.projectId);const w=await runScript(sdk,`return(await selects.project(${json(r.projectId)}).workflows()).find(w=>w.workflowId===${json(r.export.workflowId)})||{status:'unknown'}`,'Check postcard Export');setStatus('Export: '+w.status+' '+Math.round((w.progress||0)*100)+'%');if(w.status==='succeeded'){r=await persist(r,{phase:'exportRendered'},'export','end',{durationMs:Date.now()-r.exportStartedMs,workflow:w,wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});const q=await macDecodeCheck(sdk,r.export.outPath);await helper(sdk,'event',{runId:r.runId,stage:'decode-check',status:q.exitCode===0?'end':'failed',details:{exitCode:q.exitCode,stdout:q.stdout,stderr:q.stderr}});if(q.exitCode!==0)throw Error('The exported file failed decode verification.');r=await persist(r,{phase:'complete',finishedMs:Date.now()},'run','end',{wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});setStatus('Complete · '+r.export.outPath+' · total '+((Date.now()-r.startedMs)/1000).toFixed(1)+'s');return r}if(['failed','canceled','cancelled'].includes(w.status)){r=await persist(r,{phase:'exportFailed',export:{...r.export,terminalStatus:w.status}},'export','failed',{workflow:w,durationMs:Date.now()-r.exportStartedMs});throw Error(w.lastErrorMessage||'Export failed. It will not be resubmitted automatically.')}await sleep(2000)}setStatus('Export is still running. Resume this run to check the same Export.');return r;
+for(let i=0;i<90;i++){guard(r.projectId);const w=await runScript(sdk,`return(await selects.project(${json(r.projectId)}).workflows()).find(w=>w.workflowId===${json(r.export.workflowId)})||{status:'unknown'}`,'Check postcard Export');setStatus('Export: '+w.status+' '+Math.round((w.progress||0)*100)+'%');if(w.status==='succeeded'){r=await persist(r,{phase:'exportRendered'},'export','end',{durationMs:Date.now()-r.exportStartedMs,workflow:w,wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});const q=await decodeCheck(sdk,r.export.outPath);await helper(sdk,'event',{runId:r.runId,stage:'decode-check',status:q.exitCode===0?'end':'failed',details:{exitCode:q.exitCode,stdout:q.stdout,stderr:q.stderr}});if(q.exitCode!==0)throw Error('The exported file failed decode verification.');r=await persist(r,{phase:'complete',finishedMs:Date.now()},'run','end',{wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});setStatus('Complete · '+r.export.outPath+' · total '+((Date.now()-r.startedMs)/1000).toFixed(1)+'s');return r}if(['failed','canceled','cancelled'].includes(w.status)){r=await persist(r,{phase:'exportFailed',export:{...r.export,terminalStatus:w.status}},'export','failed',{workflow:w,durationMs:Date.now()-r.exportStartedMs});throw Error(w.lastErrorMessage||'Export failed. It will not be resubmitted automatically.')}await sleep(2000)}setStatus('Export is still running. Resume this run to check the same Export.');return r;
 }
 // One pass of a run: prepares the picks, then carries the run as far as it
 // goes. Returns the run as it stands when the pass ends; a failure carries it
@@ -704,18 +721,18 @@ if(kind!=='resume'&&kind!=='export'){
  cutoutInput=await cutInput;guard(pid);
  prepMs.hold=Date.now()-clickedAtMs;
  let inventory=await readInventory(sdk,pid);guard(pid);
- const missing=[...new Set([...selected.map(row=>row.path),...poolRows.map(row=>row.path),...(cutoutInput?.path?[cutoutInput.path]:[])])].filter(path=>!inventory.some(item=>item.path===path));
+ const missing=[...new Set([...selected.map(row=>row.path),...poolRows.map(row=>row.path),...(cutoutInput?.path?[cutoutInput.path]:[])])].filter(path=>!inventory.some(item=>samePath(item.path,path)));
  if(missing.length){
    await runScript(sdk,'return await selects.project('+json(pid)+').importFiles({paths:'+json(missing)+'});','Register postcard media',true);
    guard(pid);inventory=await readInventory(sdk,pid);guard(pid);
  }
  prepMs.import=Date.now()-clickedAtMs-prepMs.hold;
  const mapped=new Map(selected.map(row=>{
-   const matches=inventory.filter(item=>item.path===row.path);
+   const matches=inventory.filter(item=>samePath(item.path,row.path));
    if(matches.length!==1)throw Error('Could not uniquely identify '+row.name+'. No generation was submitted.');
    return [row.resourceId,matches[0]];
  }));
- pool=poolRows.map(row=>{const matches=inventory.filter(item=>item.path===row.path);if(matches.length!==1)throw Error('Could not uniquely identify '+row.name+'. No generation was submitted.');return {...matches[0],durationSeconds:matches[0].durationSeconds||row.durationSeconds,shownPath:row.shownPath,kind:row.kind};});
+ pool=poolRows.map(row=>{const matches=inventory.filter(item=>samePath(item.path,row.path));if(matches.length!==1)throw Error('Could not uniquely identify '+row.name+'. No generation was submitted.');return {...matches[0],durationSeconds:matches[0].durationSeconds||row.durationSeconds,shownPath:row.shownPath,kind:row.kind};});
  s={...s,subjectId:mapped.get(s.subjectId)?.resourceId,bgIds:s.bgIds.map(id=>mapped.get(id).resourceId),photoIds:s.photoIds.map(id=>mapped.get(id).resourceId)};
  byId=new Map([...mapped.values()].map(row=>[row.resourceId,row]));
  onMapped(mapped,s);setRun(previous);current=previous;
@@ -812,7 +829,7 @@ function templateMessage(e){
   return said&&said.length<=200&&!/[\n\r]|Traceback|\{|"\w+":/.test(said)?said:TEMPLATE_FAILED;
 }
 async function runTemplate({sdk,pid,template,sequenceId,guard,setStatus}){
-  if(hostIsWindows())throw Error(MAC_ONLY);
+  {const issue=pcHostIssue();if(issue)throw Error(issue);}
   window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
   if(!pid)throw Error('Open a project, then try again.');
   guard(pid);
@@ -830,7 +847,7 @@ async function runTemplate({sdk,pid,template,sequenceId,guard,setStatus}){
   const unusable=picks.find((pick,i)=>!isVideo({path:paths[i]})&&!isPhoto({path:paths[i]}));
   if(unusable)throw Error((unusable.name||'A picked clip')+' is not a file this template can use. Pick MP4, MOV, MKV, WebM or M4V videos and PNG, JPEG or WebP photos.');
   // The picks as the Panel's own rows: its Project ids, files, lengths and sizes.
-  const rowFor=new Map(picks.map((pick,i)=>{const row=inventory.find(x=>x.path===paths[i]);if(!row)throw Error('Could not find '+(pick.name||'a picked clip')+' among this project’s files. Refresh your media, then try again.');return [pick.resourceId,row];}));
+  const rowFor=new Map(picks.map((pick,i)=>{const row=inventory.find(x=>samePath(x.path,paths[i]));if(!row)throw Error('Could not find '+(pick.name||'a picked clip')+' among this project’s files. Refresh your media, then try again.');return [pick.resourceId,row];}));
   const idOf=pick=>rowFor.get(pick.resourceId).resourceId,subjectRow=rowFor.get(subject.resourceId);
   const settings={...DEFAULTS,title:TEMPLATE_TITLE,aspect,subjectId:subjectRow.resourceId,subjectStartSec:0,
     bgIds:[...new Set(panels.map(idOf))].filter(id=>id!==subjectRow.resourceId),
@@ -897,8 +914,8 @@ export default function PostcardPanel(props){return props.context.template?<Post
 function PostcardEditor({sdk,context,ui}){
 const [s,setS]=useState({...DEFAULTS,bgIds:[],photoIds:[],aspect:'original',title:'MY POSTCARD'}),[rows,setRows]=useState([]),[loading,setLoading]=useState(false),[hydrated,setHydrated]=useState(true),[busy,setBusy]=useState(false),[status,setStatus]=useState(''),[run,setRun]=useState(null),[duration,setDuration]=useState(0),[sourceError,setSourceError]=useState(false),[preview,setPreview]=useState([]);
 const busyRef=useRef(false),projectRef=useRef(context.projectId);projectRef.current=context.projectId;
-// Windows: no helper, so nothing can be listed, previewed or built; the panel says so and every action stops first.
-const macOnly=useMemo(()=>hostIsWindows(),[]);
+// Windows with a Selects build too old for the port: the panel says so and every action stops first.
+const hostIssue=useMemo(()=>pcHostIssue(),[]);
 const byId=useMemo(()=>new Map(rows.map(x=>[x.resourceId,x])),[rows]),subject=byId.get(s.subjectId),videos=rows.filter(isSubject),images=rows.filter(isPhoto),change=(key,value)=>{dirty.current=true;setS(old=>({...old,[key]:value,forceNew:false,autoExport:false}));};
 
 const [error,setError]=useState(''),[tab,setTab]=useState('all'),[query,setQuery]=useState(''),[page,setPage]=useState(0),[customize,setCustomize]=useState(false);
@@ -908,7 +925,7 @@ const stripAsked=useRef(new Set()),hoverTimer=useRef(0);
 const [folder,setFolder]=useState(null),[folderIds,setFolderIds]=useState([]),[selection,setSelection]=useState([]),[picking,setPicking]=useState(false);
 const folderBusy=useRef(false);
 async function readFolder(path,offset=0,search=''){
-  if(macOnly){setError(MAC_ONLY);return;}
+  if(hostIssue){setError(hostIssue);return;}
   setLoading(true);setError('');
   try{
     const result=await helper(sdk,'folder-media',{path,offset,query:search});guard(context.projectId);
@@ -935,14 +952,14 @@ function startOver(){
   setFolder(null);setFolderIds([]);clearPicks();
 }
 async function abandonRun(){
-  if(macOnly||folderBusy.current||busyRef.current||!run||!canAbandon)return;
+  if(hostIssue||folderBusy.current||busyRef.current||!run||!canAbandon)return;
   try{await helper(sdk,'update',{runId:run.runId,patch:{phase:'abandoned'},stage:'pipeline',status:'abandoned',details:{by:'user',from:run.phase}});}
   catch(e){setError(e instanceof Error?e.message:String(e));return;}
   setRun(null);setError('');setStatus('');setQuery('');setPage(0);
   setFolder(null);setFolderIds([]);clearPicks();
 }
 async function chooseFolder(){
-  if(macOnly){setError(MAC_ONLY);return;}
+  if(hostIssue){setError(hostIssue);return;}
   if(folderBusy.current||busyRef.current||locked)return;
   folderBusy.current=true;setPicking(true);setError('');
   try{
@@ -955,7 +972,7 @@ async function chooseFolder(){
 }
 async function dropFolder(event){
   event.preventDefault();
-  if(macOnly){setError(MAC_ONLY);return;}
+  if(hostIssue){setError(hostIssue);return;}
   if(folderBusy.current||busyRef.current||locked)return;
   const files=event.dataTransfer.files;
   if(files.length!==1){setError('Drop one folder at a time. Your selections will be kept.');return;}
@@ -968,11 +985,11 @@ async function dropFolder(event){
 const dirty=useRef(false);
 useEffect(()=>()=>{projectRef.current=null},[]);
 useEffect(()=>{preparing.say=setStatus;return()=>{if(preparing.say===setStatus)preparing.say=null}},[]);
-useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(macOnly||!subject?.path)return;const path=subject.path;(async()=>{try{const r=await macProbeSubject(sdk,path);if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
-useEffect(()=>{let alive=true;if(macOnly||!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const r=await macRangePreview(sdk,subject.path,s.subjectStartSec,Math.min(duration,s.subjectStartSec+8.5));if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
+useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(hostIssue||!subject?.path)return;const path=subject.path;(async()=>{try{const r=await probeSubject(sdk,path);if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
+useEffect(()=>{let alive=true;if(hostIssue||!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const r=await rangePreview(sdk,subject.path,s.subjectStartSec,Math.min(duration,s.subjectStartSec+8.5));if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
 function guard(pid){if(projectRef.current!==pid)throw Error('The Project changed. Stopped without resubmitting the current operation.')}
 const runner=createRunner({sdk,guard,setRun,setStatus});
-async function execute(kind){if(macOnly){setError(MAC_ONLY);return;}if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
+async function execute(kind){if(hostIssue){setError(hostIssue);return;}if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
 try{await runner.build(kind,{pid:context.projectId,settings:s,rows,run,duration,setSettings:setS,onMapped:(mapped,next)=>{setRows(old=>old.map(row=>{const m=mapped.get(row.resourceId);return m?{...row,resourceId:m.resourceId}:row;}));setSelection(old=>old.map(id=>mapped.get(id)?.resourceId||id));setFolderIds(old=>old.map(id=>mapped.get(id)?.resourceId||id));setS(next);}});
 }catch(e){current=e?.run??current;setError('We could not finish your postcard. Your progress is saved. See details below.');setStatus(String(e.message||e));if(current?.runId)try{await helper(sdk,'event',{runId:current.runId,stage:'pipeline',status:'failed',details:{error:String(e.stack||e)}})}catch{}}finally{busyRef.current=false;setBusy(false)}}
 
@@ -995,7 +1012,7 @@ const thumbnailRows=!folder&&selection.length===0?chosen.map(id=>byId.get(id)).f
 const thumbKey=thumbnailRows.map(x=>x.path).join('|');
 const STRIP_FRAMES=10;
 useEffect(()=>{
-  if(macOnly)return;
+  if(hostIssue)return;
   let alive=true;
   const queue=[...new Map(thumbnailRows.filter(row=>thumbs[row.path]===undefined).map(row=>[row.path,row])).values()];
   if(!queue.length)return;
@@ -1024,7 +1041,7 @@ useEffect(()=>{
 // nothing, and the scrub itself is a background offset on an image already in
 // the page — no request, no decode, no state beyond which frame is showing.
 function beginScrub(row){
-  if(macOnly||!isVideo(row))return;
+  if(hostIssue||!isVideo(row))return;
   clearTimeout(hoverTimer.current);
   const path=row.path;
   hoverTimer.current=setTimeout(async()=>{
@@ -1064,7 +1081,7 @@ useEffect(()=>{
 // to strand it wherever it stood - a paid cutout could sit uncollected for good.
 // On open, an unfinished run for this project is taken back up; the effect
 // above then carries it the rest of the way.
-useEffect(()=>{let alive=true;if(macOnly)return;(async()=>{try{
+useEffect(()=>{let alive=true;if(hostIssue)return;(async()=>{try{
   const prev=await helper(sdk,'load',{projectId:context.projectId});
   if(!alive||!prev||['draftReady','complete','abandoned','exportFailed','generationFailed'].includes(prev.phase))return;
   if(prev.settings)setS(old=>({...old,...prev.settings}));
@@ -1144,8 +1161,8 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
     <div style={{display:'flex',justifyContent:'center'}}><ui.Icon name="folder" size={16}/></div>
     <strong>Start with a folder of memories.</strong>
     <p style={{...muted,margin:0}}>Drop a folder here, or choose one below.<br/>Nothing is imported until you create.</p>
-    {macOnly&&<p style={{...muted,margin:0}}>{MAC_ONLY}</p>}
-    <ui.Actions><ui.Button variant="primary" disabled={picking||loading||macOnly} onClick={chooseFolder}>Choose Folder</ui.Button></ui.Actions>
+    {!!hostIssue&&<p style={{...muted,margin:0}}>{hostIssue}</p>}
+    <ui.Actions><ui.Button variant="primary" disabled={picking||loading||!!hostIssue} onClick={chooseFolder}>Choose Folder</ui.Button></ui.Actions>
   </div>:cardView?<>
     {/* What was made, and the two things to do with it. The screen this
         replaced showed the setup form again, so finishing a postcard looked
@@ -1247,7 +1264,7 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
     {/* The kit's Actions stacks every button full width under 360px, which
         made this bar four lines tall in a docked panel. This row keeps the
         two buttons side by side at any width; only the count wraps above. */}
-    <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}{canAbandon&&<ui.Button variant="ghost" onClick={()=>void abandonRun()}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error)} busyLabel={friendlyPhase(run?.phase)} disabled={macOnly||loading||picking||(!active&&!hasDraft&&!!blocker)} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
+    <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}{canAbandon&&<ui.Button variant="ghost" onClick={()=>void abandonRun()}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error)} busyLabel={friendlyPhase(run?.phase)} disabled={!!hostIssue||loading||picking||(!active&&!hasDraft&&!!blocker)} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
   </footer>}
 </div>;
 }

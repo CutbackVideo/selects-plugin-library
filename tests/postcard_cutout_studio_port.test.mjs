@@ -18,7 +18,9 @@ const PKG = path.join(ROOT, 'plugins/postcard-cutout-studio');
 const panel = fs.readFileSync(path.join(PKG, 'panel.tsx'), 'utf8');
 const block = name => { const m = panel.match(new RegExp('// ' + name + ':start\\n[\\s\\S]*?// ' + name + ':end')); assert.ok(m, name + ' block'); return m[0]; };
 const has = (tool, args = ['-version']) => { try { return spawnSync(tool, args).status === 0; } catch { return false; } };
-const tools = has('ffmpeg') && has('ffprobe');
+// An ffmpeg that can make the fixtures: an input rotation flag (ffmpeg 6+), geq alpha and VP9 with alpha.
+const tools = has('ffprobe') && has('ffmpeg', ['-v', 'error', '-display_rotation', '90', '-f', 'lavfi', '-i', 'testsrc2=size=64x36:rate=30:duration=0.1',
+  '-vf', "format=yuva420p,geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='255'", '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-f', 'null', '-']);
 const python = has('python3', ['-c', 'import fcntl']);
 const skip = !tools && 'ffmpeg/ffprobe not available';
 const skipParity = (!tools && 'ffmpeg/ffprobe not available') || (!python && 'python3 not available');
@@ -156,7 +158,7 @@ test('bundled sounds decode, match their manifest, and equal pipeline.py\'s', { 
 
 test('folder listing matches pipeline.py: order, hidden files, subfolders, search, pages', { skip: skip }, async () => {
   const root = tmp('pc-folder-'), w = (rel, body = 'x') => { const p = path.join(root, rel); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, body); };
-  for (const rel of ['b.mp4', 'a.JPG', '.hidden.mp4', 'notes.txt', 'Sub/c.mov', 'Sub/Deeper/d.webp', '.Hidden/e.mp4', '여행 사진/f g.png', 'Z/z.mkv']) w(rel);
+  for (const rel of ['b.mp4', 'a.JPG', '.hidden.mp4', 'notes.txt', 'Sub/c.mov', 'Sub/Deeper/d.webp', '.Hidden/e.mp4', '\uC5EC\uD589 \uC0AC\uC9C4/f g.png', 'Z/z.mkv']) w(rel);
   for (let i = 0; i < 30; i++) w('many/' + String(i).padStart(2, '0') + '.mp4');
   const p = port(tmp());
   const first = await p['folder-media']({ path: root });
@@ -166,7 +168,7 @@ test('folder listing matches pipeline.py: order, hidden files, subfolders, searc
   const search = await p['folder-media']({ path: root, query: 'SUB' });
   assert.deepEqual(search.rows.map(r => r.relativePath), [path.join('Sub', 'c.mov'), path.join('Sub', 'Deeper', 'd.webp')]);
   await assert.rejects(p['folder-media']({ path: path.join(root, 'b.mp4') }), /not an individual file/);
-  if (python) for (const args of [{ path: root }, { path: root, offset: 24 }, { path: root, query: 'sub' }, { path: root, query: '사진' }]) {
+  if (python) for (const args of [{ path: root }, { path: root, offset: 24 }, { path: root, query: 'sub' }, { path: root, query: '\uC0AC\uC9C4' }]) {
     const want = py(tmp(), 'folder-media', args).out, got = await p['folder-media'](args);
     assert.deepEqual(JSON.parse(JSON.stringify(got)), want, JSON.stringify(args));
   }
@@ -300,4 +302,38 @@ test('settings and the job record keep pipeline.py\'s files', { skip: skip }, as
   const d = await p.init({ projectId: 'p1', settings: { subjectStartSec: 0 }, source: { path: source } });
   fs.mkdirSync(d.logDir, { recursive: true }); fs.writeFileSync(path.join(d.logDir, 'generation-job.json'), JSON.stringify({ jobId: 'j1', status: 'submitted' }));
   assert.equal((await p['job-record']({ runId: d.runId })).generation.jobId, 'j1');
+});
+
+test('on Windows helper() runs the port, never the shell; an old Selects gets one update line', async () => {
+  const from = panel.indexOf('const PC_MIN_HOST='), to = panel.indexOf('// mac-only:start');
+  assert.ok(from > 0 && to > from);
+  const wiring = panel.slice(from, to), trace = panel.match(/^function traceStep[^\n]*$/m)[0];
+  const make = (platform, version) => {
+    const home = tmp(), skills = path.join(home, '.selects', 'skills', 'postcard-cutout-studio');
+    fs.mkdirSync(path.dirname(skills), { recursive: true }); fs.symlinkSync(PKG, skills);
+    const di = host({ home, platform }); di.Runtime.getHostingVersion = () => version;
+    const ctx = vm.createContext({ window: { parent: { __DI__: di } }, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
+      AbortController, setTimeout, clearTimeout, atob, btoa, console, performance });
+    const shell = name => 'function ' + name + '(){throw Error("shell reached")}';
+    vm.runInContext([block('av-host'), trace, wiring, block('pc-ledger'), block('pc-port'), ...['macHelper', 'macProbeSubject', 'macRangePreview', 'macDecodeCheck'].map(shell),
+      'this.helper=helper;this.pcHostIssue=pcHostIssue;this.samePath=samePath;this.probeSubject=probeSubject;'].join('\n'), ctx);
+    return { ctx, home };
+  };
+  const sdk = { runShell: () => { throw Error('runShell reached'); } };
+  const win = make('win32', '2.0.520'), folder = tmp(); fs.writeFileSync(path.join(folder, 'a.mp4'), 'x');
+  assert.equal(win.ctx.pcHostIssue(), '');
+  assert.equal((await win.ctx.helper(sdk, 'folder-media', { path: folder })).total, 1);
+  assert.equal(await win.ctx.helper(sdk, 'load', { projectId: 'p1' }), null);
+  assert.equal(JSON.stringify(await win.ctx.helper(sdk, 'ensure')), '{}');
+  await assert.rejects(win.ctx.helper(sdk, 'rvm-preview', {}), /Unknown operation/);
+  assert.ok(fs.existsSync(path.join(win.home, '.selects', 'plugin-data', 'postcard-cutout-studio')));
+  if (tools) { const { f } = media(); assert.equal(JSON.parse((await win.ctx.probeSubject(sdk, f('Clip one.mp4'))).stdout).streams[0].width, 320); }
+  const old = make('win32', '2.0.507');
+  assert.match(old.ctx.pcHostIssue(), /needs Selects 2\.0\.508 or later on Windows\. Update Selects/);
+  await assert.rejects(old.ctx.helper(sdk, 'load', { projectId: 'p1' }), /Update Selects/);
+  const mac = make('darwin', '2.0.400');
+  assert.equal(mac.ctx.pcHostIssue(), '');
+  await assert.rejects(mac.ctx.helper(sdk, 'load', {}), /shell reached/, 'macOS keeps pipeline.py');
+  assert.equal(win.ctx.samePath('C:\\Users\\A\\Clip.MP4', 'c:/users/a/clip.mp4'), true);
+  assert.equal(mac.ctx.samePath('/Volumes/A/Clip.MP4', '/Volumes/a/clip.mp4'), false);
 });
