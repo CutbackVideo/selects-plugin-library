@@ -154,6 +154,41 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
         stack = '"DIN Condensed","Bahnschrift Condensed","Bahnschrift","Arial Narrow",sans-serif'
         self.assertEqual(self.text.count(stack), 2, 'the title and its measuring copy use one stack')
 
+    def generation(self):
+        start = self.text.index('async function generation(r,collect=false){')
+        return self.text[start:self.text.index('\nasync function ', start + 1)]
+
+    def test_paid_background_removal_waits_for_an_explicit_yes(self):
+        # Credit use is allowed on both OSes (user decision 2026-10-02), but only after the person confirms: the submit
+        # branch of generation() awaits confirmCredits before it claims the step, registers the cutout input or calls
+        # MediaGeneration.submit (its only call site).
+        body = self.generation()
+        ask = body.find("if(r.phase==='ready'&&!(await confirmCredits(r)))throw Object.assign(Error(CREDITS_DECLINED),{creditsDeclined:true});")
+        self.assertGreater(ask, -1, 'no awaited credit confirm in the submit branch')
+        self.assertLess(body.index('if(!collect){'), ask)
+        for later in ('claim(', "helper(sdk,'cutout-input'", 'importFiles', 'mg.submit('):
+            with self.subTest(step=later):
+                self.assertLess(ask, body.index(later))
+        self.assertEqual(self.text.count('mg.submit('), 1, 'one paid submit site')
+        self.assertNotIn('PAID_MAC_ONLY', self.text)
+        build = self.body('async function build(kind,', '\nreturn {persist,')
+        self.assertNotIn('cutoutInput.path]', build, 'the cutout input is registered only after the confirm')
+
+    def test_the_panel_asks_with_a_card(self):
+        self.assertIn("const CREDITS_NOTICE='This sends a '+CUTOUT_SECONDS+' s clip of your subject to Selects background removal, which uses generation credits. A rebuild with the same subject and range reuses the cutout.';", self.text)
+        self.assertIn('const confirmCredits=()=>new Promise(resolve=>setCreditAsk({resolve}));', self.text)
+        self.assertIn('const runner=createRunner({sdk,guard,setRun,setStatus,confirmCredits});', self.text)
+        self.assertIn('onClick={()=>answerCredits(true)}>Use credits and continue</ui.Button>', self.text)
+        self.assertIn('onClick={()=>answerCredits(false)}>Cancel</ui.Button>', self.text)
+        self.assertIn('if(e?.creditsDeclined){setError(CREDITS_DECLINED);', self.text, 'a cancel leaves an error, so the run is not resumed by itself')
+
+    def test_a_template_run_never_starts_a_paid_cutout(self):
+        self.assertIn('confirmCredits=async _run=>{throw Error(TEMPLATE_CREDITS)}}){', self.body('function createRunner('))
+        self.assertIn("const TEMPLATE_CREDITS='This uses Selects generation credits. Open Postcard Cutout Studio and press Create to confirm.';", self.text)
+        body = self.body('async function runTemplate(', '\nasync function releaseTemplateRun(')
+        self.assertIn('createRunner({sdk,guard,setStatus})', body, 'no confirm handed over: the default refuses')
+        self.assertNotIn('confirmCredits', body)
+
     def test_manifest_lists_windows(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])

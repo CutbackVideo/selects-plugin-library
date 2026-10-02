@@ -563,6 +563,11 @@ const BRIA_MODEL_ID='model_v1_YnJpYS92aWRlby9iYWNrZ3JvdW5kLXJlbW92YWwvdjM';
 // The cutout is only on screen until the flash (TIMING.subjectEnd), so a little
 // more than that is all that is sent; the provider bills and works by the second.
 const CUTOUT_SECONDS=1.6;
+// Every paid background removal waits for an explicit yes (both OSes). The Panel asks with a card; a template run
+// has no one to ask, so it stops before the paid step and a cutout it can reuse still builds.
+const CREDITS_NOTICE='This sends a '+CUTOUT_SECONDS+' s clip of your subject to Selects background removal, which uses generation credits. A rebuild with the same subject and range reuses the cutout.';
+const CREDITS_DECLINED='Background removal was not started, so no credits were used. Press Resume when you are ready.';
+const TEMPLATE_CREDITS='This uses Selects generation credits. Open Postcard Cutout Studio and press Create to confirm.';
 function appServices(){const di=window.parent?.__DI__;if(!di?.MediaGeneration?.isAvailable?.())throw Error('This version of Selects cannot remove backgrounds from a panel. Update Selects.');return di;}
 // The library a template run was handed for its project (`context.template.libraryId`):
 // the run goes on out of sight, after the app may have moved to another page.
@@ -590,11 +595,14 @@ async function appResourcePath(di,scope,id){
 // The steps of a run, shared by the Panel and a template run. `guard` stops the
 // work once whoever started it has moved on; `setRun` and `setStatus` report
 // progress to whoever is showing it.
-function createRunner({sdk,guard,setRun=_=>{},setStatus=_=>{}}){
+function createRunner({sdk,guard,setRun=_=>{},setStatus=_=>{},confirmCredits=async _run=>{throw Error(TEMPLATE_CREDITS)}}){
 async function persist(r,patch,stage,status='end',details={}){const next=await helper(sdk,'update',{runId:r.runId,patch,stage,status,details});setRun(next);return next}
 async function claim(r,expected,patch,stage,details){const x=await helper(sdk,'claim',{runId:r.runId,expected,patch,stage,details});if(!x.claimed)throw Error('Another run already started this step. Resume that run without starting a new generation.');setRun(x.run);return x.run}
 async function generation(r,collect=false){guard(r.projectId);const di=appServices(),mg=di.MediaGeneration;
 if(!collect){
+  // A run already past this point ('generationSubmitting') was confirmed and resubmits under the same key.
+  if(r.phase==='ready'&&!(await confirmCredits(r)))throw Object.assign(Error(CREDITS_DECLINED),{creditsDeclined:true});
+  guard(r.projectId);
   if(r.phase!=='generationSubmitting')r=await claim(r,['ready'],{phase:'generationSubmitting',generationStartedMs:Date.now()},'generation');
   const scope=generationScope(r.projectId);
   // The exact stretch goes up as its own file: given a whole clip and a range,
@@ -721,7 +729,8 @@ if(kind!=='resume'&&kind!=='export'){
  cutoutInput=await cutInput;guard(pid);
  prepMs.hold=Date.now()-clickedAtMs;
  let inventory=await readInventory(sdk,pid);guard(pid);
- const missing=[...new Set([...selected.map(row=>row.path),...poolRows.map(row=>row.path),...(cutoutInput?.path?[cutoutInput.path]:[])])].filter(path=>!inventory.some(item=>samePath(item.path,path)));
+ // The cutout input is registered by generation(), after the credit confirm.
+ const missing=[...new Set([...selected.map(row=>row.path),...poolRows.map(row=>row.path)])].filter(path=>!inventory.some(item=>samePath(item.path,path)));
  if(missing.length){
    await runScript(sdk,'return await selects.project('+json(pid)+').importFiles({paths:'+json(missing)+'});','Register postcard media',true);
    guard(pid);inventory=await readInventory(sdk,pid);guard(pid);
@@ -988,10 +997,14 @@ useEffect(()=>{preparing.say=setStatus;return()=>{if(preparing.say===setStatus)p
 useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(hostIssue||!subject?.path)return;const path=subject.path;(async()=>{try{const r=await probeSubject(sdk,path);if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
 useEffect(()=>{let alive=true;if(hostIssue||!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const r=await rangePreview(sdk,subject.path,s.subjectStartSec,Math.min(duration,s.subjectStartSec+8.5));if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
 function guard(pid){if(projectRef.current!==pid)throw Error('The Project changed. Stopped without resubmitting the current operation.')}
-const runner=createRunner({sdk,guard,setRun,setStatus});
+// The credit confirm: generation() awaits it; the card's buttons settle it.
+const [creditAsk,setCreditAsk]=useState(null);
+const confirmCredits=()=>new Promise(resolve=>setCreditAsk({resolve}));
+function answerCredits(yes){const ask=creditAsk;setCreditAsk(null);ask?.resolve(yes);}
+const runner=createRunner({sdk,guard,setRun,setStatus,confirmCredits});
 async function execute(kind){if(hostIssue){setError(hostIssue);return;}if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
 try{await runner.build(kind,{pid:context.projectId,settings:s,rows,run,duration,setSettings:setS,onMapped:(mapped,next)=>{setRows(old=>old.map(row=>{const m=mapped.get(row.resourceId);return m?{...row,resourceId:m.resourceId}:row;}));setSelection(old=>old.map(id=>mapped.get(id)?.resourceId||id));setFolderIds(old=>old.map(id=>mapped.get(id)?.resourceId||id));setS(next);}});
-}catch(e){current=e?.run??current;setError('We could not finish your postcard. Your progress is saved. See details below.');setStatus(String(e.message||e));if(current?.runId)try{await helper(sdk,'event',{runId:current.runId,stage:'pipeline',status:'failed',details:{error:String(e.stack||e)}})}catch{}}finally{busyRef.current=false;setBusy(false)}}
+}catch(e){current=e?.run??current;if(e?.creditsDeclined){setError(CREDITS_DECLINED);setStatus('');return;}setError('We could not finish your postcard. Your progress is saved. See details below.');setStatus(String(e.message||e));if(current?.runId)try{await helper(sdk,'event',{runId:current.runId,stage:'pipeline',status:'failed',details:{error:String(e.stack||e)}})}catch{}}finally{busyRef.current=false;setBusy(false)}}
 
 const active=run&&!['draftReady','complete','abandoned','exportFailed','generationFailed'].includes(run.phase);
 const locked=busy||loading||!!active;
@@ -1264,6 +1277,10 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
     {/* The kit's Actions stacks every button full width under 360px, which
         made this bar four lines tall in a docked panel. This row keeps the
         two buttons side by side at any width; only the count wraps above. */}
+    {creditAsk&&<div role="alertdialog" aria-label="Use generation credits" style={{...pane,padding:GAP,display:'grid',gap:GAP}}>
+      <p style={{margin:0,fontSize:12,lineHeight:1.5}}>{CREDITS_NOTICE}</p>
+      <div className="pc-actions"><ui.Button variant="ghost" onClick={()=>answerCredits(false)}>Cancel</ui.Button><ui.Button variant="primary" onClick={()=>answerCredits(true)}>Use credits and continue</ui.Button></div>
+    </div>}
     <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}{canAbandon&&<ui.Button variant="ghost" onClick={()=>void abandonRun()}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error)} busyLabel={friendlyPhase(run?.phase)} disabled={!!hostIssue||loading||picking||(!active&&!hasDraft&&!!blocker)} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
   </footer>}
 </div>;

@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
+import { topLevel } from './windows_host.mjs';
 
 const panel=fs.readFileSync(path.resolve(import.meta.dirname,'../plugins/postcard-cutout-studio/panel.tsx'),'utf8');
 const block=name=>{const m=panel.match(new RegExp('// '+name+':start\\n[\\s\\S]*?// '+name+':end'));assert.ok(m,name+' block');return m[0]};
@@ -70,4 +71,36 @@ test('a finished cutout of the same stretch is reused',async()=>{
  assert.equal(second.phase,'maskReady');assert.equal(second.reusedFromRunId,first.runId);
  const other=await L.init({projectId:'p1',replaceSettled:true,previousRunId:second.runId,settings:{...settings,subjectStartSec:1},source:{path:source}}).catch(e=>e);
  assert.match(String(other.message||other),/still active/,'maskReady is not settled');
+});
+
+// The paid step: createRunner's generation() runs in node:vm with stubbed host calls. A confirm that answers no
+// (the Panel's Cancel) or the template default (no confirm handed over) stops before claim, import and submit.
+function runner(confirmCredits){
+ const calls=[],ctx=vm.createContext({calls,console,Date,setTimeout,
+  helper:async(_sdk,op,args)=>{calls.push(op);return op==='claim'?{claimed:true,run:{runId:'r',projectId:'p',phase:'generationSubmitting',settings:{subjectStartSec:0},source:{path:'/s.mp4'},logDir:'/logs/r'}}:op==='cutout-input'?{path:'/c.mp4'}:{phase:'generationPending'}},
+  runScript:async(_sdk,script)=>{calls.push(/importFiles/.test(script)?'importFiles':'script')},
+  appServices:()=>({MediaGeneration:{submit:async()=>{calls.push('submit');return{jobIds:['selects-'+'a'.repeat(64)]}},supportsPluginFiles:()=>false}}),
+  generationScope:()=>({libraryId:'l',projectId:'p'}),appResourceIdForPath:async()=>calls.includes('importFiles')?'res':null,hostIsWindows:()=>true,hostJoin:(...p)=>p.join('/')});
+ const consts=['CUTOUT_SECONDS','CREDITS_NOTICE','CREDITS_DECLINED','TEMPLATE_CREDITS','BRIA_MODEL_ID','json'].map(n=>topLevel(panel,n)).join('\n');
+ vm.runInContext(consts+'\n'+topLevel(panel,'createRunner')+'\nthis.make=createRunner;',ctx);
+ const opts={sdk:{},guard:()=>{}};if(confirmCredits)opts.confirmCredits=confirmCredits;
+ return {r:ctx.make(opts),calls};
+}
+const ready={runId:'r',projectId:'p',phase:'ready',settings:{subjectStartSec:0},source:{path:'/s.mp4'},logDir:'/logs/r'};
+test('Cancel on the credit card stops before claim, import and submit',async()=>{
+ const asked=[],{r,calls}=runner(async run=>{asked.push(run.runId);return false});
+ await assert.rejects(r.generation({...ready}),e=>e.creditsDeclined===true&&/no credits were used/.test(e.message));
+ assert.deepEqual(asked,['r']);assert.deepEqual(calls,[]);
+});
+test('a template run (no confirm) refuses the paid step before anything',async()=>{
+ const {r,calls}=runner(null);
+ await assert.rejects(r.generation({...ready}),/Open Postcard Cutout Studio and press Create to confirm/);
+ assert.deepEqual(calls,[]);
+});
+test('Use credits and continue submits once; a confirmed run resubmitting is not asked again',async()=>{
+ let asked=0;const {r,calls}=runner(async()=>{asked++;return true});
+ await r.generation({...ready});
+ assert.deepEqual(calls.filter(c=>['claim','importFiles','submit'].includes(c)),['claim','importFiles','submit']);
+ await r.generation({...ready,phase:'generationSubmitting'});
+ assert.equal(asked,1);
 });
