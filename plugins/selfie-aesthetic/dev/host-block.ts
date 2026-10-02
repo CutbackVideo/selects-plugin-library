@@ -53,12 +53,46 @@ function saePlatform() {
   return 'linux';
 }
 
-// The installed skill folder (the host's SELECTS_USER_SKILLS_ROOT is the user's .selects/skills), or null when the
-// plugin's planner.js is not there.
+// The installed skill folder, or null when no candidate holds the plugin's planner.js. The host's skills root
+// (SELECTS_USER_SKILLS_ROOT) is the home folder joined with .selects and skills (cutback-client electron/user-skills.ts resolveUserSkillsRoot),
+// so that comes first. Archive Vlog falls back to the variable through the host shell; this panel uses no shell, so
+// the fallbacks are shell-free host values, each guarded and tried in order:
+//   1. FileSystem.homedir() joined with .selects, skills and the plugin id
+//   2. SELECTS_USER_SKILLS_ROOT in Runtime.getHostEnvironment(), joined with the plugin id
+//   3. SELECTS_USER_SKILLS_ROOT in the renderer's process environment (window.parent.process, then window.process), joined with the plugin id
+//   4. Runtime.getOS().homedir() joined the same way (a second view of the home folder)
+// A missing member or a throwing call only skips that candidate. FileSystem.join and existsSync are required
+// (host_tools without them); every candidate is verified by existsSync(join(dir, 'planner.js')).
+const SAE_SKILLS_ENV = 'SELECTS_USER_SKILLS_ROOT';
+function saeSkillsCandidates(id) {
+  const { fs, rt } = saeDI();
+  const out = [];
+  const add = (fn) => { try { const v = fn(); if (typeof v === 'string' && v) out.push(v); } catch (e) { /* skip this candidate */ } };
+  const envOf = (w) => { try { const p = w && w.process; const v = p && p.env && p.env[SAE_SKILLS_ENV]; return typeof v === 'string' ? v.trim() : ''; } catch (e) { return ''; } };
+  add(() => (typeof fs.homedir === 'function' ? String(fs.join(fs.homedir(), '.selects', 'skills', id)) : ''));
+  add(() => {
+    const env = rt && typeof rt.getHostEnvironment === 'function' ? rt.getHostEnvironment() : null;
+    const v = env && typeof env[SAE_SKILLS_ENV] === 'string' ? env[SAE_SKILLS_ENV].trim() : '';
+    return v ? String(fs.join(v, id)) : '';
+  });
+  add(() => {
+    let w = null;
+    try { w = window.parent; } catch (e) { w = null; }
+    const v = envOf(w) || envOf(typeof window === 'undefined' ? null : window);
+    return v ? String(fs.join(v, id)) : '';
+  });
+  add(() => {
+    const os = rt && typeof rt.getOS === 'function' ? rt.getOS() : null;
+    return os && typeof os.homedir === 'function' ? String(fs.join(os.homedir(), '.selects', 'skills', id)) : '';
+  });
+  return out.filter((d, i) => out.indexOf(d) === i);
+}
 function saeSkillsDir(id) {
-  const { fs } = saeNeed(['fs.join', 'fs.homedir', 'fs.existsSync']);
-  const dir = fs.join(fs.homedir(), '.selects', 'skills', id);
-  try { return fs.existsSync(fs.join(dir, 'planner.js')) ? dir : null; } catch (e) { return null; }
+  const { fs } = saeNeed(['fs.join', 'fs.existsSync']);
+  for (const dir of saeSkillsCandidates(id)) {
+    try { if (fs.existsSync(fs.join(dir, 'planner.js'))) return dir; } catch (e) { /* the next candidate */ }
+  }
+  return null;
 }
 
 // The plugin's persistent data folder, created when missing.
