@@ -17,9 +17,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Needs the editor's existing original Image placement service plus public effects and motion graphics. Image Draft creation and export were verified in Selects Staging; exact reference-format fidelity remains provisional. The Node-free panel (2026-10-01) passed its local tests but has not yet been run in the app."
+    "selects": "Needs the editor's existing original Image placement service plus public effects and motion graphics. Image Draft creation and export were verified in Selects Staging; exact reference-format fidelity remains provisional. The Node-free panel (2026-10-01) passed its local tests but has not yet been run in the app. Windows (2026-10-02): the music is found through the host FileSystem, with no shell command; a Windows pass on the Staging build is pending."
   },
   "preview": {
     "video": "preview.mp4",
