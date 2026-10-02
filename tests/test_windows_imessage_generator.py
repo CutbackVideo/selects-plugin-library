@@ -66,17 +66,48 @@ class IMessageGeneratorWindowsTest(unittest.TestCase):
             body = body_of(self.runtime, head)
             guard = body.find("kokoroAvailable()")
             self.assertGreaterEqual(guard, 0, head)
-            for call in ("kokoroSetupShell(", "runSpeechJob(sdk,pid,LOCAL_TTS_PY", "kokoroPython("):
+            for call in ("kokoroSetupShell(", "runKokoroJob(", "kokoroPython("):
                 at = body.find(call)
                 if at >= 0:
                     self.assertLess(guard, at, head + " guards " + call)
-        job = self.runtime[self.runtime.index("async function runSpeechJob("):]
+        job = self.mac[self.mac.index("async function runKokoroJob("):]
         job = job[: job.index("\n}\n")]
-        self.assertLess(job.index("kokoroAvailable()"), job.index("kokoroPython("))
+        self.assertLess(job.index("kokoroAvailable()"), job.index("runShell("))
+
+    def test_no_shell_or_python_outside_mac_only(self):
+        self.assertEqual(self.runtime.count("runShell("), 0)
+        self.assertIsNone(re.search(r"\bpython3?\b", self.runtime), "python spawn")
+        for needle in ("IO_PY", "AUDIO_PROCESS_PY", "runIO(", "runSpeechJob(", "shellQuote(", "mkdir -p", "printf",
+                       "$HOME", "rm -f", "base64 ", "shasum", "command -v", "export PATH", "2>/dev/null"):
+            self.assertNotIn(needle, self.runtime, needle)
+
+    def test_workspace_uses_host_filesystem_with_a_normalized_guard(self):
+        io = self.runtime[self.runtime.index("async function workspaceIO("):]
+        io = io[: io.index("\n}\n")]
+        for part in ("hostNeed('FileSystem','homedir')", "mkdirSync(", "writeFile(", "hostReadText(", "hostReadBytes(",
+                     "wsInside(p,r)"):
+            self.assertIn(part, io, part)
+        norm = self.runtime[self.runtime.index("function wsNorm("):]
+        norm = norm[: norm.index("\n")]
+        for part in ("normalize(s)", ".normalize('NFC')", "replace(/\\\\/g,'/')", "hostIsWindows()", "toLowerCase()"):
+            self.assertIn(part, norm, part)
+        self.assertIn("function joinPath(...parts){return hostJoin(...parts);}", self.runtime)
+        self.assertNotIn("startsWith(joinPath(paths.base,'voice-'))", self.runtime)
+        self.assertNotRegex(self.runtime, r"\.path===", "exact host path compare")
+
+    def test_normalize_and_mix_run_in_the_panel_with_host_ffmpeg(self):
+        section = self.runtime[self.runtime.index("function wavInfo("):self.runtime.index("async function elevenRequest(")]
+        self.assertIn("'-ac','1','-ar','44100','-c:a','pcm_s16le'", section)
+        self.assertIn("crypto.subtle.digest('SHA-256'", section)
+        self.assertIn("'imessage-narration-'+mixKey.slice(0,32)+'.wav'", section)
+        self.assertIn("hostNeed('Runtime','runFFmpeg').runFFmpeg(argv,true,signal)", self.runtime)
+        self.assertIn("normalizeVoices(panelAudioIO(sdk),root,raw,controller.signal)", self.runtime)
+        self.assertIn("return mixNarration(panelAudioIO(sdk),root,plan.duration,", self.runtime)
 
     def test_manifest_and_docs(self):
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
         self.assertIn("macOS development builds", manifest["compatibility"]["platforms"])
+        self.assertIn("Windows x64", manifest["compatibility"]["platforms"])
         self.assertNotEqual(manifest["version"], "0.1.0-alpha.2")
         install = read(os.path.join(PLUGIN, "INSTALL.md"))
         self.assertIn("macOS only", install)

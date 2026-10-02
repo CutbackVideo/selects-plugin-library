@@ -15,9 +15,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS development builds"
+      "macOS development builds",
+      "Windows x64"
     ],
-    "selects": "Requires Panel SDK runScript/runShell/call, generated-media authoring, and Project file-tree adapters. Released-version and Windows/Linux compatibility are unverified."
+    "selects": "Requires Panel SDK runScript/call, generated-media authoring, Project file-tree adapters, and the host FileSystem and bundled ffmpeg (Runtime.runFFmpeg) for narration audio. Local Kokoro voices are macOS-only (runShell + Python); on Windows narration uses ElevenLabs. Released-version and Linux compatibility are unverified."
   },
   "preview": {
     "video": "preview.mp4",

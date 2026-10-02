@@ -266,7 +266,6 @@ const SETUP_KOKORO_PY = "import os,sys,json,subprocess,shutil,urllib.request,has
 function kokoroSetupShell(sdk,engine){return sdk.runShell({summary:'Set up free Kokoro voices',command:'python3 -c '+shellQuote(SETUP_KOKORO_PY)+' '+shellQuote(engine),timeoutMs:300000,maxOutputBytes:49152});}
 function kokoroPython(engine){return joinPath(engine,'venv','bin','python');}
 // mac-only:end
-const AUDIO_PROCESS_PY = "import sys,json,subprocess,wave,hashlib,math\nfrom pathlib import Path\njob=json.loads(Path(sys.argv[1]).read_text());root=Path(job['root']).resolve();root.mkdir(parents=True,exist_ok=True)\ndef inside(path):\n p=Path(path).resolve()\n if root!=p and root not in p.parents:raise ValueError('Audio file is outside this generated-voice workspace')\n return p\nif job['action']=='normalize':\n pieces=[]\n for row in job['rows']:\n  if row.get('silent'):\n   dst=root/'silent-message.wav'\n   if not dst.exists():\n    with wave.open(str(dst),'wb')as f:f.setnchannels(1);f.setsampwidth(2);f.setframerate(44100);f.writeframes(b'')\n   src=dst\n  else:src=inside(row['file']);dst=src.with_suffix('.wav')\n  if not dst.exists():subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-i',str(src),'-ac','1','-ar','44100','-c:a','pcm_s16le',str(dst)],check=True,capture_output=True,timeout=90)\n  with wave.open(str(dst),'rb')as f:pieces.append({'file':str(dst),'duration':f.getnframes()/f.getframerate(),'frames':f.getnframes(),'sampleRate':f.getframerate(),'voice':row['voice']})\n if sum(p['duration'] for p in pieces)>600:raise ValueError('Keep generated speech below 10 minutes per conversation')\n print(json.dumps({'root':str(root),'pieces':pieces}));sys.exit(0)\nif job['action']!='mix':raise ValueError('Unknown audio action')\nrows=job['rows'];duration=float(job['duration']);sr=44100\nif not 0<duration<=1800:raise ValueError('Conversation must be between 0 and 1800 seconds')\nparts=[];digest=hashlib.sha256(json.dumps({'rows':rows,'duration':duration},sort_keys=True).encode())\nfor row in rows:\n src=inside(row['file']);raw=src.read_bytes();digest.update(raw)\n with wave.open(str(src),'rb')as f:\n  if f.getnchannels()!=1 or f.getsampwidth()!=2 or f.getframerate()!=sr:raise ValueError('Regenerate voices: invalid cached audio format')\n  if abs(f.getnframes()/sr-float(row['speechDuration']))>1/sr+.0001:raise ValueError('Cached audio duration changed. Regenerate voices')\n  parts.append((int(round(float(row['start'])*sr)),f.readframes(f.getnframes())))\nname='imessage-narration-'+digest.hexdigest()[:32]+'.wav';dest=root/name\nif not dest.exists():\n with wave.open(str(dest),'wb')as f:\n  f.setnchannels(1);f.setsampwidth(2);f.setframerate(sr);pos=0\n  for start,data in parts:\n   if start<pos-1:raise ValueError('Speech overlaps. Check the after-voice gap')\n   padding=max(0,start-pos);f.writeframes(b'\\0'*(padding*2));f.writeframes(data);pos=max(pos,start)+len(data)//2\n  # One second of unplaced silence ensures a rounded-up video-frame boundary never clips speech.\n  target=math.ceil((duration+1)*sr)\n  if target>pos:f.writeframes(b'\\0'*((target-pos)*2))\nprint(json.dumps({'path':str(dest),'mixKey':digest.hexdigest(),'conversationDuration':duration,'fileDuration':duration+1,'sampleRate':sr}))\n";
 function speechSignature(s) {
   const provider=s.voiceProvider||'kokoro';
   return JSON.stringify({provider,rate:Number(s.speechRate)||1,left:provider==='kokoro'?s.localThem:s.cloudThem,right:provider==='kokoro'?s.localMe:s.cloudMe,rows:parseScript(s.script).map(r=>[r.side,r.text])});
@@ -308,65 +307,130 @@ function scheduleStory(settings, availableSeconds) {
   }
   return {messages,duration:target,minHold,factor,measured:false};
 }
-const IO_PY = "import sys,base64,json,os,pathlib\nargs=json.loads(base64.b64decode(sys.argv[1]).decode())\nhome=pathlib.Path.home();base=home/'.selects'/'generated-audio'/'text-story';state=home/'.selects'/'panel-state'/'text-story'\ndef guard(p,writable=True):\n rp=pathlib.Path(p).resolve()\n roots=[base.resolve(),state.resolve()] if writable else [base.resolve(),state.resolve(),(home/'.selects'/'tts').resolve()]\n if not any(r==rp or r in rp.parents for r in roots):raise ValueError('Path outside the panel workspace')\n return rp\naction=args['action']\nif action=='home':print(json.dumps({'home':str(home),'base':str(base),'state':str(state),'engine':str(home/'.selects'/'tts'/'kokoro-v1')}))\nelif action=='write':\n p=guard(args['path']);p.parent.mkdir(parents=True,exist_ok=True)\n with open(p,'ab' if args.get('append') else 'wb')as f:f.write(base64.b64decode(args['data']))\n print(json.dumps({'ok':True,'bytes':p.stat().st_size}))\nelif action=='mkdir':\n p=guard(args['path']);p.mkdir(parents=True,exist_ok=True);print(json.dumps({'ok':True,'path':str(p)}))\nelif action=='exists':print(json.dumps({paths:bool(0)} if False else {'exists':[pathlib.Path(x).exists() for x in args['paths']]}))\nelif action=='text':\n p=guard(args['path'],False);print(json.dumps({'text':p.read_text()[:args.get('limit',200000)]}))\nelif action=='bytes':\n p=guard(args['path'],False);off=int(args['offset']);size=int(args['size'])\n with open(p,'rb')as f:f.seek(off);chunk=f.read(size)\n print(json.dumps({'data':base64.b64encode(chunk).decode(),'total':p.stat().st_size,'eof':off+len(chunk)>=p.stat().st_size}))\nelse:raise ValueError('Unknown action')\n";
-function shellQuote(s){return "'"+String(s).replace(/'/g,"'\\''")+"'";}
-function joinPath(...parts){return parts.join('/').replace(/\/{2,}/g,'/');}
-function encodeJob(value){const bytes=new TextEncoder().encode(JSON.stringify(value));let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);}
-function decodeBytes(base64){const binary=atob(base64),out=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)out[i]=binary.charCodeAt(i);return out;}
-async function runIO(sdk,summary,args){
-  const r=await sdk.runShell({summary,command:'python3 -c '+shellQuote(IO_PY)+' '+shellQuote(encodeJob(args)),timeoutMs:60000,maxOutputBytes:49152});
-  if(r.isError||r.exitCode!==0)throw new Error(r.stderr||r.output||'The panel could not reach its workspace.');
-  try{return JSON.parse(r.stdout);}catch{throw new Error('The workspace helper returned an unreadable result.');}
+// Panel workspace I/O through the host FileSystem (no shell, no Python). Writes stay inside the generated-audio and
+// panel-state folders; reads may also reach the Kokoro engine folder (the same roots the old helper allowed). Paths are
+// compared after FileSystem.normalize, NFC and `\`->`/`, case-folded on Windows.
+function joinPath(...parts){return hostJoin(...parts);}
+function wsNorm(p){let s=String(p||'');const fs=hostApi('FileSystem','normalize');if(fs){try{s=String(fs.normalize(s));}catch{}}s=s.normalize('NFC').replace(/\\/g,'/').replace(/\/+$/,'');return hostIsWindows()?s.toLowerCase():s;}
+function wsInside(path,root){const p=wsNorm(path),r=wsNorm(root);return !!r&&!/(^|\/)\.\.(\/|$)/.test(p)&&(p===r||p.startsWith(r+'/'));}
+function isVoicePath(paths,p){const n=wsNorm(p);return !/(^|\/)\.\.(\/|$)/.test(n)&&n.startsWith(wsNorm(joinPath(paths.base,'voice-')));}
+function samePathText(a,b){const n=s=>String(s||'').normalize('NFC').replace(/\\/g,'/');const x=n(a),y=n(b);return x===y||(/^[a-z]:\//i.test(x)&&x.toLowerCase()===y.toLowerCase());}
+function errText(e){return e&&e.code==='host-missing'?'This Selects build is missing '+(e.member||'a host service')+'. Update Selects to use narration.':String((e&&e.message)||e);}
+async function workspaceIO(sdk,summary,args){
+  const fs=hostNeed('FileSystem','homedir'),sel=hostJoin(String(fs.homedir()),'.selects');
+  const base=hostJoin(sel,'generated-audio','text-story'),state=hostJoin(sel,'panel-state','text-story');
+  const guard=(p,writable=true)=>{const roots=writable?[base,state]:[base,state,hostJoin(sel,'tts')];if(!roots.some(r=>wsInside(p,r)))throw new Error('Path outside the panel workspace');return String(p);};
+  const action=args.action;
+  if(action==='home')return {home:String(fs.homedir()),base,state,engine:hostJoin(sel,'tts','kokoro-v1')};
+  if(action==='mkdir'){const p=guard(args.path);hostNeed('FileSystem','mkdirSync').mkdirSync(p,{recursive:true});return {ok:true,path:p};}
+  if(action==='write'){const p=guard(args.path),f=hostNeed('FileSystem','writeFile');if(hostApi('FileSystem','dirname','mkdirSync'))f.mkdirSync(f.dirname(p),{recursive:true});await f.writeFile(p,args.data);return {ok:true};}
+  if(action==='exists'){const f=hostNeed('FileSystem','exists');return {exists:await Promise.all(args.paths.map(async p=>{try{return !!(await f.exists(p));}catch{return false;}}))};}
+  if(action==='text')return {text:(await hostReadText(guard(args.path,false))).slice(0,args.limit||200000)};
+  if(action==='bytes')return {bytes:await hostReadBytes(guard(args.path,false))};
+  throw new Error('Unknown action');
 }
-async function writeWorkspaceFile(sdk,path,text){
-  const bytes=new TextEncoder().encode(text);const step=24000;
-  if(!bytes.length)return runIO(sdk,'Write panel workspace file',{action:'write',path,data:''});
-  for(let offset=0;offset<bytes.length;offset+=step){
-    let binary='';const slice=bytes.subarray(offset,offset+step);
-    for(let i=0;i<slice.length;i+=8192)binary+=String.fromCharCode(...slice.subarray(i,i+8192));
-    await runIO(sdk,'Write panel workspace file',{action:'write',path,data:btoa(binary),append:offset>0});
-  }
-  return {ok:true};
-}
+async function writeWorkspaceFile(sdk,path,text){return workspaceIO(sdk,'Write panel workspace file',{action:'write',path,data:String(text)});}
 async function readWorkspaceBytes(sdk,path){
-  const parts=[];let offset=0;
-  for(let guard=0;guard<400;guard++){
-    const chunk=await runIO(sdk,'Read generated audio',{action:'bytes',path,offset,size:30000});
-    const bytes=decodeBytes(chunk.data);parts.push(bytes);offset+=bytes.length;
-    if(chunk.eof||!bytes.length)break;
-  }
-  const total=parts.reduce((n,p)=>n+p.length,0),out=new Uint8Array(total);let at=0;
-  for(const part of parts){out.set(part,at);at+=part.length;}
-  return out;
+  // A panel-realm copy, so decodeAudioData and crypto.subtle get a local ArrayBuffer.
+  const bytes=(await workspaceIO(sdk,'Read generated audio',{action:'bytes',path})).bytes,out=new Uint8Array(bytes.length);out.set(bytes);return out;
 }
 
 async function readWorkspaceText(sdk,path,fallback){
-  try{return (await runIO(sdk,'Read panel workspace file',{action:'text',path})).text;}catch{return fallback;}
+  try{return (await workspaceIO(sdk,'Read panel workspace file',{action:'text',path})).text;}catch{return fallback;}
 }
 async function workspacePaths(sdk,cache){
-  if(!cache.current)cache.current=await runIO(sdk,'Locate panel workspace',{action:'home'});
+  if(!cache.current)cache.current=await workspaceIO(sdk,'Locate panel workspace',{action:'home'});
   return cache.current;
 }
-
-async function runSpeechJob(sdk,pid,code,job,summary,cache){
-  const paths=await workspacePaths(sdk,cache);
-  if(!String(job.root||'').startsWith(joinPath(paths.base,'voice-')))throw new Error('The generated-voice folder is invalid. Regenerate voices.');
-  let python='python3';
-  if(code===LOCAL_TTS_PY){
-    if(!kokoroAvailable())throw new Error('Local Kokoro voices: '+MAC_ONLY_NOTE+'. Choose ElevenLabs.');
-    python=kokoroPython(paths.engine);
-    const ready=await runIO(sdk,'Check local voice engine',{action:'exists',paths:[python,joinPath(paths.engine,'engine.json')]});
-    if(!ready.exists.every(Boolean))throw new Error('Set up the free local engine in the Voice tab first.');
-    job={...job,engineRoot:paths.engine};
+function panelAudioIO(sdk){return {
+  exists:async p=>(await workspaceIO(sdk,'Check generated audio',{action:'exists',paths:[p]})).exists[0],
+  readBytes:p=>readWorkspaceBytes(sdk,p),
+  write:(p,data)=>workspaceIO(sdk,'Store generated audio',{action:'write',path:p,data}),
+  mkdir:p=>workspaceIO(sdk,'Prepare voice workspace',{action:'mkdir',path:p}),
+  ffmpeg:(argv,signal)=>hostNeed('Runtime','runFFmpeg').runFFmpeg(argv,true,signal),
+};}
+// narration-audio:start
+// Voice normalize and narration mix in the panel (they replace the old Python wave/ffmpeg helper; the output is the
+// same mono 44.1 kHz 16-bit WAV). `io` = {exists, readBytes, write, mkdir, ffmpeg(argv, signal)}; ffmpeg is the
+// host's bundled one. ffmpeg writes a LIST chunk before `data`, so the reader walks the RIFF chunks.
+function wavInfo(bytes){
+  const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),tag=o=>String.fromCharCode(bytes[o],bytes[o+1],bytes[o+2],bytes[o+3]);
+  if(bytes.length<12||tag(0)!=='RIFF'||tag(8)!=='WAVE')throw new Error('Regenerate voices: invalid cached audio format');
+  let fmt=null,data=null;
+  for(let o=12;o+8<=bytes.length;){
+    const id=tag(o),size=v.getUint32(o+4,true),body=o+8;
+    if(id==='fmt '&&size>=16&&body+16<=bytes.length)fmt={format:v.getUint16(body,true),channels:v.getUint16(body+2,true),sampleRate:v.getUint32(body+4,true),bits:v.getUint16(body+14,true)};
+    else if(id==='data'){data={offset:body,size:Math.min(size,bytes.length-body)};break;}
+    o=body+size+(size&1);
   }
-  await runIO(sdk,'Prepare voice workspace',{action:'mkdir',path:job.root});
+  if(!fmt||!data||!fmt.channels||!fmt.bits||!fmt.sampleRate||(fmt.format!==1&&fmt.format!==0xfffe))throw new Error('Regenerate voices: invalid cached audio format');
+  const width=fmt.channels*fmt.bits/8,frames=Math.floor(data.size/width);
+  return {...fmt,frames,data:bytes.subarray(data.offset,data.offset+frames*width)};
+}
+function wavBytes(pcm,sr){
+  const out=new Uint8Array(44+pcm.length),v=new DataView(out.buffer),put=(o,s)=>{for(let i=0;i<4;i++)out[o+i]=s.charCodeAt(i);};
+  put(0,'RIFF');v.setUint32(4,36+pcm.length,true);put(8,'WAVE');put(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);put(36,'data');v.setUint32(40,pcm.length,true);out.set(pcm,44);
+  return out;
+}
+async function normalizeVoices(io,root,rows,signal){
+  await io.mkdir(root);const pieces=[];
+  for(const row of rows){
+    let src,dst;
+    if(row.silent){dst=joinPath(root,'silent-message.wav');if(!(await io.exists(dst)))await io.write(dst,wavBytes(new Uint8Array(0),44100));src=dst;}
+    else{src=String(row.file||'');if(!wsInside(src,root))throw new Error('Audio file is outside this generated-voice workspace');dst=src.replace(/\.[^.\\/]*$/,'')+'.wav';}
+    if(!(await io.exists(dst)))await io.ffmpeg(['-nostdin','-hide_banner','-loglevel','error','-y','-i',src,'-ac','1','-ar','44100','-c:a','pcm_s16le',dst],signal);
+    const w=wavInfo(await io.readBytes(dst));pieces.push({file:dst,duration:w.frames/w.sampleRate,frames:w.frames,sampleRate:w.sampleRate,voice:row.voice});
+  }
+  if(pieces.reduce((n,p)=>n+p.duration,0)>600)throw new Error('Keep generated speech below 10 minutes per conversation');
+  return {root,pieces};
+}
+async function mixNarration(io,root,duration,rows){
+  const sr=44100;duration=Number(duration);
+  if(!(duration>0&&duration<=1800))throw new Error('Conversation must be between 0 and 1800 seconds');
+  // Python's round(): halves go to the even sample, as the old helper placed them.
+  const roundEven=x=>{const r=Math.round(x);return Math.abs(x-Math.trunc(x))===.5&&r%2?r-1:r;};
+  const chunks=[new TextEncoder().encode(JSON.stringify({duration,rows}))],parts=[];
+  for(const row of rows){
+    const src=String(row.file||'');if(!wsInside(src,root))throw new Error('Audio file is outside this generated-voice workspace');
+    const raw=await io.readBytes(src),w=wavInfo(raw);chunks.push(raw);
+    if(w.channels!==1||w.bits!==16||w.sampleRate!==sr)throw new Error('Regenerate voices: invalid cached audio format');
+    if(Math.abs(w.frames/sr-Number(row.speechDuration))>1/sr+.0001)throw new Error('Cached audio duration changed. Regenerate voices');
+    parts.push([roundEven(Number(row.start)*sr),w.data]);
+  }
+  const all=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let at=0;for(const c of chunks){all.set(c,at);at+=c.length;}
+  const mixKey=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',all)),b=>b.toString(16).padStart(2,'0')).join('');
+  const dest=joinPath(root,'imessage-narration-'+mixKey.slice(0,32)+'.wav');
+  if(!(await io.exists(dest))){
+    const placed=[];let pos=0;
+    for(const [start,data] of parts){if(start<pos-1)throw new Error('Speech overlaps. Check the after-voice gap');const from=Math.max(pos,start);placed.push([from,data]);pos=from+data.length/2;}
+    // One second of unplaced silence ensures a rounded-up video-frame boundary never clips speech.
+    const pcm=new Uint8Array(Math.max(pos,Math.ceil((duration+1)*sr))*2);for(const [from,data] of placed)pcm.set(data,from*2);
+    await io.write(dest,wavBytes(pcm,sr));
+  }
+  return {path:dest,mixKey,conversationDuration:duration,fileDuration:duration+1,sampleRate:sr};
+}
+// narration-audio:end
+// mac-only:start
+function shellQuote(s){return "'"+String(s).replace(/'/g,"'\\''")+"'";}
+// Local Kokoro TTS (macOS only): the job file goes through the host FileSystem, the engine runs in its venv Python.
+async function runKokoroJob(sdk,job,summary,cache){
+  if(!kokoroAvailable())throw new Error('Local Kokoro voices: '+MAC_ONLY_NOTE+'. Choose ElevenLabs.');
+  const paths=await workspacePaths(sdk,cache);
+  if(!isVoicePath(paths,job.root))throw new Error('The generated-voice folder is invalid. Regenerate voices.');
+  const python=kokoroPython(paths.engine);
+  const ready=await workspaceIO(sdk,'Check local voice engine',{action:'exists',paths:[python,joinPath(paths.engine,'engine.json')]});
+  if(!ready.exists.every(Boolean))throw new Error('Set up the free local engine in the Voice tab first.');
+  job={...job,engineRoot:paths.engine};
+  await workspaceIO(sdk,'Prepare voice workspace',{action:'mkdir',path:job.root});
   const jobPath=joinPath(job.root,'job-'+crypto.randomUUID()+'.json');
   await writeWorkspaceFile(sdk,jobPath,JSON.stringify(job));
-  const r=await sdk.runShell({summary,command:shellQuote(python)+' -c '+shellQuote(code)+' '+shellQuote(jobPath),timeoutMs:300000,maxOutputBytes:49152});
+  const r=await sdk.runShell({summary,command:shellQuote(python)+' -c '+shellQuote(LOCAL_TTS_PY)+' '+shellQuote(jobPath),timeoutMs:300000,maxOutputBytes:49152});
   if(r.isError||r.exitCode!==0)throw new Error(r.output||r.stderr||'The audio operation failed.');
   if(r.truncated)throw new Error('The audio result was truncated. No partial result was applied.');
   try{return JSON.parse(r.stdout);}catch{throw new Error('The audio helper returned an invalid result.');}
 }
+// mac-only:end
 async function elevenRequest(path,key,options={}){
   if(!key.trim())throw new Error('Enter your ElevenLabs API key in the Voice tab.');
   let response;try{response=await fetch('https://api.elevenlabs.io'+path,{...options,headers:{'xi-api-key':key.trim(),...(options.body?{'Content-Type':'application/json'}:{})}});}catch(e){if(e.name==='AbortError')throw e;throw new Error('Could not reach ElevenLabs. Check this app network permissions'+(kokoroAvailable()?' or use Local Kokoro.':'.'));}
@@ -525,14 +589,14 @@ export default function IMessageGenerator({sdk,context}) {
   function stopPreviewSound(){for(const n of audioNodes.current){try{n.stop();}catch{}}audioNodes.current=[];audioClock.current=null;}
   function stopAudition(){try{auditionNode.current?.stop?.();auditionNode.current?.pause?.();}catch{}auditionNode.current=null;}
   async function audioEngine(){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw new Error('Audio preview is not supported in this app build.');if(!audioContext.current)audioContext.current=new C({sampleRate:44100});await audioContext.current.resume();return audioContext.current;}
-  async function voiceWorkspace(){const paths=await workspacePaths(sdk,workspace);if(!voiceRoot.current){voiceRoot.current=joinPath(paths.base,'voice-'+crypto.randomUUID());await runIO(sdk,'Prepare voice workspace',{action:'mkdir',path:voiceRoot.current});}return voiceRoot.current;}
-  async function decodeVoice(piece,root){const paths=await workspacePaths(sdk,workspace);const file=String(piece.file||'');if(!file.startsWith(joinPath(paths.base,'voice-'))||!file.toLowerCase().endsWith('.wav'))throw new Error('Invalid generated speech file. Regenerate voices.');if(audioBuffers.current.has(file))return audioBuffers.current.get(file);const ctx=await audioEngine();const bytes=await readWorkspaceBytes(sdk,file);if(!bytes.length)throw new Error('Generated audio is missing. Generate voices again.');const buffer=await ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));audioBuffers.current.set(file,buffer);return buffer;}
+  async function voiceWorkspace(){const paths=await workspacePaths(sdk,workspace);if(!voiceRoot.current){voiceRoot.current=joinPath(paths.base,'voice-'+crypto.randomUUID());await workspaceIO(sdk,'Prepare voice workspace',{action:'mkdir',path:voiceRoot.current});}return voiceRoot.current;}
+  async function decodeVoice(piece,root){const paths=await workspacePaths(sdk,workspace);const file=String(piece.file||'');if(!isVoicePath(paths,file)||!file.toLowerCase().endsWith('.wav'))throw new Error('Invalid generated speech file. Regenerate voices.');if(audioBuffers.current.has(file))return audioBuffers.current.get(file);const ctx=await audioEngine();const bytes=await readWorkspaceBytes(sdk,file);if(!bytes.length)throw new Error('Generated audio is missing. Generate voices again.');const buffer=await ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));audioBuffers.current.set(file,buffer);return buffer;}
   async function loadLocalVoices(){
     if(!kokoroAvailable()){setEngineReady(false);setLocalVoices([]);setVoiceMessage('');return;}
     setVoicesLoading(true);
     try{
       const paths=await workspacePaths(sdk,workspace);
-      const probe=await runIO(sdk,'Check local voice engine',{action:'exists',paths:[joinPath(paths.engine,'engine.json'),kokoroPython(paths.engine),joinPath(paths.engine,'kokoro-v1.0.int8.onnx'),joinPath(paths.engine,'voices-v1.0.bin')]});
+      const probe=await workspaceIO(sdk,'Check local voice engine',{action:'exists',paths:[joinPath(paths.engine,'engine.json'),kokoroPython(paths.engine),joinPath(paths.engine,'kokoro-v1.0.int8.onnx'),joinPath(paths.engine,'voices-v1.0.bin')]});
       if(!probe.exists[0]){setEngineReady(false);setLocalVoices([]);setVoiceMessage('One-time setup downloads about 143 MB of model data into an isolated folder. No global packages change.');return;}
       if(!probe.exists.every(Boolean))throw new Error('Local engine files are incomplete. Run setup again.');
       const data=JSON.parse(await readWorkspaceText(sdk,joinPath(paths.engine,'engine.json'),'{}'));
@@ -541,7 +605,7 @@ export default function IMessageGenerator({sdk,context}) {
       setLocalVoices(rows);setEngineReady(true);
       setSettings(s=>({...s,localThem:rows.some(v=>v.id===s.localThem)?s.localThem:rows[0]?.id||'',localMe:rows.some(v=>v.id===s.localMe)?s.localMe:rows[1]?.id||rows[0]?.id||''}));
       setVoiceMessage(rows.length+' English neural voices ready · offline, no API charges.');
-    }catch(e){setEngineReady(false);setVoiceMessage(String(e.message||e));}finally{setVoicesLoading(false);}
+    }catch(e){setEngineReady(false);setVoiceMessage(errText(e));}finally{setVoicesLoading(false);}
   }
   async function setupEngine(){
     if(setupBusy||voiceBusy)return;if(!kokoroAvailable()){setVoiceMessage('Local Kokoro voices: '+MAC_ONLY_NOTE+'.');return;}setSetupBusy(true);setVoiceMessage('Setting up the isolated local engine. This can take a few minutes…');
@@ -568,15 +632,15 @@ export default function IMessageGenerator({sdk,context}) {
     setVoiceBusy(true);setPlaying(false);stopPreviewSound();stopAudition();setVoiceMessage('Preparing voices…');setStatusKind('idle');
     try{
       const paths=await workspacePaths(sdk,workspace);
-      let root=input.voiceData?.root;if(!root||!String(root).startsWith(joinPath(paths.base,'voice-')))root=await voiceWorkspace();
-      await runIO(sdk,'Prepare voice workspace',{action:'mkdir',path:root});
+      let root=input.voiceData?.root;if(!root||!isVoicePath(paths,root))root=await voiceWorkspace();
+      await workspaceIO(sdk,'Prepare voice workspace',{action:'mkdir',path:root});
       const cancelPath=joinPath(root,'cancel-'+crypto.randomUUID());voiceCancelPath.current=cancelPath;
       const keyed=rows.map(r=>{const voice=r.side==='left'?them:me;return {...r,voice,cacheKey:JSON.stringify([input.voiceProvider,Number(input.speechRate)||1,voice,r.text])};});
       let result;
       if(!cloud){
         const progressPath=joinPath(root,'progress-'+crypto.randomUUID()+'.json');
         setProgress({done:0,total:keyed.length});
-        const job=runSpeechJob(sdk,pid,LOCAL_TTS_PY,{root,cancelPath,progressPath,rate:Number(input.speechRate)||1,rows:keyed.map(r=>({text:r.text,voice:r.voice}))},'Generate local TTS audio',workspace);
+        const job=runKokoroJob(sdk,{root,cancelPath,progressPath,rate:Number(input.speechRate)||1,rows:keyed.map(r=>({text:r.text,voice:r.voice}))},'Generate local TTS audio',workspace);
         let running=true;job.then(()=>{running=false;},()=>{running=false;});
         (async()=>{while(running&&token===voiceEpoch.current){
           await new Promise(done=>setTimeout(done,700));
@@ -591,11 +655,11 @@ export default function IMessageGenerator({sdk,context}) {
         for(let i=0;i<keyed.length;i++){
           if(controller.signal.aborted)throw new Error('Voice generation canceled. Completed API requests may be billed.');
           const row=keyed[i];setProgress({done:i,total:keyed.length});if(!/[\p{L}\p{N}]/u.test(row.text)){raw.push({file:'',voice:row.voice,silent:true});continue;}let file=cloudCache.current.get(row.cacheKey);
-          if(file&&!(await runIO(sdk,'Check cached voice',{action:'exists',paths:[file]})).exists[0])file=null;
-          if(!file){const response=await elevenRequest('/v1/text-to-speech/'+encodeURIComponent(row.voice)+'?output_format=mp3_44100_128',apiKey,{method:'POST',signal:controller.signal,body:JSON.stringify({text:row.text,model_id:'eleven_multilingual_v2',voice_settings:{speed:Number(input.speechRate)||1}})});const bytes=new Uint8Array(await response.arrayBuffer());file=joinPath(root,'eleven-'+crypto.randomUUID()+'.mp3');let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));await runIO(sdk,'Store generated voice',{action:'write',path:file,data:btoa(binary)});cloudCache.current.set(row.cacheKey,file);}
+          if(file&&(!isVoicePath(paths,file)||!(await workspaceIO(sdk,'Check cached voice',{action:'exists',paths:[file]})).exists[0]))file=null;
+          if(!file){const response=await elevenRequest('/v1/text-to-speech/'+encodeURIComponent(row.voice)+'?output_format=mp3_44100_128',apiKey,{method:'POST',signal:controller.signal,body:JSON.stringify({text:row.text,model_id:'eleven_multilingual_v2',voice_settings:{speed:Number(input.speechRate)||1}})});const bytes=new Uint8Array(await response.arrayBuffer());file=joinPath(root,'eleven-'+crypto.randomUUID()+'.mp3');await workspaceIO(sdk,'Store generated voice',{action:'write',path:file,data:bytes});cloudCache.current.set(row.cacheKey,file);}
           raw.push({file,voice:row.voice});
         }
-        result=await runSpeechJob(sdk,pid,AUDIO_PROCESS_PY,{root,action:'normalize',rows:raw},'Measure generated voice audio',workspace);
+        result=await normalizeVoices(panelAudioIO(sdk),root,raw,controller.signal);
       }
       if(controller.signal.aborted||token!==voiceEpoch.current||!same())return;
       if(result.pieces?.length!==rows.length)throw new Error('Not every message produced audio. No partial result was used.');
@@ -603,7 +667,7 @@ export default function IMessageGenerator({sdk,context}) {
       for(const p of data.pieces)cloudCache.current.set(p.cacheKey,p.file);const keep=new Set(data.pieces.map(p=>p.file));for(const path of audioBuffers.current.keys())if(!keep.has(path))audioBuffers.current.delete(path);
       setSettings(s=>({...s,timingMode:'tts',fit:false,tailSeconds:s.timingMode==='tts'?s.tailSeconds:0,voiceData:data}));
       setVoiceMessage('');setTime(0);
-    }catch(e){if(token===voiceEpoch.current&&same()){setVoiceMessage(e.name==='AbortError'?'Request stopped. Any completed cloud request may be billed.':String(e.message||e));setStatusKind('error');setStatus('Voice generation failed. '+(e.name==='AbortError'?'The request was canceled.':String(e.message||e)));}}
+    }catch(e){if(token===voiceEpoch.current&&same()){setVoiceMessage(e.name==='AbortError'?'Request stopped. Any completed cloud request may be billed.':errText(e));setStatusKind('error');setStatus('Voice generation failed. '+(e.name==='AbortError'?'The request was canceled.':errText(e)));}}
     finally{if(token===voiceEpoch.current){setVoiceBusy(false);setProgress(null);voiceCancelPath.current='';}}
   }
   async function audition(side){
@@ -612,8 +676,8 @@ export default function IMessageGenerator({sdk,context}) {
     try{
       if(cloud){const row=cloudVoices.find(v=>v.id===id);if(!row?.previewUrl||!row.previewUrl.startsWith('https://'))throw new Error('This voice has no free preview. Generate only after approving API usage.');const media=new Audio(row.previewUrl);auditionNode.current=media;await media.play();return;}
       if(!kokoroAvailable())throw new Error('Local Kokoro voices: '+MAC_ONLY_NOTE+'.');
-      const ctx=await audioEngine();const root=await voiceWorkspace();const cancelPath=joinPath(root,'cancel-'+crypto.randomUUID());voiceCancelPath.current=cancelPath;const out=await runSpeechJob(sdk,pid,LOCAL_TTS_PY,{root,cancelPath,rate:Number(settings.speechRate)||1,rows:[{text:'Hello. This is a preview of my voice.',voice:id}]},'Preview a local TTS voice',workspace);if(controller.signal.aborted||out.cancelled||auditionToken!==voiceEpoch.current||!same())return;const buffer=await decodeVoice(out.pieces[0],out.root);const node=ctx.createBufferSource();node.buffer=buffer;node.connect(ctx.destination);auditionNode.current=node;node.start();setVoiceMessage('Playing '+id+'.');
-    }catch(e){if(auditionToken===voiceEpoch.current)setVoiceMessage(String(e.message||e));}finally{if(auditionToken===voiceEpoch.current){setVoiceBusy(false);voiceCancelPath.current='';}}
+      const ctx=await audioEngine();const root=await voiceWorkspace();const cancelPath=joinPath(root,'cancel-'+crypto.randomUUID());voiceCancelPath.current=cancelPath;const out=await runKokoroJob(sdk,{root,cancelPath,rate:Number(settings.speechRate)||1,rows:[{text:'Hello. This is a preview of my voice.',voice:id}]},'Preview a local TTS voice',workspace);if(controller.signal.aborted||out.cancelled||auditionToken!==voiceEpoch.current||!same())return;const buffer=await decodeVoice(out.pieces[0],out.root);const node=ctx.createBufferSource();node.buffer=buffer;node.connect(ctx.destination);auditionNode.current=node;node.start();setVoiceMessage('Playing '+id+'.');
+    }catch(e){if(auditionToken===voiceEpoch.current)setVoiceMessage(errText(e));}finally{if(auditionToken===voiceEpoch.current){setVoiceBusy(false);voiceCancelPath.current='';}}
   }
   async function startPreview(){
     if(playing){setPlaying(false);stopPreviewSound();return;}
@@ -621,9 +685,9 @@ export default function IMessageGenerator({sdk,context}) {
     try{
       if(settings.timingMode==='tts'&&voiceReady){const token=++playEpoch.current;setAudioLoading(true);const ctx=await audioEngine(),buffers=[];for(const p of settings.voiceData.pieces)buffers.push(p.duration>0?await decodeVoice(p,settings.voiceData.root):null);if(token!==playEpoch.current||!same())return;const epoch=ctx.currentTime+.04;audioClock.current={ctx,epoch,initial};for(let i=0;i<buffers.length;i++){if(!buffers[i])continue;const rel=plan.messages[i].start-initial,offset=Math.max(0,-rel);if(offset>=buffers[i].duration)continue;const node=ctx.createBufferSource();node.buffer=buffers[i];node.connect(ctx.destination);node.start(epoch+Math.max(0,rel),offset);audioNodes.current.push(node);}setPlaying(true);}
       else{audioClock.current=null;if(settings.timingMode==='tts')setNotice('Silent estimate · generate voices for exact timing');setPlaying(true);}
-    }catch(e){setStatusKind('error');setStatus(String(e.message||e));}finally{setAudioLoading(false);}
+    }catch(e){setStatusKind('error');setStatus(errText(e));}finally{setAudioLoading(false);}
   }
-  async function prepareNarration(input,plan){const root=input.voiceData.root;return runSpeechJob(sdk,pid,AUDIO_PROCESS_PY,{root,action:'mix',duration:plan.duration,rows:plan.messages.map((m,i)=>({file:input.voiceData.pieces[i].file,start:m.start,speechDuration:m.speechDuration}))},'Build timed narration track',workspace);}
+  async function prepareNarration(input,plan){const root=input.voiceData.root,paths=await workspacePaths(sdk,workspace);if(!isVoicePath(paths,root))throw new Error('The generated-voice folder is invalid. Regenerate voices.');return mixNarration(panelAudioIO(sdk),root,plan.duration,plan.messages.map((m,i)=>({file:input.voiceData.pieces[i].file,start:m.start,speechDuration:m.speechDuration})));}
 
   async function apply() {
     if(lock.current||busy||voiceBusy||!pid||!sid||!canApply)return;lock.current=true;setBusy(true);setPlaying(false);stopPreviewSound();setLink(null);setStatusKind('idle');setNotice('');
@@ -648,11 +712,11 @@ export default function IMessageGenerator({sdk,context}) {
         setStatus('Adding the narration to Project sources…');
         // Project-level writes must not share a run_script call with a Draft commit.
         const imported=await sdk.runScript({summary:'Import narration audio',allowCommit:true,script:`
-          const pid=${JSON.stringify(pid)},path=${JSON.stringify(preparedNarration.path)};
+          const pid=${JSON.stringify(pid)},path=${JSON.stringify(preparedNarration.path)};const samePath=${samePathText.toString()};
           const owner=(await selects.listProjects()).find(p=>p.id===pid);if(!owner)throw new Error('The Project is no longer open.');
           const p=selects.project(pid);
           const flatten=(nodes)=>nodes.flatMap(n=>n.type==='dir'?flatten(n.children||[]):[n]);
-          const findFile=async()=>flatten((await p.sourceFiles({folder:'(root)'})).fileTree||[]).find(f=>f.type==='audio'&&f.path===path);
+          const findFile=async()=>flatten((await p.sourceFiles({folder:'(root)'})).fileTree||[]).find(f=>f.type==='audio'&&samePath(f.path,path));
           let asset=await findFile();
           if(!asset){
             try{const added=await p.importFiles({paths:[path]});if(added.addedResourceIds.length!==1)throw new Error('Narration import did not produce exactly one resource.');asset={resourceId:added.addedResourceIds[0],path};}
@@ -667,7 +731,7 @@ export default function IMessageGenerator({sdk,context}) {
       }
       setStatus('Adding the conversation'+(preparedNarration?' and narration':'')+'…');
       const result=await sdk.runScript({summary:'Apply iMessage story with narration',allowCommit:true,script:`
-        const parseScript=${parseScript.toString()};const speechSignature=${speechSignature.toString()};const hasCurrentSpeech=${hasCurrentSpeech.toString()};const scheduleStory=${scheduleStory.toString()};
+        const parseScript=${parseScript.toString()};const samePath=${samePathText.toString()};const speechSignature=${speechSignature.toString()};const hasCurrentSpeech=${hasCurrentSpeech.toString()};const scheduleStory=${scheduleStory.toString()};
         const pid=${JSON.stringify(pid)},sid=${JSON.stringify(sid)},settings=${JSON.stringify(input)},narration=${JSON.stringify(preparedNarration)},narrationAsset=${JSON.stringify(narrationAsset)};
         const owner=(await selects.listProjects()).find(p=>p.id===pid);if(!owner||!owner.draftIds.includes(sid))throw new Error('This Draft does not belong to the current Project.');
         const p=selects.project(pid),d=selects.draft(sid),m=await d.meta(),main=await d.clips({trackScope:'main'});
@@ -682,7 +746,7 @@ export default function IMessageGenerator({sdk,context}) {
         if(narrationAsset){
           const flatten=(nodes)=>nodes.flatMap(n=>n.type==='dir'?flatten(n.children||[]):[n]);
           const files=flatten((await p.sourceFiles({folder:'(root)'})).fileTree||[]);
-          asset=files.find(f=>f.type==='audio'&&f.path===narrationAsset.path&&f.resourceId===narrationAsset.resourceId)||null;
+          asset=files.find(f=>f.type==='audio'&&samePath(f.path,narrationAsset.path)&&f.resourceId===narrationAsset.resourceId)||null;
           if(!asset)throw new Error('The narration audio is no longer in Project sources. Apply again.');
         }
         let newAudio=[];
@@ -707,8 +771,8 @@ export default function IMessageGenerator({sdk,context}) {
       setInfo(data);setLink(check.result.link);setSettings(input);setStatusKind('success');
       setStatus(savedResult.messageCount+' messages · '+savedResult.seconds.toFixed(2)+' s added and verified'+(check.result.audioClips?' with narration.':' without narration.')+' Background audio and cuts were preserved. Undo reverts this insert; imported audio remains in Project sources.');
     }catch(e){
-      let extra='';try{if(same()&&preparedNarration){const state=await sdk.runScript({summary:'Check narration import state',allowCommit:false,script:`const p=selects.project(${JSON.stringify(pid)});const rows=await p.sourceFiles({folder:'(root)'});const walk=n=>n.flatMap(x=>x.type==='dir'?walk(x.children||[]):[x]);return {present:walk(rows.fileTree||[]).some(x=>x.path===${JSON.stringify(preparedNarration.path)})};`});extra=state.result?.present?' The narration file is already in Project sources.':' Narration import was not confirmed.';}}catch{}
-      if(same()){setStatusKind('error');setStatus(String(e.message||e)+extra+' No automatic retry was attempted.');}
+      let extra='';try{if(same()&&preparedNarration){const state=await sdk.runScript({summary:'Check narration import state',allowCommit:false,script:`const samePath=${samePathText.toString()};const p=selects.project(${JSON.stringify(pid)});const rows=await p.sourceFiles({folder:'(root)'});const walk=n=>n.flatMap(x=>x.type==='dir'?walk(x.children||[]):[x]);return {present:walk(rows.fileTree||[]).some(x=>samePath(x.path,${JSON.stringify(preparedNarration.path)}))};`});extra=state.result?.present?' The narration file is already in Project sources.':' Narration import was not confirmed.';}}catch{}
+      if(same()){setStatusKind('error');setStatus(errText(e)+extra+' No automatic retry was attempted.');}
     }finally{lock.current=false;setBusy(false);}
   }
   async function undo(){
