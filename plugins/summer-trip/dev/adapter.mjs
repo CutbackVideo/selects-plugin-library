@@ -164,9 +164,9 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
   function bakeMuffle(own) {
     if (fs.existsSync(own.wetPath)) return own.wetPath;
     const req = createRequire(path.join(pluginDir, 'muffle.cjs'));
-    const { stMuffleCommand } = req(path.join(pluginDir, 'muffle.cjs'));
-    const cmd = stMuffleCommand(own.file, own.wetPath + '.part.wav');
-    execFileSync('/bin/sh', ['-c', cmd], { stdio: 'ignore' });
+    const { stMuffleArgs } = req(path.join(pluginDir, 'muffle.cjs'));
+    // The panel's argument array, run without a shell.
+    execFileSync(process.env.FFMPEG_DIR ? path.join(process.env.FFMPEG_DIR, 'ffmpeg') : 'ffmpeg', stMuffleArgs(own.file, own.wetPath + '.part.wav'), { stdio: 'ignore' });
     fs.renameSync(own.wetPath + '.part.wav', own.wetPath);
     return own.wetPath;
   }

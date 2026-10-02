@@ -71,8 +71,8 @@ shot search.
 The panel stops the text at these limits and shows the limit under the
 field. Korean, Japanese and Chinese characters count as 2, so Line 1 holds
 about 16 Korean syllables and the place 9. Long texts shrink to keep a margin
-at the sides. The fonts cover Latin text; Korean uses the macOS system fonts
-(see Languages) and other scripts a system fallback font.
+at the sides. The fonts cover Latin text; Korean uses the system fonts of
+macOS or Windows (see Languages) and other scripts a system fallback font.
 
 ## Styles
 
@@ -125,7 +125,9 @@ Choose a **Track**:
   montage cut and the ending may move onto a strong bass hit within 120 ms,
   and the panel says "Approximate timing on the detected tempo". Songs
   where no steady beat is found use approximate timing (a fixed 0.5 s beat,
-  the same bass-hit moves), and the panel says so. Your own music needs ffmpeg and runs on a pinned Node.js, which the panel downloads the first time (see
+  the same bass-hit moves), and the panel says so. Your own music uses the
+  ffmpeg bundled with Selects, and its beat detection runs inside the panel,
+  so there is nothing to install on macOS or Windows (see
   [INSTALL.md](INSTALL.md)). The ending muffle for your own music is a
   muffled copy baked with ffmpeg; for a compressed file (mp3, aac) it is
   baked from ffmpeg's decode, so at the joint it may sit a few milliseconds
@@ -225,14 +227,17 @@ build scripts and the technical detail after an error message stay in English.
   trip in", the season word (SUMMER, AUTUMN, ...), the top label's "VLOG", and
   the prefixes "By" and "in". Type over them to change them.
 - The bundled typefaces have no Korean letters, so Korean text is drawn with
-  the macOS system font of each typeface's kind: **AppleMyungjo** for the
+  the system font of each typeface's kind: on macOS **AppleMyungjo** for the
   serif typefaces (the place title in every style, and Line 1 and the season
-  word in Postcard) and **Apple SD Gothic Neo** for the others.
+  word in Postcard) and **Apple SD Gothic Neo** for the others; on Windows
+  **Batang** and **Malgun Gothic** (then Noto Serif KR / Noto Sans KR when
+  installed). The two systems' faces differ, so a Korean title exported on
+  Windows looks a little different from one exported on a Mac; its size and
+  position are measured from the face actually drawn.
 - Korean text is never set in capitals, letter-spaced or narrowed: the season
   word's and the place title's narrow setting applies to Latin text only. A
   long line shrinks to fit in one piece, as Latin text does.
-- Korean titles need macOS, where Selects and its export run. Style-matched
-  Korean typefaces are planned for a later version.
+- Style-matched Korean typefaces are planned for a later version.
 
 **Inspector labels** (Adjust tab) of the title, the labels, the Summer look,
 the film frame and the photo and video motion are written into the Draft in

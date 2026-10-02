@@ -35,7 +35,7 @@ assert.ok(!/\/Users\//.test(panel), 'no user paths');
 // Build without analysis: nothing waits for Selects analysis. Readiness counts usable clips and photos; clips without
 // analysis only add a small note; the panel never starts analysis itself and has no blocking analysis wording.
 assert.ok(!panel.includes('still being analysed'), 'the old "still being analysed" wording is gone');
-assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel does not start analysis');
+assert.ok(!/startAnalysis|analyzeResources|(?<!stBeat)\.analyze\(/.test(panel), 'the panel does not start analysis (stBeat.analyze is the in-panel beat detector)');
 for (const key of ['notAnalysed', 'analysing', 'notAnalysedAnalyse', 'notAnalysedMaybe', 'analysisFailed', 'noteAnalysing', 'noteFailed', 'videosChecked']) assert.ok(!(key in en), 'STRINGS.' + key + ' is gone');
 assert.ok(!/[Aa]nalyse (it|them) (in Selects|first)|No analysed video/.test(JSON.stringify(en)), 'no wording asks to analyse first');
 {
@@ -102,8 +102,8 @@ assert.ok(code.includes('t(l, "checkingClipsCount", { done: d, count: total })')
     'stQuickCandidates(pid, res, results, pickWindowsLocal)', 'buildAbortRef.current.abort()', 'Promise.all([findCandidates(todo, pid, check, tick), scoreLocal(']) assert.ok(code.includes(phrase), phrase);
   const local = code.slice(code.indexOf('async function scoreLocal('), code.indexOf('// The muffled copy of the user'));
   assert.ok(local && !/runShell|shell\(|\bsq\(|dq\(/.test(local), 'the quick score path uses no shell');
-  const dd = code.slice(code.indexOf('function hostDataDir('), code.indexOf('// Double quotes let'));
-  assert.ok(dd.includes('fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID)') && !/runShell|\$HOME/.test(dd), 'the quick-score data folder comes from the host FileSystem');
+  // The quick-score cache sits in the data folder locateRoots got from the host FileSystem (st-host hostDataDir).
+  assert.ok(code.includes('dataDir: roots ? roots.data : null, onProgress: () => onDone() });') && code.includes('data = hostDataDir(PLUGIN_ID);'), 'the quick-score data folder comes from the host FileSystem');
 }
 
 // Hangul audit across the plugin, as place-count does (check_public rejects it too).
@@ -113,7 +113,7 @@ for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) as
 // ---- Files the panel reads at runtime ----
 for (const rel of ['assets/cues/manifest.json', 'assets/cues/dev-manifest.json', 'assets/fonts/presets.json', 'sfx/manifest.json', 'scripts/inventory.js', 'scripts/search.js',
   'scripts/ensure-audio.js', 'scripts/assemble.js', 'scripts/decorate.js', 'assets/title-graphic.tsx', 'assets/labels-graphic.tsx', 'assets/summer-look.tsx',
-  'assets/grid-panel.tsx', 'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'assets/video-motion.tsx', '"assets/fonts/" + file', '"/beat-detect.cjs"']) assert.ok(panel.includes(rel), 'panel reads ' + rel);
+  'assets/grid-panel.tsx', 'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'assets/video-motion.tsx', '"assets/fonts/" + file', 'read("beat-detect.cjs")']) assert.ok(panel.includes(rel), 'panel reads ' + rel);
 for (const rel of ['assets/cues/manifest.json', 'assets/fonts/presets.json', 'sfx/manifest.json', 'scripts/inventory.js', 'scripts/search.js', 'scripts/ensure-audio.js',
   'scripts/assemble.js', 'scripts/decorate.js', 'assets/title-graphic.tsx', 'assets/labels-graphic.tsx', 'assets/summer-look.tsx', 'assets/grid-panel.tsx',
   'assets/film-frame.tsx', 'assets/photo-motion.tsx', 'assets/video-motion.tsx', 'beat-detect.cjs']) assert.ok(fs.existsSync(path.join(root, rel)), rel + ' exists');
@@ -150,10 +150,10 @@ for (const phrase of ['linkToDraftFrame', 'selects.editor.openDraft', 'FontFace'
   'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef', 'No valid session ID', 'readFootage()', 't(l, "nothingSaved"', 'Never resend a committing call',
   'role="slider"', 'aria-valuenow', 'aria-valuetext', '--panel-accent', '--panel-muted-fg', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"grabbing"',
   '"ArrowLeft"', '"Home"', '"End"', 'fmtTime(total)', '"pause"', 'requestAnimationFrame', 'cancelAnimationFrame', '"Escape"',
-  'previewTokenRef', 'URL.revokeObjectURL', 'preview-*.mp3', 'readText(roots.data', 'height: PREVIEW_HEIGHT', 'Your footage fits', 'disabledReason',
+  'previewTokenRef', 'URL.revokeObjectURL', 'hostPreviewUrl(file, start, videoSeconds, roots.data, 0.4)', 'hostDecodePcm(file.path, roots.data, ST_PCM_RATE, ST_PCM_SECONDS', 'height: PREVIEW_HEIGHT', 'Your footage fits', 'disabledReason',
   'style: "normal", weight: "400"']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['anotherVersion', 'Try other shots'], ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'],
-  ['installTools', 'Install ffmpeg to preview music or use your own track.'], ['preparingTools', 'Preparing beat detection (first time only)'], ['draftCreatedAdding', 'Draft created; adding title and look\u2026'],
+  ['needsNewerSelectsMusic', 'Your own music and the section preview need a newer version of Selects. The bundled tracks still work.'], ['draftCreatedAdding', 'Draft created; adding title and look\u2026'],
   ['refresh', 'Refresh'],
   ['nothingSaved', '{detail} Nothing was saved; press Build to try again.'], ['sectionHint', 'Music section \u2014 drag to choose'], ['stopPreview', 'Stop preview'],
   ['cancelPreview', 'Cancel preview'], ['dropStartsAt', 'Drop \u00b7 starts at {seconds} s'], ['sectionStartsAt', 'Section \u00b7 starts at {seconds} s'],
@@ -188,18 +188,36 @@ assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capt
 // Hooks stay before the early return.
 const early = panel.indexOf('if (!projectId) return <ui');
 for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo<any>(', 'const lengthRef = React.useRef', '[cueId, ownMusic?.path, section, length]', 'const [sfxOn']) assert.ok(panel.indexOf(hook) > 0 && panel.indexOf(hook) < early, hook + ' before the early return');
-// Shell: PATH prefix on every tool step, user paths single-quoted, big outputs through files, one decode per SFX.
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Homebrew path, no nvm hunting');
-// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
-assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
-assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
+// Windows: no shell at all (tests/no-shell.test.cjs scans every runtime file). Host I/O goes through the st-host block,
+// a verbatim copy of dev/host-block.ts (tests/host.test.cjs runs it in node:vm): FileSystem roots and data folder,
+// ffmpeg/ffprobe as argument arrays, JS hashing, base64 and byte writes, cross-realm byte reads.
+assert.equal(between(panel, '// st-host:start', '// st-host:end'), between(read('dev/host-block.ts'), '// st-host:start', '// st-host:end'), 'dev/host-block.ts embedded verbatim');
+assert.equal((panel.match(/\/\/ st-host:start/g) || []).length, 1);
+assert.ok(!/window\.parent|__DI__/.test(code.replace(between(panel, '// st-host:start', '// st-host:end'), '').replace(between(panel, '// quick-score:start', '// quick-score:end'), '').replace(/\/\/.*$/gm, '')), 'the panel reaches __DI__ only through the host and quick-score blocks');
+assert.ok(!/\bsq\(|\bdq\(|TOOL_PATH|SKILLS_DIR|DATA_DIR|stMuffleCommand|ensureNode|runtime\.sh/.test(code), 'no shell quoting, PATH prefix, $VAR folders or Node bootstrap');
+assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v'), 'no node command or tool probe');
+// runtime.sh stays the library copy (tests/test_runtime_copies.py); the panel no longer runs it.
 assert.equal(read('runtime.sh'), fs.readFileSync(path.join(__dirname, '..', '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
-for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/,
-  /shell\("Read your music", TOOL_PATH \+ "shasum/, /shell\("Muffle the ending of your music", TOOL_PATH \+/, /const cmd = TOOL_PATH \+ "mkdir -p "/]) assert.ok(re.test(panel), String(re));
-assert.ok(!/dq\((file|ownMusic|roots|path|out|src|dry)/.test(panel), 'user paths must not be double-quoted into the shell');
-assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json") + " largest"') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))'), 'own-music analysis via a file, drop pick largest');
-assert.ok(panel.includes('stMuffleCommand(path, part)') && panel.includes('roots!.data + "/" + stOwnMuffledName(name, hash)') && panel.includes('shasum -a 256 < " + sq(path) + " | cut -c1-8'), 'own music muffled as a cached .wav');
-assert.ok(panel.includes('base64 -d < ') && panel.includes('base64 -D < '), 'SFX decode works with both base64 flavours');
+// Folders: the install folder and the data folder from FileSystem (homedir/.selects/skills|plugin-data/<id>).
+assert.ok(code.includes('plugin = hostSkillsDir(PLUGIN_ID, "planner.js"); data = hostDataDir(PLUGIN_ID);'), 'locateRoots uses the host FileSystem');
+assert.ok(code.includes('setTools({ ffmpeg: hostHas(["rt.runFFmpeg", "fs.join", "fs.readFile", "fs.mkdirSync"]).ok });'), 'own music and previews need the host ffmpeg, not an installed one');
+// Paths under the install folder are joined part by part with FileSystem.join, never with "/".
+assert.ok(code.includes('function pjoin(root: string, rel: string) { return hostJoin(root, ...rel.split("/").filter(Boolean)); }') && code.includes('return await hostReadText(pjoin(root, rel));'));
+assert.ok(!/roots!?\.(plugin|data) \+/.test(code) && !/\+ ?["']\/["']/.test(code.replace(between(panel, '// quick-score:start', '// quick-score:end'), '').replace('i + "/" + todo.length', '')), 'no "/" path building (the one "/" is a progress count)');
+// Own music: the host's ffmpeg decodes (the CLI's arguments, -t 360 at 22050 Hz), beat-detect.cjs runs unmodified in a
+// Web Worker with the drop pick 'largest'; a failure falls back to ffprobe's length and fixed timing.
+assert.ok(code.includes('const samples = await hostDecodePcm(file.path, roots.data, ST_PCM_RATE, ST_PCM_SECONDS, { signal: abort.signal, timeoutMs: 120000 });')
+  && code.includes('const g = await analyseBeat(assets.beatWorker, samples, abort.signal);') && code.includes('beatWorker: stBeatWorkerSource(beatDetect)')
+  && code.includes('worker.postMessage({ id: 1, buf, rate: ST_PCM_RATE, pick: "largest" }, [buf]);') && code.includes('duration = Math.min(await hostProbeDuration(file.path, { timeoutMs: 20000 }), ST_PCM_SECONDS)'), 'own music in the panel');
+assert.ok(code.includes("const ST_PCM_RATE = 22050;") && code.includes("const ST_PCM_SECONDS = 360;"), 'the CLI path\'s rate and span');
+// The muffled copy: SHA-256 (first 8 hex, as shasum gave) over the bytes read cross-realm, ffmpeg argv, rename into place.
+assert.ok(code.includes('const hash = bytes && bytes.byteLength ? hostSha256Hex(bytes).slice(0, 8) : "";') && code.includes('await hostFFmpeg(stMuffleArgs(path, part), { timeoutMs: 180000 });')
+  && code.includes('hostRename(part, out);') && code.includes('const out = pjoin(roots!.data, stOwnMuffledName(name, hash)), part = out + ".part.wav";'), 'own music muffled as a cached .wav');
+// SFX: base64 decoded in JS (whitespace stripped first) and written with FileSystem, skipped when already there.
+assert.ok(code.includes('const b64 = (await readText(roots!.plugin, f.b64)).replace(/\\s+/g, "");') && code.includes('await hostWriteBytes(f.path, bytes);')
+  && code.includes('if (hostFileSize(f.path) > 0) continue;') && code.includes('const files = stSfxFiles(assets.sfx, dir, hostJoin);'), 'SFX decoded in JS');
+// ensure-audio gets each bundled file's length for the file-name fallback.
+assert.ok(code.includes('const cueSeconds = m.kind === "cue" && m.cue.duration > 0 ? { duration: m.cue.duration } : {};') && code.includes('({ key: f.key, path: f.path, duration: f.seconds })'), 'durations for ensure-audio');
 assert.ok(panel.includes('{ key: "dry", path: dry, matchByName: false }'), 'own music matches an existing resource by path only');
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 // Commits are never resent: run() resends only a non-committing call on a lost session.
@@ -208,7 +226,7 @@ const buildBody = panel.slice(panel.indexOf('async function build('), panel.inde
 assert.ok(buildBody.includes('stopPreview()'), 'Build stops the preview');
 assert.equal((buildBody.match(/assembleJs/g) || []).length, 1, 'assemble runs once per Build');
 // Project switch: check() after every await in the build.
-const awaits = (buildBody.match(/await (run|shell|findCandidates|bakeOwnMuffle|decodeSfx|decorate)\(/g) || []).length;
+const awaits = (buildBody.match(/await (run|findCandidates|bakeOwnMuffle|decodeSfx|decorate)\(/g) || []).length;
 // Each await is followed by check() or hands check to the step, which runs it after its own awaits.
 assert.ok(awaits >= 7 && (buildBody.match(/check\(\)|, check\)/g) || []).length >= awaits, 'stale guards');
 for (const fn of ['async function findCandidates(', 'async function bakeOwnMuffle(', 'async function decodeSfx(', 'async function decorate(']) {
@@ -256,7 +274,7 @@ assert.ok(buildBody.includes('const planFps = fpsRef.current[pid!] || ST_GUESS_F
 const block = [between(panel, '// st-planner:start', '// st-planner:end'), between(panel, '// st-graphics:start', '// st-graphics:end'),
   between(panel, '// st-muffle:start', '// st-muffle:end'), between(panel, '// st-panel:start', '// st-panel:end')].join('\n');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, NaN, Error, JSON, Date, isFinite, parseFloat }; vm.createContext(box);
-vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stSfxFiles, stFieldLen, stHasWide, stPlanText, ST_PLAN_TEXT, ST_MOTION_OPTIONS, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, ST_MUFFLE_TAG, stMuffleCommand, ST_FILM_WINDOW };', box);
+vm.runInContext(block + '\n;globalThis.X = { stMonthList, stInferSeason, stCoverFor, stOwnMuffledName, stOwnCue, stMusicFor, stSnapSection, stDefaultStart, stPseudoCandidates, stPlanOptions, stSfxFiles, stFieldLen, stHasWide, stPlanText, ST_PLAN_TEXT, ST_MOTION_OPTIONS, stSfxFiles, stSfxConfig, stDraftName, stLimitText, stAtLimit, stTitleHitsFor, stRecoverAssembly, ST_LIMITS, stAssembleConfig, stDecorateConfig, stPlanBuild, stSchedule, stTitleSchedule, stTitleTimes, stPresetFontFiles, stFrameSchedule, ST_MUFFLE_FILTER, ST_MUFFLE_TAG, stMuffleArgs, ST_FILM_WINDOW };', box);
 const X = box.X;
 const j = v => JSON.parse(JSON.stringify(v));
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
@@ -277,8 +295,9 @@ assert.equal(X.stCoverFor(null), 1);
 assert.equal(X.ST_MUFFLE_TAG, require(path.resolve(__dirname, '..', 'muffle.cjs')).ST_MUFFLE_TAG);
 assert.equal(X.stOwnMuffledName('My Song (final).mp3', '0a1b2c3d'), 'My-Song-final--muffled-' + X.ST_MUFFLE_TAG + '-0a1b2c3d.wav');
 assert.equal(X.stOwnMuffledName('/x/y/summer.m4a', 'deadbeef'), 'summer-muffled-a263eda4-deadbeef.wav');
-// The muffle command quotes user paths.
-assert.ok(X.stMuffleCommand("/tmp/it's.mp3", '/tmp/o.wav').includes("'/tmp/it'\\''s.mp3'") && X.stMuffleCommand('a', '/x/o.wav').includes('pcm_s16le'));
+// The muffle bake is an ffmpeg argument array: user paths are single elements, never quoted for a shell.
+assert.deepEqual(j(X.stMuffleArgs("C:\\Music\\it's a song.mp3", 'C:\\data\\o.wav')).filter(a => /song|o\.wav/.test(a)), ["C:\\Music\\it's a song.mp3", 'C:\\data\\o.wav']);
+assert.ok(X.stMuffleArgs('a', '/x/o.wav').includes('pcm_s16le') && X.stMuffleArgs('a', '/x/o.mp3').includes('libmp3lame'));
 // Draft name.
 assert.equal(X.stDraftName('Italy', 'SUMMER', new Date(2026, 6, 1, 9, 5, 7)), 'Summer Trip Italy 09:05:07');
 assert.equal(X.stDraftName('  ', 'AUTUMN', new Date(2026, 9, 1, 18, 30, 0)), 'Summer Trip AUTUMN 18:30:00');
@@ -415,8 +434,10 @@ assert.equal('sectionStart' in X.stPlanOptions({ music: X.stMusicFor({ choice: '
 }
 // SFX: decoded under their stable names (ensure-audio reuses them by path or file name), shutter lengths per take.
 const sfxManifest = JSON.parse(read('sfx/manifest.json'));
-const sfxFiles = X.stSfxFiles(sfxManifest, '/data/sfx');
+// Joined with the host's join (the OS separator): a Windows join gives backslashes.
+const sfxFiles = X.stSfxFiles(sfxManifest, '/data/sfx', (a, b) => a + '/' + b);
 assert.deepEqual(j(sfxFiles.map(f => f.path)), ['/data/sfx/shutter-1.wav', '/data/sfx/shutter-2.wav', '/data/sfx/shutter-3.wav', '/data/sfx/shutter-4.wav', '/data/sfx/whoosh-1.wav']);
+assert.equal(X.stSfxFiles(sfxManifest, 'C:\\d\\sfx', path.win32.join)[0].path, 'C:\\d\\sfx\\shutter-1.wav');
 for (const f of sfxFiles) assert.ok(fs.existsSync(path.join(root, f.b64)), f.b64);
 const sfxIds = { 'shutter-1': 'a1', 'shutter-2': 'a2', 'shutter-3': 'a3', 'shutter-4': 'a4', 'whoosh-1': 'a5' };
 assert.deepEqual(j(X.stSfxConfig(sfxManifest, sfxIds)), { shutter: ['a1', 'a2', 'a3', 'a4'], shutterSeconds: [0.17, 0.171, 0.171, 0.17], whoosh: 'a5', whooshSeconds: 0.864 });

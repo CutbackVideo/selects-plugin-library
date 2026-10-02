@@ -60,9 +60,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg only for music previews and your own music; your own music also downloads a pinned Node.js the first time (runtime.sh)."
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring; uses the ffmpeg bundled with Selects for music previews and your own music, so nothing else needs installing. Windows x64 hands-on verification is still pending."
   },
   "localized": {
     "de": {

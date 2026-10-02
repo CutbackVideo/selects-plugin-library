@@ -152,6 +152,43 @@ const keepAlive = setInterval(() => {}, 50);
       assert.deepEqual([o2.ids, o2.imported, imp.length], [o1.ids, [], 1], 'the second run matches own music by path');
     }
   }
+  // Windows and Unicode paths: the Project's spelling of a path (forward slashes, another case, a decomposed Korean
+  // folder name) matches the panel's FileSystem.join path, so a second Build never re-imports a cue. A same-named file of
+  // another length is never taken for a cue that gives its duration; one with the right length is (a sound effect).
+  {
+    const nfc = '\uC74C\uC545', nfd = nfc.normalize('NFD');
+    assert.notEqual(nfc, nfd);
+    const aud = [{ resourceId: 'w1', name: 'surf-indie.mp3', type: 'Audio', durationSeconds: 65.02 },
+      { resourceId: 'w2', name: 'nu-disco.mp3', type: 'Audio', durationSeconds: 212.4 },
+      { resourceId: 'w3', name: 'shutter-1.wav', type: 'Audio', durationSeconds: 0.17 }];
+    const fl = [{ type: 'audio', resourceId: 'w1', path: 'c:/users/' + nfd + '/.selects/skills/summer-trip/assets/cues/surf-indie.mp3' },
+      { type: 'audio', resourceId: 'w2', path: 'D:\\Music\\nu-disco.mp3' }, { type: 'audio', resourceId: 'w3', path: 'E:\\old\\shutter-1.wav' }];
+    const imp = [];
+    const sel = { project: () => ({
+      resources: async () => aud.slice(), sourceFiles: async () => ({ fileTree: fl.slice() }),
+      importFiles: async ({ paths }) => {
+        imp.push(paths);
+        // A fresh import does not know its length yet.
+        const nids = paths.map((q, i) => 'w' + (aud.length + 1 + i));
+        paths.forEach((q, i) => { aud.push({ resourceId: nids[i], name: q.split(/[\\/]/).pop(), type: 'Audio' }); fl.push({ type: 'audio', resourceId: nids[i], path: q }); });
+        return { addedResourceIds: nids };
+      } }) };
+    const dir = 'C:\\Users\\' + nfc + '\\.selects\\skills\\summer-trip\\assets\\cues\\';
+    const winWant = [{ key: 'dry', path: dir + 'surf-indie.mp3', duration: 64.993 }, { key: 'wet', path: dir + 'nu-disco.mp3', duration: 65.045 },
+      { key: 'shutter-1', path: 'C:\\data\\sfx\\shutter-1.wav', duration: 0.17 }];
+    const w1 = await load('ensure-audio.js', { projectId: 'p', files: winWant })(sel);
+    assert.deepEqual(imp, [[dir + 'nu-disco.mp3']], 'only the cue whose same-named resource has another length is imported');
+    assert.deepEqual(w1, { ids: { dry: 'w1', wet: 'w4', 'shutter-1': 'w3' }, imported: ['wet'], missing: [] });
+    const w2 = await load('ensure-audio.js', { projectId: 'p', files: winWant })(sel);
+    assert.deepEqual([w2.ids, w2.imported, imp.length], [w1.ids, [], 1], 'the second Build imports nothing');
+    // POSIX paths stay case-sensitive: on macOS /Music/A/song.mp3 and /music/a/song.mp3 are different own-music files.
+    aud.push({ resourceId: 'm1', name: 'song.mp3', type: 'Audio', durationSeconds: 200 });
+    fl.push({ type: 'audio', resourceId: 'm1', path: '/Music/A/song.mp3' });
+    const px = await load('ensure-audio.js', { projectId: 'p', files: [{ key: 'x', path: '/music/a/song.mp3', matchByName: false }] })(sel);
+    assert.deepEqual(px.imported, ['x'], 'a POSIX path that differs in case is another file');
+    const py = await load('ensure-audio.js', { projectId: 'p', files: [{ key: 'x', path: '/Music/A/song.mp3'.normalize('NFD'), matchByName: false }] })(sel);
+    assert.deepEqual([py.ids.x, py.imported], ['m1', []], 'the same POSIX path matches');
+  }
   // Unanalysed videos by status: being analysed, never started, failed. The panel never starts analysis itself.
   const v = (id, status) => ({ resourceId: id, name: id + '.mov', type: 'Video', hasAnalysis: false, status, durationSeconds: 10 });
   const mixed = [resources[0], v('s1', 'sampling'), v('s2', 'samplingSucceeded'), v('s3', 'analyzing'), v('s4', 'samplingFailed'), v('s5', 'analyzingFailed'),

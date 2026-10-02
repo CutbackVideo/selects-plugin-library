@@ -156,10 +156,24 @@ assert.ok(K.stHasHangul(seoul) && K.stHasHangul('in ' + seoul) && !K.stHasHangul
 assert.equal(K.stEstimateEm(seoul), 2);
 assert.ok(Math.abs(K.stEstimateEm('ab' + seoul) - 3.2) < 1e-9);
 assert.ok(Math.abs(K.stEstimateEm('\u3042\u4e2d') - 2) < 1e-9, 'kana and CJK count as wide too');
-// Font stacks end with the role's Korean system face before the generic family.
-assert.equal(K.stFontStack('ST Gloock', 'AppleMyungjo'), '"ST Gloock", "Helvetica Neue", Arial, "AppleMyungjo", serif');
-assert.equal(K.stFontStack('ST Poppins Bold', 'Apple SD Gothic Neo'), '"ST Poppins Bold", "Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif');
-assert.equal(K.stFontStack('', undefined), '"Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif', 'no koFamily: the sans face');
+// Font stacks end with the role's Korean system faces (macOS, then Windows, then Noto) before the generic family; the
+// Latin fallbacks include Arial, which Windows has.
+assert.equal(K.stFontStack('ST Gloock', 'AppleMyungjo'), '"ST Gloock", "Helvetica Neue", Arial, "AppleMyungjo", "Batang", "Noto Serif KR", serif');
+assert.equal(K.stFontStack('ST Poppins Bold', 'Apple SD Gothic Neo'), '"ST Poppins Bold", "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif');
+assert.equal(K.stFontStack('', undefined), '"Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif', 'no koFamily: the sans faces');
+assert.equal(K.stFontStack('ST X', 'Nanum Gothic'), '"ST X", "Helvetica Neue", Arial, "Nanum Gothic", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif', 'another Korean face first, then the sans faces');
+for (const ko of ['AppleMyungjo', 'Apple SD Gothic Neo']) {
+  const stack = K.stFontStack('F', ko);
+  assert.ok(/"(Malgun Gothic|Batang)"/.test(stack) && /"(Apple SD Gothic Neo|AppleMyungjo)"/.test(stack) && /Arial/.test(stack), 'macOS and Windows faces: ' + stack);
+}
+// The panel's title preview uses the same stacks (previewStack in panel.tsx, TypeScript: compared on its text).
+{
+  const panelSrc = fs.readFileSync(path.join(root, 'panel.tsx'), 'utf8');
+  const fn = panelSrc.slice(panelSrc.indexOf('function previewStack('), panelSrc.indexOf('\n}\n', panelSrc.indexOf('function previewStack(')) + 2)
+    .replace('function previewStack(family: string | undefined, ko: string | undefined)', 'function previewStack(family, ko)');
+  const P = load(fn, ['previewStack']);
+  for (const [fam, ko] of [['ST Gloock', 'AppleMyungjo'], ['ST Poppins Bold', 'Apple SD Gothic Neo'], ['', undefined], ['ST X', 'Nanum Gothic']]) assert.equal(P.previewStack(fam, ko), K.stFontStack(fam, ko), 'preview stack ' + ko);
+}
 // A line with Hangul: no case change, no tracking, no squeeze; Latin lines keep the style.
 const styled = { css: 'x', upper: true, lower: false, tracking: -0.04, scaleX: 0.8, fillWidth: 0.9 };
 assert.deepEqual(plain(K.stFaceFor(styled, yeoreum)), { css: 'x', upper: false, lower: false, tracking: 0, scaleX: 1, fillWidth: 0.9 });

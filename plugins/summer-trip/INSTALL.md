@@ -15,21 +15,24 @@
 
 ## Dependencies
 
-The title, the grid, the look, the film frame, the sound effects and the
-Draft build need nothing beyond Selects. Two optional features use
-command-line tools. The panel finds ffmpeg on the shell `PATH` and also in
-`/opt/homebrew/bin` and `/usr/local/bin`, so a Homebrew ffmpeg works even when
-Selects is opened from Finder:
+Nothing to install, on macOS or Windows. Everything runs on what Selects
+ships:
 
-- **ffmpeg** (it includes `ffprobe`): music previews, your own music and its
-  muffled ending copy. Check with `ffmpeg -version` and `ffprobe -version`.
-- **Node.js**: your own music only (beat and drop detection). Nothing to install: the first time
-  you choose your own music, the panel downloads a pinned Node.js (about 26 MB)
-  with `runtime.sh` into `~/.selects/plugin-data/_runtime`, shared by every
-  plugin. That needs an internet connection once.
+- music previews, your own music and its muffled ending copy, and the quick
+  check of clips without analysis use the **ffmpeg and ffprobe bundled with
+  Selects**;
+- your own music's beat and drop detection runs inside the panel (a
+  background worker), so no Node.js or other runtime is needed;
+- the panel reads and writes its files through Selects itself, so no shell
+  commands are run.
 
-When ffmpeg is missing, the panel hides **Your own music**, says so,
-and everything else keeps working.
+A Selects build too old to offer these services hides **Your own music**,
+says that it needs a newer version of Selects, and everything else keeps
+working. (`runtime.sh` is the library's shared first-run bootstrap; Summer
+Trip ships the copy but no longer runs it.)
+
+Windows x64 is supported the same way as macOS; a hands-on check on a
+Windows machine is still pending.
 
 ## Files the plugin writes
 
@@ -42,11 +45,15 @@ folder, never in either install folder:
 - the sound effects decoded from `sfx/*.wav.b64` to WAV files (under 1 MB in
   all), kept so a later build imports the same files;
 - your own music decoded for beat detection (up to about 32 MB), deleted as
-  soon as detection finishes, and the detected beat of the last track you
-  dropped (tens of KB);
+  soon as it has been read back;
 - the muffled copy of your own music (a WAV file the length of the track),
   kept per track so it is baked and imported only once;
-- the section preview, replaced by the next preview.
+- the section preview, deleted as soon as it has been read back.
+
+On Windows the home folder is `C:\Users\<name>`, so the folder is
+`C:\Users\<name>\.selects\plugin-data\summer-trip`. The panel finds its install
+folder at `.selects/skills/summer-trip` in the home folder (the default
+`SELECTS_USER_SKILLS_ROOT`).
 
 ## Verify
 
@@ -69,8 +76,8 @@ folder, never in either install folder:
 3. With at least 6 different clips or photos, one of them a video clip of
    about 5 s or more, press **Build**. A new Draft opens at 1920x1080 with
    the title, the grid, the clips and the ending film frame.
-4. Optional: if ffmpeg is installed, **Your own music** appears
-   in the Track list and **Preview this section** plays the chosen section.
+4. **Your own music** appears in the Track list (it uses the ffmpeg bundled
+   with Selects) and **Preview this section** plays the chosen section.
 
 ## Uninstall
 

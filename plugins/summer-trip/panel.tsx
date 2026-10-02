@@ -26,7 +26,6 @@ const STRINGS = {
     checkingClipsNow: "Checking clips…",
     checkingClips: "Checking clips",
     listening: "Listening for the beat",
-    preparingTools: "Preparing beat detection (first time only)",
     working: "Working",
     noFootage: "No video clips or photos in this Project yet. Add some; this updates automatically.",
     noClipsSelected: "No clips selected. Choose clips in Advanced.",
@@ -71,7 +70,7 @@ const STRINGS = {
     ownMusic: "Your own music",
     noMusic: "No music",
     devPlaceholder: "{title} (development placeholder)",
-    installTools: "Install ffmpeg to preview music or use your own track.",
+    needsNewerSelectsMusic: "Your own music and the section preview need a newer version of Selects. The bundled tracks still work.",
     length: "Length",
     "length.short": "Short",
     "length.standard": "Standard",
@@ -211,7 +210,6 @@ const STRINGS = {
     checkingClipsNow: "Clips werden geprüft …",
     checkingClips: "Clips werden geprüft",
     listening: "Beat wird gesucht",
-    preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     working: "In Arbeit",
     noFootage: "In diesem Projekt gibt es noch keine Videoclips oder Fotos. Füge welche hinzu; die Anzeige aktualisiert sich automatisch.",
     noClipsSelected: "Keine Clips ausgewählt. Wähle Clips unter „Erweitert“.",
@@ -256,7 +254,7 @@ const STRINGS = {
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
     devPlaceholder: "{title} (Entwicklungsplatzhalter)",
-    installTools: "Installiere ffmpeg, um Musik vorzuhören oder eigene Musik zu verwenden.",
+    needsNewerSelectsMusic: "Eigene Musik und die Abschnittsvorschau erfordern eine neuere Version von Selects. Die mitgelieferten Musikstücke funktionieren weiterhin.",
     length: "Länge",
     "length.short": "Kurz",
     "length.standard": "Standard",
@@ -396,7 +394,6 @@ const STRINGS = {
     checkingClipsNow: "Comprobando clips…",
     checkingClips: "Comprobando clips",
     listening: "Buscando el ritmo",
-    preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     working: "Trabajando",
     noFootage: "Este proyecto aún no tiene clips de vídeo ni fotos. Añade algunos; se actualizará automáticamente.",
     noClipsSelected: "No hay clips seleccionados. Elige clips en «Avanzado».",
@@ -441,7 +438,7 @@ const STRINGS = {
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
     devPlaceholder: "{title} (marcador de desarrollo)",
-    installTools: "Instala ffmpeg para escuchar la música o usar tu propia pista.",
+    needsNewerSelectsMusic: "Tu propia música y la vista previa de la sección requieren una versión más reciente de Selects. Las pistas incluidas siguen funcionando.",
     length: "Duración",
     "length.short": "Corta",
     "length.standard": "Estándar",
@@ -581,7 +578,6 @@ const STRINGS = {
     checkingClipsNow: "Vérification des clips…",
     checkingClips: "Vérification des clips",
     listening: "Recherche du rythme",
-    preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     working: "En cours",
     noFootage: "Ce projet ne contient pas encore de clip vidéo ni de photo. Ajoutez-en ; l'affichage se met à jour automatiquement.",
     noClipsSelected: "Aucun clip sélectionné. Choisissez des clips dans « Avancé ».",
@@ -626,7 +622,7 @@ const STRINGS = {
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
     devPlaceholder: "{title} (substitut de développement)",
-    installTools: "Installez ffmpeg pour écouter la musique ou utiliser votre propre morceau.",
+    needsNewerSelectsMusic: "Votre propre musique et l'aperçu de la section nécessitent une version plus récente de Selects. Les morceaux inclus fonctionnent toujours.",
     length: "Durée",
     "length.short": "Courte",
     "length.standard": "Standard",
@@ -766,7 +762,6 @@ const STRINGS = {
     checkingClipsNow: "Controllo delle clip…",
     checkingClips: "Controllo delle clip",
     listening: "Ricerca del ritmo",
-    preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     working: "In corso",
     noFootage: "In questo progetto non ci sono ancora clip video né foto. Aggiungine qualcuna; si aggiorna automaticamente.",
     noClipsSelected: "Nessuna clip selezionata. Scegli le clip in «Avanzate».",
@@ -811,7 +806,7 @@ const STRINGS = {
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
     devPlaceholder: "{title} (segnaposto di sviluppo)",
-    installTools: "Installa ffmpeg per ascoltare la musica o usare un tuo brano.",
+    needsNewerSelectsMusic: "La tua musica e l'anteprima della sezione richiedono una versione più recente di Selects. I brani inclusi funzionano comunque.",
     length: "Durata",
     "length.short": "Breve",
     "length.standard": "Standard",
@@ -951,7 +946,6 @@ const STRINGS = {
     checkingClipsNow: "クリップを確認中…",
     checkingClips: "クリップを確認中",
     listening: "ビートを検出中",
-    preparingTools: "ビート検出を準備中(初回のみ)",
     working: "処理中",
     noFootage: "このプロジェクトには、まだ動画クリップも写真もありません。追加してください。自動で更新されます。",
     noClipsSelected: "クリップが選択されていません。「詳細設定」でクリップを選んでください。",
@@ -996,7 +990,7 @@ const STRINGS = {
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
     devPlaceholder: "{title}（開発用の仮トラック）",
-    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg をインストールしてください。",
+    needsNewerSelectsMusic: "自分の音楽と区間のプレビューには、より新しいバージョンの Selects が必要です。付属のトラックは引き続き使えます。",
     length: "長さ",
     "length.short": "短め",
     "length.standard": "標準",
@@ -1136,7 +1130,6 @@ const STRINGS = {
     checkingClipsNow: "\ud074\ub9bd \ud655\uc778 \uc911…",
     checkingClips: "\ud074\ub9bd \ud655\uc778 \uc911",
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
-    preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     working: "\uc791\uc5c5 \uc911",
     noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc601\uc0c1 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
     noClipsSelected: "\uc120\ud0dd\ud55c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. ‘\uace0\uae09’\uc5d0\uc11c \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
@@ -1181,7 +1174,7 @@ const STRINGS = {
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
     devPlaceholder: "{title} (\uac1c\ubc1c\uc6a9 \uc784\uc2dc \uc74c\uc6d0)",
-    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\ub97c \uc124\uce58\ud558\uc138\uc694.",
+    needsNewerSelectsMusic: "\ub0b4 \uc74c\uc545\uacfc \uad6c\uac04 \ubbf8\ub9ac\ub4e3\uae30\ub294 \ub354 \ucd5c\uc2e0 \ubc84\uc804\uc758 Selects\uac00 \ud544\uc694\ud569\ub2c8\ub2e4. \uae30\ubcf8 \uc81c\uacf5 \ud2b8\ub799\uc740 \uacc4\uc18d \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     length: "\uae38\uc774",
     "length.short": "\uc9e7\uac8c",
     "length.standard": "\ubcf4\ud1b5",
@@ -1321,7 +1314,6 @@ const STRINGS = {
     checkingClipsNow: "Verificando clipes…",
     checkingClips: "Verificando clipes",
     listening: "Procurando a batida",
-    preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     working: "Trabalhando",
     noFootage: "Este projeto ainda não tem clipes de vídeo nem fotos. Adicione alguns; a lista é atualizada automaticamente.",
     noClipsSelected: "Nenhum clipe selecionado. Escolha clipes em “Avançado”.",
@@ -1366,7 +1358,7 @@ const STRINGS = {
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
     devPlaceholder: "{title} (marcador de desenvolvimento)",
-    installTools: "Instale o ffmpeg para ouvir a música ou usar sua própria faixa.",
+    needsNewerSelectsMusic: "Sua própria música e a prévia da seção exigem uma versão mais recente do Selects. As faixas incluídas continuam funcionando.",
     length: "Duração",
     "length.short": "Curta",
     "length.standard": "Padrão",
@@ -1506,7 +1498,6 @@ const STRINGS = {
     checkingClipsNow: "Klipler kontrol ediliyor…",
     checkingClips: "Klipler kontrol ediliyor",
     listening: "Ritim aranıyor",
-    preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     working: "Çalışıyor",
     noFootage: "Bu projede henüz video klip veya fotoğraf yok. Biraz ekleyin; burası otomatik olarak güncellenir.",
     noClipsSelected: "Klip seçilmedi. “Gelişmiş” bölümünden klip seçin.",
@@ -1551,7 +1542,7 @@ const STRINGS = {
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
     devPlaceholder: "{title} (geliştirme yer tutucusu)",
-    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg yükleyin.",
+    needsNewerSelectsMusic: "Kendi müziğiniz ve bölüm önizlemesi için Selects'in daha yeni bir sürümü gerekir. Hazır parçalar çalışmaya devam eder.",
     length: "Uzunluk",
     "length.short": "Kısa",
     "length.standard": "Standart",
@@ -1691,7 +1682,6 @@ const STRINGS = {
     checkingClipsNow: "正在检查片段…",
     checkingClips: "正在检查片段",
     listening: "正在识别节拍",
-    preparingTools: "正在准备节拍检测(仅首次)",
     working: "处理中",
     noFootage: "此项目中还没有视频片段或照片。请添加一些；这里会自动更新。",
     noClipsSelected: "未选择片段。请在“高级”中选择片段。",
@@ -1736,7 +1726,7 @@ const STRINGS = {
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
     devPlaceholder: "{title}（开发占位曲目）",
-    installTools: "请安装 ffmpeg，才能试听音乐或使用自己的曲目。",
+    needsNewerSelectsMusic: "使用自己的音乐和片段试听需要更新版本的 Selects。内置曲目仍可使用。",
     length: "时长",
     "length.short": "短",
     "length.standard": "标准",
@@ -1947,8 +1937,6 @@ const HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\ua960-\ua97f\uac00-\ud7a3\ud7b0-\
 const WIDE_PREVIEW_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
 
 const PLUGIN_ID = "summer-trip";
-const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
-const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 
 // st-planner:start
 // Summer Trip planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
@@ -3054,20 +3042,15 @@ const ST_MUFFLE_TAG = (() => {
   return h.toString(16).padStart(8, '0');
 })();
 
-// POSIX shell single-quoting: the whole value in '...', each ' closed, escaped and reopened ('\'').
-function sq(value) {
-  return "'" + String(value).replace(/'/g, "'\\''") + "'";
-}
-
-// The ffmpeg command line that bakes the muffled copy of inPath into outPath. The output codec follows outPath's
-// extension: .wav -> 16-bit PCM (no encoder delay, so it lines up sample for sample with any dry source; the choice
-// for own music, whose dry resource is the user's file), anything else -> MP3 at ST_MUFFLE_BITRATE (the bundled cues,
-// whose dry file is an MP3 from the same PCM and so carries the same encoder delay). 44.1 kHz stereo, metadata
-// dropped, the output overwritten.
-function stMuffleCommand(inPath, outPath) {
+// The ffmpeg arguments (after the program name) that bake the muffled copy of inPath into outPath, as an array: each
+// path is one element, never quoted or split by a shell. The output codec follows outPath's extension: .wav -> 16-bit
+// PCM (no encoder delay, so it lines up sample for sample with any dry source; the choice for own music, whose dry
+// resource is the user's file), anything else -> MP3 at ST_MUFFLE_BITRATE (the bundled cues, whose dry file is an MP3
+// from the same PCM and so carries the same encoder delay). 44.1 kHz stereo, metadata dropped, the output overwritten.
+function stMuffleArgs(inPath, outPath) {
   const wav = /\.wav$/i.test(String(outPath));
-  return ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-i', sq(inPath), '-af', sq(ST_MUFFLE_FILTER), '-ar', '44100', '-ac', '2',
-    ...(wav ? ['-c:a', 'pcm_s16le'] : ['-c:a', 'libmp3lame', '-b:a', ST_MUFFLE_BITRATE]), '-map_metadata', '-1', sq(outPath)].join(' ');
+  return ['-nostdin', '-v', 'error', '-y', '-i', String(inPath), '-af', ST_MUFFLE_FILTER, '-ar', '44100', '-ac', '2',
+    ...(wav ? ['-c:a', 'pcm_s16le'] : ['-c:a', 'libmp3lame', '-b:a', ST_MUFFLE_BITRATE]), '-map_metadata', '-1', String(outPath)];
 }
 // st-muffle:end
 
@@ -3374,6 +3357,384 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
 }
 // quick-score:end
 
+// st-host:start
+// Host I/O through the renderer's own services, the same on macOS and Windows: no host shell, no node, nothing for the
+// user to install. ffmpeg/ffprobe are the host's bundled binaries (Runtime.runFFmpeg/runFFprobe take an argument
+// array, so paths need no quoting and never pass through a console), and every path is built by FileSystem.join.
+// __DI__ is internal host wiring that a newer or older Selects may lack, so each member is checked at call time.
+// Errors carry `code`: 'host_tools' (a needed __DI__ member is missing, listed in err.missing: the panel says "needs a
+// newer Selects"; bundled cues keep working), 'timeout' (ffmpeg/ffprobe ran past timeoutMs), 'cancelled' (the
+// caller's signal aborted it) or 'media_failed' (ffmpeg/ffprobe failed or wrote nothing usable; err.detail holds the
+// host's message, truncated).
+function hostDI() {
+  let di = null;
+  try { di = window.parent && window.parent.__DI__; } catch (e) { di = null; }
+  if (!di) { try { di = window.__DI__; } catch (e) { di = null; } }
+  const fs = di && di.FileSystem ? di.FileSystem : null;
+  const rt = di && di.Runtime ? di.Runtime : null;
+  return { fs, rt };
+}
+
+// names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.
+function hostHas(names) {
+  const di = hostDI();
+  const missing = [];
+  for (const name of names || []) {
+    const dot = String(name).indexOf('.');
+    const svc = di[String(name).slice(0, dot)];
+    if (!svc || typeof svc[String(name).slice(dot + 1)] !== 'function') missing.push(String(name));
+  }
+  return { ok: missing.length === 0, missing };
+}
+
+function hostError(code, message, extra) {
+  return Object.assign(new Error(message), { code }, extra || {});
+}
+
+function hostNeed(names) {
+  const has = hostHas(names);
+  if (!has.ok) throw hostError('host_tools', 'this Selects build has no ' + has.missing.join(', '), { missing: has.missing });
+  return hostDI();
+}
+
+function hostPlatform() {
+  let p = '';
+  try { const rt = hostDI().rt; if (rt && typeof rt.getPlatform === 'function') p = String(rt.getPlatform() || ''); } catch (e) { p = ''; }
+  if (/^win/i.test(p)) return 'win32';
+  if (/darwin|mac/i.test(p)) return 'darwin';
+  if (/linux/i.test(p)) return 'linux';
+  let ua = '';
+  try { ua = String(navigator.userAgent || ''); } catch (e) { ua = ''; }
+  if (/Windows NT/i.test(ua)) return 'win32';
+  if (/Mac/i.test(ua)) return 'darwin';
+  return 'linux';
+}
+
+// Joins path parts with the host's join (the OS separator).
+function hostJoin(...parts) {
+  const { fs } = hostNeed(['fs.join']);
+  return String(fs.join(...parts.map(String)));
+}
+
+// The installed plugin folder (the host's SELECTS_USER_SKILLS_ROOT is the user's .selects/skills), or null when the
+// folder lacks `marker` (a file every install has).
+function hostSkillsDir(id, marker) {
+  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.existsSync']);
+  const dir = String(fs.join(fs.homedir(), '.selects', 'skills', id));
+  try { return fs.existsSync(fs.join(dir, marker)) ? dir : null; } catch (e) { return null; }
+}
+
+// The plugin's persistent data folder, created when missing.
+function hostDataDir(id) {
+  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.mkdirSync']);
+  const dir = String(fs.join(fs.homedir(), '.selects', 'plugin-data', id));
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+// A folder, created with its parents when missing.
+function hostMkdir(dir) {
+  const { fs } = hostNeed(['fs.mkdirSync']);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function hostFail(code, cause, what) {
+  const msg = cause && (cause.stderr || cause.message) ? String(cause.stderr || cause.message) : String(cause || '');
+  const detail = msg.trim().slice(-600);
+  const text = code === 'timeout' ? (what || 'ffmpeg') + ' took too long' : code === 'cancelled' ? 'cancelled' : (what || 'ffmpeg') + ' failed' + (detail ? ': ' + detail : '');
+  return hostError(code, text, { detail });
+}
+
+// One ffmpeg/ffprobe run. opts: { timeoutMs (default 120000), signal (the caller's AbortSignal, optional) }.
+async function hostRunTool(member, args, opts) {
+  const { rt } = hostNeed(['rt.' + member]);
+  const o = opts || {};
+  const what = member === 'runFFprobe' ? 'ffprobe' : 'ffmpeg';
+  if (o.signal && o.signal.aborted) throw hostFail('cancelled', null, what);
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, o.timeoutMs || 120000);
+  const relay = () => controller.abort();
+  if (o.signal) o.signal.addEventListener('abort', relay);
+  try {
+    const r = await rt[member](args.map(String), true, controller.signal);
+    return { stdout: String((r && r.stdout) || ''), stderr: String((r && r.stderr) || '') };
+  } catch (e) {
+    throw hostFail(timedOut ? 'timeout' : controller.signal.aborted ? 'cancelled' : 'media_failed', e, what);
+  } finally {
+    clearTimeout(timer);
+    if (o.signal) o.signal.removeEventListener('abort', relay);
+  }
+}
+
+function hostFFmpeg(args, opts) { return hostRunTool('runFFmpeg', args, opts); }
+function hostFFprobe(args, opts) { return hostRunTool('runFFprobe', args, opts); }
+
+// A media file's length in seconds (ffprobe's container duration).
+async function hostProbeDuration(file, opts) {
+  const r = await hostFFprobe(['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', file], opts || { timeoutMs: 20000 });
+  const seconds = parseFloat(r.stdout.trim());
+  if (!(seconds > 0)) throw hostFail('media_failed', r.stderr || 'no duration', 'ffprobe');
+  return seconds;
+}
+
+// Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (a Buffer from another realm, Uint8Array,
+// ArrayBuffer, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array). FileSystem results come from
+// window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks are
+// used (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray works across realms), with an
+// array-like fallback for objects a bridge serialised by index.
+function hostBytes(raw) {
+  if (raw == null) return new Uint8Array(0);
+  const tag = Object.prototype.toString.call(raw);
+  if (ArrayBuffer.isView(raw)) {
+    const out = new Uint8Array(raw.byteLength);
+    out.set(new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength));
+    return out;
+  }
+  if (tag === '[object ArrayBuffer]' || tag === '[object SharedArrayBuffer]') {
+    const out = new Uint8Array(raw.byteLength);
+    out.set(new Uint8Array(raw));
+    return out;
+  }
+  if (Array.isArray(raw.data)) return Uint8Array.from(raw.data);
+  if (Array.isArray(raw)) return Uint8Array.from(raw);
+  if (typeof raw === 'object' && typeof raw.length === 'number' && raw.length >= 0) return Uint8Array.from({ length: raw.length }, (_, i) => Number(raw[i]) & 255);
+  return new Uint8Array(0);
+}
+
+// FileSystem with a reader (readFile or readFileSync), else a host_tools error.
+function hostNeedReader() {
+  const { fs } = hostDI();
+  if (!fs || (typeof fs.readFile !== 'function' && typeof fs.readFileSync !== 'function')) {
+    throw hostError('host_tools', 'this Selects build has no FileSystem.readFile', { missing: ['fs.readFile'] });
+  }
+  return fs;
+}
+
+async function hostReadRaw(file) {
+  const fs = hostNeedReader();
+  return typeof fs.readFile === 'function' ? await fs.readFile(file) : fs.readFileSync(file);
+}
+
+// A file's bytes (FileSystem.readFile, else readFileSync).
+async function hostReadBytes(file) {
+  const raw = await hostReadRaw(file);
+  if (typeof raw === 'string') throw hostError('media_failed', 'the file came back as text');
+  return hostBytes(raw);
+}
+
+// A text file as UTF-8 (some host builds return text directly, others bytes).
+async function hostReadText(file) {
+  const raw = await hostReadRaw(file);
+  return typeof raw === 'string' ? raw : new TextDecoder().decode(hostBytes(raw));
+}
+
+// An ffmpeg output file: missing or empty (ffmpeg resolved without writing it) is media_failed, not a raw read error.
+async function hostReadOutput(file, what) {
+  let bytes;
+  try {
+    bytes = await hostReadBytes(file);
+  } catch (e) {
+    if (e && e.code === 'host_tools') throw e;
+    throw hostFail('media_failed', what + ' missing: ' + String((e && e.message) || e));
+  }
+  if (!bytes.byteLength) throw hostFail('media_failed', 'empty ' + what);
+  return bytes;
+}
+
+// Writes bytes to a file (FileSystem.writeFile, else writeFileSync).
+async function hostWriteBytes(file, bytes) {
+  const { fs } = hostDI();
+  if (fs && typeof fs.writeFile === 'function') return await fs.writeFile(file, bytes);
+  if (fs && typeof fs.writeFileSync === 'function') return fs.writeFileSync(file, bytes);
+  throw hostError('host_tools', 'this Selects build has no FileSystem.writeFile', { missing: ['fs.writeFile'] });
+}
+
+// A file's size in bytes, 0 when it is missing (statSync; without it, existsSync says 1 for "there").
+function hostFileSize(file) {
+  const { fs } = hostDI();
+  try {
+    if (fs && typeof fs.statSync === 'function') { const s = fs.statSync(file); return s && s.size > 0 ? Number(s.size) : 0; }
+    if (fs && typeof fs.existsSync === 'function') return fs.existsSync(file) ? 1 : 0;
+  } catch (e) { return 0; }
+  return 0;
+}
+
+// Moves a finished file into place (FileSystem.renameSync).
+function hostRename(from, to) {
+  const { fs } = hostNeed(['fs.renameSync']);
+  fs.renameSync(from, to);
+}
+
+// The names in a folder, [] when it cannot be listed.
+function hostList(dir) {
+  const { fs } = hostDI();
+  try { return fs && typeof fs.readdirSync === 'function' ? Array.from(fs.readdirSync(dir) || [], String) : []; } catch (e) { return []; }
+}
+
+// Best effort; a leftover file in the data folder is harmless.
+async function hostRemove(file) {
+  const { fs } = hostDI();
+  if (!fs) return;
+  try {
+    if (typeof fs.unlinkSync === 'function') return fs.unlinkSync(file);
+    if (typeof fs.removeFile === 'function') return await fs.removeFile({ filePath: file });
+    if (typeof fs.rmSync === 'function') return fs.rmSync(file, { force: true });
+  } catch (e) { /* ignored */ }
+}
+
+// An ASCII token for temporary file names.
+function hostToken() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+// Mono 32-bit float samples of `file` at `rate`, at most `maxSeconds`: the host's ffmpeg decodes into a temporary file
+// in `dataDir`, which is read back and removed. The arguments are the ones the beat-detect CLI path always used
+// (`ffmpeg -nostdin -v error -y -t <max> -i <file> -ac 1 -ar <rate> -f f32le <out>`), so the panel analyses the same
+// samples. opts: { signal, timeoutMs (default 120000) }.
+async function hostDecodePcm(file, dataDir, rate, maxSeconds, opts) {
+  hostNeed(['rt.runFFmpeg', 'fs.join']);
+  hostNeedReader();
+  const out = hostJoin(dataDir, 'pcm-' + hostToken() + '.f32');
+  try {
+    await hostFFmpeg(['-nostdin', '-v', 'error', '-y', '-t', String(maxSeconds), '-i', file, '-ac', '1', '-ar', String(rate), '-f', 'f32le', out],
+      { timeoutMs: (opts && opts.timeoutMs) || 120000, signal: opts && opts.signal });
+    const bytes = await hostReadOutput(out, 'samples');
+    if (bytes.byteLength < 4) throw hostFail('media_failed', 'no samples');
+    return new Float32Array(bytes.buffer, 0, Math.floor(bytes.byteLength / 4));
+  } finally {
+    await hostRemove(out);
+  }
+}
+
+// A blob: URL that plays `seconds` of `file` from `start`, mono 22.05 kHz with a `fade`-second fade-out: mp3 48k, or WAV
+// when the host's ffmpeg has no mp3 encoder. Leftover preview-* files in `dataDir` (an earlier panel that closed
+// mid-preview) are removed first; the new file is removed once read. The caller revokes the URL.
+async function hostPreviewUrl(file, start, seconds, dataDir, fade) {
+  hostNeed(['rt.runFFmpeg', 'fs.join']);
+  hostNeedReader();
+  for (const name of hostList(dataDir)) if (/^preview-.*\.(mp3|wav|b64)$/.test(name)) await hostRemove(hostJoin(dataDir, name));
+  const token = hostToken();
+  const f = fade > 0 ? fade : 0;
+  const cut = ['-nostdin', '-v', 'error', '-y', '-ss', Number(start || 0).toFixed(2), '-t', Number(seconds).toFixed(2), '-i', file, '-ac', '1', '-ar', '22050'];
+  const af = ['-af', 'afade=t=out:st=' + Math.max(0, Number(seconds) - f).toFixed(2) + ':d=' + f];
+  const tries = [
+    { out: hostJoin(dataDir, 'preview-' + token + '.mp3'), args: ['-b:a', '48k'].concat(af, ['-f', 'mp3']), type: 'audio/mpeg' },
+    { out: hostJoin(dataDir, 'preview-' + token + '.wav'), args: af.concat(['-c:a', 'pcm_s16le', '-f', 'wav']), type: 'audio/wav' },
+  ];
+  let lastErr = null;
+  for (const t of tries) {
+    try {
+      await hostFFmpeg(cut.concat(t.args, [t.out]), { timeoutMs: 60000 });
+      const bytes = await hostReadOutput(t.out, 'preview');
+      return URL.createObjectURL(new Blob([bytes], { type: t.type }));
+    } catch (e) {
+      lastErr = e;
+      if (e && (e.code === 'host_tools' || e.code === 'timeout')) break;
+    } finally {
+      await hostRemove(t.out);
+    }
+  }
+  throw lastErr || hostFail('media_failed', 'preview');
+}
+
+function hostLooksWindows(p) {
+  return /^[A-Za-z]:([\\/]|$)/.test(p) || p.indexOf('\\') >= 0;
+}
+
+// Host paths compared NFC-normalized; when either side looks like a Windows path, also separator-normalized and
+// case-folded. POSIX paths stay case-sensitive.
+function hostSamePath(a, b) {
+  if (a == null || b == null) return false;
+  let x = String(a).normalize('NFC'), y = String(b).normalize('NFC');
+  if (x === y) return true;
+  if (!hostLooksWindows(x) && !hostLooksWindows(y)) return false;
+  const fold = (p) => {
+    let s = p.replace(/\\/g, '/');
+    if (s.length > 1 && !/^[A-Za-z]:\/$/.test(s)) s = s.replace(/\/+$/, '');
+    return s.toLowerCase();
+  };
+  return fold(x) === fold(y);
+}
+
+function hostBaseName(p) {
+  const parts = String(p == null ? '' : p).split(/[\\/]+/).filter(Boolean);
+  return (parts.length ? parts[parts.length - 1] : '').normalize('NFC');
+}
+
+// SHA-256 of bytes as lowercase hex, in plain JS (the panel's origin may have no crypto.subtle). Same digest as
+// `shasum -a 256`, so file names keyed on it stay the same as before.
+function hostSha256Hex(bytes) {
+  const K = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01,
+    0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+    0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70,
+    0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+  const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  const n = bytes.length;
+  // The message, a 0x80 byte, zeros, and the bit length (big-endian, 64 bits) to a multiple of 64 bytes.
+  const total = Math.ceil((n + 9) / 64) * 64;
+  const tail = new Uint8Array(total - Math.floor(n / 64) * 64);
+  const full = Math.floor(n / 64) * 64;
+  tail.set(bytes.subarray(full));
+  tail[n - full] = 0x80;
+  const bits = n * 8;
+  const t = tail.length;
+  tail[t - 1] = bits & 255; tail[t - 2] = (bits >>> 8) & 255; tail[t - 3] = (bits >>> 16) & 255; tail[t - 4] = (bits >>> 24) & 255;
+  const hi = Math.floor(bits / 4294967296);
+  tail[t - 5] = hi & 255; tail[t - 6] = (hi >>> 8) & 255; tail[t - 7] = (hi >>> 16) & 255; tail[t - 8] = (hi >>> 24) & 255;
+  const w = new Int32Array(64);
+  const block = (src, at) => {
+    for (let i = 0; i < 16; i++) w[i] = (src[at + 4 * i] << 24) | (src[at + 4 * i + 1] << 16) | (src[at + 4 * i + 2] << 8) | src[at + 4 * i + 3];
+    for (let i = 16; i < 64; i++) {
+      const a = w[i - 15], b = w[i - 2];
+      const s0 = ((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3);
+      const s1 = ((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (let i = 0; i < 64; i++) {
+      const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+      const t1 = (h + S1 + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
+      const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+      const t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+  };
+  for (let at = 0; at < full; at += 64) block(bytes, at);
+  for (let at = 0; at < t; at += 64) block(tail, at);
+  return H.map((x) => (x >>> 0).toString(16).padStart(8, '0')).join('');
+}
+// st-host:end
+
+// st-beat-worker:start
+// Own music: beat, tempo and drop detection inside the panel, no node subprocess (Selects bundles no Node.js, and
+// Windows has no POSIX shell to start one). The host's ffmpeg decodes the track to mono 32-bit float PCM at
+// ST_PCM_RATE Hz, the first ST_PCM_SECONDS seconds (hostDecodePcm: the same arguments the CLI path used), and
+// beat-detect.cjs analyses it in a Web Worker built from the file's text, read from the install folder and used
+// UNMODIFIED (one source for the CLI, dev/build-cues.cjs, the tests and the panel; the kit detector plus Summer Trip's
+// drop helpers). The file runs inside a function with its own `module`, `exports` and an inert `require`:
+// require.main is undefined, so its CLI branch never runs. The worker answers one { id, buf, rate, pick } message with
+// { id, ok, result } (analyze(samples, rate, { dropPick: 'largest' }) for pick 'largest', passed through JSON exactly
+// as the CLI wrote it to own-music.json) or { id, ok: false, error }. Plain JS, so tests run the same source in node:vm.
+const ST_PCM_RATE = 22050;
+const ST_PCM_SECONDS = 360;
+// A worker that has not answered after this long is stopped; the music then uses fixed timing.
+const ST_BEAT_TIMEOUT_MS = 90000;
+function stBeatWorkerSource(fileText) {
+  return 'var stBeat = (function () {\n  var module = { exports: {} };\n  var require = function () { return {}; };\n'
+    + '  (function (module, exports, require) {\n' + String(fileText) + '\n  })(module, module.exports, require);\n  return module.exports;\n})();\n'
+    + 'self.onmessage = function (e) {\n  var d = e.data || {};\n'
+    + '  try { var r = stBeat.analyze(new Float32Array(d.buf), d.rate, d.pick === "largest" ? { dropPick: "largest" } : undefined);\n'
+    + '    self.postMessage({ id: d.id, ok: true, result: JSON.parse(JSON.stringify(r)) }); }\n'
+    + '  catch (err) { self.postMessage({ id: d.id, ok: false, error: String((err && err.message) || err) }); }\n};\n';
+}
+// st-beat-worker:end
+
 // st-panel:start
 // Panel helpers without React: the panel test loads this block in node:vm next to the planner, graphics and muffle
 // blocks, builds the run_script configs from fixtures and measures their payload.
@@ -3574,10 +3935,11 @@ function stPlanText(text) {
   return null;
 }
 
-// Sound effect files: decoded from sfx/<file>.b64 into `dir` under their stable names (shutter-N.wav, whoosh-1.wav);
-// ensure-audio.js imports each once per Project (plugin-owned files match Audio resources by path, then by file name).
-function stSfxFiles(manifest, dir) {
-  return Object.keys(manifest || {}).sort().map(key => ({ key, b64: 'sfx/' + manifest[key].file + '.b64', path: dir + '/' + manifest[key].file, seconds: manifest[key].duration }));
+// Sound effect files: decoded from sfx/<file>.b64 (relative to the install folder) into `dir` under their stable names
+// (shutter-N.wav, whoosh-1.wav), `join` building the path with the OS separator (FileSystem.join); ensure-audio.js
+// imports each once per Project (plugin-owned files match Audio resources by path, then by file name and length).
+function stSfxFiles(manifest, dir, join) {
+  return Object.keys(manifest || {}).sort().map(key => ({ key, b64: 'sfx/' + manifest[key].file + '.b64', path: join(dir, manifest[key].file), seconds: manifest[key].duration }));
 }
 // File name of the muffled copy of the user's own music: <base>-muffled-<ST_MUFFLE_TAG>-<first 8 hex of the file's
 // sha256>.wav. The name is the cache key (the data folder keeps one bake per file content and filter) and what
@@ -3748,48 +4110,53 @@ function stDecorateConfig(o) {
 }
 // st-panel:end
 
-// The data folder for the quick-score cache through the host's FileSystem (join + homedir: the OS separator, no shell;
-// created when missing), else `fallback` (the folder locateRoots reported). Every __DI__ member is checked first.
-function hostDataDir(fallback: string | null): string | null {
-  try {
-    const fs = (window.parent as any)?.__DI__?.FileSystem;
-    if (fs && typeof fs.join === "function" && typeof fs.homedir === "function") {
-      const dir = String(fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID));
-      if (typeof fs.mkdirSync === "function") fs.mkdirSync(dir, { recursive: true });
-      return dir;
-    }
-  } catch { /* the fallback below */ }
-  return fallback;
+// A host error (st-host block) for the person: a missing __DI__ member says which host service this Selects build
+// lacks; anything else keeps its message.
+function hostUiError(e: any) {
+  if (e?.code === "host_tools") {
+    const name = String((e.missing && e.missing[0]) || "").startsWith("rt.") ? "Runtime" : "FileSystem";
+    return uiError((l) => t(l, "adapterNeeded", { name }));
+  }
+  return e;
 }
-// Double quotes let $HOME and $SELECTS_USER_SKILLS_ROOT expand: use only for those constants. User paths go through
-// sq() (the muffle block above), single-quoted.
-function dq(value: string) { return '"' + String(value).replace(/(["\\`])/g, "\\$1") + '"'; }
-function service(name: string, method: string) {
-  const s = (window.parent as any)?.__DI__?.[name];
-  if (!s || typeof s[method] !== "function") throw uiError((l) => t(l, "adapterNeeded", { name }));
-  return s;
-}
+// A path under `root`: `rel` is written with "/" and joined part by part with the OS separator (FileSystem.join).
+function pjoin(root: string, rel: string) { return hostJoin(root, ...rel.split("/").filter(Boolean)); }
 async function readText(root: string, rel: string) {
-  const v = await service("FileSystem", "readFile").readFile(root + "/" + rel);
-  // Some host builds return text directly; others return bytes.
-  return typeof v === "string" ? v : new TextDecoder().decode(new Uint8Array(v));
+  try { return await hostReadText(pjoin(root, rel)); } catch (e: any) { throw hostUiError(e); }
+}
+// beat-detect's analysis of `samples` in a Web Worker (stBeatWorkerSource), never on the panel's thread: the panel CSP
+// allows blob: workers (worker-src blob:). A host that refuses the worker rejects the analysis, and the panel falls back
+// to fixed timing. `signal` aborts it (worker.terminate()); so does `timeoutMs`. The samples' buffer is transferred.
+function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = ST_BEAT_TIMEOUT_MS): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let worker: Worker | null = null, url: string | null = null, done = false;
+    let timer: any = null;
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
+      try { worker?.terminate(); } catch { /* gone */ }
+      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
+      signal?.removeEventListener("abort", onAbort);
+      fn();
+    };
+    const onAbort = () => finish(() => reject(STALE));
+    if (signal?.aborted) { reject(STALE); return; }
+    signal?.addEventListener("abort", onAbort);
+    try {
+      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+      worker = new Worker(url);
+    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
+    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.ok ? resolve(e.data.result) : reject(new Error(String(e.data?.error || "beat detection failed")))));
+    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
+    timer = setTimeout(() => finish(() => reject(new Error("the beat detection took too long"))), timeoutMs);
+    const buf = samples.buffer.byteLength === samples.byteLength ? samples.buffer : samples.slice().buffer;
+    worker.postMessage({ id: 1, buf, rate: ST_PCM_RATE, pick: "largest" }, [buf]);
+  });
 }
 // The config goes in as JSON.parse of a string so its type is `any`: an inlined literal widens `type` to string
 // (rejected by EditableParameterDefinition[]) and narrows a null option to `never` inside its `if`.
 function fill(script: string, cfg: unknown) { return script.replace("__CONFIG__", () => "JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"); }
-// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew.
-const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; ';
-// Own music's beat detection runs beat-detect.cjs on Node.js. Selects puts no Node on the shell's PATH and a stock
-// Mac has none, so runtime.sh fetches a pinned copy into ~/.selects/plugin-data/_runtime the first time (shared by
-// every plugin) and prints its path. Later calls in this session reuse it.
-let nodePath: string | null = null;
-async function ensureNode(sdk: any): Promise<string> {
-  if (nodePath) return nodePath;
-  const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: TOOL_PATH + "sh " + dq(SKILLS_DIR + "/runtime.sh") + " node", timeoutMs: 290000, maxOutputBytes: 8000 });
-  const found = String(r?.stdout || "").trim().split("\n").filter(Boolean).pop() || "";
-  if (r?.isError || r?.exitCode !== 0 || !found.startsWith("/")) throw new Error(String(r?.stderr || "").trim().split("\n").pop() || "Could not prepare Node.js.");
-  return (nodePath = found);
-}
 // Thrown when the Project changed while a build was running; its results are dropped silently.
 const STALE = new Error("The Project changed during the build.");
 
@@ -3999,10 +4366,13 @@ function SectionSlider({ peaks, total, section, videoSeconds, barSeconds, snap, 
 // assets/title-graphic.tsx on a 1920x1080 stage, scaled into a box of fixed height. The fonts are the preset's "ST ..."
 // families, registered as normal/400 like the graphic registers them.
 const PREVIEW_HEIGHT = 104;
-// Font stack: the preset face, Latin fallbacks, then the role's Korean system face (presets.json koFamily).
+// Font stack: the preset face, Latin fallbacks, then the role's Korean system faces, macOS then Windows then Noto
+// (presets.json koFamily names the macOS face; the same stacks as the graphics' stFontStack).
 function previewStack(family: string | undefined, ko: string | undefined) {
   const k = ko || "Apple SD Gothic Neo";
-  return (family ? '"' + family + '", ' : "") + '"Helvetica Neue", Arial, "' + k + '", ' + (k === "AppleMyungjo" ? "serif" : "sans-serif");
+  const korean = k === "AppleMyungjo" ? '"AppleMyungjo", "Batang", "Noto Serif KR", serif'
+    : k === "Apple SD Gothic Neo" ? '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif' : '"' + k + '", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';
+  return (family ? '"' + family + '", ' : "") + '"Helvetica Neue", Arial, ' + korean;
 }
 function previewFaceFor(face: any, text: string) { return HANGUL_RE.test(text) ? { ...face, upper: false, lower: false, tracking: 0, scaleX: 1 } : face; }
 let previewCtx: CanvasRenderingContext2D | null | false = null;
@@ -4108,8 +4478,8 @@ function TitlePreview({ presets, presetId, line1, season, topMain, topItalic, cr
 // The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing. Shared by
 // the panel and a template run.
 async function locateRoots(sdk: any) {
-  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-  const [plugin, data] = String(where?.stdout || "").split("\n").map((x: string) => x.trim());
+  let plugin: string | null = null, data: string | null = null;
+  try { plugin = hostSkillsDir(PLUGIN_ID, "planner.js"); data = hostDataDir(PLUGIN_ID); } catch (e: any) { throw hostUiError(e); }
   if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
   return { plugin, data };
 }
@@ -4196,11 +4566,6 @@ function SummerTripPanel({ sdk, context, ui }: any) {
     if (r.isError || r.result == null) throw (r.output ? new Error(r.output) : uiError((l) => t(l, "stepFailed")));
     return r.result as any;
   };
-  const shell = async (summary: string, command: string, timeoutMs = 60000) => {
-    const r = await sdk.runShell({ summary, command, timeoutMs, maxOutputBytes: 48000 });
-    if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw new Error(String(r?.stderr || "").trim() || summary + " failed");
-    return String(r?.stdout || "");
-  };
   const fontB64 = (plugin: string, file: string) => {
     if (!fontCache.current[file]) {
       fontCache.current[file] = readText(plugin, "assets/fonts/" + file)
@@ -4271,7 +4636,9 @@ function SummerTripPanel({ sdk, context, ui }: any) {
       if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
     }
   }
-  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; if (buildAbortRef.current) buildAbortRef.current.abort(); }; }, []);
+  // Own-music detection in flight (decode + beat worker); closing the panel cancels it.
+  const ownAbortRef = React.useRef<AbortController | null>(null);
+  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; if (buildAbortRef.current) buildAbortRef.current.abort(); if (ownAbortRef.current) ownAbortRef.current.abort(); }; }, []);
 
   // Mount and Project switch: reset per-Project state, resolve folders, read bundled assets, inventory the Project.
   React.useEffect(() => {
@@ -4288,19 +4655,14 @@ function SummerTripPanel({ sdk, context, ui }: any) {
         const { plugin, data } = await locateRoots(sdk);
         if (!alive) return;
         setRoots({ plugin, data });
-        // ffmpeg is only needed for previews and own music (own music also fetches Node.js on first use); bundled cues work without it.
-        let have = "";
-        try {
-          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg", timeoutMs: 10000 });
-          have = String(probe?.stdout || "");
-        } catch { have = ""; }
-        if (!alive) return;
-        setTools({ ffmpeg: have.includes("ffmpeg") });
+        // Previews and own music need the host's bundled ffmpeg (Runtime.runFFmpeg) and file access; bundled cues work
+        // without them. Nothing for the person to install: a host without them needs a newer Selects.
+        setTools({ ffmpeg: hostHas(["rt.runFFmpeg", "fs.join", "fs.readFile", "fs.mkdirSync"]).ok });
         const read = (rel: string) => readText(plugin, rel);
-        const [manifest, presets, sfxManifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, labelsTsx, lookTsx, gridTsx, filmTsx, motionTsx, videoMotionTsx] = await Promise.all([
+        const [manifest, presets, sfxManifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, labelsTsx, lookTsx, gridTsx, filmTsx, motionTsx, videoMotionTsx, beatDetect] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("sfx/manifest.json"), read("scripts/inventory.js"), read("scripts/search.js"),
           read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-graphic.tsx"), read("assets/labels-graphic.tsx"),
-          read("assets/summer-look.tsx"), read("assets/grid-panel.tsx"), read("assets/film-frame.tsx"), read("assets/photo-motion.tsx"), read("assets/video-motion.tsx")]);
+          read("assets/summer-look.tsx"), read("assets/grid-panel.tsx"), read("assets/film-frame.tsx"), read("assets/photo-motion.tsx"), read("assets/video-motion.tsx"), read("beat-detect.cjs")]);
         // Development placeholder cues (dev-manifest.json, never shipped) only when the bundled manifest has none.
         let dev: any = null;
         try { dev = JSON.parse(await read("assets/cues/dev-manifest.json")); } catch { dev = null; }
@@ -4308,7 +4670,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
         const bundled = (JSON.parse(manifest).cues || []).filter((c: any) => c && c.accepted !== false);
         const devCues = bundled.length || !dev ? [] : (dev.cues || []).filter((c: any) => c && c.accepted !== false).map((c: any) => ({ ...c, dev: true }));
         const cues = [...bundled, ...devCues];
-        setAssets({ cues, presets: JSON.parse(presets), sfx: JSON.parse(sfxManifest),
+        setAssets({ cues, presets: JSON.parse(presets), sfx: JSON.parse(sfxManifest), beatWorker: stBeatWorkerSource(beatDetect),
           scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs },
           tsx: { title: titleTsx, labels: labelsTsx, look: lookTsx, gridPanel: gridTsx, filmFrame: filmTsx, motion: motionTsx, videoMotion: videoMotionTsx } });
         setCueId((cur) => (cur && (cur === "own" || cur === "none" || cues.some((c: any) => c.id === cur)) ? cur : cues.length ? cues[0].id : "none"));
@@ -4397,41 +4759,43 @@ function SummerTripPanel({ sdk, context, ui }: any) {
   React.useEffect(() => { stopPreview(); }, [cueId, ownMusic?.path, section, length]);
 
   async function detectOwnMusic(file: { path: string; name: string }) {
-    if (busyRef.current || !roots) return;
+    if (busyRef.current || !roots || !assets) return;
     busyRef.current = true;
+    // Own music is not tied to a Project, so only closing the panel cancels it (the worker stops, the decode aborts).
+    const abort = new AbortController();
+    ownAbortRef.current = abort;
+    const live = () => !abort.signal.aborted && mountedRef.current;
     setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("listening");
     try {
-      // The decoded PCM (up to ~32 MB) is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit
-      // status. The result goes to a file (a long track's onsets come close to the 48 KB shell output cap); stdout says
-      // ok. 'largest' reports the largest loudness step as the drop (own music, spec 7.3).
-      if (!nodePath) setStep("preparing");
-      const node = await ensureNode(sdk);
-      setStep("listening");
-      const pcm = roots.data + "/own-music.f32";
-      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json") + " largest"
-        + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
-      const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
-      const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
-      if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw (done.error || r.stderr ? new Error(done.error || r.stderr) : uiError((l) => t(l, "beatFailed")));
-      const g = JSON.parse(await readText(roots.data, "own-music.json"));
+      // The host's ffmpeg decodes the first ST_PCM_SECONDS to mono f32 PCM (up to ~32 MB, read back and removed), and
+      // beat-detect.cjs analyses it in a Web Worker (st-beat-worker). 'largest' reports the largest loudness step as
+      // the drop (own music, spec 7.3).
+      const samples = await hostDecodePcm(file.path, roots.data, ST_PCM_RATE, ST_PCM_SECONDS, { signal: abort.signal, timeoutMs: 120000 });
+      if (!live()) return;
+      const g = await analyseBeat(assets.beatWorker, samples, abort.signal);
+      if (!live()) return;
+      if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
       const m: any = stMusicFor({ choice: "own", cue: null, own: g });
       setStatus(m.kind === "fixed" ? { tone: "info", say: (l) => t(l, "musicApprox") }
         : m.faint ? { tone: "info", say: (l) => faintText(l, m) }
         : m.noDrop ? { tone: "info", say: (l) => t(l, "noDrop") } : null);
     } catch (e: any) {
+      if (!live()) return;
+      if (e?.code === "host_tools") { setOwnGrid(null); setStatus({ tone: "error", say: (l) => t(l, "needsNewerSelectsMusic") }); return; }
       // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
       let duration: number | null = null;
-      try {
-        const pr = await sdk.runShell({ summary: "Read the length of " + file.name, command: TOOL_PATH + "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " + sq(file.path), timeoutMs: 20000 });
-        const v = parseFloat(String(pr?.stdout || "").trim());
-        if (!pr?.isError && v > 0) duration = Math.min(v, 360);
-      } catch { duration = null; }
+      try { duration = Math.min(await hostProbeDuration(file.path, { timeoutMs: 20000 }), ST_PCM_SECONDS); } catch { duration = null; }
+      if (!live()) return;
       setOwnGrid(duration ? { accepted: false, durationSeconds: duration, peaks: [] } : null);
       setStatus(duration
         ? { tone: "info", say: (l) => t(l, "musicApproxDetail", { detail: sayError(l, e) }) }
         : { tone: "error", say: (l) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
-    } finally { busyRef.current = false; setBusy(false); setStep(""); }
+    } finally {
+      if (ownAbortRef.current === abort) ownAbortRef.current = null;
+      busyRef.current = false;
+      if (mountedRef.current) { setBusy(false); setStep(""); }
+    }
   }
 
   // Section preview: "idle" -> "loading" (ffmpeg cut) -> "playing". Every start or stop bumps the token, so a late
@@ -4441,7 +4805,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
     const a = audioRef.current;
     audioRef.current = null;
     if (a) { a.onended = null; a.pause(); }
-    if (previewUrlRef.current) { try { URL.revokeObjectURL(previewUrlRef.current); } catch { /* data URL */ } previewUrlRef.current = null; }
+    if (previewUrlRef.current) { try { URL.revokeObjectURL(previewUrlRef.current); } catch { /* gone */ } previewUrlRef.current = null; }
     if (mountedRef.current) { setPlayState("idle"); setPlayingAudio(null); }
   }
 
@@ -4453,29 +4817,19 @@ function SummerTripPanel({ sdk, context, ui }: any) {
     const live = () => previewTokenRef.current === token && mountedRef.current;
     setPlayState("loading");
     try {
-      const file = ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file;
-      // The whole section, written to a file (stdout is too small for ~20 s) and read back as base64 text.
-      // Earlier previews are removed first and the mp3 once encoded, so the data folder never collects them.
-      const dur = videoSeconds, base = roots.data + "/preview-" + token;
-      const cmd = TOOL_PATH + "rm -f " + sq(roots.data) + "/preview-*.mp3 " + sq(roots.data) + "/preview-*.b64; "
-        + "ffmpeg -nostdin -v error -y -ss " + start.toFixed(2) + " -t " + dur.toFixed(2) + " -i " + sq(file)
-        + " -ac 1 -ar 22050 -b:a 48k -af \"afade=t=out:st=" + Math.max(0, dur - 0.4).toFixed(2) + ":d=0.4\" -f mp3 " + sq(base + ".mp3")
-        + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64") + " && rm -f " + sq(base + ".mp3");
-      const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 60000 });
-      if (!live()) return;
-      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw (r?.stderr ? new Error(r.stderr) : uiError((l) => t(l, "previewNotCut")));
-      const b64 = (await readText(roots.data, "preview-" + token + ".b64")).replace(/\s+/g, "");
-      // Best-effort cleanup of the encoded file; playback does not wait for it.
-      void Promise.resolve(sdk.runShell({ summary: "Remove preview file", command: TOOL_PATH + "rm -f " + sq(base + ".b64"), timeoutMs: 10000 })).catch(() => {});
-      if (!live()) return;
-      if (b64.length < 200) throw uiError((l) => t(l, "noAudio"));
+      const file = ownMusic ? ownMusic.path : pjoin(roots.plugin, "assets/cues/" + cue.file);
+      // The whole section, cut by the host's ffmpeg into a file in the data folder (mp3 48k, WAV when the host's ffmpeg
+      // has no mp3 encoder), read back as bytes and removed (hostPreviewUrl, which also clears earlier preview-* files),
+      // then played from a blob: URL.
       let url: string;
-      if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
-        const bin = atob(b64), bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
-        previewUrlRef.current = url;
-      } else url = "data:audio/mpeg;base64," + b64;
+      try { url = await hostPreviewUrl(file, start, videoSeconds, roots.data, 0.4); }
+      catch (e: any) {
+        if (e?.code === "host_tools") throw uiError((l) => t(l, "needsNewerSelectsMusic"));
+        if (e?.code === "media_failed" && /empty preview/.test(String(e.detail || ""))) throw uiError((l) => t(l, "noAudio"));
+        throw e?.code === "media_failed" && !e.detail ? uiError((l) => t(l, "previewNotCut")) : e;
+      }
+      if (!live()) { try { URL.revokeObjectURL(url); } catch { /* gone */ } return; }
+      previewUrlRef.current = url;
       const audio = new Audio(url);
       audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
       audioRef.current = audio;
@@ -4509,33 +4863,53 @@ function SummerTripPanel({ sdk, context, ui }: any) {
   async function scoreLocal(res: any[], pid: string, signal: AbortSignal | undefined, onDone: () => void) {
     if (!res.length) return { list: [] as any[], scored: [] as string[], rough: [] as string[] };
     const results = await quickScoreAll(stQuickResources(pid, res), { concurrency: ST_QUICK_CONCURRENCY, budgetMs: ST_QUICK_BUDGET_MS, signal,
-      dataDir: hostDataDir(roots ? roots.data : null), onProgress: () => onDone() });
+      dataDir: roots ? roots.data : null, onProgress: () => onDone() });
     return stQuickCandidates(pid, res, results, pickWindowsLocal);
   }
 
   // The muffled copy of the user's own music: baked once as .wav into the data folder (the file name, from the music's
   // hash, is the cache key), then imported once per Project by ensure-audio.js (matched by path or file name; the
-  // user's own music itself matches by path only). A partial bake is
-  // written under a temporary name and renamed, so a failed run never leaves a truncated copy behind.
+  // user's own music itself matches by path only). The hash is the first 8 hex digits of the file's SHA-256, computed
+  // in JS over its bytes (the same name `shasum -a 256` gave, so earlier bakes are reused). A partial bake is written
+  // under a temporary name and renamed, so a failed run never leaves a truncated copy behind. The host's ffmpeg runs
+  // stMuffleArgs (an argument array, no shell).
   async function bakeOwnMuffle(path: string, name: string, check: () => void) {
-    const hash = (await shell("Read your music", TOOL_PATH + "shasum -a 256 < " + sq(path) + " | cut -c1-8", 60000)).trim();
+    let bytes: Uint8Array | null = null;
+    try { bytes = await hostReadBytes(path); } catch (e: any) { throw hostUiError(e); }
     check();
+    const hash = bytes && bytes.byteLength ? hostSha256Hex(bytes).slice(0, 8) : "";
+    bytes = null;
     if (!/^[0-9a-f]{8}$/.test(hash)) throw uiError((l) => t(l, "musicNotRead"));
-    const out = roots!.data + "/" + stOwnMuffledName(name, hash), part = out + ".part.wav";
-    await shell("Muffle the ending of your music", TOOL_PATH + "[ -s " + sq(out) + " ] || { " + stMuffleCommand(path, part) + " && mv -f " + sq(part) + " " + sq(out) + "; }; rm -f " + sq(part) + "; test -s " + sq(out), 180000);
+    const out = pjoin(roots!.data, stOwnMuffledName(name, hash)), part = out + ".part.wav";
+    if (!(hostFileSize(out) > 0)) {
+      try {
+        await hostFFmpeg(stMuffleArgs(path, part), { timeoutMs: 180000 });
+        if (!(hostFileSize(part) > 0)) throw uiError((l) => t(l, "musicNotRead"));
+        hostRename(part, out);
+      } catch (e: any) { throw hostUiError(e); }
+      finally { await hostRemove(part); }
+    }
     check();
+    if (!(hostFileSize(out) > 0)) throw uiError((l) => t(l, "musicNotRead"));
     return out;
   }
 
-  // Sound effect wavs decoded from the bundled base64 into the data folder (skipped when already there).
+  // Sound effect wavs decoded in JS from the bundled base64 (sfx/<file>.b64) and written into the data folder with the
+  // host's FileSystem (skipped when already there).
   async function decodeSfx(check: () => void) {
-    const dir = roots!.data + "/sfx";
-    const files = stSfxFiles(assets.sfx, dir);
-    const cmd = TOOL_PATH + "mkdir -p " + sq(dir) + " && " + files.map((f: any) => {
-      const src = sq(roots!.plugin + "/" + f.b64), out = sq(f.path);
-      return "{ [ -s " + out + " ] || base64 -d < " + src + " > " + out + " 2>/dev/null || base64 -D < " + src + " > " + out + "; } && test -s " + out;
-    }).join(" && ");
-    await shell("Prepare sound effects", cmd, 30000);
+    const dir = pjoin(roots!.data, "sfx");
+    const files = stSfxFiles(assets.sfx, dir, hostJoin);
+    try {
+      hostMkdir(dir);
+      for (const f of files) {
+        if (hostFileSize(f.path) > 0) continue;
+        const b64 = (await readText(roots!.plugin, f.b64)).replace(/\s+/g, "");
+        const bin = atob(b64), bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        await hostWriteBytes(f.path, bytes);
+        if (!(hostFileSize(f.path) > 0)) throw new Error("the sound effect " + f.key + " could not be written");
+      }
+    } catch (e: any) { throw hostUiError(e); }
     check();
     return files;
   }
@@ -4610,13 +4984,15 @@ function SummerTripPanel({ sdk, context, ui }: any) {
       // Notes made here render in the UI language (closures); script notes stay English.
       const notes: (string | ((lang: Lang) => string))[] = [];
       const m: any = musicAt.music;
-      const files: { key: string; path: string; matchByName?: boolean }[] = [];
+      const files: { key: string; path: string; matchByName?: boolean; duration?: number }[] = [];
       if (m.kind !== "none") {
-        const dry = m.kind === "cue" ? roots.plugin + "/assets/cues/" + m.cue.file : musicAt.ownPath!;
+        const dry = m.kind === "cue" ? pjoin(roots.plugin, "assets/cues/" + m.cue.file) : musicAt.ownPath!;
+        // A bundled file reused by file name must also have its length (manifest `duration`, within 0.5 s).
+        const cueSeconds = m.kind === "cue" && m.cue.duration > 0 ? { duration: m.cue.duration } : {};
         // The user's own file matches an existing resource by path only; bundled and baked files also by name.
-        files.push(m.kind === "cue" ? { key: "dry", path: dry } : { key: "dry", path: dry, matchByName: false });
+        files.push(m.kind === "cue" ? { key: "dry", path: dry, ...cueSeconds } : { key: "dry", path: dry, matchByName: false });
         if (musicAt.muffle) {
-          if (m.kind === "cue") { if (m.cue.muffledFile) files.push({ key: "wet", path: roots.plugin + "/assets/cues/" + m.cue.muffledFile }); else notes.push((l) => t(l, "muffleNoCopy")); }
+          if (m.kind === "cue") { if (m.cue.muffledFile) files.push({ key: "wet", path: pjoin(roots.plugin, "assets/cues/" + m.cue.muffledFile), ...cueSeconds }); else notes.push((l) => t(l, "muffleNoCopy")); }
           else {
             try { files.push({ key: "wet", path: await bakeOwnMuffle(dry, musicAt.ownName || "music", check) }); }
             catch (e: any) { if (e === STALE) throw e; notes.push((l) => t(l, "muffleSkipped", { detail: sayError(l, e) })); }
@@ -4626,7 +5002,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
       advance("music", 0.4);
       let sfxFiles: any[] = [];
       if (musicAt.sfx) {
-        try { sfxFiles = await decodeSfx(check); files.push(...sfxFiles.map((f: any) => ({ key: f.key, path: f.path }))); }
+        try { sfxFiles = await decodeSfx(check); files.push(...sfxFiles.map((f: any) => ({ key: f.key, path: f.path, duration: f.seconds }))); }
         catch (e: any) { if (e === STALE) throw e; notes.push((l) => t(l, "sfxSkipped", { detail: sayError(l, e) })); }
       }
       advance("music", 0.6);
@@ -4824,7 +5200,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
   const canOwnMusic = tools.ffmpeg;
   const silent = music.kind === "none" && clipSound === "off";
   const isDrop = !!(sectionInfo && sectionInfo.kind === "drop");
-  const stepText = step === "checkingClips" ? t(L, "checkingClips") : step === "preparing" ? t(L, "preparingTools") : step === "listening" ? t(L, "listening") : "";
+  const stepText = step === "checkingClips" ? t(L, "checkingClips") : step === "listening" ? t(L, "listening") : "";
   // A field's limit hint; with wide characters typed it adds that they count as 2.
   const limitHint = (text: string, value: string) => text + (stHasWide(value) ? t(L, "gap") + t(L, "wideCounts") : "");
 
@@ -4865,7 +5241,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
           onChange={(v: string) => { setCueId(v); if (v !== "own") { setOwnMusic(null); setOwnGrid(null); } }} options={cueOptions} />
         {(ownMusic || cueId === "own") && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
           onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
-        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "installTools")}</ui.Message> : null}
+        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "needsNewerSelectsMusic")}</ui.Message> : null}
         <ui.Segmented label={t(L, "length")} value={length} onChange={setLength} disabled={busy}
           options={[{ label: t(L, "length.short"), value: "short" }, { label: t(L, "length.standard"), value: "standard" }, { label: t(L, "length.long"), value: "long" }]} />
         {music.kind !== "none" && (ownMusic || cue) ? (
@@ -4904,7 +5280,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
               <ui.Button variant="ghost" disabled={busy || selectedRids.length + selectedPhotoRids.length === 0} onClick={() => { chooseClips([]); choosePhotos([]); }}>{t(L, "none")}</ui.Button>
             </ui.Row>
             {/* One row per clip: the name truncates, duration and shape stay visible; long lists scroll inside. */}
-            <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
+            <div style={{ maxHeight: 220, overflowY: "auto", scrollbarGutter: "stable", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
               {inventory.resources.map((r: any) => {
                 const on = selectedRids.includes(r.rid);
                 const hint = shapeHint(r.width, r.height);
@@ -5136,8 +5512,8 @@ async function runSummerTripTemplate(sdk: any, context: any, check: () => void, 
 
   // Commit 1: the music and its muffled ending copy, then the clips on a new Draft.
   say("Adding music");
-  const audioFiles: { key: string; path: string }[] = [{ key: "dry", path: roots.plugin + "/assets/cues/" + music.cue.file }];
-  if (music.cue.muffledFile) audioFiles.push({ key: "wet", path: roots.plugin + "/assets/cues/" + music.cue.muffledFile });
+  const audioFiles: { key: string; path: string }[] = [{ key: "dry", path: pjoin(roots.plugin, "assets/cues/" + music.cue.file) }];
+  if (music.cue.muffledFile) audioFiles.push({ key: "wet", path: pjoin(roots.plugin, "assets/cues/" + music.cue.muffledFile) });
   const audio = await run("Add music to the project", fill(ensureJs, { projectId: pid, files: audioFiles }), true);
   check();
   if (!audio?.ids?.dry) throw templateIssue("The music could not be added to the Project; try again.");

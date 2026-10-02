@@ -136,8 +136,11 @@ Returns `{ titleAdded, labelsAdded, muted, muteKept, gridSound: { mode, routed, 
 filmFrame, motion, videoMotion }, kept: { … } }, committed, alreadyDone, notes }`.
 
 ### ensure-audio.js
-`{ projectId, files: [{ key, path, matchByName? }] }` → `{ ids: { [key]: resourceId }, imported: [key], missing: [key] }` (imports
-only missing files in one importFiles call; matches Audio resources by path, then by file name). `matchByName: false` (set by the
+`{ projectId, files: [{ key, path, matchByName?, duration? }] }` → `{ ids: { [key]: resourceId }, imported: [key], missing: [key] }` (imports
+only missing files in one importFiles call; matches Audio resources by path, then by file name). Paths and names compare NFC-normalised;
+when either side looks like a Windows path also with `\` as `/` and case-folded (POSIX stays case-sensitive). With `duration` (seconds:
+the cue manifest's `duration`, the SFX manifest's `duration`) the file-name match also needs the resource's `durationSeconds` within
+0.5 s (a resource the same call just imported is exempt). `matchByName: false` (set by the
 panel and `dev/adapter.mjs` on the `dry` entry when it is the user's own music) matches by path only, so another song with the same
 file name is never reused; after the import it may match by name among the resources that import added. Plugin-owned files (bundled
 cues and their muffled copies, sound effects, the hash-named muffled copy of own music) omit it and keep the name fallback.
