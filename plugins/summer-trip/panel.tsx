@@ -3101,7 +3101,7 @@ function stMuffleCommand(inPath, outPath) {
 //   qsCandidates(scores, role, durationNeeded, max) -> planner candidates [{ t, score, motion }] (t = window centre).
 // Cache: one JSON per clip in <dataDir>/quick-score/, keyed by the resource id, the file's modification time and
 // QS_VERSION, so a rebuild does not decode the same clip twice.
-var QS_VERSION = 1;
+var QS_VERSION = 2;
 // One decode pass at the settings Selfie Aesthetic Edit measured (sae-host saeMotionArgs: fps 8, gray rawvideo,
 // 0.25-0.65 s for 120 s of source) gives every per-frame figure below.
 var QS_FPS = 8;
@@ -3257,7 +3257,10 @@ async function quickScore(resource, opts) {
   var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
   var mtime = 0;
   try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
-  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, a.toFixed(3), b.toFixed(3)].join("-");
+  // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
+  // path with different media is not served stale scores; Mini Vlog review).
+  var dur = Number(resource.durationSeconds || 0).toFixed(3);
+  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, dur, a.toFixed(3), b.toFixed(3)].join("-");
   var cacheFile = io.join(dir, safe + ".json");
   if (io.readText && !ws) {
     try {
