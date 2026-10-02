@@ -13,6 +13,14 @@
 //   - Motion for the stillness picker (row `still` > 0) is measured with the local ffmpeg (FFMPEG_DIR or PATH) on the
 //     inventory's source paths, with the host block's own saeMotionArgs / saeMotionValues (the panel's argv and
 //     arithmetic); the panel runs the host's bundled ffmpeg. A clip without a readable source has no curve.
+//   - Clips without analysis (inventory rows with analysed: false) get the panel's quick local score: the panel's own
+//     quick-score block (the kit's quick-score.js) runs in a child node process (dev/quick-score-node.cjs) with the
+//     local ffmpeg behind the block's io seam, so the argv, maths and cache are the panel's; it is not gated on the
+//     still weight (as in the panel). They are not scene-searched (videoRids lists analysed clips only), and the plan
+//     gets analysed / local / pickLocal like buildDraft. The data folder is $SAE_QS_DATA or <tmp>/sae-quick-score.
+//   - pid placeholders: a row whose pid is UNANALYSED_PID / MIXED_PID takes $SAE_UNANALYSED_PID / $SAE_MIXED_PID (a
+//     Project with unanalysed imports / with analysed and unanalysed clips); the adapter replaces row.pid in place on
+//     its first step, so the driver's readback and export use the real id.
 //
 // Row inputs: key, pid, project ('A'|'B', optional; from the pid otherwise), seeds, cue ('make-funk' | 'day-trips' |
 // 'sensual-melancholia' | 'pantheon' | 'none' | 'own:<abs path>'; '$VAR' / '${VAR}' expand from the environment;
@@ -101,13 +109,31 @@ export function ownPath(cue) {
   return path.resolve(p);
 }
 
+// Placeholder pids (see the header) and their environment variables.
+export const PID_PLACEHOLDERS = { UNANALYSED_PID: 'SAE_UNANALYSED_PID', MIXED_PID: 'SAE_MIXED_PID' };
+// Replaces a placeholder pid on the row object itself (the kit driver keeps using the same object); throws when its
+// variable is unset.
+export function resolvePid(row) {
+  const env = row && PID_PLACEHOLDERS[row.pid];
+  if (!env) return row;
+  const v = process.env[env];
+  if (!v) throw Error('row ' + row.key + ' needs ' + env + ' (the Project id for pid ' + row.pid + ')');
+  row.pid = v;
+  return row;
+}
+
 // measure (optional, tests): file -> { fps, values } | null in place of the local-ffmpeg motionCurve.
-export async function createAdapter({ pluginDir, installedDir, read, measure }) {
+// measureLocal (optional, tests): resources [{ rid, path, durationSeconds }] -> { [rid]: quickScore result } in place of
+// the child-process quick score.
+export async function createAdapter({ pluginDir, installedDir, read, measure, measureLocal }) {
   let manifestJson;
   try { manifestJson = JSON.parse(read('plugin.json')); } catch { manifestJson = { id: 'selfie-aesthetic', version: '0.0.0' }; }
   const panel = read('panel.tsx');
   const P = loadPlannerAndPanel(read('planner.js'), panel);
   const H = loadHostHelpers(panel);
+  const QSN = require(path.join(pluginDir, 'dev', 'quick-score-node.cjs'));
+  const Q = QSN.loadBlock(panel);
+  const QUICK_BUDGET_MS = panelScalar(panel, 'SAE_QUICK_BUDGET_MS'), QUICK_CONCURRENCY = panelScalar(panel, 'SAE_QUICK_CONCURRENCY');
   const STILL_WEIGHT = panelScalar(panel, 'SAE_STILL_WEIGHT_PANEL');
   const QUERIES = panelConst(panel, 'SAE_QUERIES', '};');
   const PAGE_SIZE = panelScalar(panel, 'SAE_SEARCH_PAGE_SIZE');
@@ -127,7 +153,7 @@ export async function createAdapter({ pluginDir, installedDir, read, measure }) 
   const cues = JSON.parse(read('assets/cues/manifest.json')).cues;
   const effectTsx = read('assets/selfie-whip-look.tsx'), transitionTsx = read('assets/selfie-whip-transition.tsx');
   const beat = require(path.join(pluginDir, 'beat-detect.cjs'));
-  const ownCache = new Map(), motionCache = new Map();
+  const ownCache = new Map(), motionCache = new Map(), localCache = new Map();
   const withDefaults = r => ({ ...ROW_DEFAULTS, whipMode: WHIP_MODE, ...r });
   // `still` stays off the defaults so the Draft name shows it only on rows that set it.
   const stillOf = row => (row.still === undefined ? STILL_WEIGHT : row.still);
@@ -160,6 +186,29 @@ export async function createAdapter({ pluginDir, installedDir, read, measure }) 
     return curve;
   }
 
+  // Quick local scores like the panel's readLocalScores (the kit's quickScoreAll, the panel's concurrency and budget),
+  // for the resources not scored yet; cached per path + duration. Returns { [rid]: result } and the wall time.
+  function localScores(resources) {
+    const todo = resources.filter(r => !localCache.has(r.path + '|' + r.durationSeconds));
+    let ms = 0;
+    if (todo.length) {
+      let results;
+      if (measureLocal) results = measureLocal(todo);
+      else {
+        const dataDir = process.env.SAE_QS_DATA || path.join(os.tmpdir(), 'sae-quick-score');
+        const t0 = Date.now();
+        const out = execFileSync(process.execPath, [path.join(pluginDir, 'dev', 'quick-score-node.cjs'), '--stdin'],
+          { input: JSON.stringify({ resources: todo, dataDir, concurrency: QUICK_CONCURRENCY, budgetMs: QUICK_BUDGET_MS }), maxBuffer: 256 << 20, stdio: ['pipe', 'pipe', 'inherit'] });
+        ms = Date.now() - t0;
+        results = JSON.parse(String(out)).results;
+      }
+      for (const r of todo) if (results[r.rid]) localCache.set(r.path + '|' + r.durationSeconds, results[r.rid]);
+    }
+    const local = {};
+    for (const r of resources) { const x = localCache.get(r.path + '|' + r.durationSeconds); if (x) local[r.rid] = { ...x, rid: r.rid }; }
+    return { local, ms };
+  }
+
   // Own music like the panel's analyseOwn(): the host ffmpeg decode (mono f32le, 22050 Hz, first 240 s), then
   // beat-detect's analyze on all of it (the Worker path), as the planner cue saeOwnCue builds. Cached per file.
   function ownCue(file) {
@@ -185,7 +234,7 @@ export async function createAdapter({ pluginDir, installedDir, read, measure }) 
     label: 'SAE',
     searchBatch: SEARCH_BATCH,
     // Exposed for tests and tools.
-    planner: P, host: H, motionCurve, panelConstants: { QUERIES, PAGE_SIZE, SEARCH_BATCH, WHIP_MODE, AMBIENT_DB, LOOK_STRENGTH, LOOK_PRESETS, LOOK_OPTIONS, FRAMING_OPTIONS, STILL_WEIGHT }, draftNameOf,
+    planner: P, host: H, quick: Q, motionCurve, localScores, panelConstants: { QUERIES, PAGE_SIZE, SEARCH_BATCH, WHIP_MODE, AMBIENT_DB, LOOK_STRENGTH, LOOK_PRESETS, LOOK_OPTIONS, FRAMING_OPTIONS, STILL_WEIGHT, QUICK_BUDGET_MS, QUICK_CONCURRENCY }, draftNameOf,
 
     // Coverage the Selfie Aesthetic matrix must meet: each value below in >= 2 builds' rows, a Korean-UI row, unique
     // Draft names over rows x seeds, known values only.
@@ -221,6 +270,7 @@ export async function createAdapter({ pluginDir, installedDir, read, measure }) 
         if (typeof r.look !== 'boolean' || typeof r.photos !== 'boolean') unknown.push(r.key + ': look/photos must be booleans');
         if (r.still !== undefined && !(typeof r.still === 'number' && isFinite(r.still) && r.still >= 0)) unknown.push(r.key + ': still must be a number >= 0');
         if (isOwn(r.cue) && /\/(?:Users|home)\//.test(r.cue)) unknown.push(r.key + ': own path must come from $TEST_MUSIC or --own, not a home path');
+        if (!PROJECT_LETTERS[r.pid] && !PID_PLACEHOLDERS[r.pid]) unknown.push(r.key + ': pid must be Selfie test A / B or a placeholder (' + Object.keys(PID_PLACEHOLDERS).join(', ') + ')');
       }
       const names = R.flatMap(r => (r.seeds || [1]).map(sd => draftNameOf(r, sd)));
       const dupNames = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
@@ -231,22 +281,24 @@ export async function createAdapter({ pluginDir, installedDir, read, measure }) 
     // panel.tsx build() step 1: `{ projectId, only: null, known, ...(usePhotos ? {} : { measureMs: 0 }) }`; a fresh
     // panel has no known photo sizes. readOnly also skips the scratch-Draft photo measuring.
     inventory(r0, { readOnly } = {}) {
-      const row = withDefaults(r0);
+      const row = withDefaults(resolvePid(r0));
       return { summary: 'Read footage', script: 'scripts/inventory.js', config: { projectId: row.pid, only: null, known: {}, ...(row.photos && !readOnly ? {} : { measureMs: 0 }) } };
     },
 
+    // Scene search runs on analysed clips only (panel build() step 2); durations cover every video.
     videoRids(inv) {
-      return { rids: inv.resources.map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
+      return { rids: inv.resources.filter(r => r.analysed !== false).map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
     },
 
     // panel.tsx searchClips(): SAE_SEARCH_BATCH clips per call.
     search(row, rids) {
+      resolvePid(row);
       return { summary: 'Find close-ups', script: 'scripts/search.js', config: { projectId: row.pid, rids, queries: QUERIES, pageSize: PAGE_SIZE } };
     },
 
     // panel.tsx: the music cue, defaultSection()/snap(), then build() steps 1-3.
     plan({ row: r0, seed, inv, found }) {
-      const row = withDefaults(r0);
+      const row = withDefaults(resolvePid(r0));
       inv.photos = inv.photos || [];
       let cue = null, ownFile = null;
       if (isOwn(row.cue)) { ownFile = ownPath(row.cue); cue = ownCue(ownFile); }
@@ -280,17 +332,27 @@ export async function createAdapter({ pluginDir, installedDir, read, measure }) 
       const candidates = rids.flatMap(rid => found.list.filter(c => c.rid === rid).map(({ sourceDuration, ...c }) => c));
       const badSpans = {}; // sdk.call only (see the header)
       // The panel's Check step measures motion only while the still weight is > 0.
+      // The panel's Check step: motion curves for analysed videos while the still weight is > 0, quick local scores for
+      // unanalysed ones always. An inventory row without `analysed` (an older cache) counts as analysed.
+      const analysedRows = inv.resources.filter(r => r.analysed !== false), localRows = inv.resources.filter(r => r.analysed === false);
       const motion = {}, weight = stillOf(row);
       if (weight > 0) {
         // An inventory from before source paths (an old --inventory file or plan-only cache) cannot be measured.
-        if (inv.resources.length && !inv.resources.some(r => r.path)) throw Error('still > 0 needs source paths: the inventory has none (re-read it; delete an old inventory-<pid>.json cache)');
-        for (const r of inv.resources) { const c = (measure || motionCurve)(r.path); if (c) motion[r.rid] = c; }
+        if (analysedRows.length && !analysedRows.some(r => r.path)) throw Error('still > 0 needs source paths: the inventory has none (re-read it; delete an old inventory-<pid>.json cache)');
+        for (const r of analysedRows) { const c = (measure || motionCurve)(r.path); if (c) motion[r.rid] = c; }
       }
       const still = { weight, measured: Object.keys(motion).length, videos: rids.length };
+      const scored = localRows.length ? localScores(localRows.map(r => ({ rid: r.rid, path: r.path, durationSeconds: r.duration }))) : { local: {}, ms: 0 };
+      for (const rid of Object.keys(scored.local)) motion[rid] = { local: scored.local[rid] };
+      const analysed = {}, local = {};
+      for (const r of localRows) { analysed[r.rid] = false; if (scored.local[r.rid]) local[r.rid] = scored.local[r.rid]; }
+      const localRec = { videos: localRows.length, scored: Object.values(local).filter(x => !x.fallback).length, fallback: Object.values(local).filter(x => x.fallback).length, ms: scored.ms,
+        perClipMs: Object.values(local).map(x => x.ms) };
       const plan = j(P.saePlanBuild({ fps: 30, bars: wantedBars, seed, cue, sectionStart: section ?? undefined, candidates, durations, badSpans, photos, usePhotos: row.photos,
-        motion, stillWeight: weight }));
+        motion, stillWeight: weight, analysed, local, pickLocal: Q.pickWindowsLocal }));
       const summary = plan.ok
-        ? { ok: true, bars: plan.bars, wanted: wantedBars, holds: plan.holds.length, editBpm: plan.editBpm, sectionStart: plan.sectionStart, faceClips: plan.faceClips, photoBars: plan.photoBars, notes: plan.notes }
+        ? { ok: true, bars: plan.bars, wanted: wantedBars, holds: plan.holds.length, editBpm: plan.editBpm, sectionStart: plan.sectionStart, faceClips: plan.faceClips, photoBars: plan.photoBars, notes: plan.notes,
+          ...(plan.localClips ? { localClips: plan.localClips, localFallback: plan.localFallback } : {}) }
         : { ok: false, notes: plan.notes, fit: plan.fit };
       if (!plan.ok) throw Error('plan not ok: ' + JSON.stringify(summary));
       // Bar-level adjacency (the planner's rule; holds within a bar always share their source).
@@ -301,16 +363,17 @@ export async function createAdapter({ pluginDir, installedDir, read, measure }) 
       if (adjacentBars.length && sources >= 2 && !plan.notes.includes('adjacent')) throw Error('planner put one source in adjacent bars ' + adjacentBars.join(','));
       const crops = {};
       for (const r of [...inv.resources, ...inv.photos]) if (r.width > 0 && r.height > 0) crops[r.rid] = { width: r.width, height: r.height };
-      return { row, seed, inv, found, cue, ownFile, preset, wantedBars, section, plan, planSummary: summary, durations, crops, barRids, adjacentBars, sources, still,
+      return { row, seed, inv, found, cue, ownFile, preset, wantedBars, section, plan, planSummary: summary, durations, crops, barRids, adjacentBars, sources, still, local: localRec,
         holds: j(P.saeTrimHolds(plan.holds)), boundaries: plan.cutSecondsRaw, start: plan.sectionStart };
     },
 
     // panel.tsx: bundled cues import from the INSTALLED plugin folder (skillsDir); own music by its path, never by name.
     ensureAudio(s) {
+      resolvePid(s.row);
       if (!s.cue) return null;
       const config = s.ownFile
         ? { projectId: s.row.pid, path: s.ownFile, matchByName: false }
-        : { projectId: s.row.pid, path: installedDir + '/assets/cues/' + cues.find(c => c.id === s.row.cue).file };
+        : (() => { const c = cues.find(x => x.id === s.row.cue); return { projectId: s.row.pid, path: installedDir + '/assets/cues/' + c.file, ...(typeof c.durationSeconds === 'number' ? { durationSeconds: c.durationSeconds } : {}) }; })();
       return { summary: 'Add music to the project', script: 'scripts/ensure-audio.js', config, allowCommit: true };
     },
 
@@ -384,6 +447,7 @@ export async function createAdapter({ pluginDir, installedDir, read, measure }) 
           inputs: { project: letterOf(row), cue: row.cue, preset: row.preset, look: row.look, length: row.length, clipSound: row.clipSound, photos: row.photos,
             section: row.section, whipMode: row.whipMode, uiLang: row.uiLang, still: stillOf(row) },
           still: s.still, // { weight, measured: clips with a motion curve, videos }
+          local: s.local, // { videos: unanalysed videos, scored, fallback, ms (wall of the quick-score run), perClipMs }
           name: s.draftName, ownFile: s.ownFile ? path.basename(s.ownFile) : null, ownCue: s.ownFile ? { bpm: s.cue.bpm, firstBeat: s.cue.firstBeat, grid: s.cue.grid, durationSeconds: s.cue.durationSeconds } : null,
           sectionStart: plan.sectionStart, musicSourceStart: plan.musicSourceStart, musicOffset: s.offset, editBpm: plan.editBpm, bpm: plan.bpm,
           plan: s.planSummary, bars: plan.bars, wantedBars: s.wantedBars, holds: s.holds.length, snapLog: plan.snapLog,

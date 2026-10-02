@@ -29,8 +29,10 @@ jobs:
           node plugins/city-weekend-vlog/tests/fonts.test.cjs
           node plugins/city-weekend-vlog/tests/i18n.test.cjs
           node plugins/city-weekend-vlog/tests/motion.test.cjs
+          node plugins/city-weekend-vlog/tests/no-analysis.test.cjs
           node plugins/city-weekend-vlog/tests/panel.test.cjs
           node plugins/city-weekend-vlog/tests/planner.test.cjs
+          node plugins/city-weekend-vlog/tests/quick-score.test.cjs
           node plugins/city-weekend-vlog/tests/scripts-edit.test.cjs
           node plugins/city-weekend-vlog/tests/scripts-read.test.cjs
           node plugins/city-weekend-vlog/tests/title.test.cjs
@@ -62,6 +64,7 @@ jobs:
           node plugins/archive-vlog/tests/motion.test.cjs
           node plugins/archive-vlog/tests/panel.test.cjs
           node plugins/archive-vlog/tests/planner.test.cjs
+          node plugins/archive-vlog/tests/quick-score.test.cjs
           node plugins/archive-vlog/tests/scripts-edit.test.cjs
           node plugins/archive-vlog/tests/scripts-read.test.cjs
           node plugins/archive-vlog/tests/scripts-types.test.cjs
@@ -93,12 +96,16 @@ jobs:
           node plugins/the-end-credits/tests/fonts.test.cjs
           node plugins/the-end-credits/tests/frame.test.cjs
           node plugins/the-end-credits/tests/graphic.test.cjs
+          node plugins/the-end-credits/tests/host.test.cjs
           node plugins/the-end-credits/tests/i18n.test.cjs
           node plugins/the-end-credits/tests/look.test.cjs
+          node plugins/the-end-credits/tests/no-analysis.test.cjs
           node plugins/the-end-credits/tests/panel.test.cjs
           node plugins/the-end-credits/tests/planner.test.cjs
+          node plugins/the-end-credits/tests/quick-score.test.cjs
           node plugins/the-end-credits/tests/scripts-edit.test.cjs
           node plugins/the-end-credits/tests/scripts-read.test.cjs
+          node plugins/the-end-credits/tests/windows.test.cjs
       - name: Test Summer Trip
         run: |
           node plugins/summer-trip/tests/beat-detect.test.cjs
@@ -127,10 +134,12 @@ jobs:
           node plugins/selfie-aesthetic/tests/eval-whips.test.cjs
           node plugins/selfie-aesthetic/tests/host.test.cjs
           node plugins/selfie-aesthetic/tests/i18n.test.cjs
+          node plugins/selfie-aesthetic/tests/local.test.cjs
           node plugins/selfie-aesthetic/tests/package.test.cjs
           node plugins/selfie-aesthetic/tests/panel.test.cjs
           node plugins/selfie-aesthetic/tests/planner.test.cjs
           node plugins/selfie-aesthetic/tests/public-paths.test.cjs
+          node plugins/selfie-aesthetic/tests/quick-score.test.cjs
           node plugins/selfie-aesthetic/tests/scripts-edit.test.cjs
           node plugins/selfie-aesthetic/tests/scripts-read.test.cjs
           node plugins/selfie-aesthetic/tests/still.test.cjs

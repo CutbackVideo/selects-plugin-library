@@ -19,11 +19,18 @@
 //   the row needs; documentation for --check only), fitLength true|false (default false: a Length the track is too
 //   short for fails the row with the panel's message; true builds the longest Length that fits instead).
 //
-// In-shot motion, like the panel: every inventoried clip is measured once with the local ffmpeg (planner.js
-// TEC_MOTION_FILTER, run in a temp folder that receives the file), from the source `path` inventory.js returns (the
+// In-shot motion, like the panel: every analysed clip is measured once with the local ffmpeg (planner.js
+// tecMotionArgs into a temp file, tecMotionCurve on its grey frames), from the source `path` inventory.js returns (the
 // driver runs on the machine that holds the Project's files). Offline fixtures carry no path: set TEC_FOOTAGE_DIR to
 // the footage folder to resolve them by file name. A clip that cannot be measured (no path, no ffmpeg, a failure)
 // scores as before, silently, as in the panel.
+//
+// Clips without analysis (inventory.js analysed: false), like the panel: never scene-searched; the kit quick score
+// (panel.tsx's quick-score block, loaded in node:vm) scores them and planner.js tecLocalFromScores turns the scores into
+// candidates and motion curves. The driver does not await plan(), so the decode runs synchronously here: the block's
+// own ffmpeg arguments and pure maths (qsFrameStats, qsSceneCuts, qsWindowScores over qsBins), with the local ffmpeg
+// writing the grey frames to stdout instead of a data-folder file. No ffmpeg, no file or a failure: the kit fallback,
+// then evenly spaced windows, as in the panel.
 import vm from 'node:vm';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -41,6 +48,16 @@ function loadPlanner(source) {
   return box.P;
 }
 const j = v => JSON.parse(JSON.stringify(v)); // vm objects -> plain objects
+
+// The kit quick-score block, pasted verbatim in panel.tsx between its markers (the panel is its only copy here).
+function loadQuickScore(panelSource) {
+  const a = panelSource.indexOf('// quick-score:start'), b = panelSource.indexOf('// quick-score:end');
+  if (a < 0 || b < a) throw Error('panel.tsx has no quick-score block');
+  const box = { Math, Number, Object, Array, String, JSON, Date, Map, Promise, Error, Uint8Array, TextDecoder, AbortController, setTimeout, clearTimeout };
+  vm.createContext(box);
+  vm.runInContext(panelSource.slice(a, b) + '\n;globalThis.Q={qsFrameStats,qsSceneCuts,qsWindowScores,qsBins,qsFallback,qsCandidates,QS_FPS,QS_W,QS_H,QS_HEAD,QS_SPAN,QS_BIN};', box);
+  return box.Q;
+}
 
 // Spec constants that live in the panel/scripts rather than the planner.
 const W = 1920, H = 1080, A = W / H;
@@ -74,6 +91,7 @@ const ffmpeg = () => (process.env.FFMPEG_DIR ? path.join(process.env.FFMPEG_DIR,
 export async function createAdapter({ pluginDir, installedDir, read }) {
   const pluginJson = JSON.parse(read('plugin.json'));
   const P = loadPlanner(read('planner.js'));
+  const Q = loadQuickScore(read('panel.tsx'));
   const cues = JSON.parse(read('assets/cues/manifest.json')).cues;
   const defaultCue = (cues.find(c => c.default) || cues[0]).id;
   const ROW_DEFAULTS = { layout: 'classic', cue: defaultCue, length: P.TEC_DEFAULT_LENGTH, preset: P.TEC_DEFAULT_PRESET, title: 'THE END',
@@ -82,23 +100,58 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
   const cueKind = cue => (cue === 'none' ? 'none' : String(cue).startsWith('own:') ? 'own' : 'bundled');
   const ownCache = new Map();
   const motionCache = new Map();
+  const quickCache = new Map();
+  const sourceFile = r => r.path || (process.env.TEC_FOOTAGE_DIR && r.name ? path.join(expandPath(process.env.TEC_FOOTAGE_DIR), r.name) : null);
 
-  // The panel's measureMotion: one ffmpeg run per clip, the metadata written to a file and parsed by the planner's
-  // tecParseMotion. rid -> curve for the clips that could be measured.
+  // The kit quickScore on one clip, synchronously: the same span (QS_HEAD .. QS_HEAD + QS_SPAN), ffmpeg arguments and
+  // maths; the result has the block's shape (a fallback when the decode fails).
+  function quickScoreSync(r, file) {
+    const t0 = Date.now(), dur = r.duration;
+    const head = Math.min(Q.QS_HEAD, Math.max(0, dur - Q.QS_BIN)), end = Math.min(dur, head + Q.QS_SPAN);
+    try {
+      const buf = execFileSync(ffmpeg(), ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-ss', head.toFixed(3), '-t', (end - head).toFixed(3), '-i', file,
+        '-an', '-vf', 'fps=' + Q.QS_FPS + ',scale=' + Q.QS_W + ':' + Q.QS_H + ',setsar=1,format=gray', '-f', 'rawvideo', 'pipe:1'],
+      { maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'], timeout: 120000 });
+      const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.length);
+      if (bytes.length < Q.QS_W * Q.QS_H) throw Error('no frames');
+      const stats = Q.qsFrameStats(bytes, Q.QS_W, Q.QS_H), cuts = Q.qsSceneCuts(stats, Q.QS_FPS, head);
+      return j({ rid: r.rid, windows: Q.qsWindowScores(stats, Q.QS_FPS, head, Q.qsBins(dur, head, end - head), cuts), sceneCuts: cuts, ms: Date.now() - t0,
+        fallback: false, cached: false, duration: dur });
+    } catch (e) { return j(Q.qsFallback({ rid: r.rid, durationSeconds: dur }, Date.now() - t0, null)); }
+  }
+
+  // The panel's localShots for the unanalysed clips: rid -> quick score (cached per file), then the planner's mapping.
+  function localShots(resources, phraseP) {
+    const results = new Map();
+    let ms = 0;
+    for (const r of resources) {
+      const file = sourceFile(r);
+      if (!file || !fs.existsSync(file)) continue;
+      if (!quickCache.has(file)) quickCache.set(file, quickScoreSync(r, file));
+      const res = quickCache.get(file);
+      ms += res.ms || 0;
+      results.set(r.rid, { ...res, rid: r.rid });
+    }
+    return { ...j(P.tecLocalFromScores(resources, results, phraseP, Q.qsCandidates)), ms };
+  }
+
+  // The panel's measureMotion: one ffmpeg run per clip, raw grey frames written to a file and turned into a curve by
+  // the planner's tecMotionCurve. rid -> curve for the clips that could be measured.
   function motionCurves(resources) {
     const out = {};
     let tmp = null;
     try {
       for (const r of resources) {
-        const file = r.path || (process.env.TEC_FOOTAGE_DIR && r.name ? path.join(expandPath(process.env.TEC_FOOTAGE_DIR), r.name) : null);
+        const file = sourceFile(r);
         if (!file || !fs.existsSync(file)) continue;
         if (!motionCache.has(file)) {
           let curve = null;
           try {
             tmp = tmp || fs.mkdtempSync(path.join(os.tmpdir(), 'tec-motion-'));
-            const name = 'motion-' + String(r.rid).replace(/[^A-Za-z0-9-]/g, '_') + '.txt';
-            execFileSync(ffmpeg(), ['-nostdin', '-v', 'error', '-an', '-sn', '-dn', '-i', file, '-vf', P.TEC_MOTION_FILTER + name, '-f', 'null', '-'], { cwd: tmp, stdio: 'ignore', timeout: 120000 });
-            curve = j(P.tecParseMotion(fs.readFileSync(path.join(tmp, name), 'utf8')));
+            const out = path.join(tmp, 'motion-' + String(r.rid).replace(/[^A-Za-z0-9-]/g, '_') + '.gray');
+            execFileSync(ffmpeg(), P.tecMotionArgs(file, out), { stdio: 'ignore', timeout: 120000 });
+            curve = j(P.tecMotionCurve(new Uint8Array(fs.readFileSync(out))));
+            fs.rmSync(out, { force: true });
           } catch (e) { curve = null; }
           motionCache.set(file, curve);
         }
@@ -216,8 +269,10 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       return { summary: 'Read footage', script: 'scripts/inventory.js', config: { projectId: row.pid, only: row.only || null, known: {}, ...(readOnly ? { measureMs: 0 } : {}) } };
     },
 
+    // Scene search only for analysed clips (an inventory without the flag counts as analysed); plan() scores the rest.
     videoRids(inv) {
-      return { rids: inv.resources.map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
+      const searched = inv.resources.filter(r => r.analysed !== false);
+      return { rids: searched.map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
     },
 
     search(row, rids) {
@@ -256,8 +311,11 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         if (aspect) sources[r.rid] = { aspect };
       }
       const photoCands = row.photos ? inv.photos.map(p => ({ rid: p.rid, kind: 'photo' })) : [];
-      const motion = motionCurves(inv.resources);
-      const plan = j(P.tecPlanBuild({ layout, N, P: Pp, candidates: found.list.concat(photoCands), seed: String(seed), motion }));
+      const unanalysed = inv.resources.filter(r => r.analysed === false), localRids = new Set(unanalysed.map(r => r.rid));
+      const local = localShots(unanalysed, Pp);
+      const motion = { ...local.curves, ...motionCurves(inv.resources.filter(r => r.analysed !== false)) };
+      const searched = found.list.filter(c => !localRids.has(c.rid));
+      const plan = j(P.tecPlanBuild({ layout, N, P: Pp, candidates: searched.concat(local.list, photoCands), seed: String(seed), motion }));
       if (!plan.ok) throw Error('Needs at least ' + plan.needed + ' usable clips or photos (found ' + plan.usableShots + ')');
       const motions = j(P.tecShotMotions(plan.picks, String(seed), sizes, { pool: plan.motionPool }));
       const byShot = motions.map(m => (m ? { motion: m.motion, direction: m.direction, axis: m.axis, frameStrength: m.frameStrength } : null));
@@ -275,6 +333,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
         N: plan.N, requestedN: plan.requestedN, shrunk: plan.shrunk, visibleShots: plan.visibleShots, fillerShots: plan.fillerShots, photoShots: plan.photoShots,
         videoSeconds: +plan.timeline.total.toFixed(3), sectionStart: sectionStart == null ? null : +sectionStart.toFixed(3), sectionJ: section ? section.j : null,
         rows: rows.length, titleGlyphs: Array.from(title).length, motionMeasured: Object.keys(motion).length,
+        unanalysed: unanalysed.length, quickScored: local.scored, quickEven: local.even.length, quickMs: local.ms, localShots: plan.localShots,
         shotMotion: plan.picks.map((k, i) => (k.kind === 'photo' ? 'photo' : (k.motion == null ? '?' : k.motion) + ':' + (byShot[i] ? byShot[i].motion : 'none'))), speedEstimate: { pxPerSec: +est.roll.pxPerSec.toFixed(2), clamped: est.roll.clamped, exitSec: est.roll.exitSec == null ? null : +est.roll.exitSec.toFixed(2), exitsLate: est.roll.exitsLate, hiddenRows: est.roll.hiddenRows, removeRows: est.roll.removeRows } };
       return { row, seed, inv, found, layout, music, plan, planSummary, section, start: sectionStart, fitted: { length: lengthKey, N }, boundaries: plan.timeline.boundaries,
         sources, photos, byRid, byShot, rows, title };

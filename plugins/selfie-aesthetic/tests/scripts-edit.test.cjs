@@ -407,6 +407,19 @@ const project = (make) => ({ project: () => ({ createDraft: async (o) => make(o)
   // Basename fallback: the same cue imported from another folder is reused.
   const w4 = audioProject(['/old/place/x.mp3', '/old/place/make-funk.mp3']);
   assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCfg })(w4.selects), { resourceId: 'a1', imported: false });
+  // With the cue's length (cfg.durationSeconds): a same-named file is the cue only at that length (|delta| <= 0.5 s).
+  const lenProject = (stored, durs) => { const pj = audioProject(stored); const res = pj.selects.project().resources;
+    pj.selects = { project: () => ({ ...audioProject(stored).selects.project(), importFiles: async ({ paths }) => { pj.calls.imports.push(paths); return { addedResourceIds: ['new1'] }; },
+      resources: async () => (await res()).map((r, i) => ({ ...r, durationSeconds: durs[i] })) }) }; return pj; };
+  const l1 = lenProject(['/Volumes/x/Downloads/make-funk.mp3'], [182.3]);
+  assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCfg, durationSeconds: 65 })(l1.selects), { resourceId: 'new1', imported: true }, 'same name, other length: imported fresh');
+  assert.equal(l1.calls.imports.length, 1);
+  const l2 = lenProject(['/old/place/make-funk.mp3'], [65.04]);
+  assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCfg, durationSeconds: 65 })(l2.selects), { resourceId: 'a0', imported: false }, 'same name, the cue length: reused');
+  const l3 = lenProject(['/old/place/make-funk.mp3'], [undefined]);
+  assert.equal((await load('ensure-audio.js', { projectId: 'p', path: winCfg, durationSeconds: 65 })(l3.selects)).imported, true, 'unknown length: not taken for the cue');
+  const l4 = lenProject(['C:/Music/A/.selects/skills/selfie-aesthetic/assets/cues/make-funk.mp3'], [182.3]);
+  assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCfg, durationSeconds: 65 })(l4.selects), { resourceId: 'a0', imported: false }, 'a full-path match is kept whatever the length');
   // Own music (matchByName false): another file with the same name is not reused.
   const w4b = audioProject(['/Volumes/x/Downloads/track.mp3']);
   assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/Volumes/x/Music/track.mp3', matchByName: false })(w4b.selects), { resourceId: 'new1', imported: true });

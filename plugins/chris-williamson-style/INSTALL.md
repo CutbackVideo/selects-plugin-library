@@ -3,6 +3,9 @@
 Experimental. macOS on Apple silicon, a Selects build with Panel `runScript`, `runShell` and `askAI`,
 Draft authoring and frame capture. Legacy cleanup also needs the mapped SequenceEdit runtime.
 
+Windows: the panel opens and says "Available on macOS for now"; nothing is changed. Shot detection, face
+framing and B-roll preparation still run in `engine.mjs` on Node.js and Apple Vision, which are macOS-only here.
+
 Requirements:
 
 - macOS 14 or later.

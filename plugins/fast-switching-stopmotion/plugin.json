@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "fast-switching-stopmotion",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "name": "Fast Switching Stop Motion",
   "summary": "Turn selfie videos into a fast outfit-switch stop-motion edit as a new editable Draft.",
   "status": "experimental",
@@ -16,9 +16,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS development builds"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Requires Panel SDK runScript/runShell/askAI and ffmpeg in the app shell. Released-version and Windows compatibility are unverified."
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel SDK runScript/askAI and the host's bundled ffmpeg; no extra tools to install. Windows is built to the kit rules but not yet verified on a real Windows machine."
   },
   "preview": {
     "video": "preview.mp4",

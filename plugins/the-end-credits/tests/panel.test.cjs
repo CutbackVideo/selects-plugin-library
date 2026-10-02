@@ -38,8 +38,8 @@ assert.equal((panel.match(/^import /gm) || []).length, 1, 'one import');
 
 // It reads every script and asset it sends (and runs beat-detect.cjs for own music).
 for (const name of ['assets/cues/manifest.json', 'scripts/inventory.js', 'scripts/search.js', 'scripts/ensure-audio.js', 'scripts/assemble.js', 'scripts/decorate.js',
-  'assets/credits-graphic.tsx', 'assets/shot-frame.tsx', 'assets/cinematic-look.tsx', 'assets/fonts/tec-title-serif.woff2.b64', 'assets/fonts/tec-credits-sans.woff2.b64', 'beat-detect.cjs']) {
-  assert.ok(panel.includes(name.includes('/') && !name.startsWith('beat') ? '"' + name + '"' : name), 'panel reads ' + name);
+  'assets/credits-graphic.tsx', 'assets/shot-frame.tsx', 'assets/cinematic-look.tsx', 'assets/fonts/tec-title-serif.woff2.b64', 'assets/fonts/tec-credits-sans.woff2.b64', 'kit-beat-detect.cjs']) {
+  assert.ok(panel.includes('"' + name + '"'), 'panel reads ' + name);
   assert.ok(fs.existsSync(path.join(root, name)), name + ' exists');
 }
 assert.ok(!panel.includes('opening.tsx') && !fs.existsSync(path.join(root, 'assets', 'opening.tsx')), 'the Opening generator was dropped (probe P1): the Classic lead-in is a gap');
@@ -47,12 +47,12 @@ assert.ok(!panel.includes('opening.tsx') && !fs.existsSync(path.join(root, 'asse
 // CWV guards.
 for (const phrase of ['projectRef', 'No valid session ID', 'visibilitychange', 'addEventListener("focus"', '10000', '>{t(L, "refresh")}<',
   'role="slider"', 'aria-valuenow', 'aria-valuetext', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"ArrowLeft"', '"Home"', '"End"', '"Escape"',
-  'requestAnimationFrame', 'cancelAnimationFrame', 'previewTokenRef', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', 'preview-*.mp3', 'readText(roots.data',
+  'requestAnimationFrame', 'cancelAnimationFrame', 'previewTokenRef', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', 'tecHostPreviewUrl(file, start, videoSeconds, MUSIC_FADE_OUT, roots.data)',
   'loadInventory(', 'setCandidates(null)', 'invSigRef', 'known: photoSizesRef.current', 'selects.editor.openDraft', 'linkToDraftFrame',
   'FontFace', '--panel-accent', '--panel-muted-fg', 'fmtTime(total)', 'ffprobe']) assert.ok(code.includes(phrase), phrase);
-for (const [key, text] of [['refresh', 'Refresh'], ['stopPreview', 'Stop preview'], ['cancelPreview', 'Cancel preview'], ['analysing', 'being analysed. This updates automatically'],
+for (const [key, text] of [['refresh', 'Refresh'], ['stopPreview', 'Stop preview'], ['cancelPreview', 'Cancel preview'],
   ['noFootage', 'this updates automatically'], ['finishTitle', 'Finish title and look'], ['anotherVersion', 'Try other shots'],
-  ['stoppedAt', 'Stopped at step {step}/{total} ({name}): {detail}'], ['installTools', 'Install ffmpeg to preview'], ['preparingTools', 'first time only'], ['draftCreatedAdding', 'Draft created; adding credits and look'],
+  ['stoppedAt', 'Stopped at step {step}/{total} ({name}): {detail}'], ['needsNewerSelects', 'newer version of Selects'], ['draftCreatedAdding', 'Draft created; adding credits and look'],
   ['sectionHint', 'drag to choose'], ['sectionLabel', 'Music section'], ['startsAt', 'Starts at {seconds} s'], ['musicTooShort', 'too short for this length'],
   ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})']]) says(key, text);
 assert.deepEqual(['prepare', 'plan', 'music', 'assemble', 'decorate'].map(id => en['step.' + id]), ['Finding shots', 'Planning the edit', 'Preparing music', 'Creating Draft', 'Adding credits and look']);
@@ -76,32 +76,32 @@ assert.ok(!/#[0-9a-f]{3,8}\b/i.test(panel.slice(early).replace(/var\(--panel-[a-
 // Only a lost session is resent, and never a committing call.
 assert.ok(panel.includes('if (r.isError && !allowCommit && /No valid session ID/.test(r.output || ""))'), 'no auto-resend of commits');
 assert.ok(!/Streamable HTTP error/.test(panel), 'only the session-id failure is resent');
-// Finder-launched apps lack Homebrew: every shell step that runs ffmpeg, ffprobe, Node.js or rm extends PATH.
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Homebrew path, no nvm hunting');
-// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
-assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
-assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
-assert.equal(fs.readFileSync(path.join(root, 'runtime.sh'), 'utf8'), fs.readFileSync(path.join(root, '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
-for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -i "/]) assert.ok(re.test(panel), String(re));
-const shells = panel.match(/sdk\.runShell\(\{[^\n]*/g) || [];
-assert.equal(shells.length, 11, 'folder lookup, tool check, Node.js runtime, waveform + cleanup, beat detection, ffprobe, preview + cleanup, motion + cleanup');
-for (const s of shells) if (!/Locate plugin folders/.test(s)) assert.ok(/TOOL_PATH/.test(s) || /command: cmd/.test(s), 'shell step without TOOL_PATH: ' + s);
-// User paths go to the shell single-quoted; dq() is only for the $HOME / $SELECTS_USER_SKILLS_ROOT constants.
-assert.ok(!/dq\((file|ownMusic|roots|cue|base|pcm)/.test(panel), 'user paths must not be double-quoted into the shell');
-assert.equal((panel.match(/dq\(/g) || []).length, 5, 'dq only for the two folder constants and runtime.sh (plus its definition)');
-for (const p of ['sq(file.path)', 'sq(pcm)', 'sq(file)', 'sq(base + ".mp3")', 'sq(roots.plugin + "/assets/cues/" + cue.file)', 'sq(r.path)', 'sq(roots.data)']) assert.ok(panel.includes(p), p);
-// In-shot motion: ffmpeg once per clip, in the data folder (the filtergraph gets a bare file name, no path to escape),
-// written to a file (not stdout), read back and removed; cached per Project + clip; any failure leaves the clip
-// unmeasured (the old scoring), and without ffmpeg nothing runs.
+// Windows: no shell at runtime (tests/windows.test.cjs scans every runtime file). Host I/O goes through the tec-host
+// block (FileSystem + Runtime.runFFmpeg/runFFprobe with argv arrays); paths are joined by the host.
+assert.ok(!panel.includes('runShell'), 'no runShell in the panel');
+assert.ok(!/\bdq\(|\bsq\(|TOOL_PATH|ensureNode|runtime\.sh/.test(panel), 'no shell quoting helpers, PATH tricks or Node.js runtime');
+assert.ok(!/\bnew Worker\(/.test(panel.slice(0, panel.indexOf('// tec-beat-worker:start'))) && (panel.match(/new Worker\(/g) || []).length === 1, 'one Worker: the beat detector');
+for (const k of ['async function locateRoots(_sdk: any)', 'tecHostSkillsDir(PLUGIN_ID, "planner.js")', 'tecHostDataDir(PLUGIN_ID)', 'tecHostReadText(tecHostJoin(root, ...rel.split("/")))',
+  'tecHostPeaks(tecHostJoin(roots.plugin, "assets", "cues", cue.file), roots.data, 400)', 'tecHostDecodePcm(file.path, roots.data, TEC_PCM_RATE, TEC_PCM_SECONDS)',
+  'analyseBeat(assets.beatWorker, samples, ac.signal)', 'tecHostProbeSeconds(file.path, { timeoutMs: 30000 })', 'beatWorker: beatDetect ? tecBeatWorkerSource(beatDetect) : ""',
+  'tecHostJoin(roots.plugin, "assets", "cues", cue.file)', 'setTools({ ffmpeg: !!data && tecHostCanRead() && tecHostHas(["rt.runFFmpeg", "rt.runFFprobe", "fs.join"]).ok })',
+  'if (String(e?.message) === "host_tools") return t(lang, "needsNewerSelects");', '{!canOwnMusic ? <ui.Message tone="muted">{t(L, "needsNewerSelects")}</ui.Message> : null}',
+  'ownAbortRef.current?.abort()', 'worker.postMessage({ id: 1, buf, rate: TEC_PCM_RATE }, [buf])', 'TEC_BEAT_TIMEOUT_MS']) assert.ok(panel.includes(k), k);
+// A template run and the panel share locateRoots; the template keeps reading through readText(roots.plugin, "a/b").
+assert.ok(panel.includes('const roots = await locateRoots(sdk);') && panel.includes('const read = (rel: string) => readText(roots.plugin, rel);'), 'template roots unchanged');
+// In-shot motion: the host ffmpeg once per clip into the data folder (planner tecMotionArgs; no filtergraph path),
+// read back, removed and turned into a curve; cached per Project + clip; any failure leaves the clip unmeasured.
 const mm = panel.slice(panel.indexOf('async function measureMotion('), panel.indexOf('// The Motion Graphic\'s data'));
-for (const k of ['TOOL_PATH + "cd " + sq(roots.data) + " && rm -f " + sq(file) + " && ffmpeg -nostdin -v error -an -sn -dn -i " + sq(r.path)', '" -vf " + sq(TEC_MOTION_FILTER + file) + " -f null -"',
-  'tecParseMotion(await readText(roots.data, file))', 'rm -f " + sq(roots.data) + "/motion-*.txt', 'pid + "|" + r.rid', 'in motionRef.current', '!tools.ffmpeg || !r.path',
-  'String(r.rid).replace(/[^A-Za-z0-9-]/g, "_")', 'if (e === STALE) throw e;', 'check();']) assert.ok(mm.includes(k), 'motion: ' + k);
-assert.ok(!/cd " \+ dq\(/.test(mm), 'the data folder is single-quoted');
+for (const k of ['tecHostFFmpegBytes((file: string) => tecMotionArgs(r.path, file), roots.data, "gray", { timeoutMs: 120000 })', 'curve = tecMotionCurve(bytes);', 'pid + "|" + r.rid',
+  'in motionRef.current', '!tools.ffmpeg || !r.path', 'if (e === STALE) throw e;', 'check();']) assert.ok(mm.includes(k), 'motion: ' + k);
 assert.ok(panel.indexOf('const motionRef = React.useRef') > 0 && panel.indexOf('const motionRef = React.useRef') < early, 'the motion cache is a hook before the early return');
-// Temporary files go through the data folder and are removed.
-assert.ok(panel.includes('"; s=$?; rm -f " + sq(pcm) + "; exit $s"') && panel.includes('" && rm -f " + sq(base + ".mp3")') && panel.includes('rm -f " + sq(base + ".u8")'), 'temporary audio files are removed');
-assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))') && panel.includes('!done.ok'), 'own-music analysis via a file');
+assert.ok(panel.indexOf('const ownAbortRef = React.useRef') > 0 && panel.indexOf('const ownAbortRef = React.useRef') < early, 'the own-music abort is a hook before the early return');
+// Temporary files: every ffmpeg output goes through tecHostFFmpegBytes (an ASCII name in the data folder, removed).
+const hostBlock = panel.slice(panel.indexOf('// tec-host:start'), panel.indexOf('// tec-host:end'));
+assert.ok(hostBlock.includes("const out = tecHostJoin(dataDir, 'tmp-' + tecHostToken() + '.' + ext);") && hostBlock.includes('await tecHostRemove(out);'), 'temporary files are removed');
+assert.equal((panel.match(/tecHostFFmpeg\(/g) || []).length, 2, 'ffmpeg runs only inside tecHostFFmpegBytes (plus its definition)');
+// Bundled cues tell ensure-audio their length (the duration check); own music does not.
+assert.ok(panel.includes('musicSeconds: musicOn && cueId !== "own" && cue?.durationSeconds > 0 ? cue.durationSeconds : null'), 'cue length for ensure-audio');
 // Script configs arrive as JSON.parse(...) so the SDK type check sees `any`.
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capture in the panel');
@@ -128,7 +128,7 @@ for (const id of ['"prepare"', '"plan"', '"music"', '"assemble"', '"decorate"'])
 const order = ['fill(assets.scripts.inventoryJs', 'findCandidates(todo', 'await measureMotion(', 'tecPlanBuild({ layout: inputs.layout', 'fill(assets.scripts.ensureJs', 'fill(assets.scripts.assembleJs', 'await decorate(record'];
 order.reduce((at, s) => { const i = buildBody.indexOf(s); assert.ok(i > at, 'build order: ' + s); return i; }, -1);
 assert.ok(/fill\(assets\.scripts\.searchJs, \{ projectId: pid, rids: rids\.slice\(i, i \+ 4\), queries: TEC_SEARCH_QUERIES, pageSize: 4 \}\)/.test(panel), 'search in batches of 4, pageSize 4');
-assert.ok(/fill\(assets\.scripts\.ensureJs, \{ projectId: pid, path: inputs\.musicPath \}\), true\)/.test(buildBody), 'ensure-audio commits in its own call');
+assert.ok(buildBody.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: inputs.musicPath, ...(inputs.musicSeconds ? { durationSeconds: inputs.musicSeconds } : {}) }), true)'), 'ensure-audio commits in its own call');
 assert.ok(/fill\(assets\.scripts\.assembleJs, \{[\s\S]*?\}\), true\)/.test(buildBody), 'assemble commits');
 assert.ok(/fill\(assets\.scripts\.decorateJs, \{[\s\S]*?\}\), true\)/.test(panel), 'decorate commits');
 assert.ok(/run\("Open the new Draft", [^)]*\)/.test(panel) && !/run\("Open the new Draft"[\s\S]{0,600}, true\)/.test(panel), 'opening the Draft does not commit');
@@ -213,7 +213,7 @@ assert.deepEqual(['short', 'standard', 'long'].map(k => en['length.' + k]), ['Sh
 for (const phrase of ['{ label: t(L, "ownMusic"), value: "own" }', '{ label: t(L, "noMusic"), value: "none" }', '(parsed.cues || []).find((c: any) => c.default)', 'React.useState("")', 'setCueId((cur) => (cur === "" ? def.id : cur))',
   'swell: cue.swell ?? cue.swellFallback', 'P: (beats * 60) / cue.bpm', 'tecSection({ ...sectionOpts, value', 'tecFitLength({', 't(L, "tooShortNeeds", { seconds: fit.needSeconds })', 't(L, "useLength", { length: t(L, "length." + fit.key) })',
   't(L, "noSteadyBeat", { seconds: TEC_FIXED_PHRASE })', 'const ph = tecOwnPhrase(ownGrid);', 'approximate: ph.approximate', 't(L, "beatApprox", { seconds: Math.round(music.P * 100) / 100 })', 'usableEnd: ownDuration - TEC_MUSIC_END_MARGIN',
-  '<ui.FileDrop accept={["audio"]}', '-t " + dur.toFixed(2)', 'const dur = videoSeconds']) assert.ok(code.includes(phrase), phrase);
+  '<ui.FileDrop accept={["audio"]}', "'-t', Number(duration).toFixed(2)", 'tecHostPreviewUrl(file, start, videoSeconds, MUSIC_FADE_OUT, roots.data)']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['ownMusic', 'Your own music'], ['noMusic', 'No music'], ['tooShortNeeds', 'This track is too short (needs ≥ {seconds} s).'], ['useLength', 'Use {length}'], ['tooShortFor', 'This track is too short for {length}.'],
   ['noSteadyBeat', 'No steady beat found: shots are {seconds} s.'], ['beatApprox', 'Beat found (approximate): shots follow it at {seconds} s.'], ['startsAtLoudest', 'reveal on the loudest part'], ['startsAtSwell', 'reveal on the swell'],
   ['trackTooShort', 'This track is too short for this Length.'], ['dropMusic', 'Drop a music file']]) says(key, text);
@@ -251,8 +251,11 @@ for (const phrase of ['const PREVIEW_HEIGHT = ', 'height: PREVIEW_HEIGHT', 'tecC
 for (const [key, text] of [['firstRow', 'First row'], ['lastRow', 'Last row'], ['end', 'End'], ['previewAt', 'Preview at'], ['creditsPreview', 'Credits preview']]) says(key, text);
 // Hangul (v1): the system face of each role ends the stacks, wide characters count 1 em without a canvas, and a title
 // holding Hangul is never squeezed (the preview mirrors the graphic's tecTitleScaleX).
-assert.ok(code.includes(`const TITLE_STACK = '"TEC Title Serif", Georgia, "Times New Roman", "AppleMyungjo", serif';`), 'serif title stack ends in AppleMyungjo');
-assert.ok(code.includes(`const CREDITS_STACK = '"TEC Credits Sans", "Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif';`), 'sans credits stack ends in Apple SD Gothic Neo');
+assert.ok(code.includes(`const TITLE_STACK = '"TEC Title Serif", Georgia, "Times New Roman", "AppleMyungjo", "Batang", "Noto Serif KR", serif';`), 'serif title stack: macOS, Windows, Noto Korean faces');
+assert.ok(code.includes(`const CREDITS_STACK = '"TEC Credits Sans", "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';`), 'sans credits stack: macOS, Windows, Noto Korean faces');
+// The preview centres a Hangul title on its measured ink (canvas actualBoundingBox), like the graphic.
+assert.ok(code.includes('const ink = titleInk(title, pose.size);') && code.includes('const baseline = pose.cy + ((ink.up - ink.down) * pose.size) / 2 - scroll;') && code.includes('m.actualBoundingBoxAscent'), 'measured Hangul ink');
+assert.ok(!/0\.86|0\.12\b/.test(code.slice(code.indexOf('function titleInk('), code.indexOf('function titleInk(') + 1200)), 'no hard-coded Hangul ink');
 assert.ok(code.includes('function titleScaleX(text: string) { return HANGUL_RE.test(text) ? 1 : TITLE_SCALE_X; }') && code.includes('const TITLE_SCALE_X = 0.78;'), 'no scaleX squeeze on Hangul');
 assert.ok(code.includes('* sx) / colTarget'), 'the preview fit uses the same scaleX');
 assert.ok(code.includes('a + (WIDE_RE.test(ch) ? 1 : 0.6)'), 'wide characters 1 em in the measurement fallback');
@@ -273,64 +276,69 @@ for (const phrase of ['t(L, "ready", { summary: [clipCount', 't(L, "aboutSeconds
   't(L, "shotsFitted", { count: shotsFit + extra })']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['ready', 'Ready: {summary}'], ['shots', '{count} shots'], ['aboutSeconds', 'about {seconds} s'], ['needsShots', 'Needs at least {count} usable clips or photos (found {found}).'],
   ['shortened', 'Your footage fits {count} shots'], ['addFootagePhotos', 'Add more varied footage or photos.'], ['addFootagePhotosSelect', 'or photos, or select more clips.'], ['retryUnchecked', 'press Build to retry them.'],
-  ['notAnalysed', 'clips not analysed yet'], ['turnOnPhotos', 'Turn on Use photos in Advanced']]) says(key, text);
+  ['turnOnPhotos', 'Turn on Use photos in Advanced']]) says(key, text);
 assert.ok(/needsPoll = [^\n]*inventory\.photos/.test(panel), 'a photos-only Project does not poll');
 
-// Unanalysed videos are worded by why (inventory.js's skipped split); the panel never claims clips are being analysed
-// when their analysis was never started, and never starts analysis itself.
-assert.ok(!panel.includes('still being analysed'), 'the old "still being analysed" wording is gone');
-assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel does not start analysis');
+// Readiness never blocks on analysis: unanalysed clips are usable (scored locally), so the old blocker wording is gone
+// and at most one small muted note says analysed clips give better picks. Videos still importing are counted.
+for (const gone of ['analysing', 'notAnalysed', 'notAnalysedAnalyse', 'notAnalysedMaybe', 'analysisFailed', 'noteAnalysing', 'noteFailed']) {
+  for (const lang of Object.keys(block.strings)) assert.ok(!(gone in block.strings[lang]), lang + '.' + gone + ' is gone');
+}
+assert.ok(!/analy[sz]/i.test(textOf('noFootage')), 'noFootage asks for no analysis: ' + textOf('noFootage'));
+for (const lang of Object.keys(block.strings)) {
+  const all = JSON.stringify(block.strings[lang]);
+  assert.ok(!/Analyse (it|them) in Selects|still being analysed|being analysed|analyse them|not analysed yet/i.test(all), lang + ': no analysis blocker wording');
+  assert.ok(typeof block.strings[lang].analysedBetter === 'string' && block.strings[lang].analysedBetter.length > 4, lang + '.analysedBetter');
+  for (const key of ['clipsChecking', 'stillImporting']) assert.ok(block.strings[lang][key] && block.strings[lang][key].other, lang + '.' + key + ' has plural forms');
+}
+says('analysedBetter', 'Analysed clips give better picks.');
+says('clipsChecking', 'Checking clips {done}/{count}');
+says('stillImporting', 'still being imported');
+says('noFootage', 'Add video clips or photos');
+// (The beat worker's module.exports.analyze( is the kit beat detector, not Selects analysis.)
+const noWorker = panel.slice(0, panel.indexOf('// tec-beat-worker:start')) + panel.slice(panel.indexOf('// tec-beat-worker:end'));
+assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(noWorker), 'the panel does not start analysis');
 {
-  const start = panel.indexOf('function tecAnalysisCounts('), end = panel.indexOf('// Layout thumbnails:');
-  assert.ok(start > 0 && end > start, 'the analysis wording helpers exist');
+  const start = panel.indexOf('function tecFootageNotes('), end = panel.indexOf('// Layout thumbnails:');
+  assert.ok(start > 0 && end > start, 'the footage-note helper exists');
   const js = panel.slice(start, end).replace(/(\w)\??: (?:any|number|string|Lang)\b/g, '$1');
-  // The panel's t() over its STRINGS block (plural by count; plain numbers are enough for these sentences).
   const tt = (lang, key, vars = {}) => {
     let msg = block.strings[lang][key] ?? en[key];
     if (typeof msg !== 'string') msg = msg[new Intl.PluralRules(lang).select(vars.count)] ?? msg.other;
     return msg.replace(/\{(\w+)\}/g, (w, n) => (vars[n] === undefined ? w : String(vars[n])));
   };
   const box = { t: tt };
-  vm.runInNewContext(js + '\nthis.api = { tecAnalysisCounts, tecAnalysisText, tecAnalysisNotes };', box);
-  const { tecAnalysisCounts: counts } = box.api;
-  const text = c => box.api.tecAnalysisText('en', c);
-  const note = c => box.api.tecAnalysisNotes('en', c).filter(Boolean).map(x => ' · ' + x).join('');
-  const sk = (analysing, notAnalysed, failed, statusKnown = true) => ({ unanalysed: analysing + notAnalysed + failed, missing: 0, analysing, notAnalysed, failed, statusKnown });
-  // Other languages: whole sentences per status, joined by the language's gap (none in ja/zh).
-  assert.equal(box.api.tecAnalysisText('ja', counts(sk(3, 1, 0))), tt('ja', 'analysing', { count: 3 }) + tt('ja', 'notAnalysedAnalyse', { count: 1 }));
-  assert.ok(!/undefined|\{\w+\}/.test(['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'].map(l => box.api.tecAnalysisText(l, counts(sk(3, 1, 2))) + box.api.tecAnalysisNotes(l, counts(sk(1, 2, 3))).join('')).join()), 'every language fills the counts');
-  assert.equal(text(counts(sk(160, 0, 0))), '160 clips are being analysed. This updates automatically when they finish.');
-  assert.equal(text(counts(sk(1, 0, 0))), '1 clip is being analysed. This updates automatically when it finishes.');
-  assert.equal(text(counts(sk(0, 160, 0))), '160 clips are not analysed yet. Analyse them in Selects to use them here.');
-  assert.equal(text(counts(sk(0, 1, 0))), '1 clip is not analysed yet. Analyse it in Selects to use it here.');
-  assert.equal(text(counts(sk(0, 0, 2))), '2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 1))), '1 clip could not be analysed.');
-  assert.equal(text(counts(sk(0, 160, 0, false))), '160 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(text(counts(sk(0, 1, 0, false))), '1 clip is not analysed yet. If Selects is analysing it, this updates automatically.');
-  assert.equal(text(counts(sk(3, 1, 2))), '3 clips are being analysed. This updates automatically when they finish. 1 clip is not analysed yet. Analyse it in Selects to use it here. 2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 0))), '', 'nothing to say when every video is analysed');
-  // An inventory without the split (older script) counts every unanalysed clip as unknown: the neutral wording.
-  assert.equal(text(counts({ unanalysed: 4, missing: 0 })), '4 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(note(counts(sk(2, 1, 0))), ' · 2 clips being analysed · 1 clip not analysed yet');
-  assert.equal(note(counts(sk(0, 0, 1))), ' · 1 clip could not be analysed');
-  assert.equal(note(counts(sk(0, 0, 0))), '');
-  // Every readiness branch uses the same sentences, and a status change refreshes the inventory signature.
-  for (const phrase of ['const analysisText = tecAnalysisText(L, invAnalysis);', '(analysisText || t(L, "noFootage"))', 'sentences([analysisText, t(L, "turnOnPhotos")])',
-    't(L, "addFootagePhotos"), analysisText])', '...tecAnalysisNotes(L, invAnalysis)]', '[sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown]']) assert.ok(panel.includes(phrase), phrase);
-  // Polling: only while clips are being analysed, while the status is unknown, or while the Project has no footage at all.
+  vm.runInNewContext(js + '\nthis.api = { tecFootageNotes };', box);
+  const notes = (inv, lang = 'en') => JSON.parse(JSON.stringify(box.api.tecFootageNotes(lang, inv)));
+  const res = (...flags) => flags.map((analysed, i) => ({ rid: 'r' + i, analysed }));
+  assert.deepEqual(notes({ resources: res(true, true), skipped: { unanalysed: 0 } }), { better: '', importing: '' }, 'all analysed: nothing to say');
+  assert.deepEqual(notes({ resources: res(true, false), skipped: { unanalysed: 0 } }), { better: 'Analysed clips give better picks.', importing: '' });
+  assert.deepEqual(notes({ resources: res(false), skipped: { unanalysed: 2 } }), { better: 'Analysed clips give better picks.', importing: '2 clips are still being imported; this updates automatically.' });
+  assert.equal(notes({ resources: [], skipped: { unanalysed: 1 } }).importing, '1 clip is still being imported; this updates automatically.');
+  assert.deepEqual(notes(null), { better: '', importing: '' });
+  assert.ok(!/undefined|\{\w+\}/.test(Object.keys(block.strings).map(l => Object.values(notes({ resources: res(false), skipped: { unanalysed: 3 } }, l)).join()).join()), 'every language fills the counts');
+  // Every readiness branch uses the notes; the muted note sits under the readiness line.
+  for (const phrase of ['const footNotes = tecFootageNotes(L, inventory);', '(footNotes.importing || t(L, "noFootage"))', 'sentences([footNotes.importing, t(L, "turnOnPhotos")])',
+    't(L, "addFootagePhotos"), footNotes.importing])', '{inventory && footNotes.better ? <ui.Message tone="muted">{footNotes.better}</ui.Message> : null}',
+    'r.rid + (r.analysed === false ? "~" : "")']) assert.ok(panel.includes(phrase), phrase);
+  // Polling: while videos import, while Selects analyses some (a note refresh only), or while the Project is empty.
   const poll = (panel.match(/const needsPoll = ([^\n]*);/) || [])[1];
   assert.ok(poll, 'needsPoll');
-  const needsPoll = (inventory) => { const invAnalysis = counts(inventory && inventory.skipped); return vm.runInNewContext(poll, { inventory, invAnalysis }); };
-  const inv = (skipped, resources = 0, photos = 0) => ({ skipped, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
-  assert.equal(needsPoll(inv(sk(2, 0, 0), 5)), true, 'clips being analysed poll');
-  assert.equal(needsPoll(inv(sk(0, 160, 0))), false, 'never-started clips alone do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 2), 5)), false, 'not analysed and failed clips do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 0, false), 5)), true, 'an unknown status polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0))), true, 'an empty Project polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 0, 3)), false, 'photos only: no poll');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 5)), false, 'all analysed: no poll');
+  const needsPoll = (inventory) => vm.runInNewContext(poll, { inventory, invSkipped: (inventory && inventory.skipped) || {} });
+  const inv = (skipped, resources = 0, photos = 0) => ({ skipped, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i, analysed: false })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
+  assert.equal(needsPoll(inv({ unanalysed: 2, analysing: 0 }, 5)), true, 'importing clips poll');
+  assert.equal(needsPoll(inv({ unanalysed: 0, analysing: 2 }, 5)), true, 'clips being analysed refresh the note');
+  assert.equal(needsPoll(inv({ unanalysed: 0, analysing: 0, notAnalysed: 5 }, 5)), false, 'usable unanalysed clips do not poll');
+  assert.equal(needsPoll(inv({ unanalysed: 0 })), true, 'an empty Project polls');
+  assert.equal(needsPoll(inv({ unanalysed: 0 }, 0, 3)), false, 'photos only: no poll');
   assert.equal(needsPoll(null), false);
 }
+
+// Build: unanalysed clips are scored with the kit quick-score block (never scene search), inside Prepare with a
+// "Checking clips N/M" detail, and the run is cancelled when the Project switches or the panel closes.
+for (const phrase of ['scoreAll: quickScoreAll, candidatesOf: qsCandidates', 't(l, "clipsChecking", { done, count })', 'chosen.filter((r: any) => r.analysed === false)',
+  'const rids: string[] = chosen.filter((r: any) => r.analysed !== false)', 'buildAbortRef.current?.abort()', 'abort.signal', 'e?.name !== "AbortError"',
+  'measureMotion(chosen.filter((r: any) => r.analysed !== false)']) assert.ok(code.includes(phrase), phrase);
 
 // Layout buttons: the button holds the thumbnail and the label (a column that grows with the label, no fixed height),
 // the label wraps inside it, and the two buttons share the row equally.
