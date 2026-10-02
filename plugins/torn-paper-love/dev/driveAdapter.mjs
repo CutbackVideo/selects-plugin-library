@@ -14,11 +14,24 @@
 // Add --export for SD exports (beat evaluation: kit tools/eval/eval-beat-sync.cjs with the cuts-<key>-s<seed>.json
 // this adapter records) and --no-volumes to skip the clip-level probe.
 //
+// Clips Selects hasn't analysed (inventory `analysed: false`) are never scene-searched. By default their starts are the
+// seeded fallback (tplQuickTargets' `fallback`), what the panel does when the host has no ffmpeg. With
+// TPL_QUICK_SCORE=cli in the environment, the plan scores them like the panel: the kit's quick-score block, extracted
+// from panel.tsx by its markers (one source), runs in a child node process with the host's Runtime.runFFmpeg mapped to
+// the ffmpeg CLI (child_process spawn, same argv) through the block's `io` seam, on each clip's source path from the
+// inventory (so run it on the Mac that has the files). Timings go to stderr. Standalone timing of the same code:
+//   node plugins/torn-paper-love/dev/driveAdapter.mjs --measure <clip files or folders> [--limit 20] [--concurrency 3]
+//     [--budget 20000] [--cache]          per-clip ms, median, max and wall time (no cache unless --cache)
+//
 // Matrix rows: key, pid, seeds, city, plus cue ('none' | manifest id), backdrop, length, pace, clipSound, look
 // (boolean or 0-1), tilt, useVideos, section ('default' | 'early' | 'late' | seconds), words ([w1, w2]), only,
 // draftName (overrides the panel's name).
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import vm from 'node:vm';
+import { spawn, spawnSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const DEFAULT_CUE = JSON.parse(fs.readFileSync(new URL('../assets/cues/manifest.json', import.meta.url), 'utf8')).defaultCue;
 
@@ -26,15 +39,60 @@ export const ROW_DEFAULTS = { cue: DEFAULT_CUE, backdrop: 'night', length: 'stan
   useVideos: true, section: 'default', words: ['MY', 'LOVE'] };
 
 // planner.js then build-config.js in one context (build-config uses the planner's globals); every tpl* function and
-// TPL_* constant is exported, so a change in either never needs a driver change.
-function loadConfig(planner, config) {
+// TPL_* constant is exported, so a change in either never needs a driver change. The quick-score block (panel.tsx,
+// kit tools/panel/quick-score.js) adds pickWindowsLocal and quickScoreAll.
+function loadConfig(planner, config, quick) {
   const source = planner + '\n' + config;
   const names = [...source.matchAll(/^(?:function\s+(tpl\w+)|const\s+(TPL_\w+))/gm)].map(m => m[1] || m[2]);
-  const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date, isFinite, isNaN };
+  const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date, isFinite, isNaN, Promise, Uint8Array, AbortController, TextDecoder, setTimeout, clearTimeout };
   vm.createContext(box);
-  vm.runInContext(source + ';globalThis.P={' + names.join(',') + '};', box);
+  vm.runInContext(source + '\n' + (quick || '') + '\n;globalThis.P={' + names.join(',') + (quick ? ', pickWindowsLocal, quickScoreAll' : '') + '};', box);
   return box.P;
 }
+
+// The quick-score block of panel.tsx (markers are whole lines).
+function quickBlock(panel) {
+  const a = panel.indexOf('\n// quick-score:start\n'), b = panel.indexOf('\n// quick-score:end\n');
+  if (a < 0 || b < a) throw Error('panel.tsx has no quick-score block');
+  return panel.slice(a + 1, b + '\n// quick-score:end'.length);
+}
+
+// The block's `io` seam on node: the host's Runtime.runFFmpeg(argv, true, signal) becomes the ffmpeg CLI with the same
+// argv (spawn, no shell); FileSystem reads, writes, joins and stats become node:fs / node:path.
+function nodeIO() {
+  return {
+    runFFmpeg: (args, signal) => new Promise((resolve, reject) => {
+      const p = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+      let err = '';
+      p.stderr.on('data', d => { err += d; });
+      p.on('error', reject);
+      p.on('close', code => (code === 0 ? resolve({ exitCode: 0 }) : reject(Error('ffmpeg exited ' + code + ': ' + err.trim()))));
+      if (signal) signal.addEventListener('abort', () => p.kill());
+    }),
+    readBytes: async p => new Uint8Array(fs.readFileSync(p)),
+    remove: async p => { try { fs.unlinkSync(p); } catch (e) { /* left behind */ } },
+    join: (...p) => path.join(...p),
+    mkdir: d => fs.mkdirSync(d, { recursive: true }),
+    mtimeMs: p => fs.statSync(p).mtimeMs,
+    readText: async p => fs.readFileSync(p, 'utf8'),
+    writeText: async (p, t) => fs.writeFileSync(p, t),
+  };
+}
+
+// quickScoreAll of the kit block over `resources` ({ rid, path, durationSeconds }) through nodeIO, with the panel's
+// options (tplRunBuild: TPL_QUICK_PARALLEL, TPL_QUICK_BUDGET_MS). Returns { results: { rid: result }, wallMs }.
+async function runQuick(P, resources, { concurrency, budgetMs, dataDir } = {}) {
+  const t0 = Date.now();
+  const map = await P.quickScoreAll(resources, { concurrency: concurrency || P.TPL_QUICK_PARALLEL, budgetMs: budgetMs == null ? P.TPL_QUICK_BUDGET_MS : budgetMs,
+    dataDir, io: nodeIO() });
+  return { results: Object.fromEntries([...map.entries()].map(([k, v]) => [k, JSON.parse(JSON.stringify(v))])), wallMs: Date.now() - t0 };
+}
+const SELF = fileURLToPath(import.meta.url);
+const PANEL = path.join(path.dirname(SELF), '..', 'panel.tsx');
+const loadOwn = () => {
+  const here = path.join(path.dirname(SELF), '..');
+  return loadConfig(fs.readFileSync(path.join(here, 'planner.js'), 'utf8'), fs.readFileSync(path.join(here, 'build-config.js'), 'utf8'), quickBlock(fs.readFileSync(PANEL, 'utf8')));
+};
 const j = v => JSON.parse(JSON.stringify(v)); // vm objects -> plain objects
 
 // Matrix section values -> the panel's: early = the first bar (0 snaps to it), late = the last bar that fits.
@@ -44,7 +102,8 @@ const lookOf = v => (v === true ? 0.6 : typeof v === 'number' ? v : 0);
 export async function createAdapter({ pluginDir, installedDir, read }) {
   let manifest = { id: 'torn-paper-love', version: null };
   try { manifest = JSON.parse(read('plugin.json')); } catch (e) { /* before packaging: the driver itself needs plugin.json */ }
-  const P = loadConfig(read('planner.js'), read('build-config.js'));
+  const P = loadConfig(read('planner.js'), read('build-config.js'), quickBlock(read('panel.tsx')));
+  const quickMode = process.env.TPL_QUICK_SCORE === 'cli' ? 'cli' : 'fallback';
   const cues = JSON.parse(read('assets/cues/manifest.json')).cues;
   const looks = JSON.parse(read('assets/fonts/looks.json'));
   const fonts = {};
@@ -89,9 +148,11 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       return { summary: 'Read your pictures', script: 'scripts/inventory.js', config: { projectId: row.pid, only: row.only || null, known: {}, measureMs: readOnly ? 0 : 20000 } };
     },
 
-    // All analysed videos (the search is cached per project, so rows with enough photos reuse it).
+    // All analysed videos (the search is cached per project, so rows with enough photos reuse it). Scene search needs
+    // Selects' analysis, so clips with `analysed: false` are left to the quick score (plan).
     videoRids(inv) {
-      return { rids: inv.resources.map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
+      const analysed = inv.resources.filter(r => r.analysed !== false);
+      return { rids: analysed.map(r => r.rid), durations: Object.fromEntries(analysed.map(r => [r.rid, r.duration])) };
     },
 
     search(row, rids) {
@@ -106,13 +167,38 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       for (const c of (found && found.list) || []) if (!(c.rid in best) && typeof c.t === 'number') best[c.rid] = c.t;
       const options = { words: row.words, backdrop: row.backdrop, length: row.length, pace: row.pace, clipSound: row.clipSound, look: lookOf(row.look), tilt: !!row.tilt,
         useVideos: row.useVideos !== false, only: row.only || null, seed, section: sectionOf(row.section) };
-      const s = j(P.tplPlanState({ projectId: row.pid, inv: { photos: inv.photos || [], resources: inv.resources || [] }, found: { best }, cue, options, now: Date.now() }));
+      const invPlan = { photos: inv.photos || [], resources: inv.resources || [] };
+      // The panel's moments step for clips Selects hasn't analysed (tplRunBuild / tplQuickMoments): a provisional plan
+      // names the picks, each unanalysed pick starts on its stillest window (or its seeded fallback).
+      const pre = P.tplPlanState({ projectId: row.pid, inv: invPlan, found: { best }, cue, options, now: 0 });
+      const targets = pre.ok ? j(P.tplQuickTargets(pre, invPlan)) : [];
+      const quick = { mode: quickMode, clips: targets.length, scored: 0, wallMs: 0, perClipMs: {} };
+      for (const x of targets) best[x.rid] = x.fallback;
+      if (targets.length && quickMode === 'cli') {
+        const key = rid => String(row.pid) + '_' + rid;
+        const input = { resources: targets.map(x => ({ rid: key(x.rid), path: x.path, durationSeconds: x.duration })), dataDir: path.join(os.tmpdir(), 'tpl-quick-score') };
+        const r = spawnSync(process.execPath, [SELF, '--quick-score'], { input: JSON.stringify(input), encoding: 'utf8', maxBuffer: 64 << 20 });
+        if (r.status !== 0) throw Error('quick score: ' + (r.stderr || r.error));
+        const got = JSON.parse(r.stdout);
+        quick.wallMs = got.wallMs;
+        for (const x of targets) {
+          const res = got.results[key(x.rid)];
+          if (!res) continue;
+          quick.perClipMs[x.rid] = res.ms;
+          if (res.fallback) continue;
+          const ranked = j(P.pickWindowsLocal(res, 'still', x.need));
+          if (ranked.length) { best[x.rid] = ranked[0].start; quick.scored++; }
+        }
+        console.error('quick score', JSON.stringify(quick));
+      }
+      const s = j(P.tplPlanState({ projectId: row.pid, inv: invPlan, found: { best }, cue, options, now: Date.now() }));
       if (!s.ok) throw Error('not buildable: ' + s.reason);
+      s.quick = quick;
       if (row.draftName) s.draftName = row.draftName;
       else s.draftName += ' ' + row.key + ' s' + seed; // traceable among the matrix's Drafts
       s.row = row;
       s.planSummary = { N: s.N, requested: s.requested, fitReason: s.fitReason, photos: s.photoCount, videos: s.videoCount, seconds: Math.round(s.seconds * 1000) / 1000,
-        gridded: s.gridded, sectionStart: s.sectionStart, excluded: s.excluded };
+        gridded: s.gridded, sectionStart: s.sectionStart, excluded: s.excluded, quick };
       // Fields the driver prints in --plan-only.
       s.plan = { picks: s.picks };
       s.boundaries = s.schedule.frames;
@@ -171,3 +257,44 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     },
   };
 }
+
+// ---- Command line (only when run directly; the kit driver imports this module).
+const median = xs => { const v = xs.slice().sort((a, b) => a - b); return v.length ? v[Math.floor((v.length - 1) / 2)] : null; };
+async function cli(argv) {
+  const P = loadOwn();
+  if (argv[0] === '--quick-score') {
+    // stdin { resources, dataDir, concurrency?, budgetMs? } -> stdout { results, wallMs } (used by plan()).
+    const input = JSON.parse(fs.readFileSync(0, 'utf8'));
+    process.stdout.write(JSON.stringify(await runQuick(P, input.resources, input)));
+    return;
+  }
+  if (argv[0] === '--measure') {
+    const opt = { limit: 20, concurrency: P.TPL_QUICK_PARALLEL, budget: P.TPL_QUICK_BUDGET_MS, cache: false };
+    const files = [];
+    for (let i = 1; i < argv.length; i++) {
+      const a = argv[i];
+      if (a === '--limit') opt.limit = Number(argv[++i]);
+      else if (a === '--concurrency') opt.concurrency = Number(argv[++i]);
+      else if (a === '--budget') opt.budget = Number(argv[++i]);
+      else if (a === '--cache') opt.cache = true;
+      else if (fs.statSync(a).isDirectory()) for (const f of fs.readdirSync(a).sort()) { if (/\.(mov|mp4|m4v)$/i.test(f)) files.push(path.join(a, f)); }
+      else files.push(a);
+    }
+    const resources = files.slice(0, opt.limit).map((f, i) => {
+      const d = parseFloat(spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', f], { encoding: 'utf8' }).stdout);
+      return { rid: 'm' + i, path: f, durationSeconds: d };
+    });
+    const dataDir = opt.cache ? path.join(os.tmpdir(), 'tpl-quick-score') : fs.mkdtempSync(path.join(os.tmpdir(), 'tpl-qs-'));
+    const out = await runQuick(P, resources, { concurrency: opt.concurrency, budgetMs: opt.budget, dataDir });
+    const rows = resources.map(r => ({ file: path.basename(path.dirname(r.path)) + '/' + path.basename(r.path), seconds: Math.round(r.durationSeconds * 10) / 10,
+      ms: out.results[r.rid].ms, fallback: out.results[r.rid].fallback, cached: out.results[r.rid].cached }));
+    const ms = rows.filter(r => !r.fallback).map(r => r.ms);
+    console.log(JSON.stringify({ clips: rows.length, concurrency: opt.concurrency, budgetMs: opt.budget, wallMs: out.wallMs, medianMs: median(ms), maxMs: ms.length ? Math.max(...ms) : null,
+      fallbacks: rows.filter(r => r.fallback).length, rows }, null, 1));
+    if (!opt.cache) fs.rmSync(dataDir, { recursive: true, force: true });
+    return;
+  }
+  console.error('usage: node driveAdapter.mjs --measure <clips or folders> [--limit N] [--concurrency N] [--budget ms] [--cache] | --quick-score < input.json');
+  process.exit(2);
+}
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) cli(process.argv.slice(2)).catch(e => { console.error(e); process.exit(1); });

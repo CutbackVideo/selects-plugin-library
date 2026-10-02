@@ -47,7 +47,7 @@ length and the pace. The panel always shows the exact number.
 
 ## Default path
 
-1. Open a Project that has at least 3 photos (or analysed video clips), then
+1. Open a Project that has at least 3 photos or video clips, then
    open **Torn Paper Love** from the Plugin list. The readiness line shows
    what it found, for example "Ready: 9 photos · 2 clips · 14 shots · about
    6.3 s".
@@ -63,9 +63,11 @@ and a link to it is shown. The Draft is named "Torn Paper Love <backdrop>
 The build needs at least **3 pictures**. If you have fewer than the chosen
 length needs, it uses what exists and says so in the readiness line, for
 example "You have 4 pictures: Short uses 4 (8 shots, 4.2 s)". It never
-repeats a picture inside one pass. Photos need no analysis. Videos must be
-analysed first, and the panel lists clips that are still analysing and photos
-it could not read.
+repeats a picture inside one pass. Neither photos nor clips need Selects
+analysis: a clip can be used as soon as it is imported. The panel lists clips
+that are still importing and photos it could not read, and re-checks them every
+10 seconds. When a clip that may be used hasn't been analysed, a small note
+says that analysed clips give better picks.
 
 ## The panel
 
@@ -129,15 +131,34 @@ already within a frame of the grid.
 With **No music** the panel says "the cuts keep a steady 0.35 s rhythm". If a
 track is too short to hold even 3 pictures from the section start, Build is
 disabled with "This track needs at least X s from the section start". Your own
-music and the previews need ffmpeg; your own music also runs on
-a pinned Node.js, which the panel downloads the first time (see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.
+music and the previews use the ffmpeg built into Selects, and the beat of your
+own music is found inside the panel, so nothing needs installing on macOS or
+Windows (see [INSTALL.md](INSTALL.md)).
 
 ## Pictures
 
 - **Photos first.** Photos are used before videos. When there are fewer photos
   than the length needs, short video windows fill the rest (one window per
-  clip, chosen by a scene search for two people close together). Turn **Use
-  videos** off to use photos only.
+  clip). Turn **Use videos** off to use photos only.
+- **How a clip's window is chosen.**
+  - *Analysed clips* (Selects has analysed them): a scene search for two
+    people close together, as before.
+  - *Clips Selects hasn't analysed*: a quick check on your computer. The
+    host's built-in ffmpeg decodes a tiny grey preview of the clip (8 frames a
+    second, 64 x 36 pixels); no shell, nothing to install, so it works on
+    macOS and Windows. The window with the least motion that is sharp and well
+    exposed is used, never in the first 0.5 s and never across black frames,
+    fades, flashes or a scene cut. Up to 3 clips are checked at once, at most
+    about 20 s per build, shown as "checking 2/4 clips". This usually takes
+    0.2 to 0.6 s per 1080p clip (20 clips in about 2.4 s). Results are cached
+    in `~/.selects/plugin-data/torn-paper-love/quick-score/`, so building
+    again is instant.
+  - If the check can't run (no ffmpeg in this Selects build, a clip that
+    can't be read, or the time runs out), the clip uses a seeded window from
+    0.5 s on instead, and the build still goes ahead.
+  - The quick check only chooses a window inside each clip. Which clips are
+    used never depends on a score: picks come from the date-ordered list, so a
+    Project with both analysed and unanalysed clips is treated the same way.
 - When you have more pictures than needed, the plugin picks one from each
   slice of the date-ordered list, so the edit covers your whole time span.
 - Photos are placed with a centre crop for landscape and a crop that keeps the
@@ -155,7 +176,7 @@ a pinned Node.js, which the panel downloads the first time (see [INSTALL.md](INS
 - **Faded film**: on by default (0.6).
 - **Tilt**: off by default. On gives each picture a small seeded tilt of up
   to 1.5 degrees.
-- **Choose clips**: a checklist of the photos and analysed clips. All are used
+- **Choose clips**: a checklist of the photos and clips. All are used
   by default; **All** and **None** select or clear the whole list.
 
 With **No music** and Clip sound **Off**, the panel warns "Silent video".
@@ -212,14 +233,16 @@ detail after an error message stay in English.
 - The pre-filled words "MY" and "LOVE" stay English in every language. Type
   over them to change them.
 - The bundled typefaces have no Korean letters, so each Korean letter sits on
-  a plain white chip in the macOS system font **AppleMyungjo**. The Latin
+  a plain white chip in the system serif font: **AppleMyungjo** on macOS,
+  **Batang** on Windows (else Noto Serif KR when installed). The Latin
   letters around it keep their changing looks; the Korean chips keep theirs
   (Re-style does not change them).
 - Korean letters are never set in capitals, letter-spaced or squeezed. They
   are measured as wide letters, so a word shrinks to fit its side as Latin
   words do; in the panel a Korean character counts as 2 of a word's 8.
-- Korean letters need macOS, where Selects and its export run. Style-matched
-  Korean typefaces are planned for a later version.
+- Exports made on macOS and on Windows show Korean letters in different
+  system fonts. Style-matched, bundled Korean typefaces are planned for a later
+  version.
 
 **Inspector labels** of the Torn photo effect and the Ransom letters graphic
 are written into the Draft in the panel's language at the time of the build.
@@ -233,6 +256,11 @@ graphic names (Torn photo, Ransom letters) stay English.
 - Video windows are short (about 0.35 to 2 s) and read as near-stills. There
   are no freeze frames, because Selects has no API for them.
 - Photos have no scene search and no sound.
+- Clips Selects hasn't analysed get no scene search for couple moments: the
+  quick check picks a calm, clean window instead. Analysing them in Selects
+  gives better picks.
+- A Clip highlights run still waits for clips that are still importing
+  (shown as still analysing).
 - The Draft is built in two commits: first the clips, their crop, their
   Ambient sound level and the music; then the Torn photo effects, the letters
   and, with Clip sound Off, the clips' muted sound. If the second commit
@@ -247,10 +275,9 @@ graphic names (Torn photo, Ransom letters) stay English.
 
 ## Requirements
 
-- Selects with Draft authoring and Panel `runScript` / `runShell`.
-- A Project with at least 3 photos or analysed video clips.
-- Optional: ffmpeg, for music previews and your own music (which also
-  downloads a pinned Node.js the first time) (see [INSTALL.md](INSTALL.md)).
+- Selects on macOS (Apple silicon) or Windows (x64), with Draft authoring and
+  Panel `runScript`. Nothing else to install (see [INSTALL.md](INSTALL.md)).
+- A Project with at least 3 photos or video clips (analysis is optional).
 
 ## Gallery
 

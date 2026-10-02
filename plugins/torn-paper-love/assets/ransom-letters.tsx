@@ -281,19 +281,21 @@ const TPL_DEFAULT_LOOKS = [
   { id: "blue-serif", face: "serif", fg: "#3a78c9", bg: "#f1eee8", case: "upper", cut: "contour", weight: 0.3 },
   { id: "slab-cream", face: "slab", fg: "#1a1a1a", bg: "#ece4d3", case: "upper", thin: 0.05, weight: 0.3 },
 ];
-// System faces behind each TPL face, used until (or if) the embedded font loads. Each stack ends with the macOS Korean
-// face of its role before the generic family: AppleMyungjo for the serif faces, Apple SD Gothic Neo for the others.
+// System faces behind each TPL face, used until (or if) the embedded font loads. Latin fallbacks include faces Windows
+// has (Georgia, Times New Roman, Arial, Impact, Courier New). Each stack ends with the Korean faces of its role before
+// the generic family, macOS then Windows then Noto: AppleMyungjo / Batang / Noto Serif KR for the serif faces, Apple SD
+// Gothic Neo / Malgun Gothic / Noto Sans KR for the others.
 const TPL_FACE_STACK = {
-  didone: 'Didot, "Bodoni 72", "Bodoni MT", Georgia, "AppleMyungjo", serif',
-  condensed: '"Arial Narrow", "Helvetica Neue Condensed", Impact, "Apple SD Gothic Neo", sans-serif',
-  serif: 'Georgia, "Times New Roman", "AppleMyungjo", serif',
-  slab: 'Rockwell, "Roboto Slab", "Courier New", "AppleMyungjo", serif',
-  black: '"Arial Black", "Helvetica Neue", Impact, "Apple SD Gothic Neo", sans-serif',
-  typewriter: '"American Typewriter", "Courier New", Courier, "Apple SD Gothic Neo", monospace',
+  didone: 'Didot, "Bodoni 72", "Bodoni MT", Georgia, "AppleMyungjo", "Batang", "Noto Serif KR", serif',
+  condensed: '"Arial Narrow", "Helvetica Neue Condensed", Impact, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif',
+  serif: 'Georgia, "Times New Roman", "AppleMyungjo", "Batang", "Noto Serif KR", serif',
+  slab: 'Rockwell, "Roboto Slab", "Courier New", "AppleMyungjo", "Batang", "Noto Serif KR", serif',
+  black: '"Arial Black", "Helvetica Neue", Impact, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif',
+  typewriter: '"American Typewriter", "Courier New", Courier, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", monospace',
 };
 // Letters no TPL face draws (Hangul, kana, CJK, accented letters) sit on plain white chips in this serif stack; Hangul
-// renders in AppleMyungjo, never upper-cased, tracked or squeezed.
-const TPL_FALLBACK_STACK = 'Georgia, "Times New Roman", "Noto Serif", "AppleMyungjo", serif';
+// renders in AppleMyungjo on macOS and Batang on Windows, never upper-cased, tracked or squeezed.
+const TPL_FALLBACK_STACK = 'Georgia, "Times New Roman", "Noto Serif", "AppleMyungjo", "Batang", "Noto Serif KR", serif';
 
 const str = (v, d) => (typeof v === "string" ? v : d);
 const num = (v, d) => (typeof v === "number" && Number.isFinite(v) ? v : d);

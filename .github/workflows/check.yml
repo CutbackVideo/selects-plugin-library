@@ -48,10 +48,12 @@ jobs:
           node plugins/torn-paper-love/tests/panel.test.cjs
           node plugins/torn-paper-love/tests/pick.test.cjs
           node plugins/torn-paper-love/tests/planner.test.cjs
+          node plugins/torn-paper-love/tests/quick-score.test.cjs
           node plugins/torn-paper-love/tests/scripts-edit.test.cjs
           node plugins/torn-paper-love/tests/scripts-read.test.cjs
           node plugins/torn-paper-love/tests/torn.test.cjs
           node plugins/torn-paper-love/tests/transitions.test.cjs
+          node plugins/torn-paper-love/tests/windows.test.cjs
       - name: Test Archive Vlog
         run: |
           node plugins/archive-vlog/tests/allocate.test.cjs
