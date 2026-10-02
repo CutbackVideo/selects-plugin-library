@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "city-weekend-vlog",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "name": "City Weekend Vlog",
   "summary": "Turn city footage into a beat-synced 9:16 weekend vlog with a font-switching title, as a new editable Draft.",
   "status": "experimental",

@@ -209,6 +209,11 @@ const PLUGIN_ID = "fast-switching-stopmotion";
 // Installed with the plugin beneath SELECTS_USER_SKILLS_ROOT/fast-switching-stopmotion/.
 const MUSIC_FILE = "assets/music.mp3";
 const CANDIDATES = 6;
+// Takes up to FULL_SCAN_SECONDS are scanned whole. Longer takes are scanned only
+// in one SCAN_WINDOW_SECONDS window at the middle of each candidate part, so a
+// 27-minute take costs six short decodes instead of the whole file.
+const FULL_SCAN_SECONDS = 120;
+const SCAN_WINDOW_SECONDS = 3;
 
 // av-host:start
 // Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
@@ -366,16 +371,38 @@ function parseYavg(text: string): number[] {
 }
 
 // One motion value per frame: difference to the previous frame. The values go
-// to a temporary file in the data folder (or to stdout without one).
-async function motionSeries(path: string, dataDir: string | null): Promise<number[]> {
+// to a temporary file in the data folder (or to stdout without one). With
+// `span`, only that part of the take is decoded (input seek, then -t).
+async function motionSeries(path: string, dataDir: string | null, span?: { start: number; seconds: number }): Promise<number[]> {
   const tmp = dataDir ? hostJoin(dataDir, tempName("motion", "txt")) : null;
   const graph = "scale=64:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=" + (tmp ? filterPath(tmp) : "-");
+  const seek = span ? ["-ss", span.start.toFixed(3), "-t", span.seconds.toFixed(3)] : [];
   try {
-    const r = await ffmpeg(["-i", path, "-vf", graph, "-f", "null", "-"], 60000);
+    const r = await ffmpeg([...seek, "-i", path, "-an", "-sn", "-dn", "-vf", graph, "-f", "null", "-"], 60000);
     return parseYavg(tmp ? await hostReadText(tmp) : r.stdout);
   } finally {
     if (tmp) await hostRemove(tmp);
   }
+}
+
+// The parts of a take to scan: the whole take when it is short, otherwise one
+// window centred on the middle of each candidate part (where shortlist looks).
+function scanSpans(seconds: number): { start: number; seconds: number }[] | null {
+  if (!(seconds > FULL_SCAN_SECONDS)) return null;
+  return Array.from({ length: CANDIDATES }, (_, i) => {
+    const mid = ((i + 0.5) * seconds) / CANDIDATES;
+    const start = Math.max(0, Math.min(seconds - SCAN_WINDOW_SECONDS, mid - SCAN_WINDOW_SECONDS / 2));
+    return { start, seconds: SCAN_WINDOW_SECONDS };
+  });
+}
+
+// Motion segments of a take: [{ offset: 0, series }] for a whole-take scan.
+async function motionSegments(path: string, seconds: number, dataDir: string | null): Promise<{ offset: number; series: number[] }[]> {
+  const spans = scanSpans(seconds);
+  if (!spans) return [{ offset: 0, series: await motionSeries(path, dataDir) }];
+  const out = [];
+  for (const span of spans) out.push({ offset: span.start, series: await motionSeries(path, dataDir, span) });
+  return out;
 }
 
 // Bytes as base64, in slices so a large image never overflows the argument list.
@@ -386,19 +413,23 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 // Candidate window starts (seconds): the take is split into CANDIDATES equal
-// parts and each part offers the usable window nearest its middle.
-function shortlist(series: number[], fps: number, cut: number, seconds: number) {
+// parts and each part offers the usable window nearest its middle. `segments`
+// are scanned parts of the take ({ offset: 0, series } for the whole take); the
+// still threshold uses the median over every scanned frame.
+function shortlist(segments: { offset: number; series: number[] }[], fps: number, cut: number, seconds: number) {
   const len = Math.max(1, Math.round(cut * fps));
-  const sorted = [...series].sort((a, b) => a - b);
+  const sorted = segments.flatMap((g) => g.series).sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
   const usable: number[] = [];
-  for (let s = 1; s + len <= series.length; s++) {
-    const w = series.slice(s, s + len);
-    const mean = w.reduce((a, b) => a + b, 0) / len;
-    const start = (s - 1) / fps;
-    if (Math.max(...w) > BLUR_YAVG || mean < median * STILL_RATIO) continue;
-    if (start + cut > seconds - 0.05) continue;
-    usable.push(start);
+  for (const { offset, series } of segments) {
+    for (let s = 1; s + len <= series.length; s++) {
+      const w = series.slice(s, s + len);
+      const mean = w.reduce((a, b) => a + b, 0) / len;
+      const start = offset + (s - 1) / fps;
+      if (Math.max(...w) > BLUR_YAVG || mean < median * STILL_RATIO) continue;
+      if (start + cut > seconds - 0.05) continue;
+      usable.push(start);
+    }
   }
   const out: number[] = [];
   for (let i = 0; i < CANDIDATES; i++) {
@@ -494,9 +525,9 @@ async function buildStopMotion(
   for (const v of chosen) {
     if (!v.path) throw new Error(`No file path for ${v.name}`);
     // Motion unknown (ffmpeg failed) falls back to the fixed moment below.
-    let series: number[] = [];
-    try { series = await motionSeries(v.path, data); } catch (e) { console.warn("[fast-switching-stopmotion] motion:", e); }
-    const starts = shortlist(series, v.fps ?? 30, cut, v.seconds);
+    let segments: { offset: number; series: number[] }[] = [];
+    try { segments = await motionSegments(v.path, v.seconds, data); } catch (e) { console.warn("[fast-switching-stopmotion] motion:", e); }
+    const starts = shortlist(segments, v.fps ?? 30, cut, v.seconds);
     rows.push({ name: v.name, path: v.path, starts: starts.length ? starts : [Math.min(1, v.seconds / 4)] });
   }
   let moments: number[][] | null = null;
