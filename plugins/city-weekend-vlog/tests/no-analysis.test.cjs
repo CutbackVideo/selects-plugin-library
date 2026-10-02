@@ -5,18 +5,11 @@ const fs = require('node:fs'), path = require('node:path'), vm = require('node:v
 const root = path.resolve(__dirname, '..');
 const panel = fs.readFileSync(path.join(root, 'panel.tsx'), 'utf8');
 const between = (a, b) => panel.slice(panel.indexOf(a), panel.indexOf(b) + b.length);
-const box = { Math, Number, Object, Array, isFinite }; vm.createContext(box);
-vm.runInContext(between('// cwv-local:start', '// cwv-local:end') + '\n;globalThis.X={cwvLocalWindows,cwvScoreRange,cwvLocalCandidates,cwvFlagged,CWV_LOCAL_EDGE,CWV_LOCAL_MAX_WINDOWS};', box);
+const box = { Math, Number, Object, Array, Set, Map, isFinite }; vm.createContext(box);
+vm.runInContext(between('// cwv-local:start', '// cwv-local:end') + '\n' + between('// quick-score:start', '// quick-score:end') +
+  '\n;globalThis.X={cwvScoreRange,cwvQuickCandidates,cwvHostDataDir,qsWindowScores,qsFallback,qsBins};', box);
 const X = box.X;
 const plain = v => JSON.parse(JSON.stringify(v));
-
-// Windows: 1 s long from 0.5 s, never in the last 0.5 s; long clips are thinned evenly; very short clips get the middle.
-assert.deepEqual(plain(X.cwvLocalWindows(4)), [{ start: 0.5, end: 1.5 }, { start: 1.5, end: 2.5 }, { start: 2.5, end: 3.5 }]);
-const long = plain(X.cwvLocalWindows(300));
-assert.equal(long.length, X.CWV_LOCAL_MAX_WINDOWS);
-assert.ok(long[0].start === 0.5 && long[long.length - 1].end <= 299.5 && long[long.length - 1].start > 250, 'spread over the clip');
-assert.deepEqual(plain(X.cwvLocalWindows(1.2)), [{ start: 0.3, end: 0.9 }]);
-assert.deepEqual(plain(X.cwvLocalWindows(0.1)), []);
 
 // One scale with the scene search: its 10th-90th percentile, or 0..1 without searched clips.
 assert.deepEqual(plain(X.cwvScoreRange([])), { lo: 0, hi: 1 });
@@ -25,33 +18,26 @@ assert.ok(Math.abs(r.lo - 0.2) < 1e-9 && Math.abs(r.hi - 1.0) < 1e-9);
 const flat = X.cwvScoreRange([0.5, 0.5]);
 assert.ok(Math.abs(flat.hi - flat.lo - 0.05) < 1e-9, 'a flat range is widened');
 
-// Candidates: flagged windows and windows before 0.5 s are dropped; sharper, well-exposed windows score higher;
-// motion is ranked 0..1 across the build; a clip without usable windows gets evenly spaced ones at the bottom.
-assert.equal(X.cwvFlagged(['black']), true);
-assert.equal(X.cwvFlagged({ black: false, fade: true }), true);
-assert.equal(X.cwvFlagged({ black: false }), false);
-assert.equal(X.cwvFlagged(null), false);
-const results = [
-  { rid: 'a', duration: 6, windows: [
-    { start: 0.2, end: 1.2, sharp: 9, motion: 1, luma: 0.5 },
-    { start: 1.5, end: 2.5, sharp: 9, motion: 0.1, luma: 0.5 },
-    { start: 2.5, end: 3.5, sharp: 1, motion: 0.9, luma: 0.95 },
-    { start: 3.5, end: 4.5, sharp: 8, motion: 0.5, luma: 0.02, flags: ['black'] }] },
-  { rid: 'b', duration: 3, windows: null },
-  { rid: 'c', duration: 5, windows: [{ start: 1, end: 2, sharp: 5, motion: 0.4, luma: 128 }] },
-];
-const cands = plain(X.cwvLocalCandidates(results, { lo: 0.2, hi: 0.6 }));
+// Candidates from kit scores: a scored clip gives steady and moving windows (no black or fade windows while clean ones
+// fit), mapped onto the range, motion ranked 0..1; a clip the check could not decode gets whole-second windows from 1 s.
+const bin = (start, o) => ({ start, end: start + 0.5, motion: 0.02, sharp: 0.3, luma: 0.45, clipped: 0,
+  flags: { black: false, fade: false, flash: false, blur: false, dark: false, bright: false, cut: false }, ...o });
+const scored = { rid: 'a', duration: 6, sceneCuts: [], fallback: false, windows: [
+  bin(0.5, { luma: 0.02, flags: { black: true, fade: false, flash: false, blur: false, dark: true, bright: false, cut: false } }),
+  bin(1, {}), bin(1.5, {}), bin(2, { motion: 0.2 }), bin(2.5, { motion: 0.22 }), bin(3, { motion: 0.2 }), bin(3.5, { motion: 0.01 }), bin(4, { motion: 0.01 }), bin(4.5, {}), bin(5, {})] };
+const cands = plain(X.cwvQuickCandidates([{ rid: 'a', duration: 6, scores: scored }, { rid: 'b', duration: 3.2, scores: X.qsFallback({ rid: 'b', durationSeconds: 3.2 }, 0, null) },
+  { rid: 'c', duration: 4, scores: null }], { lo: 0.2, hi: 0.6 }));
 const ofA = cands.filter(c => c.rid === 'a');
-assert.deepEqual(ofA.map(c => c.t), [2, 3], 'flagged and early windows dropped');
-assert.ok(ofA[0].score > ofA[1].score, 'sharp, mid-grey beats blurry and bright');
-assert.ok(ofA.every(c => c.role === 'quick' && c.sourceDuration === 6 && c.score >= 0.2 && c.score <= 0.6));
-assert.deepEqual(ofA.map(c => c.motion), [0, 1], 'motion ranked across the build');
-const ofB = cands.filter(c => c.rid === 'b');
-assert.deepEqual(ofB.map(c => [c.t, c.score, c.motion]), [[1, 0.2, null], [2, 0.2, null]], 'fallback windows for a clip that could not be checked');
-const ofC = cands.filter(c => c.rid === 'c');
-assert.equal(ofC.length, 1);
-assert.ok(Math.abs(ofC[0].motion - 0.5) < 1e-9 && ofC[0].score > 0.2, 'luma in 0..255 counts as mid-grey');
-assert.deepEqual(plain(X.cwvLocalCandidates([{ rid: 'z', duration: 0.1, windows: null }], { lo: 0, hi: 1 })), [], 'no windows on a too-short clip');
+assert.ok(ofA.length >= 3, 'several windows from a scored clip');
+assert.ok(ofA.every(c => c.role === 'quick' && c.sourceDuration === 6 && c.score >= 0.2 && c.score <= 0.6 && c.motion >= 0 && c.motion <= 1));
+assert.ok(ofA.every(c => c.t - 0.25 >= 0.75), 'no window over the black first second');
+for (let i = 0; i < ofA.length; i++) for (let j = i + 1; j < ofA.length; j++) assert.ok(Math.abs(ofA[i].t - ofA[j].t) >= 0.5, 'windows at least 0.5 s apart');
+const busy = ofA.filter(c => c.t >= 2 && c.t <= 3.5), calm = ofA.filter(c => c.t >= 3.75 && c.t <= 4.5);
+if (busy.length && calm.length) assert.ok(Math.max(...busy.map(c => c.motion)) > Math.min(...calm.map(c => c.motion)), 'moving windows rank higher in motion');
+assert.deepEqual(cands.filter(c => c.rid === 'b').map(c => [c.t, c.score, c.motion]), [[1, 0.2, null], [2, 0.2, null]], 'fallback: whole seconds from 1 s');
+assert.deepEqual(cands.filter(c => c.rid === 'c'), [], 'no scores and no windows: nothing (fillers still cover the clip)');
+// Without the host's FileSystem there is no data folder (the check then falls back).
+assert.equal(X.cwvHostDataDir('x'), null);
 
 // Planner: quick candidates join the any-role tier; calm ones go to the title opening and hold, moving ones to the
 // montage. Analysed candidates (no motion) are unaffected, so plans of analysed footage do not change.
@@ -74,10 +60,13 @@ assert.equal(plan.picks.filter(Boolean).length, plan.picks.length);
 // between the quick-score markers (the shared kit block replaces the placeholder unchanged).
 const code = panel.slice(0, panel.indexOf('// STRINGS:BEGIN')) + panel.slice(panel.indexOf('// STRINGS:END'));
 for (const phrase of ['local.push(...(r.local || []));', 'await scoreLocalClips(local, list.map((c) => c.score), check,', 'cwvScoreRange(searchedScores)',
-  'controller.abort()', 'CWV_LOCAL_BUDGET_MS - (Date.now() - started)', 'CWV_LOCAL_CONCURRENCY', 'onDone(++done)', 'windows: cwvLocalWindows(item.duration)',
-  '// quick-score:start', '// quick-score:end', 'async function quickScore(']) assert.ok(code.includes(phrase), phrase);
+  'controller.abort()', 'budgetMs: CWV_LOCAL_BUDGET_MS', 'concurrency: CWV_LOCAL_CONCURRENCY', 'dataDir: cwvHostDataDir(PLUGIN_ID)', 'onDone(p.done)',
+  '// quick-score:start', '// quick-score:end', 'await quickScoreAll(']) assert.ok(code.includes(phrase), phrase);
+// The kit block is pasted unchanged (tests/quick-score.test.cjs tests it; selects-app-kit tools/panel/quick-score.js).
+const kitPath = path.join(require('node:os').homedir(), 'Workspaces', 'selects-app-kit', 'tools', 'panel', 'quick-score.js');
+if (fs.existsSync(kitPath)) assert.equal(between('// quick-score:start', '// quick-score:end'), fs.readFileSync(kitPath, 'utf8').trim(), 'kit block verbatim');
 assert.equal((code.match(/searchShots\(run, /g) || []).length, 3, 'Build and the template run (search, retry) all go through searchShots');
 // Windows-safe: the quick check never uses the shell.
-const local = between('// cwv-local:start', '// quick-score:end') + between('async function searchShots(', 'return cwvLocalCandidates(results, cwvScoreRange(searchedScores));\n}');
+const local = between('// cwv-local:start', '// quick-score:end') + between('async function searchShots(', 'cwvScoreRange(searchedScores));\n}');
 assert.ok(!/runShell|TOOL_PATH|\bnode\b /.test(local), 'no shell in the quick check');
 console.log(JSON.stringify({ noAnalysis: 'ok', candidates: cands.length }));

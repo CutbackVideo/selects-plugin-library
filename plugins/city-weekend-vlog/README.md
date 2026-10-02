@@ -70,7 +70,7 @@ imported. The panel never starts analysis and never waits for it.
   windows for sharpness, exposure and motion. Windows in the first and last
   half second, and black, fade or flash frames, are skipped. Calm windows
   open the title; moving ones go to the fast run and the montage. Up to three
-  clips are checked at a time within 20 s; progress shows "Choosing shots (N/M
+  clips are checked at a time within 20 s (results are cached per clip); progress shows "Choosing shots (N/M
   clips checked)". A clip that cannot be checked uses evenly spaced moments.
 - **Mixed Projects** put both on one scale: quick-check scores are mapped onto
   the range of the scene-search scores. A shot whose role matches a scene-search
