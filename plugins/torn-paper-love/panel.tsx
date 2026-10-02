@@ -15,8 +15,6 @@
 import React from "react";
 
 const PLUGIN_ID = "torn-paper-love";
-const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
-const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 const WORD_MAX = 8;
 
 // STRINGS:BEGIN
@@ -39,7 +37,6 @@ const STRINGS = {
     track: "Track",
     ownMusic: "Your own music",
     noMusic: "No music",
-    installTools: "Install ffmpeg to preview music or use your own track.",
     sectionHint: "Music section — drag to choose",
     sectionLabel: "Music section",
     musicTooShort: "This music is too short for this length",
@@ -63,7 +60,6 @@ const STRINGS = {
     checkingPictures: "Checking your pictures",
     checkingPicturesNow: "Checking your pictures…",
     listening: "Listening for the beat",
-    preparingTools: "Preparing beat detection (first time only)",
     listeningNow: "Listening for the beat…",
     dropMusicAbove: "Drop a music file above, or choose one of the tracks.",
     noPictures: "No photos or clips in this Project yet. Add some; this updates automatically.",
@@ -187,7 +183,6 @@ const STRINGS = {
     track: "Musikstück",
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
-    installTools: "Installiere ffmpeg, um Musik vorzuhören oder eigene Musik zu verwenden.",
     sectionHint: "Musikabschnitt – zum Auswählen ziehen",
     sectionLabel: "Musikabschnitt",
     musicTooShort: "Diese Musik ist für diese Länge zu kurz",
@@ -211,7 +206,6 @@ const STRINGS = {
     checkingPictures: "Bilder werden geprüft",
     checkingPicturesNow: "Bilder werden geprüft …",
     listening: "Beat wird gesucht",
-    preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     listeningNow: "Beat wird gesucht …",
     dropMusicAbove: "Lege oben eine Musikdatei ab oder wähle eines der Musikstücke.",
     noPictures: "In diesem Projekt gibt es noch keine Fotos oder Clips. F\u00fcge welche hinzu; die Anzeige aktualisiert sich automatisch.",
@@ -335,7 +329,6 @@ const STRINGS = {
     track: "Pista",
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
-    installTools: "Instala ffmpeg para escuchar la música o usar tu propia pista.",
     sectionHint: "Sección de música: arrastra para elegir",
     sectionLabel: "Sección de música",
     musicTooShort: "Esta música es demasiado corta para esta duración",
@@ -359,7 +352,6 @@ const STRINGS = {
     checkingPictures: "Comprobando tus imágenes",
     checkingPicturesNow: "Comprobando tus imágenes…",
     listening: "Buscando el ritmo",
-    preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     listeningNow: "Buscando el ritmo…",
     dropMusicAbove: "Suelta un archivo de música arriba o elige una de las pistas.",
     noPictures: "Este proyecto a\u00fan no tiene fotos ni clips. A\u00f1ade algunos; se actualizar\u00e1 autom\u00e1ticamente.",
@@ -483,7 +475,6 @@ const STRINGS = {
     track: "Morceau",
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
-    installTools: "Installez ffmpeg pour écouter la musique ou utiliser votre propre morceau.",
     sectionHint: "Section musicale : faites glisser pour choisir",
     sectionLabel: "Section musicale",
     musicTooShort: "Cette musique est trop courte pour cette durée",
@@ -507,7 +498,6 @@ const STRINGS = {
     checkingPictures: "Vérification des images",
     checkingPicturesNow: "Vérification des images…",
     listening: "Recherche du rythme",
-    preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     listeningNow: "Recherche du rythme…",
     dropMusicAbove: "Déposez un fichier audio ci-dessus ou choisissez l'un des morceaux.",
     noPictures: "Ce projet ne contient pas encore de photo ni de clip. Ajoutez-en ; l'affichage se met \u00e0 jour automatiquement.",
@@ -631,7 +621,6 @@ const STRINGS = {
     track: "Brano",
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
-    installTools: "Installa ffmpeg per ascoltare la musica o usare un tuo brano.",
     sectionHint: "Sezione musicale: trascina per scegliere",
     sectionLabel: "Sezione musicale",
     musicTooShort: "Questa musica è troppo corta per questa durata",
@@ -655,7 +644,6 @@ const STRINGS = {
     checkingPictures: "Controllo delle immagini",
     checkingPicturesNow: "Controllo delle immagini…",
     listening: "Ricerca del ritmo",
-    preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     listeningNow: "Ricerca del ritmo…",
     dropMusicAbove: "Trascina un file musicale qui sopra o scegli uno dei brani.",
     noPictures: "In questo progetto non ci sono ancora foto n\u00e9 clip. Aggiungine qualcuna; si aggiorna automaticamente.",
@@ -779,7 +767,6 @@ const STRINGS = {
     track: "トラック",
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
-    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg をインストールしてください。",
     sectionHint: "音楽の区間 — ドラッグして選択",
     sectionLabel: "音楽の区間",
     musicTooShort: "この音楽は、この長さには短すぎます",
@@ -803,7 +790,6 @@ const STRINGS = {
     checkingPictures: "素材を確認中",
     checkingPicturesNow: "素材を確認中…",
     listening: "ビートを検出中",
-    preparingTools: "ビート検出を準備中(初回のみ)",
     listeningNow: "ビートを検出中…",
     dropMusicAbove: "上に音楽ファイルをドロップするか、用意されたトラックを選んでください。",
     noPictures: "\u3053\u306e\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306b\u306f\u3001\u307e\u3060\u5199\u771f\u3082\u30af\u30ea\u30c3\u30d7\u3082\u3042\u308a\u307e\u305b\u3093\u3002\u8ffd\u52a0\u3059\u308b\u3068\u81ea\u52d5\u3067\u66f4\u65b0\u3055\u308c\u307e\u3059\u3002",
@@ -927,7 +913,6 @@ const STRINGS = {
     track: "\ud2b8\ub799",
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
-    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\ub97c \uc124\uce58\ud558\uc138\uc694.",
     sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
     sectionLabel: "\uc74c\uc545 \uad6c\uac04",
     musicTooShort: "\uc774 \uae38\uc774\ub85c \ub9cc\ub4e4\uae30\uc5d0\ub294 \uc74c\uc545\uc774 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4",
@@ -951,7 +936,6 @@ const STRINGS = {
     checkingPictures: "\uc0ac\uc9c4 \ud655\uc778 \uc911",
     checkingPicturesNow: "\uc0ac\uc9c4 \ud655\uc778 \uc911…",
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
-    preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     listeningNow: "\ube44\ud2b8 \ucc3e\ub294 \uc911…",
     dropMusicAbove: "\uc704\uc5d0 \uc74c\uc545 \ud30c\uc77c\uc744 \ub04c\uc5b4\ub2e4 \ub193\uac70\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     noPictures: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc0ac\uc9c4\uc774\ub098 \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ucd94\uac00\ud558\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
@@ -1075,7 +1059,6 @@ const STRINGS = {
     track: "Faixa",
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
-    installTools: "Instale o ffmpeg para ouvir a música ou usar sua própria faixa.",
     sectionHint: "Trecho da música: arraste para escolher",
     sectionLabel: "Trecho da música",
     musicTooShort: "Esta música é curta demais para esta duração",
@@ -1099,7 +1082,6 @@ const STRINGS = {
     checkingPictures: "Verificando suas imagens",
     checkingPicturesNow: "Verificando suas imagens…",
     listening: "Procurando a batida",
-    preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     listeningNow: "Procurando a batida…",
     dropMusicAbove: "Solte um arquivo de música acima ou escolha uma das faixas.",
     noPictures: "Este projeto ainda n\u00e3o tem fotos nem clipes. Adicione alguns; a lista \u00e9 atualizada automaticamente.",
@@ -1223,7 +1205,6 @@ const STRINGS = {
     track: "Parça",
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
-    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg yükleyin.",
     sectionHint: "Müzik bölümü — seçmek için sürükleyin",
     sectionLabel: "Müzik bölümü",
     musicTooShort: "Bu müzik bu uzunluk için çok kısa",
@@ -1247,7 +1228,6 @@ const STRINGS = {
     checkingPictures: "Görselleriniz kontrol ediliyor",
     checkingPicturesNow: "Görselleriniz kontrol ediliyor…",
     listening: "Ritim aranıyor",
-    preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     listeningNow: "Ritim aranıyor…",
     dropMusicAbove: "Yukarıya bir müzik dosyası bırakın veya hazır parçalardan birini seçin.",
     noPictures: "Bu projede hen\u00fcz foto\u011fraf veya klip yok. Biraz ekleyin; buras\u0131 otomatik olarak g\u00fcncellenir.",
@@ -1371,7 +1351,6 @@ const STRINGS = {
     track: "曲目",
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
-    installTools: "请安装 ffmpeg，才能试听音乐或使用自己的曲目。",
     sectionHint: "音乐片段 — 拖动选择",
     sectionLabel: "音乐片段",
     musicTooShort: "这段音乐太短，不够这个时长",
@@ -1395,7 +1374,6 @@ const STRINGS = {
     checkingPictures: "正在检查素材",
     checkingPicturesNow: "正在检查素材…",
     listening: "正在识别节拍",
-    preparingTools: "正在准备节拍检测(仅首次)",
     listeningNow: "正在识别节拍…",
     dropMusicAbove: "请在上方拖入一个音乐文件，或选择内置曲目。",
     noPictures: "\u6b64\u9879\u76ee\u4e2d\u8fd8\u6ca1\u6709\u7167\u7247\u6216\u7247\u6bb5\u3002\u8bf7\u6dfb\u52a0\u4e00\u4e9b\uff1b\u8fd9\u91cc\u4f1a\u81ea\u52a8\u66f4\u65b0\u3002",
@@ -2738,15 +2716,23 @@ function tplReadbackScript(sequenceId) {
     + 'const frames = rows.length ? [rows[0].startFrame, ...rows.map(c => c.endFrame)] : [0];\n'
     + 'return { sequenceId: ' + JSON.stringify(sequenceId) + ', fps, frames, totalFrames: frames[frames.length - 1], placed: rows.length, notes: ["Selects did not confirm the save; the Draft was found by its name"] };';
 }
-// ensure-audio.js without the import: the music resource already imported from `path`, or { resourceId: null }.
-function tplFindAudioScript(projectId, path) {
-  return 'const p = selects.project(' + JSON.stringify(projectId) + ');\n'
+// ensure-audio.js without the import: the music resource already imported from `path`, or { resourceId: null }. The
+// same normalised match as ensure-audio.js (NFC, "\\" as "/", case-folded; a same-named file of the same length).
+function tplFindAudioScript(projectId, path, duration) {
+  return 'const cfg = ' + JSON.stringify({ projectId: projectId, path: path, duration: duration }) + ';\n'
+    + 'const p = selects.project(cfg.projectId);\n'
+    + 'const norm = s => String(s || "").normalize("NFC").replace(/\\\\/g, "/").toLowerCase();\n'
+    + 'const base = s => norm(s).split("/").pop();\n'
     + 'const paths = {};\n'
     + 'const walk = nodes => { for (const n of nodes || []) { if (n.type === "dir") walk(n.children); else if (n.resourceId && n.path) paths[n.resourceId] = n.path; } };\n'
     + 'const files = await p.sourceFiles();\n'
     + 'if ("fileTree" in files) walk(files.fileTree);\n'
     + 'else for (const f of files.folders || []) { const d = await p.sourceFiles({ folder: f.name }); if ("fileTree" in d) walk(d.fileTree); }\n'
-    + 'const existing = (await p.resources()).find(r => r.type === "Audio" && paths[r.resourceId] === ' + JSON.stringify(path) + ');\n'
+    + 'const audio = (await p.resources()).filter(r => r.type === "Audio");\n'
+    + 'const want = norm(cfg.path), wantName = base(cfg.path);\n'
+    + 'const sameLength = r => typeof cfg.duration === "number" && typeof r.durationSeconds === "number" && Math.abs(r.durationSeconds - cfg.duration) <= 0.5;\n'
+    + 'const existing = audio.find(r => norm(paths[r.resourceId]) === want)\n'
+    + '  || audio.find(r => ((paths[r.resourceId] && base(paths[r.resourceId]) === wantName) || norm(r.name) === wantName) && sameLength(r));\n'
     + 'return { resourceId: existing ? existing.resourceId : null, imported: false };';
 }
 function tplOpenScript(sequenceId) {
@@ -2828,8 +2814,10 @@ async function tplRunBuild(f, d) {
   let music = null;
   if (state.cue && state.musicStart != null && f.musicPath) {
     d.advance('plan', 0.5, (l) => t(l, "detail.addingMusic"));
-    music = await tplCommit(d, 'Add music to the project', tplFill(d.scripts.ensureJs, { projectId: pid, path: f.musicPath }), async () => {
-      const r = await d.run('Look for the music', tplFindAudioScript(pid, f.musicPath), false);
+    // The track's length lets ensure-audio match the cue by file name when the host spells its path differently.
+    const duration = f.cue && typeof f.cue.duration === 'number' && f.cue.duration > 0 ? f.cue.duration : undefined;
+    music = await tplCommit(d, 'Add music to the project', tplFill(d.scripts.ensureJs, { projectId: pid, path: f.musicPath, duration }), async () => {
+      const r = await d.run('Look for the music', tplFindAudioScript(pid, f.musicPath, duration), false);
       return r && r.resourceId ? r : null;
     });
     d.check();
@@ -3139,8 +3127,8 @@ async function quickScore(resource, opts) {
   try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
   // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
   // path with different media is not served stale scores; Mini Vlog review).
-  var dur = Number(resource.durationSeconds || 0).toFixed(3);
-  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, dur, a.toFixed(3), b.toFixed(3)].join("-");
+  var durKey = Number(resource.durationSeconds || 0).toFixed(3);
+  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
   var cacheFile = io.join(dir, safe + ".json");
   if (io.readText && !ws) {
     try {
@@ -3264,32 +3252,230 @@ function tplQuickDataDir(): string | null {
   return null;
 }
 
-// Double quotes let $HOME and $SELECTS_USER_SKILLS_ROOT expand: use only for those constants.
-function dq(value: string) { return '"' + String(value).replace(/(["\\`])/g, "\\$1") + '"'; }
-// Single quotes pass user paths to the shell literally (no $, backtick or glob expansion).
-function sq(value: string) { return "'" + String(value).replace(/'/g, "'\\''") + "'"; }
-function service(name: string, method: string) {
-  const s = (window.parent as any)?.__DI__?.[name];
-  if (!s || typeof s[method] !== "function") throw uiError((l) => t(l, "adapterNeeded", { name }));
+// tpl-host:start
+// Copied from Archive Vlog's av-host block (kit references/windows.md: the reference host I/O until a shared kit file
+// exists), plus hostCutAudio for the section preview.
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. The one shell call is the SELECTS_USER_SKILLS_ROOT fallback in hostSkillsRoot (cmd.exe on
+// Windows, the login shell on macOS). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
   return s;
 }
-async function readText(root: string, rel: string) {
-  const v = await service("FileSystem", "readFile").readFile(root + "/" + rel);
-  // Some host builds return text directly; others return bytes.
-  return typeof v === "string" ? v : new TextDecoder().decode(new Uint8Array(v));
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
 }
-// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew.
-const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; ';
-// Own music's beat detection runs beat-detect.cjs on Node.js. Selects puts no Node on the shell's PATH and a stock
-// Mac has none, so runtime.sh fetches a pinned copy into ~/.selects/plugin-data/_runtime the first time (shared by
-// every plugin) and prints its path. Later calls in this session reuse it.
-let nodePath: string | null = null;
-async function ensureNode(sdk: any): Promise<string> {
-  if (nodePath) return nodePath;
-  const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: TOOL_PATH + "sh " + dq(SKILLS_DIR + "/runtime.sh") + " node", timeoutMs: 290000, maxOutputBytes: 8000 });
-  const found = String(r?.stdout || "").trim().split("\n").filter(Boolean).pop() || "";
-  if (r?.isError || r?.exitCode !== 0 || !found.startsWith("/")) throw new Error(String(r?.stderr || "").trim().split("\n").pop() || "Could not prepare Node.js.");
-  return (nodePath = found);
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The skills folder named by SELECTS_USER_SKILLS_ROOT, through the host shell, or null. Windows runs cmd.exe, where
+// `echo(` prints an empty line for an unset variable (a plain `echo` would print "ECHO is on."); macOS runs the login
+// shell. Only the variable's value comes back; no path goes in.
+async function hostSkillsRoot(sdk) {
+  if (typeof sdk?.runShell !== "function") return null;
+  const command = hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%" : 'echo "$SELECTS_USER_SKILLS_ROOT"';
+  try {
+    const r = await sdk.runShell({ summary: "Locate the plugin folder", command, timeoutMs: 10000 });
+    const out = String(r?.stdout || "").split(/\r?\n/).map((x) => x.trim()).find(Boolean) || "";
+    return !out || /[%$]/.test(out) || /^ECHO is/i.test(out) ? null : out;
+  } catch { return null; }
+}
+// The plugin's install folder and its data folder. The install folder is the host's default skills folder (the home
+// folder joined with .selects, skills and <id>) when it holds `marker` (a file every install has); only when it does
+// not does SELECTS_USER_SKILLS_ROOT decide. The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) {
+    const root = await hostSkillsRoot(sdk);
+    const dir = root ? hostJoin(root, id) : null;
+    if (holds(dir)) plugin = dir;
+  }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// A short audio file cut by the host's ffmpeg, as bytes: `args` are the ffmpeg arguments between the input and the
+// output (codec, filters, format), the output goes to an ASCII temporary file in `dataDir` that is read back and removed.
+// `seekSeconds`/`seconds` select the span. null when this host has no ffmpeg, no file reads or no data folder; throws
+// when ffmpeg fails or `signal` (optional) aborts it.
+async function hostCutAudio(path, dataDir, seekSeconds, seconds, args, ext, signal, timeoutMs = 60000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "cut-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + "." + ext);
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-ss", String(seekSeconds), "-t", String(seconds), "-i", path, ...args, tmp], true, controller ? controller.signal : undefined);
+    return await hostReadBytes(tmp);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// tpl-host:end
+
+// tpl-beat-worker:start
+// The source of the Web Worker that runs beat-detect.cjs, read from the install folder and used unmodified (one source
+// for the CLI, the tests and the panel). The file runs inside a function with its own `module`, `exports` and an inert
+// `require`: require.main is undefined, so its CLI branch never runs. The worker answers one { samples, rate } message
+// with { ok: analyze(samples, rate) } or { error }. Plain JS, so tests run the same source in node:vm.
+function tplBeatWorkerSource(beatDetectText) {
+  return '"use strict";\nvar tplBeat = (function () {\n  var module = { exports: {} };\n  var require = function () { return {}; };\n'
+    + '  (function (module, exports, require) {\n' + beatDetectText + '\n  })(module, module.exports, require);\n  return module.exports;\n})();\n'
+    + 'onmessage = function (e) {\n  try { postMessage({ ok: tplBeat.analyze(e.data.samples, e.data.rate) }); }\n'
+    + '  catch (err) { postMessage({ error: String((err && err.message) || err) }); }\n};\n';
+}
+// tpl-beat-worker:end
+
+// Reads a text file under the install folder; `rel` uses "/" and is joined part by part with the OS separator.
+async function readText(root: string, rel: string) { return hostReadText(hostJoin(root, ...rel.split("/"))); }
+// The install folder (it holds planner.js) and the data folder (null when this host cannot make it).
+const locateRoots = (sdk: any) => hostRoots(sdk, PLUGIN_ID, "planner.js");
+// A host error in the UI language: a service this Selects build lacks, or no install folder.
+function hostSay(e: any): Say | null {
+  return e?.code === "host-missing" ? (l) => t(l, "adapterNeeded", { name: e.member }) : e?.code === "not-found" ? (l) => t(l, "foldersNotFound") : null;
+}
+// Own music: mono samples at OWN_RATE (the rate beat-detect's cues were measured at), at most OWN_MAX_SECONDS, decoded by
+// the host's ffmpeg (hostDecodePcm) and analysed by the kit's beat-detect.cjs in a Web Worker.
+const OWN_RATE = 22050;
+const OWN_MAX_SECONDS = 360;
+// beat-detect's analysis of the samples in a Web Worker (tplBeatWorkerSource), never on the panel's thread: the panel
+// CSP allows blob: workers (worker-src * data: blob:). A host that refuses the worker rejects the analysis, and the panel
+// falls back to fixed timing. `signal` aborts it (worker.terminate()); so does `timeoutMs` (BEAT_TIMEOUT_MS).
+const BEAT_TIMEOUT_MS = 60000;
+function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = BEAT_TIMEOUT_MS): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let worker: Worker | null = null, url: string | null = null, done = false;
+    let timer: any = null;
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
+      try { worker?.terminate(); } catch { /* gone */ }
+      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
+      signal?.removeEventListener("abort", onAbort);
+      fn();
+    };
+    const onAbort = () => finish(() => reject(new Error("cancelled")));
+    if (signal?.aborted) { reject(new Error("cancelled")); return; }
+    signal?.addEventListener("abort", onAbort);
+    try {
+      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+      worker = new Worker(url);
+    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
+    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.error ? reject(new Error(e.data.error)) : resolve(e.data && e.data.ok)));
+    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
+    timer = setTimeout(() => finish(() => { const err: any = new Error("the beat detection took too long"); err.code = "beat-timeout"; reject(err); }), timeoutMs);
+    worker.postMessage({ samples, rate: OWN_RATE });
+  });
 }
 // A short orientation hint for the clip list; nothing when the frame size is unknown.
 function shapeHint(lang: Lang, width: number | null, height: number | null) {
@@ -3493,18 +3679,18 @@ const PREVIEW_H = 64;
 const PREVIEW_BAND = 220;
 // Re-style ticks shown in the preview wrap around here (tplLooksAt replays every tick up to the index).
 const PREVIEW_TICKS = 64;
-// Each stack ends with the macOS Korean face of its role (serif faces: AppleMyungjo; the others: Apple SD Gothic Neo),
-// as the graphic's TPL_FACE_STACK.
+// Each stack ends with the Korean faces of its role, macOS then Windows then Noto (serif faces: AppleMyungjo, Batang,
+// Noto Serif KR; the others: Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR), as the graphic's TPL_FACE_STACK.
 const PREVIEW_FACE_STACK: Record<string, string> = {
-  didone: 'Didot, "Bodoni 72", "Bodoni MT", Georgia, "AppleMyungjo", serif',
-  condensed: '"Arial Narrow", "Helvetica Neue Condensed", Impact, "Apple SD Gothic Neo", sans-serif',
-  serif: 'Georgia, "Times New Roman", "AppleMyungjo", serif',
-  slab: 'Rockwell, "Roboto Slab", "Courier New", "AppleMyungjo", serif',
-  black: '"Arial Black", "Helvetica Neue", Impact, "Apple SD Gothic Neo", sans-serif',
-  typewriter: '"American Typewriter", "Courier New", Courier, "Apple SD Gothic Neo", monospace',
+  didone: 'Didot, "Bodoni 72", "Bodoni MT", Georgia, "AppleMyungjo", "Batang", "Noto Serif KR", serif',
+  condensed: '"Arial Narrow", "Helvetica Neue Condensed", Impact, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif',
+  serif: 'Georgia, "Times New Roman", "AppleMyungjo", "Batang", "Noto Serif KR", serif',
+  slab: 'Rockwell, "Roboto Slab", "Courier New", "AppleMyungjo", "Batang", "Noto Serif KR", serif',
+  black: '"Arial Black", "Helvetica Neue", Impact, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif',
+  typewriter: '"American Typewriter", "Courier New", Courier, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", monospace',
 };
 // Letters no TPL face draws (Hangul, kana, CJK, accents) sit on plain chips in this serif stack.
-const PREVIEW_FALLBACK_STACK = 'Georgia, "Times New Roman", "Noto Serif", "AppleMyungjo", serif';
+const PREVIEW_FALLBACK_STACK = 'Georgia, "Times New Roman", "Noto Serif", "AppleMyungjo", "Batang", "Noto Serif KR", serif';
 // Backdrop swatches for the tiles and the preview (Photo: the photo itself, dimmed and blurred).
 function backdropFill(id: string) {
   if (id === "photo") return "linear-gradient(120deg, #2a2320, #4a3b33 45%, #231d1b)";
@@ -3653,8 +3839,7 @@ async function tplTemplateRun(sdk: any, context: any, live: () => boolean, say: 
     return r.result as any;
   };
   const check = () => { if (!live()) throw TPL_STALE; };
-  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-  const [plugin] = String(where?.stdout || "").split("\n").map((x) => x.trim());
+  const plugin = await locateRoots(sdk).then((r: any) => r.plugin as string, () => "");
   if (!plugin) throw uiError((l) => t(l, "startFailed", { detail: t(l, "foldersNotFound") }));
   const read = (rel: string) => readText(plugin, rel);
   const [manifestText, looksText, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, tornTsx, lettersTsx] = await Promise.all([
@@ -3684,7 +3869,7 @@ async function tplTemplateRun(sdk: any, context: any, live: () => boolean, say: 
     projectId: pid,
     inventory: { photos: inv.photos || [], resources: inv.resources || [] },
     found: null,
-    cue, musicPath: cue ? plugin + "/assets/cues/" + cue.file : null,
+    cue, musicPath: cue ? hostJoin(plugin, "assets", "cues", cue.file) : null,
     options: tplOptions({ length: context.template?.options?.length, only, seed: 1 }),
     now: Date.now(), clock: TPL_EFFECT_CLOCK,
   });
@@ -3731,7 +3916,7 @@ function TornPaperPanel({ sdk, context, ui }: any) {
   const projectId = context?.projectId ?? null;
   const projectRef = React.useRef(projectId);
   projectRef.current = projectId;
-  const [roots, setRoots] = React.useState<{ plugin: string; data: string } | null>(null);
+  const [roots, setRoots] = React.useState<{ plugin: string; data: string | null } | null>(null);
   const [assets, setAssets] = React.useState<any>(null);
   const [inventory, setInventory] = React.useState<any>(null);
   // This Project's scene-search results { pid, best: { rid: seconds | null }, failed }; per rid, so a new clip
@@ -3760,6 +3945,10 @@ function TornPaperPanel({ sdk, context, ui }: any) {
   const busyRef = React.useRef<any>(null);
   // The running build's quick score stops on a Project switch or unmount (tplRunBuild's d.signal).
   const buildAbortRef = React.useRef<AbortController | null>(null);
+  // Own music's analysis in flight: a new track, a Project switch or unmount aborts it (decode and worker), and a result
+  // for an older request is dropped.
+  const ownAbortRef = React.useRef<AbortController | null>(null);
+  const ownRequestRef = React.useRef(0);
   const [step, setStep] = React.useState<{ say: Say } | null>(null);
   const [tools, setTools] = React.useState({ ffmpeg: true });
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
@@ -3844,32 +4033,26 @@ function TornPaperPanel({ sdk, context, ui }: any) {
       if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
     }
   }
-  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; buildAbortRef.current?.abort(); }; }, []);
+  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; buildAbortRef.current?.abort(); ownAbortRef.current?.abort(); }; }, []);
 
   // Mount and Project switch: reset per-Project state, resolve folders, read the bundled files, read the pictures.
   React.useEffect(() => {
     // Drop everything tied to the previous Project so a build never mixes Projects; a running build becomes stale.
     setFound(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false); setOnly(null);
     buildAbortRef.current?.abort(); buildAbortRef.current = null;
+    ownAbortRef.current?.abort(); ownAbortRef.current = null;
     photoSizesRef.current = { pid: projectId, sizes: {} }; measuringRef.current = false;
     busyRef.current = null; setBusy(false); setStep(null); setProgress(null); progressRef.current = null;
     if (!projectId) return;
     let alive = true;
     (async () => {
       try {
-        const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-        const [plugin, data] = String(where?.stdout || "").split("\n").map((x) => x.trim());
-        if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
+        const { plugin, data } = await locateRoots(sdk);
         if (!alive) return;
         setRoots({ plugin, data });
-        // ffmpeg is only needed for previews and own music (own music also fetches Node.js on first use); bundled cues work without it.
-        let have = "";
-        try {
-          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg", timeoutMs: 10000 });
-          have = String(probe?.stdout || "");
-        } catch { have = ""; }
-        if (!alive) return;
-        setTools({ ffmpeg: have.includes("ffmpeg") });
+        // The host's bundled ffmpeg (Runtime.runFFmpeg) and file reads are only needed for previews and own music, both
+        // through the data folder; bundled cues work without them.
+        setTools({ ffmpeg: !!hostApi("Runtime", "runFFmpeg") && !!hostApi("FileSystem", "readFile") && !!data });
         const read = (rel: string) => readText(plugin, rel);
         const [manifest, looks, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, tornTsx, lettersTsx] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/looks.json"), read("scripts/inventory.js"), read("scripts/search.js"),
@@ -3882,7 +4065,8 @@ function TornPaperPanel({ sdk, context, ui }: any) {
         setStep({ say: (l) => t(l, "checkingPictures") });
         await loadInventory(projectId, () => alive);
       } catch (e: any) {
-        if (alive) setStatus({ tone: "error", say: (l) => t(l, "startFailed", { detail: tplSayOf(l, e) }) });
+        const said = hostSay(e);
+        if (alive) setStatus({ tone: "error", say: (l) => t(l, "startFailed", { detail: said ? said(l) : tplSayOf(l, e) }) });
       } finally { if (alive) setStep(null); }
     })();
     // Project switch or unmount stops a preview, including one still being prepared.
@@ -3961,7 +4145,7 @@ function TornPaperPanel({ sdk, context, ui }: any) {
   const snap = (value: number) => tplSnapSection({ value, firstBeat: grid.firstBeat, bpm: sectionTempo == null ? grid.bpm : sectionTempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: sectionTempo != null });
   // The section the build uses (the plan re-clamps a numeric start to the nearest bar that fits).
   const sectionShown: number | null = !planCue ? null : plan?.ok ? plan.musicStart : grid.bpm == null ? null : snap(section === "default" ? (tplSectionStart(grid, "default", videoSeconds) ?? 0) : section);
-  const musicPath = !roots ? null : track === "own" ? (ownMusic ? ownMusic.path : null) : manifestCue ? roots.plugin + "/assets/cues/" + manifestCue.file : null;
+  const musicPath = !roots ? null : track === "own" ? (ownMusic ? ownMusic.path : null) : manifestCue ? hostJoin(roots.plugin, "assets", "cues", manifestCue.file) : null;
 
   // A new track starts at its most energetic bars again; Length and Pace keep a chosen start (re-clamped by the plan).
   React.useEffect(() => { setSection("default"); }, [track, ownGrid]);
@@ -3972,40 +4156,49 @@ function TornPaperPanel({ sdk, context, ui }: any) {
     if (!roots) return;
     await tplExclusive(busyRef, async () => {
       const pid = projectRef.current;
+      const request = ++ownRequestRef.current;
+      ownAbortRef.current?.abort();
+      const abort = typeof AbortController === "undefined" ? null : new AbortController();
+      ownAbortRef.current = abort;
+      const current = () => projectRef.current === pid && ownRequestRef.current === request && mountedRef.current;
       setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep({ say: (l) => t(l, "listening") });
+      let samples: Float32Array | null = null;
       try {
-        // The decoded PCM (up to ~32 MB) is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit
-        // status. The result goes to a file (a long track's onsets come close to the 48 KB shell output cap).
-        if (!nodePath) setStep({ say: (l) => t(l, "preparingTools") });
-        const node = await ensureNode(sdk);
-        setStep({ say: (l) => t(l, "listening") });
-        const pcm = roots.data + "/own-music.f32";
-        const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json")
-          + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
-        const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
-        const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
-        if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw done.error || r.stderr ? new Error(done.error || r.stderr) : uiError((l) => t(l, "beatFailed"));
-        const g = JSON.parse(await readText(roots.data, "own-music.json"));
-        if (projectRef.current !== pid) return;
+        // The host's ffmpeg decodes the track to mono f32le (a temporary file in the data folder, removed after reading);
+        // the kit's beat-detect.cjs (unmodified, from the install folder) analyses it in a Web Worker.
+        samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort ? abort.signal : null);
+        if (!samples) throw hostError("host-missing", "this Selects build has no Runtime.runFFmpeg", "Runtime.runFFmpeg");
+        if (!current()) return;
+        const source = tplBeatWorkerSource(await readText(roots.plugin, "beat-detect.cjs"));
+        const g = await analyseBeat(source, samples, abort ? abort.signal : null);
+        if (!current()) return;
+        if (!g || !(g.durationSeconds > 0)) throw uiError((l) => t(l, "beatFailed"));
         setOwnGrid(g);
         const approx = tplApproxTempo({ accepted: !!g.accepted, approxBpm: g.grid === "approximate" && g.bpm > 0 ? g.bpm : null });
         setStatus(g.accepted ? null
           : approx ? { tone: "info", say: (l) => t(l, "musicFaint", { bpm: Math.round(approx) }) }
           : { tone: "info", say: (l) => t(l, "musicFixedRhythm", { seconds: TPL_FALLBACK_UNIT }) });
       } catch (e: any) {
-        // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
-        let duration: number | null = null;
-        try {
-          const pr = await sdk.runShell({ summary: "Read the length of " + file.name, command: TOOL_PATH + "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " + sq(file.path), timeoutMs: 20000 });
-          const v = parseFloat(String(pr?.stdout || "").trim());
-          if (!pr?.isError && v > 0) duration = Math.min(v, 360);
-        } catch { duration = null; }
-        if (projectRef.current !== pid) return;
+        if (!current()) return;
+        // Without a grid the cuts use fixed timing, but the track's real length still bounds the section: the decoded
+        // samples' length, else the host's ffprobe.
+        let duration: number | null = samples && samples.length ? samples.length / OWN_RATE : null;
+        if (!duration) {
+          const v = await hostProbeSeconds(file.path);
+          duration = v ? Math.min(v, OWN_MAX_SECONDS) : null;
+        }
+        if (!current()) return;
+        const said = hostSay(e);
+        const detail = (l: Lang) => (said ? said(l) : tplSayOf(l, e));
         setOwnGrid({ accepted: false, grid: "none", durationSeconds: duration, peaks: [] });
         setStatus(duration
-          ? { tone: "info", say: (l) => t(l, "musicFixedRhythmDetail", { seconds: TPL_FALLBACK_UNIT, detail: tplSayOf(l, e) }) }
-          : { tone: "error", say: (l) => t(l, "musicUnreadable", { detail: tplSayOf(l, e) }) });
-      } finally { if (projectRef.current === pid) { setBusy(false); setStep(null); } }
+          ? { tone: "info", say: (l) => t(l, "musicFixedRhythmDetail", { seconds: TPL_FALLBACK_UNIT, detail: detail(l) }) }
+          : { tone: "error", say: (l) => t(l, "musicUnreadable", { detail: detail(l) }) });
+      } finally {
+        samples = null;
+        if (ownAbortRef.current === abort) ownAbortRef.current = null;
+        if (projectRef.current === pid) { setBusy(false); setStep(null); }
+      }
     });
   }
 
@@ -4028,27 +4221,17 @@ function TornPaperPanel({ sdk, context, ui }: any) {
     const live = () => previewTokenRef.current === token && mountedRef.current;
     setPlayState("loading");
     try {
-      // The whole section, written to a file (stdout is capped at 48 KB) and read back as base64 text. Earlier previews
-      // are removed first and the mp3 once encoded, so the data folder never collects them.
-      const dur = videoSeconds, base = roots.data + "/preview-" + token, file = musicPath;
-      const cmd = TOOL_PATH + "rm -f " + sq(roots.data) + "/preview-*.mp3 " + sq(roots.data) + "/preview-*.b64; "
-        + "ffmpeg -nostdin -v error -y -ss " + sectionShown.toFixed(3) + " -t " + dur.toFixed(2) + " -i " + sq(file)
-        + " -ac 1 -ar 22050 -b:a 48k -af \"afade=t=out:st=" + Math.max(0, dur - 0.12).toFixed(2) + ":d=0.12\" -f mp3 " + sq(base + ".mp3")
-        + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64") + " && rm -f " + sq(base + ".mp3");
-      const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 60000 });
+      // The section cut by the host's ffmpeg (mono mp3 with a short fade-out) into a temporary file in the data folder,
+      // read back as bytes and removed.
+      const dur = videoSeconds;
+      const bytes = await hostCutAudio(musicPath, roots.data, Number(sectionShown.toFixed(3)), Number(dur.toFixed(2)),
+        ["-ac", "1", "-ar", "22050", "-b:a", "48k", "-af", "afade=t=out:st=" + Math.max(0, dur - 0.12).toFixed(2) + ":d=0.12", "-f", "mp3"], "mp3", null)
+        .catch((e: any) => { throw e?.message ? e : uiError((l) => t(l, "previewNotCut")); });
       if (!live()) return;
-      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw r?.stderr ? new Error(r.stderr) : uiError((l) => t(l, "previewNotCut"));
-      const b64 = (await readText(roots.data, "preview-" + token + ".b64")).replace(/\s+/g, "");
-      void Promise.resolve(sdk.runShell({ summary: "Remove preview file", command: TOOL_PATH + "rm -f " + sq(base + ".b64"), timeoutMs: 10000 })).catch(() => {});
-      if (!live()) return;
-      if (b64.length < 200) throw uiError((l) => t(l, "noAudio"));
-      let url: string;
-      if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
-        const bin = atob(b64), bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
-        previewUrlRef.current = url;
-      } else url = "data:audio/mpeg;base64," + b64;
+      if (!bytes) throw hostError("host-missing", "this Selects build has no Runtime.runFFmpeg", "Runtime.runFFmpeg");
+      if (bytes.byteLength < 150) throw uiError((l) => t(l, "noAudio"));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+      previewUrlRef.current = url;
       const audio = new Audio(url);
       audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
       audioRef.current = audio;
@@ -4059,7 +4242,8 @@ function TornPaperPanel({ sdk, context, ui }: any) {
     } catch (e: any) {
       if (!live()) return;
       stopPreview();
-      setStatus({ tone: "error", say: (l) => t(l, "previewFailed", { detail: tplSayOf(l, e) }) });
+      const said = hostSay(e);
+      setStatus({ tone: "error", say: (l) => t(l, "previewFailed", { detail: said ? said(l) : tplSayOf(l, e) }) });
     }
   }
 
@@ -4230,7 +4414,7 @@ function TornPaperPanel({ sdk, context, ui }: any) {
           onChange={(v: string) => { setCueId(v); if (v !== "own") { setOwnMusic(null); setOwnGrid(null); } }} options={cueOptions} />
         {track === "own" && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
           onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
-        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "installTools")}</ui.Message> : null}
+        {!canOwnMusic && roots ? <ui.Message tone="muted">{t(L, "adapterNeeded", { name: "Runtime.runFFmpeg" })}</ui.Message> : null}
         {planCue ? (
           // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
           <div onKeyDown={(e) => { if (e.key === "Escape" && playState !== "idle") { e.preventDefault(); stopPreview(); } }}>
@@ -4276,7 +4460,7 @@ function TornPaperPanel({ sdk, context, ui }: any) {
               <ui.Button variant="ghost" disabled={busy || selected.length === 0} onClick={() => choose([])}>{t(L, "none")}</ui.Button>
             </ui.Row>
             {/* One row per picture: the name truncates, the kind and shape stay visible; long lists scroll inside. */}
-            <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
+            <div style={{ maxHeight: 220, overflowY: "auto", scrollbarGutter: "stable", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
               {[...photoList, ...clipList].map((r: any) => {
                 const isPhoto = r.kind === "photo";
                 const off = busy || (!isPhoto && !useVideos);

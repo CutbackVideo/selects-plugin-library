@@ -51,6 +51,7 @@ jobs:
           node plugins/torn-paper-love/tests/scripts-read.test.cjs
           node plugins/torn-paper-love/tests/torn.test.cjs
           node plugins/torn-paper-love/tests/transitions.test.cjs
+          node plugins/torn-paper-love/tests/windows.test.cjs
       - name: Test Archive Vlog
         run: |
           node plugins/archive-vlog/tests/allocate.test.cjs

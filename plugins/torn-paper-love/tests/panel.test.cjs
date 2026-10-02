@@ -49,24 +49,33 @@ assert.ok(JSON.parse(read('plugin.json')).files.includes('panel.tsx'), 'plugin.j
 
 // ---- Installed roots: every script and asset the panel reads, from the skills folder.
 assert.ok(panel.includes('const PLUGIN_ID = "torn-paper-love";'));
-assert.ok(panel.includes('"$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID') && panel.includes('"$HOME/.selects/plugin-data/" + PLUGIN_ID'), 'skills and data roots');
+// Install and data folders through the host's FileSystem (tpl-host hostRoots; tests/windows.test.cjs runs it).
+assert.ok(panel.includes('const locateRoots = (sdk: any) => hostRoots(sdk, PLUGIN_ID, "planner.js");'), 'skills and data roots');
 for (const rel of ['scripts/inventory.js', 'scripts/search.js', 'scripts/ensure-audio.js', 'scripts/assemble.js', 'scripts/decorate.js', 'assets/torn-photo.tsx',
   'assets/ransom-letters.tsx', 'assets/fonts/looks.json', 'assets/cues/manifest.json']) {
   assert.ok(panel.includes('read("' + rel + '")'), 'panel reads ' + rel);
   assert.ok(fs.existsSync(path.join(root, rel)), rel + ' exists');
 }
 assert.ok(panel.includes('"assets/fonts/tpl-" + face + ".woff2.b64"'), 'fonts from the installed folder');
-assert.ok(panel.includes('roots.plugin + "/beat-detect.cjs"') && panel.includes('roots.plugin + "/assets/cues/" + '), 'beat detection and cues from the installed folder');
+assert.ok(panel.includes('tplBeatWorkerSource(await readText(roots.plugin, "beat-detect.cjs"))') && panel.includes('hostJoin(roots.plugin, "assets", "cues", manifestCue.file)'), 'beat detection and cues from the installed folder');
+assert.ok(panel.includes('async function readText(root: string, rel: string) { return hostReadText(hostJoin(root, ...rel.split("/"))); }'), 'reads join each path part');
 
-// ---- Host helpers copied from City Weekend Vlog.
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Finder PATH prefix, no nvm hunting');
-// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
-assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
-assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
+// ---- Host I/O (kit references/windows.md; the no-shell rules are in tests/windows.test.cjs).
+// Own music: the host's ffmpeg decodes mono f32le at 22.05 kHz, the kit's beat-detect.cjs analyses it in a Web Worker.
+assert.ok(panel.includes('const OWN_RATE = 22050;') && panel.includes('const OWN_MAX_SECONDS = 360;'), 'own-music decode settings (dev/beat-parity.cjs reads them)');
+assert.ok(panel.includes('samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort ? abort.signal : null);'), 'own music decoded by the host ffmpeg');
+assert.ok(panel.includes('const g = await analyseBeat(source, samples, abort ? abort.signal : null);'), 'own music analysed in the worker');
+assert.ok(panel.includes('const BEAT_TIMEOUT_MS = 60000;') && panel.includes('err.code = "beat-timeout"'), 'a worker that never answers times out');
+// Cancellable: a new track, a Project switch or unmount aborts the analysis; stale results are dropped.
+assert.ok(panel.includes('const request = ++ownRequestRef.current;') && panel.includes('ownRequestRef.current === request') && (panel.match(/ownAbortRef\.current\?\.abort\(\)/g) || []).length === 3, 'own-music request id and aborts');
+// Failures fall back to fixed timing with the track's length (decoded samples, else ffprobe); the build never waits.
+assert.ok(panel.includes('let duration: number | null = samples && samples.length ? samples.length / OWN_RATE : null;') && panel.includes('const v = await hostProbeSeconds(file.path);'), 'fixed-timing fallback keeps the length');
 assert.equal(read('runtime.sh'), fs.readFileSync(path.join(root, '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
-for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/]) assert.ok(re.test(panel), String(re));
-assert.ok(!/dq\((file|ownMusic|roots|musicPath)/.test(panel), 'user paths are single-quoted');
-assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))'), 'own-music analysis via a file (48 KB stdout)');
+assert.ok(!panel.includes('runtime.sh'), 'nothing in the panel runs runtime.sh (no Node.js at runtime)');
+// The music tools are the host's: feature-detected, never probed in a shell; without them own music and the preview
+// hide behind one "needs an updated adapter" message.
+assert.ok(panel.includes('setTools({ ffmpeg: !!hostApi("Runtime", "runFFmpeg") && !!hostApi("FileSystem", "readFile") && !!data });'), 'feature-detected ffmpeg');
+assert.ok(panel.includes('t(L, "adapterNeeded", { name: "Runtime.runFFmpeg" })'), 'one message without the host ffmpeg');
 // Own music with a faint beat (beat-detect grid 'approximate'): the cue carries approxBpm (through tplApproxTempo, so a
 // tempo without a unit falls back to the fixed 0.35 s) and the detected first beat; the section slider snaps to the
 // bars of that tempo like the plan (tplSectionTempo); the status says the cuts follow its tempo.
@@ -76,7 +85,7 @@ assert.ok(panel.includes('const sectionTempo = tplSectionTempo(grid);') && panel
 says('musicFaint', 'Music added; its beat is faint, so cuts follow its tempo ({bpm} BPM) without locking to every beat.');
 assert.ok(code.includes('t(l, "musicFaint", { bpm: Math.round(approx) })'), 'faint-beat status');
 assert.ok(!/grid\.accepted \? \(tplBarBeats/.test(panel) && !/gridAccepted: grid\.accepted \}\);\n/.test(panel.slice(panel.indexOf('// tpl-config:end'))), 'no accepted-only section snap left in the panel');
-assert.ok(panel.includes('preview-*.mp3') && panel.includes('readText(roots.data, "preview-"'), 'preview audio via a file');
+assert.ok(panel.includes('const bytes = await hostCutAudio(musicPath, roots.data, ') && panel.includes('new Blob([bytes], { type: "audio/mpeg" })'), 'preview audio cut by the host ffmpeg, played from bytes');
 assert.match(panel, /No valid session ID/);
 assert.ok(/!allowCommit && \/No valid session ID\//.test(panel), 'only non-committing calls are resent');
 // Inventory refresh: poll while analysing, focus/visibility, Refresh button; hooks before the early return.
@@ -163,10 +172,13 @@ assert.ok(code.includes('<div lang={L} style={L === "ko" ? { wordBreak: "keep-al
 // Every preview font stack ends with the Korean system face of its role, before the generic family.
 {
   const stacks = code.slice(code.indexOf('const PREVIEW_FACE_STACK'), code.indexOf('// Backdrop swatches'));
-  for (const face of ['didone', 'serif', 'slab']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"AppleMyungjo\", serif'"), face);
-  for (const face of ['condensed', 'black']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"Apple SD Gothic Neo\", sans-serif'"), face);
-  assert.match(stacks, /typewriter: '[^']*"Apple SD Gothic Neo", monospace'/);
-  assert.match(stacks, /PREVIEW_FALLBACK_STACK = '[^']*"AppleMyungjo", serif'/);
+  // macOS, Windows and Noto Korean faces of the role (kit references/i18n.md, windows.md rule 5).
+  for (const face of ['didone', 'serif', 'slab']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"AppleMyungjo\", \"Batang\", \"Noto Serif KR\", serif'"), face);
+  for (const face of ['condensed', 'black']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"Apple SD Gothic Neo\", \"Malgun Gothic\", \"Noto Sans KR\", sans-serif'"), face);
+  assert.match(stacks, /typewriter: '[^']*"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", monospace'/);
+  assert.match(stacks, /PREVIEW_FALLBACK_STACK = '[^']*"AppleMyungjo", "Batang", "Noto Serif KR", serif'/);
+  // Every stack names a Latin face Windows ships before the Korean faces.
+  for (const line of stacks.split('\n').filter(l => /: '|_STACK = '/.test(l))) assert.match(line, /Georgia|"Times New Roman"|Arial|Impact|"Courier New"/, line);
 }
 assert.ok(/setInterval\(\(\) => setTick\(\(n\) => n \+ 1\), 350\)/.test(panel), 'letters re-style every 350 ms in the preview');
 {
@@ -195,7 +207,7 @@ assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capt
   // kit's own test (tests/quick-score.test.cjs, copied unchanged) checks the block.
   const kitFile = path.join(process.env.SELECTS_APP_KIT || path.join(require('node:os').homedir(), 'Workspaces', 'selects-app-kit'), 'tools', 'panel', 'quick-score.js');
   if (fs.existsSync(kitFile)) assert.equal(block, fs.readFileSync(kitFile, 'utf8').replace(/\n+$/, ''), 'the quick-score block is the kit file, byte for byte');
-  const helper = panel.slice(panel.indexOf('function tplQuickDataDir('), panel.indexOf('// Double quotes let $HOME'));
+  const helper = panel.slice(panel.indexOf('function tplQuickDataDir('), panel.indexOf('// tpl-host:start'));
   const quickLogic = between(panel, 'tpl-panel-logic', true).slice(panel.indexOf('async function tplQuickMoments(') - panel.indexOf('// tpl-panel-logic:start'));
   for (const [name, text] of [['quick-score block', block], ['tplQuickDataDir', helper], ['tplQuickMoments', quickLogic]]) {
     assert.ok(text.length > 100, name);
@@ -364,7 +376,8 @@ const tick = () => new Promise(r => setImmediate(r));
     const out = await P.tplRunBuild(f, h);
     assert.deepEqual(kinds(h), ['ENSURE', 'DRAFTS', 'ASSEMBLE', 'DECORATE', 'OPEN'], 'photos only: no inventory re-read, no search');
     const state = P.tplPlanState({ projectId: 'proj', inv: f.inventory, found: { best: {} }, cue, options, now: f.now });
-    assert.deepEqual(h.calls[0].cfg, { projectId: 'proj', path: '/installed/assets/cues/' + cue.file });
+    // The cue's length rides along so ensure-audio can match it by file name (windows.md rule 4).
+    assert.deepEqual(h.calls[0].cfg, { projectId: 'proj', path: '/installed/assets/cues/' + cue.file, duration: cue.duration });
     assert.ok(h.calls[0].allowCommit && h.calls[2].allowCommit && h.calls[3].allowCommit, 'commit calls allow commits');
     assert.ok(!h.calls[1].allowCommit && !h.calls[4].allowCommit, 'reads do not');
     assert.deepEqual(h.calls[2].cfg, j(P.tplAssembleConfig(state, { resourceId: 'music-1' })), 'assemble config = tplAssembleConfig');

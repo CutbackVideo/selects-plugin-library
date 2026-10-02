@@ -131,8 +131,9 @@ already within a frame of the grid.
 With **No music** the panel says "the cuts keep a steady 0.35 s rhythm". If a
 track is too short to hold even 3 pictures from the section start, Build is
 disabled with "This track needs at least X s from the section start". Your own
-music and the previews need ffmpeg; your own music also runs on
-a pinned Node.js, which the panel downloads the first time (see [INSTALL.md](INSTALL.md)). The bundled tracks work without them.
+music and the previews use the ffmpeg built into Selects, and the beat of your
+own music is found inside the panel, so nothing needs installing on macOS or
+Windows (see [INSTALL.md](INSTALL.md)).
 
 ## Pictures
 
@@ -232,14 +233,16 @@ detail after an error message stay in English.
 - The pre-filled words "MY" and "LOVE" stay English in every language. Type
   over them to change them.
 - The bundled typefaces have no Korean letters, so each Korean letter sits on
-  a plain white chip in the macOS system font **AppleMyungjo**. The Latin
+  a plain white chip in the system serif font: **AppleMyungjo** on macOS,
+  **Batang** on Windows (else Noto Serif KR when installed). The Latin
   letters around it keep their changing looks; the Korean chips keep theirs
   (Re-style does not change them).
 - Korean letters are never set in capitals, letter-spaced or squeezed. They
   are measured as wide letters, so a word shrinks to fit its side as Latin
   words do; in the panel a Korean character counts as 2 of a word's 8.
-- Korean letters need macOS, where Selects and its export run. Style-matched
-  Korean typefaces are planned for a later version.
+- Exports made on macOS and on Windows show Korean letters in different
+  system fonts. Style-matched, bundled Korean typefaces are planned for a later
+  version.
 
 **Inspector labels** of the Torn photo effect and the Ransom letters graphic
 are written into the Draft in the panel's language at the time of the build.
@@ -272,10 +275,9 @@ graphic names (Torn photo, Ransom letters) stay English.
 
 ## Requirements
 
-- Selects with Draft authoring and Panel `runScript` / `runShell`.
+- Selects on macOS (Apple silicon) or Windows (x64), with Draft authoring and
+  Panel `runScript`. Nothing else to install (see [INSTALL.md](INSTALL.md)).
 - A Project with at least 3 photos or video clips (analysis is optional).
-- Optional: ffmpeg, for music previews and your own music (which also
-  downloads a pinned Node.js the first time) (see [INSTALL.md](INSTALL.md)).
 
 ## Gallery
 
