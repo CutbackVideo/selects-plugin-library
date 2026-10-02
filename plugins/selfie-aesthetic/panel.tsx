@@ -1482,6 +1482,25 @@ const SAE_WHIP_INNER = 0.6;
 const SAE_WHIP_SUBTLE = 0.35;
 const SAE_WHIP_FINALE = 0.75;
 const SAE_WHIP_SUBTLE_MIN_BARS = 4;
+// Unanalysed clips (opts.analysed[rid] === false; spec "build without analysis"): no scene search, so no face
+// evidence and no bad-shot spans. Their moments come from the kit's quick local score (opts.local[rid], a
+// quickScore result) through opts.pickLocal (the kit's pickWindowsLocal, passed in so this file stays plain): windows
+// of the moment length ranked for role 'still' (this is a stillness style: sharp, well exposed, the lowest motion;
+// black / fade / flash windows and windows with a scene cut inside are left out while others fit), at most
+// SAE_LOCAL_MAX_WINDOWS per clip, best first. Moment score = its 'still' score (0-1). Pairs: A and B at least
+// max(SAE_PAIR_GAP, window) apart, + SAE_LOCAL_SEP_BONUS when at least SAE_PAIR_SEP apart or a scene cut lies between
+// them (visibly different poses). Key bars (bar 0 and the finale) add SAE_LOCAL_KEY_WEIGHT * the 'steady' scores of
+// both moments (steadier, well-exposed windows). Without a usable score (no result, the kit's fallback result, or no
+// pickLocal) a clip gets evenly spaced moments every SAE_FILLER_STEP from SAE_LOCAL_HEAD (the kit's QS_HEAD: stock
+// clips often fade in), all scored 0, so the farthest-apart pair comes first; it still builds.
+// Allocation treats unanalysed clips as likely close-ups ranked after the analysed face clips: tier 1 is "face or
+// unanalysed" (least-used first; at equal use every face clip before any unanalysed one, unanalysed ones by `norm`,
+// the rank of their clip quality within the unanalysed group, 0-1), then photos, then analysed non-face clips.
+// Without opts.analysed (or with every rid analysed) every plan is exactly as before.
+const SAE_LOCAL_HEAD = 0.5;
+const SAE_LOCAL_MAX_WINDOWS = 40;
+const SAE_LOCAL_SEP_BONUS = 0.1;
+const SAE_LOCAL_KEY_WEIGHT = 0.5;
 
 const saeFinite = v => typeof v === 'number' && isFinite(v);
 
@@ -1598,7 +1617,9 @@ function saeSchedule(opts) {
 
 // Moments (spec "Moments"). opts: { candidates: [{ rid, role, t, score }], durations: { [rid]: seconds },
 // badSpans?: { [rid]: [[s, e], ...] }, fps, beatSeconds (window length: the longest hold a moment plays),
-// margin? (default SAE_FACE_MARGIN), motion?, stillWeight? (default SAE_STILL_WEIGHT; see SAE_STILL_WEIGHT) }.
+// margin? (default SAE_FACE_MARGIN), motion?, stillWeight? (default SAE_STILL_WEIGHT; see SAE_STILL_WEIGHT),
+// analysed?: { [rid]: false for a clip without analysis }, local?: { [rid]: quickScore result }, pickLocal? (the kit's
+// pickWindowsLocal; see SAE_LOCAL_HEAD) }.
 // Per clip (every rid in durations, sorted): faceScore = max over face-role hits of (score - best control score), null
 // without face or control hits; face = faceScore > margin. Candidate times: every hit time (any score) plus fillers;
 // a time t is kept when its window [s, s + beatSeconds] (s = t snapped down to a whole frame, and no earlier than the
@@ -1610,7 +1631,8 @@ function saeSchedule(opts) {
 // farthest-apart times, or one time twice), marked relaxed and scored below every real pair.
 // Pair scores also lose SAE_GESTURE_MILD per gesture-dominated moment (see SAE_ROLE_TOP).
 // Returns { clips: [{ rid, duration, face, faceScore, control, pose, gesture, handTop, times, pairs: [{ a, b, score,
-// gesture, pose, still, relaxed? }] }], faceCount }.
+// gesture, pose, still, relaxed? }] }], faceCount, localCount }. An unanalysed clip (saeLocalClip) also carries
+// local: true, fallback, quality, norm, steadyNorm, and its pairs local: true and steady.
 function saeMoments(opts) {
   const fps = opts.fps, win = opts.beatSeconds;
   if (!(fps > 0) || !(win > 0)) throw Error('saeMoments needs fps and beatSeconds');
@@ -1619,6 +1641,7 @@ function saeMoments(opts) {
   const head = Math.max(SAE_HEAD_FRAMES, Math.round(SAE_WHIP_SECONDS * fps) + 1);
   const still = saeFinite(opts.stillWeight) ? Math.max(0, opts.stillWeight) : SAE_STILL_WEIGHT;
   const motionOf = opts.motion || {};
+  const analysedOf = opts.analysed || {};
   const byRid = {};
   for (const c of opts.candidates || []) {
     if (!c || typeof c.rid !== 'string' || !saeFinite(c.t) || !saeFinite(c.score)) continue;
@@ -1628,6 +1651,7 @@ function saeMoments(opts) {
   for (const rid of Object.keys(durations).sort()) {
     const dur = durations[rid];
     if (!saeFinite(dur) || !(dur > 0)) continue;
+    if (analysedOf[rid] === false) { clips.push(saeLocalClip(rid, dur, fps, win, head, opts)); continue; }
     const hits = byRid[rid] || [];
     let control = null, best = null;
     for (const h of hits) if (h.role === 'control' && (control === null || h.score > control)) control = h.score;
@@ -1729,7 +1753,95 @@ function saeMoments(opts) {
     }
     clips.push({ rid, duration: dur, face, faceScore, control, pose, gesture, handTop, times: list.length, pairs });
   }
-  return { clips, faceCount: clips.filter(c => c.face && c.pairs.length).length };
+  saeLocalNorm(clips);
+  return { clips, faceCount: clips.filter(c => c.face && c.pairs.length).length, localCount: clips.filter(c => c.local && c.pairs.length).length };
+}
+
+// One unanalysed clip's moments and pairs (see SAE_LOCAL_HEAD). head: the head handle in frames.
+function saeLocalClip(rid, dur, fps, win, head, opts) {
+  const res = opts.local && opts.local[rid];
+  const pick = typeof opts.pickLocal === 'function' ? opts.pickLocal : null;
+  const startOf = t => {
+    if (!(t >= 0)) return null;
+    const f = Math.max(head, Math.floor(t * fps + 1e-6));
+    const s = f / fps;
+    return s + win > dur - SAE_SOURCE_TAIL + 1e-9 ? null : { f, s };
+  };
+  const times = new Map(); // frame -> { t, score, steady }
+  let fallback = true;
+  if (res && !res.fallback && pick) {
+    const steadyAt = {};
+    for (const w of pick(res, 'steady', win) || []) if (w && saeFinite(w.start) && saeFinite(w.score)) steadyAt[w.start.toFixed(3)] = w.score;
+    const still = (pick(res, 'still', win) || []).filter(w => w && saeFinite(w.start) && saeFinite(w.score));
+    for (const w of still) {
+      if (times.size >= SAE_LOCAL_MAX_WINDOWS) break;
+      const st = startOf(w.start);
+      if (!st || times.has(st.f)) continue;
+      times.set(st.f, { t: st.s, score: w.score, steady: steadyAt[w.start.toFixed(3)] || 0 });
+    }
+    fallback = times.size === 0;
+  }
+  if (fallback) {
+    const grid = [];
+    for (let k = 0; SAE_LOCAL_HEAD + k * SAE_FILLER_STEP <= dur + 1e-9; k++) { const st = startOf(SAE_LOCAL_HEAD + k * SAE_FILLER_STEP); if (st) grid.push(st); }
+    const keep = grid.length <= SAE_MAX_FILLERS ? grid
+      : Array.from({ length: SAE_MAX_FILLERS }, (_, j) => grid[Math.round(j * (grid.length - 1) / (SAE_MAX_FILLERS - 1))]);
+    for (const st of keep) if (!times.has(st.f)) times.set(st.f, { t: st.s, score: 0, steady: 0 });
+  }
+  const list = Array.from(times.values()).sort((p, q) => p.t - q.t);
+  const cuts = res && Array.isArray(res.sceneCuts) ? res.sceneCuts.filter(saeFinite) : [];
+  const gap = Math.max(SAE_PAIR_GAP, win);
+  const all = [];
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const p = list[i], q = list[j];
+      if (q.t - p.t < gap - 1e-9) continue;
+      const apart = q.t - p.t >= SAE_PAIR_SEP - 1e-9 || cuts.some(c => c > p.t + win - 1e-9 && c < q.t + 1e-9);
+      const aFirst = p.score >= q.score;
+      all.push({ a: aFirst ? p.t : q.t, b: aFirst ? q.t : p.t, score: p.score + q.score + (apart ? SAE_LOCAL_SEP_BONUS : 0), sep: q.t - p.t, early: p.t,
+        quality: (p.score + q.score) / 2, steady: p.steady + q.steady });
+    }
+  }
+  all.sort((p, q) => q.score - p.score || q.sep - p.sep || p.early - q.early || p.a - q.a);
+  const out = p => ({ a: p.a, b: p.b, score: p.score, gesture: 0, pose: 0, still: null, roles: [null, null], local: true, steady: p.steady });
+  const pairs = [], usedTimes = [];
+  const near = t => usedTimes.some(u => Math.abs(u - t) < SAE_MOMENT_NEAR - 1e-9);
+  for (const p of all) {
+    if (pairs.length >= SAE_MAX_PAIRS) break;
+    if (near(p.a) || near(p.b)) continue;
+    pairs.push(out(p));
+    usedTimes.push(p.a, p.b);
+  }
+  for (const p of all) {
+    if (pairs.length >= SAE_MAX_PAIRS) break;
+    if (pairs.some(x => x.a === p.a && x.b === p.b)) continue;
+    pairs.push(out(p));
+  }
+  if (!pairs.length && list.length) {
+    const p = list[0], q = list[list.length - 1];
+    pairs.push({ a: p.t, b: q.t, score: p.score + q.score - 100, relaxed: true, gesture: 0, pose: 0, still: null, roles: [null, null], local: true, steady: p.steady + q.steady });
+  }
+  const quality = all.length ? Math.max(...all.map(p => p.quality)) : 0;
+  const steadyBest = all.length ? Math.max(...all.map(p => p.steady)) : 0;
+  return { rid, duration: dur, face: false, faceScore: null, control: null, pose: null, gesture: null, handTop: 0, times: list.length, pairs,
+    local: true, fallback, quality, steadyBest, norm: 0, steadyNorm: 0 };
+}
+
+// Rank normalisation of the unanalysed clips within their group (spec "mixed projects": one comparable 0-1 scale):
+// norm = the rank of the clip quality (best pair's mean 'still' score), steadyNorm = the rank of the best pair's
+// 'steady' scores; ties share their mean rank; a single clip is 1. Analysed clips keep their scene-search scores,
+// which only ever compete with each other (the tier order keeps the groups apart).
+function saeLocalNorm(clips) {
+  const local = clips.filter(c => c.local);
+  const rank = (key, out) => {
+    const sorted = local.map(c => c[key]).sort((x, y) => x - y);
+    for (const c of local) {
+      const lo = sorted.indexOf(c[key]), hi = sorted.lastIndexOf(c[key]);
+      c[out] = local.length > 1 ? (lo + hi) / 2 / (local.length - 1) : 1;
+    }
+  };
+  rank('quality', 'norm');
+  rank('steadyBest', 'steadyNorm');
 }
 
 // The pair fields saeMoments returns: { a, b, score, gesture (gesture-dominated moments, 0-2), pose (summed near
@@ -1810,8 +1922,8 @@ function saePhotoBars(bars, count, seed, innerOnly) {
 // Photo bars: round(bars / 3) (capped by the photos; Short edits see SAE_PHOTO_SHORT_BARS), bars
 // SAE_PHOTO_FIRST_BAR..bars-2 only while any video exists, at most SAE_PHOTO_RUN_MAX in a row: photos are a default
 // style element. Every other bar takes, in this order:
-//   1. a face clip used fewer than SAE_FACE_MAX_USES times, least-used first (every face clip once before any face
-//      repeat), then by face score plus a seeded jitter;
+//   1. a face clip (or an unanalysed clip, after the face clips; see SAE_LOCAL_HEAD) used fewer than SAE_FACE_MAX_USES
+//      times, least-used first (every face clip once before any face repeat), then by face score plus a seeded jitter;
 //   2. an extra (unused) photo, while the run limit allows (same bars as above; Short: within its photo cap);
 //   3. a non-face clip, least-used first;
 //   4. a face clip beyond SAE_FACE_MAX_USES uses (last resort before shrinking).
@@ -1833,7 +1945,7 @@ function saeAllocate(opts) {
   const sources = vids.length + pics.length;
   if (!sources || !(N >= 1)) return { ok: false, bars: [], uses: {}, photoBars: 0, failedAt: 0 };
   const short = N <= SAE_PHOTO_SHORT_BARS;
-  const faceVids = vids.filter(c => c.face).length;
+  const faceVids = vids.filter(c => c.face || c.local).length;
   const photoRelax = opts.photoRelax > 0 ? opts.photoRelax : 0;
   const photoMax = short && !photoRelax ? (faceVids < SAE_PHOTO_SHORT_FACES ? SAE_PHOTO_SHORT_MAX : 0) : Infinity;
   const photoCount = Math.min(pics.length, photoMax, Math.round(N * SAE_PHOTO_SHARE));
@@ -1868,8 +1980,10 @@ function saeAllocate(opts) {
     for (const c of vids) {
       if (!keep(c) || !notPrev(c.rid) || !hasPair(c)) continue;
       const u = uses[c.rid] || 0;
-      // Clips without selfie / expression hits keep the plain order (below every clip with a key score).
-      const v = key && saeFinite(c.pose)
+      // Clips without selfie / expression hits keep the plain order (below every clip with a key score); unanalysed
+      // clips come after every analysed face clip (see SAE_LOCAL_HEAD).
+      const v = c.local ? (key ? -2 + 0.5 * c.steadyNorm + SAE_KEY_JITTER * saeHash(seed + ':key:' + c.rid + ':' + u) : -1 + 0.5 * c.norm + SAE_CLIP_JITTER * saeHash(seed + ':clip:' + c.rid + ':' + u))
+        : key && saeFinite(c.pose)
         ? c.pose - c.handTop + SAE_KEY_JITTER * saeHash(seed + ':key:' + c.rid + ':' + u)
         : (saeFinite(c.faceScore) ? c.faceScore : -1) + SAE_CLIP_JITTER * saeHash(seed + ':clip:' + c.rid + ':' + u) - (key ? 1 : 0) +
           (!key && saeFinite(c.pose) ? SAE_GESTURE_CLIP_MILD * (c.pose - c.handTop) : 0);
@@ -1881,17 +1995,19 @@ function saeAllocate(opts) {
     c.pairs.forEach((p, i) => {
       const reused = !!usedSet[i];
       if (reused && !opts.allowPairReuse) return;
-      const keyed = key ? SAE_KEY_POSE_WEIGHT * (p.pose || 0) - SAE_GESTURE_KEY * (p.gesture || 0) - (saeFinite(p.still) ? SAE_KEY_STILL_WEIGHT * p.still : 0) : 0;
+      const keyed = !key ? 0 : p.local ? SAE_LOCAL_KEY_WEIGHT * (p.steady || 0)
+        : SAE_KEY_POSE_WEIGHT * (p.pose || 0) - SAE_GESTURE_KEY * (p.gesture || 0) - (saeFinite(p.still) ? SAE_KEY_STILL_WEIGHT * p.still : 0);
       const v = p.score + keyed + SAE_PAIR_JITTER * saeHash(seed + ':pair:' + c.rid + ':' + i) - (reused ? 1000 : 0);
       if (!bp || v > bp.v + 1e-12) bp = { i, v };
     });
     return { kind: 'video', rid: c.rid, pair: c.pairs[bp.i], pairIndex: bp.i };
   };
+  // Unanalysed clips (c.local) sit with the face clips (see SAE_LOCAL_HEAD); with none, these are the analysed tiers.
   const tiers = [
-    k => pickVideo(c => c.face && (uses[c.rid] || 0) < SAE_FACE_MAX_USES, k),
+    k => pickVideo(c => (c.face || c.local) && (uses[c.rid] || 0) < SAE_FACE_MAX_USES, k),
     () => pickPhoto(false),
-    k => pickVideo(c => !c.face, k),
-    k => pickVideo(c => c.face, k),
+    k => pickVideo(c => !c.face && !c.local, k),
+    k => pickVideo(c => c.face || c.local, k),
   ];
   for (let k = 0; k < N; k++) {
     bar = k;
@@ -1987,12 +2103,15 @@ function saeSnapSection(sec, cue, opts) {
 // The whole plan. opts: { fps, bars (wanted; SAE_LENGTHS), seed (default 1), cue (manifest entry or own-music
 // analysis { bpm, firstBeat, grid, downbeat?, durationSeconds, defaultSection?, onsets?, onsetThresholds? }; null = no
 // music), sectionStart? (default saeDefaultSection), candidates, durations, badSpans?, photos?, usePhotos? (default
-// true), margin?, motion?, stillWeight? (saeMoments: the stillness penalty, off by default) }.
+// true), margin?, motion?, stillWeight? (saeMoments: the stillness penalty, off by default), analysed?, local?,
+// pickLocal? (saeMoments: clips without analysis, see SAE_LOCAL_HEAD) }.
 // Tries the wanted bar count (capped so the video ends before the music's fade-out), then fewer (down to SAE_MIN_BARS)
 // until the sources fill every bar under the rules; a pool too small even for that builds SAE_MIN_BARS bars with
 // adjacency / pair reuse relaxed.
 // Returns the plan (contract in plan.md) with ok: true, or { ok: false, notes: ['no-sources' | 'music-too-short'] }.
-// Notes: 'few-face' (fewer face clips than bars), 'reused' (a source fills more than one bar), 'shrunk', 'photos-early'
+// With unanalysed clips in the pool the plan also has localClips (usable unanalysed clips) and localFallback (those
+// planned from evenly spaced moments because no quick score was available).
+// Notes: 'few-face' (fewer face clips plus unanalysed clips than video bars), 'reused' (a source fills more than one bar), 'shrunk', 'photos-early'
 // (photos relaxed into bar 1 / the finale to avoid shrinking), 'fixed-tempo'
 // (music without a usable beat), 'no-music', 'adjacent' / 'pair-reuse' (relaxations used).
 function saePlanBuild(opts) {
@@ -2025,7 +2144,7 @@ function saePlanBuild(opts) {
   // assemble.js never slides a window back.
   const beatSeconds = spb + SAE_LEAD + 2 / fps + (snap ? SAE_SNAP_WINDOW : 0);
   const moments = saeMoments({ candidates: opts.candidates, durations: opts.durations, badSpans: opts.badSpans, fps, beatSeconds, margin: opts.margin,
-    motion: opts.motion, stillWeight: opts.stillWeight });
+    motion: opts.motion, stillWeight: opts.stillWeight, analysed: opts.analysed, local: opts.local, pickLocal: opts.pickLocal });
   const base = { clips: moments.clips, photos: opts.photos, seed, usePhotos: opts.usePhotos };
   let alloc = null, bars = 0;
   const relax = [];
@@ -2047,10 +2166,10 @@ function saePlanBuild(opts) {
   if (!alloc) return { ok: false, notes: ['no-sources'], fit: { bars: 0, wanted }, faceClips: moments.faceCount };
   const sched = saeSchedule({ editBpm, fps, bars, sectionStart: cue ? sectionStart : undefined, snap,
     onsets: cue && cue.onsets, onsetThresholds: cue && cue.onsetThresholds });
-  // Framing per hold: photos full (A) / punch (B); face-clip videos 'tight' (a zoom toward the upper middle, where
-  // selfie faces sit); other videos 'full'.
+  // Framing per hold: photos full (A) / punch (B); face-clip videos and unanalysed (likely close-up) videos 'tight'
+  // (a zoom toward the upper middle, where selfie faces sit); other videos 'full'.
   const faceRid = {};
-  for (const c of moments.clips) if (c.face) faceRid[c.rid] = true;
+  for (const c of moments.clips) if (c.face || c.local) faceRid[c.rid] = true;
   const raw = sched.holds.map(h => {
     const b = alloc.bars[h.bar];
     const photo = b.kind === 'photo';
@@ -2061,9 +2180,10 @@ function saePlanBuild(opts) {
   });
   const holds = saeWhipKinds(raw, seed);
   const notes = [];
-  // 'few-face': fewer face clips than video bars, so other clips or repeats fill them (the panel's "Only N close-up
-  // clips found" note, N = faceClips).
-  if (moments.faceCount < alloc.bars.filter(b => b.kind === 'video').length) notes.push('few-face');
+  // 'few-face': fewer face clips (plus unanalysed clips, the likely close-ups) than video bars, so other clips or
+  // repeats fill them (the panel's "Only N close-up clips found" note, N = faceClips, or N = faceClips + localClips
+  // when unanalysed clips took part).
+  if (moments.faceCount + moments.localCount < alloc.bars.filter(b => b.kind === 'video').length) notes.push('few-face');
   if (Object.keys(alloc.uses).some(r => alloc.uses[r] > 1)) notes.push('reused');
   if (bars < wanted) notes.push('shrunk');
   if (!cue) notes.push('no-music'); else if (tempo.fixed) notes.push('fixed-tempo');
@@ -2075,6 +2195,8 @@ function saePlanBuild(opts) {
     bars, totalFrames: sched.totalFrames, holds, cuts: sched.cuts, cutSecondsRaw: sched.cutSecondsRaw, cutSeconds: sched.cutSeconds,
     beats: sched.beats, notes, fit: { bars, wanted }, faceClips: moments.faceCount, photoBars: alloc.photoBars, seed,
     snapLog: sched.snapLog,
+    // Only with unanalysed clips in the pool, so plans without them stay byte-identical.
+    ...(moments.localCount ? { localClips: moments.localCount, localFallback: moments.clips.filter(c => c.local && c.fallback && c.pairs.length).length } : {}),
   };
 }
 
@@ -2083,6 +2205,7 @@ if (typeof module !== 'undefined' && module && module.exports) {
     SAE_LEAD, SAE_END_TAIL, SAE_STANDARD_BAR, SAE_FINALE_BAR, SAE_LENGTHS, SAE_MIN_BARS, SAE_FIXED_BPM, SAE_FACE_MARGIN,
     SAE_FACE_ROLES, SAE_FACE_MAX_USES, SAE_SOURCE_TAIL, SAE_HEAD_FRAMES, SAE_PAIR_GAP, SAE_FADE_OUT, SAE_PHOTO_SHARE, SAE_PHOTO_RUN_MAX, SAE_SNAP_WINDOW,
     SAE_MIN_HOLD_FRAMES, SAE_ANGLE_MIN, SAE_ANGLE_MAX, SAE_WHIP_SPIN, SAE_WHIP_INNER, SAE_WHIP_SUBTLE, SAE_WHIP_FINALE, SAE_WHIP_SUBTLE_MIN_BARS, SAE_STILL_WEIGHT, SAE_STILL_FLOOR, SAE_STILL_COST_MAX, SAE_STILL_MINIMA,
+    SAE_LOCAL_HEAD, SAE_LOCAL_MAX_WINDOWS, SAE_LOCAL_SEP_BONUS, SAE_LOCAL_KEY_WEIGHT, saeLocalClip, saeLocalNorm,
     SAE_PAIR_ROLE_BONUS, SAE_PAIR_SEP, SAE_PAIR_SEP_BONUS, SAE_ROLE_TOP, SAE_ROLE_NEAR, SAE_GESTURE_MARGIN, SAE_GESTURE_MILD, SAE_GESTURE_KEY, SAE_KEY_POSE_WEIGHT, SAE_KEY_STILL_WEIGHT, SAE_KEY_JITTER, SAE_GESTURE_CLIP_MILD, SAE_PHOTO_FIRST_BAR, SAE_PHOTO_SHORT_BARS, SAE_PHOTO_SHORT_MAX, SAE_PHOTO_SHORT_FACES,
     saeStillCost, saeHash, saeEditBpm, saeTempo, saeVideoSeconds, saeMusicOffset, saeTemplate, saeSchedule, saeMoments, saePhotoBars,
     saeAllocate, saeWhipStrength, saeWhipKinds, saeBarGrid, saeSectionRange, saeDefaultSection, saeSnapSection, saePlanBuild,
