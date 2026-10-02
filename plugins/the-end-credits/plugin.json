@@ -45,6 +45,7 @@
     "tests/look.test.cjs",
     "tests/panel.test.cjs",
     "tests/planner.test.cjs",
+    "tests/quick-score.test.cjs",
     "tests/scripts-edit.test.cjs",
     "tests/scripts-read.test.cjs"
   ],

@@ -95,6 +95,7 @@ jobs:
           node plugins/the-end-credits/tests/look.test.cjs
           node plugins/the-end-credits/tests/panel.test.cjs
           node plugins/the-end-credits/tests/planner.test.cjs
+          node plugins/the-end-credits/tests/quick-score.test.cjs
           node plugins/the-end-credits/tests/scripts-edit.test.cjs
           node plugins/the-end-credits/tests/scripts-read.test.cjs
       - name: Test Summer Trip
