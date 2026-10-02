@@ -23,7 +23,16 @@
 //   stderr. Two helpers the panel owns, the motion bonus (avMotionBonus) and the Shot motion choice (avVideoMotions),
 //   are taken from the panel's plain-JS `// av-hook:start` ... `// av-hook:end` block (or planner.js) when it has them,
 //   else from the local copies below (also with a warning).
+// - Clips without analysis (build without analysis, 2026-10-02): inventory.js hands them over with analysed: false and
+//   their source path. videoRids() returns only the analysed videos (the driver scene-searches what it returns); plan()
+//   scores the others with the panel's own quick-score block (dev/quick-score-node.cjs: ffmpeg on PATH, cached in
+//   <os tmpdir>/archive-vlog-quick-score) and joins both through the panel's av-hook avShotCandidates, as the panel's
+//   Build does. The kit driver calls plan() synchronously, so the scoring runs as a child process (execFileSync). An
+//   inventory that already carries `quickScores` (rid -> quickScore result: fixtures, parity) is used as it is.
 import vm from 'node:vm';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 // The panel's constants for this app (contract with the panel lane: same names, same values).
 const PANEL_DEFAULTS = {
@@ -74,8 +83,8 @@ const CREDIT_FAMILY = 'AV Oswald Bold';
 const CREDIT_NAME_MAX = 24;
 const AV_FAIL_DEFAULT = {
   'too-few': 'Your footage fits too few shots',
-  'no-video': 'Add at least one analysed video',
-  'one-video': 'Add at least 2 analysed videos (the opening and credit shots are videos)',
+  'no-video': 'Archive Vlog needs at least 2 video clips: the opening, credit and last shots are always video',
+  'one-video': 'Archive Vlog needs at least 2 video clips: one for the opening and one for the credit shot',
   'opening-too-short': 'No video is long enough for the opening shot',
   'ending-too-short': 'No video is long enough for the final shot',
   'music-too-short': 'This track is too short for this length from this section',
@@ -187,12 +196,24 @@ function visibleFraction(size) {
   return Math.round(Math.min(1, (size.width / size.height) / (1920 / 1080)) * 1e4) / 1e4;
 }
 
+// The panel's quick local check of clips without analysis, run synchronously in a child node process (the driver does not
+// await plan()). Returns { results: [quickScore result], ms }.
+function scoreLocalSync(pluginDir, resources, P) {
+  const input = { resources: resources.map(r => ({ rid: r.rid, path: r.path, durationSeconds: r.duration })), dataDir: path.join(os.tmpdir(), 'archive-vlog-quick-score'),
+    concurrency: P.AV_LOCAL_CONCURRENCY || 3, budgetMs: P.AV_LOCAL_BUDGET_MS || 25000 };
+  const dir = path.resolve(pluginDir);
+  const out = execFileSync(process.execPath, [path.join(dir, 'dev', 'quick-score-node.cjs'), dir], { input: JSON.stringify(input), maxBuffer: 256 * 1024 * 1024 });
+  return JSON.parse(String(out));
+}
+
 export async function createAdapter({ pluginDir, installedDir, read }) {
   const manifestJson = JSON.parse(read('plugin.json'));
   const panel = read('panel.tsx');
-  const hookFrom = panel.indexOf('// av-hook:start\n'), hookTo = panel.indexOf('// av-hook:end');
-  const hookBlock = hookFrom >= 0 && hookTo > hookFrom ? panel.slice(hookFrom, hookTo) : '';
-  const P = loadPlanner(read('planner.js') + '\n' + hookBlock);
+  const between = (a, b) => { const from = panel.indexOf(a), to = panel.indexOf(b); return from >= 0 && to > from ? panel.slice(from, to) : ''; };
+  const hookBlock = between('// av-hook:start\n', '// av-hook:end');
+  // The quick-score block next to av-hook: avLocalCandidates picks local windows with its qsCandidates.
+  const qsBlock = between('// quick-score:start\n', '// quick-score:end');
+  const P = loadPlanner(read('planner.js') + '\n' + hookBlock + '\n' + qsBlock);
   const decorateJs = read('scripts/decorate.js');
   const cues = JSON.parse(read('assets/cues/manifest.json')).cues;
   const presetsJson = JSON.parse(read('assets/fonts/presets.json'));
@@ -313,8 +334,9 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       return { summary: 'Read footage', script: 'scripts/inventory.js', config: { projectId: resolve(row, { required: true }), only: null, known: {}, ...(readOnly ? { measureMs: 0 } : {}) } };
     },
 
+    // Only analysed videos are scene-searched; plan() checks the others locally.
     videoRids(inv) {
-      return { rids: inv.resources.map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
+      return { rids: inv.resources.filter(r => r.analysed !== false).map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
     },
 
     // The role queries plus the motion query (always on in Archive Vlog: its hits feed the motion bonus and the
@@ -376,12 +398,25 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       // Frame sizes (the panel's avSizesOf): the planner prefers a landscape opening, and the letterbox reveal is remapped
       // for the opening's cover crop (visible fraction).
       const frameSizes = sizesOf(inv);
-      const plan = j(P.avPlanBuild({ candidates: motionBonus(found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: null, fps: 30, pace, requested,
+      // Clips without analysis: the panel's quick local check (inv.quickScores when given), joined with the hits on one
+      // scale (av-hook avShotCandidates; without it, an old panel: the motion bonus only, as before).
+      const unanalysed = inv.resources.filter(r => r.analysed === false);
+      let localMs = 0;
+      if (unanalysed.length && !inv.quickScores) {
+        const scored = scoreLocalSync(pluginDir, unanalysed, P);
+        inv.quickScores = Object.fromEntries(scored.results.map(x => [x.rid, x]));
+        localMs = scored.ms;
+      }
+      const local = unanalysed.map(r => inv.quickScores[r.rid]).filter(Boolean);
+      const durations = Object.fromEntries(inv.resources.map(r => [r.rid, r.duration]));
+      const shots = typeof P.avShotCandidates === 'function' ? j(P.avShotCandidates(found.list, local, { bpm: tempo, pace, durations })) : motionBonus(found.list);
+      const plan = j(P.avPlanBuild({ candidates: shots.concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: null, fps: 30, pace, requested,
         sectionStart: musicStart ?? undefined, usableEnd: musicKind === 'none' ? undefined : grid.usableEnd, onsets: grid.onsets, onsetThresholds: grid.onsetThresholds,
         lowConfidence: !gridded, seed: String(seed), sizes: frameSizes }));
       const planSummary = { ok: plan.ok, reason: plan.reason, shots: plan.shots, requested, fitted, montageBeats: plan.montageBeats, finalBeats: plan.finalBeats,
         tempo, gridded, photoShots: plan.photoShots, fillerShots: plan.fillerShots, usableShots: plan.usableShots, attempt: plan.attempt, notes: plan.notes,
-        sectionStart: musicStart, pace, motionHits: found.list.filter(c => c && c.role === MOTION_ROLE).length };
+        sectionStart: musicStart, pace, motionHits: found.list.filter(c => c && c.role === MOTION_ROLE).length,
+        local: { clips: unanalysed.length, ms: localMs, fallback: local.filter(x => x.fallback).length, cached: local.filter(x => x.cached).length } };
       if (!plan.ok) throw Error((AV_FAIL[plan.reason] || 'No plan fits this footage') + '. plan: ' + JSON.stringify(planSummary));
       // Photo sizes the inventory measured (the panel's photo size cache).
       const photoSizes = {};
