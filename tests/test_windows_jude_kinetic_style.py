@@ -89,7 +89,7 @@ class JudeWindowsTest(unittest.TestCase):
         self.assertIn('WINDOWS_NOTE', self.text[self.text.index('function StylePanel('):self.text.index('function templateSpeaker(')])
 
     def test_camera_cuts_match_the_engine(self):
-        engine = (PANEL.parent / 'engine.mjs').read_text(encoding='utf-8')
+        engine = (ROOT / 'plugins/jude-kinetic-style/engine.mjs').read_text(encoding='utf-8')
         for needle in ["scale=320:-2,select='gt(scene,", '/pts_time:([0-9.]+)/g', 't>0.3&&t<seconds-0.3']:
             with self.subTest(needle=needle):
                 self.assertFalse(needle not in self.own, needle)
