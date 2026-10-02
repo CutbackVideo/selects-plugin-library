@@ -248,6 +248,32 @@ test('platform, skills dir, data dir', () => {
   fs.writeFileSync(path.join(skill, 'planner.js'), '');
   assert.equal(H.saeSkillsDir('selfie-aesthetic'), skill);
 
+  // Skills root fallbacks (no shell): home first, then SELECTS_USER_SKILLS_ROOT from Runtime.getHostEnvironment(),
+  // the renderer's process.env, and Runtime.getOS().homedir(); each must hold planner.js.
+  const alt = path.join(tmp, 'alt root'), altSkill = path.join(alt, 'selfie-aesthetic');
+  fs.mkdirSync(altSkill, { recursive: true });
+  fs.writeFileSync(path.join(altSkill, 'planner.js'), '');
+  const emptyHome = path.join(tmp, 'empty home');
+  fs.mkdirSync(emptyHome, { recursive: true });
+  const fsEmpty = realFS({ homedir: () => emptyHome });
+  const envRT = realRT({ getHostEnvironment: () => ({ appUILocale: 'en', appLocale: 'en', SELECTS_USER_SKILLS_ROOT: alt }) });
+  assert.equal(sandbox({ FileSystem: realFS(), Runtime: envRT }).H.saeSkillsDir('selfie-aesthetic'), skill, 'the home folder wins when it holds the plugin');
+  assert.equal(sandbox({ FileSystem: fsEmpty, Runtime: envRT }).H.saeSkillsDir('selfie-aesthetic'), altSkill, 'host environment root when home lacks the plugin');
+  const pe = sandbox({ FileSystem: fsEmpty, Runtime: realRT() });
+  pe.box.window.parent.process = { env: { SELECTS_USER_SKILLS_ROOT: alt } };
+  assert.equal(pe.H.saeSkillsDir('selfie-aesthetic'), altSkill, 'renderer process.env root');
+  assert.equal(sandbox({ FileSystem: fsEmpty, Runtime: realRT({ getOS: () => ({ homedir: () => HOME }) }) }).H.saeSkillsDir('selfie-aesthetic'), skill, 'Runtime.getOS().homedir()');
+  assert.equal(sandbox({ FileSystem: fsEmpty, Runtime: realRT({ getHostEnvironment: () => ({ SELECTS_USER_SKILLS_ROOT: path.join(tmp, 'nowhere') }) }) }).H.saeSkillsDir('selfie-aesthetic'), null, 'neither holds the plugin -> null');
+  // Missing or throwing members never crash: no homedir, getHostEnvironment / getOS / process.env throwing, no Runtime.
+  const { homedir: _h, ...noHome } = realFS();
+  const boom = () => { throw new Error('boom'); };
+  const bad = sandbox({ FileSystem: noHome, Runtime: { getHostEnvironment: boom, getOS: boom } });
+  Object.defineProperty(bad.box.window.parent, 'process', { get: boom });
+  assert.equal(bad.H.saeSkillsDir('selfie-aesthetic'), null);
+  assert.equal(sandbox({ FileSystem: { ...noHome } }).H.saeSkillsDir('selfie-aesthetic'), null, 'no Runtime at all');
+  assert.equal(sandbox({ FileSystem: { ...noHome, homedir: boom }, Runtime: envRT }).H.saeSkillsDir('selfie-aesthetic'), altSkill, 'a throwing homedir is skipped');
+  throwsCode(() => sandbox({ FileSystem: { join: path.join, homedir: () => HOME } }).H.saeSkillsDir('selfie-aesthetic'), 'host_tools');
+
   const data = path.join(HOME, '.selects', 'plugin-data', 'selfie-aesthetic');
   assert.ok(!fs.existsSync(data));
   assert.equal(H.saeDataDir('selfie-aesthetic'), data);
