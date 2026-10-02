@@ -19,10 +19,149 @@ const PLUGIN = "portrait-beat-montage";
 const SHOTS = 10;
 const MIN_SECONDS = 1.1;
 const json = JSON.stringify;
+
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
+
+// The pipeline (pipeline.py: numpy, Pillow, RVM on onnxruntime) runs on a private Python that rvm/setup.sh installs
+// for macOS arm64 only, through POSIX shell. On Windows the panel opens, but every build entry stops here first,
+// before any setup, background job, import or Draft. The shell below sits in mac-only regions reached only off Windows.
+const MAC_ONLY_TEXT = { en: "Available on macOS for now.", de: "Vorerst nur auf macOS verfügbar.", es: "Disponible solo en macOS por ahora.", fr: "Disponible sur macOS pour le moment.", it: "Per ora disponibile solo su macOS.", ja: "現在はmacOSでのみ利用できます。", ko: "\uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.", pt: "Disponível no macOS por enquanto.", tr: "Şimdilik yalnızca macOS’ta kullanılabilir.", zh: "目前仅在 macOS 上可用。" };
+const macOnlyText = (language) => MAC_ONLY_TEXT[String(language || "").slice(0, 2).toLowerCase()] || MAC_ONLY_TEXT.en;
+const macOnlyError = (language) => Object.assign(new Error(macOnlyText(language)), { code: "mac-only" });
+
+// mac-only:start
 const quote = (value) => "'" + String(value).replace(/'/g, "'\\''") + "'";
 // The pipeline runs on the RVM runtime's Python (it already has numpy and Pillow). Before setup there is no usable
 // Python on a stock Mac (/usr/bin/python3 only offers to install the Xcode tools), so a step reports setup instead.
 const PYTHON = `S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; P="$S/rvm/.local/venv/bin/python"; [ -x "$P" ] || { echo '{"error":"RVM runtime is not set up"}'; exit 2; };`;
+// mac-only:end
 
 const T = {
   title: "Portrait Beat Montage",
@@ -50,7 +189,9 @@ function mediaScript(projectId) {
   return `const p=selects.project(${json(projectId)}); const [meta,overview]=await Promise.all([p.meta(),p.sourceFiles()]); const items=[]; function walk(nodes,parts){ for(const node of nodes){ if(node.type==="dir") walk(node.children,parts.concat(node.name)); else items.push({name:node.name,type:node.type,resourceId:node.resourceId,path:node.path,durationSeconds:node.durationSeconds,folder:parts.join("/")||"(root)"}); }} if("fileTree" in overview) walk(overview.fileTree,[]); else { for(const folder of overview.folders){ const page=await p.sourceFiles({folder:folder.name}); if("fileTree" in page) walk(page.fileTree,folder.name==="(root)"?[]:[folder.name]); }} return {projectTitle:meta.title,videos:items.filter(x=>x.type==="video"),audios:items.filter(x=>x.type==="audio")};`;
 }
 
+// mac-only:start
 async function pipeline(sdk, op, args, timeoutMs = 300000) {
+  if (hostIsWindows()) throw macOnlyError();
   const reply = await sdk.runShell({
     summary: "Portrait montage: " + op,
     command: `${PYTHON} "$P" "$S/pipeline.py" ${op} ${quote(json(args))}`,
@@ -73,6 +214,7 @@ async function pipeline(sdk, op, args, timeoutMs = 300000) {
 const SETUP_DIR = `"$HOME/.selects/plugin-data/${PLUGIN}/setup"`;
 const SETUP_WAIT_MS = 30 * 60 * 1000;
 async function runSetup(sdk) {
+  if (hostIsWindows()) throw macOnlyError();
   const start = await sdk.runShell({
     summary: "Portrait montage: start one-time setup",
     command: `S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; D=${SETUP_DIR}; mkdir -p "$D" || exit 1; `
@@ -114,6 +256,7 @@ async function runSetup(sdk) {
 // going if the panel closes or the project changes. The panel polls for finished
 // units; reopening it resumes the same run (pipeline.py plan reuses it).
 async function renderUnits(sdk, runId, keys, onProgress) {
+  if (hostIsWindows()) throw macOnlyError();
   const dir = `"$HOME/.selects/plugin-data/${PLUGIN}/runs/${runId}"`;
   const started = await sdk.runShell({
     summary: "Portrait montage: start mattes and transitions",
@@ -142,8 +285,11 @@ async function renderUnits(sdk, runId, keys, onProgress) {
     }
   }
 }
+// mac-only:end
 
 async function buildMontage(sdk, { projectId, language, files, audios, setStep, setProgress }) {
+  // Before the first step: the plan, the render jobs and the Draft all need the macOS pipeline.
+  if (hostIsWindows()) throw macOnlyError(language);
   setStep(0);
   const plan = await pipeline(sdk, "plan", { clips: files.map((file) => file.path) });
   setStep(1);
@@ -224,6 +370,8 @@ function TemplateRun({ sdk, context }) {
     let ended = false;
     const finish = (result) => { if (ended) return; ended = true; try { sdk.finishTemplate(result); } catch {} };
     (async () => {
+      // Windows: refuse before setup, any background job or a Draft.
+      if (hostIsWindows()) throw macOnlyError(context.language);
       const projectId = context.projectId;
       if (!projectId) throw new Error("Open a project, then try again.");
       const picks = (context.template.inputs?.clips || []).filter((pick) => pick?.resourceId);
@@ -273,11 +421,13 @@ function MontagePanel({ sdk, context, ui }) {
   const [step, setStep] = React.useState(-1);
   const [progress, setProgress] = React.useState(0);
   const [status, setStatus] = React.useState(null);
+  const macOnly = hostIsWindows();
 
-  const checkSetup = React.useCallback(() => pipeline(sdk, "doctor", {}, 60000)
+  // Windows: no setup check (it is shell and Python); the build stays disabled with the mac-only line.
+  const checkSetup = React.useCallback(() => macOnly ? Promise.resolve() : pipeline(sdk, "doctor", {}, 60000)
     .then(setDoctor)
-    .catch((error) => setDoctor({ ready: false, problems: [String(error.message || error)] })), [sdk]);
-  React.useEffect(() => { checkSetup(); }, []);
+    .catch((error) => setDoctor({ ready: false, problems: [String(error.message || error)] })), [sdk, macOnly]);
+  React.useEffect(() => { if (!macOnly) checkSetup(); }, []);
 
   // Re-read the media list whenever files join or leave the project.
   const [mediaVersion, setMediaVersion] = React.useState(0);
@@ -308,6 +458,7 @@ function MontagePanel({ sdk, context, ui }) {
   }, [context.projectId, mediaVersion]);
 
   async function setup() {
+    if (macOnly) return;
     setSettingUp(true);
     setStatus(null);
     try {
@@ -328,7 +479,7 @@ function MontagePanel({ sdk, context, ui }) {
   const chosen = folder ? eligible(videos, folder).slice(0, SHOTS) : [];
 
   async function build() {
-    if (busy || chosen.length < SHOTS) return;
+    if (macOnly || busy || chosen.length < SHOTS) return;
     setBusy(true);
     setStatus(null);
     setProgress(0);
@@ -364,7 +515,8 @@ function MontagePanel({ sdk, context, ui }) {
       <small>{T.time}</small>
       <small>{T.rights}</small>
       {busy ? <ui.Progress steps={T.steps} current={step} value={step === 1 ? progress : undefined} label={T.steps[step] || ""} /> : null}
-      <ui.Actions><ui.Button variant="primary" busy={busy} busyLabel={T.working} disabled={loading || !doctor?.ready || chosen.length < SHOTS} onClick={build}>{T.build}</ui.Button></ui.Actions>
+      <ui.Actions><ui.Button variant="primary" busy={busy} busyLabel={T.working} disabled={macOnly || loading || !doctor?.ready || chosen.length < SHOTS} onClick={build}>{T.build}</ui.Button></ui.Actions>
+      {macOnly ? <ui.Message tone="muted">{macOnlyText(context.language)}</ui.Message> : null}
       {status ? <ui.Message tone={status.type}>{status.message}</ui.Message> : null}
     </ui.Stack>
   </ui.Section>;

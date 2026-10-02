@@ -1,11 +1,12 @@
 # Install Portrait Beat Montage
 
-Experimental: macOS arm64 only, tested with Selects Staging on Apple silicon.
+Experimental: macOS arm64 only, tested with Selects Staging on Apple silicon. On Windows the panel
+opens and says "Available on macOS for now"; it makes no Draft there yet.
 
 ## Requirements
 
-- `ffmpeg` and `ffprobe` on `PATH`, with `libx264`, `libvpx-vp9` and the `minterpolate`
-  filter (`brew install ffmpeg` provides all three).
+- `ffmpeg` and `ffprobe` on the shell `PATH`, with `libx264`, `libvpx-vp9` and the `minterpolate`
+  filter. The pipeline calls them by name; it does not use the ffmpeg bundled with Selects yet.
 - The RVM runtime for person mattes (one-time setup, below).
 
 ## One-time RVM setup
