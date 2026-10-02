@@ -240,3 +240,7 @@ for (const phrase of ['(s.koFamily === "AppleMyungjo" ? KO_FACES.serif : KO_FACE
 // Default in-video phrases stay English in every language.
 assert.ok(code.includes('const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];') && code.includes(': "A day";') && code.includes('React.useState("in")'), 'English in-video defaults');
 console.log(JSON.stringify({ panel: 'ok' }));
+
+// Own-music decoding falls back to reading the file's bytes through the av-host helper. A bare readBytes() is an
+// undefined name: Selects' panel compiler rejects the whole panel ("Undefined name readBytes"), on macOS and Windows.
+assert.ok(!/(^|[^.\w])readBytes\(/m.test(code.replace(/\/\/.*$/gm, '')), 'use hostReadBytes(), not a bare readBytes()');

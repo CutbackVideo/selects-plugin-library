@@ -138,9 +138,6 @@ async function hostProbeSeconds(path) {
 // av-host:end
 
 const PANEL_ID = "chris-williamson-style";
-// Shot detection, face framing and B-roll preparation still run in engine.mjs on Node.js and Apple Vision (macOS);
-// on Windows the panel opens and says so, before anything is changed.
-const MAC_ONLY = "Available on macOS for now.";
 const NEEDS_NEWER = "Chris Williamson Style needs a newer version of Selects.";
 const PREFIX = "Chris Williamson · ";
 const SUFFIX = " · Chris Williamson Style";
@@ -1218,12 +1215,37 @@ async function cwCandidates(env, job, dir) {
 }
 
 // ---------------------------------------------------------------------------------------------------------
+// The cutaway encoder. Some host ffmpeg builds (Windows) ship without libx264: the host's encoder list is read once
+// and, without libx264, mpeg4 (in every ffmpeg build) renders the same container, size and frames. A list that
+// can't be read keeps libx264, as engine.mjs does. Hardware H.264 encoders are not used (they fail at run time).
+function cwPickEncoder(list) {
+  const has = (name) => new RegExp("^\\s*V\\S*\\s+" + name + "\\s", "m").test(String(list || ""));
+  if (has("libx264") || !/^\s*V\S*\s+\w/m.test(String(list || ""))) return { codec: "libx264", args: ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18"] };
+  return { codec: "mpeg4", args: ["-c:v", "mpeg4", "-q:v", "2"] };
+}
+let cwEncoderList = null;
+function cwEncoders() {
+  if (!cwEncoderList) cwEncoderList = (async () => {
+    const rt = hostApi("Runtime", "runFFmpeg");
+    if (!rt) return "";
+    let text = "";
+    try {
+      const r = await rt.runFFmpeg(["-hide_banner", "-encoders"], true, undefined, (s) => { text += s; }, (s) => { text += s; });
+      return String(r?.stdout || "") + "\n" + text + "\n" + String(r?.stderr || "");
+    } catch (e) { return text + "\n" + String(e?.stdout || ""); }
+  })();
+  return cwEncoderList;
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // assets: job.assets = { fps, mediaFolder, items: [{ id, candidate, review, desiredKind, seconds }] } -> { items }
-// Each accepted candidate becomes a 1080x1920 H.264 cutaway cropped at the reviewed focus, with frames for the final
-// review; CREDITS.json keeps the attribution (a second pass adds to the first).
+// Each accepted candidate becomes a 1080x1920 H.264 cutaway (MPEG-4 without libx264, see cwPickEncoder) cropped at
+// the reviewed focus, with frames for the final review; CREDITS.json keeps the attribution (a second pass adds to
+// the first). One video stream only (-write_tmcd 0: no timecode track from a camera original).
 async function cwAssets(job, dir) {
   const spec = job.assets, media = hostJoin(dir, spec.mediaFolder);
   cwMkdir(media);
+  const encoder = cwPickEncoder(await cwEncoders());
   const rows = [];
   for (const item of spec.items) {
     const c = item.candidate;
@@ -1233,7 +1255,7 @@ async function cwAssets(job, dir) {
     const file = hostJoin(media, item.id + ".mp4"), seconds = Math.max(0.1, item.seconds);
     // Short videos are rejected instead of frozen or silently looped.
     if (c.kind === "video" && c.duration < seconds) { rows.push({ id: item.id, ok: false, reason: "Video is shorter than its planned cutaway" }); continue; }
-    const args = ["-v", "error", "-y", ...(c.kind === "still" ? ["-loop", "1"] : []), "-i", c.file, "-t", String(seconds), "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-ow)*${x}:(ih-oh)*${y},setsar=1,format=yuv420p`, "-r", String(spec.fps), "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-movflags", "+faststart", "-an", file];
+    const args = ["-v", "error", "-y", ...(c.kind === "still" ? ["-loop", "1"] : []), "-i", c.file, "-t", String(seconds), "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-ow)*${x}:(ih-oh)*${y},setsar=1,format=yuv420p`, "-r", String(spec.fps), ...encoder.args, "-movflags", "+faststart", "-write_tmcd", "0", "-an", file];
     const r = await cwFfmpeg(args, 120000);
     if (!r.ok) throw new Error("Asset rendering failed: " + r.err.slice(-300));
     const frames = [];
@@ -1373,7 +1395,7 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
   let node: Promise<string> | null = null;
   const env: Env = {
     runScript: async (script, summary, allowCommit = false) => {
-      const r = await sdk.runScript({ script, summary, allowCommit });
+      const r = await sdk.runScript({ script, summary, allowCommit, timeoutSeconds: 120 });
       if (r.isError || r.result === undefined) throw new Error((r.output || "Selects could not run " + summary).slice(0, 600));
       return r.result;
     },
@@ -1449,7 +1471,6 @@ function StylePanel({ sdk, context, ui }: any) {
   const [result, setResult] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
-    if (hostIsWindows()) { setSetupIssue(MAC_ONLY); return; }
     resolvePaths(sdk)
       .then((p) => {
         setPaths(p);
@@ -1498,7 +1519,6 @@ function StylePanel({ sdk, context, ui }: any) {
   }
 
   async function create() {
-    if (hostIsWindows()) { setSetupIssue(MAC_ONLY); return; }
     if (locked.current || !projectId || !sequenceId || !paths || setupIssue) return;
     const from = sequenceId;
     locked.current = true; setBusy(true); setError(""); setResult(null);
@@ -1587,8 +1607,6 @@ function TemplateRun({ sdk, context }: any) {
     };
     void (async () => {
       try {
-        // Before anything is created: the build needs macOS for now.
-        if (hostIsWindows()) throw new Error(MAC_ONLY);
         const projectId = context.projectId || "";
         const speaker = templateSpeaker(context.template);
         if (!projectId) throw new Error("Open a project, then try again.");

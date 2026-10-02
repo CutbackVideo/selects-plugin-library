@@ -65,12 +65,20 @@ function run(cmd, args, {signal, onStderr} = {}) {
   });
 }
 
-// A stand-in for window.parent.__DI__: the local ffmpeg and node:fs. `downloads` maps URLs to local files.
-function host(platform, downloads = {}) {
+// A stand-in for window.parent.__DI__: the local ffmpeg and node:fs. `downloads` maps URLs to local files;
+// `encoders` (optional) rewrites the encoder list the host's ffmpeg reports and counts the times it is asked.
+function host(platform, downloads = {}, encoders = null) {
   return {
     Runtime: {
       getPlatform: () => platform,
-      runFFmpeg: (args, _quiet, signal, _out, onStderr) => run('ffmpeg', args, {signal, onStderr}),
+      runFFmpeg: async (args, _quiet, signal, onStdout, onStderr) => {
+        if (!encoders || !args.includes('-encoders')) return run('ffmpeg', args, {signal, onStderr});
+        encoders.calls += 1;
+        const r = await run('ffmpeg', args, {signal});
+        const stdout = encoders.rewrite(r.stdout);
+        onStdout?.(stdout);
+        return {stdout: encoders.viaCallbackOnly ? '' : stdout, stderr: ''};
+      },
       runFFprobe: (args, _quiet, signal) => run('ffprobe', args, {signal}),
     },
     FileSystem: {
@@ -82,10 +90,10 @@ function host(platform, downloads = {}) {
     },
   };
 }
-function loadEngine(platform, {downloads, fetch} = {}) {
+function loadEngine(platform, {downloads, fetch, encoders} = {}) {
   const code = [region('// av-host:start', '// av-host:end'), line('const q = ').replace('(v: string)', '(v)'), region('// cw-engine:start', '// cw-engine:end'),
-    '({cwEngine, cwCommonsRows: typeof cwCommonsRows === "function" ? cwCommonsRows : null})'].join('\n');
-  const context = vm.createContext({window: {parent: {__DI__: host(platform, downloads)}}, navigator: {platform: platform === 'win32' ? 'Win32' : 'MacIntel', userAgent: ''},
+    '({cwEngine, cwPickEncoder, cwCommonsRows: typeof cwCommonsRows === "function" ? cwCommonsRows : null})'].join('\n');
+  const context = vm.createContext({window: {parent: {__DI__: host(platform, downloads, encoders)}}, navigator: {platform: platform === 'win32' ? 'Win32' : 'MacIntel', userAgent: ''},
     setTimeout, clearTimeout, AbortController, TextEncoder, TextDecoder, console, fetch});
   return vm.runInContext(code, context);
 }
@@ -164,6 +172,57 @@ for (const platform of ['darwin', 'win32']) {
       assert.deepEqual(a, b);
       assert.equal(a.width, 1080); assert.equal(a.height, 1920); assert.equal(a.codec_name, 'h264');
       for (const f of row.frames) assert.ok(fs.statSync(f).size > 0);
+    }
+  });
+}
+
+// The cutaway encoder: libx264 when the host's ffmpeg lists it, else mpeg4 in the same .mp4; an unreadable list keeps
+// libx264 (engine.mjs's choice). Hardware H.264 encoders and libx264rgb don't count.
+const ENCODERS = `Encoders:
+ V..... = Video
+ A..... = Audio
+ ------
+ V....D libx264              libx264 H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10 (codec h264)
+ V....D libx264rgb           libx264 H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10 RGB (codec h264)
+ V....D h264_mf              H264 via MediaFoundation (codec h264)
+ V....D mpeg4                MPEG-4 part 2
+ V....D mjpeg                MJPEG (Motion JPEG)
+`;
+test('cwPickEncoder: libx264 when listed, else mpeg4; an unreadable list keeps libx264', () => {
+  const {cwPickEncoder} = loadEngine('win32');
+  const x264 = ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18'], mpeg4 = ['-c:v', 'mpeg4', '-q:v', '2'];
+  const pick = (list) => { const e = cwPickEncoder(list); return [e.codec, [...e.args]]; };
+  const noX264 = ENCODERS.replace(/^ V\S* libx264 .*\n/m, '');
+  assert.ok(!/^ V\S* libx264 /m.test(noX264) && /^ V\S* libx264rgb /m.test(noX264));
+  assert.deepEqual(pick(ENCODERS), ['libx264', x264]);
+  assert.deepEqual(pick(noX264), ['mpeg4', mpeg4]);
+  assert.deepEqual(pick(noX264.replace(/\n/g, '\r\n')), ['mpeg4', mpeg4]);
+  for (const unreadable of ['', null, undefined, 'ffmpeg: not found', 'Encoders:\n V..... = Video\n ------\n'])
+    assert.deepEqual(pick(unreadable), ['libx264', x264], String(unreadable));
+});
+
+for (const viaCallbackOnly of [false, true]) {
+  test('assets without libx264: mpeg4 cutaways with the same size and frames as engine.mjs, one encoder probe (' + (viaCallbackOnly ? 'onStdout' : 'stdout') + ')', {skip: !HAVE_FFMPEG && 'no ffmpeg'}, async () => {
+    const m = fixtures();
+    const items = [
+      {id: 'b001', desiredKind: 'video', seconds: 2.25, review: {accepted: true, focusX: 0.3, focusY: 0.5}, candidate: {file: m.still, kind: 'still', duration: 0}},
+      {id: 'b002', desiredKind: 'video', seconds: 1.5, review: {accepted: true, focusX: 0.5, focusY: 0.5}, candidate: {file: m.moving, kind: 'video', duration: 6}},
+    ];
+    const job = {assets: {ffmpeg: 'ffmpeg', fps: 30, mediaFolder: 'Chris Williamson Style t', items}};
+    const tag = viaCallbackOnly ? 'cb' : 'out';
+    const eDir = path.join(m.dir, 'e-assets-nox264-' + tag), pDir = path.join(m.dir, 'p-assets-nox264-' + tag);
+    const encoders = {calls: 0, viaCallbackOnly, rewrite: (text) => text.split('\n').filter((l) => !/^\s*V\S*\s+libx264\s/.test(l)).join('\n')};
+    const want = engineMjs('assets', job, eDir);
+    const got = await ported('win32', 'assets', job, pDir, {encoders});
+    assert.deepEqual(strip(got, pDir), strip(want, eDir));
+    assert.equal(encoders.calls, 1);
+    for (const row of got.items) {
+      const a = probe(row.path), b = probe(row.path.replace(pDir, eDir));
+      assert.equal(a.codec_name, 'mpeg4'); assert.equal(b.codec_name, 'h264');
+      assert.deepEqual([a.width, a.height, a.nb_read_frames], [b.width, b.height, b.nb_read_frames]);
+      assert.equal(path.extname(row.path), '.mp4');
+      const streams = JSON.parse(spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'json', row.path], {encoding: 'utf8'}).stdout).streams;
+      assert.deepEqual(streams.map((x) => x.codec_type), ['video']);
     }
   });
 }

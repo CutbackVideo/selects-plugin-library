@@ -148,5 +148,81 @@ console.log(JSON.stringify(out));
         self.assertEqual(out["odd"], "a\\\\:b\\\\\\'c\\[d\\]\\,e\\;f")
 
 
+    def test_long_takes_are_scanned_in_windows(self):
+        self.assertRegex(self.panel, r"(?m)^const FULL_SCAN_SECONDS = 120;$")
+        self.assertRegex(self.panel, r"(?m)^const SCAN_WINDOW_SECONDS = 3;$")
+        series = function_body(self.panel, "motionSeries")
+        # Input seek: -ss/-t come before -i, so only the window is decoded.
+        self.assertIn('const seek = span ? ["-ss", span.start.toFixed(3), "-t", span.seconds.toFixed(3)] : [];', series)
+        self.assertIn('ffmpeg([...seek, "-i", path, "-an", "-sn", "-dn", "-vf", graph, "-f", "null", "-"], 60000)', series)
+        build = function_body(self.panel, "buildStopMotion")
+        self.assertIn("motionSegments(v.path, v.seconds, data)", build)
+        self.assertIn("shortlist(segments, v.fps ?? 30, cut, v.seconds)", build)
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_shortlist_matches_the_whole_take_version_and_spans_are_bounded(self):
+        consts = "\n".join(re.findall(r"(?m)^const (?:STILL_RATIO|BLUR_YAVG|CANDIDATES|FULL_SCAN_SECONDS|SCAN_WINDOW_SECONDS) = [^\n]*;$", self.panel))
+        shortlist = function_body(self.panel, "shortlist")
+        shortlist = (shortlist.replace("segments: { offset: number; series: number[] }[], fps: number, cut: number, seconds: number",
+                                       "segments, fps, cut, seconds")
+                     .replace("const usable: number[]", "const usable").replace("const out: number[]", "const out"))
+        spans = function_body(self.panel, "scanSpans").replace(
+            "(seconds: number): { start: number; seconds: number }[] | null", "(seconds)")
+        script = r"""
+const vm = require('node:vm');
+const ctx = vm.createContext({});
+vm.runInContext(process.argv[1] + '\n' + process.argv[2] + '\n' + process.argv[3] + `
+// The whole-take shortlist before long takes were scanned in windows (fast-switching-stopmotion 0.1.0-alpha.5).
+function oldShortlist(series, fps, cut, seconds) {
+  const len = Math.max(1, Math.round(cut * fps));
+  const sorted = [...series].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+  const usable = [];
+  for (let s = 1; s + len <= series.length; s++) {
+    const w = series.slice(s, s + len);
+    const mean = w.reduce((a, b) => a + b, 0) / len;
+    const start = (s - 1) / fps;
+    if (Math.max(...w) > BLUR_YAVG || mean < median * STILL_RATIO) continue;
+    if (start + cut > seconds - 0.05) continue;
+    usable.push(start);
+  }
+  const out = [];
+  for (let i = 0; i < CANDIDATES; i++) {
+    const mid = ((i + 0.5) * seconds) / CANDIDATES;
+    const best = usable.reduce((a, b) => (Math.abs(b - mid) < Math.abs(a - mid) ? b : a), usable[0]);
+    if (best != null && !out.includes(best)) out.push(best);
+  }
+  return out;
+}
+globalThis.api = { shortlist, scanSpans, oldShortlist };`, ctx);
+let seed = 7;
+const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+let cases = 0;
+for (const fps of [24, 25, 30, 60]) for (const seconds of [0.5, 3, 12, 47.3, 119.9]) {
+  const n = Math.round(seconds * fps);
+  // Still stretches, blur spikes and ordinary motion.
+  const series = Array.from({ length: n }, (_, i) => (Math.floor(i / 40) % 3 === 0 ? rnd() * 0.3 : rnd() < 0.05 ? 12 + rnd() * 20 : 1 + rnd() * 8));
+  const a = JSON.stringify(ctx.api.shortlist([{ offset: 0, series }], fps, 0.138, seconds));
+  const b = JSON.stringify(ctx.api.oldShortlist(series, fps, 0.138, seconds));
+  if (a !== b) throw new Error('shortlist changed at fps ' + fps + ', ' + seconds + ' s: ' + a + ' vs ' + b);
+  cases++;
+}
+const spans = ctx.api.scanSpans(1620);
+console.log(JSON.stringify({ cases, short: ctx.api.scanSpans(120), unknown: ctx.api.scanSpans(0), spans,
+  empty: ctx.api.shortlist([], 30, 0.138, 60), offset: ctx.api.shortlist([{ offset: 400, series: Array(90).fill(4) }], 30, 0.138, 1620) }));
+"""
+        r = subprocess.run(["node", "-e", script, consts, shortlist, spans], capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        self.assertEqual(out["cases"], 20)
+        self.assertIsNone(out["short"], "takes up to 120 s are scanned whole")
+        self.assertIsNone(out["unknown"])
+        self.assertEqual(len(out["spans"]), 6)
+        for i, span in enumerate(out["spans"]):
+            self.assertEqual(span["seconds"], 3)
+            self.assertAlmostEqual(span["start"] + 1.5, (i + 0.5) * 1620 / 6)
+        self.assertEqual(out["empty"], [])
+        self.assertTrue(out["offset"] and all(400 <= t < 403 for t in out["offset"]), out["offset"])
+
 if __name__ == "__main__":
     unittest.main()

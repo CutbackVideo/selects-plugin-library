@@ -46,7 +46,7 @@ These values were chosen frame by frame against a reference and approved; keep t
 
 ## Pipeline
 
-`pipeline.py` runs in four steps (the panel calls them in order):
+On macOS, `pipeline.py` runs in four steps (the panel calls them in order):
 
 1. `plan` probes the clips and chooses the windows.
 2. `unit` (15 times) renders one shot window: 60 fps source frames, RVM mattes, a
@@ -54,6 +54,12 @@ These values were chosen frame by frame against a reference and approved; keep t
 3. `assemble` renders the montage at 60 fps and writes it as 17 clips at 29.97 fps
    (`strobe`, `shot01`-`shot15`, `glow`).
 4. The panel imports them with the bundled sounds and builds the Draft.
+
+On Windows the panel runs the same steps itself (no Python): the host's ffmpeg for decoding and
+encoding, the pixel work in a Web Worker (frame-identical to `pipeline.py` with its pinned numpy and
+Pillow), and person mattes from one Selects generation request for the whole montage instead of RVM.
+That request uses generation credits, so the panel shows what it sends and waits for
+**Use credits and continue**; cached shot windows are never sent again.
 
 Run data lives in `~/.selects/plugin-data/portrait-beat-montage/runs/<run id>/`. The
 imported clips are referenced from there; keep the folder while a Draft uses it.

@@ -335,11 +335,13 @@ async function ensureAudio(sdk, projectId) {
   }
   if (!imported?.length) throw new Error("Could not import the bundled soundtrack");
   const id = imported[0];
-  r = await sdk.runScript({
-    summary:"Analyze fixed soundtrack",allowCommit:true,
+  // Starting analysis only dispatches it, but on a busy host the call can pass the default 30 s deadline. A slow or
+  // failed start is not fatal: the status poll below decides, and starts it once more if it never left "pending".
+  const start = () => sdk.runScript({
+    summary:"Analyze fixed soundtrack",allowCommit:true,timeoutSeconds:120,
     script:core({projectId,id}) + "return await p.startAnalysis({resourceIds:[cfg.id]});"
-  });
-  scriptResult(r);
+  }).then((x) => { if (x?.isError) console.warn("[recap-2026] soundtrack analysis start:", x.output); }, (e) => console.warn("[recap-2026] soundtrack analysis start:", e));
+  await start();
   for (let attempt=0;attempt<60;attempt++) {
     await new Promise((resolve) => setTimeout(resolve,2000));
     r = await sdk.runScript({
@@ -347,7 +349,8 @@ async function ensureAudio(sdk, projectId) {
       script:core({projectId,id}) + "const x=(await p.resources()).find(v=>v.resourceId===cfg.id);return {status:x?.status};"
     });
     const status = scriptResult(r).status;
-    if (status === "analyzingSucceeded") return id;
+    if (status === "analyzingSucceeded" || status === "analysisMerged") return id;
+    if (status === "pending" && attempt === 9) await start();
     if (status === "analyzingFailed" || status === "samplingFailed") throw new Error("Soundtrack analysis failed: " + status);
   }
   throw new Error("Soundtrack analysis is still running. Wait for it to finish, then create the Draft again.");
@@ -363,7 +366,7 @@ async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_coun
   const audioId = await ensureAudio(sdk, projectId);
   const name = "2026 Recap — " + (mode === "sample" ? "12s sample " : "") + new Date().toLocaleString();
   let r = await sdk.runScript({
-    summary:"Create recap intro",allowCommit:true,
+    summary:"Create recap intro",allowCommit:true,timeoutSeconds:120,
     script:createScript({projectId,name,intro,introEnd:manifest.placements[1].startSeconds})
   });
   const draftId = scriptResult(r).draftId;
@@ -373,7 +376,7 @@ async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_coun
     const to = Math.min(end,limit);
     if (to <= 1) break;
     r = await sdk.runScript({
-      summary:"Add recap footage",allowCommit:true,
+      summary:"Add recap footage",allowCommit:true,timeoutSeconds:120,
       script:batchScript({projectId,draftId,start:1,end:to,placements:manifest.placements,slots,media:byId})
     });
     const out = scriptResult(r);
@@ -381,7 +384,7 @@ async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_coun
     if (to === limit) break;
   }
   r = await sdk.runScript({
-    summary:"Finish recap Draft",allowCommit:true,
+    summary:"Finish recap Draft",allowCommit:true,timeoutSeconds:120,
     script:finishScript({projectId,draftId,audioId,introEnd:manifest.placements[1].startSeconds,full:mode==="full",titleCode:TITLE_CODE,fadeCode:FADE_CODE})
   });
   const out = scriptResult(r);

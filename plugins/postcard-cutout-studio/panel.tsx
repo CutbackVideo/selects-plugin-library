@@ -18,14 +18,14 @@ async function prepareForegroundResource(sdk,run,justMade=false){
   // in one import; once a project has them, later postcards reuse them.
   const sfx=Object.entries(run.sfx||{});
   let rows=justMade&&!sfx.length?[]:await readInventory(sdk,run.projectId);
-  const missing=[prepared.foregroundPath,...sfx.map(([,s])=>s.path)].filter(path=>!rows.some(x=>x.path===path));
+  const missing=[prepared.foregroundPath,...sfx.map(([,s])=>s.path)].filter(path=>!rows.some(x=>samePath(x.path,path)));
   if(missing.length){
     await runScript(sdk,`return await selects.project(${json(run.projectId)}).importFiles({paths:${json(missing)}});`,'Import postcard foreground and sounds',true);
     rows=await readInventory(sdk,run.projectId);
   }
-  const matches=rows.filter(x=>x.path===prepared.foregroundPath);
+  const matches=rows.filter(x=>samePath(x.path,prepared.foregroundPath));
   if(matches.length!==1||matches[0].resourceId===run.settings.subjectId)throw Error('Distinct cutout Resource was not confirmed; assembly stopped.');
-  const sfxIds=Object.fromEntries(sfx.map(([key,s])=>[key,{id:rows.find(x=>x.path===s.path)?.resourceId,duration:s.duration,soundSeconds:s.soundSeconds,sixteenth:s.sixteenth,ticks:s.ticks}]).filter(([,v])=>v.id));
+  const sfxIds=Object.fromEntries(sfx.map(([key,s])=>[key,{id:rows.find(x=>samePath(x.path,s.path))?.resourceId,duration:s.duration,soundSeconds:s.soundSeconds,sixteenth:s.sixteenth,ticks:s.ticks}]).filter(([,v])=>v.id));
   return {...prepared,foregroundResourceId:matches[0].resourceId,sfxIds};
 }
 // The ending cuts on every 16th note of the music asset (manifest `sixteenth`),
@@ -197,13 +197,29 @@ async function hostProbeSeconds(path) {
 // A media row with the size it is shown at, when the helper could read one.
 function sized(row,size){return row&&size?.width&&size?.height?{...row,frameSize:size}:row}
 function traceStep(label,t0){(window.__postcardTrace??=[]).push([label,Math.round(t0-(window.__postcardTraceStart||t0)),Math.round(performance.now()-t0)])}
-// Every helper op (run state, holds, cutout input, masks, previews) runs pipeline.py in a pinned Python through the
-// macOS shell; it needs fcntl and a POSIX shell, so on Windows each op stops here before anything runs.
-const MAC_ONLY='Available on macOS for now.';
+// Every helper op (run state, holds, cutout input, masks, previews): on macOS pipeline.py in a pinned Python through
+// the shell, as before; on Windows the same ops in this panel (pc-ledger and pc-port below), through the host's
+// FileSystem and bundled ffmpeg. Windows masks are read through FileSystem.pathToLocalURL, which effects may load
+// since Selects 2.0.508; an older build, or one without these host services, gets one "update Selects" line instead.
+const PC_MIN_HOST='2.0.508';
+const UPDATE_SELECTS='Postcard Cutout Studio needs Selects '+PC_MIN_HOST+' or later on Windows. Update Selects, then try again.';
+function pcVersionBelow(version,minimum){const a=String(version||'0').split('.').map(n=>parseInt(n,10)||0),b=minimum.split('.').map(n=>parseInt(n,10)||0);for(let i=0;i<3;i++)if((a[i]||0)!==(b[i]||0))return (a[i]||0)<(b[i]||0);return false}
+function pcHostIssue(){if(!hostIsWindows())return '';let version='';try{version=String(hostDI()?.Runtime?.getHostingVersion?.()||'')}catch{version=''}
+ const needs=[['Runtime','runFFmpeg','runFFprobe'],['FileSystem','join','homedir','dirname','existsSync','mkdirSync','readFile','writeFile','readdirSync','statSync','renameSync','pathToLocalURL','downloadFile']];
+ return !version||pcVersionBelow(version,PC_MIN_HOST)||needs.some(([name,...methods])=>!hostApi(name,...methods))?UPDATE_SELECTS:''}
 const preparing={say:null};
-async function helper(sdk,op,args={}){if(hostIsWindows())throw Error(MAC_ONLY);return macHelper(sdk,op,args)}
+let pcWin=null;
+function pcWindows(sdk){if(!pcWin)pcWin=(async()=>{const roots=await hostRoots(sdk,'postcard-cutout-studio',hostJoin('sfx','manifest.json'));if(!roots.data)throw Error(UPDATE_SELECTS);let port=null;const ledger=pcLedger(roots.data,{sfx:()=>port.sfx()});port=pcPort(roots,{ledger});return{...port,...ledger}})().catch(e=>{pcWin=null;throw e});return pcWin}
+const PC_OPS=['load','init','update','event','claim','reuse','ensure','folder-media','tile','strip','sizes','hold','silent','cutout-input','fetch-result','prepare','foreground','subject-box','settings-load','settings-save','job-record'];
+async function helper(sdk,op,args={}){if(!hostIsWindows())return macHelper(sdk,op,args);const issue=pcHostIssue();if(issue)throw Error(issue);if(!PC_OPS.includes(op))throw Error('Unknown operation');const ops=await pcWindows(sdk),t0=performance.now();try{return await ops[op](args)}finally{traceStep('host: '+op,t0)}}
+// The editor's subject probe and range preview and the export check, in the shape the shell gives them on macOS.
+async function probeSubject(sdk,path){if(!hostIsWindows())return macProbeSubject(sdk,path);const issue=pcHostIssue();if(issue)throw Error(issue);return{exitCode:0,stdout:(await (await pcWindows(sdk)).probeText(path))||'{}'}}
+async function rangePreview(sdk,path,start,end){if(!hostIsWindows())return macRangePreview(sdk,path,start,end);return{exitCode:0,stdout:JSON.stringify(await (await pcWindows(sdk)).rangePreview(path,start,end,4))}}
+async function decodeCheck(sdk,path){if(!hostIsWindows())return macDecodeCheck(sdk,path);return (await pcWindows(sdk)).decodeCheck(path)}
+// Two host paths name the same file: exactly, off Windows; on Windows also across case, separators and Unicode form.
+function samePath(a,b){if(a===b)return true;if(!hostIsWindows()||a==null||b==null)return false;const n=p=>String(p).normalize('NFC').replace(/\\/g,'/').toLowerCase();return n(a)===n(b)}
 // mac-only:start
-// Reached only when hostIsWindows() is false (helper above, and the editor's effects that return first on Windows).
+// Reached only when hostIsWindows() is false (helper, probeSubject, rangePreview and decodeCheck above).
 // A stock Mac has no Python, so runtime.sh fetches a pinned one on first use
 // (shared by every plugin under ~/.selects/plugin-data/_runtime) and prints its
 // path as the last line. One fetch per panel load, however many helpers ask at
@@ -226,6 +242,286 @@ function macDecodeCheck(sdk,path){return sdk.runShell({summary:'Decode exported 
 function macProbeSubject(sdk,path){return sdk.runShell({summary:'Probe subject duration',command:`ffprobe -v error -select_streams v:0 -show_entries format=duration:stream=width,height -of json ${quote(path)}`,timeoutMs:15000,maxOutputBytes:2000})}
 async function macRangePreview(sdk,path,start,end){const python=await runtimePython(sdk);return sdk.runShell({summary:'Preview selected range',command:`${quote(python)} "$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/scene_preview.py" ${quote(path)} ${start} ${end} 4`,timeoutMs:30000,maxOutputBytes:49152})}
 // mac-only:end
+// pc-ledger:start
+// The run ledger in the panel, for the Windows port: pipeline.py's init/load/update/event/claim/reuse with the same
+// files (<store>/runs/<id>/run.json, <store>/active-runs.json, <logDir>/events.jsonl and run.json) read and written
+// through the host's FileSystem. pipeline.py serialises writers with flock; here this panel is the only writer, so one
+// promise chain does it. helper() uses it on Windows; macOS keeps pipeline.py. `store` is the data folder (hostRoots(...).data); `sfx` gives a new run its decoded sounds.
+const LEDGER_SETTLED=['draftReady','exportFailed','generationFailed','complete','abandoned'];
+function pcLedger(store,{sfx=async()=>({}),now=()=>Date.now(),newId=()=>crypto.randomUUID()}={}){
+ const fs=()=>hostNeed('FileSystem','existsSync'),J=(...p)=>hostJoin(...p);let chain=Promise.resolve();
+ const locked=f=>{const r=chain.then(f,f);chain=r.catch(()=>{});return r};
+ const exists=p=>{try{return !!fs().existsSync(p)}catch{return false}};
+ const read=async(p,fallback=null)=>exists(p)?JSON.parse(await hostReadText(p)):fallback;
+ const write=async(p,d)=>{const f=hostNeed('FileSystem','mkdirSync');f.mkdirSync(hostNeed('FileSystem','dirname').dirname(p),{recursive:true});const text=JSON.stringify(d,null,2),move=hostApi('FileSystem','renameSync');if(!move)return void await hostNeed('FileSystem','writeFile').writeFile(p,text);const tmp=p+'.tmp-'+now();await hostNeed('FileSystem','writeFile').writeFile(tmp,text);move.renameSync(tmp,p)};
+ const pad=n=>String(n).padStart(2,'0'),stamp=()=>{const t=new Date(now()),o=-t.getTimezoneOffset();return{at:t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate())+'T'+pad(t.getHours())+':'+pad(t.getMinutes())+':'+pad(t.getSeconds())+(o<0?'-':'+')+pad(Math.floor(Math.abs(o)/60))+pad(Math.abs(o)%60),epochMs:t.getTime()}};
+ const runpath=rid=>{if(!/^[a-f0-9-]{36}$/.test(String(rid)))throw Error('Invalid run id');return J(store,'runs',String(rid))};
+ const load=async rid=>{const d=await read(J(runpath(rid),'run.json'));if(!d)throw Error('Run not found');return d};
+ const save=async d=>{await write(J(runpath(d.runId),'run.json'),d);await write(J(d.logDir,'run.json'),d)};
+ const event=async(d,stage,status,details)=>{const s=stamp(),e={...s,runId:d.runId,projectId:d.projectId,stage,status,...(details||{})};e.wallClockMs=e.epochMs-d.startedMs;const log=J(d.logDir,'events.jsonl');hostNeed('FileSystem','mkdirSync').mkdirSync(d.logDir,{recursive:true});const old=exists(log)?await hostReadText(log):'';await hostNeed('FileSystem','writeFile').writeFile(log,old+JSON.stringify(e)+'\n');return e};
+ // The source file as pipeline.py's source_identity sees it (path, size, mtime in ns, inode). pipeline.py resolves
+ // symlinks and reads whole-ns mtimes, so a run it wrote may not match here: that cutout is then made once more.
+ const identity=path=>{const s=hostNeed('FileSystem','statSync').statSync(path);return{path:String(path),size:Number(s.size),mtimeNs:Math.round(Number(s.mtimeMs)*1e6),inode:Number(s.ino)}};
+ const same=(a,b)=>!!a&&!!b&&a.path===b.path&&a.size===b.size&&a.mtimeNs===b.mtimeNs&&a.inode===b.inode;
+ // The latest finished cutout of this very stretch in this project, if any (pipeline.py find_reusable).
+ const reusable=async(pid,id,start,exclude)=>{const root=J(store,'runs');let names=[];try{names=hostNeed('FileSystem','readdirSync').readdirSync(root)}catch{return null}
+  const records=names.map(n=>J(root,n,'run.json')).filter(exists).map(p=>{try{return[p,Number(hostNeed('FileSystem','statSync').statSync(p).mtimeMs)]}catch{return[p,0]}}).sort((a,b)=>b[1]-a[1]);
+  for(const [p] of records){try{const old=await read(p,{}),mask=old.mask||{};
+   if(old.runId===exclude||old.projectId!==pid||!same(old.sourceIdentity,id)||Number(old.settings?.subjectStartSec??-1)!==start)continue;
+   if(!(mask.provenanceOk||(mask.provenanceSsim||0)>=.97)||!mask.count)continue;
+   let all=true;for(let i=1;i<=mask.count&&all;i++)all=exists(J(mask.path,'mask_'+String(i).padStart(6,'0')+'.png'));
+   if(all)return old}catch{/* the next one */}}
+  return null};
+ const reuse=async d=>{const id=identity(d.source.path),start=Number(d.settings.subjectStartSec),old=await reusable(d.projectId,id,start,d.runId);
+  if(old){const patch={phase:'maskReady',mask:old.mask,sourceIdentity:id,cutoutMode:'reused',reusedFromRunId:old.runId};if(old.foregroundPath&&exists(old.foregroundPath)&&old.foregroundVersion===2)Object.assign(patch,{foregroundPath:old.foregroundPath,foregroundVersion:2});Object.assign(d,patch);await save(d);await event(d,'cutout','reused',{previousRunId:old.runId});return d}
+  d.sourceIdentity=id;await save(d);return d};
+ const ops={
+  load:a=>locked(async()=>{if(a.runId)return load(a.runId);const rid=(await read(J(store,'active-runs.json'),{}))[a.projectId];return rid?load(rid):null}),
+  update:a=>locked(async()=>{const d=await load(a.runId);Object.assign(d,a.patch||{});await save(d);if(a.stage)await event(d,a.stage,a.status||'info',a.details);return d}),
+  event:a=>locked(async()=>{const d=await load(a.runId);if(a.stage)await event(d,a.stage,a.status||'info',a.details);return d}),
+  claim:a=>locked(async()=>{const d=await load(a.runId);if(!a.expected.includes(d.phase))return{claimed:false,run:d};Object.assign(d,a.patch);await save(d);await event(d,a.stage||'run','start',a.details);return{claimed:true,run:d}}),
+  reuse:a=>locked(async()=>{const d=await load(a.runId);return d.phase==='ready'?reuse(d):d}),
+  init:a=>locked(async()=>{const path=J(store,'active-runs.json'),active=await read(path,{}),old=a.projectId in active?await load(active[a.projectId]):null;
+   if(a.replaceSettled){
+    if(!old||old.runId!==a.previousRunId)throw Error('The active run changed. Reload before starting a new request; no duplicate generation started.');
+    if(!LEDGER_SETTLED.includes(old.phase))throw Error('The previous run is still active; resume it rather than duplicate generation.');
+    if(old.phase==='exportFailed'&&!['failed','canceled','cancelled'].includes(a.verifiedExportTerminalStatus))throw Error('Confirm the previous Export is terminal before starting a new run.');
+    if(old.phase==='generationFailed'&&!['failed','canceled','cancelled'].includes(old.generation?.status))throw Error('Generation status remains uncertain; do not submit again.');
+   }else if(old&&!['complete','abandoned'].includes(old.phase))return old;
+   const rid=newId(),dir=runpath(rid);if(exists(dir))throw Error('Run folder already exists');
+   const d={...a,runId:rid,startedMs:now(),phase:'ready',logDir:J(a.logRoot||J(store,'logs'),rid),draftName:'Postcard Cutout Studio — '+rid,sfx:await sfx()};
+   hostNeed('FileSystem','mkdirSync').mkdirSync(dir,{recursive:true});await save(d);active[a.projectId]=rid;await write(path,active);await event(d,'run','start',{settings:a.settings});return reuse(d)}),
+ };
+ // The steps the other ports share (pc-port): unlocked, as pipeline.py's prepare uses them.
+ ops._internal={load,save,event,identity,same,reusable,runpath};
+ return ops;
+}
+// pc-ledger:end
+// pc-port:start
+// pipeline.py's other helper ops for Windows, in the panel: sounds, folder listing, previews, sizes, holds, the cutout
+// input and result, the cutout check with its masks, the foreground and the subject box. Same ffmpeg/ffprobe argv as
+// pipeline.py, run by the host's bundled tools (Runtime.runFFmpeg/runFFprobe: argv, no shell), and the same files
+// under the data folder, read and written through FileSystem. Differences, all forced by the host: ffmpeg writes to a
+// temporary file instead of a pipe (runFFmpeg returns text); the cutout check reads each SSIM from ffmpeg's log, not a
+// stats_file (a C:\ path inside a filter string needs filter escaping); mp4 outputs pass -write_tmcd 0 (one stream);
+// there is no 48 KiB reply cap, so previews are not shrunk to fit one; there is no mask service: the MASK effect reads
+// the mask folder through FileSystem.pathToLocalURL; a folder's symlinks are not told apart (statSync follows them;
+// the 10,000-file cap still bounds the walk). `roots` is hostRoots(...) ({plugin, data}); `ledger` is pcLedger(data).
+const PC_MOVING=['.mp4','.mov','.mkv','.webm','.m4v'],PC_MEDIA=[...PC_MOVING,'.png','.jpg','.jpeg','.webp'];
+// What a failed host tool call says: the host rejects with a JSON string carrying ffmpeg's stderr.
+function pcToolError(e,log=''){let said=String(e?.message??e??'');try{const j=JSON.parse(said);said=String(j?.stderr||j?.message||said)}catch{/* plain text */}return (said.trim()||String(log).trim()).slice(-2000)||'ffmpeg failed'}
+function pcPort(roots,{ledger}){
+ const store=roots.data,J=(...p)=>hostJoin(...p),fsx=m=>hostNeed('FileSystem',m);
+ const exists=p=>{try{return !!fsx('existsSync').existsSync(p)}catch{return false}};
+ const stat=p=>{try{return fsx('statSync').statSync(p)||null}catch{return null}};
+ const isDir=s=>!!s&&(typeof s.isDirectory==='function'?!!s.isDirectory():(Number(s.mode)&0o170000)===0o040000);
+ const mkdir=p=>fsx('mkdirSync').mkdirSync(p,{recursive:true});
+ const rename=(a,b)=>fsx('renameSync').renameSync(a,b);
+ const write=(p,d)=>fsx('writeFile').writeFile(p,d);
+ const rmTree=p=>{try{fsx('rmSync').rmSync(p,{recursive:true,force:true})}catch{/* left behind */}};
+ const size=p=>Number(stat(p)?.size)||0;
+ const base=p=>String(p).split(/[\\/]/).pop()||'';
+ const suffix=p=>{const n=base(p),i=n.lastIndexOf('.');return i>0?n.slice(i).toLowerCase():''};
+ const stem=p=>{const n=base(p),i=n.lastIndexOf('.');return i>0?n.slice(0,i):n};
+ const ascii=(s,fallback)=>String(s).replace(/[^A-Za-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'')||fallback;
+ const moving=p=>PC_MOVING.includes(suffix(p));
+ const uuid=()=>crypto.randomUUID();
+ const subtle=()=>{try{return globalThis.crypto?.subtle||window.parent.crypto.subtle}catch{return window.parent.crypto.subtle}};
+ const sha256=async v=>{const d=await subtle().digest('SHA-256',typeof v==='string'?new TextEncoder().encode(v):v);return Array.from(new Uint8Array(d),b=>b.toString(16).padStart(2,'0')).join('')};
+ const b64=bytes=>{let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));return btoa(s)};
+ const head=async(p,n)=>{const r=hostApi('FileSystem','readRange');if(r){try{return hostBytes(await r.readRange(p,0,n))}catch{/* whole file */}}return (await hostReadBytes(p)).subarray(0,n)};
+ const scratch=(e,dir=J(store,'tmp'))=>{mkdir(dir);return J(dir,'pc-'+uuid()+e)};
+ const drop=async p=>{if(exists(p))await hostRemove(p)};
+ // ffmpeg's log (stderr) of one run; throws its tail when it fails.
+ const ffmpeg=async(args,timeoutMs=180000)=>{const rt=hostNeed('Runtime','runFFmpeg'),c=new AbortController(),t=setTimeout(()=>c.abort(),timeoutMs);let log='';
+  try{const r=await rt.runFFmpeg(args,true,c.signal,undefined,x=>{log+=String(x)});return String(r?.stderr||'')||log}catch(e){throw Error(pcToolError(e,log))}finally{clearTimeout(t)}};
+ const ffprobe=async args=>String((await hostNeed('Runtime','runFFprobe').runFFprobe(args,true))?.stdout||'');
+ const quietProbe=args=>ffprobe(args).catch(()=>'');
+ // ffmpeg output into a temporary file, read back as bytes (the file is removed).
+ const grab=async(args,e='.jpg',timeoutMs)=>{const out=scratch(e);try{await ffmpeg([...args,out],timeoutMs);const b=await hostReadBytes(out);if(!b.length)throw Error('ffmpeg wrote nothing');return b}finally{await drop(out)}};
+ const pool=async(items,n,f)=>{const out=new Array(items.length);let next=0;await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(next<items.length){const i=next++;out[i]=await f(items[i],i)}}));return out};
+ const locks=new Map(),lock=(key,f)=>{const prev=locks.get(key)||Promise.resolve(),r=prev.then(f,f);locks.set(key,r.catch(()=>{}));return r};
+ const seconds=v=>{const n=Number.parseFloat(v);return n>0?n:null};
+ // Python's round(): halves go to the even neighbour.
+ const pyRound=x=>{const r=Math.round(x);return Math.abs(x%1)===.5?2*Math.round(x/2):r};
+ const L=ledger._internal;
+ const sfxDir=J(store,'sfx'),HOLD_ROOT=J(store,'held'),INPUT_ROOT=J(store,'cutout-inputs');
+ // --- sounds (unpack_sound / sfx_manifest) ---
+ const unpack=async(v,dest)=>{const src=J(roots.plugin,'sfx',v.file+'.b64');if(exists(dest)||!exists(src))return;
+  const bin=atob((await hostReadText(src)).replace(/\s+/g,'')),data=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)data[i]=bin.charCodeAt(i);
+  if(await sha256(data)!==v.sha256)throw Error('Bundled sound does not match its manifest: '+v.file);
+  mkdir(sfxDir);const t=dest+'.tmp-'+Date.now();await write(t,data);rename(t,dest)};
+ const sfx=async()=>{const path=J(roots.plugin,'sfx','manifest.json'),manifest=exists(path)?JSON.parse(await hostReadText(path)):{},out={};
+  for(const [key,v] of Object.entries(manifest)){const f=J(sfxDir,v.file);await unpack(v,f);
+   if(exists(f)){out[key]={path:f,duration:v.duration,soundSeconds:'soundSeconds' in v?v.soundSeconds:v.duration};for(const k of ['sixteenth','ticks'])if(k in v)out[key][k]=v[k]}}
+  return out};
+ // --- folder listing (folder_media) ---
+ const folderMedia=async a=>{const root=String(a.path);if(!isDir(stat(root)))throw Error(stat(root)?'Choose a folder, not an individual file.':'That folder could not be found.');
+  const files=[],list=fsx('readdirSync');let unreadable=0,limited=false,visited=0;
+  const walk=(folder,rel)=>{let names;try{names=list.readdirSync(folder).map(String).sort()}catch{unreadable++;return}
+   const dirs=[];for(const name of names){const p=J(folder,name),s=stat(p);if(isDir(s)){if(!name.startsWith('.'))dirs.push(name);continue}
+    if(++visited>10000){limited=true;return}
+    if(!name.startsWith('.')&&PC_MEDIA.includes(suffix(name)))files.push([p,rel?J(rel,name):name])}
+   for(const d of dirs){if(limited)return;walk(J(folder,d),rel?J(rel,d):d)}};
+  walk(root,'');
+  const offset=Math.max(0,Math.trunc(Number(a.offset)||0)),query=String(a.query??'').toLowerCase(),hits=files.filter(([,rel])=>rel.toLowerCase().includes(query));
+  return {path:root,name:base(root.replace(/[\\/]+$/,'')),total:hits.length,limited,unreadable,rows:hits.slice(offset,offset+24).map(([p,rel])=>({path:p,name:base(p),relativePath:rel,resourceId:'local:'+p}))}};
+ // --- previews and sizes (probe / tile_preview / strip_preview / shown_size / sizes) ---
+ const probe=async path=>{let info={};try{info=JSON.parse(await quietProbe(['-v','error','-select_streams','v:0','-show_entries','format=duration:stream=width,height','-of','json',path])||'{}')}catch{info={}}
+  const s=(info.streams||[{}])[0]||{};return{durationSeconds:seconds(info.format?.duration),width:s.width??null,height:s.height??null}};
+ const tile=async a=>{const path=a.path,meta=await probe(path);if(!moving(path))meta.durationSeconds=null;const fit='scale=280:280:force_original_aspect_ratio=increase,crop=280:280',d=meta.durationSeconds;
+  const seek=d&&d>1?['-ss',String(d*.25)]:[],chain=d?fit+',thumbnail=100':fit;
+  let bytes;try{bytes=await grab(['-v','error','-y',...seek,'-i',path,'-vf',chain,'-frames:v','1','-q:v','6','-f','image2pipe','-vcodec','mjpeg'],'.jpg',30000)}catch{throw Error('Could not decode the thumbnail.')}
+  return {...meta,thumb:b64(bytes)}};
+ const strip=async a=>{const path=a.path,count=Math.min(10,Math.max(2,Math.trunc(Number(a.count??10))||0)),d=(await probe(path)).durationSeconds||0;
+  if(d<=0)throw Error('Could not read the video duration.');
+  const key=await sha256(JSON.stringify([L.identity(path),count,'square-strip-v2'])),cache=J(store,'preview-cache',key+'.json');
+  if(exists(cache)){try{return JSON.parse(await hostReadText(cache))}catch{/* made again */}}
+  const times=Array.from({length:count},(_,i)=>d*(i+.5)/count);
+  const frames=await pool(times,2,async t=>{try{return await grab(['-v','error','-y','-threads','1','-ss',String(t),'-i',path,'-an','-vf','scale=144:144:force_original_aspect_ratio=increase,crop=144:144','-frames:v','1','-q:v','5','-f','image2pipe','-vcodec','mjpeg'],'.jpg',12000)}catch{throw Error('Could not decode a preview frame. Hover again to retry.')}});
+  const joined=new Uint8Array(frames.reduce((n,f)=>n+f.length,0));let at=0;for(const f of frames){joined.set(f,at);at+=f.length}
+  const input=scratch('.mjpeg');await write(input,joined);
+  try{const sheet=await grab(['-v','error','-y','-f','image2pipe','-vcodec','mjpeg','-i',input,'-vf','scale=144:144,tile='+count+'x1','-frames:v','1','-q:v','16','-f','image2pipe','-vcodec','mjpeg'],'.jpg',12000);
+   const result={strip:b64(sheet),count,times};mkdir(J(store,'preview-cache'));await write(cache,JSON.stringify(result));return result}
+  catch{throw Error('Could not make the preview. Hover again to retry.')}finally{await drop(input)}};
+ // Whether a JPEG's EXIF orientation shows it turned a quarter (tags 5-8), from its first 256 KiB.
+ const exifTurned=async path=>{try{const b=await head(path,262144),u16=(o,le)=>le?b[o]|b[o+1]<<8:b[o]<<8|b[o+1],u32=(o,le)=>le?(b[o]|b[o+1]<<8|b[o+2]<<16|b[o+3]<<24)>>>0:(b[o]<<24|b[o+1]<<16|b[o+2]<<8|b[o+3])>>>0;
+  if(b[0]!==0xFF||b[1]!==0xD8)return false;let p=2;
+  for(;;){if(p+2>b.length||b[p]!==0xFF||b[p+1]===0xD9||b[p+1]===0xDA)return false;const m=b[p+1],len=u16(p+2,false),body=p+4;
+   if(m===0xE1&&String.fromCharCode(...b.subarray(body,body+6))==='Exif\0\0'){const t=body+6,le=b[t]===0x49&&b[t+1]===0x49,ifd=t+u32(t+4,le),n=u16(ifd,le);
+    for(let i=0;i<n;i++){const e=ifd+2+12*i;if(e+10>b.length)return false;if(u16(e,le)===0x0112)return [5,6,7,8].includes(u16(e+8,le))}return false}
+   p=body+len-2}}catch{return false}};
+ const shownSize=async path=>{let st={};try{st=(JSON.parse(await quietProbe(['-v','error','-select_streams','v:0','-show_entries','stream=width,height:stream_side_data=rotation','-of','json',path])||'{}').streams||[{}])[0]||{}}catch{st={}}
+  const w=st.width,h=st.height;if(!(w&&h))return null;let turn=(st.side_data_list||[]).some(sd=>Math.abs(Math.trunc(Number(sd.rotation||0)))%180===90);
+  if(!moving(path))turn=await exifTurned(path);return turn?{width:h,height:w}:{width:w,height:h}};
+ const sizes=async a=>{const paths=[...new Set(a.paths||[])],out=await pool(paths,8,shownSize);return Object.fromEntries(paths.map((p,i)=>[p,out[i]]))};
+ // --- holds, silent copies, the cutout input (hold_clip / silent_copy / cutout_input) ---
+ const mp4=p=>['.mp4','.mov','.m4v'].includes(suffix(p))?['-write_tmcd','0']:[];
+ const keyOf=async(parts)=>(await sha256(JSON.stringify(parts))).slice(0,24);
+ const silent=async path=>{if(!exists(path))throw Error('That file could not be found.');const streams=(await quietProbe(['-v','error','-select_streams','a','-show_entries','stream=index','-of','csv=p=0',path])).trim();if(!streams)return path;
+  const s=stat(path),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),'silent-v1']);mkdir(HOLD_ROOT);
+  const dest=J(HOLD_ROOT,ascii(stem(path),'Clip')+' - silent - '+key+suffix(path));
+  if(!exists(dest)){const tmp=J(HOLD_ROOT,'silent-'+uuid()+suffix(path));
+   try{await ffmpeg(['-v','error','-y','-i',path,'-map','0:v:0','-c','copy','-an','-map_metadata','-1',...mp4(tmp),tmp],120000)}catch(e){await drop(tmp);throw Error('Could not make a silent copy of this clip: '+String(e.message).slice(0,400))}
+   if(!exists(tmp))throw Error('Could not make a silent copy of this clip.');rename(tmp,dest)}
+  return dest};
+ const hold=async a=>{const path=String(a.path);if(!exists(path))throw Error('That file could not be found.');const target=Number(a.target??8.5),start=Math.max(0,Number(a.start||0)),info=await probe(path),duration=info.durationSeconds||0;
+  const plays=moving(path)?Math.max(0,Math.min(target,duration-start)):0,r3=x=>Math.round(x*1000)/1000;
+  if(moving(path)&&plays>=target-.02){if(a.silent){const quiet=await silent(path);if(quiet!==path)return{path:quiet,name:base(quiet),held:false,silenced:true,playedSeconds:r3(plays),durationSeconds:duration,width:info.width,height:info.height,start}}
+   return{path,held:false,playedSeconds:r3(plays),durationSeconds:duration,width:info.width,height:info.height,start}}
+  const s=stat(path),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),r3(start),r3(target),'hold-v1']);mkdir(HOLD_ROOT);
+  const dest=J(HOLD_ROOT,ascii(stem(path),'Subject')+' - held '+target.toFixed(2)+'s - '+key+'.mp4');
+  if(!exists(dest)){const even='scale=trunc(iw/2)*2:trunc(ih/2)*2',enc=['-c:v','libx264','-preset','ultrafast','-crf','18','-pix_fmt','yuv420p','-write_tmcd','0'];let cmd;
+   if(moving(path)){if(plays<=0)throw Error('The chosen start is past the end of this video.');cmd=['-v','error','-y','-ss',String(start),'-t',String(plays),'-i',path,'-an','-vf','tpad=stop_mode=clone:stop_duration='+Math.max(0,target-plays).toFixed(3)+',fps=30,'+even,...enc]}
+   else cmd=['-v','error','-y','-loop','1','-i',path,'-t',String(target),'-an','-vf','fps=30,'+even,...enc];
+   const tmp=J(HOLD_ROOT,'hold-'+uuid()+'.mp4');
+   try{await ffmpeg([...cmd,tmp],180000)}catch(e){await drop(tmp);throw Error('Could not extend this clip to fill the postcard: '+String(e.message).slice(0,400))}
+   if(!exists(tmp))throw Error('Could not extend this clip to fill the postcard.');rename(tmp,dest)}
+  const out=await probe(dest);return{path:dest,name:base(dest),held:true,playedSeconds:r3(plays),durationSeconds:out.durationSeconds,width:out.width,height:out.height,start:0}};
+ const cutoutInput=async a=>{const path=String(a.path);if(!exists(path))throw Error('That file could not be found.');const start=Math.max(0,Number(a.start||0)),secs=Number(a.seconds);
+  if(a.projectId&&await L.reusable(a.projectId,L.identity(path),start))return{reusable:true};
+  const s=stat(path),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),Math.round(start*1000)/1000,Math.round(secs*1000)/1000,'cutout-input-v2']);mkdir(INPUT_ROOT);
+  const dest=J(INPUT_ROOT,ascii(stem(path).replace(/ - held .*$/,''),'Subject')+' - cutout input '+start.toFixed(2)+'-'+(start+secs).toFixed(2)+'s - '+key+'.mp4');
+  if(!exists(dest)){const [num,den]=(await quietProbe(['-v','error','-select_streams','v:0','-show_entries','stream=avg_frame_rate','-of','csv=p=0',path])).trim().split('/'),fast=(Number(num)||0)/(Number(den)||1)>30.5;
+   const tmp=J(INPUT_ROOT,'input-'+uuid()+'.mp4');
+   try{await ffmpeg(['-v','error','-y','-ss',String(start),'-i',path,'-t',String(secs),'-map','0:v:0','-an','-map_metadata','-1','-vf',(fast?'fps=30,':'')+'scale=trunc(iw/2)*2:trunc(ih/2)*2','-c:v','libx264','-preset','veryfast','-crf','18','-pix_fmt','yuv420p','-movflags','+faststart','-write_tmcd','0',tmp],180000)}
+   catch(e){await drop(tmp);throw Error('Could not prepare the subject for background removal: '+String(e.message).slice(0,400))}
+   if(!exists(tmp))throw Error('Could not prepare the subject for background removal.');rename(tmp,dest)}
+  return{path:dest,name:base(dest)}};
+ // --- the finished cutout (fetch_result): the app's job journal names its URL; the host downloads it ---
+ const journals=()=>{const home=fsx('homedir').homedir(),roots=hostIsWindows()?[J(home,'AppData','Roaming')]:[J(home,'Library','Application Support')],out=[],ls=p=>{try{return fsx('readdirSync').readdirSync(p).map(String).sort()}catch{return[]}};
+  const json=dir=>ls(dir).filter(n=>/\.json$/i.test(n)).map(n=>J(dir,n));
+  for(const r of roots){const apps=ls(r).filter(n=>n.startsWith('Cutback')).map(n=>J(r,n));for(const a of apps)out.push(...json(J(a,'generation')));for(const a of apps)for(const sub of ls(a))out.push(...json(J(a,sub,'generation')))}
+  return out};
+ const fetchResult=async a=>{const job=String(a.jobId).replace(/^selects-/,''),dest=String(a.dest);if(exists(dest)&&size(dest)>0)return{path:dest,cached:true};
+  let url=null;for(const journal of journals()){try{const text=await hostReadText(journal);if(!text.includes(job))continue;const jobs=JSON.parse(text).jobs||{};
+   for(const entry of Array.isArray(jobs)?jobs:Object.values(jobs)){if(entry?.operationId!==job)continue;const m=/"url"\s*:\s*"(https?:\/\/[^"]+)"/.exec(JSON.stringify(((entry.snapshot||entry).provider_data||{}).result||{}));if(m){url=m[1];break}}}catch{/* the next journal */}
+   if(url)break}
+  if(!url)throw Error('The finished clip is not in the app journal yet.');
+  const tmp=dest.replace(/\.[^.\\/]*$/,'')+'.part';mkdir(fsx('dirname').dirname(dest));await fsx('downloadFile').downloadFile(url,tmp);
+  if(!size(tmp)){await drop(tmp);throw Error('The finished clip downloaded empty.')}rename(tmp,dest);return{path:dest,cached:false}};
+ // --- the cutout check, the masks and the foreground (prepare / check_and_extract / encode_foreground) ---
+ const execute=async(args,d,stage,timeoutMs=180000)=>{const t=Date.now();await L.event(d,stage,'start',{command:args});let log='',failed=null;
+  try{log=await ffmpeg(args,timeoutMs)}catch(e){failed=e;log=e.message}
+  try{mkdir(d.logDir);await write(J(d.logDir,stage+'.stderr.log'),log)}catch{/* log only */}
+  await L.event(d,stage,failed?'failed':'end',{durationMs:Date.now()-t,exitCode:failed?1:0});if(failed)throw Error(stage+': '+String(log).slice(-2000));return log};
+ const fgSeconds=d=>Number(d.foregroundSeconds||6.45);
+ const fgDest=d=>{const s=Number(d.settings.subjectStartSec);return J(L.runpath(d.runId),'Cutout Foreground - '+ascii(stem(d.source.name),'Subject')+' - '+s.toFixed(3)+'-'+(s+fgSeconds(d)).toFixed(3)+'s - Alpha.webm')};
+ const encodeForeground=async(d,alphaInput,alphaChain,fps)=>{const w=Math.trunc(Number(d.source.frameSize.width)),h=Math.trunc(Number(d.source.frameSize.height));
+  if(w%2||h%2)throw Error('Foreground encoding requires even source dimensions');if(exists(fgDest(d)))throw Error('Uncommitted foreground file preserved; inspect before retrying');
+  const tmp=J(L.runpath(d.runId),'foreground-'+uuid()+'.webm');
+  const fc='[0:v]fps='+fps+',format=gbrp[rgb];'+alphaChain+',scale='+w+':'+h+",format=gray,split[a][m0];[m0]lut=y='if(gt(val,0),255,0)',format=gbrp[m];color=black:s="+w+'x'+h+':r='+fps+',format=gbrp[k];[k][rgb][m]maskedmerge[z];[z][a]alphamerge,format=yuva420p[out]';
+  await execute(['-v','error','-ss',String(Number(d.settings.subjectStartSec)),'-i',d.source.path,...alphaInput,'-filter_complex',fc,'-map','[out]','-t',String(fgSeconds(d)),'-an','-c:v','libvpx-vp9','-crf','18','-b:v','0','-deadline','realtime','-cpu-used','8','-row-mt','1','-auto-alt-ref','0',tmp],d,'foreground-encode');
+  const tags=(JSON.parse(await ffprobe(['-v','error','-select_streams','v:0','-show_entries','stream_tags','-of','json',tmp])).streams||[{}])[0]?.tags||{};
+  if(String(tags.alpha_mode??tags.ALPHA_MODE??'0')!=='1')throw Error('The foreground was written without alpha.');
+  await execute(['-v','error','-c:v','libvpx-vp9','-i',tmp,'-frames:v','1','-vf','alphaextract','-f','null','-'],d,'foreground-alpha-verify');
+  return tmp};
+ const commitForeground=(d,tmp)=>{const dest=fgDest(d);rename(tmp,dest);d.foregroundPath=dest;d.foregroundVersion=2;return dest};
+ // One decode of each file does the whole check and writes the masks. Each window's SSIM is the summary ffmpeg logs at
+ // the end (the mean over frames, as pipeline.py averages its stats file); the ssim filters are numbered in the order
+ // they are added, so the Nth one logged belongs to the Nth offset.
+ const checkAndExtract=async(d,src,cut,decoder,offsets,dur,masks,sz,fps)=>{const w=Math.max(2,Math.floor(sz[0]/8)*2),h=Math.max(2,Math.floor(sz[1]/8)*2),n=offsets.length,s0=Math.min(...offsets),span=Math.max(...offsets)-s0+dur,list=p=>Array.from({length:n},(_,i)=>'['+p+i+']').join('');
+  const g=['[1:v]format=rgba,split=2[ca][cb]','[ca]alphaextract,split=2[png][af]','[af]scale='+w+':'+h+':flags=area,split='+n+list('a'),'[cb]premultiply=inplace=1,format=gray,scale='+w+':'+h+':flags=area,split='+n+list('c'),'[0:v]fps='+fps+',scale='+w+':'+h+':flags=area,format=rgb24,split='+n+list('s')];
+  offsets.forEach((o,i)=>g.push('[s'+i+']trim=start='+(o-s0).toFixed(4)+':duration='+dur+',setpts=PTS-STARTPTS[t'+i+'];[t'+i+'][a'+i+']alphamerge,premultiply=inplace=1,format=gray[p'+i+'];[p'+i+'][c'+i+']ssim,nullsink'));
+  const log=await execute(['-hide_banner','-nostats','-v','info','-y','-ss',String(s0),'-t',String(span),'-i',src,'-t',String(dur),...decoder,'-i',cut,'-filter_complex',g.join(';'),'-map','[png]','-vsync','0',J(masks,'mask_%06d.png')],d,'cutout-check');
+  const found=[...String(log).matchAll(/\[Parsed_ssim_(\d+) @ [^\]]*\] SSIM [^\n]*?All:([0-9.]+)/g)].map(m=>[Number(m[1]),Number(m[2])]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+  return offsets.map((_,i)=>found[i]??0)};
+ const masksIn=dir=>{try{return fsx('readdirSync').readdirSync(dir).map(String).filter(x=>/^mask_\d+\.png$/.test(x)).sort().map(x=>J(dir,x))}catch{return[]}};
+ const coverage=async img=>{const b=await grab(['-v','error','-y','-i',img,'-vf','scale=64:64','-pix_fmt','gray','-f','rawvideo'],'.raw',60000);let sum=0;for(const v of b)sum+=v;return sum/(255*b.length)};
+ const localUrl=dir=>String(fsx('pathToLocalURL').pathToLocalURL(dir)).replace(/\/+$/,'');
+ const prepare=async a=>{let d=await L.load(a.runId);const dest=J(L.runpath(d.runId),'masks');
+  if(a.patch){Object.assign(d,a.patch);await L.save(d);if(a.details!=null)await L.event(d,'generation','end',a.details)}
+  if(d.sourceIdentity&&!L.same(d.sourceIdentity,L.identity(a.sourcePath)))throw Error('The source file changed during creation. The existing job is preserved; no new generation was submitted.');
+  if(d.mask&&isDir(stat(dest)))return d;
+  if(exists(dest))throw Error('Existing mask folder preserved; inspect interrupted run rather than overwrite it.');
+  const src=a.sourcePath,cut=a.cutoutPath,start=Number(a.startSeconds);if(a.seconds)d.foregroundSeconds=Number(a.seconds);const dur=fgSeconds(d);
+  await L.event(d,'mask-prepare','start');const t=Date.now();
+  await L.event(d,'cutout-probe','start',{command:['ffprobe',cut]});const p=(JSON.parse(await ffprobe(['-v','error','-select_streams','v:0','-show_entries','stream=codec_name,pix_fmt,width,height,avg_frame_rate:stream_tags','-of','json',cut])).streams||[])[0]||{};await L.event(d,'cutout-probe','end');
+  const pf=String(p.pix_fmt||''),alphaTag=String(p.tags?.alpha_mode??p.tags?.ALPHA_MODE??'0'),decoder=p.codec_name==='vp9'&&alphaTag==='1'?['-c:v','libvpx-vp9']:[];
+  if(!decoder.length&&!['yuva','rgba','argb','bgra','gbrap'].some(x=>pf.includes(x)))throw Error('Generated output has no decoded alpha: '+pf+'. Preserve the same job; do not regenerate.');
+  const [num,den]=String(p.avg_frame_rate).split('/').map(Number),fps=num/den,tmp=J(L.runpath(d.runId),'mask-preparing-'+uuid());mkdir(tmp);
+  const offsets=[start,...[start-.5,start-.1,start+.1,start+.5].filter(s=>s>=0)];
+  const check=(async()=>{const scores=await checkAndExtract(d,src,cut,decoder,offsets,dur,tmp,[Math.trunc(Number(p.width)),Math.trunc(Number(p.height))],fps),frames=masksIn(tmp),cover=[];
+   for(const img of frames.length?[frames[0],frames[Math.floor(frames.length/2)],frames[frames.length-1]]:[])cover.push(await coverage(img));return{scores,frames,cover}})();
+  const encoded=d.foregroundPath?null:encodeForeground(d,['-t',String(dur),...decoder,'-i',cut],'[1:v]alphaextract',fps).catch(async e=>{await L.event(d,'foreground','deferred',{error:String(e?.message||e).slice(-400)});return null});
+  let checked,fg=null;try{checked=await check}finally{fg=encoded?await encoded:null}
+  const {scores,frames,cover}=checked,ssim=scores[0],near=scores.slice(1);
+  if(ssim<.9||near.some(x=>x>ssim+.0005)){rmTree(tmp);if(fg)await drop(fg);throw Error('Cutout does not line up with the source (SSIM '+ssim.toFixed(4)+' here; '+near.map(x=>x.toFixed(4)).join(', ')+' nearby). No Draft was created.')}
+  if(frames.length<Math.trunc(dur*fps)-1)throw Error('Mask does not cover the foreground duration');
+  if(cover.every(x=>x<.0001||x>.9999))throw Error('Mask is blank or entirely opaque; preserved output for inspection, no regeneration.');
+  await L.event(d,'mask-coverage','end',{samples:cover});
+  rename(tmp,dest);
+  const first=J(dest,'mask_000001.png'),sig=await head(first,8).catch(()=>new Uint8Array());
+  if(![0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A].every((v,i)=>sig[i]===v))throw Error('Mask file validation failed');
+  d.mask={baseUrl:localUrl(dest),fps,count:frames.length,path:dest,sourcePath:src,sourceStartSeconds:start,cutoutPath:cut,provenanceSsim:ssim,provenanceNeighbourSsim:near,provenanceOk:true};d.phase='maskReady';
+  if(fg)commitForeground(d,fg);
+  await L.save(d);await L.event(d,'mask-prepare','end',{durationMs:Date.now()-t,mask:d.mask});return d};
+ const foreground=a=>lock('fg:'+a.runId,async()=>{const d=await L.load(a.runId);
+  if(d.foregroundPath&&d.foregroundVersion===2){if(!exists(d.foregroundPath))throw Error('Saved foreground file missing; inspect before retrying');return d}
+  const mask=d.mask;if(!mask||!isDir(stat(mask.path)))throw Error('Validated alpha masks required');const t=Date.now();
+  const tmp=await encodeForeground(d,['-framerate',String(mask.fps),'-i',J(mask.path,'mask_%06d.png')],'[1:v]format=gray',mask.fps);
+  const dest=commitForeground(d,tmp);await L.save(d);await L.event(d,'foreground','end',{durationMs:Date.now()-t,path:dest});return d});
+ // Where the subject sits in its frame, 0-1 from the top left: the 2nd-98th percentile of mask coverage on each axis.
+ const subjectBox=a=>lock('box:'+a.runId,async()=>{const d=await L.load(a.runId),m=d.mask||{};if('box' in m)return m.box;
+  const W=160,raw=await grab(['-v','error','-y','-i',J(m.path,'mask_%06d.png'),'-vf','scale='+W+':-2,format=gray','-f','rawvideo'],'.raw',60000).catch(()=>new Uint8Array());
+  const sz=await shownSize(J(m.path,'mask_000001.png'))||{width:16,height:9},H=Math.max(2,pyRound(W*sz.height/sz.width/2)*2),cols=new Array(W).fill(0),rows=new Array(H).fill(0);let total=0;
+  for(let k=0;k<Math.floor(raw.length/(W*H));k++)for(let y=0;y<H;y++){let n=0;const o=k*W*H+y*W;for(let x=0;x<W;x++)if(raw[o+x]>127){cols[x]++;n++}rows[y]+=n;total+=n}
+  const span=c=>{let lo=null,hi=null,acc=0;c.forEach((v,i)=>{acc+=v;if(lo===null&&acc>=total*.02)lo=i;if(hi===null&&acc>=total*.98)hi=i+1});return[lo/c.length,hi/c.length]},r4=x=>Number(x.toFixed(4));
+  let box=null;if(total){const [x0,x1]=span(cols),[y0,y1]=span(rows);box={x0:r4(x0),x1:r4(x1),y0:r4(y0),y1:r4(y1)}}
+  d.mask={...m,box};await L.save(d);return box});
+ // --- panel settings and the job record (settings-load / settings-save / job-record) ---
+ const settingsPath=J(store,'panel-state.json'),readJson=async(p,f)=>exists(p)?JSON.parse(await hostReadText(p)):f;
+ const settingsLoad=async a=>(await readJson(settingsPath,{}))[a.projectId]||{};
+ const settingsSave=a=>lock('settings',async()=>{const all=await readJson(settingsPath,{});all[a.projectId]={...(all[a.projectId]||{}),...a.settings};mkdir(store);await write(settingsPath,JSON.stringify(all,null,2));return{saved:true}});
+ const jobRecord=async a=>{const d=await L.load(a.runId),j=await readJson(J(d.logDir,'generation-job.json'),{});if(j.jobId){d.generation={...(d.generation||{}),...j};await L.save(d)}return d};
+ return {sfx,'folder-media':folderMedia,tile,strip,sizes,hold,silent:async a=>{const q=await silent(String(a.path));return{path:q,name:base(q)}},'cutout-input':cutoutInput,'fetch-result':fetchResult,
+  prepare,foreground,'subject-box':subjectBox,'settings-load':settingsLoad,'settings-save':settingsSave,'job-record':jobRecord,ensure:async()=>({}),
+  // The editor's own probes (pipeline.py has none of these): the subject's facts, the range preview, the export check.
+  probeText:path=>quietProbe(['-v','error','-select_streams','v:0','-show_entries','format=duration:stream=width,height','-of','json',path]),
+  rangePreview:async(path,start,end,count=4)=>{const n=Math.max(2,count),span=Math.max(.05,end-start);return{frames:await pool(Array.from({length:n},(_,i)=>{const t=start+span*i/(n-1);return i===n-1?Math.max(start,t-.05):t}),2,async t=>{try{return b64(await grab(['-y','-hide_banner','-loglevel','error','-ss',String(Math.max(0,t)),'-i',path,'-frames:v','1','-vf','scale=176:-1,format=yuv420p','-q:v','12','-f','mjpeg'],'.jpg',20000))}catch{return''}})}},
+  decodeCheck:async path=>{try{const stdout=await ffprobe(['-v','error','-show_entries','stream=codec_name,width,height,nb_frames,r_frame_rate','-show_entries','format=duration,size','-of','json',path]);const stderr=await ffmpeg(['-v','error','-i',path,'-f','null','-'],180000);return{exitCode:0,stdout,stderr}}catch(e){return{exitCode:1,stdout:'',stderr:String(e?.message||e)}}}};
+}
+// pc-port:end
 function inventoryCode(pid,offset=0){return `const p=selects.project(${json(pid)});const rs=await p.resources();let sf,warning='';try{sf=await p.sourceFiles()}catch{sf=await p.sourceFiles({folder:'(root)'});warning='Only top-level media could be loaded. Refresh media to retry the full library.'}const flat=(ns,o=[])=>{for(const n of ns||[])n.type==='dir'?flat(n.children,o):n.path&&o.push(n);return o};let fs=[];if('fileTree'in sf)fs=flat(sf.fileTree);else for(const f of sf.folders||[]){const s=await p.sourceFiles({folder:f.name});if('fileTree'in s)fs.push(...flat(s.fileTree))}const by=new Map(fs.map(f=>[f.resourceId,f]));const inventory=rs.flatMap(r=>{const f=by.get(r.resourceId);return f?.path?[{resourceId:r.resourceId,name:r.name,path:f.path,durationSeconds:r.durationSeconds||f.durationSeconds||null,frameSize:f.frameSize||null,frameRate:f.frameRate||null}]:[]});return {rows:inventory.slice(${offset},${offset+32}),total:inventory.length,warning}`}
 // A sound with takes in the manifest (`panel.1`..`panel.6`, `curtain.1`..) gets a
 // different take on each hit, as the reference never repeats one; others play as-is.
@@ -267,6 +563,11 @@ const BRIA_MODEL_ID='model_v1_YnJpYS92aWRlby9iYWNrZ3JvdW5kLXJlbW92YWwvdjM';
 // The cutout is only on screen until the flash (TIMING.subjectEnd), so a little
 // more than that is all that is sent; the provider bills and works by the second.
 const CUTOUT_SECONDS=1.6;
+// Every paid background removal waits for an explicit yes (both OSes). The Panel asks with a card; a template run
+// has no one to ask, so it stops before the paid step and a cutout it can reuse still builds.
+const CREDITS_NOTICE='This sends a '+CUTOUT_SECONDS+' s clip of your subject to Selects background removal, which uses generation credits. A rebuild with the same subject and range reuses the cutout.';
+const CREDITS_DECLINED='Background removal was not started, so no credits were used. Press Resume when you are ready.';
+const TEMPLATE_CREDITS='This uses Selects generation credits. Open Postcard Cutout Studio and press Create to confirm.';
 function appServices(){const di=window.parent?.__DI__;if(!di?.MediaGeneration?.isAvailable?.())throw Error('This version of Selects cannot remove backgrounds from a panel. Update Selects.');return di;}
 // The library a template run was handed for its project (`context.template.libraryId`):
 // the run goes on out of sight, after the app may have moved to another page.
@@ -282,7 +583,7 @@ function generationScope(pid){
 // the run_script aliases the rest of this panel uses; the file path joins them.
 async function appResourceIdForPath(di,scope,path){
   const ids=(await di.ProjectRepository.findById(scope.libraryId,scope.projectId)).getResources();
-  for(const id of ids){const res=await di.ResourceRepository.findById(scope.libraryId,id);if(res?.getVideoSources?.()?.some(v=>v.path===path))return id;}
+  for(const id of ids){const res=await di.ResourceRepository.findById(scope.libraryId,id);if(res?.getVideoSources?.()?.some(v=>samePath(v.path,path)))return id;}
   throw Error('Could not find the subject clip in this project.');
 }
 async function appResourcePath(di,scope,id){
@@ -294,11 +595,14 @@ async function appResourcePath(di,scope,id){
 // The steps of a run, shared by the Panel and a template run. `guard` stops the
 // work once whoever started it has moved on; `setRun` and `setStatus` report
 // progress to whoever is showing it.
-function createRunner({sdk,guard,setRun=_=>{},setStatus=_=>{}}){
+function createRunner({sdk,guard,setRun=_=>{},setStatus=_=>{},confirmCredits=async _run=>{throw Error(TEMPLATE_CREDITS)}}){
 async function persist(r,patch,stage,status='end',details={}){const next=await helper(sdk,'update',{runId:r.runId,patch,stage,status,details});setRun(next);return next}
 async function claim(r,expected,patch,stage,details){const x=await helper(sdk,'claim',{runId:r.runId,expected,patch,stage,details});if(!x.claimed)throw Error('Another run already started this step. Resume that run without starting a new generation.');setRun(x.run);return x.run}
 async function generation(r,collect=false){guard(r.projectId);const di=appServices(),mg=di.MediaGeneration;
 if(!collect){
+  // A run already past this point ('generationSubmitting') was confirmed and resubmits under the same key.
+  if(r.phase==='ready'&&!(await confirmCredits(r)))throw Object.assign(Error(CREDITS_DECLINED),{creditsDeclined:true});
+  guard(r.projectId);
   if(r.phase!=='generationSubmitting')r=await claim(r,['ready'],{phase:'generationSubmitting',generationStartedMs:Date.now()},'generation');
   const scope=generationScope(r.projectId);
   // The exact stretch goes up as its own file: given a whole clip and a range,
@@ -317,7 +621,9 @@ if(!collect){
   const {jobIds}=await mg.submit({scope,key:'pc-'+r.runId,modelId:BRIA_MODEL_ID,
     input:{video_url:'selects-input:source',background_color:'Transparent',output_container_and_codec:'webm_vp9',auto_zoom:false,preserve_audio:false},
     uploads:{source:{resourceId}},
-    outputName:'postcard_cutout_'+r.runId,batch:1,origin:{tool:'video',tab:'postcard',recipeId:'postcard-cutout'}});
+    outputName:'postcard_cutout_'+r.runId,batch:1,origin:{tool:'video',tab:'postcard',recipeId:'postcard-cutout'},
+    // Windows: the host saves the result into the run's log folder when it can; macOS reads it from the journal.
+    ...(hostIsWindows()&&mg.supportsPluginFiles?.()?{delivery:{pluginFolder:hostJoin(r.logDir,'cloud')}}:{})});
   const jobId=jobIds?.[0];
   if(!/^selects-[a-f0-9]{64}$/.test(jobId||''))throw Error('The app did not return a background-removal job.');
   return persist(r,{generation:{jobId,scope,modelId:BRIA_MODEL_ID,submittedAt:new Date().toISOString(),status:'submitted',deliveredBy:'media-generation'},phase:'generationPending'},'generation','pending',{jobId});
@@ -331,11 +637,11 @@ if(!job)return r;
 const trail=(window.__postcardTrail??=new Map()),steps=trail.get(gen.jobId)||[],step=job.status+'/'+job.deliveryStatus;
 if(steps[steps.length-1]?.[1]!==step)trail.set(gen.jobId,[...steps,[Date.now(),step]]);
 if(['failed','canceled','cancelled'].includes(job.status)){const failed={...gen,status:job.status,error:job.errorCode||job.status};await persist(r,{generation:failed,phase:'generationFailed'},'generation','failed',{generation:failed});throw Error('Background removal '+job.status+(job.errorCode?' ('+job.errorCode+')':'')+'.');}
-const out=(job.outputs||[]).find(o=>o.resourceId);
-if(!out&&job.status!=='succeeded')return r;
+const out=(job.outputs||[]).find(o=>o.resourceId),file=hostIsWindows()&&job.deliveryStatus==='delivered'?(job.outputs||[]).find(o=>o.path)?.path||null:null;
+if(!out&&!file&&job.status!=='succeeded')return r;
 // Background removal finishes with no delivered outputs (the app lists none
 // for this model), so take the clip straight from the app's job journal.
-const cutoutPath=out?await appResourcePath(di,scope,out.resourceId):(await helper(sdk,'fetch-result',{jobId:gen.jobId,dest:r.logDir+'/cutout.webm'}).catch(()=>null))?.path;
+const cutoutPath=out?await appResourcePath(di,scope,out.resourceId):file||(await helper(sdk,'fetch-result',{jobId:gen.jobId,dest:hostJoin(r.logDir,'cutout.webm')}).catch(()=>null))?.path;
 if(!cutoutPath)return r;
 // Recorded by the next step ('prepare') in the same call that starts it; if
 // that never runs, the next check finds the job done and the clip on disk.
@@ -343,9 +649,9 @@ const done={...gen,status:'succeeded',resourceId:out?.resourceId??null,cutoutPat
 return {...r,generation:done,phase:'cutoutReady',finished:{durationMs:Date.now()-(r.generationStartedMs||Date.now()),jobId:gen.jobId,chargedCredits:job.chargedCredits??null,trail:trail.get(gen.jobId)||[]}};
 }
 async function exportRun(r){guard(r.projectId);await helper(sdk,'ensure');
-if(r.phase==='draftReady'){r=await claim(r,['draftReady'],{phase:'exportSubmitting',exportStartedMs:Date.now()},'export');const outPath=r.logDir+'/final.mp4';const result=await runScript(sdk,`const e=await selects.export.video({projectId:${json(r.projectId)},draftSequenceId:${json(r.draftId)},outPath:${json(outPath)},resolution:'FHD'});return{workflowId:e.workflowId,outPath:${json(outPath)}}`,'Start postcard Export',true);r=await persist(r,{phase:'exportPending',export:result},'export','submitted',result)}
+if(r.phase==='draftReady'){r=await claim(r,['draftReady'],{phase:'exportSubmitting',exportStartedMs:Date.now()},'export');const outPath=hostJoin(r.logDir,'final.mp4');const result=await runScript(sdk,`const e=await selects.export.video({projectId:${json(r.projectId)},draftSequenceId:${json(r.draftId)},outPath:${json(outPath)},resolution:'FHD'});return{workflowId:e.workflowId,outPath:${json(outPath)}}`,'Start postcard Export',true);r=await persist(r,{phase:'exportPending',export:result},'export','submitted',result)}
 if(r.phase!=='exportPending')throw Error('The panel will not resubmit an Export with an uncertain submission state. Inspect the run log.');
-for(let i=0;i<90;i++){guard(r.projectId);const w=await runScript(sdk,`return(await selects.project(${json(r.projectId)}).workflows()).find(w=>w.workflowId===${json(r.export.workflowId)})||{status:'unknown'}`,'Check postcard Export');setStatus('Export: '+w.status+' '+Math.round((w.progress||0)*100)+'%');if(w.status==='succeeded'){r=await persist(r,{phase:'exportRendered'},'export','end',{durationMs:Date.now()-r.exportStartedMs,workflow:w,wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});const q=await macDecodeCheck(sdk,r.export.outPath);await helper(sdk,'event',{runId:r.runId,stage:'decode-check',status:q.exitCode===0?'end':'failed',details:{exitCode:q.exitCode,stdout:q.stdout,stderr:q.stderr}});if(q.exitCode!==0)throw Error('The exported file failed decode verification.');r=await persist(r,{phase:'complete',finishedMs:Date.now()},'run','end',{wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});setStatus('Complete · '+r.export.outPath+' · total '+((Date.now()-r.startedMs)/1000).toFixed(1)+'s');return r}if(['failed','canceled','cancelled'].includes(w.status)){r=await persist(r,{phase:'exportFailed',export:{...r.export,terminalStatus:w.status}},'export','failed',{workflow:w,durationMs:Date.now()-r.exportStartedMs});throw Error(w.lastErrorMessage||'Export failed. It will not be resubmitted automatically.')}await sleep(2000)}setStatus('Export is still running. Resume this run to check the same Export.');return r;
+for(let i=0;i<90;i++){guard(r.projectId);const w=await runScript(sdk,`return(await selects.project(${json(r.projectId)}).workflows()).find(w=>w.workflowId===${json(r.export.workflowId)})||{status:'unknown'}`,'Check postcard Export');setStatus('Export: '+w.status+' '+Math.round((w.progress||0)*100)+'%');if(w.status==='succeeded'){r=await persist(r,{phase:'exportRendered'},'export','end',{durationMs:Date.now()-r.exportStartedMs,workflow:w,wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});const q=await decodeCheck(sdk,r.export.outPath);await helper(sdk,'event',{runId:r.runId,stage:'decode-check',status:q.exitCode===0?'end':'failed',details:{exitCode:q.exitCode,stdout:q.stdout,stderr:q.stderr}});if(q.exitCode!==0)throw Error('The exported file failed decode verification.');r=await persist(r,{phase:'complete',finishedMs:Date.now()},'run','end',{wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});setStatus('Complete · '+r.export.outPath+' · total '+((Date.now()-r.startedMs)/1000).toFixed(1)+'s');return r}if(['failed','canceled','cancelled'].includes(w.status)){r=await persist(r,{phase:'exportFailed',export:{...r.export,terminalStatus:w.status}},'export','failed',{workflow:w,durationMs:Date.now()-r.exportStartedMs});throw Error(w.lastErrorMessage||'Export failed. It will not be resubmitted automatically.')}await sleep(2000)}setStatus('Export is still running. Resume this run to check the same Export.');return r;
 }
 // One pass of a run: prepares the picks, then carries the run as far as it
 // goes. Returns the run as it stands when the pass ends; a failure carries it
@@ -423,18 +729,19 @@ if(kind!=='resume'&&kind!=='export'){
  cutoutInput=await cutInput;guard(pid);
  prepMs.hold=Date.now()-clickedAtMs;
  let inventory=await readInventory(sdk,pid);guard(pid);
- const missing=[...new Set([...selected.map(row=>row.path),...poolRows.map(row=>row.path),...(cutoutInput?.path?[cutoutInput.path]:[])])].filter(path=>!inventory.some(item=>item.path===path));
+ // The cutout input is registered by generation(), after the credit confirm.
+ const missing=[...new Set([...selected.map(row=>row.path),...poolRows.map(row=>row.path)])].filter(path=>!inventory.some(item=>samePath(item.path,path)));
  if(missing.length){
    await runScript(sdk,'return await selects.project('+json(pid)+').importFiles({paths:'+json(missing)+'});','Register postcard media',true);
    guard(pid);inventory=await readInventory(sdk,pid);guard(pid);
  }
  prepMs.import=Date.now()-clickedAtMs-prepMs.hold;
  const mapped=new Map(selected.map(row=>{
-   const matches=inventory.filter(item=>item.path===row.path);
+   const matches=inventory.filter(item=>samePath(item.path,row.path));
    if(matches.length!==1)throw Error('Could not uniquely identify '+row.name+'. No generation was submitted.');
    return [row.resourceId,matches[0]];
  }));
- pool=poolRows.map(row=>{const matches=inventory.filter(item=>item.path===row.path);if(matches.length!==1)throw Error('Could not uniquely identify '+row.name+'. No generation was submitted.');return {...matches[0],durationSeconds:matches[0].durationSeconds||row.durationSeconds,shownPath:row.shownPath,kind:row.kind};});
+ pool=poolRows.map(row=>{const matches=inventory.filter(item=>samePath(item.path,row.path));if(matches.length!==1)throw Error('Could not uniquely identify '+row.name+'. No generation was submitted.');return {...matches[0],durationSeconds:matches[0].durationSeconds||row.durationSeconds,shownPath:row.shownPath,kind:row.kind};});
  s={...s,subjectId:mapped.get(s.subjectId)?.resourceId,bgIds:s.bgIds.map(id=>mapped.get(id).resourceId),photoIds:s.photoIds.map(id=>mapped.get(id).resourceId)};
  byId=new Map([...mapped.values()].map(row=>[row.resourceId,row]));
  onMapped(mapped,s);setRun(previous);current=previous;
@@ -531,7 +838,7 @@ function templateMessage(e){
   return said&&said.length<=200&&!/[\n\r]|Traceback|\{|"\w+":/.test(said)?said:TEMPLATE_FAILED;
 }
 async function runTemplate({sdk,pid,template,sequenceId,guard,setStatus}){
-  if(hostIsWindows())throw Error(MAC_ONLY);
+  {const issue=pcHostIssue();if(issue)throw Error(issue);}
   window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
   if(!pid)throw Error('Open a project, then try again.');
   guard(pid);
@@ -549,7 +856,7 @@ async function runTemplate({sdk,pid,template,sequenceId,guard,setStatus}){
   const unusable=picks.find((pick,i)=>!isVideo({path:paths[i]})&&!isPhoto({path:paths[i]}));
   if(unusable)throw Error((unusable.name||'A picked clip')+' is not a file this template can use. Pick MP4, MOV, MKV, WebM or M4V videos and PNG, JPEG or WebP photos.');
   // The picks as the Panel's own rows: its Project ids, files, lengths and sizes.
-  const rowFor=new Map(picks.map((pick,i)=>{const row=inventory.find(x=>x.path===paths[i]);if(!row)throw Error('Could not find '+(pick.name||'a picked clip')+' among this project’s files. Refresh your media, then try again.');return [pick.resourceId,row];}));
+  const rowFor=new Map(picks.map((pick,i)=>{const row=inventory.find(x=>samePath(x.path,paths[i]));if(!row)throw Error('Could not find '+(pick.name||'a picked clip')+' among this project’s files. Refresh your media, then try again.');return [pick.resourceId,row];}));
   const idOf=pick=>rowFor.get(pick.resourceId).resourceId,subjectRow=rowFor.get(subject.resourceId);
   const settings={...DEFAULTS,title:TEMPLATE_TITLE,aspect,subjectId:subjectRow.resourceId,subjectStartSec:0,
     bgIds:[...new Set(panels.map(idOf))].filter(id=>id!==subjectRow.resourceId),
@@ -616,8 +923,8 @@ export default function PostcardPanel(props){return props.context.template?<Post
 function PostcardEditor({sdk,context,ui}){
 const [s,setS]=useState({...DEFAULTS,bgIds:[],photoIds:[],aspect:'original',title:'MY POSTCARD'}),[rows,setRows]=useState([]),[loading,setLoading]=useState(false),[hydrated,setHydrated]=useState(true),[busy,setBusy]=useState(false),[status,setStatus]=useState(''),[run,setRun]=useState(null),[duration,setDuration]=useState(0),[sourceError,setSourceError]=useState(false),[preview,setPreview]=useState([]);
 const busyRef=useRef(false),projectRef=useRef(context.projectId);projectRef.current=context.projectId;
-// Windows: no helper, so nothing can be listed, previewed or built; the panel says so and every action stops first.
-const macOnly=useMemo(()=>hostIsWindows(),[]);
+// Windows with a Selects build too old for the port: the panel says so and every action stops first.
+const hostIssue=useMemo(()=>pcHostIssue(),[]);
 const byId=useMemo(()=>new Map(rows.map(x=>[x.resourceId,x])),[rows]),subject=byId.get(s.subjectId),videos=rows.filter(isSubject),images=rows.filter(isPhoto),change=(key,value)=>{dirty.current=true;setS(old=>({...old,[key]:value,forceNew:false,autoExport:false}));};
 
 const [error,setError]=useState(''),[tab,setTab]=useState('all'),[query,setQuery]=useState(''),[page,setPage]=useState(0),[customize,setCustomize]=useState(false);
@@ -627,7 +934,7 @@ const stripAsked=useRef(new Set()),hoverTimer=useRef(0);
 const [folder,setFolder]=useState(null),[folderIds,setFolderIds]=useState([]),[selection,setSelection]=useState([]),[picking,setPicking]=useState(false);
 const folderBusy=useRef(false);
 async function readFolder(path,offset=0,search=''){
-  if(macOnly){setError(MAC_ONLY);return;}
+  if(hostIssue){setError(hostIssue);return;}
   setLoading(true);setError('');
   try{
     const result=await helper(sdk,'folder-media',{path,offset,query:search});guard(context.projectId);
@@ -654,14 +961,14 @@ function startOver(){
   setFolder(null);setFolderIds([]);clearPicks();
 }
 async function abandonRun(){
-  if(macOnly||folderBusy.current||busyRef.current||!run||!canAbandon)return;
+  if(hostIssue||folderBusy.current||busyRef.current||!run||!canAbandon)return;
   try{await helper(sdk,'update',{runId:run.runId,patch:{phase:'abandoned'},stage:'pipeline',status:'abandoned',details:{by:'user',from:run.phase}});}
   catch(e){setError(e instanceof Error?e.message:String(e));return;}
   setRun(null);setError('');setStatus('');setQuery('');setPage(0);
   setFolder(null);setFolderIds([]);clearPicks();
 }
 async function chooseFolder(){
-  if(macOnly){setError(MAC_ONLY);return;}
+  if(hostIssue){setError(hostIssue);return;}
   if(folderBusy.current||busyRef.current||locked)return;
   folderBusy.current=true;setPicking(true);setError('');
   try{
@@ -674,7 +981,7 @@ async function chooseFolder(){
 }
 async function dropFolder(event){
   event.preventDefault();
-  if(macOnly){setError(MAC_ONLY);return;}
+  if(hostIssue){setError(hostIssue);return;}
   if(folderBusy.current||busyRef.current||locked)return;
   const files=event.dataTransfer.files;
   if(files.length!==1){setError('Drop one folder at a time. Your selections will be kept.');return;}
@@ -687,13 +994,17 @@ async function dropFolder(event){
 const dirty=useRef(false);
 useEffect(()=>()=>{projectRef.current=null},[]);
 useEffect(()=>{preparing.say=setStatus;return()=>{if(preparing.say===setStatus)preparing.say=null}},[]);
-useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(macOnly||!subject?.path)return;const path=subject.path;(async()=>{try{const r=await macProbeSubject(sdk,path);if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
-useEffect(()=>{let alive=true;if(macOnly||!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const r=await macRangePreview(sdk,subject.path,s.subjectStartSec,Math.min(duration,s.subjectStartSec+8.5));if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
+useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(hostIssue||!subject?.path)return;const path=subject.path;(async()=>{try{const r=await probeSubject(sdk,path);if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
+useEffect(()=>{let alive=true;if(hostIssue||!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const r=await rangePreview(sdk,subject.path,s.subjectStartSec,Math.min(duration,s.subjectStartSec+8.5));if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
 function guard(pid){if(projectRef.current!==pid)throw Error('The Project changed. Stopped without resubmitting the current operation.')}
-const runner=createRunner({sdk,guard,setRun,setStatus});
-async function execute(kind){if(macOnly){setError(MAC_ONLY);return;}if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
+// The credit confirm: generation() awaits it; the card's buttons settle it.
+const [creditAsk,setCreditAsk]=useState(null);
+const confirmCredits=()=>new Promise(resolve=>setCreditAsk({resolve}));
+function answerCredits(yes){const ask=creditAsk;setCreditAsk(null);ask?.resolve(yes);}
+const runner=createRunner({sdk,guard,setRun,setStatus,confirmCredits});
+async function execute(kind){if(hostIssue){setError(hostIssue);return;}if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
 try{await runner.build(kind,{pid:context.projectId,settings:s,rows,run,duration,setSettings:setS,onMapped:(mapped,next)=>{setRows(old=>old.map(row=>{const m=mapped.get(row.resourceId);return m?{...row,resourceId:m.resourceId}:row;}));setSelection(old=>old.map(id=>mapped.get(id)?.resourceId||id));setFolderIds(old=>old.map(id=>mapped.get(id)?.resourceId||id));setS(next);}});
-}catch(e){current=e?.run??current;setError('We could not finish your postcard. Your progress is saved. See details below.');setStatus(String(e.message||e));if(current?.runId)try{await helper(sdk,'event',{runId:current.runId,stage:'pipeline',status:'failed',details:{error:String(e.stack||e)}})}catch{}}finally{busyRef.current=false;setBusy(false)}}
+}catch(e){current=e?.run??current;if(e?.creditsDeclined){setError(CREDITS_DECLINED);setStatus('');return;}setError('We could not finish your postcard. Your progress is saved. See details below.');setStatus(String(e.message||e));if(current?.runId)try{await helper(sdk,'event',{runId:current.runId,stage:'pipeline',status:'failed',details:{error:String(e.stack||e)}})}catch{}}finally{busyRef.current=false;setBusy(false)}}
 
 const active=run&&!['draftReady','complete','abandoned','exportFailed','generationFailed'].includes(run.phase);
 const locked=busy||loading||!!active;
@@ -714,7 +1025,7 @@ const thumbnailRows=!folder&&selection.length===0?chosen.map(id=>byId.get(id)).f
 const thumbKey=thumbnailRows.map(x=>x.path).join('|');
 const STRIP_FRAMES=10;
 useEffect(()=>{
-  if(macOnly)return;
+  if(hostIssue)return;
   let alive=true;
   const queue=[...new Map(thumbnailRows.filter(row=>thumbs[row.path]===undefined).map(row=>[row.path,row])).values()];
   if(!queue.length)return;
@@ -743,7 +1054,7 @@ useEffect(()=>{
 // nothing, and the scrub itself is a background offset on an image already in
 // the page — no request, no decode, no state beyond which frame is showing.
 function beginScrub(row){
-  if(macOnly||!isVideo(row))return;
+  if(hostIssue||!isVideo(row))return;
   clearTimeout(hoverTimer.current);
   const path=row.path;
   hoverTimer.current=setTimeout(async()=>{
@@ -783,7 +1094,7 @@ useEffect(()=>{
 // to strand it wherever it stood - a paid cutout could sit uncollected for good.
 // On open, an unfinished run for this project is taken back up; the effect
 // above then carries it the rest of the way.
-useEffect(()=>{let alive=true;if(macOnly)return;(async()=>{try{
+useEffect(()=>{let alive=true;if(hostIssue)return;(async()=>{try{
   const prev=await helper(sdk,'load',{projectId:context.projectId});
   if(!alive||!prev||['draftReady','complete','abandoned','exportFailed','generationFailed'].includes(prev.phase))return;
   if(prev.settings)setS(old=>({...old,...prev.settings}));
@@ -863,8 +1174,8 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
     <div style={{display:'flex',justifyContent:'center'}}><ui.Icon name="folder" size={16}/></div>
     <strong>Start with a folder of memories.</strong>
     <p style={{...muted,margin:0}}>Drop a folder here, or choose one below.<br/>Nothing is imported until you create.</p>
-    {macOnly&&<p style={{...muted,margin:0}}>{MAC_ONLY}</p>}
-    <ui.Actions><ui.Button variant="primary" disabled={picking||loading||macOnly} onClick={chooseFolder}>Choose Folder</ui.Button></ui.Actions>
+    {!!hostIssue&&<p style={{...muted,margin:0}}>{hostIssue}</p>}
+    <ui.Actions><ui.Button variant="primary" disabled={picking||loading||!!hostIssue} onClick={chooseFolder}>Choose Folder</ui.Button></ui.Actions>
   </div>:cardView?<>
     {/* What was made, and the two things to do with it. The screen this
         replaced showed the setup form again, so finishing a postcard looked
@@ -966,7 +1277,11 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
     {/* The kit's Actions stacks every button full width under 360px, which
         made this bar four lines tall in a docked panel. This row keeps the
         two buttons side by side at any width; only the count wraps above. */}
-    <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}{canAbandon&&<ui.Button variant="ghost" onClick={()=>void abandonRun()}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error)} busyLabel={friendlyPhase(run?.phase)} disabled={macOnly||loading||picking||(!active&&!hasDraft&&!!blocker)} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
+    {creditAsk&&<div role="alertdialog" aria-label="Use generation credits" style={{...pane,padding:GAP,display:'grid',gap:GAP}}>
+      <p style={{margin:0,fontSize:12,lineHeight:1.5}}>{CREDITS_NOTICE}</p>
+      <div className="pc-actions"><ui.Button variant="ghost" onClick={()=>answerCredits(false)}>Cancel</ui.Button><ui.Button variant="primary" onClick={()=>answerCredits(true)}>Use credits and continue</ui.Button></div>
+    </div>}
+    <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}{canAbandon&&<ui.Button variant="ghost" onClick={()=>void abandonRun()}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error)} busyLabel={friendlyPhase(run?.phase)} disabled={!!hostIssue||loading||picking||(!active&&!hasDraft&&!!blocker)} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
   </footer>}
 </div>;
 }

@@ -117,6 +117,21 @@ class Recap2026WindowsTest(unittest.TestCase):
         self.assertIn("if(x.type!=='video')continue;const d=dur[x.resourceId]", self.source)
         self.assertNotIn("{const d=dur[x.resourceId]||x.durationSeconds;if(x.type==='video'", self.source)
 
+    def test_slow_host_scripts_get_a_longer_deadline(self):
+        # On Windows Staging "Analyze fixed soundtrack" passed the default 30 s run_script deadline and failed the
+        # template run; the full build hit it once on macOS too.
+        for summary in ("Analyze fixed soundtrack", "Create recap intro", "Add recap footage", "Finish recap Draft"):
+            self.assertRegex(self.source, r'summary:"' + summary + r'",allowCommit:true,timeoutSeconds:120,', summary)
+
+    def test_a_slow_analysis_start_is_not_fatal(self):
+        body = self.source[self.source.index("async function ensureAudio("):]
+        body = body[: body.index("\n}\n")]
+        start = body[body.index("const start = () =>"): body.index("await start();")]
+        self.assertNotIn("scriptResult(", start, "a start error must not throw")
+        self.assertIn('status === "analyzingSucceeded" || status === "analysisMerged"', body)
+        self.assertIn('if (status === "pending" && attempt === 9) await start();', body)
+        self.assertIn("attempt<60", body, "the poll stays bounded")
+
     def test_manifest_and_docs(self):
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
         self.assertIn("Windows x64", manifest["compatibility"]["platforms"])

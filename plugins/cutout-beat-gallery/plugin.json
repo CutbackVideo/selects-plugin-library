@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "cutout-beat-gallery",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "name": "Beat Cutout Gallery",
   "summary": "Turns a folder of portrait photos into an editable 15.9-second beat-cut gallery Draft: cut-out people with paper outlines slide in, stack over the photo on screen and lead into the next cut, on a bundled soundtrack.",
   "status": "experimental",
@@ -14,6 +14,7 @@
     "prepare.py",
     "preview.py",
     "foreground-mask.swift",
+    "cutout-engine.js",
     "reference-manifest.json",
     "fixed-bgm.mp3"
   ],
@@ -25,7 +26,8 @@
   },
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Development build only. Released-version compatibility is unverified."
   },

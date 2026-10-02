@@ -15,8 +15,11 @@ Open a project, choose a photo folder in the **Beat Cutout Gallery** panel, pres
 - At least 13 of them must cut out cleanly: the person may not touch the left, right or top
   edge, or a corner. 14 clean cutouts add the closing sticker; with 13 the sticker before it
   stays to the end.
-- People are separated with the macOS Vision person-segmentation model on this computer.
-  No photo leaves the computer.
+- On macOS, people are separated with the macOS Vision person-segmentation model on this
+  computer; no photo leaves the computer.
+- On Windows, people are cut out by Selects generation, which uses Selects credits. After the
+  free photo check the panel shows how many photos would be sent (as one short clip) and sends
+  nothing until you press **Send ... and use credits**.
 
 ## What the Draft contains
 
