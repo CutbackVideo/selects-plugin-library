@@ -4382,7 +4382,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       // back as bytes and removed at once, so the data folder never collects previews.
       const dur = videoSeconds, out = hostJoin(roots.data, "preview-" + token + "-" + Date.now() + ".mp3");
       const rt = hostNeed("Runtime", "runFFmpeg");
-      let bytes: Uint8Array;
+      let bytes: Uint8Array = new Uint8Array(0);
       try {
         await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-ss", start.toFixed(2), "-t", dur.toFixed(2), "-i", file, "-ac", "1", "-ar", "22050", "-b:a", "48k",
           "-af", "afade=t=out:st=" + Math.max(0, dur - 0.4).toFixed(2) + ":d=0.4", "-f", "mp3", out], true);
