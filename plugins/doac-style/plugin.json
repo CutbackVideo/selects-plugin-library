@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "doac-style",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "name": "DOAC Style",
   "summary": "Create expressive, speech-timed captions on a separate editable vertical timeline.",
   "status": "experimental",
@@ -10,6 +10,7 @@
   "files": [
     "INSTALL.md",
     "SKILL.md",
+    "THIRD_PARTY.md",
     "approved/PLANNING.md",
     "approved/README.md",
     "approved/caption-scene.tsx.txt",
@@ -22,6 +23,10 @@
     "approved/native/0YVdjmU13E4/renderer.py",
     "approved/native/8_dh-IB9jZ8/plan.json",
     "approved/native/NhbCBo1KuU8/plan.json",
+    "approved/native/fonts/arimo/Arimo-Bold.ttf.b64",
+    "approved/native/fonts/arimo/Arimo-Medium.ttf.b64",
+    "approved/native/fonts/arimo/Arimo-Regular.ttf.b64",
+    "approved/native/fonts/arimo/OFL.txt",
     "approved/native/fonts/permanentmarker/LICENSE.txt",
     "approved/native/fonts/permanentmarker/PermanentMarker-Regular.ttf.b64",
     "approved/native/renderer.py",
@@ -33,12 +38,21 @@
     "approved/rhythm.py",
     "approved/style.json",
     "approved/template-energy.json",
+    "approved/web/engine.js",
+    "approved/web/licenses/FreeType-FTL.txt",
+    "approved/web/licenses/NumPy-LICENSE.txt",
+    "approved/web/licenses/Pillow-LICENSE.txt",
+    "approved/web/licenses/SciPy-LICENSE.txt",
+    "approved/web/pil.js",
+    "approved/web/raster.wasm.b64",
+    "approved/web/worker.js",
     "panel.tsx",
     "runtime.sh"
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Development build only. Released-version compatibility is unverified."
   },
