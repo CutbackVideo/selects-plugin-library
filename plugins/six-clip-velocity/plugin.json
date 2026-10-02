@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "six-clip-velocity",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Six Clip Velocity",
   "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips.",
   "status": "experimental",
@@ -12,16 +12,15 @@
     "INSTALL.md",
     "THIRD_PARTY.md",
     "VALIDATION.md",
-    "operation.mjs",
-    "build-script.mjs",
     "panel.tsx",
     "assets/music.mp3"
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Needs the editor's existing original clip placement service (as Four Photo Reveal and Camera Shutter Dump use), clip retiming, public clip effects, motion graphics and Audio overlays, and Node.js in the panel shell. Verified in Selects Staging and a local develop build on 2026-10-01: saved Draft readback and export."
+    "selects": "Needs the editor's existing original clip placement service (as Four Photo Reveal and Camera Shutter Dump use), clip retiming, public clip effects, motion graphics and Audio overlays; no extra tools to install. Verified on macOS in Selects Staging and a local develop build on 2026-10-01: saved Draft readback and export. Windows is built to the kit rules but not yet verified on a real Windows machine."
   },
   "preview": {
     "video": "preview.mp4",

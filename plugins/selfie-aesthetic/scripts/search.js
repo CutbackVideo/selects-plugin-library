@@ -10,12 +10,20 @@ const cfg = __CONFIG__;
 //   control    "a landscape, street, room, food or object with no person"
 // Scene search always returns hits, even for clips without a face; the planner compares each clip's face scores
 // with its best control score (FACE_MARGIN) to decide what counts as a face hit.
-// Returns { candidates: [{ rid, role, t, score }], failed: [rid], stats: { ms, waitedMs, rateLimited } };
+// Returns { candidates: [{ rid, role, t, score }], failed: [rid], unanalysed: [rid], stats: { ms, waitedMs, rateLimited } };
 // t and score are rounded to 3 decimals to keep the result small (run_script results are capped).
+// Scene search needs analysis: clips that resources() reports without it are not searched and come back in
+// `unanalysed` (not `failed`; the panel plans them from its quick local score). When resources() cannot be read,
+// every clip is searched as before.
 const p = selects.project(cfg.projectId);
 const roles = Object.keys(cfg.queries);
+let unanalysedSet = new Set();
+try {
+  const known = new Map((await p.resources()).map(r => [r.resourceId, r]));
+  unanalysedSet = new Set(cfg.rids.filter(rid => known.has(rid) && !known.get(rid).hasAnalysis));
+} catch (e) { unanalysedSet = new Set(); }
 const jobs = [];
-for (const rid of cfg.rids) for (const role of roles) jobs.push({ rid, role });
+for (const rid of cfg.rids) if (!unanalysedSet.has(rid)) for (const role of roles) jobs.push({ rid, role });
 const candidates = [];
 const r3 = x => Math.round(x * 1000) / 1000;
 // run_script has no setTimeout; Atomics.waitAsync on a private buffer waits without blocking. Without it, no wait.
@@ -60,4 +68,4 @@ for (let pass = 0; pass < 4 && pending.length; pass++) {
   await Promise.all(Array.from({ length: Math.min(width, queue.length) }, worker));
   pending = failed;
 }
-return { candidates, failed: [...new Set(pending.map(j => j.rid))], stats: { ms: Date.now() - started, waitedMs: waited, rateLimited } };
+return { candidates, failed: [...new Set(pending.map(j => j.rid))], unanalysed: [...unanalysedSet], stats: { ms: Date.now() - started, waitedMs: waited, rateLimited } };

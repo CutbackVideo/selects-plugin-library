@@ -2,6 +2,9 @@
 
 macOS only (tested on macOS 26, Apple silicon).
 
+Windows: not supported (Apple Vision + Python). The panel opens and shows photo thumbnails, but
+**Analyze photos** and **Make video** are disabled with "Available on macOS for now".
+
 - `python3` with Pillow (`python3 -m pip install --user Pillow`).
 - `ffmpeg` with `libx264` and `prores_ks` (`brew install ffmpeg`).
 - `swiftc` from the Xcode Command Line Tools (`xcode-select --install`). On first analysis the

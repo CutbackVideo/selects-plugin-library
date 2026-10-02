@@ -8,10 +8,140 @@
 // speaker. No full-screen flashes or added sound; independently editable phrases and keywords.
 import React, { useEffect, useRef, useState } from "react";
 
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
+
 const PANEL_ID = "chris-williamson-style";
-const PLUGIN_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PANEL_ID;
-const DATA_DIR = "$HOME/.selects/plugin-data/" + PANEL_ID;
-const FFMPEG_PROBE = 'for a in "/Applications/Selects Staging.app" "/Applications/Selects Beta.app" "/Applications/Selects.app"; do f="$a/Contents/Resources/app.asar.unpacked/dist/bin/ffmpeg"; [ -x "$f" ] && { printf %s "$f"; exit 0; }; done; command -v ffmpeg || printf ffmpeg';
+// Shot detection, face framing and B-roll preparation still run in engine.mjs on Node.js and Apple Vision (macOS);
+// on Windows the panel opens and says so, before anything is changed.
+const MAC_ONLY = "Available on macOS for now.";
+const NEEDS_NEWER = "Chris Williamson Style needs a newer version of Selects.";
 const PREFIX = "Chris Williamson · ";
 const SUFFIX = " · Chris Williamson Style";
 const FOLDER = "Chris";
@@ -268,13 +398,21 @@ export type Env = {
 };
 export type Options = { scope?: UpdateScope; copy: boolean; music?: boolean; musicDb?: number; instructions?: string; fontFamily?: string; planOverride?: any; searchOverride?: Record<string, any[]>; onDraft?: (id: string) => void };
 
+// mac-only:start
 const q = (v: string) => "'" + String(v).replace(/'/g, "'\\''") + "'";
+// mac-only:end
 const COMMIT_OK = `.catch((e: any) => { if (!/Nothing to stage/.test(String(e?.message || e))) throw e; })`;
 
-// Script prelude: file path -> current Project Resource id (short ids can change between calls).
-const RESOLVE_PATHS = `const idByPath: Record<string, string> = {};
+// Host paths are compared by key, never as typed: NFC, "/" separators, and a Windows path (drive or UNC) case-folded.
+// Plain JS, so a run_script prelude carries the same function as source (pathKey.toString()).
+function pathKey(p) { let s = String(p || "").normalize("NFC"); const win = /^[A-Za-z]:[\\/]|^\\\\/.test(s); s = s.replace(/\\/g, "/"); return win ? s.toLowerCase() : s; }
+// Every string `path` in a Project file tree.
+function treePaths(n, out = []) { if (Array.isArray(n)) n.forEach((x) => treePaths(x, out)); else if (n && typeof n === "object") { if (typeof n.path === "string") out.push(n.path); for (const v of Object.values(n)) if (v && typeof v === "object") treePaths(v, out); } return out; }
+// Script prelude: file path key -> current Project Resource id (short ids can change between calls).
+const RESOLVE_PATHS = `const __pk=${pathKey.toString()};
+const idByPath: Record<string, string> = {};
 {
-  const walkTree = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === 'dir') walkTree(n.children); else if (n.path) idByPath[n.path] = n.resourceId; } };
+  const walkTree = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === 'dir') walkTree(n.children); else if (n.path) idByPath[__pk(n.path)] = n.resourceId; } };
   const tree: any = await project.sourceFiles();
   if (tree.fileTree) walkTree(tree.fileTree); else for (const f of tree.folders || []) { const sub: any = await project.sourceFiles({ folder: f.name }); walkTree(sub.fileTree); }
 }`;
@@ -307,13 +445,47 @@ return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, wo
 /*SECTION_assets*/
 /*SECTION_verification*/
 /*SECTION_pipeline*/
+/*SECTION_engine*/
 
 // ---------------------------------------------------------------------------------------------------------
 // Panel UI.
-const SETUP_COMMAND = "mkdir -p " + DATA_DIR + " && printf '%s\\n%s\\n' \"" + DATA_DIR + "\" \"" + PLUGIN_DIR + "\" && (" + FFMPEG_PROBE + ") && printf '\\n'";
+// mac-only:start
+// engine.mjs runs ffmpeg itself, so it is handed a path: the copy inside Selects, else one on PATH.
+const FFMPEG_PROBE = 'for a in "/Applications/Selects Staging.app" "/Applications/Selects Beta.app" "/Applications/Selects.app"; do f="$a/Contents/Resources/app.asar.unpacked/dist/bin/ffmpeg"; [ -x "$f" ] && { printf %s "$f"; exit 0; }; done; command -v ffmpeg || printf ffmpeg';
+async function macFfmpegPath(sdk: any) {
+  const r = await sdk.runShell({ summary: "Check the Chris Williamson Style setup", command: FFMPEG_PROBE, timeoutMs: 20000 });
+  return String(r?.stdout || "").split("\n").map((x: string) => x.trim()).filter(Boolean).pop() || "ffmpeg";
+}
 // Node.js is not on a stock Mac: runtime.sh fetches a pinned copy into ~/.selects/plugin-data on first use
 // and prints its path as its last line.
-const NODE_COMMAND = 'sh "' + PLUGIN_DIR + '/runtime.sh" node';
+const nodeCommand = (pluginDir: string) => "sh " + q(hostJoin(pluginDir, "runtime.sh")) + " node";
+// mac-only:end
+
+// The install and data folders (and, on macOS, the ffmpeg engine.mjs runs). A Selects without the file services
+// gets one "needs a newer Selects" message.
+async function resolvePaths(sdk: any) {
+  try {
+    const { plugin, data } = await hostRoots(sdk, PANEL_ID, "engine.mjs");
+    if (!data) throw hostError("host-missing", "this Selects build has no FileSystem.mkdirSync", "FileSystem.mkdirSync");
+    hostNeed("FileSystem", "readFile"); hostNeed("FileSystem", "writeFile"); hostNeed("FileSystem", "mkdirSync");
+    hostNeed("Runtime", "runFFmpeg"); hostNeed("Runtime", "runFFprobe");
+    return { data, plugin, ffmpeg: hostIsWindows() ? "ffmpeg" : await macFfmpegPath(sdk) };
+  } catch (e: any) {
+    throw e?.code === "host-missing" ? new Error(NEEDS_NEWER) : e;
+  }
+}
+// The host's ffmpeg / ffprobe (argv, no shell); stderr is collected as it streams as well, since some host builds
+// only return it that way.
+async function ffmpegRun(args: string[]) {
+  let err = "";
+  const r = await hostNeed("Runtime", "runFFmpeg").runFFmpeg(args, true, undefined, undefined, (s: string) => { err += s; });
+  return { stdout: String(r?.stdout || ""), stderr: String(r?.stderr || "") || err };
+}
+async function ffprobeRun(args: string[]) {
+  const r = await hostNeed("Runtime", "runFFprobe").runFFprobe(args, true);
+  return String(r?.stdout || "");
+}
+function mkdirs(path: string) { hostNeed("FileSystem", "mkdirSync").mkdirSync(path, { recursive: true }); }
 
 function host() {
   const parent: any = window.parent;
@@ -324,11 +496,10 @@ async function smallImage(dataUrl:string) {
   const img = new Image();img.src=dataUrl;await img.decode();const c=document.createElement("canvas");const k=Math.min(1,1600/Math.max(img.width,img.height));c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);const ctx=c.getContext("2d");if(!ctx)throw Error("Image inspection canvas unavailable");ctx.drawImage(img,0,0,c.width,c.height);return c.toDataURL("image/jpeg",0.86);
 }
 async function readText(path: string) {
-  const data = await host().FileSystem.readFile(path);
-  return new TextDecoder().decode(data instanceof Uint8Array ? data : new Uint8Array(data));
+  return await hostReadText(path);
 }
 async function writeText(path: string, text: string) {
-  await host().FileSystem.writeFile(path, new TextEncoder().encode(text));
+  await hostNeed("FileSystem", "writeFile").writeFile(path, new TextEncoder().encode(text));
 }
 
 // Drafts of the Project and its analysed videos, for the two pickers. Read-only.
@@ -344,7 +515,7 @@ async function removeLegacyFlashes(sdk:any,env:Env,projectId:string,id:string) {
   if(!di.SequenceRepository?.findById||!di.SequenceEdit?.runSequenceMutation)throw Error('This Selects host cannot update legacy effects safely.');
   const seq=await di.SequenceRepository.findById(core.owner.libraryId,id);
   if(!seq?.clone)throw Error('Draft unavailable.');
-  await env.writeText(env.dataDir+'/cleanup-'+id+'-'+Date.now()+'.json',JSON.stringify(core));
+  await env.writeText(hostJoin(env.dataDir,'cleanup-'+id+'-'+Date.now()+'.json'),JSON.stringify(core));
   const generators=new Map((core.generatorJsons||[]).map((g:any)=>[g.id,g]));
   await di.SequenceEdit.runSequenceMutation(seq,'Chris: remove full-screen flashes',(current:any)=>{
     const next=current.clone();let changed=false;
@@ -375,7 +546,7 @@ async function removeLegacyFlashes(sdk:any,env:Env,projectId:string,id:string) {
     }
     return changed?next:null;
   });
-  const removed=await env.runScript(`const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(id)});const files:any=await p.sourceFiles();const ids=new Set();function walk(ns){for(const n of ns||[]){if(n.type==='audio'&&n.name==='shutter.wav'&&String(n.path).includes('/chris-williamson-style/runs/'))ids.add(n.resourceId);walk(n.children);}}if(files.fileTree)walk(files.fileTree);else for(const f of files.folders||[]){const sub:any=await p.sourceFiles({folder:f.name});walk(sub.fileTree);}const clips=(await d.clips({trackScope:'all'})).filter(c=>c.trackKind==='audio'&&ids.has(c.resourceId));for(const g of await d.motionGraphics())if(g.name.startsWith('Chris Williamson · ')&&g.name.includes('[cws:inversion:'))clips.push(g.clip);if(clips.length){await d.removeClips(clips);await d.commitAll('Chris: remove shutter clicks and old flash clips');}return clips.length;`,'Remove old Chris flashes and shutter clips',true);
+  const removed=await env.runScript(`const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(id)});const files:any=await p.sourceFiles();const ids=new Set();function walk(ns){for(const n of ns||[]){if(n.type==='audio'&&n.name==='shutter.wav'&&String(n.path).replace(/\\\\/g,'/').includes('/chris-williamson-style/runs/'))ids.add(n.resourceId);walk(n.children);}}if(files.fileTree)walk(files.fileTree);else for(const f of files.folders||[]){const sub:any=await p.sourceFiles({folder:f.name});walk(sub.fileTree);}const clips=(await d.clips({trackScope:'all'})).filter(c=>c.trackKind==='audio'&&ids.has(c.resourceId));for(const g of await d.motionGraphics())if(g.name.startsWith('Chris Williamson · ')&&g.name.includes('[cws:inversion:'))clips.push(g.clip);if(clips.length){await d.removeClips(clips);await d.commitAll('Chris: remove shutter clicks and old flash clips');}return clips.length;`,'Remove old Chris flashes and shutter clips',true);
   const state=await readState(env,id);if(state){state.pulses=[];state.inversionOwners=[];for(const [k,v] of Object.entries(state.items) as any[])if(v.category==='inversion')delete state.items[k];state.verification=null;await env.writeText(stateFile(env,id),JSON.stringify(state,null,2));}
   return removed;
 }
@@ -389,19 +560,21 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
       if (r.isError || r.result === undefined) throw new Error((r.output || "Selects could not run " + summary).slice(0, 600));
       return r.result;
     },
+    // mac-only:start
     runShell: async (command, summary, timeoutMs = 120000) => {
       const r = await sdk.runShell({ command, summary, timeoutMs, maxOutputBytes: 16000 });
       if (r.isError || r.exitCode !== 0) throw new Error((r.stderr || r.output || summary + " failed").slice(0, 600));
       return String(r.stdout || "");
     },
+    // mac-only:end
     askAI: async (prompt, timeoutMs, images) => (await sdk.askAI({ prompt, timeoutMs, images })).text,
-    imageData: async (path) => { const a=await host().FileSystem.readFile(path);const bytes=a instanceof Uint8Array?a:new Uint8Array(a);let raw="";for(let i=0;i<bytes.length;i+=8192)raw+=String.fromCharCode(...bytes.subarray(i,i+8192));return "data:image/jpeg;base64,"+btoa(raw); },
+    imageData: async (path) => { const bytes=await hostReadBytes(path);let raw="";for(let i=0;i<bytes.length;i+=8192)raw+=String.fromCharCode(...bytes.subarray(i,i+8192));return "data:image/jpeg;base64,"+btoa(raw); },
     cleanLegacy: (project,id) => removeLegacyFlashes(sdk,env,project,id),
     readCore: (id) => sdk.call("getDraftCore",id),
     capture: async (id,frames) => {const core=await sdk.call("getDraftCore",id);if(!core.owner)throw Error("Draft owner missing");const c=await sdk.call("captureVisualFrames",{owner:core.owner,sequenceId:id,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:"resolved",includeOverlays:true,frames:frames.map(frameNumber=>({frameNumber,view:"timeline_composite"}))});return [{dataUrl:await smallImage("data:image/jpeg;base64,"+c.data),name:"Saved Draft"}];},
     // Real keyword widths in em: the embedded Inter ExtraBold, and for Hangul/CJK the system font the renderer falls back to.
     textMeasure: async () => {
-      const src = /url\((data:[^)]+)\)/.exec(await readText(paths.plugin + "/fonts/font.css"))?.[1];
+      const src = /url\((data:[^)]+)\)/.exec(await readText(hostJoin(paths.plugin, "fonts", "font.css")))?.[1];
       if (src) { const face = new FontFace("Chris Reference Inter", "url(" + src + ")", { weight: "100 900" }); await face.load(); (document as any).fonts.add(face); }
       const ctx = document.createElement("canvas").getContext("2d")!;
       ctx.font = '800 100px "Chris Reference Inter"';
@@ -411,9 +584,10 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
     writeText,
     status,
     // Resolved once per run, on the first engine step; a failed download is tried again on the next step.
+    // mac-only:start
     node: () => node ??= (async () => {
       status("Preparing Node.js (first run only)…");
-      const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: NODE_COMMAND, timeoutMs: 290000, maxOutputBytes: 8000 });
+      const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: nodeCommand(paths.plugin), timeoutMs: 290000, maxOutputBytes: 8000 });
       const found = String(r?.stdout || "").split("\n").map((x: string) => x.trim()).filter(Boolean).pop();
       if (r?.isError || r?.exitCode !== 0 || !found) {
         node = null;
@@ -422,6 +596,7 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
       }
       return found;
     })(),
+    // mac-only:end
     dataDir: paths.data,
     pluginDir: paths.plugin,
     ffmpeg: paths.ffmpeg,
@@ -457,10 +632,10 @@ function StylePanel({ sdk, context, ui }: any) {
   const [result, setResult] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
-    sdk.runShell({ summary: "Check the Chris Williamson Style setup", command: SETUP_COMMAND, timeoutMs: 20000 })
-      .then((r: any) => {
-        const lines = String(r?.stdout || "").split("\n").map((x: string) => x.trim());
-        setPaths({ data: lines[0], plugin: lines[1], ffmpeg: lines[2] || "ffmpeg" });
+    if (hostIsWindows()) { setSetupIssue(MAC_ONLY); return; }
+    resolvePaths(sdk)
+      .then((p) => {
+        setPaths(p);
         setSetupIssue("");
       })
       .catch((e: any) => setSetupIssue(String(e?.message || e)));
@@ -506,6 +681,7 @@ function StylePanel({ sdk, context, ui }: any) {
   }
 
   async function create() {
+    if (hostIsWindows()) { setSetupIssue(MAC_ONLY); return; }
     if (locked.current || !projectId || !sequenceId || !paths || setupIssue) return;
     const from = sequenceId;
     locked.current = true; setBusy(true); setError(""); setResult(null);
@@ -560,9 +736,7 @@ function templateSpeaker(template: any): any {
 }
 
 async function templatePaths(sdk: any) {
-  const r = await sdk.runShell({ summary: "Check the Chris Williamson Style setup", command: SETUP_COMMAND, timeoutMs: 20000 });
-  const lines = String(r?.stdout || "").split("\n").map((x: string) => x.trim());
-  return { data: lines[0], plugin: lines[1], ffmpeg: lines[2] || "ffmpeg" };
+  return await resolvePaths(sdk);
 }
 
 /** A new Draft holding the whole picked video. */
@@ -596,6 +770,8 @@ function TemplateRun({ sdk, context }: any) {
     };
     void (async () => {
       try {
+        // Before anything is created: the build needs macOS for now.
+        if (hostIsWindows()) throw new Error(MAC_ONLY);
         const projectId = context.projectId || "";
         const speaker = templateSpeaker(context.template);
         if (!projectId) throw new Error("Open a project, then try again.");

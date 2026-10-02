@@ -1,6 +1,6 @@
 # Install Six Clip Velocity
 
-Install this folder through the Selects plugin library. The installer puts `panel.tsx` at `SELECTS_USER_PANELS_ROOT/six-clip-velocity/panel.tsx` and the other listed files under `SELECTS_USER_SKILLS_ROOT/six-clip-velocity`. Node.js must be available to the Selects panel shell.
+Install this folder through the Selects plugin library. The installer puts `panel.tsx` at `SELECTS_USER_PANELS_ROOT/six-clip-velocity/panel.tsx` and the other listed files under `SELECTS_USER_SKILLS_ROOT/six-clip-velocity`. Nothing else needs to be installed: the plan and finishing step run inside the panel, on macOS and Windows.
 
 On first use the panel imports `assets/music.mp3` from the install folder into the open Project once.
 
