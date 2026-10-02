@@ -1,7 +1,9 @@
 // DOAC Style caption engine in a Web Worker (Windows). The panel concatenates
 // pil.js, engine.js and this file into one blob and posts:
-//   { cmd: 'catalogue' | 'compile', wasm, files, fonts, job, only }
-// and gets back { result } or { error: { pyType, pyMessage, message } }.
+//   { cmd: 'catalogue' | 'check' | 'compile', wasm, files, fonts, job, only }
+// and gets back { result } or { error: { pyType, pyMessage, message } }; a compile
+// also posts { progress } after each frame and each scene. 'check' lays out and
+// validates every scene without drawing one (engine.js checkJob).
 //
 // Fonts: the approved plans name macOS font files. On Windows the same family
 // is read from the system Fonts folder when it is there (the panel sends it as
@@ -51,6 +53,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     try {
       const engine = doacEngine(data);
       if (data.cmd === 'catalogue') { self.postMessage({ result: engine.catalogue() }); return; }
+      if (data.cmd === 'check') { self.postMessage({ result: engine.checkJob(data.job) }); return; }
       const result = await engine.compileJob(data.job, { only: data.only == null ? null : data.only, onProgress: p => { self.postMessage({ progress: p }); } });
       const transfer = result.scenes.map(s => s.preview.buffer);
       self.postMessage({ result }, transfer);

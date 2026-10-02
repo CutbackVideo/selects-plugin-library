@@ -750,6 +750,18 @@ function createDoacEngine({ pil, files, fontSource }) {
     });
   }
 
+  // check_job(job): what compile_job does before it draws a frame (every plan's
+  // layout, the film placement and geometry.validate), and nothing after it. It
+  // throws exactly when compile_job throws at that stage, with the same error;
+  // errors that only drawing finds ('Empty caption scene', an atlas taller than
+  // 16384 px) still come from compile_job alone.
+  function checkJob(job) {
+    return pil.scope(() => {
+      const state = compile(job.input, job.editorial);
+      return { ok: true, scenes: state.plans.length, records: state.records, placement: state.placement };
+    });
+  }
+
   // ------------------------------------------------------------------- PNG
   const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
   function crc32(parts) { let c = 0xffffffff; for (const p of parts) for (let i = 0; i < p.length; i++) c = CRC[(c ^ p[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
@@ -909,7 +921,7 @@ function createDoacEngine({ pil, files, fontSource }) {
     return { choiceNoReplace, normal: (loc, scale) => loc + scale * standardNormal(), _next64: next64 };
   }
 
-  return { catalogue, compileJob, compile: (d, e) => pil.scope(() => { const s = compile(d, e); return { records: s.records, placement: s.placement }; }), _internal: { pyRound, pyRoundN, scipyGaussianU8, gaussKernel, transparent, numpyDefaultRng } };
+  return { catalogue, compileJob, checkJob, compile: (d, e) => pil.scope(() => { const s = compile(d, e); return { records: s.records, placement: s.placement }; }), _internal: { pyRound, pyRoundN, scipyGaussianU8, gaussKernel, transparent, numpyDefaultRng } };
 }
 
 // numpy random/src/distributions/ziggurat_constants.h (ki fits in a double: < 2^52).
