@@ -3259,8 +3259,8 @@ async function quickScore(resource, opts) {
   try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
   // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
   // path with different media is not served stale scores; Mini Vlog review).
-  var dur = Number(resource.durationSeconds || 0).toFixed(3);
-  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, dur, a.toFixed(3), b.toFixed(3)].join("-");
+  var durKey = Number(resource.durationSeconds || 0).toFixed(3);
+  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
   var cacheFile = io.join(dir, safe + ".json");
   if (io.readText && !ws) {
     try {
