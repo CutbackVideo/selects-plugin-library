@@ -24,6 +24,8 @@
 //   come from dev/quick-scores.local.json ({ "<rid>": <quickScore result>, ... }, optional, e.g. made with the kit block's
 //   `io` seam and a local ffmpeg); a clip without an entry gets the block's own fallback (evenly spaced windows), which
 //   is what the panel does on a host without ffmpeg.
+//   A search cache written by an earlier adapter may hold rows or failures for clips without analysis, which are no
+//   longer searched: delete it after the Project's clips change analysis state.
 import vm from 'node:vm';
 
 // A brace or bracket constant from panel.tsx, evaluated as a JS literal (`close` is its closing token, e.g. '};').
