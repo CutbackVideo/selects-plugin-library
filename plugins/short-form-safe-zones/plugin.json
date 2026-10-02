@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "short-form-safe-zones",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Short Form Safe Zones",
   "summary": "Overlay TikTok, Reels, Shorts, Stories and LinkedIn safe-zone guides and composition grids as a removable clip in the Draft preview.",
   "status": "experimental",
