@@ -9,6 +9,137 @@ const STORY_EXAMPLE = {"name": "Roommate", "script": "Them[0.4]: Don't panic.\nT
 const DEFAULTS = { script: STORY_EXAMPLE.script, name: STORY_EXAMPLE.name, fontFamily: '', fontSize: 34, widthPct: 78, topPct: 14, leftColor: '#26262b', rightColor: '#0c83fb', uiVersion: 3, unreadCount: 15, speed: 1, startSeconds: 0, fit: false, portrait: false, interval: 2.5, autoLength: true, tailSeconds: STORY_EXAMPLE.tailSeconds, timingMode: 'tts', afterSpeech: STORY_EXAMPLE.afterSpeech, voiceProvider: 'kokoro', localThem: 'af_heart', localMe: 'am_michael', cloudThem: '', cloudMe: '', speechRate: 1, voiceData: null };
 const REFERENCE_EXAMPLE = {"name": "My Ex 🧙‍♀️🧹 😞", "script": "Them: Come back home, babe.\nThem: 🍆😛\nThem: Waiting on you.\nThem: Oops, wrong person.\nThem: Meant to send that to my current boyfriend. My bad.", "widthPct": 76.85185185185185, "topPct": 14.0625, "fontSize": 34, "fontFamily": "", "leftColor": "#26262b", "rightColor": "#0c83fb", "unreadCount": 15, "mode": "page", "uiVersion": 3};
 const REFERENCE_QA = {"testedOn": "2026-09-10", "bitwiseIdentical": false, "nearPixelPass": false, "threshold": "At least 99% of foreground pixels within \u00b15 per RGB channel, with MAE \u22641/255.", "frames": [{"time": 4.216666, "pixels": 143708, "bitwise_identical": false, "exact_pixel_pct": 58.096, "within_5_per_channel_pct": 79.162, "mean_absolute_error_0_255": 14.4546, "rmse_0_255": 44.594}, {"time": 18.216666, "pixels": 119220, "bitwise_identical": false, "exact_pixel_pct": 36.948, "within_5_per_channel_pct": 70.455, "mean_absolute_error_0_255": 22.0614, "rmse_0_255": 57.91}, {"time": 25.216666, "pixels": 27271, "bitwise_identical": false, "exact_pixel_pct": 50.457, "within_5_per_channel_pct": 71.842, "mean_absolute_error_0_255": 26.7474, "rmse_0_255": 67.2968}], "encodedExample": {"pixels": 143687, "bitwise_identical": false, "exact_pixel_pct": 1.292, "within_5_per_channel_pct": 78.674, "mean_absolute_error_0_255": 14.8504, "rmse_0_255": 44.4612}};
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
+// Local Kokoro needs Python, a venv and a POSIX shell, so it is macOS-only for now; Windows narrates with ElevenLabs.
+const MAC_ONLY_NOTE='Available on macOS for now';
+function kokoroAvailable(){return !hostIsWindows();}
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, Number(n))); }
 function parseScript(text) {
   const lines = String(text).split(/\r?\n/); const result=[];let page=0,pendingPage=false;
@@ -129,8 +260,12 @@ async function readDraft(sdk,pid,sid) {
   if(!r.result)throw new Error('No Draft information was returned. Reload the panel.');
   return r.result;
 }
+// mac-only:start
 const LOCAL_TTS_PY = "import json,sys,hashlib,wave,subprocess\nfrom pathlib import Path\nimport numpy as np\nfrom kokoro_onnx import Kokoro\njob=json.loads(Path(sys.argv[1]).read_text());root=Path(job['root']).resolve();root.mkdir(parents=True,exist_ok=True);engine=Path(job['engineRoot']).resolve()\nmodel=engine/'kokoro-v1.0.int8.onnx';voices=engine/'voices-v1.0.bin'\nk=None;out=[];total=0;available=set(np.load(voices,allow_pickle=False).files)\nfor row in job['rows']:\n if Path(job['cancelPath']).exists():print(json.dumps({'cancelled':True,'pieces':out}));sys.exit(0)\n text=str(row['text']);voice=str(row['voice']);speed=float(job.get('rate',1))\n if voice not in available or not voice.startswith(('af_','am_','bf_','bm_')):raise ValueError('Choose an available English voice')\n if not .7<=speed<=1.2:raise ValueError('Speech rate is out of range')\n if not text.strip() or len(text)>1000:raise ValueError('Invalid message length')\n key=hashlib.sha256(json.dumps(['kokoro-v1-int8',voice,speed,text],ensure_ascii=False).encode()).hexdigest()[:32];wav=root/(key+'.wav');silent=not any(c.isalnum() for c in text)\n if not wav.exists():\n  if silent:\n   with wave.open(str(wav),'wb')as f:f.setnchannels(1);f.setsampwidth(2);f.setframerate(44100);f.writeframes(b'')\n  else:\n   if k is None:k=Kokoro(str(model),str(voices))\n   audio,sr=k.create(text,voice=voice,speed=speed,lang='en-gb' if voice.startswith('b') else 'en-us')\n   if not len(audio):raise ValueError('This English voice could not read a message. Rewrite the text.')\n   raw=root/(key+'-raw.wav')\n   with wave.open(str(raw),'wb')as f:f.setnchannels(1);f.setsampwidth(2);f.setframerate(sr);f.writeframes((np.clip(audio,-1,1)*32767).astype('<i2').tobytes())\n   subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-i',str(raw),'-ac','1','-ar','44100','-c:a','pcm_s16le',str(wav)],check=True,capture_output=True,timeout=90);raw.unlink(missing_ok=True)\n with wave.open(str(wav),'rb')as f:\n  duration=f.getnframes()/f.getframerate()\n  if duration<0 or duration>180 or (duration==0 and not silent):raise ValueError('Invalid generated speech duration')\n  info={'file':str(wav),'duration':duration,'frames':f.getnframes(),'sampleRate':f.getframerate(),'voice':voice,'silent':silent}\n total+=duration\n if total>600:raise ValueError('Keep generated speech below 10 minutes per conversation')\n out.append(info)\n if job.get('progressPath'):\n  Path(job['progressPath']).write_text(json.dumps({'done':len(out),'total':len(job['rows'])}))\nprint(json.dumps({'root':str(root),'pieces':out,'totalSpeechSeconds':total,'engine':'Kokoro v1.0 int8'}))\n";
 const SETUP_KOKORO_PY = "import os,sys,json,subprocess,shutil,urllib.request,hashlib\nfrom pathlib import Path\nroot=Path(sys.argv[1]).expanduser().resolve();root.mkdir(parents=True,exist_ok=True)\nif root.name!='kokoro-v1':raise ValueError('Unexpected engine directory')\nlock=root/'install.lock'\ndef acquire_lock():\n try:\n  fd=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY)\n  with os.fdopen(fd,'w')as f:f.write(str(os.getpid()))\n except FileExistsError:\n  try:pid=int(lock.read_text().strip())\n  except ValueError:raise RuntimeError('An incomplete setup lock was found. Check that setup is stopped before removing '+str(lock))\n  try:os.kill(pid,0)\n  except ProcessLookupError:lock.unlink();return acquire_lock()\n  raise RuntimeError('Engine setup is already running. Wait before trying again.')\nacquire_lock()\ntry:\n python=None\n for name in ['python3.12','python3.11','python3.13','python3.10']:\n  candidate=shutil.which(name)\n  if candidate:python=candidate;break\n if not python and (3,10)<=sys.version_info[:2]<(3,14):python=sys.executable\n if not python:raise RuntimeError('Python 3.10\u20133.13 is required. Install it, then retry setup.')\n venv=root/'venv';exe=venv/('Scripts/python.exe' if os.name=='nt' else 'bin/python')\n if not exe.exists():subprocess.run([python,'-m','venv',str(venv)],check=True)\n env=dict(os.environ,PIP_CACHE_DIR=str(root/'pip-cache'))\n subprocess.run([str(exe),'-m','pip','install','--disable-pip-version-check','--no-input','-q','kokoro-onnx==0.6.1'],check=True,env=env,stdout=sys.stderr)\n assets=[('kokoro-v1.0.int8.onnx',114119327,'ae315a79b623f244700e4afb9246c46a26066782e049ba174bf3ba433970ee9c'),('voices-v1.0.bin',28214398,'bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d')]\n def digest(p):\n  h=hashlib.sha256()\n  with p.open('rb')as f:\n   for c in iter(lambda:f.read(1048576),b''):h.update(c)\n  return h.hexdigest()\n for name,size,expected in assets:\n  dest=root/name\n  if not dest.exists() or digest(dest)!=expected:\n   tmp=root/(name+'.part');url='https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/'+name\n   with urllib.request.urlopen(url,timeout=90)as response,tmp.open('wb')as f:shutil.copyfileobj(response,f,1048576)\n   if tmp.stat().st_size!=size or digest(tmp)!=expected:tmp.unlink(missing_ok=True);raise RuntimeError('Model download failed integrity verification: '+name)\n   tmp.replace(dest)\n for name,url in [('MODEL-CARD.md','https://huggingface.co/hexgrad/Kokoro-82M/raw/main/README.md'),('MODEL-LICENSE.txt','https://www.apache.org/licenses/LICENSE-2.0.txt'),('RUNTIME-LICENSE.txt','https://raw.githubusercontent.com/thewh1teagle/kokoro-onnx/main/LICENSE')]:\n  if not (root/name).exists():(root/name).write_bytes(urllib.request.urlopen(url,timeout=30).read())\n probe=subprocess.check_output([str(exe),'-c',\"import numpy as np,json,sys; names=np.load(sys.argv[1],allow_pickle=False).files;print(json.dumps([{'id':n,'name':n[3:].replace('_',' ').title(),'locale':'en_US' if n.startswith('a') else 'en_GB'} for n in names if n.startswith(('af_','am_','bf_','bm_'))]))\",str(root/'voices-v1.0.bin')],text=True)\n voices=json.loads(probe);(root/'voices.json').write_text(json.dumps(voices,indent=2))\n manifest={'ready':True,'python':str(exe),'engineRoot':str(root),'model':'kokoro-v1.0.int8.onnx','modelSha256':assets[0][2],'voicesSha256':assets[1][2],'modelLicense':'Apache-2.0','runtimeLicense':'MIT','package':'kokoro-onnx==0.6.1','voices':voices}\n (root/'engine.json').write_text(json.dumps(manifest,indent=2));print(json.dumps(manifest))\nfinally:lock.unlink(missing_ok=True)\n";
+function kokoroSetupShell(sdk,engine){return sdk.runShell({summary:'Set up free Kokoro voices',command:'python3 -c '+shellQuote(SETUP_KOKORO_PY)+' '+shellQuote(engine),timeoutMs:300000,maxOutputBytes:49152});}
+function kokoroPython(engine){return joinPath(engine,'venv','bin','python');}
+// mac-only:end
 const AUDIO_PROCESS_PY = "import sys,json,subprocess,wave,hashlib,math\nfrom pathlib import Path\njob=json.loads(Path(sys.argv[1]).read_text());root=Path(job['root']).resolve();root.mkdir(parents=True,exist_ok=True)\ndef inside(path):\n p=Path(path).resolve()\n if root!=p and root not in p.parents:raise ValueError('Audio file is outside this generated-voice workspace')\n return p\nif job['action']=='normalize':\n pieces=[]\n for row in job['rows']:\n  if row.get('silent'):\n   dst=root/'silent-message.wav'\n   if not dst.exists():\n    with wave.open(str(dst),'wb')as f:f.setnchannels(1);f.setsampwidth(2);f.setframerate(44100);f.writeframes(b'')\n   src=dst\n  else:src=inside(row['file']);dst=src.with_suffix('.wav')\n  if not dst.exists():subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-i',str(src),'-ac','1','-ar','44100','-c:a','pcm_s16le',str(dst)],check=True,capture_output=True,timeout=90)\n  with wave.open(str(dst),'rb')as f:pieces.append({'file':str(dst),'duration':f.getnframes()/f.getframerate(),'frames':f.getnframes(),'sampleRate':f.getframerate(),'voice':row['voice']})\n if sum(p['duration'] for p in pieces)>600:raise ValueError('Keep generated speech below 10 minutes per conversation')\n print(json.dumps({'root':str(root),'pieces':pieces}));sys.exit(0)\nif job['action']!='mix':raise ValueError('Unknown audio action')\nrows=job['rows'];duration=float(job['duration']);sr=44100\nif not 0<duration<=1800:raise ValueError('Conversation must be between 0 and 1800 seconds')\nparts=[];digest=hashlib.sha256(json.dumps({'rows':rows,'duration':duration},sort_keys=True).encode())\nfor row in rows:\n src=inside(row['file']);raw=src.read_bytes();digest.update(raw)\n with wave.open(str(src),'rb')as f:\n  if f.getnchannels()!=1 or f.getsampwidth()!=2 or f.getframerate()!=sr:raise ValueError('Regenerate voices: invalid cached audio format')\n  if abs(f.getnframes()/sr-float(row['speechDuration']))>1/sr+.0001:raise ValueError('Cached audio duration changed. Regenerate voices')\n  parts.append((int(round(float(row['start'])*sr)),f.readframes(f.getnframes())))\nname='imessage-narration-'+digest.hexdigest()[:32]+'.wav';dest=root/name\nif not dest.exists():\n with wave.open(str(dest),'wb')as f:\n  f.setnchannels(1);f.setsampwidth(2);f.setframerate(sr);pos=0\n  for start,data in parts:\n   if start<pos-1:raise ValueError('Speech overlaps. Check the after-voice gap')\n   padding=max(0,start-pos);f.writeframes(b'\\0'*(padding*2));f.writeframes(data);pos=max(pos,start)+len(data)//2\n  # One second of unplaced silence ensures a rounded-up video-frame boundary never clips speech.\n  target=math.ceil((duration+1)*sr)\n  if target>pos:f.writeframes(b'\\0'*((target-pos)*2))\nprint(json.dumps({'path':str(dest),'mixKey':digest.hexdigest(),'conversationDuration':duration,'fileDuration':duration+1,'sampleRate':sr}))\n";
 function speechSignature(s) {
   const provider=s.voiceProvider||'kokoro';
@@ -218,7 +353,8 @@ async function runSpeechJob(sdk,pid,code,job,summary,cache){
   if(!String(job.root||'').startsWith(joinPath(paths.base,'voice-')))throw new Error('The generated-voice folder is invalid. Regenerate voices.');
   let python='python3';
   if(code===LOCAL_TTS_PY){
-    python=joinPath(paths.engine,'venv','bin','python');
+    if(!kokoroAvailable())throw new Error('Local Kokoro voices: '+MAC_ONLY_NOTE+'. Choose ElevenLabs.');
+    python=kokoroPython(paths.engine);
     const ready=await runIO(sdk,'Check local voice engine',{action:'exists',paths:[python,joinPath(paths.engine,'engine.json')]});
     if(!ready.exists.every(Boolean))throw new Error('Set up the free local engine in the Voice tab first.');
     job={...job,engineRoot:paths.engine};
@@ -233,7 +369,7 @@ async function runSpeechJob(sdk,pid,code,job,summary,cache){
 }
 async function elevenRequest(path,key,options={}){
   if(!key.trim())throw new Error('Enter your ElevenLabs API key in the Voice tab.');
-  let response;try{response=await fetch('https://api.elevenlabs.io'+path,{...options,headers:{'xi-api-key':key.trim(),...(options.body?{'Content-Type':'application/json'}:{})}});}catch(e){if(e.name==='AbortError')throw e;throw new Error('Could not reach ElevenLabs. Check this app network permissions or use Local Kokoro.');}
+  let response;try{response=await fetch('https://api.elevenlabs.io'+path,{...options,headers:{'xi-api-key':key.trim(),...(options.body?{'Content-Type':'application/json'}:{})}});}catch(e){if(e.name==='AbortError')throw e;throw new Error('Could not reach ElevenLabs. Check this app network permissions'+(kokoroAvailable()?' or use Local Kokoro.':'.'));}
   if(!response.ok){let detail='';try{const j=await response.json();detail=typeof j.detail==='string'?j.detail:j.detail?.message||j.message||'';}catch{}detail=String(detail).split(key).join('[redacted]').split(key.trim()).join('[redacted]').slice(0,350);throw new Error('ElevenLabs '+response.status+(detail?': '+detail:'. Check key permissions, account access and billing.'));}
   return response;
 }
@@ -275,7 +411,7 @@ function StudioPreview({markup,full,frameWidth,frameHeight,panelWidth,maxHeightP
 }
 
 export default function IMessageGenerator({sdk,context}) {
-  const [settings,setSettings]=useState({...DEFAULTS});
+  const [settings,setSettings]=useState(()=>({...DEFAULTS,voiceProvider:kokoroAvailable()?DEFAULTS.voiceProvider:'elevenlabs'}));
   const [info,setInfo]=useState(null);
   const [busy,setBusy]=useState(false),[status,setStatus]=useState('Checking the Draft…');
   const [time,setTime]=useState(0.8),[playing,setPlaying]=useState(false);
@@ -392,10 +528,11 @@ export default function IMessageGenerator({sdk,context}) {
   async function voiceWorkspace(){const paths=await workspacePaths(sdk,workspace);if(!voiceRoot.current){voiceRoot.current=joinPath(paths.base,'voice-'+crypto.randomUUID());await runIO(sdk,'Prepare voice workspace',{action:'mkdir',path:voiceRoot.current});}return voiceRoot.current;}
   async function decodeVoice(piece,root){const paths=await workspacePaths(sdk,workspace);const file=String(piece.file||'');if(!file.startsWith(joinPath(paths.base,'voice-'))||!file.toLowerCase().endsWith('.wav'))throw new Error('Invalid generated speech file. Regenerate voices.');if(audioBuffers.current.has(file))return audioBuffers.current.get(file);const ctx=await audioEngine();const bytes=await readWorkspaceBytes(sdk,file);if(!bytes.length)throw new Error('Generated audio is missing. Generate voices again.');const buffer=await ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));audioBuffers.current.set(file,buffer);return buffer;}
   async function loadLocalVoices(){
+    if(!kokoroAvailable()){setEngineReady(false);setLocalVoices([]);setVoiceMessage('');return;}
     setVoicesLoading(true);
     try{
       const paths=await workspacePaths(sdk,workspace);
-      const probe=await runIO(sdk,'Check local voice engine',{action:'exists',paths:[joinPath(paths.engine,'engine.json'),joinPath(paths.engine,'venv','bin','python'),joinPath(paths.engine,'kokoro-v1.0.int8.onnx'),joinPath(paths.engine,'voices-v1.0.bin')]});
+      const probe=await runIO(sdk,'Check local voice engine',{action:'exists',paths:[joinPath(paths.engine,'engine.json'),kokoroPython(paths.engine),joinPath(paths.engine,'kokoro-v1.0.int8.onnx'),joinPath(paths.engine,'voices-v1.0.bin')]});
       if(!probe.exists[0]){setEngineReady(false);setLocalVoices([]);setVoiceMessage('One-time setup downloads about 143 MB of model data into an isolated folder. No global packages change.');return;}
       if(!probe.exists.every(Boolean))throw new Error('Local engine files are incomplete. Run setup again.');
       const data=JSON.parse(await readWorkspaceText(sdk,joinPath(paths.engine,'engine.json'),'{}'));
@@ -407,10 +544,10 @@ export default function IMessageGenerator({sdk,context}) {
     }catch(e){setEngineReady(false);setVoiceMessage(String(e.message||e));}finally{setVoicesLoading(false);}
   }
   async function setupEngine(){
-    if(setupBusy||voiceBusy)return;setSetupBusy(true);setVoiceMessage('Setting up the isolated local engine. This can take a few minutes…');
+    if(setupBusy||voiceBusy)return;if(!kokoroAvailable()){setVoiceMessage('Local Kokoro voices: '+MAC_ONLY_NOTE+'.');return;}setSetupBusy(true);setVoiceMessage('Setting up the isolated local engine. This can take a few minutes…');
     try{
       const paths=await workspacePaths(sdk,workspace);
-      const r=await sdk.runShell({summary:'Set up free Kokoro voices',command:'python3 -c '+shellQuote(SETUP_KOKORO_PY)+' '+shellQuote(paths.engine),timeoutMs:300000,maxOutputBytes:49152});
+      const r=await kokoroSetupShell(sdk,paths.engine);
       if(r.isError||r.exitCode!==0)throw new Error(r.stderr||r.output||'Engine setup failed.');
       await loadLocalVoices();
     }catch(e){setVoiceMessage(String(e.message||e));}finally{setSetupBusy(false);}
@@ -422,7 +559,7 @@ export default function IMessageGenerator({sdk,context}) {
   }
   async function cancelVoices(){voiceAbort.current?.abort();if(voiceCancelPath.current){try{await writeWorkspaceFile(sdk,voiceCancelPath.current,'cancel');}catch{}}setVoiceMessage('Stopping after the current request. Cloud requests may already have been billed.');}
   async function generateVoices(){
-    if(voiceBusy||lock.current||setupBusy)return;if(settings.voiceProvider==='kokoro'&&!engineReady){setTab('voice');setVoiceMessage('Set up the free local engine first.');return;}let rows;try{rows=parseScript(settings.script);}catch(e){setVoiceMessage(e.message);setTab('script');return;}
+    if(voiceBusy||lock.current||setupBusy)return;if(settings.voiceProvider==='kokoro'&&!kokoroAvailable()){setTab('voice');setVoiceMessage('Local Kokoro voices: '+MAC_ONLY_NOTE+'. Choose ElevenLabs.');return;}if(settings.voiceProvider==='kokoro'&&!engineReady){setTab('voice');setVoiceMessage('Set up the free local engine first.');return;}let rows;try{rows=parseScript(settings.script);}catch(e){setVoiceMessage(e.message);setTab('script');return;}
     const cloud=settings.voiceProvider==='elevenlabs';
     if(cloud&&(!apiKey||!cloudConnected||!cloudConsent)){setVoiceMessage('Connect your key and approve metered API requests first.');setTab('voice');return;}
     const them=cloud?settings.cloudThem:settings.localThem,me=cloud?settings.cloudMe:settings.localMe;
@@ -474,6 +611,7 @@ export default function IMessageGenerator({sdk,context}) {
     const cloud=settings.voiceProvider==='elevenlabs',id=cloud?(side==='left'?settings.cloudThem:settings.cloudMe):(side==='left'?settings.localThem:settings.localMe);
     try{
       if(cloud){const row=cloudVoices.find(v=>v.id===id);if(!row?.previewUrl||!row.previewUrl.startsWith('https://'))throw new Error('This voice has no free preview. Generate only after approving API usage.');const media=new Audio(row.previewUrl);auditionNode.current=media;await media.play();return;}
+      if(!kokoroAvailable())throw new Error('Local Kokoro voices: '+MAC_ONLY_NOTE+'.');
       const ctx=await audioEngine();const root=await voiceWorkspace();const cancelPath=joinPath(root,'cancel-'+crypto.randomUUID());voiceCancelPath.current=cancelPath;const out=await runSpeechJob(sdk,pid,LOCAL_TTS_PY,{root,cancelPath,rate:Number(settings.speechRate)||1,rows:[{text:'Hello. This is a preview of my voice.',voice:id}]},'Preview a local TTS voice',workspace);if(controller.signal.aborted||out.cancelled||auditionToken!==voiceEpoch.current||!same())return;const buffer=await decodeVoice(out.pieces[0],out.root);const node=ctx.createBufferSource();node.buffer=buffer;node.connect(ctx.destination);auditionNode.current=node;node.start();setVoiceMessage('Playing '+id+'.');
     }catch(e){if(auditionToken===voiceEpoch.current)setVoiceMessage(String(e.message||e));}finally{if(auditionToken===voiceEpoch.current){setVoiceBusy(false);voiceCancelPath.current='';}}
   }
@@ -695,7 +833,8 @@ export default function IMessageGenerator({sdk,context}) {
         settings.timingMode==='manual'
           ?hint('Silent is selected, so no voice will be generated or added. Pick Voice above to narrate the messages.')
           :h(React.Fragment,{key:'voice-controls'},
-              row('Engine',h('select',{id:'story-voiceProvider','aria-label':'Speech engine',value:settings.voiceProvider,disabled:busy||voiceBusy,style:ctrlSelect,onChange:e=>{update('voiceProvider',e.target.value);setVoiceMessage('');}},h('option',{value:'kokoro'},'Local · Free'),h('option',{value:'elevenlabs'},'ElevenLabs')),'voiceProvider'),
+              row('Engine',h('select',{id:'story-voiceProvider','aria-label':'Speech engine',value:settings.voiceProvider,disabled:busy||voiceBusy,style:ctrlSelect,onChange:e=>{update('voiceProvider',e.target.value);setVoiceMessage('');}},h('option',{value:'kokoro',disabled:!kokoroAvailable()},kokoroAvailable()?'Local · Free':'Local · '+MAC_ONLY_NOTE),h('option',{value:'elevenlabs'},'ElevenLabs')),'voiceProvider'),
+              !kokoroAvailable()&&hint('Free local Kokoro voices are '+MAC_ONLY_NOTE.toLowerCase()+'. ElevenLabs narration uses your own API key.'),
               selectRow('Them voice',voiceKey('left'),voiceOptions(voiceKey('left')),auditionButton('left')),
               selectRow('Me voice',voiceKey('right'),voiceOptions(voiceKey('right')),auditionButton('right')),
               numberRow('Rate ×','speechRate',.7,1.2,.05),
