@@ -9,15 +9,19 @@
    relative paths. The panel loads its music from
    `SELECTS_USER_SKILLS_ROOT/fast-switching-stopmotion/assets/music.mp3`. The
    package has no `SKILL.md`, so it is not listed as a Skill.
-3. Make sure `ffmpeg` is available to the app's shell; the panel uses it to
-   measure motion and to build the candidate contact sheet.
+3. Nothing else to install: the panel measures motion and builds the
+   candidate contact sheet with the ffmpeg bundled in Selects, on macOS and
+   Windows.
 4. Open **Fast Switching Stop Motion** in the Plugin list with a Project open,
    check the videos to use and press **Create Draft**.
 
 The panel reads the open Project's resources and source file paths. It writes
 only by importing the bundled music into the Project once and creating a new
 Draft; it never modifies an existing Draft or any source file. The candidate
-contact sheet is written to `~/.selects/plugin-data/fast-switching-stopmotion/`.
+contact sheet and the motion measurements are written briefly to
+`~/.selects/plugin-data/fast-switching-stopmotion/` (on Windows
+`%USERPROFILE%\.selects\plugin-data\fast-switching-stopmotion\`) and removed
+after use.
 Picking moments sends one image to the Selects AI per build.
 
 ## Uninstall
