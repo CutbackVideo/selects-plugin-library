@@ -7,12 +7,12 @@
 // bundled fonts (what the CI test uses); winsim: the Windows mapping, with the
 // macOS copies of Arial, Georgia and Times standing in for C:\Windows\Fonts.
 // Writes <job dir>/js/{result.json,frames.bin}.
-const fs = require('fs'), path = require('path'), vm = require('vm');
+const fs = require('fs'), path = require('path');
 const [work, jobdir, mode] = process.argv.slice(2);
 const WEB = path.join(__dirname, '../../approved/web'), AP = path.join(work, 'approved');
-const ctx = vm.createContext({ console, WebAssembly, TextEncoder, TextDecoder, CompressionStream, Response, Blob, btoa, atob, BigInt, Math, module: { exports: {} } });
-vm.runInContext(['pil.js', 'engine.js', 'worker.js'].map(f => fs.readFileSync(path.join(WEB, f), 'utf8')).join('\n;\n') + '\n;this.api={createPil,createDoacEngine,doacFontSource,DOAC_FONT_MAP};', ctx);
-const { createPil, createDoacEngine, doacFontSource, DOAC_FONT_MAP } = ctx.api;
+// One script, as in the Worker blob (a Function, not node:vm: globals in a vm context are slow).
+const source = ['pil.js', 'engine.js', 'worker.js'].map(f => fs.readFileSync(path.join(WEB, f), 'utf8')).join('\n;\n');
+const { createPil, createDoacEngine, doacFontSource, DOAC_FONT_MAP } = new Function('module', source + '\n;return {createPil,createDoacEngine,doacFontSource,DOAC_FONT_MAP};')({ exports: {} });
 const files = {};
 for (const f of ['style.json', 'template-energy.json', 'PLANNING.md', 'native/shortlist.json', 'native/0YVdjmU13E4/plan.json', 'native/0YVdjmU13E4/legacy-three-scenes.json', 'native/NhbCBo1KuU8/plan.json', 'native/8_dh-IB9jZ8/plan.json']) files[f] = fs.readFileSync(path.join(AP, f), 'utf8');
 const b64 = p => new Uint8Array(Buffer.from(fs.readFileSync(p, 'utf8'), 'base64'));
