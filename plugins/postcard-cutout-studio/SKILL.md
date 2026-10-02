@@ -81,8 +81,9 @@ commit.
 - Run state, masks, held clips and sounds live beneath
   `.selects/plugin-data/postcard-cutout-studio` (installs before 0.2.0-alpha.4 keep
   using the Panel folder). Keep them while any Draft references them.
-- The cutout masks are served by a loopback service on this computer. After a
-  restart, open the Panel before previewing or exporting an existing postcard Draft.
+- On macOS the cutout masks are served by a loopback service on this computer. After
+  a restart, open the Panel before previewing or exporting an existing postcard Draft.
+  On Windows the Draft reads the mask files directly (Selects 2.0.508 or later).
 
 ## Review
 
@@ -94,9 +95,11 @@ Inspect frames around 0.9, 1.45, 2.5, 4.3, 5.5 and 8 s.
 
 ## Known limitations
 
-- macOS only; tested on Apple silicon with a Selects development build.
-- The title look uses DIN Condensed and Avenir Next, which macOS provides. Other
-  systems fall back to other fonts.
+- Tested on Apple silicon with a Selects development build. On Windows the Panel
+  runs every step through Selects' own FFmpeg and file access; the Windows pass in
+  Selects is still to be done.
+- The title look uses DIN Condensed and Avenir Next, which macOS provides. Windows
+  falls back to Bahnschrift or Arial Narrow and Arial.
 - Fill frame keeps the subject centred but crops the rest of a wide scene; use Fit
   entire video when the whole frame must stay visible.
 - See [THIRD_PARTY.md](THIRD_PARTY.md) for where the sounds and the music come from.
