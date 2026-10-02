@@ -93,7 +93,8 @@ assert.equal(en.checkingClipsCount, 'Checking clips {done}/{count}');
 assert.ok(code.includes('t(l, "checkingClipsCount", { done: d, count: total })'), 'progress reads checkingClipsCount');
 // The quick-score block: the kit file verbatim, used through quickScoreAll + pickWindowsLocal (no shell for it).
 {
-  const kitBlock = (() => { try { return fs.readFileSync(path.join(require('node:os').homedir(), 'Workspaces', 'selects-app-kit', 'tools', 'panel', 'quick-score.js'), 'utf8').replace(/\n+$/, ''); } catch { return null; } })();
+  // With SELECTS_APP_KIT set (a kit checkout), the block must equal the kit file.
+  const kitBlock = (() => { try { return process.env.SELECTS_APP_KIT ? fs.readFileSync(path.join(process.env.SELECTS_APP_KIT, 'tools', 'panel', 'quick-score.js'), 'utf8').replace(/\n+$/, '') : null; } catch { return null; } })();
   const qs = between(panel, '// quick-score:start', '// quick-score:end');
   if (kitBlock) assert.equal(qs, kitBlock, 'quick-score block is the kit file verbatim');
   assert.equal((panel.match(/\/\/ quick-score:start/g) || []).length, 1);
