@@ -133,10 +133,12 @@ jobs:
           node plugins/selfie-aesthetic/tests/eval-whips.test.cjs
           node plugins/selfie-aesthetic/tests/host.test.cjs
           node plugins/selfie-aesthetic/tests/i18n.test.cjs
+          node plugins/selfie-aesthetic/tests/local.test.cjs
           node plugins/selfie-aesthetic/tests/package.test.cjs
           node plugins/selfie-aesthetic/tests/panel.test.cjs
           node plugins/selfie-aesthetic/tests/planner.test.cjs
           node plugins/selfie-aesthetic/tests/public-paths.test.cjs
+          node plugins/selfie-aesthetic/tests/quick-score.test.cjs
           node plugins/selfie-aesthetic/tests/scripts-edit.test.cjs
           node plugins/selfie-aesthetic/tests/scripts-read.test.cjs
           node plugins/selfie-aesthetic/tests/still.test.cjs

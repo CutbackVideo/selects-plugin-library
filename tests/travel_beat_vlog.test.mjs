@@ -5,9 +5,11 @@ import path from 'node:path';
 import vm from 'node:vm';
 import os from 'node:os';
 import zlib from 'node:zlib';
-import {spawnSync} from 'node:child_process';
-import {scenePlan,slotNeeds,colorTransfer,normalizeFinish,buildFinishScript,buildCutoutScript,VIDEO_SLOTS,REFERENCE_TIMING,validateTiming,withinLimits,LIMITS} from '../plugins/travel-beat-vlog/operation.mjs';
-import {analyseSamples,timingFrom,hits,rolls} from '../plugins/travel-beat-vlog/analyze.mjs';
+import {loadPanelOperation,runPanelShell} from './panel_operation.mjs';
+
+const {scenePlan,slotNeeds,colorTransfer,normalizeFinish,buildFinishScript,buildCutoutScript,VIDEO_SLOTS,REFERENCE_TIMING,validateTiming,withinLimits,LIMITS,
+ songAnalysis,songWorkerSource,songDecodeArgs,songArrangeArgs,measureArgs,rgbStats,cutoutKey,cutoutCommand}=loadPanelOperation('travel-beat-vlog');
+const {analyseSamples,timingFrom,hits,rolls}=songAnalysis();
 
 const dir=path.resolve(import.meta.dirname,'../plugins/travel-beat-vlog');
 // Independent reference measurements (30 fps, 468 frames), typed from the frame analysis.
@@ -90,25 +92,44 @@ test('finish places 35 muted video clips, grids, the hero, the title and the son
  assert.equal(log.commits,1);
 });
 
-test('builder modes run as the panel calls them',()=>{
- const run=v=>spawnSync(process.execPath,[path.join(dir,'build-script.mjs'),Buffer.from(JSON.stringify(v)).toString('base64url')],{encoding:'utf8'});
- assert.equal(JSON.parse(run({mode:'plan',fps:30}).stdout).clips.length,36);
- assert.equal(Object.keys(JSON.parse(run({mode:'needs'}).stdout)).length,26);
- assert.equal(run(request()).status,0);
- assert.equal(run({mode:'cutoutFinish',fps:30,draftId:'d',cutout:{clipId:1,trackId:'t'},hero:{width:10,height:10}}).status,0);
- assert.notEqual(run({mode:'other'}).status,0);
+test('the finishing steps the panel sends run_script',()=>{
+ assert.equal(scenePlan(30).clips.length,36);
+ assert.equal(Object.keys(slotNeeds()).length,26);
+ assert.match(buildFinishScript(request()),/^const input:any=/);
+ assert.match(buildCutoutScript({fps:30,draftId:'d',cutout:{clipId:1,trackId:'t'},hero:{width:10,height:10}}),/authorCutout/);
+ assert.throws(()=>buildFinishScript({...request(),mode:'other'}),/Unsupported request/);
 });
 
-// The panel runs build-script.mjs with the Node.js runtime.sh fetches, never a bare `node`,
-// and the cutout needs no compiler.
-test('panel uses the shared runtime and nothing needs Xcode tools',()=>{
- assert.equal(fs.readFileSync(path.join(dir,'runtime.sh'),'utf8'),fs.readFileSync(path.resolve(dir,'../../tools/runtime.sh'),'utf8'));
+// Everything runs inside the panel: no Node.js, no runtime.sh, and the cutout needs no compiler.
+test('the panel needs no Node.js, runtime.sh or Xcode tools',()=>{
  const panel=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
- assert.ok(panel.includes(`sh "$SELECTS_USER_SKILLS_ROOT/travel-beat-vlog/runtime.sh" node`));
- assert.doesNotMatch(panel,/['"`]node\s/);
- for(const f of ['panel.tsx','operation.mjs','build-script.mjs'])assert.doesNotMatch(fs.readFileSync(path.join(dir,f),'utf8'),/swiftc|xcrun|python3/);
+ assert.doesNotMatch(panel,/['"`]node\s|runtime\.sh|build-script|swiftc|xcrun|python3/);
  const files=JSON.parse(fs.readFileSync(path.join(dir,'plugin.json'),'utf8')).files;
- assert.ok(files.includes('runtime.sh')&&files.includes('tools/cutout.js')&&!files.some(f=>f.endsWith('.swift')));
+ assert.ok(files.includes('tools/cutout.js')&&files.includes('color-targets.json')&&!files.some(f=>/\.(mjs|sh|swift)$/.test(f)));
+ for(const f of files)assert.ok(fs.existsSync(path.join(dir,f)),f);
+});
+
+// The ffmpeg steps (run by the host's Runtime.runFFmpeg) write to a file; colour statistics come from its bytes.
+test('ffmpeg arguments write to the given file, and colour statistics read rgb24 bytes',()=>{
+ for(const args of [songDecodeArgs('/s.m4a','/o.f32'),songArrangeArgs('/s.m4a',1.5,REFERENCE_TIMING,'/o.wav'),measureArgs('/v.mp4',0.2,1,'/o.rgb'),measureArgs('/p.JPG',0,0.1,'/o.rgb')]){
+  assert.equal(args.at(-1).slice(0,2),'/o');assert.ok(args.includes('-y')&&args.every(a=>typeof a==='string'));
+ }
+ assert.deepEqual(songDecodeArgs('/s.m4a','/o.f32').slice(-7),['-ac','1','-ar','22050','-f','f32le','/o.f32']);
+ assert.ok(measureArgs('/p.JPG',0,0.1,'/o.rgb').includes('-frames:v'));
+ const s=rgbStats(Uint8Array.from([255,0,0,0,0,0]),'x');
+ assert.deepEqual(s.mean,[0.5,0,0]);assert.deepEqual(s.std,[0.5,0,0]);
+ assert.throws(()=>rgbStats(new Uint8Array(0),'clip.mp4'),/clip\.mp4/);
+ assert.equal(cutoutKey('/a/b.jpg',10,20,'person'),Buffer.from('/a/b.jpg:10:20:person').toString('base64url').slice(-40));
+});
+
+// The song analysis runs in a Web Worker built from songWorkerSource: it answers with the fit and its timing.
+test('the song worker answers with the same fit and timing as the analysis',async()=>{
+ const x=synthSong(120,45,12.0);
+ const got=await new Promise((resolve,reject)=>{const ctx={postMessage:m=>m.error?reject(Error(m.error)):resolve(m.ok)};vm.createContext(ctx);vm.runInContext(songWorkerSource(),ctx);ctx.onmessage({data:{samples:x,cuts:'hits'}});});
+ const fit=analyseSamples(x);
+ assert.equal(JSON.stringify(got.fit),JSON.stringify(fit));assert.equal(JSON.stringify(got.timing),JSON.stringify(timingFrom(fit,'hits')));
+ const short=await new Promise(resolve=>{const ctx={postMessage:resolve};vm.createContext(ctx);vm.runInContext(songWorkerSource(),ctx);ctx.onmessage({data:{samples:new Float32Array(SR),cuts:'hits'}});});
+ assert.match(short.error,/too short/);
 });
 
 // A flat RGB PNG with one filled box, written without any image tool.
@@ -121,17 +142,14 @@ function boxPng(file,w,h,box){
  fs.writeFileSync(file,Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(Buffer.concat(rows))),chunk('IEND',Buffer.alloc(0))]));
 }
 test('cutout runs through osascript with only stock macOS tools',{skip:process.platform!=='darwin'},()=>{
- const home=fs.mkdtempSync(path.join(os.tmpdir(),'travel-cutout-'));
- const run=v=>spawnSync(process.execPath,[path.join(dir,'build-script.mjs'),Buffer.from(JSON.stringify(v)).toString('base64url')],{encoding:'utf8',env:{PATH:'/usr/bin:/bin',HOME:home}});
- const box=path.join(home,'box.png'),plain=path.join(home,'plain.png');
+ const home=fs.mkdtempSync(path.join(os.tmpdir(),'travel cutout-'));
+ const run=(photo,out,mode)=>runPanelShell(cutoutCommand(path.join(dir,'tools','cutout.js'),photo,out,mode),{home});
+ const box=path.join(home,"box's.png"),plain=path.join(home,'plain.png'),out=path.join(home,'hero.png');
  boxPng(box,64,48,{x:22,y:14,w:20,h:20});boxPng(plain,64,48,null);
- const fg=run({mode:'cutout',photo:box,cutoutMode:'foreground'});
+ const fg=run(box,out,'foreground');
  assert.equal(fg.status,0,fg.stderr);
- const out=JSON.parse(fg.stdout).path;
- assert.ok(out.startsWith(path.join(home,'.selects','plugin-data','travel-beat-vlog','cutouts')));
  assert.equal(fs.readFileSync(out).subarray(1,4).toString(),'PNG');
- assert.equal(run({mode:'cutout',photo:box,cutoutMode:'foreground'}).stdout,fg.stdout,'second call reuses the cached cutout');
- const none=run({mode:'cutout',photo:plain,cutoutMode:'person'});
+ const none=run(plain,path.join(home,'none.png'),'person');
  assert.notEqual(none.status,0);assert.match(none.stderr,/^No person found\./);
 });
 
