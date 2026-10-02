@@ -110,6 +110,13 @@ class Recap2026WindowsTest(unittest.TestCase):
     def test_year_font_has_a_windows_face(self):
         self.assertIn("Avenir Next,Segoe UI Black,Arial Black,sans-serif", self.source)
 
+    def test_script_fields_are_read_after_narrowing_the_node_type(self):
+        # Selects type-checks run_script strings: a source-file node is a union with directories, so
+        # resourceId/durationSeconds are read only after the `type` check (tests/recap_2026_scripts_types.test.mjs
+        # runs the full check against the SDK typings when they are installed).
+        self.assertIn("if(x.type!=='video')continue;const d=dur[x.resourceId]", self.source)
+        self.assertNotIn("{const d=dur[x.resourceId]||x.durationSeconds;if(x.type==='video'", self.source)
+
     def test_manifest_and_docs(self):
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
         self.assertIn("Windows x64", manifest["compatibility"]["platforms"])

@@ -517,7 +517,7 @@ function RecapPanel({ sdk, context, ui }) {
     setMessage(t.loading);setError("");setGalleryPage(0);
     setThumbnails({});thumbnailCache.current={};
     const script = core({projectId,folders:folders.map((x)=>x.name)}) + RESOURCE_SECONDS +
-      "const out=[];for(const name of cfg.folders){const r=await p.sourceFiles({folder:name});if(!('fileTree' in r))throw Error('Footage folder returned a summary');for(const x of r.fileTree){const d=dur[x.resourceId]||x.durationSeconds;if(x.type==='video'&&(d>=1.7||!(d>0)))out.push({resourceId:x.resourceId,name:x.name,path:x.path,durationSeconds:d,frameSize:x.frameSize,folderName:name});}}return out;";
+      "const out=[];for(const name of cfg.folders){const r=await p.sourceFiles({folder:name});if(!('fileTree' in r))throw Error('Footage folder returned a summary');for(const x of r.fileTree){if(x.type!=='video')continue;const d=dur[x.resourceId]||x.durationSeconds;if(d>=1.7||!(d>0))out.push({resourceId:x.resourceId,name:x.name,path:x.path,durationSeconds:d,frameSize:x.frameSize,folderName:name});}}return out;";
     sdk.runScript({script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then((list) => {
       if (!live) return;
       const found = [...new Map(list.filter((v)=>v.durationSeconds>=1.7).map((v)=>[v.resourceId,v])).values()].sort((a,b) => a.name.localeCompare(b.name));
