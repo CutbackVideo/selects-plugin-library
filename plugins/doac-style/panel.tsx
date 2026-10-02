@@ -159,8 +159,8 @@ export function replaceWording(job,index,value){
 // per panel load, and set up again when a check fails.
 // mac-only:start
 // The runtime check, setup and compiler run through the macOS login shell
-// (runtime.sh fetches a darwin CPython). Reached only through ensureRuntime,
-// which refuses Windows first.
+// (runtime.sh fetches a darwin CPython). Reached only through ensureRuntime and
+// shell, which run on macOS only; Windows uses the panel engine below.
 const RUNTIME_VARS=[
  'ROOT="$SELECTS_USER_SKILLS_ROOT/doac-style"',
  'PY="$ROOT/.runtime/bin/python3"',
@@ -189,9 +189,7 @@ async function macRuntime(sdk,say){
 }
 // mac-only:end
 const SETUP_FAILED='DOAC Style could not set up its caption renderer. Check the internet connection, then try again.';
-// The caption renderer is Python, set up by runtime.sh for macOS only, so Windows
-// stops here before anything is planned or saved.
-const MAC_ONLY='DOAC Style captions: Available on macOS for now.';
+const RENDER_FAILED='The caption renderer could not complete this version. Check the DOAC Style installation, then try again.';
 const FILE_ACCESS='Update Selects to enable caption file access.';
 // The installed package folder (it holds approved/), found once per panel load.
 let packageRoot=null;
@@ -219,9 +217,59 @@ async function ensureFont(sdk){
 }
 let runtimeReady=null;
 function ensureRuntime(sdk,say=()=>{}){
- if(hostIsWindows())return Promise.reject(stepError('mac-only',MAC_ONLY));
- runtimeReady??=(async()=>{await ensureFont(sdk);await macRuntime(sdk,say);})().catch(e=>{runtimeReady=null;throw e;});
+ runtimeReady??=(async()=>{if(hostIsWindows()){await panelEngineFiles(sdk);return;}await ensureFont(sdk);await macRuntime(sdk,say);})().catch(e=>{runtimeReady=null;throw e;});
  return runtimeReady;
+}
+// Windows: the caption engine runs inside the panel, in a Web Worker. approved/web
+// holds engine.js (the JavaScript port of engine.py and compile-captions.py), the
+// FreeType + Pillow raster core it draws with (raster.wasm.b64) and worker.js (the
+// Worker side and the font choice); dev/parity and tests/doac_style_parity.test.mjs
+// show it draws the same frames as the Python engine on the same input. Fonts the
+// plans name that Windows has (Arial, Georgia, Times) come from its Fonts folder;
+// Helvetica and Helvetica Neue use the bundled Arimo. Read once per panel load.
+const ENGINE_DATA=['style.json','template-energy.json','PLANNING.md','native/shortlist.json','native/0YVdjmU13E4/plan.json','native/0YVdjmU13E4/legacy-three-scenes.json','native/NhbCBo1KuU8/plan.json','native/8_dh-IB9jZ8/plan.json'];
+const WINDOWS_FONTS=['arial.ttf','arialbd.ttf','arialbi.ttf','ariblk.ttf','arialnb.ttf','georgiab.ttf','times.ttf'];
+const fromBase64=s=>Uint8Array.from(atob(String(s).replace(/\s+/g,'')),c=>c.charCodeAt(0));
+let engineFiles=null;
+function panelEngineFiles(sdk){
+ engineFiles??=(async()=>{
+  const root=await doacRoot(sdk),read=p=>hostReadText(hostJoin(root,'approved',...p.split('/')));
+  const source=(await Promise.all(['web/pil.js','web/engine.js','web/worker.js'].map(read))).join('\n;\n');
+  const wasm=fromBase64(await read('web/raster.wasm.b64'));
+  const files={};for(const name of ENGINE_DATA)files[name]=await read(name);
+  const fonts={'permanent-marker':fromBase64(await read('native/fonts/permanentmarker/PermanentMarker-Regular.ttf.b64'))};
+  for(const w of ['Regular','Medium','Bold'])fonts['arimo:'+w]=fromBase64(await read('native/fonts/arimo/Arimo-'+w+'.ttf.b64'));
+  const fsx=hostApi('FileSystem','existsSync','homedir');
+  const drives=['C:'];try{const d=/^([A-Za-z]:)/.exec(String(fsx?.homedir()||''));if(d&&d[1].toUpperCase()!=='C:')drives.unshift(d[1]);}catch{}
+  for(const name of WINDOWS_FONTS)for(const drive of drives){
+   // A copy, so the bytes belong to this window (the host's buffer is another realm's).
+   try{const p=hostJoin(drive+'\\','Windows','Fonts',name);if(fsx&&!fsx.existsSync(p))continue;fonts['windows:'+name]=(await hostReadBytes(p)).slice();break;}catch{}
+  }
+  return {source,wasm,files,fonts};
+ })().catch(e=>{engineFiles=null;throw e?.code==='host-missing'||e?.code==='file-access'?stepError('file-access',FILE_ACCESS):stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');});
+ return engineFiles;
+}
+// One Worker per request: { cmd: 'catalogue' }, { cmd: 'check', job } or { cmd: 'compile', job, only }.
+// Engine errors keep the Python engine's messages (ValueError / AssertionError) and
+// are marked `refused`; a Worker that fails or runs out of time rejects with
+// RENDER_FAILED instead. `onProgress` gets the Worker's per-frame progress.
+async function panelEngine(sdk,request,onProgress){
+ const a=await panelEngineFiles(sdk);
+ return await new Promise((resolve,reject)=>{
+  let worker=null,url=null,timer=null;
+  const done=(fn,v)=>{clearTimeout(timer);try{worker?.terminate();}catch{}if(url){try{URL.revokeObjectURL(url);}catch{}}fn(v);};
+  try{url=URL.createObjectURL(new Blob([a.source],{type:'text/javascript'}));worker=new Worker(url);}
+  catch{done(reject,stepError('render',RENDER_FAILED));return;}
+  timer=setTimeout(()=>done(reject,stepError('render',RENDER_FAILED)),(request.cmd==='check'?3:20)*60000);
+  worker.onmessage=({data})=>{
+   if(data?.progress){try{onProgress?.(data.progress);}catch{}return;}
+   if(data?.error){const e=data.error,known=(e.pyType==='ValueError'||e.pyType==='AssertionError')&&e.pyMessage;done(reject,Object.assign(stepError('render',known?e.pyMessage:RENDER_FAILED),{refused:true}));}
+   else done(resolve,data?.result);
+  };
+  worker.onerror=()=>done(reject,stepError('render',RENDER_FAILED));
+  worker.onmessageerror=()=>done(reject,stepError('render',RENDER_FAILED));
+  worker.postMessage({...request,wasm:a.wasm,files:a.files,fonts:a.fonts});
+ });
 }
 function stepError(code,message){return Object.assign(Error(message),{code});}
 // av-host:start
@@ -369,12 +417,29 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  async function read(path){const b=await fs().readFile(path);return typeof b==='string'?b:new TextDecoder().decode(b);}
  async function run(script,summary,allowCommit=false){const r=await sdk.runScript({script,summary,allowCommit});if(r.isError||r.result==null)throw Error(r.output||'Could not confirm the save. Check the result draft before trying again.');return r.result;}
  // mac-only:start
- // The compiler runs through the macOS shell; ensureRuntime refuses Windows first.
+ // The compiler runs through the macOS shell; on Windows compile and prepare use panelEngine instead.
  const quote=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
  async function shell(args){await ensureRuntime(sdk);const r=await sdk.runShell({summary:'Compile approved captions',command:'"$SELECTS_USER_SKILLS_ROOT/doac-style/.runtime/bin/python3" "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/compile-captions.py" '+args,timeoutMs:300000,maxOutputBytes:48000});if(r.isError||r.exitCode!==0){const detail=(r.stderr||r.output||'').match(/(?:ValueError|AssertionError): ([^\n]+)/);throw stepError('render',detail?detail[1]:"The caption renderer could not complete this version. Check the DOAC Style installation, then try again.");}return r.stdout;}
  // mac-only:end
  function sameProject(j){if(currentProject()!==j.projectId)throw stepError('project-changed','Project changed. Return to the original project to continue.');}
- async function compile(j,scene){await ensureRuntime(sdk,onStatus);onStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/[\\/][^\\/]+$/,''),'revision-'+Date.now());f.mkdirSync(dir,{recursive:true});const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
+ async function compile(j,scene){await ensureRuntime(sdk,onStatus);onStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/[\\/][^\\/]+$/,''),'revision-'+Date.now());f.mkdirSync(dir,{recursive:true});const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));if(hostIsWindows()){const m=await panelCompile(j,dir,scene);sameProject(j);return m;}const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
+ // Windows: the panel engine compiles, and its files are written where
+ // compile-captions.py writes them (compiled/ next to job.json), so the rest of
+ // the flow reads the same manifest and scene payloads.
+ async function panelCompile(j,dir,scene){
+  let shown=-1;const progress=p=>{if(scene==null&&p?.scene!=null&&p.scene!==shown){shown=p.scene;onStatus(`Preparing typography… scene ${p.scene+1} of ${p.total}`);}};
+  const r=await panelEngine(sdk,{cmd:'compile',job:{input:j.input,editorial:j.editorial},only:scene==null?null:scene},progress);
+  const f=fs(),out=f.join(dir,'compiled'),num=i=>String(i).padStart(3,'0');f.mkdirSync(out,{recursive:true});
+  const scenes=[];
+  for(const s of r.scenes){const payload=f.join(out,'scene-'+num(s.scene.index)+'.json'),preview=f.join(out,'scene-'+num(s.scene.index)+'.png');await f.writeFile(payload,JSON.stringify(s.payload));await f.writeFile(preview,s.preview);scenes.push({...s.scene,payload,preview});}
+  const m={scenes,records:r.records,placement:r.placement,words:r.words,frames:r.frames,fps:r.fps};
+  await f.writeFile(f.join(out,scene==null?'manifest.json':'manifest-'+num(scene)+'.json'),JSON.stringify(m,null,2));
+  return m;
+ }
+ // Windows: a recovery trial only asks whether a plan lays out and validates, so
+ // the engine checks it without drawing a frame (no files; seconds, not minutes).
+ // compile() still draws the version that is kept.
+ async function check(j){await ensureRuntime(sdk,onStatus);await panelEngine(sdk,{cmd:'check',job:{input:j.input,editorial:j.editorial}});sameProject(j);}
  async function compileWithRecovery(j){
   try{return {job:j,manifest:await compile(j)};}
   catch(first){
@@ -389,10 +454,15 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
    const siblings={3:['21','13','38'],4:['23','33'],5:['24','19'],6:['09','11'],7:['22','06']};
    const plain=x=>({words:x.words,kind:'plain'});
    const allPlain=j.editorial.map(x=>x.template?plain(x):x);
-   const fits=async(i,scene)=>{try{await compile({...j,editorial:allPlain.map((x,k)=>k===i?scene:x)});return true;}catch{return false;}};
+   const fits=async(i,scene)=>{
+    // Windows: an engine refusal means "does not fit"; a Worker failure stops here with its own message.
+    if(hostIsWindows()){try{await check({...j,editorial:allPlain.map((x,k)=>k===i?scene:x)});return true;}catch(e){if(!e?.refused)throw e;return false;}}
+    try{await compile({...j,editorial:allPlain.map((x,k)=>k===i?scene:x)});return true;}catch{return false;}};
    const chosen=[...j.editorial],removed=[];
+   const designed=j.editorial.filter(x=>x.template).length;let tried=0;
    for(let i=0;i<j.editorial.length;i++){
     const scene=j.editorial[i];if(!scene.template)continue;
+    if(hostIsWindows())onStatus(`Checking which layouts fit… ${++tried} of ${designed}`);
     const words=j.input.words.slice(scene.words[0],scene.words[1]+1).map(w=>w.text).join(' ');
     const ids=[String(scene.template),...(siblings[scene.slots?.length]||[]).filter(id=>id!==String(scene.template))];
     let placed=false;
@@ -405,7 +475,8 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
     if(!placed){chosen[i]=plain(scene);removed.push(i);}
    }
    const repaired={...j,editorial:chosen};
-   try{return {job:repaired,manifest:await compile(repaired),removed};}catch{throw first;}
+   // Windows: a Worker failure (not an engine refusal) keeps its own message.
+   try{return {job:repaired,manifest:await compile(repaired),removed};}catch(e){throw hostIsWindows()&&!e?.refused?e:first;}
   }
  }
  // Read the source, plan the edit (cached per source) and compile every scene.
@@ -427,7 +498,7 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  if(!v.words.length)throw stepError('no-transcript','This draft needs a transcript. Analyze its footage in Selects, then create captions.');
  if(!anyAspect&&v.meta.frameSize.width/v.meta.frameSize.height!==1080/1920)throw stepError('not-vertical','This style needs a vertical 9:16 draft. Change the aspect ratio in Selects first.');
  if(v.clips.some(c=>c.trackKind==='video'&&c.resourceId===null))throw stepError('has-graphics','This draft already contains generated graphics. Open the original draft without captions.');
- await ensureRuntime(sdk,onStatus);const catalogue=JSON.parse(await shell('catalogue'));const f=fs(),dir=f.join(f.getOrCreateTmpDirPath(),'approved-captions-'+Date.now());f.mkdirSync(dir,{recursive:true});
+ await ensureRuntime(sdk,onStatus);const catalogue=hostIsWindows()?await panelEngine(sdk,{cmd:'catalogue'}):JSON.parse(await shell('catalogue'));const f=fs(),dir=f.join(f.getOrCreateTmpDirPath(),'approved-captions-'+Date.now());f.mkdirSync(dir,{recursive:true});
  const input={fps:v.meta.fps,frames:Math.max(...v.clips.filter(c=>c.trackKind==='main').map(c=>c.endFrame)),words:v.words};
  onStatus('Designing the full caption edit…');
  const cachePath=f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+pid+'-'+cacheKey+'.json');
@@ -485,7 +556,6 @@ const TEMPLATE_ERRORS={
  'renderer':'DOAC Style is not fully installed. Reinstall it, then try again.',
  'render':'DOAC Style could not draw these captions. Check its installation, then try again.',
  'setup':SETUP_FAILED,
- 'mac-only':MAC_ONLY,
  'plan':'Selects AI could not plan the captions. Try again.',
  'no-scenes':'No captions could be added to the timeline. Try again.',
 };
@@ -506,8 +576,6 @@ function TemplateRun({sdk,context}){
   const finish=result=>{if(done)return;done=true;if(live.current===runId)sdk.finishTemplate(result);};
   (async()=>{
    try{
-    // Windows cannot run the caption renderer yet: stop before a draft is made.
-    if(hostIsWindows())throw stepError('mac-only',MAC_ONLY);
     const pid=context.projectId;if(!pid)throw stepError('no-project','No project is open.');
     const speaker=template.inputs?.speaker||[];
     const source=speaker.find(x=>(x?.kind==='video'&&x.resourceId)||(x?.kind==='timeline'&&x.sequenceId));
@@ -546,7 +614,6 @@ function CaptionPanel({sdk,context,ui}) {
  useEffect(()=>{let live=true;const id=job?.sourceId||context.sequenceId;if(!id)return;let f;try{f=fs();}catch{setPendingPlan(false);return;}read(f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+context.projectId+'-'+id+'.json')).then(JSON.parse).then(c=>{if(live)setPendingPlan(!c.applied);}).catch(()=>{if(live)setPendingPlan(false);});return()=>{live=false;};},[job?.sourceId,context.sequenceId,busy]);
  async function action(fn){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await fn();}catch(e){setError(e.message||String(e));}finally{lock.current=false;setBusy(false);}}
  async function load(sourceOverride,forceNew=false){await action(async()=>{
- if(macOnly)throw stepError('mac-only',MAC_ONLY);
  if(!context.projectId||!context.sequenceId)throw Error('Open a draft to add captions.');
  const prepared=await steps.prepare({projectId:context.projectId,sourceId:sourceOverride||context.sequenceId,forceNew});await create(prepared);
  });}
@@ -557,11 +624,10 @@ function CaptionPanel({sdk,context,ui}) {
  const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const old=(await d.clips({trackScope:'all'})).find(c=>c.clipId===${j.clipIds[index]});if(!old)throw Error('This caption clip changed. Reopen the result draft.');if(old.startFrame!==${s.start}||old.endFrame!==${s.end})throw Error('This caption was trimmed on the timeline. Restore its original timing before changing the wording.');const tr=await d.clipTransform(old);await d.removeClips(old);const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+s.template+' · '+s.text)},within:await d.rangeAtFrames(${s.start},${s.end}),tsxCode:${JSON.stringify(tsxCode)},parameters:${JSON.stringify(data)}});const added=(await d.clips({trackScope:'all'})).find(c=>c.clipId===r.clipId);await d.setClipTransform({clip:added,position:tr.position,scale:tr.scale,rotation:tr.rotation});await d.commitAll('Edit approved caption wording');return {clipId:r.clipId};`,'Edit approved caption wording',true);j.clipIds[index]=r.clipId;j.uncertain=false;}
  save(j);setStatus('Caption updated.');});}
  useEffect(()=>{let live=true;if(!job?.editorial?.[index])return;const [a,z]=job.editorial[index].words;setText(job.input.words.slice(a,z+1).map(w=>w.text).join(' '));setPreview('');const s=job.manifest?.scenes?.[index];if(s)read(s.payload).then(JSON.parse).then(d=>{if(live)setPreview(d);}).catch(()=>{});return()=>{live=false};},[job,index]);
- const complete=job?.targetId&&job.next===job.editorial.length,macOnly=hostIsWindows();
+ const complete=job?.targetId&&job.next===job.editorial.length;
  return <ui.Section title="DOAC Style"><ui.Stack>
  {!complete&&<><p>Make every word count.</p><small>Expressive captions, timed to your voice. Made for English talking-head videos.</small>
- <ui.Button onClick={()=>load()} disabled={busy||macOnly||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
- {macOnly&&<ui.Message>{MAC_ONLY}</ui.Message>}
+ <ui.Button onClick={()=>load()} disabled={busy||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
  <small>Use an analyzed, vertical 9:16 draft. Your original stays intact.</small></>}
  {complete&&<><ui.Message>Your captioned draft is ready.</ui.Message>{pendingPlan&&!busy&&<ui.Button variant="secondary" onClick={()=>load(job.sourceId)}>Finish prepared version</ui.Button>}
  <ui.Button disabled={busy} onClick={()=>action(async()=>{await run(`return await selects.editor.openDraft(${JSON.stringify(job.targetId)});`,'Open captioned draft');})}>Open preview</ui.Button>
