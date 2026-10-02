@@ -278,24 +278,19 @@ async function encoders() {
 }
 const pad2=i=>String(i).padStart(2,'0');
 const fileName=p=>String(p).split(/[\\/]/).pop();
-async function sha256Hex(bytes) {
-  const digest=await crypto.subtle.digest('SHA-256',bytes);
-  return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
-}
 // prepare.py's first loop: duplicates, landscape, small and near-duplicate photos are skipped; the rest become
 // 1080x1920 frames (raw RGB in `work`). Free: nothing leaves the computer.
 async function winFrames({engine,work,photos,onStatus,control}) {
-  const fs=hostNeed('FileSystem','writeFile'),seen=new Set(),previous=[],frames=[],rejected=[];
+  const fs=hostNeed('FileSystem','writeFile'),seen=[],previous=[],frames=[],rejected=[];
   for(const [k,photo] of photos.entries()) {
     if(control?.canceled) throw Error('Canceled.');
     const name=fileName(photo.path);
     onStatus?.(k+1,photos.length);
     let bytes;
     try {bytes=new Uint8Array(await hostReadBytes(photo.path))} catch(e) {rejected.push({name,reason:String(e?.message||e).slice(0,120)});continue}
-    const digest=await sha256Hex(bytes);
-    if(seen.has(digest)) {rejected.push({name,reason:'duplicate photo'});continue}
-    seen.add(digest);
-    const r=await engine.call('frame',{bytes:bytes.buffer,previous},[bytes.buffer]);
+    // The worker hashes the file (SHA-256, as prepare.py does) before it decodes it.
+    const r=await engine.call('frame',{bytes:bytes.buffer,previous,seen},[bytes.buffer]);
+    if(r.reason!=='duplicate photo'&&r.digest) seen.push(r.digest);
     if(r.reason) {rejected.push({name,reason:r.reason});continue}
     previous.push({bits:r.bits,tiny:r.tiny});
     const raw=hostJoin(work,pad2(frames.length+1)+'.rgb');

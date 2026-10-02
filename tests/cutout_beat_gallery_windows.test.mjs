@@ -22,7 +22,7 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/fixtures/cutou
 const HAVE_FFMPEG = spawnSync('ffmpeg', ['-version']).status === 0 && spawnSync('ffprobe', ['-version']).status === 0;
 const source = panelSource('cutout-beat-gallery');
 const NAMES = ['CLOUD_MODEL', 'CLOUD_MIN_HOST', 'CLOUD_FAILED', 'HOLD', 'WIN_MIN_PHOTOS', 'FRAME_SIZE', 'cloudProblem', 'cloudScope', 'startEngine',
-  'hostFFmpeg', 'encoderCache', 'encoders', 'pad2', 'fileName', 'sha256Hex', 'winFrames', 'winCutouts', 'removeWork'];
+  'hostFFmpeg', 'encoderCache', 'encoders', 'pad2', 'fileName', 'winFrames', 'winCutouts', 'removeWork'];
 
 // ---- the synthetic folder (make_parity.py's formulas) -------------------------------------------------------------
 function src(p, sw, sh) {
@@ -177,7 +177,7 @@ async function load(host) {
   const fns = loadPanelFunctions(source, NAMES, {
     window: { parent: { __DI__: host.di, location: { pathname: '/libraries/lib-1/projects/proj-1' } } },
     navigator: { platform: 'Win32', userAgent: 'Windows NT 10.0' },
-    Worker: w.Worker, URL: w.URL, Blob, crypto: globalThis.crypto, AbortController,
+    Worker: w.Worker, URL: w.URL, Blob, AbortController,
   });
   return { fns };
 }

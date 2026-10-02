@@ -539,11 +539,16 @@
     return { mask: mask.d, ok, metrics };
   }
   const ops = {
-    async frame({ bytes, rgb, w, h, previous }, decode) {
+    // A photo file's bytes (or decoded `rgb`), the SHA-256 of the files seen so far and the earlier fingerprints:
+    // {digest, reason} when skipped, else {digest, frame, bits, tiny}. A duplicate file is skipped before decoding,
+    // as prepare.py does.
+    async frame({ bytes, rgb, w, h, previous, seen }, decode) {
+      const digest = bytes ? hex(sha256(new Uint8Array(bytes))) : undefined;
+      if (digest && (seen || []).includes(digest)) return { digest, reason: "duplicate photo" };
       let src;
       try { src = rgb ? image(w, h, 3, new Uint8Array(rgb)) : await (decode || decodeBrowser)(bytes); }
-      catch (e) { return { reason: String(e && e.message || e || "unreadable photo").slice(0, 120) }; }
-      return framePhoto(src, (previous || []).map((p) => ({ bits: BigInt("0x" + p.bits), tiny: p.tiny })));
+      catch (e) { return { digest, reason: String(e && e.message || e || "unreadable photo").slice(0, 120) }; }
+      return { digest, ...framePhoto(src, (previous || []).map((p) => ({ bits: BigInt("0x" + p.bits), tiny: p.tiny }))) };
     },
     mask: ({ gray, w, h }) => maskOf(new Uint8Array(gray), w, h),
     plan: ({ rows, good, photoCount, rejected }) => plan(rows, good, photoCount, rejected),
