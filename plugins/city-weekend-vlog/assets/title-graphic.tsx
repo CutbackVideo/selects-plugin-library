@@ -40,11 +40,13 @@ function cwvEstimateEm(text) {
 }
 // A state's font stack: its face, the Latin fallbacks, then the Korean system face of its role (`koFamily` in
 // presets.json: AppleMyungjo for serif faces, Apple SD Gothic Neo for the rest) before the generic family.
-const CWV_FALLBACK_LATIN = '"Snell Roundhand", "Brush Script MT"';
-const CWV_KO_FALLBACK = "Apple SD Gothic Neo";
+// Latin fallbacks name a script face that ships with Windows too (Segoe Script).
+const CWV_FALLBACK_LATIN = '"Snell Roundhand", "Brush Script MT", "Segoe Script"';
+// The Korean faces of a role: macOS, then Windows, then Noto (Linux, or when installed).
+const CWV_KO_FACES = { serif: '"AppleMyungjo", "Batang", "Noto Serif KR"', sans: '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR"' };
+function cwvKoFaces(koFamily) { return koFamily === "AppleMyungjo" ? CWV_KO_FACES.serif : CWV_KO_FACES.sans; }
 function cwvFontStack(state, override) {
-  const ko = typeof state.koFamily === "string" && state.koFamily ? state.koFamily : CWV_KO_FALLBACK;
-  return (override ? `"${override}", ` : "") + `"${state.family}", ${CWV_FALLBACK_LATIN}, "${ko}", cursive`;
+  return (override ? `"${override}", ` : "") + `"${state.family}", ${CWV_FALLBACK_LATIN}, ${cwvKoFaces(state.koFamily)}, cursive`;
 }
 // cwv-hangul:end
 

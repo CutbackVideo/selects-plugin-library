@@ -1,8 +1,25 @@
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const roles = Object.keys(cfg.queries);
+// Scene search needs analysis. Clips without it are not searched: they come back in `local` (rid, source path,
+// length) for the panel's quick local check. When the resource list cannot be read, every clip is searched as before.
+let local = [];
+try {
+  const info = {};
+  for (const r of await p.resources()) info[r.resourceId] = r;
+  const bare = cfg.rids.filter(rid => info[rid] && !info[rid].hasAnalysis);
+  if (bare.length) {
+    const paths = {};
+    const walk = nodes => { for (const n of nodes || []) { if (n.type === 'dir') walk(n.children); else if (n.resourceId) paths[n.resourceId] = n.path || null; } };
+    const files = await p.sourceFiles();
+    if ('fileTree' in files) walk(files.fileTree);
+    else for (const f of files.folders || []) { const d = await p.sourceFiles({ folder: f.name }); if ('fileTree' in d) walk(d.fileTree); }
+    local = bare.map(rid => ({ rid, path: paths[rid] || null, duration: info[rid].durationSeconds || 0 }));
+  }
+} catch (e) { local = []; }
+const skip = new Set(local.map(x => x.rid));
 const jobs = [];
-for (const rid of cfg.rids) for (const role of roles) jobs.push({ rid, role });
+for (const rid of cfg.rids) if (!skip.has(rid)) for (const role of roles) jobs.push({ rid, role });
 const candidates = [];
 // run_script has no setTimeout; Atomics.waitAsync on a private buffer waits without blocking. Without it, no wait.
 const sleep = ms => {
@@ -44,4 +61,4 @@ for (let pass = 0; pass < 4 && pending.length; pass++) {
   await Promise.all(Array.from({ length: Math.min(width, queue.length) }, worker));
   pending = failed;
 }
-return { candidates, failed: [...new Set(pending.map(j => j.rid))], stats: { ms: Date.now() - started, waitedMs: waited, rateLimited } };
+return { candidates, failed: [...new Set(pending.map(j => j.rid))], local, stats: { ms: Date.now() - started, waitedMs: waited, rateLimited } };
