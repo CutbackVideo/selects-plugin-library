@@ -28,7 +28,9 @@ const STRINGS = {
     listening: "Listening for the beat",
     preparingTools: "Preparing beat detection (first time only)",
     working: "Working",
-    noFootage: "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.",
+    noFootage: "No videos or photos in this Project yet. Add video clips or photos; this updates automatically.",
+    analysedBetter: "Analysed clips give better picks.",
+    stillImporting: { one: "{count} clip is still being imported; this updates automatically.", other: "{count} clips are still being imported; this updates automatically." },
     turnOnPhotos: "Turn on Use photos in Advanced to build from this Project's photos.",
     noClipsSelected: "No clips selected. Choose clips in Advanced.",
     needsShots: { one: "Needs at least {count} usable clip or photo (found {found}).", other: "Needs at least {count} usable clips or photos (found {found})." },
@@ -46,13 +48,6 @@ const STRINGS = {
     shots: { one: "{count} shot", other: "{count} shots" },
     shotsFitted: { one: "{count} shot (your footage fits {count})", other: "{count} shots (your footage fits {count})" },
     aboutSeconds: "about {seconds} s",
-    notAnalysed: { one: "{count} clip not analysed yet", other: "{count} clips not analysed yet" },
-    analysing: { one: "{count} clip is being analysed. This updates automatically when it finishes.", other: "{count} clips are being analysed. This updates automatically when they finish." },
-    notAnalysedAnalyse: { one: "{count} clip is not analysed yet. Analyse it in Selects to use it here.", other: "{count} clips are not analysed yet. Analyse them in Selects to use them here." },
-    notAnalysedMaybe: { one: "{count} clip is not analysed yet. If Selects is analysing it, this updates automatically.", other: "{count} clips are not analysed yet. If Selects is analysing them, this updates automatically." },
-    analysisFailed: { one: "{count} clip could not be analysed.", other: "{count} clips could not be analysed." },
-    noteAnalysing: { one: "{count} clip being analysed", other: "{count} clips being analysed" },
-    noteFailed: { one: "{count} clip could not be analysed", other: "{count} clips could not be analysed" },
     layout: "Layout",
     "layout.classic": "Classic (window)",
     "layout.full": "Full frame",
@@ -143,6 +138,7 @@ const STRINGS = {
     progressDetail: "Step {step}/{total} · {name} ({detail}) · {percent}%",
     videosChecked: { one: "{done}/{count} video checked", other: "{done}/{count} videos checked" },
     videosMeasured: { one: "{done}/{count} video measured", other: "{done}/{count} videos measured" },
+    clipsChecking: { one: "Checking clip {done}/{count}", other: "Checking clips {done}/{count}" },
     openingDraft: "opening the Draft",
     stoppedAt: "Stopped at step {step}/{total} ({name}): {detail}",
     build: "Build",
@@ -204,7 +200,9 @@ const STRINGS = {
     listening: "Beat wird gesucht",
     preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     working: "In Arbeit",
-    noFootage: "In diesem Projekt gibt es noch keine analysierten Videos oder Fotos. Füge Videoclips hinzu und analysiere sie, oder füge Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
+    noFootage: "In diesem Projekt gibt es noch keine Videos oder Fotos. Füge Videoclips oder Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
+    analysedBetter: "Mit analysierten Clips wird die Auswahl der Einstellungen besser.",
+    stillImporting: { one: "{count} Clip wird noch importiert; die Anzeige aktualisiert sich automatisch.", other: "{count} Clips werden noch importiert; die Anzeige aktualisiert sich automatisch." },
     turnOnPhotos: "Aktiviere „Fotos verwenden“ unter „Erweitert“, um aus den Fotos dieses Projekts zu erstellen.",
     noClipsSelected: "Keine Clips ausgewählt. Wähle Clips unter „Erweitert“.",
     needsShots: { one: "Braucht mindestens {count} brauchbaren Clip oder Foto ({found} gefunden).", other: "Braucht mindestens {count} brauchbare Clips oder Fotos ({found} gefunden)." },
@@ -222,13 +220,6 @@ const STRINGS = {
     shots: { one: "{count} Einstellung", other: "{count} Einstellungen" },
     shotsFitted: { one: "{count} Einstellung (dein Material reicht für {count})", other: "{count} Einstellungen (dein Material reicht für {count})" },
     aboutSeconds: "ca. {seconds} s",
-    notAnalysed: { one: "{count} Clip noch nicht analysiert", other: "{count} Clips noch nicht analysiert" },
-    analysing: { one: "{count} Clip wird analysiert. Das aktualisiert sich automatisch, sobald er fertig ist.", other: "{count} Clips werden analysiert. Das aktualisiert sich automatisch, sobald sie fertig sind." },
-    notAnalysedAnalyse: { one: "{count} Clip ist noch nicht analysiert. Analysiere ihn in Selects, um ihn hier zu verwenden.", other: "{count} Clips sind noch nicht analysiert. Analysiere sie in Selects, um sie hier zu verwenden." },
-    notAnalysedMaybe: { one: "{count} Clip ist noch nicht analysiert. Falls Selects ihn gerade analysiert, aktualisiert sich das automatisch.", other: "{count} Clips sind noch nicht analysiert. Falls Selects sie gerade analysiert, aktualisiert sich das automatisch." },
-    analysisFailed: { one: "{count} Clip konnte nicht analysiert werden.", other: "{count} Clips konnten nicht analysiert werden." },
-    noteAnalysing: { one: "{count} Clip wird analysiert", other: "{count} Clips werden analysiert" },
-    noteFailed: { one: "{count} Clip nicht analysierbar", other: "{count} Clips nicht analysierbar" },
     layout: "Layout",
     "layout.classic": "Klassisch (Fenster)",
     "layout.full": "Vollbild",
@@ -319,6 +310,7 @@ const STRINGS = {
     progressDetail: "Schritt {step}/{total} · {name} ({detail}) · {percent} %",
     videosChecked: { one: "{done}/{count} Video geprüft", other: "{done}/{count} Videos geprüft" },
     videosMeasured: { one: "{done}/{count} Video gemessen", other: "{done}/{count} Videos gemessen" },
+    clipsChecking: { one: "Clip wird geprüft {done}/{count}", other: "Clips werden geprüft {done}/{count}" },
     openingDraft: "Draft wird geöffnet",
     stoppedAt: "Abgebrochen bei Schritt {step}/{total} ({name}): {detail}",
     build: "Erstellen",
@@ -380,7 +372,9 @@ const STRINGS = {
     listening: "Buscando el ritmo",
     preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     working: "Trabajando",
-    noFootage: "Este proyecto aún no tiene vídeos analizados ni fotos. Añade clips de vídeo y analízalos, o añade fotos; se actualizará automáticamente.",
+    noFootage: "Este proyecto aún no tiene vídeos ni fotos. Añade clips de vídeo o fotos; se actualizará automáticamente.",
+    analysedBetter: "Los clips analizados permiten elegir mejores planos.",
+    stillImporting: { one: "{count} clip aún se está importando; se actualizará automáticamente.", many: "{count} de clips aún se están importando; se actualizará automáticamente.", other: "{count} clips aún se están importando; se actualizará automáticamente." },
     turnOnPhotos: "Activa «Usar fotos» en «Avanzado» para crear con las fotos de este proyecto.",
     noClipsSelected: "No hay clips seleccionados. Elige clips en «Avanzado».",
     needsShots: { one: "Necesita al menos {count} clip o foto utilizable (encontrados: {found}).", many: "Necesita al menos {count} de clips o fotos utilizables (encontrados: {found}).", other: "Necesita al menos {count} clips o fotos utilizables (encontrados: {found})." },
@@ -398,13 +392,6 @@ const STRINGS = {
     shots: { one: "{count} plano", many: "{count} de planos", other: "{count} planos" },
     shotsFitted: { one: "{count} plano (tu material da para {count})", many: "{count} de planos (tu material da para {count})", other: "{count} planos (tu material da para {count})" },
     aboutSeconds: "unos {seconds} s",
-    notAnalysed: { one: "{count} clip sin analizar", many: "{count} de clips sin analizar", other: "{count} clips sin analizar" },
-    analysing: { one: "Se está analizando {count} clip. Esto se actualiza solo cuando termine.", many: "Se están analizando {count} de clips. Esto se actualiza solo cuando terminen.", other: "Se están analizando {count} clips. Esto se actualiza solo cuando terminen." },
-    notAnalysedAnalyse: { one: "{count} clip aún no está analizado. Analízalo en Selects para usarlo aquí.", many: "{count} de clips aún no están analizados. Analízalos en Selects para usarlos aquí.", other: "{count} clips aún no están analizados. Analízalos en Selects para usarlos aquí." },
-    notAnalysedMaybe: { one: "{count} clip aún no está analizado. Si Selects lo está analizando, esto se actualiza solo.", many: "{count} de clips aún no están analizados. Si Selects los está analizando, esto se actualiza solo.", other: "{count} clips aún no están analizados. Si Selects los está analizando, esto se actualiza solo." },
-    analysisFailed: { one: "No se pudo analizar {count} clip.", many: "No se pudieron analizar {count} de clips.", other: "No se pudieron analizar {count} clips." },
-    noteAnalysing: { one: "{count} clip en análisis", many: "{count} de clips en análisis", other: "{count} clips en análisis" },
-    noteFailed: { one: "{count} clip sin poder analizarse", many: "{count} de clips sin poder analizarse", other: "{count} clips sin poder analizarse" },
     layout: "Diseño",
     "layout.classic": "Clásico (ventana)",
     "layout.full": "Pantalla completa",
@@ -495,6 +482,7 @@ const STRINGS = {
     progressDetail: "Paso {step}/{total} · {name} ({detail}) · {percent} %",
     videosChecked: { one: "{done}/{count} vídeo comprobado", many: "{done}/{count} de vídeos comprobados", other: "{done}/{count} vídeos comprobados" },
     videosMeasured: { one: "{done}/{count} vídeo medido", many: "{done}/{count} de vídeos medidos", other: "{done}/{count} vídeos medidos" },
+    clipsChecking: { one: "Comprobando clip {done}/{count}", many: "Comprobando clips {done}/{count}", other: "Comprobando clips {done}/{count}" },
     openingDraft: "abriendo el Draft",
     stoppedAt: "Se detuvo en el paso {step}/{total} ({name}): {detail}",
     build: "Crear",
@@ -556,7 +544,9 @@ const STRINGS = {
     listening: "Recherche du rythme",
     preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     working: "En cours",
-    noFootage: "Ce projet ne contient pas encore de vidéo analysée ni de photo. Ajoutez des clips vidéo et analysez-les, ou ajoutez des photos ; l'affichage se met à jour automatiquement.",
+    noFootage: "Ce projet ne contient pas encore de vidéo ni de photo. Ajoutez des clips vidéo ou des photos ; l'affichage se met à jour automatiquement.",
+    analysedBetter: "Les clips analysés permettent de choisir de meilleurs plans.",
+    stillImporting: { one: "{count} clip est encore en cours d'importation ; l'affichage se met à jour automatiquement.", many: "{count} de clips sont encore en cours d'importation ; l'affichage se met à jour automatiquement.", other: "{count} clips sont encore en cours d'importation ; l'affichage se met à jour automatiquement." },
     turnOnPhotos: "Activez « Utiliser les photos » dans « Avancé » pour créer à partir des photos de ce projet.",
     noClipsSelected: "Aucun clip sélectionné. Choisissez des clips dans « Avancé ».",
     needsShots: { one: "Il faut au moins {count} clip ou photo utilisable (trouvés : {found}).", many: "Il faut au moins {count} de clips ou photos utilisables (trouvés : {found}).", other: "Il faut au moins {count} clips ou photos utilisables (trouvés : {found})." },
@@ -574,13 +564,6 @@ const STRINGS = {
     shots: { one: "{count} plan", many: "{count} de plans", other: "{count} plans" },
     shotsFitted: { one: "{count} plan (vos images suffisent pour {count})", many: "{count} de plans (vos images suffisent pour {count})", other: "{count} plans (vos images suffisent pour {count})" },
     aboutSeconds: "environ {seconds} s",
-    notAnalysed: { one: "{count} clip pas encore analysé", many: "{count} de clips pas encore analysés", other: "{count} clips pas encore analysés" },
-    analysing: { one: "{count} clip est en cours d'analyse. Ceci se met à jour automatiquement à la fin.", many: "{count} de clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin.", other: "{count} clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin." },
-    notAnalysedAnalyse: { one: "{count} clip n'est pas encore analysé. Analysez-le dans Selects pour l'utiliser ici.", many: "{count} de clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici.", other: "{count} clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici." },
-    notAnalysedMaybe: { one: "{count} clip n'est pas encore analysé. Si Selects l'analyse, ceci se met à jour automatiquement.", many: "{count} de clips ne sont pas encore analysés. Si Selects les analyse, ceci se met à jour automatiquement.", other: "{count} clips ne sont pas encore analysés. Si Selects les analyse, ceci se met à jour automatiquement." },
-    analysisFailed: { one: "{count} clip n'a pas pu être analysé.", many: "{count} de clips n'ont pas pu être analysés.", other: "{count} clips n'ont pas pu être analysés." },
-    noteAnalysing: { one: "{count} clip en cours d'analyse", many: "{count} de clips en cours d'analyse", other: "{count} clips en cours d'analyse" },
-    noteFailed: { one: "{count} clip non analysable", many: "{count} de clips non analysables", other: "{count} clips non analysables" },
     layout: "Disposition",
     "layout.classic": "Classique (fenêtre)",
     "layout.full": "Plein cadre",
@@ -671,6 +654,7 @@ const STRINGS = {
     progressDetail: "Étape {step}/{total} · {name} ({detail}) · {percent} %",
     videosChecked: { one: "{done}/{count} vidéo vérifiée", many: "{done}/{count} vidéos vérifiées", other: "{done}/{count} vidéos vérifiées" },
     videosMeasured: { one: "{done}/{count} vidéo mesurée", many: "{done}/{count} vidéos mesurées", other: "{done}/{count} vidéos mesurées" },
+    clipsChecking: { one: "Vérification du clip {done}/{count}", many: "Vérification des clips {done}/{count}", other: "Vérification des clips {done}/{count}" },
     openingDraft: "ouverture du Draft",
     stoppedAt: "Arrêt à l'étape {step}/{total} ({name}) : {detail}",
     build: "Créer",
@@ -732,7 +716,9 @@ const STRINGS = {
     listening: "Ricerca del ritmo",
     preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     working: "In corso",
-    noFootage: "In questo progetto non ci sono ancora video analizzati né foto. Aggiungi clip video e analizzale, oppure aggiungi foto; si aggiorna automaticamente.",
+    noFootage: "In questo progetto non ci sono ancora video né foto. Aggiungi clip video o foto; si aggiorna automaticamente.",
+    analysedBetter: "Con le clip analizzate la scelta delle inquadrature è migliore.",
+    stillImporting: { one: "{count} clip è ancora in importazione; si aggiorna automaticamente.", many: "{count} di clip sono ancora in importazione; si aggiorna automaticamente.", other: "{count} clip sono ancora in importazione; si aggiorna automaticamente." },
     turnOnPhotos: "Attiva «Usa foto» in «Avanzate» per creare dalle foto di questo progetto.",
     noClipsSelected: "Nessuna clip selezionata. Scegli le clip in «Avanzate».",
     needsShots: { one: "Serve almeno {count} clip o foto utilizzabile (trovate: {found}).", many: "Servono almeno {count} di clip o foto utilizzabili (trovate: {found}).", other: "Servono almeno {count} clip o foto utilizzabili (trovate: {found})." },
@@ -750,13 +736,6 @@ const STRINGS = {
     shots: { one: "{count} inquadratura", many: "{count} di inquadrature", other: "{count} inquadrature" },
     shotsFitted: { one: "{count} inquadratura (il tuo materiale basta per {count})", many: "{count} di inquadrature (il tuo materiale basta per {count})", other: "{count} inquadrature (il tuo materiale basta per {count})" },
     aboutSeconds: "circa {seconds} s",
-    notAnalysed: { one: "{count} clip non ancora analizzata", many: "{count} di clip non ancora analizzate", other: "{count} clip non ancora analizzate" },
-    analysing: { one: "{count} clip è in fase di analisi. Si aggiorna automaticamente al termine.", many: "{count} di clip sono in fase di analisi. Si aggiorna automaticamente al termine.", other: "{count} clip sono in fase di analisi. Si aggiorna automaticamente al termine." },
-    notAnalysedAnalyse: { one: "{count} clip non è ancora analizzata. Analizzala in Selects per usarla qui.", many: "{count} di clip non sono ancora analizzate. Analizzale in Selects per usarle qui.", other: "{count} clip non sono ancora analizzate. Analizzale in Selects per usarle qui." },
-    notAnalysedMaybe: { one: "{count} clip non è ancora analizzata. Se Selects la sta analizzando, si aggiorna automaticamente.", many: "{count} di clip non sono ancora analizzate. Se Selects le sta analizzando, si aggiorna automaticamente.", other: "{count} clip non sono ancora analizzate. Se Selects le sta analizzando, si aggiorna automaticamente." },
-    analysisFailed: { one: "Non è stato possibile analizzare {count} clip.", many: "Non è stato possibile analizzare {count} di clip.", other: "Non è stato possibile analizzare {count} clip." },
-    noteAnalysing: { one: "{count} clip in analisi", many: "{count} di clip in analisi", other: "{count} clip in analisi" },
-    noteFailed: { one: "{count} clip non analizzabile", many: "{count} di clip non analizzabili", other: "{count} clip non analizzabili" },
     layout: "Layout",
     "layout.classic": "Classico (finestra)",
     "layout.full": "Schermo intero",
@@ -847,6 +826,7 @@ const STRINGS = {
     progressDetail: "Passaggio {step}/{total} · {name} ({detail}) · {percent}%",
     videosChecked: { one: "{done}/{count} video controllato", many: "{done}/{count} di video controllati", other: "{done}/{count} video controllati" },
     videosMeasured: { one: "{done}/{count} video misurato", many: "{done}/{count} di video misurati", other: "{done}/{count} video misurati" },
+    clipsChecking: { one: "Controllo della clip {done}/{count}", many: "Controllo delle clip {done}/{count}", other: "Controllo delle clip {done}/{count}" },
     openingDraft: "apertura del Draft",
     stoppedAt: "Interrotto al passaggio {step}/{total} ({name}): {detail}",
     build: "Crea",
@@ -908,7 +888,9 @@ const STRINGS = {
     listening: "ビートを検出中",
     preparingTools: "ビート検出を準備中(初回のみ)",
     working: "処理中",
-    noFootage: "このプロジェクトには、解析済みの動画も写真もまだありません。動画クリップを追加して解析するか、写真を追加してください。自動で更新されます。",
+    noFootage: "このプロジェクトには、動画も写真もまだありません。動画クリップか写真を追加してください。自動で更新されます。",
+    analysedBetter: "解析済みのクリップなら、より良いショットを選べます。",
+    stillImporting: { other: "{count} 本のクリップをまだ読み込んでいます。自動で更新されます。" },
     turnOnPhotos: "このプロジェクトの写真から作成するには、「詳細設定」で「写真を使う」をオンにしてください。",
     noClipsSelected: "クリップが選択されていません。「詳細設定」でクリップを選んでください。",
     needsShots: { other: "使えるクリップか写真が少なくとも {count} 個必要です（見つかったのは {found} 個）。" },
@@ -926,13 +908,6 @@ const STRINGS = {
     shots: { other: "{count} ショット" },
     shotsFitted: { other: "{count} ショット（素材で作れるのは {count} ショット）" },
     aboutSeconds: "約 {seconds} 秒",
-    notAnalysed: { other: "未解析のクリップ {count} 本" },
-    analysing: { other: "{count} 本のクリップを解析中です。終わると自動で更新されます。" },
-    notAnalysedAnalyse: { other: "{count} 本のクリップがまだ解析されていません。ここで使うには Selects で解析してください。" },
-    notAnalysedMaybe: { other: "{count} 本のクリップがまだ解析されていません。Selects が解析中なら、自動で更新されます。" },
-    analysisFailed: { other: "{count} 本のクリップを解析できませんでした。" },
-    noteAnalysing: { other: "解析中のクリップ {count} 本" },
-    noteFailed: { other: "解析できなかったクリップ {count} 本" },
     layout: "レイアウト",
     "layout.classic": "クラシック（ウィンドウ）",
     "layout.full": "フルフレーム",
@@ -1023,6 +998,7 @@ const STRINGS = {
     progressDetail: "ステップ {step}/{total} · {name}（{detail}）· {percent}%",
     videosChecked: { other: "{done}/{count} 本の動画を確認済み" },
     videosMeasured: { other: "{done}/{count} 本の動画を計測済み" },
+    clipsChecking: { other: "クリップを確認中 {done}/{count}" },
     openingDraft: "Draft を開いています",
     stoppedAt: "ステップ {step}/{total}（{name}）で停止しました: {detail}",
     build: "作成",
@@ -1084,7 +1060,9 @@ const STRINGS = {
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
     preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     working: "\uc791\uc5c5 \uc911",
-    noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \ubd84\uc11d\ub41c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc744 \ucd94\uac00\ud574 \ubd84\uc11d\ud558\uac70\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
+    noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
+    analysedBetter: "\ubd84\uc11d\ub41c \ud074\ub9bd\uc774\uba74 \ub354 \uc88b\uc740 \uc0f7\uc744 \uace0\ub97c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+    stillImporting: { other: "\ud074\ub9bd {count}\uac1c\ub97c \uc544\uc9c1 \uac00\uc838\uc624\ub294 \uc911\uc785\ub2c8\ub2e4. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
     turnOnPhotos: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc0ac\uc9c4\uc73c\ub85c \ub9cc\ub4e4\ub824\uba74 ‘\uace0\uae09’\uc5d0\uc11c ‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc744 \ucf1c\uc138\uc694.",
     noClipsSelected: "\uc120\ud0dd\ud55c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. ‘\uace0\uae09’\uc5d0\uc11c \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     needsShots: { other: "\uc4f8 \uc218 \uc788\ub294 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc774 \ucd5c\uc18c {count}\uac1c \ud544\uc694\ud569\ub2c8\ub2e4({found}\uac1c \ucc3e\uc74c)." },
@@ -1102,13 +1080,6 @@ const STRINGS = {
     shots: { other: "\uc0f7 {count}\uac1c" },
     shotsFitted: { other: "\uc0f7 {count}\uac1c(\uc601\uc0c1\uc73c\ub85c \ucc44\uc6b8 \uc218 \uc788\ub294 \ub9cc\ud07c)" },
     aboutSeconds: "\uc57d {seconds}\ucd08",
-    notAnalysed: { other: "\uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd {count}\uac1c" },
-    analysing: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4. \ubd84\uc11d\uc774 \ub05d\ub098\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
-    notAnalysedAnalyse: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uc5ec\uae30\uc11c \uc4f0\ub824\uba74 Selects\uc5d0\uc11c \ubd84\uc11d\ud558\uc138\uc694." },
-    notAnalysedMaybe: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Selects\uc5d0\uc11c \ubd84\uc11d \uc911\uc774\ub77c\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
-    analysisFailed: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4." },
-    noteAnalysing: { other: "\ubd84\uc11d \uc911\uc778 \ud074\ub9bd {count}\uac1c" },
-    noteFailed: { other: "\ubd84\uc11d\ud558\uc9c0 \ubabb\ud55c \ud074\ub9bd {count}\uac1c" },
     layout: "\ub808\uc774\uc544\uc6c3",
     "layout.classic": "\ud074\ub798\uc2dd(\ucc3d)",
     "layout.full": "\ud480 \ud504\ub808\uc784",
@@ -1199,6 +1170,7 @@ const STRINGS = {
     progressDetail: "{step}/{total}\ub2e8\uacc4 · {name} ({detail}) · {percent}%",
     videosChecked: { other: "\uc601\uc0c1 {done}/{count}\uac1c \ud655\uc778" },
     videosMeasured: { other: "\uc601\uc0c1 {done}/{count}\uac1c \uce21\uc815" },
+    clipsChecking: { other: "\ud074\ub9bd \ud655\uc778 \uc911 {done}/{count}" },
     openingDraft: "Draft \uc5ec\ub294 \uc911",
     stoppedAt: "{step}/{total}\ub2e8\uacc4({name})\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {detail}",
     build: "\ub9cc\ub4e4\uae30",
@@ -1260,7 +1232,9 @@ const STRINGS = {
     listening: "Procurando a batida",
     preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     working: "Trabalhando",
-    noFootage: "Este projeto ainda não tem vídeos analisados nem fotos. Adicione clipes de vídeo e analise-os, ou adicione fotos; a lista é atualizada automaticamente.",
+    noFootage: "Este projeto ainda não tem vídeos nem fotos. Adicione clipes de vídeo ou fotos; a lista é atualizada automaticamente.",
+    analysedBetter: "Clipes analisados permitem escolher planos melhores.",
+    stillImporting: { one: "{count} clipe ainda está sendo importado; isto se atualiza sozinho.", many: "{count} de clipes ainda estão sendo importados; isto se atualiza sozinho.", other: "{count} clipes ainda estão sendo importados; isto se atualiza sozinho." },
     turnOnPhotos: "Ative “Usar fotos” em “Avançado” para criar com as fotos deste projeto.",
     noClipsSelected: "Nenhum clipe selecionado. Escolha clipes em “Avançado”.",
     needsShots: { one: "Precisa de pelo menos {count} clipe ou foto utilizável (encontrados: {found}).", many: "Precisa de pelo menos {count} de clipes ou fotos utilizáveis (encontrados: {found}).", other: "Precisa de pelo menos {count} clipes ou fotos utilizáveis (encontrados: {found})." },
@@ -1278,13 +1252,6 @@ const STRINGS = {
     shots: { one: "{count} plano", many: "{count} de planos", other: "{count} planos" },
     shotsFitted: { one: "{count} plano (seu material rende {count})", many: "{count} de planos (seu material rende {count})", other: "{count} planos (seu material rende {count})" },
     aboutSeconds: "cerca de {seconds} s",
-    notAnalysed: { one: "{count} clipe ainda não analisado", many: "{count} de clipes ainda não analisados", other: "{count} clipes ainda não analisados" },
-    analysing: { one: "{count} clipe está sendo analisado. Isto se atualiza sozinho quando terminar.", many: "{count} de clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem.", other: "{count} clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem." },
-    notAnalysedAnalyse: { one: "{count} clipe ainda não foi analisado. Analise-o no Selects para usá-lo aqui.", many: "{count} de clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui.", other: "{count} clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui." },
-    notAnalysedMaybe: { one: "{count} clipe ainda não foi analisado. Se o Selects estiver analisando, isto se atualiza sozinho.", many: "{count} de clipes ainda não foram analisados. Se o Selects estiver analisando, isto se atualiza sozinho.", other: "{count} clipes ainda não foram analisados. Se o Selects estiver analisando, isto se atualiza sozinho." },
-    analysisFailed: { one: "Não foi possível analisar {count} clipe.", many: "Não foi possível analisar {count} de clipes.", other: "Não foi possível analisar {count} clipes." },
-    noteAnalysing: { one: "{count} clipe em análise", many: "{count} de clipes em análise", other: "{count} clipes em análise" },
-    noteFailed: { one: "{count} clipe não pôde ser analisado", many: "{count} de clipes não puderam ser analisados", other: "{count} clipes não puderam ser analisados" },
     layout: "Layout",
     "layout.classic": "Clássico (janela)",
     "layout.full": "Tela cheia",
@@ -1375,6 +1342,7 @@ const STRINGS = {
     progressDetail: "Etapa {step}/{total} · {name} ({detail}) · {percent}%",
     videosChecked: { one: "{done}/{count} vídeo verificado", many: "{done}/{count} de vídeos verificados", other: "{done}/{count} vídeos verificados" },
     videosMeasured: { one: "{done}/{count} vídeo medido", many: "{done}/{count} de vídeos medidos", other: "{done}/{count} vídeos medidos" },
+    clipsChecking: { one: "Verificando clipe {done}/{count}", many: "Verificando clipes {done}/{count}", other: "Verificando clipes {done}/{count}" },
     openingDraft: "abrindo o Draft",
     stoppedAt: "Parou na etapa {step}/{total} ({name}): {detail}",
     build: "Criar",
@@ -1436,7 +1404,9 @@ const STRINGS = {
     listening: "Ritim aranıyor",
     preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     working: "Çalışıyor",
-    noFootage: "Bu projede henüz analiz edilmiş video veya fotoğraf yok. Video klipleri ekleyip analiz edin ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
+    noFootage: "Bu projede henüz video veya fotoğraf yok. Video klipleri ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
+    analysedBetter: "Analiz edilmiş kliplerle daha iyi çekimler seçilir.",
+    stillImporting: { one: "{count} klip hâlâ içe aktarılıyor; bu otomatik olarak güncellenir.", other: "{count} klip hâlâ içe aktarılıyor; bu otomatik olarak güncellenir." },
     turnOnPhotos: "Bu projenin fotoğraflarından oluşturmak için “Gelişmiş” bölümünde “Fotoğrafları kullan” seçeneğini açın.",
     noClipsSelected: "Klip seçilmedi. “Gelişmiş” bölümünden klip seçin.",
     needsShots: { one: "En az {count} kullanılabilir klip veya fotoğraf gerekir ({found} bulundu).", other: "En az {count} kullanılabilir klip veya fotoğraf gerekir ({found} bulundu)." },
@@ -1454,13 +1424,6 @@ const STRINGS = {
     shots: { one: "{count} çekim", other: "{count} çekim" },
     shotsFitted: { one: "{count} çekim (görüntüleriniz {count} çekime yetiyor)", other: "{count} çekim (görüntüleriniz {count} çekime yetiyor)" },
     aboutSeconds: "yaklaşık {seconds} sn",
-    notAnalysed: { one: "{count} klip henüz analiz edilmedi", other: "{count} klip henüz analiz edilmedi" },
-    analysing: { one: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir.", other: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir." },
-    notAnalysedAnalyse: { one: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin.", other: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin." },
-    notAnalysedMaybe: { one: "{count} klip henüz analiz edilmedi. Selects analiz ediyorsa bu otomatik olarak güncellenir.", other: "{count} klip henüz analiz edilmedi. Selects analiz ediyorsa bu otomatik olarak güncellenir." },
-    analysisFailed: { one: "{count} klip analiz edilemedi.", other: "{count} klip analiz edilemedi." },
-    noteAnalysing: { one: "{count} klip analiz ediliyor", other: "{count} klip analiz ediliyor" },
-    noteFailed: { one: "{count} klip analiz edilemedi", other: "{count} klip analiz edilemedi" },
     layout: "Düzen",
     "layout.classic": "Klasik (pencere)",
     "layout.full": "Tam kare",
@@ -1551,6 +1514,7 @@ const STRINGS = {
     progressDetail: "Adım {step}/{total} · {name} ({detail}) · %{percent}",
     videosChecked: { one: "{done}/{count} video kontrol edildi", other: "{done}/{count} video kontrol edildi" },
     videosMeasured: { one: "{done}/{count} video ölçüldü", other: "{done}/{count} video ölçüldü" },
+    clipsChecking: { one: "Klipler kontrol ediliyor {done}/{count}", other: "Klipler kontrol ediliyor {done}/{count}" },
     openingDraft: "Draft açılıyor",
     stoppedAt: "{step}/{total}. adımda durdu ({name}): {detail}",
     build: "Oluştur",
@@ -1612,7 +1576,9 @@ const STRINGS = {
     listening: "正在识别节拍",
     preparingTools: "正在准备节拍检测(仅首次)",
     working: "处理中",
-    noFootage: "此项目中还没有已分析的视频或照片。请添加视频片段并进行分析，或添加照片；这里会自动更新。",
+    noFootage: "此项目中还没有视频或照片。请添加视频片段或照片；这里会自动更新。",
+    analysedBetter: "已分析的片段能挑出更好的镜头。",
+    stillImporting: { other: "还有 {count} 个片段正在导入；这里会自动更新。" },
     turnOnPhotos: "请在“高级”中开启“使用照片”，即可用此项目的照片制作。",
     noClipsSelected: "未选择片段。请在“高级”中选择片段。",
     needsShots: { other: "至少需要 {count} 个可用的片段或照片（找到 {found} 个）。" },
@@ -1630,13 +1596,6 @@ const STRINGS = {
     shots: { other: "{count} 个镜头" },
     shotsFitted: { other: "{count} 个镜头（素材可支持 {count} 个）" },
     aboutSeconds: "约 {seconds} 秒",
-    notAnalysed: { other: "{count} 个片段尚未分析" },
-    analysing: { other: "正在分析 {count} 个片段。分析完成后会自动更新。" },
-    notAnalysedAnalyse: { other: "有 {count} 个片段尚未分析。请在 Selects 中分析后再在这里使用。" },
-    notAnalysedMaybe: { other: "有 {count} 个片段尚未分析。如果 Selects 正在分析，这里会自动更新。" },
-    analysisFailed: { other: "有 {count} 个片段无法分析。" },
-    noteAnalysing: { other: "{count} 个片段分析中" },
-    noteFailed: { other: "{count} 个片段无法分析" },
     layout: "版式",
     "layout.classic": "经典（小窗）",
     "layout.full": "全画面",
@@ -1727,6 +1686,7 @@ const STRINGS = {
     progressDetail: "第 {step}/{total} 步 · {name}（{detail}）· {percent}%",
     videosChecked: { other: "已检查 {done}/{count} 个视频" },
     videosMeasured: { other: "已测量 {done}/{count} 个视频" },
+    clipsChecking: { other: "正在检查片段 {done}/{count}" },
     openingDraft: "正在打开 Draft",
     stoppedAt: "在第 {step}/{total} 步（{name}）停止：{detail}",
     build: "生成",
@@ -3137,6 +3097,10 @@ async function ensureNode(sdk: any): Promise<string> {
   if (r?.isError || r?.exitCode !== 0 || !found.startsWith("/")) throw new Error(String(r?.stderr || "").trim().split("\n").pop() || "Could not prepare Node.js.");
   return (nodePath = found);
 }
+// The quick local score of unanalysed clips during a build: three clips at a time (each ffmpeg decode is itself
+// multi-threaded), and clips not started within the budget get evenly spaced windows, so Prepare stays short.
+const TEC_QUICK_CONCURRENCY = 3;
+const TEC_QUICK_BUDGET_MS = 20000;
 // Thrown when the Project changed while a build was running; its results are dropped silently.
 const STALE = new Error("The Project changed during the build.");
 
@@ -3342,26 +3306,13 @@ function SectionSlider({ lang, peaks, total, section, videoSeconds, stepSeconds,
   );
 }
 
-// Videos without analysis, from inventory.js's skipped counts: being analysed now, not analysed yet (never started; the
-// panel does not start analysis), or failed. known is false when the workflow read failed: pending clips then may or
-// may not be queued, so their wording is neutral and the panel keeps polling.
-function tecAnalysisCounts(skipped: any) {
-  const s = skipped || {}, total = s.unanalysed || 0;
-  if (s.analysing == null) return { total, analysing: 0, notAnalysed: total, failed: 0, known: false };
-  return { total, analysing: s.analysing || 0, notAnalysed: s.notAnalysed || 0, failed: s.failed || 0, known: s.statusKnown !== false };
-}
-// The sentences for the readiness line in the UI language ("" when every video is analysed).
-function tecAnalysisText(lang: Lang, c: any) {
-  return [
-    c.analysing ? t(lang, "analysing", { count: c.analysing }) : "",
-    c.notAnalysed ? (c.known ? t(lang, "notAnalysedAnalyse", { count: c.notAnalysed }) : t(lang, "notAnalysedMaybe", { count: c.notAnalysed })) : "",
-    c.failed ? t(lang, "analysisFailed", { count: c.failed }) : "",
-  ].filter(Boolean).join(t(lang, "gap"));
-}
-// The short facts for the end of the Ready line ("" for a count of 0).
-function tecAnalysisNotes(lang: Lang, c: any) {
-  return [c.analysing ? t(lang, "noteAnalysing", { count: c.analysing }) : "", c.notAnalysed ? t(lang, "notAnalysed", { count: c.notAnalysed }) : "",
-    c.failed ? t(lang, "noteFailed", { count: c.failed }) : ""];
+// Footage notes for the readiness line. Analysis is never required (unanalysed clips are scored locally with the quick
+// score), so nothing here blocks a build: `better` is the one small muted note while any usable clip is unanalysed;
+// `importing` counts videos that cannot be used yet (no length or source file: still importing). "" when not needed.
+function tecFootageNotes(lang: Lang, inv: any) {
+  const sk = inv?.skipped || {};
+  const unanalysed = (inv?.resources || []).some((r: any) => r.analysed === false);
+  return { better: unanalysed ? t(lang, "analysedBetter") : "", importing: sk.unanalysed > 0 ? t(lang, "stillImporting", { count: sk.unanalysed }) : "" };
 }
 
 // Layout thumbnails: a tiny schematic of each layout (window + left column, or full frame + right column).
@@ -4201,17 +4152,20 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
   const photoSizesRef = React.useRef<Record<string, { width: number; height: number }>>({});
   // In-shot motion per clip (tecParseMotion curves), measured once per Project + clip; null = could not be measured.
   const motionRef = React.useRef<Record<string, any>>({});
+  // Cancels a running build's quick score (host ffmpeg) when the Project switches or the panel closes: the same moment
+  // the build's results go stale.
+  const buildAbortRef = React.useRef<AbortController | null>(null);
   const invLoadingRef = React.useRef<string | null>(null);
   const mountedRef = React.useRef(true);
   const [invError, setInvError] = React.useState<{ say: Say } | null>(null);
   const [invLoading, setInvLoading] = React.useState(false);
 
-  // Keeps a fresh inventory: remembers photo sizes and drops the scene-search cache when the clip set changed.
+  // Keeps a fresh inventory: remembers photo sizes and drops the shot cache when the clip set (or a clip's analysis) changed.
   function applyInventory(inv: any) {
     inv.photos = inv.photos || [];
     for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizesRef.current[ph.rid] = { width: ph.width, height: ph.height };
     const sk = inv.skipped || {};
-    const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + [sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown].map((x) => String(x ?? "")).join(",");
+    const sig = inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",") + "|" + [sk.unanalysed, sk.notAnalysed].map((x) => String(x ?? "")).join(",");
     if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
     setInventory(inv); setInvError(null);
     return inv;
@@ -4234,7 +4188,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
     }
   }
-  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; buildAbortRef.current?.abort(); }; }, []);
 
   // Mount and Project switch: reset per-Project state, resolve folders, read bundled assets, inventory the Project.
   React.useEffect(() => {
@@ -4276,15 +4230,14 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       } finally { if (alive) setStep(""); }
     })();
     // Project switch or unmount stops a preview, including one still being prepared.
-    return () => { alive = false; stopPreview(); };
+    return () => { alive = false; stopPreview(); buildAbortRef.current?.abort(); };
   }, [projectId]);
 
-  // Clips being analysed (or no clips at all yet): re-read the inventory every 10 s until they are ready. Clips whose
-  // analysis was never started (or failed) do not poll on their own: nothing changes until the user analyses them in
-  // Selects, and coming back to the panel or Refresh picks that up. With an unknown status, unanalysed clips poll.
-  // A Project with only photos has nothing to wait for, so it does not poll (each read measures new photos).
-  const invAnalysis = tecAnalysisCounts(inventory?.skipped);
-  const needsPoll = !!inventory && (invAnalysis.analysing > 0 || (!invAnalysis.known && invAnalysis.total > 0) || (inventory.resources.length === 0 && !inventory.photos?.length && invAnalysis.total === 0));
+  // Re-read the inventory every 10 s while videos are still importing (they become usable), while Selects analyses
+  // some (only the note and the next build's shot source change; nothing waits for it), or while the Project has no
+  // footage at all yet. A Project with only photos has nothing to wait for, so it does not poll.
+  const invSkipped = inventory?.skipped || {};
+  const needsPoll = !!inventory && ((invSkipped.unanalysed || 0) > 0 || (invSkipped.analysing || 0) > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
@@ -4556,6 +4509,22 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     return { list, failed };
   }
 
+  // Clips without analysis: the quick local score (the kit block above: host ffmpeg through __DI__, bounded concurrency,
+  // cached per clip in the data folder) and the planner's tecLocalShots turn them into candidates and motion curves.
+  // "Checking clips N/M" inside Prepare; a Project switch or closing the panel aborts it (buildAbortRef). Any failure
+  // short of a cancel falls back to evenly spaced windows, so the build goes ahead.
+  async function localShots(resources: any[], P: number, check: () => void, signal: AbortSignal, from: number, to: number) {
+    const count = resources.length;
+    if (!count) return { list: [], curves: {}, scored: 0, even: [], ms: 0 };
+    advance("prepare", from, (l) => t(l, "clipsChecking", { done: 0, count }));
+    const out = await tecLocalShots(resources, { P, signal, dataDir: roots?.data || null, concurrency: TEC_QUICK_CONCURRENCY, budgetMs: TEC_QUICK_BUDGET_MS,
+      scoreAll: quickScoreAll, candidatesOf: qsCandidates,
+      onProgress: (p: any) => { const done = p.done; advance("prepare", from + ((to - from) * done) / count, (l) => t(l, "clipsChecking", { done, count })); } });
+    check();
+    if (out.even.length) console.info("[the-end-credits] quick score fell back to evenly spaced windows for", out.even.join(", "));
+    return out;
+  }
+
   // In-shot motion: ffmpeg once per analysed clip (4 fps, 64 px grey frame differences), written to the data folder
   // and read back, never through stdout. Cached per Project + clip. Without ffmpeg, or when a clip fails, that clip
   // simply has no curve and the allocation scores it as before.
@@ -4633,29 +4602,39 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     busyRef.current = true;
     stopPreview();
     setBusy(true); setStatus(null); setResult(null); progressRef.current = null;
+    buildAbortRef.current?.abort();
+    const abort = new AbortController();
+    buildAbortRef.current = abort;
     advance("prepare", 0);
     try {
-      // 1. Inventory (fresh), 2. scene search: Prepare.
+      // 1. Inventory (fresh), 2. scene search (analysed clips) and the quick local score (the others): Prepare.
       const raw = await run("Read footage", fill(assets.scripts.inventoryJs, { projectId: pid, only: null, known: photoSizesRef.current }));
       check();
       const inv = applyInventory(raw);
       advance("prepare", 0.1);
       const key = pid + "|" + JSON.stringify(inputs.only);
-      const rids: string[] = inv.resources.filter((r: any) => !inputs.only || inputs.only.includes(r.rid)).map((r: any) => r.rid);
+      const chosen: any[] = inv.resources.filter((r: any) => !inputs.only || inputs.only.includes(r.rid));
+      const rids: string[] = chosen.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);
       const dur: Record<string, number> = Object.fromEntries(inv.resources.map((r: any) => [r.rid, r.duration]));
       const cached = candidates && candidates.key === key && candidates.sig === invSigRef.current ? candidates : null;
       let found = cached;
-      if (!cached || cached.failed.length) {
+      // Unanalysed clips' windows depend on the phrase (a new track): score them again (read back from the quick score's
+      // cache in the data folder) without searching the analysed clips again.
+      const localStale = !!cached && cached.P !== inputs.P;
+      if (!cached || cached.failed.length || localStale) {
         // Search everything the first time; afterwards retry only the clips whose search failed.
         const todo: string[] = cached ? cached.failed : rids;
         const fresh = await findCandidates(todo, pid, check);
+        const local = !cached || localStale ? await localShots(chosen.filter((r: any) => r.analysed === false), inputs.P, check, abort.signal, 0.7, 0.85) : null;
         const retried = new Set(todo);
-        found = { key, sig: invSigRef.current, failed: fresh.failed,
-          list: [...(cached ? cached.list.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))] };
+        const kept = cached ? cached.list.filter((c: any) => !retried.has(c.rid) && !(local && c.local)) : [];
+        found = { key, sig: invSigRef.current, P: inputs.P, failed: fresh.failed, curves: local ? local.curves : cached.curves,
+          list: [...kept, ...(local ? local.list : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))] };
         setCandidates(found);
       }
-      // In-shot motion of the searched clips (cached; silently skipped without ffmpeg).
-      const motion = await measureMotion(inv.resources.filter((r: any) => rids.includes(r.rid)), pid, check, 0.7);
+      // In-shot motion: measured for the searched clips (cached; silently skipped without ffmpeg), from the quick score
+      // for the others.
+      const motion = { ...(found.curves || {}), ...(await measureMotion(chosen.filter((r: any) => r.analysed !== false), pid, check, 0.85)) };
       advance("prepare", 1);
       // 3. Plan.
       advance("plan", 0);
@@ -4712,11 +4691,11 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       setResult({ sequenceId: a.sequenceId, decorated: false, record, photoMotion: { byRid, byShot }, seed: nextSeed, notes, link: null, shortened, unchecked: found.failed.length, roll: speed });
       await decorate(record, { byRid, byShot }, check);
     } catch (e: any) {
-      if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) });
-    } finally { endRun(pid); }
+      if (e !== STALE && e?.name !== "AbortError" && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) });
+    } finally { if (buildAbortRef.current === abort) buildAbortRef.current = null; endRun(pid); }
   }
 
-  // Another version: same clips and cached scene search, a new seed.
+  // Another version: same clips and cached shots, a new seed.
   function buildAnother() {
     if (busyRef.current) return;
     setResult(null); setStatus(null);
@@ -4799,7 +4778,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
   }, [candidates, candKey, inventory, onlyPhotos, usePhotos, layout, requested, music.P, seed, selectedRids.length]);
   const canBuild = !!inventory && (selectedRids.length > 0 || usedPhotoCount >= neededShots) && (!fitsPlan || fitsPlan.ok)
     && (!musicOn ? cueId !== "own" : music.ready && start != null);
-  const analysisText = tecAnalysisText(L, invAnalysis);
+  const footNotes = tecFootageNotes(L, inventory);
   const clipCount = [
     allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
     usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
@@ -4807,12 +4786,12 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
   const shotsFit = fitsPlan && fitsPlan.ok ? fitsPlan.N : requested;
   const sentences = (list: string[]) => list.filter(Boolean).join(t(L, "gap"));
   const readiness = !inventory ? (invError ? t(L, "readFailed", { detail: invError.say(L) }) : t(L, "checkingClipsNow"))
-    : inventory.resources.length === 0 && !allPhotoRids.length ? (analysisText || t(L, "noFootage"))
-    : inventory.resources.length === 0 && !usePhotos ? sentences([analysisText, t(L, "turnOnPhotos")])
+    : inventory.resources.length === 0 && !allPhotoRids.length ? (footNotes.importing || t(L, "noFootage"))
+    : inventory.resources.length === 0 && !usePhotos ? sentences([footNotes.importing, t(L, "turnOnPhotos")])
     : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
-    : fitsPlan && !fitsPlan.ok ? sentences([t(L, "needsShots", { count: fitsPlan.needed, found: fitsPlan.usableShots }), t(L, "addFootagePhotos"), analysisText])
-    : t(L, "ready", { summary: [clipCount, shotsFit < requested ? t(L, "shotsFitted", { count: shotsFit + extra }) : t(L, "shots", { count: shotsFit + extra }),
-      t(L, "aboutSeconds", { seconds: Math.round(tecVideoSeconds(shotsFit, music.P)) }), ...tecAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
+    : fitsPlan && !fitsPlan.ok ? sentences([t(L, "needsShots", { count: fitsPlan.needed, found: fitsPlan.usableShots }), t(L, "addFootagePhotos"), footNotes.importing])
+    : sentences([t(L, "ready", { summary: [clipCount, shotsFit < requested ? t(L, "shotsFitted", { count: shotsFit + extra }) : t(L, "shots", { count: shotsFit + extra }),
+      t(L, "aboutSeconds", { seconds: Math.round(tecVideoSeconds(shotsFit, music.P)) })].filter(Boolean).join(" · ") }), footNotes.importing]);
   const canOwnMusic = tools.ffmpeg;
   const silent = cueId === "none" && clipSound === "off";
   const hidden = roll.hiddenRows;
@@ -4846,6 +4825,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
         <ui.Button variant="ghost" busy={invLoading} busyLabel={t(L, "refreshing")} disabled={busy || !assets} onClick={() => loadInventory()}>{t(L, "refresh")}</ui.Button>
       </ui.Row>
       {inventory && invError ? <ui.Message tone="error">{t(L, "refreshFailed", { detail: invError.say(L) })}</ui.Message> : null}
+      {inventory && footNotes.better ? <ui.Message tone="muted">{footNotes.better}</ui.Message> : null}
       <ui.Section title={t(L, "layout")}>
         <LayoutTiles lang={L} layout={layout} busy={busy} onPick={setLayout} onKeyDown={guardKeys} />
       </ui.Section>

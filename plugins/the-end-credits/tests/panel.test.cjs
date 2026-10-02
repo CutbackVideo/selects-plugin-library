@@ -50,7 +50,7 @@ for (const phrase of ['projectRef', 'No valid session ID', 'visibilitychange', '
   'requestAnimationFrame', 'cancelAnimationFrame', 'previewTokenRef', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', 'preview-*.mp3', 'readText(roots.data',
   'loadInventory(', 'setCandidates(null)', 'invSigRef', 'known: photoSizesRef.current', 'selects.editor.openDraft', 'linkToDraftFrame',
   'FontFace', '--panel-accent', '--panel-muted-fg', 'fmtTime(total)', 'ffprobe']) assert.ok(code.includes(phrase), phrase);
-for (const [key, text] of [['refresh', 'Refresh'], ['stopPreview', 'Stop preview'], ['cancelPreview', 'Cancel preview'], ['analysing', 'being analysed. This updates automatically'],
+for (const [key, text] of [['refresh', 'Refresh'], ['stopPreview', 'Stop preview'], ['cancelPreview', 'Cancel preview'],
   ['noFootage', 'this updates automatically'], ['finishTitle', 'Finish title and look'], ['anotherVersion', 'Try other shots'],
   ['stoppedAt', 'Stopped at step {step}/{total} ({name}): {detail}'], ['installTools', 'Install ffmpeg to preview'], ['preparingTools', 'first time only'], ['draftCreatedAdding', 'Draft created; adding credits and look'],
   ['sectionHint', 'drag to choose'], ['sectionLabel', 'Music section'], ['startsAt', 'Starts at {seconds} s'], ['musicTooShort', 'too short for this length'],
@@ -273,64 +273,67 @@ for (const phrase of ['t(L, "ready", { summary: [clipCount', 't(L, "aboutSeconds
   't(L, "shotsFitted", { count: shotsFit + extra })']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['ready', 'Ready: {summary}'], ['shots', '{count} shots'], ['aboutSeconds', 'about {seconds} s'], ['needsShots', 'Needs at least {count} usable clips or photos (found {found}).'],
   ['shortened', 'Your footage fits {count} shots'], ['addFootagePhotos', 'Add more varied footage or photos.'], ['addFootagePhotosSelect', 'or photos, or select more clips.'], ['retryUnchecked', 'press Build to retry them.'],
-  ['notAnalysed', 'clips not analysed yet'], ['turnOnPhotos', 'Turn on Use photos in Advanced']]) says(key, text);
+  ['turnOnPhotos', 'Turn on Use photos in Advanced']]) says(key, text);
 assert.ok(/needsPoll = [^\n]*inventory\.photos/.test(panel), 'a photos-only Project does not poll');
 
-// Unanalysed videos are worded by why (inventory.js's skipped split); the panel never claims clips are being analysed
-// when their analysis was never started, and never starts analysis itself.
-assert.ok(!panel.includes('still being analysed'), 'the old "still being analysed" wording is gone');
+// Readiness never blocks on analysis: unanalysed clips are usable (scored locally), so the old blocker wording is gone
+// and at most one small muted note says analysed clips give better picks. Videos still importing are counted.
+for (const gone of ['analysing', 'notAnalysed', 'notAnalysedAnalyse', 'notAnalysedMaybe', 'analysisFailed', 'noteAnalysing', 'noteFailed']) {
+  for (const lang of Object.keys(block.strings)) assert.ok(!(gone in block.strings[lang]), lang + '.' + gone + ' is gone');
+}
+assert.ok(!/analy[sz]/i.test(textOf('noFootage')), 'noFootage asks for no analysis: ' + textOf('noFootage'));
+for (const lang of Object.keys(block.strings)) {
+  const all = JSON.stringify(block.strings[lang]);
+  assert.ok(!/Analyse (it|them) in Selects|still being analysed|being analysed|analyse them|not analysed yet/i.test(all), lang + ': no analysis blocker wording');
+  assert.ok(typeof block.strings[lang].analysedBetter === 'string' && block.strings[lang].analysedBetter.length > 4, lang + '.analysedBetter');
+  for (const key of ['clipsChecking', 'stillImporting']) assert.ok(block.strings[lang][key] && block.strings[lang][key].other, lang + '.' + key + ' has plural forms');
+}
+says('analysedBetter', 'Analysed clips give better picks.');
+says('clipsChecking', 'Checking clips {done}/{count}');
+says('stillImporting', 'still being imported');
+says('noFootage', 'Add video clips or photos');
 assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel does not start analysis');
 {
-  const start = panel.indexOf('function tecAnalysisCounts('), end = panel.indexOf('// Layout thumbnails:');
-  assert.ok(start > 0 && end > start, 'the analysis wording helpers exist');
+  const start = panel.indexOf('function tecFootageNotes('), end = panel.indexOf('// Layout thumbnails:');
+  assert.ok(start > 0 && end > start, 'the footage-note helper exists');
   const js = panel.slice(start, end).replace(/(\w)\??: (?:any|number|string|Lang)\b/g, '$1');
-  // The panel's t() over its STRINGS block (plural by count; plain numbers are enough for these sentences).
   const tt = (lang, key, vars = {}) => {
     let msg = block.strings[lang][key] ?? en[key];
     if (typeof msg !== 'string') msg = msg[new Intl.PluralRules(lang).select(vars.count)] ?? msg.other;
     return msg.replace(/\{(\w+)\}/g, (w, n) => (vars[n] === undefined ? w : String(vars[n])));
   };
   const box = { t: tt };
-  vm.runInNewContext(js + '\nthis.api = { tecAnalysisCounts, tecAnalysisText, tecAnalysisNotes };', box);
-  const { tecAnalysisCounts: counts } = box.api;
-  const text = c => box.api.tecAnalysisText('en', c);
-  const note = c => box.api.tecAnalysisNotes('en', c).filter(Boolean).map(x => ' · ' + x).join('');
-  const sk = (analysing, notAnalysed, failed, statusKnown = true) => ({ unanalysed: analysing + notAnalysed + failed, missing: 0, analysing, notAnalysed, failed, statusKnown });
-  // Other languages: whole sentences per status, joined by the language's gap (none in ja/zh).
-  assert.equal(box.api.tecAnalysisText('ja', counts(sk(3, 1, 0))), tt('ja', 'analysing', { count: 3 }) + tt('ja', 'notAnalysedAnalyse', { count: 1 }));
-  assert.ok(!/undefined|\{\w+\}/.test(['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'].map(l => box.api.tecAnalysisText(l, counts(sk(3, 1, 2))) + box.api.tecAnalysisNotes(l, counts(sk(1, 2, 3))).join('')).join()), 'every language fills the counts');
-  assert.equal(text(counts(sk(160, 0, 0))), '160 clips are being analysed. This updates automatically when they finish.');
-  assert.equal(text(counts(sk(1, 0, 0))), '1 clip is being analysed. This updates automatically when it finishes.');
-  assert.equal(text(counts(sk(0, 160, 0))), '160 clips are not analysed yet. Analyse them in Selects to use them here.');
-  assert.equal(text(counts(sk(0, 1, 0))), '1 clip is not analysed yet. Analyse it in Selects to use it here.');
-  assert.equal(text(counts(sk(0, 0, 2))), '2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 1))), '1 clip could not be analysed.');
-  assert.equal(text(counts(sk(0, 160, 0, false))), '160 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(text(counts(sk(0, 1, 0, false))), '1 clip is not analysed yet. If Selects is analysing it, this updates automatically.');
-  assert.equal(text(counts(sk(3, 1, 2))), '3 clips are being analysed. This updates automatically when they finish. 1 clip is not analysed yet. Analyse it in Selects to use it here. 2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 0))), '', 'nothing to say when every video is analysed');
-  // An inventory without the split (older script) counts every unanalysed clip as unknown: the neutral wording.
-  assert.equal(text(counts({ unanalysed: 4, missing: 0 })), '4 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(note(counts(sk(2, 1, 0))), ' · 2 clips being analysed · 1 clip not analysed yet');
-  assert.equal(note(counts(sk(0, 0, 1))), ' · 1 clip could not be analysed');
-  assert.equal(note(counts(sk(0, 0, 0))), '');
-  // Every readiness branch uses the same sentences, and a status change refreshes the inventory signature.
-  for (const phrase of ['const analysisText = tecAnalysisText(L, invAnalysis);', '(analysisText || t(L, "noFootage"))', 'sentences([analysisText, t(L, "turnOnPhotos")])',
-    't(L, "addFootagePhotos"), analysisText])', '...tecAnalysisNotes(L, invAnalysis)]', '[sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown]']) assert.ok(panel.includes(phrase), phrase);
-  // Polling: only while clips are being analysed, while the status is unknown, or while the Project has no footage at all.
+  vm.runInNewContext(js + '\nthis.api = { tecFootageNotes };', box);
+  const notes = (inv, lang = 'en') => JSON.parse(JSON.stringify(box.api.tecFootageNotes(lang, inv)));
+  const res = (...flags) => flags.map((analysed, i) => ({ rid: 'r' + i, analysed }));
+  assert.deepEqual(notes({ resources: res(true, true), skipped: { unanalysed: 0 } }), { better: '', importing: '' }, 'all analysed: nothing to say');
+  assert.deepEqual(notes({ resources: res(true, false), skipped: { unanalysed: 0 } }), { better: 'Analysed clips give better picks.', importing: '' });
+  assert.deepEqual(notes({ resources: res(false), skipped: { unanalysed: 2 } }), { better: 'Analysed clips give better picks.', importing: '2 clips are still being imported; this updates automatically.' });
+  assert.equal(notes({ resources: [], skipped: { unanalysed: 1 } }).importing, '1 clip is still being imported; this updates automatically.');
+  assert.deepEqual(notes(null), { better: '', importing: '' });
+  assert.ok(!/undefined|\{\w+\}/.test(Object.keys(block.strings).map(l => Object.values(notes({ resources: res(false), skipped: { unanalysed: 3 } }, l)).join()).join()), 'every language fills the counts');
+  // Every readiness branch uses the notes; the muted note sits under the readiness line.
+  for (const phrase of ['const footNotes = tecFootageNotes(L, inventory);', '(footNotes.importing || t(L, "noFootage"))', 'sentences([footNotes.importing, t(L, "turnOnPhotos")])',
+    't(L, "addFootagePhotos"), footNotes.importing])', '{inventory && footNotes.better ? <ui.Message tone="muted">{footNotes.better}</ui.Message> : null}',
+    'r.rid + (r.analysed === false ? "~" : "")']) assert.ok(panel.includes(phrase), phrase);
+  // Polling: while videos import, while Selects analyses some (a note refresh only), or while the Project is empty.
   const poll = (panel.match(/const needsPoll = ([^\n]*);/) || [])[1];
   assert.ok(poll, 'needsPoll');
-  const needsPoll = (inventory) => { const invAnalysis = counts(inventory && inventory.skipped); return vm.runInNewContext(poll, { inventory, invAnalysis }); };
-  const inv = (skipped, resources = 0, photos = 0) => ({ skipped, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
-  assert.equal(needsPoll(inv(sk(2, 0, 0), 5)), true, 'clips being analysed poll');
-  assert.equal(needsPoll(inv(sk(0, 160, 0))), false, 'never-started clips alone do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 2), 5)), false, 'not analysed and failed clips do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 0, false), 5)), true, 'an unknown status polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0))), true, 'an empty Project polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 0, 3)), false, 'photos only: no poll');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 5)), false, 'all analysed: no poll');
+  const needsPoll = (inventory) => vm.runInNewContext(poll, { inventory, invSkipped: (inventory && inventory.skipped) || {} });
+  const inv = (skipped, resources = 0, photos = 0) => ({ skipped, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i, analysed: false })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
+  assert.equal(needsPoll(inv({ unanalysed: 2, analysing: 0 }, 5)), true, 'importing clips poll');
+  assert.equal(needsPoll(inv({ unanalysed: 0, analysing: 2 }, 5)), true, 'clips being analysed refresh the note');
+  assert.equal(needsPoll(inv({ unanalysed: 0, analysing: 0, notAnalysed: 5 }, 5)), false, 'usable unanalysed clips do not poll');
+  assert.equal(needsPoll(inv({ unanalysed: 0 })), true, 'an empty Project polls');
+  assert.equal(needsPoll(inv({ unanalysed: 0 }, 0, 3)), false, 'photos only: no poll');
   assert.equal(needsPoll(null), false);
 }
+
+// Build: unanalysed clips are scored with the kit quick-score block (never scene search), inside Prepare with a
+// "Checking clips N/M" detail, and the run is cancelled when the Project switches or the panel closes.
+for (const phrase of ['scoreAll: quickScoreAll, candidatesOf: qsCandidates', 't(l, "clipsChecking", { done, count })', 'chosen.filter((r: any) => r.analysed === false)',
+  'const rids: string[] = chosen.filter((r: any) => r.analysed !== false)', 'buildAbortRef.current?.abort()', 'abort.signal', 'e?.name !== "AbortError"',
+  'measureMotion(chosen.filter((r: any) => r.analysed !== false)']) assert.ok(code.includes(phrase), phrase);
 
 // Layout buttons: the button holds the thumbnail and the label (a column that grows with the label, no fixed height),
 // the label wraps inside it, and the two buttons share the row equally.
