@@ -1,10 +1,10 @@
-"""Portrait Beat Montage on Windows: the panel opens and every build entry stops first.
+"""Portrait Beat Montage on Windows: the in-panel engine builds, and nothing is paid without a click.
 
-The pipeline (pipeline.py with numpy, Pillow and RVM on onnxruntime) runs on a private Python that
-rvm/setup.sh installs for macOS arm64 only, through POSIX shell. So on Windows the panel opens with
-no setup check, the build button is disabled with a localized "Available on macOS for now", and the
-Clip highlights run (TemplateRun) refuses before any setup, background job or Draft. The shell that
-stays sits in `// mac-only:start` ... `end` regions. The host block is checked for its helpers, not
+macOS keeps pipeline.py (numpy, Pillow and RVM on a private Python that rvm/setup.sh installs through
+POSIX shell); that shell sits in `// mac-only:start` ... `end` regions whose entries refuse Windows.
+Windows runs the pbm-engine region: host ffmpeg, FileSystem and a Worker, with person mattes from one
+Selects generation request that waits for the localized credits notice to be accepted. A Clip
+highlights run (TemplateRun) skips setup on Windows and stops before the paid step. The host block is checked for its helpers, not
 for byte-equality with a sibling plugin (kit windows.md).
 Set PORTRAIT_BEAT_MONTAGE_PANEL to check another copy of the panel (e.g. the one on main).
 """
@@ -81,32 +81,64 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
                 self.assertRegex(table, r'\b' + lang + r': "[^"]*macOS[^"]*"')
         self.assertIn('en: "Available on macOS for now."', table)
 
-    def test_template_run_refuses_windows_first(self):
+    def test_every_language_has_the_credits_notice(self):
+        for table in ('const COST_TEXT = ', 'const COST_GO = ', 'const COST_STOP = ', 'const TEMPLATE_CREDITS = '):
+            line = body(self.text, table, '\n')
+            for lang in LANGUAGES:
+                with self.subTest(table=table, lang=lang):
+                    self.assertRegex(line, r'\b' + lang + r': "[^"]+"')
+        cost = body(self.text, 'const COST_TEXT = ', '\n')
+        self.assertIn('en: "This sends about {s} s of video ({n} shots) to Selects background removal, which uses generation credits. A rebuild reuses the result."', cost)
+        for lang in LANGUAGES:
+            with self.subTest(placeholders=lang):
+                self.assertRegex(cost, r'\b' + lang + r': "[^"]*\{s\}[^"]*\{n\}[^"]*"')
+        self.assertIn('en: "Use credits and continue"', body(self.text, 'const COST_GO = ', '\n'))
+
+    def test_nothing_is_paid_before_the_click(self):
+        cloud = body(self.text, 'async function pbmCloudMattes(', '\n}\n')
+        submit = cloud.index('mg.submit(')
+        # Host checks, then the (free, local) joined clip, then the notice, then the request.
+        for earlier in ('mg.supportsPluginFiles()', 'pbmVersionBelow(version, PBM_CLOUD_MIN_HOST)', 'pbmMatteSource(', 'confirm({ seconds: source.seconds, shots: units.length })',
+                        'if (!yes || signal?.aborted) throw pbmCancelled();'):
+            with self.subTest(earlier=earlier):
+                self.assertLess(cloud.index(earlier), submit)
+        self.assertLess(cloud.index('confirm({'), cloud.index('if (!yes'))
+        # A recorded result for this key skips the notice and the request.
+        self.assertLess(cloud.index('r.key === key'), cloud.index('if (!alpha) {'))
+        self.assertLess(cloud.index('if (!alpha) {'), cloud.index('confirm({'))
+        self.assertIn('mg.cancel(scope, jobId)', cloud)
+        self.assertIn('inputMediaSeconds: { video: source.seconds }', cloud)
+        self.assertIn('uploads: { source: { pluginFile: source.path } }', cloud)
+        # Windows asks for mattes only for windows with no cached matte or render.
+        units = body(self.text, 'async function pbmUnits(', '\n}\n')
+        self.assertLess(units.index('hostJoin(cache, "matte.gray")'), units.index('await mattes('))
+        self.assertIn('!io.fs.existsSync(hostJoin(t.folder, "matte.gray"))', units)
+
+    def test_template_run_builds_on_windows_but_never_pays(self):
         run = body(self.text, 'function TemplateRun(', 'export default function Panel')
-        guard = run.find(WINDOWS_GUARD + 'context.language)')
-        self.assertGreater(guard, -1, 'TemplateRun checks Windows')
-        for later in ('pipeline(sdk, "doctor"', 'runSetup(', 'scriptResourceIds(', 'buildMontage('):
-            with self.subTest(later=later):
-                self.assertLess(guard, run.index(later))
-        self.assertLess(run.index('(async () => {'), guard)
+        self.assertNotIn(WINDOWS_GUARD, run)
+        self.assertIn('let doctor = hostIsWindows() ? { ready: true } : await pipeline(sdk, "doctor"', run)
+        confirm = run.index('confirm: () => { throw Object.assign(new Error(pick(TEMPLATE_CREDITS, context.language)), { code: "needs-confirm" }); }')
+        self.assertLess(run.index('const draftId = await buildMontage('), confirm)
+        self.assertIn('en: "This uses Selects generation credits. Open Portrait Beat Montage and press Create new draft to confirm."',
+                      body(self.text, 'const TEMPLATE_CREDITS = ', '\n'))
 
-    def test_build_refuses_windows_before_the_first_step(self):
+    def test_build_runs_the_windows_engine(self):
         build = body(self.text, 'async function buildMontage(', '\n}\n')
-        guard = build.find(WINDOWS_GUARD + 'language)')
-        self.assertGreater(guard, -1)
-        for later in ('setStep(0)', 'pipeline(', 'renderUnits(', 'importFiles', 'createDraft'):
-            with self.subTest(later=later):
-                self.assertLess(guard, build.index(later))
+        self.assertNotIn(WINDOWS_GUARD, build)
+        self.assertLess(build.index('hostIsWindows() ? await pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, signal, confirm })'), build.index('importFiles'))
 
-    def test_panel_skips_setup_and_disables_build_on_windows(self):
+    def test_panel_skips_setup_on_windows_and_asks_before_paying(self):
         panel = self.text[self.text.index('function MontagePanel('):]
-        self.assertIn('const macOnly = hostIsWindows();', panel)
-        self.assertIn('React.useEffect(() => { if (!macOnly) checkSetup(); }, []);', panel)
-        self.assertIn('macOnly ? Promise.resolve() : pipeline(sdk, "doctor"', panel)
-        self.assertIn('if (macOnly) return;\n    setSettingUp(true);', panel)
-        self.assertIn('if (macOnly || busy || chosen.length < SHOTS) return;', panel)
-        self.assertIn('disabled={macOnly || loading', panel)
-        self.assertIn('{macOnly ? <ui.Message tone="muted">{macOnlyText(context.language)}</ui.Message> : null}', panel)
+        self.assertIn('const windows = hostIsWindows();', panel)
+        self.assertIn('React.useEffect(() => { if (!windows) checkSetup(); }, []);', panel)
+        self.assertIn('windows ? Promise.resolve() : pipeline(sdk, "doctor"', panel)
+        self.assertIn('if (windows) return;\n    setSettingUp(true);', panel)
+        self.assertIn('disabled={loading || (!windows && !doctor?.ready) || chosen.length < SHOTS}', panel)
+        self.assertIn('confirm: confirmCost', panel)
+        self.assertIn('onClick={() => answerCost(true)}>{pick(COST_GO, context.language)}', panel)
+        self.assertIn('onClick={() => answerCost(false)}>{pick(COST_STOP, context.language)}', panel)
+        self.assertNotIn('macOnlyText(context.language)', panel)
 
     def test_template_conventions_untouched(self):
         head = self.text.split('\n')[:14]
@@ -117,13 +149,44 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         self.assertEqual([i['id'] for i in manifest['inputs']], ['clips'])
         self.assertIn('export default function Panel(props)', self.text)
 
+    def test_macos_uses_the_selects_bundled_ffmpeg(self):
+        regions = '\n'.join(m.group(0) for m in MAC_ONLY.finditer(self.text))
+        self.assertIn('function macTools()', regions)
+        self.assertNotIn('function macTools()', self.portable)
+        self.assertIn('app.asar.unpacked", "dist", "bin"', regions)
+        self.assertIn('getHostingVersion', regions)
+        # Every shell entry that starts pipeline.py or setup exports the bundled binaries first.
+        self.assertEqual(self.text.count('command: `${macTools()}'), 3)
+        source = (PLUGIN / 'pipeline.py').read_text(encoding='utf-8')
+        self.assertNotRegex(source, r'\[\s*"ffmpeg"|\[\s*"ffprobe"|Popen\(\["ffmpeg"')
+        self.assertIn('os.environ.get("POSTCARD_CUTOUT_RVM_" + name.upper())', source)
+        self.assertNotIn('brew', (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8').lower())
+
+    def test_windows_engine_is_portable_and_mac_build_is_mac_only(self):
+        engine = body(self.text, '// pbm-engine:start', '// pbm-engine:end')
+        for name in ('async function pbmPlan(', 'async function pbmUnits(', 'async function pbmAssemble(',
+                     'function pbmWorkerKernels(', 'async function pbmWindowsMontage(', 'async function pbmMattesFromAlpha('):
+            with self.subTest(name=name):
+                self.assertIn(name, engine)
+        self.assertNotIn('runShell', engine)
+        self.assertIn('"-nostdin"', engine)
+        regions = '\n'.join(m.group(0) for m in MAC_ONLY.finditer(self.text))
+        self.assertIn('async function macMontage(', regions)
+        self.assertTrue(self.text[self.text.index('async function macMontage('):].split('\n')[1].lstrip().startswith(WINDOWS_GUARD))
+        build = body(self.text, 'async function buildMontage(', '\n}\n')
+        self.assertIn('hostIsWindows() ? await pbmWindowsMontage(', build)
+        # One video stream per shot source, also when a clip has a timecode track.
+        self.assertIn('"-pix_fmt", "yuv420p", "-write_tmcd", "0", out]', self.text)
+        self.assertIn('"-pix_fmt", "yuv420p", "-write_tmcd", "0", str(source)]', (PLUGIN / 'pipeline.py').read_text(encoding='utf-8'))
+
     def test_manifest_and_docs(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
-        self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64'])
-        self.assertNotEqual(manifest['version'], '0.1.2')
+        self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
+        self.assertEqual(manifest['version'], '0.1.6')
         install = (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8')
         self.assertNotIn('brew install', install)
-        self.assertIn('Available on macOS for now', install)
+        self.assertIn('Windows', install)
+        self.assertIn('credits', install)
 
 
 if __name__ == '__main__':
