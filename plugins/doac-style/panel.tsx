@@ -249,22 +249,25 @@ function panelEngineFiles(sdk){
  })().catch(e=>{engineFiles=null;throw e?.code==='host-missing'||e?.code==='file-access'?stepError('file-access',FILE_ACCESS):stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');});
  return engineFiles;
 }
-// One Worker per request: { cmd: 'catalogue' } or { cmd: 'compile', job, only }.
-// Engine errors keep the Python engine's messages (ValueError / AssertionError).
-async function panelEngine(sdk,request){
+// One Worker per request: { cmd: 'catalogue' }, { cmd: 'check', job } or { cmd: 'compile', job, only }.
+// Engine errors keep the Python engine's messages (ValueError / AssertionError) and
+// are marked `refused`; a Worker that fails or runs out of time rejects with
+// RENDER_FAILED instead. `onProgress` gets the Worker's per-frame progress.
+async function panelEngine(sdk,request,onProgress){
  const a=await panelEngineFiles(sdk);
  return await new Promise((resolve,reject)=>{
   let worker=null,url=null,timer=null;
   const done=(fn,v)=>{clearTimeout(timer);try{worker?.terminate();}catch{}if(url){try{URL.revokeObjectURL(url);}catch{}}fn(v);};
   try{url=URL.createObjectURL(new Blob([a.source],{type:'text/javascript'}));worker=new Worker(url);}
   catch{done(reject,stepError('render',RENDER_FAILED));return;}
-  timer=setTimeout(()=>done(reject,stepError('render',RENDER_FAILED)),20*60000);
+  timer=setTimeout(()=>done(reject,stepError('render',RENDER_FAILED)),(request.cmd==='check'?3:20)*60000);
   worker.onmessage=({data})=>{
-   if(data?.progress)return;
-   if(data?.error){const e=data.error,known=(e.pyType==='ValueError'||e.pyType==='AssertionError')&&e.pyMessage;done(reject,stepError('render',known?e.pyMessage:RENDER_FAILED));}
+   if(data?.progress){try{onProgress?.(data.progress);}catch{}return;}
+   if(data?.error){const e=data.error,known=(e.pyType==='ValueError'||e.pyType==='AssertionError')&&e.pyMessage;done(reject,Object.assign(stepError('render',known?e.pyMessage:RENDER_FAILED),{refused:true}));}
    else done(resolve,data?.result);
   };
   worker.onerror=()=>done(reject,stepError('render',RENDER_FAILED));
+  worker.onmessageerror=()=>done(reject,stepError('render',RENDER_FAILED));
   worker.postMessage({...request,wasm:a.wasm,files:a.files,fonts:a.fonts});
  });
 }
@@ -424,7 +427,8 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  // compile-captions.py writes them (compiled/ next to job.json), so the rest of
  // the flow reads the same manifest and scene payloads.
  async function panelCompile(j,dir,scene){
-  const r=await panelEngine(sdk,{cmd:'compile',job:{input:j.input,editorial:j.editorial},only:scene==null?null:scene});
+  let shown=-1;const progress=p=>{if(scene==null&&p?.scene!=null&&p.scene!==shown){shown=p.scene;onStatus(`Preparing typography… scene ${p.scene+1} of ${p.total}`);}};
+  const r=await panelEngine(sdk,{cmd:'compile',job:{input:j.input,editorial:j.editorial},only:scene==null?null:scene},progress);
   const f=fs(),out=f.join(dir,'compiled'),num=i=>String(i).padStart(3,'0');f.mkdirSync(out,{recursive:true});
   const scenes=[];
   for(const s of r.scenes){const payload=f.join(out,'scene-'+num(s.scene.index)+'.json'),preview=f.join(out,'scene-'+num(s.scene.index)+'.png');await f.writeFile(payload,JSON.stringify(s.payload));await f.writeFile(preview,s.preview);scenes.push({...s.scene,payload,preview});}
@@ -432,6 +436,10 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
   await f.writeFile(f.join(out,scene==null?'manifest.json':'manifest-'+num(scene)+'.json'),JSON.stringify(m,null,2));
   return m;
  }
+ // Windows: a recovery trial only asks whether a plan lays out and validates, so
+ // the engine checks it without drawing a frame (no files; seconds, not minutes).
+ // compile() still draws the version that is kept.
+ async function check(j){await ensureRuntime(sdk,onStatus);await panelEngine(sdk,{cmd:'check',job:{input:j.input,editorial:j.editorial}});sameProject(j);}
  async function compileWithRecovery(j){
   try{return {job:j,manifest:await compile(j)};}
   catch(first){
@@ -446,10 +454,15 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
    const siblings={3:['21','13','38'],4:['23','33'],5:['24','19'],6:['09','11'],7:['22','06']};
    const plain=x=>({words:x.words,kind:'plain'});
    const allPlain=j.editorial.map(x=>x.template?plain(x):x);
-   const fits=async(i,scene)=>{try{await compile({...j,editorial:allPlain.map((x,k)=>k===i?scene:x)});return true;}catch{return false;}};
+   const fits=async(i,scene)=>{
+    // Windows: an engine refusal means "does not fit"; a Worker failure stops here with its own message.
+    if(hostIsWindows()){try{await check({...j,editorial:allPlain.map((x,k)=>k===i?scene:x)});return true;}catch(e){if(!e?.refused)throw e;return false;}}
+    try{await compile({...j,editorial:allPlain.map((x,k)=>k===i?scene:x)});return true;}catch{return false;}};
    const chosen=[...j.editorial],removed=[];
+   const designed=j.editorial.filter(x=>x.template).length;let tried=0;
    for(let i=0;i<j.editorial.length;i++){
     const scene=j.editorial[i];if(!scene.template)continue;
+    if(hostIsWindows())onStatus(`Checking which layouts fit… ${++tried} of ${designed}`);
     const words=j.input.words.slice(scene.words[0],scene.words[1]+1).map(w=>w.text).join(' ');
     const ids=[String(scene.template),...(siblings[scene.slots?.length]||[]).filter(id=>id!==String(scene.template))];
     let placed=false;
@@ -462,7 +475,8 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
     if(!placed){chosen[i]=plain(scene);removed.push(i);}
    }
    const repaired={...j,editorial:chosen};
-   try{return {job:repaired,manifest:await compile(repaired),removed};}catch{throw first;}
+   // Windows: a Worker failure (not an engine refusal) keeps its own message.
+   try{return {job:repaired,manifest:await compile(repaired),removed};}catch(e){throw hostIsWindows()&&!e?.refused?e:first;}
   }
  }
  // Read the source, plan the edit (cached per source) and compile every scene.

@@ -155,6 +155,7 @@ jobs:
           node --test tests/cinema_vlog_studio.test.mjs
           node --test tests/daily_vlog_8.test.mjs
           node --test tests/doac_style_parity.test.mjs
+          node --test tests/doac_style_check.test.mjs
           node --test tests/four_photo_stop_motion.test.mjs
           node --test tests/no14_windows.test.mjs
           node --test tests/no14_default_music.test.mjs

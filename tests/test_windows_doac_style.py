@@ -92,6 +92,31 @@ class DoacStyleWindowsTest(unittest.TestCase):
         for token in ("f.join(dir,'compiled')", "'scene-'+num(s.scene.index)+'.json'", "'manifest.json'", "'manifest-'+num(scene)+'.json'"):
             self.assertIn(token, compiled)
 
+    def test_windows_recovery_checks_instead_of_compiling(self):
+        recovery = between(self.text, 'async function compileWithRecovery(j)', '\n }\n')
+        fits = between(recovery, 'const fits=async(i,scene)=>{', 'const chosen=')
+        # Windows trials ask the engine to lay out and validate only; macOS still compiles each trial.
+        self.assertIn('if(hostIsWindows()){try{await check({...j,editorial:allPlain.map((x,k)=>k===i?scene:x)});return true;}'
+                      'catch(e){if(!e?.refused)throw e;return false;}}', fits)
+        self.assertIn('try{await compile({...j,editorial:allPlain.map((x,k)=>k===i?scene:x)});return true;}catch{return false;}', fits)
+        self.assertIn('manifest:await compile(repaired)', recovery)
+        check = between(self.text, 'async function check(j)', '\n')
+        self.assertIn("panelEngine(sdk,{cmd:'check',job:{input:j.input,editorial:j.editorial}})", check)
+        self.assertNotIn('writeFile', check)
+        self.assertIn('if(hostIsWindows())onStatus(`Checking which layouts fit… ${++tried} of ${designed}`);', recovery)
+        worker = (PLUGIN / 'approved/web/worker.js').read_text(encoding='utf-8')
+        self.assertIn("if (data.cmd === 'check') { self.postMessage({ result: engine.checkJob(data.job) }); return; }", worker)
+
+    def test_panel_engine_reports_progress_and_never_hangs(self):
+        engine = between(self.text, 'async function panelEngine(', '\n}\n')
+        self.assertIn('if(data?.progress){try{onProgress?.(data.progress);}catch{}return;}', engine)
+        self.assertIn("(request.cmd==='check'?3:20)*60000", engine)
+        self.assertIn('worker.onerror=()=>done(reject,', engine)
+        self.assertIn('worker.onmessageerror=()=>done(reject,', engine)
+        self.assertIn('{refused:true}', engine)
+        compiled = between(self.text, 'async function panelCompile(', '\n }\n')
+        self.assertIn('onStatus(`Preparing typography… scene ${p.scene+1} of ${p.total}`)', compiled)
+
     def test_package_ships_the_engine_and_fonts(self):
         files = self.manifest['files']
         self.assertIn('Windows x64', self.manifest['compatibility']['platforms'])
