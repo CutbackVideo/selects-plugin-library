@@ -184,9 +184,29 @@ for (const key of ['layout', 'fps', 'revealFrame', 'title', 'titleColor', 'credi
   assert.ok(src.includes('data.' + key) || new RegExp(`\\bd\\.${key}\\b`).test(block), key);
 assert.ok(src.includes('"#FBE4BB"') && src.includes('"#F0EBDD"'), 'default colours');
 assert.ok(src.includes('scaleX(${tecTitleScaleX(title)})') && /scaleX: 0\.78/.test(block), 'title scaleX 0.78, 1 with Hangul');
-// Korean (v1): the macOS system face of each role ends the stack, before the generic family; no tracking or uppercase.
-assert.ok(src.includes(`const TITLE_FALLBACK = 'Georgia, "Times New Roman", "AppleMyungjo", serif';`), 'serif title: AppleMyungjo');
-assert.ok(src.includes(`const CREDITS_FALLBACK = '"Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif';`), 'sans credits: Apple SD Gothic Neo');
+// Korean (v1): the system Korean face of each role, macOS then Windows then Noto, ends the stack before the generic
+// family; no tracking or uppercase.
+assert.ok(src.includes(`const TITLE_FALLBACK = 'Georgia, "Times New Roman", "AppleMyungjo", "Batang", "Noto Serif KR", serif';`), 'serif title: AppleMyungjo, Batang, Noto Serif KR');
+assert.ok(src.includes(`const CREDITS_FALLBACK = '"Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';`), 'sans credits: Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR');
+// Hangul title ink is measured at render (actualBoundingBox), not a constant tuned on the Apple faces; Latin keeps the
+// cap height. A fake canvas reports Malgun-like and Apple-like ink.
+assert.ok(!/0\.86|0\.12\b/.test(src), 'no hard-coded Hangul ink');
+assert.ok(src.includes('const ink = tecTitleInk(title, titleFace, pose.size);') && src.includes('const titleBaseline = pose.cy + ((ink.up - ink.down) * pose.size) / 2 - scroll;'), 'title centred on its measured ink');
+{
+  const m0 = src.indexOf('let measureCtx = null;'), m1 = src.indexOf('const str = ');
+  const run = (metrics) => {
+    const ctx = { font: '', measureText: (t) => ({ width: t.length * 10, ...metrics }) };
+    const ibox = { document: { createElement: () => ({ getContext: () => ctx }) } };
+    vm.createContext(ibox);
+    vm.runInContext(block + src.slice(m0, m1).replace('let measureCtx', 'var measureCtx') + ';globalThis.I=tecTitleInk;', ibox);
+    return (text) => plain(ibox.I(text, { style: 'normal', weight: 800, stack: 'x' }, 100));
+  };
+  const malgun = run({ actualBoundingBoxAscent: 80, actualBoundingBoxDescent: 9 }), apple = run({ actualBoundingBoxAscent: 86, actualBoundingBoxDescent: 12 });
+  assert.deepEqual(malgun('THE END'), { up: G.TEC_TITLE.cap, down: 0 }, 'Latin: the cap height, unmeasured');
+  assert.deepEqual(malgun('\uB05D'), { up: 0.8, down: 0.09 });
+  assert.deepEqual(apple('THE \uB05D'), { up: 0.86, down: 0.12 });
+  assert.deepEqual(run({})('\uB05D'), { up: G.TEC_TITLE.cap, down: 0 }, 'no ink metrics: the Latin values');
+}
 assert.equal((src.match(/wordBreak: "keep-all"/g) || []).length, 2, 'keep-all on the title and the credit lines');
 assert.ok(!/letterSpacing|textTransform|toUpperCase/.test(src), 'no tracking or uppercase');
 assert.ok(src.includes('if (!measureCtx) return tecFallbackWidth(text, px);'), 'the canvas-less measure counts wide characters at 1 em');

@@ -1767,9 +1767,10 @@ const TEC_FONTS = [
   { file: "tec-title-serif.woff2.b64", family: "TEC Title Serif", weight: 800, style: "normal" },
   { file: "tec-credits-sans.woff2.b64", family: "TEC Credits Sans", weight: 600, style: "normal" },
 ];
-// Hangul falls back to the macOS system face of each role (serif title: AppleMyungjo; sans credits: Apple SD Gothic Neo).
-const TITLE_STACK = '"TEC Title Serif", Georgia, "Times New Roman", "AppleMyungjo", serif';
-const CREDITS_STACK = '"TEC Credits Sans", "Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif';
+// Hangul falls back to the system Korean face of each role, macOS then Windows then a Noto install (serif title:
+// AppleMyungjo, Batang, Noto Serif KR; sans credits: Apple SD Gothic Neo, Malgun Gothic, Noto Sans KR).
+const TITLE_STACK = '"TEC Title Serif", Georgia, "Times New Roman", "AppleMyungjo", "Batang", "Noto Serif KR", serif';
+const CREDITS_STACK = '"TEC Credits Sans", "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';
 // The title is drawn condensed (scaleX 0.78), except a title holding Hangul: Hangul is never squeezed (the graphic's
 // tecTitleScaleX).
 const TITLE_SCALE_X = 0.78;
@@ -3360,6 +3361,20 @@ function measureWith(font: string, text: string) {
 }
 const creditFont = (px: number) => "600 " + px + "px " + CREDITS_STACK;
 const titleFont = (px: number) => "800 " + px + "px " + TITLE_STACK;
+// The title's ink above and below the baseline in em, for centring it on its cap-centre line. Latin: the bundled
+// face's cap height (0.71) and no descent. A title holding Hangul is drawn in the system Korean face, whose ink
+// differs per OS (Apple SD / AppleMyungjo vs Malgun Gothic / Batang), so it is measured at render time with the
+// canvas (actualBoundingBoxAscent / Descent) instead of a constant tuned on one OS; without a canvas, the Latin values.
+function titleInk(text: string, px: number) {
+  const latin = { up: 0.71, down: 0 };
+  if (!HANGUL_RE.test(text) || !(px > 0)) return latin;
+  measureWith(titleFont(px), "x");
+  if (!measureCtx) return latin;
+  measureCtx.font = titleFont(px);
+  const m = measureCtx.measureText(text);
+  const up = Number(m.actualBoundingBoxAscent) / px, down = Number(m.actualBoundingBoxDescent) / px;
+  return up > 0 && isFinite(up) && isFinite(down) ? { up, down: Math.max(0, down) } : latin;
+}
 function measureCredit(text: string, px: number) { return measureWith(creditFont(px), text); }
 
 // Credit rows in the editor carry a stable id for React keys.
@@ -3914,7 +3929,8 @@ function CreditsPreview({ lang, layout, title, model, pxPerSec, endSec, time, fo
         const start = { cx: 0.08 * W + (perPx * big) / 2, cy: 540, size: big };
         pose = { cx: start.cx + (endPose.cx - start.cx) * p, cy: start.cy + (endPose.cy - start.cy) * p, size: start.size + (endPose.size - start.size) * p };
       }
-      const baseline = pose.cy + (0.71 * pose.size) / 2 - scroll;
+      const ink = titleInk(title, pose.size);
+      const baseline = pose.cy + ((ink.up - ink.down) * pose.size) / 2 - scroll;
       if (typed && baseline > -pose.size && baseline - pose.size < 1080 + pose.size) {
         lc.save();
         lc.translate(pose.cx, baseline); lc.scale(sx, 1);

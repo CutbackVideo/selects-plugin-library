@@ -251,8 +251,11 @@ for (const phrase of ['const PREVIEW_HEIGHT = ', 'height: PREVIEW_HEIGHT', 'tecC
 for (const [key, text] of [['firstRow', 'First row'], ['lastRow', 'Last row'], ['end', 'End'], ['previewAt', 'Preview at'], ['creditsPreview', 'Credits preview']]) says(key, text);
 // Hangul (v1): the system face of each role ends the stacks, wide characters count 1 em without a canvas, and a title
 // holding Hangul is never squeezed (the preview mirrors the graphic's tecTitleScaleX).
-assert.ok(code.includes(`const TITLE_STACK = '"TEC Title Serif", Georgia, "Times New Roman", "AppleMyungjo", serif';`), 'serif title stack ends in AppleMyungjo');
-assert.ok(code.includes(`const CREDITS_STACK = '"TEC Credits Sans", "Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif';`), 'sans credits stack ends in Apple SD Gothic Neo');
+assert.ok(code.includes(`const TITLE_STACK = '"TEC Title Serif", Georgia, "Times New Roman", "AppleMyungjo", "Batang", "Noto Serif KR", serif';`), 'serif title stack: macOS, Windows, Noto Korean faces');
+assert.ok(code.includes(`const CREDITS_STACK = '"TEC Credits Sans", "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';`), 'sans credits stack: macOS, Windows, Noto Korean faces');
+// The preview centres a Hangul title on its measured ink (canvas actualBoundingBox), like the graphic.
+assert.ok(code.includes('const ink = titleInk(title, pose.size);') && code.includes('const baseline = pose.cy + ((ink.up - ink.down) * pose.size) / 2 - scroll;') && code.includes('m.actualBoundingBoxAscent'), 'measured Hangul ink');
+assert.ok(!/0\.86|0\.12\b/.test(code.slice(code.indexOf('function titleInk('), code.indexOf('function titleInk(') + 1200)), 'no hard-coded Hangul ink');
 assert.ok(code.includes('function titleScaleX(text: string) { return HANGUL_RE.test(text) ? 1 : TITLE_SCALE_X; }') && code.includes('const TITLE_SCALE_X = 0.78;'), 'no scaleX squeeze on Hangul');
 assert.ok(code.includes('* sx) / colTarget'), 'the preview fit uses the same scaleX');
 assert.ok(code.includes('a + (WIDE_RE.test(ch) ? 1 : 0.6)'), 'wide characters 1 em in the measurement fallback');
