@@ -11,8 +11,9 @@ editable clip; export with Handoff → Export as usual.
 1. **Choose videos.** Each checked video becomes one beat of the loop, in list
    order. Two or more are needed; four to seven, one outfit or look each, give
    the intended effect.
-2. **Find moments.** For each video, `ffmpeg` measures frame-to-frame motion to
-   rule out frozen and blurred windows, and six candidate moments are spread
+2. **Find moments.** For each video, the ffmpeg bundled in Selects measures
+   frame-to-frame motion to rule out frozen and blurred windows, and six
+   candidate moments are spread
    evenly across the take. The Selects AI then looks at a contact sheet of the
    candidates and picks the two best-posed ones per video (face clear, eyes
    open, posing to camera, nothing covering the face). If the AI pick is
@@ -31,8 +32,10 @@ match the template's look. They are constants at the top of `panel.tsx`.
 ## Limitations
 
 - Tested only on a macOS development build of Selects with 24 fps, vertical
-  (9:16) selfie videos. Released builds, Windows, mixed orientations, rotation
+  (9:16) selfie videos. Released builds, mixed orientations, rotation
   metadata, HDR and slow-motion sources are unverified.
+- Windows: the panel uses only the Selects host's ffmpeg and file access (no
+  shell tools), but it has not yet been run on a real Windows machine.
 - The Draft takes its frame size and frame rate from the first chosen video.
 - Moment picking judges people and faces; other subjects (pets, products) may
   get arbitrary picks.

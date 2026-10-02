@@ -61,7 +61,7 @@ Each one is deleted right after it is used:
 1. `panel.tsx` is in the Panels folder under `selfie-aesthetic`, and the Skills folder
    `selfie-aesthetic` contains `planner.js`, `scripts/assemble.js` and
    `assets/cues/manifest.json`.
-2. Open a Project with analysed video clips and open the panel. The top line reads
+2. Open a Project with video clips (analysed or not) and open the panel. The top line reads
    "Ready: N clips ..." and the Music list shows the four bundled tracks. If the files
    cannot be found, the panel says it could not find its files and asks you to reinstall.
 3. Press **Build**. A new Draft opens at 1080x1920 with the clips, whips and the music.

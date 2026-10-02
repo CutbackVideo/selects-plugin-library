@@ -95,6 +95,11 @@ test('weight 0 reproduces the pre-change plans byte for byte', () => {
     const motion = motionFor(c.opts.durations, c.name.length);
     assert.equal(sha(P.saePlanBuild({ ...c.opts, motion })), base[c.name], c.name + ': motion with the default weight');
     assert.equal(sha(P.saePlanBuild({ ...c.opts, motion, stillWeight: 0 })), base[c.name], c.name + ': motion with weight 0');
+    // Build without analysis: every clip analysed (with quick scores and the kit picker at hand) changes nothing.
+    const analysed = Object.fromEntries(Object.keys(c.opts.durations).map((rid) => [rid, true]));
+    const local = Object.fromEntries(Object.keys(c.opts.durations).map((rid) => [rid, { rid, windows: [], sceneCuts: [], fallback: false, duration: c.opts.durations[rid] }]));
+    const pickLocal = () => [{ start: 0.5, end: 1.5, score: 1, motion: 0, flags: {} }];
+    assert.equal(sha(P.saePlanBuild({ ...c.opts, analysed, local, pickLocal })), base[c.name], c.name + ': every clip analysed');
     ok++;
     if (plain.ok) okPlans++;
   }

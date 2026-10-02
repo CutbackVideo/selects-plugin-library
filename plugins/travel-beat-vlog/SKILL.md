@@ -11,7 +11,7 @@ Use this plugin when the user asks for this travel vlog format. The format is fi
 
 - Black, frames 0-12.
 - Montage 1, frames 12-55: videos 1-11, cutting at 12, 16, 19, 22, 25, 28, 32, 35, 38, 42 and 48.
-- Hero, frames 55-102: the hero photo. From frame 62 a large condensed title (default "TRAVEL", #F4C711) sits behind the people: an Apple Vision cutout of the people is placed on top of the title.
+- Hero, frames 55-102: the hero photo. From frame 62 a large condensed title (default "TRAVEL", #F4C711) sits behind the people: an Apple Vision cutout of the people is placed on top of the title (macOS; on Windows the title sits over the hero photo, with nobody in front).
 - Video 12, frames 102-182, with grid 1 building over it: videos 13-16 in the top-left, top-right, bottom-left and bottom-right quarters from frames 149, 153, 158 and 163.
 - Video 17, frames 182-263, with grid 2: videos 18-21 from frames 229, 233, 237 and 242.
 - Video 22, frames 263-343. Video 23, frames 343-364.
@@ -19,7 +19,7 @@ Use this plugin when the user asks for this travel vlog format. The format is fi
 - Video 26, frames 424-465, fading linearly from frame 449.45 to 463.7 to a near-black that holds to the end.
 - Every video clip is muted. The user's song plays across the whole Draft.
 
-**Song.** `analyze.mjs` reads the song locally with FFmpeg (no upload) and fits the format to it:
+**Song.** The panel reads the song locally with the FFmpeg inside Selects (no upload) and fits the format to it:
 
 - It finds the tempo, the beat grid, the drum hits and any drum roll (5 or more hits 0.085-0.145 s apart).
 - It picks the stretch of the song that fits the format best: a roll at the start of montage 1 (as in the reference) first, then the most hits under the cuts, then a downbeat start, then the closest sound to the reference.
