@@ -1,7 +1,7 @@
 # Summer Trip
 
-Summer Trip turns the analysed footage and the photos in the open Project
-into a 16:9 cinematic summer-trip video that is cut to the beat. The result
+Summer Trip turns the video clips and the photos in the open Project into
+a 16:9 cinematic summer-trip video that is cut to the beat. The result
 is a **new, editable Draft**. The plugin never renders a file and never
 changes an existing Draft or any source file.
 
@@ -41,7 +41,7 @@ chosen music section:
 
 ## Default path
 
-1. Open a Project whose video clips are analysed (or that has photos), then
+1. Open a Project with video clips or photos (analysed or not), then
    open **Summer Trip** from the Plugin list. The top line shows what was
    found and the approximate length, for example "Ready: 9 clips · 12
    photos · about 20 s".
@@ -175,8 +175,8 @@ with a faster track and longer with a slower one.
   ending, 8 dB under full level. They play with or without music.
 - **Ending muffle**: on by default. Off keeps the music unfiltered to the
   end.
-- **Use photos**: on by default. Off builds from the analysed video only.
-- **Choose clips**: a checklist of the analysed clips and photos. All are
+- **Use photos**: on by default. Off builds from the video clips only.
+- **Choose clips**: a checklist of the video clips and photos. All are
   used by default; **All** and **None** select or clear the list. A new
   selection searches its clips again on the next build.
 
@@ -257,26 +257,43 @@ different moment when the clip is long enough. When the footage cannot fill
 the chosen length, the build uses fewer montage shots (12, 10, 8, 6, down to
 4) and says so before you build: "Your footage fits N montage shots (about
 X s)". Below 4 montage shots the panel says "Your footage is too short for 4
-montage shots" and Build stays disabled. The plugin does not start analysis
-on its own, so analyse your clips first.
+montage shots" and Build stays disabled.
 
-Video clips without analysis are counted on the top line by why:
+## Works without analysis
 
-- "N clips are being analysed. This updates automatically when they finish."
-  Selects is analysing them now; the panel re-reads the Project every 10 s
-  until they are ready.
-- "N clips are not analysed yet. Analyse them in Selects to use them here."
-  Their analysis was never started. The panel does not poll for them; it
-  re-reads the Project when you come back to it, or press **Refresh**.
-- "N clips could not be analysed." Their analysis failed.
-- "N clips are not analysed yet. If Selects is analysing them, this updates
-  automatically." The analysis status could not be read, so the panel keeps
-  checking.
+Summer Trip builds from clips Selects has not analysed: there is nothing to
+wait for and the plugin never starts analysis. Analysed clips give better
+scene picks.
 
-On the Ready line the same counts appear in short, for example "Ready: 5
-clips · about 20 s · 2 clips being analysed · 3 clips not analysed yet".
+- **Analysed clips** are scene-searched for each shot role (below).
+- **Clips without analysis** get a quick local check instead: the host's
+  bundled ffmpeg decodes a small grey preview of each clip (8 frames a
+  second, 64x36, the first 2 minutes) and scores half-second windows for
+  motion, sharpness and exposure, flagging black frames, fades, flashes,
+  blur and scene cuts. The opening, place, grid and ending shots take
+  steady, well-exposed windows; the montage takes moving ones. No window
+  starts in a clip's first 0.5 s. Three clips are checked at a time within
+  20 s; the build step shows "Checking clips N/M" for scene search and
+  quick checks together. Results are kept in
+  `.selects/plugin-data/summer-trip/quick-score/` (per clip and file
+  modification time), so a second build of the same clips is instant.
+- **Mixed Projects** plan both kinds together. Quick-check windows score
+  0.10-0.30 against the scene search's 0.2-0.56, so a strong scene-search
+  hit wins its role while every clip is still used before any repeats.
+- Without ffmpeg in the host, or when the 20 s run out, clips without a
+  check get evenly spaced windows (from 0.5 s in) and the build still goes
+  ahead; the next build checks them again.
 
-Two extra scene searches per clip steer the choice without filling shots:
+The top line counts usable clips and photos. When some clips have no
+analysis it adds "Analysed clips give better picks"; clips still being
+imported (no length or file yet) show as "N clips not ready yet", and the
+panel re-reads the Project every 10 s until they are.
+
+The Clip highlights template run uses the same planner: its clips without
+analysis are usable and are placed on the evenly spaced windows (its run
+does not do the quick check yet).
+
+Two extra scene searches per analysed clip steer the choice without filling shots:
 night scenes, city lights and intense sunsets are kept out of the opening,
 the grid, the place shot and the montage while daylight footage remains
 (they suit the ending, where they are still welcome), and moments with

@@ -21,8 +21,18 @@ const ST_QUERIES = {
 };
 const queries = cfg.queries || ST_QUERIES;
 const roles = Object.keys(queries).filter(r => !cfg.roles || cfg.roles.includes(r));
+// Scene search needs Selects analysis. Clips without it are not searched (every query would fail and be retried until
+// the budget runs out); they come back in `unanalysed`, not in `failed`, and take part through local candidates (the
+// panel's quick score) or the planner's evenly spaced ones (stPseudoCandidates). One resources() read; without it
+// every clip is searched as before.
+let unanalysed = [];
+try {
+  const all = await p.resources();
+  const none = new Set((all || []).filter(r => r && r.hasAnalysis === false).map(r => r.resourceId));
+  unanalysed = cfg.rids.filter(rid => none.has(rid));
+} catch (e) { unanalysed = []; }
 const jobs = [];
-for (const rid of cfg.rids) for (const role of roles) jobs.push({ rid, role });
+for (const rid of cfg.rids) if (!unanalysed.includes(rid)) for (const role of roles) jobs.push({ rid, role });
 const candidates = [];
 // Bounded page size: enough hits per role and clip for fresh-first allocation, small enough for the payload.
 const pageSize = Math.max(1, Math.min(10, Math.round(cfg.pageSize || 6)));
@@ -66,4 +76,4 @@ for (let pass = 0; pass < 4 && pending.length; pass++) {
   await Promise.all(Array.from({ length: Math.min(width, queue.length) }, worker));
   pending = failed;
 }
-return { candidates, failed: [...new Set(pending.map(j => j.rid))], stats: { ms: Date.now() - started, waitedMs: waited, rateLimited, jobs: jobs.length } };
+return { candidates, failed: [...new Set(pending.map(j => j.rid))], unanalysed, stats: { ms: Date.now() - started, waitedMs: waited, rateLimited, jobs: jobs.length } };

@@ -32,15 +32,17 @@ for (const lang of ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'])
 assert.match(head, /^\/\/ @icon (sparkles|wand|video|image)$/m);
 assert.ok(!/^import .* from "(?!react")/m.test(panel), 'only react may be imported');
 assert.ok(!/\/Users\//.test(panel), 'no user paths');
-// Unanalysed videos are worded by why (inventory.js's skipped split); the panel never claims clips are being analysed
-// when their analysis was never started, and never starts analysis itself.
+// Build without analysis: nothing waits for Selects analysis. Readiness counts usable clips and photos; clips without
+// analysis only add a small note; the panel never starts analysis itself and has no blocking analysis wording.
 assert.ok(!panel.includes('still being analysed'), 'the old "still being analysed" wording is gone');
 assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel does not start analysis');
+for (const key of ['notAnalysed', 'analysing', 'notAnalysedAnalyse', 'notAnalysedMaybe', 'analysisFailed', 'noteAnalysing', 'noteFailed', 'videosChecked']) assert.ok(!(key in en), 'STRINGS.' + key + ' is gone');
+assert.ok(!/[Aa]nalyse (it|them) (in Selects|first)|No analysed video/.test(JSON.stringify(en)), 'no wording asks to analyse first');
 {
   const vm = require('node:vm');
   const strings = require(path.join(root, 'dev', 'i18n-check.cjs')).extractStrings(panel).strings;
-  const start = panel.indexOf('function stAnalysisCounts('), end = panel.indexOf('function SectionSlider(');
-  assert.ok(start > 0 && end > start, 'the analysis wording helpers exist');
+  const start = panel.indexOf('function stFootageCounts('), end = panel.indexOf('function SectionSlider(');
+  assert.ok(start > 0 && end > start, 'the footage wording helpers exist');
   const js = panel.slice(start, end).replace(/(\w)\??: (?:any|number|string|Lang)\b/g, '$1');
   // The panel's t() over its STRINGS block (plural by count; plain numbers are enough for these sentences).
   const tt = (lang, key, vars = {}) => {
@@ -49,45 +51,58 @@ assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel 
     return msg.replace(/\{(\w+)\}/g, (w, n) => (vars[n] === undefined ? w : String(vars[n])));
   };
   const box = { t: tt };
-  vm.runInNewContext(js + '\nthis.api = { stAnalysisCounts, stAnalysisText, stAnalysisNotes };', box);
-  const { stAnalysisCounts: counts } = box.api;
-  const text = c => box.api.stAnalysisText('en', c);
-  const note = c => box.api.stAnalysisNotes('en', c).filter(Boolean).map(x => ' · ' + x).join('');
-  const sk = (analysing, notAnalysed, failed, statusKnown = true) => ({ unanalysed: analysing + notAnalysed + failed, missing: 0, analysing, notAnalysed, failed, statusKnown });
-  // Other languages: whole sentences per status, joined by the language's gap (none in ja/zh).
-  assert.equal(box.api.stAnalysisText('ja', counts(sk(3, 1, 0))), tt('ja', 'analysing', { count: 3 }) + tt('ja', 'notAnalysedAnalyse', { count: 1 }));
-  assert.ok(!/undefined|\{\w+\}/.test(['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'].map(l => box.api.stAnalysisText(l, counts(sk(3, 1, 2))) + box.api.stAnalysisNotes(l, counts(sk(1, 2, 3))).join('')).join()), 'every language fills the counts');
-  assert.equal(text(counts(sk(160, 0, 0))), '160 clips are being analysed. This updates automatically when they finish.');
-  assert.equal(text(counts(sk(1, 0, 0))), '1 clip is being analysed. This updates automatically when it finishes.');
-  assert.equal(text(counts(sk(0, 160, 0))), '160 clips are not analysed yet. Analyse them in Selects to use them here.');
-  assert.equal(text(counts(sk(0, 1, 0))), '1 clip is not analysed yet. Analyse it in Selects to use it here.');
-  assert.equal(text(counts(sk(0, 0, 2))), '2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 1))), '1 clip could not be analysed.');
-  assert.equal(text(counts(sk(0, 160, 0, false))), '160 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(text(counts(sk(0, 1, 0, false))), '1 clip is not analysed yet. If Selects is analysing it, this updates automatically.');
-  assert.equal(text(counts(sk(3, 1, 2))), '3 clips are being analysed. This updates automatically when they finish. 1 clip is not analysed yet. Analyse it in Selects to use it here. 2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 0))), '', 'nothing to say when every video is analysed');
-  // An inventory without the split (older script) counts every unanalysed clip as unknown: the neutral wording.
-  assert.equal(text(counts({ unanalysed: 4, missing: 0 })), '4 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(note(counts(sk(2, 1, 0))), ' · 2 clips being analysed · 1 clip not analysed yet');
-  assert.equal(note(counts(sk(0, 0, 1))), ' · 1 clip could not be analysed');
-  assert.equal(note(counts(sk(0, 0, 0))), '');
-  // Every readiness branch uses the same sentences, and a status change refreshes the inventory signature.
-  for (const phrase of ['const analysisText = stAnalysisText(L, invAnalysis);', '(analysisText || t(L, "noFootage"))', '...stAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ")',
-    '[sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown]']) assert.ok(panel.includes(phrase), phrase);
-  // Polling: only while clips are being analysed, while the status is unknown, or while the Project has no footage at all.
+  vm.runInNewContext(js + '\nthis.api = { stFootageCounts, stFootageNotes };', box);
+  const { stFootageCounts: counts, stFootageNotes: notes } = box.api;
+  const note = (inv, lang = 'en') => notes(lang, counts(inv)).filter(Boolean).map(x => ' · ' + x).join('');
+  const inv = (skipped, analysed = 0, unanalysed = 0, photos = 0) => ({ skipped,
+    resources: Array.from({ length: analysed + unanalysed }, (_, i) => ({ rid: 'r' + i, hasAnalysis: i < analysed })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
+  const sk = (o = {}) => ({ unanalysed: 0, withoutAnalysis: 0, missing: 0, analysing: 0, notAnalysed: 0, failed: 0, statusKnown: true, ...o });
+  // All analysed: nothing to add. Some without analysis (mixed) or all without: one small note, never a blocker.
+  assert.equal(note(inv(sk(), 5)), '');
+  assert.equal(note(inv(sk({ withoutAnalysis: 2, notAnalysed: 2 }), 3, 2)), ' · Analysed clips give better picks');
+  assert.equal(note(inv(sk({ withoutAnalysis: 6, notAnalysed: 4, analysing: 2 }), 0, 6)), ' · Analysed clips give better picks');
+  // Clips that cannot be used yet (importing: no length or file path; or analysed without a length).
+  assert.equal(note(inv(sk({ unanalysed: 2, missing: 1, notAnalysed: 2 }), 3)), ' · 3 clips not ready yet');
+  assert.equal(note(inv(sk({ unanalysed: 1 }), 3)), ' · 1 clip not ready yet');
+  // An inventory without withoutAnalysis counts the listed clips without analysis.
+  assert.equal(counts({ skipped: {}, resources: [{ hasAnalysis: false }, { hasAnalysis: true }] }).without, 1);
+  assert.equal(counts(null).without, 0);
+  assert.ok(!/undefined|\{\w+\}/.test(['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'].map(l => note(inv(sk({ unanalysed: 3, withoutAnalysis: 2 }), 1, 2), l)).join()), 'every language fills the counts');
+  for (const phrase of ['const foot = stFootageCounts(inventory);', '(foot.notReady ? t(L, "clipsNotReadyWait", { count: foot.notReady }) : t(L, "noFootage"))',
+    '...stFootageNotes(L, foot)].filter(Boolean).join(" · ")', '[sk.unanalysed, sk.withoutAnalysis, sk.missing]', 'r.rid + (r.hasAnalysis === false ? "-" : "+")'])
+    assert.ok(panel.includes(phrase), phrase);
+  // Polling: while clips are not ready or being analysed, or while the Project has no footage at all. Clips without
+  // analysis never make the panel wait.
   const poll = (panel.match(/const needsPoll = ([^\n]*);/) || [])[1];
   assert.ok(poll, 'needsPoll');
-  const needsPoll = (inventory) => { const invAnalysis = counts(inventory && inventory.skipped); return vm.runInNewContext(poll, { inventory, invAnalysis }); };
-  const inv = (skipped, resources = 0, photos = 0) => ({ skipped, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
-  assert.equal(needsPoll(inv(sk(2, 0, 0), 5)), true, 'clips being analysed poll');
-  assert.equal(needsPoll(inv(sk(0, 160, 0))), false, 'never-started clips alone do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 2), 5)), false, 'not analysed and failed clips do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 0, false), 5)), true, 'an unknown status polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0))), true, 'an empty Project polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 0, 3)), false, 'photos only: no poll');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 5)), false, 'all analysed: no poll');
+  const needsPoll = (inventory) => { const foot = counts(inventory); return vm.runInNewContext(poll, { inventory, foot }); };
+  assert.equal(needsPoll(inv(sk({ analysing: 2, withoutAnalysis: 2 }), 3, 2)), true, 'clips being analysed poll (they switch to scene search)');
+  assert.equal(needsPoll(inv(sk({ notAnalysed: 160, withoutAnalysis: 160 }), 0, 160)), false, 'never-started clips are usable: no poll');
+  assert.equal(needsPoll(inv(sk({ failed: 2, withoutAnalysis: 2 }), 5, 2)), false, 'failed analysis: usable, no poll');
+  assert.equal(needsPoll(inv(sk({ unanalysed: 1 }), 5)), true, 'a clip still importing polls');
+  assert.equal(needsPoll(inv(sk())), true, 'an empty Project polls');
+  assert.equal(needsPoll(inv(sk(), 0, 0, 3)), false, 'photos only: no poll');
+  assert.equal(needsPoll(inv(sk(), 5)), false, 'all analysed: no poll');
   assert.equal(needsPoll(null), false);
+}
+// New wording (and the merged "Checking clips N/M" progress for scene search + quick score).
+for (const [key, text] of [['noFootage', 'No video clips or photos in this Project yet. Add some; this updates automatically.'], ['betterWithAnalysis', 'Analysed clips give better picks'],
+  ['clipsNotReady', '{"one":"{count} clip not ready yet","other":"{count} clips not ready yet"}'],
+  ['clipsNotReadyWait', '{"one":"{count} clip is not ready yet. This updates automatically.","other":"{count} clips are not ready yet. This updates automatically."}']]) says(key, text);
+assert.equal(en.checkingClipsCount, 'Checking clips {done}/{count}');
+assert.ok(code.includes('t(l, "checkingClipsCount", { done: d, count: total })'), 'progress reads checkingClipsCount');
+// The quick-score block: the kit file verbatim, used through quickScoreAll + pickWindowsLocal (no shell for it).
+{
+  const kitBlock = (() => { try { return fs.readFileSync(path.join(require('node:os').homedir(), 'Workspaces', 'selects-app-kit', 'tools', 'panel', 'quick-score.js'), 'utf8').replace(/\n+$/, ''); } catch { return null; } })();
+  const qs = between(panel, '// quick-score:start', '// quick-score:end');
+  if (kitBlock) assert.equal(qs, kitBlock, 'quick-score block is the kit file verbatim');
+  assert.equal((panel.match(/\/\/ quick-score:start/g) || []).length, 1);
+  for (const phrase of ['await quickScoreAll(stQuickResources(pid, res), { concurrency: ST_QUICK_CONCURRENCY, budgetMs: ST_QUICK_BUDGET_MS, signal,',
+    'stQuickCandidates(pid, res, results, pickWindowsLocal)', 'buildAbortRef.current.abort()', 'Promise.all([findCandidates(todo, pid, check, tick), scoreLocal(']) assert.ok(code.includes(phrase), phrase);
+  const local = code.slice(code.indexOf('async function scoreLocal('), code.indexOf('// The muffled copy of the user'));
+  assert.ok(local && !/runShell|shell\(|\bsq\(|dq\(/.test(local), 'the quick score path uses no shell');
+  const dd = code.slice(code.indexOf('function hostDataDir('), code.indexOf('// Double quotes let'));
+  assert.ok(dd.includes('fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID)') && !/runShell|\$HOME/.test(dd), 'the quick-score data folder comes from the host FileSystem');
 }
 
 // Hangul audit across the plugin, as place-count does (check_public rejects it too).
@@ -138,9 +153,7 @@ for (const phrase of ['linkToDraftFrame', 'selects.editor.openDraft', 'FontFace'
   'style: "normal", weight: "400"']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['anotherVersion', 'Try other shots'], ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'],
   ['installTools', 'Install ffmpeg to preview music or use your own track.'], ['preparingTools', 'Preparing beat detection (first time only)'], ['draftCreatedAdding', 'Draft created; adding title and look\u2026'],
-  ['analysing', '{"one":"{count} clip is being analysed. This updates automatically when it finishes.","other":"{count} clips are being analysed. This updates automatically when they finish."}'],
-  ['notAnalysedAnalyse', '{"one":"{count} clip is not analysed yet. Analyse it in Selects to use it here.","other":"{count} clips are not analysed yet. Analyse them in Selects to use them here."}'],
-  ['noFootage', 'No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.'], ['refresh', 'Refresh'],
+  ['refresh', 'Refresh'],
   ['nothingSaved', '{detail} Nothing was saved; press Build to try again.'], ['sectionHint', 'Music section \u2014 drag to choose'], ['stopPreview', 'Stop preview'],
   ['cancelPreview', 'Cancel preview'], ['dropStartsAt', 'Drop \u00b7 starts at {seconds} s'], ['sectionStartsAt', 'Section \u00b7 starts at {seconds} s'],
   ['dropAt', 'Drop at {seconds} s'], ['sectionAt', 'Section at {seconds} s'], ['noMusicTiming', 'No music: the cuts use approximate timing (a fixed 0.5 s beat).'],
@@ -153,7 +166,7 @@ for (const [key, text] of [['anotherVersion', 'Try other shots'], ['finishTitle'
   for (const lang of ['de', 'en', 'es', 'fr', 'it', 'pt']) for (const key of ['clipsSelected', 'photosSelected']) for (const f of forms(all[lang][key]))
     assert.ok(/\{selected\} \S+ \{count\} \S/.test(f), lang + '.' + key + ': {selected} before {count} and its noun: ' + f);
   for (const lang of Object.keys(all)) {
-    for (const f of forms(all[lang].videosChecked)) assert.ok(/\{done\}\/\{count\}/.test(f), lang + '.videosChecked: {done}/{count} together: ' + f);
+    for (const f of forms(all[lang].checkingClipsCount)) assert.ok(/\{done\}\/\{count\}/.test(f), lang + '.checkingClipsCount: {done}/{count} together: ' + f);
     assert.equal(new Set(forms(all[lang].fitShrunk).map(f => f.split(/[.\u3002]/)[0])).size, 1, lang + '.fitShrunk: the {distinct} sentence is the same in every form');
     for (const k of Object.keys(all[lang])) for (const f of forms(all[lang][k])) assert.ok(!/of them|davon \{|\{photos\} (photos|Fotos|son|s\u00e3o|en photo)/.test(f), lang + '.' + k + ': no partial count agreeing with another number: ' + f);
   }

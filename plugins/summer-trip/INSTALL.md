@@ -54,14 +54,18 @@ folder, never in either install folder:
    `SELECTS_USER_SKILLS_ROOT/summer-trip/` contains `planner.js`,
    `graphics-defs.js`, `scripts/assemble.js`, `assets/fonts/presets.json`
    and `sfx/manifest.json`.
-2. Open a Project with analysed video clips and open the panel. The top
+2. Open a Project with video clips (analysed or not) and open the panel. The top
    line reads "Ready: N clips · about N s" ("Ready: N clips · N photos ·
    about N s" when the Project has photos). Under the title fields, the
    **Style** control offers Summer, Poster and Postcard, and the title
    preview below it shows line 1, the season word and the labels in the
-   chosen style's typefaces. In a Project whose clips were never analysed, it
-   reads "N clips are not analysed yet. Analyse them in Selects to use them
-   here." (never "being analysed"); the panel does not start analysis itself.
+   chosen style's typefaces. Summer Trip works without analysis: in a Project
+   whose clips were never analysed the line still reads "Ready: …" and ends
+   with "Analysed clips give better picks" (analysed clips give better scene
+   picks); the panel does not start analysis itself. Clips without analysis
+   are checked with the host's bundled ffmpeg during Build; nothing needs to
+   be installed. Note: `plugin.json` `prepare` still lists "Videos analyzed"
+   (left for the Clip highlights template owners to make optional).
 3. With at least 6 different clips or photos, one of them a video clip of
    about 5 s or more, press **Build**. A new Draft opens at 1920x1080 with
    the title, the grid, the clips and the ending film frame.

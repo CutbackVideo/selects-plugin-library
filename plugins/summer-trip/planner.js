@@ -111,6 +111,29 @@ const ST_WINDOW_GAP = 0.5;
 const ST_PHOTO_HOLD_MAX = 5;
 const ST_PHOTO_RUN_MAX = 2;
 const ST_PHOTO_SHARE = 1 / 3;
+// Clips without Selects analysis have no scene search: a quick local score (the panel's quick-score block, the host's
+// ffmpeg on a small grey decode) or, without it, evenly spaced windows stand in for search hits (stLocalCandidates).
+// Their windows never start in the first ST_LOCAL_MIN_START s (a candidate's minStart; black frames and fades sit there).
+const ST_LOCAL_MIN_START = 0.5;
+// Normalisation onto the scene-search scale: a quick-score quality q in [0, 1] scores ST_LOCAL_SCORE_MIN +
+// q * (ST_LOCAL_SCORE_MAX - ST_LOCAL_SCORE_MIN), i.e. 0.10-0.30. Live scene-search hits sit within about 0.2-0.56 and a
+// clip's good hits for a role around 0.35-0.56, so the best local window ties a middling semantic hit and never a strong
+// one, even with the fixed slots' seeded spread (ST_FIXED_JITTER); local candidates stay far above fillers (-2), so
+// fresh-first still prefers an unused unanalysed clip over a used analysed one. Windows without any score (no ffmpeg,
+// the budget ran out, a failed decode) score ST_LOCAL_FALLBACK_SCORE, below every scored local window.
+const ST_LOCAL_SCORE_MIN = 0.1;
+const ST_LOCAL_SCORE_MAX = 0.3;
+const ST_LOCAL_FALLBACK_SCORE = 0.05;
+// Candidate roles for local windows and the seconds each needs (the slot lengths at 120 BPM: opener 9.5 beats, place
+// 4.5, a grid panel 2, a montage shot 2-3, an ending shot 2-4). 'montage' is in no ST_ROLE_FALLBACK list, so in a
+// montage slot a local window ranks after every role-matching scene-search hit of the same use count and before
+// fillers. ST_LOCAL_PICK_ROLE maps each to the quick-score picker's role: opener, place, grid panels and the ending want
+// steady, well-exposed windows ('steady'); the montage wants movement ('montage').
+const ST_LOCAL_ROLES = { opener: 4.75, place: 2.25, grid: 1, montage: 1.5, ending: 2 };
+const ST_LOCAL_PICK_ROLE = { opener: 'steady', place: 'steady', grid: 'steady', montage: 'montage', ending: 'steady' };
+const ST_LOCAL_PER_ROLE = 4;
+const ST_LOCAL_APART = 1;
+const ST_LOCAL_FALLBACK_COUNT = 6;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Beat schedule
@@ -476,35 +499,98 @@ function stMixHash(str) {
 
 // Filler candidates on each video source in the candidates: every ST_FILLER_STEP s from ST_FILLER_EDGE to
 // duration - ST_FILLER_EDGE, or ST_FILLER_MAX evenly spaced times when that grid would be longer. Sorted by rid, time.
+// A source whose candidates carry a minStart (clips without analysis) passes the largest one on to its fillers.
 function stFillers(candidates) {
-  const dur = {};
+  const dur = {}, min = {};
   for (const c of candidates) {
     if (!c || c.kind === 'photo' || typeof c.rid !== 'string') continue;
     if (typeof c.sourceDuration !== 'number' || !isFinite(c.sourceDuration) || !(c.sourceDuration > 0)) continue;
     dur[c.rid] = Math.max(dur[c.rid] || 0, c.sourceDuration);
+    if (typeof c.minStart === 'number' && isFinite(c.minStart) && c.minStart > 0) min[c.rid] = Math.max(min[c.rid] || 0, c.minStart);
   }
   const out = [];
   for (const rid of Object.keys(dur).sort()) {
     const d = dur[rid], span = d - 2 * ST_FILLER_EDGE;
     if (span < -1e-9) continue;
     const count = Math.floor(span / ST_FILLER_STEP + 1e-9) + 1;
+    const filler = t => (min[rid] ? { rid, role: 'filler', t, score: ST_FILLER_SCORE, sourceDuration: d, minStart: min[rid] } : { rid, role: 'filler', t, score: ST_FILLER_SCORE, sourceDuration: d });
     if (count <= ST_FILLER_MAX) {
-      for (let k = 0; k < count; k++) out.push({ rid, role: 'filler', t: ST_FILLER_EDGE + k * ST_FILLER_STEP, score: ST_FILLER_SCORE, sourceDuration: d });
+      for (let k = 0; k < count; k++) out.push(filler(ST_FILLER_EDGE + k * ST_FILLER_STEP));
     } else {
-      for (let k = 0; k < ST_FILLER_MAX; k++) out.push({ rid, role: 'filler', t: ST_FILLER_EDGE + k * span / (ST_FILLER_MAX - 1), score: ST_FILLER_SCORE, sourceDuration: d });
+      for (let k = 0; k < ST_FILLER_MAX; k++) out.push(filler(ST_FILLER_EDGE + k * span / (ST_FILLER_MAX - 1)));
     }
   }
   return out;
 }
 
-// Frame-aligned source window of `frames` frames centred on t: the start is a whole frame at fps, the window ends at
-// least ST_SOURCE_TAIL before the end of the source. Returns { start, end } in seconds or null when it cannot fit.
-function stWindow(t, frames, fps, sourceDuration) {
+// Frame-aligned source window of `frames` frames centred on t: the start is a whole frame at fps, at least minStart
+// (seconds, default 0) into the source, and the window ends at least ST_SOURCE_TAIL before the end of the source.
+// Returns { start, end } in seconds or null when it cannot fit.
+function stWindow(t, frames, fps, sourceDuration, minStart) {
   const maxStart = Math.floor((sourceDuration - ST_SOURCE_TAIL) * fps - frames + 1e-6);
-  if (maxStart < 0) return null;
+  const minS = typeof minStart === 'number' && isFinite(minStart) && minStart > 0 ? Math.ceil(minStart * fps - 1e-6) : 0;
+  if (maxStart < minS) return null;
   const want = Math.round((t - frames / fps / 2) * fps);
-  const s = Math.max(0, Math.min(maxStart, want));
+  const s = Math.max(minS, Math.min(maxStart, want));
   return { start: s / fps, end: (s + frames) / fps };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Clips without analysis: local candidates
+
+// Evenly spaced low-score candidates for a clip without analysis and without a usable quick score (no host ffmpeg,
+// the budget ran out, a failed decode): ST_LOCAL_FALLBACK_COUNT centres per role, every window starting at
+// ST_LOCAL_MIN_START or later. resource: { rid, duration }.
+function stFallbackCandidates(resource) {
+  const out = [], d = resource && Number(resource.duration);
+  if (!resource || typeof resource.rid !== 'string' || !(d > 0)) return out;
+  for (const role of Object.keys(ST_LOCAL_ROLES)) {
+    const need = ST_LOCAL_ROLES[role], a = ST_LOCAL_MIN_START + need / 2, b = d - ST_SOURCE_TAIL - need / 2;
+    // Too short for this role's length: one centred candidate (stWindow decides whether a slot fits).
+    const n = b < a ? 1 : ST_LOCAL_FALLBACK_COUNT;
+    for (let k = 0; k < n; k++) {
+      const t = b < a ? Math.max(ST_LOCAL_MIN_START, d / 2) : a + (b - a) * (k + 0.5) / n;
+      out.push({ rid: resource.rid, role, t: Math.round(t * 1000) / 1000, score: ST_LOCAL_FALLBACK_SCORE, sourceDuration: d, minStart: ST_LOCAL_MIN_START, local: 'fallback' });
+    }
+  }
+  return out;
+}
+
+// Planner candidates for one clip without analysis from its quick score and the quick-score block's window picker:
+// scores = quickScore's result ({ windows, sceneCuts, ms, fallback, duration }), pick = pickWindowsLocal(scores,
+// 'steady' | 'montage' | 'still', seconds) -> [{ start, end, score (0-1), flags: { bad } }] best first. Each role asks
+// the picker for its ST_LOCAL_PICK_ROLE with its ST_LOCAL_ROLES seconds and keeps up to ST_LOCAL_PER_ROLE windows at
+// least max(ST_LOCAL_APART, the role's seconds) apart (as the block's qsCandidates spaces them), as { rid, role, t: window centre, score, sourceDuration, minStart, local: 'score' }:
+// score = ST_LOCAL_SCORE_MIN + q * (ST_LOCAL_SCORE_MAX - ST_LOCAL_SCORE_MIN), q the picker's score (clamped to 0-1),
+// halved for a window the picker flags as bad (it returns those only when nothing clean fits). The picker's answer is
+// read tolerantly (start/end or t; score, value or quality). A fallback score (scores.fallback: evenly spaced unscored
+// windows), a missing picker or no usable pick gives stFallbackCandidates. resource: { rid, duration }.
+function stLocalCandidates(resource, scores, pick) {
+  const finite = v => typeof v === 'number' && isFinite(v);
+  const d = resource && Number(resource.duration);
+  if (!resource || typeof resource.rid !== 'string' || !(d > 0)) return [];
+  if (!scores || scores.fallback || !Array.isArray(scores.windows) || !scores.windows.length || typeof pick !== 'function') return stFallbackCandidates(resource);
+  const out = [];
+  for (const role of Object.keys(ST_LOCAL_ROLES)) {
+    const need = ST_LOCAL_ROLES[role];
+    let list = null;
+    try { list = pick(scores, ST_LOCAL_PICK_ROLE[role] || role, need); } catch (e) { list = null; }
+    const kept = [];
+    for (const w of Array.isArray(list) ? list : []) {
+      if (kept.length >= ST_LOCAL_PER_ROLE) break;
+      if (!w || typeof w !== 'object') continue;
+      const start = finite(w.start) ? w.start : finite(w.t) ? w.t - need / 2 : null;
+      if (start === null) continue;
+      const end = finite(w.end) && w.end > start ? w.end : start + need;
+      const t = Math.round((start + end) / 2 * 1000) / 1000;
+      if (kept.some(x => Math.abs(x - t) < Math.max(ST_LOCAL_APART, need) - 1e-9)) continue;
+      const v = finite(w.score) ? w.score : finite(w.value) ? w.value : finite(w.quality) ? w.quality : 0;
+      const q = Math.max(0, Math.min(1, v)) * (w.flags && w.flags.bad ? 0.5 : 1);
+      kept.push(t);
+      out.push({ rid: resource.rid, role, t, score: ST_LOCAL_SCORE_MIN + q * (ST_LOCAL_SCORE_MAX - ST_LOCAL_SCORE_MIN), sourceDuration: d, minStart: ST_LOCAL_MIN_START, local: 'score' });
+    }
+  }
+  return out.length ? out : stFallbackCandidates(resource);
 }
 
 // slots: [{ index, track: 'main' | 'grid', section: 'opener' | 'place' | 'grid' | 'montage' | 'ending', role, frames,
@@ -559,7 +645,7 @@ function stAllocate(opts) {
       if (rawTier < 0) continue;
       // Fixed slots: the role order is a small score penalty instead of a strict tier, so the seed can pick among good hits.
       const tier = fixedSlot ? 0 : rawTier;
-      const w = stWindow(c.t, slot.frames, fps, c.sourceDuration);
+      const w = stWindow(c.t, slot.frames, fps, c.sourceDuration, c.minStart);
       if (!w) continue;
       if (!overlap && (windows[c.rid] || []).some(([a, b]) => w.start < b + ST_WINDOW_GAP - 1e-9 && w.end > a - ST_WINDOW_GAP + 1e-9)) continue;
       // Signals: an avoided moment counts one use more (not in the ending); a moving one gets a small tie-break bonus.
@@ -694,7 +780,8 @@ function stSlots(schedule, frames, fps) {
 function stFmtSeconds(x) { return (Math.ceil(x * 10 - 1e-6) / 10).toFixed(1); }
 
 // Plans a build (spec 5, 15.4). opts: {
-//   candidates: search hits [{ rid, role, t, score, sourceDuration }] + photos [{ rid, kind: 'photo' }],
+//   candidates: search hits [{ rid, role, t, score, sourceDuration }] (local candidates of clips without analysis add
+//   minStart: their windows start no earlier) + photos [{ rid, kind: 'photo' }],
 //   bpm, fps (the Draft's real fps when known), montageShots (requested N), seed,
 //   sectionStart? (music seconds at beat 0; gives delta), delta? (overrides), photoShare?, sizes? ({ rid: { width,
 //   height } } for photo motions),
@@ -734,7 +821,7 @@ function stPlanBuild(opts) {
   const eligible = {};
   for (const c of candidates) {
     if (c.kind === 'photo') { if (typeof c.rid === 'string' && gridSeconds <= ST_PHOTO_HOLD_MAX + 1e-9) eligible[c.rid] = true; continue; }
-    if (typeof c.rid === 'string' && typeof c.sourceDuration === 'number' && isFinite(c.sourceDuration) && stWindow(0, minFrames, fps, c.sourceDuration)) eligible[c.rid] = true;
+    if (typeof c.rid === 'string' && typeof c.sourceDuration === 'number' && isFinite(c.sourceDuration) && stWindow(0, minFrames, fps, c.sourceDuration, c.minStart)) eligible[c.rid] = true;
   }
   const distinct = Object.keys(eligible).length;
   if (distinct < ST_MIN_DISTINCT) return fail('Needs at least ' + ST_MIN_DISTINCT + ' different clips or photos (found ' + distinct + ')', { distinct });
