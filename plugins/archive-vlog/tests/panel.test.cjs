@@ -364,10 +364,12 @@ assert.ok(!/(?:plugin|root|data|dir|path|Dir|Path)\)?\s*\+\s*["'][\\/]|["'][\\/]
 assert.equal((panel.match(/runShell\(/g) || []).length, 1, 'one runShell call');
 assert.ok(hostBlock.includes('await sdk.runShell({ summary: "Locate the plugin folder", command, timeoutMs: 10000 })'));
 assert.ok(hostBlock.includes(`const command = hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%" : 'echo "$SELECTS_USER_SKILLS_ROOT"';`), 'per-platform one-liner');
-// The host's services are reached only through the host block's guards; ffmpeg only through Runtime with an argv.
-const outsideHost = own.replace(hostBlock, '');
-assert.ok(!/__DI__|window\.parent/.test(outsideHost.replace(/^\s*\/\/.*$/gm, '')), '__DI__ only in the av-host block');
-assert.ok(!/runFFmpeg\(|runFFprobe\(/.test(outsideHost), 'ffmpeg only in the av-host block');
+// The host's services are reached only through the guarded host blocks (av-host and the kit's quick-score block);
+// ffmpeg only through Runtime with an argv.
+const qsBlock = block(panel, 'quick-score');
+const outsideHost = own.replace(hostBlock, '').replace(qsBlock, '');
+assert.ok(!/__DI__|window\.parent/.test(outsideHost.replace(/^\s*\/\/.*$/gm, '')), '__DI__ only in the host blocks');
+assert.ok(!/runFFmpeg\(|runFFprobe\(/.test(outsideHost), 'ffmpeg only in the host blocks');
 assert.ok(!/:\s*(any|string|number|boolean)\b|Promise<|\bas any\b/.test(hostBlock), 'the host block is plain JS');
 assert.ok(ui.includes('const locateRoots = (sdk: any) => hostRoots(sdk, PLUGIN_ID, "planner.js");'));
 assert.ok(ui.includes('return e?.code === "host-missing" ? (l) => t(l, "hostTooOld") : (l) => wrap(l, sayError(l, e));'), 'one "needs a newer Selects" message');
