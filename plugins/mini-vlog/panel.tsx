@@ -1923,6 +1923,10 @@ const INVENTORY_RETRY_MS = 2000;
 // uncropped. It is re-read with the 10 s poll, at most INCOMPLETE_POLL_MAX times in a row (about a minute); then
 // polling stops until Refresh starts the cycle again.
 const INCOMPLETE_POLL_MAX = 6;
+// Clips that cannot be used yet (still importing) or an empty Project are re-read with the same 10 s poll, at most
+// WAIT_POLL_MAX times in a row (about five minutes; a clip whose file was moved never becomes usable); then polling
+// stops until Refresh, coming back to the panel or a changed inventory.
+const WAIT_POLL_MAX = 30;
 // Their messages are STRINGS `sizesLoading` (next to Build) and `invPartial` (the readiness line).
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
 const DRAFT_LOOKUP_MAX = 50;
@@ -2747,7 +2751,7 @@ function mvPunchFrames(opts) {
 //   (Mini Vlog is a montage). Every window becomes { rid, role: MV_LOCAL_ROLE, t (window centre), score,
 //   sourceDuration }; the allocator centres a shot on t, so a shot up to MV_LOCAL_WINDOW long stays inside its window.
 //   A clip the check could not decode (no host ffmpeg, an error, the budget spent: `fallback`) gets mvLocalWindows
-//   (whole seconds from 1 s, as search.js gives the template run) at the bottom of the range.
+//   (one a second, the first window starting at 0.5 s, as search.js gives the template run) at the bottom of the range.
 // - One scale (mvScoreRange): the 0-1 local score s maps linearly onto the 10th..90th percentile [lo, hi] of this
 //   run's scene-search scores (role hits, not motion hits): score = lo + s * (hi - lo). A range narrower than 0.05 is
 //   widened to 0.05 around its middle; without any scene hit (no analysed clip) it is MV_LOCAL_RANGE, the
@@ -2755,26 +2759,34 @@ function mvPunchFrames(opts) {
 //   (0.15 per role rank, 0.2 per recent repeat, 0.05 jitter, 0.1 motion bonus) weigh the same as with analysed clips.
 //   Scene-search scores are never changed: a Project with every clip analysed plans exactly as before.
 // - Beat punch: the motion query cannot run on these clips, so their windows' own motion, ranked 0..1 across the
-//   build's decoded windows, gives the same motion bonus (MV_MOTION_BONUS x rank) and `motion` tag as mvMotionBonus;
-//   the planner's motion opener then can open on a moving window of a clip without analysis too (Mini Vlog opens on
-//   movement, spec 15.2). Fallback windows have no motion. Without Beat punch nothing carries motion.
+//   build's decoded windows, gives the same motion bonus (MV_MOTION_BONUS x rank) as mvMotionBonus, and windows ranked
+//   MV_LOCAL_MOTION_TAG or higher carry the `motion` tag; the planner's motion opener then can open on a moving window
+//   of a clip without analysis too. Fallback windows have no motion. Without Beat punch nothing carries motion.
+// - Opener: Mini Vlog opens on movement (Hook B, spec 15.2), so local windows are picked with the kit's 'montage' role
+//   (moving windows ranked higher) rather than 'steady', on purpose: with Beat punch the planner's motion opener then
+//   finds a moving local window. README "Clips without analysis" says the same.
 const MV_LOCAL_ROLE = 'local';
 const MV_LOCAL_WINDOW = 1.4;
 const MV_LOCAL_MAX = 24;
 const MV_LOCAL_APART = 0.5;
 const MV_LOCAL_FALLBACK_MAX = 24;
 const MV_LOCAL_RANGE = { lo: 0.25, hi: 0.35 };
+// Beat punch: the motion rank from which a local window is tagged `motion` (see mvLocalCandidates).
+const MV_LOCAL_MOTION_TAG = 0.5;
 // Quick checks at a time, and the time all of a build's checks share (clips not started by then get mvLocalWindows).
 const MV_LOCAL_CONCURRENCY = 3;
 const MV_LOCAL_BUDGET_MS = 20000;
-// Evenly spaced window centres for a clip of `dur` seconds: whole seconds from 1 s, each half a second clear of the
-// end, at most MV_LOCAL_FALLBACK_MAX spread over the clip; a clip under 1.5 s gets its middle. scripts/search.js has a
-// copy (localWindows) for the template run; tests/no-analysis.test.cjs keeps them identical.
+// Evenly spaced window centres for a clip of `dur` seconds: one a second from 0.5 s + MV_LOCAL_WINDOW / 2 (so the first
+// MV_LOCAL_WINDOW-second window starts at 0.5 s, past a fade-in or a black first frame), each half a second clear of the
+// end, at most MV_LOCAL_FALLBACK_MAX spread over the clip; a clip too short for one gets its middle. scripts/search.js
+// has a copy (localWindows) for the template run; tests/no-analysis.test.cjs keeps them identical.
 function mvLocalWindows(dur) {
-  const n = Math.floor(dur - 0.5 + 1e-9);
+  const first = 0.5 + MV_LOCAL_WINDOW / 2;
+  const n = Math.floor(dur - 0.5 - first + 1e-9) + 1;
   if (n < 1) return dur > 0 ? [Math.round(dur / 2 * 1000) / 1000] : [];
-  if (n <= MV_LOCAL_FALLBACK_MAX) return Array.from({ length: n }, (_, k) => k + 1);
-  return Array.from({ length: MV_LOCAL_FALLBACK_MAX }, (_, k) => 1 + Math.round(k * (n - 1) / (MV_LOCAL_FALLBACK_MAX - 1)));
+  const at = k => Math.round((first + k) * 1000) / 1000;
+  if (n <= MV_LOCAL_FALLBACK_MAX) return Array.from({ length: n }, (_, k) => at(k));
+  return Array.from({ length: MV_LOCAL_FALLBACK_MAX }, (_, k) => at(Math.round(k * (n - 1) / (MV_LOCAL_FALLBACK_MAX - 1))));
 }
 // The scale local scores share with scene search (see above), from a build's candidate list.
 function mvScoreRange(list) {
@@ -2807,11 +2819,15 @@ function mvLocalCandidates(results, range, punch) {
   for (const [cand, m] of decoded) {
     // Rank 0..1: the share of decoded windows moving less than this one.
     const rank = sorted.length < 2 ? 0 : sorted.filter(x => x < m).length / (sorted.length - 1);
-    if (rank > 0) { cand.score += MV_MOTION_BONUS * rank; cand.motion = rank; }
+    // The bonus orders every window by motion; only the upper half is tagged `motion`, so the planner's motion opener
+    // (any c.motion > 0) picks a window that clearly moves, not the least moving one of a still clip.
+    if (rank > 0) cand.score += MV_MOTION_BONUS * rank;
+    if (rank >= MV_LOCAL_MOTION_TAG) cand.motion = rank;
   }
   return out;
 }
-// A build's candidates: the scene-search list unchanged, plus the local candidates on its scale.
+// A build's candidates: the scene-search list unchanged, plus the local candidates on its scale. Without local results
+// it returns `list` itself (no copy), so an all-analysed build plans exactly as before at no cost.
 function mvWithLocal(list, results, punch) {
   if (!results || !results.length) return list;
   return list.concat(mvLocalCandidates(results, mvScoreRange(list), punch));
@@ -2849,7 +2865,7 @@ function mvWithLocal(list, results, punch) {
 //   qsCandidates(scores, role, durationNeeded, max) -> planner candidates [{ t, score, motion }] (t = window centre).
 // Cache: one JSON per clip in <dataDir>/quick-score/, keyed by the resource id, the file's modification time and
 // QS_VERSION, so a rebuild does not decode the same clip twice.
-var QS_VERSION = 1;
+var QS_VERSION = 2;
 // One decode pass at the settings Selfie Aesthetic Edit measured (sae-host saeMotionArgs: fps 8, gray rawvideo,
 // 0.25-0.65 s for 120 s of source) gives every per-frame figure below.
 var QS_FPS = 8;
@@ -3005,7 +3021,10 @@ async function quickScore(resource, opts) {
   var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
   var mtime = 0;
   try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
-  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, a.toFixed(3), b.toFixed(3)].join("-");
+  // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
+  // path with different media is not served stale scores; Mini Vlog review).
+  var durKey = Number(resource.durationSeconds || 0).toFixed(3);
+  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
   var cacheFile = io.join(dir, safe + ".json");
   if (io.readText && !ws) {
     try {
@@ -3856,6 +3875,9 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   // Consecutive incomplete reads, and whether that count reached INCOMPLETE_POLL_MAX (polling stopped).
   const incompleteReadsRef = React.useRef(0);
   const [incompleteStalled, setIncompleteStalled] = React.useState(false);
+  // Consecutive reads still waiting for unusable clips (or any footage), and whether that reached WAIT_POLL_MAX.
+  const waitReadsRef = React.useRef(0);
+  const [waitStalled, setWaitStalled] = React.useState(false);
 
   // Reads the Project's footage inventory. Never writes state for a stale Project, and never runs during a build.
   // Resolves to "failed" only when a read ran and failed with a non-busy error (the case worth one quick retry).
@@ -3876,9 +3898,13 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       // A clip that finishes analysis moves from the quick local check to the scene search, so `analysed` is part of it.
       const sig = inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",") + "|" + [sk.unanalysed, sk.notAnalysed].map((x) => String(x ?? "")).join(",");
       // A changed clip set drops the cached shot candidates so a build never uses stale ones.
+      const sameSet = invSigRef.current === sig;
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
       if (inv.incomplete) { incompleteReadsRef.current++; if (incompleteReadsRef.current >= INCOMPLETE_POLL_MAX) setIncompleteStalled(true); }
       else { incompleteReadsRef.current = 0; setIncompleteStalled(false); }
+      const waiting = mvFootageCounts(inv.skipped).unusable > 0 || (inv.resources.length === 0 && !inv.photos.length);
+      if (waiting && sameSet && waitReadsRef.current > 0) { waitReadsRef.current++; if (waitReadsRef.current >= WAIT_POLL_MAX) setWaitStalled(true); }
+      else { waitReadsRef.current = waiting ? 1 : 0; setWaitStalled(false); }
       setInventory(inv); setInvError(null);
       return "ok";
     } catch (e: any) {
@@ -3892,14 +3918,14 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   }
   React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
   // Refresh: a manual read that also restarts the incomplete-read cycle.
-  const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); loadInventory(); };
+  const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); waitReadsRef.current = 0; setWaitStalled(false); loadInventory(); };
 
   // Mount and Project switch: reset per-Project state, resolve folders, read bundled assets, inventory the Project.
   React.useEffect(() => {
     // Drop everything tied to the previous Project so a build never mixes Projects.
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
     setOnly(null); setOnlyPhotos(null);
-    invSigRef.current = null; photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false);
+    invSigRef.current = null; photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false); waitReadsRef.current = 0; setWaitStalled(false);
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
     if (!projectId) return;
     let alive = true;
@@ -3943,8 +3969,9 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   // The effect re-arms on each new inventory, and stops on unmount, Project switch and while busy.
   // A Project with only photos has nothing to wait for, so it does not poll (each read measures new photos).
   // A partial read (`incomplete`: the Project was still loading) polls too, until the clip sizes are all known.
+  // Each kind of waiting stops after its cap (INCOMPLETE_POLL_MAX, WAIT_POLL_MAX reads in a row).
   const invFootage = mvFootageCounts(inventory?.skipped);
-  const needsPoll = !!inventory && ((!!inventory.incomplete && !incompleteStalled) || invFootage.unusable > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
+  const needsPoll = !!inventory && ((!!inventory.incomplete && !incompleteStalled) || ((invFootage.unusable > 0 || (inventory.resources.length === 0 && !inventory.photos?.length)) && !waitStalled));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
@@ -4160,19 +4187,20 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     }
   }
 
-  async function findCandidates(rids: string[], pid: string, check: () => void, queries: Record<string, string>) {
+  // `onProgress(done)`: videos searched so far (the build turns it into the step's share).
+  async function findCandidates(rids: string[], pid: string, check: () => void, queries: Record<string, string>, onProgress: (done: number) => void) {
     const list: any[] = []; const failed: string[] = [];
     // SEARCH_BATCH clips per call keeps each scene search under runScript's fixed 30 s deadline.
     // pageSize stays 4: hits are scene-level, so 8 adds almost no new times; the planner fills gaps with filler candidates.
     for (let i = 0; i < rids.length; i += SEARCH_BATCH) {
       // Only videos are searched (photos join without a search), so the count is in videos.
-      const done = i;
-      advance("shots", i / rids.length, (l) => t(l, "videosChecked", { done, count: rids.length }));
+      onProgress(i);
       // Only analysed clips are passed (checkAnalysis: false skips search.js's own resources() read).
       const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries, pageSize: 4, checkAnalysis: false }), false, { wanted: () => projectRef.current === pid });
       check();
       list.push(...r.candidates); failed.push(...r.failed);
     }
+    onProgress(rids.length);
     return { list, failed };
   }
 
@@ -4180,17 +4208,18 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   // MV_LOCAL_CONCURRENCY clips at a time within a shared MV_LOCAL_BUDGET_MS, cached by the kit in the data folder per
   // clip and file time. The progress line says "Checking clips N/M"; Cancel (in the Build button's slot) and a Project
   // switch abort it. A clip it cannot decode (no host ffmpeg, an error, the budget spent) gets evenly spaced windows
-  // (mvLocalCandidates), so the build goes ahead. Throws only CANCELLED or STALE. `unavailable`: this host lacks the
-  // members the check needs (the result then says a newer Selects picks better).
-  async function checkLocalClips(clips: any[], pid: string): Promise<{ results: any[]; unavailable: boolean }> {
+  // (mvLocalCandidates), so the build goes ahead; the next Build checks such a clip again. Throws only CANCELLED or
+  // STALE. `unavailable`: this host lacks the members the check needs (the result then says a newer Selects picks
+  // better). `controller` is the build's: Cancel aborts it, which also stops the scene search running alongside.
+  // `onProgress(done)`: how many clips the check has finished.
+  async function checkLocalClips(clips: any[], pid: string, controller: AbortController, onProgress: (done: number) => void): Promise<{ results: any[]; unavailable: boolean }> {
     if (!clips.length) return { results: [], unavailable: false };
     const dataDir = mvHostDataDir(PLUGIN_ID);
     const unavailable = !mvQuickCheckAvailable(dataDir);
-    const controller = new AbortController();
     localAbortRef.current = controller;
     setChecking(true);
     const total = clips.length, started = Date.now();
-    const say = (done: number) => advance("shots", done / total, (l) => t(l, "checkingClipsN", { done, count: total }));
+    const say = onProgress;
     say(0);
     try {
       const scored: Map<string, any> = await quickScoreAll(clips.map((r: any) => ({ rid: r.rid, path: r.path, durationSeconds: r.duration })), {
@@ -4263,16 +4292,36 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       const shotsDetail: Say | undefined = chosenVideos.length ? undefined : (l) => t(l, "photosOnly");
       if (shotsDetail) advance("shots", 0, shotsDetail);
       let found = cached;
-      if (!cached || cached.failed.length) {
+      // The quick local check's results are kept with the scene search; a clip it could not decode (fallback windows)
+      // is checked again by the next Build, the others are reused.
+      const localKept: any[] = cached ? cached.local.results.filter((r: any) => r.scores && !r.scores.fallback) : [];
+      const localTodo: any[] = localClips.filter((r: any) => !localKept.some((k: any) => k.rid === r.rid));
+      if (!cached || cached.failed.length || localTodo.length) {
         // Search everything the first time; afterwards retry only the clips whose search failed.
         const todo: string[] = cached ? cached.failed : rids;
-        const fresh = await findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch));
+        // The scene search and the quick local check run side by side. The step's share counts both (searched videos
+        // plus checked clips over their sum) and never goes back; the detail names the part that moved last.
+        const share = { scene: 0, local: 0, at: 0 };
+        const shareOf = (detail: Say) => {
+          const n = todo.length + localTodo.length;
+          share.at = Math.max(share.at, n ? (share.scene + share.local) / n : 0);
+          advance("shots", share.at, detail);
+        };
+        const controller = new AbortController();
+        const sceneCheck = () => { check(); if (controller.signal.aborted) throw CANCELLED; };
+        const [fresh, checked] = await Promise.all([
+          findCandidates(todo, pid, sceneCheck, mvSearchQueries(MV_QUERIES, frozen.punch),
+            (done) => { share.scene = done; if (todo.length) shareOf((l) => t(l, "videosChecked", { done, count: todo.length })); })
+            // A failed search stops the local check too, so nothing keeps running after the build ends.
+            .catch((e) => { controller.abort(); throw e; }),
+          checkLocalClips(localTodo, pid, controller,
+            (done) => { share.local = done; shareOf((l) => t(l, "checkingClipsN", { done, count: localTodo.length })); })]);
+        check();
         const retried = new Set(todo);
         const scene = [...(cached ? cached.scene.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))];
-        // The quick local check runs once per clip selection; its results are kept with the scene search. `list` is
-        // what the planner gets: the scene hits unchanged plus the local candidates on their scale (mvWithLocal).
-        const local = cached ? cached.local : await checkLocalClips(localClips, pid);
-        check();
+        // `list` is what the planner gets: the scene hits unchanged plus the local candidates on their scale (mvWithLocal).
+        const results = localClips.map((r: any) => localKept.find((k: any) => k.rid === r.rid) || checked.results.find((k: any) => k.rid === r.rid)).filter(Boolean);
+        const local = { results, unavailable: localTodo.length ? checked.unavailable : !!cached?.local?.unavailable };
         found = { key, failed: fresh.failed, scene, local, list: mvWithLocal(scene, local.results, frozen.punch) };
         setCandidates(found);
       }

@@ -94,7 +94,7 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
   // Polling: only while clips cannot be used yet (still importing), while a read is partial, or with no footage at all.
   const poll = (panel.match(/const needsPoll = ([^\n]*);/) || [])[1];
   assert.ok(poll, 'needsPoll');
-  const needsPoll = (inventory, incompleteStalled = false) => { const invFootage = counts(inventory && inventory.skipped); return vm.runInNewContext(poll, { inventory, invFootage, incompleteStalled }); };
+  const needsPoll = (inventory, incompleteStalled = false, waitStalled = false) => { const invFootage = counts(inventory && inventory.skipped); return vm.runInNewContext(poll, { inventory, invFootage, incompleteStalled, waitStalled }); };
   const inv = (skipped, resources = 0, photos = 0) => ({ skipped, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
   assert.equal(needsPoll(inv(sk(5, 0), 5)), false, 'clips without analysis are ready: no poll');
   assert.equal(needsPoll(inv(sk(0, 2), 5)), true, 'clips that cannot be used yet poll');
@@ -105,6 +105,11 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
   // A partial read (the Project still loading) polls until stalled.
   assert.equal(needsPoll({ ...inv(sk(3, 0), 3), incomplete: true }), true, 'an incomplete read polls');
   assert.equal(needsPoll({ ...inv(sk(3, 0), 3), incomplete: true }, true), false, 'a stalled incomplete read stops');
+  // Waiting for unusable clips (or any footage) is capped too: WAIT_POLL_MAX reads in a row of the same inventory.
+  assert.equal(needsPoll(inv(sk(0, 2), 5), false, true), false, 'a stalled wait for unusable clips stops');
+  assert.equal(needsPoll(inv(sk(0, 0)), false, true), false, 'a stalled wait for footage stops');
+  assert.ok(panel.includes('const WAIT_POLL_MAX = 30;') && panel.includes('if (waitReadsRef.current >= WAIT_POLL_MAX) setWaitStalled(true);')
+    && panel.includes('waitReadsRef.current = 0; setWaitStalled(false); loadInventory(); };'), 'wait cap, reset by Refresh');
 }
 // The quick local check: the kit block between its markers (tests/quick-score.test.cjs), our mv-local block
 // (tests/no-analysis.test.cjs), and the build path: analysed clips to the scene search, the others to quickScoreAll with
@@ -116,10 +121,13 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
   const fnStart = ui.indexOf('async function checkLocalClips('), fnEnd = ui.indexOf('// Looks for the Draft a lost assemble reply');
   assert.ok(fnStart > 0 && fnEnd > fnStart, 'checkLocalClips');
   const check = ui.slice(fnStart, fnEnd);
-  for (const s of ['quickScoreAll(', 'concurrency: MV_LOCAL_CONCURRENCY, budgetMs: MV_LOCAL_BUDGET_MS, dataDir, signal: controller.signal', 't(l, "checkingClipsN", { done, count: total })',
+  for (const s of ['quickScoreAll(', 'concurrency: MV_LOCAL_CONCURRENCY, budgetMs: MV_LOCAL_BUDGET_MS, dataDir, signal: controller.signal', 'say(0)', 'say(p.done)',
     'if (controller.signal.aborted) throw CANCELLED;', 'if (projectRef.current !== pid) throw STALE;']) assert.ok(check.includes(s), 'checkLocalClips: ' + s);
   for (const s of ['const rids: string[] = chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);', 'const localClips: any[] = chosenVideos.filter((r: any) => r.analysed === false);',
-    'const local = cached ? cached.local : await checkLocalClips(localClips, pid);', 'list: mvWithLocal(scene, local.results, frozen.punch)',
+    'const localKept: any[] = cached ? cached.local.results.filter((r: any) => r.scores && !r.scores.fallback) : [];',
+    'if (!cached || cached.failed.length || localTodo.length) {', 'const [fresh, checked] = await Promise.all([', 'checkLocalClips(localTodo, pid, controller,',
+    't(l, "checkingClipsN", { done, count: localTodo.length })', 'share.at = Math.max(share.at, n ? (share.scene + share.local) / n : 0);',
+    'list: mvWithLocal(scene, local.results, frozen.punch)',
     'queries, pageSize: 4, checkAnalysis: false }', 'localAbortRef.current?.abort()', '{checking ? <ui.Button variant="primary" onClick={() => localAbortRef.current?.abort()}>{t(L, "cancel")}</ui.Button>',
     'if (e === CANCELLED && projectRef.current === pid) setStatus({ tone: "muted", say: (l: Lang) => t(l, "cancelled") });', '{result?.quickUnavailable ? <ui.Message tone="muted">{t(L, "quickUnavailable")}</ui.Message> : null}'])
     assert.ok(ui.includes(s), s);
@@ -299,7 +307,7 @@ says('grooveTiming', 'Groove on a {beat} s beat: {hold}, {beat} and {eighth} s s
 assert.ok(ui.includes('}, [assets, cueId, ownMusic?.path, ownGrid, hook]);'), 'toggling the hook re-picks the default section');
 // Motion query and bonus only with Beat punch (off: the v1.2 search and plan); the search cache is keyed on it.
 assert.ok(ui.includes('candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands)') && ui.includes('const scored = beatPunch ? mvMotionBonus(list) : list;'), 'motion bonus before planning, with Beat punch only');
-assert.ok(ui.includes('findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch))') && ui.includes('queries, pageSize: 4, checkAnalysis: false }'), 'motion query with Beat punch only');
+assert.ok(ui.includes('findCandidates(todo, pid, sceneCheck, mvSearchQueries(MV_QUERIES, frozen.punch),') && ui.includes('queries, pageSize: 4, checkAnalysis: false }'), 'motion query with Beat punch only');
 assert.ok(ui.includes('const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");') && ui.includes('const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");'), 'search cache keyed on the query set');
 // The helpers are plain JS (the driver evaluates them).
 assert.ok(!/:\s*(any|number|string)\b|\bas any\b/.test(hookBlock), 'hook block is plain JS');
@@ -414,7 +422,7 @@ assert.ok(build.includes('!inventory || inventory.incomplete ||'), 'build() refu
 assert.ok(panel.includes('const INCOMPLETE_POLL_MAX = 6;'), 'cap constant'); says('invPartial', "Couldn't read all clips yet. Press Refresh.");
 assert.ok(loadInv.includes('if (inv.incomplete) { incompleteReadsRef.current++; if (incompleteReadsRef.current >= INCOMPLETE_POLL_MAX) setIncompleteStalled(true); }')
   && loadInv.includes('else { incompleteReadsRef.current = 0; setIncompleteStalled(false); }'), 'consecutive count, reset by a complete read');
-assert.ok(ui.includes('const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); loadInventory(); };'), 'Refresh restarts the cycle');
+assert.ok(ui.includes('const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); waitReadsRef.current = 0; setWaitStalled(false); loadInventory(); };'), 'Refresh restarts the cycle');
 assert.ok(ui.includes('photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false);'), 'Project switch resets the cycle');
 assert.ok(ui.includes(': inventory.incomplete && incompleteStalled ? t(L, "invPartial")'), 'stalled readiness message');
 assert.ok(ui.indexOf('inventory.incomplete ? t(L, "stillReading")') > 0 && ui.indexOf('inventory.incomplete ? t(L, "stillReading")') < ui.indexOf('t(L, "noFootage")'), 'incomplete before "no footage"');
@@ -497,7 +505,7 @@ assert.ok(ui.includes('return (l) => (at ? t(l, "stoppedAt", { step: at.current 
 assert.ok(!/throw new Error\("[A-Z]/.test(ui), 'no English UI errors thrown');
 assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capture in the panel');
 // The search progress counts videos (photos are never searched), singular for one; a photos-only build says so.
-assert.ok(ui.includes('advance("shots", i / rids.length, (l) => t(l, "videosChecked", { done, count: rids.length }));'), 'progress counts videos');
+assert.ok(ui.includes('shareOf((l) => t(l, "videosChecked", { done, count: todo.length }))') && ui.includes('onProgress(i);'), 'progress counts videos');
 assert.deepEqual(en.videosChecked, { one: '{done}/{count} video checked', other: '{done}/{count} videos checked' });
 assert.ok(!panel.includes('clips checked'), 'no "clips checked" wording');
 assert.ok(ui.includes('const shotsDetail: Say | undefined = chosenVideos.length ? undefined : (l) => t(l, "photosOnly");') && ui.includes('advance("shots", 1, shotsDetail);'), 'photos-only detail');

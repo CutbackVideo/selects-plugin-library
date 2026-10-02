@@ -73,7 +73,7 @@ const PANEL_DECORATE = [
   // build(): the Build-time inputs decorate() reads, and the motion bonus before the plan.
   'sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,',
   'const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");',
-  'const fresh = await findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch));',
+  'findCandidates(todo, pid, sceneCheck, mvSearchQueries(MV_QUERIES, frozen.punch),',
   'const plan: any = mvPlanBuild({ candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });',
   // build(): analysed clips to the scene search, the others to the quick local check, merged by mvWithLocal.
   'const rids: string[] = chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);',

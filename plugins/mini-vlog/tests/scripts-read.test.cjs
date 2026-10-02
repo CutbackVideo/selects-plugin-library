@@ -156,7 +156,7 @@ const keepAlive = setInterval(() => {}, 50);
 
   // Scene search needs analysis. Called with every handed rid (the Clip highlights template does that), search.js
   // reads resources() once, never searches a clip without analysis and gives it evenly spaced candidates instead
-  // (role 'local', whole seconds from 1 s, at the bottom of this call's score range), so a template run still builds
+  // (role 'local', one a second with the first window from 0.5 s, at the bottom of this call's score range), so a template run still builds
   // from unanalysed clips. The panel and the driver pass analysed rids only with checkAnalysis: false (no extra read).
   let searched = [];
   const selS = (res) => ({ project: () => ({ resources: async () => res, resource: rid => ({ searchScenes: async (q) => { searched.push(rid); return { results: [{ timeSeconds: 3, score: 0.3 }, { timeSeconds: 7, score: 0.26 }], error: null }; } }) }) });
@@ -164,7 +164,7 @@ const keepAlive = setInterval(() => {}, 50);
   const sm = await load('search.js', { projectId: 'p', rids: ['a', 'b'], queries: { street: 'q1', park: 'q2' }, pageSize: 4 })(selS(mixRes));
   assert.deepEqual([...new Set(searched)], ['a'], 'the unanalysed clip is not searched');
   const loc = sm.candidates.filter(c => c.rid === 'b');
-  assert.deepEqual(loc.map(c => [c.role, c.t]), [['local', 1], ['local', 2], ['local', 3]], 'whole seconds from 1 s, half a second clear of the end');
+  assert.deepEqual(loc.map(c => [c.role, c.t]), [['local', 1.2], ['local', 2.2], ['local', 3.2]], 'one a second from 1.2 s (first window from 0.5 s), half a second clear of the end');
   assert.ok(loc.every(c => c.score === 0.26), 'at the bottom of the searched scores');
   assert.deepEqual(Object.keys(loc[0]).sort(), ['rid', 'role', 'score', 't'], 'the same keys as a scene-search hit');
   assert.deepEqual(sm.local, ['b']);
@@ -174,11 +174,15 @@ const keepAlive = setInterval(() => {}, 50);
   const so = await load('search.js', { projectId: 'p', rids: ['b'], queries: { street: 'q1' }, pageSize: 4 })(selS(mixRes));
   assert.deepEqual(searched, []);
   assert.ok(so.candidates.length === 3 && so.candidates.every(c => c.score === 0.25));
+  // No hasAnalysis flag at all counts as not analysed (the same meaning as inventory.js).
+  searched = [];
+  const sn = await load('search.js', { projectId: 'p', rids: ['n'], queries: { street: 'q1' }, pageSize: 4 })(selS([{ resourceId: 'n', type: 'Video', durationSeconds: 4.2 }]));
+  assert.deepEqual(searched, []); assert.deepEqual(sn.local, ['n']);
   // A long clip: at most 24 windows, spread over the clip.
   const longRes = [{ resourceId: 'L', type: 'Video', hasAnalysis: false, durationSeconds: 100 }];
   const sl = await load('search.js', { projectId: 'p', rids: ['L'], queries: { street: 'q1' }, pageSize: 4 })(selS(longRes));
   assert.equal(sl.candidates.length, 24);
-  assert.equal(sl.candidates[0].t, 1); assert.equal(sl.candidates[23].t, 99);
+  assert.equal(sl.candidates[0].t, 1.2); assert.equal(sl.candidates[23].t, 99.2);
   // resources() failing: every clip is searched as before.
   searched = [];
   const sf = await load('search.js', { projectId: 'p', rids: ['a', 'b'], queries: { street: 'q1' }, pageSize: 4 })({ project: () => ({ resources: async () => { throw Error('x'); }, resource: selS(mixRes).project().resource }) });

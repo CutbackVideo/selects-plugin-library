@@ -17,15 +17,14 @@ const block = (name) => {
 const hook = block('mv-hook'), local = block('mv-local'), qs = block('quick-score');
 assert.ok(!/:\s*(any|string|number|boolean)\b|Promise<|\bas any\b/.test(local), 'mv-local is plain JS');
 assert.ok(!/runShell|child_process|require\(|\bwindow(\.parent|\[)|__DI__/.test(local), 'mv-local has no host access');
-// The kit block is pasted verbatim (compared with the kit copy when it is available; CI checks the markers only).
-{
-  const kitDir = process.env.SELECTS_APP_KIT || path.join(require('node:os').homedir(), 'Workspaces', 'selects-app-kit');
-  const kitFile = path.join(kitDir, 'tools', 'panel', 'quick-score.js');
-  if (fs.existsSync(kitFile)) {
-    const kit = fs.readFileSync(kitFile, 'utf8');
-    assert.equal(qs, kit.slice(kit.indexOf('// quick-score:start'), kit.indexOf('// quick-score:end')), 'panel.tsx quick-score block equals the kit file');
-  }
-}
+// The kit block is pasted verbatim. Hermetic (CI has no kit checkout): the block from its start marker up to (not
+// including) its end marker must hash to the recorded copy of selects-app-kit tools/panel/quick-score.js. To take a kit
+// update, paste the new block over this one and record the kit commit and the new hash here.
+const QS_KIT_COMMIT = '753eb81';
+const QS_KIT_SHA256 = 'a53045662182b210f69199c220f9b2be5b56fdae0cd987708385cf533cc3b240';
+assert.equal(require('node:crypto').createHash('sha256').update(qs).digest('hex'), QS_KIT_SHA256,
+  'panel.tsx quick-score block equals selects-app-kit ' + QS_KIT_COMMIT + ' tools/panel/quick-score.js');
+assert.ok(/var QS_VERSION = (\d+);/.test(qs) && Number(/var QS_VERSION = (\d+);/.exec(qs)[1]) >= 2, 'QS_VERSION >= 2 (duration in the cache key)');
 const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, isFinite, Promise, Date, setTimeout, clearTimeout, AbortController, TextDecoder, Uint8Array };
 vm.createContext(box);
 vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + '\n' + hook + '\n' + local + '\n' + qs
@@ -38,9 +37,17 @@ const P = box.P, j = v => JSON.parse(JSON.stringify(v));
   const fn = /function localWindows\(dur\) \{[\s\S]*?\n\}/.exec(search);
   assert.ok(fn, 'search.js localWindows');
   const sbox = { Math, Array };
-  vm.runInNewContext('const LOCAL_MAX = ' + /const LOCAL_MAX = (\d+)/.exec(search)[1] + ';\n' + fn[0] + '\nthis.f = localWindows;', sbox);
-  for (const d of [0.3, 1.2, 1.5, 4.2, 10, 24.4, 25.6, 100, 3600]) assert.deepEqual(j(sbox.f(d)), j(P.mvLocalWindows(d)), 'windows for ' + d + ' s');
-  assert.deepEqual(j(P.mvLocalWindows(4.2)), [1, 2, 3]);
+  const first = Number(/const LOCAL_FIRST = ([\d.]+);/.exec(search)[1]);
+  assert.equal(first, 0.5 + P.MV_LOCAL_WINDOW / 2, 'search.js LOCAL_FIRST = 0.5 s + MV_LOCAL_WINDOW / 2');
+  vm.runInNewContext('const LOCAL_MAX = ' + /const LOCAL_MAX = (\d+)/.exec(search)[1] + ';\nconst LOCAL_FIRST = ' + first + ';\n' + fn[0] + '\nthis.f = localWindows;', sbox);
+  for (const d of [0.3, 1.2, 1.5, 1.7, 1.9, 4.2, 10, 24.4, 25.6, 26.6, 100, 3600]) assert.deepEqual(j(sbox.f(d)), j(P.mvLocalWindows(d)), 'windows for ' + d + ' s');
+  // The first window (MV_LOCAL_WINDOW long, centred on t) starts at 0.5 s or later, each centre half a second clear of the end.
+  assert.deepEqual(j(P.mvLocalWindows(4.2)), [1.2, 2.2, 3.2]);
+  for (const d of [1.7, 4.2, 10, 25.6, 100, 3600]) {
+    const w = P.mvLocalWindows(d);
+    assert.ok(w[0] - P.MV_LOCAL_WINDOW / 2 >= 0.5 - 1e-9 && w[w.length - 1] <= d - 0.5 + 1e-9 && w.length <= 24, 'windows inside ' + d + ' s');
+  }
+  // Too short for one clean window: the middle.
   assert.deepEqual(j(P.mvLocalWindows(1.2)), [0.6]);
 }
 
@@ -83,9 +90,9 @@ const planOf = (candidates, extra = {}) => j(P.mvPlanBuild({ candidates, bpm: 10
   assert.deepEqual(j(P.mvScoreRange([])), j(P.MV_LOCAL_RANGE));
   const only = j(P.mvWithLocal([], [scored('u', 12, t => ({ sharp: 0.05 + t / 100 }))], false));
   assert.ok(only.every(c => c.score >= 0.25 - 1e-9 && c.score <= 0.35 + 1e-9), 'unanalysed-only: the default range');
-  // A clip the check could not decode (fallback) gets whole-second windows at the bottom of the range.
+  // A clip the check could not decode (fallback) gets evenly spaced windows (first from 0.5 s) at the bottom of the range.
   const fb = j(P.mvLocalCandidates([{ rid: 'f', duration: 4.2, scores: P.qsFallback({ rid: 'f', durationSeconds: 4.2 }, 0, null) }, { rid: 'g', duration: 3, scores: null }], range, true));
-  assert.deepEqual(fb.map(c => [c.rid, c.t, c.score]), [['f', 1, 0.27], ['f', 2, 0.27], ['f', 3, 0.27], ['g', 1, 0.27], ['g', 2, 0.27]]);
+  assert.deepEqual(fb.map(c => [c.rid, c.t, c.score]), [['f', 1.2, 0.27], ['f', 2.2, 0.27], ['f', 3.2, 0.27], ['g', 1.2, 0.27], ['g', 2.2, 0.27]]);
   assert.ok(fb.every(c => !('motion' in c)), 'fallback windows have no motion');
 }
 
@@ -98,7 +105,13 @@ const planOf = (candidates, extra = {}) => j(P.mvPlanBuild({ candidates, bpm: 10
   const moving = on.filter(c => c.rid === 'm'), still = on.filter(c => c.rid === 'c');
   assert.ok(moving.every(c => c.motion > 0.5), 'the moving clip ranks high');
   assert.ok(still.every(c => !(c.motion > 0.5)), 'the calm clip ranks low');
-  on.forEach((c, i) => assert.ok(Math.abs(c.score - off[i].score - P.MV_MOTION_BONUS * (c.motion || 0)) < 1e-9, 'bonus = MV_MOTION_BONUS x motion rank'));
+  // Every window gets the bonus by its motion rank; only ranks of 0.5 and up carry the `motion` tag (the motion opener).
+  on.forEach((c, i) => {
+    const d = c.score - off[i].score;
+    if ('motion' in c) assert.ok(c.motion >= 0.5 && Math.abs(d - P.MV_MOTION_BONUS * c.motion) < 1e-9, 'bonus = MV_MOTION_BONUS x motion rank');
+    else assert.ok(d > -1e-9 && d < P.MV_MOTION_BONUS * 0.5, 'untagged: a bonus below half');
+  });
+  assert.ok(still.every(c => !('motion' in c)), 'the calm clip carries no motion tag');
   // mvMotionBonus (scene motion hits) leaves local candidates alone, whatever the other clips' motion hits.
   const withHits = [scene('a', 'drink', 3, 0.3), scene('a', 'motion', 3, 0.2), scene('a', 'motion', 9, 0.3)].concat(on);
   const after = j(P.mvMotionBonus(withHits));

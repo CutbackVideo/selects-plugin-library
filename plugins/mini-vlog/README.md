@@ -130,7 +130,8 @@ search that finds drinks, streets, food and the other shot roles.
   Build ("Checking clips N/M" on the progress line; **Cancel** takes the Build
   button's place while it runs and stops the build, nothing saved). The
   check decodes a small grey preview of each clip with the ffmpeg built into
-  Selects, three clips at a time, all within 20 s, and finds the moments that
+  Selects, three clips at a time, all within 20 s, while the analysed clips
+  are searched, and finds the moments that
   are sharp and well exposed, with movement, and free of black or fading
   frames, flashes and cuts. Moments start at least half a second into a clip.
   The result is kept per clip in the data folder (see INSTALL.md), so the next
@@ -143,15 +144,19 @@ search that finds drinks, streets, food and the other shot roles.
   put on the same scale as the scene search's (the middle 80 % of the
   build's search scores), so both kinds take turns. With **Beat punch** on,
   their own movement gives the moving-moment bonus, and the video can open on
-  a moving moment of one of them.
+  a moving moment of one of them (only the more moving half of their moments
+  can open it).
+- The moments are picked as montage shots, moving ones first, not steady
+  ones, on purpose: Mini Vlog opens on movement.
 - If this Selects lacks what the check needs, or a clip cannot be decoded in
-  time, that clip's moments are evenly spaced from 1 s on and the build still
-  goes ahead; after such a build the panel says "This Selects can't check
+  time, that clip's moments are evenly spaced (one a second, the first
+  starting half a second in) and the build still goes ahead; the next Build
+  checks that clip again. After such a build the panel says "This Selects can't check
   clips without analysis, so their shots are evenly spaced. A newer Selects
   picks better shots."
 - **Clip highlights** (the template run) builds from clips without analysis
-  too, with evenly spaced moments from 1 s on (it does not run the quick
-  check).
+  too, with evenly spaced moments that start half a second in (it does not
+  run the quick check).
 
 **What blocks Build.** The build needs at least **4 shots from 2 different
 clips or photos**; each photo counts as one shot. When it cannot run, Build is
