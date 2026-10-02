@@ -45,7 +45,7 @@ The test inputs cap the score: a segment cut from a 432x768 screen recording, up
 
 ## Song fitting
 
-The plugin bundles no music; it fits the format to the user's song (`analyze.mjs`). Checked on the reference's own song, a popular funk song with a different groove, and a CC0 disco track, all through the panel in a local develop build (below):
+The plugin bundles no music; it fits the format to the user's song (the panel's song analysis). Checked on the reference's own song, a popular funk song with a different groove, and a CC0 disco track, all through the panel in a local develop build (below):
 
 - **Same song as the reference:** the analysis finds 89.8 BPM (reference 89.4) and opens montage 1 on the song's drum roll. The resulting cuts are within one frame of the reference's: montage 1 at 12, 16, 19, 22, 26, 29, 32, 35, 38, 42, 49 against 12, 16, 19, 22, 25, 28, 32, 35, 38, 42, 48; the hero at 55 and the section cuts at 102, 182, 263 and 343, the same as the reference. The Draft is 468 frames, like the reference.
 - **Hit accuracy in the export:** every planned cut is in the exported video, and each cut that sits on a hit is within 19 ms of it in the exported audio (38 ms on the funk song). Cuts where the song has no hit fall on the 16th-note grid instead (2 of 36 on the reference's song, 9 of 36 on the funk song, none on the CC0 track).
@@ -81,8 +81,18 @@ In Staging 2.0.519 the panel was missing from the Apps list in a running app; af
 
 The first "Load Project media" right after the app restarted and opened the Project failed once inside the host's script runtime (`Cannot read properties of undefined (reading 'reduce')`); the identical script succeeded seconds later. The panel now retries the read once before reporting an error, and the updated panel loaded the media in Staging.
 
+## Engine in the panel (2026-10-02)
+
+The song analysis, song section, colour measurement and finishing step moved from Node.js (`operation.mjs`, `analyze.mjs`, run through `runtime.sh`) into the panel, so no Node.js is downloaded and Windows can build. Before the Node.js files were removed, the panel's code was compared with them on the same inputs (the same FFmpeg, in node):
+
+- Song: 7 songs (an AAC m4a and 6 mp3s, 12-95 s). The decoded samples are byte-identical; the analysis (tempo, window, hits), its timing table for both cut options, and the refusals of the two short songs are identical, also through the Web Worker source. The song sections are byte-identical WAVs with the same file names.
+- Colour: 36 clip spans from 12 videos and 3 stills give identical statistics; gradeClips gives identical gains and offsets at strengths 0, 0.7 and 1.
+- Plan and finishing step: scenePlan, slotNeeds, withinLimits at 24-60 fps for every fitted timing, and byte-identical run_script source from buildFinishScript and buildCutoutScript.
+- The panel's song and colour steps on a stand-in host give the same results as the Node.js engine with the platform reported as macOS and as Windows, make no shell call, and leave no temporary file. A beat finder that does not answer in time falls back to the reference rhythm from the song's start.
+
 ## Not yet verified
 
 - The in-app chat path.
 - The Clip highlights template run with a picked song (the catalog reads the main branch, so this is checked after merge).
 - Replacing a video inside a saved clip. Create a revised Draft instead.
+- The panel with the song engine inside it, in Selects (macOS) and on a Windows machine.

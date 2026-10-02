@@ -91,10 +91,10 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
                 self.assertIsNone(pattern.search(body), f'{name}: {what} outside a mac-only region')
             self.assertNotIn('instanceof Uint8Array', body, f'{name}: cross-realm bytes need hostBytes')
 
-    def test_one_shell_call_outside_mac_only(self):
+    def test_no_shell_call_outside_mac_only(self):
+        # The av-host block makes no shell call; only mac-only regions may.
         outside = without_comments(without_mac_only(self.panel))
-        self.assertEqual(outside.count('runShell('), 1)
-        self.assertIn('runShell(', av_block(self.panel) or '')
+        self.assertEqual(outside.count('runShell('), 0)
 
     def test_mac_only_regions_are_closed(self):
         for name, text in {'panel.tsx': self.panel, **self.sources}.items():

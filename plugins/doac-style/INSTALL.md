@@ -2,6 +2,11 @@
 
 Experimental: macOS arm64 and a compatible Selects development build.
 
+Windows is not supported yet: the caption engine is Python, and its runtime
+setup is macOS-only for now. On Windows the Panel opens and says "Available on
+macOS for now" instead of creating captions, and a Clip highlights run reports
+the same message without making a draft.
+
 ## Setup
 
 1. Place this package in `doac-style` beneath `SELECTS_USER_SKILLS_ROOT`, and

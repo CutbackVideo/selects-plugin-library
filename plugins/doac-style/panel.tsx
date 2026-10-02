@@ -157,6 +157,10 @@ export function replaceWording(job,index,value){
 // Python, so the environment is built on the pinned one runtime.sh fetches
 // (shared by every plugin under ~/.selects/plugin-data/_runtime). Checked once
 // per panel load, and set up again when a check fails.
+// mac-only:start
+// The runtime check, setup and compiler run through the macOS login shell
+// (runtime.sh fetches a darwin CPython). Reached only through ensureRuntime,
+// which refuses Windows first.
 const RUNTIME_VARS=[
  'ROOT="$SELECTS_USER_SKILLS_ROOT/doac-style"',
  'PY="$ROOT/.runtime/bin/python3"',
@@ -171,25 +175,179 @@ const runtimeSetup=python=>[
  '  '+shellQuote(python)+' -m venv --clear "$ROOT/.runtime"',
  '  "$PY" -m pip install --quiet --disable-pip-version-check -r "$ROOT/approved/requirements.txt"',
  'fi',
- '[ -s "$FONT" ] || base64 -D -i "$FONT.b64" -o "$FONT"',
  '"$PY" -c "import PIL, numpy, scipy"',
 ].join('\n');
+async function macRuntime(sdk,say){
+ const check=await sdk.runShell({summary:'Check the DOAC Style caption renderer',command:RUNTIME_CHECK,timeoutMs:60000,maxOutputBytes:4000});
+ if(!check.isError&&check.exitCode===0&&/\bready\s*$/.test(check.stdout||''))return;
+ say('Preparing (first run only)\u2026');
+ const py=await sdk.runShell({summary:'Prepare Python (first run only)',command:'sh "$SELECTS_USER_SKILLS_ROOT/doac-style/runtime.sh" python',timeoutMs:290000,maxOutputBytes:8000});
+ const python=String(py.stdout||'').trim().split('\n').filter(Boolean).pop();
+ if(py.isError||py.exitCode!==0||!/^([A-Za-z]:\\|\/)/.test(python||''))throw stepError('setup',String(py.stderr||'').trim().split('\n').filter(Boolean).pop()||SETUP_FAILED);
+ const r=await sdk.runShell({summary:'Set up the DOAC Style caption renderer',command:runtimeSetup(python),timeoutMs:290000,maxOutputBytes:16000});
+ if(r.isError||r.exitCode!==0)throw stepError('setup',SETUP_FAILED);
+}
+// mac-only:end
 const SETUP_FAILED='DOAC Style could not set up its caption renderer. Check the internet connection, then try again.';
+// The caption renderer is Python, set up by runtime.sh for macOS only, so Windows
+// stops here before anything is planned or saved.
+const MAC_ONLY='DOAC Style captions: Available on macOS for now.';
+const FILE_ACCESS='Update Selects to enable caption file access.';
+// The installed package folder (it holds approved/), found once per panel load.
+let packageRoot=null;
+function doacRoot(sdk){
+ packageRoot??=hostRoots(sdk,'doac-style','approved').then(r=>r.plugin).catch(e=>{packageRoot=null;throw e?.code==='host-missing'?stepError('file-access',FILE_ACCESS):stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');});
+ return packageRoot;
+}
+// Renderer code comes from the installed package, not an independently generated effect.
+async function rendererCode(sdk){
+ const root=await doacRoot(sdk);
+ try{return await hostReadText(hostJoin(root,'approved','caption-scene.tsx.txt'));}
+ catch(e){throw e?.code==='host-missing'?stepError('file-access',FILE_ACCESS):stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');}
+}
+// The bundled font ships base64-encoded; decode it next to the .b64 once.
+async function ensureFont(sdk){
+ const font=hostJoin(await doacRoot(sdk),'approved','native','fonts','permanentmarker','PermanentMarker-Regular.ttf');
+ const f=hostApi('FileSystem','existsSync','writeFile');if(!f)throw stepError('file-access',FILE_ACCESS);
+ if(f.existsSync(font))return;
+ const b64=(await hostReadText(font+'.b64')).replace(/\s+/g,'');
+ await f.writeFile(font,Uint8Array.from(atob(b64),c=>c.charCodeAt(0)));
+}
 let runtimeReady=null;
 function ensureRuntime(sdk,say=()=>{}){
- runtimeReady??=(async()=>{
-  const check=await sdk.runShell({summary:'Check the DOAC Style caption renderer',command:RUNTIME_CHECK,timeoutMs:60000,maxOutputBytes:4000});
-  if(!check.isError&&check.exitCode===0&&/\bready\s*$/.test(check.stdout||''))return;
-  say('Preparing (first run only)\u2026');
-  const py=await sdk.runShell({summary:'Prepare Python (first run only)',command:'sh "$SELECTS_USER_SKILLS_ROOT/doac-style/runtime.sh" python',timeoutMs:290000,maxOutputBytes:8000});
-  const python=String(py.stdout||'').trim().split('\n').filter(Boolean).pop();
-  if(py.isError||py.exitCode!==0||!python?.startsWith('/'))throw stepError('setup',String(py.stderr||'').trim().split('\n').filter(Boolean).pop()||SETUP_FAILED);
-  const r=await sdk.runShell({summary:'Set up the DOAC Style caption renderer',command:runtimeSetup(python),timeoutMs:290000,maxOutputBytes:16000});
-  if(r.isError||r.exitCode!==0)throw stepError('setup',SETUP_FAILED);
- })().catch(e=>{runtimeReady=null;throw e;});
+ if(hostIsWindows())return Promise.reject(stepError('mac-only',MAC_ONLY));
+ runtimeReady??=(async()=>{await ensureFont(sdk);await macRuntime(sdk,say);})().catch(e=>{runtimeReady=null;throw e;});
  return runtimeReady;
 }
 function stepError(code,message){return Object.assign(Error(message),{code});}
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
 // The caption renderer lays out a 540×960 canvas stretched to the frame. On any
 // other aspect ratio, scale the clip back so captions keep their proportions,
 // fitted and centred in the frame. Null when the frame is already 9:16.
@@ -205,11 +363,14 @@ export function captionFit(frame){
 function captionSteps({sdk,currentProject,onStatus,persist}){
  function fs(){const host=window.parent.opener||window.parent;const f=host.__DI__?.FileSystem;if(!f?.getOrCreateTmpDirPath||!f?.join||!f?.mkdirSync||!f?.writeFile||!f?.readFile)throw stepError('file-access','Update Selects to enable caption file access.');return f;}
  async function read(path){const b=await fs().readFile(path);return typeof b==='string'?b:new TextDecoder().decode(b);}
- const quote=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
  async function run(script,summary,allowCommit=false){const r=await sdk.runScript({script,summary,allowCommit});if(r.isError||r.result==null)throw Error(r.output||'Could not confirm the save. Check the result draft before trying again.');return r.result;}
+ // mac-only:start
+ // The compiler runs through the macOS shell; ensureRuntime refuses Windows first.
+ const quote=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
  async function shell(args){await ensureRuntime(sdk);const r=await sdk.runShell({summary:'Compile approved captions',command:'"$SELECTS_USER_SKILLS_ROOT/doac-style/.runtime/bin/python3" "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/compile-captions.py" '+args,timeoutMs:300000,maxOutputBytes:48000});if(r.isError||r.exitCode!==0){const detail=(r.stderr||r.output||'').match(/(?:ValueError|AssertionError): ([^\n]+)/);throw stepError('render',detail?detail[1]:"The caption renderer could not complete this version. Check the DOAC Style installation, then try again.");}return r.stdout;}
+ // mac-only:end
  function sameProject(j){if(currentProject()!==j.projectId)throw stepError('project-changed','Project changed. Return to the original project to continue.');}
- async function compile(j,scene){await ensureRuntime(sdk,onStatus);onStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/\/[^/]+$/,''),'revision-'+Date.now());f.mkdirSync(dir,{recursive:true});const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
+ async function compile(j,scene){await ensureRuntime(sdk,onStatus);onStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/[\\/][^\\/]+$/,''),'revision-'+Date.now());f.mkdirSync(dir,{recursive:true});const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
  async function compileWithRecovery(j){
   try{return {job:j,manifest:await compile(j)};}
   catch(first){
@@ -289,8 +450,7 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
   j={...j,targetId:j.sourceId,clipIds:[]};persist(j);
  }
  if(!j.targetId){onStatus('Creating your captioned draft…');persist({...j,uncertain:true});const r=await run(`const s=selects.draft(${JSON.stringify(j.sourceId)});const words=(await s.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,start:w.startFrame,end:w.endFrame}));if(JSON.stringify(words)!==${JSON.stringify(j.signature)})throw Error('The original draft changed. Create a new caption plan.');const d=await selects.project(${JSON.stringify(j.projectId)}).duplicateDraft({sourceDraftId:${JSON.stringify(j.sourceId)},name:${JSON.stringify('DOAC Style Captions')}});const r=await d.commitAll('Create approved caption draft');return {id:r.createdDraftId,link:await selects.editor.linkToDraftFrame(r.createdDraftId,0)};`,'Create approved caption draft',true);j={...j,targetId:r.id,link:r.link,clipIds:[],uncertain:false};persist(j);}
- // Renderer code comes from the installed package, not an independently generated effect.
- const codeResult=await sdk.runShell({summary:'Read caption renderer',command:'cat "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/caption-scene.tsx.txt"',maxOutputBytes:16000});if(codeResult.isError||codeResult.exitCode!==0)throw stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');
+ const tsxCode=await rendererCode(sdk);
  const scale=fit?captionFit(j.frame):null,place=scale?`const added=(await d.clips({trackScope:'all'})).find(c=>c.clipId===r.clipId);await d.setClipTransform({clip:added,scale:${JSON.stringify(scale)}});`:'';
  const failed=[];
  for(let i=j.next;i<j.manifest.scenes.length;i++){
@@ -298,7 +458,7 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  try{
  const scene=j.manifest.scenes[i],data=JSON.parse(await read(scene.payload));persist({...j,uncertain:true});
  // Every saved scene adds one video clip, so the expected count is the base plus the scenes saved so far.
- const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const all=await d.clips({trackScope:'all'});if(all.filter(c=>c.trackKind==='video').length!==${j.baseCount+j.clipIds.length})throw Error('The result draft changed. Saving stopped to avoid duplicate captions.');const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+scene.template+' · '+scene.text)},within:await d.rangeAtFrames(${scene.start},${scene.end}),tsxCode:${JSON.stringify(codeResult.stdout)},parameters:${JSON.stringify(data)}});${place}await d.commitAll('Add approved caption scene');return {clipId:r.clipId};`,'Save approved caption scene',true);
+ const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const all=await d.clips({trackScope:'all'});if(all.filter(c=>c.trackKind==='video').length!==${j.baseCount+j.clipIds.length})throw Error('The result draft changed. Saving stopped to avoid duplicate captions.');const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+scene.template+' · '+scene.text)},within:await d.rangeAtFrames(${scene.start},${scene.end}),tsxCode:${JSON.stringify(tsxCode)},parameters:${JSON.stringify(data)}});${place}await d.commitAll('Add approved caption scene');return {clipId:r.clipId};`,'Save approved caption scene',true);
  j={...j,next:i+1,clipIds:[...j.clipIds,r.clipId],uncertain:false};persist(j);
  }catch(e){if(!skipFailedScenes)throw e;failed.push(i);j={...j,next:i+1,uncertain:false};persist(j);}
  }
@@ -321,6 +481,7 @@ const TEMPLATE_ERRORS={
  'renderer':'DOAC Style is not fully installed. Reinstall it, then try again.',
  'render':'DOAC Style could not draw these captions. Check its installation, then try again.',
  'setup':SETUP_FAILED,
+ 'mac-only':MAC_ONLY,
  'plan':'Selects AI could not plan the captions. Try again.',
  'no-scenes':'No captions could be added to the timeline. Try again.',
 };
@@ -341,6 +502,8 @@ function TemplateRun({sdk,context}){
   const finish=result=>{if(done)return;done=true;if(live.current===runId)sdk.finishTemplate(result);};
   (async()=>{
    try{
+    // Windows cannot run the caption renderer yet: stop before a draft is made.
+    if(hostIsWindows())throw stepError('mac-only',MAC_ONLY);
     const pid=context.projectId;if(!pid)throw stepError('no-project','No project is open.');
     const speaker=template.inputs?.speaker||[];
     const source=speaker.find(x=>(x?.kind==='video'&&x.resourceId)||(x?.kind==='timeline'&&x.sequenceId));
@@ -376,23 +539,25 @@ function CaptionPanel({sdk,context,ui}) {
  useEffect(()=>{try{setJob(JSON.parse(localStorage.getItem(key)||'null'));}catch{setJob(null);}setIndex(0);setError('');},[key]);
  function save(j){setJob(j);localStorage.setItem(key,JSON.stringify(j));}
  const steps=captionSteps({sdk,currentProject:()=>project.current,onStatus:setStatus,persist:save}),{fs,read,run,sameProject,compile}=steps;
- useEffect(()=>{let live=true;const id=job?.sourceId||context.sequenceId;if(!id)return;const f=fs();read(f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+context.projectId+'-'+id+'.json')).then(JSON.parse).then(c=>{if(live)setPendingPlan(!c.applied);}).catch(()=>{if(live)setPendingPlan(false);});return()=>{live=false;};},[job?.sourceId,context.sequenceId,busy]);
+ useEffect(()=>{let live=true;const id=job?.sourceId||context.sequenceId;if(!id)return;let f;try{f=fs();}catch{setPendingPlan(false);return;}read(f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+context.projectId+'-'+id+'.json')).then(JSON.parse).then(c=>{if(live)setPendingPlan(!c.applied);}).catch(()=>{if(live)setPendingPlan(false);});return()=>{live=false;};},[job?.sourceId,context.sequenceId,busy]);
  async function action(fn){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await fn();}catch(e){setError(e.message||String(e));}finally{lock.current=false;setBusy(false);}}
  async function load(sourceOverride,forceNew=false){await action(async()=>{
+ if(macOnly)throw stepError('mac-only',MAC_ONLY);
  if(!context.projectId||!context.sequenceId)throw Error('Open a draft to add captions.');
  const prepared=await steps.prepare({projectId:context.projectId,sourceId:sourceOverride||context.sequenceId,forceNew});await create(prepared);
  });}
  async function create(task){await steps.create(task);setPendingPlan(false);}
  async function edit(){await action(async()=>{const j=replaceWording(job,index,text);sameProject(j);
  const m=await compile(j,index),s=m.scenes[0];j.manifest.scenes[index]=s;j.manifest.records=m.records;
- if(j.targetId){if(j.next!==j.editorial.length||j.uncertain)throw Error('Finish creating the draft before editing captions.');const data=JSON.parse(await read(s.payload));const c=await sdk.runShell({summary:'Read caption renderer',command:'cat "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/caption-scene.tsx.txt"',maxOutputBytes:16000});if(c.isError||c.exitCode!==0)throw Error('The caption renderer could not be read.');save({...job,uncertain:true});
- const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const old=(await d.clips({trackScope:'all'})).find(c=>c.clipId===${j.clipIds[index]});if(!old)throw Error('This caption clip changed. Reopen the result draft.');if(old.startFrame!==${s.start}||old.endFrame!==${s.end})throw Error('This caption was trimmed on the timeline. Restore its original timing before changing the wording.');const tr=await d.clipTransform(old);await d.removeClips(old);const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+s.template+' · '+s.text)},within:await d.rangeAtFrames(${s.start},${s.end}),tsxCode:${JSON.stringify(c.stdout)},parameters:${JSON.stringify(data)}});const added=(await d.clips({trackScope:'all'})).find(c=>c.clipId===r.clipId);await d.setClipTransform({clip:added,position:tr.position,scale:tr.scale,rotation:tr.rotation});await d.commitAll('Edit approved caption wording');return {clipId:r.clipId};`,'Edit approved caption wording',true);j.clipIds[index]=r.clipId;j.uncertain=false;}
+ if(j.targetId){if(j.next!==j.editorial.length||j.uncertain)throw Error('Finish creating the draft before editing captions.');const data=JSON.parse(await read(s.payload));const tsxCode=await rendererCode(sdk);save({...job,uncertain:true});
+ const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const old=(await d.clips({trackScope:'all'})).find(c=>c.clipId===${j.clipIds[index]});if(!old)throw Error('This caption clip changed. Reopen the result draft.');if(old.startFrame!==${s.start}||old.endFrame!==${s.end})throw Error('This caption was trimmed on the timeline. Restore its original timing before changing the wording.');const tr=await d.clipTransform(old);await d.removeClips(old);const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+s.template+' · '+s.text)},within:await d.rangeAtFrames(${s.start},${s.end}),tsxCode:${JSON.stringify(tsxCode)},parameters:${JSON.stringify(data)}});const added=(await d.clips({trackScope:'all'})).find(c=>c.clipId===r.clipId);await d.setClipTransform({clip:added,position:tr.position,scale:tr.scale,rotation:tr.rotation});await d.commitAll('Edit approved caption wording');return {clipId:r.clipId};`,'Edit approved caption wording',true);j.clipIds[index]=r.clipId;j.uncertain=false;}
  save(j);setStatus('Caption updated.');});}
  useEffect(()=>{let live=true;if(!job?.editorial?.[index])return;const [a,z]=job.editorial[index].words;setText(job.input.words.slice(a,z+1).map(w=>w.text).join(' '));setPreview('');const s=job.manifest?.scenes?.[index];if(s)read(s.payload).then(JSON.parse).then(d=>{if(live)setPreview(d);}).catch(()=>{});return()=>{live=false};},[job,index]);
- const complete=job?.targetId&&job.next===job.editorial.length;
+ const complete=job?.targetId&&job.next===job.editorial.length,macOnly=hostIsWindows();
  return <ui.Section title="DOAC Style"><ui.Stack>
  {!complete&&<><p>Make every word count.</p><small>Expressive captions, timed to your voice. Made for English talking-head videos.</small>
- <ui.Button onClick={()=>load()} disabled={busy||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
+ <ui.Button onClick={()=>load()} disabled={busy||macOnly||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
+ {macOnly&&<ui.Message>{MAC_ONLY}</ui.Message>}
  <small>Use an analyzed, vertical 9:16 draft. Your original stays intact.</small></>}
  {complete&&<><ui.Message>Your captioned draft is ready.</ui.Message>{pendingPlan&&!busy&&<ui.Button variant="secondary" onClick={()=>load(job.sourceId)}>Finish prepared version</ui.Button>}
  <ui.Button disabled={busy} onClick={()=>action(async()=>{await run(`return await selects.editor.openDraft(${JSON.stringify(job.targetId)});`,'Open captioned draft');})}>Open preview</ui.Button>

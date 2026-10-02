@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "travel-beat-vlog",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "name": "Travel Beat Vlog",
   "summary": "Cut a travel beat vlog to your own song: two fast montages on its drum hits, a hero photo with a big title behind the people, two 2x2 grids on the beat, per-slot reference colour and a fade.",
   "status": "experimental",
@@ -12,19 +12,16 @@
     "INSTALL.md",
     "THIRD_PARTY.md",
     "VALIDATION.md",
-    "operation.mjs",
-    "analyze.mjs",
-    "build-script.mjs",
     "panel.tsx",
     "color-targets.json",
-    "tools/cutout.js",
-    "runtime.sh"
+    "tools/cutout.js"
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Needs public Video/Audio overlays, clip effects and motion graphics, the editor's existing original Image placement service for the hero photo, a pinned Node.js that runtime.sh downloads on first use (no Node.js or Xcode Command Line Tools needed), and Apple Vision person instance masks (macOS 14 or later) through osascript (JavaScript for Automation) for the hero cutout. Verified in Selects Staging 2.0.519 and a local develop build on 2026-10-02 with a user song: saved Draft readback and export (pixel-identical between the two). The first-run Node.js download and the osascript cutout have not yet been run inside the app."
+    "selects": "Needs public Video/Audio overlays, clip effects and motion graphics, the editor's existing original Image placement service for the hero photo, the host's bundled FFmpeg (Runtime.runFFmpeg) and FileSystem for the song and colour (nothing to install on either OS), and on macOS Apple Vision person instance masks (macOS 14 or later) through osascript (JavaScript for Automation) for the hero cutout. On Windows the cutout is skipped: the title sits over the hero photo with no subject in front. Verified in Selects Staging 2.0.519 and a local develop build on 2026-10-02 with a user song: saved Draft readback and export (pixel-identical between the two). The song, colour and finishing code now run inside the panel (no Node.js) and give the same results as the earlier Node.js engine on the same inputs; that panel and the osascript cutout have not yet been run inside the app, and the Windows build has not been run on a Windows machine."
   },
   "preview": {
     "video": "preview.mp4",
@@ -81,8 +78,7 @@
     }
   ],
   "prepare": [
-    "26 travel videos, 1 photo with people in it and 1 song with a clear beat",
-    "An internet connection the first time (it downloads Node.js once)"
+    "26 travel videos, 1 photo with people in it and 1 song with a clear beat"
   ],
   "options": [
     {
