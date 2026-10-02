@@ -67,8 +67,8 @@ function chooseShots(files, mode) {
 }
 
 // Every video and audio file in the project, with its folder, path, length and size.
-function mediaScript(projectId) {
-  return `const p=selects.project(${JSON.stringify(projectId)}); const [meta,overview]=await Promise.all([p.meta(),p.sourceFiles()]); const items=[]; function walk(nodes,parts){ for(const node of nodes){ if(node.type==="dir") walk(node.children,parts.concat(node.name)); else items.push({name:node.name,type:node.type,resourceId:node.resourceId,path:node.path,durationSeconds:node.durationSeconds,frameSize:node.frameSize,folder:parts.join("/")||"(root)"}); }} if("fileTree" in overview) walk(overview.fileTree,[]); else { for(const folder of overview.folders){ const page=await p.sourceFiles({folder:folder.name}); if("fileTree" in page) walk(page.fileTree,folder.name==="(root)"?[]:[folder.name]); }} return {projectTitle:meta.title,videos:items.filter(x=>x.type==="video"),audios:items.filter(x=>x.type==="audio")};`;
+function mediaScript(projectId, resourceIds = null) {
+  return `const selected = ${JSON.stringify(resourceIds)};const p=selects.project(${JSON.stringify(projectId)}); const [meta,overview]=await Promise.all([p.meta(),p.sourceFiles()]); const items=[]; function walk(nodes,parts){ for(const node of nodes){ if(node.type==="dir") walk(node.children,parts.concat(node.name)); else items.push({name:node.name,type:node.type,resourceId:node.resourceId,path:node.path,durationSeconds:node.durationSeconds,frameSize:node.frameSize,folder:parts.join("/")||"(root)"}); }} if("fileTree" in overview) walk(overview.fileTree,[]); else { for(const folder of overview.folders){ const page=await p.sourceFiles({folder:folder.name}); if("fileTree" in page) walk(page.fileTree,folder.name==="(root)"?[]:[folder.name]); }} return {projectTitle:meta.title,videos:items.filter(x=>x.type==="video"&&(!selected||selected.includes(x.resourceId))),audios:items.filter(x=>x.type==="audio")};`;
 }
 
 // Host paths compared the Windows way too: NFC, "/" separators, and case-folded on win32.
@@ -306,14 +306,15 @@ const TEMPLATE_FAILED = "pov: you open my gallery couldn't make the timeline. Tr
 // The app's list (sdk.call) and the script's list are the Project's Resources in
 // the same order, so they pair up row by row; names and types are compared so a
 // list that changed in between is refused rather than mismatched.
-async function scriptResourceIds(sdk, projectId) {
-  const [app, run] = await Promise.all([
-    sdk.call("listProjectResources", projectId),
-    sdk.runScript({ summary: "Match picked clips", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
-  ]);
-  const rows = run?.result;
-  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked clips to this project.");
-  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+async function scriptResourceIds(sdk, projectId, resourceIds) {
+  const app = await sdk.call("listProjectResources", projectId);
+  if (!Array.isArray(app)) throw new Error("Could not read the project resources.");
+  const indices = [...new Set(resourceIds)].map(id => app.findIndex(r => r.resourceId === id));
+  if (indices.includes(-1)) throw new Error("A picked file is missing from this project.");
+  const run = await readMediaPages(sdk, { summary: "Match picked files", script: `const rows=await selects.project(${JSON.stringify(projectId)}).resources();return {count:rows.length,rows:${JSON.stringify(indices)}.map(i=>{const r=rows[i];return r?{id:r.resourceId,name:r.name,type:r.type}:null;})};` });
+  const result = run.result, rows = result.rows;
+  if (result.count !== app.length || rows.length !== indices.length || indices.some((index, i) => app[index].name !== rows[i]?.name || app[index].type !== rows[i]?.type)) throw new Error("Could not match the picked files to this project.");
+  return new Map(indices.map((index, i) => [app[index].resourceId, rows[i].id]));
 }
 
 // A Clip highlights run (`context.template`): the 15 clips picked in the app,
@@ -335,9 +336,9 @@ function TemplateRun({ sdk, context }) {
       if (!projectId) throw new Error("Open a project, then try again.");
       const picks = (template.inputs?.clips || []).filter((pick) => pick?.resourceId);
       if (picks.length !== SHOT_COUNT) throw new Error(`Pick ${SHOT_COUNT} videos, then try again.`);
-      const reply = await sdk.runScript({ summary: "Find gallery media", script: mediaScript(projectId) });
+      const ids = await scriptResourceIds(sdk, projectId, picks.map(x => x.resourceId));
+      const reply = await readMediaPages(sdk, { summary: "Find gallery media", script: mediaScript(projectId, [...ids.values()]) });
       if (reply.isError || !reply.result) throw new Error("Couldn't read this project's files. Try again.");
-      const ids = await scriptResourceIds(sdk, projectId);
       const byId = new Map((reply.result.videos || []).map((item) => [item.resourceId, item]));
       const files = picks.map((pick) => byId.get(ids.get(pick.resourceId) ?? pick.resourceId));
       const missing = picks.find((pick, index) => !files[index]?.path);
@@ -383,7 +384,7 @@ function GalleryPanel({ sdk, context, ui }) {
     setLoading(true);
     setStatus(null);
     const script = mediaScript(context.projectId);
-    sdk.runScript({ summary: "Find gallery media", script }).then((reply) => {
+    readMediaPages(sdk, { summary: "Find gallery media", script }).then((reply) => {
       if (cancelled) return;
       if (reply.isError || !reply.result) throw new Error(reply.output || "Could not read project files");
       const found = reply.result;
@@ -441,4 +442,20 @@ function GalleryPanel({ sdk, context, ui }) {
     <ui.Actions><ui.Button variant="primary" busy={busy} busyLabel={t.working} disabled={loading || !folder || eligibleVideoCount < SHOT_COUNT} onClick={build}>{t.build}</ui.Button></ui.Actions>
     {status ? <ui.Message tone={status.type}>{status.message}</ui.Message> : null}
   </ui.Section>;
+}
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
 }

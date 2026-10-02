@@ -3266,10 +3266,7 @@ export default function Panel({ sdk, context, ui }: any) {
   const loadResources = React.useCallback(async () => {
     if (!projectId) return;
     try {
-      const rows = await script(
-        `return (await selects.project(${JSON.stringify(projectId)}).resources()).filter((r: any) => r.type === "Video").map((r: any) => ({ id: r.resourceId, name: r.name, analyzed: r.hasAnalysis, sec: Math.round(r.durationSeconds ?? 0) }));`,
-        "List project videos"
-      );
+      const rows = (await readMediaPages(sdk, {script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).filter((r: any) => r.type === "Video").map((r: any) => ({ id: r.resourceId, name: r.name, analyzed: r.hasAnalysis, sec: Math.round(r.durationSeconds ?? 0) }));`, summary: "List project videos"})).result;
       setResources(rows || []);
     } catch (e: any) {
       setError(String(e?.message || e));
@@ -4058,3 +4055,19 @@ export default function Panel({ sdk, context, ui }: any) {
   );
 }
 
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
+}

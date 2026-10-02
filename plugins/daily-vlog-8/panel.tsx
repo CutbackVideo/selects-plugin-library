@@ -763,16 +763,17 @@ const templateIssue = message => Object.assign(new Error(message), { publicMessa
 // The app's list (sdk.call) and the script's list are the Project's Resources in
 // the same order, so they pair up row by row; names and types are compared so a
 // list that changed in between is refused rather than mismatched.
-async function scriptResourceIds(sdk, projectId) {
-  const [app, run] = await Promise.all([
-    sdk.call("listProjectResources", projectId),
-    sdk.runScript({ summary: "Match picked clips", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
-  ]);
-  const rows = run?.result;
-  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked clips to this project.");
-  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+async function scriptResourceIds(sdk, projectId, resourceIds) {
+  const app = await sdk.call("listProjectResources", projectId);
+  if (!Array.isArray(app)) throw new Error("Could not read the project resources.");
+  const indices = [...new Set(resourceIds)].map(id => app.findIndex(r => r.resourceId === id));
+  if (indices.includes(-1)) throw new Error("A picked file is missing from this project.");
+  const run = await readMediaPages(sdk, { summary: "Match picked files", script: `const rows=await selects.project(${JSON.stringify(projectId)}).resources();return {count:rows.length,rows:${JSON.stringify(indices)}.map(i=>{const r=rows[i];return r?{id:r.resourceId,name:r.name,type:r.type}:null;})};` });
+  const result = run.result, rows = result.rows;
+  if (result.count !== app.length || rows.length !== indices.length || indices.some((index, i) => app[index].name !== rows[i]?.name || app[index].type !== rows[i]?.type)) throw new Error("Could not match the picked files to this project.");
+  return new Map(indices.map((index, i) => [app[index].resourceId, rows[i].id]));
 }
-const VIDEO_LENGTHS = pid => `const rows=await selects.project(${JSON.stringify(pid)}).resources();return rows.filter(x=>x.type==='Video').map(x=>({id:x.resourceId,name:x.name,duration:x.durationSeconds||0}));`;
+const VIDEO_LENGTHS = (pid, resourceIds = null) => `const selected=${JSON.stringify(resourceIds)};const rows=await selects.project(${JSON.stringify(pid)}).resources();return rows.filter(x=>x.type==='Video'&&(!selected||selected.includes(x.resourceId))).map(x=>({id:x.resourceId,name:x.name,duration:x.durationSeconds||0}));`;
 
 function DailyTemplateRun({ sdk, context }) {
   const runId = context.template?.runId;
@@ -796,9 +797,9 @@ function DailyTemplateRun({ sdk, context }) {
         if (!opening) throw templateIssue("Pick an opening clip, then try again.");
         if (clips.length < 7) throw templateIssue("Pick at least seven more clips, then try again.");
         say("Finding your clips…");
-        const ids = await scriptResourceIds(sdk, projectId);
+        const ids = await scriptResourceIds(sdk, projectId, [opening, ...clips].map(x => x.resourceId));
         const own = pick => pick && { ...pick, resourceId: ids.get(pick.resourceId) ?? pick.resourceId };
-        const r = await sdk.runScript({ summary: "List daily vlog videos", script: VIDEO_LENGTHS(projectId), allowCommit: false });
+        const r = await readMediaPages(sdk, { summary: "List daily vlog videos", script: VIDEO_LENGTHS(projectId, [...ids.values()]), allowCommit: false });
         if (r.isError || !Array.isArray(r.result)) throw new Error(r.output || "Could not read the project videos.");
         const byId = new Map(r.result.map(v => [v.id, v]));
         opening = own(opening); clips = clips.map(own);
@@ -1033,4 +1034,19 @@ return videos;`;
       <p>{t.credit} · freesound.org/people/theplax/sounds/624936/</p>
     </ui.Section>
   </>;
+}
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
 }

@@ -1,6 +1,10 @@
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const all = await p.resources();
+const page = Object(cfg).page;
+const pageRows = page ? all.slice(page.offset, page.offset + page.size) : all;
+const pageIds = new Set(pageRows.map(r => r.resourceId));
+const inPage = r => pageIds.has(r.resourceId);
 const sizes = {}, paths = {};
 const walk = nodes => { for (const n of nodes || []) { if (n.type === 'dir') walk(n.children); else if (n.resourceId) { sizes[n.resourceId] = n.frameSize || null; if (n.path) paths[n.resourceId] = n.path; } } };
 const files = await p.sourceFiles();
@@ -21,8 +25,8 @@ const started = Date.now();
 // none today), selects.media.probe on the files, within cfg.probeMs (default 4 s). Counted over the whole Project,
 // whatever `only` narrows.
 const captured = {};
-for (const r of all) if (r.type === 'Video' || r.type === 'Image') captured[r.resourceId] = recordedAt(r);
-const toProbe = Object.keys(captured).filter(id => !captured[id] && paths[id]).slice(0, cfg.probeMax || 200);
+for (const r of pageRows) if (r.type === 'Video' || r.type === 'Image') captured[r.resourceId] = recordedAt(r);
+const toProbe = Object.keys(captured).filter(id => !captured[id] && paths[id]).slice(0, cfg.probeMax ?? 200);
 const probeBudget = cfg.probeMs == null ? 4000 : cfg.probeMs;
 let probed = 0;
 const media = Object(selects).media;
@@ -60,7 +64,7 @@ let unanalysed = 0, missing = 0, withoutAnalysis = 0;
 // 'pending', so a queued or running workflow for the clip (or a running project:create fan-out) counts it as being
 // analysed. One workflows() read; if it fails, a pending clip is counted as not analysed and statusKnown is false.
 // Members of a Synced Timeline in the set are left out (the timeline itself is used).
-const own = video.filter(r => !(r.owningSyncedSequenceResourceId && ids.has(r.owningSyncedSequenceResourceId)));
+const own = video.filter(r => inPage(r) && !(r.owningSyncedSequenceResourceId && ids.has(r.owningSyncedSequenceResourceId)));
 const waiting = own.filter(r => !r.hasAnalysis);
 const busyRids = new Set();
 let fanout = false, statusKnown = true;
@@ -97,7 +101,7 @@ for (const r of own) {
 const known = cfg.known || {};
 const budget = cfg.measureMs == null ? 8000 : cfg.measureMs;
 const photos = [];
-for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
+for (const r of all.filter(r => r.type === 'Image' && wanted(r) && inPage(r))) {
   let size = sizes[r.resourceId] || known[r.resourceId] || null;
   if (!(size && size.width > 0 && size.height > 0) && Date.now() - started < budget) {
     try {
@@ -110,4 +114,4 @@ for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
   photos.push({ rid: r.resourceId, name: r.name, width: ok ? size.width : null, height: ok ? size.height : null,
     recordedAt: recordedAt(r), capturedAt: captured[r.resourceId] || null, month: monthOf(captured[r.resourceId]), kind: 'photo' });
 }
-return { resources, photos, months, skipped: { unanalysed, withoutAnalysis, missing, analysing, notAnalysed, failed, statusKnown }, captureDates: { known: months.reduce((a, n) => a + n, 0), probed } };
+return { ...(page ? { page: { total: all.length, probeCount: probeBudget > 0 ? toProbe.length : 0, elapsedMs: Date.now() - started } } : {}), resources, photos, months, skipped: { unanalysed, withoutAnalysis, missing, analysing, notAnalysed, failed, statusKnown }, captureDates: { known: months.reduce((a, n) => a + n, 0), probed } };

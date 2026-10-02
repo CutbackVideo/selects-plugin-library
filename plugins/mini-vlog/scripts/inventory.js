@@ -9,6 +9,10 @@ const loose = v => v;
 let incomplete = false;
 const list = v => { if (Array.isArray(v)) return v; incomplete = true; return []; };
 const all = list(loose(await p.resources())).filter(r => r && typeof r === 'object' && typeof r.resourceId === 'string' && r.resourceId);
+const page = Object(cfg).page;
+const pageRows = page ? all.slice(page.offset, page.offset + page.size) : all;
+const pageIds = new Set(pageRows.map(r => r.resourceId));
+const inPage = r => pageIds.has(r.resourceId);
 // Frame sizes and source file paths by resource id, from the source file tree.
 const sizes = {}, paths = {};
 const walk = nodes => { for (const n of Array.isArray(nodes) ? nodes : []) { if (!n || typeof n !== 'object') continue; if (n.type === 'dir') walk(n.children); else if (n.resourceId) { sizes[n.resourceId] = n.frameSize || null; paths[n.resourceId] = typeof n.path === 'string' && n.path ? n.path : null; } } };
@@ -34,7 +38,7 @@ const resources = [];
 // videos without analysis that cannot be used yet (no length, or no file: still importing, moved, or the file tree
 // could not be read); skipped.missing analysed videos without a length.
 let unanalysed = 0, missing = 0, notAnalysed = 0;
-for (const r of video) {
+for (const r of video.filter(inPage)) {
   if (r.owningSyncedSequenceResourceId && ids.has(r.owningSyncedSequenceResourceId)) continue;
   const analysed = !!r.hasAnalysis;
   if (!(typeof r.durationSeconds === 'number' && r.durationSeconds > 0)) { if (analysed) missing++; else unanalysed++; continue; }
@@ -54,7 +58,7 @@ const known = cfg.known || {};
 const budget = cfg.measureMs == null ? 8000 : cfg.measureMs;
 const started = Date.now();
 const photos = [];
-for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
+for (const r of all.filter(r => r.type === 'Image' && wanted(r) && inPage(r))) {
   let size = sizes[r.resourceId] || known[r.resourceId] || null;
   if (!(size && size.width > 0 && size.height > 0) && Date.now() - started < budget) {
     try {
@@ -66,4 +70,4 @@ for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
   const ok = size && size.width > 0 && size.height > 0;
   photos.push({ rid: r.resourceId, name: nameOf(r), width: ok ? size.width : null, height: ok ? size.height : null, recordedAt: recordedAt(r), kind: 'photo' });
 }
-return { resources, photos, skipped: { unanalysed, missing, notAnalysed }, incomplete };
+return { ...(page ? { page: { total: all.length, elapsedMs: Date.now() - started } } : {}), resources, photos, skipped: { unanalysed, missing, notAnalysed }, incomplete };

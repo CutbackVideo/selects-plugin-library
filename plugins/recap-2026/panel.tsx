@@ -522,7 +522,7 @@ function RecapPanel({ sdk, context, ui }) {
     setThumbnails({});thumbnailCache.current={};
     const script = core({projectId,folders:folders.map((x)=>x.name)}) + RESOURCE_SECONDS +
       "const out=[];for(const name of cfg.folders){const r=await p.sourceFiles({folder:name});if(!('fileTree' in r))throw Error('Footage folder returned a summary');for(const x of r.fileTree){if(x.type!=='video')continue;const d=dur[x.resourceId]||x.durationSeconds;if(d>=1.7||!(d>0))out.push({resourceId:x.resourceId,name:x.name,path:x.path,durationSeconds:d,frameSize:x.frameSize,folderName:name});}}return out;";
-    sdk.runScript({script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then((list) => {
+    readMediaPages(sdk,{script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then((list) => {
       if (!live) return;
       const found = [...new Map(list.filter((v)=>v.durationSeconds>=1.7).map((v)=>[v.resourceId,v])).values()].sort((a,b) => a.name.localeCompare(b.name));
       setVideos(found);
@@ -850,3 +850,19 @@ async function hostProbeSeconds(path) {
   } catch { return null; }
 }
 // av-host:end
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
+}

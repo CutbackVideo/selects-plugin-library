@@ -418,10 +418,10 @@ export function cutoutCommand(tool,photo,out,mode){return '/usr/bin/osascript -l
 // mac-only:end
 // @operation-end
 
-const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.has(n.resourceId)).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path,width:n.frameSize?.width??null,height:n.frameSize?.height??null,duration:n.durationSeconds??null}));`;
+const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.has(n.resourceId)&&(!scope.paths||scope.paths.includes(n.path))&&(!scope.ids||scope.ids.includes(n.resourceId))).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path,width:n.frameSize?.width??null,height:n.frameSize?.height??null,duration:n.durationSeconds??null}));`;
 // Right after the app opens a Project its file list can briefly fail to read, so try once more.
-async function inventory(sdk,projectId,summary){
- const run=()=>sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary,allowCommit:false});
+async function inventory(sdk,projectId,summary,scope={}){
+ const run=()=>readMediaPages(sdk, {script:`const scope=JSON.parse(${JSON.stringify(JSON.stringify(scope))});`+INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary,allowCommit:false}).catch(()=>({isError:true}));
  let r=await run();
  if(r.isError||!Array.isArray(r.result)){await new Promise(done=>setTimeout(done,1500));r=await run();}
  if(r.isError||!Array.isArray(r.result))throw Error('Could not read the Project files. Wait a moment and load again.');
@@ -826,14 +826,15 @@ function templateMessage(error){
 // The app's list (sdk.call) and the script's list are the Project's Resources in
 // the same order, so they pair up row by row; names and types are compared so a
 // list that changed in between is refused rather than mismatched.
-async function scriptResourceIds(sdk, projectId) {
-  const [app, run] = await Promise.all([
-    sdk.call("listProjectResources", projectId),
-    sdk.runScript({ summary: "Match picked files", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
-  ]);
-  const rows = run?.result;
-  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked files to this project.");
-  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+async function scriptResourceIds(sdk, projectId, resourceIds) {
+  const app = await sdk.call("listProjectResources", projectId);
+  if (!Array.isArray(app)) throw new Error("Could not read the project resources.");
+  const indices = [...new Set(resourceIds)].map(id => app.findIndex(r => r.resourceId === id));
+  if (indices.includes(-1)) throw new Error("A picked file is missing from this project.");
+  const run = await readMediaPages(sdk, { summary: "Match picked files", script: `const rows=await selects.project(${JSON.stringify(projectId)}).resources();return {count:rows.length,rows:${JSON.stringify(indices)}.map(i=>{const r=rows[i];return r?{id:r.resourceId,name:r.name,type:r.type}:null;})};` });
+  const result = run.result, rows = result.rows;
+  if (result.count !== app.length || rows.length !== indices.length || indices.some((index, i) => app[index].name !== rows[i]?.name || app[index].type !== rows[i]?.type)) throw new Error("Could not match the picked files to this project.");
+  return new Map(indices.map((index, i) => [app[index].resourceId, rows[i].id]));
 }
 async function templateMedia(sdk,projectId,inputs){
  const hero=(inputs?.hero||[]).filter(x=>x?.kind==='image'&&x.resourceId);
@@ -844,8 +845,8 @@ async function templateMedia(sdk,projectId,inputs){
  if(long.length!==LONG_SLOTS.length)throw templateIssue('Pick three long shots, then try again.');
  if(clips.length!==SHORT_SLOTS.length)throw templateIssue('Pick 23 clips, then try again.');
  if(song.length!==1)throw templateIssue('Pick one song, then try again.');
- const rows=await inventory(sdk,projectId,'List project media');
- const ids=await scriptResourceIds(sdk,projectId);
+ const ids=await scriptResourceIds(sdk, projectId, [...hero, ...long, ...clips, ...song].map(x => x.resourceId));
+ const rows=await inventory(sdk,projectId,'List project media',{ids:[...ids.values()]});
  const row=(pick,type)=>{
   const id=ids.get(pick.resourceId)??pick.resourceId;
   const m=rows.find(r=>r.resourceId===id&&r.type===type);
@@ -952,4 +953,20 @@ function TravelPanel({sdk,context,ui}){
   {status&&<ui.Message>{status}</ui.Message>}
   {saved&&<ui.Button variant="secondary" onClick={()=>sdk.runScript({script:'return await selects.editor.openDraft('+JSON.stringify(saved.draftId)+');',summary:'Open saved Draft',allowCommit:false})}>Open saved Draft</ui.Button>}
  </ui.Section></ui.Stack>;
+}
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
 }

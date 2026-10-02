@@ -287,21 +287,22 @@ const TEMPLATE_TEXT = {
 };
 const TEMPLATE_FAILED = 'Cinema Vlog Studio could not make the timeline; try again.';
 const templateIssue = message => Object.assign(Error(message), { publicMessage: message });
-const videoLengths = pid => `const rows=await selects.project(${clean(pid)}).resources();return rows.filter(x=>x.type==='Video').map(x=>({resourceId:x.resourceId,name:x.name,duration:x.durationSeconds||0}));`;
+const videoLengths = (pid, resourceIds = null) => `const selected=${clean(resourceIds)};const rows=await selects.project(${clean(pid)}).resources();return rows.filter(x=>x.type==='Video'&&(!selected||selected.includes(x.resourceId))).map(x=>({resourceId:x.resourceId,name:x.name,duration:x.durationSeconds||0}));`;
 
 // The app hands a template its own Resource ids, but every run_script read
 // (resources(), clips()) speaks the short ids the script SDK gives out (r0, r1…).
 // The app's list (sdk.call) and the script's list are the Project's Resources in
 // the same order, so they pair up row by row; names and types are compared so a
 // list that changed in between is refused rather than mismatched.
-async function scriptResourceIds(sdk, projectId) {
-  const [app, run] = await Promise.all([
-    sdk.call("listProjectResources", projectId),
-    sdk.runScript({ summary: "Match picked clips", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
-  ]);
-  const rows = run?.result;
-  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked clips to this project.");
-  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+async function scriptResourceIds(sdk, projectId, resourceIds) {
+  const app = await sdk.call("listProjectResources", projectId);
+  if (!Array.isArray(app)) throw new Error("Could not read the project resources.");
+  const indices = [...new Set(resourceIds)].map(id => app.findIndex(r => r.resourceId === id));
+  if (indices.includes(-1)) throw new Error("A picked file is missing from this project.");
+  const run = await readMediaPages(sdk, { summary: "Match picked files", script: `const rows=await selects.project(${JSON.stringify(projectId)}).resources();return {count:rows.length,rows:${JSON.stringify(indices)}.map(i=>{const r=rows[i];return r?{id:r.resourceId,name:r.name,type:r.type}:null;})};` });
+  const result = run.result, rows = result.rows;
+  if (result.count !== app.length || rows.length !== indices.length || indices.some((index, i) => app[index].name !== rows[i]?.name || app[index].type !== rows[i]?.type)) throw new Error("Could not match the picked files to this project.");
+  return new Map(indices.map((index, i) => [app[index].resourceId, rows[i].id]));
 }
 
 export function templateSlotIds(title, cardIds, clips) {
@@ -336,10 +337,10 @@ function CinemaTemplateRun({ sdk, context }) {
         if (cardPicks.length !== 3) throw templateIssue('Pick three card clips, then try again.');
         if (!clipPicks.length) throw templateIssue('Pick the street clips, then try again.');
         say('Finding your clips…');
-        const scriptIds = await scriptResourceIds(sdk, projectId);
+        const scriptIds = await scriptResourceIds(sdk, projectId, [title, ...cardPicks, ...clipPicks].map(x => x.resourceId));
         const own = pick => pick && { ...pick, resourceId: scriptIds.get(pick.resourceId) ?? pick.resourceId };
         title = own(title); cardPicks = cardPicks.map(own); clipPicks = clipPicks.map(own);
-        const videos = await call(sdk, videoLengths(projectId), 'List Cinema Vlog videos');
+        const videos = (await readMediaPages(sdk, {script: videoLengths(projectId, [...scriptIds.values()]), summary: 'List Cinema Vlog videos'})).result;
         const byId = new Map(videos.map(v => [v.resourceId, v]));
         for (const pick of [title, ...cardPicks, ...clipPicks]) if (!byId.has(pick.resourceId)) throw templateIssue((pick.name || 'A picked clip') + ' is no longer in this project.');
         const ids = templateSlotIds(title.resourceId, cardPicks.map(x => x.resourceId), clipPicks.map(x => byId.get(x.resourceId)));
@@ -566,4 +567,19 @@ function CinemaVlogPanel({ sdk, context, ui }) {
       <p>Camera click: theplax · CC BY 4.0 · freesound.org/people/theplax/sounds/624936/</p>
     </ui.Section>
   </>;
+}
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
 }

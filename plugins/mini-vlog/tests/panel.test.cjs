@@ -395,9 +395,9 @@ assert.ok(runBody.includes('throw new BusyError('), 'a final busy failure is a B
 says('busy', "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.");
 assert.ok(ui.includes('this.say = (l) => t(l, "busy");'), 'BusyError says it in the UI language');
 // Inventory under load: the photo-size budget is small, and a retry skips measuring (assemble measures unsized photos).
-assert.ok(ui.includes('measureMs: attempt === 0 ? INVENTORY_MEASURE_MS : 0') && panel.includes('const INVENTORY_MEASURE_MS = 4000;'), 'inventory measures less under load');
+assert.ok(panel.includes('measureMs: attempt ? 0 : measureMs') && ui.includes('measureMs: INVENTORY_MEASURE_MS') && panel.includes('const INVENTORY_MEASURE_MS = 4000;'), 'inventory measures less under load');
 assert.ok(ui.includes('setInvError(e instanceof BusyError ? { busy: true, say: e.say } : { say: (l: Lang) => sayError(l, e) })'), 'busy inventory error message');
-assert.ok(ui.includes('wanted: live'), 'inventory retries stop for a stale Project');
+assert.ok(ui.includes('fill, live)'), 'inventory retries stop for a stale Project');
 // A Project still loading after an app restart: the first inventory read that fails (not busy) is tried once more
 // after 2 s, only from the mount effect (Refresh, focus and polling never auto-retry), and only while still wanted.
 assert.ok(panel.includes('const INVENTORY_RETRY_MS = 2000;'), 'retry delay');

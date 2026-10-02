@@ -1,6 +1,10 @@
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const all = await p.resources();
+const page = Object(cfg).page;
+const pageRows = page ? all.slice(page.offset, page.offset + page.size) : all;
+const pageIds = new Set(pageRows.map(r => r.resourceId));
+const inPage = r => pageIds.has(r.resourceId);
 const sizes = {}, paths = {};
 const walk = nodes => { for (const n of nodes || []) { if (n.type === 'dir') walk(n.children); else if (n.resourceId) { sizes[n.resourceId] = n.frameSize || null; paths[n.resourceId] = n.path || null; } } };
 const files = await p.sourceFiles();
@@ -16,7 +20,7 @@ const resources = [];
 // their frames in the panel (`analysed: false`, with `path` for the host's ffmpeg). skipped.unanalysed counts only
 // videos that cannot be used yet (no length or no file); skipped.notAnalysed the usable ones without analysis.
 let unanalysed = 0, missing = 0, notAnalysed = 0;
-for (const r of video) {
+for (const r of video.filter(inPage)) {
   if (r.owningSyncedSequenceResourceId && ids.has(r.owningSyncedSequenceResourceId)) continue;
   const size = sizes[r.resourceId];
   if (!(r.durationSeconds > 0)) { if (r.hasAnalysis) missing++; else unanalysed++; continue; }
@@ -34,7 +38,7 @@ const known = cfg.known || {};
 const budget = cfg.measureMs == null ? 8000 : cfg.measureMs;
 const started = Date.now();
 const photos = [];
-for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
+for (const r of all.filter(r => r.type === 'Image' && wanted(r) && inPage(r))) {
   let size = sizes[r.resourceId] || known[r.resourceId] || null;
   if (!(size && size.width > 0 && size.height > 0) && Date.now() - started < budget) {
     try {
@@ -46,4 +50,4 @@ for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
   const ok = size && size.width > 0 && size.height > 0;
   photos.push({ rid: r.resourceId, name: r.name, width: ok ? size.width : null, height: ok ? size.height : null, recordedAt: recordedAt(r), kind: 'photo' });
 }
-return { resources, photos, skipped: { unanalysed, missing, notAnalysed } };
+return { ...(page ? { page: { total: all.length, elapsedMs: Date.now() - started } } : {}), resources, photos, skipped: { unanalysed, missing, notAnalysed } };

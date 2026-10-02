@@ -9,6 +9,10 @@ const loose = v => v;
 let incomplete = false;
 const list = v => { if (Array.isArray(v)) return v; incomplete = true; return []; };
 const all = list(loose(await p.resources())).filter(r => r && typeof r === 'object' && typeof r.resourceId === 'string' && r.resourceId);
+const page = Object(cfg).page;
+const pageRows = page ? all.slice(page.offset, page.offset + page.size) : all;
+const pageIds = new Set(pageRows.map(r => r.resourceId));
+const inPage = r => pageIds.has(r.resourceId);
 const sizes = {}, paths = {};
 const walk = nodes => {
   for (const n of Array.isArray(nodes) ? nodes : []) {
@@ -43,7 +47,7 @@ const resources = [];
 // panel re-reads the inventory until they finish, so later builds use their analysis).
 const ANALYSING = ['sampling', 'samplingSucceeded', 'analyzing', 'analyzingSucceeded'];
 let unanalysed = 0, missing = 0, notAnalysed = 0, analysing = 0;
-for (const r of video) {
+for (const r of video.filter(inPage)) {
   if (r.owningSyncedSequenceResourceId && ids.has(r.owningSyncedSequenceResourceId)) continue;
   const size = sizes[r.resourceId];
   const hasLength = typeof r.durationSeconds === 'number' && r.durationSeconds > 0;
@@ -64,7 +68,7 @@ const known = cfg.known || {};
 const budget = cfg.measureMs == null ? 8000 : cfg.measureMs;
 const started = Date.now();
 const photos = [];
-for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
+for (const r of all.filter(r => r.type === 'Image' && wanted(r) && inPage(r))) {
   let size = sizes[r.resourceId] || known[r.resourceId] || null;
   if (!(size && size.width > 0 && size.height > 0) && Date.now() - started < budget) {
     try {
@@ -76,4 +80,4 @@ for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
   const ok = size && size.width > 0 && size.height > 0;
   photos.push({ rid: r.resourceId, name: nameOf(r), width: ok ? size.width : null, height: ok ? size.height : null, recordedAt: recordedAt(r), kind: 'photo' });
 }
-return { resources, photos, skipped: { unanalysed, missing, notAnalysed, analysing }, incomplete };
+return { ...(page ? { page: { total: all.length, elapsedMs: Date.now() - started } } : {}), resources, photos, skipped: { unanalysed, missing, notAnalysed, analysing }, incomplete };

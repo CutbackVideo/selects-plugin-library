@@ -209,7 +209,7 @@ export function buildNativeFinishScript(raw){
 }
 // @operation-end
 
-const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const ids=new Set(resources.filter(r=>r.type==='Image').map(r=>r.resourceId));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>ids.has(n.resourceId)&&n.path).map(n=>({resourceId:n.resourceId,name:n.name,path:n.path}));`;
+const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const ids=new Set(resources.filter(r=>r.type==='Image').map(r=>r.resourceId));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>ids.has(n.resourceId)&&n.path&&(!scope.paths||scope.paths.includes(n.path))).map(n=>({resourceId:n.resourceId,name:n.name,path:n.path}));`;
 
 // The editor's existing Image placement path is not exposed by the public panel SDK.
 // Keep this bridge narrow, validate every selected path, and reject unknown hosts.
@@ -421,7 +421,7 @@ async function hostProbeSeconds(path) {
 // run still belongs to its Project; `onSeed` runs just before the first save and
 // `onDraft` with the Draft the later steps fill. Returns the saved result.
 export async function createNo14Draft(sdk,{projectId,selected,decoration,framing,music=DEFAULT_MUSIC,name,partialDraftId=null,libraryId=null,stillCurrent,say,onSeed=()=>{},onDraft=_id=>{}}){
- const fresh=await sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary:'Confirm selected Image sources',allowCommit:false});
+ const fresh=await readMediaPages(sdk, {script:"const scope=JSON.parse('{}');"+INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary:'Confirm selected Image sources',allowCommit:false});
  if(fresh.isError||!Array.isArray(fresh.result)||selected.some(p=>fresh.result.filter(r=>r.resourceId===p.resourceId&&r.path===p.path).length!==1))throw Error('The selected photos changed. Reload the Project photos.');
  const prepared=await prepareNativeImages(window.parent,projectId,selected,libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
@@ -479,7 +479,7 @@ function No14Panel({sdk,context,ui}){
   if(!context.projectId||running.current)return;running.current=true;setBusy(true);setStatus('Loading project photos…');
   try{
    const projectId=context.projectId;
-   const r=await sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary:'List project photos',allowCommit:false});
+   const r=await readMediaPages(sdk, {script:"const scope=JSON.parse('{}');"+INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary:'List project photos',allowCommit:false});
    if(r.isError||!Array.isArray(r.result))throw Error(r.output||'Could not read project photos.');
    if(currentProject.current!==projectId)return;
    const rows=r.result;
@@ -563,20 +563,21 @@ async function templateSelection(sdk,app,projectId,libraryId,inputs){
  const project=libraryId?await di.ProjectRepository.findById(libraryId,projectId):null;
  if(!project)throw templateIssue('Could not find this Project; open it, then try again.');
  const members=new Set(project.getResources()||[]);
- const inventory=await sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary:'List project photos',allowCommit:false});
- if(inventory.isError||!Array.isArray(inventory.result))throw Error(inventory.output||'Could not read project photos.');
- const selected=[];
+ const paths=[];
  for(const pick of picks){
   const label=pick.name||'A picked photo';
   const resource=members.has(pick.resourceId)?await di.ResourceRepository.findById(libraryId,pick.resourceId):null;
   if(!resource)throw templateIssue(label+' is missing from this Project.');
   if(resource.getType()!=='Image')throw templateIssue(label+' is not a photo Four Photo Reveal can use.');
   const media=resource.getMedia(),path=media?.originalPath??media?.path;
-  const rows=path?inventory.result.filter(row=>row.path===path):[];
-  if(rows.length!==1)throw templateIssue(label+' is missing from this Project or matches more than one photo.');
-  selected.push(rows[0]);
+  paths.push(path);
  }
- return selected;
+ const rows=await inventory(sdk,projectId,'List project photos',{paths});
+ return paths.map((path,i)=>{
+  const matches=path?rows.filter(row=>row.path===path):[];
+  if(matches.length!==1)throw templateIssue((picks[i].name||'A picked photo')+' is missing from this Project or matches more than one photo.');
+  return matches[0];
+ });
 }
 // One plain sentence for the person, from a failure before anything was saved.
 function templateMessage(error){
@@ -631,3 +632,24 @@ function No14TemplateRun({sdk,context}){
  return <p role="status" style={{margin:0,fontSize:12,color:'var(--panel-muted-fg)'}}>{status}</p>;
 }
 
+
+async function inventory(sdk,projectId,summary,scope={}) {
+ const r=await readMediaPages(sdk,{script:`const scope=JSON.parse(${JSON.stringify(JSON.stringify(scope))});`+INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary});
+ return r.result;
+}
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
+}

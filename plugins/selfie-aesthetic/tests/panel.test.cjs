@@ -162,7 +162,7 @@ test('whip mode defaults to effect; queries match the spec and search.js', () =>
 test('configs sent to each script carry what the scripts read', () => {
   assert.ok(own.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
   // inventory: measureMs 0 while Use photos is off.
-  assert.ok(own.includes('fill(assets.scripts.inventoryJs, { projectId: pid, only: null, known: photoSizesRef.current, ...(settings.usePhotos ? {} : { measureMs: 0 }) })'));
+  assert.ok(own.includes('readInventoryPages((summary, make) => run(summary, make(0)), assets.scripts.inventoryJs, { projectId: pid, only: null, known: photoSizesRef.current, ...(settings.usePhotos ? {} : { measureMs: 0 }) }, fill'));
   // bad spans via sdk.call, guarded.
   assert.ok(own.includes('sdk.call("getResourceVisualSpans", pid, id)') && own.includes('catch { return null; }'));
   // planner: photos / usePhotos / seed / section.

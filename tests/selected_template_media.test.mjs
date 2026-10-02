@@ -10,7 +10,7 @@ const source=id=>fs.readFileSync(path.join(root,id,'panel.tsx'),'utf8');
 const recapSource=source('recap-2026');
 const videosName=recapSource.includes('const selectedVideosScript')?'selectedVideosScript':'allVideosScript';
 const recap=loadPanelFunctions(recapSource,['embedded','core','scriptResult','RESOURCE_SECONDS',videosName,'scriptResourceIds']);
-const camera=loadPanelFunctions(source('camera-shutter-dump'),['INVENTORY','samePath','inventory','SLOTS','TEMPLATE_UNSUPPORTED','templateIssue','templateSelection','ensureSounds'],{
+const camera=loadPanelFunctions(source('camera-shutter-dump'),['readMediaPages','INVENTORY','samePath','inventory','SLOTS','TEMPLATE_UNSUPPORTED','templateIssue','templateSelection','ensureSounds'],{
  unpackSounds:async()=>Object.fromEntries(Array.from({length:6},(_,i)=>['shutter.'+(i+1),{path:`C:\\Sounds\\shutter-${i}.wav`}]))
 });
 

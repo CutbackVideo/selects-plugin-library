@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "four-photo-stop-motion",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "name": "Four Photo Stop Motion",
   "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips.",
   "status": "experimental",

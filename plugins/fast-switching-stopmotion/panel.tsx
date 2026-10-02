@@ -490,8 +490,8 @@ async function aiPick(sdk, image: string, rows: { name: string; starts: number[]
 }
 
 // The project's videos and audio: names, durations, file paths and frame rates.
-function mediaScript(projectId: string) {
-  return `const project = selects.project(${JSON.stringify(projectId)});
+function mediaScript(projectId: string, resourceIds: string[] | null = null) {
+  return `const selected = ${JSON.stringify(resourceIds)};const project = selects.project(${JSON.stringify(projectId)});
 const files = {};
 const walk = (nodes) => { for (const n of nodes ?? []) { if (n.resourceId) files[n.resourceId] = n; walk(n.children); } };
 // Past 200 files sourceFiles() returns per-folder counts; read each folder then.
@@ -499,7 +499,7 @@ const tree = await project.sourceFiles();
 if ("fileTree" in tree) walk(tree.fileTree);
 else for (const f of tree.folders) { const sub = await project.sourceFiles({ folder: f.name }); if ("fileTree" in sub) walk(sub.fileTree); }
 return (await project.resources())
-  .filter(r => r.type === "Video" || r.type === "Audio")
+  .filter(r => (r.type === "Video" || r.type === "Audio") && (!selected || selected.includes(r.resourceId)))
   .map(r => ({ id: r.resourceId, name: r.name, type: r.type, seconds: r.durationSeconds ?? 0,
     path: files[r.resourceId]?.path ?? null, fps: files[r.resourceId]?.frameRate ?? null }));`;
 }
@@ -629,14 +629,15 @@ const TEMPLATE_FAILED = "Fast Switching Stop Motion couldn't make the timeline. 
 // The app's list (sdk.call) and the script's list are the Project's Resources in
 // the same order, so they pair up row by row; names and types are compared so a
 // list that changed in between is refused rather than mismatched.
-async function scriptResourceIds(sdk, projectId) {
-  const [app, run] = await Promise.all([
-    sdk.call("listProjectResources", projectId),
-    sdk.runScript({ summary: "Match picked clips", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
-  ]);
-  const rows = run?.result;
-  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked clips to this project.");
-  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+async function scriptResourceIds(sdk, projectId, resourceIds) {
+  const app = await sdk.call("listProjectResources", projectId);
+  if (!Array.isArray(app)) throw new Error("Could not read the project resources.");
+  const indices = [...new Set(resourceIds)].map(id => app.findIndex(r => r.resourceId === id));
+  if (indices.includes(-1)) throw new Error("A picked file is missing from this project.");
+  const run = await readMediaPages(sdk, { summary: "Match picked files", script: `const rows=await selects.project(${JSON.stringify(projectId)}).resources();return {count:rows.length,rows:${JSON.stringify(indices)}.map(i=>{const r=rows[i];return r?{id:r.resourceId,name:r.name,type:r.type}:null;})};` });
+  const result = run.result, rows = result.rows;
+  if (result.count !== app.length || rows.length !== indices.length || indices.some((index, i) => app[index].name !== rows[i]?.name || app[index].type !== rows[i]?.type)) throw new Error("Could not match the picked files to this project.");
+  return new Map(indices.map((index, i) => [app[index].resourceId, rows[i].id]));
 }
 
 // A Clip highlights run (`context.template`): the videos picked in the app,
@@ -660,10 +661,10 @@ function TemplateRun({ sdk, context }) {
       if (!projectId) throw new Error("Open a project, then try again.");
       const picks = (template.inputs?.looks ?? []).filter((pick) => pick?.resourceId);
       if (picks.length < 2) throw new Error(t.needTwo);
-      const r = await sdk.runScript({ summary: "Read project media", script: mediaScript(projectId) });
+      const ids = await scriptResourceIds(sdk, projectId, picks.map(x => x.resourceId));
+      const r = await readMediaPages(sdk, { summary: "Read project media", script: mediaScript(projectId, [...ids.values()]) });
       if (r.isError || !Array.isArray(r.result)) throw new Error("Couldn't read this project's videos. Try again.");
       const byId = new Map((r.result as Media[]).filter((m) => m.type === "Video").map((m) => [m.id, m]));
-      const ids = await scriptResourceIds(sdk, projectId);
       const chosen = picks.map((pick) => byId.get(ids.get(pick.resourceId) ?? pick.resourceId));
       const missing = picks.find((pick, i) => !chosen[i]?.path);
       if (missing) throw new Error(`Couldn't find ${missing.name || "a picked video"} in this project. Try again.`);
@@ -707,10 +708,11 @@ function StopMotionPanel({ sdk, context, ui }) {
     let live = true;
     let signature = "";
     let first = true;
+    let reading = false;
 
     // Full read: names, durations, file paths and frame rates.
     async function load() {
-      const r = await sdk.runScript({
+      const r = await readMediaPages(sdk, {
         summary: "Read project media",
         script: mediaScript(projectId),
       });
@@ -736,7 +738,8 @@ function StopMotionPanel({ sdk, context, ui }) {
     // Cheap check: re-read everything only when the resource list changed,
     // so videos added or removed after the panel opened show up by themselves.
     async function check() {
-      if (!live || busyRef.current || document.visibilityState !== "visible") return;
+      if (!live || reading || busyRef.current || document.visibilityState !== "visible") return;
+      reading = true;
       try {
         const rows = await sdk.call("listProjectResources", projectId);
         const next = (rows ?? []).map((r) => `${r.resourceId}:${r.type}:${r.status}`).sort().join("|");
@@ -744,6 +747,8 @@ function StopMotionPanel({ sdk, context, ui }) {
         if (next !== signature && (await load())) signature = next;
       } catch (e) {
         if (live && first) setStatus({ tone: "error", text: String(e) });
+      } finally {
+        reading = false;
       }
     }
 
@@ -826,4 +831,20 @@ function StopMotionPanel({ sdk, context, ui }) {
       {status && <ui.Message tone={status.tone}>{status.text}</ui.Message>}
     </ui.Stack>
   );
+}
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
 }

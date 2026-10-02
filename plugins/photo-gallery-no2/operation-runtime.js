@@ -36,7 +36,7 @@ function galleryResolveResource(items, resourceId, path, label) {
   return matches[0];
 }
 
-async function galleryInventory(project) {
+async function galleryInventory(project, paths = null) {
   const resources = await project.resources();
   const byId = new Map();
   for (const row of resources) byId.set(row.resourceId, row);
@@ -60,7 +60,7 @@ async function galleryInventory(project) {
   const seen = new Set();
   for (const node of nodes) {
     const resource = byId.get(node.resourceId);
-    if (!resource || seen.has(node.resourceId) || typeof node.path !== 'string') continue;
+    if (!resource || seen.has(node.resourceId) || typeof node.path !== 'string' || (paths && !paths.includes(node.path))) continue;
     const type = String(resource.type).toLowerCase();
     const kind = type === 'image' ? 'image' : type === 'video' ? 'video' : type === 'audio' ? 'audio' : null;
     if (!kind) continue;
@@ -74,6 +74,7 @@ async function galleryInventory(project) {
     seen.add(node.resourceId);
   }
   const unavailable = resources.filter((resource) =>
+    (!paths || nodes.some(n => n.resourceId === resource.resourceId && paths.includes(n.path))) &&
     ['image', 'video', 'audio'].includes(String(resource.type).toLowerCase()) &&
     !media.some((item) => item.resourceId === resource.resourceId) &&
     !audio.some((item) => item.resourceId === resource.resourceId));
@@ -510,7 +511,7 @@ async function galleryOperation(selects, raw) {
   try {
     const input = assertGalleryInput(raw);
     const project = selects.project(input.projectId);
-    const inventory = await galleryInventory(project);
+    const inventory = await galleryInventory(project, input.operation === 'inspect' ? input.paths : null);
     if (input.operation === 'inspect') return { status: 'inspected', projectId: input.projectId, ...inventory };
     if (input.operation === 'importBundledMusic') return await galleryImportBundledMusic(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'importConverted') return await galleryImportConverted(selects, project, input, inventory, () => { commitStarted = true; });
