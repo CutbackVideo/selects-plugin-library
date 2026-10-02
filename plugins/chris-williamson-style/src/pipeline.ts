@@ -7,12 +7,16 @@ async function probeFrameSizes(env:Env,files:Record<string,any>){
       if(s?.width&&s?.height)f.frameSize=rot===90?{width:s.height,height:s.width}:{width:s.width,height:s.height};}catch{}
   }
 }
-// The background music, downloaded once into the data folder by the host and checked with its ffprobe.
-async function fetchMusic(dir:string,musicPath:string){
+// The background music, downloaded once into the data folder by the host and checked with its ffprobe. On macOS a
+// failed host download is tried once more with curl and a browser user agent, as before.
+async function fetchMusic(env:Env,dir:string,musicPath:string){
   const fs=hostNeed("FileSystem","downloadFile");
   mkdirs(dir);
   let size=0;try{size=fs.existsSync?.(musicPath)?Number(fs.statSync?.(musicPath)?.size||0):0;}catch{size=0;}
   if(!size)try{await fs.downloadFile(MUSIC.url,musicPath);}catch{/* reported below */}
+  // mac-only:start
+  if(!hostIsWindows()&&!await hostProbeSeconds(musicPath)){await hostRemove(musicPath);try{await env.runShell('curl -L -sS --max-time 240 -A "Mozilla/5.0" -o '+q(musicPath)+' '+q(MUSIC.url),'Fetch the background music',300000);}catch{/* reported below */}}
+  // mac-only:end
   if(!await hostProbeSeconds(musicPath)){await hostRemove(musicPath);throw new Error("The background music could not be downloaded; check the internet connection and try again.");}
 }
 const stateFile =(env:Env,id:string) => hostJoin(env.dataDir,"states",id.replace(/[^a-zA-Z0-9_-]/g,"")+".json");
@@ -98,9 +102,13 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     for(const item of Object.values(state.items) as any[])if(item.status==='applied'&&!idSet.has(item.clipId))item.status='deleted';
   }
   await save();
-  // mac-only:start
-  const engine=async(cmd:string,file:string,summary:string,timeoutMs:number)=>env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),summary,timeoutMs);
-  // mac-only:end
+  // engine.mjs on Node.js (macOS); on Windows the same commands in the panel (cwEngine).
+  const engine=async(cmd:string,file:string,summary:string,timeoutMs:number)=>{
+    if(hostIsWindows()){await cwEngine(env,cmd,file);return;}
+    // mac-only:start
+    await env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),summary,timeoutMs);
+    // mac-only:end
+  };
   // Replanning is explicit. Captions-only and B-roll-only updates retain the established keyword slots.
   if(!state.keys || scope==='all' && !state.completed.includes('plan')) {
     env.status("Planning keywords…");
@@ -136,9 +144,10 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   report.warnings.push(...(state.assetWarnings||[]).filter((w:string)=>!report.warnings.includes(w)));
   const assets:any[]=state.assets||[];
   // Import and file only when new assets exist. Project writes are separate from Draft commits.
-  if(needsAssets&&assets.some(a=>a.path.startsWith(jobDir+'/'))&&!state.completed.includes('import')) {
+  if(needsAssets&&assets.some(a=>pathKey(a.path).startsWith(pathKey(jobDir)+'/'))&&!state.completed.includes('import')) {
     const imported=await env.runScript(`const p=selects.project(${JSON.stringify(projectId)});return await p.sourceFiles();`,"Check imported run media");
-    if(!JSON.stringify(imported).includes(jobDir+"/"+mediaFolder))await env.runScript(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(jobDir+"/"+mediaFolder)}]});`,"Import verified B-roll",true);
+    const runMedia=hostJoin(jobDir,mediaFolder);
+    if(!treePaths(imported).some(p=>pathKey(p).startsWith(pathKey(runMedia))))await env.runScript(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(runMedia)}]});`,"Import verified B-roll",true);
     await env.runScript(`const p=selects.project(${JSON.stringify(projectId)});const f=await p.readFootage();const media=f.folders.find(x=>x.name===${JSON.stringify(mediaFolder)});let home=f.folders.find(x=>x.name==='Chris'&&!String(x.path).includes('/'));const id=home?home.folderId:(await p.createFolder({name:'Chris'})).folderId;if(media&&!String(media.path).startsWith('Chris/'))await p.moveToFolder({targetFolderId:id,folderIds:[media.folderId]});return true;`,"File verified media under Chris",true);
     state.completed.push('import');await save();
   }
@@ -211,7 +220,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     state.items[id]={category:'broll',status:'pending'};await save();
     const made=await env.runScript(`const S:any=selects;const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});${RESOLVE_PATHS}
 const clips=await d.clips({trackScope:'all'});let found;for(const c of clips)if(c.trackKind==='video'&&c.resourceId&&(await d.videoEffects(c)).some(e=>e.name===${JSON.stringify(label)})){found=c;break;}
-if(found)return {clipId:found.clipId};const resource=idByPath[${JSON.stringify(asset.path)}];if(!resource)throw Error('Verified media is not imported');const before=new Set(clips.map(c=>c.clipId));await d.overlayResource({resource:project.resource(resource),over:await d.rangeAtFrames(${b.start},${b.end})});let fresh=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId));const audio=fresh.filter(c=>c.trackKind==='audio');if(audio.length)await d.removeClips(audio);const c=(await d.clips({trackScope:'all'})).find(c=>!before.has(c.clipId)&&c.trackKind==='video')!;await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.stringify(BROLL_TSX)},parameters:{clipStart:0,clipFrames:c.endFrame-c.startFrame,zoom:${asset.kind==='video'?0:0.12},zoomIn:true,originX:50,originY:50,warmth:0.8,vignette:0.5,keyText:''},editableParameters:${JSON.stringify(BROLL_PARAMS.filter(p=>!['keyText','fontFamily','keywordSize','captionY','fillBlur','fillWhite'].includes(p.key)))}});await d.commitAll('Chris Williamson Style: verified B-roll');return {clipId:c.clipId};`,"Place verified B-roll",true);
+if(found)return {clipId:found.clipId};const resource=idByPath[__pk(${JSON.stringify(asset.path)})];if(!resource)throw Error('Verified media is not imported');const before=new Set(clips.map(c=>c.clipId));await d.overlayResource({resource:project.resource(resource),over:await d.rangeAtFrames(${b.start},${b.end})});let fresh=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId));const audio=fresh.filter(c=>c.trackKind==='audio');if(audio.length)await d.removeClips(audio);const c=(await d.clips({trackScope:'all'})).find(c=>!before.has(c.clipId)&&c.trackKind==='video')!;await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.stringify(BROLL_TSX)},parameters:{clipStart:0,clipFrames:c.endFrame-c.startFrame,zoom:${asset.kind==='video'?0:0.12},zoomIn:true,originX:50,originY:50,warmth:0.8,vignette:0.5,keyText:''},editableParameters:${JSON.stringify(BROLL_PARAMS.filter(p=>!['keyText','fontFamily','keywordSize','captionY','fillBlur','fillWhite'].includes(p.key)))}});await d.commitAll('Chris Williamson Style: verified B-roll');return {clipId:c.clipId};`,"Place verified B-roll",true);
     state.items[id]={category:'broll',status:'applied',clipId:made.clipId,label};await save();
   }
   // Background music under the speech: one shared file in the plugin data folder, imported once, placed
@@ -219,13 +228,13 @@ if(found)return {clipId:found.clipId};const resource=idByPath[${JSON.stringify(a
   if(options.music!==false && !(state.items['music']&&state.items['music'].status!=='pending')) {
     env.status('Adding the background music…');
     const musicPath=hostJoin(env.dataDir,'music',MUSIC.file);
-    await fetchMusic(hostJoin(env.dataDir,'music'),musicPath);
+    await fetchMusic(env,hostJoin(env.dataDir,'music'),musicPath);
     const label=PREFIX+MUSIC.title+' [cws:music]';
     const level=Math.max(-40,Math.min(0,Number(options.musicDb??MUSIC.levelDb)));
     state.items['music']={category:'music',status:'pending'};await save();
     const made=await env.runScript(`const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});${RESOLVE_PATHS}
-let rid=idByPath[${JSON.stringify(musicPath)}];
-if(!rid){await project.importFiles({paths:[${JSON.stringify(musicPath)}]});const tree:any=await project.sourceFiles();const walk=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')walk(n.children);else if(n.path===${JSON.stringify(musicPath)})rid=n.resourceId;}};if(tree.fileTree)walk(tree.fileTree);else for(const f of tree.folders||[])walk(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);
+let rid=idByPath[__pk(${JSON.stringify(musicPath)})];
+if(!rid){await project.importFiles({paths:[${JSON.stringify(musicPath)}]});const tree:any=await project.sourceFiles();const walk=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')walk(n.children);else if(__pk(n.path)===__pk(${JSON.stringify(musicPath)}))rid=n.resourceId;}};if(tree.fileTree)walk(tree.fileTree);else for(const f of tree.folders||[])walk(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);
   const foot=await project.readFootage();let home=foot.folders.find((x:any)=>x.name==='Chris'&&!String(x.path).includes('/'));const id=home?home.folderId:(await project.createFolder({name:'Chris'})).folderId;if(rid)await project.moveToFolder({targetFolderId:id,resourceIds:[rid]});}
 if(!rid)throw Error('The background music could not be imported.');return {rid};`,'Import the background music',true);
     const placed=await env.runScript(`const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});
@@ -254,7 +263,7 @@ await d.commitAll('Chris Williamson Style: background music');return {clipId:aud
       state.items[cue.id]={category:'captions',status:'pending'};await save();
       const made=await env.runScript(`const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});${RESOLVE_PATHS}
 const clips=await d.clips({trackScope:'all'});for(const c of clips)if(c.trackKind==='video'&&c.resourceId&&(await d.videoEffects(c)).some(e=>e.name===${JSON.stringify(label)}))return {clipId:c.clipId};
-const resource=idByPath[${JSON.stringify(asset.path)}];if(!resource)throw Error('Keyword media is not imported');const before=new Set(clips.map(c=>c.clipId));await d.overlayResource({resource:project.resource(resource),over:await d.rangeAtFrames(${cue.start},${cue.end})});const aud=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId)&&c.trackKind==='audio');if(aud.length)await d.removeClips(aud);const c=(await d.clips({trackScope:'all'})).find(c=>!before.has(c.clipId)&&c.trackKind==='video')!;
+const resource=idByPath[__pk(${JSON.stringify(asset.path)})];if(!resource)throw Error('Keyword media is not imported');const before=new Set(clips.map(c=>c.clipId));await d.overlayResource({resource:project.resource(resource),over:await d.rangeAtFrames(${cue.start},${cue.end})});const aud=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId)&&c.trackKind==='audio');if(aud.length)await d.removeClips(aud);const c=(await d.clips({trackScope:'all'})).find(c=>!before.has(c.clipId)&&c.trackKind==='video')!;
 await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.stringify(BROLL_TSX)},parameters:${JSON.stringify({keywordOnly:true,text:cue.text,keyStart:0,keyEnd:cue.end-cue.start,clipFrames:(reel.brolls.find(b=>b.start===cue.start)?.end||cue.end)-cue.start,zoom:asset.kind==='video'?0:0.12,zoomIn:true,originX:50,originY:50,warmth:0.8,fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:sizeOf(cue),captionY:50,fillBlur:10,...fill,...(state.keywordCarry?.[cue.id]||{})})},editableParameters:${JSON.stringify(FOOTAGE_KEYWORD_PARAMS)}});await d.commitAll('Chris Williamson Style: editable footage keyword');return {clipId:c.clipId};`, 'Add editable footage keyword',true);
       state.items[cue.id]={category:'captions',status:'applied',clipId:made.clipId,label,resourceKeyword:true,band,fill};await save();return;
     }

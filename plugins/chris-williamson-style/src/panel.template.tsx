@@ -403,10 +403,16 @@ const q = (v: string) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 // mac-only:end
 const COMMIT_OK = `.catch((e: any) => { if (!/Nothing to stage/.test(String(e?.message || e))) throw e; })`;
 
-// Script prelude: file path -> current Project Resource id (short ids can change between calls).
-const RESOLVE_PATHS = `const idByPath: Record<string, string> = {};
+// Host paths are compared by key, never as typed: NFC, "/" separators, and a Windows path (drive or UNC) case-folded.
+// Plain JS, so a run_script prelude carries the same function as source (pathKey.toString()).
+function pathKey(p) { let s = String(p || "").normalize("NFC"); const win = /^[A-Za-z]:[\\/]|^\\\\/.test(s); s = s.replace(/\\/g, "/"); return win ? s.toLowerCase() : s; }
+// Every string `path` in a Project file tree.
+function treePaths(n, out = []) { if (Array.isArray(n)) n.forEach((x) => treePaths(x, out)); else if (n && typeof n === "object") { if (typeof n.path === "string") out.push(n.path); for (const v of Object.values(n)) if (v && typeof v === "object") treePaths(v, out); } return out; }
+// Script prelude: file path key -> current Project Resource id (short ids can change between calls).
+const RESOLVE_PATHS = `const __pk=${pathKey.toString()};
+const idByPath: Record<string, string> = {};
 {
-  const walkTree = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === 'dir') walkTree(n.children); else if (n.path) idByPath[n.path] = n.resourceId; } };
+  const walkTree = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === 'dir') walkTree(n.children); else if (n.path) idByPath[__pk(n.path)] = n.resourceId; } };
   const tree: any = await project.sourceFiles();
   if (tree.fileTree) walkTree(tree.fileTree); else for (const f of tree.folders || []) { const sub: any = await project.sourceFiles({ folder: f.name }); walkTree(sub.fileTree); }
 }`;
@@ -439,6 +445,7 @@ return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, wo
 /*SECTION_assets*/
 /*SECTION_verification*/
 /*SECTION_pipeline*/
+/*SECTION_engine*/
 
 // ---------------------------------------------------------------------------------------------------------
 // Panel UI.
@@ -539,7 +546,7 @@ async function removeLegacyFlashes(sdk:any,env:Env,projectId:string,id:string) {
     }
     return changed?next:null;
   });
-  const removed=await env.runScript(`const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(id)});const files:any=await p.sourceFiles();const ids=new Set();function walk(ns){for(const n of ns||[]){if(n.type==='audio'&&n.name==='shutter.wav'&&String(n.path).includes('/chris-williamson-style/runs/'))ids.add(n.resourceId);walk(n.children);}}if(files.fileTree)walk(files.fileTree);else for(const f of files.folders||[]){const sub:any=await p.sourceFiles({folder:f.name});walk(sub.fileTree);}const clips=(await d.clips({trackScope:'all'})).filter(c=>c.trackKind==='audio'&&ids.has(c.resourceId));for(const g of await d.motionGraphics())if(g.name.startsWith('Chris Williamson · ')&&g.name.includes('[cws:inversion:'))clips.push(g.clip);if(clips.length){await d.removeClips(clips);await d.commitAll('Chris: remove shutter clicks and old flash clips');}return clips.length;`,'Remove old Chris flashes and shutter clips',true);
+  const removed=await env.runScript(`const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(id)});const files:any=await p.sourceFiles();const ids=new Set();function walk(ns){for(const n of ns||[]){if(n.type==='audio'&&n.name==='shutter.wav'&&String(n.path).replace(/\\\\/g,'/').includes('/chris-williamson-style/runs/'))ids.add(n.resourceId);walk(n.children);}}if(files.fileTree)walk(files.fileTree);else for(const f of files.folders||[]){const sub:any=await p.sourceFiles({folder:f.name});walk(sub.fileTree);}const clips=(await d.clips({trackScope:'all'})).filter(c=>c.trackKind==='audio'&&ids.has(c.resourceId));for(const g of await d.motionGraphics())if(g.name.startsWith('Chris Williamson · ')&&g.name.includes('[cws:inversion:'))clips.push(g.clip);if(clips.length){await d.removeClips(clips);await d.commitAll('Chris: remove shutter clicks and old flash clips');}return clips.length;`,'Remove old Chris flashes and shutter clips',true);
   const state=await readState(env,id);if(state){state.pulses=[];state.inversionOwners=[];for(const [k,v] of Object.entries(state.items) as any[])if(v.category==='inversion')delete state.items[k];state.verification=null;await env.writeText(stateFile(env,id),JSON.stringify(state,null,2));}
   return removed;
 }

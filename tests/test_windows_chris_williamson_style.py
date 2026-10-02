@@ -57,7 +57,7 @@ def build(src):
     s = (src / 'panel.template.tsx').read_text(encoding='utf-8')
     for name in ['LOOK', 'BROLL', 'CAPTIONS']:
         s = s.replace('/*EMBED_' + name + '*/', json.dumps((src / (name.lower() + '.tsx')).read_text(encoding='utf-8')))
-    for name in ['planning', 'assets', 'verification', 'pipeline']:
+    for name in ['planning', 'assets', 'verification', 'pipeline', 'engine']:
         s = s.replace('/*SECTION_' + name + '*/', (src / (name + '.ts')).read_text(encoding='utf-8'))
     return s
 

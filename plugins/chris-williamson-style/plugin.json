@@ -24,6 +24,7 @@
     "src/look.tsx",
     "src/broll.tsx",
     "src/captions.tsx",
+    "src/engine.ts",
     "fonts/font.css",
     "fonts/OFL.txt",
     "panel.tsx"

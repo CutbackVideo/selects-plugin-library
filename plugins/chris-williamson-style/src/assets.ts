@@ -5,7 +5,7 @@ async function chooseAssets(env: Env, jobDir: string, mediaFolder: string, reel:
   let allowedLocal:Set<string>|null=null;
   if(!options.searchOverride) {
     const inventory=await env.runScript(`const p=selects.project(${JSON.stringify(projectId)});return await p.sourceFiles();`,"Look for existing project B-roll");
-    allowedLocal=new Set<string>();const paths=(n:any)=>{if(Array.isArray(n)){n.forEach(paths);return;}if(n&&typeof n==='object'){if(typeof n.path==='string'&&n.resourceId)allowedLocal!.add(n.path);Object.values(n).filter(v=>v&&typeof v==='object').forEach(paths);}};paths(inventory);
+    allowedLocal=new Set<string>();const paths=(n:any)=>{if(Array.isArray(n)){n.forEach(paths);return;}if(n&&typeof n==='object'){if(typeof n.path==='string'&&n.resourceId)allowedLocal!.add(pathKey(n.path));Object.values(n).filter(v=>v&&typeof v==='object').forEach(paths);}};paths(inventory);
     // One AI browsing turn per query, two at a time: one prompt for every query never finished inside the 5-minute cap,
     // and more parallel turns would hit Google from the same Browser profile hard enough to draw CAPTCHAs.
     // The project inventory is in the prompt, so the turn goes straight to browsing: turns that inspected project
@@ -26,11 +26,12 @@ async function chooseAssets(env: Env, jobDir: string, mediaFolder: string, reel:
     for(const query of queries)if(!found[query]?.length)found[query]=await saved(query);
   }
   const ffprobe=env.ffmpeg.replace(/ffmpeg$/,"ffprobe");
-  const items=reel.brolls.map((b,i)=>({id:pass+String(i+1).padStart(3,"0"),keyword:b.key.text,query:b.query,desiredKind:"video",candidates:(Array.isArray(found[b.query])?found[b.query]:[]).filter(c=>!c.path||allowedLocal===null||allowedLocal.has(c.path))}));
+  const items=reel.brolls.map((b,i)=>({id:pass+String(i+1).padStart(3,"0"),keyword:b.key.text,query:b.query,desiredKind:"video",candidates:(Array.isArray(found[b.query])?found[b.query]:[]).filter(c=>!c.path||allowedLocal===null||allowedLocal.has(pathKey(c.path)))}));
   const callEngine=async(cmd:string,job:any)=>{
     const file=hostJoin(jobDir,cmd+".json");await env.writeText(file,JSON.stringify(job));
+    if(hostIsWindows())await cwEngine(env,cmd,file);
     // mac-only:start
-    await env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),"Prepare B-roll "+cmd,300000);
+    else await env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),"Prepare B-roll "+cmd,300000);
     // mac-only:end
     return JSON.parse(await env.readText(hostJoin(jobDir,cmd+"-result.json")));
   };
