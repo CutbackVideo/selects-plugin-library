@@ -161,6 +161,10 @@ jobs:
           node --test tests/depth_type_captions_windows.test.mjs
           node --test tests/depth_type_captions.test.mjs
           node --test tests/camera_shutter_dump.test.mjs
+      - name: Test Vox Style Explainer (engine parity with engine.py)
+        run: |
+          node --test tests/vox_explainer.test.mjs
+          node --test tests/vox_explainer_engine.test.mjs
       - name: Test A16z Style Captions
         run: |
           node plugins/a16z-style-captions/tests/windows.test.cjs
