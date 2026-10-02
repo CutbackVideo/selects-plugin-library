@@ -91,7 +91,7 @@ class Recap2026WindowsTest(unittest.TestCase):
         self.assertIn("const res=await p.resources();", self.runtime)
         self.assertIn("durationSeconds:dur[n.resourceId]||n.durationSeconds", self.runtime)
         self.assertIn("const d=dur[x.resourceId]||x.durationSeconds;", self.runtime)
-        self.assertRegex(self.runtime, r"allVideosScript = \(projectId\) => core\(\{projectId\}\) \+ RESOURCE_SECONDS")
+        self.assertRegex(self.runtime, r"selectedVideosScript = \(projectId, resourceIds\) => core\(\{projectId,resourceIds\}\) \+ RESOURCE_SECONDS")
         self.assertIn("hostProbeSeconds(v.path)", body(self.runtime, "async function withDurations("))
         run = body(self.runtime, "function TemplateRun(")
         self.assertLess(run.index("withDurations("), run.index("introVideo.durationSeconds >= 5"), "probe before the gate")

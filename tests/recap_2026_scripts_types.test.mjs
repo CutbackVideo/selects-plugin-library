@@ -35,7 +35,7 @@ test('footage scripts type-check against the Selects SDK', {skip: !sdk || !tsc ?
   const src = fs.readFileSync(panel, 'utf8');
   const resources = literal(src, 'const RESOURCE_SECONDS = ');
   const bodies = {
-    allVideos: literal(src, 'const allVideosScript = (projectId) => core({projectId}) + RESOURCE_SECONDS +'),
+    selectedVideos: literal(src, 'const selectedVideosScript = (projectId, resourceIds) => core({projectId,resourceIds}) + RESOURCE_SECONDS +'),
     folders: literal(src, 'const script = core({projectId,folders:folders.map((x)=>x.name)}) + RESOURCE_SECONDS +'),
   };
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'recap-types-'));
@@ -43,7 +43,7 @@ test('footage scripts type-check against the Selects SDK', {skip: !sdk || !tsc ?
     const files = fs.readdirSync(sdk).filter((n) => n.endsWith('.d.ts'));
     for (const n of files) fs.copyFileSync(path.join(sdk, n), path.join(tmp, n));
     for (const [name, body] of Object.entries(bodies)) {
-      fs.writeFileSync(path.join(tmp, name + '.ts'), 'export {};\nasync function run(): Promise<unknown> {\nconst cfg: {projectId: string; folders: string[]} = {projectId: "p", folders: ["f"]};const p=selects.project(cfg.projectId);' + resources + body + '\n}\n');
+      fs.writeFileSync(path.join(tmp, name + '.ts'), 'export {};\nasync function run(): Promise<unknown> {\nconst cfg: {projectId: string; folders: string[]; resourceIds: string[]} = {projectId: "p", folders: ["f"], resourceIds: ["r0"]};const p=selects.project(cfg.projectId);' + resources + body + '\n}\n');
       files.push(name + '.ts');
     }
     let out = '';

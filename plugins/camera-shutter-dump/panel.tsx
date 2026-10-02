@@ -138,9 +138,10 @@ export function buildFinishScript(raw){
 
 // @operation-end
 
-const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.has(n.resourceId)).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path}));`;
-async function inventory(sdk,projectId,summary){
- const r=await sdk.runScript({script:INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary,allowCommit:false});
+const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.get(n.resourceId)===filter.type&&(!filter.paths||filter.paths.some(path=>samePath(n.path,path)))).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path}));`;
+async function inventory(sdk,projectId,summary,filter){
+ const scope=`const filter=JSON.parse(${JSON.stringify(JSON.stringify(filter))});const samePath=${samePath.toString()};`;
+ const r=await sdk.runScript({script:scope+INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary,allowCommit:false});
  if(r.isError||!Array.isArray(r.result))throw Error(r.output||'Could not read the Project files.');
  return r.result;
 }
@@ -252,14 +253,15 @@ function samePath(a,b){
 // Registers the bundled shutter sounds in the Project once, reusing earlier imports by path.
 async function ensureSounds(sdk,projectId){
  const files=await unpackSounds(sdk);
- let rows=await inventory(sdk,projectId,'Find shutter sounds');
+ const filter={type:'Audio',paths:Object.values(files).map(f=>f.path)};
+ let rows=await inventory(sdk,projectId,'Find shutter sounds',filter);
  const missing=Object.values(files).map(f=>f.path).filter(p=>!rows.some(r=>samePath(r.path,p)&&r.type==='Audio'));
  if(missing.length){
   const r=await sdk.runScript({script:`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:${JSON.stringify(missing)}});`,summary:'Import shutter sounds',allowCommit:true});
   if(r.isError)throw Error(r.output||'Could not import the shutter sounds.');
   // importFiles skips files it cannot use (e.g. media under one second) without an error.
   if((r.result?.addedResourceIds?.length??0)<missing.length)throw Error('Selects skipped the shutter sounds when importing them.');
-  rows=await inventory(sdk,projectId,'Confirm shutter sounds');
+  rows=await inventory(sdk,projectId,'Confirm shutter sounds',filter);
  }
  const ids={};
  for(const [key,f] of Object.entries(files)){const m=rows.filter(r=>samePath(r.path,f.path)&&r.type==='Audio');if(m.length<1)throw Error('Shutter sound is not ready in the Project yet. Try again in a moment.');ids[key]=m[0].resourceId;}
@@ -400,7 +402,7 @@ export const DEFAULT_DRAFT_NAME='Camera shutter dump';
 // run still belongs to its Project; `onSeed` runs just before the first save and
 // `onDraft` with the Draft the later steps fill. Returns the saved result.
 export async function createPhotoDraft(sdk,{projectId,selected,framing,name,partialDraftId=null,libraryId=null,stillCurrent,say,onSeed=()=>{},onDraft=_id=>{}}){
- const fresh=await inventory(sdk,projectId,'Confirm selected photos');
+ const fresh=await inventory(sdk,projectId,'Confirm selected photos',{type:'Image',paths:selected.map(p=>p.path)});
  if(selected.some(p=>fresh.filter(r=>r.resourceId===p.resourceId&&r.path===p.path&&r.type==='Image').length!==1))throw Error('The selected photos changed. Reload the Project photos.');
  const prepared=await prepareNativeImages(window.parent,projectId,selected,libraryId);
  say('Adding shutter sounds to the Project…');
@@ -448,7 +450,7 @@ function PhotoPanel({sdk,context,ui}){
  async function load(){
   if(!context.projectId||running.current)return;running.current=true;setBusy(true);setStatus('Loading project photos…');
   try{
-   const projectId=context.projectId,rows=(await inventory(sdk,projectId,'List project photos')).filter(r=>r.type==='Image');
+   const projectId=context.projectId,rows=await inventory(sdk,projectId,'List project photos',{type:'Image'});
    if(currentProject.current!==projectId)return;
    setPhotos(rows);setLoadedProject(projectId);
    // Fill empty slots in Project order; the user can change any slot.
@@ -527,18 +529,21 @@ async function templateSelection(sdk,app,projectId,libraryId,inputs){
  const project=libraryId?await di.ProjectRepository.findById(libraryId,projectId):null;
  if(!project)throw templateIssue('Could not find this Project; open it, then try again.');
  const members=new Set(project.getResources()||[]);
- const rows=(await inventory(sdk,projectId,'List project photos')).filter(r=>r.type==='Image');
- const selected=[];
+ const paths=[];
  for(const pick of picks){
   const label=pick.name||'A picked photo';
   const resource=members.has(pick.resourceId)?await di.ResourceRepository.findById(libraryId,pick.resourceId):null;
   if(!resource)throw templateIssue(label+' is missing from this Project.');
   if(resource.getType()!=='Image')throw templateIssue(label+' is not a photo Camera Shutter Dump can use.');
-  const media=resource.getMedia(),path=media?.originalPath??media?.path;
-  const matches=path?rows.filter(row=>row.path===path):[];
-  if(matches.length!==1)throw templateIssue(label+' is missing from this Project or matches more than one photo.');
-  selected.push(matches[0]);
+  const media=resource.getMedia();
+  paths.push(media?.originalPath??media?.path);
  }
+ const rows=await inventory(sdk,projectId,'List project photos',{type:'Image',paths});
+ const selected=paths.map((path,i)=>{
+  const matches=path?rows.filter(row=>row.path===path):[];
+  if(matches.length!==1)throw templateIssue((picks[i].name||'A picked photo')+' is missing from this Project or matches more than one photo.');
+  return matches[0];
+ });
  return selected;
 }
 // One plain sentence for the person, from a failure before anything was saved.
