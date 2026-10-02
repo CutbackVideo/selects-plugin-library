@@ -518,7 +518,7 @@ export default function Panel({sdk,context,ui}) {
         const {plugin,data}=await hostRoots(sdk,'cutout-beat-gallery','cutout-engine.js');
         if(!data) throw Error('The plugin data folder could not be made.');
         const engine=startEngine(await hostReadText(hostJoin(plugin,'cutout-engine.js')));
-        const work=hostJoin(data,'work',name),ctl={canceled:false};
+        const work=hostJoin(data,'work',name),ctl={canceled:false,engine};
         control.current=ctl;
         try {
           hostNeed('FileSystem','mkdirSync').mkdirSync(work,{recursive:true});
@@ -555,7 +555,7 @@ export default function Panel({sdk,context,ui}) {
     const p=pendingRef.current;
     if(guard.current||!p) return;
     guard.current=true;setBusy(true);setFailed(false);setStatus(t.uploading);
-    const ctl={canceled:false};
+    const ctl={canceled:false,engine:p.engine};
     control.current=ctl;
     try {
       const result=await winCutouts({...p,control:ctl,
@@ -575,7 +575,8 @@ export default function Panel({sdk,context,ui}) {
   };
   const cancelWindows=()=>{
     const ctl=control.current;
-    if(ctl) {ctl.canceled=true;ctl.abort?.()}
+    // Stopping the engine rejects a photo step that is still running, so Cancel never waits on it.
+    if(ctl) {ctl.canceled=true;ctl.abort?.();ctl.engine?.stop()}
     else discard();
   };
 
