@@ -136,3 +136,4 @@ jobs:
       - name: Test template panels on Windows paths
         run: |
           node --test tests/cinema_vlog_studio.test.mjs
+          node --test tests/daily_vlog_8.test.mjs

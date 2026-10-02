@@ -55,31 +55,18 @@ function hostNames(block) {
   return [...block.matchAll(/^(?:async )?function ([A-Za-z_$][\w$]*)/gm)].map(m => m[1]);
 }
 
-// A top-level `function name` / `async function name` / `const name =` statement.
+// A top-level `function name` / `async function name` / `const name =` statement:
+// the shortest run of whole lines from its start that compiles as a script and
+// is followed by a line starting in column 0 (the next top-level statement).
 export function topLevel(source, name) {
   const re = new RegExp('^(?:export )?(?:async function ' + name + '\\b|function ' + name + '\\b|const ' + name + '\\s*=)', 'm');
   const m = re.exec(source);
   if (!m) throw Error('not found: ' + name);
-  let i = m.index, depth = 0, quote = null, started = false;
-  for (; i < source.length; i++) {
-    const c = source[i];
-    if (quote) {
-      if (c === '\\') { i++; continue; }
-      if (c === quote) quote = null;
-      continue;
-    }
-    if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
-    if (c === '{' || c === '(' || c === '[') { depth++; started = true; }
-    if (c === '}' || c === ')' || c === ']') depth--;
-    if (started && depth === 0 && (c === '}' || c === ';' || c === ')' || c === ']')) {
-      // A function ends at its closing brace; a const at the `;` or newline after its value.
-      if (/^(?:export )?const /.test(m[0])) {
-        const nl = source.indexOf('\n', i);
-        if (source[i] === ';' || source.slice(i + 1, nl).trim() === '' || source.slice(i + 1, nl).trim() === ';') return source.slice(m.index, nl).replace(/^export /, '');
-        continue;
-      }
-      if (c === '}') return source.slice(m.index, i + 1).replace(/^export /, '');
-    }
+  for (let nl = source.indexOf('\n', m.index); nl >= 0; nl = source.indexOf('\n', nl + 1)) {
+    const next = source[nl + 1];
+    if (next !== undefined && /\s/.test(next)) continue;
+    const text = source.slice(m.index, nl).replace(/^export /, '');
+    try { new vm.Script(text); return text; } catch { /* not the end yet */ }
   }
   throw Error('unterminated: ' + name);
 }
