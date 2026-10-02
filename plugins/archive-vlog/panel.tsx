@@ -196,7 +196,7 @@ const STRINGS = {
     "tpl.noStyles": "Archive Vlog's title styles are missing. Reinstall the plugin and try again.",
     "tpl.notFound": "None of the chosen files could be found in this Project. Choose them again, then try again.",
     "tpl.notFoundDetail": "Selects said: {detail}",
-    "tpl.notLocal": "The chosen clips' original files are not available on this computer (this Project may have been made on another computer). Import the files again on this computer, or open the Project where they were imported, then try again.",
+    "tpl.notLocal": "Selects can't load the chosen clips on this computer: their clip data is missing here (this can happen with a Project made on another computer). Import the clips again on this computer, then try again.",
     "tpl.notAnalysed": { one: "{count} video is still being added to the Project, so it could not be used.", other: "{count} videos are still being added to the Project, so they could not be used." },
     "tpl.noTitle": "The Draft \"{name}\" may have been saved without its title. Open it from the Drafts list, or try again.",
     "tpl.finishFailed": "The Draft was made, but its title and look could not be added. Try again.",
@@ -382,7 +382,7 @@ const STRINGS = {
     "tpl.noStyles": "Die Titelstile von Archive Vlog fehlen. Installiere das Plugin neu und versuche es erneut.",
     "tpl.notFound": "Keine der ausgewählten Dateien wurde in diesem Projekt gefunden. Wähle sie erneut aus und versuche es dann noch einmal.",
     "tpl.notFoundDetail": "Selects meldet: {detail}",
-    "tpl.notLocal": "Die Originaldateien der ausgewählten Clips sind auf diesem Computer nicht verfügbar (das Projekt wurde vielleicht auf einem anderen Computer erstellt). Importiere die Dateien auf diesem Computer erneut oder öffne das Projekt dort, wo sie importiert wurden, und versuche es dann noch einmal.",
+    "tpl.notLocal": "Selects kann die ausgewählten Clips auf diesem Computer nicht laden: Ihre Clipdaten fehlen hier (das kann bei einem Projekt passieren, das auf einem anderen Computer erstellt wurde). Importiere die Clips auf diesem Computer erneut und versuche es dann noch einmal.",
     "tpl.notAnalysed": { one: "{count} Video wird noch zum Projekt hinzugefügt und konnte daher nicht verwendet werden.", other: "{count} Videos werden noch zum Projekt hinzugefügt und konnten daher nicht verwendet werden." },
     "tpl.noTitle": "Der Draft „{name}“ wurde möglicherweise ohne Titel gespeichert. Öffne ihn aus der Draft-Liste oder versuche es erneut.",
     "tpl.finishFailed": "Der Draft wurde erstellt, aber Titel und Look konnten nicht hinzugefügt werden. Versuche es erneut.",
@@ -568,7 +568,7 @@ const STRINGS = {
     "tpl.noStyles": "Faltan los estilos de título de Archive Vlog. Reinstala el plugin y vuelve a intentarlo.",
     "tpl.notFound": "No se encontró ninguno de los archivos elegidos en este proyecto. Vuelve a elegirlos e inténtalo de nuevo.",
     "tpl.notFoundDetail": "Selects indica: {detail}",
-    "tpl.notLocal": "Los archivos originales de los clips elegidos no están disponibles en este ordenador (puede que el proyecto se creara en otro ordenador). Vuelve a importar los archivos en este ordenador o abre el proyecto donde se importaron e inténtalo de nuevo.",
+    "tpl.notLocal": "Selects no puede cargar los clips elegidos en este ordenador: aquí faltan sus datos de clip (puede pasar con un proyecto creado en otro ordenador). Vuelve a importar los clips en este ordenador e inténtalo de nuevo.",
     "tpl.notAnalysed": { one: "{count} vídeo aún se está añadiendo al proyecto, así que no se pudo usar.", many: "{count} de vídeos aún se están añadiendo al proyecto, así que no se pudieron usar.", other: "{count} vídeos aún se están añadiendo al proyecto, así que no se pudieron usar." },
     "tpl.noTitle": "Es posible que el Draft «{name}» se haya guardado sin su título. Ábrelo desde la lista de Drafts o vuelve a intentarlo.",
     "tpl.finishFailed": "El Draft se creó, pero no se pudieron añadir el título y el look. Vuelve a intentarlo.",
@@ -754,7 +754,7 @@ const STRINGS = {
     "tpl.noStyles": "Les styles de titre d'Archive Vlog sont introuvables. Réinstallez le plugin, puis réessayez.",
     "tpl.notFound": "Aucun des fichiers choisis n'a été trouvé dans ce projet. Choisissez-les à nouveau, puis réessayez.",
     "tpl.notFoundDetail": "Selects indique : {detail}",
-    "tpl.notLocal": "Les fichiers originaux des clips choisis ne sont pas disponibles sur cet ordinateur (le projet a peut-être été créé sur un autre ordinateur). Importez de nouveau les fichiers sur cet ordinateur, ou ouvrez le projet là où ils ont été importés, puis réessayez.",
+    "tpl.notLocal": "Selects ne peut pas charger les clips choisis sur cet ordinateur : leurs données de clip manquent ici (cela peut arriver avec un projet créé sur un autre ordinateur). Importez de nouveau les clips sur cet ordinateur, puis réessayez.",
     "tpl.notAnalysed": { one: "{count} vidéo est encore en cours d'ajout au projet et n'a donc pas pu être utilisée.", many: "{count} de vidéos sont encore en cours d'ajout au projet et n'ont donc pas pu être utilisées.", other: "{count} vidéos sont encore en cours d'ajout au projet et n'ont donc pas pu être utilisées." },
     "tpl.noTitle": "Le Draft « {name} » a peut-être été enregistré sans son titre. Ouvrez-le depuis la liste des Drafts ou réessayez.",
     "tpl.finishFailed": "Le Draft a été créé, mais le titre et le look n'ont pas pu être ajoutés. Réessayez.",
@@ -940,7 +940,7 @@ const STRINGS = {
     "tpl.noStyles": "Mancano gli stili del titolo di Archive Vlog. Reinstalla il plugin e riprova.",
     "tpl.notFound": "Nessuno dei file scelti è stato trovato in questo progetto. Sceglili di nuovo, poi riprova.",
     "tpl.notFoundDetail": "Selects segnala: {detail}",
-    "tpl.notLocal": "I file originali delle clip scelte non sono disponibili su questo computer (il progetto potrebbe essere stato creato su un altro computer). Importa di nuovo i file su questo computer o apri il progetto dove sono stati importati, poi riprova.",
+    "tpl.notLocal": "Selects non riesce a caricare le clip scelte su questo computer: qui mancano i loro dati (può succedere con un progetto creato su un altro computer). Importa di nuovo le clip su questo computer, poi riprova.",
     "tpl.notAnalysed": { one: "{count} video è ancora in fase di aggiunta al progetto, quindi non è stato possibile usarlo.", many: "{count} di video sono ancora in fase di aggiunta al progetto, quindi non è stato possibile usarli.", other: "{count} video sono ancora in fase di aggiunta al progetto, quindi non è stato possibile usarli." },
     "tpl.noTitle": "Il Draft «{name}» potrebbe essere stato salvato senza titolo. Aprilo dall'elenco dei Draft o riprova.",
     "tpl.finishFailed": "Il Draft è stato creato, ma non è stato possibile aggiungere titolo e look. Riprova.",
@@ -1126,7 +1126,7 @@ const STRINGS = {
     "tpl.noStyles": "Archive Vlog のタイトルスタイルが見つかりません。プラグインを再インストールしてから、もう一度お試しください。",
     "tpl.notFound": "選んだファイルがこのプロジェクトに見つかりませんでした。選び直してから、もう一度お試しください。",
     "tpl.notFoundDetail": "Selects からの理由: {detail}",
-    "tpl.notLocal": "選んだクリップの元ファイルがこのコンピュータにありません（このプロジェクトは別のコンピュータで作成された可能性があります）。このコンピュータでファイルを読み込み直すか、ファイルを読み込んだコンピュータでプロジェクトを開いてから、もう一度お試しください。",
+    "tpl.notLocal": "選んだクリップをこのコンピュータで読み込めません。ここにクリップのデータがありません（別のコンピュータで作成したプロジェクトで起こることがあります）。このコンピュータでクリップを読み込み直してから、もう一度お試しください。",
     "tpl.notAnalysed": { other: "{count} 本の動画はまだプロジェクトに追加中のため、使用できませんでした。" },
     "tpl.noTitle": "Draft「{name}」はタイトルなしで保存された可能性があります。Draft の一覧から開くか、もう一度お試しください。",
     "tpl.finishFailed": "Draft は作成されましたが、タイトルとルックを追加できませんでした。もう一度お試しください。",
@@ -1312,7 +1312,7 @@ const STRINGS = {
     "tpl.noStyles": "Archive Vlog\uc758 \ud0c0\uc774\ud2c0 \uc2a4\ud0c0\uc77c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.notFound": "\uc120\ud0dd\ud55c \ud30c\uc77c\uc744 \uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\uc11c \ud558\ub098\ub3c4 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc120\ud0dd\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.notFoundDetail": "Selects \uba54\uc2dc\uc9c0: {detail}",
-    "tpl.notLocal": "\uc120\ud0dd\ud55c \ud074\ub9bd\uc758 \uc6d0\ubcf8 \ud30c\uc77c\uc774 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc5c6\uc2b5\ub2c8\ub2e4(\uc774 \ud504\ub85c\uc81d\ud2b8\uac00 \ub2e4\ub978 \ucef4\ud4e8\ud130\uc5d0\uc11c \ub9cc\ub4e4\uc5b4\uc84c\uc744 \uc218 \uc788\uc2b5\ub2c8\ub2e4). \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \ud30c\uc77c\uc744 \ub2e4\uc2dc \uac00\uc838\uc624\uac70\ub098, \ud30c\uc77c\uc744 \uac00\uc838\uc628 \ucef4\ud4e8\ud130\uc5d0\uc11c \ud504\ub85c\uc81d\ud2b8\ub97c \uc5f0 \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    "tpl.notLocal": "Selects\uac00 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc120\ud0dd\ud55c \ud074\ub9bd\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc774 \ucef4\ud4e8\ud130\uc5d0 \ud074\ub9bd \ub370\uc774\ud130\uac00 \uc5c6\uc2b5\ub2c8\ub2e4(\ub2e4\ub978 \ucef4\ud4e8\ud130\uc5d0\uc11c \ub9cc\ub4e0 \ud504\ub85c\uc81d\ud2b8\uc5d0\uc11c \uc0dd\uae38 \uc218 \uc788\uc2b5\ub2c8\ub2e4). \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \ud074\ub9bd\uc744 \ub2e4\uc2dc \uac00\uc838\uc628 \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.notAnalysed": { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\uac00 \uc544\uc9c1 \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ub418\ub294 \uc911\uc774\ub77c \uc0ac\uc6a9\ud560 \uc218 \uc5c6\uc5c8\uc2b5\ub2c8\ub2e4." },
     "tpl.noTitle": "Draft ‘{name}’\uc774(\uac00) \ud0c0\uc774\ud2c0 \uc5c6\uc774 \uc800\uc7a5\ub418\uc5c8\uc744 \uc218 \uc788\uc2b5\ub2c8\ub2e4. Draft \ubaa9\ub85d\uc5d0\uc11c \uc5f4\uac70\ub098 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.finishFailed": "Draft\ub294 \ub9cc\ub4e4\uc5b4\uc84c\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
@@ -1498,7 +1498,7 @@ const STRINGS = {
     "tpl.noStyles": "Os estilos de título do Archive Vlog estão faltando. Reinstale o plugin e tente de novo.",
     "tpl.notFound": "Nenhum dos arquivos escolhidos foi encontrado neste projeto. Escolha-os de novo e tente outra vez.",
     "tpl.notFoundDetail": "O Selects informou: {detail}",
-    "tpl.notLocal": "Os arquivos originais dos clipes escolhidos não estão disponíveis neste computador (o projeto pode ter sido criado em outro computador). Importe os arquivos novamente neste computador ou abra o projeto onde eles foram importados e tente de novo.",
+    "tpl.notLocal": "O Selects não consegue carregar os clipes escolhidos neste computador: os dados dos clipes não estão aqui (isso pode acontecer com um projeto criado em outro computador). Importe os clipes novamente neste computador e tente de novo.",
     "tpl.notAnalysed": { one: "{count} vídeo ainda está sendo adicionado ao projeto, então não pôde ser usado.", many: "{count} de vídeos ainda estão sendo adicionados ao projeto, então não puderam ser usados.", other: "{count} vídeos ainda estão sendo adicionados ao projeto, então não puderam ser usados." },
     "tpl.noTitle": "O Draft “{name}” pode ter sido salvo sem o título. Abra-o na lista de Drafts ou tente de novo.",
     "tpl.finishFailed": "O Draft foi criado, mas não foi possível adicionar o título e o look. Tente de novo.",
@@ -1684,7 +1684,7 @@ const STRINGS = {
     "tpl.noStyles": "Archive Vlog'un başlık stilleri eksik. Eklentiyi yeniden yükleyip tekrar deneyin.",
     "tpl.notFound": "Seçilen dosyaların hiçbiri bu projede bulunamadı. Onları yeniden seçip tekrar deneyin.",
     "tpl.notFoundDetail": "Selects şunu bildirdi: {detail}",
-    "tpl.notLocal": "Seçilen kliplerin orijinal dosyaları bu bilgisayarda yok (bu proje başka bir bilgisayarda oluşturulmuş olabilir). Dosyaları bu bilgisayara yeniden aktarın veya projeyi dosyaların aktarıldığı bilgisayarda açın, sonra tekrar deneyin.",
+    "tpl.notLocal": "Selects seçilen klipleri bu bilgisayarda yükleyemiyor: klip verileri burada yok (başka bir bilgisayarda oluşturulan bir projede olabilir). Klipleri bu bilgisayara yeniden aktarın, sonra tekrar deneyin.",
     "tpl.notAnalysed": { one: "{count} video hâlâ projeye ekleniyor, bu yüzden kullanılamadı.", other: "{count} video hâlâ projeye ekleniyor, bu yüzden kullanılamadı." },
     "tpl.noTitle": "“{name}” Draft'ı başlığı olmadan kaydedilmiş olabilir. Draft listesinden açın veya yeniden deneyin.",
     "tpl.finishFailed": "Draft oluşturuldu ancak başlık ve görünüm eklenemedi. Yeniden deneyin.",
@@ -1870,7 +1870,7 @@ const STRINGS = {
     "tpl.noStyles": "缺少 Archive Vlog 的标题样式。请重新安装插件后重试。",
     "tpl.notFound": "在此项目中找不到所选的任何文件。请重新选择后重试。",
     "tpl.notFoundDetail": "Selects 提示：{detail}",
-    "tpl.notLocal": "所选片段的原始文件不在这台电脑上（这个项目可能是在另一台电脑上创建的）。请在这台电脑上重新导入这些文件，或在导入它们的电脑上打开项目，然后再试一次。",
+    "tpl.notLocal": "Selects 无法在这台电脑上加载所选片段：这里缺少它们的片段数据（在另一台电脑上创建的项目可能会这样）。请在这台电脑上重新导入这些片段，然后再试一次。",
     "tpl.notAnalysed": { other: "有 {count} 个视频仍在添加到项目中，因此无法使用。" },
     "tpl.noTitle": "Draft“{name}”可能已在没有标题的情况下保存。请从 Draft 列表中打开，或重试。",
     "tpl.finishFailed": "Draft 已创建，但无法添加标题和色调。请重试。",
@@ -5565,8 +5565,9 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
     const counts = new Map<string, number>();
     for (const e of failures.values()) if (e) counts.set(e, (counts.get(e) || 0) + 1);
     const reason = [...counts].sort((x, y) => y[1] - x[1])[0]?.[0] || "";
-    // The host cannot load a clip's local source timeline: its files are not on this computer (e.g. a Project made or
-    // synced from another computer), which no retry or re-pick fixes.
+    // The host cannot load a clip's local source timeline (its row in this computer's library data is missing or
+    // unreadable, e.g. a Project made on another computer); re-importing the clips here builds it again, a retry or a
+    // re-pick does not.
     const notLocal = /analyzed sequence not found|placement_source_unavailable|no local source timeline/i.test(reason);
     const head = notLocal ? t(bl, "tpl.notLocal") : t(bl, "tpl.notFound");
     throw templateIssue(reason ? [head, t(bl, "tpl.notFoundDetail", { detail: reason })].join(t(bl, "gap")) : head);
