@@ -14,45 +14,26 @@
 
 ## Dependencies
 
-The bundled music tracks, the title, the credits, the look and the Draft build
-need nothing beyond Selects. Two optional features use
-command-line tools. The panel finds ffmpeg on the shell `PATH` and also in
-`/opt/homebrew/bin` and `/usr/local/bin`, so a Homebrew ffmpeg works even when
-Selects is opened from Finder:
-
-- **ffmpeg** (it includes `ffprobe`): music previews, your own music, and
-  measuring how much each clip moves (so moving footage is preferred; without
-  ffmpeg the shots are chosen by the scene match alone). Check with
-  `ffmpeg -version` and `ffprobe -version`.
-- **Node.js**: your own music only (beat detection). Nothing to install: the first time
-  you choose your own music, the panel downloads a pinned Node.js (about 26 MB)
-  with `runtime.sh` into `~/.selects/plugin-data/_runtime`, shared by every
-  plugin. That needs an internet connection once.
-
-When ffmpeg is missing, the panel hides **Your own music**, shows
-"Install ffmpeg to preview music or use your own track", and
-everything else keeps working.
+Nothing to install, on macOS or Windows: no Homebrew, Node.js or ffmpeg. The
+bundled music tracks, the title, the credits, the look and the Draft build
+need nothing beyond Selects. Music previews, the waveform, your own music
+(the beat is found inside the panel) and measuring how much each clip moves
+use the ffmpeg that comes with Selects. On a Selects build that lacks it, the
+panel shows "This needs a newer version of Selects." in the Track section,
+hides **Your own music**, and everything else keeps working.
 
 ## Files the plugin writes
 
 The panel writes to your Projects only by creating a new Draft in the open
-Project and importing the chosen music into that Project. Its temporary audio
-files go in `.selects/plugin-data/the-end-credits` in your home folder, never
-in either install folder:
+Project and importing the chosen music into that Project. Its temporary files
+go in `.selects/plugin-data/the-end-credits` in your home folder, never in
+either install folder. Each is named `tmp-<random>.<ext>` and deleted as soon
+as the panel has read it:
 
-- `own-music.f32`: your own music decoded for beat detection (up to about
-  32 MB). It is deleted as soon as detection finishes.
-- `own-music.json`: the detected beat and loudness of the last track you
-  dropped (tens of KB). The next track replaces it.
-- `preview-N.mp3` and `preview-N.b64`: the section preview. The mp3 is
-  deleted once it is converted to text, and the text copy is replaced by the
-  next preview.
-- `motion-<clip id>.txt`: the measured movement of one clip (a few KB), read
-  once by the panel. All of them are deleted when the measuring step ends.
-- `peaks-<id>.u8` and `peaks-<id>.b64`: the waveform of a bundled track
-  (`<id>` is the track's id; under 100 KB). The `.u8` is deleted once it
-  is converted to text, and the `.b64` as soon as the panel has read it (or
-  failed to).
+- `.f32`: your own music decoded for beat detection (up to about 32 MB).
+- `.mp3` (or `.wav`): the section preview.
+- `.u8`: the waveform of a bundled track (under 100 KB).
+- `.gray`: the small grey frames used to measure one clip's movement.
 
 ## Verify
 
@@ -69,9 +50,8 @@ in either install folder:
 3. With at least 4 usable clips or photos (5 in Full frame), press **Build**.
    A new 1920x1080 Draft opens with the typed title, the rolling credits, the
    clips and the music.
-4. Optional: if ffmpeg is installed, **Your own music** appears
-   in the Track list and the play button (**Preview the music of the whole
-   video**) plays the chosen section.
+4. **Your own music** appears in the Track list and the play button
+   (**Preview the music of the whole video**) plays the chosen section.
 
 ## Uninstall
 
