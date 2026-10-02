@@ -1185,6 +1185,9 @@ async function pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, 
 }
 // pbm-engine:end
 
+// Each bundled sound's length in seconds (ffprobe), used when its Resource reports none: no overlay may run past it.
+const ASSET_SECONDS = { "music-bed.wav": 16.333333, "shutter.wav": 2, "riser.wav": 1.166667 };
+
 async function buildMontage(sdk, { projectId, language, files, audios, setStep, setProgress, signal, confirm }) {
   // Windows renders in the panel (person mattes from Selects generation, after `confirm`); macOS runs pipeline.py.
   const manifest = hostIsWindows() ? await pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, signal, confirm }) : await macMontage(sdk, files, setStep, setProgress);
@@ -1212,16 +1215,27 @@ async function buildMontage(sdk, { projectId, language, files, audios, setStep, 
   const cfg = {
     projectId, name: draftName, gap: manifest.gapFrames, end: manifest.durationFrames,
     clips: manifest.clips.map((clip, i) => ({ id: clipIds[i], frames: clip.frames, start: clip.start, name: clip.name })),
-    audio: manifest.audio.map((a) => ({ id: byName.get(a.name), start: a.start, end: a.end, name: a.name })),
+    audio: manifest.audio.map((a) => ({ id: byName.get(a.name), start: a.start, end: a.end, name: a.name, seconds: ASSET_SECONDS[a.name] })),
   };
-  const script = `const cfg=${json(cfg)}; const p=selects.project(cfg.projectId); const d=await p.createDraft({name:cfg.name}); await d.setFrameSize({width:1080,height:1440}); const fps=(await d.meta()).fps; if(Math.abs(fps-30000/1001)>0.05) throw new Error("Unsupported draft frame rate: "+fps);
-await d.insertGap({seconds:cfg.gap/fps});
-for(const c of cfg.clips) await d.insertResource({resourceId:c.id,sourceRange:{startSeconds:0,endSeconds:c.frames/fps}});
+  // The manifest's frames are 30000/1001 fps frames (the rendered pieces are encoded at that rate); a new Draft takes
+  // the Project's frame rate, so they are converted to the Draft's frames (unchanged at 29.97 and 30). Cuts round down;
+  // the rate is read again after each insert (a Draft can adopt its first clip's rate), and each piece ends on its cut
+  // measured from where the last one really ended, but never past its own length, which Selects counts in whole Project
+  // frames (so off 29.97/30 a cut can land a few frames early). A sound never asks past its asset: Selects counts an
+  // audio asset as round(seconds*fps) Project frames, so that is the bound while the Draft keeps the Project's rate (at
+  // 29.97 the bed, shutter and riser need exactly that: 490, 60 and 35 frames), and floor once the Draft has switched.
+  const script = `const cfg=${json(cfg)}; const p=selects.project(cfg.projectId); const d=await p.createDraft({name:cfg.name}); await d.setFrameSize({width:1080,height:1440});
+const rate=async()=>{const reported=(await d.meta()).fps;const r=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw new Error("Unsupported draft frame rate: "+reported);return r;};
+let fps=await rate(); const projectFps=fps; const cut=(f)=>Math.floor(f*1001/30000*fps+1e-6);
+const placedEnd=async()=>Math.max(0,...(await d.clips({trackScope:"main"})).map(c=>c.endFrame));
+await d.insertGap({seconds:cut(cfg.gap)/fps}); fps=await rate(); let placed=Math.max(cut(cfg.gap),await placedEnd());
+for(const c of cfg.clips){ await d.insertResource({resourceId:c.id,sourceRange:{startSeconds:0,endSeconds:Math.min((cut(c.start+c.frames)-placed)/fps,Math.round(c.frames*1001/30000*projectFps)/projectFps)}}); fps=await rate(); placed=await placedEnd(); }
 const main=(await d.clips({trackScope:"main"})).filter(c=>c.resourceId).sort((a,b)=>a.startFrame-b.startFrame);
 if(main.length!==cfg.clips.length) throw new Error("Expected "+cfg.clips.length+" shots, found "+main.length);
-main.forEach((c,i)=>{ if(c.startFrame!==cfg.clips[i].start) throw new Error(cfg.clips[i].name+" starts at "+c.startFrame+", expected "+cfg.clips[i].start); });
-const end=Math.max(...main.map(c=>c.endFrame)); if(end!==cfg.end) throw new Error("Montage ends at "+end+", expected "+cfg.end);
-for(const a of cfg.audio) await d.overlayResource({resource:p.resource(a.id),over:await d.rangeAtFrames(a.start,Math.min(end,a.end))});
+const end=Math.max(...main.map(c=>c.endFrame));
+const at=(f)=>{const i=cfg.clips.findIndex(c=>c.start===f);return i>=0?main[i].startFrame:f===cfg.end?end:Math.round(f*1001/30000*fps);};
+const lengths=new Map((await p.resources()).map(x=>[x.resourceId,x.durationSeconds]));
+for(const a of cfg.audio){ const start=at(a.start), s=Math.min(lengths.get(a.id)||Infinity,a.seconds||Infinity); let stop=Math.min(end,at(a.end)); if(s<Infinity) stop=Math.min(stop,start+(fps===projectFps?Math.round(s*fps):Math.floor(s*fps+1e-3))); if(stop>start) await d.overlayResource({resource:p.resource(a.id),over:await d.rangeAtFrames(start,stop)}); }
 const saved=await d.commitAll("Create portrait beat montage"); return {draftId:saved.createdDraftId,end,shots:main.length};`;
   const built = await sdk.runScript({ summary: "Build portrait montage draft", script, allowCommit: true });
   if (built.isError || !built.result?.draftId) throw new Error(built.output || "Draft creation failed");
