@@ -70,7 +70,7 @@ assert.ok(panel.includes('const BEAT_TIMEOUT_MS = 60000;') && panel.includes('er
 assert.ok(panel.includes('const request = ++ownRequestRef.current;') && panel.includes('ownRequestRef.current === request') && (panel.match(/ownAbortRef\.current\?\.abort\(\)/g) || []).length === 3, 'own-music request id and aborts');
 // Failures fall back to fixed timing with the track's length (decoded samples, else ffprobe); the build never waits.
 assert.ok(panel.includes('let duration: number | null = samples && samples.length ? samples.length / OWN_RATE : null;') && panel.includes('const v = await hostProbeSeconds(file.path);'), 'fixed-timing fallback keeps the length');
-assert.equal(read('runtime.sh'), fs.readFileSync(path.join(root, '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
+assert.ok(!fs.existsSync(path.join(root, 'runtime.sh')) && !JSON.parse(read('plugin.json')).files.includes('runtime.sh'), 'runtime.sh does not ship (no Node.js or POSIX shell at runtime)');
 assert.ok(!panel.includes('runtime.sh'), 'nothing in the panel runs runtime.sh (no Node.js at runtime)');
 // The music tools are the host's: feature-detected, never probed in a shell; without them own music and the preview
 // hide behind one "needs an updated adapter" message.

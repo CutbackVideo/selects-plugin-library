@@ -3289,6 +3289,18 @@ export default function Panel({ sdk, context, ui }: any) {
     const own = P.join(P.bin, IS_WIN ? "yt-dlp.exe" : "yt-dlp");
     let cmd: string;
     if (IS_WIN) {
+      // Check the known install locations through the host FileSystem first: no console code page for a
+      // Korean profile path, and no reliance on %ProgramFiles% in the shell's environment.
+      const apps = ["Selects", "Selects Staging", "Selects Delta"];
+      const roots = [store.join(store.fs.homedir(), "AppData", "Local", "Programs"), "C:\\Program Files", "C:\\Program Files (x86)"];
+      const known = roots.flatMap((r) => apps.map((a) => store.join(r, a, "resources", "app.asar.unpacked", "dist", "bin", "ffmpeg.exe")));
+      const ffmpeg = known.find((f) => store.exists(f)) || null;
+      if (ffmpeg && store.exists(own)) return { ytdlp: own, ffmpeg };
+      if (ffmpeg) {
+        const r = await shell(`for /f "delims=" %%i in ('where yt-dlp.exe 2^>nul') do echo Y=%%i\nexit /b 0`, "Find the video tools", 60000);
+        const y = r.stdout.split(/\r?\n/).map((l: string) => l.trim()).find((l: string) => l.startsWith("Y="));
+        return { ytdlp: y ? y.slice(2).trim() : null, ffmpeg };
+      }
       const local = store.join(store.fs.homedir(), "AppData", "Local", "Programs");
       const bundled = ["Selects", "Selects Staging"].map((a) => store.join(local, a, "resources", "app.asar.unpacked", "dist", "bin", "ffmpeg.exe"));
       cmd = [
