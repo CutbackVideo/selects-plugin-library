@@ -46,6 +46,11 @@ node $P/dev/make-fixtures.mjs <footage folder>          # regenerate fixtures (f
   (`TEC_FOOTAGE_DIR=~/Downloads/the-end-credits-footage/gallery drive --key c-std-post --plan-only ...`). The plan
   line's `motionMeasured` counts the measured clips and `shotMotion` lists each shot's window motion and its move
   (`?` = unmeasured, which counts as still).
+- Clips without analysis (inventory.js `analysed: false`, e.g. a Project of fresh imports) are not scene-searched. Like
+  the panel, plan() scores them with the kit quick score (panel.tsx's quick-score block in node:vm, run synchronously
+  with the local ffmpeg writing the grey frames to stdout) and maps them with planner.js `tecLocalFromScores`. The
+  plan line adds `unanalysed`, `quickScored`, `quickEven` (clips that fell back to evenly spaced windows), `quickMs`
+  and `localShots`. Offline, they need `TEC_FOOTAGE_DIR` too.
 
 ## Bundled cues
 

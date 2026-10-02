@@ -535,13 +535,11 @@ function tecLocalCurve(scores) {
 }
 
 // Candidates for unanalysed clips. resources: inventory entries ({ rid, path, duration }). opts: { P, scoreAll
-// (quickScoreAll), candidatesOf (qsCandidates), signal?, onProgress?, budgetMs?, dataDir?, concurrency? }. A clip whose
-// score is missing or a fallback, or that yields no window, gets evenly spaced windows; when scoreAll itself throws
-// (anything but a cancel) every clip does, and the build goes ahead. A cancel (AbortError or an aborted signal) is
-// rethrown. Returns { list, curves (rid -> motion curve, scored clips only), scored (count), even (rids), ms }.
+// (quickScoreAll), candidatesOf (qsCandidates), signal?, onProgress?, budgetMs?, dataDir?, concurrency? }. When
+// scoreAll itself throws (anything but a cancel) every clip gets evenly spaced windows and the build goes ahead; a
+// cancel (AbortError or an aborted signal) is rethrown. See tecLocalFromScores for the result.
 async function tecLocalShots(resources, opts) {
   const started = Date.now();
-  const lens = tecLocalSeconds(opts.P);
   let results = null;
   if (resources.length) {
     try {
@@ -552,6 +550,16 @@ async function tecLocalShots(resources, opts) {
       results = null;
     }
   }
+  const out = tecLocalFromScores(resources, results, opts.P, opts.candidatesOf);
+  out.ms = Date.now() - started;
+  return out;
+}
+
+// The synchronous half (the headless driver scores clips itself and calls this): results is a Map rid -> quick-score
+// result (or null). A clip whose score is missing or a fallback, or that yields no window, gets evenly spaced windows.
+// Returns { list, curves (rid -> motion curve, scored clips only), scored (count), even (rids) }.
+function tecLocalFromScores(resources, results, P, candidatesOf) {
+  const lens = tecLocalSeconds(P);
   const list = [], curves = {}, even = [];
   let scored = 0;
   for (const r of resources) {
@@ -563,7 +571,7 @@ async function tecLocalShots(resources, opts) {
         byKind[kind] = [];
         for (const seconds of lens) {
           let got = [];
-          try { got = opts.candidatesOf(res, kind, seconds, TEC_LOCAL_PER_ROLE) || []; } catch (e) { got = []; }
+          try { got = candidatesOf(res, kind, seconds, TEC_LOCAL_PER_ROLE) || []; } catch (e) { got = []; }
           if (got.length) { byKind[kind] = got; break; }
         }
       }
@@ -575,7 +583,7 @@ async function tecLocalShots(resources, opts) {
     else { cands = tecEvenCandidates(r.rid, r.duration, lens[0]); even.push(r.rid); }
     for (const c of cands) list.push(c);
   }
-  return { list, curves, scored, even, ms: Date.now() - started };
+  return { list, curves, scored, even };
 }
 
 // Mixed projects: scene-search hits and local windows on one scale. When both kinds are present, each kind's scores
