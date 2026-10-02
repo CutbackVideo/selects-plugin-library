@@ -429,10 +429,10 @@ export async function placeMusic(env:Env,projectId:string,draftId:string,fps:num
  const trackSeconds=Number(await hostProbeSeconds(path));
  if(!(trackSeconds>1))throw Error('The music file could not be read.');
  return await env.runScript(`const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});
-// Host paths compare after NFC and \\ to / (and case on Windows); a file of the same name counts when no path matches.
+// Host paths compare after NFC and \\ to / (and case on Windows); a file of the same name and length counts when no path matches.
 let rid=undefined as string|undefined,named=undefined as string|undefined;const win=${JSON.stringify(hostIsWindows())};
 const norm=(p:any)=>{const s=String(p||'').normalize('NFC').replace(/\\\\/g,'/');return win?s.toLowerCase():s;},want=norm(${JSON.stringify(path)}),base=(p:string)=>p.slice(p.lastIndexOf('/')+1);
-const find=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')find(n.children);else{const p=norm(n.path);if(p===want)rid=n.resourceId;else if(base(p)===base(want))named??=n.resourceId;}}};
+const find=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')find(n.children);else{const p=norm(n.path);if(p===want)rid=n.resourceId;else if(base(p)===base(want)&&Math.abs(Number(n.durationSeconds)-${trackSeconds})<=0.5)named??=n.resourceId;}}};
 const read=async()=>{const tree:any=await project.sourceFiles();if(tree.fileTree)find(tree.fileTree);else for(const f of tree.folders||[])find(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);rid??=named;};
 await read();
 if(!rid){await project.importFiles({paths:[${JSON.stringify(path)}]});await read();if(rid){const foot=await project.readFootage();const home=foot.folders.find((x:any)=>x.name===${JSON.stringify(FOLDER)}&&!String(x.path).includes('/'));const id=home?home.folderId:(await project.createFolder({name:${JSON.stringify(FOLDER)}})).folderId;await project.moveToFolder({targetFolderId:id,resourceIds:[rid]});}}

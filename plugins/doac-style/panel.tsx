@@ -209,9 +209,13 @@ async function rendererCode(sdk){
 async function ensureFont(sdk){
  const font=hostJoin(await doacRoot(sdk),'approved','native','fonts','permanentmarker','PermanentMarker-Regular.ttf');
  const f=hostApi('FileSystem','existsSync','writeFile');if(!f)throw stepError('file-access',FILE_ACCESS);
- if(f.existsSync(font))return;
+ // An empty file (an interrupted write) is decoded again; with renameSync the new file appears whole.
+ const st=hostApi('FileSystem','statSync'),mv=hostApi('FileSystem','renameSync');
+ if(f.existsSync(font)){let size=1;try{if(st)size=Number(st.statSync(font)?.size);}catch{}if(size>0)return;}
  const b64=(await hostReadText(font+'.b64')).replace(/\s+/g,'');
- await f.writeFile(font,Uint8Array.from(atob(b64),c=>c.charCodeAt(0)));
+ const tmp=mv?font+'.part':font;
+ await f.writeFile(tmp,Uint8Array.from(atob(b64),c=>c.charCodeAt(0)));
+ if(mv)mv.renameSync(tmp,font);
 }
 let runtimeReady=null;
 function ensureRuntime(sdk,say=()=>{}){
