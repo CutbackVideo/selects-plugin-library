@@ -176,12 +176,43 @@ const keepAlive = setInterval(() => {}, 50);
   assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/m/song.mp3' })(selA), { resourceId: 'r2', imported: false });
   assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/m/new.mp3' })(selA), { resourceId: 'r9', imported: true });
   assert.deepEqual(imports, [['/m/new.mp3']]);
+  // Windows: the host may spell the same file with other separators and case; the compare is normalised (and NFC).
+  const audioProject = (stored, extra = []) => {
+    const calls = { imports: [] };
+    const tree = [{ type: 'dir', children: stored.map((p, i) => ({ type: 'file', resourceId: 'a' + i, path: p[0] })) }];
+    return { calls, selects: { project: () => ({
+      sourceFiles: async () => ({ fileTree: tree }),
+      resources: async () => [...stored.map((p, i) => ({ resourceId: 'a' + i, type: 'Audio', durationSeconds: p[1] })), ...extra],
+      importFiles: async ({ paths }) => { calls.imports.push(paths); return { addedResourceIds: ['new1'] }; },
+    }) } };
+  };
+  const winCfg = 'C:\\Users\\Kim\\.selects\\skills\\the-end-credits/assets/cues/piano-strings.mp3';
+  const w1 = audioProject([['D:/other/song.mp3', 70.1], ['c:/users/kim/.selects/skills/the-end-credits/assets/cues/PIANO-strings.mp3', 70.087]]);
+  assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCfg, durationSeconds: 70.087 })(w1.selects), { resourceId: 'a1', imported: false });
+  assert.equal(w1.calls.imports.length, 0, 'Windows: the same cue is not re-imported');
+  // Duration check: a different file now at that path (length off by more than 0.5 s) is imported, not reused.
+  const w2 = audioProject([['C:\\Users\\Kim\\.selects\\skills\\the-end-credits\\assets\\cues\\piano-strings.mp3', 30]]);
+  assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCfg, durationSeconds: 70.087 })(w2.selects), { resourceId: 'new1', imported: true });
+  const w2b = audioProject([['C:\\Users\\Kim\\.selects\\skills\\the-end-credits\\assets\\cues\\piano-strings.mp3', 70.5]]);
+  assert.equal((await load('ensure-audio.js', { projectId: 'p', path: winCfg, durationSeconds: 70.087 })(w2b.selects)).resourceId, 'a0', 'within 0.5 s');
+  // Without a duration (own music, a template run) or without the resource's length, the path alone decides.
+  const w2c = audioProject([['C:/m/song.mp3', undefined]]);
+  assert.equal((await load('ensure-audio.js', { projectId: 'p', path: 'c:\\m\\SONG.mp3', durationSeconds: 70 })(w2c.selects)).resourceId, 'a0');
+  assert.equal((await load('ensure-audio.js', { projectId: 'p', path: 'c:\\m\\SONG.mp3' })(audioProject([['C:/m/song.mp3', 12]]).selects)).resourceId, 'a0');
+  // NFC: a decomposed stored path (macOS) matches the composed cfg path.
+  const nfd = '/Volumes/\u1112\u1161\u11ab/cues/cue.mp3', nfc = nfd.normalize('NFC');
+  assert.notEqual(nfd, nfc);
+  assert.equal((await load('ensure-audio.js', { projectId: 'p', path: nfc })(audioProject([[nfd, 10]]).selects)).resourceId, 'a0');
+  // POSIX paths stay case-sensitive.
+  assert.equal((await load('ensure-audio.js', { projectId: 'p', path: '/a/b/cue.mp3' })(audioProject([['/a/B/cue.mp3', 10], ['/a/b/cue.mp3', 10]]).selects)).resourceId, 'a1');
+  const w5 = audioProject([['/a/B/cue.mp3', 10]], [{ resourceId: 'vid', type: 'Video' }]);
+  assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/a/b/cue.mp3' })(w5.selects), { resourceId: 'new1', imported: true });
 
   // TypeScript sanity, offline and always on:
   const cfgs = {
     'inventory.js': { projectId: 'p', only: null, known: { r4: { width: 810, height: 1080 } }, measureMs: 8000 },
     'search.js': { projectId: 'p', rids: ['r0'], queries: { 'wide landscape': 'a wide landscape' }, pageSize: 4, parallel: 4, budgetMs: 22000 },
-    'ensure-audio.js': { projectId: 'p', path: '/m/song.mp3' },
+    'ensure-audio.js': { projectId: 'p', path: '/m/song.mp3', durationSeconds: 70.087 },
     'assemble.js': { projectId: 'p', draftName: 'THE END Credits 1', layout: 'classic', picks: [{ rid: 'r0', kind: 'video', startSeconds: 1, holdSeconds: 3.9 }, { rid: 'r4', kind: 'photo', startSeconds: 0, holdSeconds: 4.4 }],
       boundaries: [0, 5.1, 9, 13.4], L: 5.1, music: { resourceId: 'r9', sectionStart: 12.3 }, clipSound: 'ambient', ambientDb: -18, sources: { r0: { aspect: 1.7778 }, r4: { aspect: 0.75 } }, musicFadeOut: 1.5 },
     'decorate.js': { layout: 'classic', sequenceId: 's', fps: 29.97, frames: [0, 153, 270, 402], titleText: 'THE END', rows: [{ role: 'Director', name: 'A' }], speedPxPerSec: 67,
