@@ -98,12 +98,13 @@ async function cropShots(sdk, manifest) {
   if (!fs.existsSync(audioPath)) throw new Error("The fixed gallery soundtrack is missing from the plugin");
   let existingAudioId = null;
   const candidates = manifest.audioCandidates || [];
-  if (candidates.length) {
+  // Without a match (or without crypto.subtle) the soundtrack is imported, as on a first run.
+  if (candidates.length) { try {
     const music = await sha256(await hostReadBytes(audioPath));
     for (const candidate of candidates) {
       try { if (fs.existsSync(candidate.path) && await sha256(await hostReadBytes(candidate.path)) === music) { existingAudioId = candidate.resourceId; break; } } catch { /* not a match */ }
     }
-  }
+  } catch { existingAudioId = null; } }
   const dir = hostJoin(roots.data, (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random()).replace(/[^0-9a-z]/gi, ""));
   fs.mkdirSync(dir, { recursive: true });
   const paths = [];
