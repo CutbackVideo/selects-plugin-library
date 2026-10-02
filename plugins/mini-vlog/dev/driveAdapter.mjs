@@ -18,7 +18,12 @@
 //   pairwise coverage rule, which only a full matrix (dev/matrix.json) can meet.
 // - Everything the panel decides comes from the shipped files: constants from panel.tsx, the planner from planner.js
 //   (identical to the panel's embedded mv-planner block) plus the panel's plain-JS mv-hook block (motion bonus, punch
-//   frames), effect and title labels from scripts/decorate.js.
+//   frames), mv-local block and the kit's quick-score block (candidates for clips without analysis), effect and title
+//   labels from scripts/decorate.js.
+// - Clips without analysis (inventory `analysed: false`) are not searched, as in the panel. Their quick local scores
+//   come from dev/quick-scores.local.json ({ "<rid>": <quickScore result>, ... }, optional, e.g. made with the kit block's
+//   `io` seam and a local ffmpeg); a clip without an entry gets the block's own fallback (evenly spaced windows), which
+//   is what the panel does on a host without ffmpeg.
 import vm from 'node:vm';
 
 // A brace or bracket constant from panel.tsx, evaluated as a JS literal (`close` is its closing token, e.g. '};').
@@ -40,8 +45,8 @@ function panelScalar(panel, name, re) {
 // constant it declares, so a planner change never needs a driver change. The panel's mv-hook block is loaded into the
 // same context (it calls the planner's mvMusicOffset).
 function loadPlanner(source) {
-  const names = [...source.matchAll(/^(?:function\s+(mv\w+)|const\s+(MV_\w+))/gm)].map(m => m[1] || m[2]);
-  const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, isFinite };
+  const names = [...source.matchAll(/^(?:(?:async\s+)?function\s+((?:mv|qs)\w+|quickScore\w*|pickWindowsLocal)|const\s+(MV_\w+)|var\s+(QS_\w+))/gm)].map(m => m[1] || m[2] || m[3]);
+  const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, isFinite, Promise, Date, setTimeout, clearTimeout, AbortController, TextDecoder, Uint8Array };
   vm.createContext(box);
   vm.runInContext(source + ';globalThis.P={' + names.join(',') + '};', box);
   return box.P;
@@ -68,6 +73,11 @@ const PANEL_DECORATE = [
   'const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");',
   'const fresh = await findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch));',
   'const plan: any = mvPlanBuild({ candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(nextSeed) });',
+  // build(): analysed clips to the scene search, the others to the quick local check, merged by mvWithLocal.
+  'const rids: string[] = chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);',
+  'const localClips: any[] = chosenVideos.filter((r: any) => r.analysed === false);',
+  'found = { key, failed: fresh.failed, scene, local, list: mvWithLocal(scene, local.results, frozen.punch) };',
+  'queries, pageSize: 4, checkAnalysis: false }',
   // The render body: Groove capacity and the default section (hook window, else the most energetic one).
   'const grooved = pace === "groove" && (tempo ? !!guard.groove : true);',
   'const opener = guard.groove ? guard.opener : 2;',
@@ -105,9 +115,19 @@ const WANT_LABEL = (src, name) => { const m = new RegExp(name + " = '([^']+)'").
 export async function createAdapter({ pluginDir, installedDir, read }) {
   const manifestJson = JSON.parse(read('plugin.json'));
   const panel = read('panel.tsx');
-  const hookFrom = panel.indexOf('// mv-hook:start\n'), hookTo = panel.indexOf('// mv-hook:end');
-  if (hookFrom < 0 || hookTo < hookFrom) throw Error('panel.tsx has no mv-hook block');
-  const P = loadPlanner(read('planner.js') + '\n' + panel.slice(hookFrom, hookTo));
+  const blockOf = name => {
+    const from = panel.indexOf('// ' + name + ':start\n'), to = panel.indexOf('// ' + name + ':end');
+    if (from < 0 || to < from) throw Error('panel.tsx has no ' + name + ' block');
+    return panel.slice(from, to);
+  };
+  const P = loadPlanner(read('planner.js') + '\n' + blockOf('mv-hook') + '\n' + blockOf('mv-local') + '\n' + blockOf('quick-score'));
+  // Quick local scores for clips without analysis (see the header); missing is fine.
+  let quickScores = null;
+  const quickScoresOf = () => {
+    if (quickScores) return quickScores;
+    try { quickScores = JSON.parse(read('dev/quick-scores.local.json')); } catch { quickScores = {}; }
+    return quickScores;
+  };
   const decorateJs = read('scripts/decorate.js');
   const stale = PANEL_DECORATE.filter(x => !panel.includes(x));
   if (stale.length) throw Error('panel.tsx decorate() changed; update driveAdapter.mjs decorate(). Missing:\n  ' + stale.join('\n  '));
@@ -230,8 +250,10 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       return { summary: 'Read footage', script: 'scripts/inventory.js', config: { projectId: resolve(row, { required: true }), only: null, known: {}, ...(readOnly ? { measureMs: 0 } : {}) } };
     },
 
+    // Analysed clips only: the others get quick local candidates in plan() (panel.tsx build()).
     videoRids(inv) {
-      return { rids: inv.resources.map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
+      const searched = inv.resources.filter(r => r.analysed !== false);
+      return { rids: searched.map(r => r.rid), durations: Object.fromEntries(searched.map(r => [r.rid, r.duration])) };
     },
 
     // panel.tsx findCandidates(): SEARCH_BATCH clips per call, pageSize 4.
@@ -241,7 +263,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     // row exactly the panel's candidates. One --out folder then serves a full matrix with mixed Beat punch rows. (A
     // search cache written before this change has no motion hits: delete it, or Beat punch rows get no bonus.)
     search(row, rids) {
-      return { summary: 'Search shots', script: 'scripts/search.js', config: { projectId: resolve(row, { required: true }), rids, queries: j(P.mvSearchQueries(MV_QUERIES, true)), pageSize: 4 } };
+      return { summary: 'Search shots', script: 'scripts/search.js', config: { projectId: resolve(row, { required: true }), rids, queries: j(P.mvSearchQueries(MV_QUERIES, true)), pageSize: 4, checkAnalysis: false } };
     },
 
     // panel.tsx: title fields, grid, section, fit and blockReason (the render body), then build() up to mvPlanBuild.
@@ -311,12 +333,19 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       // punch, motion hits become a tie-break bonus on the role candidates first; without it the motion rows (always
       // searched, see search()) are dropped, as the panel never has them then.
       const roleOnly = found.list.filter(c => !c || c.role !== P.MV_MOTION_ROLE);
-      const plan = j(P.mvPlanBuild({ candidates: (row.punch ? j(P.mvMotionBonus(found.list)) : roleOnly).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace: row.pace, requested,
+      // Clips without analysis: quick local candidates on the scene search's scale (panel mvWithLocal), from
+      // dev/quick-scores.local.json or the quick-score block's fallback.
+      const scores = quickScoresOf();
+      const localResults = inv.resources.filter(r => r.analysed === false)
+        .map(r => ({ rid: r.rid, duration: r.duration, scores: scores[r.rid] || j(P.qsFallback({ rid: r.rid, durationSeconds: r.duration }, 0, null)) }));
+      const withLocal = j(P.mvWithLocal(row.punch ? found.list : roleOnly, localResults, !!row.punch));
+      const plan = j(P.mvPlanBuild({ candidates: (row.punch ? j(P.mvMotionBonus(withLocal)) : withLocal).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace: row.pace, requested,
         sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(seed) }));
       const planSummary = { ok: plan.ok, reason: plan.reason, shots: plan.shots, requested, fitted, beatsPerShot: plan.beatsPerShot, overridden: plan.overridden,
         shotSeconds: plan.shotSeconds, photoShots: plan.photoShots, fillerShots: plan.fillerShots, usableShots: plan.usableShots, sectionStart: musicStart,
         pace: row.pace, punch: !!row.punch, hook: !!row.hook && musicKind === 'cue', groove: plan.groove || null, fittedBeats: grooveFit ? grooveFit.beats : null,
-        motionHits: found.list.filter(c => c && c.role === P.MV_MOTION_ROLE).length };
+        motionHits: found.list.filter(c => c && c.role === P.MV_MOTION_ROLE).length, localClips: localResults.length,
+        localDecoded: localResults.filter(r => r.scores && !r.scores.fallback).length };
       if (!plan.ok) throw Error((MV_FAIL[plan.reason] || 'No plan fits this footage') + '. plan: ' + JSON.stringify(planSummary));
       // Photo sizes the inventory measured (the panel's photoSizesRef).
       const photoSizes = {};
