@@ -22,7 +22,9 @@ const keepAlive = setInterval(() => {}, 50);
   const inv = await load('inventory.js', { projectId: 'p', only: null })(selects);
   assert.deepEqual(inv.resources.map(r => [r.rid, r.width, r.height, r.duration]), [['r0', 1920, 1080, 20], ['r3', 1080, 1920, 12]]);
   assert.equal(inv.resources[0].recordedAt, '2026-09-26T15:00:00Z');
+  // r1 is unanalysed and sourceFiles() has no file for it: it cannot be used yet.
   assert.equal(inv.skipped.unanalysed, 1);
+  assert.equal(inv.skipped.notAnalysed, 0);
   // No recording-year summary: the title's @year is the current year (panel.tsx mvCurrentYear()), never footage dates.
   assert.ok(!('latestYear' in inv), 'inventory has no latestYear');
   const only = await load('inventory.js', { projectId: 'p', only: ['r3'] })(selects);
@@ -90,7 +92,7 @@ const keepAlive = setInterval(() => {}, 50);
   const partial = [null, 'junk', { type: 'Video' }, { resourceId: 'q0', type: 'Video', hasAnalysis: true, durationSeconds: 8 },
     { resourceId: 'q1', type: 'Video', hasAnalysis: true, durationSeconds: 'x', recording: null }, { resourceId: 'q2', type: 'Image', recording: {} }];
   const invQ = await load('inventory.js', { projectId: 'p', only: null, measureMs: 0 })(selL({ resources: async () => partial, sourceFiles: async () => ({ fileTree: [] }) }));
-  assert.deepEqual(invQ.resources, [{ rid: 'q0', name: 'q0', duration: 8, width: null, height: null, recordedAt: null, kind: 'video' }], 'missing name and recording');
+  assert.deepEqual(invQ.resources, [{ rid: 'q0', name: 'q0', duration: 8, width: null, height: null, recordedAt: null, kind: 'video', analysed: true, status: null, path: null }], 'missing name and recording');
   assert.equal(invQ.skipped.missing, 1, 'a non-numeric duration counts as missing');
   assert.deepEqual(invQ.photos, [{ rid: 'q2', name: 'q2', width: null, height: null, recordedAt: null, kind: 'photo' }]);
   assert.equal(invQ.incomplete, false, 'malformed entries are dropped, not a loading Project');
@@ -116,45 +118,76 @@ const keepAlive = setInterval(() => {}, 50);
   const s4 = await load('search.js', { projectId: 'p', rids: ['a', 'b'], queries: { q1: '1' }, pageSize: 4, budgetMs: 500 })(sel3);
   assert.deepEqual(s4.failed.sort(), ['a', 'b']);
   assert.equal(s4.stats.waitedMs, 0);
-  // Unanalysed videos by status: being analysed, never started, failed. The panel never starts analysis itself.
-  const v = (id, status) => ({ resourceId: id, name: id + '.mov', type: 'Video', hasAnalysis: false, status, durationSeconds: 10 });
-  const mixed = [resources[0], v('s1', 'sampling'), v('s2', 'samplingSucceeded'), v('s3', 'analyzing'), v('s4', 'samplingFailed'), v('s5', 'analyzingFailed'),
-    v('q1', 'pending'), v('q2', 'pending'), v('q3', 'pending'), v('u1', undefined)];
+  // Analysis is optional (build without analysis): a video is usable once it has a length and a source file that
+  // sourceFiles() resolves, whatever its status (clips imported without analysis stay 'pending'). Usable videos without
+  // analysis come back with analysed: false and their path (the panel's quick local check); skipped.notAnalysed counts
+  // them. skipped.unanalysed counts only videos that cannot be used yet (no length, or no file) -- the Clip highlights
+  // template reads it for its "not analyzed yet" sentence, so it must never count a usable clip.
+  const v = (id, extra) => ({ resourceId: id, name: id + '.mov', type: 'Video', hasAnalysis: false, status: 'pending', durationSeconds: 10, ...extra });
+  const node = (id) => ({ type: 'video', name: id + '.mov', resourceId: id, path: '/v/' + id + '.mov', frameSize: { width: 1280, height: 720 } });
+  const noA = [resources[0], v('u1'), v('u2', { status: 'sampling' }), v('u3', { status: 'analyzingFailed' }), v('z0', { durationSeconds: 0 }),
+    v('z1', { durationSeconds: undefined }), v('nf'), { resourceId: 'a0', type: 'Video', hasAnalysis: true, durationSeconds: 0 }];
   let wfCalls = 0;
-  const withWf = wf => ({ project: () => ({ resources: async () => mixed, sourceFiles: async () => tree,
-    workflows: async (f) => { wfCalls++; assert.equal(f, undefined, 'one unfiltered read'); if (wf instanceof Error) throw wf; return wf; } }) });
-  const split = inv => { const { unanalysed, analysing, notAnalysed, failed, statusKnown } = inv.skipped;
-    assert.equal(analysing + notAnalysed + failed, unanalysed, 'the split adds up'); return { unanalysed, analysing, notAnalysed, failed, statusKnown }; };
-  // No workflows: pending clips were never started.
-  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([]))),
-    { unanalysed: 9, analysing: 3, notAnalysed: 4, failed: 2, statusKnown: true });
-  assert.equal(wfCalls, 1, 'workflows() is read once');
-  // A queued or running analyze-resource workflow makes its pending clip "being analysed"; finished ones do not.
-  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([
-    { workflowId: 'w1', type: 'project:analyze-resource', status: 'queued', resourceId: 'q1' },
-    { workflowId: 'w2', type: 'project:analyze-resource', status: 'running', resourceId: 'q2' },
-    { workflowId: 'w3', type: 'project:analyze-resource', status: 'failed', resourceId: 'q3' },
-    { workflowId: 'w4', type: 'project:create', status: 'succeeded', extra: { done: 3, failed: 0, total: 3, failures: [] } }]))),
-    { unanalysed: 9, analysing: 5, notAnalysed: 2, failed: 2, statusKnown: true });
-  // A running project:create fan-out: every pending clip is being analysed.
-  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([
-    { workflowId: 'w5', type: 'project:create', status: 'running', extra: { done: 1, failed: 0, total: 4, failures: [] } }]))),
-    { unanalysed: 9, analysing: 6, notAnalysed: 1, failed: 2, statusKnown: true });
-  // workflows() fails: pending clips count as not analysed, and the status is marked unknown.
-  const failedRead = await load('inventory.js', { projectId: 'p', only: null })(withWf(new Error('boom')));
-  assert.deepEqual(split(failedRead), { unanalysed: 9, analysing: 3, notAnalysed: 4, failed: 2, statusKnown: false });
-  assert.equal(failedRead.incomplete, false, 'a failed workflows() read never marks the inventory incomplete');
-  // A malformed workflows() reply (the Project still loading) is a failed read too, not an incomplete inventory.
-  const odd = await load('inventory.js', { projectId: 'p', only: null })(withWf(undefined));
-  assert.deepEqual(split(odd), { unanalysed: 9, analysing: 3, notAnalysed: 4, failed: 2, statusKnown: false });
-  assert.equal(odd.incomplete, false, 'a malformed workflows() reply never marks the inventory incomplete');
-  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([null, 'x', { type: 'project:analyze-resource', status: 'running', resourceId: 'q1' }]))),
-    { unanalysed: 9, analysing: 4, notAnalysed: 3, failed: 2, statusKnown: true }, 'malformed entries are skipped');
-  // Nothing pending: workflows() is not read at all.
-  wfCalls = 0;
-  const done = { project: () => ({ resources: async () => [resources[0], v('s1', 'analyzing')], sourceFiles: async () => tree, workflows: async () => { wfCalls++; return []; } }) };
-  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(done)), { unanalysed: 1, analysing: 1, notAnalysed: 0, failed: 0, statusKnown: true });
-  assert.equal(wfCalls, 0, 'no workflows() read without a pending clip');
+  const noTree = { fileTree: [{ type: 'dir', name: 'x', children: [tree.fileTree[0].children[0], node('u1'), node('u2'), node('u3'), node('z0'), node('z1')] }] };
+  const selNA = (o) => ({ project: () => ({ resources: async () => noA, sourceFiles: async () => noTree, workflows: async () => { wfCalls++; return []; }, ...o }) });
+  const invNA = await load('inventory.js', { projectId: 'p', only: null })(selNA());
+  assert.deepEqual(invNA.resources.map(r => [r.rid, r.analysed, r.path, r.duration, r.status]), [
+    ['r0', true, '/v/a.mov', 20, null], ['u1', false, '/v/u1.mov', 10, 'pending'], ['u2', false, '/v/u2.mov', 10, 'sampling'], ['u3', false, '/v/u3.mov', 10, 'analyzingFailed']],
+    'pending, sampling and failed clips with a length and a file are usable; status is information only');
+  assert.deepEqual([invNA.resources[1].width, invNA.resources[1].height], [1280, 720], 'an unanalysed clip keeps its frame size');
+  assert.deepEqual(invNA.skipped, { unanalysed: 3, missing: 1, notAnalysed: 3 }, 'no length (2) or no file (1) cannot be used yet; an analysed clip without a length is missing');
+  assert.equal(wfCalls, 0, 'no workflows() read: analysis status no longer decides anything');
+  assert.equal(invNA.incomplete, false);
+  // Only the handed clips (the template's `only`): an unanalysed clip is included like an analysed one.
+  const onlyNA = await load('inventory.js', { projectId: 'p', only: ['u1', 'z0'] })(selNA());
+  assert.deepEqual(onlyNA.resources.map(r => r.rid), ['u1']);
+  assert.deepEqual(onlyNA.skipped, { unanalysed: 1, missing: 0, notAnalysed: 1 });
+  // A Project still loading (sourceFiles throws): no paths are known, so unanalysed clips cannot be checked yet and wait
+  // with the incomplete inventory (the panel holds Build and re-reads); analysed clips stay in without sizes.
+  const loadingNA = await load('inventory.js', { projectId: 'p', only: null })(selNA({ sourceFiles: sfThrows }));
+  assert.equal(loadingNA.incomplete, true);
+  assert.deepEqual(loadingNA.resources.map(r => r.rid), ['r0']);
+  assert.deepEqual(loadingNA.skipped, { unanalysed: 6, missing: 1, notAnalysed: 0 });
+  // A synced-sequence member is left out whether or not it is analysed.
+  const synced = [{ resourceId: 's0', type: 'Video', hasAnalysis: false, durationSeconds: 9 }, v('s1', { owningSyncedSequenceResourceId: 's0' })];
+  const invS = await load('inventory.js', { projectId: 'p', only: null })({ project: () => ({ resources: async () => synced, sourceFiles: async () => ({ fileTree: [node('s0'), node('s1')] }) }) });
+  assert.deepEqual(invS.resources.map(r => r.rid), ['s0']);
+  assert.deepEqual(invS.skipped, { unanalysed: 0, missing: 0, notAnalysed: 1 });
+
+  // Scene search needs analysis. Called with every handed rid (the Clip highlights template does that), search.js
+  // reads resources() once, never searches a clip without analysis and gives it evenly spaced candidates instead
+  // (role 'local', whole seconds from 1 s, at the bottom of this call's score range), so a template run still builds
+  // from unanalysed clips. The panel and the driver pass analysed rids only with checkAnalysis: false (no extra read).
+  let searched = [];
+  const selS = (res) => ({ project: () => ({ resources: async () => res, resource: rid => ({ searchScenes: async (q) => { searched.push(rid); return { results: [{ timeSeconds: 3, score: 0.3 }, { timeSeconds: 7, score: 0.26 }], error: null }; } }) }) });
+  const mixRes = [{ resourceId: 'a', type: 'Video', hasAnalysis: true, durationSeconds: 12 }, { resourceId: 'b', type: 'Video', hasAnalysis: false, status: 'pending', durationSeconds: 4.2 }];
+  const sm = await load('search.js', { projectId: 'p', rids: ['a', 'b'], queries: { street: 'q1', park: 'q2' }, pageSize: 4 })(selS(mixRes));
+  assert.deepEqual([...new Set(searched)], ['a'], 'the unanalysed clip is not searched');
+  const loc = sm.candidates.filter(c => c.rid === 'b');
+  assert.deepEqual(loc.map(c => [c.role, c.t]), [['local', 1], ['local', 2], ['local', 3]], 'whole seconds from 1 s, half a second clear of the end');
+  assert.ok(loc.every(c => c.score === 0.26), 'at the bottom of the searched scores');
+  assert.deepEqual(Object.keys(loc[0]).sort(), ['rid', 'role', 'score', 't'], 'the same keys as a scene-search hit');
+  assert.deepEqual(sm.local, ['b']);
+  assert.equal(sm.failed.length, 0);
+  // Only unanalysed clips: nothing is searched, the default score is used.
+  searched = [];
+  const so = await load('search.js', { projectId: 'p', rids: ['b'], queries: { street: 'q1' }, pageSize: 4 })(selS(mixRes));
+  assert.deepEqual(searched, []);
+  assert.ok(so.candidates.length === 3 && so.candidates.every(c => c.score === 0.25));
+  // A long clip: at most 24 windows, spread over the clip.
+  const longRes = [{ resourceId: 'L', type: 'Video', hasAnalysis: false, durationSeconds: 100 }];
+  const sl = await load('search.js', { projectId: 'p', rids: ['L'], queries: { street: 'q1' }, pageSize: 4 })(selS(longRes));
+  assert.equal(sl.candidates.length, 24);
+  assert.equal(sl.candidates[0].t, 1); assert.equal(sl.candidates[23].t, 99);
+  // resources() failing: every clip is searched as before.
+  searched = [];
+  const sf = await load('search.js', { projectId: 'p', rids: ['a', 'b'], queries: { street: 'q1' }, pageSize: 4 })({ project: () => ({ resources: async () => { throw Error('x'); }, resource: selS(mixRes).project().resource }) });
+  assert.deepEqual([...new Set(searched)].sort(), ['a', 'b']);
+  assert.deepEqual(sf.local, []);
+  // checkAnalysis: false never reads resources().
+  let reads = 0;
+  await load('search.js', { projectId: 'p', rids: ['a'], queries: { street: 'q1' }, pageSize: 4, checkAnalysis: false })({ project: () => ({ resources: async () => { reads++; return mixRes; }, resource: selS(mixRes).project().resource }) });
+  assert.equal(reads, 0);
 
   clearInterval(keepAlive);
   console.log(JSON.stringify({ scriptsRead: 'ok' }));
