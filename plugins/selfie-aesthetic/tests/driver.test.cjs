@@ -134,7 +134,8 @@ test('step configs carry exactly the keys panel.tsx build() sends', () => {
   assert.deepEqual(literalKeys('fill(assets.scripts.inventoryJs, {'), ['projectId', 'only', 'known', '...(settings.usePhotos ? {} : { measureMs: 0 })']);
   assert.deepEqual(Object.keys(A.inventory({ ...base, photos: false }).config), ['projectId', 'only', 'known', 'measureMs']);
   assert.deepEqual(Object.keys(steps.search.config), literalKeys('fill(assets.scripts.searchJs, {'));
-  assert.deepEqual(Object.keys(steps.ensure.config), ['projectId', 'path']);
+  assert.deepEqual(Object.keys(steps.ensure.config), ['projectId', 'path', 'durationSeconds']);
+  assert.equal(steps.ensure.config.durationSeconds, JSON.parse(read('assets/cues/manifest.json')).cues.find(c => c.id === 'make-funk').durationSeconds);
   assert.equal(steps.ensure.config.path, '/installed/selfie-aesthetic/assets/cues/make-funk.mp3');
   assert.deepEqual(Object.keys(steps.assemble.config), literalKeys('fill(assets.scripts.assembleJs, {'));
   assert.deepEqual(Object.keys(steps.assemble.config.music), ['resourceId', 'sourceStart']);

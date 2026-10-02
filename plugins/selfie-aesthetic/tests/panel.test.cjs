@@ -186,7 +186,9 @@ test('configs sent to each script carry what the scripts read', () => {
   assert.ok(own.includes('const motion: Record<string, any> = stillOn && analysedRids.length'), 'motion curves for analysed clips only');
   assert.ok(own.includes('motion, stillWeight: SAE_STILL_WEIGHT_PANEL, analysed, local, pickLocal: pickWindowsLocal });'), 'the dry run uses the cached motion and quick scores too');
   // ensure-audio: bundled cue path from the skills dir; own music never matched by name.
-  assert.ok(own.includes('fill(assets.scripts.ensureJs, { projectId: pid, path, ...(own ? { matchByName: false } : {}) })'));
+  assert.ok(own.includes('fill(assets.scripts.ensureJs, { projectId: pid, path, ...(own ? { matchByName: false } : cueLength) })'));
+  assert.ok(own.includes('const cueLength = !own && typeof entry.durationSeconds === "number" ? { durationSeconds: entry.durationSeconds } : {};'), 'bundled cues send their manifest length');
+  assert.ok(read('scripts', 'ensure-audio.js').includes('cfg.durationSeconds'), 'ensure-audio.js reads cfg.durationSeconds');
   // assemble.
   for (const s of ['projectId: pid, draftName: name, holds, cutSecondsRaw: plan.cutSecondsRaw,', 'music: music ? { resourceId: music.resourceId, sourceStart: plan.musicSourceStart } : null,', 'durations, crops, clipSound: settings.clipSound, ambientDb: AMBIENT_DB }), true)']) assert.ok(own.includes(s), s);
   const asm = read('scripts', 'assemble.js');

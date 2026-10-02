@@ -373,7 +373,7 @@ export async function createAdapter({ pluginDir, installedDir, read, measure, me
       if (!s.cue) return null;
       const config = s.ownFile
         ? { projectId: s.row.pid, path: s.ownFile, matchByName: false }
-        : { projectId: s.row.pid, path: installedDir + '/assets/cues/' + cues.find(c => c.id === s.row.cue).file };
+        : (() => { const c = cues.find(x => x.id === s.row.cue); return { projectId: s.row.pid, path: installedDir + '/assets/cues/' + c.file, ...(typeof c.durationSeconds === 'number' ? { durationSeconds: c.durationSeconds } : {}) }; })();
       return { summary: 'Add music to the project', script: 'scripts/ensure-audio.js', config, allowCommit: true };
     },
 
