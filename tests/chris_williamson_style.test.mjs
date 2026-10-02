@@ -137,3 +137,33 @@ for (const platform of ['darwin', 'win32']) {
     assert.deepEqual(want.cuts['0'], [2, 4]);
   });
 }
+
+const probe = (file) => JSON.parse(spawnSync('ffprobe', ['-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,codec_name,nb_read_frames', '-of', 'json', file], {encoding: 'utf8'}).stdout).streams[0];
+
+for (const platform of ['darwin', 'win32']) {
+  test('assets: the panel renders the same cutaways and credits as engine.mjs (' + platform + ')', {skip: !HAVE_FFMPEG && 'no ffmpeg'}, async () => {
+    const m = fixtures();
+    const credit = {source: 'Wikimedia Commons', url: 'https://example.org/a.jpg', page: 'https://example.org/a', license: 'CC BY 4.0', author: 'A', originalPath: null};
+    const items = [
+      {id: 'b001', desiredKind: 'video', seconds: 2.25, review: {accepted: true, focusX: 0.3, focusY: 0.5}, candidate: {file: m.still, kind: 'still', duration: 0, motionDelta: 0, ...credit}},
+      {id: 'b002', desiredKind: 'video', seconds: 1.5, review: {accepted: true, focusX: 0.5, focusY: 0.5}, candidate: {file: m.moving, kind: 'video', duration: 6, motionDelta: 12.5, ...credit}},
+      {id: 'b003', desiredKind: 'video', seconds: 9, review: {accepted: true, focusX: 0.5, focusY: 0.5}, candidate: {file: m.moving, kind: 'video', duration: 6, ...credit}},
+      {id: 'b004', desiredKind: 'video', seconds: 2, review: {accepted: false}, candidate: {file: m.still, kind: 'still'}},
+    ];
+    const job = {assets: {ffmpeg: 'ffmpeg', fps: 30, mediaFolder: 'Chris Williamson Style t', items}};
+    const eDir = path.join(m.dir, 'e-assets'), pDir = path.join(m.dir, 'p-assets-' + platform);
+    // An earlier pass's credits are kept.
+    for (const d of [eDir, pDir]) { fs.mkdirSync(d, {recursive: true}); fs.writeFileSync(path.join(d, 'CREDITS.json'), JSON.stringify([{id: 'r001', ok: true}])); }
+    const want = engineMjs('assets', job, eDir);
+    const got = await ported(platform, 'assets', job, pDir);
+    assert.deepEqual(strip(got, pDir), strip(want, eDir));
+    assert.deepEqual(strip(JSON.parse(fs.readFileSync(path.join(pDir, 'CREDITS.json'), 'utf8')), pDir), strip(JSON.parse(fs.readFileSync(path.join(eDir, 'CREDITS.json'), 'utf8')), eDir));
+    assert.deepEqual(got.items.map((i) => i.ok), [true, true, false, false]);
+    for (const row of got.items.filter((i) => i.ok)) {
+      const a = probe(row.path), b = probe(row.path.replace(pDir, eDir));
+      assert.deepEqual(a, b);
+      assert.equal(a.width, 1080); assert.equal(a.height, 1920); assert.equal(a.codec_name, 'h264');
+      for (const f of row.frames) assert.ok(fs.statSync(f).size > 0);
+    }
+  });
+}

@@ -1048,9 +1048,44 @@ async function cwShots(job) {
   return { cuts: out };
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// assets: job.assets = { fps, mediaFolder, items: [{ id, candidate, review, desiredKind, seconds }] } -> { items }
+// Each accepted candidate becomes a 1080x1920 H.264 cutaway cropped at the reviewed focus, with frames for the final
+// review; CREDITS.json keeps the attribution (a second pass adds to the first).
+async function cwAssets(job, dir) {
+  const spec = job.assets, media = hostJoin(dir, spec.mediaFolder);
+  cwMkdir(media);
+  const rows = [];
+  for (const item of spec.items) {
+    const c = item.candidate;
+    if (!c || c.error || !item.review?.accepted) { rows.push({ id: item.id, ok: false, reason: "No visually accepted candidate" }); continue; }
+    const x = Number(item.review.focusX), y = Number(item.review.focusY);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) throw new Error("Invalid crop focus");
+    const file = hostJoin(media, item.id + ".mp4"), seconds = Math.max(0.1, item.seconds);
+    // Short videos are rejected instead of frozen or silently looped.
+    if (c.kind === "video" && c.duration < seconds) { rows.push({ id: item.id, ok: false, reason: "Video is shorter than its planned cutaway" }); continue; }
+    const args = ["-v", "error", "-y", ...(c.kind === "still" ? ["-loop", "1"] : []), "-i", c.file, "-t", String(seconds), "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-ow)*${x}:(ih-oh)*${y},setsar=1,format=yuv420p`, "-r", String(spec.fps), "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-movflags", "+faststart", "-an", file];
+    const r = await cwFfmpeg(args, 120000);
+    if (!r.ok) throw new Error("Asset rendering failed: " + r.err.slice(-300));
+    const frames = [];
+    for (const [n, t] of (c.kind === "video" ? [0, seconds / 2, Math.max(0, seconds - 0.1)] : [0]).entries()) {
+      const thumb = hostJoin(dir, item.id + "-final-" + n + ".jpg");
+      const rr = await cwFfmpeg(["-v", "error", "-y", "-ss", String(t), "-i", file, "-frames:v", "1", "-vf", "scale=256:456", thumb], 20000);
+      if (!rr.ok) throw new Error("Cannot inspect final crop");
+      frames.push(thumb);
+    }
+    rows.push({ id: item.id, ok: true, path: file, preview: frames[0], frames, kind: c.kind, seconds, width: 1080, height: 1920, review: item.review, source: c.source, url: c.url, page: c.page, license: c.license, author: c.author, originalPath: c.originalPath, motionDelta: c.motionDelta, substitution: item.desiredKind === "video" && c.kind === "still" });
+  }
+  const creditsFile = hostJoin(dir, "CREDITS.json");
+  let earlier = [];
+  try { earlier = JSON.parse(await hostReadText(creditsFile)); } catch { earlier = []; }
+  await hostNeed("FileSystem", "writeFile").writeFile(creditsFile, new TextEncoder().encode(JSON.stringify([...earlier.filter((e) => !rows.some((r) => r.id === e.id)), ...rows], null, 2)));
+  return { items: rows };
+}
+
 // Runs one engine.mjs command from its job file and writes its result file beside it, as engine.mjs does.
 async function cwEngine(env, cmd, file) {
-  const handlers = { shots: (job) => cwShots(job) };
+  const handlers = { shots: (job) => cwShots(job), assets: (job, dir) => cwAssets(job, dir) };
   if (!handlers[cmd]) throw new Error("This step needs macOS for now (" + cmd + ").");
   const dir = cwDir(file);
   const result = await handlers[cmd](JSON.parse(await hostReadText(file)), dir, env);
