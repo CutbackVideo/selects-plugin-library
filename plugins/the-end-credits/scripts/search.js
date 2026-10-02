@@ -1,9 +1,36 @@
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const roles = Object.keys(cfg.queries);
-const jobs = [];
-for (const rid of cfg.rids) for (const role of roles) jobs.push({ rid, role });
 const candidates = [];
+// Scene search needs analysis. A clip without it (an import Selects never analysed) gets evenly spaced windows
+// instead, starting at least 0.5 s in (stock clips often fade in from black), for every role, flagged local with that
+// minStart; the planner gives them the same scale as search hits. The panel scores such clips locally (quick score)
+// and never sends them here; a Clip highlights template run sends every handed clip, so its unanalysed ones build from
+// these. planner.js tecEvenCandidates is the same rule (tests keep the two equal). Unknown analysis (resources()
+// failed) searches as before.
+const opt: any = cfg;
+const head = 0.5, tail = 0.05, win = opt.windowSeconds == null ? 4.4 : opt.windowSeconds;
+const evenAt = (duration: any) => {
+  const room = duration - head - tail;
+  if (!(room > 0)) return [];
+  if (room <= win) return [head + room / 2];
+  const n = Math.max(1, Math.min(4, Math.floor(room / win)));
+  if (n === 1) return [head + room / 2];
+  const out = [];
+  for (let k = 0; k < n; k++) out.push(head + win / 2 + k * (room - win) / (n - 1));
+  return out;
+};
+let info: any = null;
+try { info = {}; for (const r of await p.resources()) info[r.resourceId] = r; } catch (e) { info = null; }
+const unanalysed = [];
+for (const rid of cfg.rids) {
+  const r = info && info[rid];
+  if (!r || r.hasAnalysis !== false) continue;
+  unanalysed.push(rid);
+  for (const t of evenAt(r.durationSeconds)) for (const role of roles) candidates.push({ rid, role, t: Math.round(t * 1000) / 1000, score: 0.45, local: true, minStart: head });
+}
+const jobs = [];
+for (const rid of cfg.rids) if (!unanalysed.includes(rid)) for (const role of roles) jobs.push({ rid, role });
 // run_script has no setTimeout; Atomics.waitAsync on a private buffer waits without blocking. Without it, no wait.
 const sleep = ms => {
   const atomics = Object(globalThis).Atomics;
@@ -44,4 +71,4 @@ for (let pass = 0; pass < 4 && pending.length; pass++) {
   await Promise.all(Array.from({ length: Math.min(width, queue.length) }, worker));
   pending = failed;
 }
-return { candidates, failed: [...new Set(pending.map(j => j.rid))], stats: { ms: Date.now() - started, waitedMs: waited, rateLimited } };
+return { candidates, failed: [...new Set(pending.map(j => j.rid))], unanalysed, stats: { ms: Date.now() - started, waitedMs: waited, rateLimited } };
