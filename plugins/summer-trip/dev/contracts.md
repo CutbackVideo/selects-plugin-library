@@ -136,29 +136,50 @@ Returns `{ titleAdded, labelsAdded, muted, muteKept, gridSound: { mode, routed, 
 filmFrame, motion, videoMotion }, kept: { … } }, committed, alreadyDone, notes }`.
 
 ### ensure-audio.js
-`{ projectId, files: [{ key, path, matchByName? }] }` → `{ ids: { [key]: resourceId }, imported: [key], missing: [key] }` (imports
-only missing files in one importFiles call; matches Audio resources by path, then by file name). `matchByName: false` (set by the
+`{ projectId, files: [{ key, path, matchByName?, duration? }] }` → `{ ids: { [key]: resourceId }, imported: [key], missing: [key] }` (imports
+only missing files in one importFiles call; matches Audio resources by path, then by file name). Paths and names compare NFC-normalised;
+when either side looks like a Windows path also with `\` as `/` and case-folded (POSIX stays case-sensitive). With `duration` (seconds:
+the cue manifest's `duration`, the SFX manifest's `duration`) the file-name match also needs the resource's `durationSeconds` within
+0.5 s (a resource the same call just imported is exempt). `matchByName: false` (set by the
 panel and `dev/adapter.mjs` on the `dry` entry when it is the user's own music) matches by path only, so another song with the same
 file name is never reused; after the import it may match by name among the resources that import added. Plugin-owned files (bundled
 cues and their muffled copies, sound effects, the hash-named muffled copy of own music) omit it and keep the name fallback.
 
 ### inventory.js
 `{ projectId, only: null | [rid], known?: { [rid]: size }, measureMs?: 8000, probeMs?: 4000 }` →
-`{ resources: [{ rid, name, duration, width, height, recordedAt, capturedAt, month, kind: 'video' }], photos: [{ rid, name, width,
-height, recordedAt, capturedAt, month, kind: 'photo' }], months: [12 counts, Jan first — whole Project, ignoring only],
-skipped: { unanalysed, missing, analysing, notAnalysed, failed, statusKnown }, captureDates: { known, probed } }`.
-Videos without analysis are split by ProjectResource.status (sampling/analyzing = analysing, sampling/analyzingFailed =
+`{ resources: [{ rid, name, duration, width, height, recordedAt, capturedAt, month, kind: 'video', hasAnalysis, status, path }],
+photos: [{ rid, name, width, height, recordedAt, capturedAt, month, kind: 'photo' }], months: [12 counts, Jan first — whole Project,
+ignoring only], skipped: { unanalysed, withoutAnalysis, missing, analysing, notAnalysed, failed, statusKnown }, captureDates: { known,
+probed } }`.
+Every imported video is usable whatever its analysis (status never decides: an import without analysis reads `pending`): an analysed
+video needs `durationSeconds > 0`; one without analysis needs that and a source file path (sourceFiles). `skipped.unanalysed` = videos
+without analysis that cannot be used yet (no length or path; the Clip highlights template words this count), `skipped.withoutAnalysis`
+= usable videos without analysis (listed in `resources` with `hasAnalysis: false`), `skipped.missing` = analysed videos without a
+length. Members of a Synced Timeline in the set are left out. For information only, videos without analysis (usable or not:
+`analysing + notAnalysed + failed = unanalysed + withoutAnalysis`) are split by ProjectResource.status (sampling/analyzing = analysing, sampling/analyzingFailed =
 failed, the rest not analysed) plus queued/running analyze-resource workflows (or a running project:create) for pending
 clips; statusKnown is false when `workflows()` fails. Dates without a Resource recording date come from
 `selects.media.probe` (recorded → creation → filenameTimestamp → encoded unless encodedBy); month is read from the date text.
 
 ### search.js
 `{ projectId, rids, queries?: { [role]: text } /* default spec §5 roles + the signal queries avoid, motion */, roles?: [role], pageSize?: 6
-/* 1–10 */, parallel?: 4 /* ≤ 4 */, budgetMs?: 22000 }` → `{ candidates: [{ rid, role, t, score }], failed: [rid], stats: { ms, waitedMs,
-rateLimited, jobs } }`. The panel and `dev/adapter.mjs` pass `{ ...ST_QUERIES, ...ST_SIGNAL_QUERIES }` (14 searches per clip). Hits of
+/* 1–10 */, parallel?: 4 /* ≤ 4 */, budgetMs?: 22000 }` → `{ candidates: [{ rid, role, t, score }], failed: [rid], unanalysed: [rid],
+stats: { ms, waitedMs, rateLimited, jobs } }`. Clips with `hasAnalysis: false` (one `resources()` read; if it fails every clip is
+searched) are not searched and come back in `unanalysed`, never in `failed`. The panel and `dev/adapter.mjs` pass `{ ...ST_QUERIES, ...ST_SIGNAL_QUERIES }` (14 searches per clip). Hits of
 the signal roles `avoid` and `motion` are never shots: the planner (`stSignals`) ranks an avoided candidate (near a strong avoid hit,
 or on an avoid-dominated clip) as one use more and after non-avoided ones in opener/place/grid/montage slots (not the ending), and
 gives candidates near a motion hit a tie-break bonus (≤ 0.03).
+
+### Local candidates (clips without analysis)
+The panel runs the kit quick-score block (`// quick-score:start … :end` in panel.tsx, kit `tools/panel/quick-score.js`, verbatim):
+`quickScoreAll([{ rid: '<projectId>_<rid>', path, durationSeconds }], { concurrency: 3, budgetMs: 20000, signal, dataDir, onProgress })`
+→ Map → `stQuickCandidates` → planner `stLocalCandidates(resource, scores, pickWindowsLocal)`: per role (`ST_LOCAL_ROLES`: opener
+4.75 s, place 2.25, grid 1, montage 1.5, ending 2; picker role `steady` except the montage's `montage`) up to 4 candidates
+`{ rid, role, t, score, sourceDuration, minStart: 0.5, local: 'score' }`, `score = 0.10 + 0.20 · pick score` (halved for a window the
+picker flags bad). A fallback result (no ffmpeg, failed decode, budget) or no result: `stFallbackCandidates` (6 evenly spaced
+centres per role, score 0.05, `local: 'fallback'`). `minStart` (any candidate, optional): `stWindow` never starts that source's window
+earlier, and `stFillers` passes it on to the source's fillers. `stPseudoCandidates` gives clips without analysis the fallback
+candidates (readiness estimate, and the Clip highlights template run).
 
 ## Effect parameters (assets/*.tsx)
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "daily-vlog-8",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "name": "8-Clip Daily Vlog",
   "summary": "Builds an editable eight-clip daily vlog Draft from one project footage folder, with an animated yellow title, transitions and bundled CC0 audio.",
   "status": "experimental",

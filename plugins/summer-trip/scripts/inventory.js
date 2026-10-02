@@ -47,12 +47,21 @@ for (const id of Object.keys(captured)) { const m = monthOf(captured[id]); if (m
 const video = all.filter(r => r.type === 'Video' && wanted(r));
 const ids = new Set(video.map(r => r.resourceId));
 const resources = [];
-let unanalysed = 0, missing = 0;
-// Videos without analysis, by why: being analysed now, never started (the panel never starts analysis itself), or
-// failed. Resources queued by startAnalysis can still read status 'pending', so a queued or running workflow for the
-// clip (or a running project:create fan-out) counts it as being analysed. One workflows() read; if it fails, a
-// pending clip is counted as not analysed and statusKnown is false, so the panel words it neutrally.
-const waiting = video.filter(r => !r.hasAnalysis);
+// Every video is usable once imported, whatever its analysis state (a clip without analysis gets local candidates in
+// the panel instead of scene search). Imported without analysis, a clip reads status 'pending' (the SDK's startAnalysis
+// target), so status never decides: an analysed video needs a length, as before; one without analysis needs a length
+// and a source file path (the panel's quick score decodes the file). Each resource reports hasAnalysis and status.
+// skipped.unanalysed: videos without analysis that cannot be used yet (no length or no file path; the Clip highlights
+// template's wording reads this field). skipped.withoutAnalysis: usable videos without analysis. skipped.missing:
+// analysed videos without a length.
+let unanalysed = 0, missing = 0, withoutAnalysis = 0;
+// Analysis status of every video without analysis (usable or not), for information only: being analysed now, never
+// started (the panel never starts analysis itself) or failed. Resources queued by startAnalysis can still read status
+// 'pending', so a queued or running workflow for the clip (or a running project:create fan-out) counts it as being
+// analysed. One workflows() read; if it fails, a pending clip is counted as not analysed and statusKnown is false.
+// Members of a Synced Timeline in the set are left out (the timeline itself is used).
+const own = video.filter(r => !(r.owningSyncedSequenceResourceId && ids.has(r.owningSyncedSequenceResourceId)));
+const waiting = own.filter(r => !r.hasAnalysis);
 const busyRids = new Set();
 let fanout = false, statusKnown = true;
 if (waiting.some(r => r.status === 'pending')) {
@@ -71,13 +80,14 @@ for (const r of waiting) {
   else if (r.status === 'samplingFailed' || r.status === 'analyzingFailed') failed++;
   else notAnalysed++;
 }
-for (const r of video) {
-  if (!r.hasAnalysis) { unanalysed++; continue; }
-  if (r.owningSyncedSequenceResourceId && ids.has(r.owningSyncedSequenceResourceId)) continue;
+for (const r of own) {
+  const analysed = !!r.hasAnalysis;
   const size = sizes[r.resourceId];
-  if (!(r.durationSeconds > 0)) { missing++; continue; }
+  if (!(r.durationSeconds > 0) || (!analysed && !paths[r.resourceId])) { if (analysed) missing++; else unanalysed++; continue; }
+  if (!analysed) withoutAnalysis++;
   resources.push({ rid: r.resourceId, name: r.name, duration: r.durationSeconds, width: size ? size.width : null, height: size ? size.height : null,
-    recordedAt: recordedAt(r), capturedAt: captured[r.resourceId] || null, month: monthOf(captured[r.resourceId]), kind: 'video' });
+    recordedAt: recordedAt(r), capturedAt: captured[r.resourceId] || null, month: monthOf(captured[r.resourceId]), kind: 'video',
+    hasAnalysis: analysed, status: r.status || null, path: paths[r.resourceId] || null });
 }
 // Photos (Image resources) have no analysis and no scene search; they are placed whole. sourceFiles() reports no
 // frameSize for them, so an unsaved scratch Draft measures each one: a new Draft adopts its first clip's frame size.
@@ -100,4 +110,4 @@ for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
   photos.push({ rid: r.resourceId, name: r.name, width: ok ? size.width : null, height: ok ? size.height : null,
     recordedAt: recordedAt(r), capturedAt: captured[r.resourceId] || null, month: monthOf(captured[r.resourceId]), kind: 'photo' });
 }
-return { resources, photos, months, skipped: { unanalysed, missing, analysing, notAnalysed, failed, statusKnown }, captureDates: { known: months.reduce((a, n) => a + n, 0), probed } };
+return { resources, photos, months, skipped: { unanalysed, withoutAnalysis, missing, analysing, notAnalysed, failed, statusKnown }, captureDates: { known: months.reduce((a, n) => a + n, 0), probed } };

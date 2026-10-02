@@ -1,7 +1,8 @@
 // plugins/summer-trip/tests/adapter.test.cjs
 // Offline test of the headless driver's Summer Trip half (dev/adapter.mjs + dev/expect.mjs): plan, run_script configs
 // (checked by running the real scripts/assemble.js and scripts/decorate.js on a small Selects mock), the real-fps
-// re-plan, the visible-events list, readback expectations and their check. No app, no kit, no ffmpeg.
+// re-plan, the visible-events list, readback expectations and their check. No app, no kit; ffmpeg only for the optional
+// real-clip quick-score timing (skipped without it).
 'use strict';
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const { pathToFileURL } = require('node:url');
@@ -333,6 +334,50 @@ function readbackOf(m, fps) {
     const sn = A.plan({ row: { key: 'own-none', pid: 'P', music: { own: noneFile }, section: 10.04, length: 'short', usePhotos: false }, seed: 1, inv, found });
     assert.deepEqual([sn.music.grid.bpm, sn.music.grid.accepted, sn.music.grid.lowConfidence, sn.music.sectionStart, sn.music.sectionKind], [120, false, true, 10, 'seconds']);
     assert.deepEqual(sn.music.notes, ['approximate timing (no reliable beat)']);
+  }
+
+  // ---- 3b. Clips without analysis: videoRids leaves them out of the search; localScores runs the panel's quick-score
+  // block through its io seam (here a fake decode; with ffmpeg on PATH also real clips) and plan() gives them local
+  // candidates; without localScores (the kit driver) they plan on the evenly spaced fallback.
+  {
+    const { nodeQuickIO, loadQuickScore } = await import(pathToFileURL(path.join(PLUGIN, 'dev', 'adapter.mjs')).href);
+    assert.equal(typeof loadQuickScore(fs.readFileSync(path.join(PLUGIN, 'panel.tsx'), 'utf8')).pickWindowsLocal, 'function');
+    const un = Array.from({ length: 7 }, (_, i) => ({ rid: 'u' + i, name: 'u' + i, duration: 12, width: 1920, height: 1080, kind: 'video', hasAnalysis: false, status: 'pending', path: '/clips/u' + i + '.mov' }));
+    const mixedInv = { resources: resources.slice(0, 3).map(r => ({ ...r, hasAnalysis: true })).concat(un), photos, months };
+    assert.deepEqual(A.videoRids(mixedInv).rids, ['v0', 'v1', 'v2'], 'only analysed clips are searched');
+    const W = 64, H = 36, files = {}, args = [];
+    const fakeIO = { runFFmpeg: async a => { args.push(a); const n = Math.round(Number(a[a.indexOf('-t') + 1]) * 8), b = new Uint8Array(n * W * H); for (let i = 0; i < b.length; i++) b[i] = (i * 7 + Math.floor(i / (W * H)) * 13) % 200 + 30; files[a[a.length - 1]] = b; return {}; },
+      readBytes: async p => files[p], remove: async p => { delete files[p]; }, join: (...p) => path.join(...p), mkdir: () => {}, mtimeMs: () => 1, readText: async p => { if (!(p in files)) throw Error('no'); return files[p]; }, writeText: async (p, t) => { files[p] = t; } };
+    const row = { key: 'un', pid: 'P', music: 'dev-test', length: 'short' };
+    const local = await A.localScores(row, mixedInv, { io: fakeIO });
+    assert.deepEqual([local.stats.clips, local.stats.scored, local.stats.fallback], [7, 7, 0]);
+    assert.ok(args.length === 7 && args.every(a => Array.isArray(a) && /^\/clips\/u\d\.mov$/.test(a[a.indexOf('-i') + 1])), 'ffmpeg argument arrays with the paths as given');
+    const foundMixed = { list: list.filter(c => ['v0', 'v1', 'v2'].includes(c.rid)), failed: [] };
+    const sm = A.plan({ row, seed: 1, inv: mixedInv, found: foundMixed, local });
+    assert.ok(sm.plan.ok); assert.equal(sm.planSummary.withoutAnalysis, 7); assert.equal(sm.planSummary.local.scored, 7);
+    const picks = sm.plan.picks.main.concat(sm.plan.picks.grid);
+    assert.ok(picks.some(p => /^u/.test(p.rid)) && picks.filter(p => /^u/.test(p.rid) && p.kind === 'video').every(p => p.startSeconds >= 0.5 - 1e-9), 'local clips used, never before 0.5 s');
+    assert.ok(sm.candidates.filter(c => /^u/.test(c.rid)).every(c => c.local === 'score'));
+    // All unanalysed, no localScores: the fallback still builds.
+    const allUn = { resources: un, photos: [], months };
+    const sf = A.plan({ row: { key: 'un2', pid: 'P', music: 'none', length: 'short', usePhotos: false }, seed: 1, inv: allUn, found: { list: [], failed: [] } });
+    assert.ok(sf.plan.ok && sf.candidates.every(c => c.local === 'fallback'));
+    // Real clips through node's ffmpeg (skipped without it): timings per clip for the record.
+    const probe = require('node:child_process').spawnSync('ffmpeg', ['-version']);
+    if (probe.status === 0) {
+      const dir = path.join(tmp, 'clips'); fs.mkdirSync(dir, { recursive: true });
+      const real = [];
+      for (let i = 0; i < 4; i++) {
+        const f = path.join(dir, 'c ' + i + '.mp4');
+        require('node:child_process').execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=30', '-t', '10', '-vf', i % 2 ? 'fade=t=in:st=0:d=1.5' : 'null', '-pix_fmt', 'yuv420p', f]);
+        real.push({ rid: 'c' + i, name: 'c' + i, duration: 10, kind: 'video', hasAnalysis: false, path: f });
+      }
+      const rl = await A.localScores({ key: 'real', pid: 'P' }, { resources: real, photos: [] }, { io: nodeQuickIO() });
+      assert.equal(rl.stats.scored, 4, JSON.stringify(rl.stats));
+      const again = await A.localScores({ key: 'real', pid: 'P' }, { resources: real, photos: [] }, { io: nodeQuickIO() });
+      assert.equal(again.stats.cached, 4, 'second run from the cache');
+      console.log('quick score (node ffmpeg, 4 x 10 s 720p): ' + JSON.stringify(rl.stats));
+    }
   }
 
   // ---- 4. The example matrix covers every option at least twice.

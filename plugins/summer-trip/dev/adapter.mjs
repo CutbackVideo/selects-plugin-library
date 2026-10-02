@@ -3,7 +3,9 @@
 // kit adapter contract (tools/drive/pluginAdapter.mjs in selects-app-kit), so it runs under the kit's driver
 //   node $SELECTS_APP_KIT/tools/drive/build-driver.mjs --plugin plugins/summer-trip --adapter plugins/summer-trip/dev/adapter.mjs ...
 // and under this plugin's own dev/drive.mjs, which adds the Summer Trip readback checks (dev/expect.mjs). It mirrors the
-// panel's Build: inventory -> search -> plan (stPlanBuild, planner.js in node:vm) -> ensure-audio (cue dry/wet, sound
+// panel's Build: inventory -> search (analysed clips) + quick local score (clips without analysis: the panel's
+// quick-score block, run here through its `io` seam with node's ffmpeg via execFile and an argument array; see
+// localScores) -> plan (stPlanBuild, planner.js in node:vm) -> ensure-audio (cue dry/wet, sound
 // effects when on) -> assemble -> decorate, with the run_script config shapes of dev/contracts.md.
 //
 // This module imports no kit code and calls no app, so tests/adapter.test.cjs runs it offline. Only own music touches
@@ -30,7 +32,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execFile } from 'node:child_process';
 import { stVisibleEvents, stEvalCuts, stExpectations, stKitExpectations, ST_W, ST_H } from './expect.mjs';
 
 export const ROW_DEFAULTS = {
@@ -56,12 +58,40 @@ export const ST_PANEL = {
   ],
   SFX_SHUTTERS: ['shutter-1', 'shutter-2', 'shutter-3', 'shutter-4'],
   SFX_WHOOSH: 'whoosh-1',
-  SEARCH_BATCH: 3,
+  SEARCH_BATCH: 2,
   SEARCH_PAGE: 6,
   FPS_GUESS: 30,
 };
 
 const j = v => JSON.parse(JSON.stringify(v)); // vm realm objects -> plain objects
+
+// The panel's quick-score block (kit tools/panel/quick-score.js, pasted verbatim between its markers) in node:vm: one
+// source for the panel and the driver.
+export function loadQuickScore(panelSource) {
+  const a = panelSource.indexOf('// quick-score:start'), b = panelSource.indexOf('// quick-score:end');
+  if (a < 0 || b < a) throw Error('panel.tsx has no quick-score block');
+  const box = { console, setTimeout, clearTimeout, AbortController, TextDecoder, Uint8Array, Map, Promise, Date, Math, JSON, Object, Number, String, Array, Error };
+  vm.createContext(box);
+  vm.runInContext(panelSource.slice(a, b) + '\n;globalThis.__Q = { quickScore, quickScoreAll, pickWindowsLocal };', box);
+  return box.__Q;
+}
+// The block's host seam on node (dev driver only): ffmpeg through execFile with an argument array (no shell; paths
+// passed as given), files through fs. ST_FFMPEG overrides the ffmpeg binary.
+export function nodeQuickIO(ffmpeg = process.env.ST_FFMPEG || 'ffmpeg') {
+  return {
+    runFFmpeg: (args, signal) => new Promise((res, rej) => {
+      const p = execFile(ffmpeg, args, { maxBuffer: 1 << 20 }, (e, stdout, stderr) => (e ? rej(e) : res({ stdout: String(stdout), stderr: String(stderr) })));
+      if (signal) signal.addEventListener('abort', () => p.kill());
+    }),
+    readBytes: async p => new Uint8Array(fs.readFileSync(p)),
+    remove: async p => { try { fs.unlinkSync(p); } catch { /* left behind */ } },
+    join: (...p) => path.join(...p),
+    mkdir: d => fs.mkdirSync(d, { recursive: true }),
+    mtimeMs: p => fs.statSync(p).mtimeMs,
+    readText: async p => fs.readFileSync(p, 'utf8'),
+    writeText: async (p, t) => fs.writeFileSync(p, t),
+  };
+}
 
 // Loads a plain script (planner.js, graphics-defs.js) in node:vm and returns every st* function and ST_* / st* const
 // it declares at the top level, so a planner change never needs a driver change.
@@ -92,6 +122,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
   const manifestJson = JSON.parse(read('plugin.json'));
   const P = loadScript(read('planner.js'));
   const G = loadScript(read('graphics-defs.js'));
+  const Q = loadQuickScore(read('panel.tsx'));
   const presets = JSON.parse(read('assets/fonts/presets.json'));
   const sfxManifest = JSON.parse(read('sfx/manifest.json'));
   // Bundled cues, then the development cues (gitignored, built by dev/build-cues.cjs) when this checkout or the
@@ -133,9 +164,9 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
   function bakeMuffle(own) {
     if (fs.existsSync(own.wetPath)) return own.wetPath;
     const req = createRequire(path.join(pluginDir, 'muffle.cjs'));
-    const { stMuffleCommand } = req(path.join(pluginDir, 'muffle.cjs'));
-    const cmd = stMuffleCommand(own.file, own.wetPath + '.part.wav');
-    execFileSync('/bin/sh', ['-c', cmd], { stdio: 'ignore' });
+    const { stMuffleArgs } = req(path.join(pluginDir, 'muffle.cjs'));
+    // The panel's argument array, run without a shell.
+    execFileSync(process.env.FFMPEG_DIR ? path.join(process.env.FFMPEG_DIR, 'ffmpeg') : 'ffmpeg', stMuffleArgs(own.file, own.wetPath + '.part.wav'), { stdio: 'ignore' });
     fs.renameSync(own.wetPath + '.part.wav', own.wetPath);
     return own.wetPath;
   }
@@ -203,10 +234,16 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
     return { start: r.start, kind: r.kind, note: r.note || (r.moved ? 'The section was moved to the latest start that fits' : null) };
   }
 
-  function candidates(row, inv, found) {
+  // Scene-search hits of the analysed clips, local candidates of the clips without analysis (stLocalCandidates on
+  // their quick scores, `local` = { rid: scores } from localScores; without one, the evenly spaced fallback, as when the
+  // kit driver plans without calling localScores), and the photos.
+  function candidates(row, inv, found, local) {
     const only = row.only ? new Set(row.only) : null;
     const dur = Object.fromEntries(inv.resources.map(r => [r.rid, r.duration]));
     const hits = found.list.filter(c => !only || only.has(c.rid)).map(c => ({ ...c, sourceDuration: c.sourceDuration || dur[c.rid] || 0 }));
+    for (const r of inv.resources.filter(r => r.hasAnalysis === false && (!only || only.has(r.rid)))) {
+      hits.push(...j(P.stLocalCandidates({ rid: r.rid, duration: r.duration }, (local && local[r.rid]) || null, Q.pickWindowsLocal)));
+    }
     const photos = row.usePhotos ? (inv.photos || []).filter(p => !only || only.has(p.rid)).map(p => ({ rid: p.rid, kind: 'photo' })) : [];
     return hits.concat(photos);
   }
@@ -261,8 +298,28 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
       return { summary: 'Read footage', script: 'scripts/inventory.js', config: { projectId: row.pid, only: row.only || null, known: {}, ...(readOnly ? { measureMs: 0, probeMs: 0 } : {}) } };
     },
 
+    // The clips to scene-search: analysed ones only (search.js skips the rest anyway).
     videoRids(inv) {
-      return { rids: inv.resources.map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
+      return { rids: inv.resources.filter(r => r.hasAnalysis !== false).map(r => r.rid), durations: Object.fromEntries(inv.resources.map(r => [r.rid, r.duration])) };
+    },
+
+    // Quick local scores of the clips without analysis, as the panel computes them (quickScoreAll: concurrency 3, a
+    // shared budget, cache in <workDir>/quick-score/ keyed by the qualified id + modification time). Returns
+    // { scores: { rid: result }, stats: { clips, scored, fallback, cached, ms, perClipMs } }. Async: dev/drive.mjs awaits it
+    // before plan(); a driver that does not call it plans these clips on the evenly spaced fallback.
+    async localScores(r0, inv, { io, budgetMs } = {}) {
+      const row = { ...ROW_DEFAULTS, ...expandEnv(r0) };
+      const only = row.only ? new Set(row.only) : null;
+      const res = inv.resources.filter(r => r.hasAnalysis === false && (!only || only.has(r.rid)));
+      const t0 = Date.now();
+      const qid = rid => String(row.pid || 'project').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40) + '_' + rid;
+      const map = res.length ? await Q.quickScoreAll(res.map(r => ({ rid: qid(r.rid), path: r.path || null, durationSeconds: r.duration })),
+        { concurrency: 3, budgetMs: budgetMs == null ? 20000 : budgetMs, io: io || nodeQuickIO(), dataDir: workDir }) : new Map();
+      const scores = {}, perClipMs = {};
+      for (const r of res) { const x = map.get(qid(r.rid)); if (x) { scores[r.rid] = j(x); perClipMs[r.rid] = x.ms; } }
+      const vals = Object.values(scores);
+      return { scores, stats: { clips: res.length, scored: vals.filter(x => !x.fallback).length, fallback: vals.filter(x => x.fallback).length,
+        cached: vals.filter(x => x.cached).length, ms: Date.now() - t0, perClipMs } };
     },
 
     search(r0, rids) {
@@ -271,7 +328,7 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
     },
 
     // Pure apart from own-music analysis (cached). Throws when the plan is not buildable (the panel's disabled Build).
-    plan({ row: r0, seed, inv, found }) {
+    plan({ row: r0, seed, inv, found, local }) {
       const row = { ...ROW_DEFAULTS, ...expandEnv(r0) };
       inv.photos = inv.photos || [];
       const requested = P.ST_LENGTHS[row.length];
@@ -285,10 +342,11 @@ export async function createAdapter({ pluginDir, installedDir, read, workDir } =
       const texts = { line1: row.line1, season, place: row.place, placePrefix: row.placePrefix, topMain: row.topMain === '@season' ? season : row.topMain,
         topItalic: row.topItalic, creditPrefix: row.creditPrefix, creditName: row.creditName };
       const fpsGuess = Number(row.fps) || lastRealFps || ST_PANEL.FPS_GUESS;
-      const s = { row, seed, inv, found, requested, preset, music, texts, suggested, fpsGuess, sizes: sizesOf(inv), candidates: candidates(row, inv, found) };
+      const s = { row, seed, inv, found, requested, preset, music, texts, suggested, fpsGuess, sizes: sizesOf(inv), candidates: candidates(row, inv, found, local && local.scores) };
       s.plan = planAt(s, fpsGuess);
       s.planSummary = { ok: s.plan.ok, reason: s.plan.disabledReason, requested, montage: s.plan.montageShots, distinct: s.plan.distinct, seconds: s.plan.seconds,
-        photoShots: s.plan.photoShots, fillerShots: s.plan.fillerShots, overlapShots: s.plan.overlapShots, notes: s.plan.notes, music: music.kind, section: music.sectionStart, sectionKind: music.sectionKind, fps: fpsGuess };
+        photoShots: s.plan.photoShots, fillerShots: s.plan.fillerShots,
+        withoutAnalysis: inv.resources.filter(r => r.hasAnalysis === false).length, local: local ? local.stats : null, overlapShots: s.plan.overlapShots, notes: s.plan.notes, music: music.kind, section: music.sectionStart, sectionKind: music.sectionKind, fps: fpsGuess };
       if (!s.plan.ok) throw Error('plan not ok: ' + s.plan.disabledReason);
       s.boundaries = s.plan.frames.mainFrames;
       s.start = music.sectionStart;

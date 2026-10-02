@@ -1,7 +1,7 @@
 # Third-party components
 
 - React and Remotion are imported from the Selects host environment. This package does not redistribute those runtimes; the host's dependency versions and applicable terms govern their use.
-- FFmpeg (ffmpeg, ffprobe) and Node.js are not bundled. When they are installed (on the user's `PATH` or the Selects install's tool locations), the panel runs them through the Selects shell for music previews, your own music (beat and drop detection) and its muffled ending copy.
+- FFmpeg (ffmpeg, ffprobe) is not bundled in this package: the panel uses the ffmpeg and ffprobe that Selects ships (its Runtime service, called with argument lists, no shell) for music previews, decoding your own music and its muffled ending copy, and the quick check of clips without analysis. No Node.js is used at runtime: your own music's beat and drop detection (`beat-detect.cjs`) runs in a Web Worker inside the panel.
 - Users supply their own footage and, optionally, their own music. No sample recordings, reference footage or model weights are included.
 
 ## Fonts
