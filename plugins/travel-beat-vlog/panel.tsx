@@ -670,7 +670,8 @@ async function heroCutout(sdk,photo,mode){
  if(!fileExists(out)){
   const tmp=out+'.tmp.png';
   const r=await sdk.runShell({summary:'Cut out hero subject',command:cutoutCommand(hostJoin(plugin,'tools','cutout.js'),photo,tmp,mode),timeoutMs:180000,maxOutputBytes:8000});
-  if(r.isError||r.exitCode!==0)throw Error(String(r.stderr||'').trim()||'Apple Vision found no subject in the hero photo.');
+  // The login shell may print its own warnings first; the helper's message is the last line.
+  if(r.isError||r.exitCode!==0)throw Error(String(r.stderr||'').trim().split('\n').filter(Boolean).pop()||'Apple Vision found no subject in the hero photo.');
   hostNeed('FileSystem','renameSync').renameSync(tmp,out);
  }
  return {path:out};
