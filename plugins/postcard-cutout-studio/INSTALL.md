@@ -43,3 +43,6 @@ so leave its other files in place.
   yet checked in a Selects Windows build.
 
 See [THIRD_PARTY.md](THIRD_PARTY.md).
+- Windows: a new background removal is not started yet (it uses Selects generation
+  credits; on hold). The Panel says "Available on macOS for now" before that step,
+  before anything is imported. Folder tiles, previews and a reused cutout still work.

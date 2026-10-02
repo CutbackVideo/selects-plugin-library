@@ -75,7 +75,8 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
         helper = self.body('async function helper(sdk,op,args={}){', '\n')
         self.assertIn('if(!hostIsWindows())return macHelper(sdk,op,args);', helper)
         self.assertLess(helper.index('pcHostIssue()'), helper.index('pcWindows(sdk)'), 'the host check comes first')
-        self.assertNotIn('Available on macOS', self.text)
+        # The only macOS-only step left on Windows is the paid background removal (PAID_MAC_ONLY).
+        self.assertEqual(self.text.count('Available on macOS'), 1)
         self.assertNotIn('function macHelper(', self.portable, 'the shell helper lives in a mac-only region')
         self.assertNotIn('function runtimePython(', self.portable)
         ops = re.search(r"const PC_OPS=\[([^\]]*)\];", self.text)
@@ -154,9 +155,23 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
         stack = '"DIN Condensed","Bahnschrift Condensed","Bahnschrift","Arial Narrow",sans-serif'
         self.assertEqual(self.text.count(stack), 2, 'the title and its measuring copy use one stack')
 
-    def test_manifest_lists_windows(self):
+    def test_windows_never_starts_a_paid_background_removal(self):
+        # Credit use on Windows is on hold (user decision 2026-10-02): the submit branch of generation()
+        # refuses Windows before it claims the step, imports the cutout input or calls MediaGeneration.submit.
+        start = self.text.index('async function generation(r,collect=false){')
+        body = self.text[start:self.text.index('\nasync function ', start + 1)]
+        refuse = body.find('if(!collect){\n  if(hostIsWindows())throw Error(PAID_MAC_ONLY);')
+        self.assertGreater(refuse, -1, 'no Windows refusal at the top of the submit branch')
+        for later in ('claim(', "'cutout-input'", 'importFiles', 'mg.submit('):
+            with self.subTest(step=later):
+                self.assertLess(refuse, body.index(later))
+        self.assertEqual(self.text.count('mg.submit('), 1, 'one paid submit site')
+        self.assertIn("const PAID_MAC_ONLY='Available on macOS for now:", self.text)
+        self.assertIn('{!hostIssue&&hostIsWindows()&&<p style={{...muted,margin:0}}>{PAID_MAC_ONLY}</p>}', self.text)
+
+    def test_manifest_lists_only_macos_while_windows_cannot_cut_out(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
-        self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
+        self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64'])
         self.assertEqual(manifest['collection'], 'visual-highlights')
         for key in ('inputs', 'options', 'prepare'):
             if key in manifest:

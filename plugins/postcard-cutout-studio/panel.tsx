@@ -560,6 +560,9 @@ return `const cfg=${json({projectId:run.projectId,name:run.draftName,s,shape,mas
 // a status check that often came back "still running") took about five of a
 // run's six minutes; the provider itself needs well under one.
 const BRIA_MODEL_ID='model_v1_YnJpYS92aWRlby9iYWNrZ3JvdW5kLXJlbW92YWwvdjM';
+// Windows does not start a paid background removal yet (credit use on Windows is on hold); a cutout this run can
+// reuse still builds.
+const PAID_MAC_ONLY='Available on macOS for now: on Windows, Postcard Cutout Studio does not start a new background removal (it uses Selects generation credits).';
 // The cutout is only on screen until the flash (TIMING.subjectEnd), so a little
 // more than that is all that is sent; the provider bills and works by the second.
 const CUTOUT_SECONDS=1.6;
@@ -595,6 +598,7 @@ async function persist(r,patch,stage,status='end',details={}){const next=await h
 async function claim(r,expected,patch,stage,details){const x=await helper(sdk,'claim',{runId:r.runId,expected,patch,stage,details});if(!x.claimed)throw Error('Another run already started this step. Resume that run without starting a new generation.');setRun(x.run);return x.run}
 async function generation(r,collect=false){guard(r.projectId);const di=appServices(),mg=di.MediaGeneration;
 if(!collect){
+  if(hostIsWindows())throw Error(PAID_MAC_ONLY);
   if(r.phase!=='generationSubmitting')r=await claim(r,['ready'],{phase:'generationSubmitting',generationStartedMs:Date.now()},'generation');
   const scope=generationScope(r.projectId);
   // The exact stretch goes up as its own file: given a whole clip and a range,
@@ -1162,6 +1166,7 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
     <strong>Start with a folder of memories.</strong>
     <p style={{...muted,margin:0}}>Drop a folder here, or choose one below.<br/>Nothing is imported until you create.</p>
     {!!hostIssue&&<p style={{...muted,margin:0}}>{hostIssue}</p>}
+    {!hostIssue&&hostIsWindows()&&<p style={{...muted,margin:0}}>{PAID_MAC_ONLY}</p>}
     <ui.Actions><ui.Button variant="primary" disabled={picking||loading||!!hostIssue} onClick={chooseFolder}>Choose Folder</ui.Button></ui.Actions>
   </div>:cardView?<>
     {/* What was made, and the two things to do with it. The screen this

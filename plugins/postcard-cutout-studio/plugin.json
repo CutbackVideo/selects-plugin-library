@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "postcard-cutout-studio",
-  "version": "0.2.0-alpha.8",
+  "version": "0.2.0-alpha.9",
   "name": "Postcard Cutout Studio",
   "summary": "Turn a folder of travel videos and photos into an editable moving-postcard opener: a cut-out subject over snapping panels, a scrambled title with synced sound, and a photo ending cut to the beat.",
   "status": "experimental",
@@ -34,10 +34,9 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64",
-      "Windows x64"
+      "macOS arm64"
     ],
-    "selects": "Tested in a Selects development build (develop, 2026-09-23) on macOS arm64. Requires Panel runScript, managed media generation through the MediaGeneration service (host 2.0.433+), and Draft authoring; on macOS also Panel runShell. On Windows every helper step runs in the Panel through Selects' bundled FFmpeg and FileSystem, and the Draft reads its mask files through FileSystem.pathToLocalURL (host 2.0.508+); not yet run in a Selects Windows build. Other builds are unverified."
+    "selects": "Tested in a Selects development build (develop, 2026-09-23) on macOS arm64. Requires Panel runScript, managed media generation through the MediaGeneration service (host 2.0.433+), and Draft authoring; on macOS also Panel runShell. On Windows every helper step runs in the Panel through Selects' bundled FFmpeg and FileSystem, and the Draft reads its mask files through FileSystem.pathToLocalURL (host 2.0.508+); not yet run in a Selects Windows build. On Windows a new background removal (Selects generation credits) is not started yet: the Panel shows \"Available on macOS for now\" before that step, so only a cutout the run can reuse builds there. Other builds are unverified."
   },
   "preview": {
     "video": "preview.mp4",
