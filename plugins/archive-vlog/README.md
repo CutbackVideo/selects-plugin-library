@@ -1,6 +1,6 @@
 # Archive Vlog
 
-Archive Vlog turns the analysed footage and the photos in the open Project into a
+Archive Vlog turns the video clips and the photos in the open Project into a
 16:9 cinematic city or travel vlog, in the style of the "Cinematic Vlog" CapCut
 template: a first shot that opens from black in a letterbox band while a title
 decodes in, an "ARCHIVED BY YOURNAME" credit shot, a montage of held shots cut
@@ -47,8 +47,9 @@ The video follows a fixed template, counted in beats of the music:
 
 ## Default path
 
-1. Open a Project with analysed city or travel clips (and photos, if you like)
-   and open **Archive Vlog** from the Plugin list.
+1. Open a Project with city or travel clips (and photos, if you like) and open
+   **Archive Vlog** from the Plugin list. The clips do not need Selects'
+   analysis.
 2. Pick a **Style**, type your title and the name for the credit.
 3. Press **Build**. The panel chooses the shots, adds the music to the
    Project, makes the Draft, adds the title, credit, look and motion, and
@@ -59,10 +60,21 @@ The video follows a fixed template, counted in beats of the music:
 The readiness line at the bottom of the Length section says what the panel
 found, for example "Ready: 14 clips · 6 photos". The lines above it say what
 the build will make ("Standard: 16 montage shots (36.7 s)"). It refreshes by
-itself while clips are being analysed, when you come back to the panel, and
-with **Refresh**. Clips whose analysis was never started are counted but not
-used ("3 clips are not analysed yet. Analyse them in Selects to use them
-here."); the panel never starts analysis itself.
+itself while clips are still being added or analysed, when you come back to the
+panel, and with **Refresh**.
+
+Nothing waits for Selects' analysis, and the panel never starts it. Analysed
+clips get their shots from Selects' scene search. Clips without analysis get
+them from a quick check: the bundled ffmpeg decodes a small grey preview of each
+clip ("Checking clips 3/7") and picks steady, well-exposed windows for the
+opening, credit and last shots and moving ones for the montage, away from black,
+fades, flashes, blur and cuts, from 0.5 s into the clip. It takes well under a
+second per clip and is kept in the plugin's data folder, so **Try other shots**
+and later builds do not check the same clips again. In a mixed Project both
+kinds share one score scale, so neither always wins. A note under the readiness
+line says how many clips are not analysed: analysed clips give better picks.
+Without the bundled ffmpeg (an older Selects) clips without analysis use evenly
+spaced windows and the build still runs.
 
 ## Style, title and credit
 

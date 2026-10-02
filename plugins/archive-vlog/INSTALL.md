@@ -23,6 +23,8 @@ Selects:
   panel itself on a Selects build without it) and analysed by the bundled
   `beat-detect.cjs` in a background worker inside the panel;
 - **Preview this section**: plays the track's own file in the panel.
+- the quick check of clips without Selects' analysis: a small grey preview
+  decoded by the same bundled ffmpeg, read back in the panel.
 
 The panel finds its folder through Selects' file service (the default skills
 folder, `.selects/skills/archive-vlog` in your home folder); only when the
@@ -46,15 +48,15 @@ is open.
    `SELECTS_USER_SKILLS_ROOT/archive-vlog/` contains `planner.js`,
    `beat-detect.cjs`, `scripts/assemble.js`, `assets/cues/manifest.json` and
    `assets/fonts/presets.json`.
-2. Open a Project with analysed video clips and open the panel. The Style
+2. Open a Project with video clips (analysed or not) and open the panel. The Style
    tiles show Cinematic, A Day Out and Golden Hour, the title preview shows
    the finished lockup in its own typefaces, the Track list shows the four
    bundled tracks (Peaceful Drift first), and the readiness line at the bottom
    of the Length section reads, for example, "Ready: 6 clips · 12 photos". In
-   a Project whose clips were never analysed, it reads "N clips are not
-   analysed yet. Analyse them in Selects to use them here."; the panel does
-   not start analysis itself.
-3. With at least 2 analysed video clips (photos are optional), press
+   a Project whose clips were never analysed it reads the same, with a note
+   that analysed clips give better picks; Build then checks those clips
+   itself ("Checking clips 3/6"). The panel does not start analysis.
+3. With at least 2 video clips (photos are optional), press
    **Build**. A new 16:9 Draft opens at 1920x1080 with the letterbox opening
    and title (over a soft dark Backdrop, set in the title's Adjust tab), the
    credit, the montage, the fade to black and the music. Every shot carries
