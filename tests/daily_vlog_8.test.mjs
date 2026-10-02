@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {panelSource,hostBlock,REFERENCE_BLOCK,posixHits,NEWER_SELECTS,loadPanelFunctions,fakeHost,hostGlobals} from './windows_host.mjs';
 
 const source=panelSource('daily-vlog-8');
-const NAMES=['ASSETS','DURATIONS','SHOT_PLAN','OPENING','MIDDLE','ENDING','SWISH','FILM_PRISM','AMBER_SHUTTER','AMBER_REFERENCE',
+const NAMES=['ASSETS','ASSET_SECONDS','DURATIONS','SHOT_PLAN','OPENING','MIDDLE','ENDING','SWISH','FILM_PRISM','AMBER_SHUTTER','AMBER_REFERENCE',
  'FILM_GATE','VERTICAL_SMEAR','ONE_FRAME_HOLD','PRISM_SIX_SEVEN','LONG_DISSOLVE','takeShortestFitting','buildDailyVlog'];
 const HOME='C:\\Users\\\uD64D\uAE38\uB3D9';
 

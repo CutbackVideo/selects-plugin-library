@@ -440,6 +440,8 @@ const TEXT = {
 const DURATIONS = [4.3, 2.6, 1.63, 1.53, 1.5, 1.8, 1.8, 2.6];
 const SHOT_PLAN = [{slot:0,frames:129},{slot:1,frames:78},{slot:2,frames:49},{slot:3,frames:52},{extra:0,fallback:3,frames:31},{slot:4,frames:21},{extra:1,fallback:4,frames:45},{slot:5,frames:54},{slot:6,frames:54},{slot:7,frames:78}];
 const ASSETS = ["projector-screen-vlog-bed.wav", "transition-w2.wav", "shutter-s2.wav", "camera-r2.wav", "shutter-c2.wav", "shutter-s6-1.wav", "typing-k3.wav"];
+// Each sound's length in seconds (ffprobe), used when its Resource reports none: no overlay may run past it.
+const ASSET_SECONDS = {"projector-screen-vlog-bed.wav": 19.719728, "transition-w2.wav": 1.389977, "shutter-s2.wav": 0.516984, "camera-r2.wav": 0.940726, "shutter-c2.wav": 1, "shutter-s6-1.wav": 0.213991, "typing-k3.wav": 2.5};
 
 const OPENING = "import React from 'react';\nimport {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';\n\nconst KNOT_FRAMES = [0, 3, 4, 6, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 115, 120, 124, 128, 129, 132, 135, 138];\nconst D_CENTERS = [-550, -447, -353, -269, -195, -131, -87, -41, -11, 15, 36, 54, 72, 91, 112, 143, 166, 198, 242, 322, 350, 480, 630, 780];\nconst DEFAULT_OFFSETS = [0, 69, 113, 150, 201, 245, 291, 351, 412, 479];\n\nfunction pathAt(x) {\n  const phase = 2 * Math.PI * x / 595;\n  const y = 155.29 + 38.84 * Math.sin(phase) + 6.42 * Math.cos(phase);\n  const slope = (2 * Math.PI / 595) * (38.84 * Math.cos(phase) - 6.42 * Math.sin(phase));\n  return {y, angle: Math.atan(slope) * 180 / Math.PI};\n}\n\nexport default function OpeningTitle({data}) {\n  const frame = useCurrentFrame();\n  const {durationInFrames, width, height} = useVideoConfig();\n  const text = String(data.text || 'DAILY VLOG');\n  const chars = text.split('');\n  const anchor = interpolate(frame, KNOT_FRAMES, D_CENTERS, {\n    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',\n  });\n  const offsets = text === 'DAILY VLOG'\n    ? DEFAULT_OFFSETS\n    : chars.map((_, i) => i * 54);\n\n  return <AbsoluteFill style={{overflow: 'hidden'}}>\n    {chars.map((ch, i) => {\n      if (ch === ' ') return null;\n      const x = anchor + offsets[i];\n      const {y, angle} = pathAt(x);\n      return <div key={i} style={{position: 'absolute', left: x * width / 576,\n        top: y * height / 324, transform: `translate(-50%, -50%) rotate(${angle}deg) scaleX(0.84)`,\n        fontFamily: data.fontFamily || 'Gill Sans, Arial Black, sans-serif',\n        fontSize: data.fontSize || 255, fontWeight: 900, lineHeight: 1,\n        color: data.color || '#FEDC5E'}}>{ch}</div>;\n    })}\n  </AbsoluteFill>;\n}\n";
 
@@ -680,6 +682,7 @@ const durations=${JSON.stringify(DURATIONS)};
 const shotPlan=${JSON.stringify(SHOT_PLAN)};
 const assetPaths=${JSON.stringify(assetPaths)};
 const assetNames=${JSON.stringify(ASSETS)};
+const assetSeconds=${JSON.stringify(ASSET_SECONDS)};
 const OPENING=${JSON.stringify(OPENING)};
 const MIDDLE=${JSON.stringify(MIDDLE)};
 const ENDING=${JSON.stringify(ENDING)};
@@ -709,7 +712,16 @@ for(let i=0;i<extraSelected.length;i++){if(!extraSelected[i])continue;const r=re
 let audioByName=new Map(rows.filter(x=>x.type==='Audio').map(x=>[x.name,x.resourceId]));
 for(let i=0;i<assetNames.length;i++){if(!audioByName.has(assetNames[i])){const imported=await project.importFiles({paths:[assetPaths[i]]});if(!imported.addedResourceIds[0])throw new Error('Template sound missing: '+assetNames[i]);audioByName.set(assetNames[i],imported.addedResourceIds[0]);}}
 const draft=await project.createDraft({name});
-for(const shot of shotPlan){const extra=shot.extra!==undefined;const resourceId=extra?(extraSelected[shot.extra]||selected[shot.fallback]):selected[shot.slot];const r=resourceById.get(resourceId);const len=shot.frames*1001/30000;const sourceLen=Math.min(len,r.durationSeconds-0.003);const start=Math.max(0,(r.durationSeconds-sourceLen)*(extra&&!extraSelected[shot.extra]?0.8:0.45));await draft.insertResource({resourceId,sourceRange:{startSeconds:start,endSeconds:start+sourceLen}});}
+// The template's frame numbers are 30000/1001 fps frames; a new Draft takes the Project's frame rate, so they are
+// converted to the Draft's frames (unchanged at 29.97 and 30). Cuts round down, so the timeline never outlasts the
+// bed, which is exactly the 591 template frames long.
+const reported=(await draft.meta()).fps;
+const dfps=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(r=>Math.abs(r-reported)<0.01)||reported;
+if(!(dfps>0))throw new Error('Unsupported draft frame rate: '+reported);
+const at=(f)=>Math.round(f*1001/30000*dfps);
+const cutAt=(f)=>Math.floor(f*1001/30000*dfps+1e-6);
+let planned=0;
+for(const shot of shotPlan){const extra=shot.extra!==undefined;const resourceId=extra?(extraSelected[shot.extra]||selected[shot.fallback]):selected[shot.slot];const r=resourceById.get(resourceId);const len=shot.frames*1001/30000;const sourceLen=Math.min(len,r.durationSeconds-0.003);const start=Math.max(0,(r.durationSeconds-sourceLen)*(extra&&!extraSelected[shot.extra]?0.8:0.45));const fitted=Math.min((cutAt(planned+shot.frames)-cutAt(planned))/dfps,r.durationSeconds-0.003);planned+=shot.frames;await draft.insertResource({resourceId,sourceRange:{startSeconds:start,endSeconds:start+fitted}});}
 let main=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId);
 if(main.length!==10)throw new Error('Expected ten timed shots; found '+main.length);
 const endFrame=main[9].endFrame;
@@ -724,26 +736,27 @@ const canvas=(await draft.meta()).frameSize;
 const targetAspect=canvas.width/canvas.height;
 for(const original of main){const size=sourceSizes.get(original.resourceId);if(!size)continue;const sourceAspect=size.width/size.height;const scale=sourceAspect<targetAspect?targetAspect/sourceAspect:1;if(scale>1.001){const current=(await draft.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current)await draft.setClipTransform({clip:current,scale:{x:scale,y:scale}});}}
 main=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId);
-await draft.addMotionGraphic({label:'DAILY VLOG',tsxCode:OPENING,within:await draft.rangeAtFrames(main[0].startFrame,main[0].endFrame+5),parameters:{text:'DAILY VLOG',fontFamily:'Gill Sans, Arial Black, sans-serif',fontSize:255,color:'#FEDC5E'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'DAILY VLOG'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Gill Sans'},{key:'fontSize',label:'Size',type:'number',defaultValue:255,min:100,max:450,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FEDC5E'}]});
-await draft.addMotionGraphic({label:'JUST EVERYDAY MOMENTS',tsxCode:MIDDLE,within:await draft.rangeAtFrames(main[1].startFrame+7,main[1].endFrame+1),parameters:{text:'JUST EVERYDAY MOMENTS',fontFamily:'Georgia, serif',fontSize:73,color:'#FFFFFF'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'JUST EVERYDAY MOMENTS'},{key:'fontFamily',label:'Font',type:'text',defaultValue:''},{key:'fontSize',label:'Size',type:'number',defaultValue:73,min:28,max:120,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FFFFFF'}]});
-await draft.addMotionGraphic({label:'THANKS FOR WATCHING',tsxCode:ENDING,within:await draft.rangeAtFrames(main[9].startFrame+5,main[9].endFrame),parameters:{text:'THANKS FOR WATCHING',fontFamily:'Avenir Next Demi Bold, Avenir Next, Segoe UI Semibold, Segoe UI, Arial, sans-serif',fontSize:43,color:'#FFFFFF',letterSpacing:1.2},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'THANKS FOR WATCHING'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Avenir Next Demi Bold'},{key:'fontSize',label:'Size',type:'number',defaultValue:43,min:18,max:90,step:1},{key:'color',label:'Color',type:'color',defaultValue:'#FFFFFF'}]});
+await draft.addMotionGraphic({label:'DAILY VLOG',tsxCode:OPENING,within:await draft.rangeAtFrames(main[0].startFrame,main[0].endFrame+at(5)),parameters:{text:'DAILY VLOG',fontFamily:'Gill Sans, Arial Black, sans-serif',fontSize:255,color:'#FEDC5E'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'DAILY VLOG'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Gill Sans'},{key:'fontSize',label:'Size',type:'number',defaultValue:255,min:100,max:450,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FEDC5E'}]});
+await draft.addMotionGraphic({label:'JUST EVERYDAY MOMENTS',tsxCode:MIDDLE,within:await draft.rangeAtFrames(main[1].startFrame+at(7),main[1].endFrame+at(1)),parameters:{text:'JUST EVERYDAY MOMENTS',fontFamily:'Georgia, serif',fontSize:73,color:'#FFFFFF'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'JUST EVERYDAY MOMENTS'},{key:'fontFamily',label:'Font',type:'text',defaultValue:''},{key:'fontSize',label:'Size',type:'number',defaultValue:73,min:28,max:120,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FFFFFF'}]});
+await draft.addMotionGraphic({label:'THANKS FOR WATCHING',tsxCode:ENDING,within:await draft.rangeAtFrames(main[9].startFrame+at(5),main[9].endFrame),parameters:{text:'THANKS FOR WATCHING',fontFamily:'Avenir Next Demi Bold, Avenir Next, Segoe UI Semibold, Segoe UI, Arial, sans-serif',fontSize:43,color:'#FFFFFF',letterSpacing:1.2},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'THANKS FOR WATCHING'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Avenir Next Demi Bold'},{key:'fontSize',label:'Size',type:'number',defaultValue:43,min:18,max:90,step:1},{key:'color',label:'Color',type:'color',defaultValue:'#FFFFFF'}]});
 const transitionSpecs=[{i:0,label:'Reference traced film exposure',code:FILM_PRISM,before:1,after:11},{i:1,label:'Reference amber camera exposure',code:AMBER_REFERENCE,before:4,after:6},{i:2,label:'Reference wide cream film gate',code:FILM_GATE,before:3,after:5},{i:3,label:'Prismatic piano accent',code:FILM_PRISM,before:4,after:6},{i:4,label:'Reference banded vertical exposure',code:VERTICAL_SMEAR,before:4,after:3},{i:5,label:'Amber piano accent',code:AMBER_REFERENCE,before:3,after:5},{i:6,label:'Reference one-frame cut hold',code:ONE_FRAME_HOLD,before:0,after:1},{i:7,label:'Reference cyan-magenta film flash',code:PRISM_SIX_SEVEN,before:5,after:7},{i:8,label:'Reference paced optical dissolve',code:LONG_DISSOLVE,before:2,after:5}];
 for(const spec of transitionSpecs){const current=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId)[spec.i];await draft.addTransition({after:current,label:spec.label,tsxCode:spec.code,inOffsetSeconds:spec.before/30,outOffsetSeconds:spec.after/30});}
-async function sound(assetName,start,end,level){const resourceId=audioByName.get(assetName);await draft.overlayResource({resource:project.resource(resourceId),over:await draft.rangeAtFrames(start,end)});const added=(await draft.clips({trackScope:'all'})).filter(x=>x.resourceId===resourceId&&x.startFrame===start).slice(-1)[0];if(added)await draft.setClipAudio({clip:added,volumeDb:level,fadeInSeconds:0,fadeOutSeconds:assetName==='projector-screen-vlog-bed.wav'?0:assetName==='typing-k3.wav'?.08:.025});}
+const lengths=new Map((await project.resources()).map(x=>[x.resourceId,x.durationSeconds]));
+async function sound(assetName,start,end,level){const resourceId=audioByName.get(assetName);const seconds=Math.min(lengths.get(resourceId)||Infinity,assetSeconds[assetName]||Infinity);if(seconds<Infinity)end=Math.min(end,start+Math.floor(seconds*dfps+1e-3));if(end<=start)return;await draft.overlayResource({resource:project.resource(resourceId),over:await draft.rangeAtFrames(start,end)});const added=(await draft.clips({trackScope:'all'})).filter(x=>x.resourceId===resourceId&&x.startFrame===start).slice(-1)[0];if(added)await draft.setClipAudio({clip:added,volumeDb:level,fadeInSeconds:0,fadeOutSeconds:assetName==='projector-screen-vlog-bed.wav'?0:assetName==='typing-k3.wav'?.08:.025});}
 await sound('projector-screen-vlog-bed.wav',0,endFrame,0);
 const musicId=audioByName.get('projector-screen-vlog-bed.wav');
 const musicClip=(await draft.clips({trackScope:'all'})).find(x=>x.resourceId===musicId&&x.startFrame===0);
-if(musicClip){const fps=(await draft.meta()).fps;const keys=[{atSeconds:0,volumeDb:-5},{atSeconds:34/fps,volumeDb:-5},{atSeconds:43/fps,volumeDb:0}];for(const {frame,drop} of [{frame:main[0].endFrame,drop:-5},{frame:main[1].endFrame,drop:-8},{frame:main[2].endFrame,drop:-5},{frame:main[4].endFrame,drop:-9},{frame:main[6].endFrame,drop:-9},{frame:main[7].endFrame,drop:-8},{frame:main[9].startFrame+9,drop:-5}])for(const [offset,db] of [[-7,0],[-3,drop],[5,drop],[11,0]])keys.push({atSeconds:(frame+offset)/fps,volumeDb:db});keys.push({atSeconds:(endFrame-1)/fps,volumeDb:0});await draft.setClipAudio({clip:musicClip,volumeKeys:keys});}
-await sound('transition-w2.wav',0,Math.min(41,endFrame),0);
-await sound('typing-k3.wav',main[1].startFrame+14,Math.min(main[1].startFrame+60,main[1].endFrame),-2);
+if(musicClip){const fps=(await draft.meta()).fps;const keys=[{atSeconds:0,volumeDb:-5},{atSeconds:at(34)/fps,volumeDb:-5},{atSeconds:at(43)/fps,volumeDb:0}];for(const {frame,drop} of [{frame:main[0].endFrame,drop:-5},{frame:main[1].endFrame,drop:-8},{frame:main[2].endFrame,drop:-5},{frame:main[4].endFrame,drop:-9},{frame:main[6].endFrame,drop:-9},{frame:main[7].endFrame,drop:-8},{frame:main[9].startFrame+at(9),drop:-5}])for(const [offset,db] of [[at(-7),0],[at(-3),drop],[at(5),drop],[at(11),0]])keys.push({atSeconds:(frame+offset)/fps,volumeDb:db});keys.push({atSeconds:(endFrame-1)/fps,volumeDb:0});await draft.setClipAudio({clip:musicClip,volumeKeys:keys});}
+await sound('transition-w2.wav',0,Math.min(at(41),endFrame),0);
+await sound('typing-k3.wav',main[1].startFrame+at(14),Math.min(main[1].startFrame+at(60),main[1].endFrame),-2);
 const selectedSounds=[
-  {assetName:'transition-w2.wav',start:main[0].endFrame-4,duration:41,level:0},
-  {assetName:'shutter-s2.wav',start:main[1].endFrame-1,duration:15,level:0},
-  {assetName:'transition-w2.wav',start:main[2].endFrame-4,duration:41,level:0},
-  {assetName:'camera-r2.wav',start:main[4].endFrame-16,duration:28,level:0},
-  {assetName:'shutter-c2.wav',start:main[6].endFrame-9,duration:29,level:0},
-  {assetName:'shutter-s6-1.wav',start:main[7].endFrame-1,duration:6,level:0},
-  {assetName:'typing-k3.wav',start:main[9].startFrame+9,duration:endFrame-(main[9].startFrame+9),level:-2}
+  {assetName:'transition-w2.wav',start:main[0].endFrame-at(4),duration:at(41),level:0},
+  {assetName:'shutter-s2.wav',start:main[1].endFrame-at(1),duration:at(15),level:0},
+  {assetName:'transition-w2.wav',start:main[2].endFrame-at(4),duration:at(41),level:0},
+  {assetName:'camera-r2.wav',start:main[4].endFrame-at(16),duration:at(28),level:0},
+  {assetName:'shutter-c2.wav',start:main[6].endFrame-at(9),duration:at(29),level:0},
+  {assetName:'shutter-s6-1.wav',start:main[7].endFrame-at(1),duration:at(6),level:0},
+  {assetName:'typing-k3.wav',start:main[9].startFrame+at(9),duration:endFrame-(main[9].startFrame+at(9)),level:-2}
 ];
 for(const {assetName,start,duration,level} of selectedSounds)await sound(assetName,start,Math.min(endFrame,start+duration),level);
 const saved=await draft.commitAll('Create editable 8-clip daily vlog template');
