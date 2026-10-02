@@ -226,6 +226,60 @@ function macDecodeCheck(sdk,path){return sdk.runShell({summary:'Decode exported 
 function macProbeSubject(sdk,path){return sdk.runShell({summary:'Probe subject duration',command:`ffprobe -v error -select_streams v:0 -show_entries format=duration:stream=width,height -of json ${quote(path)}`,timeoutMs:15000,maxOutputBytes:2000})}
 async function macRangePreview(sdk,path,start,end){const python=await runtimePython(sdk);return sdk.runShell({summary:'Preview selected range',command:`${quote(python)} "$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/scene_preview.py" ${quote(path)} ${start} ${end} 4`,timeoutMs:30000,maxOutputBytes:49152})}
 // mac-only:end
+// pc-ledger:start
+// The run ledger in the panel, for the Windows port: pipeline.py's init/load/update/event/claim/reuse with the same
+// files (<store>/runs/<id>/run.json, <store>/active-runs.json, <logDir>/events.jsonl and run.json) read and written
+// through the host's FileSystem. pipeline.py serialises writers with flock; here this panel is the only writer, so one
+// promise chain does it. Not wired in yet: helper() refuses Windows until every op is ported, and macOS keeps
+// pipeline.py. `store` is the data folder (hostRoots(...).data); `sfx` gives a new run its decoded sounds.
+const LEDGER_SETTLED=['draftReady','exportFailed','generationFailed','complete','abandoned'];
+function pcLedger(store,{sfx=async()=>({}),now=()=>Date.now(),newId=()=>crypto.randomUUID()}={}){
+ const fs=()=>hostNeed('FileSystem','existsSync'),J=(...p)=>hostJoin(...p);let chain=Promise.resolve();
+ const locked=f=>{const r=chain.then(f,f);chain=r.catch(()=>{});return r};
+ const exists=p=>{try{return !!fs().existsSync(p)}catch{return false}};
+ const read=async(p,fallback=null)=>exists(p)?JSON.parse(await hostReadText(p)):fallback;
+ const write=async(p,d)=>{const f=hostNeed('FileSystem','mkdirSync');f.mkdirSync(hostNeed('FileSystem','dirname').dirname(p),{recursive:true});const text=JSON.stringify(d,null,2),move=hostApi('FileSystem','renameSync');if(!move)return void await hostNeed('FileSystem','writeFile').writeFile(p,text);const tmp=p+'.tmp-'+now();await hostNeed('FileSystem','writeFile').writeFile(tmp,text);move.renameSync(tmp,p)};
+ const pad=n=>String(n).padStart(2,'0'),stamp=()=>{const t=new Date(now()),o=-t.getTimezoneOffset();return{at:t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate())+'T'+pad(t.getHours())+':'+pad(t.getMinutes())+':'+pad(t.getSeconds())+(o<0?'-':'+')+pad(Math.floor(Math.abs(o)/60))+pad(Math.abs(o)%60),epochMs:t.getTime()}};
+ const runpath=rid=>{if(!/^[a-f0-9-]{36}$/.test(String(rid)))throw Error('Invalid run id');return J(store,'runs',String(rid))};
+ const load=async rid=>{const d=await read(J(runpath(rid),'run.json'));if(!d)throw Error('Run not found');return d};
+ const save=async d=>{await write(J(runpath(d.runId),'run.json'),d);await write(J(d.logDir,'run.json'),d)};
+ const event=async(d,stage,status,details)=>{const s=stamp(),e={...s,runId:d.runId,projectId:d.projectId,stage,status,...(details||{})};e.wallClockMs=e.epochMs-d.startedMs;const log=J(d.logDir,'events.jsonl');hostNeed('FileSystem','mkdirSync').mkdirSync(d.logDir,{recursive:true});const old=exists(log)?await hostReadText(log):'';await hostNeed('FileSystem','writeFile').writeFile(log,old+JSON.stringify(e)+'\n');return e};
+ // The source file as pipeline.py's source_identity sees it (path, size, mtime in ns, inode). pipeline.py resolves
+ // symlinks and reads whole-ns mtimes, so a run it wrote may not match here: that cutout is then made once more.
+ const identity=path=>{const s=hostNeed('FileSystem','statSync').statSync(path);return{path:String(path),size:Number(s.size),mtimeNs:Math.round(Number(s.mtimeMs)*1e6),inode:Number(s.ino)}};
+ const same=(a,b)=>!!a&&!!b&&a.path===b.path&&a.size===b.size&&a.mtimeNs===b.mtimeNs&&a.inode===b.inode;
+ // The latest finished cutout of this very stretch in this project, if any (pipeline.py find_reusable).
+ const reusable=async(pid,id,start,exclude)=>{const root=J(store,'runs');let names=[];try{names=hostNeed('FileSystem','readdirSync').readdirSync(root)}catch{return null}
+  const records=names.map(n=>J(root,n,'run.json')).filter(exists).map(p=>{try{return[p,Number(hostNeed('FileSystem','statSync').statSync(p).mtimeMs)]}catch{return[p,0]}}).sort((a,b)=>b[1]-a[1]);
+  for(const [p] of records){try{const old=await read(p,{}),mask=old.mask||{};
+   if(old.runId===exclude||old.projectId!==pid||!same(old.sourceIdentity,id)||Number(old.settings?.subjectStartSec??-1)!==start)continue;
+   if(!(mask.provenanceOk||(mask.provenanceSsim||0)>=.97)||!mask.count)continue;
+   let all=true;for(let i=1;i<=mask.count&&all;i++)all=exists(J(mask.path,'mask_'+String(i).padStart(6,'0')+'.png'));
+   if(all)return old}catch{/* the next one */}}
+  return null};
+ const reuse=async d=>{const id=identity(d.source.path),start=Number(d.settings.subjectStartSec),old=await reusable(d.projectId,id,start,d.runId);
+  if(old){const patch={phase:'maskReady',mask:old.mask,sourceIdentity:id,cutoutMode:'reused',reusedFromRunId:old.runId};if(old.foregroundPath&&exists(old.foregroundPath)&&old.foregroundVersion===2)Object.assign(patch,{foregroundPath:old.foregroundPath,foregroundVersion:2});Object.assign(d,patch);await save(d);await event(d,'cutout','reused',{previousRunId:old.runId});return d}
+  d.sourceIdentity=id;await save(d);return d};
+ const ops={
+  load:a=>locked(async()=>{if(a.runId)return load(a.runId);const rid=(await read(J(store,'active-runs.json'),{}))[a.projectId];return rid?load(rid):null}),
+  update:a=>locked(async()=>{const d=await load(a.runId);Object.assign(d,a.patch||{});await save(d);if(a.stage)await event(d,a.stage,a.status||'info',a.details);return d}),
+  event:a=>locked(async()=>{const d=await load(a.runId);if(a.stage)await event(d,a.stage,a.status||'info',a.details);return d}),
+  claim:a=>locked(async()=>{const d=await load(a.runId);if(!a.expected.includes(d.phase))return{claimed:false,run:d};Object.assign(d,a.patch);await save(d);await event(d,a.stage||'run','start',a.details);return{claimed:true,run:d}}),
+  reuse:a=>locked(async()=>{const d=await load(a.runId);return d.phase==='ready'?reuse(d):d}),
+  init:a=>locked(async()=>{const path=J(store,'active-runs.json'),active=await read(path,{}),old=a.projectId in active?await load(active[a.projectId]):null;
+   if(a.replaceSettled){
+    if(!old||old.runId!==a.previousRunId)throw Error('The active run changed. Reload before starting a new request; no duplicate generation started.');
+    if(!LEDGER_SETTLED.includes(old.phase))throw Error('The previous run is still active; resume it rather than duplicate generation.');
+    if(old.phase==='exportFailed'&&!['failed','canceled','cancelled'].includes(a.verifiedExportTerminalStatus))throw Error('Confirm the previous Export is terminal before starting a new run.');
+    if(old.phase==='generationFailed'&&!['failed','canceled','cancelled'].includes(old.generation?.status))throw Error('Generation status remains uncertain; do not submit again.');
+   }else if(old&&!['complete','abandoned'].includes(old.phase))return old;
+   const rid=newId(),dir=runpath(rid);if(exists(dir))throw Error('Run folder already exists');
+   const d={...a,runId:rid,startedMs:now(),phase:'ready',logDir:J(a.logRoot||J(store,'logs'),rid),draftName:'Postcard Cutout Studio — '+rid,sfx:await sfx()};
+   hostNeed('FileSystem','mkdirSync').mkdirSync(dir,{recursive:true});await save(d);active[a.projectId]=rid;await write(path,active);await event(d,'run','start',{settings:a.settings});return reuse(d)}),
+ };
+ return ops;
+}
+// pc-ledger:end
 function inventoryCode(pid,offset=0){return `const p=selects.project(${json(pid)});const rs=await p.resources();let sf,warning='';try{sf=await p.sourceFiles()}catch{sf=await p.sourceFiles({folder:'(root)'});warning='Only top-level media could be loaded. Refresh media to retry the full library.'}const flat=(ns,o=[])=>{for(const n of ns||[])n.type==='dir'?flat(n.children,o):n.path&&o.push(n);return o};let fs=[];if('fileTree'in sf)fs=flat(sf.fileTree);else for(const f of sf.folders||[]){const s=await p.sourceFiles({folder:f.name});if('fileTree'in s)fs.push(...flat(s.fileTree))}const by=new Map(fs.map(f=>[f.resourceId,f]));const inventory=rs.flatMap(r=>{const f=by.get(r.resourceId);return f?.path?[{resourceId:r.resourceId,name:r.name,path:f.path,durationSeconds:r.durationSeconds||f.durationSeconds||null,frameSize:f.frameSize||null,frameRate:f.frameRate||null}]:[]});return {rows:inventory.slice(${offset},${offset+32}),total:inventory.length,warning}`}
 // A sound with takes in the manifest (`panel.1`..`panel.6`, `curtain.1`..) gets a
 // different take on each hit, as the reference never repeats one; others play as-is.
