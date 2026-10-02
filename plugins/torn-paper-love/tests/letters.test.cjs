@@ -284,10 +284,13 @@ assert.ok(!src.includes('/Users/'), 'no local paths');
 // ends with the role's macOS Korean face (serif faces AppleMyungjo, the others Apple SD Gothic Neo).
 {
   const stacks = src.slice(src.indexOf('const TPL_FACE_STACK'), src.indexOf('const str = '));
-  for (const face of ['didone', 'serif', 'slab']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"AppleMyungjo\", serif'"), face);
-  for (const face of ['condensed', 'black']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"Apple SD Gothic Neo\", sans-serif'"), face);
-  assert.match(stacks, /typewriter: '[^']*"Apple SD Gothic Neo", monospace'/);
-  assert.match(stacks, /TPL_FALLBACK_STACK = '[^']*"AppleMyungjo", serif'/);
+  // macOS, Windows and Noto Korean faces of the role (kit references/i18n.md, windows.md rule 5).
+  for (const face of ['didone', 'serif', 'slab']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"AppleMyungjo\", \"Batang\", \"Noto Serif KR\", serif'"), face);
+  for (const face of ['condensed', 'black']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"Apple SD Gothic Neo\", \"Malgun Gothic\", \"Noto Sans KR\", sans-serif'"), face);
+  assert.match(stacks, /typewriter: '[^']*"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", monospace'/);
+  assert.match(stacks, /TPL_FALLBACK_STACK = '[^']*"AppleMyungjo", "Batang", "Noto Serif KR", serif'/);
+  // Every stack names a Latin face Windows ships before the Korean faces.
+  for (const line of stacks.split('\n').filter(l => /: '|_STACK = '/.test(l))) assert.match(line, /Georgia|"Times New Roman"|Arial|Impact|"Courier New"/, line);
   assert.ok(src.includes('const text = fallback ? c.ch : tplCased(c.ch, look);'), 'fallback chips keep the typed character');
   const ko = ['\uc0ac', '\ub791', '\ud574'];
   for (const ch of ko) { assert.equal(L.tplSupported(ch), false); assert.equal(L.tplLetterEm(ch, null, real.advance), 1.0); }
