@@ -20,6 +20,9 @@ command-line tools. The panel finds ffmpeg on the shell `PATH` and also in
 `/opt/homebrew/bin` and `/usr/local/bin`, so a Homebrew ffmpeg works even when
 Selects is opened from Finder:
 
+Clips without analysis are checked with the ffmpeg built into Selects (through
+the host, no shell), so that needs nothing installed on macOS or Windows.
+
 - **ffmpeg** (it includes `ffprobe`): music previews and your own music.
   Check with `ffmpeg -version` and `ffprobe -version`.
 - **Node.js**: your own music only (beat detection). Nothing to install: the first time
@@ -30,6 +33,18 @@ Selects is opened from Finder:
 When ffmpeg is missing, the panel hides **Your own music**, shows
 "Install ffmpeg to preview music or use your own track", and
 everything else keeps working.
+
+## Windows
+
+The build path for clips without analysis is written for Windows as well as
+macOS: it reaches ffmpeg and files only through the host (the ffmpeg built
+into Selects with an argument list, and the host's file functions with paths
+joined by the host), uses no shell, and names its temporary files in ASCII.
+If this Selects lacks one of those functions, clips without analysis get
+evenly spaced moments and the panel says a newer Selects picks better shots.
+The rest of the panel is not Windows-ready yet: locating the plugin folders,
+music previews and your own music still run macOS shell commands, so the
+manifest lists macOS only.
 
 ## Files the plugin writes
 
@@ -46,6 +61,9 @@ never in either install folder:
 - `preview-N.mp3` and `preview-N.b64`: the section preview. The mp3 is
   deleted once it is converted to text, and the text copy is replaced by the next
   preview.
+- `quick-score/<clip>.json`: the quick check of a clip without analysis (a few
+  KB each), reused while the file is unchanged. The decoded preview
+  (`quick-score/<clip>-<n>.gray`, under 1 MB) is deleted as soon as it is read.
 
 ## Verify
 
@@ -53,13 +71,14 @@ never in either install folder:
    and `SELECTS_USER_SKILLS_ROOT/mini-vlog/` contains `planner.js`,
    `scripts/assemble.js`, `assets/cues/manifest.json` and
    `assets/fonts/presets.json`.
-2. Open a Project with analysed video clips and open the panel. The
+2. Open a Project with video clips (analysed or not) and open the panel. The
    readiness line at the bottom of the Length section reads, for example,
    "Ready: 6 clips · 12 photos · about 13 s", the Track
    list shows the four bundled tracks (two reference tracks, then two
-   alternatives), and the Title preview renders in its own typefaces. In a Project whose clips were never analysed, it
-   reads "N clips are not analysed yet. Analyse them in Selects to use them
-   here." (never "being analysed"); the panel does not start analysis itself.
+   alternatives), and the Title preview renders in its own typefaces. In a
+   Project whose clips were never analysed it is ready too, with " · N clips
+   not analysed; analysed clips give better picks" at the end; the panel never
+   starts analysis itself, and Build shows "Checking clips N/M" first.
 3. With at least 4 usable shots from 2 different clips or photos, press
    **Build**. A new 16:9 Draft opens at 1920x1080 with the title, the clips
    and the music.

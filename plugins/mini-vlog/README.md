@@ -1,10 +1,11 @@
 # Mini Vlog
 
-Mini Vlog turns the analysed footage and the photos in the open Project into a
+Mini Vlog turns the video clips and the photos in the open Project into a
 16:9 mini vlog: a quick montage cut on the beat of the music, with one small
 title lockup over the whole video. The result is a **new, editable Draft**.
 The plugin never renders a file and never changes an existing Draft or any
-source file.
+source file. Clips do not need to be analysed first: see
+[Clips without analysis](#clips-without-analysis).
 
 ## What it makes
 
@@ -34,7 +35,7 @@ source file.
 - **Everyday shots.** The shots cycle through drink, street, food, park,
   book, transit, flowers and cafe moments, alternating close and wide. Each
   role also accepts its neighbours (a cafe shot for a drink, a train for a
-  street, flowers for a park), then any other analysed moment.
+  street, flowers for a park), then any other found moment.
 - **Moving moments first** (with Beat punch, on by default). Each clip is also searched
   for "hands moving, pouring, walking or the camera moving". A moment within
   0.75 s of such a hit gets a small tie-break bonus (at most 0.1, scaled from
@@ -80,7 +81,7 @@ time.
 
 ## Default path
 
-1. Open a Project whose video clips are analysed (or that has photos), then
+1. Open a Project with video clips or photos (analysed or not), then
    open **Mini Vlog** from the Plugin list.
 2. Check the **Title**. The **A small glimpse** preset is selected, with "a
    small" above the big word "glimpse" and "of today" below it. The preview
@@ -89,9 +90,10 @@ time.
 3. Check the readiness line at the bottom of the **Length** section. It shows
    how many clips and photos were found and the approximate length, for
    example "Ready: 6 clips · 12 photos · about 13 s". When only some are
-   chosen it reads, for example, "3 of 6 clips selected", and while clips are
-   being analysed it ends with " · 2 clips being analysed" (see Refreshing
-   for clips that are not analysed yet).
+   chosen it reads, for example, "3 of 6 clips selected". When some clips are
+   not analysed it ends with a small note, for example " · 2 clips not
+   analysed; analysed clips give better picks".
+
 4. Press **Build**. The line above the buttons reads "Creates a new 16:9
    Draft".
 
@@ -103,27 +105,53 @@ Each of them can be changed before Build.
 
 **Refreshing.** The panel reads the Project's clips when it opens, when you
 come back to it (its tab is shown or the window gets focus) and when you press
-**Refresh** next to the readiness line. While clips are being analysed, or
-the Project has no clips or photos yet, it also reads them again every 10
-seconds, so the line updates by itself. It never reads them during a build.
-The panel does not start analysis on its own, so analyse your clips first.
+**Refresh** next to the readiness line. While some clips cannot be used yet
+(no length or no file: usually still importing), or the Project has no clips
+or photos yet, it also reads them again every 10 seconds, so the line updates
+by itself. It never reads them during a build. It never waits for analysis
+and never starts it.
 If Selects is too busy to answer, the panel tries again after 5 and 15 seconds and then says "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects."
 
-Video clips without analysis are counted on the top line by why:
+A clip is usable once Selects knows its length and its source file, analysed
+or not. Clips that are not usable yet are counted: "N clips can't be used yet
+(no length or file not found). This updates automatically." when nothing else
+can be built, else " · N clips can't be used yet" on the Ready line.
 
-- "N clips are being analysed. This updates automatically when they finish."
-  Selects is analysing them now; the panel re-reads the Project every 10 s
-  until they are ready.
-- "N clips are not analysed yet. Analyse them in Selects to use them here."
-  Their analysis was never started. The panel does not poll for them; it
-  re-reads the Project when you come back to it, or press **Refresh**.
-- "N clips could not be analysed." Their analysis failed.
-- "N clips are not analysed yet. If Selects is analysing them, this updates
-  automatically." The analysis status could not be read, so the panel keeps
-  checking.
+## Clips without analysis
 
-On the Ready line the same counts appear in short, for example "Ready: 5
-clips · about 13 s · 2 clips being analysed · 3 clips not analysed yet".
+Build works right away on clips Selects has not analysed (imported without
+analysis, still being analysed, or whose analysis failed); there is nothing to
+wait for. Analysed clips still give better picks: only they have the scene
+search that finds drinks, streets, food and the other shot roles.
+
+- **Analysed clips** are scene-searched as before. A Project whose clips are
+  all analysed builds exactly as before.
+- **Clips without analysis** get a quick local check of their frames during
+  Build ("Checking clips N/M" on the progress line; **Cancel** takes the Build
+  button's place while it runs and stops the build, nothing saved). The
+  check decodes a small grey preview of each clip with the ffmpeg built into
+  Selects, three clips at a time, all within 20 s, and finds the moments that
+  are sharp and well exposed, with movement, and free of black or fading
+  frames, flashes and cuts. Moments start at least half a second into a clip.
+  The result is kept per clip in the data folder (see INSTALL.md), so the next
+  build reads it instead of decoding again. Measured on a Mac with the same
+  decode outside Selects: 20 clips of 1080p (10 to 20 s each) took 1.9 s in
+  all (0.2 to 0.4 s per clip), and no time at all the second time.
+- Their moments have no shot role, so they rank after a moment that matches
+  the shot's role but before an evenly spaced filler moment, and an unused
+  clip without analysis still comes before reusing any clip. Their scores are
+  put on the same scale as the scene search's (the middle 80 % of the
+  build's search scores), so both kinds take turns. With **Beat punch** on,
+  their own movement gives the moving-moment bonus, and the video can open on
+  a moving moment of one of them.
+- If this Selects lacks what the check needs, or a clip cannot be decoded in
+  time, that clip's moments are evenly spaced from 1 s on and the build still
+  goes ahead; after such a build the panel says "This Selects can't check
+  clips without analysis, so their shots are evenly spaced. A newer Selects
+  picks better shots."
+- **Clip highlights** (the template run) builds from clips without analysis
+  too, with evenly spaced moments from 1 s on (it does not run the quick
+  check).
 
 **What blocks Build.** The build needs at least **4 shots from 2 different
 clips or photos**; each photo counts as one shot. When it cannot run, Build is
@@ -281,7 +309,7 @@ analysis and are never scene-searched.
 - For the other shots the plugin prefers a clip used the fewest times so far
   (an unused one whenever it fits). Among those it takes, in order: a video
   moment that matches the shot's role, then a neighbouring role, then any
-  other analysed video moment, then an evenly spaced filler moment from the
+  other video moment (a clip without analysis has only these), then an evenly spaced filler moment from the
   clip. A photo fills one of these shots only when no video fits.
 - Two shots in a row never come from the same clip or photo, and never more
   than two photos play in a row. When the footage cannot fill the chosen
@@ -394,8 +422,8 @@ build. They do not change if the app language is switched later.
   clip (see [Photos](#photos)) and prefers moving moments (see [What it
   makes](#what-it-makes)). Off builds without both; switching it searches
   the clips again once.
-- **Use photos**: on by default. Off builds from the analysed video only.
-- **Choose clips (n/m)**: a checklist of the analysed clips (with their
+- **Use photos**: on by default. Off builds from the video clips only.
+- **Choose clips (n/m)**: a checklist of the usable clips (with their
   length and Tall, Wide or Square) followed by the photos (marked "Photo"),
   with **All** and **None** buttons. All are used by default. Photos cannot
   be chosen while Use photos is off. The readiness line shows how many clips
