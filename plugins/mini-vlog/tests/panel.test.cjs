@@ -501,6 +501,13 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
     'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'cancelOwnMusic(); };', 'if (v !== "own") { cancelOwnMusic();',
     'const v = await hostProbeSeconds(file.path); if (v) duration = Math.min(v, OWN_MAX_SECONDS);', 'worker = new Worker(url);', 'worker?.terminate()'])
     assert.ok(panel.includes(s), s);
+  // Only the current own-music job clears busy and the step (a cancelled one must not end a build started since).
+  {
+    const fin = panel.slice(panel.indexOf('async function detectOwnMusic('), panel.indexOf('// Section preview:'));
+    const tail = fin.slice(fin.lastIndexOf('} finally {'));
+    assert.ok(/if \(ownJobRef\.current\.id === id\) \{\s*ownJobRef\.current\.abort = null;\s*busyRef\.current = false; if \(mountedRef\.current\) \{ setBusy\(false\); setStep\(""\); \}\s*\}/.test(tail), 'own-music finally guarded by the job id');
+    assert.equal((tail.match(/busyRef\.current = false/g) || []).length, 1, 'no unguarded busy reset');
+  }
   // Preview: the host's ffmpeg with an argv array into the data folder, read back as bytes, removed with FileSystem.
   for (const s of ['const rt = hostNeed("Runtime", "runFFmpeg");', '"-t", dur.toFixed(2), "-i", file,', 'bytes = await hostReadBytes(out);', '} finally { void hostRemove(out); }',
     'hostJoin(roots.data, "preview-" + token + "-" + Date.now() + ".mp3")', 'const file = ownMusic ? ownMusic.path : hostJoin(roots.plugin, "assets", "cues", cue.file);',

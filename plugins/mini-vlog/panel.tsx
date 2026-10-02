@@ -4392,10 +4392,13 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         ? { tone: "info", say: (l: Lang) => t(l, "musicApprox", { detail: sayError(l, e) }) }
         : { tone: "error", say: (l: Lang) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
     } finally {
-      // The decoded samples (about 21 MB at most) are dropped with this call.
+      // The decoded samples (about 21 MB at most) are dropped with this call. Only the current job clears busy and the
+      // step: a cancelled one (Project switch, which resets them itself) must not end a build that started since.
       samples = null;
-      if (ownJobRef.current.id === id) ownJobRef.current.abort = null;
-      busyRef.current = false; if (mountedRef.current) { setBusy(false); setStep(""); }
+      if (ownJobRef.current.id === id) {
+        ownJobRef.current.abort = null;
+        busyRef.current = false; if (mountedRef.current) { setBusy(false); setStep(""); }
+      }
     }
   }
 
