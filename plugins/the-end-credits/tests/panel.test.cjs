@@ -38,8 +38,8 @@ assert.equal((panel.match(/^import /gm) || []).length, 1, 'one import');
 
 // It reads every script and asset it sends (and runs beat-detect.cjs for own music).
 for (const name of ['assets/cues/manifest.json', 'scripts/inventory.js', 'scripts/search.js', 'scripts/ensure-audio.js', 'scripts/assemble.js', 'scripts/decorate.js',
-  'assets/credits-graphic.tsx', 'assets/shot-frame.tsx', 'assets/cinematic-look.tsx', 'assets/fonts/tec-title-serif.woff2.b64', 'assets/fonts/tec-credits-sans.woff2.b64', 'beat-detect.cjs']) {
-  assert.ok(panel.includes(name.includes('/') && !name.startsWith('beat') ? '"' + name + '"' : name), 'panel reads ' + name);
+  'assets/credits-graphic.tsx', 'assets/shot-frame.tsx', 'assets/cinematic-look.tsx', 'assets/fonts/tec-title-serif.woff2.b64', 'assets/fonts/tec-credits-sans.woff2.b64', 'kit-beat-detect.cjs']) {
+  assert.ok(panel.includes('"' + name + '"'), 'panel reads ' + name);
   assert.ok(fs.existsSync(path.join(root, name)), name + ' exists');
 }
 assert.ok(!panel.includes('opening.tsx') && !fs.existsSync(path.join(root, 'assets', 'opening.tsx')), 'the Opening generator was dropped (probe P1): the Classic lead-in is a gap');
@@ -47,12 +47,12 @@ assert.ok(!panel.includes('opening.tsx') && !fs.existsSync(path.join(root, 'asse
 // CWV guards.
 for (const phrase of ['projectRef', 'No valid session ID', 'visibilitychange', 'addEventListener("focus"', '10000', '>{t(L, "refresh")}<',
   'role="slider"', 'aria-valuenow', 'aria-valuetext', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"ArrowLeft"', '"Home"', '"End"', '"Escape"',
-  'requestAnimationFrame', 'cancelAnimationFrame', 'previewTokenRef', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', 'preview-*.mp3', 'readText(roots.data',
+  'requestAnimationFrame', 'cancelAnimationFrame', 'previewTokenRef', 'URL.createObjectURL', 'URL.revokeObjectURL', 'onended', 'tecHostPreviewUrl(file, start, videoSeconds, MUSIC_FADE_OUT, roots.data)',
   'loadInventory(', 'setCandidates(null)', 'invSigRef', 'known: photoSizesRef.current', 'selects.editor.openDraft', 'linkToDraftFrame',
   'FontFace', '--panel-accent', '--panel-muted-fg', 'fmtTime(total)', 'ffprobe']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['refresh', 'Refresh'], ['stopPreview', 'Stop preview'], ['cancelPreview', 'Cancel preview'],
   ['noFootage', 'this updates automatically'], ['finishTitle', 'Finish title and look'], ['anotherVersion', 'Try other shots'],
-  ['stoppedAt', 'Stopped at step {step}/{total} ({name}): {detail}'], ['installTools', 'Install ffmpeg to preview'], ['preparingTools', 'first time only'], ['draftCreatedAdding', 'Draft created; adding credits and look'],
+  ['stoppedAt', 'Stopped at step {step}/{total} ({name}): {detail}'], ['needsNewerSelects', 'newer version of Selects'], ['draftCreatedAdding', 'Draft created; adding credits and look'],
   ['sectionHint', 'drag to choose'], ['sectionLabel', 'Music section'], ['startsAt', 'Starts at {seconds} s'], ['musicTooShort', 'too short for this length'],
   ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})']]) says(key, text);
 assert.deepEqual(['prepare', 'plan', 'music', 'assemble', 'decorate'].map(id => en['step.' + id]), ['Finding shots', 'Planning the edit', 'Preparing music', 'Creating Draft', 'Adding credits and look']);
@@ -76,32 +76,32 @@ assert.ok(!/#[0-9a-f]{3,8}\b/i.test(panel.slice(early).replace(/var\(--panel-[a-
 // Only a lost session is resent, and never a committing call.
 assert.ok(panel.includes('if (r.isError && !allowCommit && /No valid session ID/.test(r.output || ""))'), 'no auto-resend of commits');
 assert.ok(!/Streamable HTTP error/.test(panel), 'only the session-id failure is resent');
-// Finder-launched apps lack Homebrew: every shell step that runs ffmpeg, ffprobe, Node.js or rm extends PATH.
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Homebrew path, no nvm hunting');
-// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
-assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
-assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
-assert.equal(fs.readFileSync(path.join(root, 'runtime.sh'), 'utf8'), fs.readFileSync(path.join(root, '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
-for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -i "/]) assert.ok(re.test(panel), String(re));
-const shells = panel.match(/sdk\.runShell\(\{[^\n]*/g) || [];
-assert.equal(shells.length, 11, 'folder lookup, tool check, Node.js runtime, waveform + cleanup, beat detection, ffprobe, preview + cleanup, motion + cleanup');
-for (const s of shells) if (!/Locate plugin folders/.test(s)) assert.ok(/TOOL_PATH/.test(s) || /command: cmd/.test(s), 'shell step without TOOL_PATH: ' + s);
-// User paths go to the shell single-quoted; dq() is only for the $HOME / $SELECTS_USER_SKILLS_ROOT constants.
-assert.ok(!/dq\((file|ownMusic|roots|cue|base|pcm)/.test(panel), 'user paths must not be double-quoted into the shell');
-assert.equal((panel.match(/dq\(/g) || []).length, 5, 'dq only for the two folder constants and runtime.sh (plus its definition)');
-for (const p of ['sq(file.path)', 'sq(pcm)', 'sq(file)', 'sq(base + ".mp3")', 'sq(roots.plugin + "/assets/cues/" + cue.file)', 'sq(r.path)', 'sq(roots.data)']) assert.ok(panel.includes(p), p);
-// In-shot motion: ffmpeg once per clip, in the data folder (the filtergraph gets a bare file name, no path to escape),
-// written to a file (not stdout), read back and removed; cached per Project + clip; any failure leaves the clip
-// unmeasured (the old scoring), and without ffmpeg nothing runs.
+// Windows: no shell at runtime (tests/windows.test.cjs scans every runtime file). Host I/O goes through the tec-host
+// block (FileSystem + Runtime.runFFmpeg/runFFprobe with argv arrays); paths are joined by the host.
+assert.ok(!panel.includes('runShell'), 'no runShell in the panel');
+assert.ok(!/\bdq\(|\bsq\(|TOOL_PATH|ensureNode|runtime\.sh/.test(panel), 'no shell quoting helpers, PATH tricks or Node.js runtime');
+assert.ok(!/\bnew Worker\(/.test(panel.slice(0, panel.indexOf('// tec-beat-worker:start'))) && (panel.match(/new Worker\(/g) || []).length === 1, 'one Worker: the beat detector');
+for (const k of ['async function locateRoots(_sdk: any)', 'tecHostSkillsDir(PLUGIN_ID, "planner.js")', 'tecHostDataDir(PLUGIN_ID)', 'tecHostReadText(tecHostJoin(root, ...rel.split("/")))',
+  'tecHostPeaks(tecHostJoin(roots.plugin, "assets", "cues", cue.file), roots.data, 400)', 'tecHostDecodePcm(file.path, roots.data, TEC_PCM_RATE, TEC_PCM_SECONDS)',
+  'analyseBeat(assets.beatWorker, samples, ac.signal)', 'tecHostProbeSeconds(file.path)', 'beatWorker: beatDetect ? tecBeatWorkerSource(beatDetect) : ""',
+  'tecHostJoin(roots.plugin, "assets", "cues", cue.file)', 'setTools({ ffmpeg: !!data && tecHostCanRead() && tecHostHas(["rt.runFFmpeg", "rt.runFFprobe", "fs.join"]).ok })',
+  'if (String(e?.message) === "host_tools") return t(lang, "needsNewerSelects");', '{!canOwnMusic ? <ui.Message tone="muted">{t(L, "needsNewerSelects")}</ui.Message> : null}',
+  'ownAbortRef.current?.abort()', 'worker.postMessage({ id: 1, buf, rate: TEC_PCM_RATE }, [buf])', 'TEC_BEAT_TIMEOUT_MS']) assert.ok(panel.includes(k), k);
+// A template run and the panel share locateRoots; the template keeps reading through readText(roots.plugin, "a/b").
+assert.ok(panel.includes('const roots = await locateRoots(sdk);') && panel.includes('const read = (rel: string) => readText(roots.plugin, rel);'), 'template roots unchanged');
+// In-shot motion: the host ffmpeg once per clip into the data folder (planner tecMotionArgs; no filtergraph path),
+// read back, removed and turned into a curve; cached per Project + clip; any failure leaves the clip unmeasured.
 const mm = panel.slice(panel.indexOf('async function measureMotion('), panel.indexOf('// The Motion Graphic\'s data'));
-for (const k of ['TOOL_PATH + "cd " + sq(roots.data) + " && rm -f " + sq(file) + " && ffmpeg -nostdin -v error -an -sn -dn -i " + sq(r.path)', '" -vf " + sq(TEC_MOTION_FILTER + file) + " -f null -"',
-  'tecParseMotion(await readText(roots.data, file))', 'rm -f " + sq(roots.data) + "/motion-*.txt', 'pid + "|" + r.rid', 'in motionRef.current', '!tools.ffmpeg || !r.path',
-  'String(r.rid).replace(/[^A-Za-z0-9-]/g, "_")', 'if (e === STALE) throw e;', 'check();']) assert.ok(mm.includes(k), 'motion: ' + k);
-assert.ok(!/cd " \+ dq\(/.test(mm), 'the data folder is single-quoted');
+for (const k of ['tecHostFFmpegBytes((file: string) => tecMotionArgs(r.path, file), roots.data, "gray", { timeoutMs: 120000 })', 'curve = tecMotionCurve(bytes);', 'pid + "|" + r.rid',
+  'in motionRef.current', '!tools.ffmpeg || !r.path', 'if (e === STALE) throw e;', 'check();']) assert.ok(mm.includes(k), 'motion: ' + k);
 assert.ok(panel.indexOf('const motionRef = React.useRef') > 0 && panel.indexOf('const motionRef = React.useRef') < early, 'the motion cache is a hook before the early return');
-// Temporary files go through the data folder and are removed.
-assert.ok(panel.includes('"; s=$?; rm -f " + sq(pcm) + "; exit $s"') && panel.includes('" && rm -f " + sq(base + ".mp3")') && panel.includes('rm -f " + sq(base + ".u8")'), 'temporary audio files are removed');
-assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))') && panel.includes('!done.ok'), 'own-music analysis via a file');
+assert.ok(panel.indexOf('const ownAbortRef = React.useRef') > 0 && panel.indexOf('const ownAbortRef = React.useRef') < early, 'the own-music abort is a hook before the early return');
+// Temporary files: every ffmpeg output goes through tecHostFFmpegBytes (an ASCII name in the data folder, removed).
+const hostBlock = panel.slice(panel.indexOf('// tec-host:start'), panel.indexOf('// tec-host:end'));
+assert.ok(hostBlock.includes("const out = tecHostJoin(dataDir, 'tmp-' + tecHostToken() + '.' + ext);") && hostBlock.includes('await tecHostRemove(out);'), 'temporary files are removed');
+assert.equal((panel.match(/tecHostFFmpeg\(/g) || []).length, 2, 'ffmpeg runs only inside tecHostFFmpegBytes (plus its definition)');
+// Bundled cues tell ensure-audio their length (the duration check); own music does not.
+assert.ok(panel.includes('musicSeconds: musicOn && cueId !== "own" && cue?.durationSeconds > 0 ? cue.durationSeconds : null'), 'cue length for ensure-audio');
 // Script configs arrive as JSON.parse(...) so the SDK type check sees `any`.
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capture in the panel');
@@ -128,7 +128,7 @@ for (const id of ['"prepare"', '"plan"', '"music"', '"assemble"', '"decorate"'])
 const order = ['fill(assets.scripts.inventoryJs', 'findCandidates(todo', 'await measureMotion(', 'tecPlanBuild({ layout: inputs.layout', 'fill(assets.scripts.ensureJs', 'fill(assets.scripts.assembleJs', 'await decorate(record'];
 order.reduce((at, s) => { const i = buildBody.indexOf(s); assert.ok(i > at, 'build order: ' + s); return i; }, -1);
 assert.ok(/fill\(assets\.scripts\.searchJs, \{ projectId: pid, rids: rids\.slice\(i, i \+ 4\), queries: TEC_SEARCH_QUERIES, pageSize: 4 \}\)/.test(panel), 'search in batches of 4, pageSize 4');
-assert.ok(/fill\(assets\.scripts\.ensureJs, \{ projectId: pid, path: inputs\.musicPath \}\), true\)/.test(buildBody), 'ensure-audio commits in its own call');
+assert.ok(buildBody.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: inputs.musicPath, ...(inputs.musicSeconds ? { durationSeconds: inputs.musicSeconds } : {}) }), true)'), 'ensure-audio commits in its own call');
 assert.ok(/fill\(assets\.scripts\.assembleJs, \{[\s\S]*?\}\), true\)/.test(buildBody), 'assemble commits');
 assert.ok(/fill\(assets\.scripts\.decorateJs, \{[\s\S]*?\}\), true\)/.test(panel), 'decorate commits');
 assert.ok(/run\("Open the new Draft", [^)]*\)/.test(panel) && !/run\("Open the new Draft"[\s\S]{0,600}, true\)/.test(panel), 'opening the Draft does not commit');
@@ -213,7 +213,7 @@ assert.deepEqual(['short', 'standard', 'long'].map(k => en['length.' + k]), ['Sh
 for (const phrase of ['{ label: t(L, "ownMusic"), value: "own" }', '{ label: t(L, "noMusic"), value: "none" }', '(parsed.cues || []).find((c: any) => c.default)', 'React.useState("")', 'setCueId((cur) => (cur === "" ? def.id : cur))',
   'swell: cue.swell ?? cue.swellFallback', 'P: (beats * 60) / cue.bpm', 'tecSection({ ...sectionOpts, value', 'tecFitLength({', 't(L, "tooShortNeeds", { seconds: fit.needSeconds })', 't(L, "useLength", { length: t(L, "length." + fit.key) })',
   't(L, "noSteadyBeat", { seconds: TEC_FIXED_PHRASE })', 'const ph = tecOwnPhrase(ownGrid);', 'approximate: ph.approximate', 't(L, "beatApprox", { seconds: Math.round(music.P * 100) / 100 })', 'usableEnd: ownDuration - TEC_MUSIC_END_MARGIN',
-  '<ui.FileDrop accept={["audio"]}', '-t " + dur.toFixed(2)', 'const dur = videoSeconds']) assert.ok(code.includes(phrase), phrase);
+  '<ui.FileDrop accept={["audio"]}', "'-t', Number(duration).toFixed(2)", 'tecHostPreviewUrl(file, start, videoSeconds, MUSIC_FADE_OUT, roots.data)']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['ownMusic', 'Your own music'], ['noMusic', 'No music'], ['tooShortNeeds', 'This track is too short (needs ≥ {seconds} s).'], ['useLength', 'Use {length}'], ['tooShortFor', 'This track is too short for {length}.'],
   ['noSteadyBeat', 'No steady beat found: shots are {seconds} s.'], ['beatApprox', 'Beat found (approximate): shots follow it at {seconds} s.'], ['startsAtLoudest', 'reveal on the loudest part'], ['startsAtSwell', 'reveal on the swell'],
   ['trackTooShort', 'This track is too short for this Length.'], ['dropMusic', 'Drop a music file']]) says(key, text);
@@ -292,7 +292,9 @@ says('analysedBetter', 'Analysed clips give better picks.');
 says('clipsChecking', 'Checking clips {done}/{count}');
 says('stillImporting', 'still being imported');
 says('noFootage', 'Add video clips or photos');
-assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel does not start analysis');
+// (The beat worker's module.exports.analyze( is the kit beat detector, not Selects analysis.)
+const noWorker = panel.slice(0, panel.indexOf('// tec-beat-worker:start')) + panel.slice(panel.indexOf('// tec-beat-worker:end'));
+assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(noWorker), 'the panel does not start analysis');
 {
   const start = panel.indexOf('function tecFootageNotes('), end = panel.indexOf('// Layout thumbnails:');
   assert.ok(start > 0 && end > start, 'the footage-note helper exists');

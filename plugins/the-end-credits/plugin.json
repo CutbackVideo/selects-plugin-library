@@ -26,8 +26,8 @@
     "assets/shot-frame.tsx",
     "beat-detect.cjs",
     "dev/i18n-check.cjs",
+    "kit-beat-detect.cjs",
     "panel.tsx",
-    "runtime.sh",
     "planner.js",
     "scripts/assemble.js",
     "scripts/decorate.js",
@@ -41,6 +41,7 @@
     "tests/fonts.test.cjs",
     "tests/frame.test.cjs",
     "tests/graphic.test.cjs",
+    "tests/host.test.cjs",
     "tests/i18n.test.cjs",
     "tests/look.test.cjs",
     "tests/no-analysis.test.cjs",
@@ -48,13 +49,14 @@
     "tests/planner.test.cjs",
     "tests/quick-score.test.cjs",
     "tests/scripts-edit.test.cjs",
-    "tests/scripts-read.test.cjs"
+    "tests/scripts-read.test.cjs",
+    "tests/windows.test.cjs"
   ],
   "compatibility": {
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg only for music previews and your own music; your own music also downloads a pinned Node.js the first time (runtime.sh) (ffmpeg also measures in-shot motion; without it shots are chosen by scene alone)."
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring; music previews, your own music and in-shot motion use the ffmpeg bundled with Selects."
   },
   "localized": {
     "de": {

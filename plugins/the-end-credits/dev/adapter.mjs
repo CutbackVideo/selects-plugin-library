@@ -20,7 +20,7 @@
 //   short for fails the row with the panel's message; true builds the longest Length that fits instead).
 //
 // In-shot motion, like the panel: every analysed clip is measured once with the local ffmpeg (planner.js
-// TEC_MOTION_FILTER, run in a temp folder that receives the file), from the source `path` inventory.js returns (the
+// tecMotionArgs into a temp file, tecMotionCurve on its grey frames), from the source `path` inventory.js returns (the
 // driver runs on the machine that holds the Project's files). Offline fixtures carry no path: set TEC_FOOTAGE_DIR to
 // the footage folder to resolve them by file name. A clip that cannot be measured (no path, no ffmpeg, a failure)
 // scores as before, silently, as in the panel.
@@ -135,8 +135,8 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     return { ...j(P.tecLocalFromScores(resources, results, phraseP, Q.qsCandidates)), ms };
   }
 
-  // The panel's measureMotion: one ffmpeg run per clip, the metadata written to a file and parsed by the planner's
-  // tecParseMotion. rid -> curve for the clips that could be measured.
+  // The panel's measureMotion: one ffmpeg run per clip, raw grey frames written to a file and turned into a curve by
+  // the planner's tecMotionCurve. rid -> curve for the clips that could be measured.
   function motionCurves(resources) {
     const out = {};
     let tmp = null;
@@ -148,9 +148,10 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
           let curve = null;
           try {
             tmp = tmp || fs.mkdtempSync(path.join(os.tmpdir(), 'tec-motion-'));
-            const name = 'motion-' + String(r.rid).replace(/[^A-Za-z0-9-]/g, '_') + '.txt';
-            execFileSync(ffmpeg(), ['-nostdin', '-v', 'error', '-an', '-sn', '-dn', '-i', file, '-vf', P.TEC_MOTION_FILTER + name, '-f', 'null', '-'], { cwd: tmp, stdio: 'ignore', timeout: 120000 });
-            curve = j(P.tecParseMotion(fs.readFileSync(path.join(tmp, name), 'utf8')));
+            const out = path.join(tmp, 'motion-' + String(r.rid).replace(/[^A-Za-z0-9-]/g, '_') + '.gray');
+            execFileSync(ffmpeg(), P.tecMotionArgs(file, out), { stdio: 'ignore', timeout: 120000 });
+            curve = j(P.tecMotionCurve(new Uint8Array(fs.readFileSync(out))));
+            fs.rmSync(out, { force: true });
           } catch (e) { curve = null; }
           motionCache.set(file, curve);
         }

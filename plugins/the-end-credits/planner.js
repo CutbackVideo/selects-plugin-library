@@ -189,10 +189,17 @@ function tecLoudest(grid, P, m, fixed) {
 // ---------------------------------------------------------------------------------------------------------------
 // In-shot motion. The reference's footage moves (surf, swaying palms, a car on a road); calm holds read static in the
 // small window. The panel (and the headless adapter) measures every analysed clip once with ffmpeg: 4 frames per
-// second, 64 px wide, grey, and the mean absolute difference of consecutive frames (signalstats YAVG of a tblend
-// difference, 0-255). TEC_MOTION_FILTER ends in `file=`: the caller appends a file name (no path: it runs ffmpeg in
-// the folder that receives the file, so the filtergraph never has to escape a path).
-const TEC_MOTION_FILTER = 'fps=4,scale=64:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=';
+// second, squeezed to TEC_MOTION_W x TEC_MOTION_H grey (any aspect: only frame-to-frame change matters), written as raw
+// frames to a file, and the mean absolute difference of consecutive frames (0-255) computed here. tecMotionArgs is
+// the argv for the host's ffmpeg (Runtime.runFFmpeg on macOS and Windows: an argv array, no shell, no path inside a
+// filtergraph), tecMotionCurve the arithmetic, so the panel and the headless driver measure the same way.
+const TEC_MOTION_FPS = 4;
+const TEC_MOTION_W = 64;
+const TEC_MOTION_H = 36;
+function tecMotionArgs(file, out) {
+  return ['-nostdin', '-v', 'error', '-y', '-an', '-sn', '-dn', '-i', String(file), '-vf',
+    'fps=' + TEC_MOTION_FPS + ',scale=' + TEC_MOTION_W + ':' + TEC_MOTION_H + ',setsar=1,format=gray', '-f', 'rawvideo', String(out)];
+}
 // Allocation bonus for a moving window: TEC_MOTION_WEIGHT x its normalised motion (0-1). Below one role-rank step
 // (0.15), so scene relevance still decides between a good and a poor match.
 const TEC_MOTION_WEIGHT = 0.1;
@@ -212,20 +219,21 @@ const TEC_MOTION_LOG_FLOOR = 0.05;
 const TEC_MOTION_STILL = 0.6;
 const TEC_MOTION_MOVING = 3;
 
-// ffmpeg's metadata=print output ("frame:N pts:P pts_time:T" then "lavfi.signalstats.YAVG=V") -> { times, values }
-// in time order, or null without a sample.
-function tecParseMotion(text) {
+// Raw grey frames (TEC_MOTION_W x TEC_MOTION_H bytes each, TEC_MOTION_FPS a second) -> { times, values }: the sample
+// at t = k / TEC_MOTION_FPS is the mean absolute difference of frames k - 1 and k. null without two whole frames.
+function tecMotionCurve(bytes) {
+  const size = TEC_MOTION_W * TEC_MOTION_H;
+  const n = bytes && bytes.length >= 2 * size ? Math.floor(bytes.length / size) : 0;
+  if (n < 2) return null;
   const times = [], values = [];
-  let t = null;
-  for (const line of String(text == null ? '' : text).split(/\r?\n/)) {
-    const pt = /pts_time:\s*(-?[\d.]+(?:e-?\d+)?)/.exec(line);
-    if (pt) { t = Number(pt[1]); continue; }
-    const yv = /lavfi\.signalstats\.YAVG=\s*(-?[\d.]+(?:e-?\d+)?)/.exec(line);
-    if (yv && t != null && isFinite(t) && isFinite(Number(yv[1]))) { times.push(t); values.push(Math.max(0, Number(yv[1]))); t = null; }
+  for (let k = 1; k < n; k++) {
+    let sum = 0;
+    const a = (k - 1) * size, b = k * size;
+    for (let i = 0; i < size; i++) sum += Math.abs(bytes[b + i] - bytes[a + i]);
+    times.push(k / TEC_MOTION_FPS);
+    values.push(Math.round((sum / size) * 10000) / 10000);
   }
-  if (!times.length) return null;
-  const order = times.map((_, i) => i).sort((a, b) => times[a] - times[b]);
-  return { times: order.map(i => times[i]), values: order.map(i => values[i]) };
+  return { times, values };
 }
 
 function tecMedian(list) {
@@ -424,7 +432,7 @@ function tecFootageSlots(timeline) {
   return shots.map((s, i) => ({ index: s.index, role: s.role, seconds: s.seconds, prefersVideo: i === 0 || i === shots.length - 1 }));
 }
 
-// opts: { layout, N (requested grid shots), P, candidates, seed, photoShare?, motion? (rid -> tecParseMotion curve;
+// opts: { layout, N (requested grid shots), P, candidates, seed, photoShare?, motion? (rid -> tecMotionCurve curve;
 // clips without one score as before) }. Scene-search hits and local windows (clips without analysis) are put on one
 // scale first (tecNormaliseCandidates). Tries N first, then shrinks toward TEC_MIN_SHOTS; every attempt allocates
 // from scratch with filler candidates added. Returns { ok: true, layout, N, timeline, picks (one per footage slot, in
@@ -522,7 +530,7 @@ function tecEvenCandidates(rid, duration, seconds) {
   return out;
 }
 
-// A scored clip's motion as a tecParseMotion-style curve (one sample per scored bin, at its end), so the allocation's
+// A scored clip's motion as a tecMotionCurve-style curve (one sample per scored bin, at its end), so the allocation's
 // motion bonus and the still-shot move treat it like a measured clip. null for a fallback.
 function tecLocalCurve(scores) {
   if (!scores || scores.fallback || !Array.isArray(scores.windows)) return null;

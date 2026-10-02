@@ -26,7 +26,6 @@ const STRINGS = {
     checkingClipsNow: "Checking clips…",
     checkingClips: "Checking clips",
     listening: "Listening for the beat",
-    preparingTools: "Preparing beat detection (first time only)",
     working: "Working",
     noFootage: "No videos or photos in this Project yet. Add video clips or photos; this updates automatically.",
     analysedBetter: "Analysed clips give better picks.",
@@ -81,7 +80,7 @@ const STRINGS = {
     ownMusic: "Your own music",
     noMusic: "No music",
     dropAudio: "Drop an audio file (mp3, wav, m4a…) that is on this computer.",
-    installTools: "Install ffmpeg to preview music or use your own track.",
+    needsNewerSelects: "This needs a newer version of Selects.",
     noSteadyBeat: "No steady beat found: shots are {seconds} s.",
     beatApprox: "Beat found (approximate): shots follow it at {seconds} s.",
     sectionHint: "Music section — drag to choose",
@@ -154,13 +153,10 @@ const STRINGS = {
     unchecked: { one: "Could not check {count} video; it was skipped. Build again to retry it.", other: "Could not check {count} videos; they were skipped. Build again to retry them." },
     startFailed: "THE END Credits could not start: {detail}. Reinstall the plugin if this persists.",
     foldersNotFound: "the plugin folders could not be found",
-    adapterNeeded: "This Selects build needs an updated {name} adapter.",
     stepFailed: "Selects could not complete this step.",
     musicUnreadable: "Could not read this music file ({detail}). Choose another file or one of the tracks.",
     beatFailed: "beat detection failed",
     previewFailed: "Could not play a preview: {detail}.",
-    previewNotCut: "the preview could not be cut",
-    noAudio: "no audio came back",
     dropMusic: "Drop a music file, or choose one of the tracks.",
     trackTooShort: "This track is too short for this Length.",
     musicNotReady: "The music is not ready yet.",
@@ -198,7 +194,6 @@ const STRINGS = {
     checkingClipsNow: "Clips werden geprüft …",
     checkingClips: "Clips werden geprüft",
     listening: "Beat wird gesucht",
-    preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     working: "In Arbeit",
     noFootage: "In diesem Projekt gibt es noch keine Videos oder Fotos. Füge Videoclips oder Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
     analysedBetter: "Mit analysierten Clips wird die Auswahl der Einstellungen besser.",
@@ -253,7 +248,7 @@ const STRINGS = {
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
     dropAudio: "Lege eine Audiodatei (mp3, wav, m4a …) ab, die auf diesem Computer liegt.",
-    installTools: "Installiere ffmpeg, um Musik vorzuhören oder eigene Musik zu verwenden.",
+    needsNewerSelects: "Dafür wird eine neuere Version von Selects benötigt.",
     noSteadyBeat: "Kein gleichmäßiger Beat gefunden: Einstellungen dauern {seconds} s.",
     beatApprox: "Beat gefunden (ungefähr): Die Einstellungen folgen ihm alle {seconds} s.",
     sectionHint: "Musikabschnitt – zum Auswählen ziehen",
@@ -326,13 +321,10 @@ const STRINGS = {
     unchecked: { one: "{count} Video konnte nicht geprüft werden und wurde übersprungen. Erstelle erneut, um es noch einmal zu versuchen.", other: "{count} Videos konnten nicht geprüft werden und wurden übersprungen. Erstelle erneut, um es noch einmal zu versuchen." },
     startFailed: "THE END Credits konnte nicht gestartet werden: {detail}. Installiere das Plugin neu, falls das Problem bestehen bleibt.",
     foldersNotFound: "die Plugin-Ordner wurden nicht gefunden",
-    adapterNeeded: "Diese Selects-Version braucht einen aktualisierten {name}-Adapter.",
     stepFailed: "Selects konnte diesen Schritt nicht abschließen.",
     musicUnreadable: "Diese Musikdatei konnte nicht gelesen werden ({detail}). Wähle eine andere Datei oder eines der Musikstücke.",
     beatFailed: "Beat-Erkennung fehlgeschlagen",
     previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
-    previewNotCut: "die Vorschau konnte nicht geschnitten werden",
-    noAudio: "es kam kein Audio zurück",
     dropMusic: "Lege eine Musikdatei ab oder wähle eines der Musikstücke.",
     trackTooShort: "Dieses Musikstück ist für diese Länge zu kurz.",
     musicNotReady: "Die Musik ist noch nicht bereit.",
@@ -370,7 +362,6 @@ const STRINGS = {
     checkingClipsNow: "Comprobando clips…",
     checkingClips: "Comprobando clips",
     listening: "Buscando el ritmo",
-    preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     working: "Trabajando",
     noFootage: "Este proyecto aún no tiene vídeos ni fotos. Añade clips de vídeo o fotos; se actualizará automáticamente.",
     analysedBetter: "Los clips analizados permiten elegir mejores planos.",
@@ -425,7 +416,7 @@ const STRINGS = {
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
     dropAudio: "Suelta un archivo de audio (mp3, wav, m4a…) que esté en este ordenador.",
-    installTools: "Instala ffmpeg para escuchar la música o usar tu propia pista.",
+    needsNewerSelects: "Esto requiere una versión más reciente de Selects.",
     noSteadyBeat: "No se encontró un ritmo estable: los planos duran {seconds} s.",
     beatApprox: "Ritmo encontrado (aproximado): los planos lo siguen cada {seconds} s.",
     sectionHint: "Sección de música: arrastra para elegir",
@@ -498,13 +489,10 @@ const STRINGS = {
     unchecked: { one: "No se pudo comprobar {count} vídeo y se omitió. Vuelve a crear para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos y se omitieron. Vuelve a crear para reintentarlo.", other: "No se pudieron comprobar {count} vídeos y se omitieron. Vuelve a crear para reintentarlo." },
     startFailed: "THE END Credits no pudo iniciarse: {detail}. Reinstala el plugin si el problema continúa.",
     foldersNotFound: "no se encontraron las carpetas del plugin",
-    adapterNeeded: "Esta versión de Selects necesita un adaptador {name} actualizado.",
     stepFailed: "Selects no pudo completar este paso.",
     musicUnreadable: "No se pudo leer este archivo de música ({detail}). Elige otro archivo o una de las pistas.",
     beatFailed: "falló la detección del ritmo",
     previewFailed: "No se pudo reproducir la vista previa: {detail}.",
-    previewNotCut: "no se pudo recortar la vista previa",
-    noAudio: "no se recibió audio",
     dropMusic: "Suelta un archivo de música o elige una de las pistas.",
     trackTooShort: "Esta pista es demasiado corta para esta duración.",
     musicNotReady: "La música aún no está lista.",
@@ -542,7 +530,6 @@ const STRINGS = {
     checkingClipsNow: "Vérification des clips…",
     checkingClips: "Vérification des clips",
     listening: "Recherche du rythme",
-    preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     working: "En cours",
     noFootage: "Ce projet ne contient pas encore de vidéo ni de photo. Ajoutez des clips vidéo ou des photos ; l'affichage se met à jour automatiquement.",
     analysedBetter: "Les clips analysés permettent de choisir de meilleurs plans.",
@@ -597,7 +584,7 @@ const STRINGS = {
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
     dropAudio: "Déposez un fichier audio (mp3, wav, m4a…) présent sur cet ordinateur.",
-    installTools: "Installez ffmpeg pour écouter la musique ou utiliser votre propre morceau.",
+    needsNewerSelects: "Cela nécessite une version plus récente de Selects.",
     noSteadyBeat: "Aucun rythme régulier trouvé : les plans durent {seconds} s.",
     beatApprox: "Rythme trouvé (approximatif) : les plans le suivent toutes les {seconds} s.",
     sectionHint: "Section musicale : faites glisser pour choisir",
@@ -670,13 +657,10 @@ const STRINGS = {
     unchecked: { one: "{count} vidéo n'a pas pu être vérifiée et a été ignorée. Relancez la création pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer." },
     startFailed: "THE END Credits n'a pas pu démarrer : {detail}. Réinstallez le plugin si le problème persiste.",
     foldersNotFound: "les dossiers du plugin sont introuvables",
-    adapterNeeded: "Cette version de Selects nécessite un adaptateur {name} à jour.",
     stepFailed: "Selects n'a pas pu terminer cette étape.",
     musicUnreadable: "Impossible de lire ce fichier audio ({detail}). Choisissez un autre fichier ou l'un des morceaux.",
     beatFailed: "la détection du rythme a échoué",
     previewFailed: "Impossible de lire l'aperçu : {detail}.",
-    previewNotCut: "l'aperçu n'a pas pu être découpé",
-    noAudio: "aucun son n'a été renvoyé",
     dropMusic: "Déposez un fichier audio ou choisissez l'un des morceaux.",
     trackTooShort: "Ce morceau est trop court pour cette durée.",
     musicNotReady: "La musique n'est pas encore prête.",
@@ -714,7 +698,6 @@ const STRINGS = {
     checkingClipsNow: "Controllo delle clip…",
     checkingClips: "Controllo delle clip",
     listening: "Ricerca del ritmo",
-    preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     working: "In corso",
     noFootage: "In questo progetto non ci sono ancora video né foto. Aggiungi clip video o foto; si aggiorna automaticamente.",
     analysedBetter: "Con le clip analizzate la scelta delle inquadrature è migliore.",
@@ -769,7 +752,7 @@ const STRINGS = {
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
     dropAudio: "Trascina qui un file audio (mp3, wav, m4a…) presente su questo computer.",
-    installTools: "Installa ffmpeg per ascoltare la musica o usare un tuo brano.",
+    needsNewerSelects: "Serve una versione più recente di Selects.",
     noSteadyBeat: "Nessun ritmo regolare trovato: le inquadrature durano {seconds} s.",
     beatApprox: "Ritmo trovato (approssimativo): le inquadrature lo seguono ogni {seconds} s.",
     sectionHint: "Sezione musicale: trascina per scegliere",
@@ -842,13 +825,10 @@ const STRINGS = {
     unchecked: { one: "Non è stato possibile controllare {count} video, che è stato saltato. Crea di nuovo per riprovare.", many: "Non è stato possibile controllare {count} di video, che sono stati saltati. Crea di nuovo per riprovare.", other: "Non è stato possibile controllare {count} video, che sono stati saltati. Crea di nuovo per riprovare." },
     startFailed: "Impossibile avviare THE END Credits: {detail}. Reinstalla il plugin se il problema persiste.",
     foldersNotFound: "le cartelle del plugin non sono state trovate",
-    adapterNeeded: "Questa versione di Selects richiede un adattatore {name} aggiornato.",
     stepFailed: "Selects non è riuscito a completare questo passaggio.",
     musicUnreadable: "Impossibile leggere questo file musicale ({detail}). Scegli un altro file o uno dei brani.",
     beatFailed: "rilevamento del ritmo non riuscito",
     previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
-    previewNotCut: "non è stato possibile ritagliare l'anteprima",
-    noAudio: "non è stato restituito alcun audio",
     dropMusic: "Trascina qui un file musicale o scegli uno dei brani.",
     trackTooShort: "Questo brano è troppo corto per questa durata.",
     musicNotReady: "La musica non è ancora pronta.",
@@ -886,7 +866,6 @@ const STRINGS = {
     checkingClipsNow: "クリップを確認中…",
     checkingClips: "クリップを確認中",
     listening: "ビートを検出中",
-    preparingTools: "ビート検出を準備中(初回のみ)",
     working: "処理中",
     noFootage: "このプロジェクトには、動画も写真もまだありません。動画クリップか写真を追加してください。自動で更新されます。",
     analysedBetter: "解析済みのクリップなら、より良いショットを選べます。",
@@ -941,7 +920,7 @@ const STRINGS = {
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
     dropAudio: "このコンピュータ上のオーディオファイル（mp3、wav、m4a など）をドロップしてください。",
-    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg をインストールしてください。",
+    needsNewerSelects: "この機能には、より新しいバージョンの Selects が必要です。",
     noSteadyBeat: "一定のビートが見つかりません。ショットは {seconds} 秒ずつです。",
     beatApprox: "ビートを検出しました（おおよそ）。ショットは {seconds} 秒ごとに切り替わります。",
     sectionHint: "音楽の区間 — ドラッグして選択",
@@ -1014,13 +993,10 @@ const STRINGS = {
     unchecked: { other: "{count} 本の動画を確認できなかったため、スキップしました。もう一度作成すると再試行します。" },
     startFailed: "THE END Credits を開始できませんでした: {detail}。解決しない場合はプラグインを再インストールしてください。",
     foldersNotFound: "プラグインのフォルダが見つかりませんでした",
-    adapterNeeded: "この Selects のビルドには、更新された {name} アダプターが必要です。",
     stepFailed: "Selects はこのステップを完了できませんでした。",
     musicUnreadable: "この音楽ファイルを読み込めませんでした（{detail}）。別のファイルか、用意されたトラックを選んでください。",
     beatFailed: "ビートの検出に失敗しました",
     previewFailed: "プレビューを再生できませんでした: {detail}。",
-    previewNotCut: "プレビューを切り出せませんでした",
-    noAudio: "音声が返されませんでした",
     dropMusic: "音楽ファイルをドロップするか、用意されたトラックを選んでください。",
     trackTooShort: "このトラックはこの長さには短すぎます。",
     musicNotReady: "音楽の準備がまだできていません。",
@@ -1058,7 +1034,6 @@ const STRINGS = {
     checkingClipsNow: "\ud074\ub9bd \ud655\uc778 \uc911…",
     checkingClips: "\ud074\ub9bd \ud655\uc778 \uc911",
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
-    preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     working: "\uc791\uc5c5 \uc911",
     noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
     analysedBetter: "\ubd84\uc11d\ub41c \ud074\ub9bd\uc774\uba74 \ub354 \uc88b\uc740 \uc0f7\uc744 \uace0\ub97c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
@@ -1113,7 +1088,7 @@ const STRINGS = {
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
     dropAudio: "\uc774 \ucef4\ud4e8\ud130\uc5d0 \uc788\ub294 \uc624\ub514\uc624 \ud30c\uc77c(mp3, wav, m4a \ub4f1)\uc744 \ub04c\uc5b4\ub2e4 \ub193\uc73c\uc138\uc694.",
-    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\ub97c \uc124\uce58\ud558\uc138\uc694.",
+    needsNewerSelects: "\ub354 \ucd5c\uc2e0 \ubc84\uc804\uc758 Selects\uac00 \ud544\uc694\ud569\ub2c8\ub2e4.",
     noSteadyBeat: "\uc77c\uc815\ud55c \ube44\ud2b8\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc0f7\uc740 {seconds}\ucd08\uc529\uc785\ub2c8\ub2e4.",
     beatApprox: "\ube44\ud2b8\ub97c \ucc3e\uc558\uc2b5\ub2c8\ub2e4(\ub300\ub7b5). \uc0f7\uc774 {seconds}\ucd08\ub9c8\ub2e4 \ube44\ud2b8\ub97c \ub530\ub77c\uac11\ub2c8\ub2e4.",
     sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
@@ -1186,13 +1161,10 @@ const STRINGS = {
     unchecked: { other: "\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud574 \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
     startFailed: "THE END Credits\ub97c \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \ubb38\uc81c\uac00 \uacc4\uc18d\ub418\uba74 \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud558\uc138\uc694.",
     foldersNotFound: "\ud50c\ub7ec\uadf8\uc778 \ud3f4\ub354\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
-    adapterNeeded: "\uc774 Selects \ube4c\ub4dc\uc5d0\ub294 \uc5c5\ub370\uc774\ud2b8\ub41c {name} \uc5b4\ub311\ud130\uac00 \ud544\uc694\ud569\ub2c8\ub2e4.",
     stepFailed: "Selects\uac00 \uc774 \ub2e8\uacc4\ub97c \uc644\ub8cc\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     musicUnreadable: "\uc774 \uc74c\uc545 \ud30c\uc77c\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4({detail}). \ub2e4\ub978 \ud30c\uc77c\uc774\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     beatFailed: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
     previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
-    previewNotCut: "\ubbf8\ub9ac\ub4e3\uae30 \uad6c\uac04\uc744 \uc798\ub77c\ub0b4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
-    noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
     dropMusic: "\uc74c\uc545 \ud30c\uc77c\uc744 \ub04c\uc5b4\ub2e4 \ub193\uac70\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     trackTooShort: "\uc774 \uae38\uc774\ub85c \ub9cc\ub4e4\uae30\uc5d0\ub294 \ud2b8\ub799\uc774 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4.",
     musicNotReady: "\uc74c\uc545\uc774 \uc544\uc9c1 \uc900\ube44\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
@@ -1230,7 +1202,6 @@ const STRINGS = {
     checkingClipsNow: "Verificando clipes…",
     checkingClips: "Verificando clipes",
     listening: "Procurando a batida",
-    preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     working: "Trabalhando",
     noFootage: "Este projeto ainda não tem vídeos nem fotos. Adicione clipes de vídeo ou fotos; a lista é atualizada automaticamente.",
     analysedBetter: "Clipes analisados permitem escolher planos melhores.",
@@ -1285,7 +1256,7 @@ const STRINGS = {
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
     dropAudio: "Solte um arquivo de áudio (mp3, wav, m4a…) que esteja neste computador.",
-    installTools: "Instale o ffmpeg para ouvir a música ou usar sua própria faixa.",
+    needsNewerSelects: "Isso requer uma versão mais recente do Selects.",
     noSteadyBeat: "Nenhuma batida constante encontrada: os planos duram {seconds} s.",
     beatApprox: "Batida encontrada (aproximada): os planos a seguem a cada {seconds} s.",
     sectionHint: "Trecho da música: arraste para escolher",
@@ -1358,13 +1329,10 @@ const STRINGS = {
     unchecked: { one: "Não foi possível verificar {count} vídeo, que foi ignorado. Crie de novo para tentar outra vez.", many: "Não foi possível verificar {count} de vídeos, que foram ignorados. Crie de novo para tentar outra vez.", other: "Não foi possível verificar {count} vídeos, que foram ignorados. Crie de novo para tentar outra vez." },
     startFailed: "Não foi possível iniciar o THE END Credits: {detail}. Reinstale o plugin se o problema continuar.",
     foldersNotFound: "as pastas do plugin não foram encontradas",
-    adapterNeeded: "Esta versão do Selects precisa de um adaptador {name} atualizado.",
     stepFailed: "O Selects não conseguiu concluir esta etapa.",
     musicUnreadable: "Não foi possível ler este arquivo de música ({detail}). Escolha outro arquivo ou uma das faixas.",
     beatFailed: "a detecção da batida falhou",
     previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
-    previewNotCut: "não foi possível recortar a prévia",
-    noAudio: "nenhum áudio foi retornado",
     dropMusic: "Solte um arquivo de música ou escolha uma das faixas.",
     trackTooShort: "Esta faixa é curta demais para esta duração.",
     musicNotReady: "A música ainda não está pronta.",
@@ -1402,7 +1370,6 @@ const STRINGS = {
     checkingClipsNow: "Klipler kontrol ediliyor…",
     checkingClips: "Klipler kontrol ediliyor",
     listening: "Ritim aranıyor",
-    preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     working: "Çalışıyor",
     noFootage: "Bu projede henüz video veya fotoğraf yok. Video klipleri ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
     analysedBetter: "Analiz edilmiş kliplerle daha iyi çekimler seçilir.",
@@ -1457,7 +1424,7 @@ const STRINGS = {
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
     dropAudio: "Bu bilgisayardaki bir ses dosyasını (mp3, wav, m4a…) bırakın.",
-    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg yükleyin.",
+    needsNewerSelects: "Bunun için Selects'in daha yeni bir sürümü gerekir.",
     noSteadyBeat: "Düzenli bir ritim bulunamadı: çekimler {seconds} sn sürüyor.",
     beatApprox: "Ritim bulundu (yaklaşık): çekimler her {seconds} sn'de onu takip ediyor.",
     sectionHint: "Müzik bölümü — seçmek için sürükleyin",
@@ -1530,13 +1497,10 @@ const STRINGS = {
     unchecked: { one: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun.", other: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun." },
     startFailed: "THE END Credits başlatılamadı: {detail}. Sorun sürerse eklentiyi yeniden yükleyin.",
     foldersNotFound: "eklenti klasörleri bulunamadı",
-    adapterNeeded: "Bu Selects sürümü güncel bir {name} bağdaştırıcısı gerektiriyor.",
     stepFailed: "Selects bu adımı tamamlayamadı.",
     musicUnreadable: "Bu müzik dosyası okunamadı ({detail}). Başka bir dosya veya hazır parçalardan birini seçin.",
     beatFailed: "ritim algılama başarısız oldu",
     previewFailed: "Önizleme oynatılamadı: {detail}.",
-    previewNotCut: "önizleme kesilemedi",
-    noAudio: "ses geri gelmedi",
     dropMusic: "Bir müzik dosyası bırakın veya hazır parçalardan birini seçin.",
     trackTooShort: "Bu parça bu uzunluk için çok kısa.",
     musicNotReady: "Müzik henüz hazır değil.",
@@ -1574,7 +1538,6 @@ const STRINGS = {
     checkingClipsNow: "正在检查片段…",
     checkingClips: "正在检查片段",
     listening: "正在识别节拍",
-    preparingTools: "正在准备节拍检测(仅首次)",
     working: "处理中",
     noFootage: "此项目中还没有视频或照片。请添加视频片段或照片；这里会自动更新。",
     analysedBetter: "已分析的片段能挑出更好的镜头。",
@@ -1629,7 +1592,7 @@ const STRINGS = {
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
     dropAudio: "请拖入这台电脑上的音频文件（mp3、wav、m4a 等）。",
-    installTools: "请安装 ffmpeg，才能试听音乐或使用自己的曲目。",
+    needsNewerSelects: "需要更新版本的 Selects。",
     noSteadyBeat: "未找到稳定的节拍：每个镜头 {seconds} 秒。",
     beatApprox: "已识别节拍（近似）：镜头每 {seconds} 秒跟随节拍切换。",
     sectionHint: "音乐片段 — 拖动选择",
@@ -1702,13 +1665,10 @@ const STRINGS = {
     unchecked: { other: "有 {count} 个视频无法检查，已跳过。再次生成可重试。" },
     startFailed: "THE END Credits 无法启动：{detail}。如果问题持续，请重新安装插件。",
     foldersNotFound: "找不到插件文件夹",
-    adapterNeeded: "此版本的 Selects 需要更新的 {name} 适配器。",
     stepFailed: "Selects 无法完成这一步。",
     musicUnreadable: "无法读取这个音乐文件（{detail}）。请选择其他文件或内置曲目。",
     beatFailed: "节拍识别失败",
     previewFailed: "无法播放试听：{detail}。",
-    previewNotCut: "无法截取试听片段",
-    noAudio: "没有返回音频",
     dropMusic: "请拖入一个音乐文件，或选择内置曲目。",
     trackTooShort: "这首曲目太短，不够这个时长。",
     musicNotReady: "音乐尚未准备好。",
@@ -1785,11 +1745,13 @@ function fieldLen(text: string): number {
 type Say = (lang: Lang) => string;
 // An error whose text follows the UI language; `message` keeps the English text.
 function uiError(say: Say) { const e: any = new Error(say("en")); e.say = say; return e; }
-function sayError(lang: Lang, e: any): string { return typeof e?.say === "function" ? e.say(lang) : String(e?.message || e); }
+function sayError(lang: Lang, e: any): string {
+  // A __DI__ member this Selects build lacks (the host block's 'host_tools'): one "needs a newer Selects" message.
+  if (String(e?.message) === "host_tools") return t(lang, "needsNewerSelects");
+  return typeof e?.say === "function" ? e.say(lang) : String(e?.message || e);
+}
 
 const PLUGIN_ID = "the-end-credits";
-const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
-const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 // Ambient clip sound: the clips' own sound sits this far under the music, which stays at 0 dB.
 const AMBIENT_DB = -18;
 const LOOK_STRENGTH = 0.5;
@@ -2005,10 +1967,17 @@ function tecLoudest(grid, P, m, fixed) {
 // ---------------------------------------------------------------------------------------------------------------
 // In-shot motion. The reference's footage moves (surf, swaying palms, a car on a road); calm holds read static in the
 // small window. The panel (and the headless adapter) measures every analysed clip once with ffmpeg: 4 frames per
-// second, 64 px wide, grey, and the mean absolute difference of consecutive frames (signalstats YAVG of a tblend
-// difference, 0-255). TEC_MOTION_FILTER ends in `file=`: the caller appends a file name (no path: it runs ffmpeg in
-// the folder that receives the file, so the filtergraph never has to escape a path).
-const TEC_MOTION_FILTER = 'fps=4,scale=64:-2,format=gray,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=';
+// second, squeezed to TEC_MOTION_W x TEC_MOTION_H grey (any aspect: only frame-to-frame change matters), written as raw
+// frames to a file, and the mean absolute difference of consecutive frames (0-255) computed here. tecMotionArgs is
+// the argv for the host's ffmpeg (Runtime.runFFmpeg on macOS and Windows: an argv array, no shell, no path inside a
+// filtergraph), tecMotionCurve the arithmetic, so the panel and the headless driver measure the same way.
+const TEC_MOTION_FPS = 4;
+const TEC_MOTION_W = 64;
+const TEC_MOTION_H = 36;
+function tecMotionArgs(file, out) {
+  return ['-nostdin', '-v', 'error', '-y', '-an', '-sn', '-dn', '-i', String(file), '-vf',
+    'fps=' + TEC_MOTION_FPS + ',scale=' + TEC_MOTION_W + ':' + TEC_MOTION_H + ',setsar=1,format=gray', '-f', 'rawvideo', String(out)];
+}
 // Allocation bonus for a moving window: TEC_MOTION_WEIGHT x its normalised motion (0-1). Below one role-rank step
 // (0.15), so scene relevance still decides between a good and a poor match.
 const TEC_MOTION_WEIGHT = 0.1;
@@ -2028,20 +1997,21 @@ const TEC_MOTION_LOG_FLOOR = 0.05;
 const TEC_MOTION_STILL = 0.6;
 const TEC_MOTION_MOVING = 3;
 
-// ffmpeg's metadata=print output ("frame:N pts:P pts_time:T" then "lavfi.signalstats.YAVG=V") -> { times, values }
-// in time order, or null without a sample.
-function tecParseMotion(text) {
+// Raw grey frames (TEC_MOTION_W x TEC_MOTION_H bytes each, TEC_MOTION_FPS a second) -> { times, values }: the sample
+// at t = k / TEC_MOTION_FPS is the mean absolute difference of frames k - 1 and k. null without two whole frames.
+function tecMotionCurve(bytes) {
+  const size = TEC_MOTION_W * TEC_MOTION_H;
+  const n = bytes && bytes.length >= 2 * size ? Math.floor(bytes.length / size) : 0;
+  if (n < 2) return null;
   const times = [], values = [];
-  let t = null;
-  for (const line of String(text == null ? '' : text).split(/\r?\n/)) {
-    const pt = /pts_time:\s*(-?[\d.]+(?:e-?\d+)?)/.exec(line);
-    if (pt) { t = Number(pt[1]); continue; }
-    const yv = /lavfi\.signalstats\.YAVG=\s*(-?[\d.]+(?:e-?\d+)?)/.exec(line);
-    if (yv && t != null && isFinite(t) && isFinite(Number(yv[1]))) { times.push(t); values.push(Math.max(0, Number(yv[1]))); t = null; }
+  for (let k = 1; k < n; k++) {
+    let sum = 0;
+    const a = (k - 1) * size, b = k * size;
+    for (let i = 0; i < size; i++) sum += Math.abs(bytes[b + i] - bytes[a + i]);
+    times.push(k / TEC_MOTION_FPS);
+    values.push(Math.round((sum / size) * 10000) / 10000);
   }
-  if (!times.length) return null;
-  const order = times.map((_, i) => i).sort((a, b) => times[a] - times[b]);
-  return { times: order.map(i => times[i]), values: order.map(i => values[i]) };
+  return { times, values };
 }
 
 function tecMedian(list) {
@@ -2240,7 +2210,7 @@ function tecFootageSlots(timeline) {
   return shots.map((s, i) => ({ index: s.index, role: s.role, seconds: s.seconds, prefersVideo: i === 0 || i === shots.length - 1 }));
 }
 
-// opts: { layout, N (requested grid shots), P, candidates, seed, photoShare?, motion? (rid -> tecParseMotion curve;
+// opts: { layout, N (requested grid shots), P, candidates, seed, photoShare?, motion? (rid -> tecMotionCurve curve;
 // clips without one score as before) }. Scene-search hits and local windows (clips without analysis) are put on one
 // scale first (tecNormaliseCandidates). Tries N first, then shrinks toward TEC_MIN_SHOTS; every attempt allocates
 // from scratch with filler candidates added. Returns { ok: true, layout, N, timeline, picks (one per footage slot, in
@@ -2338,7 +2308,7 @@ function tecEvenCandidates(rid, duration, seconds) {
   return out;
 }
 
-// A scored clip's motion as a tecParseMotion-style curve (one sample per scored bin, at its end), so the allocation's
+// A scored clip's motion as a tecMotionCurve-style curve (one sample per scored bin, at its end), so the allocation's
 // motion bonus and the still-shot move treat it like a measured clip. null for a fallback.
 function tecLocalCurve(scores) {
   if (!scores || scores.fallback || !Array.isArray(scores.windows)) return null;
@@ -3078,36 +3048,269 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
 }
 // quick-score:end
 
-// Double quotes let $HOME and $SELECTS_USER_SKILLS_ROOT expand: use only for those constants.
-function dq(value: string) { return '"' + String(value).replace(/(["\\`])/g, "\\$1") + '"'; }
-// Single quotes pass user paths to the shell literally (no $, backtick or glob expansion).
-function sq(value: string) { return "'" + String(value).replace(/'/g, "'\\''") + "'"; }
-function service(name: string, method: string) {
-  const s = (window.parent as any)?.__DI__?.[name];
-  if (!s || typeof s[method] !== "function") throw uiError((l) => t(l, "adapterNeeded", { name }));
-  return s;
+// tec-host:start
+// Host I/O through the renderer's own services, the same on macOS and Windows: no host shell, no node, nothing for the
+// user to install. Copied from Selfie Aesthetic's sae-host block (dev/host-block.ts; the Archive Vlog av-host pattern)
+// and renamed. ffmpeg/ffprobe are the host's bundled binaries (Runtime.runFFmpeg/runFFprobe take an argv array, so
+// paths need no quoting and never pass through a console), every path is built by FileSystem.join, and temporary
+// files in the data folder get ASCII names. __DI__ (window.parent) is internal host wiring that a newer or older
+// Selects may lack, so each member is checked at call time. Plain JS: tests/host.test.cjs runs it in node:vm.
+// Error codes (Error.message): 'host_tools' = a needed __DI__ member is missing (err.missing; the panel shows
+// "needs a newer Selects"; the bundled tracks still build), 'timeout' = ffmpeg/ffprobe ran past timeoutMs,
+// 'media_failed' = ffmpeg/ffprobe failed or wrote nothing usable (err.detail holds the host's message, truncated).
+function tecHostDI() {
+  let di = null;
+  try { di = window.parent && window.parent.__DI__; } catch (e) { di = null; }
+  if (!di) { try { di = window.__DI__; } catch (e) { di = null; } }
+  const fs = di && di.FileSystem ? di.FileSystem : null;
+  const rt = di && di.Runtime ? di.Runtime : null;
+  return { fs, rt };
 }
+// names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.
+function tecHostHas(names) {
+  const di = tecHostDI();
+  const missing = [];
+  for (const name of names || []) {
+    const dot = String(name).indexOf('.');
+    const svc = di[String(name).slice(0, dot)];
+    if (!svc || typeof svc[String(name).slice(dot + 1)] !== 'function') missing.push(String(name));
+  }
+  return { ok: missing.length === 0, missing };
+}
+function tecHostNeed(names) {
+  const has = tecHostHas(names);
+  if (!has.ok) {
+    const err = new Error('host_tools');
+    err.missing = has.missing;
+    throw err;
+  }
+  return tecHostDI();
+}
+// A file reader (readFileSync or readFile) is needed too.
+function tecHostCanRead() {
+  const di = tecHostDI();
+  return !!di.fs && (typeof di.fs.readFileSync === 'function' || typeof di.fs.readFile === 'function');
+}
+function tecHostNeedReader() {
+  if (!tecHostCanRead()) {
+    const err = new Error('host_tools');
+    err.missing = ['fs.readFile'];
+    throw err;
+  }
+}
+// Joins path parts with the host's join (the OS separator).
+function tecHostJoin(...parts) {
+  const { fs } = tecHostNeed(['fs.join']);
+  return String(fs.join(...parts.map(String)));
+}
+// The installed skill folder (the home folder joined with .selects, skills and <id>: the host's
+// SELECTS_USER_SKILLS_ROOT), or null when the plugin's `marker` file is not there.
+function tecHostSkillsDir(id, marker) {
+  const { fs } = tecHostNeed(['fs.join', 'fs.homedir', 'fs.existsSync']);
+  const dir = String(fs.join(fs.homedir(), '.selects', 'skills', id));
+  try { return fs.existsSync(fs.join(dir, marker)) ? dir : null; } catch (e) { return null; }
+}
+// The plugin's data folder (<home>/.selects/plugin-data/<id>), created when missing.
+function tecHostDataDir(id) {
+  const { fs } = tecHostNeed(['fs.join', 'fs.homedir', 'fs.mkdirSync']);
+  const dir = String(fs.join(fs.homedir(), '.selects', 'plugin-data', id));
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+function tecHostFail(code, cause) {
+  const err = new Error(code);
+  const msg = cause && (cause.stderr || cause.message) ? String(cause.stderr || cause.message) : String(cause || '');
+  err.detail = msg.slice(-600);
+  return err;
+}
+async function tecHostRunTool(member, args, opts) {
+  const { rt } = tecHostNeed(['rt.' + member]);
+  const timeoutMs = (opts && opts.timeoutMs) || 120000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const r = await rt[member](args.map(String), true, controller.signal);
+    return { stdout: String((r && r.stdout) || ''), stderr: String((r && r.stderr) || '') };
+  } catch (e) {
+    throw tecHostFail(controller.signal.aborted ? 'timeout' : 'media_failed', e);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function tecHostFFmpeg(args, opts) { return tecHostRunTool('runFFmpeg', args, opts); }
+function tecHostFFprobe(args, opts) { return tecHostRunTool('runFFprobe', args, opts); }
+// An audio or video file's length in seconds (ffprobe).
+async function tecHostProbeSeconds(file, opts) {
+  const r = await tecHostFFprobe(['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', file], opts || { timeoutMs: 30000 });
+  let seconds = NaN;
+  try { seconds = Number(JSON.parse(r.stdout).format.duration); } catch (e) { seconds = NaN; }
+  if (!(seconds > 0)) throw tecHostFail('media_failed', r.stderr || 'no duration');
+  return seconds;
+}
+// Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (a Buffer, Uint8Array or ArrayBuffer from another
+// realm, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array). FileSystem results come from
+// window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks
+// are used (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray works across realms), with an
+// array-like fallback for objects a bridge serialised by index.
+function tecHostBytes(raw) {
+  if (raw == null) return new Uint8Array(0);
+  const tag = Object.prototype.toString.call(raw);
+  if (ArrayBuffer.isView(raw)) {
+    const out = new Uint8Array(raw.byteLength);
+    out.set(new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength));
+    return out;
+  }
+  if (tag === '[object ArrayBuffer]' || tag === '[object SharedArrayBuffer]') {
+    const out = new Uint8Array(raw.byteLength);
+    out.set(new Uint8Array(raw));
+    return out;
+  }
+  if (Array.isArray(raw.data)) return Uint8Array.from(raw.data);
+  if (Array.isArray(raw)) return Uint8Array.from(raw);
+  if (typeof raw === 'object' && typeof raw.length === 'number' && raw.length >= 0) return Uint8Array.from({ length: raw.length }, (_, i) => Number(raw[i]) & 255);
+  return new Uint8Array(0);
+}
+async function tecHostReadRaw(file) {
+  tecHostNeedReader();
+  const { fs } = tecHostDI();
+  return typeof fs.readFileSync === 'function' ? fs.readFileSync(file) : await fs.readFile(file);
+}
+async function tecHostReadBytes(file) { return tecHostBytes(await tecHostReadRaw(file)); }
+// A text file (some host builds return text directly, others bytes).
+async function tecHostReadText(file) {
+  const v = await tecHostReadRaw(file);
+  return typeof v === 'string' ? v : new TextDecoder().decode(tecHostBytes(v));
+}
+// Best effort; a leftover file in the data folder is harmless. Host builds differ in which remover they have.
+async function tecHostRemove(file) {
+  const { fs } = tecHostDI();
+  if (!fs || !file) return;
+  const tries = [['unlinkSync', () => fs.unlinkSync(file)], ['removeFile', () => fs.removeFile({ filePath: file })], ['remove', () => fs.remove(file)],
+    ['rmSync', () => fs.rmSync(file, { force: true })], ['unlink', () => fs.unlink(file)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== 'function') continue;
+    try { await call(); return; } catch (e) { /* the next one */ }
+  }
+}
+function tecHostToken() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+// Runs ffmpeg with argsFor(out) (out = a fresh ASCII-named file in dataDir ending in `ext`), reads the file back and
+// removes it. Missing or empty output is media_failed.
+async function tecHostFFmpegBytes(argsFor, dataDir, ext, opts) {
+  tecHostNeed(['rt.runFFmpeg', 'fs.join']);
+  tecHostNeedReader();
+  if (!dataDir) { const err = new Error('host_tools'); err.missing = ['fs.mkdirSync']; throw err; }
+  const out = tecHostJoin(dataDir, 'tmp-' + tecHostToken() + '.' + ext);
+  try {
+    await tecHostFFmpeg(argsFor(out), opts);
+    let bytes;
+    try { bytes = await tecHostReadBytes(out); } catch (e) { throw tecHostFail('media_failed', 'output missing: ' + String((e && e.message) || e)); }
+    if (!bytes.byteLength) throw tecHostFail('media_failed', 'empty output');
+    return bytes;
+  } finally {
+    await tecHostRemove(out);
+  }
+}
+// Mono 32-bit float samples at `rate`, the first maxSeconds of `file` (the beat detector's input, as the kit CLI
+// decodes it: -ac 1 -ar <rate> -f f32le).
+async function tecHostDecodePcm(file, dataDir, rate, maxSeconds) {
+  const bytes = await tecHostFFmpegBytes((out) => ['-nostdin', '-v', 'error', '-y', '-t', String(maxSeconds), '-i', file, '-vn', '-ac', '1', '-ar', String(rate), '-f', 'f32le', out],
+    dataDir, 'f32', { timeoutMs: 120000 });
+  if (bytes.byteLength < 4) throw tecHostFail('media_failed', 'no samples');
+  return new Float32Array(bytes.buffer, 0, Math.floor(bytes.byteLength / 4));
+}
+// A waveform of `count` peaks (0-1) from 8-bit mono at 800 Hz.
+async function tecHostPeaks(file, dataDir, count) {
+  const bytes = await tecHostFFmpegBytes((out) => ['-nostdin', '-v', 'error', '-y', '-i', file, '-vn', '-ac', '1', '-ar', '800', '-f', 'u8', out], dataDir, 'u8', { timeoutMs: 30000 });
+  const n = bytes.length, out = [];
+  const per = Math.max(1, Math.floor(n / count));
+  for (let b = 0; b < count && b * per < n; b++) {
+    let m = 0;
+    for (let i = b * per; i < Math.min(n, (b + 1) * per); i++) m = Math.max(m, Math.abs(bytes[i] - 128) / 128);
+    out.push(Math.round(m * 1000) / 1000);
+  }
+  return out;
+}
+// A blob: URL of `duration` seconds of `file` from `start`, fading out over the last `fadeOut` seconds (mp3; WAV when
+// the host ffmpeg has no mp3 encoder). The caller revokes it with URL.revokeObjectURL.
+async function tecHostPreviewUrl(file, start, duration, fadeOut, dataDir) {
+  const cut = ['-nostdin', '-v', 'error', '-y', '-ss', Number(start || 0).toFixed(3), '-t', Number(duration).toFixed(2), '-i', file, '-vn', '-ac', '1', '-ar', '22050',
+    '-af', 'afade=t=out:st=' + Math.max(0, duration - fadeOut).toFixed(2) + ':d=' + fadeOut];
+  const tries = [
+    { ext: 'mp3', args: ['-c:a', 'libmp3lame', '-b:a', '48k', '-f', 'mp3'], type: 'audio/mpeg' },
+    { ext: 'wav', args: ['-c:a', 'pcm_s16le', '-f', 'wav'], type: 'audio/wav' },
+  ];
+  let lastErr = null;
+  for (const t of tries) {
+    try {
+      const bytes = await tecHostFFmpegBytes((out) => cut.concat(t.args, [out]), dataDir, t.ext, { timeoutMs: 60000 });
+      return URL.createObjectURL(new Blob([bytes], { type: t.type }));
+    } catch (e) {
+      lastErr = e;
+      if (e && (e.message === 'host_tools' || e.message === 'timeout')) break;
+    }
+  }
+  throw lastErr || tecHostFail('media_failed', 'preview');
+}
+// tec-host:end
+
+// tec-beat-worker:start
+// Own music is decoded by the host's ffmpeg to mono 32-bit float PCM at TEC_PCM_RATE Hz, the first TEC_PCM_SECONDS
+// seconds (the same input as the kit CLI path: ffmpeg -ac 1 -ar 22050 -f f32le). The detector runs in a Web Worker
+// built from the kit's beat-detect.cjs, shipped unmodified as kit-beat-detect.cjs and read from the install folder
+// (the plugin's own beat-detect.cjs adds dev-only options for dev/build-cues.cjs; without them both give the same
+// result, dev/beat-parity.cjs). The shim makes its CLI guard (`require.main === module`) false, and the PCM buffer is
+// transferred, not copied. Copied from Selfie Aesthetic's sae-beat-worker block. Plain JS.
+const TEC_PCM_RATE = 22050;
+const TEC_PCM_SECONDS = 360;
+// A worker that has not answered after this long is stopped; the music then uses fixed timing.
+const TEC_BEAT_TIMEOUT_MS = 90000;
+function tecBeatWorkerSource(fileText) {
+  return "const require = { main: null }; const module = { exports: {} }; const exports = module.exports;\n" + String(fileText)
+    + "\nself.onmessage = (e) => { try { self.postMessage({ id: e.data.id, ok: true, result: module.exports.analyze(new Float32Array(e.data.buf), e.data.rate) }); } catch (err) { self.postMessage({ id: e.data.id, ok: false, error: String(err && err.message || err) }); } };";
+}
+// tec-beat-worker:end
+
+// The kit detector's analysis of `samples` in a Web Worker (tecBeatWorkerSource), never on the panel's thread: the
+// panel CSP allows blob: workers (Archive Vlog, merged). `signal` aborts it (worker.terminate()); so does the timeout.
+// A host that refuses the worker rejects, and the panel falls back to fixed timing. (From Archive Vlog's analyseBeat.)
+function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = TEC_BEAT_TIMEOUT_MS): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let worker: Worker | null = null, url: string | null = null, done = false;
+    let timer: any = null;
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
+      try { worker?.terminate(); } catch { /* gone */ }
+      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
+      signal?.removeEventListener("abort", onAbort);
+      fn();
+    };
+    const onAbort = () => finish(() => reject(new Error("cancelled")));
+    if (signal?.aborted) { reject(new Error("cancelled")); return; }
+    signal?.addEventListener("abort", onAbort);
+    try {
+      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+      worker = new Worker(url);
+    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
+    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.ok ? resolve(e.data.result) : reject(new Error(String(e.data?.error || "the beat detector failed")))));
+    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
+    timer = setTimeout(() => finish(() => reject(new Error("the beat detection took too long"))), timeoutMs);
+    // A copy of the samples' bytes, transferred to the worker.
+    const buf = samples.buffer.slice(samples.byteOffset, samples.byteOffset + samples.byteLength);
+    worker.postMessage({ id: 1, buf, rate: TEC_PCM_RATE }, [buf]);
+  });
+}
+
+// A file under the install folder; `rel` uses "/" and is joined with the host's separator.
 async function readText(root: string, rel: string) {
-  const v = await service("FileSystem", "readFile").readFile(root + "/" + rel);
-  // Some host builds return text directly; others return bytes.
-  return typeof v === "string" ? v : new TextDecoder().decode(new Uint8Array(v));
+  return tecHostReadText(tecHostJoin(root, ...rel.split("/")));
 }
 // The config goes in as JSON.parse of a string so its type is `any`: an inlined literal widens `type` to string
 // (rejected by EditableParameterDefinition[]) and narrows a null option to `never` inside its `if`.
 function fill(script: string, cfg: unknown) { return script.replace("__CONFIG__", () => "JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"); }
-// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew.
-const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; ';
-// Own music's beat detection runs beat-detect.cjs on Node.js. Selects puts no Node on the shell's PATH and a stock
-// Mac has none, so runtime.sh fetches a pinned copy into ~/.selects/plugin-data/_runtime the first time (shared by
-// every plugin) and prints its path. Later calls in this session reuse it.
-let nodePath: string | null = null;
-async function ensureNode(sdk: any): Promise<string> {
-  if (nodePath) return nodePath;
-  const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: TOOL_PATH + "sh " + dq(SKILLS_DIR + "/runtime.sh") + " node", timeoutMs: 290000, maxOutputBytes: 8000 });
-  const found = String(r?.stdout || "").trim().split("\n").filter(Boolean).pop() || "";
-  if (r?.isError || r?.exitCode !== 0 || !found.startsWith("/")) throw new Error(String(r?.stderr || "").trim().split("\n").pop() || "Could not prepare Node.js.");
-  return (nodePath = found);
-}
 // The quick local score of unanalysed clips during a build: three clips at a time (each ffmpeg decode is itself
 // multi-threaded), and clips not started within the budget get evenly spaced windows, so Prepare stays short.
 const TEC_QUICK_CONCURRENCY = 3;
@@ -4074,12 +4277,15 @@ export default function Panel(props: any) {
   return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <EndCreditsPanel {...props} />;
 }
 
-// The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing. Shared by
-// the panel and a template run.
-async function locateRoots(sdk: any) {
-  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-  const [plugin, data] = String(where?.stdout || "").split("\n").map((x: string) => x.trim());
-  if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
+// The install folder (scripts, cues, fonts) and the data folder for temporary files, through the host's FileSystem
+// (tecHostSkillsDir / tecHostDataDir: join + homedir, no shell). Shared by the panel and a template run (same name and
+// result as before). A host without FileSystem.join/homedir/existsSync throws 'host_tools' ("needs a newer Selects");
+// data is null when the folder cannot be made (music previews and own music are then off). `sdk` is unused now.
+async function locateRoots(_sdk: any): Promise<{ plugin: string; data: string | null }> {
+  const plugin = tecHostSkillsDir(PLUGIN_ID, "planner.js");
+  if (!plugin) throw uiError((l) => t(l, "foldersNotFound"));
+  let data: string | null = null;
+  try { data = tecHostDataDir(PLUGIN_ID); } catch { data = null; }
   return { plugin, data };
 }
 
@@ -4123,7 +4329,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
   // Single-flight guard: state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef(false);
   // The one-call spinner text (a key: inventory check or own-music beat detection).
-  const [step, setStep] = React.useState<"" | "checking" | "preparing" | "listening">("");
+  const [step, setStep] = React.useState<"" | "checking" | "listening">("");
   const [tools, setTools] = React.useState({ ffmpeg: true });
   const [progress, setProgress] = React.useState<any>(null);
   const progressRef = React.useRef<any>(null);
@@ -4163,6 +4369,8 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
   const photoSizesRef = React.useRef<Record<string, { width: number; height: number }>>({});
   // In-shot motion per clip (tecParseMotion curves), measured once per Project + clip; null = could not be measured.
   const motionRef = React.useRef<Record<string, any>>({});
+  // The running own-music analysis (decode + worker); aborted on a Project switch or unmount.
+  const ownAbortRef = React.useRef<AbortController | null>(null);
   // Cancels a running build's quick score (host ffmpeg) when the Project switches or the panel closes: the same moment
   // the build's results go stale.
   const buildAbortRef = React.useRef<AbortController | null>(null);
@@ -4199,7 +4407,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
     }
   }
-  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; buildAbortRef.current?.abort(); }; }, []);
+  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; buildAbortRef.current?.abort(); ownAbortRef.current?.abort(); }; }, []);
 
   // Mount and Project switch: reset per-Project state, resolve folders, read bundled assets, inventory the Project.
   React.useEffect(() => {
@@ -4214,23 +4422,21 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
         const { plugin, data } = await locateRoots(sdk);
         if (!alive || projectRef.current !== projectId) return;
         setRoots({ plugin, data });
-        // ffmpeg is only needed for music previews and own music (own music also fetches Node.js on first use); bundled cues build without it.
-        let have = "";
-        try {
-          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg", timeoutMs: 10000 });
-          have = String(probe?.stdout || "");
-        } catch { have = ""; }
-        if (!alive || projectRef.current !== projectId) return;
-        setTools({ ffmpeg: have.includes("ffmpeg") });
+        // The host's ffmpeg (Runtime.runFFmpeg/runFFprobe) and a data folder are only needed for music previews, the
+        // waveform, own music and motion; bundled cues build without them. A Selects build without them gets the
+        // "needs a newer Selects" note in the Track section.
+        setTools({ ffmpeg: !!data && tecHostCanRead() && tecHostHas(["rt.runFFmpeg", "rt.runFFprobe", "fs.join"]).ok });
         const read = (rel: string) => readText(plugin, rel);
-        const [manifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, graphicTsx, frameTsx, lookTsx, titleB64, creditsB64] = await Promise.all([
+        const [manifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, graphicTsx, frameTsx, lookTsx, titleB64, creditsB64, beatDetect] = await Promise.all([
           read("assets/cues/manifest.json"), read("scripts/inventory.js"), read("scripts/search.js"), read("scripts/ensure-audio.js"),
           read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/credits-graphic.tsx"), read("assets/shot-frame.tsx"),
-          read("assets/cinematic-look.tsx"), read("assets/fonts/tec-title-serif.woff2.b64"), read("assets/fonts/tec-credits-sans.woff2.b64")]);
+          read("assets/cinematic-look.tsx"), read("assets/fonts/tec-title-serif.woff2.b64"), read("assets/fonts/tec-credits-sans.woff2.b64"),
+          read("kit-beat-detect.cjs").catch(() => "")]);
         if (!alive || projectRef.current !== projectId) return;
         const parsed = JSON.parse(manifest);
         const fontsB64: Record<string, string> = { "tec-title-serif.woff2.b64": titleB64.replace(/\s+/g, ""), "tec-credits-sans.woff2.b64": creditsB64.replace(/\s+/g, "") };
-        setAssets({ manifest: parsed, scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, graphicTsx, frameTsx, lookTsx, fontsB64 });
+        setAssets({ manifest: parsed, scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, graphicTsx, frameTsx, lookTsx, fontsB64,
+          beatWorker: beatDetect ? tecBeatWorkerSource(beatDetect) : "" });
         const def = (parsed.cues || []).find((c: any) => c.default) || (parsed.cues || [])[0];
         if (def) setCueId((cur) => (cur === "" ? def.id : cur));
         inventoryJsRef.current = inventoryJs;
@@ -4241,7 +4447,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       } finally { if (alive) setStep(""); }
     })();
     // Project switch or unmount stops a preview, including one still being prepared.
-    return () => { alive = false; stopPreview(); buildAbortRef.current?.abort(); };
+    return () => { alive = false; stopPreview(); buildAbortRef.current?.abort(); ownAbortRef.current?.abort(); };
   }, [projectId]);
 
   // Re-read the inventory every 10 s while videos are still importing (they become usable), while Selects analyses
@@ -4286,32 +4492,17 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     return () => { alive = false; };
   }, [assets]);
 
-  // Waveform peaks of a bundled cue (the manifest has none): ffmpeg decodes 8-bit mono at 800 Hz into the data
-  // folder, the panel reads it back as base64 and removes it. Without ffmpeg the slider draws flat bars.
+  // Waveform peaks of a bundled cue (the manifest has none): the host's ffmpeg decodes 8-bit mono at 800 Hz into a
+  // temporary file in the data folder, which the panel reads back and removes. Without it the slider draws flat bars.
   const cue = assets?.manifest.cues.find((c: any) => c.id === cueId) || null;
   React.useEffect(() => {
     if (!roots || !cue || !tools.ffmpeg || cuePeaks[cue.id]) return;
     let alive = true;
-    const id = cue.id, base = roots.data + "/peaks-" + id;
+    const id = cue.id;
     (async () => {
       try {
-        const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -i " + sq(roots.plugin + "/assets/cues/" + cue.file) + " -ac 1 -ar 800 -f u8 " + sq(base + ".u8")
-          + " && base64 < " + sq(base + ".u8") + " > " + sq(base + ".b64") + "; s=$?; rm -f " + sq(base + ".u8") + "; exit $s";
-        const r = await sdk.runShell({ summary: "Read the waveform of " + cue.title, command: cmd, timeoutMs: 30000 });
-        // The text copy is removed whether or not it could be read back (or the panel moved on meanwhile).
-        let b64 = "";
-        try {
-          if (!alive || r?.isError || (r?.exitCode != null && r.exitCode !== 0)) return;
-          b64 = (await readText(roots.data, "peaks-" + id + ".b64")).replace(/\s+/g, "");
-        } finally { void Promise.resolve(sdk.runShell({ summary: "Remove waveform file", command: TOOL_PATH + "rm -f " + sq(base + ".b64"), timeoutMs: 10000 })).catch(() => {}); }
+        const out = await tecHostPeaks(tecHostJoin(roots.plugin, "assets", "cues", cue.file), roots.data, 400);
         if (!alive) return;
-        const bin = atob(b64), n = bin.length, out: number[] = [];
-        const per = Math.max(1, Math.floor(n / 400));
-        for (let b = 0; b < 400 && b * per < n; b++) {
-          let m = 0;
-          for (let i = b * per; i < Math.min(n, (b + 1) * per); i++) m = Math.max(m, Math.abs(bin.charCodeAt(i) - 128) / 128);
-          out.push(Math.round(m * 1000) / 1000);
-        }
         setCuePeaks((p) => ({ ...p, [id]: out }));
       } catch { /* flat bars */ }
     })();
@@ -4418,39 +4609,38 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
   React.useEffect(() => { setPreviewTime((t) => Math.min(t, Math.round(videoSeconds * 10) / 10)); }, [videoSeconds]);
 
   // ---- Own music: decode and find the beat ----
+  // The host's ffmpeg decodes the track (tecHostDecodePcm, a temporary file in the data folder, removed), and the kit
+  // detector runs on it in a Web Worker (analyseBeat). A Project switch or unmount aborts it (ownAbortRef); a stale
+  // result is dropped. Any failure falls back to fixed timing with the track's length from ffprobe.
   async function detectOwnMusic(file: { path: string; name: string }) {
     if (busyRef.current || !roots) return;
     const pid = projectRef.current;
     busyRef.current = true;
     setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("listening");
+    ownAbortRef.current?.abort();
+    const ac = new AbortController();
+    ownAbortRef.current = ac;
     try {
-      // The decoded PCM is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit status.
-      // The result goes to a file (a long track's onsets come close to the 48 KB shell output cap); stdout says ok.
-      if (!nodePath) setStep("preparing");
-      const node = await ensureNode(sdk);
-      setStep("listening");
-      const pcm = roots.data + "/own-music.f32";
-      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json")
-        + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
-      const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
-      const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
-      if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw done.error || r.stderr ? new Error(done.error || r.stderr) : uiError((l) => t(l, "beatFailed"));
-      const g = JSON.parse(await readText(roots.data, "own-music.json"));
-      if (projectRef.current !== pid) return;
+      if (!assets?.beatWorker) throw uiError((l) => t(l, "beatFailed"));
+      const samples = await tecHostDecodePcm(file.path, roots.data, TEC_PCM_RATE, TEC_PCM_SECONDS);
+      if (projectRef.current !== pid || ac.signal.aborted) return;
+      const g = await analyseBeat(assets.beatWorker, samples, ac.signal);
+      if (projectRef.current !== pid || ac.signal.aborted) return;
+      if (!g || !(g.durationSeconds > 0)) throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
       setStatus(null);
     } catch (e: any) {
+      if (ac.signal.aborted || projectRef.current !== pid) return;
       // Without a grid the shots use the fixed 3.9 s timing, but the track's real length still bounds the section.
       let duration: number | null = null;
-      try {
-        const pr = await sdk.runShell({ summary: "Read the length of " + file.name, command: TOOL_PATH + "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " + sq(file.path), timeoutMs: 20000 });
-        const v = parseFloat(String(pr?.stdout || "").trim());
-        if (!pr?.isError && v > 0) duration = Math.min(v, 360);
-      } catch { duration = null; }
+      try { duration = Math.min(await tecHostProbeSeconds(file.path), TEC_PCM_SECONDS); } catch { duration = null; }
       if (projectRef.current !== pid) return;
       setOwnGrid({ accepted: false, durationSeconds: duration, peaks: [] });
       setStatus(duration ? null : { tone: "error", say: (l) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
-    } finally { busyRef.current = false; setBusy(false); setStep(""); }
+    } finally {
+      if (ownAbortRef.current === ac) ownAbortRef.current = null;
+      busyRef.current = false; setBusy(false); setStep("");
+    }
   }
 
   // Music preview of the whole video length: "idle" -> "loading" (ffmpeg cut) -> "playing". Every start or stop
@@ -4472,28 +4662,12 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     const live = () => previewTokenRef.current === token && mountedRef.current;
     setPlayState("loading");
     try {
-      const file = cueId === "own" && ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file;
-      // The whole video length from the section start, with the build's 1.5 s fade-out, written to a file (stdout is
-      // too small) and read back as base64. Earlier previews are removed first and the mp3 once encoded.
-      const dur = videoSeconds, base = roots.data + "/preview-" + token;
-      const cmd = TOOL_PATH + "rm -f " + sq(roots.data) + "/preview-*.mp3 " + sq(roots.data) + "/preview-*.b64; "
-        + "ffmpeg -nostdin -v error -y -ss " + start.toFixed(3) + " -t " + dur.toFixed(2) + " -i " + sq(file)
-        + " -ac 1 -ar 22050 -b:a 48k -af \"afade=t=out:st=" + Math.max(0, dur - MUSIC_FADE_OUT).toFixed(2) + ":d=" + MUSIC_FADE_OUT + "\" -f mp3 " + sq(base + ".mp3")
-        + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64") + " && rm -f " + sq(base + ".mp3");
-      const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 60000 });
-      if (!live()) return;
-      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw r?.stderr ? new Error(r.stderr) : uiError((l) => t(l, "previewNotCut"));
-      const b64 = (await readText(roots.data, "preview-" + token + ".b64")).replace(/\s+/g, "");
-      void Promise.resolve(sdk.runShell({ summary: "Remove preview file", command: TOOL_PATH + "rm -f " + sq(base + ".b64"), timeoutMs: 10000 })).catch(() => {});
-      if (!live()) return;
-      if (b64.length < 200) throw uiError((l) => t(l, "noAudio"));
-      let url: string;
-      if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
-        const bin = atob(b64), bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
-        previewUrlRef.current = url;
-      } else url = "data:audio/mpeg;base64," + b64;
+      const file = cueId === "own" && ownMusic ? ownMusic.path : tecHostJoin(roots.plugin, "assets", "cues", cue.file);
+      // The whole video length from the section start, with the build's 1.5 s fade-out, cut by the host's ffmpeg into
+      // a temporary file in the data folder, read back as a blob: URL and removed (tecHostPreviewUrl).
+      const url = await tecHostPreviewUrl(file, start, videoSeconds, MUSIC_FADE_OUT, roots.data);
+      if (!live()) { try { URL.revokeObjectURL(url); } catch { /* gone */ } return; }
+      previewUrlRef.current = url;
       const audio = new Audio(url);
       audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
       audioRef.current = audio;
@@ -4536,36 +4710,28 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     return out;
   }
 
-  // In-shot motion: ffmpeg once per analysed clip (4 fps, 64 px grey frame differences), written to the data folder
-  // and read back, never through stdout. Cached per Project + clip. Without ffmpeg, or when a clip fails, that clip
-  // simply has no curve and the allocation scores it as before.
+  // In-shot motion: the host's ffmpeg once per analysed clip (4 fps, 64x36 grey frames, planner tecMotionArgs) into a
+  // temporary file in the data folder, read back, removed and turned into a curve (tecMotionCurve). Cached per
+  // Project + clip. Without the host ffmpeg, or when a clip fails, that clip simply has no curve and the allocation
+  // scores it as before.
   async function measureMotion(resources: any[], pid: string, check: () => void, from: number) {
     const out: Record<string, any> = {};
     const todo = resources.filter((r: any) => !((pid + "|" + r.rid) in motionRef.current));
-    let wrote = false;
-    try {
-      for (let i = 0; i < todo.length; i++) {
-        const r = todo[i], key = pid + "|" + r.rid;
-        const done = i;
-        advance("prepare", from + ((1 - from) * i) / Math.max(1, todo.length), (l) => t(l, "videosMeasured", { done, count: todo.length }));
-        if (!tools.ffmpeg || !r.path || !roots) { motionRef.current[key] = null; continue; }
-        const file = "motion-" + String(r.rid).replace(/[^A-Za-z0-9-]/g, "_") + ".txt";
-        let curve: any = null;
-        try {
-          const cmd = TOOL_PATH + "cd " + sq(roots.data) + " && rm -f " + sq(file) + " && ffmpeg -nostdin -v error -an -sn -dn -i " + sq(r.path)
-            + " -vf " + sq(TEC_MOTION_FILTER + file) + " -f null -";
-          wrote = true;
-          const res = await sdk.runShell({ summary: "Measure motion in " + (r.name || "a clip"), command: cmd, timeoutMs: 120000, maxOutputBytes: 8000 });
-          check();
-          if (res && !res.isError && res.exitCode === 0) curve = tecParseMotion(await readText(roots.data, file));
-        } catch (e: any) {
-          if (e === STALE) throw e;
-          curve = null;
-        }
-        motionRef.current[key] = curve;
+    for (let i = 0; i < todo.length; i++) {
+      const r = todo[i], key = pid + "|" + r.rid;
+      const done = i;
+      advance("prepare", from + ((1 - from) * i) / Math.max(1, todo.length), (l) => t(l, "videosMeasured", { done, count: todo.length }));
+      if (!tools.ffmpeg || !r.path || !roots) { motionRef.current[key] = null; continue; }
+      let curve: any = null;
+      try {
+        const bytes = await tecHostFFmpegBytes((file: string) => tecMotionArgs(r.path, file), roots.data, "gray", { timeoutMs: 120000 });
+        check();
+        curve = tecMotionCurve(bytes);
+      } catch (e: any) {
+        if (e === STALE) throw e;
+        curve = null;
       }
-    } finally {
-      if (wrote && roots) void Promise.resolve(sdk.runShell({ summary: "Remove motion files", command: TOOL_PATH + "rm -f " + sq(roots.data) + "/motion-*.txt", timeoutMs: 10000 })).catch(() => {});
+      motionRef.current[key] = curve;
     }
     for (const r of resources) { const c = motionRef.current[pid + "|" + r.rid]; if (c) out[r.rid] = c; }
     return out;
@@ -4609,7 +4775,8 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     const check = () => { if (projectRef.current !== pid) throw STALE; };
     // Every input as it is at Build; "Finish title and look" retries with exactly these.
     const inputs = { layout, title, rows: tecCleanRows(rows), lookOn, clipSound, P: music.P, sectionStart: musicOn ? start : null,
-      musicPath: !musicOn ? null : cueId === "own" ? ownMusic!.path : roots.plugin + "/assets/cues/" + cue.file, requested, usePhotos, onlyPhotos, only };
+      musicPath: !musicOn ? null : cueId === "own" ? ownMusic!.path : tecHostJoin(roots.plugin, "assets", "cues", cue.file),
+      musicSeconds: musicOn && cueId !== "own" && cue?.durationSeconds > 0 ? cue.durationSeconds : null, requested, usePhotos, onlyPhotos, only };
     busyRef.current = true;
     stopPreview();
     setBusy(true); setStatus(null); setResult(null); progressRef.current = null;
@@ -4659,7 +4826,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       advance("plan", 1);
       // 4. Music: import the track in its own call (an import and a commit never share a run_script).
       advance("music", 0);
-      const musicRes = inputs.musicPath ? await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: inputs.musicPath }), true) : null;
+      const musicRes = inputs.musicPath ? await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: inputs.musicPath, ...(inputs.musicSeconds ? { durationSeconds: inputs.musicSeconds } : {}) }), true) : null;
       check();
       advance("music", 1);
       // 5. Assemble: the new Draft, the shots on the phrase grid, clip sound and music. One commit.
@@ -4818,7 +4985,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     : roll.exitsLate ? (length !== "long" ? t(L, "tooManyRowsOrLong", { count: dropRows, long: longLabel }) : t(L, "tooManyRows", { count: dropRows }))
     : roll.endsEarly ? t(L, "creditsEndEarly")
     : null;
-  const stepLabel = step === "checking" ? t(L, "checkingClips") : step === "preparing" ? t(L, "preparingTools") : step === "listening" ? t(L, "listening") : "";
+  const stepLabel = step === "checking" ? t(L, "checkingClips") : step === "listening" ? t(L, "listening") : "";
   const progressLabel = !progress ? "" : progress.detail
     ? t(L, "progressDetail", { step: progress.current + 1, total: TEC_BUILD_STEPS.length, name: t(L, "step." + progress.id), detail: progress.detail(L), percent: progress.percent })
     : t(L, "progress", { step: progress.current + 1, total: TEC_BUILD_STEPS.length, name: t(L, "step." + progress.id), percent: progress.percent });
@@ -4869,7 +5036,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
         {cueId === "own" && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
           onReject={() => setStatus({ tone: "error", say: (l) => t(l, "dropAudio") })}
           onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
-        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "installTools")}</ui.Message> : null}
+        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "needsNewerSelects")}</ui.Message> : null}
         {cueId === "own" && ownMusic && ownGrid && music.fixed ? <ui.Message tone="muted">{t(L, "noSteadyBeat", { seconds: TEC_FIXED_PHRASE })}</ui.Message> : null}
         {cueId === "own" && ownMusic && ownGrid && !music.fixed && "approximate" in music && music.approximate ? <ui.Message tone="muted">{t(L, "beatApprox", { seconds: Math.round(music.P * 100) / 100 })}</ui.Message> : null}
         {musicOn && music.ready ? (

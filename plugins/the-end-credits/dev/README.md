@@ -52,6 +52,17 @@ node $P/dev/make-fixtures.mjs <footage folder>          # regenerate fixtures (f
   plan line adds `unanalysed`, `quickScored`, `quickEven` (clips that fell back to evenly spaced windows), `quickMs`
   and `localShots`. Offline, they need `TEC_FOOTAGE_DIR` too.
 
+## Beat detection in the panel
+
+The panel runs the kit detector (`kit-beat-detect.cjs`, a byte-identical copy of the kit's
+`tools/audio/beat-detect.cjs`) in a Web Worker on PCM decoded by the host's ffmpeg; `beat-detect.cjs` stays the
+plugin's own copy with dev-only options for `build-cues.cjs`. Re-copy the kit file when the kit changes, then check that
+the panel path still equals the CLI:
+
+```sh
+node $P/dev/beat-parity.cjs $P/assets/cues plugins/city-weekend-vlog/assets/cues   # every row "identical: yes"
+```
+
 ## Bundled cues
 
 `build-cues.cjs` masters and measures the cues listed in `cues-input.json` (the header of the script
