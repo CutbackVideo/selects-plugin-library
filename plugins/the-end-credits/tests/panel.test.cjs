@@ -83,7 +83,7 @@ assert.ok(!/\bdq\(|\bsq\(|TOOL_PATH|ensureNode|runtime\.sh/.test(panel), 'no she
 assert.ok(!/\bnew Worker\(/.test(panel.slice(0, panel.indexOf('// tec-beat-worker:start'))) && (panel.match(/new Worker\(/g) || []).length === 1, 'one Worker: the beat detector');
 for (const k of ['async function locateRoots(_sdk: any)', 'tecHostSkillsDir(PLUGIN_ID, "planner.js")', 'tecHostDataDir(PLUGIN_ID)', 'tecHostReadText(tecHostJoin(root, ...rel.split("/")))',
   'tecHostPeaks(tecHostJoin(roots.plugin, "assets", "cues", cue.file), roots.data, 400)', 'tecHostDecodePcm(file.path, roots.data, TEC_PCM_RATE, TEC_PCM_SECONDS)',
-  'analyseBeat(assets.beatWorker, samples, ac.signal)', 'tecHostProbeSeconds(file.path)', 'beatWorker: beatDetect ? tecBeatWorkerSource(beatDetect) : ""',
+  'analyseBeat(assets.beatWorker, samples, ac.signal)', 'tecHostProbeSeconds(file.path, { timeoutMs: 30000 })', 'beatWorker: beatDetect ? tecBeatWorkerSource(beatDetect) : ""',
   'tecHostJoin(roots.plugin, "assets", "cues", cue.file)', 'setTools({ ffmpeg: !!data && tecHostCanRead() && tecHostHas(["rt.runFFmpeg", "rt.runFFprobe", "fs.join"]).ok })',
   'if (String(e?.message) === "host_tools") return t(lang, "needsNewerSelects");', '{!canOwnMusic ? <ui.Message tone="muted">{t(L, "needsNewerSelects")}</ui.Message> : null}',
   'ownAbortRef.current?.abort()', 'worker.postMessage({ id: 1, buf, rate: TEC_PCM_RATE }, [buf])', 'TEC_BEAT_TIMEOUT_MS']) assert.ok(panel.includes(k), k);

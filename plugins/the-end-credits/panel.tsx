@@ -3186,11 +3186,11 @@ async function tecHostReadText(file) {
 async function tecHostRemove(file) {
   const { fs } = tecHostDI();
   if (!fs || !file) return;
-  const tries = [['unlinkSync', () => fs.unlinkSync(file)], ['removeFile', () => fs.removeFile({ filePath: file })], ['remove', () => fs.remove(file)],
-    ['rmSync', () => fs.rmSync(file, { force: true })], ['unlink', () => fs.unlink(file)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== 'function') continue;
-    try { await call(); return; } catch (e) { /* the next one */ }
+  const tries = [{ name: 'unlinkSync', call: () => fs.unlinkSync(file) }, { name: 'removeFile', call: () => fs.removeFile({ filePath: file }) },
+    { name: 'remove', call: () => fs.remove(file) }, { name: 'rmSync', call: () => fs.rmSync(file, { force: true }) }, { name: 'unlink', call: () => fs.unlink(file) }];
+  for (const t of tries) {
+    if (typeof fs[t.name] !== 'function') continue;
+    try { await t.call(); return; } catch (e) { /* the next one */ }
   }
 }
 function tecHostToken() {
@@ -4649,7 +4649,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
       if (ac.signal.aborted || projectRef.current !== pid) return;
       // Without a grid the shots use the fixed 3.9 s timing, but the track's real length still bounds the section.
       let duration: number | null = null;
-      try { duration = Math.min(await tecHostProbeSeconds(file.path), TEC_PCM_SECONDS); } catch { duration = null; }
+      try { duration = Math.min(await tecHostProbeSeconds(file.path, { timeoutMs: 30000 }), TEC_PCM_SECONDS); } catch { duration = null; }
       if (projectRef.current !== pid) return;
       setOwnGrid({ accepted: false, durationSeconds: duration, peaks: [] });
       setStatus(duration ? null : { tone: "error", say: (l) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
