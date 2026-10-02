@@ -11,7 +11,7 @@ https://opengameart.org/content/lofi-again - time-stretched x1.179 (pitch kept) 
 
 ## Tools
 
-- The panel decodes the bundled files with the system `base64` and `shasum`. No binary is included.
+- The panel decodes the bundled files itself (base64 and SHA-256 in the panel, written through the Selects FileSystem). No binary is included.
 
 ## Gallery preview
 

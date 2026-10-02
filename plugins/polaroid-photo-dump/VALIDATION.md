@@ -16,7 +16,7 @@ A trending "polaroid photo dump" short-form template (1080x1920, 60 fps, 835 fra
 
 ## Automated checks
 
-`node --test tests/polaroid_photo_dump.test.mjs` (9 tests): cut table and end frame typed from the reference; 23.976/30 fps conversion; zoom ratio against the reference frame widths; asset unpack in `/bin/sh` with only system tools on PATH (RGBA 1080x1920 PNG, AAC) with hash check; request validation; the panel builds the finishing step itself and contains no Node.js call; the finish script against a mock Draft (18 cover transforms, 18 effects on one clock, photos bleeding under the frame border, one caption graphic, one music clip, one save); refusal without saving; and the panel's placement bridge on a fake timeline (photos first, frame last, stills held past their 120-frame source).
+`node --test tests/polaroid_photo_dump.test.mjs` (10 tests): cut table and end frame typed from the reference; 23.976/30 fps conversion; zoom ratio against the reference frame widths; asset unpack through a fake host FileSystem with no shell (RGBA 1080x1920 PNG, AAC) with hash check, reuse within a session and refusal of a bad manifest or damaged source; request validation; the panel builds the finishing step itself and contains no Node.js call; the finish script against a mock Draft (18 cover transforms, 18 effects on one clock, photos bleeding under the frame border, one caption graphic, one music clip, one save); refusal without saving; and the panel's placement bridge on a fake timeline (photos first, frame last, stills held past their 120-frame source).
 
 ## Live run (local Selects dev build, develop 89996b58e, 2026-09-30)
 
@@ -48,5 +48,6 @@ Installed panel run from the Apps tab in Selects Staging (2026-09-30) on a new P
 ## Not yet verified
 
 - Driving the panel from the in-app chat.
+- A run on Windows (the shell-free unpack has only run in local tests).
 - 60 fps Drafts (unit-tested only).
 - Publication: PR, merge and anonymous download.
