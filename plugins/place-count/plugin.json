@@ -27,9 +27,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS development builds"
+      "macOS development builds",
+      "Windows x64"
     ],
-    "selects": "Requires generated-media authoring and the host FileSystem, CutbackMediaPicker, and ProjectFileTree adapters. Released-version and Windows compatibility are unverified."
+    "selects": "Requires generated-media authoring and the host FileSystem, CutbackMediaPicker, and ProjectFileTree adapters. Released-version compatibility is unverified. Windows x64 runs the same code (host FileSystem, no shell commands) but has not been run on a Windows PC yet; HEVC or ProRes sources there depend on the system video decoders."
   },
   "preview": {
     "video": "preview.mp4",

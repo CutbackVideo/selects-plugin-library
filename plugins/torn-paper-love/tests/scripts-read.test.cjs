@@ -4,26 +4,38 @@ const dir = path.resolve(__dirname, '..', 'scripts');
 const load = (name, cfg) => new Function('selects', `return (async()=>{${fs.readFileSync(path.join(dir, name), 'utf8').replace('__CONFIG__', () => JSON.stringify(cfg))}})();`);
 const resources = [
   { resourceId: 'r0', name: 'a.mov', type: 'Video', hasAnalysis: true, durationSeconds: 20, recording: { recordedAt: '2026-09-26T15:00:00Z' } },
-  { resourceId: 'r1', name: 'b.mov', type: 'Video', hasAnalysis: false, durationSeconds: 20 },
+  { resourceId: 'r1', name: 'b.mov', type: 'Video', hasAnalysis: false, status: 'pending', durationSeconds: 20 },
   { resourceId: 'r2', name: 'song.mp3', type: 'Audio', hasAnalysis: false },
   { resourceId: 'r3', name: 'c.mov', type: 'Video', hasAnalysis: true, durationSeconds: 12 },
   { resourceId: 'r6', name: 'd.mov', type: 'Video', hasAnalysis: true, durationSeconds: 0 },
+  // Still importing: no duration yet, or no source file in the tree yet.
+  { resourceId: 'r8', name: 'e.mov', type: 'Video', hasAnalysis: false, status: 'pending' },
+  { resourceId: 'r9', name: 'f.mov', type: 'Video', hasAnalysis: false, status: 'pending', durationSeconds: 8 },
 ];
 const tree = { fileTree: [{ type: 'dir', name: 'x', children: [
   { type: 'video', name: 'a.mov', resourceId: 'r0', path: '/v/a.mov', frameSize: { width: 1920, height: 1080 } },
-  { type: 'video', name: 'c.mov', resourceId: 'r3', path: '/v/c.mov', frameSize: { width: 1080, height: 1920 } }] }], fileCount: 2 };
+  { type: 'video', name: 'b.mov', resourceId: 'r1', path: '/v/b.mov' },
+  { type: 'video', name: 'c.mov', resourceId: 'r3', path: '/v/c.mov', frameSize: { width: 1080, height: 1920 } },
+  { type: 'video', name: 'd.mov', resourceId: 'r6', path: '/v/d.mov' },
+  { type: 'video', name: 'e.mov', resourceId: 'r8', path: '/v/e.mov' },
+  { type: 'video', name: 'f.mov', resourceId: 'r9', path: null }] }], fileCount: 6 };
 const SCRATCH = 'Torn Paper Love size check';
 const QUERY = 'two people close together, a couple smiling, hugging or kissing';
 // Atomics.waitAsync (search.js's backoff timer) does not keep node's event loop alive on its own.
 const keepAlive = setInterval(() => {}, 50);
 (async () => {
-  // Inventory: analysed videos with sizes, dates and their index in the Project's resource order.
+  // Inventory: every clip with a duration and a source file, analysed or not (clips never wait for analysis), with
+  // sizes, dates, their index in the Project's resource order, the analysis flag, the source path and the status.
   const selects = { project: () => ({ resources: async () => resources, sourceFiles: async () => tree }) };
   const inv = await load('inventory.js', { projectId: 'p', only: null })(selects);
-  assert.deepEqual(inv.resources.map(r => [r.rid, r.width, r.height, r.duration, r.order, r.kind]), [['r0', 1920, 1080, 20, 0, 'video'], ['r3', 1080, 1920, 12, 3, 'video']]);
+  assert.deepEqual(inv.resources.map(r => [r.rid, r.width, r.height, r.duration, r.order, r.kind, r.analysed, r.path]),
+    [['r0', 1920, 1080, 20, 0, 'video', true, '/v/a.mov'], ['r1', null, null, 20, 1, 'video', false, '/v/b.mov'], ['r3', 1080, 1920, 12, 3, 'video', true, '/v/c.mov']]);
   assert.equal(inv.resources[0].recordedAt, '2026-09-26T15:00:00Z');
-  assert.equal(inv.resources[1].recordedAt, null);
-  assert.deepEqual(inv.counts, { unanalysed: 1, missing: 1, unmeasured: 0 });
+  assert.equal(inv.resources[2].recordedAt, null);
+  assert.deepEqual(inv.resources.map(r => r.status), [null, 'pending', null], 'status is passed through (informational)');
+  // unanalysed = still importing (r8: no duration, r9: no source path); notAnalysed = usable but not analysed (r1);
+  // missing = a source without a usable duration (r6).
+  assert.deepEqual(inv.counts, { unanalysed: 2, notAnalysed: 1, missing: 1, unmeasured: 0 });
   const only = await load('inventory.js', { projectId: 'p', only: ['r3'] })(selects);
   assert.deepEqual(only.resources.map(r => [r.rid, r.order]), [['r3', 3]], 'order is the Project order, not the filtered one');
 
@@ -45,12 +57,12 @@ const keepAlive = setInterval(() => {}, 50);
       commitAll: async () => { d.committed = true; } };
     drafts.push(d); return d; } }) };
   const inv2 = await load('inventory.js', { projectId: 'p', only: null })(sel2);
-  assert.deepEqual(inv2.resources.map(r => [r.rid, r.kind]), [['r0', 'video'], ['r3', 'video']]);
+  assert.deepEqual(inv2.resources.map(r => [r.rid, r.kind]), [['r0', 'video'], ['r1', 'video'], ['r3', 'video']]);
   assert.deepEqual(inv2.photos, [
-    { rid: 'r4', name: 'IMG_1.jpeg', width: 898, height: 898, recordedAt: '2026-09-27T10:00:00Z', order: 5, kind: 'photo' },
-    { rid: 'r5', name: 'IMG_2.jpeg', width: 2268, height: 4032, recordedAt: '2026-09-20T08:00:00Z', order: 6, kind: 'photo' },
-    { rid: 'r7', name: 'IMG_3.heic', width: null, height: null, recordedAt: null, order: 7, kind: 'photo' }]);
-  assert.deepEqual(inv2.counts, { unanalysed: 1, missing: 1, unmeasured: 1 }, 'photos never count as unanalysed');
+    { rid: 'r4', name: 'IMG_1.jpeg', width: 898, height: 898, recordedAt: '2026-09-27T10:00:00Z', order: 7, kind: 'photo' },
+    { rid: 'r5', name: 'IMG_2.jpeg', width: 2268, height: 4032, recordedAt: '2026-09-20T08:00:00Z', order: 8, kind: 'photo' },
+    { rid: 'r7', name: 'IMG_3.heic', width: null, height: null, recordedAt: null, order: 9, kind: 'photo' }]);
+  assert.deepEqual(inv2.counts, { unanalysed: 2, notAnalysed: 1, missing: 1, unmeasured: 1 }, 'photos never count as unanalysed');
   assert.equal(drafts.length, 3);
   assert.ok(drafts.every(d => d.name === SCRATCH), 'scratch Draft name');
   assert.ok(drafts.every(d => !d.committed), 'scratch Drafts are never committed');

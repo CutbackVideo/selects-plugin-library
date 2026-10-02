@@ -970,21 +970,29 @@ async function depthPrepareCloudMasks(sdk, preview, pid, job, progress, control)
   }
   if (!alpha) throw new Error("No speaker masks came back. Try again.");
   // Full-size mattes, white where words show, and the 384-wide frames the layout
-  // reads, in one pass. Double quotes read the same in cmd.exe and zsh.
+  // reads, in one pass, by the host's bundled ffmpeg: an argv array, so no shell
+  // quoting, and cmd.exe never expands the %06d patterns.
   progress("Writing speaker mask files…");
   const lw = 384, lh = Math.max(1, Math.round((lw * preview.height) / preview.width)), small = fs.join(job.dir, "layout");
   fs.mkdirSync(small, { recursive: true });
-  const q = (p) => '"' + p + '"';
-  const made = await sdk.runShell({
-    summary: "Make speaker mask files",
-    cwd: job.dir,
-    timeoutMs: 600000,
-    maxOutputBytes: 4000,
-    command:
-      "ffmpeg -v error -y -i " + q(alpha) + ' -filter_complex "[0:v]format=gray,negate,split=2[a][b];[b]scale=' + lw + ":" + lh + ':flags=area[c]" -map "[a]" ' +
-      q(fs.join(job.dir, "matte_%06d.png")) + ' -map "[c]" ' + q(fs.join(small, "l_%06d.png")),
-  });
-  if (made.isError || made.exitCode !== 0) throw new Error((made.stderr || made.output || "").trim() || "The speaker mask files could not be written.");
+  const runtime = di.Runtime;
+  if (typeof runtime?.runFFmpeg !== "function") throw new Error("This Selects build cannot write speaker mask files. Update Selects, then try again.");
+  const writing = new AbortController(), timer = setTimeout(() => writing.abort(), 600000);
+  control.stop = () => writing.abort();
+  try {
+    await runtime.runFFmpeg(
+      ["-v", "error", "-y", "-i", alpha, "-filter_complex", "[0:v]format=gray,negate,split=2[a][b];[b]scale=" + lw + ":" + lh + ":flags=area[c]",
+        "-map", "[a]", fs.join(job.dir, "matte_%06d.png"), "-map", "[c]", fs.join(small, "l_%06d.png")],
+      true,
+      writing.signal,
+    );
+  } catch (e) {
+    if (control.canceled) throw new Error("Canceled.");
+    throw new Error(String(e?.message || "").trim() || "The speaker mask files could not be written.");
+  } finally {
+    clearTimeout(timer);
+    control.stop = null;
+  }
   const names = fs.readdirSync(small).map(String).filter((n) => /^l_\d{6}\.png$/.test(n)).sort();
   if (!names.length) throw new Error("No speaker masks came back. Try again.");
   const black = depthBase64(await depthBlackPng(lw, lh));
@@ -2141,7 +2149,7 @@ function DepthEditor({ sdk, context }) {
   );
   const phraseList = h(
     "div",
-    { style: { display: "grid", gap: 6, maxHeight: wide ? 520 : 200, overflow: "auto", alignContent: "start" } },
+    { style: { display: "grid", gap: 6, maxHeight: wide ? 520 : 200, overflow: "auto", scrollbarGutter: "stable", alignContent: "start" } },
     ...plan.map((p, i) =>
       h(
         "button",

@@ -49,24 +49,33 @@ assert.ok(JSON.parse(read('plugin.json')).files.includes('panel.tsx'), 'plugin.j
 
 // ---- Installed roots: every script and asset the panel reads, from the skills folder.
 assert.ok(panel.includes('const PLUGIN_ID = "torn-paper-love";'));
-assert.ok(panel.includes('"$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID') && panel.includes('"$HOME/.selects/plugin-data/" + PLUGIN_ID'), 'skills and data roots');
+// Install and data folders through the host's FileSystem (tpl-host hostRoots; tests/windows.test.cjs runs it).
+assert.ok(panel.includes('const locateRoots = (sdk: any) => hostRoots(sdk, PLUGIN_ID, "planner.js");'), 'skills and data roots');
 for (const rel of ['scripts/inventory.js', 'scripts/search.js', 'scripts/ensure-audio.js', 'scripts/assemble.js', 'scripts/decorate.js', 'assets/torn-photo.tsx',
   'assets/ransom-letters.tsx', 'assets/fonts/looks.json', 'assets/cues/manifest.json']) {
   assert.ok(panel.includes('read("' + rel + '")'), 'panel reads ' + rel);
   assert.ok(fs.existsSync(path.join(root, rel)), rel + ' exists');
 }
 assert.ok(panel.includes('"assets/fonts/tpl-" + face + ".woff2.b64"'), 'fonts from the installed folder');
-assert.ok(panel.includes('roots.plugin + "/beat-detect.cjs"') && panel.includes('roots.plugin + "/assets/cues/" + '), 'beat detection and cues from the installed folder');
+assert.ok(panel.includes('tplBeatWorkerSource(await readText(roots.plugin, "beat-detect.cjs"))') && panel.includes('hostJoin(roots.plugin, "assets", "cues", manifestCue.file)'), 'beat detection and cues from the installed folder');
+assert.ok(panel.includes('async function readText(root: string, rel: string) { return hostReadText(hostJoin(root, ...rel.split("/"))); }'), 'reads join each path part');
 
-// ---- Host helpers copied from City Weekend Vlog.
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Finder PATH prefix, no nvm hunting');
-// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
-assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
-assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
+// ---- Host I/O (kit references/windows.md; the no-shell rules are in tests/windows.test.cjs).
+// Own music: the host's ffmpeg decodes mono f32le at 22.05 kHz, the kit's beat-detect.cjs analyses it in a Web Worker.
+assert.ok(panel.includes('const OWN_RATE = 22050;') && panel.includes('const OWN_MAX_SECONDS = 360;'), 'own-music decode settings (dev/beat-parity.cjs reads them)');
+assert.ok(panel.includes('samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort ? abort.signal : null);'), 'own music decoded by the host ffmpeg');
+assert.ok(panel.includes('const g = await analyseBeat(source, samples, abort ? abort.signal : null);'), 'own music analysed in the worker');
+assert.ok(panel.includes('const BEAT_TIMEOUT_MS = 60000;') && panel.includes('err.code = "beat-timeout"'), 'a worker that never answers times out');
+// Cancellable: a new track, a Project switch or unmount aborts the analysis; stale results are dropped.
+assert.ok(panel.includes('const request = ++ownRequestRef.current;') && panel.includes('ownRequestRef.current === request') && (panel.match(/ownAbortRef\.current\?\.abort\(\)/g) || []).length === 3, 'own-music request id and aborts');
+// Failures fall back to fixed timing with the track's length (decoded samples, else ffprobe); the build never waits.
+assert.ok(panel.includes('let duration: number | null = samples && samples.length ? samples.length / OWN_RATE : null;') && panel.includes('const v = await hostProbeSeconds(file.path);'), 'fixed-timing fallback keeps the length');
 assert.equal(read('runtime.sh'), fs.readFileSync(path.join(root, '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
-for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/]) assert.ok(re.test(panel), String(re));
-assert.ok(!/dq\((file|ownMusic|roots|musicPath)/.test(panel), 'user paths are single-quoted');
-assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))'), 'own-music analysis via a file (48 KB stdout)');
+assert.ok(!panel.includes('runtime.sh'), 'nothing in the panel runs runtime.sh (no Node.js at runtime)');
+// The music tools are the host's: feature-detected, never probed in a shell; without them own music and the preview
+// hide behind one "needs an updated adapter" message.
+assert.ok(panel.includes('setTools({ ffmpeg: !!hostApi("Runtime", "runFFmpeg") && !!hostApi("FileSystem", "readFile") && !!data });'), 'feature-detected ffmpeg');
+assert.ok(panel.includes('t(L, "adapterNeeded", { name: "Runtime.runFFmpeg" })'), 'one message without the host ffmpeg');
 // Own music with a faint beat (beat-detect grid 'approximate'): the cue carries approxBpm (through tplApproxTempo, so a
 // tempo without a unit falls back to the fixed 0.35 s) and the detected first beat; the section slider snaps to the
 // bars of that tempo like the plan (tplSectionTempo); the status says the cuts follow its tempo.
@@ -76,13 +85,33 @@ assert.ok(panel.includes('const sectionTempo = tplSectionTempo(grid);') && panel
 says('musicFaint', 'Music added; its beat is faint, so cuts follow its tempo ({bpm} BPM) without locking to every beat.');
 assert.ok(code.includes('t(l, "musicFaint", { bpm: Math.round(approx) })'), 'faint-beat status');
 assert.ok(!/grid\.accepted \? \(tplBarBeats/.test(panel) && !/gridAccepted: grid\.accepted \}\);\n/.test(panel.slice(panel.indexOf('// tpl-config:end'))), 'no accepted-only section snap left in the panel');
-assert.ok(panel.includes('preview-*.mp3') && panel.includes('readText(roots.data, "preview-"'), 'preview audio via a file');
+assert.ok(panel.includes('const bytes = await hostCutAudio(musicPath, roots.data, ') && panel.includes('new Blob([bytes], { type: "audio/mpeg" })'), 'preview audio cut by the host ffmpeg, played from bytes');
 assert.match(panel, /No valid session ID/);
 assert.ok(/!allowCommit && \/No valid session ID\//.test(panel), 'only non-committing calls are resent');
 // Inventory refresh: poll while analysing, focus/visibility, Refresh button; hooks before the early return.
 for (const phrase of ['10000', 'visibilitychange', 'addEventListener("focus"', '>{t(L, "refresh")}<']) assert.ok(code.includes(phrase), phrase);
 says('refresh', 'Refresh');
 says('stillAnalysing', { one: '{count} clip still analysing', other: '{count} clips still analysing' });
+// Clips never wait for Selects analysis. counts.unanalysed now counts clips still importing (no duration or source file
+// yet): the panel says so and keeps polling; only the Clip highlights template path (not ours to change) still names it
+// "analysing" and waits for them. Usable clips Selects hasn't analysed only get a small note.
+says('stillImporting', { one: '{count} clip still importing', other: '{count} clips still importing' });
+says('notAnalysedNote', "Clips Selects hasn't analysed yet are checked quickly on this computer; analysed clips give better picks.");
+says('noPictures', 'No photos or clips in this Project yet. Add some; this updates automatically.');
+says('detail.checkingClips', { one: 'checking {done}/{count} clip', other: 'checking {done}/{count} clips' });
+{
+  const all = JSON.parse(JSON.stringify(extractStrings(panel).strings));
+  for (const lang of Object.keys(all)) assert.ok(!/analy[sz]|analis|analiz|\u89e3\u6790|\u5206\u6790|\ubd84\uc11d/i.test(all[lang].noPictures), lang + '.noPictures no longer asks for analysis: ' + all[lang].noPictures);
+  for (const lang of Object.keys(all)) assert.ok(all[lang].notAnalysedNote && !/Mac/.test(all[lang].notAnalysedNote), lang + '.notAnalysedNote is OS-neutral');
+  const ui = code.slice(code.indexOf('function TornPaperPanel('));
+  assert.ok(ui.includes('counts.unanalysed ? t(L, "stillImporting", { count: counts.unanalysed }) : ""') && !ui.includes('t(L, "stillAnalysing"'), 'the panel never says a clip is still analysing');
+  assert.ok(ui.includes('const quickNote = useVideos && videosSel.some((r: any) => r.analysed === false);') && ui.includes('{quickNote ? <small style={{ display: "block", color: "var(--panel-muted-fg)" }}>{t(L, "notAnalysedNote")}</small> : null}'), 'a small muted note only');
+  assert.ok(!/counts\.(unanalysed|notAnalysed)[^;\n]*canBuild|canBuild[^;\n]*counts\./.test(ui), 'readiness never blocks on analysis');
+  assert.ok(ui.includes('inventory.counts.unanalysed > 0 ||'), 'clips still importing keep the 10 s poll');
+  // The build's quick score stops on a Project switch or unmount.
+  assert.ok(ui.includes('buildAbortRef.current?.abort(); buildAbortRef.current = null;') && ui.includes('mountedRef.current = false; buildAbortRef.current?.abort();')
+    && ui.includes('signal: buildAbortRef.current?.signal, quickDataDir: tplQuickDataDir() ?? roots?.data ?? null,'), 'abort wiring');
+}
 const early = panel.indexOf('if (!projectId) return <ui');
 assert.ok(early > 0);
 for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', '[track, ownMusic?.path, sectionShown, length, pace]', 'setInterval(() => setTick']) assert.ok(panel.indexOf(hook) > 0 && panel.indexOf(hook) < early, hook + ' before the early return');
@@ -120,10 +149,11 @@ says('createsDraftFrom', { one: 'Creates a new 4:3 Draft from {n} of your {count
 {
   const all = JSON.parse(JSON.stringify(extractStrings(panel).strings)), forms = v => (typeof v === 'string' ? [v] : Object.values(v));
   const plural2 = Object.keys(en).filter(k => typeof en[k] !== 'string' && new Set(forms(en[k]).join(' ').match(/\{\w+\}/g)).size > 1);
-  assert.deepEqual(plural2.filter(k => !/\{(shots|seconds|length)\}/.test(forms(en[k]).join(' '))).sort(), ['createsDraftFrom', 'detail.clipsChecked']);
+  assert.deepEqual(plural2.filter(k => !/\{(shots|seconds|length)\}/.test(forms(en[k]).join(' '))).sort(), ['createsDraftFrom', 'detail.checkingClips', 'detail.clipsChecked']);
   for (const lang of ['de', 'en', 'es', 'fr', 'it', 'pt']) {
     for (const f of forms(all[lang].createsDraftFrom)) assert.ok(/\{n\} (\S+ ){1,2}\{count\}/.test(f) && !/\{n\} (image|immagin|Bild|imag|picture)/.test(f), lang + '.createsDraftFrom: the noun follows {count}: ' + f);
     for (const f of forms(all[lang]['detail.clipsChecked'])) assert.ok(f.includes('{done}/{count}'), lang + '.detail.clipsChecked: ' + f);
+    for (const f of forms(all[lang]['detail.checkingClips'])) assert.ok(f.includes('{done}/{count}'), lang + '.detail.checkingClips: ' + f);
     for (const f of forms(all[lang].fitPictures)) assert.ok(!/\{n\} (image|immagin|Bild|imag|picture)/.test(f), lang + '.fitPictures: no noun after {n}: ' + f);
   }
 }
@@ -142,10 +172,13 @@ assert.ok(code.includes('<div lang={L} style={L === "ko" ? { wordBreak: "keep-al
 // Every preview font stack ends with the Korean system face of its role, before the generic family.
 {
   const stacks = code.slice(code.indexOf('const PREVIEW_FACE_STACK'), code.indexOf('// Backdrop swatches'));
-  for (const face of ['didone', 'serif', 'slab']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"AppleMyungjo\", serif'"), face);
-  for (const face of ['condensed', 'black']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"Apple SD Gothic Neo\", sans-serif'"), face);
-  assert.match(stacks, /typewriter: '[^']*"Apple SD Gothic Neo", monospace'/);
-  assert.match(stacks, /PREVIEW_FALLBACK_STACK = '[^']*"AppleMyungjo", serif'/);
+  // macOS, Windows and Noto Korean faces of the role (kit references/i18n.md, windows.md rule 5).
+  for (const face of ['didone', 'serif', 'slab']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"AppleMyungjo\", \"Batang\", \"Noto Serif KR\", serif'"), face);
+  for (const face of ['condensed', 'black']) assert.match(stacks, new RegExp('\\b' + face + ": '[^']*\"Apple SD Gothic Neo\", \"Malgun Gothic\", \"Noto Sans KR\", sans-serif'"), face);
+  assert.match(stacks, /typewriter: '[^']*"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", monospace'/);
+  assert.match(stacks, /PREVIEW_FALLBACK_STACK = '[^']*"AppleMyungjo", "Batang", "Noto Serif KR", serif'/);
+  // Every stack names a Latin face Windows ships before the Korean faces.
+  for (const line of stacks.split('\n').filter(l => /: '|_STACK = '/.test(l))) assert.match(line, /Georgia|"Times New Roman"|Arial|Impact|"Courier New"/, line);
 }
 assert.ok(/setInterval\(\(\) => setTick\(\(n\) => n \+ 1\), 350\)/.test(panel), 'letters re-style every 350 ms in the preview');
 {
@@ -167,17 +200,35 @@ const ui = panel.slice(panel.indexOf('// tpl-panel-logic:end'));
 assert.ok(!/tplAssembleConfig\(|tplDecorateConfig\(/.test(ui), 'the UI never builds script configs itself');
 assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capture');
 
+// ---- Quick score (clips Selects hasn't analysed): the kit block pasted verbatim, no POSIX shell in the new code.
+{
+  const block = between(panel, 'quick-score', true);
+  // The kit file (selects-app-kit tools/panel/quick-score.js) when a checkout is at hand; CI has none, so there the
+  // kit's own test (tests/quick-score.test.cjs, copied unchanged) checks the block.
+  const kitFile = path.join(process.env.SELECTS_APP_KIT || path.join(require('node:os').homedir(), 'Workspaces', 'selects-app-kit'), 'tools', 'panel', 'quick-score.js');
+  if (fs.existsSync(kitFile)) assert.equal(block, fs.readFileSync(kitFile, 'utf8').replace(/\n+$/, ''), 'the quick-score block is the kit file, byte for byte');
+  const helper = panel.slice(panel.indexOf('function tplQuickDataDir('), panel.indexOf('// tpl-host:start'));
+  const quickLogic = between(panel, 'tpl-panel-logic', true).slice(panel.indexOf('async function tplQuickMoments(') - panel.indexOf('// tpl-panel-logic:start'));
+  for (const [name, text] of [['quick-score block', block], ['tplQuickDataDir', helper], ['tplQuickMoments', quickLogic]]) {
+    assert.ok(text.length > 100, name);
+    for (const re of [/runShell/, /mkdir -p/, /\$HOME/, /printf/, /rm -f/, /base64 /, /export PATH/, /child_process/]) assert.ok(!re.test(text), name + ' has no ' + re);
+  }
+  assert.ok(helper.includes('fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID)'), 'the data folder through the host FileSystem');
+}
+
 // ---- Build orchestration in node:vm (planner + config + letters + panel logic).
 const logic = between(panel, 'tpl-panel-logic', true);
 assert.ok(!/:\s*(string|number|boolean|any)\b[^'"]/.test(logic.replace(/\/\/.*$/gm, '')), 'the logic block is plain JS');
+// The kit's quick-score block rides along: tplRunBuild uses its quickScoreAll and pickWindowsLocal by default.
+const quickBlock = between(panel, 'quick-score', true);
 const source = planner + '\n' + between(config, 'tpl-config', true) + '\n' + between(letters, 'tpl-letters', true) + '\n' + logic;
 const names = [...source.matchAll(/^(?:async\s+)?(?:function\s+(tpl\w+)|const\s+(TPL_\w+)|var\s+(TPL_\w+))/gm)].map(m => m[1] || m[2] || m[3]);
-const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date, isFinite, isNaN, Intl, Promise };
+const box = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON, Date, isFinite, isNaN, Intl, Promise, AbortController, setTimeout, clearTimeout };
 vm.createContext(box);
-vm.runInContext(source + '\n;globalThis.P={' + names.join(',') + '};', box);
+vm.runInContext(source + '\n' + quickBlock + '\n;globalThis.P={' + names.join(',') + ', quickScoreAll, pickWindowsLocal};', box);
 const P = box.P;
 const j = v => JSON.parse(JSON.stringify(v));
-for (const n of ['tplFreezeBuild', 'tplExclusive', 'tplStaleCheck', 'tplFill', 'tplClampWord', 'tplForward', 'tplRunBuild', 'tplFinish', 'TPL_STALE', 'tplSay', 'tplSayOf']) assert.ok(P[n], n + ' in the logic block');
+for (const n of ['tplQuickTargets', 'tplQuickFallback', 'tplQuickMoments', 'TPL_QUICK_PARALLEL', 'TPL_QUICK_BUDGET_MS', 'tplFreezeBuild', 'tplExclusive', 'tplStaleCheck', 'tplFill', 'tplClampWord', 'tplForward', 'tplRunBuild', 'tplFinish', 'TPL_STALE', 'tplSay', 'tplSayOf']) assert.ok(P[n], n + ' in the logic block');
 
 // tplSay: English message for logs and tests, say(lang) for the panel; tplSayOf falls back to the message.
 {
@@ -325,7 +376,8 @@ const tick = () => new Promise(r => setImmediate(r));
     const out = await P.tplRunBuild(f, h);
     assert.deepEqual(kinds(h), ['ENSURE', 'DRAFTS', 'ASSEMBLE', 'DECORATE', 'OPEN'], 'photos only: no inventory re-read, no search');
     const state = P.tplPlanState({ projectId: 'proj', inv: f.inventory, found: { best: {} }, cue, options, now: f.now });
-    assert.deepEqual(h.calls[0].cfg, { projectId: 'proj', path: '/installed/assets/cues/' + cue.file });
+    // The cue's length rides along so ensure-audio can match it by file name (windows.md rule 4).
+    assert.deepEqual(h.calls[0].cfg, { projectId: 'proj', path: '/installed/assets/cues/' + cue.file, duration: cue.duration });
     assert.ok(h.calls[0].allowCommit && h.calls[2].allowCommit && h.calls[3].allowCommit, 'commit calls allow commits');
     assert.ok(!h.calls[1].allowCommit && !h.calls[4].allowCommit, 'reads do not');
     assert.deepEqual(h.calls[2].cfg, j(P.tplAssembleConfig(state, { resourceId: 'music-1' })), 'assemble config = tplAssembleConfig');
@@ -479,6 +531,94 @@ const tick = () => new Promise(r => setImmediate(r));
     assert.notDeepEqual(d1.torn.clips.map(c => c.data.seed), d2.torn.clips.map(c => c.data.seed));
     assert.equal(d2.letters.parameters.seed, 2);
     assert.deepEqual(d1.torn.clips.map(c => c.rid), d2.torn.clips.map(c => c.rid));
+  }
+  // ---- Clips Selects hasn't analysed: analysed picks go to scene search as before, the others to the quick score
+  // (kit quickScoreAll, role 'still'), never to search; a failure or no host ffmpeg falls back to a seeded start at
+  // or after 0.5 s; the quick starts never reach the scene-search cache.
+  {
+    const mixed = videos.map((v, i) => Object.assign({}, v, i === 0 ? {} : { analysed: false, path: '/v/' + v.rid + '.mov' }));
+    const inv5 = { photos: photos7.slice(0, 5), resources: mixed };
+    const pre = P.tplPlanState({ projectId: 'proj', inv: inv5, found: { best: {} }, cue, options, now: 0 });
+    const pickedVideos = j(pre.picks.filter(p => p.kind === 'video').map(p => p.rid));
+    const targets = j(P.tplQuickTargets(pre, inv5));
+    assert.deepEqual(targets.map(x => x.rid), pickedVideos.filter(r => r !== 'v1'), 'targets = the picked unanalysed clips');
+    assert.ok(targets.length >= 1);
+    for (const x of targets) {
+      const pos = pre.picks.findIndex(p => p.rid === x.rid), sl = pre.schedule.slots;
+      const frames = Math.max(sl[pos].endFrame - sl[pos].startFrame, sl[pre.N + pos].endFrame - sl[pre.N + pos].startFrame);
+      assert.equal(x.need, Math.round((frames / 30 + P.TPL_SOURCE_TAIL) * 1000) / 1000, 'need = the longer slot + the tail');
+      assert.ok(x.fallback >= 0.5 && x.fallback + x.need <= x.duration + 1e-9, 'fallback after the edge, inside the clip');
+      assert.equal(x.path, '/v/' + x.rid + '.mov');
+    }
+    // A stub kit: the stillest window of each clip starts at 3 s (bins of 0.5 s, calm from 3 s on).
+    const scoresFor = (rid, dur) => ({ rid, duration: dur, fallback: false, cached: false, sceneCuts: [],
+      windows: Array.from({ length: Math.floor((dur - 0.5) / 0.5) }, (_, i) => ({ start: 0.5 + i * 0.5, end: 1 + i * 0.5, motion: 0.5 + i * 0.5 >= 3 ? 0.001 : 0.2,
+        sharp: 0.1, luma: 0.45, clipped: 0, flags: { black: false, fade: false, flash: false, blur: false, dark: false, bright: false, cut: false } })) });
+    const seen = [];
+    const h = host();
+    h.signal = new AbortController().signal;
+    h.quickDataDir = '/data/tpl';
+    h.quickScoreAll = async (resources, o) => {
+      seen.push({ resources: j(resources), concurrency: o.concurrency, budgetMs: o.budgetMs, dataDir: o.dataDir, signal: o.signal === h.signal });
+      const m = new Map();
+      resources.forEach((r, i) => { m.set(r.rid, scoresFor(r.rid, r.durationSeconds)); o.onProgress({ done: i + 1, total: resources.length, rid: r.rid }); });
+      return m;
+    };
+    let searched = null;
+    h.onSearch = x => { searched = j(x); };
+    const out = await P.tplRunBuild(frozen({ inventory: inv5 }), h);
+    const search = h.calls.filter(c => c.kind === 'SEARCH');
+    assert.deepEqual(search.flatMap(c => c.cfg.rids), pickedVideos.filter(r => r === 'v1'), 'only analysed clips are searched');
+    assert.equal(seen.length, 1, 'one quickScoreAll call with one shared budget');
+    assert.deepEqual(seen[0].resources, targets.map(x => ({ rid: 'proj_' + x.rid, path: x.path, durationSeconds: x.duration })), 'Project-qualified ids for the kit cache');
+    assert.deepEqual([seen[0].concurrency, seen[0].budgetMs, seen[0].dataDir, seen[0].signal], [3, 20000, '/data/tpl', true]);
+    for (const x of targets) {
+      const p = out.state.picks.find(q => q.rid === x.rid);
+      const want = j(P.pickWindowsLocal(scoresFor(x.rid, x.duration), 'still', x.need))[0].start;
+      assert.ok(want >= 3, 'the stub prefers the calm part');
+      assert.equal(p.startSeconds, Math.floor(want * 30 + 1e-6) / 30, x.rid + ' starts on its stillest window');
+    }
+    assert.deepEqual(j(out.quick), { clips: targets.length, scored: targets.length, fallback: 0, ms: out.quick.ms });
+    if (searched) for (const x of targets) assert.ok(!(x.rid in searched.best), 'quick starts stay out of the scene-search cache');
+    // The panel's t() (English only here) for the detail functions.
+    box.t = (l, key, vars) => { const m = en[key]; const f = typeof m === 'string' ? m : vars.count === 1 ? m.one : m.other; return f.replace(/\{(\w+)\}/g, (w, k) => String(vars[k])); };
+    const details = h.progress.filter(q => q.id === 'moments' && typeof q.detail === 'function').map(q => q.detail('en'));
+    assert.ok(details.includes('checking ' + targets.length + '/' + targets.length + (targets.length === 1 ? ' clip' : ' clips')), 'progress: ' + details);
+    assert.ok(h.progress.some(q => q.id === 'moments' && q.percent === 40), 'moments still ends at 40 %');
+
+    // The kit throws (not an abort): the build still goes ahead on the seeded fallback starts.
+    const h2 = host();
+    h2.quickScoreAll = async () => { throw Error('boom'); };
+    const out2 = await P.tplRunBuild(frozen({ inventory: inv5 }), h2);
+    for (const x of targets) assert.equal(out2.state.picks.find(q => q.rid === x.rid).startSeconds, Math.floor(x.fallback * 30 + 1e-6) / 30, 'fallback start');
+    assert.equal(out2.quick.fallback, targets.length);
+    // The kit's own fallback (no host ffmpeg: the real block in this vm has no window) gives the same seeded starts.
+    const h3 = host();
+    const out3 = await P.tplRunBuild(frozen({ inventory: inv5 }), h3);
+    for (const x of targets) assert.equal(out3.state.picks.find(q => q.rid === x.rid).startSeconds, Math.floor(x.fallback * 30 + 1e-6) / 30, 'no ffmpeg -> fallback start');
+    assert.deepEqual(kinds(h3), kinds(h2), 'no extra host calls');
+    // Another seed moves a fallback start (like the filler of an analysed clip without a hit), never before 0.5 s.
+    const starts = new Set();
+    for (let sd = 1; sd <= 6; sd++) for (const x of P.tplQuickTargets(P.tplPlanState({ projectId: 'proj', inv: inv5, found: { best: {} }, cue, options: Object.assign({}, options, { seed: sd }), now: 0 }), inv5)) {
+      assert.ok(x.fallback >= 0.5); starts.add(x.rid + '@' + x.fallback);
+    }
+    assert.ok(starts.size > targets.length, 'seeded fallbacks vary');
+    // A short clip: the fallback starts as late as it can; tplVideoWindow slides it to fit.
+    assert.equal(P.tplQuickFallback('r', 1.2, 1, 1), 0.2);
+    assert.equal(P.tplQuickFallback('r', 0.8, 1, 1), 0);
+    // Cancelled (Project switch / unmount aborts d.signal): the build stops quietly (TPL_STALE), nothing is placed.
+    const ac = new AbortController();
+    const h4 = host();
+    h4.signal = ac.signal;
+    h4.quickScoreAll = async () => { ac.abort(); const e = Error('cancelled'); e.name = 'AbortError'; throw e; };
+    await assert.rejects(P.tplRunBuild(frozen({ inventory: inv5 }), h4), e => e === P.TPL_STALE);
+    assert.ok(!kinds(h4).includes('ASSEMBLE'));
+    // Every picked clip analysed (no `analysed: false`): no quick score at all, the search as before.
+    const h5 = host();
+    h5.quickScoreAll = async () => { throw Error('must not run'); };
+    const out5 = await P.tplRunBuild(frozen({ inventory: { photos: photos7.slice(0, 5), resources: videos } }), h5);
+    assert.equal(out5.quick.clips, 0);
+    assert.ok(kinds(h5).includes('SEARCH'));
   }
   console.log(JSON.stringify({ panel: 'ok' }));
 })().catch(e => { console.error(e); process.exit(1); });

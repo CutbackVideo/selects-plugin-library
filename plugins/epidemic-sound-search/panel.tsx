@@ -657,6 +657,66 @@ const localUrl = (path: string) => {
   return "";
 };
 
+// Waveform bars from a file on disk through the app's bundled ffmpeg (no
+// shell, no user ffmpeg or python): 2 kHz mono 16-bit PCM into the app's temp
+// folder, reduced like PCM_WAVE. null when this build lacks the services or
+// the decode fails, so the caller can fall back to the shell command.
+const reducePcmPeaks = (pcm: Int16Array): number[] => {
+  const n = pcm.length;
+  const out: number[] = [];
+  if (n) {
+    const step = Math.max(1, Math.floor(n / 160));
+    for (let i = 0; i < n && out.length < 160; i += step) {
+      let hi = -32768;
+      let lo = 32767;
+      for (let k = i, e = Math.min(i + step, n); k < e; k++) {
+        if (pcm[k] > hi) hi = pcm[k];
+        if (pcm[k] < lo) lo = pcm[k];
+      }
+      out.push(Math.max(Math.abs(hi), Math.abs(lo)));
+    }
+  }
+  const m = out.reduce((a, v) => Math.max(a, v), 0);
+  return out.map((v) => (m ? Math.round((v / m) * 1000) / 1000 : 0));
+};
+
+const hostLocalPeaks = async (path: string): Promise<number[] | null> => {
+  let fs: any;
+  let tmp = "";
+  try {
+    const di = (window.parent as any)?.__DI__;
+    const rt = di?.Runtime;
+    fs = di?.FileSystem;
+    if (
+      !path ||
+      typeof rt?.runFFmpeg !== "function" ||
+      typeof fs?.getOrCreateTmpDirPath !== "function" ||
+      typeof fs?.join !== "function" ||
+      typeof fs?.readFile !== "function"
+    ) {
+      return null;
+    }
+    tmp = fs.join(
+      fs.getOrCreateTmpDirPath(),
+      "ess-wave-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".pcm"
+    );
+    await rt.runFFmpeg(
+      ["-v", "error", "-y", "-i", path, "-ac", "1", "-ar", "2000", "-f", "s16le", tmp],
+      true
+    );
+    // Copy first: the host's bytes come from another realm and may be offset.
+    const bytes = new Uint8Array(await fs.readFile(tmp));
+    const arr = reducePcmPeaks(new Int16Array(bytes.buffer, 0, bytes.length >> 1));
+    return arr.length ? arr : null;
+  } catch {
+    return null;
+  } finally {
+    if (tmp && typeof fs?.removeFile === "function") {
+      fs.removeFile({ filePath: tmp }).catch(() => {});
+    }
+  }
+};
+
 const Wave = ({
   bars,
   at,
@@ -1581,6 +1641,11 @@ export default function Panel({ sdk, context, ui }) {
       return false;
     };
     if (wf && (await tryCmd("fetch waveform", HOST.waveform(wf)))) return;
+    const local = localPath ? await hostLocalPeaks(localPath) : null;
+    if (local) {
+      setPeaks((x) => ({ ...x, [key]: local }));
+      return;
+    }
     if (localPath && (await tryCmd("read waveform from file", HOST.localWaveform(localPath)))) {
       return;
     }

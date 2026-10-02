@@ -1,5 +1,5 @@
 'use strict';
-// Beat grid for Torn Paper Love. Spectral-flux onsets, then the tempo and phase whose grid best meets them.
+// Beat grid for Selects style apps (shared kit copy). Spectral-flux onsets, then the tempo and phase whose grid best meets them.
 // CLI: node beat-detect.cjs <mono-f32le-file> <sampleRate> [<out.json>]  -> one JSON line on stdout, or, with
 // <out.json>, the result written there and {"ok":true} on stdout (the panel's shell output is capped at 48 KB, and a
 // long track's onsets can come close). Errors are always {"error": ...} on stdout with exit status 1.
@@ -196,7 +196,7 @@ function sixteenthRatio(samples, sampleRate, bpm, firstBeat, endSeconds) {
   return a > 0 && b != null ? Math.round(b / a * 1000) / 1000 : null;
 }
 
-// Band onsets for cut snapping (planner tplSnapCuts). Spectral flux of log magnitudes in three bands (low < 150 Hz,
+// Band onsets for cut snapping (the planner's onset snap). Spectral flux of log magnitudes in three bands (low < 150 Hz,
 // mid 150-2000 Hz, high > 5 kHz; the bands of the reference-edit analysis), lag-2 difference over a 2.9 ms hop,
 // 3-frame smoothing, then peaks that are the maximum within +/- 50 ms. A peak's strength is its flux over the band's
 // median flux. It qualifies when the strength reaches the band threshold max(2, 80th percentile of the band's peak
@@ -302,7 +302,7 @@ function offBeatLocked(bf, sampleRate, attack, period, t1) {
 }
 
 // opts.phaseBeats (dev only, default 0): move the grid by this many beats before the first beat is chosen, after the
-// phase sanity check (offBeatLocked); dev/build-cues.cjs uses it for First Love Guitar.
+// phase sanity check (offBeatLocked); no bundled cue needs it since v2.6.
 function analyze(samples, sampleRate, opts) {
   const durationSeconds = samples.length / sampleRate;
   const { env, strong } = onsetEnvelope(samples);

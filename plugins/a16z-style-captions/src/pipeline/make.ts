@@ -1,7 +1,7 @@
 // One click: a talking-head Draft -> a finished 9:16 Short in the a16z house style. The work is kept in
 // a job folder (~/.selects/plugin-data/a16z-style-captions/shorts/<short id>) with a job.json record, so
 // the captions and graphics can be rebuilt in place on the same cut.
-import { dataRoot, fs, hostVersion, versionBelow, script, shell, J, type Sdk } from "./host";
+import { dataRoot, fs, hostIsWindows, hostRoots, hostVersion, versionBelow, script, J, PANEL_ID, type Sdk } from "./host";
 import { readDraft, type DraftInfo } from "./source";
 import { semanticPass, type Semantic, type TWord } from "./semantic";
 import { ensureFaceRuntime, trackFaces, type SourceFaces } from "./faces";
@@ -61,8 +61,6 @@ export async function loadJob(id: string): Promise<Job | null> {
   }
 }
 
-const isWindows = () => /Windows/i.test(navigator.userAgent);
-
 export async function makeShort(sdk: Sdk, ctx: { projectId: string; sequenceId: string }, opts: Options, onStep: OnStep): Promise<MakeResult> {
   const t0 = Date.now();
   const notes: string[] = [];
@@ -94,8 +92,9 @@ export async function makeShort(sdk: Sdk, ctx: { projectId: string; sequenceId: 
     });
   onStep("faces", "run");
   const facesJob = (async (): Promise<Record<string, SourceFaces>> => {
-    if (isWindows()) {
-      notes.push("Speaker framing needs macOS for now, so every shot is centred.");
+    // The face tracker is Python + OpenCV through a POSIX shell (faces.ts), so it runs on macOS only.
+    if (hostIsWindows()) {
+      notes.push("Speaker framing is available on macOS for now, so every shot is centred.");
       onStep("faces", "skip", "centred");
       return {};
     }
@@ -277,14 +276,15 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
 }
 
 async function readFonts(sdk: Sdk): Promise<{ sans: string; serif: string; roman: string; light: string }> {
+  // The install folder: <home>/.selects/skills/<id> when it holds the fonts, else SELECTS_USER_SKILLS_ROOT/<id>.
   let root = "";
   try {
-    root = (await shell(sdk, "Locate plugin files", 'printf %s "$SELECTS_USER_SKILLS_ROOT"', 10000)).trim();
+    root = (await hostRoots(sdk, PANEL_ID, "fonts")).plugin;
   } catch {}
   const read = async (file: string) => {
     if (!root) return "";
     try {
-      return String(await fs().readFile(fs().join(root, "a16z-style-captions", "fonts", file), "utf8")).trim();
+      return String(await fs().readFile(fs().join(root, "fonts", file), "utf8")).trim();
     } catch {
       return "";
     }

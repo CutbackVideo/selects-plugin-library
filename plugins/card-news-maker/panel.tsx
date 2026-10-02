@@ -3178,7 +3178,7 @@ export default function Panel({ sdk, context, ui }: any) {
     } catch (e) {}
     if (store.size(to) > 1000) return true;
     const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
-    const cmd = IS_WIN ? `curl.exe -fsSL --retry 2 -A ${wq(ua)} -o ${wq(to)} ${wq(u)}` : `curl -fsSL --retry 2 -A ${pq(ua)} -o ${pq(to)} ${pq(u)}`;
+    const cmd = IS_WIN ? `"%SystemRoot%\\System32\\curl.exe" -fsSL --retry 2 -A ${wq(ua)} -o ${wq(to)} ${wq(u)}` : `curl -fsSL --retry 2 -A ${pq(ua)} -o ${pq(to)} ${pq(u)}`;
     await shell(cmd, "Download an article photo", 120000);
     return store.size(to) > 1000;
   }
@@ -3472,7 +3472,16 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   }
 
   async function openFolder(dir: string) {
-    await shell(IS_WIN ? `explorer ${wq(dir)}` : `open ${pq(dir)}`, "Open the export folder", 30000);
+    // The app's own reveal (Electron shell) when this build has it: explorer.exe is not on the
+    // Windows shell PATH. The shell command is the fallback.
+    try {
+      const rt = (window.parent as any)?.__DI__?.Runtime;
+      if (typeof rt?.showItemInFolder === "function") {
+        rt.showItemInFolder(dir);
+        return;
+      }
+    } catch (e) {}
+    await shell(IS_WIN ? `"%SystemRoot%\\explorer.exe" ${wq(dir)}` : `open ${pq(dir)}`, "Open the export folder", 30000);
   }
   async function openDraft(id: string) {
     try {

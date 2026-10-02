@@ -1,6 +1,6 @@
 # Install Ali Abdaal Style
 
-Experimental: macOS arm64 and a compatible Selects development build.
+Experimental: macOS arm64 or Windows x64 (not yet run on a Windows PC), and a compatible Selects development build.
 
 1. Place this package in `ali-abdaal-style` under `SELECTS_USER_SKILLS_ROOT`.
 2. Copy `panel.tsx` byte-for-byte to `SELECTS_USER_PANELS_ROOT/ali-abdaal-style/panel.tsx`.

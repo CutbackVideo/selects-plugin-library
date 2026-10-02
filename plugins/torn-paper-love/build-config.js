@@ -187,6 +187,44 @@ function tplPlanState(input) {
   };
 }
 
+// Clips Selects hasn't analysed (inventory `analysed: false`) can't use scene search. The panel scores them on the
+// user's computer instead (the kit's quick score: quickScoreAll + pickWindowsLocal(scores, 'still', need)) and starts
+// each one on its stillest clean window: TPL holds near-still shots. Starts are never before TPL_QUICK_EDGE (fade-ins,
+// black first frames) when the clip is long enough.
+const TPL_QUICK_EDGE = 0.5;
+// Clips scored at once, and the time for all of a build's clips (clips not started in time keep their fallback start).
+const TPL_QUICK_PARALLEL = 3;
+const TPL_QUICK_BUDGET_MS = 20000;
+
+// The start used when a clip can't be scored (no host ffmpeg, a failure, the budget ran out): one of the planner's
+// 0.5 s filler-grid windows that starts at or after TPL_QUICK_EDGE and holds `need` seconds, chosen with the seed (so
+// "Try other shots" varies it like the filler of an analysed clip without a hit). A clip too short for the edge starts
+// as late as it can (tplVideoWindow slides it back to fit).
+function tplQuickFallback(rid, duration, need, seed) {
+  const starts = tplFillers([{ rid: String(rid), sourceDuration: duration }]).map(c => c.t)
+    .filter(t => t >= TPL_QUICK_EDGE - 1e-9 && t + need <= duration + 1e-9);
+  if (!starts.length) return Math.max(0, Math.round(Math.min(TPL_QUICK_EDGE, duration - need) * 1000) / 1000);
+  return starts[Math.min(starts.length - 1, Math.floor(tplRandom(String(seed) + ':quick:' + rid) * starts.length))];
+}
+
+// The picked videos Selects hasn't analysed, in pick order: [{ rid, path, duration, need, fallback }]. need =
+// the longer of the picture's two slots plus TPL_SOURCE_TAIL, in seconds. state: a tplPlanState result (picking never
+// depends on video starts, so a provisional plan names them); inv: the inventory (inventory.js).
+function tplQuickTargets(state, inv) {
+  if (!state || !state.ok) return [];
+  const byRid = {};
+  for (const r of (inv && inv.resources) || []) byRid[r.rid] = r;
+  const N = state.N, slots = state.schedule.slots, out = [];
+  state.picks.forEach((p, pos) => {
+    const r = byRid[p.rid];
+    if (p.kind !== 'video' || !r || r.analysed !== false) return;
+    const frames = Math.max(slots[pos].endFrame - slots[pos].startFrame, slots[N + pos].endFrame - slots[N + pos].startFrame);
+    const need = Math.round((frames / TPL_PLAN_FPS + TPL_SOURCE_TAIL) * 1000) / 1000;
+    out.push({ rid: p.rid, path: r.path || null, duration: r.duration, need, fallback: tplQuickFallback(p.rid, r.duration, need, state.options.seed) });
+  });
+  return out;
+}
+
 // The cover transform of a sized picture: portrait sources anchor the crop 40 % from the top, others centre.
 function tplCover(size) {
   if (!size) return null;
