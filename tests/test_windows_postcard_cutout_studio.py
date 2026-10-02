@@ -162,6 +162,22 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
             if key in manifest:
                 self.assertTrue(manifest[key])
 
+    def test_panel_asks_before_spending_credits(self):
+        # The behaviour is exercised in tests/postcard_cutout_studio.test.mjs; this pins the wiring.
+        gen = self.body('async function generation(r,collect=false){', "const gen=r.generation||{};")
+        self.assertLess(gen.index("if(r.phase!=='generationSubmitting'&&!mayCharge(r))throw Error("),
+                        gen.index("r=await claim(r,['ready']"), 'no claim, no submit without consent')
+        self.assertLess(gen.index('!mayCharge(r)'), gen.index('mg.submit('))
+        build = self.body('async function build(kind,', 'return {persist,claim,generation,exportRun,build};')
+        gate = "if(current.phase==='ready'&&!template&&!mayCharge(current)){setStatus('');setRun(current);return current;}"
+        self.assertLess(build.index("current=await helper(sdk,'reuse',"), build.index(gate), 'the cache is checked first')
+        self.assertLess(build.index(gate), build.index("if(current.phase==='ready')current=await generation(current,false);"))
+        self.assertIn("mayCharge:r=>creditOk.current.has(r.runId)", self.text)
+        self.assertIn('const runner=createRunner({sdk,guard,setStatus});', self.text, 'template runs keep the default')
+        self.assertIn('if(!active||busy||error||awaitingCredit)return;', self.text, 'no auto-resume past the notice')
+        self.assertIn('Selects credits for {CUTOUT_SECONDS} seconds of video', self.text)
+        self.assertIn('>Use credits and create</ui.Button>', self.text)
+
     def test_scroll_container_keeps_a_stable_gutter(self):
         self.assertEqual(self.text.count("overflowY:'auto'"), self.text.count("scrollbarGutter:'stable'"))
 

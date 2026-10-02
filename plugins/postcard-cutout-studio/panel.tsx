@@ -590,11 +590,13 @@ async function appResourcePath(di,scope,id){
 // The steps of a run, shared by the Panel and a template run. `guard` stops the
 // work once whoever started it has moved on; `setRun` and `setStatus` report
 // progress to whoever is showing it.
-function createRunner({sdk,guard,setRun=_=>{},setStatus=_=>{}}){
+// `mayCharge` says whether this run may submit a paid cutout: the Panel asks the user first, a template run may.
+function createRunner({sdk,guard,setRun=_=>{},setStatus=_=>{},mayCharge=_=>true}){
 async function persist(r,patch,stage,status='end',details={}){const next=await helper(sdk,'update',{runId:r.runId,patch,stage,status,details});setRun(next);return next}
 async function claim(r,expected,patch,stage,details){const x=await helper(sdk,'claim',{runId:r.runId,expected,patch,stage,details});if(!x.claimed)throw Error('Another run already started this step. Resume that run without starting a new generation.');setRun(x.run);return x.run}
 async function generation(r,collect=false){guard(r.projectId);const di=appServices(),mg=di.MediaGeneration;
 if(!collect){
+  if(r.phase!=='generationSubmitting'&&!mayCharge(r))throw Error('Background removal uses credits and was not confirmed. Nothing was submitted.');
   if(r.phase!=='generationSubmitting')r=await claim(r,['ready'],{phase:'generationSubmitting',generationStartedMs:Date.now()},'generation');
   const scope=generationScope(r.projectId);
   // The exact stretch goes up as its own file: given a whole clip and a range,
@@ -750,6 +752,8 @@ if(kind==='new'||!current||['complete','abandoned'].includes(current.phase)){if(
 guard(current.projectId);if(!fresh)current=await helper(sdk,'load',{runId:current.runId});
 // A fresh run already looked for a reusable cutout when it was created.
 if(current.phase==='ready'&&!fresh)current=await helper(sdk,'reuse',{runId:current.runId});
+// No reusable cutout: a new one costs credits, so the Panel stops here until the user confirms.
+if(current.phase==='ready'&&!template&&!mayCharge(current)){setStatus('');setRun(current);return current;}
 if(current.phase==='ready')current=await generation(current,false);
 if(current.phase==='generationSubmitting')current=await generation(current,false);
 if(current.phase==='generationFailed'&&!['failed','canceled','cancelled'].includes(current.generation?.status)){current=await persist(current,{phase:'generationPending'},'generation','recovered-observation');}
@@ -988,7 +992,8 @@ useEffect(()=>{preparing.say=setStatus;return()=>{if(preparing.say===setStatus)p
 useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(hostIssue||!subject?.path)return;const path=subject.path;(async()=>{try{const r=await probeSubject(sdk,path);if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
 useEffect(()=>{let alive=true;if(hostIssue||!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const r=await rangePreview(sdk,subject.path,s.subjectStartSec,Math.min(duration,s.subjectStartSec+8.5));if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
 function guard(pid){if(projectRef.current!==pid)throw Error('The Project changed. Stopped without resubmitting the current operation.')}
-const runner=createRunner({sdk,guard,setRun,setStatus});
+const creditOk=useRef(new Set());
+const runner=createRunner({sdk,guard,setRun,setStatus,mayCharge:r=>creditOk.current.has(r.runId)});
 async function execute(kind){if(hostIssue){setError(hostIssue);return;}if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
 try{await runner.build(kind,{pid:context.projectId,settings:s,rows,run,duration,setSettings:setS,onMapped:(mapped,next)=>{setRows(old=>old.map(row=>{const m=mapped.get(row.resourceId);return m?{...row,resourceId:m.resourceId}:row;}));setSelection(old=>old.map(id=>mapped.get(id)?.resourceId||id));setFolderIds(old=>old.map(id=>mapped.get(id)?.resourceId||id));setS(next);}});
 }catch(e){current=e?.run??current;setError('We could not finish your postcard. Your progress is saved. See details below.');setStatus(String(e.message||e));if(current?.runId)try{await helper(sdk,'event',{runId:current.runId,stage:'pipeline',status:'failed',details:{error:String(e.stack||e)}})}catch{}}finally{busyRef.current=false;setBusy(false)}}
@@ -997,6 +1002,10 @@ const active=run&&!['draftReady','complete','abandoned','exportFailed','generati
 const locked=busy||loading||!!active;
 // A run whose last attempt failed can be let go, unless a paid cutout is still
 // on its way: the cutout it already made stays reusable.
+// A new cutout waits for the user to accept its credit use; nothing has been paid yet.
+const awaitingCredit=run?.phase==='ready'&&!busy&&!creditOk.current.has(run.runId);
+function confirmCredit(){if(!run)return;creditOk.current.add(run.runId);execute('resume');}
+async function declineCredit(){if(busyRef.current||!run)return;try{await helper(sdk,'update',{runId:run.runId,patch:{phase:'abandoned'},stage:'pipeline',status:'abandoned',details:{by:'user',from:run.phase,reason:'credits-declined'}});}catch(e){setError(e instanceof Error?e.message:String(e));return;}setRun(null);setStatus('');}
 const canAbandon=!!active&&!busy&&!!error&&!['generationSubmitting','generationPending'].includes(run?.phase);
 const action=primaryAction(run,s);
 const hasDraft=!!run?.draftId&&requestKey(s)===requestKey(run.settings);
@@ -1073,7 +1082,7 @@ function moveScrub(row,event){
 function endScrub(){clearTimeout(hoverTimer.current);setScrub(null);}
 useEffect(()=>()=>clearTimeout(hoverTimer.current),[]);
 useEffect(()=>{
-  if(!active||busy||error)return;
+  if(!active||busy||error||awaitingCredit)return;
   const timer=setTimeout(()=>execute('resume'),2000);
   return()=>clearTimeout(timer);
 },[run?.phase,run?.generation?.status,busy,error]);
@@ -1264,7 +1273,8 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
     {/* The kit's Actions stacks every button full width under 360px, which
         made this bar four lines tall in a docked panel. This row keeps the
         two buttons side by side at any width; only the count wraps above. */}
-    <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}{canAbandon&&<ui.Button variant="ghost" onClick={()=>void abandonRun()}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error)} busyLabel={friendlyPhase(run?.phase)} disabled={!!hostIssue||loading||picking||(!active&&!hasDraft&&!!blocker)} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
+    {awaitingCredit&&<><ui.Message>Cutting out the subject uses Selects credits for {CUTOUT_SECONDS} seconds of video. A cutout already made for the same subject and range is reused without charge.</ui.Message><div className="pc-actions"><ui.Button variant="ghost" onClick={()=>void declineCredit()}>Cancel</ui.Button><ui.Button variant="primary" onClick={confirmCredit}>Use credits and create</ui.Button></div></>}
+    <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}{canAbandon&&<ui.Button variant="ghost" onClick={()=>void abandonRun()}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error&&!awaitingCredit)} busyLabel={friendlyPhase(run?.phase)} disabled={!!hostIssue||loading||picking||(!active&&!hasDraft&&!!blocker)||awaitingCredit} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
   </footer>}
 </div>;
 }

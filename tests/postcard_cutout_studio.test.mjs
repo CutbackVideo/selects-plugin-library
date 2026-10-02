@@ -71,3 +71,54 @@ test('a finished cutout of the same stretch is reused',async()=>{
  const other=await L.init({projectId:'p1',replaceSettled:true,previousRunId:second.runId,settings:{...settings,subjectStartSec:1},source:{path:source}}).catch(e=>e);
  assert.match(String(other.message||other),/still active/,'maskReady is not settled');
 });
+
+// The credit gate: createRunner runs in node:vm with the host stubbed, so a paid submit is observable.
+function runnerWith({mayCharge,run}){
+ const m=panel.match(/function createRunner\([\s\S]*?\nreturn \{persist,claim,generation,exportRun,build\};\n\}/);assert.ok(m,'createRunner');
+ const calls=[],submits=[];let current={...run};
+ const helper=async(_sdk,op,a={})=>{calls.push(op);
+  if(op==='load'||op==='reuse')return {...current};
+  if(op==='claim'){if(!a.expected.includes(current.phase))return{claimed:false,run:current};current={...current,...a.patch};return{claimed:true,run:{...current}}}
+  if(op==='update'){current={...current,...a.patch};return{...current}}
+  if(op==='ensure'||op==='event')return {};
+  if(op==='cutout-input')return {path:'/tmp/in.mp4'};
+  throw Error('unexpected op '+op)};
+ const ctx={helper,appServices:()=>({MediaGeneration:{submit:async x=>{submits.push(x);return{jobIds:['selects-'+'a'.repeat(64)]}},list:async()=>[]}}),
+  generationScope:()=>({kind:'library',id:'lib'}),appResourceIdForPath:async()=>'res-1',runScript:async()=>{throw Error('no script')},
+  BRIA_MODEL_ID:'m',CUTOUT_SECONDS:1.6,GENERATION_CHECKS:0,GENERATION_POLL_MS:0,hostIsWindows:()=>false,hostJoin:(...p)=>p.join('/'),
+  json:JSON.stringify,sleep:async()=>{},window:{},Date,JSON,Promise,Error,Object,Number,String,Math};
+ vm.createContext(ctx);
+ vm.runInContext(m[0]+'\nthis.createRunner=createRunner;',ctx);
+ const runner=ctx.createRunner({sdk:{},guard:()=>{},...(mayCharge?{mayCharge}:{})});
+ return {runner,calls,submits,get current(){return current}};
+}
+const readyRun={runId:'11111111-1111-1111-1111-111111111111',projectId:'p1',phase:'ready',settings:{subjectStartSec:0},source:{path:'/tmp/s.mp4'},logDir:'/tmp/log',cutoutInput:{path:'/tmp/in.mp4'}};
+
+test('the panel stops before a paid cutout until the user confirms',async()=>{
+ const t=runnerWith({mayCharge:()=>false,run:readyRun});
+ const out=await t.runner.build('resume',{pid:'p1',settings:readyRun.settings,rows:[],run:readyRun});
+ assert.equal(out.phase,'ready');assert.equal(t.submits.length,0);assert.ok(!t.calls.includes('claim'),'nothing claimed');
+ const direct=await t.runner.generation({...readyRun},false).catch(e=>e);
+ assert.match(String(direct.message),/not confirmed/);assert.equal(t.submits.length,0);assert.equal(t.current.phase,'ready');
+});
+
+test('a confirmed panel run submits once',async()=>{
+ const ok=new Set([readyRun.runId]),t=runnerWith({mayCharge:r=>ok.has(r.runId),run:readyRun});
+ const out=await t.runner.build('resume',{pid:'p1',settings:readyRun.settings,rows:[],run:readyRun});
+ assert.equal(t.submits.length,1);assert.equal(t.submits[0].key,'pc-'+readyRun.runId);assert.equal(out.phase,'generationPending');
+});
+
+test('a resumed submission is not asked again and keeps its key',async()=>{
+ const run={...readyRun,phase:'generationSubmitting'},t=runnerWith({mayCharge:()=>false,run});
+ await t.runner.build('resume',{pid:'p1',settings:run.settings,rows:[],run});
+ assert.equal(t.submits.length,1);assert.equal(t.submits[0].key,'pc-'+run.runId,'same idempotent key, no second job');
+ const pending={...readyRun,phase:'generationPending',generation:{jobId:'selects-'+'b'.repeat(64),scope:{}}},p=runnerWith({mayCharge:()=>false,run:pending});
+ await p.runner.build('resume',{pid:'p1',settings:pending.settings,rows:[],run:pending});
+ assert.equal(p.submits.length,0,'a pending job is only checked');
+});
+
+test('a template run is not gated',async()=>{
+ const t=runnerWith({run:readyRun});
+ await t.runner.generation({...readyRun},false);
+ assert.equal(t.submits.length,1);
+});
