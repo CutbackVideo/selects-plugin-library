@@ -277,9 +277,236 @@ function pcLedger(store,{sfx=async()=>({}),now=()=>Date.now(),newId=()=>crypto.r
    const d={...a,runId:rid,startedMs:now(),phase:'ready',logDir:J(a.logRoot||J(store,'logs'),rid),draftName:'Postcard Cutout Studio — '+rid,sfx:await sfx()};
    hostNeed('FileSystem','mkdirSync').mkdirSync(dir,{recursive:true});await save(d);active[a.projectId]=rid;await write(path,active);await event(d,'run','start',{settings:a.settings});return reuse(d)}),
  };
+ // The steps the other ports share (pc-port): unlocked, as pipeline.py's prepare uses them.
+ ops._internal={load,save,event,identity,same,reusable,runpath};
  return ops;
 }
 // pc-ledger:end
+// pc-port:start
+// pipeline.py's other helper ops for Windows, in the panel: sounds, folder listing, previews, sizes, holds, the cutout
+// input and result, the cutout check with its masks, the foreground and the subject box. Same ffmpeg/ffprobe argv as
+// pipeline.py, run by the host's bundled tools (Runtime.runFFmpeg/runFFprobe: argv, no shell), and the same files
+// under the data folder, read and written through FileSystem. Differences, all forced by the host: ffmpeg writes to a
+// temporary file instead of a pipe (runFFmpeg returns text); the cutout check reads each SSIM from ffmpeg's log, not a
+// stats_file (a C:\ path inside a filter string needs filter escaping); mp4 outputs pass -write_tmcd 0 (one stream);
+// there is no 48 KiB reply cap, so previews are not shrunk to fit one; there is no mask service: the MASK effect reads
+// the mask folder through FileSystem.pathToLocalURL; a folder's symlinks are not told apart (statSync follows them;
+// the 10,000-file cap still bounds the walk). `roots` is hostRoots(...) ({plugin, data}); `ledger` is pcLedger(data).
+const PC_MOVING=['.mp4','.mov','.mkv','.webm','.m4v'],PC_MEDIA=[...PC_MOVING,'.png','.jpg','.jpeg','.webp'];
+// What a failed host tool call says: the host rejects with a JSON string carrying ffmpeg's stderr.
+function pcToolError(e,log=''){let said=String(e?.message??e??'');try{const j=JSON.parse(said);said=String(j?.stderr||j?.message||said)}catch{/* plain text */}return (said.trim()||String(log).trim()).slice(-2000)||'ffmpeg failed'}
+function pcPort(roots,{ledger}){
+ const store=roots.data,J=(...p)=>hostJoin(...p),fsx=m=>hostNeed('FileSystem',m);
+ const exists=p=>{try{return !!fsx('existsSync').existsSync(p)}catch{return false}};
+ const stat=p=>{try{return fsx('statSync').statSync(p)||null}catch{return null}};
+ const isDir=s=>!!s&&(typeof s.isDirectory==='function'?!!s.isDirectory():(Number(s.mode)&0o170000)===0o040000);
+ const mkdir=p=>fsx('mkdirSync').mkdirSync(p,{recursive:true});
+ const rename=(a,b)=>fsx('renameSync').renameSync(a,b);
+ const write=(p,d)=>fsx('writeFile').writeFile(p,d);
+ const rmTree=p=>{try{fsx('rmSync').rmSync(p,{recursive:true,force:true})}catch{/* left behind */}};
+ const size=p=>Number(stat(p)?.size)||0;
+ const base=p=>String(p).split(/[\\/]/).pop()||'';
+ const suffix=p=>{const n=base(p),i=n.lastIndexOf('.');return i>0?n.slice(i).toLowerCase():''};
+ const stem=p=>{const n=base(p),i=n.lastIndexOf('.');return i>0?n.slice(0,i):n};
+ const ascii=(s,fallback)=>String(s).replace(/[^A-Za-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'')||fallback;
+ const moving=p=>PC_MOVING.includes(suffix(p));
+ const uuid=()=>crypto.randomUUID();
+ const subtle=()=>{try{return globalThis.crypto?.subtle||window.parent.crypto.subtle}catch{return window.parent.crypto.subtle}};
+ const sha256=async v=>{const d=await subtle().digest('SHA-256',typeof v==='string'?new TextEncoder().encode(v):v);return Array.from(new Uint8Array(d),b=>b.toString(16).padStart(2,'0')).join('')};
+ const b64=bytes=>{let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));return btoa(s)};
+ const head=async(p,n)=>{const r=hostApi('FileSystem','readRange');if(r){try{return hostBytes(await r.readRange(p,0,n))}catch{/* whole file */}}return (await hostReadBytes(p)).subarray(0,n)};
+ const scratch=(e,dir=J(store,'tmp'))=>{mkdir(dir);return J(dir,'pc-'+uuid()+e)};
+ const drop=async p=>{if(exists(p))await hostRemove(p)};
+ // ffmpeg's log (stderr) of one run; throws its tail when it fails.
+ const ffmpeg=async(args,timeoutMs=180000)=>{const rt=hostNeed('Runtime','runFFmpeg'),c=new AbortController(),t=setTimeout(()=>c.abort(),timeoutMs);let log='';
+  try{const r=await rt.runFFmpeg(args,true,c.signal,undefined,x=>{log+=String(x)});return String(r?.stderr||'')||log}catch(e){throw Error(pcToolError(e,log))}finally{clearTimeout(t)}};
+ const ffprobe=async args=>String((await hostNeed('Runtime','runFFprobe').runFFprobe(args,true))?.stdout||'');
+ const quietProbe=args=>ffprobe(args).catch(()=>'');
+ // ffmpeg output into a temporary file, read back as bytes (the file is removed).
+ const grab=async(args,e='.jpg',timeoutMs)=>{const out=scratch(e);try{await ffmpeg([...args,out],timeoutMs);const b=await hostReadBytes(out);if(!b.length)throw Error('ffmpeg wrote nothing');return b}finally{await drop(out)}};
+ const pool=async(items,n,f)=>{const out=new Array(items.length);let next=0;await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(next<items.length){const i=next++;out[i]=await f(items[i],i)}}));return out};
+ const locks=new Map(),lock=(key,f)=>{const prev=locks.get(key)||Promise.resolve(),r=prev.then(f,f);locks.set(key,r.catch(()=>{}));return r};
+ const seconds=v=>{const n=Number.parseFloat(v);return n>0?n:null};
+ // Python's round(): halves go to the even neighbour.
+ const pyRound=x=>{const r=Math.round(x);return Math.abs(x%1)===.5?2*Math.round(x/2):r};
+ const L=ledger._internal;
+ const sfxDir=J(store,'sfx'),HOLD_ROOT=J(store,'held'),INPUT_ROOT=J(store,'cutout-inputs');
+ // --- sounds (unpack_sound / sfx_manifest) ---
+ const unpack=async(v,dest)=>{const src=J(roots.plugin,'sfx',v.file+'.b64');if(exists(dest)||!exists(src))return;
+  const bin=atob((await hostReadText(src)).replace(/\s+/g,'')),data=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)data[i]=bin.charCodeAt(i);
+  if(await sha256(data)!==v.sha256)throw Error('Bundled sound does not match its manifest: '+v.file);
+  mkdir(sfxDir);const t=dest+'.tmp-'+Date.now();await write(t,data);rename(t,dest)};
+ const sfx=async()=>{const path=J(roots.plugin,'sfx','manifest.json'),manifest=exists(path)?JSON.parse(await hostReadText(path)):{},out={};
+  for(const [key,v] of Object.entries(manifest)){const f=J(sfxDir,v.file);await unpack(v,f);
+   if(exists(f)){out[key]={path:f,duration:v.duration,soundSeconds:'soundSeconds' in v?v.soundSeconds:v.duration};for(const k of ['sixteenth','ticks'])if(k in v)out[key][k]=v[k]}}
+  return out};
+ // --- folder listing (folder_media) ---
+ const folderMedia=async a=>{const root=String(a.path);if(!isDir(stat(root)))throw Error(stat(root)?'Choose a folder, not an individual file.':'That folder could not be found.');
+  const files=[],list=fsx('readdirSync');let unreadable=0,limited=false,visited=0;
+  const walk=(folder,rel)=>{let names;try{names=list.readdirSync(folder).map(String).sort()}catch{unreadable++;return}
+   const dirs=[];for(const name of names){const p=J(folder,name),s=stat(p);if(isDir(s)){if(!name.startsWith('.'))dirs.push(name);continue}
+    if(++visited>10000){limited=true;return}
+    if(!name.startsWith('.')&&PC_MEDIA.includes(suffix(name)))files.push([p,rel?J(rel,name):name])}
+   for(const d of dirs){if(limited)return;walk(J(folder,d),rel?J(rel,d):d)}};
+  walk(root,'');
+  const offset=Math.max(0,Math.trunc(Number(a.offset)||0)),query=String(a.query??'').toLowerCase(),hits=files.filter(([,rel])=>rel.toLowerCase().includes(query));
+  return {path:root,name:base(root.replace(/[\\/]+$/,'')),total:hits.length,limited,unreadable,rows:hits.slice(offset,offset+24).map(([p,rel])=>({path:p,name:base(p),relativePath:rel,resourceId:'local:'+p}))}};
+ // --- previews and sizes (probe / tile_preview / strip_preview / shown_size / sizes) ---
+ const probe=async path=>{let info={};try{info=JSON.parse(await quietProbe(['-v','error','-select_streams','v:0','-show_entries','format=duration:stream=width,height','-of','json',path])||'{}')}catch{info={}}
+  const s=(info.streams||[{}])[0]||{};return{durationSeconds:seconds(info.format?.duration),width:s.width??null,height:s.height??null}};
+ const tile=async a=>{const path=a.path,meta=await probe(path);if(!moving(path))meta.durationSeconds=null;const fit='scale=280:280:force_original_aspect_ratio=increase,crop=280:280',d=meta.durationSeconds;
+  const seek=d&&d>1?['-ss',String(d*.25)]:[],chain=d?fit+',thumbnail=100':fit;
+  let bytes;try{bytes=await grab(['-v','error','-y',...seek,'-i',path,'-vf',chain,'-frames:v','1','-q:v','6','-f','image2pipe','-vcodec','mjpeg'],'.jpg',30000)}catch{throw Error('Could not decode the thumbnail.')}
+  return {...meta,thumb:b64(bytes)}};
+ const strip=async a=>{const path=a.path,count=Math.min(10,Math.max(2,Math.trunc(Number(a.count??10))||0)),d=(await probe(path)).durationSeconds||0;
+  if(d<=0)throw Error('Could not read the video duration.');
+  const key=await sha256(JSON.stringify([L.identity(path),count,'square-strip-v2'])),cache=J(store,'preview-cache',key+'.json');
+  if(exists(cache)){try{return JSON.parse(await hostReadText(cache))}catch{/* made again */}}
+  const times=Array.from({length:count},(_,i)=>d*(i+.5)/count);
+  const frames=await pool(times,2,async t=>{try{return await grab(['-v','error','-y','-threads','1','-ss',String(t),'-i',path,'-an','-vf','scale=144:144:force_original_aspect_ratio=increase,crop=144:144','-frames:v','1','-q:v','5','-f','image2pipe','-vcodec','mjpeg'],'.jpg',12000)}catch{throw Error('Could not decode a preview frame. Hover again to retry.')}});
+  const joined=new Uint8Array(frames.reduce((n,f)=>n+f.length,0));let at=0;for(const f of frames){joined.set(f,at);at+=f.length}
+  const input=scratch('.mjpeg');await write(input,joined);
+  try{const sheet=await grab(['-v','error','-y','-f','image2pipe','-vcodec','mjpeg','-i',input,'-vf','scale=144:144,tile='+count+'x1','-frames:v','1','-q:v','16','-f','image2pipe','-vcodec','mjpeg'],'.jpg',12000);
+   const result={strip:b64(sheet),count,times};mkdir(J(store,'preview-cache'));await write(cache,JSON.stringify(result));return result}
+  catch{throw Error('Could not make the preview. Hover again to retry.')}finally{await drop(input)}};
+ // Whether a JPEG's EXIF orientation shows it turned a quarter (tags 5-8), from its first 256 KiB.
+ const exifTurned=async path=>{try{const b=await head(path,262144),u16=(o,le)=>le?b[o]|b[o+1]<<8:b[o]<<8|b[o+1],u32=(o,le)=>le?(b[o]|b[o+1]<<8|b[o+2]<<16|b[o+3]<<24)>>>0:(b[o]<<24|b[o+1]<<16|b[o+2]<<8|b[o+3])>>>0;
+  if(b[0]!==0xFF||b[1]!==0xD8)return false;let p=2;
+  for(;;){if(p+2>b.length||b[p]!==0xFF||b[p+1]===0xD9||b[p+1]===0xDA)return false;const m=b[p+1],len=u16(p+2,false),body=p+4;
+   if(m===0xE1&&String.fromCharCode(...b.subarray(body,body+6))==='Exif\0\0'){const t=body+6,le=b[t]===0x49&&b[t+1]===0x49,ifd=t+u32(t+4,le),n=u16(ifd,le);
+    for(let i=0;i<n;i++){const e=ifd+2+12*i;if(e+10>b.length)return false;if(u16(e,le)===0x0112)return [5,6,7,8].includes(u16(e+8,le))}return false}
+   p=body+len-2}}catch{return false}};
+ const shownSize=async path=>{let st={};try{st=(JSON.parse(await quietProbe(['-v','error','-select_streams','v:0','-show_entries','stream=width,height:stream_side_data=rotation','-of','json',path])||'{}').streams||[{}])[0]||{}}catch{st={}}
+  const w=st.width,h=st.height;if(!(w&&h))return null;let turn=(st.side_data_list||[]).some(sd=>Math.abs(Math.trunc(Number(sd.rotation||0)))%180===90);
+  if(!moving(path))turn=await exifTurned(path);return turn?{width:h,height:w}:{width:w,height:h}};
+ const sizes=async a=>{const paths=[...new Set(a.paths||[])],out=await pool(paths,8,shownSize);return Object.fromEntries(paths.map((p,i)=>[p,out[i]]))};
+ // --- holds, silent copies, the cutout input (hold_clip / silent_copy / cutout_input) ---
+ const mp4=p=>['.mp4','.mov','.m4v'].includes(suffix(p))?['-write_tmcd','0']:[];
+ const keyOf=async(parts)=>(await sha256(JSON.stringify(parts))).slice(0,24);
+ const silent=async path=>{if(!exists(path))throw Error('That file could not be found.');const streams=(await quietProbe(['-v','error','-select_streams','a','-show_entries','stream=index','-of','csv=p=0',path])).trim();if(!streams)return path;
+  const s=stat(path),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),'silent-v1']);mkdir(HOLD_ROOT);
+  const dest=J(HOLD_ROOT,ascii(stem(path),'Clip')+' - silent - '+key+suffix(path));
+  if(!exists(dest)){const tmp=J(HOLD_ROOT,'silent-'+uuid()+suffix(path));
+   try{await ffmpeg(['-v','error','-y','-i',path,'-map','0:v:0','-c','copy','-an','-map_metadata','-1',...mp4(tmp),tmp],120000)}catch(e){await drop(tmp);throw Error('Could not make a silent copy of this clip: '+String(e.message).slice(0,400))}
+   if(!exists(tmp))throw Error('Could not make a silent copy of this clip.');rename(tmp,dest)}
+  return dest};
+ const hold=async a=>{const path=String(a.path);if(!exists(path))throw Error('That file could not be found.');const target=Number(a.target??8.5),start=Math.max(0,Number(a.start||0)),info=await probe(path),duration=info.durationSeconds||0;
+  const plays=moving(path)?Math.max(0,Math.min(target,duration-start)):0,r3=x=>Math.round(x*1000)/1000;
+  if(moving(path)&&plays>=target-.02){if(a.silent){const quiet=await silent(path);if(quiet!==path)return{path:quiet,name:base(quiet),held:false,silenced:true,playedSeconds:r3(plays),durationSeconds:duration,width:info.width,height:info.height,start}}
+   return{path,held:false,playedSeconds:r3(plays),durationSeconds:duration,width:info.width,height:info.height,start}}
+  const s=stat(path),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),r3(start),r3(target),'hold-v1']);mkdir(HOLD_ROOT);
+  const dest=J(HOLD_ROOT,ascii(stem(path),'Subject')+' - held '+target.toFixed(2)+'s - '+key+'.mp4');
+  if(!exists(dest)){const even='scale=trunc(iw/2)*2:trunc(ih/2)*2',enc=['-c:v','libx264','-preset','ultrafast','-crf','18','-pix_fmt','yuv420p','-write_tmcd','0'];let cmd;
+   if(moving(path)){if(plays<=0)throw Error('The chosen start is past the end of this video.');cmd=['-v','error','-y','-ss',String(start),'-t',String(plays),'-i',path,'-an','-vf','tpad=stop_mode=clone:stop_duration='+Math.max(0,target-plays).toFixed(3)+',fps=30,'+even,...enc]}
+   else cmd=['-v','error','-y','-loop','1','-i',path,'-t',String(target),'-an','-vf','fps=30,'+even,...enc];
+   const tmp=J(HOLD_ROOT,'hold-'+uuid()+'.mp4');
+   try{await ffmpeg([...cmd,tmp],180000)}catch(e){await drop(tmp);throw Error('Could not extend this clip to fill the postcard: '+String(e.message).slice(0,400))}
+   if(!exists(tmp))throw Error('Could not extend this clip to fill the postcard.');rename(tmp,dest)}
+  const out=await probe(dest);return{path:dest,name:base(dest),held:true,playedSeconds:r3(plays),durationSeconds:out.durationSeconds,width:out.width,height:out.height,start:0}};
+ const cutoutInput=async a=>{const path=String(a.path);if(!exists(path))throw Error('That file could not be found.');const start=Math.max(0,Number(a.start||0)),secs=Number(a.seconds);
+  if(a.projectId&&await L.reusable(a.projectId,L.identity(path),start))return{reusable:true};
+  const s=stat(path),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),Math.round(start*1000)/1000,Math.round(secs*1000)/1000,'cutout-input-v2']);mkdir(INPUT_ROOT);
+  const dest=J(INPUT_ROOT,ascii(stem(path).replace(/ - held .*$/,''),'Subject')+' - cutout input '+start.toFixed(2)+'-'+(start+secs).toFixed(2)+'s - '+key+'.mp4');
+  if(!exists(dest)){const [num,den]=(await quietProbe(['-v','error','-select_streams','v:0','-show_entries','stream=avg_frame_rate','-of','csv=p=0',path])).trim().split('/'),fast=(Number(num)||0)/(Number(den)||1)>30.5;
+   const tmp=J(INPUT_ROOT,'input-'+uuid()+'.mp4');
+   try{await ffmpeg(['-v','error','-y','-ss',String(start),'-i',path,'-t',String(secs),'-map','0:v:0','-an','-map_metadata','-1','-vf',(fast?'fps=30,':'')+'scale=trunc(iw/2)*2:trunc(ih/2)*2','-c:v','libx264','-preset','veryfast','-crf','18','-pix_fmt','yuv420p','-movflags','+faststart','-write_tmcd','0',tmp],180000)}
+   catch(e){await drop(tmp);throw Error('Could not prepare the subject for background removal: '+String(e.message).slice(0,400))}
+   if(!exists(tmp))throw Error('Could not prepare the subject for background removal.');rename(tmp,dest)}
+  return{path:dest,name:base(dest)}};
+ // --- the finished cutout (fetch_result): the app's job journal names its URL; the host downloads it ---
+ const journals=()=>{const home=fsx('homedir').homedir(),roots=hostIsWindows()?[J(home,'AppData','Roaming')]:[J(home,'Library','Application Support')],out=[],ls=p=>{try{return fsx('readdirSync').readdirSync(p).map(String).sort()}catch{return[]}};
+  const json=dir=>ls(dir).filter(n=>/\.json$/i.test(n)).map(n=>J(dir,n));
+  for(const r of roots){const apps=ls(r).filter(n=>n.startsWith('Cutback')).map(n=>J(r,n));for(const a of apps)out.push(...json(J(a,'generation')));for(const a of apps)for(const sub of ls(a))out.push(...json(J(a,sub,'generation')))}
+  return out};
+ const fetchResult=async a=>{const job=String(a.jobId).replace(/^selects-/,''),dest=String(a.dest);if(exists(dest)&&size(dest)>0)return{path:dest,cached:true};
+  let url=null;for(const journal of journals()){try{const text=await hostReadText(journal);if(!text.includes(job))continue;const jobs=JSON.parse(text).jobs||{};
+   for(const entry of Array.isArray(jobs)?jobs:Object.values(jobs)){if(entry?.operationId!==job)continue;const m=/"url"\s*:\s*"(https?:\/\/[^"]+)"/.exec(JSON.stringify(((entry.snapshot||entry).provider_data||{}).result||{}));if(m){url=m[1];break}}}catch{/* the next journal */}
+   if(url)break}
+  if(!url)throw Error('The finished clip is not in the app journal yet.');
+  const tmp=dest.replace(/\.[^.\\/]*$/,'')+'.part';mkdir(fsx('dirname').dirname(dest));await fsx('downloadFile').downloadFile(url,tmp);
+  if(!size(tmp)){await drop(tmp);throw Error('The finished clip downloaded empty.')}rename(tmp,dest);return{path:dest,cached:false}};
+ // --- the cutout check, the masks and the foreground (prepare / check_and_extract / encode_foreground) ---
+ const execute=async(args,d,stage,timeoutMs=180000)=>{const t=Date.now();await L.event(d,stage,'start',{command:args});let log='',failed=null;
+  try{log=await ffmpeg(args,timeoutMs)}catch(e){failed=e;log=e.message}
+  try{mkdir(d.logDir);await write(J(d.logDir,stage+'.stderr.log'),log)}catch{/* log only */}
+  await L.event(d,stage,failed?'failed':'end',{durationMs:Date.now()-t,exitCode:failed?1:0});if(failed)throw Error(stage+': '+String(log).slice(-2000));return log};
+ const fgSeconds=d=>Number(d.foregroundSeconds||6.45);
+ const fgDest=d=>{const s=Number(d.settings.subjectStartSec);return J(L.runpath(d.runId),'Cutout Foreground - '+ascii(stem(d.source.name),'Subject')+' - '+s.toFixed(3)+'-'+(s+fgSeconds(d)).toFixed(3)+'s - Alpha.webm')};
+ const encodeForeground=async(d,alphaInput,alphaChain,fps)=>{const w=Math.trunc(Number(d.source.frameSize.width)),h=Math.trunc(Number(d.source.frameSize.height));
+  if(w%2||h%2)throw Error('Foreground encoding requires even source dimensions');if(exists(fgDest(d)))throw Error('Uncommitted foreground file preserved; inspect before retrying');
+  const tmp=J(L.runpath(d.runId),'foreground-'+uuid()+'.webm');
+  const fc='[0:v]fps='+fps+',format=gbrp[rgb];'+alphaChain+',scale='+w+':'+h+",format=gray,split[a][m0];[m0]lut=y='if(gt(val,0),255,0)',format=gbrp[m];color=black:s="+w+'x'+h+':r='+fps+',format=gbrp[k];[k][rgb][m]maskedmerge[z];[z][a]alphamerge,format=yuva420p[out]';
+  await execute(['-v','error','-ss',String(Number(d.settings.subjectStartSec)),'-i',d.source.path,...alphaInput,'-filter_complex',fc,'-map','[out]','-t',String(fgSeconds(d)),'-an','-c:v','libvpx-vp9','-crf','18','-b:v','0','-deadline','realtime','-cpu-used','8','-row-mt','1','-auto-alt-ref','0',tmp],d,'foreground-encode');
+  const tags=(JSON.parse(await ffprobe(['-v','error','-select_streams','v:0','-show_entries','stream_tags','-of','json',tmp])).streams||[{}])[0]?.tags||{};
+  if(String(tags.alpha_mode??tags.ALPHA_MODE??'0')!=='1')throw Error('The foreground was written without alpha.');
+  await execute(['-v','error','-c:v','libvpx-vp9','-i',tmp,'-frames:v','1','-vf','alphaextract','-f','null','-'],d,'foreground-alpha-verify');
+  return tmp};
+ const commitForeground=(d,tmp)=>{const dest=fgDest(d);rename(tmp,dest);d.foregroundPath=dest;d.foregroundVersion=2;return dest};
+ // One decode of each file does the whole check and writes the masks. Each window's SSIM is the summary ffmpeg logs at
+ // the end (the mean over frames, as pipeline.py averages its stats file); the ssim filters are numbered in the order
+ // they are added, so the Nth one logged belongs to the Nth offset.
+ const checkAndExtract=async(d,src,cut,decoder,offsets,dur,masks,sz,fps)=>{const w=Math.max(2,Math.floor(sz[0]/8)*2),h=Math.max(2,Math.floor(sz[1]/8)*2),n=offsets.length,s0=Math.min(...offsets),span=Math.max(...offsets)-s0+dur,list=p=>Array.from({length:n},(_,i)=>'['+p+i+']').join('');
+  const g=['[1:v]format=rgba,split=2[ca][cb]','[ca]alphaextract,split=2[png][af]','[af]scale='+w+':'+h+':flags=area,split='+n+list('a'),'[cb]premultiply=inplace=1,format=gray,scale='+w+':'+h+':flags=area,split='+n+list('c'),'[0:v]fps='+fps+',scale='+w+':'+h+':flags=area,format=rgb24,split='+n+list('s')];
+  offsets.forEach((o,i)=>g.push('[s'+i+']trim=start='+(o-s0).toFixed(4)+':duration='+dur+',setpts=PTS-STARTPTS[t'+i+'];[t'+i+'][a'+i+']alphamerge,premultiply=inplace=1,format=gray[p'+i+'];[p'+i+'][c'+i+']ssim,nullsink'));
+  const log=await execute(['-hide_banner','-nostats','-v','info','-y','-ss',String(s0),'-t',String(span),'-i',src,'-t',String(dur),...decoder,'-i',cut,'-filter_complex',g.join(';'),'-map','[png]','-vsync','0',J(masks,'mask_%06d.png')],d,'cutout-check');
+  const found=[...String(log).matchAll(/\[Parsed_ssim_(\d+) @ [^\]]*\] SSIM [^\n]*?All:([0-9.]+)/g)].map(m=>[Number(m[1]),Number(m[2])]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+  return offsets.map((_,i)=>found[i]??0)};
+ const masksIn=dir=>{try{return fsx('readdirSync').readdirSync(dir).map(String).filter(x=>/^mask_\d+\.png$/.test(x)).sort().map(x=>J(dir,x))}catch{return[]}};
+ const coverage=async img=>{const b=await grab(['-v','error','-y','-i',img,'-vf','scale=64:64','-pix_fmt','gray','-f','rawvideo'],'.raw',60000);let sum=0;for(const v of b)sum+=v;return sum/(255*b.length)};
+ const localUrl=dir=>String(fsx('pathToLocalURL').pathToLocalURL(dir)).replace(/\/+$/,'');
+ const prepare=async a=>{let d=await L.load(a.runId);const dest=J(L.runpath(d.runId),'masks');
+  if(a.patch){Object.assign(d,a.patch);await L.save(d);if(a.details!=null)await L.event(d,'generation','end',a.details)}
+  if(d.sourceIdentity&&!L.same(d.sourceIdentity,L.identity(a.sourcePath)))throw Error('The source file changed during creation. The existing job is preserved; no new generation was submitted.');
+  if(d.mask&&isDir(stat(dest)))return d;
+  if(exists(dest))throw Error('Existing mask folder preserved; inspect interrupted run rather than overwrite it.');
+  const src=a.sourcePath,cut=a.cutoutPath,start=Number(a.startSeconds);if(a.seconds)d.foregroundSeconds=Number(a.seconds);const dur=fgSeconds(d);
+  await L.event(d,'mask-prepare','start');const t=Date.now();
+  await L.event(d,'cutout-probe','start',{command:['ffprobe',cut]});const p=(JSON.parse(await ffprobe(['-v','error','-select_streams','v:0','-show_entries','stream=codec_name,pix_fmt,width,height,avg_frame_rate:stream_tags','-of','json',cut])).streams||[])[0]||{};await L.event(d,'cutout-probe','end');
+  const pf=String(p.pix_fmt||''),alphaTag=String(p.tags?.alpha_mode??p.tags?.ALPHA_MODE??'0'),decoder=p.codec_name==='vp9'&&alphaTag==='1'?['-c:v','libvpx-vp9']:[];
+  if(!decoder.length&&!['yuva','rgba','argb','bgra','gbrap'].some(x=>pf.includes(x)))throw Error('Generated output has no decoded alpha: '+pf+'. Preserve the same job; do not regenerate.');
+  const [num,den]=String(p.avg_frame_rate).split('/').map(Number),fps=num/den,tmp=J(L.runpath(d.runId),'mask-preparing-'+uuid());mkdir(tmp);
+  const offsets=[start,...[start-.5,start-.1,start+.1,start+.5].filter(s=>s>=0)];
+  const check=(async()=>{const scores=await checkAndExtract(d,src,cut,decoder,offsets,dur,tmp,[Math.trunc(Number(p.width)),Math.trunc(Number(p.height))],fps),frames=masksIn(tmp),cover=[];
+   for(const img of frames.length?[frames[0],frames[Math.floor(frames.length/2)],frames[frames.length-1]]:[])cover.push(await coverage(img));return{scores,frames,cover}})();
+  const encoded=d.foregroundPath?null:encodeForeground(d,['-t',String(dur),...decoder,'-i',cut],'[1:v]alphaextract',fps).catch(async e=>{await L.event(d,'foreground','deferred',{error:String(e?.message||e).slice(-400)});return null});
+  let checked,fg=null;try{checked=await check}finally{fg=encoded?await encoded:null}
+  const {scores,frames,cover}=checked,ssim=scores[0],near=scores.slice(1);
+  if(ssim<.9||near.some(x=>x>ssim+.0005)){rmTree(tmp);if(fg)await drop(fg);throw Error('Cutout does not line up with the source (SSIM '+ssim.toFixed(4)+' here; '+near.map(x=>x.toFixed(4)).join(', ')+' nearby). No Draft was created.')}
+  if(frames.length<Math.trunc(dur*fps)-1)throw Error('Mask does not cover the foreground duration');
+  if(cover.every(x=>x<.0001||x>.9999))throw Error('Mask is blank or entirely opaque; preserved output for inspection, no regeneration.');
+  await L.event(d,'mask-coverage','end',{samples:cover});
+  rename(tmp,dest);
+  const first=J(dest,'mask_000001.png'),sig=await head(first,8).catch(()=>new Uint8Array());
+  if(![0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A].every((v,i)=>sig[i]===v))throw Error('Mask file validation failed');
+  d.mask={baseUrl:localUrl(dest),fps,count:frames.length,path:dest,sourcePath:src,sourceStartSeconds:start,cutoutPath:cut,provenanceSsim:ssim,provenanceNeighbourSsim:near,provenanceOk:true};d.phase='maskReady';
+  if(fg)commitForeground(d,fg);
+  await L.save(d);await L.event(d,'mask-prepare','end',{durationMs:Date.now()-t,mask:d.mask});return d};
+ const foreground=a=>lock('fg:'+a.runId,async()=>{const d=await L.load(a.runId);
+  if(d.foregroundPath&&d.foregroundVersion===2){if(!exists(d.foregroundPath))throw Error('Saved foreground file missing; inspect before retrying');return d}
+  const mask=d.mask;if(!mask||!isDir(stat(mask.path)))throw Error('Validated alpha masks required');const t=Date.now();
+  const tmp=await encodeForeground(d,['-framerate',String(mask.fps),'-i',J(mask.path,'mask_%06d.png')],'[1:v]format=gray',mask.fps);
+  const dest=commitForeground(d,tmp);await L.save(d);await L.event(d,'foreground','end',{durationMs:Date.now()-t,path:dest});return d});
+ // Where the subject sits in its frame, 0-1 from the top left: the 2nd-98th percentile of mask coverage on each axis.
+ const subjectBox=a=>lock('box:'+a.runId,async()=>{const d=await L.load(a.runId),m=d.mask||{};if('box' in m)return m.box;
+  const W=160,raw=await grab(['-v','error','-y','-i',J(m.path,'mask_%06d.png'),'-vf','scale='+W+':-2,format=gray','-f','rawvideo'],'.raw',60000).catch(()=>new Uint8Array());
+  const sz=await shownSize(J(m.path,'mask_000001.png'))||{width:16,height:9},H=Math.max(2,pyRound(W*sz.height/sz.width/2)*2),cols=new Array(W).fill(0),rows=new Array(H).fill(0);let total=0;
+  for(let k=0;k<Math.floor(raw.length/(W*H));k++)for(let y=0;y<H;y++){let n=0;const o=k*W*H+y*W;for(let x=0;x<W;x++)if(raw[o+x]>127){cols[x]++;n++}rows[y]+=n;total+=n}
+  const span=c=>{let lo=null,hi=null,acc=0;c.forEach((v,i)=>{acc+=v;if(lo===null&&acc>=total*.02)lo=i;if(hi===null&&acc>=total*.98)hi=i+1});return[lo/c.length,hi/c.length]},r4=x=>Number(x.toFixed(4));
+  let box=null;if(total){const [x0,x1]=span(cols),[y0,y1]=span(rows);box={x0:r4(x0),x1:r4(x1),y0:r4(y0),y1:r4(y1)}}
+  d.mask={...m,box};await L.save(d);return box});
+ // --- panel settings and the job record (settings-load / settings-save / job-record) ---
+ const settingsPath=J(store,'panel-state.json'),readJson=async(p,f)=>exists(p)?JSON.parse(await hostReadText(p)):f;
+ const settingsLoad=async a=>(await readJson(settingsPath,{}))[a.projectId]||{};
+ const settingsSave=a=>lock('settings',async()=>{const all=await readJson(settingsPath,{});all[a.projectId]={...(all[a.projectId]||{}),...a.settings};mkdir(store);await write(settingsPath,JSON.stringify(all,null,2));return{saved:true}});
+ const jobRecord=async a=>{const d=await L.load(a.runId),j=await readJson(J(d.logDir,'generation-job.json'),{});if(j.jobId){d.generation={...(d.generation||{}),...j};await L.save(d)}return d};
+ return {sfx,'folder-media':folderMedia,tile,strip,sizes,hold,silent:async a=>{const q=await silent(String(a.path));return{path:q,name:base(q)}},'cutout-input':cutoutInput,'fetch-result':fetchResult,
+  prepare,foreground,'subject-box':subjectBox,'settings-load':settingsLoad,'settings-save':settingsSave,'job-record':jobRecord,ensure:async()=>({}),
+  // The editor's own probes (pipeline.py has none of these): the subject's facts, the range preview, the export check.
+  probeText:path=>quietProbe(['-v','error','-select_streams','v:0','-show_entries','format=duration:stream=width,height','-of','json',path]),
+  rangePreview:async(path,start,end,count=4)=>{const n=Math.max(2,count),span=Math.max(.05,end-start);return{frames:await pool(Array.from({length:n},(_,i)=>{const t=start+span*i/(n-1);return i===n-1?Math.max(start,t-.05):t}),2,async t=>{try{return b64(await grab(['-y','-hide_banner','-loglevel','error','-ss',String(Math.max(0,t)),'-i',path,'-frames:v','1','-vf','scale=176:-1,format=yuv420p','-q:v','12','-f','mjpeg'],'.jpg',20000))}catch{return''}})}},
+  decodeCheck:async path=>{try{const stdout=await ffprobe(['-v','error','-show_entries','stream=codec_name,width,height,nb_frames,r_frame_rate','-show_entries','format=duration,size','-of','json',path]);const stderr=await ffmpeg(['-v','error','-i',path,'-f','null','-'],180000);return{exitCode:0,stdout,stderr}}catch(e){return{exitCode:1,stdout:'',stderr:String(e?.message||e)}}}};
+}
+// pc-port:end
 function inventoryCode(pid,offset=0){return `const p=selects.project(${json(pid)});const rs=await p.resources();let sf,warning='';try{sf=await p.sourceFiles()}catch{sf=await p.sourceFiles({folder:'(root)'});warning='Only top-level media could be loaded. Refresh media to retry the full library.'}const flat=(ns,o=[])=>{for(const n of ns||[])n.type==='dir'?flat(n.children,o):n.path&&o.push(n);return o};let fs=[];if('fileTree'in sf)fs=flat(sf.fileTree);else for(const f of sf.folders||[]){const s=await p.sourceFiles({folder:f.name});if('fileTree'in s)fs.push(...flat(s.fileTree))}const by=new Map(fs.map(f=>[f.resourceId,f]));const inventory=rs.flatMap(r=>{const f=by.get(r.resourceId);return f?.path?[{resourceId:r.resourceId,name:r.name,path:f.path,durationSeconds:r.durationSeconds||f.durationSeconds||null,frameSize:f.frameSize||null,frameRate:f.frameRate||null}]:[]});return {rows:inventory.slice(${offset},${offset+32}),total:inventory.length,warning}`}
 // A sound with takes in the manifest (`panel.1`..`panel.6`, `curtain.1`..) gets a
 // different take on each hit, as the reference never repeats one; others play as-is.
