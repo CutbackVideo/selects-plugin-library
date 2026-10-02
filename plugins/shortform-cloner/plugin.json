@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "shortform-cloner",
-  "version": "0.3.0-alpha.1",
+  "version": "0.3.0-alpha.2",
   "name": "Selects Clips",
   "summary": "Make a template from a channel's best shorts, then turn any long video into editable shorts that follow it.",
   "status": "experimental",
@@ -16,7 +16,7 @@
   "compatibility": {
     "platforms": [
       "macOS",
-      "Windows"
+      "Windows x64"
     ],
     "selects": "Requires Panel SDK runScript/runShell/askAI with pictures, Draft setFrameSize, setClipTransform and addMotionGraphic, project transcription, and the panel runtime FileSystem service. No Python or separate setup."
   },
