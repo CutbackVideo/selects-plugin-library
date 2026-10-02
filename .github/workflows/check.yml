@@ -64,6 +64,7 @@ jobs:
           node plugins/archive-vlog/tests/motion.test.cjs
           node plugins/archive-vlog/tests/panel.test.cjs
           node plugins/archive-vlog/tests/planner.test.cjs
+          node plugins/archive-vlog/tests/quick-score.test.cjs
           node plugins/archive-vlog/tests/scripts-edit.test.cjs
           node plugins/archive-vlog/tests/scripts-read.test.cjs
           node plugins/archive-vlog/tests/scripts-types.test.cjs
