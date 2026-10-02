@@ -138,9 +138,6 @@ async function hostProbeSeconds(path) {
 // av-host:end
 
 const PANEL_ID = "chris-williamson-style";
-// Shot detection, face framing and B-roll preparation still run in engine.mjs on Node.js and Apple Vision (macOS);
-// on Windows the panel opens and says so, before anything is changed.
-const MAC_ONLY = "Available on macOS for now.";
 const NEEDS_NEWER = "Chris Williamson Style needs a newer version of Selects.";
 const PREFIX = "Chris Williamson · ";
 const SUFFIX = " · Chris Williamson Style";
@@ -556,7 +553,7 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
   let node: Promise<string> | null = null;
   const env: Env = {
     runScript: async (script, summary, allowCommit = false) => {
-      const r = await sdk.runScript({ script, summary, allowCommit });
+      const r = await sdk.runScript({ script, summary, allowCommit, timeoutSeconds: 120 });
       if (r.isError || r.result === undefined) throw new Error((r.output || "Selects could not run " + summary).slice(0, 600));
       return r.result;
     },
@@ -632,7 +629,6 @@ function StylePanel({ sdk, context, ui }: any) {
   const [result, setResult] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
-    if (hostIsWindows()) { setSetupIssue(MAC_ONLY); return; }
     resolvePaths(sdk)
       .then((p) => {
         setPaths(p);
@@ -681,7 +677,6 @@ function StylePanel({ sdk, context, ui }: any) {
   }
 
   async function create() {
-    if (hostIsWindows()) { setSetupIssue(MAC_ONLY); return; }
     if (locked.current || !projectId || !sequenceId || !paths || setupIssue) return;
     const from = sequenceId;
     locked.current = true; setBusy(true); setError(""); setResult(null);
@@ -770,8 +765,6 @@ function TemplateRun({ sdk, context }: any) {
     };
     void (async () => {
       try {
-        // Before anything is created: the build needs macOS for now.
-        if (hostIsWindows()) throw new Error(MAC_ONLY);
         const projectId = context.projectId || "";
         const speaker = templateSpeaker(context.template);
         if (!projectId) throw new Error("Open a project, then try again.");
