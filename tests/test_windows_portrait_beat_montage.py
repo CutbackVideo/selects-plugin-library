@@ -182,7 +182,7 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
     def test_manifest_and_docs(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
-        self.assertEqual(manifest['version'], '0.1.6')
+        self.assertEqual(manifest['version'], '0.1.7')
         install = (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8')
         self.assertNotIn('brew install', install)
         self.assertIn('Windows', install)
