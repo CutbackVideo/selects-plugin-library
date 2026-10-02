@@ -36,7 +36,14 @@ const STRINGS = {
     preparingTools: "Preparing beat detection (first time only)",
     working: "Working",
     stillReading: "Still reading this Project's clips… This updates automatically.",
-    noFootage: "No analysed video or photos in this Project yet. Add video clips and analyse them, or add photos; this updates automatically.",
+    noFootage: "No videos or photos in this Project yet. Add clips or photos; this updates automatically.",
+    betterPicks: { one: "{count} clip not analysed; analysed clips give better picks", other: "{count} clips not analysed; analysed clips give better picks" },
+    unusable: { one: "{count} clip can't be used yet", other: "{count} clips can't be used yet" },
+    unusableWait: { one: "{count} clip can't be used yet (no length or file not found). This updates automatically.", other: "{count} clips can't be used yet (no length or file not found). This updates automatically." },
+    checkingClipsN: "Checking clips {done}/{count}",
+    cancel: "Cancel",
+    cancelled: "Build cancelled. Nothing was saved.",
+    quickUnavailable: "This Selects can't check clips without analysis, so their shots are evenly spaced. A newer Selects picks better shots.",
     turnOnPhotos: "Turn on Use photos in Advanced to build from this Project's photos.",
     noClipsSelected: "No clips selected. Choose clips in Advanced.",
     gap: " ",
@@ -46,13 +53,6 @@ const STRINGS = {
     photos: { one: "{count} photo", other: "{count} photos" },
     photosSelected: { one: "{selected} of {count} photo selected", other: "{selected} of {count} photos selected" },
     aboutSeconds: "about {seconds} s",
-    notAnalysed: { one: "{count} clip not analysed yet", other: "{count} clips not analysed yet" },
-    analysing: { one: "{count} clip is being analysed. This updates automatically when it finishes.", other: "{count} clips are being analysed. This updates automatically when they finish." },
-    notAnalysedAnalyse: { one: "{count} clip is not analysed yet. Analyse it in Selects to use it here.", other: "{count} clips are not analysed yet. Analyse them in Selects to use them here." },
-    notAnalysedMaybe: { one: "{count} clip is not analysed yet. If Selects is analysing it, this updates automatically.", other: "{count} clips are not analysed yet. If Selects is analysing them, this updates automatically." },
-    analysisFailed: { one: "{count} clip could not be analysed.", other: "{count} clips could not be analysed." },
-    noteAnalysing: { one: "{count} clip being analysed", other: "{count} clips being analysed" },
-    noteFailed: { one: "{count} clip could not be analysed", other: "{count} clips could not be analysed" },
     title: "Title",
     titleStyle: "Title style",
     titlePreview: "Title preview",
@@ -214,7 +214,14 @@ const STRINGS = {
     preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     working: "In Arbeit",
     stillReading: "Die Clips dieses Projekts werden noch gelesen… Das aktualisiert sich automatisch.",
-    noFootage: "In diesem Projekt gibt es noch keine analysierten Videos oder Fotos. Füge Videoclips hinzu und analysiere sie, oder füge Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
+    noFootage: "In diesem Projekt gibt es noch keine Videos oder Fotos. Füge Clips oder Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
+    betterPicks: { one: "{count} Clip nicht analysiert; analysierte Clips ergeben bessere Einstellungen", other: "{count} Clips nicht analysiert; analysierte Clips ergeben bessere Einstellungen" },
+    unusable: { one: "{count} Clip noch nicht verwendbar", other: "{count} Clips noch nicht verwendbar" },
+    unusableWait: { one: "{count} Clip ist noch nicht verwendbar (keine Länge oder Datei nicht gefunden). Das aktualisiert sich automatisch.", other: "{count} Clips sind noch nicht verwendbar (keine Länge oder Datei nicht gefunden). Das aktualisiert sich automatisch." },
+    checkingClipsN: "Clips werden geprüft {done}/{count}",
+    cancel: "Abbrechen",
+    cancelled: "Erstellen abgebrochen. Es wurde nichts gespeichert.",
+    quickUnavailable: "Diese Selects-Version kann Clips ohne Analyse nicht prüfen, daher sind ihre Einstellungen gleichmäßig verteilt. Eine neuere Selects-Version wählt bessere Einstellungen.",
     turnOnPhotos: "Aktiviere „Fotos verwenden“ unter „Erweitert“, um aus den Fotos dieses Projekts zu erstellen.",
     noClipsSelected: "Keine Clips ausgewählt. Wähle Clips unter „Erweitert“.",
     gap: " ",
@@ -224,13 +231,6 @@ const STRINGS = {
     photos: { one: "{count} Foto", other: "{count} Fotos" },
     photosSelected: { one: "{selected} von {count} Foto ausgewählt", other: "{selected} von {count} Fotos ausgewählt" },
     aboutSeconds: "ca. {seconds} s",
-    notAnalysed: { one: "{count} Clip noch nicht analysiert", other: "{count} Clips noch nicht analysiert" },
-    analysing: { one: "{count} Clip wird analysiert. Das aktualisiert sich automatisch, sobald er fertig ist.", other: "{count} Clips werden analysiert. Das aktualisiert sich automatisch, sobald sie fertig sind." },
-    notAnalysedAnalyse: { one: "{count} Clip ist noch nicht analysiert. Analysiere ihn in Selects, um ihn hier zu verwenden.", other: "{count} Clips sind noch nicht analysiert. Analysiere sie in Selects, um sie hier zu verwenden." },
-    notAnalysedMaybe: { one: "{count} Clip ist noch nicht analysiert. Falls Selects ihn gerade analysiert, aktualisiert sich das automatisch.", other: "{count} Clips sind noch nicht analysiert. Falls Selects sie gerade analysiert, aktualisiert sich das automatisch." },
-    analysisFailed: { one: "{count} Clip konnte nicht analysiert werden.", other: "{count} Clips konnten nicht analysiert werden." },
-    noteAnalysing: { one: "{count} Clip wird analysiert", other: "{count} Clips werden analysiert" },
-    noteFailed: { one: "{count} Clip nicht analysierbar", other: "{count} Clips nicht analysierbar" },
     title: "Titel",
     titleStyle: "Titelstil",
     titlePreview: "Titelvorschau",
@@ -392,7 +392,14 @@ const STRINGS = {
     preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     working: "Trabajando",
     stillReading: "Todavía se están leyendo los clips de este proyecto… Esto se actualiza automáticamente.",
-    noFootage: "Este proyecto aún no tiene vídeos analizados ni fotos. Añade clips de vídeo y analízalos, o añade fotos; se actualizará automáticamente.",
+    noFootage: "Este proyecto aún no tiene vídeos ni fotos. Añade clips o fotos; se actualizará automáticamente.",
+    betterPicks: { one: "{count} clip sin analizar; los clips analizados dan mejores planos", many: "{count} de clips sin analizar; los clips analizados dan mejores planos", other: "{count} clips sin analizar; los clips analizados dan mejores planos" },
+    unusable: { one: "{count} clip aún no se puede usar", many: "{count} de clips aún no se pueden usar", other: "{count} clips aún no se pueden usar" },
+    unusableWait: { one: "{count} clip aún no se puede usar (sin duración o archivo no encontrado). Esto se actualiza solo.", many: "{count} de clips aún no se pueden usar (sin duración o archivo no encontrado). Esto se actualiza solo.", other: "{count} clips aún no se pueden usar (sin duración o archivo no encontrado). Esto se actualiza solo." },
+    checkingClipsN: "Comprobando clips {done}/{count}",
+    cancel: "Cancelar",
+    cancelled: "Creación cancelada. No se guardó nada.",
+    quickUnavailable: "Esta versión de Selects no puede revisar clips sin analizar, así que sus planos se reparten de forma uniforme. Una versión más reciente de Selects elige mejores planos.",
     turnOnPhotos: "Activa «Usar fotos» en «Avanzado» para crear con las fotos de este proyecto.",
     noClipsSelected: "No hay clips seleccionados. Elige clips en «Avanzado».",
     gap: " ",
@@ -402,13 +409,6 @@ const STRINGS = {
     photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
     photosSelected: { one: "{selected} de {count} foto seleccionada", many: "{selected} de {count} de fotos seleccionadas", other: "{selected} de {count} fotos seleccionadas" },
     aboutSeconds: "unos {seconds} s",
-    notAnalysed: { one: "{count} clip sin analizar", many: "{count} de clips sin analizar", other: "{count} clips sin analizar" },
-    analysing: { one: "Se está analizando {count} clip. Esto se actualiza solo cuando termine.", many: "Se están analizando {count} de clips. Esto se actualiza solo cuando terminen.", other: "Se están analizando {count} clips. Esto se actualiza solo cuando terminen." },
-    notAnalysedAnalyse: { one: "{count} clip aún no está analizado. Analízalo en Selects para usarlo aquí.", many: "{count} de clips aún no están analizados. Analízalos en Selects para usarlos aquí.", other: "{count} clips aún no están analizados. Analízalos en Selects para usarlos aquí." },
-    notAnalysedMaybe: { one: "{count} clip aún no está analizado. Si Selects lo está analizando, esto se actualiza solo.", many: "{count} de clips aún no están analizados. Si Selects los está analizando, esto se actualiza solo.", other: "{count} clips aún no están analizados. Si Selects los está analizando, esto se actualiza solo." },
-    analysisFailed: { one: "No se pudo analizar {count} clip.", many: "No se pudieron analizar {count} de clips.", other: "No se pudieron analizar {count} clips." },
-    noteAnalysing: { one: "{count} clip en análisis", many: "{count} de clips en análisis", other: "{count} clips en análisis" },
-    noteFailed: { one: "{count} clip sin poder analizarse", many: "{count} de clips sin poder analizarse", other: "{count} clips sin poder analizarse" },
     title: "Título",
     titleStyle: "Estilo del título",
     titlePreview: "Vista previa del título",
@@ -570,7 +570,14 @@ const STRINGS = {
     preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     working: "En cours",
     stillReading: "Lecture des clips de ce projet en cours… La liste se met à jour automatiquement.",
-    noFootage: "Ce projet ne contient pas encore de vidéo analysée ni de photo. Ajoutez des clips vidéo et analysez-les, ou ajoutez des photos ; l'affichage se met à jour automatiquement.",
+    noFootage: "Ce projet ne contient pas encore de vidéo ni de photo. Ajoutez des clips ou des photos ; l'affichage se met à jour automatiquement.",
+    betterPicks: { one: "{count} clip non analysé ; les clips analysés donnent de meilleurs plans", many: "{count} de clips non analysés ; les clips analysés donnent de meilleurs plans", other: "{count} clips non analysés ; les clips analysés donnent de meilleurs plans" },
+    unusable: { one: "{count} clip pas encore utilisable", many: "{count} de clips pas encore utilisables", other: "{count} clips pas encore utilisables" },
+    unusableWait: { one: "{count} clip n'est pas encore utilisable (pas de durée ou fichier introuvable). Ceci se met à jour automatiquement.", many: "{count} de clips ne sont pas encore utilisables (pas de durée ou fichier introuvable). Ceci se met à jour automatiquement.", other: "{count} clips ne sont pas encore utilisables (pas de durée ou fichier introuvable). Ceci se met à jour automatiquement." },
+    checkingClipsN: "Vérification des clips {done}/{count}",
+    cancel: "Annuler",
+    cancelled: "Création annulée. Rien n'a été enregistré.",
+    quickUnavailable: "Cette version de Selects ne peut pas vérifier les clips non analysés : leurs plans sont donc répartis régulièrement. Une version plus récente de Selects choisit de meilleurs plans.",
     turnOnPhotos: "Activez « Utiliser les photos » dans « Avancé » pour créer à partir des photos de ce projet.",
     noClipsSelected: "Aucun clip sélectionné. Choisissez des clips dans « Avancé ».",
     gap: " ",
@@ -580,13 +587,6 @@ const STRINGS = {
     photos: { one: "{count} photo", many: "{count} de photos", other: "{count} photos" },
     photosSelected: { one: "{selected} sur {count} photo sélectionnée", many: "{selected} sur {count} de photos sélectionnées", other: "{selected} sur {count} photos sélectionnées" },
     aboutSeconds: "environ {seconds} s",
-    notAnalysed: { one: "{count} clip pas encore analysé", many: "{count} de clips pas encore analysés", other: "{count} clips pas encore analysés" },
-    analysing: { one: "{count} clip est en cours d'analyse. Ceci se met à jour automatiquement à la fin.", many: "{count} de clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin.", other: "{count} clips sont en cours d'analyse. Ceci se met à jour automatiquement à la fin." },
-    notAnalysedAnalyse: { one: "{count} clip n'est pas encore analysé. Analysez-le dans Selects pour l'utiliser ici.", many: "{count} de clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici.", other: "{count} clips ne sont pas encore analysés. Analysez-les dans Selects pour les utiliser ici." },
-    notAnalysedMaybe: { one: "{count} clip n'est pas encore analysé. Si Selects l'analyse, ceci se met à jour automatiquement.", many: "{count} de clips ne sont pas encore analysés. Si Selects les analyse, ceci se met à jour automatiquement.", other: "{count} clips ne sont pas encore analysés. Si Selects les analyse, ceci se met à jour automatiquement." },
-    analysisFailed: { one: "{count} clip n'a pas pu être analysé.", many: "{count} de clips n'ont pas pu être analysés.", other: "{count} clips n'ont pas pu être analysés." },
-    noteAnalysing: { one: "{count} clip en cours d'analyse", many: "{count} de clips en cours d'analyse", other: "{count} clips en cours d'analyse" },
-    noteFailed: { one: "{count} clip non analysable", many: "{count} de clips non analysables", other: "{count} clips non analysables" },
     title: "Titre",
     titleStyle: "Style du titre",
     titlePreview: "Aperçu du titre",
@@ -748,7 +748,14 @@ const STRINGS = {
     preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     working: "In corso",
     stillReading: "Lettura delle clip di questo progetto in corso… Si aggiorna automaticamente.",
-    noFootage: "In questo progetto non ci sono ancora video analizzati né foto. Aggiungi clip video e analizzale, oppure aggiungi foto; si aggiorna automaticamente.",
+    noFootage: "In questo progetto non ci sono ancora video né foto. Aggiungi clip o foto; si aggiorna automaticamente.",
+    betterPicks: { one: "{count} clip non analizzata; le clip analizzate danno inquadrature migliori", many: "{count} di clip non analizzate; le clip analizzate danno inquadrature migliori", other: "{count} clip non analizzate; le clip analizzate danno inquadrature migliori" },
+    unusable: { one: "{count} clip non ancora utilizzabile", many: "{count} di clip non ancora utilizzabili", other: "{count} clip non ancora utilizzabili" },
+    unusableWait: { one: "{count} clip non è ancora utilizzabile (senza durata o file non trovato). Si aggiorna automaticamente.", many: "{count} di clip non sono ancora utilizzabili (senza durata o file non trovato). Si aggiorna automaticamente.", other: "{count} clip non sono ancora utilizzabili (senza durata o file non trovato). Si aggiorna automaticamente." },
+    checkingClipsN: "Controllo delle clip {done}/{count}",
+    cancel: "Annulla",
+    cancelled: "Creazione annullata. Non è stato salvato nulla.",
+    quickUnavailable: "Questa versione di Selects non può controllare le clip non analizzate, quindi le loro inquadrature sono distribuite in modo uniforme. Una versione più recente di Selects sceglie inquadrature migliori.",
     turnOnPhotos: "Attiva «Usa foto» in «Avanzate» per creare dalle foto di questo progetto.",
     noClipsSelected: "Nessuna clip selezionata. Scegli le clip in «Avanzate».",
     gap: " ",
@@ -758,13 +765,6 @@ const STRINGS = {
     photos: { one: "{count} foto", many: "{count} di foto", other: "{count} foto" },
     photosSelected: { one: "{selected} di {count} foto selezionata", many: "{selected} di {count} foto selezionate", other: "{selected} di {count} foto selezionate" },
     aboutSeconds: "circa {seconds} s",
-    notAnalysed: { one: "{count} clip non ancora analizzata", many: "{count} di clip non ancora analizzate", other: "{count} clip non ancora analizzate" },
-    analysing: { one: "{count} clip è in fase di analisi. Si aggiorna automaticamente al termine.", many: "{count} di clip sono in fase di analisi. Si aggiorna automaticamente al termine.", other: "{count} clip sono in fase di analisi. Si aggiorna automaticamente al termine." },
-    notAnalysedAnalyse: { one: "{count} clip non è ancora analizzata. Analizzala in Selects per usarla qui.", many: "{count} di clip non sono ancora analizzate. Analizzale in Selects per usarle qui.", other: "{count} clip non sono ancora analizzate. Analizzale in Selects per usarle qui." },
-    notAnalysedMaybe: { one: "{count} clip non è ancora analizzata. Se Selects la sta analizzando, si aggiorna automaticamente.", many: "{count} di clip non sono ancora analizzate. Se Selects le sta analizzando, si aggiorna automaticamente.", other: "{count} clip non sono ancora analizzate. Se Selects le sta analizzando, si aggiorna automaticamente." },
-    analysisFailed: { one: "Non è stato possibile analizzare {count} clip.", many: "Non è stato possibile analizzare {count} di clip.", other: "Non è stato possibile analizzare {count} clip." },
-    noteAnalysing: { one: "{count} clip in analisi", many: "{count} di clip in analisi", other: "{count} clip in analisi" },
-    noteFailed: { one: "{count} clip non analizzabile", many: "{count} di clip non analizzabili", other: "{count} clip non analizzabili" },
     title: "Titolo",
     titleStyle: "Stile del titolo",
     titlePreview: "Anteprima del titolo",
@@ -926,7 +926,14 @@ const STRINGS = {
     preparingTools: "ビート検出を準備中(初回のみ)",
     working: "処理中",
     stillReading: "このプロジェクトのクリップを読み込み中… 自動で更新されます。",
-    noFootage: "このプロジェクトには、解析済みの動画も写真もまだありません。動画クリップを追加して解析するか、写真を追加してください。自動で更新されます。",
+    noFootage: "このプロジェクトには、動画も写真もまだありません。クリップか写真を追加してください。自動で更新されます。",
+    betterPicks: { other: "未解析のクリップ {count} 本（解析済みのクリップのほうが良いショットを選べます）" },
+    unusable: { other: "まだ使えないクリップ {count} 本" },
+    unusableWait: { other: "{count} 本のクリップはまだ使えません（長さがないか、ファイルが見つかりません）。自動で更新されます。" },
+    checkingClipsN: "クリップを確認中 {done}/{count}",
+    cancel: "キャンセル",
+    cancelled: "作成をキャンセルしました。何も保存されていません。",
+    quickUnavailable: "この Selects では未解析のクリップを確認できないため、ショットを均等に選びました。新しい Selects ではより良いショットを選べます。",
     turnOnPhotos: "このプロジェクトの写真から作成するには、「詳細設定」で「写真を使う」をオンにしてください。",
     noClipsSelected: "クリップが選択されていません。「詳細設定」でクリップを選んでください。",
     gap: "",
@@ -936,13 +943,6 @@ const STRINGS = {
     photos: { other: "写真 {count} 枚" },
     photosSelected: { other: "写真 {count} 枚中 {selected} 枚を選択" },
     aboutSeconds: "約 {seconds} 秒",
-    notAnalysed: { other: "未解析のクリップ {count} 本" },
-    analysing: { other: "{count} 本のクリップを解析中です。終わると自動で更新されます。" },
-    notAnalysedAnalyse: { other: "{count} 本のクリップがまだ解析されていません。ここで使うには Selects で解析してください。" },
-    notAnalysedMaybe: { other: "{count} 本のクリップがまだ解析されていません。Selects が解析中なら、自動で更新されます。" },
-    analysisFailed: { other: "{count} 本のクリップを解析できませんでした。" },
-    noteAnalysing: { other: "解析中のクリップ {count} 本" },
-    noteFailed: { other: "解析できなかったクリップ {count} 本" },
     title: "タイトル",
     titleStyle: "タイトルのスタイル",
     titlePreview: "タイトルのプレビュー",
@@ -1104,7 +1104,14 @@ const STRINGS = {
     preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     working: "\uc791\uc5c5 \uc911",
     stillReading: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \ud074\ub9bd\uc744 \uc77d\ub294 \uc911… \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
-    noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \ubd84\uc11d\ub41c \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc601\uc0c1 \ud074\ub9bd\uc744 \ucd94\uac00\ud574 \ubd84\uc11d\ud558\uac70\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
+    noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
+    betterPicks: { other: "\ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd {count}\uac1c (\ubd84\uc11d\ub41c \ud074\ub9bd\uc5d0\uc11c \ub354 \uc88b\uc740 \uc0f7\uc744 \uace0\ub985\ub2c8\ub2e4)" },
+    unusable: { other: "\uc544\uc9c1 \uc4f8 \uc218 \uc5c6\ub294 \ud074\ub9bd {count}\uac1c" },
+    unusableWait: { other: "\ud074\ub9bd {count}\uac1c\ub97c \uc544\uc9c1 \uc4f8 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4(\uae38\uc774\uac00 \uc5c6\uac70\ub098 \ud30c\uc77c\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc74c). \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
+    checkingClipsN: "\ud074\ub9bd \ud655\uc778 \uc911 {done}/{count}",
+    cancel: "\ucde8\uc18c",
+    cancelled: "\ub9cc\ub4e4\uae30\ub97c \ucde8\uc18c\ud588\uc2b5\ub2c8\ub2e4. \uc544\ubb34\uac83\ub3c4 \uc800\uc7a5\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
+    quickUnavailable: "\uc774 Selects \ubc84\uc804\uc740 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd\uc744 \ud655\uc778\ud560 \uc218 \uc5c6\uc5b4 \uc0f7\uc744 \uace0\ub974\uac8c \ub098\ub220 \uace8\ub790\uc2b5\ub2c8\ub2e4. \uc0c8 Selects \ubc84\uc804\uc5d0\uc11c\ub294 \ub354 \uc88b\uc740 \uc0f7\uc744 \uace0\ub985\ub2c8\ub2e4.",
     turnOnPhotos: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc0ac\uc9c4\uc73c\ub85c \ub9cc\ub4e4\ub824\uba74 ‘\uace0\uae09’\uc5d0\uc11c ‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc744 \ucf1c\uc138\uc694.",
     noClipsSelected: "\uc120\ud0dd\ud55c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. ‘\uace0\uae09’\uc5d0\uc11c \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
     gap: " ",
@@ -1114,13 +1121,6 @@ const STRINGS = {
     photos: { other: "\uc0ac\uc9c4 {count}\uc7a5" },
     photosSelected: { other: "\uc0ac\uc9c4 {count}\uc7a5 \uc911 {selected}\uc7a5 \uc120\ud0dd" },
     aboutSeconds: "\uc57d {seconds}\ucd08",
-    notAnalysed: { other: "\uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd {count}\uac1c" },
-    analysing: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4. \ubd84\uc11d\uc774 \ub05d\ub098\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
-    notAnalysedAnalyse: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uc5ec\uae30\uc11c \uc4f0\ub824\uba74 Selects\uc5d0\uc11c \ubd84\uc11d\ud558\uc138\uc694." },
-    notAnalysedMaybe: { other: "\ud074\ub9bd {count}\uac1c\uac00 \uc544\uc9c1 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Selects\uc5d0\uc11c \ubd84\uc11d \uc911\uc774\ub77c\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
-    analysisFailed: { other: "\ud074\ub9bd {count}\uac1c\ub97c \ubd84\uc11d\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4." },
-    noteAnalysing: { other: "\ubd84\uc11d \uc911\uc778 \ud074\ub9bd {count}\uac1c" },
-    noteFailed: { other: "\ubd84\uc11d\ud558\uc9c0 \ubabb\ud55c \ud074\ub9bd {count}\uac1c" },
     title: "\ud0c0\uc774\ud2c0",
     titleStyle: "\ud0c0\uc774\ud2c0 \uc2a4\ud0c0\uc77c",
     titlePreview: "\ud0c0\uc774\ud2c0 \ubbf8\ub9ac\ubcf4\uae30",
@@ -1282,7 +1282,14 @@ const STRINGS = {
     preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     working: "Trabalhando",
     stillReading: "Ainda lendo os clipes deste projeto… Isto se atualiza automaticamente.",
-    noFootage: "Este projeto ainda não tem vídeos analisados nem fotos. Adicione clipes de vídeo e analise-os, ou adicione fotos; a lista é atualizada automaticamente.",
+    noFootage: "Este projeto ainda não tem vídeos nem fotos. Adicione clipes ou fotos; a lista é atualizada automaticamente.",
+    betterPicks: { one: "{count} clipe não analisado; clipes analisados rendem planos melhores", many: "{count} de clipes não analisados; clipes analisados rendem planos melhores", other: "{count} clipes não analisados; clipes analisados rendem planos melhores" },
+    unusable: { one: "{count} clipe ainda não pode ser usado", many: "{count} de clipes ainda não podem ser usados", other: "{count} clipes ainda não podem ser usados" },
+    unusableWait: { one: "{count} clipe ainda não pode ser usado (sem duração ou arquivo não encontrado). Isto se atualiza sozinho.", many: "{count} de clipes ainda não podem ser usados (sem duração ou arquivo não encontrado). Isto se atualiza sozinho.", other: "{count} clipes ainda não podem ser usados (sem duração ou arquivo não encontrado). Isto se atualiza sozinho." },
+    checkingClipsN: "Verificando clipes {done}/{count}",
+    cancel: "Cancelar",
+    cancelled: "Criação cancelada. Nada foi salvo.",
+    quickUnavailable: "Esta versão do Selects não consegue verificar clipes não analisados, então os planos deles são distribuídos por igual. Uma versão mais nova do Selects escolhe planos melhores.",
     turnOnPhotos: "Ative “Usar fotos” em “Avançado” para criar com as fotos deste projeto.",
     noClipsSelected: "Nenhum clipe selecionado. Escolha clipes em “Avançado”.",
     gap: " ",
@@ -1292,13 +1299,6 @@ const STRINGS = {
     photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
     photosSelected: { one: "{selected} de {count} foto selecionada", many: "{selected} de {count} de fotos selecionadas", other: "{selected} de {count} fotos selecionadas" },
     aboutSeconds: "cerca de {seconds} s",
-    notAnalysed: { one: "{count} clipe ainda não analisado", many: "{count} de clipes ainda não analisados", other: "{count} clipes ainda não analisados" },
-    analysing: { one: "{count} clipe está sendo analisado. Isto se atualiza sozinho quando terminar.", many: "{count} de clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem.", other: "{count} clipes estão sendo analisados. Isto se atualiza sozinho quando terminarem." },
-    notAnalysedAnalyse: { one: "{count} clipe ainda não foi analisado. Analise-o no Selects para usá-lo aqui.", many: "{count} de clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui.", other: "{count} clipes ainda não foram analisados. Analise-os no Selects para usá-los aqui." },
-    notAnalysedMaybe: { one: "{count} clipe ainda não foi analisado. Se o Selects estiver analisando, isto se atualiza sozinho.", many: "{count} de clipes ainda não foram analisados. Se o Selects estiver analisando, isto se atualiza sozinho.", other: "{count} clipes ainda não foram analisados. Se o Selects estiver analisando, isto se atualiza sozinho." },
-    analysisFailed: { one: "Não foi possível analisar {count} clipe.", many: "Não foi possível analisar {count} de clipes.", other: "Não foi possível analisar {count} clipes." },
-    noteAnalysing: { one: "{count} clipe em análise", many: "{count} de clipes em análise", other: "{count} clipes em análise" },
-    noteFailed: { one: "{count} clipe não pôde ser analisado", many: "{count} de clipes não puderam ser analisados", other: "{count} clipes não puderam ser analisados" },
     title: "Título",
     titleStyle: "Estilo do título",
     titlePreview: "Prévia do título",
@@ -1460,7 +1460,14 @@ const STRINGS = {
     preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     working: "Çalışıyor",
     stillReading: "Bu projenin klipleri hâlâ okunuyor… Bu otomatik olarak güncellenir.",
-    noFootage: "Bu projede henüz analiz edilmiş video veya fotoğraf yok. Video klipleri ekleyip analiz edin ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
+    noFootage: "Bu projede henüz video veya fotoğraf yok. Klip ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
+    betterPicks: { one: "{count} klip analiz edilmedi; analiz edilmiş klipler daha iyi çekimler verir", other: "{count} klip analiz edilmedi; analiz edilmiş klipler daha iyi çekimler verir" },
+    unusable: { one: "{count} klip henüz kullanılamıyor", other: "{count} klip henüz kullanılamıyor" },
+    unusableWait: { one: "{count} klip henüz kullanılamıyor (süre yok veya dosya bulunamadı). Bu otomatik olarak güncellenir.", other: "{count} klip henüz kullanılamıyor (süre yok veya dosya bulunamadı). Bu otomatik olarak güncellenir." },
+    checkingClipsN: "Klipler kontrol ediliyor {done}/{count}",
+    cancel: "İptal",
+    cancelled: "Oluşturma iptal edildi. Hiçbir şey kaydedilmedi.",
+    quickUnavailable: "Bu Selects sürümü analiz edilmemiş klipleri kontrol edemiyor, bu yüzden çekimler eşit aralıklarla seçildi. Daha yeni bir Selects sürümü daha iyi çekimler seçer.",
     turnOnPhotos: "Bu projenin fotoğraflarından oluşturmak için “Gelişmiş” bölümünde “Fotoğrafları kullan” seçeneğini açın.",
     noClipsSelected: "Klip seçilmedi. “Gelişmiş” bölümünden klip seçin.",
     gap: " ",
@@ -1470,13 +1477,6 @@ const STRINGS = {
     photos: { one: "{count} fotoğraf", other: "{count} fotoğraf" },
     photosSelected: { one: "{count} fotoğraftan {selected} tanesi seçili", other: "{count} fotoğraftan {selected} tanesi seçili" },
     aboutSeconds: "yaklaşık {seconds} sn",
-    notAnalysed: { one: "{count} klip henüz analiz edilmedi", other: "{count} klip henüz analiz edilmedi" },
-    analysing: { one: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir.", other: "{count} klip analiz ediliyor. Bitince bu otomatik olarak güncellenir." },
-    notAnalysedAnalyse: { one: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin.", other: "{count} klip henüz analiz edilmedi. Burada kullanmak için Selects'te analiz edin." },
-    notAnalysedMaybe: { one: "{count} klip henüz analiz edilmedi. Selects analiz ediyorsa bu otomatik olarak güncellenir.", other: "{count} klip henüz analiz edilmedi. Selects analiz ediyorsa bu otomatik olarak güncellenir." },
-    analysisFailed: { one: "{count} klip analiz edilemedi.", other: "{count} klip analiz edilemedi." },
-    noteAnalysing: { one: "{count} klip analiz ediliyor", other: "{count} klip analiz ediliyor" },
-    noteFailed: { one: "{count} klip analiz edilemedi", other: "{count} klip analiz edilemedi" },
     title: "Başlık",
     titleStyle: "Başlık stili",
     titlePreview: "Başlık önizlemesi",
@@ -1638,7 +1638,14 @@ const STRINGS = {
     preparingTools: "正在准备节拍检测(仅首次)",
     working: "处理中",
     stillReading: "仍在读取此项目的片段… 完成后会自动更新。",
-    noFootage: "此项目中还没有已分析的视频或照片。请添加视频片段并进行分析，或添加照片；这里会自动更新。",
+    noFootage: "此项目中还没有视频或照片。请添加片段或照片；这里会自动更新。",
+    betterPicks: { other: "{count} 个片段未分析（已分析的片段能选出更好的镜头）" },
+    unusable: { other: "{count} 个片段暂时无法使用" },
+    unusableWait: { other: "{count} 个片段暂时无法使用（没有时长或找不到文件）。这里会自动更新。" },
+    checkingClipsN: "正在检查片段 {done}/{count}",
+    cancel: "取消",
+    cancelled: "已取消创建，未保存任何内容。",
+    quickUnavailable: "此版本的 Selects 无法检查未分析的片段，因此均匀选取了镜头。较新版本的 Selects 能选出更好的镜头。",
     turnOnPhotos: "请在“高级”中开启“使用照片”，即可用此项目的照片制作。",
     noClipsSelected: "未选择片段。请在“高级”中选择片段。",
     gap: "",
@@ -1648,13 +1655,6 @@ const STRINGS = {
     photos: { other: "{count} 张照片" },
     photosSelected: { other: "已选 {selected}/{count} 张照片" },
     aboutSeconds: "约 {seconds} 秒",
-    notAnalysed: { other: "{count} 个片段尚未分析" },
-    analysing: { other: "正在分析 {count} 个片段。分析完成后会自动更新。" },
-    notAnalysedAnalyse: { other: "有 {count} 个片段尚未分析。请在 Selects 中分析后再在这里使用。" },
-    notAnalysedMaybe: { other: "有 {count} 个片段尚未分析。如果 Selects 正在分析，这里会自动更新。" },
-    analysisFailed: { other: "有 {count} 个片段无法分析。" },
-    noteAnalysing: { other: "{count} 个片段分析中" },
-    noteFailed: { other: "{count} 个片段无法分析" },
     title: "标题",
     titleStyle: "标题样式",
     titlePreview: "标题预览",
@@ -2732,6 +2732,393 @@ function mvPunchFrames(opts) {
 }
 // mv-hook:end
 
+// mv-local:start
+// Clips without analysis (build without analysis), plain JS: the headless driver (dev/driveAdapter.mjs) loads this
+// block next to planner.js and the mv-hook block, so the panel and the driver turn quick local scores (the kit's
+// quick-score block below) into the same planner candidates.
+// - Role: a clip without analysis has no scene search, so nothing says whether a window shows a drink, a street or a
+//   park. Every window gets MV_LOCAL_ROLE, a role outside MV_ROLES: the allocator ranks it in its "any real hit" tier
+//   (after preferred-role hits, before fillers) at each use count. A slot's own-role scene hit on an analysed clip used
+//   as often still comes first, an unused clip without analysis still beats any reuse (fresh first), and the photo
+//   share and the hard rules are untouched.
+// - Windows: the kit's qsCandidates(scores, 'montage', MV_LOCAL_WINDOW, MV_LOCAL_MAX, MV_LOCAL_APART): MV_LOCAL_WINDOW-
+//   second windows (long enough for a 2-beat Groove hold) starting at least 0.5 s in, free of black, fade or flash
+//   frames and scene cuts while any clean window fits, sharp and well exposed first, moving windows ranked higher
+//   (Mini Vlog is a montage). Every window becomes { rid, role: MV_LOCAL_ROLE, t (window centre), score,
+//   sourceDuration }; the allocator centres a shot on t, so a shot up to MV_LOCAL_WINDOW long stays inside its window.
+//   A clip the check could not decode (no host ffmpeg, an error, the budget spent: `fallback`) gets mvLocalWindows
+//   (whole seconds from 1 s, as search.js gives the template run) at the bottom of the range.
+// - One scale (mvScoreRange): the 0-1 local score s maps linearly onto the 10th..90th percentile [lo, hi] of this
+//   run's scene-search scores (role hits, not motion hits): score = lo + s * (hi - lo). A range narrower than 0.05 is
+//   widened to 0.05 around its middle; without any scene hit (no analysed clip) it is MV_LOCAL_RANGE, the
+//   neighbourhood scene-search scores sit in (0.26-0.32 on the reference footage), so the allocator's fixed steps
+//   (0.15 per role rank, 0.2 per recent repeat, 0.05 jitter, 0.1 motion bonus) weigh the same as with analysed clips.
+//   Scene-search scores are never changed: a Project with every clip analysed plans exactly as before.
+// - Beat punch: the motion query cannot run on these clips, so their windows' own motion, ranked 0..1 across the
+//   build's decoded windows, gives the same motion bonus (MV_MOTION_BONUS x rank) and `motion` tag as mvMotionBonus;
+//   the planner's motion opener then can open on a moving window of a clip without analysis too (Mini Vlog opens on
+//   movement, spec 15.2). Fallback windows have no motion. Without Beat punch nothing carries motion.
+const MV_LOCAL_ROLE = 'local';
+const MV_LOCAL_WINDOW = 1.4;
+const MV_LOCAL_MAX = 24;
+const MV_LOCAL_APART = 0.5;
+const MV_LOCAL_FALLBACK_MAX = 24;
+const MV_LOCAL_RANGE = { lo: 0.25, hi: 0.35 };
+// Quick checks at a time, and the time all of a build's checks share (clips not started by then get mvLocalWindows).
+const MV_LOCAL_CONCURRENCY = 3;
+const MV_LOCAL_BUDGET_MS = 20000;
+// Evenly spaced window centres for a clip of `dur` seconds: whole seconds from 1 s, each half a second clear of the
+// end, at most MV_LOCAL_FALLBACK_MAX spread over the clip; a clip under 1.5 s gets its middle. scripts/search.js has a
+// copy (localWindows) for the template run; tests/no-analysis.test.cjs keeps them identical.
+function mvLocalWindows(dur) {
+  const n = Math.floor(dur - 0.5 + 1e-9);
+  if (n < 1) return dur > 0 ? [Math.round(dur / 2 * 1000) / 1000] : [];
+  if (n <= MV_LOCAL_FALLBACK_MAX) return Array.from({ length: n }, (_, k) => k + 1);
+  return Array.from({ length: MV_LOCAL_FALLBACK_MAX }, (_, k) => 1 + Math.round(k * (n - 1) / (MV_LOCAL_FALLBACK_MAX - 1)));
+}
+// The scale local scores share with scene search (see above), from a build's candidate list.
+function mvScoreRange(list) {
+  const s = (list || []).filter(c => c && c.role !== MV_MOTION_ROLE && c.role !== MV_LOCAL_ROLE && typeof c.score === 'number' && isFinite(c.score))
+    .map(c => c.score).sort((a, b) => a - b);
+  if (!s.length) return { lo: MV_LOCAL_RANGE.lo, hi: MV_LOCAL_RANGE.hi };
+  const at = q => s[Math.min(s.length - 1, Math.max(0, Math.round(q * (s.length - 1))))];
+  let lo = at(0.1), hi = at(0.9);
+  if (hi - lo < 0.05) { const mid = (lo + hi) / 2; lo = mid - 0.025; hi = mid + 0.025; }
+  return { lo, hi };
+}
+// Planner candidates of clips without analysis. results: [{ rid, duration, scores: a quickScore result or null }].
+function mvLocalCandidates(results, range, punch) {
+  const lo = range.lo, hi = range.hi, out = [], decoded = [];
+  for (const r of results || []) {
+    if (!r || typeof r.rid !== 'string' || !(r.duration > 0)) continue;
+    const sc = r.scores;
+    const picks = sc && !sc.fallback && Array.isArray(sc.windows) && sc.windows.length ? qsCandidates(sc, 'montage', MV_LOCAL_WINDOW, MV_LOCAL_MAX, MV_LOCAL_APART) : [];
+    if (!picks.length) {
+      for (const t of mvLocalWindows(r.duration)) out.push({ rid: r.rid, role: MV_LOCAL_ROLE, t, score: lo, sourceDuration: r.duration });
+      continue;
+    }
+    for (const c of picks) {
+      const cand = { rid: r.rid, role: MV_LOCAL_ROLE, t: c.t, score: lo + Math.max(0, Math.min(1, c.score)) * (hi - lo), sourceDuration: r.duration };
+      out.push(cand);
+      if (punch && typeof c.motion === 'number' && isFinite(c.motion)) decoded.push([cand, c.motion]);
+    }
+  }
+  const sorted = decoded.map(d => d[1]).sort((a, b) => a - b);
+  for (const [cand, m] of decoded) {
+    // Rank 0..1: the share of decoded windows moving less than this one.
+    const rank = sorted.length < 2 ? 0 : sorted.filter(x => x < m).length / (sorted.length - 1);
+    if (rank > 0) { cand.score += MV_MOTION_BONUS * rank; cand.motion = rank; }
+  }
+  return out;
+}
+// A build's candidates: the scene-search list unchanged, plus the local candidates on its scale.
+function mvWithLocal(list, results, punch) {
+  if (!results || !results.length) return list;
+  return list.concat(mvLocalCandidates(results, mvScoreRange(list), punch));
+}
+// mv-local:end
+
+// The kit's quick local shot score (selects-app-kit tools/panel/quick-score.js), pasted verbatim: change it in the kit.
+// quick-score:start
+// Quick local shot score for clips Selects has not analysed (no scene search). Plain JS and self-contained: it reaches
+// the host only through window.parent.__DI__ (Runtime.runFFmpeg and FileSystem, every member checked first), or through
+// `opts.io` (tests, other hosts), so it can be pasted into any style-app panel and kept as one kit file
+// (tools/panel/quick-score.ts). No shell, no node: the host's bundled ffmpeg decodes a small grey preview
+// (QS_FPS frames a second, QS_W x QS_H pixels) of the part of the clip the planner could use into a temporary file in
+// the data folder, which is read back and removed. Paths are joined by the host; generated names are ASCII.
+//
+// API
+//   quickScore(resource, { windows, budgetMs, signal, onProgress, dataDir, io, fps })
+//       resource: { rid, path, durationSeconds, mtimeMs? }. windows: optional [{ start, end }] to score; without them the
+//       clip is scored in QS_BIN-second bins from QS_HEAD on (at most QS_SPAN seconds). Returns
+//       { rid, windows: [{ start, end, motion, sharp, luma, clipped, flags }], sceneCuts: [seconds], ms, fallback,
+//         cached, duration }
+//       flags: { black, fade, flash, blur, dark, bright, cut } (booleans). motion = mean absolute frame difference
+//       (0-1), sharp = mean absolute Laplacian (0-1), luma = mean luma (0-1), clipped = share of pixels near black or
+//       white. When ffmpeg is missing or fails (or the budget runs out) it never throws for that: it returns evenly
+//       spaced, unflagged windows from QS_HEAD on with `fallback: true`, so a build still goes ahead. It throws only
+//       when `signal` aborts.
+//   quickScoreAll(resources, { concurrency, budgetMs, signal, onProgress, ... }) -> Map rid -> result. Bounded
+//       concurrency; onProgress({ done, total, rid }) after each clip; the budget is shared (clips not started in time get
+//       the fallback).
+//   pickWindowsLocal(scores, role, durationNeeded) -> [{ start, end, score, motion, flags }] best first, every window
+//       starting at or after QS_HEAD and ending inside the clip. role: 'steady' (opening, credit, ending: steadier,
+//       well-exposed), 'montage' (varied motion; moving windows rank higher), 'still' (the lowest motion). Windows with
+//       black, fade or flash frames, or a scene cut inside, are left out while any other window fits; blur, dark and
+//       bright windows rank lower. score is 0-1 (comparable across clips and roles).
+//   qsCandidates(scores, role, durationNeeded, max) -> planner candidates [{ t, score, motion }] (t = window centre).
+// Cache: one JSON per clip in <dataDir>/quick-score/, keyed by the resource id, the file's modification time and
+// QS_VERSION, so a rebuild does not decode the same clip twice.
+var QS_VERSION = 1;
+// One decode pass at the settings Selfie Aesthetic Edit measured (sae-host saeMotionArgs: fps 8, gray rawvideo,
+// 0.25-0.65 s for 120 s of source) gives every per-frame figure below.
+var QS_FPS = 8;
+var QS_W = 64, QS_H = 36;
+// Windows start at least this far into the clip: stock clips often fade in from black over their first frames.
+var QS_HEAD = 0.5;
+// Scores are kept per bin of this many seconds; pickWindowsLocal joins bins into a window of any length.
+var QS_BIN = 0.5;
+// At most this many seconds of a clip are decoded (from QS_HEAD); a longer clip is scored over its first QS_SPAN.
+var QS_SPAN = 120;
+var QS_BUDGET_MS = 30000;
+// Frame thresholds (luma 0-1).
+var QS_BLACK = 0.07, QS_DARK = 0.16, QS_CLIP_LO = 16 / 255, QS_CLIP_HI = 240 / 255, QS_BRIGHT_SHARE = 0.45;
+var QS_FLASH_JUMP = 0.25, QS_CUT_DIFF = 0.12, QS_CUT_RATIO = 4;
+
+function qsTag(x) { return Object.prototype.toString.call(x); }
+function qsBytes(v) {
+  if (qsTag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && qsTag(v.buffer) === "[object ArrayBuffer]") return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  return null;
+}
+// The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
+// mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
+function qsHostIO() {
+  var di = null;
+  try { di = (window.parent && window.parent["__DI__"]) || null; } catch (e) { di = null; }
+  var rt = di && di.Runtime, fs = di && di.FileSystem;
+  var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
+  return {
+    runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
+    readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
+    remove: fs ? async function (p) {
+      var tries = ["removeFile", "remove", "rm", "unlink", "unlinkSync"];
+      for (var i = 0; i < tries.length; i++) {
+        if (!fn(fs, tries[i])) continue;
+        try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
+      }
+    } : null,
+    join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
+    mkdir: fn(fs, "mkdirSync") ? function (d) { fs.mkdirSync(d, { recursive: true }); } : null,
+    mtimeMs: fn(fs, "statSync") ? function (p) { var s = fs.statSync(p); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
+    readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
+    writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
+  };
+}
+
+// Pure: per-frame statistics of QS_W x QS_H grey frames packed in `bytes`.
+function qsFrameStats(bytes, w, h) {
+  var size = w * h, n = Math.floor(bytes.length / size), out = [];
+  for (var f = 0; f < n; f++) {
+    var o = f * size, sum = 0, lo = 0, hi = 0, lap = 0, diff = 0;
+    for (var i = 0; i < size; i++) {
+      var v = bytes[o + i];
+      sum += v;
+      if (v <= QS_CLIP_LO * 255) lo++; else if (v >= QS_CLIP_HI * 255) hi++;
+      if (f > 0) diff += Math.abs(v - bytes[o - size + i]);
+    }
+    for (var y = 1; y < h - 1; y++) {
+      for (var x = 1; x < w - 1; x++) {
+        var k = o + y * w + x;
+        lap += Math.abs(4 * bytes[k] - bytes[k - 1] - bytes[k + 1] - bytes[k - w] - bytes[k + w]);
+      }
+    }
+    out.push({ luma: sum / size / 255, lo: lo / size, hi: hi / size, sharp: lap / ((w - 2) * (h - 2)) / 1020,
+      diff: f > 0 ? diff / size / 255 : 0 });
+  }
+  return out;
+}
+
+// Pure: scene changes (seconds from `offset`): a frame difference at least QS_CUT_DIFF and QS_CUT_RATIO times the
+// median difference of the frames around it.
+function qsSceneCuts(stats, fps, offset) {
+  var cuts = [];
+  for (var i = 1; i < stats.length; i++) {
+    var near = [];
+    for (var j = Math.max(1, i - 6); j <= Math.min(stats.length - 1, i + 6); j++) if (j !== i) near.push(stats[j].diff);
+    near.sort(function (a, b) { return a - b; });
+    var med = near.length ? near[Math.floor(near.length / 2)] : 0;
+    var d = stats[i].diff;
+    var flash = i + 1 < stats.length && stats[i].luma - stats[i - 1].luma > QS_FLASH_JUMP && stats[i].luma - stats[i + 1].luma > QS_FLASH_JUMP;
+    if (!flash && d >= QS_CUT_DIFF && d >= QS_CUT_RATIO * Math.max(med, 0.002)) cuts.push(offset + i / fps);
+  }
+  return cuts;
+}
+
+// Pure: scores of `windows` ([{ start, end }], seconds in the clip) from frame stats decoded from `offset` at `fps`.
+function qsWindowScores(stats, fps, offset, windows, sceneCuts) {
+  var sharpAll = stats.map(function (s) { return s.sharp; }).sort(function (a, b) { return a - b; });
+  var sharpMed = sharpAll.length ? sharpAll[Math.floor(sharpAll.length / 2)] : 0;
+  var out = [];
+  for (var w = 0; w < windows.length; w++) {
+    var a = windows[w].start, b = windows[w].end;
+    var i0 = Math.max(0, Math.round((a - offset) * fps)), i1 = Math.min(stats.length, Math.round((b - offset) * fps));
+    if (i1 <= i0) { out.push({ start: a, end: b, motion: 0, sharp: 0, luma: 0, clipped: 0, flags: { black: false, fade: false, flash: false, blur: false, dark: false, bright: false, cut: false }, empty: true }); continue; }
+    var motion = 0, sharp = 0, luma = 0, clipped = 0, black = 0, flash = false, lmin = 1, lmax = 0, dark = 0, bright = 0, nd = 0;
+    for (var i = i0; i < i1; i++) {
+      var s = stats[i];
+      if (i > i0) { motion += s.diff; nd++; }
+      sharp += s.sharp; luma += s.luma; clipped += s.lo + s.hi;
+      if (s.luma < QS_BLACK) black++;
+      if (s.luma < QS_DARK) dark++;
+      if (s.hi > QS_BRIGHT_SHARE) bright++;
+      lmin = Math.min(lmin, s.luma); lmax = Math.max(lmax, s.luma);
+      var p = stats[i - 1], q = stats[i + 1];
+      if (p && q && s.luma - p.luma > QS_FLASH_JUMP && s.luma - q.luma > QS_FLASH_JUMP) flash = true;
+    }
+    var n = i1 - i0;
+    motion = nd ? motion / nd : 0; sharp /= n; luma /= n; clipped /= n;
+    // A fade: luma rises or falls steadily (at least 80 % of the steps one way) by at least 0.04 and 15 %. A pan or a
+    // person walking keeps the mean luma about level; a fade's tail (70 to 100 % brightness) still counts.
+    var up = 0, down = 0;
+    for (var k = i0 + 1; k < i1; k++) { var dl = stats[k].luma - stats[k - 1].luma; if (dl > 0.003) up++; else if (dl < -0.003) down++; }
+    var steps = Math.max(1, i1 - i0 - 1);
+    var fade = steps >= 2 && Math.max(up, down) >= 0.8 * steps && lmax - lmin > 0.04 && lmax > 1.15 * Math.max(lmin, 0.01);
+    // A cut in [a, b): informational per bin; pickWindowsLocal checks cuts against each whole window.
+    var cut = (sceneCuts || []).some(function (t) { return t >= a - 1e-6 && t < b - 1e-6; });
+    out.push({ start: a, end: b, motion: motion, sharp: sharp, luma: luma, clipped: clipped,
+      flags: { black: black / n > 0.3, fade: fade, flash: flash, blur: sharpMed > 0 ? sharp < 0.45 * sharpMed && sharp < 0.02 : sharp < 0.01,
+        dark: dark / n > 0.5, bright: bright / n > 0.5, cut: cut } });
+  }
+  return out;
+}
+
+// QS_BIN-second bins from QS_HEAD to the end of the scored span.
+function qsBins(duration, head, span) {
+  var end = Math.min(duration, head + span), bins = [];
+  for (var t = head; t + QS_BIN <= end + 1e-6; t += QS_BIN) bins.push({ start: Math.round(t * 1000) / 1000, end: Math.round((t + QS_BIN) * 1000) / 1000 });
+  return bins;
+}
+function qsFallback(resource, ms, windows) {
+  var dur = Number(resource.durationSeconds) || 0;
+  var ws = (windows && windows.length ? windows : qsBins(dur, Math.min(QS_HEAD, Math.max(0, dur - QS_BIN)), QS_SPAN)).map(function (x) {
+    return { start: x.start, end: x.end, motion: 0, sharp: 0, luma: 0.5, clipped: 0, flags: { black: false, fade: false, flash: false, blur: false, dark: false, bright: false, cut: false } };
+  });
+  return { rid: resource.rid, windows: ws, sceneCuts: [], ms: ms || 0, fallback: true, cached: false, duration: dur };
+}
+function qsAbortError() { var e = new Error("cancelled"); e.name = "AbortError"; return e; }
+
+async function quickScore(resource, opts) {
+  opts = opts || {};
+  var t0 = Date.now(), io = opts.io || qsHostIO(), signal = opts.signal, fps = opts.fps || QS_FPS;
+  var dur = Number(resource.durationSeconds) || 0;
+  var deadline = t0 + (opts.budgetMs == null ? QS_BUDGET_MS : opts.budgetMs);
+  if (signal && signal.aborted) throw qsAbortError();
+  var dataDir = opts.dataDir || null;
+  if (!(dur > 0) || !resource.path || !io.runFFmpeg || !io.readBytes || !io.join || !dataDir) return qsFallback(resource, Date.now() - t0, opts.windows);
+  // The decoded span: the given windows, else QS_HEAD .. QS_HEAD + QS_SPAN.
+  var ws = opts.windows && opts.windows.length ? opts.windows : null;
+  var a = ws ? Math.max(0, Math.min.apply(null, ws.map(function (x) { return x.start; }))) : Math.min(QS_HEAD, Math.max(0, dur - QS_BIN));
+  var b = ws ? Math.min(dur, Math.max.apply(null, ws.map(function (x) { return x.end; }))) : Math.min(dur, a + QS_SPAN);
+  var dir = io.join(dataDir, "quick-score");
+  var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
+  var mtime = 0;
+  try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
+  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, a.toFixed(3), b.toFixed(3)].join("-");
+  var cacheFile = io.join(dir, safe + ".json");
+  if (io.readText && !ws) {
+    try {
+      var c = JSON.parse(await io.readText(cacheFile));
+      if (c && c.key === key && c.result) return Object.assign({}, c.result, { cached: true, ms: Date.now() - t0 });
+    } catch (e) { /* no cache yet */ }
+  }
+  if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
+  try { if (io.mkdir) io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
+  var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
+  var controller = typeof AbortController === "undefined" ? null : new AbortController();
+  var relay = function () { if (controller) controller.abort(); };
+  var timer = controller ? setTimeout(relay, Math.max(1000, deadline - Date.now())) : null;
+  if (signal) signal.addEventListener("abort", relay);
+  try {
+    await io.runFFmpeg(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", a.toFixed(3), "-t", (b - a).toFixed(3), "-i", resource.path,
+      "-an", "-vf", "fps=" + fps + ",scale=" + QS_W + ":" + QS_H + ",setsar=1,format=gray", "-f", "rawvideo", tmp], controller ? controller.signal : undefined);
+    var bytes = await io.readBytes(tmp);
+    if (!bytes || bytes.length < QS_W * QS_H) throw new Error("no frames");
+    var stats = qsFrameStats(bytes, QS_W, QS_H);
+    var cuts = qsSceneCuts(stats, fps, a);
+    var windows = qsWindowScores(stats, fps, a, ws || qsBins(dur, a, b - a), cuts);
+    var result = { rid: resource.rid, windows: windows, sceneCuts: cuts, ms: Date.now() - t0, fallback: false, cached: false, duration: dur };
+    if (io.writeText && !ws) { try { await io.writeText(cacheFile, JSON.stringify({ key: key, result: result })); } catch (e) { /* no cache, no harm */ } }
+    return result;
+  } catch (e) {
+    if (signal && signal.aborted) throw qsAbortError();
+    return qsFallback(resource, Date.now() - t0, opts.windows);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    if (io.remove) { try { await io.remove(tmp); } catch (e) { /* left behind */ } }
+  }
+}
+
+async function quickScoreAll(resources, opts) {
+  opts = opts || {};
+  var results = new Map(), total = resources.length, done = 0, next = 0;
+  var conc = Math.max(1, Math.min(opts.concurrency || 3, total || 1));
+  var t0 = Date.now(), budget = opts.budgetMs == null ? QS_BUDGET_MS : opts.budgetMs;
+  async function worker() {
+    while (next < total) {
+      var r = resources[next++];
+      if (opts.signal && opts.signal.aborted) throw qsAbortError();
+      var left = budget - (Date.now() - t0);
+      var res = left > 0 ? await quickScore(r, Object.assign({}, opts, { budgetMs: left, onProgress: null })) : qsFallback(r, 0, null);
+      results.set(r.rid, res);
+      done++;
+      if (opts.onProgress) { try { opts.onProgress({ done: done, total: total, rid: r.rid }); } catch (e) { /* the UI only */ } }
+    }
+  }
+  var workers = [];
+  for (var i = 0; i < conc; i++) workers.push(worker());
+  await Promise.all(workers);
+  return results;
+}
+
+// Pure: windows of `durationNeeded` seconds for `role`, best first (see the API above).
+function pickWindowsLocal(scores, role, durationNeeded) {
+  if (!scores || !scores.windows || !scores.windows.length) return [];
+  var bins = scores.windows.filter(function (w) { return !w.empty; });
+  var need = Math.max(QS_BIN, Number(durationNeeded) || QS_BIN), dur = Number(scores.duration) || 0;
+  var sharpMax = Math.max.apply(null, bins.map(function (w) { return w.sharp; }).concat([1e-6]));
+  var motions = bins.map(function (w) { return w.motion; }).sort(function (a, b) { return a - b; });
+  var mRef = Math.max(0.01, motions[Math.floor(motions.length * 0.9)] || 0);
+  var out = [], strict = [];
+  for (var i = 0; i < bins.length; i++) {
+    var start = bins[i].start;
+    if (start < QS_HEAD - 1e-6 && dur >= need + QS_HEAD) continue;
+    var j = i, end = start, group = [];
+    while (j < bins.length && end - start < need - 1e-6) { if (group.length && Math.abs(bins[j].start - end) > 1e-3) break; group.push(bins[j]); end = bins[j].end; j++; }
+    if (end - start < need - 1e-6) {
+      // The last bins may be shorter than the window: accept when the clip itself reaches the end.
+      if (dur && start + need <= dur + 1e-6 && group.length) end = start + need; else continue;
+    }
+    if (dur && start + need > dur + 1e-6) continue;
+    var m = 0, sh = 0, lu = 0, bad = false, soft = 0;
+    for (var g = 0; g < group.length; g++) {
+      var x = group[g];
+      m += x.motion; sh += x.sharp; lu += x.luma;
+      if (x.flags.black || x.flags.fade || x.flags.flash) bad = true;
+      if (x.flags.blur) soft += 0.3; if (x.flags.dark) soft += 0.2; if (x.flags.bright) soft += 0.2;
+    }
+    // A scene cut inside the window (not at its edges) would show two shots in one.
+    var edge = 1 / QS_FPS, wend = start + need;
+    if ((scores.sceneCuts || []).some(function (t) { return t > start + edge && t < wend - edge; })) bad = true;
+    m /= group.length; sh /= group.length; lu /= group.length; soft /= group.length;
+    var mr = Math.min(1, m / mRef);
+    var moveTerm = role === "still" ? 1 - mr : role === "steady" ? 1 - Math.abs(mr - 0.35) : 0.4 + 0.6 * mr;
+    var expose = Math.max(0, 1 - Math.abs(lu - 0.45) * 2);
+    var score = Math.max(0, Math.min(1, 0.35 * (sh / sharpMax) + 0.3 * expose + 0.35 * moveTerm - soft));
+    var cand = { start: start, end: start + need, score: Math.round(score * 1000) / 1000, motion: m, flags: { bad: bad, soft: soft > 0 } };
+    (bad ? out : strict).push(cand);
+  }
+  var by = function (x, y) { return y.score - x.score || x.start - y.start; };
+  strict.sort(by); out.sort(by);
+  // Flagged windows only when nothing clean fits.
+  return strict.length ? strict : out;
+}
+
+// Planner candidates (window centres) of a scored clip for `role`: at most `max`, at least `apart` seconds apart.
+function qsCandidates(scores, role, durationNeeded, max, apart) {
+  var picks = pickWindowsLocal(scores, role, durationNeeded), out = [];
+  var gap = apart == null ? Math.max(1, durationNeeded) : apart;
+  for (var i = 0; i < picks.length && out.length < (max || 6); i++) {
+    var c = (picks[i].start + picks[i].end) / 2;
+    if (out.some(function (o) { return Math.abs(o.t - c) < gap; })) continue;
+    out.push({ t: Math.round(c * 1000) / 1000, score: picks[i].score, motion: picks[i].motion });
+  }
+  return out;
+}
+// quick-score:end
+
 // The title layout, embedded verbatim from assets/title-lockup.tsx (tests/panel.test.cjs checks it), so the preview
 // places every word, sparkle and star with the same code as the Draft's title.
 // mv-lockup:start
@@ -3093,6 +3480,8 @@ async function ensureNode(sdk: any): Promise<string> {
 }
 // Thrown when the Project changed while a build was running; its results are dropped silently.
 const STALE = new Error("The Project changed during the build.");
+// Thrown when the person pressed Cancel during the quick local check; nothing was saved yet.
+const CANCELLED = new Error("The build was cancelled.");
 // A read-only call that still failed with a host-busy / deadline error after its retries.
 const isBusyError = (text: string) => /deadline|did not finish|hostWaitMs|before the script started/i.test(text);
 class BusyError extends Error {
@@ -3150,26 +3539,34 @@ const WAVE_HEIGHT = 56;
 
 // Music section slider: waveform on a canvas with a draggable, snapped window over the chosen section.
 // While `audio` plays, a playhead follows its currentTime inside the window, redrawn on every animation frame.
-// Videos without analysis, from inventory.js's skipped counts: being analysed now, not analysed yet (never started; the
-// panel does not start analysis), or failed. known is false when the workflow read failed: pending clips then may or
-// may not be queued, so their wording is neutral and the panel keeps polling.
-function mvAnalysisCounts(skipped: any) {
-  const s = skipped || {}, total = s.unanalysed || 0;
-  if (s.analysing == null) return { total, analysing: 0, notAnalysed: total, failed: 0, known: false };
-  return { total, analysing: s.analysing || 0, notAnalysed: s.notAnalysed || 0, failed: s.failed || 0, known: s.statusKnown !== false };
+// Footage counts from inventory.js's skipped counts (build without analysis): usable clips without analysis
+// (`notAnalysed`: their shots come from the quick local check) and clips that cannot be used yet (`unanalysed`: no
+// length or no source file, e.g. still importing). Analysis never blocks a build.
+function mvFootageCounts(skipped: any) {
+  const s = skipped || {};
+  return { notAnalysed: s.notAnalysed || 0, unusable: s.unanalysed || 0 };
 }
-// The sentences for the readiness line in the UI language ("" when every video is analysed).
-function mvAnalysisText(lang: Lang, c: any) {
-  return [
-    c.analysing ? t(lang, "analysing", { count: c.analysing }) : "",
-    c.notAnalysed ? (c.known ? t(lang, "notAnalysedAnalyse", { count: c.notAnalysed }) : t(lang, "notAnalysedMaybe", { count: c.notAnalysed })) : "",
-    c.failed ? t(lang, "analysisFailed", { count: c.failed }) : "",
-  ].filter(Boolean).join(t(lang, "gap"));
+// The short facts for the end of the Ready line ("" for a count of 0): a small note that analysed clips give better
+// picks, and the clips that cannot be used yet.
+function mvFootageNotes(lang: Lang, c: any) {
+  return [c.notAnalysed ? t(lang, "betterPicks", { count: c.notAnalysed }) : "", c.unusable ? t(lang, "unusable", { count: c.unusable }) : ""];
 }
-// The short facts for the end of the Ready line ("" for a count of 0).
-function mvAnalysisNotes(lang: Lang, c: any) {
-  return [c.analysing ? t(lang, "noteAnalysing", { count: c.analysing }) : "", c.notAnalysed ? t(lang, "notAnalysed", { count: c.notAnalysed }) : "",
-    c.failed ? t(lang, "noteFailed", { count: c.failed }) : ""];
+// The plugin's data folder (<home>/.selects/plugin-data/<id>) through the host's FileSystem (paths joined by the host,
+// so Windows works), created when missing; the quick local check caches its scores there. null when this host lacks
+// the members: the check then gives evenly spaced windows and the panel says a newer Selects checks clips better.
+function mvHostDataDir(id: string): string | null {
+  try {
+    const fs = (window.parent as any)?.__DI__?.FileSystem;
+    if (!fs || typeof fs.join !== "function" || typeof fs.homedir !== "function") return null;
+    const dir = String(fs.join(fs.homedir(), ".selects", "plugin-data", id));
+    if (typeof fs.mkdirSync === "function") fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  } catch { return null; }
+}
+// Whether this host can run the quick local check at all (qsHostIO: the host's ffmpeg and file reads).
+function mvQuickCheckAvailable(dataDir: string | null) {
+  const io: any = qsHostIO();
+  return !!(dataDir && io.runFFmpeg && io.readBytes && io.join);
 }
 
 function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, snap, onChange, disabled, audio }: {
@@ -3381,6 +3778,9 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const busyRef = React.useRef(false);
   // The one-call spinner's text: "checkingClips", "listening" (STRINGS keys) or "".
   const [step, setStep] = React.useState("");
+  // The quick local check of clips without analysis is running: the Build button's slot shows Cancel, which aborts it.
+  const [checking, setChecking] = React.useState(false);
+  const localAbortRef = React.useRef<AbortController | null>(null);
   const [tools, setTools] = React.useState({ ffmpeg: true });
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
   const registered = React.useRef<Set<string>>(new Set());
@@ -3473,8 +3873,9 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       inv.photos = inv.photos || [];
       for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizesRef.current[ph.rid] = { width: ph.width, height: ph.height };
       const sk = inv.skipped || {};
-      const sig = inv.resources.map((r: any) => r.rid).sort().join(",") + "|" + [sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown].map((x) => String(x ?? "")).join(",");
-      // A changed clip set drops the cached scene search so a build never uses stale candidates.
+      // A clip that finishes analysis moves from the quick local check to the scene search, so `analysed` is part of it.
+      const sig = inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",") + "|" + [sk.unanalysed, sk.notAnalysed].map((x) => String(x ?? "")).join(",");
+      // A changed clip set drops the cached shot candidates so a build never uses stale ones.
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
       if (inv.incomplete) { incompleteReadsRef.current++; if (incompleteReadsRef.current >= INCOMPLETE_POLL_MAX) setIncompleteStalled(true); }
       else { incompleteReadsRef.current = 0; setIncompleteStalled(false); }
@@ -3533,18 +3934,17 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         if (alive) setStatus({ tone: "error", say: (l: Lang) => t(l, "startFailed", { detail: sayError(l, e) }) });
       } finally { if (alive) setStep(""); }
     })();
-    // Project switch or unmount stops a preview, including one still being prepared.
-    return () => { alive = false; stopPreview(); };
+    // Project switch or unmount stops a preview, including one still being prepared, and a quick local check.
+    return () => { alive = false; stopPreview(); localAbortRef.current?.abort(); };
   }, [projectId]);
 
-  // Clips being analysed (or no clips at all yet): re-read the inventory every 10 s until they are ready. Clips whose
-  // analysis was never started (or failed) do not poll on their own: nothing changes until the user analyses them in
-  // Selects, and coming back to the panel or Refresh picks that up. With an unknown status, unanalysed clips poll.
+  // Clips that cannot be used yet (no length or no file: usually still importing), or no clips at all yet: re-read the
+  // inventory every 10 s until they are ready. Analysis is not waited for: clips without it are usable right away.
   // The effect re-arms on each new inventory, and stops on unmount, Project switch and while busy.
   // A Project with only photos has nothing to wait for, so it does not poll (each read measures new photos).
   // A partial read (`incomplete`: the Project was still loading) polls too, until the clip sizes are all known.
-  const invAnalysis = mvAnalysisCounts(inventory?.skipped);
-  const needsPoll = !!inventory && ((!!inventory.incomplete && !incompleteStalled) || invAnalysis.analysing > 0 || (!invAnalysis.known && invAnalysis.total > 0) || (inventory.resources.length === 0 && !inventory.photos?.length && invAnalysis.total === 0));
+  const invFootage = mvFootageCounts(inventory?.skipped);
+  const needsPoll = !!inventory && ((!!inventory.incomplete && !incompleteStalled) || invFootage.unusable > 0 || (inventory.resources.length === 0 && !inventory.photos?.length));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
     const pid = projectId;
@@ -3768,11 +4168,47 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       // Only videos are searched (photos join without a search), so the count is in videos.
       const done = i;
       advance("shots", i / rids.length, (l) => t(l, "videosChecked", { done, count: rids.length }));
-      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
+      // Only analysed clips are passed (checkAnalysis: false skips search.js's own resources() read).
+      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries, pageSize: 4, checkAnalysis: false }), false, { wanted: () => projectRef.current === pid });
       check();
       list.push(...r.candidates); failed.push(...r.failed);
     }
     return { list, failed };
+  }
+
+  // The quick local check of clips without analysis (the kit's quickScoreAll, host ffmpeg, no shell):
+  // MV_LOCAL_CONCURRENCY clips at a time within a shared MV_LOCAL_BUDGET_MS, cached by the kit in the data folder per
+  // clip and file time. The progress line says "Checking clips N/M"; Cancel (in the Build button's slot) and a Project
+  // switch abort it. A clip it cannot decode (no host ffmpeg, an error, the budget spent) gets evenly spaced windows
+  // (mvLocalCandidates), so the build goes ahead. Throws only CANCELLED or STALE. `unavailable`: this host lacks the
+  // members the check needs (the result then says a newer Selects picks better).
+  async function checkLocalClips(clips: any[], pid: string): Promise<{ results: any[]; unavailable: boolean }> {
+    if (!clips.length) return { results: [], unavailable: false };
+    const dataDir = mvHostDataDir(PLUGIN_ID);
+    const unavailable = !mvQuickCheckAvailable(dataDir);
+    const controller = new AbortController();
+    localAbortRef.current = controller;
+    setChecking(true);
+    const total = clips.length, started = Date.now();
+    const say = (done: number) => advance("shots", done / total, (l) => t(l, "checkingClipsN", { done, count: total }));
+    say(0);
+    try {
+      const scored: Map<string, any> = await quickScoreAll(clips.map((r: any) => ({ rid: r.rid, path: r.path, durationSeconds: r.duration })), {
+        concurrency: MV_LOCAL_CONCURRENCY, budgetMs: MV_LOCAL_BUDGET_MS, dataDir, signal: controller.signal,
+        onProgress: (p: any) => { if (projectRef.current !== pid) controller.abort(); else say(p.done); } });
+      const results = clips.map((r: any) => ({ rid: r.rid, duration: r.duration, scores: scored.get(r.rid) || null }));
+      const all = results.map((r: any) => r.scores).filter(Boolean);
+      console.info("[mini-vlog] quick check", { clips: total, ms: Date.now() - started, decoded: all.filter((x: any) => !x.fallback && !x.cached).length,
+        cached: all.filter((x: any) => x.cached).length, fallback: all.filter((x: any) => x.fallback).length, unavailable });
+      return { results, unavailable };
+    } catch (e) {
+      if (projectRef.current !== pid) throw STALE;
+      if (controller.signal.aborted) throw CANCELLED;
+      throw e;
+    } finally {
+      if (localAbortRef.current === controller) localAbortRef.current = null;
+      if (mountedRef.current) setChecking(false);
+    }
   }
 
   // Looks for the Draft a lost assemble reply may have saved, by its frozen name. Read-only: nothing is committed.
@@ -3817,11 +4253,14 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     try {
       // The scene search is cached per Project, clip selection and query set (the motion query runs only with Beat punch).
       const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");
-      const rids: string[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid)).map((r: any) => r.rid);
+      const chosenVideos: any[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid));
+      // Analysed clips get the scene search; clips without analysis the quick local check (build without analysis).
+      const rids: string[] = chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);
+      const localClips: any[] = chosenVideos.filter((r: any) => r.analysed === false);
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
       const cached = candidates && candidates.key === key ? candidates : null;
-      // A build from photos alone has no videos to search; the step says so instead of a bare 0%.
-      const shotsDetail: Say | undefined = rids.length ? undefined : (l) => t(l, "photosOnly");
+      // A build from photos alone has no videos to check; the step says so instead of a bare 0%.
+      const shotsDetail: Say | undefined = chosenVideos.length ? undefined : (l) => t(l, "photosOnly");
       if (shotsDetail) advance("shots", 0, shotsDetail);
       let found = cached;
       if (!cached || cached.failed.length) {
@@ -3829,8 +4268,12 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         const todo: string[] = cached ? cached.failed : rids;
         const fresh = await findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch));
         const retried = new Set(todo);
-        found = { key, failed: fresh.failed,
-          list: [...(cached ? cached.list.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))] };
+        const scene = [...(cached ? cached.scene.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))];
+        // The quick local check runs once per clip selection; its results are kept with the scene search. `list` is
+        // what the planner gets: the scene hits unchanged plus the local candidates on their scale (mvWithLocal).
+        const local = cached ? cached.local : await checkLocalClips(localClips, pid);
+        check();
+        found = { key, failed: fresh.failed, scene, local, list: mvWithLocal(scene, local.results, frozen.punch) };
         setCandidates(found);
       }
       advance("shots", 1, shotsDetail);
@@ -3877,11 +4320,13 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       // The planner drops shots when the footage cannot fill them; tell the user the real length at the Draft fps.
       const shortened = planShort(plan) ? { shots: plan.shots, of: fitted, seconds: a.totalFrames / a.fps } : null;
       advance("draft", 1);
-      const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, plan, notes: a.notes || [], link: null, shortened, unchecked: found.failed.length };
+      const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, plan, notes: a.notes || [], link: null, shortened, unchecked: found.failed.length,
+        quickUnavailable: !!found.local?.unavailable };
       setResult(res);
       await decorate(res, check);
     } catch (e: any) {
-      if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) });
+      if (e === CANCELLED && projectRef.current === pid) setStatus({ tone: "muted", say: (l: Lang) => t(l, "cancelled") });
+      else if (e !== STALE && projectRef.current === pid) setStatus({ tone: "error", say: stopAt(e) });
     } finally { endRun(pid); }
   }
 
@@ -4042,7 +4487,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const canBuild = ready && !blockReason;
   const canBuildAnother = ready && !anotherBlock;
 
-  const analysisText = mvAnalysisText(L, invAnalysis);
+  // Clips that cannot be used yet, as a sentence for the lines that have nothing else to say.
+  const unusableText = invFootage.unusable ? t(L, "unusableWait", { count: invFootage.unusable }) : "";
   const clipCount = [
     allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
     usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
@@ -4051,10 +4497,10 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const readiness = !inventory ? (invError ? (invError.busy ? invError.say(L) : t(L, "invFailed")) : t(L, "checkingClipsNow"))
     : inventory.incomplete && incompleteStalled ? t(L, "invPartial")
     : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? t(L, "stillReading")
-    : inventory.resources.length === 0 && !allPhotoRids.length ? (analysisText || t(L, "noFootage"))
-    : inventory.resources.length === 0 && !usePhotos ? [analysisText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))
+    : inventory.resources.length === 0 && !allPhotoRids.length ? (unusableText || t(L, "noFootage"))
+    : inventory.resources.length === 0 && !usePhotos ? [unusableText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))
     : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
-    : t(L, "ready", { summary: [clipCount, t(L, "aboutSeconds", { seconds: Math.round(plannedSeconds) }), ...mvAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") });
+    : t(L, "ready", { summary: [clipCount, t(L, "aboutSeconds", { seconds: Math.round(plannedSeconds) }), ...mvFootageNotes(L, invFootage)].filter(Boolean).join(" · ") });
   // Requested vs fitted shots (spec 14.2), then the footage's own fit once it is known.
   // Seconds shown with one decimal (formatted for the language by t()).
   const tenths = (s: number) => Math.round(s * 10) / 10;
@@ -4276,12 +4722,15 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       ) : null}
       {result?.notes?.length ? <ui.Message tone="muted">{t(L, "note", { detail: result.notes.join("; ") })}</ui.Message> : null}
       {result?.unchecked ? <ui.Message tone="muted">{t(L, "unchecked", { count: result.unchecked })}</ui.Message> : null}
+      {result?.quickUnavailable ? <ui.Message tone="muted">{t(L, "quickUnavailable")}</ui.Message> : null}
       {blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}
       <ui.Message tone="muted">{t(L, "createsDraft")}</ui.Message>
       <ui.Actions>
         {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>{t(L, "finishTitle")}</ui.Button> : null}
         {result ? <ui.Button onClick={buildAnother} disabled={busy || !canBuildAnother}>{t(L, "anotherVersion")}</ui.Button> : null}
-        <ui.Button variant="primary" busy={busy} busyLabel={stepText || t(L, "building")} onClick={() => build(seed)} disabled={busy || !canBuild}>{t(L, "build")}</ui.Button>
+        {/* While the quick local check runs, the same slot is its Cancel button (no layout jump). */}
+        {checking ? <ui.Button variant="primary" onClick={() => localAbortRef.current?.abort()}>{t(L, "cancel")}</ui.Button>
+          : <ui.Button variant="primary" busy={busy} busyLabel={stepText || t(L, "building")} onClick={() => build(seed)} disabled={busy || !canBuild}>{t(L, "build")}</ui.Button>}
       </ui.Actions>
     </ui.Stack>
     </div>

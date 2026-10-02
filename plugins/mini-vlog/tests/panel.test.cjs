@@ -53,15 +53,22 @@ assert.ok(panel.includes('const PLUGIN_ID = "mini-vlog";'));
 assert.ok(!/^import .* from "(?!react")/m.test(panel), 'only react may be imported');
 for (const name of ['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js', 'title-lockup.tsx', 'soft-look.tsx', 'photo-motion.tsx', 'beat-punch.tsx', 'manifest.json', 'presets.json', 'beat-detect.cjs']) assert.ok(panel.includes(name), 'panel reads ' + name);
 
-// Unanalysed videos are worded by why (inventory.js's skipped split); the panel never claims clips are being analysed
-// when their analysis was never started, and never starts analysis itself.
+// Build without analysis: analysis never blocks a build. Clips without it are usable (inventory.js `analysed: false`)
+// and get the quick local check; the readiness line counts usable clips and photos, with at most a small note that
+// analysed clips give better picks. The panel never starts analysis itself.
 assert.ok(!panel.includes('still being analysed'), 'the old "still being analysed" wording is gone');
 assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel does not start analysis');
+for (const gone of ['notAnalysedAnalyse', 'notAnalysedMaybe', 'analysisFailed', 'noteAnalysing', 'noteFailed', '"analysing"', 'mvAnalysisCounts', 'mvAnalysisText', 'workflows('])
+  assert.ok(!panel.includes(gone), 'no analysis-as-blocker wording or logic: ' + gone);
+for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs')).extractStrings(panel).strings)) {
+  const all = JSON.stringify(require(path.join(root, 'dev', 'i18n-check.cjs')).extractStrings(panel).strings[lang]);
+  if (lang === 'en') assert.ok(!/Analyse (it|them) in Selects|analyse them first|still being analysed/i.test(all), 'en: nothing asks to analyse first');
+}
 {
   const vm = require('node:vm');
   const strings = require(path.join(root, 'dev', 'i18n-check.cjs')).extractStrings(panel).strings;
-  const start = panel.indexOf('function mvAnalysisCounts('), end = panel.indexOf('function SectionSlider(');
-  assert.ok(start > 0 && end > start, 'the analysis wording helpers exist');
+  const start = panel.indexOf('function mvFootageCounts('), end = panel.indexOf('// The plugin\'s data folder (<home>');
+  assert.ok(start > 0 && end > start, 'the footage wording helpers exist');
   const js = panel.slice(start, end).replace(/(\w)\??: (?:any|number|string|Lang)\b/g, '$1');
   // The panel's t() over its STRINGS block (plural by count; plain numbers are enough for these sentences).
   const tt = (lang, key, vars = {}) => {
@@ -70,48 +77,59 @@ assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel 
     return msg.replace(/\{(\w+)\}/g, (w, n) => (vars[n] === undefined ? w : String(vars[n])));
   };
   const box = { t: tt };
-  vm.runInNewContext(js + '\nthis.api = { mvAnalysisCounts, mvAnalysisText, mvAnalysisNotes };', box);
-  const { mvAnalysisCounts: counts } = box.api;
-  const text = c => box.api.mvAnalysisText('en', c);
-  const note = c => box.api.mvAnalysisNotes('en', c).filter(Boolean).map(x => ' · ' + x).join('');
-  const sk = (analysing, notAnalysed, failed, statusKnown = true) => ({ unanalysed: analysing + notAnalysed + failed, missing: 0, analysing, notAnalysed, failed, statusKnown });
-  // Other languages: whole sentences per status, joined by the language's gap (none in ja/zh).
-  assert.equal(box.api.mvAnalysisText('ja', counts(sk(3, 1, 0))), tt('ja', 'analysing', { count: 3 }) + tt('ja', 'notAnalysedAnalyse', { count: 1 }));
-  assert.ok(!/undefined|\{\w+\}/.test(['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'].map(l => box.api.mvAnalysisText(l, counts(sk(3, 1, 2))) + box.api.mvAnalysisNotes(l, counts(sk(1, 2, 3))).join('')).join()), 'every language fills the counts');
-  assert.equal(text(counts(sk(160, 0, 0))), '160 clips are being analysed. This updates automatically when they finish.');
-  assert.equal(text(counts(sk(1, 0, 0))), '1 clip is being analysed. This updates automatically when it finishes.');
-  assert.equal(text(counts(sk(0, 160, 0))), '160 clips are not analysed yet. Analyse them in Selects to use them here.');
-  assert.equal(text(counts(sk(0, 1, 0))), '1 clip is not analysed yet. Analyse it in Selects to use it here.');
-  assert.equal(text(counts(sk(0, 0, 2))), '2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 1))), '1 clip could not be analysed.');
-  assert.equal(text(counts(sk(0, 160, 0, false))), '160 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(text(counts(sk(0, 1, 0, false))), '1 clip is not analysed yet. If Selects is analysing it, this updates automatically.');
-  assert.equal(text(counts(sk(3, 1, 2))), '3 clips are being analysed. This updates automatically when they finish. 1 clip is not analysed yet. Analyse it in Selects to use it here. 2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 0))), '', 'nothing to say when every video is analysed');
-  // An inventory without the split (older script) counts every unanalysed clip as unknown: the neutral wording.
-  assert.equal(text(counts({ unanalysed: 4, missing: 0 })), '4 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(note(counts(sk(2, 1, 0))), ' · 2 clips being analysed · 1 clip not analysed yet');
-  assert.equal(note(counts(sk(0, 0, 1))), ' · 1 clip could not be analysed');
-  assert.equal(note(counts(sk(0, 0, 0))), '');
-  // Every readiness branch uses the same sentences, and a status change refreshes the inventory signature.
-  for (const phrase of ['const analysisText = mvAnalysisText(L, invAnalysis);', '(analysisText || t(L, "noFootage"))', '[analysisText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))', '...mvAnalysisNotes(L, invAnalysis)]',
-    '[sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown]']) assert.ok(panel.includes(phrase), phrase);
-  // Polling: only while clips are being analysed, while the status is unknown, or while the Project has no footage at all.
+  vm.runInNewContext(js + '\nthis.api = { mvFootageCounts, mvFootageNotes };', box);
+  const { mvFootageCounts: counts } = box.api;
+  const note = (c, l = 'en') => box.api.mvFootageNotes(l, c).filter(Boolean).map(x => ' · ' + x).join('');
+  const sk = (notAnalysed, unanalysed) => ({ unanalysed, missing: 0, notAnalysed });
+  assert.equal(note(counts(sk(3, 0))), ' · 3 clips not analysed; analysed clips give better picks');
+  assert.equal(note(counts(sk(1, 0))), ' · 1 clip not analysed; analysed clips give better picks');
+  assert.equal(note(counts(sk(0, 2))), " · 2 clips can't be used yet");
+  assert.equal(note(counts(sk(0, 0))), '', 'nothing to say when every clip is analysed');
+  assert.equal(note(counts(undefined)), '');
+  assert.ok(!/undefined|\{\w+\}/.test(['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'].map(l => note(counts(sk(1, 2)), l) + note(counts(sk(5, 1)), l)).join()), 'every language fills the counts');
+  // Every readiness branch uses these, and an analysis change refreshes the inventory signature (and the candidates).
+  for (const phrase of ['const unusableText = invFootage.unusable ? t(L, "unusableWait", { count: invFootage.unusable }) : "";', '(unusableText || t(L, "noFootage"))',
+    '[unusableText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))', '...mvFootageNotes(L, invFootage)]',
+    'inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",") + "|" + [sk.unanalysed, sk.notAnalysed]']) assert.ok(panel.includes(phrase), phrase);
+  // Polling: only while clips cannot be used yet (still importing), while a read is partial, or with no footage at all.
   const poll = (panel.match(/const needsPoll = ([^\n]*);/) || [])[1];
   assert.ok(poll, 'needsPoll');
-  const needsPoll = (inventory, incompleteStalled = false) => { const invAnalysis = counts(inventory && inventory.skipped); return vm.runInNewContext(poll, { inventory, invAnalysis, incompleteStalled }); };
+  const needsPoll = (inventory, incompleteStalled = false) => { const invFootage = counts(inventory && inventory.skipped); return vm.runInNewContext(poll, { inventory, invFootage, incompleteStalled }); };
   const inv = (skipped, resources = 0, photos = 0) => ({ skipped, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
-  assert.equal(needsPoll(inv(sk(2, 0, 0), 5)), true, 'clips being analysed poll');
-  assert.equal(needsPoll(inv(sk(0, 160, 0))), false, 'never-started clips alone do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 2), 5)), false, 'not analysed and failed clips do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 0, false), 5)), true, 'an unknown status polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0))), true, 'an empty Project polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 0, 3)), false, 'photos only: no poll');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 5)), false, 'all analysed: no poll');
+  assert.equal(needsPoll(inv(sk(5, 0), 5)), false, 'clips without analysis are ready: no poll');
+  assert.equal(needsPoll(inv(sk(0, 2), 5)), true, 'clips that cannot be used yet poll');
+  assert.equal(needsPoll(inv(sk(0, 0))), true, 'an empty Project polls');
+  assert.equal(needsPoll(inv(sk(0, 0), 0, 3)), false, 'photos only: no poll');
+  assert.equal(needsPoll(inv(sk(0, 0), 5)), false, 'all analysed: no poll');
   assert.equal(needsPoll(null), false);
-  // A partial read (the Project still loading) polls until stalled, whatever the analysis status.
-  assert.equal(needsPoll({ ...inv(sk(0, 160, 0)), incomplete: true }), true, 'an incomplete read polls');
-  assert.equal(needsPoll({ ...inv(sk(0, 160, 0)), incomplete: true }, true), false, 'a stalled incomplete read with never-started clips stops');
+  // A partial read (the Project still loading) polls until stalled.
+  assert.equal(needsPoll({ ...inv(sk(3, 0), 3), incomplete: true }), true, 'an incomplete read polls');
+  assert.equal(needsPoll({ ...inv(sk(3, 0), 3), incomplete: true }, true), false, 'a stalled incomplete read stops');
+}
+// The quick local check: the kit block between its markers (tests/quick-score.test.cjs), our mv-local block
+// (tests/no-analysis.test.cjs), and the build path: analysed clips to the scene search, the others to quickScoreAll with
+// bounded concurrency, a shared budget, the data folder, progress, Cancel and a Project switch aborting it.
+{
+  assert.equal(panel.split('// quick-score:start').length, 2, 'one quick-score block');
+  assert.ok(panel.indexOf('// quick-score:end') > panel.indexOf('// quick-score:start'), 'quick-score markers');
+  assert.ok(panel.indexOf('// mv-local:start') > hEnd && panel.indexOf('// quick-score:end') < lStart, 'mv-local and quick-score blocks between the hook block and the lockup');
+  const fnStart = ui.indexOf('async function checkLocalClips('), fnEnd = ui.indexOf('// Looks for the Draft a lost assemble reply');
+  assert.ok(fnStart > 0 && fnEnd > fnStart, 'checkLocalClips');
+  const check = ui.slice(fnStart, fnEnd);
+  for (const s of ['quickScoreAll(', 'concurrency: MV_LOCAL_CONCURRENCY, budgetMs: MV_LOCAL_BUDGET_MS, dataDir, signal: controller.signal', 't(l, "checkingClipsN", { done, count: total })',
+    'if (controller.signal.aborted) throw CANCELLED;', 'if (projectRef.current !== pid) throw STALE;']) assert.ok(check.includes(s), 'checkLocalClips: ' + s);
+  for (const s of ['const rids: string[] = chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);', 'const localClips: any[] = chosenVideos.filter((r: any) => r.analysed === false);',
+    'const local = cached ? cached.local : await checkLocalClips(localClips, pid);', 'list: mvWithLocal(scene, local.results, frozen.punch)',
+    'queries, pageSize: 4, checkAnalysis: false }', 'localAbortRef.current?.abort()', '{checking ? <ui.Button variant="primary" onClick={() => localAbortRef.current?.abort()}>{t(L, "cancel")}</ui.Button>',
+    'if (e === CANCELLED && projectRef.current === pid) setStatus({ tone: "muted", say: (l: Lang) => t(l, "cancelled") });', '{result?.quickUnavailable ? <ui.Message tone="muted">{t(L, "quickUnavailable")}</ui.Message> : null}'])
+    assert.ok(ui.includes(s), s);
+  says('checkingClipsN', 'Checking clips {done}/{count}'); says('cancel', 'Cancel'); says('cancelled', 'Nothing was saved'); says('quickUnavailable', 'A newer Selects picks better shots');
+  says('betterPicks', 'analysed clips give better picks'); says('unusable', "can't be used yet"); says('unusableWait', 'This updates automatically');
+  // Windows: the new path reaches the host only through __DI__ (the kit's qsHostIO, mvHostDataDir); no shell, no POSIX.
+  const dataDirFn = panel.slice(panel.indexOf('function mvHostDataDir('), panel.indexOf('function mvQuickCheckAvailable('));
+  const newPath = [check, dataDirFn, panel.slice(panel.indexOf('// mv-local:start'), panel.indexOf('// quick-score:end'))].join('\n');
+  for (const posix of ['runShell', 'TOOL_PATH', 'mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'dq(', 'sq(', '" + "/"']) assert.ok(!newPath.includes(posix), 'no POSIX shell in the quick check path: ' + posix);
+  assert.ok(dataDirFn.includes('fs.join(fs.homedir(), ".selects", "plugin-data", id)'), 'the data folder through the host FileSystem');
 }
 
 // Hangul audit across the plugin.
@@ -281,7 +299,7 @@ says('grooveTiming', 'Groove on a {beat} s beat: {hold}, {beat} and {eighth} s s
 assert.ok(ui.includes('}, [assets, cueId, ownMusic?.path, ownGrid, hook]);'), 'toggling the hook re-picks the default section');
 // Motion query and bonus only with Beat punch (off: the v1.2 search and plan); the search cache is keyed on it.
 assert.ok(ui.includes('candidates: (frozen.punch ? mvMotionBonus(found.list) : found.list).concat(photoCands)') && ui.includes('const scored = beatPunch ? mvMotionBonus(list) : list;'), 'motion bonus before planning, with Beat punch only');
-assert.ok(ui.includes('findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch))') && ui.includes('queries, pageSize: 4 }'), 'motion query with Beat punch only');
+assert.ok(ui.includes('findCandidates(todo, pid, check, mvSearchQueries(MV_QUERIES, frozen.punch))') && ui.includes('queries, pageSize: 4, checkAnalysis: false }'), 'motion query with Beat punch only');
 assert.ok(ui.includes('const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");') && ui.includes('const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");'), 'search cache keyed on the query set');
 // The helpers are plain JS (the driver evaluates them).
 assert.ok(!/:\s*(any|number|string)\b|\bas any\b/.test(hookBlock), 'hook block is plain JS');
@@ -400,7 +418,7 @@ assert.ok(ui.includes('const refreshInventory = () => { incompleteReadsRef.curre
 assert.ok(ui.includes('photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false);'), 'Project switch resets the cycle');
 assert.ok(ui.includes(': inventory.incomplete && incompleteStalled ? t(L, "invPartial")'), 'stalled readiness message');
 assert.ok(ui.indexOf('inventory.incomplete ? t(L, "stillReading")') > 0 && ui.indexOf('inventory.incomplete ? t(L, "stillReading")') < ui.indexOf('t(L, "noFootage")'), 'incomplete before "no footage"');
-says('stillReading', "Still reading this Project's clips"); says('noFootage', 'No analysed video or photos in this Project yet');
+says('stillReading', "Still reading this Project's clips"); says('noFootage', 'No videos or photos in this Project yet');
 assert.ok(/run\("Search shots"[^\n]*\{ wanted: \(\) => projectRef\.current === pid \}\)/.test(ui), 'search retries stop for a stale Project');
 // Refresh stays available after a failure; a later successful read clears the error (Build is gated only by the inventory).
 assert.ok(ui.includes('disabled={busy || !assets} onClick={refreshInventory}>{t(L, "refresh")}<') && ui.includes('setInventory(inv); setInvError(null);'), 'Refresh stays enabled; success clears the error');
@@ -433,7 +451,7 @@ assert.ok(ui.includes('const boundaries: number[] = plan.schedule.cuts;') && ui.
 assert.ok(build.includes('videoEnd: a.totalFrames'), 'the title ends at the last clip end');
 
 // Inventory refresh: poll while pending, focus / visibility, Refresh button; project switch drops the cache.
-says('analysing', 'This updates automatically when they finish.'); says('notAnalysedAnalyse', 'Analyse them in Selects to use them here.'); says('noFootage', 'this updates automatically'); says('refresh', 'Refresh');
+says('unusableWait', 'This updates automatically.'); says('noFootage', 'this updates automatically'); says('refresh', 'Refresh');
 for (const s of ['loadInventory(', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef', 'projectRef']) assert.ok(ui.includes(s), s);
 assert.ok(/needsPoll = [^\n]*inventory\.photos/.test(ui), 'a photos-only Project does not poll');
 assert.ok(ui.includes('const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");') && ui.includes('const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");'), 'scene search cache keyed on the Project');
@@ -482,7 +500,7 @@ assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capt
 assert.ok(ui.includes('advance("shots", i / rids.length, (l) => t(l, "videosChecked", { done, count: rids.length }));'), 'progress counts videos');
 assert.deepEqual(en.videosChecked, { one: '{done}/{count} video checked', other: '{done}/{count} videos checked' });
 assert.ok(!panel.includes('clips checked'), 'no "clips checked" wording');
-assert.ok(ui.includes('const shotsDetail: Say | undefined = rids.length ? undefined : (l) => t(l, "photosOnly");') && ui.includes('advance("shots", 1, shotsDetail);'), 'photos-only detail');
+assert.ok(ui.includes('const shotsDetail: Say | undefined = chosenVideos.length ? undefined : (l) => t(l, "photosOnly");') && ui.includes('advance("shots", 1, shotsDetail);'), 'photos-only detail');
 says('photosOnly', 'photos only');
 assert.deepEqual(en.retryUnchecked, { one: 'Could not check {count} video; press Build to retry it.', other: 'Could not check {count} videos; press Build to retry them.' });
 assert.deepEqual(en.unchecked, { one: 'Could not check {count} video; it was skipped. Build again to retry it.', other: 'Could not check {count} videos; they were skipped. Build again to retry them.' });
