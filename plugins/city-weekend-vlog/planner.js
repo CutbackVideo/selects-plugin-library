@@ -326,7 +326,11 @@ function cwvAllocate(opts) {
       const end = start + slot.seconds;
       if ((used[c.rid] || []).some(([a, b]) => start < b + gap && end > a - gap)) continue;
       const repeats = recent.filter(r => r === c.rid).length;
-      const value = c.score - rank * 0.15 - repeats * 0.2 + cwvHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05;
+      // Quick-checked windows of clips without analysis (role 'quick', motion 0..1 within the build): calm ones open and
+      // close the title, moving ones suit the burst and the montage. Analysed candidates have no motion and are unaffected.
+      const calm = slot.section === 'opening' || slot.section === 'hold';
+      const lift = c.role === 'quick' && typeof c.motion === 'number' ? (calm ? -0.1 : 0.05) * c.motion : 0;
+      const value = c.score - rank * 0.15 - repeats * 0.2 + cwvHash(opts.seed + ':' + c.rid + ':' + c.t.toFixed(2)) * 0.05 + lift;
       const better = !best || value > best.value + 1e-12 ||
         (Math.abs(value - best.value) <= 1e-12 && (c.rid < best.c.rid || (c.rid === best.c.rid && c.t < best.c.t)));
       if (better) best = { value, c, start, end };
