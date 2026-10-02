@@ -45,7 +45,8 @@ async function boundedRead<T>(task:()=>Promise<T>|T,signal:AbortSignal,label:str
 }
 async function toBlob(value:any,fs:any):Promise<Blob>{
  if(value&&typeof value.arrayBuffer==='function')return value;
- if(value instanceof Uint8Array)return new Blob([value]);
+ // Host bytes come from window.parent, another realm, where instanceof fails (Blob accepts them).
+ if(ArrayBuffer.isView(value)||Object.prototype.toString.call(value)==='[object ArrayBuffer]')return new Blob([value]);
  if(typeof value!=='string')throw new Error('No thumbnail was returned.');
  if(value.startsWith('local:')||value.startsWith('file:')){const path=fs.localURLToPath(value),bytes=new Uint8Array(await fs.readFile(path));return new Blob([bytes]);}
  if(value.startsWith('data:')){const k=value.indexOf(','),head=value.slice(0,k),raw=head.includes(';base64')?atob(value.slice(k+1)):decodeURIComponent(value.slice(k+1));return new Blob([Uint8Array.from(raw,c=>c.charCodeAt(0))],{type:head.slice(5).split(';')[0]});}

@@ -1,8 +1,7 @@
 // B-roll inserts (spec 9): full-bleed literal footage over the speaker for a phrase at a time. A run
 // starts on a word onset, lasts 2-5.5 s and holds 1-4 shots of about 1.4 s; the first run waits for
 // the opening line, the last 1.5 s stay on the speaker, and coverage stays under 60%.
-import { fs, q, shell, sleep, type Sdk } from "./host";
-import { FF } from "./sound";
+import { fs, hostFF, sleep, type Sdk } from "./host";
 import { searchCandidates, cutCandidate, stockSearchAvailable, probeDuration, type StockClip, type Candidate } from "./stock";
 import type { Word, Span } from "../captions/types";
 
@@ -185,8 +184,9 @@ export function coverRect(sw: number, sh: number, W: number, H: number) {
 
 async function lumaOf(sdk: Sdk, path: string, at: number, crop: string): Promise<number | null> {
   const vf = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" + crop + ",signalstats,metadata=print:key=lavfi.signalstats.YAVG";
-  const out = await shell(sdk, "Measure B-roll brightness", FF + '"$FF" -hide_banner -nostats -ss ' + at.toFixed(2) + " -i " + q(path) + " -vf " + q(vf) + " -frames:v 1 -f null - 2>&1 | grep -o 'YAVG=[0-9.]*' | head -n 1", 30000, 2000);
-  const v = Number((out.match(/YAVG=([\d.]+)/) || [])[1]);
+  // metadata=print logs the value on stderr
+  const r = await hostFF("runFFmpeg", ["-hide_banner", "-nostats", "-ss", at.toFixed(2), "-i", path, "-vf", vf, "-frames:v", "1", "-f", "null", "-"], 30000);
+  const v = Number(((r.stderr + r.stdout).match(/YAVG=([\d.]+)/) || [])[1]);
   return Number.isFinite(v) ? v : null;
 }
 export const frameLuma = (sdk: Sdk, path: string, at: number) => lumaOf(sdk, path, at, "");

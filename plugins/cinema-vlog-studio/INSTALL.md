@@ -8,13 +8,12 @@ installation layout is all that is needed:
   `assets/` go beneath `SELECTS_USER_SKILLS_ROOT/cinema-vlog-studio/`, keeping
   their relative paths.
 
-The panel reads its sounds from
-`$SELECTS_USER_SKILLS_ROOT/cinema-vlog-studio/assets/`, so `assets/` must keep
-its name and its three filenames.
+The panel reads its sounds from `cinema-vlog-studio/assets/` in the skills root,
+so `assets/` must keep its name and its three filenames.
 
 ## Requirements
 
-- macOS, with the Selects SDK and host shell available to the panel.
+- macOS or Windows, with the Selects SDK available to the panel.
 - A Project open, containing one folder of imported video (about 5.6 seconds or
   longer for the most demanding slot).
 

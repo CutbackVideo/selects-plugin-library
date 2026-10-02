@@ -14,9 +14,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS"
+      "macOS",
+      "Windows x64"
     ],
-    "selects": "Requires Panel SDK runScript/runShell/askAI, Draft setFrameSize, setClipTransform and addMotionGraphic, Project createFolder and moveToFolder, and the panel runtime services FileSystem, MediaGeneration and RemotionOverlay."
+    "selects": "Requires Panel SDK runScript/runShell/askAI, Draft setFrameSize, setClipTransform and addMotionGraphic, Project createFolder and moveToFolder, and the panel runtime services FileSystem, MediaGeneration and RemotionOverlay. Windows: the panel uses the host FileSystem and reveal, with cmd.exe fallbacks; not yet run on a Windows PC."
   },
   "preview": {
     "video": "preview.mp4",

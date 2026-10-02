@@ -2,7 +2,7 @@
 
 Create an editable 9:16 Draft that shows source media above an animated Selects-style timeline.
 
-**Experimental.** Tested with a compatible Selects development build on macOS. Released-version and Windows/Linux compatibility are unverified. See [installation and requirements](INSTALL.md).
+**Experimental.** Tested with a compatible Selects development build on macOS. Windows uses the same code but has not been run on a Windows PC yet; released-version and Linux compatibility are unverified. See [installation and requirements](INSTALL.md).
 
 ## What changed in 0.2.0-alpha.1
 

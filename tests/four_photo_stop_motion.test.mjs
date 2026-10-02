@@ -5,9 +5,10 @@ import path from 'node:path';
 import vm from 'node:vm';
 import os from 'node:os';
 import {spawnSync} from 'node:child_process';
-import {loadPanelOperation,runPanelShell} from './panel_operation.mjs';
+import {loadPanelOperation} from './panel_operation.mjs';
+import {hostBlock,REFERENCE_BLOCK,posixHits,NEWER_SELECTS,loadPanelFunctions,fakeHost,hostGlobals} from './windows_host.mjs';
 
-const {scenePlan,normalizeFinish,buildFinishScript,authorFinish,LOOK,MUSIC_COMMAND}=loadPanelOperation('four-photo-stop-motion');
+const {scenePlan,normalizeFinish,buildFinishScript,authorFinish,LOOK}=loadPanelOperation('four-photo-stop-motion');
 
 const dir=path.resolve(import.meta.dirname,'../plugins/four-photo-stop-motion');
 // Independent reference measurements (ffmpeg, 30 fps, 347 frames): photo cut frames.
@@ -68,12 +69,49 @@ test('look constants match the measured blur and shake',()=>{
  assert.equal(LOOK.introBlur,5);assert.equal(LOOK.hitBlur,10);assert.deepEqual(LOOK.hitShake,[0,0,12]);
 });
 
-test('bundled music is found without Node.js and outlasts the Draft',()=>{
- const run=runPanelShell(MUSIC_COMMAND,{home:fs.mkdtempSync(path.join(os.tmpdir(),'fpsm-'))});
- assert.equal(run.status,0,run.stderr);
- const file=run.stdout;assert.equal(file,fs.realpathSync(path.join(dir,'assets','music.mp3')));assert.ok(fs.statSync(file).size>50000);
+test('bundled music outlasts the Draft',()=>{
+ const file=path.join(dir,'assets','music.mp3');assert.ok(fs.statSync(file).size>50000);
  const probe=spawnSync('ffprobe',['-v','error','-show_entries','format=duration','-of','csv=p=0',file],{encoding:'utf8'});
  if(probe.status===0)assert.ok(Number(probe.stdout)>347/30+0.1,'music must be longer than the Draft');
+});
+
+// Windows: the music is found through the host FileSystem (no shell) and an
+// earlier import is reused whatever the path's case or slashes.
+const W_HOME='C:\\Users\\\uD64D\uAE38\uB3D9';
+const W_MUSIC=W_HOME+'\\.selects\\skills\\four-photo-stop-motion\\assets\\music.mp3';
+const loadMusic=host=>loadPanelFunctions(panelSource,['inventory','isBundledMusic','ensureMusic'],{...hostGlobals(host),INVENTORY:''});
+
+test('the host I/O block is Archive Vlog\'s, unchanged, and no POSIX shell is left',()=>{
+ assert.equal(hostBlock(panelSource),REFERENCE_BLOCK);
+ assert.deepEqual(posixHits(panelSource),[]);
+ assert.doesNotMatch(panelSource,/runShell/,"no shell call at all");
+});
+
+test('Windows: the music resolves through FileSystem and is imported once',async()=>{
+ const host=fakeHost({files:{[W_MUSIC]:'x'}});
+ const {ensureMusic}=loadMusic(host);
+ const imports=[];let rows=[];
+ const sdk={runShell:()=>{throw Error('no shell on this path')},runScript:async({script})=>{
+  if(script.includes('importFiles')){imports.push(JSON.parse(/paths:(\[.*?\])/.exec(script)[1])[0]);rows=[{resourceId:'m1',type:'Audio',path:imports[0]}];return{result:{}};}
+  return{result:rows};
+ }};
+ assert.equal(await ensureMusic(sdk,'p'),'m1');
+ assert.deepEqual(imports,[W_MUSIC]);
+ rows=[{resourceId:'m1',type:'Audio',path:W_MUSIC.toLowerCase().replaceAll('\\','/')}];
+ assert.equal(await ensureMusic(sdk,'p'),'m1');
+ assert.equal(imports.length,1,'an earlier import is reused');
+});
+
+test('an import through a linked install folder is reused, other music.mp3 files are not',()=>{
+ const {isBundledMusic}=loadMusic(fakeHost());
+ assert.ok(isBundledMusic('/Volumes/dev/plugins/four-photo-stop-motion/assets/music.mp3','~/.selects/skills/four-photo-stop-motion/assets/music.mp3'));
+ assert.ok(!isBundledMusic('~/Music/music.mp3','~/.selects/skills/four-photo-stop-motion/assets/music.mp3'));
+});
+
+test('a missing install says the music is missing',async()=>{
+ const {ensureMusic}=loadMusic(fakeHost());
+ const sdk={runShell:async()=>({stdout:'\r\n'}),runScript:async()=>{throw Error('not reached')}};
+ await assert.rejects(ensureMusic(sdk,'p'),/Bundled music is missing/);
 });
 
 const plan=scenePlan();
@@ -139,4 +177,8 @@ test('bridge places 21 clips from 4 photos, shortening each 120-frame still',asy
  assert.equal(out.placements.length,21);
  assert.equal(placedFrom.join(''),'ABCDABCDABCDABCDABCDA');
  assert.ok(trims.every(t=>t.delta<0&&t.sourceDuration===t.before));
+});
+
+test('an old Selects build gets the update message, not "Reinstall"',()=>{
+ assert.ok(panelSource.includes(NEWER_SELECTS));
 });

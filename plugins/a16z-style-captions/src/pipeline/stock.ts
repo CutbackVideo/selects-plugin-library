@@ -1,8 +1,7 @@
 // Stock B-roll through the app's StockMediaSearch service: Cutback's server searches Pexels and Pixabay
 // with its own keys, so nothing is asked of the user. Searches return candidates with a preview image;
 // the chosen candidate's needed seconds are cut straight from the provider's URL.
-import { di, fs, q, shell, type Sdk } from "./host";
-import { FF } from "./sound";
+import { di, fs, hostFF, type Sdk } from "./host";
 
 export type StockClip = { path: string; width: number; height: number; credit: string; url: string; service: string; id: string; dur?: number };
 
@@ -86,21 +85,21 @@ export async function cutCandidate(sdk: Sdk, c: Candidate, dir: string, seconds:
   if (!fs().existsSync(out)) {
     const portrait = c.height > c.width;
     const box = portrait ? "1080:1920" : "1920:1080";
-    await shell(
-      sdk,
-      "Download stock B-roll",
-      FF + 'set -e; "$FF" -v error -y -ss ' + start.toFixed(2) + " -t " + length.toFixed(2) + " -i " + q(c.url) +
-        " -an -c:v libx264 -preset veryfast -crf 19 -pix_fmt yuv420p -vf " + q("scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2") +
-        " " + q(out + ".part.mp4") + " && mv " + q(out + ".part.mp4") + " " + q(out),
-      150000,
-      4000
+    // ffmpeg writes a .part file that is renamed once complete, so a failed cut never looks cached
+    // (straight to the final name on a host build without renameSync).
+    const part = typeof fs().renameSync === "function" ? out + ".part.mp4" : out;
+    await hostFF(
+      "runFFmpeg",
+      ["-v", "error", "-y", "-ss", start.toFixed(2), "-t", length.toFixed(2), "-i", c.url,
+        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p",
+        "-vf", "scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2", part],
+      150000
     );
+    if (part !== out) fs().renameSync(part, out);
   }
-  const probe = (
-    await shell(sdk, "Probe stock B-roll", 'FP="$(command -v ffprobe || ls /opt/homebrew/bin/ffprobe /usr/local/bin/ffprobe "$HOME/.local/bin/ffprobe" 2>/dev/null | head -n 1)"; "$FP" -v error -select_streams v:0 -show_entries stream=width,height:format=duration -of csv=p=0 ' + q(out) + " | tr '\\n' ','", 30000, 2000)
-  )
+  const probe = (await hostFF("runFFprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:format=duration", "-of", "csv=p=0", out], 30000)).stdout
     .trim()
-    .split(",")
+    .split(/[\r\n,]+/)
     .map(Number);
   return { id: c.id, path: out, width: probe[0] || c.width, height: probe[1] || c.height, dur: probe[2] || 0, credit: c.credit, url: c.authorUrl, service: c.service };
 }
@@ -139,6 +138,6 @@ export function hash(s: string) {
 
 // Duration (s) of a cut clip, for cached clips that predate the duration field.
 export async function probeDuration(sdk: Sdk, path: string): Promise<number> {
-  const out = await shell(sdk, "Probe stock B-roll", 'FP="$(command -v ffprobe || ls /opt/homebrew/bin/ffprobe /usr/local/bin/ffprobe "$HOME/.local/bin/ffprobe" 2>/dev/null | head -n 1)"; "$FP" -v error -show_entries format=duration -of csv=p=0 ' + q(path), 30000, 2000).catch(() => "");
+  const out = await hostFF("runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], 30000).then((r) => r.stdout).catch(() => "");
   return Number(String(out).trim()) || 0;
 }

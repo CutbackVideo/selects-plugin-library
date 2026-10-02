@@ -28,9 +28,10 @@
   },
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified."
+    "selects": "Development build only. Released-version compatibility is unverified. Windows: no shell command on the build path; a Windows pass on the Staging build is pending."
   },
   "collection": "visual-highlights",
   "usesCredits": false,

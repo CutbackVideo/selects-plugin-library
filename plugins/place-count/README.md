@@ -2,7 +2,7 @@
 
 Turn a folder of trip footage into an editable, numbered travel-story reel.
 
-**Experimental.** Tested with a compatible Selects development build on macOS. Released-version, Windows, and full live smart-assist coverage across codecs are unverified. See [installation and requirements](INSTALL.md).
+**Experimental.** Tested with a compatible Selects development build on macOS. Released-version and full live smart-assist coverage across codecs are unverified. Windows uses the same code but has not been run on a Windows PC yet. See [installation and requirements](INSTALL.md).
 
 ## Use
 
