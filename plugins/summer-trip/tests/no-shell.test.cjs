@@ -3,7 +3,8 @@
 // Windows sdk.runShell is cmd.exe, and Selects bundles no Node, so the runtime files use the host's services instead
 // (st-host block: FileSystem, Runtime.runFFmpeg/runFFprobe with argument arrays, a Web Worker for beat detection).
 // Runtime files: panel.tsx, scripts/*.js (run_script), assets/*.tsx (effects and graphics), and the files the panel
-// embeds or loads (muffle.cjs, graphics-defs.js, planner.js, beat-detect.cjs up to its node-only CLI branch).
+// embeds or loads (muffle.cjs, graphics-defs.js, planner.js, effects-geometry.cjs, beat-detect.cjs up to its node-only
+// CLI branch).
 // Comments are not code: they may name the old shell commands. dev/ tools are build-time only and are not scanned.
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 
@@ -40,7 +41,7 @@ for (const sample of ['for (const node of nodes) x(node);', 'await hostFFmpeg(st
   assert.deepEqual(violations(sample), [], 'no false alarm: ' + sample);
 
 // The runtime files.
-const files = ['panel.tsx', ...list('scripts', /\.js$/), ...list('assets', /\.tsx$/), 'muffle.cjs', 'graphics-defs.js', 'planner.js'];
+const files = ['panel.tsx', ...list('scripts', /\.js$/), ...list('assets', /\.tsx$/), 'muffle.cjs', 'graphics-defs.js', 'planner.js', 'effects-geometry.cjs'];
 assert.ok(files.length >= 14, 'runtime files found: ' + files.length);
 const found = {};
 for (const rel of files) { const v = violations(read(rel)); if (v.length) found[rel] = v; }

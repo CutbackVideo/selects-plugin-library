@@ -4881,6 +4881,8 @@ function SummerTripPanel({ sdk, context, ui }: any) {
     bytes = null;
     if (!/^[0-9a-f]{8}$/.test(hash)) throw uiError((l) => t(l, "musicNotRead"));
     const out = pjoin(roots!.data, stOwnMuffledName(name, hash)), part = out + ".part.wav";
+    // A partial copy left by an earlier run that stopped mid-bake goes first (the old step always removed it).
+    await hostRemove(part);
     if (!(hostFileSize(out) > 0)) {
       try {
         await hostFFmpeg(stMuffleArgs(path, part), { timeoutMs: 180000 });
