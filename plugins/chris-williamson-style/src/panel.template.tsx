@@ -463,6 +463,7 @@ return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, wo
 /*SECTION_assets*/
 /*SECTION_verification*/
 /*SECTION_pipeline*/
+/*SECTION_engine*/
 
 // ---------------------------------------------------------------------------------------------------------
 // Panel UI.

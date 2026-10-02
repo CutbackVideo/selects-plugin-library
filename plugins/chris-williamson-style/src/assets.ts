@@ -29,8 +29,9 @@ async function chooseAssets(env: Env, jobDir: string, mediaFolder: string, reel:
   const items=reel.brolls.map((b,i)=>({id:pass+String(i+1).padStart(3,"0"),keyword:b.key.text,query:b.query,desiredKind:"video",candidates:(Array.isArray(found[b.query])?found[b.query]:[]).filter(c=>!c.path||allowedLocal===null||allowedLocal.has(pathKey(c.path)))}));
   const callEngine=async(cmd:string,job:any)=>{
     const file=hostJoin(jobDir,cmd+".json");await env.writeText(file,JSON.stringify(job));
+    if(hostIsWindows())await cwEngine(env,cmd,file);
     // mac-only:start
-    await env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),"Prepare B-roll "+cmd,300000);
+    else await env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),"Prepare B-roll "+cmd,300000);
     // mac-only:end
     return JSON.parse(await env.readText(hostJoin(jobDir,cmd+"-result.json")));
   };

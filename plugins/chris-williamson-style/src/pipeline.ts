@@ -102,9 +102,13 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     for(const item of Object.values(state.items) as any[])if(item.status==='applied'&&!idSet.has(item.clipId))item.status='deleted';
   }
   await save();
-  // mac-only:start
-  const engine=async(cmd:string,file:string,summary:string,timeoutMs:number)=>env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),summary,timeoutMs);
-  // mac-only:end
+  // engine.mjs on Node.js (macOS); on Windows the same commands in the panel (cwEngine).
+  const engine=async(cmd:string,file:string,summary:string,timeoutMs:number)=>{
+    if(hostIsWindows()){await cwEngine(env,cmd,file);return;}
+    // mac-only:start
+    await env.runShell(q(await env.node())+" "+q(env.pluginDir+"/engine.mjs")+" "+cmd+" "+q(file),summary,timeoutMs);
+    // mac-only:end
+  };
   // Replanning is explicit. Captions-only and B-roll-only updates retain the established keyword slots.
   if(!state.keys || scope==='all' && !state.completed.includes('plan')) {
     env.status("Planning keywords…");
