@@ -1918,7 +1918,7 @@ const INVENTORY_RETRY_MS = 2000;
 const INCOMPLETE_POLL_MAX = 6;
 // Clips that cannot be used yet (still importing) or an empty Project are re-read with the same 10 s poll, at most
 // WAIT_POLL_MAX times in a row (about five minutes; a clip whose file was moved never becomes usable); then polling
-// stops until Refresh, coming back to the panel or a changed inventory.
+// stops until Refresh or a changed inventory (coming back to the panel still reads it once).
 const WAIT_POLL_MAX = 30;
 // Their messages are STRINGS `sizesLoading` (next to Build) and `invPartial` (the readiness line).
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
@@ -4017,8 +4017,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const [checking, setChecking] = React.useState(false);
   const localAbortRef = React.useRef<AbortController | null>(null);
   const [tools, setTools] = React.useState({ ffmpeg: true, worker: true });
-  // The running own-music analysis: a new track, leaving "Your own music", a Project switch or unmount cancels it
-  // (abort: the ffmpeg decode and the worker), and the request id drops a late result.
+  // The running own-music analysis: a Project switch or unmount cancels it (abort: the ffmpeg decode and the worker),
+  // and the request id drops a late result. While it runs the panel is busy, so no other track can be chosen.
   const ownJobRef = React.useRef<{ id: number; abort: AbortController | null }>({ id: 0, abort: null });
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
   const registered = React.useRef<Set<string>>(new Set());
