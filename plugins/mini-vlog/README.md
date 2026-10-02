@@ -6,7 +6,7 @@ title lockup over the whole video. The result is a **new, editable Draft**.
 The plugin never renders a file and never changes an existing Draft or any
 source file. Clips do not need to be analysed first: see
 [Clips without analysis](#clips-without-analysis). It works on macOS and
-Windows with nothing to install (no Homebrew, Node.js or command-line tools):
+Windows with nothing to install (no package manager, Node.js or command-line tools):
 everything uses what Selects brings.
 
 ## What it makes

@@ -18,7 +18,7 @@ Nothing to install, on macOS or Windows. Everything runs on what Selects
 brings: the bundled music, the title, the Soft look and the Draft build, and
 also the music previews, your own music (beat detection runs inside the panel)
 and the quick check of clips without analysis, which use the ffmpeg built into
-Selects through the host. No Homebrew, Node.js or shell commands are needed.
+Selects through the host. No package manager, Node.js or shell commands are needed.
 
 If this Selects lacks one of the host functions the panel uses, the panel
 says so ("This Selects build needs an updated … adapter.", or for music
