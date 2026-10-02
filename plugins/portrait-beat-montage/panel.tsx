@@ -149,12 +149,20 @@ async function hostProbeSeconds(path) {
 }
 // av-host:end
 
-// The pipeline (pipeline.py: numpy, Pillow, RVM on onnxruntime) runs on a private Python that rvm/setup.sh installs
-// for macOS arm64 only, through POSIX shell. On Windows the panel opens, but every build entry stops here first,
-// before any setup, background job, import or Draft. The shell below sits in mac-only regions reached only off Windows.
+// The macOS pipeline (pipeline.py: numpy, Pillow, RVM on onnxruntime) runs on a private Python that rvm/setup.sh
+// installs for macOS arm64 only, through POSIX shell; it sits in mac-only regions whose entries refuse Windows with
+// this line. Windows builds with the in-panel engine (pbm-engine) instead.
 const MAC_ONLY_TEXT = { en: "Available on macOS for now.", de: "Vorerst nur auf macOS verfügbar.", es: "Disponible solo en macOS por ahora.", fr: "Disponible sur macOS pour le moment.", it: "Per ora disponibile solo su macOS.", ja: "現在はmacOSでのみ利用できます。", ko: "\uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.", pt: "Disponível no macOS por enquanto.", tr: "Şimdilik yalnızca macOS’ta kullanılabilir.", zh: "目前仅在 macOS 上可用。" };
 const macOnlyText = (language) => MAC_ONLY_TEXT[String(language || "").slice(0, 2).toLowerCase()] || MAC_ONLY_TEXT.en;
 const macOnlyError = (language) => Object.assign(new Error(macOnlyText(language)), { code: "mac-only" });
+// Windows person mattes spend Selects generation credits, so the panel asks first (no cost estimate API exists: the
+// notice says what is sent). A Clip highlights run has no panel to ask in, so it stops before the paid step.
+const COST_TEXT = {en: "This sends about {s} s of video ({n} shots) to Selects background removal, which uses generation credits. A rebuild reuses the result.", de: "Dabei werden etwa {s} s Video ({n} Einstellungen) an die Hintergrundentfernung von Selects gesendet, die Generierungs-Credits verbraucht. Ein erneuter Aufbau verwendet das Ergebnis wieder.", es: "Se envían unos {s} s de vídeo ({n} planos) a la eliminación de fondo de Selects, que usa créditos de generación. Al volver a crearlo se reutiliza el resultado.", fr: "Environ {s} s de vidéo ({n} plans) seront envoyées à la suppression d’arrière-plan de Selects, qui utilise des crédits de génération. Une nouvelle création réutilise le résultat.", it: "Vengono inviati circa {s} s di video ({n} inquadrature) alla rimozione dello sfondo di Selects, che usa crediti di generazione. Ricreando il montaggio il risultato viene riutilizzato.", ja: "約{s}秒の動画（{n}ショット）をSelectsの背景除去に送信します。生成クレジットを使用します。作り直す場合は結果を再利用します。", ko: "\uc57d {s}\ucd08 \ubd84\ub7c9\uc758 \uc601\uc0c1({n}\uac1c \uc0f7)\uc744 Selects \ubc30\uacbd \uc81c\uac70\ub85c \ubcf4\ub0c5\ub2c8\ub2e4. \uc0dd\uc131 \ud06c\ub808\ub527\uc774 \uc0ac\uc6a9\ub429\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4 \ub54c\ub294 \uacb0\uacfc\ub97c \uc7ac\uc0ac\uc6a9\ud569\ub2c8\ub2e4.", pt: "Isto envia cerca de {s} s de vídeo ({n} planos) para a remoção de fundo do Selects, que usa créditos de geração. Ao recriar, o resultado é reutilizado.", tr: "Bu işlem yaklaşık {s} sn videoyu ({n} çekim) Selects arka plan kaldırmaya gönderir ve üretim kredisi kullanır. Yeniden oluşturmada sonuç tekrar kullanılır.", zh: "这会将约 {s} 秒视频（{n} 个镜头）发送到 Selects 背景移除，并消耗生成额度。重新生成时会复用结果。"};
+const COST_GO = {en: "Use credits and continue", de: "Credits verwenden und fortfahren", es: "Usar créditos y continuar", fr: "Utiliser des crédits et continuer", it: "Usa i crediti e continua", ja: "クレジットを使って続行", ko: "\ud06c\ub808\ub527 \uc0ac\uc6a9\ud558\uace0 \uacc4\uc18d", pt: "Usar créditos e continuar", tr: "Kredi kullan ve devam et", zh: "使用额度并继续"};
+const COST_STOP = {en: "Cancel", de: "Abbrechen", es: "Cancelar", fr: "Annuler", it: "Annulla", ja: "キャンセル", ko: "\ucde8\uc18c", pt: "Cancelar", tr: "İptal", zh: "取消"};
+const TEMPLATE_CREDITS = {en: "This uses Selects generation credits. Open Portrait Beat Montage and press Create new draft to confirm.", de: "Dafür werden Selects-Generierungs-Credits verbraucht. Öffne Portrait Beat Montage und klicke zur Bestätigung auf Create new draft.", es: "Esto usa créditos de generación de Selects. Abre Portrait Beat Montage y pulsa Create new draft para confirmar.", fr: "Cela utilise des crédits de génération Selects. Ouvrez Portrait Beat Montage et appuyez sur Create new draft pour confirmer.", it: "Questo usa crediti di generazione di Selects. Apri Portrait Beat Montage e premi Create new draft per confermare.", ja: "Selectsの生成クレジットを使用します。Portrait Beat Montageを開き、Create new draftを押して確認してください。", ko: "Selects \uc0dd\uc131 \ud06c\ub808\ub527\uc774 \uc0ac\uc6a9\ub429\ub2c8\ub2e4. Portrait Beat Montage\ub97c \uc5f4\uace0 Create new draft\ub97c \ub20c\ub7ec \ud655\uc778\ud558\uc138\uc694.", pt: "Isto usa créditos de geração do Selects. Abra o Portrait Beat Montage e pressione Create new draft para confirmar.", tr: "Bu işlem Selects üretim kredisi kullanır. Onaylamak için Portrait Beat Montage'ı açıp Create new draft'a basın.", zh: "这会消耗 Selects 生成额度。请打开 Portrait Beat Montage 并按 Create new draft 确认。"};
+const pick = (table, language) => table[String(language || "").slice(0, 2).toLowerCase()] || table.en;
+const costText = (language, seconds, shots) => pick(COST_TEXT, language).replace("{s}", String(Math.round(seconds * 10) / 10)).replace("{n}", String(shots));
 
 // @operation-start
 // The in-panel port of pipeline.py (Windows has no Python): its timeline, the ffmpeg argv it runs, as
@@ -741,6 +749,7 @@ const T = {
   settingUp: "Setting up…",
   rights: "Use footage of people who agreed to be filmed. The plugin includes its soundtrack (Pixabay Content License).",
   time: "Rendering takes about 3 minutes on Apple silicon (seconds when the same clips are used again).",
+  timeWindows: "Rendering takes a few minutes in this panel; keep it open (seconds when the same clips are used again). Person mattes use Selects generation credits; you confirm first.",
   done: "New draft created. It is open in the editor.",
   steps: ["Choose shot windows", "Mattes and transitions", "Render shots", "Build draft"],
   cancel: "Cancel",
@@ -965,6 +974,8 @@ async function pbmUnits(io, kernels, run, mattes, signal, progress) {
     const cache = await pbmCacheDir(io, unit);
     if (done(cache)) { for (const name of ["source.mp4", "post.rgb"]) await io.fs.copyFile(hostJoin(cache, name), hostJoin(folder, name)); continue; }
     if (byCache.has(cache)) { copies.push({ from: byCache.get(cache), folder }); continue; }
+    // Mattes paid for in an earlier run of this window are reused (a rebuild never asks twice).
+    if (io.fs.existsSync(hostJoin(cache, "matte.gray")) && !io.fs.existsSync(hostJoin(folder, "matte.gray"))) await io.fs.copyFile(hostJoin(cache, "matte.gray"), hostJoin(folder, "matte.gray"));
     byCache.set(cache, folder);
     todo.push({ key, unit, folder, cache });
   }
@@ -979,7 +990,10 @@ async function pbmUnits(io, kernels, run, mattes, signal, progress) {
     progress?.(++step / steps);
   }
   const need = todo.filter((t) => !io.fs.existsSync(hostJoin(t.folder, "matte.gray")));
-  if (need.length) await mattes(io, need.map((t) => ({ key: t.key, folder: t.folder, source: hostJoin(t.folder, "source.mp4") })), signal, (p) => progress?.((step + p) / steps));
+  if (need.length) {
+    await mattes(io, need.map((t) => ({ key: t.key, folder: t.folder, source: hostJoin(t.folder, "source.mp4") })), signal, (p) => progress?.((step + p) / steps), run);
+    for (const t of need) { io.fs.mkdirSync(t.cache, { recursive: true }); await io.fs.copyFile(hostJoin(t.folder, "matte.gray"), hostJoin(t.cache, "matte.gray")); }
+  }
   progress?.(++step / steps);
   for (const t of todo) {
     const frames = (await pbmDecodeSource(io, t.folder, SRC_FRAMES, signal)).slice(0, MATTE_FRAMES * N * 3);
@@ -1086,14 +1100,79 @@ async function pbmMatteSource(io, units, out, signal) {
   await pbmFFmpeg(matteConcatArgs(units.map((u) => u.source), out), out, signal);
   return { path: out, seconds: units.length * (MATTE_PAD + MATTE_FRAMES) / FPS };
 }
-// Person mattes on Windows: ONE Selects generation request (video background removal, as depth-type-captions makes
-// its speaker masks) for the whole montage. Not enabled yet: it spends Selects credits, and that notice is pending.
-async function pbmCloudMattes(io, units, signal, progress) {
-  void io; void units; void signal; void progress;
-  throw Object.assign(new Error(macOnlyText()), { code: "mac-only" });
+// Person mattes on Windows: ONE Selects generation request for the whole montage (video background removal, people
+// only, H.264 that carries the alpha alone, as depth-type-captions makes its speaker masks). `confirm({ seconds,
+// shots })` must resolve true before anything is sent: nothing is spent without that click. The request key follows the
+// run and its windows, so sending it again (a reload, a retry) admits nothing new, and the delivered video is recorded
+// in cloud/result.json, so a rebuild or a resumed run reuses it without asking. Cancel cancels the request.
+const PBM_CLOUD_MODEL = "model_v1_dmVlZC92aWRlby1iYWNrZ3JvdW5kLXJlbW92YWwvZmFzdA";
+const PBM_CLOUD_MIN_HOST = "2.0.512";
+const PBM_CLOUD_FAILED = new Set(["failed", "cancelled", "input_failed", "submission_rejected", "upload_failed", "handoff_failed"]);
+function pbmCloudMessage(code) {
+  if (code === "insufficient_credits") return "Not enough Selects credits to make the person mattes.";
+  if (code === "generation_disabled") return "Person mattes on Windows use Selects generation, which this account cannot use yet.";
+  if (code === "generation_update_required") return "Person mattes on Windows need Selects " + PBM_CLOUD_MIN_HOST + " or later. Update Selects, then try again.";
+  return "Person mattes failed" + (code ? " (" + code + ")" : "") + ". Try again.";
+}
+function pbmVersionBelow(version, minimum) {
+  const a = String(version || "0").split(".").map((n) => parseInt(n, 10) || 0), b = minimum.split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
+  return false;
+}
+function pbmLibraryId() {
+  try { return window.parent.location.pathname.match(/libraries\/([^/]+)/)?.[1] || null; } catch { return null; }
+}
+async function pbmCloudMattes(io, units, signal, progress, { run, projectId, confirm }) {
+  const dir = hostJoin(run.root, "cloud"), record = hostJoin(dir, "result.json");
+  io.fs.mkdirSync(dir, { recursive: true });
+  const key = "pbm-" + (await pbmSha1(run.plan.runId + "|" + units.map((u) => u.key).join(","))).slice(0, 24);
+  let alpha = null;
+  try { const r = JSON.parse(await hostReadText(record)); if (r.key === key && r.alpha && io.fs.existsSync(r.alpha)) alpha = r.alpha; } catch { alpha = null; }
+  if (!alpha) {
+    const mg = hostApi("MediaGeneration", "submit", "list", "cancel", "supportsPluginFiles");
+    let version = "";
+    try { version = String(hostApi("Runtime", "getHostingVersion")?.getHostingVersion() || ""); } catch { version = ""; }
+    if (!mg || !mg.supportsPluginFiles() || !version || pbmVersionBelow(version, PBM_CLOUD_MIN_HOST)) throw new Error(pbmCloudMessage("generation_update_required"));
+    const libraryId = pbmLibraryId();
+    if (!libraryId || !projectId) throw new Error("Open a project in Selects, then try again.");
+    const source = await pbmMatteSource(io, units, hostJoin(dir, "source.mp4"), signal);
+    // The credits notice: an explicit yes, or the build stops here with nothing sent.
+    const aborted = new Promise((resolve) => { if (signal?.aborted) resolve(false); else signal?.addEventListener("abort", () => resolve(false), { once: true }); });
+    const yes = (await Promise.race([Promise.resolve().then(() => confirm({ seconds: source.seconds, shots: units.length })), aborted])) === true;
+    if (!yes || signal?.aborted) throw pbmCancelled();
+    const scope = { libraryId, projectId };
+    let jobId;
+    try {
+      jobId = (await mg.submit({
+        scope, key, modelId: PBM_CLOUD_MODEL,
+        input: { video_url: "selects-input:source", output_codec: "h264", refine_foreground_edges: false, subject_is_person: true },
+        inputMediaSeconds: { video: source.seconds },
+        uploads: { source: { pluginFile: source.path } },
+        delivery: { pluginFolder: hostJoin(dir, "result") },
+        outputName: "person-mattes", batch: 1,
+        origin: { tool: "video", tab: PLUGIN, recipeId: "person-mattes" },
+      })).jobIds[0];
+    } catch (e) {
+      throw new Error(pbmCloudMessage(e?.code || e?.message));
+    }
+    const started = Date.now();
+    for (;;) {
+      if (signal?.aborted) { await mg.cancel(scope, jobId).catch(() => {}); throw pbmCancelled(); }
+      await new Promise((r) => setTimeout(r, 1000));
+      const j = (await mg.list(scope)).find((x) => x.jobId === jobId);
+      if (j?.deliveryStatus === "delivered") { alpha = (j.outputs || []).find((o) => o.path)?.path || null; break; }
+      if (j && (PBM_CLOUD_FAILED.has(j.status) || ["download_failed", "result_collection_failed"].includes(j.deliveryStatus))) throw new Error(pbmCloudMessage(j.errorCode));
+      progress?.(Math.min(.9, (Date.now() - started) / 180000));
+      if (Date.now() - started > 20 * 60000) { await mg.cancel(scope, jobId).catch(() => {}); throw new Error("The person mattes took too long. Try again."); }
+    }
+    if (!alpha) throw new Error("No person mattes came back. Try again.");
+    await pbmWriteWhole(io, record, JSON.stringify({ key, jobId, alpha }));
+  }
+  await pbmMattesFromAlpha(io, units, alpha, signal);
 }
 // The whole Windows build up to the manifest buildMontage imports.
-async function pbmWindowsMontage(sdk, { files, setStep, setProgress, signal, mattes = pbmCloudMattes, kernels = null }) {
+async function pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, signal, confirm, mattes = null, kernels = null }) {
+  mattes = mattes || ((io, units, s, p, run) => pbmCloudMattes(io, units, s, p, { run, projectId, confirm }));
   const io = await pbmHostIO(sdk), K = pbmKernels(), worker = kernels ? null : pbmWorkerKernels(), call = kernels || worker.call;
   try {
     setStep(0); setProgress(0);
@@ -1106,10 +1185,9 @@ async function pbmWindowsMontage(sdk, { files, setStep, setProgress, signal, mat
 }
 // pbm-engine:end
 
-async function buildMontage(sdk, { projectId, language, files, audios, setStep, setProgress, signal }) {
-  // Before the first step: the plan, the render jobs and the Draft all need the macOS pipeline.
-  if (hostIsWindows()) throw macOnlyError(language);
-  const manifest = hostIsWindows() ? await pbmWindowsMontage(sdk, { files, setStep, setProgress, signal }) : await macMontage(sdk, files, setStep, setProgress);
+async function buildMontage(sdk, { projectId, language, files, audios, setStep, setProgress, signal, confirm }) {
+  // Windows renders in the panel (person mattes from Selects generation, after `confirm`); macOS runs pipeline.py.
+  const manifest = hostIsWindows() ? await pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, signal, confirm }) : await macMontage(sdk, files, setStep, setProgress);
   setStep(3);
 
   // Reuse the bundled sounds when this project already has them.
@@ -1184,14 +1262,12 @@ function TemplateRun({ sdk, context }) {
     let ended = false;
     const finish = (result) => { if (ended) return; ended = true; try { sdk.finishTemplate(result); } catch {} };
     (async () => {
-      // Windows: refuse before setup, any background job or a Draft.
-      if (hostIsWindows()) throw macOnlyError(context.language);
       const projectId = context.projectId;
       if (!projectId) throw new Error("Open a project, then try again.");
       const picks = (context.template.inputs?.clips || []).filter((pick) => pick?.resourceId);
       if (picks.length !== SHOTS) throw new Error(`Pick ${SHOTS} videos, then try again.`);
-      // The first run on a Mac sets up RVM itself (a few minutes, once); later runs find it ready.
-      let doctor = await pipeline(sdk, "doctor", {}).catch(() => null);
+      // The first run on a Mac sets up RVM itself (a few minutes, once); later runs find it ready. Windows needs no setup.
+      let doctor = hostIsWindows() ? { ready: true } : await pipeline(sdk, "doctor", {}).catch(() => null);
       if (!doctor?.ready) {
         setStatus("Setting up person mattes (first run only, a few minutes)…");
         await runSetup(sdk);
@@ -1209,6 +1285,8 @@ function TemplateRun({ sdk, context }) {
       const draftId = await buildMontage(sdk, {
         projectId, language: context.language, files, audios: reply.result.audios || [],
         setStep: (n) => setStatus(T.steps[n] + "…"), setProgress: () => {},
+        // No panel to click in: stop before the paid step (a montage whose mattes are cached still builds).
+        confirm: () => { throw Object.assign(new Error(pick(TEMPLATE_CREDITS, context.language)), { code: "needs-confirm" }); },
       });
       finish({ sequenceId: draftId });
     })().catch((error) => {
@@ -1235,16 +1313,20 @@ function MontagePanel({ sdk, context, ui }) {
   const [step, setStep] = React.useState(-1);
   const [progress, setProgress] = React.useState(0);
   const [status, setStatus] = React.useState(null);
-  const macOnly = hostIsWindows();
+  const windows = hostIsWindows();
   // Windows renders in this panel (no background job): Cancel, or closing the panel, stops it.
   const cancel = React.useRef(null);
   React.useEffect(() => () => cancel.current?.abort(), []);
+  // The credits notice before the Windows matte request: { text, resolve } while it waits for a click.
+  const [costAsk, setCostAsk] = React.useState(null);
+  const confirmCost = ({ seconds, shots }) => new Promise((resolve) => setCostAsk({ text: costText(context.language, seconds, shots), resolve }));
+  const answerCost = (yes) => { costAsk?.resolve(yes); setCostAsk(null); };
 
-  // Windows: no setup check (it is shell and Python); the build stays disabled with the mac-only line.
-  const checkSetup = React.useCallback(() => macOnly ? Promise.resolve() : pipeline(sdk, "doctor", {}, 60000)
+  // Windows: no setup check (RVM setup is shell and Python; Windows needs none).
+  const checkSetup = React.useCallback(() => windows ? Promise.resolve() : pipeline(sdk, "doctor", {}, 60000)
     .then(setDoctor)
-    .catch((error) => setDoctor({ ready: false, problems: [String(error.message || error)] })), [sdk, macOnly]);
-  React.useEffect(() => { if (!macOnly) checkSetup(); }, []);
+    .catch((error) => setDoctor({ ready: false, problems: [String(error.message || error)] })), [sdk, windows]);
+  React.useEffect(() => { if (!windows) checkSetup(); }, []);
 
   // Re-read the media list whenever files join or leave the project.
   const [mediaVersion, setMediaVersion] = React.useState(0);
@@ -1275,7 +1357,7 @@ function MontagePanel({ sdk, context, ui }) {
   }, [context.projectId, mediaVersion]);
 
   async function setup() {
-    if (macOnly) return;
+    if (windows) return;
     setSettingUp(true);
     setStatus(null);
     try {
@@ -1296,20 +1378,21 @@ function MontagePanel({ sdk, context, ui }) {
   const chosen = folder ? eligible(videos, folder).slice(0, SHOTS) : [];
 
   async function build() {
-    if (macOnly || busy || chosen.length < SHOTS) return;
+    if (busy || chosen.length < SHOTS) return;
     setBusy(true);
     setStatus(null);
     setProgress(0);
     try {
       cancel.current = new AbortController();
-      await buildMontage(sdk, { projectId: context.projectId, language: context.language, files: chosen, audios, setStep, setProgress, signal: cancel.current.signal });
+      await buildMontage(sdk, { projectId: context.projectId, language: context.language, files: chosen, audios, setStep, setProgress, signal: cancel.current.signal, confirm: confirmCost });
       setStatus({ type: "success", message: T.done });
     } catch (error) {
-      setStatus({ type: "error", message: String(error.message || error) });
+      setStatus(error?.code === "cancelled" ? { type: "muted", message: String(error.message) } : { type: "error", message: String(error.message || error) });
     } finally {
       setBusy(false);
       setStep(-1);
       cancel.current = null;
+      setCostAsk((ask) => { ask?.resolve(false); return null; });
     }
   }
 
@@ -1331,12 +1414,15 @@ function MontagePanel({ sdk, context, ui }) {
         : null}
       {chosen.length === SHOTS ? <small>{T.clips}: {chosen.map((file) => file.name).join(", ")}</small> : null}
       {!loading && !folder ? <ui.Message tone="error">{T.pickFolder}</ui.Message> : null}
-      <small>{T.time}</small>
+      <small>{windows ? T.timeWindows : T.time}</small>
       <small>{T.rights}</small>
       {busy ? <ui.Progress steps={T.steps} current={step} value={step === 1 ? progress : undefined} label={T.steps[step] || ""} /> : null}
-      <ui.Actions><ui.Button variant="primary" busy={busy} busyLabel={T.working} disabled={macOnly || loading || !doctor?.ready || chosen.length < SHOTS} onClick={build}>{T.build}</ui.Button>
-        {busy && hostIsWindows() ? <ui.Button variant="secondary" onClick={() => cancel.current?.abort()}>{T.cancel}</ui.Button> : null}</ui.Actions>
-      {macOnly ? <ui.Message tone="muted">{macOnlyText(context.language)}</ui.Message> : null}
+      <ui.Actions><ui.Button variant="primary" busy={busy} busyLabel={T.working} disabled={loading || (!windows && !doctor?.ready) || chosen.length < SHOTS} onClick={build}>{T.build}</ui.Button>
+        {busy && windows && !costAsk ? <ui.Button variant="secondary" onClick={() => cancel.current?.abort()}>{T.cancel}</ui.Button> : null}</ui.Actions>
+      {costAsk ? <ui.Stack>
+        <ui.Message tone="muted">{costAsk.text}</ui.Message>
+        <ui.Actions><ui.Button variant="primary" onClick={() => answerCost(true)}>{pick(COST_GO, context.language)}</ui.Button><ui.Button variant="secondary" onClick={() => answerCost(false)}>{pick(COST_STOP, context.language)}</ui.Button></ui.Actions>
+      </ui.Stack> : null}
       {status ? <ui.Message tone={status.type}>{status.message}</ui.Message> : null}
     </ui.Stack>
   </ui.Section>;

@@ -24,6 +24,7 @@ const FFPROBE = process.env.PORTRAIT_BEAT_MONTAGE_FFPROBE || which('ffprobe');
 const PYTHON = process.env.PORTRAIT_BEAT_MONTAGE_PYTHON || 'python3';
 const pyVersions = spawnSync(PYTHON, ['-c', 'import numpy, PIL; print(numpy.__version__, PIL.__version__)'], {encoding: 'utf8'});
 const NUMPY = pyVersions.status === 0 ? pyVersions.stdout.trim().split(' ') : null;
+const plain = (v) => JSON.parse(JSON.stringify(v));   // a value from the panel's realm, for deepEqual
 const skip = !FFMPEG || !FFPROBE ? 'ffmpeg and ffprobe are needed' : false;
 
 const run = (bin, args) => new Promise((resolve, reject) => {
@@ -35,7 +36,7 @@ const run = (bin, args) => new Promise((resolve, reject) => {
 });
 
 // The panel code the engine needs, in a fresh realm with a fake Windows host.
-function loadEngine(home) {
+function loadEngine(home, {MediaGeneration = null, version = '2.0.535'} = {}) {
   const src = fs.readFileSync(path.join(plugin, 'panel.tsx'), 'utf8');
   const cut = (a, b) => src.slice(src.indexOf(a), src.indexOf(b));
   const code = ['const PLUGIN = "portrait-beat-montage";', cut('// av-host:start', '// av-host:end'), cut('const MAC_ONLY_TEXT', '// @operation-start'),
@@ -51,7 +52,7 @@ function loadEngine(home) {
   };
   const calls = [];
   const Runtime = {
-    getPlatform: () => 'win32',
+    getPlatform: () => 'win32', getHostingVersion: () => version,
     runFFmpeg: (args, quiet, signal) => { calls.push(args); if (signal?.aborted) return Promise.reject(new Error('aborted')); return run(FFMPEG, args); },
     runFFprobe: (args) => run(FFPROBE, args),
   };
@@ -69,7 +70,7 @@ function loadEngine(home) {
     postMessage(m, t) { this.w.postMessage(m, t); }
     terminate() { this.w.terminate(); }
   }
-  const ctx = vm.createContext({window: {parent: {__DI__: {FileSystem, Runtime}}}, navigator: {platform: 'Win32'}, crypto: globalThis.crypto,
+  const ctx = vm.createContext({window: {parent: {__DI__: {FileSystem, Runtime, ...(MediaGeneration ? {MediaGeneration} : {})}, location: {pathname: '/libraries/lib-1/projects/p-1'}}}, navigator: {platform: 'Win32'}, crypto: globalThis.crypto,
     TextEncoder, TextDecoder, AbortController, setTimeout, clearTimeout, atob, Blob, URL, Worker, console});
   vm.runInContext(code, ctx);
   return {engine: ctx.engine, calls};
@@ -190,5 +191,79 @@ print(json.dumps({"plan": plan, "manifest": P.op_assemble({"runId": plan["runId"
     else assert.ok(psnr >= 40, clip.name + ' PSNR ' + psnr.toFixed(1) + ' dB');
   }
   t.diagnostic('numpy ' + NUMPY.join('/Pillow ') + ': largest per-pixel difference ' + worst + ', lowest PSNR ' + lowest.toFixed(1) + ' dB' + (exact ? ' (exact build)' : ' (tolerance)'));
+  fs.rmSync(tmp, {recursive: true, force: true});
+});
+
+// The paid matte request: nothing is sent before the credits notice is accepted; one request for the montage, with
+// the run's key, the clip's seconds and the joined sources; a declined notice, an old Selects or a Clip highlights run
+// (no panel to click) stops before submit; a rebuild reuses the result and never asks again; Cancel cancels the job.
+test('Windows mattes: credits notice first, one generation request, cached for rebuilds', {skip, timeout: 900000}, async (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pbm-cloud-'));
+  const home = path.join(tmp, 'home');
+  const skills = path.join(home, '.selects', 'skills', 'portrait-beat-montage');
+  fs.mkdirSync(skills, {recursive: true});
+  fs.copyFileSync(path.join(plugin, 'SKILL.md'), path.join(skills, 'SKILL.md'));
+  fs.symlinkSync(path.join(plugin, 'assets'), path.join(skills, 'assets'));
+  const sources = await makeClips(tmp);
+  const files = Array.from({length: 10}, (_, i) => ({path: sources[i % 2]}));
+  // Selects generation stand-in: the alpha video is a luma key of the uploaded clip, saved in the delivery folder.
+  const submitted = [], jobs = new Map(), cancelled = [];
+  const MediaGeneration = {
+    supportsPluginFiles: () => true,
+    submit: async (req) => {
+      submitted.push(req);
+      const jobId = 'job-' + submitted.length;
+      jobs.set(jobId, {jobId, status: 'running', deliveryStatus: 'pending', outputs: []});
+      fs.mkdirSync(req.delivery.pluginFolder, {recursive: true});
+      const out = path.join(req.delivery.pluginFolder, 'person-mattes.mp4');
+      run(FFMPEG, ['-v', 'error', '-y', '-i', req.uploads.source.pluginFile, '-vf', "format=gray,lut=y='if(gt(val,150),255,0)',gblur=sigma=2", '-c:v', 'libx264', '-pix_fmt', 'yuv420p', out])
+        .then(() => Object.assign(jobs.get(jobId), {status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: out}]}));
+      return {jobIds: [jobId]};
+    },
+    list: async () => [...jobs.values()],
+    cancel: async (scope, jobId) => { cancelled.push(jobId); },
+  };
+  const {engine} = loadEngine(home, {MediaGeneration});
+  const data = path.join(home, '.selects', 'plugin-data', 'portrait-beat-montage');
+  const build = (confirm, extra = {}, e = engine) => e.pbmWindowsMontage({}, {projectId: 'p-1', files, confirm, setStep: () => {}, setProgress: () => {}, signal: new AbortController().signal, ...extra});
+  const asked = [];
+
+  // Declined: nothing submitted, nothing rendered.
+  await assert.rejects(build(async (q) => { asked.push(q); return false; }), (e) => e.code === 'cancelled');
+  assert.equal(submitted.length, 0);
+  assert.deepEqual(plain(asked), [{seconds: 4 * 36 / 60, shots: 4}]);
+  // A Clip highlights run: its confirm refuses, before submit.
+  await assert.rejects(build(() => { throw Object.assign(new Error('needs a click'), {code: 'needs-confirm'}); }), /needs a click/);
+  assert.equal(submitted.length, 0);
+  // An old Selects: refused before the notice.
+  await assert.rejects(build(async () => { throw Error('asked'); }, {}, loadEngine(home, {MediaGeneration, version: '2.0.511'}).engine), /2\.0\.512 or later/);
+  const runs = fs.readdirSync(path.join(data, 'runs'));
+  assert.equal(runs.length, 1, 'one resumable run');
+  assert.ok(!fs.existsSync(path.join(data, 'runs', runs[0], 'manifest.json')));
+
+  // Accepted: one request for the 4 distinct windows, then the montage.
+  const manifest = await build(async (q) => { asked.push(q); return true; });
+  assert.equal(submitted.length, 1);
+  const req = submitted[0];
+  assert.equal(req.modelId, 'model_v1_dmVlZC92aWRlby1iYWNrZ3JvdW5kLXJlbW92YWwvZmFzdA');
+  assert.deepEqual(plain(req.scope), {libraryId: 'lib-1', projectId: 'p-1'});
+  assert.deepEqual(plain(req.inputMediaSeconds), {video: 4 * 36 / 60});
+  assert.match(req.key, /^pbm-[0-9a-f]{24}$/);
+  assert.ok(req.uploads.source.pluginFile.startsWith(path.join(data, 'runs')));
+  assert.ok(req.delivery.pluginFolder.startsWith(path.join(data, 'runs')));
+  assert.equal(req.input.subject_is_person, true);
+  assert.equal(manifest.clips.length, 17);
+
+  // Rebuild of the same clips: a new run, every window from the cache, no notice, no request.
+  const again = await build(async () => { throw Error('asked again'); });
+  assert.equal(submitted.length, 1);
+  assert.equal(again.clips.length, 17);
+  // Cancel while the request runs cancels it (fresh windows: a cleared cache).
+  fs.rmSync(path.join(data, 'cache-w1'), {recursive: true, force: true});
+  MediaGeneration.submit = async (r) => { submitted.push(r); jobs.set('slow', {jobId: 'slow', status: 'running', deliveryStatus: 'pending', outputs: []}); return {jobIds: ['slow']}; };
+  const c = new AbortController();
+  await assert.rejects(build(async () => { setTimeout(() => c.abort(), 1500); return true; }, {signal: c.signal}), (e) => e.code === 'cancelled');
+  assert.deepEqual(plain(cancelled), ['slow']);
+  t.diagnostic('notice shown ' + asked.length + 'x, requests ' + submitted.length);
   fs.rmSync(tmp, {recursive: true, force: true});
 });

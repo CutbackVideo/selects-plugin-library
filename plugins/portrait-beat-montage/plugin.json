@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "portrait-beat-montage",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "name": "Portrait Beat Montage",
   "summary": "Builds an editable 16.3-second 3:4 portrait montage Draft from 10 person clips: a monochrome strobe intro, beat-timed cuts that enter on a person-only zigzag smear with a warm flash, and a white glow ending, cut to the bundled soundtrack.",
   "status": "experimental",
@@ -31,9 +31,10 @@
   },
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified."
+    "selects": "Development build only. Windows needs Selects 2.0.512 or later; its person mattes use Selects generation credits. Released-version compatibility is unverified."
   },
   "localized": {
     "de": {
