@@ -21,7 +21,7 @@ for (const name of ['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js
 for (const phrase of ['selects.editor.openDraft', 'cwvProgress(', 'steps={CWV_BUILD_STEPS.map((s) => t(L, "step." + s.id))}', 'label={t(L, "clipSound")}', 'linkToDraftFrame', 'FontFace', 'projectRef', 'ffprobe', 'aria-pressed', 'loadInventory(', '>{t(L, "refresh")}<', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef']) assert.ok(code.includes(phrase), phrase);
 for (const [key, text] of [['anotherVersion', 'Try other shots'], ['clipSound', 'Clip sound'], ['silentVideo', 'Silent video'], ['musicFixedRhythm', 'cuts use the original rhythm'], ['musicFixedRhythmDetail', 'cuts use the original rhythm'],
   ['finishTitle', 'Finish title and look'], ['stoppedAt', 'Stopped at step {step}/{total}, {name}: {detail}'], ['installTools', 'Install ffmpeg to preview'], ['preparingTools', 'first time only'], ['draftCreatedAdding', 'Draft created; adding title and look'],
-  ['analysing', 'This updates automatically when they finish.'], ['notAnalysedAnalyse', 'Analyse them in Selects to use them here.'], ['noFootage', 'this updates automatically'], ['refresh', 'Refresh'], ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})'], ['clipsChecked', '{done}/{count} clips checked']]) says(key, text);
+  ['notReady', 'This updates automatically.'], ['quickPicks', '{count} clips without analysis: quick picks'], ['noFootage', 'this updates automatically'], ['refresh', 'Refresh'], ['progress', 'Step {step}/{total} · {name} · {percent}%'], ['progressDetail', '({detail})'], ['clipsChecked', '{done}/{count} clips checked']]) says(key, text);
 assert.deepEqual(['shots', 'music', 'draft', 'look', 'open'].map(id => en['step.' + id]), ['Choosing shots', 'Preparing music', 'Creating Draft', 'Adding title and look', 'Opening Draft']);
 // No UI sentence is left outside STRINGS: JSX text and string props are t() calls.
 assert.ok(!/<ui\.\w+[^>]*>[A-Z][a-z]+[^<{]*</.test(code), 'no literal JSX text in ui components');
@@ -31,61 +31,24 @@ assert.ok(!/text: "/.test(code) && !/setStatus\(\{ tone: "\w+", text:/.test(code
 assert.ok(code.includes('const L = uiLang(context);') && code.indexOf('const L = uiLang(context);') < code.indexOf('if (!projectId) return <ui'), 'uiLang(context) in the component body');
 assert.ok(code.includes('{status.say(L)}') && code.includes('invError.say(L)') && code.includes('progress.detail(L)'), 'state messages are rendered with the current language');
 assert.ok(code.includes('<SectionSlider lang={L}'), 'the slider gets the language');
-// Unanalysed videos are worded by why (inventory.js's skipped split); the panel never claims clips are being analysed
-// when their analysis was never started, and never starts analysis itself.
-assert.ok(!panel.includes('still being analysed'), 'the old "still being analysed" wording is gone');
+// Analysis is optional (no-analysis builds): unanalysed videos are usable, the readiness line never asks to analyse,
+// and the panel never starts analysis. Details of the quick local check: tests/no-analysis.test.cjs.
+assert.ok(!panel.includes('still being analysed') && !code.includes('cwvAnalysisText') && !code.includes('invAnalysis'), 'no analysis wording or helpers');
 assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel does not start analysis');
+for (const k of ['analysing', 'notAnalysedAnalyse', 'notAnalysedMaybe', 'analysisFailed', 'noteAnalysing', 'noteFailed', 'notAnalysed']) assert.ok(!(k in en), 'retired key ' + k);
+assert.ok(!/analys/i.test(en.noFootage) && !/analys/i.test(textOf('onlyPhotos')), 'empty-Project and photos-only lines do not mention analysis');
+for (const phrase of ['const notReady = inventory?.skipped?.unanalysed || 0;', '(notReadyText || t(L, "noFootage"))', '[notReadyText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))',
+  'quickCount ? t(L, "quickPicks", { count: quickCount }) : ""', 'r.rid + (r.analysed === false ? "~" : "")']) assert.ok(code.includes(phrase), phrase);
 {
   const vm = require('node:vm');
-  const strings = require(path.join(root, 'dev', 'i18n-check.cjs')).extractStrings(panel).strings;
-  const start = panel.indexOf('function cwvAnalysisCounts('), end = panel.indexOf('function SectionSlider(');
-  assert.ok(start > 0 && end > start, 'the analysis wording helpers exist');
-  const js = panel.slice(start, end).replace(/(\w)\??: (?:any|number|string|Lang)\b/g, '$1');
-  // The panel's t() over its STRINGS block (plural by count; plain numbers are enough for these sentences).
-  const tt = (lang, key, vars = {}) => {
-    let msg = strings[lang][key] ?? strings.en[key];
-    if (typeof msg !== 'string') msg = msg[new Intl.PluralRules(lang).select(vars.count)] ?? msg.other;
-    return msg.replace(/\{(\w+)\}/g, (w, n) => (vars[n] === undefined ? w : String(vars[n])));
-  };
-  const box = { t: tt };
-  vm.runInNewContext(js + '\nthis.api = { cwvAnalysisCounts, cwvAnalysisText, cwvAnalysisNotes };', box);
-  const { cwvAnalysisCounts: counts } = box.api;
-  const text = c => box.api.cwvAnalysisText('en', c);
-  const note = c => box.api.cwvAnalysisNotes('en', c).filter(Boolean).map(x => ' · ' + x).join('');
-  const sk = (analysing, notAnalysed, failed, statusKnown = true) => ({ unanalysed: analysing + notAnalysed + failed, missing: 0, analysing, notAnalysed, failed, statusKnown });
-  // Other languages: whole sentences per status, joined by the language's gap (none in ja/zh).
-  assert.equal(box.api.cwvAnalysisText('ja', counts(sk(3, 1, 0))), tt('ja', 'analysing', { count: 3 }) + tt('ja', 'notAnalysedAnalyse', { count: 1 }));
-  assert.ok(!/undefined|\{\w+\}/.test(['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'].map(l => box.api.cwvAnalysisText(l, counts(sk(3, 1, 2))) + box.api.cwvAnalysisNotes(l, counts(sk(1, 2, 3))).join('')).join()), 'every language fills the counts');
-  assert.equal(text(counts(sk(160, 0, 0))), '160 clips are being analysed. This updates automatically when they finish.');
-  assert.equal(text(counts(sk(1, 0, 0))), '1 clip is being analysed. This updates automatically when it finishes.');
-  assert.equal(text(counts(sk(0, 160, 0))), '160 clips are not analysed yet. Analyse them in Selects to use them here.');
-  assert.equal(text(counts(sk(0, 1, 0))), '1 clip is not analysed yet. Analyse it in Selects to use it here.');
-  assert.equal(text(counts(sk(0, 0, 2))), '2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 1))), '1 clip could not be analysed.');
-  assert.equal(text(counts(sk(0, 160, 0, false))), '160 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(text(counts(sk(0, 1, 0, false))), '1 clip is not analysed yet. If Selects is analysing it, this updates automatically.');
-  assert.equal(text(counts(sk(3, 1, 2))), '3 clips are being analysed. This updates automatically when they finish. 1 clip is not analysed yet. Analyse it in Selects to use it here. 2 clips could not be analysed.');
-  assert.equal(text(counts(sk(0, 0, 0))), '', 'nothing to say when every video is analysed');
-  // An inventory without the split (older script) counts every unanalysed clip as unknown: the neutral wording.
-  assert.equal(text(counts({ unanalysed: 4, missing: 0 })), '4 clips are not analysed yet. If Selects is analysing them, this updates automatically.');
-  assert.equal(note(counts(sk(2, 1, 0))), ' · 2 clips being analysed · 1 clip not analysed yet');
-  assert.equal(note(counts(sk(0, 0, 1))), ' · 1 clip could not be analysed');
-  assert.equal(note(counts(sk(0, 0, 0))), '');
-  // Every readiness branch uses the same sentences, and a status change refreshes the inventory signature.
-  for (const phrase of ['const analysisText = cwvAnalysisText(L, invAnalysis);', '(analysisText || t(L, "noFootage"))', '[analysisText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))', 't(L, "onlyPhotos", { count: usedPhotoCount, needed: minShots }), analysisText]', '...cwvAnalysisNotes(L, invAnalysis),',
-    '[sk.unanalysed, sk.analysing, sk.notAnalysed, sk.failed, sk.statusKnown]']) assert.ok(panel.includes(phrase), phrase);
-  // Polling: only while clips are being analysed, while the status is unknown, or while the Project has no footage at all.
   const poll = (panel.match(/const needsPoll = ([^\n]*);/) || [])[1];
   assert.ok(poll, 'needsPoll');
-  const needsPoll = (inventory) => { const invAnalysis = counts(inventory && inventory.skipped); return vm.runInNewContext(poll, { inventory, invAnalysis }); };
-  const inv = (skipped, resources = 0, photos = 0) => ({ skipped, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
-  assert.equal(needsPoll(inv(sk(2, 0, 0), 5)), true, 'clips being analysed poll');
-  assert.equal(needsPoll(inv(sk(0, 160, 0))), false, 'never-started clips alone do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 2), 5)), false, 'not analysed and failed clips do not poll');
-  assert.equal(needsPoll(inv(sk(0, 3, 0, false), 5)), true, 'an unknown status polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0))), true, 'an empty Project polls');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 0, 3)), false, 'photos only: no poll');
-  assert.equal(needsPoll(inv(sk(0, 0, 0), 5)), false, 'all analysed: no poll');
+  const needsPoll = (inventory) => vm.runInNewContext(poll, { inventory, notReady: (inventory && inventory.skipped && inventory.skipped.unanalysed) || 0 });
+  const inv = (unanalysed, resources = 0, photos = 0) => ({ skipped: { unanalysed, missing: 0, notAnalysed: 0 }, resources: Array.from({ length: resources }, (_, i) => ({ rid: 'r' + i })), photos: Array.from({ length: photos }, (_, i) => ({ rid: 'p' + i })) });
+  assert.equal(needsPoll(inv(2, 5)), true, 'clips that cannot be read yet poll');
+  assert.equal(needsPoll(inv(0, 0)), true, 'an empty Project polls');
+  assert.equal(needsPoll(inv(0, 0, 3)), false, 'photos only: no poll');
+  assert.equal(needsPoll(inv(0, 5)), false, 'usable clips, analysed or not: no poll');
   assert.equal(needsPoll(null), false);
 }
 

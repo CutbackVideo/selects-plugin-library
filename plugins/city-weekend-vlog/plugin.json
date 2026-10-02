@@ -76,6 +76,7 @@
     "tests/fonts.test.cjs",
     "tests/i18n.test.cjs",
     "tests/motion.test.cjs",
+    "tests/no-analysis.test.cjs",
     "tests/panel.test.cjs",
     "tests/planner.test.cjs",
     "tests/scripts-edit.test.cjs",

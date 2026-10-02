@@ -1,6 +1,6 @@
 # City Weekend Vlog
 
-City Weekend Vlog turns the analysed footage and the photos in the open
+City Weekend Vlog turns the video clips and the photos in the open
 Project into a 9:16 city weekend vlog that is cut to the beat. The result is a **new, editable
 Draft**. The plugin never renders a file and never changes an existing Draft
 or any source file.
@@ -40,10 +40,10 @@ depending on the track's tempo and the chosen length.
 
 ## Default path
 
-1. Open a Project whose video clips are analysed (or that has photos), then
-   open **City Weekend Vlog** from the Plugin list. The top line shows how
-   many analysed clips and photos were found and the approximate length, for
-   example "Ready: 4 clips · 22 photos · about 14 s".
+1. Open a Project with video clips or photos, then open **City Weekend
+   Vlog** from the Plugin list. The clips do not need to be analysed. The top
+   line shows how many clips and photos were found and the approximate length,
+   for example "Ready: 4 clips · 22 photos · about 14 s".
 2. Check the **Title** fields. **First line** is pre-filled with the weekday
    of the most common capture date ("A day" when it is unknown), **Connector**
    is "in", and **Place** is pre-filled from the Project name only when it
@@ -55,24 +55,32 @@ The build needs at least **16 usable shots** (12 for the title and 4 for the
 montage), or 14 with a track that gets the half-beat burst; each photo counts
 as one shot. If there are fewer, the panel says
 how many it found, and how many of them are photos, and asks for more varied
-footage or photos. It does not start analysis on its own, so analyse your
-clips first.
+footage or photos.
 
-Video clips without analysis are counted on the top line by why:
+### Clips without analysis
 
-- "N clips are being analysed. This updates automatically when they finish."
-  Selects is analysing them now; the panel re-reads the Project every 10 s
-  until they are ready.
-- "N clips are not analysed yet. Analyse them in Selects to use them here."
-  Their analysis was never started. The panel does not poll for them; it
-  re-reads the Project when you come back to it, or press **Refresh**.
-- "N clips could not be analysed." Their analysis failed.
-- "N clips are not analysed yet. If Selects is analysing them, this updates
-  automatically." The analysis status could not be read, so the panel keeps
-  checking.
+Analysis is optional: Build works right away with clips that were only
+imported. The panel never starts analysis and never waits for it.
 
-On the Ready line the same counts appear in short, for example "Ready: 5
-clips · about 14 s · 2 clips being analysed · 3 clips not analysed yet".
+- **Analysed clips** are scene-searched for the shot roles (street,
+  architecture, landmark, park, detail, wide), as before.
+- **Clips without analysis** get a quick local check instead. The panel reads
+  a small, low-frame-rate grey copy of each clip with the ffmpeg that comes with
+  Selects (no shell, nothing to install, also on Windows), and scores 1-second
+  windows for sharpness, exposure and motion. Windows in the first and last
+  half second, and black, fade or flash frames, are skipped. Calm windows
+  open the title; moving ones go to the fast run and the montage. Up to three
+  clips are checked at a time within 20 s; progress shows "Choosing shots (N/M
+  clips checked)". A clip that cannot be checked uses evenly spaced moments.
+- **Mixed Projects** put both on one scale: quick-check scores are mapped onto
+  the range of the scene-search scores. A shot whose role matches a scene-search
+  hit still prefers that hit.
+
+The Ready line counts the clips without analysis, for example "Ready: 5 clips ·
+about 14 s · 3 clips without analysis: quick picks". Analysed clips give better
+picks, because only they know what is in the shot. A clip with no length or no
+file yet (still importing) cannot be used; the panel says "N clips can't be
+read yet" and re-reads the Project every 10 s.
 
 Progress is shown as five steps: Choosing shots, Preparing music, Creating
 Draft, Adding title and look, and Opening Draft. When the build finishes, the
@@ -134,7 +142,8 @@ analysis and are never scene-searched.
 - About a third of the shots are photos when there are enough of them. These
   photo shots are spread evenly over the whole video, title included.
 - For the other shots the plugin prefers, in order: a video moment that
-  matches the shot's role, then any other analysed video moment, then a
+  matches the shot's role, then any other video moment (a scene-search hit or
+  a quick-checked window), then a
   photo, and only then an evenly spaced filler moment from a video. In the
   title's fast run a photo comes right after a matching video moment, before
   other moments.
@@ -218,8 +227,8 @@ do not change if the app language is switched later.
   in every mode. Photos have no sound. In the Draft, a clip's level can be
   changed in the Inspector.
 - **Warm look**: on by default.
-- **Use photos**: on by default. Off builds from the analysed video only.
-- **Choose clips**: a checklist of the analysed clips, each with its length
+- **Use photos**: on by default. Off builds from the video clips only.
+- **Choose clips**: a checklist of the video clips, each with its length
   and shape (Tall, Wide or Square), followed by the photos, marked "Photo". All clips are used by default; **All**
   and **None** select or clear the whole list. A new selection searches its
   clips again on the next build (choosing photos does not), and the readiness

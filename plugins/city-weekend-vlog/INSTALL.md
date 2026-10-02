@@ -53,12 +53,12 @@ never in either install folder:
    and `SELECTS_USER_SKILLS_ROOT/city-weekend-vlog/` contains `planner.js`,
    `scripts/assemble.js`, `assets/cues/manifest.json` and
    `assets/fonts/presets.json`.
-2. Open a Project with analysed video clips and open the panel. The top line
+2. Open a Project with video clips (analysed or not) and open the panel. The top line
    reads "Ready: N clips · about N s" ("Ready: N clips · N photos · about N s"
    when the Project has photos), the Track list shows the seven
-   bundled tracks, and the Font style tiles render in their own typefaces. In a Project whose clips were never analysed, it
-   reads "N clips are not analysed yet. Analyse them in Selects to use them
-   here." (never "being analysed"); the panel does not start analysis itself.
+   bundled tracks, and the Font style tiles render in their own typefaces. Clips that were never
+   analysed are usable at once and counted as "N clips without analysis: quick picks"; the
+   panel never starts or waits for analysis.
 3. With at least 16 usable shots (14 for a track with the half-beat burst),
    press **Build**. A new Draft opens at 1080x1920 with the title, the clips
    and the music.
