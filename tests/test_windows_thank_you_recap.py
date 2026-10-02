@@ -81,8 +81,13 @@ class ThankYouRecapWindowsTest(unittest.TestCase):
         self.assertNotRegex(self.runtime, r"\.status\s*===", "status gate")
         # Every clip and the music are placed before the first commit; a placement failure returns early.
         montage = build[build.index("createDraft("): build.index("const saved = await draft.commitAll(")]
-        self.assertRegex(montage, r"try \{ await draft\.insertResource\(.*\}\s*\n\s*catch \(e\) \{ return \{ notReady: slot\.id")
-        self.assertRegex(montage, r"try \{ await draft\.overlayResource\(.*\}\s*\n\s*catch \(e\) \{ return \{ notReady: plan\.musicId")
+        self.assertRegex(montage, r"try \{ await draft\.insertResource\(.*\}\s*\n\s*catch \(e\) \{ return failure\(slot\.id, e\)")
+        self.assertRegex(montage, r"try \{ await draft\.overlayResource\(.*\}\s*\n\s*catch \(e\) \{ return failure\(plan\.musicId, e\)")
+        # Only the host's "not placeable yet" errors are retried; any other error is reported as itself.
+        self.assertIn('new RegExp("not ready|" + ${JSON.stringify(NOT_LOCAL.source)}, "i")', montage)
+        self.assertIn("{ notReady: id, reason } : { failed: reason }", montage)
+        self.assertIn('if (made?.failed) throw Object.assign(new Error(made.failed), { code: "draft-failed" })', build)
+        self.assertEqual(self.runtime.count('e?.code === "draft-failed"'), 2, "panel and template run")
         self.assertLess(build.index("importFiles("), build.index("createDraft("), "music imported before the Draft")
         self.assertIn("throw notReady(", build)
         strings = self.source[self.source.index("const STRINGS = {"): self.source.index("\n};\n")]
