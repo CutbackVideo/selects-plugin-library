@@ -156,6 +156,61 @@ const MAC_ONLY_TEXT = { en: "Available on macOS for now.", de: "Vorerst nur auf 
 const macOnlyText = (language) => MAC_ONLY_TEXT[String(language || "").slice(0, 2).toLowerCase()] || MAC_ONLY_TEXT.en;
 const macOnlyError = (language) => Object.assign(new Error(macOnlyText(language)), { code: "mac-only" });
 
+// @operation-start
+// The first piece of the in-panel port of pipeline.py (Windows has no Python): its timeline and the ffmpeg argv it
+// runs, as Runtime.runFFmpeg argv (no "ffmpeg" argv[0], no shell). Nothing calls these yet: the build still runs
+// pipeline.py on macOS and refuses Windows. tests/portrait_beat_montage.test.mjs checks them against pipeline.py.
+// Where pipeline.py reads ffmpeg's stdout or writes its stdin ("-"), these name a file in the run folder instead.
+export const W = 540;
+export const H = 720;
+export const FPS = 60;
+export const DRAFT_FPS = 30000 / 1001;
+export const BLACK = 370;
+export const PERIOD = .6445104895;
+export const TAIL = 30;
+export const RISER_START = 300;
+export const SRC_FRAMES = 60;
+export const MATTE_FRAMES = 30;
+export const POST = 21;
+// Python's round() (half to even), so a beat that lands on .5 rounds as pipeline.py does.
+const pyRound = (x) => { const f = Math.floor(x), d = x - f; return d > .5 || (d === .5 && f % 2 !== 0) ? f + 1 : f; };
+export const BEATS = Array.from({ length: 16 }, (_, i) => pyRound(i * PERIOD * FPS));
+export const LENGTHS = BEATS.slice(1).map((b, i) => b - BEATS[i]);
+export const SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5];
+export const REPEAT_FROM = 10;
+export const TOTAL = BLACK + BEATS[BEATS.length - 1] + TAIL;
+export const BOUNDARIES = BEATS.slice(0, -1).map((b) => BLACK + b);
+export const STROBE = [139, 139, 224, 224, 224, 253, 253, 224, 224, 224, 0, 0, 139, 139, 139, 224, 224, 253, 253, 253, 224, 224, 0, 0, 0, 139, 139, 224, 224, 224, 253, 253, 139, 139, 139, 0, 0, 139, 139, 139, 224, 224, 224, 224, 224, 139, 139, 0, 0, 0, 139, 139, 253, 253, 253, 195, 195, 139, 139, 139, 167, 167, 0, 0, 0, 253, 253, 0, 0, 0, 253, 253, 0, 0, 0, 253, 253, 0, 0, 0, 253, 253, 83, 83, 83, 167, 167, 167, 167, 167, 0, 0, 167, 167, 167, 83, 83, 83, 83, 83, 167, 167, 167, 167, 167, 0, 0, 84, 84, 84, 253, 253, 167, 167, 167, 0, 0, 167, 167, 167];
+export const STROBE_START = BLACK - STROBE.length;
+export const GLOW = [240, 233, 226, 219, 210, 210, 186, 186, 186, 162, 162, 139, 139, 139, 116, 116, 91, 91, 91, 68, 68, 45, 45, 45, 22, 22];
+// A number as Python's str() writes it (3.0, not 3), so argv text matches pipeline.py.
+export const pyStr = (x) => Number.isInteger(x) ? x.toFixed(1) : String(x);
+export const draftFrame = (masterFrame) => Math.floor(masterFrame / FPS * DRAFT_FPS + .5);
+// Draft-rate pieces: strobe, 15 shots, glow. Black before the strobe is a Draft gap.
+export function segments() {
+  const marks = [STROBE_START, ...BOUNDARIES, BLACK + BEATS[BEATS.length - 1], TOTAL];
+  const names = ["strobe", ...Array.from({ length: 15 }, (_, n) => "shot" + String(n + 1).padStart(2, "0")), "glow"];
+  return names.map((name, i) => ({ name, start: draftFrame(marks[i]), end: draftFrame(marks[i + 1]) }));
+}
+// 3:4 crop. Tall footage keeps the top of the frame (headroom), wide footage is centred.
+export function cropFilter(w, h) {
+  const even = (x) => Math.floor(Math.trunc(x) / 2) * 2;
+  if (h * 3 >= w * 4) { const ch = even(w * 4 / 3); return `crop=${w}:${ch}:0:${even((h - ch) * .125)}`; }
+  const cw = even(h * 3 / 4);
+  return `crop=${cw}:${h}:${Math.floor(Math.floor((w - cw) / 2) / 2) * 2}:0`;
+}
+export const probeArgs = (path) => ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,r_frame_rate:stream_side_data=rotation:format=duration", "-of", "json", path];
+// Grey 135x180 frames at 24 fps of the first 30 s, for the motion score of each window start.
+export const motionArgs = (path, info, out) => ["-v", "error", "-t", "30", "-i", path, "-vf", cropFilter(info.width, info.height) + ",fps=24,scale=135:180,format=gray", "-f", "rawvideo", out];
+// One shot window: 1 s of source cropped to 3:4, motion-interpolated to 60 fps.
+export const unitSourceArgs = (unit, out) => ["-y", "-v", "error", "-ss", pyStr(unit.start), "-i", unit.path, "-vf", cropFilter(unit.width, unit.height) + `,scale=${W}:${H},minterpolate=fps=${FPS}:mi_mode=mci`, "-frames:v", String(SRC_FRAMES), "-an", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p", out];
+export const decodeArgs = (path, count, out, vf = "format=rgb24") => ["-v", "error", "-i", path, "-vf", vf, "-frames:v", String(count), "-f", "rawvideo", "-pix_fmt", "rgb24", out];
+// RVM's VP9-with-alpha cutout to one grey PNG per frame (001.png...); `pattern` is hostJoin(masks, "%03d.png").
+export const matteArgs = (webm, pattern) => ["-y", "-v", "error", "-c:v", "libvpx-vp9", "-i", webm, "-vf", "alphaextract", "-frames:v", String(MATTE_FRAMES), pattern];
+// One Draft piece from raw rgb24 frames (pipeline.py's Encoder, fed from a file instead of stdin).
+export const encodeArgs = (raw, fps, out) => ["-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", `${W}x${H}`, "-r", String(fps), "-i", raw, "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out];
+// @operation-end
+
 // mac-only:start
 const quote = (value) => "'" + String(value).replace(/'/g, "'\\''") + "'";
 // The pipeline runs on the RVM runtime's Python (it already has numpy and Pillow). Before setup there is no usable
