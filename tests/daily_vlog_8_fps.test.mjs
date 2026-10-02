@@ -38,7 +38,7 @@ const SECONDS = {'projector-screen-vlog-bed.wav': 19.719728, 'transition-w2.wav'
 
 // A fake script SDK whose Draft counts frames at `fps` (inserts round to whole frames) and refuses an overlay
 // longer than its audio, as Selects does. Resolves the Draft calls in order.
-async function run(script, fps, reported = fps) {
+async function run(script, fps, reported = fps, adopt = null) {
   const calls = [], clips = [];
   let cursor = 0, next = 0;
   const rows = [...Array.from({length: 8}, (_, i) => ({resourceId: 'v' + i, type: 'Video', name: 'v' + i, durationSeconds: 10})),
@@ -47,7 +47,7 @@ async function run(script, fps, reported = fps) {
   const log = (name, arg) => calls.push(name + ' ' + JSON.stringify(arg));
   const draft = {
     meta: async () => ({fps: reported, frameSize: {width: 1080, height: 1920}}),
-    insertResource: async (a) => { log('insertResource', a); const n = Math.round((a.sourceRange.endSeconds - a.sourceRange.startSeconds) * fps); clips.push({clipId: 'c' + next++, resourceId: a.resourceId, startFrame: cursor, endFrame: cursor + n, main: true}); cursor += n; },
+    insertResource: async (a) => { if (adopt && !clips.length) { fps = reported = adopt; } log('insertResource', a); const n = Math.round((a.sourceRange.endSeconds - a.sourceRange.startSeconds) * fps); clips.push({clipId: 'c' + next++, resourceId: a.resourceId, startFrame: cursor, endFrame: cursor + n, main: true}); cursor += n; },
     clips: async ({trackScope}) => clips.filter((c) => trackScope === 'all' || c.main),
     setClipAudio: async (a) => log('setClipAudio', a),
     setClipTransform: async (a) => log('setClipTransform', a),
@@ -80,6 +80,16 @@ for (const fps of RATES) {
     assert.ok(result.frames / fps <= SECONDS['projector-screen-vlog-bed.wav'] + 1e-9);
     const bed = clips.find((c) => c.resourceId === 'a:projector-screen-vlog-bed.wav');
     assert.deepEqual([bed.startFrame, bed.endFrame], [0, result.frames], 'the bed covers the whole video');
+  });
+}
+
+for (const [from, to] of [[30, 24000 / 1001], [30000 / 1001, 25], [24, 60000 / 1001]]) {
+  test(`a Draft that adopts its first clip's rate (${from.toFixed(3)} -> ${to.toFixed(3)}) still fits the bed`, async () => {
+    const {result, clips} = await run(scriptOf(panel), from, from, to);
+    assert.equal(result.videoClips, 10);
+    assert.ok(result.frames / to <= SECONDS['projector-screen-vlog-bed.wav'] + 1e-9, String(result.frames));
+    const bed = clips.find((c) => c.resourceId === 'a:projector-screen-vlog-bed.wav');
+    assert.deepEqual([bed.startFrame, bed.endFrame], [0, result.frames]);
   });
 }
 

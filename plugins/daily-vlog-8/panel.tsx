@@ -714,14 +714,14 @@ for(let i=0;i<assetNames.length;i++){if(!audioByName.has(assetNames[i])){const i
 const draft=await project.createDraft({name});
 // The template's frame numbers are 30000/1001 fps frames; a new Draft takes the Project's frame rate, so they are
 // converted to the Draft's frames (unchanged at 29.97 and 30). Cuts round down, so the timeline never outlasts the
-// bed, which is exactly the 591 template frames long.
-const reported=(await draft.meta()).fps;
-const dfps=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(r=>Math.abs(r-reported)<0.01)||reported;
-if(!(dfps>0))throw new Error('Unsupported draft frame rate: '+reported);
+// bed, which is exactly the 591 template frames long. The rate is read again after each shot (a Draft can adopt its
+// first clip's rate), and each shot ends on its cut measured from where the last one really ended.
+const rate=async()=>{const reported=(await draft.meta()).fps;const r=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw new Error('Unsupported draft frame rate: '+reported);return r;};
+let dfps=await rate();
 const at=(f)=>Math.round(f*1001/30000*dfps);
 const cutAt=(f)=>Math.floor(f*1001/30000*dfps+1e-6);
-let planned=0;
-for(const shot of shotPlan){const extra=shot.extra!==undefined;const resourceId=extra?(extraSelected[shot.extra]||selected[shot.fallback]):selected[shot.slot];const r=resourceById.get(resourceId);const len=shot.frames*1001/30000;const sourceLen=Math.min(len,r.durationSeconds-0.003);const start=Math.max(0,(r.durationSeconds-sourceLen)*(extra&&!extraSelected[shot.extra]?0.8:0.45));const fitted=Math.min((cutAt(planned+shot.frames)-cutAt(planned))/dfps,r.durationSeconds-0.003);planned+=shot.frames;await draft.insertResource({resourceId,sourceRange:{startSeconds:start,endSeconds:start+fitted}});}
+let planned=0,placed=0;
+for(const shot of shotPlan){const extra=shot.extra!==undefined;const resourceId=extra?(extraSelected[shot.extra]||selected[shot.fallback]):selected[shot.slot];const r=resourceById.get(resourceId);const len=shot.frames*1001/30000;const sourceLen=Math.min(len,r.durationSeconds-0.003);const start=Math.max(0,(r.durationSeconds-sourceLen)*(extra&&!extraSelected[shot.extra]?0.8:0.45));const fitted=Math.min((cutAt(planned+shot.frames)-placed)/dfps,r.durationSeconds-0.003);planned+=shot.frames;await draft.insertResource({resourceId,sourceRange:{startSeconds:start,endSeconds:start+fitted}});dfps=await rate();placed=Math.max(0,...(await draft.clips({trackScope:'main'})).map(c=>c.endFrame));}
 let main=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId);
 if(main.length!==10)throw new Error('Expected ten timed shots; found '+main.length);
 const endFrame=main[9].endFrame;
