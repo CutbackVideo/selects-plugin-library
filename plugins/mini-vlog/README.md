@@ -1,10 +1,13 @@
 # Mini Vlog
 
-Mini Vlog turns the analysed footage and the photos in the open Project into a
+Mini Vlog turns the video clips and the photos in the open Project into a
 16:9 mini vlog: a quick montage cut on the beat of the music, with one small
 title lockup over the whole video. The result is a **new, editable Draft**.
 The plugin never renders a file and never changes an existing Draft or any
-source file.
+source file. Clips do not need to be analysed first: see
+[Clips without analysis](#clips-without-analysis). It works on macOS and
+Windows with nothing to install (no package manager, Node.js or command-line tools):
+everything uses what Selects brings.
 
 ## What it makes
 
@@ -34,7 +37,7 @@ source file.
 - **Everyday shots.** The shots cycle through drink, street, food, park,
   book, transit, flowers and cafe moments, alternating close and wide. Each
   role also accepts its neighbours (a cafe shot for a drink, a train for a
-  street, flowers for a park), then any other analysed moment.
+  street, flowers for a park), then any other found moment.
 - **Moving moments first** (with Beat punch, on by default). Each clip is also searched
   for "hands moving, pouring, walking or the camera moving". A moment within
   0.75 s of such a hit gets a small tie-break bonus (at most 0.1, scaled from
@@ -80,7 +83,7 @@ time.
 
 ## Default path
 
-1. Open a Project whose video clips are analysed (or that has photos), then
+1. Open a Project with video clips or photos (analysed or not), then
    open **Mini Vlog** from the Plugin list.
 2. Check the **Title**. The **A small glimpse** preset is selected, with "a
    small" above the big word "glimpse" and "of today" below it. The preview
@@ -89,9 +92,10 @@ time.
 3. Check the readiness line at the bottom of the **Length** section. It shows
    how many clips and photos were found and the approximate length, for
    example "Ready: 6 clips · 12 photos · about 13 s". When only some are
-   chosen it reads, for example, "3 of 6 clips selected", and while clips are
-   being analysed it ends with " · 2 clips being analysed" (see Refreshing
-   for clips that are not analysed yet).
+   chosen it reads, for example, "3 of 6 clips selected". When some clips are
+   not analysed it ends with a small note, for example " · 2 clips not
+   analysed; analysed clips give better picks".
+
 4. Press **Build**. The line above the buttons reads "Creates a new 16:9
    Draft".
 
@@ -103,27 +107,58 @@ Each of them can be changed before Build.
 
 **Refreshing.** The panel reads the Project's clips when it opens, when you
 come back to it (its tab is shown or the window gets focus) and when you press
-**Refresh** next to the readiness line. While clips are being analysed, or
-the Project has no clips or photos yet, it also reads them again every 10
-seconds, so the line updates by itself. It never reads them during a build.
-The panel does not start analysis on its own, so analyse your clips first.
+**Refresh** next to the readiness line. While some clips cannot be used yet
+(no length or no file: usually still importing), or the Project has no clips
+or photos yet, it also reads them again every 10 seconds, so the line updates
+by itself. It never reads them during a build. It never waits for analysis
+and never starts it.
 If Selects is too busy to answer, the panel tries again after 5 and 15 seconds and then says "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects."
 
-Video clips without analysis are counted on the top line by why:
+A clip is usable once Selects knows its length and its source file, analysed
+or not. Clips that are not usable yet are counted: "N clips can't be used yet
+(no length or file not found). This updates automatically." when nothing else
+can be built, else " · N clips can't be used yet" on the Ready line.
 
-- "N clips are being analysed. This updates automatically when they finish."
-  Selects is analysing them now; the panel re-reads the Project every 10 s
-  until they are ready.
-- "N clips are not analysed yet. Analyse them in Selects to use them here."
-  Their analysis was never started. The panel does not poll for them; it
-  re-reads the Project when you come back to it, or press **Refresh**.
-- "N clips could not be analysed." Their analysis failed.
-- "N clips are not analysed yet. If Selects is analysing them, this updates
-  automatically." The analysis status could not be read, so the panel keeps
-  checking.
+## Clips without analysis
 
-On the Ready line the same counts appear in short, for example "Ready: 5
-clips · about 13 s · 2 clips being analysed · 3 clips not analysed yet".
+Build works right away on clips Selects has not analysed (imported without
+analysis, still being analysed, or whose analysis failed); there is nothing to
+wait for. Analysed clips still give better picks: only they have the scene
+search that finds drinks, streets, food and the other shot roles.
+
+- **Analysed clips** are scene-searched as before. A Project whose clips are
+  all analysed builds exactly as before.
+- **Clips without analysis** get a quick local check of their frames during
+  Build ("Checking clips N/M" on the progress line; **Cancel** takes the Build
+  button's place while it runs and stops the build, nothing saved). The
+  check decodes a small grey preview of each clip with the ffmpeg built into
+  Selects, three clips at a time, all within 20 s, while the analysed clips
+  are searched, and finds the moments that
+  are sharp and well exposed, with movement, and free of black or fading
+  frames, flashes and cuts. Moments start at least half a second into a clip.
+  The result is kept per clip in the data folder (see INSTALL.md), so the next
+  build reads it instead of decoding again. Measured on a Mac with the same
+  decode outside Selects: 20 clips of 1080p (10 to 20 s each) took 1.9 s in
+  all (0.2 to 0.4 s per clip), and no time at all the second time.
+- Their moments have no shot role, so they rank after a moment that matches
+  the shot's role but before an evenly spaced filler moment, and an unused
+  clip without analysis still comes before reusing any clip. Their scores are
+  put on the same scale as the scene search's (the middle 80 % of the
+  build's search scores), so both kinds take turns. With **Beat punch** on,
+  their own movement gives the moving-moment bonus, and the video can open on
+  a moving moment of one of them (only the more moving half of their moments
+  can open it).
+- The moments are picked as montage shots, moving ones first, not steady
+  ones, on purpose: Mini Vlog opens on movement.
+- If this Selects lacks what the check needs, or a clip cannot be decoded in
+  time, that clip's moments are evenly spaced (one a second, the first
+  starting half a second in) and the build still goes ahead; the next Build
+  checks that clip again. After such a build the panel says "This Selects can't check
+  clips without analysis, so their shots are evenly spaced. A newer Selects
+  picks better shots."
+- **Clip highlights** (the template run) builds from clips without analysis
+  too, with evenly spaced moments that start half a second in (it does not
+  run the quick check).
 
 **What blocks Build.** The build needs at least **4 shots from 2 different
 clips or photos**; each photo counts as one shot. When it cannot run, Build is
@@ -261,10 +296,13 @@ approximate timing (0.55 s).". Without an accepted grid (the approximate
 tempo or fixed lengths), cuts still move onto a clearly strong bass hit nearby
 (within 120 ms).
 
-Your own music and the previews need ffmpeg; your own music also runs on
-a pinned Node.js, which the panel downloads the first time (see [INSTALL.md](INSTALL.md)). Without ffmpeg the panel does
-not list Your own music and says "Install ffmpeg to preview music or use your
-own track." The bundled tracks work without them.
+Your own music and the previews use the ffmpeg built into Selects, on macOS
+and Windows alike; there is nothing to install. The plugin listens to the
+first 4 minutes of your own track (the rest is not used), inside the panel,
+and stops listening after a minute at most (the cuts then use fixed timing).
+If this Selects is too old for that, the panel does not list Your own music
+and says "Previewing music and using your own track need a newer Selects."
+The bundled tracks work without it.
 
 **No music** uses the same fixed shot lengths ("No music: shots use
 approximate timing (0.55 s).") and has no length limit.
@@ -281,7 +319,7 @@ analysis and are never scene-searched.
 - For the other shots the plugin prefers a clip used the fewest times so far
   (an unused one whenever it fits). Among those it takes, in order: a video
   moment that matches the shot's role, then a neighbouring role, then any
-  other analysed video moment, then an evenly spaced filler moment from the
+  other video moment (a clip without analysis has only these), then an evenly spaced filler moment from the
   clip. A photo fills one of these shots only when no video fits.
 - Two shots in a row never come from the same clip or photo, and never more
   than two photos play in a row. When the footage cannot fill the chosen
@@ -364,18 +402,23 @@ detail after an error message stay in English.
   in my life", "a small", "glimpse", "of today"). Type over them to change
   them.
 - The bundled typefaces have no Korean letters, so Korean text is drawn with
-  the macOS system font of each typeface's kind: **AppleMyungjo** for the
-  serif typefaces (the Mini vlog big and small words; the big word keeps its
-  slant) and **Apple SD Gothic Neo** for the rounded and monospaced ones (A day
-  in my life, A small glimpse).
+  the system font of each typeface's kind: **AppleMyungjo** on macOS and
+  **Batang** on Windows for the serif typefaces (the Mini vlog big and small
+  words; the big word keeps its slant), and **Apple SD Gothic Neo** on macOS
+  and **Malgun Gothic** on Windows for the rounded and monospaced ones (A day
+  in my life, A small glimpse); Noto Sans/Serif KR where installed. The
+  height of the Korean letters is measured in the font that draws them, so
+  the stars and the year sit right on both systems.
 - Korean text is never letter-spaced. A Korean word without a space stays on
   one line in A small glimpse (it is not split with a hyphen); with a space
   it splits there. A long title shrinks to fit 60 % of the video's width, as
   Latin text does.
 - The field limits count a Korean letter as two characters, so the Big word
   of Mini vlog takes up to five Korean letters.
-- Korean titles need macOS, where Selects and its export run. Style-matched
-  Korean typefaces are planned for a later version.
+- macOS and Windows draw Korean in different system fonts, so a Korean title
+  exported on each looks a little different (Batang depends on the installed
+  Korean font pack). Style-matched Korean typefaces are planned for a later
+  version.
 
 **Inspector labels** of the title, the Soft look, the Beat punch and the photo
 motion are written into the Draft in the panel's language at the time of the
@@ -394,8 +437,8 @@ build. They do not change if the app language is switched later.
   clip (see [Photos](#photos)) and prefers moving moments (see [What it
   makes](#what-it-makes)). Off builds without both; switching it searches
   the clips again once.
-- **Use photos**: on by default. Off builds from the analysed video only.
-- **Choose clips (n/m)**: a checklist of the analysed clips (with their
+- **Use photos**: on by default. Off builds from the video clips only.
+- **Choose clips (n/m)**: a checklist of the usable clips (with their
   length and Tall, Wide or Square) followed by the photos (marked "Photo"),
   with **All** and **None** buttons. All are used by default. Photos cannot
   be chosen while Use photos is off. The readiness line shows how many clips
@@ -437,6 +480,9 @@ Finished videos are exported from the Draft with **Handoff → Export**.
 ## Limitations
 
 - Only 16:9 (1920x1080) videos. There is no vertical option.
+- Windows support follows the same rules as macOS but has not yet been checked
+  on a real Windows machine.
+- Your own music: only the first 4 minutes are used.
 - The fonts cover Latin text only. Other scripts, such as Korean or Japanese,
   are shown in a system font instead.
 - The title preset cannot be switched in Adjust. To change it, pick another

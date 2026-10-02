@@ -14,22 +14,28 @@
 
 ## Dependencies
 
-The bundled music tracks, the title, the Soft look and the Draft build need
-nothing beyond Selects. Two optional features use
-command-line tools. The panel finds ffmpeg on the shell `PATH` and also in
-`/opt/homebrew/bin` and `/usr/local/bin`, so a Homebrew ffmpeg works even when
-Selects is opened from Finder:
+Nothing to install, on macOS or Windows. Everything runs on what Selects
+brings: the bundled music, the title, the Soft look and the Draft build, and
+also the music previews, your own music (beat detection runs inside the panel)
+and the quick check of clips without analysis, which use the ffmpeg built into
+Selects through the host. No package manager, Node.js or shell commands are needed.
 
-- **ffmpeg** (it includes `ffprobe`): music previews and your own music.
-  Check with `ffmpeg -version` and `ffprobe -version`.
-- **Node.js**: your own music only (beat detection). Nothing to install: the first time
-  you choose your own music, the panel downloads a pinned Node.js (about 26 MB)
-  with `runtime.sh` into `~/.selects/plugin-data/_runtime`, shared by every
-  plugin. That needs an internet connection once.
+If this Selects lacks one of the host functions the panel uses, the panel
+says so ("This Selects build needs an updated … adapter.", or for music
+"Previewing music and using your own track need a newer Selects.") and
+everything else keeps working: without the music functions **Your own music**
+is hidden, and clips without analysis get evenly spaced moments.
 
-When ffmpeg is missing, the panel hides **Your own music**, shows
-"Install ffmpeg to preview music or use your own track", and
-everything else keeps working.
+## Windows
+
+Mini Vlog runs on Windows x64 as well as macOS (`compatibility.platforms`).
+It reaches files and ffmpeg only through the host: the ffmpeg built into
+Selects with an argument list (never a shell, so paths with spaces or Korean
+names need no quoting), and the host's file functions with paths joined by the
+host. The plugin and data folders are found through the host too (the home
+folder's `.selects`), and every temporary file has an ASCII name. Korean
+titles use Malgun Gothic or Batang on Windows. A Windows pass on a real
+machine is still to be done.
 
 ## Files the plugin writes
 
@@ -38,14 +44,14 @@ Project and importing the chosen music into that Project. Its temporary audio
 files go in `.selects/plugin-data/mini-vlog` in your home folder,
 never in either install folder:
 
-- `own-music.f32`: your own music decoded for beat detection (up to about
-  32 MB). It is deleted as soon as detection finishes; the detected beat is
-  kept only while the panel is open.
-- `own-music.json`: the detected beat and music onsets of the last track you
-  dropped (tens of KB). The next track replaces it.
-- `preview-N.mp3` and `preview-N.b64`: the section preview. The mp3 is
-  deleted once it is converted to text, and the text copy is replaced by the next
-  preview.
+- `pcm-<time>-<n>.f32`: your own music decoded for beat detection (the first
+  4 minutes, up to about 21 MB). It is deleted as soon as it is read back; the
+  detected beat is kept only while the panel is open.
+- `preview-<n>-<time>.mp3`: the section preview, deleted as soon as it is read
+  back.
+- `quick-score/<clip>.json`: the quick check of a clip without analysis (a few
+  KB each), reused while the file is unchanged. The decoded preview
+  (`quick-score/<clip>-<n>.gray`, under 1 MB) is deleted as soon as it is read.
 
 ## Verify
 
@@ -53,18 +59,19 @@ never in either install folder:
    and `SELECTS_USER_SKILLS_ROOT/mini-vlog/` contains `planner.js`,
    `scripts/assemble.js`, `assets/cues/manifest.json` and
    `assets/fonts/presets.json`.
-2. Open a Project with analysed video clips and open the panel. The
+2. Open a Project with video clips (analysed or not) and open the panel. The
    readiness line at the bottom of the Length section reads, for example,
    "Ready: 6 clips · 12 photos · about 13 s", the Track
    list shows the four bundled tracks (two reference tracks, then two
-   alternatives), and the Title preview renders in its own typefaces. In a Project whose clips were never analysed, it
-   reads "N clips are not analysed yet. Analyse them in Selects to use them
-   here." (never "being analysed"); the panel does not start analysis itself.
+   alternatives), and the Title preview renders in its own typefaces. In a
+   Project whose clips were never analysed it is ready too, with " · N clips
+   not analysed; analysed clips give better picks" at the end; the panel never
+   starts analysis itself, and Build shows "Checking clips N/M" first.
 3. With at least 4 usable shots from 2 different clips or photos, press
    **Build**. A new 16:9 Draft opens at 1920x1080 with the title, the clips
    and the music.
-4. Optional: if ffmpeg is installed, **Your own music** appears
-   in the Track list and **Preview this section** plays the chosen section.
+4. **Your own music** appears in the Track list and **Preview this section**
+   plays the chosen section (both use the ffmpeg built into Selects).
 
 ## Uninstall
 

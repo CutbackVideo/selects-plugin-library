@@ -36,17 +36,89 @@ var MV_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
 var MV_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
 // The macOS Korean system face per bundled family (by role: serif faces AppleMyungjo, the rest Apple SD Gothic Neo).
 var MV_KO_FACES = { "MV Instrument Serif Italic": "AppleMyungjo", "MV DM Serif Display": "AppleMyungjo", "MV Rounded Bold": "Apple SD Gothic Neo", "MV DM Mono": "Apple SD Gothic Neo" };
+// The Korean system faces of a role on macOS and Windows (and Noto where installed), in that order.
+var MV_KO_STACKS = { serif: '"AppleMyungjo", "Batang", "Noto Serif KR"', sans: '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR"' };
 function mvHasHangul(text) { return MV_HANGUL_RE.test(String(text || "")); }
-// The system Korean faces' ink in em: Hangul reaches about 0.86 em above the baseline and 0.12 em below it.
+// Hangul ink in em where the text is drawn (mvWideInk). The Korean face differs by OS: Apple SD Gothic Neo and
+// AppleMyungjo on macOS, Malgun Gothic and Batang on Windows. The layout was tuned on macOS with these figures (about
+// 0.86 em above the baseline and 0.12 em below it), so macOS always uses them as they are, and so do node and tests.
 var MV_WIDE_UP = 0.86, MV_WIDE_DOWN = 0.12;
+var MV_WIDE_SAMPLE = "\ud55c\uae00\ubdf0\ud790\uc77c\uc0c1";
+// The sample's ink in the macOS face of each family at the weight it is drawn in (CoreText: Apple SD Gothic Neo
+// Regular 0.804 / 0.071, Bold 0.812 / 0.080, AppleMyungjo 0.831 / 0.105). Elsewhere the measured ink moves the macOS
+// figures by its difference from these: up = 0.86 + (measured - ref.up), down = 0.12 + (measured - ref.down).
+var MV_WIDE_REF = {
+  "MV Instrument Serif Italic": { up: 0.831, down: 0.105, weight: "" },
+  "MV DM Serif Display": { up: 0.831, down: 0.105, weight: "" },
+  "MV Rounded Bold": { up: 0.812, down: 0.080, weight: "bold " },
+  "MV DM Mono": { up: 0.804, down: 0.071, weight: "" },
+};
+var MV_WIDE_CACHE = {};
+var MV_WIDE_APPLE = null;
+// True on macOS, or where an Apple Korean face is installed (it is first among the Korean faces of every stack, so it
+// is the face that draws Hangul): the text then looks as it did when the macOS figures were taken. An installed face is
+// told apart by width: a sample in '"<face>", <generic>' measures differently from the bare generic.
+function mvAppleKorean(ctx) {
+  if (MV_WIDE_APPLE !== null) return MV_WIDE_APPLE;
+  var apple = false;
+  try {
+    var nav = typeof navigator !== "undefined" ? navigator : null;
+    var plat = nav ? String((nav.userAgentData && nav.userAgentData.platform) || nav.platform || "") + " " + String(nav.userAgent || "") : "";
+    apple = /mac/i.test(plat) && !/iphone|ipad|ipod/i.test(plat);
+    var probe = "mmmwwwlli " + MV_WIDE_SAMPLE;
+    var faces = ["Apple SD Gothic Neo", "AppleMyungjo"], generics = ["monospace", "serif", "sans-serif"];
+    for (var f = 0; !apple && f < faces.length; f++) {
+      for (var g = 0; !apple && g < generics.length; g++) {
+        ctx.font = "100px " + generics[g];
+        var bare = ctx.measureText(probe).width;
+        ctx.font = '100px "' + faces[f] + '", ' + generics[g];
+        var w = ctx.measureText(probe).width;
+        if (typeof bare === "number" && typeof w === "number" && Math.abs(w - bare) > 0.5) apple = true;
+      }
+    }
+  } catch (e) { /* not known to be Apple */ }
+  MV_WIDE_APPLE = apple;
+  return apple;
+}
+// A family's Hangul ink { up, down } in em, once per family: the macOS figures on macOS (mvAppleKorean), else those
+// figures moved by the difference between canvas measureText(...).actualBoundingBoxAscent / Descent of the sample at
+// 100 px in the family's stack (so the system Korean face that really draws it) and the macOS face's reference
+// (MV_WIDE_REF), clamped; the macOS figures when there is no canvas or the measurement looks wrong.
+function mvWideInk(family) {
+  if (MV_WIDE_CACHE[family]) return MV_WIDE_CACHE[family];
+  var ink = { up: MV_WIDE_UP, down: MV_WIDE_DOWN, measured: false };
+  try {
+    var doc = typeof document !== "undefined" ? document : null;
+    var ctx = doc && doc.createElement ? doc.createElement("canvas").getContext("2d") : null;
+    var ref = MV_WIDE_REF[family] || MV_WIDE_REF["MV DM Mono"];
+    if (ctx && !mvAppleKorean(ctx)) {
+      ctx.font = ref.weight + "100px " + mvFontStack(family);
+      var r = ctx.measureText(MV_WIDE_SAMPLE);
+      var mu = r.actualBoundingBoxAscent / 100, md = r.actualBoundingBoxDescent / 100;
+      if (mu > 0.5 && mu < 1.3 && md > -0.1 && md < 0.5) {
+        var up = Math.min(1.1, Math.max(0.7, MV_WIDE_UP + (mu - ref.up)));
+        var down = Math.min(0.35, Math.max(0, MV_WIDE_DOWN + (md - ref.down)));
+        ink = { up: Math.round(up * 1e4) / 1e4, down: Math.round(down * 1e4) / 1e4, measured: true };
+      }
+    }
+  } catch (e) { /* the macOS figures */ }
+  MV_WIDE_CACHE[family] = ink;
+  return ink;
+}
+// The Hangul ink a metrics object carries (mvFace adds the measured one), else the macOS figures.
+function mvWideOf(m) {
+  return { up: m && typeof m.wideUp === "number" ? m.wideUp : MV_WIDE_UP, down: m && typeof m.wideDown === "number" ? m.wideDown : MV_WIDE_DOWN };
+}
 // Where a star or year centres on a line: the x-height band of Latin text, the middle of the ink of wide text.
 function mvBand(text, m) {
-  return MV_WIDE_RE.test(text) ? (MV_WIDE_UP - MV_WIDE_DOWN) / 2 : m.xHeight / m.unitsPerEm / 2;
+  var w = mvWideOf(m);
+  return MV_WIDE_RE.test(text) ? (w.up - w.down) / 2 : m.xHeight / m.unitsPerEm / 2;
 }
-// A text item's font stack: the bundled face, the Latin fallbacks, then the family's Korean face before the generic one.
+// A text item's font stack: the bundled face, the Latin fallbacks, then the family's Korean faces (macOS, Windows,
+// Noto) before the generic one.
 function mvFontStack(family) {
-  var ko = MV_KO_FACES[family] || "Apple SD Gothic Neo";
-  return '"' + family + '", "Helvetica Neue", Arial, "' + ko + '", ' + (ko === "AppleMyungjo" ? "serif" : "sans-serif");
+  var serif = (MV_KO_FACES[family] || "Apple SD Gothic Neo") === "AppleMyungjo";
+  return '"' + family + '", "Helvetica Neue", Arial, ' + (serif ? MV_KO_STACKS.serif + ", serif" : MV_KO_STACKS.sans + ", sans-serif");
 }
 var MV_MINI_WIDTH = (0.155 * 1920) / 1080; // "mini" advance width at size 100, fraction of height
 
@@ -55,7 +127,10 @@ function mvFace(data, preset, role) {
   var fonts = data && Array.isArray(data.fonts) ? data.fonts : [];
   var m = null;
   for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === face.family && fonts[i].metrics) m = fonts[i].metrics;
-  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, shade: typeof face.shade === "number" ? face.shade : 1, m: m || MV_FALLBACK_METRICS };
+  // The family's Hangul ink as measured here (mvWideInk) travels with its metrics to mvInk and mvBand.
+  var wide = mvWideInk(face.family);
+  m = Object.assign({}, m || MV_FALLBACK_METRICS, wide.measured ? { wideUp: wide.up, wideDown: wide.down } : {});
+  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, shade: typeof face.shade === "number" ? face.shade : 1, m: m };
 }
 
 function mvAdvance(m, ch) {
@@ -78,7 +153,7 @@ function mvInk(text, m) {
   if (/[A-Z0-9bdfhklt\u00c0-\u00de\u00df!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.ascent, m.capHeight);
   else if (/[ij]/.test(text)) up = Math.max(up, m.dots.i[1] + 0.07 * m.unitsPerEm);
   if (/[gjpqy,;()[\]{}|]/.test(text)) down = -m.descent;
-  if (wide) { up = Math.max(up, MV_WIDE_UP * m.unitsPerEm); down = Math.max(down, MV_WIDE_DOWN * m.unitsPerEm); }
+  if (wide) { var w = mvWideOf(m); up = Math.max(up, w.up * m.unitsPerEm); down = Math.max(down, w.down * m.unitsPerEm); }
   return { up: up / m.unitsPerEm, down: down / m.unitsPerEm };
 }
 

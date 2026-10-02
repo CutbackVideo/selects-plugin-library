@@ -80,9 +80,11 @@ jobs:
           node plugins/mini-vlog/tests/i18n.test.cjs
           node plugins/mini-vlog/tests/look.test.cjs
           node plugins/mini-vlog/tests/motion.test.cjs
+          node plugins/mini-vlog/tests/no-analysis.test.cjs
           node plugins/mini-vlog/tests/panel.test.cjs
           node plugins/mini-vlog/tests/planner.test.cjs
           node plugins/mini-vlog/tests/punch.test.cjs
+          node plugins/mini-vlog/tests/quick-score.test.cjs
           node plugins/mini-vlog/tests/scripts-edit.test.cjs
           node plugins/mini-vlog/tests/scripts-read.test.cjs
           node plugins/mini-vlog/tests/scripts-types.test.cjs
