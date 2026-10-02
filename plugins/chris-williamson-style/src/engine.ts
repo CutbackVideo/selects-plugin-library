@@ -59,6 +59,38 @@ async function cwShots(job) {
 }
 
 // ---------------------------------------------------------------------------------------------------------
+// faces: job.faces = { samples: [{ key, path, seconds }] } -> { detected: { [key]: { w, h, faces: [[x,y,w,h]...] } } }
+// Apple Vision through vision-helper.js on macOS. Windows has no face detector here: nothing is detected, and the
+// pipeline covers every clip from its centred default (and says so).
+async function cwFaces(env, job, dir) {
+  const samples = job.faces.samples || [];
+  if (hostIsWindows()) return { detected: {}, sampled: samples.length, readable: 0 };
+  // mac-only:start
+  const work = hostJoin(dir, "faces");
+  cwMkdir(work);
+  const files = await cwPool(samples, 4, async (s, i) => {
+    const file = hostJoin(work, "f" + String(i).padStart(3, "0") + ".jpg");
+    const r = await cwFfmpeg(["-v", "error", "-y", "-ss", String(Math.max(0, s.seconds)), "-i", s.path, "-frames:v", "1", "-vf", "scale='min(960,iw)':-2", file], 60000);
+    return r.ok ? file : null;
+  });
+  const ok = files.filter(Boolean);
+  const out = {};
+  // A few images per call, so each answer stays well inside the shell's output limit.
+  for (let k = 0; k < ok.length; k += 20) {
+    let text = "";
+    try { text = await env.runShell("/usr/bin/osascript -l JavaScript " + q(hostJoin(env.pluginDir, "vision-helper.js")) + " faces " + ok.slice(k, k + 20).map(q).join(" "), "Measure framing", 120000); }
+    catch (e) { throw new Error("Face detection failed: " + String(e?.message || e).trim()); }
+    const rows = String(text).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    for (const row of rows) {
+      const i = files.indexOf(row.file);
+      if (i >= 0) out[samples[i].key] = { w: row.w, h: row.h, faces: row.faces };
+    }
+  }
+  return { detected: out, sampled: samples.length, readable: ok.length };
+  // mac-only:end
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // Downloads. Windows: the host's FileSystem.downloadFile (tried again on 429/503). macOS keeps engine.mjs's curl
 // (browser or Wikimedia user agent, HTTP status, 25 MB cap).
 async function cwDownload(env, url, dest) {
@@ -250,7 +282,7 @@ async function cwAssets(job, dir) {
 
 // Runs one engine.mjs command from its job file and writes its result file beside it, as engine.mjs does.
 async function cwEngine(env, cmd, file) {
-  const handlers = { shots: (job) => cwShots(job), assets: (job, dir) => cwAssets(job, dir), candidates: (job, dir, env) => cwCandidates(env, job, dir) };
+  const handlers = { shots: (job) => cwShots(job), faces: (job, dir, env) => cwFaces(env, job, dir), assets: (job, dir) => cwAssets(job, dir), candidates: (job, dir, env) => cwCandidates(env, job, dir) };
   if (!handlers[cmd]) throw new Error("This step needs macOS for now (" + cmd + ").");
   const dir = cwDir(file);
   const result = await handlers[cmd](JSON.parse(await hostReadText(file)), dir, env);
