@@ -721,3 +721,27 @@ Promise.all([hostTests, templateTest]).then(() => console.log('panel ok'), e => 
     ctx.H.hostReadBytes('x').then((b) => assert.deepEqual(Array.from(b), [104, 105], 'cross-realm ' + kind + ' as bytes'));
   }
 }
+
+// Template runs: a chosen file the host cannot place keeps the host's reason (Windows Staging 2.0.536 failed every
+// insertResource with "Resource analyzed sequence not found"), and the "not found" message carries it.
+{
+  const src = panel.slice(panel.indexOf('const TEMPLATE_ALIAS_JS = `') + 'const TEMPLATE_ALIAS_JS = `'.length);
+  const script = src.slice(0, src.indexOf('`;')).replace('__CONFIG__', JSON.stringify({ projectId: 'p', files: [{ rid: 'r1', kind: 'video' }, { rid: 'r2', kind: 'video' }] }));
+  const draft = { clips: async () => [], insertResource: async ({ resourceId }) => { throw new Error('Resource analyzed sequence not found: seq-' + resourceId); }, meta: async () => ({}) };
+  const selects = { project: () => ({ createDraft: async () => draft }) };
+  const run = new Function('selects', 'return (async () => {' + script + '})();');
+  run(selects).then((out) => {
+    assert.deepEqual(out.resolved, []);
+    assert.deepEqual(out.failed.map((f) => f.rid), ['r1', 'r2']);
+    assert.ok(out.failed.every((f) => /analyzed sequence not found/.test(f.error)), 'the host reason is kept');
+  });
+  const tpl = ui.slice(ui.indexOf('async function runArchiveVlogTemplate('), ui.indexOf('// What the app mounts out of sight for a template run'));
+  assert.ok(tpl.includes('t(bl, "tpl.notFoundDetail", { detail: reason })'), 'the reason goes into the message');
+  // A source timeline the host cannot load (files not on this computer) gets its own, actionable sentence.
+  assert.ok(tpl.includes('if (notLocal) throw templateIssue(t(bl, "tpl.notLocal"));'), 'one clear sentence, no host detail');
+  const re = /analyzed sequence not found|placement_source_unavailable|no local source timeline/i;
+  assert.ok(tpl.includes(re.toString()), 'the notLocal pattern');
+  for (const m of ['Resource analyzed sequence not found: abc', 'resource_placement_source_unavailable: Resource x has no local source timeline.']) assert.ok(re.test(m), m);
+  assert.ok(!re.test('resource_not_found: abc'), 'other reasons keep the plain message');
+  assert.ok(tpl.includes('console.warn("[archive-vlog] chosen files that could not be placed:"'), 'every failure is logged');
+}
