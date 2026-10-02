@@ -4,8 +4,9 @@ Static checks on plugins/travel-beat-vlog/panel.tsx: the host I/O block is Archi
 Vlog's, byte for byte; outside `// mac-only:start` ... `// mac-only:end` regions no
 POSIX shell syntax, no Node.js/Python spawn and no macOS-only path is left; the only
 shell call outside them is the host block's SELECTS_USER_SKILLS_ROOT lookup; and the
-build refuses Windows before it reads or makes anything.
+build reaches the hero cutout (Apple Vision through osascript) only off Windows.
 """
+import json
 from pathlib import Path
 import re
 import unittest
@@ -56,13 +57,14 @@ def problems(text):
     found += ['%s outside mac-only regions' % rx.pattern for rx in SPAWN if rx.search(outside)]
     build = re.search(r'async function buildTravelVlog\(.*?\n\}\n', text, re.S)
     body = build.group(0) if build else ''
-    guard = body.find('if(hostIsWindows())throw')
-    first = min([i for i in (body.find('runtimeNode('), body.find('builder('), body.find('script('),
-                             body.find('ensureImported(')) if i >= 0] or [-1])
-    if guard < 0 or first < 0 or guard > first:
-        found.append('buildTravelVlog does not refuse Windows before its first step')
-    if 'disabled={windows||' not in text:
-        found.append('the Create Draft button is not disabled on Windows')
+    flag = body.find('const cutout=!hostIsWindows();')
+    gate = body.find('if(cutout){')
+    leave = body.find('if(!cutout)return')
+    if flag < 0 or gate < flag or 'heroCutout(sdk' not in body or body.find('heroCutout(sdk') < gate \
+            or leave < 0 or body.find('buildCutoutScript(') < leave or body.find("'cutout')") < leave:
+        found.append('buildTravelVlog reaches the cutout on Windows')
+    if 'disabled={busy||windows}' not in text or '{windows&&<ui.Message>{SUBJECT_MAC_ONLY}' not in text:
+        found.append('the panel does not say the cutout is macOS only')
     return found
 
 
@@ -85,6 +87,11 @@ class TravelBeatVlogWindows(unittest.TestCase):
     def test_paths_compare_normalised(self):
         self.assertNotRegex(self.text, r'r\.path===file')
         self.assertIn("normalize('NFC')", self.text)
+
+    def test_manifest_matches(self):
+        manifest = json.loads((PANEL.parent / 'plugin.json').read_text(encoding='utf-8'))
+        self.assertIn('Windows x64', manifest['compatibility']['platforms'])
+        self.assertFalse([f for f in manifest['files'] if f.endswith(('.mjs', '.sh'))])
 
     def test_header_kept(self):
         head = self.text.split('\n')[:24]
