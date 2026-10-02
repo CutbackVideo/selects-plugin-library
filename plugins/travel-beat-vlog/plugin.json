@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "travel-beat-vlog",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "name": "Travel Beat Vlog",
   "summary": "Cut a travel beat vlog to your own song: two fast montages on its drum hits, a hero photo with a big title behind the people, two 2x2 grids on the beat, per-slot reference colour and a fade.",
   "status": "experimental",
@@ -24,7 +24,7 @@
     "platforms": [
       "macOS arm64"
     ],
-    "selects": "Needs public Video/Audio overlays, clip effects and motion graphics, the editor's existing original Image placement service for the hero photo, a pinned Node.js that runtime.sh downloads on first use (no Node.js or Xcode Command Line Tools needed), and Apple Vision person instance masks (macOS 14 or later) through osascript (JavaScript for Automation) for the hero cutout. Verified in Selects Staging 2.0.519 and a local develop build on 2026-10-02 with a user song: saved Draft readback and export (pixel-identical between the two). The first-run Node.js download and the osascript cutout have not yet been run inside the app."
+    "selects": "Needs public Video/Audio overlays, clip effects and motion graphics, the editor's existing original Image placement service for the hero photo, a pinned Node.js that runtime.sh downloads on first use (no Node.js or Xcode Command Line Tools needed), and Apple Vision person instance masks (macOS 14 or later) through osascript (JavaScript for Automation) for the hero cutout. Verified in Selects Staging 2.0.519 and a local develop build on 2026-10-02 with a user song: saved Draft readback and export (pixel-identical between the two). The first-run Node.js download and the osascript cutout have not yet been run inside the app. Windows: not yet; the panel opens and says it is available on macOS for now."
   },
   "preview": {
     "video": "preview.mp4",

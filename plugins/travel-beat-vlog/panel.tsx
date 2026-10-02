@@ -14,7 +14,6 @@
 import React from 'react';
 
 const VIDEO_SLOTS=Array.from({length:26},(_,i)=>'V'+(i+1));
-const BUILDER=' "$SELECTS_USER_SKILLS_ROOT/travel-beat-vlog/build-script.mjs" ';
 const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.has(n.resourceId)).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path,width:n.frameSize?.width??null,height:n.frameSize?.height??null,duration:n.durationSeconds??null}));`;
 const encode=value=>{
  const bytes=new TextEncoder().encode(JSON.stringify(value));let binary='';
@@ -31,7 +30,10 @@ async function inventory(sdk,projectId,summary){
 }
 // Selects puts no Node.js on the panel shell's PATH, so the plugin's runtime.sh fetches a
 // pinned one into ~/.selects/plugin-data/_runtime on first use (shared by all plugins)
-// and prints its path. Resolved once per Panel; later runs reuse it.
+// and prints its path. Resolved once per Panel; later runs reuse it. macOS only: runtime.sh
+// is a POSIX script, and buildTravelVlog refuses Windows before it gets here.
+// mac-only:start
+const BUILDER=' "$SELECTS_USER_SKILLS_ROOT/travel-beat-vlog/build-script.mjs" ';
 let nodePath=null;
 const shellQuote=value=>"'"+String(value).replace(/'/g,"'\\''")+"'";
 async function runtimeNode(sdk,say=()=>{}){
@@ -55,11 +57,167 @@ async function builder(sdk,request,summary,maxOutputBytes=49152,timeoutMs=60000)
  if(r.isError||r.exitCode!==0||!r.stdout)throw Error(r.stderr||r.output||summary+' failed.');
  return r.stdout;
 }
+// mac-only:end
 async function script(sdk,source,summary,allowCommit,timeoutSeconds=30){
  const r=await sdk.runScript({script:source,summary,allowCommit,timeoutSeconds});
  if(r.isError)throw Error(r.output||summary+' failed.');
  return r.result;
 }
+
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. The one shell call is the SELECTS_USER_SKILLS_ROOT fallback in hostSkillsRoot (cmd.exe on
+// Windows, the login shell on macOS). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The skills folder named by SELECTS_USER_SKILLS_ROOT, through the host shell, or null. Windows runs cmd.exe, where
+// `echo(` prints an empty line for an unset variable (a plain `echo` would print "ECHO is on."); macOS runs the login
+// shell. Only the variable's value comes back; no path goes in.
+async function hostSkillsRoot(sdk) {
+  if (typeof sdk?.runShell !== "function") return null;
+  const command = hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%" : 'echo "$SELECTS_USER_SKILLS_ROOT"';
+  try {
+    const r = await sdk.runShell({ summary: "Locate the plugin folder", command, timeoutMs: 10000 });
+    const out = String(r?.stdout || "").split(/\r?\n/).map((x) => x.trim()).find(Boolean) || "";
+    return !out || /[%$]/.test(out) || /^ECHO is/i.test(out) ? null : out;
+  } catch { return null; }
+}
+// The plugin's install folder and its data folder. The install folder is the host's default skills folder (the home
+// folder joined with .selects, skills and <id>) when it holds `marker` (a file every install has); only when it does
+// not does SELECTS_USER_SKILLS_ROOT decide. The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) {
+    const root = await hostSkillsRoot(sdk);
+    const dir = root ? hostJoin(root, id) : null;
+    if (holds(dir)) plugin = dir;
+  }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
+// Host paths compare equal across separators and Unicode forms, and on Windows across case.
+const hostPathKey=p=>{const s=String(p||'').normalize('NFC').replace(/\\/g,'/');return hostIsWindows()?s.toLowerCase():s;};
+// Files the plugin wrote itself (the hero cutout, the song section) live under <home>/.selects/plugin-data/.
+const pluginOwned=p=>/[\\/]\.selects[\\/]plugin-data[\\/]/.test(String(p||''));
+// The song engine still runs on Node.js through runtime.sh, a POSIX script.
+const MAC_ONLY='Travel Beat Vlog is available on macOS for now.';
+// The cutout is Apple Vision (osascript): on Windows the title sits over the whole hero photo.
+const SUBJECT_MAC_ONLY='Putting the subject in front of the title is available on macOS for now; here the title sits over the hero photo.';
 
 // The editor's existing Image placement path is not exposed by the public panel SDK
 // (overlayResource rejects Image resources). Same narrow bridge as Four Photo Reveal:
@@ -128,12 +286,13 @@ export async function placeNativeImages(prepared,draftId,plan,items,label){
 
 // Registers a file the plugin wrote (hero cutout, song section) in the Project once, reusing an earlier import by path.
 async function ensureImported(sdk,projectId,file,type,summary){
+ const key=hostPathKey(file),same=r=>hostPathKey(r.path)===key&&r.type===type;
  let rows=await inventory(sdk,projectId,'Find '+summary);
- if(!rows.some(r=>r.path===file&&r.type===type)){
+ if(!rows.some(same)){
   await script(sdk,`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:${JSON.stringify([file])}});`,'Import '+summary,true);
   rows=await inventory(sdk,projectId,'Confirm '+summary);
  }
- const m=rows.find(r=>r.path===file&&r.type===type);
+ const m=rows.find(same);
  if(!m)throw Error('The '+summary+' is not ready in the Project yet. Try again in a moment.');
  return m;
 }
@@ -141,15 +300,22 @@ async function ensureImported(sdk,projectId,file,type,summary){
 // Builds the vlog from 26 chosen videos (by slot), a hero photo and the user's song, all inventory rows:
 // the panel's Create Draft and a template run share it. Resolves to the saved Draft.
 async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,color,cutoutMode,grade,name,say,stillCurrent,libraryId=null,onDraft=_id=>{}}){
+ // Checked before anything is read or made, so Windows never gets a partial Draft.
+ if(hostIsWindows())throw templateIssue(MAC_ONLY);
+ // Apple Vision cuts the hero subject out; without it the title sits over the whole hero photo.
+ const cutout=!hostIsWindows();
  await runtimeNode(sdk,say);
  say('Finding the beat of your song…');
  const fit=JSON.parse(await builder(sdk,{mode:'song',song:song.path,cuts},'Fit the vlog to the song',49152,240000));
  const timing=fit.timing;
  const needs=JSON.parse(await builder(sdk,{mode:'needs',timing},'Read slot lengths',15000));
  for(const s of VIDEO_SLOTS){const d=chosen[s].duration;if(d!=null&&d+1e-3<needs[s])throw Error(s+' ('+chosen[s].name+') is '+d.toFixed(2)+' s; it needs at least '+needs[s].toFixed(2)+' s.');}
- say('Cutting out the hero subject…');
- const cut=JSON.parse(await builder(sdk,{mode:'cutout',photo:heroPhoto.path,cutoutMode},'Cut out hero subject',15000,180000));
- const cutRow=await ensureImported(sdk,projectId,cut.path,'Image','hero cutout');
+ let cutRow=null;
+ if(cutout){
+  say('Cutting out the hero subject…');
+  const cut=JSON.parse(await builder(sdk,{mode:'cutout',photo:heroPhoto.path,cutoutMode},'Cut out hero subject',15000,180000));
+  cutRow=await ensureImported(sdk,projectId,cut.path,'Image','hero cutout');
+ }
  const songRow=await ensureImported(sdk,projectId,fit.audio,'Audio','song section');
  say('Matching colour to the reference…');
  // Measured before the Draft exists (reference 30 fps timing; seconds are rate-free), so a failure leaves no partial Draft.
@@ -157,7 +323,7 @@ async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,c
  const clips=ref.clips.filter(c=>!c.image).map(c=>({key:c.slot+'@'+c.index,slot:c.slot,path:chosen[c.slot].path,inSeconds:c.inSeconds,seconds:(c.endFrame-c.startFrame)/30}));
  clips.push({key:'H',slot:'H',path:heroPhoto.path,inSeconds:0,seconds:0.1});
  const grades=JSON.parse(await builder(sdk,{mode:'grade',clips,strength:grade},'Measure colour',49152,240000));
- const prepared=await prepareNativeImages(window.parent,projectId,[{...heroPhoto},{...cutRow,name:'hero cutout'}],libraryId);
+ const prepared=await prepareNativeImages(window.parent,projectId,cutRow?[{...heroPhoto},{...cutRow,name:'hero cutout'}]:[{...heroPhoto}],libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  say('Creating the Draft…');
  const seed=await script(sdk,`const p=selects.project(${JSON.stringify(projectId)});const d=await p.createDraft({name:${JSON.stringify(name.trim()||'Travel beat vlog')}});await d.insertGap({seconds:${timing.durationFrames}/30});await d.setFrameSize({width:1080,height:1920});const m=await d.meta();if(m.durationFrames!==Math.round(${timing.durationFrames}*m.fps/30)||m.frameSize?.width!==1080||m.frameSize?.height!==1920)throw Error('Draft frame grid differs from the reference.');const saved=await d.commitAll('Start Travel Beat Vlog Draft');return {draftId:saved.createdDraftId,fps:m.fps};`,'Create travel vlog Draft',true);
@@ -170,6 +336,7 @@ async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,c
  const request={mode:'finish',projectId,draftId,fps,videos:Object.fromEntries(VIDEO_SLOTS.map(s=>[s,{resourceId:chosen[s].resourceId,width:chosen[s].width,height:chosen[s].height}])),hero:{resourceId:heroPhoto.resourceId,width:placed.photos[0].width,height:placed.photos[0].height},placements:placed.placements,grades,songResourceId:songRow.resourceId,title:{text:title,color},timing};
  const fin=await script(sdk,await builder(sdk,request,'Build travel vlog finishing step',400000),'Finish travel vlog Draft',true,120);
  if(fin?.status!=='saved')throw Error((fin?.message||'Could not save the Draft.')+(fin?.stage?' ('+fin.stage+')':''));
+ if(!cutout)return {draftId};
  say('Putting the hero subject in front of the title…');
  const top=await placeNativeImages(prepared,draftId,plan,[{source:1,startFrame:plan.title.startFrame,endFrame:plan.title.endFrame}],'cutout');
  const fin2=await script(sdk,await builder(sdk,{mode:'cutoutFinish',fps,draftId,cutout:top.placements[0],hero:request.hero,grade:grades.H||null,timing},'Build cutout step',100000),'Finish hero cutout',true,60);
@@ -275,7 +442,7 @@ function TravelPanel({sdk,context,ui}){
  const running=React.useRef(false),currentProject=React.useRef(context.projectId);currentProject.current=context.projectId;
  React.useEffect(()=>{setMedia([]);setHero('');setLong(['','','']);setClips(Array(23).fill(''));setSong('');setLoadedProject(null);setSaved(null);setStatus('');},[context.projectId]);
  // Files the plugin created itself (the hero cutout, the song section) are not user media.
- const own=m=>/\/\.selects\/plugin-data\//.test(m.path||'');
+ const own=m=>pluginOwned(m.path);
  const of=type=>media.filter(m=>m.type===type&&!own(m));
  async function load(){
   if(!context.projectId||running.current)return;running.current=true;setBusy(true);setStatus('Loading project media…');
@@ -283,7 +450,7 @@ function TravelPanel({sdk,context,ui}){
    const projectId=context.projectId,rows=await inventory(sdk,projectId,'List project media');
    if(currentProject.current!==projectId)return;
    setMedia(rows);setLoadedProject(projectId);
-   const mine=r=>/\/\.selects\/plugin-data\//.test(r.path||''),v=rows.filter(r=>r.type==='Video'&&!mine(r)),im=rows.filter(r=>r.type==='Image'&&!mine(r)),au=rows.filter(r=>r.type==='Audio'&&!mine(r));
+   const mine=r=>pluginOwned(r.path),v=rows.filter(r=>r.type==='Video'&&!mine(r)),im=rows.filter(r=>r.type==='Image'&&!mine(r)),au=rows.filter(r=>r.type==='Audio'&&!mine(r));
    setLong(old=>old.map((x,i)=>x||v[i]?.resourceId||''));setClips(old=>old.map((x,i)=>x||v[3+i]?.resourceId||''));
    setHero(old=>old||im[0]?.resourceId||'');setSong(old=>old||au[0]?.resourceId||'');
    setStatus(v.length>=26&&im.length&&au.length?'Check the hero photo, the long shots, the 23 clips and the song.':'The format needs 1 hero photo, 26 videos and 1 song; this Project has '+im.length+' photos, '+v.length+' videos and '+au.length+' songs.');
@@ -303,24 +470,27 @@ function TravelPanel({sdk,context,ui}){
    setSaved({draftId});setStatus('Saved. Every shot is its own clip with focus controls; the title text and colour are editable.');
   }catch(error){setStatus(String(error?.message||error));}finally{running.current=false;setBusy(false);}
  }
+ const windows=hostIsWindows();
  const ready=!busy&&loadedProject===context.projectId;
  const opts=type=>of(type).map(m=>({value:m.resourceId,label:m.name}));
  const vOpts=opts('Video'),setAt=(setter,i)=>v=>setter(old=>old.map((x,j)=>j===i?v:x));
  return <ui.Stack gap={16}><ui.Section title="Travel Beat Vlog">
   <ui.Message>A travel beat vlog in 9:16 cut to your song: two fast montages on its drum hits, a hero photo with the title behind its subject, two 2×2 grids that fill on the beat, and a fade out.</ui.Message>
+  {windows&&<ui.Message>{MAC_ONLY}</ui.Message>}
   {!context.projectId&&<ui.Message>Open a Project first.</ui.Message>}
   <ui.Button variant="secondary" onClick={load} disabled={!context.projectId||busy} busy={busy}>Load Project media</ui.Button>
   <ui.Select label="Hero photo" value={hero} onChange={setHero} options={opts('Image')} placeholder="Choose photo" disabled={!ready}/>
   {long.map((v,i)=><ui.Select key={'l'+i} label={'Long shot '+(i+1)} value={v} onChange={setAt(setLong,i)} options={vOpts} placeholder="Choose video" disabled={!ready}/>)}
   {clips.map((v,i)=><ui.Select key={'c'+i} label={'Clip '+(i+1)} value={v} onChange={setAt(setClips,i)} options={vOpts} placeholder="Choose video" disabled={!ready}/>)}
   <ui.Select label="Song" value={song} onChange={setSong} options={opts('Audio')} placeholder="Choose song" disabled={!ready}/>
-  <ui.Select label="In front of the title" value={cutoutMode} onChange={setCutoutMode} options={[{value:'person',label:'People'},{value:'foreground',label:'Main subject'}]} disabled={busy}/>
+  <ui.Select label="In front of the title" value={cutoutMode} onChange={setCutoutMode} options={[{value:'person',label:'People'},{value:'foreground',label:'Main subject'}]} disabled={busy||windows}/>
+  {windows&&<ui.Message>{SUBJECT_MAC_ONLY}</ui.Message>}
   <ui.Select label="Cuts" value={cuts} onChange={setCuts} options={[{value:'hits',label:"Follow the song's hits"},{value:'reference',label:'Keep the original rhythm'}]} disabled={busy}/>
   <ui.TextField label="Title" value={title} onChange={setTitle} disabled={busy}/>
   <ui.TextField label="Title colour (#RRGGBB)" value={color} onChange={setColor} disabled={busy}/>
   <ui.Slider label="Match colour to the reference" min={0} max={1} step={0.05} value={grade} onChange={setGrade} disabled={busy}/>
   <ui.TextField label="Draft name" value={name} onChange={setName} disabled={busy}/>
-  <ui.Actions><ui.Button variant="primary" onClick={create} disabled={!ready||!hero||!song||long.some(v=>!v)||clips.some(v=>!v)||!/^#[0-9a-fA-F]{6}$/.test(color)} busy={busy}>{saved?'Create another Draft':'Create Draft'}</ui.Button></ui.Actions>
+  <ui.Actions><ui.Button variant="primary" onClick={create} disabled={windows||!ready||!hero||!song||long.some(v=>!v)||clips.some(v=>!v)||!/^#[0-9a-fA-F]{6}$/.test(color)} busy={busy}>{saved?'Create another Draft':'Create Draft'}</ui.Button></ui.Actions>
   {status&&<ui.Message>{status}</ui.Message>}
   {saved&&<ui.Button variant="secondary" onClick={()=>sdk.runScript({script:'return await selects.editor.openDraft('+JSON.stringify(saved.draftId)+');',summary:'Open saved Draft',allowCommit:false})}>Open saved Draft</ui.Button>}
  </ui.Section></ui.Stack>;
