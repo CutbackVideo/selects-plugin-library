@@ -148,3 +148,17 @@ jobs:
           node plugins/selfie-aesthetic/tests/scripts-edit.test.cjs
           node plugins/selfie-aesthetic/tests/scripts-read.test.cjs
           node plugins/selfie-aesthetic/tests/still.test.cjs
+      - name: Test template panels on Windows paths
+        run: |
+          node --test tests/cinema_vlog_studio.test.mjs
+          node --test tests/daily_vlog_8.test.mjs
+          node --test tests/four_photo_stop_motion.test.mjs
+          node --test tests/no14_windows.test.mjs
+          node --test tests/no14_default_music.test.mjs
+          node --test tests/no14_native_image.test.mjs
+          node --test tests/depth_type_captions_windows.test.mjs
+          node --test tests/depth_type_captions.test.mjs
+          node --test tests/camera_shutter_dump.test.mjs
+      - name: Test A16z Style Captions
+        run: |
+          node plugins/a16z-style-captions/tests/windows.test.cjs

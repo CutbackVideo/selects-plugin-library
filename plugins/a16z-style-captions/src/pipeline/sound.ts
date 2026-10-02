@@ -1,7 +1,7 @@
 // Music and levels (spec 14). The house bed is a soft pad with no drums, entering at full level on the
 // first frame, sitting about 9 dB under the voice with no ducking, and stopping hard on the last frame.
 // The voice is levelled with clip gain only, to about -16 LUFS, so the mix lands near -15.5 LUFS.
-import { fs, q, shell, type Sdk } from "./host";
+import { fs, hostFF, type Sdk } from "./host";
 import { generate } from "./media";
 
 export const MUSIC_PROMPT =
@@ -26,20 +26,17 @@ export async function makeMusic(pid: string, seconds: number, dir: string, key: 
   );
 }
 
-// Integrated loudness (LUFS) of a file, or of a time window of it.
+// Integrated loudness (LUFS) of a file, or of a time window of it (loudnorm prints its JSON on stderr).
 export async function loudness(sdk: Sdk, path: string, from?: number, dur?: number): Promise<number | null> {
   try {
-    const win = from != null ? "-ss " + from.toFixed(3) + " " + (dur != null ? "-t " + dur.toFixed(3) + " " : "") : "";
-    const out = await shell(sdk, "Measure loudness", FF + '"$FF" -hide_banner -nostats ' + win + "-i " + q(path) + " -vn -af loudnorm=print_format=json -f null - 2>&1 | tail -n 14", 180000, 8000);
-    const i = Number((/"input_i"\s*:\s*"(-?[\d.]+)"/.exec(out) || [])[1]);
+    const win = from != null ? ["-ss", from.toFixed(3), ...(dur != null ? ["-t", dur.toFixed(3)] : [])] : [];
+    const r = await hostFF("runFFmpeg", ["-hide_banner", "-nostats", ...win, "-i", path, "-vn", "-af", "loudnorm=print_format=json", "-f", "null", "-"], 180000);
+    const i = Number((/"input_i"\s*:\s*"(-?[\d.]+)"/.exec(r.stderr + r.stdout) || [])[1]);
     return Number.isFinite(i) && i > -70 ? i : null;
   } catch {
     return null;
   }
 }
-
-// ffmpeg from PATH or the usual install locations.
-export const FF = 'FF="$(command -v ffmpeg || ls /opt/homebrew/bin/ffmpeg /usr/local/bin/ffmpeg "$HOME/.local/bin/ffmpeg" 2>/dev/null | head -n 1)"; ';
 
 export const VOICE_TARGET = -16;
 export const BED_UNDER = 9;
@@ -49,10 +46,3 @@ export function gains(voice: number | null, music: number | null): { voiceDb: nu
   const musicDb = music == null ? -24 : Math.max(-40, Math.min(6, VOICE_TARGET - BED_UNDER - music));
   return { voiceDb: Math.round(voiceDb * 10) / 10, musicDb: Math.round(musicDb * 10) / 10 };
 }
-
-export function ffmpegAvailable(sdk: Sdk): Promise<boolean> {
-  return shell(sdk, "Check ffmpeg", FF + '[ -n "$FF" ] && echo ok; true', 10000)
-    .then((s) => /ok/.test(s))
-    .catch(() => false);
-}
-void fs;

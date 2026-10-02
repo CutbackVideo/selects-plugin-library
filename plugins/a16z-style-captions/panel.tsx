@@ -88,6 +88,81 @@ async function shell(sdk, summary, command, timeoutMs = 12e4, maxOutputBytes = 1
   }
   return String(r?.stdout ?? r?.output ?? "");
 }
+function hostError(code, message, member = "") {
+  return Object.assign(new Error(message), { code, member });
+}
+function hostDI() {
+  try {
+    return window.parent && window.parent["__DI__"] || null;
+  } catch {
+    return null;
+  }
+}
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch {
+  }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch {
+    return false;
+  }
+}
+async function hostRoots(sdk, id, marker) {
+  const fs2 = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => {
+    try {
+      return !!dir && (!fs2 || !!fs2.existsSync(fs2.join(dir, marker)));
+    } catch {
+      return false;
+    }
+  };
+  let plugin = null;
+  try {
+    if (fs2) {
+      const dir = String(fs2.join(fs2.homedir(), ".selects", "skills", id));
+      if (holds(dir)) plugin = dir;
+    }
+  } catch {
+    plugin = null;
+  }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) {
+      data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id));
+      dfs.mkdirSync(data, { recursive: true });
+    }
+  } catch {
+    data = null;
+  }
+  return { plugin, data };
+}
+async function hostFF(tool, args, timeoutMs = 12e4) {
+  const rt = hostApi("Runtime", tool);
+  if (!rt) throw hostError("host-missing", "this Selects build has no Runtime." + tool + "; update Selects", "Runtime." + tool);
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const chunks = [];
+    const extra = tool === "runFFmpeg" ? [void 0, (x) => {
+      chunks.push(String(x));
+    }] : [];
+    const r = await rt[tool](args, true, controller ? controller.signal : void 0, ...extra);
+    return { stdout: String(r?.stdout ?? ""), stderr: String(r?.stderr || chunks.join("")) };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 function lastJsonObject(text) {
   const s = String(text || "");
   const end = s.lastIndexOf("}");
@@ -841,15 +916,14 @@ async function makeMusic(pid, seconds, dir, key, onTick) {
 }
 async function loudness(sdk, path, from, dur) {
   try {
-    const win = from != null ? "-ss " + from.toFixed(3) + " " + (dur != null ? "-t " + dur.toFixed(3) + " " : "") : "";
-    const out = await shell(sdk, "Measure loudness", FF + '"$FF" -hide_banner -nostats ' + win + "-i " + q(path) + " -vn -af loudnorm=print_format=json -f null - 2>&1 | tail -n 14", 18e4, 8e3);
-    const i = Number((/"input_i"\s*:\s*"(-?[\d.]+)"/.exec(out) || [])[1]);
+    const win = from != null ? ["-ss", from.toFixed(3), ...dur != null ? ["-t", dur.toFixed(3)] : []] : [];
+    const r = await hostFF("runFFmpeg", ["-hide_banner", "-nostats", ...win, "-i", path, "-vn", "-af", "loudnorm=print_format=json", "-f", "null", "-"], 18e4);
+    const i = Number((/"input_i"\s*:\s*"(-?[\d.]+)"/.exec(r.stderr + r.stdout) || [])[1]);
     return Number.isFinite(i) && i > -70 ? i : null;
   } catch {
     return null;
   }
 }
-var FF = 'FF="$(command -v ffmpeg || ls /opt/homebrew/bin/ffmpeg /usr/local/bin/ffmpeg "$HOME/.local/bin/ffmpeg" 2>/dev/null | head -n 1)"; ';
 var VOICE_TARGET = -16;
 var BED_UNDER = 9;
 function gains(voice, music) {
@@ -2515,15 +2589,37 @@ async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
   if (!fs().existsSync(out)) {
     const portrait = c.height > c.width;
     const box = portrait ? "1080:1920" : "1920:1080";
-    await shell(
-      sdk,
-      "Download stock B-roll",
-      FF + 'set -e; "$FF" -v error -y -ss ' + start.toFixed(2) + " -t " + length.toFixed(2) + " -i " + q(c.url) + " -an -c:v libx264 -preset veryfast -crf 19 -pix_fmt yuv420p -vf " + q("scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2") + " " + q(out + ".part.mp4") + " && mv " + q(out + ".part.mp4") + " " + q(out),
-      15e4,
-      4e3
+    const part = typeof fs().renameSync === "function" ? out + ".part.mp4" : out;
+    await hostFF(
+      "runFFmpeg",
+      [
+        "-v",
+        "error",
+        "-y",
+        "-ss",
+        start.toFixed(2),
+        "-t",
+        length.toFixed(2),
+        "-i",
+        c.url,
+        "-an",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-vf",
+        "scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2",
+        part
+      ],
+      15e4
     );
+    if (part !== out) fs().renameSync(part, out);
   }
-  const probe = (await shell(sdk, "Probe stock B-roll", 'FP="$(command -v ffprobe || ls /opt/homebrew/bin/ffprobe /usr/local/bin/ffprobe "$HOME/.local/bin/ffprobe" 2>/dev/null | head -n 1)"; "$FP" -v error -select_streams v:0 -show_entries stream=width,height:format=duration -of csv=p=0 ' + q(out) + " | tr '\\n' ','", 3e4, 2e3)).trim().split(",").map(Number);
+  const probe = (await hostFF("runFFprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:format=duration", "-of", "csv=p=0", out], 3e4)).stdout.trim().split(/[\r\n,]+/).map(Number);
   return { id: c.id, path: out, width: probe[0] || c.width, height: probe[1] || c.height, dur: probe[2] || 0, credit: c.credit, url: c.authorUrl, service: c.service };
 }
 function serviceLabel(name) {
@@ -2553,7 +2649,7 @@ function hash2(s) {
   return h;
 }
 async function probeDuration(sdk, path) {
-  const out = await shell(sdk, "Probe stock B-roll", 'FP="$(command -v ffprobe || ls /opt/homebrew/bin/ffprobe /usr/local/bin/ffprobe "$HOME/.local/bin/ffprobe" 2>/dev/null | head -n 1)"; "$FP" -v error -show_entries format=duration -of csv=p=0 ' + q(path), 3e4, 2e3).catch(() => "");
+  const out = await hostFF("runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], 3e4).then((r) => r.stdout).catch(() => "");
   return Number(String(out).trim()) || 0;
 }
 
@@ -2699,8 +2795,8 @@ function coverRect(sw, sh, W2, H2) {
 }
 async function lumaOf(sdk, path, at, crop) {
   const vf = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" + crop + ",signalstats,metadata=print:key=lavfi.signalstats.YAVG";
-  const out = await shell(sdk, "Measure B-roll brightness", FF + '"$FF" -hide_banner -nostats -ss ' + at.toFixed(2) + " -i " + q(path) + " -vf " + q(vf) + " -frames:v 1 -f null - 2>&1 | grep -o 'YAVG=[0-9.]*' | head -n 1", 3e4, 2e3);
-  const v = Number((out.match(/YAVG=([\d.]+)/) || [])[1]);
+  const r = await hostFF("runFFmpeg", ["-hide_banner", "-nostats", "-ss", at.toFixed(2), "-i", path, "-vf", vf, "-frames:v", "1", "-f", "null", "-"], 3e4);
+  const v = Number(((r.stderr + r.stdout).match(/YAVG=([\d.]+)/) || [])[1]);
   return Number.isFinite(v) ? v : null;
 }
 var frameLuma = (sdk, path, at) => lumaOf(sdk, path, at, "");
@@ -2728,7 +2824,6 @@ async function loadJob(id) {
     return null;
   }
 }
-var isWindows = () => /Windows/i.test(navigator.userAgent);
 async function makeShort(sdk, ctx, opts, onStep) {
   const t0 = Date.now();
   const notes = [];
@@ -2756,8 +2851,8 @@ async function makeShort(sdk, ctx, opts, onStep) {
   });
   onStep("faces", "run");
   const facesJob = (async () => {
-    if (isWindows()) {
-      notes.push("Speaker framing needs macOS for now, so every shot is centred.");
+    if (hostIsWindows()) {
+      notes.push("Speaker framing is available on macOS for now, so every shot is centred.");
       onStep("faces", "skip", "centred");
       return {};
     }
@@ -2917,13 +3012,13 @@ async function build(sdk, job, onStep) {
 async function readFonts(sdk) {
   let root = "";
   try {
-    root = (await shell(sdk, "Locate plugin files", 'printf %s "$SELECTS_USER_SKILLS_ROOT"', 1e4)).trim();
+    root = (await hostRoots(sdk, PANEL_ID, "fonts")).plugin;
   } catch {
   }
   const read2 = async (file) => {
     if (!root) return "";
     try {
-      return String(await fs().readFile(fs().join(root, "a16z-style-captions", "fonts", file), "utf8")).trim();
+      return String(await fs().readFile(fs().join(root, "fonts", file), "utf8")).trim();
     } catch {
       return "";
     }
