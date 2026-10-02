@@ -352,7 +352,7 @@ for (const [seed, pace, music, preset, creditOn, lookOn, clipSound] of [[1, 'cin
 // The panel and its template run use the builders (one config path for both).
 assert.equal((ui.match(/avAssembleConfig\(\{/g) || []).length, 2, 'assemble config: the panel and the template run');
 assert.equal((ui.match(/avDecorateConfig\(\{/g) || []).length, 2, 'decorate config: the panel and the template run');
-assert.ok(ui.includes('fill(assets.scripts.decorateJs, cfg)') && ui.includes('fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4 })'));
+assert.ok(ui.includes('fill(assets.scripts.decorateJs, cfg)') && ui.includes('fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4, analysedOnly: true })'));
 
 // ---- Host I/O: no POSIX shell, guarded host services --------------------------------------------------------------
 // Runtime code never uses POSIX shell syntax, a data folder under the shell's HOME, Homebrew / nvm paths or a node
@@ -360,14 +360,14 @@ assert.ok(ui.includes('fill(assets.scripts.decorateJs, cfg)') && ui.includes('fi
 for (const bad of ['mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'TOOL_PATH', '/opt/homebrew', '.nvm', '/tmp', '~/', 'sq(', 'dq(', '| sort']) assert.ok(!own.includes(bad), 'no ' + bad);
 assert.ok(!/\bnode\s+["'\w./-]*\.c?js/.test(own) && !/\bffmpeg\s+-/.test(own) && !/\bffprobe\s+-/.test(own), 'no node / ffmpeg / ffprobe command lines');
 assert.ok(!/(?:plugin|root|data|dir|path|Dir|Path)\)?\s*\+\s*["'][\\/]|["'][\\/]assets/.test(own), 'paths are joined, never built with "/"');
-// One shell call, in the host block, for SELECTS_USER_SKILLS_ROOT only.
-assert.equal((panel.match(/runShell\(/g) || []).length, 1, 'one runShell call');
-assert.ok(hostBlock.includes('await sdk.runShell({ summary: "Locate the plugin folder", command, timeoutMs: 10000 })'));
-assert.ok(hostBlock.includes(`const command = hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%" : 'echo "$SELECTS_USER_SKILLS_ROOT"';`), 'per-platform one-liner');
-// The host's services are reached only through the host block's guards; ffmpeg only through Runtime with an argv.
-const outsideHost = own.replace(hostBlock, '');
-assert.ok(!/__DI__|window\.parent/.test(outsideHost.replace(/^\s*\/\/.*$/gm, '')), '__DI__ only in the av-host block');
-assert.ok(!/runFFmpeg\(|runFFprobe\(/.test(outsideHost), 'ffmpeg only in the av-host block');
+// No shell call at all at runtime (kit windows.md): the install folder comes from FileSystem only.
+assert.equal((panel.match(/runShell/g) || []).length, 0, 'no runShell anywhere in the panel');
+// The host's services are reached only through the guarded host blocks (av-host and the kit's quick-score block);
+// ffmpeg only through Runtime with an argv.
+const qsBlock = block(panel, 'quick-score');
+const outsideHost = own.replace(hostBlock, '').replace(qsBlock, '');
+assert.ok(!/__DI__|window\.parent/.test(outsideHost.replace(/^\s*\/\/.*$/gm, '')), '__DI__ only in the host blocks');
+assert.ok(!/runFFmpeg\(|runFFprobe\(/.test(outsideHost), 'ffmpeg only in the host blocks');
 assert.ok(!/:\s*(any|string|number|boolean)\b|Promise<|\bas any\b/.test(hostBlock), 'the host block is plain JS');
 assert.ok(ui.includes('const locateRoots = (sdk: any) => hostRoots(sdk, PLUGIN_ID, "planner.js");'));
 assert.ok(ui.includes('return e?.code === "host-missing" ? (l) => t(l, "hostTooOld") : (l) => wrap(l, sayError(l, e));'), 'one "needs a newer Selects" message');
@@ -388,7 +388,7 @@ function hostBox({ platform, files = new Set(), shell = null, ffmpeg = null, noJ
   const ctx = { window: { parent: { __DI__: { FileSystem, Runtime } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
     setTimeout, clearTimeout, AbortController, Date, Math, String, Error, parseFloat };
   vm.createContext(ctx);
-  vm.runInContext(hostBlock + '\nthis.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows, hostSkillsRoot };', ctx);
+  vm.runInContext(hostBlock + '\nthis.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows };', ctx);
   const sdk = { runShell: async (o) => { calls.shell.push(o.command); return shell ? shell(o.command) : { stdout: '' }; } };
   return { H: ctx.H, calls, sdk };
 }
@@ -399,22 +399,18 @@ const hostTests = (async () => {
     assert.deepEqual(j(await H.hostRoots(sdk, 'archive-vlog', 'planner.js')), { plugin: '/u/me/.selects/skills/archive-vlog', data: '/u/me/.selects/plugin-data/archive-vlog' });
     assert.deepEqual(calls.shell, []); assert.deepEqual(j(calls.mkdir), [['/u/me/.selects/plugin-data/archive-vlog', { recursive: true }]]);
   }
-  // Windows: SELECTS_USER_SKILLS_ROOT through cmd.exe when the default folder is not the install.
+  // Windows: the default skills folder under the user's home, no shell.
   {
-    const { H, calls, sdk } = hostBox({ platform: 'win32', files: new Set(['D:\\Skills\\archive-vlog\\planner.js']), shell: () => ({ stdout: 'D:\\Skills\r\n' }) });
+    const { H, calls, sdk } = hostBox({ platform: 'win32', files: new Set(['C:\\Users\\me\\.selects\\skills\\archive-vlog\\planner.js']) });
     const r = j(await H.hostRoots(sdk, 'archive-vlog', 'planner.js'));
-    assert.deepEqual(r, { plugin: 'D:\\Skills\\archive-vlog', data: 'C:\\Users\\me\\.selects\\plugin-data\\archive-vlog' });
-    assert.deepEqual(calls.shell, ['echo(%SELECTS_USER_SKILLS_ROOT%']);
+    assert.deepEqual(r, { plugin: 'C:\\Users\\me\\.selects\\skills\\archive-vlog', data: 'C:\\Users\\me\\.selects\\plugin-data\\archive-vlog' });
+    assert.deepEqual(calls.shell, []);
   }
-  // An unset variable (cmd prints an empty line or the literal) and macOS's command.
-  for (const stdout of ['\r\n', '%SELECTS_USER_SKILLS_ROOT%' + '\r\n', 'ECHO is on.\r\n']) {
-    const { H, sdk } = hostBox({ platform: 'win32', shell: () => ({ stdout }) });
-    await assert.rejects(H.hostRoots(sdk, 'archive-vlog', 'planner.js'), e => e.code === 'not-found', JSON.stringify(stdout));
-  }
+  // Not installed there: a not-found error (no shell fallback).
   {
-    const { H, calls, sdk } = hostBox({ platform: 'darwin', files: new Set(['/opt/skills/archive-vlog/planner.js']), shell: () => ({ stdout: '/opt/skills\n' }) });
-    assert.equal((await H.hostRoots(sdk, 'archive-vlog', 'planner.js')).plugin, '/opt/skills/archive-vlog');
-    assert.deepEqual(calls.shell, ['echo "$SELECTS_USER_SKILLS_ROOT"']);
+    const { H, calls, sdk } = hostBox({ platform: 'win32' });
+    await assert.rejects(H.hostRoots(sdk, 'archive-vlog', 'planner.js'), e => e.code === 'not-found');
+    assert.deepEqual(calls.shell, []);
   }
   // Without the host's join: the OS separator.
   assert.equal(hostBox({ platform: 'win32', noJoin: true }).H.hostJoin('C:\\a\\', 'assets', 'x.mp3'), 'C:\\a\\assets\\x.mp3');
@@ -530,7 +526,34 @@ for (const s of ['onClick={() => choosePreset(p.id)}', 'if (v != null && v !== (
   'setCreditPrefix((v) => (v != null && v !== (old.credit?.prefix || "") ? v : null));', 'setCreditName((v) => (v != null && v !== (old.credit?.name || "") ? v : null));'])
   assert.ok(ui.includes(s), s);
 // The readiness line counts the inventory; the output (montage shots, seconds) has its own line.
-assert.ok(ui.includes('t(L, "ready", { summary: [clipCount, ...avAnalysisNotes(L, invAnalysis)].filter(Boolean).join(" · ") })'), 'readiness: inventory only');
+assert.ok(ui.includes('t(L, "ready", { summary: clipCount })'), 'readiness: inventory only');
+// Build without analysis (2026-10-02): unanalysed videos are usable, nothing waits for Selects' analysis. The readiness
+// counts usable clips; a small note (never a gate) says analysed clips give better picks; clips still being added poll.
+for (const s of ['const localNote = facts.local > 0 ? t(L, "localNote", { count: facts.local }) : null;', '{localNote ? <ui.Message tone="muted">{localNote}</ui.Message> : null}',
+  ': inventory.resources.length === 0 ? (facts.waiting ? t(L, "stillAdding", { count: facts.waiting }) : t(L, "noFootage"))',
+  'invFacts.analysing > 0 || (invFacts.waiting > 0 && !waitingStalled)', 'if (waitingReadsRef.current >= WAITING_POLL_MAX) setWaitingStalled(true);', 'const sig = inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",");']) assert.ok(ui.includes(s), s);
+assert.ok(!/avAnalysis|notAnalysedAnalyse|statusKnown/.test(ui), 'no analysis gate left');
+// The block reasons never mention analysis: only footage, music and the title gate a build.
+{
+  const gate = ui.slice(ui.indexOf('const baseBlock: Say | null'), ui.indexOf('const blockFor = '));
+  assert.ok(!/analys|status/i.test(gate), 'no analysis in the build gate');
+}
+// No blocker wording about analysis in any language: "analyse/analyze it first", "not analysed ... to use".
+for (const [l, table] of Object.entries(strings)) for (const [k, v] of Object.entries(table)) {
+  const text = typeof v === 'string' ? v : Object.values(v).join(' | ');
+  assert.ok(!/analy[sz]e (it|them)|analysiere|anal[ií]zal|analysez|analizzal|analise-os|analiz edin|Selects \u3067\u89e3\u6790\u3057\u3066|\uc5d0\uc11c \ubd84\uc11d\ud558\uc138\uc694|\u8fdb\u884c\u5206\u6790/.test(text), l + ' ' + k + ': ' + text);
+}
+for (const k of ['localNote', 'localChecked', 'stillAdding']) for (const l of Object.keys(strings)) assert.equal(typeof strings[l][k], 'object', l + ' ' + k + ' plural');
+// Shot picking: analysed videos are searched, the others get the quick local check side by side (bounded, budgeted,
+// cancellable, progress per part), and both join the planner through avShotCandidates (one score scale).
+for (const s of ['const rids: string[] = chosenRes.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);',
+  'const localRes: any[] = chosenRes.filter((r: any) => r.analysed === false);',
+  '{ dataDir: roots?.data || null, concurrency: AV_LOCAL_CONCURRENCY, budgetMs: AV_LOCAL_BUDGET_MS, signal: ac.signal, onProgress: (p: any) => onDone(p.done) }',
+  'toScore.length ? t(l, "localChecked", { done: scored, count: toScore.length }) : ""', 'todo.length ? t(l, "videosChecked", { done: searched, count: todo.length }) : ""',
+  'found = { key, failed: fresh.failed, local: cached ? cached.local : local,', 'const shots = avShotCandidates(found.list, found.local, { bpm: tempo, pace, durations: dur });',
+  'const scored = avShotCandidates(searched ? searched.list : [], searched ? searched.local : null, { bpm: tempo, pace, durations: dur });',
+  'alive = false; stopPreview(); localAbortRef.current?.abort();', ']).catch((e) => { localAbortRef.current?.abort(); throw e; });']) assert.ok(ui.includes(s), s);
+assert.equal((ui.match(/localAbortRef\.current\?\.abort\(\)/g) || []).length, 3, 'a new check, a Project switch / unmount, and a failed search cancel the local check');
 // Length: "N of M shots fit" from the planner, durations from avVideoSeconds.
 for (const s of ['const requested = avMontageShots(length, pace);', 'avFitShots({ requested, pace, bpm: tm.tempo, sectionStart: timed ? grid.firstBeat : 0, usableEnd: grid.usableEnd })',
   'const seconds = (n: number) => avVideoSeconds({ bpm: tm.tempo, pace, montageShots: n });', 't(L, "fitPartial", { length: lengthName, fitted, count: fit.top, seconds: tenths(videoSeconds) })',
@@ -631,22 +654,53 @@ assert.equal((ui.match(/avPlanBuild\(\{/g) || []).length, 3, 'the build plan, th
 assert.ok(ui.includes('const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };'));
 assert.ok(!/startAnalysis|analyzeResources/.test(ui), 'the panel does not start analysis');
 assert.ok(!/new Function|\beval\(/.test(ui), 'no runtime evaluation in the panel');
-// The analysis wording helpers (inventory skipped counts), per status, in every language.
+// The readiness facts (avFootageFacts): usable clips without analysis are counted, never gated.
 {
-  const start = panel.indexOf('function avAnalysisCounts('), end = panel.indexOf('const WAVE_HEIGHT');
-  const js = panel.slice(start, end).replace(/(\w)\??: (?:any|number|string|Lang)\b/g, '$1');
-  const tt = (lang, key, vars = {}) => {
-    let msg = strings[lang][key] ?? strings.en[key];
-    if (typeof msg !== 'string') msg = msg[new Intl.PluralRules(lang).select(vars.count)] ?? msg.other;
-    return msg.replace(/\{(\w+)\}/g, (w, n) => (vars[n] === undefined ? w : String(vars[n])));
-  };
-  const b = { t: tt }; vm.runInNewContext(js + '\nthis.api = { avAnalysisCounts, avAnalysisText };', b);
-  const sk = (analysing, notAnalysed, failed) => ({ unanalysed: analysing + notAnalysed + failed, analysing, notAnalysed, failed, statusKnown: true });
-  assert.equal(b.api.avAnalysisText('en', b.api.avAnalysisCounts(sk(1, 0, 0))), '1 clip is being analysed. This updates automatically when it finishes.');
-  for (const l of ['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh']) assert.ok(!/undefined|\{\w+\}/.test(b.api.avAnalysisText(l, b.api.avAnalysisCounts(sk(3, 1, 2)))), l);
+  const start = panel.indexOf('function avFootageFacts('), end = panel.indexOf('const WAVE_HEIGHT');
+  const js = panel.slice(start, end).replace(/(\w)\??: (?:any|number|string|Lang)(?:\[\])?(?![\w\[])/g, '$1');
+  const b = {}; vm.runInNewContext(js + '\nthis.f = avFootageFacts;', b);
+  const inv = { resources: [{ rid: 'a', analysed: true }, { rid: 'b', analysed: false }, { rid: 'c', analysed: false }, { rid: 'd' }], skipped: { unanalysed: 2, missing: 0, notAnalysed: 2, analysing: 1 } };
+  assert.deepEqual(JSON.parse(JSON.stringify(b.f(inv, ['a', 'b', 'd']))), { waiting: 2, local: 1, analysing: 1 });
+  assert.deepEqual(JSON.parse(JSON.stringify(b.f(null, []))), { waiting: 0, local: 0, analysing: 0 });
 }
 
-hostTests.then(() => console.log('panel ok'), e => { console.error(e); process.exit(1); });
+// Template runs (Hyun/Jay's Clip highlights mode; their code is unchanged) on footage Selects has not analysed: the run's
+// own steps, reproduced with mocks, as runArchiveVlogTemplate does them: inventory.js limited to the handed files,
+// search.js over inventory.resources (unanalysed clips get evenly spaced local windows, never a scene search), then
+// avPlanBuild(avMotionBonus(candidates).concat(photos)). The plan fills, and nothing counts as unusable.
+const templateTest = (async () => {
+  const scripts = path.join(__dirname, '..', 'scripts');
+  const load = (name, cfg) => new Function('selects', `return (async()=>{${fs.readFileSync(path.join(scripts, name), 'utf8').replace('__CONFIG__', () => JSON.stringify(cfg))}})();`);
+  const clip = (id, analysed, dur) => ({ resourceId: id, name: id + '.mp4', type: 'Video', hasAnalysis: analysed, status: analysed ? 'analyzingSucceeded' : 'pending', durationSeconds: dur });
+  const run = async (resources, photos = []) => {
+    let searched = 0;
+    const tree = { fileTree: resources.map(r => ({ type: 'video', name: r.name, resourceId: r.resourceId, path: '/f/' + r.name, frameSize: { width: 1920, height: 1080 } })) };
+    const sel = { project: () => ({ resources: async () => resources.concat(photos), sourceFiles: async () => tree,
+      resource: () => ({ searchScenes: async () => { searched++; return { results: [{ timeSeconds: 6, score: 0.31 }, { timeSeconds: 14, score: 0.27 }], error: null }; } }) }) };
+    const aliases = resources.map(r => r.resourceId);
+    const inventory = await load('inventory.js', { projectId: 'p', only: aliases, known: {}, measureMs: 0 })(sel);
+    const rids = inventory.resources.map(r => r.rid);
+    const dur = Object.fromEntries(inventory.resources.map(r => [r.rid, r.duration]));
+    const found = await load('search.js', { projectId: 'p', rids, queries: K.AV_QUERIES, pageSize: 4 })(sel);
+    const candidates = found.candidates.map(c => ({ ...c, sourceDuration: dur[c.rid] || 0 }));
+    const plan = j(P.avPlanBuild({ candidates: P.avMotionBonus(candidates).concat(photos.map(ph => ({ rid: ph.resourceId, kind: 'photo' }))), bpm: 72, accepted: true, fps: 30,
+      pace: 'cinematic', requested: 16, seed: '1', sizes: P.avSizesOf(inventory) }));
+    return { inventory, found, plan, searched };
+  };
+  const fresh = await run(['u0', 'u1', 'u2', 'u3', 'u4'].map(id => clip(id, false, 24)));
+  assert.equal(fresh.inventory.skipped.unanalysed, 0, 'unanalysed but usable clips are not counted as unusable (tpl.notAnalysed)');
+  assert.equal(fresh.searched, 0, 'no scene search on clips without analysis');
+  assert.equal(fresh.found.failed.length, 0);
+  assert.ok(fresh.plan.ok, 'a template run builds from unanalysed clips: ' + fresh.plan.reason);
+  assert.ok(fresh.plan.picks.every(p => p.kind !== 'video' || p.startSeconds >= 0.5 - 1e-9), 'after the source head');
+  // Mixed: analysed clips are searched as before, the unanalysed ones join on the hits' scale.
+  const mixed = await run([clip('a0', true, 30), clip('a1', true, 30), clip('u0', false, 24), clip('u1', false, 24)], [{ resourceId: 'p0', name: 'p0.jpg', type: 'Image', hasAnalysis: false }]);
+  assert.equal(mixed.searched, 2 * Object.keys(K.AV_QUERIES).length, 'only the analysed clips are searched');
+  assert.ok(mixed.plan.ok, 'mixed template plan: ' + mixed.plan.reason);
+  assert.deepEqual([...new Set(mixed.plan.picks.filter(p => p.kind === 'video').map(p => p.rid))].sort(), ['a0', 'a1', 'u0', 'u1']);
+})();
+
+Promise.all([hostTests, templateTest]).then(() => console.log('panel ok'), e => { console.error(e); process.exit(1); });
 
 // Host bytes from another realm: FileSystem.readFile answers from window.parent, so its Buffer / Uint8Array /
 // ArrayBuffer are not `instanceof` the panel realm's classes. hostReadText and hostReadBytes must still read them

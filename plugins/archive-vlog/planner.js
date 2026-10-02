@@ -38,6 +38,12 @@ const AV_ROLE_FALLBACK = {
   skyline: ['water', 'architecture'],
   ending: ['skyline', 'transit', 'crowd'],
 };
+// Clips Selects has not analysed have no scene-search roles. The panel scores them locally (its quick-score block) and
+// hands in windows of two kinds: steady (steadier, well exposed: the opening, credit and final shots) and montage
+// (varied motion). A window of the kind that fits a slot ranks with that slot's own role (rank 0, by score) in the
+// preferred tier, so analysed and unanalysed clips compete on score (the panel puts both on one scale); the other kind
+// joins the any-role tier.
+const AV_LOCAL_ROLES = { steady: 'local-steady', montage: 'local-montage' };
 // The reference's opening shot lasts this long; its animation timings scale down for a shorter one (avOpeningTiming).
 const AV_OPENING_REF_SECONDS = 5.60;
 // Scene-search hits collapse onto a few distinct times per clip, so every searched source also gets evenly spaced
@@ -438,9 +444,13 @@ function avAllocate(opts) {
   // The motion opener (see above). Nothing is used yet, so this is the pick the first slot's loop turn would make with
   // the motion rank.
   const first = opts.slots[0];
+  // A slot's rank of a candidate by role: its place in the slot's roles, 0 for a local window of the slot's kind
+  // (AV_LOCAL_ROLES), else -1.
+  const localRole = slot => AV_LOCAL_ROLES[(slot.part ? slot.part === 'montage' : !slot.videoOnly) ? 'montage' : 'steady'];
+  const roleRank = (slot, roles, c) => (c.role === localRole(slot) ? 0 : roles.indexOf(c.role));
   const opener = first && opts.motionOpener !== false && pool.some(c => c.motion > 0) ? searchVideo(first, c => {
     if (!(c.motion > 0) || c.role === 'filler') return -1;
-    const roles = [first.role].concat(AV_ROLE_FALLBACK[first.role] || []), r = roles.indexOf(c.role);
+    const roles = [first.role].concat(AV_ROLE_FALLBACK[first.role] || []), r = roleRank(first, roles, c);
     return r >= 0 ? r : roles.length;
   }, null, null) : null;
   // Photo slots: round(share x slots) of the slots a photo can hold (not the motion opener's), capped by the photos
@@ -513,7 +523,7 @@ function avAllocate(opts) {
     const roles = [slot.role].concat(AV_ROLE_FALLBACK[slot.role] || []);
     const exclude = [pos - 1, pos + 1].filter(i => picks[i]).map(i => picks[i].rid);
     const photo = () => searchPhoto(slot);
-    const preferred = (level, accept) => () => searchVideo(slot, c => roles.indexOf(c.role), exclude, level, accept);
+    const preferred = (level, accept) => () => searchVideo(slot, c => roleRank(slot, roles, c), exclude, level, accept);
     const anyReal = (level, accept) => () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude, level, accept);
     const filler = (level, accept) => () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1), exclude, level, accept);
     // Reuse preferences (spread only, sources already used): a montage shot leaves the opening's and the credit's
@@ -522,7 +532,7 @@ function avAllocate(opts) {
     const bookends = montage ? [0, 1].filter(i => i !== pos && picks[i] && picks[i].kind !== 'photo').map(i => picks[i].rid) : [];
     const notBookend = c => bookends.indexOf(c.rid) < 0;
     // Tiers, best first. A photo slot puts an unused photo first. With spread (the default) the video tiers run once
-    // per use count, fewest first: preferred-role hits, any-role hits, then fillers of sources used that often, so
+    // per use count, fewest first: preferred-role hits (and local windows of the slot's kind), any-role hits, then fillers of sources used that often, so
     // role and score only rank sources used equally often and an unused clip (even by a filler) beats any reuse.
     // Outside photo slots a photo is then the last resort, which keeps the photo share. Without spread the CWV order
     // applies: preferred, any-role, photo, filler. After AV_PHOTO_RUN_MAX photos in a row the photo tier is skipped.
