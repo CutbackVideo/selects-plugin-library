@@ -345,6 +345,90 @@ for (let k = 0; k < 40; k++) {
   assert.equal(s2.picks[0].rid, 'own', 'seed m' + k);
 }
 
+// Clips without analysis (panel av-hook avLocalCandidates / avLocalScale, the quick-score block's qsCandidates): local
+// windows of the slot's kind rank with the slot's own role, scores share one scale with the scene-search hits, and
+// fresh-first allocation, the photo share and the 0.5 s source head still hold.
+{
+  const panel = fs.readFileSync(path.join(root, 'panel.tsx'), 'utf8');
+  const blk = n => { const a = panel.indexOf('// ' + n + ':start\n'), b = panel.indexOf('// ' + n + ':end'); assert.ok(a >= 0 && b > a, n); return panel.slice(a, b); };
+  const hb = { Math, Number, Object, Array, String, Set, Map, Infinity, Error, JSON };
+  vm.createContext(hb);
+  vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8') + '\n' + blk('av-hook') + '\n' + blk('quick-score')
+    + ';globalThis.H={avPlanBuild,avMotionBonus,avLocalScale,avLocalCandidates,AV_LOCAL_ROLES,AV_LOCAL_MOVING,AV_SOURCE_HEAD,QS_HEAD};', hb);
+  const H = hb.H, LR = j(H.AV_LOCAL_ROLES);
+  assert.deepEqual(LR, { steady: 'local-steady', montage: 'local-montage' });
+  // search.js hands template runs the same role strings (it cannot load the planner).
+  const searchJs = fs.readFileSync(path.join(root, 'scripts', 'search.js'), 'utf8');
+  assert.ok(searchJs.includes("const LOCAL_ROLES = ['" + LR.steady + "', '" + LR.montage + "']"), 'search.js local roles = planner AV_LOCAL_ROLES');
+  // A quickScore result: 0.5 s bins from 0.5 s on; `moving` bins have a frame difference, the rest are calm.
+  const scored = (rid, dur, moving = () => false, extra = {}) => {
+    const windows = [];
+    for (let t = 0.5; t + 0.5 <= dur + 1e-9; t += 0.5) windows.push({ start: t, end: t + 0.5, motion: moving(t) ? 0.05 : 0.004, sharp: 0.1 + (Math.floor(t) % 3) * 0.01, luma: 0.45, clipped: 0,
+      flags: { black: false, fade: false, flash: false, blur: false, dark: false, bright: false, cut: false } });
+    return { rid, windows, sceneCuts: [], ms: 1, fallback: false, cached: false, duration: dur, ...extra };
+  };
+  const secs = { steadySeconds: 6 * 60 / 72, montageSeconds: 2 * 60 / 72 };
+  const locals = Array.from({ length: 6 }, (_, i) => scored('u' + i, 20, t => t > 10));
+  const lc = j(H.avLocalCandidates(locals, secs));
+  assert.ok(lc.length > 0 && lc.every(c => (c.role === LR.steady || c.role === LR.montage) && c.sourceDuration === 20 && c.t > 0 && c.score >= 0 && c.score <= 1));
+  assert.ok(lc.some(c => c.role === LR.steady) && lc.some(c => c.role === LR.montage), 'both kinds per clip');
+  assert.ok(lc.filter(c => c.motion > 0).every(c => c.t + (c.role === LR.steady ? secs.steadySeconds : secs.montageSeconds) / 2 > 10.5), 'only windows reaching the moving part carry motion (the motion opener)');
+  assert.ok(lc.some(c => c.motion > 0) && lc.some(c => !('motion' in c)));
+  // A clip too short for any window keeps a stub, so the planner still makes its filler windows.
+  const stub = j(H.avLocalCandidates([scored('tiny', 0.9)], secs));
+  assert.deepEqual(stub, [{ rid: 'tiny', role: LR.montage, sourceDuration: 0.9 }]);
+  // The durations map wins over the result's own length (the inventory's figure).
+  assert.ok(j(H.avLocalCandidates([scored('d', 20)], { ...secs, durations: { d: 19.5 } })).every(c => c.sourceDuration === 19.5));
+
+  // avLocalScale: local scores map min-max onto the hits' range (after the motion bonus); equal ones sit mid-range;
+  // without hits they stay; a list without local windows is returned as it was (analysed builds unchanged).
+  const hitsOnly = video('a', 0.3).concat(video('b', 0.5));
+  assert.deepEqual(j(H.avMotionBonus(hitsOnly)), j(hitsOnly));
+  const mixed = j(H.avMotionBonus(hitsOnly.concat([mk('u', LR.steady, 4, 0.2, 20), mk('u', LR.montage, 8, 0.9, 20), mk('v', LR.montage, 8, 0.55, 20)])));
+  const loc = mixed.filter(c => c.rid === 'u' || c.rid === 'v');
+  assert.deepEqual(loc.map(c => Math.round(c.score * 1000) / 1000), [0.3, 0.5, 0.4]);
+  assert.deepEqual(j(H.avLocalScale([mk('a', 'crowd', 4, 0.4), mk('u', LR.montage, 5, 0.1, 20), mk('v', LR.montage, 5, 0.1, 20), mk('b', 'food', 4, 0.6)])).map(c => c.score), [0.4, 0.5, 0.5, 0.6]);
+  assert.deepEqual(j(H.avLocalScale([mk('u', LR.montage, 5, 0.7, 20)])).map(c => c.score), [0.7]);
+
+  // Unanalysed only (Standard, 72 bpm): a full plan, every window after the 0.5 s head, fresh-first (6 clips, no source
+  // twice before every clip is used), the opening on a steady or moving window of its kind.
+  const only = H.avMotionBonus(H.avLocalCandidates(locals, secs));
+  for (const seed of ['s1', 's2', 's3']) {
+    const r = j(H.avPlanBuild({ candidates: only, bpm: 72, accepted: true, fps: 30, pace: 'cinematic', requested: 16, seed }));
+    assert.ok(r.ok, 'unanalysed-only plan: ' + r.reason);
+    assert.equal(r.shots, 16);
+    assert.ok(r.picks.every(p => p.startSeconds >= H.AV_SOURCE_HEAD - 1e-9), 'every window after the source head');
+    assert.equal(new Set(r.picks.slice(0, 5).concat(r.picks.slice(-1)).map(p => p.rid)).size, 6, 'fresh-first: six clips before any reuse (the final shot is filled second)');
+    assert.ok(!adjacent(r.picks));
+    assert.ok(r.fillerShots <= 1, 'local windows, hardly any filler: ' + r.fillerShots);
+  }
+  // Mixed: 4 analysed clips (scene-search hits) and 6 unanalysed ones. Both kinds play early in the montage (neither
+  // always wins), all 10 clips are used before any repeats, and photos keep their share.
+  const analysed = ['a', 'b', 'c', 'd'].flatMap((rid, i) => video(rid, 0.25 + 0.05 * i, 40));
+  const both = H.avMotionBonus(analysed.concat(H.avLocalCandidates(locals, secs)));
+  const isLocalRid = rid => /^u/.test(rid);
+  for (const seed of ['s1', 's2', 's3', 's4']) {
+    const r = j(H.avPlanBuild({ candidates: both, bpm: 72, accepted: true, fps: 30, pace: 'cinematic', requested: 16, seed }));
+    assert.ok(r.ok, 'mixed plan: ' + r.reason);
+    const vids = r.picks.filter(p => p.kind === 'video');
+    // The final shot is filled right after the opening, so it counts among the first ten sources.
+    assert.equal(new Set(vids.slice(0, 9).concat(vids.slice(-1)).map(p => p.rid)).size, 10, 'fresh-first across both kinds: ' + sig(r.picks));
+    const firstMontage = r.picks.slice(2, 8).map(p => p.rid);
+    assert.ok(firstMontage.some(isLocalRid) && firstMontage.some(rid => !isLocalRid(rid)), 'both kinds in the first montage shots: ' + firstMontage.join(' '));
+    assert.ok(r.picks.every(p => p.kind !== 'video' || p.startSeconds >= H.AV_SOURCE_HEAD - 1e-9));
+    const withPhotos = j(H.avPlanBuild({ candidates: both.concat(photos(8)), bpm: 72, accepted: true, fps: 30, pace: 'cinematic', requested: 16, seed }));
+    assert.ok(withPhotos.ok);
+    assert.equal(withPhotos.photoShots, Math.round(16 / 3), 'photo share kept with local windows');
+    assert.ok(maxRun(withPhotos.picks) <= 2);
+  }
+  // The bookends take steady windows of unanalysed clips over their montage windows (same clip, same score).
+  const pair = [mk('u', LR.montage, 10, 0.6, 20), mk('u', LR.steady, 5, 0.6, 20)];
+  const book = j(P.avAllocate({ candidates: pair, slots: [{ index: 0, role: 'opening', part: 'opening', seconds: 5, videoOnly: true }], seed: 's', motionOpener: false }));
+  assert.equal(book.picks[0].startSeconds, 2.5, 'the steady window (centred on 5 s) for the opening');
+  const mont = j(P.avAllocate({ candidates: pair, slots: [{ index: 0, role: 'crowd', part: 'montage', seconds: 1.67, videoOnly: false }], seed: 's', photoShare: 0 }));
+  assert.ok(Math.abs(mont.picks[0].startSeconds - (10 - 1.67 / 2)) < 1e-9, 'the montage window for a montage shot');
+}
+
 // Build progress: step n/total, weighted percent, never backwards, 100% only at the end.
 assert.equal(P.AV_BUILD_STEPS.length, 5);
 assert.equal(P.AV_BUILD_STEPS.reduce((a, s) => a + s.weight, 0), 100);

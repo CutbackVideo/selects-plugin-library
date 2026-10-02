@@ -1,9 +1,32 @@
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const roles = Object.keys(cfg.queries);
-const jobs = [];
-for (const rid of cfg.rids) for (const role of roles) jobs.push({ rid, role });
 const candidates = [];
+// Scene search needs Selects' analysis. A clip without it (an unanalysed import, which the inventory now hands over
+// too) is not searched: it gets LOCAL_COUNT evenly spaced windows of each local-score kind instead, with one middling
+// score, the roles the planner gives clips scored without analysis (planner AV_LOCAL_ROLES: steady for the opening,
+// credit and final shots, montage for the rest; the panel's motion bonus step puts them on the hits' score scale). The
+// panel scores such clips itself and sends only analysed ones (cfg.analysedOnly: no resource read); a template run
+// sends every clip. If the resource list cannot be read, every clip is searched as before.
+const LOCAL_ROLES = ['local-steady', 'local-montage'], LOCAL_COUNT = 4, LOCAL_SCORE = 0.5;
+const loose = v => v;
+const unanalysed = {};
+if (cfg.rids.length && !cfg.analysedOnly) {
+  try {
+    const list = loose(await p.resources());
+    if (Array.isArray(list)) for (const r of list) {
+      if (r && r.hasAnalysis === false && cfg.rids.includes(r.resourceId) && typeof r.durationSeconds === 'number' && r.durationSeconds > 0) unanalysed[r.resourceId] = r.durationSeconds;
+    }
+  } catch (e) { /* search every clip */ }
+}
+for (const rid of Object.keys(unanalysed)) {
+  for (let k = 1; k <= LOCAL_COUNT; k++) {
+    const t = Math.round(unanalysed[rid] * k / (LOCAL_COUNT + 1) * 1000) / 1000;
+    for (const role of LOCAL_ROLES) candidates.push({ rid, role, t, score: LOCAL_SCORE });
+  }
+}
+const jobs = [];
+for (const rid of cfg.rids) if (!(rid in unanalysed)) for (const role of roles) jobs.push({ rid, role });
 // run_script has no setTimeout; Atomics.waitAsync on a private buffer waits without blocking. Without it, no wait.
 const sleep = ms => {
   const atomics = Object(globalThis).Atomics;
