@@ -78,6 +78,9 @@ commit.
 
 - A background-removal request is submitted once per run. An unfinished run is
   resumed by job ID when the Panel reopens, never replaced by a second paid request.
+- Before a new background removal the Panel shows what it will spend and waits for
+  **Use credits and continue**. A template run never starts one; it builds only
+  when it can reuse a verified cutout.
 - Run state, masks, held clips and sounds live beneath
   `.selects/plugin-data/postcard-cutout-studio` (installs before 0.2.0-alpha.4 keep
   using the Panel folder). Keep them while any Draft references them.
