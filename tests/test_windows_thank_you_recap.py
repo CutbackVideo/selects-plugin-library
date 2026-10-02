@@ -115,6 +115,13 @@ class ThankYouRecapWindowsTest(unittest.TestCase):
             self.assertRegex(block.group(1), r'hostTooOld: "[^"]+"', lang)
         self.assertEqual(self.runtime.count('e?.code === "host-missing"'), 2, "panel and template run")
 
+    def test_files_missing_from_this_computer_get_their_own_message(self):
+        # A Project synced from another computer has no local source timeline: say so, and don't retry.
+        self.assertEqual(self.source.count("notLocal: (s: string) =>"), 10, "one per language")
+        self.assertIn("analyzed sequence not found", self.runtime)
+        self.assertIn("if (missing || attempt >= 2) throw notReady(", self.runtime)
+        self.assertEqual(self.runtime.count('e?.code === "not-local"'), 2, "panel and template run")
+
     def test_manifest_and_docs(self):
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
         platforms = manifest["compatibility"]["platforms"]

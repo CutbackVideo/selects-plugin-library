@@ -41,6 +41,7 @@ const STRINGS = {
     failed: "Could not create the Draft.",
     hostTooOld: "This template needs a newer version of Selects. Update Selects, then try again.",
     notReady: (s: string) => `${s} isn't ready in Selects yet. Wait until it finishes importing, then try again. No Draft was made.`,
+    notLocal: (s: string) => `${s}'s original file isn't on this computer (this Project was synced from another one). Open it on the computer that has the files, or use a Project with local files. No Draft was made.`,
   },
   ko: {
     title: "Thank You Recap",
@@ -63,6 +64,7 @@ const STRINGS = {
     failed: "Draft\ub97c \ub9cc\ub4e4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     hostTooOld: "\uc774 \ud15c\ud50c\ub9bf\uc744 \uc4f0\ub824\uba74 \ub354 \ucd5c\uc2e0 \ubc84\uc804\uc758 Selects\uac00 \ud544\uc694\ud569\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     notReady: (s: string) => `${s}\uc740(\ub294) \uc544\uc9c1 Selects\uc5d0\uc11c \uc900\ube44\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uac00\uc838\uc624\uae30\uac00 \ub05d\ub09c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694. Draft\ub294 \ub9cc\ub4e4\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.`,
+    notLocal: (s: string) => `${s}\uc758 \uc6d0\ubcf8 \ud30c\uc77c\uc774 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc5c6\uc2b5\ub2c8\ub2e4(\ub2e4\ub978 \ucef4\ud4e8\ud130\uc5d0\uc11c \ub3d9\uae30\ud654\ub41c \ud504\ub85c\uc81d\ud2b8). \ud30c\uc77c\uc774 \uc788\ub294 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc5f4\uac70\ub098, \ub85c\uceec \ud30c\uc77c\ub85c \ub9cc\ub4e0 \ud504\ub85c\uc81d\ud2b8\ub97c \uc0ac\uc6a9\ud558\uc138\uc694. Draft\ub294 \ub9cc\ub4e4\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.`,
   },
   ja: {
     title: "Thank You リキャップ",
@@ -85,6 +87,7 @@ const STRINGS = {
     failed: "ドラフトを作成できませんでした。",
     hostTooOld: "このテンプレートには新しいバージョンの Selects が必要です。Selects をアップデートしてから、もう一度お試しください。",
     notReady: (s: string) => `${s} はまだ Selects で準備ができていません。読み込みが終わってから、もう一度お試しください。ドラフトは作成していません。`,
+    notLocal: (s: string) => `${s} の元のファイルがこのコンピュータにありません（別のコンピュータから同期されたプロジェクトです）。ファイルがあるコンピュータで開くか、ローカルのファイルで作ったプロジェクトを使ってください。ドラフトは作成していません。`,
   },
   zh: {
     title: "Thank You 年度回顾",
@@ -107,6 +110,7 @@ const STRINGS = {
     failed: "无法创建草稿。",
     hostTooOld: "此模板需要更新版本的 Selects。请更新 Selects 后重试。",
     notReady: (s: string) => `${s} 在 Selects 中尚未就绪。请等它导入完成后重试。未创建草稿。`,
+    notLocal: (s: string) => `${s} 的原始文件不在这台电脑上（此项目是从另一台电脑同步的）。请在有这些文件的电脑上打开，或使用由本地文件创建的项目。未创建草稿。`,
   },
   de: {
     title: "Thank You Rückblick",
@@ -129,6 +133,7 @@ const STRINGS = {
     failed: "Der Entwurf konnte nicht erstellt werden.",
     hostTooOld: "Diese Vorlage braucht eine neuere Version von Selects. Aktualisiere Selects und versuche es erneut.",
     notReady: (s: string) => `${s} ist in Selects noch nicht bereit. Warte, bis der Import fertig ist, und versuche es erneut. Es wurde kein Entwurf erstellt.`,
+    notLocal: (s: string) => `Die Originaldatei von ${s} ist nicht auf diesem Computer (das Projekt wurde von einem anderen synchronisiert). Öffne es auf dem Computer mit den Dateien oder nutze ein Projekt mit lokalen Dateien. Es wurde kein Entwurf erstellt.`,
   },
   es: {
     title: "Resumen Thank You",
@@ -151,6 +156,7 @@ const STRINGS = {
     failed: "No se pudo crear el borrador.",
     hostTooOld: "Esta plantilla necesita una versión más reciente de Selects. Actualiza Selects y vuelve a intentarlo.",
     notReady: (s: string) => `${s} aún no está listo en Selects. Espera a que termine de importarse y vuelve a intentarlo. No se creó ningún borrador.`,
+    notLocal: (s: string) => `El archivo original de ${s} no está en este ordenador (el proyecto se sincronizó desde otro). Ábrelo en el ordenador que tiene los archivos o usa un proyecto con archivos locales. No se creó ningún borrador.`,
   },
   fr: {
     title: "Rétrospective Thank You",
@@ -173,6 +179,7 @@ const STRINGS = {
     failed: "Impossible de créer le brouillon.",
     hostTooOld: "Ce modèle nécessite une version plus récente de Selects. Mettez Selects à jour, puis réessayez.",
     notReady: (s: string) => `${s} n'est pas encore prêt dans Selects. Attendez la fin de l'importation, puis réessayez. Aucun brouillon n'a été créé.`,
+    notLocal: (s: string) => `Le fichier original de ${s} n'est pas sur cet ordinateur (ce projet a été synchronisé depuis un autre). Ouvrez-le sur l'ordinateur qui a les fichiers, ou utilisez un projet avec des fichiers locaux. Aucun brouillon n'a été créé.`,
   },
   it: {
     title: "Recap Thank You",
@@ -195,6 +202,7 @@ const STRINGS = {
     failed: "Impossibile creare la bozza.",
     hostTooOld: "Questo modello richiede una versione più recente di Selects. Aggiorna Selects e riprova.",
     notReady: (s: string) => `${s} non è ancora pronto in Selects. Attendi la fine dell'importazione e riprova. Nessuna bozza è stata creata.`,
+    notLocal: (s: string) => `Il file originale di ${s} non è su questo computer (il progetto è stato sincronizzato da un altro). Aprilo sul computer che ha i file o usa un progetto con file locali. Nessuna bozza è stata creata.`,
   },
   pt: {
     title: "Retrospectiva Thank You",
@@ -217,6 +225,7 @@ const STRINGS = {
     failed: "Não foi possível criar o rascunho.",
     hostTooOld: "Este modelo precisa de uma versão mais recente do Selects. Atualize o Selects e tente novamente.",
     notReady: (s: string) => `${s} ainda não está pronto no Selects. Aguarde a importação terminar e tente novamente. Nenhum rascunho foi criado.`,
+    notLocal: (s: string) => `O arquivo original de ${s} não está neste computador (o projeto foi sincronizado de outro). Abra-o no computador que tem os arquivos ou use um projeto com arquivos locais. Nenhum rascunho foi criado.`,
   },
   tr: {
     title: "Thank You Özeti",
@@ -239,6 +248,7 @@ const STRINGS = {
     failed: "Taslak oluşturulamadı.",
     hostTooOld: "Bu şablon Selects'in daha yeni bir sürümünü gerektiriyor. Selects'i güncelleyip yeniden deneyin.",
     notReady: (s: string) => `${s} henüz Selects'te hazır değil. İçe aktarma bitene kadar bekleyip yeniden deneyin. Taslak oluşturulmadı.`,
+    notLocal: (s: string) => `${s} dosyasının aslı bu bilgisayarda değil (bu proje başka bir bilgisayardan eşitlendi). Dosyaların olduğu bilgisayarda açın ya da yerel dosyalarla oluşturulmuş bir proje kullanın. Taslak oluşturulmadı.`,
   },
 };
 
@@ -443,7 +453,10 @@ return (await project.resources())
 
 // A video Selects can't place yet (still importing, or its source timeline
 // isn't available on this computer). `clip` is its name for the message.
-const notReady = (clip: string) => Object.assign(new Error(`${clip} is not ready in Selects yet.`), { code: "not-ready", clip: clip.slice(0, 40) });
+// `missing`: its original file isn't on this computer (a Project synced from another one), so waiting won't help.
+const notReady = (clip: string, missing = false) => Object.assign(new Error(missing ? `${clip}'s original file isn't on this computer.` : `${clip} is not ready in Selects yet.`), { code: missing ? "not-local" : "not-ready", clip: clip.slice(0, 40) });
+// The host's placement errors when the source timeline isn't on this computer.
+const NOT_LOCAL = /analyzed sequence not found|no local source timeline|placement_source_unavailable/i;
 
 // Cuts the montage around `hero` and adds the music and titles in one Draft
 // edit, committed only when every clip and the music were placed, so a failure
@@ -535,7 +548,8 @@ return { draftId: saved.createdDraftId, cuts: main.length, endFrame, fps, edges 
     if (built.isError) throw new Error(built.output);
     if (!made?.notReady) break;
     console.warn("[thank-you-recap] not placeable yet:", made.notReady, made.reason);
-    if (attempt >= 2) throw notReady(made.notReady === musicId ? "Template music" : chosen.find((v) => v.id === made!.notReady)?.name ?? made.notReady);
+    const missing = NOT_LOCAL.test(made.reason || "");
+    if (missing || attempt >= 2) throw notReady(made.notReady === musicId ? "Template music" : chosen.find((v) => v.id === made!.notReady)?.name ?? made.notReady, missing);
     await new Promise((d) => setTimeout(d, 2000));
   }
   if (!made?.draftId) throw new Error("The Draft could not be saved.");
@@ -643,7 +657,7 @@ function TemplateRun({ sdk, context }) {
     })().catch((e) => {
       console.warn("[thank-you-recap] template run failed:", e);
       const tt = STRINGS[context.language] ?? STRINGS.en;
-      const known = e?.code === "host-missing" ? tt.hostTooOld : e?.code === "not-ready" ? tt.notReady(e.clip) : "";
+      const known = e?.code === "host-missing" ? tt.hostTooOld : e?.code === "not-ready" ? tt.notReady(e.clip) : e?.code === "not-local" ? tt.notLocal(e.clip) : "";
       const said = String(e?.message ?? "");
       finish({ error: known || (said && said.length <= 160 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED) });
     });
@@ -771,7 +785,7 @@ function RecapPanel({ sdk, context, ui }) {
         text: t.done(made.cuts, (made.endFrame / made.fps).toFixed(1)) + (aiNote ? ` ${aiNote}` : ""),
       });
     } catch (e) {
-      setStatus({ tone: "error", text: e?.code === "host-missing" ? t.hostTooOld : e?.code === "not-ready" ? t.notReady(e.clip) : `${t.failed} ${String(e)}` });
+      setStatus({ tone: "error", text: e?.code === "host-missing" ? t.hostTooOld : e?.code === "not-ready" ? t.notReady(e.clip) : e?.code === "not-local" ? t.notLocal(e.clip) : `${t.failed} ${String(e)}` });
     } finally {
       setBusy(false);
       setStep(-1);
