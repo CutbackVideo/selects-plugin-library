@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "gongju-gallery",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "name": "pov: you open my gallery",
   "summary": "Builds an editable 11.4-second portrait gallery montage as a new Draft from a folder of project clips, cut to the plugin's own soundtrack.",
   "status": "experimental",
