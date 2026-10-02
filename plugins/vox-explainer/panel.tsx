@@ -410,6 +410,76 @@ async function hostProbeSeconds(path) {
   } catch { return null; }
 }
 // av-host:end
+// @operation-start
+// Windows engine port, step 1: engine.py's ffmpeg-only steps (media_duration, silences, sheet, ken_burns) as argv for
+// the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe): plain JS, no shell, nothing for the user to install.
+// Each builder returns exactly the argv engine.py passes (tests/vox_explainer.test.mjs compares them). The build does
+// not call these yet: it still runs engine.py on macOS until the rest of the engine is ported.
+export const VOX_W = 1080, VOX_H = 1920, VOX_FPS = 24;
+// The host's ffmpeg log (stderr) for one run, stopped after `timeoutMs`.
+export async function voxFFmpegLog(args, timeoutMs = 180000) {
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
+  let log = "";
+  try {
+    const r = await hostNeed("Runtime", "runFFmpeg").runFFmpeg(args, true, controller.signal, undefined, (text) => { log += text; });
+    return String(r?.stderr || "") || log;
+  } finally { clearTimeout(timer); }
+}
+// media_duration: a file's length in seconds; throws when ffprobe reports none.
+export function voxDurationArgs(path) { return ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path]; }
+export function voxParseDuration(stdout, path) {
+  const t = String(stdout || "").trim(), v = Number(t);
+  if (!t || !isFinite(v)) throw new Error("cannot read duration: " + path);
+  return v;
+}
+export async function voxMediaDuration(path) {
+  const r = await hostNeed("Runtime", "runFFprobe").runFFprobe(voxDurationArgs(path), true);
+  return voxParseDuration(r?.stdout, path);
+}
+// silences: [start, end] pairs from silencedetect (end is null for a silence that runs to the end).
+export function voxSilenceArgs(path) { return ["-hide_banner", "-nostats", "-i", path, "-af", "silencedetect=noise=-38dB:d=0.12", "-f", "null", "-"]; }
+export function voxParseSilences(log) {
+  const s = String(log || "");
+  const starts = [...s.matchAll(/silence_start: ([\d.]+)/g)].map((m) => parseFloat(m[1]));
+  const ends = [...s.matchAll(/silence_end: ([\d.]+)/g)].map((m) => parseFloat(m[1]));
+  return starts.map((a, i) => [a, i < ends.length ? ends[i] : null]);
+}
+export async function voxSilences(path) { return voxParseSilences(await voxFFmpegLog(voxSilenceArgs(path))); }
+// sheet: numbered contact sheets of up to 12 keyframes each. `fileOf(shot)` is the keyframe path, `destOf(n)` the
+// n-th sheet's path, `font` a TTF for the shot labels (null: no labels, as engine.py does without its font).
+export function voxSheetFont(windows) { return windows ? "C:\\Windows\\Fonts\\arial.ttf" : "/System/Library/Fonts/Supplemental/Arial.ttf"; }
+// A path inside a filtergraph option: forward slashes, and the drive colon escaped.
+export function voxFilterPath(p) { return String(p).replace(/\\/g, "/").replace(/:/g, "\\:"); }
+export function voxSheetJobs(ids, fileOf, font, destOf) {
+  const jobs = [];
+  for (let part = 0; part < ids.length; part += 12) {
+    const chunk = ids.slice(part, part + 12);
+    const cols = chunk.length > 6 ? 4 : Math.max(1, Math.min(3, chunk.length));
+    const args = [];
+    let filt = "";
+    chunk.forEach((sid, i) => {
+      args.push("-i", fileOf(sid));
+      const label = font ? `drawtext=fontfile=${voxFilterPath(font)}:text='${sid}':x=8:y=8:fontsize=34:fontcolor=white:box=1:boxcolor=black@0.8:boxborderw=6,` : "";
+      filt += `[${i}:v]scale=270:480,${label}pad=276:486:3:3:white[v${i}];`;
+    });
+    const layout = chunk.map((_, i) => `${(i % cols) * 276}_${Math.floor(i / cols) * 486}`).join("|");
+    const stack = chunk.map((_, i) => `[v${i}]`).join("") + (chunk.length > 1 ? `xstack=inputs=${chunk.length}:layout=${layout}:fill=white` : "null");
+    const dest = destOf(part / 12 + 1);
+    jobs.push({ dest, shots: chunk, args: ["-loglevel", "error", "-y", ...args, "-filter_complex", filt + stack, "-frames:v", "1", "-q:v", "4", dest] });
+  }
+  return jobs;
+}
+// ken_burns: a pan-and-zoom clip of one keyframe over a blurred fill, `dur` seconds, 1080x1920 at 24 fps.
+export function voxKenBurnsArgs(img, dest, dur, zoomIn = true) {
+  const W = VOX_W, H = VOX_H, FPS = VOX_FPS, frames = Math.ceil(dur * FPS);
+  const z = zoomIn ? "min(zoom+0.0009,1.18)" : "if(eq(on,1),1.18,max(zoom-0.0009,1.0))";
+  const vf = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=26:2[bg];` +
+    `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];` +
+    `[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,scale=${W * 2}:${H * 2},` +
+    `zoompan=z='${z}':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${W}x${H}:fps=${FPS}[v]`;
+  return ["-y", "-loglevel", "error", "-loop", "1", "-i", img, "-filter_complex", vf, "-map", "[v]", "-t", dur.toFixed(3), "-c:v", "libx264", "-pix_fmt", "yuv420p", dest];
+}
+// @operation-end
 // Selects' own media generation for plug-in panels: billed to the user's Selects credits, results
 // saved into a folder under ~/.selects/plugin-data (Selects 2.0.512+).
 function generation(): any {
