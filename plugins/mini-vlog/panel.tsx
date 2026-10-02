@@ -20,7 +20,6 @@ const STRINGS = {
     openProject: "Open a Project to build a Mini Vlog.",
     startFailed: "Mini Vlog could not start: {detail}. Reinstall the plugin if this persists.",
     foldersNotFound: "the plugin folders could not be found",
-    adapterNeeded: "This Selects build needs an updated {name} adapter.",
     stepFailed: "Selects could not complete this step.",
     busy: "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.",
     invFailed: "Couldn't read this Project's clips yet. Press Refresh.",
@@ -39,8 +38,11 @@ const STRINGS = {
     betterPicks: { one: "{count} clip not analysed; analysed clips give better picks", other: "{count} clips not analysed; analysed clips give better picks" },
     unusable: { one: "{count} clip can't be used yet", other: "{count} clips can't be used yet" },
     unusableWait: { one: "{count} clip can't be used yet (no length or file not found). This updates automatically.", other: "{count} clips can't be used yet (no length or file not found). This updates automatically." },
+    unusableRefresh: { one: "{count} clip can't be used yet (no length or file not found). Press Refresh to check again.", other: "{count} clips can't be used yet (no length or file not found). Press Refresh to check again." },
+    noFootageRefresh: "No videos or photos in this Project yet. Add clips or photos, then press Refresh.",
     checkingClipsN: "Checking clips {done}/{count}",
     cancel: "Cancel",
+    stopping: "Stopping…",
     cancelled: "Build cancelled. Nothing was saved.",
     quickUnavailable: "This Selects can't check clips without analysis, so their shots are evenly spaced. A newer Selects picks better shots.",
     turnOnPhotos: "Turn on Use photos in Advanced to build from this Project's photos.",
@@ -75,7 +77,7 @@ const STRINGS = {
     ownMusic: "Your own music",
     noMusic: "No music",
     bpm: "{bpm} bpm",
-    newerSelectsMusic: "Previewing music and using your own track need a newer Selects.",
+    newerSelects: "This part of Mini Vlog needs a newer version of Selects. Update Selects, then open this panel again.",
     sectionHint: "Music section — drag to choose",
     sectionLabel: "Music section",
     musicTooShort: "This track is too short for this length",
@@ -197,7 +199,6 @@ const STRINGS = {
     openProject: "Öffne ein Projekt, um ein Mini Vlog zu erstellen.",
     startFailed: "Mini Vlog konnte nicht starten: {detail}. Installiere das Plugin neu, falls das weiterhin passiert.",
     foldersNotFound: "die Plugin-Ordner wurden nicht gefunden",
-    adapterNeeded: "Diese Selects-Version braucht einen aktualisierten {name}-Adapter.",
     stepFailed: "Selects konnte diesen Schritt nicht abschließen.",
     busy: "Selects ist ausgelastet und hat nicht rechtzeitig geantwortet. Warte kurz und drücke „Aktualisieren“. Wenn das öfter passiert, starte Selects neu.",
     invFailed: "Die Clips dieses Projekts konnten noch nicht gelesen werden. Klicke auf „Aktualisieren“.",
@@ -216,8 +217,11 @@ const STRINGS = {
     betterPicks: { one: "{count} Clip nicht analysiert; analysierte Clips ergeben bessere Einstellungen", other: "{count} Clips nicht analysiert; analysierte Clips ergeben bessere Einstellungen" },
     unusable: { one: "{count} Clip noch nicht verwendbar", other: "{count} Clips noch nicht verwendbar" },
     unusableWait: { one: "{count} Clip ist noch nicht verwendbar (keine Länge oder Datei nicht gefunden). Das aktualisiert sich automatisch.", other: "{count} Clips sind noch nicht verwendbar (keine Länge oder Datei nicht gefunden). Das aktualisiert sich automatisch." },
+    unusableRefresh: { one: "{count} Clip ist noch nicht verwendbar (keine Länge oder Datei nicht gefunden). Klicke auf „Aktualisieren“, um erneut zu prüfen.", other: "{count} Clips sind noch nicht verwendbar (keine Länge oder Datei nicht gefunden). Klicke auf „Aktualisieren“, um erneut zu prüfen." },
+    noFootageRefresh: "In diesem Projekt gibt es noch keine Videos oder Fotos. Füge Clips oder Fotos hinzu und klicke dann auf „Aktualisieren“.",
     checkingClipsN: "Clips werden geprüft {done}/{count}",
     cancel: "Abbrechen",
+    stopping: "Wird angehalten…",
     cancelled: "Erstellen abgebrochen. Es wurde nichts gespeichert.",
     quickUnavailable: "Diese Selects-Version kann Clips ohne Analyse nicht prüfen, daher sind ihre Einstellungen gleichmäßig verteilt. Eine neuere Selects-Version wählt bessere Einstellungen.",
     turnOnPhotos: "Aktiviere „Fotos verwenden“ unter „Erweitert“, um aus den Fotos dieses Projekts zu erstellen.",
@@ -252,7 +256,7 @@ const STRINGS = {
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
     bpm: "{bpm} BPM",
-    newerSelectsMusic: "Für die Musikvorschau und eigene Musik braucht es eine neuere Selects-Version.",
+    newerSelects: "Dieser Teil von Mini Vlog braucht eine neuere Version von Selects. Aktualisiere Selects und öffne dieses Panel dann erneut.",
     sectionHint: "Musikabschnitt – zum Auswählen ziehen",
     sectionLabel: "Musikabschnitt",
     musicTooShort: "Dieses Musikstück ist für diese Länge zu kurz",
@@ -374,7 +378,6 @@ const STRINGS = {
     openProject: "Abre un proyecto para crear un Mini Vlog.",
     startFailed: "Mini Vlog no pudo iniciarse: {detail}. Reinstala el plugin si el problema continúa.",
     foldersNotFound: "no se encontraron las carpetas del plugin",
-    adapterNeeded: "Esta versión de Selects necesita un adaptador {name} actualizado.",
     stepFailed: "Selects no pudo completar este paso.",
     busy: "Selects está ocupado y no respondió a tiempo. Espera un momento y pulsa «Actualizar». Si sigue pasando, reinicia Selects.",
     invFailed: "Aún no se pudieron leer los clips de este proyecto. Pulsa «Actualizar».",
@@ -393,8 +396,11 @@ const STRINGS = {
     betterPicks: { one: "{count} clip sin analizar; los clips analizados dan mejores planos", many: "{count} de clips sin analizar; los clips analizados dan mejores planos", other: "{count} clips sin analizar; los clips analizados dan mejores planos" },
     unusable: { one: "{count} clip aún no se puede usar", many: "{count} de clips aún no se pueden usar", other: "{count} clips aún no se pueden usar" },
     unusableWait: { one: "{count} clip aún no se puede usar (sin duración o archivo no encontrado). Esto se actualiza solo.", many: "{count} de clips aún no se pueden usar (sin duración o archivo no encontrado). Esto se actualiza solo.", other: "{count} clips aún no se pueden usar (sin duración o archivo no encontrado). Esto se actualiza solo." },
+    unusableRefresh: { one: "{count} clip aún no se puede usar (sin duración o archivo no encontrado). Pulsa «Actualizar» para volver a comprobarlo.", many: "{count} de clips aún no se pueden usar (sin duración o archivo no encontrado). Pulsa «Actualizar» para volver a comprobarlos.", other: "{count} clips aún no se pueden usar (sin duración o archivo no encontrado). Pulsa «Actualizar» para volver a comprobarlos." },
+    noFootageRefresh: "Este proyecto aún no tiene vídeos ni fotos. Añade clips o fotos y pulsa «Actualizar».",
     checkingClipsN: "Comprobando clips {done}/{count}",
     cancel: "Cancelar",
+    stopping: "Deteniendo…",
     cancelled: "Creación cancelada. No se guardó nada.",
     quickUnavailable: "Esta versión de Selects no puede revisar clips sin analizar, así que sus planos se reparten de forma uniforme. Una versión más reciente de Selects elige mejores planos.",
     turnOnPhotos: "Activa «Usar fotos» en «Avanzado» para crear con las fotos de este proyecto.",
@@ -429,7 +435,7 @@ const STRINGS = {
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
     bpm: "{bpm} BPM",
-    newerSelectsMusic: "Para escuchar la música o usar tu propia pista se necesita una versión más reciente de Selects.",
+    newerSelects: "Esta parte de Mini Vlog necesita una versión más reciente de Selects. Actualiza Selects y vuelve a abrir este panel.",
     sectionHint: "Sección de música: arrastra para elegir",
     sectionLabel: "Sección de música",
     musicTooShort: "Esta pista es demasiado corta para esta duración",
@@ -551,7 +557,6 @@ const STRINGS = {
     openProject: "Ouvrez un projet pour créer un Mini Vlog.",
     startFailed: "Mini Vlog n'a pas pu démarrer : {detail}. Réinstallez le plugin si le problème persiste.",
     foldersNotFound: "les dossiers du plugin sont introuvables",
-    adapterNeeded: "Cette version de Selects nécessite un adaptateur {name} à jour.",
     stepFailed: "Selects n'a pas pu terminer cette étape.",
     busy: "Selects est occupé et n'a pas répondu à temps. Patientez un instant puis appuyez sur « Actualiser ». Si cela se reproduit, redémarrez Selects.",
     invFailed: "Impossible de lire les clips de ce projet pour l'instant. Appuyez sur « Actualiser ».",
@@ -570,8 +575,11 @@ const STRINGS = {
     betterPicks: { one: "{count} clip non analysé ; les clips analysés donnent de meilleurs plans", many: "{count} de clips non analysés ; les clips analysés donnent de meilleurs plans", other: "{count} clips non analysés ; les clips analysés donnent de meilleurs plans" },
     unusable: { one: "{count} clip pas encore utilisable", many: "{count} de clips pas encore utilisables", other: "{count} clips pas encore utilisables" },
     unusableWait: { one: "{count} clip n'est pas encore utilisable (pas de durée ou fichier introuvable). Ceci se met à jour automatiquement.", many: "{count} de clips ne sont pas encore utilisables (pas de durée ou fichier introuvable). Ceci se met à jour automatiquement.", other: "{count} clips ne sont pas encore utilisables (pas de durée ou fichier introuvable). Ceci se met à jour automatiquement." },
+    unusableRefresh: { one: "{count} clip n'est pas encore utilisable (pas de durée ou fichier introuvable). Appuyez sur « Actualiser » pour vérifier à nouveau.", many: "{count} de clips ne sont pas encore utilisables (pas de durée ou fichier introuvable). Appuyez sur « Actualiser » pour vérifier à nouveau.", other: "{count} clips ne sont pas encore utilisables (pas de durée ou fichier introuvable). Appuyez sur « Actualiser » pour vérifier à nouveau." },
+    noFootageRefresh: "Ce projet ne contient pas encore de vidéo ni de photo. Ajoutez des clips ou des photos, puis appuyez sur « Actualiser ».",
     checkingClipsN: "Vérification des clips {done}/{count}",
     cancel: "Annuler",
+    stopping: "Arrêt en cours…",
     cancelled: "Création annulée. Rien n'a été enregistré.",
     quickUnavailable: "Cette version de Selects ne peut pas vérifier les clips non analysés : leurs plans sont donc répartis régulièrement. Une version plus récente de Selects choisit de meilleurs plans.",
     turnOnPhotos: "Activez « Utiliser les photos » dans « Avancé » pour créer à partir des photos de ce projet.",
@@ -606,7 +614,7 @@ const STRINGS = {
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
     bpm: "{bpm} BPM",
-    newerSelectsMusic: "L'écoute de la musique et l'utilisation de votre propre morceau nécessitent une version plus récente de Selects.",
+    newerSelects: "Cette partie de Mini Vlog nécessite une version plus récente de Selects. Mettez Selects à jour, puis rouvrez ce panneau.",
     sectionHint: "Section musicale : faites glisser pour choisir",
     sectionLabel: "Section musicale",
     musicTooShort: "Ce morceau est trop court pour cette durée",
@@ -728,7 +736,6 @@ const STRINGS = {
     openProject: "Apri un progetto per creare un Mini Vlog.",
     startFailed: "Mini Vlog non è riuscito ad avviarsi: {detail}. Reinstalla il plugin se il problema persiste.",
     foldersNotFound: "le cartelle del plugin non sono state trovate",
-    adapterNeeded: "Questa versione di Selects richiede un adattatore {name} aggiornato.",
     stepFailed: "Selects non è riuscito a completare questo passaggio.",
     busy: "Selects è occupato e non ha risposto in tempo. Attendi un momento e premi «Aggiorna». Se continua a succedere, riavvia Selects.",
     invFailed: "Non è ancora stato possibile leggere le clip di questo progetto. Premi «Aggiorna».",
@@ -747,8 +754,11 @@ const STRINGS = {
     betterPicks: { one: "{count} clip non analizzata; le clip analizzate danno inquadrature migliori", many: "{count} di clip non analizzate; le clip analizzate danno inquadrature migliori", other: "{count} clip non analizzate; le clip analizzate danno inquadrature migliori" },
     unusable: { one: "{count} clip non ancora utilizzabile", many: "{count} di clip non ancora utilizzabili", other: "{count} clip non ancora utilizzabili" },
     unusableWait: { one: "{count} clip non è ancora utilizzabile (senza durata o file non trovato). Si aggiorna automaticamente.", many: "{count} di clip non sono ancora utilizzabili (senza durata o file non trovato). Si aggiorna automaticamente.", other: "{count} clip non sono ancora utilizzabili (senza durata o file non trovato). Si aggiorna automaticamente." },
+    unusableRefresh: { one: "{count} clip non è ancora utilizzabile (senza durata o file non trovato). Premi «Aggiorna» per controllare di nuovo.", many: "{count} di clip non sono ancora utilizzabili (senza durata o file non trovato). Premi «Aggiorna» per controllare di nuovo.", other: "{count} clip non sono ancora utilizzabili (senza durata o file non trovato). Premi «Aggiorna» per controllare di nuovo." },
+    noFootageRefresh: "In questo progetto non ci sono ancora video né foto. Aggiungi clip o foto, poi premi «Aggiorna».",
     checkingClipsN: "Controllo delle clip {done}/{count}",
     cancel: "Annulla",
+    stopping: "Interruzione in corso…",
     cancelled: "Creazione annullata. Non è stato salvato nulla.",
     quickUnavailable: "Questa versione di Selects non può controllare le clip non analizzate, quindi le loro inquadrature sono distribuite in modo uniforme. Una versione più recente di Selects sceglie inquadrature migliori.",
     turnOnPhotos: "Attiva «Usa foto» in «Avanzate» per creare dalle foto di questo progetto.",
@@ -783,7 +793,7 @@ const STRINGS = {
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
     bpm: "{bpm} BPM",
-    newerSelectsMusic: "Per ascoltare la musica o usare un tuo brano serve una versione più recente di Selects.",
+    newerSelects: "Questa parte di Mini Vlog richiede una versione più recente di Selects. Aggiorna Selects, poi riapri questo pannello.",
     sectionHint: "Sezione musicale: trascina per scegliere",
     sectionLabel: "Sezione musicale",
     musicTooShort: "Questo brano è troppo corto per questa durata",
@@ -905,7 +915,6 @@ const STRINGS = {
     openProject: "Mini Vlog を作成するには、プロジェクトを開いてください。",
     startFailed: "Mini Vlog を起動できませんでした: {detail}。問題が続く場合はプラグインを再インストールしてください。",
     foldersNotFound: "プラグインのフォルダが見つかりませんでした",
-    adapterNeeded: "この Selects のビルドには、更新された {name} アダプターが必要です。",
     stepFailed: "Selects はこのステップを完了できませんでした。",
     busy: "Selects が混み合っていて時間内に応答しませんでした。少し待ってから「更新」を押してください。何度も起きる場合は Selects を再起動してください。",
     invFailed: "このプロジェクトのクリップをまだ読み込めません。「更新」を押してください。",
@@ -924,8 +933,11 @@ const STRINGS = {
     betterPicks: { other: "未解析のクリップ {count} 本（解析済みのクリップのほうが良いショットを選べます）" },
     unusable: { other: "まだ使えないクリップ {count} 本" },
     unusableWait: { other: "{count} 本のクリップはまだ使えません（長さがないか、ファイルが見つかりません）。自動で更新されます。" },
+    unusableRefresh: { other: "{count} 本のクリップはまだ使えません（長さがないか、ファイルが見つかりません）。もう一度確認するには「更新」を押してください。" },
+    noFootageRefresh: "このプロジェクトには、動画も写真もまだありません。クリップか写真を追加してから、「更新」を押してください。",
     checkingClipsN: "クリップを確認中 {done}/{count}",
     cancel: "キャンセル",
+    stopping: "停止しています…",
     cancelled: "作成をキャンセルしました。何も保存されていません。",
     quickUnavailable: "この Selects では未解析のクリップを確認できないため、ショットを均等に選びました。新しい Selects ではより良いショットを選べます。",
     turnOnPhotos: "このプロジェクトの写真から作成するには、「詳細設定」で「写真を使う」をオンにしてください。",
@@ -960,7 +972,7 @@ const STRINGS = {
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
     bpm: "{bpm} BPM",
-    newerSelectsMusic: "音楽のプレビューや自分の曲の使用には、新しい Selects が必要です。",
+    newerSelects: "Mini Vlog のこの機能には新しいバージョンの Selects が必要です。Selects をアップデートしてから、このパネルを開き直してください。",
     sectionHint: "音楽の区間 — ドラッグして選択",
     sectionLabel: "音楽の区間",
     musicTooShort: "このトラックはこの長さには短すぎます",
@@ -1082,7 +1094,6 @@ const STRINGS = {
     openProject: "Mini Vlog\ub97c \ub9cc\ub4e4\ub824\uba74 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.",
     startFailed: "Mini Vlog\ub97c \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uacc4\uc18d\ub418\uba74 \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud558\uc138\uc694.",
     foldersNotFound: "\ud50c\ub7ec\uadf8\uc778 \ud3f4\ub354\ub97c \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
-    adapterNeeded: "\uc774 Selects \ube4c\ub4dc\uc5d0\ub294 \uc5c5\ub370\uc774\ud2b8\ub41c {name} \uc5b4\ub311\ud130\uac00 \ud544\uc694\ud569\ub2c8\ub2e4.",
     stepFailed: "Selects\uac00 \uc774 \ub2e8\uacc4\ub97c \uc644\ub8cc\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     busy: "Selects\uac00 \ubc14\ube60\uc11c \uc81c\ub54c \uc751\ub2f5\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \uae30\ub2e4\ub9b0 \ub4a4 ‘\uc0c8\ub85c\uace0\uce68’\uc744 \ub204\ub974\uc138\uc694. \uacc4\uc18d\ub418\uba74 Selects\ub97c \ub2e4\uc2dc \uc2dc\uc791\ud558\uc138\uc694.",
     invFailed: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \ud074\ub9bd\uc744 \uc544\uc9c1 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. ‘\uc0c8\ub85c\uace0\uce68’\uc744 \ub204\ub974\uc138\uc694.",
@@ -1101,8 +1112,11 @@ const STRINGS = {
     betterPicks: { other: "\ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd {count}\uac1c (\ubd84\uc11d\ub41c \ud074\ub9bd\uc5d0\uc11c \ub354 \uc88b\uc740 \uc0f7\uc744 \uace0\ub985\ub2c8\ub2e4)" },
     unusable: { other: "\uc544\uc9c1 \uc4f8 \uc218 \uc5c6\ub294 \ud074\ub9bd {count}\uac1c" },
     unusableWait: { other: "\ud074\ub9bd {count}\uac1c\ub97c \uc544\uc9c1 \uc4f8 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4(\uae38\uc774\uac00 \uc5c6\uac70\ub098 \ud30c\uc77c\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc74c). \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4." },
+    unusableRefresh: { other: "\ud074\ub9bd {count}\uac1c\ub97c \uc544\uc9c1 \uc4f8 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4(\uae38\uc774\uac00 \uc5c6\uac70\ub098 \ud30c\uc77c\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc74c). \ub2e4\uc2dc \ud655\uc778\ud558\ub824\uba74 ‘\uc0c8\ub85c\uace0\uce68’\uc744 \ub204\ub974\uc138\uc694." },
+    noFootageRefresh: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud55c \ub4a4 ‘\uc0c8\ub85c\uace0\uce68’\uc744 \ub204\ub974\uc138\uc694.",
     checkingClipsN: "\ud074\ub9bd \ud655\uc778 \uc911 {done}/{count}",
     cancel: "\ucde8\uc18c",
+    stopping: "\uc911\uc9c0\ud558\ub294 \uc911…",
     cancelled: "\ub9cc\ub4e4\uae30\ub97c \ucde8\uc18c\ud588\uc2b5\ub2c8\ub2e4. \uc544\ubb34\uac83\ub3c4 \uc800\uc7a5\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
     quickUnavailable: "\uc774 Selects \ubc84\uc804\uc740 \ubd84\uc11d\ub418\uc9c0 \uc54a\uc740 \ud074\ub9bd\uc744 \ud655\uc778\ud560 \uc218 \uc5c6\uc5b4 \uc0f7\uc744 \uace0\ub974\uac8c \ub098\ub220 \uace8\ub790\uc2b5\ub2c8\ub2e4. \uc0c8 Selects \ubc84\uc804\uc5d0\uc11c\ub294 \ub354 \uc88b\uc740 \uc0f7\uc744 \uace0\ub985\ub2c8\ub2e4.",
     turnOnPhotos: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc0ac\uc9c4\uc73c\ub85c \ub9cc\ub4e4\ub824\uba74 ‘\uace0\uae09’\uc5d0\uc11c ‘\uc0ac\uc9c4 \uc0ac\uc6a9’\uc744 \ucf1c\uc138\uc694.",
@@ -1137,7 +1151,7 @@ const STRINGS = {
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
     bpm: "{bpm} BPM",
-    newerSelectsMusic: "\uc74c\uc545 \ubbf8\ub9ac \ub4e3\uae30\uc640 \ub0b4 \uc74c\uc545 \uc0ac\uc6a9\uc5d0\ub294 \uc0c8 Selects \ubc84\uc804\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
+    newerSelects: "Mini Vlog\uc758 \uc774 \uae30\ub2a5\uc744 \uc4f0\ub824\uba74 \ub354 \uc0c8\ub85c\uc6b4 \ubc84\uc804\uc758 Selects\uac00 \ud544\uc694\ud569\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud55c \ub4a4 \uc774 \ud328\ub110\uc744 \ub2e4\uc2dc \uc5ec\uc138\uc694.",
     sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
     sectionLabel: "\uc74c\uc545 \uad6c\uac04",
     musicTooShort: "\uc774 \ud2b8\ub799\uc740 \uc774 \uae38\uc774\uc5d0 \ube44\ud574 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4",
@@ -1259,7 +1273,6 @@ const STRINGS = {
     openProject: "Abra um projeto para criar um Mini Vlog.",
     startFailed: "O Mini Vlog não conseguiu iniciar: {detail}. Reinstale o plugin se o problema continuar.",
     foldersNotFound: "as pastas do plugin não foram encontradas",
-    adapterNeeded: "Esta versão do Selects precisa de um adaptador {name} atualizado.",
     stepFailed: "O Selects não conseguiu concluir esta etapa.",
     busy: "O Selects está ocupado e não respondeu a tempo. Aguarde um momento e pressione “Atualizar”. Se continuar acontecendo, reinicie o Selects.",
     invFailed: "Ainda não foi possível ler os clipes deste projeto. Pressione “Atualizar”.",
@@ -1278,8 +1291,11 @@ const STRINGS = {
     betterPicks: { one: "{count} clipe não analisado; clipes analisados rendem planos melhores", many: "{count} de clipes não analisados; clipes analisados rendem planos melhores", other: "{count} clipes não analisados; clipes analisados rendem planos melhores" },
     unusable: { one: "{count} clipe ainda não pode ser usado", many: "{count} de clipes ainda não podem ser usados", other: "{count} clipes ainda não podem ser usados" },
     unusableWait: { one: "{count} clipe ainda não pode ser usado (sem duração ou arquivo não encontrado). Isto se atualiza sozinho.", many: "{count} de clipes ainda não podem ser usados (sem duração ou arquivo não encontrado). Isto se atualiza sozinho.", other: "{count} clipes ainda não podem ser usados (sem duração ou arquivo não encontrado). Isto se atualiza sozinho." },
+    unusableRefresh: { one: "{count} clipe ainda não pode ser usado (sem duração ou arquivo não encontrado). Pressione “Atualizar” para verificar de novo.", many: "{count} de clipes ainda não podem ser usados (sem duração ou arquivo não encontrado). Pressione “Atualizar” para verificar de novo.", other: "{count} clipes ainda não podem ser usados (sem duração ou arquivo não encontrado). Pressione “Atualizar” para verificar de novo." },
+    noFootageRefresh: "Este projeto ainda não tem vídeos nem fotos. Adicione clipes ou fotos e pressione “Atualizar”.",
     checkingClipsN: "Verificando clipes {done}/{count}",
     cancel: "Cancelar",
+    stopping: "Parando…",
     cancelled: "Criação cancelada. Nada foi salvo.",
     quickUnavailable: "Esta versão do Selects não consegue verificar clipes não analisados, então os planos deles são distribuídos por igual. Uma versão mais nova do Selects escolhe planos melhores.",
     turnOnPhotos: "Ative “Usar fotos” em “Avançado” para criar com as fotos deste projeto.",
@@ -1314,7 +1330,7 @@ const STRINGS = {
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
     bpm: "{bpm} BPM",
-    newerSelectsMusic: "Para ouvir a música ou usar sua própria faixa, é preciso uma versão mais nova do Selects.",
+    newerSelects: "Esta parte do Mini Vlog precisa de uma versão mais nova do Selects. Atualize o Selects e abra este painel de novo.",
     sectionHint: "Trecho da música: arraste para escolher",
     sectionLabel: "Trecho da música",
     musicTooShort: "Esta faixa é curta demais para esta duração",
@@ -1436,7 +1452,6 @@ const STRINGS = {
     openProject: "Mini Vlog oluşturmak için bir proje açın.",
     startFailed: "Mini Vlog başlatılamadı: {detail}. Sorun sürerse eklentiyi yeniden yükleyin.",
     foldersNotFound: "eklenti klasörleri bulunamadı",
-    adapterNeeded: "Bu Selects sürümü güncel bir {name} bağdaştırıcısı gerektiriyor.",
     stepFailed: "Selects bu adımı tamamlayamadı.",
     busy: "Selects meşgul ve zamanında yanıt vermedi. Biraz bekleyip “Yenile”ye basın. Bu tekrarlanırsa Selects'i yeniden başlatın.",
     invFailed: "Bu projenin klipleri henüz okunamadı. “Yenile”ye basın.",
@@ -1455,8 +1470,11 @@ const STRINGS = {
     betterPicks: { one: "{count} klip analiz edilmedi; analiz edilmiş klipler daha iyi çekimler verir", other: "{count} klip analiz edilmedi; analiz edilmiş klipler daha iyi çekimler verir" },
     unusable: { one: "{count} klip henüz kullanılamıyor", other: "{count} klip henüz kullanılamıyor" },
     unusableWait: { one: "{count} klip henüz kullanılamıyor (süre yok veya dosya bulunamadı). Bu otomatik olarak güncellenir.", other: "{count} klip henüz kullanılamıyor (süre yok veya dosya bulunamadı). Bu otomatik olarak güncellenir." },
+    unusableRefresh: { one: "{count} klip henüz kullanılamıyor (süre yok veya dosya bulunamadı). Yeniden kontrol etmek için “Yenile”ye basın.", other: "{count} klip henüz kullanılamıyor (süre yok veya dosya bulunamadı). Yeniden kontrol etmek için “Yenile”ye basın." },
+    noFootageRefresh: "Bu projede henüz video veya fotoğraf yok. Klip ya da fotoğraf ekleyin, ardından “Yenile”ye basın.",
     checkingClipsN: "Klipler kontrol ediliyor {done}/{count}",
     cancel: "İptal",
+    stopping: "Durduruluyor…",
     cancelled: "Oluşturma iptal edildi. Hiçbir şey kaydedilmedi.",
     quickUnavailable: "Bu Selects sürümü analiz edilmemiş klipleri kontrol edemiyor, bu yüzden çekimler eşit aralıklarla seçildi. Daha yeni bir Selects sürümü daha iyi çekimler seçer.",
     turnOnPhotos: "Bu projenin fotoğraflarından oluşturmak için “Gelişmiş” bölümünde “Fotoğrafları kullan” seçeneğini açın.",
@@ -1491,7 +1509,7 @@ const STRINGS = {
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
     bpm: "{bpm} BPM",
-    newerSelectsMusic: "Müziği önizlemek veya kendi parçanızı kullanmak için daha yeni bir Selects sürümü gerekir.",
+    newerSelects: "Mini Vlog'un bu bölümü Selects'in daha yeni bir sürümünü gerektiriyor. Selects'i güncelleyin, ardından bu paneli yeniden açın.",
     sectionHint: "Müzik bölümü — seçmek için sürükleyin",
     sectionLabel: "Müzik bölümü",
     musicTooShort: "Bu parça bu uzunluk için çok kısa",
@@ -1613,7 +1631,6 @@ const STRINGS = {
     openProject: "请先打开一个项目，再制作 Mini Vlog。",
     startFailed: "Mini Vlog 无法启动：{detail}。如果问题持续，请重新安装插件。",
     foldersNotFound: "找不到插件文件夹",
-    adapterNeeded: "此版本的 Selects 需要更新的 {name} 适配器。",
     stepFailed: "Selects 无法完成这一步。",
     busy: "Selects 正忙，未能及时响应。请稍等片刻再点击“刷新”。如果反复出现，请重启 Selects。",
     invFailed: "暂时无法读取此项目的片段。请点击“刷新”。",
@@ -1632,8 +1649,11 @@ const STRINGS = {
     betterPicks: { other: "{count} 个片段未分析（已分析的片段能选出更好的镜头）" },
     unusable: { other: "{count} 个片段暂时无法使用" },
     unusableWait: { other: "{count} 个片段暂时无法使用（没有时长或找不到文件）。这里会自动更新。" },
+    unusableRefresh: { other: "{count} 个片段暂时无法使用（没有时长或找不到文件）。请点击“刷新”重新检查。" },
+    noFootageRefresh: "此项目中还没有视频或照片。请添加片段或照片，然后点击“刷新”。",
     checkingClipsN: "正在检查片段 {done}/{count}",
     cancel: "取消",
+    stopping: "正在停止…",
     cancelled: "已取消创建，未保存任何内容。",
     quickUnavailable: "此版本的 Selects 无法检查未分析的片段，因此均匀选取了镜头。较新版本的 Selects 能选出更好的镜头。",
     turnOnPhotos: "请在“高级”中开启“使用照片”，即可用此项目的照片制作。",
@@ -1668,7 +1688,7 @@ const STRINGS = {
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
     bpm: "{bpm} BPM",
-    newerSelectsMusic: "试听音乐或使用自己的曲目需要较新版本的 Selects。",
+    newerSelects: "Mini Vlog 的这项功能需要更新版本的 Selects。请更新 Selects，然后重新打开此面板。",
     sectionHint: "音乐片段 — 拖动选择",
     sectionLabel: "音乐片段",
     musicTooShort: "此曲目对这个时长来说太短",
@@ -1838,7 +1858,7 @@ function uiError(say: Say) { const e: any = new Error(say("en")); e.say = say; r
 // A host service this Selects build lacks (av-host 'host-missing') says the one "needs a newer Selects" message.
 function sayError(lang: Lang, e: any): string {
   if (typeof e?.say === "function") return e.say(lang);
-  if (e?.code === "host-missing") return t(lang, "adapterNeeded", { name: String(e.member || "").split(".")[0] || "Runtime" });
+  if (e?.code === "host-missing") return t(lang, "newerSelects");
   return String(e?.message || e);
 }
 // A title field's text cut to its limit, counted like the counter next to it (fieldLen: Hangul counts 2).
@@ -3538,7 +3558,7 @@ const MV_FAIL: Record<string, string> = {
 // The host I/O block below is Archive Vlog's av-host block (plugins/archive-vlog/panel.tsx), pasted verbatim: no shell,
 // no node; the host's FileSystem, Runtime.runFFmpeg / runFFprobe (argv arrays) and window.parent.__DI__, every member
 // checked first (kit windows.md). tests/panel.test.cjs and tests/test_windows_mini_vlog.py compare it with a recorded
-// hash, not with the sibling plugin. Errors with code 'host-missing' say STRINGS `adapterNeeded` (sayError).
+// hash, not with the sibling plugin. Errors with code 'host-missing' say STRINGS `newerSelects` (sayError).
 // av-host:start
 // Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
 // kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
@@ -3691,7 +3711,7 @@ async function readText(root: string, rel: string) { return hostReadText(hostJoi
 // no install folder gives { plugin: "", data: "" } (locateRoots then says `foldersNotFound`).
 async function mvFolders(sdk: any): Promise<{ plugin: string; data: string }> {
   const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  if (!fs) throw uiError((l) => t(l, "adapterNeeded", { name: "FileSystem" }));
+  if (!fs) throw uiError((l) => t(l, "newerSelects"));
   const data = String(fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID));
   try { return { plugin: (await hostRoots(sdk, PLUGIN_ID, "planner.js")).plugin, data }; } catch { /* the environment's skills root */ }
   const envRoot = () => {
@@ -4234,12 +4254,14 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     const t = setInterval(() => { loadInventory(pid); }, 10000);
     return () => clearInterval(t);
   }, [projectId, needsPoll, busy]);
-  // Coming back to the panel (tab shown or window focused) re-reads the inventory.
+  // Coming back to the panel (tab shown or window focused) re-reads the inventory and, like Refresh, restarts the
+  // capped polling (both read counters).
   React.useEffect(() => {
     if (!projectId) return;
     const pid = projectId;
-    const onVisible = () => { if (document.visibilityState === "visible") loadInventory(pid); };
-    const onFocus = () => { loadInventory(pid); };
+    const again = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); waitReadsRef.current = 0; setWaitStalled(false); loadInventory(pid); };
+    const onVisible = () => { if (document.visibilityState === "visible") again(); };
+    const onFocus = () => { again(); };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onFocus);
     return () => { document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onFocus); };
@@ -4578,21 +4600,34 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         // The scene search and the quick local check run side by side. The step's share counts both (searched videos
         // plus checked clips over their sum) and never goes back; the detail names the part that moved last.
         const share = { scene: 0, local: 0, at: 0 };
+        let stopping = false;
         const shareOf = (detail: Say) => {
+          if (stopping) return;
           const n = todo.length + localTodo.length;
           share.at = Math.max(share.at, n ? (share.scene + share.local) / n : 0);
           advance("shots", share.at, detail);
         };
         const controller = new AbortController();
         const sceneCheck = () => { check(); if (controller.signal.aborted) throw CANCELLED; };
-        const [fresh, checked] = await Promise.all([
-          findCandidates(todo, pid, sceneCheck, mvSearchQueries(MV_QUERIES, frozen.punch),
-            (done) => { share.scene = done; if (todo.length) shareOf((l) => t(l, "videosChecked", { done, count: todo.length })); })
-            // A failed search stops the local check too, so nothing keeps running after the build ends.
-            .catch((e) => { controller.abort(); throw e; }),
-          checkLocalClips(localTodo, pid, controller,
-            (done) => { share.local = done; shareOf((l) => t(l, "checkingClipsN", { done, count: localTodo.length })); })]);
-        check();
+        const sceneRun = findCandidates(todo, pid, sceneCheck, mvSearchQueries(MV_QUERIES, frozen.punch),
+          (done) => { share.scene = done; if (todo.length) shareOf((l) => t(l, "videosChecked", { done, count: todo.length })); })
+          // A failed search stops the local check too, so nothing keeps running after the build ends.
+          .catch((e) => { controller.abort(); throw e; });
+        const localRun = checkLocalClips(localTodo, pid, controller,
+          (done) => { share.local = done; shareOf((l) => t(l, "checkingClipsN", { done, count: localTodo.length })); });
+        let fresh: any, checked: any;
+        try {
+          [fresh, checked] = await Promise.all([sceneRun, localRun]);
+          check();
+        } catch (e) {
+          // Cancel or a failure in either part: stop both and wait until both have settled (a search batch in flight
+          // ends at its next check), so busy never drops while work is still running. The step says it is stopping.
+          controller.abort();
+          stopping = true;
+          advance("shots", share.at, (l) => t(l, "stopping"));
+          await Promise.allSettled([sceneRun, localRun]);
+          throw e;
+        }
         const retried = new Set(todo);
         const scene = [...(cached ? cached.scene.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))];
         // `list` is what the planner gets: the scene hits unchanged plus the local candidates on their scale (mvWithLocal).
@@ -4813,7 +4848,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const canBuildAnother = ready && !anotherBlock;
 
   // Clips that cannot be used yet, as a sentence for the lines that have nothing else to say.
-  const unusableText = invFootage.unusable ? t(L, "unusableWait", { count: invFootage.unusable }) : "";
+  // After the wait cap (waitStalled) nothing re-reads by itself any more, so the sentence asks for Refresh instead.
+  const unusableText = !invFootage.unusable ? "" : waitStalled ? t(L, "unusableRefresh", { count: invFootage.unusable }) : t(L, "unusableWait", { count: invFootage.unusable });
   const clipCount = [
     allRids.length ? (only ? t(L, "clipsSelected", { selected: selectedRids.length, count: allRids.length }) : t(L, "clips", { count: allRids.length })) : "",
     usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
@@ -4822,7 +4858,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const readiness = !inventory ? (invError ? (invError.busy ? invError.say(L) : t(L, "invFailed")) : t(L, "checkingClipsNow"))
     : inventory.incomplete && incompleteStalled ? t(L, "invPartial")
     : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? t(L, "stillReading")
-    : inventory.resources.length === 0 && !allPhotoRids.length ? (unusableText || t(L, "noFootage"))
+    : inventory.resources.length === 0 && !allPhotoRids.length ? (unusableText || (waitStalled ? t(L, "noFootageRefresh") : t(L, "noFootage")))
     : inventory.resources.length === 0 && !usePhotos ? [unusableText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))
     : selectedRids.length === 0 && usedPhotoCount === 0 ? t(L, "noClipsSelected")
     : t(L, "ready", { summary: [clipCount, t(L, "aboutSeconds", { seconds: Math.round(plannedSeconds) }), ...mvFootageNotes(L, invFootage)].filter(Boolean).join(" · ") });
@@ -4943,7 +4979,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         {musicKind === "own" && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
           onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
         {ownBeatLine ? <ui.Message tone="muted">{ownBeatLine}</ui.Message> : null}
-        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "newerSelectsMusic")}</ui.Message> : null}
+        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "newerSelects")}</ui.Message> : null}
         {musicKind !== "none" ? (ownMusic || cue ? (
           // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
           <div onKeyDown={(e) => { if (e.key === "Escape" && playState !== "idle") { e.preventDefault(); stopPreview(); } }}>

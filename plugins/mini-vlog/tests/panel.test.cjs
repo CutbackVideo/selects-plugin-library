@@ -89,7 +89,8 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
   assert.equal(note(counts(undefined)), '');
   assert.ok(!/undefined|\{\w+\}/.test(['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'].map(l => note(counts(sk(1, 2)), l) + note(counts(sk(5, 1)), l)).join()), 'every language fills the counts');
   // Every readiness branch uses these, and an analysis change refreshes the inventory signature (and the candidates).
-  for (const phrase of ['const unusableText = invFootage.unusable ? t(L, "unusableWait", { count: invFootage.unusable }) : "";', '(unusableText || t(L, "noFootage"))',
+  for (const phrase of ['const unusableText = !invFootage.unusable ? "" : waitStalled ? t(L, "unusableRefresh", { count: invFootage.unusable }) : t(L, "unusableWait", { count: invFootage.unusable });',
+    '(unusableText || (waitStalled ? t(L, "noFootageRefresh") : t(L, "noFootage")))',
     '[unusableText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))', '...mvFootageNotes(L, invFootage)]',
     'inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",") + "|" + [sk.unanalysed, sk.notAnalysed]']) assert.ok(panel.includes(phrase), phrase);
   // Polling: only while clips cannot be used yet (still importing), while a read is partial, or with no footage at all.
@@ -126,13 +127,14 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
     'if (controller.signal.aborted) throw CANCELLED;', 'if (projectRef.current !== pid) throw STALE;']) assert.ok(check.includes(s), 'checkLocalClips: ' + s);
   for (const s of ['const rids: string[] = chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);', 'const localClips: any[] = chosenVideos.filter((r: any) => r.analysed === false);',
     'const localKept: any[] = cached ? cached.local.results.filter((r: any) => r.scores && !r.scores.fallback) : [];',
-    'if (!cached || cached.failed.length || localTodo.length) {', 'const [fresh, checked] = await Promise.all([', 'checkLocalClips(localTodo, pid, controller,',
+    'if (!cached || cached.failed.length || localTodo.length) {', '[fresh, checked] = await Promise.all([sceneRun, localRun]);', 'const localRun = checkLocalClips(localTodo, pid, controller,',
+    'controller.abort();\n          stopping = true;\n          advance("shots", share.at, (l) => t(l, "stopping"));\n          await Promise.allSettled([sceneRun, localRun]);\n          throw e;', 'if (stopping) return;',
     't(l, "checkingClipsN", { done, count: localTodo.length })', 'share.at = Math.max(share.at, n ? (share.scene + share.local) / n : 0);',
     'list: mvWithLocal(scene, local.results, frozen.punch)',
     'queries, pageSize: 4, checkAnalysis: false }', 'localAbortRef.current?.abort()', '{checking ? <ui.Button variant="primary" onClick={() => localAbortRef.current?.abort()}>{t(L, "cancel")}</ui.Button>',
     'if (e === CANCELLED && projectRef.current === pid) setStatus({ tone: "muted", say: (l: Lang) => t(l, "cancelled") });', '{result?.quickUnavailable ? <ui.Message tone="muted">{t(L, "quickUnavailable")}</ui.Message> : null}'])
     assert.ok(ui.includes(s), s);
-  says('checkingClipsN', 'Checking clips {done}/{count}'); says('cancel', 'Cancel'); says('cancelled', 'Nothing was saved'); says('quickUnavailable', 'A newer Selects picks better shots');
+  says('checkingClipsN', 'Checking clips {done}/{count}'); says('cancel', 'Cancel'); says('stopping', 'Stopping'); says('cancelled', 'Nothing was saved'); says('quickUnavailable', 'A newer Selects picks better shots');
   says('betterPicks', 'analysed clips give better picks'); says('unusable', "can't be used yet"); says('unusableWait', 'This updates automatically');
   // Windows: the new path reaches the host only through __DI__ (the kit's qsHostIO, mvHostDataDir); no shell, no POSIX.
   const dataDirFn = panel.slice(panel.indexOf('function mvHostDataDir('), panel.indexOf('function mvQuickCheckAvailable('));
@@ -461,6 +463,11 @@ assert.ok(build.includes('videoEnd: a.totalFrames'), 'the title ends at the last
 
 // Inventory refresh: poll while pending, focus / visibility, Refresh button; project switch drops the cache.
 says('unusableWait', 'This updates automatically.'); says('noFootage', 'this updates automatically'); says('refresh', 'Refresh');
+// After the wait cap nothing re-reads by itself: the sentences ask for Refresh, and coming back to the panel restarts
+// the capped polling like Refresh does.
+says('unusableRefresh', 'Press Refresh to check again.'); says('noFootageRefresh', 'then press Refresh.');
+assert.ok(ui.includes('const again = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); waitReadsRef.current = 0; setWaitStalled(false); loadInventory(pid); };')
+  && ui.includes('if (document.visibilityState === "visible") again(); };') && ui.includes('const onFocus = () => { again(); };'), 'focus and visibility reset the poll counters');
 for (const s of ['loadInventory(', 'visibilitychange', 'addEventListener("focus"', '10000', 'setCandidates(null)', 'invSigRef', 'projectRef']) assert.ok(ui.includes(s), s);
 assert.ok(/needsPoll = [^\n]*inventory\.photos/.test(ui), 'a photos-only Project does not poll');
 assert.ok(ui.includes('const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");') && ui.includes('const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");'), 'scene search cache keyed on the Project');
@@ -493,7 +500,10 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
   // Folders through FileSystem (locateRoots -> mvFolders), tools by checking the host's members.
   for (const s of ['const { plugin, data } = await mvFolders(sdk);', 'await hostRoots(sdk, PLUGIN_ID, "planner.js")', 'fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID)',
     'setTools(mvMusicTools());', 'const canOwnMusic = tools.ffmpeg && tools.worker;', 'async function readText(root: string, rel: string) { return hostReadText(hostJoin(root, ...rel.split("/"))); }',
-    'if (e?.code === "host-missing") return t(lang, "adapterNeeded"']) assert.ok(panel.includes(s), s);
+    'if (e?.code === "host-missing") return t(lang, "newerSelects");', 'if (!fs) throw uiError((l) => t(l, "newerSelects"));', '{!canOwnMusic ? <ui.Message tone="muted">{t(L, "newerSelects")}</ui.Message> : null}'])
+    assert.ok(panel.includes(s), s);
+  // One generic "needs a newer Selects" key for every missing host member (kit windows.md).
+  assert.ok(!/adapterNeeded|newerSelectsMusic/.test(panel), 'no per-member or per-feature host messages');
   // Own music: host ffmpeg -> f32le 22.05 kHz, first 240 s, in the data folder; the kit detector in a blob worker with
   // a 60 s timeout; cancel = abort + terminate + request id; any failure -> fixed timing with the probed length.
   for (const s of ['const OWN_MAX_SECONDS = 240;', 'const OWN_RATE = 22050;', 'const BEAT_TIMEOUT_MS = 60000;', 'read("beat-detect.cjs")]);', 'beatWorker: avBeatWorkerSource(beatDetect)',
@@ -512,7 +522,7 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
   for (const s of ['const rt = hostNeed("Runtime", "runFFmpeg");', '"-t", dur.toFixed(2), "-i", file,', 'bytes = await hostReadBytes(out);', '} finally { void hostRemove(out); }',
     'hostJoin(roots.data, "preview-" + token + "-" + Date.now() + ".mp3")', 'const file = ownMusic ? ownMusic.path : hostJoin(roots.plugin, "assets", "cues", cue.file);',
     'musicKind === "cue" ? hostJoin(roots.plugin, "assets", "cues", cue.file) : null']) assert.ok(panel.includes(s), s);
-  says('newerSelectsMusic', 'need a newer Selects');
+  says('newerSelects', 'needs a newer version of Selects');
 
   // Cross-realm bytes (windows.md): the host's readFile result comes from window.parent, another JS realm, where
   // `instanceof ArrayBuffer` is false. The av-host block runs in node:vm with a fake __DI__ whose values are built in a
