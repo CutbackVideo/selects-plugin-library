@@ -85,5 +85,39 @@ console.log(JSON.stringify({
             {"libraryId": "L", "presentationFrame": 5, "quality": "low", "immediate": False},
         ])
 
+    def test_empty_host_thumbnail_falls_back_to_the_bundled_ffmpeg(self):
+        panel = read(os.path.join(plugin_dir(PLUGIN), "panel.tsx"))
+        request = panel[panel.index("let raw=await readStep('Thumbnail request'"):]
+        request = request[: request.index("if(!raw)throw new Error('The thumbnail response was empty.');")]
+        self.assertIn("if(!raw&&stampRow?.stamp?.path)raw=await readStep('Thumbnail from file',()=>ffmpegThumbnail(di,fs,root,stampRow.stamp.path,clipSourceSeconds(p.c,frame,fps)));", request)
+        fallback = panel[panel.index("async function ffmpegThumbnail("):]
+        fallback = fallback[: fallback.index("\nasync function digest(")]
+        self.assertIn("rt.runFFmpeg(['-nostdin','-v','error','-y',...(still?[]:['-ss',seconds.toFixed(3)]),'-i',file,", fallback)
+        self.assertIn("new Uint8Array(await fs.readFile(out))", fallback)
+        self.assertNotIn("runShell", fallback)
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_source_seconds_from_the_probed_clip_model(self):
+        panel = read(os.path.join(plugin_dir(PLUGIN), "panel.tsx"))
+        fn = next(l for l in panel.split("\n") if l.startswith("function clipSourceSeconds("))
+        fn = fn.replace("(c:any,frame:number,fps:number)", "(c,frame,fps)")
+        # Values probed on Windows Staging 2.0.536: 23.976 fps, 29429400 ticks per frame (705600000 per second).
+        script = r"""
+const vm = require('node:vm');
+const ctx = vm.createContext({});
+vm.runInContext(process.argv[1] + '\nglobalThis.f = clipSourceSeconds;', ctx);
+const clip = (tick, num, den) => ({ getOwnerTimebase: () => ({ getTicksPerFrame: () => 29429400 }), getSourceStartTick: () => tick,
+  getTiming: () => ({ toJSON: () => ({ playbackSpeed: { numerator: num, denominator: den } }) }) });
+const fps = 24000 / 1001;
+console.log(JSON.stringify([ctx.f(clip(0, 1, 1), 0, fps), ctx.f(clip(0, 1, 1), 899, fps), ctx.f(clip(705600000, 2, 1), 24, fps), ctx.f({}, 48, 24)]));
+"""
+        r = subprocess.run(["node", "-e", script, fn], capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        self.assertAlmostEqual(out[0], 0)
+        self.assertAlmostEqual(out[1], 899 * 1001 / 24000, places=6)
+        self.assertAlmostEqual(out[2], 1 + 24 * 1001 / 24000 * 2, places=6)
+        self.assertAlmostEqual(out[3], 2)
+
 if __name__ == "__main__":
     unittest.main()
