@@ -1,7 +1,9 @@
-// Pillow-compatible raster primitives over the doacft WebAssembly module
-// (FreeType 2.14.3 + Pillow 12.3.0 libImaging). Images live in wasm memory;
-// every image made inside `pil.scope(fn)` is freed when fn returns unless it
-// was passed to `pil.keep`.
+// Pillow-compatible raster primitives over raster.wasm (FreeType 2.14.3 +
+// Pillow 12.3.0 libImaging, built by dev/raster/build.sh). Images live in wasm
+// memory; every image made inside `pil.scope(fn)` is freed when fn returns
+// unless it was passed to `pil.keep`.
+// Worker (or node) only: browsers refuse a synchronous WebAssembly.Module this
+// size on a page's main thread, and the panel runs it in a Web Worker anyway.
 function createPil(wasmBytes) {
   // The module needs no files or console: preopens report none (EBADF), the rest ENOSYS.
   const wasi = new Proxy({}, { get: (_, name) => name === 'proc_exit' ? (c) => { throw Error('wasm exit ' + c); } : name === 'fd_prestat_get' ? () => 8 : () => 52 });

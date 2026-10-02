@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -36,6 +37,35 @@ function loadEngine() {
 
 const engine = loadEngine();
 const plain = v => JSON.parse(JSON.stringify(v));
+
+// The PNG the panel stores (8-bit RGBA, zlib IDAT, filters None/Sub/Up/Paeth), decoded.
+const CRC = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+const crc32 = b => { let c = 0xffffffff; for (const v of b) c = CRC[(c ^ v) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+function decodePng(png) {
+  assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  let o = 8, w = 0, h = 0;
+  const idat = [];
+  while (o < png.length) {
+    const len = png.readUInt32BE(o), type = png.toString('latin1', o + 4, o + 8), data = png.subarray(o + 8, o + 8 + len);
+    assert.equal(png.readUInt32BE(o + 8 + len), crc32(png.subarray(o + 4, o + 8 + len)), type + ' CRC');
+    if (type === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); assert.deepEqual([...data.subarray(8)], [8, 6, 0, 0, 0]); }
+    if (type === 'IDAT') idat.push(data);
+    o += 12 + len;
+  }
+  const z = Buffer.concat(idat);
+  assert.equal(z[0], 0x78, 'zlib stream');
+  const raw = zlib.inflateSync(z), stride = w * 4, out = Buffer.alloc(stride * h);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)], row = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    for (let i = 0; i < stride; i++) {
+      const a = i >= 4 ? out[y * stride + i - 4] : 0, b = y ? out[(y - 1) * stride + i] : 0, c = y && i >= 4 ? out[(y - 1) * stride + i - 4] : 0;
+      const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+      const pred = [0, a, b, (a + b) >> 1, pa <= pb && pa <= pc ? a : pb <= pc ? b : c][f];
+      out[y * stride + i] = (row[i] + pred) & 255;
+    }
+  }
+  return { w, h, rgba: out };
+}
 
 test('the Worker script answers the panel: catalogue, compile with progress, refusals', async () => {
   const posted = [];
@@ -86,8 +116,18 @@ for (const { name, job, expect } of golden.jobs) {
       const e = expect.scenes[i], label = name + ' scene ' + i + ' (' + e.template + ')';
       for (const k of ['index', 'start', 'end', 'template', 'text', 'uniqueFrames']) assert.deepEqual(s.scene[k], e[k], label + ' ' + k);
       for (const k of ['frameMap', 'fps', 'x', 'y', 'w', 'h', 'cols', 'rows', 'size']) assert.deepEqual(plain(s.payload[k]), e[k], label + ' ' + k);
-      assert.match(s.payload.atlas, /^data:image\/png;base64,iVBORw0KGgo/);
       assert.deepEqual([...s.uniqueCrops].map(c => crypto.createHash('sha256').update(c).digest('hex')), e.frameHashes, label + ' frames');
+      // The atlas the motion graphic shows decodes to those frames, laid out as the scene says.
+      assert.match(s.payload.atlas, /^data:image\/png;base64,/);
+      const atlas = decodePng(Buffer.from(s.payload.atlas.split(',')[1], 'base64'));
+      const { w, h, cols, rows } = s.payload;
+      assert.deepEqual([atlas.w, atlas.h], [cols * w, rows * h], label + ' atlas size');
+      s.uniqueCrops.forEach((c, k) => {
+        const x0 = (k % cols) * w, y0 = Math.floor(k / cols) * h;
+        for (let y = 0; y < h; y++) assert.ok(Buffer.from(c.subarray(y * w * 4, (y + 1) * w * 4)).equals(atlas.rgba.subarray(((y0 + y) * cols * w + x0) * 4, ((y0 + y) * cols * w + x0 + w) * 4)), label + ' atlas tile ' + k);
+      });
+      const preview = decodePng(Buffer.from(s.preview));
+      assert.deepEqual([preview.w, preview.h], [540, 960], label + ' preview size');
     });
   });
 }
