@@ -1,0 +1,1701 @@
+{
+ "photos": [
+  [
+   "p01.png",
+   1,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p02.png",
+   2,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p03.png",
+   3,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p04.png",
+   4,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p03-copy.png",
+   3,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p05.png",
+   5,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p06.png",
+   6,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p07.png",
+   7,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p08.png",
+   8,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p07-near.png",
+   7,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   1
+  ],
+  [
+   "p09.png",
+   9,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p10.png",
+   10,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "wide.png",
+   30,
+   [
+    250,
+    180
+   ],
+   [
+    1000,
+    720
+   ],
+   0
+  ],
+  [
+   "p11.png",
+   11,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p12.png",
+   12,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "small.png",
+   31,
+   [
+    180,
+    250
+   ],
+   [
+    600,
+    880
+   ],
+   0
+  ],
+  [
+   "p13.png",
+   13,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p14.png",
+   14,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p15.png",
+   15,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p16.png",
+   16,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p17.png",
+   17,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p18.png",
+   18,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p19.png",
+   19,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p20.png",
+   20,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p21.png",
+   21,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p22.png",
+   22,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p23.png",
+   23,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p24.png",
+   24,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p25.png",
+   25,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ],
+  [
+   "p26.png",
+   26,
+   [
+    180,
+    250
+   ],
+   [
+    720,
+    1000
+   ],
+   0
+  ]
+ ],
+ "scenarios": {
+  "full": {
+   "result": {
+    "ready": true,
+    "base": 15,
+    "stickers": 14,
+    "approvedStickers": false,
+    "cues": [
+     {
+      "start": 29,
+      "end": 40,
+      "dir": "up",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "01-sticker.mov"
+     },
+     {
+      "start": 61,
+      "end": 72,
+      "dir": "right",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "02-sticker.mov"
+     },
+     {
+      "start": 93,
+      "end": 104,
+      "dir": "left",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "03-sticker.mov"
+     },
+     {
+      "start": 132,
+      "end": 140,
+      "dir": "down",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "04-sticker.mov"
+     },
+     {
+      "start": 227,
+      "end": 235,
+      "dir": "left",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "05-sticker.mov"
+     },
+     {
+      "start": 363,
+      "end": 371,
+      "dir": "up",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "06-sticker.mov"
+     },
+     {
+      "start": 156,
+      "end": 166,
+      "dir": "instant",
+      "x": 96,
+      "y": -113,
+      "s": 1.098,
+      "file": "07-sticker.mov"
+     },
+     {
+      "start": 166,
+      "end": 196,
+      "dir": "instant",
+      "x": 301,
+      "y": -503,
+      "s": 0.564,
+      "file": "07-sticker.mov"
+     },
+     {
+      "start": 166,
+      "end": 196,
+      "dir": "instant",
+      "x": -183,
+      "y": 103,
+      "s": 0.872,
+      "file": "08-sticker.mov"
+     },
+     {
+      "start": 177,
+      "end": 196,
+      "dir": "instant",
+      "x": 329,
+      "y": 112,
+      "s": 1.032,
+      "file": "09-sticker.mov"
+     },
+     {
+      "start": 267,
+      "end": 283,
+      "dir": "instant",
+      "x": -178,
+      "y": 220,
+      "s": 0.751,
+      "file": "10-sticker.mov"
+     },
+     {
+      "start": 324,
+      "end": 337,
+      "dir": "instant",
+      "x": -1,
+      "y": -31,
+      "s": 0.773,
+      "file": "11-sticker.mov"
+     },
+     {
+      "start": 401,
+      "end": 411,
+      "dir": "instant",
+      "x": -177,
+      "y": 113,
+      "s": 0.823,
+      "file": "12-sticker.mov"
+     },
+     {
+      "start": 436,
+      "end": 457,
+      "dir": "up",
+      "x": 12,
+      "y": 325,
+      "s": 0.641,
+      "file": "13-sticker.mov"
+     },
+     {
+      "start": 457,
+      "end": 478,
+      "dir": "fade",
+      "x": 39,
+      "y": -227,
+      "s": 1.3,
+      "file": "14-sticker.mov"
+     }
+    ],
+    "spot": {
+     "x": 0.55,
+     "y": 0.511
+    },
+    "rows": [
+     {
+      "index": 1,
+      "name": "p01.png",
+      "stickerReady": true,
+      "area": 0.225,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.228,
+       0.397,
+       0.769,
+       0.926
+      ],
+      "stickerNumber": 1,
+      "baseSlot": 2
+     },
+     {
+      "index": 2,
+      "name": "p02.png",
+      "stickerReady": true,
+      "area": 0.279,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.287,
+       0.418,
+       0.924,
+       0.976
+      ],
+      "stickerNumber": 2,
+      "baseSlot": 3
+     },
+     {
+      "index": 3,
+      "name": "p03.png",
+      "stickerReady": true,
+      "area": 0.333,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.12,
+       0.439,
+       0.854,
+       1.0
+      ],
+      "stickerNumber": 3,
+      "baseSlot": 4
+     },
+     {
+      "index": 4,
+      "name": "p04.png",
+      "stickerReady": true,
+      "area": 0.24,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.328,
+       0.459,
+       0.861,
+       1.0
+      ],
+      "stickerNumber": 4,
+      "baseSlot": 5
+     },
+     {
+      "index": 5,
+      "name": "p05.png",
+      "stickerReady": false,
+      "area": 0.208,
+      "left": 0.629,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.0,
+       0.314,
+       0.391,
+       0.959
+      ],
+      "baseSlot": 1
+     },
+     {
+      "index": 6,
+      "name": "p06.png",
+      "stickerReady": true,
+      "area": 0.384,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.22,
+       0.334,
+       0.946,
+       1.0
+      ],
+      "stickerNumber": 5,
+      "baseSlot": 8
+     },
+     {
+      "index": 7,
+      "name": "p07.png",
+      "stickerReady": true,
+      "area": 0.279,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.202,
+       0.355,
+       0.728,
+       1.0
+      ],
+      "stickerNumber": 6,
+      "baseSlot": 14
+     },
+     {
+      "index": 8,
+      "name": "p08.png",
+      "stickerReady": true,
+      "area": 0.325,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.261,
+       0.376,
+       0.883,
+       1.0
+      ],
+      "baseSlot": 10
+     },
+     {
+      "index": 9,
+      "name": "p09.png",
+      "stickerReady": true,
+      "area": 0.281,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.094,
+       0.522,
+       0.813,
+       1.0
+      ],
+      "baseSlot": 12
+     },
+     {
+      "index": 10,
+      "name": "p10.png",
+      "stickerReady": false,
+      "area": 0.151,
+      "left": 0.52,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.0,
+       0.376,
+       0.335,
+       0.918
+      ],
+      "baseSlot": 7
+     },
+     {
+      "index": 11,
+      "name": "p11.png",
+      "stickerReady": true,
+      "area": 0.276,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.135,
+       0.397,
+       0.75,
+       0.968
+      ],
+      "baseSlot": 9
+     },
+     {
+      "index": 12,
+      "name": "p12.png",
+      "stickerReady": true,
+      "area": 0.332,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.194,
+       0.418,
+       0.906,
+       1.0
+      ],
+      "baseSlot": 6
+     },
+     {
+      "index": 13,
+      "name": "p13.png",
+      "stickerReady": true,
+      "area": 0.238,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.176,
+       0.439,
+       0.687,
+       1.0
+      ],
+      "baseSlot": 11
+     },
+     {
+      "index": 14,
+      "name": "p14.png",
+      "stickerReady": true,
+      "area": 0.276,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.235,
+       0.459,
+       0.843,
+       1.0
+      ],
+      "baseSlot": 13
+     },
+     {
+      "index": 15,
+      "name": "p15.png",
+      "stickerReady": false,
+      "area": 0.242,
+      "left": 0.673,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.916,
+      "box": [
+       0.0,
+       0.314,
+       0.428,
+       1.0
+      ],
+      "baseSlot": 15
+     },
+     {
+      "index": 16,
+      "name": "p16.png",
+      "stickerReady": true,
+      "area": 0.275,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.276,
+       0.334,
+       0.78,
+       1.0
+      ]
+     },
+     {
+      "index": 17,
+      "name": "p17.png",
+      "stickerReady": true,
+      "area": 0.323,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.109,
+       0.355,
+       0.709,
+       1.0
+      ],
+      "stickerNumber": 7
+     },
+     {
+      "index": 18,
+      "name": "p18.png",
+      "stickerReady": true,
+      "area": 0.282,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.169,
+       0.501,
+       0.865,
+       1.0
+      ],
+      "stickerNumber": 8
+     },
+     {
+      "index": 19,
+      "name": "p19.png",
+      "stickerReady": true,
+      "area": 0.216,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.15,
+       0.355,
+       0.646,
+       0.909
+      ],
+      "stickerNumber": 9
+     },
+     {
+      "index": 20,
+      "name": "p20.png",
+      "stickerReady": false,
+      "area": 0.179,
+      "left": 0.566,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.0,
+       0.376,
+       0.372,
+       0.959
+      ]
+     },
+     {
+      "index": 21,
+      "name": "p21.png",
+      "stickerReady": true,
+      "area": 0.33,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.269,
+       0.397,
+       0.957,
+       1.0
+      ],
+      "stickerNumber": 10
+     },
+     {
+      "index": 22,
+      "name": "p22.png",
+      "stickerReady": true,
+      "area": 0.235,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.25,
+       0.418,
+       0.739,
+       1.0
+      ],
+      "stickerNumber": 11
+     },
+     {
+      "index": 23,
+      "name": "p23.png",
+      "stickerReady": true,
+      "area": 0.276,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.309,
+       0.439,
+       0.894,
+       1.0
+      ],
+      "stickerNumber": 12
+     },
+     {
+      "index": 24,
+      "name": "p24.png",
+      "stickerReady": true,
+      "area": 0.375,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.143,
+       0.293,
+       0.824,
+       0.993
+      ],
+      "stickerNumber": 13
+     },
+     {
+      "index": 25,
+      "name": "p25.png",
+      "stickerReady": false,
+      "area": 0.186,
+      "left": 0.67,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 1.0,
+      "box": [
+       0.0,
+       0.314,
+       0.317,
+       1.0
+      ]
+     },
+     {
+      "index": 26,
+      "name": "p26.png",
+      "stickerReady": true,
+      "area": 0.231,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.183,
+       0.459,
+       0.761,
+       0.968
+      ],
+      "stickerNumber": 14
+     }
+    ],
+    "rejected": [
+     {
+      "name": "p03-copy.png",
+      "reason": "duplicate photo"
+     },
+     {
+      "name": "p07-near.png",
+      "reason": "near-duplicate photo"
+     },
+     {
+      "name": "wide.png",
+      "reason": "landscape photo"
+     },
+     {
+      "name": "small.png",
+      "reason": "resolution too low"
+     }
+    ]
+   },
+   "stickers": {
+    "01-sticker.mov": "9e353a1ca90020b04e326bd535db9039480dd7f0eab6dbebb3828544efba1256",
+    "02-sticker.mov": "9848fd24f6169395e65a1e0999e96eb44b92b5d38f024b56f79120e10e710e88",
+    "03-sticker.mov": "7cde48194ce60e71e117a5a3a24df15d551d48c9ef88ce6f4d123a7c67bca750",
+    "04-sticker.mov": "a818c07d9c5376cb85d2481972ad42c545988d1c95814b92ada683882445184d",
+    "05-sticker.mov": "5b3014393bb17470d1c76ea8f6c2cf10b459b2944a7073e1095e895ca5d9b957",
+    "06-sticker.mov": "297691d4f42b3e4a47cd8619147cb0dac65dd6b855a9a23092b80981d1f322e3",
+    "07-sticker.mov": "04ce93d1f108ee7a49a4dc5fe06297f2ab1e12e66b62e7197e755a291f6459e2",
+    "08-sticker.mov": "c2fedee348dfa3759d60f4593594b8489e96e79ac84f5ed6d9c4a3ae3a9741ba",
+    "09-sticker.mov": "cff02022851c77b1d8a32627cee578a0639e6fdd866cd98cdc3be2f8b37a7bf6",
+    "10-sticker.mov": "616a8375a18b241b7c6af7b7a301e08c3f9f49ec034f11ab78946e53541588a3",
+    "11-sticker.mov": "7dd7b1510d1551503a55aef7dc313097a724e4a482aab1fb497f640a59954b3c",
+    "12-sticker.mov": "637b3e04f8206c1e3afdb6fd9d04882084f3411bbc6791507e739ae4c904fb64",
+    "13-sticker.mov": "76febbcf83ee4e808e7a0aeb8667e1092cfc4efe52975a26e6a9bad5abe6b331",
+    "14-sticker.mov": "be54bdd203dff745a6ed85a5a61a89b9de94dd11ef13fb41730b53f8d9cb0169"
+   },
+   "bases": {
+    "1": "8e22dfc11a3708cf56e9d80bf4bb7da10e75997452301f0fe4181a109fb9b7f8",
+    "2": "ec2e604d1955eb4730a5830439267904065309656e54abcab108ad93c0744994",
+    "3": "21c75903f310991b5350f3760bb6bf8aa69c193acad69ae4ae04fb349a7ce9fa",
+    "4": "ab15e583d328e00fa99ada0f28f292935580ca86257e9e9552d467e147182ed3",
+    "5": "5c7ff3693b55e4043ed4103a171f8f718e4f1be1d5d7550ed8bb2da0a1828854",
+    "6": "baf89296ddf790d29997a79bc9bf80d2bc4d2a6807f7df6f358fd23895fcb505",
+    "7": "4f78ad436668edd8e195f657a90468a64afab4a80a5842c2d67486ebce970613",
+    "8": "4b0984d25974fe956c5a534568aa0a37aa54ad3f329a52edadd0b2f1a3e92a9e",
+    "9": "e9f1868b1219141db8ab7b642d06da779d06afed60ee9c22c56db59ccc8ae650",
+    "10": "8f4f3c9c992da359df1abc98b91534fe8a15d80d67793efdf7c88ff6035cad4e",
+    "11": "09c6a3bb4c6bbbea3dffc501d95c5d57ff7edc0d8d60d1a9817c89d47df6fa5e",
+    "12": "112d77d68fab1e95f1608b9197fe83c2ae422789100012fc81d891549a4d9a8a",
+    "13": "d65ef5ca4e30c53af96ed112d648cfe28850070fcc7b8d3c8d8b3765f419a82b",
+    "14": "d8f6ff1a68624753baacd3c3c4aee879e6e6116d5d001d29f7cf4c6ebe57697e",
+    "15": "6582df34d8dc816ba5c2e2dd6647192184039615faed84f4527be59f60541289",
+    "16": "19efb102ac97bfcb4b2a473f1dad6090b4e295611a6830a11c2ac4b8aeb4fffe",
+    "17": "b9a718408fdd9a87027b4f760fa378071770edc50da8eb2ce48fae7f11791d7a",
+    "18": "c9dbe51605bcfbd6c42fbf7d4459afa5b716e81eceffa25608aa24a5425c6b20",
+    "19": "053c36653d0bccc2e49efdd7f9cbf8eb52b869379b9501d17264177c88106205",
+    "20": "c362c7d77bd1cd4fd9fb9d305c005cd6c37b5d4643a80bf578cf6e85116103e5",
+    "21": "0318181994d7a5810798e5ae961cb36502b6e5277c47e30872d9a99e54c9dc24",
+    "22": "f159b1ee74727326fe90deb0dbf9ce87fe163f100f7d6d3058e3e3c54d338cb2",
+    "23": "3d8a6f5017eee25363372e51a99e93a008ec35dd29e9ffa89759946190ee1e99",
+    "24": "ef3cb542098ff4fe224a7ef6741fd0104d9cb9d0dd64383e2865fe248d6e512f",
+    "25": "bc534e8356e1f7735410753ed9cb6e6639e4941583729b135c5ebd15b05e6130",
+    "26": "b84e2318dad8ce36af36648fcfef4a940320069f5646f773dbc5171f5007d772"
+   }
+  },
+  "short": {
+   "result": {
+    "ready": true,
+    "base": 15,
+    "stickers": 13,
+    "approvedStickers": false,
+    "cues": [
+     {
+      "start": 29,
+      "end": 40,
+      "dir": "up",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "01-sticker.mov"
+     },
+     {
+      "start": 61,
+      "end": 72,
+      "dir": "right",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "02-sticker.mov"
+     },
+     {
+      "start": 93,
+      "end": 104,
+      "dir": "left",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "03-sticker.mov"
+     },
+     {
+      "start": 132,
+      "end": 140,
+      "dir": "down",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "04-sticker.mov"
+     },
+     {
+      "start": 227,
+      "end": 235,
+      "dir": "left",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "05-sticker.mov"
+     },
+     {
+      "start": 363,
+      "end": 371,
+      "dir": "up",
+      "x": 0,
+      "y": 0,
+      "s": 1,
+      "file": "06-sticker.mov"
+     },
+     {
+      "start": 156,
+      "end": 166,
+      "dir": "instant",
+      "x": 83,
+      "y": -269,
+      "s": 1.26,
+      "file": "07-sticker.mov"
+     },
+     {
+      "start": 166,
+      "end": 196,
+      "dir": "instant",
+      "x": 294,
+      "y": -583,
+      "s": 0.648,
+      "file": "07-sticker.mov"
+     },
+     {
+      "start": 166,
+      "end": 196,
+      "dir": "instant",
+      "x": -209,
+      "y": -17,
+      "s": 0.998,
+      "file": "08-sticker.mov"
+     },
+     {
+      "start": 177,
+      "end": 196,
+      "dir": "instant",
+      "x": 190,
+      "y": 103,
+      "s": 0.873,
+      "file": "09-sticker.mov"
+     },
+     {
+      "start": 267,
+      "end": 283,
+      "dir": "instant",
+      "x": -18,
+      "y": 267,
+      "s": 0.702,
+      "file": "10-sticker.mov"
+     },
+     {
+      "start": 324,
+      "end": 337,
+      "dir": "instant",
+      "x": 84,
+      "y": 72,
+      "s": 0.812,
+      "file": "11-sticker.mov"
+     },
+     {
+      "start": 401,
+      "end": 411,
+      "dir": "instant",
+      "x": -82,
+      "y": 140,
+      "s": 0.794,
+      "file": "12-sticker.mov"
+     },
+     {
+      "start": 436,
+      "end": 478,
+      "dir": "up",
+      "x": -89,
+      "y": 168,
+      "s": 0.805,
+      "file": "13-sticker.mov"
+     }
+    ],
+    "spot": {
+     "x": 0.583,
+     "y": 0.068
+    },
+    "rows": [
+     {
+      "index": 1,
+      "name": "p01.png",
+      "stickerReady": true,
+      "area": 0.225,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.228,
+       0.397,
+       0.769,
+       0.926
+      ],
+      "stickerNumber": 1,
+      "baseSlot": 2
+     },
+     {
+      "index": 2,
+      "name": "p02.png",
+      "stickerReady": true,
+      "area": 0.279,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.287,
+       0.418,
+       0.924,
+       0.976
+      ],
+      "stickerNumber": 2,
+      "baseSlot": 3
+     },
+     {
+      "index": 3,
+      "name": "p03.png",
+      "stickerReady": false,
+      "area": 0.23,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.704,
+      "corner": 0.0,
+      "box": [
+       0.12,
+       0.0,
+       0.854,
+       0.378
+      ],
+      "baseSlot": 1
+     },
+     {
+      "index": 4,
+      "name": "p04.png",
+      "stickerReady": true,
+      "area": 0.24,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.328,
+       0.459,
+       0.861,
+       1.0
+      ],
+      "stickerNumber": 3,
+      "baseSlot": 4
+     },
+     {
+      "index": 5,
+      "name": "p05.png",
+      "stickerReady": false,
+      "area": 0.208,
+      "left": 0.629,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.0,
+       0.314,
+       0.391,
+       0.959
+      ],
+      "baseSlot": 7
+     },
+     {
+      "index": 6,
+      "name": "p06.png",
+      "stickerReady": false,
+      "area": 0.253,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.704,
+      "corner": 0.0,
+      "box": [
+       0.22,
+       0.0,
+       0.946,
+       0.422
+      ],
+      "baseSlot": 6
+     },
+     {
+      "index": 7,
+      "name": "p07.png",
+      "stickerReady": true,
+      "area": 0.279,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.202,
+       0.355,
+       0.728,
+       1.0
+      ],
+      "stickerNumber": 4,
+      "baseSlot": 5
+     },
+     {
+      "index": 8,
+      "name": "p08.png",
+      "stickerReady": true,
+      "area": 0.325,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.261,
+       0.376,
+       0.883,
+       1.0
+      ],
+      "stickerNumber": 5,
+      "baseSlot": 8
+     },
+     {
+      "index": 9,
+      "name": "p09.png",
+      "stickerReady": false,
+      "area": 0.204,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.681,
+      "corner": 0.0,
+      "box": [
+       0.094,
+       0.0,
+       0.813,
+       0.341
+      ],
+      "baseSlot": 9
+     },
+     {
+      "index": 10,
+      "name": "p10.png",
+      "stickerReady": false,
+      "area": 0.151,
+      "left": 0.52,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.0,
+       0.376,
+       0.335,
+       0.918
+      ],
+      "baseSlot": 11
+     },
+     {
+      "index": 11,
+      "name": "p11.png",
+      "stickerReady": true,
+      "area": 0.276,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.135,
+       0.397,
+       0.75,
+       0.968
+      ],
+      "stickerNumber": 6,
+      "baseSlot": 14
+     },
+     {
+      "index": 12,
+      "name": "p12.png",
+      "stickerReady": false,
+      "area": 0.227,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.684,
+      "corner": 0.0,
+      "box": [
+       0.194,
+       0.0,
+       0.906,
+       0.384
+      ],
+      "baseSlot": 12
+     },
+     {
+      "index": 13,
+      "name": "p13.png",
+      "stickerReady": true,
+      "area": 0.238,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.176,
+       0.439,
+       0.687,
+       1.0
+      ],
+      "stickerNumber": 7
+     },
+     {
+      "index": 14,
+      "name": "p14.png",
+      "stickerReady": true,
+      "area": 0.276,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.235,
+       0.459,
+       0.843,
+       1.0
+      ],
+      "stickerNumber": 8
+     },
+     {
+      "index": 15,
+      "name": "p15.png",
+      "stickerReady": false,
+      "area": 0.157,
+      "left": 0.421,
+      "right": 0.0,
+      "top": 0.418,
+      "corner": 1.0,
+      "box": [
+       0.0,
+       0.0,
+       0.428,
+       0.428
+      ],
+      "baseSlot": 13
+     },
+     {
+      "index": 16,
+      "name": "p16.png",
+      "stickerReady": true,
+      "area": 0.275,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.276,
+       0.334,
+       0.78,
+       1.0
+      ],
+      "stickerNumber": 9
+     },
+     {
+      "index": 17,
+      "name": "p17.png",
+      "stickerReady": true,
+      "area": 0.323,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.109,
+       0.355,
+       0.709,
+       1.0
+      ],
+      "stickerNumber": 10
+     },
+     {
+      "index": 18,
+      "name": "p18.png",
+      "stickerReady": false,
+      "area": 0.201,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.662,
+      "corner": 0.0,
+      "box": [
+       0.169,
+       0.0,
+       0.865,
+       0.347
+      ],
+      "baseSlot": 15
+     },
+     {
+      "index": 19,
+      "name": "p19.png",
+      "stickerReady": true,
+      "area": 0.216,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.15,
+       0.355,
+       0.646,
+       0.909
+      ],
+      "stickerNumber": 11
+     },
+     {
+      "index": 20,
+      "name": "p20.png",
+      "stickerReady": false,
+      "area": 0.179,
+      "left": 0.566,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.0,
+       0.376,
+       0.372,
+       0.959
+      ]
+     },
+     {
+      "index": 21,
+      "name": "p21.png",
+      "stickerReady": false,
+      "area": 0.223,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.664,
+      "corner": 0.072,
+      "box": [
+       0.269,
+       0.0,
+       0.957,
+       0.391
+      ]
+     },
+     {
+      "index": 22,
+      "name": "p22.png",
+      "stickerReady": true,
+      "area": 0.235,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.25,
+       0.418,
+       0.739,
+       1.0
+      ],
+      "stickerNumber": 12
+     },
+     {
+      "index": 23,
+      "name": "p23.png",
+      "stickerReady": true,
+      "area": 0.276,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 0.0,
+      "box": [
+       0.309,
+       0.439,
+       0.894,
+       1.0
+      ],
+      "stickerNumber": 13
+     },
+     {
+      "index": 24,
+      "name": "p24.png",
+      "stickerReady": false,
+      "area": 0.244,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.662,
+      "corner": 0.0,
+      "box": [
+       0.143,
+       0.0,
+       0.824,
+       0.434
+      ],
+      "baseSlot": 10
+     },
+     {
+      "index": 25,
+      "name": "p25.png",
+      "stickerReady": false,
+      "area": 0.186,
+      "left": 0.67,
+      "right": 0.0,
+      "top": 0.0,
+      "corner": 1.0,
+      "box": [
+       0.0,
+       0.314,
+       0.317,
+       1.0
+      ]
+     },
+     {
+      "index": 26,
+      "name": "p26.png",
+      "stickerReady": false,
+      "area": 0.163,
+      "left": 0.0,
+      "right": 0.0,
+      "top": 0.547,
+      "corner": 0.0,
+      "box": [
+       0.183,
+       0.0,
+       0.761,
+       0.339
+      ]
+     }
+    ],
+    "rejected": [
+     {
+      "name": "p03-copy.png",
+      "reason": "duplicate photo"
+     },
+     {
+      "name": "p07-near.png",
+      "reason": "near-duplicate photo"
+     },
+     {
+      "name": "wide.png",
+      "reason": "landscape photo"
+     },
+     {
+      "name": "small.png",
+      "reason": "resolution too low"
+     }
+    ]
+   },
+   "stickers": {
+    "01-sticker.mov": "9e353a1ca90020b04e326bd535db9039480dd7f0eab6dbebb3828544efba1256",
+    "02-sticker.mov": "9848fd24f6169395e65a1e0999e96eb44b92b5d38f024b56f79120e10e710e88",
+    "03-sticker.mov": "758dd40692e61fc3fc1d4f562d145991e86deb7556794dfa0150d2ce643684a7",
+    "04-sticker.mov": "1886b5cb125f384b1eb768d7131a87bb6c7a98e353f70285c7ae38894f7c546c",
+    "05-sticker.mov": "99e899a2ae818cd1b173b300f097c5352daae4e51443ebbc637c412a12e0c6c0",
+    "06-sticker.mov": "314ed8d7112dab67fc404f6d8af0a8395ec9e7b32c564180f3f0b3e079ed5c4a",
+    "07-sticker.mov": "fc2f325461f199018220b9cd4077318f77818a208d583b51779c29757c6092e6",
+    "08-sticker.mov": "3d380e9f3ab8e1676e47be04c9ea24077190ab875e32bba862e6f669a307cc6b",
+    "09-sticker.mov": "1c84924b13c04895f3e1dee5177cdfee6ec225f8b74fcba251fe1447e7c64ed2",
+    "10-sticker.mov": "b13f02bb7a44d938c53aeb8576473f5ff356ae8492ebc985908dd7b9d025029d",
+    "11-sticker.mov": "03a83019de07732d1a716df93515ce686edae2e3ec735607233f50a3c9b98feb",
+    "12-sticker.mov": "71a55c26bad65311ec2c0500e7d3f4c5669425c3774b27b3ff7261f3b6dadd5a",
+    "13-sticker.mov": "637b3e04f8206c1e3afdb6fd9d04882084f3411bbc6791507e739ae4c904fb64"
+   },
+   "bases": {
+    "1": "8e22dfc11a3708cf56e9d80bf4bb7da10e75997452301f0fe4181a109fb9b7f8",
+    "2": "ec2e604d1955eb4730a5830439267904065309656e54abcab108ad93c0744994",
+    "3": "9af5f13105a7bf47db87ebce38a4657c5fd8ee6b5102a47aea27326840e4c039",
+    "4": "7f63cd127b1d7465afa7ef44f700e7965f5aa72e8247f9464823cfb4d526515d",
+    "5": "5c7ff3693b55e4043ed4103a171f8f718e4f1be1d5d7550ed8bb2da0a1828854",
+    "6": "09f83606330c0641fd8964df8c89b40c9b17c15e1529e7200b3fc3a57dcbcafa",
+    "7": "d1e7918c216b306e27876eac6c82c0af39ad2c68a29748a3f7f91197cb3cfb6d",
+    "8": "044b9b65dbd4b0f8485341d1d3070017bb75b242b9789dc281ec4ae6c3e5a3fb",
+    "9": "e9f1868b1219141db8ab7b642d06da779d06afed60ee9c22c56db59ccc8ae650",
+    "10": "8f4f3c9c992da359df1abc98b91534fe8a15d80d67793efdf7c88ff6035cad4e",
+    "11": "8c411ec6c4f25731ba850523340281652218ca61d9919a2caf485b80a870bf4b",
+    "12": "112d77d68fab1e95f1608b9197fe83c2ae422789100012fc81d891549a4d9a8a",
+    "13": "d65ef5ca4e30c53af96ed112d648cfe28850070fcc7b8d3c8d8b3765f419a82b",
+    "14": "d8f6ff1a68624753baacd3c3c4aee879e6e6116d5d001d29f7cf4c6ebe57697e",
+    "15": "6582df34d8dc816ba5c2e2dd6647192184039615faed84f4527be59f60541289",
+    "16": "19efb102ac97bfcb4b2a473f1dad6090b4e295611a6830a11c2ac4b8aeb4fffe",
+    "17": "b9a718408fdd9a87027b4f760fa378071770edc50da8eb2ce48fae7f11791d7a",
+    "18": "c9dbe51605bcfbd6c42fbf7d4459afa5b716e81eceffa25608aa24a5425c6b20",
+    "19": "053c36653d0bccc2e49efdd7f9cbf8eb52b869379b9501d17264177c88106205",
+    "20": "c362c7d77bd1cd4fd9fb9d305c005cd6c37b5d4643a80bf578cf6e85116103e5",
+    "21": "0318181994d7a5810798e5ae961cb36502b6e5277c47e30872d9a99e54c9dc24",
+    "22": "f159b1ee74727326fe90deb0dbf9ce87fe163f100f7d6d3058e3e3c54d338cb2",
+    "23": "3d8a6f5017eee25363372e51a99e93a008ec35dd29e9ffa89759946190ee1e99",
+    "24": "ef3cb542098ff4fe224a7ef6741fd0104d9cb9d0dd64383e2865fe248d6e512f",
+    "25": "bc534e8356e1f7735410753ed9cb6e6639e4941583729b135c5ebd15b05e6130",
+    "26": "b84e2318dad8ce36af36648fcfef4a940320069f5646f773dbc5171f5007d772"
+   }
+  }
+ }
+}
