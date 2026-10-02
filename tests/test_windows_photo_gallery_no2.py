@@ -143,6 +143,25 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         for needle in ("brew ", "Homebrew", "nvm ", "CPython", "runtime.sh", "tempo.py"):
             self.assertNotIn(needle, install, needle)
 
+    def test_chat_skill_needs_no_node_or_shell(self):
+        skill = read(os.path.join(PLUGIN, "SKILL.md"))
+        self.assertNotIn("stdin", skill)
+        self.assertNotIn("from `build-script.mjs`", skill)
+        self.assertIn("return await galleryOperation(selects, <operation JSON>);", skill)
+
+    @unittest.skipUnless(shutil.which("node"), "node runs operation-builder.mjs")
+    def test_chat_skill_recipe_matches_the_panel_prefix(self):
+        recipe = (
+            read(os.path.join(PLUGIN, "format.mjs")).replace("export const REFERENCE", "const REFERENCE", 1)
+            .replace("export function planGallery", "function planGallery", 1)
+            + "\n" + read(os.path.join(PLUGIN, "operation-runtime.js")) + "\nreturn await galleryOperation(selects, "
+        )
+        out = subprocess.run(
+            ["node", "--input-type=module", "-e",
+             "import {SCRIPT_PREFIX} from './operation-builder.mjs'; process.stdout.write(SCRIPT_PREFIX)"],
+            cwd=PLUGIN, capture_output=True, text=True, check=True).stdout
+        self.assertEqual(recipe, out)
+
 
 if __name__ == "__main__":
     unittest.main()
