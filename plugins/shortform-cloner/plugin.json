@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "shortform-cloner",
-  "version": "0.3.0-alpha.2",
+  "version": "0.3.0-alpha.3",
   "name": "Selects Clips",
   "summary": "Make a template from a channel's best shorts, then turn any long video into editable shorts that follow it.",
   "status": "experimental",
