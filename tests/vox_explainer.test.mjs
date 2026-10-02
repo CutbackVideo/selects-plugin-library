@@ -71,9 +71,11 @@ test('media_duration and silences match engine.py', {skip}, () => {
   assert.deepEqual(op.voxParseSilences(''), []);
 });
 
-test('ken_burns argv matches engine.py', {skip}, () => {
-  assert.deepEqual(['ffmpeg', ...op.voxKenBurnsArgs('/k/kf 1a.png', '/k/out.mp4', 3.417, true)], ref.calls[2]);
-  assert.deepEqual(['ffmpeg', ...op.voxKenBurnsArgs('/k/kf 1a.png', '/k/out.mp4', 3.417, false)], ref.calls[3]);
+// The panel adds -write_tmcd 0 before the output, so the mp4 holds its one video stream only.
+const withTmcd = (argv) => [...argv.slice(0, -1), '-write_tmcd', '0', argv[argv.length - 1]];
+test('ken_burns argv matches engine.py, plus -write_tmcd 0', {skip}, () => {
+  assert.deepEqual(['ffmpeg', ...op.voxKenBurnsArgs('/k/kf 1a.png', '/k/out.mp4', 3.417, true)], withTmcd(ref.calls[2]));
+  assert.deepEqual(['ffmpeg', ...op.voxKenBurnsArgs('/k/kf 1a.png', '/k/out.mp4', 3.417, false)], withTmcd(ref.calls[3]));
 });
 
 test('sheet argv and sheet list match engine.py', {skip}, () => {

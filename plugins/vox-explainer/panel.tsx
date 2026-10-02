@@ -17,11 +17,8 @@
 import React from "react";
 
 const APP_ID = "vox-explainer";
-// The engine is installed with the plugin at SELECTS_USER_SKILLS_ROOT/vox-explainer/engine.py. It is a Python script
-// run through the shell, so the whole build runs on macOS only; on Windows the panel opens and says so.
-// mac-only:start
-const ENGINE = '"$SELECTS_USER_SKILLS_ROOT/vox-explainer/engine.py"';
-// mac-only:end
+// The engine (voxEngine, in the operation section below) runs inside the panel on macOS and
+// Windows: files through the host FileSystem, ffmpeg through the host's bundled copy, no shell and no Python.
 const TPL: Record<string, string> = { headline: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Constructivist headline: a slanted black bar with cream type and a red offset block.\nexport default function Headline({ data }) {\n  const frame = useCurrentFrame();\n  const { fps, width } = useVideoConfig();\n  const k = width / 1080;\n  const text = String(data?.text ?? '');\n  const size = Number(data?.fontSize ?? 92);\n  const top = Number(data?.top ?? 110);\n  const bar = String(data?.barColor ?? '#141414');\n  const fg = String(data?.textColor ?? '#F4ECDD');\n  const accent = String(data?.accentColor ?? '#D7261E');\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  const p = spring({ frame, fps, config: { damping: 16, stiffness: 170 } });\n  const x = interpolate(p, [0, 1], [-1200, 0]);\n  const ax = interpolate(p, [0, 1], [900, 0]);\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: '100%', height: 320 * k, pointerEvents: 'none' }}>\n      <div style={{ position: 'absolute', left: 70 * k, top: 8 * k, width: 300 * k, height: 34 * k, background: accent, transform: `translateX(${ax * k}px) rotate(-7deg)` }} />\n      <div style={{ position: 'absolute', left: 24 * k, right: 24 * k, top: 58 * k, display: 'flex', justifyContent: 'center', transform: `translateX(${x * k}px) rotate(-4deg)` }}>\n        <div style={{ background: bar, color: fg, fontFamily, fontWeight: 900, fontSize: size * k, letterSpacing: `${-2 * k}px`, lineHeight: 1.12, padding: `${16 * k}px ${34 * k}px ${22 * k}px`, boxShadow: `${12 * k}px ${12 * k}px 0 ${accent}`, whiteSpace: 'nowrap' }}>{text}</div>\n      </div>\n    </div>\n  );\n}\n", caption: "import React from 'react';\nimport { useVideoConfig } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Spoken-line caption: cream type on a black box, low third of a 9:16 frame.\nexport default function Caption({ data }) {\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const lines = String(data?.text ?? '').split('\\n');\n  const size = Number(data?.fontSize ?? 56);\n  const bottom = Number(data?.bottom ?? 1560);\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  return (\n    <div style={{ position: 'absolute', left: 40 * k, width: 1000 * k, top: 0, height: bottom * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', pointerEvents: 'none' }}>\n      <div style={{ background: String(data?.boxColor ?? 'rgba(20,20,20,0.86)'), padding: `${10 * k}px ${26 * k}px ${14 * k}px`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n        {lines.map((line, i) => (\n          <div key={i} style={{ fontFamily, fontSize: size * k, fontWeight: 700, color: String(data?.textColor ?? '#F4ECDD'), lineHeight: 1.3, letterSpacing: `${-1 * k}px`, whiteSpace: 'nowrap' }}>{line}</div>\n        ))}\n      </div>\n    </div>\n  );\n}\n", credit: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Closing source and photo credit strip.\nexport default function Credit({ data }) {\n  const frame = useCurrentFrame();\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const o = interpolate(frame, [0, 8], [0, 1], { extrapolateRight: 'clamp' });\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  return (\n    <div style={{ position: 'absolute', left: 50 * k, right: 50 * k, top: Number(data?.top ?? 1600) * k, opacity: o, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n      <div style={{ background: '#F4ECDD', color: '#141414', fontFamily, padding: `${14 * k}px ${24 * k}px`, borderLeft: `${10 * k}px solid #D7261E`, display: 'flex', flexDirection: 'column', gap: 6 * k }}>\n        <div style={{ fontSize: Number(data?.sourceSize ?? 34) * k, fontWeight: 800 }}>{String(data?.source ?? '')}</div>\n        <div style={{ fontSize: Number(data?.photoSize ?? 21) * k, fontWeight: 500, lineHeight: 1.3 }}>{String(data?.photos ?? '')}</div>\n      </div>\n    </div>\n  );\n}\n" };
 const CAPTION_BOTTOM = 1790;
 const MUSIC_DB = -19;
@@ -32,8 +29,8 @@ type Strings = {
   summary: (s: number, b: number, sh: number, lang: string) => string; people: string; warnings: string;
   produce: string; producing: string; steps: string[]; done: string; openHint: string; fallback: string;
   missing: string; rerolled: (n: number) => string; checkOk: string; unverified: string; noProject: string;
-  needUrl: string; needText: string; noPython: string; noGeneration: string; recent: string; resume: string;
-  dismiss: string; retry: string; elapsed: string; noMusic: string; macOnly: string; noEngine: string;
+  needUrl: string; needText: string; noHost: string; noGeneration: string; recent: string; resume: string;
+  dismiss: string; retry: string; elapsed: string; noMusic: string;
   errors: Record<string, string>;
 };
 
@@ -52,11 +49,10 @@ const STRINGS: Record<string, Strings> = {
     unverified: "Shots the check still noted after remaking (worth a look)",
     noProject: "Open a Project first.", needUrl: "Enter a source link.",
     needText: "Paste at least 80 characters of source text.",
-    noPython: "Python 3.9 or later was not found. Run xcode-select --install in Terminal, then try again.",
+    noHost: "This Selects version cannot run this app. Update Selects.",
     noGeneration: "This Selects version cannot generate media from apps. Update Selects.",
     recent: "Unfinished jobs", resume: "Resume", dismiss: "Remove from list", retry: "Try again", elapsed: "Elapsed",
     noMusic: "The music could not be made; the Draft has no music.",
-    macOnly: "Available on macOS for now.", noEngine: "The app's files are incomplete. Reinstall it from the Plugin Library.",
     errors: { FETCH_FAILED: "The link could not be opened.", NO_TEXT: "No text was found at the link. Paste the text instead.",
       TEXT_TOO_SHORT: "The source text is too short.", NO_JSON: "The script could not be read from the AI answer. Try again." },
   },
@@ -72,11 +68,10 @@ const STRINGS: Record<string, Strings> = {
     rerolled: (n) => `\uc774\ubbf8\uc9c0 \uc810\uac80\uc5d0\uc11c ${n}\uac1c \uc0f7\uc744 \ub2e4\uc2dc \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.`, checkOk: "\uc774\ubbf8\uc9c0 \uc810\uac80: \ubb38\uc81c \uc5c6\uc74c",
     unverified: "\ub2e4\uc2dc \ub9cc\ub4e0 \ub4a4\uc5d0\ub3c4 \uc810\uac80\uc5d0\uc11c \uc9c0\uc801\ub41c \uc0f7(\ud655\uc778 \uad8c\uc7a5)",
     noProject: "\ud504\ub85c\uc81d\ud2b8\ub97c \uba3c\uc800 \uc5ec\uc138\uc694.", needUrl: "\uc6d0\ubb38 \ub9c1\ud06c\ub97c \ub123\uc73c\uc138\uc694.", needText: "\uc6d0\ubb38 \ud14d\uc2a4\ud2b8\ub97c 80\uc790 \uc774\uc0c1 \ub123\uc73c\uc138\uc694.",
-    noPython: "Python 3.9 \uc774\uc0c1\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ud130\ubbf8\ub110\uc5d0\uc11c xcode-select --install \uc744 \uc2e4\ud589\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    noHost: "\uc774 Selects \ubc84\uc804\uc5d0\uc11c\ub294 \uc774 \uc571\uc744 \uc2e4\ud589\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud558\uc138\uc694.",
     noGeneration: "\uc774 Selects \ubc84\uc804\uc740 \uc571\uc5d0\uc11c \ubbf8\ub514\uc5b4 \uc0dd\uc131\uc744 \uc9c0\uc6d0\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud558\uc138\uc694.",
     recent: "\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5", resume: "\uc774\uc5b4\uc11c \ub9cc\ub4e4\uae30", dismiss: "\ubaa9\ub85d\uc5d0\uc11c \uc9c0\uc6b0\uae30", retry: "\ub2e4\uc2dc \uc2dc\ub3c4", elapsed: "\uacbd\uacfc",
     noMusic: "\ubc30\uacbd\uc74c\uc545\uc744 \ub9cc\ub4e4\uc9c0 \ubabb\ud574 \uc74c\uc545 \uc5c6\uc774 \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.",
-    macOnly: "\uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.", noEngine: "\uc571 \ud30c\uc77c\uc774 \ube60\uc838 \uc788\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778 \ub77c\uc774\ube0c\ub7ec\ub9ac\uc5d0\uc11c \ub2e4\uc2dc \uc124\uce58\ud558\uc138\uc694.",
     errors: { FETCH_FAILED: "\ub9c1\ud06c\ub97c \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", NO_TEXT: "\ub9c1\ud06c\uc5d0\uc11c \ubcf8\ubb38\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ud14d\uc2a4\ud2b8\ub85c \ubd99\uc5ec\ub123\uc5b4 \uc8fc\uc138\uc694.",
       TEXT_TOO_SHORT: "\uc6d0\ubb38 \ud14d\uc2a4\ud2b8\uac00 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4.", NO_JSON: "AI \uc751\ub2f5\uc5d0\uc11c \uad6c\uc131\uc548\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694." },
   },
@@ -93,11 +88,10 @@ const STRINGS: Record<string, Strings> = {
     unverified: "作り直した後もチェックで指摘されたショット(確認をおすすめします)",
     noProject: "先にプロジェクトを開いてください。", needUrl: "原文のリンクを入力してください。",
     needText: "原文テキストを80文字以上貼り付けてください。",
-    noPython: "Python 3.9以降が見つかりません。ターミナルで xcode-select --install を実行してから再試行してください。",
+    noHost: "このバージョンの Selects ではこのアプリを実行できません。Selects をアップデートしてください。",
     noGeneration: "このバージョンのSelectsはアプリからのメディア生成に対応していません。Selectsを更新してください。",
     recent: "未完了のジョブ", resume: "続きから作成", dismiss: "一覧から削除", retry: "再試行", elapsed: "経過",
     noMusic: "BGMを作成できなかったため、音楽なしで作成しました。",
-    macOnly: "現在は macOS でのみ利用できます。", noEngine: "アプリのファイルが不足しています。プラグインライブラリから再インストールしてください。",
     errors: { FETCH_FAILED: "リンクを開けませんでした。", NO_TEXT: "リンクから本文が見つかりませんでした。テキストで貼り付けてください。",
       TEXT_TOO_SHORT: "原文テキストが短すぎます。", NO_JSON: "AIの回答から構成案を読み取れませんでした。再試行してください。" },
   },
@@ -113,11 +107,10 @@ const STRINGS: Record<string, Strings> = {
     rerolled: (n) => `图像检查后重新生成了${n}个镜头。`, checkOk: "图像检查：没有问题",
     unverified: "重新生成后检查仍有提示的镜头（建议确认）",
     noProject: "请先打开项目。", needUrl: "请输入原文链接。", needText: "请粘贴至少80个字符的原文文本。",
-    noPython: "未找到 Python 3.9 或更高版本。请在终端运行 xcode-select --install 后重试。",
+    noHost: "此版本的 Selects 无法运行此应用。请更新 Selects。",
     noGeneration: "此版本的 Selects 不支持在应用中生成媒体。请更新 Selects。",
     recent: "未完成的任务", resume: "继续生成", dismiss: "从列表中移除", retry: "重试", elapsed: "已用时",
     noMusic: "未能生成背景音乐，草稿中没有音乐。",
-    macOnly: "目前仅支持 macOS。", noEngine: "应用文件不完整。请从插件库重新安装。",
     errors: { FETCH_FAILED: "无法打开链接。", NO_TEXT: "未能从链接中找到正文，请粘贴文本。",
       TEXT_TOO_SHORT: "原文文本太短。", NO_JSON: "无法从 AI 回复中读取脚本，请重试。" },
   },
@@ -134,11 +127,10 @@ const STRINGS: Record<string, Strings> = {
     unverified: "Einstellungen, zu denen die Prüfung nach der Neuerstellung noch etwas anmerkt (bitte ansehen)",
     noProject: "Öffne zuerst ein Projekt.", needUrl: "Gib einen Link zur Quelle ein.",
     needText: "Füge mindestens 80 Zeichen Quelltext ein.",
-    noPython: "Python 3.9 oder neuer wurde nicht gefunden. Führe im Terminal xcode-select --install aus und versuche es erneut.",
+    noHost: "Diese Selects-Version kann diese App nicht ausführen. Aktualisiere Selects.",
     noGeneration: "Diese Selects-Version kann in Apps keine Medien erzeugen. Aktualisiere Selects.",
     recent: "Unfertige Aufträge", resume: "Fortsetzen", dismiss: "Aus der Liste entfernen", retry: "Erneut versuchen", elapsed: "Vergangen",
     noMusic: "Die Musik konnte nicht erstellt werden; der Entwurf hat keine Musik.",
-    macOnly: "Vorerst nur unter macOS verfügbar.", noEngine: "Die Dateien der App sind unvollständig. Installiere sie erneut aus der Plugin-Bibliothek.",
     errors: { FETCH_FAILED: "Der Link konnte nicht geöffnet werden.", NO_TEXT: "Unter dem Link wurde kein Text gefunden. Füge den Text ein.",
       TEXT_TOO_SHORT: "Der Quelltext ist zu kurz.", NO_JSON: "Das Skript konnte nicht aus der KI-Antwort gelesen werden. Versuche es erneut." },
   },
@@ -155,11 +147,10 @@ const STRINGS: Record<string, Strings> = {
     unverified: "Planos que la revisión aún señala tras rehacerlos (conviene revisarlos)",
     noProject: "Abre primero un proyecto.", needUrl: "Introduce un enlace a la fuente.",
     needText: "Pega al menos 80 caracteres del texto de la fuente.",
-    noPython: "No se encontró Python 3.9 o posterior. Ejecuta xcode-select --install en Terminal y vuelve a intentarlo.",
+    noHost: "Esta versión de Selects no puede ejecutar esta app. Actualiza Selects.",
     noGeneration: "Esta versión de Selects no puede generar contenido desde apps. Actualiza Selects.",
     recent: "Trabajos sin terminar", resume: "Continuar", dismiss: "Quitar de la lista", retry: "Reintentar", elapsed: "Transcurrido",
     noMusic: "No se pudo crear la música; el borrador no tiene música.",
-    macOnly: "Por ahora solo disponible en macOS.", noEngine: "Faltan archivos de la app. Vuelve a instalarla desde la biblioteca de plugins.",
     errors: { FETCH_FAILED: "No se pudo abrir el enlace.", NO_TEXT: "No se encontró texto en el enlace. Pega el texto.",
       TEXT_TOO_SHORT: "El texto de la fuente es demasiado corto.", NO_JSON: "No se pudo leer el guion en la respuesta de la IA. Vuelve a intentarlo." },
   },
@@ -176,11 +167,10 @@ const STRINGS: Record<string, Strings> = {
     unverified: "Plans encore signalés après leur reprise (à regarder)",
     noProject: "Ouvrez d'abord un projet.", needUrl: "Saisissez un lien vers la source.",
     needText: "Collez au moins 80 caractères du texte source.",
-    noPython: "Python 3.9 ou plus récent est introuvable. Lancez xcode-select --install dans le Terminal, puis réessayez.",
+    noHost: "Cette version de Selects ne peut pas exécuter cette app. Mettez Selects à jour.",
     noGeneration: "Cette version de Selects ne peut pas générer de médias depuis les apps. Mettez Selects à jour.",
     recent: "Tâches inachevées", resume: "Reprendre", dismiss: "Retirer de la liste", retry: "Réessayer", elapsed: "Écoulé",
     noMusic: "La musique n'a pas pu être créée ; le brouillon n'a pas de musique.",
-    macOnly: "Disponible sur macOS pour le moment.", noEngine: "Des fichiers de l'app manquent. Réinstallez-la depuis la bibliothèque de plugins.",
     errors: { FETCH_FAILED: "Impossible d'ouvrir le lien.", NO_TEXT: "Aucun texte trouvé à ce lien. Collez le texte.",
       TEXT_TOO_SHORT: "Le texte source est trop court.", NO_JSON: "Impossible de lire le script dans la réponse de l'IA. Réessayez." },
   },
@@ -197,11 +187,10 @@ const STRINGS: Record<string, Strings> = {
     unverified: "Inquadrature ancora segnalate dopo il rifacimento (da controllare)",
     noProject: "Apri prima un progetto.", needUrl: "Inserisci un link alla fonte.",
     needText: "Incolla almeno 80 caratteri del testo della fonte.",
-    noPython: "Python 3.9 o successivo non trovato. Esegui xcode-select --install nel Terminale e riprova.",
+    noHost: "Questa versione di Selects non può eseguire questa app. Aggiorna Selects.",
     noGeneration: "Questa versione di Selects non può generare media dalle app. Aggiorna Selects.",
     recent: "Lavori non finiti", resume: "Riprendi", dismiss: "Rimuovi dall'elenco", retry: "Riprova", elapsed: "Trascorso",
     noMusic: "Non è stato possibile creare la musica; la bozza è senza musica.",
-    macOnly: "Per ora disponibile solo su macOS.", noEngine: "Mancano alcuni file dell'app. Reinstallala dalla libreria dei plugin.",
     errors: { FETCH_FAILED: "Impossibile aprire il link.", NO_TEXT: "Nessun testo trovato nel link. Incolla il testo.",
       TEXT_TOO_SHORT: "Il testo della fonte è troppo corto.", NO_JSON: "Impossibile leggere il copione dalla risposta dell'IA. Riprova." },
   },
@@ -218,11 +207,10 @@ const STRINGS: Record<string, Strings> = {
     unverified: "Planos ainda apontados pela verificação após refeitos (vale conferir)",
     noProject: "Abra um projeto primeiro.", needUrl: "Insira um link da fonte.",
     needText: "Cole pelo menos 80 caracteres do texto da fonte.",
-    noPython: "Python 3.9 ou posterior não foi encontrado. Execute xcode-select --install no Terminal e tente de novo.",
+    noHost: "Esta versão do Selects não consegue executar este app. Atualize o Selects.",
     noGeneration: "Esta versão do Selects não gera mídia a partir de apps. Atualize o Selects.",
     recent: "Trabalhos inacabados", resume: "Continuar", dismiss: "Remover da lista", retry: "Tentar de novo", elapsed: "Decorrido",
     noMusic: "Não foi possível criar a música; o rascunho está sem música.",
-    macOnly: "Por enquanto, disponível apenas no macOS.", noEngine: "Faltam arquivos do app. Reinstale-o pela biblioteca de plugins.",
     errors: { FETCH_FAILED: "Não foi possível abrir o link.", NO_TEXT: "Nenhum texto encontrado no link. Cole o texto.",
       TEXT_TOO_SHORT: "O texto da fonte é curto demais.", NO_JSON: "Não foi possível ler o roteiro na resposta da IA. Tente de novo." },
   },
@@ -239,11 +227,10 @@ const STRINGS: Record<string, Strings> = {
     unverified: "Yeniden oluşturulduktan sonra kontrolün hâlâ not düştüğü çekimler (göz atmanızı öneririz)",
     noProject: "Önce bir proje açın.", needUrl: "Bir kaynak bağlantısı girin.",
     needText: "En az 80 karakterlik kaynak metni yapıştırın.",
-    noPython: "Python 3.9 veya üstü bulunamadı. Terminal'de xcode-select --install komutunu çalıştırıp tekrar deneyin.",
+    noHost: "Bu Selects sürümü bu uygulamayı çalıştıramıyor. Selects'i güncelleyin.",
     noGeneration: "Bu Selects sürümü uygulamalardan medya üretemiyor. Selects'i güncelleyin.",
     recent: "Tamamlanmamış işler", resume: "Devam et", dismiss: "Listeden kaldır", retry: "Tekrar dene", elapsed: "Geçen süre",
     noMusic: "Müzik oluşturulamadı; taslakta müzik yok.",
-    macOnly: "Şimdilik yalnızca macOS'ta kullanılabilir.", noEngine: "Uygulamanın dosyaları eksik. Eklenti Kitaplığı'ndan yeniden yükleyin.",
     errors: { FETCH_FAILED: "Bağlantı açılamadı.", NO_TEXT: "Bağlantıda metin bulunamadı. Metni yapıştırın.",
       TEXT_TOO_SHORT: "Kaynak metni çok kısa.", NO_JSON: "Yapay zekâ yanıtından senaryo okunamadı. Tekrar deneyin." },
   },
@@ -251,9 +238,6 @@ const STRINGS: Record<string, Strings> = {
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const dec = (b: any) => new TextDecoder().decode(b);
-// mac-only:start
-const pq = (s: string) => "'" + String(s).replace(/'/g, "'\\''") + "'";
-// mac-only:end
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function bytesToB64(u: Uint8Array): string {
@@ -413,8 +397,8 @@ async function hostProbeSeconds(path) {
 // @operation-start
 // Windows engine port, step 1: engine.py's ffmpeg-only steps (media_duration, silences, sheet, ken_burns) as argv for
 // the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe): plain JS, no shell, nothing for the user to install.
-// Each builder returns exactly the argv engine.py passes (tests/vox_explainer.test.mjs compares them). The build does
-// not call these yet: it still runs engine.py on macOS until the rest of the engine is ported.
+// Each builder returns the argv engine.py passes (tests/vox_explainer.test.mjs compares them); the Ken Burns clip also
+// gets -write_tmcd 0, so the mp4 has its one video stream only.
 export const VOX_W = 1080, VOX_H = 1920, VOX_FPS = 24;
 // The host's ffmpeg log (stderr) for one run, stopped after `timeoutMs`.
 export async function voxFFmpegLog(args, timeoutMs = 180000) {
@@ -477,9 +461,791 @@ export function voxKenBurnsArgs(img, dest, dur, zoomIn = true) {
     `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];` +
     `[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,scale=${W * 2}:${H * 2},` +
     `zoompan=z='${z}':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${W}x${H}:fps=${FPS}[v]`;
-  return ["-y", "-loglevel", "error", "-loop", "1", "-i", img, "-filter_complex", vf, "-map", "[v]", "-t", dur.toFixed(3), "-c:v", "libx264", "-pix_fmt", "yuv420p", dest];
+  return ["-y", "-loglevel", "error", "-loop", "1", "-i", img, "-filter_complex", vf, "-map", "[v]", "-t", dur.toFixed(3), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-write_tmcd", "0", dest];
+}
+// Windows engine port, step 2: the rest of engine.py (VERSION 2.1.0) in plain JS, so the build needs no Python and no
+// shell on either OS. voxEngine(cmd, dir, args, io) answers what `engine.py <cmd> <dir> <args>` printed; `io` carries the
+// file, ffmpeg and network access (voxHostIO in the panel, stubs in the tests). tests/vox_explainer_engine.test.mjs
+// runs both engines on the same inputs and compares every answer and file. Python semantics kept on purpose: lengths
+// and slices count code points, round() is half-even on exact ties, \d and \w are Unicode-aware, str.split() and
+// truthiness follow Python.
+export const VOX_VERSION = "2.1.0";
+export const VOX_MODEL = {
+  t2i: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLTI",
+  edit: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLTIvZWRpdA",
+  i2v: "model_v1_ZmFsLWFpL2tsaW5nLXZpZGVvL3YzL3Byby9pbWFnZS10by12aWRlbw",
+  tts: "model_v1_ZmFsLWFpL2VsZXZlbmxhYnMvdHRzL2VsZXZlbi12Mw",
+  music: "model_v1_ZmFsLWFpL2VsZXZlbmxhYnMvbXVzaWM",
+};
+const VOX_LEAD = 0.15, VOX_TAIL = 0.35, VOX_END_HOLD = 2.3;
+const VOX_VOICE = "Alice";
+const VOX_MUSIC_PROMPT = "modern news explainer underscore, tense pulsing synth bass, crisp ticking percussion, " +
+  "light piano stabs, confident and curious, steady build, no big drops, instrumental, no vocals";
+export const VOX_LANG = {
+  ko: { name: "Korean", cjk: true, rate: 5.35, cap: 16, cap_max: 18, head: 12, head_max: 16, style: "formal \ud569\ub2c8\ub2e4\uccb4 news tone", photos: "\uc778\ubb3c \uc0ac\uc9c4", pd: "\ud37c\ube14\ub9ad \ub3c4\uba54\uc778", source: "\ucd9c\ucc98" },
+  ja: { name: "Japanese", cjk: true, rate: 7.0, cap: 16, cap_max: 18, head: 12, head_max: 16, style: "polite \u3067\u3059\u30fb\u307e\u3059 news tone", photos: "\u4eba\u7269\u5199\u771f", pd: "\u30d1\u30d6\u30ea\u30c3\u30af\u30c9\u30e1\u30a4\u30f3", source: "\u51fa\u5178" },
+  zh: { name: "Chinese (in the source's script)", cjk: true, rate: 4.5, cap: 14, cap_max: 16, head: 10, head_max: 14, style: "neutral news tone", photos: "\u4eba\u7269\u7167\u7247", pd: "\u516c\u6709\u9886\u57df", source: "\u6765\u6e90" },
+  en: { name: "English", cjk: false, rate: 4.0, wps: 1.95, cap: 32, cap_max: 36, head: 24, head_max: 28, style: "neutral news tone", photos: "Photos", pd: "public domain", source: "Source" },
+  de: { name: "German", cjk: false, rate: 3.8, wps: 1.65, cap: 32, cap_max: 36, head: 24, head_max: 28, style: "neutral news tone", photos: "Fotos", pd: "gemeinfrei", source: "Quelle" },
+  es: { name: "Spanish", cjk: false, rate: 5.0, wps: 2.1, cap: 32, cap_max: 36, head: 24, head_max: 28, style: "neutral news tone", photos: "Fotos", pd: "dominio p\u00fablico", source: "Fuente" },
+  fr: { name: "French", cjk: false, rate: 4.6, wps: 2.1, cap: 32, cap_max: 36, head: 24, head_max: 28, style: "neutral news tone", photos: "Photos", pd: "domaine public", source: "Source" },
+  it: { name: "Italian", cjk: false, rate: 4.8, wps: 2.1, cap: 32, cap_max: 36, head: 24, head_max: 28, style: "neutral news tone", photos: "Foto", pd: "pubblico dominio", source: "Fonte" },
+  pt: { name: "Portuguese", cjk: false, rate: 4.6, wps: 2.0, cap: 32, cap_max: 36, head: 24, head_max: 28, style: "neutral news tone", photos: "Fotos", pd: "dom\u00ednio p\u00fablico", source: "Fonte" },
+  tr: { name: "Turkish", cjk: false, rate: 4.4, wps: 1.65, cap: 32, cap_max: 36, head: 24, head_max: 28, style: "neutral news tone", photos: "Foto\u011fraflar", pd: "kamu mal\u0131", source: "Kaynak" },
+};
+const VOX_STOPWORDS = {
+  en: "the and of to in is that for on with as was by it from at are be this have has said",
+  de: "der die und das ist nicht mit den von zu ein eine auf f\u00fcr sich dem des im auch wird",
+  es: "el la de que y en los las del se por un una con para es su al lo como m\u00e1s",
+  fr: "le la les de des et est une un du en dans que pour sur au par pas plus avec qui",
+  it: "il la di che e \u00e8 un una per del della con non sono le gli nel alla anche pi\u00f9",
+  pt: "o a de que e do da em um uma para com n\u00e3o os as dos das no na por mais",
+  tr: "ve bir bu da de i\u00e7in ile olarak \u00e7ok daha gibi ama olan en ne de\u011fil kadar sonra",
+};
+const VOX_THEME = { idiom: "Russian Constructivist photomontage, bold diagonal geometry", palette: "red, black, cream", finish: "letterpress, newsprint" };
+const VOX_MECHANICS = "Clearly layered hand-cut paper cut-outs with visible torn and scissor-cut edges, tape " +
+  "corners and soft real paper drop shadows, on a bold flat {bg} paper background. Halftone " +
+  "print dots, newspaper-clipping scraps, paper-stencil shapes, aged paper texture, slight " +
+  "print misregistration, scattered geometric paper accents (triangles, circles, zigzags, " +
+  "washi tape). Figures are PRINTED / illustrated cut-outs, NOT CGI, NOT a 3D render \u2014 keep " +
+  "print grain and paper imperfections. High-contrast, punchy, tactile, hand-assembled.";
+const VOX_NO_PEOPLE = " NO people, NO faces, NO human figures and NO photographs of people anywhere " +
+  "(a paper hand, or faceless paper silhouettes, only if the SCENE asks for them). A named " +
+  "country, company or institution is shown by its label, flag or object only \u2014 never add a " +
+  "portrait, photo or drawing of a leader, politician or any other person for it.";
+const VOX_FACE_GUARD = " Halftone dots and print textures live on the BACKGROUND and paper only, never on " +
+  "faces. The ONLY people in the image are the attached ones \u2014 no extra people. Every " +
+  "face gets the same photographic treatment at a similar scale; never draw any face " +
+  "as a cartoon or caricature. Every label named next to a person sits right next to " +
+  "that person.";
+const VOX_TEXT_GUARD = " Newspaper scraps carry completely UNREADABLE blurred micro-text. The ONLY readable " +
+  "words in the image are the ones quoted in the SCENE, spelled exactly with no added " +
+  "punctuation; no other captions, logos or watermarks.";
+const VOX_LAYOUT_GUARD = " Leave the top 18% and the bottom 12% of the frame as calm plain background (a " +
+  "headline and subtitles are added later); keep every person and every quoted word " +
+  "between those bands. No big title banner anywhere.";
+const VOX_FACE_LOCK = "The attached photos are real people ({who}). Cut each person's face and hair out as a " +
+  "PHOTOGRAPHIC sticker with a torn white paper border and place them in the scene \u2014 keep " +
+  "each facial identity, features and expression from their photo pixel-faithful; do not " +
+  "redraw, repaint, swap or stylize any face; NO halftone dots, print texture or ink treatment " +
+  "on faces or hair. All poses and gestures are expressed by the bodies only. From the neck " +
+  "down each body is a hand-drawn paper-doll illustration jointed like a vintage paper puppet " +
+  "with visible cut edges, FULLY CLOTHED ({clothes}). ";
+const VOX_FREEZE = "FREEZE every photographic face sticker \u2014 frozen layers, pixel-identical to the still " +
+  "for the entire duration; never redraw, warp, re-time or animate the faces; the " +
+  "paper-doll bodies may shift slightly at their joints. ";
+const VOX_CAMERA = {
+  static: "a locked-off static camera (no camera move)",
+  push_in: "one very slow smooth push-in (uniform scale-up, Ken-Burns)",
+  pull_out: "one slow smooth pull-out (uniform scale-down) revealing the full scene",
+  pan: "one slow horizontal pan across the frame (flat translate, no perspective shift)",
+  parallax: "a gentle multi-layer parallax drift (paper layers moving at slightly different speeds), the camera otherwise steady",
+};
+const VOX_CAST_CAMERAS = ["push_in", "parallax", "static"];
+const VOX_AMPLITUDE = { calm: "subtle, restrained amplitude", punchy: "lively, energetic amplitude with clear, bold movement" };
+const VOX_PALETTE_BG = ["deep navy blue", "cream white with bold red accents", "bright mustard yellow",
+  "deep crimson red", "cool slate teal", "pale mint green", "sky blue", "warm cream"];
+export const VOX_UA_BROWSER = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36";
+export const VOX_UA_API = "SelectsVoxExplainer/2.0 (+https://tryselects.com)";
+
+class VoxEngineError extends Error {}
+const voxFail = (m) => new VoxEngineError(m);
+
+// ---- Python semantics ----
+// Code points, as Python's len() and slices count them.
+const pyChars = (s) => Array.from(String(s));
+const pyLen = (s) => pyChars(s).length;
+const pySlice = (s, a, b) => pyChars(s).slice(a, b).join("");
+// str.split() with no argument: runs of whitespace, no empty parts.
+const pySplit = (s) => String(s).split(/[\s\x1c-\x1f\x85]+/u).filter(Boolean);
+const pyStrip = (s) => String(s).replace(/^[\s\x1c-\x1f\x85]+|[\s\x1c-\x1f\x85]+$/gu, "");
+const pyRstrip = (s, chars) => { const c = pyChars(s); while (c.length && chars.includes(c[c.length - 1])) c.pop(); return c.join(""); };
+// Python truthiness and str() for the values JSON can carry.
+const pyTrue = (v) => !(v === undefined || v === null || v === false || v === 0 || v === "" ||
+  (Array.isArray(v) && !v.length) || (typeof v === "object" && !Array.isArray(v) && v && !Object.keys(v).length));
+function pyStr(v) {
+  if (v === undefined || v === null) return "None";
+  if (v === true) return "True";
+  if (v === false) return "False";
+  if (typeof v === "number") return Number.isInteger(v) && !Object.is(v, -0) ? String(v) : String(v);
+  if (typeof v === "string") return v;
+  return JSON.stringify(v);
+}
+// Iterating a value as Python's `for x in v` would (a string yields its characters).
+const pyIter = (v) => (typeof v === "string" ? pyChars(v) : Array.isArray(v) ? v : v && typeof v === "object" ? Object.keys(v) : []);
+// round(x, n): correctly rounded, half to even on an exact tie (the double sits exactly halfway).
+export function pyRound(x, n = 0) {
+  const tie = x * 2 ** (n + 1);
+  if (Number.isInteger(tie) && Math.abs(tie) % 2 === 1 && Math.abs(tie) < 2 ** 52) {
+    const k = Math.floor(x * 10 ** n);
+    return (k % 2 === 0 ? k : k + 1) / 10 ** n;
+  }
+  return Number(x.toFixed(n));
+}
+const reEscape = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// urllib.parse.quote (safe "/") and urlencode (quote_plus).
+const pyQuote = (s, safe = "/") => Array.from(new TextEncoder().encode(String(s))).map((b) => {
+  const c = String.fromCharCode(b);
+  return /[A-Za-z0-9_.\-~]/.test(c) || safe.includes(c) ? c : "%" + b.toString(16).toUpperCase().padStart(2, "0");
+}).join("");
+const pyUrlencode = (o) => Object.entries(o).map(([k, v]) => pyQuote(k, "").replace(/%20/g, "+") + "=" + pyQuote(String(v), " ").replace(/ /g, "+")).join("&");
+
+// ---- html.unescape: the panel's own HTML parser decodes every named entity; node tests use the common ones ----
+const VOX_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0", middot: "\u00b7", hellip: "\u2026",
+  lsquo: "\u2018", rsquo: "\u2019", ldquo: "\u201c", rdquo: "\u201d", ndash: "\u2013", mdash: "\u2014", copy: "\u00a9" };
+export function voxUnescape(s) {
+  s = String(s || "");
+  if (!s.includes("&")) return s;
+  try {
+    if (typeof document !== "undefined" && document.createElement) {
+      const t = document.createElement("textarea");
+      t.innerHTML = s;
+      return t.value;
+    }
+  } catch { /* the small table below */ }
+  return s.replace(/&(#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);?/g, (m, e) => {
+    if (e[0] === "#") {
+      const n = /^#[xX]/.test(e) ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : "\ufffd";
+    }
+    return Object.prototype.hasOwnProperty.call(VOX_ENTITIES, e) ? VOX_ENTITIES[e] : m;
+  });
+}
+
+// ---- Small helpers ----
+export const voxStripTags = (s) => pyStrip(voxUnescape(String(s || "").replace(/<[^>]+>/g, " ")).replace(/\s+/gu, " "));
+export const voxNormWords = (text) => pySplit(text).map((w) => w.replace(/[.,!?'"\u201c\u201d\u2018\u2019\u00b7\u2026()\u3002\u3001\uff0c\uff01\uff1f\u300c\u300d]/gu, ""));
+
+// ---- Language ----
+export function voxDetectLang(text) {
+  const t = pySlice(text, 0, 5000);
+  const count = (re) => (t.match(re) || []).length;
+  if (count(/[\uac00-\ud7a3]/gu) > 20) return "ko";
+  if (count(/[\u3040-\u30ff]/gu) > 20) return "ja";
+  if (count(/[\u4e00-\u9fff]/gu) > 40) return "zh";
+  const words = t.toLowerCase().match(/[a-z\u00e0-\u00ff\u011f\u00fc\u015f\u0131\u00f6\u00e7]+/gu) || [];
+  let best = null, top = -1;
+  for (const [k, v] of Object.entries(VOX_STOPWORDS)) {
+    const set = new Set(v.split(" "));
+    const n = words.filter((w) => set.has(w)).length;
+    if (n > top) { best = k; top = n; }
+  }
+  return top > 3 ? best : "en";
+}
+export function voxWordWeight(w, lang) {
+  const digits = (w.match(/\p{Nd}/gu) || []).length;
+  if (VOX_LANG[lang].cjk) {
+    const cjk = (w.match(/[\uac00-\ud7a3\u3040-\u30ff\u4e00-\u9fff]/gu) || []).length;
+    const latin = w.match(/[A-Za-z]+/g) || [];
+    let lat = 0;
+    for (const x of latin) lat += x.length * (/^[A-Z]+$/.test(x) ? 1.5 : 0.5);
+    return Math.max(0.5, cjk + digits * 1.5 + lat);
+  }
+  const groups = (w.match(/[aeiouy\u00e0\u00e1\u00e2\u00e4\u00e3\u00e5\u00e8\u00e9\u00ea\u00eb\u00ec\u00ed\u00ee\u00ef\u00f2\u00f3\u00f4\u00f6\u00f5\u00f9\u00fa\u00fb\u00fc\u0131AEIOUY]+/gu) || []).length;
+  const bare = w.replace(/[^\p{L}\p{N}_]/gu, "");
+  const caps = /^[A-Z]{2,5}$/.test(bare) ? pyLen(w) : 0; // acronyms read letter by letter
+  return Math.max(1.0, groups, caps) + digits * 1.2;
+}
+export function voxSpeechSeconds(text, lang) {
+  let s = 0;
+  for (const w of pySplit(text)) s += voxWordWeight(w, lang);
+  return s / VOX_LANG[lang].rate;
+}
+export function voxBudget(target, lang) {
+  const nb = Math.max(3, Math.min(10, pyRound(target / 8.0)));
+  const speak = Math.max(8.0, target - VOX_END_HOLD - nb * (VOX_LEAD + VOX_TAIL));
+  const L = VOX_LANG[lang];
+  if (L.cjk) return { beats: nb, unit: lang !== "ko" ? "characters" : "syllables", count: pyRound(speak * L.rate) };
+  return { beats: nb, unit: "words", count: pyRound(speak * L.wps) };
+}
+
+// ---- Job folder ----
+// The job is the folder's job.json; `p(...parts)` is a path inside it with its folders made.
+async function voxJob(io, dir) {
+  const path = io.join(dir, "job.json");
+  const data = await io.readJson(path, null);
+  if (!pyTrue(data)) throw voxFail("job.json missing in " + dir);
+  const job = {
+    dir, path, data, id: data.id,
+    p: (...parts) => { const d = io.join(dir, ...parts.slice(0, -1)); io.mkdir(d); return io.join(d, parts[parts.length - 1]); },
+    save: async () => { data.updated = new Date(io.now() * 1000).toISOString().slice(0, 19) + "Z"; await io.writeJson(path, data); },
+    plan: async () => { const p = await io.readJson(io.join(dir, "plan.json"), null); if (!pyTrue(p)) throw voxFail("plan.json missing"); return p; },
+    gen: async () => (await io.readJson(io.join(dir, "gen.json"), {})) || {},
+    file: async (key) => { const g = (await job.gen())[key] || {}; const p = g.path; return pyTrue(p) && io.exists(p) ? p : null; },
+  };
+  return job;
+}
+const voxShots = (plan) => plan.beats.flatMap((b) => b.shots.map((s) => [b, s]));
+
+// ---- fetch ----
+function voxMeta(s, prop) {
+  const p = reEscape(prop);
+  const m = new RegExp(`<meta[^>]+(?:property|name)=["']${p}["'][^>]+content=["']([^"']*)`).exec(s) ||
+    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${p}["']`).exec(s);
+  return m ? pyStrip(voxUnescape(m[1])) : "";
+}
+function voxKoreanName(n) {
+  const m = /^([\uac00-\ud7a3]{1,3}) ([\uac00-\ud7a3]{1,2})$/.exec(pyStrip(n || ""));
+  return m ? m[2] + m[1] : n;
+}
+const pyGet = (o, k) => (o && typeof o === "object" && !Array.isArray(o) ? o[k] : undefined);
+export function voxExtractArticle(url, s) {
+  const t = /<title>(.*?)<\/title>/s.exec(s);
+  const title = voxMeta(s, "og:title") || voxStripTags(t ? t[1] : "");
+  const art = { url, title, subtitle: "", description: voxMeta(s, "og:description"), source: voxMeta(s, "og:site_name"),
+    date: voxMeta(s, "article:published_time"), byline: voxMeta(s, "author") || voxMeta(s, "dable:author"), body: "", method: "" };
+  const m = /Fusion\.globalContent\s*=\s*(\{.*?\});\s*Fusion\./s.exec(s); // Arc XP (Chosun and others)
+  if (m) {
+    let d = null;
+    try { d = JSON.parse(m[1]); } catch { d = null; }
+    if (d !== null) {
+      const paras = pyIter(pyGet(d, "content_elements") || []).filter((e) => pyGet(e, "type") === "text").map((e) => voxStripTags(pyGet(e, "content") || ""));
+      if (paras.length) {
+        art.body = paras.filter(Boolean).join("\n");
+        art.title = pyGet(pyGet(d, "headlines") || {}, "basic") || art.title;
+        art.subtitle = voxStripTags(String(pyGet(pyGet(d, "subheadlines") || {}, "basic") || "").replace(/<br\s*\/?>/g, " / "));
+        const by = pyIter(pyGet(pyGet(d, "credits") || {}, "by") || []).filter((c) => pyTrue(pyGet(c, "name"))).map((c) => voxKoreanName(c.name));
+        if (by.length) art.byline = by.join(", ");
+        art.date = pyGet(d, "display_date") || pyGet(d, "first_publish_date") || art.date;
+        art.method = "arc";
+      }
+    }
+  }
+  for (const bm of s.matchAll(/<script[^>]+application\/ld\+json[^>]*>(.*?)<\/script>/gs)) { // JSON-LD
+    let d;
+    try { d = JSON.parse(pyStrip(bm[1])); } catch { continue; }
+    const items = Array.isArray(d) ? d : d && typeof d === "object" ? (d["@graph"] !== undefined ? d["@graph"] : [d]) : [];
+    for (const it of pyIter(items)) {
+      if (!(it && typeof it === "object" && !Array.isArray(it) && pyStr(it["@type"] !== undefined ? it["@type"] : "").includes("Article"))) continue;
+      const pub = it.publisher;
+      if (pub && typeof pub === "object" && !Array.isArray(pub) && pyTrue(pub.name) && !art.source) art.source = pub.name;
+      art.date = art.date || it.datePublished || "";
+      art.description = art.description || voxStripTags(it.description || "");
+      const a = it.author;
+      const names = (Array.isArray(a) ? a : [a]).filter((x) => x && typeof x === "object" && !Array.isArray(x)).map((x) => (x.name !== undefined ? x.name : ""));
+      if (names.some(pyTrue) && !art.byline) art.byline = names.filter(pyTrue).join(", ");
+      if (pyTrue(it.articleBody) && !art.body) {
+        art.body = voxStripTags(it.articleBody);
+        art.title = it.headline || art.title;
+        art.method = "jsonld";
+      }
+    }
+  }
+  if (!art.body) {
+    const sc = /<article[^>]*>(.*?)<\/article>/s.exec(s);
+    const scope = sc ? sc[1] : s;
+    const paras = [...scope.matchAll(/<p[^>]*>(.*?)<\/p>/gs)].map((x) => voxStripTags(x[1]));
+    art.body = paras.filter((p) => pyLen(p) > 40 && !/^(Share|Save|Advertisement|Related)\b/.test(p)).join("\n");
+    art.method = "paragraphs";
+  }
+  art.body = pySlice(art.body, 0, 20000);
+  art.lang = voxDetectLang(art.title + " " + art.body);
+  return art;
+}
+async function voxCmdFetch(io, job) {
+  const inp = job.data.input;
+  let art;
+  if (pyGet(inp, "kind") === "text") {
+    const text = pyStrip(inp.text !== undefined ? inp.text : "");
+    if (pyLen(text) < 80) throw voxFail("TEXT_TOO_SHORT");
+    const lines = text.split(/\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]/u).map(pyStrip).filter(Boolean);
+    art = { url: "", title: pySlice(lines[0], 0, 120), subtitle: "", description: "", source: "", date: "", byline: "",
+      body: pySlice(text, 0, 20000), method: "text", lang: voxDetectLang(text) };
+  } else {
+    const url = pyStrip(pyGet(inp, "url") !== undefined ? inp.url : "");
+    const r = await voxHttp(io, url, VOX_UA_BROWSER, 30);
+    if (r.code >= 300) throw voxFail("FETCH_FAILED");
+    art = voxExtractArticle(url, r.text);
+    if (pyLen(art.body) < 200) throw voxFail("NO_TEXT");
+  }
+  await io.writeJson(job.p("article.json"), art);
+  Object.assign(job.data, { stage: "fetched", lang: art.lang });
+  await job.save();
+  const L = VOX_LANG[art.lang];
+  return { ok: true, title: art.title, chars: pyLen(art.body), method: art.method, lang: art.lang, language: L.name, style: L.style,
+    sourceLabel: L.source, budget: voxBudget(job.data.target !== undefined ? job.data.target : 55, art.lang), captionChars: L.cap, headlineChars: L.head };
+}
+
+// ---- validate ----
+export function voxAutoCaptions(text, maxc) {
+  const lines = [];
+  let cur = [];
+  for (const w of pySplit(text)) {
+    if (cur.length && pyLen([...cur, w].join(" ")) > maxc) { lines.push(cur.join(" ")); cur = []; }
+    cur.push(w);
+    if (/[.,!?\u3002\u3001\uff0c\uff01\uff1f]$/u.test(w) && pyLen(cur.join(" ")) >= maxc * 0.4) { lines.push(cur.join(" ")); cur = []; }
+  }
+  if (cur.length) lines.push(cur.join(" "));
+  return lines.map((l) => pyRstrip(l, ",."));
+}
+const voxKey = (v) => pyStr(v).toLowerCase().replace(/[^a-z0-9_]/g, "");
+async function voxCmdValidate(io, job) {
+  const plan = await job.plan();
+  const lang = job.data.lang !== undefined ? job.data.lang : "en";
+  const L = VOX_LANG[lang];
+  const warn = [], err = [], cast = {};
+  for (const c of pyIter(pyTrue(plan.cast) ? plan.cast : [])) {
+    const key = voxKey(pyGet(c, "key") !== undefined ? c.key : "");
+    if (key && pyTrue(pyGet(c, "name"))) cast[key] = { key, name: pyStr(c.name), wiki: pyStr(pyTrue(c.wiki) ? c.wiki : c.name), wardrobe: pyStr(pyTrue(c.wardrobe) ? c.wardrobe : "a dark suit and white shirt") };
+  }
+  const beats = [];
+  let prevCam = null;
+  pyIter(pyTrue(plan.beats) ? plan.beats : []).forEach((b, bi) => {
+    const narr = pyStrip(pyStr(pyGet(b, "narration") !== undefined ? b.narration : "").replace(/\s+/gu, " "));
+    if (!narr) return;
+    const head = [b.headline, b.title_ko, b.title].find(pyTrue);
+    const title = pySlice(pyStrip(pyStr(head !== undefined ? head : "")), 0, L.head_max);
+    let caps = pyIter(pyTrue(b.captions) ? b.captions : []).map((x) => pyStrip(pyStr(x))).filter(Boolean);
+    // LESSON: automatic line breaks split names; the AI breaks lines, this checks them
+    if (voxNormWords(caps.join(" ")).join("") !== voxNormWords(narr).join("") || caps.some((c) => pyLen(c) > L.cap_max)) {
+      if (caps.length) warn.push(`beat ${bi + 1} captions re-broken`);
+      caps = voxAutoCaptions(narr, L.cap);
+    }
+    let shots = [];
+    for (const s of pyIter(pyTrue(b.shots) ? b.shots : []).slice(0, 2)) {
+      const scene = pyStrip(pyStr(pyGet(s, "scene") !== undefined ? s.scene : ""));
+      if (!scene) continue;
+      const sc = pyIter(pyTrue(s.cast) ? s.cast : []).map(voxKey).filter((k) => Object.prototype.hasOwnProperty.call(cast, k)).slice(0, 4);
+      let cam = pyStr([s.camera, s.camera_move].find(pyTrue) !== undefined ? [s.camera, s.camera_move].find(pyTrue) : "push_in");
+      cam = Object.prototype.hasOwnProperty.call(VOX_CAMERA, cam) ? cam : "push_in";
+      if (sc.length && !VOX_CAST_CAMERAS.includes(cam)) cam = "parallax";
+      if (cam === prevCam) cam = (sc.length ? VOX_CAST_CAMERAS : ["push_in", "parallax", "pan", "pull_out"]).filter((c) => c !== prevCam)[0]; // LESSON: neighbouring shots never repeat a camera move
+      prevCam = cam;
+      const motion = [s.element_motion, s.motion].find(pyTrue);
+      shots.push({ id: `${beats.length + 1}${"ab"[shots.length]}`, scene,
+        motion: pyStr(motion !== undefined ? motion : "one or two paper elements slide gently; halftone dots pulse"),
+        camera: cam, cast: sc, has_text: /['"\u201c\u2018]/.test(scene) });
+    }
+    if (!shots.length) { err.push(`beat ${bi + 1} has no usable shot`); return; }
+    const words = voxNormWords(narr);
+    let cut = null;
+    if (shots.length === 2) {
+      const cw = voxNormWords(pyStr(pyTrue(b.cut_word) ? b.cut_word : ""));
+      const idx = words.map((w, i) => i).filter((i) => cw.length && words[i] === cw[0] && i > 0);
+      cut = idx.length ? idx[0] : null;
+      if (cut === null) { // the middle of the narration by speech length
+        const total = voxSpeechSeconds(narr, lang);
+        let acc = 0.0;
+        const ws = pySplit(narr);
+        for (let i = 0; i < ws.length; i++) {
+          acc += voxWordWeight(ws[i], lang) / L.rate;
+          if (acc >= total / 2 && 0 < i + 1 && i + 1 < words.length) { cut = i + 1; break; }
+        }
+      }
+      const parts = pySplit(narr);
+      if (cut === null || voxSpeechSeconds(parts.slice(0, cut).join(" "), lang) < 1.5 || voxSpeechSeconds(parts.slice(cut).join(" "), lang) < 1.5) {
+        shots = shots.slice(0, 1);
+        cut = null;
+      }
+    }
+    beats.push({ n: beats.length + 1, title, narration: narr, captions: caps,
+      bg: pyStr(pyTrue(b.bg) ? b.bg : VOX_PALETTE_BG[beats.length % VOX_PALETTE_BG.length]), shots, cut_index: cut });
+  });
+  if (!beats.length) err.push("no beats");
+  else beats[beats.length - 1].shots[beats[beats.length - 1].shots.length - 1].camera = "static"; // the payoff lands on a still frame
+  const used = new Set(beats.flatMap((b) => b.shots.flatMap((s) => s.cast)));
+  const norm = { version: VOX_VERSION, lang, title: pySlice(pyStr(pyTrue(plan.title) ? plan.title : ""), 0, 60),
+    source_line: pySlice(pyStr(pyTrue(plan.source_line) ? plan.source_line : ""), 0, 140),
+    cast: Object.keys(cast).filter((k) => used.has(k)).map((k) => cast[k]), beats };
+  await io.writeJson(job.p("plan.json"), norm);
+  job.data.stage = !err.length ? "planned" : "plan_error";
+  await job.save();
+  let shotsN = 0, est = 0;
+  for (const b of beats) shotsN += b.shots.length;
+  for (const b of beats) est += VOX_LEAD + voxSpeechSeconds(b.narration, lang) + VOX_TAIL;
+  est += VOX_END_HOLD;
+  return { ok: !err.length, errors: err, warnings: warn, lang, seconds: pyRound(est, 1), beats: beats.length, shots: shotsN, people: norm.cast.map((c) => c.name) };
+}
+
+// ---- portraits ----
+const VOX_LICENSE_OK = /public domain|^pd\b|cc0|cc[- ]by(-sa)?[- ]?\d/i;
+const VOX_LICENSE_BAD = /\bnc\b|\bnd\b|non-?commercial|no ?deriv/i;
+// http_get: {code, text} for any HTTP answer; a request that never got one is engine.py's NETWORK error.
+async function voxHttp(io, url, ua, timeout) {
+  try { return await io.http(url, ua, timeout); } catch (e) { throw voxFail("NETWORK " + ((e && e.message) || e)); }
+}
+async function voxDownload(io, url, dest, ua, timeout) {
+  try { return await io.download(url, dest, ua, timeout); } catch (e) { throw voxFail("NETWORK " + ((e && e.message) || e)); }
+}
+async function voxGetJson(io, url) {
+  const r = await voxHttp(io, url, VOX_UA_API, 40);
+  try { return JSON.parse(r.text); } catch { return {}; }
+}
+const pyValues = (o) => (o && typeof o === "object" && !Array.isArray(o) ? Object.values(o) : []);
+async function voxWikiPortrait(io, title, dest) {
+  const d = await voxGetJson(io, "https://en.wikipedia.org/w/api.php?" + pyUrlencode({ action: "query", prop: "pageimages", piprop: "original|name", titles: title, format: "json", redirects: 1 }));
+  const pages = pyValues(pyGet(pyGet(d || {}, "query") || {}, "pages") || {});
+  const name = pages.length ? pyGet(pages[0], "pageimage") : null;
+  if (!pyTrue(name)) return { ok: false, error: "no lead image" };
+  const m = await voxGetJson(io, "https://commons.wikimedia.org/w/api.php?" + pyUrlencode({ action: "query", titles: "File:" + name, prop: "imageinfo", iiprop: "extmetadata", format: "json" }));
+  const cp = pyValues(pyGet(pyGet(m || {}, "query") || {}, "pages") || {});
+  const em = cp.length ? (pyGet((pyGet(cp[0], "imageinfo") || [{}])[0], "extmetadata") || {}) : {};
+  const lic = pyGet(pyGet(em, "LicenseShortName") || {}, "value") || "";
+  if (!VOX_LICENSE_OK.test(lic) || VOX_LICENSE_BAD.test(lic)) return { ok: false, file: name, license: lic };
+  const artist = pySlice(voxStripTags(pyGet(pyGet(em, "Artist") || {}, "value") || "").replace(/^(Photographer|Photo|Author)\s*:\s*/i, ""), 0, 60);
+  const code = await voxDownload(io, "https://commons.wikimedia.org/w/index.php?title=Special:Redirect/file/" + pyQuote(name) + "&width=900", dest, VOX_UA_API, 60);
+  if (code >= 300) return { ok: false, file: name, error: "download " + code };
+  return { ok: true, file: name, license: lic, artist };
+}
+async function voxCmdPortraits(io, job) {
+  const plan = await job.plan();
+  if (job.data.portraits === undefined) job.data.portraits = {};
+  const portraits = job.data.portraits;
+  for (const c of plan.cast) {
+    if (!(c.key in portraits)) {
+      let r;
+      try { r = await voxWikiPortrait(io, c.wiki, job.p("portraits", `${c.key}.jpg`)); } catch (e) {
+        if (!(e instanceof VoxEngineError)) throw e;
+        r = { ok: false, error: e.message };
+      }
+      portraits[c.key] = { ...r, name: c.name };
+    }
+  }
+  // A person without a free photo becomes a faceless paper silhouette with a name card; the image model must never
+  // draw a real person's likeness from memory.
+  const missing = new Set(Object.keys(portraits).filter((k) => !pyTrue(portraits[k].ok)));
+  for (const [, s] of voxShots(plan)) {
+    for (const k of s.cast.filter((k) => missing.has(k))) {
+      const name = plan.cast.find((c) => c.key === k).name;
+      const parts = pySplit(name);
+      s.scene = s.scene.split(name).join(`a faceless paper silhouette with a name card '${parts[parts.length - 1].toUpperCase()}'`);
+      s.cast.splice(s.cast.indexOf(k), 1);
+    }
+  }
+  await io.writeJson(job.p("plan.json"), plan);
+  job.data.stage = "portraits";
+  await job.save();
+  return { ok: true, found: Object.keys(portraits).filter((k) => !missing.has(k)).sort(), missing: [...missing].sort().map((k) => portraits[k].name) };
+}
+
+// ---- generation requests for the panel ----
+const pyFormat = (tpl, vals) => tpl.replace(/\{(\w+)\}/g, (_, k) => vals[k]);
+export function voxKeyframePrompt(plan, beat, shot) {
+  const world = `${VOX_THEME.idiom} Palette: ${VOX_THEME.palette}. ${pyFormat(VOX_MECHANICS, { bg: beat.bg })} Print finish: ${VOX_THEME.finish}. SCENE (as layered paper cut-outs): ${shot.scene}. No big headline in ` +
+    "this shot (a small accent only); it is a cut-in detail. Aspect ratio 9:16.";
+  if (shot.cast.length) {
+    const cast = Object.fromEntries(plan.cast.map((c) => [c.key, c]));
+    const who = shot.cast.map((k, i) => `image ${i + 1} is ${cast[k].name}`).join("; ");
+    const clothes = shot.cast.map((k) => `${cast[k].name} wears ${cast[k].wardrobe}`).join("; ");
+    return pyFormat(VOX_FACE_LOCK, { who, clothes }) + world + VOX_FACE_GUARD + VOX_TEXT_GUARD + VOX_LAYOUT_GUARD;
+  }
+  return world + VOX_NO_PEOPLE + VOX_TEXT_GUARD + VOX_LAYOUT_GUARD;
+}
+export function voxMotionPrompt(beat, shot) {
+  const amp = shot.has_text ? "calm" : "punchy"; // LESSON: busy motion garbled text and bent props
+  const textLock = shot.has_text ? "Keep every printed word sharp, legible and stable \u2014 do not warp or wobble the lettering. " : "";
+  const guard = (shot.cast.length ? VOX_FREEZE : "") + textLock +
+    "Keep the layout stable. Stay flat 2D \u2014 no 3D rotation, no perspective change, camera parallel " +
+    "to the poster. ONE continuous move that does not loop, retract or reset. Rigid paper \u2014 no " +
+    "morph/melt; straight posts and poles stay straight and upright. Animate the motion only; don't " +
+    "re-render the picture.";
+  return pySlice("Animate this still into a mixed-media paper-collage MOTION GRAPHIC, printed cut-outs, not " +
+    `photoreal.\nCAMERA (one move only): ${VOX_CAMERA[shot.camera]}.\nELEMENT MOTION (${VOX_AMPLITUDE[amp]}): ${shot.motion}. Elements move as paper cut-outs ` +
+    "(slide, flap, hinge, pop).\nAESTHETIC: keep the torn-paper, tape, halftone, newsprint and " +
+    `paper-stencil textures and the bold flat background.\nCOLOR: ${beat.bg}, high contrast.\nCONSTRAINTS: ${guard}`, 0, 2500);
+}
+// Shortest Kling length that covers the shot (it returns duration + 0.04 s; min 3, max 15).
+export const voxKlingSeconds = (need) => Math.trunc(Math.min(15, Math.max(3, Math.ceil(need + 0.05))));
+async function voxCmdRequests(io, job, kind, only, attempt) {
+  const plan = await job.plan();
+  const reqs = [];
+  const spec = (k, sid, tool, model, inp, uploads = null, folder = kind) => ({
+    key: sid ? `${job.id}-${k}-${sid}-${attempt}` : `${job.id}-${k}-${attempt}`,
+    gen: sid ? `${k}:${sid}` : k, id: sid, attempt, tool, modelId: VOX_MODEL[model], input: inp, uploads: uploads || {},
+    outputName: sid ? `${job.id}_${k}_${sid}_${attempt}` : `${job.id}_${k}_${attempt}`, folder: io.join(job.dir, "gen", folder),
+  });
+  if (kind === "narration") {
+    const lang = plan.lang;
+    for (const b of plan.beats) if (!only || only.has(String(b.n)))
+      reqs.push(spec("narr", String(b.n), "audio", "tts", { text: b.narration, voice: VOX_VOICE, language_code: lang, stability: 0.5 }));
+  } else if (kind === "keyframes") {
+    for (const [b, s] of voxShots(plan)) {
+      if (only && !only.has(s.id)) continue;
+      const inp = { prompt: voxKeyframePrompt(plan, b, s), aspect_ratio: "9:16", resolution: "2K", num_images: 1, output_format: "png" };
+      let uploads = {};
+      if (s.cast.length) {
+        const slots = s.cast.map((_, i) => `p${i + 1}`);
+        inp.image_urls = slots.map((x) => "selects-input:" + x);
+        uploads = Object.fromEntries(slots.map((slot, i) => [slot, io.join(job.dir, "portraits", `${s.cast[i]}.jpg`)]));
+      }
+      reqs.push(spec("kf", s.id, "image", s.cast.length ? "edit" : "t2i", inp, uploads));
+    }
+  } else if (kind === "clips") {
+    const tl = await io.readJson(io.join(job.dir, "timeline.json"), null);
+    const need = Object.fromEntries(tl.segments.map((x) => [x.shot, x]));
+    for (const [b, s] of voxShots(plan)) {
+      if (only && !only.has(s.id)) continue;
+      const kf = await job.file("kf:" + s.id);
+      if (!kf) throw voxFail("keyframe missing: " + s.id);
+      reqs.push(spec("clip", s.id, "video", "i2v", { prompt: voxMotionPrompt(b, s), start_image_url: "selects-input:start",
+        duration: String(need[s.id].kling), generate_audio: false }, { start: kf }));
+    }
+  } else if (kind === "music") {
+    const tl = await io.readJson(io.join(job.dir, "timeline.json"), null);
+    reqs.push(spec("music", "", "audio", "music", { prompt: VOX_MUSIC_PROMPT, force_instrumental: true, music_length_ms: tl.music_ms }));
+  } else {
+    throw voxFail("unknown request kind " + kind);
+  }
+  return { ok: true, requests: reqs };
+}
+
+// ---- timeline: narration timing from the audio itself ----
+// Word start times without provider timestamps. Speech between the leading and trailing silence is shared out by
+// each word's speech weight, and every internal pause is placed at the word boundary nearest its position,
+// preferring boundaries after punctuation. Returns [[word, start, end]].
+export function voxAlignWords(text, dur, sil, lang) {
+  const words = pySplit(text);
+  const wts = words.map((w) => voxWordWeight(w, lang));
+  sil = sil.map(([a, b]) => [a, b !== null && b !== undefined ? b : dur]);
+  const s0 = sil.length && sil[0][0] <= 0.05 ? sil[0][1] : 0.0;
+  const s1 = sil.length && sil[sil.length - 1][1] >= dur - 0.05 && sil[sil.length - 1][0] > s0 ? sil[sil.length - 1][0] : dur;
+  const inner = sil.filter(([a, b]) => a > s0 + 0.05 && b < s1 - 0.05);
+  let gaps = 0;
+  for (const [a, b] of inner) gaps += b - a;
+  const speech = Math.max(0.1, (s1 - s0) - gaps);
+  let total = 0;
+  for (const w of wts) total += w;
+  const cum = [];
+  let acc = 0.0;
+  for (const w of wts) { acc += w; cum.push(acc); } // cumulative weight after word i
+  const pauseAfter = words.map(() => 0.0);
+  const used = new Set();
+  let removed = 0.0;
+  const avg = total / Math.max(1, words.length);
+  for (const [a, b] of inner) {
+    const pos = (a - s0 - removed) / speech * total;
+    let best = null, score = null;
+    for (let j = 0; j < words.length - 1; j++) {
+      if (used.has(j)) continue;
+      const sc = Math.abs(cum[j] - pos) - (/[.,!?;:\u3002\u3001\uff0c\uff01\uff1f]$/u.test(words[j]) ? 0.8 * avg : 0);
+      if (score === null || sc < score) { best = j; score = sc; }
+    }
+    if (best !== null) { used.add(best); pauseAfter[best] += b - a; }
+    removed += b - a;
+  }
+  const out = [];
+  let extra = 0.0;
+  words.forEach((w, i) => {
+    const start = s0 + (cum[i] - wts[i]) / total * speech + extra;
+    const end = s0 + cum[i] / total * speech + extra;
+    out.push([w, pyRound(start, 3), pyRound(end, 3)]);
+    extra += pauseAfter[i];
+  });
+  return out;
+}
+async function voxCmdTimeline(io, job) {
+  const plan = await job.plan();
+  const lang = plan.lang;
+  let t = 0.0;
+  const segs = [], narr = [], heads = [], cues = [];
+  for (const b of plan.beats) {
+    const path = await job.file(`narr:${b.n}`);
+    if (!path) throw voxFail(`narration missing: beat ${b.n}`);
+    const nd = await io.duration(path);
+    const ws = voxAlignWords(b.narration, nd, await io.silences(path), lang);
+    const last = b.n === plan.beats.length;
+    const length = VOX_LEAD + nd + VOX_TAIL + (last ? VOX_END_HOLD : 0);
+    let cuts = [0.0];
+    if (b.shots.length === 2 && pyTrue(b.cut_index) && b.cut_index < ws.length) cuts.push(pyRound(VOX_LEAD + ws[b.cut_index][1] - 0.05, 3));
+    cuts.push(pyRound(length, 3));
+    if (cuts.length === 3 && (cuts[1] < 1.5 || length - cuts[1] < 1.5)) { cuts = [0.0, cuts[2]]; b.shots = b.shots.slice(0, 1); }
+    b.shots.forEach((s, i) => {
+      const need = cuts[i + 1] - cuts[i];
+      segs.push({ shot: s.id, start: pyRound(t + cuts[i], 3), need: pyRound(need, 3), kling: voxKlingSeconds(need) });
+    });
+    narr.push({ beat: b.n, file: path, start: pyRound(t + VOX_LEAD, 3), dur: pyRound(nd, 3) });
+    heads.push({ beat: b.n, text: b.title, start: pyRound(t, 3), end: pyRound(t + length, 3) });
+    let lines = b.captions;
+    let nwords = 0;
+    for (const l of lines) nwords += pySplit(l).length;
+    if (nwords !== ws.length) lines = voxAutoCaptions(ws.map((w) => w[0]).join(" "), VOX_LANG[lang].cap);
+    let idx = 0;
+    const starts = [];
+    for (const line of lines) { starts.push(ws[Math.min(idx, ws.length - 1)][1]); idx += pySplit(line).length; }
+    lines.forEach((line, i) => {
+      const a = t + VOX_LEAD + starts[i];
+      const e = t + VOX_LEAD + (i + 1 < lines.length ? starts[i + 1] : nd + 0.15);
+      cues.push({ text: pyRstrip(line, ",.\u3001\uff0c"), start: pyRound(a, 3), end: pyRound(e, 3) });
+    });
+    t += length;
+  }
+  await io.writeJson(job.p("plan.json"), plan);
+  // LESSON: music bills by started minute; 60.03 s cost two. Stay under the boundary.
+  const needS = t + 2;
+  const musicS = Math.min(Math.ceil(needS), 60 * Math.ceil(needS / 60.0) - 1);
+  await io.writeJson(job.p("timeline.json"), { total: pyRound(t, 3), segments: segs, narration: narr, headlines: heads, captions: cues, music_ms: Math.trunc(musicS * 1000) });
+  job.data.stage = "timed";
+  await job.save();
+  let video = 0;
+  for (const s of segs) video += s.kling;
+  return { ok: true, seconds: pyRound(t, 3), shots: segs.length, videoSeconds: video };
+}
+
+// ---- sheet, Ken Burns, assembly ----
+async function voxCmdSheet(io, job, only) {
+  const plan = await job.plan();
+  const ids = voxShots(plan).map(([, s]) => s.id).filter((id) => !only || only.has(id));
+  const fileOf = {};
+  for (const id of ids) fileOf[id] = await job.file("kf:" + id);
+  const font = io.sheetFont();
+  const stamp = Math.trunc(io.now());
+  const sheets = [];
+  for (const j of voxSheetJobs(ids, (id) => fileOf[id], io.exists(font) ? font : null, (n) => job.p("check", `sheet_${stamp}_${n}.jpg`))) {
+    try { await io.ffmpeg(j.args); } catch (e) { throw voxFail("sheet: " + pySlice(String(e && e.message || e), -300)); }
+    sheets.push({ path: j.dest, shots: j.shots });
+  }
+  const cast = Object.fromEntries(plan.cast.map((c) => [c.key, c.name]));
+  const expect = voxShots(plan).filter(([, s]) => !only || only.has(s.id)).map(([, s]) => ({
+    shot: s.id, people: s.cast.map((k) => cast[k]),
+    words: [...s.scene.matchAll(/['"\u201c\u2018]([^'"\u201d\u2019]{1,40})['"\u201d\u2019]/gu)].map((m) => m[1]), scene: pySlice(s.scene, 0, 300),
+  }));
+  return { ok: true, sheets, expect };
+}
+async function voxCmdKenBurns(io, job, only) {
+  const plan = await job.plan();
+  const tl = await io.readJson(io.join(job.dir, "timeline.json"), null);
+  const need = Object.fromEntries(tl.segments.map((x) => [x.shot, x]));
+  const order = voxShots(plan).map(([, s]) => s.id);
+  const made = {};
+  for (const sid of only) {
+    const dest = job.p("gen", "kenburns", `${job.id}_kb_${sid}.mp4`);
+    const args = voxKenBurnsArgs(await job.file("kf:" + sid), dest, need[sid].need + 0.3, order.indexOf(sid) % 2 === 0);
+    try { await io.ffmpeg(args); } catch (e) { throw voxFail("ken burns: " + pySlice(String(e && e.message || e), -300)); }
+    made[sid] = dest;
+  }
+  return { ok: true, clips: made };
+}
+export function voxHeadlineSize(text) {
+  let units = 0;
+  for (const ch of pyChars(text)) units += /[\u3040-\u30ff\u3131-\ud7a3\u4e00-\u9fff]/u.test(ch) ? 1.0 : ch === " " ? 0.3 : 0.62;
+  return Math.trunc(Math.min(100, 860 / Math.max(units, 1)));
+}
+export function voxCreditLine(portraits, lang) {
+  const groups = new Map();
+  for (const p of Object.values(portraits)) {
+    if (pyTrue(p.ok)) {
+      const lic = /public domain|^pd|cc0/i.test(p.license) ? VOX_LANG[lang].pd : p.license;
+      if (!groups.has(lic)) groups.set(lic, new Set());
+      groups.get(lic).add(p.artist || "");
+    }
+  }
+  if (!groups.size) return "";
+  const byCode = (a, b) => { const x = pyChars(a), y = pyChars(b); for (let i = 0; i < Math.min(x.length, y.length); i++) { const d = x[i].codePointAt(0) - y[i].codePointAt(0); if (d) return d; } return x.length - y.length; };
+  const parts = [...groups].map(([lic, v]) => ([...v].some(Boolean) ? `${[...v].filter(Boolean).sort(byCode).join(", ")}(${lic})` : lic));
+  return `${VOX_LANG[lang].photos} \u00b7 Wikimedia Commons: ${parts.join("; ")}`;
+}
+async function voxCmdAssembly(io, job) {
+  const plan = await job.plan();
+  const lang = plan.lang;
+  const tl = await io.readJson(io.join(job.dir, "timeline.json"), null);
+  const art = (await io.readJson(io.join(job.dir, "article.json"), {})) || {};
+  const segs = [];
+  for (const s of tl.segments) {
+    const f = await job.file("clip:" + s.shot);
+    if (!f) throw voxFail("clip missing: " + s.shot);
+    segs.push({ shot: s.shot, file: f, dur: pyRound(Math.min(s.need, (await io.duration(f)) - 0.02), 3) });
+  }
+  const music = (await job.file("music")) || "";
+  let source = plan.source_line || "";
+  if (!source && pyTrue(art.url)) {
+    const date = pySlice(art.date || "", 0, 10).split("-").join(".");
+    source = `${VOX_LANG[lang].source} \u00b7 ${[art.source, date, art.byline].filter(pyTrue).join(" ")}`;
+  }
+  const files = [...segs.map((s) => s.file), ...tl.narration.map((n) => n.file), ...(music ? [music] : [])];
+  const res = { draftName: `${pySlice(plan.title || art.title || "Explainer", 0, 60)} \u00b7 Vox`, files, segments: segs, narration: tl.narration, music,
+    headlines: tl.headlines.map((h) => ({ ...h, size: voxHeadlineSize(h.text) })), captions: tl.captions,
+    credit: { start: pyRound(tl.total - VOX_END_HOLD + 0.2, 3), source, photos: voxCreditLine(job.data.portraits || {}, lang) } };
+  await io.writeJson(job.p("selects.json"), res);
+  job.data.stage = "assembled";
+  await job.save();
+  return res;
+}
+
+// engine.py's command line: `cmd` with the job folder and the rest of argv (`args`: e.g. ["keyframes", "1a,2b",
+// "--attempt", "2"]). Returns what engine.py printed: the command's answer, or {ok: false, error} on a failure.
+export async function voxEngine(cmd, dir, args, io) {
+  try {
+    const rest = args || [];
+    const at = rest.indexOf("--attempt");
+    const attempt = at >= 0 ? parseInt(rest[at + 1], 10) : 1;
+    const pos = rest.filter((x, i) => !x.startsWith("--") && (i === 0 || rest[i - 1] !== "--attempt"));
+    const job = await voxJob(io, dir);
+    if (cmd === "requests") return await voxCmdRequests(io, job, pos[0], pos.length > 1 && pos[1] ? new Set(pos[1].split(",")) : null, attempt);
+    const only = pos.length && pos[0] ? new Set(pos[0].split(",")) : null;
+    switch (cmd) {
+      case "fetch": return await voxCmdFetch(io, job);
+      case "validate": return await voxCmdValidate(io, job);
+      case "portraits": return await voxCmdPortraits(io, job);
+      case "timeline": return await voxCmdTimeline(io, job);
+      case "sheet": return await voxCmdSheet(io, job, only);
+      case "kenburns": return await voxCmdKenBurns(io, job, [...(only || [])].sort());
+      case "assembly": return await voxCmdAssembly(io, job);
+      default: throw voxFail("unknown command " + cmd);
+    }
+  } catch (e) {
+    if (e instanceof VoxEngineError) return { ok: false, error: e.message };
+    return { ok: false, error: `${(e && e.name) || "Error"}: ${(e && e.message) || e}` };
+  }
 }
 // @operation-end
+// The engine's I/O on the host (see voxEngine): job files through FileSystem, ffmpeg and ffprobe through the host's
+// bundled copies, and the network two ways. Wikipedia/Commons API answers come through fetch (they allow any origin
+// with origin=*, and take Api-User-Agent for the agent engine.py sends). Article pages and portrait images are
+// downloaded by the host's FileSystem.downloadFile, outside the panel's origin rules, into the job folder; a page that
+// will not download counts as HTTP 599 (FETCH_FAILED: "paste the text instead").
+function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; writeJson: (p: string, v: any) => Promise<void> }) {
+  const fs = hostNeed("FileSystem", "join");
+  const tmp = () => hostJoin(dir, "dl-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".tmp");
+  return {
+    join: (...p: string[]) => hostJoin(...p),
+    exists: (p: string) => { try { return !!p && !!fs.existsSync(p); } catch (e) { return false; } },
+    mkdir: (p: string) => { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); },
+    readJson: async (p: string, def: any) => { const v = await files.readJson(p); return v === null ? def : v; },
+    writeJson: (p: string, v: any) => files.writeJson(p, v),
+    now: () => Date.now() / 1000,
+    sheetFont: () => voxSheetFont(hostIsWindows()),
+    duration: (p: string) => voxMediaDuration(p),
+    silences: (p: string) => voxSilences(p),
+    ffmpeg: async (args: string[]) => {
+      const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 280000);
+      let log = "";
+      try {
+        await hostNeed("Runtime", "runFFmpeg").runFFmpeg(args, true, controller.signal, undefined, (t: string) => { log += t; });
+      } catch (e: any) {
+        throw new Error(log || String(e?.message || e));
+      } finally { clearTimeout(timer); }
+    },
+    http: async (url: string, ua: string, timeout: number) => {
+      if (/^https:\/\/(en\.wikipedia\.org|commons\.wikimedia\.org)\/w\/api\.php\?/.test(url)) {
+        const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeout * 1000);
+        try {
+          const r = await fetch(url + "&origin=*", { headers: { "Api-User-Agent": ua }, signal: controller.signal });
+          return { code: r.status, text: await r.text() };
+        } finally { clearTimeout(timer); }
+      }
+      const dest = tmp();
+      try {
+        await hostNeed("FileSystem", "downloadFile").downloadFile(url, dest);
+        return { code: 200, text: new TextDecoder().decode(await hostReadBytes(dest)) };
+      } catch (e) {
+        return { code: 599, text: "" };
+      } finally { await hostRemove(dest); }
+    },
+    // A portrait: the host's download first; if that fails, the panel's fetch (Wikimedia's files allow any origin).
+    download: async (url: string, dest: string) => {
+      try {
+        await hostNeed("FileSystem", "downloadFile").downloadFile(url, dest);
+        if (fs.existsSync(dest)) return 200;
+      } catch (e) { /* the panel's fetch */ }
+      try {
+        const r = await fetch(url);
+        if (!r.ok) return r.status;
+        await hostNeed("FileSystem", "writeFile").writeFile(dest, new Uint8Array(await r.arrayBuffer()));
+        return 200;
+      } catch (e) { return 599; }
+    },
+  };
+}
 // Selects' own media generation for plug-in panels: billed to the user's Selects credits, results
 // saved into a folder under ~/.selects/plugin-data (Selects 2.0.512+).
 function generation(): any {
@@ -649,56 +1415,22 @@ export default function Panel({ sdk, context, ui }: any) {
     return S.errors[m] || m;
   };
 
-  // ---- Host helpers ----
-  // The only shell call; on Windows sdk.runShell is cmd.exe, so it refuses there before running anything.
-  const shell = async (command: string, summary: string, timeoutMs = 120000) => {
-    if (hostIsWindows()) throw new Error(S.macOnly);
-    // mac-only:start
-    const r: any = await sdk.runShell({ summary, command, timeoutMs, maxOutputBytes: 48000 });
-    return { ...r, stdout: String(r.stdout || ""), stderr: String(r.stderr || ""), output: String(r.output || "") };
-    // mac-only:end
-  };
-  async function home(): Promise<string> {
-    if (fs) return fs.homedir();
-    // mac-only:start
-    return (await shell(`printf %s "$HOME"`, "Find home folder")).stdout.trim();
-    // mac-only:end
-  }
+  // ---- Host helpers: files through the host FileSystem (window.parent.__DI__), no shell ----
   async function readText(path: string): Promise<string | null> {
-    if (fs) {
-      try {
-        return fs.existsSync(path) ? dec(await fs.readFile(path)) : null;
-      } catch (e) {
-        return null;
-      }
+    try {
+      return fs && fs.existsSync(path) ? dec(await fs.readFile(path)) : null;
+    } catch (e) {
+      return null;
     }
-    // mac-only:start
-    const r = await shell(`[ -f ${pq(path)} ] && cat ${pq(path)}`, "Read job file");
-    return r.exitCode === 0 ? r.stdout : null;
-    // mac-only:end
   }
   async function writeBytes(path: string, bytes: Uint8Array) {
-    if (fs) {
-      const dir = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      await fs.writeFile(path, bytes);
-      return;
-    }
-    // mac-only:start
-    const b64 = bytesToB64(bytes);
-    await shell(`mkdir -p ${pq(path.slice(0, path.lastIndexOf("/")))} && : > ${pq(path + ".b64")}`, "Prepare file");
-    for (let i = 0; i < b64.length; i += 60000) await shell(`printf %s ${pq(b64.slice(i, i + 60000))} >> ${pq(path + ".b64")}`, "Write file");
-    await shell(`base64 -D -i ${pq(path + ".b64")} -o ${pq(path)} && rm ${pq(path + ".b64")}`, "Write file");
-    // mac-only:end
+    if (!fs) throw new Error(S.noHost);
+    const dir = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    await fs.writeFile(path, bytes);
   }
   async function readB64(path: string): Promise<string> {
-    if (fs) return bytesToB64(new Uint8Array(await fs.readFile(path)));
-    // mac-only:start
-    const size = parseInt((await shell(`stat -f%z ${pq(path)}`, "Read image")).stdout.trim(), 10) || 0;
-    let s = "";
-    for (let i = 0; i * 30000 < size; i++) s += (await shell(`dd if=${pq(path)} bs=30000 skip=${i} count=1 2>/dev/null | base64`, "Read image")).stdout.replace(/\s+/g, "");
-    return s;
-    // mac-only:end
+    return bytesToB64(hostBytes(await fs.readFile(path)));
   }
   const readJson = async (path: string) => {
     const t = await readText(path);
@@ -710,33 +1442,19 @@ export default function Panel({ sdk, context, ui }: any) {
   };
   const writeJson = (path: string, v: any) => writeBytes(path, enc(JSON.stringify(v)));
 
-  // Working files live in ~/.selects/plugin-data/vox-explainer; the engine in the plugin's skills folder.
+  // Working files live in ~/.selects/plugin-data/vox-explainer. The engine needs the host's FileSystem (files and
+  // downloads) and its bundled ffmpeg/ffprobe; a Selects build without them gets one "update Selects" message.
   async function ensureEnv() {
     if (env.current) return env.current;
-    if (hostIsWindows()) throw new Error(S.macOnly);
-    const root = hostJoin(await home(), ".selects", "plugin-data", APP_ID);
-    // mac-only:start
-    const r = await shell(
-      `[ -f ${ENGINE} ] || { echo NO_ENGINE; exit 0; }; for p in /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do if [ -x "$p" ] && "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; then echo "$p"; break; fi; done`,
-      "Find the engine and Python"
-    );
-    const py = r.stdout.trim().split("\n")[0];
-    if (py === "NO_ENGINE") throw new Error(S.noEngine);
-    if (!py) throw new Error(S.noPython);
-    // mac-only:end
-    env.current = { root, py };
+    if (!fs || !hostApi("FileSystem", "join", "downloadFile") || !hostApi("Runtime", "runFFmpeg", "runFFprobe")) throw new Error(S.noHost);
+    env.current = { root: hostJoin(fs.homedir(), ".selects", "plugin-data", APP_ID) };
     return env.current;
   }
-  async function run(cmd: string, dir: string, extra = "", summary = "") {
-    const e = await ensureEnv();
-    // mac-only:start
-    const r = await shell(`${pq(e.py)} ${ENGINE} ${cmd} ${pq(dir)}${extra ? " " + extra : ""}`, summary || `Vox explainer: ${cmd}`, 280000);
-    // mac-only:end
-    let j: any = null;
-    try {
-      j = JSON.parse(r.stdout.trim().split("\n").pop() || "");
-    } catch (err) {}
-    if (!j) throw new Error((r.stderr || r.output || "engine failed").slice(-800));
+  // engine.py's commands, run by the panel's port of it (voxEngine). `args` is the rest of engine.py's argv.
+  async function run(cmd: string, dir: string, args: string[] = [], summary = "") {
+    await ensureEnv();
+    const j: any = await voxEngine(cmd, dir, args, voxHostIO(dir, { readJson, writeJson }));
+    if (!j) throw new Error(summary || "engine failed");
     if (!j.ok && j.error) throw new Error(String(j.error));
     return j;
   }
@@ -862,7 +1580,6 @@ export default function Panel({ sdk, context, ui }: any) {
     setError("");
     setResult(null);
     setPlan(null);
-    if (hostIsWindows()) return setError(S.macOnly);
     if (!projectId) return setError(S.noProject);
     if (mode === "link" && !/^https?:\/\//.test(url.trim())) return setError(S.needUrl);
     if (mode === "text" && text.trim().length < 80) return setError(S.needText);
@@ -877,7 +1594,7 @@ export default function Panel({ sdk, context, ui }: any) {
       setJob({ id, dir });
       setStep(0);
       setStatus(S.steps[0]);
-      const f = await run("fetch", dir, "", "Read the source");
+      const f = await run("fetch", dir, [], "Read the source");
       const art = await readJson(hostJoin(dir, "article.json"));
       setStep(1);
       setStatus(`${S.steps[1]} · ${f.title || ""}`);
@@ -886,11 +1603,11 @@ export default function Panel({ sdk, context, ui }: any) {
       const pics = await ask(picturePrompt(script));
       let parsed: any = { ...script, beats: (script.beats || []).map((bt: any, i: number) => ({ ...bt, ...((pics.beats || [])[i] || {}) })) };
       await writeJson(hostJoin(dir, "plan.json"), parsed);
-      let v = await run("validate", dir, "", "Check the script");
+      let v = await run("validate", dir, [], "Check the script");
       if (!v.ok) {
         parsed = await ask(repairPrompt(JSON.stringify(parsed), v.errors || []));
         await writeJson(hostJoin(dir, "plan.json"), parsed);
-        v = await run("validate", dir, "", "Check the script");
+        v = await run("validate", dir, [], "Check the script");
         if (!v.ok) throw new Error((v.errors || []).join("; "));
       }
       if (v.seconds > target * 1.15) {
@@ -898,7 +1615,7 @@ export default function Panel({ sdk, context, ui }: any) {
         setStatus(`${S.steps[1]} · ${v.seconds}s → ${target}s`);
         parsed = await ask(shortenPrompt(parsed, f, target, v.seconds));
         await writeJson(hostJoin(dir, "plan.json"), parsed);
-        const v2 = await run("validate", dir, "", "Check the script");
+        const v2 = await run("validate", dir, [], "Check the script");
         if (v2.ok) v = v2;
       }
       const p = await readJson(hostJoin(dir, "plan.json"));
@@ -917,7 +1634,6 @@ export default function Panel({ sdk, context, ui }: any) {
   // ---- 2. Everything else, resumable ----
   async function produce(resume?: any) {
     setError("");
-    if (hostIsWindows()) return setError(S.macOnly);
     const j0 = resume || job;
     if (!j0) return;
     if (!projectId) return setError(S.noProject);
@@ -934,19 +1650,19 @@ export default function Panel({ sdk, context, ui }: any) {
 
       setStep(2);
       setStatus(S.steps[2]);
-      if (!pj.portraits) pj = await savePanel(dir, { portraits: (await run("portraits", dir, "", "Find free-licence portraits")).missing || [] });
-      await generate(st, sc, (await run("requests", dir, "narration", "Narration requests")).requests, S.steps[2]);
-      if (!pj.timed) pj = await savePanel(dir, { timed: (await run("timeline", dir, "", "Narration timing")).seconds });
-      const music = (await run("requests", dir, "music", "Music request")).requests;
+      if (!pj.portraits) pj = await savePanel(dir, { portraits: (await run("portraits", dir, [], "Find free-licence portraits")).missing || [] });
+      await generate(st, sc, (await run("requests", dir, ["narration"], "Narration requests")).requests, S.steps[2]);
+      if (!pj.timed) pj = await savePanel(dir, { timed: (await run("timeline", dir, [], "Narration timing")).seconds });
+      const music = (await run("requests", dir, ["music"], "Music request")).requests;
       const musicDone = generate(st, sc, music, "", "keep").catch(() => [{ gen: "music" }]); // runs alongside
 
       setStep(3);
-      await generate(st, sc, (await run("requests", dir, "keyframes", "Keyframe requests")).requests, S.steps[3], "keep");
+      await generate(st, sc, (await run("requests", dir, ["keyframes"], "Keyframe requests")).requests, S.steps[3], "keep");
       const gen = st.gen;
       const bad = Object.keys(gen).filter((k) => k.startsWith("kf:") && gen[k].failed).map((k) => k.slice(3));
       if (bad.length) {
         const attempt = Math.max(...bad.map((s) => gen["kf:" + s].attempt || 1)) + 1;
-        await generate(st, sc, (await run("requests", dir, `keyframes ${pq(bad.join(","))} --attempt ${attempt}`, "Keyframe retries")).requests, S.steps[3]);
+        await generate(st, sc, (await run("requests", dir, ["keyframes", bad.join(","), "--attempt", String(attempt)], "Keyframe retries")).requests, S.steps[3]);
       }
 
       if (!pj.checked) {
@@ -957,7 +1673,7 @@ export default function Panel({ sdk, context, ui }: any) {
         const rerolled: string[] = [];
         let remaining: any[] = [];
         for (let round = 0; round < 2; round++) {
-          const sh = await run("sheet", dir, only.length ? pq(only.join(",")) : "", "Contact sheet");
+          const sh = await run("sheet", dir, only.length ? [only.join(",")] : [], "Contact sheet");
           const images: any[] = [];
           for (const s of sh.sheets.slice(0, 4)) images.push({ dataUrl: `data:image/jpeg;base64,${await readB64(s.path)}`, name: s.shots.join(",") });
           let flagged: any[] = [];
@@ -974,7 +1690,7 @@ export default function Panel({ sdk, context, ui }: any) {
           if (!redo.length) break;
           if (round === 1) remaining = flagged.filter((x: any) => !redo.includes(String(x.shot)));
           const attempt = Math.max(...redo.map((s: string) => gen["kf:" + s]?.attempt || 1)) + 1;
-          await generate(st, sc, (await run("requests", dir, `keyframes ${pq(redo.join(","))} --attempt ${attempt}`, "Remake keyframes")).requests, S.steps[4], "keep");
+          await generate(st, sc, (await run("requests", dir, ["keyframes", redo.join(","), "--attempt", String(attempt)], "Remake keyframes")).requests, S.steps[4], "keep");
           rerolled.push(...redo);
           only = redo;
         }
@@ -983,11 +1699,11 @@ export default function Panel({ sdk, context, ui }: any) {
       }
 
       setStep(5);
-      const failedClips = await generate(st, sc, (await run("requests", dir, "clips", "Motion requests")).requests, S.steps[5], "keep");
+      const failedClips = await generate(st, sc, (await run("requests", dir, ["clips"], "Motion requests")).requests, S.steps[5], "keep");
       if (failedClips.length) {
         // LESSON: a refused clip is refused again on every retry; the pan-and-zoom fallback is immediate.
         const ids = failedClips.map((f) => f.id);
-        const kb = await run("kenburns", dir, pq(ids.join(",")), "Zoom fallback");
+        const kb = await run("kenburns", dir, [ids.join(",")], "Zoom fallback");
         for (const [sid, path] of Object.entries(kb.clips || {})) gen["clip:" + sid] = { ...(gen["clip:" + sid] || {}), path, fallback: true };
         await persist(st);
         pj = await savePanel(dir, { fallback: ids });
@@ -998,7 +1714,7 @@ export default function Panel({ sdk, context, ui }: any) {
       setStep(6);
       setStatus(S.steps[6]);
       if (!pj.draftId) {
-        const sel = await run("assembly", dir, "", "Plan the Draft");
+        const sel = await run("assembly", dir, [], "Plan the Draft");
         const files = JSON.stringify(sel.files);
         const imp: any = await sdk.runScript({
           summary: "Import the explainer media",
@@ -1052,11 +1768,12 @@ return { map };`,
   }
 
   const secs = busy && t0 ? Math.round((Date.now() - t0) / 1000) : 0;
-  const macOnly = hostIsWindows();
+  // A Selects build without the host file and ffmpeg services cannot run the engine; say so and keep the buttons off.
+  const noHost = !fs || !hostApi("FileSystem", "join", "downloadFile") || !hostApi("Runtime", "runFFmpeg", "runFFprobe");
 
   return (
     <ui.Stack gap={16}>
-      {macOnly && <ui.Message>{S.macOnly}</ui.Message>}
+      {noHost && <ui.Message>{S.noHost}</ui.Message>}
       <ui.Section title={S.sourceTitle}>
         <ui.Tabs
           value={mode}
@@ -1068,7 +1785,7 @@ return { map };`,
         />
         <ui.NumberField label={S.target} value={target} onChange={(v: number) => setTarget(Math.max(20, Math.min(120, Math.round(v))))} min={20} max={120} step={5} unit="s" disabled={!!busy} />
         <ui.Actions>
-          <ui.Button variant={plan ? "secondary" : "primary"} busy={busy === "plan"} busyLabel={S.planning} disabled={!!busy || macOnly} onClick={makePlan}>
+          <ui.Button variant={plan ? "secondary" : "primary"} busy={busy === "plan"} busyLabel={S.planning} disabled={!!busy || noHost} onClick={makePlan}>
             {plan ? S.redo : S.makePlan}
           </ui.Button>
         </ui.Actions>
@@ -1104,7 +1821,7 @@ return { map };`,
           </div>
           {check?.warnings?.length > 0 && <ui.Message tone="muted">{S.warnings}: {check.warnings.join(" / ")}</ui.Message>}
           <ui.Actions>
-            <ui.Button variant="primary" busy={busy === "make"} busyLabel={S.producing} disabled={!!busy || !!result || macOnly} onClick={() => produce()}>
+            <ui.Button variant="primary" busy={busy === "make"} busyLabel={S.producing} disabled={!!busy || !!result || noHost} onClick={() => produce()}>
               {S.produce}
             </ui.Button>
           </ui.Actions>
@@ -1152,7 +1869,7 @@ return { map };`,
           <ui.Message tone="error">{error}</ui.Message>
           {job && !busy && (
             <ui.Actions>
-              <ui.Button variant="secondary" disabled={macOnly} onClick={() => (plan ? produce(job) : makePlan())}>
+              <ui.Button variant="secondary" disabled={noHost} onClick={() => (plan ? produce(job) : makePlan())}>
                 {S.retry}
               </ui.Button>
             </ui.Actions>
@@ -1165,7 +1882,7 @@ return { map };`,
           {jobs.map((j) => (
             <ui.Row key={j.id} align="center">
               <small style={{ minWidth: 0, flex: 1 }}>{j.title}</small>
-              <ui.Button variant="ghost" disabled={macOnly} onClick={() => produce(j)}>
+              <ui.Button variant="ghost" disabled={noHost} onClick={() => produce(j)}>
                 {S.resume}
               </ui.Button>
               <ui.IconButton icon="close" label={S.dismiss} onClick={() => dismiss(j)} />
