@@ -10,7 +10,11 @@ import hashlib
 import json
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from windows_static import check_manifest_and_docs, check_no_posix_shell
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, "plugins", "mini-vlog")
@@ -177,6 +181,10 @@ class MiniVlogWindowsTest(unittest.TestCase):
             text = read(os.path.join(PLUGIN, name))
             self.assertNotRegex(text, r"(?i)brew install|install (ffmpeg|node)|nvm\b|runtime\.sh", name)
             self.assertIn("Windows", text, name)
+
+    def test_shared_static_checks(self):
+        check_no_posix_shell(self, "mini-vlog")
+        check_manifest_and_docs(self, "mini-vlog")
 
 
 if __name__ == "__main__":
