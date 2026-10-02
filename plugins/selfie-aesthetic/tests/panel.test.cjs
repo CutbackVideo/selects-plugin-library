@@ -167,12 +167,24 @@ test('configs sent to each script carry what the scripts read', () => {
   assert.ok(own.includes('sdk.call("getResourceVisualSpans", pid, id)') && own.includes('catch { return null; }'));
   // planner: photos / usePhotos / seed / section.
   assert.ok(own.includes('saePlanBuild({ fps: 30, bars: settings.bars, seed: nextSeed, cue: settings.cue, sectionStart: settings.section ?? undefined,'));
-  assert.ok(own.includes('candidates, durations, badSpans, photos, usePhotos: settings.usePhotos, motion, stillWeight: SAE_STILL_WEIGHT_PANEL })'));
+  assert.ok(own.includes('candidates, durations, badSpans, photos, usePhotos: settings.usePhotos, motion, stillWeight: SAE_STILL_WEIGHT_PANEL, analysed, local, pickLocal: pickWindowsLocal })'));
+  // Build without analysis: buildDraft derives the unanalysed inputs from the inventory and motion (no new required
+  // field, so the template run's call is unchanged); the dry run plans unanalysed clips from cached quick scores.
+  assert.ok(own.includes('const { analysed, local } = saeLocalInputs(inv, rids, motion);'));
+  assert.ok(own.includes('const { analysed, local } = saeLocalInputs(inventory, selectedRids, motion);') && own.includes('saeLocalCache.get(saeLocalKey(projectId, r))'));
+  // Quick scores: the kit's quickScoreAll, 3 at a time, one shared budget, cancellable; spans and search skip unanalysed clips.
+  assert.ok(own.includes('const SAE_QUICK_CONCURRENCY = 3;') && own.includes('results = await quickScoreAll(') && own.includes('concurrency: SAE_QUICK_CONCURRENCY, budgetMs: SAE_QUICK_BUDGET_MS, signal: controller.signal, dataDir,'));
+  assert.ok(own.includes('try { check(); } catch { controller.abort(); return; }') && own.includes('localAbortRef.current?.abort();'));
+  assert.ok(own.includes('if (unanalysed.has(rid)) { out[rid] = []; continue; }'), 'no bad-shot span call for clips without analysis');
+  assert.ok(own.includes('const unsearched = analysedRids.length ? await searchClips(pid, analysedRids, check) : [];'), 'Build searches analysed clips only');
+  assert.ok(own.includes('if (skip.has(rid)) continue;'), 'search.js unanalysed rids neither fail nor enter the cache');
+  assert.ok(own.includes('(l) => t(l, "checkingClipsCount", { done, count: total }), true)'), 'Checking clips N/M while scoring');
   // Stillness picker: off by default (no motion step, plans as before); on, motion per clip through the host block, guarded.
   assert.ok(own.includes('const SAE_STILL_WEIGHT_PANEL: number = 0.6;'), 'stillness picker on at 0.6 (Staging A/B, round 2)');
   assert.ok(own.includes('const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok;'));
   assert.ok(own.includes('await saeMotionCurve(pathOf[rid], dataDir, {})') && own.includes('t(l, "videosMeasured", { done, count: total })'));
-  assert.ok(own.includes('motion, stillWeight: SAE_STILL_WEIGHT_PANEL });'), 'the dry run uses the cached motion too');
+  assert.ok(own.includes('const motion: Record<string, any> = stillOn && analysedRids.length'), 'motion curves for analysed clips only');
+  assert.ok(own.includes('motion, stillWeight: SAE_STILL_WEIGHT_PANEL, analysed, local, pickLocal: pickWindowsLocal });'), 'the dry run uses the cached motion and quick scores too');
   // ensure-audio: bundled cue path from the skills dir; own music never matched by name.
   assert.ok(own.includes('fill(assets.scripts.ensureJs, { projectId: pid, path, ...(own ? { matchByName: false } : {}) })'));
   // assemble.
@@ -210,7 +222,7 @@ const tt = (lang, key, vars = {}) => {
 const box = { t: tt, console };
 vm.createContext(box);
 vm.runInContext(planner + '\n' + between(own, '// sae-panel:start', '// sae-panel:end')
-  + '\nthis.api = { SAE_BUILD_STEPS, saeProgress, saeSpansOf, saeRealIds, saeDraftName, saeTrimHolds, saeOwnCue, saeLoudestSection, saeAnalysisCounts, saeAnalysisText, saeAnalysisNotes, saePlanNotes, saePlanBuild, saeVideoSeconds, saeSectionRange, saeBarGrid, saeRunGuard, SAE_LEAD };', box);
+  + '\nthis.api = { SAE_BUILD_STEPS, saeProgress, saeSpansOf, saeRealIds, saeDraftName, saeTrimHolds, saeOwnCue, saeLoudestSection, saeInventoryCounts, saeImportingText, saeInventoryNotes, saeLocalInputs, saePlanNotes, saePlanBuild, saeVideoSeconds, saeSectionRange, saeBarGrid, saeRunGuard, SAE_LEAD };', box);
 const api = box.api;
 
 test('progress: five steps, monotonic, 100% only at the very end', () => {
@@ -227,7 +239,7 @@ test('progress: five steps, monotonic, 100% only at the very end', () => {
   assert.equal(api.saeProgress('assemble', 0).current, 3);
   assert.throws(() => api.saeProgress('open', 0));
   // The panel keeps the bar where it is when a report comes in lower.
-  assert.ok(own.includes('const p = prev && prev.value > next.value ? { ...prev, detail } : { ...next, detail };'));
+  assert.ok(own.includes('const p = prev && prev.value > next.value ? { ...prev, detail, named } : { ...next, detail, named };'));
 });
 test('run generation: a build from Project A that resumes after A -> B -> A writes nothing', async () => {
   // A miniature of the panel's build(): each awaited script is a deferred promise the test settles by hand; state
@@ -281,7 +293,7 @@ test('run generation: a build from Project A that resumes after A -> B -> A writ
   assert.equal(g2.live(), true);
   // The panel wires it: the Project-switch effect bumps the generation, build and Finish look take a guard, and
   // endRun / the error paths test live() instead of the Project id.
-  assert.ok(/React\.useEffect\(\(\) => \{\n    runGenRef\.current\+\+;\n    setResult\(null\);[\s\S]*?\}, \[projectId\]\);/.test(own), 'switch effect bumps runGenRef');
+  assert.ok(/React\.useEffect\(\(\) => \{\n    runGenRef\.current\+\+;\n    localAbortRef\.current\?\.abort\(\); localAbortRef\.current = null;\n    setResult\(null\);[\s\S]*?\}, \[projectId\]\);/.test(own), 'switch effect bumps runGenRef and aborts quick scoring');
   assert.equal((own.match(/saeRunGuard\(runGenRef, projectRef, /g) || []).length, 2, 'build and finishLook take a guard');
   assert.ok(own.includes('const endRun = (guard: { live: () => boolean }) => {\n    if (!guard.live()) return;'), 'endRun tests the generation');
   assert.equal((own.match(/finally \{ endRun\(guard\); \}/g) || []).length, 2);
@@ -342,25 +354,54 @@ test('own music: cue from the analysis, loudest bar-aligned section inside the f
   assert.equal(plan.ok, true);
   assert.ok(plan.notes.includes('fixed-tempo'));
 });
-test('readiness wording: analysis counts, short clips, plan notes', () => {
-  const c = api.saeAnalysisCounts({ unanalysed: 3, analysing: 2, notAnalysed: 1, failed: 0, short: 2, statusKnown: true });
-  assert.equal(api.saeAnalysisText('en', c), '2 clips are being analysed. This updates automatically when they finish. 1 clip is not analysed yet. Analyse it in Selects to use it here.');
-  assert.deepEqual(plain(api.saeAnalysisNotes('en', c).filter(Boolean)), ['2 clips being analysed', '1 clip not analysed yet', '2 clips under 1.2 s skipped']);
-  assert.equal(api.saeAnalysisText('en', api.saeAnalysisCounts({ unanalysed: 1 })), '1 clip is not analysed yet. If Selects is analysing it, this updates automatically.');
-  const notes = (n, faceClips, fit) => plain(api.saePlanNotes('en', { notes: n, faceClips, fit }));
+test('readiness: unanalysed clips are usable; importing and short clips are notes; plan notes stay truthful', () => {
+  // Counts from inventory.js (skipped.unanalysed = not usable yet, i.e. still importing) and from older rows.
+  const inv = { resources: [{ rid: 'a', analysed: true }, { rid: 'u', analysed: false }], photos: [], skipped: { unanalysed: 2, missing: 0, short: 1 }, counts: { analysed: 1, unanalysed: 1, analysing: 1 } };
+  assert.deepEqual(plain(api.saeInventoryCounts(inv)), { importing: 2, short: 1, analysed: 1, unanalysed: 1, analysing: 1 });
+  assert.deepEqual(plain(api.saeInventoryCounts({ resources: [{ rid: 'a' }, { rid: 'u', analysed: false }], skipped: {} })), { importing: 0, short: 0, analysed: 1, unanalysed: 1, analysing: 0 });
+  const c = api.saeInventoryCounts(inv);
+  assert.equal(api.saeImportingText('en', c), '2 clips are still importing. This updates automatically when they are ready.');
+  assert.equal(api.saeImportingText('en', api.saeInventoryCounts({ skipped: { unanalysed: 1 } })), '1 clip is still importing. This updates automatically when it is ready.');
+  assert.equal(api.saeImportingText('en', api.saeInventoryCounts({ skipped: {} })), '');
+  assert.deepEqual(plain(api.saeInventoryNotes('en', c).filter(Boolean)), ['2 clips still importing', '1 clip under 1.2 s skipped']);
+  // No wording asks to analyse first or calls an unanalysed clip skipped.
+  for (const lang of Object.keys(block.strings)) for (const [k, v] of Object.entries(block.strings[lang])) {
+    if (lang === 'en') assert.ok(!/analy[sz]e (it|them) in Selects|not analysed yet|being analysed/i.test(JSON.stringify(v)), 'no analyse-first wording: ' + k);
+  }
+  for (const k of ['analysing', 'notAnalysedAnalyse', 'notAnalysedMaybe', 'analysisFailed', 'noteAnalysing', 'noteNotAnalysed', 'noteFailed', 'noFootage']) assert.equal(en[k], undefined, 'removed key ' + k);
+  assert.equal(en.analysedHint, 'Analysed clips give better close-up picks.');
+  assert.ok(own.includes('{showAnalysedHint ? <ui.Message tone="muted">{t(L, "analysedHint")}</ui.Message> : null}') && own.includes('const showAnalysedHint = !!inventory && selectedUnanalysed > 0;'));
+  assert.ok(own.includes('const searchedAll = !!projectId && selectedUnanalysed === 0 &&'), 'close-ups are counted only for a fully analysed choice');
+  // Progress: "Checking clips N/M" as the step name.
+  assert.equal(en.checkingClipsCount, 'Checking clips {done}/{count}');
+  assert.ok(own.includes('t(L, "progress", { step: progress.current + 1, total: SAE_BUILD_STEPS.length, name: progress.detail(L), percent: progress.percent })'));
+  assert.equal(tt('en', 'progress', { step: 1, total: 5, name: tt('en', 'checkingClipsCount', { done: 3, count: 8 }), percent: 9 }), 'Step 1/5 · Checking clips 3/8 · 9%');
+  assert.equal(tt('ko', 'checkingClipsCount', { done: 3, count: 8 }), block.strings.ko.checkingClipsCount.replace('{done}', '3').replace('{count}', '8'));
+  // The planner's unanalysed inputs: only clips whose row says analysed: false; quick scores from motion[rid].local.
+  const li = plain(api.saeLocalInputs({ resources: [{ rid: 'a', analysed: true }, { rid: 'u', analysed: false }, { rid: 'v', analysed: false }, { rid: 'old' }] }, ['a', 'u', 'old'], { u: { local: { rid: 'u', windows: [] } }, a: { fps: 8, values: [1] } }));
+  assert.deepEqual(li, { analysed: { u: false }, local: { u: { rid: 'u', windows: [] } } });
+  assert.deepEqual(plain(api.saeLocalInputs({ resources: [{ rid: 'a', analysed: true }] }, ['a'], {})), { analysed: {}, local: {} }, 'all analysed: empty inputs (plans as before)');
+  // Plan notes.
+  const notes = (n, faceClips, fit, extra = {}) => plain(api.saePlanNotes('en', { notes: n, faceClips, fit, ...extra }));
   assert.deepEqual(notes(['few-face'], 2), ['Only 2 close-up clips found — the edit reuses them']);
   assert.deepEqual(notes(['few-face'], 1), ['Only 1 close-up clip found — the edit reuses it']);
   assert.deepEqual(notes(['few-face'], 0), ['No close-up clips found, so the edit uses your other clips and photos']);
+  assert.deepEqual(notes(['few-face'], 1, null, { localClips: 2 }), ['Only 3 likely close-up clips — the edit reuses them'], 'unanalysed clips count as likely close-ups');
+  assert.deepEqual(notes(['few-face'], 0, null, { localClips: 1 }), ['Only 1 likely close-up clip — the edit reuses it']);
+  assert.deepEqual(notes([], 0, null, { localClips: 3, localFallback: 2 }), ['2 clips could not be checked, so their shots are evenly spaced']);
+  assert.deepEqual(notes([], 0, null, { localClips: 3, localFallback: 0 }), [], 'no note when every unanalysed clip was scored');
   assert.deepEqual(notes(['few-face', 'photos-early'], 1), ['Only 1 close-up clip found — the edit reuses it', 'Too few close-up clips: photos may also fill the second or last bar']);
   assert.equal(plain(api.saePlanNotes('ko', { notes: ['photos-early'] }))[0], block.strings.ko['note.photosEarly']);
   assert.deepEqual(notes(['shrunk', 'fixed-tempo', 'no-music', 'pair-reuse', 'adjacent', 'reused', 'photo-run'], 3, { bars: 3, wanted: 6 }),
     ['Your footage fits 3 of 6 bars, so the edit is shorter. Add more clips or photos for the full length.', 'No steady beat found; cuts use a fixed length', 'No music: cuts follow a steady 97 BPM rhythm', 'Very few clips: some moments repeat', 'Very few clips: the same clip plays in neighbouring bars']);
+  // Polling: importing clips, clips being analysed (better picks soon) or nothing yet; never waiting on analysis to build.
   const poll = (own.match(/const needsPoll = ([^\n]*);/) || [])[1];
   assert.ok(poll, 'needsPoll');
-  const needsPoll = (inventory) => vm.runInNewContext(poll, { inventory, invAnalysis: api.saeAnalysisCounts(inventory && inventory.skipped) });
-  assert.equal(needsPoll({ skipped: { unanalysed: 2, analysing: 2, notAnalysed: 0, failed: 0 }, resources: [{}], photos: [] }), true);
-  assert.equal(needsPoll({ skipped: { unanalysed: 2, analysing: 0, notAnalysed: 2, failed: 0 }, resources: [{}], photos: [] }), false);
-  assert.equal(needsPoll({ skipped: { unanalysed: 0, analysing: 0, notAnalysed: 0, failed: 0 }, resources: [], photos: [] }), true);
+  const needsPoll = (inventory) => vm.runInNewContext(poll, { inventory, invCounts: api.saeInventoryCounts(inventory) });
+  assert.equal(needsPoll({ skipped: { unanalysed: 2 }, counts: { analysed: 1, unanalysed: 0, analysing: 0 }, resources: [{}], photos: [] }), true, 'importing');
+  assert.equal(needsPoll({ skipped: { unanalysed: 0 }, counts: { analysed: 0, unanalysed: 2, analysing: 1 }, resources: [{}], photos: [] }), true, 'being analysed');
+  assert.equal(needsPoll({ skipped: { unanalysed: 0 }, counts: { analysed: 0, unanalysed: 2, analysing: 0 }, resources: [{}], photos: [] }), false, 'unanalysed and idle: nothing to wait for');
+  assert.equal(needsPoll({ skipped: { unanalysed: 0 }, resources: [], photos: [] }), true, 'no footage yet');
   assert.ok(own.includes('setInterval(() => { loadInventory(pid); }, 10000)') && own.includes('addEventListener("focus"') && own.includes('>{t(L, "refresh")}<'));
 });
 
@@ -420,6 +461,16 @@ test('the worker source runs the unmodified beat-detect.cjs and matches analyze(
 // Panel hands a run with `context.template` to TemplateRun (out of sight); anything else is the panel UI.
 const tplSrc = own.slice(own.indexOf('// Template runs.'), own.indexOf('export default function Panel('));
 const tplRun = between(own, 'async function runSelfieTemplate(', '\nfunction TemplateRun(');
+test('template run: the code from the "Template runs." banner to the end is byte-identical to origin/main (user policy)', () => {
+  // Hyun/Jay's Clip highlights template mode: never edited by this plugin's changes. It benefits from the shared steps
+  // (readSpans, readMotionCurves, searchCloseUps, buildDraft), whose signatures it calls unchanged.
+  const slice = panel.slice(panel.indexOf('// Template runs.'));
+  assert.equal(require('node:crypto').createHash('sha256').update(slice).digest('hex'), '02aada7708b5c40e26f3b496bd9c95fbff4515842cb76567aedba4beacaf685f');
+  for (const sig of ['async function readSpans(sdk: any, pid: string, inv: any, rids: string[], spansCache: Map<string, number[][]>, check: () => void,',
+    'async function readMotionCurves(pid: string, inv: any, rids: string[], motionCache: Map<string, { fps: number; values: Float32Array }>, check: () => void,',
+    'async function searchCloseUps(run: RunFn, assets: any, pid: string, rids: string[], searchCache: { current: Map<string, any[]> }, check: () => void,',
+    'badSpans: Record<string, number[][]>; motion: Record<string, any>; searchCache: { current: Map<string, any[]> }; check: () => void; advance: Advance;\n}) {']) assert.ok(own.includes(sig), sig);
+});
 test('template run: Panel hands context.template to TemplateRun, which ends each runId exactly once', () => {
   const manifest = JSON.parse(read('plugin.json'));
   assert.equal(manifest.collection, 'visual-highlights');

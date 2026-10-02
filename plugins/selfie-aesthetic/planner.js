@@ -840,15 +840,16 @@ function saePlanBuild(opts) {
   if (!cue) notes.push('no-music'); else if (tempo.fixed) notes.push('fixed-tempo');
   relax.forEach(r => notes.push(r));
   if (alloc.bars.some((b, k) => k >= SAE_PHOTO_RUN_MAX && alloc.bars.slice(k - SAE_PHOTO_RUN_MAX, k + 1).every(x => x.kind === 'photo'))) notes.push('photo-run');
-  return {
+  const plan = {
     ok: true, fps, bpm: tempo.bpm, editBpm, firstBeat: cue && saeFinite(cue.firstBeat) ? cue.firstBeat : null,
     sectionStart, musicSourceStart: sched.musicSourceStart, lead: SAE_LEAD, offset: sched.offset,
     bars, totalFrames: sched.totalFrames, holds, cuts: sched.cuts, cutSecondsRaw: sched.cutSecondsRaw, cutSeconds: sched.cutSeconds,
     beats: sched.beats, notes, fit: { bars, wanted }, faceClips: moments.faceCount, photoBars: alloc.photoBars, seed,
     snapLog: sched.snapLog,
-    // Only with unanalysed clips in the pool, so plans without them stay byte-identical.
-    ...(moments.localCount ? { localClips: moments.localCount, localFallback: moments.clips.filter(c => c.local && c.fallback && c.pairs.length).length } : {}),
   };
+  // Only with unanalysed clips in the pool, so plans without them stay byte-identical.
+  if (moments.localCount) Object.assign(plan, { localClips: moments.localCount, localFallback: moments.clips.filter(c => c.local && c.fallback && c.pairs.length).length });
+  return plan;
 }
 
 if (typeof module !== 'undefined' && module && module.exports) {
