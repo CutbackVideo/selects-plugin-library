@@ -153,10 +153,20 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
     def test_caption_font_has_windows_fallback(self):
         self.assertIn('"Segoe UI", Arial, sans-serif', self.sources['captions.tsx'])
 
+    def test_windows_downloads_are_capped_and_off_the_main_process(self):
+        # Selects' FileSystem.downloadFile buffers a whole response in its main process with no limit; a large stock
+        # video froze the app on Windows. Search results go through the panel's capped fetch or the host's ffmpeg.
+        engine = self.sources['engine.ts']
+        self.assertNotIn('downloadFile', engine)
+        self.assertIn('const CW_MAX_BYTES = 25000000, CW_FETCH_MS = 25000, CW_CLIP_SECONDS = 15;', engine)
+        self.assertIn('if (total > CW_MAX_BYTES) { try { await reader.cancel(); } catch {} return "too-big"; }', engine)
+        self.assertIn('"-rw_timeout", "20000000"', engine)
+        self.assertIn('"-fs", String(CW_MAX_BYTES)', engine)
+
     def test_manifest_lists_windows(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
-        self.assertEqual(manifest['version'], '0.2.12')
+        self.assertEqual(manifest['version'], '0.2.13')
         self.assertIn('centre-cropped', manifest['compatibility']['selects'])
         self.assertNotIn('Available on macOS for now', (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8'))
 
