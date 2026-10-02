@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "recap-2026",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "name": "2026 Recap",
   "summary": "Build a beat-timed 1080x1920 recap Draft from the open Project's footage: a 4.7-second title intro plus 159 fast cuts locked to a bundled 61.5-second soundtrack.",
   "status": "experimental",
@@ -17,7 +17,8 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Development build only. Released-version compatibility is unverified."
   },

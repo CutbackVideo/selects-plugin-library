@@ -21,7 +21,7 @@ const TITLE_CODE = [
   "export default function Graphic({data}) {",
   "return <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',color:'#fff',textAlign:'center',textShadow:'0 2px 14px rgba(0,0,0,.5)'}}>",
   "<div style={{fontFamily:'Georgia,serif',fontSize:56,fontStyle:'italic',lineHeight:1.2}}>{data.top}</div>",
-  "<div style={{fontFamily:'Avenir Next,sans-serif',fontSize:174,fontWeight:900,lineHeight:1}}>{data.year}</div>",
+  "<div style={{fontFamily:'Avenir Next,Segoe UI Black,Arial Black,sans-serif',fontSize:174,fontWeight:900,lineHeight:1}}>{data.year}</div>",
   "</div>;}"
 ].join("");
 const FADE_CODE = [
@@ -57,7 +57,8 @@ const WORDS = {
     noneIncluded: "\uc0ac\uc6a9\ud560 \uc601\uc0c1\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ube60\ub978 \ucef7\uc6a9 \ud3f4\ub354\ub97c \uc120\ud0dd\ud558\uac70\ub098 \uc81c\uc678 \ubaa9\ub85d\uc744 \ucd08\uae30\ud654\ud558\uc138\uc694.",
     shortNotice: "1.7\ucd08 \ubbf8\ub9cc \uc601\uc0c1\uc740 \uae34 \ucef7\uc744 \ucc44\uc6b8 \uc218 \uc5c6\uc5b4 \uc81c\uc678\ub429\ub2c8\ub2e4. \uc778\ud2b8\ub85c\uc5d0\ub294 5\ucd08 \uc774\uc0c1 \uc601\uc0c1\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
     example: "\uc644\uc131 \uc608\uc2dc", exampleHint: "61.5\ucd08 \uc644\uc131\ubcf8. \uc7ac\uc0dd\ud574\uc11c \uc601\uc0c1\uacfc \ube44\ud2b8\uc758 \ud750\ub984\uc744 \ud655\uc778\ud558\uc138\uc694.",
-    exampleMissing: "\uc608\uc2dc \uc601\uc0c1\uc744 \ubd88\ub7ec\uc62c \uc218 \uc5c6\uc2b5\ub2c8\ub2e4."
+    exampleMissing: "\uc608\uc2dc \uc601\uc0c1\uc744 \ubd88\ub7ec\uc62c \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+    hostTooOld: "\uc774 \uae30\ub2a5\uc740 \ub354 \ucd5c\uc2e0 \ubc84\uc804\uc758 Selects\uac00 \ud544\uc694\ud569\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694."
   },
   en: {
     folder: "Footage folder", intro: "Intro video", slot: "Fast-cut number (1–159)",
@@ -85,7 +86,8 @@ const WORDS = {
     noneIncluded: "No footage is available. Choose a fast-cut folder or reset exclusions.",
     shortNotice: "Clips under 1.7 seconds are excluded. The intro needs a video of at least 5 seconds.",
     example: "Finished example", exampleHint: "Play the 61.5s example to see the footage and beat timing.",
-    exampleMissing: "The example video could not be loaded."
+    exampleMissing: "The example video could not be loaded.",
+    hostTooOld: "This needs a newer version of Selects. Update Selects and try again."
   }
 };
 const embedded = (value) => JSON.stringify(value);
@@ -94,12 +96,15 @@ const scriptResult = (r) => {
   if (r.result == null) throw new Error("Selects returned no result");
   return r.result;
 };
-const shellResult = (r) => {
-  if (r.isError || r.exitCode !== 0) throw new Error(r.stderr || r.output || "Host action failed");
-  return r.stdout.trim();
-};
+// One message for a Selects build that lacks a host service (av-host 'host-missing').
+const hostMessage = (e, t) => e?.code === "host-missing" ? t.hostTooOld : String(e?.message || e);
+// The install and data folders (av-host hostRoots), found once and shared by the panel and template runs.
+let recapRootsPromise = null;
+const recapRoots = () => recapRootsPromise || (recapRootsPromise = hostRoots(null, SLUG, "timing.json").catch((e) => { recapRootsPromise = null; throw e; }));
+const readTiming = async () => JSON.parse(await hostReadText(hostJoin((await recapRoots()).plugin, "timing.json")));
+// Host file names compare after NFC, \ to / and the basename (and case on Windows).
+const normPath = (s) => { const v = String(s || "").normalize("NFC").replace(/\\/g, "/"); const b = v.slice(v.lastIndexOf("/") + 1); return hostIsWindows() ? b.toLowerCase() : b; };
 const core = (cfg) => "const cfg=JSON.parse(" + embedded(JSON.stringify(cfg)) + ");const p=selects.project(cfg.projectId);";
-const shellQuote = (value) => "'" + String(value).replace(/'/g, "'\"'\"'") + "'";
 const gallerySize = 8;
 const thumbnailKey = (video, seconds) => video.resourceId + ":" + seconds.toFixed(2);
 function FinishedExample({sdk,t,ui}) {
@@ -109,12 +114,8 @@ function FinishedExample({sdk,t,ui}) {
     let active=true;
     let player: HTMLVideoElement | null=null;
     (async()=>{
-      const result=await sdk.runShell({
-        summary:"Locate bundled recap example",
-        command:'printf "%s" "$SELECTS_USER_SKILLS_ROOT/'+SLUG+'/assets/preview.mp4"',
-        maxOutputBytes:1024
-      });
-      const path=shellResult(result);
+      const {plugin}=await recapRoots();
+      const path=hostJoin(plugin,"assets","preview.mp4");
       const host=window.parent as any;
       const fileSystem=host?.__DI__?.FileSystem;
       if(typeof fileSystem?.pathToLocalURL!=="function")throw new Error(t.exampleMissing);
@@ -131,23 +132,35 @@ function FinishedExample({sdk,t,ui}) {
       player.style.aspectRatio="9 / 16";
       player.style.objectFit="contain";
       player.addEventListener("error",()=>{if(active)setError(t.exampleMissing);});
-      player.poster=fileSystem.pathToLocalURL(path.replace(/preview\.mp4$/, "preview.jpg"));
+      player.poster=fileSystem.pathToLocalURL(hostJoin(plugin,"assets","preview.jpg"));
       player.src=src;
       if(active&&mount.current)mount.current.appendChild(player);
-    })().catch(()=>{if(active)setError(t.exampleMissing);});
+    })().catch((e)=>{if(active)setError(e?.code==="host-missing"?t.hostTooOld:t.exampleMissing);});
     return ()=>{active=false;if(player){player.pause();player.removeAttribute("src");player.load();player.remove();}};
   },[]);
   return <ui.Section title={t.example}><small>{t.exampleHint}</small><div ref={mount} style={{marginTop:8,width:"100%",maxWidth:280}}/>{error&&<ui.Message tone="error">{error}</ui.Message>}</ui.Section>;
 }
+// One frame as a JPEG data URL: the host's ffmpeg writes an ASCII-named file in the data folder, read back and removed.
 async function captureThumbnail(sdk, video, seconds) {
   if (!video.path) return null;
+  const rt = hostApi("Runtime", "runFFmpeg");
+  const {data} = await recapRoots();
+  if (!rt || !data) return null;
   const time = Math.max(0, Math.min(video.durationSeconds - 0.1, seconds));
-  const command = "ffmpeg -nostdin -loglevel error -ss " + time.toFixed(3) +
-    " -i " + shellQuote(video.path) +
-    " -frames:v 1 -vf scale=240:-2 -q:v 12 -f image2pipe -vcodec mjpeg - 2>/dev/null | base64 | tr -d '\\n'";
-  const result = await sdk.runShell({summary:"Preview footage frame",command,maxOutputBytes:48000,timeoutMs:20000});
-  if (result.isError || result.exitCode !== 0 || result.truncated || !result.stdout.trim()) return null;
-  return "data:image/jpeg;base64," + result.stdout.trim();
+  const out = hostJoin(data, "thumb-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".jpg");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), 20000) : null;
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-ss", time.toFixed(3), "-i", video.path, "-frames:v", "1", "-vf", "scale=240:-2", "-q:v", "12", out], true, controller ? controller.signal : undefined);
+    const b = await hostReadBytes(out);
+    if (!b.length) return null;
+    let s = "";
+    for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+    return "data:image/jpeg;base64," + btoa(s);
+  } finally {
+    if (timer) clearTimeout(timer);
+    await hostRemove(out);
+  }
 }
 
 function SourceWindowPicker({sdk,ui,video,startSeconds,windowSeconds,sourceMargin,onChange,disabled,label,hint,loading,compact=false}) {
@@ -298,24 +311,22 @@ function finishScript(cfg) {
 async function ensureAudio(sdk, projectId) {
   let r = await sdk.runScript({
     summary:"Find fixed soundtrack",
-    script:core({projectId}) + "const r=await p.resources();return r.filter(x=>x.type==='Audio'&&(x.name===cfg.fixed||x.name===cfg.original)).map(x=>({id:x.resourceId,name:x.name,status:x.status}));".replace("cfg.fixed",embedded(AUDIO_NAME)).replace("cfg.original",embedded(AUDIO_SOURCE_NAME))
+    script:core({projectId}) + "const r=await p.resources();return r.filter(x=>x.type==='Audio').map(x=>({id:x.resourceId,name:x.name,status:x.status}));"
   });
-  let found = scriptResult(r);
-  if (found.length) return found.find((x) => x.name === AUDIO_NAME)?.id || found[0].id;
-  const path = shellResult(await sdk.runShell({
-    summary:"Locate fixed soundtrack",
-    command:'printf "%s" "$SELECTS_USER_SKILLS_ROOT/' + SLUG + '/assets/' + AUDIO_NAME + '"'
-  }));
+  let found = scriptResult(r).filter((x) => normPath(x.name) === normPath(AUDIO_NAME) || normPath(x.name) === normPath(AUDIO_SOURCE_NAME));
+  if (found.length) return found.find((x) => normPath(x.name) === normPath(AUDIO_NAME))?.id || found[0].id;
+  const {plugin, data} = await recapRoots();
+  const path = hostJoin(plugin, "assets", AUDIO_NAME);
   r = await sdk.runScript({
     summary:"Import fixed soundtrack",allowCommit:true,
     script:core({projectId,path}) + "return await p.importFiles({paths:[cfg.path]});"
   });
   let imported = scriptResult(r).addedResourceIds;
-  if (!imported?.length) {
-    const alternate = shellResult(await sdk.runShell({
-      summary:"Prepare fixed soundtrack",
-      command:'cp "$SELECTS_USER_SKILLS_ROOT/' + SLUG + '/assets/' + AUDIO_NAME + '" "$HOME/Downloads/' + AUDIO_NAME + '" && printf "%s" "$HOME/Downloads/' + AUDIO_NAME + '"'
-    }));
+  if (!imported?.length && data) {
+    // Retry from a copy in the data folder (written through the host FileSystem, staged then renamed).
+    const alternate = hostJoin(data, AUDIO_NAME), tmp = hostJoin(data, "soundtrack-" + Date.now() + ".part"), move = hostApi("FileSystem", "renameSync");
+    await hostNeed("FileSystem", "writeFile").writeFile(move ? tmp : alternate, await hostReadBytes(path));
+    if (move) { await hostRemove(alternate); move.renameSync(tmp, alternate); }
     r = await sdk.runScript({
       summary:"Import fixed soundtrack",allowCommit:true,
       script:core({projectId,path:alternate}) + "return await p.importFiles({paths:[cfg.path]});"
@@ -347,12 +358,7 @@ async function ensureAudio(sdk, projectId) {
 // soundtrack and title. `slots` holds the intro and 159 cut sources; `byId`
 // the videos they name. Resolves the new Draft's id, name and clip count.
 async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_count,_limit)=>{}}) {
-  const manifestText = shellResult(await sdk.runShell({
-    summary:"Read recap timing",
-    command:'cat "$SELECTS_USER_SKILLS_ROOT/' + SLUG + '/timing.json"',
-    maxOutputBytes:48000
-  }));
-  const manifest = JSON.parse(manifestText);
+  const manifest = await readTiming();
   if (manifest.placements?.length !== 243) throw new Error("Template timing is incomplete");
   const audioId = await ensureAudio(sdk, projectId);
   const name = "2026 Recap — " + (mode === "sample" ? "12s sample " : "") + new Date().toLocaleString();
@@ -382,9 +388,17 @@ async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_coun
   return {draftId,name,mainCount:out.mainCount};
 }
 
-// Every video of the project at least 1.7 s long, with its path, length and size.
-const allVideosScript = (projectId) => core({projectId}) +
-  "const items=[];const walk=(nodes)=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.type==='video'&&n.resourceId)items.push({resourceId:n.resourceId,name:n.name,path:n.path,durationSeconds:n.durationSeconds,frameSize:n.frameSize});}};const r=await p.sourceFiles();if('fileTree' in r)walk(r.fileTree);else for(const f of r.folders){const page=await p.sourceFiles({folder:f.name});if('fileTree' in page)walk(page.fileTree);}return items;";
+// The length the Resource itself reports (the source-file tree keeps the length from when the tree was built,
+// which can be missing or 0), keyed by script resource id. Prepended to a script that reads `dur`.
+const RESOURCE_SECONDS = "const res=await p.resources();const dur={};for(const x of res)dur[x.resourceId]=x.durationSeconds;";
+// Every video of the project, with its path, length and size; a video Resource missing from the tree still counts.
+const allVideosScript = (projectId) => core({projectId}) + RESOURCE_SECONDS +
+  "const items=[];const walk=(nodes)=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.type==='video'&&n.resourceId)items.push({resourceId:n.resourceId,name:n.name,path:n.path,durationSeconds:dur[n.resourceId]||n.durationSeconds,frameSize:n.frameSize});}};const r=await p.sourceFiles();if('fileTree' in r)walk(r.fileTree);else for(const f of r.folders){const page=await p.sourceFiles({folder:f.name});if('fileTree' in page)walk(page.fileTree);}const seen=new Set(items.map(x=>x.resourceId));for(const x of res)if(String(x.type).toLowerCase()==='video'&&!seen.has(x.resourceId))items.push({resourceId:x.resourceId,name:x.name,path:null,durationSeconds:x.durationSeconds});return items;";
+// A clip with no length yet is measured with the host's ffprobe (av-host hostProbeSeconds) when it has a path.
+async function withDurations(list) {
+  for (const v of list) if (!(v.durationSeconds > 0) && v.path) v.durationSeconds = (await hostProbeSeconds(v.path)) || 0;
+  return list;
+}
 
 const TEMPLATE_FAILED = "2026 Recap couldn't make the timeline. Try again.";
 
@@ -428,8 +442,10 @@ function TemplateRun({ sdk, context }) {
       const found = scriptResult(await sdk.runScript({ script: allVideosScript(projectId), summary: "Read footage" }));
       const byId = Object.fromEntries(found.map((v) => [v.resourceId, v]));
       const introVideo = byId[own(introPick.resourceId)];
-      if (!introVideo || !(introVideo.durationSeconds >= 5)) throw new Error("Pick an intro clip at least 5 seconds long.");
       const videos = clipPicks.map((x) => byId[own(x.resourceId)]);
+      await withDurations([introVideo, ...videos].filter(Boolean));
+      if (!introVideo) throw new Error("The picked intro clip could not be read. Try again.");
+      if (!(introVideo.durationSeconds >= 5)) throw new Error("Pick an intro clip at least 5 seconds long.");
       const short = clipPicks.find((x, i) => !(videos[i]?.durationSeconds >= 1.7));
       if (short) throw new Error((short.name || "A picked clip") + " is shorter than 1.7 seconds. Pick longer clips.");
       const intro = { resourceId: introVideo.resourceId, startSeconds: 0 };
@@ -442,7 +458,7 @@ function TemplateRun({ sdk, context }) {
       finish({ sequenceId: made.draftId });
     })().catch((e) => {
       console.warn("[recap-2026] template run failed:", e);
-      const said = String(e?.message || "");
+      const said = e?.code === "host-missing" ? WORDS.en.hostTooOld : String(e?.message || "");
       finish({ error: said && said.length <= 160 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED });
     });
   }, [runId]);
@@ -500,11 +516,11 @@ function RecapPanel({ sdk, context, ui }) {
     setLoadedKey(null);
     setMessage(t.loading);setError("");setGalleryPage(0);
     setThumbnails({});thumbnailCache.current={};
-    const script = core({projectId,folders:folders.map((x)=>x.name)}) +
-      "const out=[];for(const name of cfg.folders){const r=await p.sourceFiles({folder:name});if(!('fileTree' in r))throw Error('Footage folder returned a summary');for(const x of r.fileTree){if(x.type==='video'&&x.durationSeconds>=1.7)out.push({resourceId:x.resourceId,name:x.name,path:x.path,durationSeconds:x.durationSeconds,frameSize:x.frameSize,folderName:name});}}return out;";
-    sdk.runScript({script,summary:"Read footage folders"}).then((r) => {
+    const script = core({projectId,folders:folders.map((x)=>x.name)}) + RESOURCE_SECONDS +
+      "const out=[];for(const name of cfg.folders){const r=await p.sourceFiles({folder:name});if(!('fileTree' in r))throw Error('Footage folder returned a summary');for(const x of r.fileTree){if(x.type!=='video')continue;const d=dur[x.resourceId]||x.durationSeconds;if(d>=1.7||!(d>0))out.push({resourceId:x.resourceId,name:x.name,path:x.path,durationSeconds:d,frameSize:x.frameSize,folderName:name});}}return out;";
+    sdk.runScript({script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then((list) => {
       if (!live) return;
-      const found = [...new Map(scriptResult(r).map((v)=>[v.resourceId,v])).values()].sort((a,b) => a.name.localeCompare(b.name));
+      const found = [...new Map(list.filter((v)=>v.durationSeconds>=1.7).map((v)=>[v.resourceId,v])).values()].sort((a,b) => a.name.localeCompare(b.name));
       setVideos(found);
       const key=SLUG+":"+projectId+":"+selectedFolders.join("|");
       let intro=null;
@@ -574,10 +590,9 @@ function RecapPanel({ sdk, context, ui }) {
   React.useEffect(()=>{
     if(!advancedOpen||Object.keys(slotTiming).length)return;
     let live=true;
-    sdk.runShell({summary:"Read fast-cut timings",command:'cat "$SELECTS_USER_SKILLS_ROOT/'+SLUG+'/timing.json"',maxOutputBytes:48000})
-      .then((result)=>{
+    readTiming()
+      .then((manifest)=>{
         if(!live)return;
-        const manifest=JSON.parse(shellResult(result));
         const bySlot={};
         for(const row of manifest.placements){
           if(row.slot<2)continue;
@@ -586,7 +601,7 @@ function RecapPanel({ sdk, context, ui }) {
           else prior.maxDuration=Math.max(prior.maxDuration,row.endSeconds-row.startSeconds);
         }
         setSlotTiming(bySlot);setTimingError("");
-      }).catch((error)=>{if(live)setTimingError(String(error.message||error));});
+      }).catch((error)=>{if(live)setTimingError(hostMessage(error,t));});
     return ()=>{live=false;};
   },[advancedOpen]);
 
@@ -622,7 +637,7 @@ function RecapPanel({ sdk, context, ui }) {
       const {name,mainCount} = await buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress:(count,limit)=>setMessage(t.progress + " " + count + "/" + limit)});
       setMessage("Draft created: " + name + " (" + mainCount + " video clips)");
     } catch (e) {
-      setError(String(e.message || e));
+      setError(hostMessage(e,t));
     } finally {setBusy(false);}
   }
 
@@ -702,3 +717,132 @@ function RecapPanel({ sdk, context, ui }) {
     </ui.Section>
   </div>;
 }
+
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end

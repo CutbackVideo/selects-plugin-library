@@ -15,9 +15,9 @@
 The panel reads the open Project's resources, analysis and transcript, and
 writes only by creating a new Draft in that Project and, when a bundled cue or
 your own music file is chosen, importing that audio into the Project. It never
-modifies an existing Draft or any source file. `ffmpeg` is used, through the app's shell,
-to sample colours for the motion style and to make music previews; both degrade
-gracefully when it is missing.
+modifies an existing Draft or any source file. The app's bundled `ffmpeg` samples
+colours for the motion style and makes music previews; nothing else needs to be
+installed, on macOS or Windows.
 
 A first build scans the footage once per role, which takes a couple of minutes
 on a large Project; scans are cached for the session, so changing style

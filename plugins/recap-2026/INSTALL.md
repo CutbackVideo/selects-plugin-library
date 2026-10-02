@@ -8,12 +8,13 @@ installation layout is all that is needed:
   `assets/recap-2026-fixed-soundtrack.wav` go beneath
   `SELECTS_USER_SKILLS_ROOT/recap-2026/`, keeping their relative paths.
 
-The panel reads `timing.json` and the soundtrack from
-`$SELECTS_USER_SKILLS_ROOT/recap-2026/`, so `assets/` must keep its name.
+The panel reads `timing.json` and the soundtrack from its skills folder
+(`.selects/skills/recap-2026/` in your home folder), so `assets/` must keep its name.
 
 ## Requirements
 
-- macOS, with the Selects SDK and host shell available to the panel.
+- macOS or Windows, with the Selects SDK. The panel uses the Selects host's file
+  access and bundled ffmpeg, so there is nothing else to install.
 - A Project open, containing at least one imported video of 5 seconds or longer.
 
 ## First run

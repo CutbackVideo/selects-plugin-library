@@ -63,7 +63,8 @@ or change the template deliberately.
 
 ## Notes
 
-- macOS with the Selects SDK and host shell. No Python and no model download.
+- macOS or Windows with the Selects SDK. No Python, no model download and
+  nothing else to install.
 - A new Project may need the bundled soundtrack analysed before overlay
   placement.
 - The panel's "finished example" player is empty after a fresh install; the

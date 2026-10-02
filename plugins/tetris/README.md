@@ -83,6 +83,7 @@ Nothing about projects, footage or accounts is sent.
 - The relays are free community brokers with no uptime guarantee. If one is
   unreachable, both players switch the Relay menu to the same alternative and
   reconnect.
-- Two-player mode needs `python3` and macOS or Linux on both machines.
+- Two-player mode needs `python3` and macOS or Linux on both machines. On Windows the panel shows it as
+  not available yet; single player works there.
 - Measured round-trip through the relay was about 140 ms, which suits this
   separate-boards design; it is not frame-synchronised play.

@@ -10,6 +10,17 @@
 
 import React from "react";
 
+// Windows runs sdk.runShell in cmd.exe, where the relay helper's POSIX commands and python3 are not
+// available, so two-player stays off there; single player needs no shell.
+const IS_WINDOWS = (() => {
+  try {
+    const rt = (window.parent as any)?.__DI__?.Runtime;
+    const p = typeof rt?.getPlatform === "function" ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try { return /^win/i.test(navigator.platform || "") || /Windows NT/i.test(navigator.userAgent || ""); } catch { return false; }
+})();
+
 const COLS = 10;
 const ROWS = 20;
 const CELL = 24; // internal canvas units; the canvas scales to the panel width
@@ -1539,6 +1550,7 @@ export default function Panel({ sdk, ui }: any) {
 
   const connect = React.useCallback(async () => {
     const net = netRef.current;
+    if (IS_WINDOWS) return;
     const clean = cleanRoom(room);
     if (clean.length < 3) {
       setStatus({ tone: "error", text: "Room code needs at least 3 letters or digits." });
@@ -1692,7 +1704,11 @@ export default function Panel({ sdk, ui }: any) {
   const recent = records.slice(0, 5);
   const d = DIFFICULTIES[difficulty];
 
-  const multiplayerSection = (
+  const multiplayerSection = IS_WINDOWS ? (
+    <ui.Section title="Play a friend">
+      <ui.Message tone="muted">Two-player is available on macOS and Linux for now. Single player works here.</ui.Message>
+    </ui.Section>
+  ) : (
     <ui.Section title="Play a friend">
       <ui.Stack gap={8}>
         <ui.TextField label="Your name" value={name} onChange={setName} placeholder="Player" />

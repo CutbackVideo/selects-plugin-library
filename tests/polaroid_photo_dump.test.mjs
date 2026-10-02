@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import {loadPanelOperation,runPanelShell} from './panel_operation.mjs';
+import crypto from 'node:crypto';
+import {loadPanelOperation} from './panel_operation.mjs';
 
-const {scenePlan,unpackCommand,normalizeFinish,buildFinishScript,authorFinish,ZOOM}=loadPanelOperation('polaroid-photo-dump');
+const {scenePlan,unpackBundled,normalizeFinish,buildFinishScript,authorFinish,ZOOM}=loadPanelOperation('polaroid-photo-dump');
 
 const dir=path.resolve(import.meta.dirname,'../plugins/polaroid-photo-dump');
 // Independent reference measurements (ffmpeg on the 60 fps source).
@@ -41,19 +41,45 @@ test('zoom rate reproduces the reference frame growth',()=>{
  assert.ok(Math.abs(ZOOM.center.x-540)<10&&Math.abs(ZOOM.center.y-960)<15,'zoom centre near canvas centre');
 });
 
-test('bundled frame and music unpack without Node.js, with matching hashes',()=>{
+// A fake host FileSystem over a Map; the bundled .b64 sources are read from the repo.
+function fakeHost(){
+ const files=new Map(),log={writes:[],reads:0};
+ const io={source:path.join(dir,'assets'),store:'/data/polaroid-photo-dump',join:(...p)=>p.join('/'),
+  exists:p=>files.has(p),readBytes:async p=>{log.reads++;if(!files.has(p))throw Error('ENOENT');return files.get(p);},
+  readText:async p=>fs.readFileSync(p,'utf8'),writeFile:async(p,b)=>{log.writes.push(p);files.set(p,new Uint8Array(b));},
+  rename:async(a,b)=>{files.set(b,files.get(a));files.delete(a);},remove:async p=>{files.delete(p);},seen:new Set()};
+ return {files,log,io};
+}
+
+test('bundled frame and music unpack with no shell, with matching hashes',async()=>{
  const manifest=JSON.parse(fs.readFileSync(path.join(dir,'assets','manifest.json'),'utf8'));
- const home=fs.mkdtempSync(path.join(os.tmpdir(),'pol-'));
- const unpack=()=>{const r=runPanelShell(unpackCommand(manifest,{id:'polaroid-photo-dump',folder:'assets',store:'polaroid-photo-dump',label:'Bundled asset'}),{home});assert.equal(r.status,0,r.stderr);return r.stdout;};
- const store=unpack();
- assert.equal(store,path.join(home,'.selects','plugin-data','polaroid-photo-dump'));
- const files=Object.fromEntries(Object.entries(manifest).map(([k,v])=>[k,{path:path.join(store,v.file)}]));
- const png=fs.readFileSync(files.frame.path);
+ const {files,log,io}=fakeHost();
+ const out=await unpackBundled(manifest,io);
+ assert.deepEqual(out,{frame:{path:'/data/polaroid-photo-dump/frame-v1.png'},music:{path:'/data/polaroid-photo-dump/music-v2.m4a'}});
+ assert.deepEqual([...files.keys()].sort(),[out.frame.path,out.music.path],'temporary files renamed away');
+ const png=Buffer.from(files.get(out.frame.path));
  assert.equal(png.toString('latin1',1,4),'PNG');
  assert.equal(png.readUInt32BE(16),1080);assert.equal(png.readUInt32BE(20),1920);
  assert.equal(png[25],6,'RGBA PNG (transparent window)');
- assert.equal(fs.readFileSync(files.music.path).toString('latin1',4,8),'ftyp');
- const first=fs.statSync(files.music.path).mtimeMs;unpack();assert.equal(fs.statSync(files.music.path).mtimeMs,first);
+ assert.equal(Buffer.from(files.get(out.music.path)).toString('latin1',4,8),'ftyp');
+ for(const [k,v] of Object.entries(manifest))assert.equal(crypto.createHash('sha256').update(files.get(out[k].path)).digest('hex'),v.sha256);
+ // Same session: nothing is read or written again.
+ const writes=log.writes.length,reads=log.reads;
+ await unpackBundled(manifest,io);
+ assert.equal(log.writes.length,writes);assert.equal(log.reads,reads);
+ // New session: a matching copy is reused, a damaged one is decoded again.
+ files.set(out.music.path,new Uint8Array([1,2,3]));
+ await unpackBundled(manifest,{...io,seen:new Set()});
+ assert.equal(log.writes.length,writes+1);
+ assert.equal(crypto.createHash('sha256').update(files.get(out.music.path)).digest('hex'),manifest.music.sha256);
+});
+
+test('unpack refuses a bad manifest or a damaged source before writing',async()=>{
+ const {log,io}=fakeHost();
+ await assert.rejects(unpackBundled({x:{file:'../x',sha256:'0'.repeat(64)}},io),/manifest/);
+ await assert.rejects(unpackBundled({},io),/manifest/);
+ await assert.rejects(unpackBundled({music:{file:'music-v2.m4a',sha256:'0'.repeat(64)}},io),/does not match/);
+ assert.equal(log.writes.length,0);
 });
 
 const plan=scenePlan(60);

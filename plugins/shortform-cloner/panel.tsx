@@ -3294,6 +3294,8 @@ export default function Panel({ sdk, context, ui }: any) {
       cmd = [
         `if exist ${wq(own)} echo Y=OWN`,
         ...bundled.map((f, i) => `if exist ${wq(f)} echo F=BUNDLED${i}`),
+        // A per-machine install (ASCII path, so it reads back through the console unchanged).
+        `for %%a in ("Selects" "Selects Staging") do if exist "%ProgramFiles%\\%%~a\\resources\\app.asar.unpacked\\dist\\bin\\ffmpeg.exe" echo F=%ProgramFiles%\\%%~a\\resources\\app.asar.unpacked\\dist\\bin\\ffmpeg.exe`,
         `for /f "delims=" %%i in ('where yt-dlp.exe 2^>nul') do echo Y=%%i`,
         `for /f "delims=" %%i in ('where ffmpeg.exe 2^>nul') do echo F=%%i`,
         `exit /b 0`,
@@ -3581,6 +3583,24 @@ export default function Panel({ sdk, context, ui }: any) {
 
   // ---- New template from reference shorts ----
   async function frames(file: string, dir: string, duration: number, sw: number, sh: number, W: number, H: number) {
+    // The host's bundled ffmpeg with argv: no console, quoting or code page, so Korean paths work on Windows too.
+    const rt = (window.parent as any)?.__DI__?.Runtime;
+    if (typeof rt?.runFFmpeg === "function") {
+      store.ensure(dir);
+      const dur = Math.max(1, duration || 30);
+      try {
+        for (const argv of [
+          ["-v", "error", "-y", "-i", file, "-vf", `fps=16/${dur.toFixed(2)},scale=${sw}:${sh}`, "-frames:v", "16", store.join(dir, "s_%02d.png")],
+          ["-v", "error", "-y", "-ss", (dur / 2).toFixed(2), "-i", file, "-frames:v", "1", "-vf", `scale=${W}:${H}`, store.join(dir, "full.png")],
+        ]) {
+          const r = await rt.runFFmpeg(argv, true);
+          if (r && typeof r.exitCode === "number" && r.exitCode !== 0) throw new Error(String(r.stderr || "ffmpeg " + r.exitCode));
+        }
+      } catch (e: any) {
+        throw new Error(S.refsFailed + String(e?.message || e).slice(-300));
+      }
+      return;
+    }
     const T = await tools();
     if (!T.ffmpeg) throw new Error(S.refsFailed + "ffmpeg");
     store.ensure(dir);

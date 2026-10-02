@@ -8,8 +8,8 @@
    `thank-you-recap` beneath `SELECTS_USER_SKILLS_ROOT`, keeping relative paths.
    The panel loads `assets/music.mp3` and `assets/year-fonts.json` from there.
    The package has no `SKILL.md`, so it is not listed as a Skill.
-3. Make sure `ffmpeg` is available to the app's shell; the panel uses it to
-   build the hero-shot candidate sheet.
+3. Nothing else to install: the panel builds the hero-shot candidate sheet
+   with the ffmpeg bundled with Selects, on macOS and Windows.
 4. Open **Thank You Recap** in the Plugin list with a Project open, check the
    videos to use and press **Create Draft**.
 

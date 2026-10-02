@@ -38,6 +38,6 @@ Create and save the intro first. Append short clips in batches, reading the curr
 
 ## Installation
 
-Place `panel.tsx` at `SELECTS_USER_PANELS_ROOT/recap-2026/panel.tsx`. Place this Skill folder, `timing.json`, and `assets/` under `SELECTS_USER_SKILLS_ROOT/recap-2026/`. The panel runs on macOS with the Selects SDK, host shell, and no Python or model download. New projects may need analysis of the bundled soundtrack before overlay placement.
+Place `panel.tsx` at `SELECTS_USER_PANELS_ROOT/recap-2026/panel.tsx`. Place this Skill folder, `timing.json`, and `assets/` under `SELECTS_USER_SKILLS_ROOT/recap-2026/`. The panel runs on macOS and Windows with the Selects SDK (host file access and bundled ffmpeg), and no Python or model download. New projects may need analysis of the bundled soundtrack before overlay placement.
 
 The bundled fixed soundtrack is redistributed with this package; the generating account's plan permits redistribution. Installed files contain no project footage. The gallery `preview.mp4` and `poster.webp` at the plugin root are a render of the author's own example footage, published with the author's consent, and are not installed or used at run time.

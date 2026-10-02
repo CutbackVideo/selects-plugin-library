@@ -47,7 +47,7 @@ Omni verifies a continuous single-person shot without requiring three clear face
 - When a provider refuses a request, the panel now shows the reason it reported instead of a generic message, so a content-policy refusal is distinguishable from a transient failure without leaving the panel.
 - Native request keys intentionally prevent duplicate submissions. If a native Sync job has terminally failed, **Continue** currently reuses that failed stage's key; it cannot create a fresh correction job. Retain the existing result and start a new request if needed. This may generate and bill both stages again.
 - Uses internal Selects adapters and is version-sensitive. Tested on macOS in Selects Staging 2.0.443. Other builds and platforms are unverified. One renderer stopped refreshing after completion and recovered after restarting the app; the plugin does not fix that host rendering issue.
-- Local cache lives under `.selects/plugin-data/multicam-generator/jobs`; diagnostic logs are beside the panels root under `logs`. Python 3 is used only for optional diagnostics. No cache, logs, footage, account information or saved requests are distributed.
+- Local cache lives under `.selects/plugin-data/multicam-generator/jobs`; diagnostic logs are under `.selects/logs`. No cache, logs, footage, account information or saved requests are distributed.
 
 ## Verification
 

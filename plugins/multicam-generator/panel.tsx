@@ -476,24 +476,21 @@ export async function writeLocalDiagnostic(sdk, event) {
     phase: clean(event.phase), step: clean(event.step), cause: clean(event.cause),
     jobId: event.jobId || null, generationId: event.generationId || null,
   };
-  const payload = JSON.stringify(JSON.stringify(entry));
-  const program = `import os,json,pathlib
-root=os.environ.get("SELECTS_USER_PANELS_ROOT")
-if not root: raise RuntimeError("Panel storage root unavailable")
-p=pathlib.Path(root).parent / "logs" / "multicam-generator.jsonl"
-p.parent.mkdir(parents=True,exist_ok=True)
-if p.exists() and p.stat().st_size > 1048576:
- p.replace(p.with_suffix(".previous.jsonl"))
-with p.open("a",encoding="utf-8") as f:
- f.write(json.dumps(json.loads(${payload}),ensure_ascii=False)+"\\n")
-os.chmod(p,0o600)
-`;
-  const r = await sdk.runShell({
-    summary: "Save local diagnostic",
-    command: "python3 - <<'MC_DIAGNOSTIC'\n" + program + "\nMC_DIAGNOSTIC",
-    timeoutMs: 10000, maxOutputBytes: 1024,
-  });
-  if (r.isError || r.exitCode !== 0) throw new Error("Local diagnostic write failed");
+  // Host FileSystem, no shell or Python, so it works on Windows too: <home>/.selects/logs, beside the panels root.
+  const fs = (window.parent as any).__DI__?.FileSystem;
+  if (!fs?.join || !fs?.homedir || !fs?.mkdirSync || !fs?.existsSync || !fs?.readFileSync || !fs?.writeFile || !fs?.renameSync)
+    throw new Error("Local diagnostic write failed");
+  const dir = fs.join(fs.homedir(), ".selects", "logs"), p = fs.join(dir, "multicam-generator.jsonl");
+  fs.mkdirSync(dir, {recursive:true});
+  let prior = new Uint8Array(0);
+  if (fs.existsSync(p)) {
+    const raw = fs.readFileSync(p);
+    prior = typeof raw === "string" ? new TextEncoder().encode(raw) : new Uint8Array(raw);
+    if (prior.length > 1048576) { fs.renameSync(p, fs.join(dir, "multicam-generator.previous.jsonl")); prior = new Uint8Array(0); }
+  }
+  const line = new TextEncoder().encode(JSON.stringify(entry) + "\n"), out = new Uint8Array(prior.length + line.length);
+  out.set(prior); out.set(line, prior.length);
+  await fs.writeFile(p, out);
 }
 
 // The Selects host clamps panel calls to five minutes.
@@ -775,7 +772,7 @@ export async function buildInspectionSheet(plan, jobId) {
     }
     const sheet = fs.join(dir, "sheet.jpg");
     await runtime.runFFmpeg(["-hide_banner","-loglevel","error","-nostdin","-y",
-      "-pattern_type","glob","-i", fs.join(dir, "insp*.jpg"),
+      "-start_number","0","-i", fs.join(dir, "insp%d.jpg"),
       "-vf","tile=4x2:padding=6:color=black","-frames:v","1","-q:v","4", sheet], true, controller.signal);
     const raw = fs.readFileSync(sheet);
     const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
