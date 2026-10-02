@@ -4367,6 +4367,8 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
         if (localAbortRef.current === ac) localAbortRef.current = null;
         for (const rid of Object.keys(scored.local)) motion[rid] = { ...(motion[rid] || {}), local: scored.local[rid] };
         localStats = scored.stats;
+        // The readiness dry run re-plans with the new scores (as after a search).
+        setCacheTick((n) => n + 1);
         console.info("[selfie-aesthetic] quick scores:", JSON.stringify(localStats));
       }
       advance("check", 1);
