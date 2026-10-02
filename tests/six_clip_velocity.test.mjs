@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import {spawnSync} from 'node:child_process';
-import {scenePlan,normalizeFinish,buildFinishScript,authorFinish,LOOK,SUBTITLES,DEFAULT_TEXT,RAMP} from '../plugins/six-clip-velocity/operation.mjs';
+import {loadPanelOperation} from './panel_operation.mjs';
+
+const {scenePlan,normalizeFinish,buildFinishScript,authorFinish,LOOK,SUBTITLES,DEFAULT_TEXT,RAMP,MUSIC}=loadPanelOperation('six-clip-velocity');
 
 const dir=path.resolve(import.meta.dirname,'../plugins/six-clip-velocity');
 // Independent reference measurements (ffmpeg, 30 fps, 699 frames, 1080x1440).
@@ -80,7 +82,7 @@ test('required footage per video',()=>{
 });
 
 // Effect and overlay frame logic, evaluated with a stub renderer.
-const src=fs.readFileSync(path.join(dir,'operation.mjs'),'utf8');
+const src=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
 const effectBody=src.slice(src.indexOf(' const t=(frame/data.speed'),src.indexOf(' const x=Math.max'));
 const blurAt=(frame,data)=>new Function('frame','data',effectBody+'return amt;')(frame,data);
 
@@ -116,11 +118,11 @@ test('subtitle timing and geometry match the reference',()=>{
 });
 
 test('bundled music exists and outlasts the Draft',()=>{
- const run=spawnSync(process.execPath,[path.join(dir,'build-script.mjs'),Buffer.from(JSON.stringify({mode:'music'})).toString('base64url')],{encoding:'utf8'});
- assert.equal(run.status,0,run.stderr);
- const file=JSON.parse(run.stdout).path;assert.ok(fs.statSync(file).size>50000);
+ // The panel joins MUSIC.file onto the install folder (hostJoin(plugin,...MUSIC.file)).
+ const file=path.join(dir,...MUSIC.file);assert.ok(fs.statSync(file).size>50000);
+ assert.ok(MUSIC.seconds>699/30,'music must cover the Draft');
  const probe=spawnSync('ffprobe',['-v','error','-show_entries','format=duration','-of','csv=p=0',file],{encoding:'utf8'});
- if(probe.status===0)assert.ok(Number(probe.stdout)>699/30,'music must cover the Draft');
+ if(probe.status===0){assert.ok(Number(probe.stdout)>699/30,'music must cover the Draft');assert.ok(Math.abs(Number(probe.stdout)-MUSIC.seconds)<0.05,'MUSIC.seconds matches the file');}
 });
 
 const plan=scenePlan();
@@ -129,9 +131,10 @@ const request=()=>({mode:'finish',projectId:'p',draftId:'d',fps:30,musicResource
  videos:Array.from({length:6},(_,i)=>({resourceId:'v'+i,width:i%2?1920:1080,height:i%2?1080:1920})),
  tracks:[TRACK],clips:pieces(plan).map((_,i)=>[100+i,0])});
 
-test('finish request is compact enough for the panel shell command',()=>{
- const cmd='node "$SELECTS_USER_SKILLS_ROOT/six-clip-velocity/build-script.mjs" '+Buffer.from(JSON.stringify({...request(),projectId:TRACK,draftId:TRACK,musicResourceId:TRACK,videos:request().videos.map(v=>({...v,resourceId:TRACK}))})).toString('base64url');
- assert.ok(cmd.length<16384,'shell command limit is 16 KB, got '+cmd.length);
+test('finish request stays compact',()=>{
+ // Placements travel as [clipId, trackIndex]; the request stays well under 16 KB.
+ const cmd=Buffer.from(JSON.stringify({...request(),projectId:TRACK,draftId:TRACK,musicResourceId:TRACK,videos:request().videos.map(v=>({...v,resourceId:TRACK}))})).toString('base64url');
+ assert.ok(cmd.length<16384,'request limit is 16 KB, got '+cmd.length);
 });
 
 test('finish input needs six videos, 114 pieces and 4+1+2 words',()=>{
