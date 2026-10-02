@@ -2167,17 +2167,20 @@ function tecHash(str) {
 
 // Filler candidates every TEC_FILLER_STEP seconds on each source in the candidates, sorted by rid then time.
 function tecFillers(candidates) {
-  const dur = {};
+  const dur = {}, head = {};
   for (const c of candidates) {
     if (!c || c.kind === 'photo' || typeof c.sourceDuration !== 'number' || !isFinite(c.sourceDuration) || !(c.sourceDuration > 0)) continue;
     dur[c.rid] = Math.max(dur[c.rid] || 0, c.sourceDuration);
+    if (c.minStart > 0) head[c.rid] = Math.max(head[c.rid] || 0, c.minStart);
   }
   const out = [];
   for (const rid of Object.keys(dur).sort()) {
     for (let k = 0; ; k++) {
       const t = TEC_FILLER_EDGE + k * TEC_FILLER_STEP;
       if (t > dur[rid] - TEC_FILLER_EDGE + 1e-9) break;
-      out.push({ rid, role: 'filler', t, score: TEC_FILLER_SCORE, sourceDuration: dur[rid] });
+      // A source of local windows (no analysis) keeps their minStart, so its fillers never start in a fade-in either.
+      out.push(head[rid] ? { rid, role: 'filler', t, score: TEC_FILLER_SCORE, sourceDuration: dur[rid], minStart: head[rid] }
+        : { rid, role: 'filler', t, score: TEC_FILLER_SCORE, sourceDuration: dur[rid] });
     }
   }
   return out;
@@ -2198,7 +2201,7 @@ function tecAllocate(opts) {
   const photos = opts.candidates.filter(c => c && c.kind === 'photo' && typeof c.rid === 'string' && !photoSeen[c.rid] && (photoSeen[c.rid] = true))
     .sort((a, b) => (a.rid < b.rid ? -1 : a.rid > b.rid ? 1 : 0));
   const used = {}, recent = [], picks = [], photoUsed = {};
-  let missing = 0, fillerShots = 0, photoShots = 0, photoRun = 0, photoRunRelaxed = false, prevRid = null;
+  let missing = 0, fillerShots = 0, photoShots = 0, localShots = 0, photoRun = 0, photoRunRelaxed = false, prevRid = null;
   const photoSlots = {};
   const holdable = opts.slots.filter(sl => !sl.prefersVideo && sl.seconds <= TEC_PHOTO_HOLD_MAX + 1e-9);
   const share = opts.photoShare == null ? TEC_PHOTO_SHARE : opts.photoShare;
@@ -2210,8 +2213,9 @@ function tecAllocate(opts) {
     for (const c of pool) {
       if (c.rid === prevRid) continue;
       const rank = rankOf(c);
-      if (rank < 0 || c.sourceDuration < slot.seconds + TEC_SOURCE_TAIL) continue;
-      const start = Math.max(0, Math.min(c.sourceDuration - TEC_SOURCE_TAIL - slot.seconds, c.t - slot.seconds / 2));
+      const lo = c.minStart > 0 ? c.minStart : 0;
+      if (rank < 0 || c.sourceDuration < slot.seconds + TEC_SOURCE_TAIL + lo) continue;
+      const start = Math.max(lo, Math.min(c.sourceDuration - TEC_SOURCE_TAIL - slot.seconds, c.t - slot.seconds / 2));
       const end = start + slot.seconds;
       if ((used[c.rid] || []).some(([a, b]) => start < b + gap && end > a - gap)) continue;
       const repeats = recent.filter(r => r === c.rid).length;
@@ -2263,9 +2267,10 @@ function tecAllocate(opts) {
     if (best.c.role === 'filler') fillerShots++;
     const pick = { slot: slot.index, rid: best.c.rid, kind: 'video', startSeconds: best.start, endSeconds: best.end };
     if (curves) pick.motion = best.motion == null ? null : Math.round(best.motion * 1000) / 1000;
+    if (best.c.local) { pick.local = true; localShots++; }
     picks.push(pick);
   }
-  return { picks, filled: picks.filter(Boolean).length, missing, fillerShots, photoShots, photoRunRelaxed };
+  return { picks, filled: picks.filter(Boolean).length, missing, fillerShots, photoShots, localShots, photoRunRelaxed };
 }
 
 // Footage slots of a timeline for tecAllocate: Classic skips the opening (lead-in gap) slot. The first and last
@@ -2276,15 +2281,17 @@ function tecFootageSlots(timeline) {
 }
 
 // opts: { layout, N (requested grid shots), P, candidates, seed, photoShare?, motion? (rid -> tecParseMotion curve;
-// clips without one score as before) }. Tries N first, then shrinks toward TEC_MIN_SHOTS; every attempt allocates
+// clips without one score as before) }. Scene-search hits and local windows (clips without analysis) are put on one
+// scale first (tecNormaliseCandidates). Tries N first, then shrinks toward TEC_MIN_SHOTS; every attempt allocates
 // from scratch with filler candidates added. Returns { ok: true, layout, N, timeline, picks (one per footage slot, in
-// order), visibleShots, fillerShots, photoShots, motionPool (null without motion data), ... }
+// order), visibleShots, fillerShots, photoShots, localShots, motionPool (null without motion data), ... }
 // or { ok: false, usableShots, needed } (needed = 4 visible shots in Classic, 4 + 1 in Full frame).
 function tecPlanBuild(opts) {
   const layout = opts.layout === 'full' ? 'full' : 'classic';
   const top = Math.max(TEC_MIN_SHOTS, opts.N);
   const needed = TEC_MIN_SHOTS + (layout === 'full' ? 1 : 0);
-  const candidates = opts.candidates.concat(tecFillers(opts.candidates));
+  const scaled = tecNormaliseCandidates(opts.candidates);
+  const candidates = scaled.concat(tecFillers(scaled));
   const curves = {};
   for (const rid of Object.keys(opts.motion || {})) if (opts.motion[rid] && Array.isArray(opts.motion[rid].values)) curves[rid] = opts.motion[rid];
   const pool = tecMotionPool(curves);
@@ -2295,13 +2302,160 @@ function tecPlanBuild(opts) {
     const alloc = tecAllocate({ candidates, slots: tecFootageSlots(timeline), seed: opts.seed, photoShare: opts.photoShare, motion });
     if (alloc.missing === 0) {
       const plan = { ok: true, layout, N: n, requestedN: opts.N, shrunk: n < opts.N, timeline, picks: alloc.picks, visibleShots: alloc.picks.length,
-        needed, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots, motionPool: pool };
+        needed, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots, localShots: alloc.localShots, motionPool: pool };
       if (alloc.photoRunRelaxed) plan.photoRunRelaxed = true;
       return plan;
     }
     last = alloc;
   }
   return { ok: false, layout, usableShots: last ? last.filled : 0, needed, photoShots: last ? last.photoShots : 0 };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Clips without analysis. Selects' scene search needs analysis; an unanalysed clip is scored instead by the panel's
+// quick-score block (the kit's tools/panel/quick-score.js: host ffmpeg, a small grey preview; motion, sharpness,
+// exposure, black / fade / flash flags and scene cuts), and its best windows become candidates here. The opening and
+// ending roles (TEC_STEADY_ROLES: the first choice of the opening wide shot and of the ending) take steadier,
+// well-exposed windows ('steady'); the middle shots take moving ones ('montage').
+const TEC_STEADY_ROLES = [TEC_ROLE_FALLBACK['opening-wide'][0], TEC_ROLE_FALLBACK.ending[0]];
+// Local windows start at least this far in (stock clips fade in from black): the kit's QS_HEAD.
+const TEC_LOCAL_HEAD = 0.5;
+// Candidates per role and clip.
+const TEC_LOCAL_PER_ROLE = 4;
+// Local scores (0-1) land in this band, the spread scene-search hits have (about 0.30-0.60), so the role rank (0.15 a
+// step), repeats (0.2 each) and the motion bonus weigh the same for both kinds. Mixed projects normalise into it too.
+const TEC_LOCAL_SCORE_LO = 0.3;
+const TEC_LOCAL_SCORE_SPAN = 0.3;
+// Evenly spaced fallback windows (no score) sit in the middle of the band.
+const TEC_EVEN_SCORE = 0.45;
+// Quick-score motion (mean absolute frame difference 0-1 at the kit's 8 fps) in this app's motion-curve units (the
+// YAVG of a frame difference, 0-255, at 4 fps): x255, x2 for the doubled frame gap.
+const TEC_LOCAL_MOTION_SCALE = 510;
+
+// The quick-score role ('steady' | 'montage') of a search role.
+function tecLocalKind(role) { return TEC_STEADY_ROLES.indexOf(role) >= 0 ? 'steady' : 'montage'; }
+
+// Window lengths to ask the quick score for, longest first: the longest slot (Full frame's opening shot, or the last
+// shot with the tail), then the last shot, then one phrase. A shorter slot sits inside the window, centred.
+function tecLocalSeconds(P) {
+  const list = [Math.max(TEC_LEAD_IN, P + TEC_TAIL), P + TEC_TAIL, P];
+  return list.filter((s, i) => list.indexOf(s) === i);
+}
+
+// Centres of evenly spaced windows of `seconds` from TEC_LOCAL_HEAD to the source's end (at most 4; one centred window
+// when the clip is shorter). scripts/search.js uses the same rule for a template run's unanalysed clips.
+function tecEvenCentres(duration, seconds) {
+  const room = duration - TEC_LOCAL_HEAD - TEC_SOURCE_TAIL;
+  if (!(room > 0) || !(seconds > 0)) return [];
+  const n = room <= seconds ? 1 : Math.max(1, Math.min(4, Math.floor(room / seconds)));
+  if (n === 1) return [TEC_LOCAL_HEAD + room / 2];
+  const out = [];
+  for (let k = 0; k < n; k++) out.push(TEC_LOCAL_HEAD + seconds / 2 + k * (room - seconds) / (n - 1));
+  return out;
+}
+
+// byKind: { steady: [{ t, score (0-1) }], montage: [...] } (the quick score's qsCandidates per kind) -> candidates for
+// every search role, at most TEC_LOCAL_PER_ROLE each, scored into the band and flagged local with minStart.
+function tecLocalCandidates(rid, duration, byKind) {
+  const out = [];
+  for (const role of TEC_SEARCH_ROLES) {
+    const list = (byKind && byKind[tecLocalKind(role)]) || [];
+    for (const c of list.slice(0, TEC_LOCAL_PER_ROLE)) {
+      if (!c || typeof c.t !== 'number' || !isFinite(c.t)) continue;
+      const s = typeof c.score === 'number' && isFinite(c.score) ? Math.max(0, Math.min(1, c.score)) : 0.5;
+      out.push({ rid, role, t: c.t, score: TEC_LOCAL_SCORE_LO + TEC_LOCAL_SCORE_SPAN * s, sourceDuration: duration, local: true, minStart: TEC_LOCAL_HEAD });
+    }
+  }
+  return out;
+}
+
+// The fallback when a clip could not be scored: evenly spaced windows for every role (flagged even as well as local).
+function tecEvenCandidates(rid, duration, seconds) {
+  const out = [];
+  for (const t of tecEvenCentres(duration, seconds)) {
+    for (const role of TEC_SEARCH_ROLES) out.push({ rid, role, t: Math.round(t * 1000) / 1000, score: TEC_EVEN_SCORE, sourceDuration: duration, local: true, minStart: TEC_LOCAL_HEAD, even: true });
+  }
+  return out;
+}
+
+// A scored clip's motion as a tecParseMotion-style curve (one sample per scored bin, at its end), so the allocation's
+// motion bonus and the still-shot move treat it like a measured clip. null for a fallback.
+function tecLocalCurve(scores) {
+  if (!scores || scores.fallback || !Array.isArray(scores.windows)) return null;
+  const times = [], values = [];
+  for (const w of scores.windows) {
+    if (!w || w.empty || typeof w.end !== 'number' || typeof w.motion !== 'number' || !isFinite(w.end) || !isFinite(w.motion)) continue;
+    times.push(w.end); values.push(w.motion * TEC_LOCAL_MOTION_SCALE);
+  }
+  return times.length ? { times, values } : null;
+}
+
+// Candidates for unanalysed clips. resources: inventory entries ({ rid, path, duration }). opts: { P, scoreAll
+// (quickScoreAll), candidatesOf (qsCandidates), signal?, onProgress?, budgetMs?, dataDir?, concurrency? }. A clip whose
+// score is missing or a fallback, or that yields no window, gets evenly spaced windows; when scoreAll itself throws
+// (anything but a cancel) every clip does, and the build goes ahead. A cancel (AbortError or an aborted signal) is
+// rethrown. Returns { list, curves (rid -> motion curve, scored clips only), scored (count), even (rids), ms }.
+async function tecLocalShots(resources, opts) {
+  const started = Date.now();
+  const lens = tecLocalSeconds(opts.P);
+  let results = null;
+  if (resources.length) {
+    try {
+      results = await opts.scoreAll(resources.map(r => ({ rid: r.rid, path: r.path, durationSeconds: r.duration })),
+        { concurrency: opts.concurrency || 3, budgetMs: opts.budgetMs, signal: opts.signal, onProgress: opts.onProgress, dataDir: opts.dataDir });
+    } catch (e) {
+      if ((opts.signal && opts.signal.aborted) || (e && e.name === 'AbortError')) throw e;
+      results = null;
+    }
+  }
+  const list = [], curves = {}, even = [];
+  let scored = 0;
+  for (const r of resources) {
+    const res = results && typeof results.get === 'function' ? results.get(r.rid) : null;
+    let cands = [];
+    if (res && !res.fallback) {
+      const byKind = {};
+      for (const kind of ['steady', 'montage']) {
+        byKind[kind] = [];
+        for (const seconds of lens) {
+          let got = [];
+          try { got = opts.candidatesOf(res, kind, seconds, TEC_LOCAL_PER_ROLE) || []; } catch (e) { got = []; }
+          if (got.length) { byKind[kind] = got; break; }
+        }
+      }
+      cands = tecLocalCandidates(r.rid, r.duration, byKind);
+      const curve = tecLocalCurve(res);
+      if (curve) curves[r.rid] = curve;
+    }
+    if (cands.length) scored++;
+    else { cands = tecEvenCandidates(r.rid, r.duration, lens[0]); even.push(r.rid); }
+    for (const c of cands) list.push(c);
+  }
+  return { list, curves, scored, even, ms: Date.now() - started };
+}
+
+// Mixed projects: scene-search hits and local windows on one scale. When both kinds are present, each kind's scores
+// are rank-normalised per role (ties share their mean rank; a lone score sits mid-band) into the TEC_LOCAL_SCORE band,
+// so neither kind swamps the other, and the allocation's fresh-first rules decide as before. With one kind the scores
+// are kept (an all-analysed project plans exactly as it did). Fillers and photos pass through. Returns a new list.
+function tecNormaliseCandidates(candidates) {
+  const video = c => !!c && c.kind !== 'photo' && c.role !== 'filler' && typeof c.score === 'number' && isFinite(c.score);
+  let local = 0, search = 0;
+  for (const c of candidates) if (video(c)) { if (c.local) local++; else search++; }
+  if (!local || !search) return candidates.slice();
+  const keyOf = c => (c.local ? 'local:' : 'search:') + c.role;
+  const groups = {};
+  for (const c of candidates) if (video(c)) (groups[keyOf(c)] = groups[keyOf(c)] || []).push(c.score);
+  for (const k of Object.keys(groups)) groups[k].sort((a, b) => a - b);
+  const rank = (sorted, v) => {
+    if (sorted.length < 2) return 0.5;
+    let lo = 0;
+    while (lo < sorted.length && sorted[lo] < v) lo++;
+    let hi = lo;
+    while (hi < sorted.length && sorted[hi] === v) hi++;
+    return (lo + hi - 1) / 2 / (sorted.length - 1);
+  };
+  return candidates.map(c => (video(c) ? Object.assign({}, c, { score: TEC_LOCAL_SCORE_LO + TEC_LOCAL_SCORE_SPAN * rank(groups[keyOf(c)], c.score), rawScore: c.score }) : c));
 }
 
 // Shot motions, in pick order. Deterministic per seed; never the same motion family twice in a row (one chain over
