@@ -2059,7 +2059,7 @@ async function decodeOwnMusic(path: string, dataDir: string | null, signal: Abor
   try {
     const Ctx: any = (window as any).OfflineAudioContext || (window as any).webkitOfflineAudioContext;
     if (!Ctx) throw new Error("this panel cannot decode audio");
-    const bytes = await readBytes(path);
+    const bytes = await hostReadBytes(path);
     if (signal.aborted) throw new Error("cancelled");
     const ctx = new Ctx(1, 1, OWN_RATE);
     const buf: AudioBuffer = await ctx.decodeAudioData(bytes.slice().buffer);
