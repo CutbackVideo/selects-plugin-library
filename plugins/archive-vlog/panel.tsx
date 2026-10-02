@@ -2036,6 +2036,12 @@ const AV_ROLE_FALLBACK = {
   skyline: ['water', 'architecture'],
   ending: ['skyline', 'transit', 'crowd'],
 };
+// Clips Selects has not analysed have no scene-search roles. The panel scores them locally (its quick-score block) and
+// hands in windows of two kinds: steady (steadier, well exposed: the opening, credit and final shots) and montage
+// (varied motion). A window of the kind that fits a slot ranks with that slot's own role (rank 0, by score) in the
+// preferred tier, so analysed and unanalysed clips compete on score (the panel puts both on one scale); the other kind
+// joins the any-role tier.
+const AV_LOCAL_ROLES = { steady: 'local-steady', montage: 'local-montage' };
 // The reference's opening shot lasts this long; its animation timings scale down for a shorter one (avOpeningTiming).
 const AV_OPENING_REF_SECONDS = 5.60;
 // Scene-search hits collapse onto a few distinct times per clip, so every searched source also gets evenly spaced
@@ -2436,9 +2442,13 @@ function avAllocate(opts) {
   // The motion opener (see above). Nothing is used yet, so this is the pick the first slot's loop turn would make with
   // the motion rank.
   const first = opts.slots[0];
+  // A slot's rank of a candidate by role: its place in the slot's roles, 0 for a local window of the slot's kind
+  // (AV_LOCAL_ROLES), else -1.
+  const localRole = slot => AV_LOCAL_ROLES[(slot.part ? slot.part === 'montage' : !slot.videoOnly) ? 'montage' : 'steady'];
+  const roleRank = (slot, roles, c) => (c.role === localRole(slot) ? 0 : roles.indexOf(c.role));
   const opener = first && opts.motionOpener !== false && pool.some(c => c.motion > 0) ? searchVideo(first, c => {
     if (!(c.motion > 0) || c.role === 'filler') return -1;
-    const roles = [first.role].concat(AV_ROLE_FALLBACK[first.role] || []), r = roles.indexOf(c.role);
+    const roles = [first.role].concat(AV_ROLE_FALLBACK[first.role] || []), r = roleRank(first, roles, c);
     return r >= 0 ? r : roles.length;
   }, null, null) : null;
   // Photo slots: round(share x slots) of the slots a photo can hold (not the motion opener's), capped by the photos
@@ -2511,7 +2521,7 @@ function avAllocate(opts) {
     const roles = [slot.role].concat(AV_ROLE_FALLBACK[slot.role] || []);
     const exclude = [pos - 1, pos + 1].filter(i => picks[i]).map(i => picks[i].rid);
     const photo = () => searchPhoto(slot);
-    const preferred = (level, accept) => () => searchVideo(slot, c => roles.indexOf(c.role), exclude, level, accept);
+    const preferred = (level, accept) => () => searchVideo(slot, c => roleRank(slot, roles, c), exclude, level, accept);
     const anyReal = (level, accept) => () => searchVideo(slot, c => (c.role === 'filler' ? -1 : 0), exclude, level, accept);
     const filler = (level, accept) => () => searchVideo(slot, c => (c.role === 'filler' ? 0 : -1), exclude, level, accept);
     // Reuse preferences (spread only, sources already used): a montage shot leaves the opening's and the credit's
@@ -2520,7 +2530,7 @@ function avAllocate(opts) {
     const bookends = montage ? [0, 1].filter(i => i !== pos && picks[i] && picks[i].kind !== 'photo').map(i => picks[i].rid) : [];
     const notBookend = c => bookends.indexOf(c.rid) < 0;
     // Tiers, best first. A photo slot puts an unused photo first. With spread (the default) the video tiers run once
-    // per use count, fewest first: preferred-role hits, any-role hits, then fillers of sources used that often, so
+    // per use count, fewest first: preferred-role hits (and local windows of the slot's kind), any-role hits, then fillers of sources used that often, so
     // role and score only rank sources used equally often and an unused clip (even by a filler) beats any reuse.
     // Outside photo slots a photo is then the last resort, which keeps the photo share. Without spread the CWV order
     // applies: preferred, any-role, photo, filler. After AV_PHOTO_RUN_MAX photos in a row the photo tier is skipped.
@@ -2768,14 +2778,60 @@ function avMotionBonus(list) {
   const seen = {};
   for (const c of rest) if (c) seen[c.rid] = true;
   const kept = Object.keys(stubs).filter(rid => !seen[rid]).map(rid => stubs[rid]);
-  if (!(max > min)) return rest.concat(kept);
-  return rest.map(c => {
+  if (!(max > min)) return avLocalScale(rest.concat(kept));
+  return avLocalScale(rest.map(c => {
     const near = c && hits[c.rid];
     if (!near || !finite(c.t) || !finite(c.score)) return c;
     let motion = 0;
     for (const h of near) if (Math.abs(h.t - c.t) <= AV_MOTION_REACH + 1e-9) motion = Math.max(motion, (h.score - min) / (max - min));
     return motion > 0 ? { ...c, score: c.score + AV_MOTION_BONUS * motion, motion } : c;
-  }).concat(kept);
+  }).concat(kept));
+}
+// Clips without analysis: windows scored locally (avLocalCandidates in the panel and the driver; scripts/search.js's
+// evenly spaced windows in a template run) carry the planner's AV_LOCAL_ROLES and a 0-1 score of their own. One scale
+// for a mixed Project: their scores are mapped min-max onto the range of this build's scene-search hits (after the
+// motion bonus), so the best local window ties the best hit and the weakest the weakest, and the planner (which ranks a
+// local window of the slot's kind like the slot's own role) mixes both kinds by score. Equal local scores sit in the
+// middle of that range. Without hits the local scores stay as they are; without local windows the list is unchanged.
+function avLocalScale(list) {
+  const finite = v => typeof v === 'number' && isFinite(v);
+  const isLocal = c => !!c && (c.role === AV_LOCAL_ROLES.steady || c.role === AV_LOCAL_ROLES.montage);
+  const scored = c => !!c && finite(c.t) && finite(c.score);
+  const local = list.filter(c => isLocal(c) && scored(c));
+  const hits = list.filter(c => scored(c) && !isLocal(c) && c.role !== 'filler' && c.role !== AV_MOTION_ROLE);
+  if (!local.length || !hits.length) return list;
+  const lo = Math.min(...hits.map(c => c.score)), hi = Math.max(...hits.map(c => c.score));
+  const lmin = Math.min(...local.map(c => c.score)), lmax = Math.max(...local.map(c => c.score));
+  return list.map(c => (isLocal(c) && scored(c)
+    ? { ...c, score: lmax > lmin ? lo + (c.score - lmin) / (lmax - lmin) * (hi - lo) : (lo + hi) / 2 } : c));
+}
+// Planner candidates of clips without analysis from their quick local scores (the quick-score block's quickScore
+// results; qsCandidates picks the windows). opts: { durations (rid -> seconds; else the result's own), steadySeconds (the
+// longest bookend shot: the opening or the final), montageSeconds (a montage shot) }. Per clip, at most AV_LOCAL_MAX
+// windows of each kind (AV_LOCAL_ROLES: steady, montage) with their 0-1 scores (avLocalScale rescales them) and the
+// clip's length. A window whose mean frame difference reaches AV_LOCAL_MOVING is moving: it carries `motion` (its
+// difference over the largest one, > 0) for the planner's motion opener. A clip with no window that fits keeps a stub
+// row (rid and sourceDuration), so the planner still gives it filler windows.
+const AV_LOCAL_MAX = 10;
+const AV_LOCAL_MOVING = 0.01;
+function avLocalCandidates(results, opts) {
+  const rows = [];
+  let top = 0;
+  for (const s of results) {
+    if (!s || typeof s.rid !== 'string') continue;
+    const dur = (opts.durations && opts.durations[s.rid]) || s.duration;
+    if (!(typeof dur === 'number' && dur > 0)) continue;
+    let n = 0;
+    for (const kind of ['steady', 'montage']) {
+      for (const c of qsCandidates(s, kind, kind === 'steady' ? opts.steadySeconds : opts.montageSeconds, AV_LOCAL_MAX)) {
+        rows.push({ rid: s.rid, role: AV_LOCAL_ROLES[kind], t: c.t, score: c.score, sourceDuration: dur, raw: c.motion || 0 });
+        top = Math.max(top, c.motion || 0);
+        n++;
+      }
+    }
+    if (!n) rows.push({ rid: s.rid, role: AV_LOCAL_ROLES.montage, sourceDuration: dur, raw: 0 });
+  }
+  return rows.map(({ raw, ...c }) => (raw >= AV_LOCAL_MOVING && top > 0 ? { ...c, motion: raw / top } : c));
 }
 // Shot motion (build contract): every video clip but the opening (index 0, which has the letterbox reveal) gets one
 // gentle move from two families, 'push-in' and 'drift', seeded like avPhotoMotions. A clip never takes the family of
