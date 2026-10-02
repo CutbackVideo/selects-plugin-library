@@ -14,38 +14,28 @@
 
 ## Dependencies
 
-The bundled music tracks, the letters, the Faded film look and the Draft build
-need nothing beyond Selects. Two optional features use
-command-line tools. The panel finds ffmpeg on the shell `PATH` and also in
-`/opt/homebrew/bin` and `/usr/local/bin`, so a Homebrew ffmpeg works even when
-Selects is opened from Finder:
+None. Torn Paper Love needs nothing beyond Selects, on macOS and on Windows.
+Music previews and your own music use the ffmpeg built into Selects (through
+the panel's host services, not a shell), and your own music's beat is found
+inside the panel, so there is no ffmpeg, Node.js or other tool to install.
 
-- **ffmpeg** (it includes `ffprobe`): music previews and your own music.
-  Check with `ffmpeg -version` and `ffprobe -version`.
-- **Node.js**: your own music only (beat detection). Nothing to install: the first time
-  you choose your own music, the panel downloads a pinned Node.js (about 26 MB)
-  with `runtime.sh` into `~/.selects/plugin-data/_runtime`, shared by every
-  plugin. That needs an internet connection once.
-
-When ffmpeg is missing, the panel hides **Your own music**, shows
-"Install ffmpeg to preview music or use your own track", and
-everything else keeps working.
+On a Selects build that lacks those host services, the panel hides **Your own
+music** and the section preview, says "This Selects build needs an updated
+Runtime.runFFmpeg adapter.", and everything else keeps working.
 
 ## Files the plugin writes
 
 The panel writes to your Projects only by creating a new Draft in the open
-Project and importing the chosen music into that Project. Its temporary audio
-files go in `.selects/plugin-data/torn-paper-love` in your home folder, never
-in either install folder:
+Project and importing the chosen music into that Project. Its temporary files
+go in `.selects/plugin-data/torn-paper-love` in your home folder (for example
+`/Users/<you>/.selects/...` on macOS, `C:\Users\<you>\.selects\...` on
+Windows), never in either install folder. Their names are plain ASCII:
 
-- `own-music.f32`: your own music decoded for beat detection (up to about
-  32 MB). It is deleted as soon as detection finishes; the detected beat is
-  kept only while the panel is open.
-- `own-music.json`: the detected beat and music onsets of the last track you
-  dropped (tens of KB). The next track replaces it.
-- `preview-N.mp3` and `preview-N.b64`: the section preview. The mp3 is
-  deleted once it is converted to text, and the text copy is replaced by the
-  next preview.
+- `pcm-<number>.f32`: your own music decoded for beat detection (up to about
+  32 MB). It is deleted as soon as it is read; the detected beat is kept only
+  while the panel is open.
+- `cut-<number>.mp3`: the section preview, deleted as soon as it is read.
+- `quick-score/`: the quick check's cache for clips Selects hasn't analysed.
 
 ## Verify
 
@@ -60,8 +50,8 @@ in either install folder:
    letters.
 3. Press **Build**. A new Draft opens at 1440x1080 with the torn photos, the
    letters and the music.
-4. Optional: if ffmpeg is installed, **Your own music** appears
-   in the Track list and **Preview this section** plays the chosen section.
+4. **Your own music** appears in the Track list and **Preview this section**
+   plays the chosen section (both use the ffmpeg built into Selects).
 
 ## Uninstall
 
