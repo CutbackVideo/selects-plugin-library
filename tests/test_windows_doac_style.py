@@ -46,8 +46,8 @@ class DoacStyleWindowsTest(unittest.TestCase):
                 self.assertNotIn(token, runtime)
         self.assertIsNone(SPAWN.search(runtime), 'no node/python spawn outside mac-only regions')
 
-    def test_one_shell_call_outside_mac_only_regions(self):
-        self.assertEqual(strip_comments(self.portable).count('runShell('), 1, 'only av-host hostSkillsRoot')
+    def test_no_shell_call_outside_mac_only_regions(self):
+        self.assertEqual(strip_comments(self.portable).count('runShell('), 0, 'the av-host block makes no shell call')
 
     def test_build_entries_refuse_windows_before_any_mutation(self):
         self.assertRegex(self.text, r"MAC_ONLY='[^']*Available on macOS for now")

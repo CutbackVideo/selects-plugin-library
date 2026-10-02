@@ -47,8 +47,8 @@ class CutoutBeatGalleryWindowsTest(unittest.TestCase):
                 self.assertNotIn(token, runtime)
         self.assertIsNone(SPAWN.search(runtime), 'no node/python spawn outside mac-only regions')
 
-    def test_one_shell_call_outside_mac_only_regions(self):
-        self.assertEqual(strip_comments(self.portable).count('runShell('), 1, 'only av-host hostSkillsRoot')
+    def test_no_shell_call_outside_mac_only_regions(self):
+        self.assertEqual(strip_comments(self.portable).count('runShell('), 0, 'the av-host block makes no shell call')
 
     def test_every_language_says_mac_only(self):
         for lang in LANGUAGES:

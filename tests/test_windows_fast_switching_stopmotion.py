@@ -68,9 +68,9 @@ class FastSwitchingStopMotionWindowsTest(unittest.TestCase):
         self.assertNotRegex(code, r"""replace\(/'/g""", "POSIX single-quote helper")
         self.assertNotRegex(code, r"""\|\s*(grep|cut|tr|wc)\b""", "shell pipeline")
 
-    def test_run_shell_only_in_av_host(self):
-        self.assertEqual(self.runtime.count("runShell("), 1)
-        self.assertIn("runShell(", av_block(self.panel) or "")
+    def test_no_shell_call(self):
+        # The av-host block makes no shell call, and neither does the rest of the panel.
+        self.assertEqual(self.runtime.count("runShell("), 0)
 
     def test_ffmpeg_goes_through_the_host(self):
         for name in ("motionSeries", "contactSheet"):

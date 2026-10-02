@@ -50,7 +50,7 @@ def problems(text):
         found.append('unbalanced mac-only markers')
     rest = portable(text)
     shell_calls = rest.count('runShell(')
-    if shell_calls != 1:
+    if shell_calls != 0:
         found.append('runShell( appears %d times outside mac-only regions' % shell_calls)
     outside = portable(BLOCK.sub('', text))
     found += ['%r outside mac-only regions' % word for word in FORBIDDEN if word in outside]
@@ -79,10 +79,10 @@ class TravelBeatVlogWindows(unittest.TestCase):
     def test_no_posix_shell_outside_mac_only(self):
         self.assertEqual(problems(self.text), [])
 
-    def test_one_shell_call_outside_mac_only(self):
+    def test_no_shell_call_outside_mac_only(self):
+        # The av-host block makes no shell call; only the mac-only cutout does.
         rest = portable(self.text)
-        self.assertEqual(rest.count('runShell('), 1)
-        self.assertIn('runShell(', portable(host_block(self.text)))
+        self.assertEqual(rest.count('runShell('), 0)
 
     def test_paths_compare_normalised(self):
         self.assertNotRegex(self.text, r'r\.path===file')

@@ -439,8 +439,7 @@ async function script(sdk,source,summary,allowCommit,timeoutSeconds=30){
 // documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
 // the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
 // nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. The one shell call is the SELECTS_USER_SKILLS_ROOT fallback in hostSkillsRoot (cmd.exe on
-// Windows, the login shell on macOS). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
 // build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
 function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
@@ -510,32 +509,15 @@ async function hostRemove(path) {
     try { await call(); return; } catch { /* the next one */ }
   }
 }
-// The skills folder named by SELECTS_USER_SKILLS_ROOT, through the host shell, or null. Windows runs cmd.exe, where
-// `echo(` prints an empty line for an unset variable (a plain `echo` would print "ECHO is on."); macOS runs the login
-// shell. Only the variable's value comes back; no path goes in.
-async function hostSkillsRoot(sdk) {
-  if (typeof sdk?.runShell !== "function") return null;
-  const command = hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%" : 'echo "$SELECTS_USER_SKILLS_ROOT"';
-  try {
-    const r = await sdk.runShell({ summary: "Locate the plugin folder", command, timeoutMs: 10000 });
-    const out = String(r?.stdout || "").split(/\r?\n/).map((x) => x.trim()).find(Boolean) || "";
-    return !out || /[%$]/.test(out) || /^ECHO is/i.test(out) ? null : out;
-  } catch { return null; }
-}
-// The plugin's install folder and its data folder. The install folder is the host's default skills folder (the home
-// folder joined with .selects, skills and <id>) when it holds `marker` (a file every install has); only when it does
-// not does SELECTS_USER_SKILLS_ROOT decide. The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
 // null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
   const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
   const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
   let plugin = null;
   try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) {
-    const root = await hostSkillsRoot(sdk);
-    const dir = root ? hostJoin(root, id) : null;
-    if (holds(dir)) plugin = dir;
-  }
   if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
   let data = null;
   try {
