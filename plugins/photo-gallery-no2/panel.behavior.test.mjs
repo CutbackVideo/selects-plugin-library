@@ -88,7 +88,8 @@ function harness(media = photos, options = {}) {
     FileSystem: { join: (...parts) => parts.join(sep), homedir: () => home, mkdirSync: () => {},
       existsSync: path => (!options.musicMissing && (path.endsWith('SKILL.md') || path.endsWith('music.mp3'))) || /short\.mp4$/.test(path),
       statSync: () => ({ size: 1000, mtimeMs: 1 }), renameSync: (from, to) => tools.push(['rename', from, to]),
-      writeFile: async () => {}, removeFile: async () => {} },
+      writeFile: async () => {}, removeFile: async () => {},
+      readFile: async () => options.pcm ? Buffer.from(options.pcm.buffer) : Buffer.alloc(0) },
     Runtime: { getPlatform: () => options.platform || 'darwin',
       runFFprobe: async args => { tools.push(['ffprobe', ...args]); return { stdout: probed(args.at(-1)), stderr: '' }; },
       runFFmpeg: async args => { tools.push(['ffmpeg', ...args]); return { stdout: '', stderr: '' }; } },
@@ -207,13 +208,35 @@ test('Windows: the default build finds the bundled music through the host FileSy
   const h = harness(photos, { platform: 'win32', runShell: async () => { throw new Error('No shell on Windows'); } });
   fireEvent.click(h.view.getByRole('button', { name: 'Load project media' }));
   fireEvent.click(await waitFor(() => h.view.getByRole('button', { name: 'Assign all 21 in listed order' })));
-  assert.equal(h.view.queryByLabelText('Enter BPM manually'), null);
-  assert.match(h.view.container.textContent, /BPM estimation is available on macOS for now/);
   fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
   assert.equal(h.calls.find(c => c.input.operation === 'importBundledMusic').input.path,
     'C:\\Users\\tester\\.selects\\skills\\photo-gallery-no2\\assets\\music.mp3');
 });
+
+for (const platform of ['darwin', 'win32']) {
+  test(`${platform}: the BPM estimate decodes the selected music with the host ffmpeg, with no shell`, async () => {
+    // 14 s of 110 BPM clicks as the mono 11025 Hz floats the host's ffmpeg would write.
+    const rate = 11025, pcm = new Float32Array(rate * 14);
+    for (let beat = 0; beat * 60 / 110 < 14; beat++) {
+      const at = Math.round(beat * 60 * rate / 110);
+      for (let i = 0; i < 55 && at + i < pcm.length; i++) pcm[at + i] = Math.trunc(25000 * Math.exp(-i / 10)) / 32768;
+    }
+    const audio = [{ resourceId: 'custom', name: 'Custom', path: platform === 'win32' ? 'C:\\music\\custom.mp3' : '/custom.mp3', durationFrames: 900 }];
+    const tools = [];
+    const h = harness(photos, { platform, audio, tools, pcm, runShell: async () => { throw new Error('No shell'); } });
+    fireEvent.click(h.view.getByRole('button', { name: 'Load project media' }));
+    fireEvent.click(await waitFor(() => h.view.getByRole('button', { name: 'Assign all 21 in listed order' })));
+    fireEvent.change(h.view.getByLabelText('Music'), { target: { value: 'custom' } });
+    fireEvent.click(h.view.getByLabelText('Enter BPM manually'));
+    fireEvent.click(h.view.getByRole('button', { name: 'Estimate music BPM' }));
+    await waitFor(() => assert.match(h.view.container.textContent, /Estimated BPM: 10[89]|Estimated BPM: 11[01]/));
+    const decode = tools.find(call => call[0] === 'ffmpeg');
+    assert.equal(decode[decode.indexOf('-i') + 1], audio[0].path);
+    assert.deepEqual(decode.slice(decode.indexOf('-ar'), decode.indexOf('-ar') + 2), ['-ar', '11025']);
+    assert.ok(!h.calls.some(c => c.allowCommit));
+  });
+}
 
 test('a missing bundled asset stops before any import', async () => {
   const h = harness(photos, { musicMissing: true });

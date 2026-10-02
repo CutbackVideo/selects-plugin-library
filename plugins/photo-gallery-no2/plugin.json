@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "photo-gallery-no2",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "name": "Photo Grid Reveal",
   "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch.",
   "status": "experimental",
@@ -17,8 +17,6 @@
     "native-image-runtime.js",
     "format.mjs",
     "reference-oracle.json",
-    "tempo.py",
-    "runtime.sh",
     "VALIDATION.md",
     "assets/music.mp3",
     "THIRD_PARTY.md"

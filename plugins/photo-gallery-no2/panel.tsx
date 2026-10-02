@@ -405,31 +405,65 @@ async function holdVideos(request, dataDir) {
 }
 // hold:end
 
+// tempo:start
+// Bounded local BPM suggestion (formerly tempo.py), plain JS so tests can run it in node:vm. The first 30 s are
+// decoded by the host's ffmpeg to mono samples at 11025 Hz (hostDecodePcm), quantized to 16-bit as tempo.py read
+// them, then a ~10 ms RMS onset envelope is autocorrelated over 70-180 BPM. Ambiguous or silent input yields no BPM.
+const TEMPO_RATE = 11025, TEMPO_HOP = 110, TEMPO_MIN_BPM = 70, TEMPO_MAX_BPM = 180, TEMPO_SECONDS = 30;
+// Python's round(): halves go to the even neighbour.
+function tempoRoundEven(x) { const r = Math.round(x); return Math.abs(x % 1) === 0.5 && r % 2 ? r - 1 : r; }
+// `samples`: mono floats in [-1, 1] at TEMPO_RATE. Returns { status: 'estimated', bpm } or { status: 'uncertain', reason }.
+function tempoEstimate(samples) {
+  if (samples.length < TEMPO_RATE * 6) return { status: 'uncertain', reason: 'At least six seconds of audio are needed' };
+  const pcm = Int16Array.from(samples, x => Math.max(-32768, Math.min(32767, tempoRoundEven(x * 32768))));
+  const energy = [];
+  for (let start = 0; start + TEMPO_HOP <= pcm.length; start += TEMPO_HOP) {
+    let sum = 0;
+    for (let i = start; i < start + TEMPO_HOP; i++) sum += pcm[i] * pcm[i];
+    energy.push(Math.sqrt(sum / TEMPO_HOP));
+  }
+  const onset = [];
+  for (let i = 1; i < energy.length; i++) onset.push(Math.max(0, energy[i] - energy[i - 1]));
+  if (onset.reduce((sum, v) => sum + v * v, 0) < 1) return { status: 'uncertain', reason: 'No detectable rhythmic audio' };
+  const lowerLag = tempoRoundEven(60 * TEMPO_RATE / (TEMPO_MAX_BPM * TEMPO_HOP));
+  const upperLag = tempoRoundEven(60 * TEMPO_RATE / (TEMPO_MIN_BPM * TEMPO_HOP));
+  const scores = [];
+  for (let lag = lowerLag; lag <= upperLag; lag++) {
+    const bpm = 60 * TEMPO_RATE / (lag * TEMPO_HOP);
+    if (bpm < TEMPO_MIN_BPM || bpm > TEMPO_MAX_BPM) continue;
+    let numerator = 0, left = 0, right = 0;
+    for (let i = 0; i + lag < onset.length; i++) {
+      numerator += onset[i] * onset[i + lag]; left += onset[i] * onset[i]; right += onset[i + lag] * onset[i + lag];
+    }
+    scores.push([left > 0 && right > 0 ? numerator / Math.sqrt(left * right) : 0, bpm, lag]);
+  }
+  // Highest correlation first; ties go to the higher BPM, then the larger lag (Python's reverse tuple sort).
+  scores.sort((a, b) => b[0] - a[0] || b[1] - a[1] || b[2] - a[2]);
+  const best = scores[0];
+  // A doubled interval repeats the same pulse; it is not independent evidence for a different tempo.
+  const unrelated = lag => Math.abs(lag - best[2]) > 4 && Math.abs(lag - 2 * best[2]) > 1 && Math.abs(best[2] - 2 * lag) > 1;
+  const runnerUp = scores.filter(entry => unrelated(entry[2])).reduce((max, entry) => Math.max(max, entry[0]), 0);
+  if (best[0] < 0.12 || best[0] < runnerUp * 1.08) return { status: 'uncertain', reason: 'Tempo is ambiguous; enter BPM manually' };
+  return { status: 'estimated', bpm: tempoRoundEven(best[1] * 10) / 10 };
+}
+// The estimate for an audio file, decoded through the host's ffmpeg into `dataDir`; never throws for bad audio.
+async function tempoOfFile(path, dataDir) {
+  let samples;
+  try { samples = await hostDecodePcm(path, dataDir, TEMPO_RATE, TEMPO_SECONDS, undefined, 45000); }
+  catch (error) {
+    if (error?.code === 'host-missing') throw error;
+    return { status: 'uncertain', reason: 'Audio could not be decoded' };
+  }
+  if (!samples) return { status: 'uncertain', reason: 'This Selects build cannot decode audio for the estimate' };
+  return tempoEstimate(samples);
+}
+// tempo:end
+
 const SLOT_KEYS = Array.from({ length: 21 }, (_, i) => `tile-${String(i + 1).padStart(2, '0')}`);
 const REFERENCE_VIDEO_SLOTS = new Set([4, 6, 11, 17, 19, 21]);
 const emptySlots = () => SLOT_KEYS.map(() => ({ resourceId: '', focusX: 0.5, focusY: 0.5 }));
-// mac-only:start
-const shellQuote = value => "'" + String(value).replace(/'/g, "'\"'\"'") + "'";
-
-// A stock Mac has no Python, so runtime.sh fetches a pinned one on first use
-// (shared by every plugin under ~/.selects/plugin-data/_runtime) and prints its
-// path as the last line. One fetch per panel load; `preparing.say` is whoever is
-// showing progress at the time.
+// `preparing.say` is whoever is showing progress at the time (the Panel or a template run).
 const preparing = { say: null };
-let pythonPath = null;
-function runtimePython(sdk) {
-  if (!pythonPath) pythonPath = (async () => {
-    preparing.say?.('Preparing (first run only)…');
-    const r = await sdk.runShell({ summary: 'Prepare Python (first run only)',
-      command: 'sh "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/runtime.sh" python', timeoutMs: 290000, maxOutputBytes: 8000 });
-    const path = String(r.stdout || '').trim().split('\n').filter(Boolean).pop();
-    if (r.isError || r.exitCode !== 0 || !path?.startsWith('/')) throw new Error(String(r.stderr || '').trim().split('\n').filter(Boolean).pop() ||
-      'Could not prepare Python for Photo Grid Reveal. Check the internet connection, then try again.');
-    return path;
-  })().catch(error => { pythonPath = null; throw error; });
-  return pythonPath;
-}
-// mac-only:end
 const STRINGS = {
   "ko": {
     "title": "Photo Grid Reveal",
@@ -471,8 +505,7 @@ const STRINGS = {
     "unknown": "\uc800\uc7a5 \uc5ec\ubd80\ub97c \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \uac19\uc740 \uc791\uc5c5\uc744 \ub2e4\uc2dc \uc2e4\ud589\ud558\uc9c0 \ub9d0\uace0 \ud3b8\uc9d1\ubcf8\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
     "openSaved": "\uc800\uc7a5\ud55c \ud3b8\uc9d1\ubcf8 \uc5f4\uae30",
     "musicSource": "\ucd9c\ucc98",
-    "musicCredit": "\uc601\uc0c1\uc744 \uacf5\uc720\ud560 \ub54c \uc774 \ud06c\ub808\ub527\uc744 \ud568\uaed8 \ud45c\uae30\ud558\uc138\uc694. 39.650\u201353.867\ucd08 \ubc1c\ucdcc, \ubcfc\ub968 \u22123.090 dB, \uc18d\ub3c4 \ubcc0\uacbd \uc5c6\uc74c.",
-    "estimateMacOnly": "BPM \ucd94\uc815\uc740 \uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4. BPM\uc744 \uc9c1\uc811 \uc785\ub825\ud558\uc138\uc694."
+    "musicCredit": "\uc601\uc0c1\uc744 \uacf5\uc720\ud560 \ub54c \uc774 \ud06c\ub808\ub527\uc744 \ud568\uaed8 \ud45c\uae30\ud558\uc138\uc694. 39.650\u201353.867\ucd08 \ubc1c\ucdcc, \ubcfc\ub968 \u22123.090 dB, \uc18d\ub3c4 \ubcc0\uacbd \uc5c6\uc74c."
   },
   "en": {
     "title": "Photo Grid Reveal",
@@ -514,8 +547,7 @@ const STRINGS = {
     "unknown": "Save outcome is unknown. Inspect the Draft before repeating this action.",
     "openSaved": "Open saved Draft",
     "musicSource": "Source",
-    "musicCredit": "Keep this credit with shared videos. Excerpt 39.650\u201353.867 s; gain \u22123.090 dB; no tempo change.",
-    "estimateMacOnly": "BPM estimation is available on macOS for now. Enter BPM manually."
+    "musicCredit": "Keep this credit with shared videos. Excerpt 39.650\u201353.867 s; gain \u22123.090 dB; no tempo change."
   },
   "de": {
     "title": "Photo Grid Reveal",
@@ -557,8 +589,7 @@ const STRINGS = {
     "unknown": "Speicherergebnis unbekannt. Vor erneutem Ausf\u00fchren den Entwurf pr\u00fcfen.",
     "openSaved": "Gespeicherten Entwurf \u00f6ffnen",
     "musicSource": "Quelle",
-    "musicCredit": "Diesen Hinweis mit geteilten Videos beibehalten. Ausschnitt 39,650\u201353,867 s; Pegel \u22123,090 dB; Tempo unver\u00e4ndert.",
-    "estimateMacOnly": "Die BPM-Sch\u00e4tzung ist vorerst nur unter macOS verf\u00fcgbar. Geben Sie die BPM manuell ein."
+    "musicCredit": "Diesen Hinweis mit geteilten Videos beibehalten. Ausschnitt 39,650\u201353,867 s; Pegel \u22123,090 dB; Tempo unver\u00e4ndert."
   },
   "es": {
     "title": "Photo Grid Reveal",
@@ -600,8 +631,7 @@ const STRINGS = {
     "unknown": "No se conoce el resultado del guardado. Revisa el borrador antes de repetir.",
     "openSaved": "Abrir borrador guardado",
     "musicSource": "Fuente",
-    "musicCredit": "Conserva este cr\u00e9dito al compartir v\u00eddeos. Fragmento 39,650\u201353,867 s; ganancia \u22123,090 dB; sin cambio de tempo.",
-    "estimateMacOnly": "La estimaci\u00f3n de BPM solo est\u00e1 disponible en macOS por ahora. Introduce el BPM manualmente."
+    "musicCredit": "Conserva este cr\u00e9dito al compartir v\u00eddeos. Fragmento 39,650\u201353,867 s; ganancia \u22123,090 dB; sin cambio de tempo."
   },
   "fr": {
     "title": "Photo Grid Reveal",
@@ -643,8 +673,7 @@ const STRINGS = {
     "unknown": "R\u00e9sultat d\u2019enregistrement inconnu. Inspectez le brouillon avant de recommencer.",
     "openSaved": "Ouvrir le brouillon enregistr\u00e9",
     "musicSource": "Source",
-    "musicCredit": "Conservez ce cr\u00e9dit avec les vid\u00e9os partag\u00e9es. Extrait 39,650\u201353,867 s ; gain \u22123,090 dB ; tempo inchang\u00e9.",
-    "estimateMacOnly": "L\u2019estimation du BPM n\u2019est disponible que sur macOS pour l\u2019instant. Saisissez le BPM manuellement."
+    "musicCredit": "Conservez ce cr\u00e9dit avec les vid\u00e9os partag\u00e9es. Extrait 39,650\u201353,867 s ; gain \u22123,090 dB ; tempo inchang\u00e9."
   },
   "it": {
     "title": "Photo Grid Reveal",
@@ -686,8 +715,7 @@ const STRINGS = {
     "unknown": "Esito del salvataggio sconosciuto. Controlla la bozza prima di ripetere.",
     "openSaved": "Apri bozza salvata",
     "musicSource": "Fonte",
-    "musicCredit": "Mantieni questi crediti nei video condivisi. Estratto 39,650\u201353,867 s; guadagno \u22123,090 dB; tempo invariato.",
-    "estimateMacOnly": "La stima dei BPM \u00e8 disponibile solo su macOS per ora. Inserisci i BPM manualmente."
+    "musicCredit": "Mantieni questi crediti nei video condivisi. Estratto 39,650\u201353,867 s; guadagno \u22123,090 dB; tempo invariato."
   },
   "ja": {
     "title": "Photo Grid Reveal",
@@ -729,8 +757,7 @@ const STRINGS = {
     "unknown": "\u4fdd\u5b58\u7d50\u679c\u304c\u4e0d\u660e\u3067\u3059\u3002\u518d\u5b9f\u884c\u524d\u306b\u4e0b\u66f8\u304d\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     "openSaved": "\u4fdd\u5b58\u3057\u305f\u4e0b\u66f8\u304d\u3092\u958b\u304f",
     "musicSource": "\u51fa\u5178",
-    "musicCredit": "\u52d5\u753b\u306e\u5171\u6709\u6642\u306b\u3053\u306e\u30af\u30ec\u30b8\u30c3\u30c8\u3092\u8a18\u8f09\u3057\u3066\u304f\u3060\u3055\u3044\u300239.650\u201353.867\u79d2\u3092\u629c\u7c8b\u3001\u97f3\u91cf \u22123.090 dB\u3001\u901f\u5ea6\u5909\u66f4\u306a\u3057\u3002",
-    "estimateMacOnly": "BPM\u306e\u63a8\u5b9a\u306f\u3001\u73fe\u5728macOS\u3067\u306e\u307f\u4f7f\u7528\u3067\u304d\u307e\u3059\u3002BPM\u3092\u624b\u52d5\u3067\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+    "musicCredit": "\u52d5\u753b\u306e\u5171\u6709\u6642\u306b\u3053\u306e\u30af\u30ec\u30b8\u30c3\u30c8\u3092\u8a18\u8f09\u3057\u3066\u304f\u3060\u3055\u3044\u300239.650\u201353.867\u79d2\u3092\u629c\u7c8b\u3001\u97f3\u91cf \u22123.090 dB\u3001\u901f\u5ea6\u5909\u66f4\u306a\u3057\u3002"
   },
   "pt": {
     "title": "Photo Grid Reveal",
@@ -772,8 +799,7 @@ const STRINGS = {
     "unknown": "Resultado da grava\u00e7\u00e3o desconhecido. Inspecione o rascunho antes de repetir.",
     "openSaved": "Abrir rascunho guardado",
     "musicSource": "Fonte",
-    "musicCredit": "Mantenha este cr\u00e9dito nos v\u00eddeos partilhados. Excerto 39,650\u201353,867 s; ganho \u22123,090 dB; sem altera\u00e7\u00e3o de tempo.",
-    "estimateMacOnly": "A estimativa de BPM est\u00e1 dispon\u00edvel apenas no macOS por enquanto. Introduza o BPM manualmente."
+    "musicCredit": "Mantenha este cr\u00e9dito nos v\u00eddeos partilhados. Excerto 39,650\u201353,867 s; ganho \u22123,090 dB; sem altera\u00e7\u00e3o de tempo."
   },
   "tr": {
     "title": "Photo Grid Reveal",
@@ -815,8 +841,7 @@ const STRINGS = {
     "unknown": "Kay\u0131t sonucu bilinmiyor. Tekrarlamadan \u00f6nce tasla\u011f\u0131 inceleyin.",
     "openSaved": "Kaydedilen tasla\u011f\u0131 a\u00e7",
     "musicSource": "Kaynak",
-    "musicCredit": "Payla\u015f\u0131lan videolarda bu bilgiyi koruyun. 39,650\u201353,867 s kesit; kazan\u00e7 \u22123,090 dB; tempo de\u011fi\u015fmedi.",
-    "estimateMacOnly": "BPM tahmini \u015fimdilik yaln\u0131zca macOS\u2019te kullan\u0131labilir. BPM\u2019i elle girin."
+    "musicCredit": "Payla\u015f\u0131lan videolarda bu bilgiyi koruyun. 39,650\u201353,867 s kesit; kazan\u00e7 \u22123,090 dB; tempo de\u011fi\u015fmedi."
   },
   "zh": {
     "title": "Photo Grid Reveal",
@@ -858,8 +883,7 @@ const STRINGS = {
     "unknown": "\u4fdd\u5b58\u7ed3\u679c\u672a\u77e5\u3002\u91cd\u8bd5\u524d\u8bf7\u68c0\u67e5\u8349\u7a3f\u3002",
     "openSaved": "\u6253\u5f00\u5df2\u4fdd\u5b58\u8349\u7a3f",
     "musicSource": "\u6765\u6e90",
-    "musicCredit": "\u5206\u4eab\u89c6\u9891\u65f6\u8bf7\u4fdd\u7559\u6b64\u7f72\u540d\u3002\u622a\u53d639.650\u201353.867\u79d2\uff0c\u589e\u76ca\u22123.090 dB\uff0c\u672a\u6539\u53d8\u901f\u5ea6\u3002",
-    "estimateMacOnly": "BPM \u4f30\u7b97\u76ee\u524d\u4ec5\u5728 macOS \u4e0a\u53ef\u7528\u3002\u8bf7\u624b\u52a8\u8f93\u5165 BPM\u3002"
+    "musicCredit": "\u5206\u4eab\u89c6\u9891\u65f6\u8bf7\u4fdd\u7559\u6b64\u7f72\u540d\u3002\u622a\u53d639.650\u201353.867\u79d2\uff0c\u589e\u76ca\u22123.090 dB\uff0c\u672a\u6539\u53d8\u901f\u5ea6\u3002"
   }
 };
 
@@ -1018,8 +1042,6 @@ function GalleryPanel({ sdk, context, ui }) {
   const [status, setStatus] = React.useState(null);
   const [savedTarget, setSavedTarget] = React.useState(null);
   const running = React.useRef(false);
-  // Windows: no BPM estimate yet (it needs the macOS shell); everything else is the same.
-  const macOnly = React.useMemo(() => hostIsWindows(), []);
   const current = React.useRef({ projectId: context.projectId, sequenceId: context.sequenceId });
   React.useEffect(() => {
     const say = text => setStatus({ tone: 'muted', text });
@@ -1080,15 +1102,7 @@ function GalleryPanel({ sdk, context, ui }) {
   async function estimateMusic(audio) {
     if (!audio?.path) throw new Error(t.uncertain);
     if (estimated?.resourceId === audio.resourceId) return estimated.bpm;
-    if (macOnly) throw new Error(t.estimateMacOnly);
-    // mac-only:start
-    const python = await runtimePython(sdk);
-    const command = shellQuote(python) + ' "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/tempo.py" ' + shellQuote(audio.path);
-    const response = await sdk.runShell({ command, summary: 'Estimate BPM from selected Photo Gallery music', timeoutMs: 60000 });
-    if (response.isError || response.exitCode !== 0) throw new Error(response.stderr || response.output || t.uncertain);
-    let value;
-    try { value = JSON.parse(response.stdout); } catch { throw new Error(t.uncertain); }
-    // mac-only:end
+    const value = await tempoOfFile(audio.path, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data);
     if (value?.status !== 'estimated' || !Number.isFinite(value.bpm)) throw new Error(value?.reason || t.uncertain);
     setEstimated({ resourceId: audio.resourceId, bpm: value.bpm });
     return value.bpm;
@@ -1123,7 +1137,6 @@ function GalleryPanel({ sdk, context, ui }) {
           durationFrames: selectedMusic.durationFrames, startFrame: 0 } : null };
       if (!input.name || input.media.some(item => !item.resourceId)) throw new Error(t.missing);
       if (input.media.some(item => !Number.isSafeInteger(item.width) || !Number.isSafeInteger(item.height))) throw new Error('A selected tile has no verified dimensions');
-      if (macOnly && !manualEnabled) throw new Error(t.estimateMacOnly);
     } catch (error) { setStatus({ tone: 'error', text: String(error?.message || error) }); return; }
     running.current = true; setBusy(true); setStatus(null);
     let dispatched = false;
@@ -1189,7 +1202,7 @@ function GalleryPanel({ sdk, context, ui }) {
         ...inventory.audio.map(item => ({ value: item.resourceId, label: item.name })),
       ]} disabled={busy}/>
       {musicChoice === 'bundled' && <small>Unexplored (long ver.) — <a href="https://www.youtube.com/c/Tadon" target="_blank" rel="noreferrer">TAD MILLER</a> · <a href="https://opengameart.org/content/unexplored-long-ver-orchestral-music" target="_blank" rel="noreferrer">{t.musicSource}</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>. {t.musicCredit}</small>}
-      {macOnly ? <small>{t.estimateMacOnly}</small> : <ui.Toggle label={t.bpmManual} value={manualEnabled} onChange={setManualEnabled} disabled={busy}/>}
+      <ui.Toggle label={t.bpmManual} value={manualEnabled} onChange={setManualEnabled} disabled={busy}/>
       {manualEnabled && <ui.NumberField label={t.bpm} value={manualBpm} onChange={setManualBpm} min={1} max={300} step={0.1} disabled={busy}/>}
       {!manualEnabled && selectedMusic && <ui.Button variant="secondary" onClick={estimateOnClick} disabled={busy}>{t.estimate}</ui.Button>}
       {estimated && selectedMusic && estimated.resourceId === selectedMusic.resourceId && <small>{t.estimated}: {estimated.bpm}</small>}

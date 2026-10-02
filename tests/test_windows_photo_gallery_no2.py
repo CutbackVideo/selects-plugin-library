@@ -3,10 +3,9 @@
 panel.tsx is generated from panel.template.tsx by build-panel.mjs, so the checks read the generated panel and
 also check that a rebuild reproduces it byte for byte. The default build finds the bundled music through the host
 FileSystem (the av-host block copied from Archive Vlog) and the shared run_script operation compares host paths
-normalised (NFC, / separators, case-folded for Windows paths). Short-video holding and the BPM estimate still run
-through the macOS shell, so on Windows both Create paths refuse a short video before the first mutation and the
-estimate is hidden with a localized "available on macOS for now". PHOTO_GALLERY_NO2_PANEL overrides the panel path
-(to check that an older panel fails).
+normalised (NFC, / separators, case-folded for Windows paths). Short-video holding (// hold:) and the BPM estimate
+(// tempo:) run in the panel on the host's bundled ffmpeg/ffprobe, so the panel has no shell call at all and ships no
+Python. PHOTO_GALLERY_NO2_PANEL overrides the panel path (to check that an older panel fails).
 """
 import json
 import os
@@ -69,6 +68,11 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         self.assertIsNone(SPAWN.search(self.runtime), "node/python spawn outside mac-only regions")
         self.assertEqual(self.runtime.count("runShell("), 0, "runShell outside mac-only regions")
 
+    def test_no_shell_call_at_all(self):
+        self.assertIsNone(MAC_ONLY.search(self.source), "nothing is macOS-only any more")
+        self.assertEqual(self.source.count("runShell("), 0)
+        self.assertIsNone(re.search(r"\b(?:tempo|hold_video)\.py\b", self.runtime))
+
     def test_bundled_music_is_found_through_the_host(self):
         music = body(self.runtime, "async function prepareBundledMusic(")
         self.assertIn("hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')", music)
@@ -104,19 +108,18 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         self.assertNotIn("hold_video", self.runtime)
         self.assertNotIn("shortMacOnly", self.source, "short videos work on Windows")
 
-    def test_windows_refuses_the_bpm_estimate_before_the_first_mutation(self):
+    def test_bpm_is_estimated_in_the_panel_from_host_decoded_pcm(self):
+        tempo = re.search(r"// tempo:start\n.*?// tempo:end\n", self.source, re.S)
+        self.assertIsNotNone(tempo, "panel has no tempo block")
+        tempo = tempo.group(0)
+        self.assertIn("hostDecodePcm(path, dataDir, TEMPO_RATE, TEMPO_SECONDS", tempo)
+        self.assertIn("TEMPO_RATE = 11025", tempo)
+        self.assertIn("TEMPO_SECONDS = 30", tempo)
+        estimate = body(self.runtime, "  async function estimateMusic(audio) {", "\n  }\n")
+        self.assertIn("tempoOfFile(audio.path, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data)", estimate)
         strings = json.loads(re.search(r"const STRINGS = (\{.*?\n\});\n", self.source, re.S).group(1))
         self.assertEqual(sorted(strings), sorted(LANGUAGES))
-        for lang in LANGUAGES:
-            self.assertIn("macOS", strings[lang].get("estimateMacOnly", ""), lang)
-        self.assertIn("const macOnly = React.useMemo(() => hostIsWindows(), []);", self.source)
-        create = body(self.source, "  async function createGallery() {", "\n  }\n")
-        guard = create.index("if (macOnly && !manualEnabled) throw new Error(t.estimateMacOnly);")
-        self.assertLess(guard, create.index("running.current = true"))
-        self.assertLess(guard, create.index("prepareBundledMusic("))
-        estimate = body(self.source, "  async function estimateMusic(audio) {", "\n  }\n")
-        self.assertLess(estimate.index("if (macOnly) throw new Error(t.estimateMacOnly);"), estimate.index("// mac-only:start"))
-        self.assertIn("{macOnly ? <small>{t.estimateMacOnly}</small> : <ui.Toggle label={t.bpmManual}", self.source)
+        self.assertNotIn("MacOnly", self.source, "every feature works on Windows")
 
     @unittest.skipUnless(shutil.which("node"), "node builds the panel")
     def test_generated_panel_matches_a_rebuild(self):
@@ -129,15 +132,16 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
 
     def test_manifest_and_docs(self):
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
-        self.assertNotIn(manifest["version"], ("0.3.2", "0.3.3"))
+        self.assertNotIn(manifest["version"], ("0.3.2", "0.3.3", "0.3.4"))
         self.assertIn("Windows x64", manifest["compatibility"]["platforms"])
-        self.assertNotIn("hold_video.py", manifest["files"])
-        self.assertFalse(os.path.exists(os.path.join(PLUGIN, "hold_video.py")), "hold_video.py lives in dev/")
-        self.assertNotIn("hold_video.py", read(os.path.join(PLUGIN, "SKILL.md")))
+        self.assertFalse([f for f in manifest["files"] if f.endswith((".py", ".sh"))], "Python or shell ships")
+        for name in ("hold_video.py", "tempo.py", "runtime.sh"):
+            self.assertFalse(os.path.exists(os.path.join(PLUGIN, name)), name + " is gone (Python parity references live in dev/)")
+            self.assertNotIn(name, read(os.path.join(PLUGIN, "SKILL.md")), name)
         install = read(os.path.join(PLUGIN, "INSTALL.md"))
         self.assertIn("Windows", install)
-        for needle in ("brew ", "Homebrew", "nvm "):
-            self.assertNotIn(needle, install)
+        for needle in ("brew ", "Homebrew", "nvm ", "CPython", "runtime.sh", "tempo.py"):
+            self.assertNotIn(needle, install, needle)
 
 
 if __name__ == "__main__":
