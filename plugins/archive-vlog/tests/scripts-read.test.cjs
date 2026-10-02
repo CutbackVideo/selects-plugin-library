@@ -34,6 +34,19 @@ const keepAlive = setInterval(() => {}, 50);
   assert.equal(s.candidates.length, 8);
   assert.deepEqual(Object.keys(s.candidates[0]).sort(), ['rid', 'role', 'score', 't']);
   assert.equal(s.stats.waitedMs, 1000, 'one retry pass after a 1 s pause');
+  // search.js: an unanalysed clip gets evenly spaced local windows (no scene search); the panel's analysedOnly skips the
+  // resource read.
+  {
+    let reads = 0, searches = 0;
+    const selU = { project: () => ({ resources: async () => { reads++; return [resources[0], { ...resources[1], durationSeconds: 10 }]; },
+      resource: () => ({ searchScenes: async () => { searches++; return { results: [{ timeSeconds: 4, score: 0.8 }], error: null }; } }) }) };
+    const su = await load('search.js', { projectId: 'p', rids: ['r0', 'r1'], queries: { street: 'q1' }, pageSize: 4 })(selU);
+    assert.equal(searches, 1, 'only the analysed clip is searched');
+    assert.deepEqual(su.candidates.filter(c => c.rid === 'r1').map(c => [c.role, c.t, c.score]),
+      [2, 4, 6, 8].flatMap(t => [['local-steady', t, 0.5], ['local-montage', t, 0.5]]));
+    await load('search.js', { projectId: 'p', rids: ['r0'], queries: { street: 'q1' }, pageSize: 4, analysedOnly: true })(selU);
+    assert.equal(reads, 1, 'analysedOnly: no resource read');
+  }
 
   // Photos: Image resources come back with kind 'photo', respecting `only`; sourceFiles has no size for them, so an
   // unsaved scratch Draft measures each (it adopts the photo's size); known sizes are reused and nothing is committed.

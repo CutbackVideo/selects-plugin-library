@@ -6,12 +6,12 @@ const candidates = [];
 // too) is not searched: it gets LOCAL_COUNT evenly spaced windows of each local-score kind instead, with one middling
 // score, the roles the planner gives clips scored without analysis (planner AV_LOCAL_ROLES: steady for the opening,
 // credit and final shots, montage for the rest; the panel's motion bonus step puts them on the hits' score scale). The
-// panel scores such clips itself and never sends them here; a template run does. If the resource list cannot be read,
-// every clip is searched as before.
+// panel scores such clips itself and sends only analysed ones (cfg.analysedOnly: no resource read); a template run
+// sends every clip. If the resource list cannot be read, every clip is searched as before.
 const LOCAL_ROLES = ['local-steady', 'local-montage'], LOCAL_COUNT = 4, LOCAL_SCORE = 0.5;
 const loose = v => v;
 const unanalysed = {};
-if (cfg.rids.length) {
+if (cfg.rids.length && !cfg.analysedOnly) {
   try {
     const list = loose(await p.resources());
     if (Array.isArray(list)) for (const r of list) {

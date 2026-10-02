@@ -1946,6 +1946,10 @@ const INVENTORY_RETRY_MS = 2000;
 // uncropped. It is re-read with the 10 s poll, at most INCOMPLETE_POLL_MAX times in a row (about a minute); then
 // polling stops until Refresh starts the cycle again.
 const INCOMPLETE_POLL_MAX = 6;
+// Clips still being added (no length or no source file yet) are re-read with the 10 s poll at most this many times in a
+// row (about 5 minutes): a clip whose file never resolves (offline media) must not poll forever. Refresh and coming back
+// to the panel still re-read.
+const WAITING_POLL_MAX = 30;
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
 const DRAFT_LOOKUP_MAX = 50;
 // Your own music: at most this much of the track is analysed (and used), mono at this rate (beat-detect's rate, and
@@ -4491,6 +4495,9 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   // Consecutive incomplete reads, and whether that count reached INCOMPLETE_POLL_MAX (polling stopped).
   const incompleteReadsRef = React.useRef(0);
   const [incompleteStalled, setIncompleteStalled] = React.useState(false);
+  // Consecutive reads with clips still being added, and whether that count reached WAITING_POLL_MAX (polling stopped).
+  const waitingReadsRef = React.useRef(0);
+  const [waitingStalled, setWaitingStalled] = React.useState(false);
 
   // Reads the Project's footage inventory. Never writes state for a stale Project, and never runs during a build.
   // Resolves to "failed" only when a read ran and failed with a non-busy error (the case worth one quick retry).
@@ -4513,6 +4520,8 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
       if (inv.incomplete) { incompleteReadsRef.current++; if (incompleteReadsRef.current >= INCOMPLETE_POLL_MAX) setIncompleteStalled(true); }
       else { incompleteReadsRef.current = 0; setIncompleteStalled(false); }
+      if ((inv.skipped?.unanalysed || 0) > 0) { waitingReadsRef.current++; if (waitingReadsRef.current >= WAITING_POLL_MAX) setWaitingStalled(true); }
+      else { waitingReadsRef.current = 0; setWaitingStalled(false); }
       setInventory(inv); setInvError(null);
       return "ok";
     } catch (e: any) {
@@ -4526,14 +4535,14 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   }
   React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; replayRef.current++; }; }, []);
   // Refresh: a manual read that also restarts the incomplete-read cycle.
-  const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); loadInventory(); };
+  const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); waitingReadsRef.current = 0; setWaitingStalled(false); loadInventory(); };
 
   // Mount and Project switch: reset per-Project state, resolve folders, read bundled assets, inventory the Project.
   React.useEffect(() => {
     // Drop everything tied to the previous Project so a build never mixes Projects.
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
     setOnly(null); setOnlyPhotos(null);
-    invSigRef.current = null; photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false);
+    invSigRef.current = null; photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false); waitingReadsRef.current = 0; setWaitingStalled(false);
     runEpochRef.current++;
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
     if (!projectId) return;
@@ -4571,7 +4580,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   // The effect re-arms on each new inventory, and stops on unmount, Project switch and while busy. A Project with only
   // photos has nothing to wait for, so it does not poll (each read measures new photos).
   const invFacts = avFootageFacts(inventory, inventory ? inventory.resources.map((r: any) => r.rid) : []);
-  const needsPoll = !!inventory && ((!!inventory.incomplete && !incompleteStalled) || invFacts.analysing > 0 || invFacts.waiting > 0
+  const needsPoll = !!inventory && ((!!inventory.incomplete && !incompleteStalled) || invFacts.analysing > 0 || (invFacts.waiting > 0 && !waitingStalled)
     || (inventory.resources.length === 0 && !inventory.photos?.length));
   React.useEffect(() => {
     if (!projectId || !needsPoll || busy) return;
@@ -4860,7 +4869,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     // pageSize stays 4: hits are scene-level, so 8 adds almost no new times; the planner fills gaps with filler candidates.
     for (let i = 0; i < rids.length; i += SEARCH_BATCH) {
       onDone(i);
-      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4 }), false, { wanted: () => projectRef.current === pid });
+      const r = await run("Search shots", fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4, analysedOnly: true }), false, { wanted: () => projectRef.current === pid });
       check();
       list.push(...r.candidates); failed.push(...r.failed);
     }

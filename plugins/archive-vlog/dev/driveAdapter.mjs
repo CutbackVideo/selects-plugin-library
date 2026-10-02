@@ -342,7 +342,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
     // The role queries plus the motion query (always on in Archive Vlog: its hits feed the motion bonus and the
     // motion-aware opening shot), pageSize 4.
     search(row, rids) {
-      return { summary: 'Search shots', script: 'scripts/search.js', config: { projectId: resolve(row, { required: true }), rids, queries: C.AV_QUERIES, pageSize: 4 } };
+      return { summary: 'Search shots', script: 'scripts/search.js', config: { projectId: resolve(row, { required: true }), rids, queries: C.AV_QUERIES, pageSize: 4, analysedOnly: true } };
     },
 
     // The panel's Build up to the plan: title fields, tempo, music capacity, section, then avPlanBuild.

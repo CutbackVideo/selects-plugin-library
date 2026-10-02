@@ -352,7 +352,7 @@ for (const [seed, pace, music, preset, creditOn, lookOn, clipSound] of [[1, 'cin
 // The panel and its template run use the builders (one config path for both).
 assert.equal((ui.match(/avAssembleConfig\(\{/g) || []).length, 2, 'assemble config: the panel and the template run');
 assert.equal((ui.match(/avDecorateConfig\(\{/g) || []).length, 2, 'decorate config: the panel and the template run');
-assert.ok(ui.includes('fill(assets.scripts.decorateJs, cfg)') && ui.includes('fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4 })'));
+assert.ok(ui.includes('fill(assets.scripts.decorateJs, cfg)') && ui.includes('fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4, analysedOnly: true })'));
 
 // ---- Host I/O: no POSIX shell, guarded host services --------------------------------------------------------------
 // Runtime code never uses POSIX shell syntax, a data folder under the shell's HOME, Homebrew / nvm paths or a node
@@ -537,7 +537,7 @@ assert.ok(ui.includes('t(L, "ready", { summary: clipCount })'), 'readiness: inve
 // counts usable clips; a small note (never a gate) says analysed clips give better picks; clips still being added poll.
 for (const s of ['const localNote = facts.local > 0 ? t(L, "localNote", { count: facts.local }) : null;', '{localNote ? <ui.Message tone="muted">{localNote}</ui.Message> : null}',
   ': inventory.resources.length === 0 ? (facts.waiting ? t(L, "stillAdding", { count: facts.waiting }) : t(L, "noFootage"))',
-  'invFacts.analysing > 0 || invFacts.waiting > 0', 'const sig = inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",");']) assert.ok(ui.includes(s), s);
+  'invFacts.analysing > 0 || (invFacts.waiting > 0 && !waitingStalled)', 'if (waitingReadsRef.current >= WAITING_POLL_MAX) setWaitingStalled(true);', 'const sig = inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",");']) assert.ok(ui.includes(s), s);
 assert.ok(!/avAnalysis|notAnalysedAnalyse|statusKnown/.test(ui), 'no analysis gate left');
 // The block reasons never mention analysis: only footage, music and the title gate a build.
 {
