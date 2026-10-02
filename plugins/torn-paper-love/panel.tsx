@@ -66,13 +66,15 @@ const STRINGS = {
     preparingTools: "Preparing beat detection (first time only)",
     listeningNow: "Listening for the beat…",
     dropMusicAbove: "Drop a music file above, or choose one of the tracks.",
-    noPictures: "No photos or analysed clips in this Project yet. Add photos (or clips and analyse them); this updates automatically.",
+    noPictures: "No photos or clips in this Project yet. Add some; this updates automatically.",
     ready: "Ready: {summary}",
     photos: { one: "{count} photo", other: "{count} photos" },
     clips: { one: "{count} clip", other: "{count} clips" },
     shots: { one: "{count} shot", other: "{count} shots" },
     aboutSeconds: "about {seconds} s",
     stillAnalysing: { one: "{count} clip still analysing", other: "{count} clips still analysing" },
+    stillImporting: { one: "{count} clip still importing", other: "{count} clips still importing" },
+    notAnalysedNote: "Clips Selects hasn't analysed yet are checked quickly on this computer; analysed clips give better picks.",
     notRead: { one: "{count} photo couldn't be read", other: "{count} photos couldn't be read" },
     notReadYet: { one: "{count} photo couldn't be read yet", other: "{count} photos couldn't be read yet" },
     tooShort: { one: "{count} clip is too short", other: "{count} clips are too short" },
@@ -110,6 +112,7 @@ const STRINGS = {
     progressDetail: "Step {step}/{total} · {name} ({detail}) · {percent}%",
     "detail.pictures": { one: "{count} picture", other: "{count} pictures" },
     "detail.clipsChecked": { one: "{done}/{count} clip checked", other: "{done}/{count} clips checked" },
+    "detail.checkingClips": { one: "checking {done}/{count} clip", other: "checking {done}/{count} clips" },
     "detail.alreadyFound": "already found",
     "detail.photosOnly": "photos only",
     "detail.addingMusic": "adding the music",
@@ -211,13 +214,15 @@ const STRINGS = {
     preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     listeningNow: "Beat wird gesucht …",
     dropMusicAbove: "Lege oben eine Musikdatei ab oder wähle eines der Musikstücke.",
-    noPictures: "In diesem Projekt gibt es noch keine Fotos oder analysierten Clips. Füge Fotos hinzu (oder Clips, und analysiere sie); die Anzeige aktualisiert sich automatisch.",
+    noPictures: "In diesem Projekt gibt es noch keine Fotos oder Clips. F\u00fcge welche hinzu; die Anzeige aktualisiert sich automatisch.",
     ready: "Bereit: {summary}",
     photos: { one: "{count} Foto", other: "{count} Fotos" },
     clips: { one: "{count} Clip", other: "{count} Clips" },
     shots: { one: "{count} Einstellung", other: "{count} Einstellungen" },
     aboutSeconds: "ca. {seconds} s",
     stillAnalysing: { one: "{count} Clip wird noch analysiert", other: "{count} Clips werden noch analysiert" },
+    stillImporting: { one: "{count} Clip wird noch importiert", other: "{count} Clips werden noch importiert" },
+    notAnalysedNote: "Clips, die Selects noch nicht analysiert hat, werden schnell auf diesem Computer gepr\u00fcft; analysierte Clips ergeben eine bessere Auswahl.",
     notRead: { one: "{count} Foto konnte nicht gelesen werden", other: "{count} Fotos konnten nicht gelesen werden" },
     notReadYet: { one: "{count} Foto konnte noch nicht gelesen werden", other: "{count} Fotos konnten noch nicht gelesen werden" },
     tooShort: { one: "{count} Clip ist zu kurz", other: "{count} Clips sind zu kurz" },
@@ -255,6 +260,7 @@ const STRINGS = {
     progressDetail: "Schritt {step}/{total} · {name} ({detail}) · {percent} %",
     "detail.pictures": { one: "{count} Bild", other: "{count} Bilder" },
     "detail.clipsChecked": { one: "{done}/{count} Clip geprüft", other: "{done}/{count} Clips geprüft" },
+    "detail.checkingClips": { one: "{done}/{count} Clip wird gepr\u00fcft", other: "{done}/{count} Clips werden gepr\u00fcft" },
     "detail.alreadyFound": "bereits gefunden",
     "detail.photosOnly": "nur Fotos",
     "detail.addingMusic": "Musik wird hinzugefügt",
@@ -356,13 +362,15 @@ const STRINGS = {
     preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     listeningNow: "Buscando el ritmo…",
     dropMusicAbove: "Suelta un archivo de música arriba o elige una de las pistas.",
-    noPictures: "Este proyecto aún no tiene fotos ni clips analizados. Añade fotos (o clips y analízalos); se actualizará automáticamente.",
+    noPictures: "Este proyecto a\u00fan no tiene fotos ni clips. A\u00f1ade algunos; se actualizar\u00e1 autom\u00e1ticamente.",
     ready: "Listo: {summary}",
     photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
     clips: { one: "{count} clip", many: "{count} de clips", other: "{count} clips" },
     shots: { one: "{count} plano", many: "{count} de planos", other: "{count} planos" },
     aboutSeconds: "unos {seconds} s",
     stillAnalysing: { one: "{count} clip aún se está analizando", many: "{count} de clips aún se están analizando", other: "{count} clips aún se están analizando" },
+    stillImporting: { one: "{count} clip a\u00fan se est\u00e1 importando", many: "{count} de clips a\u00fan se est\u00e1n importando", other: "{count} clips a\u00fan se est\u00e1n importando" },
+    notAnalysedNote: "Los clips que Selects a\u00fan no ha analizado se revisan r\u00e1pidamente en este ordenador; los clips analizados dan una mejor selecci\u00f3n.",
     notRead: { one: "{count} foto no se pudo leer", many: "{count} de fotos no se pudieron leer", other: "{count} fotos no se pudieron leer" },
     notReadYet: { one: "{count} foto aún no se pudo leer", many: "{count} de fotos aún no se pudieron leer", other: "{count} fotos aún no se pudieron leer" },
     tooShort: { one: "{count} clip es demasiado corto", many: "{count} de clips son demasiado cortos", other: "{count} clips son demasiado cortos" },
@@ -400,6 +408,7 @@ const STRINGS = {
     progressDetail: "Paso {step}/{total} · {name} ({detail}) · {percent} %",
     "detail.pictures": { one: "{count} imagen", many: "{count} de imágenes", other: "{count} imágenes" },
     "detail.clipsChecked": { one: "{done}/{count} clip comprobado", many: "{done}/{count} de clips comprobados", other: "{done}/{count} clips comprobados" },
+    "detail.checkingClips": { one: "revisando {done}/{count} clip", many: "revisando {done}/{count} de clips", other: "revisando {done}/{count} clips" },
     "detail.alreadyFound": "ya encontrados",
     "detail.photosOnly": "solo fotos",
     "detail.addingMusic": "añadiendo la música",
@@ -501,13 +510,15 @@ const STRINGS = {
     preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     listeningNow: "Recherche du rythme…",
     dropMusicAbove: "Déposez un fichier audio ci-dessus ou choisissez l'un des morceaux.",
-    noPictures: "Ce projet ne contient pas encore de photo ni de clip analysé. Ajoutez des photos (ou des clips, puis analysez-les) ; l'affichage se met à jour automatiquement.",
+    noPictures: "Ce projet ne contient pas encore de photo ni de clip. Ajoutez-en ; l'affichage se met \u00e0 jour automatiquement.",
     ready: "Prêt : {summary}",
     photos: { one: "{count} photo", many: "{count} de photos", other: "{count} photos" },
     clips: { one: "{count} clip", many: "{count} de clips", other: "{count} clips" },
     shots: { one: "{count} plan", many: "{count} de plans", other: "{count} plans" },
     aboutSeconds: "environ {seconds} s",
     stillAnalysing: { one: "{count} clip encore en cours d'analyse", many: "{count} de clips encore en cours d'analyse", other: "{count} clips encore en cours d'analyse" },
+    stillImporting: { one: "{count} clip encore en cours d'importation", many: "{count} de clips encore en cours d'importation", other: "{count} clips encore en cours d'importation" },
+    notAnalysedNote: "Les clips que Selects n'a pas encore analys\u00e9s sont v\u00e9rifi\u00e9s rapidement sur cet ordinateur ; les clips analys\u00e9s donnent un meilleur choix.",
     notRead: { one: "{count} photo n'a pas pu être lue", many: "{count} de photos n'ont pas pu être lues", other: "{count} photos n'ont pas pu être lues" },
     notReadYet: { one: "{count} photo n'a pas encore pu être lue", many: "{count} de photos n'ont pas encore pu être lues", other: "{count} photos n'ont pas encore pu être lues" },
     tooShort: { one: "{count} clip est trop court", many: "{count} de clips sont trop courts", other: "{count} clips sont trop courts" },
@@ -545,6 +556,7 @@ const STRINGS = {
     progressDetail: "Étape {step}/{total} · {name} ({detail}) · {percent} %",
     "detail.pictures": { one: "{count} image", many: "{count} d'images", other: "{count} images" },
     "detail.clipsChecked": { one: "{done}/{count} clip vérifié", many: "{done}/{count} clips vérifiés", other: "{done}/{count} clips vérifiés" },
+    "detail.checkingClips": { one: "v\u00e9rification de {done}/{count} clip", many: "v\u00e9rification de {done}/{count} clips", other: "v\u00e9rification de {done}/{count} clips" },
     "detail.alreadyFound": "déjà trouvés",
     "detail.photosOnly": "photos uniquement",
     "detail.addingMusic": "ajout de la musique",
@@ -646,13 +658,15 @@ const STRINGS = {
     preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     listeningNow: "Ricerca del ritmo…",
     dropMusicAbove: "Trascina un file musicale qui sopra o scegli uno dei brani.",
-    noPictures: "In questo progetto non ci sono ancora foto né clip analizzate. Aggiungi foto (oppure clip, e analizzale); si aggiorna automaticamente.",
+    noPictures: "In questo progetto non ci sono ancora foto n\u00e9 clip. Aggiungine qualcuna; si aggiorna automaticamente.",
     ready: "Pronto: {summary}",
     photos: { one: "{count} foto", many: "{count} di foto", other: "{count} foto" },
     clips: { one: "{count} clip", many: "{count} di clip", other: "{count} clip" },
     shots: { one: "{count} inquadratura", many: "{count} di inquadrature", other: "{count} inquadrature" },
     aboutSeconds: "circa {seconds} s",
     stillAnalysing: { one: "{count} clip ancora in analisi", many: "{count} di clip ancora in analisi", other: "{count} clip ancora in analisi" },
+    stillImporting: { one: "{count} clip ancora in importazione", many: "{count} di clip ancora in importazione", other: "{count} clip ancora in importazione" },
+    notAnalysedNote: "Le clip che Selects non ha ancora analizzato vengono controllate rapidamente su questo computer; le clip analizzate danno scelte migliori.",
     notRead: { one: "{count} foto non leggibile", many: "{count} di foto non leggibili", other: "{count} foto non leggibili" },
     notReadYet: { one: "{count} foto non ancora leggibile", many: "{count} di foto non ancora leggibili", other: "{count} foto non ancora leggibili" },
     tooShort: { one: "{count} clip è troppo corta", many: "{count} di clip sono troppo corte", other: "{count} clip sono troppo corte" },
@@ -690,6 +704,7 @@ const STRINGS = {
     progressDetail: "Passaggio {step}/{total} · {name} ({detail}) · {percent}%",
     "detail.pictures": { one: "{count} immagine", many: "{count} di immagini", other: "{count} immagini" },
     "detail.clipsChecked": { one: "{done}/{count} clip controllata", many: "{done}/{count} clip controllate", other: "{done}/{count} clip controllate" },
+    "detail.checkingClips": { one: "controllo di {done}/{count} clip", many: "controllo di {done}/{count} clip", other: "controllo di {done}/{count} clip" },
     "detail.alreadyFound": "già trovati",
     "detail.photosOnly": "solo foto",
     "detail.addingMusic": "aggiunta della musica",
@@ -791,13 +806,15 @@ const STRINGS = {
     preparingTools: "ビート検出を準備中(初回のみ)",
     listeningNow: "ビートを検出中…",
     dropMusicAbove: "上に音楽ファイルをドロップするか、用意されたトラックを選んでください。",
-    noPictures: "このプロジェクトには、写真も解析済みのクリップもまだありません。写真を追加するか、クリップを追加して解析してください。自動で更新されます。",
+    noPictures: "\u3053\u306e\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306b\u306f\u3001\u307e\u3060\u5199\u771f\u3082\u30af\u30ea\u30c3\u30d7\u3082\u3042\u308a\u307e\u305b\u3093\u3002\u8ffd\u52a0\u3059\u308b\u3068\u81ea\u52d5\u3067\u66f4\u65b0\u3055\u308c\u307e\u3059\u3002",
     ready: "準備完了: {summary}",
     photos: { other: "写真 {count} 枚" },
     clips: { other: "クリップ {count} 本" },
     shots: { other: "{count} ショット" },
     aboutSeconds: "約 {seconds} 秒",
     stillAnalysing: { other: "解析中のクリップ {count} 本" },
+    stillImporting: { other: "\u8aad\u307f\u8fbc\u307f\u4e2d\u306e\u30af\u30ea\u30c3\u30d7 {count} \u672c" },
+    notAnalysedNote: "Selects \u304c\u307e\u3060\u89e3\u6790\u3057\u3066\u3044\u306a\u3044\u30af\u30ea\u30c3\u30d7\u306f\u3001\u3053\u306e\u30b3\u30f3\u30d4\u30e5\u30fc\u30bf\u3067\u624b\u65e9\u304f\u78ba\u8a8d\u3057\u307e\u3059\u3002\u89e3\u6790\u6e08\u307f\u306e\u30af\u30ea\u30c3\u30d7\u306e\u307b\u3046\u304c\u826f\u3044\u5834\u9762\u3092\u9078\u3079\u307e\u3059\u3002",
     notRead: { other: "読み込めない写真 {count} 枚" },
     notReadYet: { other: "まだ読み込めていない写真 {count} 枚" },
     tooShort: { other: "短すぎるクリップ {count} 本" },
@@ -835,6 +852,7 @@ const STRINGS = {
     progressDetail: "ステップ {step}/{total} · {name}（{detail}）· {percent}%",
     "detail.pictures": { other: "素材 {count} 点" },
     "detail.clipsChecked": { other: "{done}/{count} 本のクリップを確認済み" },
+    "detail.checkingClips": { other: "{done}/{count} \u672c\u306e\u30af\u30ea\u30c3\u30d7\u3092\u78ba\u8a8d\u4e2d" },
     "detail.alreadyFound": "検出済み",
     "detail.photosOnly": "写真のみ",
     "detail.addingMusic": "音楽を追加中",
@@ -936,13 +954,15 @@ const STRINGS = {
     preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     listeningNow: "\ube44\ud2b8 \ucc3e\ub294 \uc911…",
     dropMusicAbove: "\uc704\uc5d0 \uc74c\uc545 \ud30c\uc77c\uc744 \ub04c\uc5b4\ub2e4 \ub193\uac70\ub098 \uc81c\uacf5\ub41c \ud2b8\ub799\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
-    noPictures: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc0ac\uc9c4\uc774\ub098 \ubd84\uc11d\ub41c \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uac70\ub098 \ud074\ub9bd\uc744 \ucd94\uac00\ud574 \ubd84\uc11d\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
+    noPictures: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc0ac\uc9c4\uc774\ub098 \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ucd94\uac00\ud558\uba74 \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
     ready: "\uc900\ube44 \uc644\ub8cc: {summary}",
     photos: { other: "\uc0ac\uc9c4 {count}\uc7a5" },
     clips: { other: "\ud074\ub9bd {count}\uac1c" },
     shots: { other: "\uc0f7 {count}\uac1c" },
     aboutSeconds: "\uc57d {seconds}\ucd08",
     stillAnalysing: { other: "\uc544\uc9c1 \ubd84\uc11d \uc911\uc778 \ud074\ub9bd {count}\uac1c" },
+    stillImporting: { other: "\uc544\uc9c1 \uac00\uc838\uc624\ub294 \uc911\uc778 \ud074\ub9bd {count}\uac1c" },
+    notAnalysedNote: "Selects\uac00 \uc544\uc9c1 \ubd84\uc11d\ud558\uc9c0 \uc54a\uc740 \ud074\ub9bd\uc740 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \ube60\ub974\uac8c \ud655\uc778\ud569\ub2c8\ub2e4. \ubd84\uc11d\ub41c \ud074\ub9bd\uc774 \ub354 \uc88b\uc740 \uc7a5\uba74\uc744 \uace0\ub985\ub2c8\ub2e4.",
     notRead: { other: "\uc77d\uc9c0 \ubabb\ud55c \uc0ac\uc9c4 {count}\uc7a5" },
     notReadYet: { other: "\uc544\uc9c1 \uc77d\uc9c0 \ubabb\ud55c \uc0ac\uc9c4 {count}\uc7a5" },
     tooShort: { other: "\ub108\ubb34 \uc9e7\uc740 \ud074\ub9bd {count}\uac1c" },
@@ -980,6 +1000,7 @@ const STRINGS = {
     progressDetail: "{step}/{total}\ub2e8\uacc4 · {name} ({detail}) · {percent}%",
     "detail.pictures": { other: "\uc0ac\uc9c4 {count}\uc7a5" },
     "detail.clipsChecked": { other: "\ud074\ub9bd {done}/{count}\uac1c \ud655\uc778" },
+    "detail.checkingClips": { other: "\ud074\ub9bd {done}/{count}\uac1c \ud655\uc778 \uc911" },
     "detail.alreadyFound": "\uc774\ubbf8 \ucc3e\uc74c",
     "detail.photosOnly": "\uc0ac\uc9c4\ub9cc",
     "detail.addingMusic": "\uc74c\uc545 \ucd94\uac00 \uc911",
@@ -1081,13 +1102,15 @@ const STRINGS = {
     preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     listeningNow: "Procurando a batida…",
     dropMusicAbove: "Solte um arquivo de música acima ou escolha uma das faixas.",
-    noPictures: "Este projeto ainda não tem fotos nem clipes analisados. Adicione fotos (ou clipes e analise-os); a lista é atualizada automaticamente.",
+    noPictures: "Este projeto ainda n\u00e3o tem fotos nem clipes. Adicione alguns; a lista \u00e9 atualizada automaticamente.",
     ready: "Pronto: {summary}",
     photos: { one: "{count} foto", many: "{count} de fotos", other: "{count} fotos" },
     clips: { one: "{count} clipe", many: "{count} de clipes", other: "{count} clipes" },
     shots: { one: "{count} plano", many: "{count} de planos", other: "{count} planos" },
     aboutSeconds: "cerca de {seconds} s",
     stillAnalysing: { one: "{count} clipe ainda em análise", many: "{count} de clipes ainda em análise", other: "{count} clipes ainda em análise" },
+    stillImporting: { one: "{count} clipe ainda em importa\u00e7\u00e3o", many: "{count} de clipes ainda em importa\u00e7\u00e3o", other: "{count} clipes ainda em importa\u00e7\u00e3o" },
+    notAnalysedNote: "Os clipes que o Selects ainda n\u00e3o analisou s\u00e3o verificados rapidamente neste computador; clipes analisados d\u00e3o escolhas melhores.",
     notRead: { one: "{count} foto não pôde ser lida", many: "{count} de fotos não puderam ser lidas", other: "{count} fotos não puderam ser lidas" },
     notReadYet: { one: "{count} foto ainda não pôde ser lida", many: "{count} de fotos ainda não puderam ser lidas", other: "{count} fotos ainda não puderam ser lidas" },
     tooShort: { one: "{count} clipe é curto demais", many: "{count} de clipes são curtos demais", other: "{count} clipes são curtos demais" },
@@ -1125,6 +1148,7 @@ const STRINGS = {
     progressDetail: "Etapa {step}/{total} · {name} ({detail}) · {percent}%",
     "detail.pictures": { one: "{count} imagem", many: "{count} de imagens", other: "{count} imagens" },
     "detail.clipsChecked": { one: "{done}/{count} clipe verificado", many: "{done}/{count} de clipes verificados", other: "{done}/{count} clipes verificados" },
+    "detail.checkingClips": { one: "verificando {done}/{count} clipe", many: "verificando {done}/{count} de clipes", other: "verificando {done}/{count} clipes" },
     "detail.alreadyFound": "já encontrados",
     "detail.photosOnly": "só fotos",
     "detail.addingMusic": "adicionando a música",
@@ -1226,13 +1250,15 @@ const STRINGS = {
     preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     listeningNow: "Ritim aranıyor…",
     dropMusicAbove: "Yukarıya bir müzik dosyası bırakın veya hazır parçalardan birini seçin.",
-    noPictures: "Bu projede henüz fotoğraf veya analiz edilmiş klip yok. Fotoğraf ekleyin (ya da klip ekleyip analiz edin); burası otomatik olarak güncellenir.",
+    noPictures: "Bu projede hen\u00fcz foto\u011fraf veya klip yok. Biraz ekleyin; buras\u0131 otomatik olarak g\u00fcncellenir.",
     ready: "Hazır: {summary}",
     photos: { one: "{count} fotoğraf", other: "{count} fotoğraf" },
     clips: { one: "{count} klip", other: "{count} klip" },
     shots: { one: "{count} çekim", other: "{count} çekim" },
     aboutSeconds: "yaklaşık {seconds} sn",
     stillAnalysing: { one: "{count} klip hâlâ analiz ediliyor", other: "{count} klip hâlâ analiz ediliyor" },
+    stillImporting: { one: "{count} klip h\u00e2l\u00e2 i\u00e7e aktar\u0131l\u0131yor", other: "{count} klip h\u00e2l\u00e2 i\u00e7e aktar\u0131l\u0131yor" },
+    notAnalysedNote: "Selects'in hen\u00fcz analiz etmedi\u011fi klipler bu bilgisayarda h\u0131zl\u0131ca kontrol edilir; analiz edilmi\u015f klipler daha iyi se\u00e7im sa\u011flar.",
     notRead: { one: "{count} fotoğraf okunamadı", other: "{count} fotoğraf okunamadı" },
     notReadYet: { one: "{count} fotoğraf henüz okunamadı", other: "{count} fotoğraf henüz okunamadı" },
     tooShort: { one: "{count} klip çok kısa", other: "{count} klip çok kısa" },
@@ -1270,6 +1296,7 @@ const STRINGS = {
     progressDetail: "Adım {step}/{total} · {name} ({detail}) · %{percent}",
     "detail.pictures": { one: "{count} görsel", other: "{count} görsel" },
     "detail.clipsChecked": { one: "{done}/{count} klip kontrol edildi", other: "{done}/{count} klip kontrol edildi" },
+    "detail.checkingClips": { one: "{done}/{count} klip kontrol ediliyor", other: "{done}/{count} klip kontrol ediliyor" },
     "detail.alreadyFound": "zaten bulundu",
     "detail.photosOnly": "yalnızca fotoğraflar",
     "detail.addingMusic": "müzik ekleniyor",
@@ -1371,13 +1398,15 @@ const STRINGS = {
     preparingTools: "正在准备节拍检测(仅首次)",
     listeningNow: "正在识别节拍…",
     dropMusicAbove: "请在上方拖入一个音乐文件，或选择内置曲目。",
-    noPictures: "此项目中还没有照片或已分析的片段。请添加照片（或添加片段并进行分析）；这里会自动更新。",
+    noPictures: "\u6b64\u9879\u76ee\u4e2d\u8fd8\u6ca1\u6709\u7167\u7247\u6216\u7247\u6bb5\u3002\u8bf7\u6dfb\u52a0\u4e00\u4e9b\uff1b\u8fd9\u91cc\u4f1a\u81ea\u52a8\u66f4\u65b0\u3002",
     ready: "已就绪：{summary}",
     photos: { other: "{count} 张照片" },
     clips: { other: "{count} 个片段" },
     shots: { other: "{count} 个镜头" },
     aboutSeconds: "约 {seconds} 秒",
     stillAnalysing: { other: "{count} 个片段仍在分析" },
+    stillImporting: { other: "{count} \u4e2a\u7247\u6bb5\u4ecd\u5728\u5bfc\u5165" },
+    notAnalysedNote: "Selects \u5c1a\u672a\u5206\u6790\u7684\u7247\u6bb5\u4f1a\u5728\u8fd9\u53f0\u7535\u8111\u4e0a\u5feb\u901f\u68c0\u67e5\uff1b\u5df2\u5206\u6790\u7684\u7247\u6bb5\u80fd\u9009\u51fa\u66f4\u597d\u7684\u753b\u9762\u3002",
     notRead: { other: "{count} 张照片无法读取" },
     notReadYet: { other: "{count} 张照片暂时无法读取" },
     tooShort: { other: "{count} 个片段太短" },
@@ -1415,6 +1444,7 @@ const STRINGS = {
     progressDetail: "第 {step}/{total} 步 · {name}（{detail}）· {percent}%",
     "detail.pictures": { other: "{count} 个素材" },
     "detail.clipsChecked": { other: "已检查 {done}/{count} 个片段" },
+    "detail.checkingClips": { other: "\u6b63\u5728\u68c0\u67e5 {done}/{count} \u4e2a\u7247\u6bb5" },
     "detail.alreadyFound": "已找到",
     "detail.photosOnly": "仅照片",
     "detail.addingMusic": "正在添加音乐",
@@ -2177,6 +2207,44 @@ function tplPlanState(input) {
   };
 }
 
+// Clips Selects hasn't analysed (inventory `analysed: false`) can't use scene search. The panel scores them on the
+// user's computer instead (the kit's quick score: quickScoreAll + pickWindowsLocal(scores, 'still', need)) and starts
+// each one on its stillest clean window: TPL holds near-still shots. Starts are never before TPL_QUICK_EDGE (fade-ins,
+// black first frames) when the clip is long enough.
+const TPL_QUICK_EDGE = 0.5;
+// Clips scored at once, and the time for all of a build's clips (clips not started in time keep their fallback start).
+const TPL_QUICK_PARALLEL = 3;
+const TPL_QUICK_BUDGET_MS = 20000;
+
+// The start used when a clip can't be scored (no host ffmpeg, a failure, the budget ran out): one of the planner's
+// 0.5 s filler-grid windows that starts at or after TPL_QUICK_EDGE and holds `need` seconds, chosen with the seed (so
+// "Try other shots" varies it like the filler of an analysed clip without a hit). A clip too short for the edge starts
+// as late as it can (tplVideoWindow slides it back to fit).
+function tplQuickFallback(rid, duration, need, seed) {
+  const starts = tplFillers([{ rid: String(rid), sourceDuration: duration }]).map(c => c.t)
+    .filter(t => t >= TPL_QUICK_EDGE - 1e-9 && t + need <= duration + 1e-9);
+  if (!starts.length) return Math.max(0, Math.round(Math.min(TPL_QUICK_EDGE, duration - need) * 1000) / 1000);
+  return starts[Math.min(starts.length - 1, Math.floor(tplRandom(String(seed) + ':quick:' + rid) * starts.length))];
+}
+
+// The picked videos Selects hasn't analysed, in pick order: [{ rid, path, duration, need, fallback }]. need =
+// the longer of the picture's two slots plus TPL_SOURCE_TAIL, in seconds. state: a tplPlanState result (picking never
+// depends on video starts, so a provisional plan names them); inv: the inventory (inventory.js).
+function tplQuickTargets(state, inv) {
+  if (!state || !state.ok) return [];
+  const byRid = {};
+  for (const r of (inv && inv.resources) || []) byRid[r.rid] = r;
+  const N = state.N, slots = state.schedule.slots, out = [];
+  state.picks.forEach((p, pos) => {
+    const r = byRid[p.rid];
+    if (p.kind !== 'video' || !r || r.analysed !== false) return;
+    const frames = Math.max(slots[pos].endFrame - slots[pos].startFrame, slots[N + pos].endFrame - slots[N + pos].startFrame);
+    const need = Math.round((frames / TPL_PLAN_FPS + TPL_SOURCE_TAIL) * 1000) / 1000;
+    out.push({ rid: p.rid, path: r.path || null, duration: r.duration, need, fallback: tplQuickFallback(p.rid, r.duration, need, state.options.seed) });
+  });
+  return out;
+}
+
 // The cover transform of a sized picture: portrait sources anchor the crop 40 % from the top, others centre.
 function tplCover(size) {
   if (!size) return null;
@@ -2596,7 +2664,9 @@ function tplLayout(words, size, y, advance, W, H, seed) {
 // after planner.js, build-config.js and the letters helpers. Every host call comes in through `d`:
 //   d = { run(summary, script, allowCommit) -> result (throws on failure), check() (throws TPL_STALE when the Project
 //         changed), advance(stepId, fraction, detail), scripts: { inventoryJs, searchJs, ensureJs, assembleJs,
-//         decorateJs }, readAssets() -> { tornTsx, lettersTsx, looks, fonts }, onSearch?, onAssembled?, onDecorated? }
+//         decorateJs }, readAssets() -> { tornTsx, lettersTsx, looks, fonts }, onSearch?, onAssembled?, onDecorated?,
+//         signal? (AbortSignal: stops the quick score), quickScoreAll? / quickDataDir? (the quick score and its data
+//         folder; default: the kit block's quickScoreAll and tplQuickDataDir() when the panel defines them) }
 // Configs come only from tplPlanState / tplAssembleConfig / tplDecorateConfig, so the headless driver
 // (dev/driveAdapter.mjs) and the panel build identical Drafts.
 const TPL_STALE = new Error('The Project changed during the build.');
@@ -2727,21 +2797,31 @@ async function tplRunBuild(f, d) {
 
   const best = Object.assign({}, cachedBest);
   const picked = pre.picks.filter(p => p.kind === 'video').map(p => p.rid);
-  const todo = picked.filter(rid => !(rid in best) || cachedFailed.indexOf(rid) >= 0);
+  // Scene search needs Selects' analysis: analysed clips are searched (as before), the others get the quick score.
+  const quickTargets = tplQuickTargets(pre, f.inventory);
+  const quickRids = quickTargets.map(x => x.rid);
+  const todo = picked.filter(rid => quickRids.indexOf(rid) < 0 && (!(rid in best) || cachedFailed.indexOf(rid) >= 0));
+  // The moments bar: the searches first, then the quick score, each by its share of the clips.
+  const share = todo.length / Math.max(1, todo.length + quickTargets.length);
   let failed = [];
   for (let i = 0; i < todo.length; i += TPL_SEARCH_BATCH) {
-    d.advance('moments', i / todo.length, (l) => t(l, "detail.clipsChecked", { done: i, count: todo.length }));
+    d.advance('moments', share * i / todo.length, (l) => t(l, "detail.clipsChecked", { done: i, count: todo.length }));
     const batch = todo.slice(i, i + TPL_SEARCH_BATCH);
     const r = await d.run('Find moments', tplFill(d.scripts.searchJs, { projectId: pid, rids: batch, pageSize: 4, parallel: 4 }), false);
     d.check();
     for (const rid of batch) best[rid] = r && r.best && typeof r.best[rid] === 'number' && isFinite(r.best[rid]) ? r.best[rid] : null;
     failed = failed.concat((r && r.failed) || []);
   }
+  // Only scene-search results are kept for later builds: a clip analysed meanwhile is searched next time.
   if (todo.length && d.onSearch) d.onSearch({ best, failed: cachedFailed.filter(rid => todo.indexOf(rid) < 0).concat(failed) });
-  d.advance('moments', 1, todo.length ? null : picked.length ? (l) => t(l, "detail.alreadyFound") : (l) => t(l, "detail.photosOnly"));
+  const quick = await tplQuickMoments(pid, quickTargets, d, (done, count) => {
+    if (count) d.advance('moments', share + (1 - share) * done / count, (l) => t(l, "detail.checkingClips", { done, count }));
+  });
+  d.check();
+  d.advance('moments', 1, todo.length || quickTargets.length ? null : picked.length ? (l) => t(l, "detail.alreadyFound") : (l) => t(l, "detail.photosOnly"));
 
   d.advance('plan', 0);
-  const state = tplPlanState(Object.assign({}, base, { found: { best } }));
+  const state = tplPlanState(Object.assign({}, base, { found: { best: Object.assign({}, best, quick.starts) } }));
   if (!state.ok) throw tplSay(state.reason, (l) => t(l, "reason." + state.code, state.vars));
   if (state.picks.map(p => p.rid).join('|') !== pre.picks.map(p => p.rid).join('|')) throw tplSay('The pictures changed while planning. Press Build again.', (l) => t(l, "picturesChanged"));
   const unchecked = failed.filter(rid => picked.indexOf(rid) >= 0).length;
@@ -2792,7 +2872,48 @@ async function tplRunBuild(f, d) {
   if (d.onAssembled) d.onAssembled(state, assembled);
   d.advance('place', 1);
   const done = await tplFinish(state, assembled, d);
-  return { state, assembled, notes, unchecked, link: done.link, openError: done.openError };
+  return { state, assembled, notes, unchecked, quick: quick.stats, link: done.link, openError: done.openError };
+}
+
+// Starts for the picked clips Selects hasn't analysed (tplQuickTargets): each clip's stillest clean window from the
+// kit's quick score (pickWindowsLocal role 'still'), else its seeded fallback start (tplQuickFallback) when the host has
+// no ffmpeg, a clip fails or the shared budget runs out; the build never fails because of the score. Mixed Projects:
+// TPL never ranks clips against each other by score (the picks come from date strata, photos first), so the score only
+// chooses a window inside each clip; analysed clips keep their scene-search hit. Throws TPL_STALE when the Project
+// changed and `d.signal` stopped it. progress(done, count) after each clip.
+// The kit caches by resource id, and a Project's ids (r0, r1, ...) repeat across Projects, so the id it sees is
+// qualified with the Project id.
+async function tplQuickMoments(pid, targets, d, progress) {
+  const starts = {}, how = {};
+  for (const x of targets) { starts[x.rid] = x.fallback; how[x.rid] = 'fallback'; }
+  const stats = { clips: targets.length, scored: 0, fallback: targets.length, ms: 0 };
+  if (!targets.length) return { starts, how, stats };
+  const all = typeof d.quickScoreAll === 'function' ? d.quickScoreAll : typeof quickScoreAll === 'function' ? quickScoreAll : null;
+  const dataDir = d.quickDataDir !== undefined ? d.quickDataDir : typeof tplQuickDataDir === 'function' ? tplQuickDataDir() : null;
+  if (!all) return { starts, how, stats };
+  const began = Date.now();
+  const key = rid => String(pid) + '_' + rid;
+  progress(0, targets.length);
+  let results = null;
+  try {
+    results = await all(targets.map(x => ({ rid: key(x.rid), path: x.path, durationSeconds: x.duration })),
+      { concurrency: TPL_QUICK_PARALLEL, budgetMs: TPL_QUICK_BUDGET_MS, signal: d.signal, dataDir, onProgress: p => progress(p.done, p.total) });
+  } catch (e) {
+    d.check();
+    if (d.signal && d.signal.aborted) throw TPL_STALE;
+    results = null;
+  }
+  stats.ms = Date.now() - began;
+  for (const x of targets) {
+    const r = results && typeof results.get === 'function' ? results.get(key(x.rid)) : null;
+    if (!r || r.fallback) continue;
+    let ranked = [];
+    try { ranked = pickWindowsLocal(r, 'still', x.need); } catch (e) { ranked = []; }
+    if (!ranked.length || !(ranked[0].start >= 0)) continue;
+    starts[x.rid] = ranked[0].start; how[x.rid] = r.cached ? 'cached' : 'scored';
+    stats.scored++; stats.fallback--;
+  }
+  return { starts, how, stats };
 }
 
 // Commit 2 (decorate.js skips what an earlier attempt added, and is a no-op when complete) and opening the Draft.
@@ -2827,6 +2948,318 @@ async function tplFinish(state, assembled, d) {
   return { link, openError };
 }
 // tpl-panel-logic:end
+
+// The kit's quick local shot score (selects-app-kit tools/panel/quick-score.js), pasted verbatim: tests/quick-score.test.cjs
+// checks it, and changes go to the kit, never here.
+// quick-score:start
+// Quick local shot score for clips Selects has not analysed (no scene search). Plain JS and self-contained: it reaches
+// the host only through window.parent.__DI__ (Runtime.runFFmpeg and FileSystem, every member checked first), or through
+// `opts.io` (tests, other hosts), so it can be pasted into any style-app panel and kept as one kit file
+// (tools/panel/quick-score.ts). No shell, no node: the host's bundled ffmpeg decodes a small grey preview
+// (QS_FPS frames a second, QS_W x QS_H pixels) of the part of the clip the planner could use into a temporary file in
+// the data folder, which is read back and removed. Paths are joined by the host; generated names are ASCII.
+//
+// API
+//   quickScore(resource, { windows, budgetMs, signal, onProgress, dataDir, io, fps })
+//       resource: { rid, path, durationSeconds, mtimeMs? }. windows: optional [{ start, end }] to score; without them the
+//       clip is scored in QS_BIN-second bins from QS_HEAD on (at most QS_SPAN seconds). Returns
+//       { rid, windows: [{ start, end, motion, sharp, luma, clipped, flags }], sceneCuts: [seconds], ms, fallback,
+//         cached, duration }
+//       flags: { black, fade, flash, blur, dark, bright, cut } (booleans). motion = mean absolute frame difference
+//       (0-1), sharp = mean absolute Laplacian (0-1), luma = mean luma (0-1), clipped = share of pixels near black or
+//       white. When ffmpeg is missing or fails (or the budget runs out) it never throws for that: it returns evenly
+//       spaced, unflagged windows from QS_HEAD on with `fallback: true`, so a build still goes ahead. It throws only
+//       when `signal` aborts.
+//   quickScoreAll(resources, { concurrency, budgetMs, signal, onProgress, ... }) -> Map rid -> result. Bounded
+//       concurrency; onProgress({ done, total, rid }) after each clip; the budget is shared (clips not started in time get
+//       the fallback).
+//   pickWindowsLocal(scores, role, durationNeeded) -> [{ start, end, score, motion, flags }] best first, every window
+//       starting at or after QS_HEAD and ending inside the clip. role: 'steady' (opening, credit, ending: steadier,
+//       well-exposed), 'montage' (varied motion; moving windows rank higher), 'still' (the lowest motion). Windows with
+//       black, fade or flash frames, or a scene cut inside, are left out while any other window fits; blur, dark and
+//       bright windows rank lower. score is 0-1 (comparable across clips and roles).
+//   qsCandidates(scores, role, durationNeeded, max) -> planner candidates [{ t, score, motion }] (t = window centre).
+// Cache: one JSON per clip in <dataDir>/quick-score/, keyed by the resource id, the file's modification time and
+// QS_VERSION, so a rebuild does not decode the same clip twice.
+var QS_VERSION = 1;
+// One decode pass at the settings Selfie Aesthetic Edit measured (sae-host saeMotionArgs: fps 8, gray rawvideo,
+// 0.25-0.65 s for 120 s of source) gives every per-frame figure below.
+var QS_FPS = 8;
+var QS_W = 64, QS_H = 36;
+// Windows start at least this far into the clip: stock clips often fade in from black over their first frames.
+var QS_HEAD = 0.5;
+// Scores are kept per bin of this many seconds; pickWindowsLocal joins bins into a window of any length.
+var QS_BIN = 0.5;
+// At most this many seconds of a clip are decoded (from QS_HEAD); a longer clip is scored over its first QS_SPAN.
+var QS_SPAN = 120;
+var QS_BUDGET_MS = 30000;
+// Frame thresholds (luma 0-1).
+var QS_BLACK = 0.07, QS_DARK = 0.16, QS_CLIP_LO = 16 / 255, QS_CLIP_HI = 240 / 255, QS_BRIGHT_SHARE = 0.45;
+var QS_FLASH_JUMP = 0.25, QS_CUT_DIFF = 0.12, QS_CUT_RATIO = 4;
+
+function qsTag(x) { return Object.prototype.toString.call(x); }
+function qsBytes(v) {
+  if (qsTag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && qsTag(v.buffer) === "[object ArrayBuffer]") return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  return null;
+}
+// The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
+// mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
+function qsHostIO() {
+  var di = null;
+  try { di = (window.parent && window.parent["__DI__"]) || null; } catch (e) { di = null; }
+  var rt = di && di.Runtime, fs = di && di.FileSystem;
+  var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
+  return {
+    runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
+    readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
+    remove: fs ? async function (p) {
+      var tries = ["removeFile", "remove", "rm", "unlink", "unlinkSync"];
+      for (var i = 0; i < tries.length; i++) {
+        if (!fn(fs, tries[i])) continue;
+        try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
+      }
+    } : null,
+    join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
+    mkdir: fn(fs, "mkdirSync") ? function (d) { fs.mkdirSync(d, { recursive: true }); } : null,
+    mtimeMs: fn(fs, "statSync") ? function (p) { var s = fs.statSync(p); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
+    readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
+    writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
+  };
+}
+
+// Pure: per-frame statistics of QS_W x QS_H grey frames packed in `bytes`.
+function qsFrameStats(bytes, w, h) {
+  var size = w * h, n = Math.floor(bytes.length / size), out = [];
+  for (var f = 0; f < n; f++) {
+    var o = f * size, sum = 0, lo = 0, hi = 0, lap = 0, diff = 0;
+    for (var i = 0; i < size; i++) {
+      var v = bytes[o + i];
+      sum += v;
+      if (v <= QS_CLIP_LO * 255) lo++; else if (v >= QS_CLIP_HI * 255) hi++;
+      if (f > 0) diff += Math.abs(v - bytes[o - size + i]);
+    }
+    for (var y = 1; y < h - 1; y++) {
+      for (var x = 1; x < w - 1; x++) {
+        var k = o + y * w + x;
+        lap += Math.abs(4 * bytes[k] - bytes[k - 1] - bytes[k + 1] - bytes[k - w] - bytes[k + w]);
+      }
+    }
+    out.push({ luma: sum / size / 255, lo: lo / size, hi: hi / size, sharp: lap / ((w - 2) * (h - 2)) / 1020,
+      diff: f > 0 ? diff / size / 255 : 0 });
+  }
+  return out;
+}
+
+// Pure: scene changes (seconds from `offset`): a frame difference at least QS_CUT_DIFF and QS_CUT_RATIO times the
+// median difference of the frames around it.
+function qsSceneCuts(stats, fps, offset) {
+  var cuts = [];
+  for (var i = 1; i < stats.length; i++) {
+    var near = [];
+    for (var j = Math.max(1, i - 6); j <= Math.min(stats.length - 1, i + 6); j++) if (j !== i) near.push(stats[j].diff);
+    near.sort(function (a, b) { return a - b; });
+    var med = near.length ? near[Math.floor(near.length / 2)] : 0;
+    var d = stats[i].diff;
+    var flash = i + 1 < stats.length && stats[i].luma - stats[i - 1].luma > QS_FLASH_JUMP && stats[i].luma - stats[i + 1].luma > QS_FLASH_JUMP;
+    if (!flash && d >= QS_CUT_DIFF && d >= QS_CUT_RATIO * Math.max(med, 0.002)) cuts.push(offset + i / fps);
+  }
+  return cuts;
+}
+
+// Pure: scores of `windows` ([{ start, end }], seconds in the clip) from frame stats decoded from `offset` at `fps`.
+function qsWindowScores(stats, fps, offset, windows, sceneCuts) {
+  var sharpAll = stats.map(function (s) { return s.sharp; }).sort(function (a, b) { return a - b; });
+  var sharpMed = sharpAll.length ? sharpAll[Math.floor(sharpAll.length / 2)] : 0;
+  var out = [];
+  for (var w = 0; w < windows.length; w++) {
+    var a = windows[w].start, b = windows[w].end;
+    var i0 = Math.max(0, Math.round((a - offset) * fps)), i1 = Math.min(stats.length, Math.round((b - offset) * fps));
+    if (i1 <= i0) { out.push({ start: a, end: b, motion: 0, sharp: 0, luma: 0, clipped: 0, flags: { black: false, fade: false, flash: false, blur: false, dark: false, bright: false, cut: false }, empty: true }); continue; }
+    var motion = 0, sharp = 0, luma = 0, clipped = 0, black = 0, flash = false, lmin = 1, lmax = 0, dark = 0, bright = 0, nd = 0;
+    for (var i = i0; i < i1; i++) {
+      var s = stats[i];
+      if (i > i0) { motion += s.diff; nd++; }
+      sharp += s.sharp; luma += s.luma; clipped += s.lo + s.hi;
+      if (s.luma < QS_BLACK) black++;
+      if (s.luma < QS_DARK) dark++;
+      if (s.hi > QS_BRIGHT_SHARE) bright++;
+      lmin = Math.min(lmin, s.luma); lmax = Math.max(lmax, s.luma);
+      var p = stats[i - 1], q = stats[i + 1];
+      if (p && q && s.luma - p.luma > QS_FLASH_JUMP && s.luma - q.luma > QS_FLASH_JUMP) flash = true;
+    }
+    var n = i1 - i0;
+    motion = nd ? motion / nd : 0; sharp /= n; luma /= n; clipped /= n;
+    // A fade: luma rises or falls steadily (at least 80 % of the steps one way) by at least 0.04 and 15 %. A pan or a
+    // person walking keeps the mean luma about level; a fade's tail (70 to 100 % brightness) still counts.
+    var up = 0, down = 0;
+    for (var k = i0 + 1; k < i1; k++) { var dl = stats[k].luma - stats[k - 1].luma; if (dl > 0.003) up++; else if (dl < -0.003) down++; }
+    var steps = Math.max(1, i1 - i0 - 1);
+    var fade = steps >= 2 && Math.max(up, down) >= 0.8 * steps && lmax - lmin > 0.04 && lmax > 1.15 * Math.max(lmin, 0.01);
+    // A cut in [a, b): informational per bin; pickWindowsLocal checks cuts against each whole window.
+    var cut = (sceneCuts || []).some(function (t) { return t >= a - 1e-6 && t < b - 1e-6; });
+    out.push({ start: a, end: b, motion: motion, sharp: sharp, luma: luma, clipped: clipped,
+      flags: { black: black / n > 0.3, fade: fade, flash: flash, blur: sharpMed > 0 ? sharp < 0.45 * sharpMed && sharp < 0.02 : sharp < 0.01,
+        dark: dark / n > 0.5, bright: bright / n > 0.5, cut: cut } });
+  }
+  return out;
+}
+
+// QS_BIN-second bins from QS_HEAD to the end of the scored span.
+function qsBins(duration, head, span) {
+  var end = Math.min(duration, head + span), bins = [];
+  for (var t = head; t + QS_BIN <= end + 1e-6; t += QS_BIN) bins.push({ start: Math.round(t * 1000) / 1000, end: Math.round((t + QS_BIN) * 1000) / 1000 });
+  return bins;
+}
+function qsFallback(resource, ms, windows) {
+  var dur = Number(resource.durationSeconds) || 0;
+  var ws = (windows && windows.length ? windows : qsBins(dur, Math.min(QS_HEAD, Math.max(0, dur - QS_BIN)), QS_SPAN)).map(function (x) {
+    return { start: x.start, end: x.end, motion: 0, sharp: 0, luma: 0.5, clipped: 0, flags: { black: false, fade: false, flash: false, blur: false, dark: false, bright: false, cut: false } };
+  });
+  return { rid: resource.rid, windows: ws, sceneCuts: [], ms: ms || 0, fallback: true, cached: false, duration: dur };
+}
+function qsAbortError() { var e = new Error("cancelled"); e.name = "AbortError"; return e; }
+
+async function quickScore(resource, opts) {
+  opts = opts || {};
+  var t0 = Date.now(), io = opts.io || qsHostIO(), signal = opts.signal, fps = opts.fps || QS_FPS;
+  var dur = Number(resource.durationSeconds) || 0;
+  var deadline = t0 + (opts.budgetMs == null ? QS_BUDGET_MS : opts.budgetMs);
+  if (signal && signal.aborted) throw qsAbortError();
+  var dataDir = opts.dataDir || null;
+  if (!(dur > 0) || !resource.path || !io.runFFmpeg || !io.readBytes || !io.join || !dataDir) return qsFallback(resource, Date.now() - t0, opts.windows);
+  // The decoded span: the given windows, else QS_HEAD .. QS_HEAD + QS_SPAN.
+  var ws = opts.windows && opts.windows.length ? opts.windows : null;
+  var a = ws ? Math.max(0, Math.min.apply(null, ws.map(function (x) { return x.start; }))) : Math.min(QS_HEAD, Math.max(0, dur - QS_BIN));
+  var b = ws ? Math.min(dur, Math.max.apply(null, ws.map(function (x) { return x.end; }))) : Math.min(dur, a + QS_SPAN);
+  var dir = io.join(dataDir, "quick-score");
+  var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
+  var mtime = 0;
+  try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
+  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, a.toFixed(3), b.toFixed(3)].join("-");
+  var cacheFile = io.join(dir, safe + ".json");
+  if (io.readText && !ws) {
+    try {
+      var c = JSON.parse(await io.readText(cacheFile));
+      if (c && c.key === key && c.result) return Object.assign({}, c.result, { cached: true, ms: Date.now() - t0 });
+    } catch (e) { /* no cache yet */ }
+  }
+  if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
+  try { if (io.mkdir) io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
+  var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
+  var controller = typeof AbortController === "undefined" ? null : new AbortController();
+  var relay = function () { if (controller) controller.abort(); };
+  var timer = controller ? setTimeout(relay, Math.max(1000, deadline - Date.now())) : null;
+  if (signal) signal.addEventListener("abort", relay);
+  try {
+    await io.runFFmpeg(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", a.toFixed(3), "-t", (b - a).toFixed(3), "-i", resource.path,
+      "-an", "-vf", "fps=" + fps + ",scale=" + QS_W + ":" + QS_H + ",setsar=1,format=gray", "-f", "rawvideo", tmp], controller ? controller.signal : undefined);
+    var bytes = await io.readBytes(tmp);
+    if (!bytes || bytes.length < QS_W * QS_H) throw new Error("no frames");
+    var stats = qsFrameStats(bytes, QS_W, QS_H);
+    var cuts = qsSceneCuts(stats, fps, a);
+    var windows = qsWindowScores(stats, fps, a, ws || qsBins(dur, a, b - a), cuts);
+    var result = { rid: resource.rid, windows: windows, sceneCuts: cuts, ms: Date.now() - t0, fallback: false, cached: false, duration: dur };
+    if (io.writeText && !ws) { try { await io.writeText(cacheFile, JSON.stringify({ key: key, result: result })); } catch (e) { /* no cache, no harm */ } }
+    return result;
+  } catch (e) {
+    if (signal && signal.aborted) throw qsAbortError();
+    return qsFallback(resource, Date.now() - t0, opts.windows);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    if (io.remove) { try { await io.remove(tmp); } catch (e) { /* left behind */ } }
+  }
+}
+
+async function quickScoreAll(resources, opts) {
+  opts = opts || {};
+  var results = new Map(), total = resources.length, done = 0, next = 0;
+  var conc = Math.max(1, Math.min(opts.concurrency || 3, total || 1));
+  var t0 = Date.now(), budget = opts.budgetMs == null ? QS_BUDGET_MS : opts.budgetMs;
+  async function worker() {
+    while (next < total) {
+      var r = resources[next++];
+      if (opts.signal && opts.signal.aborted) throw qsAbortError();
+      var left = budget - (Date.now() - t0);
+      var res = left > 0 ? await quickScore(r, Object.assign({}, opts, { budgetMs: left, onProgress: null })) : qsFallback(r, 0, null);
+      results.set(r.rid, res);
+      done++;
+      if (opts.onProgress) { try { opts.onProgress({ done: done, total: total, rid: r.rid }); } catch (e) { /* the UI only */ } }
+    }
+  }
+  var workers = [];
+  for (var i = 0; i < conc; i++) workers.push(worker());
+  await Promise.all(workers);
+  return results;
+}
+
+// Pure: windows of `durationNeeded` seconds for `role`, best first (see the API above).
+function pickWindowsLocal(scores, role, durationNeeded) {
+  if (!scores || !scores.windows || !scores.windows.length) return [];
+  var bins = scores.windows.filter(function (w) { return !w.empty; });
+  var need = Math.max(QS_BIN, Number(durationNeeded) || QS_BIN), dur = Number(scores.duration) || 0;
+  var sharpMax = Math.max.apply(null, bins.map(function (w) { return w.sharp; }).concat([1e-6]));
+  var motions = bins.map(function (w) { return w.motion; }).sort(function (a, b) { return a - b; });
+  var mRef = Math.max(0.01, motions[Math.floor(motions.length * 0.9)] || 0);
+  var out = [], strict = [];
+  for (var i = 0; i < bins.length; i++) {
+    var start = bins[i].start;
+    if (start < QS_HEAD - 1e-6 && dur >= need + QS_HEAD) continue;
+    var j = i, end = start, group = [];
+    while (j < bins.length && end - start < need - 1e-6) { if (group.length && Math.abs(bins[j].start - end) > 1e-3) break; group.push(bins[j]); end = bins[j].end; j++; }
+    if (end - start < need - 1e-6) {
+      // The last bins may be shorter than the window: accept when the clip itself reaches the end.
+      if (dur && start + need <= dur + 1e-6 && group.length) end = start + need; else continue;
+    }
+    if (dur && start + need > dur + 1e-6) continue;
+    var m = 0, sh = 0, lu = 0, bad = false, soft = 0;
+    for (var g = 0; g < group.length; g++) {
+      var x = group[g];
+      m += x.motion; sh += x.sharp; lu += x.luma;
+      if (x.flags.black || x.flags.fade || x.flags.flash) bad = true;
+      if (x.flags.blur) soft += 0.3; if (x.flags.dark) soft += 0.2; if (x.flags.bright) soft += 0.2;
+    }
+    // A scene cut inside the window (not at its edges) would show two shots in one.
+    var edge = 1 / QS_FPS, wend = start + need;
+    if ((scores.sceneCuts || []).some(function (t) { return t > start + edge && t < wend - edge; })) bad = true;
+    m /= group.length; sh /= group.length; lu /= group.length; soft /= group.length;
+    var mr = Math.min(1, m / mRef);
+    var moveTerm = role === "still" ? 1 - mr : role === "steady" ? 1 - Math.abs(mr - 0.35) : 0.4 + 0.6 * mr;
+    var expose = Math.max(0, 1 - Math.abs(lu - 0.45) * 2);
+    var score = Math.max(0, Math.min(1, 0.35 * (sh / sharpMax) + 0.3 * expose + 0.35 * moveTerm - soft));
+    var cand = { start: start, end: start + need, score: Math.round(score * 1000) / 1000, motion: m, flags: { bad: bad, soft: soft > 0 } };
+    (bad ? out : strict).push(cand);
+  }
+  var by = function (x, y) { return y.score - x.score || x.start - y.start; };
+  strict.sort(by); out.sort(by);
+  // Flagged windows only when nothing clean fits.
+  return strict.length ? strict : out;
+}
+
+// Planner candidates (window centres) of a scored clip for `role`: at most `max`, at least `apart` seconds apart.
+function qsCandidates(scores, role, durationNeeded, max, apart) {
+  var picks = pickWindowsLocal(scores, role, durationNeeded), out = [];
+  var gap = apart == null ? Math.max(1, durationNeeded) : apart;
+  for (var i = 0; i < picks.length && out.length < (max || 6); i++) {
+    var c = (picks[i].start + picks[i].end) / 2;
+    if (out.some(function (o) { return Math.abs(o.t - c) < gap; })) continue;
+    out.push({ t: Math.round(c * 1000) / 1000, score: picks[i].score, motion: picks[i].motion });
+  }
+  return out;
+}
+// quick-score:end
+
+// Torn Paper Love's data folder for the quick score's cache (<home>/.selects/plugin-data/torn-paper-love, joined by the
+// host's FileSystem; no shell), or null when this Selects build can't name it (the quick score then falls back).
+function tplQuickDataDir(): string | null {
+  try {
+    const fs = (window.parent as any)?.__DI__?.FileSystem;
+    if (fs && typeof fs.join === "function" && typeof fs.homedir === "function") return String(fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID));
+  } catch { /* no host */ }
+  return null;
+}
 
 // Double quotes let $HOME and $SELECTS_USER_SKILLS_ROOT expand: use only for those constants.
 function dq(value: string) { return '"' + String(value).replace(/(["\\`])/g, "\\$1") + '"'; }
@@ -3322,6 +3755,8 @@ function TornPaperPanel({ sdk, context, ui }: any) {
   const [busy, setBusy] = React.useState(false);
   // Single-flight guard (tplExclusive): state updates are async, so a ref blocks a second click in the same tick.
   const busyRef = React.useRef<any>(null);
+  // The running build's quick score stops on a Project switch or unmount (tplRunBuild's d.signal).
+  const buildAbortRef = React.useRef<AbortController | null>(null);
   const [step, setStep] = React.useState<{ say: Say } | null>(null);
   const [tools, setTools] = React.useState({ ffmpeg: true });
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
@@ -3406,12 +3841,13 @@ function TornPaperPanel({ sdk, context, ui }: any) {
       if (mountedRef.current && projectRef.current === pid) setInvLoading(false);
     }
   }
-  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  React.useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; buildAbortRef.current?.abort(); }; }, []);
 
   // Mount and Project switch: reset per-Project state, resolve folders, read the bundled files, read the pictures.
   React.useEffect(() => {
     // Drop everything tied to the previous Project so a build never mixes Projects; a running build becomes stale.
     setFound(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false); setOnly(null);
+    buildAbortRef.current?.abort(); buildAbortRef.current = null;
     photoSizesRef.current = { pid: projectId, sizes: {} }; measuringRef.current = false;
     busyRef.current = null; setBusy(false); setStep(null); setProgress(null); progressRef.current = null;
     if (!projectId) return;
@@ -3450,8 +3886,9 @@ function TornPaperPanel({ sdk, context, ui }: any) {
     return () => { alive = false; stopPreview(); };
   }, [projectId]);
 
-  // Clips still analysing, photos still being measured, or nothing yet: re-read every 10 s until ready. The effect
-  // re-arms on each new inventory and stops on unmount, Project switch and while busy.
+  // Clips still importing (counts.unanalysed: no duration or source file yet), photos still being measured, or nothing
+  // yet: re-read every 10 s until ready. Clips never wait for Selects analysis. The effect re-arms on each new inventory
+  // and stops on unmount, Project switch and while busy.
   const needsPoll = !!inventory && (inventory.counts.unanalysed > 0 || (inventory.counts.unmeasured > 0 && measuringRef.current)
     || (inventory.resources.length === 0 && inventory.photos.length === 0));
   React.useEffect(() => {
@@ -3627,6 +4064,8 @@ function TornPaperPanel({ sdk, context, ui }: any) {
   function hostFor(pid: string, labels: Record<string, string>) {
     return {
       run, check: tplStaleCheck(projectRef, pid), scripts: assets.scripts,
+      // Clips Selects hasn't analysed are scored on this computer; the cache goes to the data folder.
+      signal: buildAbortRef.current?.signal, quickDataDir: tplQuickDataDir() ?? roots?.data ?? null,
       advance: (id: string, fraction: number, detail?: string) => {
         if (projectRef.current !== pid) return;
         const p = tplForward(progressRef.current, tplProgress(id, fraction, detail));
@@ -3656,6 +4095,8 @@ function TornPaperPanel({ sdk, context, ui }: any) {
     void tplExclusive(busyRef, async () => {
       const f = tplFreezeBuild(inputs);
       const pid = f.projectId;
+      buildAbortRef.current?.abort();
+      buildAbortRef.current = typeof AbortController === "undefined" ? null : new AbortController();
       stopPreview();
       setBusy(true); setStatus(null); setResult(null); progressRef.current = null; setProgress(null);
       try {
@@ -3717,11 +4158,11 @@ function TornPaperPanel({ sdk, context, ui }: any) {
   const toggle = (rid: string, on: boolean) => choose(on ? [...selected, rid] : selected.filter((x) => x !== rid));
 
   // Readiness (spec 15.7): eligible photos and clips, shots and seconds for the chosen cue and pace, and what is left out.
-  const counts = inventory?.counts || { unanalysed: 0, unmeasured: 0 };
+  const counts = inventory?.counts || { unanalysed: 0, notAnalysed: 0, unmeasured: 0 };
   const unread = photosSel.length - measured;
   // Facts joined with " · "; each fact is one translated phrase.
   const aside = [
-    counts.unanalysed ? t(L, "stillAnalysing", { count: counts.unanalysed }) : "",
+    counts.unanalysed ? t(L, "stillImporting", { count: counts.unanalysed }) : "",
     unread ? (measuringRef.current ? t(L, "notReadYet", { count: unread }) : t(L, "notRead", { count: unread })) : "",
     shortVideos ? t(L, "tooShort", { count: shortVideos }) : "",
   ].filter(Boolean).join(" · ");
@@ -3739,6 +4180,9 @@ function TornPaperPanel({ sdk, context, ui }: any) {
       ? t(L, "fitMusic", { n: plan.N, shots: 2 * plan.N, seconds: tenths(plan.seconds), length: lengthLabel })
       : "";
   const eligible = measured + (useVideos ? clipsOk : 0);
+  // Clips Selects hasn't analysed are used right away (checked on this computer); only a small note says analysed
+  // clips pick better, when the build may use one.
+  const quickNote = useVideos && videosSel.some((r: any) => r.analysed === false);
   const peaks: number[] = planCue ? planCue.peaks || [] : [];
   const total = planCue ? (track === "own" ? ownDuration || 1 : manifestCue?.duration || 1) : 1;
   const silent = track === "none" && clipSound === "off";
@@ -3809,6 +4253,7 @@ function TornPaperPanel({ sdk, context, ui }: any) {
         </ui.Row>
         {fitNote ? <ui.Message tone="muted">{fitNote}</ui.Message> : null}
         {aside ? <ui.Message tone="muted">{t(L, "autoUpdate", { facts: aside })}</ui.Message> : null}
+        {quickNote ? <small style={{ display: "block", color: "var(--panel-muted-fg)" }}>{t(L, "notAnalysedNote")}</small> : null}
         {inventory && invError ? <ui.Message tone="error">{t(L, "refreshFailed", { detail: invError.say(L) })}</ui.Message> : null}
       </ui.Section>
       <ui.Section title={t(L, "advanced")}>

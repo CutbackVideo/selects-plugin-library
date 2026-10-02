@@ -46,6 +46,7 @@ jobs:
           node plugins/torn-paper-love/tests/panel.test.cjs
           node plugins/torn-paper-love/tests/pick.test.cjs
           node plugins/torn-paper-love/tests/planner.test.cjs
+          node plugins/torn-paper-love/tests/quick-score.test.cjs
           node plugins/torn-paper-love/tests/scripts-edit.test.cjs
           node plugins/torn-paper-love/tests/scripts-read.test.cjs
           node plugins/torn-paper-love/tests/torn.test.cjs
