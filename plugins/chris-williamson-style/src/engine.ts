@@ -59,6 +59,161 @@ async function cwShots(job) {
 }
 
 // ---------------------------------------------------------------------------------------------------------
+// Downloads. Windows: the host's FileSystem.downloadFile (tried again on 429/503). macOS keeps engine.mjs's curl
+// (browser or Wikimedia user agent, HTTP status, 25 MB cap).
+async function cwDownload(env, url, dest) {
+  if (!/^https?:\/\//i.test(url)) return false;
+  // mac-only:start
+  if (!hostIsWindows()) return await cwCurlDownload(env, url, dest);
+  // mac-only:end
+  const fs = hostNeed("FileSystem", "downloadFile");
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try { await fs.downloadFile(url, dest); } catch (e) {
+      if (/\b(429|503)\b/.test(String(e?.message || e))) { await cwSleep(4000 * (attempt + 1)); continue; }
+      return false;
+    }
+    const size = cwSize(dest);
+    return size > 2000 && size <= 25000000;
+  }
+  return false;
+}
+// mac-only:start
+async function cwCurlDownload(env, url, dest) {
+  const ua = cwIsWikimedia(url) ? CW_WM_UA : CW_UA;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    let out = "";
+    try { out = await env.runShell("curl -L -sS --max-time 25 --max-filesize 25000000 -A " + q(ua) + " -H " + q("Accept: image/avif,image/webp,image/png,image/jpeg,*/*") + " -o " + q(dest) + " -w " + q("%{http_code}") + " " + q(url), "Download a B-roll candidate", 30000); } catch { return false; }
+    const code = Number(String(out).trim().slice(-3));
+    if (code === 429 || code === 503) { await cwSleep(4000 * (attempt + 1)); continue; }
+    if (code < 200 || code >= 300) return false;
+    return cwSize(dest) > 2000;
+  }
+  return false;
+}
+// mac-only:end
+
+// Wikimedia Commons fallback: free-licensed pictures when no web image can be fetched.
+// One request per distinct query (cached, one at a time) keeps within Wikimedia's rate limits.
+const cwCommonsCache = new Map();
+let cwCommonsChain = Promise.resolve();
+function cwCommonsUrls(env, query, limit = 8) {
+  if (!cwCommonsCache.has(query)) {
+    const p = cwCommonsChain.then(() => cwCommonsFetch(env, query, limit));
+    cwCommonsChain = p.catch(() => []);
+    cwCommonsCache.set(query, p);
+  }
+  return cwCommonsCache.get(query);
+}
+async function cwCommonsFetch(env, query, limit) {
+  const api = "https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=" + (limit * 2) +
+    "&gsrsearch=" + encodeURIComponent(query + " filetype:bitmap") + "&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=1600";
+  const text = await cwCommonsGet(env, api);
+  return text == null ? [] : cwCommonsRows(text, limit);
+}
+// The API's answer as text, or null. Windows: the panel's fetch (CORS through origin=*, the descriptive agent in
+// Api-User-Agent). macOS: curl, as engine.mjs.
+async function cwCommonsGet(env, api) {
+  // mac-only:start
+  if (!hostIsWindows()) {
+    let out = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try { out = await env.runShell("curl -sS --max-time 20 -A " + q(CW_WM_UA) + " -w " + q("\\n%{http_code}") + " " + q(api), "Search Wikimedia Commons", 25000); } catch { return null; }
+      const code = Number(String(out).trim().slice(-3));
+      if (code !== 429 && code !== 503) break;
+      await cwSleep(5000 * (attempt + 1));
+    }
+    return String(out).replace(/\n\d{3}\s*$/, "");
+  }
+  // mac-only:end
+  if (typeof fetch !== "function") return null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const r = await fetch(api + "&origin=*", { headers: { "Api-User-Agent": CW_WM_UA } });
+      if (r.status === 429 || r.status === 503) { await cwSleep(5000 * (attempt + 1)); continue; }
+      return await r.text();
+    } catch { return null; }
+  }
+  return null;
+}
+function cwCommonsRows(text, limit) {
+  try {
+    const pages = Object.values(JSON.parse(text).query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
+    return pages
+      .map((p) => ({ title: p.title, info: p.imageinfo?.[0] }))
+      .filter((x) => x.info && /image\/(jpeg|png|webp)/.test(x.info.mime) && x.info.width >= 700 && x.info.height >= 500)
+      .slice(0, limit)
+      .map((x) => ({
+        url: x.info.thumburl || x.info.url,
+        page: x.info.descriptionurl,
+        source: "Wikimedia Commons",
+        license: x.info.extmetadata?.LicenseShortName?.value || "",
+        author: String(x.info.extmetadata?.Artist?.value || "").replace(/<[^>]+>/g, "").trim(),
+        title: x.title,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// candidates: job.candidates = { items: [{ id, query, desiredKind, candidates: [{ path?, url?, ... }] }] } -> { items }
+// Up to three candidates per item (Commons fills the rest), each fetched, measured (size, length, motion) and shown
+// as an original | 9:16 crop preview for the review.
+async function cwInspect(file) {
+  const p = await cwFfprobe(["-v", "error", "-show_streams", "-show_format", "-of", "json", file], 20000);
+  if (!p.ok) throw new Error("Unreadable media");
+  const info = JSON.parse(p.out), v = info.streams?.find((s) => s.codec_type === "video");
+  if (!v || v.width < 320 || v.height < 240) throw new Error("Media below 320×240");
+  const duration = Number(info.format?.duration || v.duration || 0);
+  const still = /image2|png_pipe|jpeg_pipe|webp_pipe/.test(info.format?.format_name || "") || duration === 0;
+  const times = still ? [0] : [0.1, Math.min(duration * 0.5, duration - 0.05), Math.max(0, duration - 0.1)];
+  const pixels = [];
+  for (let i = 0; i < times.length; i++) {
+    const out = file + ".motion-" + i + ".rgb";
+    const r = await cwFfmpeg(["-v", "error", "-y", "-ss", String(times[i]), "-i", file, "-frames:v", "1", "-vf", "scale=32:32", "-pix_fmt", "rgb24", "-f", "rawvideo", out], 20000);
+    if (!r.ok) throw new Error("Cannot decode sampled frame");
+    pixels.push(await hostReadBytes(out));
+    await hostRemove(out);
+  }
+  let delta = 0;
+  for (const px of pixels.slice(1)) {
+    if (px.length !== pixels[0].length) throw new Error("Invalid sampled pixels");
+    delta = Math.max(delta, px.reduce((s, x, i) => s + Math.abs(x - pixels[0][i]), 0) / px.length);
+  }
+  return { width: v.width, height: v.height, duration, kind: still || delta < 2 ? "still" : "video", motionDelta: Number(delta.toFixed(3)) };
+}
+async function cwPreview(file, out, t = 0) {
+  const vf = "split[a][b];[a]scale=256:456:force_original_aspect_ratio=decrease,pad=256:456:(ow-iw)/2:(oh-ih)/2[a1];[b]scale=256:456:force_original_aspect_ratio=increase,crop=256:456[b1];[a1][b1]hstack";
+  const r = await cwFfmpeg(["-v", "error", "-y", "-ss", String(t), "-i", file, "-filter_complex", vf, "-frames:v", "1", out], 30000);
+  if (!r.ok) throw new Error("Cannot render asset preview");
+}
+async function cwCandidates(env, job, dir) {
+  const spec = job.candidates, result = [], work = hostJoin(dir, "candidates");
+  cwMkdir(work);
+  // Sequential download protects public source rate limits and bounds working-set memory.
+  for (const item of spec.items) {
+    const choices = (item.candidates || []).filter((c) => c.path || c.url).slice(0, 3);
+    if (choices.length < 3) choices.push(...(await cwCommonsUrls(env, item.query, 3)).slice(0, 3 - choices.length));
+    const rows = [];
+    for (const [i, c] of choices.entries()) {
+      const id = item.id + "-" + i;
+      try {
+        const file = hostJoin(work, id + ".source");
+        if (c.path) await hostNeed("FileSystem", "copyFile").copyFile(c.path, file); else if (!await cwDownload(env, c.url, file)) continue;
+        const info = await cwInspect(file);
+        const thumb = hostJoin(work, id + ".jpg");
+        await cwPreview(file, thumb);
+        const frames = [thumb];
+        if (info.kind === "video") { const mid = hostJoin(work, id + "-mid.jpg"); await cwPreview(file, mid, info.duration / 2); frames.push(mid); }
+        rows.push({ id, file, preview: thumb, frames, ...info, source: c.source || (c.path ? "project" : "web"), page: c.page || c.url || c.path, url: c.url || null, license: c.license || "", author: c.author || "", title: c.title || "", originalPath: c.path || null });
+      } catch (e) { rows.push({ id, error: String(e?.message || e) }); }
+    }
+    result.push({ id: item.id, query: item.query, desiredKind: item.desiredKind || "video", candidates: rows });
+  }
+  return { items: result };
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // assets: job.assets = { fps, mediaFolder, items: [{ id, candidate, review, desiredKind, seconds }] } -> { items }
 // Each accepted candidate becomes a 1080x1920 H.264 cutaway cropped at the reviewed focus, with frames for the final
 // review; CREDITS.json keeps the attribution (a second pass adds to the first).
@@ -95,7 +250,7 @@ async function cwAssets(job, dir) {
 
 // Runs one engine.mjs command from its job file and writes its result file beside it, as engine.mjs does.
 async function cwEngine(env, cmd, file) {
-  const handlers = { shots: (job) => cwShots(job), assets: (job, dir) => cwAssets(job, dir) };
+  const handlers = { shots: (job) => cwShots(job), assets: (job, dir) => cwAssets(job, dir), candidates: (job, dir, env) => cwCandidates(env, job, dir) };
   if (!handlers[cmd]) throw new Error("This step needs macOS for now (" + cmd + ").");
   const dir = cwDir(file);
   const result = await handlers[cmd](JSON.parse(await hostReadText(file)), dir, env);

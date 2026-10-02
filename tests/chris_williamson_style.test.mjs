@@ -90,11 +90,11 @@ function loadEngine(platform, {downloads, fetch} = {}) {
   return vm.runInContext(code, context);
 }
 // engine.mjs on the same job, in its own folder.
-function engineMjs(cmd, job, dir) {
+function engineMjs(cmd, job, dir, env = process.env) {
   fs.mkdirSync(dir, {recursive: true});
   const file = path.join(dir, cmd + '.json');
   fs.writeFileSync(file, JSON.stringify(job));
-  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'engine.mjs'), cmd, file], {encoding: 'utf8'});
+  const r = spawnSync(process.execPath, [path.join(PLUGIN, 'engine.mjs'), cmd, file], {encoding: 'utf8', env});
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(fs.readFileSync(path.join(dir, cmd + '-result.json'), 'utf8'));
 }
@@ -165,5 +165,66 @@ for (const platform of ['darwin', 'win32']) {
       assert.equal(a.width, 1080); assert.equal(a.height, 1920); assert.equal(a.codec_name, 'h264');
       for (const f of row.frames) assert.ok(fs.statSync(f).size > 0);
     }
+  });
+}
+
+// A stand-in `curl` for engine.mjs and the macOS branch: web URLs come from local files, the Commons API from a
+// fixture; every call's user agent is logged. The Windows branch gets the same through downloadFile and fetch.
+const COMMONS_API = 'https://commons.wikimedia.org/w/api.php';
+function network(m) {
+  const web = {'https://img.example/a.jpg': m.still2, 'https://upload.wikimedia.org/c1.jpg': m.still, 'https://upload.wikimedia.org/c2.png': m.still2};
+  const page = (i, title, mime, w, h, url) => ({index: i, title, imageinfo: [{mime, width: w, height: h, url, thumburl: url, descriptionurl: 'https://commons.wikimedia.org/wiki/' + title,
+    extmetadata: {LicenseShortName: {value: 'CC BY-SA 4.0'}, Artist: {value: '<a href="x">Someone</a> '}}}]});
+  const commons = JSON.stringify({query: {pages: {'9': page(2, 'File:C2.png', 'image/png', 1600, 900, 'https://upload.wikimedia.org/c2.png'),
+    '7': page(1, 'File:C1.jpg', 'image/jpeg', 1600, 1200, 'https://upload.wikimedia.org/c1.jpg'), '5': page(3, 'File:Small.jpg', 'image/jpeg', 300, 200, 'https://upload.wikimedia.org/s.jpg')}}});
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'cws-bin-'));
+  const log = path.join(bin, 'agents.log');
+  fs.writeFileSync(path.join(bin, 'commons.json'), commons);
+  fs.writeFileSync(path.join(bin, 'curl'), `#!${process.execPath}
+const fs=require('fs'),a=process.argv.slice(2),web=${JSON.stringify(web)};
+const opt=(k)=>{const i=a.indexOf(k);return i>=0?a[i+1]:null;};const url=a[a.length-1],w=opt('-w')||'';
+fs.appendFileSync(${JSON.stringify(log)},(opt('-A')||'')+' '+url.split('?')[0]+'\\n');
+let code=404;
+if(url.startsWith(${JSON.stringify(COMMONS_API)})){process.stdout.write(fs.readFileSync(${JSON.stringify(path.join(bin, 'commons.json'))},'utf8'));code=200;}
+else if(web[url]){fs.copyFileSync(web[url],opt('-o'));code=200;}
+process.stdout.write(w.replace(/\\\\n/g,'\\n').replace('%{http_code}',String(code)));
+`, {mode: 0o755});
+  const env = {...process.env, PATH: bin + path.delimiter + process.env.PATH};
+  const shell = {pluginDir: PLUGIN, runShell: async (command) => {
+    const r = spawnSync('/bin/sh', ['-c', command], {encoding: 'utf8', env});
+    if (r.status !== 0) throw new Error(r.stderr || 'exit ' + r.status);
+    return r.stdout;
+  }};
+  const downloads = {...web};
+  const fetch = async (url) => ({status: 200, text: async () => (fs.appendFileSync(log, 'fetch ' + url.split('?')[0] + '\n'), commons)});
+  return {bin, log, env, shell, downloads, fetch, agents: () => fs.readFileSync(log, 'utf8').trim().split('\n'), reset: () => fs.rmSync(log, {force: true})};
+}
+
+for (const platform of ['darwin', 'win32']) {
+  test('candidates: the panel fetches, measures and previews like engine.mjs (' + platform + ')', {skip: !HAVE_FFMPEG && 'no ffmpeg'}, async () => {
+    const m = fixtures(), net = network(m);
+    try {
+      const items = [
+        {id: 'b001', query: 'runner sunrise', desiredKind: 'video', candidates: [{path: m.still, source: 'project'}, {path: m.moving}, {path: path.join(m.dir, 'missing.jpg')}]},
+        {id: 'b002', query: 'oyster shell', desiredKind: 'video', candidates: [{url: 'https://img.example/a.jpg', page: 'https://img.example/a', license: 'Pexels', author: 'P', source: 'Pexels', title: 'A'}]},
+        {id: 'b003', query: 'brain', desiredKind: 'video', candidates: [{url: 'https://img.example/missing.jpg'}]},
+      ];
+      const job = {candidates: {ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', items}};
+      const eDir = path.join(m.dir, 'e-cand-' + platform), pDir = path.join(m.dir, 'p-cand-' + platform);
+      net.reset();
+      const want = engineMjs('candidates', job, eDir, net.env);
+      const engineAgents = net.agents();
+      net.reset();
+      const got = await ported(platform, 'candidates', job, pDir, {env: net.shell, downloads: net.downloads, fetch: net.fetch});
+      assert.deepEqual(strip(got, pDir), strip(want, eDir));
+      const rows = got.items.flatMap((i) => i.candidates);
+      assert.deepEqual(rows.map((r) => r.error ? 'error' : r.kind), ['still', 'video', 'error', 'still', 'still', 'still', 'still', 'still']);
+      assert.equal(rows[3 + 1].source, 'Wikimedia Commons');
+      assert.equal(rows[3 + 1].author, 'Someone');
+      for (const r of rows.filter((r) => !r.error)) for (const f of r.frames) assert.ok(fs.statSync(f).size > 0);
+      // macOS sends what engine.mjs sent (browser agent for the web, the descriptive one for Wikimedia).
+      if (platform === 'darwin') assert.deepEqual(net.agents(), engineAgents);
+      else assert.deepEqual(net.agents().filter((l) => l.startsWith('fetch ')), ['fetch ' + COMMONS_API, 'fetch ' + COMMONS_API]);
+    } finally { fs.rmSync(net.bin, {recursive: true, force: true}); }
   });
 }
