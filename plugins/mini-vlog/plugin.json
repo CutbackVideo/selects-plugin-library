@@ -13,7 +13,6 @@
     "THIRD_PARTY.md",
     "beat-detect.cjs",
     "panel.tsx",
-    "runtime.sh",
     "planner.js",
     "dev/i18n-check.cjs",
     "assets/cues/acoustic-pop-104.mp3",
@@ -60,9 +59,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript/runShell and Draft authoring; ffmpeg only for music previews and your own music; your own music also downloads a pinned Node.js the first time (runtime.sh)."
+    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript and Draft authoring; music previews, your own music and clips without analysis use the ffmpeg built into Selects (Runtime.runFFmpeg / runFFprobe) and its FileSystem. No shell, Node.js or other tools to install, on macOS or Windows."
   },
   "localized": {
     "de": {

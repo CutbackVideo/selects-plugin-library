@@ -33,7 +33,6 @@ const STRINGS = {
     checkingClipsNow: "Checking clips…",
     checkingClips: "Checking clips",
     listening: "Listening for the beat",
-    preparingTools: "Preparing beat detection (first time only)",
     working: "Working",
     stillReading: "Still reading this Project's clips… This updates automatically.",
     noFootage: "No videos or photos in this Project yet. Add clips or photos; this updates automatically.",
@@ -76,7 +75,7 @@ const STRINGS = {
     ownMusic: "Your own music",
     noMusic: "No music",
     bpm: "{bpm} bpm",
-    installTools: "Install ffmpeg to preview music or use your own track.",
+    newerSelectsMusic: "Previewing music and using your own track need a newer Selects.",
     sectionHint: "Music section — drag to choose",
     sectionLabel: "Music section",
     musicTooShort: "This track is too short for this length",
@@ -211,7 +210,6 @@ const STRINGS = {
     checkingClipsNow: "Clips werden geprüft …",
     checkingClips: "Clips werden geprüft",
     listening: "Beat wird gesucht",
-    preparingTools: "Beat-Erkennung wird vorbereitet (nur beim ersten Mal)",
     working: "In Arbeit",
     stillReading: "Die Clips dieses Projekts werden noch gelesen… Das aktualisiert sich automatisch.",
     noFootage: "In diesem Projekt gibt es noch keine Videos oder Fotos. Füge Clips oder Fotos hinzu; die Anzeige aktualisiert sich automatisch.",
@@ -254,7 +252,7 @@ const STRINGS = {
     ownMusic: "Eigene Musik",
     noMusic: "Keine Musik",
     bpm: "{bpm} BPM",
-    installTools: "Installiere ffmpeg, um Musik vorzuhören oder eigene Musik zu verwenden.",
+    newerSelectsMusic: "Für die Musikvorschau und eigene Musik braucht es eine neuere Selects-Version.",
     sectionHint: "Musikabschnitt – zum Auswählen ziehen",
     sectionLabel: "Musikabschnitt",
     musicTooShort: "Dieses Musikstück ist für diese Länge zu kurz",
@@ -389,7 +387,6 @@ const STRINGS = {
     checkingClipsNow: "Comprobando clips…",
     checkingClips: "Comprobando clips",
     listening: "Buscando el ritmo",
-    preparingTools: "Preparando la detección del ritmo (solo la primera vez)",
     working: "Trabajando",
     stillReading: "Todavía se están leyendo los clips de este proyecto… Esto se actualiza automáticamente.",
     noFootage: "Este proyecto aún no tiene vídeos ni fotos. Añade clips o fotos; se actualizará automáticamente.",
@@ -432,7 +429,7 @@ const STRINGS = {
     ownMusic: "Tu propia música",
     noMusic: "Sin música",
     bpm: "{bpm} BPM",
-    installTools: "Instala ffmpeg para escuchar la música o usar tu propia pista.",
+    newerSelectsMusic: "Para escuchar la música o usar tu propia pista se necesita una versión más reciente de Selects.",
     sectionHint: "Sección de música: arrastra para elegir",
     sectionLabel: "Sección de música",
     musicTooShort: "Esta pista es demasiado corta para esta duración",
@@ -567,7 +564,6 @@ const STRINGS = {
     checkingClipsNow: "Vérification des clips…",
     checkingClips: "Vérification des clips",
     listening: "Recherche du rythme",
-    preparingTools: "Préparation de la détection du rythme (première fois uniquement)",
     working: "En cours",
     stillReading: "Lecture des clips de ce projet en cours… La liste se met à jour automatiquement.",
     noFootage: "Ce projet ne contient pas encore de vidéo ni de photo. Ajoutez des clips ou des photos ; l'affichage se met à jour automatiquement.",
@@ -610,7 +606,7 @@ const STRINGS = {
     ownMusic: "Votre propre musique",
     noMusic: "Sans musique",
     bpm: "{bpm} BPM",
-    installTools: "Installez ffmpeg pour écouter la musique ou utiliser votre propre morceau.",
+    newerSelectsMusic: "L'écoute de la musique et l'utilisation de votre propre morceau nécessitent une version plus récente de Selects.",
     sectionHint: "Section musicale : faites glisser pour choisir",
     sectionLabel: "Section musicale",
     musicTooShort: "Ce morceau est trop court pour cette durée",
@@ -745,7 +741,6 @@ const STRINGS = {
     checkingClipsNow: "Controllo delle clip…",
     checkingClips: "Controllo delle clip",
     listening: "Ricerca del ritmo",
-    preparingTools: "Preparazione del rilevamento del ritmo (solo la prima volta)",
     working: "In corso",
     stillReading: "Lettura delle clip di questo progetto in corso… Si aggiorna automaticamente.",
     noFootage: "In questo progetto non ci sono ancora video né foto. Aggiungi clip o foto; si aggiorna automaticamente.",
@@ -788,7 +783,7 @@ const STRINGS = {
     ownMusic: "La tua musica",
     noMusic: "Nessuna musica",
     bpm: "{bpm} BPM",
-    installTools: "Installa ffmpeg per ascoltare la musica o usare un tuo brano.",
+    newerSelectsMusic: "Per ascoltare la musica o usare un tuo brano serve una versione più recente di Selects.",
     sectionHint: "Sezione musicale: trascina per scegliere",
     sectionLabel: "Sezione musicale",
     musicTooShort: "Questo brano è troppo corto per questa durata",
@@ -923,7 +918,6 @@ const STRINGS = {
     checkingClipsNow: "クリップを確認中…",
     checkingClips: "クリップを確認中",
     listening: "ビートを検出中",
-    preparingTools: "ビート検出を準備中(初回のみ)",
     working: "処理中",
     stillReading: "このプロジェクトのクリップを読み込み中… 自動で更新されます。",
     noFootage: "このプロジェクトには、動画も写真もまだありません。クリップか写真を追加してください。自動で更新されます。",
@@ -966,7 +960,7 @@ const STRINGS = {
     ownMusic: "自分の音楽",
     noMusic: "音楽なし",
     bpm: "{bpm} BPM",
-    installTools: "音楽のプレビューや自分の曲の使用には、ffmpeg をインストールしてください。",
+    newerSelectsMusic: "音楽のプレビューや自分の曲の使用には、新しい Selects が必要です。",
     sectionHint: "音楽の区間 — ドラッグして選択",
     sectionLabel: "音楽の区間",
     musicTooShort: "このトラックはこの長さには短すぎます",
@@ -1101,7 +1095,6 @@ const STRINGS = {
     checkingClipsNow: "\ud074\ub9bd \ud655\uc778 \uc911…",
     checkingClips: "\ud074\ub9bd \ud655\uc778 \uc911",
     listening: "\ube44\ud2b8 \ucc3e\ub294 \uc911",
-    preparingTools: "\ube44\ud2b8 \uac10\uc9c0 \uc900\ube44 \uc911(\ucc98\uc74c \ud55c \ubc88\ub9cc)",
     working: "\uc791\uc5c5 \uc911",
     stillReading: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \ud074\ub9bd\uc744 \uc77d\ub294 \uc911… \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
     noFootage: "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \uc544\uc9c1 \uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ucd94\uac00\ud558\uc138\uc694. \uc790\ub3d9\uc73c\ub85c \uc5c5\ub370\uc774\ud2b8\ub429\ub2c8\ub2e4.",
@@ -1144,7 +1137,7 @@ const STRINGS = {
     ownMusic: "\ub0b4 \uc74c\uc545",
     noMusic: "\uc74c\uc545 \uc5c6\uc74c",
     bpm: "{bpm} BPM",
-    installTools: "\uc74c\uc545\uc744 \ubbf8\ub9ac \ub4e3\uac70\ub098 \ub0b4 \uc74c\uc545\uc744 \uc4f0\ub824\uba74 ffmpeg\ub97c \uc124\uce58\ud558\uc138\uc694.",
+    newerSelectsMusic: "\uc74c\uc545 \ubbf8\ub9ac \ub4e3\uae30\uc640 \ub0b4 \uc74c\uc545 \uc0ac\uc6a9\uc5d0\ub294 \uc0c8 Selects \ubc84\uc804\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
     sectionHint: "\uc74c\uc545 \uad6c\uac04 — \ub4dc\ub798\uadf8\ud574\uc11c \uc120\ud0dd",
     sectionLabel: "\uc74c\uc545 \uad6c\uac04",
     musicTooShort: "\uc774 \ud2b8\ub799\uc740 \uc774 \uae38\uc774\uc5d0 \ube44\ud574 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4",
@@ -1279,7 +1272,6 @@ const STRINGS = {
     checkingClipsNow: "Verificando clipes…",
     checkingClips: "Verificando clipes",
     listening: "Procurando a batida",
-    preparingTools: "Preparando a detecção da batida (só na primeira vez)",
     working: "Trabalhando",
     stillReading: "Ainda lendo os clipes deste projeto… Isto se atualiza automaticamente.",
     noFootage: "Este projeto ainda não tem vídeos nem fotos. Adicione clipes ou fotos; a lista é atualizada automaticamente.",
@@ -1322,7 +1314,7 @@ const STRINGS = {
     ownMusic: "Sua própria música",
     noMusic: "Sem música",
     bpm: "{bpm} BPM",
-    installTools: "Instale o ffmpeg para ouvir a música ou usar sua própria faixa.",
+    newerSelectsMusic: "Para ouvir a música ou usar sua própria faixa, é preciso uma versão mais nova do Selects.",
     sectionHint: "Trecho da música: arraste para escolher",
     sectionLabel: "Trecho da música",
     musicTooShort: "Esta faixa é curta demais para esta duração",
@@ -1457,7 +1449,6 @@ const STRINGS = {
     checkingClipsNow: "Klipler kontrol ediliyor…",
     checkingClips: "Klipler kontrol ediliyor",
     listening: "Ritim aranıyor",
-    preparingTools: "Ritim algılama hazırlanıyor (yalnızca ilk seferde)",
     working: "Çalışıyor",
     stillReading: "Bu projenin klipleri hâlâ okunuyor… Bu otomatik olarak güncellenir.",
     noFootage: "Bu projede henüz video veya fotoğraf yok. Klip ya da fotoğraf ekleyin; burası otomatik olarak güncellenir.",
@@ -1500,7 +1491,7 @@ const STRINGS = {
     ownMusic: "Kendi müziğiniz",
     noMusic: "Müzik yok",
     bpm: "{bpm} BPM",
-    installTools: "Müziği önizlemek veya kendi parçanızı kullanmak için ffmpeg yükleyin.",
+    newerSelectsMusic: "Müziği önizlemek veya kendi parçanızı kullanmak için daha yeni bir Selects sürümü gerekir.",
     sectionHint: "Müzik bölümü — seçmek için sürükleyin",
     sectionLabel: "Müzik bölümü",
     musicTooShort: "Bu parça bu uzunluk için çok kısa",
@@ -1635,7 +1626,6 @@ const STRINGS = {
     checkingClipsNow: "正在检查片段…",
     checkingClips: "正在检查片段",
     listening: "正在识别节拍",
-    preparingTools: "正在准备节拍检测(仅首次)",
     working: "处理中",
     stillReading: "仍在读取此项目的片段… 完成后会自动更新。",
     noFootage: "此项目中还没有视频或照片。请添加片段或照片；这里会自动更新。",
@@ -1678,7 +1668,7 @@ const STRINGS = {
     ownMusic: "自己的音乐",
     noMusic: "无音乐",
     bpm: "{bpm} BPM",
-    installTools: "请安装 ffmpeg，才能试听音乐或使用自己的曲目。",
+    newerSelectsMusic: "试听音乐或使用自己的曲目需要较新版本的 Selects。",
     sectionHint: "音乐片段 — 拖动选择",
     sectionLabel: "音乐片段",
     musicTooShort: "此曲目对这个时长来说太短",
@@ -1845,7 +1835,12 @@ function fieldLen(text: string): number {
 type Say = (lang: Lang) => string;
 // An error whose text follows the UI language; `message` keeps the English text. SDK and script details stay English.
 function uiError(say: Say) { const e: any = new Error(say("en")); e.say = say; return e; }
-function sayError(lang: Lang, e: any): string { return typeof e?.say === "function" ? e.say(lang) : String(e?.message || e); }
+// A host service this Selects build lacks (av-host 'host-missing') says the one "needs a newer Selects" message.
+function sayError(lang: Lang, e: any): string {
+  if (typeof e?.say === "function") return e.say(lang);
+  if (e?.code === "host-missing") return t(lang, "adapterNeeded", { name: String(e.member || "").split(".")[0] || "Runtime" });
+  return String(e?.message || e);
+}
 // A title field's text cut to its limit, counted like the counter next to it (fieldLen: Hangul counts 2).
 function fieldClip(text: string, max: number) {
   let out = "", n = 0;
@@ -1855,8 +1850,6 @@ function fieldClip(text: string, max: number) {
 
 const PLUGIN_ID = "mini-vlog";
 const PLUGIN_VERSION = "0.1.0-alpha.2";
-const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + PLUGIN_ID;
-const DATA_DIR = "$HOME/.selects/plugin-data/" + PLUGIN_ID;
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -3467,36 +3460,226 @@ const MV_FAIL: Record<string, string> = {
   "music-too-short": "This track is too short for 4 shots from this section",
 };
 
-// Double quotes let $HOME and $SELECTS_USER_SKILLS_ROOT expand: use only for those constants.
-function dq(value: string) { return '"' + String(value).replace(/(["\\`])/g, "\\$1") + '"'; }
-// Single quotes pass user paths to the shell literally (no $, backtick or glob expansion).
-function sq(value: string) { return "'" + String(value).replace(/'/g, "'\\''") + "'"; }
-function service(name: string, method: string) {
-  const s = (window.parent as any)?.__DI__?.[name];
-  if (!s || typeof s[method] !== "function") throw uiError((l) => t(l, "adapterNeeded", { name }));
+// The host I/O block below is Archive Vlog's av-host block (plugins/archive-vlog/panel.tsx), pasted verbatim: no shell,
+// no node; the host's FileSystem, Runtime.runFFmpeg / runFFprobe (argv arrays) and window.parent.__DI__, every member
+// checked first (kit windows.md). tests/panel.test.cjs and tests/test_windows_mini_vlog.py compare it with a recorded
+// hash, not with the sibling plugin. Errors with code 'host-missing' say STRINGS `adapterNeeded` (sayError).
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
   return s;
 }
-async function readText(root: string, rel: string) {
-  const v = await service("FileSystem", "readFile").readFile(root + "/" + rel);
-  // Some host builds return text directly; others return bytes.
-  return typeof v === "string" ? v : new TextDecoder().decode(new Uint8Array(v));
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
+// The source of the own-music beat worker: Archive Vlog's av-beat-worker block, pasted verbatim (the kit's
+// beat-detect.cjs, read from the install folder, runs unmodified inside it).
+// av-beat-worker:start
+// The source of the Web Worker that runs beat-detect.cjs, read from the install folder and used unmodified (one source
+// for the CLI, the tests and the panel). The file runs inside a function with its own `module`, `exports` and an inert
+// `require`: require.main is undefined, so its CLI branch never runs. The worker answers one { samples, rate } message
+// with { ok: analyze(samples, rate) } or { error }. Plain JS, so tests run the same source in node:vm.
+function avBeatWorkerSource(beatDetectText) {
+  return '"use strict";\nvar avBeat = (function () {\n  var module = { exports: {} };\n  var require = function () { return {}; };\n'
+    + '  (function (module, exports, require) {\n' + beatDetectText + '\n  })(module, module.exports, require);\n  return module.exports;\n})();\n'
+    + 'onmessage = function (e) {\n  try { postMessage({ ok: avBeat.analyze(e.data.samples, e.data.rate) }); }\n'
+    + '  catch (err) { postMessage({ error: String((err && err.message) || err) }); }\n};\n';
+}
+// av-beat-worker:end
+// Reads a text file under `root`; `rel` is a "/"-separated path inside it, joined with the host's separator.
+async function readText(root: string, rel: string) { return hostReadText(hostJoin(root, ...rel.split("/"))); }
+// The install folder and the data folder (<home>/.selects/plugin-data/mini-vlog) for locateRoots, through the host's
+// FileSystem (no shell). The install folder is av-host's (the home folder joined with .selects, skills and the id),
+// else SELECTS_USER_SKILLS_ROOT from the host's environment joined with the id, when it holds planner.js. The data
+// folder is created when the host can (a host without mkdirSync still gets its path: temporary files then fail on
+// their own and fall back). A host without the FileSystem members says the one "needs a newer Selects" message;
+// no install folder gives { plugin: "", data: "" } (locateRoots then says `foldersNotFound`).
+async function mvFolders(sdk: any): Promise<{ plugin: string; data: string }> {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  if (!fs) throw uiError((l) => t(l, "adapterNeeded", { name: "FileSystem" }));
+  const data = String(fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID));
+  try { return { plugin: (await hostRoots(sdk, PLUGIN_ID, "planner.js")).plugin, data }; } catch { /* the environment's skills root */ }
+  const envRoot = () => {
+    try { const env = hostApi("Runtime", "getHostEnvironment")?.getHostEnvironment(); const v = env && env.SELECTS_USER_SKILLS_ROOT; if (typeof v === "string" && v.trim()) return v.trim(); } catch { /* none */ }
+    try { const v = (window.parent as any)?.process?.env?.SELECTS_USER_SKILLS_ROOT; if (typeof v === "string" && v.trim()) return v.trim(); } catch { /* none */ }
+    return "";
+  };
+  const root = envRoot();
+  if (root) {
+    try {
+      const dir = String(fs.join(root, PLUGIN_ID));
+      if (fs.existsSync(fs.join(dir, "planner.js"))) {
+        try { hostApi("FileSystem", "mkdirSync")?.mkdirSync(data, { recursive: true }); } catch { /* made later or never */ }
+        return { plugin: dir, data };
+      }
+    } catch { /* not found */ }
+  }
+  return { plugin: "", data: "" };
+}
+// Your own music: at most this much of the track is analysed (and used), mono at this rate (beat-detect's rate, so the
+// panel's result equals the CLI's on the same samples: dev/beat-parity.cjs).
+const OWN_MAX_SECONDS = 240;
+const OWN_RATE = 22050;
+// beat-detect's analysis of the samples in a Web Worker (avBeatWorkerSource), never on the panel's thread: the panel
+// CSP allows blob: workers. A host that refuses the worker rejects the analysis, and the panel falls back to fixed
+// timing. `signal` aborts it (worker.terminate()); so does `timeoutMs` (BEAT_TIMEOUT_MS): a worker that never answers
+// rejects with code "beat-timeout" (fixed timing then). Archive Vlog's analyseBeat, unchanged.
+const BEAT_TIMEOUT_MS = 60000;
+function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = BEAT_TIMEOUT_MS): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let worker: Worker | null = null, url: string | null = null, done = false;
+    let timer: any = null;
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
+      try { worker?.terminate(); } catch { /* gone */ }
+      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
+      signal?.removeEventListener("abort", onAbort);
+      fn();
+    };
+    const onAbort = () => finish(() => reject(new Error("cancelled")));
+    if (signal?.aborted) { reject(new Error("cancelled")); return; }
+    signal?.addEventListener("abort", onAbort);
+    try {
+      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+      worker = new Worker(url);
+    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
+    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.error ? reject(new Error(e.data.error)) : resolve(e.data && e.data.ok)));
+    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
+    timer = setTimeout(() => finish(() => { const err: any = new Error("the beat detection took too long"); err.code = "beat-timeout"; reject(err); }), timeoutMs);
+    worker.postMessage({ samples, rate: OWN_RATE });
+  });
+}
+// Whether this host can run your own music's beat detection and the section preview: the host's ffmpeg, file reads
+// and blob Web Workers (own music only).
+function mvMusicTools() {
+  const ffmpeg = !!hostApi("Runtime", "runFFmpeg") && !!hostApi("FileSystem", "readFile");
+  return { ffmpeg, worker: ffmpeg && typeof Worker !== "undefined" && typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function" };
 }
 // The config goes in as JSON.parse of a string so its type is `any`: an inlined literal widens `type` to string
 // (rejected by EditableParameterDefinition[]) and narrows a null option to `never` inside its `if`.
 function fill(script: string, cfg: unknown) { return script.replace("__CONFIG__", () => "JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"); }
-// Apps started from Finder get a bare PATH, so shell steps also look in Homebrew.
-const TOOL_PATH = 'export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"; ';
-// Own music's beat detection runs beat-detect.cjs on Node.js. Selects puts no Node on the shell's PATH and a stock
-// Mac has none, so runtime.sh fetches a pinned copy into ~/.selects/plugin-data/_runtime the first time (shared by
-// every plugin) and prints its path. Later calls in this session reuse it.
-let nodePath: string | null = null;
-async function ensureNode(sdk: any): Promise<string> {
-  if (nodePath) return nodePath;
-  const r = await sdk.runShell({ summary: "Prepare Node.js (first run only)", command: TOOL_PATH + "sh " + dq(SKILLS_DIR + "/runtime.sh") + " node", timeoutMs: 290000, maxOutputBytes: 8000 });
-  const found = String(r?.stdout || "").trim().split("\n").filter(Boolean).pop() || "";
-  if (r?.isError || r?.exitCode !== 0 || !found.startsWith("/")) throw new Error(String(r?.stderr || "").trim().split("\n").pop() || "Could not prepare Node.js.");
-  return (nodePath = found);
-}
 // Thrown when the Project changed while a build was running; its results are dropped silently.
 const STALE = new Error("The Project changed during the build.");
 // Thrown when the person pressed Cancel during the quick local check; nothing was saved yet.
@@ -3742,8 +3925,7 @@ function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, 
 // The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing. Shared by
 // the panel and a template run.
 async function locateRoots(sdk: any) {
-  const where = await sdk.runShell({ summary: "Locate plugin folders", command: "mkdir -p " + dq(DATA_DIR) + " && printf '%s\\n%s' " + dq(SKILLS_DIR) + " " + dq(DATA_DIR), timeoutMs: 10000 });
-  const [plugin, data] = String(where?.stdout || "").split("\n").map((x: string) => x.trim());
+  const { plugin, data } = await mvFolders(sdk);
   if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
   return { plugin, data };
 }
@@ -3800,7 +3982,10 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   // The quick local check of clips without analysis is running: the Build button's slot shows Cancel, which aborts it.
   const [checking, setChecking] = React.useState(false);
   const localAbortRef = React.useRef<AbortController | null>(null);
-  const [tools, setTools] = React.useState({ ffmpeg: true });
+  const [tools, setTools] = React.useState({ ffmpeg: true, worker: true });
+  // The running own-music analysis: a new track, leaving "Your own music", a Project switch or unmount cancels it
+  // (abort: the ffmpeg decode and the worker), and the request id drops a late result.
+  const ownJobRef = React.useRef<{ id: number; abort: AbortController | null }>({ id: 0, abort: null });
   const fontCache = React.useRef<Record<string, Promise<string>>>({});
   const registered = React.useRef<Set<string>>(new Set());
   // Build progress (bar + step list). `step` stays for the one-call spinner (own-music beat detection).
@@ -3934,21 +4119,17 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         const { plugin, data } = await locateRoots(sdk);
         if (!alive) return;
         setRoots({ plugin, data });
-        // ffmpeg is only needed for previews and own music (own music also fetches Node.js on first use); bundled cues work without it.
-        let have = "";
-        try {
-          const probe = await sdk.runShell({ summary: "Check music tools", command: TOOL_PATH + "command -v ffmpeg >/dev/null && echo ffmpeg", timeoutMs: 10000 });
-          have = String(probe?.stdout || "");
-        } catch { have = ""; }
-        if (!alive) return;
-        setTools({ ffmpeg: have.includes("ffmpeg") });
+        // The host's ffmpeg (and a blob Web Worker for own music) is only needed for previews and own music; bundled
+        // cues work without them. No shell: the host's services are checked directly (mvMusicTools).
+        setTools(mvMusicTools());
         const read = (rel: string) => readText(plugin, rel);
-        const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, softTsx, motionTsx, punchTsx] = await Promise.all([
+        const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, softTsx, motionTsx, punchTsx, beatDetect] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("scripts/inventory.js"), read("scripts/search.js"),
           read("scripts/ensure-audio.js"), read("scripts/assemble.js"), read("scripts/decorate.js"), read("assets/title-lockup.tsx"), read("assets/soft-look.tsx"),
-          read("assets/photo-motion.tsx"), read("assets/beat-punch.tsx")]);
+          read("assets/photo-motion.tsx"), read("assets/beat-punch.tsx"), read("beat-detect.cjs")]);
         if (!alive) return;
-        setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, softTsx, motionTsx, punchTsx });
+        setAssets({ manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs }, titleTsx, softTsx, motionTsx, punchTsx,
+          beatWorker: avBeatWorkerSource(beatDetect) });
         inventoryJsRef.current = inventoryJs;
         setStep("checkingClips");
         // The first read right after the app starts can fail while the Project is still loading: one retry.
@@ -3961,7 +4142,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       } finally { if (alive) setStep(""); }
     })();
     // Project switch or unmount stops a preview, including one still being prepared, and a quick local check.
-    return () => { alive = false; stopPreview(); localAbortRef.current?.abort(); };
+    return () => { alive = false; stopPreview(); localAbortRef.current?.abort(); cancelOwnMusic(); };
   }, [projectId]);
 
   // Clips that cannot be used yet (no length or no file: usually still importing), or no clips at all yet: re-read the
@@ -4097,39 +4278,50 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   // A new track, section, length or pace makes a running preview stale, so it stops.
   React.useEffect(() => { stopPreview(); }, [cueId, ownMusic?.path, section, length, pace]);
 
+  // Stops a running own-music analysis (Archive Vlog's cancelOwnMusic).
+  function cancelOwnMusic() {
+    const job = ownJobRef.current;
+    job.id++;
+    if (job.abort) { job.abort.abort(); job.abort = null; }
+  }
+  // Your own music: the host's ffmpeg decodes the first OWN_MAX_SECONDS to mono f32le at OWN_RATE in the data folder
+  // (hostDecodePcm: ASCII temporary name, removed afterwards), and the kit's beat-detect.cjs, unmodified, analyses the
+  // samples in a blob Web Worker (analyseBeat, BEAT_TIMEOUT_MS). Any failure falls back to fixed timing.
   async function detectOwnMusic(file: { path: string; name: string }) {
-    if (busyRef.current || !roots) return;
+    if (busyRef.current || !roots || !assets) return;
+    cancelOwnMusic();
+    const job = ownJobRef.current, id = job.id, pid = projectRef.current, abort = new AbortController();
+    job.abort = abort;
+    const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;
     busyRef.current = true;
     setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("listening");
+    let samples: Float32Array | null = null;
     try {
-      // The decoded PCM (up to ~32 MB) is only needed by beat-detect.cjs, so it is removed afterwards, keeping the exit status.
-      // The result goes to a file (a long track's onsets come close to the 48 KB shell output cap); stdout says ok.
-      if (!nodePath) setStep("preparing");
-      const node = await ensureNode(sdk);
-      setStep("listening");
-      const pcm = roots.data + "/own-music.f32";
-      const cmd = TOOL_PATH + "ffmpeg -nostdin -v error -y -t 360 -i " + sq(file.path) + " -ac 1 -ar 22050 -f f32le " + sq(pcm) + " && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs") + " " + sq(pcm) + " 22050 " + sq(roots.data + "/own-music.json")
-        + "; s=$?; rm -f " + sq(pcm) + "; exit $s";
-      const r = await sdk.runShell({ summary: "Find the beat of " + file.name, command: cmd, timeoutMs: 120000, maxOutputBytes: 48000 });
-      const done = JSON.parse(String(r.stdout || "").trim().split("\n").pop() || "{}");
-      if (r.isError || r.exitCode !== 0 || done.error || !done.ok) throw done.error || r.stderr ? new Error(done.error || r.stderr) : uiError((l) => t(l, "beatFailed"));
-      const g = JSON.parse(await readText(roots.data, "own-music.json"));
+      samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal);
+      if (!samples) throw hostError("host-missing", "this Selects build cannot decode audio", "Runtime.runFFmpeg");
+      if (!live()) return;
+      const g = await analyseBeat(assets.beatWorker, samples, abort.signal);
+      if (!live()) return;
+      if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
       // What was found is shown under the file (ownBeatLine), next to where the music was chosen.
       setStatus(null);
     } catch (e: any) {
+      if (!live()) return;
       // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
-      let duration: number | null = null;
-      try {
-        const pr = await sdk.runShell({ summary: "Read the length of " + file.name, command: TOOL_PATH + "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " + sq(file.path), timeoutMs: 20000 });
-        const v = parseFloat(String(pr?.stdout || "").trim());
-        if (!pr?.isError && v > 0) duration = Math.min(v, 360);
-      } catch { duration = null; }
+      let duration: number | null = samples && samples.length ? Math.round((samples.length / OWN_RATE) * 1000) / 1000 : null;
+      if (!duration) { const v = await hostProbeSeconds(file.path); if (v) duration = Math.min(v, OWN_MAX_SECONDS); }
+      if (!live()) return;
       setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });
       setStatus(duration
         ? { tone: "info", say: (l: Lang) => t(l, "musicApprox", { detail: sayError(l, e) }) }
         : { tone: "error", say: (l: Lang) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
-    } finally { busyRef.current = false; setBusy(false); setStep(""); }
+    } finally {
+      // The decoded samples (about 21 MB at most) are dropped with this call.
+      samples = null;
+      if (ownJobRef.current.id === id) ownJobRef.current.abort = null;
+      busyRef.current = false; if (mountedRef.current) { setBusy(false); setStep(""); }
+    }
   }
 
   // Section preview: "idle" -> "loading" (ffmpeg cut) -> "playing". Every start or stop bumps the token, so a late
@@ -4151,29 +4343,33 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     const live = () => previewTokenRef.current === token && mountedRef.current;
     setPlayState("loading");
     try {
-      const file = ownMusic ? ownMusic.path : roots.plugin + "/assets/cues/" + cue.file;
-      // The whole section, written to a file (stdout is too small for ~20 s) and read back as base64 text.
-      // Earlier previews are removed first and the mp3 once encoded, so the data folder never collects them.
-      const dur = videoSeconds, base = roots.data + "/preview-" + token;
-      const cmd = TOOL_PATH + "rm -f " + sq(roots.data) + "/preview-*.mp3 " + sq(roots.data) + "/preview-*.b64; "
-        + "ffmpeg -nostdin -v error -y -ss " + start.toFixed(2) + " -t " + dur.toFixed(2) + " -i " + sq(file)
-        + " -ac 1 -ar 22050 -b:a 48k -af \"afade=t=out:st=" + Math.max(0, dur - 0.4).toFixed(2) + ":d=0.4\" -f mp3 " + sq(base + ".mp3")
-        + " && base64 < " + sq(base + ".mp3") + " > " + sq(base + ".b64") + " && rm -f " + sq(base + ".mp3");
-      const r = await sdk.runShell({ summary: "Preview music section", command: cmd, timeoutMs: 60000 });
+      const file = ownMusic ? ownMusic.path : hostJoin(roots.plugin, "assets", "cues", cue.file);
+      // The whole section, cut by the host's ffmpeg (argv, no shell) into an mp3 in the data folder (ASCII name), read
+      // back as bytes and removed at once, so the data folder never collects previews.
+      const dur = videoSeconds, out = hostJoin(roots.data, "preview-" + token + "-" + Date.now() + ".mp3");
+      const rt = hostNeed("Runtime", "runFFmpeg");
+      let bytes: Uint8Array;
+      try {
+        await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-ss", start.toFixed(2), "-t", dur.toFixed(2), "-i", file, "-ac", "1", "-ar", "22050", "-b:a", "48k",
+          "-af", "afade=t=out:st=" + Math.max(0, dur - 0.4).toFixed(2) + ":d=0.4", "-f", "mp3", out], true);
+        if (!live()) return;
+        bytes = await hostReadBytes(out);
+      } catch (e: any) {
+        if (e?.code === "host-missing") throw e;
+        throw e?.message ? e : uiError((l) => t(l, "previewNotCut"));
+      } finally { void hostRemove(out); }
       if (!live()) return;
-      if (r?.isError || (r?.exitCode != null && r.exitCode !== 0)) throw r?.stderr ? new Error(r.stderr) : uiError((l) => t(l, "previewNotCut"));
-      const b64 = (await readText(roots.data, "preview-" + token + ".b64")).replace(/\s+/g, "");
-      // Best-effort cleanup of the encoded file; playback does not wait for it.
-      void Promise.resolve(sdk.runShell({ summary: "Remove preview file", command: TOOL_PATH + "rm -f " + sq(base + ".b64"), timeoutMs: 10000 })).catch(() => {});
-      if (!live()) return;
-      if (b64.length < 200) throw uiError((l) => t(l, "noAudio"));
+      if (bytes.byteLength < 150) throw uiError((l) => t(l, "noAudio"));
       let url: string;
       if (typeof Blob !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
-        const bin = atob(b64), bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+        // A copy: the bytes may be a view into the host's buffer (another realm).
+        url = URL.createObjectURL(new Blob([bytes.slice()], { type: "audio/mpeg" }));
         previewUrlRef.current = url;
-      } else url = "data:audio/mpeg;base64," + b64;
+      } else {
+        let bin = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 0x8000)));
+        url = "data:audio/mpeg;base64," + btoa(bin);
+      }
       const audio = new Audio(url);
       audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
       audioRef.current = audio;
@@ -4271,7 +4467,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     // Every input as it is at Build. The build and a later "Finish title and look" read only this.
     const frozen = Object.freeze({
       pid, seed: nextSeed, preset, presetLabel: chosen.label, fields: { ...titleFields },
-      music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? roots.plugin + "/assets/cues/" + cue.file : null,
+      music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? hostJoin(roots.plugin, "assets", "cues", cue.file) : null,
       sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,
       draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),
     });
@@ -4587,11 +4783,11 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const peaks: number[] = grid.peaks || [];
   const total = musicKind === "own" ? (ownDuration || 1) : (cue ? cue.duration : 1);
   const silent = musicKind === "none" && clipSound === "off";
-  const canOwnMusic = tools.ffmpeg;
+  const canOwnMusic = tools.ffmpeg && tools.worker;
   const cues: any[] = assets?.manifest.cues || [];
   const referenceCues = cues.filter((c) => c.group !== "alternative");
   const alternativeCues = cues.filter((c) => c.group === "alternative");
-  const chooseTrack = (v: string) => { if (busyRef.current) return; setCueId(v); if (v !== "own") { setOwnMusic(null); setOwnGrid(null); } };
+  const chooseTrack = (v: string) => { if (busyRef.current) return; setCueId(v); if (v !== "own") { cancelOwnMusic(); setOwnMusic(null); setOwnGrid(null); } };
   // One row of the track list: a radio-style button that truncates its name and keeps the tempo visible.
   const trackRow = (value: string, label: string, meta: string) => {
     const on = cueId === value;
@@ -4610,7 +4806,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const progressLabel = progress ? (progress.detail
     ? t(L, "progressDetail", { step: progress.current + 1, total: MV_BUILD_STEPS.length, name: t(L, "step." + progress.id), detail: progress.detail(L), percent: progress.percent })
     : t(L, "progress", { step: progress.current + 1, total: MV_BUILD_STEPS.length, name: t(L, "step." + progress.id), percent: progress.percent })) : "";
-  const stepText = step === "preparing" ? t(L, "preparingTools") : step === "listening" ? t(L, "listening") : step === "checkingClips" ? t(L, "checkingClips") : "";
+  const stepText = step === "listening" ? t(L, "listening") : step === "checkingClips" ? t(L, "checkingClips") : "";
 
   if (!projectId) return <ui.Message tone="error">{t(L, "openProject")}</ui.Message>;
 
@@ -4667,7 +4863,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         {musicKind === "own" && canOwnMusic ? <ui.FileDrop accept={["audio"]} value={ownMusic} disabled={busy}
           onChange={(f: any) => { if (f) detectOwnMusic(f); else { setOwnMusic(null); setOwnGrid(null); } }} /> : null}
         {ownBeatLine ? <ui.Message tone="muted">{ownBeatLine}</ui.Message> : null}
-        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "installTools")}</ui.Message> : null}
+        {!canOwnMusic ? <ui.Message tone="muted">{t(L, "newerSelectsMusic")}</ui.Message> : null}
         {musicKind !== "none" ? (ownMusic || cue ? (
           // Esc on the slider or the preview button (the key bubbles up here) stops the preview.
           <div onKeyDown={(e) => { if (e.key === "Escape" && playState !== "idle") { e.preventDefault(); stopPreview(); } }}>

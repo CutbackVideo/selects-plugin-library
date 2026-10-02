@@ -57,7 +57,8 @@ for (const name of ['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js
 // and get the quick local check; the readiness line counts usable clips and photos, with at most a small note that
 // analysed clips give better picks. The panel never starts analysis itself.
 assert.ok(!panel.includes('still being analysed'), 'the old "still being analysed" wording is gone');
-assert.ok(!/startAnalysis|analyzeResources|\.analyze\(/.test(panel), 'the panel does not start analysis');
+// (avBeat.analyze is the beat detector inside the own-music worker, not Selects analysis.)
+assert.ok(!/startAnalysis|analyzeResources|(?<!avBeat)\.analyze\(/.test(panel), 'the panel does not start analysis');
 for (const gone of ['notAnalysedAnalyse', 'notAnalysedMaybe', 'analysisFailed', 'noteAnalysing', 'noteFailed', '"analysing"', 'mvAnalysisCounts', 'mvAnalysisText', 'workflows('])
   assert.ok(!panel.includes(gone), 'no analysis-as-blocker wording or logic: ' + gone);
 for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs')).extractStrings(panel).strings)) {
@@ -465,27 +466,105 @@ assert.ok(/needsPoll = [^\n]*inventory\.photos/.test(ui), 'a photos-only Project
 assert.ok(ui.includes('const candKey = projectId + "|" + JSON.stringify(only) + (beatPunch ? "|motion" : "");') && ui.includes('const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");'), 'scene search cache keyed on the Project');
 for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'const [usePhotos', 'const [clipSound', '[cueId, ownMusic?.path, section, length, pace]']) assert.ok(ui.indexOf(hook) < ui.indexOf('if (!projectId) return <ui'), hook + ' before the early return');
 
-// Shell: single-quoted user paths, Finder PATH, big outputs through files, fixed call count.
-assert.ok(!/dq\((file|ownMusic|roots)/.test(panel), 'user paths must not be double-quoted into the shell');
-for (const re of [/command: TOOL_PATH \+ "command -v ffmpeg/, /cmd = TOOL_PATH \+ "ffmpeg -nostdin -v error -y -t 360/, /command: TOOL_PATH \+ "ffprobe /, /cmd = TOOL_PATH \+ "rm -f "/]) assert.ok(re.test(panel), String(re));
-assert.ok(panel.includes('/opt/homebrew/bin:/usr/local/bin') && !panel.includes('.nvm/'), 'Homebrew path, no nvm hunting');
-// Own music runs beat-detect.cjs on the pinned Node.js that runtime.sh fetches; there is no bare `node` command.
-assert.ok(panel.includes('dq(SKILLS_DIR + "/runtime.sh") + " node"') && panel.includes('" && " + sq(node) + " " + sq(roots.plugin + "/beat-detect.cjs")'), 'beat detection uses the runtime Node.js');
-assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.includes('command -v node'), 'no bare node command or probe');
-assert.equal(fs.readFileSync(path.join(__dirname, '..', 'runtime.sh'), 'utf8'), fs.readFileSync(path.join(__dirname, '..', '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
-assert.ok(panel.includes('" 22050 " + sq(roots.data + "/own-music.json")') && panel.includes('JSON.parse(await readText(roots.data, "own-music.json"))') && panel.includes('!done.ok'), 'own-music analysis via a file');
-assert.ok(panel.includes('"; s=$?; rm -f " + sq(pcm) + "; exit $s"') && panel.includes('" && rm -f " + sq(base + ".mp3")'), 'temporary audio files are removed');
-assert.equal((panel.match(/runShell\(/g) || []).length, 7, 'one folder lookup, the Node.js runtime, four tool steps and the preview cleanup');
+// Windows (kit windows.md): no shell at all. The host's services come through Archive Vlog's av-host block and the
+// own-music worker source through its av-beat-worker block, both pasted verbatim and checked against recorded hashes
+// (never against the sibling plugin, which may change on its own). The kit's beat-detect.cjs ships unmodified.
+{
+  const crypto = require('node:crypto'), vm = require('node:vm');
+  const sha = (x) => crypto.createHash('sha256').update(x).digest('hex');
+  const blockOf = (name) => {
+    const a = panel.indexOf('// ' + name + ':start\n'), b = panel.indexOf('// ' + name + ':end', a);
+    assert.ok(a >= 0 && b > a, name + ' block'); assert.equal(panel.split('// ' + name + ':start\n').length, 2, 'one ' + name + ' block');
+    return panel.slice(a, b + ('// ' + name + ':end').length);
+  };
+  const avHost = blockOf('av-host'), avBeat = blockOf('av-beat-worker');
+  assert.equal(sha(avHost), '7e00ca559b2b0c3a005f0236e021cae6d11c611f9bf8d87b5149a8176d966f13', 'av-host block equals Archive Vlog\'s (origin/main 5623860)');
+  assert.equal(sha(avBeat), 'f7a61170ef90203b7194ed28552a24f933a8262fcc5cd289b60aabecdb5818b4', 'av-beat-worker block equals Archive Vlog\'s (origin/main 5623860)');
+  const detector = fs.readFileSync(path.join(root, 'beat-detect.cjs'), 'utf8');
+  assert.equal(sha(detector), '562d8530164e418dd7fb2f4dcbd2c5a8961000b93740a12a2dfd21780fb2ad9c', 'beat-detect.cjs is the kit copy (selects-app-kit 7457347 tools/audio/beat-detect.cjs)');
+  // No shell, no node, no POSIX syntax anywhere in the runtime (comments aside).
+  const code = (x) => x.replace(/^\s*\/\/.*$/gm, '');
+  assert.equal((panel.match(/runShell\(/g) || []).length, 0, 'no runShell in the panel');
+  for (const f of fs.readdirSync(path.join(root, 'scripts'))) assert.ok(!/runShell|child_process|spawn\(/.test(fs.readFileSync(path.join(root, 'scripts', f), 'utf8')), 'no shell in scripts/' + f);
+  for (const posix of ['TOOL_PATH', 'dq(', 'sq(', '$HOME', '$SELECTS_USER', 'export PATH', 'command -v', 'mkdir -p', 'rm -f', 'printf', '2>/dev/null', '/opt/homebrew', 'runtime.sh', 'base64 <', 'ensureNode'])
+    assert.ok(!code(panel).includes(posix), 'no POSIX shell in the panel: ' + posix);
+  assert.ok(!/["'`]\s*node\s/.test(code(panel)), 'no node command');
+  assert.ok(!fs.existsSync(path.join(root, 'runtime.sh')) && !JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8')).files.includes('runtime.sh'), 'runtime.sh is gone');
+  // Folders through FileSystem (locateRoots -> mvFolders), tools by checking the host's members.
+  for (const s of ['const { plugin, data } = await mvFolders(sdk);', 'await hostRoots(sdk, PLUGIN_ID, "planner.js")', 'fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID)',
+    'setTools(mvMusicTools());', 'const canOwnMusic = tools.ffmpeg && tools.worker;', 'async function readText(root: string, rel: string) { return hostReadText(hostJoin(root, ...rel.split("/"))); }',
+    'if (e?.code === "host-missing") return t(lang, "adapterNeeded"']) assert.ok(panel.includes(s), s);
+  // Own music: host ffmpeg -> f32le 22.05 kHz, first 240 s, in the data folder; the kit detector in a blob worker with
+  // a 60 s timeout; cancel = abort + terminate + request id; any failure -> fixed timing with the probed length.
+  for (const s of ['const OWN_MAX_SECONDS = 240;', 'const OWN_RATE = 22050;', 'const BEAT_TIMEOUT_MS = 60000;', 'read("beat-detect.cjs")]);', 'beatWorker: avBeatWorkerSource(beatDetect)',
+    'samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal);',
+    'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'cancelOwnMusic(); };', 'if (v !== "own") { cancelOwnMusic();',
+    'const v = await hostProbeSeconds(file.path); if (v) duration = Math.min(v, OWN_MAX_SECONDS);', 'worker = new Worker(url);', 'worker?.terminate()'])
+    assert.ok(panel.includes(s), s);
+  // Preview: the host's ffmpeg with an argv array into the data folder, read back as bytes, removed with FileSystem.
+  for (const s of ['const rt = hostNeed("Runtime", "runFFmpeg");', '"-t", dur.toFixed(2), "-i", file,', 'bytes = await hostReadBytes(out);', '} finally { void hostRemove(out); }',
+    'hostJoin(roots.data, "preview-" + token + "-" + Date.now() + ".mp3")', 'const file = ownMusic ? ownMusic.path : hostJoin(roots.plugin, "assets", "cues", cue.file);',
+    'musicKind === "cue" ? hostJoin(roots.plugin, "assets", "cues", cue.file) : null']) assert.ok(panel.includes(s), s);
+  says('newerSelectsMusic', 'need a newer Selects');
+
+  // Cross-realm bytes (windows.md): the host's readFile result comes from window.parent, another JS realm, where
+  // `instanceof ArrayBuffer` is false. The av-host block runs in node:vm with a fake __DI__ whose values are built in a
+  // third context.
+  const other = vm.createContext({});
+  const foreign = (code) => vm.runInContext(code, other);
+  const files = {};
+  const di = {
+    FileSystem: {
+      join: (...p) => p.join('/'), homedir: () => 'HOMEDIR', existsSync: (p) => p in files || p === 'HOMEDIR/.selects/skills/mini-vlog/planner.js', mkdirSync: () => {},
+      readFile: async (p) => { const v = files[p]; if (v == null) throw new Error('missing ' + p); return v; }, removeFile: async ({ filePath }) => { delete files[filePath]; },
+    },
+    Runtime: {
+      runFFmpeg: async (args) => { const out = args[args.length - 1]; files[out] = foreign('new Float32Array([0.25, -0.5, 1]).buffer'); return { stdout: '' }; },
+      runFFprobe: async () => ({ stdout: '12.5\n' }),
+    },
+  };
+  const box = { window: { parent: { __DI__: di } }, navigator: { platform: 'MacIntel', userAgent: '' }, TextDecoder, AbortController, setTimeout, clearTimeout, Date, Math, Uint8Array, Float32Array, Object, String, Error, Promise };
+  vm.createContext(box);
+  vm.runInContext(avHost + '\nglobalThis.H = { hostReadBytes, hostReadText, hostDecodePcm, hostProbeSeconds, hostRoots, hostJoin };', box);
+  const H = box.H;
+  (async () => {
+    files['/a.bin'] = foreign('new Uint8Array([1, 2, 3, 4]).buffer');
+    assert.equal(Object.prototype.toString.call(files['/a.bin']), '[object ArrayBuffer]'); assert.ok(!(files['/a.bin'] instanceof ArrayBuffer), 'a foreign ArrayBuffer');
+    assert.deepEqual(Array.from(await H.hostReadBytes('/a.bin')), [1, 2, 3, 4], 'foreign ArrayBuffer read');
+    files['/b.bin'] = foreign('new Uint8Array([9, 8, 7, 6, 5]).subarray(1, 4)');
+    assert.deepEqual(Array.from(await H.hostReadBytes('/b.bin')), [8, 7, 6], 'foreign Uint8Array view read');
+    files['/t.txt'] = foreign('new Uint8Array([104, 195, 169, 108, 108, 111])');
+    assert.equal(await H.hostReadText('/t.txt'), 'h\u00e9llo', 'foreign bytes as text');
+    const pcm = await H.hostDecodePcm('/music/song.mp3', 'HOMEDIR/.selects/plugin-data/mini-vlog', 22050, 240, null);
+    assert.deepEqual(Array.from(pcm), [0.25, -0.5, 1], 'decoded samples from a foreign buffer');
+    assert.deepEqual(Object.keys(files).filter((k) => k.endsWith('.f32')), [], 'the temporary PCM file is removed');
+    assert.equal(await H.hostProbeSeconds('/music/song.mp3'), 12.5);
+    const roots = await H.hostRoots(null, 'mini-vlog', 'planner.js');
+    assert.equal(roots.plugin, 'HOMEDIR/.selects/skills/mini-vlog'); assert.equal(roots.data, 'HOMEDIR/.selects/plugin-data/mini-vlog');
+  })().catch((e) => { console.error(e); process.exit(1); });
+
+  // The worker source runs the unmodified detector and answers like analyze() on the same samples.
+  const sr = 22050, pcm = new Float32Array(sr * 20);
+  for (let b = 0; b * 0.5 < 20; b++) { const at = Math.round((0.3 + b * 0.5) * sr); for (let i = 0; i < 400 && at + i < pcm.length; i++) pcm[at + i] = Math.exp(-i / 60) * (i % 2 ? 1 : -1); }
+  let reply = null;
+  const wbox = { postMessage: (m) => { reply = m; }, Math, Float32Array, Float64Array, Int32Array, Uint8Array, Array, Number, Object, JSON, Infinity, NaN, String, Error };
+  vm.createContext(wbox);
+  vm.runInContext(avBeat + '\nglobalThis.src = avBeatWorkerSource;', wbox);
+  vm.runInContext(wbox.src(detector), wbox);
+  wbox.onmessage({ data: { samples: pcm, rate: sr } });
+  assert.ok(reply && reply.ok, 'worker answered');
+  assert.equal(JSON.stringify(reply.ok), JSON.stringify(require(path.join(root, 'beat-detect.cjs')).analyze(pcm, sr)), 'worker result equals analyze()');
+}
 assert.ok(panel.includes('"JSON.parse(" + JSON.stringify(JSON.stringify(cfg)) + ")"'), 'fill passes the config through JSON.parse');
 
 // Music section slider and preview (kit pitfalls).
 for (const s of ['role="slider"', 'aria-valuenow', 'aria-valuetext', '--panel-accent', '--panel-muted-fg', 'ResizeObserver', 'devicePixelRatio', 'setPointerCapture', '"grabbing"', '"ArrowLeft"', '"Home"', '"End"',
   'fmtTime(total)', '"pause"', 'requestAnimationFrame', 'cancelAnimationFrame', '"Escape"', 'previewTokenRef', 'URL.createObjectURL', 'URL.revokeObjectURL',
-  'onended', 'preview-*.mp3', 'readText(roots.data']) assert.ok(panel.includes(s), s);
-says('sectionHint', 'drag to choose'); says('startsAt', 'Starts at '); says('stopPreview', 'Stop preview'); says('cancelPreview', 'Cancel preview'); says('installTools', 'Install ffmpeg to preview'); says('preparingTools', 'first time only');
+  'onended']) assert.ok(panel.includes(s), s);
+says('sectionHint', 'drag to choose'); says('startsAt', 'Starts at '); says('stopPreview', 'Stop preview'); says('cancelPreview', 'Cancel preview');
 // The slider follows the panel language (lang prop); numbers are passed as rounded numbers so t() formats them.
 assert.ok(ui.includes('<SectionSlider lang={L} peaks={peaks}') && ui.includes('aria-valuetext={section == null ? t(lang, "musicTooShort") : t(lang, "startsAt", { seconds: Math.round(section * 10) / 10 })}'), 'slider language');
-assert.ok(/-t " \+ dur\.toFixed\(2\)/.test(panel), 'the preview length is the video length');
+assert.ok(panel.includes('"-t", dur.toFixed(2)'), 'the preview length is the video length');
 assert.ok(!/--text-tertiary/.test(panel) && !/var\(--accent\b/.test(panel), 'only --panel-* tokens');
 assert.ok(build.includes('stopPreview()') && finish.includes('stopPreview()'), 'Build and Finish stop the preview');
 
