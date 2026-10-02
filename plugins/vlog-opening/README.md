@@ -64,9 +64,9 @@ live preview rather than typed into the panel.
 ## What it needs
 
 Analysed video in the open Project. The quotes style additionally needs
-analysed speech. The motion style samples colours with `ffmpeg`, and music
-previews use `ffmpeg` too; without it the palette falls back to a built-in one
-and previews of your own file are unavailable; the bundled cues'
+analysed speech. The motion style samples colours with the app's bundled
+`ffmpeg`, and music previews use it too; if that fails the palette falls back to
+a built-in one and previews of your own file are unavailable; the bundled cues'
 previews are embedded and always play. A chosen cue or file is imported into the
 Project once and reused on later builds. Building always creates a new Draft and
 never edits an existing one.
