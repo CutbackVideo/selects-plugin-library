@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "imessage-generator",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "name": "iMessage Generator",
   "summary": "Insert an iMessage-style chat conversation overlay into the current Draft, with optional synced text-to-speech narration (free local Kokoro voices or ElevenLabs cloud voices).",
   "status": "experimental",
@@ -15,9 +15,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS development builds"
+      "macOS development builds",
+      "Windows x64"
     ],
-    "selects": "Requires Panel SDK runScript/runShell/call, generated-media authoring, and Project file-tree adapters. Released-version and Windows/Linux compatibility are unverified."
+    "selects": "Requires Panel SDK runScript/call, generated-media authoring, Project file-tree adapters, and the host FileSystem and bundled ffmpeg (Runtime.runFFmpeg) for narration audio. Local Kokoro voices are macOS-only (runShell + Python); on Windows narration uses ElevenLabs. Released-version and Linux compatibility are unverified."
   },
   "preview": {
     "video": "preview.mp4",

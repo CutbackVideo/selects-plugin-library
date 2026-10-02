@@ -15,29 +15,355 @@
 import React from 'react';
 /*__SHARED_SCRIPT_BUILDER__*/
 
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
+
+// hold:start
+// Short-video hold (formerly hold_video.py), plain JS on the av-host helpers so tests can run it in node:vm. A selected
+// video shorter than the result is re-encoded once at 60 fps with its last frame cloned to the full length, by the
+// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v2. Long videos are never touched. A cache
+// entry is keyed by the source path, size and modification time; it is reused only when its metadata matches and
+// ffprobe still counts the expected frames. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
+// inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }.
+const HOLD_FPS = 60, HOLD_MAX_EDGE = 1920, HOLD_MAX_FRAMES = 36000, HOLD_MAX_VIDEOS = 21;
+const HOLD_ALGORITHM = 'photo-gallery-hold-v2-max1920-h264-crf18';
+function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed' }); }
+// Host paths compared as keys: NFC; a Windows path also gets / separators and is case-folded.
+function holdPathKey(path) {
+  const text = String(path ?? '').normalize('NFC');
+  return /^[A-Za-z]:(?:[\\/]|$)/.test(text) || text.includes('\\') ? text.replace(/\\/g, '/').toLowerCase() : text;
+}
+// Runs Runtime.runFFmpeg/runFFprobe with a deadline. The host rejects with a JSON string, not an Error.
+async function holdTool(kind, argv, seconds) {
+  const rt = hostNeed('Runtime', kind);
+  const controller = typeof AbortController === 'undefined' ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), seconds * 1000) : null;
+  try { return await rt[kind](argv, true, controller ? controller.signal : undefined); }
+  catch (error) {
+    if (controller?.signal.aborted) throw holdError('Media conversion timed out');
+    if (error?.code === 'host-missing') throw error;
+    throw Object.assign(holdError(kind + ' failed'), { detail: String(error?.message ?? error).slice(0, 600) });
+  } finally { if (timer) clearTimeout(timer); }
+}
+async function holdProbe(path, countFrames = false) {
+  let result;
+  try {
+    result = await holdTool('runFFprobe', ['-v', 'error', ...(countFrames ? ['-count_frames'] : []), '-show_entries',
+      'stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames', '-of', 'json', path], 45);
+  } catch (error) { if (error.code === 'host-missing' || /timed out/.test(error.message)) throw error; throw holdError('Video cannot be decoded'); }
+  let streams, video;
+  try { streams = JSON.parse(String(result?.stdout || '')).streams; video = streams.find(item => item?.codec_type === 'video'); } catch { video = null; }
+  if (!video) throw holdError('Media has no readable picture stream');
+  if (!Number.isSafeInteger(video.width) || !Number.isSafeInteger(video.height) || video.width <= 0 || video.height <= 0) {
+    throw holdError('Media dimensions are unavailable');
+  }
+  return { video, streams };
+}
+// The output size: at most 1920 on the long edge, then padded to even sides (as the encode filter does).
+function holdDimensions(width, height) {
+  const factor = Math.min(1, HOLD_MAX_EDGE / Math.max(width, height));
+  // Python's round(): halves go to the even neighbour.
+  const round = x => { const r = Math.round(x); return Math.abs(x % 1) === 0.5 && r % 2 ? r - 1 : r; };
+  const w = Math.max(1, round(width * factor)), h = Math.max(1, round(height * factor));
+  return [w + w % 2, h + h % 2];
+}
+async function holdValidate(path, frames, dimensions, decode = false) {
+  const { video, streams } = await holdProbe(path, true);
+  if (streams.length !== 1 || video.codec_name !== 'h264') throw holdError('Cached video has the wrong stream format');
+  if (video.r_frame_rate !== '60/1' || video.avg_frame_rate !== '60/1') throw holdError('Cached video has the wrong frame rate');
+  if (video.nb_read_frames !== String(frames)) throw holdError('Cached video has the wrong frame count');
+  if (video.width !== dimensions[0] || video.height !== dimensions[1]) throw holdError('Cached video has the wrong dimensions');
+  if (decode) {
+    try { await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-xerror', '-i', path, '-f', 'null', '-'], Math.max(60, Math.floor(frames / HOLD_FPS) * 5 + 30)); }
+    catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('Generated video contains undecodable frames'); }
+  }
+  return video;
+}
+// { size, mtimeMs } of a file (FileSystem.statSync crosses IPC, so only its plain fields are used), or null.
+function holdStat(path) {
+  try {
+    const stat = hostNeed('FileSystem', 'statSync').statSync(path);
+    return stat && Number.isFinite(stat.size) ? { size: stat.size, mtimeMs: Number(stat.mtimeMs) || 0 } : null;
+  } catch (error) { if (error?.code === 'host-missing') throw error; return null; }
+}
+async function holdKey(text) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+async function holdEncode(source, target, frames) {
+  const scale = 'scale=w=\'min(iw,' + HOLD_MAX_EDGE + ')\':h=\'min(ih,' + HOLD_MAX_EDGE + ')\':' +
+    'force_original_aspect_ratio=decrease:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2:0:0:black,setsar=1';
+  // -write_tmcd 0: a source's timecode tag would otherwise add a tmcd data track, failing the one-stream check.
+  const filters = 'fps=' + HOLD_FPS + ',tpad=stop_mode=clone:stop_duration=' + (frames / HOLD_FPS + 1).toFixed(6) + ',' + scale;
+  try {
+    await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-y', '-i', source, '-vf', filters, '-an', '-frames:v', String(frames),
+      '-r', String(HOLD_FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p',
+      '-movflags', '+faststart', '-write_tmcd', '0', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)));
+  } catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('ffmpeg could not extend the short video'); }
+}
+async function holdCached(videoPath, metaPath, identity, frames, dimensions) {
+  const fs = hostNeed('FileSystem', 'existsSync');
+  try {
+    if (!fs.existsSync(videoPath) || !fs.existsSync(metaPath)) return false;
+    const data = JSON.parse(await hostReadText(metaPath));
+    const stat = holdStat(videoPath);
+    if (data?.algorithm !== HOLD_ALGORITHM || data.sourceSize !== identity.size || data.sourceMtimeMs !== identity.mtimeMs ||
+        data.durationFrames !== frames || JSON.stringify(data.outputDimensions) !== JSON.stringify(dimensions) ||
+        !stat || data.outputSize !== stat.size) return false;
+    await holdValidate(videoPath, frames, dimensions);
+    return true;
+  } catch (error) { if (error?.code === 'host-missing') throw error; return false; }
+}
+async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot) {
+  const key = await holdKey([HOLD_ALGORITHM, holdPathKey(source), identity.size, identity.mtimeMs, frames, HOLD_FPS].join('\0'));
+  const videoPath = hostJoin(cacheRoot, key + '.mp4'), metaPath = hostJoin(cacheRoot, key + '.json');
+  const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
+  if (await holdCached(videoPath, metaPath, identity, frames, dimensions)) return { videoPath, dimensions, reused: true };
+  const fs = hostNeed('FileSystem', 'renameSync');
+  const writer = hostNeed('FileSystem', 'writeFile');
+  const stamp = Date.now() + '-' + Math.floor(Math.random() * 1e6);
+  const temporary = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.mp4.tmp');
+  const temporaryMeta = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.json.tmp');
+  const unchanged = () => { const now = holdStat(source); return !!now && now.size === identity.size && now.mtimeMs === identity.mtimeMs; };
+  try {
+    await holdEncode(source, temporary, frames);
+    if (!unchanged()) throw holdError('A video changed during extension');
+    await holdValidate(temporary, frames, dimensions, true);
+    const output = holdStat(temporary);
+    if (!output) throw holdError('ffmpeg could not extend the short video');
+    await writer.writeFile(temporaryMeta, JSON.stringify({ algorithm: HOLD_ALGORITHM, sourceSize: identity.size,
+      sourceMtimeMs: identity.mtimeMs, durationFrames: frames, outputDimensions: dimensions, outputSize: output.size }));
+    fs.renameSync(temporary, videoPath);
+    fs.renameSync(temporaryMeta, metaPath);
+  } finally {
+    await hostRemove(temporary);
+    await hostRemove(temporaryMeta);
+  }
+  return { videoPath, dimensions, reused: false };
+}
+// `request` is { videos: [{ path }], durationFrames }; `dataDir` is the plugin's data folder.
+async function holdVideos(request, dataDir) {
+  const videos = request?.videos, frames = request?.durationFrames;
+  if (!Array.isArray(videos) || videos.length < 1 || videos.length > HOLD_MAX_VIDEOS) throw holdError('Provide between 1 and 21 short videos');
+  if (!Number.isSafeInteger(frames) || frames < 1 || frames > HOLD_MAX_FRAMES) throw holdError('durationFrames must be a positive integer at most 36000');
+  if (!dataDir) throw holdError('The plugin data folder is unavailable');
+  hostNeed('Runtime', 'runFFmpeg'); hostNeed('Runtime', 'runFFprobe');
+  const cacheRoot = hostJoin(dataDir, 'held-v2');
+  hostNeed('FileSystem', 'mkdirSync').mkdirSync(cacheRoot, { recursive: true });
+  const exists = hostNeed('FileSystem', 'existsSync');
+  const completed = new Map(), output = [];
+  for (let index = 0; index < videos.length; index++) {
+    const raw = videos[index]?.path;
+    if (typeof raw !== 'string') throw holdError('Video ' + (index + 1) + ' needs a file path');
+    if (!raw || raw.includes('\0') || raw.length > 8192) throw holdError('Video ' + (index + 1) + ' has an invalid path');
+    try {
+      const identity = exists.existsSync(raw) ? holdStat(raw) : null;
+      if (!identity) throw holdError('Video is missing');
+      const id = holdPathKey(raw) + '\0' + identity.size + '\0' + identity.mtimeMs;
+      if (!completed.has(id)) {
+        const { video } = await holdProbe(raw, true);
+        if (!(Number(video.nb_read_frames) >= 1)) throw holdError('Video has no readable frames');
+        const sourceDimensions = [video.width, video.height];
+        const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot);
+        completed.set(id, { ...done, sourceDimensions });
+      }
+      const done = completed.get(id);
+      output.push({ inputIndex: index, sourcePath: raw, outputPath: done.videoPath, sourceWidth: done.sourceDimensions[0],
+        sourceHeight: done.sourceDimensions[1], outputWidth: done.dimensions[0], outputHeight: done.dimensions[1], cacheHit: done.reused });
+    } catch (error) {
+      if (error?.code === 'host-missing') throw error;
+      throw Object.assign(holdError('Video ' + (index + 1) + ': ' + String(error?.message || error)), { detail: error?.detail });
+    }
+  }
+  return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
+}
+// hold:end
+
+// tempo:start
+// Bounded local BPM suggestion (formerly tempo.py), plain JS so tests can run it in node:vm. The first 30 s are
+// decoded by the host's ffmpeg to mono samples at 11025 Hz (hostDecodePcm), quantized to 16-bit as tempo.py read
+// them, then a ~10 ms RMS onset envelope is autocorrelated over 70-180 BPM. Ambiguous or silent input yields no BPM.
+const TEMPO_RATE = 11025, TEMPO_HOP = 110, TEMPO_MIN_BPM = 70, TEMPO_MAX_BPM = 180, TEMPO_SECONDS = 30;
+// Python's round(): halves go to the even neighbour.
+function tempoRoundEven(x) { const r = Math.round(x); return Math.abs(x % 1) === 0.5 && r % 2 ? r - 1 : r; }
+// `samples`: mono floats in [-1, 1] at TEMPO_RATE. Returns { status: 'estimated', bpm } or { status: 'uncertain', reason }.
+function tempoEstimate(samples) {
+  if (samples.length < TEMPO_RATE * 6) return { status: 'uncertain', reason: 'At least six seconds of audio are needed' };
+  const pcm = Int16Array.from(samples, x => Math.max(-32768, Math.min(32767, tempoRoundEven(x * 32768))));
+  const energy = [];
+  for (let start = 0; start + TEMPO_HOP <= pcm.length; start += TEMPO_HOP) {
+    let sum = 0;
+    for (let i = start; i < start + TEMPO_HOP; i++) sum += pcm[i] * pcm[i];
+    energy.push(Math.sqrt(sum / TEMPO_HOP));
+  }
+  const onset = [];
+  for (let i = 1; i < energy.length; i++) onset.push(Math.max(0, energy[i] - energy[i - 1]));
+  if (onset.reduce((sum, v) => sum + v * v, 0) < 1) return { status: 'uncertain', reason: 'No detectable rhythmic audio' };
+  const lowerLag = tempoRoundEven(60 * TEMPO_RATE / (TEMPO_MAX_BPM * TEMPO_HOP));
+  const upperLag = tempoRoundEven(60 * TEMPO_RATE / (TEMPO_MIN_BPM * TEMPO_HOP));
+  const scores = [];
+  for (let lag = lowerLag; lag <= upperLag; lag++) {
+    const bpm = 60 * TEMPO_RATE / (lag * TEMPO_HOP);
+    if (bpm < TEMPO_MIN_BPM || bpm > TEMPO_MAX_BPM) continue;
+    let numerator = 0, left = 0, right = 0;
+    for (let i = 0; i + lag < onset.length; i++) {
+      numerator += onset[i] * onset[i + lag]; left += onset[i] * onset[i]; right += onset[i + lag] * onset[i + lag];
+    }
+    scores.push([left > 0 && right > 0 ? numerator / Math.sqrt(left * right) : 0, bpm, lag]);
+  }
+  // Highest correlation first; ties go to the higher BPM, then the larger lag (Python's reverse tuple sort).
+  scores.sort((a, b) => b[0] - a[0] || b[1] - a[1] || b[2] - a[2]);
+  const best = scores[0];
+  // A doubled interval repeats the same pulse; it is not independent evidence for a different tempo.
+  const unrelated = lag => Math.abs(lag - best[2]) > 4 && Math.abs(lag - 2 * best[2]) > 1 && Math.abs(best[2] - 2 * lag) > 1;
+  const runnerUp = scores.filter(entry => unrelated(entry[2])).reduce((max, entry) => Math.max(max, entry[0]), 0);
+  if (best[0] < 0.12 || best[0] < runnerUp * 1.08) return { status: 'uncertain', reason: 'Tempo is ambiguous; enter BPM manually' };
+  return { status: 'estimated', bpm: tempoRoundEven(best[1] * 10) / 10 };
+}
+// The estimate for an audio file, decoded through the host's ffmpeg into `dataDir`; never throws for bad audio.
+async function tempoOfFile(path, dataDir) {
+  let samples;
+  try { samples = await hostDecodePcm(path, dataDir, TEMPO_RATE, TEMPO_SECONDS, undefined, 45000); }
+  catch (error) {
+    if (error?.code === 'host-missing') throw error;
+    return { status: 'uncertain', reason: 'Audio could not be decoded' };
+  }
+  if (!samples) return { status: 'uncertain', reason: 'This Selects build cannot decode audio for the estimate' };
+  return tempoEstimate(samples);
+}
+// tempo:end
+
 const SLOT_KEYS = Array.from({ length: 21 }, (_, i) => `tile-${String(i + 1).padStart(2, '0')}`);
 const REFERENCE_VIDEO_SLOTS = new Set([4, 6, 11, 17, 19, 21]);
 const emptySlots = () => SLOT_KEYS.map(() => ({ resourceId: '', focusX: 0.5, focusY: 0.5 }));
-const shellQuote = value => "'" + String(value).replace(/'/g, "'\"'\"'") + "'";
-
-// A stock Mac has no Python, so runtime.sh fetches a pinned one on first use
-// (shared by every plugin under ~/.selects/plugin-data/_runtime) and prints its
-// path as the last line. One fetch per panel load; `preparing.say` is whoever is
-// showing progress at the time.
+// `preparing.say` is whoever is showing progress at the time (the Panel or a template run).
 const preparing = { say: null };
-let pythonPath = null;
-function runtimePython(sdk) {
-  if (!pythonPath) pythonPath = (async () => {
-    preparing.say?.('Preparing (first run only)…');
-    const r = await sdk.runShell({ summary: 'Prepare Python (first run only)',
-      command: 'sh "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/runtime.sh" python', timeoutMs: 290000, maxOutputBytes: 8000 });
-    const path = String(r.stdout || '').trim().split('\n').filter(Boolean).pop();
-    if (r.isError || r.exitCode !== 0 || !path?.startsWith('/')) throw new Error(String(r.stderr || '').trim().split('\n').filter(Boolean).pop() ||
-      'Could not prepare Python for Photo Grid Reveal. Check the internet connection, then try again.');
-    return path;
-  })().catch(error => { pythonPath = null; throw error; });
-  return pythonPath;
-}
 const STRINGS = {
   "ko": {
     "title": "Photo Grid Reveal",
@@ -464,15 +790,18 @@ const STRINGS = {
 // The bundled track, imported into the Project once; `durationFrames` is the
 // length it must cover.
 async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurrent, onImportStarted }) {
-  const located = await sdk.runShell({ summary: 'Locate bundled Photo Grid Reveal music',
-    command: 'printf %s "${SELECTS_USER_SKILLS_ROOT:-$HOME/.selects/skills}/photo-gallery-no2/assets/music.mp3"' });
-  if (located.isError || located.exitCode !== 0 || !located.stdout?.trim()) {
-    throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
-  }
+  // The installed asset through the host FileSystem (no shell), the same on macOS and Windows.
+  let musicPath = null;
+  try {
+    const { plugin } = await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md');
+    const path = hostJoin(plugin, 'assets', 'music.mp3');
+    if (hostNeed('FileSystem', 'existsSync').existsSync(path)) musicPath = path;
+  } catch { musicPath = null; }
+  if (!musicPath) throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
   if (!isCurrent()) throw new Error(t.changed);
   onImportStarted();
   const response = await sdk.runScript({ summary: 'Prepare bundled Photo Grid Reveal music', allowCommit: true,
-    script: buildScript({ operation: 'importBundledMusic', projectId, path: located.stdout.trim(), durationFrames }) });
+    script: buildScript({ operation: 'importBundledMusic', projectId, path: musicPath, durationFrames }) });
   if (response.result?.status === 'notSaved') throw Object.assign(new Error(response.result.message), { safeNotSaved: true });
   if (response.isError || response.result?.status !== 'musicReady') throw new Error(response.result?.message || response.output || t.unknown);
   return response.result.music;
@@ -484,24 +813,20 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
     throw new Error('A selected video has no verified duration.');
   }
   const shortVideos = videos.filter(item => item.durationFrames < frames);
-  const groups = [{ sources: shortVideos, key: 'videos', script: 'hold_video.py',
-    summary: 'Extend only short gallery videos with their last frame' }];
+  const groups = [{ sources: shortVideos, key: 'videos' }];
   const requestPaths = [];
   for (const group of groups) {
     if (!group.sources.length) continue;
     if (group.sources.some(item => !item.path)) throw new Error('Selected Project media has no readable file path.');
     if (!isCurrent()) throw new Error(t.changed);
     const request = { [group.key]: group.sources.map(item => ({ path: item.path })), durationFrames: frames };
-    const python = await runtimePython(sdk);
-    const command = 'printf %s ' + shellQuote(JSON.stringify(request)) +
-      ' | ' + shellQuote(python) + ' "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/' + group.script + '"';
-    const shell = await sdk.runShell({ command, summary: group.summary,
-      timeoutMs: 300000, maxOutputBytes: 49152 });
+    preparing.say?.('Extending short videos…');
     let converted;
-    try { converted = JSON.parse(shell.stdout); } catch { throw new Error(shell.stderr || shell.output || 'Media conversion produced no readable result.'); }
+    try { converted = await holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data); }
+    catch (error) { throw new Error(String(error?.message || error) || 'Media conversion failed.'); }
     const output = converted[group.key];
-    if (shell.isError || shell.exitCode !== 0 || converted.status !== 'converted' || output?.length !== group.sources.length) {
-      throw new Error(converted.message || shell.stderr || 'Media conversion failed.');
+    if (converted.status !== 'converted' || output?.length !== group.sources.length) {
+      throw new Error(converted.message || 'Media conversion failed.');
     }
     if (converted.fps !== 60 || converted.durationFrames !== frames || output.some((item, i) =>
       item.inputIndex !== i || item.sourcePath !== group.sources[i].path || typeof item.outputPath !== 'string')) {
@@ -677,12 +1002,7 @@ function GalleryPanel({ sdk, context, ui }) {
   async function estimateMusic(audio) {
     if (!audio?.path) throw new Error(t.uncertain);
     if (estimated?.resourceId === audio.resourceId) return estimated.bpm;
-    const python = await runtimePython(sdk);
-    const command = shellQuote(python) + ' "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/tempo.py" ' + shellQuote(audio.path);
-    const response = await sdk.runShell({ command, summary: 'Estimate BPM from selected Photo Gallery music', timeoutMs: 60000 });
-    if (response.isError || response.exitCode !== 0) throw new Error(response.stderr || response.output || t.uncertain);
-    let value;
-    try { value = JSON.parse(response.stdout); } catch { throw new Error(t.uncertain); }
+    const value = await tempoOfFile(audio.path, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data);
     if (value?.status !== 'estimated' || !Number.isFinite(value.bpm)) throw new Error(value?.reason || t.uncertain);
     setEstimated({ resourceId: audio.resourceId, bpm: value.bpm });
     return value.bpm;

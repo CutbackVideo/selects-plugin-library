@@ -15,7 +15,7 @@ with a fixed-size preview.
 - Optional synced narration per message:
   - **Local · Free** — [Kokoro](https://github.com/thewh1teagle/kokoro-onnx)
     ONNX text-to-speech, downloaded and run entirely on this machine (no
-    account, no per-use cost).
+    account, no per-use cost). macOS only for now.
   - **ElevenLabs** — cloud voices using your own ElevenLabs API key
     (metered by your ElevenLabs account).
 - Inserts the overlay (and narration audio, if generated) as separate,

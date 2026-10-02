@@ -42,10 +42,10 @@ const TIMING={stripFirst:.18,stripEvery:.174,stripEnd:3.58,flashAt:1.43,subjectE
   revealAt:5.95,revealEnd:13.55,slice:.125,end:13.575};
 // One clip per piece of the look, so each can be moved or edited on its own;
 // every animation runs on its own clip's clock.
-const TITLE=`import React from "react";import{AbsoluteFill,useCurrentFrame,useVideoConfig}from"remotion";const G="ABCDEFGHIJKLMNOPQRSTUVWXYZ";export default function Title({data}){const f=useCurrentFrame(),{fps,width,height}=useVideoConfig(),k=Math.min(width/1920,height/1080),s=f/fps,settle=Number(data.settleSeconds||.913),tick=Number(data.tickSeconds||.083),t=(v=>data.upper===false?v:v.toUpperCase())(String(data.title||"SWITZERLAND")),n=Math.max(1,t.length-1),seed=i=>{const v=Math.sin((i+1)*78.233)*43758.5453;return v-Math.floor(v)},steps=Math.max(1,Math.round(settle/tick)),order=i=>.2+.8*(.7*i/n+.3*seed(i)),last=Math.max(0,...Array.from(t).map((c,i)=>c===" "?0:order(i)))||1,lockAt=i=>tick*Math.max(1,Math.round(steps*order(i)/last)),roll=Math.floor(s/tick),shown=Array.from(t).map((c,i)=>c===" "||s>=lockAt(i)?c:G[Math.floor(seed(i*31+roll)*G.length)]).join(""),fam=String(data.fontFamily||"").trim(),ff=(fam?'"'+fam+'", ':"")+'"DIN Condensed","Bahnschrift Condensed","Arial Narrow",sans-serif';return <AbsoluteFill style={{pointerEvents:"none"}}><div style={{position:"absolute",top:Number(data.titleY??49)+"%",left:Number(data.titleX??50)+"%",transform:"translateX(-50%)",color:String(data.titleColor||"#ed0000"),fontFamily:ff,fontSize:Number(data.titleSize||244)*k,fontWeight:700,lineHeight:1,whiteSpace:"nowrap"}}>{shown}</div></AbsoluteFill>}`;
+const TITLE=`import React from "react";import{AbsoluteFill,useCurrentFrame,useVideoConfig}from"remotion";const G="ABCDEFGHIJKLMNOPQRSTUVWXYZ";export default function Title({data}){const f=useCurrentFrame(),{fps,width,height}=useVideoConfig(),k=Math.min(width/1920,height/1080),s=f/fps,settle=Number(data.settleSeconds||.913),tick=Number(data.tickSeconds||.083),t=(v=>data.upper===false?v:v.toUpperCase())(String(data.title||"SWITZERLAND")),n=Math.max(1,t.length-1),seed=i=>{const v=Math.sin((i+1)*78.233)*43758.5453;return v-Math.floor(v)},steps=Math.max(1,Math.round(settle/tick)),order=i=>.2+.8*(.7*i/n+.3*seed(i)),last=Math.max(0,...Array.from(t).map((c,i)=>c===" "?0:order(i)))||1,lockAt=i=>tick*Math.max(1,Math.round(steps*order(i)/last)),roll=Math.floor(s/tick),shown=Array.from(t).map((c,i)=>c===" "||s>=lockAt(i)?c:G[Math.floor(seed(i*31+roll)*G.length)]).join(""),fam=String(data.fontFamily||"").trim(),ff=(fam?'"'+fam+'", ':"")+'"DIN Condensed","Bahnschrift Condensed","Bahnschrift","Arial Narrow",sans-serif';return <AbsoluteFill style={{pointerEvents:"none"}}><div style={{position:"absolute",top:Number(data.titleY??49)+"%",left:Number(data.titleX??50)+"%",transform:"translateX(-50%)",color:String(data.titleColor||"#ed0000"),fontFamily:ff,fontSize:Number(data.titleSize||244)*k,fontWeight:700,lineHeight:1,whiteSpace:"nowrap"}}>{shown}</div></AbsoluteFill>}`;
 // The subtitle spans the title: first words at its left edge, the last word at
 // its right, measured off an invisible copy of the title.
-const SUBTITLE=`import React from "react";import{AbsoluteFill,useVideoConfig}from"remotion";export default function Subtitle({data}){const{width,height}=useVideoConfig(),k=Math.min(width/1920,height/1080),words=String(data.subtitle||"moving postcards from").trim().split(/\\s+/),last=words.length>1?words.pop():"",first=words.join(" "),fam=String(data.fontFamily||"").trim(),ff=(fam?'"'+fam+'", ':"")+'"DIN Condensed","Bahnschrift Condensed","Arial Narrow",sans-serif',small=Number(data.subtitleSize||60)*k,big=Number(data.titleSize||244)*k,lift=Math.max(small*.05,big*.172-small*.183);return <AbsoluteFill style={{pointerEvents:"none"}}><div style={{position:"absolute",top:Number(data.titleY??49)+"%",left:Number(data.titleX??50)+"%",transform:"translateX(-50%)",display:"flex",flexDirection:"column",width:"max-content"}}><div style={{height:0,display:"flex",alignItems:"flex-end",justifyContent:"space-between",gap:small*.28,padding:"0 "+big*.088+"px",transform:"translateY("+(-lift)+"px)",color:String(data.subtitleColor||"#f5f3f5"),fontFamily:'"Avenir Next","Helvetica Neue",Arial,sans-serif',fontWeight:400,fontSize:small,lineHeight:1,whiteSpace:"nowrap"}}><span>{first}</span><span>{last}</span></div><div style={{visibility:"hidden",fontFamily:ff,fontSize:big,fontWeight:700,lineHeight:1,whiteSpace:"nowrap"}}>{(v=>data.upper===false?v:v.toUpperCase())(String(data.title||"SWITZERLAND"))}</div></div></AbsoluteFill>}`;
+const SUBTITLE=`import React from "react";import{AbsoluteFill,useVideoConfig}from"remotion";export default function Subtitle({data}){const{width,height}=useVideoConfig(),k=Math.min(width/1920,height/1080),words=String(data.subtitle||"moving postcards from").trim().split(/\\s+/),last=words.length>1?words.pop():"",first=words.join(" "),fam=String(data.fontFamily||"").trim(),ff=(fam?'"'+fam+'", ':"")+'"DIN Condensed","Bahnschrift Condensed","Bahnschrift","Arial Narrow",sans-serif',small=Number(data.subtitleSize||60)*k,big=Number(data.titleSize||244)*k,lift=Math.max(small*.05,big*.172-small*.183);return <AbsoluteFill style={{pointerEvents:"none"}}><div style={{position:"absolute",top:Number(data.titleY??49)+"%",left:Number(data.titleX??50)+"%",transform:"translateX(-50%)",display:"flex",flexDirection:"column",width:"max-content"}}><div style={{height:0,display:"flex",alignItems:"flex-end",justifyContent:"space-between",gap:small*.28,padding:"0 "+big*.088+"px",transform:"translateY("+(-lift)+"px)",color:String(data.subtitleColor||"#f5f3f5"),fontFamily:'"Avenir Next","Helvetica Neue",Arial,sans-serif',fontWeight:400,fontSize:small,lineHeight:1,whiteSpace:"nowrap"}}><span>{first}</span><span>{last}</span></div><div style={{visibility:"hidden",fontFamily:ff,fontSize:big,fontWeight:700,lineHeight:1,whiteSpace:"nowrap"}}>{(v=>data.upper===false?v:v.toUpperCase())(String(data.title||"SWITZERLAND"))}</div></div></AbsoluteFill>}`;
 const PANEL=`import React from "react";import{AbsoluteFill,interpolate,useCurrentFrame,useVideoConfig}from"remotion";export default function P({Source,data}){const f=useCurrentFrame(),{fps}=useVideoConfig(),secs=Number(data.revealSeconds||0),p=secs>0?interpolate(f,[0,fps*secs],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"}):1,l=Number(data.leftPct||0),r=l+(Number(data.rightPct||100)-l)*p;return <AbsoluteFill style={{clipPath:"inset(0 "+(100-r)+"% 0 "+l+"%)"}}><Source/></AbsoluteFill>}`;
 // One bite of the close: the bars slide from one height to the next, then hold.
 const CLOSE=`import React from "react";import{AbsoluteFill,useCurrentFrame,useVideoConfig}from"remotion";export default function Close({data}){const f=useCurrentFrame(),{fps}=useVideoConfig(),p=Math.max(0,Math.min(1,f/fps/Number(data.slideSeconds||.22))),from=Number(data.from??0),to=Number(data.to??1),h=(from+(to-from)*p)*50;if(h<=0)return null;return <AbsoluteFill style={{pointerEvents:"none"}}><div style={{position:"absolute",inset:"0 0 auto 0",height:h+"%",background:"#000"}}/><div style={{position:"absolute",inset:"auto 0 0 0",height:h+"%",background:"#000"}}/></AbsoluteFill>}`;
@@ -53,9 +53,8 @@ const CLOSE=`import React from "react";import{AbsoluteFill,useCurrentFrame,useVi
 const REVEAL=`import React from "react";import{AbsoluteFill,useCurrentFrame,useVideoConfig}from"remotion";export default function Reveal({data}){const f=useCurrentFrame(),{fps}=useVideoConfig(),h=(1-Math.max(0,Math.min(1,f/fps/Number(data.openSeconds||7.6))))*50;if(h<=0)return null;return <AbsoluteFill style={{pointerEvents:"none"}}><div style={{position:"absolute",inset:"0 0 auto 0",height:h+"%",background:"#000"}}/><div style={{position:"absolute",inset:"auto 0 0 0",height:h+"%",background:"#000"}}/></AbsoluteFill>}`;
 const VERSION='0.2.0-alpha.3';
 const LOG_ROOT='';
-const HELPER='"$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/pipeline.py"';
 const DEFAULTS={subjectId:'',subjectStartSec:0,bgIds:['','',''],photoIds:['','',''],title:'SWITZERLAND',upperTitle:true,subtitle:'moving postcards from',fontFamily:'DIN Condensed',titleColor:'#ed0000',subtitleColor:'#f5f3f5',aspect:'landscape',fitMode:'cover',forceNew:false,autoExport:false};
-const json=JSON.stringify,quote=x=>"'"+String(x).replace(/'/g,"'\\''")+"'",sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const json=JSON.stringify,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const MAX_SUBJECT=1,MAX_PANELS=6,MAX_ENDING=12;
 // The subject is on screen until the flash is over; the cutout check also
 // compares the window half a second later, so a short clip is held to 2.1s.
@@ -66,15 +65,150 @@ const isVideo=x=>/\.(mp4|mov|mkv|webm|m4v)$/i.test(x.path),isPhoto=x=>/\.(png|jp
 function layout(s,size){const w=Number(size?.width),h=Number(size?.height);if(!(w>0&&h>0))throw Error('Could not read the source video dimensions.');const [width,height]=({original:[w,h],landscape:[1920,1080],portrait:[1080,1920],square:[1080,1080]})[s.aspect]||[1920,1080];return{width,height,scale:s.fitMode==='contain'?1:Math.max(width/w,height/h)/Math.min(width/w,height/h)}}
 const MASK=`import React from 'react';import{AbsoluteFill,Img,useCurrentFrame,useVideoConfig}from'remotion';export default function Mask({Source,data}){const f=useCurrentFrame(),{fps}=useVideoConfig(),t=f/fps+Number(data.sourceStartSeconds||0),i=Math.round(t*data.maskFps);if(i<0||i>=data.count)return null;const url=data.baseUrl+'/mask_'+String(i+1).padStart(6,'0')+'.png',white=!!data.white;return <AbsoluteFill style={{filter:white?'brightness(0) invert(1)':'none'}}><Img src={url} style={{position:'absolute',width:'100%',height:'100%',opacity:0}}/><AbsoluteFill style={{maskImage:'url("'+url+'")',maskMode:'luminance',maskSize:'100% 100%',maskRepeat:'no-repeat'}}><Source/></AbsoluteFill></AbsoluteFill>}`;
 async function runScript(sdk,script,summary,allowCommit=false){const t0=performance.now(),r=await sdk.runScript({script,summary,allowCommit});traceStep('script: '+summary,t0);if(r.isError)throw Error(r.output||'Could not complete this action.');if(r.result==null)throw Error('The response was too large. Refresh your media and try again.');return r.result}
+// av-host:start
+// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
+// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
+// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
+// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
+// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
+// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
+// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+function hostApi(name, ...methods) {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
+function hostNeed(name, method) {
+  const s = hostApi(name, method);
+  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  return s;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+function hostIsWindows() {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
+function hostJoin(...parts) {
+  const fs = hostApi("FileSystem", "join");
+  if (fs) { try { return String(fs.join(...parts)); } catch { /* join by hand */ } }
+  const sep = hostIsWindows() ? "\\" : "/";
+  return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
+}
+// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
+// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
+// the internal [[Class]] tag and array-likeness instead.
+function hostBytes(v) {
+  const tag = (x) => Object.prototype.toString.call(x);
+  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
+  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
+    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
+  }
+  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
+  throw hostError("read-failed", "the file could not be read");
+}
+// A file's bytes (FileSystem.readFile without an encoding).
+async function hostReadBytes(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
+  return hostBytes(v);
+}
+// A text file (some host builds return text directly, others bytes).
+async function hostReadText(path) {
+  const v = await hostNeed("FileSystem", "readFile").readFile(path);
+  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
+}
+// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
+// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+async function hostRemove(path) {
+  let fs = null;
+  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
+  if (!fs) return;
+  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
+    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
+  for (const [name, call] of tries) {
+    if (typeof fs[name] !== "function") continue;
+    try { await call(); return; } catch { /* the next one */ }
+  }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+async function hostRoots(sdk, id, marker) {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
+// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
+// throws when ffmpeg fails or `signal` (optional) aborts it.
+async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
+  const rt = hostApi("Runtime", "runFFmpeg");
+  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
+  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const relay = () => { if (controller) controller.abort(); };
+  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
+  try {
+    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
+    const bytes = await hostReadBytes(tmp);
+    // A copy, so the samples sit on a 4-byte boundary.
+    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
+    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
+    return samples;
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal) signal.removeEventListener("abort", relay);
+    await hostRemove(tmp);
+  }
+}
+// An audio or video file's length in seconds from the host's ffprobe, or null.
+async function hostProbeSeconds(path) {
+  try {
+    const rt = hostApi("Runtime", "runFFprobe");
+    if (!rt) return null;
+    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
+    const v = parseFloat(String(r?.stdout || "").trim());
+    return v > 0 ? v : null;
+  } catch { return null; }
+}
+// av-host:end
 // Each host round trip is timed so a run's log shows where its seconds went.
 // A media row with the size it is shown at, when the helper could read one.
 function sized(row,size){return row&&size?.width&&size?.height?{...row,frameSize:size}:row}
 function traceStep(label,t0){(window.__postcardTrace??=[]).push([label,Math.round(t0-(window.__postcardTraceStart||t0)),Math.round(performance.now()-t0)])}
+// Every helper op (run state, holds, cutout input, masks, previews) runs pipeline.py in a pinned Python through the
+// macOS shell; it needs fcntl and a POSIX shell, so on Windows each op stops here before anything runs.
+const MAC_ONLY='Available on macOS for now.';
+const preparing={say:null};
+async function helper(sdk,op,args={}){if(hostIsWindows())throw Error(MAC_ONLY);return macHelper(sdk,op,args)}
+// mac-only:start
+// Reached only when hostIsWindows() is false (helper above, and the editor's effects that return first on Windows).
 // A stock Mac has no Python, so runtime.sh fetches a pinned one on first use
 // (shared by every plugin under ~/.selects/plugin-data/_runtime) and prints its
 // path as the last line. One fetch per panel load, however many helpers ask at
 // once; `preparing.say` is whoever is showing progress at the time.
-const preparing={say:null};let pythonPath=null;
+let pythonPath=null;
 function runtimePython(sdk){
  if(!pythonPath)pythonPath=(async()=>{
   preparing.say?.('Preparing (first run only)\u2026');
@@ -85,7 +219,13 @@ function runtimePython(sdk){
  })().catch(e=>{pythonPath=null;throw e});
  return pythonPath;
 }
-async function helper(sdk,op,args={}){const python=await runtimePython(sdk);const t0=performance.now(),r=await sdk.runShell({summary:'Postcard '+op,command:`${quote(python)} ${HELPER} ${quote(op)} ${quote(json(args))}`,timeoutMs:180000,maxOutputBytes:49152});traceStep('shell: '+op,t0);if(r.isError||r.exitCode!==0)throw Error(r.stderr||r.output||'Helper failed');return JSON.parse(r.stdout)}
+const HELPER='"$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/pipeline.py"',quote=x=>"'"+String(x).replace(/'/g,"'\\''")+"'";
+async function macHelper(sdk,op,args={}){const python=await runtimePython(sdk);const t0=performance.now(),r=await sdk.runShell({summary:'Postcard '+op,command:`${quote(python)} ${HELPER} ${quote(op)} ${quote(json(args))}`,timeoutMs:180000,maxOutputBytes:49152});traceStep('shell: '+op,t0);if(r.isError||r.exitCode!==0)throw Error(r.stderr||r.output||'Helper failed');return JSON.parse(r.stdout)}
+// The exported file decodes end to end (ffprobe + ffmpeg -f null).
+function macDecodeCheck(sdk,path){return sdk.runShell({summary:'Decode exported postcard',command:`ffprobe -v error -show_entries stream=codec_name,width,height,nb_frames,r_frame_rate -show_entries format=duration,size -of json ${quote(path)} && ffmpeg -v error -i ${quote(path)} -f null -`,timeoutMs:180000,maxOutputBytes:10000})}
+function macProbeSubject(sdk,path){return sdk.runShell({summary:'Probe subject duration',command:`ffprobe -v error -select_streams v:0 -show_entries format=duration:stream=width,height -of json ${quote(path)}`,timeoutMs:15000,maxOutputBytes:2000})}
+async function macRangePreview(sdk,path,start,end){const python=await runtimePython(sdk);return sdk.runShell({summary:'Preview selected range',command:`${quote(python)} "$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/scene_preview.py" ${quote(path)} ${start} ${end} 4`,timeoutMs:30000,maxOutputBytes:49152})}
+// mac-only:end
 function inventoryCode(pid,offset=0){return `const p=selects.project(${json(pid)});const rs=await p.resources();let sf,warning='';try{sf=await p.sourceFiles()}catch{sf=await p.sourceFiles({folder:'(root)'});warning='Only top-level media could be loaded. Refresh media to retry the full library.'}const flat=(ns,o=[])=>{for(const n of ns||[])n.type==='dir'?flat(n.children,o):n.path&&o.push(n);return o};let fs=[];if('fileTree'in sf)fs=flat(sf.fileTree);else for(const f of sf.folders||[]){const s=await p.sourceFiles({folder:f.name});if('fileTree'in s)fs.push(...flat(s.fileTree))}const by=new Map(fs.map(f=>[f.resourceId,f]));const inventory=rs.flatMap(r=>{const f=by.get(r.resourceId);return f?.path?[{resourceId:r.resourceId,name:r.name,path:f.path,durationSeconds:r.durationSeconds||f.durationSeconds||null,frameSize:f.frameSize||null,frameRate:f.frameRate||null}]:[]});return {rows:inventory.slice(${offset},${offset+32}),total:inventory.length,warning}`}
 // A sound with takes in the manifest (`panel.1`..`panel.6`, `curtain.1`..) gets a
 // different take on each hit, as the reference never repeats one; others play as-is.
@@ -205,7 +345,7 @@ return {...r,generation:done,phase:'cutoutReady',finished:{durationMs:Date.now()
 async function exportRun(r){guard(r.projectId);await helper(sdk,'ensure');
 if(r.phase==='draftReady'){r=await claim(r,['draftReady'],{phase:'exportSubmitting',exportStartedMs:Date.now()},'export');const outPath=r.logDir+'/final.mp4';const result=await runScript(sdk,`const e=await selects.export.video({projectId:${json(r.projectId)},draftSequenceId:${json(r.draftId)},outPath:${json(outPath)},resolution:'FHD'});return{workflowId:e.workflowId,outPath:${json(outPath)}}`,'Start postcard Export',true);r=await persist(r,{phase:'exportPending',export:result},'export','submitted',result)}
 if(r.phase!=='exportPending')throw Error('The panel will not resubmit an Export with an uncertain submission state. Inspect the run log.');
-for(let i=0;i<90;i++){guard(r.projectId);const w=await runScript(sdk,`return(await selects.project(${json(r.projectId)}).workflows()).find(w=>w.workflowId===${json(r.export.workflowId)})||{status:'unknown'}`,'Check postcard Export');setStatus('Export: '+w.status+' '+Math.round((w.progress||0)*100)+'%');if(w.status==='succeeded'){r=await persist(r,{phase:'exportRendered'},'export','end',{durationMs:Date.now()-r.exportStartedMs,workflow:w,wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});const q=await sdk.runShell({summary:'Decode exported postcard',command:`ffprobe -v error -show_entries stream=codec_name,width,height,nb_frames,r_frame_rate -show_entries format=duration,size -of json ${quote(r.export.outPath)} && ffmpeg -v error -i ${quote(r.export.outPath)} -f null -`,timeoutMs:180000,maxOutputBytes:10000});await helper(sdk,'event',{runId:r.runId,stage:'decode-check',status:q.exitCode===0?'end':'failed',details:{exitCode:q.exitCode,stdout:q.stdout,stderr:q.stderr}});if(q.exitCode!==0)throw Error('The exported file failed decode verification.');r=await persist(r,{phase:'complete',finishedMs:Date.now()},'run','end',{wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});setStatus('Complete · '+r.export.outPath+' · total '+((Date.now()-r.startedMs)/1000).toFixed(1)+'s');return r}if(['failed','canceled','cancelled'].includes(w.status)){r=await persist(r,{phase:'exportFailed',export:{...r.export,terminalStatus:w.status}},'export','failed',{workflow:w,durationMs:Date.now()-r.exportStartedMs});throw Error(w.lastErrorMessage||'Export failed. It will not be resubmitted automatically.')}await sleep(2000)}setStatus('Export is still running. Resume this run to check the same Export.');return r;
+for(let i=0;i<90;i++){guard(r.projectId);const w=await runScript(sdk,`return(await selects.project(${json(r.projectId)}).workflows()).find(w=>w.workflowId===${json(r.export.workflowId)})||{status:'unknown'}`,'Check postcard Export');setStatus('Export: '+w.status+' '+Math.round((w.progress||0)*100)+'%');if(w.status==='succeeded'){r=await persist(r,{phase:'exportRendered'},'export','end',{durationMs:Date.now()-r.exportStartedMs,workflow:w,wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});const q=await macDecodeCheck(sdk,r.export.outPath);await helper(sdk,'event',{runId:r.runId,stage:'decode-check',status:q.exitCode===0?'end':'failed',details:{exitCode:q.exitCode,stdout:q.stdout,stderr:q.stderr}});if(q.exitCode!==0)throw Error('The exported file failed decode verification.');r=await persist(r,{phase:'complete',finishedMs:Date.now()},'run','end',{wallClockMs:Date.now()-r.startedMs,outPath:r.export.outPath});setStatus('Complete · '+r.export.outPath+' · total '+((Date.now()-r.startedMs)/1000).toFixed(1)+'s');return r}if(['failed','canceled','cancelled'].includes(w.status)){r=await persist(r,{phase:'exportFailed',export:{...r.export,terminalStatus:w.status}},'export','failed',{workflow:w,durationMs:Date.now()-r.exportStartedMs});throw Error(w.lastErrorMessage||'Export failed. It will not be resubmitted automatically.')}await sleep(2000)}setStatus('Export is still running. Resume this run to check the same Export.');return r;
 }
 // One pass of a run: prepares the picks, then carries the run as far as it
 // goes. Returns the run as it stands when the pass ends; a failure carries it
@@ -391,6 +531,7 @@ function templateMessage(e){
   return said&&said.length<=200&&!/[\n\r]|Traceback|\{|"\w+":/.test(said)?said:TEMPLATE_FAILED;
 }
 async function runTemplate({sdk,pid,template,sequenceId,guard,setStatus}){
+  if(hostIsWindows())throw Error(MAC_ONLY);
   window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
   if(!pid)throw Error('Open a project, then try again.');
   guard(pid);
@@ -475,6 +616,8 @@ export default function PostcardPanel(props){return props.context.template?<Post
 function PostcardEditor({sdk,context,ui}){
 const [s,setS]=useState({...DEFAULTS,bgIds:[],photoIds:[],aspect:'original',title:'MY POSTCARD'}),[rows,setRows]=useState([]),[loading,setLoading]=useState(false),[hydrated,setHydrated]=useState(true),[busy,setBusy]=useState(false),[status,setStatus]=useState(''),[run,setRun]=useState(null),[duration,setDuration]=useState(0),[sourceError,setSourceError]=useState(false),[preview,setPreview]=useState([]);
 const busyRef=useRef(false),projectRef=useRef(context.projectId);projectRef.current=context.projectId;
+// Windows: no helper, so nothing can be listed, previewed or built; the panel says so and every action stops first.
+const macOnly=useMemo(()=>hostIsWindows(),[]);
 const byId=useMemo(()=>new Map(rows.map(x=>[x.resourceId,x])),[rows]),subject=byId.get(s.subjectId),videos=rows.filter(isSubject),images=rows.filter(isPhoto),change=(key,value)=>{dirty.current=true;setS(old=>({...old,[key]:value,forceNew:false,autoExport:false}));};
 
 const [error,setError]=useState(''),[tab,setTab]=useState('all'),[query,setQuery]=useState(''),[page,setPage]=useState(0),[customize,setCustomize]=useState(false);
@@ -484,6 +627,7 @@ const stripAsked=useRef(new Set()),hoverTimer=useRef(0);
 const [folder,setFolder]=useState(null),[folderIds,setFolderIds]=useState([]),[selection,setSelection]=useState([]),[picking,setPicking]=useState(false);
 const folderBusy=useRef(false);
 async function readFolder(path,offset=0,search=''){
+  if(macOnly){setError(MAC_ONLY);return;}
   setLoading(true);setError('');
   try{
     const result=await helper(sdk,'folder-media',{path,offset,query:search});guard(context.projectId);
@@ -510,13 +654,14 @@ function startOver(){
   setFolder(null);setFolderIds([]);clearPicks();
 }
 async function abandonRun(){
-  if(folderBusy.current||busyRef.current||!run||!canAbandon)return;
+  if(macOnly||folderBusy.current||busyRef.current||!run||!canAbandon)return;
   try{await helper(sdk,'update',{runId:run.runId,patch:{phase:'abandoned'},stage:'pipeline',status:'abandoned',details:{by:'user',from:run.phase}});}
   catch(e){setError(e instanceof Error?e.message:String(e));return;}
   setRun(null);setError('');setStatus('');setQuery('');setPage(0);
   setFolder(null);setFolderIds([]);clearPicks();
 }
 async function chooseFolder(){
+  if(macOnly){setError(MAC_ONLY);return;}
   if(folderBusy.current||busyRef.current||locked)return;
   folderBusy.current=true;setPicking(true);setError('');
   try{
@@ -529,6 +674,7 @@ async function chooseFolder(){
 }
 async function dropFolder(event){
   event.preventDefault();
+  if(macOnly){setError(MAC_ONLY);return;}
   if(folderBusy.current||busyRef.current||locked)return;
   const files=event.dataTransfer.files;
   if(files.length!==1){setError('Drop one folder at a time. Your selections will be kept.');return;}
@@ -541,11 +687,11 @@ async function dropFolder(event){
 const dirty=useRef(false);
 useEffect(()=>()=>{projectRef.current=null},[]);
 useEffect(()=>{preparing.say=setStatus;return()=>{if(preparing.say===setStatus)preparing.say=null}},[]);
-useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(!subject?.path)return;const path=subject.path;(async()=>{try{const r=await sdk.runShell({summary:'Probe subject duration',command:`ffprobe -v error -select_streams v:0 -show_entries format=duration:stream=width,height -of json ${quote(path)}`,timeoutMs:15000,maxOutputBytes:2000});if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
-useEffect(()=>{let alive=true;if(!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const python=await runtimePython(sdk);const r=await sdk.runShell({summary:'Preview selected range',command:`${quote(python)} "$SELECTS_USER_SKILLS_ROOT/postcard-cutout-studio/scene_preview.py" ${quote(subject.path)} ${s.subjectStartSec} ${Math.min(duration,s.subjectStartSec+8.5)} 4`,timeoutMs:30000,maxOutputBytes:49152});if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
+useEffect(()=>{let alive=true;setSourceError(false);setPreview([]);setDuration(Number(subject?.durationSeconds)||0);if(macOnly||!subject?.path)return;const path=subject.path;(async()=>{try{const r=await macProbeSubject(sdk,path);if(r.isError||r.exitCode!==0)throw Error(r.stderr);const info=JSON.parse(r.stdout),d=Number(info.format?.duration)||Number(subject.durationSeconds)||0;if(!alive)return;setDuration(d);setRows(old=>old.map(row=>row.path===path?{...row,durationSeconds:d,frameSize:{width:info.streams?.[0]?.width,height:info.streams?.[0]?.height}}:row));}catch(e){if(alive){setSourceError(true);setStatus('Preview: '+e.message)}}})();return()=>{alive=false}},[subject?.path]);
+useEffect(()=>{let alive=true;if(macOnly||!customize||!subject?.path||!duration)return;const t=setTimeout(async()=>{try{const r=await macRangePreview(sdk,subject.path,s.subjectStartSec,Math.min(duration,s.subjectStartSec+8.5));if(alive&&r.exitCode===0)setPreview(JSON.parse(r.stdout).frames||[])}catch(e){if(alive)setStatus(e.message)}},250);return()=>{alive=false;clearTimeout(t)}},[subject?.path,duration,s.subjectStartSec,customize]);
 function guard(pid){if(projectRef.current!==pid)throw Error('The Project changed. Stopped without resubmitting the current operation.')}
 const runner=createRunner({sdk,guard,setRun,setStatus});
-async function execute(kind){if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
+async function execute(kind){if(macOnly){setError(MAC_ONLY);return;}if(busyRef.current)return;setError('');busyRef.current=true;setBusy(true);let current=run;window.__postcardTrace=[];window.__postcardTraceStart=performance.now();
 try{await runner.build(kind,{pid:context.projectId,settings:s,rows,run,duration,setSettings:setS,onMapped:(mapped,next)=>{setRows(old=>old.map(row=>{const m=mapped.get(row.resourceId);return m?{...row,resourceId:m.resourceId}:row;}));setSelection(old=>old.map(id=>mapped.get(id)?.resourceId||id));setFolderIds(old=>old.map(id=>mapped.get(id)?.resourceId||id));setS(next);}});
 }catch(e){current=e?.run??current;setError('We could not finish your postcard. Your progress is saved. See details below.');setStatus(String(e.message||e));if(current?.runId)try{await helper(sdk,'event',{runId:current.runId,stage:'pipeline',status:'failed',details:{error:String(e.stack||e)}})}catch{}}finally{busyRef.current=false;setBusy(false)}}
 
@@ -568,6 +714,7 @@ const thumbnailRows=!folder&&selection.length===0?chosen.map(id=>byId.get(id)).f
 const thumbKey=thumbnailRows.map(x=>x.path).join('|');
 const STRIP_FRAMES=10;
 useEffect(()=>{
+  if(macOnly)return;
   let alive=true;
   const queue=[...new Map(thumbnailRows.filter(row=>thumbs[row.path]===undefined).map(row=>[row.path,row])).values()];
   if(!queue.length)return;
@@ -596,7 +743,7 @@ useEffect(()=>{
 // nothing, and the scrub itself is a background offset on an image already in
 // the page — no request, no decode, no state beyond which frame is showing.
 function beginScrub(row){
-  if(!isVideo(row))return;
+  if(macOnly||!isVideo(row))return;
   clearTimeout(hoverTimer.current);
   const path=row.path;
   hoverTimer.current=setTimeout(async()=>{
@@ -636,7 +783,7 @@ useEffect(()=>{
 // to strand it wherever it stood - a paid cutout could sit uncollected for good.
 // On open, an unfinished run for this project is taken back up; the effect
 // above then carries it the rest of the way.
-useEffect(()=>{let alive=true;(async()=>{try{
+useEffect(()=>{let alive=true;if(macOnly)return;(async()=>{try{
   const prev=await helper(sdk,'load',{projectId:context.projectId});
   if(!alive||!prev||['draftReady','complete','abandoned','exportFailed','generationFailed'].includes(prev.phase))return;
   if(prev.settings)setS(old=>({...old,...prev.settings}));
@@ -711,12 +858,13 @@ const selectionNeed=!subject?'Create':sourceError?'Reconnect':isVideo(subject)&&
 if(!context.projectId)return <ui.Message>Open a project to make a postcard.</ui.Message>;
 return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh - var(--panel-gap))',display:'flex',flexDirection:'column'}}>
   <style>{'.pc-tile{outline:none}.pc-tile:focus-visible .pc-ring{outline:2px solid var(--panel-ring);outline-offset:-5px}.pc-bar{display:flex;align-items:center;gap:8px;padding-top:4px}.pc-count{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pc-actions{display:flex;gap:8px;flex:0 0 auto;margin-left:auto}@media (max-width:359px){.pc-bar{flex-wrap:wrap}.pc-count{flex-basis:100%}.pc-actions{flex:1 1 100%}.pc-actions>*{flex:1 1 0}}'}</style>
-  <div style={{flex:'1 1 auto',minHeight:0,overflowY:'auto',paddingBottom:GAP}}>
+  <div style={{flex:'1 1 auto',minHeight:0,overflowY:'auto',scrollbarGutter:'stable',paddingBottom:GAP}}>
   {!folder&&selection.length===0&&!active&&!hasDraft?<div onDragOver={event=>event.preventDefault()} onDrop={dropFolder} style={{...pane,padding:GAP_LG+' '+GAP_LG,textAlign:'center',display:'grid',gap:GAP_LG}}>
     <div style={{display:'flex',justifyContent:'center'}}><ui.Icon name="folder" size={16}/></div>
     <strong>Start with a folder of memories.</strong>
     <p style={{...muted,margin:0}}>Drop a folder here, or choose one below.<br/>Nothing is imported until you create.</p>
-    <ui.Actions><ui.Button variant="primary" disabled={picking||loading} onClick={chooseFolder}>Choose Folder</ui.Button></ui.Actions>
+    {macOnly&&<p style={{...muted,margin:0}}>{MAC_ONLY}</p>}
+    <ui.Actions><ui.Button variant="primary" disabled={picking||loading||macOnly} onClick={chooseFolder}>Choose Folder</ui.Button></ui.Actions>
   </div>:cardView?<>
     {/* What was made, and the two things to do with it. The screen this
         replaced showed the setup form again, so finishing a postcard looked
@@ -818,7 +966,7 @@ return <div style={{maxWidth:640,margin:'0 auto',minWidth:0,height:'calc(100vh -
     {/* The kit's Actions stacks every button full width under 360px, which
         made this bar four lines tall in a docked panel. This row keeps the
         two buttons side by side at any width; only the count wraps above. */}
-    <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}{canAbandon&&<ui.Button variant="ghost" onClick={()=>void abandonRun()}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error)} busyLabel={friendlyPhase(run?.phase)} disabled={loading||picking||(!active&&!hasDraft&&!!blocker)} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
+    <div className="pc-bar">{!cardView&&<small className="pc-count" aria-live="polite" style={muted}>{hasDraft?'Ready':draftDrifted?(driftNeedsCutout?'Changed \u00b7 needs a new cutout':'Changed \u00b7 cutout is reused'):selection.length?selection.length+' selected \u00b7 '+s.bgIds.length+(s.bgIds.length===1?' panel':' panels')+' \u00b7 '+s.photoIds.length+' ending'+(unplaced>0?' \u00b7 '+unplaced+' not used':''):active?'Finishing your last postcard':'Nothing selected'}</small>}<div className="pc-actions">{!cardView&&<ui.Button variant="ghost" disabled={locked||!subject} onClick={()=>setCustomize(!customize)}>{customize?'Hide':'Options'}</ui.Button>}{cardView&&hasDraft&&<ui.Button variant="ghost" disabled={locked} onClick={startOver}>Start over</ui.Button>}{canAbandon&&<ui.Button variant="ghost" onClick={()=>void abandonRun()}>Start over</ui.Button>}<ui.Button variant="primary" busy={busy||(active&&!error)} busyLabel={friendlyPhase(run?.phase)} disabled={macOnly||loading||picking||(!active&&!hasDraft&&!!blocker)} onClick={()=>hasDraft?openDraft():active?execute('resume'):execute(action.kind)}>{hasDraft?'Open':active?'Resume':selectionNeed||(reviewNeeded?'Review':draftDrifted?'Rebuild':'Create')}</ui.Button></div></div>
   </footer>}
 </div>;
 }

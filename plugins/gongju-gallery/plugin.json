@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "gongju-gallery",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "name": "pov: you open my gallery",
   "summary": "Builds an editable 11.4-second portrait gallery montage as a new Draft from a folder of project clips, cut to the plugin's own soundtrack.",
   "status": "experimental",
@@ -11,8 +11,6 @@
     "SKILL.md",
     "INSTALL.md",
     "panel.tsx",
-    "crop.py",
-    "runtime.sh",
     "assets/gallery-bgm-gallery-montage-12s-v2.wav"
   ],
   "preview": {
@@ -23,7 +21,8 @@
   },
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
     "selects": "Development build only. Released-version compatibility is unverified."
   },

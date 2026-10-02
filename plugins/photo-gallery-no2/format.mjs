@@ -45,7 +45,7 @@ export function planGallery(input) {
   const durationFrames = input.durationFrames ?? REFERENCE.durationFrames;
   assertPositiveInteger(durationFrames, 'durationFrames');
   if (media.some((item) => item.kind === 'video' && item.durationFrames < durationFrames)) {
-    throw new Error('A selected video is too short; extend it with hold_video.py before planning');
+    throw new Error('A selected video is too short; hold its last frame (the panel does this) before planning');
   }
   const hasManualBpm = input.manualBpm !== undefined && input.manualBpm !== null;
   const bpm = hasManualBpm ? Number(input.manualBpm) : Number(input.estimatedBpm);

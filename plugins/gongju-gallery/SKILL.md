@@ -46,11 +46,11 @@ You need the right to use any footage you publish. The bundled soundtrack ships 
 
 ## Requirements
 
-The panel runs `crop.py` with a pinned Python 3.11 that `runtime.sh` downloads on first use
-(shared under `~/.selects/plugin-data/_runtime`), and the `ffmpeg` that ships with Selects, to
-produce short portrait intermediates; see `INSTALL.md`. Intermediates are written under
-`~/.selects/plugin-data/gongju-gallery/` and are referenced by the Draft, so keep them while you
-work on that Draft.
+The panel cuts short portrait intermediates with the `ffmpeg` that ships with Selects, through
+the app's own file and ffmpeg services. Nothing else is needed on macOS or Windows (no Python, no
+shell); see `INSTALL.md`. Intermediates are written under `~/.selects/plugin-data/gongju-gallery/`
+(`%USERPROFILE%\.selects\plugin-data\gongju-gallery\` on Windows) and are referenced by the
+Draft, so keep them while you work on that Draft.
 
 ## Verify after creating a draft
 
