@@ -40,7 +40,7 @@ const FAKE_INV = {
     { rid: 'r4', name: 'd.mov', duration: 12, width: 1080, height: 1920, path: '/src/d.mov' },
   ],
   photos: [{ rid: 'p1', width: 3024, height: 4032 }, { rid: 'p2', width: 0, height: 0 }],
-  skipped: { unanalysed: 0, missing: 0, short: 0, analysing: 0, notAnalysed: 0, failed: 0, statusKnown: true },
+  skipped: { unanalysed: 0, missing: 0, short: 0 }, counts: { analysed: 4, unanalysed: 0, analysing: 0 },
 };
 const hits = (rid, face) => ['selfie', 'hand', 'expression', 'glance', 'control'].flatMap((role, k) =>
   [1.5, 4.5, 7.5].map((t, n) => ({ rid, role, t: t + k * 0.3, score: role === 'control' ? 0.2 : face ? 0.3 + 0.01 * n : 0.15 })));
@@ -94,7 +94,7 @@ test('adapter loads and reads the panel constants', async () => {
 test('dev/matrix.json meets checkMatrix', () => {
   const r = A.checkMatrix(matrix);
   assert.ok(r.ok, JSON.stringify({ missing: r.missing, unknown: r.unknown }));
-  assert.ok(matrix.length >= 16 && matrix.length <= 20, 'rows ' + matrix.length);
+  assert.ok(matrix.length >= 20 && matrix.length <= 24, 'rows ' + matrix.length);
   // The stillness A/B pair: the same Project A inputs at weight 0 and 0.6, both exported.
   const st = matrix.filter(x => x.still !== undefined);
   assert.deepEqual(st.map(x => x.still), [0, 0.6]);
@@ -103,11 +103,18 @@ test('dev/matrix.json meets checkMatrix', () => {
   assert.ok(st.every(x => x.export && x.project === 'A'), 'still rows export on Project A');
   assert.deepEqual(st.flatMap(x => (x.seeds || [1]).map(sd => A.draftNameOf(x, sd))),
     ['Selfie test A make-funk soft-glow short s1 still0', 'Selfie test A make-funk soft-glow short s1 still0.6']);
-  const ex = matrix.filter(x => x.export && x.still === undefined);
+  const ex = matrix.filter(x => x.export && x.still === undefined && (x.project === 'A' || x.project === 'B'));
   assert.equal(ex.length, 4, 'export rows');
   assert.equal(new Set(ex.map(x => (x.cue.startsWith('own') ? 'own' : x.cue))).size, 4, 'export rows use different cues');
   assert.deepEqual([...new Set(ex.map(x => x.whipMode))].sort(), ['effect', 'transition']);
-  for (const x of matrix) assert.ok(['28579d3f-de18-4af5-8f3d-f1bf9245fc20', '4a9c32f1-1b61-4962-b2db-51fec2637b0e'].includes(x.pid), x.key + ' pid');
+  for (const x of matrix) assert.ok(['28579d3f-de18-4af5-8f3d-f1bf9245fc20', '4a9c32f1-1b61-4962-b2db-51fec2637b0e', 'UNANALYSED_PID', 'MIXED_PID'].includes(x.pid), x.key + ' pid');
+  // Build without analysis: an unanalysed Project (U) and a mixed one (M), pids from $SAE_UNANALYSED_PID / $SAE_MIXED_PID.
+  // u-funk has a-funk's inputs (seed 1), so the two exports compare unanalysed vs analysed builds of the same footage.
+  const u = matrix.filter(x => x.pid === 'UNANALYSED_PID'), m = matrix.filter(x => x.pid === 'MIXED_PID');
+  assert.ok(u.length >= 2 && m.length >= 2 && u.every(x => x.project === 'U') && m.every(x => x.project === 'M'));
+  const strip2 = ({ key, project, pid, seeds, capture, ...rest }) => rest;
+  assert.deepEqual(strip2(matrix.find(x => x.key === 'u-funk')), strip2(matrix.find(x => x.key === 'a-funk')));
+  assert.ok(matrix.find(x => x.key === 'u-funk').export && matrix.find(x => x.key === 'm-funk').export);
 });
 
 test('checkMatrix flags missing coverage, unknown values and duplicate Draft names', () => {
@@ -248,6 +255,102 @@ test('transition mode and Korean Adjust labels', () => {
   // A row without whipMode follows the panel constant.
   const { whipMode, ...noMode } = base;
   assert.equal(pass(noMode).steps.decorate.config.whipMode, A.panelConstants.WHIP_MODE);
+});
+
+// ---- build without analysis ----
+// Fake quick scores (measureLocal hook): a calm stretch per file, through the block's own window maths.
+const fakeLocal = (Q) => (resources) => Object.fromEntries(resources.map((r) => {
+  const calm = STILL_AT[r.path] || 5;
+  const windows = [];
+  for (let t = Q.QS_HEAD; t + Q.QS_BIN <= r.durationSeconds + 1e-9; t += Q.QS_BIN) windows.push({ start: t, end: t + Q.QS_BIN, motion: Math.abs(t - calm) < 1.5 ? 0.002 : 0.08, sharp: 0.1, luma: 0.45, clipped: 0,
+    flags: { black: false, fade: false, flash: false, blur: false, dark: false, bright: false, cut: false } });
+  return [r.rid, { rid: r.rid, windows, sceneCuts: [], ms: 7, fallback: false, cached: false, duration: r.durationSeconds }];
+}));
+test('unanalysed and mixed Projects: quick scores (any still weight), analysed-only search, the panel planner call', async () => {
+  const { createAdapter } = await import(pathToFileURL(path.join(root, 'dev', 'driver-adapter.mjs')).href);
+  let calls = 0;
+  const probe = await createAdapter({ pluginDir: root, installedDir: '/installed/selfie-aesthetic', read, measure: fakeCurve });
+  const local = fakeLocal(probe.quick);
+  const U = await createAdapter({ pluginDir: root, installedDir: '/installed/selfie-aesthetic', read, measure: fakeCurve, measureLocal: (rs) => { calls++; return local(rs); } });
+  // Mixed: r1 / r3 analysed (face hits), r2 / r4 unanalysed (no search hits for them).
+  const inv = JSON.parse(JSON.stringify(FAKE_INV));
+  inv.resources.forEach((r) => { r.analysed = r.rid === 'r1' || r.rid === 'r3'; });
+  assert.deepEqual(U.videoRids(inv).rids, ['r1', 'r3'], 'scene search for analysed clips only');
+  assert.deepEqual(Object.keys(U.videoRids(inv).durations), ['r1', 'r2', 'r3', 'r4']);
+  const found = { failed: [], list: FAKE_FOUND.list.filter((c) => c.rid === 'r1' || c.rid === 'r3') };
+  const P = U.planner, cue = JSON.parse(read('assets/cues/manifest.json')).cues.find((c) => c.id === 'make-funk');
+  const bars = P.SAE_LENGTHS.short, editBpm = P.saeTempo(cue).editBpm;
+  for (const still of [0, 0.6]) {
+    const s = U.plan({ row: { ...base, still }, seed: 1, inv, found });
+    const scores = local([{ rid: 'r2', path: '/src/b.mov', durationSeconds: 12 }, { rid: 'r4', path: '/src/d.mov', durationSeconds: 12 }]);
+    const motion = still > 0 ? { r1: FAKE_MOTION.r1, r3: FAKE_MOTION.r3 } : {};
+    motion.r2 = { local: scores.r2 }; motion.r4 = { local: scores.r4 };
+    const want = JSON.parse(JSON.stringify(P.saePlanBuild({ fps: 30, bars, seed: 1, cue, sectionStart: P.saeDefaultSection(cue, bars, editBpm),
+      candidates: ['r1', 'r3'].flatMap((rid) => hits(rid, true)), durations: { r1: 12, r2: 12, r3: 12, r4: 12 }, badSpans: {}, photos: ['p1', 'p2'], usePhotos: true,
+      motion, stillWeight: still, analysed: { r2: false, r4: false }, local: { r2: scores.r2, r4: scores.r4 }, pickLocal: U.quick.pickWindowsLocal })));
+    assert.deepEqual(s.plan, want, 'still ' + still + ': the panel planner call');
+    assert.equal(s.plan.localClips, 2);
+    assert.deepEqual(s.still, { weight: still, measured: still > 0 ? 2 : 0, videos: 4 }, 'motion curves for analysed clips only');
+    assert.deepEqual({ videos: s.local.videos, scored: s.local.scored, fallback: s.local.fallback }, { videos: 2, scored: 2, fallback: 0 });
+    assert.equal(U.record(s, { fps: 30 }).rec.local.videos, 2);
+    assert.equal(s.planSummary.localClips, 2);
+  }
+  assert.equal(calls, 1, 'quick scores are cached per file across rows');
+  // All unanalysed: no search, the plan still builds from quick scores; tight framing on the likely close-ups.
+  const invU = JSON.parse(JSON.stringify(FAKE_INV));
+  invU.resources.forEach((r) => { r.analysed = false; });
+  assert.deepEqual(U.videoRids(invU).rids, []);
+  const su = U.plan({ row: { ...base }, seed: 1, inv: invU, found: { failed: [], list: [] } });
+  assert.equal(su.plan.ok, true);
+  assert.equal(su.plan.faceClips, 0);
+  assert.equal(su.plan.localClips, 4);
+  assert.ok(su.plan.holds.filter((h) => h.kind === 'video').every((h) => h.framing === 'tight' && h.srcStart >= 0.5 - 1e-9));
+});
+
+test('pid placeholders take $SAE_UNANALYSED_PID / $SAE_MIXED_PID, in place, on the first step', async () => {
+  const { resolvePid } = await import(pathToFileURL(path.join(root, 'dev', 'driver-adapter.mjs')).href);
+  const keep = { u: process.env.SAE_UNANALYSED_PID, m: process.env.SAE_MIXED_PID };
+  delete process.env.SAE_UNANALYSED_PID;
+  assert.throws(() => resolvePid({ key: 'u-funk', pid: 'UNANALYSED_PID' }), /SAE_UNANALYSED_PID/);
+  process.env.SAE_UNANALYSED_PID = 'pid-u'; process.env.SAE_MIXED_PID = 'pid-m';
+  const row = { ...matrix.find((x) => x.key === 'u-funk') };
+  const inv = A.inventory(row);
+  assert.equal(row.pid, 'pid-u', 'the row object itself carries the real id afterwards (readback / export)');
+  assert.equal(inv.config.projectId, 'pid-u');
+  const mrow = { ...matrix.find((x) => x.key === 'm-funk') };
+  assert.equal(A.search(mrow, ['r1']).config.projectId, 'pid-m');
+  assert.equal(A.draftNameOf(row, 1), 'Selfie test U make-funk soft-glow short s1');
+  const real = { key: 'a', pid: '28579d3f-de18-4af5-8f3d-f1bf9245fc20' };
+  assert.equal(resolvePid(real).pid, '28579d3f-de18-4af5-8f3d-f1bf9245fc20');
+  for (const [k, v] of [['SAE_UNANALYSED_PID', keep.u], ['SAE_MIXED_PID', keep.m]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+});
+
+test('the child-process quick score equals the panel block run in-process (local ffmpeg)', async () => {
+  let ff = true;
+  try { execFileSync(process.env.FFMPEG_DIR ? path.join(process.env.FFMPEG_DIR, 'ffmpeg') : 'ffmpeg', ['-version'], { stdio: 'ignore' }); } catch { ff = false; }
+  if (!ff) { console.log('  (skipped: no ffmpeg)'); return; }
+  const os = require('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sae-drv-qs-'));
+  const ffmpeg = (args) => execFileSync(process.env.FFMPEG_DIR ? path.join(process.env.FFMPEG_DIR, 'ffmpeg') : 'ffmpeg', ['-v', 'error', '-y', ...args]);
+  ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=size=360x640:rate=30', '-t', '6', '-vf', 'fade=t=in:st=0:d=1', '-pix_fmt', 'yuv420p', path.join(dir, 'a b.mp4')]);
+  ffmpeg(['-f', 'lavfi', '-i', 'mandelbrot=size=360x640:rate=30', '-t', '5', '-pix_fmt', 'yuv420p', path.join(dir, 'c.mp4')]);
+  const resources = [{ rid: 'u1', path: path.join(dir, 'a b.mp4'), durationSeconds: 6 }, { rid: 'u2', path: path.join(dir, 'c.mp4'), durationSeconds: 5 }];
+  const keep = process.env.SAE_QS_DATA;
+  process.env.SAE_QS_DATA = path.join(dir, 'drv');
+  const { createAdapter } = await import(pathToFileURL(path.join(root, 'dev', 'driver-adapter.mjs')).href);
+  const D = await createAdapter({ pluginDir: root, installedDir: '/installed/selfie-aesthetic', read });
+  const viaChild = D.localScores(resources);
+  if (keep === undefined) delete process.env.SAE_QS_DATA; else process.env.SAE_QS_DATA = keep;
+  const QSN = require(path.join(root, 'dev', 'quick-score-node.cjs'));
+  const inProc = await QSN.scoreAll(QSN.loadBlock(panel), resources, { dataDir: path.join(dir, 'inproc'), concurrency: 3, budgetMs: 20000 });
+  const strip = (r) => { const { ms, cached, ...rest } = r; return rest; };
+  for (const rid of ['u1', 'u2']) {
+    assert.equal(viaChild.local[rid].fallback, false, rid + ' decoded');
+    assert.deepEqual(strip(viaChild.local[rid]), strip(inProc.results[rid]), rid + ': same windows, cuts and flags');
+  }
+  assert.ok(viaChild.local.u1.windows[0].flags.fade || viaChild.local.u1.windows[0].flags.black, 'the fade-in is flagged');
+  fs.rmSync(dir, { recursive: true, force: true });
+  console.log('  child process ' + viaChild.ms + ' ms for 2 clips; identical to the in-process block');
 });
 
 test('own music: path from $VAR / --own, cue from beat-detect like saeOwnCue', async () => {
