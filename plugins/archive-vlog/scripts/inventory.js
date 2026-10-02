@@ -9,8 +9,16 @@ const loose = v => v;
 let incomplete = false;
 const list = v => { if (Array.isArray(v)) return v; incomplete = true; return []; };
 const all = list(loose(await p.resources())).filter(r => r && typeof r === 'object' && typeof r.resourceId === 'string' && r.resourceId);
-const sizes = {};
-const walk = nodes => { for (const n of Array.isArray(nodes) ? nodes : []) { if (!n || typeof n !== 'object') continue; if (n.type === 'dir') walk(n.children); else if (n.resourceId) sizes[n.resourceId] = n.frameSize || null; } };
+const sizes = {}, paths = {};
+const walk = nodes => {
+  for (const n of Array.isArray(nodes) ? nodes : []) {
+    if (!n || typeof n !== 'object') continue;
+    if (n.type === 'dir') { walk(n.children); continue; }
+    if (!n.resourceId) continue;
+    sizes[n.resourceId] = n.frameSize || null;
+    if (typeof n.path === 'string' && n.path) paths[n.resourceId] = n.path;
+  }
+};
 const readFiles = async opts => { try { return loose(await (opts ? p.sourceFiles(opts) : p.sourceFiles())); } catch (e) { incomplete = true; return null; } };
 const files = await readFiles(null);
 if (!files || typeof files !== 'object') incomplete = true;
@@ -26,39 +34,26 @@ const nameOf = r => (typeof r.name === 'string' && r.name) || r.resourceId;
 const video = all.filter(r => r.type === 'Video' && wanted(r));
 const ids = new Set(video.map(r => r.resourceId));
 const resources = [];
-let unanalysed = 0, missing = 0;
-// Videos without analysis, by why: being analysed now, never started (the panel never starts analysis itself), or
-// failed. Resources queued by startAnalysis can still read status 'pending', so a queued or running workflow for the
-// clip (or a running project:create fan-out) counts it as being analysed. One workflows() read; if it fails, a
-// pending clip is counted as not analysed and statusKnown is false, so the panel words it neutrally.
-// A workflows() list that is not an array counts as a failed read too; it never marks the inventory incomplete.
-const waiting = video.filter(r => !r.hasAnalysis);
-const busyRids = new Set();
-let fanout = false, statusKnown = true;
-if (waiting.some(r => r.status === 'pending')) {
-  try {
-    const flows = loose(await p.workflows());
-    if (!Array.isArray(flows)) statusKnown = false;
-    else for (const w of flows) {
-      if (!w || typeof w !== 'object' || (w.status !== 'queued' && w.status !== 'running')) continue;
-      if (w.type === 'project:create') fanout = true;
-      else if (w.type === 'project:analyze-resource' && w.resourceId) busyRids.add(w.resourceId);
-    }
-  } catch (e) { statusKnown = false; }
-}
+// Videos are usable with or without Selects' analysis (no build waits for it): an analysed one needs its length, an
+// unanalysed one its length and its source file (the panel scores it from the file with the host's ffmpeg; a template
+// run places it on evenly spaced windows). Unanalysed imports stay status 'pending', so the status is never a gate.
+// skipped: `unanalysed` = videos without analysis that cannot be used yet (no length or no file: still importing),
+// `missing` = analysed videos without a length, `notAnalysed` = usable videos without analysis (in `resources` with
+// analysed: false), `analysing` = those of them Selects is analysing now (sampling or analysing; informational: the
+// panel re-reads the inventory until they finish, so later builds use their analysis).
 const ANALYSING = ['sampling', 'samplingSucceeded', 'analyzing', 'analyzingSucceeded'];
-let analysing = 0, notAnalysed = 0, failed = 0;
-for (const r of waiting) {
-  if (ANALYSING.includes(r.status) || (r.status === 'pending' && statusKnown && (fanout || busyRids.has(r.resourceId)))) analysing++;
-  else if (r.status === 'samplingFailed' || r.status === 'analyzingFailed') failed++;
-  else notAnalysed++;
-}
+let unanalysed = 0, missing = 0, notAnalysed = 0, analysing = 0;
 for (const r of video) {
-  if (!r.hasAnalysis) { unanalysed++; continue; }
   if (r.owningSyncedSequenceResourceId && ids.has(r.owningSyncedSequenceResourceId)) continue;
   const size = sizes[r.resourceId];
-  if (!(typeof r.durationSeconds === 'number' && r.durationSeconds > 0)) { missing++; continue; }
-  resources.push({ rid: r.resourceId, name: nameOf(r), duration: r.durationSeconds, width: size ? size.width : null, height: size ? size.height : null, recordedAt: recordedAt(r), kind: 'video' });
+  const hasLength = typeof r.durationSeconds === 'number' && r.durationSeconds > 0;
+  const analysed = r.hasAnalysis === true;
+  const path = paths[r.resourceId] || null;
+  if (!analysed && !(hasLength && path)) { unanalysed++; continue; }
+  if (!hasLength) { missing++; continue; }
+  if (!analysed) { notAnalysed++; if (ANALYSING.includes(r.status)) analysing++; }
+  resources.push({ rid: r.resourceId, name: nameOf(r), duration: r.durationSeconds, width: size ? size.width : null, height: size ? size.height : null, recordedAt: recordedAt(r),
+    kind: 'video', analysed, path });
 }
 // Photos (Image resources) have no analysis and no scene search; they are placed whole. sourceFiles() reports no
 // frameSize for them, so an unsaved scratch Draft measures each one: a new Draft adopts its first clip's frame size.
@@ -81,4 +76,4 @@ for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
   const ok = size && size.width > 0 && size.height > 0;
   photos.push({ rid: r.resourceId, name: nameOf(r), width: ok ? size.width : null, height: ok ? size.height : null, recordedAt: recordedAt(r), kind: 'photo' });
 }
-return { resources, photos, skipped: { unanalysed, missing, analysing, notAnalysed, failed, statusKnown }, incomplete };
+return { resources, photos, skipped: { unanalysed, missing, notAnalysed, analysing }, incomplete };
