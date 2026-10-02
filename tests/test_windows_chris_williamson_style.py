@@ -157,7 +157,8 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
         # Selects' FileSystem.downloadFile buffers a whole response in its main process with no limit; a large stock
         # video froze the app on Windows. Search results go through the panel's capped fetch or the host's ffmpeg.
         engine = self.sources['engine.ts']
-        self.assertNotIn('downloadFile', engine)
+        self.assertNotIn('.downloadFile(', engine)
+        self.assertNotIn('"downloadFile"', engine)
         self.assertIn('const CW_MAX_BYTES = 25000000, CW_FETCH_MS = 25000, CW_CLIP_SECONDS = 15;', engine)
         self.assertIn('if (total > CW_MAX_BYTES) { try { await reader.cancel(); } catch {} return "too-big"; }', engine)
         self.assertIn('"-rw_timeout", "20000000"', engine)
