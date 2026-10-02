@@ -187,7 +187,8 @@ export function sampleTime(statsText: string, n: number): number | null {
 
 export function toBytes(v: any): Uint8Array {
   if (v instanceof Uint8Array) return v;
-  if (v instanceof ArrayBuffer) return new Uint8Array(v);
+  // A bare ArrayBuffer from the host realm (window.parent) fails instanceof here.
+  if (Object.prototype.toString.call(v) === "[object ArrayBuffer]") return new Uint8Array(v);
   if (v && ArrayBuffer.isView(v)) return new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
   if (v && v.type === "Buffer" && Array.isArray(v.data)) return Uint8Array.from(v.data);
   return new Uint8Array(0);

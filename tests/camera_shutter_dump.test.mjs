@@ -4,9 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import {loadPanelOperation,runPanelShell} from './panel_operation.mjs';
+import {loadPanelOperation} from './panel_operation.mjs';
+import {hostBlock,REFERENCE_BLOCK,posixHits,NEWER_SELECTS,loadPanelFunctions,fakeHost,hostGlobals} from './windows_host.mjs';
 
-const {scenePlan,unpackCommand,normalizeFinish,buildFinishScript,authorFinish}=loadPanelOperation('camera-shutter-dump');
+const {scenePlan,normalizeFinish,buildFinishScript,authorFinish}=loadPanelOperation('camera-shutter-dump');
 
 const dir=path.resolve(import.meta.dirname,'../plugins/camera-shutter-dump');
 // Independent reference measurements (ffmpeg on the 30 fps source): photo cut frames
@@ -46,33 +47,65 @@ test('slot shapes: ten portrait 3:4 tiles, two landscape 4:3 tiles, all overlapp
  }
 });
 
-test('bundled sounds unpack without Node.js, with matching hashes, and are reused',()=>{
+// The bundled sounds as the panel unpacks them on Windows: through a fake host
+// (another realm, so its bytes fail `instanceof`) that holds the real .b64 files.
+const W_HOME='C:\\Users\\\uD64D\uAE38\uB3D9';
+const W_PLUGIN=W_HOME+'\\.selects\\skills\\camera-shutter-dump';
+const W_STORE=W_HOME+'\\.selects\\plugin-data\\camera-shutter-dump\\sfx';
+function soundHost(manifestText){
+ const files={[W_PLUGIN+'\\sfx\\manifest.json']:manifestText??fs.readFileSync(path.join(dir,'sfx','manifest.json'),'utf8')};
+ for(const name of fs.readdirSync(path.join(dir,'sfx')))if(name.endsWith('.b64'))files[W_PLUGIN+'\\sfx\\'+name]=fs.readFileSync(path.join(dir,'sfx',name),'utf8');
+ const host=fakeHost({files});
+ const {unpackSounds,samePath}=loadPanelFunctions(panelText,['unpackSounds','sha256Hex','samePath'],{...hostGlobals(host),atob,crypto:globalThis.crypto});
+ const sdk={runShell:()=>{throw Error('no shell on this path')}};
+ return {host,unpack:()=>unpackSounds(sdk),samePath};
+}
+const panelText=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
+
+test('the host I/O block is Archive Vlog\'s, unchanged, and no POSIX shell is left',()=>{
+ assert.equal(hostBlock(panelText),REFERENCE_BLOCK);
+ assert.deepEqual(posixHits(panelText),[]);
+ assert.doesNotMatch(panelText,/runShell/,'no shell call at all');
+});
+
+test('bundled sounds unpack through FileSystem, with matching hashes, and are reused',async()=>{
  const manifest=JSON.parse(fs.readFileSync(path.join(dir,'sfx','manifest.json'),'utf8'));
- const command=unpackCommand(manifest,{id:'camera-shutter-dump',folder:'sfx',store:'camera-shutter-dump/sfx',label:'Bundled sound'});
- for(const shell of ['/bin/sh','/bin/zsh']){
-  const home=fs.mkdtempSync(path.join(os.tmpdir(),'csd-'));
-  const run=()=>{const r=runPanelShell(command,{home,shell});assert.equal(r.status,0,r.stderr);return r.stdout;};
-  const store=run();
-  assert.equal(store,path.join(home,'.selects','plugin-data','camera-shutter-dump','sfx'));
-  assert.deepEqual(Object.keys(manifest).sort(),[1,2,3,4,5,6].map(i=>'shutter.'+i));
-  const first=path.join(store,manifest['shutter.1'].file),mtime=fs.statSync(first).mtimeMs;
-  const wav=fs.readFileSync(first);
-  assert.equal(wav.toString('ascii',0,4),'RIFF');
-  assert.equal(wav.readUInt32LE(24),44100);
-  // Padded past the longest Draft range (14/30 s) so an overlay always fits inside the file.
-  assert.ok(manifest['shutter.1'].duration>14/30+0.02);
-  // Selects skips imported media shorter than one second, so every file is padded past it.
-  for(const v of Object.values(manifest)){
-   const data=fs.readFileSync(path.join(store,v.file)),at=data.indexOf('data',12,'ascii');
-   const seconds=data.readUInt32LE(at+4)/data.readUInt32LE(28);
-   assert.ok(seconds>=1.1&&Math.abs(seconds-v.duration)<1e-6,v.file+' lasts '+seconds+' s');
-  }
-  run();
-  assert.equal(fs.statSync(first).mtimeMs,mtime);
-  fs.writeFileSync(first,'corrupt');run();
-  assert.equal(fs.readFileSync(first).toString('ascii',0,4),'RIFF');
+ const {host,unpack}=soundHost();
+ const files=await unpack();
+ assert.deepEqual(Object.keys(files).sort(),[1,2,3,4,5,6].map(i=>'shutter.'+i));
+ for(const [key,v] of Object.entries(manifest))assert.deepEqual({...files[key]},{path:W_STORE+'\\'+v.file,duration:v.duration});
+ const first=Buffer.from(host.store.get(files['shutter.1'].path));
+ assert.equal(first.toString('ascii',0,4),'RIFF');
+ assert.equal(first.readUInt32LE(24),44100);
+ // Padded past the longest Draft range (14/30 s) so an overlay always fits inside the file.
+ assert.ok(manifest['shutter.1'].duration>14/30+0.02);
+ // Selects skips imported media shorter than one second, so every file is padded past it.
+ for(const v of Object.values(manifest)){
+  const data=Buffer.from(host.store.get(W_STORE+'\\'+v.file)),at=data.indexOf('data',12,'ascii');
+  const seconds=data.readUInt32LE(at+4)/data.readUInt32LE(28);
+  assert.ok(seconds>=1.1&&Math.abs(seconds-v.duration)<1e-6,v.file+' lasts '+seconds+' s');
  }
- assert.throws(()=>unpackCommand({x:{file:'../x',sha256:'0'.repeat(64)}},{id:'camera-shutter-dump',folder:'sfx',store:'s',label:'L'}),/manifest/);
+ const writes=()=>host.calls.filter(c=>c[0]==='writeFile').length;
+ assert.equal(writes(),6);
+ await unpack();
+ assert.equal(writes(),6,'matching copies are reused');
+ host.store.set(files['shutter.1'].path,host.RealmBytes.from(Buffer.from('corrupt')));
+ await unpack();
+ assert.equal(writes(),7);
+ assert.equal(Buffer.from(host.store.get(files['shutter.1'].path)).toString('ascii',0,4),'RIFF');
+});
+
+test('a bad manifest or a tampered sound is refused',async()=>{
+ await assert.rejects(soundHost(JSON.stringify({x:{file:'../x',sha256:'0'.repeat(64)}})).unpack(),/manifest/);
+ const manifest=JSON.parse(fs.readFileSync(path.join(dir,'sfx','manifest.json'),'utf8'));
+ manifest['shutter.1'].sha256='0'.repeat(64);
+ await assert.rejects(soundHost(JSON.stringify(manifest)).unpack(),/does not match its manifest: shutter-v3-1\.wav/);
+});
+
+test('imports are matched whatever the path\'s case or slashes',()=>{
+ const {samePath}=soundHost();
+ assert.ok(samePath(W_STORE+'\\shutter-v3-1.wav',W_STORE.toLowerCase().replaceAll('\\','/')+'/shutter-v3-1.wav'));
+ assert.ok(!samePath(W_STORE+'\\shutter-v3-1.wav',W_STORE+'\\shutter-v3-2.wav'));
 });
 
 const plan=scenePlan();
@@ -162,4 +195,8 @@ test('stills are held past and trimmed below their 120-frame source without a so
   for(const t of trims)assert.equal(t.sourceDuration,Math.max(t.before+t.delta,t.before));
   assert.equal(new Set(out.placements.map(p=>p.trackId)).size,12);
  }
+});
+
+test('an old Selects build gets the update message, not "Reinstall"',()=>{
+ assert.ok(panelText.includes(NEWER_SELECTS));
 });

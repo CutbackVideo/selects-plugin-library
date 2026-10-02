@@ -14,9 +14,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS"
+      "macOS",
+      "Windows x64"
     ],
-    "selects": "Requires Panel support. Released-version and Windows/Linux compatibility are unverified."
+    "selects": "Requires Panel support. Released-version and Linux compatibility are unverified. Windows x64 runs the same code (no shell commands) but has not been run on a Windows PC yet."
   },
   "preview": {
     "video": "preview.mp4",

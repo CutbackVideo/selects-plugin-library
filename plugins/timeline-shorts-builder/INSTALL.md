@@ -2,11 +2,11 @@
 
 ## Requirements
 
-- A compatible Selects development build on macOS.
+- A compatible Selects development build on macOS or Windows x64 (not yet run on a Windows PC).
 - Panel support and generated-media authoring enabled.
 - Host `FileSystem`, `SequenceRepository`, and `SequenceEdit` adapters available.
 
-Worker and OffscreenCanvas support are optional. Released-version and Windows/Linux compatibility are unverified.
+Worker and OffscreenCanvas support are optional. Released-version and Linux compatibility are unverified.
 
 ## Install or update
 

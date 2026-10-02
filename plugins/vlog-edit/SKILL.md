@@ -50,7 +50,10 @@ the edit either:
    reason to sample.
 2. The browser cannot open `file://`. Serve the sheet directory over local
    HTTP. A plain background launch dies with the shell call that started it —
-   detach it so it survives.
+   detach it so it survives. On Windows `run_shell` is cmd.exe: use cmd or
+   PowerShell syntax (no `$VAR`, single quotes or `mkdir -p`), check with
+   `where ffmpeg` before relying on ffmpeg, and detach the server with
+   `start "" /b <command>`, never `nohup` or a trailing `&`.
 3. Wrap each sheet in a minimal HTML page with the image at a fixed large
    width, then screenshot the image element. Screenshotting a raw PNG makes the
    browser fit it to the window and renders it unreadably small.
