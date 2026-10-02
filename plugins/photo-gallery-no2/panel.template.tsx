@@ -144,6 +144,166 @@ async function hostProbeSeconds(path) {
 }
 // av-host:end
 
+// hold:start
+// Short-video hold (formerly hold_video.py), plain JS on the av-host helpers so tests can run it in node:vm. A selected
+// video shorter than the result is re-encoded once at 60 fps with its last frame cloned to the full length, by the
+// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v2. Long videos are never touched. A cache
+// entry is keyed by the source path, size and modification time; it is reused only when its metadata matches and
+// ffprobe still counts the expected frames. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
+// inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }.
+const HOLD_FPS = 60, HOLD_MAX_EDGE = 1920, HOLD_MAX_FRAMES = 36000, HOLD_MAX_VIDEOS = 21;
+const HOLD_ALGORITHM = 'photo-gallery-hold-v2-max1920-h264-crf18';
+function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed' }); }
+// Host paths compared as keys: NFC; a Windows path also gets / separators and is case-folded.
+function holdPathKey(path) {
+  const text = String(path ?? '').normalize('NFC');
+  return /^[A-Za-z]:(?:[\\/]|$)/.test(text) || text.includes('\\') ? text.replace(/\\/g, '/').toLowerCase() : text;
+}
+// Runs Runtime.runFFmpeg/runFFprobe with a deadline. The host rejects with a JSON string, not an Error.
+async function holdTool(kind, argv, seconds) {
+  const rt = hostNeed('Runtime', kind);
+  const controller = typeof AbortController === 'undefined' ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), seconds * 1000) : null;
+  try { return await rt[kind](argv, true, controller ? controller.signal : undefined); }
+  catch (error) {
+    if (controller?.signal.aborted) throw holdError('Media conversion timed out');
+    if (error?.code === 'host-missing') throw error;
+    throw Object.assign(holdError(kind + ' failed'), { detail: String(error?.message ?? error).slice(0, 600) });
+  } finally { if (timer) clearTimeout(timer); }
+}
+async function holdProbe(path, countFrames = false) {
+  let result;
+  try {
+    result = await holdTool('runFFprobe', ['-v', 'error', ...(countFrames ? ['-count_frames'] : []), '-show_entries',
+      'stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames', '-of', 'json', path], 45);
+  } catch (error) { if (error.code === 'host-missing' || /timed out/.test(error.message)) throw error; throw holdError('Video cannot be decoded'); }
+  let streams, video;
+  try { streams = JSON.parse(String(result?.stdout || '')).streams; video = streams.find(item => item?.codec_type === 'video'); } catch { video = null; }
+  if (!video) throw holdError('Media has no readable picture stream');
+  if (!Number.isSafeInteger(video.width) || !Number.isSafeInteger(video.height) || video.width <= 0 || video.height <= 0) {
+    throw holdError('Media dimensions are unavailable');
+  }
+  return { video, streams };
+}
+// The output size: at most 1920 on the long edge, then padded to even sides (as the encode filter does).
+function holdDimensions(width, height) {
+  const factor = Math.min(1, HOLD_MAX_EDGE / Math.max(width, height));
+  // Python's round(): halves go to the even neighbour.
+  const round = x => { const r = Math.round(x); return Math.abs(x % 1) === 0.5 && r % 2 ? r - 1 : r; };
+  const w = Math.max(1, round(width * factor)), h = Math.max(1, round(height * factor));
+  return [w + w % 2, h + h % 2];
+}
+async function holdValidate(path, frames, dimensions, decode = false) {
+  const { video, streams } = await holdProbe(path, true);
+  if (streams.length !== 1 || video.codec_name !== 'h264') throw holdError('Cached video has the wrong stream format');
+  if (video.r_frame_rate !== '60/1' || video.avg_frame_rate !== '60/1') throw holdError('Cached video has the wrong frame rate');
+  if (video.nb_read_frames !== String(frames)) throw holdError('Cached video has the wrong frame count');
+  if (video.width !== dimensions[0] || video.height !== dimensions[1]) throw holdError('Cached video has the wrong dimensions');
+  if (decode) {
+    try { await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-xerror', '-i', path, '-f', 'null', '-'], Math.max(60, Math.floor(frames / HOLD_FPS) * 5 + 30)); }
+    catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('Generated video contains undecodable frames'); }
+  }
+  return video;
+}
+// { size, mtimeMs } of a file (FileSystem.statSync crosses IPC, so only its plain fields are used), or null.
+function holdStat(path) {
+  try {
+    const stat = hostNeed('FileSystem', 'statSync').statSync(path);
+    return stat && Number.isFinite(stat.size) ? { size: stat.size, mtimeMs: Number(stat.mtimeMs) || 0 } : null;
+  } catch (error) { if (error?.code === 'host-missing') throw error; return null; }
+}
+async function holdKey(text) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+async function holdEncode(source, target, frames) {
+  const scale = 'scale=w=\'min(iw,' + HOLD_MAX_EDGE + ')\':h=\'min(ih,' + HOLD_MAX_EDGE + ')\':' +
+    'force_original_aspect_ratio=decrease:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2:0:0:black,setsar=1';
+  const filters = 'fps=' + HOLD_FPS + ',tpad=stop_mode=clone:stop_duration=' + (frames / HOLD_FPS + 1).toFixed(6) + ',' + scale;
+  try {
+    await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-y', '-i', source, '-vf', filters, '-an', '-frames:v', String(frames),
+      '-r', String(HOLD_FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p',
+      '-movflags', '+faststart', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)));
+  } catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('ffmpeg could not extend the short video'); }
+}
+async function holdCached(videoPath, metaPath, identity, frames, dimensions) {
+  const fs = hostNeed('FileSystem', 'existsSync');
+  try {
+    if (!fs.existsSync(videoPath) || !fs.existsSync(metaPath)) return false;
+    const data = JSON.parse(await hostReadText(metaPath));
+    const stat = holdStat(videoPath);
+    if (data?.algorithm !== HOLD_ALGORITHM || data.sourceSize !== identity.size || data.sourceMtimeMs !== identity.mtimeMs ||
+        data.durationFrames !== frames || JSON.stringify(data.outputDimensions) !== JSON.stringify(dimensions) ||
+        !stat || data.outputSize !== stat.size) return false;
+    await holdValidate(videoPath, frames, dimensions);
+    return true;
+  } catch (error) { if (error?.code === 'host-missing') throw error; return false; }
+}
+async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot) {
+  const key = await holdKey([HOLD_ALGORITHM, holdPathKey(source), identity.size, identity.mtimeMs, frames, HOLD_FPS].join('\0'));
+  const videoPath = hostJoin(cacheRoot, key + '.mp4'), metaPath = hostJoin(cacheRoot, key + '.json');
+  const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
+  if (await holdCached(videoPath, metaPath, identity, frames, dimensions)) return { videoPath, dimensions, reused: true };
+  const fs = hostNeed('FileSystem', 'renameSync');
+  const writer = hostNeed('FileSystem', 'writeFile');
+  const stamp = Date.now() + '-' + Math.floor(Math.random() * 1e6);
+  const temporary = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.mp4.tmp');
+  const temporaryMeta = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.json.tmp');
+  const unchanged = () => { const now = holdStat(source); return !!now && now.size === identity.size && now.mtimeMs === identity.mtimeMs; };
+  try {
+    await holdEncode(source, temporary, frames);
+    if (!unchanged()) throw holdError('A video changed during extension');
+    await holdValidate(temporary, frames, dimensions, true);
+    const output = holdStat(temporary);
+    if (!output) throw holdError('ffmpeg could not extend the short video');
+    await writer.writeFile(temporaryMeta, JSON.stringify({ algorithm: HOLD_ALGORITHM, sourceSize: identity.size,
+      sourceMtimeMs: identity.mtimeMs, durationFrames: frames, outputDimensions: dimensions, outputSize: output.size }));
+    fs.renameSync(temporary, videoPath);
+    fs.renameSync(temporaryMeta, metaPath);
+  } finally {
+    await hostRemove(temporary);
+    await hostRemove(temporaryMeta);
+  }
+  return { videoPath, dimensions, reused: false };
+}
+// `request` is { videos: [{ path }], durationFrames }; `dataDir` is the plugin's data folder.
+async function holdVideos(request, dataDir) {
+  const videos = request?.videos, frames = request?.durationFrames;
+  if (!Array.isArray(videos) || videos.length < 1 || videos.length > HOLD_MAX_VIDEOS) throw holdError('Provide between 1 and 21 short videos');
+  if (!Number.isSafeInteger(frames) || frames < 1 || frames > HOLD_MAX_FRAMES) throw holdError('durationFrames must be a positive integer at most 36000');
+  if (!dataDir) throw holdError('The plugin data folder is unavailable');
+  hostNeed('Runtime', 'runFFmpeg'); hostNeed('Runtime', 'runFFprobe');
+  const cacheRoot = hostJoin(dataDir, 'held-v2');
+  hostNeed('FileSystem', 'mkdirSync').mkdirSync(cacheRoot, { recursive: true });
+  const exists = hostNeed('FileSystem', 'existsSync');
+  const completed = new Map(), output = [];
+  for (let index = 0; index < videos.length; index++) {
+    const raw = videos[index]?.path;
+    if (typeof raw !== 'string') throw holdError('Video ' + (index + 1) + ' needs a file path');
+    if (!raw || raw.includes('\0') || raw.length > 8192) throw holdError('Video ' + (index + 1) + ' has an invalid path');
+    try {
+      const identity = exists.existsSync(raw) ? holdStat(raw) : null;
+      if (!identity) throw holdError('Video is missing');
+      const id = holdPathKey(raw) + '\0' + identity.size + '\0' + identity.mtimeMs;
+      if (!completed.has(id)) {
+        const { video } = await holdProbe(raw, true);
+        if (!(Number(video.nb_read_frames) >= 1)) throw holdError('Video has no readable frames');
+        const sourceDimensions = [video.width, video.height];
+        const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot);
+        completed.set(id, { ...done, sourceDimensions });
+      }
+      const done = completed.get(id);
+      output.push({ inputIndex: index, sourcePath: raw, outputPath: done.videoPath, sourceWidth: done.sourceDimensions[0],
+        sourceHeight: done.sourceDimensions[1], outputWidth: done.dimensions[0], outputHeight: done.dimensions[1], cacheHit: done.reused });
+    } catch (error) {
+      if (error?.code === 'host-missing') throw error;
+      throw Object.assign(holdError('Video ' + (index + 1) + ': ' + String(error?.message || error)), { detail: error?.detail });
+    }
+  }
+  return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
+}
+// hold:end
+
 const SLOT_KEYS = Array.from({ length: 21 }, (_, i) => `tile-${String(i + 1).padStart(2, '0')}`);
 const REFERENCE_VIDEO_SLOTS = new Set([4, 6, 11, 17, 19, 21]);
 const emptySlots = () => SLOT_KEYS.map(() => ({ resourceId: '', focusX: 0.5, focusY: 0.5 }));
@@ -211,7 +371,6 @@ const STRINGS = {
     "openSaved": "\uc800\uc7a5\ud55c \ud3b8\uc9d1\ubcf8 \uc5f4\uae30",
     "musicSource": "\ucd9c\ucc98",
     "musicCredit": "\uc601\uc0c1\uc744 \uacf5\uc720\ud560 \ub54c \uc774 \ud06c\ub808\ub527\uc744 \ud568\uaed8 \ud45c\uae30\ud558\uc138\uc694. 39.650\u201353.867\ucd08 \ubc1c\ucdcc, \ubcfc\ub968 \u22123.090 dB, \uc18d\ub3c4 \ubcc0\uacbd \uc5c6\uc74c.",
-    "shortMacOnly": "\uacb0\uacfc \uae38\uc774\ubcf4\ub2e4 \uc9e7\uc740 \uc601\uc0c1\uc740 \uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub354 \uae34 \uc601\uc0c1\uc744 \uace0\ub974\uac70\ub098 \uae38\uc774\ub97c \uc904\uc774\uc138\uc694.",
     "estimateMacOnly": "BPM \ucd94\uc815\uc740 \uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4. BPM\uc744 \uc9c1\uc811 \uc785\ub825\ud558\uc138\uc694."
   },
   "en": {
@@ -255,7 +414,6 @@ const STRINGS = {
     "openSaved": "Open saved Draft",
     "musicSource": "Source",
     "musicCredit": "Keep this credit with shared videos. Excerpt 39.650\u201353.867 s; gain \u22123.090 dB; no tempo change.",
-    "shortMacOnly": "Videos shorter than the video length are available on macOS for now. Choose longer videos or a shorter length.",
     "estimateMacOnly": "BPM estimation is available on macOS for now. Enter BPM manually."
   },
   "de": {
@@ -299,7 +457,6 @@ const STRINGS = {
     "openSaved": "Gespeicherten Entwurf \u00f6ffnen",
     "musicSource": "Quelle",
     "musicCredit": "Diesen Hinweis mit geteilten Videos beibehalten. Ausschnitt 39,650\u201353,867 s; Pegel \u22123,090 dB; Tempo unver\u00e4ndert.",
-    "shortMacOnly": "Videos, die k\u00fcrzer als die Videol\u00e4nge sind, sind vorerst nur unter macOS verf\u00fcgbar. W\u00e4hlen Sie l\u00e4ngere Videos oder eine k\u00fcrzere L\u00e4nge.",
     "estimateMacOnly": "Die BPM-Sch\u00e4tzung ist vorerst nur unter macOS verf\u00fcgbar. Geben Sie die BPM manuell ein."
   },
   "es": {
@@ -343,7 +500,6 @@ const STRINGS = {
     "openSaved": "Abrir borrador guardado",
     "musicSource": "Fuente",
     "musicCredit": "Conserva este cr\u00e9dito al compartir v\u00eddeos. Fragmento 39,650\u201353,867 s; ganancia \u22123,090 dB; sin cambio de tempo.",
-    "shortMacOnly": "Los v\u00eddeos m\u00e1s cortos que la duraci\u00f3n del v\u00eddeo solo est\u00e1n disponibles en macOS por ahora. Elige v\u00eddeos m\u00e1s largos o una duraci\u00f3n menor.",
     "estimateMacOnly": "La estimaci\u00f3n de BPM solo est\u00e1 disponible en macOS por ahora. Introduce el BPM manualmente."
   },
   "fr": {
@@ -387,7 +543,6 @@ const STRINGS = {
     "openSaved": "Ouvrir le brouillon enregistr\u00e9",
     "musicSource": "Source",
     "musicCredit": "Conservez ce cr\u00e9dit avec les vid\u00e9os partag\u00e9es. Extrait 39,650\u201353,867 s ; gain \u22123,090 dB ; tempo inchang\u00e9.",
-    "shortMacOnly": "Les vid\u00e9os plus courtes que la dur\u00e9e de la vid\u00e9o ne sont disponibles que sur macOS pour l\u2019instant. Choisissez des vid\u00e9os plus longues ou une dur\u00e9e plus courte.",
     "estimateMacOnly": "L\u2019estimation du BPM n\u2019est disponible que sur macOS pour l\u2019instant. Saisissez le BPM manuellement."
   },
   "it": {
@@ -431,7 +586,6 @@ const STRINGS = {
     "openSaved": "Apri bozza salvata",
     "musicSource": "Fonte",
     "musicCredit": "Mantieni questi crediti nei video condivisi. Estratto 39,650\u201353,867 s; guadagno \u22123,090 dB; tempo invariato.",
-    "shortMacOnly": "I video pi\u00f9 brevi della durata del video sono disponibili solo su macOS per ora. Scegli video pi\u00f9 lunghi o una durata pi\u00f9 breve.",
     "estimateMacOnly": "La stima dei BPM \u00e8 disponibile solo su macOS per ora. Inserisci i BPM manualmente."
   },
   "ja": {
@@ -475,7 +629,6 @@ const STRINGS = {
     "openSaved": "\u4fdd\u5b58\u3057\u305f\u4e0b\u66f8\u304d\u3092\u958b\u304f",
     "musicSource": "\u51fa\u5178",
     "musicCredit": "\u52d5\u753b\u306e\u5171\u6709\u6642\u306b\u3053\u306e\u30af\u30ec\u30b8\u30c3\u30c8\u3092\u8a18\u8f09\u3057\u3066\u304f\u3060\u3055\u3044\u300239.650\u201353.867\u79d2\u3092\u629c\u7c8b\u3001\u97f3\u91cf \u22123.090 dB\u3001\u901f\u5ea6\u5909\u66f4\u306a\u3057\u3002",
-    "shortMacOnly": "\u52d5\u753b\u306e\u9577\u3055\u3088\u308a\u77ed\u3044\u52d5\u753b\u306f\u3001\u73fe\u5728macOS\u3067\u306e\u307f\u4f7f\u7528\u3067\u304d\u307e\u3059\u3002\u3088\u308a\u9577\u3044\u52d5\u753b\u3092\u9078\u3076\u304b\u3001\u9577\u3055\u3092\u77ed\u304f\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     "estimateMacOnly": "BPM\u306e\u63a8\u5b9a\u306f\u3001\u73fe\u5728macOS\u3067\u306e\u307f\u4f7f\u7528\u3067\u304d\u307e\u3059\u3002BPM\u3092\u624b\u52d5\u3067\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
   },
   "pt": {
@@ -519,7 +672,6 @@ const STRINGS = {
     "openSaved": "Abrir rascunho guardado",
     "musicSource": "Fonte",
     "musicCredit": "Mantenha este cr\u00e9dito nos v\u00eddeos partilhados. Excerto 39,650\u201353,867 s; ganho \u22123,090 dB; sem altera\u00e7\u00e3o de tempo.",
-    "shortMacOnly": "V\u00eddeos mais curtos do que a dura\u00e7\u00e3o do v\u00eddeo est\u00e3o dispon\u00edveis apenas no macOS por enquanto. Escolha v\u00eddeos mais longos ou uma dura\u00e7\u00e3o menor.",
     "estimateMacOnly": "A estimativa de BPM est\u00e1 dispon\u00edvel apenas no macOS por enquanto. Introduza o BPM manualmente."
   },
   "tr": {
@@ -563,7 +715,6 @@ const STRINGS = {
     "openSaved": "Kaydedilen tasla\u011f\u0131 a\u00e7",
     "musicSource": "Kaynak",
     "musicCredit": "Payla\u015f\u0131lan videolarda bu bilgiyi koruyun. 39,650\u201353,867 s kesit; kazan\u00e7 \u22123,090 dB; tempo de\u011fi\u015fmedi.",
-    "shortMacOnly": "Video uzunlu\u011fundan k\u0131sa videolar \u015fimdilik yaln\u0131zca macOS\u2019te kullan\u0131labilir. Daha uzun videolar se\u00e7in veya uzunlu\u011fu k\u0131salt\u0131n.",
     "estimateMacOnly": "BPM tahmini \u015fimdilik yaln\u0131zca macOS\u2019te kullan\u0131labilir. BPM\u2019i elle girin."
   },
   "zh": {
@@ -607,7 +758,6 @@ const STRINGS = {
     "openSaved": "\u6253\u5f00\u5df2\u4fdd\u5b58\u8349\u7a3f",
     "musicSource": "\u6765\u6e90",
     "musicCredit": "\u5206\u4eab\u89c6\u9891\u65f6\u8bf7\u4fdd\u7559\u6b64\u7f72\u540d\u3002\u622a\u53d639.650\u201353.867\u79d2\uff0c\u589e\u76ca\u22123.090 dB\uff0c\u672a\u6539\u53d8\u901f\u5ea6\u3002",
-    "shortMacOnly": "\u6bd4\u89c6\u9891\u957f\u5ea6\u66f4\u77ed\u7684\u89c6\u9891\u76ee\u524d\u4ec5\u5728 macOS \u4e0a\u53ef\u7528\u3002\u8bf7\u9009\u62e9\u66f4\u957f\u7684\u89c6\u9891\u6216\u7f29\u77ed\u957f\u5ea6\u3002",
     "estimateMacOnly": "BPM \u4f30\u7b97\u76ee\u524d\u4ec5\u5728 macOS \u4e0a\u53ef\u7528\u3002\u8bf7\u624b\u52a8\u8f93\u5165 BPM\u3002"
   }
 };
@@ -632,41 +782,27 @@ async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurren
   return response.result.music;
 }
 
-// Selected videos shorter than the result; each needs its last frame held. Holding runs on macOS only for now, so
-// on Windows both Create paths refuse these before the first mutation (the music import).
-function shortGalleryVideos(media, frames) {
-  return media.filter(item => item?.kind === 'video' && Number.isSafeInteger(item.durationFrames) && item.durationFrames < frames);
-}
-
 async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted, isCurrent) {
   const videos = [...new Map(media.filter(item => item.kind === 'video').map(item => [item.resourceId, item])).values()];
   if (videos.some(item => !Number.isSafeInteger(item.durationFrames) || item.durationFrames < 1)) {
     throw new Error('A selected video has no verified duration.');
   }
   const shortVideos = videos.filter(item => item.durationFrames < frames);
-  const groups = [{ sources: shortVideos, key: 'videos', script: 'hold_video.py',
-    summary: 'Extend only short gallery videos with their last frame' }];
+  const groups = [{ sources: shortVideos, key: 'videos' }];
   const requestPaths = [];
   for (const group of groups) {
     if (!group.sources.length) continue;
     if (group.sources.some(item => !item.path)) throw new Error('Selected Project media has no readable file path.');
     if (!isCurrent()) throw new Error(t.changed);
     const request = { [group.key]: group.sources.map(item => ({ path: item.path })), durationFrames: frames };
-    // Callers refuse short videos on Windows before anything is saved (shortGalleryVideos).
-    if (hostIsWindows()) throw new Error(t.shortMacOnly);
-    // mac-only:start
-    const python = await runtimePython(sdk);
-    const command = 'printf %s ' + shellQuote(JSON.stringify(request)) +
-      ' | ' + shellQuote(python) + ' "$SELECTS_USER_SKILLS_ROOT/photo-gallery-no2/' + group.script + '"';
-    const shell = await sdk.runShell({ command, summary: group.summary,
-      timeoutMs: 300000, maxOutputBytes: 49152 });
+    preparing.say?.('Extending short videos…');
     let converted;
-    try { converted = JSON.parse(shell.stdout); } catch { throw new Error(shell.stderr || shell.output || 'Media conversion produced no readable result.'); }
+    try { converted = await holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data); }
+    catch (error) { throw new Error(String(error?.message || error) || 'Media conversion failed.'); }
     const output = converted[group.key];
-    if (shell.isError || shell.exitCode !== 0 || converted.status !== 'converted' || output?.length !== group.sources.length) {
-      throw new Error(converted.message || shell.stderr || 'Media conversion failed.');
+    if (converted.status !== 'converted' || output?.length !== group.sources.length) {
+      throw new Error(converted.message || 'Media conversion failed.');
     }
-    // mac-only:end
     if (converted.fps !== 60 || converted.durationFrames !== frames || output.some((item, i) =>
       item.inputIndex !== i || item.sourcePath !== group.sources[i].path || typeof item.outputPath !== 'string')) {
       throw new Error('Media conversion result does not match the requested inputs.');
@@ -781,7 +917,7 @@ function GalleryPanel({ sdk, context, ui }) {
   const [status, setStatus] = React.useState(null);
   const [savedTarget, setSavedTarget] = React.useState(null);
   const running = React.useRef(false);
-  // Windows: no short-video hold or BPM estimate yet (both need the macOS shell); everything else is the same.
+  // Windows: no BPM estimate yet (it needs the macOS shell); everything else is the same.
   const macOnly = React.useMemo(() => hostIsWindows(), []);
   const current = React.useRef({ projectId: context.projectId, sequenceId: context.sequenceId });
   React.useEffect(() => {
@@ -886,7 +1022,6 @@ function GalleryPanel({ sdk, context, ui }) {
           durationFrames: selectedMusic.durationFrames, startFrame: 0 } : null };
       if (!input.name || input.media.some(item => !item.resourceId)) throw new Error(t.missing);
       if (input.media.some(item => !Number.isSafeInteger(item.width) || !Number.isSafeInteger(item.height))) throw new Error('A selected tile has no verified dimensions');
-      if (macOnly && shortGalleryVideos(input.media, durationFrames).length) throw new Error(t.shortMacOnly);
       if (macOnly && !manualEnabled) throw new Error(t.estimateMacOnly);
     } catch (error) { setStatus({ tone: 'error', text: String(error?.message || error) }); return; }
     running.current = true; setBusy(true); setStatus(null);
@@ -1065,9 +1200,6 @@ function GalleryTemplateRun({ sdk, context }) {
         say('Finding your photos and videos…');
         const media = await templateTiles(sdk, app, projectId, libraryId, template?.inputs);
         if (!live()) throw templateIssue('The template run ended before the Draft was made.');
-        if (hostIsWindows() && shortGalleryVideos(media, TEMPLATE_DURATION_FRAMES).length) {
-          throw templateIssue('Videos shorter than ' + (TEMPLATE_DURATION_FRAMES / 60).toFixed(1) + ' seconds are available on macOS for now; pick longer videos, then try again.');
-        }
         const input = { operation: 'create', projectId, name: TEMPLATE_NAME, durationFrames: TEMPLATE_DURATION_FRAMES,
           media, music: null, manualBpm: TEMPLATE_BPM };
         if (template?.options?.music !== 'none') {

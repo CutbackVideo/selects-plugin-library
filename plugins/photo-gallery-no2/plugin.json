@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "photo-gallery-no2",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "name": "Photo Grid Reveal",
   "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch.",
   "status": "experimental",
@@ -18,7 +18,6 @@
     "format.mjs",
     "reference-oracle.json",
     "tempo.py",
-    "hold_video.py",
     "runtime.sh",
     "VALIDATION.md",
     "assets/music.mp3",
@@ -26,7 +25,8 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS Selects Staging"
+      "macOS Selects Staging",
+      "Windows x64"
     ],
     "selects": "Requires a panel host exposing the app-owned TimelineMutation service for Image placement; public run_script for video/audio overlays, effects, transforms, gap-backed Drafts, media import, and commit. Retest after Selects updates."
   },

@@ -89,23 +89,31 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         self.assertNotRegex(operation, r"/\^\\/\(\?:\[\^\\0\]\+\)", "POSIX-only absolute path check")
         self.assertIn("function galleryPathKey(", self.source, "the panel ships the operation")
 
-    def test_windows_refuses_unported_features_before_the_first_mutation(self):
+    def test_short_videos_are_held_by_the_host_ffmpeg(self):
+        hold = re.search(r"// hold:start\n.*?// hold:end\n", self.source, re.S)
+        self.assertIsNotNone(hold, "panel has no hold block")
+        hold = hold.group(0)
+        self.assertIn("hostNeed('Runtime', kind)", hold)
+        for tool in ("'runFFmpeg'", "'runFFprobe'"):
+            self.assertIn(tool, hold, tool)
+        self.assertIn("hostJoin(dataDir, 'held-v2')", hold)
+        self.assertNotIn("pattern_type", hold)
+        self.assertNotIn("runShell", hold)
+        visuals = body(self.runtime, "async function prepareVisuals(")
+        self.assertIn("holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data)", visuals)
+        self.assertNotIn("hold_video", self.runtime)
+        self.assertNotIn("shortMacOnly", self.source, "short videos work on Windows")
+
+    def test_windows_refuses_the_bpm_estimate_before_the_first_mutation(self):
         strings = json.loads(re.search(r"const STRINGS = (\{.*?\n\});\n", self.source, re.S).group(1))
         self.assertEqual(sorted(strings), sorted(LANGUAGES))
         for lang in LANGUAGES:
-            for key in ("shortMacOnly", "estimateMacOnly"):
-                self.assertIn("macOS", strings[lang].get(key, ""), lang + "." + key)
+            self.assertIn("macOS", strings[lang].get("estimateMacOnly", ""), lang)
         self.assertIn("const macOnly = React.useMemo(() => hostIsWindows(), []);", self.source)
         create = body(self.source, "  async function createGallery() {", "\n  }\n")
-        guard = create.index("if (macOnly && shortGalleryVideos(input.media, durationFrames).length) throw new Error(t.shortMacOnly);")
+        guard = create.index("if (macOnly && !manualEnabled) throw new Error(t.estimateMacOnly);")
         self.assertLess(guard, create.index("running.current = true"))
-        self.assertLess(create.index("if (macOnly && !manualEnabled) throw new Error(t.estimateMacOnly);"),
-                        create.index("prepareBundledMusic("))
         self.assertLess(guard, create.index("prepareBundledMusic("))
-        template = body(self.source, "function GalleryTemplateRun(")
-        self.assertLess(template.index("if (hostIsWindows() && shortGalleryVideos(media, TEMPLATE_DURATION_FRAMES).length)"),
-                        template.index("prepareBundledMusic("))
-        self.assertIn("macOS for now", template)
         estimate = body(self.source, "  async function estimateMusic(audio) {", "\n  }\n")
         self.assertLess(estimate.index("if (macOnly) throw new Error(t.estimateMacOnly);"), estimate.index("// mac-only:start"))
         self.assertIn("{macOnly ? <small>{t.estimateMacOnly}</small> : <ui.Toggle label={t.bpmManual}", self.source)
@@ -121,7 +129,11 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
 
     def test_manifest_and_docs(self):
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
-        self.assertNotEqual(manifest["version"], "0.3.2")
+        self.assertNotIn(manifest["version"], ("0.3.2", "0.3.3"))
+        self.assertIn("Windows x64", manifest["compatibility"]["platforms"])
+        self.assertNotIn("hold_video.py", manifest["files"])
+        self.assertFalse(os.path.exists(os.path.join(PLUGIN, "hold_video.py")), "hold_video.py lives in dev/")
+        self.assertNotIn("hold_video.py", read(os.path.join(PLUGIN, "SKILL.md")))
         install = read(os.path.join(PLUGIN, "INSTALL.md"))
         self.assertIn("Windows", install)
         for needle in ("brew ", "Homebrew", "nvm "):
