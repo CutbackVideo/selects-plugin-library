@@ -132,6 +132,16 @@ class CutoutBeatGalleryWindowsTest(unittest.TestCase):
         self.assertIn('root.onmessage', engine)
         self.assertIn('cutout-engine.js', self.manifest['files'])
 
+    def test_manifest_and_install_say_windows_honestly(self):
+        self.assertIn('Windows x64', self.manifest['compatibility']['platforms'])
+        self.assertNotEqual(self.manifest['version'], '0.1.1', 'bump the version so installs update')
+        install = (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8')
+        windows = install[install.index('## Windows'):install.index('## macOS')]
+        self.assertIn('uses Selects credits', windows)
+        self.assertIn('2.0.512', windows)
+        for mac in ('brew', 'pip', 'xcode-select', 'swiftc'):
+            self.assertNotIn(mac, windows)
+
     def test_windows_thumbnails_do_not_use_the_shell(self):
         effect = self.portable[self.portable.index('React.useEffect(()=>{\n    const chosen'):]
         effect = effect[:effect.index('},[sdk,folder,rows]);')]
