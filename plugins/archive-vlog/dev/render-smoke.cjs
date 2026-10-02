@@ -18,12 +18,13 @@ const USAGE = `usage: node render-smoke.cjs <plugin dir> [--langs de,ko] [--show
 // ---- ADAPT: Archive Vlog's fake states (every panel state) ------------------------------------------------------
 // Variants rendered for every language: no Project, loading, ready (with a searched plan), Quick / Long / Golden Hour
 // with Credit and Look off, No music + Clip sound Off, own music (accepted / approximate / none), busy with progress,
-// a finished result with notes, an unfinished result with an error, inventory errors, clips being analysed, a Korean
+// a finished result with notes, an unfinished result with an error, inventory errors, clips still being added, the quick
+// check of unanalysed clips in progress, a mixed Project's note about clips without analysis, a Korean
 // title and credit, a host too old for the panel, a playing preview, every plan failure (photos only, one video, no
 // clip long enough for the opening or the final shot, too few shots, music too short) and a title whose decode is
 // fitted to a short opening shot.
 const VARIANTS = ['noProject', 'loading', 'ready', 'quickLong', 'noMusic', 'ownAccepted', 'ownApprox', 'ownNone', 'busy', 'done', 'unfinished', 'invBusy',
-  'invFailed', 'analysing', 'korean', 'hostTooOld', 'playing', 'listening', 'creditCleared', 'fast', 'noVideo', 'oneVideo', 'openingShort', 'endingShort',
+  'invFailed', 'stillAdding', 'checkingLocal', 'mixedNote', 'korean', 'hostTooOld', 'playing', 'listening', 'creditCleared', 'fast', 'noVideo', 'oneVideo', 'openingShort', 'endingShort',
   'tooFew', 'musicShort', 'decodeFit'];
 const PLUGIN = path.resolve(__dirname, '..');
 const readJson = (f) => JSON.parse(fs.readFileSync(path.join(PLUGIN, f), 'utf8'));
@@ -57,8 +58,12 @@ function states(variant, T) {
       status: { tone: 'error', say: (l) => T(l, 'stoppedAt', { step: 4, total: 5, name: T(l, 'step.look'), detail: T(l, 'finishFailed', { detail: 'invalid_source_range' }) }) } };
     case 'invBusy': return { assets: ASSETS, roots: base.roots, invError: { busy: true, say: (l) => T(l, 'busy') } };
     case 'invFailed': return { assets: ASSETS, roots: base.roots, invError: { say: () => 'Project not found' } };
-    case 'analysing': return { ...base, inventory: { ...INV, resources: [], photos: [], incomplete: false,
-      skipped: { unanalysed: 6, analysing: 3, notAnalysed: 2, failed: 1, statusKnown: true } } };
+    case 'stillAdding': return { ...base, inventory: { ...INV, resources: [], photos: [], incomplete: false,
+      skipped: { unanalysed: 6, missing: 0, notAnalysed: 0, analysing: 0 } } };
+    case 'checkingLocal': return { ...base, busy: true, progress: { id: 'shots', value: 0.1, percent: 10, current: 0,
+      detail: (l) => [T(l, 'videosChecked', { done: 2, count: 4 }), T(l, 'localChecked', { done: 3, count: 7 })].join(' · ') } };
+    case 'mixedNote': return { ...base, inventory: { ...INV, resources: INV.resources.map((r, i) => (i % 2 ? { ...r, analysed: false, path: '/v/' + r.rid + '.mp4' } : r)),
+      skipped: { unanalysed: 0, missing: 0, notAnalysed: Math.floor(INV.resources.length / 2), analysing: 0 } } };
     case 'korean': return { ...base, ...searched, fieldEdits: { kicker: KO_NAME, title: KO_TITLE, tagline: KO_TITLE + ' ' + KO_NAME }, creditName: KO_NAME };
     case 'hostTooOld': return { status: { tone: 'error', say: (l) => T(l, 'hostTooOld') } };
     case 'playing': return { ...base, playState: 'playing' };
@@ -99,7 +104,10 @@ const EXPECT = {
   unfinished: (T, l) => [T(l, 'draftNotFinished'), T(l, 'finishTitle')],
   invBusy: (T, l) => [T(l, 'busy')],
   invFailed: (T, l) => [T(l, 'invFailed')],
-  analysing: (T, l) => [T(l, 'analysing', { count: 3 })],
+  stillAdding: (T, l) => [T(l, 'stillAdding', { count: 6 })],
+  checkingLocal: (T, l) => [T(l, 'progressDetail', { step: 1, total: 5, name: T(l, 'step.shots'),
+    detail: [T(l, 'videosChecked', { done: 2, count: 4 }), T(l, 'localChecked', { done: 3, count: 7 })].join(' · '), percent: 10 })],
+  mixedNote: (T, l) => [T(l, 'localNote', { count: Math.floor(INV.resources.length / 2) })],
   korean: (T, l) => [KO_TITLE],
   hostTooOld: (T, l) => [T(l, 'hostTooOld')],
   playing: (T, l) => [T(l, 'stopPreview')],
