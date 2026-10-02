@@ -46,6 +46,14 @@ class ShortformClonerWindowsTest(unittest.TestCase):
         self.assertIn("%ProgramFiles%", win)
         self.assertRegex(win, r"where ffmpeg\.exe")
 
+    def test_windows_probe_checks_install_locations_through_the_host_first(self):
+        body = function(self.source, "findTools")
+        win = body[body.index("if (IS_WIN) {"): body.index("} else {")]
+        first_shell = win.index("await shell(")
+        self.assertLess(win.index("known.find((f) => store.exists(f))"), first_shell)
+        for part in ('"Selects Delta"', '"C:\\\\Program Files"', '"C:\\\\Program Files (x86)"', '"AppData", "Local", "Programs"'):
+            self.assertIn(part, win[:first_shell], part)
+
     def test_manifest(self):
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
         self.assertIn("Windows x64", manifest["compatibility"]["platforms"])
