@@ -737,5 +737,11 @@ Promise.all([hostTests, templateTest]).then(() => console.log('panel ok'), e => 
   });
   const tpl = ui.slice(ui.indexOf('async function runArchiveVlogTemplate('), ui.indexOf('// What the app mounts out of sight for a template run'));
   assert.ok(tpl.includes('t(bl, "tpl.notFoundDetail", { detail: reason })'), 'the reason goes into the message');
+  // A source timeline the host cannot load (files not on this computer) gets its own, actionable sentence.
+  assert.ok(tpl.includes('const head = notLocal ? t(bl, "tpl.notLocal") : t(bl, "tpl.notFound");'));
+  const re = /analyzed sequence not found|placement_source_unavailable|no local source timeline/i;
+  assert.ok(tpl.includes(re.toString()), 'the notLocal pattern');
+  for (const m of ['Resource analyzed sequence not found: abc', 'resource_placement_source_unavailable: Resource x has no local source timeline.']) assert.ok(re.test(m), m);
+  assert.ok(!re.test('resource_not_found: abc'), 'other reasons keep the plain message');
   assert.ok(tpl.includes('console.warn("[archive-vlog] chosen files that could not be placed:"'), 'every failure is logged');
 }
