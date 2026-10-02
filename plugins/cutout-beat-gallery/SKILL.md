@@ -17,8 +17,9 @@ Open a project, choose a photo folder in the **Beat Cutout Gallery** panel, pres
   stays to the end.
 - On macOS, people are separated with the macOS Vision person-segmentation model on this
   computer; no photo leaves the computer.
-- On Windows, Analyze photos is "Available on macOS for now": the Windows path cuts people out
-  with Selects generation, which uses Selects credits, and it is on hold until that is decided.
+- On Windows, people are cut out by Selects generation, which uses Selects credits. After the
+  free photo check the panel shows how many photos would be sent (as one short clip) and sends
+  nothing until you press **Send ... and use credits**.
 
 ## What the Draft contains
 
