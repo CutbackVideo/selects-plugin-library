@@ -1,5 +1,6 @@
 // Host access for the panel: the app's native services (window.parent.__DI__), shell quoting, and small
-// wrappers around the panel SDK's runScript / runShell.
+// wrappers around the panel SDK's runScript / runShell (runShell is cmd.exe on Windows: only the macOS-only
+// speaker framing uses it), plus the host's bundled ffmpeg (hostFF).
 
 export const PANEL_ID = "a16z-style-captions";
 
@@ -84,6 +85,66 @@ export async function shell(sdk: Sdk, summary: string, command: string, timeoutM
     throw new Error(summary + " failed" + (text ? ": " + text.slice(-700) : "."));
   }
   return String(r?.stdout ?? r?.output ?? "");
+}
+
+// av-host:start (copied from plugins/archive-vlog/panel.tsx with TypeScript types; only the helpers this panel uses)
+// Guarded access to the host's renderer services (window.parent.__DI__, documented as internal, so every member is
+// checked before use), the platform, path joins and the install folder. There is no shell call at all (kit windows.md).
+function hostError(code: string, message: string, member = ""): any { return Object.assign(new Error(message), { code, member }); }
+function hostDI(): any { try { return ((window.parent as any) && (window.parent as any)["__DI__"]) || null; } catch { return null; } }
+// A host service when it has every named method, else null.
+export function hostApi(name: string, ...methods: string[]): any {
+  const s = hostDI()?.[name];
+  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
+}
+// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+export function hostIsWindows(): boolean {
+  try {
+    const rt = hostApi("Runtime", "getPlatform");
+    const p = rt ? String(rt.getPlatform() || "") : "";
+    if (p) return /^win/i.test(p);
+  } catch { /* the browser decides */ }
+  try {
+    const n: any = navigator;
+    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
+  } catch { return false; }
+}
+// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
+// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
+// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
+export async function hostRoots(sdk: any, id: string, marker: string): Promise<{ plugin: string; data: string | null }> {
+  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+  const holds = (dir: string | null) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  let plugin: string | null = null;
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
+  let data: string | null = null;
+  try {
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+  } catch { data = null; }
+  return { plugin, data };
+}
+// av-host:end
+
+// The host's bundled ffmpeg / ffprobe (Runtime.runFFmpeg / runFFprobe): an argv array, no shell, nothing to install.
+// Throws when this Selects build lacks the method (callers already treat a failure as "skip this step"), when the
+// tool fails, or after `timeoutMs`.
+export async function hostFF(tool: "runFFmpeg" | "runFFprobe", args: string[], timeoutMs = 120000): Promise<{ stdout: string; stderr: string }> {
+  const rt = hostApi("Runtime", tool);
+  if (!rt) throw hostError("host-missing", "this Selects build has no Runtime." + tool + "; update Selects", "Runtime." + tool);
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    // runFFmpeg also streams stderr to a callback: kept in case a host build returns it empty with withoutLog.
+    const chunks: string[] = [];
+    const extra = tool === "runFFmpeg" ? [undefined, (x: string) => { chunks.push(String(x)); }] : [];
+    const r = await rt[tool](args, true, controller ? controller.signal : undefined, ...extra);
+    return { stdout: String(r?.stdout ?? ""), stderr: String(r?.stderr || chunks.join("")) };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // The last JSON object in a block of text (the assistant sometimes wraps it in prose or a code fence).
