@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "place-count",
-  "version": "0.1.0-alpha.7",
+  "version": "0.1.0-alpha.8",
   "name": "Place Count",
   "summary": "Group trip footage into places by capture time and GPS, then build an editable travel-story timeline with separate source clips, titles, descriptions, and optional music.",
   "status": "experimental",

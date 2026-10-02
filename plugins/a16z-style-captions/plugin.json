@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "a16z-style-captions",
-  "version": "0.20.0",
+  "version": "0.20.1",
   "name": "a16z Style Captions",
   "summary": "One click turns a talking-head Draft into a 9:16 Short in the a16z house style: framing, editorial captions, keyword cards, B-roll, name tag and music.",
   "status": "experimental",
