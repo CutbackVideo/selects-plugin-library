@@ -73,13 +73,14 @@ class GongjuGalleryWindowsTest(unittest.TestCase):
         self.assertNotIn("importFiles", crop)
         build = body_of(self.runtime, "async function buildGallery(")
         self.assertLess(build.index("cropShots("), build.index("importFiles("), "crop before the import")
-        self.assertLess(build.index("cropShots("), build.index("createDraft("), "crop before the Draft")
+        self.assertLess(build.index("cropShots("), build.index("galleryScript("), "crop before the Draft")
+        self.assertIn("createDraft(", body_of(self.runtime, "function galleryScript("))
 
     def test_crop_argv_matches_the_old_helper(self):
         args = body_of(self.runtime, "function galleryCropArgs(")
         for part in ('"-ss", clip.startSeconds.toFixed(6), "-i", clip.path',
                      '"scale=1080:1440:force_original_aspect_ratio=increase,crop=1080:1440,setsar=1,fps=30000/1001"',
-                     '"-frames:v", String(clip.frames), "-an", "-c:v", "libx264"', '"-crf", "18"', '"yuv420p"', '"+faststart"'):
+                     '"-frames:v", String(clip.frames + CROP_SPARE_FRAMES), "-an", "-c:v", "libx264"', '"-crf", "18"', '"yuv420p"', '"+faststart"'):
             self.assertIn(part, args, part)
         self.assertRegex(self.runtime, r"`gallery-\$\{String\(index \+ 1\)\.padStart\(2, \"0\"\)\}\.mp4`")
 

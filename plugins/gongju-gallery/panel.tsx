@@ -117,11 +117,20 @@ async function cropShots(sdk, manifest) {
   }
   return { paths, audioPath, existingAudioId };
 }
-// The ffmpeg argv for one portrait shot (the same filter, codec and frame count the old crop.py used).
+// The Draft script. CUTS are frame numbers at 30000/1001 fps; a new Draft takes the Project's frame rate (the SDK has
+// no setter), so each cut is converted to the Draft's own frames (unchanged at 29.97).
+function galleryScript(cfg) {
+  return `const p=selects.project(${JSON.stringify(cfg.projectId)}); const d=await p.createDraft({name:${JSON.stringify(cfg.draftName)}}); await d.setFrameSize({width:1080,height:1440}); const fps=(await d.meta()).fps; if(!(fps>0))throw new Error("Unsupported draft frame rate: "+fps); const at=(f)=>Math.round(f*1001/30000*fps); const cuts=${JSON.stringify(CUTS)}.map(at); await d.insertGap({seconds:cuts[0]/fps}); const ids=${JSON.stringify(cfg.shotIds)}; for(let i=0;i<ids.length;i++)await d.insertResource({resourceId:ids[i],sourceRange:{startSeconds:0,endSeconds:(cuts[i+1]-cuts[i])/fps}}); const main=await d.clips({trackScope:"main"}); const first=Math.min(...main.map(c=>c.startFrame)); const end=Math.max(...main.map(c=>c.endFrame)); if(first!==cuts[0]||end!==cuts[cuts.length-1]||main.length!==ids.length)throw new Error("Gallery timing did not match the template"); await d.addMotionGraphic({label:"Gallery opening",tsxCode:${JSON.stringify(TITLE_GRAPHIC)},within:await d.rangeAtFrames(0,cuts[0]),parameters:{text:${JSON.stringify(cfg.title)}},editableParameters:[{key:"text",label:"Text",type:"text",defaultValue:${JSON.stringify(cfg.title)}}]}); await d.overlayResource({resource:p.resource(${JSON.stringify(cfg.audioId)}),over:await d.rangeAtFrames(0,at(${AUDIO_END_FRAME}))}); const check=await d.validate({maxDurationSeconds:11.7}); if(!check.ok)throw new Error(JSON.stringify(check)); const saved=await d.commitAll("Create gallery montage"); return {draftId:saved.createdDraftId,frames:end,clips:main.length};`;
+}
+
+// Spare frames past each shot, so a shot rounded to another Draft frame rate (up to one Draft frame longer, 42 ms at
+// 23.976) still fits inside its crop.
+const CROP_SPARE_FRAMES = 2;
+// The ffmpeg argv for one portrait shot (the same filter and codec the old crop.py used).
 function galleryCropArgs(clip, output) {
   return ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", clip.startSeconds.toFixed(6), "-i", clip.path,
     "-vf", "scale=1080:1440:force_original_aspect_ratio=increase,crop=1080:1440,setsar=1,fps=30000/1001",
-    "-frames:v", String(clip.frames), "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+    "-frames:v", String(clip.frames + CROP_SPARE_FRAMES), "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
     "-pix_fmt", "yuv420p", "-movflags", "+faststart", output];
 }
 
@@ -284,7 +293,7 @@ async function buildGallery(sdk, { projectId, language, chosen, audios, fixedAud
 
   const draftName = `${T.title} — ${new Date().toLocaleString(language || undefined)}`;
   const title = OPENING_TEXT;
-  const script = `const p=selects.project(${JSON.stringify(projectId)}); const d=await p.createDraft({name:${JSON.stringify(draftName)}}); await d.setFrameSize({width:1080,height:1440}); const fps=(await d.meta()).fps; if(Math.abs(fps-30000/1001)>0.05)throw new Error("Unsupported draft frame rate: "+fps); const cuts=${JSON.stringify(CUTS)}; await d.insertGap({seconds:cuts[0]/fps}); const ids=${JSON.stringify(shotIds)}; for(let i=0;i<ids.length;i++)await d.insertResource({resourceId:ids[i],sourceRange:{startSeconds:0,endSeconds:(cuts[i+1]-cuts[i])/fps}}); const main=await d.clips({trackScope:"main"}); const first=Math.min(...main.map(c=>c.startFrame)); const end=Math.max(...main.map(c=>c.endFrame)); if(first!==cuts[0]||end!==cuts[cuts.length-1]||main.length!==ids.length)throw new Error("Gallery timing did not match the template"); await d.addMotionGraphic({label:"Gallery opening",tsxCode:${JSON.stringify(TITLE_GRAPHIC)},within:await d.rangeAtFrames(0,cuts[0]),parameters:{text:${JSON.stringify(title)}},editableParameters:[{key:"text",label:"Text",type:"text",defaultValue:${JSON.stringify(title)}}]}); await d.overlayResource({resource:p.resource(${JSON.stringify(audioId)}),over:await d.rangeAtFrames(0,${AUDIO_END_FRAME})}); const check=await d.validate({maxDurationSeconds:11.7}); if(!check.ok)throw new Error(JSON.stringify(check)); const saved=await d.commitAll("Create gallery montage"); return {draftId:saved.createdDraftId,frames:end,clips:main.length};`;
+  const script = galleryScript({ projectId, draftName, shotIds, audioId, title });
   const built = await sdk.runScript({ summary: "Build gallery draft", script, allowCommit: true });
   if (built.isError || !built.result?.draftId) throw new Error(built.output || "Draft creation failed");
   return { draftId: built.result.draftId, audioId };
