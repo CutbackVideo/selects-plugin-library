@@ -58,7 +58,7 @@ export const ST_PANEL = {
   ],
   SFX_SHUTTERS: ['shutter-1', 'shutter-2', 'shutter-3', 'shutter-4'],
   SFX_WHOOSH: 'whoosh-1',
-  SEARCH_BATCH: 3,
+  SEARCH_BATCH: 2,
   SEARCH_PAGE: 6,
   FPS_GUESS: 30,
 };

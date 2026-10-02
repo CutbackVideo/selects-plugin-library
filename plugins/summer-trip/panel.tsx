@@ -3757,8 +3757,9 @@ const ST_TOP_ITALIC_DEFAULT = 'VLOG';
 const ST_CREDIT_PREFIX = 'By';
 const ST_PLACE_PREFIX = 'in';
 // Clips per scene-search call (12 roles + 2 signal queries each, 4 in flight, pages of ST_SEARCH_PAGE hits); search.js
-// stops starting new searches after 22 s, and clips it could not search are retried by the next Build.
-const ST_SEARCH_BATCH = 3;
+// stops starting new searches after 22 s, and clips it could not search are retried by the next Build. Two clips per
+// call: on Staging (2026-10-02) three clips took 15-23 s per call and one call hit run_script's 30 s deadline.
+const ST_SEARCH_BATCH = 2;
 const ST_SEARCH_PAGE = 6;
 // Every scene search: the shot roles and the signal queries (planner ST_SIGNAL_QUERIES).
 const ST_SEARCH_QUERIES = Object.assign({}, ST_QUERIES, ST_SIGNAL_QUERIES);
