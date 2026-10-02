@@ -9,6 +9,7 @@
 // - Rows name their Project by alias (`project: "daily"`) and carry `pid: "@daily"` as a placeholder, because the
 //   driver's --check requires a pid before the adapter sees the rows. The first adapter call for a row replaces the
 //   placeholder with the real id from dev/projects.local.json ({ "daily": "<project id>", ... }, git-ignored).
+//   `fresh` is the daily footage imported again without analysis (the no-analysis builds).
 //   --check and an offline --plan-only never need the real id.
 // - Row inputs: cue ('none' = No music), preset, length, pace ('quick' | 'relaxed' | 'groove'), clipSound, soft,
 //   usePhotos, punch (Beat punch), hook (Start at the hook), section ('default' | 'early' | 'late' | seconds; 'default'
@@ -220,7 +221,7 @@ export async function createAdapter({ pluginDir, installedDir, read }) {
       const counts = { project: count('project'), cue: count('cue'), preset: count('preset'), length: count('length'), pace: count('pace'),
         clipSound: count('clipSound'), soft: count('soft'), usePhotos: count('usePhotos'), punch: count('punch'), hook: count('hook'), section: count('section', withMusic), seed: seeds };
       const want = {
-        project: ['daily', 'ny', 'paris'], cue: [...cues.map(c => c.id), 'none'], preset: presets.map(p => p.id), length: Object.keys(P.MV_LENGTHS),
+        project: ['daily', 'ny', 'paris', 'fresh'], cue: [...cues.map(c => c.id), 'none'], preset: presets.map(p => p.id), length: Object.keys(P.MV_LENGTHS),
         pace: ['quick', 'relaxed', 'groove'], clipSound: ['off', 'ambient', 'full'], soft: ['true', 'false'], usePhotos: ['true', 'false'], punch: ['true', 'false'], hook: ['true', 'false'],
         section: ['default', 'early', 'late'], seed: ['1', '2'],
       };

@@ -12,5 +12,7 @@
  {"key":"paris-soul","project":"paris","pid":"@paris","cue":"sunny-soul-strut","preset":"small-glimpse","length":"standard","pace":"quick","clipSound":"full","soft":true,"usePhotos":false,"section":"late","capture":true,"hook":false},
  {"key":"d-bedroom","project":"daily","pid":"@daily","cue":"bedroom-pop-108","preset":"mini-vlog","length":"standard","pace":"groove","clipSound":"ambient","soft":true,"usePhotos":true,"section":"default","punch":true,"hook":true,"export":true},
  {"key":"ny-acoustic","project":"ny","pid":"@ny","cue":"acoustic-pop-104","preset":"small-glimpse","length":"short","pace":"groove","clipSound":"full","soft":true,"usePhotos":true,"section":"default","punch":false,"hook":true},
- {"key":"paris-bedroom","project":"paris","pid":"@paris","cue":"bedroom-pop-108","preset":"day-in-my-life","length":"long","pace":"quick","clipSound":"off","soft":false,"usePhotos":false,"section":"late","punch":true}
+ {"key":"paris-bedroom","project":"paris","pid":"@paris","cue":"bedroom-pop-108","preset":"day-in-my-life","length":"long","pace":"quick","clipSound":"off","soft":false,"usePhotos":false,"section":"late","punch":true},
+ {"key":"fresh-bedroom","project":"fresh","pid":"@fresh","cue":"bedroom-pop-108","preset":"mini-vlog","length":"standard","pace":"groove","clipSound":"ambient","soft":true,"usePhotos":true,"section":"default","punch":true,"hook":true},
+ {"key":"fresh-lofi","project":"fresh","pid":"@fresh","cue":"easy-sunday-lofi","preset":"day-in-my-life","length":"long","pace":"relaxed","clipSound":"full","soft":false,"usePhotos":false,"section":"late","punch":false}
 ]
