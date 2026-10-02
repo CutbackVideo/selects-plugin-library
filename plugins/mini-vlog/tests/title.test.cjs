@@ -266,8 +266,15 @@ for (const id of ['day-in-my-life', 'small-glimpse']) for (const i of lay(id, { 
   // placed after the Latin fallbacks and before the generic family.
   const roleFace = { 'MV Instrument Serif Italic': 'AppleMyungjo', 'MV DM Serif Display': 'AppleMyungjo', 'MV Rounded Bold': 'Apple SD Gothic Neo', 'MV DM Mono': 'Apple SD Gothic Neo' };
   for (const p of presets.presets) for (const f of p.fonts) assert.equal(K.faces[f.family], roleFace[f.family], f.family);
-  assert.equal(K.stack('MV Instrument Serif Italic'), '"MV Instrument Serif Italic", "Helvetica Neue", Arial, "AppleMyungjo", serif');
-  assert.equal(K.stack('MV Rounded Bold'), '"MV Rounded Bold", "Helvetica Neue", Arial, "Apple SD Gothic Neo", sans-serif');
+  // Each stack names the macOS and the Windows Korean face of its role (and Noto), after the Latin fallbacks (Arial is
+  // on Windows) and before the generic family.
+  assert.equal(K.stack('MV Instrument Serif Italic'), '"MV Instrument Serif Italic", "Helvetica Neue", Arial, "AppleMyungjo", "Batang", "Noto Serif KR", serif');
+  assert.equal(K.stack('MV Rounded Bold'), '"MV Rounded Bold", "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif');
+  for (const p of presets.presets) for (const f of p.fonts) {
+    const st = K.stack(f.family), serif = roleFace[f.family] === 'AppleMyungjo';
+    for (const face of serif ? ['AppleMyungjo', 'Batang'] : ['Apple SD Gothic Neo', 'Malgun Gothic']) assert.ok(st.includes('"' + face + '"'), f.family + ': ' + face);
+    assert.ok(st.includes('Arial'), f.family + ': a Latin face that exists on Windows');
+  }
   assert.ok(src.slice(end).includes('fontFamily={mvFontStack(it.font.family)}') && !src.includes('const FALLBACK'), 'the render uses the stack');
   const panel = fs.readFileSync(path.resolve(__dirname, '..', 'panel.tsx'), 'utf8');
   assert.ok(panel.includes('fontFamily={mvFontStack(it.font.family)}') && panel.includes('fontFamily: mvFontStack(face.family)') && !panel.includes('PREVIEW_FALLBACK'), 'preview and tiles use the stack');
@@ -278,7 +285,26 @@ for (const id of ['day-in-my-life', 'small-glimpse']) for (const i of lay(id, { 
   // Hangul reaches the ascent and below the baseline (its ink box is not x-height tall).
   const ik = JSON.parse(JSON.stringify(K.ink(HARU, m)));
   assert.ok(ik.up >= m.capHeight / m.unitsPerEm && ik.down > 0, 'Hangul ink ' + JSON.stringify(ik));
-  assert.deepEqual(ik, { up: 0.86, down: 0.12 }, 'Hangul ink: 0.86 em up, 0.12 em down');
+  assert.deepEqual(ik, { up: 0.86, down: 0.12 }, 'Hangul ink without a measurement (node): the macOS 0.86 em up, 0.12 em down');
+  // Where a canvas exists (the panel preview, the Draft's render), the Hangul ink is measured in the family's stack
+  // (measureText actualBoundingBox*), once per family, and the layout uses it instead of the macOS figures.
+  {
+    const fonts = [];
+    const mbox = { document: { createElement: () => ({ getContext: () => ({ set font(v) { fonts.push(v); }, measureText: () => ({ actualBoundingBoxAscent: 92, actualBoundingBoxDescent: 18 }) }) }) } };
+    vm.createContext(mbox);
+    vm.runInContext(block + ';globalThis.L=mvLockupLayout;globalThis.W=mvWideInk;', mbox);
+    const w = JSON.parse(JSON.stringify(mbox.W('MV Rounded Bold')));
+    assert.deepEqual(w, { up: 0.92, down: 0.18, measured: true }, 'measured Hangul ink');
+    assert.ok(fonts[0].startsWith('100px "MV Rounded Bold"') && fonts[0].includes('"Malgun Gothic"'), 'measured in the family stack');
+    const item = JSON.parse(JSON.stringify(mbox.L({ ...DEFAULT, preset: 'small-glimpse', fields: { top: '', big: HARU, bottom: '' }, fonts: fontsFor('small-glimpse') }, W, H)))
+      .find(i => i.kind === 'text' && i.text === HARU);
+    near((item.y - item.box[1]) / item.size, 0.92, 1e-9, 'layout uses the measured ascent'); near((item.box[3] - item.y) / item.size, 0.18, 1e-9, 'and descent');
+    mbox.W('MV Rounded Bold'); assert.equal(fonts.filter(f => f.includes('MV Rounded Bold')).length, 1, 'measured once per family');
+    // A measurement that looks wrong (no ascent) keeps the macOS figures.
+    const bad = { document: { createElement: () => ({ getContext: () => ({ font: '', measureText: () => ({ actualBoundingBoxAscent: 0, actualBoundingBoxDescent: 0 }) }) }) } };
+    vm.createContext(bad); vm.runInContext(block + ';globalThis.W=mvWideInk;', bad);
+    assert.deepEqual(JSON.parse(JSON.stringify(bad.W('MV DM Mono'))), { up: 0.86, down: 0.12, measured: false });
+  }
   // Stars and the year centre on the middle of Hangul ink, on the x-height band of Latin.
   near(K.band(HARU, m), 0.37, 1e-9, 'Hangul band'); near(K.band('day', m), m.xHeight / m.unitsPerEm / 2, 1e-9, 'Latin band');
   // A spaceless Hangul word is never hyphenated; with a space it splits there.

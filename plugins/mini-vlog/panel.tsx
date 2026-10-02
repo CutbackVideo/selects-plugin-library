@@ -3166,17 +3166,48 @@ var MV_HANGUL_RE = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/;
 var MV_WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
 // The macOS Korean system face per bundled family (by role: serif faces AppleMyungjo, the rest Apple SD Gothic Neo).
 var MV_KO_FACES = { "MV Instrument Serif Italic": "AppleMyungjo", "MV DM Serif Display": "AppleMyungjo", "MV Rounded Bold": "Apple SD Gothic Neo", "MV DM Mono": "Apple SD Gothic Neo" };
+// The Korean system faces of a role on macOS and Windows (and Noto where installed), in that order.
+var MV_KO_STACKS = { serif: '"AppleMyungjo", "Batang", "Noto Serif KR"', sans: '"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR"' };
 function mvHasHangul(text) { return MV_HANGUL_RE.test(String(text || "")); }
-// The system Korean faces' ink in em: Hangul reaches about 0.86 em above the baseline and 0.12 em below it.
+// Hangul ink in em, measured where the text is drawn (mvWideInk): the Korean face differs by OS (Apple SD Gothic Neo
+// and AppleMyungjo on macOS, Malgun Gothic and Batang on Windows). These are the macOS faces' figures (about 0.86 em
+// above the baseline and 0.12 em below it), used only where nothing can be measured (node, tests).
 var MV_WIDE_UP = 0.86, MV_WIDE_DOWN = 0.12;
+var MV_WIDE_SAMPLE = "\ud55c\uae00\ubdf0\ud790\uc77c\uc0c1";
+var MV_WIDE_CACHE = {};
+// A family's Hangul ink { up, down } in em: canvas measureText(...).actualBoundingBoxAscent / Descent of a few Hangul
+// syllables at 100 px in the family's font stack (so the system Korean face that really draws them), once per family;
+// the macOS figures when there is no canvas or the measurement looks wrong.
+function mvWideInk(family) {
+  if (MV_WIDE_CACHE[family]) return MV_WIDE_CACHE[family];
+  var ink = { up: MV_WIDE_UP, down: MV_WIDE_DOWN, measured: false };
+  try {
+    var doc = typeof document !== "undefined" ? document : null;
+    var ctx = doc && doc.createElement ? doc.createElement("canvas").getContext("2d") : null;
+    if (ctx) {
+      ctx.font = "100px " + mvFontStack(family);
+      var r = ctx.measureText(MV_WIDE_SAMPLE);
+      var up = r.actualBoundingBoxAscent / 100, down = r.actualBoundingBoxDescent / 100;
+      if (up > 0.5 && up < 1.3 && down > -0.1 && down < 0.5) ink = { up: up, down: Math.max(0, down), measured: true };
+    }
+  } catch (e) { /* the macOS figures */ }
+  MV_WIDE_CACHE[family] = ink;
+  return ink;
+}
+// The Hangul ink a metrics object carries (mvFace adds the measured one), else the macOS figures.
+function mvWideOf(m) {
+  return { up: m && typeof m.wideUp === "number" ? m.wideUp : MV_WIDE_UP, down: m && typeof m.wideDown === "number" ? m.wideDown : MV_WIDE_DOWN };
+}
 // Where a star or year centres on a line: the x-height band of Latin text, the middle of the ink of wide text.
 function mvBand(text, m) {
-  return MV_WIDE_RE.test(text) ? (MV_WIDE_UP - MV_WIDE_DOWN) / 2 : m.xHeight / m.unitsPerEm / 2;
+  var w = mvWideOf(m);
+  return MV_WIDE_RE.test(text) ? (w.up - w.down) / 2 : m.xHeight / m.unitsPerEm / 2;
 }
-// A text item's font stack: the bundled face, the Latin fallbacks, then the family's Korean face before the generic one.
+// A text item's font stack: the bundled face, the Latin fallbacks, then the family's Korean faces (macOS, Windows,
+// Noto) before the generic one.
 function mvFontStack(family) {
-  var ko = MV_KO_FACES[family] || "Apple SD Gothic Neo";
-  return '"' + family + '", "Helvetica Neue", Arial, "' + ko + '", ' + (ko === "AppleMyungjo" ? "serif" : "sans-serif");
+  var serif = (MV_KO_FACES[family] || "Apple SD Gothic Neo") === "AppleMyungjo";
+  return '"' + family + '", "Helvetica Neue", Arial, ' + (serif ? MV_KO_STACKS.serif + ", serif" : MV_KO_STACKS.sans + ", sans-serif");
 }
 var MV_MINI_WIDTH = (0.155 * 1920) / 1080; // "mini" advance width at size 100, fraction of height
 
@@ -3185,7 +3216,10 @@ function mvFace(data, preset, role) {
   var fonts = data && Array.isArray(data.fonts) ? data.fonts : [];
   var m = null;
   for (var i = 0; i < fonts.length; i++) if (fonts[i] && fonts[i].family === face.family && fonts[i].metrics) m = fonts[i].metrics;
-  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, shade: typeof face.shade === "number" ? face.shade : 1, m: m || MV_FALLBACK_METRICS };
+  // The family's Hangul ink as measured here (mvWideInk) travels with its metrics to mvInk and mvBand.
+  var wide = mvWideInk(face.family);
+  m = Object.assign({}, m || MV_FALLBACK_METRICS, wide.measured ? { wideUp: wide.up, wideDown: wide.down } : {});
+  return { family: face.family, style: face.style, weight: face.weight, tracking: face.tracking || 0, stroke: face.stroke || 0, shade: typeof face.shade === "number" ? face.shade : 1, m: m };
 }
 
 function mvAdvance(m, ch) {
@@ -3208,7 +3242,7 @@ function mvInk(text, m) {
   if (/[A-Z0-9bdfhklt\u00c0-\u00de\u00df!?'"&%$#@/\\|(){}[\]]/.test(text)) up = Math.max(up, m.ascent, m.capHeight);
   else if (/[ij]/.test(text)) up = Math.max(up, m.dots.i[1] + 0.07 * m.unitsPerEm);
   if (/[gjpqy,;()[\]{}|]/.test(text)) down = -m.descent;
-  if (wide) { up = Math.max(up, MV_WIDE_UP * m.unitsPerEm); down = Math.max(down, MV_WIDE_DOWN * m.unitsPerEm); }
+  if (wide) { var w = mvWideOf(m); up = Math.max(up, w.up * m.unitsPerEm); down = Math.max(down, w.down * m.unitsPerEm); }
   return { up: up / m.unitsPerEm, down: down / m.unitsPerEm };
 }
 
@@ -4914,7 +4948,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
               <ui.Button variant="ghost" disabled={busy || selectedRids.length + selectedPhotoRids.length === 0} onClick={() => { chooseClips([]); choosePhotos([]); }}>{t(L, "none")}</ui.Button>
             </ui.Row>
             {/* One row per clip: the name truncates, duration and shape stay visible; long lists scroll inside. */}
-            <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
+            <div style={{ maxHeight: 220, overflowY: "auto", scrollbarGutter: "stable", marginTop: 4, borderRadius: "var(--panel-radius, 6px)", border: "1px solid var(--panel-border, rgba(128, 128, 128, 0.35))" }}>
               {inventory.resources.map((r: any) => {
                 const on = selectedRids.includes(r.rid);
                 const hint = shapeHint(r.width, r.height);
