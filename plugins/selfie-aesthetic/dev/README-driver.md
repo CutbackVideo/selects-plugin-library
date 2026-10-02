@@ -2,8 +2,8 @@
 
 `driver-adapter.mjs` is the style-specific half of the selects-app-kit driver (`tools/drive/build-driver.mjs`): it
 rebuilds exactly the configs `panel.tsx` build() sends (panel constants read from `panel.tsx`, `planner.js` and the
-`// sae-panel:start/end` helpers run in node:vm) and runs the plugin's `scripts/*.js` verbatim. `matrix.json` has 17
-rows (19 builds) over the Projects "Selfie test A" and "Selfie test B".
+`// sae-panel:start/end` helpers run in node:vm) and runs the plugin's `scripts/*.js` verbatim. `matrix.json` has 23
+rows (25 builds) over the Projects "Selfie test A" and "Selfie test B", an unanalysed Project (U) and a mixed one (M).
 
 `KIT` is your selects-app-kit checkout and `PLUGIN` this plugin folder (both absolute).
 
@@ -46,6 +46,25 @@ inventory.js returns, using the host block's own `saeMotionArgs` / `saeMotionVal
 8 fps, 32x56 gray, first 120 s), and passes it to the planner as the panel does. `rec.still` records
 `{ weight, measured, videos }`; a clip whose source cannot be read has no curve (planned as at weight 0). An inventory
 without source paths (a cache from before this change) throws for still rows.
+
+Build without analysis: rows `u-funk` / `u-pan` run on a Project whose videos were imported without analysis, rows
+`m-funk` / `m-day` on a Project with analysed and unanalysed videos. Their `pid` is a placeholder (`UNANALYSED_PID`,
+`MIXED_PID`) that the adapter replaces with `$SAE_UNANALYSED_PID` / `$SAE_MIXED_PID` (set them to the Staging Project
+ids; a row fails with a clear message when its variable is unset). `u-funk` has `a-funk`'s inputs, so with the
+unanalysed Project built from the Set A files the two exports compare unanalysed vs analysed builds of the same footage.
+
+```sh
+SAE_UNANALYSED_PID=<project id> SAE_MIXED_PID=<project id> node $KIT/tools/drive/build-driver.mjs --plugin $PLUGIN \
+  --adapter $PLUGIN/dev/driver-adapter.mjs --matrix $PLUGIN/dev/matrix.json --key u-funk
+```
+
+Unanalysed videos (inventory rows with `analysed: false`) are not scene-searched (`videoRids` lists analysed clips
+only) and get the panel's quick local score: `dev/quick-score-node.cjs` runs the panel's own `// quick-score:start/end`
+block (the kit's `tools/panel/quick-score.js`) in a child node process with the local ffmpeg (`FFMPEG_DIR` or PATH)
+behind the block's `io` seam, at the panel's `SAE_QUICK_CONCURRENCY` / `SAE_QUICK_BUDGET_MS`, cached in `$SAE_QS_DATA`
+(default `<tmp>/sae-quick-score`). As in the panel this is not gated on `still`. The plan gets `analysed`, `local`
+and the block's `pickWindowsLocal`, like `buildDraft`. `rec.local` records `{ videos, scored, fallback, ms, perClipMs }`.
+Offline timing on any files: `node $PLUGIN/dev/quick-score-node.cjs [--concurrency 3] <video>...`.
 
 Differences from a panel Build and what the readback cannot check:
 - No bad-shot spans. The panel reads them with `sdk.call("getResourceVisualSpans")`, which run_script / MCP cannot

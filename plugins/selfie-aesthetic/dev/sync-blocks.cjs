@@ -3,6 +3,9 @@
 //   // sae-planner:start … // sae-planner:end   <- planner.js (trimmed)
 //   // sae-host:start … // sae-host:end         <- dev/host-block.ts (the marked region, markers included)
 //   // sae-beat:start … // sae-beat:end         <- beat-detect.cjs up to `module.exports`, wrapped in an IIFE
+//   // quick-score:start … // quick-score:end   <- dev/quick-score-block.ts (the marked region, markers included): an
+//                                                  exact copy of the kit's tools/panel/quick-score.js; to take a kit
+//                                                  update, replace that file and re-run this script (never edit it here)
 // Usage: node plugins/selfie-aesthetic/dev/sync-blocks.cjs [--check]   (--check exits 1 when a block is stale)
 'use strict';
 const fs = require('node:fs');
@@ -28,6 +31,7 @@ function region(text, start, end) {
 
 const planner = read('planner.js').trim();
 const host = (() => { const t = read('dev/host-block.ts'); const [a, b] = region(t, '// sae-host:start', '// sae-host:end'); return t.slice(a, b); })();
+const quick = (() => { const t = read('dev/quick-score-block.ts'); const [a, b] = region(t, '// quick-score:start', '// quick-score:end'); return t.slice(a, b); })();
 const beat = (() => {
   const t = read('beat-detect.cjs');
   const m = /^module\.exports\b/m.exec(t);
@@ -42,6 +46,7 @@ const replace = (start, end, body) => { const [a, b] = region(panel, start, end)
 replace('// sae-planner:start', '// sae-planner:end', '// sae-planner:start\n' + planner + '\n// sae-planner:end');
 replace('// sae-host:start', '// sae-host:end', host);
 replace('// sae-beat:start', '// sae-beat:end', beat);
+replace('// quick-score:start', '// quick-score:end', quick);
 
 if (panel === before) { console.log('blocks up to date'); process.exit(0); }
 if (check) { console.error('panel.tsx blocks are stale: run node plugins/selfie-aesthetic/dev/sync-blocks.cjs'); process.exit(1); }

@@ -36,9 +36,9 @@ any source file. It is inspired by a CapCut aesthetic-edit template.
 
 ## How to use it
 
-1. Open a Project whose video clips are analysed (or that has photos), then open
-   **Selfie Aesthetic Edit** from the Plugin list. The top line shows what was found, for
-   example "Ready: 6 clips · 3 close-up clips · about 10 s".
+1. Open a Project with video clips or photos, then open **Selfie Aesthetic Edit** from the
+   Plugin list. The top line shows what was found, for example "Ready: 6 clips · 3 photos ·
+   about 10 s". Clips don't need to be analysed: once a clip is imported it can be used.
 2. Pick the options below. The defaults work for most footage.
 3. Press **Build**. Progress runs through five steps: Checking clips, Finding close-ups,
    Planning the edit, Building the Draft, Adding whip and look. The new Draft opens and a
@@ -47,12 +47,17 @@ any source file. It is inspired by a CapCut aesthetic-edit template.
    choice. **Finish look** retries only the whip and look step if it failed after the Draft
    was created.
 
-If some clips are not analysed yet, the panel says so and does not start analysis itself.
-Analyse them in Selects first.
+Analysed and unanalysed clips both work, and you never have to wait for analysis. For analysed
+clips the panel finds close-ups with Selects' scene search and avoids bad shots. Unanalysed
+clips get a quick check with the ffmpeg bundled with Selects (about half a second per clip, cached):
+sharpness, exposure and motion, avoiding black, fading, flashing and blurry moments. This style
+holds still, so the steadiest moments are picked. Analysed clips give better close-up picks,
+and the panel shows a small note saying so. If the quick check can't run, the shots are evenly
+spaced and the Draft is still built. The panel never starts analysis itself.
 
 ## Options
 
-- **Clips**: Auto (all analysed clips) or Choose clips to pick them yourself.
+- **Clips**: Auto (every usable clip, analysed or not) or Choose clips to pick them yourself.
 - **Music**: one of the four bundled tracks, **Your own music** (drop an audio file; the beat
   is detected inside the panel) or No music. A draggable **Music section** bar chooses where
   in the track the edit starts, and **Preview this section** plays it.
