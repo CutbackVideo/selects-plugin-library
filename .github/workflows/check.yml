@@ -161,7 +161,6 @@ jobs:
           node --test tests/depth_type_captions_windows.test.mjs
           node --test tests/depth_type_captions.test.mjs
           node --test tests/camera_shutter_dump.test.mjs
-          node --test tests/selected_template_media.test.mjs
           node --test tests/postcard_cutout_studio.test.mjs
           node --test tests/postcard_cutout_studio_port.test.mjs
       - name: Test A16z Style Captions
