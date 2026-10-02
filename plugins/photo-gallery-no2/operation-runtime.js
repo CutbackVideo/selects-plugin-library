@@ -15,11 +15,23 @@ export default function PhotoGalleryTile({Source,data}) {
 
 function galleryFail(message) { throw new Error(message); }
 
+// Host paths: POSIX (/…) on macOS; a drive (C:\… or C:/…) or UNC (\\server\…) path on Windows.
+function galleryAbsolute(path) {
+  return typeof path === 'string' && !path.includes('\0') && /^(?:\/|[A-Za-z]:[\\/]|\\\\)./.test(path);
+}
+// One comparison key per host path: NFC; a Windows path (drive letter or backslash) also gets / separators and is
+// case-folded, as Windows paths are case-insensitive. POSIX paths stay case-sensitive.
+function galleryPathKey(path) {
+  const text = String(path ?? '').normalize('NFC');
+  return /^[A-Za-z]:(?:[\\/]|$)/.test(text) || text.includes('\\') ? text.replace(/\\/g, '/').toLowerCase() : text;
+}
+function gallerySamePath(a, b) { return typeof a === 'string' && typeof b === 'string' && galleryPathKey(a) === galleryPathKey(b); }
+
 function galleryResolveResource(items, resourceId, path, label) {
   const byId = items.find((item) => item.resourceId === resourceId);
-  if (typeof path !== 'string' || !path.startsWith('/')) galleryFail(`${label} path is required`);
-  if (byId?.path === path) return byId;
-  const matches = items.filter((item) => item.path === path);
+  if (!galleryAbsolute(path)) galleryFail(`${label} path is required`);
+  if (gallerySamePath(byId?.path, path)) return byId;
+  const matches = items.filter((item) => gallerySamePath(item.path, path));
   if (matches.length !== 1) galleryFail(`${label} path is missing or ambiguous in this Project`);
   return matches[0];
 }
@@ -110,20 +122,20 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
   for (const item of input.converted) {
     const source = galleryResolveResource(inventory.media, item?.sourceResourceId, item?.sourcePath, 'Selected source');
     if (source.kind !== 'video' || seenSources.has(source.resourceId) ||
-        typeof item.path !== 'string' || !/^\/(?:[^\0]+)\.mp4$/i.test(item.path)) {
+        !galleryAbsolute(item.path) || !/\.mp4$/i.test(item.path)) {
       galleryFail('A held clip must match one distinct Project video and absolute MP4 path');
     }
     seenSources.add(source.resourceId);
   }
-  const paths = [...new Set(input.converted.map((item) => item.path))];
+  const paths = [...new Map(input.converted.map((item) => [galleryPathKey(item.path), item.path])).values()];
   const probe = await selects.media.probe({ filePaths: paths });
-  const probed = new Set((probe.files || []).filter((file) => !file.type || /video/i.test(file.type)).map((file) => file.path));
-  if (probe.error || probe.errors?.length || probe.summary?.failed || paths.some((path) => !probed.has(path))) {
+  const probed = new Set((probe.files || []).filter((file) => !file.type || /video/i.test(file.type)).map((file) => galleryPathKey(file.path)));
+  if (probe.error || probe.errors?.length || probe.summary?.failed || paths.some((path) => !probed.has(galleryPathKey(path)))) {
     galleryFail('A held video file is missing or unreadable; no Project media was imported');
   }
   const currentByPath = new Map();
-  for (const item of inventory.media) if (item.kind === 'video') currentByPath.set(item.path, item);
-  const missing = paths.filter((path) => !currentByPath.has(path));
+  for (const item of inventory.media) if (item.kind === 'video') currentByPath.set(galleryPathKey(item.path), item);
+  const missing = paths.filter((path) => !currentByPath.has(galleryPathKey(path)));
   if (missing.length) {
     if (typeof project.importFiles !== 'function') galleryFail('This Selects version cannot import held videos');
     onImportStarted();
@@ -131,16 +143,17 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
   }
   const fresh = missing.length ? await galleryInventory(project) : inventory;
   const importedByPath = new Map();
-  for (const item of fresh.media) if (item.kind === 'video') importedByPath.set(item.path, item);
+  for (const item of fresh.media) if (item.kind === 'video') importedByPath.set(galleryPathKey(item.path), item);
   const converted = input.converted.map((item) => {
-    const video = importedByPath.get(item.path);
+    const video = importedByPath.get(galleryPathKey(item.path));
     if (!video || video.durationFrames == null || video.durationFrames < requiredFrames) {
       galleryFail('Held video import or length could not be verified; inspect Project files before retrying');
     }
     const source = galleryResolveResource(fresh.media, item.sourceResourceId, item.sourcePath, 'Selected source');
     return { sourceResourceId: item.sourceResourceId, resolvedSourceResourceId: source?.resourceId,
       resourceId: video.resourceId,
-      path: item.path, width: video.width, height: video.height, durationFrames: video.durationFrames };
+      // The Project's own spelling of the path, which native placement later compares exactly.
+      path: video.path, width: video.width, height: video.height, durationFrames: video.durationFrames };
   });
   return { status: 'prepared', converted };
 }
@@ -148,20 +161,20 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
 async function galleryImportBundledMusic(selects, project, input, inventory, onImportStarted) {
   const frames = input.durationFrames ?? 853;
   if (!Number.isSafeInteger(frames) || frames < 1 || frames > 36000) galleryFail('Music length must be an integer from 1 to 36000 frames');
-  if (typeof input.path !== 'string' || !/^\/(?:[^\0]+)\.mp3$/i.test(input.path)) galleryFail('Bundled music requires an absolute MP3 path');
+  if (!galleryAbsolute(input.path) || !/\.mp3$/i.test(input.path)) galleryFail('Bundled music requires an absolute MP3 path');
   const probe = await selects.media.probe({ filePaths: [input.path] });
   if (probe.error || probe.errors?.length || probe.summary?.failed ||
-      !(probe.files || []).some(file => file.path === input.path && (!file.type || /audio/i.test(file.type)))) {
+      !(probe.files || []).some(file => gallerySamePath(file.path, input.path) && (!file.type || /audio/i.test(file.type)))) {
     galleryFail('Bundled music is missing or corrupt; reinstall the plugin');
   }
-  const matches = inventory.audio.filter(item => item.path === input.path);
-  if (matches.length > 1 || inventory.media.some(item => item.path === input.path)) galleryFail('Bundled music path is ambiguous or is not Audio');
+  const matches = inventory.audio.filter(item => gallerySamePath(item.path, input.path));
+  if (matches.length > 1 || inventory.media.some(item => gallerySamePath(item.path, input.path))) galleryFail('Bundled music path is ambiguous or is not Audio');
   if (!matches.length) {
     onImportStarted();
     await project.importFiles({ paths: [input.path] });
     inventory = await galleryInventory(project);
   }
-  const audio = inventory.audio.filter(item => item.path === input.path);
+  const audio = inventory.audio.filter(item => gallerySamePath(item.path, input.path));
   if (audio.length !== 1 || !Number.isSafeInteger(audio[0].durationFrames)) galleryFail('Bundled music import is not ready; inspect Project media before retrying');
   if (audio[0].durationFrames < frames) galleryFail('Music is too short for this result length; shorten the result or choose a longer track');
   return { status: 'musicReady', music: { ...audio[0], startFrame: 0 } };
@@ -187,8 +200,8 @@ async function galleryPreflight(selects, project, input, inventory) {
   const plan = planGallery({ media: chosen, music: selectedMusic, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames });
   const paths = [...new Set([...chosen.map((item) => item.path), ...(music ? [music.path] : [])])];
   const probe = await selects.media.probe({ filePaths: paths });
-  const confirmed = new Set((probe.files || []).map((file) => file.path));
-  if (probe.error || (probe.errors || []).length || (probe.summary?.failed || 0) || paths.some((path) => !confirmed.has(path))) {
+  const confirmed = new Set((probe.files || []).map((file) => galleryPathKey(file.path)));
+  if (probe.error || (probe.errors || []).length || (probe.summary?.failed || 0) || paths.some((path) => !confirmed.has(galleryPathKey(path)))) {
     galleryFail('A selected media file is missing, unreadable, or corrupt; no Draft was saved');
   }
   const meta = await project.meta();

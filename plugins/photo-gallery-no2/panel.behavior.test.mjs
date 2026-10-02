@@ -76,9 +76,26 @@ function harness(media = photos, options = {}) {
       options.onPlace?.();
     },
   };
+  // The host's renderer services: the bundled music is found through FileSystem, the platform through Runtime.
+  const sep = options.platform === 'win32' ? '\\' : '/';
+  const home = options.platform === 'win32' ? 'C:\\Users\\tester' : '/installed';
+  // Short videos are held by the host's ffmpeg/ffprobe: a source probes at 30 fps, a held output at 60 fps.
+  const tools = options.tools || [];
+  const probed = path => JSON.stringify({ streams: [/\.tmp$|[0-9a-f]{64}\.mp4$/.test(path)
+    ? { codec_type: 'video', codec_name: 'h264', width: 128, height: 96, r_frame_rate: '60/1', avg_frame_rate: '60/1', nb_read_frames: String(options.heldFrames ?? 853) }
+    : { codec_type: 'video', codec_name: 'h264', width: 128, height: 96, r_frame_rate: '30/1', avg_frame_rate: '30/1', nb_read_frames: '30' }] });
+  dom.window.__DI__ = {
+    FileSystem: { join: (...parts) => parts.join(sep), homedir: () => home, mkdirSync: () => {},
+      existsSync: path => (!options.musicMissing && (path.endsWith('SKILL.md') || path.endsWith('music.mp3'))) || /short\.mp4$/.test(path),
+      statSync: () => ({ size: 1000, mtimeMs: 1 }), renameSync: (from, to) => tools.push(['rename', from, to]),
+      writeFile: async () => {}, removeFile: async () => {},
+      readFile: async () => options.pcm ? Buffer.from(options.pcm.buffer) : Buffer.alloc(0) },
+    Runtime: { getPlatform: () => options.platform || 'darwin',
+      runFFprobe: async args => { tools.push(['ffprobe', ...args]); return { stdout: probed(args.at(-1)), stderr: '' }; },
+      runFFmpeg: async args => { tools.push(['ffmpeg', ...args]); return { stdout: '', stderr: '' }; } },
+  };
   const sdk = {
     runShell: async request => {
-      if (request.summary === 'Locate bundled Photo Grid Reveal music') return { exitCode: 0, stdout: '/installed/photo-gallery-no2/assets/music.mp3' };
       if (options.runShell) return options.runShell(request);
       throw new Error('Unexpected media conversion');
     },
@@ -156,28 +173,78 @@ test('an exact 15-photo/6-video selection assigns motion to the observed referen
     videos.map(item => item.resourceId));
 });
 
-test('a short video is extended before any Draft is created', async () => {
+for (const platform of ['darwin', 'win32']) {
+  test(`${platform}: a short video is held by the host ffmpeg, with no shell, before any Draft is created`, async () => {
+    const source = platform === 'win32' ? 'C:\\fixture\\short.mp4' : '/fixture/short.mp4';
+    const media = [...photos.slice(0, 20), { resourceId: 'short-1', name: 'Short tile', kind: 'video',
+      width: 128, height: 96, durationFrames: 60, path: source }];
+    const tools = [];
+    const h = harness(media, { platform, tools, runShell: async () => { throw new Error('No shell'); } });
+    await assignAndCreate(h.view);
+    await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
+    const encode = tools.find(call => call[0] === 'ffmpeg' && call.includes('libx264'));
+    assert.equal(encode[encode.indexOf('-i') + 1], source);
+    assert.equal(encode[encode.indexOf('-frames:v') + 1], '853');
+    const held = tools.find(call => call[0] === 'rename' && call[2].endsWith('.mp4'))[2];
+    const sep = platform === 'win32' ? '\\' : '/';
+    assert.ok(held.includes(['.selects', 'plugin-data', 'photo-gallery-no2', 'held-v2', ''].join(sep)), held);
+    assert.deepEqual(h.calls.slice(0, 3).map(call => call.input.operation), ['inspect', 'importConverted', 'preflight']);
+    assert.deepEqual(h.calls[1].input.converted, [{ sourceResourceId: 'short-1', sourcePath: source, path: held }]);
+    assert.equal(h.calls.find(call => call.input.operation === 'styleExisting').input.media[20].resourceId, 'held-1');
+  });
+}
+
+test('a held video that fails its frame check stops before any import or Draft', async () => {
   const media = [...photos.slice(0, 20), { resourceId: 'short-1', name: 'Short tile', kind: 'video',
     width: 128, height: 96, durationFrames: 60, path: '/fixture/short.mp4' }];
-  let conversions = 0, prepared = 0;
-  const h = harness(media, { runShell: async request => {
-    // The first call fetches the pinned Python; conversion then runs on it.
-    if (/runtime\.sh" python$/.test(request.command)) {
-      prepared++;
-      return { exitCode: 0, stdout: 'Downloading…\n/runtime/python3.11\n', stderr: '' };
-    }
-    conversions++;
-    assert.match(request.command, /'\/runtime\/python3\.11' "\$SELECTS_USER_SKILLS_ROOT\/photo-gallery-no2\/hold_video\.py"/);
-    assert.doesNotMatch(request.command, /(^|\s)python3\s/);
-    return { exitCode: 0, stdout: JSON.stringify({ status: 'converted', fps: 60, durationFrames: 853,
-      videos: [{ inputIndex: 0, sourcePath: '/fixture/short.mp4', outputPath: '/cache/held-short.mp4' }] }) };
-  } });
+  const h = harness(media, { heldFrames: 852 });
   await assignAndCreate(h.view);
+  await waitFor(() => assert.match(h.view.container.textContent, /Video 1: Cached video has the wrong frame count/));
+  assert.deepEqual(h.calls.map(call => call.input.operation), ['inspect']);
+  assert.equal(h.view.getByRole('button', { name: 'Create Draft' }).disabled, false);
+});
+
+test('Windows: the default build finds the bundled music through the host FileSystem, with no shell', async () => {
+  const h = harness(photos, { platform: 'win32', runShell: async () => { throw new Error('No shell on Windows'); } });
+  fireEvent.click(h.view.getByRole('button', { name: 'Load project media' }));
+  fireEvent.click(await waitFor(() => h.view.getByRole('button', { name: 'Assign all 21 in listed order' })));
+  fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
-  assert.equal(conversions, 1);
-  assert.equal(prepared, 1);
-  assert.deepEqual(h.calls.slice(0, 3).map(call => call.input.operation), ['inspect', 'importConverted', 'preflight']);
-  assert.equal(h.calls.find(call => call.input.operation === 'styleExisting').input.media[20].resourceId, 'held-1');
+  assert.equal(h.calls.find(c => c.input.operation === 'importBundledMusic').input.path,
+    'C:\\Users\\tester\\.selects\\skills\\photo-gallery-no2\\assets\\music.mp3');
+});
+
+for (const platform of ['darwin', 'win32']) {
+  test(`${platform}: the BPM estimate decodes the selected music with the host ffmpeg, with no shell`, async () => {
+    // 14 s of 110 BPM clicks as the mono 11025 Hz floats the host's ffmpeg would write.
+    const rate = 11025, pcm = new Float32Array(rate * 14);
+    for (let beat = 0; beat * 60 / 110 < 14; beat++) {
+      const at = Math.round(beat * 60 * rate / 110);
+      for (let i = 0; i < 55 && at + i < pcm.length; i++) pcm[at + i] = Math.trunc(25000 * Math.exp(-i / 10)) / 32768;
+    }
+    const audio = [{ resourceId: 'custom', name: 'Custom', path: platform === 'win32' ? 'C:\\music\\custom.mp3' : '/custom.mp3', durationFrames: 900 }];
+    const tools = [];
+    const h = harness(photos, { platform, audio, tools, pcm, runShell: async () => { throw new Error('No shell'); } });
+    fireEvent.click(h.view.getByRole('button', { name: 'Load project media' }));
+    fireEvent.click(await waitFor(() => h.view.getByRole('button', { name: 'Assign all 21 in listed order' })));
+    fireEvent.change(h.view.getByLabelText('Music'), { target: { value: 'custom' } });
+    fireEvent.click(h.view.getByLabelText('Enter BPM manually'));
+    fireEvent.click(h.view.getByRole('button', { name: 'Estimate music BPM' }));
+    await waitFor(() => assert.match(h.view.container.textContent, /Estimated BPM: 10[89]|Estimated BPM: 11[01]/));
+    const decode = tools.find(call => call[0] === 'ffmpeg');
+    assert.equal(decode[decode.indexOf('-i') + 1], audio[0].path);
+    assert.deepEqual(decode.slice(decode.indexOf('-ar'), decode.indexOf('-ar') + 2), ['-ar', '11025']);
+    assert.ok(!h.calls.some(c => c.allowCommit));
+  });
+}
+
+test('a missing bundled asset stops before any import', async () => {
+  const h = harness(photos, { musicMissing: true });
+  fireEvent.click(h.view.getByRole('button', { name: 'Load project media' }));
+  fireEvent.click(await waitFor(() => h.view.getByRole('button', { name: 'Assign all 21 in listed order' })));
+  fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
+  await waitFor(() => assert.match(h.view.container.textContent, /Reinstall Photo Grid Reveal/));
+  assert.ok(!h.calls.some(c => c.allowCommit));
 });
 
 test('missing native dimensions prevent a Draft and do not lock the panel', async () => {
