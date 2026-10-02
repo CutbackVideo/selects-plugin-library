@@ -31,7 +31,8 @@ const keepAlive = setInterval(() => {}, 50);
   // Config fill: the script parses the JSON string the panel embeds (quotes and apostrophes survive).
   assert.ok(fill(fs.readFileSync(path.join(dir, 'search.js'), 'utf8'), { queries: QUERIES }).startsWith('const cfg = JSON.parse("'));
 
-  // Inventory: analysed videos >= 1.2 s, short and unanalysed ones skipped and counted.
+  // Inventory: analysed videos >= 1.2 s; r1 has no analysis and no source file yet (still importing), so it is skipped
+  // as not usable yet; the 1.1 s clip as short.
   const inv = await load('inventory.js', { projectId: 'p', only: null })({ project: () => ({ resources: async () => resources, sourceFiles: async () => tree }) });
   assert.deepEqual(inv.resources.map(r => [r.rid, r.width, r.height, r.duration, r.kind]),
     [['r0', 1920, 1080, 20, 'video'], ['r3', 1080, 1920, 12, 'video'], ['r7', null, null, 1.2, 'video']]);
@@ -49,7 +50,9 @@ const keepAlive = setInterval(() => {}, 50);
   assert.equal(otherCalls, 1);
   // Source paths (the stillness picker measures motion on them); a resource outside the file tree has none.
   assert.deepEqual(inv.resources.map(r => r.path), ['/v/a.mov', '/v/c.mov', null]);
-  assert.equal(inv.skipped.unanalysed, 1);
+  assert.equal(inv.skipped.unanalysed, 1, 'an unanalysed clip without a source file is not usable yet');
+  assert.deepEqual(inv.resources.map(r => r.analysed), [true, true, true]);
+  assert.deepEqual(inv.counts, { analysed: 3, unanalysed: 0, analysing: 0 });
   assert.equal(inv.skipped.short, 1, 'the 1.1 s clip is skipped as short');
   assert.equal(inv.skipped.missing, 0);
   assert.deepEqual(inv.photos, []);
@@ -154,32 +157,45 @@ const keepAlive = setInterval(() => {}, 50);
   assert.deepEqual(s6.failed.sort(), ['a', 'b', 'c', 'd', 'e', 'f'], 'clips with unsearched roles are reported as failed');
   assert.equal(s6.stats.waitedMs, 0);
 
-  // Unanalysed videos by status: being analysed, never started, failed. The panel never starts analysis itself.
-  const v = (id, status) => ({ resourceId: id, name: id + '.mov', type: 'Video', hasAnalysis: false, status, durationSeconds: 10 });
-  const mixed = [resources[0], v('s1', 'sampling'), v('s2', 'samplingSucceeded'), v('s3', 'analyzing'), v('s4', 'samplingFailed'), v('s5', 'analyzingFailed'),
-    v('q1', 'pending'), v('q2', 'pending'), v('q3', 'pending'), v('u1', undefined)];
+  // Unanalysed videos are usable once imported (a length and a source file), whatever their status: a clip imported
+  // without startAnalysis stays 'pending' forever. Their status only feeds counts.analysing. Short and synced-member
+  // rules apply to them too; no workflows() read any more.
+  const v = (id, status, extra = {}) => ({ resourceId: id, name: id + '.mov', type: 'Video', hasAnalysis: false, status, durationSeconds: 10, ...extra });
+  const node = id => ({ type: 'video', name: id + '.mov', resourceId: id, path: '/u/' + id + '.mov', frameSize: { width: 1080, height: 1920 } });
+  const mixed = [resources[0], v('s1', 'sampling'), v('s3', 'analyzing'), v('s4', 'samplingFailed'), v('q1', 'pending'), v('u1', undefined),
+    v('i1', 'pending'), v('z1', 'pending', { durationSeconds: 0 }), v('b1', 'pending', { durationSeconds: 0.9 }), v('m1', 'pending', { owningSyncedSequenceResourceId: 'sync' }),
+    { resourceId: 'sync', name: 'sync', type: 'Video', hasAnalysis: false, status: 'pending', durationSeconds: 10 }];
+  const mixedTree = { fileTree: tree.fileTree.concat(['s1', 's3', 's4', 'q1', 'u1', 'z1', 'b1', 'm1'].map(node)) };
   let wfCalls = 0;
-  const withWf = wf => ({ project: () => ({ resources: async () => mixed, sourceFiles: async () => tree,
-    workflows: async (f) => { wfCalls++; assert.equal(f, undefined, 'one unfiltered read'); if (wf instanceof Error) throw wf; return wf; } }) });
-  const split = inv => { const { unanalysed, analysing, notAnalysed, failed, statusKnown } = inv.skipped;
-    assert.equal(analysing + notAnalysed + failed, unanalysed, 'the split adds up'); return { unanalysed, analysing, notAnalysed, failed, statusKnown }; };
-  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([]))),
-    { unanalysed: 9, analysing: 3, notAnalysed: 4, failed: 2, statusKnown: true });
-  assert.equal(wfCalls, 1, 'workflows() is read once');
-  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([
-    { workflowId: 'w1', type: 'project:analyze-resource', status: 'queued', resourceId: 'q1' },
-    { workflowId: 'w2', type: 'project:analyze-resource', status: 'running', resourceId: 'q2' },
-    { workflowId: 'w3', type: 'project:analyze-resource', status: 'failed', resourceId: 'q3' }]))),
-    { unanalysed: 9, analysing: 5, notAnalysed: 2, failed: 2, statusKnown: true });
-  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf([
-    { workflowId: 'w5', type: 'project:create', status: 'running' }]))),
-    { unanalysed: 9, analysing: 6, notAnalysed: 1, failed: 2, statusKnown: true });
-  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(withWf(new Error('boom')))),
-    { unanalysed: 9, analysing: 3, notAnalysed: 4, failed: 2, statusKnown: false });
-  wfCalls = 0;
-  const done = { project: () => ({ resources: async () => [resources[0], v('s1', 'analyzing')], sourceFiles: async () => tree, workflows: async () => { wfCalls++; return []; } }) };
-  assert.deepEqual(split(await load('inventory.js', { projectId: 'p', only: null })(done)), { unanalysed: 1, analysing: 1, notAnalysed: 0, failed: 0, statusKnown: true });
-  assert.equal(wfCalls, 0, 'no workflows() read without a pending clip');
+  const selMixed = { project: () => ({ resources: async () => mixed, sourceFiles: async () => mixedTree, workflows: async () => { wfCalls++; return []; } }) };
+  const invM = await load('inventory.js', { projectId: 'p', only: null })(selMixed);
+  assert.deepEqual(invM.resources.map(r => [r.rid, r.analysed, r.path]), [['r0', true, '/v/a.mov'], ['s1', false, '/u/s1.mov'], ['s3', false, '/u/s3.mov'],
+    ['s4', false, '/u/s4.mov'], ['q1', false, '/u/q1.mov'], ['u1', false, '/u/u1.mov']]);
+  // i1 (no source file), z1 (no length) and sync (no source file) are not usable yet; b1 is short; m1 is a synced member.
+  assert.deepEqual(invM.skipped, { unanalysed: 3, missing: 0, short: 1 });
+  assert.deepEqual(invM.counts, { analysed: 1, unanalysed: 5, analysing: 2 });
+  assert.equal(wfCalls, 0, 'workflows() is not read');
+  assert.equal(invM.resources[1].duration, 10);
+  // A template run's only-list reaches unanalysed clips too.
+  const onlyU = await load('inventory.js', { projectId: 'p', only: ['q1', 'i1'] })(selMixed);
+  assert.deepEqual(onlyU.resources.map(r => r.rid), ['q1']);
+  assert.equal(onlyU.skipped.unanalysed, 1);
+
+  // search.js: clips without analysis are not searched; they come back as unanalysed, not failed.
+  const asked = [];
+  const selS = { project: () => ({ resources: async () => mixed,
+    resource: rid => ({ searchScenes: async (q) => { asked.push(rid); return { results: [{ timeSeconds: 1, score: 0.3 }], error: null }; } }) }) };
+  const sU = await load('search.js', { projectId: 'p', rids: ['r0', 'q1', 's4'], queries: QUERIES, pageSize: 4 })(selS);
+  assert.deepEqual([...new Set(asked)], ['r0'], 'only the analysed clip is searched');
+  assert.deepEqual(sU.unanalysed.sort(), ['q1', 's4']);
+  assert.deepEqual(sU.failed, []);
+  assert.ok(sU.candidates.every(c => c.rid === 'r0') && sU.candidates.length === ROLES.length);
+  // resources() unreadable: every clip is searched, as before.
+  asked.length = 0;
+  const sAll = await load('search.js', { projectId: 'p', rids: ['r0', 'q1'], queries: QUERIES, pageSize: 4 })({ project: () => ({ resources: async () => { throw new Error('x'); },
+    resource: rid => ({ searchScenes: async () => { asked.push(rid); return { results: [], error: null }; } }) }) });
+  assert.deepEqual([...new Set(asked)].sort(), ['q1', 'r0']);
+  assert.deepEqual(sAll.unanalysed, []);
 
   // The scripts never import or commit.
   for (const name of ['inventory.js', 'search.js']) {

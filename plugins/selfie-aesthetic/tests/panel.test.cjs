@@ -22,7 +22,9 @@ const between = (src, a, b) => {
   return src.slice(i + a.length, j);
 };
 const cut = (src, a, b) => { const i = src.indexOf(a), j = src.indexOf(b, i); return src.slice(0, i) + src.slice(j + b.length); };
-const own = cut(cut(cut(code, '// sae-planner:start', '// sae-planner:end'), '// sae-host:start', '// sae-host:end'), '// sae-beat:start', '// sae-beat:end');
+// The kit's quick-score block reaches the host itself (window.parent.__DI__) and is checked by tests/quick-score.test.cjs.
+const own = cut(cut(cut(cut(code, '// sae-planner:start', '// sae-planner:end'), '// sae-host:start', '// sae-host:end'), '// sae-beat:start', '// sae-beat:end'),
+  '// quick-score:start', '// quick-score:end');
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
 const plain = (x) => JSON.parse(JSON.stringify(x));
@@ -34,6 +36,11 @@ test('planner.js is embedded verbatim between the sae-planner markers', () => {
 });
 test('the host block is identical to dev/host-block.ts', () => {
   assert.equal(between(panel, '// sae-host:start', '// sae-host:end'), between(hostSrc, '// sae-host:start', '// sae-host:end'));
+});
+test('the quick-score block is identical to dev/quick-score-block.ts (the kit file, never edited here)', () => {
+  const qs = read('dev', 'quick-score-block.ts');
+  assert.equal(between(panel, '// quick-score:start', '// quick-score:end'), between(qs, '// quick-score:start', '// quick-score:end'));
+  assert.ok(qs.startsWith('// quick-score:start\n') && qs.trimEnd().endsWith('// quick-score:end'), 'the dev file is the whole kit file');
 });
 const beatCore = beatSrc.slice(0, beatSrc.search(/^module\.exports\b/m));
 test('the beat block wraps beat-detect.cjs up to its module.exports line', () => {
