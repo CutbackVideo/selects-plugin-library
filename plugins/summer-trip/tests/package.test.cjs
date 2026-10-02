@@ -65,5 +65,13 @@ for (const [lang, e] of Object.entries(m.localized)) {
 assert.deepEqual(m.localized.en, { name: m.name, summary: m.summary });
 assert.ok(/^[\x00-\x7f]*$/.test(text), 'plugin.json is ASCII-only');
 assert.ok(/[\uac00-\ud7a3]/.test(m.localized.ko.name), 'ko name is Korean (escaped in the file)');
+// Windows (kit windows.md rule 7): both platforms, nothing to install, no shell named as a requirement.
+assert.deepEqual(m.compatibility.platforms, ['macOS arm64', 'Windows x64']);
+assert.ok(!/runShell|Node\.js|Homebrew|nvm/.test(m.compatibility.selects) && /bundled with Selects/.test(m.compatibility.selects), m.compatibility.selects);
+for (const doc of ['INSTALL.md', 'README.md']) {
+  const t = fs.readFileSync(path.join(PLUGIN_DIR, doc), 'utf8');
+  assert.ok(!/homebrew|\bnvm\b|brew install|install(ed)? (ffmpeg|node)|ffmpeg -version|node --version|downloads a pinned/i.test(t) && !/\bPATH\b/.test(t), doc + ': no Homebrew, nvm, PATH, ffmpeg or Node.js install instructions');
+  assert.ok(/Windows/.test(t), doc + ' says Windows is supported');
+}
 
 console.log('package tests passed (' + m.files.length + ' files)');

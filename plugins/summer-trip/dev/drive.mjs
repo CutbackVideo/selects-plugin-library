@@ -174,7 +174,10 @@ async function build(row, seed) {
     fs.writeFileSync(searchCache, JSON.stringify(found));
   }
 
-  const s = adapter.plan({ row: r, seed, inv, found });
+  // Clips without analysis: the panel's quick local score (node ffmpeg through the block's io seam), timed.
+  const local = await adapter.localScores(row, inv);
+  if (local.stats.clips) console.error('quick score', JSON.stringify(local.stats));
+  const s = adapter.plan({ row: r, seed, inv, found, local });
   console.error('plan', JSON.stringify(s.planSummary));
   const planOut = { key: row.key, seed, plan: s.planSummary, picks: s.plan.picks, frames: s.plan.frames, visibleEvents: adapter.visibleEvents(s), music: { kind: s.music.kind, label: s.music.label, bpm: s.music.grid.bpm, sectionStart: s.music.sectionStart, notes: s.music.notes } };
   fs.writeFileSync(path.join(OUT, 'plan-' + row.key + '-s' + seed + '.json'), JSON.stringify(planOut, null, 1));

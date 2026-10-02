@@ -2,11 +2,26 @@ const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 // Imports only the audio files (cue, muffled cue, sound effects, own music) this Project does not have yet and returns
 // every key's resource id. importFiles is a Project write, so this call never commits a Draft.
-// Matching: by path first. A plugin-owned file (bundled cue, its muffled copy, a sound effect, the hash-named muffled
-// copy of own music) also matches an Audio resource with the same file name. A file with `matchByName: false` (the
-// user's own music) matches by path only, so a different song that happens to share its file name is never reused;
-// right after the import it may match by name among the resources that import added.
-const base = s => String(s || '').split(/[\\/]/).pop();
+// Matching: by path first. Paths are compared normalised, so the same file always matches: Unicode NFC (macOS may store
+// a Korean file name decomposed), and when either side looks like a Windows path (a drive letter or a backslash)
+// backslashes as slashes and case-folded (the Project may store `C:/Music/A/...` for a cfg path `C:\Music\a\...`); POSIX
+// paths stay case-sensitive. A plugin-owned file (bundled cue, its muffled copy, a sound effect, the hash-named muffled
+// copy of own music) also matches an Audio resource with the same file name (same normalisation), but when the file
+// gives its `duration` (seconds) only a resource whose durationSeconds is within 0.5 s of it: a user's file that merely
+// shares the name is never taken for it (a resource this call's import just added may not know its length yet, so it
+// is exempt). A file with `matchByName: false` (the user's own music) matches by path only,
+// so a different song that happens to share its file name is never reused; right after the import it may match by name
+// among the resources that import added.
+const isWin = s => /^[A-Za-z]:|\\/.test(String(s || ''));
+const norm = s => String(s || '').normalize('NFC').replace(/\\/g, '/');
+const base = s => norm(s).split('/').pop();
+// `name`: compare only the file names; the case folding follows the full paths.
+const same = (a, b, name = false) => {
+  const fold = isWin(a) || isWin(b);
+  const x = name ? base(a) : norm(a), y = name ? base(b) : norm(b);
+  return fold ? x.toLowerCase() === y.toLowerCase() : x === y;
+};
+const sameLength = (r, file, fresh) => fresh || typeof file.duration !== 'number' || (typeof r.durationSeconds === 'number' && Math.abs(r.durationSeconds - file.duration) <= 0.5);
 const lookup = async before => {
   const paths = {};
   const walk = nodes => { for (const n of nodes || []) { if (n.type === 'dir') walk(n.children); else if (n.resourceId && n.path) paths[n.resourceId] = n.path; } };
@@ -15,10 +30,10 @@ const lookup = async before => {
   else for (const f of files.folders || []) { const d = await p.sourceFiles({ folder: f.name }); if ('fileTree' in d) walk(d.fileTree); }
   const audio = (await p.resources()).filter(r => r.type === 'Audio');
   const find = file => {
-    const byPath = audio.find(r => String(paths[r.resourceId] || '').normalize('NFC') === String(file.path).normalize('NFC'));
+    const byPath = audio.find(r => paths[r.resourceId] && same(paths[r.resourceId], file.path));
     if (byPath) return byPath.resourceId;
     const pool = file.matchByName === false ? (before ? audio.filter(r => !before.has(r.resourceId)) : []) : audio;
-    const byName = pool.find(r => base(paths[r.resourceId]) === base(file.path) || r.name === base(file.path));
+    const byName = pool.find(r => ((paths[r.resourceId] && same(paths[r.resourceId], file.path, true)) || same(r.name, file.path, true)) && sameLength(r, file, !!before && !before.has(r.resourceId)));
     return byName ? byName.resourceId : null;
   };
   return { find, ids: new Set(audio.map(r => r.resourceId)) };
