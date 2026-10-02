@@ -182,6 +182,11 @@ class MiniVlogWindowsTest(unittest.TestCase):
             self.assertNotRegex(text, r"(?i)brew install|install (ffmpeg|node)|nvm\b|runtime\.sh", name)
             self.assertIn("Windows", text, name)
 
+    def test_version_matches_panel(self):
+        # Selects updates an install only when the version changes, so the panel's provenance must name it too.
+        manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
+        self.assertIn('const PLUGIN_VERSION = "%s";' % manifest["version"], read(PANEL))
+
     def test_shared_static_checks(self):
         check_no_posix_shell(self, "mini-vlog")
         check_manifest_and_docs(self, "mini-vlog")
