@@ -33,7 +33,11 @@ so leave its other files in place.
 - Cloud background removal requires generated-media access and may use credits.
 - The mask service runs on this computer only. After a restart, open the Panel
   before previewing or exporting an existing postcard Draft.
-- macOS only: the helper uses Unix-only APIs. Tested on Apple silicon with a
-  Selects development build; released builds are unverified.
+- macOS only for now: the helper runs Python with Unix-only APIs through the macOS
+  shell. Tested on Apple silicon with a Selects development build; released builds
+  are unverified.
+- Windows: the Panel opens and says "Available on macOS for now"; choosing a folder
+  and creating are turned off, and a Clip highlights template run stops before
+  anything is imported or made.
 
 See [THIRD_PARTY.md](THIRD_PARTY.md).
