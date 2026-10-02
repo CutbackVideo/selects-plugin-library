@@ -55,17 +55,14 @@ for (const phrase of ['const notReady = inventory?.skipped?.unanalysed || 0;', '
 // Hangul audit across the plugin, as place-count does.
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
 for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) assert.ok(!/[\uac00-\ud7a3]/.test(fs.readFileSync(f, 'utf8')), 'Korean text in ' + f);
-// Windows: no POSIX shell at runtime (windows.md). The only runShell is the av-host block's guarded fallback for the
-// skills folder (cmd.exe and login-shell branches, no path goes in); paths are joined by the host.
+// Windows: no shell call at runtime (windows.md); paths are joined by the host.
 {
-  const runtime = [code.slice(0, code.indexOf('// av-host:start')) + code.slice(code.indexOf('// av-host:end')),
+  const runtime = [code,
     ...['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js'].map(f => fs.readFileSync(path.join(root, 'scripts', f), 'utf8'))].join('\n').replace(/^\s*\/\/.*$/gm, '');
   for (const bad of ['runShell', 'mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'command -v', '/opt/homebrew', 'TOOL_PATH', 'runtime.sh', '.nvm/', "'\\''", 'SELECTS_USER_SKILLS_ROOT/'])
     assert.ok(!runtime.includes(bad), 'POSIX shell in the runtime: ' + bad);
   assert.ok(!/["'`]\s*node\s/.test(runtime.replace(/\/\/.*$/gm, '')), 'no node subprocess');
   const host = code.slice(code.indexOf('// av-host:start'), code.indexOf('// av-host:end'));
-  assert.equal((host.match(/sdk\.runShell\(/g) || []).length, 1, 'one guarded shell fallback in av-host');
-  assert.ok(host.includes('hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%"'), 'with a cmd.exe branch');
   const av = fs.readFileSync(path.join(root, '..', 'archive-vlog', 'panel.tsx'), 'utf8');
   assert.equal(host, av.slice(av.indexOf('// av-host:start'), av.indexOf('// av-host:end')), 'av-host is Archive Vlog\'s block, unchanged');
   for (const phrase of ['hostRoots(sdk, PLUGIN_ID, "planner.js")', 'hostReadText(hostJoin(root, ...rel.split("/")))', 'hostJoin(roots.plugin, "assets", "cues", cue.file)',
