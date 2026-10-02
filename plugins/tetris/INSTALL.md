@@ -5,8 +5,9 @@
    panels root. Create that directory if needed. There is no separate
    registration step.
 2. Open **Tetris** in the Plugin list, pick a mode on the handheld screen and
-   press **START**. Single player needs nothing else.
-3. For two-player mode only: `python3` must be on `PATH`, and the machine needs
+   press **START**. Single player needs nothing else, on macOS or Windows.
+3. For two-player mode only (macOS or Linux; on Windows the panel shows it as
+   not available yet): `python3` must be on `PATH`, and the machine needs
    outbound access on TCP port 1883. Pressing **Connect** starts a small Python
    helper that holds the relay connection; it exits on **Disconnect**, when the
    panel closes, or about 20 seconds after Selects stops talking to it.
