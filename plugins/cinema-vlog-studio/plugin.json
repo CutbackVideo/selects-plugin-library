@@ -18,9 +18,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS arm64"
+      "macOS arm64",
+      "Windows x64"
     ],
-    "selects": "Built and used in a Selects development build on macOS arm64 (2026-09-30). Requires Panel runScript/runShell and Draft authoring. Windows is unsupported (the panel locates its sounds with a Unix shell command); other builds are unverified."
+    "selects": "Built and used in a Selects development build on macOS arm64 (2026-09-30). Requires Panel runScript and Draft authoring; the panel finds its sounds through the host FileSystem, with no shell command, so it also runs on Windows (a Windows pass on the Staging build is pending)."
   },
   "preview": {
     "video": "preview.mp4",
