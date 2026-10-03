@@ -1946,7 +1946,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.2";
+const PLUGIN_VERSION = "0.1.0-alpha.3";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -4513,7 +4513,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     const live = () => mountedRef.current && alive() && projectRef.current === pid;
     invLoadingRef.current = pid; setInvLoading(true);
     try {
-      const inv = await run("Read footage", (attempt) => fill(script, { projectId: pid, only: null, known: photoSizesRef.current, measureMs: attempt === 0 ? INVENTORY_MEASURE_MS : 0 }), false, { wanted: live });
+      const inv = await readInventoryPages(run, script, { projectId: pid, only: null, known: photoSizesRef.current, measureMs: INVENTORY_MEASURE_MS }, fill, live);
       // A build that started meanwhile keeps the clip set it began with; the next refresh picks this up.
       if (!live() || busyRef.current) return "skipped";
       inv.resources = inv.resources || [];
@@ -5706,4 +5706,30 @@ function TemplateRun({ sdk, context }: any) {
     })();
   }, [runId]);
   return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{runStatus}</div>;
+}
+
+// Page before measuring photos; preserve the total measurement budget and aggregate the original inventory shape.
+async function readInventoryPages(run, script, config, fill, wanted = () => true) {
+  let result, total, measureMs = config.measureMs ?? 8000, probeMs = config.probeMs ?? 4000, probeMax = config.probeMax ?? 200;
+  for (let offset = 0; ; offset += 32) {
+    if (!wanted()) throw new Error('Project changed while loading media.');
+    const batch = await run('Read footage', attempt => fill(script, { ...config, page: { offset, size: 32 }, measureMs: attempt ? 0 : measureMs, probeMs, probeMax }), false, { wanted });
+    const page = batch.page;
+    if (!page || (total !== undefined && total !== page.total)) throw new Error('Project media changed while loading. Try again.');
+    total = page.total;
+    measureMs = Math.max(0, measureMs - page.elapsedMs);
+    probeMs = Math.max(0, probeMs - page.elapsedMs);
+    probeMax = Math.max(0, probeMax - (page.probeCount || 0));
+    delete batch.page;
+    if (offset === 0) result = batch;
+    else {
+      result.resources.push(...batch.resources); result.photos.push(...batch.photos);
+      for (const key of ['skipped', 'counts', 'captureDates']) for (const [name, value] of Object.entries(batch[key] || {})) {
+        result[key][name] = typeof value === 'boolean' ? result[key][name] && value : result[key][name] + value;
+      }
+      if (batch.months) result.months = result.months.map((n, i) => n + batch.months[i]);
+      if ('incomplete' in batch) result.incomplete = result.incomplete || batch.incomplete;
+    }
+    if (offset + 32 >= total) return result;
+  }
 }

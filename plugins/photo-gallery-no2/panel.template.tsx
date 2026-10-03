@@ -999,7 +999,7 @@ function GalleryPanel({ sdk, context, ui }) {
     running.current = true; setBusy(true); setStatus(null);
     try {
       const input = { operation: 'inspect', projectId };
-      const response = await sdk.runScript({ script: buildScript(input), summary: 'Inspect Photo Gallery project', allowCommit: false });
+      const response = await readMediaPages(sdk, { script: buildScript(input), summary: 'Inspect Photo Gallery project', allowCommit: false });
       if (response.isError || response.result?.status !== 'inspected' || !Array.isArray(response.result.media) || !Array.isArray(response.result.audio)) {
         throw new Error(response.result?.message || response.output || t.failed);
       }
@@ -1171,7 +1171,14 @@ async function templateTiles(sdk, app, projectId, libraryId, inputs) {
   const project = libraryId ? await di.ProjectRepository.findById(libraryId, projectId) : null;
   if (!project) throw templateIssue('Could not find this Project; open it, then try again.');
   const members = new Set(project.getResources() || []);
-  const inspected = await sdk.runScript({ script: buildScript({ operation: 'inspect', projectId }), summary: 'Inspect Photo Gallery project', allowCommit: false });
+  const paths = [];
+  for (const pick of [...photos, ...clips]) {
+    const resource = members.has(pick.resourceId) ? await di.ResourceRepository.findById(libraryId, pick.resourceId) : null;
+    const path = resource?.getMedia()?.path;
+    if (!path) throw templateIssue((pick.name || 'A picked file') + ' is missing from this Project.');
+    paths.push(path);
+  }
+  const inspected = await readMediaPages(sdk, { script: buildScript({ operation: 'inspect', projectId, paths }), summary: 'Inspect Photo Gallery project', allowCommit: false });
   if (inspected.isError || inspected.result?.status !== 'inspected' || !Array.isArray(inspected.result.media)) throw new Error(inspected.result?.message || inspected.output || 'Could not read the Project media.');
   const rowFor = async pick => {
     const label = pick.name || (pick.kind === 'video' ? 'A picked video' : 'A picked photo');
@@ -1252,4 +1259,20 @@ function GalleryTemplateRun({ sdk, context }) {
     })();
   }, [runId]);
   return <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--panel-muted-fg)' }}>{status}</p>;
+}
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
 }

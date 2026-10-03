@@ -211,14 +211,14 @@ test('every timing a song can produce stays within the lengths the template prom
 });
 
 // The template path: picks carry the app's Resource ids; the song is matched like the clips (SELECTS-1452).
-const templateSource=['const VIDEO_SLOTS=','const INVENTORY=','async function inventory','function templateIssue','async function scriptResourceIds','const LONG_SLOTS','async function templateMedia']
+const templateSource=['async function readMediaPages','const VIDEO_SLOTS=','const INVENTORY=','async function inventory','function templateIssue','async function scriptResourceIds','const LONG_SLOTS','async function templateMedia']
  .map(start=>{const i=panelSource.indexOf(start);let j=panelSource.indexOf('\n}',i);if(start.startsWith('const '))j=panelSource.indexOf('\n',i)-1;return panelSource.slice(i,j+2);}).join('\n');
 const {templateMedia}=vm.runInThisContext('(function(){'+templateSource+';return {templateMedia};})()');
 function fakeTemplateSdk(){
  const files=[...VIDEO_SLOTS.map((s,i)=>({name:'v'+i+'.mp4',type:'Video'})),{name:'hero.jpg',type:'Image'},{name:'song.m4a',type:'Audio'}].map((f,i)=>({...f,app:'uuid-'+i,short:'r'+i}));
  const rows=files.map(f=>({resourceId:f.short,type:f.type,name:f.name,path:'/m/'+f.name,width:f.type==='Video'?1080:null,height:f.type==='Video'?1920:null,duration:4}));
  return {files,sdk:{call:async()=>files.map(f=>({resourceId:f.app,name:f.name,type:f.type})),
-  runScript:async({script})=>({isError:false,result:script.includes('sourceFiles')?rows:files.map(f=>({id:f.short,name:f.name,type:f.type}))})}};
+  runScript:async({script})=>({isError:false,result:await vm.runInNewContext('(async()=>{'+script+'})()',{selects:{project:()=>({resources:async()=>files.map(f=>({resourceId:f.short,name:f.name,type:f.type})),sourceFiles:async()=>({fileTree:rows.map(r=>({...r,frameSize:{width:r.width,height:r.height},durationSeconds:r.duration}))})})}})})}};
 }
 test('template run: the picked song is found by its app id, and a run without a song is refused',async()=>{
  const {files,sdk}=fakeTemplateSdk(),pick=f=>({kind:f.type.toLowerCase(),resourceId:f.app,name:f.name});

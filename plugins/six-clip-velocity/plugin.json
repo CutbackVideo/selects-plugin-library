@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "six-clip-velocity",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "name": "Six Clip Velocity",
   "summary": "Turn six videos into a 23-second velocity edit with speed ramps, vertical blur cuts, a white flash, kinetic subtitles and a fade to black, over bundled music, as editable video clips.",
   "status": "experimental",

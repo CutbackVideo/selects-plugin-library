@@ -757,8 +757,8 @@ const T = {
   cancel: "Cancel",
 };
 
-function mediaScript(projectId) {
-  return `const p=selects.project(${json(projectId)}); const [meta,overview]=await Promise.all([p.meta(),p.sourceFiles()]); const items=[]; function walk(nodes,parts){ for(const node of nodes){ if(node.type==="dir") walk(node.children,parts.concat(node.name)); else items.push({name:node.name,type:node.type,resourceId:node.resourceId,path:node.path,durationSeconds:node.durationSeconds,folder:parts.join("/")||"(root)"}); }} if("fileTree" in overview) walk(overview.fileTree,[]); else { for(const folder of overview.folders){ const page=await p.sourceFiles({folder:folder.name}); if("fileTree" in page) walk(page.fileTree,folder.name==="(root)"?[]:[folder.name]); }} return {projectTitle:meta.title,videos:items.filter(x=>x.type==="video"),audios:items.filter(x=>x.type==="audio")};`;
+function mediaScript(projectId, resourceIds = null) {
+  return `const selected = ${JSON.stringify(resourceIds)};const p=selects.project(${json(projectId)}); const [meta,overview]=await Promise.all([p.meta(),p.sourceFiles()]); const items=[]; function walk(nodes,parts){ for(const node of nodes){ if(node.type==="dir") walk(node.children,parts.concat(node.name)); else items.push({name:node.name,type:node.type,resourceId:node.resourceId,path:node.path,durationSeconds:node.durationSeconds,folder:parts.join("/")||"(root)"}); }} if("fileTree" in overview) walk(overview.fileTree,[]); else { for(const folder of overview.folders){ const page=await p.sourceFiles({folder:folder.name}); if("fileTree" in page) walk(page.fileTree,folder.name==="(root)"?[]:[folder.name]); }} return {projectTitle:meta.title,videos:items.filter(x=>x.type==="video"&&(!selected||selected.includes(x.resourceId))),audios:items.filter(x=>x.type==="audio")};`;
 }
 
 // mac-only:start
@@ -1257,14 +1257,15 @@ const FAILED = "Portrait Beat Montage couldn't make the timeline. Try again.";
 // The app's list (sdk.call) and the script's list are the Project's Resources in
 // the same order, so they pair up row by row; names and types are compared so a
 // list that changed in between is refused rather than mismatched.
-async function scriptResourceIds(sdk, projectId) {
-  const [app, run] = await Promise.all([
-    sdk.call("listProjectResources", projectId),
-    sdk.runScript({ summary: "Match picked videos", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
-  ]);
-  const rows = run?.result;
-  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked videos to this project.");
-  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+async function scriptResourceIds(sdk, projectId, resourceIds) {
+  const app = await sdk.call("listProjectResources", projectId);
+  if (!Array.isArray(app)) throw new Error("Could not read the project resources.");
+  const indices = [...new Set(resourceIds)].map(id => app.findIndex(r => r.resourceId === id));
+  if (indices.includes(-1)) throw new Error("A picked file is missing from this project.");
+  const run = await readMediaPages(sdk, { summary: "Match picked files", script: `const rows=await selects.project(${JSON.stringify(projectId)}).resources();return {count:rows.length,rows:${JSON.stringify(indices)}.map(i=>{const r=rows[i];return r?{id:r.resourceId,name:r.name,type:r.type}:null;})};` });
+  const result = run.result, rows = result.rows;
+  if (result.count !== app.length || rows.length !== indices.length || indices.some((index, i) => app[index].name !== rows[i]?.name || app[index].type !== rows[i]?.type)) throw new Error("Could not match the picked files to this project.");
+  return new Map(indices.map((index, i) => [app[index].resourceId, rows[i].id]));
 }
 
 // A Clip highlights run (`context.template`): the 10 clips picked in the app.
@@ -1291,8 +1292,8 @@ function TemplateRun({ sdk, context }) {
         if (!doctor.ready) throw new Error(doctor.problems?.[0] || "Setup finished, but the montage tools are not ready.");
         setStatus("Making your montage…");
       }
-      const ids = await scriptResourceIds(sdk, projectId);
-      const reply = await sdk.runScript({ summary: "Find montage media", script: mediaScript(projectId) });
+      const ids = await scriptResourceIds(sdk, projectId, picks.map(x => x.resourceId));
+      const reply = await readMediaPages(sdk, { summary: "Find montage media", script: mediaScript(projectId, [...ids.values()]) });
       if (reply.isError || !reply.result) throw new Error("Couldn't read this project's files. Try again.");
       const byId = new Map((reply.result.videos || []).map((item) => [item.resourceId, item]));
       const files = picks.map((pick) => byId.get(ids.get(pick.resourceId) ?? pick.resourceId));
@@ -1354,7 +1355,7 @@ function MontagePanel({ sdk, context, ui }) {
     if (!context.projectId) return;
     let cancelled = false;
     setLoading(true);
-    sdk.runScript({ summary: "Find montage media", script: mediaScript(context.projectId) }).then((reply) => {
+    readMediaPages(sdk, { summary: "Find montage media", script: mediaScript(context.projectId) }).then((reply) => {
       if (cancelled) return;
       if (reply.isError || !reply.result) throw new Error(reply.output || "Could not read project files");
       const found = reply.result;
@@ -1442,4 +1443,20 @@ function MontagePanel({ sdk, context, ui }) {
       {status ? <ui.Message tone={status.type}>{status.message}</ui.Message> : null}
     </ui.Stack>
   </ui.Section>;
+}
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
 }

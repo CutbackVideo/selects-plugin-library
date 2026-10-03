@@ -79,7 +79,7 @@ test('bundled music outlasts the Draft',()=>{
 // earlier import is reused whatever the path's case or slashes.
 const W_HOME='C:\\Users\\\uD64D\uAE38\uB3D9';
 const W_MUSIC=W_HOME+'\\.selects\\skills\\four-photo-stop-motion\\assets\\music.mp3';
-const loadMusic=host=>loadPanelFunctions(panelSource,['inventory','isBundledMusic','ensureMusic'],{...hostGlobals(host),INVENTORY:''});
+const loadMusic=host=>loadPanelFunctions(panelSource,['readMediaPages','inventory','isBundledMusic','ensureMusic'],{...hostGlobals(host),INVENTORY:''});
 
 test('the host I/O block is Archive Vlog\'s, unchanged, and no POSIX shell is left',()=>{
  assert.equal(hostBlock(panelSource),REFERENCE_BLOCK);
@@ -93,7 +93,7 @@ test('Windows: the music resolves through FileSystem and is imported once',async
  const imports=[];let rows=[];
  const sdk={runShell:()=>{throw Error('no shell on this path')},runScript:async({script})=>{
   if(script.includes('importFiles')){imports.push(JSON.parse(/paths:(\[.*?\])/.exec(script)[1])[0]);rows=[{resourceId:'m1',type:'Audio',path:imports[0]}];return{result:{}};}
-  return{result:rows};
+  return{result:{array:true,page:{rows},total:rows.length}};
  }};
  assert.equal(await ensureMusic(sdk,'p'),'m1');
  assert.deepEqual(imports,[W_MUSIC]);

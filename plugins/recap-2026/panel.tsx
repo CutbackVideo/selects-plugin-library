@@ -394,9 +394,9 @@ async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_coun
 // The length the Resource itself reports (the source-file tree keeps the length from when the tree was built,
 // which can be missing or 0), keyed by script resource id. Prepended to a script that reads `dur`.
 const RESOURCE_SECONDS = "const res=await p.resources();const dur={};for(const x of res)dur[x.resourceId]=x.durationSeconds;";
-// Every video of the project, with its path, length and size; a video Resource missing from the tree still counts.
-const allVideosScript = (projectId) => core({projectId}) + RESOURCE_SECONDS +
-  "const items=[];const walk=(nodes)=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.type==='video'&&n.resourceId)items.push({resourceId:n.resourceId,name:n.name,path:n.path,durationSeconds:dur[n.resourceId]||n.durationSeconds,frameSize:n.frameSize});}};const r=await p.sourceFiles();if('fileTree' in r)walk(r.fileTree);else for(const f of r.folders){const page=await p.sourceFiles({folder:f.name});if('fileTree' in page)walk(page.fileTree);}const seen=new Set(items.map(x=>x.resourceId));for(const x of res)if(String(x.type).toLowerCase()==='video'&&!seen.has(x.resourceId))items.push({resourceId:x.resourceId,name:x.name,path:null,durationSeconds:x.durationSeconds});return items;";
+// Return only the picked videos across the script boundary, including Resources missing from the tree.
+const selectedVideosScript = (projectId, resourceIds) => core({projectId,resourceIds}) + RESOURCE_SECONDS +
+  "const items=[];const walk=(nodes)=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.type==='video'&&n.resourceId)items.push({resourceId:n.resourceId,name:n.name,path:n.path,durationSeconds:dur[n.resourceId]||n.durationSeconds,frameSize:n.frameSize});}};const r=await p.sourceFiles();if('fileTree' in r)walk(r.fileTree);else for(const f of r.folders){const page=await p.sourceFiles({folder:f.name});if('fileTree' in page)walk(page.fileTree);}const seen=new Set(items.map(x=>x.resourceId));for(const x of res)if(String(x.type).toLowerCase()==='video'&&!seen.has(x.resourceId))items.push({resourceId:x.resourceId,name:x.name,path:null,durationSeconds:x.durationSeconds});return items.filter(x=>cfg.resourceIds.includes(x.resourceId));";
 // A clip with no length yet is measured with the host's ffprobe (av-host hostProbeSeconds) when it has a path.
 async function withDurations(list) {
   for (const v of list) if (!(v.durationSeconds > 0) && v.path) v.durationSeconds = (await hostProbeSeconds(v.path)) || 0;
@@ -408,16 +408,17 @@ const TEMPLATE_FAILED = "2026 Recap couldn't make the timeline. Try again.";
 // The app hands a template its own Resource ids, but every run_script read
 // (resources(), clips()) speaks the short ids the script SDK gives out (r0, r1…).
 // The app's list (sdk.call) and the script's list are the Project's Resources in
-// the same order, so they pair up row by row; names and types are compared so a
-// list that changed in between is refused rather than mismatched.
-async function scriptResourceIds(sdk, projectId) {
-  const [app, run] = await Promise.all([
-    sdk.call("listProjectResources", projectId),
-    sdk.runScript({ summary: "Match picked clips", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
-  ]);
-  const rows = run?.result;
-  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a, i) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked clips to this project.");
-  return new Map(app.map((a, i) => [a.resourceId, rows[i].id]));
+// the same order. Return only the picked rows and compare their names and types
+// before using their script ids.
+async function scriptResourceIds(sdk, projectId, resourceIds) {
+  const app = await sdk.call("listProjectResources", projectId);
+  if (!Array.isArray(app)) throw new Error("Could not read the project resources.");
+  const indices = [...new Set(resourceIds)].map(id => app.findIndex(r => r.resourceId === id));
+  if (indices.includes(-1)) throw new Error("A picked clip is missing from this project.");
+  const run = await sdk.runScript({ summary: "Match picked clips", allowCommit: false, script: `const rows=await selects.project(${JSON.stringify(projectId)}).resources();return {count:rows.length,rows:${JSON.stringify(indices)}.map(i=>{const r=rows[i];return r?{id:r.resourceId,name:r.name,type:r.type}:null;})};` });
+  const result = scriptResult(run), rows = result.rows;
+  if (result.count !== app.length || !Array.isArray(rows) || rows.length !== indices.length || indices.some((index, i) => app[index].name !== rows[i]?.name || app[index].type !== rows[i]?.type)) throw new Error("Could not match the picked clips to this project.");
+  return new Map(indices.map((index, i) => [app[index].resourceId, rows[i].id]));
 }
 
 // A Clip highlights run (`context.template`): the intro and clips picked in
@@ -440,9 +441,9 @@ function TemplateRun({ sdk, context }) {
       const introPick = (template.inputs?.intro || []).find((x) => x?.resourceId);
       const clipPicks = (template.inputs?.clips || []).filter((x) => x?.resourceId);
       if (!introPick || !clipPicks.length) throw new Error("Pick an intro and at least one clip, then try again.");
-      const ids = await scriptResourceIds(sdk, projectId);
+      const ids = await scriptResourceIds(sdk, projectId, [introPick, ...clipPicks].map(x => x.resourceId));
       const own = (id) => ids.get(id) ?? id;
-      const found = scriptResult(await sdk.runScript({ script: allVideosScript(projectId), summary: "Read footage" }));
+      const found = scriptResult(await sdk.runScript({ script: selectedVideosScript(projectId, [...ids.values()]), summary: "Read footage" }));
       const byId = Object.fromEntries(found.map((v) => [v.resourceId, v]));
       const introVideo = byId[own(introPick.resourceId)];
       const videos = clipPicks.map((x) => byId[own(x.resourceId)]);
@@ -521,7 +522,7 @@ function RecapPanel({ sdk, context, ui }) {
     setThumbnails({});thumbnailCache.current={};
     const script = core({projectId,folders:folders.map((x)=>x.name)}) + RESOURCE_SECONDS +
       "const out=[];for(const name of cfg.folders){const r=await p.sourceFiles({folder:name});if(!('fileTree' in r))throw Error('Footage folder returned a summary');for(const x of r.fileTree){if(x.type!=='video')continue;const d=dur[x.resourceId]||x.durationSeconds;if(d>=1.7||!(d>0))out.push({resourceId:x.resourceId,name:x.name,path:x.path,durationSeconds:d,frameSize:x.frameSize,folderName:name});}}return out;";
-    sdk.runScript({script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then((list) => {
+    readMediaPages(sdk,{script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then((list) => {
       if (!live) return;
       const found = [...new Map(list.filter((v)=>v.durationSeconds>=1.7).map((v)=>[v.resourceId,v])).values()].sort((a,b) => a.name.localeCompare(b.name));
       setVideos(found);
@@ -849,3 +850,19 @@ async function hostProbeSeconds(path) {
   } catch { return null; }
 }
 // av-host:end
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
+}

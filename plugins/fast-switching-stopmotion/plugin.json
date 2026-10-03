@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "fast-switching-stopmotion",
-  "version": "0.1.0-alpha.6",
+  "version": "0.1.0-alpha.7",
   "name": "Fast Switching Stop Motion",
   "summary": "Turn selfie videos into a fast outfit-switch stop-motion edit as a new editable Draft.",
   "status": "experimental",

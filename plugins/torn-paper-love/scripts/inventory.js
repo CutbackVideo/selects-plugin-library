@@ -17,6 +17,10 @@
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const all = await p.resources();
+const page = Object(cfg).page;
+const pageRows = page ? all.slice(page.offset, page.offset + page.size) : all;
+const pageIds = new Set(pageRows.map(r => r.resourceId));
+const inPage = r => pageIds.has(r.resourceId);
 const sizes = {}, paths = {};
 const walk = nodes => {
   for (const n of nodes || []) {
@@ -34,7 +38,7 @@ const video = all.filter(r => r.type === 'Video' && wanted(r));
 const ids = new Set(video.map(r => r.resourceId));
 const resources = [];
 let unanalysed = 0, notAnalysed = 0, missing = 0, unmeasured = 0;
-for (const r of video) {
+for (const r of video.filter(inPage)) {
   if (r.owningSyncedSequenceResourceId && ids.has(r.owningSyncedSequenceResourceId)) continue;
   const size = sizes[r.resourceId], path = paths[r.resourceId] || null;
   const timed = typeof r.durationSeconds === 'number' && isFinite(r.durationSeconds);
@@ -54,7 +58,7 @@ const known = cfg.known || {};
 const budget = cfg.measureMs == null ? 8000 : cfg.measureMs;
 const started = Date.now();
 const photos = [];
-for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
+for (const r of all.filter(r => r.type === 'Image' && wanted(r) && inPage(r))) {
   let size = sizes[r.resourceId] || known[r.resourceId] || null;
   if (!(size && size.width > 0 && size.height > 0) && Date.now() - started < budget) {
     try {
@@ -67,4 +71,4 @@ for (const r of all.filter(r => r.type === 'Image' && wanted(r))) {
   if (!ok) unmeasured++;
   photos.push({ rid: r.resourceId, name: r.name, width: ok ? size.width : null, height: ok ? size.height : null, recordedAt: recordedAt(r), order: order.get(r.resourceId), kind: 'photo' });
 }
-return { resources, photos, counts: { unanalysed, notAnalysed, missing, unmeasured } };
+return { ...(page ? { page: { total: all.length, elapsedMs: Date.now() - started } } : {}), resources, photos, counts: { unanalysed, notAnalysed, missing, unmeasured } };

@@ -125,7 +125,7 @@ assert.ok(panel.slice(panel.indexOf('async function finishTitle('), panel.indexO
 assert.ok(panel.includes('const p = { ...tecProgress(id, fraction), detail: detail || null };') && panel.includes('if (progressRef.current && p.value < progressRef.current.value - 1e-9) return;'), 'progress never goes backwards');
 assert.ok(code.includes('steps={TEC_BUILD_STEPS.map((s: any) => t(L, "step." + s.id))}'), 'the progress lists the build steps in the UI language');
 for (const id of ['"prepare"', '"plan"', '"music"', '"assemble"', '"decorate"']) assert.ok(panel.includes('advance(' + id), 'advance ' + id);
-const order = ['fill(assets.scripts.inventoryJs', 'findCandidates(todo', 'await measureMotion(', 'tecPlanBuild({ layout: inputs.layout', 'fill(assets.scripts.ensureJs', 'fill(assets.scripts.assembleJs', 'await decorate(record'];
+const order = ['readInventoryPages((summary, make) => run(summary, make(0)), assets.scripts.inventoryJs', 'findCandidates(todo', 'await measureMotion(', 'tecPlanBuild({ layout: inputs.layout', 'fill(assets.scripts.ensureJs', 'fill(assets.scripts.assembleJs', 'await decorate(record'];
 order.reduce((at, s) => { const i = buildBody.indexOf(s); assert.ok(i > at, 'build order: ' + s); return i; }, -1);
 assert.ok(/fill\(assets\.scripts\.searchJs, \{ projectId: pid, rids: rids\.slice\(i, i \+ 4\), queries: TEC_SEARCH_QUERIES, pageSize: 4 \}\)/.test(panel), 'search in batches of 4, pageSize 4');
 assert.ok(buildBody.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: inputs.musicPath, ...(inputs.musicSeconds ? { durationSeconds: inputs.musicSeconds } : {}) }), true)'), 'ensure-audio commits in its own call');

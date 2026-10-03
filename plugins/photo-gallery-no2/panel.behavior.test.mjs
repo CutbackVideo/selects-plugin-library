@@ -100,12 +100,16 @@ function harness(media = photos, options = {}) {
       throw new Error('Unexpected media conversion');
     },
     runScript: async request => {
-      const input = JSON.parse(request.script);
+      const paged = request.script.startsWith('const value=await(async()=>{');
+      const input = JSON.parse(paged ? request.script.slice('const value=await(async()=>{'.length, request.script.indexOf('\n})();const array')) : request.script);
       calls.push({ input, allowCommit: request.allowCommit });
       if (input.operation === options.failOperation) return { isError: true, output: options.failOutput };
       if (options.coldBudget && ((input.operation === 'placeVideosExisting' && input.slotKeys?.length !== 1) ||
           (input.operation === 'styleExisting' && !(input.slotKeys?.length <= 3)))) return { isError: true, output: 'Script deadline of 30s exceeded' };
-      if (input.operation === 'inspect') return { result: { status: 'inspected', projectId: 'project-1', media, audio: options.audio ?? [] } };
+      if (input.operation === 'inspect') {
+        const value = { status: 'inspected', projectId: 'project-1', media, audio: options.audio ?? [] };
+        return { result: paged ? { array: false, page: value, total: Math.max(media.length, value.audio.length) } : value };
+      }
       if (input.operation === 'importBundledMusic') return options.musicResponse ?? { result: { status: 'musicReady', music: { resourceId: 'bundled-music', path: input.path, durationFrames: 853, startFrame: 0 } } };
       if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
         ({ ...item, resourceId: 'held-1', width: 128, height: 96, durationFrames: 853 })) } };

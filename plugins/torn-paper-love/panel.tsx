@@ -3810,14 +3810,15 @@ const TEMPLATE_FAILED = "Torn Paper Love couldn't make the timeline. Try again."
 // The app's list (sdk.call) and the script's list are the Project's Resources in
 // the same order, so they pair up row by row; names and types are compared so a
 // list that changed in between is refused rather than mismatched.
-async function scriptResourceIds(sdk: any, projectId: string): Promise<Map<string, string>> {
-  const [app, run] = await Promise.all([
-    sdk.call("listProjectResources", projectId),
-    sdk.runScript({ summary: "Match picked pictures", allowCommit: false, script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).map(r=>({id:r.resourceId,name:r.name,type:r.type}));` }),
-  ]);
-  const rows = run?.result;
-  if (!Array.isArray(app) || run.isError || !Array.isArray(rows) || app.length !== rows.length || app.some((a: any, i: number) => a.name !== rows[i].name || a.type !== rows[i].type)) throw new Error(run?.output || "Could not match the picked pictures to this project.");
-  return new Map(app.map((a: any, i: number) => [a.resourceId, rows[i].id]));
+async function scriptResourceIds(sdk, projectId, resourceIds) {
+  const app = await sdk.call("listProjectResources", projectId);
+  if (!Array.isArray(app)) throw new Error("Could not read the project resources.");
+  const indices = [...new Set(resourceIds)].map(id => app.findIndex(r => r.resourceId === id));
+  if (indices.includes(-1)) throw new Error("A picked file is missing from this project.");
+  const run = await readMediaPages(sdk, { summary: "Match picked files", script: `const rows=await selects.project(${JSON.stringify(projectId)}).resources();return {count:rows.length,rows:${JSON.stringify(indices)}.map(i=>{const r=rows[i];return r?{id:r.resourceId,name:r.name,type:r.type}:null;})};` });
+  const result = run.result, rows = result.rows;
+  if (result.count !== app.length || rows.length !== indices.length || indices.some((index, i) => app[index].name !== rows[i]?.name || app[index].type !== rows[i]?.type)) throw new Error("Could not match the picked files to this project.");
+  return new Map(indices.map((index, i) => [app[index].resourceId, rows[i].id]));
 }
 
 // A Clip highlights run (`context.template`): the pictures picked in the app (`only`), the panel's defaults for the
@@ -3829,7 +3830,7 @@ async function tplTemplateRun(sdk: any, context: any, live: () => boolean, say: 
   if (!pid) throw uiError((l) => t(l, "openProject"));
   const picked = [...new Set<string>((context.template?.inputs?.pictures ?? []).map((x: any) => x?.resourceId).filter(Boolean))];
   if (picked.length < TPL_MIN_PICTURES) throw uiError((l) => t(l, "reason.fewPictures", { min: TPL_MIN_PICTURES }));
-  const ids = await scriptResourceIds(sdk, pid);
+  const ids = await scriptResourceIds(sdk, pid, picked);
   const only = picked.map((id) => ids.get(id) ?? id);
   const run = async (summary: string, script: string, allowCommit = false) => {
     let r = await sdk.runScript({ summary, script, allowCommit });
@@ -4017,7 +4018,7 @@ function TornPaperPanel({ sdk, context, ui }: any) {
     const before = Object.keys(known).length;
     invLoadingRef.current = pid; setInvLoading(true);
     try {
-      const inv = await run("Read your pictures", tplFill(script, { projectId: pid, only: null, known }));
+      const inv = await readInventoryPages((summary, make) => run(summary, make(0)), script, { projectId: pid, only: null, known }, tplFill, live);
       // A build that started meanwhile keeps the pictures it began with; the next refresh picks this up.
       if (!live() || busyRef.current) return;
       inv.photos = inv.photos || [];
@@ -4508,4 +4509,46 @@ function TornPaperPanel({ sdk, context, ui }: any) {
     </ui.Stack>
     </div>
   );
+}
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
+}
+
+// Page before measuring photos; preserve the total measurement budget and aggregate the original inventory shape.
+async function readInventoryPages(run, script, config, fill, wanted = () => true) {
+  let result, total, measureMs = config.measureMs ?? 8000, probeMs = config.probeMs ?? 4000, probeMax = config.probeMax ?? 200;
+  for (let offset = 0; ; offset += 32) {
+    if (!wanted()) throw new Error('Project changed while loading media.');
+    const batch = await run('Read footage', attempt => fill(script, { ...config, page: { offset, size: 32 }, measureMs: attempt ? 0 : measureMs, probeMs, probeMax }), false, { wanted });
+    const page = batch.page;
+    if (!page || (total !== undefined && total !== page.total)) throw new Error('Project media changed while loading. Try again.');
+    total = page.total;
+    measureMs = Math.max(0, measureMs - page.elapsedMs);
+    probeMs = Math.max(0, probeMs - page.elapsedMs);
+    probeMax = Math.max(0, probeMax - (page.probeCount || 0));
+    delete batch.page;
+    if (offset === 0) result = batch;
+    else {
+      result.resources.push(...batch.resources); result.photos.push(...batch.photos);
+      for (const key of ['skipped', 'counts', 'captureDates']) for (const [name, value] of Object.entries(batch[key] || {})) {
+        result[key][name] = typeof value === 'boolean' ? result[key][name] && value : result[key][name] + value;
+      }
+      if (batch.months) result.months = result.months.map((n, i) => n + batch.months[i]);
+      if ('incomplete' in batch) result.incomplete = result.incomplete || batch.incomplete;
+    }
+    if (offset + 32 >= total) return result;
+  }
 }

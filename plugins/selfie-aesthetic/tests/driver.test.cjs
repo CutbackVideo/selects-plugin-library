@@ -131,7 +131,7 @@ test('checkMatrix flags missing coverage, unknown values and duplicate Draft nam
 test('step configs carry exactly the keys panel.tsx build() sends', () => {
   const { s, steps } = pass(base);
   assert.deepEqual(Object.keys(steps.inventory.config), ['projectId', 'only', 'known']);
-  assert.deepEqual(literalKeys('fill(assets.scripts.inventoryJs, {'), ['projectId', 'only', 'known', '...(settings.usePhotos ? {} : { measureMs: 0 })']);
+  assert.deepEqual(literalKeys('readInventoryPages((summary, make) => run(summary, make(0)), assets.scripts.inventoryJs, {'), ['projectId', 'only', 'known', '...(settings.usePhotos ? {} : { measureMs: 0 })']);
   assert.deepEqual(Object.keys(A.inventory({ ...base, photos: false }).config), ['projectId', 'only', 'known', 'measureMs']);
   assert.deepEqual(Object.keys(steps.search.config), literalKeys('fill(assets.scripts.searchJs, {'));
   assert.deepEqual(Object.keys(steps.ensure.config), ['projectId', 'path', 'durationSeconds']);

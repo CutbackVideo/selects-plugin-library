@@ -182,7 +182,7 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
     def test_manifest_and_docs(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
-        self.assertEqual(manifest['version'], '0.1.8')
+        self.assertEqual(manifest['version'], '0.1.9')
         # The template's "What you need" is one list for both OSes: each platform's requirement is named, and no
         # line asks for an ffmpeg install (both use the ffmpeg Selects bundles).
         prepare = ' / '.join(manifest['prepare'])

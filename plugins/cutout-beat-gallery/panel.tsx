@@ -454,7 +454,7 @@ export default function Panel({sdk,context,ui}) {
     try {
       const pid=context.projectId;
       const code="const p=selects.project("+JSON.stringify(pid)+");const o=await p.sourceFiles();const rows=[];const walk=(arr,folder)=>{for(const x of arr){if(x.type==='dir')walk(x.children,x.name);else rows.push({name:x.name,path:x.path,resourceId:x.resourceId,type:x.type,folder})}};if('fileTree'in o)walk(o.fileTree,'(root)');else for(const f of o.folders){const v=await p.sourceFiles({folder:f.name});if('fileTree'in v)walk(v.fileTree,f.name)}return rows.sort((a,b)=>a.name.localeCompare(b.name));";
-      const nextRows=await runScript(sdk,code,'Read project photos',false);
+      const nextRows=(await readMediaPages(sdk,{summary:'Read project photos',script:code})).result;
       setRows(nextRows);
       setAnalysis(null);
       setConfirmed(false);
@@ -637,4 +637,20 @@ export default function Panel({sdk,context,ui}) {
     {busy&&hostIsWindows()&&<ui.Actions><ui.Button variant="secondary" onClick={cancelWindows}>{t.cancel}</ui.Button></ui.Actions>}
     <ui.Actions><ui.Button variant="secondary" busy={busy} busyLabel={t.busy} disabled={busy||!!winProblem} onClick={analyze}>{t.analyze}</ui.Button><ui.Button variant="primary" disabled={busy||!analysis||(!analysis.result.exactReference&&!confirmed)} onClick={build}>{t.build}</ui.Button></ui.Actions>
   </div>;
+}
+
+// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
+async function readMediaPages(sdk, args) {
+  let result, total;
+  for (let offset = 0; ; offset += 32) {
+    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
+    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
+    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
+    const batch = reply.result;
+    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
+    total = batch.total;
+    if (offset === 0) result = batch.page;
+    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
+    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
+  }
 }

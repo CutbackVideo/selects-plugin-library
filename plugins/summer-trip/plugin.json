@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "summer-trip",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "name": "Summer Trip",
   "summary": "Turn travel footage into a beat-synced 16:9 summer trip video with a typed title, a split-screen grid and a film-frame ending, as a new editable Draft.",
   "status": "experimental",
