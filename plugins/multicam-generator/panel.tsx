@@ -810,6 +810,17 @@ export async function prepareReference(plan, index, output) {
   } finally { clearTimeout(timer); }
 }
 
+// Where a clip starts in its source, in Draft frames. Selects 2.0.53x replaced Clip.getStartTime() (Draft frames)
+// with getSourceStartTick(); ticks divided by the clip's ticks per frame give the same frames. The public SDK's
+// clip rows carry no source in-point, so the host model is read either way.
+export function clipSourceStartFrames(c) {
+  if (typeof c?.getStartTime === "function") return c.getStartTime();
+  const tick = Number(c?.getSourceStartTick?.()),
+    perFrame = Number(c?.getOwnerTimebase?.()?.getTicksPerFrame?.());
+  if (Number.isFinite(tick) && perFrame > 0) return tick / perFrame;
+  throw new Error("This Selects version's timeline can't be read yet. Update the plugin.");
+}
+
 export async function readPlan(context, settings, fixedFrame) {
   const app = window.parent as any,
     di = app.__DI__,
@@ -888,7 +899,7 @@ export async function readPlan(context, settings, fixedFrame) {
       b = Math.min(end, cp.resolvedOffset + c.getDuration());
     if (a !== covered)
       throw new Error("Choose a continuous shot without gaps.");
-    const t = (c.getStartTime() + a - cp.resolvedOffset) / fps;
+    const t = (clipSourceStartFrames(c) + a - cp.resolvedOffset) / fps;
     if (!source) {
       source = media;
       sourceStart = t;
