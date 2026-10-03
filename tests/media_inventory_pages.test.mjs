@@ -81,13 +81,13 @@ for(const [id,name] of [['cinema-vlog-studio','videoLengths'],['daily-vlog-8','V
  assert.deepEqual(Array.from(result,r=>r.id||r.resourceId),['r1','r2','r3998']);
  assert.equal(f.calls.length,1);
 });
-for(const [id,count] of [['four-photo-stop-motion',4],['polaroid-photo-dump',17],['no14-still-video',4]])test(`${id}: selected photos preserve order and duplicates without loading unrelated files`,async()=>{
+for(const [id,count] of [['four-photo-stop-motion',4],['polaroid-photo-dump',17],['no14-still-video',4]])for(const converted of [false,true])test(`${id}: selected ${converted?'converted HEIC and JPG':'JPG'} photos preserve order and duplicates without loading unrelated files`,async()=>{
  const f=fixture();
  const source=panelSource(id),names=['readMediaPages','INVENTORY','inventory','templateIssue','TEMPLATE_UNSUPPORTED','templateSelection'];
  if(id!=='no14-still-video')names.push('SLOTS');
  const {templateSelection}=loadPanelFunctions(source,names);
  const app={__DI__:{ProjectRepository:{findById:async()=>({getResources:()=>f.rows.map(r=>'app-'+r.resourceId)})},ResourceRepository:{findById:async(lib,id)=>{
-  const index=Number(id.replace('app-r',''));return {getType:()=>f.rows[index].type,getMedia:()=>({originalPath:f.nodes[index].path})};
+  const index=Number(id.replace('app-r',''));return {getType:()=>f.rows[index].type,getMedia:()=>({path:f.nodes[index].path,...(converted&&index%2===0?{originalPath:`/imports/${index}.heic`}:{})})};
  }}}};
  const indices=Array.from({length:count},(_,i)=>i===count-1?0:(count-i)*3);
  const picks=indices.map(i=>({resourceId:'app-r'+i,kind:'image'}));
@@ -96,6 +96,18 @@ for(const [id,count] of [['four-photo-stop-motion',4],['polaroid-photo-dump',17]
  assert.ok(f.calls.every(n=>n<12000));
  f.nodes[3999].path=f.nodes[0].path;
  await assert.rejects(templateSelection(f.sdk,app,'p','lib',{photos:picks}),/more than one photo/);
+});
+for(const id of ['four-photo-stop-motion','polaroid-photo-dump','no14-still-video'])test(`${id}: native preparation resolves converted HEIC and JPG photos by their working paths`,async()=>{
+ const {prepareNativeImages}=loadPanelFunctions(panelSource(id),['prepareNativeImages']);
+ const media=[{path:'/derived/a.jpg',originalPath:'/imports/a.heic'},{path:'/imports/b.jpg'}];
+ const resources=media.map(m=>({getType:()=>'Image',getMedia:()=>({...m,width:1920,height:1080}),getAnalyzedSequence:async()=>({getMainTrack:()=>({getClips:()=>[{isGap:()=>false}]})})}));
+ const app={__DI__:{ProjectRepository:{findById:async()=>({getResources:()=>resources.map((_,i)=>i)})},ResourceRepository:{findById:async(_lib,i)=>resources[i]},SequenceRepository:{findById:async()=>null},TimelineMutation:{run:async()=>null}}};
+ const photos=[0,1,0].map(i=>({name:`Photo ${i}`,path:media[i].path}));
+ const ready=await prepareNativeImages(app,'p',photos,'lib');
+ assert.deepEqual(Array.from(ready.sources,s=>resources.indexOf(s.resource)),[0,1,0]);
+ await assert.rejects(prepareNativeImages(app,'p',[{name:'Missing',path:'/missing.jpg'}],'lib'),/missing or ambiguous/);
+ resources.push(resources[0]);
+ await assert.rejects(prepareNativeImages(app,'p',photos,'lib'),/missing or ambiguous/);
 });
 test('paging keeps one photo-measurement budget and measures no photo twice',async()=>{
  for(const id of inventories){
