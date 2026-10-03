@@ -1,11 +1,13 @@
 # Install DOAC Style
 
-Experimental: macOS arm64 and a compatible Selects development build.
+Experimental: macOS arm64 and Windows x64, with a compatible Selects
+development build.
 
-Windows is not supported yet: the caption engine is Python, and its runtime
-setup is macOS-only for now. On Windows the Panel opens and says "Available on
-macOS for now" instead of creating captions, and a Clip highlights run reports
-the same message without making a draft.
+On Windows the Panel runs the same caption engine inside Selects
+(`approved/web/`: a JavaScript port of the Python engine that draws with
+FreeType and Pillow compiled to WebAssembly). On the same fonts it draws the
+same frames as the Python engine on macOS (`dev/parity/`). The Windows path has
+not yet been checked in Selects on a Windows machine.
 
 ## Setup
 
@@ -13,7 +15,14 @@ the same message without making a draft.
    `panel.tsx` in `doac-style` beneath `SELECTS_USER_PANELS_ROOT`, as in the
    library's [installation layout](../../PUBLISHING.md#installation-layout). The
    Panel runs its caption compiler from the package's `approved/` folder.
-2. Nothing else to install by hand. On first use the Panel sets up its caption
+2. Nothing else to install by hand.
+   - Windows: nothing is downloaded. The Panel reads Arial, Arial Black, Georgia
+     and Times New Roman from the Windows Fonts folder. Windows has no Helvetica
+     or Helvetica Neue, so those slots use the bundled Arimo (metric-compatible,
+     SIL OFL); Arimo Bold also stands in for Arial Narrow Bold when Microsoft
+     Office's copy is not installed. Those slots look slightly different from
+     macOS; the layout rules, timing and checks are the same.
+   - macOS: on first use the Panel sets up its caption
    renderer inside the package: a Python virtual environment in `.runtime/` with
    `approved/requirements.txt`, and the bundled font decoded. The environment is
    built on a pinned CPython 3.11.13 that `runtime.sh` downloads (through uv,

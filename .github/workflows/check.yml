@@ -153,7 +153,10 @@ jobs:
       - name: Test template panels on Windows paths
         run: |
           node --test tests/cinema_vlog_studio.test.mjs
+          node --test tests/cutout_beat_gallery.test.mjs
           node --test tests/daily_vlog_8.test.mjs
+          node --test tests/doac_style_parity.test.mjs
+          node --test tests/doac_style_check.test.mjs
           node --test tests/four_photo_stop_motion.test.mjs
           node --test tests/no14_windows.test.mjs
           node --test tests/no14_default_music.test.mjs
@@ -163,6 +166,10 @@ jobs:
           node --test tests/camera_shutter_dump.test.mjs
           node --test tests/postcard_cutout_studio.test.mjs
           node --test tests/postcard_cutout_studio_port.test.mjs
+      - name: Test Vox Style Explainer (engine parity with engine.py)
+        run: |
+          node --test tests/vox_explainer.test.mjs
+          node --test tests/vox_explainer_engine.test.mjs
       - name: Test A16z Style Captions
         run: |
           node plugins/a16z-style-captions/tests/windows.test.cjs

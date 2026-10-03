@@ -1060,23 +1060,78 @@ async function cwFaces(env, job, dir) {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Downloads. Windows: the host's FileSystem.downloadFile (tried again on 429/503). macOS keeps engine.mjs's curl
-// (browser or Wikimedia user agent, HTTP status, 25 MB cap).
+// Downloads. macOS keeps engine.mjs's curl (browser or Wikimedia user agent, HTTP status, 25 MB and 25 s caps).
+// Windows never uses FileSystem.downloadFile for search results: Selects buffers that whole response in its main
+// process with no size or time limit and then writes it in one blocking call, so one large stock video froze the
+// app ("Not responding"). Instead the panel streams the URL with fetch and stops at CW_MAX_BYTES / CW_FETCH_MS (sites
+// that allow it, e.g. Wikimedia); a site that blocks the panel's fetch, or a file over the cap, is read by the host's
+// ffmpeg in its own process: one frame of a picture, or the first CW_CLIP_SECONDS of a video, with network timeouts.
+const CW_MAX_BYTES = 25000000, CW_FETCH_MS = 25000, CW_CLIP_SECONDS = 15;
 async function cwDownload(env, url, dest) {
   if (!/^https?:\/\//i.test(url)) return false;
   // mac-only:start
   if (!hostIsWindows()) return await cwCurlDownload(env, url, dest);
   // mac-only:end
-  const fs = hostNeed("FileSystem", "downloadFile");
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    try { await fs.downloadFile(url, dest); } catch (e) {
-      if (/\b(429|503)\b/.test(String(e?.message || e))) { await cwSleep(4000 * (attempt + 1)); continue; }
-      return false;
-    }
-    const size = cwSize(dest);
-    return size > 2000 && size <= 25000000;
+    const got = await cwFetchCapped(url, dest);
+    if (got === "ok") return true;
+    if (got === "retry") { await cwSleep(4000 * (attempt + 1)); continue; }
+    if (got === "failed") return false;
+    return await cwFfmpegFetch(url, dest);
   }
   return false;
+}
+// "ok" (written, 2 KB to CW_MAX_BYTES), "retry" (429/503), "failed" (HTTP error or too small), "blocked" (the panel may
+// not read it, or it timed out) or "too-big". At most CW_MAX_BYTES are ever held.
+async function cwFetchCapped(url, dest) {
+  if (typeof fetch !== "function") return "blocked";
+  const c = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = c ? setTimeout(() => c.abort(), CW_FETCH_MS) : null;
+  try {
+    const r = await fetch(url, { signal: c ? c.signal : undefined, headers: cwIsWikimedia(url) ? { "Api-User-Agent": CW_WM_UA } : {} });
+    if (r.status === 429 || r.status === 503) return "retry";
+    if (!r.ok) return "failed";
+    if (Number(r.headers?.get?.("content-length") || 0) > CW_MAX_BYTES) { try { c?.abort(); } catch {} return "too-big"; }
+    const chunks = [];
+    let total = 0;
+    if (r.body && typeof r.body.getReader === "function") {
+      const reader = r.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > CW_MAX_BYTES) { try { await reader.cancel(); } catch {} return "too-big"; }
+        chunks.push(value);
+      }
+    } else { const b = new Uint8Array(await r.arrayBuffer()); total = b.byteLength; if (total > CW_MAX_BYTES) return "too-big"; chunks.push(b); }
+    if (total <= 2000) return "failed";
+    const bytes = new Uint8Array(total);
+    let at = 0;
+    for (const x of chunks) { bytes.set(x, at); at += x.byteLength; }
+    await hostNeed("FileSystem", "writeFile").writeFile(dest, bytes);
+    return "ok";
+  } catch {
+    return "blocked";
+  } finally { if (timer) clearTimeout(timer); }
+}
+// The host's ffmpeg reads the URL in its own process (HTTP range reads, network timeouts): a picture becomes one PNG
+// frame, a video its first CW_CLIP_SECONDS, stream-copied into Matroska. The output never exceeds CW_MAX_BYTES.
+async function cwFfmpegFetch(url, dest) {
+  const net = ["-rw_timeout", "20000000"];
+  const p = await cwFfprobe(["-v", "error", ...net, "-show_streams", "-show_format", "-of", "json", url], 30000);
+  if (!p.ok) return false;
+  let info;
+  try { info = JSON.parse(p.out); } catch { return false; }
+  const v = info.streams?.find((s) => s.codec_type === "video");
+  if (!v) return false;
+  const duration = Number(info.format?.duration || v.duration || 0);
+  const still = /image2|png_pipe|jpeg_pipe|webp_pipe|gif/.test(info.format?.format_name || "") || !(duration > 0);
+  const args = still
+    ? ["-v", "error", "-y", ...net, "-i", url, "-frames:v", "1", "-f", "image2", "-c:v", "png", dest]
+    : ["-v", "error", "-y", ...net, "-i", url, "-t", String(CW_CLIP_SECONDS), "-map", "0:v:0", "-c", "copy", "-an", "-fs", String(CW_MAX_BYTES), "-f", "matroska", dest];
+  const r = await cwFfmpeg(args, 90000);
+  const size = cwSize(dest);
+  return r.ok && size > 2000 && size <= CW_MAX_BYTES;
 }
 // mac-only:start
 async function cwCurlDownload(env, url, dest) {
@@ -1198,6 +1253,7 @@ async function cwCandidates(env, job, dir) {
     const rows = [];
     for (const [i, c] of choices.entries()) {
       const id = item.id + "-" + i;
+      env?.status?.("Preparing B-roll candidates " + (result.length + 1) + "/" + spec.items.length + "…");
       try {
         const file = hostJoin(work, id + ".source");
         if (c.path) await hostNeed("FileSystem", "copyFile").copyFile(c.path, file); else if (!await cwDownload(env, c.url, file)) continue;

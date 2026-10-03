@@ -86,13 +86,14 @@ function host(platform, downloads = {}, encoders = null) {
       existsSync: (p) => fs.existsSync(p), statSync: (p) => fs.statSync(p), mkdirSync: (p, o) => fs.mkdirSync(p, o),
       readFile: (p) => fs.promises.readFile(p), writeFile: (p, d) => fs.promises.writeFile(p, d),
       copyFile: (a, b) => fs.promises.copyFile(a, b), removeFile: ({filePath}) => fs.promises.rm(filePath, {force: true}),
-      downloadFile: async (url, dest) => { if (!downloads[url]) throw new Error('404 ' + url); await fs.promises.copyFile(downloads[url], dest); },
+      // Selects buffers a whole download in its main process: search results must never come through it (Windows hang).
+      downloadFile: async (url) => { throw new Error('downloadFile used for ' + url); },
     },
   };
 }
 function loadEngine(platform, {downloads, fetch, encoders} = {}) {
   const code = [region('// av-host:start', '// av-host:end'), line('const q = ').replace('(v: string)', '(v)'), region('// cw-engine:start', '// cw-engine:end'),
-    '({cwEngine, cwPickEncoder, cwCommonsRows: typeof cwCommonsRows === "function" ? cwCommonsRows : null})'].join('\n');
+    '({cwEngine, cwPickEncoder, cwCommonsRows: typeof cwCommonsRows === "function" ? cwCommonsRows : null, cwFetchCapped, cwFfmpegFetch, CW_MAX_BYTES})'].join('\n');
   const context = vm.createContext({window: {parent: {__DI__: host(platform, downloads, encoders)}}, navigator: {platform: platform === 'win32' ? 'Win32' : 'MacIntel', userAgent: ''},
     setTimeout, clearTimeout, AbortController, TextEncoder, TextDecoder, console, fetch});
   return vm.runInContext(code, context);
@@ -228,7 +229,7 @@ for (const viaCallbackOnly of [false, true]) {
 }
 
 // A stand-in `curl` for engine.mjs and the macOS branch: web URLs come from local files, the Commons API from a
-// fixture; every call's user agent is logged. The Windows branch gets the same through downloadFile and fetch.
+// fixture; every call's user agent is logged. The Windows branch gets the same through the panel's fetch.
 const COMMONS_API = 'https://commons.wikimedia.org/w/api.php';
 function network(m) {
   const web = {'https://img.example/a.jpg': m.still2, 'https://upload.wikimedia.org/c1.jpg': m.still, 'https://upload.wikimedia.org/c2.png': m.still2};
@@ -255,7 +256,13 @@ process.stdout.write(w.replace(/\\\\n/g,'\\n').replace('%{http_code}',String(cod
     return r.stdout;
   }};
   const downloads = {...web};
-  const fetch = async (url) => ({status: 200, text: async () => (fs.appendFileSync(log, 'fetch ' + url.split('?')[0] + '\n'), commons)});
+  const fetch = async (url) => {
+    if (url.startsWith(COMMONS_API)) return {status: 200, ok: true, text: async () => (fs.appendFileSync(log, 'fetch ' + url.split('?')[0] + '\n'), commons)};
+    if (!web[url]) return {status: 404, ok: false, headers: {get: () => null}};
+    const bytes = fs.readFileSync(web[url]);
+    return {status: 200, ok: true, headers: {get: (k) => (k === 'content-length' ? String(bytes.length) : null)},
+      body: new ReadableStream({start(c) { for (let i = 0; i < bytes.length; i += 4096) c.enqueue(new Uint8Array(bytes.subarray(i, i + 4096))); c.close(); }})};
+  };
   return {bin, log, env, shell, downloads, fetch, agents: () => fs.readFileSync(log, 'utf8').trim().split('\n'), reset: () => fs.rmSync(log, {force: true})};
 }
 
@@ -325,4 +332,62 @@ test('faces (Windows): nothing is detected and nothing is run; the pipeline cent
   assert.deepEqual(got, {detected: {}, sampled: 1, readable: 0});
   assert.ok(!fs.existsSync(path.join(m.dir, 'p-faces-win', 'faces')));
   assert.match(PANEL, /const face=ff\.length\?\[0,1,2,3\]\.map\(k=>median\(ff\.map\(r=>r\.faces\[0\]\[k\]\)\)\):\[0\.25,0\.2,0\.5,0\.3\];/);
+});
+
+// Windows downloads: the panel holds at most CW_MAX_BYTES and never calls FileSystem.downloadFile (Selects buffers that
+// in its main process with no limit, which froze the app on a large stock video).
+test('Windows download: capped fetch stops at the limit, retries 429, reports blocked sites', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cws-cap-'));
+  try {
+    let reads = 0;
+    const MB = 1024 * 1024;
+    const big = async () => ({status: 200, ok: true, headers: {get: () => null},
+      body: new ReadableStream({pull(c) { reads += 1; c.enqueue(new Uint8Array(MB)); if (reads > 200) c.close(); }})});
+    let e = loadEngine('win32', {fetch: big});
+    assert.equal(await e.cwFetchCapped('https://x.example/huge.mp4', path.join(dir, 'a')), 'too-big');
+    assert.ok(reads <= Math.ceil(e.CW_MAX_BYTES / MB) + 2, 'stopped reading at the cap: ' + reads);
+    assert.equal(fs.existsSync(path.join(dir, 'a')), false);
+    e = loadEngine('win32', {fetch: async () => ({status: 200, ok: true, headers: {get: (k) => (k === 'content-length' ? '900000000' : null)}, body: null})});
+    assert.equal(await e.cwFetchCapped('https://x.example/huge.mp4', path.join(dir, 'b')), 'too-big');
+    e = loadEngine('win32', {fetch: async () => ({status: 429, ok: false, headers: {get: () => null}})});
+    assert.equal(await e.cwFetchCapped('https://x.example/a.jpg', path.join(dir, 'c')), 'retry');
+    e = loadEngine('win32', {fetch: async () => { throw new TypeError('Failed to fetch'); }});
+    assert.equal(await e.cwFetchCapped('https://x.example/a.jpg', path.join(dir, 'd')), 'blocked');
+    const small = new Uint8Array(5000).fill(7);
+    e = loadEngine('win32', {fetch: async () => ({status: 200, ok: true, headers: {get: () => '5000'}, body: new ReadableStream({start(c) { c.enqueue(small); c.close(); }})})});
+    assert.equal(await e.cwFetchCapped('https://x.example/a.jpg', path.join(dir, 'e')), 'ok');
+    assert.equal(fs.statSync(path.join(dir, 'e')).size, 5000);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('Windows download: a blocked or oversized URL is read by the host ffmpeg (picture -> one frame, video -> first 15 s)', {skip: !HAVE_FFMPEG && 'no ffmpeg'}, async () => {
+  const http = await import('node:http');
+  const m = fixtures();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cws-ff-'));
+  const long = path.join(dir, 'long.mp4');
+  spawnSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=25', '-t', '30', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', long]);
+  const files = {'/still.jpg': m.still2, '/long.mp4': long};
+  const server = http.createServer((req, res) => {
+    const f = files[req.url];
+    if (!f) { res.writeHead(404); res.end(); return; }
+    const size = fs.statSync(f).size, range = /bytes=(\d+)-(\d*)/.exec(req.headers.range || '');
+    if (range) {
+      const a = Number(range[1]), b = range[2] ? Number(range[2]) : size - 1;
+      res.writeHead(206, {'Content-Range': `bytes ${a}-${b}/${size}`, 'Content-Length': b - a + 1, 'Accept-Ranges': 'bytes'});
+      fs.createReadStream(f, {start: a, end: b}).pipe(res);
+    } else { res.writeHead(200, {'Content-Length': size, 'Accept-Ranges': 'bytes'}); fs.createReadStream(f).pipe(res); }
+  });
+  let port;
+  try { port = await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => resolve(server.address().port)); }); }
+  catch (err) { fs.rmSync(dir, {recursive: true, force: true}); return; } // no local sockets here (sandbox)
+  try {
+    const e = loadEngine('win32', {fetch: async () => { throw new TypeError('Failed to fetch'); }});
+    const pic = path.join(dir, 'pic.source'), vid = path.join(dir, 'vid.source');
+    assert.equal(await e.cwFfmpegFetch(`http://127.0.0.1:${port}/still.jpg`, pic), true);
+    assert.equal(spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', pic], {encoding: 'utf8'}).stdout.trim(), 'png');
+    assert.equal(await e.cwFfmpegFetch(`http://127.0.0.1:${port}/long.mp4`, vid), true);
+    const d = Number(spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', vid], {encoding: 'utf8'}).stdout);
+    assert.ok(d > 14 && d < 16.5, 'first 15 s only: ' + d);
+    assert.equal(await e.cwFfmpegFetch(`http://127.0.0.1:${port}/missing.mp4`, path.join(dir, 'x.source')), false);
+  } finally { server.close(); fs.rmSync(dir, {recursive: true, force: true}); }
 });

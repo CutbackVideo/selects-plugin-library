@@ -286,6 +286,8 @@ const FRAME = { width: 1920, height: 1080 };
 const PLUGIN_ID = "thank-you-recap";
 // Installed with the plugin beneath SELECTS_USER_SKILLS_ROOT/thank-you-recap/.
 const MUSIC_FILE = "assets/music.mp3";
+// Its length in seconds (ffprobe), used when its Resource reports none.
+const MUSIC_SECONDS = 25.913469;
 
 // Titles over the hero shot and the closing montage. Times are seconds from
 // the graphic's first frame. The year cycles through six faces (embedded as
@@ -513,39 +515,55 @@ return added;`,
     return { id: v.id, seconds: v.seconds, hero: false, use, of: 0 };
   });
   for (const s of slots) if (!s.hero) s.of = uses.get(s.id)!;
-  const plan = { projectId, slots, starts: STARTS, end: END, frame: FRAME, name, musicId };
+  const plan = { projectId, slots, starts: STARTS, end: END, frame: FRAME, name, musicId, musicSeconds: MUSIC_SECONDS };
   // Every clip and the music are placed before the one commit: a clip or the
   // music Selects can't place yet ends the run with nothing saved.
   const script = `
 const plan = ${JSON.stringify(plan)};
 const project = selects.project(plan.projectId);
 const draft = await project.createDraft({ name: plan.name });
-const fps = (await draft.meta()).fps;
-const edges = [...plan.starts, plan.end].map((s) => Math.round(s * fps));
+// Only the host's "can't place it yet" errors are retried; any other failure is reported as itself.
+const later = new RegExp("not ready|" + ${JSON.stringify(NOT_LOCAL.source)}, "i");
+const failure = (id, e) => { const reason = String(e && e.message || e); return later.test(reason) ? { notReady: id, reason } : { failed: reason }; };
+// A reported 29.97 is 30000/1001. The rate is read again after each clip (a Draft can
+// adopt its first clip's rate), and each clip ends on its cut at that rate, measured
+// from where the last one really ended.
+const rate = async () => { const reported = (await draft.meta()).fps; const r = [24000 / 1001, 24, 25, 30000 / 1001, 30, 48, 50, 60000 / 1001, 60].find((x) => Math.abs(x - reported) < 0.01) || reported; if (!(r > 0)) throw new Error("Unsupported draft frame rate: " + reported); return r; };
+let fps = await rate();
+const times = [...plan.starts, plan.end];
+let placed = 0;
 for (let i = 0; i < plan.slots.length; i++) {
   const slot = plan.slots[i];
-  const len = Math.max(1, edges[i + 1] - edges[i]) / fps;
+  const len = Math.max(1, Math.round(times[i + 1] * fps) - placed) / fps;
   const room = Math.max(0, slot.seconds - len - 0.1);
   // The hero plays from the middle of its take; montage moments spread evenly.
   const start = slot.hero ? room / 2 : Math.min(room, 0.05 + ((slot.use + 0.5) / slot.of) * room);
   try { await draft.insertResource({ resourceId: slot.id, sourceRange: { startSeconds: start, endSeconds: start + len } }); }
-  catch (e) { return { notReady: slot.id, reason: String(e && e.message || e) }; }
+  catch (e) { return failure(slot.id, e); }
+  fps = await rate();
+  placed = Math.max(0, ...(await draft.clips({ trackScope: "main" })).map((c) => c.endFrame));
 }
 // Set after the clips: the first insert would otherwise size the canvas to its source.
 await draft.setFrameSize(plan.frame);
-const main = await draft.clips({ trackScope: "main" });
+const main = (await draft.clips({ trackScope: "main" })).sort((a, b) => a.startFrame - b.startFrame);
 const endFrame = main.reduce((a, c) => Math.max(a, c.endFrame), 0);
-try { await draft.overlayResource({ resource: project.resource(plan.musicId), over: await draft.rangeAtFrames(0, endFrame) }); }
-catch (e) { return { notReady: plan.musicId, reason: String(e && e.message || e) }; }
+const edges = [...main.map((c) => c.startFrame), endFrame];
+// The music may not run past its own end (Selects refuses the whole overlay).
+const musicSeconds = Math.min((await project.resources()).find((r) => r.resourceId === plan.musicId)?.durationSeconds || Infinity, plan.musicSeconds);
+const musicEnd = Math.min(endFrame, Math.floor(musicSeconds * fps + 1e-3));
+try { await draft.overlayResource({ resource: project.resource(plan.musicId), over: await draft.rangeAtFrames(0, musicEnd) }); }
+catch (e) { return failure(plan.musicId, e); }
 const saved = await draft.commitAll("Cut recap montage");
 return { draftId: saved.createdDraftId, cuts: main.length, endFrame, fps, edges };`;
   // A video or the music that was only just imported may need a moment before
   // Selects can place it; nothing was saved, so the whole edit runs again.
-  let made: { draftId?: string; cuts: number; endFrame: number; fps: number; edges: number[]; notReady?: string; reason?: string } | undefined;
+  let made: { draftId?: string; cuts: number; endFrame: number; fps: number; edges: number[]; notReady?: string; reason?: string; failed?: string } | undefined;
   for (let attempt = 0; ; attempt++) {
     const built = await sdk.runScript({ summary: "Cut recap montage", allowCommit: true, script });
     made = built.result as typeof made;
     if (built.isError) throw new Error(built.output);
+    // Any other placement error: nothing was saved, and waiting won't help.
+    if (made?.failed) throw Object.assign(new Error(made.failed), { code: "draft-failed" });
     if (!made?.notReady) break;
     console.warn("[thank-you-recap] not placeable yet:", made.notReady, made.reason);
     const missing = NOT_LOCAL.test(made.reason || "");
@@ -660,7 +678,8 @@ function TemplateRun({ sdk, context }) {
       const tt = STRINGS[context.language] ?? STRINGS.en;
       const known = e?.code === "host-missing" ? tt.hostTooOld : e?.code === "not-ready" ? tt.notReady(e.clip) : e?.code === "not-local" ? tt.notLocal(e.clip) : "";
       const said = String(e?.message ?? "");
-      finish({ error: known || (said && said.length <= 160 && !/[\n{]/.test(said) ? said : TEMPLATE_FAILED) });
+      const short = said && said.length <= 160 && !/[\n{]/.test(said);
+      finish({ error: known || (e?.code === "draft-failed" ? (short ? `${tt.failed} ${said}` : TEMPLATE_FAILED) : short ? said : TEMPLATE_FAILED) });
     });
   }, [runId]);
   return <small>{status}</small>;
@@ -790,7 +809,7 @@ function RecapPanel({ sdk, context, ui }) {
         text: t.done(made.cuts, (made.endFrame / made.fps).toFixed(1)) + (aiNote ? ` ${aiNote}` : ""),
       });
     } catch (e) {
-      setStatus({ tone: "error", text: e?.code === "host-missing" ? t.hostTooOld : e?.code === "not-ready" ? t.notReady(e.clip) : e?.code === "not-local" ? t.notLocal(e.clip) : `${t.failed} ${String(e)}` });
+      setStatus({ tone: "error", text: e?.code === "host-missing" ? t.hostTooOld : e?.code === "not-ready" ? t.notReady(e.clip) : e?.code === "not-local" ? t.notLocal(e.clip) : e?.code === "draft-failed" ? `${t.failed} ${e.message}` : `${t.failed} ${String(e)}` });
     } finally {
       setBusy(false);
       setStep(-1);

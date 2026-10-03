@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "vox-explainer",
-  "version": "0.1.2",
+  "version": "0.2.2",
   "name": "Vox Style Explainer",
   "summary": "Give it a link or some text, and it makes a Vox-style explainer video from it.",
   "status": "experimental",
@@ -10,14 +10,14 @@
   "files": [
     "README.md",
     "INSTALL.md",
-    "panel.tsx",
-    "engine.py"
+    "panel.tsx"
   ],
   "compatibility": {
     "platforms": [
-      "macOS"
+      "macOS",
+      "Windows x64"
     ],
-    "selects": "Selects 2.0.512 or later with media generation for plug-in panels. Uses askAI, runShell and runScript; Python 3.9+; ffmpeg and ffprobe bundled with Selects. Windows is not supported yet."
+    "selects": "Selects 2.0.512 or later with media generation for plug-in panels. Uses askAI and runScript, and the host's FileSystem (files and downloads) and bundled ffmpeg/ffprobe; no shell, no Python. The engine runs inside the panel on macOS and Windows (a Windows pass on the Staging build is pending)."
   },
   "preview": {
     "video": "preview.mp4",

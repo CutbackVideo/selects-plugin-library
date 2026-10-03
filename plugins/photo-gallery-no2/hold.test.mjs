@@ -122,6 +122,26 @@ test('a source with a timecode track is held as one video stream (no tmcd track 
   assert.deepEqual(probe(result.videos[0].outputPath).map(stream => stream.codec_name), ['h264']);
 });
 
+// Phone footage is often stored landscape with a display rotation (an iPhone .MOV held upright). ffmpeg turns the
+// picture upright while encoding, so the held clip is the displayed size: for +-90 degrees, width and height swap.
+// (Found on Windows Staging: "Video 1: Cached video has the wrong dimensions".)
+test('a source with a +-90 degree display rotation is held at its upright size', { skip: !tools && 'ffmpeg/ffprobe required' }, async () => {
+  const dir = scratch(), plain = path.join(dir, 'plain.mp4');
+  sourceVideo(plain);
+  for (const degrees of [90, -90, 180]) {
+    const source = path.join(dir, `rotated${degrees}.mp4`);
+    execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-display_rotation', String(degrees), '-i', plain, '-c', 'copy', source]);
+    const result = await load(host()).holdVideos({ videos: [{ path: source }], durationFrames: 18 }, path.join(dir, 'data'));
+    const upright = Math.abs(degrees) === 90 ? [96, 128] : [128, 96];
+    const held = result.videos[0];
+    assert.deepEqual([held.sourceWidth, held.sourceHeight, held.outputWidth, held.outputHeight], [...upright, ...upright], `${degrees} degrees`);
+    const [stream] = probe(held.outputPath);
+    assert.deepEqual([stream.width, stream.height], upright, `${degrees} degrees`);
+    // A second run reuses the cache entry (its dimensions were recorded upright too).
+    assert.equal((await load(host()).holdVideos({ videos: [{ path: source }], durationFrames: 18 }, path.join(dir, 'data'))).videos[0].cacheHit, true);
+  }
+});
+
 test('a missing or non-video source is rejected', { skip: !tools && 'ffmpeg/ffprobe required' }, async () => {
   const dir = scratch(), { holdVideos } = load(host());
   await assert.rejects(holdVideos({ videos: [{ path: path.join(dir, 'missing.mp4') }], durationFrames: 18 }, dir), /Video 1: Video is missing/);

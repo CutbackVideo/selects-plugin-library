@@ -1,19 +1,21 @@
-"""DOAC Style on Windows: the panel opens and the caption build stops first.
+"""DOAC Style on Windows: the caption build runs in the panel.
 
-The caption engine is Python, set up by runtime.sh for macOS only, so on
-Windows both the panel button and the Clip highlights run refuse with
-"Available on macOS for now" before any draft is made. The POSIX shell that
-stays (runtime check, setup, compiler) sits in `// mac-only:start` ... `end`
-regions; everything else uses the host I/O block copied from Archive Vlog.
-Set DOAC_PANEL to check another copy of the panel (e.g. the one on main).
+macOS keeps the Python caption engine (runtime.sh, a venv, compile-captions.py
+through the shell) inside `// mac-only:start` ... `end` regions. On Windows the
+same engine runs in a Web Worker from approved/web (engine.js, the FreeType +
+Pillow raster core in raster.wasm.b64, worker.js); tests/doac_style_parity.test.mjs
+checks it draws what the Python engine draws. Everything else uses the host I/O
+block copied from Archive Vlog. Set DOAC_PANEL to check another copy of the panel.
 """
+import json
 import os
 from pathlib import Path
 import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-PANEL = Path(os.environ.get('DOAC_PANEL') or ROOT / 'plugins/doac-style/panel.tsx')
+PLUGIN = ROOT / 'plugins/doac-style'
+PANEL = Path(os.environ.get('DOAC_PANEL') or PLUGIN / 'panel.tsx')
 REFERENCE = ROOT / 'plugins/archive-vlog/panel.tsx'
 HOST_BLOCK = re.compile(r'// av-host:start\n.*?// av-host:end', re.S)
 MAC_ONLY = re.compile(r'^[ \t]*// mac-only:start[ \t]*\n.*?^[ \t]*// mac-only:end[ \t]*$', re.S | re.M)
@@ -21,6 +23,7 @@ FORBIDDEN = ['mkdir -p', 'printf', '$HOME', '$SELECTS_USER', 'rm -f', 'base64 ',
              'command -v', 'export PATH', 'cat "', '2>/dev/null', '/Applications/', 'sh "', "sh '", '/usr/bin/',
              "\"'\\\\''\""]
 SPAWN = re.compile(r"""(?:["'`]|&&|;|\|)\s*(?:node|python3?)\b|/python3?["'\s]|\.runtime/bin/""")
+WEB = ['approved/web/pil.js', 'approved/web/engine.js', 'approved/web/worker.js', 'approved/web/raster.wasm.b64']
 
 
 def strip_comments(text):
@@ -28,11 +31,17 @@ def strip_comments(text):
     return '\n'.join(line for line in text.split('\n') if not line.lstrip().startswith('//'))
 
 
+def between(text, start, end):
+    i = text.index(start)
+    return text[i:text.index(end, i)]
+
+
 class DoacStyleWindowsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.text = PANEL.read_text(encoding='utf-8')
         cls.portable = MAC_ONLY.sub('', cls.text)
+        cls.manifest = json.loads((PLUGIN / 'plugin.json').read_text())
 
     def test_host_block_matches_archive_vlog(self):
         mine = HOST_BLOCK.search(self.text)
@@ -49,25 +58,96 @@ class DoacStyleWindowsTest(unittest.TestCase):
     def test_no_shell_call_outside_mac_only_regions(self):
         self.assertEqual(strip_comments(self.portable).count('runShell('), 0, 'the av-host block makes no shell call')
 
-    def test_build_entries_refuse_windows_before_any_mutation(self):
-        self.assertRegex(self.text, r"MAC_ONLY='[^']*Available on macOS for now")
-        run = self.text[self.text.index('function TemplateRun('):self.text.index('export default function Panel')]
-        guard = run.find("if(hostIsWindows())throw stepError('mac-only',MAC_ONLY)")
-        self.assertGreater(guard, -1, 'TemplateRun checks Windows')
-        self.assertLess(guard, run.index('steps.createFromClip('))
-        self.assertLess(guard, run.index('steps.prepare('))
-        self.assertIn("'mac-only':MAC_ONLY", self.text)
-        panel = self.text[self.text.index('function CaptionPanel('):]
-        load = panel[panel.index('async function load('):panel.index('steps.prepare(')]
-        self.assertIn("if(macOnly)throw stepError('mac-only',MAC_ONLY)", load)
-        self.assertIn('macOnly=hostIsWindows()', panel)
-        self.assertIn('disabled={busy||macOnly||', panel)
-        ensure = self.text[self.text.index('function ensureRuntime('):]
-        self.assertTrue(ensure.split('\n')[1].lstrip().startswith('if(hostIsWindows())'))
+    def test_windows_never_reaches_the_python_engine(self):
+        ensure = between(self.text, 'function ensureRuntime(', '\n}\n')
+        self.assertRegex(ensure, r'if\(hostIsWindows\(\)\)\{await panelEngineFiles\(sdk\);return;\}await ensureFont\(sdk\);await macRuntime')
+        compile_ = between(self.text, 'async function compile(j,scene)', '\n')
+        self.assertLess(compile_.index('if(hostIsWindows()){const m=await panelCompile('), compile_.index("shell('compile '"))
+        self.assertIn("const catalogue=hostIsWindows()?await panelEngine(sdk,{cmd:'catalogue'}):JSON.parse(await shell('catalogue'))", self.text)
+        # shell() is the only caller of the Python compiler and sits in a mac-only region.
+        self.assertNotIn('async function shell(', self.portable)
+        self.assertNotIn('function macRuntime(', self.portable)
+
+    def test_build_entries_no_longer_refuse_windows(self):
+        for token in ('MAC_ONLY', 'macOnly', "'mac-only'", 'Available on macOS for now'):
+            with self.subTest(token=token):
+                self.assertNotIn(token, self.text)
+        run = between(self.text, 'function TemplateRun(', 'export default function Panel')
+        self.assertNotIn('hostIsWindows', run)
+        self.assertIn('disabled={busy||!context.sequenceId||!!job?.uncertain}', self.text)
+
+    def test_panel_engine_runs_in_a_worker_from_the_package(self):
+        files = between(self.text, 'function panelEngineFiles(', '\n}\n')
+        self.assertIn("['web/pil.js','web/engine.js','web/worker.js'].map(read)", files)
+        self.assertIn("read('web/raster.wasm.b64')", files)
+        self.assertIn("hostJoin(drive+'\\\\','Windows','Fonts',name)", files)
+        engine = between(self.text, 'async function panelEngine(', '\n}\n')
+        self.assertIn("new Worker(url)", engine)
+        self.assertIn('URL.createObjectURL(new Blob([a.source]', engine)
+        self.assertIn('worker?.terminate()', engine)
+        # Engine errors keep the Python messages the recovery path matches on.
+        self.assertIn("e.pyType==='ValueError'||e.pyType==='AssertionError'", engine)
+        # Files land where compile-captions.py writes them.
+        compiled = between(self.text, 'async function panelCompile(', '\n }\n')
+        for token in ("f.join(dir,'compiled')", "'scene-'+num(s.scene.index)+'.json'", "'manifest.json'", "'manifest-'+num(scene)+'.json'"):
+            self.assertIn(token, compiled)
+
+    def test_windows_recovery_checks_instead_of_compiling(self):
+        recovery = between(self.text, 'async function compileWithRecovery(j)', '\n }\n')
+        fits = between(recovery, 'const fits=async(i,scene)=>{', 'const chosen=')
+        # Windows trials ask the engine to lay out and validate only; macOS still compiles each trial.
+        self.assertIn('if(hostIsWindows()){try{await check({...j,editorial:allPlain.map((x,k)=>k===i?scene:x)});return true;}'
+                      'catch(e){if(!e?.refused)throw e;return false;}}', fits)
+        self.assertIn('try{await compile({...j,editorial:allPlain.map((x,k)=>k===i?scene:x)});return true;}catch{return false;}', fits)
+        self.assertIn('manifest:await compile(repaired)', recovery)
+        check = between(self.text, 'async function check(j)', '\n')
+        self.assertIn("panelEngine(sdk,{cmd:'check',job:{input:j.input,editorial:j.editorial}})", check)
+        self.assertNotIn('writeFile', check)
+        self.assertIn('if(hostIsWindows())onStatus(`Checking which layouts fit… ${++tried} of ${designed}`);', recovery)
+        worker = (PLUGIN / 'approved/web/worker.js').read_text(encoding='utf-8')
+        self.assertIn("if (data.cmd === 'check') { self.postMessage({ result: engine.checkJob(data.job) }); return; }", worker)
+
+    def test_panel_engine_reports_progress_and_never_hangs(self):
+        engine = between(self.text, 'async function panelEngine(', '\n}\n')
+        self.assertIn('if(data?.progress){try{onProgress?.(data.progress);}catch{}return;}', engine)
+        self.assertIn("(request.cmd==='check'?3:20)*60000", engine)
+        self.assertIn('worker.onerror=()=>done(reject,', engine)
+        self.assertIn('worker.onmessageerror=()=>done(reject,', engine)
+        self.assertIn('{refused:true}', engine)
+        compiled = between(self.text, 'async function panelCompile(', '\n }\n')
+        self.assertIn('onStatus(`Preparing typography… scene ${p.scene+1} of ${p.total}`)', compiled)
+
+    def test_package_ships_the_engine_and_fonts(self):
+        files = self.manifest['files']
+        self.assertIn('Windows x64', self.manifest['compatibility']['platforms'])
+        for name in WEB + ['THIRD_PARTY.md', 'approved/native/fonts/arimo/OFL.txt'] + [
+                'approved/native/fonts/arimo/Arimo-%s.ttf.b64' % w for w in ('Regular', 'Medium', 'Bold')]:
+            with self.subTest(name=name):
+                self.assertIn(name, files)
+                self.assertTrue((PLUGIN / name).is_file())
+        for name in ENGINE_DATA(self.text):
+            with self.subTest(data=name):
+                self.assertIn('approved/' + name, files)
+
+    def test_every_template_font_has_a_windows_face(self):
+        worker = (PLUGIN / 'approved/web/worker.js').read_text(encoding='utf-8')
+        required = json.loads((PLUGIN / 'approved/font-requirements.json').read_text())
+        for path in required:
+            name = Path(path).name
+            if name == 'AppleSDGothicNeo.ttc':
+                continue  # only the engine's debug view uses it
+            with self.subTest(font=name):
+                self.assertTrue(name == 'PermanentMarker-Regular.ttf' or "'" + name + '#' in worker, name)
+        for name in re.findall(r"'([a-z]+\.ttf)'", between(self.text, 'const WINDOWS_FONTS=', '\n')):
+            self.assertIn("'" + name + "'", worker)
 
     def test_header_untouched(self):
         head = self.text.split('\n')[:4]
         self.assertEqual(head[:3], ['// @name DOAC Style', '// @collection visual-highlights', '// @icon captions'])
+
+
+def ENGINE_DATA(text):
+    return re.findall(r"'([^']+)'", between(text, 'const ENGINE_DATA=', '\n'))
 
 
 if __name__ == '__main__':

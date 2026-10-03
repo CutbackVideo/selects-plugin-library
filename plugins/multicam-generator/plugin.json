@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "multicam-generator",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "name": "Multicam Generator",
   "summary": "Choose a model and camera angle, generate with original-speech lip sync, and automatically add a separate editable clip to your Draft.",
   "status": "experimental",
