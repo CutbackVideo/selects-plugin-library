@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "vox-explainer",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "name": "Vox Style Explainer",
   "summary": "Give it a link or some text, and it makes a Vox-style explainer video from it.",
   "status": "experimental",

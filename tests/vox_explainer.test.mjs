@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {loadPanelOperation} from './panel_operation.mjs';
@@ -97,4 +98,105 @@ test('sheet argv and sheet list match engine.py', {skip}, () => {
 test('a Windows font path is escaped for the filtergraph', () => {
   assert.equal(op.voxFilterPath(op.voxSheetFont(true)), 'C\\:/Windows/Fonts/arial.ttf');
   assert.equal(op.voxFilterPath(op.voxSheetFont(false)), FONT);
+});
+
+// Windows Staging: "sheet: ...drawtext=... Error : Invalid argument". The filtergraph parser removes one level of
+// backslashes, so fontfile=C\:/Windows/... splits at the colon; the value is quoted when it has an escaped colon.
+test('a Windows font path is quoted for drawtext; a macOS path is written as engine.py did', () => {
+  assert.equal(op.voxFontOption(op.voxSheetFont(true)), "'C\\:/Windows/Fonts/arial.ttf'");
+  assert.equal(op.voxFontOption(op.voxSheetFont(false)), FONT);
+  const [job] = op.voxSheetJobs(['1a'], () => 'C:\\kf\\1a.png', op.voxSheetFont(true), () => 'C:\\out\\s.jpg');
+  assert.ok(job.args.join(' ').includes("drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='1a'"));
+});
+
+const ffmpeg = spawnSync('ffmpeg', ['-version']).status === 0;
+const anyFont = [FONT, '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/Library/Fonts/Arial Unicode.ttf'].find((f) => fs.existsSync(f));
+test('ffmpeg accepts the sheet with a font under a drive-letter path', {skip: !(ffmpeg && anyFont) && 'ffmpeg and a TTF required'}, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vox-sheet-'));
+  const fontDir = path.join(dir, 'C:', 'Windows', 'Fonts');
+  fs.mkdirSync(fontDir, {recursive: true});
+  const font = path.join(fontDir, 'arial.ttf');
+  fs.copyFileSync(anyFont, font);
+  const kf = path.join(dir, 'kf.png');
+  spawnSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=540x960:rate=1:duration=1', '-frames:v', '1', kf]);
+  const jobs = op.voxSheetJobs(['1a', '1b', '2a'], () => kf, font, (n) => path.join(dir, `sheet_${n}.jpg`));
+  for (const j of jobs) {
+    const r = spawnSync('ffmpeg', j.args, {encoding: 'utf8'});
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(fs.statSync(j.dest).size > 1000);
+  }
+  // The old form (unquoted) is what failed.
+  const old = jobs[0].args.map((a) => a.split(`fontfile=${op.voxFontOption(font)}`).join(`fontfile=${op.voxFilterPath(font)}`));
+  assert.notEqual(spawnSync('ffmpeg', old, {encoding: 'utf8'}).status, 0);
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('a sheet ffmpeg refuses with labels is made once more without them', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vox-sheet-'));
+  fs.writeFileSync(path.join(dir, 'job.json'), JSON.stringify({id: 'vxS'}));
+  fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify({cast: [], beats: [{n: 1, shots: [{id: '1a', cast: [], scene: "A 'sign'"}]}]}));
+  fs.writeFileSync(path.join(dir, 'kf.png'), '');
+  fs.writeFileSync(path.join(dir, 'gen.json'), JSON.stringify({'kf:1a': {path: path.join(dir, 'kf.png')}}));
+  const calls = [];
+  const io = {
+    join: (...p) => path.join(...p), exists: (p) => p === FONT || fs.existsSync(p), mkdir: (p) => fs.mkdirSync(p, {recursive: true}),
+    readJson: async (p, def) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return def; } },
+    writeJson: async (p, v) => fs.writeFileSync(p, JSON.stringify(v)), now: () => 1700000000, sheetFont: () => FONT,
+    ffmpeg: async (args) => { calls.push(args); if (args.join(' ').includes('drawtext')) throw new Error('Error : Invalid argument'); },
+  };
+  const out = await op.voxEngine('sheet', dir, [], io);
+  assert.equal(out.ok, true);
+  assert.equal(out.unlabelled, true);
+  assert.equal(calls.length, 2);
+  assert.ok(!calls[1].join(' ').includes('drawtext'));
+  assert.deepEqual(out.expect[0].words, ['sign']);
+  const fail = await op.voxEngine('sheet', dir, [], {...io, ffmpeg: async () => { throw new Error('no xstack'); }});
+  assert.deepEqual(fail, {ok: false, error: 'sheet: no xstack'});
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('a failed contact sheet skips the image check instead of stopping the video', () => {
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/vox-explainer/panel.tsx'), 'utf8');
+  const loop = panel.slice(panel.indexOf('let checkSkipped = false;'), panel.indexOf('setStep(5);'));
+  assert.match(loop, /try \{\s*sh = await run\("sheet"[^]*?\} catch \(err: any\) \{[^]*?checkSkipped = true;\s*break;/);
+  assert.match(loop, /savePanel\(dir, \{ checked: true, checkSkipped,/);
+  assert.match(panel, /result\.checkSkipped \? S\.checkSkipped :/);
+  assert.equal((panel.match(/\bcheckSkipped: "/g) || []).length, (panel.match(/^  (\w\w): \{$/gm) || []).length);
+});
+
+// Windows Staging: the Draft step stopped with "imported media did not become ready". The file names were taken with
+// split("/"), which keeps a whole Windows path, so no Resource matched (and every Continue imported again). A Resource
+// is ready once it has a length; an unanalysed import stays "pending" and is still placeable.
+const untyped = (src) => src.replace(/: \{ file: string; name: string \}\[\]/g, '').replace(/: Record<string, string>/g, '')
+  .replace(/: string\[\]/g, '').replace(/\((\w+): any\)/g, '($1)');
+const runScript = (src, selects) => new Function('selects', `return (async () => {${untyped(src)}})();`)(selects);
+const WIN = ['C:\\Users\\x\\.selects\\plugin-data\\vox-explainer\\jobs\\vx1\\gen\\clips\\vx1_clip_1a_1.mp4',
+  'C:\\Users\\x\\.selects\\plugin-data\\vox-explainer\\jobs\\vx1\\gen\\narration\\vx1_narr_1_1.mp3'];
+
+test('the Draft step imports and finds Windows paths by file name; pending Resources with a length are ready', async () => {
+  assert.equal(op.voxBaseName(WIN[0]), 'vx1_clip_1a_1.mp4');
+  assert.equal(op.voxBaseName('/home-x/a b/c.mp3'), 'c.mp3');
+  const rows = [{resourceId: 'r0', name: 'vx1_clip_1a_1.mp4', status: 'pending', durationSeconds: 5.04}];
+  const imported = [];
+  const selects = {project: () => ({resources: async () => rows, importFiles: async ({paths}) => { imported.push(...paths); }})};
+  assert.deepEqual(await runScript(op.voxImportScript('p1', WIN), selects), {imported: 1});
+  assert.deepEqual(imported, [WIN[1]], 'only the file the Project lacks');
+  // The narration import has no length yet: not ready, and named.
+  rows.push({resourceId: 'r1', name: 'vx1_narr_1_1.mp3', status: 'pending', durationSeconds: null});
+  let r = await runScript(op.voxReadyScript('p1', WIN), selects);
+  assert.deepEqual(r.missing, ['vx1_narr_1_1.mp3']);
+  rows[1].durationSeconds = 6.12;
+  r = await runScript(op.voxReadyScript('p1', WIN), selects);
+  assert.deepEqual({...r.map}, {[WIN[0]]: 'r0', [WIN[1]]: 'r1'});
+  assert.deepEqual([...r.missing], []);
+  assert.deepEqual(await runScript(op.voxImportScript('p1', WIN), selects), {imported: 0}, 'a Continue imports nothing again');
+});
+
+test('the Draft step waits about two minutes, then names what is missing', () => {
+  assert.ok(op.VOX_READY_TRIES * op.VOX_READY_PAUSE_MS >= 90000 && op.VOX_READY_TRIES * op.VOX_READY_PAUSE_MS <= 180000);
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/vox-explainer/panel.tsx'), 'utf8');
+  assert.ok(panel.includes('script: voxImportScript(projectId, sel.files)') && panel.includes('script: voxReadyScript(projectId, sel.files)'));
+  assert.ok(!panel.includes('imported media did not become ready') && !panel.includes('.split("/").pop()'));
+  assert.equal((panel.match(/\bnotReady: \(n\) => `/g) || []).length, (panel.match(/^  (\w\w): \{$/gm) || []).length);
+  assert.ok(!/status/.test(op.voxReadyScript('p', WIN).replace('the status', '')), 'readiness never reads the status');
 });

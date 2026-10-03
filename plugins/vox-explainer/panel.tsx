@@ -28,7 +28,7 @@ type Strings = {
   makePlan: string; planning: string; planTitle: string; redo: string;
   summary: (s: number, b: number, sh: number, lang: string) => string; people: string; warnings: string;
   produce: string; producing: string; steps: string[]; done: string; openHint: string; fallback: string;
-  missing: string; rerolled: (n: number) => string; checkOk: string; unverified: string; noProject: string;
+  missing: string; rerolled: (n: number) => string; checkOk: string; checkSkipped: string; notReady: (names: string) => string; unverified: string; noProject: string;
   needUrl: string; needText: string; noHost: string; noGeneration: string; recent: string; resume: string;
   dismiss: string; retry: string; elapsed: string; noMusic: string;
   errors: Record<string, string>;
@@ -45,7 +45,7 @@ const STRINGS: Record<string, Strings> = {
     done: "The Draft is ready", openHint: "Open it from the Project's Draft list. Export with Handoff → Export.",
     fallback: "Shots that use a zoom instead of motion",
     missing: "People shown as silhouettes (no free-licence photo)",
-    rerolled: (n) => `The image check remade ${n} shot(s).`, checkOk: "Image check: no problems",
+    rerolled: (n) => `The image check remade ${n} shot(s).`, checkOk: "Image check: no problems", checkSkipped: "The image check was skipped (the contact sheet could not be made); worth a look before export.", notReady: (n) => `Selects has not finished adding some media to the Project yet (${n}). Wait a moment, then press Continue.`,
     unverified: "Shots the check still noted after remaking (worth a look)",
     noProject: "Open a Project first.", needUrl: "Enter a source link.",
     needText: "Paste at least 80 characters of source text.",
@@ -65,7 +65,7 @@ const STRINGS: Record<string, Strings> = {
     steps: ["\uc6d0\ubb38 \uc77d\uae30", "\uad6c\uc131\uc548", "\uc778\ubb3c \uc0ac\uc9c4·\ub0b4\ub808\uc774\uc158", "\ud0a4\ud504\ub808\uc784", "\uc774\ubbf8\uc9c0 \uc810\uac80", "\uc6c0\uc9c1\uc784", "\ub4dc\ub798\ud504\ud2b8"],
     done: "\ub4dc\ub798\ud504\ud2b8\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4", openHint: "\ud504\ub85c\uc81d\ud2b8\uc758 \ub4dc\ub798\ud504\ud2b8 \ubaa9\ub85d\uc5d0\uc11c \uc5f4 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub0b4\ubcf4\ub0b4\uae30\ub294 Handoff → Export\ub97c \uc4f0\uc138\uc694.",
     fallback: "\uc6c0\uc9c1\uc784 \ub300\uc2e0 \ud655\ub300 \ud6a8\uacfc\ub97c \uc4f4 \uc0f7", missing: "\uc790\uc720 \ub77c\uc774\uc120\uc2a4 \uc0ac\uc9c4\uc774 \uc5c6\uc5b4 \uc2e4\ub8e8\uc5e3\uc73c\ub85c \ubc14\uafbc \uc778\ubb3c",
-    rerolled: (n) => `\uc774\ubbf8\uc9c0 \uc810\uac80\uc5d0\uc11c ${n}\uac1c \uc0f7\uc744 \ub2e4\uc2dc \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.`, checkOk: "\uc774\ubbf8\uc9c0 \uc810\uac80: \ubb38\uc81c \uc5c6\uc74c",
+    rerolled: (n) => `\uc774\ubbf8\uc9c0 \uc810\uac80\uc5d0\uc11c ${n}\uac1c \uc0f7\uc744 \ub2e4\uc2dc \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.`, checkOk: "\uc774\ubbf8\uc9c0 \uc810\uac80: \ubb38\uc81c \uc5c6\uc74c", checkSkipped: "\uc774\ubbf8\uc9c0 \uc810\uac80\uc744 \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4(\ubbf8\ub9ac\ubcf4\uae30 \uc2dc\ud2b8\ub97c \ub9cc\ub4e4 \uc218 \uc5c6\uc5c8\uc74c). \ub0b4\ubcf4\ub0b4\uae30 \uc804\uc5d0 \ud55c\ubc88 \ud655\uc778\ud574 \uc8fc\uc138\uc694.", notReady: (n) => `Selects\uac00 \uc544\uc9c1 \uc77c\ubd80 \ubbf8\ub514\uc5b4\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud558\ub294 \uc911\uc785\ub2c8\ub2e4(${n}). \uc7a0\uc2dc \ud6c4 \uacc4\uc18d\uc744 \ub20c\ub7ec \uc8fc\uc138\uc694.`,
     unverified: "\ub2e4\uc2dc \ub9cc\ub4e0 \ub4a4\uc5d0\ub3c4 \uc810\uac80\uc5d0\uc11c \uc9c0\uc801\ub41c \uc0f7(\ud655\uc778 \uad8c\uc7a5)",
     noProject: "\ud504\ub85c\uc81d\ud2b8\ub97c \uba3c\uc800 \uc5ec\uc138\uc694.", needUrl: "\uc6d0\ubb38 \ub9c1\ud06c\ub97c \ub123\uc73c\uc138\uc694.", needText: "\uc6d0\ubb38 \ud14d\uc2a4\ud2b8\ub97c 80\uc790 \uc774\uc0c1 \ub123\uc73c\uc138\uc694.",
     noHost: "\uc774 Selects \ubc84\uc804\uc5d0\uc11c\ub294 \uc774 \uc571\uc744 \uc2e4\ud589\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud558\uc138\uc694.",
@@ -84,7 +84,7 @@ const STRINGS: Record<string, Strings> = {
     steps: ["原文を読む", "構成案", "人物写真・ナレーション", "キーフレーム", "画像チェック", "モーション", "ドラフト"],
     done: "ドラフトを作成しました", openHint: "プロジェクトのドラフト一覧から開けます。書き出しは Handoff → Export を使ってください。",
     fallback: "モーションの代わりにズームを使ったショット", missing: "自由ライセンスの写真がなくシルエットにした人物",
-    rerolled: (n) => `画像チェックで${n}ショットを作り直しました。`, checkOk: "画像チェック: 問題なし",
+    rerolled: (n) => `画像チェックで${n}ショットを作り直しました。`, checkOk: "画像チェック: 問題なし", checkSkipped: "画像チェックをスキップしました（コンタクトシートを作成できませんでした）。書き出し前に確認してください。", notReady: (n) => `Selects はまだ一部のメディアをプロジェクトに追加しています（${n}）。少し待ってから「続行」を押してください。`,
     unverified: "作り直した後もチェックで指摘されたショット(確認をおすすめします)",
     noProject: "先にプロジェクトを開いてください。", needUrl: "原文のリンクを入力してください。",
     needText: "原文テキストを80文字以上貼り付けてください。",
@@ -104,7 +104,7 @@ const STRINGS: Record<string, Strings> = {
     steps: ["读取原文", "脚本", "人物照片与旁白", "关键帧", "图像检查", "动态", "草稿"],
     done: "草稿已创建", openHint: "可在项目的草稿列表中打开。导出请使用 Handoff → Export。",
     fallback: "以缩放代替动态的镜头", missing: "因无自由许可照片而改为剪影的人物",
-    rerolled: (n) => `图像检查后重新生成了${n}个镜头。`, checkOk: "图像检查：没有问题",
+    rerolled: (n) => `图像检查后重新生成了${n}个镜头。`, checkOk: "图像检查：没有问题", checkSkipped: "已跳过图像检查（无法生成联系表）。导出前请检查一下。", notReady: (n) => `Selects 仍在将部分媒体添加到项目中（${n}）。请稍候，然后点击“继续”。`,
     unverified: "重新生成后检查仍有提示的镜头（建议确认）",
     noProject: "请先打开项目。", needUrl: "请输入原文链接。", needText: "请粘贴至少80个字符的原文文本。",
     noHost: "此版本的 Selects 无法运行此应用。请更新 Selects。",
@@ -123,7 +123,7 @@ const STRINGS: Record<string, Strings> = {
     steps: ["Quelle lesen", "Skript", "Porträts & Sprecher", "Keyframes", "Bildprüfung", "Bewegung", "Entwurf"],
     done: "Der Entwurf ist fertig", openHint: "Öffne ihn in der Entwurfsliste des Projekts. Exportieren mit Handoff → Export.",
     fallback: "Einstellungen mit Zoom statt Bewegung", missing: "Als Silhouette gezeigte Personen (kein frei lizenziertes Foto)",
-    rerolled: (n) => `Die Bildprüfung hat ${n} Einstellung(en) neu erstellt.`, checkOk: "Bildprüfung: keine Probleme",
+    rerolled: (n) => `Die Bildprüfung hat ${n} Einstellung(en) neu erstellt.`, checkOk: "Bildprüfung: keine Probleme", checkSkipped: "Die Bildprüfung wurde übersprungen (der Kontaktbogen ließ sich nicht erstellen); vor dem Export bitte ansehen.", notReady: (n) => `Selects fügt noch Medien zum Projekt hinzu (${n}). Warte kurz und tippe dann auf „Fortsetzen“.`,
     unverified: "Einstellungen, zu denen die Prüfung nach der Neuerstellung noch etwas anmerkt (bitte ansehen)",
     noProject: "Öffne zuerst ein Projekt.", needUrl: "Gib einen Link zur Quelle ein.",
     needText: "Füge mindestens 80 Zeichen Quelltext ein.",
@@ -143,7 +143,7 @@ const STRINGS: Record<string, Strings> = {
     steps: ["Leer la fuente", "Guion", "Retratos y voz", "Fotogramas clave", "Revisión de imágenes", "Movimiento", "Borrador"],
     done: "El borrador está listo", openHint: "Ábrelo desde la lista de borradores del proyecto. Exporta con Handoff → Export.",
     fallback: "Planos con zoom en lugar de movimiento", missing: "Personas mostradas como silueta (sin foto con licencia libre)",
-    rerolled: (n) => `La revisión de imágenes rehízo ${n} plano(s).`, checkOk: "Revisión de imágenes: sin problemas",
+    rerolled: (n) => `La revisión de imágenes rehízo ${n} plano(s).`, checkOk: "Revisión de imágenes: sin problemas", checkSkipped: "Se omitió la revisión de imágenes (no se pudo crear la hoja de contactos); conviene revisarlo antes de exportar.", notReady: (n) => `Selects aún está añadiendo medios al proyecto (${n}). Espera un momento y pulsa Continuar.`,
     unverified: "Planos que la revisión aún señala tras rehacerlos (conviene revisarlos)",
     noProject: "Abre primero un proyecto.", needUrl: "Introduce un enlace a la fuente.",
     needText: "Pega al menos 80 caracteres del texto de la fuente.",
@@ -163,7 +163,7 @@ const STRINGS: Record<string, Strings> = {
     steps: ["Lire la source", "Script", "Portraits et voix", "Images clés", "Vérification des images", "Mouvement", "Brouillon"],
     done: "Le brouillon est prêt", openHint: "Ouvrez-le depuis la liste des brouillons du projet. Exportez avec Handoff → Export.",
     fallback: "Plans avec un zoom au lieu du mouvement", missing: "Personnes montrées en silhouette (pas de photo sous licence libre)",
-    rerolled: (n) => `La vérification a refait ${n} plan(s).`, checkOk: "Vérification des images : aucun problème",
+    rerolled: (n) => `La vérification a refait ${n} plan(s).`, checkOk: "Vérification des images : aucun problème", checkSkipped: "La vérification des images a été ignorée (la planche contact n'a pas pu être créée) ; à regarder avant l'export.", notReady: (n) => `Selects ajoute encore des médias au projet (${n}). Patientez un instant, puis appuyez sur Continuer.`,
     unverified: "Plans encore signalés après leur reprise (à regarder)",
     noProject: "Ouvrez d'abord un projet.", needUrl: "Saisissez un lien vers la source.",
     needText: "Collez au moins 80 caractères du texte source.",
@@ -183,7 +183,7 @@ const STRINGS: Record<string, Strings> = {
     steps: ["Leggi la fonte", "Copione", "Ritratti e voce", "Fotogrammi chiave", "Controllo immagini", "Movimento", "Bozza"],
     done: "La bozza è pronta", openHint: "Aprila dall'elenco delle bozze del progetto. Esporta con Handoff → Export.",
     fallback: "Inquadrature con zoom invece del movimento", missing: "Persone mostrate come sagoma (nessuna foto a licenza libera)",
-    rerolled: (n) => `Il controllo immagini ha rifatto ${n} inquadratura/e.`, checkOk: "Controllo immagini: nessun problema",
+    rerolled: (n) => `Il controllo immagini ha rifatto ${n} inquadratura/e.`, checkOk: "Controllo immagini: nessun problema", checkSkipped: "Il controllo delle immagini è stato saltato (impossibile creare il provino); da controllare prima dell'esportazione.", notReady: (n) => `Selects sta ancora aggiungendo media al progetto (${n}). Attendi un momento, poi premi Continua.`,
     unverified: "Inquadrature ancora segnalate dopo il rifacimento (da controllare)",
     noProject: "Apri prima un progetto.", needUrl: "Inserisci un link alla fonte.",
     needText: "Incolla almeno 80 caratteri del testo della fonte.",
@@ -203,7 +203,7 @@ const STRINGS: Record<string, Strings> = {
     steps: ["Ler a fonte", "Roteiro", "Retratos e voz", "Quadros-chave", "Verificação de imagens", "Movimento", "Rascunho"],
     done: "O rascunho está pronto", openHint: "Abra-o na lista de rascunhos do projeto. Exporte com Handoff → Export.",
     fallback: "Planos com zoom em vez de movimento", missing: "Pessoas mostradas como silhueta (sem foto de licença livre)",
-    rerolled: (n) => `A verificação refez ${n} plano(s).`, checkOk: "Verificação de imagens: sem problemas",
+    rerolled: (n) => `A verificação refez ${n} plano(s).`, checkOk: "Verificação de imagens: sem problemas", checkSkipped: "A verificação de imagens foi ignorada (não foi possível criar a folha de contato); vale conferir antes de exportar.", notReady: (n) => `O Selects ainda está adicionando mídias ao projeto (${n}). Aguarde um pouco e toque em Continuar.`,
     unverified: "Planos ainda apontados pela verificação após refeitos (vale conferir)",
     noProject: "Abra um projeto primeiro.", needUrl: "Insira um link da fonte.",
     needText: "Cole pelo menos 80 caracteres do texto da fonte.",
@@ -223,7 +223,7 @@ const STRINGS: Record<string, Strings> = {
     steps: ["Kaynağı oku", "Senaryo", "Portreler ve seslendirme", "Anahtar kareler", "Görsel kontrolü", "Hareket", "Taslak"],
     done: "Taslak hazır", openHint: "Projenin taslak listesinden açabilirsiniz. Dışa aktarmak için Handoff → Export'u kullanın.",
     fallback: "Hareket yerine yakınlaştırma kullanılan çekimler", missing: "Silüet olarak gösterilen kişiler (serbest lisanslı fotoğraf yok)",
-    rerolled: (n) => `Görsel kontrolü ${n} çekimi yeniden oluşturdu.`, checkOk: "Görsel kontrolü: sorun yok",
+    rerolled: (n) => `Görsel kontrolü ${n} çekimi yeniden oluşturdu.`, checkOk: "Görsel kontrolü: sorun yok", checkSkipped: "Görüntü kontrolü atlandı (kontak sayfası oluşturulamadı); dışa aktarmadan önce göz atın.", notReady: (n) => `Selects bazı medyaları projeye eklemeyi henüz bitirmedi (${n}). Biraz bekleyip Devam'a basın.`,
     unverified: "Yeniden oluşturulduktan sonra kontrolün hâlâ not düştüğü çekimler (göz atmanızı öneririz)",
     noProject: "Önce bir proje açın.", needUrl: "Bir kaynak bağlantısı girin.",
     needText: "En az 80 karakterlik kaynak metni yapıştırın.",
@@ -434,6 +434,10 @@ export async function voxSilences(path) { return voxParseSilences(await voxFFmpe
 export function voxSheetFont(windows) { return windows ? "C:\\Windows\\Fonts\\arial.ttf" : "/System/Library/Fonts/Supplemental/Arial.ttf"; }
 // A path inside a filtergraph option: forward slashes, and the drive colon escaped.
 export function voxFilterPath(p) { return String(p).replace(/\\/g, "/").replace(/:/g, "\\:"); }
+// drawtext's fontfile value. An escaped colon (a Windows drive) is also quoted: the filtergraph parser removes one
+// level of backslashes before drawtext reads its options, so C\:/... alone splits at the colon ("Invalid argument",
+// found on Windows Staging). A path without a colon (macOS) stays as engine.py wrote it.
+export function voxFontOption(font) { const p = voxFilterPath(font); return p.includes("\\:") ? `'${p}'` : p; }
 export function voxSheetJobs(ids, fileOf, font, destOf) {
   const jobs = [];
   for (let part = 0; part < ids.length; part += 12) {
@@ -443,7 +447,7 @@ export function voxSheetJobs(ids, fileOf, font, destOf) {
     let filt = "";
     chunk.forEach((sid, i) => {
       args.push("-i", fileOf(sid));
-      const label = font ? `drawtext=fontfile=${voxFilterPath(font)}:text='${sid}':x=8:y=8:fontsize=34:fontcolor=white:box=1:boxcolor=black@0.8:boxborderw=6,` : "";
+      const label = font ? `drawtext=fontfile=${voxFontOption(font)}:text='${sid}':x=8:y=8:fontsize=34:fontcolor=white:box=1:boxcolor=black@0.8:boxborderw=6,` : "";
       filt += `[${i}:v]scale=270:480,${label}pad=276:486:3:3:white[v${i}];`;
     });
     const layout = chunk.map((_, i) => `${(i % cols) * 276}_${Math.floor(i / cols) * 486}`).join("|");
@@ -1089,17 +1093,28 @@ async function voxCmdSheet(io, job, only) {
   for (const id of ids) fileOf[id] = await job.file("kf:" + id);
   const font = io.sheetFont();
   const stamp = Math.trunc(io.now());
-  const sheets = [];
-  for (const j of voxSheetJobs(ids, (id) => fileOf[id], io.exists(font) ? font : null, (n) => job.p("check", `sheet_${stamp}_${n}.jpg`))) {
-    try { await io.ffmpeg(j.args); } catch (e) { throw voxFail("sheet: " + pySlice(String(e && e.message || e), -300)); }
-    sheets.push({ path: j.dest, shots: j.shots });
+  // A labelled sheet that ffmpeg refuses (e.g. a build whose drawtext cannot load the font) is made once more without
+  // the shot labels: the check still sees the pictures in shot order. (engine.py failed here.)
+  const make = async (withFont) => {
+    const made = [];
+    for (const j of voxSheetJobs(ids, (id) => fileOf[id], withFont, (n) => job.p("check", `sheet_${stamp}_${n}.jpg`))) {
+      await io.ffmpeg(j.args);
+      made.push({ path: j.dest, shots: j.shots });
+    }
+    return made;
+  };
+  const labelFont = io.exists(font) ? font : null;
+  let sheets, unlabelled = false;
+  try { sheets = await make(labelFont); } catch (e) {
+    if (!labelFont) throw voxFail("sheet: " + pySlice(String(e && e.message || e), -300));
+    try { sheets = await make(null); unlabelled = true; } catch (e2) { throw voxFail("sheet: " + pySlice(String(e2 && e2.message || e2), -300)); }
   }
   const cast = Object.fromEntries(plan.cast.map((c) => [c.key, c.name]));
   const expect = voxShots(plan).filter(([, s]) => !only || only.has(s.id)).map(([, s]) => ({
     shot: s.id, people: s.cast.map((k) => cast[k]),
     words: [...s.scene.matchAll(/['"\u201c\u2018]([^'"\u201d\u2019]{1,40})['"\u201d\u2019]/gu)].map((m) => m[1]), scene: pySlice(s.scene, 0, 300),
   }));
-  return { ok: true, sheets, expect };
+  return unlabelled ? { ok: true, sheets, expect, unlabelled } : { ok: true, sheets, expect };
 }
 async function voxCmdKenBurns(io, job, only) {
   const plan = await job.plan();
@@ -1187,6 +1202,37 @@ export async function voxEngine(cmd, dir, args, io) {
     return { ok: false, error: `${(e && e.name) || "Error"}: ${(e && e.message) || e}` };
   }
 }
+// ---- Draft step: import the media, then wait until Selects can place it ----
+// A host path's file name on either OS (Windows paths use backslashes: splitting on "/" alone kept the whole path,
+// so no imported Resource ever matched and every Continue imported the files again).
+export function voxBaseName(path) { return String(path).split(/[\\/]/).pop(); }
+// run_script source: imports the files the Project does not have yet (by file name).
+export function voxImportScript(projectId, files) {
+  const want = files.map((f) => ({ file: f, name: voxBaseName(f) }));
+  return `const p = selects.project(${JSON.stringify(projectId)});
+const want: { file: string; name: string }[] = ${JSON.stringify(want)};
+const have = new Set((await p.resources()).map((r: any) => String(r.name)));
+const need = want.filter((w) => !have.has(w.name)).map((w) => w.file);
+if (need.length) await p.importFiles({ paths: need });
+return { imported: need.length };`;
+}
+// run_script source: each file's Resource id once it can be placed. Usable means a length is known
+// (durationSeconds > 0); the status is not read, because an import that is never analysed stays "pending".
+export function voxReadyScript(projectId, files) {
+  const want = files.map((f) => ({ file: f, name: voxBaseName(f) }));
+  return `const rows = await selects.project(${JSON.stringify(projectId)}).resources();
+const want: { file: string; name: string }[] = ${JSON.stringify(want)};
+const map: Record<string, string> = {};
+const missing: string[] = [];
+for (const w of want) {
+  const r = rows.find((x: any) => String(x.name) === w.name && typeof x.durationSeconds === "number" && x.durationSeconds > 0);
+  if (r) map[w.file] = String(r.resourceId);
+  else missing.push(w.name);
+}
+return { map, missing };`;
+}
+export const VOX_READY_TRIES = 40;
+export const VOX_READY_PAUSE_MS = 3000;
 // @operation-end
 // The engine's I/O on the host (see voxEngine): job files through FileSystem, ffmpeg and ffprobe through the host's
 // bundled copies, and the network two ways. Wikipedia/Commons API answers come through fetch (they allow any origin
@@ -1672,8 +1718,17 @@ export default function Panel({ sdk, context, ui }: any) {
         let only: string[] = [];
         const rerolled: string[] = [];
         let remaining: any[] = [];
+        let checkSkipped = false;
         for (let round = 0; round < 2; round++) {
-          const sh = await run("sheet", dir, only.length ? [only.join(",")] : [], "Contact sheet");
+          // The sheet only feeds the advisory check: if it cannot be made, the check is skipped and the video goes on.
+          let sh: any;
+          try {
+            sh = await run("sheet", dir, only.length ? [only.join(",")] : [], "Contact sheet");
+          } catch (err: any) {
+            console.warn("[vox-explainer] contact sheet failed; skipping the image check:", err?.message || err);
+            checkSkipped = true;
+            break;
+          }
           const images: any[] = [];
           for (const s of sh.sheets.slice(0, 4)) images.push({ dataUrl: `data:image/jpeg;base64,${await readB64(s.path)}`, name: s.shots.join(",") });
           let flagged: any[] = [];
@@ -1694,7 +1749,7 @@ export default function Panel({ sdk, context, ui }: any) {
           rerolled.push(...redo);
           only = redo;
         }
-        pj = await savePanel(dir, { checked: true, rerolled: Array.from(new Set(rerolled)),
+        pj = await savePanel(dir, { checked: true, checkSkipped, rerolled: Array.from(new Set(rerolled)),
           unverified: remaining.map((x: any) => `${x.shot} (${x.reason || ""})`) });
       }
 
@@ -1715,42 +1770,27 @@ export default function Panel({ sdk, context, ui }: any) {
       setStatus(S.steps[6]);
       if (!pj.draftId) {
         const sel = await run("assembly", dir, [], "Plan the Draft");
-        const files = JSON.stringify(sel.files);
-        const imp: any = await sdk.runScript({
-          summary: "Import the explainer media",
-          allowCommit: true,
-          script: `const p = selects.project(${JSON.stringify(projectId)});
-const want = ${files};
-const have = new Set((await p.resources()).map((r: any) => r.name));
-const need = want.filter((f: string) => !have.has(f.split("/").pop()));
-if (need.length) await p.importFiles({ paths: need });
-return { imported: need.length };`,
-        });
+        const imp: any = await sdk.runScript({ summary: "Import the explainer media", allowCommit: true, script: voxImportScript(projectId, sel.files) });
         if (imp.isError) throw new Error(String(imp.output || "import failed").slice(0, 800));
-        let ids: any = null;
-        for (let t = 0; t < 12 && !ids; t++) {
-          const mres: any = await sdk.runScript({
-            summary: "Find the imported media",
-            script: `const rows = await selects.project(${JSON.stringify(projectId)}).resources();
-const map: any = {};
-for (const f of ${files}) {
-  const r = rows.find((x: any) => x.name === f.split("/").pop());
-  if (!r || r.durationSeconds == null) return { map: null };
-  map[f] = r.resourceId;
-}
-return { map };`,
-          });
+        // Wait (about two minutes at most) until every file has a length; unanalysed imports are fine.
+        let ids: any = null, missing: string[] = [];
+        for (let t = 0; t < VOX_READY_TRIES && !ids; t++) {
+          const mres: any = await sdk.runScript({ summary: "Find the imported media", script: voxReadyScript(projectId, sel.files) });
           if (mres.isError) throw new Error(String(mres.output || "import failed").slice(0, 800));
-          ids = mres.result?.map || null;
-          if (!ids) await sleep(1500);
+          missing = mres.result?.missing || [];
+          if (!missing.length && mres.result?.map) ids = mres.result.map;
+          else {
+            setStatus(`${S.steps[6]} · ${sel.files.length - missing.length}/${sel.files.length}`);
+            await sleep(VOX_READY_PAUSE_MS);
+          }
         }
-        if (!ids) throw new Error("imported media did not become ready");
+        if (!ids) throw new Error(S.notReady(missing.slice(0, 4).join(", ") + (missing.length > 4 ? ", \u2026" : "")));
         const b: any = await sdk.runScript({ summary: "Build the explainer Draft", allowCommit: true, script: draftScript(projectId, sel, ids) });
         if (b.isError || !b.result?.draftId) throw new Error(String(b.output || "draft failed").slice(0, 800));
         pj = await savePanel(dir, { draftId: b.result.draftId, seconds: b.result.seconds, done: true });
       }
       const jd = (await readJson(hostJoin(dir, "job.json"))) || {};
-      setResult({ seconds: pj.seconds, fallback: pj.fallback || [], rerolled: pj.rerolled || [], unverified: pj.unverified || [],
+      setResult({ seconds: pj.seconds, fallback: pj.fallback || [], rerolled: pj.rerolled || [], unverified: pj.unverified || [], checkSkipped: !!pj.checkSkipped,
         noMusic: !!pj.noMusic, missing: Object.values(jd.portraits || {}).filter((v: any) => !v.ok).map((v: any) => v.name) });
       setStep(7);
       setStatus("");
@@ -1844,7 +1884,7 @@ return { map };`,
         <ui.Section title={S.done}>
           {result.seconds ? <ui.Message tone="success">{Math.round(result.seconds * 10) / 10}s</ui.Message> : null}
           <small>{S.openHint}</small>
-          <small>{result.rerolled.length ? S.rerolled(result.rerolled.length) : S.checkOk}</small>
+          <small>{result.checkSkipped ? S.checkSkipped : result.rerolled.length ? S.rerolled(result.rerolled.length) : S.checkOk}</small>
           {result.unverified.length > 0 && (
             <small>
               {S.unverified}: {result.unverified.join(" / ")}
