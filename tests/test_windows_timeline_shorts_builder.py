@@ -119,5 +119,22 @@ console.log(JSON.stringify([ctx.f(clip(0, 1, 1), 0, fps), ctx.f(clip(0, 1, 1), 8
         self.assertAlmostEqual(out[2], 1 + 24 * 1001 / 24000 * 2, places=6)
         self.assertAlmostEqual(out[3], 2)
 
+    def test_create_falls_back_when_duplicate_draft_needs_retake_snapshots(self):
+        panel = read(os.path.join(plugin_dir(PLUGIN), "panel.tsx"))
+        build = panel[panel.index("async function build(){"):]
+        build = build[: build.index("\n return <div")]
+        # The first attempt keeps duplicateDraft; only that host error switches to the public copy path.
+        first, fallback = build.index("result=await create('duplicate')"), build.index("result=await create('insert')")
+        self.assertLess(first, fallback)
+        self.assertIn("if(!/unsupported_host_capability|retake\\.contentSnapshots/.test(String(e?.message??e)))throw e;", build)
+        script = build[build.index("const create=(copy:'duplicate'|'insert')=>run(`"): build.index("`,'Create uncropped Draft',true);")]
+        self.assertIn("const useDuplicate:boolean=${copy==='duplicate'};", script, "a boolean, not a literal comparison the script checker rejects")
+        self.assertIn("d=await p.createDraft({name:draftName})", script)
+        self.assertIn("await d.insert({source:await s.rangeAtFrames(0,total),tracks:'all'})", script)
+        # Copied clips get new ids, so native sizes are matched by kind, resource and frames.
+        self.assertIn("const source=match(c);", script)
+        self.assertIn("x.trackKind===c.trackKind&&x.resourceId===c.resourceId&&x.startFrame===c.startFrame&&x.endFrame===c.endFrame", script)
+        self.assertNotIn("sourceClips.find(x=>x.clipId===c.clipId);", script)
+
 if __name__ == "__main__":
     unittest.main()
