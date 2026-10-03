@@ -374,7 +374,8 @@ def op_unit(args):
             share(cache / name, folder / name)
         return {"key": key, "cached": True}
     source = folder / "source.mp4"
-    vf = crop_filter(unit["width"], unit["height"]) + f",scale={W}:{H},minterpolate=fps={FPS}:mi_mode=mci"
+    # setsar=1: non-square-pixel footage (e.g. SAR 853:854) gets square pixels, as the panel's unitSourceArgs does.
+    vf = crop_filter(unit["width"], unit["height"]) + f",scale={W}:{H},setsar=1,minterpolate=fps={FPS}:mi_mode=mci"
     run([FFMPEG, "-y", "-v", "error", "-ss", str(unit["start"]), "-i", unit["path"], "-vf", vf,
          "-frames:v", str(SRC_FRAMES), "-an", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p", "-write_tmcd", "0", str(source)])
     frames = decode(source, SRC_FRAMES)

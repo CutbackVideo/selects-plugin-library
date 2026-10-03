@@ -210,8 +210,9 @@ export function cropFilter(w, h) {
 export const probeArgs = (path) => ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,r_frame_rate:stream_side_data=rotation:format=duration", "-of", "json", path];
 // Grey 135x180 frames at 24 fps of the first 30 s, for the motion score of each window start.
 export const motionArgs = (path, info, out) => ["-v", "error", "-t", "30", "-i", path, "-vf", cropFilter(info.width, info.height) + ",fps=24,scale=135:180,format=gray", "-f", "rawvideo", out];
-// One shot window: 1 s of source cropped to 3:4, motion-interpolated to 60 fps.
-export const unitSourceArgs = (unit, out) => ["-y", "-v", "error", "-ss", pyStr(unit.start), "-i", unit.path, "-vf", cropFilter(unit.width, unit.height) + `,scale=${W}:${H},minterpolate=fps=${FPS}:mi_mode=mci`, "-frames:v", String(SRC_FRAMES), "-an", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p", "-write_tmcd", "0", out];
+// One shot window: 1 s of source cropped to 3:4, motion-interpolated to 60 fps. setsar=1: footage with non-square pixels
+// (e.g. SAR 853:854) would otherwise carry its SAR into the clip, and the matte request's concat refuses mixed SARs.
+export const unitSourceArgs = (unit, out) => ["-y", "-v", "error", "-ss", pyStr(unit.start), "-i", unit.path, "-vf", cropFilter(unit.width, unit.height) + `,scale=${W}:${H},setsar=1,minterpolate=fps=${FPS}:mi_mode=mci`, "-frames:v", String(SRC_FRAMES), "-an", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p", "-write_tmcd", "0", out];
 export const decodeArgs = (path, count, out, vf = "format=rgb24") => ["-v", "error", "-i", path, "-vf", vf, "-frames:v", String(count), "-f", "rawvideo", "-pix_fmt", "rgb24", out];
 // RVM's VP9-with-alpha cutout to one grey PNG per frame (001.png...); `pattern` is hostJoin(masks, "%03d.png").
 export const matteArgs = (webm, pattern) => ["-y", "-v", "error", "-c:v", "libvpx-vp9", "-i", webm, "-vf", "alphaextract", "-frames:v", String(MATTE_FRAMES), pattern];
@@ -228,10 +229,11 @@ export function parseProbe(text) {
 // The 60 fps master frame a Draft frame shows (op_assemble's `wanted`).
 export const draftMaster = (n) => Math.floor(n / DRAFT_FPS * FPS + 1e-6);
 // One matte request for the whole montage: each unit's first MATTE_FRAMES source frames after MATTE_PAD copies of its
-// first frame (a temporal matting model then starts every shot settled), concatenated into one 60 fps clip.
+// first frame (a temporal matting model then starts every shot settled), concatenated into one 60 fps clip. Each chain
+// also sets square pixels, so unit sources cached before 0.1.8 (which kept a source's SAR) still concat.
 export const MATTE_PAD = 6;
 export function matteConcatArgs(sources, out) {
-  const chains = sources.map((_, k) => `[${k}:v]trim=end_frame=${MATTE_FRAMES},loop=loop=${MATTE_PAD}:size=1:start=0,setpts=N/(${FPS}*TB)[v${k}]`);
+  const chains = sources.map((_, k) => `[${k}:v]trim=end_frame=${MATTE_FRAMES},loop=loop=${MATTE_PAD}:size=1:start=0,setpts=N/(${FPS}*TB),setsar=1[v${k}]`);
   return ["-y", "-v", "error", ...sources.flatMap((s) => ["-i", s]), "-filter_complex", chains.join(";") + ";" + sources.map((_, k) => `[v${k}]`).join("") + `concat=n=${sources.length}:v=1:a=0[out]`,
     "-map", "[out]", "-an", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p", "-write_tmcd", "0", out];
 }
