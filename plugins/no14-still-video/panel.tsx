@@ -229,7 +229,7 @@ export async function prepareNativeImages(app,projectId,photos,knownLibraryId=nu
  const members=await Promise.all(project.getResources().map(id=>di.ResourceRepository.findById(libraryId,id)));
  const sources=[];
  for(const photo of photos){
-  const matches=members.filter(r=>r?.getType()==='Image'&&(r.getMedia()?.originalPath??r.getMedia()?.path)===photo.path);
+  const matches=members.filter(r=>r?.getType()==='Image'&&r.getMedia()?.path===photo.path);
   if(matches.length!==1)throw Error('A selected Image is missing or ambiguous in the Project: '+photo.name);
   const resource=matches[0],media=resource.getMedia(),analyzed=await resource.getAnalyzedSequence();
   const main=analyzed?.getMainTrack(),primary=main?.getClips().find(clip=>!clip.isGap());
@@ -553,8 +553,8 @@ function templateLibrary(template){
  return template.libraryId;
 }
 // The app hands over its own Resource ids; the Panel works from the run_script
-// Image rows, so each pick is joined to its row by its original file, the same
-// file prepareNativeImages later checks the Project's Image against.
+// Image rows, so join by media.path, the same working file sourceFiles() returns
+// and prepareNativeImages checks. For HEIC this is the converted JPEG, not originalPath.
 async function templateSelection(sdk,app,projectId,libraryId,inputs){
  const picks=Array.isArray(inputs?.photos)?inputs.photos:[];
  if(picks.length!==4||picks.some(x=>x?.kind!=='image'||!x.resourceId))throw templateIssue('Pick exactly four photos, then try again.');
@@ -569,7 +569,7 @@ async function templateSelection(sdk,app,projectId,libraryId,inputs){
   const resource=members.has(pick.resourceId)?await di.ResourceRepository.findById(libraryId,pick.resourceId):null;
   if(!resource)throw templateIssue(label+' is missing from this Project.');
   if(resource.getType()!=='Image')throw templateIssue(label+' is not a photo Four Photo Reveal can use.');
-  const media=resource.getMedia(),path=media?.originalPath??media?.path;
+  const media=resource.getMedia(),path=media?.path;
   paths.push(path);
  }
  const rows=await inventory(sdk,projectId,'List project photos',{paths});
