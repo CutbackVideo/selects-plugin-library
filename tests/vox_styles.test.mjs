@@ -51,3 +51,33 @@ for(const id of ids){
  });
 }
 test('styles have distinct direction and motion rather than renamed identical prompts',()=>{const a=loadPanelOperation(ids[0]),b=loadPanelOperation(ids[1]);assert.notEqual(a.STYLE.idiom,b.STYLE.idiom);assert.notEqual(a.STYLE.music,b.STYLE.music);assert.equal(a.STYLE.style,'editorial');assert.equal(b.STYLE.style,'tang');});
+
+// Run the actual SDK script emitted by each panel, including its embedded templates.
+// This catches cross-language escaping and serialization bugs that engine tests miss.
+for (const id of ids) {
+ test(`${id}: editable SDK assembly and interrupted-commit recovery`, async () => {
+  const {stripTypeScriptTypes} = await import('node:module');
+  const {runInNewContext} = await import('node:vm');
+  const source=fs.readFileSync(new URL(`../plugins/${id}/panel.tsx`,import.meta.url),'utf8');
+  const prefix=source.slice(0,source.indexOf('export default function Panel'))
+   .replace(/^import React from "react";\s*/m,'').replace(/^export /gm,'');
+  const ctx={};
+  runInNewContext(stripTypeScriptTypes(prefix)+'\nglobalThis.emitDraft=draftScript;',ctx);
+  const selection={draftName:'Archive " test • unique-job',segments:[{file:'clip',dur:5}],narration:[{file:'voice',start:0,dur:5}],music:'music',headlines:[{beat:1,text:'The archive',start:0,end:5,evidence:['Letters','Maps'],graphic:'comparison'}],captions:[{start:0,end:5,text:'Paper and silk'},{start:5,end:6,text:'Skip outside range'}],credit:{start:3,source:'Supplied text',photos:''}};
+  const script=ctx.emitDraft('another-user-project',selection,{clip:'c',voice:'v',music:'m'});
+  const execute=runInNewContext(stripTypeScriptTypes(`(async function(selects){${script}})`));
+  const graphics=[],audio=[],sizes=[];
+  const draft={insertResource:async()=>{},setFrameSize:async x=>sizes.push(x),meta:async()=>({fps:24}),clips:async({trackScope})=>trackScope==='main'?[{endFrame:120}]:[{resourceId:'m'}],rangeAtFrames:async(a,b)=>{assert.ok(a>=0&&b>a&&b<=120);return {a,b}},overlayResource:async x=>audio.push(x),setClipAudio:async()=>{},addMotionGraphic:async x=>graphics.push(x),commitAll:async()=>({createdDraftId:'saved'})};
+  const result=await execute({project:p=>{assert.equal(p,'another-user-project');return {meta:async()=>({draftIds:[]}),createDraft:async()=>draft,resource:id=>({id})}}});
+  assert.equal(result.draftId,'saved');assert.equal(audio.length,2);assert.equal(sizes[0].width,1920);assert.equal(sizes[0].height,1080);
+  assert.equal(graphics.filter(g=>g.label.startsWith('Caption')).length,1);
+  for(const graphic of graphics){assert.ok(graphic.editableParameters.length);assert.ok(graphic.tsxCode.includes('export default'));}
+  const headline=graphics.find(g=>g.label.startsWith('Headline'));
+  assert.match(headline.tsxCode,/data\?\.barColor/);assert.match(headline.tsxCode,/data\?\.textColor/);
+  if(id==='jared-vox-editorial')assert.equal(graphics.find(g=>g.label.startsWith('Evidence')).parameters.text,'Letters\nMaps');
+  else assert.equal(graphics.filter(g=>g.label.startsWith('Evidence')).length,0);
+  let created=0;
+  const recovered=await execute({project:()=>({meta:async()=>({draftIds:['prior']}),createDraft:()=>{created++}}),draft:()=>({meta:async()=>({name:selection.draftName,fps:24}),clips:async()=>[{endFrame:120}]})});
+  assert.equal(recovered.draftId,'prior');assert.equal(recovered.recovered,true);assert.equal(created,0);
+ });
+}
