@@ -5,6 +5,8 @@
 3. Submit a pull request and merge after checks pass. Share the plugin's folder link.
 4. Verify anonymous download from the merged commit with `python3 tools/plugin_files.py download <id> --ref <commit> --destination <new-folder>`.
 
+After a merge to `main`, the **Publish catalog** workflow copies every `plugin.json` at that commit to the catalog the Selects app lists (`tools/publish_catalog.py`); the app reads the library through the Selects API, not GitHub's API. A plugin appears in the app only once that run succeeds. Media and install files are still downloaded from this repository at the listed commit.
+
 Only designated Cutback maintainers publish. Each Git commit preserves a version of the plugin. No separate release or archive is needed.
 
 ## Installation layout
