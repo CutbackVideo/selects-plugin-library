@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "tang-poetry-explainer",
+  "version": "0.1.0",
+  "name": "Tang Poetry Explainer",
+  "summary": "Turn a link or text into a narrated historical collage film with ink-wash scenery, woodblock figures and editable titles.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "NOTICE.md",
+    "LICENSE.txt",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS",
+      "Windows x64"
+    ],
+    "selects": "Selects 2.0.533+ with plugin media generation, host FileSystem and bundled media runtime. No external runtime or provider key."
+  },
+  "localized": {
+    "de": {
+      "name": "Tang Poetry Explainer",
+      "summary": "Erstellt aus einem Link oder Text einen erz\u00e4hlten historischen Collagefilm mit Tuschelandschaften, Holzschnittfiguren und bearbeitbaren Titeln."
+    },
+    "en": {
+      "name": "Tang Poetry Explainer",
+      "summary": "Turn a link or text into a narrated historical collage film with ink-wash scenery, woodblock figures and editable titles."
+    },
+    "es": {
+      "name": "Tang Poetry Explainer",
+      "summary": "Convierte un enlace o texto en un collage hist\u00f3rico narrado con paisajes de tinta, figuras grabadas y t\u00edtulos editables."
+    },
+    "fr": {
+      "name": "Tang Poetry Explainer",
+      "summary": "Transforme un lien ou un texte en collage historique narr\u00e9 avec paysages \u00e0 l\u2019encre, personnages grav\u00e9s et titres modifiables."
+    },
+    "it": {
+      "name": "Tang Poetry Explainer",
+      "summary": "Trasforma un link o un testo in un collage storico narrato con paesaggi a inchiostro, figure xilografiche e titoli modificabili."
+    },
+    "ja": {
+      "name": "Tang Poetry Explainer",
+      "summary": "\u30ea\u30f3\u30af\u3084\u6587\u7ae0\u304b\u3089\u3001\u6c34\u58a8\u753b\u306e\u98a8\u666f\u3001\u6728\u7248\u753b\u306e\u4eba\u7269\u3001\u7de8\u96c6\u53ef\u80fd\u306a\u898b\u51fa\u3057\u3092\u4f7f\u3063\u305f\u6b74\u53f2\u30b3\u30e9\u30fc\u30b8\u30e5\u52d5\u753b\u3092\u4f5c\u308a\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "Tang Poetry Explainer",
+      "summary": "\ub9c1\ud06c\ub098 \uae00\uc744 \uc218\ubb35 \ud48d\uacbd, \ubaa9\ud310\ud654 \uc778\ubb3c, \uc218\uc815 \uac00\ub2a5\ud55c \uc81c\ubaa9\uc774 \uc788\ub294 \uc5ed\uc0ac \ucf5c\ub77c\uc8fc \uc601\uc0c1\uc73c\ub85c \ub9cc\ub4ed\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "Tang Poetry Explainer",
+      "summary": "Transforma um link ou texto numa colagem hist\u00f3rica narrada com paisagens a tinta, figuras de xilogravura e t\u00edtulos edit\u00e1veis."
+    },
+    "tr": {
+      "name": "Tang Poetry Explainer",
+      "summary": "Ba\u011flant\u0131 veya metni m\u00fcrekkep manzaralar\u0131, ah\u015fap bask\u0131 fig\u00fcrleri ve d\u00fczenlenebilir ba\u015fl\u0131klarla anlat\u0131ml\u0131 tarih kolaj\u0131na d\u00f6n\u00fc\u015ft\u00fcr\u00fcr."
+    },
+    "zh": {
+      "name": "Tang Poetry Explainer",
+      "summary": "\u5c06\u94fe\u63a5\u6216\u6587\u5b57\u5236\u4f5c\u6210\u5e26\u65c1\u767d\u7684\u5386\u53f2\u62fc\u8d34\u89c6\u9891\uff0c\u91c7\u7528\u6c34\u58a8\u666f\u7269\u3001\u6728\u7248\u753b\u4eba\u7269\u548c\u53ef\u7f16\u8f91\u6807\u9898\u3002"
+    }
+  }
+}
