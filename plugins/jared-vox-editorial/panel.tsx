@@ -18,7 +18,7 @@ import React from "react";
 const APP_ID = "jared-vox-editorial";
 // The engine (voxEngine, in the operation section below) runs inside the panel on macOS and
 // Windows: files through the host FileSystem, ffmpeg through the host's bundled copy, no shell and no Python.
-const TPL: Record<string, string> = {"headline": "import React from 'react';\nimport {useCurrentFrame,useVideoConfig,interpolate,spring} from 'remotion';\nexport default function Headline({data}) {\n const frame=useCurrentFrame(),{width,height,fps}=useVideoConfig(),k=width/1920;\n const tang=data?.style==='tang';\n const text=String(data?.text||'');\n const family=String(data?.fontFamily||'').trim()||\"'Arial Black','Arial','Malgun Gothic','Noto Sans CJK KR','Microsoft YaHei','Yu Gothic',sans-serif\";\n const progress=spring({frame,fps,config:{damping:20,stiffness:150}});\n const size=Math.min(Number(data?.fontSize||88),text.length>28?64:88)*k;\n const accent=String(data?.accentColor||(tang?'#A92D25':'#E04329'));\n return <div style={{position:'absolute',left:width*.045,top:height*.045,maxWidth:width*.89,pointerEvents:'none',opacity:interpolate(frame,[0,7],[0,1],{extrapolateRight:'clamp'}),transform:`translateY(${(1-progress)*-35*k}px)`}}>\n  <div style={{background:String(data?.barColor||(tang?'#F1E7CC':'#DAD9D5')),padding:`${12*k}px ${24*k}px`,borderLeft:`${8*k}px solid ${accent}`,boxShadow:tang?`${5*k}px ${6*k}px 0 #34251b55`:`${8*k}px ${9*k}px 0 ${accent}`,transform:tang?'rotate(-.4deg)':'rotate(-.8deg)'}}>\n   <div style={{fontFamily:family,fontWeight:900,fontSize:size,lineHeight:1.1,letterSpacing:-1*k,color:String(data?.textColor||'#1A1A1A'),overflowWrap:'anywhere'}}>{text}</div>\n  </div>\n  {!tang&&<div style={{height:5*k,marginTop:10*k,background:accent,transformOrigin:'left',transform:`scaleX(${Math.min(1,frame/18)})`}}/>}\n </div>;\n}\n", "caption": "import React from 'react';\nimport {useVideoConfig} from 'remotion';\nexport default function Caption({data}) {\n const {width,height}=useVideoConfig(),k=width/1920;\n const fontFamily=String(data?.fontFamily||'').trim()||\"Arial,'Malgun Gothic','Noto Sans CJK KR','Microsoft YaHei','Yu Gothic',sans-serif\";\n return <div style={{position:'absolute',left:width*.06,right:width*.06,bottom:height*.045,display:'flex',justifyContent:'center',pointerEvents:'none'}}>\n  <div style={{fontFamily,fontSize:Number(data?.fontSize||44)*k,fontWeight:700,lineHeight:1.35,color:'#FFF9ED',background:'rgba(19,18,15,.88)',padding:`${10*k}px ${22*k}px`,textAlign:'center',maxWidth:'100%',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{String(data?.text||'')}</div>\n </div>;\n}\n", "credit": "import React from 'react';\nimport {useVideoConfig,useCurrentFrame,interpolate} from 'remotion';\nexport default function Credit({data}) {\n const {width,height}=useVideoConfig(),frame=useCurrentFrame(),k=width/1920;\n return <div style={{position:'absolute',left:width*.06,right:width*.06,bottom:height*.17,padding:`${18*k}px ${24*k}px`,background:'#F1EBDD',color:'#1A1A1A',borderLeft:`${7*k}px solid #E04329`,opacity:interpolate(frame,[0,8],[0,1],{extrapolateRight:'clamp'}),fontFamily:\"Arial,'Malgun Gothic','Microsoft YaHei','Yu Gothic',sans-serif\",overflowWrap:'anywhere'}}>\n <div style={{fontSize:30*k,fontWeight:700}}>{String(data?.source||'')}</div><div style={{fontSize:21*k,lineHeight:1.4}}>{String(data?.photos||'')}</div></div>;\n}\n", "editorial": "import React from 'react';\nimport {useCurrentFrame,useVideoConfig,interpolate,spring} from 'remotion';\n// Source-backed labels remain native editable graphics, never text painted by an image model.\nexport default function Editorial({data}) {\n const frame=useCurrentFrame(),{width,height,fps,durationInFrames}=useVideoConfig(),k=width/1920;\n const items=String(data?.text||'').split('\\n').filter(Boolean).slice(0,3);\n const kind=String(data?.kind||'document'),accent=String(data?.accentColor||'#E04329');\n const fontFamily=String(data?.fontFamily||'').trim()||\"Georgia,'Times New Roman','Malgun Gothic','Microsoft YaHei','Yu Mincho',serif\";\n const end=Math.max(1,durationInFrames-1),stagger=Math.min(Math.round(fps*.3),Math.floor(end/8));\n return <div style={{position:'absolute',left:width*.18,right:width*.18,top:height*.32,bottom:height*.22,display:'flex',flexDirection:kind==='comparison'?'row':'column',justifyContent:'center',alignItems:'stretch',gap:22*k,pointerEvents:'none'}}>\n  {items.map((text,i)=>{const start=i*stagger,p=spring({frame:frame-start,fps,config:{damping:19,stiffness:120}}),reveal=interpolate(frame,[start,start+Math.max(1,stagger*2)],[0,1],{extrapolateLeft:'clamp',extrapolateRight:'clamp'});return <div key={i} style={{position:'relative',flex:kind==='comparison'?1:undefined,minWidth:0,background:'#EFECE2',padding:`${20*k}px ${28*k}px`,boxShadow:`${9*k}px ${10*k}px 0 ${accent}`,border:'1px solid #332b2130',opacity:reveal,transform:`translateY(${(1-p)*45*k}px) rotate(${i%2?.7:-.6}deg)`}}>\n   {kind==='timeline'&&<div style={{position:'absolute',left:-18*k,top:0,bottom:0,width:4*k,background:accent}}/>}\n   <div style={{fontFamily,fontSize:(kind==='stat'&&text.length<=18?80:kind==='comparison'?(text.length>40?30:43):(text.length>50?34:48))*k,fontWeight:kind==='stat'?900:600,lineHeight:1.25,color:'#16110D',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{text}</div>\n   <div style={{height:4*k,marginTop:12*k,background:accent,transformOrigin:'left',transform:`scaleX(${reveal})`}}/>\n  </div>})}\n </div>;\n}\n"};
+const TPL: Record<string, string> = {"headline": "import React from 'react';\nimport {useCurrentFrame,useVideoConfig,interpolate,spring} from 'remotion';\nexport default function Headline({data}) {\n const frame=useCurrentFrame(),{width,height,fps}=useVideoConfig(),k=width/1920;\n const tang=data?.style==='tang';\n const text=String(data?.text||'');\n const family=String(data?.fontFamily||'').trim()||\"'Arial Black','Arial','Malgun Gothic','Noto Sans CJK KR','Microsoft YaHei','Yu Gothic',sans-serif\";\n const progress=spring({frame,fps,config:{damping:20,stiffness:150}});\n const size=Math.min(Number(data?.fontSize||88),text.length>28?64:88)*k;\n const accent=String(data?.accentColor||(tang?'#A92D25':'#E04329'));\n return <div style={{position:'absolute',left:width*.045,top:height*.045,maxWidth:width*.89,pointerEvents:'none',opacity:interpolate(frame,[0,7],[0,1],{extrapolateRight:'clamp'}),transform:`translateY(${(1-progress)*-35*k}px)`}}>\n  <div style={{background:String(data?.barColor||(tang?'#F1E7CC':'#DAD9D5')),padding:`${12*k}px ${24*k}px`,borderLeft:`${8*k}px solid ${accent}`,boxShadow:tang?`${5*k}px ${6*k}px 0 #34251b55`:`${8*k}px ${9*k}px 0 ${accent}`,transform:tang?'rotate(-.4deg)':'rotate(-.8deg)'}}>\n   <div style={{fontFamily:family,fontWeight:900,fontSize:size,lineHeight:1.1,letterSpacing:-1*k,color:String(data?.textColor||'#1A1A1A'),overflowWrap:'anywhere'}}>{text}</div>\n  </div>\n  {!tang&&<div style={{height:5*k,marginTop:10*k,background:accent,transformOrigin:'left',transform:`scaleX(${Math.min(1,frame/18)})`}}/>}\n </div>;\n}\n", "caption": "import React from 'react';\nimport {useVideoConfig} from 'remotion';\nexport default function Caption({data}) {\n const {width,height}=useVideoConfig(),k=width/1920;\n const fontFamily=String(data?.fontFamily||'').trim()||\"Arial,'Malgun Gothic','Noto Sans CJK KR','Microsoft YaHei','Yu Gothic',sans-serif\";\n return <div style={{position:'absolute',left:width*.06,right:width*.06,bottom:height*.045,display:'flex',justifyContent:'center',pointerEvents:'none'}}>\n  <div style={{fontFamily,fontSize:Number(data?.fontSize||44)*k,fontWeight:700,lineHeight:1.35,color:'#FFF9ED',background:'rgba(19,18,15,.88)',padding:`${10*k}px ${22*k}px`,textAlign:'center',maxWidth:'100%',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{String(data?.text||'')}</div>\n </div>;\n}\n", "credit": "import React from 'react';\nimport {useVideoConfig,useCurrentFrame,interpolate} from 'remotion';\nexport default function Credit({data}) {\n const {width,height}=useVideoConfig(),frame=useCurrentFrame(),k=width/1920;\n return <div style={{position:'absolute',left:width*.06,right:width*.06,bottom:height*.17,padding:`${18*k}px ${24*k}px`,background:'#F1EBDD',color:'#1A1A1A',borderLeft:`${7*k}px solid #E04329`,opacity:interpolate(frame,[0,8],[0,1],{extrapolateRight:'clamp'}),fontFamily:\"Arial,'Malgun Gothic','Microsoft YaHei','Yu Gothic',sans-serif\",overflowWrap:'anywhere'}}>\n <div style={{fontSize:30*k,fontWeight:700}}>{String(data?.source||'')}</div><div style={{fontSize:21*k,lineHeight:1.4}}>{String(data?.photos||'')}</div></div>;\n}\n", "editorial": "import React from 'react';\nimport {useCurrentFrame,useVideoConfig,interpolate,spring} from 'remotion';\n// Source-backed labels remain native editable graphics, never text painted by an image model.\nexport default function Editorial({data}) {\n const frame=useCurrentFrame(),{width,height,fps,durationInFrames}=useVideoConfig(),k=width/1920;\n const items=String(data?.text||'').split('\\n').filter(Boolean).slice(0,3);\n const kind=String(data?.kind||'document'),accent=String(data?.accentColor||'#E04329');\n const fontFamily=String(data?.fontFamily||'').trim()||\"Arial,'Noto Sans CJK KR','Malgun Gothic','Microsoft YaHei','Yu Gothic',sans-serif\";\n const end=Math.max(1,durationInFrames-1),stagger=Math.min(Math.round(fps*.3),Math.floor(end/8));\n return <div style={{position:'absolute',left:width*.18,right:width*.18,top:height*.32,bottom:height*.22,display:'flex',flexDirection:kind==='comparison'?'row':'column',justifyContent:'center',alignItems:kind==='comparison'?'center':'stretch',gap:22*k,pointerEvents:'none'}}>\n  {items.map((text,i)=>{const start=i*stagger,p=spring({frame:frame-start,fps,config:{damping:19,stiffness:120}}),reveal=interpolate(frame,[start,start+Math.max(1,stagger*2)],[0,1],{extrapolateLeft:'clamp',extrapolateRight:'clamp'});return <div key={i} style={{position:'relative',flex:kind==='comparison'?1:undefined,minWidth:0,background:'#EFECE2',padding:`${20*k}px ${28*k}px`,boxShadow:`${9*k}px ${10*k}px 0 ${accent}`,border:'1px solid #332b2130',opacity:reveal,transform:`translateY(${(1-p)*45*k}px) rotate(${i%2?.7:-.6}deg)`}}>\n   {kind==='timeline'&&<div style={{position:'absolute',left:-18*k,top:0,bottom:0,width:4*k,background:accent}}/>}\n   <div style={{fontFamily,fontSize:(kind==='stat'&&text.length<=18?80:kind==='comparison'?(text.length>40?30:43):(text.length>50?34:48))*k,fontWeight:kind==='stat'?900:600,lineHeight:1.25,color:'#16110D',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{text}</div>\n   <div style={{height:4*k,marginTop:12*k,background:accent,transformOrigin:'left',transform:`scaleX(${reveal})`}}/>\n  </div>})}\n </div>;\n}\n"};
 const CAPTION_BOTTOM = 1030;
 const MUSIC_DB = -19;
 
@@ -394,7 +394,7 @@ async function hostProbeSeconds(path) {
 }
 // av-host:end
 // @operation-start
-export const STYLE = {"name": "Jared Vox Editorial", "style": "editorial", "idiom": "Archival editorial documentary paper collage with three distinct depth layers, offset vermilion marker silhouettes and restrained evidence graphics", "palette": "warm grey paper #DAD9D5, near-black #1A1A1A, red marker #E04329 and amber #F5C518", "finish": "archival paper grain, restrained halftone print, torn document edges", "backgrounds": ["warm grey archival paper"], "music": "restrained documentary instrumental, felt piano, light ticking percussion and warm strings, curious and thoughtful, no vocals", "story": "Start with a checkable reversal from the source and resolve it in the closing beat. Use restrained documentary narration. Prefer source-backed documents, comparisons and timelines over decorative footage.", "pictures": "Use a single warm grey paper background throughout. Three layers: paper background, cutout subject with offset red marker silhouette, foreground torn-paper edge partly occluding the subject. No text in generated pictures. Leave the central 64% width and middle 45% height calm for separate evidence cards. Prefer archival objects, maps and documentary portraits to generic decorative scenes.", "summary": "Turn a link or text into a narrated editorial film with archival paper, red marker accents and editable evidence cards.", "upstream": "https://github.com/jaredcassoutt/vox-editorial"};
+export const STYLE = {"name": "Jared Vox Editorial", "style": "editorial", "idiom": "Archival editorial documentary paper collage with three distinct depth layers, vermilion offset shadows matching each object outline and restrained evidence graphics", "palette": "warm grey paper #DAD9D5, near-black #1A1A1A, red marker #E04329 and amber #F5C518", "finish": "archival paper grain, restrained halftone print, torn document edges", "backgrounds": ["warm grey archival paper"], "music": "restrained documentary instrumental, felt piano, light ticking percussion and warm strings, curious and thoughtful, no vocals", "story": "Start with a checkable reversal from the source and resolve it in the closing beat. Use restrained documentary narration. Prefer source-backed documents, comparisons and timelines over decorative footage.", "pictures": "Use a single warm grey paper background throughout. Three layers: paper background, cutout subject with offset red shadow matching the exact object outline, never a human head or profile, foreground torn-paper edge partly occluding the subject. Maps must contain only unlabeled coastlines and routes. Documents contain blank rules and abstract nonalphabetic marks, never letters, labels or handwriting. No text in generated pictures. Leave the central 64% width and middle 45% height calm for separate evidence cards. Prefer archival objects, maps and documentary portraits to generic decorative scenes.", "summary": "Turn a link or text into a narrated editorial film with archival paper, red marker accents and editable evidence cards.", "upstream": "https://github.com/jaredcassoutt/vox-editorial"};
 // Windows engine port, step 1: engine.py's ffmpeg-only steps (media_duration, silences, sheet, ken_burns) as argv for
 // the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe): plain JS, no shell, nothing for the user to install.
 // Each builder returns the argv engine.py passes (tests/vox_explainer.test.mjs compares them); the Ken Burns clip also
@@ -508,13 +508,13 @@ const VOX_STOPWORDS = {
 const VOX_THEME = { idiom: STYLE.idiom, palette: STYLE.palette, finish: STYLE.finish };
 const VOX_MECHANICS = "Clearly layered hand-cut paper cut-outs with visible torn and scissor-cut edges, tape " +
   "corners and soft real paper drop shadows, on a bold flat {bg} paper background. Halftone " +
-  "print dots, newspaper-clipping scraps, paper-stencil shapes, aged paper texture, slight " +
+  "print dots, unprinted paper scraps with no newspaper or printed lettering, paper-stencil shapes, aged paper texture, slight " +
   "print misregistration, scattered geometric paper accents (triangles, circles, zigzags, " +
   "washi tape). Figures are PRINTED / illustrated cut-outs, NOT CGI, NOT a 3D render \u2014 keep " +
   "print grain and paper imperfections. High-contrast, punchy, tactile, hand-assembled.";
 const VOX_NO_PEOPLE = " NO people, NO faces, NO human figures and NO photographs of people anywhere " +
   "(a paper hand, or faceless paper silhouettes, only if the SCENE asks for them). A named " +
-  "country, company or institution is shown by its label, flag or object only \u2014 never add a " +
+  "country, company or institution is shown by an unlabeled flag or object only \u2014 never add a " +
   "portrait, photo or drawing of a leader, politician or any other person for it.";
 const VOX_FACE_GUARD = " Halftone dots and print textures live on the BACKGROUND and paper only, never on " +
   "faces. The ONLY people in the image are the attached ones \u2014 no extra people. Every " +
@@ -942,7 +942,7 @@ export function voxMotionPrompt(beat, shot) {
     "re-render the picture.";
   return pySlice("Animate this still into a mixed-media paper-collage MOTION GRAPHIC, printed cut-outs, not " +
     `photoreal.\nCAMERA (one move only): ${VOX_CAMERA[shot.camera]}.\nELEMENT MOTION (${VOX_AMPLITUDE[amp]}): ${shot.motion}. Elements move as paper cut-outs ` +
-    "(slide, flap, hinge, pop).\nAESTHETIC: keep the torn-paper, tape, halftone, newsprint and " +
+    "(slide, flap, hinge, pop).\nAESTHETIC: keep the torn-paper, tape, halftone, unprinted paper and " +
     `paper-stencil textures and the bold flat background.\nCOLOR: ${beat.bg}, high contrast.\nCONSTRAINTS: ${guard}`, 0, 2500);
 }
 // Shortest Kling length that covers the shot (it returns duration + 0.04 s; min 3, max 15).
@@ -978,8 +978,12 @@ async function voxCmdRequests(io, job, kind, only, attempt) {
       if (only && !only.has(s.id)) continue;
       const kf = await job.file("kf:" + s.id);
       if (!kf) throw voxFail("keyframe missing: " + s.id);
-      reqs.push(spec("clip", s.id, "video", "i2v", { prompt: voxMotionPrompt(b, s), start_image_url: "selects-input:start",
-        duration: String(need[s.id].kling), generate_audio: false }, { start: kf }));
+      const frameAttempt = (await job.gen())["kf:" + s.id]?.attempt || 1;
+      const request = spec("clip", s.id, "video", "i2v", { prompt: voxMotionPrompt(b, s), start_image_url: "selects-input:start",
+        duration: String(need[s.id].kling), generate_audio: false }, { start: kf });
+      request.key += "-kf" + frameAttempt;
+      request.outputName += "_kf" + frameAttempt;
+      reqs.push(request);
     }
   } else if (kind === "music") {
     const tl = await io.readJson(io.join(job.dir, "timeline.json"), null);
@@ -1107,8 +1111,8 @@ async function voxCmdSheet(io, job, only) {
     try { sheets = await make(null); unlabelled = true; } catch (e2) { throw voxFail("sheet: " + pySlice(String(e2 && e2.message || e2), -300)); }
   }
   const cast = Object.fromEntries(plan.cast.map((c) => [c.key, c.name]));
-  const expect = voxShots(plan).filter(([, s]) => !only || only.has(s.id)).map(([, s]) => ({
-    shot: s.id, people: s.cast.map((k) => cast[k]),
+  const expect = voxShots(plan).filter(([, s]) => !only || only.has(s.id)).map(([b, s]) => ({
+    narration: b.narration, shot: s.id, people: s.cast.map((k) => cast[k]),
     words: [...s.scene.matchAll(/['"\u201c\u2018]([^'"\u201d\u2019]{1,40})['"\u201d\u2019]/gu)].map((m) => m[1]), scene: pySlice(s.scene, 0, 300),
   }));
   return unlabelled ? { ok: true, sheets, expect, unlabelled } : { ok: true, sheets, expect };
@@ -1333,7 +1337,7 @@ function picturePrompt(script: any): string {
   return [
     NO_TOOLS,
     `You design ${STYLE.name}. ${STYLE.pictures} The script is below. For each beat, in the same order, give the background colour and the shots (2 shots when twoShots is true, otherwise 1).`,
-    "[Pictures]\n- scene: in English, the concrete paper-collage objects and their layout that show the narration. Use only the listed cast for photographic portraits; for Tang style use illustrated, non-photographic historical figures appropriate to the source.\n- Do not request any letters, labels or readable text in the picture. Meaningful names, dates and numbers will be added as separate editable graphics.\n- Show relationships with position and objects; do not paint text labels next to people.\n- element_motion: in English, a simple movement of one or two elements; keep shots with words especially simple.\n- camera: one of push_in, pull_out, parallax, pan, static. Shots with people use only push_in, parallax or static. Neighbouring shots differ.\n- cast: keys from the cast list below, at most 4 per shot, only people the shot shows.\n- bg: the beat's background colour in English; neighbouring beats differ.",
+    "[Pictures]\n- scene: in English, the concrete paper-collage objects and their layout that show the narration. Include the main visible subject and action explicitly named in this beat (for example a boat crossing mist must actually show a boat). Use blank unprinted paper, never newspaper or pseudo-handwritten documents. Use only the listed cast for photographic portraits; for Tang style use illustrated, non-photographic historical figures appropriate to the source.\n- Do not request any letters, labels or readable text in the picture. Meaningful names, dates and numbers will be added as separate editable graphics.\n- Show relationships with position and objects; do not paint text labels next to people.\n- element_motion: in English, a simple movement of one or two elements; keep shots with words especially simple.\n- camera: one of push_in, pull_out, parallax, pan, static. Shots with people use only push_in, parallax or static. Neighbouring shots differ.\n- cast: keys from the cast list below, at most 4 per shot, only people the shot shows.\n- bg: the beat's background colour in English; neighbouring beats differ.",
     `Cast: ${JSON.stringify(script.cast || [])}`,
     `Script: ${JSON.stringify(beats)}`,
     'JSON format:\n{"beats": [{"bg": "...", "shots": [{"scene": "...", "element_motion": "...", "camera": "...", "cast": ["key"]}]}]}',
@@ -1351,9 +1355,9 @@ function checkPrompt(expect: any[]): string {
   return [
     NO_TOOLS,
     "These images are video keyframes; each tile's shot number (e.g. 1a) is at its top left. Compare them with the expectations below and pick only the shots that must be remade.",
-    "Remake a shot only for one of these problems.\npeople: it shows a person who is not in people (photo-like people count; faceless paper silhouettes are fine), a person from people is missing, a face was redrawn as a cartoon instead of a photo, or a label (a country, a name) sits next to the wrong person.\ntext: a word from words is misspelled, garbled or cut off, or there is readable nonsense lettering (letters that form no real word).\nExtra correctly spelled words, where text sits, and differences of style are fine.",
+    `Remake for these problems:\npeople: for ${STYLE.style === "tang" ? "Tang style, an inappropriate modern or photographic person, or a missing illustrated character required by the narration" : "editorial style, an unrequested person/head/profile or missing listed person; a red offset shadow must follow its object's outline and must never become a human silhouette"}.\ntext: any readable letters, numbers, words, map labels, newspaper print or fake handwriting in the generated image; all text is added later as editable graphics. Blank rules and abstract nonalphabetic marks are fine.\nsubject: the main visible subject or action explicitly required by the narration/scene is missing or contradicted. Do not penalize abstract ideas that cannot be literally pictured.`,
     `Expectations: ${JSON.stringify(expect)}`,
-    'Answer with JSON only: {"reroll": [{"shot": "1a", "kind": "people or text", "reason": "one sentence"}]}',
+    'Answer with JSON only: {"reroll": [{"shot": "1a", "kind": "people, text or subject", "reason": "one sentence"}]}',
   ].join("\n\n");
 }
 
@@ -1418,7 +1422,7 @@ for (const h of ${JSON.stringify(sel.headlines)}) {
   await d.addMotionGraphic({ label: "Headline " + h.beat, tsxCode: TH, parameters: { text: h.text, style: ${JSON.stringify(STYLE.style)}, fontSize: 88, fontFamily: "", barColor: ${JSON.stringify(STYLE.style === "tang" ? "#F1E7CC" : "#DAD9D5")}, textColor: "#1A1A1A", accentColor: ${JSON.stringify(STYLE.style === "tang" ? "#A92D25" : "#E04329")} }, editableParameters: ${JSON.stringify(EDIT_HEAD)} as any, within: await d.rangeAtFrames(F(h.start), Math.min(total, F(h.end))) });
 }
 const TE = ${JSON.stringify(TPL.editorial)};
-if (${JSON.stringify(STYLE.style)} === "editorial") {
+if (${JSON.stringify(STYLE.style === "editorial")}) {
  for (const h of ${JSON.stringify(sel.headlines)}) {
   if (!h.evidence?.length) continue;
   await d.addMotionGraphic({label: "Evidence " + h.beat, tsxCode: TE,
@@ -1476,6 +1480,7 @@ export default function Panel({ sdk, context, ui }: any) {
 
   const errText = (e: any) => {
     const m = String(e?.message || e || "");
+    if (m === "generation_disabled") return {"de": "Die Medienerzeugung ist f\u00fcr diese Selects-Sitzung nicht freigeschaltet. Pr\u00fcfe, ob Generate image im selben Projekt verf\u00fcgbar ist.", "en": "Media generation is not enabled for this Selects session. Check that Generate image is available in the same Project.", "es": "La generaci\u00f3n de medios no est\u00e1 habilitada en esta sesi\u00f3n de Selects. Comprueba que Generate image est\u00e9 disponible en el mismo proyecto.", "fr": "La g\u00e9n\u00e9ration de m\u00e9dias n\u2019est pas activ\u00e9e pour cette session Selects. V\u00e9rifiez que Generate image est disponible dans le m\u00eame projet.", "it": "La generazione multimediale non \u00e8 abilitata per questa sessione Selects. Verifica che Generate image sia disponibile nello stesso progetto.", "ja": "\u3053\u306eSelects\u30bb\u30c3\u30b7\u30e7\u30f3\u3067\u306f\u30e1\u30c7\u30a3\u30a2\u751f\u6210\u304c\u6709\u52b9\u306b\u306a\u3063\u3066\u3044\u307e\u305b\u3093\u3002\u540c\u3058\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3067Generate image\u304c\u4f7f\u3048\u308b\u304b\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002", "ko": "\ud604\uc7ac Selects \uc138\uc158\uc5d0\uc11c \ubbf8\ub514\uc5b4 \uc0dd\uc131\uc774 \ud65c\uc131\ud654\ub418\uc5b4 \uc788\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. \uac19\uc740 \ud504\ub85c\uc81d\ud2b8\uc5d0\uc11c Generate image\ub97c \uc0ac\uc6a9\ud560 \uc218 \uc788\ub294\uc9c0 \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "pt": "A gera\u00e7\u00e3o de m\u00eddia n\u00e3o est\u00e1 ativada nesta sess\u00e3o do Selects. Verifique se Generate image est\u00e1 dispon\u00edvel no mesmo projeto.", "tr": "Bu Selects oturumunda medya \u00fcretimi etkin de\u011fil. Ayn\u0131 projede Generate image \u00f6zelli\u011finin kullan\u0131labilir oldu\u011funu kontrol edin.", "zh": "\u5f53\u524d Selects \u4f1a\u8bdd\u5c1a\u672a\u542f\u7528\u5a92\u4f53\u751f\u6210\u3002\u8bf7\u786e\u8ba4\u540c\u4e00\u9879\u76ee\u4e2d\u53ef\u4ee5\u4f7f\u7528 Generate image\u3002"}[uiLang] || "Media generation is not enabled for this Selects session. Check that Generate image is available in the same Project.";
     return S.errors[m] || m;
   };
 
@@ -1523,7 +1528,7 @@ export default function Panel({ sdk, context, ui }: any) {
     return j;
   }
 
-  // A panel AI turn is capped at five minutes; a timed-out turn is tried once more.
+  // A panel AI turn is capped at five minutes; the user chooses whether to retry.
   async function ask(prompt: string, images?: any[]) {
     for (let attempt = 0; ; attempt++) {
       try {
@@ -1654,6 +1659,9 @@ export default function Panel({ sdk, context, ui }: any) {
     setT0(Date.now());
     try {
       const e = await ensureEnv();
+      const media = generation();
+      if (!media) throw new Error(S.noGeneration);
+      await media.list(await scope()); // Check access before any billed AI planning.
       const id = `vx${Date.now().toString(36)}`;
       const dir = hostJoin(e.root, "jobs", id);
       const input = mode === "link" ? { kind: "link", url: url.trim() } : { kind: "text", text: text.trim() };
@@ -1738,14 +1746,14 @@ export default function Panel({ sdk, context, ui }: any) {
       }
 
       if (!pj.checked) {
-        // Up to two AI check rounds; flagged shots are remade, the second round looks only at those.
+        // At most two remake rounds, followed by verification. Keep unresolved findings visible.
         setStep(4);
         setStatus(S.steps[4]);
         let only: string[] = [];
         const rerolled: string[] = [];
-        let remaining: any[] = [];
+        const problems = new Map<string, any>();
         let checkSkipped = false;
-        for (let round = 0; round < 2; round++) {
+        for (let round = 0; round < 3; round++) {
           // The sheet only feeds the advisory check: if it cannot be made, the check is skipped and the video goes on.
           let sh: any;
           try {
@@ -1762,21 +1770,23 @@ export default function Panel({ sdk, context, ui }: any) {
             const ids = new Set(sh.expect.map((x: any) => x.shot));
             flagged = ((await ask(checkPrompt(sh.expect), images)).reroll || []).filter((x: any) => ids.has(String(x.shot)));
           } catch (err) {
-            flagged = []; // the check is advisory; a failed check never blocks the video
+            flagged = []; // The check is advisory; a failed check is reported as skipped.
+            checkSkipped = true;
+            break;
           }
-          remaining = flagged;
-          // Round 2 remakes only people problems (the serious kind); text leftovers become notes.
-          const eligible = round === 0 ? flagged : flagged.filter((x: any) => String(x.kind || "").startsWith("people"));
+          for (const expected of sh.expect) problems.delete(String(expected.shot));
+          for (const problem of flagged) problems.set(String(problem.shot), problem);
+          // The second pass remakes serious subject/person errors; the third only verifies.
+          const eligible = round === 0 ? flagged : round === 1 ? flagged.filter((x: any) => /people|subject/.test(String(x.kind || ""))) : [];
           const redo = eligible.map((x: any) => String(x.shot)).slice(0, Math.max(1, Math.ceil(sh.expect.length / 2)));
           if (!redo.length) break;
-          if (round === 1) remaining = flagged.filter((x: any) => !redo.includes(String(x.shot)));
           const attempt = Math.max(...redo.map((s: string) => gen["kf:" + s]?.attempt || 1)) + 1;
           await generate(st, sc, (await run("requests", dir, ["keyframes", redo.join(","), "--attempt", String(attempt)], "Remake keyframes")).requests, S.steps[4], "keep");
           rerolled.push(...redo);
           only = redo;
         }
         pj = await savePanel(dir, { checked: true, checkSkipped, rerolled: Array.from(new Set(rerolled)),
-          unverified: remaining.map((x: any) => `${x.shot} (${x.reason || ""})`) });
+          unverified: Array.from(problems.values()).map((x: any) => `${x.shot} (${x.reason || ""})`) });
       }
 
       setStep(5);

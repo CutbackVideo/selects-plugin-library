@@ -10,4 +10,6 @@ Turn a link or text into a narrated editorial film with archival paper, red mark
 
 Uses the signed-in user's Selects credits. Output is landscape 1920 × 1080 and follows the source language. Interrupted jobs can resume in their original Project.
 
+Review the generated Draft before export. Image checks can retry missing subjects or unwanted lettering, but extra props, count mismatches and small invented marks can remain. Titles, captions and evidence labels are editable overlays.
+
 [Installation](INSTALL.md) · [Style source](https://github.com/jaredcassoutt/vox-editorial) · [Attribution](NOTICE.md)

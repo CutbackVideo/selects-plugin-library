@@ -19,7 +19,7 @@
       "macOS",
       "Windows x64"
     ],
-    "selects": "Selects 2.0.512+ with plugin media generation, host FileSystem and bundled media runtime. No external runtime or provider key."
+    "selects": "Selects 2.0.533+ with plugin media generation, host FileSystem and bundled media runtime. No external runtime or provider key."
   },
   "localized": {
     "de": {

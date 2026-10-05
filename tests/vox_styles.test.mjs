@@ -36,6 +36,11 @@ for(const id of ids)for(const windows of [false,true]){
   m.files.set(clip,true);r=await op.voxEngine('assembly',m.dir,[],m.io);
   assert.ok(r.draftName.includes(op.STYLE.name));assert.ok(r.draftName.endsWith('fresh'));assert.equal(r.headlines[0].graphic,'timeline');assert.equal(r.narration.length,1);assert.ok(r.segments.length>0);
   assert.equal(op.voxBaseName(audio),'voice with spaces.mp3');
+  const first=(await op.voxEngine('requests',m.dir,['clips'],m.io)).requests[0];
+  const changed=m.get('gen.json');changed['kf:1a'].attempt=2;m.put('gen.json',changed);
+  const revised=(await op.voxEngine('requests',m.dir,['clips'],m.io)).requests[0];
+  assert.notEqual(first.key,revised.key,'a repaired keyframe must regenerate its dependent motion clip');
+  assert.notEqual(first.outputName,revised.outputName,'a repair must preserve earlier saved media files');
  });
  test(`${id}: ${os}, invalid sources fail before generation`,async()=>{const m=memoryIO(windows);m.put('job.json',{id:'fresh',projectId:'p',input:{kind:'text',text:'too short'}});const r=await op.voxEngine('fetch',m.dir,[],m.io);assert.equal(r.ok,false);assert.equal(r.error,'TEXT_TOO_SHORT');assert.equal(m.ffmpeg.length,0);});
 }
