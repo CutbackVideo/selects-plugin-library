@@ -9,7 +9,7 @@ The companion panel is installed at `SELECTS_USER_PANELS_ROOT/recap-2026/panel.t
 This Skill folder owns `timing.json` and `assets/recap-2026-fixed-soundtrack.wav`.
 The panel reads these through `SELECTS_USER_SKILLS_ROOT/recap-2026/`.
 
-The published package does not install an example render. `preview.mp4` and `poster.webp` ship at the plugin root as gallery assets only, so the panel's "finished example" player stays empty after a fresh install and reports that the example is unavailable. Dropping a 61.5-second render at `assets/preview.mp4` re-enables that player locally. Such a render is never a source clip and is never inserted into new Drafts.
+The published package does not install an example render. On first opening, the panel downloads the published gallery `preview.mp4` and optional `poster.webp` from a pinned repository revision through the Selects file SDK. Complete files are cached beneath `.selects/plugin-data/recap-2026/` and played inside the panel through SDK local URLs. A network connection is needed only before caching; example failures do not block Draft creation. The example is never a source clip and is never inserted into new Drafts.
 
 ## Fixed template
 
@@ -40,4 +40,4 @@ Create and save the intro first. Append short clips in batches, reading the curr
 
 Place `panel.tsx` at `SELECTS_USER_PANELS_ROOT/recap-2026/panel.tsx`. Place this Skill folder, `timing.json`, and `assets/` under `SELECTS_USER_SKILLS_ROOT/recap-2026/`. The panel runs on macOS and Windows with the Selects SDK (host file access and bundled ffmpeg), and no Python or model download. New projects may need analysis of the bundled soundtrack before overlay placement.
 
-The bundled fixed soundtrack is redistributed with this package; the generating account's plan permits redistribution. Installed files contain no project footage. The gallery `preview.mp4` and `poster.webp` at the plugin root are a render of the author's own example footage, published with the author's consent, and are not installed or used at run time.
+The bundled fixed soundtrack is redistributed with this package; the generating account's plan permits redistribution. Installed files contain no project footage. The gallery `preview.mp4` and `poster.webp` at the plugin root are a render of the author's own example footage, published with the author's consent. The panel caches them for example playback only; they are not installation files or inputs to the Draft builder.

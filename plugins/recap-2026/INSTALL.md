@@ -15,6 +15,7 @@ The panel reads `timing.json` and the soundtrack from its skills folder
 
 - macOS or Windows, with the Selects SDK. The panel uses the Selects host's file
   access and bundled ffmpeg, so there is nothing else to install.
+- The host must allow local images and videos inside plugin panels.
 - A Project open, containing at least one imported video of 5 seconds or longer.
 
 ## First run
@@ -23,6 +24,10 @@ Open **2026 Recap** in the Plugin list. The panel imports
 `recap-2026-fixed-soundtrack.wav` into the open Project the first time it builds.
 A new Project may need that soundtrack analysed before the overlay is placed;
 the panel reports this when it applies.
+
+The finished example needs a network connection on first opening. The panel
+downloads the published gallery video and optional poster into its plugin data
+folder, then reuses them offline. A missing example does not block Draft creation.
 
 The panel writes by creating a new Draft and by importing the bundled
 soundtrack. It does not modify existing Drafts or any source file.

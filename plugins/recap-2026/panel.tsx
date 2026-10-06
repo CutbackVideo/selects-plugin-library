@@ -151,40 +151,58 @@ const normPath = (s) => { const v = String(s || "").normalize("NFC").replace(/\\
 const core = (cfg) => "const cfg=JSON.parse(" + embedded(JSON.stringify(cfg)) + ");const p=selects.project(cfg.projectId);";
 const gallerySize = 8;
 const thumbnailKey = (video, seconds) => video.resourceId + ":" + seconds.toFixed(2);
+// Gallery files are not installed. Pin their published revision and cache them through the SDK.
+const EXAMPLE_REVISION = "e8b2230019bad4090d0f6b6cf0c3a69e7a8ecea3";
+const EXAMPLE_ASSETS = [
+  {name: "preview.mp4", bytes: 6706153},
+  {name: "poster.webp", bytes: 21664},
+];
+async function loadExampleMedia(sdk) {
+  const {data} = await recapRoots(sdk);
+  if (!data) throw new Error("The example cache is unavailable.");
+  const files = panelLocalClient(sdk).files;
+  const cachedUrl = async ({name, bytes}) => {
+    const path = files.join(data, "example-" + EXAMPLE_REVISION.slice(0, 12) + "-" + name);
+    if ((await files.stat(path))?.size !== bytes) {
+      const url = "https://raw.githubusercontent.com/CutbackVideo/selects-plugin-library/" + EXAMPLE_REVISION + "/plugins/recap-2026/" + name;
+      // The SDK owns temporary files, so a download survives the panel losing its reply.
+      await files.downloadFile(url, path);
+      if ((await files.stat(path))?.size !== bytes) {
+        await files.removeFile({filePath: path}).catch(() => {});
+        throw new Error("The example download is incomplete.");
+      }
+    }
+    const url = await files.pathToLocalURL(path);
+    if (typeof url !== "string" || !url) throw new Error("The example URL is unavailable.");
+    return url;
+  };
+  const src = await cachedUrl(EXAMPLE_ASSETS[0]);
+  // A missing poster must not prevent the video from playing.
+  const poster = await cachedUrl(EXAMPLE_ASSETS[1]).catch(() => undefined);
+  return {src, poster};
+}
 function FinishedExample({sdk,t,ui}) {
-  const mount=React.useRef<HTMLDivElement | null>(null);
+  const video=React.useRef<HTMLVideoElement | null>(null);
+  const [media,setMedia]=React.useState<{src:string;poster?:string} | null>(null);
   const [error,setError]=React.useState("");
   React.useEffect(()=>{
     let active=true;
-    let player: HTMLVideoElement | null=null;
-    (async()=>{
-      const {plugin}=await recapRoots(sdk);
-      const path=hostJoin(plugin,"assets","preview.mp4");
-      const host=window.parent as any;
-      const fileSystem=hostSdk.files;
-      if(typeof fileSystem?.pathToLocalURL!=="function")throw new Error(t.exampleMissing);
-      const src=(await fileSystem.pathToLocalURL(path));
-      if(!active)return;
-      player=host.document.createElement("video");
-      player.controls=true;
-      player.preload="metadata";
-      player.playsInline=true;
-      player.style.display="block";
-      player.style.width="100%";
-      player.style.maxHeight="420px";
-      player.style.background="#111";
-      player.style.borderRadius="8px";
-      player.style.aspectRatio="9 / 16";
-      player.style.objectFit="contain";
-      player.addEventListener("error",()=>{if(active)setError(t.exampleMissing);});
-      player.poster=(await fileSystem.pathToLocalURL(hostJoin(plugin,"assets","preview.jpg")));
-      if(!active)return;
-      player.src=src;
-      if(active&&mount.current)mount.current.appendChild(player);
-    })().catch((e)=>{if(active)setError(e?.code==="host-missing"?t.hostTooOld:t.exampleMissing);});
-    return ()=>{active=false;if(player){player.pause();player.removeAttribute("src");player.load();player.remove();}};
-  },[]);
-  return <ui.Section title={t.example}><small>{t.exampleHint}</small><div ref={mount} style={{marginTop:8,width:"100%",maxWidth:280}}/>{error&&<ui.Message tone="error">{error}</ui.Message>}</ui.Section>;
+    const player=video.current;
+    setMedia(null);
+    setError("");
+    loadExampleMedia(sdk).then((value)=>{if(active)setMedia(value);})
+      .catch((e)=>{if(active)setError(e?.code==="host-missing"?t.hostTooOld:t.exampleMissing);});
+    return ()=>{active=false;if(player){player.pause();player.removeAttribute("src");player.load();}};
+  },[sdk,t.hostTooOld,t.exampleMissing]);
+  return <ui.Section title={t.example}>
+    <small>{t.exampleHint}</small>
+    <div style={{marginTop:8,width:"100%",maxWidth:280}}>
+      <video ref={video} src={media?.src} poster={media?.poster} controls preload="metadata" playsInline
+        onError={()=>setError(t.exampleMissing)}
+        style={{display:"block",width:"100%",maxHeight:420,background:"#111",borderRadius:8,aspectRatio:"9 / 16",objectFit:"contain"}}/>
+    </div>
+    {error&&<ui.Message tone="error">{error}</ui.Message>}
+  </ui.Section>;
 }
 // One frame as a JPEG data URL: the host's ffmpeg writes an ASCII-named file in the data folder, read back and removed.
 async function captureThumbnail(sdk, video, seconds) {
