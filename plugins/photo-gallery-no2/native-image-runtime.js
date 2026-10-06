@@ -3,7 +3,7 @@ async function galleryNativeResources(sdk, projectId, media, libraryId = null) {
   const result = await sdk.runScript({
     script: `const p=selects.project(${JSON.stringify(projectId)}),resources=await p.resources(),nodes=[];
       const visit=items=>{for(const node of items||[])node.type==='dir'?visit(node.children):nodes.push(node);};
-      const view=await p.sourceFiles();if(view.fileTree)visit(view.fileTree);else for(const folder of view.folders||[])visit((await p.sourceFiles({folder:folder.name})).fileTree);
+      const view=await p.sourceFiles();if('fileTree' in view)visit(view.fileTree);else for(const folder of view.folders||[]){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}
       return ${JSON.stringify(media)}.map((item,index)=>{const matches=nodes.filter(node=>node.path===item.path&&resources.some(r=>r.resourceId===node.resourceId&&r.type.toLowerCase()===item.kind));
         if(matches.length!==1)throw Error('Tile '+(index+1)+' has no unique Project Resource at its selected path');
         const row=matches[0],size=row.frameSize;
