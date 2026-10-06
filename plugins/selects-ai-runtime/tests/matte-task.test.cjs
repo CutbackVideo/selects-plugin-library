@@ -19,7 +19,7 @@ async function rig(t, behavior = {}) {
     dispose() { this.disposed++; }
   }
   let closed = false, calls = 0;
-  const candidate = process.platform === 'win32' ? 'dml' : 'coreml';
+  const platform = behavior.platform ?? 'win32', candidate = platform === 'win32' ? 'dml' : 'coreml';
   const context = {
     outputDir, signal: controller.signal,
     request: { input: { sourceRange: { startSeconds: 0, endSeconds: 2 } } },
@@ -54,7 +54,7 @@ async function rig(t, behavior = {}) {
     },
     emitProgress: event => { if (behavior.cancelAfterFirst && event.step === 'inference') controller.abort(); },
   };
-  return { context, tensors, sessions, feeds, closed: () => closed, run: () => runMatte(context) };
+  return { context, tensors, sessions, feeds, closed: () => closed, run: () => runMatte(context, { platform }) };
 }
 
 test('auto accepts the first result exactly once and preserves recurrent state across frames', async t => {
@@ -72,6 +72,15 @@ test('a failed first GPU output restarts CPU from zero recurrent state with the 
   assert.deepEqual(r.feeds.map(f => f.rec), [0, 0, 1]);
   assert.deepEqual(r.feeds[0].rgb, r.feeds[1].rgb);
   assert.ok(r.sessions.every(session => session.released === 1));
+  assert.ok(r.tensors.every(tensor => tensor.disposed === 1)); assert.ok(r.closed());
+});
+
+test('a non-finite first CPU result on an unsupported GPU platform fails without a compatibility retry', async t => {
+  const r = await rig(t, { platform: 'linux', invalidFirst: true });
+  await assert.rejects(r.run(), /non-finite value/);
+  assert.deepEqual(r.feeds.map(f => [f.provider, f.rec]), [['cpu', 0]]);
+  assert.equal(r.sessions.length, 1); assert.equal(r.sessions[0].released, 1);
+  await assert.rejects(fs.stat(path.join(r.context.outputDir, 'matte.json')), { code: 'ENOENT' });
   assert.ok(r.tensors.every(tensor => tensor.disposed === 1)); assert.ok(r.closed());
 });
 

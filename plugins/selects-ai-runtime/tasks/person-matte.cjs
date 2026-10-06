@@ -103,7 +103,7 @@ async function runMatte(context, dependencies = {}) {
       }
     }
     if (!selection) {
-      selection = await selectMatteSession({ config: gpuFailure ? { ...config, provider: 'cpu' } : config, ort, model, outputDir, signal,
+      selection = await selectMatteSession({ config: gpuFailure ? { ...config, provider: 'cpu' } : config, ort, model, outputDir, signal, platform: dependencies.platform,
         runFirstFrame: infer, validateFirstFrame: result => validateMatteFirstResult(result, width, height, wantsForeground), emitProgress });
       if (gpuFailure) {
         selection.requestedProvider = 'auto'; selection.providerSelectionReason = 'auto-webgpu-initial-' + gpuFailure.stage + '-failed';
