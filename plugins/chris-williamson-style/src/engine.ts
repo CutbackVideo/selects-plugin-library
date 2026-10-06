@@ -270,7 +270,7 @@ async function cwInspect(file) {
   return { width: v.width, height: v.height, duration, kind: still || delta < 2 ? "still" : "video", motionDelta: Number(delta.toFixed(3)) };
 }
 async function cwPreview(file, out, t = 0) {
-  const vf = "split[a][b];[a]scale=256:456:force_original_aspect_ratio=decrease,pad=256:456:(ow-iw)/2:(oh-ih)/2[a1];[b]scale=256:456:force_original_aspect_ratio=increase,crop=256:456[b1];[a1][b1]hstack";
+  const vf = "split[a][b];[a]scale=256:456:force_original_aspect_ratio=decrease,pad=256:456:(ow-iw)/2:(oh-ih)/2,setsar=1[a1];[b]scale=256:456:force_original_aspect_ratio=increase,crop=256:456,setsar=1[b1];[a1][b1]hstack";
   const r = await cwFfmpeg(["-v", "error", "-y", "-ss", String(t), "-i", file, "-filter_complex", vf, "-frames:v", "1", out], 30000);
   if (!r.ok) throw new Error("Cannot render asset preview");
 }
