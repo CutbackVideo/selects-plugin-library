@@ -82,7 +82,7 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         self.assertIn('en: "Available on macOS for now."', table)
 
     def test_every_language_has_the_credits_notice(self):
-        for table in ('const COST_TEXT = ', 'const COST_GO = ', 'const COST_STOP = ', 'const TEMPLATE_CREDITS = '):
+        for table in ('const COST_TEXT = ', 'const COST_GO = ', 'const COST_STOP = '):
             line = body(self.text, table, '\n')
             for lang in LANGUAGES:
                 with self.subTest(table=table, lang=lang):
@@ -114,14 +114,15 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         self.assertLess(units.index('hostJoin(cache, "matte.gray")'), units.index('await mattes('))
         self.assertIn('!io.fs.existsSync(hostJoin(t.folder, "matte.gray"))', units)
 
-    def test_template_run_builds_on_windows_but_never_pays(self):
+    def test_template_run_builds_on_windows_and_counts_as_consent(self):
+        # Product decision 2026-10-06: starting the template is the consent to the Windows mattes' credits.
         run = body(self.text, 'function TemplateRun(', 'export default function Panel')
         self.assertNotIn(WINDOWS_GUARD, run)
         self.assertIn('let doctor = hostIsWindows() ? { ready: true } : await pipeline(sdk, "doctor"', run)
-        confirm = run.index('confirm: () => { throw Object.assign(new Error(pick(TEMPLATE_CREDITS, context.language)), { code: "needs-confirm" }); }')
+        confirm = run.index('confirm: () => true,')
         self.assertLess(run.index('const draftId = await buildMontage('), confirm)
-        self.assertIn('en: "This uses Selects generation credits. Open Portrait Beat Montage and press Create new draft to confirm."',
-                      body(self.text, 'const TEMPLATE_CREDITS = ', '\n'))
+        self.assertNotIn('TEMPLATE_CREDITS', self.text)
+        self.assertTrue(json.loads((ROOT / 'plugins/portrait-beat-montage/plugin.json').read_text())['usesCredits'])
 
     def test_build_runs_the_windows_engine(self):
         build = body(self.text, 'async function buildMontage(', '\n}\n')
@@ -182,7 +183,7 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
     def test_manifest_and_docs(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
-        self.assertEqual(manifest['version'], '0.1.9')
+        self.assertEqual(manifest['version'], '0.1.10')
         # The template's "What you need" is one list for both OSes: each platform's requirement is named, and no
         # line asks for an ffmpeg install (both use the ffmpeg Selects bundles).
         prepare = ' / '.join(manifest['prepare'])

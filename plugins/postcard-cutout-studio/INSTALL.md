@@ -36,9 +36,9 @@ so leave its other files in place.
 - Cloud background removal requires generated-media access and uses Selects
   generation credits. Before each new cutout the Panel says so and waits for
   **Use credits and continue**; **Cancel** stops before anything is imported or
-  sent. A rebuild with the same subject and range reuses the cutout. A Clip
-  highlights template run never starts a paid cutout: it builds when it can reuse
-  one, and otherwise asks you to press Create in the Panel.
+  sent. A rebuild with the same subject and range reuses the cutout. Starting the
+  Clip highlights template counts as agreeing to its credits: the run makes the
+  cutout without asking again (it still reuses one when it can).
 - macOS: the mask service runs on this computer only. After a restart, open the
   Panel before previewing or exporting an existing postcard Draft. Tested on Apple
   silicon with a Selects development build; released builds are unverified.

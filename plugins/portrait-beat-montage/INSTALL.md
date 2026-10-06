@@ -7,8 +7,8 @@ Experimental: macOS arm64 (tested with Selects Staging on Apple silicon) and Win
   mattes from Selects generation (video background removal). That needs Selects 2.0.512 or later and
   uses generation credits: before anything is sent, the panel says how much video goes out (about 9 s
   for 15 new shot windows) and waits for **Use credits and continue**. Shot windows rendered before are
-  reused and are never sent again. A Clip highlights run on Windows builds only when every window is
-  cached; otherwise it asks you to open the panel and press **Create new draft** to confirm.
+  reused and are never sent again. Starting the Clip highlights template on Windows counts as agreeing
+  to these credits: the run sends the new windows without asking again.
 
 ## Requirements
 
