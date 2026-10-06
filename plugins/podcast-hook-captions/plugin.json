@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "podcast-hook-captions",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "name": "Podcast Hook Captions",
   "summary": "Turn a podcast Draft into an editable short-form reel: yellow word-pop captions, kinetic hook titles, a warm punch-in look, optional B-roll and synced sound effects.",
   "status": "experimental",
@@ -25,9 +25,7 @@
     "src/pipeline/apply.ts",
     "src/pipeline/cvstats.ts",
     "src/pipeline/faceFrames.ts",
-    "src/pipeline/faceRuntime.ts",
     "src/pipeline/faceTrack.ts",
-    "src/pipeline/faceWorker.ts",
     "src/pipeline/faces.ts",
     "src/pipeline/host.ts",
     "src/pipeline/make.ts",
@@ -37,23 +35,33 @@
     "src/pipeline/select.ts",
     "src/pipeline/sound.ts",
     "src/pipeline/stock.ts",
-    "src/pipeline/yunetDecode.ts",
-    "src/pipeline/yunetModel.ts",
     "src/motion/Look.tsx",
     "src/motion/Reel.tsx",
     "src/motion/camera.ts",
     "src/motion/grade.tsx",
     "src/motion/grid.tsx",
     "src/motion/text.ts",
-    ".gitignore"
+    ".gitignore",
+    "ARCHITECTURE.md",
+    "src/FaceStage.tsx",
+    "src/pipeline/faceRows.ts",
+    "src/pipeline/sharedAiFaces.cjs",
+    "src/pipeline/sharedFaceJobs.ts",
+    "tests/shared-ai-faces.test.cjs",
+    "tests/authoring.test.cjs",
+    "src/pipeline/facePassJournal.cjs",
+    "tests/face-pass-journal.test.cjs",
+    "tests/read-reel-source-files.test.cjs",
+    "tests/rebuild-recovery.test.cjs",
+    "tests/full-rebuild.test.cjs",
+    "tests/face-track-contract.test.cjs"
   ],
   "compatibility": {
     "platforms": [
       "macOS arm64",
-      "macOS x64",
       "Windows x64"
     ],
-    "selects": "Selects 2.0.512 or later (Panel runScript and askAI, Draft authoring, Selects generation with plug-in files). Tested on macOS 26 arm64 (2026-10); the Windows path shares the same code (bundled ffmpeg run without a shell, face tracking in WebAssembly) but has not been run on a Windows PC."
+    "selects": "Selects 2.0.560 or later with the public selects.ai SDK, plus selects-ai-runtime installed from the same library commit. Shared YuNet inference uses native CPU on macOS and Windows. Full paid reel generation is not part of this migration verification."
   },
   "localized": {
     "de": {

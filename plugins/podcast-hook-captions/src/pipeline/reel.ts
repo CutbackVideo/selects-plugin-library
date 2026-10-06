@@ -1,6 +1,7 @@
 // The reel Draft: a new 1080 x 1920 Draft holding the chosen spans of the podcast Draft, and a read of
 // everything the later steps need (words, Main clips with their source files and in-points).
 import { J, script, type Sdk } from "./host";
+import { rawResources } from "./sharedAiFaces.cjs";
 import type { SrcWord } from "./select";
 
 export async function readSource(sdk: Sdk, sid: string): Promise<{ name: string; fps: number; words: SrcWord[]; width: number; height: number }> {
@@ -52,7 +53,15 @@ const main = (await d.clips({ trackScope: "main" })).filter((c: any) => c.trackK
 const tree: any = await p.sourceFiles();
 const files: any[] = [];
 const walk = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === "dir") walk(n.children); else files.push(n); } };
-walk("fileTree" in tree ? tree.fileTree : []);
+// Large Projects expose a shallow folder summary. A named folder returns its
+// full subtree even above 200 files; "(root)" contains loose top-level files.
+if ("fileTree" in tree) walk(tree.fileTree);
+else for (const folder of tree.folders) {
+  const detail: any = await p.sourceFiles({ folder: folder.name });
+  if (!("fileTree" in detail)) throw new Error("The Project source folder could not be read: " + folder.name);
+  walk(detail.fileTree);
+}
+if (files.length !== tree.fileCount) throw new Error("The Project source inventory changed or is incomplete. Read the reel again.");
 const clips = main.map((c: any) => {
   const f = files.find((x: any) => x.resourceId === c.resourceId);
   const offs = words.filter((w: any) => w.s >= c.startFrame && w.e <= c.endFrame && w.ss != null).map((w: any) => w.ss - w.s).sort((a: number, b: number) => a - b);
@@ -62,5 +71,12 @@ const clips = main.map((c: any) => {
 });
 return { fps: m.fps, endFrame: main.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0), words, clips };`
   );
+  // The panel bridge returns persistent UUIDs; run_script aliases are run-local observations.
+  const raw = rawResources(await sdk.call("getDraftCore", rid), pid, rid);
+  for (const c of r.clips) {
+    const id = raw.get(c.clipId);
+    if (!id) throw new Error("The source Resource of clip " + c.clipId + " is no longer available.");
+    c.rid = id;
+  }
   return r as ReelInfo;
 }

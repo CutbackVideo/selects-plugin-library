@@ -11,9 +11,367 @@
 // @name:zh 播客钩子字幕
 // @icon captions
 // One click turns a podcast Draft into a vertical reel: face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
+// src/pipeline/sharedAiFaces.cjs
+var require_sharedAiFaces = __commonJS({
+  "src/pipeline/sharedAiFaces.cjs"(exports, module) {
+    var json = JSON.stringify;
+    var PAGE_SAMPLES = 16;
+    var terminal = (status) => ["succeeded", "failed", "canceled"].includes(status);
+    function assertInput(input) {
+      if (input?.runtimeId !== "selects-ai-runtime" || input.task !== "faces.detect" || typeof input.projectId !== "string" || !input.projectId || typeof input.resourceId !== "string" || !input.resourceId || /^r\d+$/.test(input.resourceId) || typeof input.requestKey !== "string" || !input.requestKey || !Number.isFinite(input.sourceRange?.startSeconds) || input.sourceRange.startSeconds < 0 || !Number.isFinite(input.sourceRange?.endSeconds) || input.sourceRange.endSeconds <= input.sourceRange.startSeconds || !(input.options?.sampleEverySeconds > 0) || input.options.scoreThreshold !== 0.8 || input.options.provider !== "cpu")
+        throw new Error("Invalid saved face request. Choose a current Project Resource.");
+      return input;
+    }
+    function faceInput2(projectId, resourceId, plan, fps, requestKey) {
+      return assertInput({
+        runtimeId: "selects-ai-runtime",
+        projectId,
+        resourceId,
+        requestKey,
+        task: "faces.detect",
+        sourceRange: { startSeconds: Math.floor(plan.f0 / fps * 1e12) / 1e12, endSeconds: Math.floor(plan.f1 / fps * 1e12) / 1e12 },
+        options: { sampleEverySeconds: plan.step / fps, scoreThreshold: 0.8, provider: "cpu" }
+      });
+    }
+    function sameInput(a, b) {
+      return json({ ...a, requestKey: "" }) === json({ ...b, requestKey: "" });
+    }
+    async function deterministicRequestKey(generation, input, scope) {
+      if (typeof scope !== "string" || !scope) throw new Error("A persistent face pass scope is required.");
+      const text = json({ generation, scope, input: { ...input, requestKey: "" } });
+      const hash2 = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return "podcast-faces-" + Array.from(new Uint8Array(hash2), (value) => value.toString(16).padStart(2, "0")).join("");
+    }
+    function assertRetryMetadata(record) {
+      if (record.retryAttempt === void 0 && record.retryOf === void 0) return record;
+      if (!Number.isSafeInteger(record.retryAttempt) || record.retryAttempt < 1 || record.retryAttempt > 255 || typeof record.retryOf !== "string" || !record.retryOf) throw new Error("Invalid saved face retry identity.");
+      return record;
+    }
+    function latestFaceRecords2(records) {
+      const latest = /* @__PURE__ */ new Map();
+      for (const record of records) {
+        assertRetryMetadata(record);
+        const key = json({ ...record.input, requestKey: "" }), old = latest.get(key);
+        if (!old || (record.retryAttempt ?? 0) > (old.retryAttempt ?? 0)) latest.set(key, record);
+      }
+      return [...latest.values()];
+    }
+    async function faceRequestRecord2(records, input, generation, scope, retryTerminal = false) {
+      const latest = latestFaceRecords2(records).find((record) => sameInput(record.input, input));
+      if (latest && (!retryTerminal || !["failed", "canceled"].includes(latest.status))) return latest;
+      if (!latest) return { input: { ...input, requestKey: await deterministicRequestKey(generation, input, scope) } };
+      const retryAttempt = (latest.retryAttempt ?? 0) + 1, retryOf = latest.input.requestKey;
+      assertRetryMetadata({ retryAttempt, retryOf });
+      const requestKey = await deterministicRequestKey(generation, input, JSON.stringify({ scope, retryAttempt, retryOf }));
+      return { input: { ...input, requestKey }, retryAttempt, retryOf };
+    }
+    function submitScript(input) {
+      return `const job = await selects.ai.submit(${json(assertInput(input))}); return {workflowId: job.workflowId};`;
+    }
+    function statusScript(record) {
+      return `return await selects.ai.job(${json(record.workflowId)}, ${json(record.input.projectId)}).status();`;
+    }
+    function cancelScript(record) {
+      return `return await selects.ai.job(${json(record.workflowId)}, ${json(record.input.projectId)}).cancel();`;
+    }
+    function resultScript(record, offset = 0) {
+      return `const r = await selects.ai.job(${json(record.workflowId)}, ${json(record.input.projectId)}).result();
+const raw = await selects.ai.readJSON(r.files.detections, ${json(record.input.projectId)});
+const d = raw as {contractVersion?:number;task?:string;frameSize?:{width:number;height:number};coordinateSpace?:string;boxFormat?:string;landmarkOrder?:string[];parameters?:unknown;samples?:Array<{index:number;sourceTimeSeconds:number;faces:unknown[]}>};
+if (d.contractVersion !== 1 || d.task !== "faces.detect" || d.coordinateSpace !== "display-pixels" || d.boxFormat !== "xyxy" || !d.frameSize || !Array.isArray(d.samples) || d.samples.length > 20000) throw new Error("Unsupported face result contract.");
+const page = d.samples.slice(${offset}, ${offset + PAGE_SAMPLES});
+if (page.some(s => !Array.isArray(s.faces) || s.faces.length > 32)) throw new Error("Face result page exceeds the consumer limit.");
+return {contractVersion:d.contractVersion,task:d.task,frameSize:d.frameSize,coordinateSpace:d.coordinateSpace,boxFormat:d.boxFormat,landmarkOrder:d.landmarkOrder,parameters:d.parameters,total:d.samples.length,samples:page};`;
+    }
+    function checkPage(page, input, info) {
+      if (page?.contractVersion !== 1 || page.task !== "faces.detect" || page.coordinateSpace !== "display-pixels" || page.boxFormat !== "xyxy" || page.frameSize?.width !== info.W || page.frameSize?.height !== info.H || !Array.isArray(page.samples) || json(page.landmarkOrder) !== json(["rightEye", "leftEye", "nose", "rightMouth", "leftMouth"]) || json(page.parameters?.sourceRange) !== json(input.sourceRange) || page.parameters?.scoreThreshold !== 0.8 || page.parameters?.sampleEverySeconds !== input.options.sampleEverySeconds || !Number.isSafeInteger(page.total) || page.total < 1 || page.total > 2e4)
+        throw new Error("Face result does not match this source, interval, or sampling contract.");
+      return page;
+    }
+    function adaptSamples2(samples, input, info, plan) {
+      let previous = -Infinity;
+      if (samples.length !== plan.count) throw new Error("Face sampling count differs from the color/cut frame grid.");
+      return samples.map((sample, sampleNumber) => {
+        const t = sample.sourceTimeSeconds;
+        if (!Number.isFinite(t) || t < input.sourceRange.startSeconds - 1e-6 || t >= input.sourceRange.endSeconds + 1e-6 || t <= previous || !Array.isArray(sample.faces))
+          throw new Error("Face samples need ordered source timestamps inside the requested interval.");
+        const expected = (plan.f0 + sampleNumber * plan.step) / info.fps;
+        if (Math.abs(t - expected) > 0.51 / info.fps) throw new Error("Source timestamp cadence differs from the legacy color/cut frame grid. Variable-rate alignment is not supported in this version.");
+        previous = t;
+        const scaleX = plan.w / info.W, scaleY = plan.h / info.H;
+        const faces = sample.faces.map((row) => {
+          const b = row.box, points = row.landmarks;
+          if (!b || ![b.xmin, b.ymin, b.xmax, b.ymax, row.score].every(Number.isFinite) || b.xmin < 0 || b.ymin < 0 || b.xmax > info.W || b.ymax > info.H || b.xmax <= b.xmin || b.ymax <= b.ymin || row.score < 0 || row.score > 1 || !Array.isArray(points) || points.length !== 5 || points.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y)))
+            throw new Error("Invalid face geometry or confidence.");
+          return {
+            box: [b.xmin * scaleX, b.ymin * scaleY, (b.xmax - b.xmin) * scaleX, (b.ymax - b.ymin) * scaleY],
+            score: row.score,
+            landmarks: points.map((p) => [p.x * scaleX, p.y * scaleY])
+          };
+        });
+        return { f: t * info.fps, sourceTimeSeconds: t, faces };
+      });
+    }
+    function assertConstantFrameClock2(sourcePts, timeBase, fps) {
+      const [numerator, denominator] = String(timeBase).split("/").map(Number);
+      if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator) || numerator <= 0 || denominator <= 0 || !Number.isFinite(fps) || fps <= 0 || sourcePts.length < 2)
+        throw new Error("A verifiable constant source frame clock is required.");
+      const origin = sourcePts[0], ticksPerFrame = denominator / (numerator * fps), frameTicks = Math.round(ticksPerFrame);
+      if (!Number.isFinite(ticksPerFrame) || frameTicks < 1 || !Number.isSafeInteger(origin)) throw new Error("Invalid source frame clock.");
+      const floatTolerance = 8 * Number.EPSILON * Math.max(1, Math.abs(ticksPerFrame));
+      if (!Number.isSafeInteger(frameTicks) || Math.abs(ticksPerFrame - frameTicks) > floatTolerance)
+        throw new Error("Quantized source frame clock is not supported: each frame must occupy an integer number of source time-base ticks.");
+      for (let i = 0; i < sourcePts.length; i++) {
+        const value = sourcePts[i], expected = i * frameTicks;
+        if (!Number.isSafeInteger(value) || i && value <= sourcePts[i - 1] || value - origin !== expected)
+          throw new Error("Variable-rate source cannot be paired with legacy frame-ordinal color/cut sampling.");
+      }
+      return true;
+    }
+    function rawResources2(core, projectId, draftId) {
+      if (core?.owner?.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error("The Draft belongs to another Project.");
+      const clips = /* @__PURE__ */ new Map();
+      const visit = (rows) => {
+        for (const row of rows || []) {
+          const id = row.mediaReferences?.defaultMedia?.id;
+          if (Number.isSafeInteger(row.id) && typeof id === "string") clips.set(row.id, id);
+          if (Array.isArray(row.children)) visit(row.children);
+        }
+      };
+      for (const track of core.sequenceJson?.tracks?.children || []) if (track.kind === "Main") visit(track.children);
+      return clips;
+    }
+    function assertAttached(signal) {
+      if (signal?.aborted) {
+        const e = new Error("Face observation detached; recover the saved pass.");
+        e.code = "AI_OBSERVATION_DETACHED";
+        throw e;
+      }
+    }
+    async function runRecord2(record, api) {
+      assertInput(record.input);
+      assertAttached(api.signal);
+      await api.save(record);
+      assertAttached(api.signal);
+      if (!record.workflowId) {
+        const ack = await api.run(submitScript(record.input), true);
+        assertAttached(api.signal);
+        if (typeof ack?.workflowId !== "string" || !ack.workflowId) throw new Error("Face submission acknowledgement is missing. Recover the same request.");
+        record.workflowId = ack.workflowId;
+        await api.save(record);
+      }
+      let cancelSent = false;
+      while (true) {
+        assertAttached(api.signal);
+        await api.refresh?.(record);
+        if (record.cancelRequested && !cancelSent) {
+          await api.run(cancelScript(record), true);
+          assertAttached(api.signal);
+          cancelSent = true;
+        }
+        const status = await api.run(statusScript(record), false);
+        assertAttached(api.signal);
+        if (status?.workflowId !== record.workflowId || status.projectId !== record.input.projectId || !["queued", "running", "canceling", "succeeded", "failed", "canceled"].includes(status.status)) throw new Error("Face job scope mismatch.");
+        record.status = status.status;
+        await api.save(record);
+        api.progress?.(status);
+        if (terminal(status.status)) {
+          if (status.status !== "succeeded") {
+            const e = new Error("Face job " + status.status + ": " + (status.lastErrorMessage || "Start a new face pass to retry."));
+            e.code = "AI_JOB_" + status.status.toUpperCase();
+            throw e;
+          }
+          return status;
+        }
+        await api.sleep(750);
+      }
+    }
+    async function readSamples2(record, api, info) {
+      assertAttached(api.signal);
+      const first = checkPage(await api.run(resultScript(record), false), record.input, info);
+      assertAttached(api.signal);
+      await api.refresh?.(record);
+      const samples = first.samples.slice();
+      for (let offset = PAGE_SAMPLES; offset < first.total; offset += PAGE_SAMPLES) {
+        assertAttached(api.signal);
+        const page = checkPage(await api.run(resultScript(record, offset), false), record.input, info);
+        assertAttached(api.signal);
+        await api.refresh?.(record);
+        if (page.total !== first.total) throw new Error("Face result changed during observation.");
+        samples.push(...page.samples);
+      }
+      if (samples.length !== first.total) throw new Error("Face result is incomplete.");
+      return samples;
+    }
+    module.exports = { PAGE_SAMPLES, terminal, assertInput, assertConstantFrameClock: assertConstantFrameClock2, faceInput: faceInput2, sameInput, deterministicRequestKey, assertRetryMetadata, latestFaceRecords: latestFaceRecords2, faceRequestRecord: faceRequestRecord2, submitScript, statusScript, cancelScript, resultScript, checkPage, adaptSamples: adaptSamples2, rawResources: rawResources2, runRecord: runRecord2, readSamples: readSamples2 };
+  }
+});
+
+// src/pipeline/facePassJournal.cjs
+var require_facePassJournal = __commonJS({
+  "src/pipeline/facePassJournal.cjs"(exports, module) {
+    var { assertInput, assertRetryMetadata, latestFaceRecords: latestFaceRecords2 } = require_sharedAiFaces();
+    var terminal = (s) => ["succeeded", "failed", "canceled"].includes(s);
+    function createPassJournal2(storage, dir, randomUUID = () => crypto.randomUUID()) {
+      const activeFile = storage.join(dir, "face-ai-current.json");
+      const inputPrefix = (generation) => "face-ai-input-" + generation + "-";
+      const inputFile = (generation, key) => storage.join(dir, inputPrefix(generation) + encodeURIComponent(key) + ".json");
+      const cancelFile = (generation, key) => storage.join(dir, "face-ai-cancel-" + generation + "-" + encodeURIComponent(key) + ".json");
+      const dataFile = (generation) => storage.join(dir, generation === "legacy" ? "face-ai-jobs.json" : "face-ai-pass-" + generation + ".json");
+      let writes = Promise.resolve();
+      const queued = (body) => {
+        const next = writes.catch(() => {
+        }).then(body);
+        writes = next;
+        return next;
+      };
+      const validGeneration = (value) => typeof value === "string" && /^[a-zA-Z0-9-]{1,80}$/.test(value);
+      function parseActive(text) {
+        const value = JSON.parse(String(text));
+        if (value?.version !== 1 || !validGeneration(value.generation)) throw new Error("Invalid active face pass pointer.");
+        return value.generation;
+      }
+      function assertAttached(signal) {
+        if (signal?.aborted) {
+          const e = new Error("New face pass detached before publication.");
+          e.code = "AI_OBSERVATION_DETACHED";
+          throw e;
+        }
+      }
+      function publishActive(previous, generation, signal) {
+        assertAttached(signal);
+        const current = storage.existsSync(activeFile) ? parseActive(storage.readFileSync(activeFile, "utf8")) : "legacy";
+        if (current !== previous) {
+          const e = new Error("A newer face pass is already active. Recover that saved pass.");
+          e.code = "AI_PASS_REPLACED";
+          throw e;
+        }
+        const temporary = activeFile + ".tmp-" + randomUUID();
+        storage.writeFileSync(temporary, JSON.stringify({ version: 1, generation }));
+        storage.renameSync(temporary, activeFile);
+      }
+      async function active() {
+        if (!storage.existsSync(activeFile)) return "legacy";
+        return parseActive(await storage.readFile(activeFile, "utf8"));
+      }
+      async function readGeneration(generation) {
+        const filename = dataFile(generation);
+        let value = { version: 1, generation, records: [] };
+        if (storage.existsSync(filename)) {
+          const text = String(await storage.readFile(filename, "utf8"));
+          if (text.length > 256 * 1024) throw new Error("Face recovery journal exceeds the bounded transaction limit.");
+          value = JSON.parse(text);
+          if (value?.version !== 1 || !Array.isArray(value.records) || value.records.length > 256) throw new Error("Invalid face recovery journal.");
+        }
+        const names = storage.existsSync(dir) ? storage.readdirSync(dir).filter((name) => name.startsWith(inputPrefix(generation)) && name.endsWith(".json")) : [];
+        if (names.length > 256) throw new Error("Too many durable face requests in this pass.");
+        for (const name of names) {
+          const receipt = JSON.parse(String(await storage.readFile(storage.join(dir, name), "utf8")));
+          assertInput(receipt.input);
+          assertRetryMetadata(receipt);
+          const saved = value.records.find((record) => record.input.requestKey === receipt.input.requestKey);
+          const retry = receipt.retryAttempt === void 0 ? {} : { retryAttempt: receipt.retryAttempt, retryOf: receipt.retryOf };
+          if (saved) Object.assign(saved, retry);
+          else value.records.push({ input: receipt.input, ...retry });
+        }
+        value.records.forEach((record) => {
+          assertInput(record.input);
+          assertRetryMetadata(record);
+          if (storage.existsSync(cancelFile(generation, record.input.requestKey))) record.cancelRequested = true;
+        });
+        return { ...value, generation };
+      }
+      async function assertActive(generation) {
+        if (await active() !== generation) {
+          const e = new Error("This face observation belongs to an older pass. Recover the current saved pass.");
+          e.code = "AI_PASS_REPLACED";
+          throw e;
+        }
+      }
+      async function atomicWrite(filename, value) {
+        const text = JSON.stringify(value);
+        if (text.length > 256 * 1024) throw new Error("Face recovery journal exceeds the bounded transaction limit.");
+        const temporary = filename + ".tmp-" + randomUUID();
+        await storage.writeFile(temporary, text);
+        storage.renameSync(temporary, filename);
+      }
+      async function read() {
+        return readGeneration(await active());
+      }
+      async function saveRecord(generation, record) {
+        return queued(async () => {
+          await assertActive(generation);
+          const receipt = inputFile(generation, record.input.requestKey);
+          assertRetryMetadata(record);
+          if (!storage.existsSync(receipt)) await atomicWrite(receipt, { version: 1, input: record.input, ...record.retryAttempt === void 0 ? {} : { retryAttempt: record.retryAttempt, retryOf: record.retryOf } });
+          if (record.cancelRequested && !storage.existsSync(cancelFile(generation, record.input.requestKey)))
+            await atomicWrite(cancelFile(generation, record.input.requestKey), { version: 1, requested: true });
+          const book = await readGeneration(generation);
+          const old = book.records.find((r) => r.input.requestKey === record.input.requestKey);
+          if (old) {
+            record.cancelRequested ||= old.cancelRequested;
+            if (terminal(old.status) && !terminal(record.status)) record.status = old.status;
+            Object.assign(old, record);
+          } else book.records.push(record);
+          if (book.records.length > 256) throw new Error("Too many face requests in this pass.");
+          await atomicWrite(dataFile(generation), book);
+          await assertActive(generation);
+        });
+      }
+      async function refreshRecord(generation, record) {
+        await assertActive(generation);
+        const book = await readGeneration(generation);
+        await assertActive(generation);
+        const old = book.records.find((r) => r.input.requestKey === record.input.requestKey);
+        if (old?.cancelRequested) record.cancelRequested = true;
+      }
+      async function newPass(signal) {
+        return queued(async () => {
+          assertAttached(signal);
+          const book = await read();
+          assertAttached(signal);
+          if (latestFaceRecords2(book.records).some((r) => !terminal(r.status))) throw new Error("Recover or cancel the pending face pass first.");
+          const generation = randomUUID();
+          if (!validGeneration(generation) || generation === "legacy") throw new Error("Invalid new face pass identity.");
+          await atomicWrite(dataFile(generation), { version: 1, generation, records: [] });
+          publishActive(book.generation, generation, signal);
+          return generation;
+        });
+      }
+      return { read, saveRecord, refreshRecord, newPass };
+    }
+    module.exports = { createPassJournal: createPassJournal2 };
+  }
+});
 
 // src/Panel.tsx
-import React2, { useEffect, useRef, useState } from "react";
+import React3, { useEffect as useEffect2, useRef as useRef2, useState as useState2 } from "react";
 
 // src/pipeline/host.ts
 var PANEL_ID = "podcast-hook-captions";
@@ -55,6 +413,12 @@ function versionBelow(version, minimum) {
   const b = minimum.split(".").map((n) => parseInt(n, 10) || 0);
   for (let i = 0; i < 3; i += 1) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
   return false;
+}
+function requireSharedAiHost() {
+  const version = hostVersion();
+  if (!/^\d+\.\d+\.\d+$/.test(version) || versionBelow(version, "2.0.560")) {
+    throw new Error("Shared face tracking needs Selects 2.0.560 or later" + (version ? " (this is " + version + ")" : "") + ".");
+  }
 }
 var J = (v) => JSON.stringify(v);
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -378,6 +742,7 @@ function mapPicks(picks, map) {
 }
 
 // src/pipeline/reel.ts
+var import_sharedAiFaces = __toESM(require_sharedAiFaces());
 async function readSource(sdk, sid) {
   return script(
     sdk,
@@ -422,7 +787,15 @@ const main = (await d.clips({ trackScope: "main" })).filter((c: any) => c.trackK
 const tree: any = await p.sourceFiles();
 const files: any[] = [];
 const walk = (nodes: any[]) => { for (const n of nodes || []) { if (n.type === "dir") walk(n.children); else files.push(n); } };
-walk("fileTree" in tree ? tree.fileTree : []);
+// Large Projects expose a shallow folder summary. A named folder returns its
+// full subtree even above 200 files; "(root)" contains loose top-level files.
+if ("fileTree" in tree) walk(tree.fileTree);
+else for (const folder of tree.folders) {
+  const detail: any = await p.sourceFiles({ folder: folder.name });
+  if (!("fileTree" in detail)) throw new Error("The Project source folder could not be read: " + folder.name);
+  walk(detail.fileTree);
+}
+if (files.length !== tree.fileCount) throw new Error("The Project source inventory changed or is incomplete. Read the reel again.");
 const clips = main.map((c: any) => {
   const f = files.find((x: any) => x.resourceId === c.resourceId);
   const offs = words.filter((w: any) => w.s >= c.startFrame && w.e <= c.endFrame && w.ss != null).map((w: any) => w.ss - w.s).sort((a: number, b: number) => a - b);
@@ -432,10 +805,17 @@ const clips = main.map((c: any) => {
 });
 return { fps: m.fps, endFrame: main.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0), words, clips };`
   );
+  const raw = (0, import_sharedAiFaces.rawResources)(await sdk.call("getDraftCore", rid), pid, rid);
+  for (const c of r.clips) {
+    const id = raw.get(c.clipId);
+    if (!id) throw new Error("The source Resource of clip " + c.clipId + " is no longer available.");
+    c.rid = id;
+  }
   return r;
 }
 
 // src/pipeline/faceFrames.ts
+var import_sharedAiFaces2 = __toESM(require_sharedAiFaces());
 var CHUNK_BYTES = 128 * 1024 * 1024;
 var chunkSamples = (plan) => Math.max(30, Math.floor(CHUNK_BYTES / (plan.w * plan.h * 3)));
 var CHUNK_TIMEOUT_MS = 10 * 60 * 1e3;
@@ -492,7 +872,7 @@ async function probeVideo(path, signal) {
     "-select_streams",
     "V:0",
     "-show_entries",
-    "stream=width,height,avg_frame_rate,r_frame_rate,start_time:stream_tags=rotate:stream_side_data=rotation:format=start_time",
+    "stream=width,height,avg_frame_rate,r_frame_rate,time_base,start_time:stream_tags=rotate:stream_side_data=rotation:format=start_time",
     "-of",
     "json",
     path
@@ -510,7 +890,19 @@ async function probeVideo(path, signal) {
   const fps = rate(s.avg_frame_rate) || rate(s.r_frame_rate) || 30;
   const st = Number(s.start_time), ft = Number(j.format && j.format.start_time);
   const offset = Number.isFinite(st) ? st - (Number.isFinite(ft) ? ft : 0) : 0;
-  return { W, H, fps, offset, frameS: 1 / Math.max(fps, rate(s.r_frame_rate)) };
+  return { W, H, fps, offset, timeBase: s.time_base, frameS: 1 / Math.max(fps, rate(s.r_frame_rate)) };
+}
+async function verifyConstantSourceClock(path, info, plan, signal) {
+  const start = Math.max(0, info.offset + plan.f0 / info.fps - 2);
+  const maximum = Math.min(2e4, Math.ceil(plan.f1 - plan.f0 + 8 * info.fps));
+  const args = ["-v", "error", "-select_streams", "v:0", "-read_intervals", start.toFixed(6) + "%+#" + maximum, "-show_frames", "-show_entries", "frame=best_effort_timestamp", "-of", "json", path];
+  const r = await withTimeout((s) => runtime().runFFprobe(args, true, s), 6e4, signal);
+  const value = JSON.parse(String(r?.stdout || "").replace(/[\r\n]/g, ""));
+  const timestamps = (value.frames || []).map((f) => f.best_effort_timestamp);
+  (0, import_sharedAiFaces2.assertConstantFrameClock)(timestamps, info.timeBase, info.fps);
+  const [n, d] = String(info.timeBase).split("/").map(Number);
+  if (timestamps[timestamps.length - 1] * n / d < info.offset + (plan.f1 - 1) / info.fps - 1e-6)
+    throw new Error("Bounded frame-clock scan could not verify the requested source interval. Long keyframe preroll is unsupported.");
 }
 function timeStart(info, plan, first = 0) {
   const f = plan.f0 + first * plan.step;
@@ -707,626 +1099,6 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
     }
     removeQuiet(fs().join(workDir, "frames-" + tag + "-seek.txt"));
   }
-}
-
-// src/pipeline/yunetModel.ts
-var ORT_VERSION = "1.30.0";
-var ORT_DIST = (host) => host + "/onnxruntime-web@" + ORT_VERSION + "/dist/";
-var ORT_JS = {
-  name: "ort.wasm.bundle.min.mjs",
-  label: "face tracker runtime",
-  urls: [ORT_DIST("https://cdn.jsdelivr.net/npm") + "ort.wasm.bundle.min.mjs", ORT_DIST("https://unpkg.com") + "ort.wasm.bundle.min.mjs"],
-  sha256: "11e64bd8ffe11bd1a2a2f0d6275fdfbbba7262f0b76b99b53d228a8a22ef3d90",
-  bytes: 73054
-};
-var ORT_WASM = {
-  name: "ort-wasm-simd-threaded.wasm",
-  label: "face tracker engine",
-  urls: [ORT_DIST("https://cdn.jsdelivr.net/npm") + "ort-wasm-simd-threaded.wasm", ORT_DIST("https://unpkg.com") + "ort-wasm-simd-threaded.wasm"],
-  sha256: "3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2",
-  bytes: 14239897
-};
-var YUNET_MODEL = {
-  name: "face_detection_yunet_2023mar.onnx",
-  label: "face model",
-  urls: [
-    "https://media.githubusercontent.com/media/opencv/opencv_zoo/f12e12798e8314f7c074a6656816c048dcc95b7a/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
-  ],
-  sha256: "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
-  bytes: 232589
-};
-var YUNET_STRIDES = [8, 16, 32];
-var YUNET_DIVISOR = 32;
-var YUNET_OUTPUTS = ["cls", "obj", "bbox", "kps"];
-async function sha256(bytes) {
-  const subtle = webCrypto();
-  if (subtle) {
-    try {
-      const d = new Uint8Array(await subtle.digest("SHA-256", bytes));
-      return Array.from(d, (x) => x.toString(16).padStart(2, "0")).join("");
-    } catch {
-    }
-  }
-  return sha256Hex(bytes);
-}
-function webCrypto() {
-  const g = globalThis;
-  if (g.crypto?.subtle) return g.crypto.subtle;
-  try {
-    if (typeof window !== "undefined" && window.parent?.crypto?.subtle) return window.parent.crypto.subtle;
-  } catch {
-  }
-  return null;
-}
-var K = Uint32Array.from([
-  1116352408,
-  1899447441,
-  3049323471,
-  3921009573,
-  961987163,
-  1508970993,
-  2453635748,
-  2870763221,
-  3624381080,
-  310598401,
-  607225278,
-  1426881987,
-  1925078388,
-  2162078206,
-  2614888103,
-  3248222580,
-  3835390401,
-  4022224774,
-  264347078,
-  604807628,
-  770255983,
-  1249150122,
-  1555081692,
-  1996064986,
-  2554220882,
-  2821834349,
-  2952996808,
-  3210313671,
-  3336571891,
-  3584528711,
-  113926993,
-  338241895,
-  666307205,
-  773529912,
-  1294757372,
-  1396182291,
-  1695183700,
-  1986661051,
-  2177026350,
-  2456956037,
-  2730485921,
-  2820302411,
-  3259730800,
-  3345764771,
-  3516065817,
-  3600352804,
-  4094571909,
-  275423344,
-  430227734,
-  506948616,
-  659060556,
-  883997877,
-  958139571,
-  1322822218,
-  1537002063,
-  1747873779,
-  1955562222,
-  2024104815,
-  2227730452,
-  2361852424,
-  2428436474,
-  2756734187,
-  3204031479,
-  3329325298
-]);
-function sha256Hex(bytes) {
-  const n = bytes.length;
-  const total = Math.ceil((n + 9) / 64) * 64;
-  const msg = new Uint8Array(total);
-  msg.set(bytes);
-  msg[n] = 128;
-  const view = new DataView(msg.buffer);
-  view.setUint32(total - 8, Math.floor(n / 536870912));
-  view.setUint32(total - 4, n * 8 >>> 0);
-  const h = Uint32Array.from([1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]);
-  const w = new Uint32Array(64);
-  const rotr = (x, r) => x >>> r | x << 32 - r;
-  for (let off = 0; off < total; off += 64) {
-    for (let i = 0; i < 16; i += 1) w[i] = view.getUint32(off + 4 * i);
-    for (let i = 16; i < 64; i += 1) {
-      const a2 = w[i - 15], b2 = w[i - 2];
-      w[i] = w[i - 16] + (rotr(a2, 7) ^ rotr(a2, 18) ^ a2 >>> 3) + w[i - 7] + (rotr(b2, 17) ^ rotr(b2, 19) ^ b2 >>> 10) >>> 0;
-    }
-    let a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
-    for (let i = 0; i < 64; i += 1) {
-      const t1 = hh + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + (e & f ^ ~e & g) + K[i] + w[i] >>> 0;
-      const t2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + (a & b ^ a & c ^ b & c) >>> 0;
-      hh = g;
-      g = f;
-      f = e;
-      e = d + t1 >>> 0;
-      d = c;
-      c = b;
-      b = a;
-      a = t1 + t2 >>> 0;
-    }
-    h[0] += a;
-    h[1] += b;
-    h[2] += c;
-    h[3] += d;
-    h[4] += e;
-    h[5] += f;
-    h[6] += g;
-    h[7] += hh;
-  }
-  return Array.from(h, (x) => x.toString(16).padStart(8, "0")).join("");
-}
-function varint(b, p) {
-  let v = 0, mul = 1;
-  for (let i = 0; i < 10; i += 1) {
-    const x = b[p + i];
-    if (x === void 0) throw new Error("The face model file is truncated.");
-    v += (x & 127) * mul;
-    if (x < 128) return [v, p + i + 1];
-    mul *= 128;
-  }
-  throw new Error("The face model file is not a valid ONNX model.");
-}
-function fields(b, from = 0, to = b.length) {
-  const out = [];
-  for (let p = from; p < to; ) {
-    const start = p;
-    const [key, q] = varint(b, p);
-    const no = Math.floor(key / 8), wire = key % 8;
-    let value = 0, len = 0;
-    if (wire === 0) [value, p] = varint(b, q);
-    else if (wire === 1) p = q + 8;
-    else if (wire === 5) p = q + 4;
-    else if (wire === 2) {
-      [len, value] = varint(b, q);
-      p = value + len;
-    } else throw new Error("The face model file has an unsupported protobuf field (wire type " + wire + ").");
-    if (p > to) throw new Error("The face model file is truncated.");
-    out.push({ no, wire, start, end: p, value, len });
-  }
-  return out;
-}
-function encodeVarint(v) {
-  const out = [];
-  while (v >= 128) {
-    out.push(v % 128 | 128);
-    v = Math.floor(v / 128);
-  }
-  out.push(v);
-  return out;
-}
-function concat(parts) {
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
-  let o = 0;
-  for (const p of parts) {
-    out.set(p, o);
-    o += p.length;
-  }
-  return out;
-}
-var lenField = (no, payload2) => concat([Uint8Array.from(encodeVarint(no * 8 + 2).concat(encodeVarint(payload2.length))), payload2]);
-var varintField = (no, v) => Uint8Array.from(encodeVarint(no * 8).concat(encodeVarint(v)));
-var textField = (no, s) => lenField(no, new TextEncoder().encode(s));
-var payload = (b, f) => b.subarray(f.value, f.value + f.len);
-var one = (fs2, no) => fs2.find((f) => f.no === no && f.wire === 2);
-function readTensorInfo(b) {
-  const vi = fields(b);
-  const name = new TextDecoder().decode(payload(b, one(vi, 1)));
-  const type = one(vi, 2);
-  const tensor = type && one(fields(b, type.value, type.value + type.len), 1);
-  if (!tensor) throw new Error("The face model's " + name + " is not a tensor.");
-  const tf = fields(b, tensor.value, tensor.value + tensor.len);
-  const et = tf.find((f) => f.no === 1 && f.wire === 0);
-  const shape = one(tf, 2);
-  const dims = shape ? fields(b, shape.value, shape.value + shape.len).filter((f) => f.no === 1 && f.wire === 2).map((d) => {
-    const df = fields(b, d.value, d.value + d.len);
-    const v = df.find((f) => f.no === 1 && f.wire === 0);
-    const p = one(df, 2);
-    return v ? v.value : p ? new TextDecoder().decode(payload(b, p)) : "?";
-  }) : [];
-  return { name, elemType: et ? et.value : 0, dims };
-}
-function writeTensorInfo(t) {
-  const dims = t.dims.map((d) => lenField(1, typeof d === "number" ? varintField(1, d) : textField(2, d)));
-  const tensor = concat([varintField(1, t.elemType), lenField(2, concat(dims))]);
-  return concat([textField(1, t.name), lenField(2, lenField(1, tensor))]);
-}
-function withSymbolicInputSize(model2) {
-  const top = fields(model2);
-  const graph = top.find((f) => f.no === 7 && f.wire === 2);
-  if (!graph) throw new Error("The face model file has no graph.");
-  const parts = [];
-  let inputs = 0, outputs = 0;
-  for (const f of fields(model2, graph.value, graph.value + graph.len)) {
-    if (f.no === 13) continue;
-    if ((f.no === 11 || f.no === 12) && f.wire === 2) {
-      const t = readTensorInfo(payload(model2, f));
-      if (f.no === 11) {
-        if (t.elemType !== 1 || t.dims.length !== 4 || t.dims[0] !== 1 || t.dims[1] !== 3) throw new Error("Unexpected face model input " + t.name + ".");
-        t.dims = [1, 3, "H", "W"];
-        inputs += 1;
-      } else {
-        if (t.elemType !== 1 || t.dims.length !== 3 || t.dims[0] !== 1) throw new Error("Unexpected face model output " + t.name + ".");
-        t.dims = [1, "N_" + t.name, t.dims[2]];
-        outputs += 1;
-      }
-      parts.push(lenField(f.no, writeTensorInfo(t)));
-      continue;
-    }
-    parts.push(model2.subarray(f.start, f.end));
-  }
-  if (inputs !== 1 || outputs !== YUNET_STRIDES.length * YUNET_OUTPUTS.length) throw new Error("Unexpected face model: " + inputs + " inputs, " + outputs + " outputs.");
-  const newGraph = lenField(7, concat(parts));
-  return concat(top.map((f) => f === graph ? newGraph : model2.subarray(f.start, f.end)));
-}
-
-// src/pipeline/yunetDecode.ts
-var YUNET_SCORE_THRESHOLD = 0.8;
-var YUNET_NMS_THRESHOLD = 0.3;
-var YUNET_TOP_K = 5e3;
-function paddedSize(width, height) {
-  const up = (x) => Math.floor((x - 1) / YUNET_DIVISOR + 1) * YUNET_DIVISOR;
-  return { width: up(width), height: up(height) };
-}
-function bgrToBlob(bgr, width, height, out) {
-  const pad = paddedSize(width, height);
-  const plane = pad.width * pad.height;
-  if (bgr.length < width * height * 3) throw new Error("A face frame has " + bgr.length + " bytes, not " + width * height * 3 + ".");
-  const data = out && out.length === 3 * plane ? out : new Float32Array(3 * plane);
-  if (out === data) data.fill(0);
-  for (let y = 0; y < height; y += 1) {
-    let p = y * width * 3;
-    let o = y * pad.width;
-    for (let x = 0; x < width; x += 1, p += 3, o += 1) {
-      data[o] = bgr[p];
-      data[plane + o] = bgr[p + 1];
-      data[2 * plane + o] = bgr[p + 2];
-    }
-  }
-  return { data, width: pad.width, height: pad.height };
-}
-var clamp01 = (v) => Math.min(1, Math.max(0, v));
-var f32 = Math.fround;
-function decodeYuNet(outputs, padWidth, padHeight, o = {}) {
-  const threshold = f32(o.score == null ? YUNET_SCORE_THRESHOLD : o.score);
-  const faces = [];
-  for (const stride of YUNET_STRIDES) {
-    const cols = Math.floor(padWidth / stride), rows = Math.floor(padHeight / stride);
-    const cls = outputs["cls_" + stride], obj = outputs["obj_" + stride], bbox = outputs["bbox_" + stride], kps = outputs["kps_" + stride];
-    if (!cls || !obj || !bbox || !kps) throw new Error("The face model gave no output for stride " + stride + ".");
-    if (cls.length !== rows * cols || bbox.length !== rows * cols * 4 || kps.length !== rows * cols * 10) throw new Error("The face model's stride-" + stride + " output does not fit a " + padWidth + "x" + padHeight + " input.");
-    for (let r = 0; r < rows; r += 1) {
-      for (let c = 0; c < cols; c += 1) {
-        const idx = r * cols + c;
-        const score = f32(Math.sqrt(f32(clamp01(cls[idx]) * clamp01(obj[idx]))));
-        if (score < threshold) continue;
-        const cx = f32((c + bbox[idx * 4]) * stride), cy = f32((r + bbox[idx * 4 + 1]) * stride);
-        const w = f32(f32(Math.exp(bbox[idx * 4 + 2])) * stride), h = f32(f32(Math.exp(bbox[idx * 4 + 3])) * stride);
-        const landmarks = [];
-        for (let n = 0; n < 5; n += 1) landmarks.push([f32((kps[idx * 10 + 2 * n] + c) * stride), f32((kps[idx * 10 + 2 * n + 1] + r) * stride)]);
-        faces.push({ box: [f32(cx - w / 2), f32(cy - h / 2), w, h], landmarks, score });
-      }
-    }
-  }
-  if (faces.length <= 1) return faces;
-  return nmsBoxes(faces, threshold, f32(o.nms == null ? YUNET_NMS_THRESHOLD : o.nms), o.topK == null ? YUNET_TOP_K : o.topK).map((i) => faces[i]);
-}
-var intRect = (b) => [Math.trunc(b[0]), Math.trunc(b[1]), Math.trunc(b[2]), Math.trunc(b[3])];
-function rectOverlap(a, b) {
-  const aa = a[2] * a[3], ab = b[2] * b[3];
-  if (aa + ab <= 0) return 1;
-  const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]);
-  const x2 = Math.min(a[0] + a[2], b[0] + b[2]), y2 = Math.min(a[1] + a[3], b[1] + b[3]);
-  const inter = x2 > x1 && y2 > y1 ? (x2 - x1) * (y2 - y1) : 0;
-  return f32(1 - f32(1 - inter / (aa + ab - inter)));
-}
-function nmsBoxes(faces, scoreThreshold, nmsThreshold, topK) {
-  const order = faces.map((f, i) => ({ s: f.score, i })).filter((p) => p.s > scoreThreshold);
-  order.sort((a, b) => b.s - a.s || a.i - b.i);
-  if (topK > 0 && order.length > topK) order.length = topK;
-  const rects = faces.map((f) => intRect(f.box));
-  const kept = [];
-  for (const { i } of order) if (kept.every((k) => rectOverlap(rects[i], rects[k]) <= nmsThreshold)) kept.push(i);
-  return kept;
-}
-
-// src/pipeline/faceWorker.ts
-var WORKER_SOURCE = `
-let ort = null, session = null, input = "input";
-self.onmessage = async (e) => {
-  const m = e.data;
-  try {
-    if (m.type === "init") {
-      ort = await import(m.ortUrl);
-      ort.env.logLevel = "error";
-      ort.env.wasm.wasmBinary = m.wasm;
-      ort.env.wasm.numThreads = 1;
-      ort.env.wasm.proxy = false;
-      session = await ort.InferenceSession.create(m.model, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
-      input = session.inputNames[0] || "input";
-      self.postMessage({ id: m.id, ok: true, ort: String((ort.env.versions && ort.env.versions.web) || "") });
-    } else if (m.type === "run") {
-      const out = await session.run({ [input]: new ort.Tensor("float32", m.data, m.dims) });
-      const res = {};
-      const moved = [m.data.buffer];
-      for (const k of Object.keys(out)) {
-        const copy = new Float32Array(out[k].data);
-        res[k] = copy;
-        moved.push(copy.buffer);
-      }
-      self.postMessage({ id: m.id, ok: true, res, input: m.data }, moved);
-    }
-  } catch (err) {
-    self.postMessage({ id: m.id, ok: false, error: String((err && err.message) || err) });
-  }
-};
-`;
-var INIT_TIMEOUT_MS = 6e4;
-var RUN_TIMEOUT_MS = 3e4;
-async function startWorkerEngine(ortJs, wasm, model2) {
-  const g = globalThis;
-  if (typeof g.Worker !== "function" || typeof g.Blob !== "function" || !g.URL || typeof g.URL.createObjectURL !== "function") throw new Error("no Worker here");
-  const ortUrl = g.URL.createObjectURL(new g.Blob([ortJs], { type: "text/javascript" }));
-  const workerUrl = g.URL.createObjectURL(new g.Blob([WORKER_SOURCE], { type: "text/javascript" }));
-  let worker;
-  try {
-    worker = new g.Worker(workerUrl, { type: "module", name: "podcast-hook-captions faces" });
-  } catch (e) {
-    g.URL.revokeObjectURL(ortUrl);
-    g.URL.revokeObjectURL(workerUrl);
-    throw e;
-  }
-  const pending = /* @__PURE__ */ new Map();
-  let seq = 0;
-  let dead = null;
-  const fail = (e) => {
-    dead = e;
-    for (const p of pending.values()) {
-      clearTimeout(p.timer);
-      p.reject(e);
-    }
-    pending.clear();
-  };
-  worker.onmessage = (e) => {
-    const m = e.data;
-    const p = pending.get(m.id);
-    if (!p) return;
-    pending.delete(m.id);
-    clearTimeout(p.timer);
-    if (m.ok) p.resolve(m);
-    else p.reject(new Error(m.error));
-  };
-  worker.onerror = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    fail(new Error("The face tracker worker stopped: " + (e && e.message || "error")));
-  };
-  const call = (msg, transfer, ms) => new Promise((resolve2, reject) => {
-    if (dead) return reject(dead);
-    const id = seq += 1;
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error("The face tracker worker did not answer in " + ms / 1e3 + " s."));
-    }, ms);
-    pending.set(id, { resolve: resolve2, reject, timer });
-    worker.postMessage(Object.assign({ id }, msg), transfer);
-  });
-  let ort = "";
-  try {
-    ort = (await call({ type: "init", ortUrl, wasm, model: model2 }, [], INIT_TIMEOUT_MS)).ort;
-  } catch (e) {
-    worker.terminate();
-    throw e;
-  } finally {
-    g.URL.revokeObjectURL(ortUrl);
-    g.URL.revokeObjectURL(workerUrl);
-  }
-  return {
-    kind: "worker",
-    via: "blob",
-    ort,
-    async run(data, width, height) {
-      const r = await call({ type: "run", data, dims: [1, 3, height, width] }, [data.buffer], RUN_TIMEOUT_MS);
-      return { outputs: r.res, input: r.input };
-    }
-  };
-}
-
-// src/pipeline/faceRuntime.ts
-var DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1e3;
-function runtimeDir() {
-  return fs().join(dataRoot(), "runtime");
-}
-var errText = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
-async function readVerified(path, file) {
-  if (!fs().existsSync(path)) return null;
-  try {
-    const bytes = toBytes(await fs().readFile(path));
-    if (bytes.length === file.bytes && await sha256(bytes) === file.sha256) return bytes;
-  } catch {
-  }
-  removeQuiet(path);
-  return null;
-}
-async function renameWithRetry(from, to) {
-  for (let k = 0; ; k += 1) {
-    try {
-      fs().renameSync(from, to);
-      return;
-    } catch (e) {
-      if (k >= 4) throw e;
-      await new Promise((r) => setTimeout(r, 200 * (k + 1)));
-    }
-  }
-}
-async function download(file, dest) {
-  const reasons = [];
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const url = file.urls[Math.min(attempt, file.urls.length - 1)];
-    const part = dest + ".part" + attempt;
-    removeQuiet(part);
-    try {
-      let timer = null;
-      await Promise.race([
-        fs().downloadFile(url, part),
-        new Promise((_, reject) => timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS / 1e3 + " s")), DOWNLOAD_TIMEOUT_MS))
-      ]).finally(() => clearTimeout(timer));
-      if (!fs().existsSync(part)) throw new Error("nothing was saved");
-      const bytes = toBytes(await fs().readFile(part));
-      if (bytes.length !== file.bytes) throw new Error("the server sent " + bytes.length + " bytes, not " + file.bytes);
-      const got = await sha256(bytes);
-      if (got !== file.sha256) throw new Error("the file's checksum is wrong (sha256 " + got.slice(0, 12) + "\u2026)");
-      await renameWithRetry(part, dest);
-      return bytes;
-    } catch (e) {
-      reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText(e));
-      removeQuiet(part);
-    }
-  }
-  throw new Error("Could not download the " + file.label + " (" + file.name + "). " + reasons.join("; ") + ". Check the internet connection and try again.");
-}
-async function pinnedFiles(want, progress) {
-  const got = [];
-  for (const w of want) {
-    let hit = null;
-    for (const p of [w.dest].concat(w.also)) {
-      const bytes = await readVerified(p, w.file);
-      if (bytes) {
-        hit = { bytes, path: p };
-        break;
-      }
-    }
-    got.push(hit);
-  }
-  const missing = want.filter((_, i) => !got[i]);
-  if (missing.length) {
-    const mb = missing.reduce((n, w) => n + w.file.bytes, 0) / 1e6;
-    progress("Downloading face tracking (one time, " + (mb < 1 ? mb.toFixed(1) : Math.round(mb)) + " MB)\u2026");
-  }
-  for (let i = 0; i < want.length; i += 1) {
-    if (got[i]) continue;
-    fs().mkdirSync(fs().dirname(want[i].dest), { recursive: true });
-    got[i] = { bytes: await download(want[i].file, want[i].dest), path: want[i].dest };
-  }
-  return got;
-}
-var importUrl = new Function("u", "return import(u)");
-function base64(bytes) {
-  let s = "";
-  for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 32768)));
-  return btoa(s);
-}
-async function importOrt(js) {
-  const g = globalThis;
-  let first = "";
-  if (typeof g.Blob === "function" && g.URL && typeof g.URL.createObjectURL === "function") {
-    const url = g.URL.createObjectURL(new g.Blob([js], { type: "text/javascript" }));
-    try {
-      return { ort: await importUrl(url), via: "blob" };
-    } catch (e) {
-      first = errText(e);
-    } finally {
-      g.URL.revokeObjectURL(url);
-    }
-  }
-  try {
-    return { ort: await importUrl("data:text/javascript;base64," + base64(js)), via: "data" };
-  } catch (e) {
-    throw new Error("The face tracker runtime could not be started: " + (first ? first + "; " : "") + errText(e));
-  }
-}
-async function panelEngine(js, wasm, model2) {
-  const { ort, via } = await importOrt(js);
-  if (!ort || !ort.env || !ort.InferenceSession) throw new Error("The face tracker runtime did not load (no onnxruntime API).");
-  ort.env.logLevel = "error";
-  ort.env.wasm.wasmBinary = wasm;
-  ort.env.wasm.numThreads = 1;
-  ort.env.wasm.proxy = false;
-  let session;
-  try {
-    session = await ort.InferenceSession.create(model2, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
-  } catch (e) {
-    throw new Error("The face model could not be loaded: " + errText(e));
-  }
-  const input = session.inputNames[0] || "input";
-  return {
-    kind: "panel",
-    via,
-    ort: String(ort.env.versions && ort.env.versions.web || ORT_VERSION),
-    async run(data, width, height) {
-      const out = await session.run({ [input]: new ort.Tensor("float32", data, [1, 3, height, width]) });
-      const outputs = {};
-      for (const k of Object.keys(out)) outputs[k] = out[k].data;
-      return { outputs, input: data };
-    }
-  };
-}
-async function createDetector(progress, o) {
-  const t0 = Date.now();
-  const dir = runtimeDir();
-  const ortDir = fs().join(dir, "onnxruntime-web-" + ORT_VERSION);
-  const [model2, js, wasm] = await pinnedFiles(
-    [
-      // a model the earlier Python setup downloaded is the same file
-      { file: YUNET_MODEL, dest: fs().join(dir, YUNET_MODEL.name), also: [fs().join(dataRoot(), "models", YUNET_MODEL.name)] },
-      { file: ORT_JS, dest: fs().join(ortDir, ORT_JS.name), also: [] },
-      { file: ORT_WASM, dest: fs().join(ortDir, ORT_WASM.name), also: [] }
-    ],
-    progress
-  );
-  progress("Starting face tracking\u2026");
-  const symbolic = withSymbolicInputSize(model2.bytes);
-  let engine = null;
-  let workerError = "";
-  if (o.worker !== false) {
-    try {
-      engine = await startWorkerEngine(js.bytes, wasm.bytes, symbolic);
-    } catch (e) {
-      workerError = errText(e);
-    }
-  }
-  if (!engine) engine = await panelEngine(js.bytes, wasm.bytes, symbolic);
-  const eng = engine;
-  let scratch;
-  let queue = Promise.resolve();
-  const detectOne = async (bgr, width, height) => {
-    const blob = bgrToBlob(bgr, width, height, scratch);
-    const r = await eng.run(blob.data, blob.width, blob.height);
-    scratch = r.input;
-    return decodeYuNet(r.outputs, blob.width, blob.height);
-  };
-  return {
-    info: { ort: eng.ort || ORT_VERSION, engine: eng.kind, loadedVia: eng.via, workerError, loadMs: Date.now() - t0, files: [model2.path, js.path, wasm.path] },
-    detect(bgr, width, height) {
-      const run = queue.then(() => detectOne(bgr, width, height));
-      queue = run.catch(() => void 0);
-      return run;
-    }
-  };
-}
-var loading = /* @__PURE__ */ new Map();
-function loadFaceDetector(progress = () => {
-}, o = {}) {
-  const key = o.worker === false ? "panel" : "auto";
-  let p = loading.get(key);
-  if (!p) {
-    const created = createDetector(progress, o);
-    p = created;
-    loading.set(key, created);
-    created.catch(() => {
-      if (loading.get(key) === created) loading.delete(key);
-    });
-  }
-  return p;
 }
 
 // src/pipeline/cvstats.ts
@@ -1557,24 +1329,26 @@ function colorSummary(colors) {
   const m = [0, 1, 2, 3, 4, 5].map((k) => npMedian(colors.map((c) => c[k])));
   return { r: pyRound(m[0], 1), g: pyRound(m[1], 1), b: pyRound(m[2], 1), sat: pyRound(m[3], 3), p5: pyRound(m[4], 1), p95: pyRound(m[5], 1) };
 }
-async function scanJob(job, detect, o) {
-  let info;
-  try {
-    info = await probeVideo(job.path, o.signal);
-  } catch (e) {
-    if (o.signal && o.signal.aborted) throw e;
-    return { id: job.id, error: "cannot open source" };
-  }
-  return scanProbed(job, info, samplePlan(info, job.start, job.end), detect, o);
-}
-async function scanProbed(job, info, plan, detect, o) {
-  const samples = [];
+async function scanProbed(job, info, plan, o) {
+  const checkAbort = () => {
+    if (o.signal?.aborted) throw o.signal.reason || new Error("Face tracking canceled");
+  };
+  checkAbort();
+  if (!Array.isArray(o.sharedSamples) || o.sharedSamples.length !== plan.count) throw new Error("Shared face sample count does not match the tracking plan");
+  const observed = o.sharedSamples.map((s, i2) => {
+    if (!Number.isFinite(s.f) || Math.abs(s.f - (plan.f0 + i2 * plan.step)) > 0.51 || i2 > 0 && s.f <= o.sharedSamples[i2 - 1].f)
+      throw new Error("Shared face sample frame does not match the tracking plan");
+    return { f: plan.f0 + i2 * plan.step, faces: keepFaces(s.faces, plan, info) };
+  });
   const cuts = [plan.f0];
   const colors = [];
   let prev = null;
   let i = 0;
   const frames = o.frames ? o.frames(info, plan) : sampleFrames(job.path, info, plan, o.workDir, String(job.id).replace(/[^\w-]/g, "_"), o.signal);
   for await (const img of frames) {
+    checkAbort();
+    if (i >= plan.count) throw new Error("Color sample count exceeds the tracking plan");
+    if (img.byteLength !== plan.w * plan.h * 3) throw new Error("Color sample is not a complete packed BGR frame");
     const f = plan.f0 + i * plan.step;
     i += 1;
     const wantColor = colors.length < TRACK.colorSamples && (f - plan.f0) % (plan.step * 3) === 0;
@@ -1582,19 +1356,60 @@ async function scanProbed(job, info, plan, detect, o) {
     if (st.color) colors.push(st.color);
     if (prev !== null && chiSquareAlt(prev, st.hist) > TRACK.cut) cuts.push(f);
     prev = st.hist;
-    const rows = await detect(img, plan.w, plan.h);
-    if (o.onSample) o.onSample(f, rows);
-    samples.push({ f, faces: keepFaces(rows, plan, info) });
     if (o.onFrame) o.onFrame(i);
   }
-  return { id: job.id, width: info.W, height: info.H, fps: info.fps, shots: buildShots(samples, cuts, plan.f1, info.fps), color: colorSummary(colors) };
+  checkAbort();
+  if (i !== plan.count) throw new Error("Color sample count does not match the tracking plan");
+  return { id: job.id, width: info.W, height: info.H, fps: info.fps, shots: buildShots(observed, cuts, plan.f1, info.fps), color: colorSummary(colors) };
+}
+
+// src/pipeline/faces.ts
+var import_sharedAiFaces4 = __toESM(require_sharedAiFaces());
+
+// src/pipeline/sharedFaceJobs.ts
+var import_sharedAiFaces3 = __toESM(require_sharedAiFaces());
+var import_facePassJournal = __toESM(require_facePassJournal());
+var journals = /* @__PURE__ */ new Map();
+function pass(dir) {
+  let value = journals.get(dir);
+  if (!value) {
+    value = (0, import_facePassJournal.createPassJournal)(fs(), dir);
+    journals.set(dir, value);
+  }
+  return value;
+}
+async function detectShared(sdk, dir, input, info, progress, signal, options = {}) {
+  const owner = pass(dir), book = await owner.read();
+  const record = await (0, import_sharedAiFaces3.faceRequestRecord)(book.records, input, book.generation, String(fs().normalize?.(dir) || dir).replace(/\\/g, "/"), options.retryTerminal);
+  const api = {
+    run: (body, write) => script(sdk, "Shared face tracking", body, write),
+    save: () => owner.saveRecord(book.generation, record),
+    refresh: () => owner.refreshRecord(book.generation, record),
+    sleep,
+    signal,
+    progress: (s) => progress("Shared face job: " + s.status + (s.completed != null ? " \xB7 " + s.completed + "/" + s.total : ""))
+  };
+  await (0, import_sharedAiFaces3.runRecord)(record, api);
+  return { samples: await (0, import_sharedAiFaces3.readSamples)(record, api, info), workflowId: record.workflowId };
+}
+async function cancelFaceJobs(sdk, dir, projectId) {
+  const owner = pass(dir), book = await owner.read();
+  for (const record of (0, import_sharedAiFaces3.latestFaceRecords)(book.records)) if (record.input.projectId === projectId && !["succeeded", "failed", "canceled"].includes(record.status || "")) {
+    record.cancelRequested = true;
+    await owner.saveRecord(book.generation, record);
+    try {
+      await (0, import_sharedAiFaces3.runRecord)(record, { run: (s, w) => script(sdk, "Cancel shared face tracking", s, w), save: () => owner.saveRecord(book.generation, record), refresh: () => owner.refreshRecord(book.generation, record), sleep });
+    } catch (e) {
+      if (e.code !== "AI_JOB_CANCELED") throw e;
+    }
+  }
+}
+async function newFacePass(dir, signal) {
+  await pass(dir).newPass(signal);
 }
 
 // src/pipeline/faces.ts
 var TARGET = { faceH: 0.36, cx: 0.51, eyes: 0.21, maxUpscale: 2.8 };
-async function ensureFaceRuntime(progress) {
-  return loadFaceDetector(progress);
-}
 function adaptiveGrade(faces) {
   const cs = Object.values(faces).map((f2) => f2.color).filter(Boolean);
   const med = (k, d) => {
@@ -1615,8 +1430,8 @@ function adaptiveGrade(faces) {
     off: med("p5", 15) < 10 ? -0.015 : -0.035
   };
 }
-async function trackFaces(rt, dir, clips, fps, progress = () => {
-}, signal) {
+async function trackFaces(sdk, projectId, dir, clips, fps, progress = () => {
+}, signal, options = {}) {
   const jobs = clips.filter((c) => c.path && c.srcStart >= 0).map((c) => ({ id: c.clipId, path: c.path, start: c.srcStart, end: c.srcStart + (c.e - c.s) / fps }));
   const out = {};
   if (!jobs.length) return out;
@@ -1630,20 +1445,25 @@ async function trackFaces(rt, dir, clips, fps, progress = () => {
   try {
     for (const job of jobs) {
       let mine = 0;
-      const r = await scanJob(job, (bgr, w, h) => rt.detect(bgr, w, h), {
+      const clip = clips.find((c) => c.clipId === job.id);
+      const info = await probeVideo(job.path, signal);
+      const plan = samplePlan(info, job.start, job.end);
+      await verifyConstantSourceClock(job.path, info, plan, signal);
+      const input = (0, import_sharedAiFaces4.faceInput)(projectId, clip.rid, plan, info.fps, "podcast-faces-" + crypto.randomUUID());
+      const shared = await detectShared(sdk, dir, input, info, progress, signal, options);
+      const observed = (0, import_sharedAiFaces4.adaptSamples)(shared.samples, input, info, plan);
+      const r = await scanProbed(job, info, plan, {
         workDir,
         signal,
+        sharedSamples: observed,
         onFrame: (n) => {
           mine = n;
           const pct = Math.min(99, Math.floor((done + n) / total * 100));
           if (pct !== shown) {
             shown = pct;
-            progress("Finding the speaker\u2026 " + pct + "%");
+            progress("Tracking shots and source color\u2026 " + pct + "%");
           }
         }
-      }).catch((e) => {
-        if (signal && signal.aborted) throw e;
-        return { id: job.id, error: String(e && e.message || e) };
       });
       done += mine;
       results.push(r);
@@ -1655,7 +1475,7 @@ async function trackFaces(rt, dir, clips, fps, progress = () => {
     }
   }
   const frames = done;
-  await fs().writeFile(fs().join(dir, "faces.json"), J({ jobs: results, engine: "yunet-onnxruntime-web " + rt.info.ort, frames, ms: Date.now() - t0 }));
+  await fs().writeFile(fs().join(dir, "faces.json"), J({ jobs: results, engine: "selects.ai/selects-ai-runtime faces.detect", frames, ms: Date.now() - t0 }));
   for (const j of results) if ("width" in j) out[Number(j.id)] = { W: j.width, H: j.height, shots: j.shots, color: j.color || null };
   const failed = results.filter((j) => j.error && j.error !== "cannot open source");
   if (failed.length === results.length) throw new Error("Face tracking failed: " + failed[0].error);
@@ -4223,8 +4043,7 @@ async function loadJob(reelId) {
   }
 }
 function preflight() {
-  const v = hostVersion();
-  if (v && versionBelow(v, "2.0.512")) throw new Error("This needs Selects 2.0.512 or later (this is " + v + ").");
+  requireSharedAiHost();
   mediaGeneration();
 }
 async function makeReel(sdk, ctx, opts, onStep) {
@@ -4273,10 +4092,10 @@ async function rebuildReel(sdk, reelId, onStep, opts = {}) {
   await stripReel(sdk, reelId, job.projectId, jobDir(reelId));
   const reel = await readReel(sdk, job.projectId, reelId);
   onStep("draft", "done", (reel.endFrame / reel.fps).toFixed(1) + " s");
-  const notes = await build(sdk, job, reel, onStep, opts);
+  const notes = await build(sdk, job, reel, onStep, opts, true);
   return { reelId, name: job.name, notes, seconds: (Date.now() - t0) / 1e3, credits: job.brollCredits };
 }
-async function build(sdk, job, reel, onStep, opts) {
+async function build(sdk, job, reel, onStep, opts, retryTerminalFaces = false) {
   const pid = job.projectId;
   const dir = jobDir(job.reelId);
   const notes = [];
@@ -4343,9 +4162,8 @@ async function build(sdk, job, reel, onStep, opts) {
   let faces = job.faces;
   if (!faces || !Object.keys(faces).length || Object.values(faces).some((f) => f.color === void 0)) {
     try {
-      const rt = await ensureFaceRuntime(say("faces"));
       onStep("faces", "run", "Finding the speaker\u2026");
-      faces = await trackFaces(rt, dir, reel.clips, reel.fps, say("faces"));
+      faces = await trackFaces(sdk, pid, dir, reel.clips, reel.fps, say("faces"), void 0, { retryTerminal: retryTerminalFaces });
       job.faces = faces;
       await saveJob(job);
     } catch (e) {
@@ -4393,8 +4211,8 @@ async function build(sdk, job, reel, onStep, opts) {
   onStep("titles", "run", picks.broll ? "Waiting for B-roll\u2026" : "Adding titles and captions\u2026");
   let brollPaths = await Promise.all(brollJobs);
   if (brollPaths.some(Boolean) && !brollPaths.every(Boolean)) {
-    const one2 = brollPaths.find(Boolean);
-    brollPaths = brollPaths.map((p) => p || one2);
+    const one = brollPaths.find(Boolean);
+    brollPaths = brollPaths.map((p) => p || one);
   }
   let brolls = [];
   if (brollPaths.length && brollPaths.every(Boolean)) {
@@ -4445,6 +4263,67 @@ async function build(sdk, job, reel, onStep, opts) {
   return notes;
 }
 
+// src/FaceStage.tsx
+import React2, { useEffect, useRef, useState } from "react";
+function FaceStage({ sdk, context, ui: U }) {
+  const [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [error, setError] = useState("");
+  const scope = useRef(null), active = useRef(null), running = useRef(false);
+  const projectId = context?.projectId, sequenceId = context?.sequenceId;
+  const dir = () => fs().join(dataRoot(), "face-passes", projectId, sequenceId);
+  useEffect(() => {
+    const token = { projectId, sequenceId };
+    scope.current = token;
+    running.current = false;
+    setBusy(false);
+    setMessage("");
+    setError("");
+    return () => {
+      if (scope.current === token) scope.current = null;
+      active.current?.abort();
+    };
+  }, [projectId, sequenceId]);
+  const run = async (fresh = false) => {
+    if (running.current || !projectId || !sequenceId) return;
+    running.current = true;
+    const token = scope.current, ac = new AbortController();
+    active.current = ac;
+    const current = () => scope.current === token;
+    setBusy(true);
+    setError("");
+    try {
+      requireSharedAiHost();
+      const folder = dir();
+      fs().mkdirSync(folder, { recursive: true });
+      if (fresh) await newFacePass(folder, ac.signal);
+      const reel = await readReel(sdk, projectId, sequenceId);
+      if (!reel.clips.some((c) => c.path && c.srcStart >= 0)) throw new Error("This Draft has no direct video Main clip with a known source in-point. Analyze its transcript first.");
+      const faces = await trackFaces(sdk, projectId, folder, reel.clips, reel.fps, (s) => current() && setMessage(s), ac.signal);
+      const shots = reelShots(1080, 1920, reel.fps, reel.clips, faces);
+      if (current()) setMessage("Face pass complete: " + shots.filter((s) => s.face).length + "/" + shots.length + " shots have a speaker. Shot tracking, source color and framing results are saved. No Draft edits were committed.");
+    } catch (e) {
+      if (current()) setError(String(e?.message || e));
+    } finally {
+      if (active.current === ac) active.current = null;
+      if (current()) {
+        running.current = false;
+        setBusy(false);
+      }
+    }
+  };
+  const cancel = async () => {
+    const token = scope.current;
+    try {
+      requireSharedAiHost();
+      await cancelFaceJobs(sdk, dir(), projectId);
+      if (scope.current === token) setMessage("Saved face jobs canceled. Start a new face pass to retry.");
+    } catch (e) {
+      if (scope.current === token) setError(String(e?.message || e));
+    }
+  };
+  if (!U) return null;
+  return /* @__PURE__ */ React2.createElement(U.Section, { title: "Shared face tracking" }, /* @__PURE__ */ React2.createElement(U.Stack, { gap: 8 }, /* @__PURE__ */ React2.createElement(U.Message, null, "Run only the existing face, shot and source-color stage on this Draft. It uses the installed shared AI runtime and does not generate paid media. Closing the panel detaches observation; recover the same saved pass when reopening."), /* @__PURE__ */ React2.createElement(U.Actions, null, /* @__PURE__ */ React2.createElement(U.Button, { disabled: busy || !projectId || !sequenceId, busy, onClick: () => run(false) }, "Run or recover face pass"), /* @__PURE__ */ React2.createElement(U.Button, { variant: "secondary", disabled: busy || !projectId || !sequenceId, onClick: () => run(true) }, "Start new face pass"), /* @__PURE__ */ React2.createElement(U.Button, { variant: "secondary", disabled: !projectId || !sequenceId, onClick: cancel }, "Cancel saved face jobs")), message && /* @__PURE__ */ React2.createElement(U.Message, null, message), error && /* @__PURE__ */ React2.createElement(U.Message, { tone: "destructive" }, error)));
+}
+
 // src/Panel.tsx
 var readStore = (k) => {
   try {
@@ -4461,19 +4340,19 @@ var writeStore = (k, v) => {
   }
 };
 var STORE = "podcast-hook-captions:v2:";
-function PodcastHookReel({ sdk, context }) {
-  const [seconds, setSeconds] = useState(25);
-  const [hint, setHint] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [steps, setSteps] = useState(STEPS.map(([id, label]) => ({ id, label, state: "wait" })));
-  const [result, setResult] = useState(null);
-  const [clock, setClock] = useState(0);
-  const [isReel, setIsReel] = useState(false);
-  const [genBroll, setGenBroll] = useState(() => readStore(STORE + "genBroll") === "1");
-  const alive = useRef(true);
-  useEffect(() => () => void (alive.current = false), []);
-  useEffect(() => {
+function PodcastHookReel({ sdk, context, ui }) {
+  const [seconds, setSeconds] = useState2(25);
+  const [hint, setHint] = useState2("");
+  const [busy, setBusy] = useState2(false);
+  const [error, setError] = useState2("");
+  const [steps, setSteps] = useState2(STEPS.map(([id, label]) => ({ id, label, state: "wait" })));
+  const [result, setResult] = useState2(null);
+  const [clock, setClock] = useState2(0);
+  const [isReel, setIsReel] = useState2(false);
+  const [genBroll, setGenBroll] = useState2(() => readStore(STORE + "genBroll") === "1");
+  const alive = useRef2(true);
+  useEffect2(() => () => void (alive.current = false), []);
+  useEffect2(() => {
     try {
       setResult(JSON.parse(localStorage.getItem(STORE + context?.sequenceId) || "null"));
     } catch {
@@ -4484,7 +4363,7 @@ function PodcastHookReel({ sdk, context }) {
     if (context?.sequenceId) loadJob(context.sequenceId).then((j) => alive.current && setIsReel(!!j)).catch(() => {
     });
   }, [context?.sequenceId]);
-  useEffect(() => {
+  useEffect2(() => {
     if (!busy) return;
     const t0 = Date.now();
     const id = setInterval(() => alive.current && setClock(Math.round((Date.now() - t0) / 1e3)), 1e3);
@@ -4535,7 +4414,7 @@ function PodcastHookReel({ sdk, context }) {
     await sdk.runScript({ summary: "Open the reel", script: "return await selects.editor.openDraft(" + JSON.stringify(result.reelId) + ");" });
   };
   const icon = (s) => s === "done" ? "\u2713" : s === "run" ? "\u2026" : s === "fail" ? "!" : s === "skip" ? "\u2013" : "\xB7";
-  return /* @__PURE__ */ React2.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React2.createElement("div", null, /* @__PURE__ */ React2.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Podcast reel, one click"), /* @__PURE__ */ React2.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "Turns this podcast Draft into a new 9:16 reel: the strongest moment, face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.")), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React2.createElement("span", null, "Reel length: ", seconds, " s"), /* @__PURE__ */ React2.createElement("input", { type: "range", min: 18, max: 40, step: 1, value: seconds, disabled: busy, onChange: (e) => setSeconds(Number(e.target.value)) })), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React2.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. use the part about dopamine", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React2.createElement(
+  return /* @__PURE__ */ React3.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React3.createElement(FaceStage, { sdk, context, ui }), /* @__PURE__ */ React3.createElement("div", null, /* @__PURE__ */ React3.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Podcast reel, one click"), /* @__PURE__ */ React3.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "Turns this podcast Draft into a new 9:16 reel: the strongest moment, face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.")), /* @__PURE__ */ React3.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React3.createElement("span", null, "Reel length: ", seconds, " s"), /* @__PURE__ */ React3.createElement("input", { type: "range", min: 18, max: 40, step: 1, value: seconds, disabled: busy, onChange: (e) => setSeconds(Number(e.target.value)) })), /* @__PURE__ */ React3.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React3.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React3.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. use the part about dopamine", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React3.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React3.createElement(
     "input",
     {
       type: "checkbox",
@@ -4546,7 +4425,7 @@ function PodcastHookReel({ sdk, context }) {
         writeStore(STORE + "genBroll", e.target.checked ? "1" : "");
       }
     }
-  ), /* @__PURE__ */ React2.createElement("span", null, "B-roll comes from stock footage. If this Selects version has no stock search, generate it with AI instead (4-12 minutes and about $2 per reel).")), isReel && /* @__PURE__ */ React2.createElement("button", { onClick: () => make(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild this reel"), /* @__PURE__ */ React2.createElement("button", { onClick: () => make(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the reel\u2026 " + clock + " s" : result ? "Make another reel" : "Make reel"), (busy || steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React2.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, steps.map((s) => /* @__PURE__ */ React2.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React2.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React2.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React2.createElement("span", { style: { color: "var(--panel-muted-fg)" } }, " \u2014 ", s.note) : null)))), error && /* @__PURE__ */ React2.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, error), result && !busy && /* @__PURE__ */ React2.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React2.createElement("div", null, "Made \u201C", result.name, "\u201D in ", Math.round(result.seconds), " s."), result.credits?.length ? /* @__PURE__ */ React2.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "B-roll:", " ", result.credits.map((c, i) => /* @__PURE__ */ React2.createElement(React2.Fragment, { key: i }, i ? ", " : "", /* @__PURE__ */ React2.createElement("a", { href: c.url, target: "_blank", rel: "noreferrer" }, c.credit), c.service ? " (" + c.service + ")" : ""))) : null, result.notes?.length ? /* @__PURE__ */ React2.createElement("ul", { style: { margin: 0, paddingLeft: 18, color: "var(--panel-muted-fg)" } }, result.notes.map((n, i) => /* @__PURE__ */ React2.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React2.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the reel")));
+  ), /* @__PURE__ */ React3.createElement("span", null, "B-roll comes from stock footage. If this Selects version has no stock search, generate it with AI instead (4-12 minutes and about $2 per reel).")), isReel && /* @__PURE__ */ React3.createElement("button", { onClick: () => make(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild this reel"), /* @__PURE__ */ React3.createElement("button", { onClick: () => make(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the reel\u2026 " + clock + " s" : result ? "Make another reel" : "Make reel"), (busy || steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React3.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, steps.map((s) => /* @__PURE__ */ React3.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React3.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React3.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React3.createElement("span", { style: { color: "var(--panel-muted-fg)" } }, " \u2014 ", s.note) : null)))), error && /* @__PURE__ */ React3.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, error), result && !busy && /* @__PURE__ */ React3.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React3.createElement("div", null, "Made \u201C", result.name, "\u201D in ", Math.round(result.seconds), " s."), result.credits?.length ? /* @__PURE__ */ React3.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "B-roll:", " ", result.credits.map((c, i) => /* @__PURE__ */ React3.createElement(React3.Fragment, { key: i }, i ? ", " : "", /* @__PURE__ */ React3.createElement("a", { href: c.url, target: "_blank", rel: "noreferrer" }, c.credit), c.service ? " (" + c.service + ")" : ""))) : null, result.notes?.length ? /* @__PURE__ */ React3.createElement("ul", { style: { margin: 0, paddingLeft: 18, color: "var(--panel-muted-fg)" } }, result.notes.map((n, i) => /* @__PURE__ */ React3.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React3.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the reel")));
 }
 export {
   PodcastHookReel as default

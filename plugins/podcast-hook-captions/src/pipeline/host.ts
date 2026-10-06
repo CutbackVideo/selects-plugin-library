@@ -6,6 +6,7 @@ export const PANEL_ID = "podcast-hook-captions";
 
 export type Sdk = {
   runScript: (o: { script: string; summary: string; allowCommit?: boolean }) => Promise<{ isError: boolean; output: string; result?: any }>;
+  call: (method: string, ...args: any[]) => Promise<any>;
   askAI: (o: { prompt: string; timeoutMs?: number }) => Promise<{ text: string }>;
 };
 
@@ -56,6 +57,13 @@ export function versionBelow(version: string, minimum: string): boolean {
   const b = minimum.split(".").map((n) => parseInt(n, 10) || 0);
   for (let i = 0; i < 3; i += 1) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
   return false;
+}
+
+export function requireSharedAiHost(): void {
+  const version = hostVersion();
+  if (!/^\d+\.\d+\.\d+$/.test(version) || versionBelow(version, "2.0.560")) {
+    throw new Error("Shared face tracking needs Selects 2.0.560 or later" + (version ? " (this is " + version + ")" : "") + ".");
+  }
 }
 
 export const J = (v: any) => JSON.stringify(v);
