@@ -67,7 +67,7 @@ class VlogOpeningWindowsTest(unittest.TestCase):
         self.assertIn('hostRoots(sdk, PLUGIN_DIR, "assets/" + CUES[0].file)', body)
         self.assertIn('hostJoin(plugin, "assets", cue.file)', body)
         self.assertIn('".selects", "panels", PLUGIN_DIR, "assets", cue.file', body)
-        self.assertIn("existsSync", body)
+        self.assertIn("exists", body)
         self.assertIn("NEEDS_NEWER_SELECTS", body)
 
     def test_palette_and_preview_use_host_ffmpeg(self):

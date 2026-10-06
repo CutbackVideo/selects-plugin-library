@@ -65,7 +65,7 @@ class ThankYouRecapWindowsTest(unittest.TestCase):
     def test_assets_are_staged_through_the_host_before_the_draft(self):
         stage = function_body(self.runtime, "async function stageAssets(")
         for part in ("hostRoots(sdk, PLUGIN_ID, YEAR_FONTS_FILE)", "hostReadBytes(", 'digest("SHA-256"',
-                     "writeFile(", "renameSync(", "hostReadText(", "JSON.parse("):
+                     "writeFile(", "rename(", "hostReadText(", "JSON.parse("):
             self.assertIn(part, stage, part)
         build = self.runtime[self.runtime.index("async function buildRecap("): self.runtime.index("const TEMPLATE_FAILED")]
         self.assertLess(build.index("stageAssets(sdk)"), build.index("createDraft("), "assets before the Draft")

@@ -477,16 +477,16 @@ export async function writeLocalDiagnostic(sdk, event) {
     jobId: event.jobId || null, generationId: event.generationId || null,
   };
   // Host FileSystem, no shell or Python, so it works on Windows too: <home>/.selects/logs, beside the panels root.
-  const fs = (window.parent as any).__DI__?.FileSystem;
-  if (!fs?.join || !fs?.homedir || !fs?.mkdirSync || !fs?.existsSync || !fs?.readFileSync || !fs?.writeFile || !fs?.renameSync)
-    throw new Error("Local diagnostic write failed");
+  const fs = sdk.files;
+  if (!fs?.join || !fs?.homedir || !fs?.mkdir || !fs?.exists || !fs?.readFile || !fs?.writeFile || !fs?.rename)
+    throw new Error("Update Selects to use local media.");
   const dir = fs.join(fs.homedir(), ".selects", "logs"), p = fs.join(dir, "multicam-generator.jsonl");
-  fs.mkdirSync(dir, {recursive:true});
+  (await fs.mkdir(dir, {recursive:true}));
   let prior = new Uint8Array(0);
-  if (fs.existsSync(p)) {
-    const raw = fs.readFileSync(p);
+  if ((await fs.exists(p))) {
+    const raw = (await fs.readFile(p));
     prior = typeof raw === "string" ? new TextEncoder().encode(raw) : new Uint8Array(raw);
-    if (prior.length > 1048576) { fs.renameSync(p, fs.join(dir, "multicam-generator.previous.jsonl")); prior = new Uint8Array(0); }
+    if (prior.length > 1048576) { (await fs.rename(p, fs.join(dir, "multicam-generator.previous.jsonl"))); prior = new Uint8Array(0); }
   }
   const line = new TextEncoder().encode(JSON.stringify(entry) + "\n"), out = new Uint8Array(prior.length + line.length);
   out.set(prior); out.set(line, prior.length);
@@ -572,16 +572,14 @@ const LABELS = {
   review: "Ready to add to your draft.",
   placed: "Added above the original clip.",
 };
-export async function prepareMedia(args) {
-  const di = (window.parent as any).__DI__,
-    runtime = di?.Runtime,
-    fs = di?.FileSystem;
+export async function prepareMedia(sdk, args) {
+  const runtime = sdk.media, fs = sdk.files;
   if (
     typeof runtime?.runFFmpeg !== "function" ||
     typeof runtime?.runFFprobe !== "function" ||
-    typeof fs?.mkdirSync !== "function"
+    typeof fs?.mkdir !== "function"
   )
-    throw new Error("media_tools");
+    throw new Error("Update Selects to use local media.");
   if (
     !fs.isAbsolute(args.path) ||
     !fs.isAbsolute(args.output) ||
@@ -604,7 +602,7 @@ export async function prepareMedia(args) {
     if (!video) throw new Error("media_processing");
     const duration = Number(video.duration || meta.format?.duration);
     const temporary = args.output + ".partial.mp4";
-    fs.mkdirSync(fs.dirname(args.output), { recursive: true });
+    (await fs.mkdir(fs.dirname(args.output), { recursive: true }));
     let command;
     if (args.action === "prepare") {
       if (
@@ -699,7 +697,7 @@ export async function prepareMedia(args) {
         throw new Error("media_processing");
     } else if (Number(v.nb_frames) !== args.frames)
       throw new Error("result_timing");
-    fs.renameSync(temporary, args.output);
+    (await fs.rename(temporary, args.output));
     return { path: args.output };
   } finally {
     clearTimeout(timer);
@@ -707,10 +705,10 @@ export async function prepareMedia(args) {
 }
 
 // Extract the same source interval; do not stretch speech or infer it from text.
-export async function prepareSpeech(plan, output) {
-  const di = (window.parent as any).__DI__, runtime = di?.Runtime, fs = di?.FileSystem;
-  if (!runtime?.runFFmpeg || !runtime?.runFFprobe || !fs?.mkdirSync)
-    throw new Error("media_tools");
+export async function prepareSpeech(sdk, plan, output) {
+  const runtime = sdk.media, fs = sdk.files;
+  if (!runtime?.runFFmpeg || !runtime?.runFFprobe || !fs?.mkdir)
+    throw new Error("Update Selects to use local media.");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
   try {
@@ -720,7 +718,7 @@ export async function prepareSpeech(plan, output) {
     const source = await probe(plan.path);
     if (!source.streams?.some((x) => x.codec_type === "audio"))
       throw new Error("source_audio_missing");
-    fs.mkdirSync(fs.dirname(output), { recursive: true });
+    (await fs.mkdir(fs.dirname(output), { recursive: true }));
     const tmp = output + ".partial.wav";
     await runtime.runFFmpeg([
       "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
@@ -732,7 +730,7 @@ export async function prepareSpeech(plan, output) {
     const meta = await probe(tmp), audio = meta.streams?.find((x) => x.codec_type === "audio");
     if (!audio || Math.abs(Number(audio.duration || meta.format?.duration) - plan.durationSeconds) > 0.02)
       throw new Error("source_audio_missing");
-    fs.renameSync(tmp, output);
+    (await fs.rename(tmp, output));
     return output;
   } finally { clearTimeout(timer); }
 }
@@ -756,12 +754,12 @@ export function analysisPrompt(plan) {
 // Build the inspection contact sheet from ORIGINAL pixels. No analysis, no credits:
 // the same ffmpeg extraction that prepareReference() uses, tiled into one image so
 // the AI inspects exactly the frames the generation model will receive.
-export async function buildInspectionSheet(plan, jobId) {
-  const di = (window.parent as any).__DI__, fs = di?.FileSystem, runtime = di?.Runtime;
-  if (!runtime?.runFFmpeg || !fs?.mkdirSync || !fs?.readFileSync || !fs?.join || !fs?.homedir)
-    throw new Error("media_tools");
+export async function buildInspectionSheet(sdk, plan, jobId) {
+  const fs = sdk.files, runtime = sdk.media;
+  if (!runtime?.runFFmpeg || !fs?.mkdir || !fs?.readFile || !fs?.join || !fs?.homedir)
+    throw new Error("Update Selects to use local media.");
   const dir = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", String(jobId), "inspect");
-  fs.mkdirSync(dir, {recursive:true});
+  (await fs.mkdir(dir, {recursive:true}));
   const times = referenceTimes(plan);
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 120000);
   try {
@@ -774,7 +772,7 @@ export async function buildInspectionSheet(plan, jobId) {
     await runtime.runFFmpeg(["-hide_banner","-loglevel","error","-nostdin","-y",
       "-start_number","0","-i", fs.join(dir, "insp%d.jpg"),
       "-vf","tile=4x2:padding=6:color=black","-frames:v","1","-q:v","4", sheet], true, controller.signal);
-    const raw = fs.readFileSync(sheet);
+    const raw = (await fs.readFile(sheet));
     const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
     if (!u8.length) throw new Error("analysis_failed");
     let bin = "";
@@ -786,15 +784,15 @@ export async function buildInspectionSheet(plan, jobId) {
 }
 
 // Extract only original pixels. No generated face reference or assumed crop.
-export async function prepareReference(plan, index, output) {
-  const di = (window.parent as any).__DI__, fs = di?.FileSystem, runtime = di?.Runtime;
-  if (!runtime?.runFFmpeg || !runtime?.runFFprobe || !fs?.renameSync || !fs?.mkdirSync)
-    throw new Error("media_tools");
+export async function prepareReference(sdk, plan, index, output) {
+  const fs = sdk.files, runtime = sdk.media;
+  if (!runtime?.runFFmpeg || !runtime?.runFFprobe || !fs?.rename || !fs?.mkdir)
+    throw new Error("Update Selects to use local media.");
   if (!Number.isInteger(index) || index < 0 || index > 6 || !fs.isAbsolute(output))
     throw new Error("identity_reference_missing");
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 60000);
   try {
-    fs.mkdirSync(fs.dirname(output), {recursive:true});
+    (await fs.mkdir(fs.dirname(output), {recursive:true}));
     const tmp = output + ".partial.jpg";
     await runtime.runFFmpeg(["-hide_banner","-loglevel","error","-nostdin","-y",
       "-ss",String(referenceTimes(plan)[index]),"-i",plan.path,"-map","0:v:0",
@@ -805,7 +803,7 @@ export async function prepareReference(plan, index, output) {
     const v = meta.streams?.find(x => x.codec_type === "video");
     if (!v || v.width < 300 || v.height < 300 || v.width / v.height > 2.5 || v.width / v.height < .4 || Number(meta.format?.size) > 10485760)
       throw new Error("identity_reference_missing");
-    fs.renameSync(tmp,output);
+    (await fs.rename(tmp,output));
     return output;
   } finally { clearTimeout(timer); }
 }
@@ -1156,14 +1154,14 @@ export async function placeDirect(plan, resourceId) {
 
 // Media elements stay in the host document so local-media URLs obey its CSP.
 // Only decoded pixels are drawn into the panel; no remote preview upload.
-function Comparison({job,onReady}) {
+function Comparison({sdk,job,onReady}) {
   const language = React.useContext(UILanguage);
   const left = useRef(null), right = useRef(null), control = useRef(null);
   const [loaded,setLoaded] = useState(false), [playing,setPlaying] = useState(false);
   const [time,setTime] = useState(0), [error,setError] = useState("");
   useEffect(() => {
     let dead = false, raf = 0;
-    const app = window.parent as any, fs = app.__DI__?.FileSystem;
+    const app = window.parent as any, fs = sdk.files;
     const original = app.document.createElement("video"), result = app.document.createElement("video"), speech = app.document.createElement("audio");
     const nodes = [original,result,speech];
     const duration = job.plan.durationSeconds;
@@ -1201,18 +1199,22 @@ function Comparison({job,onReady}) {
         } catch {pause(); if (!dead) setError("Playback could not start. Use the frame slider to inspect the comparison.");}
       }
     };
-    const load = (node,path) => new Promise((resolve,reject) => {
+    const load = async (node,path) => {
+      const url = await fs.pathToLocalURL(path);
+      if (dead) return;
+      return new Promise((resolve,reject) => {
       node.crossOrigin = "anonymous"; node.preload = "auto";
       const timer = setTimeout(() => reject(new Error("Preview timed out.")),20000);
       node.onloadeddata = () => {clearTimeout(timer);resolve(true);};
       node.onerror = () => {clearTimeout(timer);reject(new Error("Could not load the local comparison."));};
       node.onseeked = paint;
-      node.src = fs.pathToLocalURL(path); node.load();
-    });
+      node.src = url; node.load();
+      });
+    };
     original.muted = true; result.muted = true;
     original.onended = pause;
     const sourcePath = fs?.join(fs.homedir(),".selects","plugin-data","multicam-generator","jobs",job.id,"source.mp4");
-    if (!fs?.pathToLocalURL) setError("Review is available in the editor panel. Close this detached window and reopen Multicam Generator in the editor.");
+    if (!fs?.pathToLocalURL) setError("Update Selects to use local media.");
     else if (!job.outputPath || !job.audioPath) setError("Comparison files are unavailable. Do not add without inspecting the generated resource.");
     else Promise.all([load(original,sourcePath),load(result,job.outputPath),load(speech,job.audioPath)])
       .then(() => {if (!dead) {paint();setLoaded(true);onReady(true);}})
@@ -1384,7 +1386,7 @@ function Session({ sdk, context }) {
       if (!current()) throw new Error("context_changed");
       report(LABELS[j.phase] || "Checking your generation…");
       if (j.phase === "new") {
-        const sheet = await buildInspectionSheet(j.plan, j.id);
+        const sheet = await buildInspectionSheet(sdk, j.plan, j.id);
         const result = await retryRead(() => ai(analysisPrompt(j.plan), [sheet]), current);
         if (result?.error) throw new Error(["identity_reference_missing","single_person_required"].includes(result.error) ? result.error : "analysis_failed");
         const o = result?.observation;
@@ -1494,16 +1496,16 @@ function Session({ sdk, context }) {
         }
         }
         if (!j.audioResourceId) {
-          const fs = (window.parent as any).__DI__?.FileSystem;
+          const fs = sdk.files;
           if (!fs?.join || !fs?.homedir) throw new Error("unavailable");
           const audioPath = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", j.id, "speech.wav");
           report("Prepare source speech…");
-          await prepareSpeech(j.plan, audioPath);
+          await prepareSpeech(sdk, j.plan, audioPath);
           const audioResourceId = await importPath(j, audioPath);
           j = {...j, audioResourceId, audioPath}; save(j);
         }
         if (!j.inputResourceId) {
-          const fs = (window.parent as any).__DI__?.FileSystem;
+          const fs = sdk.files;
           if (!fs?.homedir || !fs?.join) throw new Error("unavailable");
           const inputPath = fs.join(
             fs.homedir(),
@@ -1515,7 +1517,7 @@ function Session({ sdk, context }) {
             "source.mp4",
           );
           report("Prepare source video…");
-          await prepareMedia({
+          await prepareMedia(sdk, {
             action: "prepare",
             path: j.plan.path,
             output: inputPath,
@@ -1530,10 +1532,10 @@ function Session({ sdk, context }) {
         }
         for (let n = 0; n < (jobModel(j).key === "omni11" ? 0 : 3); n++) {
           if (!j.referenceResourceIds?.[n]) {
-            const fs = (window.parent as any).__DI__?.FileSystem;
+            const fs = sdk.files;
             const path = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", j.id, `identity-${n}.jpg`);
             report(`Prepare person reference ${n + 1}/3…`);
-            await prepareReference(j.plan, j.referenceIndexes[n], path);
+            await prepareReference(sdk, j.plan, j.referenceIndexes[n], path);
             const id = await importPath(j, path);
             const ids = [...(j.referenceResourceIds || [])]; ids[n] = id;
             j = {...j, referenceResourceIds:ids}; save(j);
@@ -1651,9 +1653,9 @@ function Session({ sdk, context }) {
         if (!j.lipModelId || !j.audioResourceId) throw new Error("lipsync_unavailable");
         if (!j.lipVideoResourceId) {
           const media = await resolveResource(j, j.generatedResourceId);
-          const fs = (window.parent as any).__DI__?.FileSystem;
+          const fs = sdk.files;
           const path = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", j.id, "angle.mp4");
-          await prepareMedia({path:media.path, output:path, fps:j.plan.fps, frames:j.plan.endFrame-j.plan.startFrame,allowTailHold:jobModel(j).key.startsWith("seedance")});
+          await prepareMedia(sdk, {path:media.path, output:path, fps:j.plan.fps, frames:j.plan.endFrame-j.plan.startFrame,allowTailHold:jobModel(j).key.startsWith("seedance")});
           const lipVideoResourceId = await importPath(j, path);
           j = {...j, lipVideoResourceId, angleResourceId:j.generatedResourceId}; save(j);
         }
@@ -1672,7 +1674,7 @@ function Session({ sdk, context }) {
       } else if (j.phase === "ready") {
         await assertSource(j);
         const media = await resolveResource(j, j.generatedResourceId);
-        const fs = (window.parent as any).__DI__?.FileSystem;
+        const fs = sdk.files;
         if (typeof fs?.getOrCreateTmpDirPath !== "function")
           throw new Error("unavailable");
         const outputPath = fs.join(
@@ -1690,7 +1692,7 @@ function Session({ sdk, context }) {
           fps: j.plan.fps,
           frames: j.plan.endFrame - j.plan.startFrame,
         };
-        await prepareMedia(args);
+        await prepareMedia(sdk, args);
         j = { ...j, outputPath, phase: "conformed" };
         save(j);
       } else if (j.phase === "conformed") {

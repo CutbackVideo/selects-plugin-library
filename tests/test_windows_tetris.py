@@ -29,12 +29,10 @@ class TetrisWindowsTest(unittest.TestCase):
     def setUp(self):
         self.source = read(PANEL)
 
-    def test_platform_is_decided_once(self):
-        self.assertRegex(self.source, r"(?m)^const IS_WINDOWS = ")
-        decl = self.source[self.source.index("const IS_WINDOWS = "):]
-        decl = decl[: decl.index("})();")]
-        self.assertIn("getPlatform", decl)
-        self.assertIn("Windows NT", decl)
+    def test_platform_comes_from_initialized_sdk(self):
+        self.assertIn('IS_WINDOWS = /^win/i.test(sdk.environment.platform)', self.source)
+        self.assertNotIn('getPlatform', self.source)
+        self.assertNotIn('__DI__', self.source)
 
     def test_connect_returns_before_any_shell_on_windows(self):
         body = block(self.source, "const connect = React.useCallback(")

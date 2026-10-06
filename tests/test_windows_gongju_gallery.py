@@ -17,7 +17,7 @@ PANEL = os.environ.get("GONGJU_GALLERY_PANEL") or os.path.join(PLUGIN, "panel.ts
 AV_HOST = re.compile(r"// av-host:start\n.*?// av-host:end\n", re.S)
 MAC_ONLY = re.compile(r"// mac-only:start\n.*?// mac-only:end\n", re.S)
 HOST_FUNCTIONS = [
-    "hostError", "hostDI", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes", "hostReadBytes",
+    "hostError", "hostUseSdk", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes", "hostReadBytes",
     "hostReadText", "hostRemove", "hostRoots", "hostDecodePcm", "hostProbeSeconds",
 ]
 FORBIDDEN = [
@@ -67,7 +67,7 @@ class GongjuGalleryWindowsTest(unittest.TestCase):
 
     def test_crops_run_through_the_host_before_any_project_change(self):
         crop = body_of(self.runtime, "async function cropShots(")
-        for part in ('hostNeed("Runtime", "runFFmpeg")', "hostRoots(", "hostJoin(roots.data", "mkdirSync(",
+        for part in ('hostNeed("Runtime", "runFFmpeg")', "hostRoots(", "hostJoin(roots.data", "mkdir(",
                      "hostJoin(roots.plugin, \"assets\", MUSIC_NAME)", "crypto.subtle.digest", "hostReadBytes("):
             self.assertIn(part, self.runtime if part == "crypto.subtle.digest" else crop, part)
         self.assertNotIn("importFiles", crop)

@@ -1,3 +1,4 @@
+import { asyncSdk } from './windows_host.mjs';
 // Beat Cutout Gallery on Windows, end to end in a mock host: the panel's own Windows functions (winFrames,
 // winCutouts, the engine Worker) run against a fake window.parent.__DI__ built in another JavaScript realm, with
 // FileSystem over node fs, Runtime.runFFmpeg/runFFprobe over the local ffmpeg, and a MediaGeneration stub that
@@ -202,7 +203,7 @@ async function analyse(env, fns, name = 'beat-cutout-test') {
     return { result, frames, rejected, work };
   } finally {
     engine.stop();
-    fns.removeWork(work);
+    await fns.removeWork(work);
   }
 }
 
@@ -212,9 +213,9 @@ test('cloudProblem: Windows cutouts need MediaGeneration plug-in files and Selec
   const host = mockHost({ home: os.tmpdir() });
   const { fns } = await load(host);
   assert.equal(fns.cloudProblem(), '');
-  host.di.Runtime.getHostingVersion = () => '2.0.511';
+  fns.hostUseSdk({ ...asyncSdk(host.di), environment: { platform: 'win32', version: '2.0.511' } });
   assert.equal(fns.cloudProblem(), 'newer');
-  host.di.Runtime.getHostingVersion = () => '2.1.0';
+  fns.hostUseSdk({ ...asyncSdk(host.di), environment: { platform: 'win32', version: '2.1.0' } });
   assert.equal(fns.cloudProblem(), '');
   host.di.MediaGeneration.isAvailable = () => false;
   assert.equal(fns.cloudProblem(), 'noGeneration');

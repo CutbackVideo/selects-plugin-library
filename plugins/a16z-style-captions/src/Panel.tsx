@@ -1,3 +1,4 @@
+import { hostUseSdk } from "./pipeline/host";
 import React, { useEffect, useRef, useState } from "react";
 import { makeShort, rebuildShort, loadJob, STEPS, type Step, type MakeResult, type Options } from "./pipeline/make";
 
@@ -28,6 +29,7 @@ const setRun = (patch: Partial<RunState>) => {
 };
 
 export default function A16zShort({ sdk, context }: any) {
+  hostUseSdk(sdk);
   const [, force] = useState(0);
   useEffect(() => {
     const l = () => force((n) => n + 1);

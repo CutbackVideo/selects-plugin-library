@@ -46,7 +46,7 @@ export type GenRequest = {
 
 export async function submit(pid: string, r: GenRequest): Promise<string> {
   const mg = mediaGeneration();
-  fs().mkdirSync(r.folder, { recursive: true });
+  (await fs().mkdir(r.folder, { recursive: true }));
   const res = await mg.submit({
     scope: { libraryId: libraryId(), projectId: pid },
     key: r.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64),

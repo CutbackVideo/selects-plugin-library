@@ -178,6 +178,7 @@ const runtimeSetup=python=>[
  '"$PY" -c "import PIL, numpy, scipy"',
 ].join('\n');
 async function macRuntime(sdk,say){
+  hostUseSdk(sdk);
  const check=await sdk.runShell({summary:'Check the DOAC Style caption renderer',command:RUNTIME_CHECK,timeoutMs:60000,maxOutputBytes:4000});
  if(!check.isError&&check.exitCode===0&&/\bready\s*$/.test(check.stdout||''))return;
  say('Preparing (first run only)\u2026');
@@ -194,29 +195,33 @@ const FILE_ACCESS='Update Selects to enable caption file access.';
 // The installed package folder (it holds approved/), found once per panel load.
 let packageRoot=null;
 function doacRoot(sdk){
+  hostUseSdk(sdk);
  packageRoot??=hostRoots(sdk,'doac-style','approved').then(r=>r.plugin).catch(e=>{packageRoot=null;throw e?.code==='host-missing'?stepError('file-access',FILE_ACCESS):stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');});
  return packageRoot;
 }
 // Renderer code comes from the installed package, not an independently generated effect.
 async function rendererCode(sdk){
+  hostUseSdk(sdk);
  const root=await doacRoot(sdk);
  try{return await hostReadText(hostJoin(root,'approved','caption-scene.tsx.txt'));}
  catch(e){throw e?.code==='host-missing'?stepError('file-access',FILE_ACCESS):stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');}
 }
 // The bundled font ships base64-encoded; decode it next to the .b64 once.
 async function ensureFont(sdk){
+  hostUseSdk(sdk);
  const font=hostJoin(await doacRoot(sdk),'approved','native','fonts','permanentmarker','PermanentMarker-Regular.ttf');
- const f=hostApi('FileSystem','existsSync','writeFile');if(!f)throw stepError('file-access',FILE_ACCESS);
+ const f=hostApi('FileSystem',"exists",'writeFile');if(!f)throw stepError('file-access',FILE_ACCESS);
  // An empty file (an interrupted write) is decoded again; with renameSync the new file appears whole.
- const st=hostApi('FileSystem','statSync'),mv=hostApi('FileSystem','renameSync');
- if(f.existsSync(font)){let size=1;try{if(st)size=Number(st.statSync(font)?.size);}catch{}if(size>0)return;}
+ const st=hostApi('FileSystem',"stat"),mv=hostApi('FileSystem',"rename");
+ if((await f.exists(font))){let size=1;try{if(st)size=Number((await st.stat(font))?.size);}catch{}if(size>0)return;}
  const b64=(await hostReadText(font+'.b64')).replace(/\s+/g,'');
  const tmp=mv?font+'.part':font;
  await f.writeFile(tmp,Uint8Array.from(atob(b64),c=>c.charCodeAt(0)));
- if(mv)mv.renameSync(tmp,font);
+ if(mv)(await mv.rename(tmp,font));
 }
 let runtimeReady=null;
 function ensureRuntime(sdk,say=()=>{}){
+  hostUseSdk(sdk);
  runtimeReady??=(async()=>{if(hostIsWindows()){await panelEngineFiles(sdk);return;}await ensureFont(sdk);await macRuntime(sdk,say);})().catch(e=>{runtimeReady=null;throw e;});
  return runtimeReady;
 }
@@ -232,6 +237,7 @@ const WINDOWS_FONTS=['arial.ttf','arialbd.ttf','arialbi.ttf','ariblk.ttf','arial
 const fromBase64=s=>Uint8Array.from(atob(String(s).replace(/\s+/g,'')),c=>c.charCodeAt(0));
 let engineFiles=null;
 function panelEngineFiles(sdk){
+  hostUseSdk(sdk);
  engineFiles??=(async()=>{
   const root=await doacRoot(sdk),read=p=>hostReadText(hostJoin(root,'approved',...p.split('/')));
   const source=(await Promise.all(['web/pil.js','web/engine.js','web/worker.js'].map(read))).join('\n;\n');
@@ -239,11 +245,11 @@ function panelEngineFiles(sdk){
   const files={};for(const name of ENGINE_DATA)files[name]=await read(name);
   const fonts={'permanent-marker':fromBase64(await read('native/fonts/permanentmarker/PermanentMarker-Regular.ttf.b64'))};
   for(const w of ['Regular','Medium','Bold'])fonts['arimo:'+w]=fromBase64(await read('native/fonts/arimo/Arimo-'+w+'.ttf.b64'));
-  const fsx=hostApi('FileSystem','existsSync','homedir');
+  const fsx=hostApi('FileSystem',"exists",'homedir');
   const drives=['C:'];try{const d=/^([A-Za-z]:)/.exec(String(fsx?.homedir()||''));if(d&&d[1].toUpperCase()!=='C:')drives.unshift(d[1]);}catch{}
   for(const name of WINDOWS_FONTS)for(const drive of drives){
    // A copy, so the bytes belong to this window (the host's buffer is another realm's).
-   try{const p=hostJoin(drive+'\\','Windows','Fonts',name);if(fsx&&!fsx.existsSync(p))continue;fonts['windows:'+name]=(await hostReadBytes(p)).slice();break;}catch{}
+   try{const p=hostJoin(drive+'\\','Windows','Fonts',name);if(fsx&&!(await fsx.exists(p)))continue;fonts['windows:'+name]=(await hostReadBytes(p)).slice();break;}catch{}
   }
   return {source,wasm,files,fonts};
  })().catch(e=>{engineFiles=null;throw e?.code==='host-missing'||e?.code==='file-access'?stepError('file-access',FILE_ACCESS):stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');});
@@ -254,6 +260,7 @@ function panelEngineFiles(sdk){
 // are marked `refused`; a Worker that fails or runs out of time rejects with
 // RENDER_FAILED instead. `onProgress` gets the Worker's per-frame progress.
 async function panelEngine(sdk,request,onProgress){
+  hostUseSdk(sdk);
  const a=await panelEngineFiles(sdk);
  return await new Promise((resolve,reject)=>{
   let worker=null,url=null,timer=null;
@@ -273,38 +280,23 @@ async function panelEngine(sdk,request,onProgress){
 }
 function stepError(code,message){return Object.assign(Error(message),{code});}
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -335,34 +327,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -413,7 +388,8 @@ export function captionFit(frame){
 // records each job checkpoint (the panel keeps them so an interrupted save can
 // resume; a template run keeps them in memory only).
 function captionSteps({sdk,currentProject,onStatus,persist}){
- function fs(){const host=window.parent.opener||window.parent;const f=host.__DI__?.FileSystem;if(!f?.getOrCreateTmpDirPath||!f?.join||!f?.mkdirSync||!f?.writeFile||!f?.readFile)throw stepError('file-access','Update Selects to enable caption file access.');return f;}
+ hostUseSdk(sdk);
+ function fs(){const f=hostSdk.files;if(!f?.getOrCreateTmpDirPath||!f?.join||!f?.mkdir||!f?.writeFile||!f?.readFile)throw stepError('file-access','Update Selects to enable caption file access.');return f;}
  async function read(path){const b=await fs().readFile(path);return typeof b==='string'?b:new TextDecoder().decode(b);}
  async function run(script,summary,allowCommit=false){const r=await sdk.runScript({script,summary,allowCommit});if(r.isError||r.result==null)throw Error(r.output||'Could not confirm the save. Check the result draft before trying again.');return r.result;}
  // mac-only:start
@@ -422,14 +398,14 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  async function shell(args){await ensureRuntime(sdk);const r=await sdk.runShell({summary:'Compile approved captions',command:'"$SELECTS_USER_SKILLS_ROOT/doac-style/.runtime/bin/python3" "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/compile-captions.py" '+args,timeoutMs:300000,maxOutputBytes:48000});if(r.isError||r.exitCode!==0){const detail=(r.stderr||r.output||'').match(/(?:ValueError|AssertionError): ([^\n]+)/);throw stepError('render',detail?detail[1]:"The caption renderer could not complete this version. Check the DOAC Style installation, then try again.");}return r.stdout;}
  // mac-only:end
  function sameProject(j){if(currentProject()!==j.projectId)throw stepError('project-changed','Project changed. Return to the original project to continue.');}
- async function compile(j,scene){await ensureRuntime(sdk,onStatus);onStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/[\\/][^\\/]+$/,''),'revision-'+Date.now());f.mkdirSync(dir,{recursive:true});const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));if(hostIsWindows()){const m=await panelCompile(j,dir,scene);sameProject(j);return m;}const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
+ async function compile(j,scene){await ensureRuntime(sdk,onStatus);onStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/[\\/][^\\/]+$/,''),'revision-'+Date.now());(await f.mkdir(dir,{recursive:true}));const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));if(hostIsWindows()){const m=await panelCompile(j,dir,scene);sameProject(j);return m;}const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
  // Windows: the panel engine compiles, and its files are written where
  // compile-captions.py writes them (compiled/ next to job.json), so the rest of
  // the flow reads the same manifest and scene payloads.
  async function panelCompile(j,dir,scene){
   let shown=-1;const progress=p=>{if(scene==null&&p?.scene!=null&&p.scene!==shown){shown=p.scene;onStatus(`Preparing typography… scene ${p.scene+1} of ${p.total}`);}};
   const r=await panelEngine(sdk,{cmd:'compile',job:{input:j.input,editorial:j.editorial},only:scene==null?null:scene},progress);
-  const f=fs(),out=f.join(dir,'compiled'),num=i=>String(i).padStart(3,'0');f.mkdirSync(out,{recursive:true});
+  const f=fs(),out=f.join(dir,'compiled'),num=i=>String(i).padStart(3,'0');(await f.mkdir(out,{recursive:true}));
   const scenes=[];
   for(const s of r.scenes){const payload=f.join(out,'scene-'+num(s.scene.index)+'.json'),preview=f.join(out,'scene-'+num(s.scene.index)+'.png');await f.writeFile(payload,JSON.stringify(s.payload));await f.writeFile(preview,s.preview);scenes.push({...s.scene,payload,preview});}
   const m={scenes,records:r.records,placement:r.placement,words:r.words,frames:r.frames,fps:r.fps};
@@ -498,10 +474,10 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  if(!v.words.length)throw stepError('no-transcript','This draft needs a transcript. Analyze its footage in Selects, then create captions.');
  if(!anyAspect&&v.meta.frameSize.width/v.meta.frameSize.height!==1080/1920)throw stepError('not-vertical','This style needs a vertical 9:16 draft. Change the aspect ratio in Selects first.');
  if(v.clips.some(c=>c.trackKind==='video'&&c.resourceId===null))throw stepError('has-graphics','This draft already contains generated graphics. Open the original draft without captions.');
- await ensureRuntime(sdk,onStatus);const catalogue=hostIsWindows()?await panelEngine(sdk,{cmd:'catalogue'}):JSON.parse(await shell('catalogue'));const f=fs(),dir=f.join(f.getOrCreateTmpDirPath(),'approved-captions-'+Date.now());f.mkdirSync(dir,{recursive:true});
+ await ensureRuntime(sdk,onStatus);const catalogue=hostIsWindows()?await panelEngine(sdk,{cmd:'catalogue'}):JSON.parse(await shell('catalogue'));const f=fs(),dir=f.join((await f.getOrCreateTmpDirPath()),'approved-captions-'+Date.now());(await f.mkdir(dir,{recursive:true}));
  const input={fps:v.meta.fps,frames:Math.max(...v.clips.filter(c=>c.trackKind==='main').map(c=>c.endFrame)),words:v.words};
  onStatus('Designing the full caption edit…');
- const cachePath=f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+pid+'-'+cacheKey+'.json');
+ const cachePath=f.join((await f.getOrCreateTmpDirPath()),'doac-style-plan-'+PLAN_VERSION+'-'+pid+'-'+cacheKey+'.json');
  const cacheSignature=PLAN_VERSION+'|'+JSON.stringify(input);let reply,editorial;
  try{
  if(!forceNew){try{const cached=JSON.parse(await read(cachePath));if(cached.signature===cacheSignature)reply={text:cached.text};}catch{}}
@@ -538,7 +514,7 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  }catch(e){if(!skipFailedScenes)throw e;failed.push(i);j={...j,next:i+1,uncertain:false};persist(j);}
  }
  if(!j.clipIds.length&&j.manifest.scenes.length)throw stepError('no-scenes','No captions could be added to the result draft.');
- if(!failed.length){const f=fs(),cachePath=f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+j.projectId+'-'+(j.cacheKey||j.sourceId)+'.json');try{const cache=JSON.parse(await read(cachePath));if(cache.signature===PLAN_VERSION+'|'+JSON.stringify(j.input))await f.writeFile(cachePath,JSON.stringify({...cache,applied:true}));}catch{}}
+ if(!failed.length){const f=fs(),cachePath=f.join((await f.getOrCreateTmpDirPath()),'doac-style-plan-'+PLAN_VERSION+'-'+j.projectId+'-'+(j.cacheKey||j.sourceId)+'.json');try{const cache=JSON.parse(await read(cachePath));if(cache.signature===PLAN_VERSION+'|'+JSON.stringify(j.input))await f.writeFile(cachePath,JSON.stringify({...cache,applied:true}));}catch{}}
  onStatus('Your captioned draft is ready.');if(open)await run(`return await selects.editor.openDraft(${JSON.stringify(j.targetId)});`,'Open DOAC Style draft');
  return {job:j,failed};
  }
@@ -602,7 +578,8 @@ function TemplateRun({sdk,context}){
  },[runId]);
  return <small>{status}</small>;
 }
-export default function Panel(props){return props.context.template?<TemplateRun {...props}/>:<CaptionPanel {...props}/>;}
+export default function Panel(props){
+  hostUseSdk(props.sdk);return props.context.template?<TemplateRun {...props}/>:<CaptionPanel {...props}/>;}
 function CaptionPanel({sdk,context,ui}) {
  const [busy,setBusy]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[job,setJob]=useState(null),[index,setIndex]=useState(0),[text,setText]=useState(''),[preview,setPreview]=useState(''),[editing,setEditing]=useState(false),[sourceName,setSourceName]=useState(''),[pendingPlan,setPendingPlan]=useState(false);
  useEffect(()=>{let live=true;if(!context.sequenceId){setSourceName('');return;}sdk.runScript({script:`return await selects.draft(${JSON.stringify(context.sequenceId)}).meta();`,summary:'Read current draft'}).then(r=>{if(live)setSourceName(r.result?.name||'');}).catch(()=>{});return()=>{live=false;};},[context.sequenceId]);
@@ -611,7 +588,7 @@ function CaptionPanel({sdk,context,ui}) {
  useEffect(()=>{try{setJob(JSON.parse(localStorage.getItem(key)||'null'));}catch{setJob(null);}setIndex(0);setError('');},[key]);
  function save(j){setJob(j);localStorage.setItem(key,JSON.stringify(j));}
  const steps=captionSteps({sdk,currentProject:()=>project.current,onStatus:setStatus,persist:save}),{fs,read,run,sameProject,compile}=steps;
- useEffect(()=>{let live=true;const id=job?.sourceId||context.sequenceId;if(!id)return;let f;try{f=fs();}catch{setPendingPlan(false);return;}read(f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+context.projectId+'-'+id+'.json')).then(JSON.parse).then(c=>{if(live)setPendingPlan(!c.applied);}).catch(()=>{if(live)setPendingPlan(false);});return()=>{live=false;};},[job?.sourceId,context.sequenceId,busy]);
+ useEffect(()=>{let live=true;const id=job?.sourceId||context.sequenceId;if(!id)return;let f;try{f=fs();}catch{setPendingPlan(false);return;}(async()=>read(f.join(await f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+context.projectId+'-'+id+'.json')))().then(JSON.parse).then(c=>{if(live)setPendingPlan(!c.applied);}).catch(()=>{if(live)setPendingPlan(false);});return()=>{live=false;};},[job?.sourceId,context.sequenceId,busy]);
  async function action(fn){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await fn();}catch(e){setError(e.message||String(e));}finally{lock.current=false;setBusy(false);}}
  async function load(sourceOverride,forceNew=false){await action(async()=>{
  if(!context.projectId||!context.sequenceId)throw Error('Open a draft to add captions.');

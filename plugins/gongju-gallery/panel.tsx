@@ -86,33 +86,34 @@ const sha256 = async (bytes) => new Uint8Array(await crypto.subtle.digest("SHA-2
 // existing project copy of the soundtrack by SHA-256. Resolves {paths, audioPath, existingAudioId}. Touches nothing
 // in the project, so a failure here leaves no Draft and no import behind.
 async function cropShots(sdk, manifest) {
+  hostUseSdk(sdk);
   let rt, fs, roots;
   try {
     rt = hostNeed("Runtime", "runFFmpeg"); hostNeed("FileSystem", "readFile");
-    fs = hostApi("FileSystem", "join", "homedir", "existsSync", "mkdirSync");
+    fs = hostApi("FileSystem", "join", "homedir", "exists", "mkdir");
     if (!fs) throw hostError("host-missing", "no FileSystem");
     roots = await hostRoots(sdk, "gongju-gallery", "SKILL.md");
   } catch (error) { throw new Error(error?.code === "not-found" ? "The plugin folder could not be found. Reinstall the plugin." : HOST_TOO_OLD); }
   if (!roots.data) throw new Error(HOST_TOO_OLD);
   const audioPath = hostJoin(roots.plugin, "assets", MUSIC_NAME);
-  if (!fs.existsSync(audioPath)) throw new Error("The fixed gallery soundtrack is missing from the plugin");
+  if (!(await fs.exists(audioPath))) throw new Error("The fixed gallery soundtrack is missing from the plugin");
   let existingAudioId = null;
   const candidates = manifest.audioCandidates || [];
   // Without a match (or without crypto.subtle) the soundtrack is imported, as on a first run.
   if (candidates.length) { try {
     const music = await sha256(await hostReadBytes(audioPath));
     for (const candidate of candidates) {
-      try { if (fs.existsSync(candidate.path) && await sha256(await hostReadBytes(candidate.path)) === music) { existingAudioId = candidate.resourceId; break; } } catch { /* not a match */ }
+      try { if ((await fs.exists(candidate.path)) && await sha256(await hostReadBytes(candidate.path)) === music) { existingAudioId = candidate.resourceId; break; } } catch { /* not a match */ }
     }
   } catch { existingAudioId = null; } }
   const dir = hostJoin(roots.data, (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random()).replace(/[^0-9a-z]/gi, ""));
-  fs.mkdirSync(dir, { recursive: true });
+  (await fs.mkdir(dir, { recursive: true }));
   const paths = [];
   for (const [index, clip] of manifest.clips.entries()) {
-    if (!clip.path || !fs.existsSync(clip.path) || !(clip.frames >= 1) || !(clip.startSeconds >= 0)) throw new Error(`Invalid input clip ${index + 1}`);
+    if (!clip.path || !(await fs.exists(clip.path)) || !(clip.frames >= 1) || !(clip.startSeconds >= 0)) throw new Error(`Invalid input clip ${index + 1}`);
     const output = hostJoin(dir, `gallery-${String(index + 1).padStart(2, "0")}.mp4`);
     await rt.runFFmpeg(galleryCropArgs(clip, output), true);
-    if (!fs.existsSync(output)) throw new Error(`Portrait clip ${index + 1} failed`);
+    if (!(await fs.exists(output))) throw new Error(`Portrait clip ${index + 1} failed`);
     paths.push(output);
   }
   return { paths, audioPath, existingAudioId };
@@ -135,38 +136,23 @@ function galleryCropArgs(clip, output) {
 }
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -197,34 +183,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -362,6 +331,7 @@ function TemplateRun({ sdk, context }) {
 }
 
 export default function Panel(props) {
+  hostUseSdk(props.sdk);
   return props.context?.template ? <TemplateRun {...props} /> : <GalleryPanel {...props} />;
 }
 

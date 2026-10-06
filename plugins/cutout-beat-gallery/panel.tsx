@@ -74,38 +74,23 @@ async function canvasThumb(path) {
   } finally {bitmap.close?.()}
 }
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -136,34 +121,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -221,12 +189,12 @@ const WIN_MIN_PHOTOS=22;
 const FRAME_SIZE='1080x1920';
 // '' when this host can make Windows cutouts, else the WORDS key that says why not.
 function cloudProblem() {
-  const mg=hostApi('MediaGeneration','submit','list','cancel');
-  if(!mg||!hostApi('Runtime','runFFmpeg','runFFprobe')||!hostApi('FileSystem','join','homedir','existsSync','mkdirSync','readFile','writeFile','copyFile')) return 'newer';
+  const mg=generationApi('submit','list','cancel');
+  if(!mg||!hostApi('Runtime','runFFmpeg','runFFprobe')||!hostApi('FileSystem','join','homedir','exists','mkdir','readFile','writeFile','copyFile')) return 'newer';
   try {
     if(typeof mg.supportsPluginFiles!=='function'||!mg.supportsPluginFiles()) return 'newer';
     if(typeof mg.isAvailable==='function'&&!mg.isAvailable()) return 'noGeneration';
-    const rt=hostApi('Runtime','getHostingVersion'),version=rt?String(rt.getHostingVersion()||''):'';
+    const version=String(hostSdk?.environment?.version||'');
     const a=version.split('.').map(n=>parseInt(n,10)||0),b=CLOUD_MIN_HOST.split('.').map(Number);
     for(let i=0;i<3&&version;i++) if((a[i]||0)!==b[i]) return (a[i]||0)<b[i]?'newer':'';
     return '';
@@ -234,7 +202,7 @@ function cloudProblem() {
 }
 function cloudScope(pid) {
   const m=String(window.parent?.location?.pathname||'').match(/\/libraries\/([^/]+)/);
-  const libraryId=(m&&decodeURIComponent(m[1]))||hostDI()?.SequenceState?.getOnScreenTab?.()?.libraryId;
+  const libraryId=(m&&decodeURIComponent(m[1]))||window.parent?.__DI__?.SequenceState?.getOnScreenTab?.()?.libraryId;
   if(!libraryId) throw Error('Could not tell which library this project is in. Reopen the project and try again.');
   return {libraryId,projectId:pid};
 }
@@ -302,7 +270,7 @@ async function winFrames({engine,work,photos,onStatus,control}) {
 // Everything after the free part: person masks from Selects generation (credits), then prepare.py's choices, sticker
 // layers and scene clips in out/, and its result. `control.canceled` stops it between steps.
 async function winCutouts({engine,plugin,data,work,name,pid,frames,rejected,onStatus,control}) {
-  const fs=hostNeed('FileSystem','join'),mg=hostNeed('MediaGeneration','submit'),enc=await encoders();
+  const fs=hostNeed('FileSystem','join'),mg=generationNeed('submit'),enc=await encoders();
   const check=()=>{if(control?.canceled)throw Error('Canceled.')};
   // 1. The photos as one clip, each held HOLD frames at 30 fps.
   const clip=hostJoin(work,'cutout-input.mp4'),seconds=frames.length*HOLD/30;
@@ -363,7 +331,7 @@ async function winCutouts({engine,plugin,data,work,name,pid,frames,rejected,onSt
   if(!plan.ready) return plan;
   onStatus?.('render');
   const out=hostJoin(data,'runs',name);
-  hostNeed('FileSystem','mkdirSync').mkdirSync(out,{recursive:true});
+  (await hostNeed('FileSystem','mkdir').mkdir(out,{recursive:true}));
   const boxes={},still=['-f','rawvideo','-video_size',FRAME_SIZE,'-framerate','30'],hold=['-vf','loop=loop=-1:size=1:start=0','-an'];
   for(const l of plan.layers) {
     check();
@@ -383,11 +351,12 @@ async function winCutouts({engine,plugin,data,work,name,pid,frames,rejected,onSt
   await hostNeed('FileSystem','copyFile').copyFile(hostJoin(plugin,'fixed-bgm.mp3'),hostJoin(out,'fixed-bgm.mp3'));
   return engine.call('finish',{plan,rows,boxes,rejected,extra:{outputDir:out,folder:name}});
 }
-function removeWork(work) {
-  try {hostDI()?.FileSystem?.rmSync?.(work,{recursive:true,force:true})} catch { /* left for the next run */ }
+async function removeWork(work) {
+  try {await hostSdk.files.rm(work,{recursive:true,force:true})} catch { /* left for the next run */ }
 }
 
 export default function Panel({sdk,context,ui}) {
+  hostUseSdk(sdk);
   const t=WORDS[context.language]??WORDS.en;
   const [rows,setRows]=React.useState([]);
   const [folder,setFolder]=React.useState('*');
@@ -521,7 +490,7 @@ export default function Panel({sdk,context,ui}) {
         const work=hostJoin(data,'work',name),ctl={canceled:false,engine};
         control.current=ctl;
         try {
-          hostNeed('FileSystem','mkdirSync').mkdirSync(work,{recursive:true});
+          (await hostNeed('FileSystem','mkdir').mkdir(work,{recursive:true}));
           const {frames,rejected}=await winFrames({engine,work,photos:selectedPhotos,control:ctl,onStatus:(k,n)=>setStatus(say(t.framing,{k,n}))});
           // Credits are asked for only when the folder can still make a video (15 scenes and at least 7 separate
           // stickers); prepare.py would find out after the masks.
@@ -653,4 +622,16 @@ async function readMediaPages(sdk, args) {
     else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
+}
+
+// Generation remains a host service until the generation SDK migration.
+function generationApi(...methods) {
+  let service = null;
+  try { service = window.parent?.__DI__?.MediaGeneration; } catch { return null; }
+  return service && methods.every(method => typeof service[method] === 'function') ? service : null;
+}
+function generationNeed(method) {
+  const service = generationApi(method);
+  if (!service) throw hostError('host-missing', 'Media generation is unavailable', 'MediaGeneration.' + method);
+  return service;
 }

@@ -21,7 +21,7 @@ HOST_BLOCK = re.compile(r'// av-host:start\n.*?// av-host:end', re.S)
 PORT_BLOCK = re.compile(r'// pc-port:start\n.*?// pc-port:end', re.S)
 LEDGER_BLOCK = re.compile(r'// pc-ledger:start\n.*?// pc-ledger:end', re.S)
 MAC_ONLY = re.compile(r'^[ \t]*// mac-only:start[ \t]*\n.*?^[ \t]*// mac-only:end[ \t]*$', re.S | re.M)
-HOST_NAMES = ['hostError', 'hostDI', 'hostApi', 'hostNeed', 'hostIsWindows', 'hostJoin', 'hostBytes', 'hostReadBytes',
+HOST_NAMES = ['hostError', 'bindLocalSdk', 'hostApi', 'hostNeed', 'hostIsWindows', 'hostJoin', 'hostBytes', 'hostReadBytes',
               'hostReadText', 'hostRemove', 'hostRoots', 'hostDecodePcm', 'hostProbeSeconds']
 FORBIDDEN = ['mkdir -p', 'printf', '$HOME', '$SELECTS_USER', 'rm -f', 'base64 ', '| base64', 'shasum',
              'command -v', 'export PATH', 'cat "', '2>/dev/null', '/usr/bin/', 'sh "', "sh '", 'runtime.sh',
@@ -105,8 +105,8 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
 
     def test_masks_come_from_local_files_on_windows(self):
         port = PORT_BLOCK.search(self.text).group(0)
-        self.assertIn("pathToLocalURL(dir)).replace(/\\/+$/,'')", port)
-        self.assertIn('d.mask={baseUrl:localUrl(dest),', port)
+        self.assertIn("pathToLocalURL(dir))).replace(/\\/+$/,'')", port)
+        self.assertIn('d.mask={baseUrl:(await localUrl(dest)),', port)
         self.assertIn("ensure:async()=>({})", port, 'no mask service on Windows')
         self.assertIn("const PC_MIN_HOST='2.0.508';", self.text)
 

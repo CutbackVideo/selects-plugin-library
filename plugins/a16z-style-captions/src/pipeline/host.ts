@@ -1,10 +1,12 @@
-// Host access for the panel: the app's native services (window.parent.__DI__), shell quoting, and small
+// Local files, media and environment use the public SDK; timeline services retain their host adapters.
+// Shell quoting and small
 // wrappers around the panel SDK's runScript / runShell (runShell is cmd.exe on Windows: only the macOS-only
 // speaker framing uses it), plus the host's bundled ffmpeg (hostFF).
 
 export const PANEL_ID = "a16z-style-captions";
 
 export type Sdk = {
+  files: any; media: any; environment: {platform: string; version: string};
   runScript: (o: { script: string; summary: string; allowCommit?: boolean }) => Promise<{ isError: boolean; output: string; result?: any }>;
   runShell: (o: { command: string; summary: string; timeoutMs?: number; maxOutputBytes?: number; cwd?: string }) => Promise<any>;
   askAI: (o: { prompt: string; timeoutMs?: number }) => Promise<{ text: string }>;
@@ -24,7 +26,7 @@ export function libraryId(): string {
   return id;
 }
 export function fs(): any {
-  return di().FileSystem;
+  return hostSdk.files;
 }
 export function dataRoot(): string {
   const f = fs();
@@ -36,7 +38,7 @@ export function envRoot(): string {
 }
 export function hostVersion(): string {
   try {
-    return String(di().Runtime?.getHostingVersion?.() || "");
+    return String(hostSdk?.environment?.version || "");
   } catch {
     return "";
   }
@@ -88,41 +90,30 @@ export async function shell(sdk: Sdk, summary: string, command: string, timeoutM
 }
 
 // av-host:start (copied from plugins/archive-vlog/panel.tsx with TypeScript types; only the helpers this panel uses)
-// Guarded access to the host's renderer services (window.parent.__DI__, documented as internal, so every member is
-// checked before use), the platform, path joins and the install folder. There is no shell call at all (kit windows.md).
+// Guarded SDK access for paths, media tools and the install folder.
 function hostError(code: string, message: string, member = ""): any { return Object.assign(new Error(message), { code, member }); }
-function hostDI(): any { try { return ((window.parent as any) && (window.parent as any)["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 export function hostApi(name: string, ...methods: string[]): any {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-export function hostIsWindows(): boolean {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n: any = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the platform before mounting the panel.
+export function hostIsWindows(): boolean { return /^win/i.test(hostSdk?.environment?.platform || ""); }
 // The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
 // joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// holds `marker` (a file every install has). `sdk` supplies the public file bridge. The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
 // null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 export async function hostRoots(sdk: any, id: string, marker: string): Promise<{ plugin: string; data: string | null }> {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir: string | null) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  hostUseSdk(sdk);
+  const fs = hostApi("FileSystem", "join", "homedir", "exists");
+  const holds = async (dir: string | null) => { try { return !!dir && (!fs || !!(await fs.exists(fs.join(dir, marker)))); } catch { return false; } };
   let plugin: string | null = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if ((await holds(dir))) plugin = dir; } } catch { plugin = null; }
   if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
   let data: string | null = null;
   try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdir");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); (await dfs.mkdir(data, { recursive: true })); }
   } catch { data = null; }
   return { plugin, data };
 }
@@ -162,3 +153,7 @@ export function lastJsonObject(text: string): any {
   }
   throw new Error("The assistant's JSON could not be read.");
 }
+
+let hostSdk: Sdk;
+export function hostUseSdk(sdk: Sdk) { hostSdk = sdk; if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin."); }
+export function media(): any { return hostSdk.media; }

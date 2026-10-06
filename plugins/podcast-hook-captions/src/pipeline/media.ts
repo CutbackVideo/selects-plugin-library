@@ -49,7 +49,7 @@ export type GenRequest = {
 
 export async function submit(pid: string, r: GenRequest): Promise<string> {
   const mg = mediaGeneration();
-  fs().mkdirSync(r.folder, { recursive: true });
+  (await fs().mkdir(r.folder, { recursive: true }));
   const res = await mg.submit({
     scope: { libraryId: libraryId(), projectId: pid },
     key: r.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64),
@@ -143,12 +143,12 @@ export const SFX_ANCHOR: Record<string, number> = {
 
 export async function ensureSfxLibrary(pid: string, onTick: (s: string) => void): Promise<Record<string, string>> {
   const dir = fs().join(fsDataRoot(), "sfx-lib");
-  fs().mkdirSync(dir, { recursive: true });
+  (await fs().mkdir(dir, { recursive: true }));
   const have: Record<string, string> = {};
   const want: string[] = [];
   for (const k of Object.keys(SFX_PROMPTS)) {
     const p = fs().join(dir, k + "-" + SFX_VERSION + ".mp3");
-    if (fs().existsSync(p)) have[k] = p;
+    if ((await fs().exists(p))) have[k] = p;
     else want.push(k);
   }
   if (!want.length) return have;

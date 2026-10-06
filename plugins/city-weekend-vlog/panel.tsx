@@ -1904,38 +1904,23 @@ function cwvOwnGrid(own, duration, noOnsets) {
 // roots and the data folder, the host's bundled ffmpeg / ffprobe with argv arrays, cross-realm byte reads. No shell
 // call at all: the panel runs the same on macOS and Windows.
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -1966,34 +1951,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -2394,12 +2362,12 @@ function cwvQuickCandidates(results, range) {
 }
 // The plugin's data folder (<home>/.selects/plugin-data/<id>) through the host's FileSystem, created when missing; the
 // quick check caches its scores there. null when this host lacks the members (the check then uses even windows).
-function cwvHostDataDir(id) {
+async function cwvHostDataDir(id) {
   try {
-    const fs = window.parent && window.parent["__DI__"] && window.parent["__DI__"].FileSystem;
+    const fs = hostSdk?.files;
     if (!fs || typeof fs.join !== 'function' || typeof fs.homedir !== 'function') return null;
     const dir = String(fs.join(fs.homedir(), '.selects', 'plugin-data', id));
-    if (typeof fs.mkdirSync === 'function') fs.mkdirSync(dir, { recursive: true });
+    if (typeof fs.mkdir === 'function') (await fs.mkdir(dir, { recursive: true }));
     return dir;
   } catch (e) { return null; }
 }
@@ -2407,7 +2375,7 @@ function cwvHostDataDir(id) {
 
 // quick-score:start
 // Quick local shot score for clips Selects has not analysed (no scene search). Plain JS and self-contained: it reaches
-// the host only through window.parent.__DI__ (Runtime.runFFmpeg and FileSystem, every member checked first), or through
+// the host through the public SDK files and media namespaces, or through
 // `opts.io` (tests, other hosts), so it can be pasted into any style-app panel and kept as one kit file
 // (tools/panel/quick-score.ts). No shell, no node: the host's bundled ffmpeg decodes a small grey preview
 // (QS_FPS frames a second, QS_W x QS_H pixels) of the part of the clip the planner could use into a temporary file in
@@ -2461,23 +2429,21 @@ function qsBytes(v) {
 // The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
 // mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
 function qsHostIO() {
-  var di = null;
-  try { di = (window.parent && window.parent["__DI__"]) || null; } catch (e) { di = null; }
-  var rt = di && di.Runtime, fs = di && di.FileSystem;
+  var rt = hostSdk?.media, fs = hostSdk?.files;
   var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
   return {
     runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
     readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
     remove: fs ? async function (p) {
-      var tries = ["removeFile", "remove", "rm", "unlink", "unlinkSync"];
+      var tries = ["removeFile"];
       for (var i = 0; i < tries.length; i++) {
         if (!fn(fs, tries[i])) continue;
         try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
       }
     } : null,
     join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
-    mkdir: fn(fs, "mkdirSync") ? function (d) { fs.mkdirSync(d, { recursive: true }); } : null,
-    mtimeMs: fn(fs, "statSync") ? function (p) { var s = fs.statSync(p); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
+    mkdir: fn(fs, "mkdir") ? async function (d) { (await fs.mkdir(d, { recursive: true })); } : null,
+    mtimeMs: fn(fs, "stat") ? async function (p) { var s = (await fs.stat(p)); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
     readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
     writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
   };
@@ -2590,8 +2556,8 @@ async function quickScore(resource, opts) {
   var dir = io.join(dataDir, "quick-score");
   var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
   var mtime = 0;
-  try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
-  // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
+  try { mtime = io.mtimeMs ? Math.round((await io.mtimeMs(resource.path)) || 0) : 0; } catch (e) { mtime = 0; }
+  // mtime is 0 when the host lacks FileSystem.stat, so the duration also keys the cache (a file replaced at the same
   // path with different media is not served stale scores; Mini Vlog review).
   var durKey = Number(resource.durationSeconds || 0).toFixed(3);
   var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
@@ -2603,7 +2569,7 @@ async function quickScore(resource, opts) {
     } catch (e) { /* no cache yet */ }
   }
   if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
-  try { if (io.mkdir) io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
+  try { if (io.mkdir) await io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
   var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
   var controller = typeof AbortController === "undefined" ? null : new AbortController();
   var relay = function () { if (controller) controller.abort(); };
@@ -2778,7 +2744,7 @@ async function scoreLocalClips(local: any[], searchedScores: number[], check: ()
   const resources = local.map((x) => ({ rid: x.rid, path: x.path, durationSeconds: x.duration }));
   let scored: Map<string, any>;
   try {
-    scored = await quickScoreAll(resources, { concurrency: CWV_LOCAL_CONCURRENCY, budgetMs: CWV_LOCAL_BUDGET_MS, dataDir: cwvHostDataDir(PLUGIN_ID),
+    scored = await quickScoreAll(resources, { concurrency: CWV_LOCAL_CONCURRENCY, budgetMs: CWV_LOCAL_BUDGET_MS, dataDir: (await cwvHostDataDir(PLUGIN_ID)),
       signal: controller ? controller.signal : undefined,
       onProgress: (p: any) => { try { check(); } catch (e) { stale = e; if (controller) controller.abort(); return; } onDone(p.done); } });
   } catch (e) {
@@ -3723,6 +3689,7 @@ function TemplateRun({ sdk, context }: any) {
 }
 
 export default function Panel(props: any) {
+  hostUseSdk(props.sdk);
   return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <CityWeekendVlogPanel {...props} />;
 }
 

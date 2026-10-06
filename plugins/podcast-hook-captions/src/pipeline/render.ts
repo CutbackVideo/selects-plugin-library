@@ -103,14 +103,14 @@ export async function makeMattes(sdk: Sdk, pid: string, render: string, seconds:
   // and firm up the edge so a bright room does not leave a halo round the hair. Plain grayscale PNGs keep
   // the app's fast static-PNG path for masks.
   const MATTE = /^matte_\d{6}\.png$/;
-  for (const n of filesIn(dir, MATTE)) removeFile(fs().join(dir, n));
+  for (const n of (await filesIn(dir, MATTE))) (await removeFile(fs().join(dir, n)));
   await ffmpeg(
     "Write matte frames",
     ["-v", "error", "-y", "-i", alpha, "-vf", "format=gray,negate,scale=1080:1920:flags=bicubic,dilation,dilation,lut=y=clip((val-24)*1.2\\,0\\,255)", "-start_number", "1", fs().join(dir.replace(/%/g, "%%"), "matte_%06d.png")],
     600000
   );
-  const count = filesIn(dir, MATTE).length;
+  const count = (await filesIn(dir, MATTE)).length;
   if (!count) throw new Error("No matte frames were written.");
-  const base = String(fs().pathToLocalURL(dir)).replace(/\/$/, "");
+  const base = String((await fs().pathToLocalURL(dir))).replace(/\/$/, "");
   return { base, count };
 }

@@ -12,14 +12,7 @@ import React from "react";
 
 // Windows runs sdk.runShell in cmd.exe, where the relay helper's POSIX commands and python3 are not
 // available, so two-player stays off there; single player needs no shell.
-const IS_WINDOWS = (() => {
-  try {
-    const rt = (window.parent as any)?.__DI__?.Runtime;
-    const p = typeof rt?.getPlatform === "function" ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try { return /^win/i.test(navigator.platform || "") || /Windows NT/i.test(navigator.userAgent || ""); } catch { return false; }
-})();
+let IS_WINDOWS = false;
 
 const COLS = 10;
 const ROWS = 20;
@@ -714,6 +707,8 @@ function makeRoom(): string {
 // -------------------------------------------------------------------- panel
 
 export default function Panel({ sdk, ui }: any) {
+  hostUseSdk(sdk);
+  IS_WINDOWS = /^win/i.test(sdk.environment.platform);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const nextRef = React.useRef<HTMLCanvasElement | null>(null);
   const oppRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -2030,3 +2025,6 @@ export default function Panel({ sdk, ui }: any) {
     </ui.Stack>
   );
 }
+
+let hostSdk: any = null;
+function hostUseSdk(sdk: any) { hostSdk = sdk; if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin."); }

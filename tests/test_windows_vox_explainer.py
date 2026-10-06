@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins' / 'vox-explainer'
 PANEL = Path(os.environ.get('VOX_PANEL') or PLUGIN / 'panel.tsx')
 AV_START, AV_END = '// av-host:start', '// av-host:end'
-AV_NAMES = ['hostError', 'hostDI', 'hostApi', 'hostNeed', 'hostIsWindows', 'hostJoin', 'hostBytes', 'hostReadBytes',
+AV_NAMES = ['hostError', 'hostUseSdk', 'hostApi', 'hostNeed', 'hostIsWindows', 'hostJoin', 'hostBytes', 'hostReadBytes',
             'hostReadText', 'hostRemove', 'hostRoots', 'hostDecodePcm', 'hostProbeSeconds']
 
 FORBIDDEN = [

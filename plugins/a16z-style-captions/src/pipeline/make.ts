@@ -50,7 +50,7 @@ export type Job = {
 
 const jobDir = (id: string) => fs().join(dataRoot(), "shorts", id);
 async function saveJob(job: Job) {
-  fs().mkdirSync(jobDir(job.shortId), { recursive: true });
+  (await fs().mkdir(jobDir(job.shortId), { recursive: true }));
   await fs().writeFile(fs().join(jobDir(job.shortId), "job.json"), J(job));
 }
 export async function loadJob(id: string): Promise<Job | null> {
@@ -164,7 +164,7 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
   onStep("music", job.opts.music ? "run" : "skip", job.opts.music ? "Composing…" : "off");
   const musicJob: Promise<string | null> = !job.opts.music
     ? Promise.resolve(null)
-    : job.musicPath && fs().existsSync(job.musicPath)
+    : job.musicPath && (await fs().exists(job.musicPath))
       ? Promise.resolve(job.musicPath)
       : (async () => {
           mediaGeneration();

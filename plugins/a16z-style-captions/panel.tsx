@@ -12,9 +12,6 @@
 // @icon captions
 // One click turns a talking-head Draft into a 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, a name tag and a music bed.
 
-// plugins/a16z-style-captions/src/Panel.tsx
-import React, { useEffect, useRef, useState } from "react";
-
 // plugins/a16z-style-captions/src/pipeline/host.ts
 var PANEL_ID = "a16z-style-captions";
 function app() {
@@ -31,7 +28,7 @@ function libraryId() {
   return id;
 }
 function fs() {
-  return di().FileSystem;
+  return hostSdk.files;
 }
 function dataRoot() {
   const f = fs();
@@ -43,7 +40,7 @@ function envRoot() {
 }
 function hostVersion() {
   try {
-    return String(di().Runtime?.getHostingVersion?.() || "");
+    return String(hostSdk?.environment?.version || "");
   } catch {
     return "";
   }
@@ -91,36 +88,19 @@ async function shell(sdk, summary, command, timeoutMs = 12e4, maxOutputBytes = 1
 function hostError(code, message, member = "") {
   return Object.assign(new Error(message), { code, member });
 }
-function hostDI() {
-  try {
-    return window.parent && window.parent["__DI__"] || null;
-  } catch {
-    return null;
-  }
-}
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch {
-  }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch {
-    return false;
-  }
+  return /^win/i.test(hostSdk?.environment?.platform || "");
 }
 async function hostRoots(sdk, id, marker) {
-  const fs2 = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => {
+  hostUseSdk(sdk);
+  const fs2 = hostApi("FileSystem", "join", "homedir", "exists");
+  const holds = async (dir) => {
     try {
-      return !!dir && (!fs2 || !!fs2.existsSync(fs2.join(dir, marker)));
+      return !!dir && (!fs2 || !!await fs2.exists(fs2.join(dir, marker)));
     } catch {
       return false;
     }
@@ -129,7 +109,7 @@ async function hostRoots(sdk, id, marker) {
   try {
     if (fs2) {
       const dir = String(fs2.join(fs2.homedir(), ".selects", "skills", id));
-      if (holds(dir)) plugin = dir;
+      if (await holds(dir)) plugin = dir;
     }
   } catch {
     plugin = null;
@@ -137,10 +117,10 @@ async function hostRoots(sdk, id, marker) {
   if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
   let data = null;
   try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdir");
     if (dfs) {
       data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id));
-      dfs.mkdirSync(data, { recursive: true });
+      await dfs.mkdir(data, { recursive: true });
     }
   } catch {
     data = null;
@@ -177,6 +157,14 @@ function lastJsonObject(text) {
   }
   throw new Error("The assistant's JSON could not be read.");
 }
+var hostSdk;
+function hostUseSdk(sdk) {
+  hostSdk = sdk;
+  if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin.");
+}
+
+// plugins/a16z-style-captions/src/Panel.tsx
+import React, { useEffect, useRef, useState } from "react";
 
 // plugins/a16z-style-captions/src/pipeline/source.ts
 var READ = (id, pid) => `const p = selects.project(${J(pid)});
@@ -538,7 +526,7 @@ async function ensureFaceRuntime(sdk, progress) {
 async function trackFaces(sdk, rt, dir, jobs) {
   const out = {};
   if (!jobs.length) return out;
-  fs().mkdirSync(dir, { recursive: true });
+  await fs().mkdir(dir, { recursive: true });
   const jobsPath = fs().join(dir, "face-jobs.json");
   const outPath = fs().join(dir, "faces.json");
   await fs().writeFile(jobsPath, J(jobs));
@@ -831,7 +819,7 @@ function mediaGeneration() {
 }
 async function submit(pid, r) {
   const mg = mediaGeneration();
-  fs().mkdirSync(r.folder, { recursive: true });
+  await fs().mkdir(r.folder, { recursive: true });
   const res = await mg.submit({
     scope: { libraryId: libraryId(), projectId: pid },
     key: r.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64),
@@ -2582,14 +2570,14 @@ async function searchCandidates(queries, max, avoid) {
   return out;
 }
 async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
-  fs().mkdirSync(dir, { recursive: true });
+  await fs().mkdir(dir, { recursive: true });
   const start = Math.min(Math.max(0, c.duration - seconds - 0.2), offset);
   const length = Math.max(1.5, Math.min(12, seconds));
   const out = fs().join(dir, "stock-" + Math.abs(hash2(c.id + "@" + start.toFixed(2) + "+" + length.toFixed(2))) + ".mp4");
-  if (!fs().existsSync(out)) {
+  if (!await fs().exists(out)) {
     const portrait = c.height > c.width;
     const box = portrait ? "1080:1920" : "1920:1080";
-    const part = typeof fs().renameSync === "function" ? out + ".part.mp4" : out;
+    const part = typeof fs().rename === "function" ? out + ".part.mp4" : out;
     await hostFF(
       "runFFmpeg",
       [
@@ -2617,7 +2605,7 @@ async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
       ],
       15e4
     );
-    if (part !== out) fs().renameSync(part, out);
+    if (part !== out) await fs().rename(part, out);
   }
   const probe = (await hostFF("runFFprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:format=duration", "-of", "csv=p=0", out], 3e4)).stdout.trim().split(/[\r\n,]+/).map(Number);
   return { id: c.id, path: out, width: probe[0] || c.width, height: probe[1] || c.height, dur: probe[2] || 0, credit: c.credit, url: c.authorUrl, service: c.service };
@@ -2725,7 +2713,7 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}) {
   const todo = [];
   for (const r of runs) {
     const hits = r.shots.map((s) => cache[cacheKey(s)]);
-    if (hits.every((h) => h && (!h.clip || fs().existsSync(h.clip.path)))) {
+    if ((await Promise.all(hits.map(async (h) => h && (!h.clip || await fs().exists(h.clip.path))))).every(Boolean)) {
       for (let k = 0; k < hits.length; k += 1) {
         const h = hits[k];
         if (!h.clip) continue;
@@ -2814,7 +2802,7 @@ var STEPS = [
 ];
 var jobDir = (id) => fs().join(dataRoot(), "shorts", id);
 async function saveJob(job) {
-  fs().mkdirSync(jobDir(job.shortId), { recursive: true });
+  await fs().mkdir(jobDir(job.shortId), { recursive: true });
   await fs().writeFile(fs().join(jobDir(job.shortId), "job.json"), J(job));
 }
 async function loadJob(id) {
@@ -2910,7 +2898,7 @@ async function build(sdk, job, onStep) {
   const end = short.endFrame;
   const key = job.shortId.replace(/-/g, "").slice(0, 12);
   onStep("music", job.opts.music ? "run" : "skip", job.opts.music ? "Composing\u2026" : "off");
-  const musicJob = !job.opts.music ? Promise.resolve(null) : job.musicPath && fs().existsSync(job.musicPath) ? Promise.resolve(job.musicPath) : (async () => {
+  const musicJob = !job.opts.music ? Promise.resolve(null) : job.musicPath && await fs().exists(job.musicPath) ? Promise.resolve(job.musicPath) : (async () => {
     mediaGeneration();
     return makeMusic(pid, end / fps, dir, key, (s) => onStep("music", "run", s));
   })().catch((e) => {
@@ -3051,6 +3039,7 @@ var setRun = (patch) => {
   listeners.forEach((l) => l());
 };
 function A16zShort({ sdk, context }) {
+  hostUseSdk(sdk);
   const [, force] = useState(0);
   useEffect(() => {
     const l = () => force((n) => n + 1);

@@ -20,7 +20,7 @@ PANEL = os.environ.get("PHOTO_GALLERY_NO2_PANEL") or os.path.join(PLUGIN, "panel
 
 AV_HOST = re.compile(r"// av-host:start\n.*?// av-host:end\n", re.S)
 MAC_ONLY = re.compile(r"^[ \t]*// mac-only:start[ \t]*\n.*?^[ \t]*// mac-only:end[ \t]*\n", re.S | re.M)
-HOST_FUNCTIONS = ["hostError", "hostDI", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes",
+HOST_FUNCTIONS = ["hostError", "hostUseSdk", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes",
                   "hostReadBytes", "hostReadText", "hostRemove", "hostRoots", "hostDecodePcm", "hostProbeSeconds"]
 FORBIDDEN = [
     "mkdir -p", "printf", "$HOME", "$SELECTS_USER", "SELECTS_USER_SKILLS_ROOT", "rm -f", "base64 ", "| base64",
@@ -77,8 +77,8 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         music = body(self.runtime, "async function prepareBundledMusic(")
         self.assertIn("hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')", music)
         self.assertIn("hostJoin(plugin, 'assets', 'music.mp3')", music)
-        self.assertIn("existsSync(", music)
-        self.assertLess(music.index("existsSync("), music.index("onImportStarted()"))
+        self.assertIn("exists(", music)
+        self.assertLess(music.index("exists("), music.index("onImportStarted()"))
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
         self.assertIn("SKILL.md", manifest["files"])
         self.assertIn("assets/music.mp3", manifest["files"])

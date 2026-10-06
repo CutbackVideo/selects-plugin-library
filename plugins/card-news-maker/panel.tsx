@@ -2282,8 +2282,8 @@ function libraryId(): string | null {
 // ---- Files: Selects' own file service (same on macOS and Windows); localStorage when it is missing ----
 function hostFs(): any {
   try {
-    const fs = (window.parent as any)?.__DI__?.FileSystem;
-    const need = ["readFile", "writeFile", "homedir", "join", "existsSync", "mkdirSync", "readdirSync", "unlinkSync"];
+    const fs = hostSdk.files;
+    const need = ["readFile", "writeFile", "homedir", "join", "exists", "mkdir", "readdir", "rm"];
     return fs && need.every((k) => typeof fs[k] === "function") ? fs : null;
   } catch (e) {
     return null;
@@ -2294,26 +2294,26 @@ function makeStore() {
   if (fs) {
     const root = fs.join(fs.homedir(), ".selects", "plugin-data", APP_ID);
     const dir = (n: string) => fs.join(root, n);
-    const ensure = (p: string) => {
-      if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+    const ensure = async (p: string) => {
+      if (!(await fs.exists(p))) (await fs.mkdir(p, { recursive: true }));
     };
     return {
       fs,
       root,
       join: (...p: string[]) => fs.join(...p),
       ensure,
-      size: (p: string) => {
+      size: async (p: string) => {
         try {
-          return fs.existsSync(p) ? (typeof fs.statSync === "function" ? fs.statSync(p).size : 1) : 0;
+          return (await fs.exists(p)) ? (typeof fs.stat === "function" ? (await fs.stat(p)).size : 1) : 0;
         } catch (e) {
           return 0;
         }
       },
       async list(kind: string) {
         const d = dir(kind);
-        if (!fs.existsSync(d)) return [];
+        if (!(await fs.exists(d))) return [];
         const out: any[] = [];
-        for (const n of fs.readdirSync(d)) {
+        for (const n of (await fs.readdir(d))) {
           if (!/\.json$/.test(n)) continue;
           try {
             out.push(JSON.parse(dec(await fs.readFile(fs.join(d, n)))));
@@ -2323,12 +2323,12 @@ function makeStore() {
       },
       async put(kind: string, id: string, v: any) {
         const d = dir(kind);
-        ensure(d);
+        (await ensure(d));
         await fs.writeFile(fs.join(d, id + ".json"), enc(JSON.stringify(v)));
       },
       async del(kind: string, id: string) {
         const p = fs.join(dir(kind), id + ".json");
-        if (fs.existsSync(p)) fs.unlinkSync(p);
+        if ((await fs.exists(p))) (await fs.rm(p));
       },
     };
   }
@@ -2954,6 +2954,7 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
 }
 
 export default function Panel({ sdk, context, ui }: any) {
+  hostUseSdk(sdk);
   const lang = langOf(context);
   const S = STRINGS[lang] ?? STRINGS.en;
   const projectId: string | null = context?.projectId ?? null;
@@ -3053,10 +3054,10 @@ export default function Panel({ sdk, context, ui }: any) {
   }, [loadResources]);
 
   const tplOf = (id: string, list = templates) => list.find((t: any) => t.id === id) || null;
-  const media = (jid: string) => {
+  const media = async (jid: string) => {
     if (!store.fs) throw new Error(S.noFileAccess);
     const d = store.join(store.root, "media", jid);
-    store.ensure(d);
+    await store.ensure(d);
     return d;
   };
 
@@ -3173,11 +3174,11 @@ export default function Panel({ sdk, context, ui }: any) {
     try {
       if (typeof fs.downloadFile === "function") await fs.downloadFile(u, to);
     } catch (e) {}
-    if (store.size(to) > 1000) return true;
+    if (await store.size(to) > 1000) return true;
     const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
     const cmd = IS_WIN ? `"%SystemRoot%\\System32\\curl.exe" -fsSL --retry 2 -A ${wq(ua)} -o ${wq(to)} ${wq(u)}` : `curl -fsSL --retry 2 -A ${pq(ua)} -o ${pq(to)} ${pq(u)}`;
     await shell(cmd, "Download an article photo", 120000);
-    return store.size(to) > 1000;
+    return await store.size(to) > 1000;
   }
 
   // A generated image is imported under its output name; scripts address resources by their Project alias
@@ -3261,7 +3262,7 @@ export default function Panel({ sdk, context, ui }: any) {
         setStatus(S.downloading(i + 1));
         const a = j.plan.article.images[c.index];
         const ext = (String(a?.url || "").match(/\.(jpe?g|png|webp)(\?|$)/i) || [, "jpg"])[1].toLowerCase();
-        const to = store.join(media(j.id), `card${String(i + 1).padStart(2, "0")}-${j.id}-article.${ext}`);
+        const to = store.join(await media(j.id), `card${String(i + 1).padStart(2, "0")}-${j.id}-article.${ext}`);
         const full = fullSizeUrl(String(a?.url || ""));
         const got = a && ((full !== a.url && (await download(full, to))) || (await download(a.url, to)));
         if (!got) throw new Error(S.downloadFailed(i + 1));
@@ -3433,7 +3434,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         throw new Error(S.noStill);
       const t = tplOf(job.templateId);
       const dir = store.join(store.root, "exports", `${job.id}-${Date.now().toString(36)}`);
-      store.ensure(dir);
+      await store.ensure(dir);
       // Card ranges come from the Draft as it is now, so edits made in Selects are kept.
       const info = await script(
         `const d = selects.draft(${JSON.stringify(job.draftId)}); const m = await d.meta(); const g = (await d.motionGraphics()).filter((x: any) => /^Card \\d+/.test(x.name)).map((x: any) => [x.name, x.clip.startFrame, x.clip.endFrame]).sort((a: any, b: any) => a[1] - b[1]); return { fps: m.fps, cards: g };`,
@@ -3731,3 +3732,6 @@ async function readMediaPages(sdk, args) {
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
 }
+
+let hostSdk: any = null;
+function hostUseSdk(sdk: any) { hostSdk = sdk; if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin."); }

@@ -18,7 +18,7 @@ import React from "react";
 
 const APP_ID = "vox-explainer";
 // The engine (voxEngine, in the operation section below) runs inside the panel on macOS and
-// Windows: files through the host FileSystem, ffmpeg through the host's bundled copy, no shell and no Python.
+// Windows: files through sdk.files, ffmpeg through the host's bundled copy, no shell and no Python.
 const TPL: Record<string, string> = { headline: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Constructivist headline: a slanted black bar with cream type and a red offset block.\nexport default function Headline({ data }) {\n  const frame = useCurrentFrame();\n  const { fps, width } = useVideoConfig();\n  const k = width / 1080;\n  const text = String(data?.text ?? '');\n  const size = Number(data?.fontSize ?? 92);\n  const top = Number(data?.top ?? 110);\n  const bar = String(data?.barColor ?? '#141414');\n  const fg = String(data?.textColor ?? '#F4ECDD');\n  const accent = String(data?.accentColor ?? '#D7261E');\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  const p = spring({ frame, fps, config: { damping: 16, stiffness: 170 } });\n  const x = interpolate(p, [0, 1], [-1200, 0]);\n  const ax = interpolate(p, [0, 1], [900, 0]);\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: '100%', height: 320 * k, pointerEvents: 'none' }}>\n      <div style={{ position: 'absolute', left: 70 * k, top: 8 * k, width: 300 * k, height: 34 * k, background: accent, transform: `translateX(${ax * k}px) rotate(-7deg)` }} />\n      <div style={{ position: 'absolute', left: 24 * k, right: 24 * k, top: 58 * k, display: 'flex', justifyContent: 'center', transform: `translateX(${x * k}px) rotate(-4deg)` }}>\n        <div style={{ background: bar, color: fg, fontFamily, fontWeight: 900, fontSize: size * k, letterSpacing: `${-2 * k}px`, lineHeight: 1.12, padding: `${16 * k}px ${34 * k}px ${22 * k}px`, boxShadow: `${12 * k}px ${12 * k}px 0 ${accent}`, whiteSpace: 'nowrap' }}>{text}</div>\n      </div>\n    </div>\n  );\n}\n", caption: "import React from 'react';\nimport { useVideoConfig } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Spoken-line caption: cream type on a black box, low third of a 9:16 frame.\nexport default function Caption({ data }) {\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const lines = String(data?.text ?? '').split('\\n');\n  const size = Number(data?.fontSize ?? 56);\n  const bottom = Number(data?.bottom ?? 1560);\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  return (\n    <div style={{ position: 'absolute', left: 40 * k, width: 1000 * k, top: 0, height: bottom * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', pointerEvents: 'none' }}>\n      <div style={{ background: String(data?.boxColor ?? 'rgba(20,20,20,0.86)'), padding: `${10 * k}px ${26 * k}px ${14 * k}px`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n        {lines.map((line, i) => (\n          <div key={i} style={{ fontFamily, fontSize: size * k, fontWeight: 700, color: String(data?.textColor ?? '#F4ECDD'), lineHeight: 1.3, letterSpacing: `${-1 * k}px`, whiteSpace: 'nowrap' }}>{line}</div>\n        ))}\n      </div>\n    </div>\n  );\n}\n", credit: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Closing source and photo credit strip.\nexport default function Credit({ data }) {\n  const frame = useCurrentFrame();\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const o = interpolate(frame, [0, 8], [0, 1], { extrapolateRight: 'clamp' });\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  return (\n    <div style={{ position: 'absolute', left: 50 * k, right: 50 * k, top: Number(data?.top ?? 1600) * k, opacity: o, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n      <div style={{ background: '#F4ECDD', color: '#141414', fontFamily, padding: `${14 * k}px ${24 * k}px`, borderLeft: `${10 * k}px solid #D7261E`, display: 'flex', flexDirection: 'column', gap: 6 * k }}>\n        <div style={{ fontSize: Number(data?.sourceSize ?? 34) * k, fontWeight: 800 }}>{String(data?.source ?? '')}</div>\n        <div style={{ fontSize: Number(data?.photoSize ?? 21) * k, fontWeight: 500, lineHeight: 1.3 }}>{String(data?.photos ?? '')}</div>\n      </div>\n    </div>\n  );\n}\n" };
 const CAPTION_BOTTOM = 1790;
 const MUSIC_DB = -19;
@@ -262,43 +262,28 @@ function host(): any {
   }
 }
 function hostFs(): any {
-  const fs = host()?.FileSystem;
-  const need = ["readFile", "writeFile", "homedir", "existsSync", "mkdirSync", "readdirSync"];
+  const fs = hostSdk.files;
+  const need = ["readFile", "writeFile", "homedir", "exists", "mkdir", "readdir"];
   return fs && need.every((k) => typeof fs[k] === "function") ? fs : null;
 }
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -329,34 +314,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -669,13 +637,14 @@ async function voxJob(io, dir) {
   const path = io.join(dir, "job.json");
   const data = await io.readJson(path, null);
   if (!pyTrue(data)) throw voxFail("job.json missing in " + dir);
+  for (const parts of [[], ["portraits"], ["check"], ["gen", "kenburns"]]) await io.mkdir(io.join(dir, ...parts));
   const job = {
     dir, path, data, id: data.id,
-    p: (...parts) => { const d = io.join(dir, ...parts.slice(0, -1)); io.mkdir(d); return io.join(d, parts[parts.length - 1]); },
+    p: (...parts) => { const d = io.join(dir, ...parts.slice(0, -1)); return io.join(d, parts[parts.length - 1]); },
     save: async () => { data.updated = new Date(io.now() * 1000).toISOString().slice(0, 19) + "Z"; await io.writeJson(path, data); },
     plan: async () => { const p = await io.readJson(io.join(dir, "plan.json"), null); if (!pyTrue(p)) throw voxFail("plan.json missing"); return p; },
     gen: async () => (await io.readJson(io.join(dir, "gen.json"), {})) || {},
-    file: async (key) => { const g = (await job.gen())[key] || {}; const p = g.path; return pyTrue(p) && io.exists(p) ? p : null; },
+    file: async (key) => { const g = (await job.gen())[key] || {}; const p = g.path; return pyTrue(p) && await io.exists(p) ? p : null; },
   };
   return job;
 }
@@ -1103,7 +1072,7 @@ async function voxCmdSheet(io, job, only) {
     }
     return made;
   };
-  const labelFont = io.exists(font) ? font : null;
+  const labelFont = await io.exists(font) ? font : null;
   let sheets, unlabelled = false;
   try { sheets = await make(labelFont); } catch (e) {
     if (!labelFont) throw voxFail("sheet: " + pySlice(String(e && e.message || e), -300));
@@ -1237,15 +1206,15 @@ export const VOX_READY_PAUSE_MS = 3000;
 // The engine's I/O on the host (see voxEngine): job files through FileSystem, ffmpeg and ffprobe through the host's
 // bundled copies, and the network two ways. Wikipedia/Commons API answers come through fetch (they allow any origin
 // with origin=*, and take Api-User-Agent for the agent engine.py sends). Article pages and portrait images are
-// downloaded by the host's FileSystem.downloadFile, outside the panel's origin rules, into the job folder; a page that
+// downloaded by sdk.files.downloadFile, outside the panel's origin rules, into the job folder; a page that
 // will not download counts as HTTP 599 (FETCH_FAILED: "paste the text instead").
 function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; writeJson: (p: string, v: any) => Promise<void> }) {
   const fs = hostNeed("FileSystem", "join");
   const tmp = () => hostJoin(dir, "dl-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".tmp");
   return {
     join: (...p: string[]) => hostJoin(...p),
-    exists: (p: string) => { try { return !!p && !!fs.existsSync(p); } catch (e) { return false; } },
-    mkdir: (p: string) => { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); },
+    exists: async (p: string) => { try { return !!p && !!(await fs.exists(p)); } catch (e) { return false; } },
+    mkdir: async (p: string) => { if (!(await fs.exists(p))) (await fs.mkdir(p, { recursive: true })); },
     readJson: async (p: string, def: any) => { const v = await files.readJson(p); return v === null ? def : v; },
     writeJson: (p: string, v: any) => files.writeJson(p, v),
     now: () => Date.now() / 1000,
@@ -1281,7 +1250,7 @@ function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; 
     download: async (url: string, dest: string) => {
       try {
         await hostNeed("FileSystem", "downloadFile").downloadFile(url, dest);
-        if (fs.existsSync(dest)) return 200;
+        if ((await fs.exists(dest))) return 200;
       } catch (e) { /* the panel's fetch */ }
       try {
         const r = await fetch(url);
@@ -1428,6 +1397,7 @@ return { draftId: (out as any).createdDraftId ?? null, seconds: total / fps, cli
 }
 
 export default function Panel({ sdk, context, ui }: any) {
+  hostUseSdk(sdk);
   const uiLang = String(context?.language || "en").split("-")[0];
   const S: Strings = STRINGS[uiLang] ?? STRINGS.en;
   const projectId: string | null = context?.projectId ?? null;
@@ -1461,10 +1431,10 @@ export default function Panel({ sdk, context, ui }: any) {
     return S.errors[m] || m;
   };
 
-  // ---- Host helpers: files through the host FileSystem (window.parent.__DI__), no shell ----
+  // ---- Host helpers: files through sdk.files, no shell ----
   async function readText(path: string): Promise<string | null> {
     try {
-      return fs && fs.existsSync(path) ? dec(await fs.readFile(path)) : null;
+      return fs && (await fs.exists(path)) ? dec(await fs.readFile(path)) : null;
     } catch (e) {
       return null;
     }
@@ -1472,7 +1442,7 @@ export default function Panel({ sdk, context, ui }: any) {
   async function writeBytes(path: string, bytes: Uint8Array) {
     if (!fs) throw new Error(S.noHost);
     const dir = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!(await fs.exists(dir))) (await fs.mkdir(dir, { recursive: true }));
     await fs.writeFile(path, bytes);
   }
   async function readB64(path: string): Promise<string> {
@@ -1488,8 +1458,8 @@ export default function Panel({ sdk, context, ui }: any) {
   };
   const writeJson = (path: string, v: any) => writeBytes(path, enc(JSON.stringify(v)));
 
-  // Working files live in ~/.selects/plugin-data/vox-explainer. The engine needs the host's FileSystem (files and
-  // downloads) and its bundled ffmpeg/ffprobe; a Selects build without them gets one "update Selects" message.
+  // Working files live in ~/.selects/plugin-data/vox-explainer. The engine uses SDK file and media services (files,
+  // downloads and bundled ffmpeg/ffprobe); a build without them gets one "update Selects" message.
   async function ensureEnv() {
     if (env.current) return env.current;
     if (!fs || !hostApi("FileSystem", "join", "downloadFile") || !hostApi("Runtime", "runFFmpeg", "runFFprobe")) throw new Error(S.noHost);
@@ -1599,9 +1569,9 @@ export default function Panel({ sdk, context, ui }: any) {
     if (!projectId || !fs) return;
     try {
       const root = hostJoin(fs.homedir(), ".selects", "plugin-data", APP_ID, "jobs");
-      if (!fs.existsSync(root)) return setJobs([]);
+      if (!(await fs.exists(root))) return setJobs([]);
       const list: any[] = [];
-      for (const n of fs.readdirSync(root)) {
+      for (const n of (await fs.readdir(root))) {
         const j = await readJson(hostJoin(root, n, "job.json"));
         const pj = (await readJson(hostJoin(root, n, "panel.json"))) || {};
         if (j && j.projectId === projectId && pj.started && !pj.done && !pj.dismissed)

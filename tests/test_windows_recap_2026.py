@@ -60,12 +60,12 @@ class Recap2026WindowsTest(unittest.TestCase):
         self.assertEqual(self.source.count("runShell("), 0)
 
     def test_timing_is_read_through_the_host_before_the_draft(self):
-        self.assertIn('hostRoots(null, SLUG, "timing.json")', self.runtime)
-        self.assertIn('hostReadText(hostJoin((await recapRoots()).plugin, "timing.json"))', self.runtime)
+        self.assertIn('hostRoots(sdk, SLUG, "timing.json")', self.runtime)
+        self.assertIn('hostReadText(hostJoin((await recapRoots(sdk)).plugin, "timing.json"))', self.runtime)
         build = body(self.runtime, "async function buildRecap(")
-        self.assertLess(build.index("readTiming()"), build.index("createScript("), "timing before the Draft")
+        self.assertLess(build.index("readTiming(sdk)"), build.index("createScript("), "timing before the Draft")
         self.assertLess(build.index("ensureAudio("), build.index("createScript("), "soundtrack before the Draft")
-        self.assertIn("readTiming()", body(self.runtime, "function RecapPanel("), "Advanced timing view")
+        self.assertIn("readTiming(sdk)", body(self.runtime, "function RecapPanel("), "Advanced timing view")
 
     def test_soundtrack_path_and_dedup(self):
         audio = body(self.runtime, "async function ensureAudio(")

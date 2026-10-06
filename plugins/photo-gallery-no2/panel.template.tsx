@@ -16,38 +16,23 @@ import React from 'react';
 /*__SHARED_SCRIPT_BUILDER__*/
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -78,34 +63,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -219,10 +187,10 @@ async function holdValidate(path, frames, dimensions, decode = false) {
   }
   return video;
 }
-// { size, mtimeMs } of a file (FileSystem.statSync crosses IPC, so only its plain fields are used), or null.
-function holdStat(path) {
+// { size, mtimeMs } of a file (FileSystem.stat crosses IPC, so only its plain fields are used), or null.
+async function holdStat(path) {
   try {
-    const stat = hostNeed('FileSystem', 'statSync').statSync(path);
+    const stat = (await hostNeed('FileSystem', 'stat').stat(path));
     return stat && Number.isFinite(stat.size) ? { size: stat.size, mtimeMs: Number(stat.mtimeMs) || 0 } : null;
   } catch (error) { if (error?.code === 'host-missing') throw error; return null; }
 }
@@ -242,11 +210,11 @@ async function holdEncode(source, target, frames) {
   } catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('ffmpeg could not extend the short video'); }
 }
 async function holdCached(videoPath, metaPath, identity, frames, dimensions) {
-  const fs = hostNeed('FileSystem', 'existsSync');
+  const fs = hostNeed('FileSystem', 'exists');
   try {
-    if (!fs.existsSync(videoPath) || !fs.existsSync(metaPath)) return false;
+    if (!(await fs.exists(videoPath)) || !(await fs.exists(metaPath))) return false;
     const data = JSON.parse(await hostReadText(metaPath));
-    const stat = holdStat(videoPath);
+    const stat = (await holdStat(videoPath));
     if (data?.algorithm !== HOLD_ALGORITHM || data.sourceSize !== identity.size || data.sourceMtimeMs !== identity.mtimeMs ||
         data.durationFrames !== frames || JSON.stringify(data.outputDimensions) !== JSON.stringify(dimensions) ||
         !stat || data.outputSize !== stat.size) return false;
@@ -259,22 +227,22 @@ async function holdConvertOne(source, identity, sourceDimensions, frames, cacheR
   const videoPath = hostJoin(cacheRoot, key + '.mp4'), metaPath = hostJoin(cacheRoot, key + '.json');
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
   if (await holdCached(videoPath, metaPath, identity, frames, dimensions)) return { videoPath, dimensions, reused: true };
-  const fs = hostNeed('FileSystem', 'renameSync');
+  const fs = hostNeed('FileSystem', 'rename');
   const writer = hostNeed('FileSystem', 'writeFile');
   const stamp = Date.now() + '-' + Math.floor(Math.random() * 1e6);
   const temporary = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.mp4.tmp');
   const temporaryMeta = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.json.tmp');
-  const unchanged = () => { const now = holdStat(source); return !!now && now.size === identity.size && now.mtimeMs === identity.mtimeMs; };
+  const unchanged = async () => { const now = (await holdStat(source)); return !!now && now.size === identity.size && now.mtimeMs === identity.mtimeMs; };
   try {
     await holdEncode(source, temporary, frames);
-    if (!unchanged()) throw holdError('A video changed during extension');
+    if (!(await unchanged())) throw holdError('A video changed during extension');
     await holdValidate(temporary, frames, dimensions, true);
-    const output = holdStat(temporary);
+    const output = (await holdStat(temporary));
     if (!output) throw holdError('ffmpeg could not extend the short video');
     await writer.writeFile(temporaryMeta, JSON.stringify({ algorithm: HOLD_ALGORITHM, sourceSize: identity.size,
       sourceMtimeMs: identity.mtimeMs, durationFrames: frames, outputDimensions: dimensions, outputSize: output.size }));
-    fs.renameSync(temporary, videoPath);
-    fs.renameSync(temporaryMeta, metaPath);
+    (await fs.rename(temporary, videoPath));
+    (await fs.rename(temporaryMeta, metaPath));
   } finally {
     await hostRemove(temporary);
     await hostRemove(temporaryMeta);
@@ -289,15 +257,15 @@ async function holdVideos(request, dataDir) {
   if (!dataDir) throw holdError('The plugin data folder is unavailable');
   hostNeed('Runtime', 'runFFmpeg'); hostNeed('Runtime', 'runFFprobe');
   const cacheRoot = hostJoin(dataDir, 'held-v2');
-  hostNeed('FileSystem', 'mkdirSync').mkdirSync(cacheRoot, { recursive: true });
-  const exists = hostNeed('FileSystem', 'existsSync');
+  (await hostNeed('FileSystem', 'mkdir').mkdir(cacheRoot, { recursive: true }));
+  const exists = hostNeed('FileSystem', 'exists');
   const completed = new Map(), output = [];
   for (let index = 0; index < videos.length; index++) {
     const raw = videos[index]?.path;
     if (typeof raw !== 'string') throw holdError('Video ' + (index + 1) + ' needs a file path');
     if (!raw || raw.includes('\0') || raw.length > 8192) throw holdError('Video ' + (index + 1) + ' has an invalid path');
     try {
-      const identity = exists.existsSync(raw) ? holdStat(raw) : null;
+      const identity = (await exists.exists(raw)) ? (await holdStat(raw)) : null;
       if (!identity) throw holdError('Video is missing');
       const id = holdPathKey(raw) + '\0' + identity.size + '\0' + identity.mtimeMs;
       if (!completed.has(id)) {
@@ -809,8 +777,8 @@ async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurren
   try {
     const { plugin } = await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md');
     const path = hostJoin(plugin, 'assets', 'music.mp3');
-    if (hostNeed('FileSystem', 'existsSync').existsSync(path)) musicPath = path;
-  } catch { musicPath = null; }
+    if ((await hostNeed('FileSystem', 'exists').exists(path))) musicPath = path;
+  } catch (error) { if (error?.code === 'host-missing') throw error; musicPath = null; }
   if (!musicPath) throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
   if (!isCurrent()) throw new Error(t.changed);
   onImportStarted();
@@ -936,6 +904,7 @@ async function buildGalleryDraft(sdk, t, { input, isCurrent, onDispatched, onDra
 
 // A template run gets its own component, so it never touches the Panel's state.
 export default function Panel(props) {
+  hostUseSdk(props.sdk);
   return props.context?.template ? <GalleryTemplateRun {...props}/> : <GalleryPanel {...props}/>;
 }
 

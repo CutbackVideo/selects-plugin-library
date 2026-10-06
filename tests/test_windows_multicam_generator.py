@@ -52,7 +52,7 @@ class MulticamGeneratorWindowsTest(unittest.TestCase):
     def test_diagnostic_log_uses_the_host_file_service(self):
         body = self.runtime[self.runtime.index("export async function writeLocalDiagnostic("):]
         body = body[: body.index("\n}\n")]
-        self.assertIn("__DI__?.FileSystem", body)
+        self.assertIn("sdk.files", body)
         self.assertIn('fs.join(fs.homedir(), ".selects", "logs")', body)
         self.assertIn("fs.writeFile(", body)
         self.assertNotIn("instanceof", body, "host bytes come from another realm")

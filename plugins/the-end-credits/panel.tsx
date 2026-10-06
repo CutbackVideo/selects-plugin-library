@@ -2748,7 +2748,7 @@ function tecProgress(stepId, fraction) {
 
 // quick-score:start
 // Quick local shot score for clips Selects has not analysed (no scene search). Plain JS and self-contained: it reaches
-// the host only through window.parent.__DI__ (Runtime.runFFmpeg and FileSystem, every member checked first), or through
+// the host through the public SDK files and media namespaces, or through
 // `opts.io` (tests, other hosts), so it can be pasted into any style-app panel and kept as one kit file
 // (tools/panel/quick-score.ts). No shell, no node: the host's bundled ffmpeg decodes a small grey preview
 // (QS_FPS frames a second, QS_W x QS_H pixels) of the part of the clip the planner could use into a temporary file in
@@ -2802,23 +2802,21 @@ function qsBytes(v) {
 // The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
 // mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
 function qsHostIO() {
-  var di = null;
-  try { di = (window.parent && window.parent["__DI__"]) || null; } catch (e) { di = null; }
-  var rt = di && di.Runtime, fs = di && di.FileSystem;
+  var rt = hostSdk?.media, fs = hostSdk?.files;
   var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
   return {
     runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
     readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
     remove: fs ? async function (p) {
-      var tries = ["removeFile", "remove", "rm", "unlink", "unlinkSync"];
+      var tries = ["removeFile"];
       for (var i = 0; i < tries.length; i++) {
         if (!fn(fs, tries[i])) continue;
         try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
       }
     } : null,
     join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
-    mkdir: fn(fs, "mkdirSync") ? function (d) { fs.mkdirSync(d, { recursive: true }); } : null,
-    mtimeMs: fn(fs, "statSync") ? function (p) { var s = fs.statSync(p); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
+    mkdir: fn(fs, "mkdir") ? async function (d) { (await fs.mkdir(d, { recursive: true })); } : null,
+    mtimeMs: fn(fs, "stat") ? async function (p) { var s = (await fs.stat(p)); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
     readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
     writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
   };
@@ -2931,8 +2929,8 @@ async function quickScore(resource, opts) {
   var dir = io.join(dataDir, "quick-score");
   var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
   var mtime = 0;
-  try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
-  // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
+  try { mtime = io.mtimeMs ? Math.round((await io.mtimeMs(resource.path)) || 0) : 0; } catch (e) { mtime = 0; }
+  // mtime is 0 when the host lacks FileSystem.stat, so the duration also keys the cache (a file replaced at the same
   // path with different media is not served stale scores; Mini Vlog review).
   var durKey = Number(resource.durationSeconds || 0).toFixed(3);
   var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
@@ -2944,7 +2942,7 @@ async function quickScore(resource, opts) {
     } catch (e) { /* no cache yet */ }
   }
   if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
-  try { if (io.mkdir) io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
+  try { if (io.mkdir) await io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
   var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
   var controller = typeof AbortController === "undefined" ? null : new AbortController();
   var relay = function () { if (controller) controller.abort(); };
@@ -3050,23 +3048,11 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
 // quick-score:end
 
 // tec-host:start
-// Host I/O through the renderer's own services, the same on macOS and Windows: no host shell, no node, nothing for the
-// user to install. Copied from Selfie Aesthetic's sae-host block (dev/host-block.ts; the Archive Vlog av-host pattern)
-// and renamed. ffmpeg/ffprobe are the host's bundled binaries (Runtime.runFFmpeg/runFFprobe take an argv array, so
-// paths need no quoting and never pass through a console), every path is built by FileSystem.join, and temporary
-// files in the data folder get ASCII names. __DI__ (window.parent) is internal host wiring that a newer or older
-// Selects may lack, so each member is checked at call time. Plain JS: tests/host.test.cjs runs it in node:vm.
-// Error codes (Error.message): 'host_tools' = a needed __DI__ member is missing (err.missing; the panel shows
-// "needs a newer Selects"; the bundled tracks still build), 'timeout' = ffmpeg/ffprobe ran past timeoutMs,
-// 'media_failed' = ffmpeg/ffprobe failed or wrote nothing usable (err.detail holds the host's message, truncated).
-function tecHostDI() {
-  let di = null;
-  try { di = window.parent && window.parent.__DI__; } catch (e) { di = null; }
-  if (!di) { try { di = window.__DI__; } catch (e) { di = null; } }
-  const fs = di && di.FileSystem ? di.FileSystem : null;
-  const rt = di && di.Runtime ? di.Runtime : null;
-  return { fs, rt };
-}
+// Local files, media tools and environment use the public SDK.
+// Missing capabilities report the existing host-tools error to the panel UI.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
+function tecHostDI() { return { fs: hostSdk?.files, rt: hostSdk?.media }; }
 // names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.
 function tecHostHas(names) {
   const di = tecHostDI();
@@ -3087,10 +3073,10 @@ function tecHostNeed(names) {
   }
   return tecHostDI();
 }
-// A file reader (readFileSync or readFile) is needed too.
+// A file reader (readFile or readFile) is needed too.
 function tecHostCanRead() {
   const di = tecHostDI();
-  return !!di.fs && (typeof di.fs.readFileSync === 'function' || typeof di.fs.readFile === 'function');
+  return !!di.fs && typeof di.fs.readFile === 'function';
 }
 function tecHostNeedReader() {
   if (!tecHostCanRead()) {
@@ -3106,16 +3092,16 @@ function tecHostJoin(...parts) {
 }
 // The installed skill folder (the home folder joined with .selects, skills and <id>: the host's
 // SELECTS_USER_SKILLS_ROOT), or null when the plugin's `marker` file is not there.
-function tecHostSkillsDir(id, marker) {
-  const { fs } = tecHostNeed(['fs.join', 'fs.homedir', 'fs.existsSync']);
+async function tecHostSkillsDir(id, marker) {
+  const { fs } = tecHostNeed(['fs.join', 'fs.homedir', 'fs.exists']);
   const dir = String(fs.join(fs.homedir(), '.selects', 'skills', id));
-  try { return fs.existsSync(fs.join(dir, marker)) ? dir : null; } catch (e) { return null; }
+  try { return (await fs.exists(fs.join(dir, marker))) ? dir : null; } catch (e) { return null; }
 }
 // The plugin's data folder (<home>/.selects/plugin-data/<id>), created when missing.
-function tecHostDataDir(id) {
-  const { fs } = tecHostNeed(['fs.join', 'fs.homedir', 'fs.mkdirSync']);
+async function tecHostDataDir(id) {
+  const { fs } = tecHostNeed(['fs.join', 'fs.homedir', 'fs.mkdir']);
   const dir = String(fs.join(fs.homedir(), '.selects', 'plugin-data', id));
-  fs.mkdirSync(dir, { recursive: true });
+  (await fs.mkdir(dir, { recursive: true }));
   return dir;
 }
 function tecHostFail(code, cause) {
@@ -3150,7 +3136,7 @@ async function tecHostProbeSeconds(file, opts) {
 }
 // Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (a Buffer, Uint8Array or ArrayBuffer from another
 // realm, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array). FileSystem results come from
-// window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks
+// the bridge, possibly another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks
 // are used (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray works across realms), with an
 // array-like fallback for objects a bridge serialised by index.
 function tecHostBytes(raw) {
@@ -3174,7 +3160,7 @@ function tecHostBytes(raw) {
 async function tecHostReadRaw(file) {
   tecHostNeedReader();
   const { fs } = tecHostDI();
-  return typeof fs.readFileSync === 'function' ? fs.readFileSync(file) : await fs.readFile(file);
+  return await fs.readFile(file);
 }
 async function tecHostReadBytes(file) { return tecHostBytes(await tecHostReadRaw(file)); }
 // A text file (some host builds return text directly, others bytes).
@@ -3184,14 +3170,7 @@ async function tecHostReadText(file) {
 }
 // Best effort; a leftover file in the data folder is harmless. Host builds differ in which remover they have.
 async function tecHostRemove(file) {
-  const { fs } = tecHostDI();
-  if (!fs || !file) return;
-  const tries = [{ name: 'unlinkSync', call: () => fs.unlinkSync(file) }, { name: 'removeFile', call: () => fs.removeFile({ filePath: file }) },
-    { name: 'remove', call: () => fs.remove(file) }, { name: 'rmSync', call: () => fs.rmSync(file, { force: true }) }, { name: 'unlink', call: () => fs.unlink(file) }];
-  for (const t of tries) {
-    if (typeof fs[t.name] !== 'function') continue;
-    try { await t.call(); return; } catch (e) { /* the next one */ }
-  }
+  try { await tecHostDI().fs.removeFile({ filePath: file }); } catch { /* best effort */ }
 }
 function tecHostToken() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -3201,7 +3180,7 @@ function tecHostToken() {
 async function tecHostFFmpegBytes(argsFor, dataDir, ext, opts) {
   tecHostNeed(['rt.runFFmpeg', 'fs.join']);
   tecHostNeedReader();
-  if (!dataDir) { const err = new Error('host_tools'); err.missing = ['fs.mkdirSync']; throw err; }
+  if (!dataDir) { const err = new Error('host_tools'); err.missing = ['fs.mkdir']; throw err; }
   const out = tecHostJoin(dataDir, 'tmp-' + tecHostToken() + '.' + ext);
   try {
     await tecHostFFmpeg(argsFor(out), opts);
@@ -4071,6 +4050,7 @@ async function loadCreditFaces(fontsB64: Record<string, string>) {
 // The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer run
 // (or the frame closing) replaced this one. `say` names the current step for the status line.
 async function runEndCreditsTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
+  hostUseSdk(sdk);
   // The UI language when the run starts: its messages and the Inspector labels written into the Draft use it.
   const bl = uiLang(context);
   const pid: string | null = context?.projectId ?? null;
@@ -4290,18 +4270,20 @@ function TemplateRun({ sdk, context }: any) {
 // A template run (Clip highlights hands the footage over in `context.template`) builds out of sight; anything else is
 // the panel.
 export default function Panel(props: any) {
+  hostUseSdk(props.sdk);
   return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <EndCreditsPanel {...props} />;
 }
 
 // The install folder (scripts, cues, fonts) and the data folder for temporary files, through the host's FileSystem
 // (tecHostSkillsDir / tecHostDataDir: join + homedir, no shell). Shared by the panel and a template run (same name and
-// result as before). A host without FileSystem.join/homedir/existsSync throws 'host_tools' ("needs a newer Selects");
+// result as before). A host without FileSystem.join/homedir/exists throws 'host_tools' ("needs a newer Selects");
 // data is null when the folder cannot be made (music previews and own music are then off). `sdk` is unused now.
 async function locateRoots(_sdk: any): Promise<{ plugin: string; data: string | null }> {
-  const plugin = tecHostSkillsDir(PLUGIN_ID, "planner.js");
+  hostUseSdk(_sdk);
+  const plugin = (await tecHostSkillsDir(PLUGIN_ID, "planner.js"));
   if (!plugin) throw uiError((l) => t(l, "foldersNotFound"));
   let data: string | null = null;
-  try { data = tecHostDataDir(PLUGIN_ID); } catch { data = null; }
+  try { data = (await tecHostDataDir(PLUGIN_ID)); } catch { data = null; }
   return { plugin, data };
 }
 

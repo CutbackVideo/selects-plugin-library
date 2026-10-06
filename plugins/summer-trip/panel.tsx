@@ -3056,7 +3056,7 @@ function stMuffleArgs(inPath, outPath) {
 
 // quick-score:start
 // Quick local shot score for clips Selects has not analysed (no scene search). Plain JS and self-contained: it reaches
-// the host only through window.parent.__DI__ (Runtime.runFFmpeg and FileSystem, every member checked first), or through
+// the host through the public SDK files and media namespaces, or through
 // `opts.io` (tests, other hosts), so it can be pasted into any style-app panel and kept as one kit file
 // (tools/panel/quick-score.ts). No shell, no node: the host's bundled ffmpeg decodes a small grey preview
 // (QS_FPS frames a second, QS_W x QS_H pixels) of the part of the clip the planner could use into a temporary file in
@@ -3110,23 +3110,21 @@ function qsBytes(v) {
 // The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
 // mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
 function qsHostIO() {
-  var di = null;
-  try { di = (window.parent && window.parent["__DI__"]) || null; } catch (e) { di = null; }
-  var rt = di && di.Runtime, fs = di && di.FileSystem;
+  var rt = hostSdk?.media, fs = hostSdk?.files;
   var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
   return {
     runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
     readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
     remove: fs ? async function (p) {
-      var tries = ["removeFile", "remove", "rm", "unlink", "unlinkSync"];
+      var tries = ["removeFile"];
       for (var i = 0; i < tries.length; i++) {
         if (!fn(fs, tries[i])) continue;
         try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
       }
     } : null,
     join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
-    mkdir: fn(fs, "mkdirSync") ? function (d) { fs.mkdirSync(d, { recursive: true }); } : null,
-    mtimeMs: fn(fs, "statSync") ? function (p) { var s = fs.statSync(p); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
+    mkdir: fn(fs, "mkdir") ? async function (d) { (await fs.mkdir(d, { recursive: true })); } : null,
+    mtimeMs: fn(fs, "stat") ? async function (p) { var s = (await fs.stat(p)); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
     readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
     writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
   };
@@ -3239,8 +3237,8 @@ async function quickScore(resource, opts) {
   var dir = io.join(dataDir, "quick-score");
   var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
   var mtime = 0;
-  try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
-  // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
+  try { mtime = io.mtimeMs ? Math.round((await io.mtimeMs(resource.path)) || 0) : 0; } catch (e) { mtime = 0; }
+  // mtime is 0 when the host lacks FileSystem.stat, so the duration also keys the cache (a file replaced at the same
   // path with different media is not served stale scores; Mini Vlog review).
   var durKey = Number(resource.durationSeconds || 0).toFixed(3);
   var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
@@ -3252,7 +3250,7 @@ async function quickScore(resource, opts) {
     } catch (e) { /* no cache yet */ }
   }
   if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
-  try { if (io.mkdir) io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
+  try { if (io.mkdir) await io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
   var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
   var controller = typeof AbortController === "undefined" ? null : new AbortController();
   var relay = function () { if (controller) controller.abort(); };
@@ -3358,22 +3356,11 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
 // quick-score:end
 
 // st-host:start
-// Host I/O through the renderer's own services, the same on macOS and Windows: no host shell, no node, nothing for the
-// user to install. ffmpeg/ffprobe are the host's bundled binaries (Runtime.runFFmpeg/runFFprobe take an argument
-// array, so paths need no quoting and never pass through a console), and every path is built by FileSystem.join.
-// __DI__ is internal host wiring that a newer or older Selects may lack, so each member is checked at call time.
-// Errors carry `code`: 'host_tools' (a needed __DI__ member is missing, listed in err.missing: the panel says "needs a
-// newer Selects"; bundled cues keep working), 'timeout' (ffmpeg/ffprobe ran past timeoutMs), 'cancelled' (the
-// caller's signal aborted it) or 'media_failed' (ffmpeg/ffprobe failed or wrote nothing usable; err.detail holds the
-// host's message, truncated).
-function hostDI() {
-  let di = null;
-  try { di = window.parent && window.parent.__DI__; } catch (e) { di = null; }
-  if (!di) { try { di = window.__DI__; } catch (e) { di = null; } }
-  const fs = di && di.FileSystem ? di.FileSystem : null;
-  const rt = di && di.Runtime ? di.Runtime : null;
-  return { fs, rt };
-}
+// Local files, media tools and environment use the public SDK.
+// Missing capabilities report the existing host-tools error to the panel UI.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
+function hostDI() { return { fs: hostSdk?.files, rt: hostSdk?.media }; }
 
 // names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.
 function hostHas(names) {
@@ -3397,18 +3384,7 @@ function hostNeed(names) {
   return hostDI();
 }
 
-function hostPlatform() {
-  let p = '';
-  try { const rt = hostDI().rt; if (rt && typeof rt.getPlatform === 'function') p = String(rt.getPlatform() || ''); } catch (e) { p = ''; }
-  if (/^win/i.test(p)) return 'win32';
-  if (/darwin|mac/i.test(p)) return 'darwin';
-  if (/linux/i.test(p)) return 'linux';
-  let ua = '';
-  try { ua = String(navigator.userAgent || ''); } catch (e) { ua = ''; }
-  if (/Windows NT/i.test(ua)) return 'win32';
-  if (/Mac/i.test(ua)) return 'darwin';
-  return 'linux';
-}
+function hostPlatform() { return hostSdk?.environment?.platform || ""; }
 
 // Joins path parts with the host's join (the OS separator).
 function hostJoin(...parts) {
@@ -3418,24 +3394,24 @@ function hostJoin(...parts) {
 
 // The installed plugin folder (the host's SELECTS_USER_SKILLS_ROOT is the user's .selects/skills), or null when the
 // folder lacks `marker` (a file every install has).
-function hostSkillsDir(id, marker) {
-  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.existsSync']);
+async function hostSkillsDir(id, marker) {
+  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.exists']);
   const dir = String(fs.join(fs.homedir(), '.selects', 'skills', id));
-  try { return fs.existsSync(fs.join(dir, marker)) ? dir : null; } catch (e) { return null; }
+  try { return (await fs.exists(fs.join(dir, marker))) ? dir : null; } catch (e) { return null; }
 }
 
 // The plugin's persistent data folder, created when missing.
-function hostDataDir(id) {
-  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.mkdirSync']);
+async function hostDataDir(id) {
+  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.mkdir']);
   const dir = String(fs.join(fs.homedir(), '.selects', 'plugin-data', id));
-  fs.mkdirSync(dir, { recursive: true });
+  (await fs.mkdir(dir, { recursive: true }));
   return dir;
 }
 
 // A folder, created with its parents when missing.
-function hostMkdir(dir) {
-  const { fs } = hostNeed(['fs.mkdirSync']);
-  fs.mkdirSync(dir, { recursive: true });
+async function hostMkdir(dir) {
+  const { fs } = hostNeed(['fs.mkdir']);
+  (await fs.mkdir(dir, { recursive: true }));
   return dir;
 }
 
@@ -3481,7 +3457,7 @@ async function hostProbeDuration(file, opts) {
 
 // Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (a Buffer from another realm, Uint8Array,
 // ArrayBuffer, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array). FileSystem results come from
-// window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks are
+// the bridge, possibly another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks are
 // used (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray works across realms), with an
 // array-like fallback for objects a bridge serialised by index.
 function hostBytes(raw) {
@@ -3503,10 +3479,10 @@ function hostBytes(raw) {
   return new Uint8Array(0);
 }
 
-// FileSystem with a reader (readFile or readFileSync), else a host_tools error.
+// Require the asynchronous SDK reader.
 function hostNeedReader() {
   const { fs } = hostDI();
-  if (!fs || (typeof fs.readFile !== 'function' && typeof fs.readFileSync !== 'function')) {
+  if (!fs || typeof fs.readFile !== 'function') {
     throw hostError('host_tools', 'this Selects build has no FileSystem.readFile', { missing: ['fs.readFile'] });
   }
   return fs;
@@ -3514,10 +3490,10 @@ function hostNeedReader() {
 
 async function hostReadRaw(file) {
   const fs = hostNeedReader();
-  return typeof fs.readFile === 'function' ? await fs.readFile(file) : fs.readFileSync(file);
+  return await fs.readFile(file);
 }
 
-// A file's bytes (FileSystem.readFile, else readFileSync).
+// Read a file's bytes through the SDK.
 async function hostReadBytes(file) {
   const raw = await hostReadRaw(file);
   if (typeof raw === 'string') throw hostError('media_failed', 'the file came back as text');
@@ -3543,34 +3519,33 @@ async function hostReadOutput(file, what) {
   return bytes;
 }
 
-// Writes bytes to a file (FileSystem.writeFile, else writeFileSync).
+// Write bytes through the SDK.
 async function hostWriteBytes(file, bytes) {
   const { fs } = hostDI();
   if (fs && typeof fs.writeFile === 'function') return await fs.writeFile(file, bytes);
-  if (fs && typeof fs.writeFileSync === 'function') return fs.writeFileSync(file, bytes);
   throw hostError('host_tools', 'this Selects build has no FileSystem.writeFile', { missing: ['fs.writeFile'] });
 }
 
-// A file's size in bytes, 0 when it is missing (statSync; without it, existsSync says 1 for "there").
-function hostFileSize(file) {
+// A file's size in bytes, 0 when it is missing (stat; without it, exists says 1 for "there").
+async function hostFileSize(file) {
   const { fs } = hostDI();
   try {
-    if (fs && typeof fs.statSync === 'function') { const s = fs.statSync(file); return s && s.size > 0 ? Number(s.size) : 0; }
-    if (fs && typeof fs.existsSync === 'function') return fs.existsSync(file) ? 1 : 0;
+    if (fs && typeof fs.stat === 'function') { const s = (await fs.stat(file)); return s && s.size > 0 ? Number(s.size) : 0; }
+    if (fs && typeof fs.exists === 'function') return (await fs.exists(file)) ? 1 : 0;
   } catch (e) { return 0; }
   return 0;
 }
 
-// Moves a finished file into place (FileSystem.renameSync).
-function hostRename(from, to) {
-  const { fs } = hostNeed(['fs.renameSync']);
-  fs.renameSync(from, to);
+// Moves a finished file into place (FileSystem.rename).
+async function hostRename(from, to) {
+  const { fs } = hostNeed(['fs.rename']);
+  (await fs.rename(from, to));
 }
 
 // The names in a folder, [] when it cannot be listed.
-function hostList(dir) {
+async function hostList(dir) {
   const { fs } = hostDI();
-  try { return fs && typeof fs.readdirSync === 'function' ? Array.from(fs.readdirSync(dir) || [], String) : []; } catch (e) { return []; }
+  try { return fs && typeof fs.readdir === 'function' ? Array.from((await fs.readdir(dir)) || [], String) : []; } catch (e) { return []; }
 }
 
 // Best effort; a leftover file in the data folder is harmless.
@@ -3578,9 +3553,7 @@ async function hostRemove(file) {
   const { fs } = hostDI();
   if (!fs) return;
   try {
-    if (typeof fs.unlinkSync === 'function') return fs.unlinkSync(file);
     if (typeof fs.removeFile === 'function') return await fs.removeFile({ filePath: file });
-    if (typeof fs.rmSync === 'function') return fs.rmSync(file, { force: true });
   } catch (e) { /* ignored */ }
 }
 
@@ -3614,7 +3587,7 @@ async function hostDecodePcm(file, dataDir, rate, maxSeconds, opts) {
 async function hostPreviewUrl(file, start, seconds, dataDir, fade) {
   hostNeed(['rt.runFFmpeg', 'fs.join']);
   hostNeedReader();
-  for (const name of hostList(dataDir)) if (/^preview-.*\.(mp3|wav|b64)$/.test(name)) await hostRemove(hostJoin(dataDir, name));
+  for (const name of (await hostList(dataDir))) if (/^preview-.*\.(mp3|wav|b64)$/.test(name)) await hostRemove(hostJoin(dataDir, name));
   const token = hostToken();
   const f = fade > 0 ? fade : 0;
   const cut = ['-nostdin', '-v', 'error', '-y', '-ss', Number(start || 0).toFixed(2), '-t', Number(seconds).toFixed(2), '-i', file, '-ac', '1', '-ar', '22050'];
@@ -3880,7 +3853,7 @@ const ST_QUICK_CONCURRENCY = 3;
 const ST_QUICK_BUDGET_MS = 20000;
 // quickScore's resources for inventory videos. Resource ids are per-Project aliases (r0, r1, ...) and the block caches
 // one file per id in <dataDir>/quick-score/, so the id it sees is qualified with the Project (ASCII; the block keys the
-// cache on that id, the file's modification time (statSync; 0 when the host has none) and the decoded span, which ends
+// cache on that id, the file's modification time (stat; 0 when the host has none) and the decoded span, which ends
 // at the clip's length for clips up to 2 minutes, so a missing modification time falls back to id + length).
 function stQuickId(projectId, rid) { return String(projectId || 'project').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40) + '_' + rid; }
 function stQuickResources(projectId, resources) {
@@ -4479,8 +4452,9 @@ function TitlePreview({ presets, presetId, line1, season, topMain, topItalic, cr
 // The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing. Shared by
 // the panel and a template run.
 async function locateRoots(sdk: any) {
+  hostUseSdk(sdk);
   let plugin: string | null = null, data: string | null = null;
-  try { plugin = hostSkillsDir(PLUGIN_ID, "planner.js"); data = hostDataDir(PLUGIN_ID); } catch (e: any) { throw hostUiError(e); }
+  try { plugin = (await hostSkillsDir(PLUGIN_ID, "planner.js")); data = (await hostDataDir(PLUGIN_ID)); } catch (e: any) { throw hostUiError(e); }
   if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
   return { plugin, data };
 }
@@ -4488,6 +4462,7 @@ async function locateRoots(sdk: any) {
 // A template run (Clip highlights hands the footage over in `context.template`) builds out of sight; anything else is
 // the panel.
 export default function Panel(props: any) {
+  hostUseSdk(props.sdk);
   return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <SummerTripPanel {...props} />;
 }
 
@@ -4658,7 +4633,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
         setRoots({ plugin, data });
         // Previews and own music need the host's bundled ffmpeg (Runtime.runFFmpeg) and file access; bundled cues work
         // without them. Nothing for the person to install: a host without them needs a newer Selects.
-        setTools({ ffmpeg: hostHas(["rt.runFFmpeg", "fs.join", "fs.readFile", "fs.mkdirSync"]).ok });
+        setTools({ ffmpeg: hostHas(["rt.runFFmpeg", "fs.join", "fs.readFile", "fs.mkdir"]).ok });
         const read = (rel: string) => readText(plugin, rel);
         const [manifest, presets, sfxManifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, labelsTsx, lookTsx, gridTsx, filmTsx, motionTsx, videoMotionTsx, beatDetect] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("sfx/manifest.json"), read("scripts/inventory.js"), read("scripts/search.js"),
@@ -4884,16 +4859,16 @@ function SummerTripPanel({ sdk, context, ui }: any) {
     const out = pjoin(roots!.data, stOwnMuffledName(name, hash)), part = out + ".part.wav";
     // A partial copy left by an earlier run that stopped mid-bake goes first (the old step always removed it).
     await hostRemove(part);
-    if (!(hostFileSize(out) > 0)) {
+    if (!((await hostFileSize(out)) > 0)) {
       try {
         await hostFFmpeg(stMuffleArgs(path, part), { timeoutMs: 180000 });
-        if (!(hostFileSize(part) > 0)) throw uiError((l) => t(l, "musicNotRead"));
-        hostRename(part, out);
+        if (!((await hostFileSize(part)) > 0)) throw uiError((l) => t(l, "musicNotRead"));
+        (await hostRename(part, out));
       } catch (e: any) { throw hostUiError(e); }
       finally { await hostRemove(part); }
     }
     check();
-    if (!(hostFileSize(out) > 0)) throw uiError((l) => t(l, "musicNotRead"));
+    if (!((await hostFileSize(out)) > 0)) throw uiError((l) => t(l, "musicNotRead"));
     return out;
   }
 
@@ -4903,14 +4878,14 @@ function SummerTripPanel({ sdk, context, ui }: any) {
     const dir = pjoin(roots!.data, "sfx");
     const files = stSfxFiles(assets.sfx, dir, hostJoin);
     try {
-      hostMkdir(dir);
+      (await hostMkdir(dir));
       for (const f of files) {
-        if (hostFileSize(f.path) > 0) continue;
+        if ((await hostFileSize(f.path)) > 0) continue;
         const b64 = (await readText(roots!.plugin, f.b64)).replace(/\s+/g, "");
         const bin = atob(b64), bytes = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         await hostWriteBytes(f.path, bytes);
-        if (!(hostFileSize(f.path) > 0)) throw new Error("the sound effect " + f.key + " could not be written");
+        if (!((await hostFileSize(f.path)) > 0)) throw new Error("the sound effect " + f.key + " could not be written");
       }
     } catch (e: any) { throw hostUiError(e); }
     check();
@@ -5425,6 +5400,7 @@ function templateFootage(context: any) {
 // The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer run
 // (or the frame closing) replaced this one. `say` names the current step for the status line.
 async function runSummerTripTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
+  hostUseSdk(sdk);
   const pid: string | null = context?.projectId ?? null;
   // The UI language when the run starts: its messages and the Adjust labels written into the Draft use it.
   const bl = uiLang(context);

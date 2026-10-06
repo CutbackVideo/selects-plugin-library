@@ -12,10 +12,7 @@
 // @icon captions
 // One click turns a podcast Draft into a vertical reel: face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.
 
-// src/Panel.tsx
-import React2, { useEffect, useRef, useState } from "react";
-
-// src/pipeline/host.ts
+// plugins/podcast-hook-captions/src/pipeline/host.ts
 var PANEL_ID = "podcast-hook-captions";
 function app() {
   const parent = window.parent;
@@ -33,7 +30,7 @@ function libraryId() {
   return id;
 }
 function fs() {
-  return di().FileSystem;
+  return hostSdk.files;
 }
 function dataRoot() {
   const f = fs();
@@ -45,7 +42,7 @@ function skillRoot() {
 }
 function hostVersion() {
   try {
-    return String(di().Runtime?.getHostingVersion?.() || "");
+    return String(hostSdk?.environment?.version || "");
   } catch {
     return "";
   }
@@ -72,7 +69,7 @@ async function script(sdk, summary, body, allowCommit = false) {
   return r.result;
 }
 async function ffmpeg(label, args, timeoutMs = 3e5, captureLog = false) {
-  const rt = di().Runtime;
+  const rt = hostSdk.media;
   if (typeof rt?.runFFmpeg !== "function") throw new Error("This Selects version cannot run ffmpeg for plug-ins. Update Selects.");
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
@@ -93,7 +90,7 @@ async function ffmpeg(label, args, timeoutMs = 3e5, captureLog = false) {
   }
 }
 async function ffprobe(label, args, timeoutMs = 6e4) {
-  const rt = di().Runtime;
+  const rt = hostSdk.media;
   if (typeof rt?.runFFprobe !== "function") throw new Error("This Selects version cannot run ffprobe for plug-ins. Update Selects.");
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
@@ -124,15 +121,15 @@ function toolError(e, streamed) {
   text = text.trim();
   return text ? ": " + text.slice(-600) : ".";
 }
-function removeFile(path) {
+async function removeFile(path) {
   try {
-    if (fs().existsSync(path)) fs().unlinkSync(path);
+    if (await fs().exists(path)) await fs().rm(path);
   } catch {
   }
 }
-function filesIn(dir, pattern) {
+async function filesIn(dir, pattern) {
   try {
-    return fs().readdirSync(dir).map(String).filter((n) => pattern.test(n));
+    return (await fs().readdir(dir)).map(String).filter((n) => pattern.test(n));
   } catch {
     return [];
   }
@@ -151,8 +148,19 @@ function lastJsonObject(text) {
   }
   throw new Error("The assistant's JSON could not be read.");
 }
+var hostSdk;
+function hostUseSdk(sdk) {
+  hostSdk = sdk;
+  if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin.");
+}
+function media() {
+  return hostSdk.media;
+}
 
-// src/pipeline/select.ts
+// plugins/podcast-hook-captions/src/Panel.tsx
+import React2, { useEffect, useRef, useState } from "react";
+
+// plugins/podcast-hook-captions/src/pipeline/select.ts
 var norm = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 var toks = (s) => String(s || "").split(/\s+/).map(norm).filter(Boolean);
 function sentences(words, fps) {
@@ -377,7 +385,7 @@ function mapPicks(picks, map) {
   return out;
 }
 
-// src/pipeline/reel.ts
+// plugins/podcast-hook-captions/src/pipeline/reel.ts
 async function readSource(sdk, sid) {
   return script(
     sdk,
@@ -435,12 +443,12 @@ return { fps: m.fps, endFrame: main.reduce((a: number, c: any) => Math.max(a, c.
   return r;
 }
 
-// src/pipeline/faceFrames.ts
+// plugins/podcast-hook-captions/src/pipeline/faceFrames.ts
 var CHUNK_BYTES = 128 * 1024 * 1024;
 var chunkSamples = (plan) => Math.max(30, Math.floor(CHUNK_BYTES / (plan.w * plan.h * 3)));
 var CHUNK_TIMEOUT_MS = 10 * 60 * 1e3;
 function runtime() {
-  const rt = di().Runtime;
+  const rt = media();
   if (typeof rt?.runFFmpeg !== "function" || typeof rt?.runFFprobe !== "function") throw new Error("This Selects version cannot run ffmpeg for plug-ins. Update Selects.");
   return rt;
 }
@@ -524,7 +532,7 @@ async function cvFrameSeek(path, info, plan, stats, run) {
   for (let tries = 0; tries < 8; tries += 1) {
     const ft = Math.max(plan.f0 - delta, 0);
     const probe = { seek: Math.max(0, info.offset + ft / info.fps), keyframe: true, skip: 0 };
-    removeQuiet(stats);
+    await removeQuiet(stats);
     await run([
       "-nostdin",
       "-hide_banner",
@@ -555,7 +563,7 @@ async function cvFrameSeek(path, info, plan, stats, run) {
       t = sampleTime(String(await fs().readFile(stats, "utf8")), 0);
     } catch {
     }
-    removeQuiet(stats);
+    await removeQuiet(stats);
     if (t == null) return null;
     const n = Math.floor(info.fps * (probe.seek + t - info.offset) + 0.5);
     if (n >= 0 && n <= plan.f0 - 1) return { seek: probe.seek, keyframe: true, skip: plan.f0 - n };
@@ -608,15 +616,15 @@ function toBytes(v) {
   if (v && v.type === "Buffer" && Array.isArray(v.data)) return Uint8Array.from(v.data);
   return new Uint8Array(0);
 }
-function removeQuiet(path) {
+async function removeQuiet(path) {
   try {
-    if (fs().existsSync(path)) fs().unlinkSync(path);
+    if (await fs().exists(path)) await fs().rm(path);
   } catch {
   }
 }
-function fileSize(path) {
+async function fileSize(path) {
   try {
-    const st = fs().statSync(path);
+    const st = await fs().stat(path);
     return st && typeof st.size === "number" ? st.size : null;
   } catch {
     return null;
@@ -631,14 +639,14 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
     chunks.push({ first: s, n: Math.min(per, plan.count - s), file: base + ".bgr", stats: s + per < plan.count ? base + ".txt" : null });
   }
   if (!chunks.length) return;
-  fs().mkdirSync(workDir, { recursive: true });
+  await fs().mkdir(workDir, { recursive: true });
   const ac = new AbortController();
   const stop = () => ac.abort();
   if (signal) signal.addEventListener("abort", stop);
   const ffmpeg2 = (args) => withTimeout((s) => runtime().runFFmpeg(args, true, s), CHUNK_TIMEOUT_MS, ac.signal);
   const extract = (c, from) => {
     const p = (async () => {
-      removeQuiet(c.file);
+      await removeQuiet(c.file);
       let start = from;
       if (!start) {
         const probeStats = fs().join(workDir, "frames-" + tag + "-seek.txt");
@@ -647,13 +655,13 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
           return null;
         }) || timeStart(info, plan);
       }
-      if (c.stats) removeQuiet(c.stats);
+      if (c.stats) await removeQuiet(c.stats);
       try {
         await ffmpeg2(frameArgs(path, plan, start, c.n, c.file, c.stats));
       } catch (e) {
         if (ac.signal.aborted || !c.stats) throw e;
         c.stats = null;
-        removeQuiet(c.file);
+        await removeQuiet(c.file);
         await ffmpeg2(frameArgs(path, plan, start, c.n, c.file, null));
       }
       let next = null;
@@ -663,7 +671,7 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
           if (t != null) next = { seek: Math.max(0, start.seek + t - info.frameS / 2), keyframe: false, skip: 0 };
         } catch {
         }
-        removeQuiet(c.stats);
+        await removeQuiet(c.stats);
       }
       return { c, next };
     })().catch((e) => {
@@ -679,11 +687,11 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
     for (let k = 0; k < chunks.length; k += 1) {
       const { c, next } = await pending;
       pending = null;
-      const size = fileSize(c.file);
+      const size = await fileSize(c.file);
       const full = size == null || size >= c.n * fb;
       if (full && k + 1 < chunks.length) pending = extract(chunks[k + 1], next || timeStart(info, plan, chunks[k + 1].first));
       let got = 0;
-      if (fs().existsSync(c.file)) {
+      if (await fs().exists(c.file)) {
         for (let i = 0; i < c.n; i += 1) {
           if (signal && signal.aborted) throw new Error("Face tracking was cancelled.");
           const bytes = toBytes(await fs().readRange(c.file, i * fb, fb));
@@ -692,7 +700,7 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
           yield bytes;
         }
       }
-      removeQuiet(c.file);
+      await removeQuiet(c.file);
       if (got < c.n) break;
     }
   } finally {
@@ -702,14 +710,14 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
     }
     if (signal) signal.removeEventListener("abort", stop);
     for (const c of chunks) {
-      removeQuiet(c.file);
-      if (c.stats) removeQuiet(c.stats);
+      await removeQuiet(c.file);
+      if (c.stats) await removeQuiet(c.stats);
     }
-    removeQuiet(fs().join(workDir, "frames-" + tag + "-seek.txt"));
+    await removeQuiet(fs().join(workDir, "frames-" + tag + "-seek.txt"));
   }
 }
 
-// src/pipeline/yunetModel.ts
+// plugins/podcast-hook-captions/src/pipeline/yunetModel.ts
 var ORT_VERSION = "1.30.0";
 var ORT_DIST = (host) => host + "/onnxruntime-web@" + ORT_VERSION + "/dist/";
 var ORT_JS = {
@@ -970,7 +978,7 @@ function withSymbolicInputSize(model2) {
   return concat(top.map((f) => f === graph ? newGraph : model2.subarray(f.start, f.end)));
 }
 
-// src/pipeline/yunetDecode.ts
+// plugins/podcast-hook-captions/src/pipeline/yunetDecode.ts
 var YUNET_SCORE_THRESHOLD = 0.8;
 var YUNET_NMS_THRESHOLD = 0.3;
 var YUNET_TOP_K = 5e3;
@@ -1040,7 +1048,7 @@ function nmsBoxes(faces, scoreThreshold, nmsThreshold, topK) {
   return kept;
 }
 
-// src/pipeline/faceWorker.ts
+// plugins/podcast-hook-captions/src/pipeline/faceWorker.ts
 var WORKER_SOURCE = `
 let ort = null, session = null, input = "input";
 self.onmessage = async (e) => {
@@ -1141,26 +1149,26 @@ async function startWorkerEngine(ortJs, wasm, model2) {
   };
 }
 
-// src/pipeline/faceRuntime.ts
+// plugins/podcast-hook-captions/src/pipeline/faceRuntime.ts
 var DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1e3;
 function runtimeDir() {
   return fs().join(dataRoot(), "runtime");
 }
 var errText = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
 async function readVerified(path, file) {
-  if (!fs().existsSync(path)) return null;
+  if (!await fs().exists(path)) return null;
   try {
     const bytes = toBytes(await fs().readFile(path));
     if (bytes.length === file.bytes && await sha256(bytes) === file.sha256) return bytes;
   } catch {
   }
-  removeQuiet(path);
+  await removeQuiet(path);
   return null;
 }
 async function renameWithRetry(from, to) {
   for (let k = 0; ; k += 1) {
     try {
-      fs().renameSync(from, to);
+      await fs().rename(from, to);
       return;
     } catch (e) {
       if (k >= 4) throw e;
@@ -1173,14 +1181,14 @@ async function download(file, dest) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const url = file.urls[Math.min(attempt, file.urls.length - 1)];
     const part = dest + ".part" + attempt;
-    removeQuiet(part);
+    await removeQuiet(part);
     try {
       let timer = null;
       await Promise.race([
         fs().downloadFile(url, part),
         new Promise((_, reject) => timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS / 1e3 + " s")), DOWNLOAD_TIMEOUT_MS))
       ]).finally(() => clearTimeout(timer));
-      if (!fs().existsSync(part)) throw new Error("nothing was saved");
+      if (!await fs().exists(part)) throw new Error("nothing was saved");
       const bytes = toBytes(await fs().readFile(part));
       if (bytes.length !== file.bytes) throw new Error("the server sent " + bytes.length + " bytes, not " + file.bytes);
       const got = await sha256(bytes);
@@ -1189,7 +1197,7 @@ async function download(file, dest) {
       return bytes;
     } catch (e) {
       reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText(e));
-      removeQuiet(part);
+      await removeQuiet(part);
     }
   }
   throw new Error("Could not download the " + file.label + " (" + file.name + "). " + reasons.join("; ") + ". Check the internet connection and try again.");
@@ -1214,7 +1222,7 @@ async function pinnedFiles(want, progress) {
   }
   for (let i = 0; i < want.length; i += 1) {
     if (got[i]) continue;
-    fs().mkdirSync(fs().dirname(want[i].dest), { recursive: true });
+    await fs().mkdir(fs().dirname(want[i].dest), { recursive: true });
     got[i] = { bytes: await download(want[i].file, want[i].dest), path: want[i].dest };
   }
   return got;
@@ -1329,7 +1337,7 @@ function loadFaceDetector(progress = () => {
   return p;
 }
 
-// src/pipeline/cvstats.ts
+// plugins/podcast-hook-captions/src/pipeline/cvstats.ts
 var HSV_SHIFT = 12;
 var HSV_HALF = 1 << HSV_SHIFT - 1;
 var SDIV = new Int32Array(256);
@@ -1459,7 +1467,7 @@ function pyRound(x, nd = 0) {
   return out === 0 ? 0 : out;
 }
 
-// src/pipeline/faceTrack.ts
+// plugins/podcast-hook-captions/src/pipeline/faceTrack.ts
 var TRACK = { fps: 6, score: 0.8, minFace: 0.05, cut: 0.35, longSide: 640, colorSamples: 40, minShot: 0.5 };
 var F = Math.fround;
 var SCORE = F(TRACK.score);
@@ -1590,7 +1598,7 @@ async function scanProbed(job, info, plan, detect, o) {
   return { id: job.id, width: info.W, height: info.H, fps: info.fps, shots: buildShots(samples, cuts, plan.f1, info.fps), color: colorSummary(colors) };
 }
 
-// src/pipeline/faces.ts
+// plugins/podcast-hook-captions/src/pipeline/faces.ts
 var TARGET = { faceH: 0.36, cx: 0.51, eyes: 0.21, maxUpscale: 2.8 };
 async function ensureFaceRuntime(progress) {
   return loadFaceDetector(progress);
@@ -1650,7 +1658,7 @@ async function trackFaces(rt, dir, clips, fps, progress = () => {
     }
   } finally {
     try {
-      fs().rmSync(workDir, { recursive: true, force: true });
+      await fs().rm(workDir, { recursive: true, force: true });
     } catch {
     }
   }
@@ -1698,7 +1706,7 @@ function reelShots(W, H, fps, clips, faces) {
   return out.sort((a, b) => a.from - b.from);
 }
 
-// src/pipeline/media.ts
+// plugins/podcast-hook-captions/src/pipeline/media.ts
 var b64url = (s) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 var model = (endpoint) => "model_v1_" + b64url(endpoint);
 var FAILED = /* @__PURE__ */ new Set(["failed", "cancelled", "canceled", "input_failed", "submission_rejected", "upload_failed", "handoff_failed"]);
@@ -1727,7 +1735,7 @@ function mediaGeneration() {
 }
 async function submit(pid, r) {
   const mg = mediaGeneration();
-  fs().mkdirSync(r.folder, { recursive: true });
+  await fs().mkdir(r.folder, { recursive: true });
   const res = await mg.submit({
     scope: { libraryId: libraryId(), projectId: pid },
     key: r.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64),
@@ -1813,12 +1821,12 @@ var SFX_ANCHOR = {
 };
 async function ensureSfxLibrary(pid, onTick) {
   const dir = fs().join(fsDataRoot(), "sfx-lib");
-  fs().mkdirSync(dir, { recursive: true });
+  await fs().mkdir(dir, { recursive: true });
   const have = {};
   const want = [];
   for (const k of Object.keys(SFX_PROMPTS)) {
     const p = fs().join(dir, k + "-" + SFX_VERSION + ".mp3");
-    if (fs().existsSync(p)) have[k] = p;
+    if (await fs().exists(p)) have[k] = p;
     else want.push(k);
   }
   if (!want.length) return have;
@@ -1851,7 +1859,7 @@ function fsDataRoot() {
   return f.join(f.homedir(), ".selects", "plugin-data", "podcast-hook-captions");
 }
 
-// src/pipeline/render.ts
+// plugins/podcast-hook-captions/src/pipeline/render.ts
 async function sourceRevision(sequenceId, resourceIds) {
   const lib = libraryId();
   const sequence = await di().SequenceRepository.findById(lib, sequenceId);
@@ -1943,19 +1951,19 @@ async function makeMattes(sdk, pid, render, seconds, dir, key, progress) {
   );
   progress("Writing speaker matte frames\u2026");
   const MATTE = /^matte_\d{6}\.png$/;
-  for (const n of filesIn(dir, MATTE)) removeFile(fs().join(dir, n));
+  for (const n of await filesIn(dir, MATTE)) await removeFile(fs().join(dir, n));
   await ffmpeg(
     "Write matte frames",
     ["-v", "error", "-y", "-i", alpha, "-vf", "format=gray,negate,scale=1080:1920:flags=bicubic,dilation,dilation,lut=y=clip((val-24)*1.2\\,0\\,255)", "-start_number", "1", fs().join(dir.replace(/%/g, "%%"), "matte_%06d.png")],
     6e5
   );
-  const count = filesIn(dir, MATTE).length;
+  const count = (await filesIn(dir, MATTE)).length;
   if (!count) throw new Error("No matte frames were written.");
-  const base = String(fs().pathToLocalURL(dir)).replace(/\/$/, "");
+  const base = String(await fs().pathToLocalURL(dir)).replace(/\/$/, "");
   return { base, count };
 }
 
-// src/pipeline/stock.ts
+// plugins/podcast-hook-captions/src/pipeline/stock.ts
 function stockSearchAvailable() {
   try {
     return typeof di()?.StockMediaSearch?.searchVideos === "function";
@@ -1965,7 +1973,7 @@ function stockSearchAvailable() {
 }
 async function stockClip(sdk, queries, orientation, dir, seconds, avoid = []) {
   const service = di().StockMediaSearch;
-  fs().mkdirSync(dir, { recursive: true });
+  await fs().mkdir(dir, { recursive: true });
   const tried = /* @__PURE__ */ new Set();
   let lastErr = null;
   for (const raw of queries) {
@@ -1981,7 +1989,7 @@ async function stockClip(sdk, queries, orientation, dir, seconds, avoid = []) {
     const pick = chooseStock(rows.filter((v) => !avoid.includes(v.originalUrl)), orientation);
     if (!pick) continue;
     const out = fs().join(dir, "stock-" + Math.abs(hash(pick.video.originalUrl)) + ".mp4");
-    if (!fs().existsSync(out)) {
+    if (!await fs().exists(out)) {
       const box = orientation === "portrait" ? "1080:1920" : "1920:1080";
       const src = out + ".src";
       const part = out + ".part.mp4";
@@ -1994,7 +2002,7 @@ async function stockClip(sdk, queries, orientation, dir, seconds, avoid = []) {
         );
         for (let k = 0; ; k += 1) {
           try {
-            fs().renameSync(part, out);
+            await fs().rename(part, out);
             break;
           } catch (e) {
             if (k >= 5) throw e;
@@ -2002,11 +2010,11 @@ async function stockClip(sdk, queries, orientation, dir, seconds, avoid = []) {
           }
         }
       } catch (e) {
-        removeFile(part);
+        await removeFile(part);
         lastErr = e;
         continue;
       } finally {
-        removeFile(src);
+        await removeFile(src);
       }
     }
     const probe = (await ffprobe("Probe stock B-roll", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", out]).catch(() => "")).trim().split(",").map(Number);
@@ -2050,7 +2058,7 @@ function hash(s) {
   return h;
 }
 
-// src/pipeline/sound.ts
+// plugins/podcast-hook-captions/src/pipeline/sound.ts
 var MUSIC_PROMPT = "Instrumental drift phonk, 123 BPM, punchy trap drums, heavy distorted 808 bass, cowbell melody, dark and energetic, steady groove from the first second, no vocals, no intro fade";
 async function makeMusic(pid, seconds, dir, key, onTick) {
   return generate(
@@ -2103,7 +2111,7 @@ async function peakInfo(path, scratch) {
   } catch {
     return null;
   } finally {
-    removeFile(raw);
+    await removeFile(raw);
   }
 }
 var VOICE_CHAIN = "highpass=f=80,acompressor=threshold=-22dB:ratio=3:attack=5:release=90:makeup=3,equalizer=f=250:t=q:w=1:g=-2,equalizer=f=3200:t=q:w=1:g=2.5,equalizer=f=9000:t=h:w=0.7:g=1.5";
@@ -2183,17 +2191,17 @@ async function mixSound(plan, voiceFrom, music, lib, outPath, dir) {
     await master(gain);
     out = await loudnessInfo(outPath);
   }
-  removeFile(voicePath);
-  removeFile(pre);
+  await removeFile(voicePath);
+  await removeFile(pre);
   return { lufs: out ? out.i : LOUD_TARGET, truePeak: out ? out.tp : null };
 }
 
-// src/renderers.ts
-var lookCode = `// src/motion/Look.tsx
+// plugins/podcast-hook-captions/src/renderers.ts
+var lookCode = `// plugins/podcast-hook-captions/src/motion/Look.tsx
 import React3 from "react";
 import { useCurrentFrame } from "remotion";
 
-// src/motion/camera.ts
+// plugins/podcast-hook-captions/src/motion/camera.ts
 function ease(kind, p) {
   switch (kind) {
     case "lin":
@@ -2265,7 +2273,7 @@ function scalarAt(keys, frame, fallback) {
   return ks[ks.length - 1][1];
 }
 
-// src/motion/grid.tsx
+// plugins/podcast-hook-captions/src/motion/grid.tsx
 import React from "react";
 var GRID = {
   // Unshaded cell colour as seen (texture mean included).
@@ -2611,7 +2619,7 @@ function GridSet(props) {
   )), showTex ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { ...full, isolation: "isolate", mixBlendMode: "plus-lighter", maskImage: fadeMask, WebkitMaskImage: fadeMask } }, /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: grating(135, (bx + by) / Math.SQRT2, P / Math.SQRT2, amp) } }), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: grating(45, (bx - by + H) / Math.SQRT2, P / Math.SQRT2, amp), mixBlendMode: "plus-lighter" } })), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: fadeFill, mixBlendMode: "plus-lighter" } })) : null, /* @__PURE__ */ React.createElement("svg", { width: W, height: H, style: { position: "absolute", left: 0, top: 0 } }, /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("radialGradient", { id: "dd" + uid }, [[0, 1], [0.1, 0.981], [0.2, 0.857], [0.28, 0.655], [0.36, 0.407], [0.44, 0.193], [0.52, 0.066], [0.6, 0.016], [0.7, 1e-3], [1, 0]].map(([o, a]) => /* @__PURE__ */ React.createElement("stop", { key: o, offset: o, stopColor: "#fff", stopOpacity: a }))), /* @__PURE__ */ React.createElement("radialGradient", { id: "ds" + uid }, [[0, 1], [0.4, 0.75], [0.75, 0.3], [1, 0]].map(([o, a]) => /* @__PURE__ */ React.createElement("stop", { key: o, offset: o, stopColor: "#fff", stopOpacity: a }))), /* @__PURE__ */ React.createElement("radialGradient", { id: "dk" + uid }, /* @__PURE__ */ React.createElement("stop", { offset: "0", stopColor: "#000", stopOpacity: 1 }), /* @__PURE__ */ React.createElement("stop", { offset: "1", stopColor: "#000", stopOpacity: 0 })), /* @__PURE__ */ React.createElement("filter", { id: "fb" + uid, x: "-50%", y: "-50%", width: "200%", height: "200%" }, /* @__PURE__ */ React.createElement("feGaussianBlur", { stdDeviation: (1.5 * k).toFixed(3) }))), exposures("d", /* @__PURE__ */ React.createElement(Dust, { W, H, frame, fps, uid }))), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: shade } }));
 }
 
-// src/motion/grade.tsx
+// plugins/podcast-hook-captions/src/motion/grade.tsx
 import React2 from "react";
 var SPEAKER_GRADE = { sat: 1.6, r: 1.07, g: 1, b: 0.89, slope: 1.1, off: -0.035 };
 var BROLL_GRADE = { sat: 1.2, r: 1.06, g: 1, b: 0.9, slope: 1.08, off: -0.02 };
@@ -2632,7 +2640,7 @@ function GradeFilter({ id, grade }) {
   return /* @__PURE__ */ React2.createElement("filter", { id, x: "0%", y: "0%", width: "100%", height: "100%", colorInterpolationFilters: "sRGB" }, /* @__PURE__ */ React2.createElement("feColorMatrix", { type: "matrix", values: matrix(grade) }), /* @__PURE__ */ React2.createElement("feComponentTransfer", null, /* @__PURE__ */ React2.createElement("feFuncR", { type: "linear", slope: grade.slope, intercept: grade.off }), /* @__PURE__ */ React2.createElement("feFuncG", { type: "linear", slope: grade.slope, intercept: grade.off }), /* @__PURE__ */ React2.createElement("feFuncB", { type: "linear", slope: grade.slope, intercept: grade.off })));
 }
 
-// src/motion/Look.tsx
+// plugins/podcast-hook-captions/src/motion/Look.tsx
 var n = (v, f) => typeof v === "number" && Number.isFinite(v) ? v : f;
 function ReelLook({ Source, data = {} }) {
   const local = useCurrentFrame();
@@ -2746,11 +2754,11 @@ export {
   ReelLook as default
 };
 `;
-var reelCode = `// src/motion/Reel.tsx
+var reelCode = `// plugins/podcast-hook-captions/src/motion/Reel.tsx
 import React2, { useEffect, useState } from "react";
 import { useCurrentFrame, delayRender, continueRender } from "remotion";
 
-// src/motion/camera.ts
+// plugins/podcast-hook-captions/src/motion/camera.ts
 function ease(kind, p) {
   switch (kind) {
     case "lin":
@@ -2817,7 +2825,7 @@ function scalarAt(keys, frame, fallback) {
   return ks[ks.length - 1][1];
 }
 
-// src/motion/grid.tsx
+// plugins/podcast-hook-captions/src/motion/grid.tsx
 import React from "react";
 var GRID = {
   // Unshaded cell colour as seen (texture mean included).
@@ -3163,7 +3171,7 @@ function GridSet(props) {
   )), showTex ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { ...full, isolation: "isolate", mixBlendMode: "plus-lighter", maskImage: fadeMask, WebkitMaskImage: fadeMask } }, /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: grating(135, (bx + by) / Math.SQRT2, P / Math.SQRT2, amp) } }), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: grating(45, (bx - by + H) / Math.SQRT2, P / Math.SQRT2, amp), mixBlendMode: "plus-lighter" } })), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: fadeFill, mixBlendMode: "plus-lighter" } })) : null, /* @__PURE__ */ React.createElement("svg", { width: W, height: H, style: { position: "absolute", left: 0, top: 0 } }, /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("radialGradient", { id: "dd" + uid }, [[0, 1], [0.1, 0.981], [0.2, 0.857], [0.28, 0.655], [0.36, 0.407], [0.44, 0.193], [0.52, 0.066], [0.6, 0.016], [0.7, 1e-3], [1, 0]].map(([o, a]) => /* @__PURE__ */ React.createElement("stop", { key: o, offset: o, stopColor: "#fff", stopOpacity: a }))), /* @__PURE__ */ React.createElement("radialGradient", { id: "ds" + uid }, [[0, 1], [0.4, 0.75], [0.75, 0.3], [1, 0]].map(([o, a]) => /* @__PURE__ */ React.createElement("stop", { key: o, offset: o, stopColor: "#fff", stopOpacity: a }))), /* @__PURE__ */ React.createElement("radialGradient", { id: "dk" + uid }, /* @__PURE__ */ React.createElement("stop", { offset: "0", stopColor: "#000", stopOpacity: 1 }), /* @__PURE__ */ React.createElement("stop", { offset: "1", stopColor: "#000", stopOpacity: 0 })), /* @__PURE__ */ React.createElement("filter", { id: "fb" + uid, x: "-50%", y: "-50%", width: "200%", height: "200%" }, /* @__PURE__ */ React.createElement("feGaussianBlur", { stdDeviation: (1.5 * k).toFixed(3) }))), exposures("d", /* @__PURE__ */ React.createElement(Dust, { W, H, frame, fps, uid }))), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: shade } }));
 }
 
-// src/motion/text.ts
+// plugins/podcast-hook-captions/src/motion/text.ts
 var widthCache = {};
 var metricCache = {};
 function clearTextCache() {
@@ -3211,7 +3219,7 @@ function capMetrics(family, weight, capEstimate) {
   return out;
 }
 
-// src/motion/Reel.tsx
+// plugins/podcast-hook-captions/src/motion/Reel.tsx
 var n = (v, f) => typeof v === "number" && Number.isFinite(v) ? v : f;
 var clamp012 = (v) => Math.max(0, Math.min(1, v));
 var easeOut = (p) => 1 - Math.pow(1 - clamp012(p), 3);
@@ -3642,12 +3650,12 @@ export {
 };
 `;
 
-// src/motion/grade.tsx
+// plugins/podcast-hook-captions/src/motion/grade.tsx
 import React from "react";
 var SPEAKER_GRADE = { sat: 1.6, r: 1.07, g: 1, b: 0.89, slope: 1.1, off: -0.035 };
 var BROLL_GRADE = { sat: 1.2, r: 1.06, g: 1, b: 0.9, slope: 1.08, off: -0.02 };
 
-// src/pipeline/apply.ts
+// plugins/podcast-hook-captions/src/pipeline/apply.ts
 var LOOK_LABEL = "Reel Look";
 var GRAPHIC_LABEL = "Reel Titles";
 var PLACE_BROLL = `const placed: any[] = [];
@@ -3812,7 +3820,7 @@ return { removedEffects, graphics: graphics.length, clips: extra.length, commitI
   );
 }
 
-// src/motion/camera.ts
+// plugins/podcast-hook-captions/src/motion/camera.ts
 function ease(kind, p) {
   switch (kind) {
     case "lin":
@@ -3859,7 +3867,7 @@ function camAt(keys, frame) {
   return { z, x, y, vz, vx, vy };
 }
 
-// src/plan.ts
+// plugins/podcast-hook-captions/src/plan.ts
 function buildPlan(input) {
   const { fps, W, H, endFrame, words, shots } = input;
   const picks = input.picks || {};
@@ -4200,7 +4208,7 @@ function buildPlan(input) {
   return { fps, W, H, endFrame, camera, titles, setOpacity, gridZoom, gridTexture, capHide: merge(capHide), capY, free, flashes, broll, sfx, notes };
 }
 
-// src/pipeline/make.ts
+// plugins/podcast-hook-captions/src/pipeline/make.ts
 var FILLER = /^(uh+|um+|uhm|erm|er|ah+|hmm+|mm+)[.,!?]*$/i;
 var STEPS = [
   ["pick", "Pick the moment and write the titles"],
@@ -4246,7 +4254,7 @@ async function makeReel(sdk, ctx, opts, onStep) {
   onStep("pick", "done", choice.why || "");
   onStep("draft", "run", "Creating the Draft\u2026");
   const reelId = await createReel(sdk, pid, ctx.sequenceId, src.name + " \xB7 Reel", ranges);
-  fs().mkdirSync(jobDir(reelId), { recursive: true });
+  await fs().mkdir(jobDir(reelId), { recursive: true });
   const reel = await readReel(sdk, pid, reelId);
   const byKey = /* @__PURE__ */ new Map();
   reel.words.forEach((w, i) => byKey.set(w.ss + "|" + w.t, i));
@@ -4285,13 +4293,14 @@ async function build(sdk, job, reel, onStep, opts) {
   const H = 1920;
   const key = job.reelId.replace(/-/g, "").slice(0, 16) + "-" + Date.now().toString(36);
   const picks = job.picks;
+  const savedBroll = await Promise.all((job.brollPaths || []).map(async (path) => path && await fs().exists(path) ? path : null));
   const style = ". Realistic cinematic stock footage, natural warm light, shallow depth of field, smooth slow camera move, no text, no logos, no captions.";
-  const gen = (slot, prompt, aspect, dur, label) => {
+  const gen = async (slot, prompt, aspect, dur, label) => {
     const have = job.brollPaths?.[slot];
-    if (have && fs().existsSync(have)) return Promise.resolve(have);
+    if (have && await fs().exists(have)) return Promise.resolve(have);
     try {
       const folder = fs().join(dir, "broll-" + slot);
-      const late = fs().existsSync(folder) ? fs().readdirSync(folder).map(String).find((n) => /\.mp4$/i.test(n)) : null;
+      const late = await fs().exists(folder) ? (await fs().readdir(folder)).map(String).find((n) => /\.mp4$/i.test(n)) : null;
       if (late) return Promise.resolve(fs().join(folder, late));
     } catch {
     }
@@ -4312,7 +4321,7 @@ async function build(sdk, job, reel, onStep, opts) {
     ).catch((e) => (notes.push(String(e.message || e)), null));
   };
   const stock = async () => {
-    if (job.brollPaths && job.brollPaths.every((p) => p && fs().existsSync(p))) return job.brollPaths;
+    if (job.brollPaths && savedBroll.every(Boolean)) return job.brollPaths;
     const b = picks.broll;
     const words = (t) => String(t || "").split(/\s+/).filter((w) => w.length > 3).slice(0, 3).join(" ");
     const search = Array.isArray(b.search) ? b.search : [];
@@ -4332,10 +4341,10 @@ async function build(sdk, job, reel, onStep, opts) {
       const both = stock();
       brollJobs = [both.then((r) => r[0]), both.then((r) => r[1])];
     } else if (opts.generate) brollJobs = [gen(0, picks.broll.portrait, "9:16", "5", "B-roll 1"), gen(1, picks.broll.landscape, "16:9", "4", "B-roll 2")];
-    else if (job.brollPaths && job.brollPaths.some((p) => p && fs().existsSync(p))) brollJobs = job.brollPaths.map((p) => Promise.resolve(p && fs().existsSync(p) ? p : null));
+    else if (savedBroll.some(Boolean)) brollJobs = savedBroll.map((path) => Promise.resolve(path));
     else notes.push("No B-roll: this Selects version has no stock search. Update Selects, or allow AI-generated B-roll in the panel.");
   }
-  const musicJob = job.musicPath && fs().existsSync(job.musicPath) ? Promise.resolve(job.musicPath) : makeMusic(pid, reel.endFrame / reel.fps, dir, key, () => {
+  const musicJob = job.musicPath && await fs().exists(job.musicPath) ? Promise.resolve(job.musicPath) : makeMusic(pid, reel.endFrame / reel.fps, dir, key, () => {
   }).catch((e) => (notes.push("Music: " + String(e.message || e)), null));
   const sfxJob = ensureSfxLibrary(pid, () => {
   }).catch((e) => (notes.push("Sound effects: " + String(e.message || e)), {}));
@@ -4367,7 +4376,7 @@ async function build(sdk, job, reel, onStep, opts) {
   let masks = null;
   try {
     const matteDir = fs().join(dir, "mattes-" + Date.now().toString(36));
-    fs().mkdirSync(matteDir, { recursive: true });
+    await fs().mkdir(matteDir, { recursive: true });
     masks = await makeMattes(sdk, pid, render, reel.endFrame / reel.fps, matteDir, key, say("mattes"));
     onStep("mattes", "done", masks.count + " frames");
   } catch (e) {
@@ -4445,7 +4454,7 @@ async function build(sdk, job, reel, onStep, opts) {
   return notes;
 }
 
-// src/Panel.tsx
+// plugins/podcast-hook-captions/src/Panel.tsx
 var readStore = (k) => {
   try {
     return localStorage.getItem(k) || "";
@@ -4462,6 +4471,7 @@ var writeStore = (k, v) => {
 };
 var STORE = "podcast-hook-captions:v2:";
 function PodcastHookReel({ sdk, context }) {
+  hostUseSdk(sdk);
   const [seconds, setSeconds] = useState(25);
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);

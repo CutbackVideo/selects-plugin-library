@@ -136,7 +136,7 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
     assert.ok(ui.includes(s), s);
   says('checkingClipsN', 'Checking clips {done}/{count}'); says('cancel', 'Cancel'); says('stopping', 'Stopping'); says('cancelled', 'Nothing was saved'); says('quickUnavailable', 'A newer Selects picks better shots');
   says('betterPicks', 'analysed clips give better picks'); says('unusable', "can't be used yet"); says('unusableWait', 'This updates automatically');
-  // Windows: the new path reaches the host only through __DI__ (the kit's qsHostIO, mvHostDataDir); no shell, no POSIX.
+  // Windows: the new path reaches the host only through the SDK (the kit's qsHostIO, mvHostDataDir); no shell, no POSIX.
   const dataDirFn = panel.slice(panel.indexOf('function mvHostDataDir('), panel.indexOf('function mvQuickCheckAvailable('));
   const newPath = [check, dataDirFn, panel.slice(panel.indexOf('// mv-local:start'), panel.indexOf('// quick-score:end'))].join('\n');
   for (const posix of ['runShell', 'TOOL_PATH', 'mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'dq(', 'sq(', '" + "/"']) assert.ok(!newPath.includes(posix), 'no POSIX shell in the quick check path: ' + posix);
@@ -479,13 +479,13 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
 {
   const crypto = require('node:crypto'), vm = require('node:vm');
   const sha = (x) => crypto.createHash('sha256').update(x).digest('hex');
-  const blockOf = (name) => {
-    const a = panel.indexOf('// ' + name + ':start\n'), b = panel.indexOf('// ' + name + ':end', a);
-    assert.ok(a >= 0 && b > a, name + ' block'); assert.equal(panel.split('// ' + name + ':start\n').length, 2, 'one ' + name + ' block');
-    return panel.slice(a, b + ('// ' + name + ':end').length);
+  const blockOf = (name, source = panel) => {
+    const a = source.indexOf('// ' + name + ':start\n'), b = source.indexOf('// ' + name + ':end', a);
+    assert.ok(a >= 0 && b > a, name + ' block'); assert.equal(source.split('// ' + name + ':start\n').length, 2, 'one ' + name + ' block');
+    return source.slice(a, b + ('// ' + name + ':end').length);
   };
   const avHost = blockOf('av-host'), avBeat = blockOf('av-beat-worker');
-  assert.equal(sha(avHost), '7e00ca559b2b0c3a005f0236e021cae6d11c611f9bf8d87b5149a8176d966f13', 'av-host block equals Archive Vlog\'s (origin/main 5623860)');
+  assert.equal(avHost, blockOf('av-host', fs.readFileSync(path.join(root, '../archive-vlog/panel.tsx'), 'utf8')), 'SDK host block matches the shared Archive copy');
   assert.equal(sha(avBeat), 'f7a61170ef90203b7194ed28552a24f933a8262fcc5cd289b60aabecdb5818b4', 'av-beat-worker block equals Archive Vlog\'s (origin/main 5623860)');
   const detector = fs.readFileSync(path.join(root, 'beat-detect.cjs'), 'utf8');
   assert.equal(sha(detector), '562d8530164e418dd7fb2f4dcbd2c5a8961000b93740a12a2dfd21780fb2ad9c', 'beat-detect.cjs is the kit copy (selects-app-kit 7457347 tools/audio/beat-detect.cjs)');
@@ -498,9 +498,9 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
   assert.ok(!/["'`]\s*node\s/.test(code(panel)), 'no node command');
   assert.ok(!fs.existsSync(path.join(root, 'runtime.sh')) && !JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8')).files.includes('runtime.sh'), 'runtime.sh is gone');
   // Folders through FileSystem (locateRoots -> mvFolders), tools by checking the host's members.
-  for (const s of ['const { plugin, data } = await mvFolders(sdk);', 'await hostRoots(sdk, PLUGIN_ID, "planner.js")', 'fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID)',
+  for (const s of ['const { plugin, data } = await mvFolders(sdk);', 'await hostRoots(sdk, PLUGIN_ID, "planner.js")', 'data: roots.data || ""',
     'setTools(mvMusicTools());', 'const canOwnMusic = tools.ffmpeg && tools.worker;', 'async function readText(root: string, rel: string) { return hostReadText(hostJoin(root, ...rel.split("/"))); }',
-    'if (e?.code === "host-missing") return t(lang, "newerSelects");', 'if (!fs) throw uiError((l) => t(l, "newerSelects"));', '{!canOwnMusic ? <ui.Message tone="muted">{t(L, "newerSelects")}</ui.Message> : null}'])
+    'if (e?.code === "host-missing") return t(lang, "newerSelects");', 'if (!hostApi("FileSystem", "join", "homedir", "exists")) throw uiError((l) => t(l, "newerSelects"));', '{!canOwnMusic ? <ui.Message tone="muted">{t(L, "newerSelects")}</ui.Message> : null}'])
     assert.ok(panel.includes(s), s);
   // One generic "needs a newer Selects" key for every missing host member (kit windows.md).
   assert.ok(!/adapterNeeded|newerSelectsMusic/.test(panel), 'no per-member or per-feature host messages');
@@ -532,7 +532,7 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
   const files = {};
   const di = {
     FileSystem: {
-      join: (...p) => p.join('/'), homedir: () => 'HOMEDIR', existsSync: (p) => p in files || p === 'HOMEDIR/.selects/skills/mini-vlog/planner.js', mkdirSync: () => {},
+      join: (...p) => p.join('/'), homedir: () => 'HOMEDIR', exists: async (p) => p in files || p === 'HOMEDIR/.selects/skills/mini-vlog/planner.js', mkdir: async () => {},
       readFile: async (p) => { const v = files[p]; if (v == null) throw new Error('missing ' + p); return v; }, removeFile: async ({ filePath }) => { delete files[filePath]; },
     },
     Runtime: {
@@ -540,9 +540,10 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
       runFFprobe: async () => ({ stdout: '12.5\n' }),
     },
   };
-  const box = { window: { parent: { __DI__: di } }, navigator: { platform: 'MacIntel', userAgent: '' }, TextDecoder, AbortController, setTimeout, clearTimeout, Date, Math, Uint8Array, Float32Array, Object, String, Error, Promise };
+  const box = { window: { parent: { get __DI__() { throw Error('Unexpected DI access'); } } }, navigator: { platform: 'MacIntel', userAgent: '' }, TextDecoder, AbortController, setTimeout, clearTimeout, Date, Math, Uint8Array, Float32Array, Object, String, Error, Promise };
   vm.createContext(box);
-  vm.runInContext(avHost + '\nglobalThis.H = { hostReadBytes, hostReadText, hostDecodePcm, hostProbeSeconds, hostRoots, hostJoin };', box);
+  box.sdk = { files: di.FileSystem, media: di.Runtime, environment: { platform: 'darwin' } };
+  vm.runInContext(avHost + '\nhostUseSdk(sdk);globalThis.H = { hostReadBytes, hostReadText, hostDecodePcm, hostProbeSeconds, hostRoots, hostJoin };', box);
   const H = box.H;
   (async () => {
     files['/a.bin'] = foreign('new Uint8Array([1, 2, 3, 4]).buffer');
@@ -556,7 +557,7 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
     assert.deepEqual(Array.from(pcm), [0.25, -0.5, 1], 'decoded samples from a foreign buffer');
     assert.deepEqual(Object.keys(files).filter((k) => k.endsWith('.f32')), [], 'the temporary PCM file is removed');
     assert.equal(await H.hostProbeSeconds('/music/song.mp3'), 12.5);
-    const roots = await H.hostRoots(null, 'mini-vlog', 'planner.js');
+    const roots = await H.hostRoots(box.sdk, 'mini-vlog', 'planner.js');
     assert.equal(roots.plugin, 'HOMEDIR/.selects/skills/mini-vlog'); assert.equal(roots.data, 'HOMEDIR/.selects/plugin-data/mini-vlog');
   })().catch((e) => { console.error(e); process.exit(1); });
 

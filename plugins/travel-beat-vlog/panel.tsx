@@ -434,38 +434,23 @@ async function script(sdk,source,summary,allowCommit,timeoutSeconds=30){
 }
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -496,34 +481,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -572,16 +540,17 @@ const NOT_INSTALLED='Travel Beat Vlog is not fully installed; install it again f
 // The install folder (color-targets.json, tools/cutout.js) and the data folder, found once per Panel.
 let roots=null;
 async function engineRoots(sdk){
+  hostUseSdk(sdk);
  if(roots)return roots;
- hostNeed('Runtime','runFFmpeg');hostNeed('FileSystem','readFile');hostNeed('FileSystem','renameSync');
+ hostNeed('Runtime','runFFmpeg');hostNeed('FileSystem','readFile');hostNeed('FileSystem','rename');
  const found=await hostRoots(sdk,'travel-beat-vlog','color-targets.json');
- if(!found.data)throw hostError('host-missing','this Selects build cannot make the plugin data folder','FileSystem.mkdirSync');
+ if(!found.data)throw hostError('host-missing','this Selects build cannot make the plugin data folder','FileSystem.mkdir');
  return roots=found;
 }
-function fileExists(path){try{return !!hostNeed('FileSystem','existsSync').existsSync(path);}catch(e){if(e?.code==='host-missing')throw e;return false;}}
+async function fileExists(path){try{return !!(await hostNeed('FileSystem','exists').exists(path));}catch(e){if(e?.code==='host-missing')throw e;return false;}}
 // A file's size and change time (they name a cached song section or cutout); blank when this host cannot say.
-function fileStamp(path){
- try{const st=hostApi('FileSystem','statSync')?.statSync(path);if(st)return {size:st.size,mtimeMs:st.mtimeMs??+new Date(st.mtime)};}catch{}
+async function fileStamp(path){
+ try{const st=(await hostApi('FileSystem','stat')?.stat(path));if(st)return {size:st.size,mtimeMs:st.mtimeMs??+new Date(st.mtime)};}catch{}
  return {size:'',mtimeMs:''};
 }
 async function ffmpeg(args,timeoutMs=240000){
@@ -616,7 +585,7 @@ function analyseInWorker(samples,cuts,timeoutMs=SONG_TIMEOUT_MS){
 async function fitSong(sdk,song,cuts,say){
  if(!['hits','reference'].includes(cuts))throw Error('Unknown cuts option');
  const {data}=await engineRoots(sdk);
- if(typeof song!=='string'||!fileExists(song))throw Error('The song file is missing.');
+ if(typeof song!=='string'||!(await fileExists(song)))throw Error('The song file is missing.');
  const pcm=hostJoin(data,'song-'+Date.now()+'.f32');
  let samples;
  try{
@@ -631,13 +600,13 @@ async function fitSong(sdk,song,cuts,say){
   console.warn('[travel-beat-vlog] song analysis unavailable; the reference rhythm from the song start:',error.message);
   say('Could not find the beat in time; using the reference rhythm…');
  }
- const {size,mtimeMs}=fileStamp(song);
- const dir=hostJoin(data,'songs');hostNeed('FileSystem','mkdirSync').mkdirSync(dir,{recursive:true});
+ const {size,mtimeMs}=(await fileStamp(song));
+ const dir=hostJoin(data,'songs');(await hostNeed('FileSystem','mkdir').mkdir(dir,{recursive:true}));
  const audio=hostJoin(dir,'song-'+(await textKey(songKeyText(song,size,mtimeMs,start,timing))).slice(0,20)+'.wav');
- if(!fileExists(audio)){
+ if(!(await fileExists(audio))){
   const tmp=audio+'.tmp.wav';
   await ffmpeg(songArrangeArgs(song,start,timing,tmp));
-  hostNeed('FileSystem','renameSync').renameSync(tmp,audio);
+  (await hostNeed('FileSystem','rename').rename(tmp,audio));
  }
  return {timing:withinLimits(validateTiming(timing)),audio};
 }
@@ -664,15 +633,15 @@ async function measureClip(data,file,inSeconds,seconds){
 async function heroCutout(sdk,photo,mode){
  if(!['person','foreground'].includes(mode))throw Error('Unknown cutout mode');
  const {plugin,data}=await engineRoots(sdk);
- const {size,mtimeMs}=fileStamp(photo);
- const dir=hostJoin(data,'cutouts');hostNeed('FileSystem','mkdirSync').mkdirSync(dir,{recursive:true});
+ const {size,mtimeMs}=(await fileStamp(photo));
+ const dir=hostJoin(data,'cutouts');(await hostNeed('FileSystem','mkdir').mkdir(dir,{recursive:true}));
  const out=hostJoin(dir,'hero-'+cutoutKey(photo,size,mtimeMs,mode)+'.png');
- if(!fileExists(out)){
+ if(!(await fileExists(out))){
   const tmp=out+'.tmp.png';
   const r=await sdk.runShell({summary:'Cut out hero subject',command:cutoutCommand(hostJoin(plugin,'tools','cutout.js'),photo,tmp,mode),timeoutMs:180000,maxOutputBytes:8000});
   // The login shell may print its own warnings first; the helper's message is the last line.
   if(r.isError||r.exitCode!==0)throw Error(String(r.stderr||'').trim().split('\n').filter(Boolean).pop()||'Apple Vision found no subject in the hero photo.');
-  hostNeed('FileSystem','renameSync').renameSync(tmp,out);
+  (await hostNeed('FileSystem','rename').rename(tmp,out));
  }
  return {path:out};
 }
@@ -890,7 +859,8 @@ function TravelTemplateRun({sdk,context}){
  return <p role="status" style={{margin:0,fontSize:12}}>{status}</p>;
 }
 
-export default function Panel(props){return props.context.template?<TravelTemplateRun {...props}/>:<TravelPanel {...props}/>;}
+export default function Panel(props){
+  hostUseSdk(props.sdk);return props.context.template?<TravelTemplateRun {...props}/>:<TravelPanel {...props}/>;}
 // The manual panel asks for the same things, in the same groups, as the template page:
 // hero photo, three long shots, 23 clips, the song, and the template's two choices.
 function TravelPanel({sdk,context,ui}){

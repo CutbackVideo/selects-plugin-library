@@ -19,7 +19,7 @@ PLUGIN = ROOT / 'plugins/portrait-beat-montage'
 PANEL = Path(os.environ.get('PORTRAIT_BEAT_MONTAGE_PANEL') or PLUGIN / 'panel.tsx')
 HOST_BLOCK = re.compile(r'// av-host:start\n.*?// av-host:end', re.S)
 MAC_ONLY = re.compile(r'^[ \t]*// mac-only:start[ \t]*\n.*?^[ \t]*// mac-only:end[ \t]*$', re.S | re.M)
-HOST_HELPERS = ['hostError', 'hostDI', 'hostApi', 'hostNeed', 'hostIsWindows', 'hostJoin', 'hostBytes',
+HOST_HELPERS = ['hostError', 'hostUseSdk', 'hostApi', 'hostNeed', 'hostIsWindows', 'hostJoin', 'hostBytes',
                 'hostReadBytes', 'hostReadText', 'hostRemove', 'hostRoots', 'hostDecodePcm', 'hostProbeSeconds']
 FORBIDDEN = ['mkdir -p', 'printf', '$HOME', '$SELECTS_USER', 'rm -f', 'base64 ', '| base64', 'shasum',
              'command -v', 'export PATH', 'cat "', '2>/dev/null', '/Applications/', 'sh "', "sh '", '/usr/bin/',
@@ -121,7 +121,7 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         # Windows asks for mattes only for windows with no cached matte or render.
         units = body(self.text, 'async function pbmUnits(', '\n}\n')
         self.assertLess(units.index('hostJoin(cache, "matte.gray")'), units.index('await mattes('))
-        self.assertIn('!io.fs.existsSync(hostJoin(t.folder, "matte.gray"))', units)
+        self.assertIn('!await io.fs.exists(hostJoin(t.folder, "matte.gray"))', units)
 
     def test_template_run_builds_on_windows_and_counts_as_consent(self):
         # Product decision 2026-10-06: starting the template is the consent to the Windows mattes' credits.
@@ -164,9 +164,9 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         self.assertIn('function macTools()', regions)
         self.assertNotIn('function macTools()', self.portable)
         self.assertIn('app.asar.unpacked", "dist", "bin"', regions)
-        self.assertIn('getHostingVersion', regions)
+        self.assertIn('hostSdk?.environment?.version', regions)
         # Every shell entry that starts pipeline.py or setup exports the bundled binaries first.
-        self.assertEqual(self.text.count('command: `${macTools()}'), 3)
+        self.assertEqual(self.text.count('command: `${await macTools()}'), 3)
         source = (PLUGIN / 'pipeline.py').read_text(encoding='utf-8')
         self.assertNotRegex(source, r'\[\s*"ffmpeg"|\[\s*"ffprobe"|Popen\(\["ffmpeg"')
         self.assertIn('os.environ.get("POSTCARD_CUTOUT_RVM_" + name.upper())', source)

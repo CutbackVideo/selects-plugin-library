@@ -16,7 +16,7 @@ PANEL = os.environ.get("IMESSAGE_GENERATOR_PANEL") or os.path.join(PLUGIN, "pane
 
 AV_HOST = re.compile(r"// av-host:start\n.*?// av-host:end\n", re.S)
 MAC_ONLY = re.compile(r"// mac-only:start\n.*?// mac-only:end\n", re.S)
-HOST_NAMES = ["hostError", "hostDI", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes", "hostReadBytes",
+HOST_NAMES = ["hostError", "hostUseSdk", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes", "hostReadBytes",
               "hostReadText", "hostRemove", "hostRoots", "hostDecodePcm", "hostProbeSeconds"]
 
 
@@ -84,7 +84,7 @@ class IMessageGeneratorWindowsTest(unittest.TestCase):
     def test_workspace_uses_host_filesystem_with_a_normalized_guard(self):
         io = self.runtime[self.runtime.index("async function workspaceIO("):]
         io = io[: io.index("\n}\n")]
-        for part in ("hostNeed('FileSystem','homedir')", "mkdirSync(", "writeFile(", "hostReadText(", "hostReadBytes(",
+        for part in ("hostNeed('FileSystem','homedir')", "mkdir(", "writeFile(", "hostReadText(", "hostReadBytes(",
                      "wsInside(p,r)"):
             self.assertIn(part, io, part)
         norm = self.runtime[self.runtime.index("function wsNorm("):]

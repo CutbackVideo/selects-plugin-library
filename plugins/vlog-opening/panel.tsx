@@ -1390,24 +1390,25 @@ const NEEDS_NEWER_SELECTS = "this needs a newer version of Selects";
 
 // <home>/.selects/plugin-data/vlog-opening for temporary files (created when
 // missing), or null; it does not depend on where the package is installed.
-function openingDataDir(): string | null {
+async function openingDataDir(): Promise<string | null> {
   try {
-    const fs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    const fs = hostApi("FileSystem", "join", "homedir", "mkdir");
     if (!fs) return null;
     const dir = String(fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_DIR));
-    fs.mkdirSync(dir, { recursive: true });
+    (await fs.mkdir(dir, { recursive: true }));
     return dir;
   } catch (e) { return null; }
 }
 
 // Samples colours from the clips a build chose, for the motion style's palette.
 async function samplePalette(sdk: any, beats: any[]): Promise<Record<string, string>> {
+  hostUseSdk(sdk);
   const withPath = beats.filter(b => b.path).slice(0, 6);
   if (!withPath.length) return { ...FALLBACK_PALETTE };
   try {
     // The host's bundled ffmpeg writes each 4x3 frame as raw RGB into the data folder; no shell.
     const rt = hostApi("Runtime", "runFFmpeg");
-    const data = openingDataDir();
+    const data = (await openingDataDir());
     if (!rt || !data) return { ...FALLBACK_PALETTE };
     const samples: number[][] = [];
     for (let i = 0; i < withPath.length; i++) {
@@ -1431,6 +1432,7 @@ async function samplePalette(sdk: any, beats: any[]): Promise<Record<string, str
 async function resolveMusic(
   sdk: any, projectId: string, music: string, ownFile: { path: string; name: string } | null,
 ): Promise<{ id: string | null; note: string }> {
+  hostUseSdk(sdk);
   if (music === "none") return { id: null, note: "no music" };
   if (music === "file") {
     if (!ownFile) return { id: null, note: "no music file chosen" };
@@ -1447,18 +1449,18 @@ async function resolveMusic(
     // An install puts package files beneath the Skills root and panel.tsx
     // beneath the Panels root; a panel copied by hand keeps them together.
     // Both are found through the host FileSystem, not a shell.
-    const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
+    const fs = hostApi("FileSystem", "join", "homedir", "exists");
     if (!fs) return { id: null, note: "bundled cue skipped: " + NEEDS_NEWER_SELECTS };
-    const found = (f: string) => { try { return !!fs.existsSync(f); } catch (e) { return false; } };
+    const found = async (f: string) => { try { return !!(await fs.exists(f)); } catch (e) { return false; } };
     let path = "";
     try {
       const { plugin } = await hostRoots(sdk, PLUGIN_DIR, "assets/" + CUES[0].file);
       const f = hostJoin(plugin, "assets", cue.file);
-      if (found(f)) path = f;
+      if ((await found(f))) path = f;
     } catch (e) { /* not beneath the Skills root */ }
     if (!path) {
       const f = String(fs.join(fs.homedir(), ".selects", "panels", PLUGIN_DIR, "assets", cue.file));
-      if (found(f)) path = f;
+      if ((await found(f))) path = f;
     }
     if (!path) return { id: null, note: "bundled cue not found; reinstall the plugin" };
     const r = await sdk.runScript({ summary: "Import bundled cue", script: ensureMusicScript(projectId, path), allowCommit: true });
@@ -1734,6 +1736,7 @@ function TemplateRun({ sdk, context }: any) {
 }
 
 export default function Panel(props: any) {
+  hostUseSdk(props.sdk);
   return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <OpeningPanel {...props} />;
 }
 
@@ -1841,7 +1844,7 @@ function OpeningPanel({ sdk, context, ui }: any) {
     if (cached) { playClip(music, cached); return; }
     setMaking(true);
     // The host's bundled ffmpeg writes the preview into the data folder; it is read back and removed.
-    const data = openingDataDir();
+    const data = (await openingDataDir());
     const tmp = data ? hostJoin(data, "aud.mp3") : "";
     try {
       const rt = hostApi("Runtime", "runFFmpeg");
@@ -2118,38 +2121,23 @@ function OpeningPanel({ sdk, context, ui }: any) {
 }
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -2180,34 +2168,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a

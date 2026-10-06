@@ -1,3 +1,4 @@
+import { asyncSdk } from '../../tests/windows_host.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import Module, { createRequire } from 'node:module';
@@ -95,6 +96,7 @@ function harness(media = photos, options = {}) {
       runFFmpeg: async args => { tools.push(['ffmpeg', ...args]); return { stdout: '', stderr: '' }; } },
   };
   const sdk = {
+    ...asyncSdk(dom.window.__DI__),
     runShell: async request => {
       if (options.runShell) return options.runShell(request);
       throw new Error('Unexpected media conversion');

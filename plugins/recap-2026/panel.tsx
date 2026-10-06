@@ -100,8 +100,8 @@ const scriptResult = (r) => {
 const hostMessage = (e, t) => e?.code === "host-missing" ? t.hostTooOld : String(e?.message || e);
 // The install and data folders (av-host hostRoots), found once and shared by the panel and template runs.
 let recapRootsPromise = null;
-const recapRoots = () => recapRootsPromise || (recapRootsPromise = hostRoots(null, SLUG, "timing.json").catch((e) => { recapRootsPromise = null; throw e; }));
-const readTiming = async () => JSON.parse(await hostReadText(hostJoin((await recapRoots()).plugin, "timing.json")));
+const recapRoots = (sdk) => { hostUseSdk(sdk); return recapRootsPromise || (recapRootsPromise = hostRoots(sdk, SLUG, "timing.json").catch((e) => { recapRootsPromise = null; throw e; })); };
+const readTiming = async (sdk) => JSON.parse(await hostReadText(hostJoin((await recapRoots(sdk)).plugin, "timing.json")));
 // Host file names compare after NFC, \ to / and the basename (and case on Windows).
 const normPath = (s) => { const v = String(s || "").normalize("NFC").replace(/\\/g, "/"); const b = v.slice(v.lastIndexOf("/") + 1); return hostIsWindows() ? b.toLowerCase() : b; };
 const core = (cfg) => "const cfg=JSON.parse(" + embedded(JSON.stringify(cfg)) + ");const p=selects.project(cfg.projectId);";
@@ -114,12 +114,13 @@ function FinishedExample({sdk,t,ui}) {
     let active=true;
     let player: HTMLVideoElement | null=null;
     (async()=>{
-      const {plugin}=await recapRoots();
+      const {plugin}=await recapRoots(sdk);
       const path=hostJoin(plugin,"assets","preview.mp4");
       const host=window.parent as any;
-      const fileSystem=host?.__DI__?.FileSystem;
+      const fileSystem=hostSdk.files;
       if(typeof fileSystem?.pathToLocalURL!=="function")throw new Error(t.exampleMissing);
-      const src=fileSystem.pathToLocalURL(path);
+      const src=(await fileSystem.pathToLocalURL(path));
+      if(!active)return;
       player=host.document.createElement("video");
       player.controls=true;
       player.preload="metadata";
@@ -132,7 +133,8 @@ function FinishedExample({sdk,t,ui}) {
       player.style.aspectRatio="9 / 16";
       player.style.objectFit="contain";
       player.addEventListener("error",()=>{if(active)setError(t.exampleMissing);});
-      player.poster=fileSystem.pathToLocalURL(hostJoin(plugin,"assets","preview.jpg"));
+      player.poster=(await fileSystem.pathToLocalURL(hostJoin(plugin,"assets","preview.jpg")));
+      if(!active)return;
       player.src=src;
       if(active&&mount.current)mount.current.appendChild(player);
     })().catch((e)=>{if(active)setError(e?.code==="host-missing"?t.hostTooOld:t.exampleMissing);});
@@ -142,9 +144,10 @@ function FinishedExample({sdk,t,ui}) {
 }
 // One frame as a JPEG data URL: the host's ffmpeg writes an ASCII-named file in the data folder, read back and removed.
 async function captureThumbnail(sdk, video, seconds) {
+  hostUseSdk(sdk);
   if (!video.path) return null;
   const rt = hostApi("Runtime", "runFFmpeg");
-  const {data} = await recapRoots();
+  const {data} = await recapRoots(sdk);
   if (!rt || !data) return null;
   const time = Math.max(0, Math.min(video.durationSeconds - 0.1, seconds));
   const out = hostJoin(data, "thumb-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".jpg");
@@ -309,13 +312,14 @@ function finishScript(cfg) {
 }
 
 async function ensureAudio(sdk, projectId) {
+  hostUseSdk(sdk);
   let r = await sdk.runScript({
     summary:"Find fixed soundtrack",
     script:core({projectId}) + "const r=await p.resources();return r.filter(x=>x.type==='Audio').map(x=>({id:x.resourceId,name:x.name,status:x.status}));"
   });
   let found = scriptResult(r).filter((x) => normPath(x.name) === normPath(AUDIO_NAME) || normPath(x.name) === normPath(AUDIO_SOURCE_NAME));
   if (found.length) return found.find((x) => normPath(x.name) === normPath(AUDIO_NAME))?.id || found[0].id;
-  const {plugin, data} = await recapRoots();
+  const {plugin, data} = await recapRoots(sdk);
   const path = hostJoin(plugin, "assets", AUDIO_NAME);
   r = await sdk.runScript({
     summary:"Import fixed soundtrack",allowCommit:true,
@@ -324,9 +328,9 @@ async function ensureAudio(sdk, projectId) {
   let imported = scriptResult(r).addedResourceIds;
   if (!imported?.length && data) {
     // Retry from a copy in the data folder (written through the host FileSystem, staged then renamed).
-    const alternate = hostJoin(data, AUDIO_NAME), tmp = hostJoin(data, "soundtrack-" + Date.now() + ".part"), move = hostApi("FileSystem", "renameSync");
+    const alternate = hostJoin(data, AUDIO_NAME), tmp = hostJoin(data, "soundtrack-" + Date.now() + ".part"), move = hostApi("FileSystem", "rename");
     await hostNeed("FileSystem", "writeFile").writeFile(move ? tmp : alternate, await hostReadBytes(path));
-    if (move) { await hostRemove(alternate); move.renameSync(tmp, alternate); }
+    if (move) { await hostRemove(alternate); (await move.rename(tmp, alternate)); }
     r = await sdk.runScript({
       summary:"Import fixed soundtrack",allowCommit:true,
       script:core({projectId,path:alternate}) + "return await p.importFiles({paths:[cfg.path]});"
@@ -361,7 +365,8 @@ async function ensureAudio(sdk, projectId) {
 // soundtrack and title. `slots` holds the intro and 159 cut sources; `byId`
 // the videos they name. Resolves the new Draft's id, name and clip count.
 async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_count,_limit)=>{}}) {
-  const manifest = await readTiming();
+  hostUseSdk(sdk);
+  const manifest = await readTiming(sdk);
   if (manifest.placements?.length !== 243) throw new Error("Template timing is incomplete");
   const audioId = await ensureAudio(sdk, projectId);
   const name = "2026 Recap — " + (mode === "sample" ? "12s sample " : "") + new Date().toLocaleString();
@@ -470,6 +475,7 @@ function TemplateRun({ sdk, context }) {
 }
 
 export default function Panel(props) {
+  hostUseSdk(props.sdk);
   return props.context?.template ? <TemplateRun {...props} /> : <RecapPanel {...props} />;
 }
 
@@ -594,7 +600,7 @@ function RecapPanel({ sdk, context, ui }) {
   React.useEffect(()=>{
     if(!advancedOpen||Object.keys(slotTiming).length)return;
     let live=true;
-    readTiming()
+    readTiming(sdk)
       .then((manifest)=>{
         if(!live)return;
         const bySlot={};
@@ -723,38 +729,23 @@ function RecapPanel({ sdk, context, ui }) {
 }
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -785,34 +776,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a

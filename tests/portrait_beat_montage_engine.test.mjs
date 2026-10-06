@@ -1,3 +1,4 @@
+import { asyncSdk, topLevel } from './windows_host.mjs';
 // The Windows engine of portrait-beat-montage (panel.tsx `// pbm-engine` + the `@operation` section) end to end on a
 // fake Windows host: FileSystem on node:fs (bytes from another realm), Runtime.runFFmpeg/runFFprobe on a real ffmpeg,
 // the pixel kernels in a Web Worker (a worker_threads stand-in for the blob: Worker), and the person mattes from one
@@ -41,6 +42,7 @@ function loadEngine(home, {MediaGeneration = null, version = '2.0.535', panelSou
   const cut = (a, b) => src.slice(src.indexOf(a), src.indexOf(b));
   const code = ['const PLUGIN = "portrait-beat-montage";', cut('// av-host:start', '// av-host:end'), cut('const MAC_ONLY_TEXT', '// @operation-start'),
     cut('// @operation-start', '// @operation-end').replace(/^export /gm, ''), cut('// pbm-engine:start', '// pbm-engine:end'),
+    ...(src.includes('function generationApi(') ? [topLevel(src, 'generationApi')] : []),
     'globalThis.engine = { pbmWindowsMontage, pbmMatteSource, pbmMattesFromAlpha, pbmWorkerKernels, pbmKernels, pbmUnits, pbmAssemble, plainText: typeof plainText === "function" ? plainText : null };'].join('\n');
   const removeFile = async ({filePath}) => fs.rmSync(filePath, {force: true});
   const FileSystem = {
@@ -70,10 +72,13 @@ function loadEngine(home, {MediaGeneration = null, version = '2.0.535', panelSou
     postMessage(m, t) { this.w.postMessage(m, t); }
     terminate() { this.w.terminate(); }
   }
-  const ctx = vm.createContext({window: {parent: {__DI__: {FileSystem, Runtime, ...(MediaGeneration ? {MediaGeneration} : {})}, location: {pathname: '/libraries/lib-1/projects/p-1'}}}, navigator: {platform: 'Win32'}, crypto: globalThis.crypto,
+  const sdk = asyncSdk({FileSystem, Runtime});
+  const ctx = vm.createContext({sdk, window: {parent: {__DI__: {FileSystem, Runtime, ...(MediaGeneration ? {MediaGeneration} : {})}, location: {pathname: '/libraries/lib-1/projects/p-1'}}}, navigator: {platform: 'Win32'}, crypto: globalThis.crypto,
     TextEncoder, TextDecoder, AbortController, setTimeout, clearTimeout, atob, Blob, URL, Worker, console});
-  vm.runInContext(code, ctx);
-  return {engine: ctx.engine, calls, FileSystem};
+  vm.runInContext(code + (src.includes('function hostUseSdk(') ? '\nhostUseSdk(sdk);' : ''), ctx);
+  const montage = ctx.engine.pbmWindowsMontage;
+  ctx.engine.pbmWindowsMontage = (provided, options) => montage({ ...sdk, ...provided }, options);
+  return {engine: ctx.engine, calls, FileSystem: panelSource ? FileSystem : sdk.files};
 }
 
 // Two synthetic "person" clips (a bright figure moving over a darker room): one portrait, one landscape.

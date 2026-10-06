@@ -1,10 +1,11 @@
-// Host access for the panel: the app's native services (window.parent.__DI__), ffmpeg/ffprobe through the
+// Timeline services retain host adapters; local files and ffmpeg/ffprobe use the public SDK and the
 // app's own runner, file helpers, and a wrapper around the panel SDK's runScript. Nothing here goes through a
 // shell, so the same code runs on macOS and Windows.
 
 export const PANEL_ID = "podcast-hook-captions";
 
 export type Sdk = {
+  files: any; media: any; environment: {platform: string; version: string};
   runScript: (o: { script: string; summary: string; allowCommit?: boolean }) => Promise<{ isError: boolean; output: string; result?: any }>;
   askAI: (o: { prompt: string; timeoutMs?: number }) => Promise<{ text: string }>;
 };
@@ -26,7 +27,7 @@ export function libraryId(): string {
   return id;
 }
 export function fs(): any {
-  return di().FileSystem;
+  return hostSdk.files;
 }
 export function dataRoot(): string {
   const f = fs();
@@ -39,14 +40,14 @@ export function skillRoot(): string {
 }
 export function platform(): string {
   try {
-    return String(di().Runtime?.getPlatform?.() || "");
+    return String(hostSdk?.environment?.platform || "");
   } catch {
     return "";
   }
 }
 export function hostVersion(): string {
   try {
-    return String(di().Runtime?.getHostingVersion?.() || "");
+    return String(hostSdk?.environment?.version || "");
   } catch {
     return "";
   }
@@ -79,7 +80,7 @@ export async function script(sdk: Sdk, summary: string, body: string, allowCommi
 // Output arrives in chunks; they are joined exactly as written (the runner's own result inserts newlines
 // between chunks, which can split a number). `timeoutMs` cancels the process.
 export async function ffmpeg(label: string, args: string[], timeoutMs = 300000, captureLog = false): Promise<{ stdout: string; stderr: string }> {
-  const rt = di().Runtime;
+  const rt = hostSdk.media;
   if (typeof rt?.runFFmpeg !== "function") throw new Error("This Selects version cannot run ffmpeg for plug-ins. Update Selects.");
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
@@ -102,7 +103,7 @@ export async function ffmpeg(label: string, args: string[], timeoutMs = 300000, 
   }
 }
 export async function ffprobe(label: string, args: string[], timeoutMs = 60000): Promise<string> {
-  const rt = di().Runtime;
+  const rt = hostSdk.media;
   if (typeof rt?.runFFprobe !== "function") throw new Error("This Selects version cannot run ffprobe for plug-ins. Update Selects.");
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
@@ -135,14 +136,14 @@ function toolError(e: any, streamed: string): string {
 }
 
 // File helpers on the app's FileSystem (never a shell).
-export function removeFile(path: string) {
+export async function removeFile(path: string) {
   try {
-    if (fs().existsSync(path)) fs().unlinkSync(path);
+    if ((await fs().exists(path))) (await fs().rm(path));
   } catch {}
 }
-export function filesIn(dir: string, pattern: RegExp): string[] {
+export async function filesIn(dir: string, pattern: RegExp): Promise<string[]> {
   try {
-    return fs().readdirSync(dir).map(String).filter((n: string) => pattern.test(n));
+    return (await fs().readdir(dir)).map(String).filter((n: string) => pattern.test(n));
   } catch {
     return [];
   }
@@ -163,3 +164,7 @@ export function lastJsonObject(text: string): any {
   }
   throw new Error("The assistant's JSON could not be read.");
 }
+
+let hostSdk: Sdk;
+export function hostUseSdk(sdk: Sdk) { hostSdk = sdk; if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin."); }
+export function media(): any { return hostSdk.media; }

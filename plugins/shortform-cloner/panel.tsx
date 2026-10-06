@@ -1992,8 +1992,8 @@ function extractJson(text: string, S: any): any {
 // ---- Files: Selects' own file service (same on macOS and Windows); localStorage when it is missing ----
 function hostFs(): any {
   try {
-    const fs = (window.parent as any)?.__DI__?.FileSystem;
-    const need = ["readFile", "writeFile", "homedir", "join", "existsSync", "mkdirSync", "readdirSync", "unlinkSync"];
+    const fs = hostSdk.files;
+    const need = ["readFile", "writeFile", "homedir", "join", "exists", "mkdir", "readdir", "rm"];
     return fs && need.every((k) => typeof fs[k] === "function") ? fs : null;
   } catch (e) {
     return null;
@@ -2005,8 +2005,8 @@ function makeStore() {
   if (fs) {
     const root = fs.join(fs.homedir(), ".selects", "plugin-data", APP_ID);
     const dir = (n: string) => fs.join(root, n);
-    const ensure = (p: string) => {
-      if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+    const ensure = async (p: string) => {
+      if (!(await fs.exists(p))) (await fs.mkdir(p, { recursive: true }));
     };
     return {
       fs,
@@ -2016,18 +2016,18 @@ function makeStore() {
       refs: dir("references"),
       join: (...p: string[]) => fs.join(...p),
       ensure,
-      exists: (p: string) => {
+      exists: async (p: string) => {
         try {
-          return fs.existsSync(p) && (typeof fs.statSync !== "function" || fs.statSync(p).size > 0);
+          return (await fs.exists(p)) && (typeof fs.stat !== "function" || (await fs.stat(p)).size > 0);
         } catch (e) {
           return false;
         }
       },
       async list(kind: string) {
         const d = dir(kind);
-        if (!fs.existsSync(d)) return [];
+        if (!(await fs.exists(d))) return [];
         const out: any[] = [];
-        for (const n of fs.readdirSync(d)) {
+        for (const n of (await fs.readdir(d))) {
           if (!/\.json$/.test(n)) continue;
           try {
             out.push(JSON.parse(dec(await fs.readFile(fs.join(d, n)))));
@@ -2037,12 +2037,12 @@ function makeStore() {
       },
       async put(kind: string, id: string, v: any) {
         const d = dir(kind);
-        ensure(d);
+        (await ensure(d));
         await fs.writeFile(fs.join(d, id + ".json"), enc(JSON.stringify(v)));
       },
       async del(kind: string, id: string) {
         const p = fs.join(dir(kind), id + ".json");
-        if (fs.existsSync(p)) fs.unlinkSync(p);
+        if ((await fs.exists(p))) (await fs.rm(p));
       },
     };
   }
@@ -3169,6 +3169,7 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, onAnalyze, s
 
 
 export default function Panel({ sdk, context, ui }: any) {
+  hostUseSdk(sdk);
   const lang = langOf(context);
   const S = STRINGS[lang] ?? STRINGS.en;
   const projectId: string | null = context?.projectId ?? null;
@@ -3291,8 +3292,9 @@ export default function Panel({ sdk, context, ui }: any) {
       const apps = ["Selects", "Selects Staging", "Selects Delta"];
       const roots = [store.join(store.fs.homedir(), "AppData", "Local", "Programs"), "C:\\Program Files", "C:\\Program Files (x86)"];
       const known = roots.flatMap((r) => apps.map((a) => store.join(r, a, "resources", "app.asar.unpacked", "dist", "bin", "ffmpeg.exe")));
-      const ffmpeg = known.find((f) => store.exists(f)) || null;
-      if (ffmpeg && store.exists(own)) return { ytdlp: own, ffmpeg };
+      let ffmpeg: string | null = null;
+      for (const file of known) { if (await store.exists(file)) { ffmpeg = file; break; } }
+      if (ffmpeg && await store.exists(own)) return { ytdlp: own, ffmpeg };
       if (ffmpeg) {
         const r = await shell(`for /f "delims=" %%i in ('where yt-dlp.exe 2^>nul') do echo Y=%%i\nexit /b 0`, "Find the video tools", 60000);
         const y = r.stdout.split(/\r?\n/).map((l: string) => l.trim()).find((l: string) => l.startsWith("Y="));
@@ -3328,7 +3330,7 @@ export default function Panel({ sdk, context, ui }: any) {
   }
   async function installYtdlp(): Promise<string> {
     const P = await dataPaths();
-    store.ensure(P.bin);
+    await store.ensure(P.bin);
     const target = P.join(P.bin, IS_WIN ? "yt-dlp.exe" : "yt-dlp");
     const part = target + ".part";
     const cmd = IS_WIN
@@ -3355,7 +3357,7 @@ export default function Panel({ sdk, context, ui }: any) {
   const BROWSERS = IS_WIN ? ["firefox", "edge", "chrome", "brave"] : ["chrome", "safari", "firefox", "edge", "brave"];
   async function download(link: string, dir: string, format: string, onTry: (n: number) => void) {
     const T = await tools();
-    store.ensure(dir);
+    await store.ensure(dir);
     const Y = qa(T.ytdlp);
     const fmt = T.ffmpeg ? format : "b[ext=mp4]/b";
     const base =
@@ -3370,7 +3372,7 @@ export default function Panel({ sdk, context, ui }: any) {
       const line = r.stdout.split(/\r?\n/).find((l: string) => l.startsWith("INFO\t"));
       if (line) {
         const [, id, dur, views, w, h, file, ...title] = line.split("\t");
-        if (file && store.exists(file.trim())) return { id, duration: Number(dur) || 0, views: Number(views) || null, w: Number(w) || 0, h: Number(h) || 0, file: file.trim(), title: title.join("\t").trim() };
+        if (file && await store.exists(file.trim())) return { id, duration: Number(dur) || 0, views: Number(views) || null, w: Number(w) || 0, h: Number(h) || 0, file: file.trim(), title: title.join("\t").trim() };
       }
       last = (r.stderr || r.output || "").slice(-400);
     }
@@ -3593,9 +3595,9 @@ export default function Panel({ sdk, context, ui }: any) {
   // ---- New template from reference shorts ----
   async function frames(file: string, dir: string, duration: number, sw: number, sh: number, W: number, H: number) {
     // The host's bundled ffmpeg with argv: no console, quoting or code page, so Korean paths work on Windows too.
-    const rt = (window.parent as any)?.__DI__?.Runtime;
+    const rt = hostSdk.media;
     if (typeof rt?.runFFmpeg === "function") {
-      store.ensure(dir);
+      await store.ensure(dir);
       const dur = Math.max(1, duration || 30);
       try {
         for (const argv of [
@@ -3612,7 +3614,7 @@ export default function Panel({ sdk, context, ui }: any) {
     }
     const T = await tools();
     if (!T.ffmpeg) throw new Error(S.refsFailed + "ffmpeg");
-    store.ensure(dir);
+    await store.ensure(dir);
     const F = qa(T.ffmpeg);
     const dur = Math.max(1, duration || 30);
     const cmd =
@@ -3664,14 +3666,14 @@ export default function Panel({ sdk, context, ui }: any) {
       if (listUrl) {
         if (/youtube\.com\/(@[^/?#]+|channel\/[^/?#]+|c\/[^/?#]+|user\/[^/?#]+)\/?$/.test(listUrl)) listUrl = listUrl.replace(/\/?$/, "/shorts");
         // The listing goes to a file: however long the titles, it never meets the shell's output limit.
-        store.ensure(store.refs);
+        await store.ensure(store.refs);
         const listFile = store.join(store.refs, "listing-" + Date.now().toString(36) + ".txt");
         await shell(
           `${Y} --no-warnings --encoding utf-8 --flat-playlist --playlist-end 60 --print-to-file ${qa("ROW\t%(playlist_title)s\t%(url)s\t%(view_count)s\t%(duration)s\t%(title)s")} ${qa(listFile)} ${qa(listUrl)}`,
           "List the channel's shorts",
           240000
         );
-        const text = store.exists(listFile) ? dec(await store.fs.readFile(listFile)) : "";
+        const text = await store.exists(listFile) ? dec(await store.fs.readFile(listFile)) : "";
         const rows = text
           .split(/\r?\n/)
           .filter((l: string) => l.startsWith("ROW\t"))
@@ -3722,7 +3724,7 @@ export default function Panel({ sdk, context, ui }: any) {
         const fd = store.join(dir, "f" + i);
         try {
           await frames(got[i].file, fd, got[i].duration, sw, sh, W, H);
-          const names = store.fs.readdirSync(fd).filter((n: string) => /^s_\d+\.png$/.test(n)).sort();
+          const names = (await store.fs.readdir(fd)).filter((n: string) => /^s_\d+\.png$/.test(n)).sort();
           const fr: Frame[] = [];
           for (const n of names) fr.push(await loadFrame(store.fs, store.join(fd, n), sw, sh));
           if (fr.length >= 4) {
@@ -4071,3 +4073,6 @@ async function readMediaPages(sdk, args) {
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
 }
+
+let hostSdk: any = null;
+function hostUseSdk(sdk: any) { hostSdk = sdk; if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin."); }

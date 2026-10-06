@@ -2209,21 +2209,11 @@ if (typeof module !== 'undefined' && module && module.exports) {
 // sae-planner:end
 
 // sae-host:start
-// Host I/O through the renderer's own services, the same on macOS and Windows: no host shell, no node, no user
-// installed tools. ffmpeg/ffprobe are the host's bundled binaries (Runtime.runFFmpeg/runFFprobe take an argv array,
-// so paths need no quoting), and every path is built by FileSystem.join. __DI__ is internal host wiring that a newer
-// or older Selects may lack, so each member is checked at call time.
-// Error codes (Error.message): 'host_tools' = a needed __DI__ member is missing (show "needs a newer Selects";
-// bundled cues keep working), 'timeout' = ffmpeg/ffprobe ran past timeoutMs, 'media_failed' = ffmpeg/ffprobe failed
-// or produced no usable output (err.detail holds the host's message, truncated).
-function saeDI() {
-  let di = null;
-  try { di = window.parent && window.parent.__DI__; } catch (e) { di = null; }
-  if (!di) { try { di = window.__DI__; } catch (e) { di = null; } }
-  const fs = di && di.FileSystem ? di.FileSystem : null;
-  const rt = di && di.Runtime ? di.Runtime : null;
-  return { fs, rt };
-}
+// Local files, media tools and environment use the public SDK.
+// Missing capabilities report the existing host-tools error to the panel UI.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
+function saeDI() { return { fs: hostSdk?.files, rt: hostSdk?.media }; }
 
 // names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.
 function saeHas(names) {
@@ -2247,66 +2237,26 @@ function saeNeed(names) {
   return saeDI();
 }
 
-function saePlatform() {
-  let p = '';
-  try { const rt = saeDI().rt; if (rt && typeof rt.getPlatform === 'function') p = String(rt.getPlatform() || ''); } catch (e) { p = ''; }
-  if (/^win/i.test(p)) return 'win32';
-  if (/darwin|mac/i.test(p)) return 'darwin';
-  if (/linux/i.test(p)) return 'linux';
-  let ua = '';
-  try { ua = String(navigator.userAgent || ''); } catch (e) { ua = ''; }
-  if (/Windows NT/i.test(ua)) return 'win32';
-  if (/Mac/i.test(ua)) return 'darwin';
-  return 'linux';
-}
+function saePlatform() { return hostSdk?.environment?.platform || ""; }
 
-// The installed skill folder, or null when no candidate holds the plugin's planner.js. The host's skills root
-// (SELECTS_USER_SKILLS_ROOT) is the home folder joined with .selects and skills (cutback-client electron/user-skills.ts resolveUserSkillsRoot),
-// so that comes first. Archive Vlog falls back to the variable through the host shell; this panel uses no shell, so
-// the fallbacks are shell-free host values, each guarded and tried in order:
-//   1. FileSystem.homedir() joined with .selects, skills and the plugin id
-//   2. SELECTS_USER_SKILLS_ROOT in Runtime.getHostEnvironment(), joined with the plugin id
-//   3. SELECTS_USER_SKILLS_ROOT in the renderer's process environment (window.parent.process, then window.process), joined with the plugin id
-//   4. Runtime.getOS().homedir() joined the same way (a second view of the home folder)
-// A missing member or a throwing call only skips that candidate. FileSystem.join and existsSync are required
-// (host_tools without them); every candidate is verified by existsSync(join(dir, 'planner.js')).
-const SAE_SKILLS_ENV = 'SELECTS_USER_SKILLS_ROOT';
+// The SDK home directory locates the installed plugin; verify its marker asynchronously.
 function saeSkillsCandidates(id) {
-  const { fs, rt } = saeDI();
-  const out = [];
-  const add = (fn) => { try { const v = fn(); if (typeof v === 'string' && v) out.push(v); } catch (e) { /* skip this candidate */ } };
-  const envOf = (w) => { try { const p = w && w.process; const v = p && p.env && p.env[SAE_SKILLS_ENV]; return typeof v === 'string' ? v.trim() : ''; } catch (e) { return ''; } };
-  add(() => (typeof fs.homedir === 'function' ? String(fs.join(fs.homedir(), '.selects', 'skills', id)) : ''));
-  add(() => {
-    const env = rt && typeof rt.getHostEnvironment === 'function' ? rt.getHostEnvironment() : null;
-    const v = env && typeof env[SAE_SKILLS_ENV] === 'string' ? env[SAE_SKILLS_ENV].trim() : '';
-    return v ? String(fs.join(v, id)) : '';
-  });
-  add(() => {
-    let w = null;
-    try { w = window.parent; } catch (e) { w = null; }
-    const v = envOf(w) || envOf(typeof window === 'undefined' ? null : window);
-    return v ? String(fs.join(v, id)) : '';
-  });
-  add(() => {
-    const os = rt && typeof rt.getOS === 'function' ? rt.getOS() : null;
-    return os && typeof os.homedir === 'function' ? String(fs.join(os.homedir(), '.selects', 'skills', id)) : '';
-  });
-  return out.filter((d, i) => out.indexOf(d) === i);
+  const { fs } = saeNeed(["fs.join", "fs.homedir"]);
+  return [fs.join(fs.homedir(), ".selects", "skills", id)];
 }
-function saeSkillsDir(id) {
-  const { fs } = saeNeed(['fs.join', 'fs.existsSync']);
+async function saeSkillsDir(id) {
+  const { fs } = saeNeed(['fs.join', 'fs.exists']);
   for (const dir of saeSkillsCandidates(id)) {
-    try { if (fs.existsSync(fs.join(dir, 'planner.js'))) return dir; } catch (e) { /* the next candidate */ }
+    try { if ((await fs.exists(fs.join(dir, 'planner.js')))) return dir; } catch (e) { /* the next candidate */ }
   }
   return null;
 }
 
 // The plugin's persistent data folder, created when missing.
-function saeDataDir(id) {
-  const { fs } = saeNeed(['fs.join', 'fs.homedir', 'fs.mkdirSync']);
+async function saeDataDir(id) {
+  const { fs } = saeNeed(['fs.join', 'fs.homedir', 'fs.mkdir']);
   const dir = fs.join(fs.homedir(), '.selects', 'plugin-data', id);
-  fs.mkdirSync(dir, { recursive: true });
+  (await fs.mkdir(dir, { recursive: true }));
   return dir;
 }
 
@@ -2345,7 +2295,7 @@ async function saeProbeDuration(file, opts) {
 
 // Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (Buffer from another realm, Uint8Array,
 // ArrayBuffer, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array).
-// FileSystem results come from window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them,
+// FileSystem results come from the bridge, possibly another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them,
 // so only realm-free checks are used here (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray
 // works across realms), with an array-like fallback for objects a bridge serialised by index.
 function saeBytes(raw) {
@@ -2368,7 +2318,6 @@ function saeBytes(raw) {
 }
 
 async function saeReadBytes(fs, file) {
-  if (typeof fs.readFileSync === 'function') return saeBytes(fs.readFileSync(file));
   return saeBytes(await fs.readFile(file));
 }
 
@@ -2387,9 +2336,7 @@ async function saeReadOutput(fs, file, what) {
 // Best effort; a leftover file in the data folder is harmless.
 async function saeRemove(fs, file) {
   try {
-    if (typeof fs.unlinkSync === 'function') return fs.unlinkSync(file);
     if (typeof fs.removeFile === 'function') return await fs.removeFile({ filePath: file });
-    if (typeof fs.rmSync === 'function') return fs.rmSync(file, { force: true });
   } catch (e) { /* ignored */ }
 }
 
@@ -2399,9 +2346,9 @@ function saeToken() {
 
 function saeNeedReader() {
   const di = saeDI();
-  if (!di.fs || (typeof di.fs.readFileSync !== 'function' && typeof di.fs.readFile !== 'function')) {
+  if (!di.fs || typeof di.fs.readFile !== 'function') {
     const err = new Error('host_tools');
-    err.missing = ['fs.readFileSync'];
+    err.missing = ['fs.readFile'];
     throw err;
   }
 }
@@ -2528,7 +2475,7 @@ function saeYield() {
 // except on abort, and caches per clip in <data dir>/quick-score/.
 // quick-score:start
 // Quick local shot score for clips Selects has not analysed (no scene search). Plain JS and self-contained: it reaches
-// the host only through window.parent.__DI__ (Runtime.runFFmpeg and FileSystem, every member checked first), or through
+// the host through the public SDK files and media namespaces, or through
 // `opts.io` (tests, other hosts), so it can be pasted into any style-app panel and kept as one kit file
 // (tools/panel/quick-score.ts). No shell, no node: the host's bundled ffmpeg decodes a small grey preview
 // (QS_FPS frames a second, QS_W x QS_H pixels) of the part of the clip the planner could use into a temporary file in
@@ -2582,23 +2529,21 @@ function qsBytes(v) {
 // The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
 // mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
 function qsHostIO() {
-  var di = null;
-  try { di = (window.parent && window.parent["__DI__"]) || null; } catch (e) { di = null; }
-  var rt = di && di.Runtime, fs = di && di.FileSystem;
+  var rt = hostSdk?.media, fs = hostSdk?.files;
   var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
   return {
     runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
     readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
     remove: fs ? async function (p) {
-      var tries = ["removeFile", "remove", "rm", "unlink", "unlinkSync"];
+      var tries = ["removeFile"];
       for (var i = 0; i < tries.length; i++) {
         if (!fn(fs, tries[i])) continue;
         try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
       }
     } : null,
     join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
-    mkdir: fn(fs, "mkdirSync") ? function (d) { fs.mkdirSync(d, { recursive: true }); } : null,
-    mtimeMs: fn(fs, "statSync") ? function (p) { var s = fs.statSync(p); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
+    mkdir: fn(fs, "mkdir") ? async function (d) { (await fs.mkdir(d, { recursive: true })); } : null,
+    mtimeMs: fn(fs, "stat") ? async function (p) { var s = (await fs.stat(p)); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
     readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
     writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
   };
@@ -2711,8 +2656,8 @@ async function quickScore(resource, opts) {
   var dir = io.join(dataDir, "quick-score");
   var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
   var mtime = 0;
-  try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
-  // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
+  try { mtime = io.mtimeMs ? Math.round((await io.mtimeMs(resource.path)) || 0) : 0; } catch (e) { mtime = 0; }
+  // mtime is 0 when the host lacks FileSystem.stat, so the duration also keys the cache (a file replaced at the same
   // path with different media is not served stale scores; Mini Vlog review).
   var durKey = Number(resource.durationSeconds || 0).toFixed(3);
   var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
@@ -2724,7 +2669,7 @@ async function quickScore(resource, opts) {
     } catch (e) { /* no cache yet */ }
   }
   if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
-  try { if (io.mkdir) io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
+  try { if (io.mkdir) await io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
   var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
   var controller = typeof AbortController === "undefined" ? null : new AbortController();
   var relay = function () { if (controller) controller.abort(); };
@@ -3452,13 +3397,13 @@ function hostErrorSay(e: any, kind: "music" | "preview"): Say {
 function decodeText(raw: any): string { return typeof raw === "string" ? raw : new TextDecoder().decode(saeBytes(raw)); }
 async function readPluginText(dir: string, parts: string[]): Promise<string> {
   const { fs } = saeDI();
-  if (!fs || typeof fs.join !== "function" || (typeof fs.readFileSync !== "function" && typeof fs.readFile !== "function")) {
+  if (!fs || typeof fs.join !== "function" || (typeof fs.readFile !== "function" && typeof fs.readFile !== "function")) {
     const err: any = new Error("host_tools");
-    err.missing = ["fs.readFileSync"];
+    err.missing = ["fs.readFile"];
     throw err;
   }
   const file = fs.join(dir, ...parts);
-  return decodeText(typeof fs.readFileSync === "function" ? fs.readFileSync(file) : await fs.readFile(file));
+  return decodeText(typeof fs.readFile === "function" ? (await fs.readFile(file)) : await fs.readFile(file));
 }
 // The bundled music manifest, build scripts, the effect / transition sources and the beat detector's text.
 async function loadAssets(dir: string) {
@@ -3758,7 +3703,7 @@ async function readLocalScores(pid: string, inv: any, rids: string[], check: () 
   onProgress(stats.cached, todo.length);
   if (!need.length) return { local, stats };
   let dataDir: string | null = null;
-  try { dataDir = saeDataDir(PLUGIN_ID); } catch { dataDir = null; }
+  try { dataDir = (await saeDataDir(PLUGIN_ID)); } catch { dataDir = null; }
   const controller = new AbortController();
   const relay = () => controller.abort();
   if (signal) { if (signal.aborted) controller.abort(); else signal.addEventListener("abort", relay); }
@@ -3802,7 +3747,7 @@ async function readMotionCurves(pid: string, inv: any, rids: string[], motionCac
   const pathOf: Record<string, string> = {};
   for (const r of inv.resources) if (r.path) pathOf[r.rid] = r.path;
   let dataDir: string | null = null;
-  try { dataDir = saeDataDir(PLUGIN_ID); } catch { dataDir = null; }
+  try { dataDir = (await saeDataDir(PLUGIN_ID)); } catch { dataDir = null; }
   for (let i = 0; dataDir && i < curveRids.length; i++) {
     onProgress(i, rids.length);
     const rid = curveRids[i], key = pid + "|" + rid;
@@ -3935,7 +3880,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   const [assets, setAssets] = React.useState<any>(null);
   const [fatal, setFatal] = React.useState<{ say: Say } | null>(null);
   // Own music and the section preview need the host's ffmpeg; bundled cues do not.
-  const canOwn = React.useMemo(() => saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok, []);
+  const canOwn = React.useMemo(() => saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdir"]).ok, []);
   const [inventory, setInventory] = React.useState<any>(null);
   const [invError, setInvError] = React.useState<{ say: Say } | null>(null);
   const [invLoading, setInvLoading] = React.useState(false);
@@ -4015,7 +3960,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
     let alive = true;
     (async () => {
       try {
-        const dir = saeSkillsDir(PLUGIN_ID);
+        const dir = (await saeSkillsDir(PLUGIN_ID));
         if (!dir) { if (alive) setFatal({ say: (l) => t(l, "pluginMissing") }); return; }
         const loaded = await loadAssets(dir);
         if (!alive) return;
@@ -4175,7 +4120,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
     setOwnFile(file); setOwnCue(null); setOwnState("listening"); setOwnStatus(null); setStatus(null);
     let pcm: Float32Array | null = null, head: Float32Array | null = null;
     try {
-      const dataDir = saeDataDir(PLUGIN_ID);
+      const dataDir = (await saeDataDir(PLUGIN_ID));
       pcm = await saeDecodePcm(file.path, dataDir, SAE_PCM_SECONDS);
       if (!live()) return;
       // The fallback's input is copied before the transfer detaches the decoded buffer; the worker gets a buffer of
@@ -4240,7 +4185,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
     const live = () => previewTokenRef.current === token && mountedRef.current;
     setPlayState("loading");
     try {
-      const dataDir = saeDataDir(PLUGIN_ID);
+      const dataDir = (await saeDataDir(PLUGIN_ID));
       const file = musicId === "own" ? ownFile!.path : saeDI().fs.join(skillsDir, "assets", "cues", cueEntry.file);
       // Exactly what the Draft plays: from `lead` before beat 1 of the section to the end of the edit.
       const start = Math.max(0, section - SAE_LEAD), seconds = SAE_LEAD + saeVideoSeconds(wantedBars, editBpm);
@@ -4385,7 +4330,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
       advance("check", 0.2);
       // Shares of the step: spans and motion as before when every clip is analysed; with unanalysed clips the quick
       // scores take the second half ("Checking clips N/M").
-      const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok;
+      const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdir"]).ok;
       const localShare = localRids.length ? 0.5 : 0;
       const spanShare = (stillOn ? 0.4 : 0.8) * (1 - localShare / 0.8);
       const motionAt = 0.2 + spanShare, motionShare = stillOn ? 0.4 * (1 - localShare / 0.8) : 0;
@@ -4723,6 +4668,7 @@ return { resolved };`;
 // The whole template build. Returns the new Draft; throws a uiError for the person, or STALE when a newer run (or the
 // frame closing) replaced this one. `advance` names the current build step for the status line and the error.
 async function runSelfieTemplate(sdk: any, context: any, check: () => void, advance: Advance): Promise<{ sequenceId: string }> {
+  hostUseSdk(sdk);
   const pid: string | null = context?.projectId ?? null;
   if (!pid) throw uiError((l) => t(l, "openProject"));
   // Each handed video or photo once, in the order it was picked.
@@ -4737,7 +4683,7 @@ async function runSelfieTemplate(sdk: any, context: any, check: () => void, adva
 
   advance("check", 0);
   // The installed plugin folder through the host FileSystem, as the panel finds it (no shell, so Windows works too).
-  const skillsDir = saeSkillsDir(PLUGIN_ID);
+  const skillsDir = (await saeSkillsDir(PLUGIN_ID));
   if (!skillsDir) throw uiError((l) => t(l, "pluginMissing"));
   let assets: any;
   try { assets = await loadAssets(skillsDir); }
@@ -4779,7 +4725,7 @@ async function runSelfieTemplate(sdk: any, context: any, check: () => void, adva
   if (!rids.length && !photos.length) throw uiError((l) => t(l, "noSources"));
   advance("check", 0.2);
   // Bad-shot spans and, with the stillness picker on, motion curves, as Build reads them.
-  const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok;
+  const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdir"]).ok;
   const spanShare = stillOn ? 0.4 : 0.8;
   const badSpans = await readSpans(sdk, pid, inv, rids, new Map(), check, (done, total) => advance("check", 0.2 + spanShare * (total ? done / total : 1)), realIds);
   check();
@@ -4867,5 +4813,6 @@ function TemplateRun({ sdk, context }: any) {
 }
 
 export default function Panel(props: any) {
+  hostUseSdk(props.sdk);
   return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <SelfieAestheticPanel {...props} />;
 }

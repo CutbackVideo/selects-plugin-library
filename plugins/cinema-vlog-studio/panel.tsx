@@ -109,38 +109,23 @@ return out;`;
 function assembly(c){return `const c=${clean(c)};const p=selects.project(c.projectId);const d=await p.createDraft({name:c.name});await d.setFrameSize({width:1920,height:1080});/* Cut frames are 30 fps reference frames, converted to the Draft's rate (a reported 29.97 snaps to 30000/1001). The rate is read again after each clip (a Draft can adopt its first clip's rate) and each cut ends on its converted frame measured from where the last clip really ended. */const rate=async()=>{const reported=(await d.meta()).fps,r=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw Error('Unsupported draft frame rate: '+reported);return r};let fps=await rate();const fr=n=>Math.round(n/30*fps);await d.insertGap({seconds:fr(5)/fps});let placed=fr(5);for(let i=0;i<c.cuts.length;i++){if(i===c.gapBeforeIndex){const g=fr(55)-placed;if(g>0){await d.insertGap({seconds:g/fps});placed+=g}}const [slot,a,b]=c.cuts[i],id=c.videoIds[slot-1],len=(fr(b)-placed)/fps,src=c.lengths[id]||0;if(src<len+.03)throw Error('Slot '+slot+' is shorter than '+len.toFixed(2)+' seconds');const starts=c.starts,proposed=starts[i],start=Math.min(Math.max(0,proposed),Math.max(0,src-len-.04));await d.insertResource({resourceId:id,sourceRange:{startSeconds:start,endSeconds:start+len}});fps=await rate();placed=(await d.clips({trackScope:'main'})).reduce((n,x)=>x.resourceId?Math.max(n,x.endFrame):n,0)}const main=await d.clips({trackScope:'main'}),end=main.reduce((n,x)=>Math.max(n,x.endFrame),0),at=n=>Math.min(end,fr(n));for(const original of main){const current=(await d.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current&&current.resourceId)await d.setClipAudio({clip:current,volumeDb:-60});}for(const {i,widthPct} of c.cards)await d.addVideoEffect({clip:(await d.clips({trackScope:'main'}))[i],label:'Cinema Vlog · inset '+(i-9),tsxCode:${clean(CARD)},parameters:{widthPct}});for(const {i,widthPct} of c.cards){const edge=at(c.cuts[i][2]);await d.addMotionGraphic({label:'Cinema Vlog · inset flash '+(i-9),tsxCode:${clean(CARD_FLASH)},within:await d.rangeAtFrames(edge-fr(1),edge),parameters:{widthPct}})}const glitchFrame=at(c.glitchRefFrame),glitchClip=(await d.clips({trackScope:'main'})).find(x=>x.startFrame<=glitchFrame&&glitchFrame<x.endFrame);if(!glitchClip)throw Error('Glitch marker does not fall on footage');await d.addVideoEffect({clip:glitchClip,label:'Cinema Vlog · marker-triggered monochrome stutter',tsxCode:${clean(GLITCH)},parameters:{triggerLocalFrame:glitchFrame-glitchClip.startFrame}});await d.addMotionGraphic({label:'Cinema Vlog · three-step black curtain',tsxCode:${clean(CURTAIN)},within:await d.rangeAtFrames(at(55),at(210)),parameters:{referenceStartFrame:55}});await d.addMotionGraphic({label:'Cinema Vlog · alphabet swap title',tsxCode:${clean(TITLE)},within:await d.rangeAtFrames(at(132),at(196)),parameters:{referenceStartFrame:132,title:c.title,kicker:c.kicker,subtitle:c.subtitle,fontFamily:c.font,titleColor:'#eed65d',smallColor:'#ffffff'},editableParameters:[{key:'title',label:'Main title',type:'text',defaultValue:c.title},{key:'kicker',label:'Upper line',type:'text',defaultValue:c.kicker},{key:'subtitle',label:'Lower line',type:'text',defaultValue:c.subtitle},{key:'fontFamily',label:'Font',type:'text',defaultValue:c.font},{key:'titleColor',label:'Title color',type:'color',defaultValue:'#eed65d'},{key:'smallColor',label:'Small text color',type:'color',defaultValue:'#ffffff'}]});await d.addMotionGraphic({label:'Cinema Vlog · single-frame white flash',tsxCode:${clean(FLASH)},within:await d.rangeAtFrames(at(54),at(55))});/* A sound overlay may not run past its asset; its length is rounded to Draft frames, as Selects does (the intro runs 0.26 frame past its end at 29.97 and plays). */const lengths=new Map((await p.resources()).map(x=>[x.resourceId,x.durationSeconds])),fit=(id,seconds,from,to)=>Math.min(to,from+Math.round(Math.min(lengths.get(id)||Infinity,seconds)*fps));if(c.introFxId)await d.overlayResource({resource:p.resource(c.introFxId),over:await d.rangeAtFrames(0,fit(c.introFxId,${clean(ASSET_SECONDS[0])},0,at(204))),sourceStartSeconds:0});if(c.musicId){await d.overlayResource({resource:p.resource(c.musicId),over:await d.rangeAtFrames(at(204),fit(c.musicId,${clean(ASSET_SECONDS[1])},at(204),end)),sourceStartSeconds:0});const musicClip=(await d.clips({trackScope:'all'})).find(x=>x.trackKind==='audio'&&x.resourceId===c.musicId&&x.startFrame===at(204));if(!musicClip)throw Error('Music clip was not created');await d.setClipAudio({clip:musicClip,fadeInSeconds:0.18,fadeOutSeconds:0.5})}if(c.effectSoundId)await d.overlayResource({resource:p.resource(c.effectSoundId),over:await d.rangeAtFrames(at(c.glitchRefFrame),fit(c.effectSoundId,${clean(ASSET_SECONDS[2])},at(c.glitchRefFrame),Math.min(end,at(c.glitchRefFrame)+fr(7)))),sourceStartSeconds:0});const saved=await d.commitAll('Cinema Vlog Studio: user marker cuts, Postcard curtain and alphabet swap');if(!saved.createdDraftId)throw Error('Draft save did not return an id');const actual=selects.draft(saved.createdDraftId),clips=await actual.clips({trackScope:'all'});return{draftId:saved.createdDraftId,name:c.name,fps,endFrame:clips.reduce((n,x)=>Math.max(n,x.endFrame),0),mainClips:clips.filter(x=>x.trackKind==='main').length,audioClips:clips.filter(x=>x.trackKind==='audio').length,graphics:clips.filter(x=>x.resourceId===null).length};`}
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = sdk; }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -171,34 +156,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -238,7 +206,7 @@ async function hostProbeSeconds(path) {
 // av-host:end
 // The bundled sounds, imported into the Project once and found by name after.
 async function cinemaSounds(sdk, projectId) {
-  if(!hostApi('FileSystem','join','homedir','existsSync'))throw Error('This Selects build cannot read the plugin files. Update Selects, then try again.');
+  hostUseSdk(sdk);if(!hostApi('FileSystem','join','homedir','exists'))throw Error('This Selects build cannot read the plugin files. Update Selects, then try again.');
   const roots = await hostRoots(sdk, 'cinema-vlog-studio', 'assets').catch(() => null);
   if (!roots) throw Error('Template assets directory is unavailable.');
   const assetPaths = ASSETS.map(n => hostJoin(roots.plugin, 'assets', n));
@@ -370,6 +338,7 @@ function CinemaTemplateRun({ sdk, context }) {
 }
 
 export default function CinemaVlogStudio(props) {
+  hostUseSdk(props.sdk);
   return props.context.template ? <CinemaTemplateRun {...props} /> : <CinemaVlogPanel {...props} />;
 }
 

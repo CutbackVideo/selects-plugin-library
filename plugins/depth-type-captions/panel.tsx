@@ -620,7 +620,7 @@ const DEPTH_CLOUD_MIN_HOST = "2.0.512";
 const depthSubject = (settings) => (DEPTH_CLOUD_MASKS || settings.subject === "person" ? "person" : "foreground");
 function depthHostVersion() {
   try {
-    return String(window.parent.__DI__?.Runtime?.getHostingVersion?.() || "") || null;
+    return String(hostSdk?.environment?.version || "") || null;
   } catch {
     return null;
   }
@@ -650,11 +650,11 @@ function depthRenderPreset(geometry) {
   return "4K";
 }
 function depthPluginRoot() {
-  const fs = depthDI().di.FileSystem;
+  const fs = hostSdk.files;
   return fs.join(fs.homedir(), ".selects", "plugin-data", "depth-type-captions");
 }
 function depthMaskDraftDir(pid, sid) {
-  const fs = depthDI().di.FileSystem;
+  const fs = hostSdk.files;
   return fs.join(depthPluginRoot(), "masks", String(pid), String(sid));
 }
 async function depthPrepareVideo(pid, sid, excluded, control, progress, geometry, outputPath) {
@@ -674,7 +674,7 @@ async function depthPrepareVideo(pid, sid, excluded, control, progress, geometry
     ["FileSystem", "pathToLocalURL"],
     ["FileSystem", "getOrCreateTmpDirPath"],
   ])
-    if (typeof di[service]?.[member] !== "function")
+    if (typeof (service === "FileSystem" ? hostSdk.files : di[service])?.[member] !== "function")
       throw new Error("Unavailable host capability: " + service + "." + member);
   const project = await di.ProjectRepository.findById(libraryId, pid);
   if (!project?.getEditedSequences().includes(sid))
@@ -760,7 +760,7 @@ async function depthPrepareVideo(pid, sid, excluded, control, progress, geometry
     });
     return {
       path,
-      url: di.FileSystem.pathToLocalURL(path),
+      url: (await hostSdk.files.pathToLocalURL(path)),
       sourceKey: base.key,
       duration: end / copy.getFrameRate(),
       fps: copy.getFrameRate(),
@@ -778,7 +778,7 @@ async function depthPrepareVideo(pid, sid, excluded, control, progress, geometry
 }
 const depthQuote = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 async function depthReadText(fs, path) {
-  return fs.existsSync(path) ? String(await fs.readFile(path, "utf8")) : "";
+  return (await fs.exists(path)) ? String(await fs.readFile(path, "utf8")) : "";
 }
 // Full-resolution speaker masks, one PNG per draft frame, made on this Mac. The
 // job runs in its own session: the host ends each shell call's process group,
@@ -789,7 +789,8 @@ const DEPTH_MATTE_GROW = 0;
 // Masks from an older tool are made again (v4 restores objects the detector drops for a few frames).
 const DEPTH_MATTE_VERSION = 4;
 async function depthPrepareMasks(sdk, preview, settings, job, progress, control) {
-  const fs = depthDI().di.FileSystem;
+  hostUseSdk(sdk);
+  const fs = hostSdk.files;
   const binDir = fs.join(job.root, "bin"),
     source = fs.join(binDir, "depth-type-mattes-v4.js"),
     at = (name) => fs.join(job.dir, name);
@@ -862,7 +863,7 @@ async function depthMaskResult(fs, preview, job) {
   const mask = { width: layout.width, height: layout.height, fps: layout.fps, frames: layout.frames, misses: layout.misses || 0, canvasWidth: preview.width, canvasHeight: preview.height, sourceKey: preview.sourceKey };
   const files = {
     dir: job.dir,
-    base: fs.pathToLocalURL(job.dir).replace(/\/+$/, ""),
+    base: (await fs.pathToLocalURL(job.dir)).replace(/\/+$/, ""),
     count: layout.count,
     width: layout.matteWidth,
     height: layout.matteHeight,
@@ -917,7 +918,8 @@ async function depthBlackPng(width, height) {
   return new Uint8Array(await (await canvas.convertToBlob({ type: "image/png" })).arrayBuffer());
 }
 async function depthPrepareCloudMasks(sdk, preview, pid, job, progress, control) {
-  const { di, libraryId } = depthDI(), fs = di.FileSystem, mg = di.MediaGeneration;
+  hostUseSdk(sdk);
+  const { di, libraryId } = depthDI(), fs = hostSdk.files, mg = di.MediaGeneration;
   if (!mg?.supportsPluginFiles?.()) throw new Error(depthCloudMessage("generation_update_required"));
   const scope = { libraryId, projectId: pid };
   progress("Sending the draft for speaker masks…");
@@ -974,8 +976,8 @@ async function depthPrepareCloudMasks(sdk, preview, pid, job, progress, control)
   // quoting, and cmd.exe never expands the %06d patterns.
   progress("Writing speaker mask files…");
   const lw = 384, lh = Math.max(1, Math.round((lw * preview.height) / preview.width)), small = fs.join(job.dir, "layout");
-  fs.mkdirSync(small, { recursive: true });
-  const runtime = di.Runtime;
+  (await fs.mkdir(small, { recursive: true }));
+  const runtime = hostSdk.media;
   if (typeof runtime?.runFFmpeg !== "function") throw new Error("This Selects build cannot write speaker mask files. Update Selects, then try again.");
   const writing = new AbortController(), timer = setTimeout(() => writing.abort(), 600000);
   control.stop = () => writing.abort();
@@ -993,7 +995,7 @@ async function depthPrepareCloudMasks(sdk, preview, pid, job, progress, control)
     clearTimeout(timer);
     control.stop = null;
   }
-  const names = fs.readdirSync(small).map(String).filter((n) => /^l_\d{6}\.png$/.test(n)).sort();
+  const names = (await fs.readdir(small)).map(String).filter((n) => /^l_\d{6}\.png$/.test(n)).sort();
   if (!names.length) throw new Error("No speaker masks came back. Try again.");
   const black = depthBase64(await depthBlackPng(lw, lh));
   let blackMatte = null, misses = 0;
@@ -1012,13 +1014,13 @@ async function depthPrepareCloudMasks(sdk, preview, pid, job, progress, control)
         frames[index] = { t: index / preview.fps, png: black };
       }),
     );
-  fs.rmSync(small, { recursive: true, force: true });
+  (await fs.rm(small, { recursive: true, force: true }));
   const layout = { version: DEPTH_MATTE_VERSION, width: lw, height: lh, fps: preview.fps, frames, misses, filled: 0, matteWidth: preview.width, matteHeight: preview.height, count: frames.length, mode: "person", grow: 0, source: "cloud" };
   await fs.writeFile(fs.join(job.dir, "layout.json"), JSON.stringify(layout));
   return depthMaskResult(fs, preview, job);
 }
 async function depthLoadLayoutMask(files) {
-  const fs = depthDI().di.FileSystem;
+  const fs = hostSdk.files;
   const layout = JSON.parse(await depthReadText(fs, fs.join(files.dir, "layout.json")));
   if (!layout.frames?.length) throw new Error("The speaker mask files are gone. Choose Redo.");
   return { width: layout.width, height: layout.height, fps: layout.fps, frames: layout.frames, misses: layout.misses || 0, canvasWidth: files.canvasWidth, canvasHeight: files.canvasHeight, sourceKey: files.sourceKey };
@@ -1026,15 +1028,16 @@ async function depthLoadLayoutMask(files) {
 // Mask folders take ~3 MB per second of 1080p video. Keep the saved one and the
 // one before it (for Undo); drop the rest of this draft's folders.
 async function depthPruneMasks(sdk, pid, sid, keep) {
-  const fs = depthDI().di.FileSystem, dir = depthMaskDraftDir(pid, sid);
+  hostUseSdk(sdk);
+  const fs = hostSdk.files, dir = depthMaskDraftDir(pid, sid);
   let names = [];
   try {
-    names = fs.readdirSync(dir).map(String);
+    names = (await fs.readdir(dir)).map(String);
   } catch {
     return;
   }
   const kept = new Set(keep.filter(Boolean).map((d) => fs.basename(d)));
-  for (const n of names.filter((n) => !kept.has(n))) fs.rmSync(fs.join(dir, n), { recursive: true, force: true });
+  for (const n of names.filter((n) => !kept.has(n))) (await fs.rm(fs.join(dir, n), { recursive: true, force: true }));
 }
 // Clip refs of b-roll and cards placed by earlier versions of this panel; captions
 // keep stepping aside for them.
@@ -1467,12 +1470,13 @@ function depthComposeFromWords(words, meta, settings, fallbackWidth, fallbackHei
   return depthReferenceComposition(depthRestoreTypography(next, w, hh, settings), w, hh, settings);
 }
 async function depthNewMaskJob(sdk, pid, sid) {
-  const fs = depthDI().di.FileSystem,
+  hostUseSdk(sdk);
+  const fs = hostSdk.files,
     root = depthPluginRoot(),
     dir = fs.join(depthMaskDraftDir(pid, sid), Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
   try {
-    fs.mkdirSync(dir, { recursive: true });
-    fs.mkdirSync(fs.join(root, "bin"), { recursive: true });
+    (await fs.mkdir(dir, { recursive: true }));
+    (await fs.mkdir(fs.join(root, "bin"), { recursive: true }));
   } catch (e) {
     throw new Error("Could not create the mask folder: " + (e?.message || e));
   }
@@ -1481,8 +1485,9 @@ async function depthNewMaskJob(sdk, pid, sid) {
 // Full-size render of the draft, then speaker masks from it. `onRender` gets the
 // render as soon as it exists.
 async function depthMakeSpeakerMasks(sdk, pid, sid, meta, settings, excluded, control, progress, onRender) {
+  hostUseSdk(sdk);
   depthRequireHost();
-  const fs = depthDI().di.FileSystem, maskJob = await depthNewMaskJob(sdk, pid, sid);
+  const fs = hostSdk.files, maskJob = await depthNewMaskJob(sdk, pid, sid);
   const p = await depthPrepareVideo(pid, sid, excluded, control, progress, meta, fs.join(maskJob.dir, "render.mp4"));
   if (control.canceled) throw new Error("Canceled.");
   onRender?.(p);
@@ -1495,8 +1500,8 @@ async function depthMaskIsCurrent(files, meta, settings, sid, excluded) {
   if (!files || files.canvasWidth !== meta.width || files.canvasHeight !== meta.height) return false;
   if ((files.subject || "foreground") !== depthSubject(settings) || (files.grow || 0) !== DEPTH_MATTE_GROW || (files.version || 0) !== DEPTH_MATTE_VERSION) return false;
   try {
-    const fs = depthDI().di.FileSystem;
-    if (!fs.existsSync(fs.join(files.dir, "matte_" + String(files.count).padStart(6, "0") + ".png"))) return false;
+    const fs = hostSdk.files;
+    if (!(await fs.exists(fs.join(files.dir, "matte_" + String(files.count).padStart(6, "0") + ".png")))) return false;
     return (await depthCurrentKey(sid, excluded)) === files.sourceKey;
   } catch {
     return false;
@@ -1586,6 +1591,7 @@ function depthClipBaseName(name) {
 // Speaker masks run on the Mac's own frameworks through osascript (Vision person segmentation,
 // macOS 12 or later); nothing is installed.
 async function depthHasMaskSupport(sdk) {
+  hostUseSdk(sdk);
   const r = await sdk.runShell({
     summary: "Check the speaker mask support",
     timeoutMs: 20000,
@@ -1740,6 +1746,7 @@ function DepthVideo({ preview, time, playing, onTime, onEnded, onError }) {
   return h('div',{ref:mount,style:{position:'absolute',inset:0}});
 }
 export default function DepthTypePanel({ sdk, context }) {
+  hostUseSdk(sdk);
   if (context.template) return h(DepthTemplateRun, { sdk, context });
   return h(DepthEditor, {
     key: String(context.projectId) + ":" + String(context.sequenceId),
@@ -1805,13 +1812,19 @@ function DepthEditor({ sdk, context }) {
   }, [settings, plan, owned, summary, maskFiles, savedMasks]);
   // Reopening the panel keeps the last full-size render as the preview video.
   useEffect(() => {
+    let live = true;
     if (!maskFiles?.render) return;
+    (async () => {
     try {
-      const fs = depthDI().di.FileSystem;
-      if (!fs.existsSync(maskFiles.render)) return;
-      setPreview({ path: maskFiles.render, url: fs.pathToLocalURL(maskFiles.render), sourceKey: maskFiles.sourceKey, duration: maskFiles.duration, fps: maskFiles.fps, width: maskFiles.canvasWidth, height: maskFiles.canvasHeight });
+      const fs = hostSdk.files;
+      if (!(await fs.exists(maskFiles.render))) return;
+      const url = await fs.pathToLocalURL(maskFiles.render);
+      if (!live) return;
+      setPreview({ path: maskFiles.render, url, sourceKey: maskFiles.sourceKey, duration: maskFiles.duration, fps: maskFiles.fps, width: maskFiles.canvasWidth, height: maskFiles.canvasHeight });
       depthLoadLayoutMask(maskFiles).then((m) => alive.current && setMask((current) => current || m)).catch(() => {});
     } catch {}
+    })();
+    return () => { live = false; };
   }, []);
   useEffect(() => {
     if (!pid || !sid) return;
@@ -2323,3 +2336,6 @@ function DepthEditor({ sdk, context }) {
     fineTune,
   );
 }
+
+let hostSdk: any = null;
+function hostUseSdk(sdk: any) { hostSdk = sdk; if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin."); }

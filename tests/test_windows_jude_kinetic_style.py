@@ -71,7 +71,7 @@ class JudeWindowsTest(unittest.TestCase):
     def test_folders_and_ffprobe_come_from_the_host(self):
         self.assertIn('hostRoots(sdk, PANEL_ID,', self.runtime)
         self.assertIn("runFFprobe([", self.runtime)
-        self.assertIn("mkdirSync(jobDir,{recursive:true})", self.runtime)
+        self.assertIn("mkdir(jobDir,{recursive:true})", self.runtime)
         self.assertFalse('instanceof Uint8Array' in self.own, 'instanceof on host bytes')
         self.assertFalse("+'/" in self.own, "'/' path joins")
 

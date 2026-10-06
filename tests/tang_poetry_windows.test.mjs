@@ -1,3 +1,4 @@
+import {asyncSdk} from './windows_host.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,7 +10,9 @@ const source = fs.readFileSync(process.env.TANG_PANEL || new URL('../plugins/tan
 const prefix = source.slice(0, source.indexOf('export default function Panel')).replace(/^import React from "react";\s*/m, '').replace(/^export /gm, '');
 function load(extra = {}) {
   const ctx = {TextDecoder, TextEncoder, Uint8Array, AbortController, setTimeout, clearTimeout, ...extra};
-  vm.runInNewContext(stripTypeScriptTypes(prefix) + '\nglobalThis.api={voxHostIO,voxImportScript,voxReadyScript,voxKenBurnsArgs,voxSheetJobs,voxFontOption,hostBytes,draftScript};', ctx);
+  ctx.__sdk = asyncSdk(ctx.window?.parent?.__DI__);
+  if (ctx.window?.parent) ctx.window.parent.__DI__ = new Proxy({}, {get() { throw Error('Migrated DI access'); }});
+  vm.runInNewContext(stripTypeScriptTypes(prefix) + '\nhostUseSdk(__sdk); globalThis.api={voxHostIO,voxImportScript,voxReadyScript,voxKenBurnsArgs,voxSheetJobs,voxFontOption,hostBytes,draftScript};', ctx);
   return ctx.api;
 }
 const execute = (script, selects) => vm.runInNewContext(stripTypeScriptTypes(`(async function(selects){${script}})`))(selects);

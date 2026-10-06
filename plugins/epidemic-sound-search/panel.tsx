@@ -645,11 +645,11 @@ const loadState = () => {
 };
 
 // A local file URL the host can stream, or "" when this build has none.
-const localUrl = (path: string) => {
+const localUrl = async (path: string) => {
   try {
-    const fs = (window.parent as any)?.__DI__?.FileSystem;
+    const fs = hostSdk.files;
     if (path && typeof fs?.pathToLocalURL === "function") {
-      return String(fs.pathToLocalURL(path) || "");
+      return String((await fs.pathToLocalURL(path)) || "");
     }
   } catch {
     /* no local URL */
@@ -684,9 +684,8 @@ const hostLocalPeaks = async (path: string): Promise<number[] | null> => {
   let fs: any;
   let tmp = "";
   try {
-    const di = (window.parent as any)?.__DI__;
-    const rt = di?.Runtime;
-    fs = di?.FileSystem;
+    const rt = hostSdk.media;
+    fs = hostSdk.files;
     if (
       !path ||
       typeof rt?.runFFmpeg !== "function" ||
@@ -697,7 +696,7 @@ const hostLocalPeaks = async (path: string): Promise<number[] | null> => {
       return null;
     }
     tmp = fs.join(
-      fs.getOrCreateTmpDirPath(),
+      (await fs.getOrCreateTmpDirPath()),
       "ess-wave-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".pcm"
     );
     await rt.runFFmpeg(
@@ -712,7 +711,7 @@ const hostLocalPeaks = async (path: string): Promise<number[] | null> => {
     return null;
   } finally {
     if (tmp && typeof fs?.removeFile === "function") {
-      fs.removeFile({ filePath: tmp }).catch(() => {});
+      await fs.removeFile({ filePath: tmp }).catch(() => {});
     }
   }
 };
@@ -790,6 +789,7 @@ const titleStyle = {
 const muted = { color: "var(--panel-muted-fg)" };
 
 export default function Panel({ sdk, context, ui }) {
+  hostUseSdk(sdk);
   const saved = React.useRef<any>(loadState()).current;
 
   // ---- settings (one file, always written whole) ---------------------------
@@ -2904,10 +2904,10 @@ export default function Panel({ sdk, context, ui }) {
                       <ui.IconButton
                         icon={playing === key ? "pause" : "play"}
                         label={playing === key ? "Stop" : "Play"}
-                        onClick={() =>
+                        onClick={async () =>
                           togglePlay(
                             key,
-                            missing[key] ? "" : localUrl(e.path),
+                            missing[key] ? "" : (await localUrl(e.path)),
                             e.wf || "",
                             e.mp3,
                             missing[key] ? "" : e.path || "",
@@ -3141,3 +3141,6 @@ export default function Panel({ sdk, context, ui }) {
     />
   );
 }
+
+let hostSdk: any = null;
+function hostUseSdk(sdk: any) { hostSdk = sdk; if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin."); }

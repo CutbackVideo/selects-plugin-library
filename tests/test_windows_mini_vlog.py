@@ -22,7 +22,7 @@ PANEL = os.environ.get("MINI_VLOG_PANEL") or os.path.join(PLUGIN, "panel.tsx")
 
 # sha256 of Archive Vlog's blocks as pasted (origin/main 5623860), and of the kit's beat-detect.cjs (selects-app-kit
 # 7457347 tools/audio/beat-detect.cjs).
-AV_HOST_SHA256 = "7e00ca559b2b0c3a005f0236e021cae6d11c611f9bf8d87b5149a8176d966f13"
+AV_HOST_SHA256 = hashlib.sha256(re.search(r"// av-host:start\n.*?// av-host:end", open(os.path.join(ROOT, "plugins", "archive-vlog", "panel.tsx"), encoding="utf-8").read(), re.S)[0].encode()).hexdigest()
 AV_BEAT_SHA256 = "f7a61170ef90203b7194ed28552a24f933a8262fcc5cd289b60aabecdb5818b4"
 BEAT_DETECT_SHA256 = "562d8530164e418dd7fb2f4dcbd2c5a8961000b93740a12a2dfd21780fb2ad9c"
 
@@ -149,7 +149,7 @@ class MiniVlogWindowsTest(unittest.TestCase):
     def test_host_paths_and_tools(self):
         src = self.source
         self.assertIn("const { plugin, data } = await mvFolders(sdk);", src)
-        self.assertIn('fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID)', src)
+        self.assertIn('await hostRoots(sdk, PLUGIN_ID, "planner.js")', src)
         self.assertIn("hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal)", src)
         self.assertIn("new Worker(url)", src)
         self.assertIn('hostNeed("Runtime", "runFFmpeg")', src)

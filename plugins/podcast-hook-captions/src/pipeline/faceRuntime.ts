@@ -33,12 +33,12 @@ const errText = (e: any) => String((e && e.message) || e || "unknown error").sli
 
 /** A cached file whose sha256 matches, else null (a damaged copy is deleted). */
 async function readVerified(path: string, file: PinnedFile): Promise<Uint8Array | null> {
-  if (!fs().existsSync(path)) return null;
+  if (!(await fs().exists(path))) return null;
   try {
     const bytes = toBytes(await fs().readFile(path));
     if (bytes.length === file.bytes && (await sha256(bytes)) === file.sha256) return bytes;
   } catch {}
-  removeQuiet(path);
+  (await removeQuiet(path));
   return null;
 }
 
@@ -46,7 +46,7 @@ async function readVerified(path: string, file: PinnedFile): Promise<Uint8Array 
 async function renameWithRetry(from: string, to: string) {
   for (let k = 0; ; k += 1) {
     try {
-      fs().renameSync(from, to);
+      (await fs().rename(from, to));
       return;
     } catch (e) {
       if (k >= 4) throw e;
@@ -61,14 +61,14 @@ async function download(file: PinnedFile, dest: string): Promise<Uint8Array> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const url = file.urls[Math.min(attempt, file.urls.length - 1)];
     const part = dest + ".part" + attempt;
-    removeQuiet(part);
+    (await removeQuiet(part));
     try {
       let timer: any = null;
       await Promise.race([
         fs().downloadFile(url, part),
         new Promise((_, reject) => (timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS / 1000 + " s")), DOWNLOAD_TIMEOUT_MS))),
       ]).finally(() => clearTimeout(timer));
-      if (!fs().existsSync(part)) throw new Error("nothing was saved");
+      if (!(await fs().exists(part))) throw new Error("nothing was saved");
       const bytes = toBytes(await fs().readFile(part));
       if (bytes.length !== file.bytes) throw new Error("the server sent " + bytes.length + " bytes, not " + file.bytes);
       const got = await sha256(bytes);
@@ -77,7 +77,7 @@ async function download(file: PinnedFile, dest: string): Promise<Uint8Array> {
       return bytes;
     } catch (e) {
       reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText(e));
-      removeQuiet(part);
+      (await removeQuiet(part));
     }
   }
   throw new Error("Could not download the " + file.label + " (" + file.name + "). " + reasons.join("; ") + ". Check the internet connection and try again.");
@@ -106,7 +106,7 @@ async function pinnedFiles(want: Wanted[], progress: (s: string) => void): Promi
   }
   for (let i = 0; i < want.length; i += 1) {
     if (got[i]) continue;
-    fs().mkdirSync(fs().dirname(want[i].dest), { recursive: true });
+    (await fs().mkdir(fs().dirname(want[i].dest), { recursive: true }));
     got[i] = { bytes: await download(want[i].file, want[i].dest), path: want[i].dest };
   }
   return got as { bytes: Uint8Array; path: string }[];

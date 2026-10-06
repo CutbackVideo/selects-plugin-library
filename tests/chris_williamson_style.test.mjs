@@ -1,3 +1,4 @@
+import {asyncSdk} from './windows_host.mjs';
 // Chris Williamson Style: host path keys, and the panel's port of engine.mjs (shots, faces, candidates, assets on
 // the host's ffmpeg) checked against engine.mjs itself on the same inputs. The panel code runs in node:vm with a
 // stand-in host (window.parent.__DI__) whose ffmpeg is the local one, so values cross realms as they do in Selects.
@@ -93,9 +94,11 @@ function host(platform, downloads = {}, encoders = null) {
 }
 function loadEngine(platform, {downloads, fetch, encoders} = {}) {
   const code = [region('// av-host:start', '// av-host:end'), line('const q = ').replace('(v: string)', '(v)'), region('// cw-engine:start', '// cw-engine:end'),
-    '({cwEngine, cwPickEncoder, cwCommonsRows: typeof cwCommonsRows === "function" ? cwCommonsRows : null, cwFetchCapped, cwFfmpegFetch, CW_MAX_BYTES})'].join('\n');
+    'hostUseSdk(__sdk); ({cwEngine, cwPickEncoder, cwCommonsRows: typeof cwCommonsRows === "function" ? cwCommonsRows : null, cwFetchCapped, cwFfmpegFetch, CW_MAX_BYTES})'].join('\n');
   const context = vm.createContext({window: {parent: {__DI__: host(platform, downloads, encoders)}}, navigator: {platform: platform === 'win32' ? 'Win32' : 'MacIntel', userAgent: ''},
     setTimeout, clearTimeout, AbortController, TextEncoder, TextDecoder, console, fetch});
+  context.__sdk = asyncSdk(context.window.parent.__DI__);
+  context.window.parent.__DI__ = new Proxy({}, { get() { throw Error('Migrated DI access'); } });
   return vm.runInContext(code, context);
 }
 // engine.mjs on the same job, in its own folder.
